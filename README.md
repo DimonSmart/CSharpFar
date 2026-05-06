@@ -6,9 +6,9 @@ Built with C# and .NET 10.
 
 ## Current status
 
-**Stage 3 complete** — command line and shell execution.
+**Stage 4 complete** — Ctrl+O shell output view.
 
-The application shows two file panels with keyboard navigation, a live command line, and shell command execution via `cmd.exe`.
+The application shows two file panels with keyboard navigation, a live command line, shell command execution via `cmd.exe`, and Ctrl+O to toggle between panels and the last shell output.
 
 ## Requirements
 
@@ -83,24 +83,27 @@ CSharpFar.sln
   `Tab` (switch panel), `F10` (quit)
 - 31 tests passing (15 PanelController + 8 driver + 5 renderer + 3 smoke)
 
-## Known limitations
-
-- No command line yet (Stage 3).
-- No file operations yet (Stages 6–9).
-- History and settings not persisted (Stages 10–15).
 ### Stage 3 — Command line and shell execution
 - Added `CommandLineState` — character buffer with cursor, insert/delete/move operations
 - Added `ShellService` — executes `cmd.exe /c <command>` with inherited console (output visible)
 - Added `InMemoryHistoryStore` — in-memory command and directory history with duplicate suppression
 - Added `CommandLineRenderer` — renders the command line with scrolling text when input exceeds width
-- Command execution flow: scroll panels to scroll-back buffer → show prompt → run command → refresh panels
+- Command execution flow: restore shell underlay → show prompt → run command → capture output → refresh panels
 - `PanelController.RefreshDirectory` — reloads directory while preserving cursor position by name
 - Key routing: printable chars → command line; arrows → panel navigation; Enter → execute or enter dir
 - `Escape` clears the command line; `Backspace` on empty line goes to parent directory
 - 50 tests passing
 
+### Stage 4 — Ctrl+O shell output view
+- `_panelsVisible` flag gates `Render()` in the main loop; toggled by `Ctrl+O`
+- `_underlay` (`ScreenSnapshot?`) stores the last captured screen before panels were drawn
+- `CaptureUnderlay()` called (a) once at startup before first paint, (b) after each shell command before panels redraw
+- `TogglePanels()`: hide → `Restore(_underlay)` shows last shell output; show → main loop calls `Render()`
+- Panel navigation state (`FilePanelState`) is untouched while panels are hidden — cursor and directory preserved
+- `Ctrl+O` checked before printable-char routing so `O` can still be typed in the command line
+- 54 tests passing (50 previous + 4 underlay snapshot tests)
+
 ## Known limitations
 
-- `Ctrl+O` (shell output view) not yet implemented — that is Stage 4.
 - History not persisted to disk yet — that is Stage 10.
 - `CursorVisible` setter may throw in redirected-output environments.

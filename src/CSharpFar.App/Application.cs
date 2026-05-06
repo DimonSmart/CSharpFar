@@ -10,6 +10,13 @@ namespace CSharpFar.App;
 
 public sealed class Application
 {
+    private enum RenderScope
+    {
+        None,
+        CommandLine,
+        Full,
+    }
+
     private readonly ScreenRenderer _screen;
     private readonly PanelController _ctrl;
     private readonly IShellService _shell;
@@ -19,14 +26,16 @@ public sealed class Application
     private readonly FilePanelState _right;
     private readonly CommandLineState _cmdLine = new();
 
-    private PanelSide _active  = PanelSide.Left;
-    private bool      _running = true;
+    private PanelSide     _active       = PanelSide.Left;
+    private bool          _running      = true;
+    private bool          _panelsVisible = true;
+    private ScreenSnapshot? _underlay;          // last known screen content before panels
 
     public Application(
-        ScreenRenderer  screen,
+        ScreenRenderer     screen,
         IFileSystemService fs,
-        IShellService   shell,
-        IHistoryStore?  history = null)
+        IShellService      shell,
+        IHistoryStore?     history = null)
     {
         _screen  = screen;
         _ctrl    = new PanelController(fs);
@@ -45,13 +54,20 @@ public sealed class Application
     {
         try
         {
+            // Capture what was in the terminal before we draw anything.
+            // This becomes the initial underlay shown by Ctrl+O.
+            CaptureUnderlay();
+
             Render();
+
             while (_running)
             {
                 var key = _screen.ReadKey();
-                HandleKey(key);
-                if (_running) Render();
+                var renderScope = HandleKey(key);
+                if (_running && _panelsVisible)
+                    Render(renderScope);
             }
+
             _screen.ClearScreen();
         }
         finally
@@ -61,6 +77,19 @@ public sealed class Application
     }
 
     // ── rendering ─────────────────────────────────────────────────────────────
+
+    private void Render(RenderScope scope)
+    {
+        switch (scope)
+        {
+            case RenderScope.Full:
+                Render();
+                break;
+            case RenderScope.CommandLine:
+                RenderCommandLine();
+                break;
+        }
+    }
 
     private void Render()
     {
@@ -75,20 +104,64 @@ public sealed class Application
         panelRenderer.Render(new Rect(0,     0, leftW,  panelH), _left,  _active == PanelSide.Left);
         panelRenderer.Render(new Rect(leftW, 0, rightW, panelH), _right, _active == PanelSide.Right);
 
-        // Command line
         var cmdRenderer = new CommandLineRenderer(_screen);
         cmdRenderer.Render(panelH, size.Width, ActiveState.CurrentDirectory, _cmdLine);
 
-        // Key bar
         new StatusBarRenderer(_screen).Render(size.Height - 1, size.Width);
 
-        // Position cursor in command line and show it
+        PositionCommandCursor(cmdRenderer, size, panelH);
+    }
+
+    private void RenderCommandLine()
+    {
+        _screen.SetCursorVisible(false);
+
+        var size = _screen.GetSize();
+        int row = size.Height - 2;
+        var cmdRenderer = new CommandLineRenderer(_screen);
+        cmdRenderer.Render(row, size.Width, ActiveState.CurrentDirectory, _cmdLine);
+        PositionCommandCursor(cmdRenderer, size, row);
+    }
+
+    private void PositionCommandCursor(CommandLineRenderer cmdRenderer, ConsoleSize size, int row)
+    {
         int curX = cmdRenderer.GetCursorX(size.Width, ActiveState.CurrentDirectory, _cmdLine);
         if (curX >= 0 && curX < size.Width)
         {
-            _screen.SetCursorPosition(curX, panelH);
+            _screen.SetCursorPosition(curX, row);
             _screen.SetCursorVisible(true);
         }
+    }
+
+    // ── Ctrl+O ────────────────────────────────────────────────────────────────
+
+    /// <summary>Captures the full visible screen as the underlay snapshot.</summary>
+    private void CaptureUnderlay()
+    {
+        var size = _screen.GetSize();
+        _underlay = _screen.Capture(new Rect(0, 0, size.Width, size.Height));
+    }
+
+    /// <summary>
+    /// Toggles panel visibility.
+    /// Hide: restores the last captured underlay so the user sees shell output.
+    /// Show: Render() will be called by the main loop.
+    /// </summary>
+    private RenderScope TogglePanels()
+    {
+        _panelsVisible = !_panelsVisible;
+
+        if (!_panelsVisible)
+        {
+            _screen.SetCursorVisible(true);
+            if (_underlay is not null)
+                _screen.Restore(_underlay);
+            else
+                _screen.ClearScreen();
+            return RenderScope.None;
+        }
+
+        return RenderScope.Full;
     }
 
     // ── key handling ──────────────────────────────────────────────────────────
@@ -102,15 +175,22 @@ public sealed class Application
         return PanelRenderer.VisibleRows(new Rect(0, 0, 0, panelH));
     }
 
-    private void HandleKey(ConsoleKeyInfo key)
+    private RenderScope HandleKey(ConsoleKeyInfo key)
     {
+        // Ctrl+O: toggle panels — check before printable-char routing
+        if (key.Key == ConsoleKey.O && key.Modifiers == ConsoleModifiers.Control)
+            return TogglePanels();
+
+        if (!_panelsVisible)
+            return RenderScope.None;
+
         // Printable characters always go to the command line
         bool isPrintable = key.KeyChar >= ' ' &&
             (key.Modifiers & (ConsoleModifiers.Control | ConsoleModifiers.Alt)) == 0;
         if (isPrintable)
         {
             _cmdLine.Insert(key.KeyChar);
-            return;
+            return RenderScope.CommandLine;
         }
 
         int vr = VisibleRows();
@@ -120,74 +200,69 @@ public sealed class Application
             // ── Command line editing ──────────────────────────────────────────
             case ConsoleKey.LeftArrow:
                 _cmdLine.MoveCursor(-1);
-                break;
+                return RenderScope.CommandLine;
 
             case ConsoleKey.RightArrow:
                 _cmdLine.MoveCursor(+1);
-                break;
+                return RenderScope.CommandLine;
 
             case ConsoleKey.Home:
-                if (_cmdLine.HasText)
-                    _cmdLine.MoveToStart();
-                else
-                    _ctrl.MoveToFirst(ActiveState);
-                break;
+                if (_cmdLine.HasText) _cmdLine.MoveToStart();
+                else _ctrl.MoveToFirst(ActiveState);
+                return _cmdLine.HasText ? RenderScope.CommandLine : RenderScope.Full;
 
             case ConsoleKey.End:
-                if (_cmdLine.HasText)
-                    _cmdLine.MoveToEnd();
-                else
-                    _ctrl.MoveToLast(ActiveState, vr);
-                break;
+                if (_cmdLine.HasText) _cmdLine.MoveToEnd();
+                else _ctrl.MoveToLast(ActiveState, vr);
+                return _cmdLine.HasText ? RenderScope.CommandLine : RenderScope.Full;
 
             case ConsoleKey.Delete:
                 _cmdLine.DeleteForward();
-                break;
+                return RenderScope.CommandLine;
 
             case ConsoleKey.Backspace:
-                if (_cmdLine.HasText)
-                    _cmdLine.DeleteBack();
-                else
-                    TryGoUp();
-                break;
+                bool hadCommandText = _cmdLine.HasText;
+                if (hadCommandText) _cmdLine.DeleteBack();
+                else TryGoUp();
+                return hadCommandText ? RenderScope.CommandLine : RenderScope.Full;
 
             case ConsoleKey.Escape:
                 _cmdLine.Clear();
-                break;
+                return RenderScope.CommandLine;
 
             // ── Execution ─────────────────────────────────────────────────────
             case ConsoleKey.Enter:
-                if (_cmdLine.HasText)
-                    ExecuteCommand(_cmdLine.Text);
-                else
-                    TryEnterDirectory();
-                break;
+                if (_cmdLine.HasText) ExecuteCommand(_cmdLine.Text);
+                else TryEnterDirectory();
+                return RenderScope.Full;
 
             // ── Panel navigation ──────────────────────────────────────────────
             case ConsoleKey.Tab:
                 _active = _active == PanelSide.Left ? PanelSide.Right : PanelSide.Left;
-                break;
+                return RenderScope.Full;
 
             case ConsoleKey.UpArrow:
                 _ctrl.MoveCursor(ActiveState, -1, vr);
-                break;
+                return RenderScope.Full;
 
             case ConsoleKey.DownArrow:
                 _ctrl.MoveCursor(ActiveState, +1, vr);
-                break;
+                return RenderScope.Full;
 
             case ConsoleKey.PageUp:
                 _ctrl.MoveCursor(ActiveState, -vr, vr);
-                break;
+                return RenderScope.Full;
 
             case ConsoleKey.PageDown:
                 _ctrl.MoveCursor(ActiveState, +vr, vr);
-                break;
+                return RenderScope.Full;
 
             case ConsoleKey.F10:
                 _running = false;
-                break;
+                return RenderScope.None;
         }
+
+        return RenderScope.None;
     }
 
     // ── shell execution ───────────────────────────────────────────────────────
@@ -197,9 +272,10 @@ public sealed class Application
         string workDir = ActiveState.CurrentDirectory;
         _cmdLine.Clear();
 
-        // Scroll UI off the visible area so shell output appears cleanly
-        // TODO Stage 4: replace with proper IConsoleDriver.Capture/Restore for Ctrl+O
-        ScrollPanelsOff();
+        // Ensure panels are visible when we return (they may have been hidden)
+        _panelsVisible = true;
+
+        ShowShellUnderlayForCommand();
         PrintShellPrompt(workDir, command);
 
         _shell.Execute(command, workDir);
@@ -210,29 +286,27 @@ public sealed class Application
             WorkingDirectory = workDir,
         });
 
+        // Capture shell output NOW, before Render() paints panels over it.
+        // This snapshot is what Ctrl+O will restore.
+        CaptureUnderlay();
+
         RefreshPanels();
-        // Render() is called by the main loop after HandleKey returns
+        // Render() is called by the main loop since _panelsVisible == true
     }
 
-    /// <summary>
-    /// Scrolls the visible window so that all panel content moves into the scroll-back
-    /// buffer and the shell command output can appear in a clean screen area.
-    /// The content remains accessible via Ctrl+O once Stage 4 is implemented.
-    /// </summary>
-    private static void ScrollPanelsOff()
+    private void ShowShellUnderlayForCommand()
     {
+        if (_underlay is not null)
+            _screen.Restore(_underlay);
+        else
+            _screen.ClearScreen();
+
         SysConsole.ResetColor();
         SysConsole.CursorVisible = true;
 
-        int h = SysConsole.WindowHeight;
-        // Move to the last row of the visible window
-        SysConsole.SetCursorPosition(0, SysConsole.WindowTop + h - 1);
-        // Print h blank lines — this scrolls all panel content into the scroll-back buffer
-        for (int i = 0; i < h; i++)
-            SysConsole.WriteLine();
-
-        // Position at the top of the now-empty visible area
-        SysConsole.SetCursorPosition(0, SysConsole.WindowTop);
+        var size = _screen.GetSize();
+        SysConsole.SetCursorPosition(0, SysConsole.WindowTop + size.Height - 1);
+        SysConsole.WriteLine();
     }
 
     private static void PrintShellPrompt(string workDir, string command)
@@ -274,29 +348,16 @@ public sealed class Application
         catch { }
     }
 
-    // Alias to avoid naming conflict with CSharpFar.Console namespace
+    // ── alias to avoid namespace conflict with CSharpFar.Console ─────────────
     private static class SysConsole
     {
-        public static int WindowHeight
-        {
-            get => global::System.Console.WindowHeight;
-        }
-        public static int WindowTop
-        {
-            get => global::System.Console.WindowTop;
-        }
-        public static bool CursorVisible
-        {
-            set => global::System.Console.CursorVisible = value;
-        }
-        public static ConsoleColor ForegroundColor
-        {
-            set => global::System.Console.ForegroundColor = value;
-        }
-        public static void ResetColor()  => global::System.Console.ResetColor();
-        public static void Write(string s) => global::System.Console.Write(s);
+        public static int  WindowTop    { get => global::System.Console.WindowTop;    }
+        public static bool CursorVisible { set => global::System.Console.CursorVisible = value; }
+        public static ConsoleColor ForegroundColor { set => global::System.Console.ForegroundColor = value; }
+        public static void ResetColor() => global::System.Console.ResetColor();
+        public static void Write(string s)    => global::System.Console.Write(s);
         public static void WriteLine(string s) => global::System.Console.WriteLine(s);
-        public static void WriteLine()     => global::System.Console.WriteLine();
+        public static void WriteLine()         => global::System.Console.WriteLine();
         public static void SetCursorPosition(int x, int y) =>
             global::System.Console.SetCursorPosition(x, y);
     }

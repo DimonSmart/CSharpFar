@@ -27,6 +27,8 @@ mono_crash.*
 x64/
 x86/
 [Ww][Ii][Nn]32/
+!src/CSharpFar.Console/Win32/
+!src/CSharpFar.Console/Win32/**
 [Aa][Rr][Mm]/
 [Aa][Rr][Mm]64/
 bld/

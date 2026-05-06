@@ -35,7 +35,7 @@ public sealed class SystemConsoleDriver : IConsoleDriver
         if (text.IsEmpty || x < 0 || y < 0)
             return;
 
-        int width = global::System.Console.BufferWidth;
+        int width = global::System.Console.WindowWidth;
         int height = global::System.Console.WindowHeight;
 
         if (y >= height || x >= width)
@@ -43,16 +43,26 @@ public sealed class SystemConsoleDriver : IConsoleDriver
 
         int maxLen = width - x;
         var span = text.Length > maxLen ? text[..maxLen] : text;
+        var fg = foreground ?? global::System.Console.ForegroundColor;
+        var bg = background ?? global::System.Console.BackgroundColor;
+
+        if (OperatingSystem.IsWindows())
+        {
+            WriteAtWindows(x, y, span, fg, bg);
+            return;
+        }
 
         var prevFg = global::System.Console.ForegroundColor;
         var prevBg = global::System.Console.BackgroundColor;
 
         try
         {
-            if (foreground.HasValue) global::System.Console.ForegroundColor = foreground.Value;
-            if (background.HasValue) global::System.Console.BackgroundColor = background.Value;
+            global::System.Console.ForegroundColor = fg;
+            global::System.Console.BackgroundColor = bg;
 
-            global::System.Console.SetCursorPosition(x, y);
+            global::System.Console.SetCursorPosition(
+                global::System.Console.WindowLeft + x,
+                global::System.Console.WindowTop + y);
             global::System.Console.Write(span);
         }
         finally
@@ -75,26 +85,14 @@ public sealed class SystemConsoleDriver : IConsoleDriver
             return;
 
         var spaces = new string(' ', w);
-        var prevFg = global::System.Console.ForegroundColor;
-        var prevBg = global::System.Console.BackgroundColor;
-
-        try
-        {
-            for (int y = y1; y < y2; y++)
-            {
-                global::System.Console.SetCursorPosition(x1, y);
-                global::System.Console.Write(spaces);
-            }
-        }
-        finally
-        {
-            global::System.Console.ForegroundColor = prevFg;
-            global::System.Console.BackgroundColor = prevBg;
-        }
+        for (int y = y1; y < y2; y++)
+            WriteAt(x1, y, spaces.AsSpan());
     }
 
     public void SetCursorPosition(int x, int y) =>
-        global::System.Console.SetCursorPosition(x, y);
+        global::System.Console.SetCursorPosition(
+            global::System.Console.WindowLeft + x,
+            global::System.Console.WindowTop + y);
 
     public void SetCursorVisible(bool visible) =>
         global::System.Console.CursorVisible = visible;
@@ -115,14 +113,41 @@ public sealed class SystemConsoleDriver : IConsoleDriver
     }
 
     [SupportedOSPlatform("windows")]
+    private static void WriteAtWindows(int x, int y, ReadOnlySpan<char> text, ConsoleColor foreground, ConsoleColor background)
+    {
+        int w = text.Length;
+        var raw = new CharInfo[w];
+        short attributes = Win32ConsoleApi.MakeAttributes(foreground, background);
+
+        for (int col = 0; col < w; col++)
+        {
+            raw[col] = new CharInfo
+            {
+                UnicodeChar = text[col],
+                Attributes = attributes,
+            };
+        }
+
+        var sr = new SmallRect
+        {
+            Left = (short)(global::System.Console.WindowLeft + x),
+            Top = (short)(global::System.Console.WindowTop + y),
+            Right = (short)(global::System.Console.WindowLeft + x + w - 1),
+            Bottom = (short)(global::System.Console.WindowTop + y),
+        };
+
+        Win32ConsoleApi.WriteRegion(Win32ConsoleApi.GetConsoleOutputHandle(), raw, sr);
+    }
+
+    [SupportedOSPlatform("windows")]
     private ScreenSnapshot CaptureWindows(Rect region)
     {
         var sr = new SmallRect
         {
-            Left = (short)region.X,
-            Top = (short)region.Y,
-            Right = (short)(region.Right - 1),
-            Bottom = (short)(region.Bottom - 1),
+            Left = (short)(global::System.Console.WindowLeft + region.X),
+            Top = (short)(global::System.Console.WindowTop + region.Y),
+            Right = (short)(global::System.Console.WindowLeft + region.Right - 1),
+            Bottom = (short)(global::System.Console.WindowTop + region.Bottom - 1),
         };
 
         var raw = Win32ConsoleApi.ReadRegion(_consoleHandle, sr);
@@ -180,10 +205,10 @@ public sealed class SystemConsoleDriver : IConsoleDriver
 
         var sr = new SmallRect
         {
-            Left = (short)snapshot.Region.X,
-            Top = (short)snapshot.Region.Y,
-            Right = (short)(snapshot.Region.Right - 1),
-            Bottom = (short)(snapshot.Region.Bottom - 1),
+            Left = (short)(global::System.Console.WindowLeft + snapshot.Region.X),
+            Top = (short)(global::System.Console.WindowTop + snapshot.Region.Y),
+            Right = (short)(global::System.Console.WindowLeft + snapshot.Region.Right - 1),
+            Bottom = (short)(global::System.Console.WindowTop + snapshot.Region.Bottom - 1),
         };
 
         Win32ConsoleApi.WriteRegion(_consoleHandle, raw, sr);
