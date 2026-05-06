@@ -184,8 +184,17 @@ public sealed class Application
         if (!_panelsVisible)
             return RenderScope.None;
 
-        // Ctrl+F3/F4/F5/F6 — sort; Ctrl+A — select all
-        if (key.Modifiers == ConsoleModifiers.Control)
+        if (key.KeyChar == '\u0001')
+        {
+            _ctrl.ToggleSelectAll(ActiveState);
+            return RenderScope.Full;
+        }
+
+        // Ctrl+F3/F4/F5/F6 — sort; Ctrl+A — select all; Ctrl+* — invert selection
+        bool isControlShortcut =
+            (key.Modifiers & ConsoleModifiers.Control) != 0 &&
+            (key.Modifiers & ConsoleModifiers.Alt) == 0;
+        if (isControlShortcut)
         {
             int vr0 = VisibleRows();
             switch (key.Key)
@@ -195,6 +204,12 @@ public sealed class Application
                 case ConsoleKey.F5: _ctrl.SetSortMode(ActiveState, SortMode.LastWriteTime, vr0); return RenderScope.Full;
                 case ConsoleKey.F6: _ctrl.SetSortMode(ActiveState, SortMode.Size,          vr0); return RenderScope.Full;
                 case ConsoleKey.A:  _ctrl.ToggleSelectAll(ActiveState);                          return RenderScope.Full;
+                case ConsoleKey.Multiply:
+                    _ctrl.InvertSelection(ActiveState);
+                    return RenderScope.Full;
+                case ConsoleKey.D8 when (key.Modifiers & ConsoleModifiers.Shift) != 0:
+                    _ctrl.InvertSelection(ActiveState);
+                    return RenderScope.Full;
             }
         }
 

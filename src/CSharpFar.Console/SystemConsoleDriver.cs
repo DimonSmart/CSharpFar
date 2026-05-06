@@ -11,23 +11,48 @@ namespace CSharpFar.Console;
 /// so that shell output underneath the panels is preserved for Ctrl+O.
 /// This class targets Windows. On other platforms, Capture/Restore use a blank fallback.
 /// </summary>
-public sealed class SystemConsoleDriver : IConsoleDriver
+public sealed class SystemConsoleDriver : IConsoleDriver, IDisposable
 {
     private readonly IntPtr _consoleHandle;
+    private readonly IntPtr _inputHandle;
+    private readonly uint _originalInputMode;
+    private readonly bool _restoreInputMode;
+    private bool _disposed;
 
     public SystemConsoleDriver()
     {
         if (OperatingSystem.IsWindows())
+        {
             _consoleHandle = Win32ConsoleApi.GetConsoleOutputHandle();
+            _inputHandle = Win32ConsoleApi.GetConsoleInputHandle();
+            _restoreInputMode = TryConfigureInputMode(_inputHandle, out _originalInputMode);
+        }
 
         global::System.Console.OutputEncoding = System.Text.Encoding.UTF8;
+    }
+
+    public void Dispose()
+    {
+        if (_disposed)
+            return;
+
+        if (OperatingSystem.IsWindows() && _restoreInputMode)
+            Win32ConsoleApi.TrySetConsoleMode(_inputHandle, _originalInputMode);
+
+        _disposed = true;
     }
 
     public ConsoleSize GetSize() =>
         new(global::System.Console.WindowWidth, global::System.Console.WindowHeight);
 
-    public ConsoleKeyInfo ReadKey(bool intercept) =>
-        global::System.Console.ReadKey(intercept);
+    public ConsoleKeyInfo ReadKey(bool intercept)
+    {
+        if (OperatingSystem.IsWindows() &&
+            Win32ConsoleApi.TryReadKey(_inputHandle, intercept, out var keyInfo))
+            return keyInfo;
+
+        return global::System.Console.ReadKey(intercept);
+    }
 
     public void WriteAt(int x, int y, ReadOnlySpan<char> text,
         ConsoleColor? foreground = null, ConsoleColor? background = null)
@@ -110,6 +135,23 @@ public sealed class SystemConsoleDriver : IConsoleDriver
             RestoreWindows(snapshot);
         else
             RestoreFallback(snapshot);
+    }
+
+    [SupportedOSPlatform("windows")]
+    private static bool TryConfigureInputMode(IntPtr inputHandle, out uint originalMode)
+    {
+        originalMode = 0;
+        if (!Win32ConsoleApi.TryGetConsoleMode(inputHandle, out var mode))
+            return false;
+
+        originalMode = mode;
+        uint appMode = mode;
+        appMode |= Win32ConsoleApi.ENABLE_EXTENDED_FLAGS;
+        appMode &= ~Win32ConsoleApi.ENABLE_QUICK_EDIT_MODE;
+        appMode &= ~Win32ConsoleApi.ENABLE_INSERT_MODE;
+        appMode &= ~Win32ConsoleApi.ENABLE_PROCESSED_INPUT;
+
+        return appMode == mode || Win32ConsoleApi.TrySetConsoleMode(inputHandle, appMode);
     }
 
     [SupportedOSPlatform("windows")]

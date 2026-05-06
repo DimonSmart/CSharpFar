@@ -140,6 +140,76 @@ public class SelectionSortTests
         Assert.Empty(state.SelectedPaths);
     }
 
+    [Fact]
+    public void InvertSelection_SelectsAllWhenNoneSelected()
+    {
+        var (ctrl, state) = MakePanel();
+
+        ctrl.InvertSelection(state);
+
+        Assert.Equal(5, state.SelectedPaths.Count);
+    }
+
+    [Fact]
+    public void InvertSelection_InvertsPartialSelection()
+    {
+        var (ctrl, state) = MakePanel();
+        state.SelectedPaths.Add(Root + @"\Assets");
+        state.SelectedPaths.Add(Root + @"\a_file.txt");
+
+        ctrl.InvertSelection(state);
+
+        Assert.DoesNotContain(Root + @"\Assets", state.SelectedPaths);
+        Assert.DoesNotContain(Root + @"\a_file.txt", state.SelectedPaths);
+        Assert.Contains(Root + @"\Docs", state.SelectedPaths);
+        Assert.Contains(Root + @"\b_file.csv", state.SelectedPaths);
+        Assert.Contains(Root + @"\c_file.txt", state.SelectedPaths);
+        Assert.Equal(3, state.SelectedPaths.Count);
+    }
+
+    [Fact]
+    public void InvertSelection_ClearsWhenAllSelected()
+    {
+        var (ctrl, state) = MakePanel();
+        ctrl.ToggleSelectAll(state);
+
+        ctrl.InvertSelection(state);
+
+        Assert.Empty(state.SelectedPaths);
+    }
+
+    [Fact]
+    public void InvertSelection_SkipsParentDirectory()
+    {
+        var fs = new FakeFileSystemService();
+        fs.AddDirectory(Root,
+            new FilePanelItem { Name = "..",       FullPath = @"C:\",              IsDirectory = true,  IsParentDirectory = true },
+            new FilePanelItem { Name = "file.txt", FullPath = Root + @"\file.txt", IsDirectory = false });
+
+        var ctrl  = new PanelController(fs);
+        var state = new FilePanelState { CurrentDirectory = Root };
+        ctrl.LoadDirectory(state, Root);
+
+        ctrl.InvertSelection(state);
+
+        Assert.DoesNotContain(@"C:\", state.SelectedPaths);
+        Assert.Contains(Root + @"\file.txt", state.SelectedPaths);
+        Assert.Single(state.SelectedPaths);
+    }
+
+    [Fact]
+    public void InvertSelection_DoesNotMoveCursor()
+    {
+        var (ctrl, state) = MakePanel();
+        state.CursorIndex = 3;
+        state.ScrollOffset = 1;
+
+        ctrl.InvertSelection(state);
+
+        Assert.Equal(3, state.CursorIndex);
+        Assert.Equal(1, state.ScrollOffset);
+    }
+
     // ── Sorting ───────────────────────────────────────────────────────────────
 
     [Fact]

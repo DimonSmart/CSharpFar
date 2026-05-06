@@ -8,7 +8,7 @@ Built with C# and .NET 10.
 
 **Stage 5 complete** — file selection and sorting.
 
-The application shows two file panels with navigation, a live command line, shell execution via `cmd.exe`, Ctrl+O shell output view, file selection with Insert/Ctrl+A, and panel sorting with Ctrl+F3–F6.
+The application shows two file panels with navigation, a live command line, shell execution via `cmd.exe`, Ctrl+O shell output view, file selection with Insert/Ctrl+A/Ctrl+*, and panel sorting with Ctrl+F3–F6.
 
 ## Requirements
 
@@ -106,12 +106,14 @@ CSharpFar.sln
 ### Stage 5 — File selection and sorting
 - `Insert` toggles selection of the current item and advances cursor; `..` is not selectable
 - `Ctrl+A` selects all non-parent items, or deselects all if everything is already selected
+- `Ctrl+*` inverts selection on the active panel; `Ctrl+Numpad *` and `Ctrl+Shift+8` are accepted
+- Windows console input mode is adjusted while the app runs so `Ctrl+A` reaches CSharpFar instead of selecting console text
 - `Ctrl+F3` sort by name, `Ctrl+F4` by extension, `Ctrl+F5` by last write time, `Ctrl+F6` by size
 - Pressing the same sort key again reverses the sort direction
 - Directories always appear before files in every sort mode
 - Selected items shown in yellow in both active and inactive panels
 - Footer shows selected count when items are selected; otherwise shows total count
-- 68 tests passing
+- 73 tests passing
 
 ## Known limitations
 

@@ -4,7 +4,7 @@ using CSharpFar.Core.History;
 using CSharpFar.FileSystem;
 using CSharpFar.Shell;
 
-var driver   = new SystemConsoleDriver();
+using var driver = new SystemConsoleDriver();
 var renderer = new ScreenRenderer(driver);
 var fs       = new FileSystemService();
 var shell    = new ShellService();

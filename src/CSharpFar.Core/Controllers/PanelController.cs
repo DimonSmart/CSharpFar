@@ -118,6 +118,16 @@ public sealed class PanelController
                 state.SelectedPaths.Add(item.FullPath);
     }
 
+    /// <summary>Inverts selection of all non-parent items without moving the cursor.</summary>
+    public void InvertSelection(FilePanelState state)
+    {
+        foreach (var item in state.Items.Where(i => !i.IsParentDirectory))
+        {
+            if (!state.SelectedPaths.Remove(item.FullPath))
+                state.SelectedPaths.Add(item.FullPath);
+        }
+    }
+
     // ── Sorting ───────────────────────────────────────────────────────────────
 
     /// <summary>
