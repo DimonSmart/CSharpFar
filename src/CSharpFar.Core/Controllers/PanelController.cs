@@ -83,6 +83,17 @@ public sealed class PanelController
         }
     }
 
+    /// <summary>
+    /// Moves the cursor to the item whose name matches <paramref name="name"/> (case-insensitive).
+    /// Does nothing if not found.
+    /// </summary>
+    public void SetCursorByName(FilePanelState state, string name, int visibleRows)
+    {
+        int idx = state.Items.FindIndex(
+            i => string.Equals(i.Name, name, StringComparison.OrdinalIgnoreCase));
+        if (idx >= 0) { state.CursorIndex = idx; EnsureVisible(state, visibleRows); }
+    }
+
     /// <summary>Returns the item currently under the cursor, or null.</summary>
     public FilePanelItem? CurrentItem(FilePanelState state) =>
         state.CursorIndex >= 0 && state.CursorIndex < state.Items.Count

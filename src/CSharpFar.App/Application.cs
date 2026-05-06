@@ -1,3 +1,4 @@
+using CSharpFar.App.Dialogs;
 using CSharpFar.App.Rendering;
 using CSharpFar.Console;
 using CSharpFar.Console.Models;
@@ -20,6 +21,7 @@ public sealed class Application
     private readonly ScreenRenderer _screen;
     private readonly PanelController _ctrl;
     private readonly IShellService _shell;
+    private readonly IFileOperationService _fileOps;
     private readonly IHistoryStore _history;
 
     private readonly FilePanelState _left;
@@ -32,15 +34,17 @@ public sealed class Application
     private ScreenSnapshot? _underlay;          // last known screen content before panels
 
     public Application(
-        ScreenRenderer     screen,
-        IFileSystemService fs,
-        IShellService      shell,
-        IHistoryStore?     history = null)
+        ScreenRenderer         screen,
+        IFileSystemService     fs,
+        IShellService          shell,
+        IFileOperationService  fileOps,
+        IHistoryStore?         history = null)
     {
-        _screen  = screen;
-        _ctrl    = new PanelController(fs);
-        _shell   = shell;
-        _history = history ?? new InMemoryHistoryStore();
+        _screen   = screen;
+        _ctrl     = new PanelController(fs);
+        _shell    = shell;
+        _fileOps  = fileOps;
+        _history  = history ?? new InMemoryHistoryStore();
 
         string startDir = Directory.GetCurrentDirectory();
         _left  = new FilePanelState { CurrentDirectory = startDir };
@@ -291,12 +295,41 @@ public sealed class Application
                 _ctrl.MoveCursor(ActiveState, +vr, vr);
                 return RenderScope.Full;
 
+            // ── File operations ───────────────────────────────────────────────
+            case ConsoleKey.F7:
+                HandleCreateFolder();
+                return RenderScope.Full;
+
             case ConsoleKey.F10:
                 _running = false;
                 return RenderScope.None;
         }
 
         return RenderScope.None;
+    }
+
+    // ── F7 — create folder ────────────────────────────────────────────────────
+
+    private void HandleCreateFolder()
+    {
+        var dialog = new InputDialog(_screen);
+        string? name = dialog.Show("Make Folder", "Folder name:", attempt =>
+        {
+            if (attempt.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0)
+                return "Invalid characters in folder name.";
+
+            string newPath = Path.Combine(ActiveState.CurrentDirectory, attempt);
+            try   { _fileOps.CreateDirectory(newPath); return null; }
+            catch (IOException ex)              { return ex.Message; }
+            catch (UnauthorizedAccessException) { return "Access denied."; }
+            catch (ArgumentException ex)        { return ex.Message; }
+        });
+
+        if (name is null) return;
+
+        int vr = VisibleRows();
+        SafeRefresh(ActiveState, vr);
+        _ctrl.SetCursorByName(ActiveState, name, vr);
     }
 
     // ── shell execution ───────────────────────────────────────────────────────

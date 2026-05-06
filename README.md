@@ -6,9 +6,9 @@ Built with C# and .NET 10.
 
 ## Current status
 
-**Stage 5 complete** — file selection and sorting.
+**Stage 6 complete** — F7 create folder.
 
-The application shows two file panels with navigation, a live command line, shell execution via `cmd.exe`, Ctrl+O shell output view, file selection with Insert/Ctrl+A/Ctrl+*, and panel sorting with Ctrl+F3–F6.
+The application shows two file panels with navigation, a live command line, shell execution, Ctrl+O shell output view, file selection, sorting, and F7 create folder with a modal input dialog.
 
 ## Requirements
 
@@ -115,8 +115,17 @@ CSharpFar.sln
 - Footer shows selected count when items are selected; otherwise shows total count
 - 73 tests passing
 
+### Stage 6 — F7 create folder
+- `InputDialog` — centered modal box (44×6): title in border, prompt label, scrollable input field, error row
+- `FileOperationService.CreateDirectory` — throws `IOException` if folder already exists
+- `PanelController.SetCursorByName` — positions cursor on a named item after refresh
+- `F7` opens the dialog; on confirm: creates folder, refreshes panel, positions cursor on new folder
+- Error shown inline (folder exists, access denied, invalid chars) — user can retry or Esc to cancel
+- `CSharpFar.Tests` now references `CSharpFar.FileSystem` for integration tests
+- 80 tests passing
+
 ## Known limitations
 
-- No modal dialogs yet (Stage 6 — F7 create folder).
+- No file copy/move/delete yet (Stages 7–9).
 - History not persisted to disk yet — that is Stage 10.
 - `CursorVisible` setter may throw in redirected-output environments.
