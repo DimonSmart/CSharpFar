@@ -184,6 +184,20 @@ public sealed class Application
         if (!_panelsVisible)
             return RenderScope.None;
 
+        // Ctrl+F3/F4/F5/F6 — sort; Ctrl+A — select all
+        if (key.Modifiers == ConsoleModifiers.Control)
+        {
+            int vr0 = VisibleRows();
+            switch (key.Key)
+            {
+                case ConsoleKey.F3: _ctrl.SetSortMode(ActiveState, SortMode.Name,          vr0); return RenderScope.Full;
+                case ConsoleKey.F4: _ctrl.SetSortMode(ActiveState, SortMode.Extension,     vr0); return RenderScope.Full;
+                case ConsoleKey.F5: _ctrl.SetSortMode(ActiveState, SortMode.LastWriteTime, vr0); return RenderScope.Full;
+                case ConsoleKey.F6: _ctrl.SetSortMode(ActiveState, SortMode.Size,          vr0); return RenderScope.Full;
+                case ConsoleKey.A:  _ctrl.ToggleSelectAll(ActiveState);                          return RenderScope.Full;
+            }
+        }
+
         // Printable characters always go to the command line
         bool isPrintable = key.KeyChar >= ' ' &&
             (key.Modifiers & (ConsoleModifiers.Control | ConsoleModifiers.Alt)) == 0;
@@ -234,6 +248,11 @@ public sealed class Application
             case ConsoleKey.Enter:
                 if (_cmdLine.HasText) ExecuteCommand(_cmdLine.Text);
                 else TryEnterDirectory();
+                return RenderScope.Full;
+
+            // ── Selection ────────────────────────────────────────────────────
+            case ConsoleKey.Insert:
+                _ctrl.ToggleSelection(ActiveState, vr);
                 return RenderScope.Full;
 
             // ── Panel navigation ──────────────────────────────────────────────

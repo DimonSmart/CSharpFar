@@ -22,6 +22,10 @@ internal static class Theme
     public static readonly CellStyle PathHeaderInactive  = new(ConsoleColor.DarkGray,  ConsoleColor.DarkBlue);
     public static readonly CellStyle FooterInactive      = new(ConsoleColor.DarkGray,  ConsoleColor.DarkBlue);
 
+    // --- Selected items (same in active and inactive panels, like Far Manager) ---
+    public static readonly CellStyle SelectedFile        = new(ConsoleColor.Yellow,    ConsoleColor.DarkBlue);
+    public static readonly CellStyle SelectedDirectory   = new(ConsoleColor.Yellow,    ConsoleColor.DarkBlue);
+
     // --- Command line ---
     public static readonly CellStyle CommandLine         = new(ConsoleColor.White,     ConsoleColor.Black);
 

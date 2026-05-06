@@ -50,18 +50,25 @@ internal sealed class PanelRenderer
                 continue;
             }
 
-            var item      = state.Items[itemIdx];
-            bool isCursor = itemIdx == state.CursorIndex;
-            bool isDir    = item.IsDirectory;
+            var item       = state.Items[itemIdx];
+            bool isCursor  = itemIdx == state.CursorIndex;
+            bool isDir     = item.IsDirectory;
+            bool isSelected = !item.IsParentDirectory &&
+                              state.SelectedPaths.Contains(item.FullPath);
 
-            CellStyle style = isCursor ? cursor : (isDir ? dirStyle : fileStyle);
+            CellStyle style = isCursor   ? cursor
+                            : isSelected ? (isDir ? Theme.SelectedDirectory : Theme.SelectedFile)
+                            : isDir      ? dirStyle
+                            :              fileStyle;
 
             string line = FormatItem(item, nameCol, sizeCol);
             _screen.Write(bounds.X + 1, y, line, style);
         }
 
-        // Footer in bottom border: └─ N items ──────────┘
-        string footerText = $" {state.Items.Count} items ";
+        // Footer in bottom border: └─ N selected / M items ──────────┘
+        string footerText = state.SelectedPaths.Count > 0
+            ? $" {state.SelectedPaths.Count} selected "
+            : $" {state.Items.Count} items ";
         if (footerText.Length <= bounds.Width - 4)
             _screen.Write(bounds.X + 2, bounds.Bottom - 1, footerText, footer);
     }

@@ -18,6 +18,7 @@ public sealed class PanelController
         state.Items.AddRange(items);
         state.CursorIndex = 0;
         state.ScrollOffset = 0;
+        ApplySort(state);
     }
 
     /// <summary>
@@ -87,6 +88,95 @@ public sealed class PanelController
         state.CursorIndex >= 0 && state.CursorIndex < state.Items.Count
             ? state.Items[state.CursorIndex]
             : null;
+
+    // ── Selection ─────────────────────────────────────────────────────────────
+
+    /// <summary>Toggles selection of the current item and advances the cursor.</summary>
+    public void ToggleSelection(FilePanelState state, int visibleRows)
+    {
+        var item = CurrentItem(state);
+        if (item is not null && !item.IsParentDirectory)
+        {
+            if (!state.SelectedPaths.Remove(item.FullPath))
+                state.SelectedPaths.Add(item.FullPath);
+        }
+        MoveCursor(state, +1, visibleRows);
+    }
+
+    /// <summary>
+    /// Selects all non-parent items, or clears all selections if everything is already selected.
+    /// </summary>
+    public void ToggleSelectAll(FilePanelState state)
+    {
+        var selectable = state.Items.Where(i => !i.IsParentDirectory).ToList();
+        bool allSelected = selectable.Count > 0 &&
+                           selectable.All(i => state.SelectedPaths.Contains(i.FullPath));
+
+        state.SelectedPaths.Clear();
+        if (!allSelected)
+            foreach (var item in selectable)
+                state.SelectedPaths.Add(item.FullPath);
+    }
+
+    // ── Sorting ───────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Changes the active sort mode. Calling with the current mode toggles sort direction.
+    /// Preserves the cursor position by name.
+    /// </summary>
+    public void SetSortMode(FilePanelState state, SortMode mode, int visibleRows)
+    {
+        if (state.SortMode == mode)
+            state.SortDescending = !state.SortDescending;
+        else
+        {
+            state.SortMode = mode;
+            state.SortDescending = false;
+        }
+
+        string? cursorName = CurrentItem(state)?.Name;
+        ApplySort(state);
+
+        if (cursorName is not null)
+        {
+            int idx = state.Items.FindIndex(
+                i => string.Equals(i.Name, cursorName, StringComparison.OrdinalIgnoreCase));
+            if (idx >= 0) { state.CursorIndex = idx; EnsureVisible(state, visibleRows); }
+        }
+    }
+
+    private static void ApplySort(FilePanelState state)
+    {
+        var parent = state.Items.FirstOrDefault(i => i.IsParentDirectory);
+        var dirs   = state.Items.Where(i => i.IsDirectory && !i.IsParentDirectory).ToList();
+        var files  = state.Items.Where(i => !i.IsDirectory).ToList();
+
+        var sortedDirs  = SortItems(dirs,  state.SortMode).ToList();
+        var sortedFiles = SortItems(files, state.SortMode).ToList();
+
+        if (state.SortDescending)
+        {
+            sortedDirs.Reverse();
+            sortedFiles.Reverse();
+        }
+
+        state.Items.Clear();
+        if (parent is not null) state.Items.Add(parent);
+        state.Items.AddRange(sortedDirs);
+        state.Items.AddRange(sortedFiles);
+    }
+
+    private static IEnumerable<FilePanelItem> SortItems(IEnumerable<FilePanelItem> items, SortMode mode) =>
+        mode switch
+        {
+            SortMode.Name          => items.OrderBy(i => i.Name, StringComparer.OrdinalIgnoreCase),
+            SortMode.Extension     => items
+                                         .OrderBy(i => Path.GetExtension(i.Name), StringComparer.OrdinalIgnoreCase)
+                                         .ThenBy(i => i.Name, StringComparer.OrdinalIgnoreCase),
+            SortMode.Size          => items.OrderBy(i => i.Size ?? 0),
+            SortMode.LastWriteTime => items.OrderBy(i => i.LastWriteTime),
+            _                      => items.OrderBy(i => i.Name, StringComparer.OrdinalIgnoreCase),
+        };
 
     private static void EnsureVisible(FilePanelState state, int visibleRows)
     {

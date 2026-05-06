@@ -6,9 +6,9 @@ Built with C# and .NET 10.
 
 ## Current status
 
-**Stage 4 complete** — Ctrl+O shell output view.
+**Stage 5 complete** — file selection and sorting.
 
-The application shows two file panels with keyboard navigation, a live command line, shell command execution via `cmd.exe`, and Ctrl+O to toggle between panels and the last shell output.
+The application shows two file panels with navigation, a live command line, shell execution via `cmd.exe`, Ctrl+O shell output view, file selection with Insert/Ctrl+A, and panel sorting with Ctrl+F3–F6.
 
 ## Requirements
 
@@ -103,7 +103,18 @@ CSharpFar.sln
 - `Ctrl+O` checked before printable-char routing so `O` can still be typed in the command line
 - 54 tests passing (50 previous + 4 underlay snapshot tests)
 
+### Stage 5 — File selection and sorting
+- `Insert` toggles selection of the current item and advances cursor; `..` is not selectable
+- `Ctrl+A` selects all non-parent items, or deselects all if everything is already selected
+- `Ctrl+F3` sort by name, `Ctrl+F4` by extension, `Ctrl+F5` by last write time, `Ctrl+F6` by size
+- Pressing the same sort key again reverses the sort direction
+- Directories always appear before files in every sort mode
+- Selected items shown in yellow in both active and inactive panels
+- Footer shows selected count when items are selected; otherwise shows total count
+- 68 tests passing
+
 ## Known limitations
 
+- No modal dialogs yet (Stage 6 — F7 create folder).
 - History not persisted to disk yet — that is Stage 10.
 - `CursorVisible` setter may throw in redirected-output environments.
