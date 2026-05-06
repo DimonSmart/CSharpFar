@@ -32,9 +32,10 @@ public sealed class Application
     private readonly FilePanelState _right;
     private readonly CommandLineState _cmdLine = new();
 
-    private PanelSide     _active       = PanelSide.Left;
-    private bool          _running      = true;
+    private PanelSide     _active        = PanelSide.Left;
+    private bool          _running       = true;
     private bool          _panelsVisible = true;
+    private bool          _quickView     = false;
     private ScreenSnapshot? _underlay;          // last known screen content before panels
 
     public Application(
@@ -127,8 +128,29 @@ public sealed class Application
         int rightW = size.Width - leftW;
 
         var panelRenderer = new PanelRenderer(_screen);
-        panelRenderer.Render(new Rect(0,     0, leftW,  panelH), _left,  _active == PanelSide.Left);
-        panelRenderer.Render(new Rect(leftW, 0, rightW, panelH), _right, _active == PanelSide.Right);
+
+        if (_quickView)
+        {
+            if (_active == PanelSide.Left)
+            {
+                panelRenderer.Render(new Rect(0,     0, leftW,  panelH), _left, true);
+                new QuickViewRenderer(_screen).Render(
+                    new Rect(leftW, 0, rightW, panelH),
+                    _ctrl.CurrentItem(_left));
+            }
+            else
+            {
+                new QuickViewRenderer(_screen).Render(
+                    new Rect(0,     0, leftW,  panelH),
+                    _ctrl.CurrentItem(_right));
+                panelRenderer.Render(new Rect(leftW, 0, rightW, panelH), _right, true);
+            }
+        }
+        else
+        {
+            panelRenderer.Render(new Rect(0,     0, leftW,  panelH), _left,  _active == PanelSide.Left);
+            panelRenderer.Render(new Rect(leftW, 0, rightW, panelH), _right, _active == PanelSide.Right);
+        }
 
         var cmdRenderer = new CommandLineRenderer(_screen);
         cmdRenderer.Render(panelH, size.Width, ActiveState.CurrentDirectory, _cmdLine);
@@ -209,6 +231,13 @@ public sealed class Application
 
         if (!_panelsVisible)
             return RenderScope.None;
+
+        // Ctrl+Q: toggle quick view
+        if (key.Key == ConsoleKey.Q && key.Modifiers == ConsoleModifiers.Control)
+        {
+            _quickView = !_quickView;
+            return RenderScope.Full;
+        }
 
         if (key.KeyChar == '\u0001')
         {
