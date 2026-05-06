@@ -6,7 +6,7 @@ Built with C# and .NET 10.
 
 ## Current status
 
-**Stage 10 complete** — persisted history + Alt+F8.
+**Stage 11 complete** — directory history + Alt+F12.
 
 The application shows two file panels with navigation, a live command line, shell execution, Ctrl+O shell output view, file selection, sorting, F7 create folder, F5 copy, F6 move/rename, F8 delete with confirmation, and Alt+F8 command history (persisted to `%APPDATA%\CSharpFar\history.json`).
 
@@ -159,7 +159,13 @@ CSharpFar.sln
 - Tests project now references `CSharpFar.App`; 5 new `JsonHistoryStoreTests`
 - 119 tests passing
 
+### Stage 11 — directory history + Alt+F12
+- Directory navigation (`Enter` into folder, `Backspace` to parent) records the new path via `AddDirectory`
+- `DirectoryHistoryDialog` — scrollable list (60w, up to 15 visible); Up/Down/PgUp/PgDn; Enter navigates; Esc cancels; most recent first
+- `Alt+F12` opens the dialog; on selection loads the directory in the active panel; missing directory shows error via `MessageDialog`
+- 2 additional `JsonHistoryStoreTests` for directory order and duplicate suppression
+- 121 tests passing
+
 ## Known limitations
 
-- Directory history not yet navigable via `Alt+F12` — that is Stage 11.
 - `CursorVisible` setter may throw in redirected-output environments.

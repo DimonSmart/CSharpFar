@@ -61,6 +61,32 @@ public class JsonHistoryStoreTests : IDisposable
         Assert.Equal(@"C:\Projects", store2.GetDirectoryHistory()[0].Path);
     }
 
+    [Fact]
+    public void AddDirectory_ConsecutiveDuplicateNotStoredInFile()
+    {
+        var store = new JsonHistoryStore(_tempFile);
+        store.AddDirectory(new DirectoryHistoryItem { Path = @"C:\Projects" });
+        store.AddDirectory(new DirectoryHistoryItem { Path = @"C:\Projects" }); // duplicate
+
+        var store2 = new JsonHistoryStore(_tempFile);
+        Assert.Single(store2.GetDirectoryHistory());
+    }
+
+    [Fact]
+    public void AddDirectory_MultiplePathsPersistInOrder()
+    {
+        var store = new JsonHistoryStore(_tempFile);
+        store.AddDirectory(new DirectoryHistoryItem { Path = @"C:\A" });
+        store.AddDirectory(new DirectoryHistoryItem { Path = @"C:\B" });
+        store.AddDirectory(new DirectoryHistoryItem { Path = @"C:\C" });
+
+        var store2 = new JsonHistoryStore(_tempFile);
+        var history = store2.GetDirectoryHistory();
+        Assert.Equal(3, history.Count);
+        Assert.Equal(@"C:\A", history[0].Path);
+        Assert.Equal(@"C:\C", history[2].Path);
+    }
+
     // ── Load edge cases ───────────────────────────────────────────────────────
 
     [Fact]

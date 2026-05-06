@@ -217,6 +217,13 @@ public sealed class Application
             }
         }
 
+        // Alt+F12 — directory history
+        if (key.Key == ConsoleKey.F12 && (key.Modifiers & ConsoleModifiers.Alt) != 0)
+        {
+            HandleDirectoryHistory();
+            return RenderScope.Full;
+        }
+
         // Alt+F8 — command history (must come before F8 delete case in switch below)
         if (key.Key == ConsoleKey.F8 && (key.Modifiers & ConsoleModifiers.Alt) != 0)
         {
@@ -468,6 +475,26 @@ public sealed class Application
         SafeRefresh(_right, vr);
     }
 
+    // ── Alt+F12 — directory history ───────────────────────────────────────────
+
+    private void HandleDirectoryHistory()
+    {
+        string? path = new DirectoryHistoryDialog(_screen).Show(_history.GetDirectoryHistory());
+        if (path is null) return;
+
+        if (!Directory.Exists(path))
+        {
+            new MessageDialog(_screen).Show("Directory History", $"Directory not found: {path}");
+            return;
+        }
+
+        try { _ctrl.LoadDirectory(ActiveState, path); }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            new MessageDialog(_screen).Show("Directory History", ex.Message);
+        }
+    }
+
     // ── Alt+F8 — command history ──────────────────────────────────────────────
 
     private void HandleCommandHistory()
@@ -560,13 +587,21 @@ public sealed class Application
     {
         var item = _ctrl.CurrentItem(ActiveState);
         if (item is null || !item.IsDirectory) return;
-        try { _ctrl.LoadDirectory(ActiveState, item.FullPath); }
+        try
+        {
+            _ctrl.LoadDirectory(ActiveState, item.FullPath);
+            _history.AddDirectory(new DirectoryHistoryItem { Path = ActiveState.CurrentDirectory });
+        }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { }
     }
 
     private void TryGoUp()
     {
-        try { _ctrl.GoToParent(ActiveState, VisibleRows()); }
+        try
+        {
+            _ctrl.GoToParent(ActiveState, VisibleRows());
+            _history.AddDirectory(new DirectoryHistoryItem { Path = ActiveState.CurrentDirectory });
+        }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { }
     }
 
