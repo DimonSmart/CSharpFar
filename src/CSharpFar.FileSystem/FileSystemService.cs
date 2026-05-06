@@ -5,6 +5,15 @@ namespace CSharpFar.FileSystem;
 
 public sealed class FileSystemService : IFileSystemService
 {
+    private readonly bool _showHiddenFiles;
+    private readonly bool _showSystemFiles;
+
+    public FileSystemService(bool showHiddenFiles = true, bool showSystemFiles = true)
+    {
+        _showHiddenFiles = showHiddenFiles;
+        _showSystemFiles = showSystemFiles;
+    }
+
     public IReadOnlyList<FilePanelItem> ReadDirectory(string path)
     {
         var result = new List<FilePanelItem>();
@@ -35,13 +44,17 @@ public sealed class FileSystemService : IFileSystemService
 
         foreach (var dir in dirs)
         {
+            var attrs = SafeGet(() => dir.Attributes, FileAttributes.Directory);
+            if (!_showHiddenFiles && (attrs & FileAttributes.Hidden) != 0) continue;
+            if (!_showSystemFiles && (attrs & FileAttributes.System) != 0) continue;
+
             result.Add(new FilePanelItem
             {
                 Name = dir.Name,
                 FullPath = dir.FullName,
                 IsDirectory = true,
                 LastWriteTime = SafeGet(() => dir.LastWriteTime, DateTime.MinValue),
-                Attributes = SafeGet(() => dir.Attributes, FileAttributes.Directory),
+                Attributes = attrs,
             });
         }
 
@@ -57,6 +70,10 @@ public sealed class FileSystemService : IFileSystemService
 
         foreach (var file in files)
         {
+            var attrs = SafeGet(() => file.Attributes, FileAttributes.Normal);
+            if (!_showHiddenFiles && (attrs & FileAttributes.Hidden) != 0) continue;
+            if (!_showSystemFiles && (attrs & FileAttributes.System) != 0) continue;
+
             result.Add(new FilePanelItem
             {
                 Name = file.Name,
@@ -64,7 +81,7 @@ public sealed class FileSystemService : IFileSystemService
                 IsDirectory = false,
                 Size = SafeGet(() => file.Length, 0L),
                 LastWriteTime = SafeGet(() => file.LastWriteTime, DateTime.MinValue),
-                Attributes = SafeGet(() => file.Attributes, FileAttributes.Normal),
+                Attributes = attrs,
             });
         }
 

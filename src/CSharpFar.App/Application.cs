@@ -8,6 +8,7 @@ using CSharpFar.Core.Abstractions;
 using CSharpFar.Core.Controllers;
 using CSharpFar.Core.History;
 using CSharpFar.Core.Models;
+using AppSettingsAlias = CSharpFar.Core.Models.AppSettings;
 
 namespace CSharpFar.App;
 
@@ -25,6 +26,7 @@ public sealed class Application
     private readonly IShellService _shell;
     private readonly IFileOperationService _fileOps;
     private readonly IHistoryStore _history;
+    private readonly AppSettingsAlias _settings;
 
     private readonly FilePanelState _left;
     private readonly FilePanelState _right;
@@ -40,20 +42,32 @@ public sealed class Application
         IFileSystemService     fs,
         IShellService          shell,
         IFileOperationService  fileOps,
-        IHistoryStore?         history = null)
+        IHistoryStore?         history  = null,
+        AppSettingsAlias?      settings = null)
     {
         _screen   = screen;
         _ctrl     = new PanelController(fs);
         _shell    = shell;
         _fileOps  = fileOps;
-        _history  = history ?? new InMemoryHistoryStore();
+        _history  = history  ?? new InMemoryHistoryStore();
+        _settings = settings ?? new AppSettingsAlias();
 
-        string startDir = Directory.GetCurrentDirectory();
-        _left  = new FilePanelState { CurrentDirectory = startDir };
-        _right = new FilePanelState { CurrentDirectory = startDir };
+        string cwd        = Directory.GetCurrentDirectory();
+        string leftStart  = ResolveStartDir(_settings.Panels.LeftStartDirectory,  cwd);
+        string rightStart = ResolveStartDir(_settings.Panels.RightStartDirectory, cwd);
 
-        _ctrl.LoadDirectory(_left,  startDir);
-        _ctrl.LoadDirectory(_right, startDir);
+        _left  = new FilePanelState { CurrentDirectory = leftStart };
+        _right = new FilePanelState { CurrentDirectory = rightStart };
+
+        _ctrl.LoadDirectory(_left,  leftStart);
+        _ctrl.LoadDirectory(_right, rightStart);
+    }
+
+    private static string ResolveStartDir(string? configured, string fallback)
+    {
+        if (!string.IsNullOrWhiteSpace(configured) && Directory.Exists(configured))
+            return configured;
+        return fallback;
     }
 
     public void Run()
@@ -514,7 +528,7 @@ public sealed class Application
             ? $"Delete \"{Path.GetFileName(sources[0])}\"?"
             : $"Delete {sources.Count} items?";
 
-        if (!new ConfirmDialog(_screen).Show("Delete", prompt))
+        if (_settings.Ui.ConfirmDelete && !new ConfirmDialog(_screen).Show("Delete", prompt))
             return;
 
         var size  = _screen.GetSize();

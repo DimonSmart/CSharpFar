@@ -11,9 +11,9 @@ namespace CSharpFar.App.History;
 /// </summary>
 public sealed class JsonHistoryStore : IHistoryStore
 {
-    private const int MaxCommands    = 1000;
-    private const int MaxDirectories = 500;
-    private const int MaxFiles       = 200;
+    private readonly int _maxCommands;
+    private readonly int _maxDirectories;
+    private readonly int _maxFiles;
 
     private static readonly JsonSerializerOptions JsonOptions = new() { WriteIndented = true };
 
@@ -22,9 +22,16 @@ public sealed class JsonHistoryStore : IHistoryStore
     private readonly List<DirectoryHistoryItem> _directories = new();
     private readonly List<FileHistoryItem>      _files       = new();
 
-    public JsonHistoryStore(string? filePath = null)
+    public JsonHistoryStore(
+        string? filePath        = null,
+        int     maxCommands     = 1000,
+        int     maxDirectories  = 500,
+        int     maxFiles        = 200)
     {
-        _filePath = filePath ?? DefaultPath();
+        _filePath       = filePath ?? DefaultPath();
+        _maxCommands    = maxCommands;
+        _maxDirectories = maxDirectories;
+        _maxFiles       = maxFiles;
         Load();
     }
 
@@ -35,7 +42,7 @@ public sealed class JsonHistoryStore : IHistoryStore
     public void AddCommand(CommandHistoryItem item)
     {
         _commands.Add(item);
-        if (_commands.Count > MaxCommands) _commands.RemoveAt(0);
+        if (_commands.Count > _maxCommands) _commands.RemoveAt(0);
         Save();
     }
 
@@ -48,7 +55,7 @@ public sealed class JsonHistoryStore : IHistoryStore
             return;
 
         _directories.Add(item);
-        if (_directories.Count > MaxDirectories) _directories.RemoveAt(0);
+        if (_directories.Count > _maxDirectories) _directories.RemoveAt(0);
         Save();
     }
 
@@ -61,7 +68,7 @@ public sealed class JsonHistoryStore : IHistoryStore
             return;
 
         _files.Add(item);
-        if (_files.Count > MaxFiles) _files.RemoveAt(0);
+        if (_files.Count > _maxFiles) _files.RemoveAt(0);
         Save();
     }
 
