@@ -382,6 +382,11 @@ public sealed class Application
                 _ctrl.MoveCursor(ActiveState, +vr, vr);
                 return RenderScope.Full;
 
+            // ── Help ─────────────────────────────────────────────────────────
+            case ConsoleKey.F1:
+                new HelpViewer(_screen).Show();
+                return RenderScope.Full;
+
             // ── User menu ────────────────────────────────────────────────────
             case ConsoleKey.F2:
                 HandleUserMenu();

@@ -6,14 +6,12 @@ Built with C# and .NET 10.
 
 ## Current status
 
-**Stage 13 complete** — F4 text editor.
-
-The application shows two file panels with navigation, a live command line, shell execution, Ctrl+O shell output view, file selection, sorting, F7 create folder, F5 copy, F6 move/rename, F8 delete with confirmation, and Alt+F8 command history (persisted to `%APPDATA%\CSharpFar\history.json`).
+**Stage 19 complete** — all 19 planned stages implemented. 189 tests passing.
 
 ## Requirements
 
 - .NET 10 SDK
-- Windows (primary target platform)
+- Windows (primary target platform; Win32 P/Invoke used for console buffer Capture/Restore)
 
 ## Build & run
 
@@ -28,11 +26,50 @@ dotnet run --project src/CSharpFar.App
 dotnet test
 ```
 
-## Publish
+## Publish (single-file executable)
 
 ```bash
-dotnet publish src/CSharpFar.App/CSharpFar.App.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true
+dotnet publish src/CSharpFar.App/CSharpFar.App.csproj \
+  -c Release -r win-x64 --self-contained true \
+  -p:PublishSingleFile=true
 ```
+
+The output binary is placed in `src/CSharpFar.App/bin/Release/net10.0/win-x64/publish/`.
+
+## Portable mode
+
+Create a file named `CSharpFar.portable` next to the executable.
+All configuration files (`settings.json`, `user-menu.json`, `history.json`) will be stored in `CSharpFar.config\` beside the executable instead of `%APPDATA%\CSharpFar\`.
+
+## Keyboard reference
+
+| Key | Action |
+|-----|--------|
+| `↑ ↓` | Move cursor in panel |
+| `PgUp / PgDn` | Move by page |
+| `Home / End` | First / last item |
+| `Tab` | Switch active panel |
+| `Enter` | Enter directory / execute command |
+| `Backspace` | Parent directory / delete in command line |
+| `Insert` | Toggle file selection |
+| `Ctrl+A` | Select all / deselect all |
+| `Ctrl+*` | Invert selection |
+| `Ctrl+F3/F4/F5/F6` | Sort by name / extension / date / size |
+| **F1** | Help |
+| **F2** | User menu |
+| **F3** | View file |
+| **F4** | Edit file |
+| **F5** | Copy |
+| **F6** | Move / Rename |
+| **F7** | Create folder |
+| **F8** | Delete |
+| **F10** | Quit |
+| `Alt+F7` | Search files by mask |
+| `Alt+F8` | Command history |
+| `Alt+F11` | File history |
+| `Alt+F12` | Directory history |
+| `Ctrl+O` | Toggle panels / show shell output |
+| `Ctrl+Q` | Quick view (file preview in inactive panel) |
 
 ## Solution structure
 
@@ -45,133 +82,98 @@ CSharpFar.sln
   /CSharpFar.FileSystem — file system operations
   /CSharpFar.Shell      — shell execution service
 /tests
-  /CSharpFar.Tests      — xUnit test project
+  /CSharpFar.Tests      — xUnit test project (189 tests)
 ```
+
+## Configuration
+
+`settings.json` is created automatically on first run. Key options:
+
+```json
+{
+  "ui": {
+    "showHiddenFiles": true,
+    "showSystemFiles": true,
+    "confirmDelete": true
+  },
+  "shell": {
+    "executable": "cmd.exe",
+    "argumentsFormat": "/c {0}"
+  },
+  "panels": {
+    "leftStartDirectory": null,
+    "rightStartDirectory": null
+  },
+  "history": {
+    "maxCommandHistoryItems": 1000,
+    "maxDirectoryHistoryItems": 500,
+    "maxFileHistoryItems": 200
+  }
+}
+```
+
+`user-menu.json` defines custom commands accessible via `F2`. Placeholder tokens:
+
+| Token | Expands to |
+|-------|-----------|
+| `{current}` | Full path of the item under the cursor |
+| `{selected}` | Quoted selected paths (falls back to `{current}`) |
+| `{panelDir}` | Active panel directory |
+| `{otherPanelDir}` | Inactive panel directory |
+
+## Known limitations
+
+- `CursorVisible` setter may throw in redirected-output environments (e.g. piped test runs).
+- `Ctrl+Q` quick view does not refresh automatically on a background file system change — it updates on the next cursor move.
+- Search (`Alt+F7`) uses `Console.KeyAvailable` for Esc-to-cancel, which is not available in redirected console environments; in that case the search runs to completion.
+- The text editor does not support undo/redo.
+- No mouse support.
+- Windows-only (Win32 P/Invoke for screen buffer snapshot used by Ctrl+O).
 
 ## Changelog
 
-### Stage 0 — Project skeleton
-- Created solution with 5 source projects and 1 test project targeting `net10.0`
-- Enabled nullable reference types across all projects
-- Added domain models: `FilePanelItem`, `FilePanelState`, `SortMode`, `PanelSide`,
-  `CommandHistoryItem`, `DirectoryHistoryItem`
-- Added service interfaces: `IFileSystemService`, `IFileOperationService`,
-  `IShellService`, `IHistoryStore`, `ISettingsStore`
-- Added `.editorconfig`
-- Added smoke tests for core models
+### Stage 14 — Alt+F11 file history
+- `FileHistoryItem` model added to Core
+- `IHistoryStore` extended with `GetFileHistory()` / `AddFile()`
+- `FileHistoryDialog` — scrollable list of recently opened files (most recent first)
+- `OpenFileDialog` — asks View or Edit when a file is selected from history
+- `F3` and `F4` record the opened file; `Alt+F11` shows the dialog
+- 140 tests passing
 
-### Stage 1 — Console abstraction layer
-- Added `IConsoleDriver` interface with `WriteAt`, `ClearRegion`, `SetCursorPosition`,
-  `SetCursorVisible`, `Capture`, `Restore`
-- Added `SystemConsoleDriver` — real implementation using `System.Console`; on Windows
-  uses `ReadConsoleOutput` / `WriteConsoleOutput` (Win32 P/Invoke) for `Capture`/`Restore`,
-  laying the groundwork for Ctrl+O shell-output preservation
-- Added models: `ConsoleSize`, `Rect`, `CellStyle`, `SnapshotCell`, `ScreenSnapshot`
-- Added `ScreenRenderer` — higher-level drawing surface (text, fill, box borders)
-- Added `FakeConsoleDriver` for unit testing (in-memory buffer, key queue, inspection helpers)
-- 16 tests passing (8 driver tests + 5 renderer tests + 3 smoke tests)
+### Stage 15 — Settings and portable mode
+- `AppSettings` model: `ui`, `shell`, `panels`, `history` sections
+- `JsonSettingsStore` — creates `settings.json` on first run; supports portable mode via `CSharpFar.portable` marker file
+- `FileSystemService` — filters hidden / system files based on settings
+- `JsonHistoryStore` — max item limits now come from settings
+- `Application` — respects `confirmDelete`, start directories from settings
+- 146 tests passing
 
-### Stage 2 — Two panels with navigation
-- Added `FileSystemService` — reads directories (sorted: dirs first, then files by name)
-- Added `PanelController` (CSharpFar.Core) — cursor movement, page navigation, directory entry,
-  GoToParent with automatic cursor positioning on the child we came from
-- Added `Application` — main input loop
-- Added `PanelRenderer` — draws a panel with border, embedded path header, file list, item count footer
-- Added `StatusBarRenderer` — function key bar at the bottom
-- Added `Theme` — Far-like classic blue color scheme
-- Keyboard: `↑↓`, `PgUp/PgDn`, `Home/End`, `Enter` (enter dir), `Backspace` (parent dir),
-  `Tab` (switch panel), `F10` (quit)
-- 31 tests passing (15 PanelController + 8 driver + 5 renderer + 3 smoke)
+### Stage 16 — Ctrl+Q quick view
+- `QuickViewRenderer` — renders a file or directory preview in the inactive panel
+- Files: shows up to N lines of text content (10 MB limit)
+- Directories: shows path and item count
+- `Ctrl+Q` toggles the mode; preview updates automatically on cursor movement
+- 158 tests passing
 
-### Stage 3 — Command line and shell execution
-- Added `CommandLineState` — character buffer with cursor, insert/delete/move operations
-- Added `ShellService` — executes `cmd.exe /c <command>` with inherited console (output visible)
-- Added `InMemoryHistoryStore` — in-memory command and directory history with duplicate suppression
-- Added `CommandLineRenderer` — renders the command line with scrolling text when input exceeds width
-- Command execution flow: restore shell underlay → show prompt → run command → capture output → refresh panels
-- `PanelController.RefreshDirectory` — reloads directory while preserving cursor position by name
-- Key routing: printable chars → command line; arrows → panel navigation; Enter → execute or enter dir
-- `Escape` clears the command line; `Backspace` on empty line goes to parent directory
-- 50 tests passing
+### Stage 17 — Alt+F7 file search
+- `FileSearcher` — recursive file search with glob mask; thread-safe, cancellable via `CancellationToken`
+- `SearchProgressDialog` — background search with live count and Esc-to-cancel
+- `SearchResultsDialog` — scrollable list of results; Enter navigates panel to the file
+- 164 tests passing
 
-### Stage 4 — Ctrl+O shell output view
-- `_panelsVisible` flag gates `Render()` in the main loop; toggled by `Ctrl+O`
-- `_underlay` (`ScreenSnapshot?`) stores the last captured screen before panels were drawn
-- `CaptureUnderlay()` called (a) once at startup before first paint, (b) after each shell command before panels redraw
-- `TogglePanels()`: hide → `Restore(_underlay)` shows last shell output; show → main loop calls `Render()`
-- Panel navigation state (`FilePanelState`) is untouched while panels are hidden — cursor and directory preserved
-- `Ctrl+O` checked before printable-char routing so `O` can still be typed in the command line
-- 54 tests passing (50 previous + 4 underlay snapshot tests)
+### Stage 18 — F2 user menu
+- `UserMenuItem` model: `title` + `command`
+- `UserMenuStore` — loads `user-menu.json` from config directory; creates sample entries on first run
+- `PlaceholderExpander` — replaces `{current}`, `{selected}`, `{panelDir}`, `{otherPanelDir}`
+- `UserMenuDialog` — scrollable list showing command titles
+- Selected command is run through the shell service and added to command history
+- 174 tests passing
 
-### Stage 5 — File selection and sorting
-- `Insert` toggles selection of the current item and advances cursor; `..` is not selectable
-- `Ctrl+A` selects all non-parent items, or deselects all if everything is already selected
-- `Ctrl+*` inverts selection on the active panel; `Ctrl+Numpad *` and `Ctrl+Shift+8` are accepted
-- Windows console input mode is adjusted while the app runs so `Ctrl+A` reaches CSharpFar instead of selecting console text
-- `Ctrl+F3` sort by name, `Ctrl+F4` by extension, `Ctrl+F5` by last write time, `Ctrl+F6` by size
-- Pressing the same sort key again reverses the sort direction
-- Directories always appear before files in every sort mode
-- Selected items shown in yellow in both active and inactive panels
-- Footer shows selected count when items are selected; otherwise shows total count
-- 73 tests passing
-
-### Stage 6 — F7 create folder
-- `InputDialog` — centered modal box (44×6): title in border, prompt label, scrollable input field, error row
-- `FileOperationService.CreateDirectory` — throws `IOException` if folder already exists
-- `PanelController.SetCursorByName` — positions cursor on a named item after refresh
-- `F7` opens the dialog; on confirm: creates folder, refreshes panel, positions cursor on new folder
-- Error shown inline (folder exists, access denied, invalid chars) — user can retry or Esc to cancel
-- `CSharpFar.Tests` now references `CSharpFar.FileSystem` for integration tests
-- 80 tests passing
-
-### Stage 7 — F5 copy
-- `ConflictChoice` enum: Overwrite / Skip / Cancel
-- `IFileOperationService.CopyAsync` updated: accepts `onProgress` and `onConflict` callbacks
-- `FileOperationService.CopyAsync` — copies files and directories recursively; conflict callback decides each clash
-- `ProgressDialog` — non-modal overlay showing destination and current filename during copy
-- `ConflictDialog` — modal box: `[O]verwrite [S]kip [C]ancel`; `Esc` also cancels
-- `MessageDialog` — simple modal for error messages (reusable in later stages)
-- `InputDialog` now accepts optional `initialText` for pre-filled destination field
-- Sources: selected items if any, otherwise current item; `..` is never a source
-- After copy: both panels refresh, active panel selection is cleared
-- 91 tests passing
-
-### Stage 8 — F6 move/rename
-- `IFileOperationService.MoveAsync` updated: accepts optional `onConflict` callback
-- Single source + plain name (no path separators) → rename in-place
-- Path destination or multiple sources → move to specified directory
-- Conflict handling: Overwrite deletes destination then moves; Skip leaves source unchanged; Cancel throws
-- Pre-fill: single item → current name (for easy rename); multiple items → opposite panel directory
-- Both panels refresh and selection cleared after operation
-- 102 tests passing
-
-### Stage 9 — F8 delete
-- `FileOperationService.DeleteAsync` — deletes files and directories recursively; silently skips non-existent paths
-- `ConfirmDialog` — centered modal (52×5): title, prompt line, `[D]elete   [C]ancel` buttons; D/Enter confirms, C/Esc cancels
-- `F8` opens confirm dialog; on confirm: deletes sources, refreshes both panels, clears selection
-- Errors (access denied, etc.) shown via `MessageDialog` — do not crash the app
-- 107 tests passing
-
-### Stage 10 — persisted history + Alt+F8
-- `JsonHistoryStore` (`CSharpFar.App/History/`) — persists command + directory history to `%APPDATA%\CSharpFar\history.json`; loaded at startup, saved after each mutation; I/O errors silently swallowed
-- `HistoryDialog` — scrollable list (60×up-to-17); Up/Down/PgUp/PgDn navigate; Enter inserts into command line; Esc cancels
-- `Alt+F8` opens the history dialog; selected command replaces command line text
-- Tests project now references `CSharpFar.App`; 5 new `JsonHistoryStoreTests`
-- 119 tests passing
-
-### Stage 11 — directory history + Alt+F12
-- Directory navigation (`Enter` into folder, `Backspace` to parent) records the new path via `AddDirectory`
-- `DirectoryHistoryDialog` — scrollable list (60w, up to 15 visible); Up/Down/PgUp/PgDn; Enter navigates; Esc cancels; most recent first
-- `Alt+F12` opens the dialog; on selection loads the directory in the active panel; missing directory shows error via `MessageDialog`
-- 2 additional `JsonHistoryStoreTests` for directory order and duplicate suppression
-- 121 tests passing
-
-### Stage 12 — F3 file viewer
-- `TextFileReader` — public static helper; BOM-aware encoding detection: UTF-8/UTF-16 BOM → exact encoding; no BOM → strict UTF-8; invalid bytes → `Encoding.Default` fallback; 10 MB size limit
-- `FileViewer` — full-screen viewer; header (filename + line X/Y), content (White/Black), footer (F10 Close); tab expansion to 4 spaces; horizontal scroll Left/Right; vertical scroll Up/Down/PgUp/PgDn/Home/End; Esc or F10 exits
-- `F3` on a file opens the viewer; on directory does nothing
-- 5 new `FileViewerTests` for encoding detection and line reading
-- 126 tests passing
+### Stage 19 — F1 help and documentation
+- `HelpContent` — built-in array of help lines covering all key bindings
+- `HelpViewer` — full-screen viewer with same scroll controls as the file viewer; F1/F10/Esc closes
+- README updated with keyboard reference, configuration docs, build/publish instructions, known limitations
+- 189 tests passing
 
 ### Stage 13 — F4 text editor
 - `EditorModel` — pure editing model: `InsertChar`, `DeleteBack` (merge on line start), `DeleteForward` (merge on line end), `BreakLine`; cursor wraps across lines on Left/Right; `IsDirty` / `MarkClean`; `GetText(newLine)`
@@ -179,9 +181,67 @@ CSharpFar.sln
 - `SaveChangesDialog` — modal on exit with unsaved changes: `[S]ave [D]iscard [C]ancel`; S/Enter saves and exits, D discards and exits, C/Esc stays
 - `TextFileReader.ReadLinesAndEncoding` — returns `(Lines, Encoding)` so editor saves with the same encoding it read
 - `F4` opens editor; refreshes active panel on return; F2 saves in-place
-- 11 new `EditorModelTests`
 - 137 tests passing
 
-## Known limitations
+### Stage 12 — F3 file viewer
+- `TextFileReader` — public static helper; BOM-aware encoding detection; 10 MB size limit
+- `FileViewer` — full-screen viewer; tab expansion; horizontal + vertical scroll; Esc or F10 exits
+- `F3` on a file opens the viewer; on directory does nothing
+- 126 tests passing
 
-- `CursorVisible` setter may throw in redirected-output environments.
+### Stage 11 — directory history + Alt+F12
+- Directory navigation records the new path via `AddDirectory`
+- `DirectoryHistoryDialog` — scrollable list; `Alt+F12` opens it
+- 121 tests passing
+
+### Stage 10 — persisted history + Alt+F8
+- `JsonHistoryStore` persists command + directory history to `%APPDATA%\CSharpFar\history.json`
+- `HistoryDialog` — scrollable list; `Alt+F8` opens it
+- 119 tests passing
+
+### Stage 9 — F8 delete
+- `FileOperationService.DeleteAsync` — deletes files and directories recursively
+- `ConfirmDialog` — centered modal with D/Enter to confirm and C/Esc to cancel
+- 107 tests passing
+
+### Stage 8 — F6 move/rename
+- Single source + plain name → rename; path destination or multiple sources → move to directory
+- Conflict handling: Overwrite / Skip / Cancel
+- 102 tests passing
+
+### Stage 7 — F5 copy
+- `CopyAsync` with `onProgress` and `onConflict` callbacks
+- `ProgressDialog`, `ConflictDialog`, `MessageDialog` added
+- 91 tests passing
+
+### Stage 6 — F7 create folder
+- `InputDialog` modal for folder name input with inline validation
+- `FileOperationService.CreateDirectory`; cursor positioned on newly created folder
+- 80 tests passing
+
+### Stage 5 — File selection and sorting
+- `Insert` / `Ctrl+A` / `Ctrl+*` for selection; `Ctrl+F3/F4/F5/F6` for sort
+- Directories always appear before files
+- 73 tests passing
+
+### Stage 4 — Ctrl+O shell output view
+- Underlay snapshot captured before first paint and after each shell command
+- `Ctrl+O` restores the snapshot so shell output is visible beneath the panels
+- 54 tests passing
+
+### Stage 3 — Command line and shell execution
+- `CommandLineState`, `ShellService`, `CommandLineRenderer`
+- `cmd.exe /c` execution with inherited console; output captured to underlay
+- 50 tests passing
+
+### Stage 2 — Two panels with navigation
+- `FileSystemService`, `PanelController`, `PanelRenderer`, `StatusBarRenderer`, `Theme`
+- 31 tests passing
+
+### Stage 1 — Console abstraction layer
+- `IConsoleDriver`, `SystemConsoleDriver` (Win32 P/Invoke), `ScreenRenderer`, `FakeConsoleDriver`
+- 16 tests passing
+
+### Stage 0 — Project skeleton
+- Solution with 5 source projects and 1 test project targeting `net10.0`
+- Domain models and service interfaces
