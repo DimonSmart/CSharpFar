@@ -1,0 +1,82 @@
+using CSharpFar.Core.Abstractions;
+using CSharpFar.Core.Models;
+
+namespace CSharpFar.FileSystem;
+
+public sealed class FileSystemService : IFileSystemService
+{
+    public IReadOnlyList<FilePanelItem> ReadDirectory(string path)
+    {
+        var result = new List<FilePanelItem>();
+
+        // Parent entry (..)
+        var parentPath = Path.GetDirectoryName(path.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar));
+        if (parentPath != null)
+        {
+            result.Add(new FilePanelItem
+            {
+                Name = "..",
+                FullPath = parentPath,
+                IsDirectory = true,
+                IsParentDirectory = true,
+            });
+        }
+
+        // Directories (sorted by name)
+        IEnumerable<DirectoryInfo> dirs;
+        try
+        {
+            dirs = new DirectoryInfo(path)
+                .GetDirectories()
+                .OrderBy(d => d.Name, StringComparer.OrdinalIgnoreCase);
+        }
+        catch (UnauthorizedAccessException) { dirs = []; }
+        catch (DirectoryNotFoundException) { return result; }
+
+        foreach (var dir in dirs)
+        {
+            result.Add(new FilePanelItem
+            {
+                Name = dir.Name,
+                FullPath = dir.FullName,
+                IsDirectory = true,
+                LastWriteTime = SafeGet(() => dir.LastWriteTime, DateTime.MinValue),
+                Attributes = SafeGet(() => dir.Attributes, FileAttributes.Directory),
+            });
+        }
+
+        // Files (sorted by name)
+        IEnumerable<FileInfo> files;
+        try
+        {
+            files = new DirectoryInfo(path)
+                .GetFiles()
+                .OrderBy(f => f.Name, StringComparer.OrdinalIgnoreCase);
+        }
+        catch (UnauthorizedAccessException) { files = []; }
+
+        foreach (var file in files)
+        {
+            result.Add(new FilePanelItem
+            {
+                Name = file.Name,
+                FullPath = file.FullName,
+                IsDirectory = false,
+                Size = SafeGet(() => file.Length, 0L),
+                LastWriteTime = SafeGet(() => file.LastWriteTime, DateTime.MinValue),
+                Attributes = SafeGet(() => file.Attributes, FileAttributes.Normal),
+            });
+        }
+
+        return result;
+    }
+
+    public bool DirectoryExists(string path) => Directory.Exists(path);
+    public bool FileExists(string path) => File.Exists(path);
+
+    private static T SafeGet<T>(Func<T> getter, T fallback)
+    {
+        try { return getter(); }
+        catch { return fallback; }
+    }
+}

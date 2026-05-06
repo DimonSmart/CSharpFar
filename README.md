@@ -6,9 +6,9 @@ Built with C# and .NET 10.
 
 ## Current status
 
-**Stage 1 complete** — console abstraction layer implemented.
+**Stage 2 complete** — two panels with full keyboard navigation.
 
-The application draws a two-panel placeholder UI using `IConsoleDriver` / `ScreenRenderer` and waits for a keypress.
+The application shows two file-panel side by side with keyboard navigation, directory traversal, and a function-key bar.
 
 ## Requirements
 
@@ -71,8 +71,21 @@ CSharpFar.sln
 - Added `FakeConsoleDriver` for unit testing (in-memory buffer, key queue, inspection helpers)
 - 16 tests passing (8 driver tests + 5 renderer tests + 3 smoke tests)
 
+### Stage 2 — Two panels with navigation
+- Added `FileSystemService` — reads directories (sorted: dirs first, then files by name)
+- Added `PanelController` (CSharpFar.Core) — cursor movement, page navigation, directory entry,
+  GoToParent with automatic cursor positioning on the child we came from
+- Added `Application` — main input loop
+- Added `PanelRenderer` — draws a panel with border, embedded path header, file list, item count footer
+- Added `StatusBarRenderer` — function key bar at the bottom
+- Added `Theme` — Far-like classic blue color scheme
+- Keyboard: `↑↓`, `PgUp/PgDn`, `Home/End`, `Enter` (enter dir), `Backspace` (parent dir),
+  `Tab` (switch panel), `F10` (quit)
+- 31 tests passing (15 PanelController + 8 driver + 5 renderer + 3 smoke)
+
 ## Known limitations
 
-- No file panels yet — the application shows a placeholder box UI and exits on any key.
-- Shell service not implemented; file operations not implemented.
+- No command line yet (Stage 3).
+- No file operations yet (Stages 6–9).
+- History and settings not persisted (Stages 10–15).
 - `CursorVisible` setter may throw in redirected-output environments.
