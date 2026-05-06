@@ -27,7 +27,11 @@ internal sealed class InputDialog
     /// Called with the trimmed input on Enter.
     /// Return <c>null</c> to accept, or an error string to display and re-prompt.
     /// </param>
-    public string? Show(string title, string prompt, Func<string, string?>? validate = null)
+    public string? Show(
+        string title,
+        string prompt,
+        string? initialText = null,
+        Func<string, string?>? validate = null)
     {
         var size  = _screen.GetSize();
         var saved = _screen.Capture(new Rect(0, 0, size.Width, size.Height));
@@ -35,7 +39,7 @@ internal sealed class InputDialog
 
         try
         {
-            return RunLoop(title, prompt, validate, size);
+            return RunLoop(title, prompt, initialText, validate, size);
         }
         finally
         {
@@ -44,10 +48,11 @@ internal sealed class InputDialog
         }
     }
 
-    private string? RunLoop(string title, string prompt, Func<string, string?>? validate, ConsoleSize size)
+    private string? RunLoop(string title, string prompt, string? initialText, Func<string, string?>? validate, ConsoleSize size)
     {
-        var   buf      = new CommandLineState();
-        string? error  = null;
+        var buf = new CommandLineState();
+        if (initialText is not null) buf.SetText(initialText);
+        string? error = null;
 
         while (true)
         {

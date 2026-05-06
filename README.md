@@ -6,7 +6,7 @@ Built with C# and .NET 10.
 
 ## Current status
 
-**Stage 6 complete** — F7 create folder.
+**Stage 7 complete** — F5 copy.
 
 The application shows two file panels with navigation, a live command line, shell execution, Ctrl+O shell output view, file selection, sorting, and F7 create folder with a modal input dialog.
 
@@ -124,8 +124,21 @@ CSharpFar.sln
 - `CSharpFar.Tests` now references `CSharpFar.FileSystem` for integration tests
 - 80 tests passing
 
+### Stage 7 — F5 copy
+- `ConflictChoice` enum: Overwrite / Skip / Cancel
+- `IFileOperationService.CopyAsync` updated: accepts `onProgress` and `onConflict` callbacks
+- `FileOperationService.CopyAsync` — copies files and directories recursively; conflict callback decides each clash
+- `ProgressDialog` — non-modal overlay showing destination and current filename during copy
+- `ConflictDialog` — modal box: `[O]verwrite [S]kip [C]ancel`; `Esc` also cancels
+- `MessageDialog` — simple modal for error messages (reusable in later stages)
+- `InputDialog` now accepts optional `initialText` for pre-filled destination field
+- Sources: selected items if any, otherwise current item; `..` is never a source
+- After copy: both panels refresh, active panel selection is cleared
+- 91 tests passing
+
 ## Known limitations
 
-- No file copy/move/delete yet (Stages 7–9).
+- No move/rename yet (Stage 8).
+- No delete yet (Stage 9).
 - History not persisted to disk yet — that is Stage 10.
 - `CursorVisible` setter may throw in redirected-output environments.

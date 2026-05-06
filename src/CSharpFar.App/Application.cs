@@ -296,6 +296,10 @@ public sealed class Application
                 return RenderScope.Full;
 
             // ── File operations ───────────────────────────────────────────────
+            case ConsoleKey.F5:
+                HandleCopy();
+                return RenderScope.Full;
+
             case ConsoleKey.F7:
                 HandleCreateFolder();
                 return RenderScope.Full;
@@ -308,12 +312,68 @@ public sealed class Application
         return RenderScope.None;
     }
 
+    // ── F5 — copy ─────────────────────────────────────────────────────────────
+
+    private IReadOnlyList<string> GetCopySources()
+    {
+        if (ActiveState.SelectedPaths.Count > 0)
+            return [.. ActiveState.SelectedPaths];
+
+        var item = _ctrl.CurrentItem(ActiveState);
+        if (item is null || item.IsParentDirectory) return [];
+        return [item.FullPath];
+    }
+
+    private void HandleCopy()
+    {
+        var sources = GetCopySources();
+        if (sources.Count == 0) return;
+
+        var otherDir = (_active == PanelSide.Left ? _right : _left).CurrentDirectory;
+        string label = $"Copy {sources.Count} item{(sources.Count == 1 ? "" : "s")} to:";
+
+        string? destDir = new InputDialog(_screen).Show("Copy", label, initialText: otherDir);
+        if (destDir is null) return;
+
+        var size  = _screen.GetSize();
+        var saved = _screen.Capture(new Rect(0, 0, size.Width, size.Height));
+
+        try
+        {
+            var progress  = new ProgressDialog(_screen, destDir);
+            var conflicts = new ConflictDialog(_screen);
+
+            _fileOps.CopyAsync(
+                sources,
+                destDir,
+                onProgress: fileName => progress.Update(fileName),
+                onConflict: destPath => conflicts.Show(destPath))
+                .GetAwaiter().GetResult();
+
+            ActiveState.SelectedPaths.Clear();
+        }
+        catch (OperationCanceledException) { }
+        catch (Exception ex)
+        {
+            _screen.Restore(saved);
+            new MessageDialog(_screen).Show("Copy Error", ex.Message);
+        }
+        finally
+        {
+            _screen.Restore(saved);
+        }
+
+        int vr = VisibleRows();
+        SafeRefresh(_left,  vr);
+        SafeRefresh(_right, vr);
+    }
+
     // ── F7 — create folder ────────────────────────────────────────────────────
 
     private void HandleCreateFolder()
     {
         var dialog = new InputDialog(_screen);
-        string? name = dialog.Show("Make Folder", "Folder name:", attempt =>
+        string? name = dialog.Show("Make Folder", "Folder name:", validate: attempt =>
         {
             if (attempt.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0)
                 return "Invalid characters in folder name.";
