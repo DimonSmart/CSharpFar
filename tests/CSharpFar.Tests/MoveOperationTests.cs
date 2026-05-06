@@ -165,6 +165,50 @@ public class MoveOperationTests : IDisposable
     }
 
     [Fact]
+    public async Task MoveAsync_DoesNotOverwriteDirectoryWithFile()
+    {
+        string srcFile = Write(_src, "dup.txt", "new content");
+        string destDir = Path.Combine(_dst, "dup.txt");
+        Directory.CreateDirectory(destDir);
+        Write(destDir, "inner.txt", "keep");
+
+        bool conflictCalled = false;
+        await Assert.ThrowsAsync<IOException>(() =>
+            Svc().MoveAsync([srcFile], _dst, onConflict: _ =>
+            {
+                conflictCalled = true;
+                return ConflictChoice.Overwrite;
+            }));
+
+        Assert.False(conflictCalled);
+        Assert.True(File.Exists(srcFile));
+        Assert.True(Directory.Exists(destDir));
+        Assert.Equal("keep", File.ReadAllText(Path.Combine(destDir, "inner.txt")));
+    }
+
+    [Fact]
+    public async Task MoveAsync_DoesNotOverwriteFileWithDirectory()
+    {
+        string srcDir = Path.Combine(_src, "dup");
+        Directory.CreateDirectory(srcDir);
+        Write(srcDir, "inner.txt", "new content");
+        string destFile = Write(_dst, "dup", "old content");
+
+        bool conflictCalled = false;
+        await Assert.ThrowsAsync<IOException>(() =>
+            Svc().MoveAsync([srcDir], _dst, onConflict: _ =>
+            {
+                conflictCalled = true;
+                return ConflictChoice.Overwrite;
+            }));
+
+        Assert.False(conflictCalled);
+        Assert.True(Directory.Exists(srcDir));
+        Assert.True(File.Exists(destFile));
+        Assert.Equal("old content", File.ReadAllText(destFile));
+    }
+
+    [Fact]
     public async Task MoveAsync_SkipsWhenChoiceIsSkip()
     {
         string srcFile = Write(_src, "dup.txt", "new content");

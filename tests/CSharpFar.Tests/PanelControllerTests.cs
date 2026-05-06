@@ -1,4 +1,5 @@
 using CSharpFar.Core.Controllers;
+using CSharpFar.Core.Abstractions;
 using CSharpFar.Core.Models;
 using CSharpFar.Tests.Fakes;
 
@@ -69,6 +70,26 @@ public class PanelControllerTests
         ctrl.LoadDirectory(state, Sub1);
 
         Assert.Empty(state.SelectedPaths);
+    }
+
+    [Fact]
+    public void LoadDirectory_DoesNotChangeStateWhenReadFails()
+    {
+        var ctrl = new PanelController(new ThrowingFileSystemService());
+        var state = new FilePanelState { CurrentDirectory = Root };
+        state.Items.Add(new FilePanelItem { Name = "old.txt", FullPath = Root + @"\old.txt", IsDirectory = false });
+        state.SelectedPaths.Add(Root + @"\old.txt");
+        state.CursorIndex = 3;
+        state.ScrollOffset = 2;
+
+        Assert.Throws<IOException>(() => ctrl.LoadDirectory(state, Sub1));
+
+        Assert.Equal(Root, state.CurrentDirectory);
+        Assert.Single(state.Items);
+        Assert.Equal("old.txt", state.Items[0].Name);
+        Assert.Contains(Root + @"\old.txt", state.SelectedPaths);
+        Assert.Equal(3, state.CursorIndex);
+        Assert.Equal(2, state.ScrollOffset);
     }
 
     [Fact]
@@ -254,5 +275,14 @@ public class PanelControllerTests
         ctrl.GoToParent(state, visibleRows: 10);
 
         Assert.Equal("Sub1", ctrl.CurrentItem(state)?.Name);
+    }
+
+    private sealed class ThrowingFileSystemService : IFileSystemService
+    {
+        public IReadOnlyList<FilePanelItem> ReadDirectory(string path) =>
+            throw new IOException("Cannot read directory.");
+
+        public bool DirectoryExists(string path) => false;
+        public bool FileExists(string path) => false;
     }
 }

@@ -115,8 +115,7 @@ internal sealed class FileEditor
         switch (choice)
         {
             case SaveChangesChoice.Save:
-                SaveFile(filePath, model, encoding);
-                return true;
+                return SaveFile(filePath, model, encoding);
             case SaveChangesChoice.Discard:
                 return true;
             default: // Cancel
@@ -124,16 +123,18 @@ internal sealed class FileEditor
         }
     }
 
-    private void SaveFile(string filePath, EditorModel model, Encoding encoding)
+    private bool SaveFile(string filePath, EditorModel model, Encoding encoding)
     {
         try
         {
             File.WriteAllText(filePath, model.GetText(), encoding);
             model.MarkClean();
+            return true;
         }
         catch (Exception ex)
         {
             new MessageDialog(_screen).Show("Save Error", ex.Message);
+            return false;
         }
     }
 

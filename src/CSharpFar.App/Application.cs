@@ -55,9 +55,10 @@ public sealed class Application
         string cwd        = Directory.GetCurrentDirectory();
         string leftStart  = ResolveStartDir(_settings.Panels.LeftStartDirectory,  cwd);
         string rightStart = ResolveStartDir(_settings.Panels.RightStartDirectory, cwd);
+        var sortMode = ResolveSortMode(_settings.Panels.DefaultSortMode);
 
-        _left  = new FilePanelState { CurrentDirectory = leftStart };
-        _right = new FilePanelState { CurrentDirectory = rightStart };
+        _left  = new FilePanelState { CurrentDirectory = leftStart,  SortMode = sortMode };
+        _right = new FilePanelState { CurrentDirectory = rightStart, SortMode = sortMode };
 
         _ctrl.LoadDirectory(_left,  leftStart);
         _ctrl.LoadDirectory(_right, rightStart);
@@ -69,6 +70,11 @@ public sealed class Application
             return configured;
         return fallback;
     }
+
+    private static SortMode ResolveSortMode(string? configured) =>
+        Enum.TryParse<SortMode>(configured, ignoreCase: true, out var mode)
+            ? mode
+            : SortMode.Name;
 
     public void Run()
     {
@@ -672,7 +678,10 @@ public sealed class Application
             _ctrl.LoadDirectory(ActiveState, item.FullPath);
             _history.AddDirectory(new DirectoryHistoryItem { Path = ActiveState.CurrentDirectory });
         }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            new MessageDialog(_screen).Show("Navigation", ex.Message);
+        }
     }
 
     private void TryGoUp()
@@ -682,7 +691,10 @@ public sealed class Application
             _ctrl.GoToParent(ActiveState, VisibleRows());
             _history.AddDirectory(new DirectoryHistoryItem { Path = ActiveState.CurrentDirectory });
         }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            new MessageDialog(_screen).Show("Navigation", ex.Message);
+        }
     }
 
     private void RefreshPanels()

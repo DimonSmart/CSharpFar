@@ -31,16 +31,12 @@ public sealed class FileSystemService : IFileSystemService
             });
         }
 
+        var directory = new DirectoryInfo(path);
+
         // Directories (sorted by name)
-        IEnumerable<DirectoryInfo> dirs;
-        try
-        {
-            dirs = new DirectoryInfo(path)
-                .GetDirectories()
-                .OrderBy(d => d.Name, StringComparer.OrdinalIgnoreCase);
-        }
-        catch (UnauthorizedAccessException) { dirs = []; }
-        catch (DirectoryNotFoundException) { return result; }
+        var dirs = directory
+            .GetDirectories()
+            .OrderBy(d => d.Name, StringComparer.OrdinalIgnoreCase);
 
         foreach (var dir in dirs)
         {
@@ -59,14 +55,9 @@ public sealed class FileSystemService : IFileSystemService
         }
 
         // Files (sorted by name)
-        IEnumerable<FileInfo> files;
-        try
-        {
-            files = new DirectoryInfo(path)
-                .GetFiles()
-                .OrderBy(f => f.Name, StringComparer.OrdinalIgnoreCase);
-        }
-        catch (UnauthorizedAccessException) { files = []; }
+        var files = directory
+            .GetFiles()
+            .OrderBy(f => f.Name, StringComparer.OrdinalIgnoreCase);
 
         foreach (var file in files)
         {

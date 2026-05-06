@@ -135,10 +135,21 @@ public sealed class FileOperationService : IFileOperationService
         if (PathsEqual(src, dest))
             return;
 
-        if (Directory.Exists(src) && IsPathInside(dest, src))
+        bool srcIsFile = File.Exists(src);
+        bool srcIsDirectory = Directory.Exists(src);
+        if (!srcIsFile && !srcIsDirectory)
+            return;
+
+        bool destIsFile = File.Exists(dest);
+        bool destIsDirectory = Directory.Exists(dest);
+
+        if (srcIsDirectory && IsPathInside(dest, src))
             throw new IOException("Cannot move a directory into itself.");
 
-        if (File.Exists(dest) || Directory.Exists(dest))
+        if ((srcIsFile && destIsDirectory) || (srcIsDirectory && destIsFile))
+            throw new IOException("Cannot overwrite a file with a directory or a directory with a file.");
+
+        if (destIsFile || destIsDirectory)
         {
             var choice = onConflict?.Invoke(dest) ?? ConflictChoice.Overwrite;
             switch (choice)
@@ -147,12 +158,12 @@ public sealed class FileOperationService : IFileOperationService
                 case ConflictChoice.Cancel: throw new OperationCanceledException("Move cancelled by user.");
                 // Overwrite: remove destination then move
             }
-            if (File.Exists(dest))           File.Delete(dest);
-            else if (Directory.Exists(dest)) Directory.Delete(dest, recursive: true);
+            if (destIsFile)           File.Delete(dest);
+            else if (destIsDirectory) Directory.Delete(dest, recursive: true);
         }
 
-        if (File.Exists(src))           File.Move(src, dest);
-        else if (Directory.Exists(src)) Directory.Move(src, dest);
+        if (srcIsFile)           File.Move(src, dest);
+        else if (srcIsDirectory) Directory.Move(src, dest);
     }
 
     private static bool PathsEqual(string left, string right) =>
