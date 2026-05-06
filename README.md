@@ -6,7 +6,7 @@ Built with C# and .NET 10.
 
 ## Current status
 
-**Stage 11 complete** — directory history + Alt+F12.
+**Stage 12 complete** — F3 file viewer.
 
 The application shows two file panels with navigation, a live command line, shell execution, Ctrl+O shell output view, file selection, sorting, F7 create folder, F5 copy, F6 move/rename, F8 delete with confirmation, and Alt+F8 command history (persisted to `%APPDATA%\CSharpFar\history.json`).
 
@@ -165,6 +165,13 @@ CSharpFar.sln
 - `Alt+F12` opens the dialog; on selection loads the directory in the active panel; missing directory shows error via `MessageDialog`
 - 2 additional `JsonHistoryStoreTests` for directory order and duplicate suppression
 - 121 tests passing
+
+### Stage 12 — F3 file viewer
+- `TextFileReader` — public static helper; BOM-aware encoding detection: UTF-8/UTF-16 BOM → exact encoding; no BOM → strict UTF-8; invalid bytes → `Encoding.Default` fallback; 10 MB size limit
+- `FileViewer` — full-screen viewer; header (filename + line X/Y), content (White/Black), footer (F10 Close); tab expansion to 4 spaces; horizontal scroll Left/Right; vertical scroll Up/Down/PgUp/PgDn/Home/End; Esc or F10 exits
+- `F3` on a file opens the viewer; on directory does nothing
+- 5 new `FileViewerTests` for encoding detection and line reading
+- 126 tests passing
 
 ## Known limitations
 

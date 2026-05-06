@@ -1,5 +1,6 @@
 using CSharpFar.App.Dialogs;
 using CSharpFar.App.Rendering;
+using CSharpFar.App.Viewer;
 using CSharpFar.Console;
 using CSharpFar.Console.Models;
 using CSharpFar.Core.Abstractions;
@@ -310,6 +311,10 @@ public sealed class Application
                 return RenderScope.Full;
 
             // ── File operations ───────────────────────────────────────────────
+            case ConsoleKey.F3:
+                HandleViewFile();
+                return RenderScope.Full;
+
             case ConsoleKey.F5:
                 HandleCopy();
                 return RenderScope.Full;
@@ -332,6 +337,15 @@ public sealed class Application
         }
 
         return RenderScope.None;
+    }
+
+    // ── F3 — view file ────────────────────────────────────────────────────────
+
+    private void HandleViewFile()
+    {
+        var item = _ctrl.CurrentItem(ActiveState);
+        if (item is null || item.IsParentDirectory || item.IsDirectory) return;
+        new FileViewer(_screen).Show(item.FullPath);
     }
 
     // ── F5 — copy ─────────────────────────────────────────────────────────────
