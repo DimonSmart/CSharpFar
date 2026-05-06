@@ -2,6 +2,7 @@ using CSharpFar.App.Dialogs;
 using CSharpFar.App.Rendering;
 using CSharpFar.App.Editor;
 using CSharpFar.App.Search;
+using CSharpFar.App.UserMenu;
 using CSharpFar.App.Viewer;
 using CSharpFar.Console;
 using CSharpFar.Console.Models;
@@ -28,6 +29,7 @@ public sealed class Application
     private readonly IFileOperationService _fileOps;
     private readonly IHistoryStore _history;
     private readonly AppSettingsAlias _settings;
+    private readonly UserMenuStore _userMenu;
 
     private readonly FilePanelState _left;
     private readonly FilePanelState _right;
@@ -45,7 +47,8 @@ public sealed class Application
         IShellService          shell,
         IFileOperationService  fileOps,
         IHistoryStore?         history  = null,
-        AppSettingsAlias?      settings = null)
+        AppSettingsAlias?      settings = null,
+        UserMenuStore?         userMenu = null)
     {
         _screen   = screen;
         _ctrl     = new PanelController(fs);
@@ -53,6 +56,10 @@ public sealed class Application
         _fileOps  = fileOps;
         _history  = history  ?? new InMemoryHistoryStore();
         _settings = settings ?? new AppSettingsAlias();
+        _userMenu = userMenu ?? new UserMenuStore(
+            Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+                "CSharpFar"));
 
         string cwd        = Directory.GetCurrentDirectory();
         string leftStart  = ResolveStartDir(_settings.Panels.LeftStartDirectory,  cwd);
@@ -375,6 +382,11 @@ public sealed class Application
                 _ctrl.MoveCursor(ActiveState, +vr, vr);
                 return RenderScope.Full;
 
+            // ── User menu ────────────────────────────────────────────────────
+            case ConsoleKey.F2:
+                HandleUserMenu();
+                return RenderScope.Full;
+
             // ── File operations ───────────────────────────────────────────────
             case ConsoleKey.F3:
                 HandleViewFile();
@@ -455,6 +467,35 @@ public sealed class Application
                 SafeRefresh(ActiveState, VisibleRows());
                 break;
         }
+    }
+
+    // ── F2 — user menu ────────────────────────────────────────────────────────
+
+    private void HandleUserMenu()
+    {
+        if (_userMenu.Items.Count == 0)
+        {
+            new MessageDialog(_screen).Show(
+                "User Menu", "User menu is empty.\nEdit user-menu.json to add commands.");
+            return;
+        }
+
+        string? command = new UserMenuDialog(_screen).Show(_userMenu.Items);
+        if (command is null) return;
+
+        var item = _ctrl.CurrentItem(ActiveState);
+        string currentFile = item is { IsParentDirectory: false } ? item.FullPath : string.Empty;
+
+        IReadOnlyList<string> selected = ActiveState.SelectedPaths.Count > 0
+            ? [.. ActiveState.SelectedPaths]
+            : [];
+
+        string otherDir  = (_active == PanelSide.Left ? _right : _left).CurrentDirectory;
+        string expanded  = PlaceholderExpander.Expand(
+            command, currentFile, selected,
+            ActiveState.CurrentDirectory, otherDir);
+
+        ExecuteCommand(expanded);
     }
 
     // ── Alt+F7 — search files ─────────────────────────────────────────────────
