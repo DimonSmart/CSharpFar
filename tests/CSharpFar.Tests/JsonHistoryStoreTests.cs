@@ -87,6 +87,45 @@ public class JsonHistoryStoreTests : IDisposable
         Assert.Equal(@"C:\C", history[2].Path);
     }
 
+    // ── File history ──────────────────────────────────────────────────────────
+
+    [Fact]
+    public void AddFile_PersistsToDisk()
+    {
+        var store = new JsonHistoryStore(_tempFile);
+        store.AddFile(new FileHistoryItem { Path = @"C:\docs\readme.txt" });
+
+        var store2 = new JsonHistoryStore(_tempFile);
+        Assert.Single(store2.GetFileHistory());
+        Assert.Equal(@"C:\docs\readme.txt", store2.GetFileHistory()[0].Path);
+    }
+
+    [Fact]
+    public void AddFile_ConsecutiveDuplicateNotStored()
+    {
+        var store = new JsonHistoryStore(_tempFile);
+        store.AddFile(new FileHistoryItem { Path = @"C:\docs\readme.txt" });
+        store.AddFile(new FileHistoryItem { Path = @"C:\docs\readme.txt" }); // duplicate
+
+        var store2 = new JsonHistoryStore(_tempFile);
+        Assert.Single(store2.GetFileHistory());
+    }
+
+    [Fact]
+    public void AddFile_MultipleFilesPersistInOrder()
+    {
+        var store = new JsonHistoryStore(_tempFile);
+        store.AddFile(new FileHistoryItem { Path = @"C:\a.txt" });
+        store.AddFile(new FileHistoryItem { Path = @"C:\b.txt" });
+        store.AddFile(new FileHistoryItem { Path = @"C:\c.txt" });
+
+        var store2 = new JsonHistoryStore(_tempFile);
+        var history = store2.GetFileHistory();
+        Assert.Equal(3, history.Count);
+        Assert.Equal(@"C:\a.txt", history[0].Path);
+        Assert.Equal(@"C:\c.txt", history[2].Path);
+    }
+
     // ── Load edge cases ───────────────────────────────────────────────────────
 
     [Fact]

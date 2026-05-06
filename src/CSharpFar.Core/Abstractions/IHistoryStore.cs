@@ -9,4 +9,7 @@ public interface IHistoryStore
 
     IReadOnlyList<DirectoryHistoryItem> GetDirectoryHistory();
     void AddDirectory(DirectoryHistoryItem item);
+
+    IReadOnlyList<FileHistoryItem> GetFileHistory();
+    void AddFile(FileHistoryItem item);
 }

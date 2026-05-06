@@ -13,12 +13,14 @@ public sealed class JsonHistoryStore : IHistoryStore
 {
     private const int MaxCommands    = 1000;
     private const int MaxDirectories = 500;
+    private const int MaxFiles       = 200;
 
     private static readonly JsonSerializerOptions JsonOptions = new() { WriteIndented = true };
 
     private readonly string _filePath;
     private readonly List<CommandHistoryItem>   _commands    = new();
     private readonly List<DirectoryHistoryItem> _directories = new();
+    private readonly List<FileHistoryItem>      _files       = new();
 
     public JsonHistoryStore(string? filePath = null)
     {
@@ -50,6 +52,19 @@ public sealed class JsonHistoryStore : IHistoryStore
         Save();
     }
 
+    public IReadOnlyList<FileHistoryItem> GetFileHistory() => _files;
+
+    public void AddFile(FileHistoryItem item)
+    {
+        if (_files.Count > 0 &&
+            string.Equals(_files[^1].Path, item.Path, StringComparison.OrdinalIgnoreCase))
+            return;
+
+        _files.Add(item);
+        if (_files.Count > MaxFiles) _files.RemoveAt(0);
+        Save();
+    }
+
     // ── persistence ───────────────────────────────────────────────────────────
 
     private void Load()
@@ -62,6 +77,7 @@ public sealed class JsonHistoryStore : IHistoryStore
             if (data is null) return;
             if (data.Commands    is not null) _commands.AddRange(data.Commands);
             if (data.Directories is not null) _directories.AddRange(data.Directories);
+            if (data.Files       is not null) _files.AddRange(data.Files);
         }
         catch { /* corrupt file — start fresh */ }
     }
@@ -71,7 +87,7 @@ public sealed class JsonHistoryStore : IHistoryStore
         try
         {
             Directory.CreateDirectory(Path.GetDirectoryName(_filePath)!);
-            var data = new HistoryData { Commands = _commands, Directories = _directories };
+            var data = new HistoryData { Commands = _commands, Directories = _directories, Files = _files };
             File.WriteAllText(_filePath, JsonSerializer.Serialize(data, JsonOptions));
         }
         catch { /* best effort — never crash the app */ }
@@ -89,5 +105,6 @@ public sealed class JsonHistoryStore : IHistoryStore
     {
         public List<CommandHistoryItem>?   Commands    { get; set; }
         public List<DirectoryHistoryItem>? Directories { get; set; }
+        public List<FileHistoryItem>?      Files       { get; set; }
     }
 }

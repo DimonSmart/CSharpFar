@@ -219,6 +219,13 @@ public sealed class Application
             }
         }
 
+        // Alt+F11 — file history
+        if (key.Key == ConsoleKey.F11 && (key.Modifiers & ConsoleModifiers.Alt) != 0)
+        {
+            HandleFileHistory();
+            return RenderScope.Full;
+        }
+
         // Alt+F12 — directory history
         if (key.Key == ConsoleKey.F12 && (key.Modifiers & ConsoleModifiers.Alt) != 0)
         {
@@ -350,6 +357,7 @@ public sealed class Application
     {
         var item = _ctrl.CurrentItem(ActiveState);
         if (item is null || item.IsParentDirectory || item.IsDirectory) return;
+        _history.AddFile(new FileHistoryItem { Path = item.FullPath });
         new FileEditor(_screen).Show(item.FullPath);
         SafeRefresh(ActiveState, VisibleRows());
     }
@@ -360,7 +368,36 @@ public sealed class Application
     {
         var item = _ctrl.CurrentItem(ActiveState);
         if (item is null || item.IsParentDirectory || item.IsDirectory) return;
+        _history.AddFile(new FileHistoryItem { Path = item.FullPath });
         new FileViewer(_screen).Show(item.FullPath);
+    }
+
+    // ── Alt+F11 — file history ────────────────────────────────────────────────
+
+    private void HandleFileHistory()
+    {
+        string? path = new FileHistoryDialog(_screen).Show(_history.GetFileHistory());
+        if (path is null) return;
+
+        if (!File.Exists(path))
+        {
+            new MessageDialog(_screen).Show("File History", $"File not found: {path}");
+            return;
+        }
+
+        var choice = new OpenFileDialog(_screen).Show(Path.GetFileName(path));
+        switch (choice)
+        {
+            case OpenFileChoice.View:
+                _history.AddFile(new FileHistoryItem { Path = path });
+                new FileViewer(_screen).Show(path);
+                break;
+            case OpenFileChoice.Edit:
+                _history.AddFile(new FileHistoryItem { Path = path });
+                new FileEditor(_screen).Show(path);
+                SafeRefresh(ActiveState, VisibleRows());
+                break;
+        }
     }
 
     // ── F5 — copy ─────────────────────────────────────────────────────────────
