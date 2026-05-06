@@ -20,6 +20,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\CSharpFar.Core\CSharpFar.Core.csproj" />
+    <ProjectReference Include="..\..\src\CSharpFar.Console\CSharpFar.Console.csproj" />
   </ItemGroup>
 
 </Project>

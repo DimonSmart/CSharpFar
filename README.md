@@ -6,9 +6,9 @@ Built with C# and .NET 10.
 
 ## Current status
 
-**Stage 0 complete** — project skeleton created.
+**Stage 1 complete** — console abstraction layer implemented.
 
-UI is not yet implemented. The application prints a stub message and exits.
+The application draws a two-panel placeholder UI using `IConsoleDriver` / `ScreenRenderer` and waits for a keypress.
 
 ## Requirements
 
@@ -60,7 +60,19 @@ CSharpFar.sln
 - Added `.editorconfig`
 - Added smoke tests for core models
 
+### Stage 1 — Console abstraction layer
+- Added `IConsoleDriver` interface with `WriteAt`, `ClearRegion`, `SetCursorPosition`,
+  `SetCursorVisible`, `Capture`, `Restore`
+- Added `SystemConsoleDriver` — real implementation using `System.Console`; on Windows
+  uses `ReadConsoleOutput` / `WriteConsoleOutput` (Win32 P/Invoke) for `Capture`/`Restore`,
+  laying the groundwork for Ctrl+O shell-output preservation
+- Added models: `ConsoleSize`, `Rect`, `CellStyle`, `SnapshotCell`, `ScreenSnapshot`
+- Added `ScreenRenderer` — higher-level drawing surface (text, fill, box borders)
+- Added `FakeConsoleDriver` for unit testing (in-memory buffer, key queue, inspection helpers)
+- 16 tests passing (8 driver tests + 5 renderer tests + 3 smoke tests)
+
 ## Known limitations
 
-- No UI yet — the application exits immediately after printing a stub message.
-- All service implementations are stubs/placeholders.
+- No file panels yet — the application shows a placeholder box UI and exits on any key.
+- Shell service not implemented; file operations not implemented.
+- `CursorVisible` setter may throw in redirected-output environments.
