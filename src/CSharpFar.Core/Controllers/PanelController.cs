@@ -16,6 +16,7 @@ public sealed class PanelController
         state.CurrentDirectory = path;
         state.Items.Clear();
         state.Items.AddRange(items);
+        state.SelectedPaths.Clear();
         state.CursorIndex = 0;
         state.ScrollOffset = 0;
         ApplySort(state);
@@ -69,7 +70,18 @@ public sealed class PanelController
     public void RefreshDirectory(FilePanelState state, int visibleRows)
     {
         string? cursorName = CurrentItem(state)?.Name;
+        var selectedPaths = state.SelectedPaths.ToList();
         LoadDirectory(state, state.CurrentDirectory);
+
+        var availablePaths = state.Items
+            .Where(i => !i.IsParentDirectory)
+            .Select(i => i.FullPath)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        foreach (string selectedPath in selectedPaths)
+        {
+            if (availablePaths.Contains(selectedPath))
+                state.SelectedPaths.Add(selectedPath);
+        }
 
         if (cursorName is not null)
         {

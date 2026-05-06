@@ -32,34 +32,34 @@ public class CopyOperationTests : IDisposable
     // ── Single file ───────────────────────────────────────────────────────────
 
     [Fact]
-    public void CopyAsync_CopiesSingleFile()
+    public async Task CopyAsync_CopiesSingleFile()
     {
         string srcFile = Write(_src, "hello.txt", "hello");
 
-        Svc().CopyAsync([srcFile], _dst).GetAwaiter().GetResult();
+        await Svc().CopyAsync([srcFile], _dst);
 
         Assert.True(File.Exists(Path.Combine(_dst, "hello.txt")));
         Assert.Equal("hello", File.ReadAllText(Path.Combine(_dst, "hello.txt")));
     }
 
     [Fact]
-    public void CopyAsync_CopiesMultipleFiles()
+    public async Task CopyAsync_CopiesMultipleFiles()
     {
         string f1 = Write(_src, "a.txt", "A");
         string f2 = Write(_src, "b.txt", "B");
 
-        Svc().CopyAsync([f1, f2], _dst).GetAwaiter().GetResult();
+        await Svc().CopyAsync([f1, f2], _dst);
 
         Assert.True(File.Exists(Path.Combine(_dst, "a.txt")));
         Assert.True(File.Exists(Path.Combine(_dst, "b.txt")));
     }
 
     [Fact]
-    public void CopyAsync_SourceFileIsNotDeleted()
+    public async Task CopyAsync_SourceFileIsNotDeleted()
     {
         string srcFile = Write(_src, "keep.txt", "data");
 
-        Svc().CopyAsync([srcFile], _dst).GetAwaiter().GetResult();
+        await Svc().CopyAsync([srcFile], _dst);
 
         Assert.True(File.Exists(srcFile));
     }
@@ -67,34 +67,59 @@ public class CopyOperationTests : IDisposable
     // ── Directory ─────────────────────────────────────────────────────────────
 
     [Fact]
-    public void CopyAsync_CopiesDirectoryRecursively()
+    public async Task CopyAsync_CopiesDirectoryRecursively()
     {
         string sub = Path.Combine(_src, "sub");
         Directory.CreateDirectory(sub);
         Write(_src, "root.txt", "r");
         Write(sub,  "nested.txt", "n");
 
-        Svc().CopyAsync([_src], _dst).GetAwaiter().GetResult();
+        await Svc().CopyAsync([_src], _dst);
 
         string copiedSrc = Path.Combine(_dst, Path.GetFileName(_src));
         Assert.True(File.Exists(Path.Combine(copiedSrc, "root.txt")));
         Assert.True(File.Exists(Path.Combine(copiedSrc, "sub", "nested.txt")));
     }
 
+    [Fact]
+    public async Task CopyAsync_ThrowsWhenDirectoryDestinationIsSameDirectory()
+    {
+        await Assert.ThrowsAsync<IOException>(() =>
+            Svc().CopyAsync([_src], _tempRoot));
+    }
+
+    [Fact]
+    public async Task CopyAsync_ThrowsWhenDirectoryDestinationIsInsideSource()
+    {
+        string child = Path.Combine(_src, "child");
+        Directory.CreateDirectory(child);
+
+        await Assert.ThrowsAsync<IOException>(() =>
+            Svc().CopyAsync([_src], child));
+    }
+
+    [Fact]
+    public async Task CopyAsync_ThrowsWhenFileDestinationIsSameFile()
+    {
+        string srcFile = Write(_src, "same.txt", "data");
+
+        await Assert.ThrowsAsync<IOException>(() =>
+            Svc().CopyAsync([srcFile], _src));
+    }
+
     // ── Progress callback ─────────────────────────────────────────────────────
 
     [Fact]
-    public void CopyAsync_CallsOnProgressForEachFile()
+    public async Task CopyAsync_CallsOnProgressForEachFile()
     {
         Write(_src, "a.txt", "");
         Write(_src, "b.txt", "");
 
         var reported = new List<string>();
-        Svc().CopyAsync(
+        await Svc().CopyAsync(
             [Path.Combine(_src, "a.txt"), Path.Combine(_src, "b.txt")],
             _dst,
-            onProgress: name => reported.Add(name))
-            .GetAwaiter().GetResult();
+            onProgress: name => reported.Add(name));
 
         Assert.Contains("a.txt", reported);
         Assert.Contains("b.txt", reported);
@@ -103,73 +128,68 @@ public class CopyOperationTests : IDisposable
     // ── Conflict handling ─────────────────────────────────────────────────────
 
     [Fact]
-    public void CopyAsync_CallsOnConflictWhenDestExists()
+    public async Task CopyAsync_CallsOnConflictWhenDestExists()
     {
         string srcFile = Write(_src, "dup.txt", "new");
         Write(_dst, "dup.txt", "old");
 
         bool conflictCalled = false;
-        Svc().CopyAsync(
+        await Svc().CopyAsync(
             [srcFile], _dst,
-            onConflict: _ => { conflictCalled = true; return ConflictChoice.Skip; })
-            .GetAwaiter().GetResult();
+            onConflict: _ => { conflictCalled = true; return ConflictChoice.Skip; });
 
         Assert.True(conflictCalled);
     }
 
     [Fact]
-    public void CopyAsync_OverwritesWhenChoiceIsOverwrite()
+    public async Task CopyAsync_OverwritesWhenChoiceIsOverwrite()
     {
         string srcFile = Write(_src, "dup.txt", "new content");
         Write(_dst, "dup.txt", "old content");
 
-        Svc().CopyAsync(
+        await Svc().CopyAsync(
             [srcFile], _dst,
-            onConflict: _ => ConflictChoice.Overwrite)
-            .GetAwaiter().GetResult();
+            onConflict: _ => ConflictChoice.Overwrite);
 
         Assert.Equal("new content", File.ReadAllText(Path.Combine(_dst, "dup.txt")));
     }
 
     [Fact]
-    public void CopyAsync_SkipsFileWhenChoiceIsSkip()
+    public async Task CopyAsync_SkipsFileWhenChoiceIsSkip()
     {
         string srcFile = Write(_src, "dup.txt", "new content");
         Write(_dst, "dup.txt", "old content");
 
-        Svc().CopyAsync(
+        await Svc().CopyAsync(
             [srcFile], _dst,
-            onConflict: _ => ConflictChoice.Skip)
-            .GetAwaiter().GetResult();
+            onConflict: _ => ConflictChoice.Skip);
 
         Assert.Equal("old content", File.ReadAllText(Path.Combine(_dst, "dup.txt")));
     }
 
     [Fact]
-    public void CopyAsync_ThrowsOperationCancelledWhenChoiceIsCancel()
+    public async Task CopyAsync_ThrowsOperationCancelledWhenChoiceIsCancel()
     {
         string srcFile = Write(_src, "dup.txt", "new");
         Write(_dst, "dup.txt", "old");
 
-        Assert.Throws<OperationCanceledException>(() =>
+        await Assert.ThrowsAsync<OperationCanceledException>(() =>
             Svc().CopyAsync(
                 [srcFile], _dst,
-                onConflict: _ => ConflictChoice.Cancel)
-                .GetAwaiter().GetResult());
+                onConflict: _ => ConflictChoice.Cancel));
     }
 
     [Fact]
-    public void CopyAsync_StopsAtCancelEvenWithMoreSources()
+    public async Task CopyAsync_StopsAtCancelEvenWithMoreSources()
     {
         string f1 = Write(_src, "dup.txt",  "new");
         string f2 = Write(_src, "other.txt", "other");
         Write(_dst, "dup.txt", "old");
 
-        Assert.Throws<OperationCanceledException>(() =>
+        await Assert.ThrowsAsync<OperationCanceledException>(() =>
             Svc().CopyAsync(
                 [f1, f2], _dst,
-                onConflict: _ => ConflictChoice.Cancel)
-                .GetAwaiter().GetResult());
+                onConflict: _ => ConflictChoice.Cancel));
 
         Assert.False(File.Exists(Path.Combine(_dst, "other.txt")));
     }
@@ -177,17 +197,16 @@ public class CopyOperationTests : IDisposable
     // ── CancellationToken ─────────────────────────────────────────────────────
 
     [Fact]
-    public void CopyAsync_RespectsExternalCancellation()
+    public async Task CopyAsync_RespectsExternalCancellation()
     {
         Write(_src, "a.txt", "");
         var cts = new CancellationTokenSource();
         cts.Cancel();
 
-        Assert.Throws<OperationCanceledException>(() =>
+        await Assert.ThrowsAsync<OperationCanceledException>(() =>
             Svc().CopyAsync(
                 [Path.Combine(_src, "a.txt")], _dst,
-                cancellationToken: cts.Token)
-                .GetAwaiter().GetResult());
+                cancellationToken: cts.Token));
     }
 
     // ── helpers ───────────────────────────────────────────────────────────────

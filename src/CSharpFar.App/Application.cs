@@ -300,8 +300,16 @@ public sealed class Application
                 HandleCopy();
                 return RenderScope.Full;
 
+            case ConsoleKey.F6:
+                HandleMove();
+                return RenderScope.Full;
+
             case ConsoleKey.F7:
                 HandleCreateFolder();
+                return RenderScope.Full;
+
+            case ConsoleKey.F8:
+                HandleDelete();
                 return RenderScope.Full;
 
             case ConsoleKey.F10:
@@ -314,7 +322,7 @@ public sealed class Application
 
     // ── F5 — copy ─────────────────────────────────────────────────────────────
 
-    private IReadOnlyList<string> GetCopySources()
+    private IReadOnlyList<string> GetOperationSources()
     {
         if (ActiveState.SelectedPaths.Count > 0)
             return [.. ActiveState.SelectedPaths];
@@ -326,7 +334,7 @@ public sealed class Application
 
     private void HandleCopy()
     {
-        var sources = GetCopySources();
+        var sources = GetOperationSources();
         if (sources.Count == 0) return;
 
         var otherDir = (_active == PanelSide.Left ? _right : _left).CurrentDirectory;
@@ -357,6 +365,91 @@ public sealed class Application
         {
             _screen.Restore(saved);
             new MessageDialog(_screen).Show("Copy Error", ex.Message);
+        }
+        finally
+        {
+            _screen.Restore(saved);
+        }
+
+        int vr = VisibleRows();
+        SafeRefresh(_left,  vr);
+        SafeRefresh(_right, vr);
+    }
+
+    // ── F6 — move / rename ────────────────────────────────────────────────────
+
+    private void HandleMove()
+    {
+        var sources = GetOperationSources();
+        if (sources.Count == 0) return;
+
+        // Single item: pre-fill with its name (user edits to rename or enters a path to move).
+        // Multiple items: pre-fill with opposite panel dir (move destination).
+        string preFill = sources.Count == 1
+            ? Path.GetFileName(sources[0])
+            : (_active == PanelSide.Left ? _right : _left).CurrentDirectory;
+
+        string label = sources.Count == 1 ? "Move / Rename to:" : $"Move {sources.Count} items to:";
+
+        string? dest = new InputDialog(_screen).Show("Move", label, initialText: preFill);
+        if (dest is null) return;
+
+        var size  = _screen.GetSize();
+        var saved = _screen.Capture(new Rect(0, 0, size.Width, size.Height));
+
+        try
+        {
+            var conflicts = new ConflictDialog(_screen);
+            _fileOps.MoveAsync(
+                sources, dest,
+                onConflict: destPath => conflicts.Show(destPath))
+                .GetAwaiter().GetResult();
+
+            ActiveState.SelectedPaths.Clear();
+        }
+        catch (OperationCanceledException) { }
+        catch (Exception ex)
+        {
+            _screen.Restore(saved);
+            new MessageDialog(_screen).Show("Move Error", ex.Message);
+        }
+        finally
+        {
+            _screen.Restore(saved);
+        }
+
+        int vr = VisibleRows();
+        SafeRefresh(_left,  vr);
+        SafeRefresh(_right, vr);
+    }
+
+    // ── F8 — delete ───────────────────────────────────────────────────────────
+
+    private void HandleDelete()
+    {
+        var sources = GetOperationSources();
+        if (sources.Count == 0) return;
+
+        string prompt = sources.Count == 1
+            ? $"Delete \"{Path.GetFileName(sources[0])}\"?"
+            : $"Delete {sources.Count} items?";
+
+        if (!new ConfirmDialog(_screen).Show("Delete", prompt))
+            return;
+
+        var size  = _screen.GetSize();
+        var saved = _screen.Capture(new Rect(0, 0, size.Width, size.Height));
+
+        try
+        {
+            _fileOps.DeleteAsync(sources).GetAwaiter().GetResult();
+            ActiveState.SelectedPaths.Clear();
+        }
+        catch (OperationCanceledException) { }
+        catch (Exception ex)
+        {
+            _screen.Restore(saved);
+            new MessageDialog(_screen).Show("Delete Error", ex.Message);
         }
         finally
         {

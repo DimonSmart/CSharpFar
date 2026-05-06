@@ -52,6 +52,50 @@ public class PanelControllerTests
         Assert.Equal(0, state.ScrollOffset);
     }
 
+    [Fact]
+    public void LoadDirectory_ClearsSelection()
+    {
+        var fs = new FakeFileSystemService();
+        fs.AddDirectory(Root,
+            new FilePanelItem { Name = "file.txt", FullPath = Root + @"\file.txt", IsDirectory = false });
+        fs.AddDirectory(Sub1,
+            new FilePanelItem { Name = "other.txt", FullPath = Sub1 + @"\other.txt", IsDirectory = false });
+
+        var ctrl = new PanelController(fs);
+        var state = new FilePanelState { CurrentDirectory = Root };
+        ctrl.LoadDirectory(state, Root);
+        state.SelectedPaths.Add(Root + @"\file.txt");
+
+        ctrl.LoadDirectory(state, Sub1);
+
+        Assert.Empty(state.SelectedPaths);
+    }
+
+    [Fact]
+    public void RefreshDirectory_PreservesExistingSelection()
+    {
+        var fs = new FakeFileSystemService();
+        fs.AddDirectory(Root,
+            new FilePanelItem { Name = "a.txt", FullPath = Root + @"\a.txt", IsDirectory = false },
+            new FilePanelItem { Name = "b.txt", FullPath = Root + @"\b.txt", IsDirectory = false });
+
+        var ctrl = new PanelController(fs);
+        var state = new FilePanelState { CurrentDirectory = Root };
+        ctrl.LoadDirectory(state, Root);
+        state.SelectedPaths.Add(Root + @"\a.txt");
+        state.SelectedPaths.Add(Root + @"\b.txt");
+
+        fs.AddDirectory(Root,
+            new FilePanelItem { Name = "a.txt", FullPath = Root + @"\a.txt", IsDirectory = false },
+            new FilePanelItem { Name = "c.txt", FullPath = Root + @"\c.txt", IsDirectory = false });
+
+        ctrl.RefreshDirectory(state, visibleRows: 10);
+
+        Assert.Contains(Root + @"\a.txt", state.SelectedPaths);
+        Assert.DoesNotContain(Root + @"\b.txt", state.SelectedPaths);
+        Assert.Single(state.SelectedPaths);
+    }
+
     // ── MoveCursor ────────────────────────────────────────────────────────────
 
     [Fact]

@@ -6,9 +6,9 @@ Built with C# and .NET 10.
 
 ## Current status
 
-**Stage 7 complete** — F5 copy.
+**Stage 9 complete** — F8 delete.
 
-The application shows two file panels with navigation, a live command line, shell execution, Ctrl+O shell output view, file selection, sorting, and F7 create folder with a modal input dialog.
+The application shows two file panels with navigation, a live command line, shell execution, Ctrl+O shell output view, file selection, sorting, F7 create folder, F5 copy, F6 move/rename, and F8 delete with confirmation.
 
 ## Requirements
 
@@ -136,9 +136,23 @@ CSharpFar.sln
 - After copy: both panels refresh, active panel selection is cleared
 - 91 tests passing
 
+### Stage 8 — F6 move/rename
+- `IFileOperationService.MoveAsync` updated: accepts optional `onConflict` callback
+- Single source + plain name (no path separators) → rename in-place
+- Path destination or multiple sources → move to specified directory
+- Conflict handling: Overwrite deletes destination then moves; Skip leaves source unchanged; Cancel throws
+- Pre-fill: single item → current name (for easy rename); multiple items → opposite panel directory
+- Both panels refresh and selection cleared after operation
+- 102 tests passing
+
+### Stage 9 — F8 delete
+- `FileOperationService.DeleteAsync` — deletes files and directories recursively; silently skips non-existent paths
+- `ConfirmDialog` — centered modal (52×5): title, prompt line, `[D]elete   [C]ancel` buttons; D/Enter confirms, C/Esc cancels
+- `F8` opens confirm dialog; on confirm: deletes sources, refreshes both panels, clears selection
+- Errors (access denied, etc.) shown via `MessageDialog` — do not crash the app
+- 107 tests passing
+
 ## Known limitations
 
-- No move/rename yet (Stage 8).
-- No delete yet (Stage 9).
 - History not persisted to disk yet — that is Stage 10.
 - `CursorVisible` setter may throw in redirected-output environments.

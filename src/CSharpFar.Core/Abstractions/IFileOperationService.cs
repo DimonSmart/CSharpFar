@@ -13,7 +13,15 @@ public interface IFileOperationService
         Func<string, ConflictChoice>? onConflict = null,
         CancellationToken cancellationToken = default);
 
-    Task MoveAsync(IReadOnlyList<string> sources, string destination, CancellationToken cancellationToken = default);
+    /// <param name="destination">
+    /// A directory path (move) or a plain name with no separators (rename, single source only).
+    /// </param>
+    /// <param name="onConflict">Called when the destination already exists.</param>
+    Task MoveAsync(
+        IReadOnlyList<string> sources,
+        string destination,
+        Func<string, ConflictChoice>? onConflict = null,
+        CancellationToken cancellationToken = default);
     Task DeleteAsync(IReadOnlyList<string> paths, CancellationToken cancellationToken = default);
     void CreateDirectory(string path);
 }
