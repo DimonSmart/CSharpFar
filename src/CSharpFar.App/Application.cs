@@ -1,6 +1,7 @@
 using CSharpFar.App.Dialogs;
 using CSharpFar.App.Rendering;
 using CSharpFar.App.Editor;
+using CSharpFar.App.Search;
 using CSharpFar.App.Viewer;
 using CSharpFar.Console;
 using CSharpFar.Console.Models;
@@ -268,6 +269,13 @@ public sealed class Application
             }
         }
 
+        // Alt+F7 — search files (must come before plain F7 in switch)
+        if (key.Key == ConsoleKey.F7 && (key.Modifiers & ConsoleModifiers.Alt) != 0)
+        {
+            HandleSearchFiles();
+            return RenderScope.Full;
+        }
+
         // Alt+F11 — file history
         if (key.Key == ConsoleKey.F11 && (key.Modifiers & ConsoleModifiers.Alt) != 0)
         {
@@ -446,6 +454,41 @@ public sealed class Application
                 new FileEditor(_screen).Show(path);
                 SafeRefresh(ActiveState, VisibleRows());
                 break;
+        }
+    }
+
+    // ── Alt+F7 — search files ─────────────────────────────────────────────────
+
+    private void HandleSearchFiles()
+    {
+        string? mask = new InputDialog(_screen).Show(
+            "Search Files", "File mask (e.g. *.cs):", initialText: "*");
+        if (mask is null) return;
+
+        string rootDir = ActiveState.CurrentDirectory;
+        var results = new SearchProgressDialog(_screen).Show(rootDir, mask);
+
+        if (results.Count == 0)
+        {
+            new MessageDialog(_screen).Show("Search", "No files found.");
+            return;
+        }
+
+        string? selected = new SearchResultsDialog(_screen).Show(results);
+        if (selected is null) return;
+
+        string? parentDir = Path.GetDirectoryName(selected);
+        string  fileName  = Path.GetFileName(selected);
+        if (parentDir is null) return;
+
+        try
+        {
+            _ctrl.LoadDirectory(ActiveState, parentDir);
+            _ctrl.SetCursorByName(ActiveState, fileName, VisibleRows());
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            new MessageDialog(_screen).Show("Search", ex.Message);
         }
     }
 
