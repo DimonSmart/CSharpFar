@@ -6,9 +6,9 @@ Built with C# and .NET 10.
 
 ## Current status
 
-**Stage 9 complete** — F8 delete.
+**Stage 10 complete** — persisted history + Alt+F8.
 
-The application shows two file panels with navigation, a live command line, shell execution, Ctrl+O shell output view, file selection, sorting, F7 create folder, F5 copy, F6 move/rename, and F8 delete with confirmation.
+The application shows two file panels with navigation, a live command line, shell execution, Ctrl+O shell output view, file selection, sorting, F7 create folder, F5 copy, F6 move/rename, F8 delete with confirmation, and Alt+F8 command history (persisted to `%APPDATA%\CSharpFar\history.json`).
 
 ## Requirements
 
@@ -152,7 +152,14 @@ CSharpFar.sln
 - Errors (access denied, etc.) shown via `MessageDialog` — do not crash the app
 - 107 tests passing
 
+### Stage 10 — persisted history + Alt+F8
+- `JsonHistoryStore` (`CSharpFar.App/History/`) — persists command + directory history to `%APPDATA%\CSharpFar\history.json`; loaded at startup, saved after each mutation; I/O errors silently swallowed
+- `HistoryDialog` — scrollable list (60×up-to-17); Up/Down/PgUp/PgDn navigate; Enter inserts into command line; Esc cancels
+- `Alt+F8` opens the history dialog; selected command replaces command line text
+- Tests project now references `CSharpFar.App`; 5 new `JsonHistoryStoreTests`
+- 119 tests passing
+
 ## Known limitations
 
-- History not persisted to disk yet — that is Stage 10.
+- Directory history not yet navigable via `Alt+F12` — that is Stage 11.
 - `CursorVisible` setter may throw in redirected-output environments.

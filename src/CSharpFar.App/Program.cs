@@ -1,6 +1,6 @@
 using CSharpFar.App;
+using CSharpFar.App.History;
 using CSharpFar.Console;
-using CSharpFar.Core.History;
 using CSharpFar.FileSystem;
 using CSharpFar.Shell;
 
@@ -9,6 +9,6 @@ var renderer = new ScreenRenderer(driver);
 var fs       = new FileSystemService();
 var fileOps  = new FileOperationService();
 var shell    = new ShellService();
-var history  = new InMemoryHistoryStore();
+var history  = new JsonHistoryStore();
 
 new Application(renderer, fs, shell, fileOps, history).Run();

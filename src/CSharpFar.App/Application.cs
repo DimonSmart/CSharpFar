@@ -217,6 +217,13 @@ public sealed class Application
             }
         }
 
+        // Alt+F8 — command history (must come before F8 delete case in switch below)
+        if (key.Key == ConsoleKey.F8 && (key.Modifiers & ConsoleModifiers.Alt) != 0)
+        {
+            HandleCommandHistory();
+            return RenderScope.CommandLine;
+        }
+
         // Printable characters always go to the command line
         bool isPrintable = key.KeyChar >= ' ' &&
             (key.Modifiers & (ConsoleModifiers.Control | ConsoleModifiers.Alt)) == 0;
@@ -459,6 +466,15 @@ public sealed class Application
         int vr = VisibleRows();
         SafeRefresh(_left,  vr);
         SafeRefresh(_right, vr);
+    }
+
+    // ── Alt+F8 — command history ──────────────────────────────────────────────
+
+    private void HandleCommandHistory()
+    {
+        string? cmd = new HistoryDialog(_screen).Show(_history.GetCommandHistory());
+        if (cmd is not null)
+            _cmdLine.SetText(cmd);
     }
 
     // ── F7 — create folder ────────────────────────────────────────────────────
