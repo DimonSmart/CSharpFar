@@ -24,7 +24,7 @@ public sealed class SystemConsoleDriver : IConsoleDriver
     }
 
     public ConsoleSize GetSize() =>
-        new(global::System.Console.BufferWidth, global::System.Console.WindowHeight);
+        new(global::System.Console.WindowWidth, global::System.Console.WindowHeight);
 
     public ConsoleKeyInfo ReadKey(bool intercept) =>
         global::System.Console.ReadKey(intercept);

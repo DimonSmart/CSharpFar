@@ -6,9 +6,9 @@ Built with C# and .NET 10.
 
 ## Current status
 
-**Stage 2 complete** — two panels with full keyboard navigation.
+**Stage 3 complete** — command line and shell execution.
 
-The application shows two file-panel side by side with keyboard navigation, directory traversal, and a function-key bar.
+The application shows two file panels with keyboard navigation, a live command line, and shell command execution via `cmd.exe`.
 
 ## Requirements
 
@@ -88,4 +88,19 @@ CSharpFar.sln
 - No command line yet (Stage 3).
 - No file operations yet (Stages 6–9).
 - History and settings not persisted (Stages 10–15).
+### Stage 3 — Command line and shell execution
+- Added `CommandLineState` — character buffer with cursor, insert/delete/move operations
+- Added `ShellService` — executes `cmd.exe /c <command>` with inherited console (output visible)
+- Added `InMemoryHistoryStore` — in-memory command and directory history with duplicate suppression
+- Added `CommandLineRenderer` — renders the command line with scrolling text when input exceeds width
+- Command execution flow: scroll panels to scroll-back buffer → show prompt → run command → refresh panels
+- `PanelController.RefreshDirectory` — reloads directory while preserving cursor position by name
+- Key routing: printable chars → command line; arrows → panel navigation; Enter → execute or enter dir
+- `Escape` clears the command line; `Backspace` on empty line goes to parent directory
+- 50 tests passing
+
+## Known limitations
+
+- `Ctrl+O` (shell output view) not yet implemented — that is Stage 4.
+- History not persisted to disk yet — that is Stage 10.
 - `CursorVisible` setter may throw in redirected-output environments.

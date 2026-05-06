@@ -1,9 +1,13 @@
 using CSharpFar.App;
 using CSharpFar.Console;
+using CSharpFar.Core.History;
 using CSharpFar.FileSystem;
+using CSharpFar.Shell;
 
 var driver   = new SystemConsoleDriver();
 var renderer = new ScreenRenderer(driver);
 var fs       = new FileSystemService();
+var shell    = new ShellService();
+var history  = new InMemoryHistoryStore();
 
-new Application(renderer, fs).Run();
+new Application(renderer, fs, shell, history).Run();

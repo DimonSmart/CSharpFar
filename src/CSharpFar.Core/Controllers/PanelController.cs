@@ -61,6 +61,27 @@ public sealed class PanelController
         EnsureVisible(state, visibleRows);
     }
 
+    /// <summary>
+    /// Reloads the current directory, preserving cursor position by name.
+    /// Use after shell commands that may have changed directory contents.
+    /// </summary>
+    public void RefreshDirectory(FilePanelState state, int visibleRows)
+    {
+        string? cursorName = CurrentItem(state)?.Name;
+        LoadDirectory(state, state.CurrentDirectory);
+
+        if (cursorName is not null)
+        {
+            int idx = state.Items.FindIndex(
+                i => string.Equals(i.Name, cursorName, StringComparison.OrdinalIgnoreCase));
+            if (idx >= 0)
+            {
+                state.CursorIndex = idx;
+                EnsureVisible(state, visibleRows);
+            }
+        }
+    }
+
     /// <summary>Returns the item currently under the cursor, or null.</summary>
     public FilePanelItem? CurrentItem(FilePanelState state) =>
         state.CursorIndex >= 0 && state.CursorIndex < state.Items.Count
