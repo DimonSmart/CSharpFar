@@ -1,5 +1,6 @@
 using CSharpFar.App.Dialogs;
 using CSharpFar.App.Rendering;
+using CSharpFar.App.Editor;
 using CSharpFar.App.Viewer;
 using CSharpFar.Console;
 using CSharpFar.Console.Models;
@@ -315,6 +316,10 @@ public sealed class Application
                 HandleViewFile();
                 return RenderScope.Full;
 
+            case ConsoleKey.F4:
+                HandleEditFile();
+                return RenderScope.Full;
+
             case ConsoleKey.F5:
                 HandleCopy();
                 return RenderScope.Full;
@@ -337,6 +342,16 @@ public sealed class Application
         }
 
         return RenderScope.None;
+    }
+
+    // ── F4 — edit file ────────────────────────────────────────────────────────
+
+    private void HandleEditFile()
+    {
+        var item = _ctrl.CurrentItem(ActiveState);
+        if (item is null || item.IsParentDirectory || item.IsDirectory) return;
+        new FileEditor(_screen).Show(item.FullPath);
+        SafeRefresh(ActiveState, VisibleRows());
     }
 
     // ── F3 — view file ────────────────────────────────────────────────────────

@@ -11,16 +11,19 @@ public static class TextFileReader
 {
     public const long MaxFileSizeBytes = 10L * 1024 * 1024; // 10 MB
 
-    /// <summary>
-    /// Reads all lines from a text file.
-    /// </summary>
+    /// <summary>Reads all lines from a text file.</summary>
     /// <exception cref="IOException">Thrown if the file cannot be read.</exception>
-    public static string[] ReadLines(string filePath)
+    public static string[] ReadLines(string filePath) =>
+        ReadLinesAndEncoding(filePath).Lines;
+
+    /// <summary>
+    /// Reads all lines and returns the encoding that was used.
+    /// The encoding can be passed back to <see cref="File.WriteAllText"/> when saving.
+    /// </summary>
+    public static (string[] Lines, Encoding Encoding) ReadLinesAndEncoding(string filePath)
     {
         try
         {
-            // detectEncodingFromByteOrderMarks: true handles UTF-8, UTF-16 LE/BE BOMs.
-            // The fallback encoding (UTF-8 strict) throws on invalid bytes.
             using var reader = new StreamReader(
                 filePath,
                 new UTF8Encoding(encoderShouldEmitUTF8Identifier: false, throwOnInvalidBytes: true),
@@ -30,12 +33,13 @@ public static class TextFileReader
             while (reader.ReadLine() is { } line)
                 lines.Add(line);
 
-            return [.. lines];
+            // CurrentEncoding reflects BOM detection (UTF-16 LE/BE, or UTF-8 BOM → Encoding.UTF8)
+            return ([.. lines], reader.CurrentEncoding);
         }
         catch (DecoderFallbackException)
         {
-            // Not valid UTF-8: fall back to the system ANSI code page (Windows-1252 on en-US Windows)
-            return File.ReadAllLines(filePath, Encoding.Default);
+            var enc = Encoding.Default;
+            return (File.ReadAllLines(filePath, enc), enc);
         }
     }
 }

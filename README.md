@@ -6,7 +6,7 @@ Built with C# and .NET 10.
 
 ## Current status
 
-**Stage 12 complete** — F3 file viewer.
+**Stage 13 complete** — F4 text editor.
 
 The application shows two file panels with navigation, a live command line, shell execution, Ctrl+O shell output view, file selection, sorting, F7 create folder, F5 copy, F6 move/rename, F8 delete with confirmation, and Alt+F8 command history (persisted to `%APPDATA%\CSharpFar\history.json`).
 
@@ -172,6 +172,15 @@ CSharpFar.sln
 - `F3` on a file opens the viewer; on directory does nothing
 - 5 new `FileViewerTests` for encoding detection and line reading
 - 126 tests passing
+
+### Stage 13 — F4 text editor
+- `EditorModel` — pure editing model: `InsertChar`, `DeleteBack` (merge on line start), `DeleteForward` (merge on line end), `BreakLine`; cursor wraps across lines on Left/Right; `IsDirty` / `MarkClean`; `GetText(newLine)`
+- `FileEditor` — full-screen editor; header shows `* filename row:col` when dirty; White/Black content with tab→space; footer `2Save 10Close`; `EnsureCursorVisible` scrolls to follow cursor; real blinking cursor via `SetCursorPosition`
+- `SaveChangesDialog` — modal on exit with unsaved changes: `[S]ave [D]iscard [C]ancel`; S/Enter saves and exits, D discards and exits, C/Esc stays
+- `TextFileReader.ReadLinesAndEncoding` — returns `(Lines, Encoding)` so editor saves with the same encoding it read
+- `F4` opens editor; refreshes active panel on return; F2 saves in-place
+- 11 new `EditorModelTests`
+- 137 tests passing
 
 ## Known limitations
 
