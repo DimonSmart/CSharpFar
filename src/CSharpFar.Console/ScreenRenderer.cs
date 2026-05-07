@@ -28,6 +28,12 @@ public sealed class ScreenRenderer
 
     public ConsoleSize GetSize() => _driver.GetSize();
 
+    public void SetRenderingOutputMode(bool enabled)
+    {
+        if (_driver is IConsoleOutputModeDriver outputModeDriver)
+            outputModeDriver.SetRenderingOutputMode(enabled);
+    }
+
     public IDisposable BeginFrame()
     {
         if (_frameActive)

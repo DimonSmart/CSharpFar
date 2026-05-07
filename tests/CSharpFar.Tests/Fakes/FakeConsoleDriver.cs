@@ -7,7 +7,7 @@ namespace CSharpFar.Tests.Fakes;
 /// In-memory console driver for unit tests.
 /// Maintains a character/color buffer that can be inspected after rendering.
 /// </summary>
-public sealed class FakeConsoleDriver : IConsoleDriver
+public sealed class FakeConsoleDriver : IConsoleDriver, IConsoleOutputModeDriver
 {
     public readonly record struct WriteRecord(
         int X,
@@ -27,6 +27,7 @@ public sealed class FakeConsoleDriver : IConsoleDriver
     public int WriteAtCallCount { get; private set; }
     public int ClearRegionCallCount { get; private set; }
     public int SetCursorVisibleCallCount { get; private set; }
+    public bool RenderingOutputMode { get; private set; }
     public IReadOnlyList<WriteRecord> WriteRecords => _writeRecords;
 
     public FakeConsoleDriver(int width = 80, int height = 25)
@@ -88,6 +89,7 @@ public sealed class FakeConsoleDriver : IConsoleDriver
 
     public void SetCursorPosition(int x, int y) { CursorX = x; CursorY = y; }
     public void SetCursorVisible(bool visible) { CursorVisible = visible; SetCursorVisibleCallCount++; }
+    public void SetRenderingOutputMode(bool enabled) { RenderingOutputMode = enabled; }
 
     public ScreenSnapshot Capture(Rect region)
     {

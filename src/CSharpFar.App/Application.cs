@@ -16,13 +16,6 @@ namespace CSharpFar.App;
 
 public sealed class Application
 {
-    private enum RenderScope
-    {
-        None,
-        CommandLine,
-        Full,
-    }
-
     private readonly ScreenRenderer _screen;
     private readonly PanelController _ctrl;
     private readonly IShellService _shell;
@@ -99,9 +92,11 @@ public sealed class Application
             while (_running)
             {
                 var key = _screen.ReadKey();
-                var renderScope = HandleKey(key);
-                if (_running && _panelsVisible)
-                    Render(renderScope);
+                bool shouldRender = IsResizeEvent(key) || HandleKey(key);
+                if (!shouldRender && HasConsoleSizeChanged())
+                    shouldRender = true;
+                if (_running && _panelsVisible && shouldRender)
+                    Render();
             }
 
             _screen.ClearScreen();
@@ -114,24 +109,9 @@ public sealed class Application
 
     // ── rendering ─────────────────────────────────────────────────────────────
 
-    private void Render(RenderScope scope)
-    {
-        if (scope == RenderScope.CommandLine && HasConsoleSizeChanged())
-            scope = RenderScope.Full;
-
-        switch (scope)
-        {
-            case RenderScope.Full:
-                Render();
-                break;
-            case RenderScope.CommandLine:
-                RenderCommandLine();
-                break;
-        }
-    }
-
     private void Render()
     {
+        _screen.SetRenderingOutputMode(true);
         using var frame = _screen.BeginFrame();
         _screen.SetCursorVisible(false);
 
@@ -174,19 +154,6 @@ public sealed class Application
         PositionCommandCursor(cmdRenderer, size, panelH);
     }
 
-    private void RenderCommandLine()
-    {
-        using var frame = _screen.BeginFrame();
-        _screen.SetCursorVisible(false);
-
-        var size = _screen.GetSize();
-        _lastRenderSize = size;
-        int row = size.Height - 2;
-        var cmdRenderer = new CommandLineRenderer(_screen);
-        cmdRenderer.Render(row, size.Width, ActiveState.CurrentDirectory, _cmdLine);
-        PositionCommandCursor(cmdRenderer, size, row);
-    }
-
     private bool HasConsoleSizeChanged()
     {
         if (!_lastRenderSize.HasValue)
@@ -196,6 +163,11 @@ public sealed class Application
         return size.Width != _lastRenderSize.Value.Width ||
                size.Height != _lastRenderSize.Value.Height;
     }
+
+    private static bool IsResizeEvent(ConsoleKeyInfo key) =>
+        key.Key == ConsoleKey.NoName &&
+        key.KeyChar == '\0' &&
+        key.Modifiers == 0;
 
     private void PositionCommandCursor(CommandLineRenderer cmdRenderer, ConsoleSize size, int row)
     {
@@ -221,21 +193,33 @@ public sealed class Application
     /// Hide: restores the last captured underlay so the user sees shell output.
     /// Show: Render() will be called by the main loop.
     /// </summary>
-    private RenderScope TogglePanels()
+    private bool TogglePanels()
     {
         _panelsVisible = !_panelsVisible;
 
         if (!_panelsVisible)
         {
             _screen.SetCursorVisible(true);
-            if (_underlay is not null)
+            if (_underlay is not null && UnderlayMatchesCurrentSize())
                 _screen.Restore(_underlay);
             else
                 _screen.ClearScreen();
-            return RenderScope.None;
+            return false;
         }
 
-        return RenderScope.Full;
+        return true;
+    }
+
+    private bool UnderlayMatchesCurrentSize()
+    {
+        if (_underlay is null)
+            return false;
+
+        var size = _screen.GetSize();
+        return _underlay.Region.X == 0 &&
+               _underlay.Region.Y == 0 &&
+               _underlay.Region.Width == size.Width &&
+               _underlay.Region.Height == size.Height;
     }
 
     // ── key handling ──────────────────────────────────────────────────────────
@@ -249,26 +233,26 @@ public sealed class Application
         return PanelRenderer.VisibleRows(new Rect(0, 0, 0, panelH));
     }
 
-    private RenderScope HandleKey(ConsoleKeyInfo key)
+    private bool HandleKey(ConsoleKeyInfo key)
     {
         // Ctrl+O: toggle panels — check before printable-char routing
         if (key.Key == ConsoleKey.O && key.Modifiers == ConsoleModifiers.Control)
             return TogglePanels();
 
         if (!_panelsVisible)
-            return RenderScope.None;
+            return false;
 
         // Ctrl+Q: toggle quick view
         if (key.Key == ConsoleKey.Q && key.Modifiers == ConsoleModifiers.Control)
         {
             _quickView = !_quickView;
-            return RenderScope.Full;
+            return true;
         }
 
         if (key.KeyChar == '\u0001')
         {
             _ctrl.ToggleSelectAll(ActiveState);
-            return RenderScope.Full;
+            return true;
         }
 
         // Ctrl+F3/F4/F5/F6 — sort; Ctrl+A — select all; Ctrl+* — invert selection
@@ -280,17 +264,17 @@ public sealed class Application
             int vr0 = VisibleRows();
             switch (key.Key)
             {
-                case ConsoleKey.F3: _ctrl.SetSortMode(ActiveState, SortMode.Name,          vr0); return RenderScope.Full;
-                case ConsoleKey.F4: _ctrl.SetSortMode(ActiveState, SortMode.Extension,     vr0); return RenderScope.Full;
-                case ConsoleKey.F5: _ctrl.SetSortMode(ActiveState, SortMode.LastWriteTime, vr0); return RenderScope.Full;
-                case ConsoleKey.F6: _ctrl.SetSortMode(ActiveState, SortMode.Size,          vr0); return RenderScope.Full;
-                case ConsoleKey.A:  _ctrl.ToggleSelectAll(ActiveState);                          return RenderScope.Full;
+                case ConsoleKey.F3: _ctrl.SetSortMode(ActiveState, SortMode.Name,          vr0); return true;
+                case ConsoleKey.F4: _ctrl.SetSortMode(ActiveState, SortMode.Extension,     vr0); return true;
+                case ConsoleKey.F5: _ctrl.SetSortMode(ActiveState, SortMode.LastWriteTime, vr0); return true;
+                case ConsoleKey.F6: _ctrl.SetSortMode(ActiveState, SortMode.Size,          vr0); return true;
+                case ConsoleKey.A:  _ctrl.ToggleSelectAll(ActiveState);                          return true;
                 case ConsoleKey.Multiply:
                     _ctrl.InvertSelection(ActiveState);
-                    return RenderScope.Full;
+                    return true;
                 case ConsoleKey.D8 when (key.Modifiers & ConsoleModifiers.Shift) != 0:
                     _ctrl.InvertSelection(ActiveState);
-                    return RenderScope.Full;
+                    return true;
             }
         }
 
@@ -298,28 +282,28 @@ public sealed class Application
         if (key.Key == ConsoleKey.F7 && (key.Modifiers & ConsoleModifiers.Alt) != 0)
         {
             HandleSearchFiles();
-            return RenderScope.Full;
+            return true;
         }
 
         // Alt+F11 — file history
         if (key.Key == ConsoleKey.F11 && (key.Modifiers & ConsoleModifiers.Alt) != 0)
         {
             HandleFileHistory();
-            return RenderScope.Full;
+            return true;
         }
 
         // Alt+F12 — directory history
         if (key.Key == ConsoleKey.F12 && (key.Modifiers & ConsoleModifiers.Alt) != 0)
         {
             HandleDirectoryHistory();
-            return RenderScope.Full;
+            return true;
         }
 
         // Alt+F8 — command history (must come before F8 delete case in switch below)
         if (key.Key == ConsoleKey.F8 && (key.Modifiers & ConsoleModifiers.Alt) != 0)
         {
             HandleCommandHistory();
-            return RenderScope.CommandLine;
+            return true;
         }
 
         // Printable characters always go to the command line
@@ -328,7 +312,7 @@ public sealed class Application
         if (isPrintable)
         {
             _cmdLine.Insert(key.KeyChar);
-            return RenderScope.CommandLine;
+            return true;
         }
 
         int vr = VisibleRows();
@@ -338,109 +322,109 @@ public sealed class Application
             // ── Command line editing ──────────────────────────────────────────
             case ConsoleKey.LeftArrow:
                 _cmdLine.MoveCursor(-1);
-                return RenderScope.CommandLine;
+                return true;
 
             case ConsoleKey.RightArrow:
                 _cmdLine.MoveCursor(+1);
-                return RenderScope.CommandLine;
+                return true;
 
             case ConsoleKey.Home:
                 if (_cmdLine.HasText) _cmdLine.MoveToStart();
                 else _ctrl.MoveToFirst(ActiveState);
-                return _cmdLine.HasText ? RenderScope.CommandLine : RenderScope.Full;
+                return true;
 
             case ConsoleKey.End:
                 if (_cmdLine.HasText) _cmdLine.MoveToEnd();
                 else _ctrl.MoveToLast(ActiveState, vr);
-                return _cmdLine.HasText ? RenderScope.CommandLine : RenderScope.Full;
+                return true;
 
             case ConsoleKey.Delete:
                 _cmdLine.DeleteForward();
-                return RenderScope.CommandLine;
+                return true;
 
             case ConsoleKey.Backspace:
                 bool hadCommandText = _cmdLine.HasText;
                 if (hadCommandText) _cmdLine.DeleteBack();
                 else TryGoUp();
-                return hadCommandText ? RenderScope.CommandLine : RenderScope.Full;
+                return true;
 
             case ConsoleKey.Escape:
                 _cmdLine.Clear();
-                return RenderScope.CommandLine;
+                return true;
 
             // ── Execution ─────────────────────────────────────────────────────
             case ConsoleKey.Enter:
                 if (_cmdLine.HasText) ExecuteCommand(_cmdLine.Text);
                 else TryEnterDirectory();
-                return RenderScope.Full;
+                return true;
 
             // ── Selection ────────────────────────────────────────────────────
             case ConsoleKey.Insert:
                 _ctrl.ToggleSelection(ActiveState, vr);
-                return RenderScope.Full;
+                return true;
 
             // ── Panel navigation ──────────────────────────────────────────────
             case ConsoleKey.Tab:
                 _active = _active == PanelSide.Left ? PanelSide.Right : PanelSide.Left;
-                return RenderScope.Full;
+                return true;
 
             case ConsoleKey.UpArrow:
                 _ctrl.MoveCursor(ActiveState, -1, vr);
-                return RenderScope.Full;
+                return true;
 
             case ConsoleKey.DownArrow:
                 _ctrl.MoveCursor(ActiveState, +1, vr);
-                return RenderScope.Full;
+                return true;
 
             case ConsoleKey.PageUp:
                 _ctrl.MoveCursor(ActiveState, -vr, vr);
-                return RenderScope.Full;
+                return true;
 
             case ConsoleKey.PageDown:
                 _ctrl.MoveCursor(ActiveState, +vr, vr);
-                return RenderScope.Full;
+                return true;
 
             // ── Help ─────────────────────────────────────────────────────────
             case ConsoleKey.F1:
                 new HelpViewer(_screen).Show();
-                return RenderScope.Full;
+                return true;
 
             // ── User menu ────────────────────────────────────────────────────
             case ConsoleKey.F2:
                 HandleUserMenu();
-                return RenderScope.Full;
+                return true;
 
             // ── File operations ───────────────────────────────────────────────
             case ConsoleKey.F3:
                 HandleViewFile();
-                return RenderScope.Full;
+                return true;
 
             case ConsoleKey.F4:
                 HandleEditFile();
-                return RenderScope.Full;
+                return true;
 
             case ConsoleKey.F5:
                 HandleCopy();
-                return RenderScope.Full;
+                return true;
 
             case ConsoleKey.F6:
                 HandleMove();
-                return RenderScope.Full;
+                return true;
 
             case ConsoleKey.F7:
                 HandleCreateFolder();
-                return RenderScope.Full;
+                return true;
 
             case ConsoleKey.F8:
                 HandleDelete();
-                return RenderScope.Full;
+                return true;
 
             case ConsoleKey.F10:
                 _running = false;
-                return RenderScope.None;
+                return false;
         }
 
-        return RenderScope.None;
+        return false;
     }
 
     // ── F4 — edit file ────────────────────────────────────────────────────────
@@ -781,7 +765,9 @@ public sealed class Application
 
     private void ShowShellUnderlayForCommand()
     {
-        if (_underlay is not null)
+        _screen.SetRenderingOutputMode(false);
+
+        if (_underlay is not null && UnderlayMatchesCurrentSize())
             _screen.Restore(_underlay);
         else
             _screen.ClearScreen();

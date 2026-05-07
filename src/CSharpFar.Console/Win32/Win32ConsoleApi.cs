@@ -10,8 +10,10 @@ internal static class Win32ConsoleApi
     public const uint ENABLE_INSERT_MODE = 0x0020;
     public const uint ENABLE_QUICK_EDIT_MODE = 0x0040;
     public const uint ENABLE_EXTENDED_FLAGS = 0x0080;
+    public const uint ENABLE_WRAP_AT_EOL_OUTPUT = 0x0002;
 
     private const ushort KEY_EVENT = 0x0001;
+    private const ushort WINDOW_BUFFER_SIZE_EVENT = 0x0004;
     private const uint RIGHT_ALT_PRESSED = 0x0001;
     private const uint LEFT_ALT_PRESSED = 0x0002;
     private const uint RIGHT_CTRL_PRESSED = 0x0004;
@@ -69,6 +71,12 @@ internal static class Win32ConsoleApi
         while (ReadConsoleInput(inputHandle, buffer, 1, out uint read) && read == 1)
         {
             var record = buffer[0];
+            if (record.EventType == WINDOW_BUFFER_SIZE_EVENT)
+            {
+                keyInfo = new ConsoleKeyInfo('\0', ConsoleKey.NoName, shift: false, alt: false, control: false);
+                return true;
+            }
+
             if (record.EventType != KEY_EVENT || !record.KeyEvent.KeyDown)
                 continue;
 

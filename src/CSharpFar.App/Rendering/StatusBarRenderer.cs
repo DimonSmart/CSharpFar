@@ -25,20 +25,37 @@ internal sealed class StatusBarRenderer
 
     public void Render(int y, int totalWidth)
     {
+        if (totalWidth <= 0)
+            return;
+
         _screen.FillRegion(new Rect(0, y, totalWidth, 1), Theme.KeyBarLabel);
 
+        bool overflow = RequiredWidth() > totalWidth;
+        int ellipsisWidth = overflow ? Math.Min(3, totalWidth) : 0;
+        int contentWidth = totalWidth - ellipsisWidth;
         int x = 0;
+
         foreach (var (key, label) in Keys)
         {
-            if (x >= totalWidth) break;
+            if (x >= contentWidth) break;
 
-            _screen.Write(x, y, key, Theme.KeyBarNum);
-            x += key.Length;
+            int keyLen = Math.Min(key.Length, contentWidth - x);
+            _screen.Write(x, y, key[..keyLen], Theme.KeyBarNum);
+            x += keyLen;
+            if (keyLen < key.Length || x >= contentWidth)
+                break;
 
-            if (x >= totalWidth) break;
-            int maxLabel = Math.Min(label.Length, totalWidth - x);
+            int maxLabel = Math.Min(label.Length, contentWidth - x);
             _screen.Write(x, y, label[..maxLabel], Theme.KeyBarLabel);
             x += maxLabel;
+            if (maxLabel < label.Length)
+                break;
         }
+
+        if (overflow)
+            _screen.Write(totalWidth - ellipsisWidth, y, "...".AsSpan()[..ellipsisWidth], Theme.KeyBarOverflow);
     }
+
+    private static int RequiredWidth() =>
+        Keys.Sum(item => item.Key.Length + item.Label.Length);
 }

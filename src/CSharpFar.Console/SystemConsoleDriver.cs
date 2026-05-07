@@ -11,12 +11,15 @@ namespace CSharpFar.Console;
 /// so that shell output underneath the panels is preserved for Ctrl+O.
 /// This class targets Windows. On other platforms, Capture/Restore use a blank fallback.
 /// </summary>
-public sealed class SystemConsoleDriver : IConsoleDriver, IDisposable
+public sealed class SystemConsoleDriver : IConsoleDriver, IConsoleOutputModeDriver, IDisposable
 {
     private readonly IntPtr _consoleHandle;
     private readonly IntPtr _inputHandle;
     private readonly uint _originalInputMode;
+    private readonly uint _originalOutputMode;
     private readonly bool _restoreInputMode;
+    private readonly bool _restoreOutputMode;
+    private bool _renderingOutputMode;
     private bool _disposed;
 
     public SystemConsoleDriver()
@@ -26,6 +29,7 @@ public sealed class SystemConsoleDriver : IConsoleDriver, IDisposable
             _consoleHandle = Win32ConsoleApi.GetConsoleOutputHandle();
             _inputHandle = Win32ConsoleApi.GetConsoleInputHandle();
             _restoreInputMode = TryConfigureInputMode(_inputHandle, out _originalInputMode);
+            _restoreOutputMode = Win32ConsoleApi.TryGetConsoleMode(_consoleHandle, out _originalOutputMode);
         }
 
         global::System.Console.OutputEncoding = System.Text.Encoding.UTF8;
@@ -38,8 +42,23 @@ public sealed class SystemConsoleDriver : IConsoleDriver, IDisposable
 
         if (OperatingSystem.IsWindows() && _restoreInputMode)
             Win32ConsoleApi.TrySetConsoleMode(_inputHandle, _originalInputMode);
+        if (OperatingSystem.IsWindows() && _restoreOutputMode)
+            Win32ConsoleApi.TrySetConsoleMode(_consoleHandle, _originalOutputMode);
 
         _disposed = true;
+    }
+
+    public void SetRenderingOutputMode(bool enabled)
+    {
+        if (!OperatingSystem.IsWindows() || !_restoreOutputMode || _renderingOutputMode == enabled)
+            return;
+
+        uint mode = enabled
+            ? _originalOutputMode & ~Win32ConsoleApi.ENABLE_WRAP_AT_EOL_OUTPUT
+            : _originalOutputMode;
+
+        if (Win32ConsoleApi.TrySetConsoleMode(_consoleHandle, mode))
+            _renderingOutputMode = enabled;
     }
 
     public ConsoleSize GetSize() =>

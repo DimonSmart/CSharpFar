@@ -163,6 +163,18 @@ public class ScreenRendererTests
     }
 
     [Fact]
+    public void SetRenderingOutputMode_DelegatesToDriver()
+    {
+        var (renderer, driver) = Create();
+
+        renderer.SetRenderingOutputMode(true);
+        Assert.True(driver.RenderingOutputMode);
+
+        renderer.SetRenderingOutputMode(false);
+        Assert.False(driver.RenderingOutputMode);
+    }
+
+    [Fact]
     public void DrawBox_RendersCorrectBorderCharacters()
     {
         var (renderer, driver) = Create(20, 10);
