@@ -45,6 +45,124 @@ public class ScreenRendererTests
     }
 
     [Fact]
+    public void BufferedFrame_RepeatedIdenticalFrame_DoesNotWriteAgain()
+    {
+        var (renderer, driver) = Create(20, 5);
+        var style = new CellStyle(ConsoleColor.White, ConsoleColor.DarkBlue);
+
+        using (renderer.BeginFrame())
+            renderer.Write(0, 0, "ABC", style);
+
+        Assert.True(driver.WriteAtCallCount > 0);
+        driver.ClearRecordedOperations();
+
+        using (renderer.BeginFrame())
+            renderer.Write(0, 0, "ABC", style);
+
+        Assert.Equal(0, driver.WriteAtCallCount);
+    }
+
+    [Fact]
+    public void BufferedFrame_CursorStyleMove_WritesOnlyChangedRows()
+    {
+        var (renderer, driver) = Create(20, 5);
+        var normal = new CellStyle(ConsoleColor.White, ConsoleColor.DarkBlue);
+        var cursor = new CellStyle(ConsoleColor.Black, ConsoleColor.Cyan);
+        var region = new Rect(0, 0, 20, 5);
+
+        using (renderer.BeginFrame())
+        {
+            renderer.FillRegion(region, normal);
+            renderer.Write(0, 1, "alpha", normal);
+            renderer.Write(0, 2, "beta", cursor);
+        }
+
+        driver.ClearRecordedOperations();
+
+        using (renderer.BeginFrame())
+        {
+            renderer.FillRegion(region, normal);
+            renderer.Write(0, 1, "alpha", cursor);
+            renderer.Write(0, 2, "beta", normal);
+        }
+
+        Assert.Equal(2, driver.WriteAtCallCount);
+        Assert.Contains(driver.WriteRecords, r => r.Y == 1 && r.Text == "alpha");
+        Assert.Contains(driver.WriteRecords, r => r.Y == 2 && r.Text == "beta");
+    }
+
+    [Fact]
+    public void Capture_SynchronizesBufferedState()
+    {
+        var (renderer, driver) = Create(10, 5);
+        var style = new CellStyle(ConsoleColor.Yellow, ConsoleColor.DarkBlue);
+        driver.WriteAt(0, 0, "REAL".AsSpan(), style.Foreground, style.Background);
+        driver.ClearRecordedOperations();
+
+        renderer.Capture(new Rect(0, 0, 10, 5));
+
+        using (renderer.BeginFrame())
+            renderer.Write(0, 0, "REAL", style);
+
+        Assert.Equal(0, driver.WriteAtCallCount);
+    }
+
+    [Fact]
+    public void Restore_SynchronizesBufferedState()
+    {
+        var (renderer, driver) = Create(10, 5);
+        var region = new Rect(0, 0, 10, 5);
+        var cells = new SnapshotCell[5, 10];
+        for (int y = 0; y < 5; y++)
+            for (int x = 0; x < 10; x++)
+                cells[y, x] = new SnapshotCell { Character = ' ', Foreground = ConsoleColor.Gray, Background = ConsoleColor.Black };
+
+        var style = new CellStyle(ConsoleColor.Yellow, ConsoleColor.DarkBlue);
+        cells[1, 0] = new SnapshotCell { Character = 'S', Foreground = style.Foreground, Background = style.Background };
+        cells[1, 1] = new SnapshotCell { Character = 'A', Foreground = style.Foreground, Background = style.Background };
+        cells[1, 2] = new SnapshotCell { Character = 'V', Foreground = style.Foreground, Background = style.Background };
+        cells[1, 3] = new SnapshotCell { Character = 'E', Foreground = style.Foreground, Background = style.Background };
+
+        renderer.Restore(new ScreenSnapshot(region, cells));
+        driver.ClearRecordedOperations();
+
+        using (renderer.BeginFrame())
+            renderer.Write(0, 1, "SAVE", style);
+
+        Assert.Equal(0, driver.WriteAtCallCount);
+    }
+
+    [Fact]
+    public void BufferedFrame_SizeChange_ForcesNextFrameWrites()
+    {
+        var (renderer, driver) = Create(10, 5);
+
+        using (renderer.BeginFrame())
+            renderer.FillRegion(new Rect(0, 0, 10, 5), CellStyle.Default);
+
+        driver.ClearRecordedOperations();
+        driver.SetSize(12, 5);
+
+        using (renderer.BeginFrame())
+            renderer.FillRegion(new Rect(0, 0, 12, 5), CellStyle.Default);
+
+        Assert.True(driver.WriteAtCallCount > 0);
+    }
+
+    [Fact]
+    public void SetCursorVisible_IgnoresRepeatedState()
+    {
+        var (renderer, driver) = Create();
+
+        renderer.SetCursorVisible(false);
+        renderer.SetCursorVisible(false);
+        renderer.SetCursorVisible(true);
+        renderer.SetCursorVisible(true);
+
+        Assert.Equal(2, driver.SetCursorVisibleCallCount);
+    }
+
+    [Fact]
     public void DrawBox_RendersCorrectBorderCharacters()
     {
         var (renderer, driver) = Create(20, 10);

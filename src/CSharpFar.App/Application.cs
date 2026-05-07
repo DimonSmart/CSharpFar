@@ -39,6 +39,7 @@ public sealed class Application
     private bool          _running       = true;
     private bool          _panelsVisible = true;
     private bool          _quickView     = false;
+    private ConsoleSize?  _lastRenderSize;
     private ScreenSnapshot? _underlay;          // last known screen content before panels
 
     public Application(
@@ -115,6 +116,9 @@ public sealed class Application
 
     private void Render(RenderScope scope)
     {
+        if (scope == RenderScope.CommandLine && HasConsoleSizeChanged())
+            scope = RenderScope.Full;
+
         switch (scope)
         {
             case RenderScope.Full:
@@ -128,9 +132,11 @@ public sealed class Application
 
     private void Render()
     {
+        using var frame = _screen.BeginFrame();
         _screen.SetCursorVisible(false);
 
         var size   = _screen.GetSize();
+        _lastRenderSize = size;
         int panelH = size.Height - 2;
         int leftW  = size.Width / 2;
         int rightW = size.Width - leftW;
@@ -170,13 +176,25 @@ public sealed class Application
 
     private void RenderCommandLine()
     {
+        using var frame = _screen.BeginFrame();
         _screen.SetCursorVisible(false);
 
         var size = _screen.GetSize();
+        _lastRenderSize = size;
         int row = size.Height - 2;
         var cmdRenderer = new CommandLineRenderer(_screen);
         cmdRenderer.Render(row, size.Width, ActiveState.CurrentDirectory, _cmdLine);
         PositionCommandCursor(cmdRenderer, size, row);
+    }
+
+    private bool HasConsoleSizeChanged()
+    {
+        if (!_lastRenderSize.HasValue)
+            return false;
+
+        var size = _screen.GetSize();
+        return size.Width != _lastRenderSize.Value.Width ||
+               size.Height != _lastRenderSize.Value.Height;
     }
 
     private void PositionCommandCursor(CommandLineRenderer cmdRenderer, ConsoleSize size, int row)

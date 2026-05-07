@@ -9,13 +9,25 @@ namespace CSharpFar.Tests.Fakes;
 /// </summary>
 public sealed class FakeConsoleDriver : IConsoleDriver
 {
+    public readonly record struct WriteRecord(
+        int X,
+        int Y,
+        string Text,
+        ConsoleColor Foreground,
+        ConsoleColor Background);
+
     private SnapshotCell[,] _buffer;
     private ConsoleSize _size;
     private readonly Queue<ConsoleKeyInfo> _keyQueue = new();
+    private readonly List<WriteRecord> _writeRecords = [];
 
     public int CursorX { get; private set; }
     public int CursorY { get; private set; }
     public bool CursorVisible { get; private set; } = true;
+    public int WriteAtCallCount { get; private set; }
+    public int ClearRegionCallCount { get; private set; }
+    public int SetCursorVisibleCallCount { get; private set; }
+    public IReadOnlyList<WriteRecord> WriteRecords => _writeRecords;
 
     public FakeConsoleDriver(int width = 80, int height = 25)
     {
@@ -34,6 +46,12 @@ public sealed class FakeConsoleDriver : IConsoleDriver
 
     public ConsoleSize GetSize() => _size;
 
+    public void SetSize(int width, int height)
+    {
+        _size = new ConsoleSize(width, height);
+        _buffer = CreateBuffer(width, height);
+    }
+
     public void EnqueueKey(ConsoleKeyInfo key) => _keyQueue.Enqueue(key);
 
     public ConsoleKeyInfo ReadKey(bool intercept) =>
@@ -49,6 +67,8 @@ public sealed class FakeConsoleDriver : IConsoleDriver
 
         var fg = foreground ?? ConsoleColor.Gray;
         var bg = background ?? ConsoleColor.Black;
+        WriteAtCallCount++;
+        _writeRecords.Add(new WriteRecord(x, y, text.ToString(), fg, bg));
 
         for (int i = 0; i < text.Length; i++)
         {
@@ -60,13 +80,14 @@ public sealed class FakeConsoleDriver : IConsoleDriver
 
     public void ClearRegion(Rect region)
     {
+        ClearRegionCallCount++;
         for (int y = Math.Max(0, region.Y); y < Math.Min(_size.Height, region.Bottom); y++)
             for (int x = Math.Max(0, region.X); x < Math.Min(_size.Width, region.Right); x++)
                 _buffer[y, x] = new SnapshotCell { Character = ' ', Foreground = ConsoleColor.Gray, Background = ConsoleColor.Black };
     }
 
     public void SetCursorPosition(int x, int y) { CursorX = x; CursorY = y; }
-    public void SetCursorVisible(bool visible) { CursorVisible = visible; }
+    public void SetCursorVisible(bool visible) { CursorVisible = visible; SetCursorVisibleCallCount++; }
 
     public ScreenSnapshot Capture(Rect region)
     {
@@ -112,5 +133,13 @@ public sealed class FakeConsoleDriver : IConsoleDriver
                 sb.AppendLine();
         }
         return sb.ToString();
+    }
+
+    public void ClearRecordedOperations()
+    {
+        WriteAtCallCount = 0;
+        ClearRegionCallCount = 0;
+        SetCursorVisibleCallCount = 0;
+        _writeRecords.Clear();
     }
 }
