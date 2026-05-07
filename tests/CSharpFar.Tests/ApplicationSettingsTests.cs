@@ -1,6 +1,8 @@
 using System.Reflection;
 using CSharpFar.App;
+using CSharpFar.App.Rendering;
 using CSharpFar.Console;
+using CSharpFar.Console.Models;
 using CSharpFar.Core.Abstractions;
 using CSharpFar.Core.History;
 using CSharpFar.Core.Models;
@@ -90,6 +92,48 @@ public sealed class ApplicationSettingsTests : IDisposable
         app.Run();
 
         Assert.Equal(1, saveCount);
+    }
+
+    [Fact]
+    public void RenderClock_UsesActivePathColors()
+    {
+        var driver = new FakeConsoleDriver(width: 20, height: 5);
+        var app = CreateApp("Name", driver);
+
+        var method = typeof(Application).GetMethod(
+            "RenderClock",
+            BindingFlags.Instance | BindingFlags.NonPublic)
+            ?? throw new InvalidOperationException("Application.RenderClock method not found.");
+
+        method.Invoke(app, [new ConsoleSize(20, 5)]);
+
+        for (int x = 0; x < 20; x++)
+        {
+            var cell = driver.GetCell(x, 0);
+            if (cell.Character == ' ')
+                continue;
+
+            Assert.Equal(PaletteRegistry.Default.PanelPathActiveFg, cell.Foreground);
+            Assert.Equal(PaletteRegistry.Default.PanelPathActiveBg, cell.Background);
+        }
+    }
+
+    [Fact]
+    public void Render_UsesJoinedCenterPanelFrame()
+    {
+        var driver = new FakeConsoleDriver(width: 80, height: 12);
+        var app = CreateApp("Name", driver);
+
+        var method = typeof(Application).GetMethod(
+            "Render",
+            BindingFlags.Instance | BindingFlags.NonPublic)
+            ?? throw new InvalidOperationException("Application.Render method not found.");
+
+        method.Invoke(app, []);
+
+        Assert.Equal('╦', driver.GetCell(39, 0).Character);
+        Assert.Equal('╫', driver.GetCell(39, 6).Character);
+        Assert.Equal('╩', driver.GetCell(39, 9).Character);
     }
 
     private Application CreateApp(string sortMode, params FilePanelItem[] items)

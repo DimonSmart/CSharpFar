@@ -39,5 +39,5 @@ internal static class Theme
     // --- Key bar ---
     public static readonly CellStyle KeyBarNum           = new(ConsoleColor.Black,     ConsoleColor.DarkCyan);
     public static readonly CellStyle KeyBarLabel         = new(ConsoleColor.Black,     ConsoleColor.DarkGray);
-    public static readonly CellStyle KeyBarOverflow      = new(ConsoleColor.Red,       ConsoleColor.DarkGray);
+    public static readonly CellStyle KeyBarOverflow      = new(ConsoleColor.Red,       ConsoleColor.Black);
 }

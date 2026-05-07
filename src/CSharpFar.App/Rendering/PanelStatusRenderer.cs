@@ -6,25 +6,31 @@ namespace CSharpFar.App.Rendering;
 
 internal sealed class PanelStatusRenderer
 {
-    public const int StatusRowCount = 2;
+    public const int StatusRowCount = 3;
 
     private readonly ScreenRenderer _screen;
 
     public PanelStatusRenderer(ScreenRenderer screen) => _screen = screen;
 
-    public void Render(Rect bounds, FilePanelState state, CellStyle style)
+    public void Render(Rect bounds, FilePanelState state, CellStyle style, CellStyle separatorStyle)
     {
         if (bounds.Width < 2 || bounds.Height < StatusRowCount + 2)
             return;
 
         int innerWidth = bounds.Width - 2;
         int x          = bounds.X + 1;
+        int separatorY = bounds.Bottom - 4;
         int itemY      = bounds.Bottom - 3;
         int statsY     = bounds.Bottom - 2;
 
+        _screen.WriteChar(bounds.X, separatorY, '╟', separatorStyle);
+        _screen.Write(x, separatorY, new string('─', innerWidth), separatorStyle);
+        _screen.WriteChar(bounds.Right - 1, separatorY, '╢', separatorStyle);
         WriteRow(x, itemY,  innerWidth, FormatCurrentItem(state, innerWidth), style);
         WriteRow(x, statsY, innerWidth, FormatDirectoryStats(state),           style);
     }
+
+    internal static int SeparatorRow(Rect bounds) => bounds.Bottom - 4;
 
     private void WriteRow(int x, int y, int width, string text, CellStyle style)
     {

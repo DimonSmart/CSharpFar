@@ -16,8 +16,11 @@ public sealed class ConsolePalette
 
     // ── Active panel ──────────────────────────────────────────────────────────
     public ConsoleColor PanelBorderActiveFg   { get; init; } = ConsoleColor.White;
+    public ConsoleColor PanelTitleFocusedFg   { get; init; } = ConsoleColor.White;
     public ConsoleColor PanelTitleActiveFg    { get; init; } = ConsoleColor.Black;
     public ConsoleColor PanelTitleActiveBg    { get; init; } = ConsoleColor.Cyan;
+    public ConsoleColor PanelPathActiveFg     { get; init; } = ConsoleColor.Black;
+    public ConsoleColor PanelPathActiveBg     { get; init; } = ConsoleColor.Cyan;
     public ConsoleColor NormalFileFg          { get; init; } = ConsoleColor.White;
     public ConsoleColor DirectoryFg           { get; init; } = ConsoleColor.Cyan;
     public ConsoleColor CursorActiveFg        { get; init; } = ConsoleColor.Black;

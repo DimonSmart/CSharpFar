@@ -24,6 +24,7 @@ public sealed class Application
     private readonly AppSettingsAlias _settings;
     private readonly UserMenuStore _userMenu;
     private readonly Action? _saveSettings;
+    private readonly IVolumeService? _volumeService;
 
     private readonly FilePanelState _left;
     private readonly FilePanelState _right;
@@ -44,10 +45,11 @@ public sealed class Application
         IFileSystemService     fs,
         IShellService          shell,
         IFileOperationService  fileOps,
-        IHistoryStore?         history      = null,
-        AppSettingsAlias?      settings     = null,
-        UserMenuStore?         userMenu     = null,
-        Action?                saveSettings = null)
+        IHistoryStore?         history       = null,
+        AppSettingsAlias?      settings      = null,
+        UserMenuStore?         userMenu      = null,
+        Action?                saveSettings  = null,
+        IVolumeService?        volumeService = null)
     {
         _screen       = screen;
         _ctrl         = new PanelController(fs);
@@ -59,8 +61,9 @@ public sealed class Application
             Path.Combine(
                 Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
                 "CSharpFar"));
-        _saveSettings = saveSettings;
-        _palette      = PaletteRegistry.Resolve(_settings.Ui.Palette);
+        _saveSettings  = saveSettings;
+        _volumeService = volumeService;
+        _palette       = PaletteRegistry.Resolve(_settings.Ui.Palette);
         _leftViewMode  = ResolveViewMode(_settings.Panels.LeftViewMode);
         _rightViewMode = ResolveViewMode(_settings.Panels.RightViewMode);
 
@@ -173,8 +176,12 @@ public sealed class Application
         }
         else
         {
-            panelRenderer.Render(new Rect(0,     0, leftW,  panelH), _left,  _active == PanelSide.Left,  _leftViewMode);
-            panelRenderer.Render(new Rect(leftW, 0, rightW, panelH), _right, _active == PanelSide.Right, _rightViewMode);
+            var leftBounds = new Rect(0, 0, leftW, panelH);
+            var rightBounds = GetRightPanelBounds(size.Width, leftW, rightW, panelH);
+
+            panelRenderer.Render(leftBounds,  _left,  _active == PanelSide.Left,  _leftViewMode);
+            panelRenderer.Render(rightBounds, _right, _active == PanelSide.Right, _rightViewMode);
+            RenderPanelFrameJoin(leftBounds, rightBounds);
         }
 
         RenderClock(size);
@@ -185,6 +192,33 @@ public sealed class Application
         new StatusBarRenderer(_screen, _palette).Render(size.Height - 1, size.Width);
 
         PositionCommandCursor(cmdRenderer, size, panelH);
+    }
+
+    private static Rect GetRightPanelBounds(int screenWidth, int leftWidth, int rightWidth, int panelHeight)
+    {
+        if (screenWidth >= 4 && leftWidth >= 2 && rightWidth >= 2)
+        {
+            int sharedBorderX = leftWidth - 1;
+            return new Rect(sharedBorderX, 0, screenWidth - sharedBorderX, panelHeight);
+        }
+
+        return new Rect(leftWidth, 0, rightWidth, panelHeight);
+    }
+
+    private void RenderPanelFrameJoin(Rect leftBounds, Rect rightBounds)
+    {
+        if (leftBounds.Right - 1 != rightBounds.X || leftBounds.Height < 2)
+            return;
+
+        int sharedX = rightBounds.X;
+        var style = new CellStyle(_palette.PanelBorderActiveFg, _palette.PanelBackground);
+
+        _screen.WriteChar(sharedX, leftBounds.Y, '╦', style);
+        _screen.WriteChar(sharedX, leftBounds.Bottom - 1, '╩', style);
+
+        int separatorY = PanelStatusRenderer.SeparatorRow(leftBounds);
+        if (separatorY > leftBounds.Y && separatorY < leftBounds.Bottom - 1)
+            _screen.WriteChar(sharedX, separatorY, '╫', style);
     }
 
     private void RenderCommandLineOnly()
@@ -207,7 +241,7 @@ public sealed class Application
         if (text.Length > size.Width)
             return;
 
-        var style = new CellStyle(_palette.PanelTitleActiveFg, _palette.PanelBackground);
+        var style = new CellStyle(_palette.PanelPathActiveFg, _palette.PanelPathActiveBg);
         _screen.Write(size.Width - text.Length, 0, text, style);
     }
 
@@ -442,6 +476,14 @@ public sealed class Application
                     _ctrl.InvertSelection(ActiveState);
                     return true;
             }
+        }
+
+        // Alt+F1 / Alt+F2 — drive/volume selection
+        if ((key.Modifiers & ConsoleModifiers.Alt) != 0 &&
+            (key.Modifiers & (ConsoleModifiers.Control | ConsoleModifiers.Shift)) == 0)
+        {
+            if (key.Key == ConsoleKey.F1) { HandleDriveSelect(PanelSide.Left);  return true; }
+            if (key.Key == ConsoleKey.F2) { HandleDriveSelect(PanelSide.Right); return true; }
         }
 
         // Alt+F7 — search files (must come before plain F7 in switch)
@@ -927,6 +969,68 @@ public sealed class Application
         {
             new MessageDialog(_screen).Show("Directory History", ex.Message);
         }
+    }
+
+    // ── Alt+F1 / Alt+F2 — drive selection ────────────────────────────────────
+
+    private void HandleDriveSelect(PanelSide side)
+    {
+        var targetState = side == PanelSide.Left ? _left : _right;
+
+        var volumes = _volumeService?.GetVolumes() ?? [];
+        var items   = volumes
+            .Select(v => new VolumeSelectionItem
+            {
+                Label    = v.DisplayName,
+                Shortcut = v.Shortcut,
+                Volume   = v,
+                Action   = VolumeSelectionAction.OpenVolume,
+            })
+            .ToList();
+
+        int initialCursor = FindInitialCursor(items, targetState.CurrentDirectory);
+
+        var selected = new DriveDialog(_screen).Show(items, initialCursor);
+        if (selected is null) return;
+
+        var vol = selected.Volume!;
+
+        try
+        {
+            _ctrl.LoadDirectory(targetState, vol.RootPath);
+            _history.AddDirectory(new DirectoryHistoryItem { Path = vol.RootPath });
+            _quickView = false;
+            _active    = side;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            new MessageDialog(_screen).Show("Change drive", ex.Message);
+        }
+    }
+
+    /// <summary>
+    /// Returns the index of the item whose RootPath is the longest prefix of
+    /// <paramref name="currentDirectory"/>. Falls back to 0 if there is no match.
+    /// </summary>
+    private static int FindInitialCursor(List<VolumeSelectionItem> items, string currentDirectory)
+    {
+        int bestIdx = 0;
+        int bestLen = -1;
+
+        for (int i = 0; i < items.Count; i++)
+        {
+            string? root = items[i].Volume?.RootPath;
+            if (root is null) continue;
+
+            if (currentDirectory.StartsWith(root, StringComparison.OrdinalIgnoreCase) &&
+                root.Length > bestLen)
+            {
+                bestLen = root.Length;
+                bestIdx = i;
+            }
+        }
+
+        return bestIdx;
     }
 
     // ── Alt+F8 — command history ──────────────────────────────────────────────

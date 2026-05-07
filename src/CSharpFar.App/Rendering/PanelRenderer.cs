@@ -36,25 +36,19 @@ internal sealed class PanelRenderer
     {
         var p = _palette;
 
-        var border    = new CellStyle(isActive ? p.PanelBorderActiveFg : p.PanelBorderInactiveFg, p.PanelBackground);
-        var fill      = new CellStyle(isActive ? p.NormalFileFg        : p.NormalFileInactiveFg,  p.PanelBackground);
+        var border    = new CellStyle(p.PanelBorderActiveFg, p.PanelBackground);
+        var fill      = new CellStyle(p.NormalFileFg, p.PanelBackground);
         var fileStyle = fill;
-        var dirStyle  = new CellStyle(isActive ? p.DirectoryFg         : p.DirectoryInactiveFg,   p.PanelBackground);
-        var cursor    = new CellStyle(isActive ? p.CursorActiveFg      : p.CursorInactiveFg,
-                                      isActive ? p.CursorActiveBg      : p.CursorInactiveBg);
-        var pathHdr   = new CellStyle(isActive ? p.PanelTitleActiveFg  : p.PanelTitleInactiveFg,
-                                      isActive ? p.PanelTitleActiveBg  : p.PanelBackground);
-        var footer    = new CellStyle(isActive ? p.FooterActiveFg      : p.FooterInactiveFg,      p.PanelBackground);
+        var dirStyle  = new CellStyle(p.DirectoryFg, p.PanelBackground);
+        var cursor    = new CellStyle(p.CursorActiveFg, p.CursorActiveBg);
+        var footer    = new CellStyle(p.FooterActiveFg, p.PanelBackground);
         var selStyle  = new CellStyle(p.SelectedFg, p.SelectedBg);
 
         // Fill background + draw border
         _screen.FillRegion(bounds, fill);
         _screen.DrawDoubleBox(bounds, border);
 
-        // Path in top border: ┌─ C:\path ──────────┐
-        int pathMaxLen = bounds.Width - 6;
-        string pathLabel = TruncatePath(state.CurrentDirectory, pathMaxLen);
-        _screen.Write(bounds.X + 2, bounds.Y, $" {pathLabel} ", pathHdr);
+        PanelTitleRenderer.Render(_screen, bounds, state, isActive, p);
 
         // File list
         int innerWidth = bounds.Width - 2;
@@ -75,7 +69,7 @@ internal sealed class PanelRenderer
             }
 
             var item        = state.Items[itemIdx];
-            bool isCursor   = itemIdx == state.CursorIndex;
+            bool isCursor   = isActive && itemIdx == state.CursorIndex;
             bool isDir      = item.IsDirectory;
             bool isSelected = !item.IsParentDirectory &&
                               state.SelectedPaths.Contains(item.FullPath);
@@ -89,7 +83,7 @@ internal sealed class PanelRenderer
             _screen.Write(bounds.X + 1, y, line, style);
         }
 
-        new PanelStatusRenderer(_screen).Render(bounds, state, footer);
+        new PanelStatusRenderer(_screen).Render(bounds, state, footer, border);
     }
 
     // ── static helpers ────────────────────────────────────────────────────────
@@ -120,10 +114,4 @@ internal sealed class PanelRenderer
         _                => $"{bytes / 1_000_000_000}G",
     };
 
-    private static string TruncatePath(string path, int maxLen)
-    {
-        if (maxLen <= 0) return string.Empty;
-        if (path.Length <= maxLen) return path;
-        return "\u2026" + path[^(maxLen - 1)..];
-    }
 }

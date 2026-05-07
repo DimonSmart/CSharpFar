@@ -66,6 +66,7 @@ public class PaletteRegistryTests
         Assert.Equal(ConsoleColor.Black, fc.CursorActiveFg);
         Assert.Equal(ConsoleColor.Green, fc.CursorActiveBg);
         Assert.Equal(fc.PanelBackground, fc.PanelTitleActiveBg);
+        Assert.Equal(ConsoleColor.Green, fc.PanelPathActiveBg);
     }
 
     [Fact]
@@ -103,9 +104,9 @@ public class BriefTwoColumnsPanelRendererTests
 
     // bounds.Height - 5 rows per column × 2 columns
     [Theory]
-    [InlineData(12, 14)]   // 12 - 5 = 7 per col × 2 = 14
-    [InlineData(7,   4)]   // 7  - 5 = 2 per col × 2 = 4
-    [InlineData(5,   0)]   // 5  - 5 = 0 per col × 2 = 0
+    [InlineData(12, 12)]   // 12 - 6 = 6 per col × 2 = 12
+    [InlineData(7,   2)]   // 7  - 6 = 1 per col × 2 = 2
+    [InlineData(5,   0)]   // 5  - 6 <= 0
     public void VisibleRows_ReturnsDoubleRowsMinusBorders(int height, int expected)
     {
         int result = BriefTwoColumnsPanelRenderer.VisibleRows(new Rect(0, 0, 40, height));
@@ -125,6 +126,65 @@ public class BriefTwoColumnsPanelRendererTests
         string headerRow = driver.GetRow(1);
         Assert.Equal('n', headerRow[1]);
         Assert.Contains("Name", headerRow);
+    }
+
+    [Fact]
+    public void Render_UsesFarSortIndicatorLetters()
+    {
+        var (screen, driver) = CreateScreen(40, 12);
+        var state = MakeState("alpha.txt");
+        state.SortMode = SortMode.LastWriteTime;
+        state.SortDescending = true;
+        var renderer = new BriefTwoColumnsPanelRenderer(screen, PaletteRegistry.Default);
+
+        renderer.Render(new Rect(0, 0, 40, 12), state, isActive: true);
+
+        Assert.Equal('W', driver.GetRow(1)[1]);
+    }
+
+    [Fact]
+    public void Render_CentersPathTitleAndHighlightsFullPath()
+    {
+        var (screen, driver) = CreateScreen(40, 12);
+        var state = MakeState("alpha.txt");
+        state.CurrentDirectory = @"C:\Test";
+        var renderer = new BriefTwoColumnsPanelRenderer(screen, PaletteRegistry.Default);
+
+        renderer.Render(new Rect(0, 0, 40, 12), state, isActive: true);
+
+        int titleX = driver.GetRow(0).IndexOf(@" C:\Test ", StringComparison.Ordinal);
+        Assert.True(titleX > 1);
+        for (int x = titleX; x < titleX + @" C:\Test ".Length; x++)
+            Assert.Equal(PaletteRegistry.Default.PanelPathActiveBg, driver.GetCell(x, 0).Background);
+    }
+
+    [Fact]
+    public void Render_UsesSamePanelColorsForActiveAndInactivePanels()
+    {
+        var (screen, driver) = CreateScreen(80, 12);
+        var activeState = MakeState("alpha.txt", "beta.txt");
+        var inactiveState = MakeState("alpha.txt", "beta.txt");
+        var renderer = new BriefTwoColumnsPanelRenderer(screen, PaletteRegistry.Default);
+
+        renderer.Render(new Rect(0, 0, 40, 12), activeState, isActive: true);
+        renderer.Render(new Rect(40, 0, 40, 12), inactiveState, isActive: false);
+
+        Assert.Equal(driver.GetCell(0, 0).Foreground, driver.GetCell(40, 0).Foreground);
+        Assert.Equal(driver.GetCell(1, 3).Foreground, driver.GetCell(41, 3).Foreground);
+    }
+
+    [Fact]
+    public void Render_DoesNotShowCursorHighlightOnInactivePanel()
+    {
+        var (screen, driver) = CreateScreen(40, 12);
+        var state = MakeState("alpha.txt");
+        state.CursorIndex = 0;
+        var renderer = new BriefTwoColumnsPanelRenderer(screen, PaletteRegistry.Default);
+
+        renderer.Render(new Rect(0, 0, 40, 12), state, isActive: false);
+
+        Assert.NotEqual(PaletteRegistry.Default.CursorInactiveBg, driver.GetCell(1, 2).Background);
+        Assert.Equal(PaletteRegistry.Default.PanelBackground, driver.GetCell(1, 2).Background);
     }
 
     [Fact]
@@ -248,6 +308,10 @@ public class BriefTwoColumnsPanelRendererTests
 
         renderer.Render(new Rect(0, 0, 44, 12), state, isActive: true);
 
+        Assert.Contains("────────", driver.GetRow(8));
+        Assert.Equal('╟', driver.GetCell(0, 8).Character);
+        Assert.Equal('┴', driver.GetCell(22, 8).Character);
+        Assert.Equal('╢', driver.GetCell(43, 8).Character);
         Assert.Contains("readme.md", driver.GetRow(9));
         Assert.Contains("18,9 K", driver.GetRow(9));
         Assert.Contains("07.05.26 09:47", driver.GetRow(9));

@@ -16,7 +16,7 @@ public class StatusBarRendererTests
 
         Render(renderer, y: 0, totalWidth: 80);
 
-        Assert.StartsWith("1Help2UserMn3View4Edit", driver.GetRow(0));
+        Assert.StartsWith("1Help 2UserMn 3View 4Edit", driver.GetRow(0));
         Assert.Contains("7MkFold", driver.GetRow(0));
         Assert.Contains("9ConfMn", driver.GetRow(0));
         Assert.Contains("10Quit", driver.GetRow(0));
@@ -36,8 +36,22 @@ public class StatusBarRendererTests
             var cell = driver.GetCell(x, 0);
             Assert.Equal('.', cell.Character);
             Assert.Equal(ConsoleColor.Red, cell.Foreground);
-            Assert.Equal(ConsoleColor.DarkGray, cell.Background);
+            Assert.Equal(ConsoleColor.Black, cell.Background);
         }
+    }
+
+    [Fact]
+    public void Render_LeavesBlackGapsBetweenCommands()
+    {
+        var driver = new FakeConsoleDriver(80, 2);
+        var renderer = CreateRenderer(new ScreenRenderer(driver));
+
+        Render(renderer, y: 0, totalWidth: 80);
+
+        int gapX = driver.GetRow(0).IndexOf(" 2UserMn", StringComparison.Ordinal);
+        Assert.True(gapX > 0);
+        Assert.Equal(' ', driver.GetCell(gapX, 0).Character);
+        Assert.Equal(ConsoleColor.Black, driver.GetCell(gapX, 0).Background);
     }
 
     [Theory]
