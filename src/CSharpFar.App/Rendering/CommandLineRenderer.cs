@@ -19,15 +19,18 @@ internal sealed class CommandLineRenderer
 
     public void Render(int y, int totalWidth, string currentDirectory, CommandLineState state)
     {
+        if (totalWidth <= 0)
+            return;
+
         _screen.FillRegion(new Rect(0, y, totalWidth, 1), _style);
 
         string prompt = currentDirectory + ">";
         string full   = prompt + state.Text;
+        int offset    = GetDisplayOffset(totalWidth, prompt.Length, full.Length, state.CursorPosition);
 
-        // If longer than screen width, show the tail (so the cursor stays visible)
         string display = full.Length <= totalWidth
             ? full
-            : full[^totalWidth..];
+            : full.Substring(offset, totalWidth);
 
         _screen.Write(0, y, display, _style);
     }
@@ -38,15 +41,29 @@ internal sealed class CommandLineRenderer
     /// </summary>
     public int GetCursorX(int totalWidth, string currentDirectory, CommandLineState state)
     {
+        if (totalWidth <= 0)
+            return -1;
+
         string prompt = currentDirectory + ">";
         string full   = prompt + state.Text;
         int rawX      = prompt.Length + state.CursorPosition;
+        int offset    = GetDisplayOffset(totalWidth, prompt.Length, full.Length, state.CursorPosition);
 
-        if (full.Length <= totalWidth)
-            return rawX;
+        int adjusted = rawX - offset;
+        return adjusted < 0 ? -1 : Math.Min(adjusted, totalWidth - 1);
+    }
 
-        int scrolled = full.Length - totalWidth;
-        int adjusted = rawX - scrolled;
-        return adjusted < 0 ? -1 : adjusted;
+    private static int GetDisplayOffset(
+        int totalWidth,
+        int promptLength,
+        int fullLength,
+        int cursorPosition)
+    {
+        if (fullLength <= totalWidth)
+            return 0;
+
+        int rawCursorX = promptLength + cursorPosition;
+        int maxOffset = fullLength - totalWidth;
+        return Math.Clamp(rawCursorX - totalWidth + 1, 0, maxOffset);
     }
 }

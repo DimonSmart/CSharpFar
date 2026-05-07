@@ -24,7 +24,11 @@ public sealed class BriefTwoColumnsPanelRenderer
     /// Total number of visible items (both columns combined).
     /// Rows per column exclude top border, header row, status rows, and bottom border.
     /// </summary>
-    public static int VisibleRows(Rect bounds) => 2 * Math.Max(0, bounds.Height - 3 - PanelStatusRenderer.StatusRowCount);
+    public static int VisibleRows(Rect bounds) => 2 * RowsPerColumn(bounds);
+
+    /// <summary>Number of visible item rows in one visual column.</summary>
+    public static int RowsPerColumn(Rect bounds) =>
+        Math.Max(0, bounds.Height - 3 - PanelStatusRenderer.StatusRowCount);
 
     public void Render(Rect bounds, FilePanelState state, bool isActive)
     {
@@ -66,7 +70,7 @@ public sealed class BriefTwoColumnsPanelRenderer
 
         // ── Content rows ──────────────────────────────────────────────────────
         int contentTop  = bounds.Y + 2;
-        int rowsPerCol  = Math.Max(0, bounds.Height - 3 - PanelStatusRenderer.StatusRowCount);
+        int rowsPerCol  = RowsPerColumn(bounds);
         int col1X       = bounds.X + 1;
         int col2X       = bounds.X + 1 + sepOffset + 1;
 

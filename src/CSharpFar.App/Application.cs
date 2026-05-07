@@ -106,11 +106,28 @@ public sealed class Application
             while (_running)
             {
                 var key = _screen.ReadKey();
-                bool shouldRender = IsResizeEvent(key) || HandleKey(key);
+                bool isResize = IsResizeEvent(key);
+                bool shouldRender = isResize || HandleKey(key);
                 if (!shouldRender && HasConsoleSizeChanged())
+                {
+                    isResize = true;
                     shouldRender = true;
-                if (_running && _panelsVisible && shouldRender)
-                    Render();
+                }
+
+                if (_running && shouldRender)
+                {
+                    if (isResize)
+                        WaitForStableConsoleSize();
+
+                    if (_panelsVisible)
+                        Render();
+                    else
+                    {
+                        if (isResize)
+                            RestoreUnderlayForHiddenScreen();
+                        RenderCommandLineOnly();
+                    }
+                }
             }
 
             _screen.ClearScreen();
@@ -131,7 +148,7 @@ public sealed class Application
 
         var size   = _screen.GetSize();
         _lastRenderSize = size;
-        int panelH = size.Height - 2;
+        int panelH = PanelHeight(size);
         int leftW  = size.Width / 2;
         int rightW = size.Width - leftW;
 
@@ -170,6 +187,20 @@ public sealed class Application
         PositionCommandCursor(cmdRenderer, size, panelH);
     }
 
+    private void RenderCommandLineOnly()
+    {
+        _screen.SetRenderingOutputMode(true);
+        using var frame = _screen.BeginFrame();
+
+        var size = _screen.GetSize();
+        _lastRenderSize = size;
+
+        int row = CommandLineRow(size);
+        var cmdRenderer = new CommandLineRenderer(_screen, _palette);
+        cmdRenderer.Render(row, size.Width, ActiveState.CurrentDirectory, _cmdLine);
+        PositionCommandCursor(cmdRenderer, size, row);
+    }
+
     private void RenderClock(ConsoleSize size)
     {
         string text = DateTime.Now.ToString("H:mm", System.Globalization.CultureInfo.InvariantCulture);
@@ -188,6 +219,23 @@ public sealed class Application
         var size = _screen.GetSize();
         return size.Width != _lastRenderSize.Value.Width ||
                size.Height != _lastRenderSize.Value.Height;
+    }
+
+    private static int PanelHeight(ConsoleSize size) => Math.Max(0, size.Height - 2);
+
+    private static int CommandLineRow(ConsoleSize size) => Math.Max(0, size.Height - 2);
+
+    private void WaitForStableConsoleSize()
+    {
+        var previous = _screen.GetSize();
+        for (int i = 0; i < 3; i++)
+        {
+            Thread.Sleep(25);
+            var current = _screen.GetSize();
+            if (current.Width == previous.Width && current.Height == previous.Height)
+                return;
+            previous = current;
+        }
     }
 
     private static bool IsResizeEvent(ConsoleKeyInfo key) =>
@@ -237,14 +285,26 @@ public sealed class Application
         if (!_panelsVisible)
         {
             _screen.SetCursorVisible(true);
-            if (_underlay is not null && UnderlayMatchesCurrentSize())
-                _screen.Restore(_underlay);
-            else
-                _screen.ClearScreen();
+            RestoreUnderlayForHiddenScreen();
+            RenderCommandLineOnly();
             return false;
         }
 
         return true;
+    }
+
+    private void RestoreUnderlayForHiddenScreen()
+    {
+        _screen.SetRenderingOutputMode(false);
+        RestoreOrClearUnderlay();
+    }
+
+    private void RestoreOrClearUnderlay()
+    {
+        if (_underlay is not null && UnderlayMatchesCurrentSize())
+            _screen.Restore(_underlay);
+        else
+            _screen.ClearScreen();
     }
 
     private bool UnderlayMatchesCurrentSize()
@@ -285,11 +345,25 @@ public sealed class Application
     private int VisibleRows(PanelViewMode mode)
     {
         var size   = _screen.GetSize();
-        int panelH = size.Height - 2;
+        int panelH = PanelHeight(size);
         var bounds = new Rect(0, 0, 0, panelH);
         return mode == PanelViewMode.BriefTwoColumns
             ? BriefTwoColumnsPanelRenderer.VisibleRows(bounds)
             : PanelRenderer.VisibleRows(bounds);
+    }
+
+    private (int RowsPerColumn, int ColumnCount, int VisibleRows) ActiveColumnGeometry()
+    {
+        var mode = _quickView ? PanelViewMode.Full : ActiveViewMode;
+        int visibleRows = VisibleRows(mode);
+
+        if (mode != PanelViewMode.BriefTwoColumns)
+            return (Math.Max(1, visibleRows), 1, visibleRows);
+
+        var size = _screen.GetSize();
+        var bounds = new Rect(0, 0, 0, PanelHeight(size));
+        int rowsPerColumn = BriefTwoColumnsPanelRenderer.RowsPerColumn(bounds);
+        return (rowsPerColumn, 2, visibleRows);
     }
 
     private bool HandleKey(ConsoleKeyInfo key)
@@ -299,7 +373,7 @@ public sealed class Application
             return TogglePanels();
 
         if (!_panelsVisible)
-            return false;
+            return HandleHiddenCommandLineKey(key);
 
         // Ctrl+S: settings dialog
         if (IsPlainControlKey(key, ConsoleKey.S, '\u0013'))
@@ -329,6 +403,22 @@ public sealed class Application
         {
             _ctrl.ToggleSelectAll(ActiveState);
             return true;
+        }
+
+        if ((key.Modifiers & ConsoleModifiers.Control) != 0 &&
+            (key.Modifiers & (ConsoleModifiers.Alt | ConsoleModifiers.Shift)) == 0)
+        {
+            if (key.Key == ConsoleKey.LeftArrow)
+            {
+                _cmdLine.MoveCursor(-1);
+                return true;
+            }
+
+            if (key.Key == ConsoleKey.RightArrow)
+            {
+                _cmdLine.MoveCursor(+1);
+                return true;
+            }
         }
 
         // Ctrl+F3/F4/F5/F6 — sort; Ctrl+A — select all; Ctrl+* — invert selection
@@ -395,13 +485,13 @@ public sealed class Application
 
         switch (key.Key)
         {
-            // ── Command line editing ──────────────────────────────────────────
+            // ── Horizontal navigation / command line editing ──────────────────
             case ConsoleKey.LeftArrow:
-                _cmdLine.MoveCursor(-1);
+                MovePanelColumn(-1);
                 return true;
 
             case ConsoleKey.RightArrow:
-                _cmdLine.MoveCursor(+1);
+                MovePanelColumn(+1);
                 return true;
 
             case ConsoleKey.Home:
@@ -505,6 +595,70 @@ public sealed class Application
         }
 
         return false;
+    }
+
+    private bool HandleHiddenCommandLineKey(ConsoleKeyInfo key)
+    {
+        bool isPrintable = key.KeyChar >= ' ' &&
+            (key.Modifiers & (ConsoleModifiers.Control | ConsoleModifiers.Alt)) == 0;
+        if (isPrintable)
+        {
+            _cmdLine.Insert(key.KeyChar);
+            return true;
+        }
+
+        switch (key.Key)
+        {
+            case ConsoleKey.LeftArrow:
+                _cmdLine.MoveCursor(-1);
+                return true;
+
+            case ConsoleKey.RightArrow:
+                _cmdLine.MoveCursor(+1);
+                return true;
+
+            case ConsoleKey.Home:
+                _cmdLine.MoveToStart();
+                return true;
+
+            case ConsoleKey.End:
+                _cmdLine.MoveToEnd();
+                return true;
+
+            case ConsoleKey.Delete:
+                _cmdLine.DeleteForward();
+                return true;
+
+            case ConsoleKey.Backspace:
+                _cmdLine.DeleteBack();
+                return true;
+
+            case ConsoleKey.Escape:
+                _cmdLine.Clear();
+                return true;
+
+            case ConsoleKey.Enter:
+                if (_cmdLine.HasText)
+                    ExecuteCommand(_cmdLine.Text);
+                return true;
+
+            case ConsoleKey.F10:
+                _running = false;
+                return false;
+        }
+
+        return false;
+    }
+
+    private void MovePanelColumn(int direction)
+    {
+        var geometry = ActiveColumnGeometry();
+        _ctrl.MoveCursorByColumn(
+            ActiveState,
+            direction,
+            geometry.RowsPerColumn,
+            geometry.ColumnCount,
+            geometry.VisibleRows);
     }
 
     // ── F4 — edit file ────────────────────────────────────────────────────────
@@ -851,15 +1005,14 @@ public sealed class Application
     private void ExecuteCommand(string command)
     {
         string workDir = ActiveState.CurrentDirectory;
+        bool showPanelsAfterCommand = _panelsVisible;
         _cmdLine.Clear();
 
-        // Ensure panels are visible when we return (they may have been hidden)
-        _panelsVisible = true;
-
         ShowShellUnderlayForCommand();
-        PrintShellPrompt(workDir, command);
+        PrintExecutedCommandPrompt(workDir, command);
 
         _shell.Execute(command, workDir);
+        PrintInputPrompt(workDir);
 
         _history.AddCommand(new CommandHistoryItem
         {
@@ -872,33 +1025,76 @@ public sealed class Application
         CaptureUnderlay();
 
         RefreshPanels();
-        // Render() is called by the main loop since _panelsVisible == true
+        _panelsVisible = showPanelsAfterCommand;
+        // Render() or RenderCommandLineOnly() is called by the main loop.
     }
 
     private void ShowShellUnderlayForCommand()
     {
         _screen.SetRenderingOutputMode(false);
-
-        if (_underlay is not null && UnderlayMatchesCurrentSize())
-            _screen.Restore(_underlay);
-        else
-            _screen.ClearScreen();
+        RestoreOrClearUnderlay();
 
         SysConsole.ResetColor();
         SysConsole.CursorVisible = true;
-
-        var size = _screen.GetSize();
-        SysConsole.SetCursorPosition(0, SysConsole.WindowTop + size.Height - 1);
-        SysConsole.WriteLine();
     }
 
-    private static void PrintShellPrompt(string workDir, string command)
+    private void PrintExecutedCommandPrompt(string workDir, string command)
     {
-        SysConsole.ForegroundColor = ConsoleColor.White;
-        SysConsole.Write(workDir + ">");
-        SysConsole.ForegroundColor = ConsoleColor.Yellow;
-        SysConsole.WriteLine(command);
+        var size = _screen.GetSize();
+        if (size.Width <= 0 || size.Height <= 0)
+            return;
+
+        int row = CommandLineRow(size);
+        ClearShellPromptArea(size);
+
+        int x = WriteShellText(0, row, workDir + ">", ConsoleColor.White);
+        WriteShellText(x, row, command, ConsoleColor.Yellow);
+
         SysConsole.ResetColor();
+
+        int outputRow = Math.Min(size.Height - 1, row + 1);
+        SysConsole.SetCursorPosition(0, SysConsole.WindowTop + outputRow);
+    }
+
+    private void PrintInputPrompt(string workDir)
+    {
+        _screen.SetRenderingOutputMode(true);
+
+        var size = _screen.GetSize();
+        if (size.Width <= 0 || size.Height <= 0)
+            return;
+
+        ClearShellPromptArea(size);
+
+        int row = CommandLineRow(size);
+        var cmdRenderer = new CommandLineRenderer(_screen, _palette);
+        cmdRenderer.Render(row, size.Width, workDir, _cmdLine);
+        PositionCommandCursor(cmdRenderer, size, row);
+    }
+
+    private void ClearShellPromptArea(ConsoleSize size)
+    {
+        int commandRow = CommandLineRow(size);
+        _screen.FillRegion(new Rect(0, commandRow, size.Width, 1), CellStyle.Default);
+
+        int bottomRow = size.Height - 1;
+        if (bottomRow != commandRow)
+            _screen.FillRegion(new Rect(0, bottomRow, size.Width, 1), CellStyle.Default);
+    }
+
+    private int WriteShellText(int x, int y, string text, ConsoleColor foreground)
+    {
+        var size = _screen.GetSize();
+        if (x >= size.Width || y >= size.Height)
+            return x;
+
+        int len = Math.Min(text.Length, size.Width - x);
+        if (len <= 0)
+            return x;
+
+        var style = new CellStyle(foreground, ConsoleColor.Black);
+        _screen.Write(x, y, text.AsSpan(0, len), style);
+        return x + len;
     }
 
     // ── navigation helpers ────────────────────────────────────────────────────
@@ -909,7 +1105,11 @@ public sealed class Application
         if (item is null || !item.IsDirectory) return;
         try
         {
-            _ctrl.LoadDirectory(ActiveState, item.FullPath);
+            if (item.IsParentDirectory)
+                _ctrl.GoToParent(ActiveState, VisibleRows());
+            else
+                _ctrl.LoadDirectory(ActiveState, item.FullPath);
+
             _history.AddDirectory(new DirectoryHistoryItem { Path = ActiveState.CurrentDirectory });
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
@@ -949,11 +1149,7 @@ public sealed class Application
     {
         public static int  WindowTop    { get => global::System.Console.WindowTop;    }
         public static bool CursorVisible { set => global::System.Console.CursorVisible = value; }
-        public static ConsoleColor ForegroundColor { set => global::System.Console.ForegroundColor = value; }
         public static void ResetColor() => global::System.Console.ResetColor();
-        public static void Write(string s)    => global::System.Console.Write(s);
-        public static void WriteLine(string s) => global::System.Console.WriteLine(s);
-        public static void WriteLine()         => global::System.Console.WriteLine();
         public static void SetCursorPosition(int x, int y) =>
             global::System.Console.SetCursorPosition(x, y);
     }

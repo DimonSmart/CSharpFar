@@ -150,6 +150,24 @@ public class ScreenRendererTests
     }
 
     [Fact]
+    public void BufferedFrame_SizeChangeDuringFrame_DoesNotDropEarlierWrites()
+    {
+        var (renderer, driver) = Create(10, 5);
+        var style = new CellStyle(ConsoleColor.White, ConsoleColor.DarkBlue);
+
+        using (renderer.BeginFrame())
+        {
+            renderer.Write(0, 0, "OLD", style);
+            driver.SetSize(12, 5);
+            renderer.Write(10, 0, "X", style);
+        }
+
+        Assert.Equal('O', driver.GetCell(0, 0).Character);
+        Assert.Equal('L', driver.GetCell(1, 0).Character);
+        Assert.Equal('D', driver.GetCell(2, 0).Character);
+    }
+
+    [Fact]
     public void SetCursorVisible_IgnoresRepeatedState()
     {
         var (renderer, driver) = Create();

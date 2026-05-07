@@ -191,6 +191,65 @@ public class PanelControllerTests
         Assert.Equal(9, state.CursorIndex);
     }
 
+    // ── Column navigation ────────────────────────────────────────────────────
+
+    [Fact]
+    public void MoveCursorByColumn_Right_MovesToSameRowInNextColumn()
+    {
+        var (ctrl, state) = MakePanel(20);
+        state.CursorIndex = 1;
+
+        ctrl.MoveCursorByColumn(state, direction: +1, rowsPerColumn: 5, columnCount: 2, visibleRows: 10);
+
+        Assert.Equal(6, state.CursorIndex);
+    }
+
+    [Fact]
+    public void MoveCursorByColumn_LeftFromFirstColumn_MovesToFirstItem()
+    {
+        var (ctrl, state) = MakePanel(20);
+        state.CursorIndex = 3;
+
+        ctrl.MoveCursorByColumn(state, direction: -1, rowsPerColumn: 5, columnCount: 2, visibleRows: 10);
+
+        Assert.Equal(0, state.CursorIndex);
+    }
+
+    [Fact]
+    public void MoveCursorByColumn_RightFromLastColumn_MovesToLastItem()
+    {
+        var (ctrl, state) = MakePanel(20);
+        state.CursorIndex = 7;
+
+        ctrl.MoveCursorByColumn(state, direction: +1, rowsPerColumn: 5, columnCount: 2, visibleRows: 10);
+
+        Assert.Equal(19, state.CursorIndex);
+    }
+
+    [Fact]
+    public void MoveCursorByColumn_RightWithoutSameRowItem_MovesToLastItem()
+    {
+        var (ctrl, state) = MakePanel(8);
+        state.CursorIndex = 4;
+
+        ctrl.MoveCursorByColumn(state, direction: +1, rowsPerColumn: 5, columnCount: 2, visibleRows: 10);
+
+        Assert.Equal(7, state.CursorIndex);
+    }
+
+    [Fact]
+    public void MoveCursorByColumn_SingleColumn_UsesFirstAndLastItems()
+    {
+        var (ctrl, state) = MakePanel(8);
+        state.CursorIndex = 4;
+
+        ctrl.MoveCursorByColumn(state, direction: -1, rowsPerColumn: 5, columnCount: 1, visibleRows: 5);
+        Assert.Equal(0, state.CursorIndex);
+
+        ctrl.MoveCursorByColumn(state, direction: +1, rowsPerColumn: 5, columnCount: 1, visibleRows: 5);
+        Assert.Equal(7, state.CursorIndex);
+    }
+
     // ── Page navigation ───────────────────────────────────────────────────────
 
     [Fact]
@@ -275,6 +334,41 @@ public class PanelControllerTests
         ctrl.GoToParent(state, visibleRows: 10);
 
         Assert.Equal("Sub1", ctrl.CurrentItem(state)?.Name);
+    }
+
+    [Fact]
+    public void GoToParent_ScrollsToChildDirectoryWhenItIsBelowVisibleRows()
+    {
+        var fs = new FakeFileSystemService();
+        var childPath = @"C:\Root\Sub25";
+        fs.AddDirectory(childPath);
+
+        var rootItems = Enumerable.Range(0, 25)
+            .Select(i => new FilePanelItem
+            {
+                Name = $"Dir{i:D2}",
+                FullPath = $@"C:\Root\Dir{i:D2}",
+                IsDirectory = true,
+            })
+            .Append(new FilePanelItem
+            {
+                Name = "Sub25",
+                FullPath = childPath,
+                IsDirectory = true,
+            })
+            .ToArray();
+
+        fs.AddDirectory(Root, rootItems);
+
+        var ctrl = new PanelController(fs);
+        var state = new FilePanelState { CurrentDirectory = childPath };
+        ctrl.LoadDirectory(state, childPath);
+
+        ctrl.GoToParent(state, visibleRows: 5);
+
+        Assert.Equal("Sub25", ctrl.CurrentItem(state)?.Name);
+        Assert.True(state.ScrollOffset <= state.CursorIndex);
+        Assert.True(state.CursorIndex < state.ScrollOffset + 5);
     }
 
     private sealed class ThrowingFileSystemService : IFileSystemService

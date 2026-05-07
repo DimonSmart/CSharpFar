@@ -14,6 +14,7 @@ public sealed class ScreenRenderer
     private ConsoleSize _bufferSize;
     private bool _frontBufferKnown;
     private bool _frameActive;
+    private ConsoleSize _frameSize;
     private bool _forceFullFrame;
     private bool? _cursorVisible;
     private int _pendingCursorX;
@@ -39,10 +40,12 @@ public sealed class ScreenRenderer
         if (_frameActive)
             throw new InvalidOperationException("A render frame is already active.");
 
-        EnsureBuffers(_driver.GetSize());
+        var size = _driver.GetSize();
+        EnsureBuffers(size);
         CopyFrontToBack();
         _hasPendingCursorPosition = false;
         _pendingCursorVisible = null;
+        _frameSize = size;
         _frameActive = true;
 
         return new Frame(this);
@@ -56,7 +59,7 @@ public sealed class ScreenRenderer
         if (text.IsEmpty || x < 0 || y < 0)
             return;
 
-        var size = _driver.GetSize();
+        var size = _frameActive ? _frameSize : _driver.GetSize();
         if (y >= size.Height || x >= size.Width)
             return;
 
@@ -81,7 +84,7 @@ public sealed class ScreenRenderer
     /// <summary>Fills a region with spaces using the given style.</summary>
     public void FillRegion(Rect region, CellStyle style)
     {
-        var size = _driver.GetSize();
+        var size = _frameActive ? _frameSize : _driver.GetSize();
         int y1 = Math.Max(0, region.Y);
         int y2 = Math.Min(size.Height, region.Bottom);
         int x1 = Math.Max(0, region.X);

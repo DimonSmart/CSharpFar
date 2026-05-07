@@ -64,6 +64,53 @@ public sealed class PanelController
     }
 
     /// <summary>
+    /// Moves the cursor horizontally between visual columns.
+    /// At the outer edges, moves to the first or last item.
+    /// </summary>
+    public void MoveCursorByColumn(
+        FilePanelState state,
+        int direction,
+        int rowsPerColumn,
+        int columnCount,
+        int visibleRows)
+    {
+        if (state.Items.Count == 0 || direction == 0)
+            return;
+
+        if (rowsPerColumn <= 0 || columnCount <= 1)
+        {
+            if (direction < 0)
+                MoveToFirst(state);
+            else
+                MoveToLast(state, visibleRows);
+            return;
+        }
+
+        EnsureVisible(state, visibleRows);
+
+        int relative = state.CursorIndex - state.ScrollOffset;
+        int column = Math.Clamp(relative / rowsPerColumn, 0, columnCount - 1);
+        int lastIndex = state.Items.Count - 1;
+
+        int targetIndex;
+        if (direction < 0)
+        {
+            targetIndex = column == 0
+                ? 0
+                : Math.Max(0, state.CursorIndex - rowsPerColumn);
+        }
+        else
+        {
+            targetIndex = column >= columnCount - 1
+                ? lastIndex
+                : Math.Min(lastIndex, state.CursorIndex + rowsPerColumn);
+        }
+
+        state.CursorIndex = targetIndex;
+        EnsureVisible(state, visibleRows);
+    }
+
+    /// <summary>
     /// Reloads the current directory, preserving cursor position by name.
     /// Use after shell commands that may have changed directory contents.
     /// </summary>

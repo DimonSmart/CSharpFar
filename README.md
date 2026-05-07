@@ -6,7 +6,7 @@ Built with C# and .NET 10.
 
 ## Current status
 
-**Stage 19 + Spec 003 additions complete** — panel view modes, palettes, Far-like polish, and settings dialog are implemented. 226 tests passing.
+**Stage 19 + Spec 004 additions complete** — panel view modes, palettes, Far-like polish, settings dialog, column navigation, and stable Ctrl+O command line are implemented. 235 tests passing.
 
 ## Requirements
 
@@ -46,11 +46,13 @@ All configuration files (`settings.json`, `user-menu.json`, `history.json`) will
 | Key | Action |
 |-----|--------|
 | `↑ ↓` | Move cursor in panel |
+| `← →` | Move across visual columns; at edges moves to first / last item |
 | `PgUp / PgDn` | Move by page |
 | `Home / End` | First / last item |
 | `Tab` | Switch active panel |
 | `Enter` | Enter directory / execute command |
 | `Backspace` | Parent directory / delete in command line |
+| `Ctrl+← / Ctrl+→` | Move command-line cursor while panels are visible |
 | `Insert` | Toggle file selection |
 | `Ctrl+A` | Select all / deselect all |
 | `Ctrl+*` | Invert selection |
@@ -68,7 +70,7 @@ All configuration files (`settings.json`, `user-menu.json`, `history.json`) will
 | `Alt+F8` | Command history |
 | `Alt+F11` | File history |
 | `Alt+F12` | Directory history |
-| `Ctrl+O` | Toggle panels / show shell output |
+| `Ctrl+O` | Toggle panels / show shell output; command line remains visible while hidden |
 | `Ctrl+Q` | Quick view (file preview in inactive panel) |
 | `Alt+1` | Full view mode for active panel |
 | `Alt+2` | Brief two-column view mode for active panel |
@@ -84,8 +86,8 @@ CSharpFar.sln
   /CSharpFar.Console    — console abstraction layer (IConsoleDriver, renderer)
   /CSharpFar.FileSystem — file system operations
   /CSharpFar.Shell      — shell execution service
-/tests
-  /CSharpFar.Tests      — xUnit test project (226 tests)
+  /tests
+  /CSharpFar.Tests      — xUnit test project (235 tests)
 ```
 
 ## Configuration
@@ -140,6 +142,14 @@ Appearance can be changed from `Ctrl+S` / `F9`. Built-in palettes are `Default` 
 - Windows-only (Win32 P/Invoke for screen buffer snapshot used by Ctrl+O).
 
 ## Changelog
+
+### Spec 004 — Column navigation, Ctrl+O command line, resize stability
+- `Enter` on `..` now uses parent-navigation logic and returns the cursor to the folder that was left, including scroll adjustment.
+- `Left` / `Right` move across panel columns; in a single-column view they move to first / last item.
+- `Ctrl+O` keeps the command line visible and editable; `Left` / `Right` edit the command line while panels are hidden.
+- After shell commands, the prompt is redrawn in the stable command-line row before underlay capture.
+- `ScreenRenderer` freezes frame size during `BeginFrame()` so resize events cannot recreate the back buffer mid-frame.
+- 235 tests passing.
 
 ### Stage 14 — Alt+F11 file history
 - `FileHistoryItem` model added to Core
