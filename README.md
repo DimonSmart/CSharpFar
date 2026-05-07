@@ -6,7 +6,7 @@ Built with C# and .NET 10.
 
 ## Current status
 
-**Stage 19 complete** — all 19 planned stages implemented. 189 tests passing.
+**Stage 19 + Spec 003 additions complete** — panel view modes, palettes, Far-like polish, and settings dialog are implemented. 226 tests passing.
 
 ## Requirements
 
@@ -70,6 +70,9 @@ All configuration files (`settings.json`, `user-menu.json`, `history.json`) will
 | `Alt+F12` | Directory history |
 | `Ctrl+O` | Toggle panels / show shell output |
 | `Ctrl+Q` | Quick view (file preview in inactive panel) |
+| `Alt+1` | Full view mode for active panel |
+| `Alt+2` | Brief two-column view mode for active panel |
+| `Ctrl+S` / `F9` | Settings: panel view modes and palette |
 
 ## Solution structure
 
@@ -82,7 +85,7 @@ CSharpFar.sln
   /CSharpFar.FileSystem — file system operations
   /CSharpFar.Shell      — shell execution service
 /tests
-  /CSharpFar.Tests      — xUnit test project (189 tests)
+  /CSharpFar.Tests      — xUnit test project (226 tests)
 ```
 
 ## Configuration
@@ -94,7 +97,8 @@ CSharpFar.sln
   "ui": {
     "showHiddenFiles": true,
     "showSystemFiles": true,
-    "confirmDelete": true
+    "confirmDelete": true,
+    "palette": "Default"
   },
   "shell": {
     "executable": "cmd.exe",
@@ -102,7 +106,10 @@ CSharpFar.sln
   },
   "panels": {
     "leftStartDirectory": null,
-    "rightStartDirectory": null
+    "rightStartDirectory": null,
+    "defaultSortMode": "name",
+    "leftViewMode": "Full",
+    "rightViewMode": "Full"
   },
   "history": {
     "maxCommandHistoryItems": 1000,
@@ -111,6 +118,8 @@ CSharpFar.sln
   }
 }
 ```
+
+Appearance can be changed from `Ctrl+S` / `F9`. Built-in palettes are `Default` and `FarClassic`; panel view modes are `Full` and `BriefTwoColumns`.
 
 `user-menu.json` defines custom commands accessible via `F2`. Placeholder tokens:
 

@@ -16,7 +16,9 @@ public class StatusBarRendererTests
 
         Render(renderer, y: 0, totalWidth: 80);
 
-        Assert.StartsWith("1Help2Menu3View4Edit", driver.GetRow(0));
+        Assert.StartsWith("1Help2UserMn3View4Edit", driver.GetRow(0));
+        Assert.Contains("7MkFold", driver.GetRow(0));
+        Assert.Contains("9ConfMn", driver.GetRow(0));
         Assert.Contains("10Quit", driver.GetRow(0));
     }
 

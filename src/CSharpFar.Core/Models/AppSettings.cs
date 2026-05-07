@@ -13,6 +13,7 @@ public sealed class AppSettings
         public bool   ShowHiddenFiles { get; set; } = true;
         public bool   ShowSystemFiles { get; set; } = true;
         public bool   ConfirmDelete   { get; set; } = true;
+        public string Palette         { get; set; } = "Default";
     }
 
     public sealed class ShellSettings
@@ -27,6 +28,8 @@ public sealed class AppSettings
         public string? LeftStartDirectory  { get; set; }
         public string? RightStartDirectory { get; set; }
         public string  DefaultSortMode     { get; set; } = "name";
+        public string  LeftViewMode        { get; set; } = "Full";
+        public string  RightViewMode       { get; set; } = "Full";
     }
 
     public sealed class HistorySettings

@@ -7,12 +7,19 @@ namespace CSharpFar.App.Rendering;
 internal sealed class CommandLineRenderer
 {
     private readonly ScreenRenderer _screen;
+    private readonly CellStyle      _style;
 
-    public CommandLineRenderer(ScreenRenderer screen) => _screen = screen;
+    public CommandLineRenderer(ScreenRenderer screen, ConsolePalette? palette = null)
+    {
+        _screen = screen;
+        _style  = palette is not null
+            ? new CellStyle(palette.CommandLineFg, palette.CommandLineBg)
+            : Theme.CommandLine;
+    }
 
     public void Render(int y, int totalWidth, string currentDirectory, CommandLineState state)
     {
-        _screen.FillRegion(new Rect(0, y, totalWidth, 1), Theme.CommandLine);
+        _screen.FillRegion(new Rect(0, y, totalWidth, 1), _style);
 
         string prompt = currentDirectory + ">";
         string full   = prompt + state.Text;
@@ -22,7 +29,7 @@ internal sealed class CommandLineRenderer
             ? full
             : full[^totalWidth..];
 
-        _screen.Write(0, y, display, Theme.CommandLine);
+        _screen.Write(0, y, display, _style);
     }
 
     /// <summary>
@@ -38,7 +45,6 @@ internal sealed class CommandLineRenderer
         if (full.Length <= totalWidth)
             return rawX;
 
-        // Text is scrolled left; adjust cursor position accordingly
         int scrolled = full.Length - totalWidth;
         int adjusted = rawX - scrolled;
         return adjusted < 0 ? -1 : adjusted;

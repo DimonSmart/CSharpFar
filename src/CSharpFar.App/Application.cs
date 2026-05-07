@@ -23,6 +23,7 @@ public sealed class Application
     private readonly IHistoryStore _history;
     private readonly AppSettingsAlias _settings;
     private readonly UserMenuStore _userMenu;
+    private readonly Action? _saveSettings;
 
     private readonly FilePanelState _left;
     private readonly FilePanelState _right;
@@ -34,26 +35,34 @@ public sealed class Application
     private bool          _quickView     = false;
     private ConsoleSize?  _lastRenderSize;
     private ScreenSnapshot? _underlay;          // last known screen content before panels
+    private ConsolePalette  _palette;
+    private PanelViewMode   _leftViewMode;
+    private PanelViewMode   _rightViewMode;
 
     public Application(
         ScreenRenderer         screen,
         IFileSystemService     fs,
         IShellService          shell,
         IFileOperationService  fileOps,
-        IHistoryStore?         history  = null,
-        AppSettingsAlias?      settings = null,
-        UserMenuStore?         userMenu = null)
+        IHistoryStore?         history      = null,
+        AppSettingsAlias?      settings     = null,
+        UserMenuStore?         userMenu     = null,
+        Action?                saveSettings = null)
     {
-        _screen   = screen;
-        _ctrl     = new PanelController(fs);
-        _shell    = shell;
-        _fileOps  = fileOps;
-        _history  = history  ?? new InMemoryHistoryStore();
-        _settings = settings ?? new AppSettingsAlias();
-        _userMenu = userMenu ?? new UserMenuStore(
+        _screen       = screen;
+        _ctrl         = new PanelController(fs);
+        _shell        = shell;
+        _fileOps      = fileOps;
+        _history      = history      ?? new InMemoryHistoryStore();
+        _settings     = settings     ?? new AppSettingsAlias();
+        _userMenu     = userMenu     ?? new UserMenuStore(
             Path.Combine(
                 Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
                 "CSharpFar"));
+        _saveSettings = saveSettings;
+        _palette      = PaletteRegistry.Resolve(_settings.Ui.Palette);
+        _leftViewMode  = ResolveViewMode(_settings.Panels.LeftViewMode);
+        _rightViewMode = ResolveViewMode(_settings.Panels.RightViewMode);
 
         string cwd        = Directory.GetCurrentDirectory();
         string leftStart  = ResolveStartDir(_settings.Panels.LeftStartDirectory,  cwd);
@@ -78,6 +87,11 @@ public sealed class Application
         Enum.TryParse<SortMode>(configured, ignoreCase: true, out var mode)
             ? mode
             : SortMode.Name;
+
+    private static PanelViewMode ResolveViewMode(string? configured) =>
+        Enum.TryParse<PanelViewMode>(configured, ignoreCase: true, out var mode)
+            ? mode
+            : PanelViewMode.Full;
 
     public void Run()
     {
@@ -121,37 +135,49 @@ public sealed class Application
         int leftW  = size.Width / 2;
         int rightW = size.Width - leftW;
 
-        var panelRenderer = new PanelRenderer(_screen);
+        var panelRenderer = new PanelRenderer(_screen, _palette);
 
         if (_quickView)
         {
             if (_active == PanelSide.Left)
             {
-                panelRenderer.Render(new Rect(0,     0, leftW,  panelH), _left, true);
-                new QuickViewRenderer(_screen).Render(
+                panelRenderer.Render(new Rect(0,     0, leftW,  panelH), _left, true, PanelViewMode.Full);
+                new QuickViewRenderer(_screen, _palette).Render(
                     new Rect(leftW, 0, rightW, panelH),
                     _ctrl.CurrentItem(_left));
             }
             else
             {
-                new QuickViewRenderer(_screen).Render(
+                new QuickViewRenderer(_screen, _palette).Render(
                     new Rect(0,     0, leftW,  panelH),
                     _ctrl.CurrentItem(_right));
-                panelRenderer.Render(new Rect(leftW, 0, rightW, panelH), _right, true);
+                panelRenderer.Render(new Rect(leftW, 0, rightW, panelH), _right, true, PanelViewMode.Full);
             }
         }
         else
         {
-            panelRenderer.Render(new Rect(0,     0, leftW,  panelH), _left,  _active == PanelSide.Left);
-            panelRenderer.Render(new Rect(leftW, 0, rightW, panelH), _right, _active == PanelSide.Right);
+            panelRenderer.Render(new Rect(0,     0, leftW,  panelH), _left,  _active == PanelSide.Left,  _leftViewMode);
+            panelRenderer.Render(new Rect(leftW, 0, rightW, panelH), _right, _active == PanelSide.Right, _rightViewMode);
         }
 
-        var cmdRenderer = new CommandLineRenderer(_screen);
+        RenderClock(size);
+
+        var cmdRenderer = new CommandLineRenderer(_screen, _palette);
         cmdRenderer.Render(panelH, size.Width, ActiveState.CurrentDirectory, _cmdLine);
 
-        new StatusBarRenderer(_screen).Render(size.Height - 1, size.Width);
+        new StatusBarRenderer(_screen, _palette).Render(size.Height - 1, size.Width);
 
         PositionCommandCursor(cmdRenderer, size, panelH);
+    }
+
+    private void RenderClock(ConsoleSize size)
+    {
+        string text = DateTime.Now.ToString("H:mm", System.Globalization.CultureInfo.InvariantCulture);
+        if (text.Length > size.Width)
+            return;
+
+        var style = new CellStyle(_palette.PanelTitleActiveFg, _palette.PanelBackground);
+        _screen.Write(size.Width - text.Length, 0, text, style);
     }
 
     private bool HasConsoleSizeChanged()
@@ -168,6 +194,17 @@ public sealed class Application
         key.Key == ConsoleKey.NoName &&
         key.KeyChar == '\0' &&
         key.Modifiers == 0;
+
+    private static bool IsPlainControlKey(ConsoleKeyInfo key, ConsoleKey consoleKey, char controlChar)
+    {
+        bool hasControl = (key.Modifiers & ConsoleModifiers.Control) != 0;
+        bool hasAlt     = (key.Modifiers & ConsoleModifiers.Alt)     != 0;
+        bool hasShift   = (key.Modifiers & ConsoleModifiers.Shift)   != 0;
+
+        return !hasAlt && !hasShift &&
+               ((hasControl && key.Key == consoleKey) ||
+                key.KeyChar == controlChar);
+    }
 
     private void PositionCommandCursor(CommandLineRenderer cmdRenderer, ConsoleSize size, int row)
     {
@@ -226,30 +263,69 @@ public sealed class Application
 
     private FilePanelState ActiveState => _active == PanelSide.Left ? _left : _right;
 
+    private PanelViewMode ActiveViewMode =>
+        _active == PanelSide.Left ? _leftViewMode : _rightViewMode;
+
     private int VisibleRows()
+    {
+        if (_quickView)
+            return VisibleRows(PanelViewMode.Full);
+        return VisibleRows(ActiveViewMode);
+    }
+
+    private int VisibleRows(PanelSide side)
+    {
+        if (_quickView && side == _active)
+            return VisibleRows(PanelViewMode.Full);
+
+        var mode = side == PanelSide.Left ? _leftViewMode : _rightViewMode;
+        return VisibleRows(mode);
+    }
+
+    private int VisibleRows(PanelViewMode mode)
     {
         var size   = _screen.GetSize();
         int panelH = size.Height - 2;
-        return PanelRenderer.VisibleRows(new Rect(0, 0, 0, panelH));
+        var bounds = new Rect(0, 0, 0, panelH);
+        return mode == PanelViewMode.BriefTwoColumns
+            ? BriefTwoColumnsPanelRenderer.VisibleRows(bounds)
+            : PanelRenderer.VisibleRows(bounds);
     }
 
     private bool HandleKey(ConsoleKeyInfo key)
     {
         // Ctrl+O: toggle panels — check before printable-char routing
-        if (key.Key == ConsoleKey.O && key.Modifiers == ConsoleModifiers.Control)
+        if (IsPlainControlKey(key, ConsoleKey.O, '\u000f'))
             return TogglePanels();
 
         if (!_panelsVisible)
             return false;
 
+        // Ctrl+S: settings dialog
+        if (IsPlainControlKey(key, ConsoleKey.S, '\u0013'))
+        {
+            HandleSettings();
+            return true;
+        }
+
+        // Alt+1 / Alt+2: view mode for active panel
+        if ((key.Modifiers & ConsoleModifiers.Alt) != 0 &&
+            (key.Modifiers & (ConsoleModifiers.Control | ConsoleModifiers.Shift)) == 0)
+        {
+            if (key.Key == ConsoleKey.D1 || key.Key == ConsoleKey.NumPad1)
+            { SetActiveViewMode(PanelViewMode.Full);            return true; }
+            if (key.Key == ConsoleKey.D2 || key.Key == ConsoleKey.NumPad2)
+            { SetActiveViewMode(PanelViewMode.BriefTwoColumns); return true; }
+        }
+
         // Ctrl+Q: toggle quick view
-        if (key.Key == ConsoleKey.Q && key.Modifiers == ConsoleModifiers.Control)
+        if (IsPlainControlKey(key, ConsoleKey.Q, '\u0011'))
         {
             _quickView = !_quickView;
             return true;
         }
 
-        if (key.KeyChar == '\u0001')
+        if (IsPlainControlKey(key, ConsoleKey.A, '\u0001'))
         {
             _ctrl.ToggleSelectAll(ActiveState);
             return true;
@@ -417,6 +493,10 @@ public sealed class Application
 
             case ConsoleKey.F8:
                 HandleDelete();
+                return true;
+
+            case ConsoleKey.F9:
+                HandleSettings();
                 return true;
 
             case ConsoleKey.F10:
@@ -591,9 +671,7 @@ public sealed class Application
             _screen.Restore(saved);
         }
 
-        int vr = VisibleRows();
-        SafeRefresh(_left,  vr);
-        SafeRefresh(_right, vr);
+        RefreshPanels();
     }
 
     // ── F6 — move / rename ────────────────────────────────────────────────────
@@ -638,9 +716,7 @@ public sealed class Application
             _screen.Restore(saved);
         }
 
-        int vr = VisibleRows();
-        SafeRefresh(_left,  vr);
-        SafeRefresh(_right, vr);
+        RefreshPanels();
     }
 
     // ── F8 — delete ───────────────────────────────────────────────────────────
@@ -676,9 +752,7 @@ public sealed class Application
             _screen.Restore(saved);
         }
 
-        int vr = VisibleRows();
-        SafeRefresh(_left,  vr);
-        SafeRefresh(_right, vr);
+        RefreshPanels();
     }
 
     // ── Alt+F12 — directory history ───────────────────────────────────────────
@@ -732,6 +806,44 @@ public sealed class Application
         int vr = VisibleRows();
         SafeRefresh(ActiveState, vr);
         _ctrl.SetCursorByName(ActiveState, name, vr);
+    }
+
+    // ── Ctrl+S — settings ─────────────────────────────────────────────────────
+
+    private void HandleSettings()
+    {
+        var result = new SettingsDialog(_screen).Show(
+            _leftViewMode, _rightViewMode, _settings.Ui.Palette);
+
+        if (result is null) return;
+
+        _leftViewMode              = result.LeftViewMode;
+        _rightViewMode             = result.RightViewMode;
+        _settings.Panels.LeftViewMode  = result.LeftViewMode.ToString();
+        _settings.Panels.RightViewMode = result.RightViewMode.ToString();
+        _settings.Ui.Palette           = result.PaletteName;
+        _palette = PaletteRegistry.Resolve(result.PaletteName);
+        _ctrl.MoveCursor(_left,  0, VisibleRows(PanelSide.Left));
+        _ctrl.MoveCursor(_right, 0, VisibleRows(PanelSide.Right));
+        _saveSettings?.Invoke();
+    }
+
+    // ── Alt+1/Alt+2 — view mode ────────────────────────────────────────────────
+
+    private void SetActiveViewMode(PanelViewMode mode)
+    {
+        if (_active == PanelSide.Left)
+        {
+            _leftViewMode = mode;
+            _settings.Panels.LeftViewMode = mode.ToString();
+        }
+        else
+        {
+            _rightViewMode = mode;
+            _settings.Panels.RightViewMode = mode.ToString();
+        }
+        _ctrl.MoveCursor(ActiveState, 0, VisibleRows());
+        _saveSettings?.Invoke();
     }
 
     // ── shell execution ───────────────────────────────────────────────────────
@@ -821,9 +933,8 @@ public sealed class Application
 
     private void RefreshPanels()
     {
-        int vr = VisibleRows();
-        SafeRefresh(_left,  vr);
-        SafeRefresh(_right, vr);
+        SafeRefresh(_left,  VisibleRows(PanelSide.Left));
+        SafeRefresh(_right, VisibleRows(PanelSide.Right));
     }
 
     private void SafeRefresh(FilePanelState state, int visibleRows)

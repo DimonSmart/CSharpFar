@@ -198,6 +198,22 @@ public class ScreenRendererTests
     }
 
     [Fact]
+    public void DrawDoubleBox_RendersFarLikeBorderCharacters()
+    {
+        var (renderer, driver) = Create(20, 10);
+        var style = new CellStyle(ConsoleColor.Cyan, ConsoleColor.DarkBlue);
+
+        renderer.DrawDoubleBox(new Rect(0, 0, 10, 5), style);
+
+        Assert.Equal('╔', driver.GetCell(0, 0).Character);
+        Assert.Equal('╗', driver.GetCell(9, 0).Character);
+        Assert.Equal('╚', driver.GetCell(0, 4).Character);
+        Assert.Equal('╝', driver.GetCell(9, 4).Character);
+        Assert.Equal('═', driver.GetCell(1, 0).Character);
+        Assert.Equal('║', driver.GetCell(0, 1).Character);
+    }
+
+    [Fact]
     public void CaptureAndRestore_PreservesScreenState()
     {
         var (renderer, driver) = Create(20, 10);

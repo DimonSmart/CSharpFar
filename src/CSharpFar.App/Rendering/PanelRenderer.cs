@@ -7,28 +7,52 @@ namespace CSharpFar.App.Rendering;
 internal sealed class PanelRenderer
 {
     private readonly ScreenRenderer _screen;
+    private readonly ConsolePalette _palette;
 
-    public PanelRenderer(ScreenRenderer screen) => _screen = screen;
-
-    /// <summary>Number of file list rows visible inside the given bounds.</summary>
-    public static int VisibleRows(Rect bounds) => Math.Max(0, bounds.Height - 2);
-
-    public void Render(Rect bounds, FilePanelState state, bool isActive)
+    public PanelRenderer(ScreenRenderer screen, ConsolePalette? palette = null)
     {
-        var border    = isActive ? Theme.PanelBorderActive    : Theme.PanelBorderInactive;
-        var fill      = isActive ? Theme.PanelFillActive      : Theme.PanelFillInactive;
-        var fileStyle = isActive ? Theme.FileActive           : Theme.FileInactive;
-        var dirStyle  = isActive ? Theme.DirectoryActive      : Theme.DirectoryInactive;
-        var cursor    = isActive ? Theme.CursorActive         : Theme.CursorInactive;
-        var pathHdr   = isActive ? Theme.PathHeaderActive     : Theme.PathHeaderInactive;
-        var footer    = isActive ? Theme.FooterActive         : Theme.FooterInactive;
+        _screen  = screen;
+        _palette = palette ?? PaletteRegistry.Default;
+    }
+
+    /// <summary>Number of file list rows visible inside the given bounds (Full mode).</summary>
+    public static int VisibleRows(Rect bounds) => Math.Max(0, bounds.Height - 2 - PanelStatusRenderer.StatusRowCount);
+
+    public void Render(Rect bounds, FilePanelState state, bool isActive,
+                       PanelViewMode mode = PanelViewMode.Full)
+    {
+        if (mode == PanelViewMode.BriefTwoColumns)
+        {
+            new BriefTwoColumnsPanelRenderer(_screen, _palette).Render(bounds, state, isActive);
+            return;
+        }
+
+        RenderFull(bounds, state, isActive);
+    }
+
+    // ── Full mode ─────────────────────────────────────────────────────────────
+
+    private void RenderFull(Rect bounds, FilePanelState state, bool isActive)
+    {
+        var p = _palette;
+
+        var border    = new CellStyle(isActive ? p.PanelBorderActiveFg : p.PanelBorderInactiveFg, p.PanelBackground);
+        var fill      = new CellStyle(isActive ? p.NormalFileFg        : p.NormalFileInactiveFg,  p.PanelBackground);
+        var fileStyle = fill;
+        var dirStyle  = new CellStyle(isActive ? p.DirectoryFg         : p.DirectoryInactiveFg,   p.PanelBackground);
+        var cursor    = new CellStyle(isActive ? p.CursorActiveFg      : p.CursorInactiveFg,
+                                      isActive ? p.CursorActiveBg      : p.CursorInactiveBg);
+        var pathHdr   = new CellStyle(isActive ? p.PanelTitleActiveFg  : p.PanelTitleInactiveFg,
+                                      isActive ? p.PanelTitleActiveBg  : p.PanelBackground);
+        var footer    = new CellStyle(isActive ? p.FooterActiveFg      : p.FooterInactiveFg,      p.PanelBackground);
+        var selStyle  = new CellStyle(p.SelectedFg, p.SelectedBg);
 
         // Fill background + draw border
         _screen.FillRegion(bounds, fill);
-        _screen.DrawBox(bounds, border);
+        _screen.DrawDoubleBox(bounds, border);
 
         // Path in top border: ┌─ C:\path ──────────┐
-        int pathMaxLen = bounds.Width - 6; // 6 = ┌─ + space + space + ─┐ margins
+        int pathMaxLen = bounds.Width - 6;
         string pathLabel = TruncatePath(state.CurrentDirectory, pathMaxLen);
         _screen.Write(bounds.X + 2, bounds.Y, $" {pathLabel} ", pathHdr);
 
@@ -50,14 +74,14 @@ internal sealed class PanelRenderer
                 continue;
             }
 
-            var item       = state.Items[itemIdx];
-            bool isCursor  = itemIdx == state.CursorIndex;
-            bool isDir     = item.IsDirectory;
+            var item        = state.Items[itemIdx];
+            bool isCursor   = itemIdx == state.CursorIndex;
+            bool isDir      = item.IsDirectory;
             bool isSelected = !item.IsParentDirectory &&
                               state.SelectedPaths.Contains(item.FullPath);
 
             CellStyle style = isCursor   ? cursor
-                            : isSelected ? (isDir ? Theme.SelectedDirectory : Theme.SelectedFile)
+                            : isSelected ? selStyle
                             : isDir      ? dirStyle
                             :              fileStyle;
 
@@ -65,21 +89,17 @@ internal sealed class PanelRenderer
             _screen.Write(bounds.X + 1, y, line, style);
         }
 
-        // Footer in bottom border: └─ N selected / M items ──────────┘
-        string footerText = state.SelectedPaths.Count > 0
-            ? $" {state.SelectedPaths.Count} selected "
-            : $" {state.Items.Count} items ";
-        if (footerText.Length <= bounds.Width - 4)
-            _screen.Write(bounds.X + 2, bounds.Bottom - 1, footerText, footer);
+        new PanelStatusRenderer(_screen).Render(bounds, state, footer);
     }
+
+    // ── static helpers ────────────────────────────────────────────────────────
 
     private static string FormatItem(FilePanelItem item, int nameWidth, int sizeWidth)
     {
-        string name;
-        if (item.Name.Length <= nameWidth)
-            name = item.Name.PadRight(nameWidth);
-        else
-            name = item.Name[..(nameWidth - 1)] + "~";
+        string name = nameWidth <= 0 ? string.Empty
+            : item.Name.Length <= nameWidth
+                ? item.Name.PadRight(nameWidth)
+                : item.Name[..Math.Max(0, nameWidth - 1)] + "~";
 
         string size;
         if (item.IsParentDirectory)
@@ -104,6 +124,6 @@ internal sealed class PanelRenderer
     {
         if (maxLen <= 0) return string.Empty;
         if (path.Length <= maxLen) return path;
-        return "\u2026" + path[^(maxLen - 1)..]; // …path_tail
+        return "\u2026" + path[^(maxLen - 1)..];
     }
 }

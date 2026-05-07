@@ -176,6 +176,33 @@ public sealed class ScreenRenderer
         }
     }
 
+    /// <summary>Draws a double-line box border.</summary>
+    public void DrawDoubleBox(Rect rect, CellStyle style)
+    {
+        if (rect.Width < 2 || rect.Height < 2)
+            return;
+
+        int x = rect.X;
+        int y = rect.Y;
+        int w = rect.Width;
+        int h = rect.Height;
+
+        WriteChar(x, y, '╔', style);
+        WriteChar(x + w - 1, y, '╗', style);
+        WriteChar(x, y + h - 1, '╚', style);
+        WriteChar(x + w - 1, y + h - 1, '╝', style);
+
+        var hLine = new string('═', w - 2);
+        Write(x + 1, y, hLine, style);
+        Write(x + 1, y + h - 1, hLine, style);
+
+        for (int row = y + 1; row < y + h - 1; row++)
+        {
+            WriteChar(x, row, '║', style);
+            WriteChar(x + w - 1, row, '║', style);
+        }
+    }
+
     public void SetCursorPosition(int x, int y)
     {
         if (_frameActive)

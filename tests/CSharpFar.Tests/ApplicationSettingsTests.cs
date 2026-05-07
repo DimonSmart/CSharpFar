@@ -52,7 +52,56 @@ public sealed class ApplicationSettingsTests : IDisposable
         Assert.Equal("b.txt", left.Items[1].Name);
     }
 
+    [Fact]
+    public void Run_CtrlSControlCharacter_OpensSettingsDialog()
+    {
+        var driver = new FakeConsoleDriver();
+        int saveCount = 0;
+
+        driver.EnqueueKey(new ConsoleKeyInfo('\u0013', ConsoleKey.NoName, shift: false, alt: false, control: true));
+        driver.EnqueueKey(new ConsoleKeyInfo('\0', ConsoleKey.F10, shift: false, alt: false, control: false));
+        driver.EnqueueKey(new ConsoleKeyInfo('\0', ConsoleKey.F10, shift: false, alt: false, control: false));
+
+        var app = CreateApp(
+            "Name",
+            driver,
+            saveSettings: () => saveCount++);
+
+        app.Run();
+
+        Assert.Equal(1, saveCount);
+    }
+
+    [Fact]
+    public void Run_F9_OpensSettingsDialog()
+    {
+        var driver = new FakeConsoleDriver();
+        int saveCount = 0;
+
+        driver.EnqueueKey(new ConsoleKeyInfo('\0', ConsoleKey.F9, shift: false, alt: false, control: false));
+        driver.EnqueueKey(new ConsoleKeyInfo('\0', ConsoleKey.F10, shift: false, alt: false, control: false));
+        driver.EnqueueKey(new ConsoleKeyInfo('\0', ConsoleKey.F10, shift: false, alt: false, control: false));
+
+        var app = CreateApp(
+            "Name",
+            driver,
+            saveSettings: () => saveCount++);
+
+        app.Run();
+
+        Assert.Equal(1, saveCount);
+    }
+
     private Application CreateApp(string sortMode, params FilePanelItem[] items)
+    {
+        return CreateApp(sortMode, new FakeConsoleDriver(), saveSettings: null, items);
+    }
+
+    private Application CreateApp(
+        string sortMode,
+        FakeConsoleDriver driver,
+        Action? saveSettings = null,
+        params FilePanelItem[] items)
     {
         var fs = new FakeFileSystemService();
         fs.AddDirectory(_tempDir, items);
@@ -63,12 +112,13 @@ public sealed class ApplicationSettingsTests : IDisposable
         settings.Panels.DefaultSortMode = sortMode;
 
         return new Application(
-            new ScreenRenderer(new FakeConsoleDriver()),
+            new ScreenRenderer(driver),
             fs,
             new NoOpShellService(),
             new NoOpFileOperationService(),
             new InMemoryHistoryStore(),
-            settings);
+            settings,
+            saveSettings: saveSettings);
     }
 
     private static FilePanelState GetLeftPanel(Application app)

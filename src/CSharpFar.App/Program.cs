@@ -24,4 +24,5 @@ var history = new JsonHistoryStore(
     settings.History.MaxDirectoryHistoryItems,
     settings.History.MaxFileHistoryItems);
 
-new Application(renderer, fs, shell, fileOps, history, settings, userMenu).Run();
+new Application(renderer, fs, shell, fileOps, history, settings, userMenu,
+    saveSettings: () => settingsStore.Save()).Run();
