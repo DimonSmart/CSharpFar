@@ -9,7 +9,8 @@ namespace CSharpFar.App.Dialogs;
 public sealed record SettingsDialogResult(
     PanelViewMode LeftViewMode,
     PanelViewMode RightViewMode,
-    string        PaletteName);
+    string        PaletteName,
+    bool          FileHighlightingEnabled);
 
 /// <summary>
 /// Modal settings window.
@@ -19,7 +20,7 @@ public sealed record SettingsDialogResult(
 internal sealed class SettingsDialog
 {
     private const int DialogWidth  = 44;
-    private const int DialogHeight = 13;
+    private const int DialogHeight = 14;
 
     private static readonly PanelViewMode[] ViewModes    = [PanelViewMode.Full, PanelViewMode.BriefTwoColumns];
     private static readonly string[]        PaletteNames = [.. PaletteRegistry.Names];
@@ -34,7 +35,8 @@ internal sealed class SettingsDialog
     public SettingsDialogResult? Show(
         PanelViewMode leftMode,
         PanelViewMode rightMode,
-        string        paletteName)
+        string        paletteName,
+        bool          fileHighlightingEnabled)
     {
         var size   = _screen.GetSize();
         var region = new Rect(0, 0, size.Width, size.Height);
@@ -42,7 +44,7 @@ internal sealed class SettingsDialog
 
         try
         {
-            return RunLoop(size, leftMode, rightMode, paletteName);
+            return RunLoop(size, leftMode, rightMode, paletteName, fileHighlightingEnabled);
         }
         finally
         {
@@ -56,23 +58,23 @@ internal sealed class SettingsDialog
         ConsoleSize   screenSize,
         PanelViewMode leftMode,
         PanelViewMode rightMode,
-        string        paletteName)
+        string        paletteName,
+        bool          hlEnabled)
     {
         int dialogX = (screenSize.Width  - DialogWidth)  / 2;
         int dialogY = (screenSize.Height - DialogHeight) / 2;
         var bounds  = new Rect(dialogX, dialogY, DialogWidth, DialogHeight);
 
-        // Working copies
-        int leftIdx    = Array.IndexOf(ViewModes,    leftMode);
-        int rightIdx   = Array.IndexOf(ViewModes,    rightMode);
-        int palIdx     = FindPaletteIndex(paletteName);
+        int leftIdx  = Array.IndexOf(ViewModes,    leftMode);
+        int rightIdx = Array.IndexOf(ViewModes,    rightMode);
+        int palIdx   = FindPaletteIndex(paletteName);
         if (leftIdx  < 0) leftIdx  = 0;
         if (rightIdx < 0) rightIdx = 0;
         if (palIdx   < 0) palIdx   = 0;
 
-        int focusRow = 0; // 0=left, 1=right, 2=palette
+        int focusRow = 0; // 0=left, 1=right, 2=palette, 3=file highlighting
 
-        Draw(bounds, focusRow, leftIdx, rightIdx, palIdx);
+        Draw(bounds, focusRow, leftIdx, rightIdx, palIdx, hlEnabled);
 
         while (true)
         {
@@ -87,45 +89,48 @@ internal sealed class SettingsDialog
                     return new SettingsDialogResult(
                         ViewModes[leftIdx],
                         ViewModes[rightIdx],
-                        PaletteNames[palIdx]);
+                        PaletteNames[palIdx],
+                        hlEnabled);
 
                 case ConsoleKey.UpArrow:
-                    focusRow = (focusRow + 2) % 3;
-                    Draw(bounds, focusRow, leftIdx, rightIdx, palIdx);
+                    focusRow = (focusRow + 3) % 4;
+                    Draw(bounds, focusRow, leftIdx, rightIdx, palIdx, hlEnabled);
                     break;
 
                 case ConsoleKey.DownArrow:
-                    focusRow = (focusRow + 1) % 3;
-                    Draw(bounds, focusRow, leftIdx, rightIdx, palIdx);
+                    focusRow = (focusRow + 1) % 4;
+                    Draw(bounds, focusRow, leftIdx, rightIdx, palIdx, hlEnabled);
                     break;
 
                 case ConsoleKey.Enter:
                 case ConsoleKey.Spacebar:
-                    Cycle(focusRow, ref leftIdx, ref rightIdx, ref palIdx);
-                    Draw(bounds, focusRow, leftIdx, rightIdx, palIdx);
+                    Cycle(focusRow, ref leftIdx, ref rightIdx, ref palIdx, ref hlEnabled);
+                    Draw(bounds, focusRow, leftIdx, rightIdx, palIdx, hlEnabled);
                     break;
             }
         }
     }
 
-    private static void Cycle(int focusRow, ref int leftIdx, ref int rightIdx, ref int palIdx)
+    private static void Cycle(int focusRow, ref int leftIdx, ref int rightIdx, ref int palIdx, ref bool hlEnabled)
     {
         switch (focusRow)
         {
             case 0: leftIdx  = (leftIdx  + 1) % ViewModes.Length;    break;
             case 1: rightIdx = (rightIdx + 1) % ViewModes.Length;    break;
             case 2: palIdx   = (palIdx   + 1) % PaletteNames.Length; break;
+            case 3: hlEnabled = !hlEnabled;                           break;
         }
     }
 
     // ── drawing ───────────────────────────────────────────────────────────────
 
     private void Draw(
-        Rect          bounds,
-        int           focusRow,
-        int           leftIdx,
-        int           rightIdx,
-        int           palIdx)
+        Rect   bounds,
+        int    focusRow,
+        int    leftIdx,
+        int    rightIdx,
+        int    palIdx,
+        bool   hlEnabled)
     {
         using var frame = _screen.BeginFrame();
 
@@ -138,7 +143,6 @@ internal sealed class SettingsDialog
         _screen.FillRegion(bounds, fill);
         _screen.DrawDoubleBox(bounds, border);
 
-        // Title centred in top border
         const string titleText = " Settings ";
         int titleX = bounds.X + (bounds.Width - titleText.Length) / 2;
         _screen.Write(titleX, bounds.Y, titleText, title);
@@ -147,7 +151,6 @@ internal sealed class SettingsDialog
         int valueX   = bounds.X + 18;
         int valueW   = bounds.Width - 19;
 
-        // Setting rows
         DrawSettingRow(contentX, valueX, bounds.Y + 2, valueW,
             "Left panel:", ViewModeLabel(ViewModes[leftIdx]),
             focusRow == 0, fill, focused);
@@ -160,11 +163,14 @@ internal sealed class SettingsDialog
             "Palette:", PaletteNames[palIdx],
             focusRow == 2, fill, focused);
 
-        // Help text
-        _screen.Write(contentX, bounds.Y + 6,  "Enter/Space  change value", fill);
-        _screen.Write(contentX, bounds.Y + 7,  "Up/Down      select item",  fill);
-        _screen.Write(contentX, bounds.Y + 8,  "F10          save & close", fill);
-        _screen.Write(contentX, bounds.Y + 9,  "Esc          close",        fill);
+        DrawSettingRow(contentX, valueX, bounds.Y + 5, valueW,
+            "File highlight:", hlEnabled ? "Enabled" : "Disabled",
+            focusRow == 3, fill, focused);
+
+        _screen.Write(contentX, bounds.Y + 7,  "Enter/Space  change value", fill);
+        _screen.Write(contentX, bounds.Y + 8,  "Up/Down      select item",  fill);
+        _screen.Write(contentX, bounds.Y + 9,  "F10          save & close", fill);
+        _screen.Write(contentX, bounds.Y + 10, "Esc          close",        fill);
     }
 
     private void DrawSettingRow(

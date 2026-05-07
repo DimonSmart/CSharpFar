@@ -1,3 +1,5 @@
+using CSharpFar.Core.Highlighting;
+
 namespace CSharpFar.Core.Models;
 
 public sealed class AppSettings
@@ -30,6 +32,16 @@ public sealed class AppSettings
         public string  DefaultSortMode     { get; set; } = "name";
         public string  LeftViewMode        { get; set; } = "Full";
         public string  RightViewMode       { get; set; } = "Full";
+        public FileHighlightingSettings FileHighlighting { get; set; } = new();
+    }
+
+    public sealed class FileHighlightingSettings
+    {
+        public bool                    Enabled    { get; set; } = true;
+        public string                  Preset     { get; set; } = "FarDefault";
+        public string                  Mode       { get; set; } = "PresetPlusUserRules";
+        public List<FileHighlightRule> Rules      { get; set; } = [];
+        public List<MaskGroup>         MaskGroups { get; set; } = [];
     }
 
     public sealed class HistorySettings

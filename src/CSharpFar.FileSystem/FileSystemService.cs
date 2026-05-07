@@ -28,6 +28,7 @@ public sealed class FileSystemService : IFileSystemService
                 FullPath = parentPath,
                 IsDirectory = true,
                 IsParentDirectory = true,
+                Attributes = FileAttributes.Directory,
             });
         }
 

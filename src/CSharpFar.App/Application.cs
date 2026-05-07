@@ -8,6 +8,7 @@ using CSharpFar.Console;
 using CSharpFar.Console.Models;
 using CSharpFar.Core.Abstractions;
 using CSharpFar.Core.Controllers;
+using CSharpFar.Core.Highlighting;
 using CSharpFar.Core.History;
 using CSharpFar.Core.Models;
 using AppSettingsAlias = CSharpFar.Core.Models.AppSettings;
@@ -36,9 +37,10 @@ public sealed class Application
     private bool          _quickView     = false;
     private ConsoleSize?  _lastRenderSize;
     private ScreenSnapshot? _underlay;          // last known screen content before panels
-    private ConsolePalette  _palette;
-    private PanelViewMode   _leftViewMode;
-    private PanelViewMode   _rightViewMode;
+    private ConsolePalette          _palette;
+    private PanelViewMode           _leftViewMode;
+    private PanelViewMode           _rightViewMode;
+    private IFileHighlightService?  _highlightService;
 
     public Application(
         ScreenRenderer         screen,
@@ -63,9 +65,10 @@ public sealed class Application
                 "CSharpFar"));
         _saveSettings  = saveSettings;
         _volumeService = volumeService;
-        _palette       = PaletteRegistry.Resolve(_settings.Ui.Palette);
-        _leftViewMode  = ResolveViewMode(_settings.Panels.LeftViewMode);
-        _rightViewMode = ResolveViewMode(_settings.Panels.RightViewMode);
+        _palette          = PaletteRegistry.Resolve(_settings.Ui.Palette);
+        _leftViewMode     = ResolveViewMode(_settings.Panels.LeftViewMode);
+        _rightViewMode    = ResolveViewMode(_settings.Panels.RightViewMode);
+        _highlightService = CreateHighlightService(_settings);
 
         string cwd        = Directory.GetCurrentDirectory();
         string leftStart  = ResolveStartDir(_settings.Panels.LeftStartDirectory,  cwd);
@@ -155,7 +158,7 @@ public sealed class Application
         int leftW  = size.Width / 2;
         int rightW = size.Width - leftW;
 
-        var panelRenderer = new PanelRenderer(_screen, _palette);
+        var panelRenderer = new PanelRenderer(_screen, _palette, _highlightService);
 
         if (_quickView)
         {
@@ -1071,16 +1074,20 @@ public sealed class Application
     private void HandleSettings()
     {
         var result = new SettingsDialog(_screen).Show(
-            _leftViewMode, _rightViewMode, _settings.Ui.Palette);
+            _leftViewMode, _rightViewMode,
+            _settings.Ui.Palette,
+            _settings.Panels.FileHighlighting.Enabled);
 
         if (result is null) return;
 
-        _leftViewMode              = result.LeftViewMode;
-        _rightViewMode             = result.RightViewMode;
-        _settings.Panels.LeftViewMode  = result.LeftViewMode.ToString();
-        _settings.Panels.RightViewMode = result.RightViewMode.ToString();
-        _settings.Ui.Palette           = result.PaletteName;
-        _palette = PaletteRegistry.Resolve(result.PaletteName);
+        _leftViewMode                              = result.LeftViewMode;
+        _rightViewMode                             = result.RightViewMode;
+        _settings.Panels.LeftViewMode              = result.LeftViewMode.ToString();
+        _settings.Panels.RightViewMode             = result.RightViewMode.ToString();
+        _settings.Ui.Palette                       = result.PaletteName;
+        _settings.Panels.FileHighlighting.Enabled  = result.FileHighlightingEnabled;
+        _palette          = PaletteRegistry.Resolve(result.PaletteName);
+        _highlightService = CreateHighlightService(_settings);
         _ctrl.MoveCursor(_left,  0, VisibleRows(PanelSide.Left));
         _ctrl.MoveCursor(_right, 0, VisibleRows(PanelSide.Right));
         _saveSettings?.Invoke();
@@ -1102,6 +1109,50 @@ public sealed class Application
         }
         _ctrl.MoveCursor(ActiveState, 0, VisibleRows());
         _saveSettings?.Invoke();
+    }
+
+    // ── file highlighting ─────────────────────────────────────────────────────
+
+    private static IFileHighlightService? CreateHighlightService(AppSettingsAlias settings)
+    {
+        var hs = settings.Panels.FileHighlighting;
+        if (!hs.Enabled) return null;
+
+        var (rules, groups) = ResolveHighlightRules(hs);
+        return rules.Count == 0 ? null : new FileHighlightService(rules, groups);
+    }
+
+    private static (IReadOnlyList<FileHighlightRule> Rules,
+                    IReadOnlyDictionary<string, MaskGroup> Groups)
+        ResolveHighlightRules(AppSettingsAlias.FileHighlightingSettings hs)
+    {
+        if (!string.Equals(hs.Preset, "FarDefault", StringComparison.OrdinalIgnoreCase))
+            return (hs.Rules,
+                    hs.MaskGroups.ToDictionary(g => g.Name, g => g, StringComparer.OrdinalIgnoreCase));
+
+        return hs.Mode switch
+        {
+            "UserRulesOnly" => (
+                hs.Rules,
+                hs.MaskGroups.ToDictionary(g => g.Name, g => g, StringComparer.OrdinalIgnoreCase)),
+
+            "PresetOnly" => (
+                FarDefaultHighlightPreset.Rules,
+                FarDefaultHighlightPreset.GroupsByName),
+
+            _ => ( // PresetPlusUserRules (default)
+                [.. FarDefaultHighlightPreset.Rules, .. hs.Rules],
+                MergeHighlightGroups(FarDefaultHighlightPreset.Groups, hs.MaskGroups)),
+        };
+    }
+
+    private static IReadOnlyDictionary<string, MaskGroup> MergeHighlightGroups(
+        IReadOnlyList<MaskGroup> preset,
+        IReadOnlyList<MaskGroup> user)
+    {
+        var dict = preset.ToDictionary(g => g.Name, g => g, StringComparer.OrdinalIgnoreCase);
+        foreach (var g in user) dict[g.Name] = g; // user group replaces same preset name
+        return dict;
     }
 
     // ── shell execution ───────────────────────────────────────────────────────

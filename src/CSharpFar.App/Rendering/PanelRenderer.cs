@@ -1,18 +1,24 @@
 using CSharpFar.Console;
 using CSharpFar.Console.Models;
+using CSharpFar.Core.Highlighting;
 using CSharpFar.Core.Models;
 
 namespace CSharpFar.App.Rendering;
 
 internal sealed class PanelRenderer
 {
-    private readonly ScreenRenderer _screen;
-    private readonly ConsolePalette _palette;
+    private readonly ScreenRenderer          _screen;
+    private readonly ConsolePalette          _palette;
+    private readonly IFileHighlightService?  _highlight;
 
-    public PanelRenderer(ScreenRenderer screen, ConsolePalette? palette = null)
+    public PanelRenderer(
+        ScreenRenderer          screen,
+        ConsolePalette?         palette   = null,
+        IFileHighlightService?  highlight = null)
     {
-        _screen  = screen;
-        _palette = palette ?? PaletteRegistry.Default;
+        _screen    = screen;
+        _palette   = palette ?? PaletteRegistry.Default;
+        _highlight = highlight;
     }
 
     /// <summary>Number of file list rows visible inside the given bounds (Full mode).</summary>
@@ -23,7 +29,7 @@ internal sealed class PanelRenderer
     {
         if (mode == PanelViewMode.BriefTwoColumns)
         {
-            new BriefTwoColumnsPanelRenderer(_screen, _palette).Render(bounds, state, isActive);
+            new BriefTwoColumnsPanelRenderer(_screen, _palette, _highlight).Render(bounds, state, isActive);
             return;
         }
 
@@ -68,19 +74,29 @@ internal sealed class PanelRenderer
                 continue;
             }
 
-            var item        = state.Items[itemIdx];
+            var  item       = state.Items[itemIdx];
             bool isCursor   = isActive && itemIdx == state.CursorIndex;
-            bool isDir      = item.IsDirectory;
             bool isSelected = !item.IsParentDirectory &&
                               state.SelectedPaths.Contains(item.FullPath);
 
             CellStyle style = isCursor   ? cursor
                             : isSelected ? selStyle
-                            : isDir      ? dirStyle
-                            :              fileStyle;
+                            : item.IsDirectory ? dirStyle
+                            :                    fileStyle;
 
-            string line = FormatItem(item, nameCol, sizeCol);
-            _screen.Write(bounds.X + 1, y, line, style);
+            var rowState = isCursor && isSelected ? FileRowState.SelectedCursor
+                         : isCursor               ? FileRowState.Cursor
+                         : isSelected             ? FileRowState.Selected
+                         :                          FileRowState.Normal;
+
+            // Name cell (with highlight) + size cell (base style only)
+            string namePart = FormatName(item, nameCol);
+            string sizePart = " " + FormatSizePart(item, sizeCol);
+
+            CellStyle nameStyle = ApplyHighlight(style, item, rowState);
+
+            _screen.Write(bounds.X + 1,          y, namePart, nameStyle);
+            _screen.Write(bounds.X + 1 + nameCol, y, sizePart, style);
         }
 
         new PanelStatusRenderer(_screen).Render(bounds, state, footer, border);
@@ -88,22 +104,30 @@ internal sealed class PanelRenderer
 
     // ── static helpers ────────────────────────────────────────────────────────
 
-    private static string FormatItem(FilePanelItem item, int nameWidth, int sizeWidth)
+    private CellStyle ApplyHighlight(CellStyle baseStyle, FilePanelItem item, FileRowState rowState)
     {
-        string name = nameWidth <= 0 ? string.Empty
-            : item.Name.Length <= nameWidth
-                ? item.Name.PadRight(nameWidth)
-                : item.Name[..Math.Max(0, nameWidth - 1)] + "~";
+        if (_highlight == null) return baseStyle;
+        var result = _highlight.GetHighlight(item, rowState);
+        if (result.ColorOverride == null) return baseStyle;
 
-        string size;
-        if (item.IsParentDirectory)
-            size = new string(' ', sizeWidth);
-        else if (item.IsDirectory)
-            size = "<DIR>".PadLeft(sizeWidth);
-        else
-            size = FormatSize(item.Size ?? 0).PadLeft(sizeWidth);
+        int fg = result.ColorOverride.Foreground ?? (int)baseStyle.Foreground;
+        int bg = result.ColorOverride.Background ?? (int)baseStyle.Background;
+        return new CellStyle((ConsoleColor)fg, (ConsoleColor)bg);
+    }
 
-        return $"{name} {size}";
+    private static string FormatName(FilePanelItem item, int nameWidth)
+    {
+        if (nameWidth <= 0) return string.Empty;
+        return item.Name.Length <= nameWidth
+            ? item.Name.PadRight(nameWidth)
+            : item.Name[..Math.Max(0, nameWidth - 1)] + "~";
+    }
+
+    private static string FormatSizePart(FilePanelItem item, int sizeWidth)
+    {
+        if (item.IsParentDirectory) return new string(' ', sizeWidth);
+        if (item.IsDirectory)       return "<DIR>".PadLeft(sizeWidth);
+        return FormatSize(item.Size ?? 0).PadLeft(sizeWidth);
     }
 
     private static string FormatSize(long bytes) => bytes switch
@@ -113,5 +137,4 @@ internal sealed class PanelRenderer
         < 1_000_000_000L => $"{bytes / 1_000_000}M",
         _                => $"{bytes / 1_000_000_000}G",
     };
-
 }

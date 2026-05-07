@@ -1,5 +1,6 @@
 using CSharpFar.Console;
 using CSharpFar.Console.Models;
+using CSharpFar.Core.Highlighting;
 using CSharpFar.Core.Models;
 
 namespace CSharpFar.App.Rendering;
@@ -8,16 +9,22 @@ namespace CSharpFar.App.Rendering;
 /// Far Manager-style two-column brief view.
 /// Items fill the first column top-to-bottom, then the second column.
 /// No size column; directories are not marked with &lt;DIR&gt;.
+/// File name cell colors are overridden by the highlight service; the separator is not.
 /// </summary>
 public sealed class BriefTwoColumnsPanelRenderer
 {
-    private readonly ScreenRenderer _screen;
-    private readonly ConsolePalette _palette;
+    private readonly ScreenRenderer          _screen;
+    private readonly ConsolePalette          _palette;
+    private readonly IFileHighlightService?  _highlight;
 
-    public BriefTwoColumnsPanelRenderer(ScreenRenderer screen, ConsolePalette palette)
+    public BriefTwoColumnsPanelRenderer(
+        ScreenRenderer          screen,
+        ConsolePalette          palette,
+        IFileHighlightService?  highlight = null)
     {
-        _screen  = screen;
-        _palette = palette;
+        _screen    = screen;
+        _palette   = palette;
+        _highlight = highlight;
     }
 
     /// <summary>
@@ -76,7 +83,7 @@ public sealed class BriefTwoColumnsPanelRenderer
             RenderCell(state.ScrollOffset + row,              col1X, y, col1Width,
                        state, isActive, cursor, fileStyle, dirStyle, selStyle, fill);
 
-            // Separator
+            // Separator (always uses border style, not highlight)
             _screen.WriteChar(bounds.X + 1 + sepOffset, y, '│', border);
 
             // Column 2
@@ -110,14 +117,31 @@ public sealed class BriefTwoColumnsPanelRenderer
         bool isCursor   = isActive && itemIdx == state.CursorIndex;
         bool isSelected = !item.IsParentDirectory && state.SelectedPaths.Contains(item.FullPath);
 
-        CellStyle style = isCursor   ? cursor
-                        : isSelected ? selStyle
+        CellStyle style = isCursor        ? cursor
+                        : isSelected      ? selStyle
                         : item.IsDirectory ? dirStyle
-                        : fileStyle;
+                        :                   fileStyle;
+
+        var rowState = isCursor && isSelected ? FileRowState.SelectedCursor
+                     : isCursor               ? FileRowState.Cursor
+                     : isSelected             ? FileRowState.Selected
+                     :                          FileRowState.Normal;
 
         string name = Fit(item.Name, width);
 
-        _screen.Write(x, y, name, style);
+        CellStyle nameStyle = ApplyHighlight(style, item, rowState);
+        _screen.Write(x, y, name, nameStyle);
+    }
+
+    private CellStyle ApplyHighlight(CellStyle baseStyle, FilePanelItem item, FileRowState rowState)
+    {
+        if (_highlight == null) return baseStyle;
+        var result = _highlight.GetHighlight(item, rowState);
+        if (result.ColorOverride == null) return baseStyle;
+
+        int fg = result.ColorOverride.Foreground ?? (int)baseStyle.Foreground;
+        int bg = result.ColorOverride.Background ?? (int)baseStyle.Background;
+        return new CellStyle((ConsoleColor)fg, (ConsoleColor)bg);
     }
 
     private static string Fit(string text, int width) =>
