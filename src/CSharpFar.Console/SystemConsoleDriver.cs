@@ -20,6 +20,7 @@ public sealed class SystemConsoleDriver : IConsoleDriver, IConsoleOutputModeDriv
     private readonly uint _originalOutputMode;
     private readonly bool _restoreInputMode;
     private readonly bool _restoreOutputMode;
+    private ConsoleSize _lastInputSize;
     private bool _renderingOutputMode;
     private bool _disposed;
 
@@ -34,6 +35,7 @@ public sealed class SystemConsoleDriver : IConsoleDriver, IConsoleOutputModeDriv
         }
 
         global::System.Console.OutputEncoding = System.Text.Encoding.UTF8;
+        _lastInputSize = GetSize();
     }
 
     public void Dispose()
@@ -68,7 +70,18 @@ public sealed class SystemConsoleDriver : IConsoleDriver, IConsoleOutputModeDriv
     public ConsoleInputEvent ReadInput(bool intercept, CancellationToken cancellationToken = default)
     {
         if (OperatingSystem.IsWindows())
-            return Win32ConsoleApi.ReadInput(_inputHandle, intercept, cancellationToken);
+        {
+            var inputEvent = Win32ConsoleApi.ReadInput(
+                _inputHandle,
+                intercept,
+                cancellationToken,
+                HasVisibleWindowSizeChanged);
+
+            if (inputEvent is ConsoleResizeInputEvent)
+                _lastInputSize = GetSize();
+
+            return inputEvent;
+        }
 
         // Non-Windows fallback: key-only
         cancellationToken.ThrowIfCancellationRequested();
@@ -145,10 +158,22 @@ public sealed class SystemConsoleDriver : IConsoleDriver, IConsoleOutputModeDriv
             WriteAt(x1, y, spaces.AsSpan());
     }
 
-    public void SetCursorPosition(int x, int y) =>
-        global::System.Console.SetCursorPosition(
-            global::System.Console.WindowLeft + x,
-            global::System.Console.WindowTop + y);
+    public void SetCursorPosition(int x, int y)
+    {
+        if (!IsVisibleCursorPosition(x, y))
+            return;
+
+        try
+        {
+            global::System.Console.SetCursorPosition(
+                global::System.Console.WindowLeft + x,
+                global::System.Console.WindowTop + y);
+        }
+        catch (ArgumentOutOfRangeException)
+        {
+            // Window size changed between validation and SetCursorPosition.
+        }
+    }
 
     public void SetCursorVisible(bool visible) =>
         global::System.Console.CursorVisible = visible;
@@ -185,6 +210,25 @@ public sealed class SystemConsoleDriver : IConsoleDriver, IConsoleOutputModeDriv
 
         return appMode == mode || Win32ConsoleApi.TrySetConsoleMode(inputHandle, appMode);
     }
+
+    private bool HasVisibleWindowSizeChanged()
+    {
+        var size = GetSize();
+        if (size.Width == _lastInputSize.Width &&
+            size.Height == _lastInputSize.Height)
+        {
+            return false;
+        }
+
+        _lastInputSize = size;
+        return true;
+    }
+
+    private static bool IsVisibleCursorPosition(int x, int y) =>
+        x >= 0 &&
+        y >= 0 &&
+        x < global::System.Console.WindowWidth &&
+        y < global::System.Console.WindowHeight;
 
     [SupportedOSPlatform("windows")]
     private static void WriteAtWindows(int x, int y, ReadOnlySpan<char> text, ConsoleColor foreground, ConsoleColor background)

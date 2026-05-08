@@ -106,16 +106,25 @@ public sealed class QuickViewRenderer
 
     private void WriteRow(int x, int y, string text, int width)
     {
+        if (width <= 0)
+            return;
+
         string padded = text.Length >= width ? text[..width] : text.PadRight(width);
         _screen.Write(x, y, padded, _fillStyle);
     }
 
     private static string RenderableLine(string line, int maxLen)
     {
+        if (maxLen <= 0)
+            return string.Empty;
+
         line = line.Replace("\t", "    ");
         return line.Length <= maxLen ? line : line[..maxLen];
     }
 
     private static string TruncatePath(string path, int maxLen) =>
-        path.Length <= maxLen ? path : "\u2026" + path[^(maxLen - 1)..];
+        maxLen <= 0 ? string.Empty :
+        path.Length <= maxLen ? path :
+        maxLen == 1 ? "\u2026" :
+        "\u2026" + path[^(maxLen - 1)..];
 }

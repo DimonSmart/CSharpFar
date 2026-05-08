@@ -95,7 +95,8 @@ internal static class Win32ConsoleApi
     public static ConsoleInputEvent ReadInput(
         IntPtr inputHandle,
         bool intercept,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        Func<bool>? hasVisibleWindowSizeChanged = null)
     {
         while (true)
         {
@@ -106,6 +107,8 @@ internal static class Win32ConsoleApi
                 var pendingEvt = TryReadInputRecord(inputHandle, intercept);
                 if (pendingEvt != null)
                     return pendingEvt;
+                if (hasVisibleWindowSizeChanged?.Invoke() == true)
+                    return new ConsoleResizeInputEvent();
                 continue;
             }
 
@@ -115,12 +118,18 @@ internal static class Win32ConsoleApi
                 throw new OperationCanceledException(cancellationToken);
 
             if (result == WAIT_TIMEOUT)
+            {
+                if (hasVisibleWindowSizeChanged?.Invoke() == true)
+                    return new ConsoleResizeInputEvent();
                 continue;
+            }
 
             // Input event available
             var evt = TryReadInputRecord(inputHandle, intercept);
             if (evt != null)
                 return evt;
+            if (hasVisibleWindowSizeChanged?.Invoke() == true)
+                return new ConsoleResizeInputEvent();
             // null = irrelevant event (move, key-up) – loop again
         }
     }

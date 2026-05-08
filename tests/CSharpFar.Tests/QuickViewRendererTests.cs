@@ -92,4 +92,22 @@ public class QuickViewRendererTests : IDisposable
         string titleRow = _driver.GetRow(_bounds.Y);
         Assert.Contains("Quick View", titleRow);
     }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(1)]
+    [InlineData(2)]
+    public void Render_NarrowBounds_DoesNotThrow(int width)
+    {
+        string filePath = Path.Combine(_tempDir, "narrow.txt");
+        File.WriteAllText(filePath, "line one");
+
+        var directoryItem = new FilePanelItem { Name = "dir", FullPath = _tempDir, IsDirectory = true };
+        var fileItem = new FilePanelItem { Name = "narrow.txt", FullPath = filePath, IsDirectory = false };
+        var bounds = new Rect(0, 0, width, 5);
+
+        _renderer.Render(bounds, null);
+        _renderer.Render(bounds, directoryItem);
+        _renderer.Render(bounds, fileItem);
+    }
 }

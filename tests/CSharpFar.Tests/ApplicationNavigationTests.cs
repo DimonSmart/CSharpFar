@@ -94,6 +94,23 @@ public sealed class ApplicationNavigationTests : IDisposable
         Assert.Equal(8, driver.CursorY);
     }
 
+    [Theory]
+    [InlineData(1, 1)]
+    [InlineData(2, 3)]
+    [InlineData(3, 5)]
+    public void Run_NarrowConsole_DoesNotThrow(int width, int height)
+    {
+        var fs = new FakeFileSystemService();
+        fs.AddDirectory(_tempDir);
+
+        var driver = new FakeConsoleDriver(width, height);
+        driver.EnqueueKey(new ConsoleKeyInfo('\0', ConsoleKey.F10, shift: false, alt: false, control: false));
+
+        var app = CreateApp(fs, driver, _tempDir);
+
+        app.Run();
+    }
+
     private Application CreateApp(FakeFileSystemService fs, FakeConsoleDriver driver, string startDirectory)
     {
         var settings = new AppSettings();
