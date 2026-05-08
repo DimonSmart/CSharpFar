@@ -19,7 +19,7 @@ public sealed class FakeConsoleDriver : IConsoleDriver, IConsoleOutputModeDriver
 
     private SnapshotCell[,] _buffer;
     private ConsoleSize _size;
-    private readonly Queue<ConsoleKeyInfo> _keyQueue = new();
+    private readonly Queue<ConsoleInputEvent> _inputQueue = new();
     private readonly List<WriteRecord> _writeRecords = [];
 
     public int CursorX { get; private set; }
@@ -54,18 +54,29 @@ public sealed class FakeConsoleDriver : IConsoleDriver, IConsoleOutputModeDriver
         _buffer = CreateBuffer(width, height);
     }
 
-    public void EnqueueKey(ConsoleKeyInfo key) => _keyQueue.Enqueue(key);
+    public void EnqueueKey(ConsoleKeyInfo key) =>
+        _inputQueue.Enqueue(new KeyConsoleInputEvent(key));
+
+    public void EnqueueInput(ConsoleInputEvent inputEvent) =>
+        _inputQueue.Enqueue(inputEvent);
 
     public ConsoleInputEvent ReadInput(bool intercept, CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        return new KeyConsoleInputEvent(ReadKey(intercept));
+        return _inputQueue.TryDequeue(out var inputEvent)
+            ? inputEvent
+            : throw new InvalidOperationException("No input events queued in FakeConsoleDriver.");
     }
 
-    public ConsoleKeyInfo ReadKey(bool intercept) =>
-        _keyQueue.TryDequeue(out var key)
-            ? key
-            : throw new InvalidOperationException("No keys queued in FakeConsoleDriver.");
+    public ConsoleKeyInfo ReadKey(bool intercept)
+    {
+        if (!_inputQueue.TryDequeue(out var inputEvent))
+            throw new InvalidOperationException("No input events queued in FakeConsoleDriver.");
+
+        return inputEvent is KeyConsoleInputEvent keyEvent
+            ? keyEvent.Key
+            : throw new InvalidOperationException("Next queued input event is not a key.");
+    }
 
     public void WriteAt(int x, int y, ReadOnlySpan<char> text,
         ConsoleColor? foreground = null, ConsoleColor? background = null)

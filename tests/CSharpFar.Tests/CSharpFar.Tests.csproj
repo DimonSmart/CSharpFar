@@ -23,6 +23,7 @@
     <ProjectReference Include="..\..\src\CSharpFar.Console\CSharpFar.Console.csproj" />
     <ProjectReference Include="..\..\src\CSharpFar.FileSystem\CSharpFar.FileSystem.csproj" />
     <ProjectReference Include="..\..\src\CSharpFar.App\CSharpFar.App.csproj" />
+    <ProjectReference Include="..\..\src\CSharpFar.Shell\CSharpFar.Shell.csproj" />
   </ItemGroup>
 
 </Project>

@@ -16,6 +16,7 @@ using CSharpFar.Core.History;
 using CSharpFar.Core.Menu;
 using CSharpFar.Core.Models;
 using CSharpFar.Core.Services;
+using CSharpFar.Shell;
 using AppSettingsAlias = CSharpFar.Core.Models.AppSettings;
 
 namespace CSharpFar.App;
@@ -26,6 +27,7 @@ public sealed class Application
     private readonly IFileSystemService _fs;
     private readonly PanelController _ctrl;
     private readonly IShellService _shell;
+    private readonly IFileLauncher _fileLauncher;
     private readonly IFileOperationService _fileOps;
     private readonly IHistoryStore _history;
     private readonly AppSettingsAlias _settings;
@@ -58,6 +60,7 @@ public sealed class Application
     private readonly MenuBarRenderer        _menuBarRenderer = new();
     private readonly DropdownMenuRenderer   _dropdownMenuRenderer = new();
     private readonly TopMenuController      _menuController;
+    private PanelItemClick?                 _lastLeftPanelItemClick;
 
     public Application(
         ScreenRenderer         screen,
@@ -72,7 +75,8 @@ public sealed class Application
         IVolumeInfoService?          volumeInfoService  = null,
         IFileSystemChangeWatcher?    changeWatcher     = null,
         IFileSystemLocationService?  locationService   = null,
-        IVolumeMountPointService?    mountPointService = null)
+        IVolumeMountPointService?    mountPointService = null,
+        IFileLauncher?               fileLauncher      = null)
     {
         _screen       = screen;
         _fs           = fs;
@@ -80,6 +84,7 @@ public sealed class Application
         var viewBuilder = new PanelViewBuilder(fs, sortSvc, volumeInfoService, mountPoints: mountPointService);
         _ctrl         = new PanelController(viewBuilder);
         _shell        = shell;
+        _fileLauncher = fileLauncher ?? new WindowsShellFileLauncher();
         _fileOps      = fileOps;
         _history      = history      ?? new InMemoryHistoryStore();
         _settings     = settings     ?? new AppSettingsAlias();
@@ -542,7 +547,11 @@ public sealed class Application
         // Identify which panel was hit
         bool inLeft  = _leftBounds.Contains(evt.X,  evt.Y);
         bool inRight = _rightBounds.Contains(evt.X, evt.Y);
-        if (!inLeft && !inRight) return false;
+        if (!inLeft && !inRight)
+        {
+            ClearPanelItemClickOnMousePress(evt);
+            return false;
+        }
 
         var side  = inLeft ? PanelSide.Left : PanelSide.Right;
         var state = inLeft ? _left : _right;
@@ -562,6 +571,7 @@ public sealed class Application
         // Right click: activate panel, move cursor, optionally toggle selection
         if (evt.Button == MouseButton.Right && evt.Kind == MouseEventKind.Down)
         {
+            _lastLeftPanelItemClick = null;
             _active = side;
             int? itemIdx = PanelHitTester.HitTestItem(evt.X, evt.Y, bounds, state, mode, PanelOptions);
             if (itemIdx.HasValue)
@@ -577,17 +587,50 @@ public sealed class Application
             return true;
         }
 
-        // Left click: activate panel and move cursor
-        if (evt.Button == MouseButton.Left && evt.Kind == MouseEventKind.Down)
+        if (evt.Button == MouseButton.Left && evt.Kind == MouseEventKind.DoubleClick)
         {
             _active = side;
             int? itemIdx = PanelHitTester.HitTestItem(evt.X, evt.Y, bounds, state, mode, PanelOptions);
             if (itemIdx.HasValue)
+            {
                 _ctrl.SetCursorTo(state, itemIdx.Value, visRows);
+
+                var item = state.Items[itemIdx.Value];
+                var currentClick = new PanelItemClick(side, itemIdx.Value, item.FullPath);
+                if (_lastLeftPanelItemClick == currentClick)
+                    OpenPanelItem(state, side, item);
+            }
+
+            _lastLeftPanelItemClick = null;
+            return true;
+        }
+
+        // Left click: activate panel and move cursor
+        if (evt.Button == MouseButton.Left &&
+            (evt.Kind == MouseEventKind.Down || evt.Kind == MouseEventKind.Click))
+        {
+            _active = side;
+            int? itemIdx = PanelHitTester.HitTestItem(evt.X, evt.Y, bounds, state, mode, PanelOptions);
+            if (itemIdx.HasValue)
+            {
+                _ctrl.SetCursorTo(state, itemIdx.Value, visRows);
+                var item = state.Items[itemIdx.Value];
+                _lastLeftPanelItemClick = new PanelItemClick(side, itemIdx.Value, item.FullPath);
+            }
+            else
+            {
+                _lastLeftPanelItemClick = null;
+            }
             return true;
         }
 
         return false;
+    }
+
+    private void ClearPanelItemClickOnMousePress(MouseConsoleInputEvent evt)
+    {
+        if (evt.Kind is MouseEventKind.Down or MouseEventKind.Click or MouseEventKind.DoubleClick)
+            _lastLeftPanelItemClick = null;
     }
 
     private bool HandleKey(ConsoleKeyInfo key)
@@ -758,7 +801,7 @@ public sealed class Application
             // ── Execution ─────────────────────────────────────────────────────
             case ConsoleKey.Enter:
                 if (_cmdLine.HasText) ExecuteCommand(_cmdLine.Text);
-                else TryEnterDirectory();
+                else OpenCurrentItem();
                 return true;
 
             // ── Selection ────────────────────────────────────────────────────
@@ -1559,23 +1602,56 @@ public sealed class Application
 
     // ── navigation helpers ────────────────────────────────────────────────────
 
-    private void TryEnterDirectory()
+    private void OpenCurrentItem()
     {
         var item = _ctrl.CurrentItem(ActiveState);
-        if (item is null || !item.IsDirectory) return;
+        if (item is null) return;
+
+        OpenPanelItem(ActiveState, _active, item);
+    }
+
+    private void OpenPanelItem(FilePanelState state, PanelSide side, FilePanelItem item)
+    {
+        if (item.IsDirectory)
+        {
+            OpenDirectoryItem(state, side, item);
+            return;
+        }
+
+        OpenFileItem(item);
+    }
+
+    private void OpenDirectoryItem(FilePanelState state, PanelSide side, FilePanelItem item)
+    {
         try
         {
             if (item.IsParentDirectory)
-                _ctrl.GoToParent(ActiveState, VisibleRows(), PanelOptions);
+                _ctrl.GoToParent(state, VisibleRows(side), PanelOptions);
             else
-                _ctrl.LoadDirectory(ActiveState, item.FullPath, PanelOptions);
+                _ctrl.LoadDirectory(state, item.FullPath, PanelOptions);
 
-            _history.AddDirectory(new DirectoryHistoryItem { Path = ActiveState.CurrentDirectory });
-            StartWatching(ActiveState, _active);
+            _history.AddDirectory(new DirectoryHistoryItem { Path = state.CurrentDirectory });
+            StartWatching(state, side);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
             new MessageDialog(_screen).Show("Navigation", ex.Message);
+        }
+    }
+
+    private void OpenFileItem(FilePanelItem item)
+    {
+        try
+        {
+            _fileLauncher.OpenFile(item.FullPath);
+        }
+        catch (Exception ex) when (
+            ex is IOException or
+                  UnauthorizedAccessException or
+                  InvalidOperationException or
+                  System.ComponentModel.Win32Exception)
+        {
+            new MessageDialog(_screen).Show("Open file", ex.Message);
         }
     }
 
@@ -1675,4 +1751,9 @@ public sealed class Application
         public static void SetCursorPosition(int x, int y) =>
             global::System.Console.SetCursorPosition(x, y);
     }
+
+    private readonly record struct PanelItemClick(
+        PanelSide PanelSide,
+        int ItemIndex,
+        string FullPath);
 }
