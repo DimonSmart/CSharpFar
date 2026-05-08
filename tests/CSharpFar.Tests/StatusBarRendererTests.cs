@@ -16,28 +16,22 @@ public class StatusBarRendererTests
 
         Render(renderer, y: 0, totalWidth: 80);
 
-        Assert.StartsWith("1Help 2UserMn 3View 4Edit", driver.GetRow(0));
+        Assert.StartsWith("1Help  2UserMn  3View  4Edit", driver.GetRow(0));
         Assert.Contains("7MkFold", driver.GetRow(0));
         Assert.Contains("9ConfMn", driver.GetRow(0));
         Assert.Contains("10Quit", driver.GetRow(0));
     }
 
     [Fact]
-    public void Render_TruncatesWithRedEllipsis_WhenMenuDoesNotFit()
+    public void Render_CutsLineWithoutEllipsis_WhenMenuDoesNotFit()
     {
-        var driver = new FakeConsoleDriver(5, 2);
+        var driver = new FakeConsoleDriver(6, 2);
         var renderer = CreateRenderer(new ScreenRenderer(driver));
 
-        Render(renderer, y: 0, totalWidth: 5);
+        Render(renderer, y: 0, totalWidth: 6);
 
-        Assert.Equal("1H...", driver.GetRow(0));
-        for (int x = 2; x < 5; x++)
-        {
-            var cell = driver.GetCell(x, 0);
-            Assert.Equal('.', cell.Character);
-            Assert.Equal(ConsoleColor.Red, cell.Foreground);
-            Assert.Equal(ConsoleColor.Black, cell.Background);
-        }
+        Assert.Equal("1Help ", driver.GetRow(0));
+        Assert.Equal(ConsoleColor.Black, driver.GetCell(5, 0).Background);
     }
 
     [Fact]
@@ -52,6 +46,40 @@ public class StatusBarRendererTests
         Assert.True(gapX > 0);
         Assert.Equal(' ', driver.GetCell(gapX, 0).Character);
         Assert.Equal(ConsoleColor.Black, driver.GetCell(gapX, 0).Background);
+    }
+
+    [Fact]
+    public void Render_UsesFarLikeFunctionKeyColors()
+    {
+        var driver = new FakeConsoleDriver(80, 2);
+        var renderer = CreateRenderer(new ScreenRenderer(driver));
+
+        Render(renderer, y: 0, totalWidth: 80);
+
+        var number = driver.GetCell(0, 0);
+        Assert.Equal('1', number.Character);
+        Assert.Equal(ConsoleColor.White, number.Foreground);
+        Assert.Equal(ConsoleColor.Black, number.Background);
+
+        for (int x = 1; x <= 5; x++)
+        {
+            var cell = driver.GetCell(x, 0);
+            Assert.Equal(ConsoleColor.Black, cell.Foreground);
+            Assert.Equal(ConsoleColor.DarkCyan, cell.Background);
+        }
+    }
+
+    [Fact]
+    public void Render_StretchesLabelsToFillFullWidth()
+    {
+        var driver = new FakeConsoleDriver(80, 2);
+        var renderer = CreateRenderer(new ScreenRenderer(driver));
+
+        Render(renderer, y: 0, totalWidth: 80);
+
+        var last = driver.GetCell(79, 0);
+        Assert.Equal(' ', last.Character);
+        Assert.Equal(ConsoleColor.DarkCyan, last.Background);
     }
 
     [Theory]

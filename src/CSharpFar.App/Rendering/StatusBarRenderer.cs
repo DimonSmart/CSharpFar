@@ -8,7 +8,6 @@ internal sealed class StatusBarRenderer
     private readonly ScreenRenderer _screen;
     private readonly CellStyle      _numStyle;
     private readonly CellStyle      _labelStyle;
-    private readonly CellStyle      _overflowStyle;
     private readonly CellStyle      _gapStyle;
 
     private static readonly (string Key, string Label)[] Keys =
@@ -35,14 +34,12 @@ internal sealed class StatusBarRenderer
         {
             _numStyle      = new CellStyle(palette.FunctionKeyNumFg,      palette.FunctionKeyNumBg);
             _labelStyle    = new CellStyle(palette.FunctionKeyTextFg,     palette.FunctionKeyBarBg);
-            _overflowStyle = new CellStyle(palette.FunctionKeyOverflowFg, palette.CommandLineBg);
             _gapStyle      = new CellStyle(palette.FunctionKeyTextFg,     palette.CommandLineBg);
         }
         else
         {
             _numStyle      = Theme.KeyBarNum;
             _labelStyle    = Theme.KeyBarLabel;
-            _overflowStyle = Theme.KeyBarOverflow;
             _gapStyle      = Theme.CommandLine;
         }
     }
@@ -54,36 +51,45 @@ internal sealed class StatusBarRenderer
 
         _screen.FillRegion(new Rect(0, y, totalWidth, 1), _gapStyle);
 
-        bool overflow     = RequiredWidth() > totalWidth;
-        int ellipsisWidth = overflow ? Math.Min(3, totalWidth) : 0;
-        int contentWidth  = totalWidth - ellipsisWidth;
-        int x             = 0;
+        int extraWidth = Math.Max(0, totalWidth - RequiredWidth());
+        int padEach    = extraWidth / Keys.Length;
+        int padRemainder = extraWidth % Keys.Length;
+        int x          = 0;
 
         for (int i = 0; i < Keys.Length; i++)
         {
             var (key, label) = Keys[i];
-            if (x >= contentWidth) break;
+            if (x >= totalWidth) break;
 
-            int keyLen = Math.Min(key.Length, contentWidth - x);
-            _screen.Write(x, y, key[..keyLen], _numStyle);
-            x += keyLen;
-            if (keyLen < key.Length || x >= contentWidth)
+            x = WriteClipped(x, y, totalWidth, key, _numStyle);
+            if (x >= totalWidth)
                 break;
 
-            int maxLabel = Math.Min(label.Length, contentWidth - x);
-            _screen.Write(x, y, label[..maxLabel], _labelStyle);
-            x += maxLabel;
-            if (maxLabel < label.Length)
+            int labelPadding = padEach + (i < padRemainder ? 1 : 0);
+            x = WriteClipped(x, y, totalWidth, label, _labelStyle);
+            if (x >= totalWidth)
                 break;
 
-            if (i < Keys.Length - 1 && x < contentWidth)
+            if (labelPadding > 0)
+                x = WriteClipped(x, y, totalWidth, new string(' ', labelPadding), _labelStyle);
+
+            if (i < Keys.Length - 1 && x < totalWidth)
                 x++;
         }
-
-        if (overflow)
-            _screen.Write(totalWidth - ellipsisWidth, y, "...".AsSpan()[..ellipsisWidth], _overflowStyle);
     }
 
     private static int RequiredWidth() =>
         Keys.Sum(item => item.Key.Length + item.Label.Length) + Keys.Length - 1;
+
+    private int WriteClipped(int x, int y, int totalWidth, string text, CellStyle style)
+    {
+        if (x >= totalWidth)
+            return x;
+
+        int len = Math.Min(text.Length, totalWidth - x);
+        if (len > 0)
+            _screen.Write(x, y, text.AsSpan(0, len), style);
+
+        return x + len;
+    }
 }

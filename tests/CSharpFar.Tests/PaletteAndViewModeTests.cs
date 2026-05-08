@@ -66,7 +66,7 @@ public class PaletteRegistryTests
         Assert.Equal(ConsoleColor.Black, fc.CursorActiveFg);
         Assert.Equal(ConsoleColor.Green, fc.CursorActiveBg);
         Assert.Equal(fc.PanelBackground, fc.PanelTitleActiveBg);
-        Assert.Equal(ConsoleColor.Green, fc.PanelPathActiveBg);
+        Assert.Equal(ConsoleColor.DarkCyan, fc.PanelPathActiveBg);
     }
 
     [Fact]
@@ -74,6 +74,68 @@ public class PaletteRegistryTests
     {
         var def = PaletteRegistry.Default;
         Assert.Equal(ConsoleColor.Yellow, def.SelectedFg);
+    }
+
+    [Fact]
+    public void Default_HasDarkCyanCursorBackground()
+    {
+        var def = PaletteRegistry.Default;
+        Assert.Equal(ConsoleColor.DarkCyan, def.CursorActiveBg);
+    }
+
+    [Fact]
+    public void BuiltInPalettes_HaveDarkBlueMenuWindowBackgrounds()
+    {
+        foreach (var palette in PaletteRegistry.All)
+        {
+            Assert.Equal(ConsoleColor.DarkBlue, palette.MenuNormalBg);
+            Assert.Equal(ConsoleColor.DarkBlue, palette.MenuActiveBg);
+            Assert.Equal(ConsoleColor.DarkBlue, palette.MenuDisabledBg);
+            Assert.Equal(ConsoleColor.DarkBlue, palette.MenuBorderBg);
+        }
+    }
+
+    [Fact]
+    public void BuiltInPalettes_HaveDarkCyanActivePathBackgrounds()
+    {
+        foreach (var palette in PaletteRegistry.All)
+            Assert.Equal(ConsoleColor.DarkCyan, palette.PanelPathActiveBg);
+    }
+
+    [Fact]
+    public void BuiltInPalettes_HaveFarLikeFunctionKeyColors()
+    {
+        foreach (var palette in PaletteRegistry.All)
+        {
+            Assert.Equal(ConsoleColor.White, palette.FunctionKeyNumFg);
+            Assert.Equal(ConsoleColor.Black, palette.FunctionKeyNumBg);
+            Assert.Equal(ConsoleColor.Black, palette.FunctionKeyTextFg);
+            Assert.Equal(palette.CursorActiveBg, palette.FunctionKeyBarBg);
+        }
+    }
+
+    [Fact]
+    public void DialogTheme_HasDarkBlueWindowBackgrounds()
+    {
+        Assert.Equal(ConsoleColor.DarkBlue, Theme.DialogFill.Background);
+        Assert.Equal(ConsoleColor.DarkBlue, Theme.DialogBorder.Background);
+        Assert.Equal(ConsoleColor.DarkBlue, Theme.DialogTitle.Background);
+        Assert.Equal(ConsoleColor.DarkBlue, Theme.DialogError.Background);
+    }
+
+    [Fact]
+    public void Theme_HasDarkCyanActivePathBackground()
+    {
+        Assert.Equal(ConsoleColor.DarkCyan, Theme.PathHeaderActive.Background);
+    }
+
+    [Fact]
+    public void Theme_HasFarLikeFunctionKeyColors()
+    {
+        Assert.Equal(ConsoleColor.White, Theme.KeyBarNum.Foreground);
+        Assert.Equal(ConsoleColor.Black, Theme.KeyBarNum.Background);
+        Assert.Equal(ConsoleColor.Black, Theme.KeyBarLabel.Foreground);
+        Assert.Equal(Theme.CursorActive.Background, Theme.KeyBarLabel.Background);
     }
 }
 
