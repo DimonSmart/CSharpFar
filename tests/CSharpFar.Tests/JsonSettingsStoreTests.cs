@@ -42,9 +42,9 @@ public class JsonSettingsStoreTests : IDisposable
 
         string json = """
             {
-              "ui": { "confirmDelete": false, "showHiddenFiles": false },
+              "ui": { "confirmDelete": false },
               "shell": { "executable": "powershell.exe", "argumentsFormat": "-Command {0}", "kind": "ps" },
-              "panels": {},
+              "panels": { "options": { "showHiddenAndSystemFiles": false } },
               "history": { "maxCommandHistoryItems": 50, "maxDirectoryHistoryItems": 25, "maxFileHistoryItems": 10 }
             }
             """;
@@ -53,7 +53,7 @@ public class JsonSettingsStoreTests : IDisposable
         var store = new JsonSettingsStore(configDir);
 
         Assert.False(store.Settings.Ui.ConfirmDelete);
-        Assert.False(store.Settings.Ui.ShowHiddenFiles);
+        Assert.False(store.Settings.Panels.Options.ShowHiddenAndSystemFiles);
         Assert.Equal("powershell.exe", store.Settings.Shell.Executable);
         Assert.Equal(50, store.Settings.History.MaxCommandHistoryItems);
         Assert.Equal(10, store.Settings.History.MaxFileHistoryItems);
@@ -65,12 +65,12 @@ public class JsonSettingsStoreTests : IDisposable
         string configDir = Path.Combine(_tempDir, "config3");
         var store = new JsonSettingsStore(configDir);
 
-        store.Settings.Ui.ShowHiddenFiles = false;
+        store.Settings.Panels.Options.ShowHiddenAndSystemFiles = false;
         store.Settings.Panels.LeftStartDirectory = @"C:\Projects";
         store.Save();
 
         var store2 = new JsonSettingsStore(configDir);
-        Assert.False(store2.Settings.Ui.ShowHiddenFiles);
+        Assert.False(store2.Settings.Panels.Options.ShowHiddenAndSystemFiles);
         Assert.Equal(@"C:\Projects", store2.Settings.Panels.LeftStartDirectory);
     }
 

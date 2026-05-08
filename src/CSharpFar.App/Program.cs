@@ -12,11 +12,15 @@ var settings      = settingsStore.Settings;
 using var driver = new SystemConsoleDriver();
 var renderer = new ScreenRenderer(driver);
 
-var fs          = new FileSystemService(settings.Ui.ShowHiddenFiles, settings.Ui.ShowSystemFiles);
+var fs          = new FileSystemService();
 var fileOps     = new FileOperationService();
 var shell       = new ShellService(settings.Shell.Executable, settings.Shell.ArgumentsFormat);
 var userMenu    = new UserMenuStore(settingsStore.ConfigDirectory);
-var volumeSvc   = new WindowsVolumeService();
+var volumeSvc      = new WindowsVolumeService();
+var volumeInfoSvc  = new VolumeInfoService();
+var locationSvc    = new FileSystemLocationService();
+var mountPointSvc  = new VolumeMountPointService();
+using var changeWatcher = new FileSystemChangeWatcher();
 
 var historyPath = Path.Combine(settingsStore.ConfigDirectory, "history.json");
 var history = new JsonHistoryStore(
@@ -26,5 +30,9 @@ var history = new JsonHistoryStore(
     settings.History.MaxFileHistoryItems);
 
 new Application(renderer, fs, shell, fileOps, history, settings, userMenu,
-    saveSettings: () => settingsStore.Save(),
-    volumeService: volumeSvc).Run();
+    saveSettings:     () => settingsStore.Save(),
+    volumeService:    volumeSvc,
+    volumeInfoService: volumeInfoSvc,
+    changeWatcher:     changeWatcher,
+    locationService:   locationSvc,
+    mountPointService: mountPointSvc).Run();

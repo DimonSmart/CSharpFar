@@ -1,4 +1,4 @@
-using CSharpFar.Core.Controllers;
+﻿using CSharpFar.Core.Controllers;
 using CSharpFar.Core.Models;
 using CSharpFar.Tests.Fakes;
 
@@ -31,7 +31,7 @@ public class SelectionSortTests
             new FilePanelItem { Name = "b_file.csv", FullPath = Root + @"\b_file.csv", IsDirectory = false, Size = 200, LastWriteTime = new DateTime(2024,4,1)  },
             new FilePanelItem { Name = "c_file.txt", FullPath = Root + @"\c_file.txt", IsDirectory = false, Size = 100, LastWriteTime = new DateTime(2024,2,1)  });
 
-        var ctrl  = new PanelController(fs);
+        var ctrl  = new PanelController(new FakePanelViewBuilder(fs));
         var state = new FilePanelState { CurrentDirectory = Root };
         ctrl.LoadDirectory(state, Root);
         return (ctrl, state);
@@ -108,7 +108,7 @@ public class SelectionSortTests
             new FilePanelItem { Name = "..",       FullPath = @"C:\",          IsDirectory = true,  IsParentDirectory = true },
             new FilePanelItem { Name = "file.txt", FullPath = Root + @"\file.txt", IsDirectory = false });
 
-        var ctrl  = new PanelController(fs);
+        var ctrl  = new PanelController(new FakePanelViewBuilder(fs));
         var state = new FilePanelState { CurrentDirectory = Root };
         ctrl.LoadDirectory(state, Root);  // [0]=.. [1]=file.txt
 
@@ -186,7 +186,7 @@ public class SelectionSortTests
             new FilePanelItem { Name = "..",       FullPath = @"C:\",              IsDirectory = true,  IsParentDirectory = true },
             new FilePanelItem { Name = "file.txt", FullPath = Root + @"\file.txt", IsDirectory = false });
 
-        var ctrl  = new PanelController(fs);
+        var ctrl  = new PanelController(new FakePanelViewBuilder(fs));
         var state = new FilePanelState { CurrentDirectory = Root };
         ctrl.LoadDirectory(state, Root);
 

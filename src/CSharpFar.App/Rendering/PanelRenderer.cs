@@ -2,34 +2,40 @@ using CSharpFar.Console;
 using CSharpFar.Console.Models;
 using CSharpFar.Core.Highlighting;
 using CSharpFar.Core.Models;
+using AppSettings = CSharpFar.Core.Models.AppSettings;
 
 namespace CSharpFar.App.Rendering;
 
 internal sealed class PanelRenderer
 {
-    private readonly ScreenRenderer          _screen;
-    private readonly ConsolePalette          _palette;
-    private readonly IFileHighlightService?  _highlight;
+    private readonly ScreenRenderer                      _screen;
+    private readonly ConsolePalette                      _palette;
+    private readonly IFileHighlightService?              _highlight;
+    private readonly AppSettings.PanelOptionsSettings?   _options;
 
     public PanelRenderer(
-        ScreenRenderer          screen,
-        ConsolePalette?         palette   = null,
-        IFileHighlightService?  highlight = null)
+        ScreenRenderer                     screen,
+        ConsolePalette?                    palette   = null,
+        IFileHighlightService?             highlight = null,
+        AppSettings.PanelOptionsSettings?  options   = null)
     {
         _screen    = screen;
         _palette   = palette ?? PaletteRegistry.Default;
         _highlight = highlight;
+        _options   = options;
     }
 
     /// <summary>Number of file list rows visible inside the given bounds (Full mode).</summary>
-    public static int VisibleRows(Rect bounds) => Math.Max(0, bounds.Height - 2 - PanelStatusRenderer.StatusRowCount);
+    public static int VisibleRows(Rect bounds, AppSettings.PanelOptionsSettings? options = null) =>
+        Math.Max(0, bounds.Height - 2 - PanelStatusRenderer.GetStatusRowCount(options));
 
     public void Render(Rect bounds, FilePanelState state, bool isActive,
                        PanelViewMode mode = PanelViewMode.Full)
     {
         if (mode == PanelViewMode.BriefTwoColumns)
         {
-            new BriefTwoColumnsPanelRenderer(_screen, _palette, _highlight).Render(bounds, state, isActive);
+            new BriefTwoColumnsPanelRenderer(_screen, _palette, _highlight, _options)
+                .Render(bounds, state, isActive);
             return;
         }
 
@@ -54,14 +60,22 @@ internal sealed class PanelRenderer
         _screen.FillRegion(bounds, fill);
         _screen.DrawDoubleBox(bounds, border);
 
+        // Sort mode letter in top border (before title)
+        bool showSortLetter = _options == null || _options.ShowSortModeLetter;
+        if (showSortLetter && bounds.Width > 2)
+            _screen.WriteChar(bounds.X + 1, bounds.Y, SortModeIndicator.For(state), border);
+
         PanelTitleRenderer.Render(_screen, bounds, state, isActive, p);
 
         // File list
         int innerWidth = bounds.Width - 2;
         int listTop    = bounds.Y + 1;
-        int visRows    = VisibleRows(bounds);
-        int sizeCol    = Math.Min(8, innerWidth / 3);
-        int nameCol    = innerWidth - sizeCol - 1; // 1 space separator
+        int visRows    = VisibleRows(bounds, _options);
+        bool showScrollbar = _options?.ShowScrollbar == true;
+        int scrollbarWidth = showScrollbar ? 1 : 0;
+        int listWidth = Math.Max(0, innerWidth - scrollbarWidth);
+        int sizeCol    = Math.Min(8, listWidth / 3);
+        int nameCol    = Math.Max(0, listWidth - sizeCol - (sizeCol > 0 ? 1 : 0));
 
         for (int row = 0; row < visRows; row++)
         {
@@ -70,7 +84,7 @@ internal sealed class PanelRenderer
 
             if (itemIdx >= state.Items.Count)
             {
-                _screen.Write(bounds.X + 1, y, new string(' ', innerWidth), fill);
+                _screen.Write(bounds.X + 1, y, new string(' ', listWidth), fill);
                 continue;
             }
 
@@ -89,17 +103,36 @@ internal sealed class PanelRenderer
                          : isSelected             ? FileRowState.Selected
                          :                          FileRowState.Normal;
 
-            // Name cell (with highlight) + size cell (base style only)
             string namePart = FormatName(item, nameCol);
-            string sizePart = " " + FormatSizePart(item, sizeCol);
+            string sizePart = sizeCol > 0 ? " " + FormatSizePart(item, sizeCol) : string.Empty;
 
             CellStyle nameStyle = ApplyHighlight(style, item, rowState);
 
-            _screen.Write(bounds.X + 1,          y, namePart, nameStyle);
-            _screen.Write(bounds.X + 1 + nameCol, y, sizePart, style);
+            _screen.Write(bounds.X + 1,           y, namePart, nameStyle);
+            if (sizePart.Length > 0)
+                _screen.Write(bounds.X + 1 + nameCol, y, sizePart, style);
         }
 
-        new PanelStatusRenderer(_screen).Render(bounds, state, footer, border);
+        if (showScrollbar && visRows > 0)
+        {
+            new ScrollBarRenderer().RenderVerticalScrollbar(
+                _screen,
+                new Rect(bounds.Right - 2, listTop, 1, visRows),
+                new ScrollState
+                {
+                    TotalItems = state.Items.Count,
+                    ViewportItems = visRows,
+                    FirstVisibleIndex = state.ScrollOffset,
+                },
+                new ScrollBarOptions
+                {
+                    Enabled = true,
+                    DrawWhenNotScrollable = false,
+                },
+                border);
+        }
+
+        new PanelStatusRenderer(_screen).Render(bounds, state, footer, border, _options);
     }
 
     // ── static helpers ────────────────────────────────────────────────────────

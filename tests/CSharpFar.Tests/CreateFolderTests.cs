@@ -1,4 +1,4 @@
-using CSharpFar.Core.Controllers;
+﻿using CSharpFar.Core.Controllers;
 using CSharpFar.Core.Models;
 using CSharpFar.FileSystem;
 using CSharpFar.Tests.Fakes;
@@ -56,7 +56,7 @@ public class CreateFolderTests
             new FilePanelItem { Name = "alpha", FullPath = @"C:\Root\alpha", IsDirectory = true  },
             new FilePanelItem { Name = "beta",  FullPath = @"C:\Root\beta",  IsDirectory = false });
 
-        var ctrl  = new PanelController(fs);
+        var ctrl  = new PanelController(new FakePanelViewBuilder(fs));
         var state = new FilePanelState { CurrentDirectory = @"C:\Root" };
         ctrl.LoadDirectory(state, @"C:\Root");
 
@@ -72,7 +72,7 @@ public class CreateFolderTests
         fs.AddDirectory(@"C:\Root",
             new FilePanelItem { Name = "NewFolder", FullPath = @"C:\Root\NewFolder", IsDirectory = true });
 
-        var ctrl  = new PanelController(fs);
+        var ctrl  = new PanelController(new FakePanelViewBuilder(fs));
         var state = new FilePanelState { CurrentDirectory = @"C:\Root" };
         ctrl.LoadDirectory(state, @"C:\Root");
 
@@ -88,7 +88,7 @@ public class CreateFolderTests
         fs.AddDirectory(@"C:\Root",
             new FilePanelItem { Name = "file.txt", FullPath = @"C:\Root\file.txt", IsDirectory = false });
 
-        var ctrl  = new PanelController(fs);
+        var ctrl  = new PanelController(new FakePanelViewBuilder(fs));
         var state = new FilePanelState { CurrentDirectory = @"C:\Root" };
         ctrl.LoadDirectory(state, @"C:\Root");
         state.CursorIndex = 0;
@@ -110,7 +110,7 @@ public class CreateFolderTests
             .ToArray();
         fs.AddDirectory(@"C:\Root", items);
 
-        var ctrl  = new PanelController(fs);
+        var ctrl  = new PanelController(new FakePanelViewBuilder(fs));
         var state = new FilePanelState { CurrentDirectory = @"C:\Root" };
         ctrl.LoadDirectory(state, @"C:\Root");
 

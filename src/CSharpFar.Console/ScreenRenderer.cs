@@ -1,3 +1,4 @@
+using CSharpFar.Console.Input;
 using CSharpFar.Console.Models;
 
 namespace CSharpFar.Console;
@@ -229,6 +230,9 @@ public sealed class ScreenRenderer
 
         ApplyCursorVisible(visible);
     }
+
+    public ConsoleInputEvent ReadInput(CancellationToken cancellationToken = default) =>
+        _driver.ReadInput(true, cancellationToken);
 
     public ConsoleKeyInfo ReadKey() => _driver.ReadKey(true);
 

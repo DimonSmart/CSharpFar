@@ -52,6 +52,34 @@ public sealed class ApplicationVolumeTests : IDisposable
         Assert.Equal(volPath, GetLeftPanel(app).CurrentDirectory);
     }
 
+    [Fact]
+    public void AltF1_SelectVolume_RestartsWatcherForNewDirectory()
+    {
+        string volPath = Path.Combine(_tempDir, "VolWatch");
+        Directory.CreateDirectory(volPath);
+
+        var volService = new FakeVolumeService(new FileSystemVolume
+        {
+            Id = "W:\\", DisplayName = "W:", RootPath = volPath,
+            Kind = VolumeKind.Fixed, Status = VolumeStatus.Ready,
+            Shortcut = "W",
+        });
+
+        var watcher = new RecordingWatcher();
+        var driver = new FakeConsoleDriver();
+        driver.EnqueueKey(new ConsoleKeyInfo('\0', ConsoleKey.F1, shift: false, alt: true, control: false));
+        driver.EnqueueKey(new ConsoleKeyInfo('\0', ConsoleKey.Enter, shift: false, alt: false, control: false));
+        driver.EnqueueKey(new ConsoleKeyInfo('\0', ConsoleKey.F10, shift: false, alt: false, control: false));
+
+        var app = CreateApp(driver, volService, watcher, new LocalLocationService());
+        app.Run();
+
+        Assert.Contains(watcher.StartRequests,
+            r => r.PanelSide == PanelSide.Left &&
+                 string.Equals(r.DirectoryPath, volPath, StringComparison.OrdinalIgnoreCase));
+    }
+
+
     // ── Alt+F2 changes right panel ────────────────────────────────────────────
 
     [Fact]
@@ -416,7 +444,11 @@ public sealed class ApplicationVolumeTests : IDisposable
 
     // ── helpers ───────────────────────────────────────────────────────────────
 
-    private Application CreateApp(FakeConsoleDriver driver, IVolumeService? volumeService = null)
+    private Application CreateApp(
+        FakeConsoleDriver driver,
+        IVolumeService? volumeService = null,
+        IFileSystemChangeWatcher? watcher = null,
+        IFileSystemLocationService? locationService = null)
     {
         var fs = new FakeFileSystemService();
         fs.AddDirectory(_tempDir);
@@ -432,7 +464,9 @@ public sealed class ApplicationVolumeTests : IDisposable
             new NoOpFileOperationService(),
             new InMemoryHistoryStore(),
             settings,
-            volumeService: volumeService);
+            volumeService: volumeService,
+            changeWatcher: watcher,
+            locationService: locationService);
     }
 
     private static FilePanelState GetLeftPanel(Application app) =>
@@ -455,6 +489,37 @@ public sealed class ApplicationVolumeTests : IDisposable
         private readonly List<FileSystemVolume> _volumes;
         public FakeVolumeService(params FileSystemVolume[] volumes) => _volumes = [.. volumes];
         public IReadOnlyList<FileSystemVolume> GetVolumes() => _volumes;
+    }
+
+    private sealed class RecordingWatcher : IFileSystemChangeWatcher
+    {
+        public event EventHandler<FileSystemPanelChanged>? Changed;
+        public List<PanelWatchRequest> StartRequests { get; } = [];
+
+        public PanelAutoRefreshState StartWatching(PanelWatchRequest request)
+        {
+            StartRequests.Add(request);
+            return new PanelAutoRefreshState { IsWatching = true };
+        }
+
+        public void StopWatching(PanelSide panelSide) { }
+        public void Dispose() { }
+
+        public void Raise(FileSystemPanelChanged change) =>
+            Changed?.Invoke(this, change);
+    }
+
+    private sealed class LocalLocationService : IFileSystemLocationService
+    {
+        public FileSystemLocationInfo GetLocationInfo(string path) =>
+            new()
+            {
+                Path = path,
+                IsNetworkDrive = false,
+                IsRemovableDrive = false,
+                IsFixedDrive = true,
+                RootPath = Path.GetPathRoot(path),
+            };
     }
 
     private sealed class NoOpShellService : IShellService

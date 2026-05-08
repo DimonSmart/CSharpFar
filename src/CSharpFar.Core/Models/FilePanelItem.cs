@@ -9,4 +9,8 @@ public sealed class FilePanelItem
     public DateTime LastWriteTime { get; init; }
     public FileAttributes Attributes { get; init; }
     public bool IsParentDirectory { get; init; }
+
+    public bool IsVolumeMountPoint { get; init; }
+    public string? MountedVolumeName { get; init; }
+    public string? MountedVolumePath { get; init; }
 }

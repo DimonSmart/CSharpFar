@@ -2,6 +2,7 @@ using CSharpFar.Console;
 using CSharpFar.Console.Models;
 using CSharpFar.Core.Highlighting;
 using CSharpFar.Core.Models;
+using AppSettings = CSharpFar.Core.Models.AppSettings;
 
 namespace CSharpFar.App.Rendering;
 
@@ -13,29 +14,32 @@ namespace CSharpFar.App.Rendering;
 /// </summary>
 public sealed class BriefTwoColumnsPanelRenderer
 {
-    private readonly ScreenRenderer          _screen;
-    private readonly ConsolePalette          _palette;
-    private readonly IFileHighlightService?  _highlight;
+    private readonly ScreenRenderer                     _screen;
+    private readonly ConsolePalette                     _palette;
+    private readonly IFileHighlightService?             _highlight;
+    private readonly AppSettings.PanelOptionsSettings?  _options;
 
     public BriefTwoColumnsPanelRenderer(
-        ScreenRenderer          screen,
-        ConsolePalette          palette,
-        IFileHighlightService?  highlight = null)
+        ScreenRenderer                     screen,
+        ConsolePalette                     palette,
+        IFileHighlightService?             highlight = null,
+        AppSettings.PanelOptionsSettings?  options   = null)
     {
         _screen    = screen;
         _palette   = palette;
         _highlight = highlight;
+        _options   = options;
     }
 
     /// <summary>
     /// Total number of visible items (both columns combined).
-    /// Rows per column exclude top border, header row, status rows, and bottom border.
     /// </summary>
-    public static int VisibleRows(Rect bounds) => 2 * RowsPerColumn(bounds);
+    public static int VisibleRows(Rect bounds, AppSettings.PanelOptionsSettings? options = null) =>
+        2 * RowsPerColumn(bounds, options);
 
     /// <summary>Number of visible item rows in one visual column.</summary>
-    public static int RowsPerColumn(Rect bounds) =>
-        Math.Max(0, bounds.Height - 3 - PanelStatusRenderer.StatusRowCount);
+    public static int RowsPerColumn(Rect bounds, AppSettings.PanelOptionsSettings? options = null) =>
+        Math.Max(0, bounds.Height - 3 - PanelStatusRenderer.GetStatusRowCount(options));
 
     public void Render(Rect bounds, FilePanelState state, bool isActive)
     {
@@ -56,42 +60,62 @@ public sealed class BriefTwoColumnsPanelRenderer
 
         PanelTitleRenderer.Render(_screen, bounds, state, isActive, p);
 
-        int innerWidth  = bounds.Width - 2;
-        int sepOffset   = innerWidth / 2;      // separator position within inner area
+        bool showScrollbar = _options?.ShowScrollbar == true;
+        int scrollbarWidth = showScrollbar ? 1 : 0;
+        int innerWidth  = Math.Max(0, bounds.Width - 2 - scrollbarWidth);
+        int sepOffset   = innerWidth / 2;
         int col1Width   = sepOffset;
-        int col2Width   = innerWidth - sepOffset - 1; // -1 for the │ separator
+        int col2Width   = innerWidth - sepOffset - 1; // -1 for │
 
         // ── Column header row (Y+1) ───────────────────────────────────────────
-        int headerY  = bounds.Y + 1;
-        string h1    = FormatNameHeader(col1Width, SortModeIndicator.For(state));
-        string h2    = FormatNameHeader(col2Width, null);
-        _screen.Write(bounds.X + 1,              headerY, h1, colHdr);
-        _screen.WriteChar(bounds.X + 1 + sepOffset, headerY, '│', colHdr);
-        _screen.Write(bounds.X + 1 + sepOffset + 1, headerY, h2, colHdr);
+        bool showSortLetter = _options == null || _options.ShowSortModeLetter;
+        char? indicator = showSortLetter ? SortModeIndicator.For(state) : null;
+
+        int    headerY = bounds.Y + 1;
+        string h1      = FormatNameHeader(col1Width, indicator);
+        string h2      = FormatNameHeader(col2Width, null);
+        _screen.Write(bounds.X + 1,                  headerY, h1, colHdr);
+        _screen.WriteChar(bounds.X + 1 + sepOffset,  headerY, '│', colHdr);
+        _screen.Write(bounds.X + 1 + sepOffset + 1,  headerY, h2, colHdr);
 
         // ── Content rows ──────────────────────────────────────────────────────
-        int contentTop  = bounds.Y + 2;
-        int rowsPerCol  = RowsPerColumn(bounds);
-        int col1X       = bounds.X + 1;
-        int col2X       = bounds.X + 1 + sepOffset + 1;
+        int contentTop = bounds.Y + 2;
+        int rowsPerCol = RowsPerColumn(bounds, _options);
+        int col1X      = bounds.X + 1;
+        int col2X      = bounds.X + 1 + sepOffset + 1;
 
         for (int row = 0; row < rowsPerCol; row++)
         {
             int y = contentTop + row;
 
-            // Column 1
             RenderCell(state.ScrollOffset + row,              col1X, y, col1Width,
                        state, isActive, cursor, fileStyle, dirStyle, selStyle, fill);
-
-            // Separator (always uses border style, not highlight)
-            _screen.WriteChar(bounds.X + 1 + sepOffset, y, '│', border);
-
-            // Column 2
+            if (innerWidth > 0)
+                _screen.WriteChar(bounds.X + 1 + sepOffset, y, '│', border);
             RenderCell(state.ScrollOffset + rowsPerCol + row, col2X, y, col2Width,
                        state, isActive, cursor, fileStyle, dirStyle, selStyle, fill);
         }
 
-        new PanelStatusRenderer(_screen).Render(bounds, state, footer, border);
+        if (showScrollbar && rowsPerCol > 0)
+        {
+            new ScrollBarRenderer().RenderVerticalScrollbar(
+                _screen,
+                new Rect(bounds.Right - 2, contentTop, 1, rowsPerCol),
+                new ScrollState
+                {
+                    TotalItems = state.Items.Count,
+                    ViewportItems = VisibleRows(bounds, _options),
+                    FirstVisibleIndex = state.ScrollOffset,
+                },
+                new ScrollBarOptions
+                {
+                    Enabled = true,
+                    DrawWhenNotScrollable = false,
+                },
+                border);
+        }
+
+        new PanelStatusRenderer(_screen).Render(bounds, state, footer, border, _options);
         RenderStatusSeparatorJoin(bounds, sepOffset, border);
     }
 
@@ -104,8 +128,7 @@ public sealed class BriefTwoColumnsPanelRenderer
         CellStyle cursor, CellStyle fileStyle, CellStyle dirStyle,
         CellStyle selStyle, CellStyle fill)
     {
-        if (width <= 0)
-            return;
+        if (width <= 0) return;
 
         if (itemIdx < 0 || itemIdx >= state.Items.Count)
         {
@@ -117,10 +140,10 @@ public sealed class BriefTwoColumnsPanelRenderer
         bool isCursor   = isActive && itemIdx == state.CursorIndex;
         bool isSelected = !item.IsParentDirectory && state.SelectedPaths.Contains(item.FullPath);
 
-        CellStyle style = isCursor        ? cursor
-                        : isSelected      ? selStyle
+        CellStyle style = isCursor         ? cursor
+                        : isSelected       ? selStyle
                         : item.IsDirectory ? dirStyle
-                        :                   fileStyle;
+                        :                    fileStyle;
 
         var rowState = isCursor && isSelected ? FileRowState.SelectedCursor
                      : isCursor               ? FileRowState.Cursor
@@ -128,7 +151,6 @@ public sealed class BriefTwoColumnsPanelRenderer
                      :                          FileRowState.Normal;
 
         string name = Fit(item.Name, width);
-
         CellStyle nameStyle = ApplyHighlight(style, item, rowState);
         _screen.Write(x, y, name, nameStyle);
     }
@@ -149,8 +171,7 @@ public sealed class BriefTwoColumnsPanelRenderer
 
     private static string FormatNameHeader(int width, char? sortIndicator)
     {
-        if (width <= 0)
-            return string.Empty;
+        if (width <= 0) return string.Empty;
 
         var chars = Enumerable.Repeat(' ', width).ToArray();
         string name = PanelStatusRenderer.Truncate("Name", width);
@@ -166,11 +187,10 @@ public sealed class BriefTwoColumnsPanelRenderer
     private void RenderStatusSeparatorJoin(Rect bounds, int separatorOffset, CellStyle style)
     {
         int separatorX = bounds.X + 1 + separatorOffset;
-        int separatorY = PanelStatusRenderer.SeparatorRow(bounds);
-        if (separatorX <= bounds.X || separatorX >= bounds.Right - 1)
-            return;
-        if (separatorY <= bounds.Y || separatorY >= bounds.Bottom - 1)
-            return;
+        int separatorY = PanelStatusRenderer.SeparatorRow(bounds, _options);
+        if (separatorY < 0) return;  // status hidden
+        if (separatorX <= bounds.X || separatorX >= bounds.Right - 1) return;
+        if (separatorY <= bounds.Y || separatorY >= bounds.Bottom - 1) return;
 
         _screen.WriteChar(separatorX, separatorY, '┴', style);
     }

@@ -1,5 +1,6 @@
 using System.Runtime.InteropServices;
 using System.Runtime.Versioning;
+using CSharpFar.Console.Input;
 using CSharpFar.Console.Models;
 using CSharpFar.Console.Win32;
 
@@ -63,6 +64,17 @@ public sealed class SystemConsoleDriver : IConsoleDriver, IConsoleOutputModeDriv
 
     public ConsoleSize GetSize() =>
         new(global::System.Console.WindowWidth, global::System.Console.WindowHeight);
+
+    public ConsoleInputEvent ReadInput(bool intercept, CancellationToken cancellationToken = default)
+    {
+        if (OperatingSystem.IsWindows())
+            return Win32ConsoleApi.ReadInput(_inputHandle, intercept, cancellationToken);
+
+        // Non-Windows fallback: key-only
+        cancellationToken.ThrowIfCancellationRequested();
+        var key = global::System.Console.ReadKey(intercept);
+        return new KeyConsoleInputEvent(key);
+    }
 
     public ConsoleKeyInfo ReadKey(bool intercept)
     {
@@ -166,9 +178,10 @@ public sealed class SystemConsoleDriver : IConsoleDriver, IConsoleOutputModeDriv
         originalMode = mode;
         uint appMode = mode;
         appMode |= Win32ConsoleApi.ENABLE_EXTENDED_FLAGS;
+        appMode |= Win32ConsoleApi.ENABLE_MOUSE_INPUT;
         appMode &= ~Win32ConsoleApi.ENABLE_QUICK_EDIT_MODE;
         appMode &= ~Win32ConsoleApi.ENABLE_INSERT_MODE;
-        appMode &= ~Win32ConsoleApi.ENABLE_PROCESSED_INPUT;
+        appMode &= ~Win32ConsoleApi.ENABLE_VIRTUAL_TERMINAL_INPUT;
 
         return appMode == mode || Win32ConsoleApi.TrySetConsoleMode(inputHandle, appMode);
     }

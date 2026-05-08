@@ -1,16 +1,19 @@
 using CSharpFar.App.Dialogs;
+using CSharpFar.App.HitTesting;
 using CSharpFar.App.Rendering;
 using CSharpFar.App.Editor;
 using CSharpFar.App.Search;
 using CSharpFar.App.UserMenu;
 using CSharpFar.App.Viewer;
 using CSharpFar.Console;
+using CSharpFar.Console.Input;
 using CSharpFar.Console.Models;
 using CSharpFar.Core.Abstractions;
 using CSharpFar.Core.Controllers;
 using CSharpFar.Core.Highlighting;
 using CSharpFar.Core.History;
 using CSharpFar.Core.Models;
+using CSharpFar.Core.Services;
 using AppSettingsAlias = CSharpFar.Core.Models.AppSettings;
 
 namespace CSharpFar.App;
@@ -18,6 +21,7 @@ namespace CSharpFar.App;
 public sealed class Application
 {
     private readonly ScreenRenderer _screen;
+    private readonly IFileSystemService _fs;
     private readonly PanelController _ctrl;
     private readonly IShellService _shell;
     private readonly IFileOperationService _fileOps;
@@ -40,21 +44,33 @@ public sealed class Application
     private ConsolePalette          _palette;
     private PanelViewMode           _leftViewMode;
     private PanelViewMode           _rightViewMode;
-    private IFileHighlightService?  _highlightService;
+    private IFileHighlightService?          _highlightService;
+    private Rect                            _leftBounds;
+    private Rect                            _rightBounds;
+    private IFileSystemChangeWatcher?       _watcher;
+    private IFileSystemLocationService?     _locationService;
+    private CancellationTokenSource         _refreshCts = new();
 
     public Application(
         ScreenRenderer         screen,
         IFileSystemService     fs,
         IShellService          shell,
         IFileOperationService  fileOps,
-        IHistoryStore?         history       = null,
-        AppSettingsAlias?      settings      = null,
-        UserMenuStore?         userMenu      = null,
-        Action?                saveSettings  = null,
-        IVolumeService?        volumeService = null)
+        IHistoryStore?         history          = null,
+        AppSettingsAlias?      settings         = null,
+        UserMenuStore?         userMenu         = null,
+        Action?                saveSettings     = null,
+        IVolumeService?              volumeService     = null,
+        IVolumeInfoService?          volumeInfoService  = null,
+        IFileSystemChangeWatcher?    changeWatcher     = null,
+        IFileSystemLocationService?  locationService   = null,
+        IVolumeMountPointService?    mountPointService = null)
     {
         _screen       = screen;
-        _ctrl         = new PanelController(fs);
+        _fs           = fs;
+        var sortSvc   = new PanelSortService();
+        var viewBuilder = new PanelViewBuilder(fs, sortSvc, volumeInfoService, mountPoints: mountPointService);
+        _ctrl         = new PanelController(viewBuilder);
         _shell        = shell;
         _fileOps      = fileOps;
         _history      = history      ?? new InMemoryHistoryStore();
@@ -63,8 +79,13 @@ public sealed class Application
             Path.Combine(
                 Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
                 "CSharpFar"));
-        _saveSettings  = saveSettings;
-        _volumeService = volumeService;
+        _saveSettings     = saveSettings;
+        _volumeService    = volumeService;
+        _watcher          = changeWatcher;
+        _locationService  = locationService;
+
+        if (_watcher != null)
+            _watcher.Changed += OnFileSystemChanged;
         _palette          = PaletteRegistry.Resolve(_settings.Ui.Palette);
         _leftViewMode     = ResolveViewMode(_settings.Panels.LeftViewMode);
         _rightViewMode    = ResolveViewMode(_settings.Panels.RightViewMode);
@@ -78,9 +99,12 @@ public sealed class Application
         _left  = new FilePanelState { CurrentDirectory = leftStart,  SortMode = sortMode };
         _right = new FilePanelState { CurrentDirectory = rightStart, SortMode = sortMode };
 
-        _ctrl.LoadDirectory(_left,  leftStart);
-        _ctrl.LoadDirectory(_right, rightStart);
+        var opts = _settings.Panels.Options;
+        _ctrl.LoadDirectory(_left,  leftStart,  opts);
+        _ctrl.LoadDirectory(_right, rightStart, opts);
     }
+
+    private AppSettingsAlias.PanelOptionsSettings PanelOptions => _settings.Panels.Options;
 
     private static string ResolveStartDir(string? configured, string fallback)
     {
@@ -107,16 +131,48 @@ public sealed class Application
             // This becomes the initial underlay shown by Ctrl+O.
             CaptureUnderlay();
 
+            StartWatching(_left,  PanelSide.Left);
+            StartWatching(_right, PanelSide.Right);
+
             Render();
 
             while (_running)
             {
-                var key = _screen.ReadKey();
-                bool isResize = IsResizeEvent(key);
-                bool shouldRender = isResize || HandleKey(key);
+                ConsoleInputEvent evt;
+                try
+                {
+                    evt = _screen.ReadInput(_refreshCts.Token);
+                }
+                catch (OperationCanceledException)
+                {
+                    // Woken by auto-refresh — reset CTS and refresh affected panels.
+                    ResetRefreshCts();
+                    ProcessPendingRefreshes();
+                    if (_running && _panelsVisible)
+                        Render();
+                    continue;
+                }
+
+                bool isResize     = false;
+                bool shouldRender = false;
+
+                switch (evt)
+                {
+                    case ConsoleResizeInputEvent:
+                        isResize      = true;
+                        shouldRender  = true;
+                        break;
+                    case KeyConsoleInputEvent { Key: var key }:
+                        shouldRender = HandleKey(key);
+                        break;
+                    case MouseConsoleInputEvent mouseEvt:
+                        shouldRender = HandleMouse(mouseEvt);
+                        break;
+                }
+
                 if (!shouldRender && HasConsoleSizeChanged())
                 {
-                    isResize = true;
+                    isResize     = true;
                     shouldRender = true;
                 }
 
@@ -158,7 +214,7 @@ public sealed class Application
         int leftW  = size.Width / 2;
         int rightW = size.Width - leftW;
 
-        var panelRenderer = new PanelRenderer(_screen, _palette, _highlightService);
+        var panelRenderer = new PanelRenderer(_screen, _palette, _highlightService, PanelOptions);
 
         if (_quickView)
         {
@@ -179,8 +235,10 @@ public sealed class Application
         }
         else
         {
-            var leftBounds = new Rect(0, 0, leftW, panelH);
+            var leftBounds  = new Rect(0, 0, leftW, panelH);
             var rightBounds = GetRightPanelBounds(size.Width, leftW, rightW, panelH);
+            _leftBounds  = leftBounds;
+            _rightBounds = rightBounds;
 
             panelRenderer.Render(leftBounds,  _left,  _active == PanelSide.Left,  _leftViewMode);
             panelRenderer.Render(rightBounds, _right, _active == PanelSide.Right, _rightViewMode);
@@ -219,7 +277,7 @@ public sealed class Application
         _screen.WriteChar(sharedX, leftBounds.Y, '╦', style);
         _screen.WriteChar(sharedX, leftBounds.Bottom - 1, '╩', style);
 
-        int separatorY = PanelStatusRenderer.SeparatorRow(leftBounds);
+        int separatorY = PanelStatusRenderer.SeparatorRow(leftBounds, PanelOptions);
         if (separatorY > leftBounds.Y && separatorY < leftBounds.Bottom - 1)
             _screen.WriteChar(sharedX, separatorY, '╫', style);
     }
@@ -385,8 +443,8 @@ public sealed class Application
         int panelH = PanelHeight(size);
         var bounds = new Rect(0, 0, 0, panelH);
         return mode == PanelViewMode.BriefTwoColumns
-            ? BriefTwoColumnsPanelRenderer.VisibleRows(bounds)
-            : PanelRenderer.VisibleRows(bounds);
+            ? BriefTwoColumnsPanelRenderer.VisibleRows(bounds, PanelOptions)
+            : PanelRenderer.VisibleRows(bounds, PanelOptions);
     }
 
     private (int RowsPerColumn, int ColumnCount, int VisibleRows) ActiveColumnGeometry()
@@ -399,8 +457,65 @@ public sealed class Application
 
         var size = _screen.GetSize();
         var bounds = new Rect(0, 0, 0, PanelHeight(size));
-        int rowsPerColumn = BriefTwoColumnsPanelRenderer.RowsPerColumn(bounds);
+        int rowsPerColumn = BriefTwoColumnsPanelRenderer.RowsPerColumn(bounds, PanelOptions);
         return (rowsPerColumn, 2, visibleRows);
+    }
+
+    // ── mouse handling ────────────────────────────────────────────────────────
+
+    private bool HandleMouse(MouseConsoleInputEvent evt)
+    {
+        if (!_panelsVisible || _quickView) return false;
+
+        // Identify which panel was hit
+        bool inLeft  = _leftBounds.Contains(evt.X,  evt.Y);
+        bool inRight = _rightBounds.Contains(evt.X, evt.Y);
+        if (!inLeft && !inRight) return false;
+
+        var side  = inLeft ? PanelSide.Left : PanelSide.Right;
+        var state = inLeft ? _left : _right;
+        var mode  = inLeft ? _leftViewMode : _rightViewMode;
+        var bounds = inLeft ? _leftBounds : _rightBounds;
+        int visRows = VisibleRows(side);
+
+        // Mouse wheel: scroll the panel under cursor
+        if (evt.Kind == MouseEventKind.Wheel)
+        {
+            _active = side;
+            int delta = evt.Button == MouseButton.WheelUp ? -3 : 3;
+            _ctrl.ScrollView(state, delta, visRows);
+            return true;
+        }
+
+        // Right click: activate panel, move cursor, optionally toggle selection
+        if (evt.Button == MouseButton.Right && evt.Kind == MouseEventKind.Down)
+        {
+            _active = side;
+            int? itemIdx = PanelHitTester.HitTestItem(evt.X, evt.Y, bounds, state, mode, PanelOptions);
+            if (itemIdx.HasValue)
+            {
+                _ctrl.SetCursorTo(state, itemIdx.Value, visRows);
+                if (PanelOptions.RightClickSelectsFiles)
+                {
+                    var item = state.Items[itemIdx.Value];
+                    if (PanelController.CanSelect(item, PanelOptions))
+                        _ctrl.ToggleCurrentSelection(state, PanelOptions);
+                }
+            }
+            return true;
+        }
+
+        // Left click: activate panel and move cursor
+        if (evt.Button == MouseButton.Left && evt.Kind == MouseEventKind.Down)
+        {
+            _active = side;
+            int? itemIdx = PanelHitTester.HitTestItem(evt.X, evt.Y, bounds, state, mode, PanelOptions);
+            if (itemIdx.HasValue)
+                _ctrl.SetCursorTo(state, itemIdx.Value, visRows);
+            return true;
+        }
+
+        return false;
     }
 
     private bool HandleKey(ConsoleKeyInfo key)
@@ -438,7 +553,7 @@ public sealed class Application
 
         if (IsPlainControlKey(key, ConsoleKey.A, '\u0001'))
         {
-            _ctrl.ToggleSelectAll(ActiveState);
+            _ctrl.ToggleSelectAll(ActiveState, PanelOptions);
             return true;
         }
 
@@ -467,16 +582,16 @@ public sealed class Application
             int vr0 = VisibleRows();
             switch (key.Key)
             {
-                case ConsoleKey.F3: _ctrl.SetSortMode(ActiveState, SortMode.Name,          vr0); return true;
-                case ConsoleKey.F4: _ctrl.SetSortMode(ActiveState, SortMode.Extension,     vr0); return true;
-                case ConsoleKey.F5: _ctrl.SetSortMode(ActiveState, SortMode.LastWriteTime, vr0); return true;
-                case ConsoleKey.F6: _ctrl.SetSortMode(ActiveState, SortMode.Size,          vr0); return true;
-                case ConsoleKey.A:  _ctrl.ToggleSelectAll(ActiveState);                          return true;
+                case ConsoleKey.F3: _ctrl.SetSortMode(ActiveState, SortMode.Name,          vr0, PanelOptions); return true;
+                case ConsoleKey.F4: _ctrl.SetSortMode(ActiveState, SortMode.Extension,     vr0, PanelOptions); return true;
+                case ConsoleKey.F5: _ctrl.SetSortMode(ActiveState, SortMode.LastWriteTime, vr0, PanelOptions); return true;
+                case ConsoleKey.F6: _ctrl.SetSortMode(ActiveState, SortMode.Size,          vr0, PanelOptions); return true;
+                case ConsoleKey.A:  _ctrl.ToggleSelectAll(ActiveState, PanelOptions);                          return true;
                 case ConsoleKey.Multiply:
-                    _ctrl.InvertSelection(ActiveState);
+                    _ctrl.InvertSelection(ActiveState, PanelOptions);
                     return true;
                 case ConsoleKey.D8 when (key.Modifiers & ConsoleModifiers.Shift) != 0:
-                    _ctrl.InvertSelection(ActiveState);
+                    _ctrl.InvertSelection(ActiveState, PanelOptions);
                     return true;
             }
         }
@@ -514,15 +629,6 @@ public sealed class Application
         if (key.Key == ConsoleKey.F8 && (key.Modifiers & ConsoleModifiers.Alt) != 0)
         {
             HandleCommandHistory();
-            return true;
-        }
-
-        // Printable characters always go to the command line
-        bool isPrintable = key.KeyChar >= ' ' &&
-            (key.Modifiers & (ConsoleModifiers.Control | ConsoleModifiers.Alt)) == 0;
-        if (isPrintable)
-        {
-            _cmdLine.Insert(key.KeyChar);
             return true;
         }
 
@@ -571,7 +677,7 @@ public sealed class Application
 
             // ── Selection ────────────────────────────────────────────────────
             case ConsoleKey.Insert:
-                _ctrl.ToggleSelection(ActiveState, vr);
+                _ctrl.ToggleSelection(ActiveState, vr, PanelOptions);
                 return true;
 
             // ── Panel navigation ──────────────────────────────────────────────
@@ -639,11 +745,8 @@ public sealed class Application
                 return false;
         }
 
-        return false;
-    }
-
-    private bool HandleHiddenCommandLineKey(ConsoleKeyInfo key)
-    {
+        // Printable characters always go to the command line. This must run
+        // after special keys so malformed function-key chars cannot be inserted.
         bool isPrintable = key.KeyChar >= ' ' &&
             (key.Modifiers & (ConsoleModifiers.Control | ConsoleModifiers.Alt)) == 0;
         if (isPrintable)
@@ -652,6 +755,11 @@ public sealed class Application
             return true;
         }
 
+        return false;
+    }
+
+    private bool HandleHiddenCommandLineKey(ConsoleKeyInfo key)
+    {
         switch (key.Key)
         {
             case ConsoleKey.LeftArrow:
@@ -690,6 +798,14 @@ public sealed class Application
             case ConsoleKey.F10:
                 _running = false;
                 return false;
+        }
+
+        bool isPrintable = key.KeyChar >= ' ' &&
+            (key.Modifiers & (ConsoleModifiers.Control | ConsoleModifiers.Alt)) == 0;
+        if (isPrintable)
+        {
+            _cmdLine.Insert(key.KeyChar);
+            return true;
         }
 
         return false;
@@ -810,8 +926,9 @@ public sealed class Application
 
         try
         {
-            _ctrl.LoadDirectory(ActiveState, parentDir);
+            _ctrl.LoadDirectory(ActiveState, parentDir, PanelOptions);
             _ctrl.SetCursorByName(ActiveState, fileName, VisibleRows());
+            StartWatching(ActiveState, _active);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
@@ -967,7 +1084,11 @@ public sealed class Application
             return;
         }
 
-        try { _ctrl.LoadDirectory(ActiveState, path); }
+        try
+        {
+            _ctrl.LoadDirectory(ActiveState, path, PanelOptions);
+            StartWatching(ActiveState, _active);
+        }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
             new MessageDialog(_screen).Show("Directory History", ex.Message);
@@ -1000,10 +1121,11 @@ public sealed class Application
 
         try
         {
-            _ctrl.LoadDirectory(targetState, vol.RootPath);
+            _ctrl.LoadDirectory(targetState, vol.RootPath, PanelOptions);
             _history.AddDirectory(new DirectoryHistoryItem { Path = vol.RootPath });
             _quickView = false;
             _active    = side;
+            StartWatching(targetState, side);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
@@ -1261,11 +1383,12 @@ public sealed class Application
         try
         {
             if (item.IsParentDirectory)
-                _ctrl.GoToParent(ActiveState, VisibleRows());
+                _ctrl.GoToParent(ActiveState, VisibleRows(), PanelOptions);
             else
-                _ctrl.LoadDirectory(ActiveState, item.FullPath);
+                _ctrl.LoadDirectory(ActiveState, item.FullPath, PanelOptions);
 
             _history.AddDirectory(new DirectoryHistoryItem { Path = ActiveState.CurrentDirectory });
+            StartWatching(ActiveState, _active);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
@@ -1277,8 +1400,9 @@ public sealed class Application
     {
         try
         {
-            _ctrl.GoToParent(ActiveState, VisibleRows());
+            _ctrl.GoToParent(ActiveState, VisibleRows(), PanelOptions);
             _history.AddDirectory(new DirectoryHistoryItem { Path = ActiveState.CurrentDirectory });
+            StartWatching(ActiveState, _active);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
@@ -1295,8 +1419,68 @@ public sealed class Application
     private void SafeRefresh(FilePanelState state, int visibleRows)
     {
         if (!Directory.Exists(state.CurrentDirectory)) return;
-        try { _ctrl.RefreshDirectory(state, visibleRows); }
+        try { _ctrl.RefreshDirectory(state, visibleRows, PanelOptions); }
         catch { }
+    }
+
+    // ── auto-refresh ──────────────────────────────────────────────────────────
+
+    private void StartWatching(FilePanelState state, PanelSide side)
+    {
+        if (_watcher == null || _locationService == null) return;
+
+        var loc = _locationService.GetLocationInfo(state.CurrentDirectory);
+        var opts = PanelOptions.AutoRefresh;
+        var req = new PanelWatchRequest
+        {
+            PanelSide     = side,
+            DirectoryPath = state.CurrentDirectory,
+            ObjectCount   = state.Items.Count,
+            IsNetworkDrive = loc.IsNetworkDrive,
+            Options        = opts,
+        };
+        var refreshState = _watcher.StartWatching(req);
+        state.AutoRefreshState = refreshState;
+    }
+
+    private readonly Queue<FileSystemPanelChanged> _pendingRefreshEvents = new();
+
+    private void OnFileSystemChanged(object? sender, FileSystemPanelChanged e)
+    {
+        lock (_pendingRefreshEvents)
+            _pendingRefreshEvents.Enqueue(e);
+
+        // Wake the input loop
+        var old = Interlocked.Exchange(ref _refreshCts, new CancellationTokenSource());
+        old.Cancel();
+        old.Dispose();
+    }
+
+    private void ResetRefreshCts()
+    {
+        // Already replaced in OnFileSystemChanged; nothing else needed here.
+    }
+
+    private void ProcessPendingRefreshes()
+    {
+        while (true)
+        {
+            FileSystemPanelChanged? evt;
+            lock (_pendingRefreshEvents)
+            {
+                evt = _pendingRefreshEvents.Count > 0 ? _pendingRefreshEvents.Dequeue() : null;
+            }
+            if (evt is null) break;
+
+            var state = evt.PanelSide == PanelSide.Left ? _left : _right;
+            if (!string.Equals(state.CurrentDirectory, evt.DirectoryPath,
+                    StringComparison.OrdinalIgnoreCase))
+                continue;
+
+            int vr = VisibleRows(evt.PanelSide);
+            if (Directory.Exists(state.CurrentDirectory))
+                SafeRefresh(state, vr);
+        }
     }
 
     // ── alias to avoid namespace conflict with CSharpFar.Console ─────────────

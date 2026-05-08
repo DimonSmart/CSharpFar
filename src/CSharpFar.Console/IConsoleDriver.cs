@@ -1,3 +1,4 @@
+using CSharpFar.Console.Input;
 using CSharpFar.Console.Models;
 
 namespace CSharpFar.Console;
@@ -5,7 +6,13 @@ namespace CSharpFar.Console;
 public interface IConsoleDriver
 {
     ConsoleSize GetSize();
+
+    /// <summary>Reads the next keyboard, mouse, or resize event.</summary>
+    ConsoleInputEvent ReadInput(bool intercept, CancellationToken cancellationToken = default);
+
+    /// <summary>Key-only read; kept for dialog compatibility.</summary>
     ConsoleKeyInfo ReadKey(bool intercept);
+
     void WriteAt(int x, int y, ReadOnlySpan<char> text,
         ConsoleColor? foreground = null, ConsoleColor? background = null);
     void ClearRegion(Rect region);

@@ -36,8 +36,8 @@ public sealed class ApplicationSettingsTests : IDisposable
         var left = GetLeftPanel(app);
 
         Assert.Equal(SortMode.Size, left.SortMode);
-        Assert.Equal("small.txt", left.Items[0].Name);
-        Assert.Equal("large.txt", left.Items[1].Name);
+        Assert.Equal("small.txt", left.Items[1].Name);
+        Assert.Equal("large.txt", left.Items[2].Name);
     }
 
     [Fact]
@@ -50,8 +50,8 @@ public sealed class ApplicationSettingsTests : IDisposable
         var left = GetLeftPanel(app);
 
         Assert.Equal(SortMode.Name, left.SortMode);
-        Assert.Equal("a.txt", left.Items[0].Name);
-        Assert.Equal("b.txt", left.Items[1].Name);
+        Assert.Equal("a.txt", left.Items[1].Name);
+        Assert.Equal("b.txt", left.Items[2].Name);
     }
 
     [Fact]
@@ -92,6 +92,39 @@ public sealed class ApplicationSettingsTests : IDisposable
         app.Run();
 
         Assert.Equal(1, saveCount);
+    }
+
+    [Fact]
+    public void Run_F10WithUnexpectedPrintableChar_StillQuits()
+    {
+        var driver = new FakeConsoleDriver();
+        driver.EnqueueKey(new ConsoleKeyInfo('D', ConsoleKey.F10, shift: false, alt: false, control: false));
+
+        var app = CreateApp("Name", driver);
+
+        app.Run();
+
+        var cmdLine = typeof(Application).GetField("_cmdLine", BindingFlags.Instance | BindingFlags.NonPublic)
+            ?? throw new InvalidOperationException("Application._cmdLine field not found.");
+        var state = (CommandLineState)cmdLine.GetValue(app)!;
+        Assert.Equal(string.Empty, state.Text);
+    }
+
+    [Fact]
+    public void Run_DownArrowWithUnexpectedPrintableChar_DoesNotType()
+    {
+        var driver = new FakeConsoleDriver();
+        driver.EnqueueKey(new ConsoleKeyInfo('B', ConsoleKey.DownArrow, shift: false, alt: false, control: false));
+        driver.EnqueueKey(new ConsoleKeyInfo('\0', ConsoleKey.F10, shift: false, alt: false, control: false));
+
+        var app = CreateApp("Name", driver);
+
+        app.Run();
+
+        var cmdLine = typeof(Application).GetField("_cmdLine", BindingFlags.Instance | BindingFlags.NonPublic)
+            ?? throw new InvalidOperationException("Application._cmdLine field not found.");
+        var state = (CommandLineState)cmdLine.GetValue(app)!;
+        Assert.Equal(string.Empty, state.Text);
     }
 
     [Fact]

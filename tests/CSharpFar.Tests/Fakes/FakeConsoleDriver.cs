@@ -1,4 +1,5 @@
 using CSharpFar.Console;
+using CSharpFar.Console.Input;
 using CSharpFar.Console.Models;
 
 namespace CSharpFar.Tests.Fakes;
@@ -54,6 +55,12 @@ public sealed class FakeConsoleDriver : IConsoleDriver, IConsoleOutputModeDriver
     }
 
     public void EnqueueKey(ConsoleKeyInfo key) => _keyQueue.Enqueue(key);
+
+    public ConsoleInputEvent ReadInput(bool intercept, CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        return new KeyConsoleInputEvent(ReadKey(intercept));
+    }
 
     public ConsoleKeyInfo ReadKey(bool intercept) =>
         _keyQueue.TryDequeue(out var key)

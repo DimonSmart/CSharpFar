@@ -1,4 +1,4 @@
-using CSharpFar.Core.Controllers;
+﻿using CSharpFar.Core.Controllers;
 using CSharpFar.Core.Abstractions;
 using CSharpFar.Core.Models;
 using CSharpFar.Tests.Fakes;
@@ -24,7 +24,7 @@ public class PanelControllerTests
             .ToArray();
 
         fs.AddDirectory(Root, items);
-        var ctrl  = new PanelController(fs);
+        var ctrl  = new PanelController(new FakePanelViewBuilder(fs));
         var state = new FilePanelState { CurrentDirectory = Root };
         ctrl.LoadDirectory(state, Root);
         return (ctrl, state);
@@ -62,7 +62,7 @@ public class PanelControllerTests
         fs.AddDirectory(Sub1,
             new FilePanelItem { Name = "other.txt", FullPath = Sub1 + @"\other.txt", IsDirectory = false });
 
-        var ctrl = new PanelController(fs);
+        var ctrl = new PanelController(new FakePanelViewBuilder(fs));
         var state = new FilePanelState { CurrentDirectory = Root };
         ctrl.LoadDirectory(state, Root);
         state.SelectedPaths.Add(Root + @"\file.txt");
@@ -75,7 +75,7 @@ public class PanelControllerTests
     [Fact]
     public void LoadDirectory_DoesNotChangeStateWhenReadFails()
     {
-        var ctrl = new PanelController(new ThrowingFileSystemService());
+        var ctrl = new PanelController(new FakePanelViewBuilder(new ThrowingFileSystemService()));
         var state = new FilePanelState { CurrentDirectory = Root };
         state.Items.Add(new FilePanelItem { Name = "old.txt", FullPath = Root + @"\old.txt", IsDirectory = false });
         state.SelectedPaths.Add(Root + @"\old.txt");
@@ -100,7 +100,7 @@ public class PanelControllerTests
             new FilePanelItem { Name = "a.txt", FullPath = Root + @"\a.txt", IsDirectory = false },
             new FilePanelItem { Name = "b.txt", FullPath = Root + @"\b.txt", IsDirectory = false });
 
-        var ctrl = new PanelController(fs);
+        var ctrl = new PanelController(new FakePanelViewBuilder(fs));
         var state = new FilePanelState { CurrentDirectory = Root };
         ctrl.LoadDirectory(state, Root);
         state.SelectedPaths.Add(Root + @"\a.txt");
@@ -291,7 +291,7 @@ public class PanelControllerTests
     {
         var fs    = new FakeFileSystemService();
         fs.AddDirectory(Root);
-        var ctrl  = new PanelController(fs);
+        var ctrl  = new PanelController(new FakePanelViewBuilder(fs));
         var state = new FilePanelState { CurrentDirectory = Root };
         ctrl.LoadDirectory(state, Root);
 
@@ -308,7 +308,7 @@ public class PanelControllerTests
         fs.AddDirectory(Root,
             new FilePanelItem { Name = "Sub1", FullPath = Sub1, IsDirectory = true });
 
-        var ctrl  = new PanelController(fs);
+        var ctrl  = new PanelController(new FakePanelViewBuilder(fs));
         var state = new FilePanelState { CurrentDirectory = Sub1 };
         ctrl.LoadDirectory(state, Sub1);
 
@@ -327,7 +327,7 @@ public class PanelControllerTests
             new FilePanelItem { Name = "Sub1",     FullPath = Sub1,                IsDirectory = true },
             new FilePanelItem { Name = "ZDir",     FullPath = @"C:\Root\ZDir",     IsDirectory = true });
 
-        var ctrl  = new PanelController(fs);
+        var ctrl  = new PanelController(new FakePanelViewBuilder(fs));
         var state = new FilePanelState { CurrentDirectory = Sub1 };
         ctrl.LoadDirectory(state, Sub1);
 
@@ -360,7 +360,7 @@ public class PanelControllerTests
 
         fs.AddDirectory(Root, rootItems);
 
-        var ctrl = new PanelController(fs);
+        var ctrl = new PanelController(new FakePanelViewBuilder(fs));
         var state = new FilePanelState { CurrentDirectory = childPath };
         ctrl.LoadDirectory(state, childPath);
 
