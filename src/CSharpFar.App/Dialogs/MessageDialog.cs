@@ -43,16 +43,13 @@ internal sealed class MessageDialog
         int fw   = DialogWidth - 4;
 
         var bounds = new Rect(dlgX, dlgY, DialogWidth, DialogHeight);
-        _screen.FillRegion(bounds, Theme.DialogFill);
-        _screen.DrawBox(bounds, Theme.DialogBorder);
+        new DialogFrameRenderer().RenderFrame(_screen, bounds, title, false, Theme.DialogPopupOptions, (_, _) =>
+        {
+            _screen.Write(dlgX + 2, dlgY + 1, Truncate(message, fw).PadRight(fw), Theme.DialogError);
 
-        string titleText = $" {title} ";
-        _screen.Write(dlgX + (DialogWidth - titleText.Length) / 2, dlgY, titleText, Theme.DialogTitle);
-
-        _screen.Write(dlgX + 2, dlgY + 1, Truncate(message, fw).PadRight(fw), Theme.DialogError);
-
-        const string hint = "[ Press Enter ]";
-        _screen.Write(dlgX + (DialogWidth - hint.Length) / 2, dlgY + 3, hint, Theme.DialogFill);
+            const string hint = "[ Press Enter ]";
+            _screen.Write(dlgX + (DialogWidth - hint.Length) / 2, dlgY + 3, hint, Theme.DialogFill);
+        });
     }
 
     private static string Truncate(string s, int maxLen) =>

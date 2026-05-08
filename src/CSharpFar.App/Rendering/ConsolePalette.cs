@@ -53,4 +53,16 @@ public sealed class ConsolePalette
     public ConsoleColor FunctionKeyNumBg      { get; init; } = ConsoleColor.DarkCyan;
     public ConsoleColor FunctionKeyTextFg     { get; init; } = ConsoleColor.Black;
     public ConsoleColor FunctionKeyOverflowFg { get; init; } = ConsoleColor.Red;
+
+    // Menu and popup windows
+    public ConsoleColor MenuNormalFg          { get; init; } = ConsoleColor.Black;
+    public ConsoleColor MenuNormalBg          { get; init; } = ConsoleColor.Cyan;
+    public ConsoleColor MenuActiveFg          { get; init; } = ConsoleColor.White;
+    public ConsoleColor MenuActiveBg          { get; init; } = ConsoleColor.DarkBlue;
+    public ConsoleColor MenuDisabledFg        { get; init; } = ConsoleColor.DarkGray;
+    public ConsoleColor MenuDisabledBg        { get; init; } = ConsoleColor.Cyan;
+    public ConsoleColor MenuBorderFg          { get; init; } = ConsoleColor.Black;
+    public ConsoleColor MenuBorderBg          { get; init; } = ConsoleColor.Cyan;
+    public ConsoleColor MenuShadowFg          { get; init; } = ConsoleColor.DarkGray;
+    public ConsoleColor MenuShadowBg          { get; init; } = ConsoleColor.Black;
 }

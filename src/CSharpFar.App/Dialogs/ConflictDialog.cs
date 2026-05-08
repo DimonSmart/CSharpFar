@@ -23,17 +23,14 @@ internal sealed class ConflictDialog
         int fw   = DialogWidth - 4;
 
         var bounds = new Rect(dlgX, dlgY, DialogWidth, DialogHeight);
-        _screen.FillRegion(bounds, Theme.DialogFill);
-        _screen.DrawBox(bounds, Theme.DialogBorder);
+        new DialogFrameRenderer().RenderFrame(_screen, bounds, "File Already Exists", false, Theme.DialogPopupOptions, (_, _) =>
+        {
+            string name = Path.GetFileName(destPath);
+            _screen.Write(dlgX + 2, dlgY + 1, Truncate(name, fw).PadRight(fw), Theme.DialogFill);
 
-        const string title = " File Already Exists ";
-        _screen.Write(dlgX + (DialogWidth - title.Length) / 2, dlgY, title, Theme.DialogTitle);
-
-        string name = Path.GetFileName(destPath);
-        _screen.Write(dlgX + 2, dlgY + 1, Truncate(name, fw).PadRight(fw), Theme.DialogFill);
-
-        const string buttons = "[O]verwrite   [S]kip   [C]ancel";
-        _screen.Write(dlgX + (DialogWidth - buttons.Length) / 2, dlgY + 3, buttons, Theme.DialogFill);
+            const string buttons = "[O]verwrite   [S]kip   [C]ancel";
+            _screen.Write(dlgX + (DialogWidth - buttons.Length) / 2, dlgY + 3, buttons, Theme.DialogFill);
+        });
 
         _screen.SetCursorVisible(false);
 

@@ -28,15 +28,12 @@ internal sealed class ProgressDialog
         int fw   = DialogWidth - 4;
 
         var bounds = new Rect(dlgX, dlgY, DialogWidth, DialogHeight);
-        _screen.FillRegion(bounds, Theme.DialogFill);
-        _screen.DrawBox(bounds, Theme.DialogBorder);
-
-        const string title = " Copying ";
-        _screen.Write(dlgX + (DialogWidth - title.Length) / 2, dlgY, title, Theme.DialogTitle);
-
-        string destLine = Truncate("To: " + _destination, fw);
-        _screen.Write(dlgX + 2, dlgY + 1, destLine.PadRight(fw), Theme.DialogFill);
-        _screen.Write(dlgX + 2, dlgY + 2, Truncate(currentFile, fw).PadRight(fw), Theme.DialogFill);
+        new DialogFrameRenderer().RenderFrame(_screen, bounds, "Copying", false, Theme.DialogPopupOptions, (_, _) =>
+        {
+            string destLine = Truncate("To: " + _destination, fw);
+            _screen.Write(dlgX + 2, dlgY + 1, destLine.PadRight(fw), Theme.DialogFill);
+            _screen.Write(dlgX + 2, dlgY + 2, Truncate(currentFile, fw).PadRight(fw), Theme.DialogFill);
+        });
     }
 
     private static string Truncate(string s, int maxLen) =>

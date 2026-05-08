@@ -54,17 +54,14 @@ internal sealed class OpenFileDialog
         int fw   = DialogWidth - 4;
 
         var bounds = new Rect(dlgX, dlgY, DialogWidth, DialogHeight);
-        _screen.FillRegion(bounds, Theme.DialogFill);
-        _screen.DrawBox(bounds, Theme.DialogBorder);
+        new DialogFrameRenderer().RenderFrame(_screen, bounds, "Open File", false, Theme.DialogPopupOptions, (_, _) =>
+        {
+            string msg = Truncate($"Open \"{fileName}\" as:", fw).PadRight(fw);
+            _screen.Write(dlgX + 2, dlgY + 1, msg, Theme.DialogFill);
 
-        const string title = " Open File ";
-        _screen.Write(dlgX + (DialogWidth - title.Length) / 2, dlgY, title, Theme.DialogTitle);
-
-        string msg = Truncate($"Open \"{fileName}\" as:", fw).PadRight(fw);
-        _screen.Write(dlgX + 2, dlgY + 1, msg, Theme.DialogFill);
-
-        const string buttons = "[V]iew   [E]dit   [C]ancel";
-        _screen.Write(dlgX + (DialogWidth - buttons.Length) / 2, dlgY + 3, buttons, Theme.DialogFill);
+            const string buttons = "[V]iew   [E]dit   [C]ancel";
+            _screen.Write(dlgX + (DialogWidth - buttons.Length) / 2, dlgY + 3, buttons, Theme.DialogFill);
+        });
     }
 
     private static string Truncate(string s, int maxLen) =>

@@ -75,13 +75,14 @@ public sealed class ApplicationSettingsTests : IDisposable
     }
 
     [Fact]
-    public void Run_F9_OpensSettingsDialog()
+    public void Run_F9_OpensTopMenuInsteadOfSettingsDialog()
     {
         var driver = new FakeConsoleDriver();
         int saveCount = 0;
 
         driver.EnqueueKey(new ConsoleKeyInfo('\0', ConsoleKey.F9, shift: false, alt: false, control: false));
         driver.EnqueueKey(new ConsoleKeyInfo('\0', ConsoleKey.F10, shift: false, alt: false, control: false));
+        driver.EnqueueKey(new ConsoleKeyInfo('\0', ConsoleKey.Escape, shift: false, alt: false, control: false));
         driver.EnqueueKey(new ConsoleKeyInfo('\0', ConsoleKey.F10, shift: false, alt: false, control: false));
 
         var app = CreateApp(
@@ -91,7 +92,7 @@ public sealed class ApplicationSettingsTests : IDisposable
 
         app.Run();
 
-        Assert.Equal(1, saveCount);
+        Assert.Equal(0, saveCount);
     }
 
     [Fact]

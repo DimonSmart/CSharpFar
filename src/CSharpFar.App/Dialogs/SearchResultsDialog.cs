@@ -81,21 +81,18 @@ internal sealed class SearchResultsDialog
         int fw   = DialogWidth - 4;
 
         var bounds = new Rect(dlgX, dlgY, DialogWidth, dlgH);
-        _screen.FillRegion(bounds, Theme.DialogFill);
-        _screen.DrawBox(bounds, Theme.DialogBorder);
-
-        string title = $" Search Results ({results.Count}) ";
-        _screen.Write(dlgX + (DialogWidth - title.Length) / 2, dlgY, title, Theme.DialogTitle);
-
-        for (int i = 0; i < visible; i++)
+        new DialogFrameRenderer().RenderFrame(_screen, bounds, $"Search Results ({results.Count})", false, Theme.DialogPopupOptions, (_, _) =>
         {
-            int idx = scrollTop + i;
-            if (idx >= results.Count) break;
+            for (int i = 0; i < visible; i++)
+            {
+                int idx = scrollTop + i;
+                if (idx >= results.Count) break;
 
-            string text  = Truncate(results[idx], fw).PadRight(fw);
-            var    style = idx == cursor ? Theme.InputField : Theme.DialogFill;
-            _screen.Write(dlgX + 2, dlgY + 1 + i, text, style);
-        }
+                string text  = Truncate(results[idx], fw).PadRight(fw);
+                var    style = idx == cursor ? Theme.InputField : Theme.DialogFill;
+                _screen.Write(dlgX + 2, dlgY + 1 + i, text, style);
+            }
+        });
 
         _screen.SetCursorVisible(false);
     }

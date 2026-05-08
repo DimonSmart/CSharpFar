@@ -26,8 +26,16 @@ internal static class Theme
     public static readonly CellStyle DialogFill   = new(ConsoleColor.Black,  ConsoleColor.DarkCyan);
     public static readonly CellStyle DialogBorder = new(ConsoleColor.Yellow, ConsoleColor.DarkCyan);
     public static readonly CellStyle DialogTitle  = new(ConsoleColor.White,  ConsoleColor.DarkCyan);
+    public static readonly CellStyle DialogShadow = new(ConsoleColor.DarkGray, ConsoleColor.Black);
     public static readonly CellStyle InputField   = new(ConsoleColor.White,  ConsoleColor.Black);
     public static readonly CellStyle DialogError  = new(ConsoleColor.Yellow, ConsoleColor.DarkCyan);
+    public static PopupRenderOptions DialogPopupOptions => new()
+    {
+        BorderStyle = DialogBorder,
+        BackgroundStyle = DialogFill,
+        ShadowStyle = DialogShadow,
+        TitleStyle = DialogTitle,
+    };
 
     // --- Selected items (same in active and inactive panels, like Far Manager) ---
     public static readonly CellStyle SelectedFile        = new(ConsoleColor.Yellow,    ConsoleColor.DarkBlue);

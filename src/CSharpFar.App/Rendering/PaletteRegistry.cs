@@ -39,6 +39,16 @@ public static class PaletteRegistry
         FunctionKeyNumBg      = ConsoleColor.DarkCyan,
         FunctionKeyTextFg     = ConsoleColor.Black,
         FunctionKeyOverflowFg = ConsoleColor.Red,
+        MenuNormalFg          = ConsoleColor.Black,
+        MenuNormalBg          = ConsoleColor.Cyan,
+        MenuActiveFg          = ConsoleColor.White,
+        MenuActiveBg          = ConsoleColor.DarkBlue,
+        MenuDisabledFg        = ConsoleColor.DarkGray,
+        MenuDisabledBg        = ConsoleColor.Cyan,
+        MenuBorderFg          = ConsoleColor.Black,
+        MenuBorderBg          = ConsoleColor.Cyan,
+        MenuShadowFg          = ConsoleColor.DarkGray,
+        MenuShadowBg          = ConsoleColor.Black,
     };
 
     /// <summary>FarClassic palette – visual style close to Far Manager.</summary>
@@ -75,6 +85,16 @@ public static class PaletteRegistry
         FunctionKeyNumBg      = ConsoleColor.DarkCyan,
         FunctionKeyTextFg     = ConsoleColor.Black,
         FunctionKeyOverflowFg = ConsoleColor.Red,
+        MenuNormalFg          = ConsoleColor.Black,
+        MenuNormalBg          = ConsoleColor.Cyan,
+        MenuActiveFg          = ConsoleColor.White,
+        MenuActiveBg          = ConsoleColor.DarkBlue,
+        MenuDisabledFg        = ConsoleColor.DarkGray,
+        MenuDisabledBg        = ConsoleColor.Cyan,
+        MenuBorderFg          = ConsoleColor.Black,
+        MenuBorderBg          = ConsoleColor.Cyan,
+        MenuShadowFg          = ConsoleColor.DarkGray,
+        MenuShadowBg          = ConsoleColor.Black,
     };
 
     public static IReadOnlyList<ConsolePalette> All { get; } =

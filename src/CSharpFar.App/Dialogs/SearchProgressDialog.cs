@@ -64,19 +64,16 @@ internal sealed class SearchProgressDialog
         int fw = DialogWidth - 4;
 
         var bounds = new Rect(x, y, DialogWidth, DialogHeight);
-        _screen.FillRegion(bounds, Theme.DialogFill);
-        _screen.DrawBox(bounds, Theme.DialogBorder);
+        new DialogFrameRenderer().RenderFrame(_screen, bounds, "Search", false, Theme.DialogPopupOptions, (_, _) =>
+        {
+            string dir  = Truncate($"In: {rootDir}", fw).PadRight(fw);
+            string stat = $"Found: {count} file{(count == 1 ? "" : "s")}".PadRight(fw);
+            _screen.Write(x + 2, y + 1, dir,  Theme.DialogFill);
+            _screen.Write(x + 2, y + 2, stat, Theme.DialogFill);
 
-        const string title = " Search ";
-        _screen.Write(x + (DialogWidth - title.Length) / 2, y, title, Theme.DialogTitle);
-
-        string dir  = Truncate($"In: {rootDir}", fw).PadRight(fw);
-        string stat = $"Found: {count} file{(count == 1 ? "" : "s")}".PadRight(fw);
-        _screen.Write(x + 2, y + 1, dir,  Theme.DialogFill);
-        _screen.Write(x + 2, y + 2, stat, Theme.DialogFill);
-
-        const string hint = "Esc to cancel";
-        _screen.Write(x + (DialogWidth - hint.Length) / 2, y + 3, hint, Theme.DialogFill);
+            const string hint = "Esc to cancel";
+            _screen.Write(x + (DialogWidth - hint.Length) / 2, y + 3, hint, Theme.DialogFill);
+        });
     }
 
     private static string Truncate(string s, int maxLen) =>

@@ -209,27 +209,22 @@ internal sealed class DriveDialog
     {
         using var frame = _screen.BeginFrame();
 
-        _screen.FillRegion(bounds, Theme.DialogFill);
-        _screen.DrawDoubleBox(bounds, Theme.DialogBorder);
-
-        const string title = " Change drive ";
-        int titleX = bounds.X + (bounds.Width - title.Length) / 2;
-        _screen.Write(titleX, bounds.Y, title, Theme.DialogTitle);
-
-        // Hint in bottom border
-        const string hint = " Enter  Esc ";
-        int hintX = bounds.X + (bounds.Width - hint.Length) / 2;
-        _screen.Write(hintX, bounds.Y + bounds.Height - 1, hint, Theme.DialogTitle);
-
-        for (int i = 0; i < visible; i++)
+        new DialogFrameRenderer().RenderFrame(_screen, bounds, "Change drive", true, Theme.DialogPopupOptions, (_, _) =>
         {
-            int idx = scrollTop + i;
-            if (idx >= items.Count) break;
+            const string hint = " Enter  Esc ";
+            int hintX = bounds.X + (bounds.Width - hint.Length) / 2;
+            _screen.Write(hintX, bounds.Y + bounds.Height - 1, hint, Theme.DialogTitle);
 
-            string row   = FormatRow(items[idx], bounds.Width - 2);
-            var    style = idx == cursor ? Theme.InputField : Theme.DialogFill;
-            _screen.Write(bounds.X + 1, bounds.Y + 1 + i, row, style);
-        }
+            for (int i = 0; i < visible; i++)
+            {
+                int idx = scrollTop + i;
+                if (idx >= items.Count) break;
+
+                string row   = FormatRow(items[idx], bounds.Width - 2);
+                var    style = idx == cursor ? Theme.InputField : Theme.DialogFill;
+                _screen.Write(bounds.X + 1, bounds.Y + 1 + i, row, style);
+            }
+        });
 
         _screen.SetCursorVisible(false);
     }

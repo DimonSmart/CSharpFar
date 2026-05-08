@@ -6,7 +6,7 @@ Built with C# and .NET 10.
 
 ## Current status
 
-**Stage 19 + Spec 004 additions complete** — panel view modes, palettes, Far-like polish, settings dialog, column navigation, and stable Ctrl+O command line are implemented. 235 tests passing.
+**Stage 19 + Spec 008 additions complete** — panel view modes, palettes, Far-like polish, settings dialog, top menu overlay, popup/dialog shadows, column navigation, and stable Ctrl+O command line are implemented. 428 tests passing, 1 fixture verification skipped.
 
 ## Requirements
 
@@ -65,6 +65,7 @@ All configuration files (`settings.json`, `user-menu.json`, `history.json`) will
 | **F6** | Move / Rename |
 | **F7** | Create folder |
 | **F8** | Delete |
+| **F9** | Open top menu (`Left`, `Right`, `Options`) |
 | **F10** | Quit |
 | `Alt+F7` | Search files by mask |
 | `Alt+F8` | Command history |
@@ -74,7 +75,7 @@ All configuration files (`settings.json`, `user-menu.json`, `history.json`) will
 | `Ctrl+Q` | Quick view (file preview in inactive panel) |
 | `Alt+1` | Full view mode for active panel |
 | `Alt+2` | Brief two-column view mode for active panel |
-| `Ctrl+S` / `F9` | Settings: panel view modes and palette |
+| `Ctrl+S` | Settings: panel view modes and palette |
 
 ## Solution structure
 
@@ -121,7 +122,7 @@ CSharpFar.sln
 }
 ```
 
-Appearance can be changed from `Ctrl+S` / `F9`. Built-in palettes are `Default` and `FarClassic`; panel view modes are `Full` and `BriefTwoColumns`.
+Appearance can be changed from `Ctrl+S` or from `Options` in the `F9` top menu. Built-in palettes are `Default` and `FarClassic`; panel view modes are `Full` and `BriefTwoColumns`.
 
 `user-menu.json` defines custom commands accessible via `F2`. Placeholder tokens:
 
@@ -138,7 +139,7 @@ Appearance can be changed from `Ctrl+S` / `F9`. Built-in palettes are `Default` 
 - `Ctrl+Q` quick view does not refresh automatically on a background file system change — it updates on the next cursor move.
 - Search (`Alt+F7`) uses `Console.KeyAvailable` for Esc-to-cancel, which is not available in redirected console environments; in that case the search runs to completion.
 - The text editor does not support undo/redo.
-- No mouse support.
+- Mouse support is currently focused on panel item selection, scrolling, and the `F9` top menu.
 - Windows-only (Win32 P/Invoke for screen buffer snapshot used by Ctrl+O).
 
 ## Changelog

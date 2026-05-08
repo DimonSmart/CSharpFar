@@ -82,21 +82,18 @@ internal sealed class UserMenuDialog
         int fw   = DialogWidth - 4;
 
         var bounds = new Rect(dlgX, dlgY, DialogWidth, dlgH);
-        _screen.FillRegion(bounds, Theme.DialogFill);
-        _screen.DrawBox(bounds, Theme.DialogBorder);
-
-        const string title = " User Menu ";
-        _screen.Write(dlgX + (DialogWidth - title.Length) / 2, dlgY, title, Theme.DialogTitle);
-
-        for (int i = 0; i < visible; i++)
+        new DialogFrameRenderer().RenderFrame(_screen, bounds, "User Menu", false, Theme.DialogPopupOptions, (_, _) =>
         {
-            int idx = scrollTop + i;
-            if (idx >= items.Count) break;
+            for (int i = 0; i < visible; i++)
+            {
+                int idx = scrollTop + i;
+                if (idx >= items.Count) break;
 
-            string text  = Truncate(items[idx].Title, fw).PadRight(fw);
-            var    style = idx == cursor ? Theme.InputField : Theme.DialogFill;
-            _screen.Write(dlgX + 2, dlgY + 1 + i, text, style);
-        }
+                string text  = Truncate(items[idx].Title, fw).PadRight(fw);
+                var    style = idx == cursor ? Theme.InputField : Theme.DialogFill;
+                _screen.Write(dlgX + 2, dlgY + 1 + i, text, style);
+            }
+        });
 
         _screen.SetCursorVisible(false);
     }

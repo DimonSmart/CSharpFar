@@ -55,17 +55,14 @@ internal sealed class SaveChangesDialog
         int fw   = DialogWidth - 4;
 
         var bounds = new Rect(dlgX, dlgY, DialogWidth, DialogHeight);
-        _screen.FillRegion(bounds, Theme.DialogFill);
-        _screen.DrawBox(bounds, Theme.DialogBorder);
+        new DialogFrameRenderer().RenderFrame(_screen, bounds, "Save Changes?", false, Theme.DialogPopupOptions, (_, _) =>
+        {
+            string msg = Truncate($"\"{fileName}\" has been modified.", fw).PadRight(fw);
+            _screen.Write(dlgX + 2, dlgY + 1, msg, Theme.DialogFill);
 
-        const string title = " Save Changes? ";
-        _screen.Write(dlgX + (DialogWidth - title.Length) / 2, dlgY, title, Theme.DialogTitle);
-
-        string msg = Truncate($"\"{fileName}\" has been modified.", fw).PadRight(fw);
-        _screen.Write(dlgX + 2, dlgY + 1, msg, Theme.DialogFill);
-
-        const string buttons = "[S]ave   [D]iscard   [C]ancel";
-        _screen.Write(dlgX + (DialogWidth - buttons.Length) / 2, dlgY + 3, buttons, Theme.DialogFill);
+            const string buttons = "[S]ave   [D]iscard   [C]ancel";
+            _screen.Write(dlgX + (DialogWidth - buttons.Length) / 2, dlgY + 3, buttons, Theme.DialogFill);
+        });
     }
 
     private static string Truncate(string s, int maxLen) =>

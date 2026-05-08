@@ -1,0 +1,607 @@
+using System.Reflection;
+using CSharpFar.App;
+using CSharpFar.App.Menu;
+using CSharpFar.App.Rendering;
+using CSharpFar.Console;
+using CSharpFar.Console.Input;
+using CSharpFar.Console.Models;
+using CSharpFar.Core.Abstractions;
+using CSharpFar.Core.History;
+using CSharpFar.Core.Menu;
+using CSharpFar.Core.Models;
+using CSharpFar.Tests.Fakes;
+
+namespace CSharpFar.Tests;
+
+public sealed class Spec008MenuControllerTests
+{
+    [Fact]
+    public void F9_OpensLeftDropdown_WhenActivePanelIsLeft()
+    {
+        var state = new MenuState();
+        var controller = CreateController(state);
+
+        Assert.True(controller.HandleKey(Key(ConsoleKey.F9), Definition(), PanelSide.Left));
+
+        Assert.Equal(MenuOpenState.DropdownOpen, state.OpenState);
+        Assert.Equal(0, state.ActiveTopMenuIndex);
+        Assert.Equal(0, state.ActiveDropdownItemIndex);
+    }
+
+    [Fact]
+    public void F9_OpensRightDropdown_WhenActivePanelIsRight()
+    {
+        var state = new MenuState();
+        var controller = CreateController(state);
+
+        controller.HandleKey(Key(ConsoleKey.F9), Definition(), PanelSide.Right);
+
+        Assert.Equal(1, state.ActiveTopMenuIndex);
+    }
+
+    [Fact]
+    public void Esc_ClosesOpenMenu()
+    {
+        var state = OpenState();
+        var controller = CreateController(state);
+
+        controller.HandleKey(Key(ConsoleKey.Escape), Definition(), PanelSide.Left);
+
+        Assert.Equal(MenuOpenState.Closed, state.OpenState);
+    }
+
+    [Fact]
+    public void UpDown_SkipSeparatorsAndDisabledItems()
+    {
+        var state = OpenState();
+        var controller = CreateController(state);
+
+        controller.HandleKey(Key(ConsoleKey.DownArrow), Definition(), PanelSide.Left);
+
+        Assert.Equal(3, state.ActiveDropdownItemIndex);
+
+        controller.HandleKey(Key(ConsoleKey.UpArrow), Definition(), PanelSide.Left);
+
+        Assert.Equal(0, state.ActiveDropdownItemIndex);
+    }
+
+    [Fact]
+    public void Enter_ExecutesSelectedCommandAndClosesMenu()
+    {
+        var state = OpenState();
+        var executed = new List<string>();
+        var controller = CreateController(state, request => executed.Add(request.CommandId));
+
+        controller.HandleKey(Key(ConsoleKey.Enter), Definition(), PanelSide.Left);
+
+        Assert.Equal(["left.full"], executed);
+        Assert.Equal(MenuOpenState.Closed, state.OpenState);
+    }
+
+    [Fact]
+    public void Enter_OnDisabledItem_DoesNotExecute()
+    {
+        var state = OpenState();
+        state.ActiveDropdownItemIndex = 2;
+        int executed = 0;
+        var controller = CreateController(state, _ => executed++);
+
+        controller.HandleKey(Key(ConsoleKey.Enter), Definition(), PanelSide.Left);
+
+        Assert.Equal(0, executed);
+        Assert.Equal(MenuOpenState.DropdownOpen, state.OpenState);
+    }
+
+    [Fact]
+    public void Hotkey_ExecutesFirstMatchingEnabledDropdownItem()
+    {
+        var state = OpenState();
+        var executed = new List<string>();
+        var controller = CreateController(state, request => executed.Add(request.CommandId));
+
+        controller.HandleKey(new ConsoleKeyInfo('r', ConsoleKey.R, false, false, false), Definition(), PanelSide.Left);
+
+        Assert.Equal(["left.refresh"], executed);
+        Assert.Equal(MenuOpenState.Closed, state.OpenState);
+    }
+
+    [Fact]
+    public void Hotkey_ActivatesMatchingTopMenuItem()
+    {
+        var state = OpenState();
+        var controller = CreateController(state);
+
+        controller.HandleKey(new ConsoleKeyInfo('o', ConsoleKey.O, false, false, false), Definition(), PanelSide.Left);
+
+        Assert.Equal(2, state.ActiveTopMenuIndex);
+        Assert.Equal(MenuOpenState.DropdownOpen, state.OpenState);
+    }
+
+    [Fact]
+    public void Tab_SwitchesLeftAndRightMenus()
+    {
+        var definition = Definition();
+        var state = OpenState();
+        var controller = CreateController(state);
+
+        controller.HandleKey(Key(ConsoleKey.Tab), definition, PanelSide.Left);
+
+        Assert.Equal(1, state.ActiveTopMenuIndex);
+
+        controller.HandleKey(Key(ConsoleKey.Tab), definition, PanelSide.Left);
+
+        Assert.Equal(0, state.ActiveTopMenuIndex);
+    }
+
+    [Fact]
+    public void Tab_FromOptions_SwitchesToPassivePanelMenu()
+    {
+        var state = OpenState(topIndex: 2);
+        var controller = CreateController(state);
+
+        controller.HandleKey(Key(ConsoleKey.Tab), Definition(), PanelSide.Left);
+
+        Assert.Equal(1, state.ActiveTopMenuIndex);
+    }
+
+    [Fact]
+    public void MouseDown_OnTopItem_OpensThatDropdown()
+    {
+        var definition = Definition();
+        var state = new MenuState();
+        var controller = CreateController(state);
+        var layout = new MenuLayoutService().CalculateLayout(new Rect(0, 0, 80, 25), definition, state);
+
+        controller.HandleMouse(
+            new MouseConsoleInputEvent(layout.TopItemBounds[1].X + 1, 0, MouseButton.Left, MouseEventKind.Down, MouseKeyModifiers.None),
+            definition,
+            layout,
+            PanelSide.Left);
+
+        Assert.Equal(MenuOpenState.DropdownOpen, state.OpenState);
+        Assert.Equal(1, state.ActiveTopMenuIndex);
+    }
+
+    [Fact]
+    public void MouseDown_OnDropdownCommand_ExecutesCommand()
+    {
+        var definition = Definition();
+        var state = OpenState();
+        var executed = new List<string>();
+        var controller = CreateController(state, request => executed.Add(request.CommandId));
+        var layout = new MenuLayoutService().CalculateLayout(new Rect(0, 0, 80, 25), definition, state);
+        var dropdown = layout.DropdownBounds!.Value;
+
+        controller.HandleMouse(
+            new MouseConsoleInputEvent(dropdown.X + 1, dropdown.Y + 1, MouseButton.Left, MouseEventKind.Down, MouseKeyModifiers.None),
+            definition,
+            layout,
+            PanelSide.Left);
+
+        Assert.Equal(["left.full"], executed);
+        Assert.Equal(MenuOpenState.Closed, state.OpenState);
+    }
+
+    [Fact]
+    public void MouseDown_OutsideOpenMenu_ClosesMenu()
+    {
+        var definition = Definition();
+        var state = OpenState();
+        var controller = CreateController(state);
+        var layout = new MenuLayoutService().CalculateLayout(new Rect(0, 0, 80, 25), definition, state);
+
+        controller.HandleMouse(
+            new MouseConsoleInputEvent(79, 24, MouseButton.Left, MouseEventKind.Down, MouseKeyModifiers.None),
+            definition,
+            layout,
+            PanelSide.Left);
+
+        Assert.Equal(MenuOpenState.Closed, state.OpenState);
+    }
+
+    private static TopMenuController CreateController(MenuState state, Action<MenuCommandRequest>? execute = null) =>
+        new(state, request =>
+        {
+            execute?.Invoke(request);
+            return new MenuCommandResult { Success = true };
+        });
+
+    private static MenuState OpenState(int topIndex = 0) =>
+        new()
+        {
+            OpenState = MenuOpenState.DropdownOpen,
+            ActiveTopMenuIndex = topIndex,
+            ActiveDropdownItemIndex = 0,
+        };
+
+    private static ConsoleKeyInfo Key(ConsoleKey key) => new('\0', key, false, false, false);
+
+    private static MenuBarDefinition Definition() =>
+        new()
+        {
+            Items =
+            [
+                Top("Left", "left"),
+                Top("Right", "right"),
+                new TopMenuItemDefinition
+                {
+                    Id = "Options",
+                    Text = "Options",
+                    HotKey = 'O',
+                    Children =
+                    [
+                        new MenuItemDefinition
+                        {
+                            Id = "options.panel",
+                            Text = "Panel settings",
+                            HotKey = 'P',
+                            CommandId = "options.panel",
+                        },
+                    ],
+                },
+            ],
+        };
+
+    private static TopMenuItemDefinition Top(string text, string commandPrefix) =>
+        new()
+        {
+            Id = text,
+            Text = text,
+            HotKey = text[0],
+            Children =
+            [
+                new MenuItemDefinition
+                {
+                    Id = $"{commandPrefix}.full",
+                    Text = "Full mode",
+                    HotKey = 'F',
+                    CommandId = $"{commandPrefix}.full",
+                },
+                new MenuItemDefinition
+                {
+                    Id = $"{commandPrefix}.sep",
+                    Text = string.Empty,
+                    Kind = MenuItemKind.Separator,
+                    IsEnabled = false,
+                },
+                new MenuItemDefinition
+                {
+                    Id = $"{commandPrefix}.disabled",
+                    Text = "Disabled",
+                    HotKey = 'D',
+                    CommandId = $"{commandPrefix}.disabled",
+                    IsEnabled = false,
+                },
+                new MenuItemDefinition
+                {
+                    Id = $"{commandPrefix}.refresh",
+                    Text = "Refresh",
+                    HotKey = 'R',
+                    CommandId = $"{commandPrefix}.refresh",
+                },
+            ],
+        };
+}
+
+public sealed class Spec008MenuLayoutAndRenderingTests
+{
+    [Fact]
+    public void Layout_TopItems_AreInLeftRightOptionsOrder()
+    {
+        var layout = new MenuLayoutService().CalculateLayout(
+            new Rect(0, 0, 80, 25),
+            ProviderMenu(),
+            new MenuState());
+
+        Assert.Equal(3, layout.TopItemBounds.Count);
+        Assert.True(layout.TopItemBounds[0].X < layout.TopItemBounds[1].X);
+        Assert.True(layout.TopItemBounds[1].X < layout.TopItemBounds[2].X);
+    }
+
+    [Fact]
+    public void Layout_Dropdown_IsBelowActiveTopItemAndShiftsLeftAtScreenEdge()
+    {
+        var definition = ProviderMenu();
+        var state = new MenuState
+        {
+            OpenState = MenuOpenState.DropdownOpen,
+            ActiveTopMenuIndex = 2,
+        };
+
+        var layout = new MenuLayoutService().CalculateLayout(new Rect(0, 0, 24, 10), definition, state);
+
+        Assert.NotNull(layout.DropdownBounds);
+        Assert.Equal(1, layout.DropdownBounds!.Value.Y);
+        Assert.True(layout.DropdownBounds.Value.Right <= 24);
+    }
+
+    [Fact]
+    public void HitTest_DistinguishesTopDropdownBorderAndOutside()
+    {
+        var definition = ProviderMenu();
+        var state = new MenuState
+        {
+            OpenState = MenuOpenState.DropdownOpen,
+            ActiveTopMenuIndex = 0,
+        };
+        var layout = new MenuLayoutService().CalculateLayout(new Rect(0, 0, 80, 25), definition, state);
+        var tester = new MenuHitTester();
+        var dropdown = layout.DropdownBounds!.Value;
+
+        Assert.Equal(MenuHitTestKind.TopMenuItem,
+            tester.HitTest(1, 0, definition, state, layout).Kind);
+        Assert.Equal(MenuHitTestKind.DropdownBorder,
+            tester.HitTest(dropdown.X, dropdown.Y, definition, state, layout).Kind);
+        Assert.Equal(MenuHitTestKind.DropdownItem,
+            tester.HitTest(dropdown.X + 1, dropdown.Y + 1, definition, state, layout).Kind);
+        Assert.Equal(MenuHitTestKind.Outside,
+            tester.HitTest(79, 24, definition, state, layout).Kind);
+    }
+
+    [Fact]
+    public void PopupRenderer_DrawsShadowClippedByScreen()
+    {
+        var driver = new FakeConsoleDriver(width: 5, height: 4);
+        var screen = new ScreenRenderer(driver);
+        var renderer = new PopupRenderer();
+        var shadow = new CellStyle(ConsoleColor.Red, ConsoleColor.Yellow);
+
+        renderer.RenderPopup(
+            screen,
+            new Rect(2, 1, 2, 2),
+            new PopupRenderOptions
+            {
+                BorderStyle = new CellStyle(ConsoleColor.White, ConsoleColor.Blue),
+                BackgroundStyle = new CellStyle(ConsoleColor.White, ConsoleColor.Blue),
+                ShadowStyle = shadow,
+                DrawBorder = false,
+            },
+            (_, _) => { });
+
+        Assert.Equal(ConsoleColor.Yellow, driver.GetCell(4, 2).Background);
+        Assert.Equal(ConsoleColor.Yellow, driver.GetCell(4, 3).Background);
+    }
+
+    [Fact]
+    public void DropdownMenuRenderer_UsesPopupShadow()
+    {
+        var definition = ProviderMenu();
+        var state = new MenuState
+        {
+            OpenState = MenuOpenState.DropdownOpen,
+            ActiveTopMenuIndex = 0,
+        };
+        var layout = new MenuLayoutService().CalculateLayout(new Rect(0, 0, 80, 25), definition, state);
+        var driver = new FakeConsoleDriver(width: 80, height: 25);
+        var screen = new ScreenRenderer(driver);
+        var options = MenuOptions();
+        var dropdown = layout.DropdownBounds!.Value;
+
+        new DropdownMenuRenderer().Render(screen, definition, state, layout, options);
+
+        Assert.Equal(options.ShadowStyle.Background, driver.GetCell(dropdown.Right, dropdown.Y + 1).Background);
+    }
+
+    [Fact]
+    public void DialogFrameRenderer_UsesPopupShadow()
+    {
+        var driver = new FakeConsoleDriver(width: 20, height: 10);
+        var screen = new ScreenRenderer(driver);
+        var options = new PopupRenderOptions
+        {
+            BorderStyle = new CellStyle(ConsoleColor.White, ConsoleColor.Blue),
+            BackgroundStyle = new CellStyle(ConsoleColor.White, ConsoleColor.Blue),
+            ShadowStyle = new CellStyle(ConsoleColor.Red, ConsoleColor.Yellow),
+        };
+
+        new DialogFrameRenderer().RenderFrame(screen, new Rect(2, 1, 8, 4), "Title", false, options, (_, _) => { });
+
+        Assert.Equal(ConsoleColor.Yellow, driver.GetCell(10, 2).Background);
+    }
+
+    private static MenuRenderOptions MenuOptions() =>
+        new()
+        {
+            NormalStyle = new CellStyle(ConsoleColor.Black, ConsoleColor.Cyan),
+            ActiveStyle = new CellStyle(ConsoleColor.White, ConsoleColor.DarkBlue),
+            DisabledStyle = new CellStyle(ConsoleColor.DarkGray, ConsoleColor.Cyan),
+            BorderStyle = new CellStyle(ConsoleColor.Black, ConsoleColor.Cyan),
+            ShadowStyle = new CellStyle(ConsoleColor.Red, ConsoleColor.Yellow),
+        };
+
+    private static MenuBarDefinition ProviderMenu()
+    {
+        string temp = Path.GetTempPath();
+        var state = new FilePanelState { CurrentDirectory = temp };
+        return new DefaultMenuDefinitionProvider().BuildMenu(new MenuBuildContext
+        {
+            ActivePanelSide = PanelSide.Left,
+            LeftPanel = state,
+            RightPanel = state,
+            LeftViewMode = PanelViewMode.Full,
+            RightViewMode = PanelViewMode.BriefTwoColumns,
+            Settings = new AppSettings(),
+            CanSaveSettings = true,
+        });
+    }
+}
+
+public sealed class Spec008MenuProviderAndCommandTests : IDisposable
+{
+    private readonly string _tempDir;
+
+    public Spec008MenuProviderAndCommandTests()
+    {
+        _tempDir = Path.Combine(Path.GetTempPath(), $"CSharpFarSpec008_{Guid.NewGuid():N}");
+        Directory.CreateDirectory(_tempDir);
+    }
+
+    public void Dispose()
+    {
+        if (Directory.Exists(_tempDir))
+            Directory.Delete(_tempDir, recursive: true);
+    }
+
+    [Fact]
+    public void Provider_BuildsLeftRightOptionsWithoutWideMode()
+    {
+        var menu = BuildProviderMenu(canSaveSettings: false);
+
+        Assert.Equal(["Left", "Right", "Options"], menu.Items.Select(i => i.Text).ToArray());
+        Assert.DoesNotContain(menu.Items[0].Children, item => item.Text.Contains("Wide", StringComparison.OrdinalIgnoreCase));
+        Assert.DoesNotContain(menu.Items[2].Children, item => item.CommandId == MenuCommandIds.SettingsSave);
+    }
+
+    [Fact]
+    public void Provider_UsesExpectedPanelCommandArgsAndLabels()
+    {
+        var menu = BuildProviderMenu(canSaveSettings: true);
+        var left = menu.Items[0].Children;
+        var right = menu.Items[1].Children;
+
+        var leftBrief = left.Single(i => i.Text == "Brief mode");
+        var rightFull = right.Single(i => i.Text == "Full mode");
+        var lastWrite = left.Single(i => i.Text == "Sort by last write time");
+
+        Assert.Equal(PanelSide.Left, ((SetPanelViewModeArgs)leftBrief.CommandArgs!).PanelSide);
+        Assert.Equal(PanelViewMode.BriefTwoColumns, ((SetPanelViewModeArgs)leftBrief.CommandArgs!).ViewMode);
+        Assert.Equal(PanelSide.Right, ((SetPanelViewModeArgs)rightFull.CommandArgs!).PanelSide);
+        Assert.Equal(SortMode.LastWriteTime, ((SetPanelSortModeArgs)lastWrite.CommandArgs!).SortMode);
+        Assert.Contains(menu.Items[2].Children, item => item.CommandId == MenuCommandIds.SettingsSave);
+    }
+
+    [Fact]
+    public void Provider_DisablesRefreshWhenTargetDirectoryDoesNotExist()
+    {
+        var missing = new FilePanelState { CurrentDirectory = Path.Combine(_tempDir, "missing") };
+        var existing = new FilePanelState { CurrentDirectory = _tempDir };
+
+        var menu = new DefaultMenuDefinitionProvider().BuildMenu(new MenuBuildContext
+        {
+            ActivePanelSide = PanelSide.Left,
+            LeftPanel = missing,
+            RightPanel = existing,
+            LeftViewMode = PanelViewMode.Full,
+            RightViewMode = PanelViewMode.Full,
+            Settings = new AppSettings(),
+            CanSaveSettings = true,
+        });
+
+        Assert.False(menu.Items[0].Children.Single(i => i.Text == "Refresh").IsEnabled);
+        Assert.True(menu.Items[1].Children.Single(i => i.Text == "Refresh").IsEnabled);
+    }
+
+    [Fact]
+    public void Application_MenuCommand_TogglesHighlightFilesAndSaves()
+    {
+        int saveCount = 0;
+        var settings = new AppSettings();
+        var app = CreateApp(settings, () => saveCount++);
+
+        var result = Execute(app, new MenuCommandRequest
+        {
+            CommandId = MenuCommandIds.SettingsToggleHighlightFiles,
+        });
+
+        Assert.True(result.Success);
+        Assert.False(settings.Panels.FileHighlighting.Enabled);
+        Assert.Equal(1, saveCount);
+    }
+
+    [Fact]
+    public void Application_MenuCommand_SetRightBriefModeUpdatesSettings()
+    {
+        int saveCount = 0;
+        var settings = new AppSettings();
+        var app = CreateApp(settings, () => saveCount++);
+
+        var result = Execute(app, new MenuCommandRequest
+        {
+            CommandId = MenuCommandIds.PanelSetViewMode,
+            Args = new SetPanelViewModeArgs
+            {
+                PanelSide = PanelSide.Right,
+                ViewMode = PanelViewMode.BriefTwoColumns,
+            },
+        });
+
+        Assert.True(result.Success);
+        Assert.Equal("BriefTwoColumns", settings.Panels.RightViewMode);
+        Assert.Equal(1, saveCount);
+    }
+
+    private MenuBarDefinition BuildProviderMenu(bool canSaveSettings)
+    {
+        var left = new FilePanelState
+        {
+            CurrentDirectory = _tempDir,
+            SortMode = SortMode.LastWriteTime,
+            SortDescending = true,
+        };
+        var right = new FilePanelState { CurrentDirectory = _tempDir };
+        var settings = new AppSettings();
+        settings.Panels.Options.ShowHiddenAndSystemFiles = false;
+
+        return new DefaultMenuDefinitionProvider().BuildMenu(new MenuBuildContext
+        {
+            ActivePanelSide = PanelSide.Left,
+            LeftPanel = left,
+            RightPanel = right,
+            LeftViewMode = PanelViewMode.BriefTwoColumns,
+            RightViewMode = PanelViewMode.Full,
+            Settings = settings,
+            CanSaveSettings = canSaveSettings,
+        });
+    }
+
+    private Application CreateApp(AppSettings settings, Action? saveSettings)
+    {
+        var fs = new FakeFileSystemService();
+        fs.AddDirectory(_tempDir);
+        settings.Panels.LeftStartDirectory = _tempDir;
+        settings.Panels.RightStartDirectory = _tempDir;
+
+        return new Application(
+            new ScreenRenderer(new FakeConsoleDriver()),
+            fs,
+            new NoOpShellService(),
+            new NoOpFileOperationService(),
+            new InMemoryHistoryStore(),
+            settings,
+            saveSettings: saveSettings);
+    }
+
+    private static MenuCommandResult Execute(Application app, MenuCommandRequest request)
+    {
+        var method = typeof(Application).GetMethod("ExecuteMenuCommand", BindingFlags.Instance | BindingFlags.NonPublic)
+            ?? throw new InvalidOperationException("Application.ExecuteMenuCommand method not found.");
+
+        return (MenuCommandResult)method.Invoke(app, [request])!;
+    }
+
+    private sealed class NoOpShellService : IShellService
+    {
+        public void Execute(string command, string workingDirectory) { }
+    }
+
+    private sealed class NoOpFileOperationService : IFileOperationService
+    {
+        public Task CopyAsync(
+            IReadOnlyList<string> sources,
+            string destination,
+            Action<string>? onProgress = null,
+            Func<string, ConflictChoice>? onConflict = null,
+            CancellationToken cancellationToken = default) => Task.CompletedTask;
+
+        public Task MoveAsync(
+            IReadOnlyList<string> sources,
+            string destination,
+            Func<string, ConflictChoice>? onConflict = null,
+            CancellationToken cancellationToken = default) => Task.CompletedTask;
+
+        public Task DeleteAsync(IReadOnlyList<string> paths, CancellationToken cancellationToken = default) =>
+            Task.CompletedTask;
+
+        public void CreateDirectory(string path) { }
+    }
+}

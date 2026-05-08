@@ -140,37 +140,41 @@ internal sealed class SettingsDialog
         var title   = new CellStyle(palette.PanelTitleActiveFg,   palette.PanelTitleActiveBg);
         var focused = new CellStyle(palette.SelectedFg,           palette.SelectedBg);
 
-        _screen.FillRegion(bounds, fill);
-        _screen.DrawDoubleBox(bounds, border);
+        var popupOptions = new PopupRenderOptions
+        {
+            BorderStyle = border,
+            BackgroundStyle = fill,
+            ShadowStyle = new CellStyle(ConsoleColor.DarkGray, ConsoleColor.Black),
+            TitleStyle = title,
+        };
 
-        const string titleText = " Settings ";
-        int titleX = bounds.X + (bounds.Width - titleText.Length) / 2;
-        _screen.Write(titleX, bounds.Y, titleText, title);
+        new DialogFrameRenderer().RenderFrame(_screen, bounds, "Settings", true, popupOptions, (_, _) =>
+        {
+            int contentX = bounds.X + 3;
+            int valueX   = bounds.X + 18;
+            int valueW   = bounds.Width - 19;
 
-        int contentX = bounds.X + 3;
-        int valueX   = bounds.X + 18;
-        int valueW   = bounds.Width - 19;
+            DrawSettingRow(contentX, valueX, bounds.Y + 2, valueW,
+                "Left panel:", ViewModeLabel(ViewModes[leftIdx]),
+                focusRow == 0, fill, focused);
 
-        DrawSettingRow(contentX, valueX, bounds.Y + 2, valueW,
-            "Left panel:", ViewModeLabel(ViewModes[leftIdx]),
-            focusRow == 0, fill, focused);
+            DrawSettingRow(contentX, valueX, bounds.Y + 3, valueW,
+                "Right panel:", ViewModeLabel(ViewModes[rightIdx]),
+                focusRow == 1, fill, focused);
 
-        DrawSettingRow(contentX, valueX, bounds.Y + 3, valueW,
-            "Right panel:", ViewModeLabel(ViewModes[rightIdx]),
-            focusRow == 1, fill, focused);
+            DrawSettingRow(contentX, valueX, bounds.Y + 4, valueW,
+                "Palette:", PaletteNames[palIdx],
+                focusRow == 2, fill, focused);
 
-        DrawSettingRow(contentX, valueX, bounds.Y + 4, valueW,
-            "Palette:", PaletteNames[palIdx],
-            focusRow == 2, fill, focused);
+            DrawSettingRow(contentX, valueX, bounds.Y + 5, valueW,
+                "File highlight:", hlEnabled ? "Enabled" : "Disabled",
+                focusRow == 3, fill, focused);
 
-        DrawSettingRow(contentX, valueX, bounds.Y + 5, valueW,
-            "File highlight:", hlEnabled ? "Enabled" : "Disabled",
-            focusRow == 3, fill, focused);
-
-        _screen.Write(contentX, bounds.Y + 7,  "Enter/Space  change value", fill);
-        _screen.Write(contentX, bounds.Y + 8,  "Up/Down      select item",  fill);
-        _screen.Write(contentX, bounds.Y + 9,  "F10          save & close", fill);
-        _screen.Write(contentX, bounds.Y + 10, "Esc          close",        fill);
+            _screen.Write(contentX, bounds.Y + 7,  "Enter/Space  change value", fill);
+            _screen.Write(contentX, bounds.Y + 8,  "Up/Down      select item",  fill);
+            _screen.Write(contentX, bounds.Y + 9,  "F10          save & close", fill);
+            _screen.Write(contentX, bounds.Y + 10, "Esc          close",        fill);
+        });
     }
 
     private void DrawSettingRow(

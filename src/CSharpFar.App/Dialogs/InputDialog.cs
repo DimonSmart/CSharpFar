@@ -97,37 +97,28 @@ internal sealed class InputDialog
         int dlgY = Math.Max(0, (size.Height - DialogHeight) / 2);
         var bounds = new Rect(dlgX, dlgY, DialogWidth, DialogHeight);
 
-        _screen.FillRegion(bounds, Theme.DialogFill);
-        _screen.DrawBox(bounds, Theme.DialogBorder);
-
-        // Title centred in top border
-        string titleText = $" {title} ";
-        int titleX = dlgX + (DialogWidth - titleText.Length) / 2;
-        _screen.Write(titleX, dlgY, titleText, Theme.DialogTitle);
-
-        // Prompt label (row 1)
-        _screen.Write(dlgX + 2, dlgY + 1, prompt, Theme.DialogFill);
-
-        // Input field (row 2)
-        int fieldX     = dlgX + 2;
-        int fieldY     = dlgY + 2;
-        int fieldWidth = DialogWidth - 4;
-        DrawInputField(fieldX, fieldY, fieldWidth, buf);
-
-        // Error row (row 3 — empty padding if no error)
-        string errorText = error is not null
-            ? Truncate(error, fieldWidth).PadRight(fieldWidth)
-            : new string(' ', fieldWidth);
-        _screen.Write(fieldX, dlgY + 3, errorText, Theme.DialogError);
-
-        // Position cursor in input field
-        int visStart    = Math.Max(0, buf.CursorPosition - (fieldWidth - 1));
-        int cursorScreenX = fieldX + (buf.CursorPosition - visStart);
-        if (cursorScreenX < fieldX + fieldWidth)
+        new DialogFrameRenderer().RenderFrame(_screen, bounds, title, false, Theme.DialogPopupOptions, (_, _) =>
         {
-            _screen.SetCursorPosition(cursorScreenX, fieldY);
-            _screen.SetCursorVisible(true);
-        }
+            _screen.Write(dlgX + 2, dlgY + 1, prompt, Theme.DialogFill);
+
+            int fieldX     = dlgX + 2;
+            int fieldY     = dlgY + 2;
+            int fieldWidth = DialogWidth - 4;
+            DrawInputField(fieldX, fieldY, fieldWidth, buf);
+
+            string errorText = error is not null
+                ? Truncate(error, fieldWidth).PadRight(fieldWidth)
+                : new string(' ', fieldWidth);
+            _screen.Write(fieldX, dlgY + 3, errorText, Theme.DialogError);
+
+            int visStart = Math.Max(0, buf.CursorPosition - (fieldWidth - 1));
+            int cursorScreenX = fieldX + (buf.CursorPosition - visStart);
+            if (cursorScreenX < fieldX + fieldWidth)
+            {
+                _screen.SetCursorPosition(cursorScreenX, fieldY);
+                _screen.SetCursorVisible(true);
+            }
+        });
     }
 
     private void DrawInputField(int x, int y, int width, CommandLineState buf)

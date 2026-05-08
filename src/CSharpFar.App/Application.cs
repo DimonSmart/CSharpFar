@@ -1,5 +1,6 @@
 using CSharpFar.App.Dialogs;
 using CSharpFar.App.HitTesting;
+using CSharpFar.App.Menu;
 using CSharpFar.App.Rendering;
 using CSharpFar.App.Editor;
 using CSharpFar.App.Search;
@@ -12,6 +13,7 @@ using CSharpFar.Core.Abstractions;
 using CSharpFar.Core.Controllers;
 using CSharpFar.Core.Highlighting;
 using CSharpFar.Core.History;
+using CSharpFar.Core.Menu;
 using CSharpFar.Core.Models;
 using CSharpFar.Core.Services;
 using AppSettingsAlias = CSharpFar.Core.Models.AppSettings;
@@ -50,6 +52,12 @@ public sealed class Application
     private IFileSystemChangeWatcher?       _watcher;
     private IFileSystemLocationService?     _locationService;
     private CancellationTokenSource         _refreshCts = new();
+    private readonly MenuState              _menuState = new();
+    private readonly DefaultMenuDefinitionProvider _menuProvider = new();
+    private readonly MenuLayoutService      _menuLayoutService = new();
+    private readonly MenuBarRenderer        _menuBarRenderer = new();
+    private readonly DropdownMenuRenderer   _dropdownMenuRenderer = new();
+    private readonly TopMenuController      _menuController;
 
     public Application(
         ScreenRenderer         screen,
@@ -83,6 +91,7 @@ public sealed class Application
         _volumeService    = volumeService;
         _watcher          = changeWatcher;
         _locationService  = locationService;
+        _menuController   = new TopMenuController(_menuState, ExecuteMenuCommand);
 
         if (_watcher != null)
             _watcher.Changed += OnFileSystemChanged;
@@ -252,7 +261,12 @@ public sealed class Application
 
         new StatusBarRenderer(_screen, _palette).Render(size.Height - 1, size.Width);
 
-        PositionCommandCursor(cmdRenderer, size, panelH);
+        RenderMenuOverlay(size);
+
+        if (_menuState.OpenState == MenuOpenState.Closed)
+            PositionCommandCursor(cmdRenderer, size, panelH);
+        else
+            _screen.SetCursorVisible(false);
     }
 
     private static Rect GetRightPanelBounds(int screenWidth, int leftWidth, int rightWidth, int panelHeight)
@@ -306,6 +320,20 @@ public sealed class Application
         _screen.Write(size.Width - text.Length, 0, text, style);
     }
 
+    private void RenderMenuOverlay(ConsoleSize size)
+    {
+        if (_menuState.OpenState == MenuOpenState.Closed)
+            return;
+
+        var bounds = new Rect(0, 0, size.Width, size.Height);
+        var definition = BuildMenuDefinition();
+        var layout = _menuLayoutService.CalculateLayout(bounds, definition, _menuState);
+        var options = BuildMenuRenderOptions();
+
+        _menuBarRenderer.Render(_screen, bounds, definition, _menuState, layout, options);
+        _dropdownMenuRenderer.Render(_screen, definition, _menuState, layout, options);
+    }
+
     private bool HasConsoleSizeChanged()
     {
         if (!_lastRenderSize.HasValue)
@@ -348,6 +376,36 @@ public sealed class Application
                ((hasControl && key.Key == consoleKey) ||
                 key.KeyChar == controlChar);
     }
+
+    private static bool IsPlainFunctionKey(ConsoleKeyInfo key, ConsoleKey consoleKey) =>
+        key.Key == consoleKey && key.Modifiers == 0;
+
+    private static bool IsTopMenuActivationMouse(MouseConsoleInputEvent evt) =>
+        evt.Y == 0 &&
+        evt.Button == MouseButton.Left &&
+        (evt.Kind == MouseEventKind.Down || evt.Kind == MouseEventKind.Click);
+
+    private MenuBarDefinition BuildMenuDefinition() =>
+        _menuProvider.BuildMenu(new MenuBuildContext
+        {
+            ActivePanelSide = _active,
+            LeftPanel = _left,
+            RightPanel = _right,
+            LeftViewMode = _leftViewMode,
+            RightViewMode = _rightViewMode,
+            Settings = _settings,
+            CanSaveSettings = _saveSettings is not null,
+        });
+
+    private MenuRenderOptions BuildMenuRenderOptions() =>
+        new()
+        {
+            NormalStyle = new CellStyle(_palette.MenuNormalFg, _palette.MenuNormalBg),
+            ActiveStyle = new CellStyle(_palette.MenuActiveFg, _palette.MenuActiveBg),
+            DisabledStyle = new CellStyle(_palette.MenuDisabledFg, _palette.MenuDisabledBg),
+            BorderStyle = new CellStyle(_palette.MenuBorderFg, _palette.MenuBorderBg),
+            ShadowStyle = new CellStyle(_palette.MenuShadowFg, _palette.MenuShadowBg),
+        };
 
     private void PositionCommandCursor(CommandLineRenderer cmdRenderer, ConsoleSize size, int row)
     {
@@ -465,7 +523,21 @@ public sealed class Application
 
     private bool HandleMouse(MouseConsoleInputEvent evt)
     {
-        if (!_panelsVisible || _quickView) return false;
+        if (!_panelsVisible)
+            return false;
+
+        if (_menuState.OpenState != MenuOpenState.Closed || IsTopMenuActivationMouse(evt))
+        {
+            var definition = BuildMenuDefinition();
+            var size = _screen.GetSize();
+            var layout = _menuLayoutService.CalculateLayout(
+                new Rect(0, 0, size.Width, size.Height),
+                definition,
+                _menuState);
+            return _menuController.HandleMouse(evt, definition, layout, _active);
+        }
+
+        if (_quickView) return false;
 
         // Identify which panel was hit
         bool inLeft  = _leftBounds.Contains(evt.X,  evt.Y);
@@ -520,12 +592,26 @@ public sealed class Application
 
     private bool HandleKey(ConsoleKeyInfo key)
     {
+        if (_menuState.OpenState != MenuOpenState.Closed)
+        {
+            if (!_panelsVisible)
+            {
+                _menuController.Close();
+                return true;
+            }
+
+            return _menuController.HandleKey(key, BuildMenuDefinition(), _active);
+        }
+
         // Ctrl+O: toggle panels — check before printable-char routing
         if (IsPlainControlKey(key, ConsoleKey.O, '\u000f'))
             return TogglePanels();
 
         if (!_panelsVisible)
             return HandleHiddenCommandLineKey(key);
+
+        if (IsPlainFunctionKey(key, ConsoleKey.F9))
+            return _menuController.HandleKey(key, BuildMenuDefinition(), _active);
 
         // Ctrl+S: settings dialog
         if (IsPlainControlKey(key, ConsoleKey.S, '\u0013'))
@@ -734,10 +820,6 @@ public sealed class Application
 
             case ConsoleKey.F8:
                 HandleDelete();
-                return true;
-
-            case ConsoleKey.F9:
-                HandleSettings();
                 return true;
 
             case ConsoleKey.F10:
@@ -1215,11 +1297,81 @@ public sealed class Application
         _saveSettings?.Invoke();
     }
 
-    // ── Alt+1/Alt+2 — view mode ────────────────────────────────────────────────
-
-    private void SetActiveViewMode(PanelViewMode mode)
+    private MenuCommandResult ExecuteMenuCommand(MenuCommandRequest request)
     {
-        if (_active == PanelSide.Left)
+        switch (request.CommandId)
+        {
+            case MenuCommandIds.PanelSetViewMode:
+                if (request.Args is not SetPanelViewModeArgs viewArgs)
+                    return MenuCommandFailure("Missing panel view mode arguments.");
+                SetPanelViewMode(viewArgs.PanelSide, viewArgs.ViewMode);
+                return MenuCommandSuccess();
+
+            case MenuCommandIds.PanelSetSortMode:
+                if (request.Args is not SetPanelSortModeArgs sortArgs)
+                    return MenuCommandFailure("Missing panel sort arguments.");
+                _ctrl.SetSortMode(
+                    GetPanelState(sortArgs.PanelSide),
+                    sortArgs.SortMode,
+                    VisibleRows(sortArgs.PanelSide),
+                    PanelOptions);
+                return MenuCommandSuccess();
+
+            case MenuCommandIds.PanelToggleReverseSort:
+                if (request.Args is not PanelCommandArgs reverseArgs)
+                    return MenuCommandFailure("Missing panel arguments.");
+                ToggleReverseSort(reverseArgs.PanelSide);
+                return MenuCommandSuccess();
+
+            case MenuCommandIds.PanelRefresh:
+                if (request.Args is not PanelCommandArgs refreshArgs)
+                    return MenuCommandFailure("Missing panel arguments.");
+                SafeRefresh(GetPanelState(refreshArgs.PanelSide), VisibleRows(refreshArgs.PanelSide));
+                return MenuCommandSuccess();
+
+            case MenuCommandIds.SettingsOpenPanelSettings:
+                HandleSettings();
+                return MenuCommandSuccess();
+
+            case MenuCommandIds.SettingsToggleShowHiddenAndSystemFiles:
+                return ToggleSetting(() => PanelOptions.ShowHiddenAndSystemFiles = !PanelOptions.ShowHiddenAndSystemFiles);
+            case MenuCommandIds.SettingsToggleHighlightFiles:
+                return ToggleSetting(() =>
+                {
+                    _settings.Panels.FileHighlighting.Enabled = !_settings.Panels.FileHighlighting.Enabled;
+                    _highlightService = CreateHighlightService(_settings);
+                });
+            case MenuCommandIds.SettingsToggleSelectFolders:
+                return ToggleSetting(() => PanelOptions.SelectFolders = !PanelOptions.SelectFolders);
+            case MenuCommandIds.SettingsToggleRightClickSelectsFiles:
+                return ToggleSetting(() => PanelOptions.RightClickSelectsFiles = !PanelOptions.RightClickSelectsFiles);
+            case MenuCommandIds.SettingsToggleSortFoldersByExtension:
+                return ToggleSetting(() => PanelOptions.SortFoldersByExtension = !PanelOptions.SortFoldersByExtension);
+            case MenuCommandIds.SettingsToggleShowStatusLine:
+                return ToggleSetting(() => PanelOptions.ShowStatusLine = !PanelOptions.ShowStatusLine);
+            case MenuCommandIds.SettingsToggleShowFilesTotalInformation:
+                return ToggleSetting(() => PanelOptions.ShowFilesTotalInformation = !PanelOptions.ShowFilesTotalInformation);
+            case MenuCommandIds.SettingsToggleShowFreeSize:
+                return ToggleSetting(() => PanelOptions.ShowFreeSize = !PanelOptions.ShowFreeSize);
+            case MenuCommandIds.SettingsToggleShowScrollbar:
+                return ToggleSetting(() => PanelOptions.ShowScrollbar = !PanelOptions.ShowScrollbar);
+            case MenuCommandIds.SettingsToggleShowSortModeLetter:
+                return ToggleSetting(() => PanelOptions.ShowSortModeLetter = !PanelOptions.ShowSortModeLetter);
+            case MenuCommandIds.SettingsToggleShowParentDirectoryInRootFolders:
+                return ToggleSetting(() => PanelOptions.ShowParentDirectoryInRootFolders = !PanelOptions.ShowParentDirectoryInRootFolders);
+            case MenuCommandIds.SettingsSave:
+                if (_saveSettings is null)
+                    return MenuCommandFailure("Settings save callback is not available.");
+                _saveSettings();
+                return MenuCommandSuccess();
+            default:
+                return MenuCommandFailure($"Unsupported menu command: {request.CommandId}");
+        }
+    }
+
+    private void SetPanelViewMode(PanelSide side, PanelViewMode mode)
+    {
+        if (side == PanelSide.Left)
         {
             _leftViewMode = mode;
             _settings.Panels.LeftViewMode = mode.ToString();
@@ -1229,8 +1381,39 @@ public sealed class Application
             _rightViewMode = mode;
             _settings.Panels.RightViewMode = mode.ToString();
         }
-        _ctrl.MoveCursor(ActiveState, 0, VisibleRows());
+
+        _ctrl.MoveCursor(GetPanelState(side), 0, VisibleRows(side));
         _saveSettings?.Invoke();
+    }
+
+    private void ToggleReverseSort(PanelSide side)
+    {
+        var state = GetPanelState(side);
+        state.SortDescending = !state.SortDescending;
+        SafeRefresh(state, VisibleRows(side));
+    }
+
+    private MenuCommandResult ToggleSetting(Action toggle)
+    {
+        toggle();
+        RefreshPanels();
+        _saveSettings?.Invoke();
+        return MenuCommandSuccess();
+    }
+
+    private FilePanelState GetPanelState(PanelSide side) =>
+        side == PanelSide.Left ? _left : _right;
+
+    private static MenuCommandResult MenuCommandSuccess() => new() { Success = true };
+
+    private static MenuCommandResult MenuCommandFailure(string message) =>
+        new() { Success = false, ErrorMessage = message };
+
+    // ── Alt+1/Alt+2 — view mode ────────────────────────────────────────────────
+
+    private void SetActiveViewMode(PanelViewMode mode)
+    {
+        SetPanelViewMode(_active, mode);
     }
 
     // ── file highlighting ─────────────────────────────────────────────────────
