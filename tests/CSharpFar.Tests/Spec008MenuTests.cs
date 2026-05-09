@@ -402,10 +402,14 @@ public sealed class Spec008MenuLayoutAndRenderingTests
     private static MenuRenderOptions MenuOptions() =>
         new()
         {
-            NormalStyle = new CellStyle(ConsoleColor.Black, ConsoleColor.Cyan),
-            ActiveStyle = new CellStyle(ConsoleColor.White, ConsoleColor.DarkBlue),
-            DisabledStyle = new CellStyle(ConsoleColor.DarkGray, ConsoleColor.Cyan),
-            BorderStyle = new CellStyle(ConsoleColor.Black, ConsoleColor.Cyan),
+            MenuBarNormalStyle = new CellStyle(ConsoleColor.Black, ConsoleColor.DarkCyan),
+            MenuBarActiveStyle = new CellStyle(ConsoleColor.White, ConsoleColor.Black),
+            NormalStyle = new CellStyle(ConsoleColor.White, ConsoleColor.DarkCyan),
+            ActiveStyle = new CellStyle(ConsoleColor.White, ConsoleColor.Black),
+            HighlightStyle = new CellStyle(ConsoleColor.Yellow, ConsoleColor.DarkCyan),
+            ActiveHighlightStyle = new CellStyle(ConsoleColor.Yellow, ConsoleColor.Black),
+            DisabledStyle = new CellStyle(ConsoleColor.DarkGray, ConsoleColor.DarkCyan),
+            BorderStyle = new CellStyle(ConsoleColor.White, ConsoleColor.DarkCyan),
             ShadowStyle = new CellStyle(ConsoleColor.Red, ConsoleColor.Yellow),
         };
 

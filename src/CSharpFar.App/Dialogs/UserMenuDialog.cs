@@ -15,8 +15,13 @@ internal sealed class UserMenuDialog
     private const int MaxVisible  = 15;
 
     private readonly ScreenRenderer _screen;
+    private readonly ConsolePalette _palette;
 
-    public UserMenuDialog(ScreenRenderer screen) => _screen = screen;
+    public UserMenuDialog(ScreenRenderer screen, ConsolePalette? palette = null)
+    {
+        _screen = screen;
+        _palette = palette ?? PaletteRegistry.Default;
+    }
 
     public string? Show(IReadOnlyList<UserMenuItem> items)
     {
@@ -82,7 +87,7 @@ internal sealed class UserMenuDialog
         int fw   = DialogWidth - 4;
 
         var bounds = new Rect(dlgX, dlgY, DialogWidth, dlgH);
-        new DialogFrameRenderer().RenderFrame(_screen, bounds, "User Menu", false, Theme.DialogPopupOptions, (_, _) =>
+        new DialogFrameRenderer().RenderFrame(_screen, bounds, "User Menu", false, PaletteStyles.DialogPopupOptions(_palette), (_, _) =>
         {
             for (int i = 0; i < visible; i++)
             {
@@ -90,7 +95,7 @@ internal sealed class UserMenuDialog
                 if (idx >= items.Count) break;
 
                 string text  = Truncate(items[idx].Title, fw).PadRight(fw);
-                var    style = idx == cursor ? Theme.InputField : Theme.DialogFill;
+                var    style = idx == cursor ? PaletteStyles.InputField(_palette) : PaletteStyles.DialogFill(_palette);
                 _screen.Write(dlgX + 2, dlgY + 1 + i, text, style);
             }
         });

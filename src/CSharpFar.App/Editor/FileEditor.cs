@@ -14,21 +14,29 @@ namespace CSharpFar.App.Editor;
 internal sealed class FileEditor
 {
     private readonly ScreenRenderer _screen;
+    private readonly ConsolePalette _palette;
 
-    public FileEditor(ScreenRenderer screen) => _screen = screen;
+    public FileEditor(ScreenRenderer screen)
+        : this(screen, null) { }
+
+    public FileEditor(ScreenRenderer screen, ConsolePalette? palette)
+    {
+        _screen = screen;
+        _palette = palette ?? PaletteRegistry.Default;
+    }
 
     public void Show(string filePath)
     {
         if (!File.Exists(filePath))
         {
-            new MessageDialog(_screen).Show("Editor", "File not found.");
+            new MessageDialog(_screen, _palette).Show("Editor", "File not found.");
             return;
         }
 
         var info = new FileInfo(filePath);
         if (info.Length > TextFileReader.MaxFileSizeBytes)
         {
-            new MessageDialog(_screen).Show(
+            new MessageDialog(_screen, _palette).Show(
                 "Editor",
                 $"File too large (max {TextFileReader.MaxFileSizeBytes / 1024 / 1024} MB).");
             return;
@@ -37,7 +45,7 @@ internal sealed class FileEditor
         string[] lines;
         Encoding encoding;
         try   { (lines, encoding) = TextFileReader.ReadLinesAndEncoding(filePath); }
-        catch (Exception ex) { new MessageDialog(_screen).Show("Editor", ex.Message); return; }
+        catch (Exception ex) { new MessageDialog(_screen, _palette).Show("Editor", ex.Message); return; }
 
         var model = new EditorModel(lines);
 
@@ -111,7 +119,7 @@ internal sealed class FileEditor
     {
         if (!model.IsDirty) return true;
 
-        var choice = new SaveChangesDialog(_screen).Show(Path.GetFileName(filePath));
+        var choice = new SaveChangesDialog(_screen, _palette).Show(Path.GetFileName(filePath));
         switch (choice)
         {
             case SaveChangesChoice.Save:
@@ -133,7 +141,7 @@ internal sealed class FileEditor
         }
         catch (Exception ex)
         {
-            new MessageDialog(_screen).Show("Save Error", ex.Message);
+            new MessageDialog(_screen, _palette).Show("Save Error", ex.Message);
             return false;
         }
     }
@@ -149,7 +157,7 @@ internal sealed class FileEditor
         string posSection  = $" {model.CursorRow + 1}:{model.CursorCol + 1} ";
         int nameWidth = Math.Max(0, size.Width - posSection.Length);
         if (nameSection.Length > nameWidth) nameSection = nameSection[..nameWidth];
-        _screen.Write(0, 0, nameSection.PadRight(nameWidth) + posSection, Theme.PathHeaderActive);
+        _screen.Write(0, 0, nameSection.PadRight(nameWidth) + posSection, PaletteStyles.PathHeaderActive(_palette));
 
         // Content
         for (int i = 0; i < contentH; i++)
@@ -158,15 +166,15 @@ internal sealed class FileEditor
             string text = lineIdx < model.Lines.Count
                 ? FormatLine(model.Lines[lineIdx], scrollLeft, size.Width)
                 : new string(' ', size.Width);
-            _screen.Write(0, i + 1, text, Theme.CommandLine);
+            _screen.Write(0, i + 1, text, PaletteStyles.CommandLine(_palette));
         }
 
         // Footer key bar
-        _screen.FillRegion(new Rect(0, size.Height - 1, size.Width, 1), Theme.KeyBarLabel);
-        _screen.Write(0, size.Height - 1, "2",     Theme.KeyBarNum);
-        _screen.Write(1, size.Height - 1, "Save  ", Theme.KeyBarLabel);
-        _screen.Write(7, size.Height - 1, "10",    Theme.KeyBarNum);
-        _screen.Write(9, size.Height - 1, "Close", Theme.KeyBarLabel);
+        _screen.FillRegion(new Rect(0, size.Height - 1, size.Width, 1), PaletteStyles.KeyBarLabel(_palette));
+        _screen.Write(0, size.Height - 1, "2",     PaletteStyles.KeyBarNum(_palette));
+        _screen.Write(1, size.Height - 1, "Save  ", PaletteStyles.KeyBarLabel(_palette));
+        _screen.Write(7, size.Height - 1, "10",    PaletteStyles.KeyBarNum(_palette));
+        _screen.Write(9, size.Height - 1, "Close", PaletteStyles.KeyBarLabel(_palette));
 
         // Cursor
         int screenRow = 1 + (model.CursorRow - scrollTop);

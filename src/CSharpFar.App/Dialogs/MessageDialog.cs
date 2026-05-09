@@ -11,8 +11,13 @@ internal sealed class MessageDialog
     private const int DialogHeight = 5;
 
     private readonly ScreenRenderer _screen;
+    private readonly ConsolePalette _palette;
 
-    public MessageDialog(ScreenRenderer screen) => _screen = screen;
+    public MessageDialog(ScreenRenderer screen, ConsolePalette? palette = null)
+    {
+        _screen = screen;
+        _palette = palette ?? PaletteRegistry.Default;
+    }
 
     public void Show(string title, string message)
     {
@@ -43,12 +48,12 @@ internal sealed class MessageDialog
         int fw   = DialogWidth - 4;
 
         var bounds = new Rect(dlgX, dlgY, DialogWidth, DialogHeight);
-        new DialogFrameRenderer().RenderFrame(_screen, bounds, title, false, Theme.DialogPopupOptions, (_, _) =>
+        new DialogFrameRenderer().RenderFrame(_screen, bounds, title, false, PaletteStyles.DialogPopupOptions(_palette), (_, _) =>
         {
-            _screen.Write(dlgX + 2, dlgY + 1, Truncate(message, fw).PadRight(fw), Theme.DialogError);
+            _screen.Write(dlgX + 2, dlgY + 1, Truncate(message, fw).PadRight(fw), PaletteStyles.DialogError(_palette));
 
             const string hint = "[ Press Enter ]";
-            _screen.Write(dlgX + (DialogWidth - hint.Length) / 2, dlgY + 3, hint, Theme.DialogFill);
+            _screen.Write(dlgX + (DialogWidth - hint.Length) / 2, dlgY + 3, hint, PaletteStyles.DialogFill(_palette));
         });
     }
 

@@ -67,15 +67,53 @@ public sealed class DropdownMenuRenderer
                     : options.NormalStyle;
 
             string text = FormatItem(item);
+            int hotKeyIndex = FindHotKeyIndex(item);
             if (text.Length > contentBounds.Width)
                 text = text[..contentBounds.Width];
             else
                 text = text.PadRight(contentBounds.Width);
 
-            screen.Write(contentBounds.X, y, text, style);
+            if (!item.IsEnabled || hotKeyIndex < 0 || hotKeyIndex >= text.Length)
+            {
+                screen.Write(contentBounds.X, y, text, style);
+                continue;
+            }
+
+            var highlightStyle = i == activeIndex
+                ? options.ActiveHighlightStyle
+                : options.HighlightStyle;
+            WriteWithHotKey(screen, contentBounds.X, y, text, hotKeyIndex, style, highlightStyle);
         }
     }
 
     private static string FormatItem(MenuItemDefinition item) =>
         MenuLayoutService.DropdownPrefix(item) + item.Text;
+
+    private static int FindHotKeyIndex(MenuItemDefinition item)
+    {
+        if (!item.HotKey.HasValue)
+            return -1;
+
+        int index = item.Text.IndexOf(item.HotKey.Value, StringComparison.OrdinalIgnoreCase);
+        return index < 0 ? -1 : MenuLayoutService.DropdownPrefix(item).Length + index;
+    }
+
+    private static void WriteWithHotKey(
+        ScreenRenderer screen,
+        int x,
+        int y,
+        string text,
+        int hotKeyIndex,
+        CellStyle style,
+        CellStyle highlightStyle)
+    {
+        if (hotKeyIndex > 0)
+            screen.Write(x, y, text[..hotKeyIndex], style);
+
+        screen.Write(x + hotKeyIndex, y, text.AsSpan(hotKeyIndex, 1), highlightStyle);
+
+        int tailStart = hotKeyIndex + 1;
+        if (tailStart < text.Length)
+            screen.Write(x + tailStart, y, text[tailStart..], style);
+    }
 }

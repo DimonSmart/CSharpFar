@@ -11,12 +11,14 @@ internal sealed class ProgressDialog
     private const int DialogHeight = 4;
 
     private readonly ScreenRenderer _screen;
+    private readonly ConsolePalette _palette;
     private readonly string _destination;
 
-    public ProgressDialog(ScreenRenderer screen, string destination)
+    public ProgressDialog(ScreenRenderer screen, string destination, ConsolePalette? palette = null)
     {
         _screen      = screen;
         _destination = destination;
+        _palette = palette ?? PaletteRegistry.Default;
     }
 
     /// <summary>Redraws the progress box showing <paramref name="currentFile"/>.</summary>
@@ -28,11 +30,11 @@ internal sealed class ProgressDialog
         int fw   = DialogWidth - 4;
 
         var bounds = new Rect(dlgX, dlgY, DialogWidth, DialogHeight);
-        new DialogFrameRenderer().RenderFrame(_screen, bounds, "Copying", false, Theme.DialogPopupOptions, (_, _) =>
+        new DialogFrameRenderer().RenderFrame(_screen, bounds, "Copying", false, PaletteStyles.DialogPopupOptions(_palette), (_, _) =>
         {
             string destLine = Truncate("To: " + _destination, fw);
-            _screen.Write(dlgX + 2, dlgY + 1, destLine.PadRight(fw), Theme.DialogFill);
-            _screen.Write(dlgX + 2, dlgY + 2, Truncate(currentFile, fw).PadRight(fw), Theme.DialogFill);
+            _screen.Write(dlgX + 2, dlgY + 1, destLine.PadRight(fw), PaletteStyles.DialogFill(_palette));
+            _screen.Write(dlgX + 2, dlgY + 2, Truncate(currentFile, fw).PadRight(fw), PaletteStyles.DialogFill(_palette));
         });
     }
 

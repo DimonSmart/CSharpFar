@@ -30,18 +30,10 @@ internal sealed class StatusBarRenderer
     public StatusBarRenderer(ScreenRenderer screen, ConsolePalette? palette)
     {
         _screen = screen;
-        if (palette is not null)
-        {
-            _numStyle      = new CellStyle(palette.FunctionKeyNumFg,      palette.FunctionKeyNumBg);
-            _labelStyle    = new CellStyle(palette.FunctionKeyTextFg,     palette.FunctionKeyBarBg);
-            _gapStyle      = new CellStyle(palette.FunctionKeyTextFg,     palette.CommandLineBg);
-        }
-        else
-        {
-            _numStyle      = Theme.KeyBarNum;
-            _labelStyle    = Theme.KeyBarLabel;
-            _gapStyle      = Theme.CommandLine;
-        }
+        palette ??= PaletteRegistry.Default;
+        _numStyle      = PaletteStyles.KeyBarNum(palette);
+        _labelStyle    = PaletteStyles.KeyBarLabel(palette);
+        _gapStyle      = PaletteStyles.CommandLine(palette);
     }
 
     public void Render(int y, int totalWidth)

@@ -396,6 +396,69 @@ public sealed class ApplicationVolumeTests : IDisposable
         Assert.Equal(netPath, GetLeftPanel(app).CurrentDirectory);
     }
 
+    [Fact]
+    public void DriveDialog_RendersVolumeRowsWithFarLikeMenuColors()
+    {
+        var driver = new FakeConsoleDriver(width: 64, height: 18);
+        driver.EnqueueKey(new ConsoleKeyInfo('\0', ConsoleKey.Escape, shift: false, alt: false, control: false));
+
+        var screen = new ScreenRenderer(driver);
+        var items = new[]
+        {
+            new VolumeSelectionItem
+            {
+                Label = "C:",
+                Shortcut = "C",
+                Action = VolumeSelectionAction.OpenVolume,
+                Volume = new FileSystemVolume
+                {
+                    Id = "C:\\",
+                    DisplayName = "C:",
+                    RootPath = "C:\\",
+                    Kind = VolumeKind.Fixed,
+                    Status = VolumeStatus.Ready,
+                    TotalBytes = 2_000_000_000_000L,
+                    FreeBytes = 700_000_000_000L,
+                    Shortcut = "C",
+                },
+            },
+            new VolumeSelectionItem
+            {
+                Label = "D:",
+                Shortcut = "D",
+                Action = VolumeSelectionAction.OpenVolume,
+                Volume = new FileSystemVolume
+                {
+                    Id = "D:\\",
+                    DisplayName = "D:",
+                    RootPath = "D:\\",
+                    Kind = VolumeKind.Fixed,
+                    Status = VolumeStatus.Ready,
+                    Shortcut = "D",
+                },
+            },
+        };
+
+        new DriveDialog(screen).Show(items);
+
+        Assert.Contains(driver.WriteRecords,
+            r => r.Text == "C:      " &&
+                 r.Foreground == ConsoleColor.Yellow &&
+                 r.Background == ConsoleColor.Black);
+        Assert.Contains(driver.WriteRecords,
+            r => r.Text.Contains("fixed", StringComparison.Ordinal) &&
+                 r.Foreground == ConsoleColor.White &&
+                 r.Background == ConsoleColor.Black);
+        Assert.Contains(driver.WriteRecords,
+            r => r.Text == "D:      " &&
+                 r.Foreground == ConsoleColor.Yellow &&
+                 r.Background == ConsoleColor.DarkCyan);
+        Assert.Contains(driver.WriteRecords,
+            r => r.Text.Contains("Change drive", StringComparison.Ordinal) &&
+                 r.Foreground == ConsoleColor.White &&
+                 r.Background == ConsoleColor.DarkCyan);
+    }
+
     // ── KindLabel for Unchecked shows kind, not error (spec test #10) ─────────
 
     [Theory]

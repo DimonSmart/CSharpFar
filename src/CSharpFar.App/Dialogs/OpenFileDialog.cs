@@ -16,8 +16,13 @@ internal sealed class OpenFileDialog
     private const int DialogHeight = 5;
 
     private readonly ScreenRenderer _screen;
+    private readonly ConsolePalette _palette;
 
-    public OpenFileDialog(ScreenRenderer screen) => _screen = screen;
+    public OpenFileDialog(ScreenRenderer screen, ConsolePalette? palette = null)
+    {
+        _screen = screen;
+        _palette = palette ?? PaletteRegistry.Default;
+    }
 
     public OpenFileChoice Show(string fileName)
     {
@@ -54,13 +59,13 @@ internal sealed class OpenFileDialog
         int fw   = DialogWidth - 4;
 
         var bounds = new Rect(dlgX, dlgY, DialogWidth, DialogHeight);
-        new DialogFrameRenderer().RenderFrame(_screen, bounds, "Open File", false, Theme.DialogPopupOptions, (_, _) =>
+        new DialogFrameRenderer().RenderFrame(_screen, bounds, "Open File", false, PaletteStyles.DialogPopupOptions(_palette), (_, _) =>
         {
             string msg = Truncate($"Open \"{fileName}\" as:", fw).PadRight(fw);
-            _screen.Write(dlgX + 2, dlgY + 1, msg, Theme.DialogFill);
+            _screen.Write(dlgX + 2, dlgY + 1, msg, PaletteStyles.DialogFill(_palette));
 
             const string buttons = "[V]iew   [E]dit   [C]ancel";
-            _screen.Write(dlgX + (DialogWidth - buttons.Length) / 2, dlgY + 3, buttons, Theme.DialogFill);
+            _screen.Write(dlgX + (DialogWidth - buttons.Length) / 2, dlgY + 3, buttons, PaletteStyles.DialogFill(_palette));
         });
     }
 

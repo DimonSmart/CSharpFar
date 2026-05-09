@@ -12,8 +12,13 @@ internal sealed class ConflictDialog
     private const int DialogHeight = 5;
 
     private readonly ScreenRenderer _screen;
+    private readonly ConsolePalette _palette;
 
-    public ConflictDialog(ScreenRenderer screen) => _screen = screen;
+    public ConflictDialog(ScreenRenderer screen, ConsolePalette? palette = null)
+    {
+        _screen = screen;
+        _palette = palette ?? PaletteRegistry.Default;
+    }
 
     public ConflictChoice Show(string destPath)
     {
@@ -23,13 +28,13 @@ internal sealed class ConflictDialog
         int fw   = DialogWidth - 4;
 
         var bounds = new Rect(dlgX, dlgY, DialogWidth, DialogHeight);
-        new DialogFrameRenderer().RenderFrame(_screen, bounds, "File Already Exists", false, Theme.DialogPopupOptions, (_, _) =>
+        new DialogFrameRenderer().RenderFrame(_screen, bounds, "File Already Exists", false, PaletteStyles.DialogPopupOptions(_palette), (_, _) =>
         {
             string name = Path.GetFileName(destPath);
-            _screen.Write(dlgX + 2, dlgY + 1, Truncate(name, fw).PadRight(fw), Theme.DialogFill);
+            _screen.Write(dlgX + 2, dlgY + 1, Truncate(name, fw).PadRight(fw), PaletteStyles.DialogFill(_palette));
 
             const string buttons = "[O]verwrite   [S]kip   [C]ancel";
-            _screen.Write(dlgX + (DialogWidth - buttons.Length) / 2, dlgY + 3, buttons, Theme.DialogFill);
+            _screen.Write(dlgX + (DialogWidth - buttons.Length) / 2, dlgY + 3, buttons, PaletteStyles.DialogFill(_palette));
         });
 
         _screen.SetCursorVisible(false);

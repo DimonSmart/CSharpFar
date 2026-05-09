@@ -12,8 +12,13 @@ namespace CSharpFar.App.Viewer;
 internal sealed class HelpViewer
 {
     private readonly ScreenRenderer _screen;
+    private readonly ConsolePalette _palette;
 
-    public HelpViewer(ScreenRenderer screen) => _screen = screen;
+    public HelpViewer(ScreenRenderer screen, ConsolePalette? palette = null)
+    {
+        _screen = screen;
+        _palette = palette ?? PaletteRegistry.Default;
+    }
 
     public void Show()
     {
@@ -96,7 +101,7 @@ internal sealed class HelpViewer
         string       posStr   = lines.Length == 0 ? " 0/0 " : $" {scrollTop + 1}/{lines.Length} ";
         int          nameWidth = Math.Max(0, size.Width - posStr.Length);
         string       header    = title.PadRight(nameWidth)[..nameWidth] + posStr;
-        _screen.Write(0, 0, header, Theme.PathHeaderActive);
+        _screen.Write(0, 0, header, PaletteStyles.PathHeaderActive(_palette));
 
         // Content
         for (int i = 0; i < contentH; i++)
@@ -105,13 +110,13 @@ internal sealed class HelpViewer
             string text    = lineIdx < lines.Length
                 ? FormatLine(lines[lineIdx], scrollLeft, size.Width)
                 : new string(' ', size.Width);
-            _screen.Write(0, i + 1, text, Theme.CommandLine);
+            _screen.Write(0, i + 1, text, PaletteStyles.CommandLine(_palette));
         }
 
         // Footer key bar
-        _screen.FillRegion(new Rect(0, size.Height - 1, size.Width, 1), Theme.KeyBarLabel);
-        _screen.Write(0, size.Height - 1, "10", Theme.KeyBarNum);
-        _screen.Write(2, size.Height - 1, "Close", Theme.KeyBarLabel);
+        _screen.FillRegion(new Rect(0, size.Height - 1, size.Width, 1), PaletteStyles.KeyBarLabel(_palette));
+        _screen.Write(0, size.Height - 1, "10", PaletteStyles.KeyBarNum(_palette));
+        _screen.Write(2, size.Height - 1, "Close", PaletteStyles.KeyBarLabel(_palette));
     }
 
     private static string FormatLine(string line, int scrollLeft, int width)

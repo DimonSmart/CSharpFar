@@ -135,16 +135,16 @@ internal sealed class SettingsDialog
         using var frame = _screen.BeginFrame();
 
         var palette = PaletteRegistry.Resolve(PaletteNames[palIdx]);
-        var fill    = new CellStyle(palette.NormalFileFg,         palette.PanelBackground);
-        var border  = new CellStyle(palette.PanelBorderActiveFg,  palette.PanelBackground);
-        var title   = new CellStyle(palette.PanelTitleActiveFg,   palette.PanelTitleActiveBg);
-        var focused = new CellStyle(palette.SelectedFg,           palette.SelectedBg);
+        var fill    = new CellStyle(palette.MenuNormalFg, palette.MenuNormalBg);
+        var border  = new CellStyle(palette.MenuBorderFg, palette.MenuBorderBg);
+        var title   = new CellStyle(palette.MenuNormalFg, palette.MenuNormalBg);
+        var focused = new CellStyle(palette.MenuActiveFg, palette.MenuActiveBg);
 
         var popupOptions = new PopupRenderOptions
         {
             BorderStyle = border,
             BackgroundStyle = fill,
-            ShadowStyle = new CellStyle(ConsoleColor.DarkGray, ConsoleColor.Black),
+            ShadowStyle = new CellStyle(palette.MenuShadowFg, palette.MenuShadowBg),
             TitleStyle = title,
         };
 

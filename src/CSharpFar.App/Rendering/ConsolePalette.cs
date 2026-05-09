@@ -17,8 +17,6 @@ public sealed class ConsolePalette
     // ── Active panel ──────────────────────────────────────────────────────────
     public ConsoleColor PanelBorderActiveFg   { get; init; } = ConsoleColor.White;
     public ConsoleColor PanelTitleFocusedFg   { get; init; } = ConsoleColor.White;
-    public ConsoleColor PanelTitleActiveFg    { get; init; } = ConsoleColor.Black;
-    public ConsoleColor PanelTitleActiveBg    { get; init; } = ConsoleColor.Cyan;
     public ConsoleColor PanelPathActiveFg     { get; init; } = ConsoleColor.Black;
     public ConsoleColor PanelPathActiveBg     { get; init; } = ConsoleColor.DarkCyan;
     public ConsoleColor NormalFileFg          { get; init; } = ConsoleColor.White;
@@ -31,10 +29,6 @@ public sealed class ConsolePalette
     public ConsoleColor PanelBorderInactiveFg { get; init; } = ConsoleColor.DarkGray;
     public ConsoleColor PanelTitleInactiveFg  { get; init; } = ConsoleColor.DarkGray;
     public ConsoleColor NormalFileInactiveFg  { get; init; } = ConsoleColor.Gray;
-    public ConsoleColor DirectoryInactiveFg   { get; init; } = ConsoleColor.DarkCyan;
-    public ConsoleColor CursorInactiveFg      { get; init; } = ConsoleColor.Black;
-    public ConsoleColor CursorInactiveBg      { get; init; } = ConsoleColor.DarkGray;
-    public ConsoleColor FooterInactiveFg      { get; init; } = ConsoleColor.DarkGray;
 
     // ── Column header (BriefTwoColumns mode) ─────────────────────────────────
     public ConsoleColor ColumnHeaderFg        { get; init; } = ConsoleColor.White;
@@ -52,17 +46,26 @@ public sealed class ConsolePalette
     public ConsoleColor FunctionKeyNumFg      { get; init; } = ConsoleColor.White;
     public ConsoleColor FunctionKeyNumBg      { get; init; } = ConsoleColor.Black;
     public ConsoleColor FunctionKeyTextFg     { get; init; } = ConsoleColor.Black;
-    public ConsoleColor FunctionKeyOverflowFg { get; init; } = ConsoleColor.Red;
 
-    // Menu and popup windows
-    public ConsoleColor MenuNormalFg          { get; init; } = ConsoleColor.Black;
-    public ConsoleColor MenuNormalBg          { get; init; } = ConsoleColor.DarkBlue;
+    // Horizontal menu bar
+    public ConsoleColor MenuBarNormalFg       { get; init; } = ConsoleColor.Black;
+    public ConsoleColor MenuBarNormalBg       { get; init; } = ConsoleColor.DarkCyan;
+    public ConsoleColor MenuBarActiveFg       { get; init; } = ConsoleColor.White;
+    public ConsoleColor MenuBarActiveBg       { get; init; } = ConsoleColor.Black;
+
+    // Popup menus and menu-like dialogs, including the drive selection list
+    public ConsoleColor MenuNormalFg          { get; init; } = ConsoleColor.White;
+    public ConsoleColor MenuNormalBg          { get; init; } = ConsoleColor.DarkCyan;
     public ConsoleColor MenuActiveFg          { get; init; } = ConsoleColor.White;
-    public ConsoleColor MenuActiveBg          { get; init; } = ConsoleColor.DarkBlue;
+    public ConsoleColor MenuActiveBg          { get; init; } = ConsoleColor.Black;
+    public ConsoleColor MenuHighlightFg       { get; init; } = ConsoleColor.Yellow;
+    public ConsoleColor MenuHighlightBg       { get; init; } = ConsoleColor.DarkCyan;
+    public ConsoleColor MenuActiveHighlightFg { get; init; } = ConsoleColor.Yellow;
+    public ConsoleColor MenuActiveHighlightBg { get; init; } = ConsoleColor.Black;
     public ConsoleColor MenuDisabledFg        { get; init; } = ConsoleColor.DarkGray;
-    public ConsoleColor MenuDisabledBg        { get; init; } = ConsoleColor.DarkBlue;
-    public ConsoleColor MenuBorderFg          { get; init; } = ConsoleColor.Black;
-    public ConsoleColor MenuBorderBg          { get; init; } = ConsoleColor.DarkBlue;
+    public ConsoleColor MenuDisabledBg        { get; init; } = ConsoleColor.DarkCyan;
+    public ConsoleColor MenuBorderFg          { get; init; } = ConsoleColor.White;
+    public ConsoleColor MenuBorderBg          { get; init; } = ConsoleColor.DarkCyan;
     public ConsoleColor MenuShadowFg          { get; init; } = ConsoleColor.DarkGray;
     public ConsoleColor MenuShadowBg          { get; init; } = ConsoleColor.Black;
 }

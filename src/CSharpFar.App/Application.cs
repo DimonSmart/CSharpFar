@@ -405,8 +405,12 @@ public sealed class Application
     private MenuRenderOptions BuildMenuRenderOptions() =>
         new()
         {
+            MenuBarNormalStyle = new CellStyle(_palette.MenuBarNormalFg, _palette.MenuBarNormalBg),
+            MenuBarActiveStyle = new CellStyle(_palette.MenuBarActiveFg, _palette.MenuBarActiveBg),
             NormalStyle = new CellStyle(_palette.MenuNormalFg, _palette.MenuNormalBg),
             ActiveStyle = new CellStyle(_palette.MenuActiveFg, _palette.MenuActiveBg),
+            HighlightStyle = new CellStyle(_palette.MenuHighlightFg, _palette.MenuHighlightBg),
+            ActiveHighlightStyle = new CellStyle(_palette.MenuActiveHighlightFg, _palette.MenuActiveHighlightBg),
             DisabledStyle = new CellStyle(_palette.MenuDisabledFg, _palette.MenuDisabledBg),
             BorderStyle = new CellStyle(_palette.MenuBorderFg, _palette.MenuBorderBg),
             ShadowStyle = new CellStyle(_palette.MenuShadowFg, _palette.MenuShadowBg),
@@ -832,7 +836,7 @@ public sealed class Application
 
             // ── Help ─────────────────────────────────────────────────────────
             case ConsoleKey.F1:
-                new HelpViewer(_screen).Show();
+                new HelpViewer(_screen, _palette).Show();
                 return true;
 
             // ── User menu ────────────────────────────────────────────────────
@@ -954,7 +958,7 @@ public sealed class Application
         var item = _ctrl.CurrentItem(ActiveState);
         if (item is null || item.IsParentDirectory || item.IsDirectory) return;
         _history.AddFile(new FileHistoryItem { Path = item.FullPath });
-        new FileEditor(_screen).Show(item.FullPath);
+        new FileEditor(_screen, _palette).Show(item.FullPath);
         SafeRefresh(ActiveState, VisibleRows());
     }
 
@@ -965,32 +969,32 @@ public sealed class Application
         var item = _ctrl.CurrentItem(ActiveState);
         if (item is null || item.IsParentDirectory || item.IsDirectory) return;
         _history.AddFile(new FileHistoryItem { Path = item.FullPath });
-        new FileViewer(_screen).Show(item.FullPath);
+        new FileViewer(_screen, _palette).Show(item.FullPath);
     }
 
     // ── Alt+F11 — file history ────────────────────────────────────────────────
 
     private void HandleFileHistory()
     {
-        string? path = new FileHistoryDialog(_screen).Show(_history.GetFileHistory());
+        string? path = new FileHistoryDialog(_screen, _palette).Show(_history.GetFileHistory());
         if (path is null) return;
 
         if (!File.Exists(path))
         {
-            new MessageDialog(_screen).Show("File History", $"File not found: {path}");
+            new MessageDialog(_screen, _palette).Show("File History", $"File not found: {path}");
             return;
         }
 
-        var choice = new OpenFileDialog(_screen).Show(Path.GetFileName(path));
+        var choice = new OpenFileDialog(_screen, _palette).Show(Path.GetFileName(path));
         switch (choice)
         {
             case OpenFileChoice.View:
                 _history.AddFile(new FileHistoryItem { Path = path });
-                new FileViewer(_screen).Show(path);
+                new FileViewer(_screen, _palette).Show(path);
                 break;
             case OpenFileChoice.Edit:
                 _history.AddFile(new FileHistoryItem { Path = path });
-                new FileEditor(_screen).Show(path);
+                new FileEditor(_screen, _palette).Show(path);
                 SafeRefresh(ActiveState, VisibleRows());
                 break;
         }
@@ -1002,12 +1006,12 @@ public sealed class Application
     {
         if (_userMenu.Items.Count == 0)
         {
-            new MessageDialog(_screen).Show(
+            new MessageDialog(_screen, _palette).Show(
                 "User Menu", "User menu is empty.\nEdit user-menu.json to add commands.");
             return;
         }
 
-        string? command = new UserMenuDialog(_screen).Show(_userMenu.Items);
+        string? command = new UserMenuDialog(_screen, _palette).Show(_userMenu.Items);
         if (command is null) return;
 
         var item = _ctrl.CurrentItem(ActiveState);
@@ -1029,20 +1033,20 @@ public sealed class Application
 
     private void HandleSearchFiles()
     {
-        string? mask = new InputDialog(_screen).Show(
+        string? mask = new InputDialog(_screen, _palette).Show(
             "Search Files", "File mask (e.g. *.cs):", initialText: "*");
         if (mask is null) return;
 
         string rootDir = ActiveState.CurrentDirectory;
-        var results = new SearchProgressDialog(_screen).Show(rootDir, mask);
+        var results = new SearchProgressDialog(_screen, _palette).Show(rootDir, mask);
 
         if (results.Count == 0)
         {
-            new MessageDialog(_screen).Show("Search", "No files found.");
+            new MessageDialog(_screen, _palette).Show("Search", "No files found.");
             return;
         }
 
-        string? selected = new SearchResultsDialog(_screen).Show(results);
+        string? selected = new SearchResultsDialog(_screen, _palette).Show(results);
         if (selected is null) return;
 
         string? parentDir = Path.GetDirectoryName(selected);
@@ -1057,7 +1061,7 @@ public sealed class Application
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
-            new MessageDialog(_screen).Show("Search", ex.Message);
+            new MessageDialog(_screen, _palette).Show("Search", ex.Message);
         }
     }
 
@@ -1081,7 +1085,7 @@ public sealed class Application
         var otherDir = (_active == PanelSide.Left ? _right : _left).CurrentDirectory;
         string label = $"Copy {sources.Count} item{(sources.Count == 1 ? "" : "s")} to:";
 
-        string? destDir = new InputDialog(_screen).Show("Copy", label, initialText: otherDir);
+        string? destDir = new InputDialog(_screen, _palette).Show("Copy", label, initialText: otherDir);
         if (destDir is null) return;
 
         var size  = _screen.GetSize();
@@ -1089,8 +1093,8 @@ public sealed class Application
 
         try
         {
-            var progress  = new ProgressDialog(_screen, destDir);
-            var conflicts = new ConflictDialog(_screen);
+            var progress  = new ProgressDialog(_screen, destDir, _palette);
+            var conflicts = new ConflictDialog(_screen, _palette);
 
             _fileOps.CopyAsync(
                 sources,
@@ -1105,7 +1109,7 @@ public sealed class Application
         catch (Exception ex)
         {
             _screen.Restore(saved);
-            new MessageDialog(_screen).Show("Copy Error", ex.Message);
+            new MessageDialog(_screen, _palette).Show("Copy Error", ex.Message);
         }
         finally
         {
@@ -1130,7 +1134,7 @@ public sealed class Application
 
         string label = sources.Count == 1 ? "Move / Rename to:" : $"Move {sources.Count} items to:";
 
-        string? dest = new InputDialog(_screen).Show("Move", label, initialText: preFill);
+        string? dest = new InputDialog(_screen, _palette).Show("Move", label, initialText: preFill);
         if (dest is null) return;
 
         var size  = _screen.GetSize();
@@ -1138,7 +1142,7 @@ public sealed class Application
 
         try
         {
-            var conflicts = new ConflictDialog(_screen);
+            var conflicts = new ConflictDialog(_screen, _palette);
             _fileOps.MoveAsync(
                 sources, dest,
                 onConflict: destPath => conflicts.Show(destPath))
@@ -1150,7 +1154,7 @@ public sealed class Application
         catch (Exception ex)
         {
             _screen.Restore(saved);
-            new MessageDialog(_screen).Show("Move Error", ex.Message);
+            new MessageDialog(_screen, _palette).Show("Move Error", ex.Message);
         }
         finally
         {
@@ -1171,7 +1175,7 @@ public sealed class Application
             ? $"Delete \"{Path.GetFileName(sources[0])}\"?"
             : $"Delete {sources.Count} items?";
 
-        if (_settings.Ui.ConfirmDelete && !new ConfirmDialog(_screen).Show("Delete", prompt))
+        if (_settings.Ui.ConfirmDelete && !new ConfirmDialog(_screen, _palette).Show("Delete", prompt))
             return;
 
         var size  = _screen.GetSize();
@@ -1186,7 +1190,7 @@ public sealed class Application
         catch (Exception ex)
         {
             _screen.Restore(saved);
-            new MessageDialog(_screen).Show("Delete Error", ex.Message);
+            new MessageDialog(_screen, _palette).Show("Delete Error", ex.Message);
         }
         finally
         {
@@ -1200,12 +1204,12 @@ public sealed class Application
 
     private void HandleDirectoryHistory()
     {
-        string? path = new DirectoryHistoryDialog(_screen).Show(_history.GetDirectoryHistory());
+        string? path = new DirectoryHistoryDialog(_screen, _palette).Show(_history.GetDirectoryHistory());
         if (path is null) return;
 
         if (!Directory.Exists(path))
         {
-            new MessageDialog(_screen).Show("Directory History", $"Directory not found: {path}");
+            new MessageDialog(_screen, _palette).Show("Directory History", $"Directory not found: {path}");
             return;
         }
 
@@ -1216,7 +1220,7 @@ public sealed class Application
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
-            new MessageDialog(_screen).Show("Directory History", ex.Message);
+            new MessageDialog(_screen, _palette).Show("Directory History", ex.Message);
         }
     }
 
@@ -1239,7 +1243,7 @@ public sealed class Application
 
         int initialCursor = FindInitialCursor(items, targetState.CurrentDirectory);
 
-        var selected = new DriveDialog(_screen).Show(items, initialCursor);
+        var selected = new DriveDialog(_screen, _palette).Show(items, initialCursor);
         if (selected is null) return;
 
         var vol = selected.Volume!;
@@ -1254,7 +1258,7 @@ public sealed class Application
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
-            new MessageDialog(_screen).Show("Change drive", ex.Message);
+            new MessageDialog(_screen, _palette).Show("Change drive", ex.Message);
         }
     }
 
@@ -1287,7 +1291,7 @@ public sealed class Application
 
     private void HandleCommandHistory()
     {
-        string? cmd = new HistoryDialog(_screen).Show(_history.GetCommandHistory());
+        string? cmd = new HistoryDialog(_screen, _palette).Show(_history.GetCommandHistory());
         if (cmd is not null)
             _cmdLine.SetText(cmd);
     }
@@ -1296,7 +1300,7 @@ public sealed class Application
 
     private void HandleCreateFolder()
     {
-        var dialog = new InputDialog(_screen);
+        var dialog = new InputDialog(_screen, _palette);
         string? name = dialog.Show("Make Folder", "Folder name:", validate: attempt =>
         {
             if (attempt.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0)
@@ -1635,7 +1639,7 @@ public sealed class Application
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
-            new MessageDialog(_screen).Show("Navigation", ex.Message);
+            new MessageDialog(_screen, _palette).Show("Navigation", ex.Message);
         }
     }
 
@@ -1651,7 +1655,7 @@ public sealed class Application
                   InvalidOperationException or
                   System.ComponentModel.Win32Exception)
         {
-            new MessageDialog(_screen).Show("Open file", ex.Message);
+            new MessageDialog(_screen, _palette).Show("Open file", ex.Message);
         }
     }
 
@@ -1665,7 +1669,7 @@ public sealed class Application
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
-            new MessageDialog(_screen).Show("Navigation", ex.Message);
+            new MessageDialog(_screen, _palette).Show("Navigation", ex.Message);
         }
     }
 

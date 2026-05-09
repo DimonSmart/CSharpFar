@@ -19,14 +19,19 @@ internal sealed class DriveDialog
     private const int SizeColW  = 9;
 
     private readonly ScreenRenderer _screen;
+    private readonly ConsolePalette _palette;
 
-    public DriveDialog(ScreenRenderer screen) => _screen = screen;
+    public DriveDialog(ScreenRenderer screen, ConsolePalette? palette = null)
+    {
+        _screen = screen;
+        _palette = palette ?? PaletteRegistry.Default;
+    }
 
     public VolumeSelectionItem? Show(IReadOnlyList<VolumeSelectionItem> items, int initialCursor = 0)
     {
         if (items.Count == 0)
         {
-            new MessageDialog(_screen).Show("Change drive", "No volumes found.");
+            new MessageDialog(_screen, _palette).Show("Change drive", "No volumes found.");
             return null;
         }
 
@@ -124,7 +129,7 @@ internal sealed class DriveDialog
                             VolumeStatus.Disconnected => "disconnected",
                             _                        => "error",
                         };
-                        new MessageDialog(_screen).Show(
+                        new MessageDialog(_screen, _palette).Show(
                             "Change drive",
                             $"{vol.DisplayName}: volume is {statusText}.");
                         // Restore the drive dialog background after MessageDialog closes
@@ -209,42 +214,66 @@ internal sealed class DriveDialog
     {
         using var frame = _screen.BeginFrame();
 
-        new DialogFrameRenderer().RenderFrame(_screen, bounds, "Change drive", true, Theme.DialogPopupOptions, (_, _) =>
+        new DialogFrameRenderer().RenderFrame(_screen, bounds, "Change drive", true, PaletteStyles.DialogPopupOptions(_palette), (_, _) =>
         {
             const string hint = " Enter  Esc ";
             int hintX = bounds.X + (bounds.Width - hint.Length) / 2;
-            _screen.Write(hintX, bounds.Y + bounds.Height - 1, hint, Theme.DialogTitle);
+            _screen.Write(hintX, bounds.Y + bounds.Height - 1, hint, PaletteStyles.DialogTitle(_palette));
 
             for (int i = 0; i < visible; i++)
             {
                 int idx = scrollTop + i;
                 if (idx >= items.Count) break;
 
-                string row   = FormatRow(items[idx], bounds.Width - 2);
-                var    style = idx == cursor ? Theme.InputField : Theme.DialogFill;
-                _screen.Write(bounds.X + 1, bounds.Y + 1 + i, row, style);
+                WriteRow(
+                    items[idx],
+                    bounds.X + 1,
+                    bounds.Y + 1 + i,
+                    bounds.Width - 2,
+                    idx == cursor);
             }
         });
 
         _screen.SetCursorVisible(false);
     }
 
-    private static string FormatRow(VolumeSelectionItem item, int innerWidth)
+    private void WriteRow(VolumeSelectionItem item, int x, int y, int innerWidth, bool isCursor)
     {
+        if (innerWidth <= 0)
+            return;
+
+        var normalStyle = isCursor ? PaletteStyles.InputField(_palette) : PaletteStyles.DialogFill(_palette);
+        var highlightStyle = isCursor ? PaletteStyles.InputHighlight(_palette) : PaletteStyles.DialogHighlight(_palette);
+
         string displayName = item.Volume?.DisplayName ?? item.Label;
-        string kindStr     = item.Volume != null
+        string kindStr = item.Volume != null
             ? KindLabel(item.Volume.Kind, item.Volume.Status)
             : "";
 
         string nameCol = Fit(displayName, NameColW);
-        string kindCol = Fit(kindStr,     KindColW);
+        string kindCol = Fit(kindStr, KindColW);
         string sizeCol = BuildSizeCol(item.Volume);
+        string suffix = $" {kindCol} {sizeCol} ";
 
-        // Layout: " " + name(8) + " " + kind(12) + " " + sizes(20) + " " = 1+8+1+12+1+20+1 = 44
-        string row = $" {nameCol} {kindCol} {sizeCol} ";
-        return row.Length <= innerWidth
-            ? row.PadRight(innerWidth)
-            : row[..innerWidth];
+        _screen.Write(x, y, " ", normalStyle);
+        int written = 1;
+
+        if (written < innerWidth)
+        {
+            string text = TruncateToWidth(nameCol, innerWidth - written);
+            _screen.Write(x + written, y, text, highlightStyle);
+            written += text.Length;
+        }
+
+        if (written < innerWidth)
+        {
+            string text = TruncateToWidth(suffix, innerWidth - written);
+            _screen.Write(x + written, y, text, normalStyle);
+            written += text.Length;
+        }
+
+        if (written < innerWidth)
+            _screen.Write(x + written, y, new string(' ', innerWidth - written), normalStyle);
     }
 
     private static string BuildSizeCol(FileSystemVolume? vol)
@@ -289,6 +318,9 @@ internal sealed class DriveDialog
     /// <summary>Pads or truncates <paramref name="s"/> to exactly <paramref name="width"/> chars.</summary>
     private static string Fit(string s, int width) =>
         s.Length <= width ? s.PadRight(width) : s[..width];
+
+    private static string TruncateToWidth(string text, int width) =>
+        text.Length <= width ? text : text[..width];
 
     /// <summary>
     /// Formats a byte count in Far-like style: e.g. 659 G, 21,2 G, 1,86 T.

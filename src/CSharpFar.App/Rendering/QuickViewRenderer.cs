@@ -21,18 +21,11 @@ public sealed class QuickViewRenderer
     public QuickViewRenderer(ScreenRenderer screen, ConsolePalette? palette = null)
     {
         _screen = screen;
-        if (palette is not null)
-        {
-            _fillStyle   = new CellStyle(palette.NormalFileInactiveFg, palette.PanelBackground);
-            _borderStyle = new CellStyle(palette.PanelBorderInactiveFg, palette.PanelBackground);
-            _titleStyle  = new CellStyle(palette.PanelTitleInactiveFg,  palette.PanelBackground);
-        }
-        else
-        {
-            _fillStyle   = Theme.PanelFillInactive;
-            _borderStyle = Theme.PanelBorderInactive;
-            _titleStyle  = Theme.PathHeaderInactive;
-        }
+        palette ??= PaletteRegistry.Default;
+
+        _fillStyle   = new CellStyle(palette.NormalFileInactiveFg, palette.PanelBackground);
+        _borderStyle = new CellStyle(palette.PanelBorderInactiveFg, palette.PanelBackground);
+        _titleStyle  = new CellStyle(palette.PanelTitleInactiveFg,  palette.PanelBackground);
     }
 
     public void Render(Rect bounds, FilePanelItem? item)

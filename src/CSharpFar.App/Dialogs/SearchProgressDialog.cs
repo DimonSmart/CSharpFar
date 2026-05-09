@@ -17,8 +17,13 @@ internal sealed class SearchProgressDialog
     private const int DialogHeight = 5;
 
     private readonly ScreenRenderer _screen;
+    private readonly ConsolePalette _palette;
 
-    public SearchProgressDialog(ScreenRenderer screen) => _screen = screen;
+    public SearchProgressDialog(ScreenRenderer screen, ConsolePalette? palette = null)
+    {
+        _screen = screen;
+        _palette = palette ?? PaletteRegistry.Default;
+    }
 
     public IReadOnlyList<string> Show(string rootDir, string mask)
     {
@@ -64,15 +69,15 @@ internal sealed class SearchProgressDialog
         int fw = DialogWidth - 4;
 
         var bounds = new Rect(x, y, DialogWidth, DialogHeight);
-        new DialogFrameRenderer().RenderFrame(_screen, bounds, "Search", false, Theme.DialogPopupOptions, (_, _) =>
+        new DialogFrameRenderer().RenderFrame(_screen, bounds, "Search", false, PaletteStyles.DialogPopupOptions(_palette), (_, _) =>
         {
             string dir  = Truncate($"In: {rootDir}", fw).PadRight(fw);
             string stat = $"Found: {count} file{(count == 1 ? "" : "s")}".PadRight(fw);
-            _screen.Write(x + 2, y + 1, dir,  Theme.DialogFill);
-            _screen.Write(x + 2, y + 2, stat, Theme.DialogFill);
+            _screen.Write(x + 2, y + 1, dir,  PaletteStyles.DialogFill(_palette));
+            _screen.Write(x + 2, y + 2, stat, PaletteStyles.DialogFill(_palette));
 
             const string hint = "Esc to cancel";
-            _screen.Write(x + (DialogWidth - hint.Length) / 2, y + 3, hint, Theme.DialogFill);
+            _screen.Write(x + (DialogWidth - hint.Length) / 2, y + 3, hint, PaletteStyles.DialogFill(_palette));
         });
     }
 

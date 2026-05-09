@@ -15,8 +15,13 @@ internal sealed class InputDialog
     private const int DialogHeight = 6;
 
     private readonly ScreenRenderer _screen;
+    private readonly ConsolePalette _palette;
 
-    public InputDialog(ScreenRenderer screen) => _screen = screen;
+    public InputDialog(ScreenRenderer screen, ConsolePalette? palette = null)
+    {
+        _screen = screen;
+        _palette = palette ?? PaletteRegistry.Default;
+    }
 
     /// <summary>
     /// Shows the dialog and returns the entered text, or <c>null</c> if the user pressed Esc.
@@ -97,9 +102,9 @@ internal sealed class InputDialog
         int dlgY = Math.Max(0, (size.Height - DialogHeight) / 2);
         var bounds = new Rect(dlgX, dlgY, DialogWidth, DialogHeight);
 
-        new DialogFrameRenderer().RenderFrame(_screen, bounds, title, false, Theme.DialogPopupOptions, (_, _) =>
+        new DialogFrameRenderer().RenderFrame(_screen, bounds, title, false, PaletteStyles.DialogPopupOptions(_palette), (_, _) =>
         {
-            _screen.Write(dlgX + 2, dlgY + 1, prompt, Theme.DialogFill);
+            _screen.Write(dlgX + 2, dlgY + 1, prompt, PaletteStyles.DialogFill(_palette));
 
             int fieldX     = dlgX + 2;
             int fieldY     = dlgY + 2;
@@ -109,7 +114,7 @@ internal sealed class InputDialog
             string errorText = error is not null
                 ? Truncate(error, fieldWidth).PadRight(fieldWidth)
                 : new string(' ', fieldWidth);
-            _screen.Write(fieldX, dlgY + 3, errorText, Theme.DialogError);
+            _screen.Write(fieldX, dlgY + 3, errorText, PaletteStyles.DialogError(_palette));
 
             int visStart = Math.Max(0, buf.CursorPosition - (fieldWidth - 1));
             int cursorScreenX = fieldX + (buf.CursorPosition - visStart);
@@ -130,7 +135,7 @@ internal sealed class InputDialog
         string visible = text.Length > start ? text[start..] : string.Empty;
         if (visible.Length > width) visible = visible[..width];
 
-        _screen.Write(x, y, visible.PadRight(width), Theme.InputField);
+        _screen.Write(x, y, visible.PadRight(width), PaletteStyles.InputField(_palette));
     }
 
     private static string Truncate(string s, int maxLen) =>

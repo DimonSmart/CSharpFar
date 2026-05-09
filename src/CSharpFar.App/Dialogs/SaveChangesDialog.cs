@@ -16,8 +16,13 @@ internal sealed class SaveChangesDialog
     private const int DialogHeight = 5;
 
     private readonly ScreenRenderer _screen;
+    private readonly ConsolePalette _palette;
 
-    public SaveChangesDialog(ScreenRenderer screen) => _screen = screen;
+    public SaveChangesDialog(ScreenRenderer screen, ConsolePalette? palette = null)
+    {
+        _screen = screen;
+        _palette = palette ?? PaletteRegistry.Default;
+    }
 
     public SaveChangesChoice Show(string fileName)
     {
@@ -55,13 +60,13 @@ internal sealed class SaveChangesDialog
         int fw   = DialogWidth - 4;
 
         var bounds = new Rect(dlgX, dlgY, DialogWidth, DialogHeight);
-        new DialogFrameRenderer().RenderFrame(_screen, bounds, "Save Changes?", false, Theme.DialogPopupOptions, (_, _) =>
+        new DialogFrameRenderer().RenderFrame(_screen, bounds, "Save Changes?", false, PaletteStyles.DialogPopupOptions(_palette), (_, _) =>
         {
             string msg = Truncate($"\"{fileName}\" has been modified.", fw).PadRight(fw);
-            _screen.Write(dlgX + 2, dlgY + 1, msg, Theme.DialogFill);
+            _screen.Write(dlgX + 2, dlgY + 1, msg, PaletteStyles.DialogFill(_palette));
 
             const string buttons = "[S]ave   [D]iscard   [C]ancel";
-            _screen.Write(dlgX + (DialogWidth - buttons.Length) / 2, dlgY + 3, buttons, Theme.DialogFill);
+            _screen.Write(dlgX + (DialogWidth - buttons.Length) / 2, dlgY + 3, buttons, PaletteStyles.DialogFill(_palette));
         });
     }
 

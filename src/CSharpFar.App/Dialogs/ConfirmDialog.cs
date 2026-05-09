@@ -11,8 +11,13 @@ internal sealed class ConfirmDialog
     private const int DialogHeight = 5;
 
     private readonly ScreenRenderer _screen;
+    private readonly ConsolePalette _palette;
 
-    public ConfirmDialog(ScreenRenderer screen) => _screen = screen;
+    public ConfirmDialog(ScreenRenderer screen, ConsolePalette? palette = null)
+    {
+        _screen = screen;
+        _palette = palette ?? PaletteRegistry.Default;
+    }
 
     /// <summary>
     /// Draws the dialog and waits for input.
@@ -53,12 +58,12 @@ internal sealed class ConfirmDialog
         int fw   = DialogWidth - 4;
 
         var bounds = new Rect(dlgX, dlgY, DialogWidth, DialogHeight);
-        new DialogFrameRenderer().RenderFrame(_screen, bounds, title, false, Theme.DialogPopupOptions, (_, _) =>
+        new DialogFrameRenderer().RenderFrame(_screen, bounds, title, false, PaletteStyles.DialogPopupOptions(_palette), (_, _) =>
         {
-            _screen.Write(dlgX + 2, dlgY + 1, Truncate(prompt, fw).PadRight(fw), Theme.DialogFill);
+            _screen.Write(dlgX + 2, dlgY + 1, Truncate(prompt, fw).PadRight(fw), PaletteStyles.DialogFill(_palette));
 
             const string buttons = "[D]elete   [C]ancel";
-            _screen.Write(dlgX + (DialogWidth - buttons.Length) / 2, dlgY + 3, buttons, Theme.DialogFill);
+            _screen.Write(dlgX + (DialogWidth - buttons.Length) / 2, dlgY + 3, buttons, PaletteStyles.DialogFill(_palette));
         });
     }
 

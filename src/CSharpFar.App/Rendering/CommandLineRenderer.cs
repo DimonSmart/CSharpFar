@@ -12,9 +12,8 @@ internal sealed class CommandLineRenderer
     public CommandLineRenderer(ScreenRenderer screen, ConsolePalette? palette = null)
     {
         _screen = screen;
-        _style  = palette is not null
-            ? new CellStyle(palette.CommandLineFg, palette.CommandLineBg)
-            : Theme.CommandLine;
+        palette ??= PaletteRegistry.Default;
+        _style  = PaletteStyles.CommandLine(palette);
     }
 
     public void Render(int y, int totalWidth, string currentDirectory, CommandLineState state)
