@@ -1,7 +1,9 @@
 # NNNN SPEC Short title
 
 Type: spec
-Status: draft
+
+Replaces:
+- none
 
 Related:
 - none
@@ -46,8 +48,6 @@ dotnet test
 ```
 
 ## Outcome
-
-Status: not implemented yet
 
 Implementation summary:
 

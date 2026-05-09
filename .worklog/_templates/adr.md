@@ -1,12 +1,11 @@
 # NNNN ADR Short title
 
 Type: adr
-Status: draft
 
-Related:
+Replaces:
 - none
 
-Supersedes:
+Related:
 - none
 
 ## Context
@@ -38,8 +37,6 @@ Positive:
 Negative:
 
 ## Outcome
-
-Status: not implemented yet
 
 Implementation summary:
 

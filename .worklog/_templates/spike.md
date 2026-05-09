@@ -1,7 +1,9 @@
 # NNNN SPIKE Short title
 
 Type: spike
-Status: draft
+
+Replaces:
+- none
 
 Related:
 - none

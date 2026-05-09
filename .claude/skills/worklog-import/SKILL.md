@@ -1,10 +1,6 @@
 ---
 name: worklog-import
-description: Import existing specs/docs/planning documents from an explicitly provided SOURCE_FOLDER into .worklog. Use only when invoked manually by the user as /worklog-import <SOURCE_FOLDER>. SOURCE_FOLDER is required; if it is missing, ask for it and do not inspect or move source files.
-disable-model-invocation: true
-argument-hint: "<SOURCE_FOLDER>"
-arguments:
-  - SOURCE_FOLDER
+description: Import existing specs/docs/planning documents from an explicitly provided SOURCE_FOLDER into .worklog. Use only when invoked manually by the user as /worklog-import SOURCE_FOLDER. SOURCE_FOLDER is required; if it is missing, ask for it and do not inspect or move source files.
 ---
 
 # Worklog import
@@ -26,12 +22,6 @@ This command requires one positional argument:
 - `SOURCE_FOLDER`: path to the folder to import.
 
 The first positional argument is the only source folder.
-
-The value of `SOURCE_FOLDER` is:
-
-```text
-$SOURCE_FOLDER
-```
 
 `SOURCE_FOLDER` is mandatory.
 
@@ -119,9 +109,9 @@ If `docs/worklog-method.md` does not exist, report that the methodology file is 
 3. Include plain text files only if the user explicitly asks to import plain text or `.txt` files.
 4. Ignore generated files, binaries, images, archives, build artifacts, hidden dependency folders, and nested dependency folders.
 5. Determine the next `NNNN` number after existing numbered `.worklog` documents.
-6. For each source document, choose one type: `spec`, `task`, `adr`, or `spike`.
+6. For each source document, choose one type: `spec`, `adr`, or `spike`.
 7. Create a short kebab-case title from the existing file name or document heading.
-8. Rename or move each document to `.worklog/NNNN.type-short-title.md`.
+8. Rename or move each document to `.worklog/NNNN.type-short-title.active.md` unless the user explicitly says it is historical.
 9. Preserve ordering by prioritizing explicit source numbering first, followed by dates. If neither is present, use stable path sort.
 10. Report the old path to new path mapping.
 
@@ -146,14 +136,14 @@ Ignore:
 - dependency folders such as `node_modules`, `.nuget`, `packages`, `bin`, `obj`, `dist`, `build`, `.git`
 - temporary files
 - editor backup files
-- files that are clearly not planning, specification, decision, task, or research documents
+- files that are clearly not planning, specification, decision, or research documents
+- small local task notes or fixes that belong in commit messages
 
 ## Classification
 
 Use exactly one of these document types:
 
 - `spec`: feature specs, requirements, behavior descriptions, or user-visible capability plans.
-- `task`: concrete implementation notes or local fixes with non-obvious intent.
 - `adr`: decisions, alternatives, tradeoffs, accepted approaches, or library choices.
 - `spike`: research notes, experiments, feasibility checks, or open technical questions.
 
@@ -166,23 +156,25 @@ Do not invent a classification only to complete the import.
 Target file name format:
 
 ```text
-.worklog/NNNN.type-short-title.md
+.worklog/NNNN.type-short-title.lifecycle.md
 ```
 
 Where:
 
 - `NNNN` is a four-digit sequence number.
-- `type` is one of `spec`, `task`, `adr`, or `spike`.
+- `type` is one of `spec`, `adr`, or `spike`.
 - `short-title` is a kebab-case label; `type` and `short-title` are joined by a hyphen.
+- `lifecycle` is `active` or `retired`.
 - The extension is `.md`.
+
+Use `.active.md` for current requirements, decisions, and investigations. Use `.retired.md` only for documents the user explicitly identifies as historical or replaced.
 
 Examples:
 
 ```text
-.worklog/0007.spec-console-rendering.md
-.worklog/0008.adr-double-buffering.md
-.worklog/0009.spike-terminal-flickering.md
-.worklog/0010.task-fix-copy-operation.md
+.worklog/0007.spec-console-rendering.active.md
+.worklog/0008.adr-double-buffering.active.md
+.worklog/0009.spike-terminal-flickering.retired.md
 ```
 
 ## Ordering
@@ -207,6 +199,7 @@ Do not reorder documents based on guessed importance.
 - Use normal filesystem move only for untracked files.
 - Do not edit document content unless the user explicitly asks to normalize sections.
 - Do not create numbered work documents for product-neutral small changes that belong in commit messages.
+- Do not create numbered work documents for micro-changes or changes fully explained by the diff and commit message.
 
 ## Safety rules
 
