@@ -441,18 +441,23 @@ public sealed class ApplicationVolumeTests : IDisposable
 
         new DriveDialog(screen).Show(items);
 
+        string text = string.Join(Environment.NewLine, driver.WriteRecords.Select(r => r.Text));
+        Assert.Contains("Disk", text);
+        Assert.Contains("Free", text);
+        Assert.Contains("Total", text);
+        Assert.Contains('│', text);
+        Assert.Contains('┼', text);
+        Assert.Contains('╔', text);
+        string topFrameRow = driver.WriteRecords.First(r => r.Text.Contains('╔')).Text;
+        int topFrameX = topFrameRow.IndexOf('╔');
+        Assert.True(topFrameX > 0);
+        Assert.Equal(' ', topFrameRow[topFrameX - 1]);
         Assert.Contains(driver.WriteRecords,
-            r => r.Text == "C:      " &&
-                 r.Foreground == ConsoleColor.Yellow &&
-                 r.Background == ConsoleColor.Black);
+            r => r.Text.Contains("C: fixed", StringComparison.Ordinal) &&
+                 r.Foreground == ConsoleColor.Yellow);
         Assert.Contains(driver.WriteRecords,
-            r => r.Text.Contains("fixed", StringComparison.Ordinal) &&
-                 r.Foreground == ConsoleColor.White &&
-                 r.Background == ConsoleColor.Black);
-        Assert.Contains(driver.WriteRecords,
-            r => r.Text == "D:      " &&
-                 r.Foreground == ConsoleColor.Yellow &&
-                 r.Background == ConsoleColor.DarkCyan);
+            r => r.Text.Contains("D: fixed", StringComparison.Ordinal) &&
+                 r.Foreground == ConsoleColor.Yellow);
         Assert.Contains(driver.WriteRecords,
             r => r.Text.Contains("Change drive", StringComparison.Ordinal) &&
                  r.Foreground == ConsoleColor.White &&
@@ -592,17 +597,11 @@ public sealed class ApplicationVolumeTests : IDisposable
 
     private sealed class NoOpFileOperationService : IFileOperationService
     {
-        public Task CopyAsync(IReadOnlyList<string> sources, string destination,
-            Action<string>? onProgress = null, Func<string, ConflictChoice>? onConflict = null,
-            CancellationToken cancellationToken = default) => Task.CompletedTask;
-
-        public Task MoveAsync(IReadOnlyList<string> sources, string destination,
-            Func<string, ConflictChoice>? onConflict = null,
-            CancellationToken cancellationToken = default) => Task.CompletedTask;
-
-        public Task DeleteAsync(IReadOnlyList<string> paths,
-            CancellationToken cancellationToken = default) => Task.CompletedTask;
-
-        public void CreateDirectory(string path) { }
+        public Task<FileOperationResult> ExecuteAsync(
+            FileOperationRequest request,
+            IProgress<FileOperationProgress>? progress,
+            IFileOperationConflictResolver conflictResolver,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult(new FileOperationResult { Kind = request.Kind, Errors = [] });
     }
 }

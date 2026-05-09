@@ -11,15 +11,14 @@ namespace CSharpFar.App.Dialogs;
 /// </summary>
 internal sealed class DriveDialog
 {
-    private const int DialogWidth = 46;
+    private const int DialogWidth = 48;
 
-    // Inner row column widths: 1 + 8 + 1 + 12 + 1 + 9 + 2 + 9 + 1 = 44
-    private const int NameColW  = 8;
-    private const int KindColW  = 12;
-    private const int SizeColW  = 9;
+    private const int DiskColW = 18;
+    private const int SizeColW = 10;
 
     private readonly ScreenRenderer _screen;
     private readonly ConsolePalette _palette;
+    private readonly ModalDialogRenderer _modalRenderer = new();
 
     public DriveDialog(ScreenRenderer screen, ConsolePalette? palette = null)
     {
@@ -52,7 +51,7 @@ internal sealed class DriveDialog
     {
         int maxVisible = Math.Max(1, size.Height - 6);
         int visible    = Math.Min(items.Count, maxVisible);
-        int dlgH       = visible + 2;
+        int dlgH       = visible + 6;
         int dlgX       = Math.Max(0, (size.Width  - DialogWidth) / 2);
         int dlgY       = Math.Max(0, (size.Height - dlgH)        / 2);
         var bounds     = new Rect(dlgX, dlgY, DialogWidth, dlgH);
@@ -214,11 +213,16 @@ internal sealed class DriveDialog
     {
         using var frame = _screen.BeginFrame();
 
-        new DialogFrameRenderer().RenderFrame(_screen, bounds, "Change drive", true, PaletteStyles.DialogPopupOptions(_palette), (_, _) =>
+        _modalRenderer.Render(_screen, bounds, "Change drive", true, DriveOuterOptions, DriveFrameOptions, (_, layout) =>
         {
+            Rect frameBounds = layout.FrameBounds;
+            Rect contentBounds = layout.ContentBounds;
             const string hint = " Enter  Esc ";
-            int hintX = bounds.X + (bounds.Width - hint.Length) / 2;
-            _screen.Write(hintX, bounds.Y + bounds.Height - 1, hint, PaletteStyles.DialogTitle(_palette));
+            int hintX = frameBounds.X + (frameBounds.Width - hint.Length) / 2;
+            _screen.Write(hintX, frameBounds.Y + frameBounds.Height - 1, hint, PaletteStyles.DialogTitle(_palette));
+
+            WriteHeader(contentBounds.X, contentBounds.Y, contentBounds.Width);
+            WriteTableSeparator(contentBounds.X, contentBounds.Y + 1, contentBounds.Width);
 
             for (int i = 0; i < visible; i++)
             {
@@ -227,14 +231,36 @@ internal sealed class DriveDialog
 
                 WriteRow(
                     items[idx],
-                    bounds.X + 1,
-                    bounds.Y + 1 + i,
-                    bounds.Width - 2,
+                    contentBounds.X,
+                    contentBounds.Y + 2 + i,
+                    contentBounds.Width,
                     idx == cursor);
             }
         });
 
         _screen.SetCursorVisible(false);
+    }
+
+    private void WriteHeader(int x, int y, int width)
+    {
+        string header =
+            Fit("Disk", DiskColW) +
+            " │ " +
+            Fit("Free", SizeColW) +
+            " │ " +
+            Fit("Total", SizeColW);
+        _screen.Write(x, y, TruncateToWidth(header, width).PadRight(width), PaletteStyles.DialogTitle(_palette));
+    }
+
+    private void WriteTableSeparator(int x, int y, int width)
+    {
+        string separator =
+            new string('─', DiskColW) +
+            "─┼─" +
+            new string('─', SizeColW) +
+            "─┼─" +
+            new string('─', SizeColW);
+        _screen.Write(x, y, TruncateToWidth(separator, width).PadRight(width), PaletteStyles.DialogBorder(_palette));
     }
 
     private void WriteRow(VolumeSelectionItem item, int x, int y, int innerWidth, bool isCursor)
@@ -250,43 +276,40 @@ internal sealed class DriveDialog
             ? KindLabel(item.Volume.Kind, item.Volume.Status)
             : "";
 
-        string nameCol = Fit(displayName, NameColW);
-        string kindCol = Fit(kindStr, KindColW);
-        string sizeCol = BuildSizeCol(item.Volume);
-        string suffix = $" {kindCol} {sizeCol} ";
+        string diskCol = Fit($"{displayName} {kindStr}".Trim(), DiskColW);
+        var (freeCol, totalCol) = BuildSizeCols(item.Volume);
 
-        _screen.Write(x, y, " ", normalStyle);
-        int written = 1;
+        WriteSegment(ref x, y, ref innerWidth, diskCol, highlightStyle);
+        WriteSegment(ref x, y, ref innerWidth, " │ ", normalStyle);
+        WriteSegment(ref x, y, ref innerWidth, freeCol, normalStyle);
+        WriteSegment(ref x, y, ref innerWidth, " │ ", normalStyle);
+        WriteSegment(ref x, y, ref innerWidth, totalCol, normalStyle);
 
-        if (written < innerWidth)
-        {
-            string text = TruncateToWidth(nameCol, innerWidth - written);
-            _screen.Write(x + written, y, text, highlightStyle);
-            written += text.Length;
-        }
-
-        if (written < innerWidth)
-        {
-            string text = TruncateToWidth(suffix, innerWidth - written);
-            _screen.Write(x + written, y, text, normalStyle);
-            written += text.Length;
-        }
-
-        if (written < innerWidth)
-            _screen.Write(x + written, y, new string(' ', innerWidth - written), normalStyle);
+        if (innerWidth > 0)
+            _screen.Write(x, y, new string(' ', innerWidth), normalStyle);
     }
 
-    private static string BuildSizeCol(FileSystemVolume? vol)
+    private void WriteSegment(ref int x, int y, ref int remainingWidth, string text, CellStyle style)
     {
-        // sizes section = total(9) + "  " + free(9) = 20 chars
-        const int SizeTotal = SizeColW * 2 + 2; // 20
+        if (remainingWidth <= 0)
+            return;
+
+        string visible = TruncateToWidth(text, remainingWidth);
+        _screen.Write(x, y, visible, style);
+        x += visible.Length;
+        remainingWidth -= visible.Length;
+    }
+
+    private static (string Free, string Total) BuildSizeCols(FileSystemVolume? vol)
+    {
         if (vol?.Status == VolumeStatus.Ready && vol.TotalBytes.HasValue && vol.FreeBytes.HasValue)
         {
+            string free = FormatBytes(vol.FreeBytes.Value).PadLeft(SizeColW);
             string total = FormatBytes(vol.TotalBytes.Value).PadLeft(SizeColW);
-            string free  = FormatBytes(vol.FreeBytes.Value).PadLeft(SizeColW);
-            return $"{total}  {free}";
+            return (free, total);
         }
-        return new string(' ', SizeTotal);
+
+        return (new string(' ', SizeColW), new string(' ', SizeColW));
     }
 
     internal static string KindLabel(VolumeKind kind, VolumeStatus status) =>
@@ -346,4 +369,10 @@ internal sealed class DriveDialog
         num = num.Replace('.', ',');
         return $"{num} {unit}";
     }
+
+    private PopupRenderOptions DriveOuterOptions =>
+        PaletteStyles.DialogPopupOptions(_palette) with { DrawBorder = false };
+
+    private PopupRenderOptions DriveFrameOptions =>
+        PaletteStyles.DialogPopupOptions(_palette) with { DrawShadow = false };
 }

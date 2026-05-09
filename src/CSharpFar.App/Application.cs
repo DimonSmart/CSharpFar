@@ -1077,31 +1077,248 @@ public sealed class Application
         return [item.FullPath];
     }
 
+    private FileOperationOptions BuildFileOperationOptions() =>
+        new()
+        {
+            DefaultConflictDecision = ParseEnum(
+                _settings.FileOperations.ConflictDecision,
+                ConflictDecisionMode.Ask),
+            PreserveTimestamps = _settings.FileOperations.PreserveTimestamps,
+            PreserveAttributes = _settings.FileOperations.PreserveAttributes,
+            SecurityMode = ParseEnum(
+                _settings.FileOperations.SecurityMode,
+                FileSecurityMode.Inherit),
+            SymlinkMode = ParseEnum(
+                _settings.FileOperations.SymlinkMode,
+                SymlinkCopyMode.CopyLink),
+            UseRecycleBinForDelete = _settings.FileOperations.UseRecycleBinForDelete,
+        };
+
+    private static TEnum ParseEnum<TEnum>(string? value, TEnum fallback)
+        where TEnum : struct
+    {
+        return Enum.TryParse<TEnum>(value, ignoreCase: true, out var parsed)
+            ? parsed
+            : fallback;
+    }
+
+    private FileOperationResult ExecuteFileOperation(FileOperationRequest request)
+    {
+        var progressDialog = new ProgressDialog(_screen, request.Destination ?? string.Empty);
+        var conflictDialog = new ConflictDialog(_screen, _palette, request.Kind == FileOperationKind.Copy);
+        var cancelDialog = new OperationCancelDialog(_screen);
+        var resolver = new DialogConflictResolver(conflictDialog);
+        var pauseController = new FileOperationPauseController();
+        request = request with { PauseController = pauseController };
+        using var cts = new CancellationTokenSource();
+
+        FileOperationProgress? latestProgress = null;
+        var progress = new Progress<FileOperationProgress>(p =>
+        {
+            latestProgress = p;
+        });
+
+        FileOperationResult? completedResult = null;
+        Exception? completedException = null;
+        Task task = Task.Run(async () =>
+        {
+            try
+            {
+                completedResult = await _fileOps.ExecuteAsync(request, progress, resolver, cts.Token)
+                    .ConfigureAwait(false);
+            }
+            catch (Exception ex)
+            {
+                completedException = ex;
+            }
+        }, cts.Token);
+
+        FileOperationProgress? renderedProgress = null;
+        var lastRender = DateTime.MinValue;
+
+        while (!task.IsCompleted)
+        {
+            if (resolver.ShowPendingConflict())
+            {
+                renderedProgress = null;
+                lastRender = DateTime.MinValue;
+                continue;
+            }
+
+            if (latestProgress is not null &&
+                !ReferenceEquals(latestProgress, renderedProgress) &&
+                DateTime.UtcNow - lastRender >= TimeSpan.FromMilliseconds(120))
+            {
+                progressDialog.Update(latestProgress, _settings.FileOperations.ShowTotalProgress);
+                renderedProgress = latestProgress;
+                lastRender = DateTime.UtcNow;
+            }
+
+            if (global::System.Console.KeyAvailable)
+            {
+                var key = global::System.Console.ReadKey(intercept: true);
+                if (key.Key == ConsoleKey.Escape)
+                {
+                    if (latestProgress?.Phase == FileOperationPhase.Scanning)
+                    {
+                        cts.Cancel();
+                    }
+                    else
+                    {
+                        pauseController.Pause();
+                        try
+                        {
+                            if (cancelDialog.Show())
+                                cts.Cancel();
+                        }
+                        finally
+                        {
+                            pauseController.Resume();
+                        }
+                    }
+
+                    renderedProgress = null;
+                    lastRender = DateTime.MinValue;
+                }
+            }
+
+            Thread.Sleep(30);
+        }
+
+        if (latestProgress is not null && !ReferenceEquals(latestProgress, renderedProgress))
+            progressDialog.Update(latestProgress, _settings.FileOperations.ShowTotalProgress);
+
+        if (task.IsCanceled)
+            throw new OperationCanceledException();
+        if (completedException is not null)
+            throw completedException;
+
+        FileOperationResult result = completedResult
+            ?? throw new InvalidOperationException("File operation did not return a result.");
+        if (result.Cancelled)
+            throw new OperationCanceledException();
+        if (result.Errors.Count > 0)
+            new MessageDialog(_screen, _palette).Show(
+                "File Operation",
+                $"{result.FailedCount} item(s) failed. First: {result.Errors[0].Message}");
+
+        return result;
+    }
+
+    private sealed class DialogConflictResolver : IFileOperationConflictResolver
+    {
+        private readonly ConflictDialog _dialog;
+        private readonly object _gate = new();
+        private PendingConflict? _pendingConflict;
+
+        public DialogConflictResolver(ConflictDialog dialog)
+        {
+            _dialog = dialog;
+        }
+
+        public bool ShowPendingConflict()
+        {
+            PendingConflict? pendingConflict;
+            lock (_gate)
+            {
+                pendingConflict = _pendingConflict;
+            }
+
+            if (pendingConflict is null)
+                return false;
+
+            var decision = _dialog.Show(pendingConflict.Conflict);
+
+            lock (_gate)
+            {
+                if (ReferenceEquals(_pendingConflict, pendingConflict))
+                    _pendingConflict = null;
+                Monitor.PulseAll(_gate);
+            }
+
+            pendingConflict.SetDecision(decision);
+            return true;
+        }
+
+        public FileOperationConflictDecision Resolve(FileOperationConflict conflict)
+        {
+            var pendingConflict = new PendingConflict(conflict);
+
+            lock (_gate)
+            {
+                while (_pendingConflict is not null)
+                    Monitor.Wait(_gate);
+
+                _pendingConflict = pendingConflict;
+                Monitor.PulseAll(_gate);
+            }
+
+            return pendingConflict.WaitForDecision();
+        }
+
+        private sealed class PendingConflict
+        {
+            private readonly ManualResetEventSlim _decisionReady = new();
+            private FileOperationConflictDecision? _decision;
+
+            public PendingConflict(FileOperationConflict conflict)
+            {
+                Conflict = conflict;
+            }
+
+            public FileOperationConflict Conflict { get; }
+
+            public void SetDecision(FileOperationConflictDecision decision)
+            {
+                _decision = decision;
+                _decisionReady.Set();
+            }
+
+            public FileOperationConflictDecision WaitForDecision()
+            {
+                _decisionReady.Wait();
+                return _decision
+                    ?? throw new InvalidOperationException("Conflict dialog closed without a decision.");
+            }
+        }
+    }
+
+    private sealed class FileOperationPauseController : IFileOperationPauseController
+    {
+        private readonly ManualResetEventSlim _canRun = new(initialState: true);
+
+        public void Pause() => _canRun.Reset();
+
+        public void Resume() => _canRun.Set();
+
+        public void WaitIfPaused(CancellationToken cancellationToken) =>
+            _canRun.Wait(cancellationToken);
+    }
+
     private void HandleCopy()
     {
         var sources = GetOperationSources();
         if (sources.Count == 0) return;
 
         var otherDir = (_active == PanelSide.Left ? _right : _left).CurrentDirectory;
-        string label = $"Copy {sources.Count} item{(sources.Count == 1 ? "" : "s")} to:";
-
-        string? destDir = new InputDialog(_screen, _palette).Show("Copy", label, initialText: otherDir);
-        if (destDir is null) return;
+        var dialogResult = new FileOperationDialog(_screen).ShowCopy(
+            sources,
+            otherDir,
+            BuildFileOperationOptions());
+        if (dialogResult is null) return;
 
         var size  = _screen.GetSize();
         var saved = _screen.Capture(new Rect(0, 0, size.Width, size.Height));
 
         try
         {
-            var progress  = new ProgressDialog(_screen, destDir, _palette);
-            var conflicts = new ConflictDialog(_screen, _palette);
-
-            _fileOps.CopyAsync(
-                sources,
-                destDir,
-                onProgress: fileName => progress.Update(fileName),
-                onConflict: destPath => conflicts.Show(destPath))
-                .GetAwaiter().GetResult();
+            ExecuteFileOperation(new FileOperationRequest
+            {
+                Kind = FileOperationKind.Copy,
+                Sources = sources,
+                Destination = dialogResult.Destination,
+                Options = dialogResult.Options,
+            });
 
             ActiveState.SelectedPaths.Clear();
         }
@@ -1132,21 +1349,24 @@ public sealed class Application
             ? Path.GetFileName(sources[0])
             : (_active == PanelSide.Left ? _right : _left).CurrentDirectory;
 
-        string label = sources.Count == 1 ? "Move / Rename to:" : $"Move {sources.Count} items to:";
-
-        string? dest = new InputDialog(_screen, _palette).Show("Move", label, initialText: preFill);
-        if (dest is null) return;
+        var dialogResult = new FileOperationDialog(_screen).ShowMove(
+            sources,
+            preFill,
+            BuildFileOperationOptions());
+        if (dialogResult is null) return;
 
         var size  = _screen.GetSize();
         var saved = _screen.Capture(new Rect(0, 0, size.Width, size.Height));
 
         try
         {
-            var conflicts = new ConflictDialog(_screen, _palette);
-            _fileOps.MoveAsync(
-                sources, dest,
-                onConflict: destPath => conflicts.Show(destPath))
-                .GetAwaiter().GetResult();
+            ExecuteFileOperation(new FileOperationRequest
+            {
+                Kind = FileOperationKind.Move,
+                Sources = sources,
+                Destination = dialogResult.Destination,
+                Options = dialogResult.Options,
+            });
 
             ActiveState.SelectedPaths.Clear();
         }
@@ -1183,7 +1403,15 @@ public sealed class Application
 
         try
         {
-            _fileOps.DeleteAsync(sources).GetAwaiter().GetResult();
+            ExecuteFileOperation(new FileOperationRequest
+            {
+                Kind = FileOperationKind.Delete,
+                Sources = sources,
+                Options = BuildFileOperationOptions() with
+                {
+                    UseRecycleBinForDelete = _settings.FileOperations.UseRecycleBinForDelete,
+                },
+            });
             ActiveState.SelectedPaths.Clear();
         }
         catch (OperationCanceledException) { }
@@ -1303,11 +1531,21 @@ public sealed class Application
         var dialog = new InputDialog(_screen, _palette);
         string? name = dialog.Show("Make Folder", "Folder name:", validate: attempt =>
         {
-            if (attempt.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0)
-                return "Invalid characters in folder name.";
+            if (attempt.IndexOfAny(Path.GetInvalidPathChars()) >= 0)
+                return "Invalid characters in folder path.";
 
             string newPath = Path.Combine(ActiveState.CurrentDirectory, attempt);
-            try   { _fileOps.CreateDirectory(newPath); return null; }
+            try
+            {
+                ExecuteFileOperation(new FileOperationRequest
+                {
+                    Kind = FileOperationKind.CreateDirectory,
+                    Sources = [],
+                    Destination = newPath,
+                    Options = BuildFileOperationOptions(),
+                });
+                return null;
+            }
             catch (IOException ex)              { return ex.Message; }
             catch (UnauthorizedAccessException) { return "Access denied."; }
             catch (ArgumentException ex)        { return ex.Message; }
@@ -1317,7 +1555,14 @@ public sealed class Application
 
         int vr = VisibleRows();
         SafeRefresh(ActiveState, vr);
-        _ctrl.SetCursorByName(ActiveState, name, vr);
+        _ctrl.SetCursorByName(ActiveState, FirstCreatedDirectoryName(name), vr);
+    }
+
+    private static string FirstCreatedDirectoryName(string path)
+    {
+        string trimmed = path.Trim(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+        int separator = trimmed.IndexOfAny([Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar]);
+        return separator < 0 ? trimmed : trimmed[..separator];
     }
 
     // ── Ctrl+S — settings ─────────────────────────────────────────────────────

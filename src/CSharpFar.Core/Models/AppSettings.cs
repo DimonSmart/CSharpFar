@@ -7,6 +7,7 @@ public sealed class AppSettings
     public UiSettings      Ui      { get; set; } = new();
     public ShellSettings   Shell   { get; set; } = new();
     public PanelsSettings  Panels  { get; set; } = new();
+    public FileOperationSettings FileOperations { get; set; } = new();
     public HistorySettings History { get; set; } = new();
 
     public sealed class UiSettings
@@ -63,6 +64,17 @@ public sealed class AppSettings
         public string                  Mode       { get; set; } = "PresetPlusUserRules";
         public List<FileHighlightRule> Rules      { get; set; } = [];
         public List<MaskGroup>         MaskGroups { get; set; } = [];
+    }
+
+    public sealed class FileOperationSettings
+    {
+        public bool ShowTotalProgress { get; set; } = true;
+        public bool PreserveTimestamps { get; set; } = true;
+        public bool PreserveAttributes { get; set; } = true;
+        public string SecurityMode { get; set; } = "Inherit";
+        public string SymlinkMode { get; set; } = "CopyLink";
+        public bool UseRecycleBinForDelete { get; set; } = true;
+        public string ConflictDecision { get; set; } = "Ask";
     }
 
     public sealed class HistorySettings

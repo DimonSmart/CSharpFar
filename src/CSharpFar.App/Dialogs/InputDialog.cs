@@ -36,7 +36,8 @@ internal sealed class InputDialog
         string title,
         string prompt,
         string? initialText = null,
-        Func<string, string?>? validate = null)
+        Func<string, string?>? validate = null,
+        bool allowEmpty = false)
     {
         var size  = _screen.GetSize();
         var saved = _screen.Capture(new Rect(0, 0, size.Width, size.Height));
@@ -44,7 +45,7 @@ internal sealed class InputDialog
 
         try
         {
-            return RunLoop(title, prompt, initialText, validate, size);
+            return RunLoop(title, prompt, initialText, validate, allowEmpty, size);
         }
         finally
         {
@@ -53,7 +54,7 @@ internal sealed class InputDialog
         }
     }
 
-    private string? RunLoop(string title, string prompt, string? initialText, Func<string, string?>? validate, ConsoleSize size)
+    private string? RunLoop(string title, string prompt, string? initialText, Func<string, string?>? validate, bool allowEmpty, ConsoleSize size)
     {
         var buf = new CommandLineState();
         if (initialText is not null) buf.SetText(initialText);
@@ -71,7 +72,7 @@ internal sealed class InputDialog
             if (key.Key == ConsoleKey.Enter)
             {
                 string text = buf.Text.Trim();
-                if (text.Length == 0) continue;
+                if (text.Length == 0 && !allowEmpty) continue;
 
                 error = validate?.Invoke(text);
                 if (error is null) return text;

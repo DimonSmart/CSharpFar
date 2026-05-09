@@ -1,0 +1,222 @@
+using CSharpFar.App.Dialogs;
+using CSharpFar.Console;
+using CSharpFar.Console.Input;
+using CSharpFar.Console.Models;
+using CSharpFar.Core.Models;
+using CSharpFar.Tests.Fakes;
+
+namespace CSharpFar.Tests;
+
+public sealed class Spec010FileOperationDialogTests
+{
+    [Fact]
+    public void ShowCopy_ReturnsDestinationAndDefaultOptionsFromSingleDialog()
+    {
+        var driver = new FakeConsoleDriver(width: 100, height: 30);
+        var screen = new ScreenRenderer(driver);
+        driver.EnqueueKey(Key(ConsoleKey.F10));
+
+        var result = new FileOperationDialog(screen).ShowCopy(
+            [@"C:\source\a.txt"],
+            @"C:\destination",
+            new FileOperationOptions());
+
+        Assert.NotNull(result);
+        Assert.Equal(@"C:\destination", result.Destination);
+        Assert.Null(result.Options.FileMask);
+        Assert.Contains(driver.WriteRecords, r => r.Text.Contains("Already existing files:", StringComparison.Ordinal));
+        Assert.Contains(driver.WriteRecords, r => r.Text.Contains("Access rights:", StringComparison.Ordinal));
+        Assert.Contains(driver.WriteRecords, r => r.Text.Contains("Use filter", StringComparison.Ordinal));
+        Assert.Contains(driver.WriteRecords, r => r.Text.Trim() == "*");
+        Assert.DoesNotContain(driver.WriteRecords, r => r.Text.Contains("Process multiple destinations", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void ShowCopy_CollectsFilterInSameDialog()
+    {
+        var driver = new FakeConsoleDriver(width: 100, height: 30);
+        var screen = new ScreenRenderer(driver);
+        for (int i = 0; i < 5; i++)
+            driver.EnqueueKey(Key(ConsoleKey.DownArrow));
+        driver.EnqueueKey(Key(ConsoleKey.Spacebar));
+        driver.EnqueueKey(Key(ConsoleKey.DownArrow));
+        driver.EnqueueKey(Key(ConsoleKey.Backspace));
+        EnqueueText(driver, "*.txt");
+        driver.EnqueueKey(Key(ConsoleKey.F10));
+
+        var result = new FileOperationDialog(screen).ShowCopy(
+            [@"C:\source\a.txt"],
+            @"C:\destination",
+            new FileOperationOptions());
+
+        Assert.NotNull(result);
+        Assert.Equal("*.txt", result.Options.FileMask);
+    }
+
+    [Fact]
+    public void ShowCopy_CancelButtonSupportsMouseClick()
+    {
+        var driver = new FakeConsoleDriver(width: 100, height: 30);
+        var screen = new ScreenRenderer(driver);
+        driver.EnqueueInput(new MouseConsoleInputEvent(52, 21, MouseButton.Left, MouseEventKind.Down, MouseKeyModifiers.None));
+
+        var result = new FileOperationDialog(screen).ShowCopy(
+            [@"C:\source\a.txt"],
+            @"C:\destination",
+            new FileOperationOptions());
+
+        Assert.Null(result);
+    }
+
+    [Fact]
+    public void ProgressDialog_RendersFarStyleProgressBarWithoutHashCharacters()
+    {
+        var driver = new FakeConsoleDriver(width: 100, height: 30);
+        var screen = new ScreenRenderer(driver);
+
+        new ProgressDialog(screen, @"C:\dst").Update(
+            new FileOperationProgress
+            {
+                Kind = FileOperationKind.Copy,
+                Phase = FileOperationPhase.Copying,
+                CurrentPath = @"C:\src\a.txt",
+                CurrentDestinationPath = @"C:\dst\a.txt",
+                CurrentBytesDone = 5,
+                CurrentBytesTotal = 10,
+                TotalBytesDone = 5,
+                TotalBytesTotal = 20,
+                ItemsDone = 1,
+                ItemsTotal = 2,
+                Elapsed = TimeSpan.FromSeconds(1),
+            },
+            showTotalProgress: true);
+
+        string text = driver.GetRegionText(new Rect(0, 0, 100, 30));
+        Assert.Contains('█', text);
+        Assert.Contains('░', text);
+        Assert.DoesNotContain('#', text);
+    }
+
+    [Fact]
+    public void ProgressDialog_RendersScanningWithDoubleBorderAndBytesAboveBottomFrame()
+    {
+        var driver = new FakeConsoleDriver(width: 100, height: 30);
+        var screen = new ScreenRenderer(driver);
+
+        new ProgressDialog(screen, @"C:\dst").Update(
+            new FileOperationProgress
+            {
+                Kind = FileOperationKind.Copy,
+                Phase = FileOperationPhase.Scanning,
+                CurrentPath = @"C:\src\YouTube",
+                ItemsDone = 2651,
+                FoldersDone = 123,
+                TotalBytesDone = 96081696632,
+            },
+            showTotalProgress: true);
+
+        string[] rows = Enumerable.Range(0, 30)
+            .Select(driver.GetRow)
+            .ToArray();
+        int bytesRow = Array.FindIndex(rows, row => row.Contains("Bytes:", StringComparison.Ordinal));
+        int bottomFrameRow = Array.FindIndex(rows, row => row.Contains('╚'));
+
+        Assert.Contains(rows, row => row.Contains('╔'));
+        Assert.True(bytesRow >= 0);
+        Assert.True(bottomFrameRow > bytesRow);
+        Assert.DoesNotContain('╚', rows[bytesRow]);
+        Assert.DoesNotContain('╝', rows[bytesRow]);
+    }
+
+    [Fact]
+    public void ConflictDialog_ReturnsOverwriteForO()
+    {
+        var driver = new FakeConsoleDriver(width: 100, height: 30);
+        var screen = new ScreenRenderer(driver);
+        driver.EnqueueKey(new ConsoleKeyInfo('O', ConsoleKey.O, shift: true, alt: false, control: false));
+
+        var decision = new ConflictDialog(screen).Show(
+            new FileOperationConflict
+            {
+                SourcePath = @"C:\src\a.txt",
+                DestinationPath = @"C:\dst\a.txt",
+                SourceSize = 3,
+                DestinationSize = 5,
+            });
+
+        Assert.Equal(ConflictDecisionMode.Overwrite, decision.Mode);
+    }
+
+    [Fact]
+    public void ConflictDialog_RememberChoiceTurnsOverwriteIntoOverwriteAll()
+    {
+        var driver = new FakeConsoleDriver(width: 100, height: 30);
+        var screen = new ScreenRenderer(driver);
+        driver.EnqueueKey(Key(ConsoleKey.Tab));
+        driver.EnqueueKey(Key(ConsoleKey.Spacebar));
+        driver.EnqueueKey(Key(ConsoleKey.Tab));
+        driver.EnqueueKey(Key(ConsoleKey.Enter));
+
+        var decision = new ConflictDialog(screen).Show(
+            new FileOperationConflict
+            {
+                SourcePath = @"C:\src\a.txt",
+                DestinationPath = @"C:\dst\a.txt",
+                SourceSize = 3,
+                DestinationSize = 5,
+            });
+
+        Assert.Equal(ConflictDecisionMode.OverwriteAll, decision.Mode);
+    }
+
+    [Fact]
+    public void ConflictDialog_AppendButtonSupportsMouseClick()
+    {
+        var driver = new FakeConsoleDriver(width: 100, height: 30);
+        var screen = new ScreenRenderer(driver);
+        driver.EnqueueInput(new MouseConsoleInputEvent(58, 18, MouseButton.Left, MouseEventKind.Down, MouseKeyModifiers.None));
+
+        var decision = new ConflictDialog(screen).Show(
+            new FileOperationConflict
+            {
+                SourcePath = @"C:\src\a.txt",
+                DestinationPath = @"C:\dst\a.txt",
+                SourceSize = 3,
+                DestinationSize = 5,
+            });
+
+        Assert.Equal(ConflictDecisionMode.Append, decision.Mode);
+    }
+
+    [Fact]
+    public void OperationCancelDialog_NoButtonSupportsMouseClick()
+    {
+        var driver = new FakeConsoleDriver(width: 100, height: 30);
+        var screen = new ScreenRenderer(driver);
+        driver.EnqueueInput(new MouseConsoleInputEvent(53, 16, MouseButton.Left, MouseEventKind.Down, MouseKeyModifiers.None));
+
+        bool result = new OperationCancelDialog(screen).Show();
+
+        Assert.False(result);
+
+        var buttonRecord = Assert.Single(driver.WriteRecords, r => r.Text.Contains("{ Yes }", StringComparison.Ordinal));
+        int bottomFrameRow = driver.WriteRecords
+            .Where(r => r.Text.Contains('└'))
+            .Select(r => r.Y)
+            .DefaultIfEmpty(-1)
+            .Max();
+
+        Assert.True(bottomFrameRow > buttonRecord.Y);
+        Assert.DoesNotContain('└', buttonRecord.Text);
+        Assert.DoesNotContain('┘', buttonRecord.Text);
+    }
+
+    private static void EnqueueText(FakeConsoleDriver driver, string text)
+    {
+        foreach (char ch in text)
+            driver.EnqueueKey(new ConsoleKeyInfo(ch, ConsoleKey.None, shift: false, alt: false, control: false));
+    }
+
+    private static ConsoleKeyInfo Key(ConsoleKey key) =>
+        new('\0', key, shift: false, alt: false, control: false);
+}

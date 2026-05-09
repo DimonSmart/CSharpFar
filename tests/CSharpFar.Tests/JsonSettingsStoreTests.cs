@@ -31,6 +31,8 @@ public class JsonSettingsStoreTests : IDisposable
         Assert.True(File.Exists(Path.Combine(configDir, "settings.json")));
         Assert.True(store.Settings.Ui.ConfirmDelete);
         Assert.Equal("cmd.exe", store.Settings.Shell.Executable);
+        Assert.True(store.Settings.FileOperations.ShowTotalProgress);
+        Assert.Equal("Inherit", store.Settings.FileOperations.SecurityMode);
         Assert.Equal(1000, store.Settings.History.MaxCommandHistoryItems);
     }
 
@@ -45,6 +47,7 @@ public class JsonSettingsStoreTests : IDisposable
               "ui": { "confirmDelete": false },
               "shell": { "executable": "powershell.exe", "argumentsFormat": "-Command {0}", "kind": "ps" },
               "panels": { "options": { "showHiddenAndSystemFiles": false } },
+              "fileOperations": { "useRecycleBinForDelete": false, "conflictDecision": "OnlyNewer" },
               "history": { "maxCommandHistoryItems": 50, "maxDirectoryHistoryItems": 25, "maxFileHistoryItems": 10 }
             }
             """;
@@ -54,6 +57,8 @@ public class JsonSettingsStoreTests : IDisposable
 
         Assert.False(store.Settings.Ui.ConfirmDelete);
         Assert.False(store.Settings.Panels.Options.ShowHiddenAndSystemFiles);
+        Assert.False(store.Settings.FileOperations.UseRecycleBinForDelete);
+        Assert.Equal("OnlyNewer", store.Settings.FileOperations.ConflictDecision);
         Assert.Equal("powershell.exe", store.Settings.Shell.Executable);
         Assert.Equal(50, store.Settings.History.MaxCommandHistoryItems);
         Assert.Equal(10, store.Settings.History.MaxFileHistoryItems);
@@ -67,11 +72,13 @@ public class JsonSettingsStoreTests : IDisposable
 
         store.Settings.Panels.Options.ShowHiddenAndSystemFiles = false;
         store.Settings.Panels.LeftStartDirectory = @"C:\Projects";
+        store.Settings.FileOperations.PreserveAttributes = false;
         store.Save();
 
         var store2 = new JsonSettingsStore(configDir);
         Assert.False(store2.Settings.Panels.Options.ShowHiddenAndSystemFiles);
         Assert.Equal(@"C:\Projects", store2.Settings.Panels.LeftStartDirectory);
+        Assert.False(store2.Settings.FileOperations.PreserveAttributes);
     }
 
     [Fact]

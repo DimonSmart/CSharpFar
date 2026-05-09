@@ -147,22 +147,11 @@ public sealed class ApplicationNavigationTests : IDisposable
 
     private sealed class NoOpFileOperationService : IFileOperationService
     {
-        public Task CopyAsync(
-            IReadOnlyList<string> sources,
-            string destination,
-            Action<string>? onProgress = null,
-            Func<string, ConflictChoice>? onConflict = null,
-            CancellationToken cancellationToken = default) => Task.CompletedTask;
-
-        public Task MoveAsync(
-            IReadOnlyList<string> sources,
-            string destination,
-            Func<string, ConflictChoice>? onConflict = null,
-            CancellationToken cancellationToken = default) => Task.CompletedTask;
-
-        public Task DeleteAsync(IReadOnlyList<string> paths, CancellationToken cancellationToken = default) =>
-            Task.CompletedTask;
-
-        public void CreateDirectory(string path) { }
+        public Task<FileOperationResult> ExecuteAsync(
+            FileOperationRequest request,
+            IProgress<FileOperationProgress>? progress,
+            IFileOperationConflictResolver conflictResolver,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult(new FileOperationResult { Kind = request.Kind, Errors = [] });
     }
 }
