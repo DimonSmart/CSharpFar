@@ -458,10 +458,10 @@ internal sealed class FileOperationDialog
         int dialogY = Math.Max(0, (size.Height - dialogHeight) / 2);
         var outerBounds = new Rect(dialogX, dialogY, dialogWidth, dialogHeight);
 
-        var fill = FarDialogFill;
-        var focused = FarDialogInput;
+        var fill = FarDialogStyles.Fill;
+        var focused = FarDialogStyles.Input;
 
-        _modalRenderer.Render(_screen, outerBounds, title, false, FarDialogOuterOptions, FarDialogFrameOptions, (_, layout) =>
+        _modalRenderer.Render(_screen, outerBounds, title, false, FarDialogStyles.OuterOptions, FarDialogStyles.FrameOptions, (_, layout) =>
         {
             Rect bounds = layout.FrameBounds;
             int contentX = bounds.X + 2;
@@ -488,7 +488,7 @@ internal sealed class FileOperationDialog
 
             DrawSeparator(bounds, bounds.Y + 13);
             string errorText = error is null ? string.Empty : Truncate(error, contentWidth);
-            _screen.Write(contentX, bounds.Y + 14, errorText.PadRight(contentWidth), FarDialogError);
+            _screen.Write(contentX, bounds.Y + 14, errorText.PadRight(contentWidth), FarDialogStyles.Error);
 
             buttonBar.Render(
                 _screen,
@@ -511,7 +511,7 @@ internal sealed class FileOperationDialog
     private void DrawInput(int x, int y, int width, CommandLineState buffer, bool focused)
     {
         string text = VisibleInputText(buffer, width);
-        _screen.Write(x, y, text.PadRight(width), focused ? FarDialogInput : FarDialogFill);
+        _screen.Write(x, y, text.PadRight(width), focused ? FarDialogStyles.Input : FarDialogStyles.Fill);
     }
 
     private void SetInputCursor(int x, int y, int width, CommandLineState buffer)
@@ -569,7 +569,7 @@ internal sealed class FileOperationDialog
             return;
 
         string valueText = Truncate(value, valueWidth).PadRight(valueWidth);
-        _screen.Write(x + labelWidth, y, valueText, focused ? focusedStyle : FarDialogInput);
+        _screen.Write(x + labelWidth, y, valueText, focused ? focusedStyle : FarDialogStyles.Input);
     }
 
     private void DrawCheckbox(
@@ -591,7 +591,7 @@ internal sealed class FileOperationDialog
         if (y <= bounds.Y || y >= bounds.Bottom - 1)
             return;
 
-        var style = FarDialogBorder;
+        var style = FarDialogStyles.Border;
         _screen.WriteChar(bounds.X, y, '├', style);
         _screen.Write(bounds.X + 1, y, new string('─', Math.Max(0, bounds.Width - 2)), style);
         _screen.WriteChar(bounds.Right - 1, y, '┤', style);
@@ -618,30 +618,4 @@ internal sealed class FileOperationDialog
         return value.Length <= maxLength ? value : value[..Math.Max(0, maxLength - 1)] + "\u2026";
     }
 
-    private static CellStyle FarDialogFill => new(ConsoleColor.Black, ConsoleColor.Gray);
-    private static CellStyle FarDialogBorder => new(ConsoleColor.DarkGray, ConsoleColor.Gray);
-    private static CellStyle FarDialogTitle => new(ConsoleColor.Black, ConsoleColor.Gray);
-    private static CellStyle FarDialogInput => new(ConsoleColor.White, ConsoleColor.DarkCyan);
-    private static CellStyle FarDialogError => new(ConsoleColor.Yellow, ConsoleColor.Gray);
-    private static CellStyle FarDialogShadow => new(ConsoleColor.Black, ConsoleColor.Black);
-
-    private static PopupRenderOptions FarDialogOuterOptions =>
-        new()
-        {
-            DrawBorder = false,
-            BorderStyle = FarDialogBorder,
-            BackgroundStyle = FarDialogFill,
-            ShadowStyle = FarDialogShadow,
-            TitleStyle = FarDialogTitle,
-        };
-
-    private static PopupRenderOptions FarDialogFrameOptions =>
-        new()
-        {
-            DrawShadow = false,
-            BorderStyle = FarDialogBorder,
-            BackgroundStyle = FarDialogFill,
-            ShadowStyle = FarDialogShadow,
-            TitleStyle = FarDialogTitle,
-        };
 }

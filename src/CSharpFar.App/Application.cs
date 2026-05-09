@@ -1528,8 +1528,8 @@ public sealed class Application
 
     private void HandleCreateFolder()
     {
-        var dialog = new InputDialog(_screen, _palette);
-        string? name = dialog.Show("Make Folder", "Folder name:", validate: attempt =>
+        var dialog = new CreateFolderDialog(_screen);
+        string? name = dialog.Show(validate: attempt =>
         {
             if (attempt.IndexOfAny(Path.GetInvalidPathChars()) >= 0)
                 return "Invalid characters in folder path.";
