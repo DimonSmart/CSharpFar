@@ -48,4 +48,16 @@ internal static class PaletteStyles
 
     public static CellStyle KeyBarLabel(ConsolePalette palette) =>
         new(palette.FunctionKeyTextFg, palette.FunctionKeyBarBg);
+
+    public static CellStyle HelpBody(ConsolePalette palette) =>
+        new(palette.HelpBodyFg, palette.HelpBodyBg);
+
+    public static CellStyle HelpHeading(ConsolePalette palette) =>
+        new(palette.HelpHeadingFg, palette.HelpHeadingBg);
+
+    public static CellStyle HelpKey(ConsolePalette palette) =>
+        new(palette.HelpKeyFg, palette.HelpKeyBg);
+
+    public static CellStyle HelpSeparator(ConsolePalette palette) =>
+        new(palette.HelpSeparatorFg, palette.HelpSeparatorBg);
 }

@@ -8,7 +8,7 @@ internal readonly record struct FunctionKeyBarItem(int KeyNumber, string Label);
 internal sealed class FunctionKeyBarRenderer
 {
     private const int FunctionKeyCount = 12;
-    private const string Ellipsis = "...";
+    private const string Ellipsis = "…";
 
     private readonly ScreenRenderer _screen;
     private readonly CellStyle      _numStyle;

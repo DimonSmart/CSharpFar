@@ -29,7 +29,7 @@ public class HelpContentTests
     [InlineData("Alt+F12")]
     public void Lines_ContainsKeyBinding(string keyText)
     {
-        Assert.Contains(HelpContent.Lines, l => l.Contains(keyText, StringComparison.OrdinalIgnoreCase));
+        Assert.Contains(HelpContent.Lines, l => l.FullText.Contains(keyText, StringComparison.OrdinalIgnoreCase));
     }
 
     [Fact]

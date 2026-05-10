@@ -68,4 +68,14 @@ public sealed class ConsolePalette
     public ConsoleColor MenuBorderBg          { get; init; } = ConsoleColor.DarkCyan;
     public ConsoleColor MenuShadowFg          { get; init; } = ConsoleColor.DarkGray;
     public ConsoleColor MenuShadowBg          { get; init; } = ConsoleColor.Black;
+
+    // ── Help viewer ───────────────────────────────────────────────────────────
+    public ConsoleColor HelpBodyFg            { get; init; } = ConsoleColor.White;
+    public ConsoleColor HelpBodyBg            { get; init; } = ConsoleColor.Black;
+    public ConsoleColor HelpHeadingFg         { get; init; } = ConsoleColor.Yellow;
+    public ConsoleColor HelpHeadingBg         { get; init; } = ConsoleColor.Black;
+    public ConsoleColor HelpKeyFg             { get; init; } = ConsoleColor.Cyan;
+    public ConsoleColor HelpKeyBg             { get; init; } = ConsoleColor.Black;
+    public ConsoleColor HelpSeparatorFg       { get; init; } = ConsoleColor.DarkCyan;
+    public ConsoleColor HelpSeparatorBg       { get; init; } = ConsoleColor.Black;
 }
