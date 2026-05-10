@@ -4,6 +4,8 @@ public abstract record ConsoleInputEvent;
 
 public sealed record KeyConsoleInputEvent(ConsoleKeyInfo Key) : ConsoleInputEvent;
 
+public sealed record ModifierKeyConsoleInputEvent(ConsoleModifiers Modifiers) : ConsoleInputEvent;
+
 public sealed record MouseConsoleInputEvent(
     int               X,
     int               Y,

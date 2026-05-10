@@ -24,6 +24,15 @@ internal static class Win32ConsoleApi
     private const uint RIGHT_CTRL_PRESSED = 0x0004;
     private const uint LEFT_CTRL_PRESSED  = 0x0008;
     private const uint SHIFT_PRESSED      = 0x0010;
+    private const ushort VK_SHIFT         = 0x10;
+    private const ushort VK_CONTROL       = 0x11;
+    private const ushort VK_MENU          = 0x12;
+    private const ushort VK_LSHIFT        = 0xA0;
+    private const ushort VK_RSHIFT        = 0xA1;
+    private const ushort VK_LCONTROL      = 0xA2;
+    private const ushort VK_RCONTROL      = 0xA3;
+    private const ushort VK_LMENU         = 0xA4;
+    private const ushort VK_RMENU         = 0xA5;
 
     private const uint FROM_LEFT_1ST_BUTTON_PRESSED = 0x0001;
     private const uint RIGHTMOST_BUTTON_PRESSED     = 0x0002;
@@ -171,6 +180,9 @@ internal static class Win32ConsoleApi
         if (record.EventType == MOUSE_EVENT)
             return ParseMouseEvent(record.MouseEvent);
 
+        if (record.EventType == KEY_EVENT && IsModifierKey(record.KeyEvent.VirtualKeyCode))
+            return new ModifierKeyConsoleInputEvent(GetModifiers(record.KeyEvent.ControlKeyState));
+
         if (record.EventType == KEY_EVENT && record.KeyEvent.IsKeyDown)
         {
             var modifiers = GetModifiers(record.KeyEvent.ControlKeyState);
@@ -205,6 +217,18 @@ internal static class Win32ConsoleApi
 
         return null;
     }
+
+    private static bool IsModifierKey(ushort virtualKeyCode) =>
+        virtualKeyCode is
+            VK_SHIFT or
+            VK_CONTROL or
+            VK_MENU or
+            VK_LSHIFT or
+            VK_RSHIFT or
+            VK_LCONTROL or
+            VK_RCONTROL or
+            VK_LMENU or
+            VK_RMENU;
 
     private static ConsoleInputEvent? ParseMouseEvent(MouseEventRecord rec)
     {

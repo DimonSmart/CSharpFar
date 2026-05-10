@@ -1,4 +1,5 @@
 using CSharpFar.App.Dialogs;
+using CSharpFar.App.FunctionKeys;
 using CSharpFar.App.HitTesting;
 using CSharpFar.App.Menu;
 using CSharpFar.App.Rendering;
@@ -60,7 +61,9 @@ public sealed class Application
     private readonly MenuBarRenderer        _menuBarRenderer = new();
     private readonly DropdownMenuRenderer   _dropdownMenuRenderer = new();
     private readonly TopMenuController      _menuController;
+    private readonly IReadOnlyList<FunctionKeyBinding> _functionKeyBindings;
     private PanelItemClick?                 _lastLeftPanelItemClick;
+    private FunctionKeyLayer                _functionKeyLayer = FunctionKeyLayer.Plain;
 
     public Application(
         ScreenRenderer         screen,
@@ -99,6 +102,7 @@ public sealed class Application
         _watcher          = changeWatcher;
         _locationService  = locationService;
         _menuController   = new TopMenuController(_menuState, ExecuteMenuCommand);
+        _functionKeyBindings = BuildFunctionKeyBindings();
 
         if (_watcher != null)
             _watcher.Changed += OnFileSystemChanged;
@@ -180,6 +184,9 @@ public sealed class Application
                         break;
                     case KeyConsoleInputEvent { Key: var key }:
                         shouldRender = HandleKey(key);
+                        break;
+                    case ModifierKeyConsoleInputEvent { Modifiers: var modifiers }:
+                        shouldRender = SetFunctionKeyLayer(modifiers);
                         break;
                     case MouseConsoleInputEvent mouseEvt:
                         shouldRender = HandleMouse(mouseEvt);
@@ -266,7 +273,7 @@ public sealed class Application
         var cmdRenderer = new CommandLineRenderer(_screen, _palette);
         cmdRenderer.Render(panelH, size.Width, ActiveState.CurrentDirectory, _cmdLine);
 
-        new StatusBarRenderer(_screen, _palette).Render(size.Height - 1, size.Width);
+        RenderFunctionKeyBar(size);
 
         RenderMenuOverlay(size);
 
@@ -327,6 +334,16 @@ public sealed class Application
         _screen.Write(size.Width - text.Length, 0, text, style);
     }
 
+    private void RenderFunctionKeyBar(ConsoleSize size)
+    {
+        var items = _functionKeyBindings
+            .Where(binding => binding.Layer == _functionKeyLayer && binding.IsAvailable())
+            .Select(binding => new FunctionKeyBarItem(binding.KeyNumber, binding.Label))
+            .ToArray();
+
+        new FunctionKeyBarRenderer(_screen, _palette).Render(size.Height - 1, size.Width, items);
+    }
+
     private void RenderMenuOverlay(ConsoleSize size)
     {
         if (_menuState.OpenState == MenuOpenState.Closed)
@@ -384,8 +401,17 @@ public sealed class Application
                 key.KeyChar == controlChar);
     }
 
-    private static bool IsPlainFunctionKey(ConsoleKeyInfo key, ConsoleKey consoleKey) =>
-        key.Key == consoleKey && key.Modifiers == 0;
+    private bool SetFunctionKeyLayer(ConsoleModifiers modifiers)
+    {
+        var layer = FunctionKeyLayerResolver.ResolvePressedLayer(modifiers);
+        if (_functionKeyLayer == layer)
+            return false;
+
+        _functionKeyLayer = layer;
+        return true;
+    }
+
+    private void ResetFunctionKeyLayer() => _functionKeyLayer = FunctionKeyLayer.Plain;
 
     private static bool IsTopMenuActivationMouse(MouseConsoleInputEvent evt) =>
         evt.Y == 0 &&
@@ -417,6 +443,257 @@ public sealed class Application
             BorderStyle = new CellStyle(_palette.MenuBorderFg, _palette.MenuBorderBg),
             ShadowStyle = new CellStyle(_palette.MenuShadowFg, _palette.MenuShadowBg),
         };
+
+    private IReadOnlyList<FunctionKeyBinding> BuildFunctionKeyBindings() =>
+    [
+        new(
+            FunctionKeyCommandIds.Help,
+            FunctionKeyLayer.Plain,
+            ConsoleKey.F1,
+            "Help",
+            () => true,
+            () =>
+            {
+                new HelpViewer(_screen, _palette).Show();
+                return true;
+            }),
+        new(
+            FunctionKeyCommandIds.UserMenu,
+            FunctionKeyLayer.Plain,
+            ConsoleKey.F2,
+            "UserMn",
+            () => true,
+            () =>
+            {
+                HandleUserMenu();
+                return true;
+            }),
+        new(
+            FunctionKeyCommandIds.View,
+            FunctionKeyLayer.Plain,
+            ConsoleKey.F3,
+            "View",
+            CanViewCurrentFile,
+            () =>
+            {
+                HandleViewFile();
+                return true;
+            }),
+        new(
+            FunctionKeyCommandIds.Edit,
+            FunctionKeyLayer.Plain,
+            ConsoleKey.F4,
+            "Edit",
+            CanEditCurrentFile,
+            () =>
+            {
+                HandleEditFile();
+                return true;
+            },
+            () =>
+            {
+                HandleEditFile();
+                return true;
+            }),
+        new(
+            FunctionKeyCommandIds.Copy,
+            FunctionKeyLayer.Plain,
+            ConsoleKey.F5,
+            "Copy",
+            CanCopy,
+            () =>
+            {
+                HandleCopy();
+                return true;
+            },
+            () =>
+            {
+                HandleCopy();
+                return true;
+            }),
+        new(
+            FunctionKeyCommandIds.RenameOrMove,
+            FunctionKeyLayer.Plain,
+            ConsoleKey.F6,
+            "RenMov",
+            CanMove,
+            () =>
+            {
+                HandleMove();
+                return true;
+            },
+            () =>
+            {
+                HandleMove();
+                return true;
+            }),
+        new(
+            FunctionKeyCommandIds.CreateFolder,
+            FunctionKeyLayer.Plain,
+            ConsoleKey.F7,
+            "MkFold",
+            () => HasCapability(ActiveState, PanelProviderCapabilities.CreateDirectory),
+            () =>
+            {
+                HandleCreateFolder();
+                return true;
+            },
+            () =>
+            {
+                HandleCreateFolder();
+                return true;
+            }),
+        new(
+            FunctionKeyCommandIds.Delete,
+            FunctionKeyLayer.Plain,
+            ConsoleKey.F8,
+            "Delete",
+            CanDelete,
+            () =>
+            {
+                HandleDelete();
+                return true;
+            },
+            () =>
+            {
+                HandleDelete();
+                return true;
+            }),
+        new(
+            FunctionKeyCommandIds.TopMenu,
+            FunctionKeyLayer.Plain,
+            ConsoleKey.F9,
+            "ConfMn",
+            () => true,
+            OpenTopMenu),
+        new(
+            FunctionKeyCommandIds.Quit,
+            FunctionKeyLayer.Plain,
+            ConsoleKey.F10,
+            "Quit",
+            () => true,
+            () =>
+            {
+                _running = false;
+                return false;
+            }),
+        new(
+            FunctionKeyCommandIds.LeftVolume,
+            FunctionKeyLayer.Alt,
+            ConsoleKey.F1,
+            "Left",
+            () => true,
+            () =>
+            {
+                HandleDriveSelect(PanelSide.Left);
+                ResetFunctionKeyLayer();
+                return true;
+            }),
+        new(
+            FunctionKeyCommandIds.RightVolume,
+            FunctionKeyLayer.Alt,
+            ConsoleKey.F2,
+            "Right",
+            () => true,
+            () =>
+            {
+                HandleDriveSelect(PanelSide.Right);
+                ResetFunctionKeyLayer();
+                return true;
+            }),
+        new(
+            FunctionKeyCommandIds.Search,
+            FunctionKeyLayer.Alt,
+            ConsoleKey.F7,
+            "Search",
+            () => true,
+            () =>
+            {
+                HandleSearchFiles();
+                ResetFunctionKeyLayer();
+                return true;
+            }),
+        new(
+            FunctionKeyCommandIds.CommandHistory,
+            FunctionKeyLayer.Alt,
+            ConsoleKey.F8,
+            "History",
+            () => true,
+            () =>
+            {
+                HandleCommandHistory();
+                ResetFunctionKeyLayer();
+                return true;
+            }),
+        new(
+            FunctionKeyCommandIds.FileHistory,
+            FunctionKeyLayer.Alt,
+            ConsoleKey.F11,
+            "FHist",
+            () => true,
+            () =>
+            {
+                HandleFileHistory();
+                ResetFunctionKeyLayer();
+                return true;
+            }),
+        new(
+            FunctionKeyCommandIds.DirectoryHistory,
+            FunctionKeyLayer.Alt,
+            ConsoleKey.F12,
+            "DHist",
+            () => true,
+            () =>
+            {
+                HandleDirectoryHistory();
+                ResetFunctionKeyLayer();
+                return true;
+            }),
+        new(
+            FunctionKeyCommandIds.SortByName,
+            FunctionKeyLayer.Control,
+            ConsoleKey.F3,
+            "SortNm",
+            CanSortActivePanel,
+            () =>
+            {
+                SetPanelSortMode(ActiveState, SortMode.Name, VisibleRows());
+                return true;
+            }),
+        new(
+            FunctionKeyCommandIds.SortByExtension,
+            FunctionKeyLayer.Control,
+            ConsoleKey.F4,
+            "SortExt",
+            CanSortActivePanel,
+            () =>
+            {
+                SetPanelSortMode(ActiveState, SortMode.Extension, VisibleRows());
+                return true;
+            }),
+        new(
+            FunctionKeyCommandIds.SortByLastWriteTime,
+            FunctionKeyLayer.Control,
+            ConsoleKey.F5,
+            "SortTm",
+            CanSortActivePanel,
+            () =>
+            {
+                SetPanelSortMode(ActiveState, SortMode.LastWriteTime, VisibleRows());
+                return true;
+            }),
+        new(
+            FunctionKeyCommandIds.SortBySize,
+            FunctionKeyLayer.Control,
+            ConsoleKey.F6,
+            "SortSz",
+            CanSortActivePanel,
+            () =>
+            {
+                SetPanelSortMode(ActiveState, SortMode.Size, VisibleRows());
+                return true;
+            }),
+    ];
 
     private void PositionCommandCursor(CommandLineRenderer cmdRenderer, ConsoleSize size, int row)
     {
@@ -659,9 +936,6 @@ public sealed class Application
         if (!_panelsVisible)
             return HandleHiddenCommandLineKey(key);
 
-        if (IsPlainFunctionKey(key, ConsoleKey.F9))
-            return _menuController.HandleKey(key, BuildMenuDefinition(), _active);
-
         // Ctrl+S: settings dialog
         if (IsPlainControlKey(key, ConsoleKey.S, '\u0013'))
         {
@@ -708,19 +982,14 @@ public sealed class Application
             }
         }
 
-        // Ctrl+F3/F4/F5/F6 — sort; Ctrl+A — select all; Ctrl+* — invert selection
+        // Ctrl+A — select all; Ctrl+* — invert selection
         bool isControlShortcut =
             (key.Modifiers & ConsoleModifiers.Control) != 0 &&
             (key.Modifiers & ConsoleModifiers.Alt) == 0;
         if (isControlShortcut)
         {
-            int vr0 = VisibleRows();
             switch (key.Key)
             {
-                case ConsoleKey.F3: SetPanelSortMode(ActiveState, SortMode.Name,          vr0); return true;
-                case ConsoleKey.F4: SetPanelSortMode(ActiveState, SortMode.Extension,     vr0); return true;
-                case ConsoleKey.F5: SetPanelSortMode(ActiveState, SortMode.LastWriteTime, vr0); return true;
-                case ConsoleKey.F6: SetPanelSortMode(ActiveState, SortMode.Size,          vr0); return true;
                 case ConsoleKey.A:  _ctrl.ToggleSelectAll(ActiveState, PanelOptions);                          return true;
                 case ConsoleKey.Multiply:
                     _ctrl.InvertSelection(ActiveState, PanelOptions);
@@ -731,41 +1000,8 @@ public sealed class Application
             }
         }
 
-        // Alt+F1 / Alt+F2 — drive/volume selection
-        if ((key.Modifiers & ConsoleModifiers.Alt) != 0 &&
-            (key.Modifiers & (ConsoleModifiers.Control | ConsoleModifiers.Shift)) == 0)
-        {
-            if (key.Key == ConsoleKey.F1) { HandleDriveSelect(PanelSide.Left);  return true; }
-            if (key.Key == ConsoleKey.F2) { HandleDriveSelect(PanelSide.Right); return true; }
-        }
-
-        // Alt+F7 — search files (must come before plain F7 in switch)
-        if (key.Key == ConsoleKey.F7 && (key.Modifiers & ConsoleModifiers.Alt) != 0)
-        {
-            HandleSearchFiles();
-            return true;
-        }
-
-        // Alt+F11 — file history
-        if (key.Key == ConsoleKey.F11 && (key.Modifiers & ConsoleModifiers.Alt) != 0)
-        {
-            HandleFileHistory();
-            return true;
-        }
-
-        // Alt+F12 — directory history
-        if (key.Key == ConsoleKey.F12 && (key.Modifiers & ConsoleModifiers.Alt) != 0)
-        {
-            HandleDirectoryHistory();
-            return true;
-        }
-
-        // Alt+F8 — command history (must come before F8 delete case in switch below)
-        if (key.Key == ConsoleKey.F8 && (key.Modifiers & ConsoleModifiers.Alt) != 0)
-        {
-            HandleCommandHistory();
-            return true;
-        }
+        if (TryHandleFunctionKey(key, out bool functionKeyShouldRender))
+            return functionKeyShouldRender;
 
         int vr = VisibleRows();
 
@@ -836,44 +1072,6 @@ public sealed class Application
                 _ctrl.MoveCursor(ActiveState, +vr, vr);
                 return true;
 
-            // ── Help ─────────────────────────────────────────────────────────
-            case ConsoleKey.F1:
-                new HelpViewer(_screen, _palette).Show();
-                return true;
-
-            // ── User menu ────────────────────────────────────────────────────
-            case ConsoleKey.F2:
-                HandleUserMenu();
-                return true;
-
-            // ── File operations ───────────────────────────────────────────────
-            case ConsoleKey.F3:
-                HandleViewFile();
-                return true;
-
-            case ConsoleKey.F4:
-                HandleEditFile();
-                return true;
-
-            case ConsoleKey.F5:
-                HandleCopy();
-                return true;
-
-            case ConsoleKey.F6:
-                HandleMove();
-                return true;
-
-            case ConsoleKey.F7:
-                HandleCreateFolder();
-                return true;
-
-            case ConsoleKey.F8:
-                HandleDelete();
-                return true;
-
-            case ConsoleKey.F10:
-                _running = false;
-                return false;
         }
 
         // Printable characters always go to the command line. This must run
@@ -887,6 +1085,29 @@ public sealed class Application
         }
 
         return false;
+    }
+
+    private bool TryHandleFunctionKey(ConsoleKeyInfo key, out bool shouldRender)
+    {
+        shouldRender = false;
+
+        if (key.Key is < ConsoleKey.F1 or > ConsoleKey.F12)
+            return false;
+
+        if (!FunctionKeyLayerResolver.TryResolveChordLayer(key.Modifiers, out var layer))
+            return false;
+
+        var binding = _functionKeyBindings.FirstOrDefault(candidate =>
+            candidate.Layer == layer &&
+            candidate.Key == key.Key);
+
+        if (binding is null)
+            return false;
+
+        shouldRender = binding.IsAvailable()
+            ? binding.Execute()
+            : binding.ExecuteUnavailable?.Invoke() ?? true;
+        return true;
     }
 
     private bool HandleHiddenCommandLineKey(ConsoleKeyInfo key)
@@ -952,6 +1173,37 @@ public sealed class Application
             geometry.ColumnCount,
             geometry.VisibleRows);
     }
+
+    private bool OpenTopMenu()
+    {
+        _menuController.HandleKey(
+            new ConsoleKeyInfo('\0', ConsoleKey.F9, shift: false, alt: false, control: false),
+            BuildMenuDefinition(),
+            _active);
+        return true;
+    }
+
+    private bool CanViewCurrentFile() =>
+        HasCapability(ActiveState, PanelProviderCapabilities.OpenRead);
+
+    private bool CanEditCurrentFile() =>
+        HasCapability(ActiveState, PanelProviderCapabilities.Edit);
+
+    private bool CanCopy() =>
+        HasCapability(ActiveState, PanelProviderCapabilities.CopyFrom) &&
+        HasCapability(PassiveState, PanelProviderCapabilities.CopyTo);
+
+    private bool CanMove() =>
+        HasCapability(ActiveState, PanelProviderCapabilities.MoveFrom) &&
+        HasCapability(PassiveState, PanelProviderCapabilities.MoveTo);
+
+    private bool CanDelete() =>
+        HasCapability(ActiveState, PanelProviderCapabilities.Delete);
+
+    private bool CanSortActivePanel() =>
+        HasCapability(ActiveState, PanelProviderCapabilities.Enumerate);
+
+    private FilePanelState PassiveState => _active == PanelSide.Left ? _right : _left;
 
     // ── F4 — edit file ────────────────────────────────────────────────────────
 
