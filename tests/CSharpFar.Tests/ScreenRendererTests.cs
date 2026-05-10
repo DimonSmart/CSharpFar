@@ -1,4 +1,5 @@
 using CSharpFar.Console;
+using CSharpFar.Console.Input;
 using CSharpFar.Console.Models;
 using CSharpFar.Tests.Fakes;
 
@@ -150,7 +151,7 @@ public class ScreenRendererTests
     }
 
     [Fact]
-    public void BufferedFrame_SizeChangeDuringFrame_DoesNotDropEarlierWrites()
+    public void BufferedFrame_SizeChangeDuringFrame_InterruptsFlushAndLeavesDriverUnchanged()
     {
         var (renderer, driver) = Create(10, 5);
         var style = new CellStyle(ConsoleColor.White, ConsoleColor.DarkBlue);
@@ -162,9 +163,73 @@ public class ScreenRendererTests
             renderer.Write(10, 0, "X", style);
         }
 
-        Assert.Equal('O', driver.GetCell(0, 0).Character);
-        Assert.Equal('L', driver.GetCell(1, 0).Character);
-        Assert.Equal('D', driver.GetCell(2, 0).Character);
+        // FlushFrame detects the size mismatch and aborts — nothing is written to the driver.
+        Assert.True(renderer.FrameWasInterrupted);
+        Assert.Equal(' ', driver.GetCell(0, 0).Character);
+    }
+
+    [Fact]
+    public void BufferedFrame_ViewportOriginChange_ForcesFullRedraw()
+    {
+        var (renderer, driver) = Create(10, 5);
+        var style = new CellStyle(ConsoleColor.White, ConsoleColor.DarkBlue);
+
+        using (renderer.BeginFrame())
+            renderer.Write(0, 0, "ABC", style);
+
+        driver.ClearRecordedOperations();
+        driver.SetViewportOrigin(0, 1);
+
+        using (renderer.BeginFrame())
+            renderer.Write(0, 0, "ABC", style);
+
+        Assert.False(renderer.FrameWasInterrupted);
+        Assert.True(driver.WriteAtCallCount > 0);
+    }
+
+    [Fact]
+    public void BufferedFrame_ViewportOriginChangeDuringFlush_DoesNotApplyPendingCursor()
+    {
+        var (renderer, driver) = Create(10, 5);
+        var style = new CellStyle(ConsoleColor.White, ConsoleColor.DarkBlue);
+
+        using (renderer.BeginFrame())
+        {
+            renderer.Write(0, 0, "ABC", style);
+            renderer.SetCursorPosition(2, 1);
+            driver.SetViewportOrigin(0, 1);
+        }
+
+        Assert.True(renderer.FrameWasInterrupted);
+        Assert.Equal(0, driver.TrySetCursorPositionInViewportCallCount);
+    }
+
+    [Fact]
+    public void BufferedFrame_CursorUsesFrameViewportOrigin()
+    {
+        var (renderer, driver) = Create(10, 5);
+        driver.SetViewportOrigin(5, 20);
+
+        using (renderer.BeginFrame())
+            renderer.SetCursorPosition(2, 3);
+
+        Assert.False(renderer.FrameWasInterrupted);
+        Assert.Equal(7, driver.CursorX);
+        Assert.Equal(23, driver.CursorY);
+    }
+
+    [Fact]
+    public void ReadKey_UsesPendingKeyPreservedByDrainResizeEvents()
+    {
+        var (renderer, driver) = Create(10, 5);
+        driver.EnqueueInput(new ConsoleResizeInputEvent());
+        driver.EnqueueKey(new ConsoleKeyInfo('\r', ConsoleKey.Enter, shift: false, alt: false, control: false));
+
+        renderer.DrainResizeEvents();
+
+        var key = renderer.ReadKey();
+
+        Assert.Equal(ConsoleKey.Enter, key.Key);
     }
 
     [Fact]

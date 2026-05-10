@@ -54,7 +54,7 @@ public class QuickViewRendererTests : IDisposable
     }
 
     [Fact]
-    public void DirectoryItem_ShowsPathAndItemCount()
+    public void DirectoryItem_ShowsPathAndDirectCounts()
     {
         string subDir = Path.Combine(_tempDir, "testDir");
         Directory.CreateDirectory(subDir);
@@ -65,9 +65,11 @@ public class QuickViewRendererTests : IDisposable
         _renderer.Render(_bounds, item);
 
         string row0 = ContentRow(0);
-        string row1 = ContentRow(1);
         Assert.Contains("testDir", row0);
-        Assert.Contains("2 items", row1);
+        Assert.Contains("Files:", ContentRow(6));
+        Assert.Contains("2", ContentRow(6));
+        Assert.Contains("Directories:", ContentRow(7));
+        Assert.Contains("0", ContentRow(7));
     }
 
     [Fact]

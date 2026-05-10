@@ -159,7 +159,7 @@ public sealed class Application
             StartWatching(_left,  PanelSide.Left);
             StartWatching(_right, PanelSide.Right);
 
-            Render();
+            RenderUntilStable();
 
             while (_running)
             {
@@ -174,7 +174,7 @@ public sealed class Application
                     ResetRefreshCts();
                     ProcessPendingRefreshes();
                     if (_running && _panelsVisible)
-                        Render();
+                        RenderUntilStable();
                     continue;
                 }
 
@@ -206,11 +206,8 @@ public sealed class Application
 
                 if (_running && shouldRender)
                 {
-                    if (isResize)
-                        WaitForStableConsoleSize();
-
                     if (_panelsVisible)
-                        Render();
+                        RenderUntilStable();
                     else
                     {
                         if (isResize)
@@ -276,7 +273,7 @@ public sealed class Application
         using var frame = _screen.BeginFrame();
         _screen.SetCursorVisible(false);
 
-        var size   = _screen.GetSize();
+        var size   = _screen.FrameSize;
         _lastRenderSize = size;
         int panelH = PanelHeight(size);
         int leftW  = size.Width / 2;
@@ -364,7 +361,7 @@ public sealed class Application
         _screen.SetRenderingOutputMode(true);
         using var frame = _screen.BeginFrame();
 
-        var size = _screen.GetSize();
+        var size = _screen.FrameSize;
         _lastRenderSize = size;
 
         int row = CommandLineRow(size);
@@ -421,16 +418,22 @@ public sealed class Application
 
     private static int CommandLineRow(ConsoleSize size) => Math.Max(0, size.Height - 2);
 
-    private void WaitForStableConsoleSize()
+    /// <summary>
+    /// Renders the screen, retrying if the console was resized mid-frame.
+    /// Loops until a complete, uninterrupted frame is flushed.
+    /// </summary>
+    private void RenderUntilStable()
     {
-        var previous = _screen.GetSize();
-        for (int i = 0; i < 3; i++)
+        int attempt = 0;
+        while (_running)
         {
-            Thread.Sleep(25);
-            var current = _screen.GetSize();
-            if (current.Width == previous.Width && current.Height == previous.Height)
-                return;
-            previous = current;
+            attempt++;
+            Render();
+            if (!_screen.FrameWasInterrupted)
+            {
+                _screen.DrainResizeEvents();
+                break;
+            }
         }
     }
 

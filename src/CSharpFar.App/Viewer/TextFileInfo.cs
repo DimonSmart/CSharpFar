@@ -1,4 +1,5 @@
 using System.Text;
+using System.Runtime.Versioning;
 
 namespace CSharpFar.App.Viewer;
 
@@ -62,7 +63,12 @@ internal sealed class TextFileInfo
         }
         catch { }
 
-        try { appName = GetAssociatedApp(path); } catch { }
+        try
+        {
+            if (OperatingSystem.IsWindows())
+                appName = GetAssociatedApp(path);
+        }
+        catch { }
 
         return new TextFileInfo { BomName = bomName, LineEnding = lineEnding, AppName = appName };
     }
@@ -115,6 +121,7 @@ internal sealed class TextFileInfo
 
     // ── associated application ────────────────────────────────────────────────
 
+    [SupportedOSPlatform("windows")]
     private static string? GetAssociatedApp(string path)
     {
         string ext = Path.GetExtension(path);

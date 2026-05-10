@@ -34,8 +34,7 @@ public sealed class Spec012SearchProgressDialogTests
     {
         var driver = new FakeConsoleDriver(width: 100, height: 30);
         var screen = new ScreenRenderer(driver);
-        driver.EnqueueKey(Key(ConsoleKey.NoName));
-        driver.EnqueueKey(Key(ConsoleKey.NoName));
+        EnqueueNoOpKeys(driver, 8);
         driver.EnqueueKey(KeyChar('S', ConsoleKey.S));
         driver.EnqueueKey(Key(ConsoleKey.Enter));
 
@@ -55,8 +54,7 @@ public sealed class Spec012SearchProgressDialogTests
         var service = new BlockingSearchService(item);
         var driver = new FakeConsoleDriver(width: 100, height: 30);
         var screen = new ScreenRenderer(driver);
-        driver.EnqueueKey(Key(ConsoleKey.NoName));
-        driver.EnqueueKey(Key(ConsoleKey.NoName));
+        EnqueueNoOpKeys(driver, 8);
         driver.EnqueueKey(Key(ConsoleKey.Enter));
 
         var result = new SearchProgressDialog(screen, service).Show(Request(@"C:\root", "*.txt"));
@@ -110,6 +108,12 @@ public sealed class Spec012SearchProgressDialogTests
 
     private static ConsoleKeyInfo KeyChar(char keyChar, ConsoleKey key) =>
         new(keyChar, key, shift: false, alt: false, control: false);
+
+    private static void EnqueueNoOpKeys(FakeConsoleDriver driver, int count)
+    {
+        for (int i = 0; i < count; i++)
+            driver.EnqueueKey(Key(ConsoleKey.NoName));
+    }
 
     private sealed class BlockingSearchService : ISearchService
     {

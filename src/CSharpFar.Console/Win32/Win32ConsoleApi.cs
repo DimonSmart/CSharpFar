@@ -88,6 +88,33 @@ internal static class Win32ConsoleApi
         Coord dwBufferCoord,
         ref SmallRect lpWriteRegion);
 
+    [StructLayout(LayoutKind.Sequential)]
+    internal struct ConsoleScreenBufferInfo
+    {
+        public Coord     dwSize;
+        public Coord     dwCursorPosition;
+        public short     wAttributes;
+        public SmallRect srWindow;
+        public Coord     dwMaximumWindowSize;
+    }
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    private static extern bool GetConsoleScreenBufferInfo(
+        IntPtr hConsoleOutput,
+        out ConsoleScreenBufferInfo lpConsoleScreenBufferInfo);
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    private static extern bool SetConsoleCursorPosition(
+        IntPtr hConsoleOutput,
+        Coord dwCursorPosition);
+
+    public static bool TryGetConsoleScreenBufferInfo(IntPtr handle, out ConsoleScreenBufferInfo info) =>
+        GetConsoleScreenBufferInfo(handle, out info);
+
+    /// <summary>Sets the cursor to pre-computed absolute buffer coordinates.</summary>
+    public static bool TrySetConsoleCursorPositionDirect(IntPtr handle, short absX, short absY) =>
+        SetConsoleCursorPosition(handle, new Coord { X = absX, Y = absY });
+
     public static IntPtr GetConsoleInputHandle() => GetStdHandle(STD_INPUT_HANDLE);
     public static IntPtr GetConsoleOutputHandle() => GetStdHandle(STD_OUTPUT_HANDLE);
 

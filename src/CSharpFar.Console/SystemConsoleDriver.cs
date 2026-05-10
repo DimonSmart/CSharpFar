@@ -65,8 +65,24 @@ public sealed class SystemConsoleDriver : IConsoleDriver, IConsoleOutputModeDriv
             _renderingOutputMode = enabled;
     }
 
-    public ConsoleSize GetSize() =>
-        new(global::System.Console.WindowWidth, global::System.Console.WindowHeight);
+    public ConsoleViewport GetViewport()
+    {
+        if (OperatingSystem.IsWindows() &&
+            Win32ConsoleApi.TryGetConsoleScreenBufferInfo(_consoleHandle, out var sbi))
+        {
+            int w = sbi.srWindow.Right  - sbi.srWindow.Left + 1;
+            int h = sbi.srWindow.Bottom - sbi.srWindow.Top  + 1;
+            return new ConsoleViewport(sbi.srWindow.Left, sbi.srWindow.Top, w, h);
+        }
+
+        return new ConsoleViewport(
+            global::System.Console.WindowLeft,
+            global::System.Console.WindowTop,
+            global::System.Console.WindowWidth,
+            global::System.Console.WindowHeight);
+    }
+
+    public ConsoleSize GetSize() => GetViewport().Size;
 
     public ConsoleInputEvent ReadInput(bool intercept, CancellationToken cancellationToken = default)
     {
@@ -133,7 +149,15 @@ public sealed class SystemConsoleDriver : IConsoleDriver, IConsoleOutputModeDriv
         if (text.IsEmpty || x < 0 || y < 0)
             return;
 
-        int width = global::System.Console.WindowWidth;
+        if (OperatingSystem.IsWindows())
+        {
+            var fg2 = foreground ?? global::System.Console.ForegroundColor;
+            var bg2 = background ?? global::System.Console.BackgroundColor;
+            TryWriteAtViewport(GetViewport(), x, y, text, fg2, bg2);
+            return;
+        }
+
+        int width  = global::System.Console.WindowWidth;
         int height = global::System.Console.WindowHeight;
 
         if (y >= height || x >= width)
@@ -143,13 +167,6 @@ public sealed class SystemConsoleDriver : IConsoleDriver, IConsoleOutputModeDriv
         var span = text.Length > maxLen ? text[..maxLen] : text;
         var fg = foreground ?? global::System.Console.ForegroundColor;
         var bg = background ?? global::System.Console.BackgroundColor;
-
-        if (OperatingSystem.IsWindows())
-        {
-            WriteAtWindows(x, y, span, fg, bg);
-            return;
-        }
-
         var prevFg = global::System.Console.ForegroundColor;
         var prevBg = global::System.Console.BackgroundColor;
 
@@ -168,6 +185,31 @@ public sealed class SystemConsoleDriver : IConsoleDriver, IConsoleOutputModeDriv
             global::System.Console.ForegroundColor = prevFg;
             global::System.Console.BackgroundColor = prevBg;
         }
+    }
+
+    public bool TryWriteAtViewport(
+        ConsoleViewport viewport,
+        int x,
+        int y,
+        ReadOnlySpan<char> text,
+        ConsoleColor? foreground = null,
+        ConsoleColor? background = null)
+    {
+        if (text.IsEmpty || x < 0 || y < 0)
+            return true;
+
+        if (OperatingSystem.IsWindows())
+        {
+            var fg2 = foreground ?? global::System.Console.ForegroundColor;
+            var bg2 = background ?? global::System.Console.BackgroundColor;
+            return TryWriteAtWindows(viewport, x, y, text, fg2, bg2);
+        }
+
+        if (GetViewport() != viewport)
+            return false;
+
+        WriteAt(x, y, text, foreground, background);
+        return true;
     }
 
     public void ClearRegion(Rect region)
@@ -189,6 +231,12 @@ public sealed class SystemConsoleDriver : IConsoleDriver, IConsoleOutputModeDriv
 
     public void SetCursorPosition(int x, int y)
     {
+        if (OperatingSystem.IsWindows())
+        {
+            TrySetCursorPositionInViewport(GetViewport(), x, y);
+            return;
+        }
+
         if (!IsVisibleCursorPosition(x, y))
             return;
 
@@ -201,6 +249,46 @@ public sealed class SystemConsoleDriver : IConsoleDriver, IConsoleOutputModeDriv
         catch (ArgumentOutOfRangeException)
         {
             // Window size changed between validation and SetCursorPosition.
+        }
+    }
+
+    public bool TrySetCursorPositionInViewport(ConsoleViewport viewport, int x, int y)
+    {
+        if (x < 0 || y < 0 || x >= viewport.Width || y >= viewport.Height)
+            return false;
+
+        if (OperatingSystem.IsWindows())
+        {
+            if (!Win32ConsoleApi.TryGetConsoleScreenBufferInfo(_consoleHandle, out var before))
+                return false;
+
+            var current = ToViewport(before);
+            if (current != viewport)
+                return false;
+
+            int absX = viewport.Left + x;
+            int absY = viewport.Top  + y;
+            if (!viewport.ContainsAbsolute(absX, absY))
+                return false;
+
+            if (!Win32ConsoleApi.TrySetConsoleCursorPositionDirect(_consoleHandle, (short)absX, (short)absY))
+                return false;
+
+            return Win32ConsoleApi.TryGetConsoleScreenBufferInfo(_consoleHandle, out var after) &&
+                   ToViewport(after) == viewport;
+        }
+
+        if (GetViewport() != viewport)
+            return false;
+
+        try
+        {
+            global::System.Console.SetCursorPosition(viewport.Left + x, viewport.Top + y);
+            return true;
+        }
+        catch (ArgumentOutOfRangeException)
+        {
+            return false;
         }
     }
 
@@ -260,41 +348,73 @@ public sealed class SystemConsoleDriver : IConsoleDriver, IConsoleOutputModeDriv
         y < global::System.Console.WindowHeight;
 
     [SupportedOSPlatform("windows")]
-    private static void WriteAtWindows(int x, int y, ReadOnlySpan<char> text, ConsoleColor foreground, ConsoleColor background)
+    private bool TryWriteAtWindows(
+        ConsoleViewport viewport,
+        int x,
+        int y,
+        ReadOnlySpan<char> text,
+        ConsoleColor foreground,
+        ConsoleColor background)
     {
-        int w = text.Length;
+        if (!Win32ConsoleApi.TryGetConsoleScreenBufferInfo(_consoleHandle, out var sbi))
+            return false;
+
+        if (ToViewport(sbi) != viewport)
+            return false;
+
+        if (y >= viewport.Height || x >= viewport.Width)
+            return true;
+
+        int absLeft = viewport.Left + x;
+        int absTop  = viewport.Top  + y;
+
+        if (!viewport.ContainsAbsolute(absLeft, absTop))
+            return false;
+
+        int maxLen = viewport.Right - absLeft + 1;
+        var span = text.Length > maxLen ? text[..maxLen] : text;
+        int w = span.Length;
+        if (w <= 0)
+            return true;
+
         var raw = new CharInfo[w];
         short attributes = Win32ConsoleApi.MakeAttributes(foreground, background);
-
         for (int col = 0; col < w; col++)
-        {
-            raw[col] = new CharInfo
-            {
-                UnicodeChar = text[col],
-                Attributes = attributes,
-            };
-        }
+            raw[col] = new CharInfo { UnicodeChar = span[col], Attributes = attributes };
 
         var sr = new SmallRect
         {
-            Left = (short)(global::System.Console.WindowLeft + x),
-            Top = (short)(global::System.Console.WindowTop + y),
-            Right = (short)(global::System.Console.WindowLeft + x + w - 1),
-            Bottom = (short)(global::System.Console.WindowTop + y),
+            Left   = (short)absLeft,
+            Top    = (short)absTop,
+            Right  = (short)(absLeft + w - 1),
+            Bottom = (short)absTop,
         };
 
-        Win32ConsoleApi.WriteRegion(Win32ConsoleApi.GetConsoleOutputHandle(), raw, sr);
+        Win32ConsoleApi.WriteRegion(_consoleHandle, raw, sr);
+        return Win32ConsoleApi.TryGetConsoleScreenBufferInfo(_consoleHandle, out var after) &&
+               ToViewport(after) == viewport;
+    }
+
+    [SupportedOSPlatform("windows")]
+    private static ConsoleViewport ToViewport(Win32ConsoleApi.ConsoleScreenBufferInfo sbi)
+    {
+        int width = sbi.srWindow.Right - sbi.srWindow.Left + 1;
+        int height = sbi.srWindow.Bottom - sbi.srWindow.Top + 1;
+        return new ConsoleViewport(sbi.srWindow.Left, sbi.srWindow.Top, width, height);
     }
 
     [SupportedOSPlatform("windows")]
     private ScreenSnapshot CaptureWindows(Rect region)
     {
+        if (!Win32ConsoleApi.TryGetConsoleScreenBufferInfo(_consoleHandle, out var sbi))
+            return CaptureFallback(region);
+
         var sr = new SmallRect
         {
-            Left = (short)(global::System.Console.WindowLeft + region.X),
-            Top = (short)(global::System.Console.WindowTop + region.Y),
-            Right = (short)(global::System.Console.WindowLeft + region.Right - 1),
-            Bottom = (short)(global::System.Console.WindowTop + region.Bottom - 1),
+            Left   = (short)(sbi.srWindow.Left + region.X),
+            Top    = (short)(sbi.srWindow.Top  + region.Y),
+            Right  = (short)(sbi.srWindow.Left + region.Right  - 1),
+            Bottom = (short)(sbi.srWindow.Top  + region.Bottom - 1),
         };
 
         var raw = Win32ConsoleApi.ReadRegion(_consoleHandle, sr);
@@ -350,12 +470,15 @@ public sealed class SystemConsoleDriver : IConsoleDriver, IConsoleOutputModeDriv
             }
         }
 
+        if (!Win32ConsoleApi.TryGetConsoleScreenBufferInfo(_consoleHandle, out var sbi))
+            return;
+
         var sr = new SmallRect
         {
-            Left = (short)(global::System.Console.WindowLeft + snapshot.Region.X),
-            Top = (short)(global::System.Console.WindowTop + snapshot.Region.Y),
-            Right = (short)(global::System.Console.WindowLeft + snapshot.Region.Right - 1),
-            Bottom = (short)(global::System.Console.WindowTop + snapshot.Region.Bottom - 1),
+            Left   = (short)(sbi.srWindow.Left + snapshot.Region.X),
+            Top    = (short)(sbi.srWindow.Top  + snapshot.Region.Y),
+            Right  = (short)(sbi.srWindow.Left + snapshot.Region.Right  - 1),
+            Bottom = (short)(sbi.srWindow.Top  + snapshot.Region.Bottom - 1),
         };
 
         Win32ConsoleApi.WriteRegion(_consoleHandle, raw, sr);

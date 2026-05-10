@@ -15,14 +15,23 @@ public sealed class ScreenRenderer
     private SnapshotCell[,]? _backBuffer;
     private ConsoleSize _bufferSize;
     private bool _frontBufferKnown;
+    private ConsoleViewport? _frontBufferViewport;
     private bool _frameActive;
     private ConsoleSize _frameSize;
+    private ConsoleViewport _frameViewport;
     private bool _forceFullFrame;
     private bool? _cursorVisible;
     private int _pendingCursorX;
     private int _pendingCursorY;
     private bool _hasPendingCursorPosition;
     private bool? _pendingCursorVisible;
+    private readonly Queue<ConsoleInputEvent> _pendingInputEvents = new();
+
+    /// <summary>
+    /// True if the last frame's flush was aborted mid-way because the console
+    /// size changed during rendering. The caller should discard and re-render.
+    /// </summary>
+    public bool FrameWasInterrupted { get; private set; }
 
     public ScreenRenderer(IConsoleDriver driver)
     {
@@ -30,6 +39,14 @@ public sealed class ScreenRenderer
     }
 
     public ConsoleSize GetSize() => _driver.GetSize();
+
+    /// <summary>
+    /// The size captured at <see cref="BeginFrame"/>. All rendering within a frame
+    /// must use this value — not a second call to <see cref="GetSize"/> — to guarantee
+    /// that layout and clip bounds are consistent with the back-buffer dimensions.
+    /// Only valid while a frame is active.
+    /// </summary>
+    public ConsoleSize FrameSize => _frameSize;
 
     public void SetRenderingOutputMode(bool enabled)
     {
@@ -42,13 +59,22 @@ public sealed class ScreenRenderer
         if (_frameActive)
             throw new InvalidOperationException("A render frame is already active.");
 
-        var size = _driver.GetSize();
+        var viewport = _driver.GetViewport();
+        var size = viewport.Size;
         EnsureBuffers(size);
+        if (_frontBufferKnown &&
+            (!_frontBufferViewport.HasValue || _frontBufferViewport.Value != viewport))
+        {
+            _frontBufferKnown = false;
+            _forceFullFrame = true;
+        }
         CopyFrontToBack();
         _hasPendingCursorPosition = false;
         _pendingCursorVisible = null;
         _frameSize = size;
+        _frameViewport = viewport;
         _frameActive = true;
+        FrameWasInterrupted = false;
 
         return new Frame(this);
     }
@@ -112,6 +138,7 @@ public sealed class ScreenRenderer
         if (x1 == 0 && y1 == 0 && w == size.Width && y2 - y1 == size.Height)
         {
             _frontBufferKnown = true;
+            _frontBufferViewport = _driver.GetViewport();
             _forceFullFrame = false;
         }
     }
@@ -141,6 +168,7 @@ public sealed class ScreenRenderer
         if (x1 == 0 && y1 == 0 && w == size.Width && y2 - y1 == size.Height)
         {
             _frontBufferKnown = true;
+            _frontBufferViewport = _driver.GetViewport();
             _forceFullFrame = false;
         }
     }
@@ -235,13 +263,48 @@ public sealed class ScreenRenderer
         ApplyCursorVisible(visible);
     }
 
-    public ConsoleInputEvent ReadInput(CancellationToken cancellationToken = default) =>
-        _driver.ReadInput(true, cancellationToken);
+    public ConsoleInputEvent ReadInput(CancellationToken cancellationToken = default)
+    {
+        if (_pendingInputEvents.TryDequeue(out var pending))
+            return pending;
+        return _driver.ReadInput(true, cancellationToken);
+    }
 
-    public bool TryReadInput([NotNullWhen(true)] out ConsoleInputEvent? inputEvent) =>
-        _driver.TryReadInput(true, out inputEvent);
+    public bool TryReadInput([NotNullWhen(true)] out ConsoleInputEvent? inputEvent)
+    {
+        if (_pendingInputEvents.TryDequeue(out inputEvent))
+            return true;
+        return _driver.TryReadInput(true, out inputEvent);
+    }
 
-    public ConsoleKeyInfo ReadKey() => _driver.ReadKey(true);
+    /// <summary>
+    /// Drains all pending resize events from the input queue, re-queuing any
+    /// non-resize events so they are processed normally on the next iteration.
+    /// Call this after waiting for the console to stabilise to avoid re-rendering
+    /// stale resize events that accumulated while the window was being resized.
+    /// </summary>
+    public void DrainResizeEvents()
+    {
+        while (_driver.TryReadInput(true, out var evt))
+        {
+            if (evt is not ConsoleResizeInputEvent)
+                _pendingInputEvents.Enqueue(evt);
+        }
+    }
+
+    public ConsoleKeyInfo ReadKey()
+    {
+        while (_pendingInputEvents.TryDequeue(out var pending))
+        {
+            if (pending is KeyConsoleInputEvent keyEvent)
+                return keyEvent.Key;
+
+            if (pending is ConsoleResizeInputEvent)
+                return new ConsoleKeyInfo('\0', ConsoleKey.NoName, shift: false, alt: false, control: false);
+        }
+
+        return _driver.ReadKey(true);
+    }
 
     public ScreenSnapshot Capture(Rect region)
     {
@@ -264,6 +327,19 @@ public sealed class ScreenRenderer
             return;
 
         FlushFrame();
+
+        if (!FrameWasInterrupted &&
+            (_hasPendingCursorPosition || _pendingCursorVisible.HasValue))
+        {
+            if (_hasPendingCursorPosition)
+            {
+                if (!_driver.TrySetCursorPositionInViewport(_frameViewport, _pendingCursorX, _pendingCursorY))
+                    InterruptFrame();
+            }
+            if (!FrameWasInterrupted && _pendingCursorVisible.HasValue)
+                ApplyCursorVisible(_pendingCursorVisible.Value);
+        }
+
         _frameActive = false;
     }
 
@@ -274,10 +350,17 @@ public sealed class ScreenRenderer
 
         bool forceFull = !_frontBufferKnown || _forceFullFrame;
         int height = _bufferSize.Height;
-        int width = _bufferSize.Width;
+        int width  = _bufferSize.Width;
 
         for (int y = 0; y < height; y++)
         {
+            var currentViewport = _driver.GetViewport();
+            if (currentViewport != _frameViewport)
+            {
+                InterruptFrame();
+                return;
+            }
+
             int x = 0;
             while (x < width)
             {
@@ -303,18 +386,32 @@ public sealed class ScreenRenderer
                 for (int i = 0; i < len; i++)
                     chars[i] = _backBuffer[y, start + i].Character;
 
-                _driver.WriteAt(start, y, chars, first.Foreground, first.Background);
+                if (!_driver.TryWriteAtViewport(_frameViewport, start, y, chars, first.Foreground, first.Background))
+                {
+                    InterruptFrame();
+                    return;
+                }
             }
+        }
+
+        if (_driver.GetViewport() != _frameViewport)
+        {
+            InterruptFrame();
+            return;
         }
 
         Array.Copy(_backBuffer, _frontBuffer, _backBuffer.Length);
         _frontBufferKnown = true;
+        _frontBufferViewport = _frameViewport;
         _forceFullFrame = false;
+    }
 
-        if (_hasPendingCursorPosition)
-            _driver.SetCursorPosition(_pendingCursorX, _pendingCursorY);
-        if (_pendingCursorVisible.HasValue)
-            ApplyCursorVisible(_pendingCursorVisible.Value);
+    private void InterruptFrame()
+    {
+        FrameWasInterrupted = true;
+        _frontBufferKnown = false;
+        _frontBufferViewport = null;
+        _forceFullFrame = true;
     }
 
     private bool IsDirty(int y, int x, bool forceFull) =>
@@ -334,6 +431,7 @@ public sealed class ScreenRenderer
         _frontBuffer = CreateBuffer(size);
         _backBuffer = CreateBuffer(size);
         _frontBufferKnown = false;
+        _frontBufferViewport = null;
         _forceFullFrame = true;
     }
 
@@ -398,6 +496,7 @@ public sealed class ScreenRenderer
             snapshot.Region.Height == _bufferSize.Height)
         {
             _frontBufferKnown = true;
+            _frontBufferViewport = _driver.GetViewport();
             _forceFullFrame = false;
         }
     }

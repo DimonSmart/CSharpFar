@@ -20,6 +20,8 @@ public sealed class FakeConsoleDriver : IConsoleDriver, IConsoleOutputModeDriver
 
     private SnapshotCell[,] _buffer;
     private ConsoleSize _size;
+    private int _viewportLeft;
+    private int _viewportTop;
     private readonly Queue<ConsoleInputEvent> _inputQueue = new();
     private readonly List<WriteRecord> _writeRecords = [];
 
@@ -29,6 +31,7 @@ public sealed class FakeConsoleDriver : IConsoleDriver, IConsoleOutputModeDriver
     public int WriteAtCallCount { get; private set; }
     public int ClearRegionCallCount { get; private set; }
     public int SetCursorVisibleCallCount { get; private set; }
+    public int TrySetCursorPositionInViewportCallCount { get; private set; }
     public bool RenderingOutputMode { get; private set; }
     public IReadOnlyList<WriteRecord> WriteRecords => _writeRecords;
 
@@ -47,7 +50,15 @@ public sealed class FakeConsoleDriver : IConsoleDriver, IConsoleOutputModeDriver
         return buf;
     }
 
+    public ConsoleViewport GetViewport() => new(_viewportLeft, _viewportTop, _size.Width, _size.Height);
+
     public ConsoleSize GetSize() => _size;
+
+    public void SetViewportOrigin(int left, int top)
+    {
+        _viewportLeft = left;
+        _viewportTop = top;
+    }
 
     public void SetSize(int width, int height)
     {
@@ -101,6 +112,21 @@ public sealed class FakeConsoleDriver : IConsoleDriver, IConsoleOutputModeDriver
         }
     }
 
+    public bool TryWriteAtViewport(
+        ConsoleViewport viewport,
+        int x,
+        int y,
+        ReadOnlySpan<char> text,
+        ConsoleColor? foreground = null,
+        ConsoleColor? background = null)
+    {
+        if (viewport != GetViewport())
+            return false;
+
+        WriteAt(x, y, text, foreground, background);
+        return true;
+    }
+
     public void ClearRegion(Rect region)
     {
         ClearRegionCallCount++;
@@ -110,6 +136,19 @@ public sealed class FakeConsoleDriver : IConsoleDriver, IConsoleOutputModeDriver
     }
 
     public void SetCursorPosition(int x, int y) { CursorX = x; CursorY = y; }
+    public bool TrySetCursorPositionInViewport(ConsoleViewport viewport, int x, int y)
+    {
+        TrySetCursorPositionInViewportCallCount++;
+        if (viewport != GetViewport())
+            return false;
+
+        if (x < 0 || y < 0 || x >= viewport.Width || y >= viewport.Height)
+            return false;
+
+        CursorX = viewport.Left + x;
+        CursorY = viewport.Top + y;
+        return true;
+    }
     public void SetCursorVisible(bool visible) { CursorVisible = visible; SetCursorVisibleCallCount++; }
     public void SetRenderingOutputMode(bool enabled) { RenderingOutputMode = enabled; }
 
@@ -164,6 +203,7 @@ public sealed class FakeConsoleDriver : IConsoleDriver, IConsoleOutputModeDriver
         WriteAtCallCount = 0;
         ClearRegionCallCount = 0;
         SetCursorVisibleCallCount = 0;
+        TrySetCursorPositionInViewportCallCount = 0;
         _writeRecords.Clear();
     }
 }

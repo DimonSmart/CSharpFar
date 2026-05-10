@@ -234,7 +234,7 @@ public sealed class Spec010FileOperationDialogTests
 
         var buttonRecord = Assert.Single(driver.WriteRecords, r => r.Text.Contains("{ Yes }", StringComparison.Ordinal));
         int bottomFrameRow = driver.WriteRecords
-            .Where(r => r.Text.Contains('└'))
+            .Where(r => r.Text.Contains('└') || r.Text.Contains('╚'))
             .Select(r => r.Y)
             .DefaultIfEmpty(-1)
             .Max();
@@ -242,6 +242,8 @@ public sealed class Spec010FileOperationDialogTests
         Assert.True(bottomFrameRow > buttonRecord.Y);
         Assert.DoesNotContain('└', buttonRecord.Text);
         Assert.DoesNotContain('┘', buttonRecord.Text);
+        Assert.DoesNotContain('╚', buttonRecord.Text);
+        Assert.DoesNotContain('╝', buttonRecord.Text);
     }
 
     private static void EnqueueText(FakeConsoleDriver driver, string text)

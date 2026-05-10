@@ -8,7 +8,7 @@ internal readonly record struct FunctionKeyBarItem(int KeyNumber, string Label);
 internal sealed class FunctionKeyBarRenderer
 {
     private const int FunctionKeyCount = 12;
-    private const string Ellipsis = "…";
+    private const string Ellipsis = "...";
 
     private readonly ScreenRenderer _screen;
     private readonly CellStyle      _numStyle;
@@ -52,9 +52,8 @@ internal sealed class FunctionKeyBarRenderer
             if (keyWidth > 0)
                 _screen.Write(x, y, keyText.AsSpan(0, keyWidth), _numStyle);
 
-            int separatorWidth = keyNumber < FunctionKeyCount ? 1 : 0;
             int slotEnd = keyNumber < FunctionKeyCount ? x + slotWidth : totalWidth;
-            int labelWidth = slotEnd - x - keyWidth - separatorWidth;
+            int labelWidth = slotEnd - x - keyWidth;
             if (labelWidth <= 0)
                 continue;
 

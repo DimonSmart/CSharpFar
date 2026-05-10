@@ -6,6 +6,8 @@ namespace CSharpFar.Console;
 
 public interface IConsoleDriver
 {
+    ConsoleViewport GetViewport();
+
     ConsoleSize GetSize();
 
     /// <summary>Reads the next keyboard, mouse, or resize event.</summary>
@@ -19,8 +21,17 @@ public interface IConsoleDriver
 
     void WriteAt(int x, int y, ReadOnlySpan<char> text,
         ConsoleColor? foreground = null, ConsoleColor? background = null);
+    bool TryWriteAtViewport(
+        ConsoleViewport viewport,
+        int x,
+        int y,
+        ReadOnlySpan<char> text,
+        ConsoleColor? foreground = null,
+        ConsoleColor? background = null);
     void ClearRegion(Rect region);
     void SetCursorPosition(int x, int y);
+    bool TrySetCursorPositionInViewport(ConsoleViewport viewport, int x, int y);
+
     void SetCursorVisible(bool visible);
     ScreenSnapshot Capture(Rect region);
     void Restore(ScreenSnapshot snapshot);
