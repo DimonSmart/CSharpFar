@@ -2207,28 +2207,40 @@ public sealed class Application
     private void ExecuteCommand(string command)
     {
         string workDir = ActiveState.CurrentDirectory;
-        bool showPanelsAfterCommand = _panelsVisible;
         _cmdLine.Clear();
 
-        ShowShellUnderlayForCommand();
-        PrintExecutedCommandPrompt(workDir, command);
-
-        _shell.Execute(command, workDir);
-        PrintInputPrompt(workDir);
+        ExecuteInCurrentConsole(workDir, command, () => _shell.Execute(command, workDir));
 
         _history.AddCommand(new CommandHistoryItem
         {
             Command          = command,
             WorkingDirectory = workDir,
         });
+    }
 
-        // Capture shell output NOW, before Render() paints panels over it.
-        // This snapshot is what Ctrl+O will restore.
-        CaptureUnderlay();
+    private void ExecuteInCurrentConsole(string workDir, string displayCommand, Action execute)
+    {
+        bool showPanelsAfterCommand = _panelsVisible;
 
-        RefreshPanels();
-        _panelsVisible = showPanelsAfterCommand;
-        // Render() or RenderCommandLineOnly() is called by the main loop.
+        ShowShellUnderlayForCommand();
+        PrintExecutedCommandPrompt(workDir, displayCommand);
+
+        try
+        {
+            execute();
+        }
+        finally
+        {
+            PrintInputPrompt(workDir);
+
+            // Capture shell output NOW, before Render() paints panels over it.
+            // This snapshot is what Ctrl+O will restore.
+            CaptureUnderlay();
+
+            RefreshPanels();
+            _panelsVisible = showPanelsAfterCommand;
+            // Render() or RenderCommandLineOnly() is called by the main loop.
+        }
     }
 
     private void ShowShellUnderlayForCommand()
@@ -2354,7 +2366,17 @@ public sealed class Application
 
         try
         {
-            _fileLauncher.OpenFile(item.FullPath);
+            string workDir = ActiveState.CurrentDirectory;
+            if (_fileLauncher.GetLaunchMode(item.FullPath) == FileLaunchMode.CurrentConsole)
+            {
+                ExecuteInCurrentConsole(
+                    workDir,
+                    item.FullPath,
+                    () => _fileLauncher.OpenFile(item.FullPath, workDir));
+                return;
+            }
+
+            _fileLauncher.OpenFile(item.FullPath, workDir);
         }
         catch (Exception ex) when (
             ex is IOException or
@@ -2643,11 +2665,44 @@ public sealed class Application
     // ── alias to avoid namespace conflict with CSharpFar.Console ─────────────
     private static class SysConsole
     {
-        public static int  WindowTop    { get => global::System.Console.WindowTop;    }
-        public static bool CursorVisible { set => global::System.Console.CursorVisible = value; }
-        public static void ResetColor() => global::System.Console.ResetColor();
+        public static int WindowTop
+        {
+            get
+            {
+                try { return global::System.Console.WindowTop; }
+                catch (Exception ex) when (IsConsoleStateException(ex)) { return 0; }
+            }
+        }
+
+        public static bool CursorVisible
+        {
+            set
+            {
+                try { global::System.Console.CursorVisible = value; }
+                catch (Exception ex) when (IsConsoleStateException(ex)) { }
+            }
+        }
+
+        public static void ResetColor()
+        {
+            try { global::System.Console.ResetColor(); }
+            catch (Exception ex) when (IsConsoleStateException(ex)) { }
+        }
+
         public static void SetCursorPosition(int x, int y) =>
-            global::System.Console.SetCursorPosition(x, y);
+            TrySetCursorPosition(x, y);
+
+        private static void TrySetCursorPosition(int x, int y)
+        {
+            try { global::System.Console.SetCursorPosition(x, y); }
+            catch (Exception ex) when (IsConsoleStateException(ex)) { }
+        }
+
+        private static bool IsConsoleStateException(Exception ex) =>
+            ex is IOException or
+                  InvalidOperationException or
+                  ArgumentOutOfRangeException or
+                  PlatformNotSupportedException;
     }
 
     private readonly record struct PanelItemClick(

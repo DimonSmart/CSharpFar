@@ -376,7 +376,9 @@ public sealed class Spec012SearchResultsPanelTests : IDisposable
     {
         public List<string> OpenedFiles { get; } = [];
 
-        public void OpenFile(string fullPath) => OpenedFiles.Add(fullPath);
+        public FileLaunchMode GetLaunchMode(string fullPath) => FileLaunchMode.ShellAssociation;
+
+        public void OpenFile(string fullPath, string workingDirectory) => OpenedFiles.Add(fullPath);
     }
 
     private sealed class EmptySearchService : ISearchService

@@ -207,21 +207,102 @@ public sealed class Spec009OpenPanelItemTests : IDisposable
     }
 
     [Fact]
+    public void Run_EnterOnExecutable_UsesCurrentConsoleLaunchFlow()
+    {
+        string filePath = Path.Combine(_root, "tool.exe");
+        var fs = CreateFileSystem(new FilePanelItem
+        {
+            Name = "tool.exe",
+            FullPath = filePath,
+            IsDirectory = false,
+        });
+
+        var driver = new FakeConsoleDriver(width: 80, height: 12);
+        driver.EnqueueKey(Key(ConsoleKey.DownArrow));
+        driver.EnqueueKey(Key(ConsoleKey.Enter));
+        driver.EnqueueKey(Key(ConsoleKey.F10));
+
+        var launcher = new RecordingFileLauncher(FileLaunchMode.CurrentConsole, () => driver.RenderingOutputMode);
+        var app = CreateApp(fs, driver, launcher);
+
+        app.Run();
+
+        Assert.Equal([filePath], launcher.OpenedFiles);
+        Assert.Equal([_root], launcher.WorkingDirectories);
+        Assert.Equal([false], launcher.RenderingModesDuringOpen);
+        Assert.True(driver.RenderingOutputMode);
+    }
+
+    [Fact]
     public void WindowsShellFileLauncher_OpenFile_UsesWindowsShellOpenVerb()
     {
         ProcessStartInfo? captured = null;
-        var launcher = new WindowsShellFileLauncher(startInfo =>
-        {
-            captured = startInfo;
-            return null;
-        });
+        var launcher = new WindowsShellFileLauncher(
+            startInfo =>
+            {
+                captured = startInfo;
+                return null;
+            },
+            _ => { });
 
-        launcher.OpenFile(@"C:\Temp\note.txt");
+        launcher.OpenFile(@"C:\Temp\note.txt", @"C:\Temp");
 
         Assert.NotNull(captured);
         Assert.Equal(@"C:\Temp\note.txt", captured.FileName);
+        Assert.Equal(@"C:\Temp", captured.WorkingDirectory);
         Assert.True(captured.UseShellExecute);
         Assert.Equal("open", captured.Verb);
+    }
+
+    [Fact]
+    public void WindowsShellFileLauncher_OpenExe_RunsInCurrentConsoleAndWaits()
+    {
+        ProcessStartInfo? captured = null;
+        bool waited = false;
+        var launcher = new WindowsShellFileLauncher(
+            startInfo =>
+            {
+                captured = startInfo;
+                return new Process();
+            },
+            _ => waited = true);
+
+        launcher.OpenFile(@"C:\Temp\tool.exe", @"C:\Temp");
+
+        Assert.NotNull(captured);
+        Assert.Equal(FileLaunchMode.CurrentConsole, launcher.GetLaunchMode(@"C:\Temp\tool.exe"));
+        Assert.Equal(@"C:\Temp\tool.exe", captured.FileName);
+        Assert.Equal(@"C:\Temp", captured.WorkingDirectory);
+        Assert.False(captured.UseShellExecute);
+        Assert.False(captured.RedirectStandardInput);
+        Assert.False(captured.RedirectStandardOutput);
+        Assert.False(captured.RedirectStandardError);
+        Assert.False(captured.CreateNoWindow);
+        Assert.Empty(captured.ArgumentList);
+        Assert.True(waited);
+    }
+
+    [Fact]
+    public void WindowsShellFileLauncher_OpenCmd_RunsViaCommandProcessorInCurrentConsole()
+    {
+        ProcessStartInfo? captured = null;
+        bool waited = false;
+        var launcher = new WindowsShellFileLauncher(
+            startInfo =>
+            {
+                captured = startInfo;
+                return new Process();
+            },
+            _ => waited = true);
+
+        launcher.OpenFile(@"C:\Temp\build.cmd", @"C:\Temp");
+
+        Assert.NotNull(captured);
+        Assert.Equal(FileLaunchMode.CurrentConsole, launcher.GetLaunchMode(@"C:\Temp\build.cmd"));
+        Assert.Equal(@"C:\Temp", captured.WorkingDirectory);
+        Assert.False(captured.UseShellExecute);
+        Assert.Equal(["/c", @"C:\Temp\build.cmd"], captured.ArgumentList);
+        Assert.True(waited);
     }
 
     private FakeFileSystemService CreateFileSystem(params FilePanelItem[] items)
@@ -268,11 +349,34 @@ public sealed class Spec009OpenPanelItemTests : IDisposable
 
     private sealed class RecordingFileLauncher : IFileLauncher
     {
+        private readonly FileLaunchMode _launchMode;
+        private readonly Func<bool>? _getRenderingOutputMode;
         private readonly List<string> _openedFiles = [];
+        private readonly List<string> _workingDirectories = [];
+        private readonly List<bool> _renderingModesDuringOpen = [];
 
         public IReadOnlyList<string> OpenedFiles => _openedFiles;
+        public IReadOnlyList<string> WorkingDirectories => _workingDirectories;
+        public IReadOnlyList<bool> RenderingModesDuringOpen => _renderingModesDuringOpen;
 
-        public void OpenFile(string fullPath) => _openedFiles.Add(fullPath);
+        public RecordingFileLauncher(
+            FileLaunchMode launchMode = FileLaunchMode.ShellAssociation,
+            Func<bool>? getRenderingOutputMode = null)
+        {
+            _launchMode = launchMode;
+            _getRenderingOutputMode = getRenderingOutputMode;
+        }
+
+        public FileLaunchMode GetLaunchMode(string fullPath) => _launchMode;
+
+        public void OpenFile(string fullPath, string workingDirectory)
+        {
+            if (_getRenderingOutputMode is not null)
+                _renderingModesDuringOpen.Add(_getRenderingOutputMode());
+
+            _openedFiles.Add(fullPath);
+            _workingDirectories.Add(workingDirectory);
+        }
     }
 
     private sealed class NoOpShellService : IShellService

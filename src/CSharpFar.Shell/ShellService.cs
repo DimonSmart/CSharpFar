@@ -24,6 +24,10 @@ public sealed class ShellService : IShellService
             Arguments        = args,
             WorkingDirectory = workingDirectory,
             UseShellExecute  = false,
+            RedirectStandardInput = false,
+            RedirectStandardOutput = false,
+            RedirectStandardError = false,
+            CreateNoWindow = false,
             // stdin/stdout/stderr are NOT redirected → the child process inherits
             // our console and its output appears directly in the console buffer.
         };

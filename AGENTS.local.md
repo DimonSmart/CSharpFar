@@ -25,3 +25,8 @@ Read `AGENTS.md` first, then apply the rules here with higher priority.
 <!-- Add durable corrections, preferences, and workflow rules below.
      Record rules when you give a correction you expect to stick permanently,
      or when a repeated mistake signals that a rule was missing. -->
+
+- External console programs should use Far-like current-console execution: start
+  without ShellExecute, without stdio redirection, without a new console window,
+  wait for exit, then redraw the UI. Use shell associations for documents and
+  other non-executable files.
