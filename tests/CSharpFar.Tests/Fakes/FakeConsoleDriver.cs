@@ -34,6 +34,7 @@ public sealed class FakeConsoleDriver : IConsoleDriver, IConsoleOutputModeDriver
     public int TrySetCursorPositionInViewportCallCount { get; private set; }
     public bool RenderingOutputMode { get; private set; }
     public IReadOnlyList<WriteRecord> WriteRecords => _writeRecords;
+    public event Action<WriteRecord>? Wrote;
 
     public FakeConsoleDriver(int width = 80, int height = 25)
     {
@@ -102,7 +103,9 @@ public sealed class FakeConsoleDriver : IConsoleDriver, IConsoleOutputModeDriver
         var fg = foreground ?? ConsoleColor.Gray;
         var bg = background ?? ConsoleColor.Black;
         WriteAtCallCount++;
-        _writeRecords.Add(new WriteRecord(x, y, text.ToString(), fg, bg));
+        var record = new WriteRecord(x, y, text.ToString(), fg, bg);
+        _writeRecords.Add(record);
+        Wrote?.Invoke(record);
 
         for (int i = 0; i < text.Length; i++)
         {

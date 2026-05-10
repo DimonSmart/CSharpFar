@@ -34,9 +34,11 @@ public sealed class Spec012SearchProgressDialogTests
     {
         var driver = new FakeConsoleDriver(width: 100, height: 30);
         var screen = new ScreenRenderer(driver);
-        EnqueueNoOpKeys(driver, 8);
-        driver.EnqueueKey(KeyChar('S', ConsoleKey.S));
-        driver.EnqueueKey(Key(ConsoleKey.Enter));
+        EnqueueKeysWhenWriteContains(
+            driver,
+            "found.txt",
+            KeyChar('S', ConsoleKey.S),
+            Key(ConsoleKey.Enter));
 
         var result = new SearchProgressDialog(screen, new BlockingSearchService(Result(@"C:\root\found.txt")))
             .Show(Request(@"C:\root", "*.txt"));
@@ -54,8 +56,7 @@ public sealed class Spec012SearchProgressDialogTests
         var service = new BlockingSearchService(item);
         var driver = new FakeConsoleDriver(width: 100, height: 30);
         var screen = new ScreenRenderer(driver);
-        EnqueueNoOpKeys(driver, 8);
-        driver.EnqueueKey(Key(ConsoleKey.Enter));
+        EnqueueKeysWhenWriteContains(driver, "found.txt", Key(ConsoleKey.Enter));
 
         var result = new SearchProgressDialog(screen, service).Show(Request(@"C:\root", "*.txt"));
 
@@ -71,10 +72,12 @@ public sealed class Spec012SearchProgressDialogTests
         var service = new BlockingSearchService(item);
         var driver = new FakeConsoleDriver(width: 100, height: 30);
         var screen = new ScreenRenderer(driver);
-        driver.EnqueueKey(Key(ConsoleKey.NoName));
-        driver.EnqueueKey(KeyChar('S', ConsoleKey.S));
-        driver.EnqueueKey(KeyChar('N', ConsoleKey.N));
-        driver.EnqueueKey(KeyChar('G', ConsoleKey.G));
+        EnqueueKeysWhenWriteContains(
+            driver,
+            "found.txt",
+            KeyChar('S', ConsoleKey.S),
+            KeyChar('N', ConsoleKey.N),
+            KeyChar('G', ConsoleKey.G));
 
         var result = new SearchProgressDialog(screen, service).Show(Request(@"C:\root", "*.txt"));
 
@@ -124,10 +127,24 @@ public sealed class Spec012SearchProgressDialogTests
     private static ConsoleKeyInfo KeyChar(char keyChar, ConsoleKey key) =>
         new(keyChar, key, shift: false, alt: false, control: false);
 
-    private static void EnqueueNoOpKeys(FakeConsoleDriver driver, int count)
+    private static void EnqueueKeysWhenWriteContains(
+        FakeConsoleDriver driver,
+        string text,
+        params ConsoleKeyInfo[] keys)
     {
-        for (int i = 0; i < count; i++)
-            driver.EnqueueKey(Key(ConsoleKey.NoName));
+        bool enqueued = false;
+        driver.Wrote += OnWrote;
+
+        void OnWrote(FakeConsoleDriver.WriteRecord record)
+        {
+            if (enqueued || !record.Text.Contains(text, StringComparison.Ordinal))
+                return;
+
+            enqueued = true;
+            driver.Wrote -= OnWrote;
+            foreach (var key in keys)
+                driver.EnqueueKey(key);
+        }
     }
 
     private sealed class BlockingSearchService : ISearchService
