@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using System.Runtime.InteropServices;
 using System.Runtime.Versioning;
 using CSharpFar.Console.Input;
@@ -134,11 +135,36 @@ internal static class Win32ConsoleApi
         }
     }
 
+    public static bool TryReadInput(
+        IntPtr inputHandle,
+        bool intercept,
+        [NotNullWhen(true)] out ConsoleInputEvent? inputEvent)
+    {
+        while (TryReadNextRecordWithTimeout(inputHandle, 0, out var record))
+        {
+            inputEvent = ParseInputRecord(inputHandle, intercept, record, parseVirtualTerminal: false);
+            if (inputEvent is not null)
+                return true;
+        }
+
+        inputEvent = null;
+        return false;
+    }
+
     private static ConsoleInputEvent? TryReadInputRecord(IntPtr inputHandle, bool intercept)
     {
         if (!TryReadNextRecord(inputHandle, out var record))
             return null;
 
+        return ParseInputRecord(inputHandle, intercept, record);
+    }
+
+    private static ConsoleInputEvent? ParseInputRecord(
+        IntPtr inputHandle,
+        bool intercept,
+        InputRecord record,
+        bool parseVirtualTerminal = true)
+    {
         if (record.EventType == WINDOW_BUFFER_SIZE_EVENT)
             return new ConsoleResizeInputEvent();
 
@@ -153,7 +179,8 @@ internal static class Win32ConsoleApi
                 : ConsoleKey.NoName;
             char unicodeChar = record.KeyEvent.Character;
 
-            if (unicodeChar == EscapeChar &&
+            if (parseVirtualTerminal &&
+                unicodeChar == EscapeChar &&
                 TryParseVirtualTerminalKey(inputHandle, out var vtKey))
             {
                 return new KeyConsoleInputEvent(vtKey);

@@ -22,7 +22,16 @@ public sealed class FarMaskMatcher : IFileMaskMatcher
         string fileName,
         IReadOnlyDictionary<string, MaskGroup> groups)
     {
-        var compiled = GetOrCompile(maskExpression, groups);
+        return IsMatch(maskExpression, fileName, groups, caseSensitive: false);
+    }
+
+    public bool IsMatch(
+        string maskExpression,
+        string fileName,
+        IReadOnlyDictionary<string, MaskGroup> groups,
+        bool caseSensitive)
+    {
+        var compiled = GetOrCompile(maskExpression, groups, caseSensitive);
         return compiled.IsMatch(fileName);
     }
 
@@ -30,19 +39,21 @@ public sealed class FarMaskMatcher : IFileMaskMatcher
 
     private CompiledMaskExpression GetOrCompile(
         string expression,
-        IReadOnlyDictionary<string, MaskGroup> groups)
+        IReadOnlyDictionary<string, MaskGroup> groups,
+        bool caseSensitive)
     {
-        var key = new MaskCacheKey(expression, _pathExt, BuildGroupsFingerprint(groups));
+        var key = new MaskCacheKey(expression, _pathExt, BuildGroupsFingerprint(groups), caseSensitive);
         if (_cache.TryGetValue(key, out var cached)) return cached;
 
-        var compiled = Compile(expression, groups);
+        var compiled = Compile(expression, groups, caseSensitive);
         _cache[key] = compiled;
         return compiled;
     }
 
     private CompiledMaskExpression Compile(
         string expression,
-        IReadOnlyDictionary<string, MaskGroup> groups)
+        IReadOnlyDictionary<string, MaskGroup> groups,
+        bool caseSensitive)
     {
         var (rawInclude, _) = FarMaskParser.SplitOnFirstPipe(
             expression,
@@ -68,12 +79,12 @@ public sealed class FarMaskMatcher : IFileMaskMatcher
 
         // 4. Compile tokens to Regex
         var include = includeTokens
-            .Select(CompiledMaskExpression.CompileToken)
+            .Select(token => CompiledMaskExpression.CompileToken(token, caseSensitive))
             .OfType<System.Text.RegularExpressions.Regex>()
             .ToArray();
 
         var exclude = excludeTokens
-            .Select(CompiledMaskExpression.CompileToken)
+            .Select(token => CompiledMaskExpression.CompileToken(token, caseSensitive))
             .OfType<System.Text.RegularExpressions.Regex>()
             .ToArray();
 
@@ -96,5 +107,6 @@ public sealed class FarMaskMatcher : IFileMaskMatcher
     private readonly record struct MaskCacheKey(
         string Expression,
         string PathExt,
-        string GroupsFingerprint);
+        string GroupsFingerprint,
+        bool CaseSensitive);
 }

@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using CSharpFar.Console;
 using CSharpFar.Console.Input;
 using CSharpFar.Console.Models;
@@ -67,6 +68,9 @@ public sealed class FakeConsoleDriver : IConsoleDriver, IConsoleOutputModeDriver
             ? inputEvent
             : throw new InvalidOperationException("No input events queued in FakeConsoleDriver.");
     }
+
+    public bool TryReadInput(bool intercept, [NotNullWhen(true)] out ConsoleInputEvent? inputEvent) =>
+        _inputQueue.TryDequeue(out inputEvent);
 
     public ConsoleKeyInfo ReadKey(bool intercept)
     {

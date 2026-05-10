@@ -25,7 +25,9 @@ internal sealed class OperationCancelDialog
         _screen = screen;
     }
 
-    public bool Show()
+    public bool Show(
+        string interruptedMessage = "Operation has been interrupted",
+        string confirmationMessage = "Do you really want to cancel it?")
     {
         var size = _screen.GetSize();
         var saved = _screen.Capture(new Rect(0, 0, size.Width, size.Height));
@@ -35,7 +37,7 @@ internal sealed class OperationCancelDialog
         {
             while (true)
             {
-                Draw(size, focusedButton);
+                Draw(size, focusedButton, interruptedMessage, confirmationMessage);
 
                 var input = _screen.ReadInput();
                 if (_buttons.TryHandleInput(input, ref focusedButton, out string? buttonId) && buttonId is not null)
@@ -57,7 +59,11 @@ internal sealed class OperationCancelDialog
         }
     }
 
-    private void Draw(ConsoleSize size, int focusedButton)
+    private void Draw(
+        ConsoleSize size,
+        int focusedButton,
+        string interruptedMessage,
+        string confirmationMessage)
     {
         int x = Math.Max(0, (size.Width - DialogWidth) / 2);
         int y = Math.Max(0, (size.Height - DialogHeight) / 2);
@@ -71,8 +77,8 @@ internal sealed class OperationCancelDialog
             int contentX = contentBounds.X + 1;
             int contentWidth = Math.Max(1, contentBounds.Width - 2);
 
-            _screen.Write(contentX, contentBounds.Y, Center("Operation has been interrupted", contentWidth), WarningDialogStyles.Fill);
-            _screen.Write(contentX, contentBounds.Y + 1, Center("Do you really want to cancel it?", contentWidth), WarningDialogStyles.Fill);
+            _screen.Write(contentX, contentBounds.Y, Center(interruptedMessage, contentWidth), WarningDialogStyles.Fill);
+            _screen.Write(contentX, contentBounds.Y + 1, Center(confirmationMessage, contentWidth), WarningDialogStyles.Fill);
 
             _buttons.Render(
                 _screen,

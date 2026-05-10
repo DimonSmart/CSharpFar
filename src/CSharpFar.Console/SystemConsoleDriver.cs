@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using System.Runtime.InteropServices;
 using System.Runtime.Versioning;
 using CSharpFar.Console.Input;
@@ -87,6 +88,34 @@ public sealed class SystemConsoleDriver : IConsoleDriver, IConsoleOutputModeDriv
         cancellationToken.ThrowIfCancellationRequested();
         var key = global::System.Console.ReadKey(intercept);
         return new KeyConsoleInputEvent(key);
+    }
+
+    public bool TryReadInput(bool intercept, [NotNullWhen(true)] out ConsoleInputEvent? inputEvent)
+    {
+        if (OperatingSystem.IsWindows())
+        {
+            bool hasInput = Win32ConsoleApi.TryReadInput(_inputHandle, intercept, out inputEvent);
+            if (hasInput && inputEvent is ConsoleResizeInputEvent)
+                _lastInputSize = GetSize();
+            return hasInput;
+        }
+
+        try
+        {
+            if (!global::System.Console.KeyAvailable)
+            {
+                inputEvent = null;
+                return false;
+            }
+
+            inputEvent = new KeyConsoleInputEvent(global::System.Console.ReadKey(intercept));
+            return true;
+        }
+        catch (InvalidOperationException)
+        {
+            inputEvent = null;
+            return false;
+        }
     }
 
     public ConsoleKeyInfo ReadKey(bool intercept)

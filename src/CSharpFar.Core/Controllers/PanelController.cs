@@ -28,6 +28,11 @@ public sealed class PanelController
         state.Items.AddRange(view.Items);
         state.Summary          = view.Summary;
         state.AutoRefreshState = view.AutoRefreshState;
+        state.ProviderCapabilities = PanelProviderCapabilities.LocalFileSystem;
+        state.DisplayTitle = null;
+        state.ShowCurrentItemFullPath = false;
+        state.SearchRequest = null;
+        state.SearchWasCancelled = false;
         state.SelectedPaths.Clear();
         state.CursorIndex  = 0;
         state.ScrollOffset = 0;

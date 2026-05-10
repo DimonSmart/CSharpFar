@@ -45,7 +45,7 @@ public static class HelpContent
         "  Alt+F12           Directory history",
         "",
         "SEARCH",
-        "  Alt+F7            Search files by mask (e.g. *.cs)",
+        "  Alt+F7            Search files by mask and text",
         "",
         "VIEW MODES",
         "  Ctrl+O            Toggle panels on/off — shows shell output underneath",

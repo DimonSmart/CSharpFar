@@ -14,6 +14,7 @@ var renderer = new ScreenRenderer(driver);
 
 var fs          = new FileSystemService();
 var fileOps     = new FileOperationService();
+var searchSvc   = new FileSystemSearchService();
 var shell       = new ShellService(settings.Shell.Executable, settings.Shell.ArgumentsFormat);
 var fileLauncher = new WindowsShellFileLauncher();
 var userMenu    = new UserMenuStore(settingsStore.ConfigDirectory);
@@ -37,4 +38,5 @@ new Application(renderer, fs, shell, fileOps, history, settings, userMenu,
     changeWatcher:     changeWatcher,
     locationService:   locationSvc,
     mountPointService: mountPointSvc,
-    fileLauncher:      fileLauncher).Run();
+    fileLauncher:      fileLauncher,
+    searchService:     searchSvc).Run();

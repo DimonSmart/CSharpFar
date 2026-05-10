@@ -34,23 +34,25 @@ internal sealed class CompiledMaskExpression
     // ── Token compilation ────────────────────────────────────────────────────
 
     /// <summary>Returns null if the token is empty or invalid (no match).</summary>
-    public static Regex? CompileToken(string token)
+    public static Regex? CompileToken(string token) => CompileToken(token, caseSensitive: false);
+
+    public static Regex? CompileToken(string token, bool caseSensitive)
     {
         token = token.Trim();
         if (token.Length == 0) return null;
 
         // Quoted wildcard: "file,name.txt"
         if (token.StartsWith('"') && token.EndsWith('"') && token.Length >= 2)
-            return CompileWildcard(token[1..^1]);
+            return CompileWildcard(token[1..^1], caseSensitive);
 
         // Regex: /pattern/flags
         if (token.StartsWith('/'))
-            return CompileRegex(token);
+            return CompileRegex(token, caseSensitive);
 
-        return CompileWildcard(token);
+        return CompileWildcard(token, caseSensitive);
     }
 
-    private static Regex CompileWildcard(string pattern)
+    private static Regex CompileWildcard(string pattern, bool caseSensitive)
     {
         // Far: *.* matches everything (same as *)
         if (pattern == "*.*") pattern = "*";
@@ -88,10 +90,13 @@ internal sealed class CompiledMaskExpression
             }
         }
         sb.Append('$');
-        return new Regex(sb.ToString(), RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+        var options = RegexOptions.CultureInvariant;
+        if (!caseSensitive)
+            options |= RegexOptions.IgnoreCase;
+        return new Regex(sb.ToString(), options);
     }
 
-    private static Regex CompileRegex(string token)
+    private static Regex CompileRegex(string token, bool caseSensitive)
     {
         // token = /pattern/flags
         int close = 1;
@@ -107,7 +112,7 @@ internal sealed class CompiledMaskExpression
         string flags   = close < token.Length ? token[(close + 1)..] : string.Empty;
 
         var opts = RegexOptions.CultureInvariant;
-        if (flags.Contains('i')) opts |= RegexOptions.IgnoreCase;
+        if (!caseSensitive || flags.Contains('i')) opts |= RegexOptions.IgnoreCase;
 
         try   { return new Regex(pattern, opts); }
         catch { return new Regex("(?!)", opts); } // never matches on invalid regex

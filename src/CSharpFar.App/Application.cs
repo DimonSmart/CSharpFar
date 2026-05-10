@@ -3,7 +3,6 @@ using CSharpFar.App.HitTesting;
 using CSharpFar.App.Menu;
 using CSharpFar.App.Rendering;
 using CSharpFar.App.Editor;
-using CSharpFar.App.Search;
 using CSharpFar.App.UserMenu;
 using CSharpFar.App.Viewer;
 using CSharpFar.Console;
@@ -29,6 +28,7 @@ public sealed class Application
     private readonly IShellService _shell;
     private readonly IFileLauncher _fileLauncher;
     private readonly IFileOperationService _fileOps;
+    private readonly ISearchService _searchService;
     private readonly IHistoryStore _history;
     private readonly AppSettingsAlias _settings;
     private readonly UserMenuStore _userMenu;
@@ -76,7 +76,8 @@ public sealed class Application
         IFileSystemChangeWatcher?    changeWatcher     = null,
         IFileSystemLocationService?  locationService   = null,
         IVolumeMountPointService?    mountPointService = null,
-        IFileLauncher?               fileLauncher      = null)
+        IFileLauncher?               fileLauncher      = null,
+        ISearchService?              searchService     = null)
     {
         _screen       = screen;
         _fs           = fs;
@@ -86,6 +87,7 @@ public sealed class Application
         _shell        = shell;
         _fileLauncher = fileLauncher ?? new WindowsShellFileLauncher();
         _fileOps      = fileOps;
+        _searchService = searchService ?? new CSharpFar.FileSystem.FileSystemSearchService();
         _history      = history      ?? new InMemoryHistoryStore();
         _settings     = settings     ?? new AppSettingsAlias();
         _userMenu     = userMenu     ?? new UserMenuStore(
@@ -715,10 +717,10 @@ public sealed class Application
             int vr0 = VisibleRows();
             switch (key.Key)
             {
-                case ConsoleKey.F3: _ctrl.SetSortMode(ActiveState, SortMode.Name,          vr0, PanelOptions); return true;
-                case ConsoleKey.F4: _ctrl.SetSortMode(ActiveState, SortMode.Extension,     vr0, PanelOptions); return true;
-                case ConsoleKey.F5: _ctrl.SetSortMode(ActiveState, SortMode.LastWriteTime, vr0, PanelOptions); return true;
-                case ConsoleKey.F6: _ctrl.SetSortMode(ActiveState, SortMode.Size,          vr0, PanelOptions); return true;
+                case ConsoleKey.F3: SetPanelSortMode(ActiveState, SortMode.Name,          vr0); return true;
+                case ConsoleKey.F4: SetPanelSortMode(ActiveState, SortMode.Extension,     vr0); return true;
+                case ConsoleKey.F5: SetPanelSortMode(ActiveState, SortMode.LastWriteTime, vr0); return true;
+                case ConsoleKey.F6: SetPanelSortMode(ActiveState, SortMode.Size,          vr0); return true;
                 case ConsoleKey.A:  _ctrl.ToggleSelectAll(ActiveState, PanelOptions);                          return true;
                 case ConsoleKey.Multiply:
                     _ctrl.InvertSelection(ActiveState, PanelOptions);
@@ -955,6 +957,12 @@ public sealed class Application
 
     private void HandleEditFile()
     {
+        if (!HasCapability(ActiveState, PanelProviderCapabilities.Edit))
+        {
+            ShowReadOnlyPanelMessage("Edit");
+            return;
+        }
+
         var item = _ctrl.CurrentItem(ActiveState);
         if (item is null || item.IsParentDirectory || item.IsDirectory) return;
         _history.AddFile(new FileHistoryItem { Path = item.FullPath });
@@ -966,6 +974,9 @@ public sealed class Application
 
     private void HandleViewFile()
     {
+        if (!HasCapability(ActiveState, PanelProviderCapabilities.OpenRead))
+            return;
+
         var item = _ctrl.CurrentItem(ActiveState);
         if (item is null || item.IsParentDirectory || item.IsDirectory) return;
         _history.AddFile(new FileHistoryItem { Path = item.FullPath });
@@ -1033,36 +1044,133 @@ public sealed class Application
 
     private void HandleSearchFiles()
     {
-        string? mask = new InputDialog(_screen, _palette).Show(
-            "Search Files", "File mask (e.g. *.cs):", initialText: "*");
-        if (mask is null) return;
+        var request = new SearchDialog(_screen).Show(ActiveState.CurrentDirectory);
+        if (request is null) return;
 
-        string rootDir = ActiveState.CurrentDirectory;
-        var results = new SearchProgressDialog(_screen, _palette).Show(rootDir, mask);
-
-        if (results.Count == 0)
+        SearchRunResult result;
+        try
         {
-            new MessageDialog(_screen, _palette).Show("Search", "No files found.");
+            result = new SearchProgressDialog(_screen, _searchService, _palette).Show(request);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or DirectoryNotFoundException or ArgumentException)
+        {
+            new MessageDialog(_screen, _palette).Show("Search", ex.Message);
             return;
         }
 
-        string? selected = new SearchResultsDialog(_screen, _palette).Show(results);
-        if (selected is null) return;
+        if (result.GoToResult is not null)
+        {
+            GoToSearchResult(ActiveState, _active, result.GoToResult);
+            return;
+        }
 
-        string? parentDir = Path.GetDirectoryName(selected);
-        string  fileName  = Path.GetFileName(selected);
-        if (parentDir is null) return;
+        if (result.DiscardResults)
+            return;
+
+        if (result.Results.Count == 0)
+        {
+            string message = result.Cancelled ? "Search cancelled. No files found." : "No files found.";
+            new MessageDialog(_screen, _palette).Show("Search", message);
+            return;
+        }
+
+        OpenSearchResultsPanel(ActiveState, request, result.Results, result.Cancelled);
+    }
+
+    private void OpenSearchResultsPanel(
+        FilePanelState state,
+        SearchRequest request,
+        IReadOnlyList<SearchResultItem> results,
+        bool cancelled)
+    {
+        state.CurrentDirectory = request.RootPath;
+        state.Items.Clear();
+        state.Items.AddRange(results.Select(ToFilePanelItem));
+        state.SelectedPaths.Clear();
+        state.CursorIndex = 0;
+        state.ScrollOffset = 0;
+        state.ProviderCapabilities = PanelProviderCapabilities.SearchResults;
+        state.DisplayTitle = BuildSearchResultsTitle(request, cancelled);
+        state.ShowCurrentItemFullPath = true;
+        state.SearchRequest = request;
+        state.SearchWasCancelled = cancelled;
+        state.AutoRefreshState = null;
+        SortVirtualPanel(state, keepCursorPath: null);
+        RefreshSearchResultsSummary(state);
+    }
+
+    private void GoToSearchResult(FilePanelState state, PanelSide side, SearchResultItem result)
+    {
+        GoToSearchResult(
+            state,
+            side,
+            result.FullPath,
+            result.Name,
+            result.Kind == SearchResultItemKind.Directory);
+    }
+
+    private void GoToSearchResult(FilePanelState state, PanelSide side, FilePanelItem result)
+    {
+        GoToSearchResult(
+            state,
+            side,
+            result.FullPath,
+            result.Name,
+            result.IsDirectory);
+    }
+
+    private void GoToSearchResult(
+        FilePanelState state,
+        PanelSide side,
+        string fullPath,
+        string name,
+        bool isDirectory)
+    {
+        string? directoryPath = isDirectory
+            ? fullPath
+            : Path.GetDirectoryName(fullPath);
+
+        if (string.IsNullOrWhiteSpace(directoryPath))
+        {
+            new MessageDialog(_screen, _palette).Show("Search", $"Cannot open search result: {fullPath}");
+            return;
+        }
 
         try
         {
-            _ctrl.LoadDirectory(ActiveState, parentDir, PanelOptions);
-            _ctrl.SetCursorByName(ActiveState, fileName, VisibleRows());
-            StartWatching(ActiveState, _active);
+            _ctrl.LoadDirectory(state, directoryPath, PanelOptions);
+            if (!isDirectory)
+                _ctrl.SetCursorByName(state, name, VisibleRows(side));
+
+            _history.AddDirectory(new DirectoryHistoryItem { Path = state.CurrentDirectory });
+            StartWatching(state, side);
         }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or DirectoryNotFoundException)
         {
             new MessageDialog(_screen, _palette).Show("Search", ex.Message);
         }
+    }
+
+    private static FilePanelItem ToFilePanelItem(SearchResultItem item) =>
+        new()
+        {
+            Name = item.Name,
+            FullPath = item.FullPath,
+            IsDirectory = item.Kind == SearchResultItemKind.Directory,
+            Size = item.Size,
+            LastWriteTime = item.LastWriteTime,
+            Attributes = item.Attributes,
+            IsParentDirectory = false,
+        };
+
+    private static string BuildSearchResultsTitle(SearchRequest request, bool cancelled)
+    {
+        string basis = !string.IsNullOrEmpty(request.ContainingText)
+            ? request.ContainingText
+            : request.FileMaskExpression;
+
+        string title = $"Search results: {basis}";
+        return cancelled ? $"{title}, cancelled" : title;
     }
 
     // ── F5 — copy ─────────────────────────────────────────────────────────────
@@ -1154,9 +1262,8 @@ public sealed class Application
                 lastRender = DateTime.UtcNow;
             }
 
-            if (global::System.Console.KeyAvailable)
+            if (TryReadConsoleKey(out var key))
             {
-                var key = global::System.Console.ReadKey(intercept: true);
                 if (key.Key == ConsoleKey.Escape)
                 {
                     if (latestProgress?.Phase == FileOperationPhase.Scanning)
@@ -1297,13 +1404,27 @@ public sealed class Application
 
     private void HandleCopy()
     {
+        if (!HasCapability(ActiveState, PanelProviderCapabilities.CopyFrom))
+        {
+            ShowReadOnlyPanelMessage("Copy");
+            return;
+        }
+
+        var targetState = _active == PanelSide.Left ? _right : _left;
+        if (!HasCapability(targetState, PanelProviderCapabilities.CopyTo))
+        {
+            new MessageDialog(_screen, _palette).Show(
+                "Copy",
+                "Cannot copy to search results panel.\nSearch results are read-only.");
+            return;
+        }
+
         var sources = GetOperationSources();
         if (sources.Count == 0) return;
 
-        var otherDir = (_active == PanelSide.Left ? _right : _left).CurrentDirectory;
         var dialogResult = new FileOperationDialog(_screen).ShowCopy(
             sources,
-            otherDir,
+            targetState.CurrentDirectory,
             BuildFileOperationOptions());
         if (dialogResult is null) return;
 
@@ -1340,6 +1461,19 @@ public sealed class Application
 
     private void HandleMove()
     {
+        if (!HasCapability(ActiveState, PanelProviderCapabilities.MoveFrom))
+        {
+            ShowReadOnlyPanelMessage("Move");
+            return;
+        }
+
+        var targetState = _active == PanelSide.Left ? _right : _left;
+        if (!HasCapability(targetState, PanelProviderCapabilities.MoveTo))
+        {
+            ShowReadOnlyPanelMessage("Move");
+            return;
+        }
+
         var sources = GetOperationSources();
         if (sources.Count == 0) return;
 
@@ -1347,7 +1481,7 @@ public sealed class Application
         // Multiple items: pre-fill with opposite panel dir (move destination).
         string preFill = sources.Count == 1
             ? Path.GetFileName(sources[0])
-            : (_active == PanelSide.Left ? _right : _left).CurrentDirectory;
+            : targetState.CurrentDirectory;
 
         var dialogResult = new FileOperationDialog(_screen).ShowMove(
             sources,
@@ -1388,6 +1522,12 @@ public sealed class Application
 
     private void HandleDelete()
     {
+        if (!HasCapability(ActiveState, PanelProviderCapabilities.Delete))
+        {
+            ShowReadOnlyPanelMessage("Delete");
+            return;
+        }
+
         var sources = GetOperationSources();
         if (sources.Count == 0) return;
 
@@ -1528,6 +1668,12 @@ public sealed class Application
 
     private void HandleCreateFolder()
     {
+        if (!HasCapability(ActiveState, PanelProviderCapabilities.CreateDirectory))
+        {
+            ShowReadOnlyPanelMessage("Create folder");
+            return;
+        }
+
         var dialog = new CreateFolderDialog(_screen);
         string? name = dialog.Show(validate: attempt =>
         {
@@ -1602,11 +1748,10 @@ public sealed class Application
             case MenuCommandIds.PanelSetSortMode:
                 if (request.Args is not SetPanelSortModeArgs sortArgs)
                     return MenuCommandFailure("Missing panel sort arguments.");
-                _ctrl.SetSortMode(
+                SetPanelSortMode(
                     GetPanelState(sortArgs.PanelSide),
                     sortArgs.SortMode,
-                    VisibleRows(sortArgs.PanelSide),
-                    PanelOptions);
+                    VisibleRows(sortArgs.PanelSide));
                 return MenuCommandSuccess();
 
             case MenuCommandIds.PanelToggleReverseSort:
@@ -1682,7 +1827,13 @@ public sealed class Application
     {
         var state = GetPanelState(side);
         state.SortDescending = !state.SortDescending;
-        SafeRefresh(state, VisibleRows(side));
+        if (state.SearchRequest is null)
+            SafeRefresh(state, VisibleRows(side));
+        else
+        {
+            SortVirtualPanel(state, _ctrl.CurrentItem(state)?.FullPath);
+            _ctrl.MoveCursor(state, 0, VisibleRows(side));
+        }
     }
 
     private MenuCommandResult ToggleSetting(Action toggle)
@@ -1861,6 +2012,12 @@ public sealed class Application
 
     private void OpenPanelItem(FilePanelState state, PanelSide side, FilePanelItem item)
     {
+        if (state.SearchRequest is not null)
+        {
+            GoToSearchResult(state, side, item);
+            return;
+        }
+
         if (item.IsDirectory)
         {
             OpenDirectoryItem(state, side, item);
@@ -1872,6 +2029,9 @@ public sealed class Application
 
     private void OpenDirectoryItem(FilePanelState state, PanelSide side, FilePanelItem item)
     {
+        if (!HasCapability(state, PanelProviderCapabilities.Enumerate))
+            return;
+
         try
         {
             if (item.IsParentDirectory)
@@ -1890,6 +2050,9 @@ public sealed class Application
 
     private void OpenFileItem(FilePanelItem item)
     {
+        if (!HasCapability(ActiveState, PanelProviderCapabilities.OpenRead))
+            return;
+
         try
         {
             _fileLauncher.OpenFile(item.FullPath);
@@ -1906,6 +2069,9 @@ public sealed class Application
 
     private void TryGoUp()
     {
+        if (!HasCapability(ActiveState, PanelProviderCapabilities.Watch))
+            return;
+
         try
         {
             _ctrl.GoToParent(ActiveState, VisibleRows(), PanelOptions);
@@ -1924,11 +2090,191 @@ public sealed class Application
         SafeRefresh(_right, VisibleRows(PanelSide.Right));
     }
 
+    private void RefreshSearchResultsPanel(FilePanelState state, int visibleRows)
+    {
+        if (state.SearchRequest is null)
+            return;
+
+        var previousItems = state.Items.ToList();
+        var previousSelectedPaths = state.SelectedPaths.ToList();
+        int previousCursor = state.CursorIndex;
+        int previousScroll = state.ScrollOffset;
+        string? cursorPath = _ctrl.CurrentItem(state)?.FullPath;
+
+        SearchRunResult result;
+        try
+        {
+            result = new SearchProgressDialog(_screen, _searchService, _palette).Show(state.SearchRequest);
+        }
+        catch
+        {
+            state.Items.Clear();
+            state.Items.AddRange(previousItems);
+            state.SelectedPaths.Clear();
+            foreach (string selectedPath in previousSelectedPaths)
+                state.SelectedPaths.Add(selectedPath);
+            state.CursorIndex = previousCursor;
+            state.ScrollOffset = previousScroll;
+            RefreshSearchResultsSummary(state);
+            return;
+        }
+
+        if (result.GoToResult is not null)
+        {
+            GoToSearchResult(state, PanelSideForState(state), result.GoToResult);
+            return;
+        }
+
+        if (result.DiscardResults || result.Cancelled)
+        {
+            state.Items.Clear();
+            state.Items.AddRange(previousItems);
+            state.SelectedPaths.Clear();
+            foreach (string selectedPath in previousSelectedPaths)
+                state.SelectedPaths.Add(selectedPath);
+            state.CursorIndex = previousCursor;
+            state.ScrollOffset = previousScroll;
+            RefreshSearchResultsSummary(state);
+            return;
+        }
+
+        state.Items.Clear();
+        state.Items.AddRange(result.Results.Select(ToFilePanelItem));
+        state.SelectedPaths.Clear();
+        state.SearchWasCancelled = false;
+        state.DisplayTitle = BuildSearchResultsTitle(state.SearchRequest, cancelled: false);
+        SortVirtualPanel(state, cursorPath);
+        RefreshSearchResultsSummary(state);
+        _ctrl.MoveCursor(state, 0, visibleRows);
+    }
+
+    private PanelSide PanelSideForState(FilePanelState state) =>
+        ReferenceEquals(state, _left) ? PanelSide.Left : PanelSide.Right;
+
     private void SafeRefresh(FilePanelState state, int visibleRows)
     {
+        if (!HasCapability(state, PanelProviderCapabilities.Refresh))
+            return;
+
+        if (state.SearchRequest is not null)
+        {
+            RefreshSearchResultsPanel(state, visibleRows);
+            return;
+        }
+
         if (!Directory.Exists(state.CurrentDirectory)) return;
         try { _ctrl.RefreshDirectory(state, visibleRows, PanelOptions); }
         catch { }
+    }
+
+    private void SetPanelSortMode(FilePanelState state, SortMode mode, int visibleRows)
+    {
+        if (state.SearchRequest is null)
+        {
+            _ctrl.SetSortMode(state, mode, visibleRows, PanelOptions);
+            return;
+        }
+
+        string? cursorPath = _ctrl.CurrentItem(state)?.FullPath;
+        if (state.SortMode == mode)
+            state.SortDescending = !state.SortDescending;
+        else
+        {
+            state.SortMode = mode;
+            state.SortDescending = false;
+        }
+
+        SortVirtualPanel(state, cursorPath);
+        _ctrl.MoveCursor(state, 0, visibleRows);
+    }
+
+    private void SortVirtualPanel(FilePanelState state, string? keepCursorPath)
+    {
+        var sortOptions = new PanelSortOptions
+        {
+            SortFoldersByExtension = PanelOptions.SortFoldersByExtension,
+            KeepParentDirectoryFirst = false,
+            DirectoriesFirst = true,
+        };
+        var sorted = new PanelSortService().Sort(state.Items, state.SortMode, state.SortDescending, sortOptions);
+        state.Items.Clear();
+        state.Items.AddRange(sorted);
+
+        if (keepCursorPath is null)
+        {
+            state.CursorIndex = 0;
+            state.ScrollOffset = 0;
+            return;
+        }
+
+        int index = state.Items.FindIndex(i => string.Equals(i.FullPath, keepCursorPath, StringComparison.OrdinalIgnoreCase));
+        if (index >= 0)
+            state.CursorIndex = index;
+    }
+
+    private static void RefreshSearchResultsSummary(FilePanelState state)
+    {
+        int fileCount = 0;
+        int directoryCount = 0;
+        long totalFileSize = 0;
+        int selectedCount = 0;
+        long selectedFileSize = 0;
+
+        foreach (var item in state.Items)
+        {
+            if (item.IsDirectory)
+                directoryCount++;
+            else
+            {
+                fileCount++;
+                totalFileSize += item.Size ?? 0;
+            }
+
+            if (!state.SelectedPaths.Contains(item.FullPath))
+                continue;
+
+            selectedCount++;
+            if (!item.IsDirectory)
+                selectedFileSize += item.Size ?? 0;
+        }
+
+        state.Summary = new PanelSummary
+        {
+            VisibleItemCount = fileCount + directoryCount,
+            FileCount = fileCount,
+            DirectoryCount = directoryCount,
+            TotalFileSize = totalFileSize,
+            SelectedCount = selectedCount,
+            SelectedFileSize = selectedFileSize,
+        };
+    }
+
+    private static bool HasCapability(FilePanelState state, PanelProviderCapabilities capability) =>
+        (state.ProviderCapabilities & capability) == capability;
+
+    private static bool TryReadConsoleKey(out ConsoleKeyInfo key)
+    {
+        try
+        {
+            if (global::System.Console.KeyAvailable)
+            {
+                key = global::System.Console.ReadKey(intercept: true);
+                return true;
+            }
+        }
+        catch (InvalidOperationException)
+        {
+        }
+
+        key = default;
+        return false;
+    }
+
+    private void ShowReadOnlyPanelMessage(string action)
+    {
+        new MessageDialog(_screen, _palette).Show(
+            action,
+            "Search results are read-only.");
     }
 
     // ── auto-refresh ──────────────────────────────────────────────────────────
@@ -1936,6 +2282,11 @@ public sealed class Application
     private void StartWatching(FilePanelState state, PanelSide side)
     {
         if (_watcher == null || _locationService == null) return;
+        if (!HasCapability(state, PanelProviderCapabilities.Watch))
+        {
+            state.AutoRefreshState = null;
+            return;
+        }
 
         var loc = _locationService.GetLocationInfo(state.CurrentDirectory);
         var opts = PanelOptions.AutoRefresh;

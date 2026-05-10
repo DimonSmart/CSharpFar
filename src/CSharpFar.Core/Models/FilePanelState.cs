@@ -12,4 +12,10 @@ public sealed class FilePanelState
     public string? FilterMask { get; set; }
     public PanelSummary? Summary { get; set; }
     public PanelAutoRefreshState? AutoRefreshState { get; set; }
+    public PanelProviderCapabilities ProviderCapabilities { get; set; } =
+        PanelProviderCapabilities.LocalFileSystem;
+    public string? DisplayTitle { get; set; }
+    public bool ShowCurrentItemFullPath { get; set; }
+    public SearchRequest? SearchRequest { get; set; }
+    public bool SearchWasCancelled { get; set; }
 }

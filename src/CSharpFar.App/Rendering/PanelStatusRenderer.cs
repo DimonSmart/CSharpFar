@@ -80,7 +80,8 @@ internal sealed class PanelStatusRenderer
         int kindWidth  = Math.Max(5, kind.Length);
         int stampWidth = stamp.Length;
         int nameWidth  = Math.Max(0, width - kindWidth - stampWidth - 2);
-        string name    = Truncate(item.Name, nameWidth).PadRight(nameWidth);
+        string itemName = state.ShowCurrentItemFullPath ? item.FullPath : item.Name;
+        string name    = Truncate(itemName, nameWidth).PadRight(nameWidth);
 
         return $"{name} {kind.PadLeft(kindWidth)} {stamp}";
     }

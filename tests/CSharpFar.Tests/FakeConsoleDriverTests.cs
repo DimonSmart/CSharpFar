@@ -1,4 +1,5 @@
 using CSharpFar.Console.Models;
+using CSharpFar.Console.Input;
 using CSharpFar.Tests.Fakes;
 
 namespace CSharpFar.Tests;
@@ -101,5 +102,31 @@ public class FakeConsoleDriverTests
 
         Assert.Equal(expected.KeyChar, result.KeyChar);
         Assert.Equal(expected.Key, result.Key);
+    }
+
+    [Fact]
+    public void TryReadInput_ReturnsFalseWhenQueueIsEmpty()
+    {
+        var driver = new FakeConsoleDriver();
+
+        bool hasInput = driver.TryReadInput(intercept: true, out var input);
+
+        Assert.False(hasInput);
+        Assert.Null(input);
+    }
+
+    [Fact]
+    public void TryReadInput_ReturnsQueuedInputWithoutBlocking()
+    {
+        var driver = new FakeConsoleDriver();
+        var expected = new ConsoleKeyInfo('a', ConsoleKey.A, false, false, false);
+        driver.EnqueueKey(expected);
+
+        bool hasInput = driver.TryReadInput(intercept: true, out var input);
+
+        Assert.True(hasInput);
+        var keyInput = Assert.IsType<KeyConsoleInputEvent>(input);
+        Assert.Equal(expected.Key, keyInput.Key.Key);
+        Assert.Equal(expected.KeyChar, keyInput.Key.KeyChar);
     }
 }

@@ -65,7 +65,8 @@ public sealed class DefaultMenuDefinitionProvider
                 Command($"{id}.refresh", "Refresh", 'H',
                     MenuCommandIds.PanelRefresh,
                     new PanelCommandArgs { PanelSide = side },
-                    Directory.Exists(panel.CurrentDirectory)),
+                    (panel.ProviderCapabilities & PanelProviderCapabilities.Refresh) == PanelProviderCapabilities.Refresh &&
+                    (panel.SearchRequest is not null || Directory.Exists(panel.CurrentDirectory))),
             ],
         };
     }

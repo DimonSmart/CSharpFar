@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using CSharpFar.Console.Input;
 using CSharpFar.Console.Models;
 
@@ -233,6 +234,9 @@ public sealed class ScreenRenderer
 
     public ConsoleInputEvent ReadInput(CancellationToken cancellationToken = default) =>
         _driver.ReadInput(true, cancellationToken);
+
+    public bool TryReadInput([NotNullWhen(true)] out ConsoleInputEvent? inputEvent) =>
+        _driver.TryReadInput(true, out inputEvent);
 
     public ConsoleKeyInfo ReadKey() => _driver.ReadKey(true);
 

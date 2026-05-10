@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using CSharpFar.Console.Input;
 using CSharpFar.Console.Models;
 
@@ -9,6 +10,9 @@ public interface IConsoleDriver
 
     /// <summary>Reads the next keyboard, mouse, or resize event.</summary>
     ConsoleInputEvent ReadInput(bool intercept, CancellationToken cancellationToken = default);
+
+    /// <summary>Reads one pending input event without blocking.</summary>
+    bool TryReadInput(bool intercept, [NotNullWhen(true)] out ConsoleInputEvent? inputEvent);
 
     /// <summary>Key-only read; kept for dialog compatibility.</summary>
     ConsoleKeyInfo ReadKey(bool intercept);

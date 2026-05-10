@@ -35,6 +35,14 @@ public class FileMaskMatcherTests
     [Fact] public void Range_c_f_Matches_d()               => Assert.True(Match("[c-f]*.txt", "demo.txt"));
     [Fact] public void Range_c_f_NoMatch_a()               => Assert.False(Match("[c-f]*.txt", "alpha.txt"));
 
+    [Fact]
+    public void CaseSensitiveWildcard_DoesNotMatchDifferentCase()
+    {
+        var matcher = new FarMaskMatcher();
+
+        Assert.False(matcher.IsMatch("*.cs", "PROGRAM.CS", NoGroups, caseSensitive: true));
+    }
+
     // ── *.* normalization ─────────────────────────────────────────────────────
 
     [Fact] public void StarDotStar_Matches_File_Without_Extension() => Assert.True(Match("*.*", "README"));
@@ -145,6 +153,22 @@ public class FileMaskMatcherTests
     [Fact]
     public void Regex_PartialMatch_NoAnchor()
         => Assert.True(Match("/readme/i", "README.md"));
+
+    [Fact]
+    public void CaseInsensitiveRequest_AppliesToRegexWithoutExplicitFlag()
+    {
+        var matcher = new FarMaskMatcher();
+
+        Assert.True(matcher.IsMatch("/readme/", "README.md", NoGroups, caseSensitive: false));
+    }
+
+    [Fact]
+    public void CaseSensitiveRequest_StillHonorsRegexIgnoreCaseFlag()
+    {
+        var matcher = new FarMaskMatcher();
+
+        Assert.True(matcher.IsMatch("/readme/i", "README.md", NoGroups, caseSensitive: true));
+    }
 
     // ── %PATHEXT% ─────────────────────────────────────────────────────────────
 

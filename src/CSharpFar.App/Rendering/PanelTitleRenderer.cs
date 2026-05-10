@@ -18,7 +18,7 @@ internal static class PanelTitleRenderer
             return;
 
         int pathMaxLen = Math.Max(0, innerWidth - 2);
-        string label = FormatPathLabel(state.CurrentDirectory, pathMaxLen);
+        string label = FormatPathLabel(state.DisplayTitle ?? state.CurrentDirectory, pathMaxLen);
         if (label.Length == 0)
             return;
 
