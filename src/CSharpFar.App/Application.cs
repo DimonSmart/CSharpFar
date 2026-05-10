@@ -64,6 +64,9 @@ public sealed class Application
     private readonly IReadOnlyList<FunctionKeyBinding> _functionKeyBindings;
     private PanelItemClick?                 _lastLeftPanelItemClick;
     private FunctionKeyLayer                _functionKeyLayer = FunctionKeyLayer.Plain;
+    private readonly DirectorySizeCalculator _dirSizeCalc = new();
+    private DirectorySizeState?              _quickViewDirState;
+    private string?                          _quickViewDirPath;
 
     public Application(
         ScreenRenderer         screen,
@@ -106,6 +109,8 @@ public sealed class Application
 
         if (_watcher != null)
             _watcher.Changed += OnFileSystemChanged;
+        _dirSizeCalc.Completed += OnDirSizeCalculated;
+        _dirSizeCalc.Progress  += OnDirSizeProgress;
         _palette          = PaletteRegistry.Resolve(_settings.Ui.Palette);
         _leftViewMode     = ResolveViewMode(_settings.Panels.LeftViewMode);
         _rightViewMode    = ResolveViewMode(_settings.Panels.RightViewMode);
@@ -219,14 +224,54 @@ public sealed class Application
         }
         finally
         {
+            _dirSizeCalc.Dispose();
             _screen.SetCursorVisible(true);
         }
+    }
+
+    // ── quick view dir size ───────────────────────────────────────────────────
+
+    private void UpdateQuickViewDirSize()
+    {
+        if (!_quickView) { _dirSizeCalc.Cancel(); return; }
+
+        var item = _active == PanelSide.Left ? _ctrl.CurrentItem(_left) : _ctrl.CurrentItem(_right);
+        if (item is not { IsDirectory: true, IsParentDirectory: false })
+        {
+            _dirSizeCalc.Cancel();
+            _quickViewDirState = null;
+            _quickViewDirPath  = null;
+            return;
+        }
+
+        if (_quickViewDirPath == item.FullPath) return;
+
+        _quickViewDirPath  = item.FullPath;
+        _quickViewDirState = null;
+        _dirSizeCalc.Start(item.FullPath);
+    }
+
+    private void OnDirSizeProgress(string path, DirectorySizeState state)
+        => OnDirSizeUpdate(path, state);
+
+    private void OnDirSizeCalculated(string path, DirectorySizeState state)
+        => OnDirSizeUpdate(path, state);
+
+    private void OnDirSizeUpdate(string path, DirectorySizeState state)
+    {
+        if (_quickViewDirPath != path) return;
+        _quickViewDirState = state;
+        // Signal the input loop to wake up and repaint.
+        // Do NOT replace the CTS here — just cancel the current one.
+        // ResetRefreshCts() will create a fresh CTS before the next ReadInput.
+        _refreshCts.Cancel();
     }
 
     // ── rendering ─────────────────────────────────────────────────────────────
 
     private void Render()
     {
+        UpdateQuickViewDirSize();
         _screen.SetRenderingOutputMode(true);
         using var frame = _screen.BeginFrame();
         _screen.SetCursorVisible(false);
@@ -243,17 +288,21 @@ public sealed class Application
         {
             if (_active == PanelSide.Left)
             {
-                panelRenderer.Render(new Rect(0,     0, leftW,  panelH), _left, true, PanelViewMode.Full);
+                var item = _ctrl.CurrentItem(_left);
+                panelRenderer.Render(new Rect(0,     0, leftW,  panelH), _left, true, _leftViewMode);
                 new QuickViewRenderer(_screen, _palette).Render(
                     new Rect(leftW, 0, rightW, panelH),
-                    _ctrl.CurrentItem(_left));
+                    item,
+                    item is { IsDirectory: true } ? _quickViewDirState : null);
             }
             else
             {
+                var item = _ctrl.CurrentItem(_right);
                 new QuickViewRenderer(_screen, _palette).Render(
                     new Rect(0,     0, leftW,  panelH),
-                    _ctrl.CurrentItem(_right));
-                panelRenderer.Render(new Rect(leftW, 0, rightW, panelH), _right, true, PanelViewMode.Full);
+                    item,
+                    item is { IsDirectory: true } ? _quickViewDirState : null);
+                panelRenderer.Render(new Rect(leftW, 0, rightW, panelH), _right, true, _rightViewMode);
             }
         }
         else
@@ -769,16 +818,11 @@ public sealed class Application
 
     private int VisibleRows()
     {
-        if (_quickView)
-            return VisibleRows(PanelViewMode.Full);
         return VisibleRows(ActiveViewMode);
     }
 
     private int VisibleRows(PanelSide side)
     {
-        if (_quickView && side == _active)
-            return VisibleRows(PanelViewMode.Full);
-
         var mode = side == PanelSide.Left ? _leftViewMode : _rightViewMode;
         return VisibleRows(mode);
     }
@@ -795,7 +839,7 @@ public sealed class Application
 
     private (int RowsPerColumn, int ColumnCount, int VisibleRows) ActiveColumnGeometry()
     {
-        var mode = _quickView ? PanelViewMode.Full : ActiveViewMode;
+        var mode = ActiveViewMode;
         int visibleRows = VisibleRows(mode);
 
         if (mode != PanelViewMode.BriefTwoColumns)
@@ -2562,14 +2606,13 @@ public sealed class Application
             _pendingRefreshEvents.Enqueue(e);
 
         // Wake the input loop
-        var old = Interlocked.Exchange(ref _refreshCts, new CancellationTokenSource());
-        old.Cancel();
-        old.Dispose();
+        _refreshCts.Cancel();
     }
 
     private void ResetRefreshCts()
     {
-        // Already replaced in OnFileSystemChanged; nothing else needed here.
+        var old = Interlocked.Exchange(ref _refreshCts, new CancellationTokenSource());
+        old.Dispose();
     }
 
     private void ProcessPendingRefreshes()

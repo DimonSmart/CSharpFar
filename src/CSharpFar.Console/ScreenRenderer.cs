@@ -192,15 +192,18 @@ public sealed class ScreenRenderer
         int w = rect.Width;
         int h = rect.Height;
 
+        // Corners
         WriteChar(x, y, '╔', style);
         WriteChar(x + w - 1, y, '╗', style);
         WriteChar(x, y + h - 1, '╚', style);
         WriteChar(x + w - 1, y + h - 1, '╝', style);
 
+        // Horizontal lines
         var hLine = new string('═', w - 2);
         Write(x + 1, y, hLine, style);
         Write(x + 1, y + h - 1, hLine, style);
 
+        // Vertical lines
         for (int row = y + 1; row < y + h - 1; row++)
         {
             WriteChar(x, row, '║', style);
