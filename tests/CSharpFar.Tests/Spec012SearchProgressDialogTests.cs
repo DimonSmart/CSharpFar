@@ -83,6 +83,21 @@ public sealed class Spec012SearchProgressDialogTests
         Assert.Same(item, result.GoToResult);
     }
 
+    [Fact]
+    public void Show_DoesNotConsumeInputAfterSearchCompletes()
+    {
+        var driver = new FakeConsoleDriver(width: 100, height: 30);
+        var screen = new ScreenRenderer(driver);
+        driver.EnqueueKey(Key(ConsoleKey.F10));
+
+        var result = new SearchProgressDialog(screen, new DelayedEmptySearchService())
+            .Show(Request(@"C:\root", "*.txt"));
+
+        Assert.False(result.Cancelled);
+        Assert.Empty(result.Results);
+        Assert.Equal(ConsoleKey.F10, driver.ReadKey(intercept: true).Key);
+    }
+
     private static SearchRequest Request(string rootPath, string fileMaskExpression) =>
         new()
         {
@@ -146,6 +161,18 @@ public sealed class Spec012SearchProgressDialogTests
                 CancellationObserved = true;
                 throw;
             }
+        }
+    }
+
+    private sealed class DelayedEmptySearchService : ISearchService
+    {
+        public async IAsyncEnumerable<SearchResultItem> SearchAsync(
+            SearchRequest request,
+            IProgress<SearchProgress>? progress,
+            [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
+        {
+            await Task.Delay(10, cancellationToken);
+            yield break;
         }
     }
 }

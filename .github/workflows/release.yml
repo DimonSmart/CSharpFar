@@ -1,0 +1,86 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+
+permissions:
+  contents: write
+
+env:
+  APP_PROJECT: src/CSharpFar.App/CSharpFar.App.csproj
+  DOTNET_NOLOGO: true
+  PUBLISH_DIR: artifacts/publish/CSharpFar
+  RUNTIME_ID: win-x64
+
+jobs:
+  release:
+    name: Publish release
+    runs-on: windows-latest
+
+    steps:
+      - name: Validate version tag
+        shell: pwsh
+        run: |
+          if ($env:GITHUB_REF_NAME -notmatch '^v\d+\.\d+\.\d+$') {
+            throw "Release tags must use vMAJOR.MINOR.PATCH format."
+          }
+
+          $version = $env:GITHUB_REF_NAME.Substring(1)
+          "VERSION=$version" >> $env:GITHUB_ENV
+          "ASSEMBLY_VERSION=$version.0" >> $env:GITHUB_ENV
+          "ASSET_NAME=CSharpFar-$($env:GITHUB_REF_NAME)-$($env:RUNTIME_ID).zip" >> $env:GITHUB_ENV
+
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Restore
+        run: dotnet restore CSharpFar.slnx
+
+      - name: Build
+        run: dotnet build CSharpFar.slnx --configuration Release --no-restore
+
+      - name: Test
+        run: dotnet test CSharpFar.slnx --configuration Release --no-build --verbosity normal
+
+      - name: Publish
+        shell: pwsh
+        run: |
+          dotnet publish $env:APP_PROJECT `
+            --configuration Release `
+            --runtime $env:RUNTIME_ID `
+            --self-contained true `
+            --output $env:PUBLISH_DIR `
+            /p:PublishSingleFile=true `
+            /p:IncludeNativeLibrariesForSelfExtract=true `
+            /p:Version=$env:VERSION `
+            /p:AssemblyVersion=$env:ASSEMBLY_VERSION `
+            /p:FileVersion=$env:ASSEMBLY_VERSION `
+            /p:InformationalVersion=$env:GITHUB_REF_NAME
+
+      - name: Package
+        shell: pwsh
+        run: |
+          $assetPath = Join-Path $env:RUNNER_TEMP $env:ASSET_NAME
+          if (Test-Path $assetPath) {
+            Remove-Item $assetPath
+          }
+
+          Compress-Archive -Path "$env:PUBLISH_DIR\*" -DestinationPath $assetPath -CompressionLevel Optimal
+          "ASSET_PATH=$assetPath" >> $env:GITHUB_ENV
+
+      - name: Create GitHub release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create $env:GITHUB_REF_NAME $env:ASSET_PATH `
+            --verify-tag `
+            --title "CSharpFar $env:GITHUB_REF_NAME" `
+            --notes "Automatic release for $env:GITHUB_REF_NAME."

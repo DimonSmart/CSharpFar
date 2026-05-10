@@ -102,6 +102,8 @@ internal sealed class SearchProgressDialog
                 Draw(request, progressSnapshot, resultSnapshot, selectedIndex, scrollOffset, buttonBar, focusedButton);
 
                 Thread.Sleep(RedrawDelayMilliseconds);
+                if (task.IsCompleted)
+                    break;
 
                 SearchResultItem[] inputResults;
                 lock (syncRoot)
