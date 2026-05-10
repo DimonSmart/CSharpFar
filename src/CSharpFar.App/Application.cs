@@ -1783,11 +1783,11 @@ public sealed class Application
         var sources = GetOperationSources();
         if (sources.Count == 0) return;
 
-        string prompt = sources.Count == 1
-            ? $"Delete \"{Path.GetFileName(sources[0])}\"?"
-            : $"Delete {sources.Count} items?";
+        string itemName = sources.Count == 1
+            ? Path.GetFileName(sources[0])
+            : $"{sources.Count} items";
 
-        if (_settings.Ui.ConfirmDelete && !new ConfirmDialog(_screen, _palette).Show("Delete", prompt))
+        if (_settings.Ui.ConfirmDelete && !new ConfirmDialog(_screen).Show("Delete", "Do you wish to move to the Recycle Bin?", itemName))
             return;
 
         var size  = _screen.GetSize();

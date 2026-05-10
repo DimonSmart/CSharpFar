@@ -259,7 +259,7 @@ internal sealed class SearchProgressDialog
             _screen,
             outerBounds,
             $"Find file: {request.FileMaskExpression}",
-            false,
+            true,
             FarDialogStyles.OuterOptions,
             FarDialogStyles.FrameOptions,
             (_, layout) =>
@@ -325,9 +325,9 @@ internal sealed class SearchProgressDialog
         if (y <= bounds.Y || y >= bounds.Bottom - 1)
             return;
 
-        _screen.WriteChar(bounds.X, y, '├', FarDialogStyles.Border);
+        _screen.WriteChar(bounds.X, y, '╟', FarDialogStyles.Border);
         _screen.Write(bounds.X + 1, y, new string('─', Math.Max(0, bounds.Width - 2)), FarDialogStyles.Border);
-        _screen.WriteChar(bounds.Right - 1, y, '┤', FarDialogStyles.Border);
+        _screen.WriteChar(bounds.Right - 1, y, '╢', FarDialogStyles.Border);
     }
 
     private int VisibleResultRows()

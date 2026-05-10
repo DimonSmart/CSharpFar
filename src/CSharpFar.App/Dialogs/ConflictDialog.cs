@@ -102,7 +102,7 @@ internal sealed class ConflictDialog
 
         using var frame = _screen.BeginFrame();
 
-        _modalRenderer.Render(_screen, bounds, "Warning", false, WarningDialogStyles.OuterOptions, WarningDialogStyles.FrameOptions, (_, layout) =>
+        _modalRenderer.Render(_screen, bounds, "Warning", true, WarningDialogStyles.OuterOptions, WarningDialogStyles.FrameOptions, (_, layout) =>
         {
             Rect frameBounds = layout.FrameBounds;
             int contentX = frameBounds.X + 2;
@@ -227,9 +227,9 @@ internal sealed class ConflictDialog
 
     private void DrawSeparator(Rect frameBounds, int y)
     {
-        _screen.WriteChar(frameBounds.X, y, '├', WarningDialogStyles.Border);
+        _screen.WriteChar(frameBounds.X, y, '╟', WarningDialogStyles.Border);
         _screen.Write(frameBounds.X + 1, y, new string('─', Math.Max(0, frameBounds.Width - 2)), WarningDialogStyles.Border);
-        _screen.WriteChar(frameBounds.Right - 1, y, '┤', WarningDialogStyles.Border);
+        _screen.WriteChar(frameBounds.Right - 1, y, '╢', WarningDialogStyles.Border);
     }
 
     private bool IsRememberClick(MouseConsoleInputEvent mouse) =>

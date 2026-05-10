@@ -41,7 +41,7 @@ internal sealed class ProgressDialog
             _screen.Write(contentX, frameBounds.Y + 1, "Scanning the folder".PadRight(contentWidth), FillStyle);
             _screen.Write(contentX, frameBounds.Y + 2, ShortenMiddle(DisplayFolderName(progress.CurrentPath), contentWidth).PadRight(contentWidth), FillStyle);
 
-            DrawSeparator(frameBounds, frameBounds.Y + 4, doubleBorder: true);
+            DrawSeparator(frameBounds, frameBounds.Y + 4);
 
             DrawCounter(contentX, frameBounds.Y + 5, contentWidth, "Files:", FormatInteger(progress.ItemsDone));
             DrawCounter(contentX, frameBounds.Y + 6, contentWidth, "Folders:", FormatInteger(progress.FoldersDone));
@@ -52,7 +52,7 @@ internal sealed class ProgressDialog
     private void RenderCopying(FileOperationProgress progress, bool showTotalProgress)
     {
         var outer = _modalRenderer.CenteredOuterBounds(_screen, CopyOuterWidth, CopyOuterHeight);
-        RenderOuter(outer, "Copy", false, (frameBounds, contentX, contentWidth) =>
+        RenderOuter(outer, "Copy", true, (frameBounds, contentX, contentWidth) =>
         {
             _screen.Write(contentX, frameBounds.Y + 1, "Copying the file".PadRight(contentWidth), FillStyle);
             _screen.Write(contentX, frameBounds.Y + 2, ShortenMiddle(progress.CurrentPath, contentWidth).PadRight(contentWidth), FillStyle);
@@ -123,14 +123,14 @@ internal sealed class ProgressDialog
         _screen.Write(x, y, new string(line), FillStyle);
     }
 
-    private void DrawSeparator(Rect inner, int y, bool doubleBorder = false)
+    private void DrawSeparator(Rect inner, int y)
     {
         if (y <= inner.Y || y >= inner.Bottom - 1)
             return;
 
-        char left = doubleBorder ? '╠' : '├';
-        char line = doubleBorder ? '═' : '─';
-        char right = doubleBorder ? '╣' : '┤';
+        char left = '╟';
+        char line = '─';
+        char right = '╢';
 
         _screen.WriteChar(inner.X, y, left, BorderStyle);
         _screen.Write(inner.X + 1, y, new string(line, Math.Max(0, inner.Width - 2)), BorderStyle);
@@ -148,9 +148,9 @@ internal sealed class ProgressDialog
         int rightWidth = Math.Max(0, lineWidth - leftWidth - titleText.Length);
         string line = new string('─', leftWidth) + titleText + new string('─', rightWidth);
 
-        _screen.WriteChar(inner.X, y, '├', BorderStyle);
+        _screen.WriteChar(inner.X, y, '╟', BorderStyle);
         _screen.Write(inner.X + 1, y, line, BorderStyle);
-        _screen.WriteChar(inner.Right - 1, y, '┤', BorderStyle);
+        _screen.WriteChar(inner.Right - 1, y, '╢', BorderStyle);
     }
 
     private static void WriteInto(char[] target, int start, string value)

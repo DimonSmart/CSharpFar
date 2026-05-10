@@ -461,7 +461,7 @@ internal sealed class FileOperationDialog
         var fill = FarDialogStyles.Fill;
         var focused = FarDialogStyles.Input;
 
-        _modalRenderer.Render(_screen, outerBounds, title, false, FarDialogStyles.OuterOptions, FarDialogStyles.FrameOptions, (_, layout) =>
+        _modalRenderer.Render(_screen, outerBounds, title, true, FarDialogStyles.OuterOptions, FarDialogStyles.FrameOptions, (_, layout) =>
         {
             Rect bounds = layout.FrameBounds;
             int contentX = bounds.X + 2;
@@ -511,7 +511,7 @@ internal sealed class FileOperationDialog
     private void DrawInput(int x, int y, int width, CommandLineState buffer, bool focused)
     {
         string text = VisibleInputText(buffer, width);
-        _screen.Write(x, y, text.PadRight(width), focused ? FarDialogStyles.Input : FarDialogStyles.Fill);
+        _screen.Write(x, y, text.PadRight(width), FarDialogStyles.Input);
     }
 
     private void SetInputCursor(int x, int y, int width, CommandLineState buffer)
@@ -592,9 +592,9 @@ internal sealed class FileOperationDialog
             return;
 
         var style = FarDialogStyles.Border;
-        _screen.WriteChar(bounds.X, y, '├', style);
+        _screen.WriteChar(bounds.X, y, '╟', style);
         _screen.Write(bounds.X + 1, y, new string('─', Math.Max(0, bounds.Width - 2)), style);
-        _screen.WriteChar(bounds.Right - 1, y, '┤', style);
+        _screen.WriteChar(bounds.Right - 1, y, '╢', style);
     }
 
     private static string ConflictLabel(ConflictDecisionMode mode) => mode switch

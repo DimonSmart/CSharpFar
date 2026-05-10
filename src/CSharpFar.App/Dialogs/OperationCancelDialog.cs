@@ -71,7 +71,7 @@ internal sealed class OperationCancelDialog
 
         using var frame = _screen.BeginFrame();
 
-        _modalRenderer.Render(_screen, bounds, string.Empty, false, WarningDialogStyles.OuterOptions, WarningDialogStyles.FrameOptions, (_, layout) =>
+        _modalRenderer.Render(_screen, bounds, string.Empty, true, WarningDialogStyles.OuterOptions, WarningDialogStyles.FrameOptions, (_, layout) =>
         {
             Rect contentBounds = layout.ContentBounds;
             int contentX = contentBounds.X + 1;

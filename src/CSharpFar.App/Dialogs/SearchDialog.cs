@@ -483,7 +483,7 @@ internal sealed class SearchDialog
         var focused = FarDialogStyles.Input;
         var disabled = new CellStyle(ConsoleColor.DarkGray, fill.Background);
 
-        _modalRenderer.Render(_screen, outerBounds, "Find file", false, FarDialogStyles.OuterOptions, FarDialogStyles.FrameOptions, (_, layout) =>
+        _modalRenderer.Render(_screen, outerBounds, "Find file", true, FarDialogStyles.OuterOptions, FarDialogStyles.FrameOptions, (_, layout) =>
         {
             Rect bounds = layout.FrameBounds;
             int contentX = bounds.X + 2;
@@ -540,7 +540,7 @@ internal sealed class SearchDialog
     private void DrawInput(int x, int y, int width, CommandLineState buffer, bool focused)
     {
         string text = VisibleInputText(buffer, width);
-        _screen.Write(x, y, text.PadRight(width), focused ? FarDialogStyles.Input : FarDialogStyles.Fill);
+        _screen.Write(x, y, text.PadRight(width), FarDialogStyles.Input);
     }
 
     private void DrawValueRow(

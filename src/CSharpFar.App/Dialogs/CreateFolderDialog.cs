@@ -243,7 +243,7 @@ internal sealed class CreateFolderDialog
     private void DrawInput(int x, int y, int width, CommandLineState buffer, bool focused)
     {
         string text = VisibleInputText(buffer, width);
-        _screen.Write(x, y, text.PadRight(width), focused ? FarDialogStyles.Input : FarDialogStyles.Fill);
+        _screen.Write(x, y, text.PadRight(width), FarDialogStyles.Input);
     }
 
     private void SetInputCursor(int x, int y, int width, CommandLineState buffer)
@@ -269,9 +269,9 @@ internal sealed class CreateFolderDialog
         if (y <= bounds.Y || y >= bounds.Bottom - 1)
             return;
 
-        _screen.WriteChar(bounds.X, y, '╠', FarDialogStyles.Border);
-        _screen.Write(bounds.X + 1, y, new string('═', Math.Max(0, bounds.Width - 2)), FarDialogStyles.Border);
-        _screen.WriteChar(bounds.Right - 1, y, '╣', FarDialogStyles.Border);
+        _screen.WriteChar(bounds.X, y, '╟', FarDialogStyles.Border);
+        _screen.Write(bounds.X + 1, y, new string('─', Math.Max(0, bounds.Width - 2)), FarDialogStyles.Border);
+        _screen.WriteChar(bounds.Right - 1, y, '╢', FarDialogStyles.Border);
     }
 
     private static string Truncate(string value, int maxLength)
