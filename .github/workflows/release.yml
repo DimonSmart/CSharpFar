@@ -6,10 +6,14 @@ on:
       - "v*.*.*"
 
 permissions:
+  attestations: write
   contents: write
+  id-token: write
 
 env:
+  APP_EXE: CSharpFar.exe
   APP_PROJECT: src/CSharpFar.App/CSharpFar.App.csproj
+  CHECKSUMS_NAME: SHA256SUMS.txt
   DOTNET_NOLOGO: true
   PUBLISH_DIR: artifacts/publish/CSharpFar
   RUNTIME_ID: win-x64
@@ -34,6 +38,8 @@ jobs:
 
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
@@ -64,6 +70,17 @@ jobs:
             /p:FileVersion=$env:ASSEMBLY_VERSION `
             /p:InformationalVersion=$env:GITHUB_REF_NAME
 
+      - name: Verify executable name
+        shell: pwsh
+        run: |
+          $expectedExe = Join-Path $env:PUBLISH_DIR $env:APP_EXE
+          if (-not (Test-Path $expectedExe -PathType Leaf)) {
+            $publishedExes = Get-ChildItem -Path $env:PUBLISH_DIR -Filter *.exe -File |
+              Select-Object -ExpandProperty Name
+
+            throw "Expected '$env:APP_EXE' in publish output, found: $($publishedExes -join ', ')"
+          }
+
       - name: Package
         shell: pwsh
         run: |
@@ -73,14 +90,80 @@ jobs:
           }
 
           Compress-Archive -Path "$env:PUBLISH_DIR\*" -DestinationPath $assetPath -CompressionLevel Optimal
+
+          $checksumsPath = Join-Path $env:RUNNER_TEMP $env:CHECKSUMS_NAME
+          $assetHash = (Get-FileHash -Path $assetPath -Algorithm SHA256).Hash.ToLowerInvariant()
+          "$assetHash  $env:ASSET_NAME" | Set-Content -Path $checksumsPath -Encoding ascii
+
           "ASSET_PATH=$assetPath" >> $env:GITHUB_ENV
+          "CHECKSUMS_PATH=$checksumsPath" >> $env:GITHUB_ENV
+
+      - name: Generate release notes
+        shell: pwsh
+        run: |
+          $notesPath = Join-Path $env:RUNNER_TEMP "release-notes.md"
+          $previousTag = git tag --list "v*.*.*" --sort=-v:refname |
+            Where-Object { $_ -ne $env:GITHUB_REF_NAME } |
+            Select-Object -First 1
+
+          if ($previousTag) {
+            $changeRange = "$previousTag..$env:GITHUB_REF_NAME"
+            $changesHeading = "### Changes since $previousTag"
+            $changes = @(git log $changeRange --no-merges --pretty=format:"- %s (%h)")
+          }
+          else {
+            $changesHeading = "### Changes"
+            $changes = @(git log $env:GITHUB_REF_NAME --no-merges --pretty=format:"- %s (%h)")
+          }
+
+          if ($changes.Count -eq 0) {
+            $changes = @("- No commit summary available.")
+          }
+
+          $notes = @(
+            "## CSharpFar $env:GITHUB_REF_NAME",
+            "",
+            "Experimental Windows x64 build.",
+            "",
+            "### Download",
+            "Download ``$env:ASSET_NAME``, unpack it and run ``$env:APP_EXE``.",
+            "",
+            "### Verification",
+            "Download ``$env:CHECKSUMS_NAME`` and compare the archive hash:",
+            "",
+            "``````powershell",
+            "Get-FileHash -Algorithm SHA256 .\$env:ASSET_NAME",
+            "``````",
+            "",
+            "GitHub artifact attestation is generated for the archive and can be verified with GitHub CLI:",
+            "",
+            "``````bash",
+            "gh attestation verify $env:ASSET_NAME -R $env:GITHUB_REPOSITORY",
+            "``````",
+            "",
+            $changesHeading,
+            $changes,
+            "",
+            "### Notes",
+            "- Windows x64 only.",
+            "- Early development build.",
+            "- The executable is not code-signed yet, so Windows SmartScreen may show a warning."
+          )
+
+          $notes | Set-Content -Path $notesPath -Encoding utf8
+          "RELEASE_NOTES_PATH=$notesPath" >> $env:GITHUB_ENV
+
+      - name: Generate artifact attestation
+        uses: actions/attest@v4
+        with:
+          subject-path: ${{ runner.temp }}/CSharpFar-${{ github.ref_name }}-${{ env.RUNTIME_ID }}.zip
 
       - name: Create GitHub release
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create $env:GITHUB_REF_NAME $env:ASSET_PATH `
+          gh release create $env:GITHUB_REF_NAME $env:ASSET_PATH $env:CHECKSUMS_PATH `
             --verify-tag `
             --title "CSharpFar $env:GITHUB_REF_NAME" `
-            --notes "Automatic release for $env:GITHUB_REF_NAME."
+            --notes-file $env:RELEASE_NOTES_PATH
