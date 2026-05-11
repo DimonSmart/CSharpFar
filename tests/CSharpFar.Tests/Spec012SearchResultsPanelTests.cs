@@ -71,13 +71,13 @@ public sealed class Spec012SearchResultsPanelTests : IDisposable
     {
         string foundFile = Path.Combine(_root, "found.txt");
         var fileOps = new RecordingFileOperationService();
+        var searchService = new CountingSearchService();
         var driver = new FakeConsoleDriver(width: 80, height: 14);
         driver.EnqueueKey(Key(ConsoleKey.F5));
         driver.EnqueueKey(Key(ConsoleKey.Enter));
         driver.EnqueueKey(Key(ConsoleKey.F10));
-        driver.EnqueueKey(Key(ConsoleKey.F10));
 
-        var app = CreateApp(CreateFileSystem(), driver, fileOps);
+        var app = CreateApp(CreateFileSystem(), driver, fileOps, searchService);
         SetSearchResultsPanel(GetLeftPanel(app), foundFile);
 
         app.Run();
@@ -86,6 +86,7 @@ public sealed class Spec012SearchResultsPanelTests : IDisposable
         Assert.Equal(FileOperationKind.Copy, request.Kind);
         Assert.Equal([foundFile], request.Sources);
         Assert.Equal(_root, request.Destination);
+        Assert.Equal(0, searchService.Calls);
     }
 
     [Fact]
@@ -388,6 +389,21 @@ public sealed class Spec012SearchResultsPanelTests : IDisposable
             IProgress<SearchProgress>? progress,
             [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
         {
+            await Task.CompletedTask;
+            yield break;
+        }
+    }
+
+    private sealed class CountingSearchService : ISearchService
+    {
+        public int Calls { get; private set; }
+
+        public async IAsyncEnumerable<SearchResultItem> SearchAsync(
+            SearchRequest request,
+            IProgress<SearchProgress>? progress,
+            [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
+        {
+            Calls++;
             await Task.CompletedTask;
             yield break;
         }

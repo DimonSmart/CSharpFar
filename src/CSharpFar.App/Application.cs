@@ -1923,7 +1923,7 @@ public sealed class Application
             _screen.Restore(saved);
         }
 
-        RefreshPanels();
+        RefreshPanelsAfterFileOperation();
     }
 
     // ── F6 — move / rename ────────────────────────────────────────────────────
@@ -2583,6 +2583,23 @@ public sealed class Application
     {
         SafeRefresh(_left,  VisibleRows(PanelSide.Left));
         SafeRefresh(_right, VisibleRows(PanelSide.Right));
+    }
+
+    private void RefreshPanelsAfterFileOperation()
+    {
+        RefreshPanelAfterFileOperation(_left, PanelSide.Left);
+        RefreshPanelAfterFileOperation(_right, PanelSide.Right);
+    }
+
+    private void RefreshPanelAfterFileOperation(FilePanelState state, PanelSide side)
+    {
+        if (state.SearchRequest is not null)
+        {
+            RefreshSearchResultsSummary(state);
+            return;
+        }
+
+        SafeRefresh(state, VisibleRows(side));
     }
 
     private void RefreshSearchResultsPanel(FilePanelState state, int visibleRows)
