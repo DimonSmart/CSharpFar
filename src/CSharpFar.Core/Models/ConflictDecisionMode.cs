@@ -11,6 +11,7 @@ public enum ConflictDecisionMode
     RenameAll,
     Append,
     AppendAll,
+    ResumeWithTailValidation,
     OnlyNewer,
     Cancel,
 }

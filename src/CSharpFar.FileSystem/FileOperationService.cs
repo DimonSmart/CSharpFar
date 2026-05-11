@@ -11,6 +11,7 @@ namespace CSharpFar.FileSystem;
 public sealed class FileOperationService : IFileOperationService
 {
     private const int CopyBufferSize = 1024 * 1024;
+    private static readonly CopyResumeAnalyzer ResumeAnalyzer = new();
 
     public async Task<FileOperationResult> ExecuteAsync(
         FileOperationRequest request,
@@ -74,13 +75,15 @@ public sealed class FileOperationService : IFileOperationService
         {
             cancellationToken.ThrowIfCancellationRequested();
             state.WaitIfPaused(cancellationToken);
-            var copyTarget = ResolveDestinationPath(file, request.Options, conflictResolver, state);
+            var copyTarget = ResolveDestinationPath(file, request.Options, conflictResolver, state, cancellationToken);
             if (copyTarget.Path.Length == 0)
                 continue;
 
             Directory.CreateDirectory(Path.GetDirectoryName(copyTarget.Path)!);
 
-            if (!copyTarget.Append && IsReparsePoint(file.SourcePath) && request.Options.SymlinkMode == SymlinkCopyMode.CopyLink)
+            if (copyTarget.Action == CopyDestinationAction.CreateOrOverwrite &&
+                IsReparsePoint(file.SourcePath) &&
+                request.Options.SymlinkMode == SymlinkCopyMode.CopyLink)
             {
                 CopyReparsePoint(file.SourcePath, copyTarget.Path, request.Options, state);
                 state.CopiedCount++;
@@ -90,7 +93,15 @@ public sealed class FileOperationService : IFileOperationService
                 continue;
             }
 
-            await CopyFileContentsAsync(file.SourcePath, copyTarget.Path, file.Size, copyTarget.Append, request.Options, state, cancellationToken)
+            await CopyFileContentsAsync(
+                    file.SourcePath,
+                    copyTarget.Path,
+                    file.Size,
+                    copyTarget.Action,
+                    copyTarget.ResumeOffset,
+                    request.Options,
+                    state,
+                    cancellationToken)
                 .ConfigureAwait(false);
         }
     }
@@ -219,9 +230,9 @@ public sealed class FileOperationService : IFileOperationService
                     throw new IOException("Source and destination file are the same.");
                 if (!hasMask || matcher.IsMatch(options.FileMask!, fileName, groups))
                 {
-                    long size = GetFileSize(source);
-                    files.Add(new CopyFilePlanItem(source, target, size));
-                    plannedBytes += size;
+                    var snapshot = GetSourceSnapshot(source);
+                    files.Add(new CopyFilePlanItem(source, target, snapshot.Length, snapshot.LastWriteTimeUtc));
+                    plannedBytes += snapshot.Length;
                     state.ReportScanning(Path.GetDirectoryName(source) ?? source, files.Count, directories.Count, plannedBytes);
                 }
                 continue;
@@ -288,9 +299,9 @@ public sealed class FileOperationService : IFileOperationService
             if (hasMask && !matcher.IsMatch(fileMask!, fileName, groups))
                 continue;
 
-            long size = GetFileSize(file);
-            files.Add(new CopyFilePlanItem(file, Path.Combine(destinationDirectory, fileName), size));
-            plannedBytes += size;
+            var snapshot = GetSourceSnapshot(file);
+            files.Add(new CopyFilePlanItem(file, Path.Combine(destinationDirectory, fileName), snapshot.Length, snapshot.LastWriteTimeUtc));
+            plannedBytes += snapshot.Length;
             state.ReportScanning(sourceDirectory, files.Count, directories.Count, plannedBytes);
         }
     }
@@ -299,7 +310,8 @@ public sealed class FileOperationService : IFileOperationService
         CopyFilePlanItem file,
         FileOperationOptions options,
         IFileOperationConflictResolver conflictResolver,
-        OperationState state)
+        OperationState state,
+        CancellationToken cancellationToken)
     {
         string destinationPath = file.DestinationPath;
         while (File.Exists(destinationPath) || Directory.Exists(destinationPath))
@@ -311,43 +323,28 @@ public sealed class FileOperationService : IFileOperationService
                 return CopyDestination.Skip;
             }
 
-            ConflictDecisionMode mode = options.DefaultConflictDecision;
+            ConflictDecisionMode mode = ResolveConfiguredConflictDecision(options, state);
             string? newDestination = null;
 
-            if (state.StickyConflictDecision is ConflictDecisionMode.Skip)
-                mode = ConflictDecisionMode.Skip;
-            else if (state.StickyConflictDecision is ConflictDecisionMode.Overwrite)
-                mode = ConflictDecisionMode.Overwrite;
-            else if (state.StickyConflictDecision is ConflictDecisionMode.Rename)
-                mode = ConflictDecisionMode.Rename;
-            else if (state.StickyConflictDecision is ConflictDecisionMode.Append)
-                mode = ConflictDecisionMode.Append;
-            else if (mode == ConflictDecisionMode.Ask)
+            if (mode == ConflictDecisionMode.Ask)
             {
                 var decision = conflictResolver.Resolve(BuildConflict(file.SourcePath, destinationPath));
                 mode = decision.Mode;
                 newDestination = decision.NewDestinationPath;
             }
 
-            switch (mode)
+            if (mode == ConflictDecisionMode.ResumeWithTailValidation)
             {
-                case ConflictDecisionMode.OverwriteAll:
-                    state.StickyConflictDecision = ConflictDecisionMode.Overwrite;
-                    mode = ConflictDecisionMode.Overwrite;
-                    break;
-                case ConflictDecisionMode.SkipAll:
-                    state.StickyConflictDecision = ConflictDecisionMode.Skip;
-                    mode = ConflictDecisionMode.Skip;
-                    break;
-                case ConflictDecisionMode.RenameAll:
-                    state.StickyConflictDecision = ConflictDecisionMode.Rename;
-                    mode = ConflictDecisionMode.Rename;
-                    break;
-                case ConflictDecisionMode.AppendAll:
-                    state.StickyConflictDecision = ConflictDecisionMode.Append;
-                    mode = ConflictDecisionMode.Append;
-                    break;
+                CopyDestination? resumeDestination = TryResolveTailValidatedResume(file, destinationPath, options, state, cancellationToken);
+                if (resumeDestination is not null)
+                    return resumeDestination.Value;
+
+                var decision = conflictResolver.Resolve(BuildConflict(file.SourcePath, destinationPath));
+                mode = decision.Mode;
+                newDestination = decision.NewDestinationPath;
             }
+
+            mode = NormalizeRememberedConflictDecision(mode, state);
 
             switch (mode)
             {
@@ -355,7 +352,7 @@ public sealed class FileOperationService : IFileOperationService
                     if (Directory.Exists(destinationPath))
                         throw new IOException("Cannot overwrite a directory with a file.");
                     File.Delete(destinationPath);
-                    return new CopyDestination(destinationPath, Append: false);
+                    return new CopyDestination(destinationPath, CopyDestinationAction.CreateOrOverwrite);
                 case ConflictDecisionMode.Skip:
                     state.SkippedCount++;
                     state.CompleteItem();
@@ -368,12 +365,12 @@ public sealed class FileOperationService : IFileOperationService
                 case ConflictDecisionMode.Append:
                     if (Directory.Exists(destinationPath))
                         throw new IOException("Cannot append a file to a directory.");
-                    return new CopyDestination(destinationPath, Append: true);
+                    return new CopyDestination(destinationPath, CopyDestinationAction.Append);
                 case ConflictDecisionMode.OnlyNewer:
                     if (File.Exists(destinationPath) && IsSourceNewer(file.SourcePath, destinationPath))
                     {
                         File.Delete(destinationPath);
-                        return new CopyDestination(destinationPath, Append: false);
+                        return new CopyDestination(destinationPath, CopyDestinationAction.CreateOrOverwrite);
                     }
                     state.SkippedCount++;
                     state.CompleteItem();
@@ -387,19 +384,129 @@ public sealed class FileOperationService : IFileOperationService
             }
         }
 
-        return new CopyDestination(destinationPath, Append: false);
+        return new CopyDestination(destinationPath, CopyDestinationAction.CreateOrOverwrite);
+    }
+
+    private static ConflictDecisionMode ResolveConfiguredConflictDecision(
+        FileOperationOptions options,
+        OperationState state)
+    {
+        return state.StickyConflictDecision switch
+        {
+            ConflictDecisionMode.Skip => ConflictDecisionMode.Skip,
+            ConflictDecisionMode.Overwrite => ConflictDecisionMode.Overwrite,
+            ConflictDecisionMode.Rename => ConflictDecisionMode.Rename,
+            ConflictDecisionMode.Append => ConflictDecisionMode.Append,
+            _ => options.DefaultConflictDecision,
+        };
+    }
+
+    private static ConflictDecisionMode NormalizeRememberedConflictDecision(
+        ConflictDecisionMode mode,
+        OperationState state)
+    {
+        switch (mode)
+        {
+            case ConflictDecisionMode.OverwriteAll:
+                state.StickyConflictDecision = ConflictDecisionMode.Overwrite;
+                return ConflictDecisionMode.Overwrite;
+            case ConflictDecisionMode.SkipAll:
+                state.StickyConflictDecision = ConflictDecisionMode.Skip;
+                return ConflictDecisionMode.Skip;
+            case ConflictDecisionMode.RenameAll:
+                state.StickyConflictDecision = ConflictDecisionMode.Rename;
+                return ConflictDecisionMode.Rename;
+            case ConflictDecisionMode.AppendAll:
+                state.StickyConflictDecision = ConflictDecisionMode.Append;
+                return ConflictDecisionMode.Append;
+            default:
+                return mode;
+        }
+    }
+
+    private static CopyDestination? TryResolveTailValidatedResume(
+        CopyFilePlanItem file,
+        string destinationPath,
+        FileOperationOptions options,
+        OperationState state,
+        CancellationToken cancellationToken)
+    {
+        if (!File.Exists(destinationPath) || Directory.Exists(destinationPath))
+            return null;
+
+        if (IsReparsePoint(file.SourcePath) && options.SymlinkMode == SymlinkCopyMode.CopyLink)
+            return null;
+
+        long destinationLength;
+        try
+        {
+            destinationLength = new FileInfo(destinationPath).Length;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException)
+        {
+            return null;
+        }
+
+        if (destinationLength >= file.Size)
+            return null;
+
+        state.ReportValidation(
+            file.SourcePath,
+            destinationPath,
+            file.Size,
+            "Validating partial file...",
+            resumeOffset: null,
+            rollbackBytes: null);
+
+        var snapshot = new CopyResumeSourceSnapshot(file.Size, file.LastWriteTimeUtc);
+        CopyResumePlan plan = ResumeAnalyzer.Analyze(file.SourcePath, destinationPath, snapshot, cancellationToken);
+        if (plan.Kind != CopyResumePlanKind.CanResume)
+        {
+            state.ReportValidation(
+                file.SourcePath,
+                destinationPath,
+                file.Size,
+                "Tail mismatch detected",
+                resumeOffset: null,
+                rollbackBytes: null);
+            return null;
+        }
+
+        string status = plan.RollbackBytes > 0
+            ? "Tail mismatch detected"
+            : "Tail validation passed";
+        state.ReportValidation(
+            file.SourcePath,
+            destinationPath,
+            file.Size,
+            status,
+            plan.SafeResumeOffset,
+            plan.RollbackBytes);
+
+        return new CopyDestination(
+            destinationPath,
+            CopyDestinationAction.ResumeWithTailValidation,
+            plan.SafeResumeOffset,
+            plan.RollbackBytes);
     }
 
     private static async Task CopyFileContentsAsync(
         string sourcePath,
         string destinationPath,
         long size,
-        bool append,
+        CopyDestinationAction destinationAction,
+        long resumeOffset,
         FileOperationOptions options,
         OperationState state,
         CancellationToken cancellationToken)
     {
-        state.Report(sourcePath, destinationPath, 0, size);
+        long currentBytes = destinationAction == CopyDestinationAction.ResumeWithTailValidation
+            ? resumeOffset
+            : 0;
+        if (currentBytes > 0)
+            state.AddBytes(currentBytes);
+
+        state.Report(sourcePath, destinationPath, currentBytes, size);
 
         var sourceInfo = new FileInfo(sourcePath);
         FileAttributes sourceAttributes = sourceInfo.Attributes;
@@ -415,14 +522,26 @@ public sealed class FileOperationService : IFileOperationService
 
             await using var destination = new FileStream(
                 destinationPath,
-                append ? FileMode.Append : FileMode.Create,
-                FileAccess.Write,
+                destinationAction == CopyDestinationAction.Append
+                    ? FileMode.Append
+                    : destinationAction == CopyDestinationAction.ResumeWithTailValidation
+                        ? FileMode.Open
+                        : FileMode.Create,
+                destinationAction == CopyDestinationAction.ResumeWithTailValidation
+                    ? FileAccess.ReadWrite
+                    : FileAccess.Write,
                 FileShare.None,
                 CopyBufferSize,
                 FileOptions.Asynchronous | FileOptions.SequentialScan);
 
             byte[] buffer = new byte[CopyBufferSize];
-            long currentBytes = 0;
+            if (destinationAction == CopyDestinationAction.ResumeWithTailValidation)
+            {
+                destination.SetLength(resumeOffset);
+                source.Seek(resumeOffset, SeekOrigin.Begin);
+                destination.Seek(resumeOffset, SeekOrigin.Begin);
+            }
+
             while (true)
             {
                 state.WaitIfPaused(cancellationToken);
@@ -438,11 +557,12 @@ public sealed class FileOperationService : IFileOperationService
             }
         }
 
-        if (!append && options.PreserveTimestamps)
+        bool preserveMetadata = destinationAction != CopyDestinationAction.Append;
+        if (preserveMetadata && options.PreserveTimestamps)
             PreserveFileTimestamps(sourceInfo, destinationPath, state);
-        if (!append && options.PreserveAttributes)
+        if (preserveMetadata && options.PreserveAttributes)
             File.SetAttributes(destinationPath, sourceAttributes);
-        if (!append && options.SecurityMode == FileSecurityMode.CopyAccessControl)
+        if (preserveMetadata && options.SecurityMode == FileSecurityMode.CopyAccessControl)
             TryCopyAccessControl(sourcePath, destinationPath, state);
 
         state.CopiedCount++;
@@ -530,6 +650,8 @@ public sealed class FileOperationService : IFileOperationService
                         ? GenerateName(destination)
                         : decision.NewDestinationPath;
                     break;
+                case ConflictDecisionMode.ResumeWithTailValidation:
+                    throw new InvalidOperationException("Tail-validated resume is only supported for copy operations.");
             }
 
             if (File.Exists(destination))
@@ -698,6 +820,12 @@ public sealed class FileOperationService : IFileOperationService
     private static long GetFileSize(string path) =>
         File.Exists(path) ? new FileInfo(path).Length : 0;
 
+    private static CopyResumeSourceSnapshot GetSourceSnapshot(string path)
+    {
+        var source = new FileInfo(path);
+        return new CopyResumeSourceSnapshot(source.Length, source.LastWriteTimeUtc);
+    }
+
     private static bool IsReparsePoint(string path)
     {
         if (!File.Exists(path) && !Directory.Exists(path))
@@ -746,11 +874,22 @@ public sealed class FileOperationService : IFileOperationService
         Path.GetFullPath(path)
             .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
 
-    private sealed record CopyFilePlanItem(string SourcePath, string DestinationPath, long Size);
+    private sealed record CopyFilePlanItem(string SourcePath, string DestinationPath, long Size, DateTime LastWriteTimeUtc);
     private sealed record CopyDirectoryPlanItem(string SourcePath, string DestinationPath);
-    private readonly record struct CopyDestination(string Path, bool Append)
+    private enum CopyDestinationAction
     {
-        public static CopyDestination Skip { get; } = new(string.Empty, Append: false);
+        CreateOrOverwrite,
+        Append,
+        ResumeWithTailValidation,
+    }
+
+    private readonly record struct CopyDestination(
+        string Path,
+        CopyDestinationAction Action,
+        long ResumeOffset = 0,
+        long ResumeRollbackBytes = 0)
+    {
+        public static CopyDestination Skip { get; } = new(string.Empty, CopyDestinationAction.CreateOrOverwrite);
     }
 
     private sealed record CopyPlan(
@@ -830,6 +969,37 @@ public sealed class FileOperationService : IFileOperationService
                 BytesPerSecond = 0,
                 TimeRemaining = null,
                 Elapsed = _stopwatch.Elapsed,
+            });
+        }
+
+        public void ReportValidation(
+            string currentPath,
+            string currentDestinationPath,
+            long currentBytesTotal,
+            string statusMessage,
+            long? resumeOffset,
+            long? rollbackBytes)
+        {
+            long acceptedBytes = resumeOffset.GetValueOrDefault();
+            _progress?.Report(new FileOperationProgress
+            {
+                Kind = _kind,
+                Phase = FileOperationPhase.Validating,
+                CurrentPath = currentPath,
+                CurrentDestinationPath = currentDestinationPath,
+                StatusMessage = statusMessage,
+                CurrentBytesDone = acceptedBytes,
+                CurrentBytesTotal = currentBytesTotal,
+                TotalBytesDone = _bytesProcessed + acceptedBytes,
+                TotalBytesTotal = _totalBytes,
+                ResumeOffset = resumeOffset,
+                ResumeRollbackBytes = rollbackBytes,
+                ItemsDone = _itemsDone,
+                ItemsTotal = _totalItems,
+                FoldersDone = _foldersDone,
+                BytesPerSecond = 0,
+                TimeRemaining = null,
+                Elapsed = _copyStopwatch.Elapsed,
             });
         }
 

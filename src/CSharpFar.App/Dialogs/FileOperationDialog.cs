@@ -13,7 +13,7 @@ internal sealed record FileOperationDialogResult(
 internal sealed class FileOperationDialog
 {
     private const int DialogWidth = 78;
-    private const int DialogHeight = 19;
+    private const int DialogHeight = 22;
 
     private static readonly ConflictDecisionMode[] CopyConflictModes =
     [
@@ -22,6 +22,7 @@ internal sealed class FileOperationDialog
         ConflictDecisionMode.Skip,
         ConflictDecisionMode.Rename,
         ConflictDecisionMode.Append,
+        ConflictDecisionMode.ResumeWithTailValidation,
     ];
 
     private static readonly ConflictDecisionMode[] MoveConflictModes =
@@ -262,12 +263,16 @@ internal sealed class FileOperationDialog
                 case ConsoleKey.LeftArrow:
                     if (focusRow == 7)
                         buttonBar.TryHandleInput(input, ref focusedButton, out _);
+                    else if (focusRow == 2)
+                        conflictIndex = conflictIndex <= 0 ? conflictModes.Count - 1 : conflictIndex - 1;
                     else if (focusRow is 0 or 6)
                         EditText(focusRow == 0 ? destination : filter, key, ref error);
                     break;
                 case ConsoleKey.RightArrow:
                     if (focusRow == 7)
                         buttonBar.TryHandleInput(input, ref focusedButton, out _);
+                    else if (focusRow == 2)
+                        conflictIndex = (conflictIndex + 1) % conflictModes.Count;
                     else if (focusRow is 0 or 6)
                         EditText(focusRow == 0 ? destination : filter, key, ref error);
                     break;
@@ -474,21 +479,21 @@ internal sealed class FileOperationDialog
             DrawAccessRights(contentX, bounds.Y + 4, contentWidth, securityMode, focusRow == 1, fill, focused);
 
             DrawSeparator(bounds, bounds.Y + 5);
-            DrawValueRow(contentX, bounds.Y + 6, contentWidth, "Already existing files:",
-                ConflictLabel(conflictModes[conflictIndex]), focusRow == 2, fill, focused);
-            DrawCheckbox(contentX, bounds.Y + 7, contentWidth, "Preserve all timestamps", preserveTimestamps, focusRow == 3, fill, focused);
-            DrawCheckbox(contentX, bounds.Y + 8, contentWidth, "Copy contents of symbolic links", copySymlinkContents, focusRow == 4, fill, focused);
+            DrawConflictModes(contentX, bounds.Y + 6, contentWidth, conflictModes, conflictIndex, focusRow == 2, fill, focused);
             DrawSeparator(bounds, bounds.Y + 9);
-            DrawCheckbox(contentX, bounds.Y + 10, contentWidth, "Use filter", useFilter, focusRow == 5, fill, focused);
-            _screen.Write(contentX, bounds.Y + 11, "Filter mask:".PadRight(contentWidth), fill);
+            DrawCheckbox(contentX, bounds.Y + 10, contentWidth, "Preserve all timestamps", preserveTimestamps, focusRow == 3, fill, focused);
+            DrawCheckbox(contentX, bounds.Y + 11, contentWidth, "Copy contents of symbolic links", copySymlinkContents, focusRow == 4, fill, focused);
+            DrawSeparator(bounds, bounds.Y + 12);
+            DrawCheckbox(contentX, bounds.Y + 13, contentWidth, "Use filter", useFilter, focusRow == 5, fill, focused);
+            _screen.Write(contentX, bounds.Y + 14, "Filter mask:".PadRight(contentWidth), fill);
             if (useFilter)
-                DrawInput(contentX, bounds.Y + 12, contentWidth, filter, focusRow == 6);
+                DrawInput(contentX, bounds.Y + 15, contentWidth, filter, focusRow == 6);
             else
-                _screen.Write(contentX, bounds.Y + 12, VisibleInputText(filter, contentWidth).PadRight(contentWidth), fill);
+                _screen.Write(contentX, bounds.Y + 15, VisibleInputText(filter, contentWidth).PadRight(contentWidth), fill);
 
-            DrawSeparator(bounds, bounds.Y + 13);
+            DrawSeparator(bounds, bounds.Y + 16);
             string errorText = error is null ? string.Empty : Truncate(error, contentWidth);
-            _screen.Write(contentX, bounds.Y + 14, errorText.PadRight(contentWidth), FarDialogStyles.Error);
+            _screen.Write(contentX, bounds.Y + 17, errorText.PadRight(contentWidth), FarDialogStyles.Error);
 
             buttonBar.Render(
                 _screen,
@@ -503,7 +508,7 @@ internal sealed class FileOperationDialog
         if (focusRow == 0)
             SetInputCursor(outerBounds.X + 3, outerBounds.Y + 3, Math.Max(1, outerBounds.Width - 6), destination);
         else if (focusRow == 6)
-            SetInputCursor(outerBounds.X + 3, outerBounds.Y + 13, Math.Max(1, outerBounds.Width - 6), filter);
+            SetInputCursor(outerBounds.X + 3, outerBounds.Y + 16, Math.Max(1, outerBounds.Width - 6), filter);
         else
             _screen.SetCursorVisible(false);
     }
@@ -550,26 +555,39 @@ internal sealed class FileOperationDialog
         _screen.Write(x, y, Truncate(text, width).PadRight(width), focused ? focusedStyle : fill);
     }
 
-    private void DrawValueRow(
+    private void DrawConflictModes(
         int x,
         int y,
         int width,
-        string label,
-        string value,
+        IReadOnlyList<ConflictDecisionMode> modes,
+        int selectedIndex,
         bool focused,
         CellStyle fill,
         CellStyle focusedStyle)
     {
-        string labelText = $"{label} ";
-        int labelWidth = Math.Min(labelText.Length, width);
-        _screen.Write(x, y, labelText[..labelWidth], fill);
+        _screen.Write(x, y, "Already existing files:".PadRight(width), fill);
+        DrawConflictModeRow(x, y + 1, width, modes, selectedIndex, 0, Math.Min(4, modes.Count), focused, fill, focusedStyle);
+        DrawConflictModeRow(x, y + 2, width, modes, selectedIndex, 4, modes.Count, focused, fill, focusedStyle);
+    }
 
-        int valueWidth = Math.Max(0, width - labelWidth);
-        if (valueWidth == 0)
-            return;
+    private void DrawConflictModeRow(
+        int x,
+        int y,
+        int width,
+        IReadOnlyList<ConflictDecisionMode> modes,
+        int selectedIndex,
+        int startIndex,
+        int endIndex,
+        bool focused,
+        CellStyle fill,
+        CellStyle focusedStyle)
+    {
+        var labels = new List<string>();
+        for (int i = startIndex; i < endIndex; i++)
+            labels.Add($"{(i == selectedIndex ? "(x)" : "( )")} {ConflictLabel(modes[i])}");
 
-        string valueText = Truncate(value, valueWidth).PadRight(valueWidth);
-        _screen.Write(x + labelWidth, y, valueText, focused ? focusedStyle : FarDialogStyles.Input);
+        string text = string.Join(' ', labels);
+        _screen.Write(x, y, Truncate(text, width).PadRight(width), focused ? focusedStyle : fill);
     }
 
     private void DrawCheckbox(
@@ -607,6 +625,7 @@ internal sealed class FileOperationDialog
         ConflictDecisionMode.RenameAll => "Rename all",
         ConflictDecisionMode.Append => "Append",
         ConflictDecisionMode.AppendAll => "Append all",
+        ConflictDecisionMode.ResumeWithTailValidation => "Paranoid",
         ConflictDecisionMode.OnlyNewer => "Only newer",
         _ => "Ask",
     };

@@ -39,6 +39,21 @@ The `.worklog` directory is used to keep task notes, decisions, experiments and 
 
 The methodology will be described in a separate article later. After publication, the link should be added here.
 
+## File operations
+
+### Paranoid copy
+
+When copying files, the copy dialog has a `Paranoid` conflict mode.
+
+If a destination file already exists and is shorter than the source, for example after an interrupted copy, CSharpFar does the following:
+
+1. Compares the tail of the existing destination bytes against the same region of the source.
+2. If the tail matches, copying resumes from that offset. No data already on disk is rewritten.
+3. If the tail is corrupted, the overlap is rolled back to the last confirmed good position, then copying continues from there.
+4. If the destination cannot be matched to the source at all (unrelated file, wrong size), the normal conflict dialog is shown so the user decides.
+
+This mode is for large copies interrupted by power loss, network drops or process termination. Equal-size and larger destination files are not resumed automatically.
+
 ## Status
 
 Early development.

@@ -25,6 +25,7 @@ public sealed class Spec010FileOperationDialogTests
         Assert.Equal(@"C:\destination", result.Destination);
         Assert.Null(result.Options.FileMask);
         Assert.Contains(driver.WriteRecords, r => r.Text.Contains("Already existing files:", StringComparison.Ordinal));
+        Assert.Contains(driver.WriteRecords, r => r.Text.Contains("Paranoid", StringComparison.Ordinal));
         Assert.Contains(driver.WriteRecords, r => r.Text.Contains("Access rights:", StringComparison.Ordinal));
         Assert.Contains(driver.WriteRecords, r => r.Text.Contains("Use filter", StringComparison.Ordinal));
         Assert.Contains(driver.WriteRecords, r => r.Text.Trim() == "*");
@@ -54,11 +55,52 @@ public sealed class Spec010FileOperationDialogTests
     }
 
     [Fact]
+    public void ShowCopy_OffersParanoidForCopyOnly()
+    {
+        var driver = new FakeConsoleDriver(width: 100, height: 30);
+        var screen = new ScreenRenderer(driver);
+        driver.EnqueueKey(Key(ConsoleKey.DownArrow));
+        driver.EnqueueKey(Key(ConsoleKey.DownArrow));
+        for (int i = 0; i < 5; i++)
+            driver.EnqueueKey(Key(ConsoleKey.Spacebar));
+        driver.EnqueueKey(Key(ConsoleKey.F10));
+
+        var result = new FileOperationDialog(screen).ShowCopy(
+            [@"C:\source\a.txt"],
+            @"C:\destination",
+            new FileOperationOptions());
+
+        Assert.NotNull(result);
+        Assert.Equal(ConflictDecisionMode.ResumeWithTailValidation, result.Options.DefaultConflictDecision);
+        Assert.Contains(driver.WriteRecords, r => r.Text.Contains("Paranoid", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void ShowMove_DoesNotOfferParanoidForMove()
+    {
+        var driver = new FakeConsoleDriver(width: 100, height: 30);
+        var screen = new ScreenRenderer(driver);
+        driver.EnqueueKey(Key(ConsoleKey.F10));
+
+        var result = new FileOperationDialog(screen).ShowMove(
+            [@"C:\source\a.txt"],
+            @"C:\destination",
+            new FileOperationOptions
+            {
+                DefaultConflictDecision = ConflictDecisionMode.ResumeWithTailValidation,
+            });
+
+        Assert.NotNull(result);
+        Assert.Equal(ConflictDecisionMode.Ask, result.Options.DefaultConflictDecision);
+        Assert.DoesNotContain(driver.WriteRecords, r => r.Text.Contains("Paranoid", StringComparison.Ordinal));
+    }
+
+    [Fact]
     public void ShowCopy_CancelButtonSupportsMouseClick()
     {
         var driver = new FakeConsoleDriver(width: 100, height: 30);
         var screen = new ScreenRenderer(driver);
-        driver.EnqueueInput(new MouseConsoleInputEvent(52, 21, MouseButton.Left, MouseEventKind.Down, MouseKeyModifiers.None));
+        driver.EnqueueInput(new MouseConsoleInputEvent(52, 23, MouseButton.Left, MouseEventKind.Down, MouseKeyModifiers.None));
 
         var result = new FileOperationDialog(screen).ShowCopy(
             [@"C:\source\a.txt"],
@@ -128,6 +170,38 @@ public sealed class Spec010FileOperationDialogTests
         Assert.Contains('█', text);
         Assert.Contains('░', text);
         Assert.DoesNotContain('#', text);
+    }
+
+    [Fact]
+    public void ProgressDialog_RendersResumeValidationState()
+    {
+        var driver = new FakeConsoleDriver(width: 100, height: 30);
+        var screen = new ScreenRenderer(driver);
+
+        new ProgressDialog(screen, @"C:\dst").Update(
+            new FileOperationProgress
+            {
+                Kind = FileOperationKind.Copy,
+                Phase = FileOperationPhase.Validating,
+                StatusMessage = "Tail mismatch detected",
+                CurrentPath = @"C:\src\a.bin",
+                CurrentDestinationPath = @"C:\dst\a.bin",
+                CurrentBytesDone = 1024,
+                CurrentBytesTotal = 4096,
+                TotalBytesDone = 1024,
+                TotalBytesTotal = 4096,
+                ResumeOffset = 1024,
+                ResumeRollbackBytes = 512,
+                ItemsDone = 0,
+                ItemsTotal = 1,
+                Elapsed = TimeSpan.FromSeconds(1),
+            },
+            showTotalProgress: true);
+
+        string text = driver.GetRegionText(new Rect(0, 0, 100, 30));
+        Assert.Contains("Tail mismatch detected", text, StringComparison.Ordinal);
+        Assert.Contains("Resume offset:", text, StringComparison.Ordinal);
+        Assert.Contains("Rollback:", text, StringComparison.Ordinal);
     }
 
     [Fact]

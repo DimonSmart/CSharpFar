@@ -54,12 +54,16 @@ internal sealed class ProgressDialog
         var outer = _modalRenderer.CenteredOuterBounds(_screen, CopyOuterWidth, CopyOuterHeight);
         RenderOuter(outer, "Copy", true, (frameBounds, contentX, contentWidth) =>
         {
-            _screen.Write(contentX, frameBounds.Y + 1, "Copying the file".PadRight(contentWidth), FillStyle);
+            string status = progress.Phase == FileOperationPhase.Validating
+                ? progress.StatusMessage ?? "Validating partial file..."
+                : "Copying the file";
+            _screen.Write(contentX, frameBounds.Y + 1, ShortenMiddle(status, contentWidth).PadRight(contentWidth), FillStyle);
             _screen.Write(contentX, frameBounds.Y + 2, ShortenMiddle(progress.CurrentPath, contentWidth).PadRight(contentWidth), FillStyle);
             _screen.Write(contentX, frameBounds.Y + 3, "to".PadRight(contentWidth), FillStyle);
             string destination = progress.CurrentDestinationPath ?? _destination;
             _screen.Write(contentX, frameBounds.Y + 4, ShortenMiddle(destination, contentWidth).PadRight(contentWidth), FillStyle);
             DrawProgressBar(contentX, frameBounds.Y + 5, contentWidth, progress.CurrentBytesDone, progress.CurrentBytesTotal);
+            DrawResumeLine(contentX, frameBounds.Y + 6, contentWidth, progress);
 
             DrawTitledSeparator(frameBounds, frameBounds.Y + 7, "Total");
             DrawCounter(contentX, frameBounds.Y + 8, contentWidth, "Files:", $"{FormatInteger(progress.ItemsDone)} / {FormatInteger(progress.ItemsTotal)}");
@@ -71,6 +75,24 @@ internal sealed class ProgressDialog
             DrawSeparator(frameBounds, frameBounds.Y + 12);
             DrawTimeLine(contentX, frameBounds.Y + 13, contentWidth, progress);
         });
+    }
+
+    private void DrawResumeLine(int x, int y, int width, FileOperationProgress progress)
+    {
+        string text = string.Empty;
+        if (progress.ResumeOffset.HasValue)
+        {
+            text = $"Resume offset: {FormatInteger(progress.ResumeOffset.Value)}";
+            long rollbackBytes = progress.ResumeRollbackBytes.GetValueOrDefault();
+            if (rollbackBytes > 0)
+                text += $"  Rollback: {FormatInteger(rollbackBytes)}";
+        }
+        else if (progress.Phase == FileOperationPhase.Validating)
+        {
+            text = "Resume offset: validating";
+        }
+
+        _screen.Write(x, y, ShortenMiddle(text, width).PadRight(width), FillStyle);
     }
 
     private void RenderOuter(Rect outer, string title, bool doubleBorder, Action<Rect, int, int> renderContent)
