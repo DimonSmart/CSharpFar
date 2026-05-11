@@ -54,7 +54,7 @@ internal sealed class SearchDialog
         out string? error)
     {
         string mask = string.IsNullOrWhiteSpace(fileMaskExpression)
-            ? "*.*"
+            ? "*"
             : fileMaskExpression.Trim();
 
         if (!int.TryParse(maxDegreeOfParallelismText.Trim(), out int maxDegreeOfParallelism) ||
