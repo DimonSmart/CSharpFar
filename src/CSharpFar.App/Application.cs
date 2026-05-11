@@ -53,7 +53,7 @@ public sealed class Application
     private ScrollBarDragState? _commandCompletionScrollbarDrag;
     private int?          _hiddenCommandHistoryIndex;
     private bool          _quickView     = false;
-    private ConsoleSize?  _lastRenderSize;
+    private ConsoleViewport? _lastRenderViewport;
     private ScreenSnapshot? _underlay;          // last known screen content before panels
     private ConsolePalette          _palette;
     private PanelViewMode           _leftViewMode;
@@ -79,6 +79,13 @@ public sealed class Application
     private PanelScrollbarDrag?              _panelScrollbarDrag;
 
     private readonly record struct PanelScrollbarDrag(PanelSide Side, ScrollBarDragState DragState);
+
+    private enum ConsoleViewportChange
+    {
+        None,
+        OriginOnly,
+        Size,
+    }
 
     public Application(
         ScreenRenderer         screen,
@@ -196,24 +203,42 @@ public sealed class Application
                 switch (evt)
                 {
                     case ConsoleResizeInputEvent:
-                        isResize      = true;
-                        shouldRender  = true;
+                    {
+                        var viewportChange = GetConsoleViewportChange();
+                        if (!AcceptHiddenViewportScroll(viewportChange) &&
+                            viewportChange != ConsoleViewportChange.None)
+                        {
+                            isResize = true;
+                            shouldRender = true;
+                        }
                         break;
+                    }
                     case KeyConsoleInputEvent { Key: var key }:
-                        shouldRender = HandleKey(key);
+                    {
+                        bool scrolledHiddenViewport = ScrollHiddenViewportToBottomForInput();
+                        shouldRender = HandleKey(key) || scrolledHiddenViewport;
                         break;
+                    }
                     case ModifierKeyConsoleInputEvent { Modifiers: var modifiers }:
                         shouldRender = SetFunctionKeyLayer(modifiers);
                         break;
                     case MouseConsoleInputEvent mouseEvt:
-                        shouldRender = HandleMouse(mouseEvt);
+                    {
+                        bool scrolledHiddenViewport = ScrollHiddenViewportToBottomForInput();
+                        shouldRender = HandleMouse(mouseEvt) || scrolledHiddenViewport;
                         break;
+                    }
                 }
 
-                if (!shouldRender && HasConsoleSizeChanged())
+                if (!shouldRender)
                 {
-                    isResize     = true;
-                    shouldRender = true;
+                    var viewportChange = GetConsoleViewportChange();
+                    if (!AcceptHiddenViewportScroll(viewportChange) &&
+                        viewportChange != ConsoleViewportChange.None)
+                    {
+                        isResize = true;
+                        shouldRender = true;
+                    }
                 }
 
                 if (_running && shouldRender)
@@ -224,7 +249,7 @@ public sealed class Application
                     {
                         if (isResize)
                             RestoreUnderlayForHiddenScreen();
-                        RenderCommandLineOnly();
+                        RenderCommandLineOnlyUntilStable();
                     }
                 }
             }
@@ -285,8 +310,9 @@ public sealed class Application
         using var frame = _screen.BeginFrame();
         _screen.SetCursorVisible(false);
 
-        var size   = _screen.FrameSize;
-        _lastRenderSize = size;
+        var viewport = _screen.FrameViewport;
+        var size   = viewport.Size;
+        _lastRenderViewport = viewport;
         int panelH = PanelHeight(size);
         int leftW  = size.Width / 2;
         int rightW = size.Width - leftW;
@@ -374,13 +400,27 @@ public sealed class Application
         _screen.SetRenderingOutputMode(true);
         using var frame = _screen.BeginFrame();
 
-        var size = _screen.FrameSize;
-        _lastRenderSize = size;
+        var viewport = _screen.FrameViewport;
+        var size = viewport.Size;
+        _lastRenderViewport = viewport;
 
         int row = CommandLineRow(size);
         var cmdRenderer = new CommandLineRenderer(_screen, _palette);
         cmdRenderer.Render(row, size.Width, ActiveState.CurrentDirectory, _cmdLine);
         PositionCommandCursor(cmdRenderer, size, row);
+    }
+
+    private void RenderCommandLineOnlyUntilStable()
+    {
+        while (_running)
+        {
+            RenderCommandLineOnly();
+            if (!_screen.FrameWasInterrupted)
+            {
+                _screen.DrainResizeEvents();
+                break;
+            }
+        }
     }
 
     private void RenderClock(ConsoleSize size)
@@ -430,14 +470,42 @@ public sealed class Application
         _dropdownMenuRenderer.Render(_screen, definition, _menuState, layout, options);
     }
 
-    private bool HasConsoleSizeChanged()
+    private ConsoleViewportChange GetConsoleViewportChange()
     {
-        if (!_lastRenderSize.HasValue)
+        if (!_lastRenderViewport.HasValue)
+            return ConsoleViewportChange.None;
+
+        var viewport = _screen.GetViewport();
+        var last = _lastRenderViewport.Value;
+        if (viewport == last)
+            return ConsoleViewportChange.None;
+
+        return viewport.Width == last.Width && viewport.Height == last.Height
+            ? ConsoleViewportChange.OriginOnly
+            : ConsoleViewportChange.Size;
+    }
+
+    private bool AcceptHiddenViewportScroll(ConsoleViewportChange viewportChange)
+    {
+        if (_panelsVisible || viewportChange != ConsoleViewportChange.OriginOnly)
             return false;
 
-        var size = _screen.GetSize();
-        return size.Width != _lastRenderSize.Value.Width ||
-               size.Height != _lastRenderSize.Value.Height;
+        _lastRenderViewport = _screen.GetViewport();
+        return true;
+    }
+
+    private bool ScrollHiddenViewportToBottomForInput()
+    {
+        if (_panelsVisible)
+            return false;
+
+        bool scrolled = _screen.TryScrollViewportToBottom();
+        if (!scrolled)
+            return false;
+
+        CaptureUnderlay();
+        _lastRenderViewport = _underlay?.Viewport ?? _screen.GetViewport();
+        return scrolled;
     }
 
     private static int PanelHeight(ConsoleSize size) => Math.Max(0, size.Height - 2);
@@ -788,8 +856,8 @@ public sealed class Application
     /// <summary>Captures the full visible screen as the underlay snapshot.</summary>
     private void CaptureUnderlay()
     {
-        var size = _screen.GetSize();
-        _underlay = _screen.Capture(new Rect(0, 0, size.Width, size.Height));
+        var viewport = _screen.GetViewport();
+        _underlay = _screen.Capture(new Rect(0, 0, viewport.Width, viewport.Height));
     }
 
     /// <summary>
@@ -807,10 +875,12 @@ public sealed class Application
         {
             _screen.SetCursorVisible(true);
             RestoreUnderlayForHiddenScreen();
-            RenderCommandLineOnly();
+            RenderCommandLineOnlyUntilStable();
             return false;
         }
 
+        _screen.TryScrollViewportToBottom();
+        _lastRenderViewport = _screen.GetViewport();
         return true;
     }
 
@@ -822,22 +892,23 @@ public sealed class Application
 
     private void RestoreOrClearUnderlay()
     {
-        if (_underlay is not null && UnderlayMatchesCurrentSize())
+        if (_underlay is not null && UnderlayMatchesCurrentViewport())
             _screen.Restore(_underlay);
         else
             _screen.ClearScreen();
     }
 
-    private bool UnderlayMatchesCurrentSize()
+    private bool UnderlayMatchesCurrentViewport()
     {
         if (_underlay is null)
             return false;
 
-        var size = _screen.GetSize();
+        var viewport = _screen.GetViewport();
         return _underlay.Region.X == 0 &&
                _underlay.Region.Y == 0 &&
-               _underlay.Region.Width == size.Width &&
-               _underlay.Region.Height == size.Height;
+               _underlay.Region.Width == viewport.Width &&
+               _underlay.Region.Height == viewport.Height &&
+               _underlay.Viewport == viewport;
     }
 
     // ── key handling ──────────────────────────────────────────────────────────
@@ -1409,9 +1480,12 @@ public sealed class Application
 
     private bool HasCommandCompletionRows()
     {
-        var size = _lastRenderSize ?? _screen.GetSize();
+        var size = LastRenderSizeOrCurrent();
         return CommandCompletionVisibleRows(size) > 0;
     }
+
+    private ConsoleSize LastRenderSizeOrCurrent() =>
+        _lastRenderViewport?.Size ?? _screen.GetSize();
 
     private static int CommandCompletionVisibleRows(ConsoleSize size)
     {
@@ -1424,7 +1498,7 @@ public sealed class Application
         if (!_commandCompletionVisible && !_commandCompletionScrollbarDrag.HasValue)
             return false;
 
-        var size = _lastRenderSize ?? _screen.GetSize();
+        var size = LastRenderSizeOrCurrent();
         int visibleRows = CommandCompletionVisibleRows(size);
         if (visibleRows <= 0 || _commandCompletionMatches.Count <= visibleRows)
             return false;
@@ -1481,7 +1555,7 @@ public sealed class Application
             _commandCompletionSelectedIndex + delta,
             0,
             _commandCompletionMatches.Count - 1);
-        int visibleRows = CommandCompletionVisibleRows(_lastRenderSize ?? _screen.GetSize());
+        int visibleRows = CommandCompletionVisibleRows(LastRenderSizeOrCurrent());
         _commandCompletionFirstVisibleIndex = ScrollStateCalculator.EnsureIndexVisible(
             _commandCompletionSelectedIndex,
             _commandCompletionFirstVisibleIndex,
@@ -2584,6 +2658,7 @@ public sealed class Application
         }
         finally
         {
+            MoveShellOutputAbovePromptArea();
             PrintInputPrompt(workDir);
 
             // Capture shell output NOW, before Render() paints panels over it.
@@ -2592,8 +2667,24 @@ public sealed class Application
 
             RefreshPanels();
             _panelsVisible = showPanelsAfterCommand;
-            // Render() or RenderCommandLineOnly() is called by the main loop.
+            // Stable rendering is called by the main loop.
         }
+    }
+
+    private void MoveShellOutputAbovePromptArea()
+    {
+        var size = _screen.GetSize();
+        if (size.Width <= 0 || size.Height <= 0)
+            return;
+
+        int cursorRow = SysConsole.CursorTop - SysConsole.WindowTop;
+        if (cursorRow < CommandLineRow(size))
+            return;
+
+        _screen.SetRenderingOutputMode(false);
+        SysConsole.ResetColor();
+        SysConsole.WriteLine();
+        SysConsole.WriteLine();
     }
 
     private void ShowShellUnderlayForCommand()
@@ -3044,6 +3135,15 @@ public sealed class Application
             }
         }
 
+        public static int CursorTop
+        {
+            get
+            {
+                try { return global::System.Console.CursorTop; }
+                catch (Exception ex) when (IsConsoleStateException(ex)) { return 0; }
+            }
+        }
+
         public static bool CursorVisible
         {
             set
@@ -3061,6 +3161,12 @@ public sealed class Application
 
         public static void SetCursorPosition(int x, int y) =>
             TrySetCursorPosition(x, y);
+
+        public static void WriteLine()
+        {
+            try { global::System.Console.WriteLine(); }
+            catch (Exception ex) when (IsConsoleStateException(ex)) { }
+        }
 
         private static void TrySetCursorPosition(int x, int y)
         {

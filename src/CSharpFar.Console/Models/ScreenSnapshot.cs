@@ -9,11 +9,13 @@ public readonly struct SnapshotCell
 
 public sealed class ScreenSnapshot
 {
+    public ConsoleViewport Viewport { get; }
     public Rect Region { get; }
     public SnapshotCell[,] Cells { get; }
 
-    public ScreenSnapshot(Rect region, SnapshotCell[,] cells)
+    public ScreenSnapshot(ConsoleViewport viewport, Rect region, SnapshotCell[,] cells)
     {
+        Viewport = viewport;
         Region = region;
         Cells = cells;
     }

@@ -10,6 +10,8 @@ public interface IConsoleDriver
 
     ConsoleSize GetSize();
 
+    bool TryScrollViewportToBottom();
+
     /// <summary>Reads the next keyboard, mouse, or resize event.</summary>
     ConsoleInputEvent ReadInput(bool intercept, CancellationToken cancellationToken = default);
 

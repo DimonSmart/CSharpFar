@@ -20,6 +20,7 @@ public sealed class FakeConsoleDriver : IConsoleDriver, IConsoleOutputModeDriver
 
     private SnapshotCell[,] _buffer;
     private ConsoleSize _size;
+    private int _bufferHeight;
     private int _viewportLeft;
     private int _viewportTop;
     private readonly Queue<ConsoleInputEvent> _inputQueue = new();
@@ -33,12 +34,14 @@ public sealed class FakeConsoleDriver : IConsoleDriver, IConsoleOutputModeDriver
     public int SetCursorVisibleCallCount { get; private set; }
     public int TrySetCursorPositionInViewportCallCount { get; private set; }
     public bool RenderingOutputMode { get; private set; }
+    public Action<FakeConsoleDriver>? BeforeReadInput { get; set; }
     public IReadOnlyList<WriteRecord> WriteRecords => _writeRecords;
     public event Action<WriteRecord>? Wrote;
 
     public FakeConsoleDriver(int width = 80, int height = 25)
     {
         _size = new ConsoleSize(width, height);
+        _bufferHeight = height;
         _buffer = CreateBuffer(width, height);
     }
 
@@ -55,15 +58,34 @@ public sealed class FakeConsoleDriver : IConsoleDriver, IConsoleOutputModeDriver
 
     public ConsoleSize GetSize() => _size;
 
+    public bool TryScrollViewportToBottom()
+    {
+        int targetTop = Math.Max(0, _bufferHeight - _size.Height);
+        if (_viewportTop == targetTop)
+            return false;
+
+        _viewportTop = targetTop;
+        return true;
+    }
+
     public void SetViewportOrigin(int left, int top)
     {
         _viewportLeft = left;
         _viewportTop = top;
     }
 
+    public void SetBufferHeight(int height)
+    {
+        if (height < _size.Height)
+            throw new ArgumentOutOfRangeException(nameof(height), "Buffer height cannot be smaller than the viewport height.");
+
+        _bufferHeight = height;
+    }
+
     public void SetSize(int width, int height)
     {
         _size = new ConsoleSize(width, height);
+        _bufferHeight = Math.Max(_bufferHeight, height);
         _buffer = CreateBuffer(width, height);
     }
 
@@ -76,6 +98,7 @@ public sealed class FakeConsoleDriver : IConsoleDriver, IConsoleOutputModeDriver
     public ConsoleInputEvent ReadInput(bool intercept, CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
+        InvokeBeforeReadInput();
         return _inputQueue.TryDequeue(out var inputEvent)
             ? inputEvent
             : throw new InvalidOperationException("No input events queued in FakeConsoleDriver.");
@@ -166,7 +189,7 @@ public sealed class FakeConsoleDriver : IConsoleDriver, IConsoleOutputModeDriver
                 if (ry >= 0 && ry < _size.Height && rx >= 0 && rx < _size.Width)
                     cells[row, col] = _buffer[ry, rx];
             }
-        return new ScreenSnapshot(region, cells);
+        return new ScreenSnapshot(GetViewport(), region, cells);
     }
 
     public void Restore(ScreenSnapshot snapshot)
@@ -208,5 +231,15 @@ public sealed class FakeConsoleDriver : IConsoleDriver, IConsoleOutputModeDriver
         SetCursorVisibleCallCount = 0;
         TrySetCursorPositionInViewportCallCount = 0;
         _writeRecords.Clear();
+    }
+
+    private void InvokeBeforeReadInput()
+    {
+        var callback = BeforeReadInput;
+        if (callback is null)
+            return;
+
+        BeforeReadInput = null;
+        callback(this);
     }
 }

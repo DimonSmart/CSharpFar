@@ -108,12 +108,21 @@ internal static class Win32ConsoleApi
         IntPtr hConsoleOutput,
         Coord dwCursorPosition);
 
+    [DllImport("kernel32.dll", SetLastError = true)]
+    private static extern bool SetConsoleWindowInfo(
+        IntPtr hConsoleOutput,
+        bool bAbsolute,
+        ref SmallRect lpConsoleWindow);
+
     public static bool TryGetConsoleScreenBufferInfo(IntPtr handle, out ConsoleScreenBufferInfo info) =>
         GetConsoleScreenBufferInfo(handle, out info);
 
     /// <summary>Sets the cursor to pre-computed absolute buffer coordinates.</summary>
     public static bool TrySetConsoleCursorPositionDirect(IntPtr handle, short absX, short absY) =>
         SetConsoleCursorPosition(handle, new Coord { X = absX, Y = absY });
+
+    public static bool TrySetConsoleWindowInfo(IntPtr handle, SmallRect window) =>
+        SetConsoleWindowInfo(handle, bAbsolute: true, ref window);
 
     public static IntPtr GetConsoleInputHandle() => GetStdHandle(STD_INPUT_HANDLE);
     public static IntPtr GetConsoleOutputHandle() => GetStdHandle(STD_OUTPUT_HANDLE);
@@ -133,7 +142,7 @@ internal static class Win32ConsoleApi
         IntPtr inputHandle,
         bool intercept,
         CancellationToken cancellationToken,
-        Func<bool>? hasVisibleWindowSizeChanged = null)
+        Func<bool>? hasVisibleViewportChanged = null)
     {
         while (true)
         {
@@ -144,7 +153,7 @@ internal static class Win32ConsoleApi
                 var pendingEvt = TryReadInputRecord(inputHandle, intercept);
                 if (pendingEvt != null)
                     return pendingEvt;
-                if (hasVisibleWindowSizeChanged?.Invoke() == true)
+                if (hasVisibleViewportChanged?.Invoke() == true)
                     return new ConsoleResizeInputEvent();
                 continue;
             }
@@ -156,7 +165,7 @@ internal static class Win32ConsoleApi
 
             if (result == WAIT_TIMEOUT)
             {
-                if (hasVisibleWindowSizeChanged?.Invoke() == true)
+                if (hasVisibleViewportChanged?.Invoke() == true)
                     return new ConsoleResizeInputEvent();
                 continue;
             }
@@ -165,7 +174,7 @@ internal static class Win32ConsoleApi
             var evt = TryReadInputRecord(inputHandle, intercept);
             if (evt != null)
                 return evt;
-            if (hasVisibleWindowSizeChanged?.Invoke() == true)
+            if (hasVisibleViewportChanged?.Invoke() == true)
                 return new ConsoleResizeInputEvent();
             // null = irrelevant event (move, key-up) – loop again
         }

@@ -64,6 +64,46 @@ public class ScreenRendererTests
     }
 
     [Fact]
+    public void ClearScreen_SynchronizesBufferedState()
+    {
+        var (renderer, driver) = Create(20, 5);
+        var style = new CellStyle(ConsoleColor.White, ConsoleColor.DarkBlue);
+
+        using (renderer.BeginFrame())
+            renderer.Write(0, 0, "ABC", style);
+
+        renderer.ClearScreen();
+        driver.ClearRecordedOperations();
+
+        using (renderer.BeginFrame())
+            renderer.Write(0, 0, "ABC", style);
+
+        Assert.True(driver.WriteAtCallCount > 0);
+        Assert.StartsWith("ABC", driver.GetRow(0));
+    }
+
+    [Fact]
+    public void TryScrollViewportToBottom_MovesViewportAndForcesNextFrameWrites()
+    {
+        var (renderer, driver) = Create(20, 5);
+        driver.SetBufferHeight(20);
+        driver.SetViewportOrigin(0, 3);
+        var style = new CellStyle(ConsoleColor.White, ConsoleColor.DarkBlue);
+
+        using (renderer.BeginFrame())
+            renderer.Write(0, 0, "ABC", style);
+
+        driver.ClearRecordedOperations();
+        Assert.True(renderer.TryScrollViewportToBottom());
+        Assert.Equal(15, driver.GetViewport().Top);
+
+        using (renderer.BeginFrame())
+            renderer.Write(0, 0, "ABC", style);
+
+        Assert.True(driver.WriteAtCallCount > 0);
+    }
+
+    [Fact]
     public void BufferedFrame_CursorStyleMove_WritesOnlyChangedRows()
     {
         var (renderer, driver) = Create(20, 5);
@@ -124,7 +164,7 @@ public class ScreenRendererTests
         cells[1, 2] = new SnapshotCell { Character = 'V', Foreground = style.Foreground, Background = style.Background };
         cells[1, 3] = new SnapshotCell { Character = 'E', Foreground = style.Foreground, Background = style.Background };
 
-        renderer.Restore(new ScreenSnapshot(region, cells));
+        renderer.Restore(new ScreenSnapshot(driver.GetViewport(), region, cells));
         driver.ClearRecordedOperations();
 
         using (renderer.BeginFrame())

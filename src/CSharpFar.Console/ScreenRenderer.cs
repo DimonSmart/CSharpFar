@@ -38,7 +38,28 @@ public sealed class ScreenRenderer
         _driver = driver;
     }
 
+    public ConsoleViewport GetViewport() => _driver.GetViewport();
+
     public ConsoleSize GetSize() => _driver.GetSize();
+
+    public bool TryScrollViewportToBottom()
+    {
+        if (_frameActive)
+            throw new InvalidOperationException("Cannot scroll the viewport during an active render frame.");
+
+        var before = _driver.GetViewport();
+        if (!_driver.TryScrollViewportToBottom())
+            return false;
+
+        var after = _driver.GetViewport();
+        if (after == before)
+            return false;
+
+        _frontBufferKnown = false;
+        _frontBufferViewport = null;
+        _forceFullFrame = true;
+        return true;
+    }
 
     /// <summary>
     /// The size captured at <see cref="BeginFrame"/>. All rendering within a frame
@@ -47,6 +68,11 @@ public sealed class ScreenRenderer
     /// Only valid while a frame is active.
     /// </summary>
     public ConsoleSize FrameSize => _frameSize;
+
+    /// <summary>
+    /// The viewport captured at <see cref="BeginFrame"/>. Only valid while a frame is active.
+    /// </summary>
+    public ConsoleViewport FrameViewport => _frameViewport;
 
     public void SetRenderingOutputMode(bool enabled)
     {
@@ -177,6 +203,13 @@ public sealed class ScreenRenderer
     {
         var size = _driver.GetSize();
         _driver.ClearRegion(new Rect(0, 0, size.Width, size.Height));
+        EnsureBuffers(size);
+        FillBuffer(_frontBuffer!, 0, 0, size.Width, size.Height, CellStyle.Default);
+        _frontBufferKnown = true;
+        _frontBufferViewport = _driver.GetViewport();
+        _forceFullFrame = false;
+        if (_frameActive && _backBuffer is not null)
+            FillBuffer(_backBuffer, 0, 0, size.Width, size.Height, CellStyle.Default);
     }
 
     /// <summary>Draws a single-line box border.</summary>
@@ -309,14 +342,14 @@ public sealed class ScreenRenderer
     public ScreenSnapshot Capture(Rect region)
     {
         var snapshot = _driver.Capture(region);
-        SyncFrontBuffer(snapshot);
+        SyncFrontBuffer(snapshot, snapshot.Viewport);
         return snapshot;
     }
 
     public void Restore(ScreenSnapshot snapshot)
     {
         _driver.Restore(snapshot);
-        SyncFrontBuffer(snapshot);
+        SyncFrontBuffer(snapshot, _driver.GetViewport());
         if (_frameActive && _backBuffer is not null)
             CopySnapshotToBuffer(_backBuffer, snapshot);
     }
@@ -485,7 +518,7 @@ public sealed class ScreenRenderer
                 buffer[row, col] = cell;
     }
 
-    private void SyncFrontBuffer(ScreenSnapshot snapshot)
+    private void SyncFrontBuffer(ScreenSnapshot snapshot, ConsoleViewport viewport)
     {
         EnsureBuffers(_driver.GetSize());
         CopySnapshotToBuffer(_frontBuffer!, snapshot);
@@ -496,7 +529,7 @@ public sealed class ScreenRenderer
             snapshot.Region.Height == _bufferSize.Height)
         {
             _frontBufferKnown = true;
-            _frontBufferViewport = _driver.GetViewport();
+            _frontBufferViewport = viewport;
             _forceFullFrame = false;
         }
     }

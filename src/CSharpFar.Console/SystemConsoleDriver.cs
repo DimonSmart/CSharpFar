@@ -21,7 +21,7 @@ public sealed class SystemConsoleDriver : IConsoleDriver, IConsoleOutputModeDriv
     private readonly uint _originalOutputMode;
     private readonly bool _restoreInputMode;
     private readonly bool _restoreOutputMode;
-    private ConsoleSize _lastInputSize;
+    private ConsoleViewport _lastInputViewport;
     private bool _renderingOutputMode;
     private bool _disposed;
 
@@ -36,7 +36,7 @@ public sealed class SystemConsoleDriver : IConsoleDriver, IConsoleOutputModeDriv
         }
 
         global::System.Console.OutputEncoding = System.Text.Encoding.UTF8;
-        _lastInputSize = GetSize();
+        _lastInputViewport = GetViewport();
     }
 
     public void Dispose()
@@ -84,6 +84,46 @@ public sealed class SystemConsoleDriver : IConsoleDriver, IConsoleOutputModeDriv
 
     public ConsoleSize GetSize() => GetViewport().Size;
 
+    public bool TryScrollViewportToBottom()
+    {
+        if (!OperatingSystem.IsWindows())
+            return false;
+
+        if (!Win32ConsoleApi.TryGetConsoleScreenBufferInfo(_consoleHandle, out var sbi))
+            return false;
+
+        var current = ToViewport(sbi);
+        if (current.Width <= 0 || current.Height <= 0 || sbi.dwSize.X <= 0 || sbi.dwSize.Y <= 0)
+            return false;
+
+        int targetBottom = sbi.dwSize.Y - 1;
+        int targetTop = Math.Max(0, targetBottom - current.Height + 1);
+        int targetLeft = Math.Clamp(current.Left, 0, Math.Max(0, sbi.dwSize.X - current.Width));
+        int targetRight = targetLeft + current.Width - 1;
+
+        var target = new SmallRect
+        {
+            Left = (short)targetLeft,
+            Top = (short)targetTop,
+            Right = (short)targetRight,
+            Bottom = (short)targetBottom,
+        };
+
+        if (sbi.srWindow.Left == target.Left &&
+            sbi.srWindow.Top == target.Top &&
+            sbi.srWindow.Right == target.Right &&
+            sbi.srWindow.Bottom == target.Bottom)
+        {
+            return false;
+        }
+
+        if (!Win32ConsoleApi.TrySetConsoleWindowInfo(_consoleHandle, target))
+            return false;
+
+        _lastInputViewport = GetViewport();
+        return _lastInputViewport != current;
+    }
+
     public ConsoleInputEvent ReadInput(bool intercept, CancellationToken cancellationToken = default)
     {
         if (OperatingSystem.IsWindows())
@@ -92,10 +132,10 @@ public sealed class SystemConsoleDriver : IConsoleDriver, IConsoleOutputModeDriv
                 _inputHandle,
                 intercept,
                 cancellationToken,
-                HasVisibleWindowSizeChanged);
+                HasVisibleViewportChanged);
 
             if (inputEvent is ConsoleResizeInputEvent)
-                _lastInputSize = GetSize();
+                _lastInputViewport = GetViewport();
 
             return inputEvent;
         }
@@ -112,7 +152,7 @@ public sealed class SystemConsoleDriver : IConsoleDriver, IConsoleOutputModeDriv
         {
             bool hasInput = Win32ConsoleApi.TryReadInput(_inputHandle, intercept, out inputEvent);
             if (hasInput && inputEvent is ConsoleResizeInputEvent)
-                _lastInputSize = GetSize();
+                _lastInputViewport = GetViewport();
             return hasInput;
         }
 
@@ -299,7 +339,7 @@ public sealed class SystemConsoleDriver : IConsoleDriver, IConsoleOutputModeDriv
     {
         if (OperatingSystem.IsWindows())
             return CaptureWindows(region);
-        return CaptureFallback(region);
+        return CaptureFallback(GetViewport(), region);
     }
 
     public void Restore(ScreenSnapshot snapshot)
@@ -328,16 +368,13 @@ public sealed class SystemConsoleDriver : IConsoleDriver, IConsoleOutputModeDriv
         return appMode == mode || Win32ConsoleApi.TrySetConsoleMode(inputHandle, appMode);
     }
 
-    private bool HasVisibleWindowSizeChanged()
+    private bool HasVisibleViewportChanged()
     {
-        var size = GetSize();
-        if (size.Width == _lastInputSize.Width &&
-            size.Height == _lastInputSize.Height)
-        {
+        var viewport = GetViewport();
+        if (viewport == _lastInputViewport)
             return false;
-        }
 
-        _lastInputSize = size;
+        _lastInputViewport = viewport;
         return true;
     }
 
@@ -407,14 +444,16 @@ public sealed class SystemConsoleDriver : IConsoleDriver, IConsoleOutputModeDriv
     private ScreenSnapshot CaptureWindows(Rect region)
     {
         if (!Win32ConsoleApi.TryGetConsoleScreenBufferInfo(_consoleHandle, out var sbi))
-            return CaptureFallback(region);
+            return CaptureFallback(GetViewport(), region);
+
+        var viewport = ToViewport(sbi);
 
         var sr = new SmallRect
         {
-            Left   = (short)(sbi.srWindow.Left + region.X),
-            Top    = (short)(sbi.srWindow.Top  + region.Y),
-            Right  = (short)(sbi.srWindow.Left + region.Right  - 1),
-            Bottom = (short)(sbi.srWindow.Top  + region.Bottom - 1),
+            Left   = (short)(viewport.Left + region.X),
+            Top    = (short)(viewport.Top  + region.Y),
+            Right  = (short)(viewport.Left + region.Right  - 1),
+            Bottom = (short)(viewport.Top  + region.Bottom - 1),
         };
 
         var raw = Win32ConsoleApi.ReadRegion(_consoleHandle, sr);
@@ -438,16 +477,16 @@ public sealed class SystemConsoleDriver : IConsoleDriver, IConsoleOutputModeDriv
             }
         }
 
-        return new ScreenSnapshot(region, cells);
+        return new ScreenSnapshot(viewport, region, cells);
     }
 
-    private static ScreenSnapshot CaptureFallback(Rect region)
+    private static ScreenSnapshot CaptureFallback(ConsoleViewport viewport, Rect region)
     {
         var cells = new SnapshotCell[region.Height, region.Width];
         for (int r = 0; r < region.Height; r++)
             for (int c = 0; c < region.Width; c++)
                 cells[r, c] = new SnapshotCell { Character = ' ', Foreground = ConsoleColor.Gray, Background = ConsoleColor.Black };
-        return new ScreenSnapshot(region, cells);
+        return new ScreenSnapshot(viewport, region, cells);
     }
 
     [SupportedOSPlatform("windows")]
