@@ -192,10 +192,11 @@ public sealed class Spec012SearchResultsPanelTests : IDisposable
         var driver = new FakeConsoleDriver(width: 100, height: 30);
         driver.EnqueueKey(Key(ConsoleKey.F7, alt: true));
         driver.EnqueueKey(Key(ConsoleKey.F10));
-        driver.EnqueueKey(Key(ConsoleKey.NoName));
-        driver.EnqueueKey(Key(ConsoleKey.NoName));
-        driver.EnqueueKey(Key(ConsoleKey.Enter));
-        driver.EnqueueKey(Key(ConsoleKey.F10));
+        EnqueueKeysWhenWriteContains(
+            driver,
+            "found.txt",
+            Key(ConsoleKey.Enter),
+            Key(ConsoleKey.F10));
 
         var fs = new FakeFileSystemService();
         fs.AddDirectory(
@@ -325,6 +326,26 @@ public sealed class Spec012SearchResultsPanelTests : IDisposable
 
     private static ConsoleKeyInfo KeyChar(char keyChar, ConsoleKey key) =>
         new(keyChar, key, shift: false, alt: false, control: false);
+
+    private static void EnqueueKeysWhenWriteContains(
+        FakeConsoleDriver driver,
+        string text,
+        params ConsoleKeyInfo[] keys)
+    {
+        bool enqueued = false;
+        driver.Wrote += OnWrote;
+
+        void OnWrote(FakeConsoleDriver.WriteRecord record)
+        {
+            if (enqueued || !record.Text.Contains(text, StringComparison.Ordinal))
+                return;
+
+            enqueued = true;
+            driver.Wrote -= OnWrote;
+            foreach (var key in keys)
+                driver.EnqueueKey(key);
+        }
+    }
 
     private static SearchResultItem SearchResult(string fullPath) =>
         new()
