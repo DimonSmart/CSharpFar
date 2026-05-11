@@ -19,7 +19,6 @@ public sealed class Spec007SettingsTests
         Assert.True(opts.ShowStatusLine);
         Assert.True(opts.ShowFilesTotalInformation);
         Assert.False(opts.ShowFreeSize);
-        Assert.False(opts.ShowScrollbar);
         Assert.True(opts.ShowSortModeLetter);
         Assert.False(opts.ShowParentDirectoryInRootFolders);
         Assert.False(opts.DetectVolumeMountPoints);

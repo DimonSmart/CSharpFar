@@ -1,5 +1,6 @@
 using CSharpFar.Console;
 using CSharpFar.Console.Models;
+using CSharpFar.Core.Models;
 
 namespace CSharpFar.App.Rendering;
 
@@ -13,9 +14,15 @@ public sealed class DialogFrameRenderer
         string title,
         bool doubleBorder,
         PopupRenderOptions options,
+        ScrollState? verticalScrollState,
         Action<ScreenRenderer, Rect> renderContent)
     {
-        var popupOptions = options with { DrawBorder = true, DrawDoubleBorder = doubleBorder };
+        var popupOptions = options with
+        {
+            DrawBorder = true,
+            DrawDoubleBorder = doubleBorder,
+            VerticalScrollState = verticalScrollState,
+        };
         _popupRenderer.RenderPopup(screen, bounds, popupOptions, (renderer, contentBounds) =>
         {
             renderContent(renderer, contentBounds);
@@ -31,4 +38,13 @@ public sealed class DialogFrameRenderer
             renderer.Write(titleX, bounds.Y, titleText, options.TitleStyle ?? options.BorderStyle);
         });
     }
+
+    public void RenderFrame(
+        ScreenRenderer screen,
+        Rect bounds,
+        string title,
+        bool doubleBorder,
+        PopupRenderOptions options,
+        Action<ScreenRenderer, Rect> renderContent) =>
+        RenderFrame(screen, bounds, title, doubleBorder, options, null, renderContent);
 }

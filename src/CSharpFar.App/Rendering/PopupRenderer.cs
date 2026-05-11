@@ -1,5 +1,6 @@
 using CSharpFar.Console;
 using CSharpFar.Console.Models;
+using CSharpFar.Core.Models;
 
 namespace CSharpFar.App.Rendering;
 
@@ -42,5 +43,19 @@ public sealed class PopupRenderer
         }
 
         renderContent(screen, contentBounds);
+
+        if (options.DrawBorder && options.VerticalScrollState is { } scrollState)
+        {
+            new ScrollBarRenderer().RenderVerticalScrollbar(
+                screen,
+                new Rect(bounds.Right - 1, contentBounds.Y, 1, contentBounds.Height),
+                scrollState,
+                new ScrollBarOptions
+                {
+                    Enabled = true,
+                    DrawWhenNotScrollable = false,
+                },
+                options.BorderStyle);
+        }
     }
 }

@@ -14,6 +14,7 @@ internal sealed class FileOperationDialog
 {
     private const int DialogWidth = 78;
     private const int DialogHeight = 22;
+    private const int BodyRowCount = 16;
 
     private static readonly ConflictDecisionMode[] CopyConflictModes =
     [
@@ -112,6 +113,8 @@ internal sealed class FileOperationDialog
         bool copySymlinkContents = initialOptions.SymlinkMode == SymlinkCopyMode.CopyTargetContents;
         bool useFilter = !string.IsNullOrWhiteSpace(initialOptions.FileMask);
         int focusRow = 0;
+        int bodyScrollTop = 0;
+        ScrollBarDragState? bodyScrollbarDrag = null;
         int focusedButton = 0;
         string? error = null;
         var buttonBar = new DialogButtonBar(
@@ -120,6 +123,7 @@ internal sealed class FileOperationDialog
             new DialogButton("cancel", "Cancel", 'C'),
         ]);
 
+        bodyScrollTop = NormalizeBodyScroll(size, focusRow, bodyScrollTop);
         Draw(
             size,
             title,
@@ -134,6 +138,7 @@ internal sealed class FileOperationDialog
             copySymlinkContents,
             useFilter,
             focusRow,
+            bodyScrollTop,
             buttonBar,
             focusedButton,
             error);
@@ -170,9 +175,17 @@ internal sealed class FileOperationDialog
                     copySymlinkContents,
                     useFilter,
                     focusRow,
+                    bodyScrollTop,
                     buttonBar,
                     focusedButton,
                     error);
+                continue;
+            }
+
+            if (input is MouseConsoleInputEvent mouse &&
+                TryHandleBodyScrollbarMouse(mouse, size, ref bodyScrollTop, ref bodyScrollbarDrag))
+            {
+                DrawCurrent(ensureFocusVisible: false);
                 continue;
             }
 
@@ -192,23 +205,7 @@ internal sealed class FileOperationDialog
 
             if (input is not KeyConsoleInputEvent { Key: var key })
             {
-                Draw(
-                    size,
-                    title,
-                    prompt,
-                    actionLabel,
-                    destination,
-                    filter,
-                    conflictModes,
-                    conflictIndex,
-                    securityMode,
-                    preserveTimestamps,
-                    copySymlinkContents,
-                    useFilter,
-                    focusRow,
-                    buttonBar,
-                    focusedButton,
-                    error);
+                DrawCurrent();
                 continue;
             }
 
@@ -292,6 +289,17 @@ internal sealed class FileOperationDialog
             if (!useFilter && focusRow == 6)
                 focusRow = 5;
 
+            DrawCurrent();
+        }
+
+        void DrawCurrent(bool ensureFocusVisible = true)
+        {
+            bodyScrollTop = ensureFocusVisible
+                ? NormalizeBodyScroll(size, focusRow, bodyScrollTop)
+                : ScrollStateCalculator.ClampFirstVisibleIndex(
+                    bodyScrollTop,
+                    BodyRowCount,
+                    FileOperationBodyViewportRows(size));
             Draw(
                 size,
                 title,
@@ -306,10 +314,43 @@ internal sealed class FileOperationDialog
                 copySymlinkContents,
                 useFilter,
                 focusRow,
+                bodyScrollTop,
                 buttonBar,
                 focusedButton,
                 error);
         }
+    }
+
+    private static bool TryHandleBodyScrollbarMouse(
+        MouseConsoleInputEvent mouse,
+        ConsoleSize size,
+        ref int bodyScrollTop,
+        ref ScrollBarDragState? bodyScrollbarDrag)
+    {
+        int dialogWidth = Math.Min(DialogWidth, Math.Max(40, size.Width - 2));
+        int dialogHeight = Math.Min(DialogHeight, Math.Max(8, size.Height - 2));
+        int dialogX = Math.Max(0, (size.Width - dialogWidth) / 2);
+        int dialogY = Math.Max(0, (size.Height - dialogHeight) / 2);
+        var frameBounds = new Rect(
+            dialogX + 1,
+            dialogY + 1,
+            Math.Max(1, dialogWidth - 2),
+            Math.Max(1, dialogHeight - 2));
+        int buttonY = frameBounds.Y + frameBounds.Height - 2;
+        int errorY = buttonY - 1;
+        int bodyTop = frameBounds.Y + 1;
+        int bodyHeight = Math.Max(1, errorY - bodyTop);
+        if (BodyRowCount <= bodyHeight)
+            return false;
+
+        var scrollbarBounds = new Rect(frameBounds.Right - 1, bodyTop, 1, bodyHeight);
+        return ScrollBarMouseHandler.TryHandleMouse(
+            mouse,
+            scrollbarBounds,
+            BodyRowCount,
+            bodyHeight,
+            ref bodyScrollTop,
+            ref bodyScrollbarDrag);
     }
 
     private static FileOperationDialogResult? BuildResult(
@@ -451,6 +492,7 @@ internal sealed class FileOperationDialog
         bool copySymlinkContents,
         bool useFilter,
         int focusRow,
+        int bodyScrollTop,
         DialogButtonBar buttonBar,
         int focusedButton,
         string? error)
@@ -458,7 +500,7 @@ internal sealed class FileOperationDialog
         using var frame = _screen.BeginFrame();
 
         int dialogWidth = Math.Min(DialogWidth, Math.Max(40, size.Width - 2));
-        int dialogHeight = Math.Min(DialogHeight, Math.Max(12, size.Height - 2));
+        int dialogHeight = Math.Min(DialogHeight, Math.Max(8, size.Height - 2));
         int dialogX = Math.Max(0, (size.Width - dialogWidth) / 2);
         int dialogY = Math.Max(0, (size.Height - dialogHeight) / 2);
         var outerBounds = new Rect(dialogX, dialogY, dialogWidth, dialogHeight);
@@ -472,45 +514,160 @@ internal sealed class FileOperationDialog
             int contentX = bounds.X + 2;
             int contentWidth = Math.Max(1, bounds.Width - 4);
 
-            _screen.Write(contentX, bounds.Y + 1, Truncate(prompt, contentWidth).PadRight(contentWidth), fill);
-            DrawInput(contentX, bounds.Y + 2, contentWidth, destination, focusRow == 0);
+            int buttonY = bounds.Y + bounds.Height - 2;
+            int errorY = buttonY - 1;
+            int bodyTop = bounds.Y + 1;
+            int bodyHeight = Math.Max(1, errorY - bodyTop);
+            _screen.FillRegion(new Rect(contentX, bodyTop, contentWidth, bodyHeight), fill);
 
-            DrawSeparator(bounds, bounds.Y + 3);
-            DrawAccessRights(contentX, bounds.Y + 4, contentWidth, securityMode, focusRow == 1, fill, focused);
-
-            DrawSeparator(bounds, bounds.Y + 5);
-            DrawConflictModes(contentX, bounds.Y + 6, contentWidth, conflictModes, conflictIndex, focusRow == 2, fill, focused);
-            DrawSeparator(bounds, bounds.Y + 9);
-            DrawCheckbox(contentX, bounds.Y + 10, contentWidth, "Preserve all timestamps", preserveTimestamps, focusRow == 3, fill, focused);
-            DrawCheckbox(contentX, bounds.Y + 11, contentWidth, "Copy contents of symbolic links", copySymlinkContents, focusRow == 4, fill, focused);
-            DrawSeparator(bounds, bounds.Y + 12);
-            DrawCheckbox(contentX, bounds.Y + 13, contentWidth, "Use filter", useFilter, focusRow == 5, fill, focused);
-            _screen.Write(contentX, bounds.Y + 14, "Filter mask:".PadRight(contentWidth), fill);
+            WriteBodyRow(0, prompt, fill);
+            DrawBodyInput(1, destination, focusRow == 0);
+            DrawBodySeparator(2);
+            DrawBodyAccessRights(3);
+            DrawBodySeparator(4);
+            WriteBodyRow(5, "Already existing files:", fill);
+            DrawBodyConflictModeRow(6, 0, Math.Min(4, conflictModes.Count));
+            DrawBodyConflictModeRow(7, 4, conflictModes.Count);
+            DrawBodySeparator(8);
+            DrawBodyCheckbox(9, "Preserve all timestamps", preserveTimestamps, focusRow == 3);
+            DrawBodyCheckbox(10, "Copy contents of symbolic links", copySymlinkContents, focusRow == 4);
+            DrawBodySeparator(11);
+            DrawBodyCheckbox(12, "Use filter", useFilter, focusRow == 5);
+            WriteBodyRow(13, "Filter mask:", fill);
             if (useFilter)
-                DrawInput(contentX, bounds.Y + 15, contentWidth, filter, focusRow == 6);
+                DrawBodyInput(14, filter, focusRow == 6);
             else
-                _screen.Write(contentX, bounds.Y + 15, VisibleInputText(filter, contentWidth).PadRight(contentWidth), fill);
+                WriteBodyRow(14, VisibleInputText(filter, contentWidth), fill);
+            DrawBodySeparator(15);
 
-            DrawSeparator(bounds, bounds.Y + 16);
+            if (BodyRowCount > bodyHeight)
+            {
+                new ScrollBarRenderer().RenderVerticalScrollbar(
+                    _screen,
+                    new Rect(bounds.Right - 1, bodyTop, 1, bodyHeight),
+                    new ScrollState
+                    {
+                        TotalItems = BodyRowCount,
+                        ViewportItems = bodyHeight,
+                        FirstVisibleIndex = bodyScrollTop,
+                    },
+                    new ScrollBarOptions
+                    {
+                        Enabled = true,
+                        DrawWhenNotScrollable = false,
+                    },
+                    FarDialogStyles.Border);
+            }
+
             string errorText = error is null ? string.Empty : Truncate(error, contentWidth);
-            _screen.Write(contentX, bounds.Y + 17, errorText.PadRight(contentWidth), FarDialogStyles.Error);
+            _screen.Write(contentX, errorY, errorText.PadRight(contentWidth), FarDialogStyles.Error);
 
             buttonBar.Render(
                 _screen,
                 contentX,
-                bounds.Y + bounds.Height - 2,
+                buttonY,
                 contentWidth,
                 focusedButton,
                 fill,
                 focusRow == 7 ? focused : fill);
+
+            int? BodyY(int virtualRow)
+            {
+                int row = virtualRow - bodyScrollTop;
+                return row >= 0 && row < bodyHeight ? bodyTop + row : null;
+            }
+
+            void WriteBodyRow(int virtualRow, string value, CellStyle style)
+            {
+                if (BodyY(virtualRow) is { } y)
+                    _screen.Write(contentX, y, Truncate(value, contentWidth).PadRight(contentWidth), style);
+            }
+
+            void DrawBodyInput(int virtualRow, CommandLineState buffer, bool isFocused)
+            {
+                if (BodyY(virtualRow) is { } y)
+                    DrawInput(contentX, y, contentWidth, buffer, isFocused);
+            }
+
+            void DrawBodySeparator(int virtualRow)
+            {
+                if (BodyY(virtualRow) is { } y)
+                    DrawSeparator(bounds, y);
+            }
+
+            void DrawBodyAccessRights(int virtualRow)
+            {
+                if (BodyY(virtualRow) is { } y)
+                    DrawAccessRights(contentX, y, contentWidth, securityMode, focusRow == 1, fill, focused);
+            }
+
+            void DrawBodyCheckbox(int virtualRow, string label, bool value, bool isFocused)
+            {
+                if (BodyY(virtualRow) is { } y)
+                    DrawCheckbox(contentX, y, contentWidth, label, value, isFocused, fill, focused);
+            }
+
+            void DrawBodyConflictModeRow(int virtualRow, int startIndex, int endIndex)
+            {
+                if (BodyY(virtualRow) is { } y)
+                    DrawConflictModeRow(contentX, y, contentWidth, conflictModes, conflictIndex, startIndex, endIndex, focusRow == 2, fill, focused);
+            }
         });
 
-        if (focusRow == 0)
-            SetInputCursor(outerBounds.X + 3, outerBounds.Y + 3, Math.Max(1, outerBounds.Width - 6), destination);
-        else if (focusRow == 6)
-            SetInputCursor(outerBounds.X + 3, outerBounds.Y + 16, Math.Max(1, outerBounds.Width - 6), filter);
+        Rect frameBounds = new(
+            outerBounds.X + 1,
+            outerBounds.Y + 1,
+            Math.Max(1, outerBounds.Width - 2),
+            Math.Max(1, outerBounds.Height - 2));
+        int inputX = frameBounds.X + 2;
+        int inputWidth = Math.Max(1, frameBounds.Width - 4);
+        if (focusRow == 0 && InputCursorY(frameBounds, bodyScrollTop, 1) is { } destinationY)
+            SetInputCursor(inputX, destinationY, inputWidth, destination);
+        else if (focusRow == 6 && InputCursorY(frameBounds, bodyScrollTop, 14) is { } filterY)
+            SetInputCursor(inputX, filterY, inputWidth, filter);
         else
             _screen.SetCursorVisible(false);
+    }
+
+    private static int NormalizeBodyScroll(ConsoleSize size, int focusRow, int bodyScrollTop)
+    {
+        int viewportRows = FileOperationBodyViewportRows(size);
+        bodyScrollTop = ScrollStateCalculator.ClampFirstVisibleIndex(bodyScrollTop, BodyRowCount, viewportRows);
+        int focusVirtualRow = FocusVirtualRow(focusRow);
+        if (focusVirtualRow >= 0)
+            bodyScrollTop = ScrollStateCalculator.EnsureIndexVisible(focusVirtualRow, bodyScrollTop, viewportRows);
+        return ScrollStateCalculator.ClampFirstVisibleIndex(bodyScrollTop, BodyRowCount, viewportRows);
+    }
+
+    private static int FileOperationBodyViewportRows(ConsoleSize size)
+    {
+        int dialogHeight = Math.Min(DialogHeight, Math.Max(8, size.Height - 2));
+        int frameHeight = Math.Max(1, dialogHeight - 2);
+        int buttonRow = frameHeight - 2;
+        int errorRow = buttonRow - 1;
+        return Math.Max(1, errorRow - 1);
+    }
+
+    private static int FocusVirtualRow(int focusRow) => focusRow switch
+    {
+        0 => 1,
+        1 => 3,
+        2 => 6,
+        3 => 9,
+        4 => 10,
+        5 => 12,
+        6 => 14,
+        _ => -1,
+    };
+
+    private static int? InputCursorY(Rect frameBounds, int bodyScrollTop, int virtualRow)
+    {
+        int buttonY = frameBounds.Y + frameBounds.Height - 2;
+        int errorY = buttonY - 1;
+        int bodyTop = frameBounds.Y + 1;
+        int bodyHeight = Math.Max(1, errorY - bodyTop);
+        int row = virtualRow - bodyScrollTop;
+        return row >= 0 && row < bodyHeight ? bodyTop + row : null;
     }
 
     private void DrawInput(int x, int y, int width, CommandLineState buffer, bool focused)

@@ -54,6 +54,7 @@ internal sealed class SearchProgressDialog
             SearchResultItem? goToResult = null;
             int selectedIndex = 0;
             int scrollOffset = 0;
+            ScrollBarDragState? resultScrollbarDrag = null;
             int focusedButton = 0;
             var buttonBar = new DialogButtonBar(
             [
@@ -112,6 +113,18 @@ internal sealed class SearchProgressDialog
 
                 if (_screen.TryReadInput(out var input))
                 {
+                    if (input is MouseConsoleInputEvent mouse &&
+                        TryHandleResultScrollbarMouse(
+                            mouse,
+                            inputResults.Length,
+                            listHeight,
+                            ref selectedIndex,
+                            ref scrollOffset,
+                            ref resultScrollbarDrag))
+                    {
+                        continue;
+                    }
+
                     SearchResultItem? selected = HandleInput(
                         input,
                         inputResults,
@@ -320,6 +333,25 @@ internal sealed class SearchProgressDialog
             var style = resultIndex == selectedIndex ? FarDialogStyles.Input : FarDialogStyles.Fill;
             _screen.Write(contentX, listY + row, text.PadRight(contentWidth), style);
         }
+
+        if (results.Count > listHeight)
+        {
+            new ScrollBarRenderer().RenderVerticalScrollbar(
+                _screen,
+                new Rect(frameBounds.Right - 1, listY, 1, listHeight),
+                new ScrollState
+                {
+                    TotalItems = results.Count,
+                    ViewportItems = listHeight,
+                    FirstVisibleIndex = scrollOffset,
+                },
+                new ScrollBarOptions
+                {
+                    Enabled = true,
+                    DrawWhenNotScrollable = false,
+                },
+                FarDialogStyles.Border);
+        }
     }
 
     private void DrawSeparator(Rect bounds, int y)
@@ -355,51 +387,60 @@ internal sealed class SearchProgressDialog
         return Math.Max(1, buttonY - listY - 1);
     }
 
+    private bool TryHandleResultScrollbarMouse(
+        MouseConsoleInputEvent mouse,
+        int resultCount,
+        int listHeight,
+        ref int selectedIndex,
+        ref int scrollOffset,
+        ref ScrollBarDragState? dragState)
+    {
+        if (resultCount <= listHeight)
+            return false;
+
+        var outerBounds = _modalRenderer.CenteredOuterBounds(
+            _screen,
+            DialogWidth,
+            DialogHeight,
+            minWidth: 50,
+            minHeight: 14);
+        var frameBounds = new Rect(
+            outerBounds.X + 1,
+            outerBounds.Y + 1,
+            Math.Max(1, outerBounds.Width - 2),
+            Math.Max(1, outerBounds.Height - 2));
+        var scrollbarBounds = new Rect(frameBounds.Right - 1, frameBounds.Y + 5, 1, listHeight);
+
+        return ScrollableListMouseHandler.TryHandleScrollbarMouse(
+            mouse,
+            scrollbarBounds,
+            resultCount,
+            listHeight,
+            ref selectedIndex,
+            ref scrollOffset,
+            ref dragState);
+    }
+
     private static void MoveSelection(
         int delta,
         int resultCount,
         int listHeight,
         ref int selectedIndex,
-        ref int scrollOffset)
-    {
-        if (resultCount == 0)
-            return;
-
-        selectedIndex = Math.Clamp(selectedIndex + delta, 0, resultCount - 1);
-        EnsureSelectedVisible(listHeight, ref selectedIndex, ref scrollOffset);
-    }
+        ref int scrollOffset) =>
+        ScrollStateCalculator.MoveSelection(delta, resultCount, listHeight, ref selectedIndex, ref scrollOffset);
 
     private static void NormalizeSelection(
         int resultCount,
         int listHeight,
         ref int selectedIndex,
-        ref int scrollOffset)
-    {
-        if (resultCount == 0)
-        {
-            selectedIndex = 0;
-            scrollOffset = 0;
-            return;
-        }
-
-        selectedIndex = Math.Clamp(selectedIndex, 0, resultCount - 1);
-        int maxScroll = Math.Max(0, resultCount - listHeight);
-        scrollOffset = Math.Clamp(scrollOffset, 0, maxScroll);
-        EnsureSelectedVisible(listHeight, ref selectedIndex, ref scrollOffset);
-    }
+        ref int scrollOffset) =>
+        ScrollStateCalculator.NormalizeSelection(resultCount, listHeight, ref selectedIndex, ref scrollOffset);
 
     private static void EnsureSelectedVisible(
         int listHeight,
         ref int selectedIndex,
-        ref int scrollOffset)
-    {
-        if (selectedIndex < scrollOffset)
-            scrollOffset = selectedIndex;
-        else if (selectedIndex >= scrollOffset + listHeight)
-            scrollOffset = selectedIndex - listHeight + 1;
-
-        scrollOffset = Math.Max(0, scrollOffset);
-    }
+        ref int scrollOffset) =>
+        scrollOffset = ScrollStateCalculator.EnsureIndexVisible(selectedIndex, scrollOffset, listHeight);
 
     private static string StatsLine(SearchProgress progress, int width)
     {

@@ -36,7 +36,7 @@ public sealed class MenuHitTester
             if (onBorder)
                 return new MenuHitTestResult { Kind = MenuHitTestKind.DropdownBorder };
 
-            int itemIndex = y - dropdown.Y - 1;
+            int itemIndex = layout.DropdownFirstVisibleItemIndex + y - dropdown.Y - 1;
             if (itemIndex >= 0 &&
                 itemIndex < definition.Items[state.ActiveTopMenuIndex].Children.Count)
             {

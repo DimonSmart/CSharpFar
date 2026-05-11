@@ -71,9 +71,7 @@ internal sealed class PanelRenderer
         int innerWidth = bounds.Width - 2;
         int listTop    = bounds.Y + 1;
         int visRows    = VisibleRows(bounds, _options);
-        bool showScrollbar = _options?.ShowScrollbar == true;
-        int scrollbarWidth = showScrollbar ? 1 : 0;
-        int listWidth = Math.Max(0, innerWidth - scrollbarWidth);
+        int listWidth = Math.Max(0, innerWidth);
         int sizeCol    = Math.Min(8, listWidth / 3);
         int nameCol    = Math.Max(0, listWidth - sizeCol - (sizeCol > 0 ? 1 : 0));
 
@@ -113,11 +111,11 @@ internal sealed class PanelRenderer
                 _screen.Write(bounds.X + 1 + nameCol, y, sizePart, style);
         }
 
-        if (showScrollbar && visRows > 0)
+        if (visRows > 0 && state.Items.Count > visRows)
         {
             new ScrollBarRenderer().RenderVerticalScrollbar(
                 _screen,
-                new Rect(bounds.Right - 2, listTop, 1, visRows),
+                new Rect(bounds.Right - 1, listTop, 1, visRows),
                 new ScrollState
                 {
                     TotalItems = state.Items.Count,

@@ -16,7 +16,6 @@ public static class MenuCommandIds
     public const string SettingsToggleShowStatusLine = "settings.toggleShowStatusLine";
     public const string SettingsToggleShowFilesTotalInformation = "settings.toggleShowFilesTotalInformation";
     public const string SettingsToggleShowFreeSize = "settings.toggleShowFreeSize";
-    public const string SettingsToggleShowScrollbar = "settings.toggleShowScrollbar";
     public const string SettingsToggleShowSortModeLetter = "settings.toggleShowSortModeLetter";
     public const string SettingsToggleShowParentDirectoryInRootFolders = "settings.toggleShowParentDirectoryInRootFolders";
     public const string SettingsSave = "settings.save";

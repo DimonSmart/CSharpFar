@@ -1,5 +1,6 @@
 using CSharpFar.Console.Models;
 using CSharpFar.Core.Menu;
+using CSharpFar.Core.Models;
 
 namespace CSharpFar.App.Menu;
 
@@ -23,6 +24,7 @@ public sealed class MenuLayoutService
         }
 
         Rect? dropdownBounds = null;
+        int dropdownFirstVisibleItemIndex = 0;
         if (state.OpenState == MenuOpenState.DropdownOpen &&
             state.ActiveTopMenuIndex >= 0 &&
             state.ActiveTopMenuIndex < definition.Items.Count)
@@ -37,7 +39,20 @@ public sealed class MenuLayoutService
                 int width = Math.Max(2, contentWidth + 2);
                 if (screenBounds.Width > 0)
                     width = Math.Min(width, screenBounds.Width);
-                int height = Math.Max(2, topItem.Children.Count + 2);
+                int maxHeight = Math.Max(2, screenBounds.Bottom - (screenBounds.Y + 1));
+                int height = Math.Min(Math.Max(2, topItem.Children.Count + 2), maxHeight);
+                int contentRows = Math.Max(0, height - 2);
+                if (contentRows > 0)
+                {
+                    dropdownFirstVisibleItemIndex = ScrollStateCalculator.EnsureIndexVisible(
+                        state.ActiveDropdownItemIndex,
+                        0,
+                        contentRows);
+                    dropdownFirstVisibleItemIndex = ScrollStateCalculator.ClampFirstVisibleIndex(
+                        dropdownFirstVisibleItemIndex,
+                        topItem.Children.Count,
+                        contentRows);
+                }
 
                 int dropdownX = topBounds[state.ActiveTopMenuIndex].X;
                 if (dropdownX + width > screenBounds.Right)
@@ -53,6 +68,7 @@ public sealed class MenuLayoutService
         {
             TopItemBounds = topBounds,
             DropdownBounds = dropdownBounds,
+            DropdownFirstVisibleItemIndex = dropdownFirstVisibleItemIndex,
         };
     }
 

@@ -60,9 +60,7 @@ public sealed class BriefTwoColumnsPanelRenderer
 
         PanelTitleRenderer.Render(_screen, bounds, state, isActive, p);
 
-        bool showScrollbar = _options?.ShowScrollbar == true;
-        int scrollbarWidth = showScrollbar ? 1 : 0;
-        int innerWidth  = Math.Max(0, bounds.Width - 2 - scrollbarWidth);
+        int innerWidth  = Math.Max(0, bounds.Width - 2);
         int sepOffset   = innerWidth / 2;
         int col1Width   = sepOffset;
         int col2Width   = innerWidth - sepOffset - 1; // -1 for │
@@ -96,15 +94,16 @@ public sealed class BriefTwoColumnsPanelRenderer
                        state, isActive, cursor, fileStyle, dirStyle, selStyle, fill);
         }
 
-        if (showScrollbar && rowsPerCol > 0)
+        int visibleItems = VisibleRows(bounds, _options);
+        if (rowsPerCol > 0 && state.Items.Count > visibleItems)
         {
             new ScrollBarRenderer().RenderVerticalScrollbar(
                 _screen,
-                new Rect(bounds.Right - 2, contentTop, 1, rowsPerCol),
+                new Rect(bounds.Right - 1, contentTop, 1, rowsPerCol),
                 new ScrollState
                 {
                     TotalItems = state.Items.Count,
-                    ViewportItems = VisibleRows(bounds, _options),
+                    ViewportItems = visibleItems,
                     FirstVisibleIndex = state.ScrollOffset,
                 },
                 new ScrollBarOptions

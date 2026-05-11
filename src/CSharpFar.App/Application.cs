@@ -49,6 +49,8 @@ public sealed class Application
     private bool          _commandCompletionVisible;
     private bool          _commandCompletionTemporarilyHidden;
     private int           _commandCompletionSelectedIndex;
+    private int           _commandCompletionFirstVisibleIndex;
+    private ScrollBarDragState? _commandCompletionScrollbarDrag;
     private int?          _hiddenCommandHistoryIndex;
     private bool          _quickView     = false;
     private ConsoleSize?  _lastRenderSize;
@@ -74,6 +76,9 @@ public sealed class Application
     private readonly DirectorySizeCalculator _dirSizeCalc = new();
     private DirectorySizeState?              _quickViewDirState;
     private string?                          _quickViewDirPath;
+    private PanelScrollbarDrag?              _panelScrollbarDrag;
+
+    private readonly record struct PanelScrollbarDrag(PanelSide Side, ScrollBarDragState DragState);
 
     public Application(
         ScreenRenderer         screen,
@@ -407,7 +412,8 @@ public sealed class Application
             commandLineRow,
             size.Width,
             _commandCompletionMatches,
-            _commandCompletionSelectedIndex);
+            _commandCompletionSelectedIndex,
+            _commandCompletionFirstVisibleIndex);
     }
 
     private void RenderMenuOverlay(ConsoleSize size)
@@ -896,6 +902,12 @@ public sealed class Application
 
         if (_quickView) return false;
 
+        if (TryHandleCommandCompletionScrollbarMouse(evt))
+            return true;
+
+        if (TryHandlePanelScrollbarDrag(evt))
+            return true;
+
         // Identify which panel was hit
         bool inLeft  = _leftBounds.Contains(evt.X,  evt.Y);
         bool inRight = _rightBounds.Contains(evt.X, evt.Y);
@@ -910,6 +922,9 @@ public sealed class Application
         var mode  = inLeft ? _leftViewMode : _rightViewMode;
         var bounds = inLeft ? _leftBounds : _rightBounds;
         int visRows = VisibleRows(side);
+
+        if (TryHandlePanelScrollbarMouse(evt, side, state, mode, bounds, visRows))
+            return true;
 
         // Mouse wheel: scroll the panel under cursor
         if (evt.Kind == MouseEventKind.Wheel)
@@ -1276,6 +1291,83 @@ public sealed class Application
         return false;
     }
 
+    private bool TryHandlePanelScrollbarDrag(MouseConsoleInputEvent evt)
+    {
+        if (_panelScrollbarDrag is not { } drag)
+            return false;
+
+        var state = GetPanelState(drag.Side);
+        int firstVisibleIndex = state.ScrollOffset;
+        ScrollBarDragState? dragState = drag.DragState;
+        if (!ScrollBarMouseHandler.TryHandleMouse(
+                evt,
+                drag.DragState.Bounds,
+                drag.DragState.TotalItems,
+                drag.DragState.ViewportItems,
+                ref firstVisibleIndex,
+                ref dragState))
+        {
+            return false;
+        }
+
+        _panelScrollbarDrag = dragState.HasValue
+            ? new PanelScrollbarDrag(drag.Side, dragState.Value)
+            : null;
+
+        _active = drag.Side;
+        _ctrl.ScrollView(state, firstVisibleIndex - state.ScrollOffset, drag.DragState.ViewportItems);
+        _lastLeftPanelItemClick = null;
+        return true;
+    }
+
+    private bool TryHandlePanelScrollbarMouse(
+        MouseConsoleInputEvent evt,
+        PanelSide side,
+        FilePanelState state,
+        PanelViewMode mode,
+        Rect bounds,
+        int visibleRows)
+    {
+        if (!TryGetPanelScrollbarBounds(bounds, mode, out var scrollbarBounds))
+            return false;
+
+        int firstVisibleIndex = state.ScrollOffset;
+        ScrollBarDragState? dragState = null;
+        if (!ScrollBarMouseHandler.TryHandleMouse(
+                evt,
+                scrollbarBounds,
+                state.Items.Count,
+                visibleRows,
+                ref firstVisibleIndex,
+                ref dragState))
+        {
+            return false;
+        }
+
+        _panelScrollbarDrag = dragState.HasValue
+            ? new PanelScrollbarDrag(side, dragState.Value)
+            : null;
+
+        _active = side;
+        _ctrl.ScrollView(state, firstVisibleIndex - state.ScrollOffset, visibleRows);
+        _lastLeftPanelItemClick = null;
+        return true;
+    }
+
+    private bool TryGetPanelScrollbarBounds(Rect bounds, PanelViewMode mode, out Rect scrollbarBounds)
+    {
+        if (mode == PanelViewMode.BriefTwoColumns)
+        {
+            int rowsPerColumn = BriefTwoColumnsPanelRenderer.RowsPerColumn(bounds, PanelOptions);
+            scrollbarBounds = new Rect(bounds.Right - 1, bounds.Y + 2, 1, rowsPerColumn);
+            return rowsPerColumn > 0;
+        }
+
+        int visibleRows = PanelRenderer.VisibleRows(bounds, PanelOptions);
+        scrollbarBounds = new Rect(bounds.Right - 1, bounds.Y + 1, 1, visibleRows);
+        return visibleRows > 0;
+    }
+
     private void OnVisibleCommandLineTextEdited()
     {
         ResetHiddenCommandHistoryBrowsing();
@@ -1287,6 +1379,8 @@ public sealed class Application
     {
         _commandCompletionMatches.Clear();
         _commandCompletionSelectedIndex = 0;
+        _commandCompletionFirstVisibleIndex = 0;
+        _commandCompletionScrollbarDrag = null;
 
         if (!_panelsVisible ||
             _commandCompletionTemporarilyHidden ||
@@ -1310,13 +1404,72 @@ public sealed class Application
         }
 
         _commandCompletionVisible = _commandCompletionMatches.Count > 0;
+        _commandCompletionFirstVisibleIndex = 0;
     }
 
     private bool HasCommandCompletionRows()
     {
         var size = _lastRenderSize ?? _screen.GetSize();
+        return CommandCompletionVisibleRows(size) > 0;
+    }
+
+    private static int CommandCompletionVisibleRows(ConsoleSize size)
+    {
         int rowsAboveCommandLine = CommandLineRow(size) - 2;
-        return Math.Min(MaxCommandCompletionRows, rowsAboveCommandLine) > 0;
+        return Math.Max(0, Math.Min(MaxCommandCompletionRows, rowsAboveCommandLine));
+    }
+
+    private bool TryHandleCommandCompletionScrollbarMouse(MouseConsoleInputEvent evt)
+    {
+        if (!_commandCompletionVisible && !_commandCompletionScrollbarDrag.HasValue)
+            return false;
+
+        var size = _lastRenderSize ?? _screen.GetSize();
+        int visibleRows = CommandCompletionVisibleRows(size);
+        if (visibleRows <= 0 || _commandCompletionMatches.Count <= visibleRows)
+            return false;
+
+        int height = visibleRows + 2;
+        int commandLineRow = CommandLineRow(size);
+        var scrollbarBounds = new Rect(size.Width - 1, commandLineRow - height + 1, 1, visibleRows);
+        int firstVisibleIndex = _commandCompletionFirstVisibleIndex;
+        var dragState = _commandCompletionScrollbarDrag;
+        if (!ScrollBarMouseHandler.TryHandleMouse(
+                evt,
+                scrollbarBounds,
+                _commandCompletionMatches.Count,
+                visibleRows,
+                ref firstVisibleIndex,
+                ref dragState))
+        {
+            return false;
+        }
+
+        _commandCompletionScrollbarDrag = dragState;
+        _commandCompletionFirstVisibleIndex = ScrollStateCalculator.ClampFirstVisibleIndex(
+            firstVisibleIndex,
+            _commandCompletionMatches.Count,
+            visibleRows);
+        ClampCommandCompletionSelectionToViewport(visibleRows);
+        return true;
+    }
+
+    private void ClampCommandCompletionSelectionToViewport(int visibleRows)
+    {
+        if (_commandCompletionMatches.Count == 0)
+        {
+            _commandCompletionSelectedIndex = 0;
+            _commandCompletionFirstVisibleIndex = 0;
+            return;
+        }
+
+        int lastVisibleIndex = Math.Min(
+            _commandCompletionMatches.Count - 1,
+            _commandCompletionFirstVisibleIndex + visibleRows - 1);
+        _commandCompletionSelectedIndex = Math.Clamp(
+            _commandCompletionSelectedIndex,
+            _commandCompletionFirstVisibleIndex,
+            lastVisibleIndex);
     }
 
     private bool TryMoveCommandCompletionSelection(int delta)
@@ -1328,6 +1481,15 @@ public sealed class Application
             _commandCompletionSelectedIndex + delta,
             0,
             _commandCompletionMatches.Count - 1);
+        int visibleRows = CommandCompletionVisibleRows(_lastRenderSize ?? _screen.GetSize());
+        _commandCompletionFirstVisibleIndex = ScrollStateCalculator.EnsureIndexVisible(
+            _commandCompletionSelectedIndex,
+            _commandCompletionFirstVisibleIndex,
+            visibleRows);
+        _commandCompletionFirstVisibleIndex = ScrollStateCalculator.ClampFirstVisibleIndex(
+            _commandCompletionFirstVisibleIndex,
+            _commandCompletionMatches.Count,
+            visibleRows);
         return true;
     }
 
@@ -1357,6 +1519,8 @@ public sealed class Application
         _commandCompletionTemporarilyHidden = temporarily;
         _commandCompletionMatches.Clear();
         _commandCompletionSelectedIndex = 0;
+        _commandCompletionFirstVisibleIndex = 0;
+        _commandCompletionScrollbarDrag = null;
     }
 
     private bool BrowseHiddenCommandHistory(int direction)
@@ -2278,8 +2442,6 @@ public sealed class Application
                 return ToggleSetting(() => PanelOptions.ShowFilesTotalInformation = !PanelOptions.ShowFilesTotalInformation);
             case MenuCommandIds.SettingsToggleShowFreeSize:
                 return ToggleSetting(() => PanelOptions.ShowFreeSize = !PanelOptions.ShowFreeSize);
-            case MenuCommandIds.SettingsToggleShowScrollbar:
-                return ToggleSetting(() => PanelOptions.ShowScrollbar = !PanelOptions.ShowScrollbar);
             case MenuCommandIds.SettingsToggleShowSortModeLetter:
                 return ToggleSetting(() => PanelOptions.ShowSortModeLetter = !PanelOptions.ShowSortModeLetter);
             case MenuCommandIds.SettingsToggleShowParentDirectoryInRootFolders:

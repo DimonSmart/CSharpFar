@@ -46,7 +46,6 @@ public sealed class AppSettings
         public bool ShowStatusLine                 { get; set; } = true;
         public bool ShowFilesTotalInformation      { get; set; } = true;
         public bool ShowFreeSize                   { get; set; } = false;
-        public bool ShowScrollbar                  { get; set; } = false;
         public bool ShowSortModeLetter             { get; set; } = true;
         public bool ShowParentDirectoryInRootFolders { get; set; } = false;
     }

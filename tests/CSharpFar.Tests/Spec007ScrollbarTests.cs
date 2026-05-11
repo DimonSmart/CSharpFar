@@ -122,7 +122,7 @@ public sealed class Spec007ScrollbarTests
     }
 
     [Fact]
-    public void FullPanel_ShowScrollbar_RendersScrollbarInRightInnerColumn()
+    public void FullPanel_Scrollable_RendersScrollbarOnRightBorder()
     {
         var driver = new FakeConsoleDriver(width: 40, height: 12);
         var screen = new ScreenRenderer(driver);
@@ -137,18 +137,15 @@ public sealed class Spec007ScrollbarTests
             });
         }
 
-        var renderer = new PanelRenderer(
-            screen,
-            PaletteRegistry.Default,
-            options: new AppSettings.PanelOptionsSettings { ShowScrollbar = true });
+        var renderer = new PanelRenderer(screen, PaletteRegistry.Default);
 
         renderer.Render(new Rect(0, 0, 40, 12), state, isActive: true);
 
-        Assert.Equal('▲', driver.GetCell(38, 1).Character);
+        Assert.Equal('▲', driver.GetCell(39, 1).Character);
     }
 
     [Fact]
-    public void BriefPanel_ShowScrollbar_RendersScrollbarInRightInnerColumn()
+    public void BriefPanel_Scrollable_RendersScrollbarOnRightBorder()
     {
         var driver = new FakeConsoleDriver(width: 40, height: 12);
         var screen = new ScreenRenderer(driver);
@@ -163,13 +160,30 @@ public sealed class Spec007ScrollbarTests
             });
         }
 
-        var renderer = new BriefTwoColumnsPanelRenderer(
-            screen,
-            PaletteRegistry.Default,
-            options: new AppSettings.PanelOptionsSettings { ShowScrollbar = true });
+        var renderer = new BriefTwoColumnsPanelRenderer(screen, PaletteRegistry.Default);
 
         renderer.Render(new Rect(0, 0, 40, 12), state, isActive: true);
 
-        Assert.Equal('▲', driver.GetCell(38, 2).Character);
+        Assert.Equal('▲', driver.GetCell(39, 2).Character);
+    }
+
+    [Fact]
+    public void FullPanel_NotScrollable_DoesNotRenderScrollbar()
+    {
+        var driver = new FakeConsoleDriver(width: 40, height: 12);
+        var screen = new ScreenRenderer(driver);
+        var state = new FilePanelState { CurrentDirectory = @"C:\Root" };
+        state.Items.Add(new FilePanelItem
+        {
+            Name = "file.txt",
+            FullPath = @"C:\Root\file.txt",
+            IsDirectory = false,
+        });
+
+        var renderer = new PanelRenderer(screen, PaletteRegistry.Default);
+
+        renderer.Render(new Rect(0, 0, 40, 12), state, isActive: true);
+
+        Assert.Equal('║', driver.GetCell(39, 1).Character);
     }
 }

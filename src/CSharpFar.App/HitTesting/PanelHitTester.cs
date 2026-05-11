@@ -25,7 +25,6 @@ public static class PanelHitTester
         // Must be inside inner content area (inside border)
         if (x <= bounds.X || x >= bounds.Right - 1) return null;
         if (y <= bounds.Y || y >= bounds.Bottom - 1) return null;
-        if (options?.ShowScrollbar == true && x == bounds.Right - 2) return null;
 
         if (viewMode == PanelViewMode.BriefTwoColumns)
             return HitTestBrief(x, y, bounds, state, options);

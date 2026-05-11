@@ -1,4 +1,5 @@
 using CSharpFar.Console.Models;
+using CSharpFar.Core.Models;
 
 namespace CSharpFar.App.Rendering;
 
@@ -11,6 +12,7 @@ public sealed record PopupRenderOptions
     public required CellStyle BackgroundStyle { get; init; }
     public required CellStyle ShadowStyle { get; init; }
     public CellStyle? TitleStyle { get; init; }
+    public ScrollState? VerticalScrollState { get; init; }
     public int ShadowOffsetX { get; init; } = 1;
     public int ShadowOffsetY { get; init; } = 1;
 }

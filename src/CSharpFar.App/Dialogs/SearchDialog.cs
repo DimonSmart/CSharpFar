@@ -9,8 +9,9 @@ namespace CSharpFar.App.Dialogs;
 internal sealed class SearchDialog
 {
     private const int DialogWidth = 76;
-    private const int DialogHeight = 18;
+    private const int DialogHeight = 19;
     private const int ButtonRow = 10;
+    private const int BodyRowCount = 13;
 
     private readonly ScreenRenderer _screen;
     private readonly ModalDialogRenderer _modalRenderer = new();
@@ -100,6 +101,8 @@ internal sealed class SearchDialog
         bool searchInSymbolicLinks = false;
         var scope = SearchScope.CurrentDirectoryRecursive;
         int focusRow = 0;
+        int bodyScrollTop = 0;
+        ScrollBarDragState? bodyScrollbarDrag = null;
         int focusedButton = 0;
         string? error = null;
         var buttonBar = new DialogButtonBar(
@@ -108,6 +111,7 @@ internal sealed class SearchDialog
             new DialogButton("cancel", "Cancel", 'C'),
         ]);
 
+        bodyScrollTop = NormalizeBodyScroll(size, focusRow, bodyScrollTop);
         Draw(
             size,
             mask,
@@ -120,6 +124,7 @@ internal sealed class SearchDialog
             searchInSymbolicLinks,
             scope,
             focusRow,
+            bodyScrollTop,
             buttonBar,
             focusedButton,
             error);
@@ -164,6 +169,12 @@ internal sealed class SearchDialog
 
             if (input is MouseConsoleInputEvent mouse)
             {
+                if (TryHandleBodyScrollbarMouse(mouse, size, ref bodyScrollTop, ref bodyScrollbarDrag))
+                {
+                    DrawCurrent(ensureFocusVisible: false);
+                    continue;
+                }
+
                 // Check option row clicks first
                 int clickedRow = HitTestOptionRow(mouse);
                 if (clickedRow >= 0 &&
@@ -340,8 +351,14 @@ internal sealed class SearchDialog
             DrawCurrent();
         }
 
-        void DrawCurrent()
+        void DrawCurrent(bool ensureFocusVisible = true)
         {
+            bodyScrollTop = ensureFocusVisible
+                ? NormalizeBodyScroll(size, focusRow, bodyScrollTop)
+                : ScrollStateCalculator.ClampFirstVisibleIndex(
+                    bodyScrollTop,
+                    BodyRowCount,
+                    SearchBodyViewportRows(size));
             Draw(
                 size,
                 mask,
@@ -354,10 +371,43 @@ internal sealed class SearchDialog
                 searchInSymbolicLinks,
                 scope,
                 focusRow,
+                bodyScrollTop,
                 buttonBar,
                 focusedButton,
                 error);
         }
+    }
+
+    private static bool TryHandleBodyScrollbarMouse(
+        MouseConsoleInputEvent mouse,
+        ConsoleSize size,
+        ref int bodyScrollTop,
+        ref ScrollBarDragState? bodyScrollbarDrag)
+    {
+        int dialogWidth = Math.Min(DialogWidth, Math.Max(48, size.Width - 2));
+        int dialogHeight = Math.Min(DialogHeight, Math.Max(8, size.Height - 2));
+        int dialogX = Math.Max(0, (size.Width - dialogWidth) / 2);
+        int dialogY = Math.Max(0, (size.Height - dialogHeight) / 2);
+        var frameBounds = new Rect(
+            dialogX + 1,
+            dialogY + 1,
+            Math.Max(1, dialogWidth - 2),
+            Math.Max(1, dialogHeight - 2));
+        int buttonY = frameBounds.Y + frameBounds.Height - 2;
+        int errorY = buttonY - 1;
+        int bodyTop = frameBounds.Y + 1;
+        int bodyHeight = Math.Max(1, errorY - bodyTop);
+        if (BodyRowCount <= bodyHeight)
+            return false;
+
+        var scrollbarBounds = new Rect(frameBounds.Right - 1, bodyTop, 1, bodyHeight);
+        return ScrollBarMouseHandler.TryHandleMouse(
+            mouse,
+            scrollbarBounds,
+            BodyRowCount,
+            bodyHeight,
+            ref bodyScrollTop,
+            ref bodyScrollbarDrag);
     }
 
     private static SearchRequest? BuildRequest(
@@ -499,6 +549,7 @@ internal sealed class SearchDialog
         bool searchInSymbolicLinks,
         SearchScope scope,
         int focusRow,
+        int bodyScrollTop,
         DialogButtonBar buttonBar,
         int focusedButton,
         string? error)
@@ -506,7 +557,7 @@ internal sealed class SearchDialog
         using var frame = _screen.BeginFrame();
 
         int dialogWidth = Math.Min(DialogWidth, Math.Max(48, size.Width - 2));
-        int dialogHeight = Math.Min(DialogHeight, Math.Max(16, size.Height - 2));
+        int dialogHeight = Math.Min(DialogHeight, Math.Max(8, size.Height - 2));
         int dialogX = Math.Max(0, (size.Width - dialogWidth) / 2);
         int dialogY = Math.Max(0, (size.Height - dialogHeight) / 2);
         var outerBounds = new Rect(dialogX, dialogY, dialogWidth, dialogHeight);
@@ -521,63 +572,180 @@ internal sealed class SearchDialog
             int contentX = bounds.X + 2;
             int contentWidth = Math.Max(1, bounds.Width - 4);
 
-            _screen.Write(contentX, bounds.Y + 1, "A file mask or several file masks:".PadRight(contentWidth), fill);
-            DrawInput(contentX, bounds.Y + 2, contentWidth, mask, focusRow == 0);
+            Array.Clear(_optionBounds);
+            int buttonY = bounds.Y + bounds.Height - 2;
+            int errorY = buttonY - 1;
+            int bodyTop = bounds.Y + 1;
+            int bodyHeight = Math.Max(1, errorY - bodyTop);
+            _screen.FillRegion(new Rect(contentX, bodyTop, contentWidth, bodyHeight), fill);
 
-            _screen.Write(contentX, bounds.Y + 3, "Containing text:".PadRight(contentWidth), fill);
-            DrawInput(contentX, bounds.Y + 4, contentWidth, text, focusRow == 1);
+            WriteBodyRow(0, "A file mask or several file masks:", fill);
+            DrawBodyInput(1, mask, focusRow == 0, focusRow: 0);
+            WriteBodyRow(2, "Containing text:", fill);
+            DrawBodyInput(3, text, focusRow == 1, focusRow: 1);
+            DrawBodyValueRow(4, "Using code page:", "Automatic detection", false, fill, focused);
+            DrawBodyCheckbox(5, "Case sensitive", caseSensitive, focusRow == 3, fill, focused, focusRow: 3);
+            DrawBodyCheckbox(6, "Whole words", wholeWords, focusRow == 4, fill, focused, focusRow: 4);
+            DrawBodyCheckbox(
+                7,
+                "Not containing",
+                text.Text.Length > 0 && notContaining,
+                focusRow == 5,
+                text.Text.Length > 0 ? fill : disabled,
+                focused,
+                focusRow: 5);
+            DrawBodyCheckbox(8, "Search folders", includeDirectoriesInResults, focusRow == 6, fill, focused, focusRow: 6);
+            DrawBodyCheckbox(9, "Search in symbolic links", searchInSymbolicLinks, focusRow == 7, fill, focused, focusRow: 7);
+            DrawBodyValueRow(10, "Select search area:", ScopeLabel(scope), focusRow == 8, fill, focused, focusRow: 8);
+            WriteBodyRow(11, "Parallelism:", fill);
+            DrawBodyInput(12, parallelism, focusRow == 9, Math.Min(8, contentWidth), focusRow: 9);
 
-            DrawValueRow(contentX, bounds.Y + 5, contentWidth, "Using code page:", "Automatic detection", false, fill, focused);
-            DrawCheckbox(contentX, bounds.Y + 6, contentWidth, "Case sensitive", caseSensitive, focusRow == 3, fill, focused);
-                DrawCheckbox(contentX, bounds.Y + 7, contentWidth, "Whole words", wholeWords, focusRow == 4, fill, focused);
-                DrawCheckbox(
-                    contentX,
-                    bounds.Y + 8,
-                    contentWidth,
-                    "Not containing",
-                    text.Text.Length > 0 && notContaining,
-                    focusRow == 5,
-                    text.Text.Length > 0 ? fill : disabled,
-                    focused);
-                DrawCheckbox(contentX, bounds.Y + 9, contentWidth, "Search folders", includeDirectoriesInResults, focusRow == 6, fill, focused);
-                DrawCheckbox(contentX, bounds.Y + 10, contentWidth, "Search in symbolic links", searchInSymbolicLinks, focusRow == 7, fill, focused);
-                DrawValueRow(contentX, bounds.Y + 11, contentWidth, "Select search area:", ScopeLabel(scope), focusRow == 8, fill, focused);
-
-                // Store option row bounds for mouse hit testing (row index matches focusRow)
-                _optionBounds[0] = new Rect(contentX, bounds.Y + 2, contentWidth, 1);  // file mask input
-                _optionBounds[1] = new Rect(contentX, bounds.Y + 4, contentWidth, 1);  // containing text input
-                _optionBounds[3] = new Rect(contentX, bounds.Y + 6, contentWidth, 1);  // case sensitive
-                _optionBounds[4] = new Rect(contentX, bounds.Y + 7, contentWidth, 1);  // whole words
-                _optionBounds[5] = new Rect(contentX, bounds.Y + 8, contentWidth, 1);  // not containing
-                _optionBounds[6] = new Rect(contentX, bounds.Y + 9, contentWidth, 1);  // search folders
-                _optionBounds[7] = new Rect(contentX, bounds.Y + 10, contentWidth, 1); // symbolic links
-                _optionBounds[8] = new Rect(contentX, bounds.Y + 11, contentWidth, 1); // scope
-                _optionBounds[9] = new Rect(contentX, bounds.Y + 13, contentWidth, 1); // parallelism input
-
-            _screen.Write(contentX, bounds.Y + 12, "Parallelism:".PadRight(contentWidth), fill);
-            DrawInput(contentX, bounds.Y + 13, Math.Min(8, contentWidth), parallelism, focusRow == 9);
+            if (BodyRowCount > bodyHeight)
+            {
+                new ScrollBarRenderer().RenderVerticalScrollbar(
+                    _screen,
+                    new Rect(bounds.Right - 1, bodyTop, 1, bodyHeight),
+                    new ScrollState
+                    {
+                        TotalItems = BodyRowCount,
+                        ViewportItems = bodyHeight,
+                        FirstVisibleIndex = bodyScrollTop,
+                    },
+                    new ScrollBarOptions
+                    {
+                        Enabled = true,
+                        DrawWhenNotScrollable = false,
+                    },
+                    FarDialogStyles.Border);
+            }
 
             string errorText = error is null ? string.Empty : Truncate(error, contentWidth);
-            _screen.Write(contentX, bounds.Y + 14, errorText.PadRight(contentWidth), FarDialogStyles.Error);
+            _screen.Write(contentX, errorY, errorText.PadRight(contentWidth), FarDialogStyles.Error);
 
             buttonBar.Render(
                 _screen,
                 contentX,
-                bounds.Y + bounds.Height - 2,
+                buttonY,
                 contentWidth,
                 focusedButton,
                 fill,
                 focusRow == ButtonRow ? focused : fill);
+
+            int? BodyY(int virtualRow)
+            {
+                int row = virtualRow - bodyScrollTop;
+                return row >= 0 && row < bodyHeight ? bodyTop + row : null;
+            }
+
+            void WriteBodyRow(int virtualRow, string value, CellStyle style)
+            {
+                if (BodyY(virtualRow) is { } y)
+                    _screen.Write(contentX, y, Truncate(value, contentWidth).PadRight(contentWidth), style);
+            }
+
+            void DrawBodyInput(int virtualRow, CommandLineState buffer, bool isFocused, int? width = null, int focusRow = -1)
+            {
+                if (BodyY(virtualRow) is not { } y)
+                    return;
+
+                int inputWidth = width ?? contentWidth;
+                DrawInput(contentX, y, inputWidth, buffer, isFocused);
+                if (focusRow >= 0)
+                    _optionBounds[focusRow] = new Rect(contentX, y, inputWidth, 1);
+            }
+
+            void DrawBodyValueRow(
+                int virtualRow,
+                string label,
+                string value,
+                bool isFocused,
+                CellStyle rowFill,
+                CellStyle rowFocused,
+                int focusRow = -1)
+            {
+                if (BodyY(virtualRow) is not { } y)
+                    return;
+
+                DrawValueRow(contentX, y, contentWidth, label, value, isFocused, rowFill, rowFocused);
+                if (focusRow >= 0)
+                    _optionBounds[focusRow] = new Rect(contentX, y, contentWidth, 1);
+            }
+
+            void DrawBodyCheckbox(
+                int virtualRow,
+                string label,
+                bool value,
+                bool isFocused,
+                CellStyle rowFill,
+                CellStyle rowFocused,
+                int focusRow)
+            {
+                if (BodyY(virtualRow) is not { } y)
+                    return;
+
+                DrawCheckbox(contentX, y, contentWidth, label, value, isFocused, rowFill, rowFocused);
+                _optionBounds[focusRow] = new Rect(contentX, y, contentWidth, 1);
+            }
         });
 
-        if (focusRow == 0)
-            SetInputCursor(outerBounds.X + 3, outerBounds.Y + 3, Math.Max(1, outerBounds.Width - 6), mask);
-        else if (focusRow == 1)
-            SetInputCursor(outerBounds.X + 3, outerBounds.Y + 5, Math.Max(1, outerBounds.Width - 6), text);
-        else if (focusRow == 9)
-            SetInputCursor(outerBounds.X + 3, outerBounds.Y + 14, Math.Min(8, Math.Max(1, outerBounds.Width - 6)), parallelism);
+        Rect frameBounds = new(
+            outerBounds.X + 1,
+            outerBounds.Y + 1,
+            Math.Max(1, outerBounds.Width - 2),
+            Math.Max(1, outerBounds.Height - 2));
+        int inputX = frameBounds.X + 2;
+        int inputWidth = Math.Max(1, frameBounds.Width - 4);
+        if (focusRow == 0 && InputCursorY(frameBounds, bodyScrollTop, 1) is { } maskY)
+            SetInputCursor(inputX, maskY, inputWidth, mask);
+        else if (focusRow == 1 && InputCursorY(frameBounds, bodyScrollTop, 3) is { } textY)
+            SetInputCursor(inputX, textY, inputWidth, text);
+        else if (focusRow == 9 && InputCursorY(frameBounds, bodyScrollTop, 12) is { } parallelismY)
+            SetInputCursor(inputX, parallelismY, Math.Min(8, inputWidth), parallelism);
         else
             _screen.SetCursorVisible(false);
+    }
+
+    private static int NormalizeBodyScroll(ConsoleSize size, int focusRow, int bodyScrollTop)
+    {
+        int viewportRows = SearchBodyViewportRows(size);
+        bodyScrollTop = ScrollStateCalculator.ClampFirstVisibleIndex(bodyScrollTop, BodyRowCount, viewportRows);
+        int focusVirtualRow = FocusVirtualRow(focusRow);
+        if (focusVirtualRow >= 0)
+            bodyScrollTop = ScrollStateCalculator.EnsureIndexVisible(focusVirtualRow, bodyScrollTop, viewportRows);
+        return ScrollStateCalculator.ClampFirstVisibleIndex(bodyScrollTop, BodyRowCount, viewportRows);
+    }
+
+    private static int SearchBodyViewportRows(ConsoleSize size)
+    {
+        int dialogHeight = Math.Min(DialogHeight, Math.Max(8, size.Height - 2));
+        int frameHeight = Math.Max(1, dialogHeight - 2);
+        int buttonRow = frameHeight - 2;
+        int errorRow = buttonRow - 1;
+        return Math.Max(1, errorRow - 1);
+    }
+
+    private static int FocusVirtualRow(int focusRow) => focusRow switch
+    {
+        0 => 1,
+        1 => 3,
+        3 => 5,
+        4 => 6,
+        5 => 7,
+        6 => 8,
+        7 => 9,
+        8 => 10,
+        9 => 12,
+        _ => -1,
+    };
+
+    private static int? InputCursorY(Rect frameBounds, int bodyScrollTop, int virtualRow)
+    {
+        int buttonY = frameBounds.Y + frameBounds.Height - 2;
+        int errorY = buttonY - 1;
+        int bodyTop = frameBounds.Y + 1;
+        int bodyHeight = Math.Max(1, errorY - bodyTop);
+        int row = virtualRow - bodyScrollTop;
+        return row >= 0 && row < bodyHeight ? bodyTop + row : null;
     }
 
     private void DrawInput(int x, int y, int width, CommandLineState buffer, bool focused)

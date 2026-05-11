@@ -2,6 +2,7 @@ using CSharpFar.App.Menu;
 using CSharpFar.Console;
 using CSharpFar.Console.Models;
 using CSharpFar.Core.Menu;
+using CSharpFar.Core.Models;
 
 namespace CSharpFar.App.Rendering;
 
@@ -24,6 +25,8 @@ public sealed class DropdownMenuRenderer
             return;
         }
 
+        var children = definition.Items[state.ActiveTopMenuIndex].Children;
+        int visibleRows = Math.Max(0, bounds.Height - 2);
         var popupOptions = new PopupRenderOptions
         {
             BorderStyle = options.BorderStyle,
@@ -31,11 +34,24 @@ public sealed class DropdownMenuRenderer
             ShadowStyle = options.ShadowStyle,
             DrawBorder = true,
             DrawShadow = true,
+            VerticalScrollState = children.Count > visibleRows
+                ? new ScrollState
+                {
+                    TotalItems = children.Count,
+                    ViewportItems = visibleRows,
+                    FirstVisibleIndex = layout.DropdownFirstVisibleItemIndex,
+                }
+                : null,
         };
 
-        var children = definition.Items[state.ActiveTopMenuIndex].Children;
         _popupRenderer.RenderPopup(screen, bounds, popupOptions, (_, contentBounds) =>
-            RenderItems(screen, contentBounds, children, state.ActiveDropdownItemIndex, options));
+            RenderItems(
+                screen,
+                contentBounds,
+                children,
+                state.ActiveDropdownItemIndex,
+                layout.DropdownFirstVisibleItemIndex,
+                options));
     }
 
     private static void RenderItems(
@@ -43,15 +59,17 @@ public sealed class DropdownMenuRenderer
         Rect contentBounds,
         IReadOnlyList<MenuItemDefinition> items,
         int activeIndex,
+        int firstVisibleItemIndex,
         MenuRenderOptions options)
     {
         if (contentBounds.Width <= 0 || contentBounds.Height <= 0)
             return;
 
-        int rows = Math.Min(contentBounds.Height, items.Count);
+        int rows = Math.Min(contentBounds.Height, items.Count - firstVisibleItemIndex);
         for (int i = 0; i < rows; i++)
         {
-            var item = items[i];
+            int itemIndex = firstVisibleItemIndex + i;
+            var item = items[itemIndex];
             int y = contentBounds.Y + i;
 
             if (item.Kind == MenuItemKind.Separator)
@@ -62,7 +80,7 @@ public sealed class DropdownMenuRenderer
 
             var style = !item.IsEnabled
                 ? options.DisabledStyle
-                : i == activeIndex
+                : itemIndex == activeIndex
                     ? options.ActiveStyle
                     : options.NormalStyle;
 
@@ -79,7 +97,7 @@ public sealed class DropdownMenuRenderer
                 continue;
             }
 
-            var highlightStyle = i == activeIndex
+            var highlightStyle = itemIndex == activeIndex
                 ? options.ActiveHighlightStyle
                 : options.HighlightStyle;
             WriteWithHotKey(screen, contentBounds.X, y, text, hotKeyIndex, style, highlightStyle);

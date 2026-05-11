@@ -1,5 +1,6 @@
 using CSharpFar.App.Rendering;
 using CSharpFar.Console;
+using CSharpFar.Console.Input;
 using CSharpFar.Console.Models;
 using CSharpFar.Core.Models;
 
@@ -38,12 +39,22 @@ internal sealed class FileHistoryDialog
         {
             int cursor    = 0;
             int scrollTop = 0;
+            ScrollBarDragState? scrollbarDrag = null;
 
             while (true)
             {
                 Draw(paths, cursor, scrollTop, visible, dlgH, size);
 
-                var key = _screen.ReadKey();
+                var input = _screen.ReadInput();
+                if (input is MouseConsoleInputEvent mouse &&
+                    TryHandleScrollbarMouse(mouse, paths.Count, visible, dlgH, size, ref cursor, ref scrollTop, ref scrollbarDrag))
+                {
+                    continue;
+                }
+
+                if (input is not KeyConsoleInputEvent { Key: var key })
+                    continue;
+
                 switch (key.Key)
                 {
                     case ConsoleKey.UpArrow:
@@ -88,7 +99,16 @@ internal sealed class FileHistoryDialog
         int fw   = DialogWidth - 4;
 
         var bounds = new Rect(dlgX, dlgY, DialogWidth, dlgH);
-        new DialogFrameRenderer().RenderFrame(_screen, bounds, "File History", false, PaletteStyles.DialogPopupOptions(_palette), (_, _) =>
+        var scrollState = paths.Count > visible
+            ? new ScrollState
+            {
+                TotalItems = paths.Count,
+                ViewportItems = visible,
+                FirstVisibleIndex = scrollTop,
+            }
+            : null;
+
+        new DialogFrameRenderer().RenderFrame(_screen, bounds, "File History", false, PaletteStyles.DialogPopupOptions(_palette), scrollState, (_, _) =>
         {
             for (int i = 0; i < visible; i++)
             {
@@ -102,6 +122,32 @@ internal sealed class FileHistoryDialog
         });
 
         _screen.SetCursorVisible(false);
+    }
+
+    private static bool TryHandleScrollbarMouse(
+        MouseConsoleInputEvent mouse,
+        int itemCount,
+        int visible,
+        int dlgH,
+        ConsoleSize size,
+        ref int cursor,
+        ref int scrollTop,
+        ref ScrollBarDragState? scrollbarDrag)
+    {
+        if (itemCount <= visible)
+            return false;
+
+        int dlgX = Math.Max(0, (size.Width  - DialogWidth) / 2);
+        int dlgY = Math.Max(0, (size.Height - dlgH)        / 2);
+        var scrollbarBounds = new Rect(dlgX + DialogWidth - 1, dlgY + 1, 1, visible);
+        return ScrollableListMouseHandler.TryHandleScrollbarMouse(
+            mouse,
+            scrollbarBounds,
+            itemCount,
+            visible,
+            ref cursor,
+            ref scrollTop,
+            ref scrollbarDrag);
     }
 
     private static string Truncate(string s, int maxLen) =>

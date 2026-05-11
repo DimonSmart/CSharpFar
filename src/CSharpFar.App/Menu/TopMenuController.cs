@@ -1,4 +1,6 @@
+using CSharpFar.App.Rendering;
 using CSharpFar.Console.Input;
+using CSharpFar.Console.Models;
 using CSharpFar.Core.Menu;
 using CSharpFar.Core.Models;
 
@@ -9,6 +11,7 @@ public sealed class TopMenuController
     private readonly MenuState _state;
     private readonly Func<MenuCommandRequest, MenuCommandResult> _executeCommand;
     private readonly MenuHitTester _hitTester = new();
+    private ScrollBarDragState? _dropdownScrollbarDrag;
 
     public TopMenuController(
         MenuState state,
@@ -81,7 +84,13 @@ public sealed class TopMenuController
         PanelSide activePanelSide)
     {
         if (!IsMenuMousePress(mouse))
-            return _state.OpenState != MenuOpenState.Closed;
+        {
+            return TryHandleDropdownScrollbarMouse(mouse, definition, layout) ||
+                   _state.OpenState != MenuOpenState.Closed;
+        }
+
+        if (TryHandleDropdownScrollbarMouse(mouse, definition, layout))
+            return true;
 
         var hit = _hitTester.HitTest(mouse.X, mouse.Y, definition, _state, layout);
 
@@ -119,6 +128,7 @@ public sealed class TopMenuController
     {
         _state.OpenState = MenuOpenState.Closed;
         _state.ActiveDropdownItemIndex = 0;
+        _dropdownScrollbarDrag = null;
     }
 
     private void OpenForPanel(MenuBarDefinition definition, PanelSide panelSide)
@@ -137,6 +147,66 @@ public sealed class TopMenuController
         _state.ActiveTopMenuIndex = Math.Clamp(topIndex, 0, definition.Items.Count - 1);
         _state.OpenState = MenuOpenState.DropdownOpen;
         _state.ActiveDropdownItemIndex = FirstSelectableIndex(CurrentChildren(definition));
+        _dropdownScrollbarDrag = null;
+    }
+
+    private bool TryHandleDropdownScrollbarMouse(
+        MouseConsoleInputEvent mouse,
+        MenuBarDefinition definition,
+        MenuLayout layout)
+    {
+        if (_state.OpenState != MenuOpenState.DropdownOpen ||
+            layout.DropdownBounds is not { } dropdown ||
+            _state.ActiveTopMenuIndex < 0 ||
+            _state.ActiveTopMenuIndex >= definition.Items.Count)
+        {
+            return false;
+        }
+
+        var children = definition.Items[_state.ActiveTopMenuIndex].Children;
+        int visibleRows = Math.Max(0, dropdown.Height - 2);
+        if (children.Count <= visibleRows || visibleRows <= 0)
+            return false;
+
+        int selectedIndex = _state.ActiveDropdownItemIndex;
+        int firstVisibleIndex = layout.DropdownFirstVisibleItemIndex;
+        var scrollbarBounds = new Rect(dropdown.Right - 1, dropdown.Y + 1, 1, visibleRows);
+
+        if (!ScrollableListMouseHandler.TryHandleScrollbarMouse(
+                mouse,
+                scrollbarBounds,
+                children.Count,
+                visibleRows,
+                ref selectedIndex,
+                ref firstVisibleIndex,
+                ref _dropdownScrollbarDrag))
+        {
+            return false;
+        }
+
+        int lastVisibleIndex = Math.Min(children.Count - 1, firstVisibleIndex + visibleRows - 1);
+        _state.ActiveDropdownItemIndex = SelectableIndexInRange(children, selectedIndex, firstVisibleIndex, lastVisibleIndex);
+        return true;
+    }
+
+    private static int SelectableIndexInRange(
+        IReadOnlyList<MenuItemDefinition> items,
+        int preferredIndex,
+        int firstIndex,
+        int lastIndex)
+    {
+        if (preferredIndex >= firstIndex &&
+            preferredIndex <= lastIndex &&
+            IsSelectable(items[preferredIndex]))
+        {
+            return preferredIndex;
+        }
+
+        for (int i = firstIndex; i <= lastIndex; i++)
+            if (IsSelectable(items[i]))
+                return i;
+
+        return preferredIndex;
     }
 
     private void MoveTop(MenuBarDefinition definition, int delta)

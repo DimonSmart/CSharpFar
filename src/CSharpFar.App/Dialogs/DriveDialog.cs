@@ -1,5 +1,6 @@
 using CSharpFar.App.Rendering;
 using CSharpFar.Console;
+using CSharpFar.Console.Input;
 using CSharpFar.Console.Models;
 using CSharpFar.Core.Models;
 
@@ -61,6 +62,7 @@ internal sealed class DriveDialog
         int scrollTop = Math.Min(
             Math.Max(0, cursor - visible / 2),
             Math.Max(0, items.Count - visible));
+        ScrollBarDragState? scrollbarDrag = null;
 
         // Track last cycle shortcut for multi-match cycling
         string? lastShortcut = null;
@@ -68,7 +70,15 @@ internal sealed class DriveDialog
         while (true)
         {
             Draw(items, bounds, cursor, scrollTop, visible);
-            var key = _screen.ReadKey();
+            var input = _screen.ReadInput();
+            if (input is MouseConsoleInputEvent mouse &&
+                TryHandleScrollbarMouse(mouse, items.Count, visible, bounds, ref cursor, ref scrollTop, ref scrollbarDrag))
+            {
+                continue;
+            }
+
+            if (input is not KeyConsoleInputEvent { Key: var key })
+                continue;
 
             switch (key.Key)
             {
@@ -236,9 +246,62 @@ internal sealed class DriveDialog
                     contentBounds.Width,
                     idx == cursor);
             }
+
+            if (items.Count > visible)
+            {
+                new ScrollBarRenderer().RenderVerticalScrollbar(
+                    _screen,
+                    new Rect(frameBounds.Right - 1, contentBounds.Y + 2, 1, visible),
+                    new ScrollState
+                    {
+                        TotalItems = items.Count,
+                        ViewportItems = visible,
+                        FirstVisibleIndex = scrollTop,
+                    },
+                    new ScrollBarOptions
+                    {
+                        Enabled = true,
+                        DrawWhenNotScrollable = false,
+                    },
+                    PaletteStyles.DialogBorder(_palette));
+            }
         });
 
         _screen.SetCursorVisible(false);
+    }
+
+    private static bool TryHandleScrollbarMouse(
+        MouseConsoleInputEvent mouse,
+        int itemCount,
+        int visible,
+        Rect outerBounds,
+        ref int cursor,
+        ref int scrollTop,
+        ref ScrollBarDragState? scrollbarDrag)
+    {
+        if (itemCount <= visible)
+            return false;
+
+        var frameBounds = new Rect(
+            outerBounds.X + 1,
+            outerBounds.Y + 1,
+            Math.Max(1, outerBounds.Width - 2),
+            Math.Max(1, outerBounds.Height - 2));
+        var contentBounds = new Rect(
+            frameBounds.X + 1,
+            frameBounds.Y + 1,
+            Math.Max(0, frameBounds.Width - 2),
+            Math.Max(0, frameBounds.Height - 2));
+        var scrollbarBounds = new Rect(frameBounds.Right - 1, contentBounds.Y + 2, 1, visible);
+
+        return ScrollableListMouseHandler.TryHandleScrollbarMouse(
+            mouse,
+            scrollbarBounds,
+            itemCount,
+            visible,
+            ref cursor,
+            ref scrollTop,
+            ref scrollbarDrag);
     }
 
     private void WriteHeader(int x, int y, int width)

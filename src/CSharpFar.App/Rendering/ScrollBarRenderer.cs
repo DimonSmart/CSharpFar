@@ -19,24 +19,18 @@ public sealed class ScrollBarRenderer
         bool scrollable = state.TotalItems > state.ViewportItems;
         if (!scrollable && !options.DrawWhenNotScrollable) return;
 
-        int trackHeight = bounds.Height - 2;
+        var thumb = ScrollBarInteraction.CalculateThumb(bounds, state);
 
         screen.WriteChar(bounds.X, bounds.Y,          '▲', style);
         screen.WriteChar(bounds.X, bounds.Bottom - 1, '▼', style);
 
-        for (int i = 0; i < trackHeight; i++)
+        for (int i = 0; i < thumb.TrackHeight; i++)
             screen.WriteChar(bounds.X, bounds.Y + 1 + i, '░', style);
 
-        if (scrollable && trackHeight > 0)
+        if (scrollable && thumb.TrackHeight > 0)
         {
-            int thumbHeight = Math.Max(1, (int)Math.Round(
-                (double)state.ViewportItems * trackHeight / state.TotalItems));
-            int thumbOffset = (int)Math.Round(
-                (double)state.FirstVisibleIndex * trackHeight / state.TotalItems);
-            thumbOffset = Math.Min(thumbOffset, trackHeight - thumbHeight);
-
-            for (int i = 0; i < thumbHeight; i++)
-                screen.WriteChar(bounds.X, bounds.Y + 1 + thumbOffset + i, '█', style);
+            for (int i = 0; i < thumb.ThumbHeight; i++)
+                screen.WriteChar(bounds.X, thumb.ThumbY + i, '█', style);
         }
     }
 }

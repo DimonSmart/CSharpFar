@@ -1,5 +1,6 @@
 using CSharpFar.Console;
 using CSharpFar.Console.Models;
+using CSharpFar.Core.Models;
 
 namespace CSharpFar.App.Rendering;
 
@@ -29,7 +30,8 @@ internal sealed class CommandHistoryCompletionRenderer
         int commandLineRow,
         int totalWidth,
         IReadOnlyList<string> commands,
-        int selectedIndex)
+        int selectedIndex,
+        int firstVisibleIndex = 0)
     {
         if (commandLineRow <= 0 || totalWidth <= 0 || commands.Count == 0)
             return;
@@ -40,11 +42,22 @@ internal sealed class CommandHistoryCompletionRenderer
             return;
 
         int safeSelectedIndex = Math.Clamp(selectedIndex, 0, commands.Count - 1);
-        int scrollTop = Math.Clamp(safeSelectedIndex - visibleRows + 1, 0, commands.Count - visibleRows);
+        int scrollTop = ScrollStateCalculator.ClampFirstVisibleIndex(firstVisibleIndex, commands.Count, visibleRows);
+        scrollTop = ScrollStateCalculator.EnsureIndexVisible(safeSelectedIndex, scrollTop, visibleRows);
+        scrollTop = ScrollStateCalculator.ClampFirstVisibleIndex(scrollTop, commands.Count, visibleRows);
         int height = visibleRows + 2;
         var bounds = new Rect(0, commandLineRow - height, totalWidth, height);
+        var popupOptions = _popupOptions with
+        {
+            VerticalScrollState = new ScrollState
+            {
+                TotalItems = commands.Count,
+                ViewportItems = visibleRows,
+                FirstVisibleIndex = scrollTop,
+            },
+        };
 
-        _popupRenderer.RenderPopup(_screen, bounds, _popupOptions, (_, contentBounds) =>
+        _popupRenderer.RenderPopup(_screen, bounds, popupOptions, (_, contentBounds) =>
         {
             for (int row = 0; row < visibleRows; row++)
             {
