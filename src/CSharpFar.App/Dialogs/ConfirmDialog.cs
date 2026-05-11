@@ -105,7 +105,7 @@ internal sealed class ConfirmDialog
                 contentWidth,
                 focusedButton,
                 FarDialogStyles.Fill,
-                FarDialogStyles.Input);
+                FarDialogStyles.FocusedInput);
         });
     }
 

@@ -231,7 +231,7 @@ internal sealed class CreateFolderDialog
                 contentWidth,
                 focusedButton,
                 FarDialogStyles.Fill,
-                focusRow == 1 ? FarDialogStyles.Input : FarDialogStyles.Fill);
+                focusRow == 1 ? FarDialogStyles.FocusedInput : FarDialogStyles.Fill);
         });
 
         if (focusRow == 0)
@@ -243,7 +243,7 @@ internal sealed class CreateFolderDialog
     private void DrawInput(int x, int y, int width, CommandLineState buffer, bool focused)
     {
         string text = VisibleInputText(buffer, width);
-        _screen.Write(x, y, text.PadRight(width), FarDialogStyles.Input);
+        _screen.Write(x, y, text.PadRight(width), focused ? FarDialogStyles.FocusedInput : FarDialogStyles.Input);
     }
 
     private void SetInputCursor(int x, int y, int width, CommandLineState buffer)

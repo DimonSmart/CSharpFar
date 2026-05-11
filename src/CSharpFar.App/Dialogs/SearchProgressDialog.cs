@@ -288,7 +288,7 @@ internal sealed class SearchProgressDialog
                     contentWidth,
                     focusedButton,
                     FarDialogStyles.Fill,
-                    FarDialogStyles.Input);
+                    FarDialogStyles.FocusedInput);
             });
     }
 

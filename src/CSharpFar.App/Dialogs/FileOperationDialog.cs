@@ -459,7 +459,7 @@ internal sealed class FileOperationDialog
         var outerBounds = new Rect(dialogX, dialogY, dialogWidth, dialogHeight);
 
         var fill = FarDialogStyles.Fill;
-        var focused = FarDialogStyles.Input;
+        var focused = FarDialogStyles.FocusedInput;
 
         _modalRenderer.Render(_screen, outerBounds, title, true, FarDialogStyles.OuterOptions, FarDialogStyles.FrameOptions, (_, layout) =>
         {
@@ -511,7 +511,7 @@ internal sealed class FileOperationDialog
     private void DrawInput(int x, int y, int width, CommandLineState buffer, bool focused)
     {
         string text = VisibleInputText(buffer, width);
-        _screen.Write(x, y, text.PadRight(width), FarDialogStyles.Input);
+        _screen.Write(x, y, text.PadRight(width), focused ? FarDialogStyles.FocusedInput : FarDialogStyles.Input);
     }
 
     private void SetInputCursor(int x, int y, int width, CommandLineState buffer)

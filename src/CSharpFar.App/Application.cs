@@ -1118,6 +1118,12 @@ public sealed class Application
                 if (TryHideCommandCompletionTemporarily())
                     return true;
 
+                if (ActiveState.SearchRequest is not null)
+                {
+                    CloseSearchResultsPanel(ActiveState, _active);
+                    return true;
+                }
+
                 _cmdLine.Clear();
                 HideCommandCompletion(temporarily: false);
                 return true;
@@ -1566,6 +1572,17 @@ public sealed class Application
         state.AutoRefreshState = null;
         SortVirtualPanel(state, keepCursorPath: null);
         RefreshSearchResultsSummary(state);
+    }
+
+    private void CloseSearchResultsPanel(FilePanelState state, PanelSide side)
+    {
+        var rootPath = state.SearchRequest!.RootPath;
+        state.SearchRequest = null;
+        state.SearchWasCancelled = false;
+        state.ShowCurrentItemFullPath = false;
+        state.DisplayTitle = null;
+        _ctrl.LoadDirectory(state, rootPath, PanelOptions);
+        StartWatching(state, side);
     }
 
     private void GoToSearchResult(FilePanelState state, PanelSide side, SearchResultItem result)

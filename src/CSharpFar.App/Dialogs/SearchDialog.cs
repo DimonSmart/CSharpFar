@@ -15,6 +15,9 @@ internal sealed class SearchDialog
     private readonly ScreenRenderer _screen;
     private readonly ModalDialogRenderer _modalRenderer = new();
 
+    // Bounds of clickable option rows (updated each Draw call)
+    private readonly Rect[] _optionBounds = new Rect[ButtonRow + 1];
+
     public SearchDialog(ScreenRenderer screen)
     {
         _screen = screen;
@@ -51,7 +54,7 @@ internal sealed class SearchDialog
         out string? error)
     {
         string mask = string.IsNullOrWhiteSpace(fileMaskExpression)
-            ? "*"
+            ? "*.*"
             : fileMaskExpression.Trim();
 
         if (!int.TryParse(maxDegreeOfParallelismText.Trim(), out int maxDegreeOfParallelism) ||
@@ -84,7 +87,7 @@ internal sealed class SearchDialog
     private SearchRequest? RunLoop(ConsoleSize size, string rootPath)
     {
         var mask = new CommandLineState();
-        mask.SetText("*");
+        mask.SetText("*.*");
 
         var text = new CommandLineState();
         var parallelism = new CommandLineState();
@@ -159,28 +162,57 @@ internal sealed class SearchDialog
                 continue;
             }
 
-            if (input is MouseConsoleInputEvent &&
-                buttonBar.TryHandleInput(input, ref focusedButton, out buttonId) &&
-                buttonId is not null)
+            if (input is MouseConsoleInputEvent mouse)
             {
-                focusRow = ButtonRow;
-                if (buttonId == "cancel")
-                    return null;
+                // Check option row clicks first
+                int clickedRow = HitTestOptionRow(mouse);
+                if (clickedRow >= 0 &&
+                    mouse.Button == MouseButton.Left &&
+                    mouse.Kind is MouseEventKind.Down or MouseEventKind.Click)
+                {
+                    focusRow = clickedRow;
+                    if (clickedRow is not (0 or 1 or 9))
+                    {
+                        CycleValue(
+                            clickedRow,
+                            hasText,
+                            ref caseSensitive,
+                            ref wholeWords,
+                            ref notContaining,
+                            ref includeDirectoriesInResults,
+                            ref searchInSymbolicLinks,
+                            ref scope);
+                    }
+                    DrawCurrent();
+                    continue;
+                }
 
-                var result = BuildRequest(
-                    rootPath,
-                    mask,
-                    text,
-                    caseSensitive,
-                    wholeWords,
-                    notContaining,
-                    includeDirectoriesInResults,
-                    searchInSymbolicLinks,
-                    scope,
-                    parallelism,
-                    ref error);
-                if (result is not null)
-                    return result;
+                // Check button bar clicks
+                if (buttonBar.TryHandleInput(input, ref focusedButton, out buttonId) &&
+                    buttonId is not null)
+                {
+                    focusRow = ButtonRow;
+                    if (buttonId == "cancel")
+                        return null;
+
+                    var result = BuildRequest(
+                        rootPath,
+                        mask,
+                        text,
+                        caseSensitive,
+                        wholeWords,
+                        notContaining,
+                        includeDirectoriesInResults,
+                        searchInSymbolicLinks,
+                        scope,
+                        parallelism,
+                        ref error);
+                    if (result is not null)
+                        return result;
+                }
+
+                DrawCurrent();
+                continue;
             }
 
             if (input is not KeyConsoleInputEvent { Key: var key })
@@ -480,7 +512,7 @@ internal sealed class SearchDialog
         var outerBounds = new Rect(dialogX, dialogY, dialogWidth, dialogHeight);
 
         var fill = FarDialogStyles.Fill;
-        var focused = FarDialogStyles.Input;
+        var focused = FarDialogStyles.FocusedInput;
         var disabled = new CellStyle(ConsoleColor.DarkGray, fill.Background);
 
         _modalRenderer.Render(_screen, outerBounds, "Find file", true, FarDialogStyles.OuterOptions, FarDialogStyles.FrameOptions, (_, layout) =>
@@ -497,19 +529,30 @@ internal sealed class SearchDialog
 
             DrawValueRow(contentX, bounds.Y + 5, contentWidth, "Using code page:", "Automatic detection", false, fill, focused);
             DrawCheckbox(contentX, bounds.Y + 6, contentWidth, "Case sensitive", caseSensitive, focusRow == 3, fill, focused);
-            DrawCheckbox(contentX, bounds.Y + 7, contentWidth, "Whole words", wholeWords, focusRow == 4, fill, focused);
-            DrawCheckbox(
-                contentX,
-                bounds.Y + 8,
-                contentWidth,
-                "Not containing",
-                text.Text.Length > 0 && notContaining,
-                focusRow == 5,
-                text.Text.Length > 0 ? fill : disabled,
-                focused);
-            DrawCheckbox(contentX, bounds.Y + 9, contentWidth, "Search folders", includeDirectoriesInResults, focusRow == 6, fill, focused);
-            DrawCheckbox(contentX, bounds.Y + 10, contentWidth, "Search in symbolic links", searchInSymbolicLinks, focusRow == 7, fill, focused);
-            DrawValueRow(contentX, bounds.Y + 11, contentWidth, "Select search area:", ScopeLabel(scope), focusRow == 8, fill, focused);
+                DrawCheckbox(contentX, bounds.Y + 7, contentWidth, "Whole words", wholeWords, focusRow == 4, fill, focused);
+                DrawCheckbox(
+                    contentX,
+                    bounds.Y + 8,
+                    contentWidth,
+                    "Not containing",
+                    text.Text.Length > 0 && notContaining,
+                    focusRow == 5,
+                    text.Text.Length > 0 ? fill : disabled,
+                    focused);
+                DrawCheckbox(contentX, bounds.Y + 9, contentWidth, "Search folders", includeDirectoriesInResults, focusRow == 6, fill, focused);
+                DrawCheckbox(contentX, bounds.Y + 10, contentWidth, "Search in symbolic links", searchInSymbolicLinks, focusRow == 7, fill, focused);
+                DrawValueRow(contentX, bounds.Y + 11, contentWidth, "Select search area:", ScopeLabel(scope), focusRow == 8, fill, focused);
+
+                // Store option row bounds for mouse hit testing (row index matches focusRow)
+                _optionBounds[0] = new Rect(contentX, bounds.Y + 2, contentWidth, 1);  // file mask input
+                _optionBounds[1] = new Rect(contentX, bounds.Y + 4, contentWidth, 1);  // containing text input
+                _optionBounds[3] = new Rect(contentX, bounds.Y + 6, contentWidth, 1);  // case sensitive
+                _optionBounds[4] = new Rect(contentX, bounds.Y + 7, contentWidth, 1);  // whole words
+                _optionBounds[5] = new Rect(contentX, bounds.Y + 8, contentWidth, 1);  // not containing
+                _optionBounds[6] = new Rect(contentX, bounds.Y + 9, contentWidth, 1);  // search folders
+                _optionBounds[7] = new Rect(contentX, bounds.Y + 10, contentWidth, 1); // symbolic links
+                _optionBounds[8] = new Rect(contentX, bounds.Y + 11, contentWidth, 1); // scope
+                _optionBounds[9] = new Rect(contentX, bounds.Y + 13, contentWidth, 1); // parallelism input
 
             _screen.Write(contentX, bounds.Y + 12, "Parallelism:".PadRight(contentWidth), fill);
             DrawInput(contentX, bounds.Y + 13, Math.Min(8, contentWidth), parallelism, focusRow == 9);
@@ -540,7 +583,7 @@ internal sealed class SearchDialog
     private void DrawInput(int x, int y, int width, CommandLineState buffer, bool focused)
     {
         string text = VisibleInputText(buffer, width);
-        _screen.Write(x, y, text.PadRight(width), FarDialogStyles.Input);
+        _screen.Write(x, y, text.PadRight(width), focused ? FarDialogStyles.FocusedInput : FarDialogStyles.Input);
     }
 
     private void DrawValueRow(
@@ -602,6 +645,19 @@ internal sealed class SearchDialog
         SearchScope.CurrentDirectoryOnly => "In current folder",
         _ => "From the current folder",
     };
+
+    private int HitTestOptionRow(MouseConsoleInputEvent mouse)
+    {
+        for (int row = 0; row < _optionBounds.Length; row++)
+        {
+            var b = _optionBounds[row];
+            if (b.Width == 0) continue;
+            if (mouse.X >= b.X && mouse.X < b.Right &&
+                mouse.Y >= b.Y && mouse.Y < b.Bottom)
+                return row;
+        }
+        return -1;
+    }
 
     private static string Truncate(string value, int maxLength)
     {
