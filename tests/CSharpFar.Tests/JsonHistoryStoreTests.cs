@@ -48,6 +48,40 @@ public class JsonHistoryStoreTests : IDisposable
         Assert.Equal("echo", history[2].Command);
     }
 
+    [Fact]
+    public void AddCommand_RepeatedCommandMovesToMostRecentInFile()
+    {
+        var store = new JsonHistoryStore(_tempFile);
+        store.AddCommand(new CommandHistoryItem { Command = "dir", WorkingDirectory = @"C:\A" });
+        store.AddCommand(new CommandHistoryItem { Command = "cls", WorkingDirectory = @"C:\B" });
+        store.AddCommand(new CommandHistoryItem { Command = "dir", WorkingDirectory = @"C:\C" });
+
+        var store2 = new JsonHistoryStore(_tempFile);
+        var history = store2.GetCommandHistory();
+        Assert.Equal(2, history.Count);
+        Assert.Equal("cls", history[0].Command);
+        Assert.Equal("dir", history[1].Command);
+        Assert.Equal(@"C:\C", history[1].WorkingDirectory);
+    }
+
+    [Fact]
+    public void Load_NormalizesDuplicateCommands()
+    {
+        File.WriteAllText(_tempFile,
+            @"{ ""Commands"": [
+                { ""Command"": ""dir"", ""WorkingDirectory"": ""C:\\A"" },
+                { ""Command"": ""cls"", ""WorkingDirectory"": ""C:\\B"" },
+                { ""Command"": ""dir"", ""WorkingDirectory"": ""C:\\C"" }
+            ] }");
+
+        var store = new JsonHistoryStore(_tempFile);
+        var history = store.GetCommandHistory();
+        Assert.Equal(2, history.Count);
+        Assert.Equal("cls", history[0].Command);
+        Assert.Equal("dir", history[1].Command);
+        Assert.Equal(@"C:\C", history[1].WorkingDirectory);
+    }
+
     // ── Directory history ─────────────────────────────────────────────────────
 
     [Fact]

@@ -23,6 +23,8 @@ namespace CSharpFar.App;
 
 public sealed class Application
 {
+    private const int MaxCommandCompletionRows = CommandHistoryCompletionRenderer.MaxVisibleRows;
+
     private readonly ScreenRenderer _screen;
     private readonly IFileSystemService _fs;
     private readonly PanelController _ctrl;
@@ -39,10 +41,15 @@ public sealed class Application
     private readonly FilePanelState _left;
     private readonly FilePanelState _right;
     private readonly CommandLineState _cmdLine = new();
+    private readonly List<string> _commandCompletionMatches = [];
 
     private PanelSide     _active        = PanelSide.Left;
     private bool          _running       = true;
     private bool          _panelsVisible = true;
+    private bool          _commandCompletionVisible;
+    private bool          _commandCompletionTemporarilyHidden;
+    private int           _commandCompletionSelectedIndex;
+    private int?          _hiddenCommandHistoryIndex;
     private bool          _quickView     = false;
     private ConsoleSize?  _lastRenderSize;
     private ScreenSnapshot? _underlay;          // last known screen content before panels
@@ -318,6 +325,7 @@ public sealed class Application
 
         var cmdRenderer = new CommandLineRenderer(_screen, _palette);
         cmdRenderer.Render(panelH, size.Width, ActiveState.CurrentDirectory, _cmdLine);
+        RenderCommandCompletion(size, panelH);
 
         RenderFunctionKeyBar(size);
 
@@ -388,6 +396,18 @@ public sealed class Application
             .ToArray();
 
         new FunctionKeyBarRenderer(_screen, _palette).Render(size.Height - 1, size.Width, items);
+    }
+
+    private void RenderCommandCompletion(ConsoleSize size, int commandLineRow)
+    {
+        if (!_commandCompletionVisible)
+            return;
+
+        new CommandHistoryCompletionRenderer(_screen, _palette).Render(
+            commandLineRow,
+            size.Width,
+            _commandCompletionMatches,
+            _commandCompletionSelectedIndex);
     }
 
     private void RenderMenuOverlay(ConsoleSize size)
@@ -774,6 +794,8 @@ public sealed class Application
     private bool TogglePanels()
     {
         _panelsVisible = !_panelsVisible;
+        HideCommandCompletion(temporarily: false);
+        ResetHiddenCommandHistoryBrowsing();
 
         if (!_panelsVisible)
         {
@@ -1075,20 +1097,36 @@ public sealed class Application
 
             case ConsoleKey.Delete:
                 _cmdLine.DeleteForward();
+                OnVisibleCommandLineTextEdited();
                 return true;
 
             case ConsoleKey.Backspace:
                 bool hadCommandText = _cmdLine.HasText;
-                if (hadCommandText) _cmdLine.DeleteBack();
-                else TryGoUp();
+                if (hadCommandText)
+                {
+                    _cmdLine.DeleteBack();
+                    OnVisibleCommandLineTextEdited();
+                }
+                else
+                {
+                    HideCommandCompletion(temporarily: false);
+                    TryGoUp();
+                }
                 return true;
 
             case ConsoleKey.Escape:
+                if (TryHideCommandCompletionTemporarily())
+                    return true;
+
                 _cmdLine.Clear();
+                HideCommandCompletion(temporarily: false);
                 return true;
 
             // ── Execution ─────────────────────────────────────────────────────
             case ConsoleKey.Enter:
+                if (TryAcceptCommandCompletion())
+                    return true;
+
                 if (_cmdLine.HasText) ExecuteCommand(_cmdLine.Text);
                 else OpenCurrentItem();
                 return true;
@@ -1104,10 +1142,16 @@ public sealed class Application
                 return true;
 
             case ConsoleKey.UpArrow:
+                if (TryMoveCommandCompletionSelection(-1))
+                    return true;
+
                 _ctrl.MoveCursor(ActiveState, -1, vr);
                 return true;
 
             case ConsoleKey.DownArrow:
+                if (TryMoveCommandCompletionSelection(+1))
+                    return true;
+
                 _ctrl.MoveCursor(ActiveState, +1, vr);
                 return true;
 
@@ -1128,6 +1172,7 @@ public sealed class Application
         if (isPrintable)
         {
             _cmdLine.Insert(key.KeyChar);
+            OnVisibleCommandLineTextEdited();
             return true;
         }
 
@@ -1162,37 +1207,51 @@ public sealed class Application
         switch (key.Key)
         {
             case ConsoleKey.LeftArrow:
+                ResetHiddenCommandHistoryBrowsing();
                 _cmdLine.MoveCursor(-1);
                 return true;
 
             case ConsoleKey.RightArrow:
+                ResetHiddenCommandHistoryBrowsing();
                 _cmdLine.MoveCursor(+1);
                 return true;
 
             case ConsoleKey.Home:
+                ResetHiddenCommandHistoryBrowsing();
                 _cmdLine.MoveToStart();
                 return true;
 
             case ConsoleKey.End:
+                ResetHiddenCommandHistoryBrowsing();
                 _cmdLine.MoveToEnd();
                 return true;
 
             case ConsoleKey.Delete:
+                ResetHiddenCommandHistoryBrowsing();
                 _cmdLine.DeleteForward();
                 return true;
 
             case ConsoleKey.Backspace:
+                ResetHiddenCommandHistoryBrowsing();
                 _cmdLine.DeleteBack();
                 return true;
 
             case ConsoleKey.Escape:
+                ResetHiddenCommandHistoryBrowsing();
                 _cmdLine.Clear();
                 return true;
 
             case ConsoleKey.Enter:
+                ResetHiddenCommandHistoryBrowsing();
                 if (_cmdLine.HasText)
                     ExecuteCommand(_cmdLine.Text);
                 return true;
+
+            case ConsoleKey.UpArrow:
+                return BrowseHiddenCommandHistory(-1);
+
+            case ConsoleKey.DownArrow:
+                return BrowseHiddenCommandHistory(+1);
 
             case ConsoleKey.F10:
                 _running = false;
@@ -1203,11 +1262,122 @@ public sealed class Application
             (key.Modifiers & (ConsoleModifiers.Control | ConsoleModifiers.Alt)) == 0;
         if (isPrintable)
         {
+            ResetHiddenCommandHistoryBrowsing();
             _cmdLine.Insert(key.KeyChar);
             return true;
         }
 
         return false;
+    }
+
+    private void OnVisibleCommandLineTextEdited()
+    {
+        ResetHiddenCommandHistoryBrowsing();
+        _commandCompletionTemporarilyHidden = false;
+        RefreshCommandCompletion();
+    }
+
+    private void RefreshCommandCompletion()
+    {
+        _commandCompletionMatches.Clear();
+        _commandCompletionSelectedIndex = 0;
+
+        if (!_panelsVisible ||
+            _commandCompletionTemporarilyHidden ||
+            !HasCommandCompletionRows() ||
+            string.IsNullOrWhiteSpace(_cmdLine.Text))
+        {
+            _commandCompletionVisible = false;
+            return;
+        }
+
+        var seen = new HashSet<string>(StringComparer.Ordinal);
+        var history = _history.GetCommandHistory();
+        for (int i = history.Count - 1; i >= 0; i--)
+        {
+            string command = history[i].Command;
+            if (!command.StartsWith(_cmdLine.Text, StringComparison.OrdinalIgnoreCase))
+                continue;
+
+            if (seen.Add(command))
+                _commandCompletionMatches.Add(command);
+        }
+
+        _commandCompletionVisible = _commandCompletionMatches.Count > 0;
+    }
+
+    private bool HasCommandCompletionRows()
+    {
+        var size = _lastRenderSize ?? _screen.GetSize();
+        int rowsAboveCommandLine = CommandLineRow(size) - 2;
+        return Math.Min(MaxCommandCompletionRows, rowsAboveCommandLine) > 0;
+    }
+
+    private bool TryMoveCommandCompletionSelection(int delta)
+    {
+        if (!_commandCompletionVisible || _commandCompletionMatches.Count == 0 || !HasCommandCompletionRows())
+            return false;
+
+        _commandCompletionSelectedIndex = Math.Clamp(
+            _commandCompletionSelectedIndex + delta,
+            0,
+            _commandCompletionMatches.Count - 1);
+        return true;
+    }
+
+    private bool TryAcceptCommandCompletion()
+    {
+        if (!_commandCompletionVisible || _commandCompletionMatches.Count == 0 || !HasCommandCompletionRows())
+            return false;
+
+        _cmdLine.SetText(_commandCompletionMatches[_commandCompletionSelectedIndex]);
+        HideCommandCompletion(temporarily: false);
+        ResetHiddenCommandHistoryBrowsing();
+        return true;
+    }
+
+    private bool TryHideCommandCompletionTemporarily()
+    {
+        if (!_commandCompletionVisible)
+            return false;
+
+        HideCommandCompletion(temporarily: true);
+        return true;
+    }
+
+    private void HideCommandCompletion(bool temporarily)
+    {
+        _commandCompletionVisible = false;
+        _commandCompletionTemporarilyHidden = temporarily;
+        _commandCompletionMatches.Clear();
+        _commandCompletionSelectedIndex = 0;
+    }
+
+    private bool BrowseHiddenCommandHistory(int direction)
+    {
+        var history = _history.GetCommandHistory();
+        if (history.Count == 0)
+            return true;
+
+        if (_hiddenCommandHistoryIndex is null)
+        {
+            _hiddenCommandHistoryIndex = direction < 0 ? history.Count - 1 : 0;
+        }
+        else
+        {
+            _hiddenCommandHistoryIndex = Math.Clamp(
+                _hiddenCommandHistoryIndex.Value + direction,
+                0,
+                history.Count - 1);
+        }
+
+        _cmdLine.SetText(history[_hiddenCommandHistoryIndex.Value].Command);
+        return true;
+    }
+
+    private void ResetHiddenCommandHistoryBrowsing()
+    {
+        _hiddenCommandHistoryIndex = null;
     }
 
     private void MovePanelColumn(int direction)
@@ -1961,6 +2131,8 @@ public sealed class Application
         string? cmd = new HistoryDialog(_screen, _palette).Show(_history.GetCommandHistory());
         if (cmd is not null)
             _cmdLine.SetText(cmd);
+        HideCommandCompletion(temporarily: false);
+        ResetHiddenCommandHistoryBrowsing();
     }
 
     // ── F7 — create folder ────────────────────────────────────────────────────
@@ -2208,6 +2380,8 @@ public sealed class Application
     {
         string workDir = ActiveState.CurrentDirectory;
         _cmdLine.Clear();
+        HideCommandCompletion(temporarily: false);
+        ResetHiddenCommandHistoryBrowsing();
 
         ExecuteInCurrentConsole(workDir, command, () => _shell.Execute(command, workDir));
 

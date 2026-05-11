@@ -32,6 +32,30 @@ public class InMemoryHistoryStoreTests
     }
 
     [Fact]
+    public void AddCommand_RepeatedCommandMovesToMostRecent()
+    {
+        var store = new InMemoryHistoryStore();
+        store.AddCommand(new CommandHistoryItem { Command = "dir", WorkingDirectory = @"C:\A" });
+        store.AddCommand(new CommandHistoryItem { Command = "cls", WorkingDirectory = @"C:\B" });
+        store.AddCommand(new CommandHistoryItem { Command = "dir", WorkingDirectory = @"C:\C" });
+
+        var history = store.GetCommandHistory();
+        Assert.Equal(2, history.Count);
+        Assert.Equal("cls", history[0].Command);
+        Assert.Equal("dir", history[1].Command);
+        Assert.Equal(@"C:\C", history[1].WorkingDirectory);
+    }
+
+    [Fact]
+    public void AddCommand_IgnoresWhitespaceOnlyCommand()
+    {
+        var store = new InMemoryHistoryStore();
+        store.AddCommand(new CommandHistoryItem { Command = "   ", WorkingDirectory = @"C:\" });
+
+        Assert.Empty(store.GetCommandHistory());
+    }
+
+    [Fact]
     public void AddDirectory_AppearsInHistory()
     {
         var store = new InMemoryHistoryStore();

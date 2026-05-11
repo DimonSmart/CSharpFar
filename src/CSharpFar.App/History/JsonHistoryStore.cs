@@ -41,6 +41,11 @@ public sealed class JsonHistoryStore : IHistoryStore
 
     public void AddCommand(CommandHistoryItem item)
     {
+        if (string.IsNullOrWhiteSpace(item.Command))
+            return;
+
+        _commands.RemoveAll(existing =>
+            string.Equals(existing.Command, item.Command, StringComparison.Ordinal));
         _commands.Add(item);
         if (_commands.Count > _maxCommands) _commands.RemoveAt(0);
         Save();
@@ -85,8 +90,34 @@ public sealed class JsonHistoryStore : IHistoryStore
             if (data.Commands    is not null) _commands.AddRange(data.Commands);
             if (data.Directories is not null) _directories.AddRange(data.Directories);
             if (data.Files       is not null) _files.AddRange(data.Files);
+            NormalizeCommandHistory();
         }
         catch { /* corrupt file — start fresh */ }
+    }
+
+    private void NormalizeCommandHistory()
+    {
+        if (_commands.Count == 0)
+            return;
+
+        var newestFirst = new List<CommandHistoryItem>(_commands.Count);
+        var seen = new HashSet<string>(StringComparer.Ordinal);
+        for (int i = _commands.Count - 1; i >= 0; i--)
+        {
+            var item = _commands[i];
+            if (string.IsNullOrWhiteSpace(item.Command))
+                continue;
+
+            if (seen.Add(item.Command))
+                newestFirst.Add(item);
+        }
+
+        _commands.Clear();
+        for (int i = newestFirst.Count - 1; i >= 0; i--)
+            _commands.Add(newestFirst[i]);
+
+        while (_commands.Count > _maxCommands)
+            _commands.RemoveAt(0);
     }
 
     private void Save()

@@ -24,6 +24,11 @@ public sealed class InMemoryHistoryStore : IHistoryStore
 
     public void AddCommand(CommandHistoryItem item)
     {
+        if (string.IsNullOrWhiteSpace(item.Command))
+            return;
+
+        _commands.RemoveAll(existing =>
+            string.Equals(existing.Command, item.Command, StringComparison.Ordinal));
         _commands.Add(item);
         if (_commands.Count > _maxCommands)
             _commands.RemoveAt(0);
