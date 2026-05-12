@@ -2,7 +2,7 @@ using CSharpFar.Core.Models;
 
 namespace CSharpFar.Tests;
 
-public class SmokeTests
+public class CoreModelSmokeTests
 {
     [Fact]
     public void FilePanelItem_CanBeConstructed()

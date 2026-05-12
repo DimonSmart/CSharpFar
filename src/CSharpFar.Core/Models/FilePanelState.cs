@@ -9,7 +9,6 @@ public sealed class FilePanelState
     public int ScrollOffset { get; set; }
     public SortMode SortMode { get; set; }
     public bool SortDescending { get; set; }
-    public string? FilterMask { get; set; }
     public PanelSummary? Summary { get; set; }
     public PanelAutoRefreshState? AutoRefreshState { get; set; }
     public PanelProviderCapabilities ProviderCapabilities { get; set; } =

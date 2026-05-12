@@ -45,7 +45,7 @@ public class JsonSettingsStoreTests : IDisposable
         string json = """
             {
               "ui": { "confirmDelete": false },
-              "shell": { "executable": "powershell.exe", "argumentsFormat": "-Command {0}", "kind": "ps" },
+              "shell": { "executable": "powershell.exe", "argumentsFormat": "-Command {0}" },
               "panels": { "options": { "showHiddenAndSystemFiles": false } },
               "fileOperations": { "useRecycleBinForDelete": false, "conflictDecision": "OnlyNewer" },
               "history": { "maxCommandHistoryItems": 50, "maxDirectoryHistoryItems": 25, "maxFileHistoryItems": 10 }

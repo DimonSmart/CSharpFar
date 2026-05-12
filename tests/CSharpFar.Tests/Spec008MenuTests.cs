@@ -1,5 +1,5 @@
-using System.Reflection;
 using CSharpFar.App;
+using CSharpFar.App.Commands;
 using CSharpFar.App.Menu;
 using CSharpFar.App.Rendering;
 using CSharpFar.Console;
@@ -577,10 +577,9 @@ public sealed class Spec008MenuProviderAndCommandTests : IDisposable
 
     private static MenuCommandResult Execute(Application app, MenuCommandRequest request)
     {
-        var method = typeof(Application).GetMethod("ExecuteMenuCommand", BindingFlags.Instance | BindingFlags.NonPublic)
-            ?? throw new InvalidOperationException("Application.ExecuteMenuCommand method not found.");
-
-        return (MenuCommandResult)method.Invoke(app, [request])!;
+        var registry = ApplicationCommandRegistry.CreateDefault();
+        var context = new ApplicationCommandContext(app);
+        return registry.Execute(request.CommandId, context, request.Args).ToMenuCommandResult();
     }
 
     private sealed class NoOpShellService : IShellService

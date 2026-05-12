@@ -1,0 +1,45 @@
+namespace CSharpFar.App.Commands;
+
+internal static class DefaultApplicationCommands
+{
+    public static IReadOnlyList<IApplicationCommand> Create() =>
+    [
+        new HelpCommand(),
+        new UserMenuCommand(),
+        new ViewFileCommand(),
+        new EditFileCommand(),
+        new CopyCommand(),
+        new MoveCommand(),
+        new CreateFolderCommand(),
+        new DeleteCommand(),
+        new OpenTopMenuCommand(),
+        new QuitCommand(),
+        new SelectLeftDriveCommand(),
+        new SelectRightDriveCommand(),
+        new SearchFilesCommand(),
+        new CommandHistoryCommand(),
+        new FileHistoryCommand(),
+        new DirectoryHistoryCommand(),
+        new SortByNameCommand(),
+        new SortByExtensionCommand(),
+        new SortByLastWriteTimeCommand(),
+        new SortBySizeCommand(),
+        new OpenCurrentItemCommand(),
+        new PanelSetViewModeCommand(),
+        new PanelSetSortModeCommand(),
+        new PanelToggleReverseSortCommand(),
+        new PanelRefreshCommand(),
+        new OpenSettingsCommand(),
+        new ToggleShowHiddenAndSystemFilesCommand(),
+        new ToggleHighlightFilesCommand(),
+        new ToggleSelectFoldersCommand(),
+        new ToggleRightClickSelectsFilesCommand(),
+        new ToggleSortFoldersByExtensionCommand(),
+        new ToggleShowStatusLineCommand(),
+        new ToggleShowFilesTotalInformationCommand(),
+        new ToggleShowFreeSizeCommand(),
+        new ToggleShowSortModeLetterCommand(),
+        new ToggleShowParentDirectoryInRootFoldersCommand(),
+        new SaveSettingsCommand(),
+    ];
+}

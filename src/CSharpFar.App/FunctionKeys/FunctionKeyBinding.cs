@@ -5,9 +5,7 @@ internal sealed record FunctionKeyBinding(
     FunctionKeyLayer Layer,
     ConsoleKey Key,
     string Label,
-    Func<bool> IsAvailable,
-    Func<bool> Execute,
-    Func<bool>? ExecuteUnavailable = null)
+    bool RunsWhenUnavailable = false)
 {
     public int KeyNumber
     {

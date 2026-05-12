@@ -1,4 +1,5 @@
 using CSharpFar.App.Dialogs;
+using CSharpFar.App.Commands;
 using CSharpFar.App.FunctionKeys;
 using CSharpFar.App.HitTesting;
 using CSharpFar.App.Menu;
@@ -66,6 +67,9 @@ public sealed class Application
     private CancellationTokenSource         _refreshCts = new();
     private readonly MenuState              _menuState = new();
     private readonly DefaultMenuDefinitionProvider _menuProvider = new();
+    private readonly DefaultFunctionKeyBindingProvider _functionKeyBindingProvider = new();
+    private readonly ApplicationCommandRegistry _commandRegistry = ApplicationCommandRegistry.CreateDefault();
+    private readonly ApplicationCommandContext _commandContext;
     private readonly MenuLayoutService      _menuLayoutService = new();
     private readonly MenuBarRenderer        _menuBarRenderer = new();
     private readonly DropdownMenuRenderer   _dropdownMenuRenderer = new();
@@ -124,7 +128,8 @@ public sealed class Application
         _watcher          = changeWatcher;
         _locationService  = locationService;
         _menuController   = new TopMenuController(_menuState, ExecuteMenuCommand);
-        _functionKeyBindings = BuildFunctionKeyBindings();
+        _commandContext   = new ApplicationCommandContext(this);
+        _functionKeyBindings = _functionKeyBindingProvider.GetBindings();
 
         if (_watcher != null)
             _watcher.Changed += OnFileSystemChanged;
@@ -148,7 +153,77 @@ public sealed class Application
         _ctrl.LoadDirectory(_right, rightStart, opts);
     }
 
-    private AppSettingsAlias.PanelOptionsSettings PanelOptions => _settings.Panels.Options;
+    internal ScreenRenderer CommandScreen => _screen;
+
+    internal PanelController CommandPanelController => _ctrl;
+
+    internal IFileLauncher CommandFileLauncher => _fileLauncher;
+
+    internal IFileOperationService CommandFileOperations => _fileOps;
+
+    internal ISearchService CommandSearchService => _searchService;
+
+    internal IHistoryStore CommandHistory => _history;
+
+    internal UserMenuStore CommandUserMenu => _userMenu;
+
+    internal AppSettingsAlias CommandSettings => _settings;
+
+    internal IVolumeService? CommandVolumeService => _volumeService;
+
+    internal FilePanelState CommandLeftPanel => _left;
+
+    internal FilePanelState CommandRightPanel => _right;
+
+    internal CommandLineState CommandLine => _cmdLine;
+
+    internal bool CanSaveSettings => _saveSettings is not null;
+
+    internal ConsolePalette CommandPalette
+    {
+        get => _palette;
+        set => _palette = value;
+    }
+
+    internal PanelSide ActiveSide
+    {
+        get => _active;
+        set => _active = value;
+    }
+
+    internal bool Running
+    {
+        get => _running;
+        set => _running = value;
+    }
+
+    internal bool QuickView
+    {
+        get => _quickView;
+        set => _quickView = value;
+    }
+
+    internal PanelViewMode LeftViewMode
+    {
+        get => _leftViewMode;
+        set => _leftViewMode = value;
+    }
+
+    internal PanelViewMode RightViewMode
+    {
+        get => _rightViewMode;
+        set => _rightViewMode = value;
+    }
+
+    internal IFileHighlightService? HighlightService
+    {
+        get => _highlightService;
+        set => _highlightService = value;
+    }
+
+    internal AppSettingsAlias.PanelOptionsSettings PanelOptions => _settings.Panels.Options;
+
+    internal void SaveSettings() => _saveSettings?.Invoke();
 
     private static string ResolveStartDir(string? configured, string fallback)
     {
@@ -437,7 +512,9 @@ public sealed class Application
     private void RenderFunctionKeyBar(ConsoleSize size)
     {
         var items = _functionKeyBindings
-            .Where(binding => binding.Layer == _functionKeyLayer && binding.IsAvailable())
+            .Where(binding =>
+                binding.Layer == _functionKeyLayer &&
+                CanExecuteFunctionKeyCommand(binding.CommandId))
             .Select(binding => new FunctionKeyBarItem(binding.KeyNumber, binding.Label))
             .ToArray();
 
@@ -558,7 +635,7 @@ public sealed class Application
         return true;
     }
 
-    private void ResetFunctionKeyLayer() => _functionKeyLayer = FunctionKeyLayer.Plain;
+    internal void ResetFunctionKeyLayer() => _functionKeyLayer = FunctionKeyLayer.Plain;
 
     private static bool IsTopMenuActivationMouse(MouseConsoleInputEvent evt) =>
         evt.Y == 0 &&
@@ -590,257 +667,6 @@ public sealed class Application
             BorderStyle = new CellStyle(_palette.MenuBorderFg, _palette.MenuBorderBg),
             ShadowStyle = new CellStyle(_palette.MenuShadowFg, _palette.MenuShadowBg),
         };
-
-    private IReadOnlyList<FunctionKeyBinding> BuildFunctionKeyBindings() =>
-    [
-        new(
-            FunctionKeyCommandIds.Help,
-            FunctionKeyLayer.Plain,
-            ConsoleKey.F1,
-            "Help",
-            () => true,
-            () =>
-            {
-                new HelpViewer(_screen, _palette).Show();
-                return true;
-            }),
-        new(
-            FunctionKeyCommandIds.UserMenu,
-            FunctionKeyLayer.Plain,
-            ConsoleKey.F2,
-            "UserMn",
-            () => true,
-            () =>
-            {
-                HandleUserMenu();
-                return true;
-            }),
-        new(
-            FunctionKeyCommandIds.View,
-            FunctionKeyLayer.Plain,
-            ConsoleKey.F3,
-            "View",
-            CanViewCurrentFile,
-            () =>
-            {
-                HandleViewFile();
-                return true;
-            }),
-        new(
-            FunctionKeyCommandIds.Edit,
-            FunctionKeyLayer.Plain,
-            ConsoleKey.F4,
-            "Edit",
-            CanEditCurrentFile,
-            () =>
-            {
-                HandleEditFile();
-                return true;
-            },
-            () =>
-            {
-                HandleEditFile();
-                return true;
-            }),
-        new(
-            FunctionKeyCommandIds.Copy,
-            FunctionKeyLayer.Plain,
-            ConsoleKey.F5,
-            "Copy",
-            CanCopy,
-            () =>
-            {
-                HandleCopy();
-                return true;
-            },
-            () =>
-            {
-                HandleCopy();
-                return true;
-            }),
-        new(
-            FunctionKeyCommandIds.RenameOrMove,
-            FunctionKeyLayer.Plain,
-            ConsoleKey.F6,
-            "RenMov",
-            CanMove,
-            () =>
-            {
-                HandleMove();
-                return true;
-            },
-            () =>
-            {
-                HandleMove();
-                return true;
-            }),
-        new(
-            FunctionKeyCommandIds.CreateFolder,
-            FunctionKeyLayer.Plain,
-            ConsoleKey.F7,
-            "MkFold",
-            () => HasCapability(ActiveState, PanelProviderCapabilities.CreateDirectory),
-            () =>
-            {
-                HandleCreateFolder();
-                return true;
-            },
-            () =>
-            {
-                HandleCreateFolder();
-                return true;
-            }),
-        new(
-            FunctionKeyCommandIds.Delete,
-            FunctionKeyLayer.Plain,
-            ConsoleKey.F8,
-            "Delete",
-            CanDelete,
-            () =>
-            {
-                HandleDelete();
-                return true;
-            },
-            () =>
-            {
-                HandleDelete();
-                return true;
-            }),
-        new(
-            FunctionKeyCommandIds.TopMenu,
-            FunctionKeyLayer.Plain,
-            ConsoleKey.F9,
-            "ConfMn",
-            () => true,
-            OpenTopMenu),
-        new(
-            FunctionKeyCommandIds.Quit,
-            FunctionKeyLayer.Plain,
-            ConsoleKey.F10,
-            "Quit",
-            () => true,
-            () =>
-            {
-                _running = false;
-                return false;
-            }),
-        new(
-            FunctionKeyCommandIds.LeftVolume,
-            FunctionKeyLayer.Alt,
-            ConsoleKey.F1,
-            "Left",
-            () => true,
-            () =>
-            {
-                HandleDriveSelect(PanelSide.Left);
-                ResetFunctionKeyLayer();
-                return true;
-            }),
-        new(
-            FunctionKeyCommandIds.RightVolume,
-            FunctionKeyLayer.Alt,
-            ConsoleKey.F2,
-            "Right",
-            () => true,
-            () =>
-            {
-                HandleDriveSelect(PanelSide.Right);
-                ResetFunctionKeyLayer();
-                return true;
-            }),
-        new(
-            FunctionKeyCommandIds.Search,
-            FunctionKeyLayer.Alt,
-            ConsoleKey.F7,
-            "Search",
-            () => true,
-            () =>
-            {
-                HandleSearchFiles();
-                ResetFunctionKeyLayer();
-                return true;
-            }),
-        new(
-            FunctionKeyCommandIds.CommandHistory,
-            FunctionKeyLayer.Alt,
-            ConsoleKey.F8,
-            "History",
-            () => true,
-            () =>
-            {
-                HandleCommandHistory();
-                ResetFunctionKeyLayer();
-                return true;
-            }),
-        new(
-            FunctionKeyCommandIds.FileHistory,
-            FunctionKeyLayer.Alt,
-            ConsoleKey.F11,
-            "FHist",
-            () => true,
-            () =>
-            {
-                HandleFileHistory();
-                ResetFunctionKeyLayer();
-                return true;
-            }),
-        new(
-            FunctionKeyCommandIds.DirectoryHistory,
-            FunctionKeyLayer.Alt,
-            ConsoleKey.F12,
-            "DHist",
-            () => true,
-            () =>
-            {
-                HandleDirectoryHistory();
-                ResetFunctionKeyLayer();
-                return true;
-            }),
-        new(
-            FunctionKeyCommandIds.SortByName,
-            FunctionKeyLayer.Control,
-            ConsoleKey.F3,
-            "SortNm",
-            CanSortActivePanel,
-            () =>
-            {
-                SetPanelSortMode(ActiveState, SortMode.Name, VisibleRows());
-                return true;
-            }),
-        new(
-            FunctionKeyCommandIds.SortByExtension,
-            FunctionKeyLayer.Control,
-            ConsoleKey.F4,
-            "SortExt",
-            CanSortActivePanel,
-            () =>
-            {
-                SetPanelSortMode(ActiveState, SortMode.Extension, VisibleRows());
-                return true;
-            }),
-        new(
-            FunctionKeyCommandIds.SortByLastWriteTime,
-            FunctionKeyLayer.Control,
-            ConsoleKey.F5,
-            "SortTm",
-            CanSortActivePanel,
-            () =>
-            {
-                SetPanelSortMode(ActiveState, SortMode.LastWriteTime, VisibleRows());
-                return true;
-            }),
-        new(
-            FunctionKeyCommandIds.SortBySize,
-            FunctionKeyLayer.Control,
-            ConsoleKey.F6,
-            "SortSz",
-            CanSortActivePanel,
-            () =>
-            {
-                SetPanelSortMode(ActiveState, SortMode.Size, VisibleRows());
-                return true;
-            }),
-    ];
 
     private void PositionCommandCursor(CommandLineRenderer cmdRenderer, ConsoleSize size, int row)
     {
@@ -914,17 +740,17 @@ public sealed class Application
 
     // ── key handling ──────────────────────────────────────────────────────────
 
-    private FilePanelState ActiveState => _active == PanelSide.Left ? _left : _right;
+    internal FilePanelState ActiveState => _active == PanelSide.Left ? _left : _right;
 
     private PanelViewMode ActiveViewMode =>
         _active == PanelSide.Left ? _leftViewMode : _rightViewMode;
 
-    private int VisibleRows()
+    internal int VisibleRows()
     {
         return VisibleRows(ActiveViewMode);
     }
 
-    private int VisibleRows(PanelSide side)
+    internal int VisibleRows(PanelSide side)
     {
         var mode = side == PanelSide.Left ? _leftViewMode : _rightViewMode;
         return VisibleRows(mode);
@@ -1094,19 +920,33 @@ public sealed class Application
 
         // Ctrl+S: settings dialog
         if (IsPlainControlKey(key, ConsoleKey.S, '\u0013'))
-        {
-            HandleSettings();
-            return true;
-        }
+            return ExecuteRegisteredCommand(MenuCommandIds.SettingsOpenPanelSettings);
 
         // Alt+1 / Alt+2: view mode for active panel
         if ((key.Modifiers & ConsoleModifiers.Alt) != 0 &&
             (key.Modifiers & (ConsoleModifiers.Control | ConsoleModifiers.Shift)) == 0)
         {
             if (key.Key == ConsoleKey.D1 || key.Key == ConsoleKey.NumPad1)
-            { SetActiveViewMode(PanelViewMode.Full);            return true; }
+            {
+                return ExecuteRegisteredCommand(
+                    MenuCommandIds.PanelSetViewMode,
+                    new SetPanelViewModeArgs
+                    {
+                        PanelSide = _active,
+                        ViewMode = PanelViewMode.Full,
+                    });
+            }
+
             if (key.Key == ConsoleKey.D2 || key.Key == ConsoleKey.NumPad2)
-            { SetActiveViewMode(PanelViewMode.BriefTwoColumns); return true; }
+            {
+                return ExecuteRegisteredCommand(
+                    MenuCommandIds.PanelSetViewMode,
+                    new SetPanelViewModeArgs
+                    {
+                        PanelSide = _active,
+                        ViewMode = PanelViewMode.BriefTwoColumns,
+                    });
+            }
         }
 
         // Ctrl+Q: toggle quick view
@@ -1221,7 +1061,7 @@ public sealed class Application
                     return true;
 
                 if (_cmdLine.HasText) ExecuteCommand(_cmdLine.Text);
-                else OpenCurrentItem();
+                else ExecuteRegisteredCommand(ApplicationCommandIds.OpenCurrentItem);
                 return true;
 
             // ── Selection ────────────────────────────────────────────────────
@@ -1289,11 +1129,21 @@ public sealed class Application
         if (binding is null)
             return false;
 
-        shouldRender = binding.IsAvailable()
-            ? binding.Execute()
-            : binding.ExecuteUnavailable?.Invoke() ?? true;
+        if (!CanExecuteFunctionKeyCommand(binding.CommandId) && !binding.RunsWhenUnavailable)
+        {
+            shouldRender = true;
+            return true;
+        }
+
+        shouldRender = ExecuteRegisteredCommand(binding.CommandId);
         return true;
     }
+
+    private bool CanExecuteFunctionKeyCommand(string commandId) =>
+        _commandRegistry.CanExecute(commandId, _commandContext);
+
+    private bool ExecuteRegisteredCommand(string commandId, object? args = null) =>
+        _commandRegistry.Execute(commandId, _commandContext, args).ShouldRender;
 
     private bool HandleHiddenCommandLineKey(ConsoleKeyInfo key)
     {
@@ -1588,7 +1438,7 @@ public sealed class Application
         return true;
     }
 
-    private void HideCommandCompletion(bool temporarily)
+    internal void HideCommandCompletion(bool temporarily)
     {
         _commandCompletionVisible = false;
         _commandCompletionTemporarilyHidden = temporarily;
@@ -1620,7 +1470,7 @@ public sealed class Application
         return true;
     }
 
-    private void ResetHiddenCommandHistoryBrowsing()
+    internal void ResetHiddenCommandHistoryBrowsing()
     {
         _hiddenCommandHistoryIndex = null;
     }
@@ -1636,7 +1486,7 @@ public sealed class Application
             geometry.VisibleRows);
     }
 
-    private bool OpenTopMenu()
+    internal bool OpenTopMenu()
     {
         _menuController.HandleKey(
             new ConsoleKeyInfo('\0', ConsoleKey.F9, shift: false, alt: false, control: false),
@@ -1645,153 +1495,9 @@ public sealed class Application
         return true;
     }
 
-    private bool CanViewCurrentFile() =>
-        HasCapability(ActiveState, PanelProviderCapabilities.OpenRead);
+    internal FilePanelState PassiveState => _active == PanelSide.Left ? _right : _left;
 
-    private bool CanEditCurrentFile() =>
-        HasCapability(ActiveState, PanelProviderCapabilities.Edit);
-
-    private bool CanCopy() =>
-        HasCapability(ActiveState, PanelProviderCapabilities.CopyFrom) &&
-        HasCapability(PassiveState, PanelProviderCapabilities.CopyTo);
-
-    private bool CanMove() =>
-        HasCapability(ActiveState, PanelProviderCapabilities.MoveFrom) &&
-        HasCapability(PassiveState, PanelProviderCapabilities.MoveTo);
-
-    private bool CanDelete() =>
-        HasCapability(ActiveState, PanelProviderCapabilities.Delete);
-
-    private bool CanSortActivePanel() =>
-        HasCapability(ActiveState, PanelProviderCapabilities.Enumerate);
-
-    private FilePanelState PassiveState => _active == PanelSide.Left ? _right : _left;
-
-    // ── F4 — edit file ────────────────────────────────────────────────────────
-
-    private void HandleEditFile()
-    {
-        if (!HasCapability(ActiveState, PanelProviderCapabilities.Edit))
-        {
-            ShowReadOnlyPanelMessage("Edit");
-            return;
-        }
-
-        var item = _ctrl.CurrentItem(ActiveState);
-        if (item is null || item.IsParentDirectory || item.IsDirectory) return;
-        _history.AddFile(new FileHistoryItem { Path = item.FullPath });
-        new FileEditor(_screen, _palette).Show(item.FullPath);
-        SafeRefresh(ActiveState, VisibleRows());
-    }
-
-    // ── F3 — view file ────────────────────────────────────────────────────────
-
-    private void HandleViewFile()
-    {
-        if (!HasCapability(ActiveState, PanelProviderCapabilities.OpenRead))
-            return;
-
-        var item = _ctrl.CurrentItem(ActiveState);
-        if (item is null || item.IsParentDirectory || item.IsDirectory) return;
-        _history.AddFile(new FileHistoryItem { Path = item.FullPath });
-        new FileViewer(_screen, _palette).Show(item.FullPath);
-    }
-
-    // ── Alt+F11 — file history ────────────────────────────────────────────────
-
-    private void HandleFileHistory()
-    {
-        string? path = new FileHistoryDialog(_screen, _palette).Show(_history.GetFileHistory());
-        if (path is null) return;
-
-        if (!File.Exists(path))
-        {
-            new MessageDialog(_screen, _palette).Show("File History", $"File not found: {path}");
-            return;
-        }
-
-        var choice = new OpenFileDialog(_screen, _palette).Show(Path.GetFileName(path));
-        switch (choice)
-        {
-            case OpenFileChoice.View:
-                _history.AddFile(new FileHistoryItem { Path = path });
-                new FileViewer(_screen, _palette).Show(path);
-                break;
-            case OpenFileChoice.Edit:
-                _history.AddFile(new FileHistoryItem { Path = path });
-                new FileEditor(_screen, _palette).Show(path);
-                SafeRefresh(ActiveState, VisibleRows());
-                break;
-        }
-    }
-
-    // ── F2 — user menu ────────────────────────────────────────────────────────
-
-    private void HandleUserMenu()
-    {
-        if (_userMenu.Items.Count == 0)
-        {
-            new MessageDialog(_screen, _palette).Show(
-                "User Menu", "User menu is empty.\nEdit user-menu.json to add commands.");
-            return;
-        }
-
-        string? command = new UserMenuDialog(_screen, _palette).Show(_userMenu.Items);
-        if (command is null) return;
-
-        var item = _ctrl.CurrentItem(ActiveState);
-        string currentFile = item is { IsParentDirectory: false } ? item.FullPath : string.Empty;
-
-        IReadOnlyList<string> selected = ActiveState.SelectedPaths.Count > 0
-            ? [.. ActiveState.SelectedPaths]
-            : [];
-
-        string otherDir  = (_active == PanelSide.Left ? _right : _left).CurrentDirectory;
-        string expanded  = PlaceholderExpander.Expand(
-            command, currentFile, selected,
-            ActiveState.CurrentDirectory, otherDir);
-
-        ExecuteCommand(expanded);
-    }
-
-    // ── Alt+F7 — search files ─────────────────────────────────────────────────
-
-    private void HandleSearchFiles()
-    {
-        var request = new SearchDialog(_screen).Show(ActiveState.CurrentDirectory);
-        if (request is null) return;
-
-        SearchRunResult result;
-        try
-        {
-            result = new SearchProgressDialog(_screen, _searchService, _palette).Show(request);
-        }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or DirectoryNotFoundException or ArgumentException)
-        {
-            new MessageDialog(_screen, _palette).Show("Search", ex.Message);
-            return;
-        }
-
-        if (result.GoToResult is not null)
-        {
-            GoToSearchResult(ActiveState, _active, result.GoToResult);
-            return;
-        }
-
-        if (result.DiscardResults)
-            return;
-
-        if (result.Results.Count == 0)
-        {
-            string message = result.Cancelled ? "Search cancelled. No files found." : "No files found.";
-            new MessageDialog(_screen, _palette).Show("Search", message);
-            return;
-        }
-
-        OpenSearchResultsPanel(ActiveState, request, result.Results, result.Cancelled);
-    }
-
-    private void OpenSearchResultsPanel(
+    internal void OpenSearchResultsPanel(
         FilePanelState state,
         SearchRequest request,
         IReadOnlyList<SearchResultItem> results,
@@ -1824,7 +1530,7 @@ public sealed class Application
         StartWatching(state, side);
     }
 
-    private void GoToSearchResult(FilePanelState state, PanelSide side, SearchResultItem result)
+    internal void GoToSearchResult(FilePanelState state, PanelSide side, SearchResultItem result)
     {
         GoToSearchResult(
             state,
@@ -1834,7 +1540,7 @@ public sealed class Application
             result.Kind == SearchResultItemKind.Directory);
     }
 
-    private void GoToSearchResult(FilePanelState state, PanelSide side, FilePanelItem result)
+    internal void GoToSearchResult(FilePanelState state, PanelSide side, FilePanelItem result)
     {
         GoToSearchResult(
             state,
@@ -1900,17 +1606,7 @@ public sealed class Application
 
     // ── F5 — copy ─────────────────────────────────────────────────────────────
 
-    private IReadOnlyList<string> GetOperationSources()
-    {
-        if (ActiveState.SelectedPaths.Count > 0)
-            return [.. ActiveState.SelectedPaths];
-
-        var item = _ctrl.CurrentItem(ActiveState);
-        if (item is null || item.IsParentDirectory) return [];
-        return [item.FullPath];
-    }
-
-    private FileOperationOptions BuildFileOperationOptions() =>
+    internal FileOperationOptions BuildFileOperationOptions() =>
         new()
         {
             DefaultConflictDecision = ParseEnum(
@@ -1935,658 +1631,19 @@ public sealed class Application
             : fallback;
     }
 
-    private FileOperationResult ExecuteFileOperation(FileOperationRequest request)
-    {
-        var progressDialog = new ProgressDialog(_screen, request.Destination ?? string.Empty);
-        var conflictDialog = new ConflictDialog(_screen, _palette, request.Kind == FileOperationKind.Copy);
-        var cancelDialog = new OperationCancelDialog(_screen);
-        var resolver = new DialogConflictResolver(conflictDialog);
-        var pauseController = new FileOperationPauseController();
-        request = request with { PauseController = pauseController };
-        using var cts = new CancellationTokenSource();
-
-        FileOperationProgress? latestProgress = null;
-        var progress = new Progress<FileOperationProgress>(p =>
-        {
-            latestProgress = p;
-        });
-
-        FileOperationResult? completedResult = null;
-        Exception? completedException = null;
-        Task task = Task.Run(async () =>
-        {
-            try
-            {
-                completedResult = await _fileOps.ExecuteAsync(request, progress, resolver, cts.Token)
-                    .ConfigureAwait(false);
-            }
-            catch (Exception ex)
-            {
-                completedException = ex;
-            }
-        }, cts.Token);
-
-        FileOperationProgress? renderedProgress = null;
-        var lastRender = DateTime.MinValue;
-
-        while (!task.IsCompleted)
-        {
-            if (resolver.ShowPendingConflict())
-            {
-                renderedProgress = null;
-                lastRender = DateTime.MinValue;
-                continue;
-            }
-
-            if (latestProgress is not null &&
-                !ReferenceEquals(latestProgress, renderedProgress) &&
-                DateTime.UtcNow - lastRender >= TimeSpan.FromMilliseconds(120))
-            {
-                progressDialog.Update(latestProgress, _settings.FileOperations.ShowTotalProgress);
-                renderedProgress = latestProgress;
-                lastRender = DateTime.UtcNow;
-            }
-
-            if (TryReadConsoleKey(out var key))
-            {
-                if (key.Key == ConsoleKey.Escape)
-                {
-                    if (latestProgress?.Phase == FileOperationPhase.Scanning)
-                    {
-                        cts.Cancel();
-                    }
-                    else
-                    {
-                        pauseController.Pause();
-                        try
-                        {
-                            if (cancelDialog.Show())
-                                cts.Cancel();
-                        }
-                        finally
-                        {
-                            pauseController.Resume();
-                        }
-                    }
-
-                    renderedProgress = null;
-                    lastRender = DateTime.MinValue;
-                }
-            }
-
-            Thread.Sleep(30);
-        }
-
-        if (latestProgress is not null && !ReferenceEquals(latestProgress, renderedProgress))
-            progressDialog.Update(latestProgress, _settings.FileOperations.ShowTotalProgress);
-
-        if (task.IsCanceled)
-            throw new OperationCanceledException();
-        if (completedException is not null)
-            throw completedException;
-
-        FileOperationResult result = completedResult
-            ?? throw new InvalidOperationException("File operation did not return a result.");
-        if (result.Cancelled)
-            throw new OperationCanceledException();
-        if (result.Errors.Count > 0)
-            new MessageDialog(_screen, _palette).Show(
-                "File Operation",
-                $"{result.FailedCount} item(s) failed. First: {result.Errors[0].Message}");
-
-        return result;
-    }
-
-    private sealed class DialogConflictResolver : IFileOperationConflictResolver
-    {
-        private readonly ConflictDialog _dialog;
-        private readonly object _gate = new();
-        private PendingConflict? _pendingConflict;
-
-        public DialogConflictResolver(ConflictDialog dialog)
-        {
-            _dialog = dialog;
-        }
-
-        public bool ShowPendingConflict()
-        {
-            PendingConflict? pendingConflict;
-            lock (_gate)
-            {
-                pendingConflict = _pendingConflict;
-            }
-
-            if (pendingConflict is null)
-                return false;
-
-            var decision = _dialog.Show(pendingConflict.Conflict);
-
-            lock (_gate)
-            {
-                if (ReferenceEquals(_pendingConflict, pendingConflict))
-                    _pendingConflict = null;
-                Monitor.PulseAll(_gate);
-            }
-
-            pendingConflict.SetDecision(decision);
-            return true;
-        }
-
-        public FileOperationConflictDecision Resolve(FileOperationConflict conflict)
-        {
-            var pendingConflict = new PendingConflict(conflict);
-
-            lock (_gate)
-            {
-                while (_pendingConflict is not null)
-                    Monitor.Wait(_gate);
-
-                _pendingConflict = pendingConflict;
-                Monitor.PulseAll(_gate);
-            }
-
-            return pendingConflict.WaitForDecision();
-        }
-
-        private sealed class PendingConflict
-        {
-            private readonly ManualResetEventSlim _decisionReady = new();
-            private FileOperationConflictDecision? _decision;
-
-            public PendingConflict(FileOperationConflict conflict)
-            {
-                Conflict = conflict;
-            }
-
-            public FileOperationConflict Conflict { get; }
-
-            public void SetDecision(FileOperationConflictDecision decision)
-            {
-                _decision = decision;
-                _decisionReady.Set();
-            }
-
-            public FileOperationConflictDecision WaitForDecision()
-            {
-                _decisionReady.Wait();
-                return _decision
-                    ?? throw new InvalidOperationException("Conflict dialog closed without a decision.");
-            }
-        }
-    }
-
-    private sealed class FileOperationPauseController : IFileOperationPauseController
-    {
-        private readonly ManualResetEventSlim _canRun = new(initialState: true);
-
-        public void Pause() => _canRun.Reset();
-
-        public void Resume() => _canRun.Set();
-
-        public void WaitIfPaused(CancellationToken cancellationToken) =>
-            _canRun.Wait(cancellationToken);
-    }
-
-    private void HandleCopy()
-    {
-        if (!HasCapability(ActiveState, PanelProviderCapabilities.CopyFrom))
-        {
-            ShowReadOnlyPanelMessage("Copy");
-            return;
-        }
-
-        var targetState = _active == PanelSide.Left ? _right : _left;
-        if (!HasCapability(targetState, PanelProviderCapabilities.CopyTo))
-        {
-            new MessageDialog(_screen, _palette).Show(
-                "Copy",
-                "Cannot copy to search results panel.\nSearch results are read-only.");
-            return;
-        }
-
-        var sources = GetOperationSources();
-        if (sources.Count == 0) return;
-
-        var dialogResult = new FileOperationDialog(_screen).ShowCopy(
-            sources,
-            targetState.CurrentDirectory,
-            BuildFileOperationOptions());
-        if (dialogResult is null) return;
-
-        var size  = _screen.GetSize();
-        var saved = _screen.Capture(new Rect(0, 0, size.Width, size.Height));
-
-        try
-        {
-            ExecuteFileOperation(new FileOperationRequest
-            {
-                Kind = FileOperationKind.Copy,
-                Sources = sources,
-                Destination = dialogResult.Destination,
-                Options = dialogResult.Options,
-            });
-
-            ActiveState.SelectedPaths.Clear();
-        }
-        catch (OperationCanceledException) { }
-        catch (Exception ex)
-        {
-            _screen.Restore(saved);
-            new MessageDialog(_screen, _palette).Show("Copy Error", ex.Message);
-        }
-        finally
-        {
-            _screen.Restore(saved);
-        }
-
-        RefreshPanelsAfterFileOperation();
-    }
-
-    // ── F6 — move / rename ────────────────────────────────────────────────────
-
-    private void HandleMove()
-    {
-        if (!HasCapability(ActiveState, PanelProviderCapabilities.MoveFrom))
-        {
-            ShowReadOnlyPanelMessage("Move");
-            return;
-        }
-
-        var targetState = _active == PanelSide.Left ? _right : _left;
-        if (!HasCapability(targetState, PanelProviderCapabilities.MoveTo))
-        {
-            ShowReadOnlyPanelMessage("Move");
-            return;
-        }
-
-        var sources = GetOperationSources();
-        if (sources.Count == 0) return;
-
-        // Single item: pre-fill with its name (user edits to rename or enters a path to move).
-        // Multiple items: pre-fill with opposite panel dir (move destination).
-        string preFill = sources.Count == 1
-            ? Path.GetFileName(sources[0])
-            : targetState.CurrentDirectory;
-
-        var dialogResult = new FileOperationDialog(_screen).ShowMove(
-            sources,
-            preFill,
-            BuildFileOperationOptions());
-        if (dialogResult is null) return;
-
-        var size  = _screen.GetSize();
-        var saved = _screen.Capture(new Rect(0, 0, size.Width, size.Height));
-
-        try
-        {
-            ExecuteFileOperation(new FileOperationRequest
-            {
-                Kind = FileOperationKind.Move,
-                Sources = sources,
-                Destination = dialogResult.Destination,
-                Options = dialogResult.Options,
-            });
-
-            ActiveState.SelectedPaths.Clear();
-        }
-        catch (OperationCanceledException) { }
-        catch (Exception ex)
-        {
-            _screen.Restore(saved);
-            new MessageDialog(_screen, _palette).Show("Move Error", ex.Message);
-        }
-        finally
-        {
-            _screen.Restore(saved);
-        }
-
-        RefreshPanels();
-    }
-
-    // ── F8 — delete ───────────────────────────────────────────────────────────
-
-    private void HandleDelete()
-    {
-        if (!HasCapability(ActiveState, PanelProviderCapabilities.Delete))
-        {
-            ShowReadOnlyPanelMessage("Delete");
-            return;
-        }
-
-        var sources = GetOperationSources();
-        if (sources.Count == 0) return;
-
-        string itemName = sources.Count == 1
-            ? Path.GetFileName(sources[0])
-            : $"{sources.Count} items";
-
-        if (_settings.Ui.ConfirmDelete && !new ConfirmDialog(_screen).Show("Delete", "Do you wish to move to the Recycle Bin?", itemName))
-            return;
-
-        var size  = _screen.GetSize();
-        var saved = _screen.Capture(new Rect(0, 0, size.Width, size.Height));
-
-        try
-        {
-            ExecuteFileOperation(new FileOperationRequest
-            {
-                Kind = FileOperationKind.Delete,
-                Sources = sources,
-                Options = BuildFileOperationOptions() with
-                {
-                    UseRecycleBinForDelete = _settings.FileOperations.UseRecycleBinForDelete,
-                },
-            });
-            ActiveState.SelectedPaths.Clear();
-        }
-        catch (OperationCanceledException) { }
-        catch (Exception ex)
-        {
-            _screen.Restore(saved);
-            new MessageDialog(_screen, _palette).Show("Delete Error", ex.Message);
-        }
-        finally
-        {
-            _screen.Restore(saved);
-        }
-
-        RefreshPanels();
-    }
-
-    // ── Alt+F12 — directory history ───────────────────────────────────────────
-
-    private void HandleDirectoryHistory()
-    {
-        string? path = new DirectoryHistoryDialog(_screen, _palette).Show(_history.GetDirectoryHistory());
-        if (path is null) return;
-
-        if (!Directory.Exists(path))
-        {
-            new MessageDialog(_screen, _palette).Show("Directory History", $"Directory not found: {path}");
-            return;
-        }
-
-        try
-        {
-            _ctrl.LoadDirectory(ActiveState, path, PanelOptions);
-            StartWatching(ActiveState, _active);
-        }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
-        {
-            new MessageDialog(_screen, _palette).Show("Directory History", ex.Message);
-        }
-    }
-
-    // ── Alt+F1 / Alt+F2 — drive selection ────────────────────────────────────
-
-    private void HandleDriveSelect(PanelSide side)
-    {
-        var targetState = side == PanelSide.Left ? _left : _right;
-
-        var volumes = _volumeService?.GetVolumes() ?? [];
-        var items   = volumes
-            .Select(v => new VolumeSelectionItem
-            {
-                Label    = v.DisplayName,
-                Shortcut = v.Shortcut,
-                Volume   = v,
-                Action   = VolumeSelectionAction.OpenVolume,
-            })
-            .ToList();
-
-        int initialCursor = FindInitialCursor(items, targetState.CurrentDirectory);
-
-        var selected = new DriveDialog(_screen, _palette).Show(items, initialCursor);
-        if (selected is null) return;
-
-        var vol = selected.Volume!;
-
-        try
-        {
-            _ctrl.LoadDirectory(targetState, vol.RootPath, PanelOptions);
-            _history.AddDirectory(new DirectoryHistoryItem { Path = vol.RootPath });
-            _quickView = false;
-            _active    = side;
-            StartWatching(targetState, side);
-        }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
-        {
-            new MessageDialog(_screen, _palette).Show("Change drive", ex.Message);
-        }
-    }
-
-    /// <summary>
-    /// Returns the index of the item whose RootPath is the longest prefix of
-    /// <paramref name="currentDirectory"/>. Falls back to 0 if there is no match.
-    /// </summary>
-    private static int FindInitialCursor(List<VolumeSelectionItem> items, string currentDirectory)
-    {
-        int bestIdx = 0;
-        int bestLen = -1;
-
-        for (int i = 0; i < items.Count; i++)
-        {
-            string? root = items[i].Volume?.RootPath;
-            if (root is null) continue;
-
-            if (currentDirectory.StartsWith(root, StringComparison.OrdinalIgnoreCase) &&
-                root.Length > bestLen)
-            {
-                bestLen = root.Length;
-                bestIdx = i;
-            }
-        }
-
-        return bestIdx;
-    }
-
-    // ── Alt+F8 — command history ──────────────────────────────────────────────
-
-    private void HandleCommandHistory()
-    {
-        string? cmd = new HistoryDialog(_screen, _palette).Show(_history.GetCommandHistory());
-        if (cmd is not null)
-            _cmdLine.SetText(cmd);
-        HideCommandCompletion(temporarily: false);
-        ResetHiddenCommandHistoryBrowsing();
-    }
-
-    // ── F7 — create folder ────────────────────────────────────────────────────
-
-    private void HandleCreateFolder()
-    {
-        if (!HasCapability(ActiveState, PanelProviderCapabilities.CreateDirectory))
-        {
-            ShowReadOnlyPanelMessage("Create folder");
-            return;
-        }
-
-        var dialog = new CreateFolderDialog(_screen);
-        string? name = dialog.Show(validate: attempt =>
-        {
-            if (attempt.IndexOfAny(Path.GetInvalidPathChars()) >= 0)
-                return "Invalid characters in folder path.";
-
-            string newPath = Path.Combine(ActiveState.CurrentDirectory, attempt);
-            try
-            {
-                ExecuteFileOperation(new FileOperationRequest
-                {
-                    Kind = FileOperationKind.CreateDirectory,
-                    Sources = [],
-                    Destination = newPath,
-                    Options = BuildFileOperationOptions(),
-                });
-                return null;
-            }
-            catch (IOException ex)              { return ex.Message; }
-            catch (UnauthorizedAccessException) { return "Access denied."; }
-            catch (ArgumentException ex)        { return ex.Message; }
-        });
-
-        if (name is null) return;
-
-        int vr = VisibleRows();
-        SafeRefresh(ActiveState, vr);
-        _ctrl.SetCursorByName(ActiveState, FirstCreatedDirectoryName(name), vr);
-    }
-
-    private static string FirstCreatedDirectoryName(string path)
-    {
-        string trimmed = path.Trim(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
-        int separator = trimmed.IndexOfAny([Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar]);
-        return separator < 0 ? trimmed : trimmed[..separator];
-    }
-
-    // ── Ctrl+S — settings ─────────────────────────────────────────────────────
-
-    private void HandleSettings()
-    {
-        var result = new SettingsDialog(_screen).Show(
-            _leftViewMode, _rightViewMode,
-            _settings.Ui.Palette,
-            _settings.Panels.FileHighlighting.Enabled);
-
-        if (result is null) return;
-
-        _leftViewMode                              = result.LeftViewMode;
-        _rightViewMode                             = result.RightViewMode;
-        _settings.Panels.LeftViewMode              = result.LeftViewMode.ToString();
-        _settings.Panels.RightViewMode             = result.RightViewMode.ToString();
-        _settings.Ui.Palette                       = result.PaletteName;
-        _settings.Panels.FileHighlighting.Enabled  = result.FileHighlightingEnabled;
-        _palette          = PaletteRegistry.Resolve(result.PaletteName);
-        _highlightService = CreateHighlightService(_settings);
-        _ctrl.MoveCursor(_left,  0, VisibleRows(PanelSide.Left));
-        _ctrl.MoveCursor(_right, 0, VisibleRows(PanelSide.Right));
-        _saveSettings?.Invoke();
-    }
-
     private MenuCommandResult ExecuteMenuCommand(MenuCommandRequest request)
     {
-        switch (request.CommandId)
-        {
-            case MenuCommandIds.PanelSetViewMode:
-                if (request.Args is not SetPanelViewModeArgs viewArgs)
-                    return MenuCommandFailure("Missing panel view mode arguments.");
-                SetPanelViewMode(viewArgs.PanelSide, viewArgs.ViewMode);
-                return MenuCommandSuccess();
-
-            case MenuCommandIds.PanelSetSortMode:
-                if (request.Args is not SetPanelSortModeArgs sortArgs)
-                    return MenuCommandFailure("Missing panel sort arguments.");
-                SetPanelSortMode(
-                    GetPanelState(sortArgs.PanelSide),
-                    sortArgs.SortMode,
-                    VisibleRows(sortArgs.PanelSide));
-                return MenuCommandSuccess();
-
-            case MenuCommandIds.PanelToggleReverseSort:
-                if (request.Args is not PanelCommandArgs reverseArgs)
-                    return MenuCommandFailure("Missing panel arguments.");
-                ToggleReverseSort(reverseArgs.PanelSide);
-                return MenuCommandSuccess();
-
-            case MenuCommandIds.PanelRefresh:
-                if (request.Args is not PanelCommandArgs refreshArgs)
-                    return MenuCommandFailure("Missing panel arguments.");
-                SafeRefresh(GetPanelState(refreshArgs.PanelSide), VisibleRows(refreshArgs.PanelSide));
-                return MenuCommandSuccess();
-
-            case MenuCommandIds.SettingsOpenPanelSettings:
-                HandleSettings();
-                return MenuCommandSuccess();
-
-            case MenuCommandIds.SettingsToggleShowHiddenAndSystemFiles:
-                return ToggleSetting(() => PanelOptions.ShowHiddenAndSystemFiles = !PanelOptions.ShowHiddenAndSystemFiles);
-            case MenuCommandIds.SettingsToggleHighlightFiles:
-                return ToggleSetting(() =>
-                {
-                    _settings.Panels.FileHighlighting.Enabled = !_settings.Panels.FileHighlighting.Enabled;
-                    _highlightService = CreateHighlightService(_settings);
-                });
-            case MenuCommandIds.SettingsToggleSelectFolders:
-                return ToggleSetting(() => PanelOptions.SelectFolders = !PanelOptions.SelectFolders);
-            case MenuCommandIds.SettingsToggleRightClickSelectsFiles:
-                return ToggleSetting(() => PanelOptions.RightClickSelectsFiles = !PanelOptions.RightClickSelectsFiles);
-            case MenuCommandIds.SettingsToggleSortFoldersByExtension:
-                return ToggleSetting(() => PanelOptions.SortFoldersByExtension = !PanelOptions.SortFoldersByExtension);
-            case MenuCommandIds.SettingsToggleShowStatusLine:
-                return ToggleSetting(() => PanelOptions.ShowStatusLine = !PanelOptions.ShowStatusLine);
-            case MenuCommandIds.SettingsToggleShowFilesTotalInformation:
-                return ToggleSetting(() => PanelOptions.ShowFilesTotalInformation = !PanelOptions.ShowFilesTotalInformation);
-            case MenuCommandIds.SettingsToggleShowFreeSize:
-                return ToggleSetting(() => PanelOptions.ShowFreeSize = !PanelOptions.ShowFreeSize);
-            case MenuCommandIds.SettingsToggleShowSortModeLetter:
-                return ToggleSetting(() => PanelOptions.ShowSortModeLetter = !PanelOptions.ShowSortModeLetter);
-            case MenuCommandIds.SettingsToggleShowParentDirectoryInRootFolders:
-                return ToggleSetting(() => PanelOptions.ShowParentDirectoryInRootFolders = !PanelOptions.ShowParentDirectoryInRootFolders);
-            case MenuCommandIds.SettingsSave:
-                if (_saveSettings is null)
-                    return MenuCommandFailure("Settings save callback is not available.");
-                _saveSettings();
-                return MenuCommandSuccess();
-            default:
-                return MenuCommandFailure($"Unsupported menu command: {request.CommandId}");
-        }
+        return _commandRegistry
+            .Execute(request.CommandId, _commandContext, request.Args)
+            .ToMenuCommandResult();
     }
 
-    private void SetPanelViewMode(PanelSide side, PanelViewMode mode)
-    {
-        if (side == PanelSide.Left)
-        {
-            _leftViewMode = mode;
-            _settings.Panels.LeftViewMode = mode.ToString();
-        }
-        else
-        {
-            _rightViewMode = mode;
-            _settings.Panels.RightViewMode = mode.ToString();
-        }
-
-        _ctrl.MoveCursor(GetPanelState(side), 0, VisibleRows(side));
-        _saveSettings?.Invoke();
-    }
-
-    private void ToggleReverseSort(PanelSide side)
-    {
-        var state = GetPanelState(side);
-        state.SortDescending = !state.SortDescending;
-        if (state.SearchRequest is null)
-            SafeRefresh(state, VisibleRows(side));
-        else
-        {
-            SortVirtualPanel(state, _ctrl.CurrentItem(state)?.FullPath);
-            _ctrl.MoveCursor(state, 0, VisibleRows(side));
-        }
-    }
-
-    private MenuCommandResult ToggleSetting(Action toggle)
-    {
-        toggle();
-        RefreshPanels();
-        _saveSettings?.Invoke();
-        return MenuCommandSuccess();
-    }
-
-    private FilePanelState GetPanelState(PanelSide side) =>
+    internal FilePanelState GetPanelState(PanelSide side) =>
         side == PanelSide.Left ? _left : _right;
-
-    private static MenuCommandResult MenuCommandSuccess() => new() { Success = true };
-
-    private static MenuCommandResult MenuCommandFailure(string message) =>
-        new() { Success = false, ErrorMessage = message };
-
-    // ── Alt+1/Alt+2 — view mode ────────────────────────────────────────────────
-
-    private void SetActiveViewMode(PanelViewMode mode)
-    {
-        SetPanelViewMode(_active, mode);
-    }
 
     // ── file highlighting ─────────────────────────────────────────────────────
 
-    private static IFileHighlightService? CreateHighlightService(AppSettingsAlias settings)
+    internal static IFileHighlightService? CreateHighlightService(AppSettingsAlias settings)
     {
         var hs = settings.Panels.FileHighlighting;
         if (!hs.Enabled) return null;
@@ -2630,7 +1687,7 @@ public sealed class Application
 
     // ── shell execution ───────────────────────────────────────────────────────
 
-    private void ExecuteCommand(string command)
+    internal void ExecuteCommand(string command)
     {
         string workDir = ActiveState.CurrentDirectory;
         _cmdLine.Clear();
@@ -2646,7 +1703,7 @@ public sealed class Application
         });
     }
 
-    private void ExecuteInCurrentConsole(string workDir, string displayCommand, Action execute)
+    internal void ExecuteInCurrentConsole(string workDir, string displayCommand, Action execute)
     {
         bool showPanelsAfterCommand = _panelsVisible;
 
@@ -2758,15 +1815,7 @@ public sealed class Application
 
     // ── navigation helpers ────────────────────────────────────────────────────
 
-    private void OpenCurrentItem()
-    {
-        var item = _ctrl.CurrentItem(ActiveState);
-        if (item is null) return;
-
-        OpenPanelItem(ActiveState, _active, item);
-    }
-
-    private void OpenPanelItem(FilePanelState state, PanelSide side, FilePanelItem item)
+    internal void OpenPanelItem(FilePanelState state, PanelSide side, FilePanelItem item)
     {
         if (state.SearchRequest is not null)
         {
@@ -2850,13 +1899,13 @@ public sealed class Application
         }
     }
 
-    private void RefreshPanels()
+    internal void RefreshPanels()
     {
         SafeRefresh(_left,  VisibleRows(PanelSide.Left));
         SafeRefresh(_right, VisibleRows(PanelSide.Right));
     }
 
-    private void RefreshPanelsAfterFileOperation()
+    internal void RefreshPanelsAfterFileOperation()
     {
         RefreshPanelAfterFileOperation(_left, PanelSide.Left);
         RefreshPanelAfterFileOperation(_right, PanelSide.Right);
@@ -2934,7 +1983,7 @@ public sealed class Application
     private PanelSide PanelSideForState(FilePanelState state) =>
         ReferenceEquals(state, _left) ? PanelSide.Left : PanelSide.Right;
 
-    private void SafeRefresh(FilePanelState state, int visibleRows)
+    internal void SafeRefresh(FilePanelState state, int visibleRows)
     {
         if (!HasCapability(state, PanelProviderCapabilities.Refresh))
             return;
@@ -2950,7 +1999,7 @@ public sealed class Application
         catch { }
     }
 
-    private void SetPanelSortMode(FilePanelState state, SortMode mode, int visibleRows)
+    internal void SetPanelSortMode(FilePanelState state, SortMode mode, int visibleRows)
     {
         if (state.SearchRequest is null)
         {
@@ -2971,7 +2020,7 @@ public sealed class Application
         _ctrl.MoveCursor(state, 0, visibleRows);
     }
 
-    private void SortVirtualPanel(FilePanelState state, string? keepCursorPath)
+    internal void SortVirtualPanel(FilePanelState state, string? keepCursorPath)
     {
         var sortOptions = new PanelSortOptions
         {
@@ -3032,7 +2081,7 @@ public sealed class Application
         };
     }
 
-    private static bool HasCapability(FilePanelState state, PanelProviderCapabilities capability) =>
+    internal static bool HasCapability(FilePanelState state, PanelProviderCapabilities capability) =>
         (state.ProviderCapabilities & capability) == capability;
 
     private static bool TryReadConsoleKey(out ConsoleKeyInfo key)
@@ -3053,7 +2102,10 @@ public sealed class Application
         return false;
     }
 
-    private void ShowReadOnlyPanelMessage(string action)
+    internal ConsoleKeyInfo? TryReadConsoleKeyForCommand() =>
+        TryReadConsoleKey(out var key) ? key : null;
+
+    internal void ShowReadOnlyPanelMessage(string action)
     {
         new MessageDialog(_screen, _palette).Show(
             action,
@@ -3062,7 +2114,7 @@ public sealed class Application
 
     // ── auto-refresh ──────────────────────────────────────────────────────────
 
-    private void StartWatching(FilePanelState state, PanelSide side)
+    internal void StartWatching(FilePanelState state, PanelSide side)
     {
         if (_watcher == null || _locationService == null) return;
         if (!HasCapability(state, PanelProviderCapabilities.Watch))

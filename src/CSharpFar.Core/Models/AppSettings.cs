@@ -12,14 +12,12 @@ public sealed class AppSettings
 
     public sealed class UiSettings
     {
-        public string Theme         { get; set; } = "classic-blue";
         public bool   ConfirmDelete { get; set; } = true;
         public string Palette       { get; set; } = "Default";
     }
 
     public sealed class ShellSettings
     {
-        public string Kind            { get; set; } = "cmd";
         public string Executable      { get; set; } = "cmd.exe";
         public string ArgumentsFormat { get; set; } = "/c {0}";
     }
