@@ -52,7 +52,7 @@ public sealed class Application
     private int           _commandCompletionSelectedIndex;
     private int           _commandCompletionFirstVisibleIndex;
     private ScrollBarDragState? _commandCompletionScrollbarDrag;
-    private int?          _hiddenCommandHistoryIndex;
+    private int?          _commandHistoryNavigationIndex;
     private bool          _quickView     = false;
     private ConsoleViewport? _lastRenderViewport;
     private ScreenSnapshot? _underlay;          // last known screen content before panels
@@ -89,6 +89,12 @@ public sealed class Application
         None,
         OriginOnly,
         Size,
+    }
+
+    private enum CommandHistoryNavigationStart
+    {
+        Oldest,
+        Newest,
     }
 
     public Application(
@@ -625,6 +631,41 @@ public sealed class Application
                 key.KeyChar == controlChar);
     }
 
+    private static bool IsPlainControlEnter(ConsoleKeyInfo key) =>
+        HasOnlyControlModifier(key) && key.Key == ConsoleKey.Enter;
+
+    private static bool IsPlainControlOpenBracket(ConsoleKeyInfo key) =>
+        IsPlainControlBracket(key, ConsoleKey.Oem4, '[', '\u001b');
+
+    private static bool IsPlainControlCloseBracket(ConsoleKeyInfo key) =>
+        IsPlainControlBracket(key, ConsoleKey.Oem6, ']', '\u001d');
+
+    private static bool IsPlainControlBracket(
+        ConsoleKeyInfo key,
+        ConsoleKey consoleKey,
+        char printableChar,
+        char controlChar)
+    {
+        if (!HasOnlyControlModifier(key))
+            return false;
+
+        return key.Key == consoleKey ||
+               key.KeyChar == printableChar ||
+               (key.Key != ConsoleKey.Escape && key.KeyChar == controlChar);
+    }
+
+    private static bool HasOnlyControlModifier(ConsoleKeyInfo key)
+    {
+        bool hasControl = (key.Modifiers & ConsoleModifiers.Control) != 0;
+        bool hasAlt     = (key.Modifiers & ConsoleModifiers.Alt)     != 0;
+        bool hasShift   = (key.Modifiers & ConsoleModifiers.Shift)   != 0;
+
+        return hasControl && !hasAlt && !hasShift;
+    }
+
+    private static string QuoteCommandLineInsertion(string text) =>
+        text.Contains(' ') ? $"\"{text}\"" : text;
+
     private bool SetFunctionKeyLayer(ConsoleModifiers modifiers)
     {
         var layer = FunctionKeyLayerResolver.ResolvePressedLayer(modifiers);
@@ -696,7 +737,7 @@ public sealed class Application
     {
         _panelsVisible = !_panelsVisible;
         HideCommandCompletion(temporarily: false);
-        ResetHiddenCommandHistoryBrowsing();
+        ResetCommandHistoryNavigation();
 
         if (!_panelsVisible)
         {
@@ -914,6 +955,9 @@ public sealed class Application
         // Ctrl+O: toggle panels — check before printable-char routing
         if (IsPlainControlKey(key, ConsoleKey.O, '\u000f'))
             return TogglePanels();
+
+        if (TryHandleFarCommandLineShortcut(key))
+            return true;
 
         if (!_panelsVisible)
             return HandleHiddenCommandLineKey(key);
@@ -1145,56 +1189,115 @@ public sealed class Application
     private bool ExecuteRegisteredCommand(string commandId, object? args = null) =>
         _commandRegistry.Execute(commandId, _commandContext, args).ShouldRender;
 
+    private bool TryHandleFarCommandLineShortcut(ConsoleKeyInfo key)
+    {
+        if (IsPlainControlKey(key, ConsoleKey.E, '\u0005'))
+            return BrowseCommandHistory(-1, CommandHistoryNavigationStart.Newest);
+
+        if (IsPlainControlKey(key, ConsoleKey.X, '\u0018'))
+            return BrowseCommandHistory(+1, CommandHistoryNavigationStart.Newest);
+
+        if (IsPlainControlKey(key, ConsoleKey.F, '\u0006'))
+            return InsertCurrentItemFullPathIntoCommandLine();
+
+        if (IsPlainControlEnter(key))
+            return InsertCurrentItemNameIntoCommandLine();
+
+        if (IsPlainControlOpenBracket(key))
+            return InsertPanelCurrentDirectoryIntoCommandLine(_right);
+
+        if (IsPlainControlCloseBracket(key))
+            return InsertPanelCurrentDirectoryIntoCommandLine(_left);
+
+        return false;
+    }
+
+    private bool InsertCurrentItemNameIntoCommandLine()
+    {
+        var item = _ctrl.CurrentItem(ActiveState);
+        if (item is null)
+            return true;
+
+        InsertTextIntoCommandLine(item.Name);
+        return true;
+    }
+
+    private bool InsertCurrentItemFullPathIntoCommandLine()
+    {
+        var item = _ctrl.CurrentItem(ActiveState);
+        if (item is null)
+            return true;
+
+        InsertTextIntoCommandLine(item.FullPath);
+        return true;
+    }
+
+    private bool InsertPanelCurrentDirectoryIntoCommandLine(FilePanelState state)
+    {
+        InsertTextIntoCommandLine(state.CurrentDirectory);
+        return true;
+    }
+
+    private void InsertTextIntoCommandLine(string text)
+    {
+        _cmdLine.InsertText(QuoteCommandLineInsertion(text));
+
+        if (_panelsVisible)
+            OnVisibleCommandLineTextEdited();
+        else
+            ResetCommandHistoryNavigation();
+    }
+
     private bool HandleHiddenCommandLineKey(ConsoleKeyInfo key)
     {
         switch (key.Key)
         {
             case ConsoleKey.LeftArrow:
-                ResetHiddenCommandHistoryBrowsing();
+                ResetCommandHistoryNavigation();
                 _cmdLine.MoveCursor(-1);
                 return true;
 
             case ConsoleKey.RightArrow:
-                ResetHiddenCommandHistoryBrowsing();
+                ResetCommandHistoryNavigation();
                 _cmdLine.MoveCursor(+1);
                 return true;
 
             case ConsoleKey.Home:
-                ResetHiddenCommandHistoryBrowsing();
+                ResetCommandHistoryNavigation();
                 _cmdLine.MoveToStart();
                 return true;
 
             case ConsoleKey.End:
-                ResetHiddenCommandHistoryBrowsing();
+                ResetCommandHistoryNavigation();
                 _cmdLine.MoveToEnd();
                 return true;
 
             case ConsoleKey.Delete:
-                ResetHiddenCommandHistoryBrowsing();
+                ResetCommandHistoryNavigation();
                 _cmdLine.DeleteForward();
                 return true;
 
             case ConsoleKey.Backspace:
-                ResetHiddenCommandHistoryBrowsing();
+                ResetCommandHistoryNavigation();
                 _cmdLine.DeleteBack();
                 return true;
 
             case ConsoleKey.Escape:
-                ResetHiddenCommandHistoryBrowsing();
+                ResetCommandHistoryNavigation();
                 _cmdLine.Clear();
                 return true;
 
             case ConsoleKey.Enter:
-                ResetHiddenCommandHistoryBrowsing();
+                ResetCommandHistoryNavigation();
                 if (_cmdLine.HasText)
                     ExecuteCommand(_cmdLine.Text);
                 return true;
 
             case ConsoleKey.UpArrow:
-                return BrowseHiddenCommandHistory(-1);
+                return BrowseCommandHistory(-1, CommandHistoryNavigationStart.Newest);
 
             case ConsoleKey.DownArrow:
-                return BrowseHiddenCommandHistory(+1);
+                return BrowseCommandHistory(+1, CommandHistoryNavigationStart.Oldest);
 
             case ConsoleKey.F10:
                 _running = false;
@@ -1205,7 +1308,7 @@ public sealed class Application
             (key.Modifiers & (ConsoleModifiers.Control | ConsoleModifiers.Alt)) == 0;
         if (isPrintable)
         {
-            ResetHiddenCommandHistoryBrowsing();
+            ResetCommandHistoryNavigation();
             _cmdLine.Insert(key.KeyChar);
             return true;
         }
@@ -1292,7 +1395,7 @@ public sealed class Application
 
     private void OnVisibleCommandLineTextEdited()
     {
-        ResetHiddenCommandHistoryBrowsing();
+        ResetCommandHistoryNavigation();
         _commandCompletionTemporarilyHidden = false;
         RefreshCommandCompletion();
     }
@@ -1425,7 +1528,7 @@ public sealed class Application
 
         _cmdLine.SetText(_commandCompletionMatches[_commandCompletionSelectedIndex]);
         HideCommandCompletion(temporarily: false);
-        ResetHiddenCommandHistoryBrowsing();
+        ResetCommandHistoryNavigation();
         return true;
     }
 
@@ -1448,31 +1551,34 @@ public sealed class Application
         _commandCompletionScrollbarDrag = null;
     }
 
-    private bool BrowseHiddenCommandHistory(int direction)
+    private bool BrowseCommandHistory(int direction, CommandHistoryNavigationStart start)
     {
         var history = _history.GetCommandHistory();
         if (history.Count == 0)
             return true;
 
-        if (_hiddenCommandHistoryIndex is null)
+        if (_commandHistoryNavigationIndex is null)
         {
-            _hiddenCommandHistoryIndex = direction < 0 ? history.Count - 1 : 0;
+            _commandHistoryNavigationIndex = start == CommandHistoryNavigationStart.Newest
+                ? history.Count - 1
+                : 0;
         }
         else
         {
-            _hiddenCommandHistoryIndex = Math.Clamp(
-                _hiddenCommandHistoryIndex.Value + direction,
+            _commandHistoryNavigationIndex = Math.Clamp(
+                _commandHistoryNavigationIndex.Value + direction,
                 0,
                 history.Count - 1);
         }
 
-        _cmdLine.SetText(history[_hiddenCommandHistoryIndex.Value].Command);
+        _cmdLine.SetText(history[_commandHistoryNavigationIndex.Value].Command);
+        HideCommandCompletion(temporarily: false);
         return true;
     }
 
-    internal void ResetHiddenCommandHistoryBrowsing()
+    internal void ResetCommandHistoryNavigation()
     {
-        _hiddenCommandHistoryIndex = null;
+        _commandHistoryNavigationIndex = null;
     }
 
     private void MovePanelColumn(int direction)
@@ -1692,7 +1798,7 @@ public sealed class Application
         string workDir = ActiveState.CurrentDirectory;
         _cmdLine.Clear();
         HideCommandCompletion(temporarily: false);
-        ResetHiddenCommandHistoryBrowsing();
+        ResetCommandHistoryNavigation();
 
         ExecuteInCurrentConsole(workDir, command, () => _shell.Execute(command, workDir));
 

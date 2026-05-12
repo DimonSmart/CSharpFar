@@ -163,8 +163,8 @@ internal sealed class ApplicationCommandContext
     public void HideCommandCompletion(bool temporarily) =>
         _application.HideCommandCompletion(temporarily);
 
-    public void ResetHiddenCommandHistoryBrowsing() =>
-        _application.ResetHiddenCommandHistoryBrowsing();
+    public void ResetCommandHistoryNavigation() =>
+        _application.ResetCommandHistoryNavigation();
 
     public bool OpenTopMenu() => _application.OpenTopMenu();
 

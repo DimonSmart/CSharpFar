@@ -14,6 +14,12 @@ public sealed class CommandLineState
         CursorPosition++;
     }
 
+    public void InsertText(string text)
+    {
+        _buffer.InsertRange(CursorPosition, text);
+        CursorPosition += text.Length;
+    }
+
     /// <summary>Backspace — deletes the character to the left of the cursor.</summary>
     public void DeleteBack()
     {

@@ -30,6 +30,19 @@ public class CommandLineStateTests
     }
 
     [Fact]
+    public void InsertText_InsertsAtCursor()
+    {
+        var s = new CommandLineState();
+        s.SetText("ac");
+        s.MoveCursor(-1);
+
+        s.InsertText("b1");
+
+        Assert.Equal("ab1c", s.Text);
+        Assert.Equal(3, s.CursorPosition);
+    }
+
+    [Fact]
     public void DeleteBack_RemovesCharBeforeCursor()
     {
         var s = new CommandLineState();

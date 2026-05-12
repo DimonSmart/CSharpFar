@@ -18,7 +18,7 @@ internal sealed class CommandHistoryCommand : IApplicationCommand
                 context.CommandLine.SetText(command);
 
             context.HideCommandCompletion(temporarily: false);
-            context.ResetHiddenCommandHistoryBrowsing();
+            context.ResetCommandHistoryNavigation();
             return ApplicationCommandResult.Rendered();
         }
         finally
