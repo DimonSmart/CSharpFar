@@ -216,7 +216,8 @@ public sealed class Application
                     case KeyConsoleInputEvent { Key: var key }:
                     {
                         bool scrolledHiddenViewport = ScrollHiddenViewportToBottomForInput();
-                        shouldRender = HandleKey(key) || scrolledHiddenViewport;
+                        bool functionKeyLayerChanged = SetFunctionKeyLayer(key.Modifiers);
+                        shouldRender = HandleKey(key) || scrolledHiddenViewport || functionKeyLayerChanged;
                         break;
                     }
                     case ModifierKeyConsoleInputEvent { Modifiers: var modifiers }:

@@ -1,10 +1,19 @@
 using System.Runtime.InteropServices;
+using System.Runtime.Versioning;
 using CSharpFar.Console.Win32;
 
 namespace CSharpFar.Tests;
 
 public sealed class Win32ConsoleInputLayoutTests
 {
+    private const ushort VkShift = 0x10;
+    private const ushort VkControl = 0x11;
+    private const ushort VkMenu = 0x12;
+    private const ushort VkLeftMenu = 0xA4;
+    private const ushort VkRightMenu = 0xA5;
+    private const uint RightAltPressed = 0x0001;
+    private const uint LeftCtrlPressed = 0x0008;
+
     [Fact]
     public void KeyEventRecord_MatchesWin32Layout()
     {
@@ -24,6 +33,81 @@ public sealed class Win32ConsoleInputLayoutTests
         Assert.Equal(0, OffsetOf<InputRecord>(nameof(InputRecord.EventType)));
         Assert.Equal(4, OffsetOf<InputRecord>(nameof(InputRecord.KeyEvent)));
         Assert.Equal(4, OffsetOf<InputRecord>(nameof(InputRecord.MouseEvent)));
+    }
+
+    [Theory]
+    [InlineData(VkShift, ConsoleModifiers.Shift)]
+    [InlineData(VkControl, ConsoleModifiers.Control)]
+    [InlineData(VkMenu, ConsoleModifiers.Alt)]
+    [InlineData(VkLeftMenu, ConsoleModifiers.Alt)]
+    [InlineData(VkRightMenu, ConsoleModifiers.Alt)]
+    [SupportedOSPlatform("windows")]
+    public void GetKeyEventModifiers_ModifierKeyDownIncludesVirtualKey(
+        ushort virtualKeyCode,
+        ConsoleModifiers expectedModifier)
+    {
+        var keyEvent = new KeyEventRecord
+        {
+            KeyDown = 1,
+            VirtualKeyCode = virtualKeyCode,
+            ControlKeyState = 0,
+        };
+
+        Assert.Equal(expectedModifier, Win32ConsoleApi.GetKeyEventModifiers(keyEvent));
+    }
+
+    [Fact]
+    [SupportedOSPlatform("windows")]
+    public void GetKeyEventModifiers_ModifierKeyUpDoesNotAddReleasedVirtualKey()
+    {
+        var keyEvent = new KeyEventRecord
+        {
+            KeyDown = 0,
+            VirtualKeyCode = VkMenu,
+            ControlKeyState = 0,
+        };
+
+        Assert.Equal(default(ConsoleModifiers), Win32ConsoleApi.GetKeyEventModifiers(keyEvent));
+    }
+
+    [Fact]
+    [SupportedOSPlatform("windows")]
+    public void GetKeyEventModifiers_RightAltWithSyntheticLeftControlIsAlt()
+    {
+        var keyEvent = new KeyEventRecord
+        {
+            KeyDown = 1,
+            VirtualKeyCode = VkRightMenu,
+            ControlKeyState = RightAltPressed | LeftCtrlPressed,
+        };
+
+        Assert.Equal(ConsoleModifiers.Alt, Win32ConsoleApi.GetKeyEventModifiers(keyEvent));
+    }
+
+    [Fact]
+    [SupportedOSPlatform("windows")]
+    public void TryCreateModifierStateChangeEvent_EmitsOnlyWhenStateChanges()
+    {
+        var lastState = default(ConsoleModifiers);
+
+        bool changed = Win32ModifierKeyTracker.TryCreateModifierStateChangeEvent(
+            ref lastState,
+            ConsoleModifiers.Alt,
+            out var inputEvent);
+
+        Assert.True(changed);
+        Assert.NotNull(inputEvent);
+        Assert.Equal(ConsoleModifiers.Alt, inputEvent.Modifiers);
+        Assert.Equal(ConsoleModifiers.Alt, lastState);
+
+        changed = Win32ModifierKeyTracker.TryCreateModifierStateChangeEvent(
+            ref lastState,
+            ConsoleModifiers.Alt,
+            out inputEvent);
+
+        Assert.False(changed);
+        Assert.Null(inputEvent);
+        Assert.Equal(ConsoleModifiers.Alt, lastState);
     }
 
     private static int OffsetOf<T>(string fieldName) =>

@@ -50,6 +50,25 @@ public sealed class Spec013FunctionKeyBarTests : IDisposable
     }
 
     [Fact]
+    public void Run_KeyEventWithAltModifierSwitchesFunctionKeyBarLayer()
+    {
+        var fs = CreateFileSystem();
+        var driver = new FakeConsoleDriver(width: 100, height: 14);
+        driver.EnqueueKey(Key(ConsoleKey.NoName, alt: true));
+        driver.EnqueueKey(Key(ConsoleKey.F10));
+
+        var app = CreateApp(fs, driver);
+        app.Run();
+
+        var bottomWrites = driver.WriteRecords
+            .Where(record => record.Y == 13)
+            .Select(record => record.Text)
+            .ToArray();
+
+        Assert.Contains(bottomWrites, text => text.Contains("Search", StringComparison.Ordinal));
+    }
+
+    [Fact]
     public void Run_ModifierOnlyEventsDoNotInsertCommandText()
     {
         var fs = CreateFileSystem();
@@ -76,6 +95,19 @@ public sealed class Spec013FunctionKeyBarTests : IDisposable
             ConsoleModifiers.Shift,
             out var layer));
         Assert.Equal(FunctionKeyLayer.Shift, layer);
+    }
+
+    [Fact]
+    public void FunctionKeyLayerResolver_CtrlAltUsesPlainLayer()
+    {
+        Assert.Equal(
+            FunctionKeyLayer.Plain,
+            FunctionKeyLayerResolver.ResolvePressedLayer(
+                ConsoleModifiers.Alt | ConsoleModifiers.Control));
+
+        Assert.False(FunctionKeyLayerResolver.TryResolveChordLayer(
+            ConsoleModifiers.Alt | ConsoleModifiers.Control,
+            out _));
     }
 
     [Fact]
@@ -192,8 +224,8 @@ public sealed class Spec013FunctionKeyBarTests : IDisposable
         return new string(row);
     }
 
-    private static ConsoleKeyInfo Key(ConsoleKey key, bool control = false) =>
-        new('\0', key, shift: false, alt: false, control: control);
+    private static ConsoleKeyInfo Key(ConsoleKey key, bool control = false, bool alt = false) =>
+        new('\0', key, shift: false, alt: alt, control: control);
 
     private static FilePanelState GetLeftPanel(Application app)
     {

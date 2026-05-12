@@ -8,7 +8,6 @@ namespace CSharpFar.Console.Win32;
 [SupportedOSPlatform("windows")]
 internal static class Win32ConsoleApi
 {
-    public const uint ENABLE_PROCESSED_INPUT    = 0x0001;
     public const uint ENABLE_MOUSE_INPUT        = 0x0010;
     public const uint ENABLE_INSERT_MODE        = 0x0020;
     public const uint ENABLE_QUICK_EDIT_MODE    = 0x0040;
@@ -72,6 +71,11 @@ internal static class Win32ConsoleApi
         uint nLength,
         out uint lpNumberOfEventsRead);
 
+    [DllImport("kernel32.dll", SetLastError = true)]
+    private static extern bool GetNumberOfConsoleInputEvents(
+        IntPtr hConsoleInput,
+        out uint lpcNumberOfEvents);
+
     [DllImport("kernel32.dll", EntryPoint = "ReadConsoleOutputW", ExactSpelling = true, SetLastError = true)]
     private static extern bool ReadConsoleOutput(
         IntPtr hConsoleOutput,
@@ -134,7 +138,7 @@ internal static class Win32ConsoleApi
         SetConsoleMode(handle, mode);
 
     /// <summary>
-    /// Reads the next input event, blocking up to 250 ms at a time so that
+    /// Reads the next input event, blocking in short waits so that
     /// a <see cref="CancellationToken"/> can interrupt the wait.
     /// Skips events that produce no logical event (mouse moves, key-ups, etc.).
     /// </summary>
@@ -142,15 +146,19 @@ internal static class Win32ConsoleApi
         IntPtr inputHandle,
         bool intercept,
         CancellationToken cancellationToken,
+        Win32ModifierKeyTracker? modifierKeyTracker = null,
         Func<bool>? hasVisibleViewportChanged = null)
     {
         while (true)
         {
             cancellationToken.ThrowIfCancellationRequested();
 
+            if (TryCreateModifierInputEvent(modifierKeyTracker, out var modifierEvent))
+                return modifierEvent;
+
             if (HasPendingRecord())
             {
-                var pendingEvt = TryReadInputRecord(inputHandle, intercept);
+                var pendingEvt = TryReadInputRecord(inputHandle, intercept, modifierKeyTracker);
                 if (pendingEvt != null)
                     return pendingEvt;
                 if (hasVisibleViewportChanged?.Invoke() == true)
@@ -158,22 +166,26 @@ internal static class Win32ConsoleApi
                 continue;
             }
 
-            uint result = WaitForSingleObject(inputHandle, 250);
+            uint result = WaitForSingleObject(inputHandle, 30);
 
             if (cancellationToken.IsCancellationRequested)
                 throw new OperationCanceledException(cancellationToken);
 
             if (result == WAIT_TIMEOUT)
             {
+                if (TryCreateModifierInputEvent(modifierKeyTracker, out modifierEvent))
+                    return modifierEvent;
                 if (hasVisibleViewportChanged?.Invoke() == true)
                     return new ConsoleResizeInputEvent();
                 continue;
             }
 
             // Input event available
-            var evt = TryReadInputRecord(inputHandle, intercept);
+            var evt = TryReadInputRecord(inputHandle, intercept, modifierKeyTracker);
             if (evt != null)
                 return evt;
+            if (TryCreateModifierInputEvent(modifierKeyTracker, out modifierEvent))
+                return modifierEvent;
             if (hasVisibleViewportChanged?.Invoke() == true)
                 return new ConsoleResizeInputEvent();
             // null = irrelevant event (move, key-up) – loop again
@@ -183,25 +195,35 @@ internal static class Win32ConsoleApi
     public static bool TryReadInput(
         IntPtr inputHandle,
         bool intercept,
-        [NotNullWhen(true)] out ConsoleInputEvent? inputEvent)
+        [NotNullWhen(true)] out ConsoleInputEvent? inputEvent,
+        Win32ModifierKeyTracker? modifierKeyTracker = null)
     {
         while (TryReadNextRecordWithTimeout(inputHandle, 0, out var record))
         {
             inputEvent = ParseInputRecord(inputHandle, intercept, record, parseVirtualTerminal: false);
             if (inputEvent is not null)
+            {
+                modifierKeyTracker?.ObserveConsoleInput(inputEvent);
                 return true;
+            }
         }
 
         inputEvent = null;
         return false;
     }
 
-    private static ConsoleInputEvent? TryReadInputRecord(IntPtr inputHandle, bool intercept)
+    private static ConsoleInputEvent? TryReadInputRecord(
+        IntPtr inputHandle,
+        bool intercept,
+        Win32ModifierKeyTracker? modifierKeyTracker)
     {
         if (!TryReadNextRecord(inputHandle, out var record))
             return null;
 
-        return ParseInputRecord(inputHandle, intercept, record);
+        var inputEvent = ParseInputRecord(inputHandle, intercept, record);
+        if (inputEvent is not null)
+            modifierKeyTracker?.ObserveConsoleInput(inputEvent);
+        return inputEvent;
     }
 
     private static ConsoleInputEvent? ParseInputRecord(
@@ -217,11 +239,11 @@ internal static class Win32ConsoleApi
             return ParseMouseEvent(record.MouseEvent);
 
         if (record.EventType == KEY_EVENT && IsModifierKey(record.KeyEvent.VirtualKeyCode))
-            return new ModifierKeyConsoleInputEvent(GetModifiers(record.KeyEvent.ControlKeyState));
+            return new ModifierKeyConsoleInputEvent(GetKeyEventModifiers(record.KeyEvent));
 
         if (record.EventType == KEY_EVENT && record.KeyEvent.IsKeyDown)
         {
-            var modifiers = GetModifiers(record.KeyEvent.ControlKeyState);
+            var modifiers = GetKeyEventModifiers(record.KeyEvent);
             var key = Enum.IsDefined(typeof(ConsoleKey), (int)record.KeyEvent.VirtualKeyCode)
                 ? (ConsoleKey)record.KeyEvent.VirtualKeyCode
                 : ConsoleKey.NoName;
@@ -321,7 +343,7 @@ internal static class Win32ConsoleApi
             if (record.EventType != KEY_EVENT || !record.KeyEvent.IsKeyDown)
                 continue;
 
-            var modifiers = GetModifiers(record.KeyEvent.ControlKeyState);
+            var modifiers = GetKeyEventModifiers(record.KeyEvent);
             var key = Enum.IsDefined(typeof(ConsoleKey), (int)record.KeyEvent.VirtualKeyCode)
                 ? (ConsoleKey)record.KeyEvent.VirtualKeyCode
                 : ConsoleKey.NoName;
@@ -359,6 +381,12 @@ internal static class Win32ConsoleApi
         if (TryDequeuePendingRecord(out record))
             return true;
 
+        if (!HasAvailableInputRecord(inputHandle))
+        {
+            record = default;
+            return false;
+        }
+
         var buffer = new InputRecord[1];
         if (!ReadConsoleInput(inputHandle, buffer, 1, out uint read) || read == 0)
         {
@@ -384,6 +412,12 @@ internal static class Win32ConsoleApi
             return false;
         }
 
+        if (!HasAvailableInputRecord(inputHandle))
+        {
+            record = default;
+            return false;
+        }
+
         var buffer = new InputRecord[1];
         if (!ReadConsoleInput(inputHandle, buffer, 1, out uint read) || read == 0)
         {
@@ -394,6 +428,12 @@ internal static class Win32ConsoleApi
         record = buffer[0];
         return true;
     }
+
+    private static bool HasAvailableInputRecord(IntPtr inputHandle) =>
+        GetAvailableInputRecordCount(inputHandle) > 0;
+
+    private static uint GetAvailableInputRecordCount(IntPtr inputHandle) =>
+        GetNumberOfConsoleInputEvents(inputHandle, out uint count) ? count : 0;
 
     private static bool HasPendingRecord()
     {
@@ -524,7 +564,39 @@ internal static class Win32ConsoleApi
         return true;
     }
 
-    private static ConsoleModifiers GetModifiers(uint controlKeyState)
+    internal static ConsoleModifiers GetKeyEventModifiers(KeyEventRecord keyEvent)
+    {
+        var result = GetControlStateModifiers(keyEvent.ControlKeyState);
+
+        if (!keyEvent.IsKeyDown)
+            return result;
+
+        return keyEvent.VirtualKeyCode switch
+        {
+            VK_SHIFT or VK_LSHIFT or VK_RSHIFT =>
+                result | ConsoleModifiers.Shift,
+            VK_CONTROL or VK_LCONTROL or VK_RCONTROL =>
+                result | ConsoleModifiers.Control,
+            VK_MENU or VK_LMENU or VK_RMENU =>
+                result | ConsoleModifiers.Alt,
+            _ => result,
+        };
+    }
+
+    private static bool TryCreateModifierInputEvent(
+        Win32ModifierKeyTracker? modifierKeyTracker,
+        [NotNullWhen(true)] out ModifierKeyConsoleInputEvent? inputEvent)
+    {
+        if (modifierKeyTracker is null)
+        {
+            inputEvent = null;
+            return false;
+        }
+
+        return modifierKeyTracker.TryCreateInputEvent(out inputEvent);
+    }
+
+    private static ConsoleModifiers GetControlStateModifiers(uint controlKeyState)
     {
         var result = default(ConsoleModifiers);
 
@@ -532,7 +604,10 @@ internal static class Win32ConsoleApi
             result |= ConsoleModifiers.Shift;
         if ((controlKeyState & (LEFT_ALT_PRESSED | RIGHT_ALT_PRESSED)) != 0)
             result |= ConsoleModifiers.Alt;
-        if ((controlKeyState & (LEFT_CTRL_PRESSED | RIGHT_CTRL_PRESSED)) != 0)
+        uint controlMask = (controlKeyState & RIGHT_ALT_PRESSED) != 0
+            ? RIGHT_CTRL_PRESSED
+            : LEFT_CTRL_PRESSED | RIGHT_CTRL_PRESSED;
+        if ((controlKeyState & controlMask) != 0)
             result |= ConsoleModifiers.Control;
 
         return result;

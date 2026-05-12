@@ -21,6 +21,7 @@ public sealed class SystemConsoleDriver : IConsoleDriver, IConsoleOutputModeDriv
     private readonly uint _originalOutputMode;
     private readonly bool _restoreInputMode;
     private readonly bool _restoreOutputMode;
+    private readonly Win32ModifierKeyTracker? _modifierKeyTracker;
     private ConsoleViewport _lastInputViewport;
     private bool _renderingOutputMode;
     private bool _disposed;
@@ -33,6 +34,7 @@ public sealed class SystemConsoleDriver : IConsoleDriver, IConsoleOutputModeDriv
             _inputHandle = Win32ConsoleApi.GetConsoleInputHandle();
             _restoreInputMode = TryConfigureInputMode(_inputHandle, out _originalInputMode);
             _restoreOutputMode = Win32ConsoleApi.TryGetConsoleMode(_consoleHandle, out _originalOutputMode);
+            _modifierKeyTracker = new Win32ModifierKeyTracker();
         }
 
         global::System.Console.OutputEncoding = System.Text.Encoding.UTF8;
@@ -48,6 +50,8 @@ public sealed class SystemConsoleDriver : IConsoleDriver, IConsoleOutputModeDriv
             Win32ConsoleApi.TrySetConsoleMode(_inputHandle, _originalInputMode);
         if (OperatingSystem.IsWindows() && _restoreOutputMode)
             Win32ConsoleApi.TrySetConsoleMode(_consoleHandle, _originalOutputMode);
+        if (OperatingSystem.IsWindows())
+            _modifierKeyTracker?.Dispose();
 
         _disposed = true;
     }
@@ -132,6 +136,7 @@ public sealed class SystemConsoleDriver : IConsoleDriver, IConsoleOutputModeDriv
                 _inputHandle,
                 intercept,
                 cancellationToken,
+                _modifierKeyTracker,
                 HasVisibleViewportChanged);
 
             if (inputEvent is ConsoleResizeInputEvent)
@@ -150,7 +155,12 @@ public sealed class SystemConsoleDriver : IConsoleDriver, IConsoleOutputModeDriv
     {
         if (OperatingSystem.IsWindows())
         {
-            bool hasInput = Win32ConsoleApi.TryReadInput(_inputHandle, intercept, out inputEvent);
+            bool hasInput = Win32ConsoleApi.TryReadInput(
+                _inputHandle,
+                intercept,
+                out inputEvent,
+                _modifierKeyTracker);
+
             if (hasInput && inputEvent is ConsoleResizeInputEvent)
                 _lastInputViewport = GetViewport();
             return hasInput;
