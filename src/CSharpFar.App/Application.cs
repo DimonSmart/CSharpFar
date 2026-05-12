@@ -933,7 +933,7 @@ public sealed class Application
         {
             _lastLeftPanelItemClick = null;
             _active = side;
-            int? itemIdx = PanelHitTester.HitTestItem(evt.X, evt.Y, bounds, state, mode, PanelOptions);
+            int? itemIdx = HitTestPanelItemForMouse(evt, side, bounds, state, mode);
             if (itemIdx.HasValue)
             {
                 _ctrl.SetCursorTo(state, itemIdx.Value, visRows);
@@ -950,7 +950,7 @@ public sealed class Application
         if (evt.Button == MouseButton.Left && evt.Kind == MouseEventKind.DoubleClick)
         {
             _active = side;
-            int? itemIdx = PanelHitTester.HitTestItem(evt.X, evt.Y, bounds, state, mode, PanelOptions);
+            int? itemIdx = HitTestPanelItemForMouse(evt, side, bounds, state, mode);
             if (itemIdx.HasValue)
             {
                 _ctrl.SetCursorTo(state, itemIdx.Value, visRows);
@@ -970,7 +970,7 @@ public sealed class Application
             (evt.Kind == MouseEventKind.Down || evt.Kind == MouseEventKind.Click))
         {
             _active = side;
-            int? itemIdx = PanelHitTester.HitTestItem(evt.X, evt.Y, bounds, state, mode, PanelOptions);
+            int? itemIdx = HitTestPanelItemForMouse(evt, side, bounds, state, mode);
             if (itemIdx.HasValue)
             {
                 _ctrl.SetCursorTo(state, itemIdx.Value, visRows);
@@ -985,6 +985,23 @@ public sealed class Application
         }
 
         return false;
+    }
+
+    private int? HitTestPanelItemForMouse(
+        MouseConsoleInputEvent evt,
+        PanelSide side,
+        Rect bounds,
+        FilePanelState state,
+        PanelViewMode mode)
+    {
+        int x = evt.X;
+
+        // Before panels had separate frames, the first usable right-panel column was
+        // where the new right-panel left border is now. Keep mouse targeting tolerant.
+        if (side == PanelSide.Right && x == bounds.X)
+            x++;
+
+        return PanelHitTester.HitTestItem(x, evt.Y, bounds, state, mode, PanelOptions);
     }
 
     private void ClearPanelItemClickOnMousePress(MouseConsoleInputEvent evt)

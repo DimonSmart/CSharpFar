@@ -353,6 +353,58 @@ public sealed class ApplicationNavigationTests : IDisposable
         Assert.Equal(PanelSide.Right, GetActiveSide(app));
     }
 
+    [Fact]
+    public void HandleMouse_LeftClickRightPanel_ActivatesRightPanel()
+    {
+        var fs = new FakeFileSystemService();
+        fs.AddDirectory(_tempDir,
+            new FilePanelItem { Name = "first.txt", FullPath = Path.Combine(_tempDir, "first.txt"), IsDirectory = false },
+            new FilePanelItem { Name = "second.txt", FullPath = Path.Combine(_tempDir, "second.txt"), IsDirectory = false });
+
+        var driver = new FakeConsoleDriver(width: 80, height: 12);
+        var app = CreateApp(fs, driver, _tempDir);
+        Render(app);
+
+        Assert.True(HandleMouse(app, LeftMouse(41, 2, MouseEventKind.Down)));
+
+        Assert.Equal(PanelSide.Right, GetActiveSide(app));
+    }
+
+    [Fact]
+    public void HandleMouse_LeftClickRightPanelLeftBorder_SelectsRightPanelItem()
+    {
+        var fs = new FakeFileSystemService();
+        fs.AddDirectory(_tempDir,
+            new FilePanelItem { Name = "first.txt", FullPath = Path.Combine(_tempDir, "first.txt"), IsDirectory = false },
+            new FilePanelItem { Name = "second.txt", FullPath = Path.Combine(_tempDir, "second.txt"), IsDirectory = false });
+
+        var driver = new FakeConsoleDriver(width: 80, height: 12);
+        var app = CreateApp(fs, driver, _tempDir);
+        GetRightPanel(app).CursorIndex = 0;
+        Render(app);
+
+        Assert.True(HandleMouse(app, LeftMouse(40, 2, MouseEventKind.Down)));
+
+        Assert.Equal(PanelSide.Right, GetActiveSide(app));
+        Assert.Equal(1, GetRightPanel(app).CursorIndex);
+    }
+
+    [Fact]
+    public void HandleMouse_LeftClickVisibleRightPanel_WhenLeftHidden_ActivatesRightPanel()
+    {
+        var fs = new FakeFileSystemService();
+        fs.AddDirectory(_tempDir,
+            new FilePanelItem { Name = "first.txt", FullPath = Path.Combine(_tempDir, "first.txt"), IsDirectory = false });
+
+        var driver = new FakeConsoleDriver(width: 80, height: 12);
+        var app = CreateApp(fs, driver, _tempDir);
+        HandleKeyAndRender(app, Key(ConsoleKey.F1, control: true));
+
+        Assert.True(HandleMouse(app, LeftMouse(41, 2, MouseEventKind.Down)));
+
+        Assert.Equal(PanelSide.Right, GetActiveSide(app));
+    }
+
     [Theory]
     [InlineData(1, 1)]
     [InlineData(2, 3)]
@@ -399,6 +451,13 @@ public sealed class ApplicationNavigationTests : IDisposable
         return (FilePanelState)field.GetValue(app)!;
     }
 
+    private static FilePanelState GetRightPanel(Application app)
+    {
+        var field = typeof(Application).GetField("_right", BindingFlags.Instance | BindingFlags.NonPublic)
+            ?? throw new InvalidOperationException("Application._right field not found.");
+        return (FilePanelState)field.GetValue(app)!;
+    }
+
     private static void HandleKeyAndRender(Application app, ConsoleKeyInfo key)
     {
         var method = typeof(Application).GetMethod(
@@ -409,6 +468,16 @@ public sealed class ApplicationNavigationTests : IDisposable
         bool shouldRender = (bool)method.Invoke(app, [key])!;
         if (shouldRender)
             Render(app);
+    }
+
+    private static bool HandleMouse(Application app, MouseConsoleInputEvent mouse)
+    {
+        var method = typeof(Application).GetMethod(
+            "HandleMouse",
+            BindingFlags.Instance | BindingFlags.NonPublic)
+            ?? throw new InvalidOperationException("Application.HandleMouse method not found.");
+
+        return (bool)method.Invoke(app, [mouse])!;
     }
 
     private static void Render(Application app)
@@ -450,6 +519,9 @@ public sealed class ApplicationNavigationTests : IDisposable
         Assert.Equal(' ', driver.GetCell(39, 0).Character);
         Assert.Equal(' ', driver.GetCell(40, 0).Character);
     }
+
+    private static MouseConsoleInputEvent LeftMouse(int x, int y, MouseEventKind kind) =>
+        new(x, y, MouseButton.Left, kind, MouseKeyModifiers.None);
 
     private static CommandLineState GetCommandLine(Application app)
     {
