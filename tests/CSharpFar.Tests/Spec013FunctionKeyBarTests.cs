@@ -50,6 +50,21 @@ public sealed class Spec013FunctionKeyBarTests : IDisposable
     }
 
     [Fact]
+    public void Render_ControlLayerShowsPanelVisibilityCommands()
+    {
+        var fs = CreateFileSystem();
+        var driver = new FakeConsoleDriver(width: 100, height: 14);
+        var app = CreateApp(fs, driver);
+
+        SetFunctionKeyLayer(app, FunctionKeyLayer.Control);
+        Render(app);
+
+        string row = driver.GetRow(13);
+        Assert.Contains("1LeftPn", row);
+        Assert.Contains("2RightPn", row);
+    }
+
+    [Fact]
     public void Run_KeyEventWithAltModifierSwitchesFunctionKeyBarLayer()
     {
         var fs = CreateFileSystem();
@@ -245,6 +260,26 @@ public sealed class Spec013FunctionKeyBarTests : IDisposable
             ?? throw new InvalidOperationException("Application._cmdLine field not found.");
 
         return (CommandLineState)field.GetValue(app)!;
+    }
+
+    private static void SetFunctionKeyLayer(Application app, FunctionKeyLayer layer)
+    {
+        var field = typeof(Application).GetField(
+            "_functionKeyLayer",
+            System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)
+            ?? throw new InvalidOperationException("Application._functionKeyLayer field not found.");
+
+        field.SetValue(app, layer);
+    }
+
+    private static void Render(Application app)
+    {
+        var method = typeof(Application).GetMethod(
+            "Render",
+            System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)
+            ?? throw new InvalidOperationException("Application.Render method not found.");
+
+        method.Invoke(app, []);
     }
 
     private sealed class NoOpShellService : IShellService

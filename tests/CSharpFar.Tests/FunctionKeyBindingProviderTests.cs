@@ -17,6 +17,10 @@ public sealed class FunctionKeyBindingProviderTests
             FunctionKeyLayer.Alt, ConsoleKey.F7, "Search");
         AssertBinding(bindings, FunctionKeyCommandIds.CommandHistory,
             FunctionKeyLayer.Alt, ConsoleKey.F8, "History");
+        AssertBinding(bindings, FunctionKeyCommandIds.ToggleLeftPanel,
+            FunctionKeyLayer.Control, ConsoleKey.F1, "LeftPn");
+        AssertBinding(bindings, FunctionKeyCommandIds.ToggleRightPanel,
+            FunctionKeyLayer.Control, ConsoleKey.F2, "RightPn");
         AssertBinding(bindings, FunctionKeyCommandIds.SortByName,
             FunctionKeyLayer.Control, ConsoleKey.F3, "SortNm");
         AssertBinding(bindings, FunctionKeyCommandIds.SortBySize,

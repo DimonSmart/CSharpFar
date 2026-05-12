@@ -166,6 +166,9 @@ internal sealed class ApplicationCommandContext
     public void ResetCommandHistoryNavigation() =>
         _application.ResetCommandHistoryNavigation();
 
+    public bool TogglePanelVisibility(PanelSide side) =>
+        _application.TogglePanelVisibility(side);
+
     public bool OpenTopMenu() => _application.OpenTopMenu();
 
     public void ShowReadOnlyPanelMessage(string action) =>

@@ -153,7 +153,7 @@ public sealed class ApplicationSettingsTests : IDisposable
     }
 
     [Fact]
-    public void Render_UsesJoinedCenterPanelFrame()
+    public void Render_UsesSeparatePanelFrames()
     {
         var driver = new FakeConsoleDriver(width: 80, height: 12);
         var app = CreateApp("Name", driver);
@@ -165,9 +165,13 @@ public sealed class ApplicationSettingsTests : IDisposable
 
         method.Invoke(app, []);
 
-        Assert.Equal('╦', driver.GetCell(39, 0).Character);
-        Assert.Equal('╫', driver.GetCell(39, 6).Character);
-        Assert.Equal('╩', driver.GetCell(39, 9).Character);
+        Assert.Equal('╗', driver.GetCell(39, 0).Character);
+        Assert.Equal('╢', driver.GetCell(39, 6).Character);
+        Assert.Equal('╝', driver.GetCell(39, 9).Character);
+
+        Assert.Equal('╔', driver.GetCell(40, 0).Character);
+        Assert.Equal('╟', driver.GetCell(40, 6).Character);
+        Assert.Equal('╚', driver.GetCell(40, 9).Character);
     }
 
     private Application CreateApp(string sortMode, params FilePanelItem[] items)

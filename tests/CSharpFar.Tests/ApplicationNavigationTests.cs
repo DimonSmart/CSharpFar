@@ -251,6 +251,108 @@ public sealed class ApplicationNavigationTests : IDisposable
         app.Run();
     }
 
+    [Fact]
+    public void HandleKey_CtrlF1_HidesLeftPanelOnly()
+    {
+        var fs = new FakeFileSystemService();
+        fs.AddDirectory(_tempDir);
+
+        var driver = new FakeConsoleDriver(width: 80, height: 12);
+        var app = CreateApp(fs, driver, _tempDir);
+
+        HandleKeyAndRender(app, Key(ConsoleKey.F1, control: true));
+
+        AssertRightPanelOnly(driver);
+    }
+
+    [Fact]
+    public void HandleKey_CtrlF2_HidesRightPanelOnly()
+    {
+        var fs = new FakeFileSystemService();
+        fs.AddDirectory(_tempDir);
+
+        var driver = new FakeConsoleDriver(width: 80, height: 12);
+        var app = CreateApp(fs, driver, _tempDir);
+
+        HandleKeyAndRender(app, Key(ConsoleKey.F2, control: true));
+
+        AssertLeftPanelOnly(driver);
+    }
+
+    [Fact]
+    public void HandleKey_CtrlF1ThenCtrlF2_HidesBothPanels()
+    {
+        var fs = new FakeFileSystemService();
+        fs.AddDirectory(_tempDir);
+
+        var driver = new FakeConsoleDriver(width: 80, height: 12);
+        var app = CreateApp(fs, driver, _tempDir);
+
+        HandleKeyAndRender(app, Key(ConsoleKey.F1, control: true));
+        HandleKeyAndRender(app, Key(ConsoleKey.F2, control: true));
+
+        AssertNoPanels(driver);
+    }
+
+    [Fact]
+    public void HandleKey_CtrlOThenCtrlF1_ShowsOnlyLeftPanel()
+    {
+        var fs = new FakeFileSystemService();
+        fs.AddDirectory(_tempDir);
+
+        var driver = new FakeConsoleDriver(width: 80, height: 12);
+        var app = CreateApp(fs, driver, _tempDir);
+
+        HandleKeyAndRender(app, Key(ConsoleKey.O, keyChar: '\u000f', control: true));
+        HandleKeyAndRender(app, Key(ConsoleKey.F1, control: true));
+
+        AssertLeftPanelOnly(driver);
+    }
+
+    [Fact]
+    public void HandleKey_CtrlOThenCtrlF2_ShowsOnlyRightPanel()
+    {
+        var fs = new FakeFileSystemService();
+        fs.AddDirectory(_tempDir);
+
+        var driver = new FakeConsoleDriver(width: 80, height: 12);
+        var app = CreateApp(fs, driver, _tempDir);
+
+        HandleKeyAndRender(app, Key(ConsoleKey.O, keyChar: '\u000f', control: true));
+        HandleKeyAndRender(app, Key(ConsoleKey.F2, control: true));
+
+        AssertRightPanelOnly(driver);
+    }
+
+    [Fact]
+    public void HandleKey_HidingActivePanel_ActivatesVisiblePanel()
+    {
+        var fs = new FakeFileSystemService();
+        fs.AddDirectory(_tempDir);
+
+        var driver = new FakeConsoleDriver(width: 80, height: 12);
+        var app = CreateApp(fs, driver, _tempDir);
+
+        HandleKeyAndRender(app, Key(ConsoleKey.F1, control: true));
+
+        Assert.Equal(PanelSide.Right, GetActiveSide(app));
+    }
+
+    [Fact]
+    public void HandleKey_Tab_DoesNotActivateHiddenPanel()
+    {
+        var fs = new FakeFileSystemService();
+        fs.AddDirectory(_tempDir);
+
+        var driver = new FakeConsoleDriver(width: 80, height: 12);
+        var app = CreateApp(fs, driver, _tempDir);
+
+        HandleKeyAndRender(app, Key(ConsoleKey.F1, control: true));
+        HandleKeyAndRender(app, Key(ConsoleKey.Tab));
+
+        Assert.Equal(PanelSide.Right, GetActiveSide(app));
+    }
+
     [Theory]
     [InlineData(1, 1)]
     [InlineData(2, 3)]
@@ -295,6 +397,58 @@ public sealed class ApplicationNavigationTests : IDisposable
         var field = typeof(Application).GetField("_left", BindingFlags.Instance | BindingFlags.NonPublic)
             ?? throw new InvalidOperationException("Application._left field not found.");
         return (FilePanelState)field.GetValue(app)!;
+    }
+
+    private static void HandleKeyAndRender(Application app, ConsoleKeyInfo key)
+    {
+        var method = typeof(Application).GetMethod(
+            "HandleKey",
+            BindingFlags.Instance | BindingFlags.NonPublic)
+            ?? throw new InvalidOperationException("Application.HandleKey method not found.");
+
+        bool shouldRender = (bool)method.Invoke(app, [key])!;
+        if (shouldRender)
+            Render(app);
+    }
+
+    private static void Render(Application app)
+    {
+        var method = typeof(Application).GetMethod(
+            "Render",
+            BindingFlags.Instance | BindingFlags.NonPublic)
+            ?? throw new InvalidOperationException("Application.Render method not found.");
+
+        method.Invoke(app, []);
+    }
+
+    private static PanelSide GetActiveSide(Application app)
+    {
+        var field = typeof(Application).GetField("_active", BindingFlags.Instance | BindingFlags.NonPublic)
+            ?? throw new InvalidOperationException("Application._active field not found.");
+        return (PanelSide)field.GetValue(app)!;
+    }
+
+    private static void AssertLeftPanelOnly(FakeConsoleDriver driver)
+    {
+        Assert.Equal('╔', driver.GetCell(0, 0).Character);
+        Assert.Equal('╗', driver.GetCell(39, 0).Character);
+        Assert.Equal('╢', driver.GetCell(39, 6).Character);
+        Assert.Equal(' ', driver.GetCell(40, 0).Character);
+    }
+
+    private static void AssertRightPanelOnly(FakeConsoleDriver driver)
+    {
+        Assert.Equal(' ', driver.GetCell(0, 0).Character);
+        Assert.Equal(' ', driver.GetCell(39, 0).Character);
+        Assert.Equal('╔', driver.GetCell(40, 0).Character);
+        Assert.Equal('╟', driver.GetCell(40, 6).Character);
+    }
+
+    private static void AssertNoPanels(FakeConsoleDriver driver)
+    {
+        Assert.Equal(' ', driver.GetCell(0, 0).Character);
+        Assert.Equal(' ', driver.GetCell(39, 0).Character);
+        Assert.Equal(' ', driver.GetCell(40, 0).Character);
     }
 
     private static CommandLineState GetCommandLine(Application app)

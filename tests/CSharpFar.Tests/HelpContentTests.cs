@@ -22,6 +22,8 @@ public class HelpContentTests
     [InlineData("F8")]
     [InlineData("F10")]
     [InlineData("Ctrl+O")]
+    [InlineData("Ctrl+F1")]
+    [InlineData("Ctrl+F2")]
     [InlineData("Ctrl+Q")]
     [InlineData("Alt+F7")]
     [InlineData("Alt+F8")]

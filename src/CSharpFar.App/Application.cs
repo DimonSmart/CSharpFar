@@ -46,7 +46,7 @@ public sealed class Application
 
     private PanelSide     _active        = PanelSide.Left;
     private bool          _running       = true;
-    private bool          _panelsVisible = true;
+    private HiddenPanels  _hiddenPanels;
     private bool          _commandCompletionVisible;
     private bool          _commandCompletionTemporarilyHidden;
     private int           _commandCompletionSelectedIndex;
@@ -89,6 +89,15 @@ public sealed class Application
         None,
         OriginOnly,
         Size,
+    }
+
+    [Flags]
+    private enum HiddenPanels
+    {
+        None = 0,
+        Left = 1,
+        Right = 2,
+        Both = Left | Right,
     }
 
     private enum CommandHistoryNavigationStart
@@ -273,7 +282,7 @@ public sealed class Application
                     // Woken by auto-refresh — reset CTS and refresh affected panels.
                     ResetRefreshCts();
                     ProcessPendingRefreshes();
-                    if (_running && _panelsVisible)
+                    if (_running && HasVisiblePanels)
                         RenderUntilStable();
                     continue;
                 }
@@ -325,7 +334,7 @@ public sealed class Application
 
                 if (_running && shouldRender)
                 {
-                    if (_panelsVisible)
+                    if (HasVisiblePanels)
                         RenderUntilStable();
                     else
                     {
@@ -388,6 +397,9 @@ public sealed class Application
     private void Render()
     {
         UpdateQuickViewDirSize();
+        if (HasHiddenPanels)
+            RestoreUnderlayForHiddenScreen();
+
         _screen.SetRenderingOutputMode(true);
         using var frame = _screen.BeginFrame();
         _screen.SetCursorVisible(false);
@@ -400,41 +412,50 @@ public sealed class Application
         int rightW = size.Width - leftW;
 
         var panelRenderer = new PanelRenderer(_screen, _palette, _highlightService, PanelOptions);
+        var leftBounds  = new Rect(0,     0, leftW,  panelH);
+        var rightBounds = new Rect(leftW, 0, rightW, panelH);
+        _leftBounds  = leftBounds;
+        _rightBounds = rightBounds;
 
         if (_quickView)
         {
             if (_active == PanelSide.Left)
             {
                 var item = _ctrl.CurrentItem(_left);
-                panelRenderer.Render(new Rect(0,     0, leftW,  panelH), _left, true, _leftViewMode);
-                new QuickViewRenderer(_screen, _palette).Render(
-                    new Rect(leftW, 0, rightW, panelH),
-                    item,
-                    item is { IsDirectory: true } ? _quickViewDirState : null);
+                if (IsPanelVisible(PanelSide.Left))
+                    panelRenderer.Render(leftBounds, _left, true, _leftViewMode);
+                if (IsPanelVisible(PanelSide.Right))
+                {
+                    new QuickViewRenderer(_screen, _palette).Render(
+                        rightBounds,
+                        item,
+                        item is { IsDirectory: true } ? _quickViewDirState : null);
+                }
             }
             else
             {
                 var item = _ctrl.CurrentItem(_right);
-                new QuickViewRenderer(_screen, _palette).Render(
-                    new Rect(0,     0, leftW,  panelH),
-                    item,
-                    item is { IsDirectory: true } ? _quickViewDirState : null);
-                panelRenderer.Render(new Rect(leftW, 0, rightW, panelH), _right, true, _rightViewMode);
+                if (IsPanelVisible(PanelSide.Left))
+                {
+                    new QuickViewRenderer(_screen, _palette).Render(
+                        leftBounds,
+                        item,
+                        item is { IsDirectory: true } ? _quickViewDirState : null);
+                }
+                if (IsPanelVisible(PanelSide.Right))
+                    panelRenderer.Render(rightBounds, _right, true, _rightViewMode);
             }
         }
         else
         {
-            var leftBounds  = new Rect(0, 0, leftW, panelH);
-            var rightBounds = GetRightPanelBounds(size.Width, leftW, rightW, panelH);
-            _leftBounds  = leftBounds;
-            _rightBounds = rightBounds;
-
-            panelRenderer.Render(leftBounds,  _left,  _active == PanelSide.Left,  _leftViewMode);
-            panelRenderer.Render(rightBounds, _right, _active == PanelSide.Right, _rightViewMode);
-            RenderPanelFrameJoin(leftBounds, rightBounds);
+            if (IsPanelVisible(PanelSide.Left))
+                panelRenderer.Render(leftBounds, _left, _active == PanelSide.Left, _leftViewMode);
+            if (IsPanelVisible(PanelSide.Right))
+                panelRenderer.Render(rightBounds, _right, _active == PanelSide.Right, _rightViewMode);
         }
 
-        RenderClock(size);
+        if (IsPanelVisible(PanelSide.Right))
+            RenderClock(size);
 
         var cmdRenderer = new CommandLineRenderer(_screen, _palette);
         cmdRenderer.Render(panelH, size.Width, ActiveState.CurrentDirectory, _cmdLine);
@@ -448,33 +469,6 @@ public sealed class Application
             PositionCommandCursor(cmdRenderer, size, panelH);
         else
             _screen.SetCursorVisible(false);
-    }
-
-    private static Rect GetRightPanelBounds(int screenWidth, int leftWidth, int rightWidth, int panelHeight)
-    {
-        if (screenWidth >= 4 && leftWidth >= 2 && rightWidth >= 2)
-        {
-            int sharedBorderX = leftWidth - 1;
-            return new Rect(sharedBorderX, 0, screenWidth - sharedBorderX, panelHeight);
-        }
-
-        return new Rect(leftWidth, 0, rightWidth, panelHeight);
-    }
-
-    private void RenderPanelFrameJoin(Rect leftBounds, Rect rightBounds)
-    {
-        if (leftBounds.Right - 1 != rightBounds.X || leftBounds.Height < 2)
-            return;
-
-        int sharedX = rightBounds.X;
-        var style = new CellStyle(_palette.PanelBorderActiveFg, _palette.PanelBackground);
-
-        _screen.WriteChar(sharedX, leftBounds.Y, '╦', style);
-        _screen.WriteChar(sharedX, leftBounds.Bottom - 1, '╩', style);
-
-        int separatorY = PanelStatusRenderer.SeparatorRow(leftBounds, PanelOptions);
-        if (separatorY > leftBounds.Y && separatorY < leftBounds.Bottom - 1)
-            _screen.WriteChar(sharedX, separatorY, '╫', style);
     }
 
     private void RenderCommandLineOnly()
@@ -571,7 +565,7 @@ public sealed class Application
 
     private bool AcceptHiddenViewportScroll(ConsoleViewportChange viewportChange)
     {
-        if (_panelsVisible || viewportChange != ConsoleViewportChange.OriginOnly)
+        if (HasVisiblePanels || viewportChange != ConsoleViewportChange.OriginOnly)
             return false;
 
         _lastRenderViewport = _screen.GetViewport();
@@ -580,7 +574,7 @@ public sealed class Application
 
     private bool ScrollHiddenViewportToBottomForInput()
     {
-        if (_panelsVisible)
+        if (HasVisiblePanels)
             return false;
 
         bool scrolled = _screen.TryScrollViewportToBottom();
@@ -719,6 +713,31 @@ public sealed class Application
         }
     }
 
+    // ── panel visibility ──────────────────────────────────────────────────────
+
+    private bool HasHiddenPanels => _hiddenPanels != HiddenPanels.None;
+
+    private bool HasVisiblePanels => _hiddenPanels != HiddenPanels.Both;
+
+    private bool IsPanelVisible(PanelSide side) =>
+        (_hiddenPanels & HiddenPanelFlag(side)) == 0;
+
+    private static HiddenPanels HiddenPanelFlag(PanelSide side) =>
+        side == PanelSide.Left ? HiddenPanels.Left : HiddenPanels.Right;
+
+    private static PanelSide OtherPanelSide(PanelSide side) =>
+        side == PanelSide.Left ? PanelSide.Right : PanelSide.Left;
+
+    private void EnsureActivePanelVisible()
+    {
+        if (IsPanelVisible(_active))
+            return;
+
+        var otherSide = OtherPanelSide(_active);
+        if (IsPanelVisible(otherSide))
+            _active = otherSide;
+    }
+
     // ── Ctrl+O ────────────────────────────────────────────────────────────────
 
     /// <summary>Captures the full visible screen as the underlay snapshot.</summary>
@@ -735,11 +754,48 @@ public sealed class Application
     /// </summary>
     private bool TogglePanels()
     {
-        _panelsVisible = !_panelsVisible;
         HideCommandCompletion(temporarily: false);
         ResetCommandHistoryNavigation();
+        _panelScrollbarDrag = null;
 
-        if (!_panelsVisible)
+        if (_hiddenPanels == HiddenPanels.Both)
+        {
+            _hiddenPanels = HiddenPanels.None;
+            _screen.TryScrollViewportToBottom();
+            _lastRenderViewport = _screen.GetViewport();
+            return true;
+        }
+
+        _hiddenPanels = HiddenPanels.Both;
+        _screen.SetCursorVisible(true);
+        RestoreUnderlayForHiddenScreen();
+        RenderCommandLineOnlyUntilStable();
+        return false;
+    }
+
+    internal bool TogglePanelVisibility(PanelSide side)
+    {
+        HideCommandCompletion(temporarily: false);
+        ResetCommandHistoryNavigation();
+        _panelScrollbarDrag = null;
+
+        var flag = HiddenPanelFlag(side);
+        bool wasHidden = (_hiddenPanels & flag) != 0;
+
+        if (wasHidden)
+        {
+            _hiddenPanels &= ~flag;
+            _screen.TryScrollViewportToBottom();
+            _lastRenderViewport = _screen.GetViewport();
+        }
+        else
+        {
+            _hiddenPanels |= flag;
+        }
+
+        EnsureActivePanelVisible();
+
+        if (_hiddenPanels == HiddenPanels.Both)
         {
             _screen.SetCursorVisible(true);
             RestoreUnderlayForHiddenScreen();
@@ -747,8 +803,6 @@ public sealed class Application
             return false;
         }
 
-        _screen.TryScrollViewportToBottom();
-        _lastRenderViewport = _screen.GetViewport();
         return true;
     }
 
@@ -825,7 +879,7 @@ public sealed class Application
 
     private bool HandleMouse(MouseConsoleInputEvent evt)
     {
-        if (!_panelsVisible)
+        if (!HasVisiblePanels)
             return false;
 
         if (_menuState.OpenState != MenuOpenState.Closed || IsTopMenuActivationMouse(evt))
@@ -848,8 +902,8 @@ public sealed class Application
             return true;
 
         // Identify which panel was hit
-        bool inLeft  = _leftBounds.Contains(evt.X,  evt.Y);
-        bool inRight = _rightBounds.Contains(evt.X, evt.Y);
+        bool inLeft  = IsPanelVisible(PanelSide.Left)  && _leftBounds.Contains(evt.X,  evt.Y);
+        bool inRight = IsPanelVisible(PanelSide.Right) && _rightBounds.Contains(evt.X, evt.Y);
         if (!inLeft && !inRight)
         {
             ClearPanelItemClickOnMousePress(evt);
@@ -943,7 +997,7 @@ public sealed class Application
     {
         if (_menuState.OpenState != MenuOpenState.Closed)
         {
-            if (!_panelsVisible)
+            if (!HasVisiblePanels)
             {
                 _menuController.Close();
                 return true;
@@ -959,7 +1013,7 @@ public sealed class Application
         if (TryHandleFarCommandLineShortcut(key))
             return true;
 
-        if (!_panelsVisible)
+        if (!HasVisiblePanels)
             return HandleHiddenCommandLineKey(key);
 
         // Ctrl+S: settings dialog
@@ -1115,7 +1169,11 @@ public sealed class Application
 
             // ── Panel navigation ──────────────────────────────────────────────
             case ConsoleKey.Tab:
-                _active = _active == PanelSide.Left ? PanelSide.Right : PanelSide.Left;
+                var otherSide = OtherPanelSide(_active);
+                if (IsPanelVisible(otherSide))
+                    _active = otherSide;
+                else
+                    EnsureActivePanelVisible();
                 return true;
 
             case ConsoleKey.UpArrow:
@@ -1183,6 +1241,19 @@ public sealed class Application
         return true;
     }
 
+    private bool TryHandlePanelVisibilityFunctionKey(ConsoleKeyInfo key, out bool shouldRender)
+    {
+        shouldRender = false;
+
+        if (!HasOnlyControlModifier(key) ||
+            key.Key is not (ConsoleKey.F1 or ConsoleKey.F2))
+        {
+            return false;
+        }
+
+        return TryHandleFunctionKey(key, out shouldRender);
+    }
+
     private bool CanExecuteFunctionKeyCommand(string commandId) =>
         _commandRegistry.CanExecute(commandId, _commandContext);
 
@@ -1242,7 +1313,7 @@ public sealed class Application
     {
         _cmdLine.InsertText(QuoteCommandLineInsertion(text));
 
-        if (_panelsVisible)
+        if (HasVisiblePanels)
             OnVisibleCommandLineTextEdited();
         else
             ResetCommandHistoryNavigation();
@@ -1250,6 +1321,9 @@ public sealed class Application
 
     private bool HandleHiddenCommandLineKey(ConsoleKeyInfo key)
     {
+        if (TryHandlePanelVisibilityFunctionKey(key, out bool shouldRender))
+            return shouldRender;
+
         switch (key.Key)
         {
             case ConsoleKey.LeftArrow:
@@ -1407,7 +1481,7 @@ public sealed class Application
         _commandCompletionFirstVisibleIndex = 0;
         _commandCompletionScrollbarDrag = null;
 
-        if (!_panelsVisible ||
+        if (!HasVisiblePanels ||
             _commandCompletionTemporarilyHidden ||
             !HasCommandCompletionRows() ||
             string.IsNullOrWhiteSpace(_cmdLine.Text))
@@ -1811,7 +1885,7 @@ public sealed class Application
 
     internal void ExecuteInCurrentConsole(string workDir, string displayCommand, Action execute)
     {
-        bool showPanelsAfterCommand = _panelsVisible;
+        HiddenPanels hiddenPanelsAfterCommand = _hiddenPanels;
 
         ShowShellUnderlayForCommand();
         PrintExecutedCommandPrompt(workDir, displayCommand);
@@ -1830,7 +1904,7 @@ public sealed class Application
             CaptureUnderlay();
 
             RefreshPanels();
-            _panelsVisible = showPanelsAfterCommand;
+            _hiddenPanels = hiddenPanelsAfterCommand;
             // Stable rendering is called by the main loop.
         }
     }

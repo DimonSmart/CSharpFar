@@ -90,6 +90,16 @@ internal sealed class DefaultFunctionKeyBindingProvider
             ConsoleKey.F12,
             "DHist"),
         new(
+            FunctionKeyCommandIds.ToggleLeftPanel,
+            FunctionKeyLayer.Control,
+            ConsoleKey.F1,
+            "LeftPn"),
+        new(
+            FunctionKeyCommandIds.ToggleRightPanel,
+            FunctionKeyLayer.Control,
+            ConsoleKey.F2,
+            "RightPn"),
+        new(
             FunctionKeyCommandIds.SortByName,
             FunctionKeyLayer.Control,
             ConsoleKey.F3,

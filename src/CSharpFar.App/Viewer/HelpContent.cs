@@ -101,6 +101,8 @@ public static class HelpContent
         E(),
         H("VIEW MODES"),
         K("Ctrl+O",          "Toggle panels on/off \u2014 shows shell output underneath"),
+        K("Ctrl+F1",         "Toggle left panel"),
+        K("Ctrl+F2",         "Toggle right panel"),
         P("                    Command line remains visible; \u2190 \u2192 edit it while hidden"),
         K("Ctrl+Q",          "Quick view \u2014 preview file in the inactive panel"),
         K("Alt+1",           "Full view mode for active panel"),
