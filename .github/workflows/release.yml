@@ -65,6 +65,8 @@ jobs:
             --output $env:PUBLISH_DIR `
             /p:PublishSingleFile=true `
             /p:IncludeNativeLibrariesForSelfExtract=true `
+            /p:DebugType=None `
+            /p:DebugSymbols=false `
             /p:Version=$env:VERSION `
             /p:AssemblyVersion=$env:ASSEMBLY_VERSION `
             /p:FileVersion=$env:ASSEMBLY_VERSION `
@@ -79,6 +81,17 @@ jobs:
               Select-Object -ExpandProperty Name
 
             throw "Expected '$env:APP_EXE' in publish output, found: $($publishedExes -join ', ')"
+          }
+
+      - name: Verify no debug symbols
+        shell: pwsh
+        run: |
+          $debugSymbols = Get-ChildItem -Path $env:PUBLISH_DIR -Filter *.pdb -File -Recurse
+          if ($debugSymbols) {
+            $debugSymbolNames = $debugSymbols |
+              ForEach-Object { Resolve-Path -Path $_.FullName -Relative }
+
+            throw "Publish output must not contain .pdb files: $($debugSymbolNames -join ', ')"
           }
 
       - name: Package
