@@ -20,6 +20,7 @@ internal sealed class DeleteCommand : IApplicationCommand
         }
 
         var sources = FileOperationCommandHelpers.GetOperationSources(context);
+        var sourceLocations = FileOperationCommandHelpers.GetOperationSourceLocations(context);
         if (sources.Count == 0)
             return ApplicationCommandResult.Rendered();
 
@@ -41,12 +42,15 @@ internal sealed class DeleteCommand : IApplicationCommand
             {
                 Kind = FileOperationKind.Delete,
                 Sources = sources,
+                SourceLocations = sourceLocations,
                 Options = context.BuildFileOperationOptions() with
                 {
-                    UseRecycleBinForDelete = context.Settings.FileOperations.UseRecycleBinForDelete,
+                    UseRecycleBinForDelete = context.ActiveState.SourceId == PanelSourceId.Local &&
+                                             context.Settings.FileOperations.UseRecycleBinForDelete,
                 },
             });
             context.ActiveState.SelectedPaths.Clear();
+            context.ActiveState.SelectedLocations.Clear();
         }
         catch (OperationCanceledException) { }
         catch (Exception ex)

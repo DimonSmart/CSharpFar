@@ -6,4 +6,6 @@ public sealed class PanelView
     public required PanelSummary                 Summary          { get; init; }
     public required PanelAutoRefreshState        AutoRefreshState { get; init; }
     public required bool                         IsRootDirectory  { get; init; }
+    public PanelProviderCapabilities             ProviderCapabilities { get; init; } =
+        PanelProviderCapabilities.LocalFileSystem;
 }

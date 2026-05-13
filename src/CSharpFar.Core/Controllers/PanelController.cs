@@ -14,28 +14,84 @@ public sealed class PanelController
         string path,
         AppSettings.PanelOptionsSettings? options = null)
     {
+        LoadLocation(state, PanelLocation.Local(path), options);
+    }
+
+    public bool TryLoadDirectory(
+        FilePanelState state,
+        string path,
+        AppSettings.PanelOptionsSettings? options = null)
+    {
+        return TryLoadLocation(state, PanelLocation.Local(path), options);
+    }
+
+    public void LoadLocation(
+        FilePanelState state,
+        PanelLocation location,
+        AppSettings.PanelOptionsSettings? options = null)
+    {
         options ??= new AppSettings.PanelOptionsSettings();
-        var view = _viewBuilder.Build(new PanelViewRequest
+        var view = BuildView(state, location, options, s_emptySet);
+        ApplyLoadedLocation(state, location, view);
+    }
+
+    public bool TryLoadLocation(
+        FilePanelState state,
+        PanelLocation location,
+        AppSettings.PanelOptionsSettings? options = null)
+    {
+        options ??= new AppSettings.PanelOptionsSettings();
+
+        try
         {
-            DirectoryPath  = path,
-            Options        = options,
-            SortMode       = state.SortMode,
-            SortDescending = state.SortDescending,
-            SelectedPaths  = s_emptySet,
-        });
-        state.CurrentDirectory = path;
+            var view = BuildView(state, location, options, s_emptySet);
+            ApplyLoadedLocation(state, location, view);
+            return true;
+        }
+        catch (Exception ex) when (IsPanelLoadException(ex))
+        {
+            ApplyLoadError(state, location, ex);
+            return false;
+        }
+    }
+
+    private void ApplyLoadedLocation(
+        FilePanelState state,
+        PanelLocation location,
+        PanelView view)
+    {
+        state.CurrentLocation = location;
         state.Items.Clear();
         state.Items.AddRange(view.Items);
         state.Summary          = view.Summary;
         state.AutoRefreshState = view.AutoRefreshState;
-        state.ProviderCapabilities = PanelProviderCapabilities.LocalFileSystem;
+        state.ProviderCapabilities = view.ProviderCapabilities;
+        state.LoadError = null;
         state.DisplayTitle = null;
         state.ShowCurrentItemFullPath = false;
         state.SearchRequest = null;
         state.SearchWasCancelled = false;
         state.SelectedPaths.Clear();
+        state.SelectedLocations.Clear();
         state.CursorIndex  = 0;
         state.ScrollOffset = 0;
+    }
+
+    private PanelView BuildView(
+        FilePanelState state,
+        PanelLocation location,
+        AppSettings.PanelOptionsSettings options,
+        IReadOnlySet<string> selectedPaths)
+    {
+        return _viewBuilder.Build(new PanelViewRequest
+        {
+            DirectoryPath  = location.SourcePath,
+            Location       = location,
+            Options        = options,
+            SortMode       = state.SortMode,
+            SortDescending = state.SortDescending,
+            SelectedPaths  = selectedPaths,
+        });
     }
 
     public void GoToParent(
@@ -43,20 +99,71 @@ public sealed class PanelController
         int visibleRows,
         AppSettings.PanelOptionsSettings? options = null)
     {
-        var info = new DirectoryInfo(state.CurrentDirectory);
+        if (state.SourceId != PanelSourceId.Local)
+        {
+            var parent = state.Items.FirstOrDefault(i => i.IsParentDirectory);
+            if (parent is null || parent.SourcePath == state.SourcePath)
+                return;
+
+            string childName = state.SourcePath.TrimEnd('/').Split('/').LastOrDefault() ?? state.SourcePath;
+            LoadLocation(state, parent.Location, options);
+            SetCursorByName(state, childName, visibleRows);
+            return;
+        }
+
+        var info = new DirectoryInfo(state.SourcePath);
         if (info.Parent == null) return;
 
-        string childName = info.Name;
+        string childLocalName = info.Name;
         LoadDirectory(state, info.Parent.FullName, options);
 
         int idx = state.Items.FindIndex(
-            item => string.Equals(item.Name, childName, StringComparison.OrdinalIgnoreCase));
+            item => string.Equals(item.Name, childLocalName, StringComparison.OrdinalIgnoreCase));
 
         if (idx >= 0)
         {
             state.CursorIndex = idx;
             EnsureVisible(state, visibleRows);
         }
+    }
+
+    public bool TryGoToParent(
+        FilePanelState state,
+        int visibleRows,
+        AppSettings.PanelOptionsSettings? options = null)
+    {
+        if (state.SourceId != PanelSourceId.Local)
+        {
+            var parent = state.Items.FirstOrDefault(i => i.IsParentDirectory);
+            if (parent is null || parent.SourcePath == state.SourcePath)
+                return true;
+
+            string childName = state.SourcePath.TrimEnd('/').Split('/').LastOrDefault() ?? state.SourcePath;
+            if (!TryLoadLocation(state, parent.Location, options))
+                return false;
+
+            SetCursorByName(state, childName, visibleRows);
+            return true;
+        }
+
+        var info = new DirectoryInfo(state.SourcePath);
+        if (info.Parent == null)
+            return true;
+
+        string childLocalName = info.Name;
+        if (!TryLoadDirectory(state, info.Parent.FullName, options))
+            return false;
+
+        int idx = state.Items.FindIndex(
+            item => string.Equals(item.Name, childLocalName, StringComparison.OrdinalIgnoreCase));
+
+        if (idx >= 0)
+        {
+            state.CursorIndex = idx;
+            EnsureVisible(state, visibleRows);
+        }
+
+        return true;
     }
 
     public void MoveCursor(FilePanelState state, int delta, int visibleRows)
@@ -147,7 +254,8 @@ public sealed class PanelController
         options ??= new AppSettings.PanelOptionsSettings();
         var view = _viewBuilder.Build(new PanelViewRequest
         {
-            DirectoryPath  = state.CurrentDirectory,
+            DirectoryPath  = state.SourcePath,
+            Location       = state.CurrentLocation,
             Options        = options,
             SortMode       = state.SortMode,
             SortDescending = state.SortDescending,
@@ -157,15 +265,22 @@ public sealed class PanelController
         state.Items.AddRange(view.Items);
         state.Summary          = view.Summary;
         state.AutoRefreshState = view.AutoRefreshState;
+        state.ProviderCapabilities = view.ProviderCapabilities;
+        state.LoadError = null;
 
         var availablePaths = state.Items
             .Where(i => !i.IsParentDirectory)
             .Select(i => i.FullPath)
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var availableLocations = state.Items
+            .Where(i => !i.IsParentDirectory)
+            .Select(i => i.Location)
+            .ToHashSet();
         state.SelectedPaths.Clear();
         foreach (string p in selectedPaths)
             if (availablePaths.Contains(p))
                 state.SelectedPaths.Add(p);
+        state.SelectedLocations.RemoveWhere(location => !availableLocations.Contains(location));
         RefreshSelectedSummary(state);
 
         if (cursorName is not null)
@@ -177,6 +292,23 @@ public sealed class PanelController
                 state.CursorIndex = idx;
                 EnsureVisible(state, visibleRows);
             }
+        }
+    }
+
+    public bool TryRefreshDirectory(
+        FilePanelState state,
+        int visibleRows,
+        AppSettings.PanelOptionsSettings? options = null)
+    {
+        try
+        {
+            RefreshDirectory(state, visibleRows, options);
+            return true;
+        }
+        catch (Exception ex) when (IsPanelLoadException(ex))
+        {
+            ApplyLoadError(state, state.CurrentLocation, ex);
+            return false;
         }
     }
 
@@ -203,6 +335,8 @@ public sealed class PanelController
         {
             if (!state.SelectedPaths.Remove(item.FullPath))
                 state.SelectedPaths.Add(item.FullPath);
+            if (!state.SelectedLocations.Remove(item.Location))
+                state.SelectedLocations.Add(item.Location);
             RefreshSelectedSummary(state);
         }
         MoveCursor(state, +1, visibleRows);
@@ -219,6 +353,8 @@ public sealed class PanelController
 
         if (!state.SelectedPaths.Remove(item.FullPath))
             state.SelectedPaths.Add(item.FullPath);
+        if (!state.SelectedLocations.Remove(item.Location))
+            state.SelectedLocations.Add(item.Location);
 
         RefreshSelectedSummary(state);
     }
@@ -233,9 +369,13 @@ public sealed class PanelController
                            selectable.All(i => state.SelectedPaths.Contains(i.FullPath));
 
         state.SelectedPaths.Clear();
+        state.SelectedLocations.Clear();
         if (!allSelected)
             foreach (var item in selectable)
+            {
                 state.SelectedPaths.Add(item.FullPath);
+                state.SelectedLocations.Add(item.Location);
+            }
 
         RefreshSelectedSummary(state);
     }
@@ -249,6 +389,8 @@ public sealed class PanelController
         {
             if (!state.SelectedPaths.Remove(item.FullPath))
                 state.SelectedPaths.Add(item.FullPath);
+            if (!state.SelectedLocations.Remove(item.Location))
+                state.SelectedLocations.Add(item.Location);
         }
 
         RefreshSelectedSummary(state);
@@ -273,7 +415,8 @@ public sealed class PanelController
         options ??= new AppSettings.PanelOptionsSettings();
         var view = _viewBuilder.Build(new PanelViewRequest
         {
-            DirectoryPath  = state.CurrentDirectory,
+            DirectoryPath  = state.SourcePath,
+            Location       = state.CurrentLocation,
             Options        = options,
             SortMode       = state.SortMode,
             SortDescending = state.SortDescending,
@@ -282,6 +425,8 @@ public sealed class PanelController
         state.Items.Clear();
         state.Items.AddRange(view.Items);
         state.Summary = view.Summary;
+        state.ProviderCapabilities = view.ProviderCapabilities;
+        state.LoadError = null;
 
         if (cursorName is not null)
         {
@@ -317,7 +462,8 @@ public sealed class PanelController
         {
             if (item.IsParentDirectory)
                 continue;
-            if (!state.SelectedPaths.Contains(item.FullPath))
+            if (!state.SelectedPaths.Contains(item.FullPath) &&
+                !state.SelectedLocations.Contains(item.Location))
                 continue;
 
             selectedCount++;
@@ -369,6 +515,36 @@ public sealed class PanelController
             VolumeSpaceUnavailable = summary.VolumeSpaceUnavailable,
         };
     }
+
+    private static void ApplyLoadError(
+        FilePanelState state,
+        PanelLocation location,
+        Exception exception)
+    {
+        state.CurrentLocation = location;
+        state.Items.Clear();
+        state.SelectedPaths.Clear();
+        state.SelectedLocations.Clear();
+        state.Summary = new PanelSummary();
+        state.AutoRefreshState = null;
+        state.ProviderCapabilities = PanelProviderCapabilities.Refresh;
+        state.LoadError = new PanelLoadError
+        {
+            Message = string.IsNullOrWhiteSpace(exception.Message)
+                ? "Cannot read panel source."
+                : exception.Message,
+            RetryLocation = location,
+        };
+        state.DisplayTitle = null;
+        state.ShowCurrentItemFullPath = false;
+        state.SearchRequest = null;
+        state.SearchWasCancelled = false;
+        state.CursorIndex = 0;
+        state.ScrollOffset = 0;
+    }
+
+    private static bool IsPanelLoadException(Exception exception) =>
+        exception is IOException or UnauthorizedAccessException;
 
     private static readonly IReadOnlySet<string> s_emptySet =
         new HashSet<string>(StringComparer.OrdinalIgnoreCase);

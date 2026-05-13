@@ -31,6 +31,7 @@ internal static class DefaultApplicationCommands
         new PanelSetSortModeCommand(),
         new PanelToggleReverseSortCommand(),
         new PanelRefreshCommand(),
+        new SftpConnectCommand(),
         new OpenSettingsCommand(),
         new ToggleShowHiddenAndSystemFilesCommand(),
         new ToggleHighlightFilesCommand(),

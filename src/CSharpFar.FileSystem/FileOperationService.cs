@@ -12,6 +12,16 @@ public sealed class FileOperationService : IFileOperationService
 {
     private const int CopyBufferSize = 1024 * 1024;
     private static readonly CopyResumeAnalyzer ResumeAnalyzer = new();
+    private readonly IFilePanelSourceRegistry? _sources;
+
+    public FileOperationService()
+    {
+    }
+
+    public FileOperationService(IFilePanelSourceRegistry sources)
+    {
+        _sources = sources;
+    }
 
     public async Task<FileOperationResult> ExecuteAsync(
         FileOperationRequest request,
@@ -26,6 +36,13 @@ public sealed class FileOperationService : IFileOperationService
 
         try
         {
+            if (UsesProviderLocations(request))
+            {
+                await ExecuteProviderOperationAsync(request, conflictResolver, state, cancellationToken)
+                    .ConfigureAwait(false);
+                return state.ToResult();
+            }
+
             switch (request.Kind)
             {
                 case FileOperationKind.Copy:
@@ -50,6 +67,255 @@ public sealed class FileOperationService : IFileOperationService
         }
 
         return state.ToResult();
+    }
+
+    private static bool UsesProviderLocations(FileOperationRequest request)
+    {
+        if (request.SourceLocations is null && request.DestinationLocation is null)
+            return false;
+
+        bool hasRemoteSource = request.SourceLocations?.Any(l => l.SourceId != PanelSourceId.Local) == true;
+        bool hasRemoteDestination = request.DestinationLocation is { SourceId: var sourceId } &&
+                                    sourceId != PanelSourceId.Local;
+        return hasRemoteSource || hasRemoteDestination;
+    }
+
+    private async Task ExecuteProviderOperationAsync(
+        FileOperationRequest request,
+        IFileOperationConflictResolver conflictResolver,
+        OperationState state,
+        CancellationToken cancellationToken)
+    {
+        if (_sources is null)
+            throw new InvalidOperationException("Provider-aware file operations require a panel source registry.");
+
+        switch (request.Kind)
+        {
+            case FileOperationKind.Copy:
+                await CopyProviderAsync(request, conflictResolver, state, cancellationToken).ConfigureAwait(false);
+                break;
+            case FileOperationKind.Move:
+                await MoveProviderAsync(request, state, cancellationToken).ConfigureAwait(false);
+                break;
+            case FileOperationKind.Delete:
+                await DeleteProviderAsync(request, state, cancellationToken).ConfigureAwait(false);
+                break;
+            case FileOperationKind.CreateDirectory:
+                await CreateProviderDirectoryAsync(request, state, cancellationToken).ConfigureAwait(false);
+                break;
+            default:
+                throw new ArgumentOutOfRangeException(nameof(request), request.Kind, "Unsupported file operation.");
+        }
+    }
+
+    private async Task CopyProviderAsync(
+        FileOperationRequest request,
+        IFileOperationConflictResolver conflictResolver,
+        OperationState state,
+        CancellationToken cancellationToken)
+    {
+        var destination = RequireDestinationLocation(request);
+        var sources = RequireSourceLocations(request);
+        var destinationSource = _sources!.GetSource(destination.SourceId);
+
+        state.SetTotals(CalculateProviderSourcesSize(sources, cancellationToken), sources.Count);
+        state.StartCopying();
+
+        foreach (var sourceLocation in sources)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var source = _sources.GetSource(sourceLocation.SourceId);
+            var item = source.GetItem(sourceLocation.SourcePath, cancellationToken);
+            if (item is null)
+            {
+                state.SkippedCount++;
+                state.CompleteItem();
+                continue;
+            }
+
+            string targetPath = CombineProviderPath(
+                destination.SourceId,
+                destination.SourcePath,
+                item.Name);
+
+            await CopyProviderItemAsync(
+                    source,
+                    sourceLocation.SourcePath,
+                    destinationSource,
+                    targetPath,
+                    item,
+                    request.Options,
+                    conflictResolver,
+                    state,
+                    cancellationToken)
+                .ConfigureAwait(false);
+        }
+    }
+
+    private async Task CopyProviderItemAsync(
+        IFilePanelSource source,
+        string sourcePath,
+        IFilePanelSource destinationSource,
+        string destinationPath,
+        FilePanelItem sourceItem,
+        FileOperationOptions options,
+        IFileOperationConflictResolver conflictResolver,
+        OperationState state,
+        CancellationToken cancellationToken)
+    {
+        if (sourceItem.IsDirectory)
+        {
+            await destinationSource.CreateDirectoryAsync(destinationPath, cancellationToken).ConfigureAwait(false);
+            state.CompleteFolder();
+
+            foreach (var child in source.EnumerateDirectory(sourcePath, cancellationToken).Where(i => !i.IsParentDirectory))
+            {
+                string childDestination = CombineProviderPath(
+                    destinationSource.SourceId,
+                    destinationPath,
+                    child.Name);
+                await CopyProviderItemAsync(
+                        source,
+                        child.SourcePath,
+                        destinationSource,
+                        childDestination,
+                        child,
+                        options,
+                        conflictResolver,
+                        state,
+                        cancellationToken)
+                    .ConfigureAwait(false);
+            }
+
+            state.CompleteItem();
+            return;
+        }
+
+        state.WaitIfPaused(cancellationToken);
+        var destinationItem = destinationSource.GetItem(destinationPath, cancellationToken);
+        if (destinationItem is not null)
+        {
+            var decision = options.DefaultConflictDecision == ConflictDecisionMode.Ask
+                ? conflictResolver.Resolve(new FileOperationConflict
+                {
+                    SourcePath = sourcePath,
+                    DestinationPath = destinationPath,
+                    SourceIsDirectory = false,
+                    DestinationIsDirectory = destinationItem.IsDirectory,
+                    SourceSize = sourceItem.Size,
+                    DestinationSize = destinationItem.Size,
+                    SourceLastWriteTime = sourceItem.LastWriteTime,
+                    DestinationLastWriteTime = destinationItem.LastWriteTime,
+                })
+                : FileOperationConflictDecision.FromMode(options.DefaultConflictDecision);
+
+            switch (decision.Mode)
+            {
+                case ConflictDecisionMode.Skip:
+                case ConflictDecisionMode.SkipAll:
+                    state.SkippedCount++;
+                    state.CompleteItem();
+                    return;
+                case ConflictDecisionMode.Rename:
+                case ConflictDecisionMode.RenameAll:
+                    destinationPath = string.IsNullOrWhiteSpace(decision.NewDestinationPath)
+                        ? GenerateProviderName(destinationSource, destinationPath, cancellationToken)
+                        : decision.NewDestinationPath;
+                    break;
+                case ConflictDecisionMode.Cancel:
+                    throw new OperationCanceledException("File operation cancelled by user.");
+                case ConflictDecisionMode.Overwrite:
+                case ConflictDecisionMode.OverwriteAll:
+                    await destinationSource.DeleteAsync(destinationPath, recursive: false, cancellationToken).ConfigureAwait(false);
+                    break;
+                case ConflictDecisionMode.Append:
+                case ConflictDecisionMode.AppendAll:
+                case ConflictDecisionMode.OnlyNewer:
+                case ConflictDecisionMode.ResumeWithTailValidation:
+                    throw new InvalidOperationException("The selected conflict mode is not supported for provider copy.");
+            }
+        }
+
+        await using var input = await source.OpenReadAsync(sourcePath, cancellationToken).ConfigureAwait(false);
+        await using var output = await destinationSource.OpenWriteAsync(destinationPath, overwrite: true, cancellationToken).ConfigureAwait(false);
+
+        byte[] buffer = new byte[CopyBufferSize];
+        long done = 0;
+        long total = sourceItem.Size ?? 0;
+        while (true)
+        {
+            int read = await input.ReadAsync(buffer.AsMemory(0, buffer.Length), cancellationToken).ConfigureAwait(false);
+            if (read == 0)
+                break;
+
+            await output.WriteAsync(buffer.AsMemory(0, read), cancellationToken).ConfigureAwait(false);
+            done += read;
+            state.AddBytes(read);
+            state.Report(sourcePath, destinationPath, done, total);
+        }
+
+        state.CopiedCount++;
+        state.CompleteItem();
+    }
+
+    private async Task MoveProviderAsync(
+        FileOperationRequest request,
+        OperationState state,
+        CancellationToken cancellationToken)
+    {
+        var sources = RequireSourceLocations(request);
+        if (sources.Count != 1)
+            throw new InvalidOperationException("Provider move supports a single-source rename only.");
+
+        var sourceLocation = sources[0];
+        var destination = RequireDestinationLocation(request);
+        if (sourceLocation.SourceId != destination.SourceId)
+            throw new InvalidOperationException("Cross-provider move is not supported.");
+
+        var source = _sources!.GetSource(sourceLocation.SourceId);
+        await source.RenameAsync(sourceLocation.SourcePath, destination.SourcePath, cancellationToken).ConfigureAwait(false);
+        state.MovedCount++;
+        state.SetTotals(0, 1);
+        state.CompleteItem();
+    }
+
+    private async Task DeleteProviderAsync(
+        FileOperationRequest request,
+        OperationState state,
+        CancellationToken cancellationToken)
+    {
+        var sources = RequireSourceLocations(request);
+        state.SetTotals(CalculateProviderSourcesSize(sources, cancellationToken), sources.Count);
+
+        foreach (var sourceLocation in sources)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var source = _sources!.GetSource(sourceLocation.SourceId);
+            var item = source.GetItem(sourceLocation.SourcePath, cancellationToken);
+            if (item is null)
+            {
+                state.SkippedCount++;
+                state.CompleteItem();
+                continue;
+            }
+
+            await source.DeleteAsync(sourceLocation.SourcePath, item.IsDirectory, cancellationToken).ConfigureAwait(false);
+            state.DeletedCount++;
+            state.CompleteItem();
+        }
+    }
+
+    private async Task CreateProviderDirectoryAsync(
+        FileOperationRequest request,
+        OperationState state,
+        CancellationToken cancellationToken)
+    {
+        var destination = RequireDestinationLocation(request);
+        var source = _sources!.GetSource(destination.SourceId);
+        await source.CreateDirectoryAsync(destination.SourcePath, cancellationToken).ConfigureAwait(false);
+        state.CreatedDirectoryCount++;
+        state.SetTotals(0, 1);
+        state.CompleteItem();
     }
 
     private static async Task CopyAsync(
@@ -856,6 +1122,106 @@ public sealed class FileOperationService : IFileOperationService
         string.IsNullOrWhiteSpace(request.Destination)
             ? throw new ArgumentException("Destination is required.", nameof(request))
             : request.Destination;
+
+    private static IReadOnlyList<PanelLocation> RequireSourceLocations(FileOperationRequest request)
+    {
+        if (request.SourceLocations is { Count: > 0 } sourceLocations)
+            return sourceLocations;
+
+        if (request.Sources.Count > 0)
+            return request.Sources.Select(PanelLocation.Local).ToList();
+
+        throw new ArgumentException("At least one source is required.", nameof(request));
+    }
+
+    private static PanelLocation RequireDestinationLocation(FileOperationRequest request)
+    {
+        if (request.DestinationLocation is { } destinationLocation)
+            return destinationLocation;
+
+        return PanelLocation.Local(RequireDestination(request));
+    }
+
+    private long CalculateProviderSourcesSize(
+        IReadOnlyList<PanelLocation> sources,
+        CancellationToken cancellationToken)
+    {
+        long total = 0;
+        foreach (var location in sources)
+            total += CalculateProviderSourceSize(location, cancellationToken);
+        return total;
+    }
+
+    private long CalculateProviderSourceSize(
+        PanelLocation location,
+        CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        var source = _sources!.GetSource(location.SourceId);
+        var item = source.GetItem(location.SourcePath, cancellationToken);
+        if (item is null)
+            return 0;
+
+        if (!item.IsDirectory)
+            return item.Size ?? 0;
+
+        long total = 0;
+        foreach (var child in source.EnumerateDirectory(location.SourcePath, cancellationToken).Where(i => !i.IsParentDirectory))
+            total += CalculateProviderSourceSize(child.Location, cancellationToken);
+        return total;
+    }
+
+    private static string CombineProviderPath(PanelSourceId sourceId, string directoryPath, string name)
+    {
+        if (sourceId == PanelSourceId.Local)
+            return Path.Combine(directoryPath, name);
+
+        string trimmedDirectory = directoryPath.TrimEnd('/');
+        return trimmedDirectory.Length == 0 || trimmedDirectory == "/"
+            ? "/" + name
+            : trimmedDirectory + "/" + name;
+    }
+
+    private static string GenerateProviderName(
+        IFilePanelSource source,
+        string destinationPath,
+        CancellationToken cancellationToken)
+    {
+        string directory;
+        string fileName;
+        string extension;
+
+        if (source.SourceId == PanelSourceId.Local)
+        {
+            directory = Path.GetDirectoryName(destinationPath) ?? string.Empty;
+            fileName = Path.GetFileNameWithoutExtension(destinationPath);
+            extension = Path.GetExtension(destinationPath);
+        }
+        else
+        {
+            int slash = destinationPath.LastIndexOf('/');
+            directory = slash <= 0 ? "/" : destinationPath[..slash];
+            string name = slash < 0 ? destinationPath : destinationPath[(slash + 1)..];
+            int dot = name.LastIndexOf('.');
+            if (dot <= 0)
+            {
+                fileName = name;
+                extension = string.Empty;
+            }
+            else
+            {
+                fileName = name[..dot];
+                extension = name[dot..];
+            }
+        }
+
+        for (int i = 2; ; i++)
+        {
+            string candidate = CombineProviderPath(source.SourceId, directory, $"{fileName} ({i}){extension}");
+            if (source.GetItem(candidate, cancellationToken) is null)
+                return candidate;
+        }
+    }
 
     private static bool PathsEqual(string left, string right) =>
         string.Equals(NormalizePath(left), NormalizePath(right), StringComparison.OrdinalIgnoreCase);

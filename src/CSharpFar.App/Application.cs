@@ -17,6 +17,7 @@ using CSharpFar.Core.History;
 using CSharpFar.Core.Menu;
 using CSharpFar.Core.Models;
 using CSharpFar.Core.Services;
+using CSharpFar.FileSystem;
 using CSharpFar.Shell;
 using AppSettingsAlias = CSharpFar.Core.Models.AppSettings;
 
@@ -33,6 +34,9 @@ public sealed class Application
     private readonly IFileLauncher _fileLauncher;
     private readonly IFileOperationService _fileOps;
     private readonly ISearchService _searchService;
+    private readonly FilePanelSourceRegistry _sourceRegistry;
+    private readonly ISftpConnectionStore? _sftpConnectionStore;
+    private readonly ICredentialStore? _credentialStore;
     private readonly IHistoryStore _history;
     private readonly AppSettingsAlias _settings;
     private readonly UserMenuStore _userMenu;
@@ -121,17 +125,28 @@ public sealed class Application
         IFileSystemLocationService?  locationService   = null,
         IVolumeMountPointService?    mountPointService = null,
         IFileLauncher?               fileLauncher      = null,
-        ISearchService?              searchService     = null)
+        ISearchService?              searchService     = null,
+        FilePanelSourceRegistry?     sourceRegistry    = null,
+        ISftpConnectionStore?        sftpConnectionStore = null,
+        ICredentialStore?            credentialStore   = null)
     {
         _screen       = screen;
         _fs           = fs;
         var sortSvc   = new PanelSortService();
-        var viewBuilder = new PanelViewBuilder(fs, sortSvc, volumeInfoService, mountPoints: mountPointService);
+        _sourceRegistry = sourceRegistry ?? new FilePanelSourceRegistry([new LocalFilePanelSource(fs)]);
+        var viewBuilder = new PanelViewBuilder(
+            fs,
+            sortSvc,
+            volumeInfoService,
+            mountPoints: mountPointService,
+            sources: _sourceRegistry);
         _ctrl         = new PanelController(viewBuilder);
         _shell        = shell;
         _fileLauncher = fileLauncher ?? new WindowsShellFileLauncher();
         _fileOps      = fileOps;
         _searchService = searchService ?? new CSharpFar.FileSystem.FileSystemSearchService();
+        _sftpConnectionStore = sftpConnectionStore;
+        _credentialStore = credentialStore;
         _history      = history      ?? new InMemoryHistoryStore();
         _settings     = settings     ?? new AppSettingsAlias();
         _userMenu     = userMenu     ?? new UserMenuStore(
@@ -177,6 +192,10 @@ public sealed class Application
     internal IFileOperationService CommandFileOperations => _fileOps;
 
     internal ISearchService CommandSearchService => _searchService;
+
+    internal ISftpConnectionStore? CommandSftpConnectionStore => _sftpConnectionStore;
+
+    internal ICredentialStore? CommandCredentialStore => _credentialStore;
 
     internal IHistoryStore CommandHistory => _history;
 
@@ -918,6 +937,16 @@ public sealed class Application
 
         if (TryHandlePanelScrollbarMouse(evt, side, state, mode, bounds, visRows))
             return true;
+
+        if (evt.Button == MouseButton.Left &&
+            (evt.Kind == MouseEventKind.Down || evt.Kind == MouseEventKind.Click) &&
+            PanelErrorRenderer.HitTestRetry(evt.X, evt.Y, bounds, state, mode, PanelOptions))
+        {
+            _active = side;
+            SafeRefresh(state, visRows);
+            _lastLeftPanelItemClick = null;
+            return true;
+        }
 
         // Mouse wheel: scroll the panel under cursor
         if (evt.Kind == MouseEventKind.Wheel)
@@ -1700,10 +1729,11 @@ public sealed class Application
         IReadOnlyList<SearchResultItem> results,
         bool cancelled)
     {
-        state.CurrentDirectory = request.RootPath;
+        state.CurrentLocation = PanelLocation.SearchResult(request.RootPath);
         state.Items.Clear();
         state.Items.AddRange(results.Select(ToFilePanelItem));
         state.SelectedPaths.Clear();
+        state.SelectedLocations.Clear();
         state.CursorIndex = 0;
         state.ScrollOffset = 0;
         state.ProviderCapabilities = PanelProviderCapabilities.SearchResults;
@@ -1723,8 +1753,8 @@ public sealed class Application
         state.SearchWasCancelled = false;
         state.ShowCurrentItemFullPath = false;
         state.DisplayTitle = null;
-        _ctrl.LoadDirectory(state, rootPath, PanelOptions);
-        StartWatching(state, side);
+        if (_ctrl.TryLoadDirectory(state, rootPath, PanelOptions))
+            StartWatching(state, side);
     }
 
     internal void GoToSearchResult(FilePanelState state, PanelSide side, SearchResultItem result)
@@ -1766,12 +1796,14 @@ public sealed class Application
 
         try
         {
-            _ctrl.LoadDirectory(state, directoryPath, PanelOptions);
-            if (!isDirectory)
-                _ctrl.SetCursorByName(state, name, VisibleRows(side));
+            if (_ctrl.TryLoadDirectory(state, directoryPath, PanelOptions))
+            {
+                if (!isDirectory)
+                    _ctrl.SetCursorByName(state, name, VisibleRows(side));
 
-            _history.AddDirectory(new DirectoryHistoryItem { Path = state.CurrentDirectory });
-            StartWatching(state, side);
+                _history.AddDirectory(new DirectoryHistoryItem { Path = state.CurrentDirectory });
+                StartWatching(state, side);
+            }
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or DirectoryNotFoundException)
         {
@@ -1837,6 +1869,271 @@ public sealed class Application
 
     internal FilePanelState GetPanelState(PanelSide side) =>
         side == PanelSide.Left ? _left : _right;
+
+    internal IReadOnlyList<SftpConnectionInfo> LoadSftpConnections() =>
+        _sftpConnectionStore?.Load() ?? [];
+
+    internal void OpenSftpConnectionManager(PanelSide side)
+    {
+        if (!EnsureSftpStorage())
+            return;
+
+        while (true)
+        {
+            var connections = LoadSftpConnections();
+            var result = new SftpConnectionManagerDialog(_screen, _palette).Show(connections);
+            if (result is null)
+                return;
+
+            switch (result.Action)
+            {
+                case SftpConnectionManagerAction.Create:
+                    if (ShowSftpConnectionEditor(null, saveConnectionByDefault: true, allowTemporaryConnection: false) is { } created)
+                        SaveSftpConnectionResult(created);
+                    break;
+                case SftpConnectionManagerAction.Edit:
+                    if (result.Connection is not null &&
+                        ShowSftpConnectionEditor(result.Connection, saveConnectionByDefault: true, allowTemporaryConnection: false) is { } edited)
+                    {
+                        SaveSftpConnectionResult(edited);
+                    }
+                    break;
+                case SftpConnectionManagerAction.Delete:
+                    if (result.Connection is not null)
+                        DeleteSftpConnection(result.Connection);
+                    break;
+                case SftpConnectionManagerAction.Connect:
+                    if (result.Connection is not null)
+                        OpenSavedSftpConnection(side, result.Connection);
+                    break;
+            }
+        }
+    }
+
+    internal void OpenSftpConnectionDialog(PanelSide side, SftpConnectionInfo? savedConnection = null)
+    {
+        if (!EnsureSftpStorage())
+            return;
+
+        if (savedConnection is not null)
+        {
+            OpenSavedSftpConnection(side, savedConnection);
+            return;
+        }
+
+        var result = ShowSftpConnectionEditor(null, saveConnectionByDefault: false, allowTemporaryConnection: true);
+        if (result is null)
+            return;
+
+        if (OpenSftpConnection(side, result.Connection, result.Password))
+            SaveSftpConnectionResult(result);
+    }
+
+    internal void OpenSavedSftpConnection(PanelSide side, SftpConnectionInfo connection)
+    {
+        if (!EnsureSftpStorage())
+            return;
+
+        string? password = connection.CredentialId is not null
+            ? _credentialStore!.TryReadPassword(connection.CredentialId)
+            : null;
+
+        if (password is null || string.IsNullOrWhiteSpace(connection.ExpectedHostKeyFingerprint))
+        {
+            var result = ShowSftpConnectionEditor(
+                connection,
+                saveConnectionByDefault: true,
+                allowTemporaryConnection: false);
+            if (result is null)
+                return;
+
+            if (OpenSftpConnection(side, result.Connection, result.Password))
+                SaveSftpConnectionResult(result);
+            return;
+        }
+
+        OpenSftpConnection(side, connection, password);
+    }
+
+    private bool OpenSftpConnection(PanelSide side, SftpConnectionInfo connection, string password)
+    {
+        var source = new SftpFilePanelSource(connection, password);
+        _sourceRegistry.Add(source);
+
+        var state = GetPanelState(side);
+        bool loaded = _ctrl.TryLoadLocation(
+            state,
+            new PanelLocation(source.SourceId, connection.RemoteRootPath),
+            PanelOptions);
+        state.DisplayTitle = $"SFTP: {connection.DisplayName}";
+        state.ShowCurrentItemFullPath = true;
+        QuickView = false;
+        ActiveSide = side;
+        return loaded;
+    }
+
+    private SftpConnectionDialogResult? ShowSftpConnectionEditor(
+        SftpConnectionInfo? connection,
+        bool saveConnectionByDefault,
+        bool allowTemporaryConnection)
+    {
+        string? savedPassword = connection?.CredentialId is not null
+            ? _credentialStore!.TryReadPassword(connection.CredentialId)
+            : null;
+
+        return new SftpConnectionDialog(_screen, _palette).Show(
+            new SftpConnectionDialogRequest(
+                connection,
+                savedPassword,
+                saveConnectionByDefault,
+                allowTemporaryConnection),
+            ValidateSftpConnection);
+    }
+
+    private SftpConnectionDialogValidationResult ValidateSftpConnection(SftpConnectionDialogResult result)
+    {
+        if (result.SavePassword && !result.SaveConnection)
+            return SftpConnectionDialogValidationResult.Error("Password can be saved only with a saved connection.");
+
+        if (string.IsNullOrWhiteSpace(result.Connection.ExpectedHostKeyFingerprint))
+        {
+            string? fingerprint = null;
+            var untrustedProbe = new SftpFilePanelSource(
+                result.Connection with { ExpectedHostKeyFingerprint = null },
+                result.Password,
+                acceptHostKey: (_, hostKeyFingerprint) =>
+                {
+                    fingerprint = hostKeyFingerprint;
+                    return false;
+                });
+            try
+            {
+                _ = untrustedProbe.GetItem(result.Connection.RemoteRootPath);
+            }
+            catch (IOException ex)
+            {
+                return fingerprint is null
+                    ? SftpConnectionDialogValidationResult.Error(ex.Message)
+                    : SftpConnectionDialogValidationResult.RequireHostKeyTrust(fingerprint);
+            }
+            catch (Exception ex) when (ex is UnauthorizedAccessException or InvalidOperationException)
+            {
+                return SftpConnectionDialogValidationResult.Error(ex.Message);
+            }
+        }
+
+        try
+        {
+            var source = new SftpFilePanelSource(result.Connection, result.Password);
+            _ = source.GetItem(result.Connection.RemoteRootPath);
+            return SftpConnectionDialogValidationResult.Accepted();
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException)
+        {
+            return SftpConnectionDialogValidationResult.Error(ex.Message);
+        }
+    }
+
+    private bool EnsureSftpStorage()
+    {
+        if (_sftpConnectionStore is not null && _credentialStore is not null)
+            return true;
+
+        new MessageDialog(_screen, _palette).Show("SFTP", "SFTP connection storage is not configured.");
+        return false;
+    }
+
+    internal string CombinePanelPath(FilePanelState state, string name)
+    {
+        if (state.SourceId == PanelSourceId.Local)
+            return Path.Combine(state.SourcePath, name);
+
+        string directory = state.SourcePath.TrimEnd('/');
+        return directory.Length == 0 || directory == "/"
+            ? "/" + name
+            : directory + "/" + name;
+    }
+
+    internal void ViewPanelFile(FilePanelState state, FilePanelItem item)
+    {
+        if (state.SourceId == PanelSourceId.Local)
+        {
+            _history.AddFile(new FileHistoryItem { Path = item.FullPath });
+            new FileViewer(_screen, _palette).Show(item.FullPath);
+            return;
+        }
+
+        var source = _sourceRegistry.GetSource(item.SourceId);
+        string tempPath = Path.Combine(Path.GetTempPath(), "CSharpFar", Guid.NewGuid().ToString("N"), item.Name);
+        Directory.CreateDirectory(Path.GetDirectoryName(tempPath)!);
+        try
+        {
+            using (var input = source.OpenReadAsync(item.SourcePath).GetAwaiter().GetResult())
+            using (var output = File.Create(tempPath))
+            {
+                input.CopyTo(output);
+            }
+
+            _history.AddFile(new FileHistoryItem { Path = $"{item.SourceId}:{item.SourcePath}" });
+            new FileViewer(_screen, _palette).Show(tempPath);
+        }
+        finally
+        {
+            try { Directory.Delete(Path.GetDirectoryName(tempPath)!, recursive: true); }
+            catch { }
+        }
+    }
+
+    private void SaveSftpConnection(SftpConnectionInfo connection)
+    {
+        if (_sftpConnectionStore is null)
+            return;
+
+        var connections = _sftpConnectionStore.Load().ToList();
+        int index = connections.FindIndex(c => string.Equals(c.Id, connection.Id, StringComparison.Ordinal));
+        if (index >= 0)
+            connections[index] = connection;
+        else
+            connections.Add(connection);
+
+        _sftpConnectionStore.Save(connections);
+    }
+
+    private void SaveSftpConnectionResult(SftpConnectionDialogResult result)
+    {
+        if (_credentialStore is null)
+            return;
+
+        if (result.SavePassword && result.Connection.CredentialId is not null)
+        {
+            _credentialStore.SavePassword(result.Connection.CredentialId, result.Password);
+        }
+        else if (result.PreviousCredentialId is not null)
+        {
+            _credentialStore.DeletePassword(result.PreviousCredentialId);
+        }
+
+        if (result.SaveConnection)
+            SaveSftpConnection(result.Connection);
+    }
+
+    private void DeleteSftpConnection(SftpConnectionInfo connection)
+    {
+        if (_sftpConnectionStore is null || _credentialStore is null)
+            return;
+
+        if (!new ConfirmDialog(_screen).Show("SFTP", "Delete saved connection?", connection.DisplayName))
+            return;
+
+        var connections = _sftpConnectionStore
+            .Load()
+            .Where(item => !string.Equals(item.Id, connection.Id, StringComparison.Ordinal))
+            .ToList();
+        _sftpConnectionStore.Save(connections);
+
+        if (connection.CredentialId is not null)
+            _credentialStore.DeletePassword(connection.CredentialId);
+    }
 
     // ── file highlighting ─────────────────────────────────────────────────────
 
@@ -2034,20 +2331,16 @@ public sealed class Application
         if (!HasCapability(state, PanelProviderCapabilities.Enumerate))
             return;
 
-        try
-        {
-            if (item.IsParentDirectory)
-                _ctrl.GoToParent(state, VisibleRows(side), PanelOptions);
-            else
-                _ctrl.LoadDirectory(state, item.FullPath, PanelOptions);
+        bool loaded = item.IsParentDirectory
+            ? _ctrl.TryGoToParent(state, VisibleRows(side), PanelOptions)
+            : _ctrl.TryLoadLocation(state, item.Location, PanelOptions);
 
+        if (!loaded)
+            return;
+
+        if (state.SourceId == PanelSourceId.Local)
             _history.AddDirectory(new DirectoryHistoryItem { Path = state.CurrentDirectory });
-            StartWatching(state, side);
-        }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
-        {
-            new MessageDialog(_screen, _palette).Show("Navigation", ex.Message);
-        }
+        StartWatching(state, side);
     }
 
     private void OpenFileItem(FilePanelItem item)
@@ -2057,6 +2350,12 @@ public sealed class Application
 
         try
         {
+            if (ActiveState.SourceId != PanelSourceId.Local)
+            {
+                ViewPanelFile(ActiveState, item);
+                return;
+            }
+
             string workDir = ActiveState.CurrentDirectory;
             if (_fileLauncher.GetLaunchMode(item.FullPath) == FileLaunchMode.CurrentConsole)
             {
@@ -2081,19 +2380,15 @@ public sealed class Application
 
     private void TryGoUp()
     {
-        if (!HasCapability(ActiveState, PanelProviderCapabilities.Watch))
+        if (!HasCapability(ActiveState, PanelProviderCapabilities.Enumerate))
             return;
 
-        try
-        {
-            _ctrl.GoToParent(ActiveState, VisibleRows(), PanelOptions);
+        if (!_ctrl.TryGoToParent(ActiveState, VisibleRows(), PanelOptions))
+            return;
+
+        if (ActiveState.SourceId == PanelSourceId.Local)
             _history.AddDirectory(new DirectoryHistoryItem { Path = ActiveState.CurrentDirectory });
-            StartWatching(ActiveState, _active);
-        }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
-        {
-            new MessageDialog(_screen, _palette).Show("Navigation", ex.Message);
-        }
+        StartWatching(ActiveState, _active);
     }
 
     internal void RefreshPanels()
@@ -2191,9 +2486,7 @@ public sealed class Application
             return;
         }
 
-        if (!Directory.Exists(state.CurrentDirectory)) return;
-        try { _ctrl.RefreshDirectory(state, visibleRows, PanelOptions); }
-        catch { }
+        _ctrl.TryRefreshDirectory(state, visibleRows, PanelOptions);
     }
 
     internal void SetPanelSortMode(FilePanelState state, SortMode mode, int visibleRows)
@@ -2306,7 +2599,7 @@ public sealed class Application
     {
         new MessageDialog(_screen, _palette).Show(
             action,
-            "Search results are read-only.");
+            "The current panel source does not support this operation.");
     }
 
     // ── auto-refresh ──────────────────────────────────────────────────────────
@@ -2314,7 +2607,8 @@ public sealed class Application
     internal void StartWatching(FilePanelState state, PanelSide side)
     {
         if (_watcher == null || _locationService == null) return;
-        if (!HasCapability(state, PanelProviderCapabilities.Watch))
+        if (state.SourceId != PanelSourceId.Local ||
+            !HasCapability(state, PanelProviderCapabilities.Watch))
         {
             state.AutoRefreshState = null;
             return;

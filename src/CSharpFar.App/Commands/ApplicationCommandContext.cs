@@ -46,6 +46,9 @@ internal sealed class ApplicationCommandContext
 
     public IVolumeService? VolumeService => _application.CommandVolumeService;
 
+    public IReadOnlyList<SftpConnectionInfo> LoadSftpConnections() =>
+        _application.LoadSftpConnections();
+
     public FilePanelState LeftPanel => _application.CommandLeftPanel;
 
     public FilePanelState RightPanel => _application.CommandRightPanel;
@@ -148,6 +151,21 @@ internal sealed class ApplicationCommandContext
         PanelSide side,
         FilePanelItem item) =>
         _application.OpenPanelItem(state, side, item);
+
+    public void OpenSftpConnectionDialog(PanelSide side, SftpConnectionInfo? savedConnection = null) =>
+        _application.OpenSftpConnectionDialog(side, savedConnection);
+
+    public void OpenSftpConnectionManager(PanelSide side) =>
+        _application.OpenSftpConnectionManager(side);
+
+    public void OpenSavedSftpConnection(PanelSide side, SftpConnectionInfo connection) =>
+        _application.OpenSavedSftpConnection(side, connection);
+
+    public string CombinePanelPath(FilePanelState state, string name) =>
+        _application.CombinePanelPath(state, name);
+
+    public void ViewPanelFile(FilePanelState state, FilePanelItem item) =>
+        _application.ViewPanelFile(state, item);
 
     public void ExecuteCommand(string command) =>
         _application.ExecuteCommand(command);

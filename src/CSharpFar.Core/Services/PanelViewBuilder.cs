@@ -9,25 +9,34 @@ public sealed class PanelViewBuilder : IPanelViewBuilder
     private readonly IPanelSortService      _sort;
     private readonly IVolumeInfoService?    _volumeInfo;
     private readonly IVolumeMountPointService? _mountPoints;
+    private readonly IFilePanelSourceRegistry? _sources;
 
     public PanelViewBuilder(
         IFileSystemService        fs,
         IPanelSortService         sort,
         IVolumeInfoService?       volumeInfo   = null,
-        IVolumeMountPointService? mountPoints  = null)
+        IVolumeMountPointService? mountPoints  = null,
+        IFilePanelSourceRegistry? sources      = null)
     {
         _fs          = fs;
         _sort        = sort;
         _volumeInfo  = volumeInfo;
         _mountPoints = mountPoints;
+        _sources     = sources;
     }
 
     public PanelView Build(PanelViewRequest request)
     {
         var opts = request.Options;
+        var location = request.Location ?? PanelLocation.Local(request.DirectoryPath);
+        bool isLocal = location.SourceId == PanelSourceId.Local;
+        IFilePanelSource? source = isLocal ? null : _sources?.GetSource(location.SourceId);
+        string sourcePath = source?.NormalizePath(location.SourcePath) ?? request.DirectoryPath;
 
         // 1. Read raw entries (no .., no filtering, no sorting)
-        var raw = _fs.ReadDirectory(request.DirectoryPath);
+        var raw = isLocal
+            ? _fs.ReadDirectory(sourcePath)
+            : source!.EnumerateDirectory(sourcePath);
 
         // 2. Map + detect mount points
         var items = new List<FilePanelItem>(raw.Count + 1);
@@ -45,6 +54,7 @@ public sealed class PanelViewBuilder : IPanelViewBuilder
                     {
                         Name               = item.Name,
                         FullPath           = item.FullPath,
+                        SourceId           = location.SourceId,
                         IsDirectory        = item.IsDirectory,
                         Size               = item.Size,
                         LastWriteTime      = item.LastWriteTime,
@@ -57,7 +67,9 @@ public sealed class PanelViewBuilder : IPanelViewBuilder
                     continue;
                 }
             }
-            items.Add(item);
+            items.Add(isLocal || item.SourceId == location.SourceId
+                ? item
+                : CloneForSource(item, location.SourceId));
         }
 
         // 3. Visibility filter
@@ -69,21 +81,23 @@ public sealed class PanelViewBuilder : IPanelViewBuilder
         }
 
         // 4. Add .. (or not)
-        bool isRoot = IsRootDirectory(request.DirectoryPath, opts);
+        bool isRoot = source?.IsRootPath(sourcePath) ?? IsRootDirectory(sourcePath, opts);
         if (!isRoot || opts.ShowParentDirectoryInRootFolders)
         {
             string parentPath = isRoot
-                ? request.DirectoryPath
-                : Path.GetDirectoryName(
-                    request.DirectoryPath.TrimEnd(
-                        Path.DirectorySeparatorChar,
-                        Path.AltDirectorySeparatorChar))
-                  ?? request.DirectoryPath;
+                ? sourcePath
+                : source?.GetParentPath(sourcePath) ??
+                  Path.GetDirectoryName(
+                      sourcePath.TrimEnd(
+                          Path.DirectorySeparatorChar,
+                          Path.AltDirectorySeparatorChar))
+                  ?? sourcePath;
 
             items.Insert(0, new FilePanelItem
             {
                 Name              = "..",
                 FullPath          = parentPath,
+                SourceId          = location.SourceId,
                 IsDirectory       = true,
                 IsParentDirectory = true,
                 Attributes        = FileAttributes.Directory,
@@ -122,7 +136,7 @@ public sealed class PanelViewBuilder : IPanelViewBuilder
         bool             vsUnavail = false;
         if (opts.ShowFreeSize && _volumeInfo is not null)
         {
-            try { vsInfo = _volumeInfo.GetSpaceInfo(request.DirectoryPath); }
+            try { vsInfo = isLocal ? _volumeInfo.GetSpaceInfo(sourcePath) : null; }
             catch { vsUnavail = true; }
         }
 
@@ -144,6 +158,7 @@ public sealed class PanelViewBuilder : IPanelViewBuilder
             Summary          = summary,
             AutoRefreshState = new PanelAutoRefreshState(),
             IsRootDirectory  = isRoot,
+            ProviderCapabilities = source?.Capabilities ?? PanelProviderCapabilities.LocalFileSystem,
         };
     }
 
@@ -190,4 +205,20 @@ public sealed class PanelViewBuilder : IPanelViewBuilder
         }
         catch { return null; }
     }
+
+    private static FilePanelItem CloneForSource(FilePanelItem item, PanelSourceId sourceId) =>
+        new()
+        {
+            Name = item.Name,
+            FullPath = item.FullPath,
+            SourceId = sourceId,
+            IsDirectory = item.IsDirectory,
+            Size = item.Size,
+            LastWriteTime = item.LastWriteTime,
+            Attributes = item.Attributes,
+            IsParentDirectory = item.IsParentDirectory,
+            IsVolumeMountPoint = item.IsVolumeMountPoint,
+            MountedVolumeName = item.MountedVolumeName,
+            MountedVolumePath = item.MountedVolumePath,
+        };
 }

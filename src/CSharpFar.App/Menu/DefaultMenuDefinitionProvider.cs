@@ -12,6 +12,7 @@ public sealed class DefaultMenuDefinitionProvider
             [
                 BuildPanelMenu("Left", PanelSide.Left, context.LeftPanel, context.LeftViewMode),
                 BuildPanelMenu("Right", PanelSide.Right, context.RightPanel, context.RightViewMode),
+                BuildPluginsMenu(),
                 BuildOptionsMenu(context),
             ],
         };
@@ -62,14 +63,30 @@ public sealed class DefaultMenuDefinitionProvider
                     new PanelCommandArgs { PanelSide = side },
                     panel.SortDescending),
                 Separator($"{id}.sep.refresh"),
-                Command($"{id}.refresh", "Refresh", 'H',
+                Command($"{id}.refresh", panel.LoadError is null ? "Refresh" : "Retry",
+                    panel.LoadError is null ? 'H' : 'Y',
                     MenuCommandIds.PanelRefresh,
                     new PanelCommandArgs { PanelSide = side },
                     (panel.ProviderCapabilities & PanelProviderCapabilities.Refresh) == PanelProviderCapabilities.Refresh &&
-                    (panel.SearchRequest is not null || Directory.Exists(panel.CurrentDirectory))),
+                    (panel.LoadError is not null ||
+                     panel.SearchRequest is not null ||
+                     panel.SourceId != PanelSourceId.Local ||
+                     Directory.Exists(panel.CurrentDirectory))),
             ],
         };
     }
+
+    private static TopMenuItemDefinition BuildPluginsMenu() =>
+        new()
+        {
+            Id = "Plugins",
+            Text = "Plugins",
+            HotKey = 'P',
+            Children =
+            [
+                Command("Plugins.sftp", "SFTP...", 'S', MenuCommandIds.SftpConnect),
+            ],
+        };
 
     private static TopMenuItemDefinition BuildOptionsMenu(MenuBuildContext context)
     {

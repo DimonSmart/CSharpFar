@@ -67,6 +67,13 @@ internal sealed class PanelRenderer
 
         PanelTitleRenderer.Render(_screen, bounds, state, isActive, p);
 
+        if (state.LoadError is not null)
+        {
+            PanelErrorRenderer.Render(_screen, bounds, state, PanelViewMode.Full, p, _options);
+            new PanelStatusRenderer(_screen).Render(bounds, state, footer, border, _options);
+            return;
+        }
+
         // File list
         int innerWidth = bounds.Width - 2;
         int listTop    = bounds.Y + 1;

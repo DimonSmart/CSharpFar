@@ -30,6 +30,7 @@ internal sealed class CopyCommand : IApplicationCommand
         }
 
         var sources = FileOperationCommandHelpers.GetOperationSources(context);
+        var sourceLocations = FileOperationCommandHelpers.GetOperationSourceLocations(context);
         if (sources.Count == 0)
             return ApplicationCommandResult.Rendered();
 
@@ -48,11 +49,16 @@ internal sealed class CopyCommand : IApplicationCommand
             {
                 Kind = FileOperationKind.Copy,
                 Sources = sources,
+                SourceLocations = sourceLocations,
                 Destination = dialogResult.Destination,
+                DestinationLocation = targetState.SourceId == PanelSourceId.Local
+                    ? PanelLocation.Local(dialogResult.Destination)
+                    : new PanelLocation(targetState.SourceId, dialogResult.Destination),
                 Options = dialogResult.Options,
             });
 
             context.ActiveState.SelectedPaths.Clear();
+            context.ActiveState.SelectedLocations.Clear();
         }
         catch (OperationCanceledException) { }
         catch (Exception ex)

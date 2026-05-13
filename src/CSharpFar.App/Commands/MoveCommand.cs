@@ -28,8 +28,17 @@ internal sealed class MoveCommand : IApplicationCommand
         }
 
         var sources = FileOperationCommandHelpers.GetOperationSources(context);
+        var sourceLocations = FileOperationCommandHelpers.GetOperationSourceLocations(context);
         if (sources.Count == 0)
             return ApplicationCommandResult.Rendered();
+
+        if (context.ActiveState.SourceId != context.PassiveState.SourceId && sources.Count > 0)
+        {
+            new MessageDialog(context.Screen, context.Palette).Show(
+                "Move",
+                "Cross-provider move is not supported.");
+            return ApplicationCommandResult.Rendered();
+        }
 
         string preFill = sources.Count == 1
             ? Path.GetFileName(sources[0]) ?? sources[0]
@@ -50,11 +59,14 @@ internal sealed class MoveCommand : IApplicationCommand
             {
                 Kind = FileOperationKind.Move,
                 Sources = sources,
+                SourceLocations = sourceLocations,
                 Destination = dialogResult.Destination,
+                DestinationLocation = BuildDestinationLocation(context, dialogResult.Destination, sources.Count),
                 Options = dialogResult.Options,
             });
 
             context.ActiveState.SelectedPaths.Clear();
+            context.ActiveState.SelectedLocations.Clear();
         }
         catch (OperationCanceledException) { }
         catch (Exception ex)
@@ -69,5 +81,19 @@ internal sealed class MoveCommand : IApplicationCommand
 
         context.RefreshPanels();
         return ApplicationCommandResult.Rendered();
+    }
+
+    private static PanelLocation BuildDestinationLocation(
+        ApplicationCommandContext context,
+        string destination,
+        int sourceCount)
+    {
+        if (context.ActiveState.SourceId == PanelSourceId.Local)
+            return PanelLocation.Local(destination);
+
+        string path = sourceCount == 1 && !destination.Contains('/')
+            ? context.CombinePanelPath(context.ActiveState, destination)
+            : destination;
+        return new PanelLocation(context.ActiveState.SourceId, path);
     }
 }

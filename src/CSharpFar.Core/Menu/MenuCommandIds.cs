@@ -7,6 +7,8 @@ public static class MenuCommandIds
     public const string PanelToggleReverseSort = "panel.toggleReverseSort";
     public const string PanelRefresh = "panel.refresh";
 
+    public const string SftpConnect = "sftp.connect";
+
     public const string SettingsOpenPanelSettings = "settings.openPanelSettings";
     public const string SettingsToggleShowHiddenAndSystemFiles = "settings.toggleShowHiddenAndSystemFiles";
     public const string SettingsToggleHighlightFiles = "settings.toggleHighlightFiles";

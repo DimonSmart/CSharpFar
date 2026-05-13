@@ -37,7 +37,8 @@ internal sealed class InputDialog
         string prompt,
         string? initialText = null,
         Func<string, string?>? validate = null,
-        bool allowEmpty = false)
+        bool allowEmpty = false,
+        bool maskInput = false)
     {
         var size  = _screen.GetSize();
         var saved = _screen.Capture(new Rect(0, 0, size.Width, size.Height));
@@ -45,7 +46,7 @@ internal sealed class InputDialog
 
         try
         {
-            return RunLoop(title, prompt, initialText, validate, allowEmpty, size);
+            return RunLoop(title, prompt, initialText, validate, allowEmpty, maskInput, size);
         }
         finally
         {
@@ -54,7 +55,7 @@ internal sealed class InputDialog
         }
     }
 
-    private string? RunLoop(string title, string prompt, string? initialText, Func<string, string?>? validate, bool allowEmpty, ConsoleSize size)
+    private string? RunLoop(string title, string prompt, string? initialText, Func<string, string?>? validate, bool allowEmpty, bool maskInput, ConsoleSize size)
     {
         var buf = new CommandLineState();
         if (initialText is not null) buf.SetText(initialText);
@@ -62,7 +63,7 @@ internal sealed class InputDialog
 
         while (true)
         {
-            Draw(title, prompt, buf, error, size);
+            Draw(title, prompt, buf, error, maskInput, size);
 
             var key = _screen.ReadKey();
 
@@ -97,7 +98,7 @@ internal sealed class InputDialog
         }
     }
 
-    private void Draw(string title, string prompt, CommandLineState buf, string? error, ConsoleSize size)
+    private void Draw(string title, string prompt, CommandLineState buf, string? error, bool maskInput, ConsoleSize size)
     {
         int dlgX = Math.Max(0, (size.Width  - DialogWidth)  / 2);
         int dlgY = Math.Max(0, (size.Height - DialogHeight) / 2);
@@ -110,7 +111,7 @@ internal sealed class InputDialog
             int fieldX     = dlgX + 2;
             int fieldY     = dlgY + 2;
             int fieldWidth = DialogWidth - 4;
-            DrawInputField(fieldX, fieldY, fieldWidth, buf);
+            DrawInputField(fieldX, fieldY, fieldWidth, buf, maskInput);
 
             string errorText = error is not null
                 ? Truncate(error, fieldWidth).PadRight(fieldWidth)
@@ -127,9 +128,9 @@ internal sealed class InputDialog
         });
     }
 
-    private void DrawInputField(int x, int y, int width, CommandLineState buf)
+    private void DrawInputField(int x, int y, int width, CommandLineState buf, bool maskInput)
     {
-        string text  = buf.Text;
+        string text  = maskInput ? new string('*', buf.Text.Length) : buf.Text;
         int    cursor = buf.CursorPosition;
         int    start  = Math.Max(0, cursor - (width - 1));
 

@@ -286,16 +286,17 @@ public sealed class Spec008MenuControllerTests
 public sealed class Spec008MenuLayoutAndRenderingTests
 {
     [Fact]
-    public void Layout_TopItems_AreInLeftRightOptionsOrder()
+    public void Layout_TopItems_AreInLeftRightPluginsOptionsOrder()
     {
         var layout = new MenuLayoutService().CalculateLayout(
             new Rect(0, 0, 80, 25),
             ProviderMenu(),
             new MenuState());
 
-        Assert.Equal(3, layout.TopItemBounds.Count);
+        Assert.Equal(4, layout.TopItemBounds.Count);
         Assert.True(layout.TopItemBounds[0].X < layout.TopItemBounds[1].X);
         Assert.True(layout.TopItemBounds[1].X < layout.TopItemBounds[2].X);
+        Assert.True(layout.TopItemBounds[2].X < layout.TopItemBounds[3].X);
     }
 
     [Fact]
@@ -447,13 +448,13 @@ public sealed class Spec008MenuProviderAndCommandTests : IDisposable
     }
 
     [Fact]
-    public void Provider_BuildsLeftRightOptionsWithoutWideMode()
+    public void Provider_BuildsLeftRightPluginsOptionsWithoutWideMode()
     {
         var menu = BuildProviderMenu(canSaveSettings: false);
 
-        Assert.Equal(["Left", "Right", "Options"], menu.Items.Select(i => i.Text).ToArray());
+        Assert.Equal(["Left", "Right", "Plugins", "Options"], menu.Items.Select(i => i.Text).ToArray());
         Assert.DoesNotContain(menu.Items[0].Children, item => item.Text.Contains("Wide", StringComparison.OrdinalIgnoreCase));
-        Assert.DoesNotContain(menu.Items[2].Children, item => item.CommandId == MenuCommandIds.SettingsSave);
+        Assert.DoesNotContain(menu.Items[3].Children, item => item.CommandId == MenuCommandIds.SettingsSave);
     }
 
     [Fact]
@@ -471,7 +472,8 @@ public sealed class Spec008MenuProviderAndCommandTests : IDisposable
         Assert.Equal(PanelViewMode.BriefTwoColumns, ((SetPanelViewModeArgs)leftBrief.CommandArgs!).ViewMode);
         Assert.Equal(PanelSide.Right, ((SetPanelViewModeArgs)rightFull.CommandArgs!).PanelSide);
         Assert.Equal(SortMode.LastWriteTime, ((SetPanelSortModeArgs)lastWrite.CommandArgs!).SortMode);
-        Assert.Contains(menu.Items[2].Children, item => item.CommandId == MenuCommandIds.SettingsSave);
+        Assert.Contains(menu.Items[2].Children, item => item.CommandId == MenuCommandIds.SftpConnect);
+        Assert.Contains(menu.Items[3].Children, item => item.CommandId == MenuCommandIds.SettingsSave);
     }
 
     [Fact]

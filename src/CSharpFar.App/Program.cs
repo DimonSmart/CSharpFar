@@ -4,6 +4,7 @@ using CSharpFar.App.Settings;
 using CSharpFar.App.UserMenu;
 using CSharpFar.Console;
 using CSharpFar.FileSystem;
+using CSharpFar.Core.Services;
 using CSharpFar.Shell;
 
 var settingsStore = JsonSettingsStore.Create();
@@ -13,11 +14,14 @@ using var driver = new SystemConsoleDriver();
 var renderer = new ScreenRenderer(driver);
 
 var fs          = new FileSystemService();
-var fileOps     = new FileOperationService();
+var panelSources = new FilePanelSourceRegistry([new LocalFilePanelSource(fs)]);
+var fileOps     = new FileOperationService(panelSources);
 var searchSvc   = new FileSystemSearchService();
 var shell       = new ShellService(settings.Shell.Executable, settings.Shell.ArgumentsFormat);
 var fileLauncher = new WindowsShellFileLauncher();
 var userMenu    = new UserMenuStore(settingsStore.ConfigDirectory);
+var sftpConnections = new SftpConnectionStore(settingsStore.ConfigDirectory);
+var credentials = new DpapiCredentialStore(settingsStore.ConfigDirectory);
 var volumeSvc      = new WindowsVolumeService();
 var volumeInfoSvc  = new VolumeInfoService();
 var locationSvc    = new FileSystemLocationService();
@@ -39,4 +43,7 @@ new Application(renderer, fs, shell, fileOps, history, settings, userMenu,
     locationService:   locationSvc,
     mountPointService: mountPointSvc,
     fileLauncher:      fileLauncher,
-    searchService:     searchSvc).Run();
+    searchService:     searchSvc,
+    sourceRegistry:    panelSources,
+    sftpConnectionStore: sftpConnections,
+    credentialStore:   credentials).Run();

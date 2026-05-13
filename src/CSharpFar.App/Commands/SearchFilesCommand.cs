@@ -1,5 +1,6 @@
 using CSharpFar.App.Dialogs;
 using CSharpFar.App.FunctionKeys;
+using CSharpFar.Core.Models;
 
 namespace CSharpFar.App.Commands;
 
@@ -7,10 +8,19 @@ internal sealed class SearchFilesCommand : IApplicationCommand
 {
     public string CommandId => FunctionKeyCommandIds.Search;
 
-    public bool CanExecute(ApplicationCommandContext context, object? args = null) => true;
+    public bool CanExecute(ApplicationCommandContext context, object? args = null) =>
+        context.ActiveState.SourceId == PanelSourceId.Local;
 
     public ApplicationCommandResult Execute(ApplicationCommandContext context, object? args = null)
     {
+        if (!CanExecute(context, args))
+        {
+            new MessageDialog(context.Screen, context.Palette).Show(
+                "Search",
+                "Search is only supported for local panels.");
+            return ApplicationCommandResult.Rendered();
+        }
+
         try
         {
             var request = new SearchDialog(context.Screen).Show(context.ActiveState.CurrentDirectory);

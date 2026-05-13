@@ -1,6 +1,4 @@
 using CSharpFar.App.FunctionKeys;
-using CSharpFar.App.Viewer;
-using CSharpFar.Core.History;
 using CSharpFar.Core.Models;
 
 namespace CSharpFar.App.Commands;
@@ -21,8 +19,7 @@ internal sealed class ViewFileCommand : IApplicationCommand
         if (item is null || item.IsParentDirectory || item.IsDirectory)
             return ApplicationCommandResult.Rendered();
 
-        context.History.AddFile(new FileHistoryItem { Path = item.FullPath });
-        new FileViewer(context.Screen, context.Palette).Show(item.FullPath);
+        context.ViewPanelFile(context.ActiveState, item);
         return ApplicationCommandResult.Rendered();
     }
 }

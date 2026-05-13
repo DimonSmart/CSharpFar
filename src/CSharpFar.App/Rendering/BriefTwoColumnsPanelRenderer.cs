@@ -60,6 +60,14 @@ public sealed class BriefTwoColumnsPanelRenderer
 
         PanelTitleRenderer.Render(_screen, bounds, state, isActive, p);
 
+        if (state.LoadError is not null)
+        {
+            PanelErrorRenderer.Render(_screen, bounds, state, PanelViewMode.BriefTwoColumns, p, _options);
+            new PanelStatusRenderer(_screen).Render(bounds, state, footer, border, _options);
+            RenderStatusSeparatorJoin(bounds, Math.Max(0, (bounds.Width - 2) / 2), border);
+            return;
+        }
+
         int innerWidth  = Math.Max(0, bounds.Width - 2);
         int sepOffset   = innerWidth / 2;
         int col1Width   = sepOffset;

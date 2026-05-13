@@ -43,6 +43,22 @@ internal abstract class DriveSelectionCommand : IApplicationCommand
                 Action = VolumeSelectionAction.OpenVolume,
             })
             .ToList();
+        foreach (var connection in context.LoadSftpConnections().Where(connection => connection.ShowInDriveSelection))
+        {
+            items.Add(new VolumeSelectionItem
+            {
+                Label = $"SFTP {connection.DisplayName}",
+                Shortcut = "S",
+                SftpConnection = connection,
+                Action = VolumeSelectionAction.OpenSavedSftp,
+            });
+        }
+        items.Add(new VolumeSelectionItem
+        {
+            Label = "SFTP...",
+            Shortcut = "S",
+            Action = VolumeSelectionAction.OpenSftp,
+        });
 
         int initialCursor = FindInitialCursor(items, targetState.CurrentDirectory);
 
@@ -50,19 +66,28 @@ internal abstract class DriveSelectionCommand : IApplicationCommand
         if (selected is null)
             return ApplicationCommandResult.Rendered();
 
+        if (selected.Action == VolumeSelectionAction.OpenSftp)
+        {
+            context.OpenSftpConnectionDialog(PanelSide);
+            return ApplicationCommandResult.Rendered();
+        }
+
+        if (selected.Action == VolumeSelectionAction.OpenSavedSftp)
+        {
+            if (selected.SftpConnection is not null)
+                context.OpenSavedSftpConnection(PanelSide, selected.SftpConnection);
+            return ApplicationCommandResult.Rendered();
+        }
+
         var volume = selected.Volume!;
 
-        try
+        context.QuickView = false;
+        context.ActiveSide = PanelSide;
+
+        if (context.Controller.TryLoadDirectory(targetState, volume.RootPath, context.PanelOptions))
         {
-            context.Controller.LoadDirectory(targetState, volume.RootPath, context.PanelOptions);
             context.History.AddDirectory(new DirectoryHistoryItem { Path = volume.RootPath });
-            context.QuickView = false;
-            context.ActiveSide = PanelSide;
             context.StartWatching(targetState, PanelSide);
-        }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
-        {
-            new MessageDialog(context.Screen, context.Palette).Show("Change drive", ex.Message);
         }
 
         return ApplicationCommandResult.Rendered();
