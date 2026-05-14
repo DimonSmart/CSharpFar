@@ -80,6 +80,12 @@ public sealed class ScreenRenderer
             outputModeDriver.SetRenderingOutputMode(enabled);
     }
 
+    public void RestoreApplicationInputMode()
+    {
+        if (_driver is IConsoleOutputModeDriver outputModeDriver)
+            outputModeDriver.RestoreApplicationInputMode();
+    }
+
     public IDisposable BeginFrame()
     {
         if (_frameActive)

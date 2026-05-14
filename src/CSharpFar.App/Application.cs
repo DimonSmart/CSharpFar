@@ -2698,6 +2698,7 @@ public sealed class Application
         }
         finally
         {
+            _screen.RestoreApplicationInputMode();
             MoveShellOutputAbovePromptArea();
             PrintInputPrompt(workDir);
 

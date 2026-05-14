@@ -56,6 +56,12 @@ public sealed class SystemConsoleDriver : IConsoleDriver, IConsoleOutputModeDriv
         _disposed = true;
     }
 
+    public void RestoreApplicationInputMode()
+    {
+        if (OperatingSystem.IsWindows() && _restoreInputMode)
+            TryConfigureInputMode(_inputHandle, out _);
+    }
+
     public void SetRenderingOutputMode(bool enabled)
     {
         if (!OperatingSystem.IsWindows() || !_restoreOutputMode || _renderingOutputMode == enabled)

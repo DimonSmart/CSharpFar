@@ -177,6 +177,7 @@ public sealed class FakeConsoleDriver : IConsoleDriver, IConsoleOutputModeDriver
     }
     public void SetCursorVisible(bool visible) { CursorVisible = visible; SetCursorVisibleCallCount++; }
     public void SetRenderingOutputMode(bool enabled) { RenderingOutputMode = enabled; }
+    public void RestoreApplicationInputMode() { }
 
     public ScreenSnapshot Capture(Rect region)
     {
