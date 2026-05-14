@@ -1,3 +1,4 @@
+using System.Text;
 using CSharpFar.Core.Models;
 using CSharpFar.FileSystem;
 
@@ -169,6 +170,28 @@ public sealed class FileSystemSearchServiceTests : IDisposable
 
         Assert.Empty(results);
         Assert.Contains(progress.Items, p => p.ErrorCount > 0);
+    }
+
+    [Fact]
+    public async Task SearchAsync_DecodesUtf16BeBomWithSharedDetector()
+    {
+        string path = Path.Combine(_root, "utf16be.txt");
+        byte[] preamble = Encoding.BigEndianUnicode.GetPreamble();
+        byte[] content = Encoding.BigEndianUnicode.GetBytes("Needle\n");
+        File.WriteAllBytes(path, [.. preamble, .. content]);
+
+        var results = await SearchAsync(new SearchRequest
+        {
+            RootPath = _root,
+            FileMaskExpression = "utf16be.txt",
+            ContainingText = "Needle",
+            Scope = SearchScope.CurrentDirectoryOnly,
+            MaxDegreeOfParallelism = 1,
+        });
+
+        var result = Assert.Single(results);
+        Assert.Equal("utf16be.txt", result.Name);
+        Assert.Equal("Needle", result.MatchedTextPreview);
     }
 
     [Fact]

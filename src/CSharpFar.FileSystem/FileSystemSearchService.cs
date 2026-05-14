@@ -1,4 +1,3 @@
-using System.Globalization;
 using System.Runtime.CompilerServices;
 using System.Text;
 using System.Threading.Channels;
@@ -6,6 +5,7 @@ using CSharpFar.Core.Abstractions;
 using CSharpFar.Core.FileMasks;
 using CSharpFar.Core.Highlighting;
 using CSharpFar.Core.Models;
+using CSharpFar.Core.Text;
 
 namespace CSharpFar.FileSystem;
 
@@ -13,12 +13,11 @@ public sealed class FileSystemSearchService : ISearchService
 {
     private const int ResultBufferSize = 128;
     private const int FileReadBufferSize = 81920;
-    private const int BinarySampleSize = 4096;
     private const int PreviewMaxLength = 160;
 
     static FileSystemSearchService()
     {
-        Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
+        TextEncodingDetector.EnsureCodePagesProviderRegistered();
     }
 
     public async IAsyncEnumerable<SearchResultItem> SearchAsync(
@@ -286,13 +285,14 @@ public sealed class FileSystemSearchService : ISearchService
             return null;
         }
 
-        if (LooksBinary(bytes))
+        var detection = TextEncodingDetector.Detect(bytes);
+        if (detection.IsBinary)
         {
             progress.ReportError(candidate.FullPath, "Skipped binary file.");
             return null;
         }
 
-        string? text = DecodeText(bytes, candidate.FullPath, progress);
+        string? text = DecodeText(bytes, detection, candidate.FullPath, progress);
         if (text is null)
             return null;
 
@@ -342,78 +342,24 @@ public sealed class FileSystemSearchService : ISearchService
         return memory.ToArray();
     }
 
-    private static string? DecodeText(byte[] bytes, string fullPath, SearchProgressState progress)
+    private static string? DecodeText(
+        byte[] bytes,
+        EncodingDetectionResult detection,
+        string fullPath,
+        SearchProgressState progress)
     {
         try
         {
-            var (encoding, preambleLength) = DetectEncoding(bytes);
-            return encoding.GetString(bytes, preambleLength, bytes.Length - preambleLength);
+            return detection.Encoding.GetString(
+                bytes,
+                detection.ContentStartLength,
+                bytes.Length - detection.ContentStartLength);
         }
         catch (Exception ex) when (ex is DecoderFallbackException or ArgumentException)
         {
             progress.ReportError(fullPath, ex.Message);
             return null;
         }
-    }
-
-    private static (Encoding Encoding, int PreambleLength) DetectEncoding(byte[] bytes)
-    {
-        if (StartsWith(bytes, [0xEF, 0xBB, 0xBF]))
-            return (new UTF8Encoding(encoderShouldEmitUTF8Identifier: true, throwOnInvalidBytes: true), 3);
-
-        if (StartsWith(bytes, [0xFF, 0xFE]))
-            return (new UnicodeEncoding(bigEndian: false, byteOrderMark: true, throwOnInvalidBytes: true), 2);
-
-        if (StartsWith(bytes, [0xFE, 0xFF]))
-            return (new UnicodeEncoding(bigEndian: true, byteOrderMark: true, throwOnInvalidBytes: true), 2);
-
-        var utf8 = new UTF8Encoding(encoderShouldEmitUTF8Identifier: false, throwOnInvalidBytes: true);
-        try
-        {
-            _ = utf8.GetString(bytes);
-            return (utf8, 0);
-        }
-        catch (DecoderFallbackException)
-        {
-            int ansiCodePage = CultureInfo.CurrentCulture.TextInfo.ANSICodePage;
-            return (Encoding.GetEncoding(
-                ansiCodePage,
-                EncoderFallback.ExceptionFallback,
-                DecoderFallback.ExceptionFallback), 0);
-        }
-    }
-
-    private static bool StartsWith(byte[] bytes, byte[] prefix)
-    {
-        if (bytes.Length < prefix.Length)
-            return false;
-
-        for (int i = 0; i < prefix.Length; i++)
-            if (bytes[i] != prefix[i])
-                return false;
-
-        return true;
-    }
-
-    private static bool LooksBinary(byte[] bytes)
-    {
-        if (bytes.Length == 0 ||
-            StartsWith(bytes, [0xEF, 0xBB, 0xBF]) ||
-            StartsWith(bytes, [0xFF, 0xFE]) ||
-            StartsWith(bytes, [0xFE, 0xFF]))
-        {
-            return false;
-        }
-
-        int sampleLength = Math.Min(bytes.Length, BinarySampleSize);
-        int nulCount = 0;
-        for (int i = 0; i < sampleLength; i++)
-        {
-            if (bytes[i] == 0)
-                nulCount++;
-        }
-
-        return nulCount > 0;
     }
 
     private static ContentMatch? FindContentMatch(

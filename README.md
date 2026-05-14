@@ -57,13 +57,16 @@ The viewer supports:
 - horizontal scrolling with `Left` and `Right`;
 - `G` for a line number or percent jump, for example `12000` or `85%`;
 - `F` follow mode for files that keep growing;
-- `H` for text/hex display mode.
+- `H` for text/hex display mode;
+- `F8` to choose automatic detection, UTF-8, UTF-16, Windows ANSI, Windows-1251,
+  Windows-1252 or CP866 for the current viewer session.
 
 Text decoding detects UTF-8 and UTF-16 BOMs, tries UTF-8 without a BOM, and falls back to
-the same default encoding used by the rest of the viewer code. Damaged byte sequences are
-shown with replacement characters instead of closing the viewer. Control characters from
-file content are replaced before drawing, so escape sequences and similar bytes are shown
-as inert text instead of being sent to the console as controls.
+the current Windows ANSI code page. The same bounded-sample detector is used by the viewer,
+content search and the editor/Quick View reader. Damaged byte sequences are shown with
+replacement characters instead of closing the viewer. Control characters from file content
+are replaced before drawing, so escape sequences and similar bytes are shown as inert text
+instead of being sent to the console as controls.
 
 Quick View (`Ctrl+Q`) is still a bounded preview. It does not try to stream or scroll large
 files.

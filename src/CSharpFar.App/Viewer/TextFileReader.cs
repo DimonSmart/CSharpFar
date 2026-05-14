@@ -1,15 +1,16 @@
 using System.Text;
+using CSharpFar.Core.Text;
 
 namespace CSharpFar.App.Viewer;
 
 /// <summary>
 /// Reads text files with automatic encoding detection.
-/// Detects UTF-8/UTF-16 BOMs; falls back to the system default encoding
-/// if the content is not valid UTF-8.
+/// Uses the shared bounded-sample detector before reading the editor/Quick View content.
 /// </summary>
 public static class TextFileReader
 {
     public const long MaxFileSizeBytes = 10L * 1024 * 1024; // 10 MB
+    private const int MaxEncodingSampleBytes = 64 * 1024;
 
     /// <summary>Reads all lines from a text file.</summary>
     /// <exception cref="IOException">Thrown if the file cannot be read.</exception>
@@ -22,24 +23,50 @@ public static class TextFileReader
     /// </summary>
     public static (string[] Lines, Encoding Encoding) ReadLinesAndEncoding(string filePath)
     {
-        try
-        {
-            using var reader = new StreamReader(
-                filePath,
-                new UTF8Encoding(encoderShouldEmitUTF8Identifier: false, throwOnInvalidBytes: true),
-                detectEncodingFromByteOrderMarks: true);
+        byte[] sample = ReadSample(filePath);
+        var detection = TextEncodingDetector.Detect(sample);
+        byte[] bytes = File.ReadAllBytes(filePath);
 
-            var lines = new List<string>();
-            while (reader.ReadLine() is { } line)
-                lines.Add(line);
+        using var stream = new MemoryStream(
+            bytes,
+            detection.ContentStartLength,
+            bytes.Length - detection.ContentStartLength,
+            writable: false);
+        using var reader = new StreamReader(
+            stream,
+            detection.Encoding,
+            detectEncodingFromByteOrderMarks: false);
 
-            // CurrentEncoding reflects BOM detection (UTF-16 LE/BE, or UTF-8 BOM → Encoding.UTF8)
-            return ([.. lines], reader.CurrentEncoding);
-        }
-        catch (DecoderFallbackException)
+        var lines = new List<string>();
+        while (reader.ReadLine() is { } line)
+            lines.Add(line);
+
+        return ([.. lines], detection.Encoding);
+    }
+
+    private static byte[] ReadSample(string filePath)
+    {
+        using var stream = new FileStream(
+            filePath,
+            FileMode.Open,
+            FileAccess.Read,
+            FileShare.ReadWrite | FileShare.Delete);
+        int sampleLength = (int)Math.Min(stream.Length, MaxEncodingSampleBytes);
+        var sample = new byte[sampleLength];
+        int totalRead = 0;
+        while (totalRead < sample.Length)
         {
-            var enc = Encoding.Default;
-            return (File.ReadAllLines(filePath, enc), enc);
+            int read = stream.Read(sample, totalRead, sample.Length - totalRead);
+            if (read == 0)
+                break;
+
+            totalRead += read;
         }
+
+        if (totalRead == sample.Length)
+            return sample;
+
+        Array.Resize(ref sample, totalRead);
+        return sample;
     }
 }

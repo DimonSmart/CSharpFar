@@ -1,3 +1,5 @@
+using CSharpFar.Core.Text;
+
 namespace CSharpFar.App.Viewer;
 
 internal sealed class LargeFileViewerState
@@ -6,6 +8,7 @@ internal sealed class LargeFileViewerState
     {
         BlockCache = blockCache;
         LineScanner = lineScanner;
+        EncodingSelection = lineScanner.Detection.Selection;
         LineIndex.Add(1, lineScanner.ContentStartOffset);
         TopByteOffset = lineScanner.ContentStartOffset;
         ViewMode = lineScanner.IsBinary ? LargeFileViewMode.Hex : LargeFileViewMode.Text;
@@ -15,9 +18,18 @@ internal sealed class LargeFileViewerState
     public int HorizontalOffset { get; set; }
     public bool FollowMode { get; set; }
     public LargeFileViewMode ViewMode { get; set; }
+    public TextEncodingSelection EncodingSelection { get; private set; }
     public BlockCache BlockCache { get; }
-    public LineScanner LineScanner { get; }
-    public SparseLineIndex LineIndex { get; } = new();
+    public LineScanner LineScanner { get; private set; }
+    public SparseLineIndex LineIndex { get; private set; } = new();
 
     public bool IsHexMode => ViewMode == LargeFileViewMode.Hex;
+
+    public void ResetScanner(LineScanner lineScanner, TextEncodingSelection encodingSelection)
+    {
+        LineScanner = lineScanner;
+        EncodingSelection = encodingSelection;
+        LineIndex = new SparseLineIndex();
+        LineIndex.Add(1, lineScanner.ContentStartOffset);
+    }
 }

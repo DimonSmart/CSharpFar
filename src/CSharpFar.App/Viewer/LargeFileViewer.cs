@@ -3,6 +3,7 @@ using CSharpFar.App.Dialogs;
 using CSharpFar.App.Rendering;
 using CSharpFar.Console;
 using CSharpFar.Console.Models;
+using CSharpFar.Core.Text;
 
 namespace CSharpFar.App.Viewer;
 
@@ -107,6 +108,10 @@ internal sealed class LargeFileViewer
                     ToggleViewMode(state);
                     break;
 
+                case ConsoleKey.F8:
+                    ChangeEncoding(filePath, reader, state, contentHeight, size);
+                    break;
+
                 case ConsoleKey.Escape:
                 case ConsoleKey.F10:
                     return;
@@ -164,7 +169,7 @@ internal sealed class LargeFileViewer
         ConsoleSize size)
     {
         string nameSection = $" {Path.GetFileName(filePath)} ";
-        string mode = state.IsHexMode ? " HEX" : $" TEXT {state.LineScanner.Encoding.WebName}";
+        string mode = state.IsHexMode ? " HEX" : $" TEXT {state.LineScanner.EncodingDisplayName}";
         string follow = state.FollowMode ? " F" : string.Empty;
         string posSection = reader.Length == 0
             ? $" 0%{mode}{follow} "
@@ -232,7 +237,8 @@ internal sealed class LargeFileViewer
         WriteFooterItem(0, y, "F", "Follow", size.Width);
         WriteFooterItem(10, y, "G", "Go", size.Width);
         WriteFooterItem(16, y, "H", "Hex/Text", size.Width);
-        WriteFooterItem(28, y, "10", "Close", size.Width);
+        WriteFooterItem(28, y, "8", "Encoding", size.Width);
+        WriteFooterItem(39, y, "10", "Close", size.Width);
     }
 
     private void WriteFooterItem(int x, int y, string key, string text, int width)
@@ -376,6 +382,68 @@ internal sealed class LargeFileViewer
             state.ViewMode = LargeFileViewMode.Hex;
         }
 
+        state.HorizontalOffset = 0;
+    }
+
+    private void ChangeEncoding(
+        string filePath,
+        IFileByteReader reader,
+        LargeFileViewerState state,
+        int contentHeight,
+        ConsoleSize size)
+    {
+        var items = TextEncodingCatalog.CreateViewerCatalog(state.LineScanner.Detection);
+        long anchorByteOffset = state.TopByteOffset;
+        var originalSelection = state.EncodingSelection;
+        var originalViewMode = state.ViewMode;
+        int originalHorizontalOffset = state.HorizontalOffset;
+        bool originalFollowMode = state.FollowMode;
+
+        var selected = new EncodingSelectionDialog(_screen, _palette).Show(
+            items,
+            state.EncodingSelection,
+            previewSelection: item => ApplyEncodingSelection(
+                reader,
+                state,
+                item.Selection,
+                anchorByteOffset,
+                originalViewMode),
+            renderUnderlay: () => Draw(filePath, reader, state, contentHeight, size));
+
+        if (selected is null)
+        {
+            ApplyEncodingSelection(reader, state, originalSelection, anchorByteOffset, originalViewMode);
+            state.HorizontalOffset = originalHorizontalOffset;
+            state.FollowMode = originalFollowMode;
+            return;
+        }
+
+        ApplyEncodingSelection(reader, state, selected.Selection, anchorByteOffset, originalViewMode);
+    }
+
+    private static void ApplyEncodingSelection(
+        IFileByteReader reader,
+        LargeFileViewerState state,
+        TextEncodingSelection selection,
+        long anchorByteOffset,
+        LargeFileViewMode baseViewMode)
+    {
+        var scanner = LineScanner
+            .CreateAsync(state.BlockCache, reader, selection)
+            .GetAwaiter()
+            .GetResult();
+
+        var targetViewMode = baseViewMode == LargeFileViewMode.Hex &&
+                             selection.Kind == TextEncodingSelectionKind.Explicit
+            ? LargeFileViewMode.Text
+            : baseViewMode;
+
+        state.ResetScanner(scanner, selection);
+        state.ViewMode = targetViewMode;
+
+        state.TopByteOffset = state.IsHexMode
+            ? Math.Clamp(anchorByteOffset, 0, reader.Length)
+            : scanner.FindLineStartAtOrBeforeAsync(anchorByteOffset).GetAwaiter().GetResult();
         state.HorizontalOffset = 0;
     }
 

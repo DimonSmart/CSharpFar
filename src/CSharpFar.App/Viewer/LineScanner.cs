@@ -1,4 +1,5 @@
 using System.Text;
+using CSharpFar.Core.Text;
 
 namespace CSharpFar.App.Viewer;
 
@@ -9,6 +10,8 @@ internal sealed record ScannedLines(IReadOnlyList<ScannedLine> Lines, long NextO
 internal sealed class LineScanner
 {
     private const int MaxLineScanBytes = 4 * 1024 * 1024;
+    private const int MaxEncodingSampleBytes = 64 * 1024;
+    private const int LineScanChunkBytes = 8192;
 
     private readonly BlockCache _cache;
     private readonly IFileByteReader _reader;
@@ -18,44 +21,38 @@ internal sealed class LineScanner
     private LineScanner(
         BlockCache cache,
         IFileByteReader reader,
-        Encoding encoding,
-        long contentStartOffset,
-        bool isBinary,
-        bool isUtf16,
-        bool isUtf16BigEndian)
+        EncodingDetectionResult detection)
     {
         _cache = cache;
         _reader = reader;
-        Encoding = encoding;
-        ContentStartOffset = contentStartOffset;
-        IsBinary = isBinary;
-        _isUtf16 = isUtf16;
-        _isUtf16BigEndian = isUtf16BigEndian;
+        Detection = detection;
+        Encoding = detection.Encoding;
+        ContentStartOffset = detection.ContentStartLength;
+        IsBinary = detection.IsBinary;
+        _isUtf16 = detection.IsUtf16;
+        _isUtf16BigEndian = detection.IsUtf16BigEndian;
     }
 
+    public EncodingDetectionResult Detection { get; }
     public Encoding Encoding { get; }
     public long ContentStartOffset { get; }
     public bool IsBinary { get; }
+    public string EncodingDisplayName => Detection.DisplayName;
     public int NewLineWidth => _isUtf16 ? 2 : 1;
 
     public static async Task<LineScanner> CreateAsync(
         BlockCache cache,
         IFileByteReader reader,
+        TextEncodingSelection? encodingSelection = null,
         CancellationToken cancellationToken = default)
     {
         ReadOnlyMemory<byte> initial = reader.Length == 0
             ? ReadOnlyMemory<byte>.Empty
             : await cache.ReadBlockAsync(0, cancellationToken).ConfigureAwait(false);
 
-        var detection = DetectEncoding(initial.Span);
-        return new LineScanner(
-            cache,
-            reader,
-            detection.Encoding,
-            detection.ContentStartOffset,
-            detection.IsBinary,
-            detection.IsUtf16,
-            detection.IsUtf16BigEndian);
+        var sample = initial.Span[..Math.Min(initial.Length, MaxEncodingSampleBytes)];
+        var detection = TextEncodingDetector.Detect(sample, encodingSelection);
+        return new LineScanner(cache, reader, detection);
     }
 
     public async Task<ScannedLines> ReadLinesAsync(
@@ -177,19 +174,21 @@ internal sealed class LineScanner
 
         while (scanOffset < length && scannedBytes < MaxLineScanBytes)
         {
-            ReadOnlyMemory<byte> block = await _cache.ReadBlockAsync(scanOffset, cancellationToken)
+            int requestedBytes = GetLineScanChunkSize(scanOffset, length, MaxLineScanBytes - scannedBytes);
+            if (requestedBytes <= 0)
+                break;
+
+            var buffer = new byte[requestedBytes];
+            int read = await _cache.ReadAsync(scanOffset, buffer, cancellationToken)
                 .ConfigureAwait(false);
-            if (block.IsEmpty)
+            if (read == 0)
                 break;
 
-            long blockStart = scanOffset / _cache.BlockSize * _cache.BlockSize;
-            int blockOffset = (int)(scanOffset - blockStart);
-            ReadOnlySpan<byte> available = block.Span[blockOffset..];
-            if (available.IsEmpty)
+            int scanLength = GetUsableLineScanLength(scanOffset, read, length);
+            if (scanLength <= 0)
                 break;
 
-            int scanLength = Math.Min(available.Length, MaxLineScanBytes - scannedBytes);
-            ReadOnlySpan<byte> scanSpan = available[..scanLength];
+            ReadOnlySpan<byte> scanSpan = buffer.AsSpan(0, scanLength);
             int newLineIndex = FindNewLine(scanSpan, scanOffset);
             int bytesBeforeNewLine = newLineIndex >= 0 ? newLineIndex : scanSpan.Length;
 
@@ -219,6 +218,24 @@ internal sealed class LineScanner
             ? scanOffset
             : Math.Min(length, startOffset + NewLineWidth);
         return new ScannedLine(startOffset, finalNextOffset, finalText);
+    }
+
+    private int GetLineScanChunkSize(long scanOffset, long length, int remainingLimit)
+    {
+        int requestedBytes = (int)Math.Min(LineScanChunkBytes, Math.Min(length - scanOffset, remainingLimit));
+        if (_isUtf16 && requestedBytes == 1 && scanOffset + 1 < length && remainingLimit > 1)
+            return 2;
+
+        return requestedBytes;
+    }
+
+    private int GetUsableLineScanLength(long scanOffset, int read, long length)
+    {
+        if (!_isUtf16 || scanOffset + read >= length)
+            return read;
+
+        long endDelta = scanOffset + read - ContentStartOffset;
+        return endDelta % 2 == 0 ? read : read - 1;
     }
 
     private async Task<long?> FindPreviousNewLineBeforeAsync(
@@ -339,96 +356,4 @@ internal sealed class LineScanner
     private string DecodeLine(List<byte> bytes) =>
         bytes.Count == 0 ? string.Empty : Encoding.GetString([.. bytes]);
 
-    private static DetectionResult DetectEncoding(ReadOnlySpan<byte> bytes)
-    {
-        if (bytes.Length >= 3 &&
-            bytes[0] == 0xEF &&
-            bytes[1] == 0xBB &&
-            bytes[2] == 0xBF)
-        {
-            return new DetectionResult(new UTF8Encoding(false, false), 3, false, false, false);
-        }
-
-        if (bytes.Length >= 2 && bytes[0] == 0xFF && bytes[1] == 0xFE)
-            return new DetectionResult(new UnicodeEncoding(false, true, false), 2, false, true, false);
-
-        if (bytes.Length >= 2 && bytes[0] == 0xFE && bytes[1] == 0xFF)
-            return new DetectionResult(new UnicodeEncoding(true, true, false), 2, false, true, true);
-
-        if (LooksLikeUtf16(bytes, bigEndian: false))
-            return new DetectionResult(new UnicodeEncoding(false, false, false), 0, false, true, false);
-
-        if (LooksLikeUtf16(bytes, bigEndian: true))
-            return new DetectionResult(new UnicodeEncoding(true, false, false), 0, false, true, true);
-
-        if (LooksBinary(bytes))
-            return new DetectionResult(new UTF8Encoding(false, false), 0, true, false, false);
-
-        if (IsValidUtf8(bytes))
-            return new DetectionResult(new UTF8Encoding(false, false), 0, false, false, false);
-
-        return new DetectionResult(Encoding.Default, 0, false, false, false);
-    }
-
-    private static bool LooksLikeUtf16(ReadOnlySpan<byte> bytes, bool bigEndian)
-    {
-        int pairs = Math.Min(bytes.Length / 2, 4096);
-        if (pairs < 8)
-            return false;
-
-        int zeroCount = 0;
-        int printableCount = 0;
-        for (int pair = 0; pair < pairs; pair++)
-        {
-            byte first = bytes[pair * 2];
-            byte second = bytes[pair * 2 + 1];
-            byte high = bigEndian ? first : second;
-            byte low = bigEndian ? second : first;
-            if (high == 0)
-                zeroCount++;
-            if (low is >= 0x09 and <= 0x7E)
-                printableCount++;
-        }
-
-        return zeroCount > pairs * 3 / 5 && printableCount > pairs / 2;
-    }
-
-    private static bool LooksBinary(ReadOnlySpan<byte> bytes)
-    {
-        if (bytes.IsEmpty)
-            return false;
-
-        int controlCount = 0;
-        int checkedBytes = Math.Min(bytes.Length, 8192);
-        for (int i = 0; i < checkedBytes; i++)
-        {
-            byte value = bytes[i];
-            if (value == 0)
-                return true;
-            if (value < 0x20 && value is not 0x09 and not 0x0A and not 0x0D and not 0x1B)
-                controlCount++;
-        }
-
-        return controlCount > checkedBytes / 20;
-    }
-
-    private static bool IsValidUtf8(ReadOnlySpan<byte> bytes)
-    {
-        try
-        {
-            _ = new UTF8Encoding(false, true).GetString(bytes);
-            return true;
-        }
-        catch (DecoderFallbackException)
-        {
-            return false;
-        }
-    }
-
-    private readonly record struct DetectionResult(
-        Encoding Encoding,
-        long ContentStartOffset,
-        bool IsBinary,
-        bool IsUtf16,
-        bool IsUtf16BigEndian);
 }
