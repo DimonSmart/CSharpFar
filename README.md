@@ -39,6 +39,35 @@ The `.worklog` directory is used to keep task notes, decisions, experiments and 
 
 The methodology will be described in a separate article later. After publication, the link should be added here.
 
+## Viewer
+
+`F3` opens a full-screen viewer for the selected file.
+
+The viewer uses one streaming path for small and large files. It reads fixed-size byte
+blocks by offset and keeps only a small LRU cache, so opening a log does not require
+loading the whole file first.
+
+Text-looking files open as text. Binary-looking files open as a 16-byte-per-row hex dump.
+Press `H` to switch the current file between text and hex.
+
+The viewer supports:
+
+- `Home` and `End` for start/end navigation;
+- `Up`, `Down`, `PageUp`, and `PageDown`;
+- horizontal scrolling with `Left` and `Right`;
+- `G` for a line number or percent jump, for example `12000` or `85%`;
+- `F` follow mode for files that keep growing;
+- `H` for text/hex display mode.
+
+Text decoding detects UTF-8 and UTF-16 BOMs, tries UTF-8 without a BOM, and falls back to
+the same default encoding used by the rest of the viewer code. Damaged byte sequences are
+shown with replacement characters instead of closing the viewer. Control characters from
+file content are replaced before drawing, so escape sequences and similar bytes are shown
+as inert text instead of being sent to the console as controls.
+
+Quick View (`Ctrl+Q`) is still a bounded preview. It does not try to stream or scroll large
+files.
+
 ## File operations
 
 ### Paranoid copy
