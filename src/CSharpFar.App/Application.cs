@@ -1539,10 +1539,10 @@ public sealed class Application
             return InsertCurrentItemNameIntoCommandLine();
 
         if (IsPlainControlOpenBracket(key))
-            return InsertPanelCurrentDirectoryIntoCommandLine(_right);
+            return InsertPanelCurrentDirectoryIntoCommandLine(_left);
 
         if (IsPlainControlCloseBracket(key))
-            return InsertPanelCurrentDirectoryIntoCommandLine(_left);
+            return InsertPanelCurrentDirectoryIntoCommandLine(_right);
 
         return false;
     }
