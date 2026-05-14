@@ -111,6 +111,9 @@ internal sealed class SearchProgressDialog
                     inputResults = [.. results];
                 NormalizeSelection(inputResults.Length, listHeight, ref selectedIndex, ref scrollOffset);
 
+                if (task.IsCompleted)
+                    break;
+
                 if (_screen.TryReadInput(out var input))
                 {
                     if (input is MouseConsoleInputEvent mouse &&
