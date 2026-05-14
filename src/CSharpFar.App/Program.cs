@@ -21,6 +21,7 @@ var shell       = new ShellService(settings.Shell.Executable, settings.Shell.Arg
 var fileLauncher = new WindowsShellFileLauncher();
 var userMenu    = new UserMenuStore(settingsStore.ConfigDirectory);
 var sftpConnections = new SftpConnectionStore(settingsStore.ConfigDirectory);
+var ftpConnections = new FtpConnectionStore(settingsStore.ConfigDirectory);
 var credentials = new DpapiCredentialStore(settingsStore.ConfigDirectory);
 var volumeSvc      = new WindowsVolumeService();
 var volumeInfoSvc  = new VolumeInfoService();
@@ -46,4 +47,5 @@ new Application(renderer, fs, shell, fileOps, history, settings, userMenu,
     searchService:     searchSvc,
     sourceRegistry:    panelSources,
     sftpConnectionStore: sftpConnections,
+    ftpConnectionStore: ftpConnections,
     credentialStore:   credentials).Run();

@@ -8,6 +8,7 @@ public static class MenuCommandIds
     public const string PanelRefresh = "panel.refresh";
 
     public const string SftpConnect = "sftp.connect";
+    public const string FtpConnect = "ftp.connect";
 
     public const string SettingsOpenPanelSettings = "settings.openPanelSettings";
     public const string SettingsToggleShowHiddenAndSystemFiles = "settings.toggleShowHiddenAndSystemFiles";

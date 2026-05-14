@@ -85,6 +85,7 @@ public sealed class DefaultMenuDefinitionProvider
             Children =
             [
                 Command("Plugins.sftp", "SFTP...", 'S', MenuCommandIds.SftpConnect),
+                Command("Plugins.ftp", "FTP/FTPS...", 'F', MenuCommandIds.FtpConnect),
             ],
         };
 

@@ -28,8 +28,13 @@ internal sealed class DeleteCommand : IApplicationCommand
             ? Path.GetFileName(sources[0]) ?? sources[0]
             : $"{sources.Count} items";
 
+        bool useRecycleBin = context.ActiveState.SourceId == PanelSourceId.Local &&
+                             context.Settings.FileOperations.UseRecycleBinForDelete;
+        string confirmation = useRecycleBin
+            ? "Do you wish to move to the Recycle Bin?"
+            : "Do you wish to delete permanently?";
         if (context.Settings.Ui.ConfirmDelete &&
-            !new ConfirmDialog(context.Screen).Show("Delete", "Do you wish to move to the Recycle Bin?", itemName))
+            !new ConfirmDialog(context.Screen).Show("Delete", confirmation, itemName))
         {
             return ApplicationCommandResult.Rendered();
         }
@@ -45,8 +50,7 @@ internal sealed class DeleteCommand : IApplicationCommand
                 SourceLocations = sourceLocations,
                 Options = context.BuildFileOperationOptions() with
                 {
-                    UseRecycleBinForDelete = context.ActiveState.SourceId == PanelSourceId.Local &&
-                                             context.Settings.FileOperations.UseRecycleBinForDelete,
+                    UseRecycleBinForDelete = useRecycleBin,
                 },
             });
             context.ActiveState.SelectedPaths.Clear();

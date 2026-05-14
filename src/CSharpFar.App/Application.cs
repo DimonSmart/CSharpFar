@@ -36,6 +36,7 @@ public sealed class Application
     private readonly ISearchService _searchService;
     private readonly FilePanelSourceRegistry _sourceRegistry;
     private readonly ISftpConnectionStore? _sftpConnectionStore;
+    private readonly IFtpConnectionStore? _ftpConnectionStore;
     private readonly ICredentialStore? _credentialStore;
     private readonly IHistoryStore _history;
     private readonly AppSettingsAlias _settings;
@@ -161,6 +162,7 @@ public sealed class Application
         ISearchService?              searchService     = null,
         FilePanelSourceRegistry?     sourceRegistry    = null,
         ISftpConnectionStore?        sftpConnectionStore = null,
+        IFtpConnectionStore?         ftpConnectionStore = null,
         ICredentialStore?            credentialStore   = null)
     {
         _screen       = screen;
@@ -179,6 +181,7 @@ public sealed class Application
         _fileOps      = fileOps;
         _searchService = searchService ?? new CSharpFar.FileSystem.FileSystemSearchService();
         _sftpConnectionStore = sftpConnectionStore;
+        _ftpConnectionStore = ftpConnectionStore;
         _credentialStore = credentialStore;
         _history      = history      ?? new InMemoryHistoryStore();
         _settings     = settings     ?? new AppSettingsAlias();
@@ -227,6 +230,8 @@ public sealed class Application
     internal ISearchService CommandSearchService => _searchService;
 
     internal ISftpConnectionStore? CommandSftpConnectionStore => _sftpConnectionStore;
+
+    internal IFtpConnectionStore? CommandFtpConnectionStore => _ftpConnectionStore;
 
     internal ICredentialStore? CommandCredentialStore => _credentialStore;
 
@@ -2108,6 +2113,9 @@ public sealed class Application
     internal IReadOnlyList<SftpConnectionInfo> LoadSftpConnections() =>
         _sftpConnectionStore?.Load() ?? [];
 
+    internal IReadOnlyList<FtpConnectionInfo> LoadFtpConnections() =>
+        _ftpConnectionStore?.Load() ?? [];
+
     internal void OpenSftpConnectionManager(PanelSide side)
     {
         if (!EnsureSftpStorage())
@@ -2369,6 +2377,250 @@ public sealed class Application
         if (connection.CredentialId is not null)
             _credentialStore.DeletePassword(connection.CredentialId);
     }
+
+    internal void OpenFtpConnectionManager(PanelSide side)
+    {
+        if (!EnsureFtpStorage())
+            return;
+
+        while (true)
+        {
+            var connections = LoadFtpConnections();
+            var result = new FtpConnectionManagerDialog(_screen, _palette).Show(connections);
+            if (result is null)
+                return;
+
+            switch (result.Action)
+            {
+                case FtpConnectionManagerAction.Create:
+                    if (ShowFtpConnectionEditor(null, saveConnectionByDefault: true, allowTemporaryConnection: false) is { } created)
+                        SaveFtpConnectionResult(created);
+                    break;
+                case FtpConnectionManagerAction.Edit:
+                    if (result.Connection is not null &&
+                        ShowFtpConnectionEditor(result.Connection, saveConnectionByDefault: true, allowTemporaryConnection: false) is { } edited)
+                    {
+                        SaveFtpConnectionResult(edited);
+                    }
+                    break;
+                case FtpConnectionManagerAction.Delete:
+                    if (result.Connection is not null)
+                        DeleteFtpConnection(result.Connection);
+                    break;
+                case FtpConnectionManagerAction.Connect:
+                    if (result.Connection is not null)
+                        OpenSavedFtpConnection(side, result.Connection);
+                    break;
+            }
+        }
+    }
+
+    internal void OpenFtpConnectionDialog(PanelSide side, FtpConnectionInfo? savedConnection = null)
+    {
+        if (!EnsureFtpStorage())
+            return;
+
+        if (savedConnection is not null)
+        {
+            OpenSavedFtpConnection(side, savedConnection);
+            return;
+        }
+
+        var result = ShowFtpConnectionEditor(null, saveConnectionByDefault: false, allowTemporaryConnection: true);
+        if (result is null)
+            return;
+
+        if (OpenFtpConnection(side, result.Connection, result.Password))
+            SaveFtpConnectionResult(result);
+    }
+
+    internal void OpenSavedFtpConnection(PanelSide side, FtpConnectionInfo connection)
+    {
+        if (!EnsureFtpStorage())
+            return;
+
+        string? password = connection.CredentialId is not null
+            ? _credentialStore!.TryReadPassword(connection.CredentialId)
+            : null;
+
+        if (password is null || RequiresFtpCertificateFingerprint(connection))
+        {
+            var result = ShowFtpConnectionEditor(
+                connection,
+                saveConnectionByDefault: true,
+                allowTemporaryConnection: false);
+            if (result is null)
+                return;
+
+            if (OpenFtpConnection(side, result.Connection, result.Password))
+                SaveFtpConnectionResult(result);
+            return;
+        }
+
+        OpenFtpConnection(side, connection, password);
+    }
+
+    private bool OpenFtpConnection(PanelSide side, FtpConnectionInfo connection, string password)
+    {
+        var source = new FtpFilePanelSource(connection, password);
+        _sourceRegistry.Add(source);
+
+        var state = GetPanelState(side);
+        bool loaded = _ctrl.TryLoadLocation(
+            state,
+            new PanelLocation(source.SourceId, connection.RemoteRootPath),
+            PanelOptions);
+        state.DisplayTitle = $"{FtpPanelTitle(connection)}: {connection.DisplayName}";
+        state.ShowCurrentItemFullPath = true;
+        QuickView = false;
+        ActiveSide = side;
+        return loaded;
+    }
+
+    private FtpConnectionDialogResult? ShowFtpConnectionEditor(
+        FtpConnectionInfo? connection,
+        bool saveConnectionByDefault,
+        bool allowTemporaryConnection)
+    {
+        string? savedPassword = connection?.CredentialId is not null
+            ? _credentialStore!.TryReadPassword(connection.CredentialId)
+            : null;
+
+        return new FtpConnectionDialog(_screen, _palette).Show(
+            new FtpConnectionDialogRequest(
+                connection,
+                savedPassword,
+                saveConnectionByDefault,
+                allowTemporaryConnection),
+            ValidateFtpConnection);
+    }
+
+    private FtpConnectionDialogValidationResult ValidateFtpConnection(FtpConnectionDialogResult result)
+    {
+        if (result.SavePassword && !result.SaveConnection)
+            return FtpConnectionDialogValidationResult.Error("Password can be saved only with a saved connection.");
+
+        try
+        {
+            FtpFilePanelSource.ValidateActiveModeLocalPortRange(result.Connection);
+        }
+        catch (ArgumentException ex)
+        {
+            return FtpConnectionDialogValidationResult.Error(ex.Message);
+        }
+
+        if (RequiresFtpCertificateFingerprint(result.Connection))
+        {
+            string? fingerprint = null;
+            var untrustedProbe = new FtpFilePanelSource(
+                result.Connection with { ExpectedTlsCertificateFingerprint = null },
+                result.Password,
+                acceptCertificate: (_, certificateFingerprint) =>
+                {
+                    fingerprint = certificateFingerprint;
+                    return false;
+                });
+            try
+            {
+                _ = untrustedProbe.GetItem(result.Connection.RemoteRootPath);
+            }
+            catch (IOException ex)
+            {
+                return fingerprint is null
+                    ? FtpConnectionDialogValidationResult.Error(ex.Message)
+                    : FtpConnectionDialogValidationResult.RequireCertificateTrust(fingerprint);
+            }
+            catch (Exception ex) when (ex is UnauthorizedAccessException or InvalidOperationException or ArgumentException)
+            {
+                return FtpConnectionDialogValidationResult.Error(ex.Message);
+            }
+        }
+
+        try
+        {
+            var source = new FtpFilePanelSource(result.Connection, result.Password);
+            _ = source.GetItem(result.Connection.RemoteRootPath);
+            return FtpConnectionDialogValidationResult.Accepted();
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException or ArgumentException)
+        {
+            return FtpConnectionDialogValidationResult.Error(ex.Message);
+        }
+    }
+
+    private bool EnsureFtpStorage()
+    {
+        if (_ftpConnectionStore is not null && _credentialStore is not null)
+            return true;
+
+        new MessageDialog(_screen, _palette).Show("FTP/FTPS", "FTP/FTPS connection storage is not configured.");
+        return false;
+    }
+
+    private void SaveFtpConnection(FtpConnectionInfo connection)
+    {
+        if (_ftpConnectionStore is null)
+            return;
+
+        var connections = _ftpConnectionStore.Load().ToList();
+        int index = connections.FindIndex(c => string.Equals(c.Id, connection.Id, StringComparison.Ordinal));
+        if (index >= 0)
+            connections[index] = connection;
+        else
+            connections.Add(connection);
+
+        _ftpConnectionStore.Save(connections);
+    }
+
+    private void SaveFtpConnectionResult(FtpConnectionDialogResult result)
+    {
+        if (_credentialStore is null)
+            return;
+
+        if (result.SavePassword && result.Connection.CredentialId is not null)
+        {
+            _credentialStore.SavePassword(result.Connection.CredentialId, result.Password);
+        }
+        else if (result.PreviousCredentialId is not null)
+        {
+            _credentialStore.DeletePassword(result.PreviousCredentialId);
+        }
+
+        if (result.SaveConnection)
+            SaveFtpConnection(result.Connection);
+    }
+
+    private void DeleteFtpConnection(FtpConnectionInfo connection)
+    {
+        if (_ftpConnectionStore is null || _credentialStore is null)
+            return;
+
+        if (!new ConfirmDialog(_screen).Show("FTP/FTPS", "Delete saved connection?", connection.DisplayName))
+            return;
+
+        var connections = _ftpConnectionStore
+            .Load()
+            .Where(item => !string.Equals(item.Id, connection.Id, StringComparison.Ordinal))
+            .ToList();
+        _ftpConnectionStore.Save(connections);
+
+        if (connection.CredentialId is not null)
+            _credentialStore.DeletePassword(connection.CredentialId);
+    }
+
+    private static bool RequiresFtpCertificateFingerprint(FtpConnectionInfo connection) =>
+        connection.SecurityMode != FtpConnectionSecurityMode.PlainFtp &&
+        string.IsNullOrWhiteSpace(connection.ExpectedTlsCertificateFingerprint);
+
+    private static string FtpPanelTitle(FtpConnectionInfo connection) =>
+        connection.SecurityMode switch
+        {
+            FtpConnectionSecurityMode.PlainFtp => "FTP",
+            FtpConnectionSecurityMode.ExplicitFtps => "FTPS explicit",
+            FtpConnectionSecurityMode.ImplicitFtps => "FTPS implicit",
+            FtpConnectionSecurityMode.Auto => "FTP/FTPS auto",
+            _ => "FTP/FTPS",
+        };
 
     // ── file highlighting ─────────────────────────────────────────────────────
 

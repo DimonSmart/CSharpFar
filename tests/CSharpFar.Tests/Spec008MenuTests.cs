@@ -473,6 +473,7 @@ public sealed class Spec008MenuProviderAndCommandTests : IDisposable
         Assert.Equal(PanelSide.Right, ((SetPanelViewModeArgs)rightFull.CommandArgs!).PanelSide);
         Assert.Equal(SortMode.LastWriteTime, ((SetPanelSortModeArgs)lastWrite.CommandArgs!).SortMode);
         Assert.Contains(menu.Items[2].Children, item => item.CommandId == MenuCommandIds.SftpConnect);
+        Assert.Contains(menu.Items[2].Children, item => item.CommandId == MenuCommandIds.FtpConnect);
         Assert.Contains(menu.Items[3].Children, item => item.CommandId == MenuCommandIds.SettingsSave);
     }
 

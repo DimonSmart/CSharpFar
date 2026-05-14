@@ -5,8 +5,15 @@
   </ItemGroup>
 
   <ItemGroup>
+    <PackageReference Include="FluentFTP" Version="54.1.2" />
     <PackageReference Include="SSH.NET" Version="2025.1.0" />
     <PackageReference Include="System.Security.Cryptography.ProtectedData" Version="10.0.8" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleTo">
+      <_Parameter1>CSharpFar.Tests</_Parameter1>
+    </AssemblyAttribute>
   </ItemGroup>
 
   <PropertyGroup>

@@ -49,6 +49,9 @@ internal sealed class ApplicationCommandContext
     public IReadOnlyList<SftpConnectionInfo> LoadSftpConnections() =>
         _application.LoadSftpConnections();
 
+    public IReadOnlyList<FtpConnectionInfo> LoadFtpConnections() =>
+        _application.LoadFtpConnections();
+
     public FilePanelState LeftPanel => _application.CommandLeftPanel;
 
     public FilePanelState RightPanel => _application.CommandRightPanel;
@@ -160,6 +163,15 @@ internal sealed class ApplicationCommandContext
 
     public void OpenSavedSftpConnection(PanelSide side, SftpConnectionInfo connection) =>
         _application.OpenSavedSftpConnection(side, connection);
+
+    public void OpenFtpConnectionDialog(PanelSide side, FtpConnectionInfo? savedConnection = null) =>
+        _application.OpenFtpConnectionDialog(side, savedConnection);
+
+    public void OpenFtpConnectionManager(PanelSide side) =>
+        _application.OpenFtpConnectionManager(side);
+
+    public void OpenSavedFtpConnection(PanelSide side, FtpConnectionInfo connection) =>
+        _application.OpenSavedFtpConnection(side, connection);
 
     public string CombinePanelPath(FilePanelState state, string name) =>
         _application.CombinePanelPath(state, name);
