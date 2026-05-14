@@ -1,5 +1,6 @@
 using System.Runtime.InteropServices;
 using System.Runtime.Versioning;
+using CSharpFar.Console;
 using CSharpFar.Console.Win32;
 
 namespace CSharpFar.Tests;
@@ -108,6 +109,31 @@ public sealed class Win32ConsoleInputLayoutTests
         Assert.False(changed);
         Assert.Null(inputEvent);
         Assert.Equal(ConsoleModifiers.Alt, lastState);
+    }
+
+    [Fact]
+    [SupportedOSPlatform("windows")]
+    public void GetApplicationInputMode_UsesRawInputAndDisablesConsoleTextSelectionShortcuts()
+    {
+        uint originalMode =
+            Win32ConsoleApi.ENABLE_PROCESSED_INPUT |
+            Win32ConsoleApi.ENABLE_LINE_INPUT |
+            Win32ConsoleApi.ENABLE_ECHO_INPUT |
+            Win32ConsoleApi.ENABLE_INSERT_MODE |
+            Win32ConsoleApi.ENABLE_QUICK_EDIT_MODE |
+            Win32ConsoleApi.ENABLE_VIRTUAL_TERMINAL_INPUT;
+
+        uint appMode = SystemConsoleDriver.GetApplicationInputMode(originalMode);
+
+        Assert.True((appMode & Win32ConsoleApi.ENABLE_EXTENDED_FLAGS) != 0);
+        Assert.True((appMode & Win32ConsoleApi.ENABLE_MOUSE_INPUT) != 0);
+        Assert.True((appMode & Win32ConsoleApi.ENABLE_WINDOW_INPUT) != 0);
+        Assert.Equal(0u, appMode & Win32ConsoleApi.ENABLE_PROCESSED_INPUT);
+        Assert.Equal(0u, appMode & Win32ConsoleApi.ENABLE_LINE_INPUT);
+        Assert.Equal(0u, appMode & Win32ConsoleApi.ENABLE_ECHO_INPUT);
+        Assert.Equal(0u, appMode & Win32ConsoleApi.ENABLE_INSERT_MODE);
+        Assert.Equal(0u, appMode & Win32ConsoleApi.ENABLE_QUICK_EDIT_MODE);
+        Assert.Equal(0u, appMode & Win32ConsoleApi.ENABLE_VIRTUAL_TERMINAL_INPUT);
     }
 
     private static int OffsetOf<T>(string fieldName) =>

@@ -402,40 +402,7 @@ internal sealed class SftpConnectionDialog
         if (buffer is null)
             return false;
 
-        bool printable = key.KeyChar >= ' ' &&
-                         (key.Modifiers & (ConsoleModifiers.Control | ConsoleModifiers.Alt)) == 0;
-        if (printable)
-        {
-            buffer.Insert(key.KeyChar);
-            error = null;
-            return true;
-        }
-
-        switch (key.Key)
-        {
-            case ConsoleKey.Backspace:
-                buffer.DeleteBack();
-                error = null;
-                return true;
-            case ConsoleKey.Delete:
-                buffer.DeleteForward();
-                error = null;
-                return true;
-            case ConsoleKey.LeftArrow:
-                buffer.MoveCursor(-1);
-                return false;
-            case ConsoleKey.RightArrow:
-                buffer.MoveCursor(+1);
-                return false;
-            case ConsoleKey.Home:
-                buffer.MoveToStart();
-                return false;
-            case ConsoleKey.End:
-                buffer.MoveToEnd();
-                return false;
-        }
-
-        return false;
+        return SingleLineTextInput.HandleKey(buffer, key, ref error) == TextInputKeyResult.TextChanged;
     }
 
     private static void ClearHostKeyWhenEndpointChanges(
@@ -541,10 +508,16 @@ internal sealed class SftpConnectionDialog
         var labelStyle = focused ? PaletteStyles.InputHighlight(_palette) : PaletteStyles.DialogFill(_palette);
         _screen.Write(labelX, y, label.PadRight(Math.Max(0, fieldX - labelX - 1)), labelStyle);
 
-        string text = mask ? new string('*', buffer.Text.Length) : buffer.Text;
-        string visible = text.Length > fieldWidth ? text[^fieldWidth..] : text;
         var fieldStyle = focused ? PaletteStyles.InputField(_palette) : PaletteStyles.DialogFill(_palette);
-        _screen.Write(fieldX, y, visible.PadRight(fieldWidth), fieldStyle);
+        SingleLineTextInput.Render(
+            _screen,
+            fieldX,
+            y,
+            fieldWidth,
+            buffer,
+            fieldStyle,
+            PaletteStyles.InputHighlight(_palette),
+            mask);
     }
 
     private void DrawReadOnly(

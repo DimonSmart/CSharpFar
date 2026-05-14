@@ -8,12 +8,14 @@ internal sealed class CommandLineRenderer
 {
     private readonly ScreenRenderer _screen;
     private readonly CellStyle      _style;
+    private readonly CellStyle      _selectionStyle;
 
     public CommandLineRenderer(ScreenRenderer screen, ConsolePalette? palette = null)
     {
-        _screen = screen;
-        palette ??= PaletteRegistry.Default;
-        _style  = PaletteStyles.CommandLine(palette);
+        _screen         = screen;
+        palette        ??= PaletteRegistry.Default;
+        _style          = PaletteStyles.CommandLine(palette);
+        _selectionStyle = new CellStyle(_style.Background, _style.Foreground);
     }
 
     public void Render(int y, int totalWidth, string currentDirectory, CommandLineState state)
@@ -31,7 +33,20 @@ internal sealed class CommandLineRenderer
             ? full
             : full.Substring(offset, totalWidth);
 
-        _screen.Write(0, y, display, _style);
+        if (!state.HasSelection)
+        {
+            _screen.Write(0, y, display, _style);
+            return;
+        }
+
+        // Render selection over the text portion, not the prompt.
+        int selectionStartX = prompt.Length + state.SelectionStart!.Value - offset;
+        int selectionEndX = selectionStartX + state.SelectionLength;
+        for (int i = 0; i < display.Length; i++)
+        {
+            bool isSelected = i >= selectionStartX && i < selectionEndX;
+            _screen.WriteChar(i, y, display[i], isSelected ? _selectionStyle : _style);
+        }
     }
 
     /// <summary>

@@ -1188,7 +1188,7 @@ public sealed class Application
 
         if (IsPlainControlKey(key, ConsoleKey.A, '\u0001'))
         {
-            _ctrl.ToggleSelectAll(ActiveState, PanelOptions);
+            SelectAllCommandLineTextOrPanelItems();
             return true;
         }
 
@@ -1208,7 +1208,7 @@ public sealed class Application
             }
         }
 
-        // Ctrl+A — select all; Ctrl+* — invert selection
+        // Ctrl+* - invert selection
         bool isControlShortcut =
             (key.Modifiers & ConsoleModifiers.Control) != 0 &&
             (key.Modifiers & ConsoleModifiers.Alt) == 0;
@@ -1216,7 +1216,6 @@ public sealed class Application
         {
             switch (key.Key)
             {
-                case ConsoleKey.A:  _ctrl.ToggleSelectAll(ActiveState, PanelOptions);                          return true;
                 case ConsoleKey.Multiply:
                     _ctrl.InvertSelection(ActiveState, PanelOptions);
                     return true;
@@ -1588,6 +1587,12 @@ public sealed class Application
         if (TryHandlePanelVisibilityFunctionKey(key, out bool shouldRender))
             return shouldRender;
 
+        if (IsPlainControlKey(key, ConsoleKey.A, '\u0001'))
+        {
+            _cmdLine.SelectAll();
+            return true;
+        }
+
         switch (key.Key)
         {
             case ConsoleKey.LeftArrow:
@@ -1652,6 +1657,14 @@ public sealed class Application
         }
 
         return false;
+    }
+
+    private void SelectAllCommandLineTextOrPanelItems()
+    {
+        if (_cmdLine.HasText)
+            _cmdLine.SelectAll();
+        else
+            _ctrl.ToggleSelectAll(ActiveState, PanelOptions);
     }
 
     private bool TryHandlePanelScrollbarDrag(MouseConsoleInputEvent evt)

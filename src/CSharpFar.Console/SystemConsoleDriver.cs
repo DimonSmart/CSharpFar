@@ -368,14 +368,25 @@ public sealed class SystemConsoleDriver : IConsoleDriver, IConsoleOutputModeDriv
             return false;
 
         originalMode = mode;
+        uint appMode = GetApplicationInputMode(mode);
+
+        return appMode == mode || Win32ConsoleApi.TrySetConsoleMode(inputHandle, appMode);
+    }
+
+    [SupportedOSPlatform("windows")]
+    internal static uint GetApplicationInputMode(uint mode)
+    {
         uint appMode = mode;
         appMode |= Win32ConsoleApi.ENABLE_EXTENDED_FLAGS;
         appMode |= Win32ConsoleApi.ENABLE_MOUSE_INPUT;
+        appMode |= Win32ConsoleApi.ENABLE_WINDOW_INPUT;
+        appMode &= ~Win32ConsoleApi.ENABLE_PROCESSED_INPUT;
+        appMode &= ~Win32ConsoleApi.ENABLE_LINE_INPUT;
+        appMode &= ~Win32ConsoleApi.ENABLE_ECHO_INPUT;
         appMode &= ~Win32ConsoleApi.ENABLE_QUICK_EDIT_MODE;
         appMode &= ~Win32ConsoleApi.ENABLE_INSERT_MODE;
         appMode &= ~Win32ConsoleApi.ENABLE_VIRTUAL_TERMINAL_INPUT;
-
-        return appMode == mode || Win32ConsoleApi.TrySetConsoleMode(inputHandle, appMode);
+        return appMode;
     }
 
     private bool HasVisibleViewportChanged()

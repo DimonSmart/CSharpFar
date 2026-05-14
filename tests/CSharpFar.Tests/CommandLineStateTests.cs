@@ -156,4 +156,60 @@ public class CommandLineStateTests
         s.Insert('a');
         Assert.True(s.HasText);
     }
+
+    [Fact]
+    public void SelectAll_SelectsWholeBufferAndMovesCursorToEnd()
+    {
+        var s = new CommandLineState();
+        s.SetText("hello");
+        s.MoveToStart();
+
+        s.SelectAll();
+
+        Assert.True(s.HasSelection);
+        Assert.Equal(0, s.SelectionStart);
+        Assert.Equal(5, s.SelectionLength);
+        Assert.Equal(5, s.CursorPosition);
+    }
+
+    [Fact]
+    public void Insert_ReplacesSelection()
+    {
+        var s = new CommandLineState();
+        s.SetText("hello");
+        s.SelectAll();
+
+        s.Insert('x');
+
+        Assert.Equal("x", s.Text);
+        Assert.Equal(1, s.CursorPosition);
+        Assert.False(s.HasSelection);
+    }
+
+    [Fact]
+    public void DeleteBack_RemovesSelection()
+    {
+        var s = new CommandLineState();
+        s.SetText("hello");
+        s.SelectAll();
+
+        s.DeleteBack();
+
+        Assert.Equal(string.Empty, s.Text);
+        Assert.Equal(0, s.CursorPosition);
+        Assert.False(s.HasSelection);
+    }
+
+    [Fact]
+    public void MoveCursor_ClearsSelection()
+    {
+        var s = new CommandLineState();
+        s.SetText("hello");
+        s.SelectAll();
+
+        s.MoveCursor(-1);
+
+        Assert.False(s.HasSelection);
+        Assert.Equal(4, s.CursorPosition);
+    }
 }

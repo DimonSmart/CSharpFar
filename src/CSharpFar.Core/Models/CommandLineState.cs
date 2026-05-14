@@ -8,21 +8,63 @@ public sealed class CommandLineState
     public int CursorPosition { get; private set; }
     public bool HasText => _buffer.Count > 0;
 
+    // ── Selection ─────────────────────────────────────────────────────────────
+    /// <summary>Start of the selection, or <c>null</c> when nothing is selected.</summary>
+    public int? SelectionStart { get; private set; }
+    /// <summary>Number of selected characters (valid only when <see cref="SelectionStart"/> is not null).</summary>
+    public int SelectionLength { get; private set; }
+    public bool HasSelection => SelectionStart.HasValue && SelectionLength > 0;
+
+    /// <summary>Selects all text and moves the cursor to the end.</summary>
+    public void SelectAll()
+    {
+        if (_buffer.Count == 0)
+        {
+            ClearSelection();
+            return;
+        }
+
+        SelectionStart  = 0;
+        SelectionLength = _buffer.Count;
+        CursorPosition  = _buffer.Count;
+    }
+
+    /// <summary>Clears the selection without changing the cursor or buffer.</summary>
+    public void ClearSelection()
+    {
+        SelectionStart  = null;
+        SelectionLength = 0;
+    }
+
+    // ── Helpers ───────────────────────────────────────────────────────────────
+    /// <summary>Deletes the selected range and clears the selection. Cursor moves to selection start.</summary>
+    private void DeleteSelection()
+    {
+        if (!HasSelection) return;
+        _buffer.RemoveRange(SelectionStart!.Value, SelectionLength);
+        CursorPosition = SelectionStart.Value;
+        ClearSelection();
+    }
+
+    // ── Editing ───────────────────────────────────────────────────────────────
     public void Insert(char ch)
     {
+        if (HasSelection) DeleteSelection();
         _buffer.Insert(CursorPosition, ch);
         CursorPosition++;
     }
 
     public void InsertText(string text)
     {
+        if (HasSelection) DeleteSelection();
         _buffer.InsertRange(CursorPosition, text);
         CursorPosition += text.Length;
     }
 
-    /// <summary>Backspace — deletes the character to the left of the cursor.</summary>
+    /// <summary>Backspace — deletes the selection or the character to the left of the cursor.</summary>
     public void DeleteBack()
     {
+        if (HasSelection) { DeleteSelection(); return; }
         if (CursorPosition > 0)
         {
             _buffer.RemoveAt(CursorPosition - 1);
@@ -30,23 +72,28 @@ public sealed class CommandLineState
         }
     }
 
-    /// <summary>Delete — deletes the character to the right of the cursor.</summary>
+    /// <summary>Delete — deletes the selection or the character to the right of the cursor.</summary>
     public void DeleteForward()
     {
+        if (HasSelection) { DeleteSelection(); return; }
         if (CursorPosition < _buffer.Count)
             _buffer.RemoveAt(CursorPosition);
     }
 
-    public void MoveCursor(int delta) =>
+    public void MoveCursor(int delta)
+    {
+        ClearSelection();
         CursorPosition = Math.Clamp(CursorPosition + delta, 0, _buffer.Count);
+    }
 
-    public void MoveToStart() => CursorPosition = 0;
-    public void MoveToEnd()   => CursorPosition = _buffer.Count;
+    public void MoveToStart() { ClearSelection(); CursorPosition = 0; }
+    public void MoveToEnd()   { ClearSelection(); CursorPosition = _buffer.Count; }
 
     public void Clear()
     {
         _buffer.Clear();
         CursorPosition = 0;
+        ClearSelection();
     }
 
     /// <summary>Replaces the buffer with <paramref name="text"/> and moves cursor to end.</summary>
@@ -55,5 +102,6 @@ public sealed class CommandLineState
         _buffer.Clear();
         _buffer.AddRange(text);
         CursorPosition = _buffer.Count;
+        ClearSelection();
     }
 }

@@ -96,6 +96,53 @@ public sealed class ApplicationNavigationTests : IDisposable
     }
 
     [Fact]
+    public void HandleKey_CtrlAWithCommandTextSelectsCommandLineInsteadOfPanel()
+    {
+        var fs = new FakeFileSystemService();
+        fs.AddDirectory(_tempDir,
+            new FilePanelItem { Name = "item.txt", FullPath = Path.Combine(_tempDir, "item.txt"), IsDirectory = false });
+
+        var driver = new FakeConsoleDriver(width: 80, height: 12);
+        var app = CreateApp(fs, driver, _tempDir);
+
+        HandleKeyAndRender(app, Key(ConsoleKey.A, keyChar: 'a'));
+        HandleKeyAndRender(app, Key(ConsoleKey.B, keyChar: 'b'));
+        HandleKeyAndRender(app, Key(ConsoleKey.A, keyChar: '\u0001', control: true));
+
+        var commandLine = GetCommandLine(app);
+        Assert.True(commandLine.HasSelection);
+        Assert.Equal(0, commandLine.SelectionStart);
+        Assert.Equal(2, commandLine.SelectionLength);
+        Assert.Empty(GetLeftPanel(app).SelectedPaths);
+
+        HandleKeyAndRender(app, Key(ConsoleKey.X, keyChar: 'x'));
+
+        Assert.Equal("x", commandLine.Text);
+        Assert.False(commandLine.HasSelection);
+    }
+
+    [Fact]
+    public void Run_CtrlAInHiddenPanelModeReplacesCommandLineText()
+    {
+        var fs = new FakeFileSystemService();
+        fs.AddDirectory(_tempDir);
+
+        var driver = new FakeConsoleDriver(width: 80, height: 12);
+        driver.EnqueueKey(Key(ConsoleKey.O, keyChar: '\u000f', control: true));
+        driver.EnqueueKey(Key(ConsoleKey.A, keyChar: 'a'));
+        driver.EnqueueKey(Key(ConsoleKey.B, keyChar: 'b'));
+        driver.EnqueueKey(Key(ConsoleKey.C, keyChar: 'c'));
+        driver.EnqueueKey(Key(ConsoleKey.A, keyChar: '\u0001', control: true));
+        driver.EnqueueKey(Key(ConsoleKey.X, keyChar: 'x'));
+        driver.EnqueueKey(Key(ConsoleKey.F10));
+
+        var app = CreateApp(fs, driver, _tempDir);
+        app.Run();
+
+        Assert.Equal("x", GetCommandLine(app).Text);
+    }
+
+    [Fact]
     public void Run_CtrlOAfterViewportOriginChange_DoesNotRestoreStaleUnderlay()
     {
         var fs = new FakeFileSystemService();

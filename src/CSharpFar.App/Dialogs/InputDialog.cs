@@ -80,21 +80,8 @@ internal sealed class InputDialog
                 continue;
             }
 
-            // Editing — any typing clears the error
-            bool isPrintable = key.KeyChar >= ' ' &&
-                (key.Modifiers & (ConsoleModifiers.Control | ConsoleModifiers.Alt)) == 0;
-
-            if (isPrintable) { buf.Insert(key.KeyChar); error = null; continue; }
-
-            switch (key.Key)
-            {
-                case ConsoleKey.Backspace:  buf.DeleteBack();    error = null; break;
-                case ConsoleKey.Delete:     buf.DeleteForward(); error = null; break;
-                case ConsoleKey.LeftArrow:  buf.MoveCursor(-1);               break;
-                case ConsoleKey.RightArrow: buf.MoveCursor(+1);               break;
-                case ConsoleKey.Home:       buf.MoveToStart();                break;
-                case ConsoleKey.End:        buf.MoveToEnd();                  break;
-            }
+            if (SingleLineTextInput.HandleKey(buf, key, ref error) != TextInputKeyResult.Ignored)
+                continue;
         }
     }
 
@@ -130,14 +117,15 @@ internal sealed class InputDialog
 
     private void DrawInputField(int x, int y, int width, CommandLineState buf, bool maskInput)
     {
-        string text  = maskInput ? new string('*', buf.Text.Length) : buf.Text;
-        int    cursor = buf.CursorPosition;
-        int    start  = Math.Max(0, cursor - (width - 1));
-
-        string visible = text.Length > start ? text[start..] : string.Empty;
-        if (visible.Length > width) visible = visible[..width];
-
-        _screen.Write(x, y, visible.PadRight(width), PaletteStyles.InputField(_palette));
+        SingleLineTextInput.Render(
+            _screen,
+            x,
+            y,
+            width,
+            buf,
+            PaletteStyles.InputField(_palette),
+            PaletteStyles.InputHighlight(_palette),
+            maskInput);
     }
 
     private static string Truncate(string s, int maxLen) =>

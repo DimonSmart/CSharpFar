@@ -8,6 +8,10 @@ namespace CSharpFar.Console.Win32;
 [SupportedOSPlatform("windows")]
 internal static class Win32ConsoleApi
 {
+    public const uint ENABLE_PROCESSED_INPUT  = 0x0001;
+    public const uint ENABLE_LINE_INPUT       = 0x0002;
+    public const uint ENABLE_ECHO_INPUT       = 0x0004;
+    public const uint ENABLE_WINDOW_INPUT     = 0x0008;
     public const uint ENABLE_MOUSE_INPUT        = 0x0010;
     public const uint ENABLE_INSERT_MODE        = 0x0020;
     public const uint ENABLE_QUICK_EDIT_MODE    = 0x0040;

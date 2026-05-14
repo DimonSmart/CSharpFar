@@ -516,25 +516,7 @@ internal sealed class SearchDialog
 
     private static void EditText(CommandLineState buffer, ConsoleKeyInfo key, ref string? error)
     {
-        bool isPrintable = key.KeyChar >= ' ' &&
-            (key.Modifiers & (ConsoleModifiers.Control | ConsoleModifiers.Alt)) == 0;
-
-        if (isPrintable)
-        {
-            buffer.Insert(key.KeyChar);
-            error = null;
-            return;
-        }
-
-        switch (key.Key)
-        {
-            case ConsoleKey.Backspace: buffer.DeleteBack(); error = null; break;
-            case ConsoleKey.Delete: buffer.DeleteForward(); error = null; break;
-            case ConsoleKey.LeftArrow: buffer.MoveCursor(-1); break;
-            case ConsoleKey.RightArrow: buffer.MoveCursor(+1); break;
-            case ConsoleKey.Home: buffer.MoveToStart(); break;
-            case ConsoleKey.End: buffer.MoveToEnd(); break;
-        }
+        SingleLineTextInput.HandleKey(buffer, key, ref error);
     }
 
     private void Draw(
@@ -750,8 +732,14 @@ internal sealed class SearchDialog
 
     private void DrawInput(int x, int y, int width, CommandLineState buffer, bool focused)
     {
-        string text = VisibleInputText(buffer, width);
-        _screen.Write(x, y, text.PadRight(width), focused ? FarDialogStyles.FocusedInput : FarDialogStyles.Input);
+        SingleLineTextInput.Render(
+            _screen,
+            x,
+            y,
+            width,
+            buffer,
+            focused ? FarDialogStyles.FocusedInput : FarDialogStyles.Input,
+            FarDialogStyles.Input);
     }
 
     private void DrawValueRow(
@@ -792,20 +780,12 @@ internal sealed class SearchDialog
 
     private void SetInputCursor(int x, int y, int width, CommandLineState buffer)
     {
-        int start = Math.Max(0, buffer.CursorPosition - (width - 1));
-        int cursorX = x + buffer.CursorPosition - start;
+        int cursorX = SingleLineTextInput.GetCursorX(x, width, buffer);
         if (cursorX < x + width)
         {
             _screen.SetCursorPosition(cursorX, y);
             _screen.SetCursorVisible(true);
         }
-    }
-
-    private static string VisibleInputText(CommandLineState buffer, int width)
-    {
-        int start = Math.Max(0, buffer.CursorPosition - (width - 1));
-        string visible = buffer.Text.Length > start ? buffer.Text[start..] : string.Empty;
-        return visible.Length > width ? visible[..width] : visible;
     }
 
     private static string ScopeLabel(SearchScope scope) => scope switch
