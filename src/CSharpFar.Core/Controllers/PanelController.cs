@@ -319,6 +319,31 @@ public sealed class PanelController
         if (idx >= 0) { state.CursorIndex = idx; EnsureVisible(state, visibleRows); }
     }
 
+    public static bool TryFindFirstQuickSearchMatch(
+        FilePanelState state,
+        string searchText,
+        out int itemIndex)
+    {
+        itemIndex = -1;
+        if (string.IsNullOrEmpty(searchText))
+            return false;
+
+        for (int i = 0; i < state.Items.Count; i++)
+        {
+            var item = state.Items[i];
+            if (item.IsParentDirectory)
+                continue;
+
+            if (item.Name.StartsWith(searchText, StringComparison.OrdinalIgnoreCase))
+            {
+                itemIndex = i;
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     public FilePanelItem? CurrentItem(FilePanelState state) =>
         state.CursorIndex >= 0 && state.CursorIndex < state.Items.Count
             ? state.Items[state.CursorIndex]

@@ -47,6 +47,7 @@ public sealed class Application
     private readonly FilePanelState _right;
     private readonly CommandLineState _cmdLine = new();
     private readonly List<string> _commandCompletionMatches = [];
+    private PanelQuickSearchState? _panelQuickSearch;
 
     private PanelSide     _active        = PanelSide.Left;
     private bool          _running       = true;
@@ -108,6 +109,38 @@ public sealed class Application
     {
         Oldest,
         Newest,
+    }
+
+    private enum PanelQuickSearchKeyResult
+    {
+        NotHandled,
+        Handled,
+        CloseAndContinue,
+    }
+
+    private sealed class PanelQuickSearchState
+    {
+        public PanelQuickSearchState(PanelSide panelSide, char firstCharacter)
+        {
+            PanelSide = panelSide;
+            SearchText = NormalizeQuickSearchCharacter(firstCharacter).ToString();
+        }
+
+        public PanelSide PanelSide { get; }
+
+        public string SearchText { get; private set; }
+
+        public void Append(char ch) =>
+            SearchText += NormalizeQuickSearchCharacter(ch);
+
+        public bool RemoveLastCharacter()
+        {
+            if (SearchText.Length == 0)
+                return false;
+
+            SearchText = SearchText[..^1];
+            return SearchText.Length > 0;
+        }
     }
 
     public Application(
@@ -222,7 +255,7 @@ public sealed class Application
     internal PanelSide ActiveSide
     {
         get => _active;
-        set => _active = value;
+        set => SetActiveSide(value);
     }
 
     internal bool Running
@@ -485,7 +518,17 @@ public sealed class Application
         RenderMenuOverlay(size);
 
         if (_menuState.OpenState == MenuOpenState.Closed)
-            PositionCommandCursor(cmdRenderer, size, panelH);
+        {
+            if (_panelQuickSearch is not null)
+            {
+                if (!RenderPanelQuickSearch())
+                    _screen.SetCursorVisible(false);
+            }
+            else
+            {
+                PositionCommandCursor(cmdRenderer, size, panelH);
+            }
+        }
         else
             _screen.SetCursorVisible(false);
     }
@@ -565,6 +608,19 @@ public sealed class Application
 
         _menuBarRenderer.Render(_screen, bounds, definition, _menuState, layout, options);
         _dropdownMenuRenderer.Render(_screen, definition, _menuState, layout, options);
+    }
+
+    private bool RenderPanelQuickSearch()
+    {
+        if (_panelQuickSearch is not { } quickSearch ||
+            !IsPanelVisible(quickSearch.PanelSide))
+        {
+            return false;
+        }
+
+        var bounds = quickSearch.PanelSide == PanelSide.Left ? _leftBounds : _rightBounds;
+        return new PanelQuickSearchRenderer(_screen, _palette)
+            .Render(bounds, quickSearch.SearchText);
     }
 
     private ConsoleViewportChange GetConsoleViewportChange()
@@ -747,6 +803,15 @@ public sealed class Application
     private static PanelSide OtherPanelSide(PanelSide side) =>
         side == PanelSide.Left ? PanelSide.Right : PanelSide.Left;
 
+    private void SetActiveSide(PanelSide side)
+    {
+        if (_active == side)
+            return;
+
+        ClosePanelQuickSearch();
+        _active = side;
+    }
+
     private void EnsureActivePanelVisible()
     {
         if (IsPanelVisible(_active))
@@ -754,8 +819,20 @@ public sealed class Application
 
         var otherSide = OtherPanelSide(_active);
         if (IsPanelVisible(otherSide))
-            _active = otherSide;
+            SetActiveSide(otherSide);
     }
+
+    private void ClosePanelQuickSearch() =>
+        _panelQuickSearch = null;
+
+    private void ClosePanelQuickSearchForPanel(PanelSide side)
+    {
+        if (_panelQuickSearch?.PanelSide == side)
+            ClosePanelQuickSearch();
+    }
+
+    private void ClosePanelQuickSearchForState(FilePanelState state) =>
+        ClosePanelQuickSearchForPanel(PanelSideForState(state));
 
     // ── Ctrl+O ────────────────────────────────────────────────────────────────
 
@@ -773,6 +850,7 @@ public sealed class Application
     /// </summary>
     private bool TogglePanels()
     {
+        ClosePanelQuickSearch();
         HideCommandCompletion(temporarily: false);
         ResetCommandHistoryNavigation();
         _panelScrollbarDrag = null;
@@ -794,6 +872,7 @@ public sealed class Application
 
     internal bool TogglePanelVisibility(PanelSide side)
     {
+        ClosePanelQuickSearch();
         HideCommandCompletion(temporarily: false);
         ResetCommandHistoryNavigation();
         _panelScrollbarDrag = null;
@@ -898,6 +977,9 @@ public sealed class Application
 
     private bool HandleMouse(MouseConsoleInputEvent evt)
     {
+        if (_panelQuickSearch is not null)
+            ClosePanelQuickSearch();
+
         if (!HasVisiblePanels)
             return false;
 
@@ -942,7 +1024,7 @@ public sealed class Application
             (evt.Kind == MouseEventKind.Down || evt.Kind == MouseEventKind.Click) &&
             PanelErrorRenderer.HitTestRetry(evt.X, evt.Y, bounds, state, mode, PanelOptions))
         {
-            _active = side;
+            SetActiveSide(side);
             SafeRefresh(state, visRows);
             _lastLeftPanelItemClick = null;
             return true;
@@ -951,7 +1033,7 @@ public sealed class Application
         // Mouse wheel: scroll the panel under cursor
         if (evt.Kind == MouseEventKind.Wheel)
         {
-            _active = side;
+            SetActiveSide(side);
             int delta = evt.Button == MouseButton.WheelUp ? -3 : 3;
             _ctrl.ScrollView(state, delta, visRows);
             return true;
@@ -961,7 +1043,7 @@ public sealed class Application
         if (evt.Button == MouseButton.Right && evt.Kind == MouseEventKind.Down)
         {
             _lastLeftPanelItemClick = null;
-            _active = side;
+            SetActiveSide(side);
             int? itemIdx = HitTestPanelItemForMouse(evt, side, bounds, state, mode);
             if (itemIdx.HasValue)
             {
@@ -978,7 +1060,7 @@ public sealed class Application
 
         if (evt.Button == MouseButton.Left && evt.Kind == MouseEventKind.DoubleClick)
         {
-            _active = side;
+            SetActiveSide(side);
             int? itemIdx = HitTestPanelItemForMouse(evt, side, bounds, state, mode);
             if (itemIdx.HasValue)
             {
@@ -998,7 +1080,7 @@ public sealed class Application
         if (evt.Button == MouseButton.Left &&
             (evt.Kind == MouseEventKind.Down || evt.Kind == MouseEventKind.Click))
         {
-            _active = side;
+            SetActiveSide(side);
             int? itemIdx = HitTestPanelItemForMouse(evt, side, bounds, state, mode);
             if (itemIdx.HasValue)
             {
@@ -1051,6 +1133,10 @@ public sealed class Application
 
             return _menuController.HandleKey(key, BuildMenuDefinition(), _active);
         }
+
+        var quickSearchResult = HandlePanelQuickSearchKey(key);
+        if (quickSearchResult == PanelQuickSearchKeyResult.Handled)
+            return true;
 
         // Ctrl+O: toggle panels — check before printable-char routing
         if (IsPlainControlKey(key, ConsoleKey.O, '\u000f'))
@@ -1143,6 +1229,9 @@ public sealed class Application
         if (TryHandleFunctionKey(key, out bool functionKeyShouldRender))
             return functionKeyShouldRender;
 
+        if (TryStartPanelQuickSearch(key))
+            return true;
+
         int vr = VisibleRows();
 
         switch (key.Key)
@@ -1217,7 +1306,7 @@ public sealed class Application
             case ConsoleKey.Tab:
                 var otherSide = OtherPanelSide(_active);
                 if (IsPanelVisible(otherSide))
-                    _active = otherSide;
+                    SetActiveSide(otherSide);
                 else
                     EnsureActivePanelVisible();
                 return true;
@@ -1258,6 +1347,135 @@ public sealed class Application
         }
 
         return false;
+    }
+
+    private PanelQuickSearchKeyResult HandlePanelQuickSearchKey(ConsoleKeyInfo key)
+    {
+        if (_panelQuickSearch is not { } quickSearch)
+            return PanelQuickSearchKeyResult.NotHandled;
+
+        if (!HasVisiblePanels ||
+            !IsPanelVisible(quickSearch.PanelSide) ||
+            quickSearch.PanelSide != _active)
+        {
+            ClosePanelQuickSearch();
+            return PanelQuickSearchKeyResult.NotHandled;
+        }
+
+        if (key.Key == ConsoleKey.Escape)
+        {
+            ClosePanelQuickSearch();
+            return PanelQuickSearchKeyResult.Handled;
+        }
+
+        if (key.Key == ConsoleKey.Backspace &&
+            (key.Modifiers & (ConsoleModifiers.Control | ConsoleModifiers.Alt)) == 0)
+        {
+            if (quickSearch.RemoveLastCharacter())
+                MovePanelQuickSearchCursor();
+            else
+                ClosePanelQuickSearch();
+
+            return PanelQuickSearchKeyResult.Handled;
+        }
+
+        if (TryGetPanelQuickSearchAppendCharacter(key, out char ch))
+        {
+            quickSearch.Append(ch);
+            MovePanelQuickSearchCursor();
+            return PanelQuickSearchKeyResult.Handled;
+        }
+
+        ClosePanelQuickSearch();
+        return PanelQuickSearchKeyResult.CloseAndContinue;
+    }
+
+    private bool TryStartPanelQuickSearch(ConsoleKeyInfo key)
+    {
+        if (!TryGetPanelQuickSearchActivationCharacter(key, out char ch))
+            return false;
+
+        _panelQuickSearch = new PanelQuickSearchState(_active, ch);
+        HideCommandCompletion(temporarily: false);
+        ResetCommandHistoryNavigation();
+        MovePanelQuickSearchCursor();
+        return true;
+    }
+
+    private bool TryGetPanelQuickSearchActivationCharacter(ConsoleKeyInfo key, out char ch)
+    {
+        ch = default;
+        if (!HasVisiblePanels ||
+            !IsPanelVisible(_active) ||
+            (key.Modifiers & ConsoleModifiers.Alt) == 0 ||
+            (key.Modifiers & ConsoleModifiers.Control) != 0)
+        {
+            return false;
+        }
+
+        if (key.Key is ConsoleKey.D1 or ConsoleKey.NumPad1 or ConsoleKey.D2 or ConsoleKey.NumPad2 ||
+            key.Key is >= ConsoleKey.F1 and <= ConsoleKey.F24)
+        {
+            return false;
+        }
+
+        return TryGetQuickSearchCharacterFromKeyInfo(key, out ch) ||
+               TryGetAltLetterQuickSearchCharacter(key, out ch);
+    }
+
+    private static bool TryGetPanelQuickSearchAppendCharacter(ConsoleKeyInfo key, out char ch)
+    {
+        ch = default;
+        if ((key.Modifiers & (ConsoleModifiers.Control | ConsoleModifiers.Alt)) != 0)
+            return false;
+
+        return TryGetQuickSearchCharacterFromKeyInfo(key, out ch);
+    }
+
+    private static bool TryGetQuickSearchCharacterFromKeyInfo(ConsoleKeyInfo key, out char ch)
+    {
+        ch = default;
+        if (key.KeyChar < ' ' || !IsQuickSearchFilenameCharacter(key.KeyChar))
+            return false;
+
+        ch = NormalizeQuickSearchCharacter(key.KeyChar);
+        return true;
+    }
+
+    private static bool TryGetAltLetterQuickSearchCharacter(ConsoleKeyInfo key, out char ch)
+    {
+        ch = default;
+        if (key.Key is < ConsoleKey.A or > ConsoleKey.Z)
+            return false;
+
+        ch = (char)('a' + (int)key.Key - (int)ConsoleKey.A);
+        return true;
+    }
+
+    private static bool IsQuickSearchFilenameCharacter(char ch)
+    {
+        if (char.IsControl(ch))
+            return false;
+
+        return Array.IndexOf(Path.GetInvalidFileNameChars(), ch) < 0;
+    }
+
+    private static char NormalizeQuickSearchCharacter(char ch) =>
+        char.ToLowerInvariant(ch);
+
+    private void MovePanelQuickSearchCursor()
+    {
+        if (_panelQuickSearch is not { } quickSearch)
+            return;
+
+        var state = GetPanelState(quickSearch.PanelSide);
+        if (PanelController.TryFindFirstQuickSearchMatch(
+                state,
+                quickSearch.SearchText,
+                out int itemIndex))
+        {
+            _ctrl.SetCursorTo(state, itemIndex, VisibleRows(quickSearch.PanelSide));
+        }
     }
 
     private bool TryHandleFunctionKey(ConsoleKeyInfo key, out bool shouldRender)
@@ -1459,7 +1677,7 @@ public sealed class Application
             ? new PanelScrollbarDrag(drag.Side, dragState.Value)
             : null;
 
-        _active = drag.Side;
+        SetActiveSide(drag.Side);
         _ctrl.ScrollView(state, firstVisibleIndex - state.ScrollOffset, drag.DragState.ViewportItems);
         _lastLeftPanelItemClick = null;
         return true;
@@ -1493,7 +1711,7 @@ public sealed class Application
             ? new PanelScrollbarDrag(side, dragState.Value)
             : null;
 
-        _active = side;
+        SetActiveSide(side);
         _ctrl.ScrollView(state, firstVisibleIndex - state.ScrollOffset, visibleRows);
         _lastLeftPanelItemClick = null;
         return true;
@@ -1714,6 +1932,7 @@ public sealed class Application
 
     internal bool OpenTopMenu()
     {
+        ClosePanelQuickSearch();
         _menuController.HandleKey(
             new ConsoleKeyInfo('\0', ConsoleKey.F9, shift: false, alt: false, control: false),
             BuildMenuDefinition(),
@@ -1729,6 +1948,7 @@ public sealed class Application
         IReadOnlyList<SearchResultItem> results,
         bool cancelled)
     {
+        ClosePanelQuickSearchForState(state);
         state.CurrentLocation = PanelLocation.SearchResult(request.RootPath);
         state.Items.Clear();
         state.Items.AddRange(results.Select(ToFilePanelItem));
@@ -1748,6 +1968,7 @@ public sealed class Application
 
     private void CloseSearchResultsPanel(FilePanelState state, PanelSide side)
     {
+        ClosePanelQuickSearchForPanel(side);
         var rootPath = state.SearchRequest!.RootPath;
         state.SearchRequest = null;
         state.SearchWasCancelled = false;
@@ -1784,6 +2005,7 @@ public sealed class Application
         string name,
         bool isDirectory)
     {
+        ClosePanelQuickSearchForPanel(side);
         string? directoryPath = isDirectory
             ? fullPath
             : Path.GetDirectoryName(fullPath);
@@ -2184,6 +2406,7 @@ public sealed class Application
     internal void ExecuteCommand(string command)
     {
         string workDir = ActiveState.CurrentDirectory;
+        ClosePanelQuickSearch();
         _cmdLine.Clear();
         HideCommandCompletion(temporarily: false);
         ResetCommandHistoryNavigation();
@@ -2331,6 +2554,7 @@ public sealed class Application
         if (!HasCapability(state, PanelProviderCapabilities.Enumerate))
             return;
 
+        ClosePanelQuickSearchForPanel(side);
         bool loaded = item.IsParentDirectory
             ? _ctrl.TryGoToParent(state, VisibleRows(side), PanelOptions)
             : _ctrl.TryLoadLocation(state, item.Location, PanelOptions);
@@ -2383,6 +2607,7 @@ public sealed class Application
         if (!HasCapability(ActiveState, PanelProviderCapabilities.Enumerate))
             return;
 
+        ClosePanelQuickSearchForPanel(_active);
         if (!_ctrl.TryGoToParent(ActiveState, VisibleRows(), PanelOptions))
             return;
 
@@ -2480,6 +2705,7 @@ public sealed class Application
         if (!HasCapability(state, PanelProviderCapabilities.Refresh))
             return;
 
+        ClosePanelQuickSearchForState(state);
         if (state.SearchRequest is not null)
         {
             RefreshSearchResultsPanel(state, visibleRows);
@@ -2491,6 +2717,7 @@ public sealed class Application
 
     internal void SetPanelSortMode(FilePanelState state, SortMode mode, int visibleRows)
     {
+        ClosePanelQuickSearchForState(state);
         if (state.SearchRequest is null)
         {
             _ctrl.SetSortMode(state, mode, visibleRows, PanelOptions);
@@ -2512,6 +2739,7 @@ public sealed class Application
 
     internal void SortVirtualPanel(FilePanelState state, string? keepCursorPath)
     {
+        ClosePanelQuickSearchForState(state);
         var sortOptions = new PanelSortOptions
         {
             SortFoldersByExtension = PanelOptions.SortFoldersByExtension,

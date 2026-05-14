@@ -298,6 +298,49 @@ public class PanelControllerTests
         Assert.Null(ctrl.CurrentItem(state));
     }
 
+    [Fact]
+    public void TryFindFirstQuickSearchMatch_ReturnsFirstPrefixMatchInPanelOrder()
+    {
+        var state = new FilePanelState { CurrentDirectory = Root };
+        state.Items.Add(new FilePanelItem { Name = "beta.txt", FullPath = Root + @"\beta.txt", IsDirectory = false });
+        state.Items.Add(new FilePanelItem { Name = "Gamma", FullPath = Root + @"\Gamma", IsDirectory = true });
+        state.Items.Add(new FilePanelItem { Name = "gemini.md", FullPath = Root + @"\gemini.md", IsDirectory = false });
+
+        Assert.True(PanelController.TryFindFirstQuickSearchMatch(state, "g", out int itemIndex));
+        Assert.Equal(1, itemIndex);
+    }
+
+    [Fact]
+    public void TryFindFirstQuickSearchMatch_IsCaseInsensitive()
+    {
+        var state = new FilePanelState { CurrentDirectory = Root };
+        state.Items.Add(new FilePanelItem { Name = "GEMINI.md", FullPath = Root + @"\GEMINI.md", IsDirectory = false });
+
+        Assert.True(PanelController.TryFindFirstQuickSearchMatch(state, "gem", out int itemIndex));
+        Assert.Equal(0, itemIndex);
+    }
+
+    [Fact]
+    public void TryFindFirstQuickSearchMatch_SkipsParentDirectoryItem()
+    {
+        var state = new FilePanelState { CurrentDirectory = Root };
+        state.Items.Add(new FilePanelItem { Name = "..", FullPath = @"C:\", IsDirectory = true, IsParentDirectory = true });
+        state.Items.Add(new FilePanelItem { Name = "..data", FullPath = Root + @"\..data", IsDirectory = true });
+
+        Assert.True(PanelController.TryFindFirstQuickSearchMatch(state, "..", out int itemIndex));
+        Assert.Equal(1, itemIndex);
+    }
+
+    [Fact]
+    public void TryFindFirstQuickSearchMatch_ReturnsFalseWhenPrefixDoesNotMatch()
+    {
+        var state = new FilePanelState { CurrentDirectory = Root };
+        state.Items.Add(new FilePanelItem { Name = "alpha.txt", FullPath = Root + @"\alpha.txt", IsDirectory = false });
+
+        Assert.False(PanelController.TryFindFirstQuickSearchMatch(state, "z", out int itemIndex));
+        Assert.Equal(-1, itemIndex);
+    }
+
     // ── GoToParent ────────────────────────────────────────────────────────────
 
     [Fact]
