@@ -15,6 +15,7 @@
 
   <PropertyGroup>
     <AssemblyName>CSharpFar</AssemblyName>
+    <ApplicationIcon>Assets\CSharpFar.ico</ApplicationIcon>
     <RootNamespace>CSharpFar.App</RootNamespace>
     <Product>CSharpFar</Product>
     <OutputType>Exe</OutputType>

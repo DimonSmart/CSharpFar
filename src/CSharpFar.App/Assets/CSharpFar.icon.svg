@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256" role="img" aria-label="CSharpFar application icon">
+  <defs>
+    <linearGradient id="shell" x1="24" y1="16" x2="232" y2="240" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#123a7a" />
+      <stop offset="1" stop-color="#061224" />
+    </linearGradient>
+    <linearGradient id="panel" x1="32" y1="72" x2="224" y2="184" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#124b8f" />
+      <stop offset="1" stop-color="#092750" />
+    </linearGradient>
+  </defs>
+  <rect x="10" y="10" width="236" height="236" rx="28" fill="url(#shell)" />
+  <rect x="10" y="10" width="236" height="236" rx="28" fill="none" stroke="#5bbdff" stroke-width="8" />
+  <rect x="28" y="30" width="200" height="28" rx="7" fill="#07172e" stroke="#2f75c6" stroke-width="4" />
+  <path d="M48 44h44M164 44h44" stroke="#80e8ff" stroke-width="7" stroke-linecap="round" />
+  <rect x="30" y="73" width="86" height="111" rx="6" fill="url(#panel)" stroke="#65ddff" stroke-width="5" />
+  <rect x="140" y="73" width="86" height="111" rx="6" fill="url(#panel)" stroke="#65ddff" stroke-width="5" />
+  <path d="M128 75v107" stroke="#5bbdff" stroke-width="6" stroke-linecap="round" />
+  <rect x="43" y="94" width="60" height="11" rx="3" fill="#ffd34d" />
+  <path d="M43 121h52M43 143h44M43 164h57M153 96h55M153 119h42M153 142h51M153 165h36" stroke="#d7f7ff" stroke-width="8" stroke-linecap="round" />
+  <rect x="30" y="199" width="196" height="29" rx="7" fill="#061a36" stroke="#ffd34d" stroke-width="5" />
+  <path d="M47 207l17 7-17 7M79 214h77" stroke="#ffd34d" stroke-width="7" stroke-linecap="round" stroke-linejoin="round" />
+</svg>
