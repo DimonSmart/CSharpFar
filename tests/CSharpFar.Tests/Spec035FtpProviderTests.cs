@@ -23,10 +23,10 @@ public sealed class Spec035FtpProviderTests : IDisposable
     }
 
     [Fact]
-    public void PanelSourceId_Ftp_UsesFtpPrefix()
+    public void PanelSourceId_Plugin_UsesPluginPrefix()
     {
-        Assert.Equal("ftp:main", PanelSourceId.Ftp("main").Value);
-        Assert.Throws<ArgumentException>(() => PanelSourceId.Ftp(" "));
+        Assert.Equal($"plugin:{FtpPluginIds.PluginId:D}:main", PanelSourceId.Plugin(FtpPluginIds.PluginId, "main").Value);
+        Assert.Throws<ArgumentException>(() => PanelSourceId.Plugin(FtpPluginIds.PluginId, " "));
     }
 
     [Fact]
@@ -138,8 +138,8 @@ public sealed class Spec035FtpProviderTests : IDisposable
             {
                 Kind = FileOperationKind.Copy,
                 Sources = [],
-                SourceLocations = [new PanelLocation(PanelSourceId.Ftp("left"), "/source.txt")],
-                DestinationLocation = new PanelLocation(PanelSourceId.Ftp("right"), "/target"),
+                SourceLocations = [new PanelLocation(PanelSourceId.Plugin(FtpPluginIds.PluginId, "left"), "/source.txt")],
+                DestinationLocation = new PanelLocation(PanelSourceId.Plugin(FtpPluginIds.PluginId, "right"), "/target"),
                 Options = new FileOperationOptions(),
             },
             progress: null,
@@ -235,6 +235,97 @@ public sealed class Spec035FtpProviderTests : IDisposable
     }
 
     [Fact]
+    public void FtpConnectionDialog_ShiftTabMovesFocusBackwardToButtons()
+    {
+        var driver = new FakeConsoleDriver(width: 100, height: 30);
+        var screen = new ScreenRenderer(driver);
+        driver.EnqueueKey(ShiftTab());
+        driver.EnqueueKey(Key(ConsoleKey.Enter));
+
+        var result = new FtpConnectionDialog(screen).Show(
+            new FtpConnectionDialogRequest(
+                TestConnection(),
+                SavedPassword: "secret-password",
+                SaveConnectionByDefault: true,
+                AllowTemporaryConnection: true),
+            _ => FtpConnectionDialogValidationResult.Accepted());
+
+        Assert.NotNull(result);
+        Assert.Equal("test", result.Connection.DisplayName);
+    }
+
+    [Fact]
+    public void FtpConnectionDialog_ShortConsoleRendersBodyScrollbar()
+    {
+        var driver = new FakeConsoleDriver(width: 100, height: 12);
+        var screen = new ScreenRenderer(driver);
+        driver.EnqueueKey(Key(ConsoleKey.Escape));
+
+        var result = new FtpConnectionDialog(screen).Show(
+            new FtpConnectionDialogRequest(
+                TestConnection(),
+                SavedPassword: "secret-password",
+                SaveConnectionByDefault: true,
+                AllowTemporaryConnection: true),
+            _ => FtpConnectionDialogValidationResult.Accepted());
+
+        Assert.Null(result);
+        Assert.Contains(driver.WriteRecords, r => r.Text == "▲");
+        Assert.Contains(driver.WriteRecords, r => r.Text == "▼");
+    }
+
+    [Fact]
+    public void FtpConnectionManagerDialog_NewButtonSupportsMouseClick()
+    {
+        var driver = new FakeConsoleDriver(width: 100, height: 30);
+        var screen = new ScreenRenderer(driver);
+        driver.BeforeReadInput = currentDriver =>
+        {
+            var button = currentDriver.WriteRecords.Last(r => r.Text.Contains("New", StringComparison.Ordinal));
+            currentDriver.EnqueueInput(new MouseConsoleInputEvent(button.X + 1, button.Y, MouseButton.Left, MouseEventKind.Down, MouseKeyModifiers.None));
+        };
+
+        var result = new FtpConnectionManagerDialog(screen).Show([]);
+
+        Assert.NotNull(result);
+        Assert.Equal(FtpConnectionManagerAction.Create, result.Action);
+        Assert.DoesNotContain(driver.WriteRecords, r => r.Text.Contains("Connect", StringComparison.Ordinal));
+        Assert.DoesNotContain(driver.WriteRecords, r => r.Text.Contains("Edit", StringComparison.Ordinal));
+        Assert.DoesNotContain(driver.WriteRecords, r => r.Text.Contains("Delete", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void FtpConnectionManagerDialog_ButtonFocusSupportsKeyboardSelection()
+    {
+        var driver = new FakeConsoleDriver(width: 100, height: 30);
+        var screen = new ScreenRenderer(driver);
+        driver.EnqueueKey(Key(ConsoleKey.Tab));
+        driver.EnqueueKey(Key(ConsoleKey.RightArrow));
+        driver.EnqueueKey(Key(ConsoleKey.Enter));
+
+        var result = new FtpConnectionManagerDialog(screen).Show([TestConnection()]);
+
+        Assert.NotNull(result);
+        Assert.Equal(FtpConnectionManagerAction.Create, result.Action);
+    }
+
+    [Fact]
+    public void FtpConnectionManagerDialog_ShiftTabMovesFocusBackwardToButtons()
+    {
+        var driver = new FakeConsoleDriver(width: 100, height: 30);
+        var screen = new ScreenRenderer(driver);
+        var connection = TestConnection();
+        driver.EnqueueKey(ShiftTab());
+        driver.EnqueueKey(Key(ConsoleKey.Enter));
+
+        var result = new FtpConnectionManagerDialog(screen).Show([connection]);
+
+        Assert.NotNull(result);
+        Assert.Equal(FtpConnectionManagerAction.Connect, result.Action);
+        Assert.Same(connection, result.Connection);
+    }
+
+    [Fact]
     public void FtpsCertificateTrust_FirstAcceptPersistsFingerprint()
     {
         using var certificate = CreateCertificate();
@@ -320,6 +411,9 @@ public sealed class Spec035FtpProviderTests : IDisposable
 
     private static ConsoleKeyInfo Key(ConsoleKey key) =>
         new('\0', key, shift: false, alt: false, control: false);
+
+    private static ConsoleKeyInfo ShiftTab() =>
+        new('\0', ConsoleKey.Tab, shift: true, alt: false, control: false);
 
     private static MouseConsoleInputEvent LeftMouse(int x, int y) =>
         new(x, y, MouseButton.Left, MouseEventKind.Down, MouseKeyModifiers.None);

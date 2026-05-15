@@ -1,3 +1,5 @@
+using CSharpFar.App.Commands;
+using CSharpFar.App.Plugins;
 using CSharpFar.Core.Menu;
 using CSharpFar.Core.Models;
 
@@ -12,7 +14,7 @@ public sealed class DefaultMenuDefinitionProvider
             [
                 BuildPanelMenu("Left", PanelSide.Left, context.LeftPanel, context.LeftViewMode),
                 BuildPanelMenu("Right", PanelSide.Right, context.RightPanel, context.RightViewMode),
-                BuildPluginsMenu(),
+                BuildPluginsMenu(context.PluginMenuItems),
                 BuildOptionsMenu(context),
             ],
         };
@@ -76,18 +78,28 @@ public sealed class DefaultMenuDefinitionProvider
         };
     }
 
-    private static TopMenuItemDefinition BuildPluginsMenu() =>
-        new()
+    private static TopMenuItemDefinition BuildPluginsMenu(IReadOnlyList<PluginMenuProjection> pluginMenuItems)
+    {
+        var children = pluginMenuItems
+            .Select(item => Command(
+                $"Plugins.{item.PluginId:D}.{item.ItemId:D}",
+                item.Text,
+                item.HotKey,
+                MenuCommandIds.PluginOpen,
+                new PluginOpenCommandArgs(item.PluginId, item.ItemId)))
+            .ToList();
+
+        if (children.Count == 0)
+            children.Add(Separator("Plugins.empty"));
+
+        return new TopMenuItemDefinition
         {
             Id = "Plugins",
             Text = "Plugins",
             HotKey = 'P',
-            Children =
-            [
-                Command("Plugins.sftp", "SFTP...", 'S', MenuCommandIds.SftpConnect),
-                Command("Plugins.ftp", "FTP/FTPS...", 'F', MenuCommandIds.FtpConnect),
-            ],
+            Children = children,
         };
+    }
 
     private static TopMenuItemDefinition BuildOptionsMenu(MenuBuildContext context)
     {
@@ -149,7 +161,7 @@ public sealed class DefaultMenuDefinitionProvider
     private static MenuItemDefinition Command(
         string id,
         string text,
-        char hotKey,
+        char? hotKey,
         string commandId,
         object? args = null,
         bool isEnabled = true) =>

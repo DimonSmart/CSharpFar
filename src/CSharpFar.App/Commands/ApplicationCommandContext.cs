@@ -1,4 +1,5 @@
 using CSharpFar.App.Rendering;
+using CSharpFar.App.Plugins;
 using CSharpFar.App.UserMenu;
 using CSharpFar.Console;
 using CSharpFar.Core.Abstractions;
@@ -46,11 +47,8 @@ internal sealed class ApplicationCommandContext
 
     public IVolumeService? VolumeService => _application.CommandVolumeService;
 
-    public IReadOnlyList<SftpConnectionInfo> LoadSftpConnections() =>
-        _application.LoadSftpConnections();
-
-    public IReadOnlyList<FtpConnectionInfo> LoadFtpConnections() =>
-        _application.LoadFtpConnections();
+    public IReadOnlyList<PluginMenuProjection> PluginDiskMenuItems =>
+        _application.PluginDiskMenuItems;
 
     public FilePanelState LeftPanel => _application.CommandLeftPanel;
 
@@ -155,23 +153,11 @@ internal sealed class ApplicationCommandContext
         FilePanelItem item) =>
         _application.OpenPanelItem(state, side, item);
 
-    public void OpenSftpConnectionDialog(PanelSide side, SftpConnectionInfo? savedConnection = null) =>
-        _application.OpenSftpConnectionDialog(side, savedConnection);
+    public ApplicationCommandResult OpenPluginMenuItem(Guid pluginId, Guid itemId) =>
+        _application.OpenPluginMenuItem(pluginId, itemId);
 
-    public void OpenSftpConnectionManager(PanelSide side) =>
-        _application.OpenSftpConnectionManager(side);
-
-    public void OpenSavedSftpConnection(PanelSide side, SftpConnectionInfo connection) =>
-        _application.OpenSavedSftpConnection(side, connection);
-
-    public void OpenFtpConnectionDialog(PanelSide side, FtpConnectionInfo? savedConnection = null) =>
-        _application.OpenFtpConnectionDialog(side, savedConnection);
-
-    public void OpenFtpConnectionManager(PanelSide side) =>
-        _application.OpenFtpConnectionManager(side);
-
-    public void OpenSavedFtpConnection(PanelSide side, FtpConnectionInfo connection) =>
-        _application.OpenSavedFtpConnection(side, connection);
+    public ApplicationCommandResult OpenPluginDiskMenuItem(Guid pluginId, Guid itemId, PanelSide panelSide) =>
+        _application.OpenPluginDiskMenuItem(pluginId, itemId, panelSide);
 
     public string CombinePanelPath(FilePanelState state, string name) =>
         _application.CombinePanelPath(state, name);

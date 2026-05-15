@@ -43,38 +43,18 @@ internal abstract class DriveSelectionCommand : IApplicationCommand
                 Action = VolumeSelectionAction.OpenVolume,
             })
             .ToList();
-        foreach (var connection in context.LoadSftpConnections().Where(connection => connection.ShowInDriveSelection))
+        foreach (var pluginItem in context.PluginDiskMenuItems)
         {
             items.Add(new VolumeSelectionItem
             {
-                Label = $"SFTP {connection.DisplayName}",
-                Shortcut = "S",
-                SftpConnection = connection,
-                Action = VolumeSelectionAction.OpenSavedSftp,
+                Label = pluginItem.Text,
+                Shortcut = pluginItem.HotKey?.ToString(),
+                Action = VolumeSelectionAction.OpenPlugin,
+                PluginId = pluginItem.PluginId,
+                PluginItemId = pluginItem.ItemId,
+                PluginPanelSide = PanelSide,
             });
         }
-        foreach (var connection in context.LoadFtpConnections().Where(connection => connection.ShowInDriveSelection))
-        {
-            items.Add(new VolumeSelectionItem
-            {
-                Label = $"{FtpDriveLabel(connection)} {connection.DisplayName}",
-                Shortcut = "F",
-                FtpConnection = connection,
-                Action = VolumeSelectionAction.OpenSavedFtp,
-            });
-        }
-        items.Add(new VolumeSelectionItem
-        {
-            Label = "SFTP...",
-            Shortcut = "S",
-            Action = VolumeSelectionAction.OpenSftp,
-        });
-        items.Add(new VolumeSelectionItem
-        {
-            Label = "FTP/FTPS...",
-            Shortcut = "F",
-            Action = VolumeSelectionAction.OpenFtp,
-        });
 
         int initialCursor = FindInitialCursor(items, targetState.CurrentDirectory);
 
@@ -82,29 +62,10 @@ internal abstract class DriveSelectionCommand : IApplicationCommand
         if (selected is null)
             return ApplicationCommandResult.Rendered();
 
-        if (selected.Action == VolumeSelectionAction.OpenSftp)
+        if (selected.Action == VolumeSelectionAction.OpenPlugin)
         {
-            context.OpenSftpConnectionDialog(PanelSide);
-            return ApplicationCommandResult.Rendered();
-        }
-
-        if (selected.Action == VolumeSelectionAction.OpenSavedSftp)
-        {
-            if (selected.SftpConnection is not null)
-                context.OpenSavedSftpConnection(PanelSide, selected.SftpConnection);
-            return ApplicationCommandResult.Rendered();
-        }
-
-        if (selected.Action == VolumeSelectionAction.OpenFtp)
-        {
-            context.OpenFtpConnectionDialog(PanelSide);
-            return ApplicationCommandResult.Rendered();
-        }
-
-        if (selected.Action == VolumeSelectionAction.OpenSavedFtp)
-        {
-            if (selected.FtpConnection is not null)
-                context.OpenSavedFtpConnection(PanelSide, selected.FtpConnection);
+            if (selected.PluginId is { } pluginId && selected.PluginItemId is { } itemId)
+                return context.OpenPluginDiskMenuItem(pluginId, itemId, selected.PluginPanelSide ?? PanelSide);
             return ApplicationCommandResult.Rendered();
         }
 
@@ -144,13 +105,4 @@ internal abstract class DriveSelectionCommand : IApplicationCommand
         return bestIndex;
     }
 
-    private static string FtpDriveLabel(FtpConnectionInfo connection) =>
-        connection.SecurityMode switch
-        {
-            FtpConnectionSecurityMode.PlainFtp => "FTP plain",
-            FtpConnectionSecurityMode.ExplicitFtps => "FTPS explicit",
-            FtpConnectionSecurityMode.ImplicitFtps => "FTPS implicit",
-            FtpConnectionSecurityMode.Auto => "FTP/FTPS auto",
-            _ => "FTP/FTPS",
-        };
 }

@@ -6,7 +6,7 @@ namespace CSharpFar.FileSystem;
 
 public sealed class DpapiCredentialStore : ICredentialStore
 {
-    private static readonly byte[] Entropy = "CSharpFar.SftpCredential.v1"u8.ToArray();
+    private static readonly byte[] Entropy = "CSharpFar.Credential.v1"u8.ToArray();
     private readonly string _directory;
 
     public DpapiCredentialStore(string configDirectory)

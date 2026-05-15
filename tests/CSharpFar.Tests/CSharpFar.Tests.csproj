@@ -21,6 +21,10 @@
   <ItemGroup>
     <ProjectReference Include="..\..\src\CSharpFar.Core\CSharpFar.Core.csproj" />
     <ProjectReference Include="..\..\src\CSharpFar.Console\CSharpFar.Console.csproj" />
+    <ProjectReference Include="..\..\src\CSharpFar.Ui\CSharpFar.Ui.csproj" />
+    <ProjectReference Include="..\..\src\CSharpFar.Plugin.Abstractions\CSharpFar.Plugin.Abstractions.csproj" />
+    <ProjectReference Include="..\..\src\CSharpFar.Plugin.Sftp\CSharpFar.Plugin.Sftp.csproj" />
+    <ProjectReference Include="..\..\src\CSharpFar.Plugin.Ftp\CSharpFar.Plugin.Ftp.csproj" />
     <ProjectReference Include="..\..\src\CSharpFar.FileSystem\CSharpFar.FileSystem.csproj" />
     <ProjectReference Include="..\..\src\CSharpFar.App\CSharpFar.App.csproj" />
     <ProjectReference Include="..\..\src\CSharpFar.Shell\CSharpFar.Shell.csproj" />

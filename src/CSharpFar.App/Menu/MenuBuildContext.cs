@@ -1,3 +1,4 @@
+using CSharpFar.App.Plugins;
 using CSharpFar.Core.Models;
 using AppSettingsAlias = CSharpFar.Core.Models.AppSettings;
 
@@ -12,4 +13,5 @@ public sealed record MenuBuildContext
     public required PanelViewMode RightViewMode { get; init; }
     public required AppSettingsAlias Settings { get; init; }
     public required bool CanSaveSettings { get; init; }
+    public IReadOnlyList<PluginMenuProjection> PluginMenuItems { get; init; } = [];
 }

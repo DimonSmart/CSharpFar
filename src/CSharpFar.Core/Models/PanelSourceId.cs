@@ -5,20 +5,15 @@ public readonly record struct PanelSourceId(string Value)
     public static PanelSourceId Local { get; } = new("local");
     public static PanelSourceId SearchResults { get; } = new("search");
 
-    public static PanelSourceId Sftp(string connectionId)
+    public static PanelSourceId Plugin(Guid pluginId, string panelId)
     {
-        if (string.IsNullOrWhiteSpace(connectionId))
-            throw new ArgumentException("SFTP connection id is required.", nameof(connectionId));
+        if (pluginId == Guid.Empty)
+            throw new ArgumentException("Plugin id is required.", nameof(pluginId));
 
-        return new PanelSourceId($"sftp:{connectionId}");
-    }
+        if (string.IsNullOrWhiteSpace(panelId))
+            throw new ArgumentException("Plugin panel id is required.", nameof(panelId));
 
-    public static PanelSourceId Ftp(string connectionId)
-    {
-        if (string.IsNullOrWhiteSpace(connectionId))
-            throw new ArgumentException("FTP connection id is required.", nameof(connectionId));
-
-        return new PanelSourceId($"ftp:{connectionId}");
+        return new PanelSourceId($"plugin:{pluginId:D}:{panelId}");
     }
 
     public override string ToString() => Value;

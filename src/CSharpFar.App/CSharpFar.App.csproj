@@ -3,6 +3,10 @@
   <ItemGroup>
     <ProjectReference Include="..\CSharpFar.Core\CSharpFar.Core.csproj" />
     <ProjectReference Include="..\CSharpFar.Console\CSharpFar.Console.csproj" />
+    <ProjectReference Include="..\CSharpFar.Ui\CSharpFar.Ui.csproj" />
+    <ProjectReference Include="..\CSharpFar.Plugin.Abstractions\CSharpFar.Plugin.Abstractions.csproj" />
+    <ProjectReference Include="..\CSharpFar.Plugin.Sftp\CSharpFar.Plugin.Sftp.csproj" />
+    <ProjectReference Include="..\CSharpFar.Plugin.Ftp\CSharpFar.Plugin.Ftp.csproj" />
     <ProjectReference Include="..\CSharpFar.FileSystem\CSharpFar.FileSystem.csproj" />
     <ProjectReference Include="..\CSharpFar.Shell\CSharpFar.Shell.csproj" />
   </ItemGroup>

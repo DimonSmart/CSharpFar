@@ -4,6 +4,8 @@ using CSharpFar.App.Settings;
 using CSharpFar.App.UserMenu;
 using CSharpFar.Console;
 using CSharpFar.FileSystem;
+using CSharpFar.Plugin.Ftp;
+using CSharpFar.Plugin.Sftp;
 using CSharpFar.Core.Services;
 using CSharpFar.Shell;
 
@@ -20,8 +22,6 @@ var searchSvc   = new FileSystemSearchService();
 var shell       = new ShellService(settings.Shell.Executable, settings.Shell.ArgumentsFormat);
 var fileLauncher = new WindowsShellFileLauncher();
 var userMenu    = new UserMenuStore(settingsStore.ConfigDirectory);
-var sftpConnections = new SftpConnectionStore(settingsStore.ConfigDirectory);
-var ftpConnections = new FtpConnectionStore(settingsStore.ConfigDirectory);
 var credentials = new DpapiCredentialStore(settingsStore.ConfigDirectory);
 var volumeSvc      = new WindowsVolumeService();
 var volumeInfoSvc  = new VolumeInfoService();
@@ -46,6 +46,10 @@ new Application(renderer, fs, shell, fileOps, history, settings, userMenu,
     fileLauncher:      fileLauncher,
     searchService:     searchSvc,
     sourceRegistry:    panelSources,
-    sftpConnectionStore: sftpConnections,
-    ftpConnectionStore: ftpConnections,
-    credentialStore:   credentials).Run();
+    credentialStore:   credentials,
+    plugins:
+    [
+        new SftpPlugin(),
+        new FtpPlugin(),
+    ],
+    configDirectory:   settingsStore.ConfigDirectory).Run();

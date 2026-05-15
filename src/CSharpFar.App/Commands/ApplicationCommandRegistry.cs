@@ -11,8 +11,10 @@ internal sealed class ApplicationCommandRegistry
 
     public IReadOnlyCollection<string> CommandIds => _commands.Keys.ToArray();
 
-    public static ApplicationCommandRegistry CreateDefault() =>
-        new(DefaultApplicationCommands.Create());
+    public static ApplicationCommandRegistry CreateDefault(IEnumerable<IApplicationCommand>? additionalCommands = null) =>
+        new(additionalCommands is null
+            ? DefaultApplicationCommands.Create()
+            : [.. DefaultApplicationCommands.Create(), .. additionalCommands]);
 
     public bool TryGetCommand(string commandId, out IApplicationCommand command) =>
         _commands.TryGetValue(commandId, out command!);

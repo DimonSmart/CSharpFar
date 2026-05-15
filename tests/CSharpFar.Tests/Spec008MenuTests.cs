@@ -1,6 +1,7 @@
 using CSharpFar.App;
 using CSharpFar.App.Commands;
 using CSharpFar.App.Menu;
+using CSharpFar.App.Plugins;
 using CSharpFar.App.Rendering;
 using CSharpFar.Console;
 using CSharpFar.Console.Input;
@@ -472,8 +473,14 @@ public sealed class Spec008MenuProviderAndCommandTests : IDisposable
         Assert.Equal(PanelViewMode.BriefTwoColumns, ((SetPanelViewModeArgs)leftBrief.CommandArgs!).ViewMode);
         Assert.Equal(PanelSide.Right, ((SetPanelViewModeArgs)rightFull.CommandArgs!).PanelSide);
         Assert.Equal(SortMode.LastWriteTime, ((SetPanelSortModeArgs)lastWrite.CommandArgs!).SortMode);
-        Assert.Contains(menu.Items[2].Children, item => item.CommandId == MenuCommandIds.SftpConnect);
-        Assert.Contains(menu.Items[2].Children, item => item.CommandId == MenuCommandIds.FtpConnect);
+        Assert.Contains(menu.Items[2].Children, item =>
+            item.CommandId == MenuCommandIds.PluginOpen &&
+            item.CommandArgs is PluginOpenCommandArgs { PluginId: var pluginId } &&
+            pluginId == SftpPluginIds.PluginId);
+        Assert.Contains(menu.Items[2].Children, item =>
+            item.CommandId == MenuCommandIds.PluginOpen &&
+            item.CommandArgs is PluginOpenCommandArgs { PluginId: var pluginId } &&
+            pluginId == FtpPluginIds.PluginId);
         Assert.Contains(menu.Items[3].Children, item => item.CommandId == MenuCommandIds.SettingsSave);
     }
 
@@ -558,6 +565,19 @@ public sealed class Spec008MenuProviderAndCommandTests : IDisposable
             RightViewMode = PanelViewMode.Full,
             Settings = settings,
             CanSaveSettings = canSaveSettings,
+            PluginMenuItems =
+            [
+                new PluginMenuProjection(
+                    SftpPluginIds.PluginId,
+                    SftpPluginIds.PluginMenuItemId,
+                    "SFTP...",
+                    'S'),
+                new PluginMenuProjection(
+                    FtpPluginIds.PluginId,
+                    FtpPluginIds.PluginMenuItemId,
+                    "FTP/FTPS...",
+                    'F'),
+            ],
         });
     }
 

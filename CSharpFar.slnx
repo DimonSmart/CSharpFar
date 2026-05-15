@@ -4,7 +4,11 @@
     <Project Path="src/CSharpFar.Console/CSharpFar.Console.csproj" />
     <Project Path="src/CSharpFar.Core/CSharpFar.Core.csproj" />
     <Project Path="src/CSharpFar.FileSystem/CSharpFar.FileSystem.csproj" />
+    <Project Path="src/CSharpFar.Plugin.Abstractions/CSharpFar.Plugin.Abstractions.csproj" />
+    <Project Path="src/CSharpFar.Plugin.Ftp/CSharpFar.Plugin.Ftp.csproj" />
+    <Project Path="src/CSharpFar.Plugin.Sftp/CSharpFar.Plugin.Sftp.csproj" />
     <Project Path="src/CSharpFar.Shell/CSharpFar.Shell.csproj" />
+    <Project Path="src/CSharpFar.Ui/CSharpFar.Ui.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/CSharpFar.Tests/CSharpFar.Tests.csproj" />
