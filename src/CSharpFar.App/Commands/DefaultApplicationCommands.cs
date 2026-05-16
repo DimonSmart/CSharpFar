@@ -27,6 +27,7 @@ internal static class DefaultApplicationCommands
         new SortByLastWriteTimeCommand(),
         new SortBySizeCommand(),
         new OpenCurrentItemCommand(),
+        new NavigateToRootCommand(),
         new PanelSetViewModeCommand(),
         new PanelSetSortModeCommand(),
         new PanelToggleReverseSortCommand(),

@@ -725,6 +725,10 @@ public sealed class Application
     private static bool IsPlainControlCloseBracket(ConsoleKeyInfo key) =>
         IsPlainControlBracket(key, ConsoleKey.Oem6, ']', '\u001d');
 
+    private static bool IsPlainControlBackslash(ConsoleKeyInfo key) =>
+        HasOnlyControlModifier(key) &&
+        (key.Key == ConsoleKey.Oem5 || key.KeyChar == '\u001c');
+
     private static bool IsPlainControlBracket(
         ConsoleKeyInfo key,
         ConsoleKey consoleKey,
@@ -1168,6 +1172,10 @@ public sealed class Application
         // Ctrl+S: settings dialog
         if (IsPlainControlKey(key, ConsoleKey.S, '\u0013'))
             return ExecuteRegisteredCommand(MenuCommandIds.SettingsOpenPanelSettings);
+
+        // Ctrl+\: navigate active panel to drive root
+        if (IsPlainControlBackslash(key))
+            return ExecuteRegisteredCommand(ApplicationCommandIds.NavigateToRoot);
 
         // Alt+1 / Alt+2: view mode for active panel
         if ((key.Modifiers & ConsoleModifiers.Alt) != 0 &&
