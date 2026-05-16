@@ -34,6 +34,27 @@ public static class SingleLineTextInput
             return TextInputKeyResult.Handled;
         }
 
+        if (IsPlainControlV(key))
+        {
+            string text = TextCopy.ClipboardService.GetText() ?? string.Empty;
+            if (!string.IsNullOrEmpty(text))
+            {
+                string singleLine = text.ReplaceLineEndings(" ").Trim();
+                buffer.InsertText(singleLine);
+                error = null;
+                return TextInputKeyResult.TextChanged;
+            }
+            return TextInputKeyResult.Handled;
+        }
+
+        if (IsPlainControlC(key))
+        {
+            string? selected = buffer.SelectedText;
+            if (!string.IsNullOrEmpty(selected))
+                TextCopy.ClipboardService.SetText(selected);
+            return TextInputKeyResult.Handled;
+        }
+
         switch (key.Key)
         {
             case ConsoleKey.Backspace:
@@ -45,16 +66,28 @@ public static class SingleLineTextInput
                 error = null;
                 return TextInputKeyResult.TextChanged;
             case ConsoleKey.LeftArrow:
-                buffer.MoveCursor(-1);
+                if ((key.Modifiers & ConsoleModifiers.Shift) != 0)
+                    buffer.MoveCursorWithSelection(buffer.CursorPosition - 1);
+                else
+                    buffer.MoveCursor(-1);
                 return TextInputKeyResult.Handled;
             case ConsoleKey.RightArrow:
-                buffer.MoveCursor(+1);
+                if ((key.Modifiers & ConsoleModifiers.Shift) != 0)
+                    buffer.MoveCursorWithSelection(buffer.CursorPosition + 1);
+                else
+                    buffer.MoveCursor(+1);
                 return TextInputKeyResult.Handled;
             case ConsoleKey.Home:
-                buffer.MoveToStart();
+                if ((key.Modifiers & ConsoleModifiers.Shift) != 0)
+                    buffer.MoveCursorWithSelection(0);
+                else
+                    buffer.MoveToStart();
                 return TextInputKeyResult.Handled;
             case ConsoleKey.End:
-                buffer.MoveToEnd();
+                if ((key.Modifiers & ConsoleModifiers.Shift) != 0)
+                    buffer.MoveCursorWithSelection(buffer.Text.Length);
+                else
+                    buffer.MoveToEnd();
                 return TextInputKeyResult.Handled;
             default:
                 return TextInputKeyResult.Ignored;
@@ -340,5 +373,25 @@ public static class SingleLineTextInput
 
         return !hasAlt && !hasShift &&
             ((hasControl && key.Key == ConsoleKey.A) || key.KeyChar == '\u0001');
+    }
+
+    private static bool IsPlainControlV(ConsoleKeyInfo key)
+    {
+        bool hasControl = (key.Modifiers & ConsoleModifiers.Control) != 0;
+        bool hasAlt = (key.Modifiers & ConsoleModifiers.Alt) != 0;
+        bool hasShift = (key.Modifiers & ConsoleModifiers.Shift) != 0;
+
+        return !hasAlt && !hasShift &&
+            ((hasControl && key.Key == ConsoleKey.V) || key.KeyChar == '\u0016');
+    }
+
+    private static bool IsPlainControlC(ConsoleKeyInfo key)
+    {
+        bool hasControl = (key.Modifiers & ConsoleModifiers.Control) != 0;
+        bool hasAlt = (key.Modifiers & ConsoleModifiers.Alt) != 0;
+        bool hasShift = (key.Modifiers & ConsoleModifiers.Shift) != 0;
+
+        return !hasAlt && !hasShift &&
+            ((hasControl && key.Key == ConsoleKey.C) || key.KeyChar == '\u0003');
     }
 }

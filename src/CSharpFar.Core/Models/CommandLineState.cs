@@ -15,6 +15,10 @@ public sealed class CommandLineState
     public int SelectionLength { get; private set; }
     public bool HasSelection => SelectionStart.HasValue && SelectionLength > 0;
 
+    /// <summary>Returns the currently selected text, or <c>null</c> when nothing is selected.</summary>
+    public string? SelectedText =>
+        HasSelection ? new string(_buffer.GetRange(SelectionStart!.Value, SelectionLength).ToArray()) : null;
+
     /// <summary>Selects all text and moves the cursor to the end.</summary>
     public void SelectAll()
     {
@@ -88,6 +92,37 @@ public sealed class CommandLineState
 
     public void MoveToStart() { ClearSelection(); CursorPosition = 0; }
     public void MoveToEnd()   { ClearSelection(); CursorPosition = _buffer.Count; }
+
+    /// <summary>
+    /// Moves the cursor to <paramref name="newPosition"/> while extending or shrinking the selection.
+    /// Equivalent to holding Shift while pressing an arrow/Home/End key.
+    /// </summary>
+    public void MoveCursorWithSelection(int newPosition)
+    {
+        newPosition = Math.Clamp(newPosition, 0, _buffer.Count);
+        if (newPosition == CursorPosition)
+            return;
+
+        if (!HasSelection)
+        {
+            // Start a fresh selection anchored at the current cursor
+            int anchor = CursorPosition;
+            CursorPosition = newPosition;
+            SelectionStart  = Math.Min(anchor, newPosition);
+            SelectionLength = Math.Abs(newPosition - anchor);
+        }
+        else
+        {
+            // Existing selection — determine the anchor (the end that did NOT move last time)
+            int anchor = CursorPosition == SelectionStart!.Value
+                ? SelectionStart.Value + SelectionLength   // cursor was at start → anchor is end
+                : SelectionStart.Value;                    // cursor was at end   → anchor is start
+
+            CursorPosition  = newPosition;
+            SelectionStart  = Math.Min(anchor, newPosition);
+            SelectionLength = Math.Abs(newPosition - anchor);
+        }
+    }
 
     public void Clear()
     {
