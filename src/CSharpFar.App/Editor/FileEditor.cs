@@ -153,7 +153,7 @@ internal sealed class FileEditor
         int scrollTop, int scrollLeft, int contentH, ConsoleSize size)
     {
         // Header: filename (with dirty marker) + cursor position
-        string nameSection = $" {(model.IsDirty ? "* " : "")}{Path.GetFileName(filePath)} ";
+        string nameSection = $" {(model.IsDirty ? "* " : "")}{filePath} ";
         string posSection  = $" {model.CursorRow + 1}:{model.CursorCol + 1} ";
         int nameWidth = Math.Max(0, size.Width - posSection.Length);
         if (nameSection.Length > nameWidth) nameSection = nameSection[..nameWidth];

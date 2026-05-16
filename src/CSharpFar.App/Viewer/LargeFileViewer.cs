@@ -168,7 +168,7 @@ internal sealed class LargeFileViewer
         LargeFileViewerState state,
         ConsoleSize size)
     {
-        string nameSection = $" {Path.GetFileName(filePath)} ";
+        string nameSection = $" {filePath} ";
         string mode = state.IsHexMode ? " HEX" : $" TEXT {state.LineScanner.EncodingDisplayName}";
         string follow = state.FollowMode ? " F" : string.Empty;
         string posSection = reader.Length == 0
