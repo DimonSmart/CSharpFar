@@ -14,6 +14,7 @@ internal sealed class CreateFolderDialog
     private const string Prompt = "Create the folder:";
 
     private readonly ScreenRenderer _screen;
+    private static readonly SingleLineTextHistoryRegistry HistoryRegistry = new();
     private readonly ModalDialogRenderer _modalRenderer = new();
     private readonly DialogButtonBar _buttonBar = new(
     [
@@ -48,12 +49,14 @@ internal sealed class CreateFolderDialog
         var folderName = new CommandLineState();
         if (initialText is not null)
             folderName.SetText(initialText);
+        SingleLineTextHistoryState history = HistoryRegistry.GetOrCreate("CreateFolderDialog.FolderName");
 
         string? error = null;
         int focusRow = 0;
         int focusedButton = 0;
+        ScrollBarDragState? historyScrollbarDrag = null;
 
-        Draw(size, folderName, error, focusRow, focusedButton);
+        Draw(size, folderName, history, error, focusRow, focusedButton);
 
         while (true)
         {
@@ -66,12 +69,28 @@ internal sealed class CreateFolderDialog
                     return null;
                 if (buttonId == "ok")
                 {
-                    string? result = TrySubmit(folderName, validate, ref error);
+                    string? result = TrySubmit(folderName, history, validate, ref error);
                     if (result is not null)
                         return result;
                 }
 
-                Draw(size, folderName, error, focusRow, focusedButton);
+                Draw(size, folderName, history, error, focusRow, focusedButton);
+                continue;
+            }
+
+            if (input is MouseConsoleInputEvent dropdownMouse &&
+                TryHandleHistoryDropdownMouse(dropdownMouse, size, folderName, history, ref historyScrollbarDrag))
+            {
+                focusRow = 0;
+                Draw(size, folderName, history, error, focusRow, focusedButton);
+                continue;
+            }
+
+            if (input is MouseConsoleInputEvent mouse &&
+                TryHandleHistoryArrow(mouse, size, history))
+            {
+                focusRow = 0;
+                Draw(size, folderName, history, error, focusRow, focusedButton);
                 continue;
             }
 
@@ -83,17 +102,27 @@ internal sealed class CreateFolderDialog
                 if (buttonId == "cancel")
                     return null;
 
-                string? result = TrySubmit(folderName, validate, ref error);
+                string? result = TrySubmit(folderName, history, validate, ref error);
                 if (result is not null)
                     return result;
 
-                Draw(size, folderName, error, focusRow, focusedButton);
+                Draw(size, folderName, history, error, focusRow, focusedButton);
                 continue;
             }
 
             if (input is not KeyConsoleInputEvent { Key: var key })
             {
-                Draw(size, folderName, error, focusRow, focusedButton);
+                Draw(size, folderName, history, error, focusRow, focusedButton);
+                continue;
+            }
+
+            int availableRows = SingleLineTextInput.AvailableDropdownContentRows(InputFieldY(size), size.Height);
+            if (focusRow == 0 &&
+                history.IsDropdownOpen &&
+                key.Key is ConsoleKey.UpArrow or ConsoleKey.DownArrow or ConsoleKey.Enter or ConsoleKey.Escape)
+            {
+                SingleLineTextInput.HandleKey(folderName, key, ref error, history, availableRows);
+                Draw(size, folderName, history, error, focusRow, focusedButton);
                 continue;
             }
 
@@ -103,7 +132,7 @@ internal sealed class CreateFolderDialog
                     return null;
                 case ConsoleKey.F10:
                     {
-                        string? result = TrySubmit(folderName, validate, ref error);
+                        string? result = TrySubmit(folderName, history, validate, ref error);
                         if (result is not null)
                             return result;
                         break;
@@ -113,7 +142,7 @@ internal sealed class CreateFolderDialog
                         return null;
 
                     {
-                        string? result = TrySubmit(folderName, validate, ref error);
+                        string? result = TrySubmit(folderName, history, validate, ref error);
                         if (result is not null)
                             return result;
                         break;
@@ -132,7 +161,7 @@ internal sealed class CreateFolderDialog
                     if (focusRow == 1)
                         _buttonBar.TryHandleInput(input, ref focusedButton, out _);
                     else
-                        EditText(folderName, key, ref error);
+                        EditText(folderName, key, history, availableRows, ref error);
                     break;
                 case ConsoleKey.Spacebar:
                     if (focusRow == 1)
@@ -140,27 +169,28 @@ internal sealed class CreateFolderDialog
                         if (focusedButton == 1)
                             return null;
 
-                        string? result = TrySubmit(folderName, validate, ref error);
+                        string? result = TrySubmit(folderName, history, validate, ref error);
                         if (result is not null)
                             return result;
                     }
                     else
                     {
-                        EditText(folderName, key, ref error);
+                        EditText(folderName, key, history, availableRows, ref error);
                     }
                     break;
                 default:
                     if (focusRow == 0)
-                        EditText(folderName, key, ref error);
+                        EditText(folderName, key, history, availableRows, ref error);
                     break;
             }
 
-            Draw(size, folderName, error, focusRow, focusedButton);
+            Draw(size, folderName, history, error, focusRow, focusedButton);
         }
     }
 
     private static string? TrySubmit(
         CommandLineState folderName,
+        SingleLineTextHistoryState history,
         Func<string, string?>? validate,
         ref string? error)
     {
@@ -169,17 +199,27 @@ internal sealed class CreateFolderDialog
             return null;
 
         error = validate?.Invoke(text);
-        return error is null ? text : null;
+        if (error is not null)
+            return null;
+
+        history.Add(text);
+        return text;
     }
 
-    private static void EditText(CommandLineState buffer, ConsoleKeyInfo key, ref string? error)
+    private static void EditText(
+        CommandLineState buffer,
+        ConsoleKeyInfo key,
+        SingleLineTextHistoryState history,
+        int availableRows,
+        ref string? error)
     {
-        SingleLineTextInput.HandleKey(buffer, key, ref error);
+        SingleLineTextInput.HandleKey(buffer, key, ref error, history, availableRows);
     }
 
     private void Draw(
         ConsoleSize size,
         CommandLineState folderName,
+        SingleLineTextHistoryState history,
         string? error,
         int focusRow,
         int focusedButton)
@@ -200,7 +240,7 @@ internal sealed class CreateFolderDialog
             int inputY = bounds.Y + 2;
 
             _screen.Write(contentX, bounds.Y + 1, Prompt.PadRight(contentWidth), FarDialogStyles.Fill);
-            DrawInput(contentX, inputY, contentWidth, folderName, focusRow == 0);
+            DrawInput(contentX, inputY, contentWidth, folderName, history, focusRow == 0);
             DrawSeparator(bounds, bounds.Y + 3);
 
             string errorText = error is null ? string.Empty : Truncate(error, contentWidth);
@@ -217,12 +257,26 @@ internal sealed class CreateFolderDialog
         });
 
         if (focusRow == 0)
-            SetInputCursor(outerBounds.X + 3, outerBounds.Y + 3, Math.Max(1, outerBounds.Width - 6), folderName);
+        {
+            int inputX = outerBounds.X + 3;
+            int inputY = outerBounds.Y + 3;
+            int inputWidth = Math.Max(1, outerBounds.Width - 6);
+            SingleLineTextInput.RenderHistoryDropdown(_screen, inputX, inputY, inputWidth, history);
+        }
+
+        if (focusRow == 0)
+            SetInputCursor(outerBounds.X + 3, outerBounds.Y + 3, Math.Max(1, outerBounds.Width - 6), folderName, hasHistory: true);
         else
             _screen.SetCursorVisible(false);
     }
 
-    private void DrawInput(int x, int y, int width, CommandLineState buffer, bool focused)
+    private void DrawInput(
+        int x,
+        int y,
+        int width,
+        CommandLineState buffer,
+        SingleLineTextHistoryState history,
+        bool focused)
     {
         SingleLineTextInput.Render(
             _screen,
@@ -231,17 +285,70 @@ internal sealed class CreateFolderDialog
             width,
             buffer,
             focused ? FarDialogStyles.FocusedInput : FarDialogStyles.Input,
-            FarDialogStyles.Input);
+            FarDialogStyles.Input,
+            history,
+            renderDropdown: false);
     }
 
-    private void SetInputCursor(int x, int y, int width, CommandLineState buffer)
+    private void SetInputCursor(int x, int y, int width, CommandLineState buffer, bool hasHistory)
     {
-        int cursorX = SingleLineTextInput.GetCursorX(x, width, buffer);
-        if (cursorX < x + width)
+        int textWidth = hasHistory ? Math.Max(1, width - 1) : width;
+        int cursorX = SingleLineTextInput.GetCursorX(x, textWidth, buffer);
+        if (cursorX < x + textWidth)
         {
             _screen.SetCursorPosition(cursorX, y);
             _screen.SetCursorVisible(true);
         }
+    }
+
+    private static bool TryHandleHistoryArrow(
+        MouseConsoleInputEvent mouse,
+        ConsoleSize size,
+        SingleLineTextHistoryState history)
+    {
+        int fieldX = InputFieldX(size);
+        int fieldY = InputFieldY(size);
+        int fieldWidth = InputFieldWidth(size);
+        if (!SingleLineTextInput.IsHistoryArrowHit(fieldX, fieldWidth, fieldY, mouse.X, mouse.Y))
+            return false;
+
+        return SingleLineTextInput.TryOpenHistoryDropdown(history, fieldY, size.Height);
+    }
+
+    private static bool TryHandleHistoryDropdownMouse(
+        MouseConsoleInputEvent mouse,
+        ConsoleSize size,
+        CommandLineState folderName,
+        SingleLineTextHistoryState history,
+        ref ScrollBarDragState? historyScrollbarDrag) =>
+        SingleLineTextInput.TryHandleHistoryDropdownMouse(
+            history,
+            folderName,
+            mouse,
+            InputFieldX(size),
+            InputFieldY(size),
+            InputFieldWidth(size),
+            size.Height,
+            ref historyScrollbarDrag);
+
+    private static int InputFieldX(ConsoleSize size)
+    {
+        int dialogWidth = Math.Min(DialogWidth, Math.Max(40, size.Width - 2));
+        int dialogX = Math.Max(0, (size.Width - dialogWidth) / 2);
+        return dialogX + 3;
+    }
+
+    private static int InputFieldY(ConsoleSize size)
+    {
+        int dialogHeight = Math.Min(DialogHeight, Math.Max(8, size.Height - 2));
+        int dialogY = Math.Max(0, (size.Height - dialogHeight) / 2);
+        return dialogY + 3;
+    }
+
+    private static int InputFieldWidth(ConsoleSize size)
+    {
+        int dialogWidth = Math.Min(DialogWidth, Math.Max(40, size.Width - 2));
+        return Math.Max(1, dialogWidth - 6);
     }
 
     private void DrawSeparator(Rect bounds, int y)

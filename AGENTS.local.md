@@ -30,3 +30,6 @@ Read `AGENTS.md` first, then apply the rules here with higher priority.
   without ShellExecute, without stdio redirection, without a new console window,
   wait for exit, then redraw the UI. Use shell associations for documents and
   other non-executable files.
+- Before adding or changing UI controls, read `docs/controls-registry.md` and
+  prefer extending an existing control when its responsibility already matches
+  the requested behavior.

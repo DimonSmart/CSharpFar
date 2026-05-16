@@ -1,5 +1,6 @@
 using CSharpFar.App.Dialogs;
 using CSharpFar.Console;
+using CSharpFar.Console.Input;
 using CSharpFar.Console.Models;
 using CSharpFar.Core.Models;
 using CSharpFar.Tests.Fakes;
@@ -73,4 +74,230 @@ public class SingleLineTextInputTests
         Assert.Equal(ConsoleColor.Blue, driver.GetCell(6, 0).Background);
         Assert.Equal(ConsoleColor.Black, driver.GetCell(7, 0).Background);
     }
+
+    [Fact]
+    public void History_AddKeepsUniqueRecencyOrder()
+    {
+        var history = new SingleLineTextHistoryState();
+
+        history.Add("first");
+        history.Add("second");
+        history.Add("first");
+        history.Add("   ");
+
+        Assert.Equal(["first", "second"], history.Items);
+    }
+
+    [Fact]
+    public void HandleKey_WithHistoryTypingPrefixOpensMatchingDropdown()
+    {
+        var buffer = new CommandLineState();
+        var history = new SingleLineTextHistoryState();
+        history.Add("copy");
+        history.Add("compare");
+        history.Add("delete");
+        string? error = null;
+
+        var result = SingleLineTextInput.HandleKey(
+            buffer,
+            new ConsoleKeyInfo('c', ConsoleKey.C, shift: false, alt: false, control: false),
+            ref error,
+            history,
+            availableDropdownContentRows: 10);
+
+        Assert.Equal(TextInputKeyResult.TextChanged, result);
+        Assert.True(history.IsDropdownOpen);
+        Assert.Equal(["compare", "copy"], history.Matches);
+    }
+
+    [Fact]
+    public void HandleKey_WithHistoryEnterAcceptsSelectedSuggestion()
+    {
+        var buffer = new CommandLineState();
+        var history = new SingleLineTextHistoryState();
+        history.Add("copy");
+        history.Add("compare");
+        string? error = null;
+
+        SingleLineTextInput.HandleKey(
+            buffer,
+            new ConsoleKeyInfo('c', ConsoleKey.C, shift: false, alt: false, control: false),
+            ref error,
+            history,
+            availableDropdownContentRows: 10);
+        SingleLineTextInput.HandleKey(
+            buffer,
+            new ConsoleKeyInfo('\0', ConsoleKey.DownArrow, shift: false, alt: false, control: false),
+            ref error,
+            history,
+            availableDropdownContentRows: 10);
+
+        var result = SingleLineTextInput.HandleKey(
+            buffer,
+            new ConsoleKeyInfo('\r', ConsoleKey.Enter, shift: false, alt: false, control: false),
+            ref error,
+            history,
+            availableDropdownContentRows: 10);
+
+        Assert.Equal(TextInputKeyResult.TextChanged, result);
+        Assert.Equal("copy", buffer.Text);
+        Assert.False(history.IsDropdownOpen);
+    }
+
+    [Fact]
+    public void HandleKey_WithHistoryEscapeClosesDropdownWithoutChangingText()
+    {
+        var buffer = new CommandLineState();
+        var history = new SingleLineTextHistoryState();
+        history.Add("copy");
+        string? error = null;
+
+        SingleLineTextInput.HandleKey(
+            buffer,
+            new ConsoleKeyInfo('c', ConsoleKey.C, shift: false, alt: false, control: false),
+            ref error,
+            history,
+            availableDropdownContentRows: 10);
+
+        var result = SingleLineTextInput.HandleKey(
+            buffer,
+            new ConsoleKeyInfo('\u001b', ConsoleKey.Escape, shift: false, alt: false, control: false),
+            ref error,
+            history,
+            availableDropdownContentRows: 10);
+
+        Assert.Equal(TextInputKeyResult.Handled, result);
+        Assert.Equal("c", buffer.Text);
+        Assert.False(history.IsDropdownOpen);
+    }
+
+    [Fact]
+    public void Render_WithHistoryDrawsArrowAndDropdown()
+    {
+        var driver = new FakeConsoleDriver(width: 20, height: 8);
+        var screen = new ScreenRenderer(driver);
+        var buffer = new CommandLineState();
+        buffer.SetText("c");
+        var history = new SingleLineTextHistoryState();
+        history.Add("copy");
+        history.Add("compare");
+        Assert.True(history.OpenForPrefix("c", availableContentRows: 5));
+        var normal = new CellStyle(ConsoleColor.Gray, ConsoleColor.Black);
+        var selected = new CellStyle(ConsoleColor.Yellow, ConsoleColor.Blue);
+
+        SingleLineTextInput.Render(screen, 1, 1, 12, buffer, normal, selected, history);
+
+        Assert.Equal(SingleLineTextInput.HistoryDropdownArrow, driver.GetCell(12, 1).Character);
+        Assert.Equal('┌', driver.GetCell(1, 2).Character);
+        Assert.Equal('┐', driver.GetCell(12, 2).Character);
+        Assert.Contains("compare", driver.GetRow(3));
+        Assert.Contains("copy", driver.GetRow(4));
+    }
+
+    [Fact]
+    public void History_DoesNotOpenWhenDropdownCannotFitOneContentRow()
+    {
+        var history = new SingleLineTextHistoryState();
+        history.Add("copy");
+
+        bool opened = history.OpenForPrefix("c", availableContentRows: 0);
+
+        Assert.False(opened);
+        Assert.False(history.IsDropdownOpen);
+    }
+
+    [Fact]
+    public void Render_WithHistoryDropdownUsesAtMostTenRows()
+    {
+        var driver = new FakeConsoleDriver(width: 30, height: 20);
+        var screen = new ScreenRenderer(driver);
+        var buffer = new CommandLineState();
+        var history = new SingleLineTextHistoryState();
+        for (int i = 0; i < 12; i++)
+            history.Add("item-" + i);
+        Assert.True(history.OpenAll(availableContentRows: 20));
+        var normal = new CellStyle(ConsoleColor.Gray, ConsoleColor.Black);
+        var selected = new CellStyle(ConsoleColor.Yellow, ConsoleColor.Blue);
+
+        SingleLineTextInput.Render(screen, 1, 1, 12, buffer, normal, selected, history);
+
+        Assert.Equal('└', driver.GetCell(1, 13).Character);
+        Assert.Equal(' ', driver.GetCell(1, 14).Character);
+    }
+
+    [Fact]
+    public void HandleHistoryDropdownMouse_ClickSuggestionAcceptsValue()
+    {
+        var buffer = new CommandLineState();
+        var history = new SingleLineTextHistoryState();
+        history.Add("copy");
+        history.Add("compare");
+        Assert.True(history.OpenForPrefix("c", availableContentRows: 5));
+        ScrollBarDragState? drag = null;
+
+        bool handled = SingleLineTextInput.TryHandleHistoryDropdownMouse(
+            history,
+            buffer,
+            LeftMouse(2, 2),
+            fieldX: 1,
+            fieldY: 0,
+            fieldWidth: 12,
+            screenHeight: 8,
+            ref drag);
+
+        Assert.True(handled);
+        Assert.Equal("compare", buffer.Text);
+        Assert.False(history.IsDropdownOpen);
+    }
+
+    [Fact]
+    public void HandleHistoryDropdownMouse_ClickScrollbarMovesFirstVisibleIndex()
+    {
+        var buffer = new CommandLineState();
+        var history = new SingleLineTextHistoryState();
+        for (int i = 0; i < 20; i++)
+            history.Add("item-" + i);
+        Assert.True(history.OpenAll(availableContentRows: 5));
+        ScrollBarDragState? drag = null;
+
+        bool handled = SingleLineTextInput.TryHandleHistoryDropdownMouse(
+            history,
+            buffer,
+            LeftMouse(12, 6),
+            fieldX: 1,
+            fieldY: 0,
+            fieldWidth: 12,
+            screenHeight: 8,
+            ref drag);
+
+        Assert.True(handled);
+        Assert.True(history.FirstVisibleIndex > 0);
+        Assert.True(history.IsDropdownOpen);
+    }
+
+    [Fact]
+    public void HandleHistoryDropdownMouse_ClickOutsideClosesDropdown()
+    {
+        var buffer = new CommandLineState();
+        var history = new SingleLineTextHistoryState();
+        history.Add("copy");
+        Assert.True(history.OpenForPrefix("c", availableContentRows: 5));
+        ScrollBarDragState? drag = null;
+
+        bool handled = SingleLineTextInput.TryHandleHistoryDropdownMouse(
+            history,
+            buffer,
+            LeftMouse(18, 7),
+            fieldX: 1,
+            fieldY: 0,
+            fieldWidth: 12,
+            screenHeight: 8,
+            ref drag);
+
+        Assert.True(handled);
+        Assert.False(history.IsDropdownOpen);
+    }
+
+    private static MouseConsoleInputEvent LeftMouse(int x, int y) =>
+        new(x, y, MouseButton.Left, MouseEventKind.Down, MouseKeyModifiers.None);
 }

@@ -35,6 +35,7 @@ internal sealed class FileOperationDialog
     ];
 
     private readonly ScreenRenderer _screen;
+    private static readonly SingleLineTextHistoryRegistry HistoryRegistry = new();
     private readonly ModalDialogRenderer _modalRenderer = new();
 
     public FileOperationDialog(ScreenRenderer screen)
@@ -106,6 +107,8 @@ internal sealed class FileOperationDialog
             filter.SetText(initialOptions.FileMask);
         else
             filter.SetText("*");
+        SingleLineTextHistoryState destinationHistory = HistoryRegistry.GetOrCreate("FileOperationDialog.Destination");
+        SingleLineTextHistoryState filterHistory = HistoryRegistry.GetOrCreate("FileOperationDialog.Filter");
 
         int conflictIndex = FindConflictIndex(initialOptions.DefaultConflictDecision, conflictModes);
         var securityMode = initialOptions.SecurityMode;
@@ -115,6 +118,7 @@ internal sealed class FileOperationDialog
         int focusRow = 0;
         int bodyScrollTop = 0;
         ScrollBarDragState? bodyScrollbarDrag = null;
+        ScrollBarDragState? historyScrollbarDrag = null;
         int focusedButton = 0;
         string? error = null;
         var buttonBar = new DialogButtonBar(
@@ -131,6 +135,8 @@ internal sealed class FileOperationDialog
             actionLabel,
             destination,
             filter,
+            destinationHistory,
+            filterHistory,
             conflictModes,
             conflictIndex,
             securityMode,
@@ -156,7 +162,7 @@ internal sealed class FileOperationDialog
                         return null;
 
                     var result = BuildResult(destination, filter, initialOptions, conflictModes[conflictIndex],
-                        securityMode, preserveTimestamps, copySymlinkContents, useFilter, ref error);
+                        securityMode, preserveTimestamps, copySymlinkContents, useFilter, destinationHistory, filterHistory, ref error);
                     if (result is not null)
                         return result;
                 }
@@ -168,6 +174,8 @@ internal sealed class FileOperationDialog
                     actionLabel,
                     destination,
                     filter,
+                    destinationHistory,
+                    filterHistory,
                     conflictModes,
                     conflictIndex,
                     securityMode,
@@ -182,10 +190,33 @@ internal sealed class FileOperationDialog
                 continue;
             }
 
+            if (input is MouseConsoleInputEvent dropdownMouse &&
+                TryHandleHistoryDropdownMouse(
+                    dropdownMouse,
+                    size,
+                    bodyScrollTop,
+                    destination,
+                    filter,
+                    destinationHistory,
+                    filterHistory,
+                    ref historyScrollbarDrag))
+            {
+                DrawCurrent(ensureFocusVisible: false);
+                continue;
+            }
+
             if (input is MouseConsoleInputEvent mouse &&
                 TryHandleBodyScrollbarMouse(mouse, size, ref bodyScrollTop, ref bodyScrollbarDrag))
             {
                 DrawCurrent(ensureFocusVisible: false);
+                continue;
+            }
+
+            if (input is MouseConsoleInputEvent historyMouse &&
+                TryHandleHistoryArrow(historyMouse, size, bodyScrollTop, destinationHistory, filterHistory, out int historyFocusRow))
+            {
+                focusRow = historyFocusRow;
+                DrawCurrent();
                 continue;
             }
 
@@ -198,7 +229,7 @@ internal sealed class FileOperationDialog
                     return null;
 
                 var result = BuildResult(destination, filter, initialOptions, conflictModes[conflictIndex],
-                    securityMode, preserveTimestamps, copySymlinkContents, useFilter, ref error);
+                    securityMode, preserveTimestamps, copySymlinkContents, useFilter, destinationHistory, filterHistory, ref error);
                 if (result is not null)
                     return result;
             }
@@ -209,13 +240,27 @@ internal sealed class FileOperationDialog
                 continue;
             }
 
+            if (focusRow is 0 or 6 &&
+                CurrentHistory(focusRow, destinationHistory, filterHistory).IsDropdownOpen &&
+                key.Key is ConsoleKey.UpArrow or ConsoleKey.DownArrow or ConsoleKey.Enter or ConsoleKey.Escape)
+            {
+                EditText(
+                    focusRow == 0 ? destination : filter,
+                    key,
+                    CurrentHistory(focusRow, destinationHistory, filterHistory),
+                    DropdownRows(size, focusRow, bodyScrollTop),
+                    ref error);
+                DrawCurrent();
+                continue;
+            }
+
             switch (key.Key)
             {
                 case ConsoleKey.Escape:
                     return null;
                 case ConsoleKey.F10:
                     var f10Result = BuildResult(destination, filter, initialOptions, conflictModes[conflictIndex],
-                        securityMode, preserveTimestamps, copySymlinkContents, useFilter, ref error);
+                        securityMode, preserveTimestamps, copySymlinkContents, useFilter, destinationHistory, filterHistory, ref error);
                     if (f10Result is not null)
                         return f10Result;
                     break;
@@ -226,7 +271,7 @@ internal sealed class FileOperationDialog
                             return null;
 
                         var result = BuildResult(destination, filter, initialOptions, conflictModes[conflictIndex],
-                            securityMode, preserveTimestamps, copySymlinkContents, useFilter, ref error);
+                            securityMode, preserveTimestamps, copySymlinkContents, useFilter, destinationHistory, filterHistory, ref error);
                         if (result is not null)
                             return result;
                     }
@@ -243,7 +288,7 @@ internal sealed class FileOperationDialog
                             return null;
 
                         var result = BuildResult(destination, filter, initialOptions, conflictModes[conflictIndex],
-                            securityMode, preserveTimestamps, copySymlinkContents, useFilter, ref error);
+                            securityMode, preserveTimestamps, copySymlinkContents, useFilter, destinationHistory, filterHistory, ref error);
                         if (result is not null)
                             return result;
                     }
@@ -254,7 +299,12 @@ internal sealed class FileOperationDialog
                     }
                     else
                     {
-                        EditText(focusRow == 0 ? destination : filter, key, ref error);
+                        EditText(
+                            focusRow == 0 ? destination : filter,
+                            key,
+                            CurrentHistory(focusRow, destinationHistory, filterHistory),
+                            DropdownRows(size, focusRow, bodyScrollTop),
+                            ref error);
                     }
                     break;
                 case ConsoleKey.LeftArrow:
@@ -263,7 +313,12 @@ internal sealed class FileOperationDialog
                     else if (focusRow == 2)
                         conflictIndex = conflictIndex <= 0 ? conflictModes.Count - 1 : conflictIndex - 1;
                     else if (focusRow is 0 or 6)
-                        EditText(focusRow == 0 ? destination : filter, key, ref error);
+                        EditText(
+                            focusRow == 0 ? destination : filter,
+                            key,
+                            CurrentHistory(focusRow, destinationHistory, filterHistory),
+                            DropdownRows(size, focusRow, bodyScrollTop),
+                            ref error);
                     break;
                 case ConsoleKey.RightArrow:
                     if (focusRow == 7)
@@ -271,7 +326,12 @@ internal sealed class FileOperationDialog
                     else if (focusRow == 2)
                         conflictIndex = (conflictIndex + 1) % conflictModes.Count;
                     else if (focusRow is 0 or 6)
-                        EditText(focusRow == 0 ? destination : filter, key, ref error);
+                        EditText(
+                            focusRow == 0 ? destination : filter,
+                            key,
+                            CurrentHistory(focusRow, destinationHistory, filterHistory),
+                            DropdownRows(size, focusRow, bodyScrollTop),
+                            ref error);
                     break;
                 case ConsoleKey.UpArrow:
                     focusRow = PreviousFocusableRow(focusRow, useFilter);
@@ -282,7 +342,12 @@ internal sealed class FileOperationDialog
                     break;
                 default:
                     if (focusRow is 0 or 6)
-                        EditText(focusRow == 0 ? destination : filter, key, ref error);
+                        EditText(
+                            focusRow == 0 ? destination : filter,
+                            key,
+                            CurrentHistory(focusRow, destinationHistory, filterHistory),
+                            DropdownRows(size, focusRow, bodyScrollTop),
+                            ref error);
                     break;
             }
 
@@ -307,6 +372,8 @@ internal sealed class FileOperationDialog
                 actionLabel,
                 destination,
                 filter,
+                destinationHistory,
+                filterHistory,
                 conflictModes,
                 conflictIndex,
                 securityMode,
@@ -362,6 +429,8 @@ internal sealed class FileOperationDialog
         bool preserveTimestamps,
         bool copySymlinkContents,
         bool useFilter,
+        SingleLineTextHistoryState destinationHistory,
+        SingleLineTextHistoryState filterHistory,
         ref string? error)
     {
         string destinationText = destination.Text.Trim();
@@ -376,6 +445,10 @@ internal sealed class FileOperationDialog
             ? filter.Text.Trim()
             : null;
 
+        destinationHistory.Add(destinationText);
+        if (mask is not null)
+            filterHistory.Add(mask);
+
         return new FileOperationDialogResult(
             destinationText,
             initialOptions with
@@ -388,9 +461,20 @@ internal sealed class FileOperationDialog
             });
     }
 
-    private static void EditText(CommandLineState buffer, ConsoleKeyInfo key, ref string? error)
+    private static SingleLineTextHistoryState CurrentHistory(
+        int focusRow,
+        SingleLineTextHistoryState destinationHistory,
+        SingleLineTextHistoryState filterHistory) =>
+        focusRow == 0 ? destinationHistory : filterHistory;
+
+    private static void EditText(
+        CommandLineState buffer,
+        ConsoleKeyInfo key,
+        SingleLineTextHistoryState history,
+        int availableRows,
+        ref string? error)
     {
-        SingleLineTextInput.HandleKey(buffer, key, ref error);
+        SingleLineTextInput.HandleKey(buffer, key, ref error, history, availableRows);
     }
 
     private static void CycleFocusedValue(
@@ -467,6 +551,8 @@ internal sealed class FileOperationDialog
         string actionLabel,
         CommandLineState destination,
         CommandLineState filter,
+        SingleLineTextHistoryState destinationHistory,
+        SingleLineTextHistoryState filterHistory,
         IReadOnlyList<ConflictDecisionMode> conflictModes,
         int conflictIndex,
         FileSecurityMode securityMode,
@@ -503,7 +589,7 @@ internal sealed class FileOperationDialog
             _screen.FillRegion(new Rect(contentX, bodyTop, contentWidth, bodyHeight), fill);
 
             WriteBodyRow(0, prompt, fill);
-            DrawBodyInput(1, destination, focusRow == 0);
+            DrawBodyInput(1, destination, destinationHistory, focusRow == 0);
             DrawBodySeparator(2);
             DrawBodyAccessRights(3);
             DrawBodySeparator(4);
@@ -517,7 +603,7 @@ internal sealed class FileOperationDialog
             DrawBodyCheckbox(12, "Use filter", useFilter, focusRow == 5);
             WriteBodyRow(13, "Filter mask:", fill);
             if (useFilter)
-                DrawBodyInput(14, filter, focusRow == 6);
+                DrawBodyInput(14, filter, filterHistory, focusRow == 6);
             else
                 WriteBodyRow(14, SingleLineTextInput.VisibleText(filter, contentWidth), fill);
             DrawBodySeparator(15);
@@ -565,10 +651,14 @@ internal sealed class FileOperationDialog
                     _screen.Write(contentX, y, Truncate(value, contentWidth).PadRight(contentWidth), style);
             }
 
-            void DrawBodyInput(int virtualRow, CommandLineState buffer, bool isFocused)
+            void DrawBodyInput(
+                int virtualRow,
+                CommandLineState buffer,
+                SingleLineTextHistoryState history,
+                bool isFocused)
             {
                 if (BodyY(virtualRow) is { } y)
-                    DrawInput(contentX, y, contentWidth, buffer, isFocused);
+                    DrawInput(contentX, y, contentWidth, buffer, history, isFocused);
             }
 
             void DrawBodySeparator(int virtualRow)
@@ -604,9 +694,15 @@ internal sealed class FileOperationDialog
         int inputX = frameBounds.X + 2;
         int inputWidth = Math.Max(1, frameBounds.Width - 4);
         if (focusRow == 0 && InputCursorY(frameBounds, bodyScrollTop, 1) is { } destinationY)
-            SetInputCursor(inputX, destinationY, inputWidth, destination);
+        {
+            SingleLineTextInput.RenderHistoryDropdown(_screen, inputX, destinationY, inputWidth, destinationHistory);
+            SetInputCursor(inputX, destinationY, inputWidth, destination, hasHistory: true);
+        }
         else if (focusRow == 6 && InputCursorY(frameBounds, bodyScrollTop, 14) is { } filterY)
-            SetInputCursor(inputX, filterY, inputWidth, filter);
+        {
+            SingleLineTextInput.RenderHistoryDropdown(_screen, inputX, filterY, inputWidth, filterHistory);
+            SetInputCursor(inputX, filterY, inputWidth, filter, hasHistory: true);
+        }
         else
             _screen.SetCursorVisible(false);
     }
@@ -652,7 +748,118 @@ internal sealed class FileOperationDialog
         return row >= 0 && row < bodyHeight ? bodyTop + row : null;
     }
 
-    private void DrawInput(int x, int y, int width, CommandLineState buffer, bool focused)
+    private static bool TryHandleHistoryArrow(
+        MouseConsoleInputEvent mouse,
+        ConsoleSize size,
+        int bodyScrollTop,
+        SingleLineTextHistoryState destinationHistory,
+        SingleLineTextHistoryState filterHistory,
+        out int focusRow)
+    {
+        focusRow = -1;
+        if (mouse.Button != MouseButton.Left ||
+            mouse.Kind is not (MouseEventKind.Down or MouseEventKind.Click))
+        {
+            return false;
+        }
+
+        Rect frameBounds = FrameBounds(size);
+        int inputX = frameBounds.X + 2;
+        int inputWidth = Math.Max(1, frameBounds.Width - 4);
+        if (InputCursorY(frameBounds, bodyScrollTop, 1) is { } destinationY &&
+            SingleLineTextInput.IsHistoryArrowHit(inputX, inputWidth, destinationY, mouse.X, mouse.Y))
+        {
+            focusRow = 0;
+            return SingleLineTextInput.TryOpenHistoryDropdown(destinationHistory, destinationY, size.Height);
+        }
+
+        if (InputCursorY(frameBounds, bodyScrollTop, 14) is { } filterY &&
+            SingleLineTextInput.IsHistoryArrowHit(inputX, inputWidth, filterY, mouse.X, mouse.Y))
+        {
+            focusRow = 6;
+            return SingleLineTextInput.TryOpenHistoryDropdown(filterHistory, filterY, size.Height);
+        }
+
+        return false;
+    }
+
+    private static bool TryHandleHistoryDropdownMouse(
+        MouseConsoleInputEvent mouse,
+        ConsoleSize size,
+        int bodyScrollTop,
+        CommandLineState destination,
+        CommandLineState filter,
+        SingleLineTextHistoryState destinationHistory,
+        SingleLineTextHistoryState filterHistory,
+        ref ScrollBarDragState? historyScrollbarDrag)
+    {
+        Rect frameBounds = FrameBounds(size);
+        int inputX = frameBounds.X + 2;
+        int inputWidth = Math.Max(1, frameBounds.Width - 4);
+        return TryHandleHistoryDropdownRow(mouse, size, bodyScrollTop, frameBounds, inputX, inputWidth, 1, destination, destinationHistory, ref historyScrollbarDrag) ||
+               TryHandleHistoryDropdownRow(mouse, size, bodyScrollTop, frameBounds, inputX, inputWidth, 14, filter, filterHistory, ref historyScrollbarDrag);
+    }
+
+    private static bool TryHandleHistoryDropdownRow(
+        MouseConsoleInputEvent mouse,
+        ConsoleSize size,
+        int bodyScrollTop,
+        Rect frameBounds,
+        int inputX,
+        int inputWidth,
+        int virtualRow,
+        CommandLineState buffer,
+        SingleLineTextHistoryState history,
+        ref ScrollBarDragState? historyScrollbarDrag)
+    {
+        if (InputCursorY(frameBounds, bodyScrollTop, virtualRow) is not { } fieldY)
+            return false;
+
+        return SingleLineTextInput.TryHandleHistoryDropdownMouse(
+            history,
+            buffer,
+            mouse,
+            inputX,
+            fieldY,
+            inputWidth,
+            size.Height,
+            ref historyScrollbarDrag);
+    }
+
+    private static int DropdownRows(ConsoleSize size, int focusRow, int bodyScrollTop)
+    {
+        Rect frameBounds = FrameBounds(size);
+        int? fieldY = focusRow switch
+        {
+            0 => InputCursorY(frameBounds, bodyScrollTop, 1),
+            6 => InputCursorY(frameBounds, bodyScrollTop, 14),
+            _ => null,
+        };
+        return fieldY is null
+            ? 0
+            : SingleLineTextInput.AvailableDropdownContentRows(fieldY.Value, size.Height);
+    }
+
+    private static Rect FrameBounds(ConsoleSize size)
+    {
+        int dialogWidth = Math.Min(DialogWidth, Math.Max(40, size.Width - 2));
+        int dialogHeight = Math.Min(DialogHeight, Math.Max(8, size.Height - 2));
+        int dialogX = Math.Max(0, (size.Width - dialogWidth) / 2);
+        int dialogY = Math.Max(0, (size.Height - dialogHeight) / 2);
+        return new Rect(
+            dialogX + 1,
+            dialogY + 1,
+            Math.Max(1, dialogWidth - 2),
+            Math.Max(1, dialogHeight - 2));
+    }
+
+    private void DrawInput(
+        int x,
+        int y,
+        int width,
+        CommandLineState buffer,
+        SingleLineTextHistoryState history,
+        bool focused)
     {
         SingleLineTextInput.Render(
             _screen,
@@ -661,13 +868,16 @@ internal sealed class FileOperationDialog
             width,
             buffer,
             focused ? FarDialogStyles.FocusedInput : FarDialogStyles.Input,
-            FarDialogStyles.Input);
+            FarDialogStyles.Input,
+            history,
+            renderDropdown: false);
     }
 
-    private void SetInputCursor(int x, int y, int width, CommandLineState buffer)
+    private void SetInputCursor(int x, int y, int width, CommandLineState buffer, bool hasHistory)
     {
-        int cursorX = SingleLineTextInput.GetCursorX(x, width, buffer);
-        if (cursorX < x + width)
+        int textWidth = hasHistory ? Math.Max(1, width - 1) : width;
+        int cursorX = SingleLineTextInput.GetCursorX(x, textWidth, buffer);
+        if (cursorX < x + textWidth)
         {
             _screen.SetCursorPosition(cursorX, y);
             _screen.SetCursorVisible(true);

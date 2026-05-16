@@ -14,6 +14,7 @@ internal sealed class SearchDialog
     private const int BodyRowCount = 13;
 
     private readonly ScreenRenderer _screen;
+    private static readonly SingleLineTextHistoryRegistry HistoryRegistry = new();
     private readonly ModalDialogRenderer _modalRenderer = new();
 
     // Bounds of clickable option rows (updated each Draw call)
@@ -93,6 +94,9 @@ internal sealed class SearchDialog
         var text = new CommandLineState();
         var parallelism = new CommandLineState();
         parallelism.SetText(DefaultParallelism().ToString(System.Globalization.CultureInfo.InvariantCulture));
+        SingleLineTextHistoryState maskHistory = HistoryRegistry.GetOrCreate("SearchDialog.Mask");
+        SingleLineTextHistoryState textHistory = HistoryRegistry.GetOrCreate("SearchDialog.Text");
+        SingleLineTextHistoryState parallelismHistory = HistoryRegistry.GetOrCreate("SearchDialog.Parallelism");
 
         bool caseSensitive = false;
         bool wholeWords = false;
@@ -103,6 +107,7 @@ internal sealed class SearchDialog
         int focusRow = 0;
         int bodyScrollTop = 0;
         ScrollBarDragState? bodyScrollbarDrag = null;
+        ScrollBarDragState? historyScrollbarDrag = null;
         int focusedButton = 0;
         string? error = null;
         var buttonBar = new DialogButtonBar(
@@ -117,6 +122,9 @@ internal sealed class SearchDialog
             mask,
             text,
             parallelism,
+            maskHistory,
+            textHistory,
+            parallelismHistory,
             caseSensitive,
             wholeWords,
             notContaining,
@@ -158,6 +166,9 @@ internal sealed class SearchDialog
                         searchInSymbolicLinks,
                         scope,
                         parallelism,
+                        maskHistory,
+                        textHistory,
+                        parallelismHistory,
                         ref error);
                     if (result is not null)
                         return result;
@@ -169,9 +180,32 @@ internal sealed class SearchDialog
 
             if (input is MouseConsoleInputEvent mouse)
             {
+                if (TryHandleHistoryDropdownMouse(
+                    mouse,
+                    size,
+                    bodyScrollTop,
+                    mask,
+                    text,
+                    parallelism,
+                    maskHistory,
+                    textHistory,
+                    parallelismHistory,
+                    ref historyScrollbarDrag))
+                {
+                    DrawCurrent(ensureFocusVisible: false);
+                    continue;
+                }
+
                 if (TryHandleBodyScrollbarMouse(mouse, size, ref bodyScrollTop, ref bodyScrollbarDrag))
                 {
                     DrawCurrent(ensureFocusVisible: false);
+                    continue;
+                }
+
+                if (TryHandleHistoryArrow(mouse, maskHistory, textHistory, parallelismHistory))
+                {
+                    focusRow = HitTestOptionRow(mouse);
+                    DrawCurrent();
                     continue;
                 }
 
@@ -217,6 +251,9 @@ internal sealed class SearchDialog
                         searchInSymbolicLinks,
                         scope,
                         parallelism,
+                        maskHistory,
+                        textHistory,
+                        parallelismHistory,
                         ref error);
                     if (result is not null)
                         return result;
@@ -228,6 +265,20 @@ internal sealed class SearchDialog
 
             if (input is not KeyConsoleInputEvent { Key: var key })
             {
+                DrawCurrent();
+                continue;
+            }
+
+            if (focusRow is 0 or 1 or 9 &&
+                CurrentHistory(focusRow, maskHistory, textHistory, parallelismHistory).IsDropdownOpen &&
+                key.Key is ConsoleKey.UpArrow or ConsoleKey.DownArrow or ConsoleKey.Enter or ConsoleKey.Escape)
+            {
+                EditText(
+                    CurrentBuffer(focusRow, mask, text, parallelism),
+                    key,
+                    CurrentHistory(focusRow, maskHistory, textHistory, parallelismHistory),
+                    DropdownRows(size, focusRow, bodyScrollTop),
+                    ref error);
                 DrawCurrent();
                 continue;
             }
@@ -248,6 +299,9 @@ internal sealed class SearchDialog
                         searchInSymbolicLinks,
                         scope,
                         parallelism,
+                        maskHistory,
+                        textHistory,
+                        parallelismHistory,
                         ref error);
                     if (f10Result is not null)
                         return f10Result;
@@ -268,6 +322,9 @@ internal sealed class SearchDialog
                             searchInSymbolicLinks,
                             scope,
                             parallelism,
+                            maskHistory,
+                            textHistory,
+                            parallelismHistory,
                             ref error);
                         if (result is not null)
                             return result;
@@ -302,13 +359,21 @@ internal sealed class SearchDialog
                             searchInSymbolicLinks,
                             scope,
                             parallelism,
+                            maskHistory,
+                            textHistory,
+                            parallelismHistory,
                             ref error);
                         if (result is not null)
                             return result;
                     }
                     else if (focusRow is 0 or 1 or 9)
                     {
-                        EditText(CurrentBuffer(focusRow, mask, text, parallelism), key, ref error);
+                        EditText(
+                            CurrentBuffer(focusRow, mask, text, parallelism),
+                            key,
+                            CurrentHistory(focusRow, maskHistory, textHistory, parallelismHistory),
+                            DropdownRows(size, focusRow, bodyScrollTop),
+                            ref error);
                     }
                     else
                     {
@@ -334,17 +399,32 @@ internal sealed class SearchDialog
                     if (focusRow == ButtonRow)
                         buttonBar.TryHandleInput(input, ref focusedButton, out _);
                     else if (focusRow is 0 or 1 or 9)
-                        EditText(CurrentBuffer(focusRow, mask, text, parallelism), key, ref error);
+                        EditText(
+                            CurrentBuffer(focusRow, mask, text, parallelism),
+                            key,
+                            CurrentHistory(focusRow, maskHistory, textHistory, parallelismHistory),
+                            DropdownRows(size, focusRow, bodyScrollTop),
+                            ref error);
                     break;
                 case ConsoleKey.RightArrow:
                     if (focusRow == ButtonRow)
                         buttonBar.TryHandleInput(input, ref focusedButton, out _);
                     else if (focusRow is 0 or 1 or 9)
-                        EditText(CurrentBuffer(focusRow, mask, text, parallelism), key, ref error);
+                        EditText(
+                            CurrentBuffer(focusRow, mask, text, parallelism),
+                            key,
+                            CurrentHistory(focusRow, maskHistory, textHistory, parallelismHistory),
+                            DropdownRows(size, focusRow, bodyScrollTop),
+                            ref error);
                     break;
                 default:
                     if (focusRow is 0 or 1 or 9)
-                        EditText(CurrentBuffer(focusRow, mask, text, parallelism), key, ref error);
+                        EditText(
+                            CurrentBuffer(focusRow, mask, text, parallelism),
+                            key,
+                            CurrentHistory(focusRow, maskHistory, textHistory, parallelismHistory),
+                            DropdownRows(size, focusRow, bodyScrollTop),
+                            ref error);
                     break;
             }
 
@@ -364,6 +444,9 @@ internal sealed class SearchDialog
                 mask,
                 text,
                 parallelism,
+                maskHistory,
+                textHistory,
+                parallelismHistory,
                 caseSensitive,
                 wholeWords,
                 notContaining,
@@ -421,9 +504,12 @@ internal sealed class SearchDialog
         bool searchInSymbolicLinks,
         SearchScope scope,
         CommandLineState parallelism,
+        SingleLineTextHistoryState maskHistory,
+        SingleLineTextHistoryState textHistory,
+        SingleLineTextHistoryState parallelismHistory,
         ref string? error)
     {
-        return TryCreateRequest(
+        SearchRequest? request = TryCreateRequest(
             rootPath,
             mask.Text,
             text.Text,
@@ -435,6 +521,13 @@ internal sealed class SearchDialog
             scope,
             parallelism.Text,
             out error);
+        if (request is null)
+            return null;
+
+        maskHistory.Add(mask.Text.Trim());
+        textHistory.Add(text.Text.Trim());
+        parallelismHistory.Add(parallelism.Text.Trim());
+        return request;
     }
 
     private static CommandLineState CurrentBuffer(
@@ -447,6 +540,18 @@ internal sealed class SearchDialog
             0 => mask,
             1 => text,
             _ => parallelism,
+        };
+
+    private static SingleLineTextHistoryState CurrentHistory(
+        int focusRow,
+        SingleLineTextHistoryState maskHistory,
+        SingleLineTextHistoryState textHistory,
+        SingleLineTextHistoryState parallelismHistory) =>
+        focusRow switch
+        {
+            0 => maskHistory,
+            1 => textHistory,
+            _ => parallelismHistory,
         };
 
     private static void CycleValue(
@@ -514,9 +619,14 @@ internal sealed class SearchDialog
         row is 0 or 1 or 3 or 4 or 6 or 7 or 8 or 9 or ButtonRow ||
         (row == 5 && hasText);
 
-    private static void EditText(CommandLineState buffer, ConsoleKeyInfo key, ref string? error)
+    private static void EditText(
+        CommandLineState buffer,
+        ConsoleKeyInfo key,
+        SingleLineTextHistoryState history,
+        int availableRows,
+        ref string? error)
     {
-        SingleLineTextInput.HandleKey(buffer, key, ref error);
+        SingleLineTextInput.HandleKey(buffer, key, ref error, history, availableRows);
     }
 
     private void Draw(
@@ -524,6 +634,9 @@ internal sealed class SearchDialog
         CommandLineState mask,
         CommandLineState text,
         CommandLineState parallelism,
+        SingleLineTextHistoryState maskHistory,
+        SingleLineTextHistoryState textHistory,
+        SingleLineTextHistoryState parallelismHistory,
         bool caseSensitive,
         bool wholeWords,
         bool notContaining,
@@ -562,9 +675,9 @@ internal sealed class SearchDialog
             _screen.FillRegion(new Rect(contentX, bodyTop, contentWidth, bodyHeight), fill);
 
             WriteBodyRow(0, "A file mask or several file masks:", fill);
-            DrawBodyInput(1, mask, focusRow == 0, focusRow: 0);
+            DrawBodyInput(1, mask, maskHistory, focusRow == 0, focusRow: 0);
             WriteBodyRow(2, "Containing text:", fill);
-            DrawBodyInput(3, text, focusRow == 1, focusRow: 1);
+            DrawBodyInput(3, text, textHistory, focusRow == 1, focusRow: 1);
             DrawBodyValueRow(4, "Using code page:", "Automatic detection", false, fill, focused);
             DrawBodyCheckbox(5, "Case sensitive", caseSensitive, focusRow == 3, fill, focused, focusRow: 3);
             DrawBodyCheckbox(6, "Whole words", wholeWords, focusRow == 4, fill, focused, focusRow: 4);
@@ -580,7 +693,7 @@ internal sealed class SearchDialog
             DrawBodyCheckbox(9, "Search in symbolic links", searchInSymbolicLinks, focusRow == 7, fill, focused, focusRow: 7);
             DrawBodyValueRow(10, "Select search area:", ScopeLabel(scope), focusRow == 8, fill, focused, focusRow: 8);
             WriteBodyRow(11, "Parallelism:", fill);
-            DrawBodyInput(12, parallelism, focusRow == 9, Math.Min(8, contentWidth), focusRow: 9);
+            DrawBodyInput(12, parallelism, parallelismHistory, focusRow == 9, Math.Min(8, contentWidth), focusRow: 9);
 
             if (BodyRowCount > bodyHeight)
             {
@@ -625,13 +738,19 @@ internal sealed class SearchDialog
                     _screen.Write(contentX, y, Truncate(value, contentWidth).PadRight(contentWidth), style);
             }
 
-            void DrawBodyInput(int virtualRow, CommandLineState buffer, bool isFocused, int? width = null, int focusRow = -1)
+            void DrawBodyInput(
+                int virtualRow,
+                CommandLineState buffer,
+                SingleLineTextHistoryState history,
+                bool isFocused,
+                int? width = null,
+                int focusRow = -1)
             {
                 if (BodyY(virtualRow) is not { } y)
                     return;
 
                 int inputWidth = width ?? contentWidth;
-                DrawInput(contentX, y, inputWidth, buffer, isFocused);
+                DrawInput(contentX, y, inputWidth, buffer, history, isFocused);
                 if (focusRow >= 0)
                     _optionBounds[focusRow] = new Rect(contentX, y, inputWidth, 1);
             }
@@ -678,11 +797,21 @@ internal sealed class SearchDialog
         int inputX = frameBounds.X + 2;
         int inputWidth = Math.Max(1, frameBounds.Width - 4);
         if (focusRow == 0 && InputCursorY(frameBounds, bodyScrollTop, 1) is { } maskY)
-            SetInputCursor(inputX, maskY, inputWidth, mask);
+        {
+            SingleLineTextInput.RenderHistoryDropdown(_screen, inputX, maskY, inputWidth, maskHistory);
+            SetInputCursor(inputX, maskY, inputWidth, mask, hasHistory: true);
+        }
         else if (focusRow == 1 && InputCursorY(frameBounds, bodyScrollTop, 3) is { } textY)
-            SetInputCursor(inputX, textY, inputWidth, text);
+        {
+            SingleLineTextInput.RenderHistoryDropdown(_screen, inputX, textY, inputWidth, textHistory);
+            SetInputCursor(inputX, textY, inputWidth, text, hasHistory: true);
+        }
         else if (focusRow == 9 && InputCursorY(frameBounds, bodyScrollTop, 12) is { } parallelismY)
-            SetInputCursor(inputX, parallelismY, Math.Min(8, inputWidth), parallelism);
+        {
+            int parallelismWidth = Math.Min(8, inputWidth);
+            SingleLineTextInput.RenderHistoryDropdown(_screen, inputX, parallelismY, parallelismWidth, parallelismHistory);
+            SetInputCursor(inputX, parallelismY, parallelismWidth, parallelism, hasHistory: true);
+        }
         else
             _screen.SetCursorVisible(false);
     }
@@ -730,7 +859,13 @@ internal sealed class SearchDialog
         return row >= 0 && row < bodyHeight ? bodyTop + row : null;
     }
 
-    private void DrawInput(int x, int y, int width, CommandLineState buffer, bool focused)
+    private void DrawInput(
+        int x,
+        int y,
+        int width,
+        CommandLineState buffer,
+        SingleLineTextHistoryState history,
+        bool focused)
     {
         SingleLineTextInput.Render(
             _screen,
@@ -739,7 +874,9 @@ internal sealed class SearchDialog
             width,
             buffer,
             focused ? FarDialogStyles.FocusedInput : FarDialogStyles.Input,
-            FarDialogStyles.Input);
+            FarDialogStyles.Input,
+            history,
+            renderDropdown: false);
     }
 
     private void DrawValueRow(
@@ -778,10 +915,11 @@ internal sealed class SearchDialog
         _screen.Write(x, y, Truncate(text, width).PadRight(width), focused ? focusedStyle : fill);
     }
 
-    private void SetInputCursor(int x, int y, int width, CommandLineState buffer)
+    private void SetInputCursor(int x, int y, int width, CommandLineState buffer, bool hasHistory)
     {
-        int cursorX = SingleLineTextInput.GetCursorX(x, width, buffer);
-        if (cursorX < x + width)
+        int textWidth = hasHistory ? Math.Max(1, width - 1) : width;
+        int cursorX = SingleLineTextInput.GetCursorX(x, textWidth, buffer);
+        if (cursorX < x + textWidth)
         {
             _screen.SetCursorPosition(cursorX, y);
             _screen.SetCursorVisible(true);
@@ -805,6 +943,105 @@ internal sealed class SearchDialog
                 return row;
         }
         return -1;
+    }
+
+    private bool TryHandleHistoryArrow(
+        MouseConsoleInputEvent mouse,
+        SingleLineTextHistoryState maskHistory,
+        SingleLineTextHistoryState textHistory,
+        SingleLineTextHistoryState parallelismHistory)
+    {
+        int row = HitTestOptionRow(mouse);
+        if (row is not (0 or 1 or 9))
+            return false;
+
+        Rect bounds = _optionBounds[row];
+        if (!SingleLineTextInput.IsHistoryArrowHit(bounds.X, bounds.Width, bounds.Y, mouse.X, mouse.Y))
+            return false;
+
+        return SingleLineTextInput.TryOpenHistoryDropdown(
+            CurrentHistory(row, maskHistory, textHistory, parallelismHistory),
+            bounds.Y,
+            _screen.GetSize().Height);
+    }
+
+    private static bool TryHandleHistoryDropdownMouse(
+        MouseConsoleInputEvent mouse,
+        ConsoleSize size,
+        int bodyScrollTop,
+        CommandLineState mask,
+        CommandLineState text,
+        CommandLineState parallelism,
+        SingleLineTextHistoryState maskHistory,
+        SingleLineTextHistoryState textHistory,
+        SingleLineTextHistoryState parallelismHistory,
+        ref ScrollBarDragState? historyScrollbarDrag)
+    {
+        Rect frameBounds = FrameBounds(size);
+        int inputX = frameBounds.X + 2;
+        int inputWidth = Math.Max(1, frameBounds.Width - 4);
+        return TryHandleHistoryDropdownRow(mouse, size, bodyScrollTop, frameBounds, inputX, inputWidth, 1, mask, maskHistory, ref historyScrollbarDrag) ||
+               TryHandleHistoryDropdownRow(mouse, size, bodyScrollTop, frameBounds, inputX, inputWidth, 3, text, textHistory, ref historyScrollbarDrag) ||
+               TryHandleHistoryDropdownRow(mouse, size, bodyScrollTop, frameBounds, inputX, Math.Min(8, inputWidth), 12, parallelism, parallelismHistory, ref historyScrollbarDrag);
+    }
+
+    private static bool TryHandleHistoryDropdownRow(
+        MouseConsoleInputEvent mouse,
+        ConsoleSize size,
+        int bodyScrollTop,
+        Rect frameBounds,
+        int inputX,
+        int inputWidth,
+        int virtualRow,
+        CommandLineState buffer,
+        SingleLineTextHistoryState history,
+        ref ScrollBarDragState? historyScrollbarDrag)
+    {
+        if (InputCursorY(frameBounds, bodyScrollTop, virtualRow) is not { } fieldY)
+            return false;
+
+        return SingleLineTextInput.TryHandleHistoryDropdownMouse(
+            history,
+            buffer,
+            mouse,
+            inputX,
+            fieldY,
+            inputWidth,
+            size.Height,
+            ref historyScrollbarDrag);
+    }
+
+    private static int DropdownRows(ConsoleSize size, int focusRow, int bodyScrollTop)
+    {
+        int? fieldY = focusRow switch
+        {
+            0 => TextFieldY(size, bodyScrollTop, 1),
+            1 => TextFieldY(size, bodyScrollTop, 3),
+            9 => TextFieldY(size, bodyScrollTop, 12),
+            _ => null,
+        };
+        return fieldY is null
+            ? 0
+            : SingleLineTextInput.AvailableDropdownContentRows(fieldY.Value, size.Height);
+    }
+
+    private static int? TextFieldY(ConsoleSize size, int bodyScrollTop, int virtualRow)
+    {
+        var frameBounds = FrameBounds(size);
+        return InputCursorY(frameBounds, bodyScrollTop, virtualRow);
+    }
+
+    private static Rect FrameBounds(ConsoleSize size)
+    {
+        int dialogWidth = Math.Min(DialogWidth, Math.Max(48, size.Width - 2));
+        int dialogHeight = Math.Min(DialogHeight, Math.Max(8, size.Height - 2));
+        int dialogX = Math.Max(0, (size.Width - dialogWidth) / 2);
+        int dialogY = Math.Max(0, (size.Height - dialogHeight) / 2);
+        return new Rect(
+            dialogX + 1,
+            dialogY + 1,
+            Math.Max(1, dialogWidth - 2),
+            Math.Max(1, dialogHeight - 2));
     }
 
     private static string Truncate(string value, int maxLength)

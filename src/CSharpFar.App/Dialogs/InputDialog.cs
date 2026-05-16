@@ -1,7 +1,9 @@
 using CSharpFar.App.Rendering;
 using CSharpFar.Console;
+using CSharpFar.Console.Input;
 using CSharpFar.Console.Models;
 using CSharpFar.Core.Models;
+using CSharpFar.Ui;
 
 namespace CSharpFar.App.Dialogs;
 
@@ -16,6 +18,7 @@ internal sealed class InputDialog
 
     private readonly ScreenRenderer _screen;
     private readonly ConsolePalette _palette;
+    private static readonly SingleLineTextHistoryRegistry HistoryRegistry = new();
 
     public InputDialog(ScreenRenderer screen, ConsolePalette? palette = null)
     {
@@ -59,13 +62,48 @@ internal sealed class InputDialog
     {
         var buf = new CommandLineState();
         if (initialText is not null) buf.SetText(initialText);
+        SingleLineTextHistoryState? history = maskInput
+            ? null
+            : HistoryRegistry.GetOrCreate($"{title}\n{prompt}");
+        ScrollBarDragState? historyScrollbarDrag = null;
         string? error = null;
 
         while (true)
         {
-            Draw(title, prompt, buf, error, maskInput, size);
+            Draw(title, prompt, buf, error, maskInput, size, history);
 
-            var key = _screen.ReadKey();
+            int availableRows = SingleLineTextInput.AvailableDropdownContentRows(InputFieldY(size), size.Height);
+            var input = _screen.ReadInput();
+            if (input is MouseConsoleInputEvent mouse && history is not null)
+            {
+                int fieldX = InputFieldX(size);
+                int fieldY = InputFieldY(size);
+                int fieldWidth = InputFieldWidth(size);
+                if (SingleLineTextInput.TryHandleHistoryDropdownMouse(
+                        history,
+                        buf,
+                        mouse,
+                        fieldX,
+                        fieldY,
+                        fieldWidth,
+                        size.Height,
+                        ref historyScrollbarDrag) ||
+                    (SingleLineTextInput.IsHistoryArrowHit(fieldX, fieldWidth, fieldY, mouse.X, mouse.Y) &&
+                     SingleLineTextInput.TryOpenHistoryDropdown(history, fieldY, size.Height)))
+                {
+                    continue;
+                }
+            }
+
+            if (input is not KeyConsoleInputEvent { Key: var key })
+                continue;
+
+            if (history?.IsDropdownOpen == true &&
+                key.Key is ConsoleKey.UpArrow or ConsoleKey.DownArrow or ConsoleKey.Enter or ConsoleKey.Escape)
+            {
+                SingleLineTextInput.HandleKey(buf, key, ref error, history, availableRows);
+                continue;
+            }
 
             if (key.Key == ConsoleKey.Escape)
                 return null;
@@ -76,16 +114,27 @@ internal sealed class InputDialog
                 if (text.Length == 0 && !allowEmpty) continue;
 
                 error = validate?.Invoke(text);
-                if (error is null) return text;
+                if (error is null)
+                {
+                    history?.Add(text);
+                    return text;
+                }
                 continue;
             }
 
-            if (SingleLineTextInput.HandleKey(buf, key, ref error) != TextInputKeyResult.Ignored)
+            if (SingleLineTextInput.HandleKey(buf, key, ref error, history, availableRows) != TextInputKeyResult.Ignored)
                 continue;
         }
     }
 
-    private void Draw(string title, string prompt, CommandLineState buf, string? error, bool maskInput, ConsoleSize size)
+    private void Draw(
+        string title,
+        string prompt,
+        CommandLineState buf,
+        string? error,
+        bool maskInput,
+        ConsoleSize size,
+        SingleLineTextHistoryState? history)
     {
         int dlgX = Math.Max(0, (size.Width  - DialogWidth)  / 2);
         int dlgY = Math.Max(0, (size.Height - DialogHeight) / 2);
@@ -98,16 +147,17 @@ internal sealed class InputDialog
             int fieldX     = dlgX + 2;
             int fieldY     = dlgY + 2;
             int fieldWidth = DialogWidth - 4;
-            DrawInputField(fieldX, fieldY, fieldWidth, buf, maskInput);
+            DrawInputField(fieldX, fieldY, fieldWidth, buf, maskInput, history);
 
             string errorText = error is not null
                 ? Truncate(error, fieldWidth).PadRight(fieldWidth)
                 : new string(' ', fieldWidth);
             _screen.Write(fieldX, dlgY + 3, errorText, PaletteStyles.DialogError(_palette));
 
-            int visStart = Math.Max(0, buf.CursorPosition - (fieldWidth - 1));
+            int textWidth = history is null ? fieldWidth : Math.Max(1, fieldWidth - 1);
+            int visStart = Math.Max(0, buf.CursorPosition - (textWidth - 1));
             int cursorScreenX = fieldX + (buf.CursorPosition - visStart);
-            if (cursorScreenX < fieldX + fieldWidth)
+            if (cursorScreenX < fieldX + textWidth)
             {
                 _screen.SetCursorPosition(cursorScreenX, fieldY);
                 _screen.SetCursorVisible(true);
@@ -115,7 +165,13 @@ internal sealed class InputDialog
         });
     }
 
-    private void DrawInputField(int x, int y, int width, CommandLineState buf, bool maskInput)
+    private void DrawInputField(
+        int x,
+        int y,
+        int width,
+        CommandLineState buf,
+        bool maskInput,
+        SingleLineTextHistoryState? history)
     {
         SingleLineTextInput.Render(
             _screen,
@@ -125,8 +181,18 @@ internal sealed class InputDialog
             buf,
             PaletteStyles.InputField(_palette),
             PaletteStyles.InputHighlight(_palette),
+            history,
+            _palette,
             maskInput);
     }
+
+    private static int InputFieldY(ConsoleSize size) =>
+        Math.Max(0, (size.Height - DialogHeight) / 2) + 2;
+
+    private static int InputFieldX(ConsoleSize size) =>
+        Math.Max(0, (size.Width - DialogWidth) / 2) + 2;
+
+    private static int InputFieldWidth(ConsoleSize size) => DialogWidth - 4;
 
     private static string Truncate(string s, int maxLen) =>
         s.Length <= maxLen ? s : s[..(maxLen - 1)] + "\u2026";

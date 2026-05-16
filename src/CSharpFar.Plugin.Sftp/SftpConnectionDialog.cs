@@ -55,6 +55,7 @@ internal sealed class SftpConnectionDialog
     private const int FocusRowCount = 12;
 
     private readonly ScreenRenderer _screen;
+    private static readonly SingleLineTextHistoryRegistry HistoryRegistry = new();
     private readonly ModalDialogRenderer _modalRenderer = new();
 
     public SftpConnectionDialog(ScreenRenderer screen, ConsolePalette? palette = null)
@@ -97,6 +98,7 @@ internal sealed class SftpConnectionDialog
         var userName = TextBuffer(connection?.Username ?? string.Empty);
         var password = TextBuffer(request.SavedPassword ?? string.Empty);
         var remoteRoot = TextBuffer(connection?.RemoteRootPath ?? "/");
+        var histories = new TextFieldHistories();
 
         bool saveConnection = request.SaveConnectionByDefault;
         bool savePassword = connection?.CredentialId is not null && request.SavedPassword is not null;
@@ -109,6 +111,7 @@ internal sealed class SftpConnectionDialog
         int focusedButton = 0;
         bool ensureFocusVisible = true;
         ScrollBarDragState? bodyScrollbarDrag = null;
+        ScrollBarDragState? historyScrollbarDrag = null;
         string submitLabel = request.AllowTemporaryConnection ? "Connect" : "Save";
         var buttonBar = new DialogButtonBar(
         [
@@ -139,6 +142,7 @@ internal sealed class SftpConnectionDialog
                 userName,
                 password,
                 remoteRoot,
+                histories,
                 saveConnection,
                 savePassword,
                 showInDrive,
@@ -148,6 +152,24 @@ internal sealed class SftpConnectionDialog
                 error);
 
             var input = _screen.ReadInput();
+            if (input is MouseConsoleInputEvent historyMouse &&
+                TryHandleHistoryDropdownMouse(
+                    historyMouse,
+                    size,
+                    bodyScrollTop,
+                    connectionName,
+                    host,
+                    port,
+                    userName,
+                    remoteRoot,
+                    histories,
+                    request.AllowTemporaryConnection,
+                    ref historyScrollbarDrag))
+            {
+                ensureFocusVisible = false;
+                continue;
+            }
+
             if (input is MouseConsoleInputEvent scrollbarMouse &&
                 TryHandleBodyScrollbarMouse(
                     scrollbarMouse,
@@ -183,6 +205,7 @@ internal sealed class SftpConnectionDialog
                     userName,
                     password,
                     remoteRoot,
+                    histories,
                     bodyScrollTop,
                     ref focusRow,
                     ref saveConnection,
@@ -196,6 +219,30 @@ internal sealed class SftpConnectionDialog
 
             if (input is not KeyConsoleInputEvent { Key: var key })
                 continue;
+
+            if (histories.ForRow(focusRow)?.IsDropdownOpen == true &&
+                key.Key is ConsoleKey.UpArrow or ConsoleKey.DownArrow or ConsoleKey.Enter or ConsoleKey.Escape)
+            {
+                ClearHostKeyWhenEndpointChanges(
+                    focusRow,
+                    EditFocusedText(
+                        focusRow,
+                        key,
+                        connectionName,
+                        host,
+                        port,
+                        userName,
+                        password,
+                        remoteRoot,
+                        histories,
+                        size,
+                        bodyScrollTop,
+                        request.AllowTemporaryConnection,
+                        ref error),
+                    ref hostKeyFingerprint,
+                    ref trustHostKey);
+                continue;
+            }
 
             switch (key.Key)
             {
@@ -239,7 +286,7 @@ internal sealed class SftpConnectionDialog
                     else
                         ClearHostKeyWhenEndpointChanges(
                             focusRow,
-                            EditFocusedText(focusRow, key, connectionName, host, port, userName, password, remoteRoot, ref error),
+                            EditFocusedText(focusRow, key, connectionName, host, port, userName, password, remoteRoot, histories, size, bodyScrollTop, request.AllowTemporaryConnection, ref error),
                             ref hostKeyFingerprint,
                             ref trustHostKey);
                     break;
@@ -259,7 +306,7 @@ internal sealed class SftpConnectionDialog
                     {
                         ClearHostKeyWhenEndpointChanges(
                             focusRow,
-                            EditFocusedText(focusRow, key, connectionName, host, port, userName, password, remoteRoot, ref error),
+                            EditFocusedText(focusRow, key, connectionName, host, port, userName, password, remoteRoot, histories, size, bodyScrollTop, request.AllowTemporaryConnection, ref error),
                             ref hostKeyFingerprint,
                             ref trustHostKey);
                     }
@@ -267,7 +314,7 @@ internal sealed class SftpConnectionDialog
                 default:
                     ClearHostKeyWhenEndpointChanges(
                         focusRow,
-                        EditFocusedText(focusRow, key, connectionName, host, port, userName, password, remoteRoot, ref error),
+                        EditFocusedText(focusRow, key, connectionName, host, port, userName, password, remoteRoot, histories, size, bodyScrollTop, request.AllowTemporaryConnection, ref error),
                         ref hostKeyFingerprint,
                         ref trustHostKey);
                     break;
@@ -303,7 +350,10 @@ internal sealed class SftpConnectionDialog
             }
 
             if (validation.IsAccepted)
+            {
+                histories.Add(connectionName, host, port, userName, remoteRoot);
                 return true;
+            }
 
             error = validation.ErrorMessage;
             result = null;
@@ -443,6 +493,10 @@ internal sealed class SftpConnectionDialog
         CommandLineState userName,
         CommandLineState password,
         CommandLineState remoteRoot,
+        TextFieldHistories histories,
+        ConsoleSize size,
+        int bodyScrollTop,
+        bool allowTemporaryConnection,
         ref string? error)
     {
         CommandLineState? buffer = focusRow switch
@@ -458,7 +512,9 @@ internal sealed class SftpConnectionDialog
         if (buffer is null)
             return false;
 
-        return SingleLineTextInput.HandleKey(buffer, key, ref error) == TextInputKeyResult.TextChanged;
+        var history = histories.ForRow(focusRow);
+        int availableRows = DropdownRows(size, focusRow, bodyScrollTop, allowTemporaryConnection);
+        return SingleLineTextInput.HandleKey(buffer, key, ref error, history, availableRows) == TextInputKeyResult.TextChanged;
     }
 
     private static void ClearHostKeyWhenEndpointChanges(
@@ -505,6 +561,7 @@ internal sealed class SftpConnectionDialog
         CommandLineState userName,
         CommandLineState password,
         CommandLineState remoteRoot,
+        TextFieldHistories histories,
         int bodyScrollTop,
         ref int focusRow,
         ref bool saveConnection,
@@ -540,6 +597,14 @@ internal sealed class SftpConnectionDialog
             error = null;
             if (TryGetTextBuffer(row, connectionName, host, port, userName, password, remoteRoot) is { } buffer)
             {
+                if (row != RowPassword &&
+                    SingleLineTextInput.IsHistoryArrowHit(geometry.FieldX, geometry.FieldWidth, rowY, mouse.X, mouse.Y) &&
+                    histories.ForRow(row) is { } history)
+                {
+                    SingleLineTextInput.TryOpenHistoryDropdown(history, rowY, size.Height);
+                    return true;
+                }
+
                 if (mouse.X >= geometry.FieldX && mouse.X < geometry.FieldX + geometry.FieldWidth)
                     SetTextCursorFromMouse(buffer, mouse.X, geometry.FieldX, geometry.FieldWidth);
                 return true;
@@ -557,6 +622,55 @@ internal sealed class SftpConnectionDialog
         }
 
         return false;
+    }
+
+    private static bool TryHandleHistoryDropdownMouse(
+        MouseConsoleInputEvent mouse,
+        ConsoleSize size,
+        int bodyScrollTop,
+        CommandLineState connectionName,
+        CommandLineState host,
+        CommandLineState port,
+        CommandLineState userName,
+        CommandLineState remoteRoot,
+        TextFieldHistories histories,
+        bool allowTemporaryConnection,
+        ref ScrollBarDragState? historyScrollbarDrag)
+    {
+        var geometry = GetDialogGeometry(size);
+        return TryHandleHistoryDropdownRow(mouse, size, bodyScrollTop, allowTemporaryConnection, geometry, histories, RowConnectionName, connectionName, ref historyScrollbarDrag) ||
+            TryHandleHistoryDropdownRow(mouse, size, bodyScrollTop, allowTemporaryConnection, geometry, histories, RowHost, host, ref historyScrollbarDrag) ||
+            TryHandleHistoryDropdownRow(mouse, size, bodyScrollTop, allowTemporaryConnection, geometry, histories, RowPort, port, ref historyScrollbarDrag) ||
+            TryHandleHistoryDropdownRow(mouse, size, bodyScrollTop, allowTemporaryConnection, geometry, histories, RowUserName, userName, ref historyScrollbarDrag) ||
+            TryHandleHistoryDropdownRow(mouse, size, bodyScrollTop, allowTemporaryConnection, geometry, histories, RowRemoteRoot, remoteRoot, ref historyScrollbarDrag);
+    }
+
+    private static bool TryHandleHistoryDropdownRow(
+        MouseConsoleInputEvent mouse,
+        ConsoleSize size,
+        int bodyScrollTop,
+        bool allowTemporaryConnection,
+        DialogGeometry geometry,
+        TextFieldHistories histories,
+        int row,
+        CommandLineState buffer,
+        ref ScrollBarDragState? historyScrollbarDrag)
+    {
+        if (BodyY(geometry, row, allowTemporaryConnection, bodyScrollTop) is not { } fieldY ||
+            histories.ForRow(row) is not { } history)
+        {
+            return false;
+        }
+
+        return SingleLineTextInput.TryHandleHistoryDropdownMouse(
+            history,
+            buffer,
+            mouse,
+            geometry.FieldX,
+            fieldY,
+            geometry.FieldWidth,
+            size.Height,
+            ref historyScrollbarDrag);
     }
 
     private static CommandLineState? TryGetTextBuffer(
@@ -603,6 +717,7 @@ internal sealed class SftpConnectionDialog
         CommandLineState userName,
         CommandLineState password,
         CommandLineState remoteRoot,
+        TextFieldHistories histories,
         bool saveConnection,
         bool savePassword,
         bool showInDrive,
@@ -681,7 +796,7 @@ internal sealed class SftpConnectionDialog
             void DrawVisibleTextField(int row, string label, CommandLineState buffer, bool mask)
             {
                 if (BodyY(geometry, row, allowTemporaryConnection, bodyScrollTop) is { } y)
-                    DrawTextField(labelX, fieldX, y, fieldWidth, label, buffer, focusRow == row, mask);
+                    DrawTextField(labelX, fieldX, y, fieldWidth, label, buffer, histories.ForRow(row), focusRow == row, mask);
             }
 
             void DrawVisibleReadOnly(int row, string label, string value)
@@ -706,6 +821,7 @@ internal sealed class SftpConnectionDialog
             userName,
             password,
             remoteRoot,
+            histories,
             allowTemporaryConnection,
             bodyScrollTop);
     }
@@ -786,6 +902,19 @@ internal sealed class SftpConnectionDialog
             : null;
     }
 
+    private static int DropdownRows(
+        ConsoleSize size,
+        int focusRow,
+        int bodyScrollTop,
+        bool allowTemporaryConnection)
+    {
+        var geometry = GetDialogGeometry(size);
+        int? fieldY = BodyY(geometry, focusRow, allowTemporaryConnection, bodyScrollTop);
+        return fieldY is null
+            ? 0
+            : SingleLineTextInput.AvailableDropdownContentRows(fieldY.Value, size.Height);
+    }
+
     private void SetFocusedTextCursor(
         DialogGeometry geometry,
         int focusRow,
@@ -795,6 +924,7 @@ internal sealed class SftpConnectionDialog
         CommandLineState userName,
         CommandLineState password,
         CommandLineState remoteRoot,
+        TextFieldHistories histories,
         bool allowTemporaryConnection,
         int bodyScrollTop)
     {
@@ -822,8 +952,13 @@ internal sealed class SftpConnectionDialog
             return;
         }
 
-        int cursorX = SingleLineTextInput.GetCursorX(fieldX, fieldWidth, buffer);
-        if (cursorX >= fieldX + fieldWidth)
+        var history = histories.ForRow(focusRow);
+        if (history is not null)
+            SingleLineTextInput.RenderHistoryDropdown(_screen, fieldX, cursorY, fieldWidth, history);
+
+        int textWidth = history is null ? fieldWidth : Math.Max(1, fieldWidth - 1);
+        int cursorX = SingleLineTextInput.GetCursorX(fieldX, textWidth, buffer);
+        if (cursorX >= fieldX + textWidth)
         {
             _screen.SetCursorVisible(false);
             return;
@@ -842,6 +977,39 @@ internal sealed class SftpConnectionDialog
         int FieldX,
         int FieldWidth);
 
+    private sealed class TextFieldHistories
+    {
+        private readonly SingleLineTextHistoryState _connectionName = HistoryRegistry.GetOrCreate("SftpConnectionDialog.ConnectionName");
+        private readonly SingleLineTextHistoryState _host = HistoryRegistry.GetOrCreate("SftpConnectionDialog.Host");
+        private readonly SingleLineTextHistoryState _port = HistoryRegistry.GetOrCreate("SftpConnectionDialog.Port");
+        private readonly SingleLineTextHistoryState _userName = HistoryRegistry.GetOrCreate("SftpConnectionDialog.UserName");
+        private readonly SingleLineTextHistoryState _remoteRoot = HistoryRegistry.GetOrCreate("SftpConnectionDialog.RemoteRoot");
+
+        public SingleLineTextHistoryState? ForRow(int row) => row switch
+        {
+            RowConnectionName => _connectionName,
+            RowHost => _host,
+            RowPort => _port,
+            RowUserName => _userName,
+            RowRemoteRoot => _remoteRoot,
+            _ => null,
+        };
+
+        public void Add(
+            CommandLineState connectionName,
+            CommandLineState host,
+            CommandLineState port,
+            CommandLineState userName,
+            CommandLineState remoteRoot)
+        {
+            _connectionName.Add(connectionName.Text.Trim());
+            _host.Add(host.Text.Trim());
+            _port.Add(port.Text.Trim());
+            _userName.Add(userName.Text.Trim());
+            _remoteRoot.Add(remoteRoot.Text.Trim());
+        }
+    }
+
     private void DrawTextField(
         int labelX,
         int fieldX,
@@ -849,6 +1017,7 @@ internal sealed class SftpConnectionDialog
         int fieldWidth,
         string label,
         CommandLineState buffer,
+        SingleLineTextHistoryState? history,
         bool focused,
         bool mask)
     {
@@ -864,7 +1033,9 @@ internal sealed class SftpConnectionDialog
             buffer,
             fieldStyle,
             FarDialogStyles.Input,
-            mask);
+            history,
+            maskInput: mask,
+            renderDropdown: false);
     }
 
     private void DrawReadOnly(
