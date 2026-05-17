@@ -122,6 +122,11 @@ internal static class Win32ConsoleApi
         bool bAbsolute,
         ref SmallRect lpConsoleWindow);
 
+    [DllImport("kernel32.dll", SetLastError = true)]
+    private static extern bool SetConsoleScreenBufferSize(
+        IntPtr hConsoleOutput,
+        Coord dwSize);
+
     public static bool TryGetConsoleScreenBufferInfo(IntPtr handle, out ConsoleScreenBufferInfo info) =>
         GetConsoleScreenBufferInfo(handle, out info);
 
@@ -131,6 +136,9 @@ internal static class Win32ConsoleApi
 
     public static bool TrySetConsoleWindowInfo(IntPtr handle, SmallRect window) =>
         SetConsoleWindowInfo(handle, bAbsolute: true, ref window);
+
+    public static bool TrySetConsoleScreenBufferSize(IntPtr handle, Coord size) =>
+        SetConsoleScreenBufferSize(handle, size);
 
     public static IntPtr GetConsoleInputHandle() => GetStdHandle(STD_INPUT_HANDLE);
     public static IntPtr GetConsoleOutputHandle() => GetStdHandle(STD_OUTPUT_HANDLE);

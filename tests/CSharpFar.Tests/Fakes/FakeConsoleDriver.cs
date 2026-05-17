@@ -34,6 +34,7 @@ public sealed class FakeConsoleDriver : IConsoleDriver, IConsoleOutputModeDriver
     public int SetCursorVisibleCallCount { get; private set; }
     public int TrySetCursorPositionInViewportCallCount { get; private set; }
     public bool RenderingOutputMode { get; private set; }
+    public bool ConsoleScrollbackEnabled { get; private set; } = true;
     public Action<FakeConsoleDriver>? BeforeReadInput { get; set; }
     public IReadOnlyList<WriteRecord> WriteRecords => _writeRecords;
     public event Action<WriteRecord>? Wrote;
@@ -177,6 +178,7 @@ public sealed class FakeConsoleDriver : IConsoleDriver, IConsoleOutputModeDriver
     }
     public void SetCursorVisible(bool visible) { CursorVisible = visible; SetCursorVisibleCallCount++; }
     public void SetRenderingOutputMode(bool enabled) { RenderingOutputMode = enabled; }
+    public void SetConsoleScrollbackEnabled(bool enabled) { ConsoleScrollbackEnabled = enabled; }
     public void RestoreApplicationInputMode() { }
 
     public ScreenSnapshot Capture(Rect region)

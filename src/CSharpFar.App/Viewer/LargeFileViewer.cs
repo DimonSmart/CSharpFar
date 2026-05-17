@@ -168,7 +168,6 @@ internal sealed class LargeFileViewer
         LargeFileViewerState state,
         ConsoleSize size)
     {
-        string nameSection = $" {filePath} ";
         string mode = state.IsHexMode ? " HEX" : $" TEXT {state.LineScanner.EncodingDisplayName}";
         string follow = state.FollowMode ? " F" : string.Empty;
         string posSection = reader.Length == 0
@@ -176,11 +175,25 @@ internal sealed class LargeFileViewer
             : $" {FormatPercent(state.TopByteOffset, reader.Length)}%{mode}{follow} ";
 
         int nameWidth = Math.Max(0, size.Width - posSection.Length);
-        if (nameSection.Length > nameWidth)
-            nameSection = nameSection[..nameWidth];
+        string nameSection = FormatHeaderPath(filePath, nameWidth);
 
         string header = nameSection.PadRight(nameWidth) + posSection;
         _screen.Write(0, 0, header, PaletteStyles.PathHeaderActive(_palette));
+    }
+
+    private static string FormatHeaderPath(string filePath, int width)
+    {
+        if (width <= 0)
+            return string.Empty;
+
+        string text = $" {filePath} ";
+        if (text.Length <= width)
+            return text;
+
+        if (width <= 3)
+            return text[^width..];
+
+        return "..." + text[^(width - 3)..];
     }
 
     private LargeFileRenderView DrawTextContent(

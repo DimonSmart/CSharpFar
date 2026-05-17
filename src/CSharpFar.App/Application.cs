@@ -465,6 +465,7 @@ public sealed class Application
     private void Render()
     {
         UpdateQuickViewDirSize();
+        ApplyConsoleScrollbackMode();
         if (HasHiddenPanels)
             RestoreUnderlayForHiddenScreen();
 
@@ -551,6 +552,7 @@ public sealed class Application
 
     private void RenderCommandLineOnly()
     {
+        ApplyConsoleScrollbackMode();
         _screen.SetRenderingOutputMode(true);
         using var frame = _screen.BeginFrame();
 
@@ -881,10 +883,12 @@ public sealed class Application
             _hiddenPanels = HiddenPanels.None;
             _screen.TryScrollViewportToBottom();
             _lastRenderViewport = _screen.GetViewport();
+            ApplyConsoleScrollbackMode();
             return true;
         }
 
         _hiddenPanels = HiddenPanels.Both;
+        ApplyConsoleScrollbackMode();
         _screen.SetCursorVisible(true);
         RestoreUnderlayForHiddenScreen();
         RenderCommandLineOnlyUntilStable();
@@ -913,6 +917,7 @@ public sealed class Application
         }
 
         EnsureActivePanelVisible();
+        ApplyConsoleScrollbackMode();
 
         if (_hiddenPanels == HiddenPanels.Both)
         {
@@ -927,9 +932,13 @@ public sealed class Application
 
     private void RestoreUnderlayForHiddenScreen()
     {
+        ApplyConsoleScrollbackMode();
         _screen.SetRenderingOutputMode(false);
         RestoreOrClearUnderlay();
     }
+
+    private void ApplyConsoleScrollbackMode() =>
+        _screen.SetConsoleScrollbackEnabled(!HasVisiblePanels);
 
     private void RestoreOrClearUnderlay()
     {
@@ -2328,6 +2337,7 @@ public sealed class Application
 
     private void ShowShellUnderlayForCommand()
     {
+        _screen.SetConsoleScrollbackEnabled(true);
         _screen.SetRenderingOutputMode(false);
         RestoreOrClearUnderlay();
 

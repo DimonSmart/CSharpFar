@@ -77,6 +77,36 @@ internal sealed class DriveDialog
                 continue;
             }
 
+            if (input is MouseConsoleInputEvent listMouse &&
+                TryHandleListMouse(listMouse, bounds, items.Count, scrollTop, visible, ref cursor, out bool select))
+            {
+                lastShortcut = null;
+                if (select)
+                {
+                    var clicked = items[cursor];
+                    if (clicked.Volume is { } clickedVol && !IsSelectable(clickedVol.Status))
+                    {
+                        string statusText = clickedVol.Status switch
+                        {
+                            VolumeStatus.NotReady     => "not ready",
+                            VolumeStatus.Disconnected => "disconnected",
+                            _                         => "error",
+                        };
+                        new MessageDialog(_screen, _palette).Show(
+                            "Change drive",
+                            $"{clickedVol.DisplayName}: volume is {statusText}.");
+                        var afterMsg = _screen.GetSize();
+                        var resaved  = _screen.Capture(new Rect(0, 0, afterMsg.Width, afterMsg.Height));
+                        _screen.Restore(resaved);
+                    }
+                    else
+                    {
+                        return clicked;
+                    }
+                }
+                continue;
+            }
+
             if (input is not KeyConsoleInputEvent { Key: var key })
                 continue;
 
@@ -268,6 +298,44 @@ internal sealed class DriveDialog
         });
 
         _screen.SetCursorVisible(false);
+    }
+
+    private static bool TryHandleListMouse(
+        MouseConsoleInputEvent mouse,
+        Rect outerBounds,
+        int itemCount,
+        int scrollTop,
+        int visible,
+        ref int cursor,
+        out bool select)
+    {
+        select = false;
+        if (itemCount == 0 ||
+            mouse.Button != MouseButton.Left ||
+            mouse.Kind is not (MouseEventKind.Down or MouseEventKind.Click or MouseEventKind.DoubleClick))
+        {
+            return false;
+        }
+
+        // Content area: outer + outer border (1) + inner border (1) = +2
+        int listX = outerBounds.X + 2;
+        int listY = outerBounds.Y + 2 + 2; // +2 for header + separator
+        int listRight = outerBounds.X + outerBounds.Width - 2;
+        int listBottom = listY + visible;
+
+        if (mouse.X < listX || mouse.X >= listRight ||
+            mouse.Y < listY || mouse.Y >= listBottom)
+        {
+            return false;
+        }
+
+        int index = scrollTop + mouse.Y - listY;
+        if (index < 0 || index >= itemCount)
+            return false;
+
+        cursor = index;
+        select = mouse.Kind == MouseEventKind.DoubleClick;
+        return true;
     }
 
     private static bool TryHandleScrollbarMouse(

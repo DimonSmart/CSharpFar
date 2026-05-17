@@ -298,6 +298,18 @@ public class ScreenRendererTests
     }
 
     [Fact]
+    public void SetConsoleScrollbackEnabled_DelegatesToDriver()
+    {
+        var (renderer, driver) = Create();
+
+        renderer.SetConsoleScrollbackEnabled(false);
+        Assert.False(driver.ConsoleScrollbackEnabled);
+
+        renderer.SetConsoleScrollbackEnabled(true);
+        Assert.True(driver.ConsoleScrollbackEnabled);
+    }
+
+    [Fact]
     public void DrawBox_RendersCorrectBorderCharacters()
     {
         var (renderer, driver) = Create(20, 10);

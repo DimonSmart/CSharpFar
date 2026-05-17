@@ -19,11 +19,14 @@ public sealed class SystemConsoleDriver : IConsoleDriver, IConsoleOutputModeDriv
     private readonly IntPtr _inputHandle;
     private readonly uint _originalInputMode;
     private readonly uint _originalOutputMode;
+    private readonly Coord _originalScreenBufferSize;
     private readonly bool _restoreInputMode;
     private readonly bool _restoreOutputMode;
+    private readonly bool _restoreScreenBufferSize;
     private readonly Win32ModifierKeyTracker? _modifierKeyTracker;
     private ConsoleViewport _lastInputViewport;
     private bool _renderingOutputMode;
+    private bool _consoleScrollbackEnabled = true;
     private bool _disposed;
 
     public SystemConsoleDriver()
@@ -34,6 +37,9 @@ public sealed class SystemConsoleDriver : IConsoleDriver, IConsoleOutputModeDriv
             _inputHandle = Win32ConsoleApi.GetConsoleInputHandle();
             _restoreInputMode = TryConfigureInputMode(_inputHandle, out _originalInputMode);
             _restoreOutputMode = Win32ConsoleApi.TryGetConsoleMode(_consoleHandle, out _originalOutputMode);
+            _restoreScreenBufferSize = Win32ConsoleApi.TryGetConsoleScreenBufferInfo(_consoleHandle, out var sbi);
+            if (_restoreScreenBufferSize)
+                _originalScreenBufferSize = sbi.dwSize;
             _modifierKeyTracker = new Win32ModifierKeyTracker();
         }
 
@@ -50,6 +56,8 @@ public sealed class SystemConsoleDriver : IConsoleDriver, IConsoleOutputModeDriv
             Win32ConsoleApi.TrySetConsoleMode(_inputHandle, _originalInputMode);
         if (OperatingSystem.IsWindows() && _restoreOutputMode)
             Win32ConsoleApi.TrySetConsoleMode(_consoleHandle, _originalOutputMode);
+        if (OperatingSystem.IsWindows() && _restoreScreenBufferSize)
+            TryRestoreConsoleScrollback();
         if (OperatingSystem.IsWindows())
             _modifierKeyTracker?.Dispose();
 
@@ -73,6 +81,22 @@ public sealed class SystemConsoleDriver : IConsoleDriver, IConsoleOutputModeDriv
 
         if (Win32ConsoleApi.TrySetConsoleMode(_consoleHandle, mode))
             _renderingOutputMode = enabled;
+    }
+
+    public void SetConsoleScrollbackEnabled(bool enabled)
+    {
+        if (!OperatingSystem.IsWindows() || !_restoreScreenBufferSize)
+            return;
+
+        if (enabled)
+        {
+            if (TryRestoreConsoleScrollback())
+                _consoleScrollbackEnabled = true;
+            return;
+        }
+
+        if (TryLockConsoleBufferToViewport())
+            _consoleScrollbackEnabled = false;
     }
 
     public ConsoleViewport GetViewport()
@@ -393,6 +417,56 @@ public sealed class SystemConsoleDriver : IConsoleDriver, IConsoleOutputModeDriv
         appMode &= ~Win32ConsoleApi.ENABLE_INSERT_MODE;
         appMode &= ~Win32ConsoleApi.ENABLE_VIRTUAL_TERMINAL_INPUT;
         return appMode;
+    }
+
+    [SupportedOSPlatform("windows")]
+    private bool TryRestoreConsoleScrollback()
+    {
+        if (_consoleScrollbackEnabled)
+            return true;
+
+        if (!Win32ConsoleApi.TryGetConsoleScreenBufferInfo(_consoleHandle, out var sbi))
+            return false;
+
+        short width = (short)Math.Max(_originalScreenBufferSize.X, sbi.srWindow.Right - sbi.srWindow.Left + 1);
+        short height = (short)Math.Max(_originalScreenBufferSize.Y, sbi.srWindow.Bottom - sbi.srWindow.Top + 1);
+
+        return Win32ConsoleApi.TrySetConsoleScreenBufferSize(
+            _consoleHandle,
+            new Coord { X = width, Y = height });
+    }
+
+    [SupportedOSPlatform("windows")]
+    private bool TryLockConsoleBufferToViewport()
+    {
+        if (!Win32ConsoleApi.TryGetConsoleScreenBufferInfo(_consoleHandle, out var sbi))
+            return false;
+
+        int width = sbi.srWindow.Right - sbi.srWindow.Left + 1;
+        int height = sbi.srWindow.Bottom - sbi.srWindow.Top + 1;
+        if (width <= 0 || height <= 0)
+            return false;
+
+        var topLeftWindow = new SmallRect
+        {
+            Left = 0,
+            Top = 0,
+            Right = (short)(width - 1),
+            Bottom = (short)(height - 1),
+        };
+
+        if ((sbi.srWindow.Left != topLeftWindow.Left ||
+             sbi.srWindow.Top != topLeftWindow.Top ||
+             sbi.srWindow.Right != topLeftWindow.Right ||
+             sbi.srWindow.Bottom != topLeftWindow.Bottom) &&
+            !Win32ConsoleApi.TrySetConsoleWindowInfo(_consoleHandle, topLeftWindow))
+        {
+            return false;
+        }
+
+        return Win32ConsoleApi.TrySetConsoleScreenBufferSize(
+            _consoleHandle,
+            new Coord { X = (short)width, Y = (short)height });
     }
 
     private bool HasVisibleViewportChanged()

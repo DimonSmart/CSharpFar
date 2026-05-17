@@ -80,6 +80,12 @@ public sealed class ScreenRenderer
             outputModeDriver.SetRenderingOutputMode(enabled);
     }
 
+    public void SetConsoleScrollbackEnabled(bool enabled)
+    {
+        if (_driver is IConsoleOutputModeDriver outputModeDriver)
+            outputModeDriver.SetConsoleScrollbackEnabled(enabled);
+    }
+
     public void RestoreApplicationInputMode()
     {
         if (_driver is IConsoleOutputModeDriver outputModeDriver)

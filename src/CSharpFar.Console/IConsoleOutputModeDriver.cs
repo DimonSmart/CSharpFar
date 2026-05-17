@@ -4,6 +4,8 @@ public interface IConsoleOutputModeDriver
 {
     void SetRenderingOutputMode(bool enabled);
 
+    void SetConsoleScrollbackEnabled(bool enabled);
+
     /// <summary>
     /// Re-applies the application's required console input mode.
     /// Call this after running a child process that may have changed the console input mode.

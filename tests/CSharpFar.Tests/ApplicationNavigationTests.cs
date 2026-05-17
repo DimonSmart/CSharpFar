@@ -452,6 +452,86 @@ public sealed class ApplicationNavigationTests : IDisposable
         Assert.Equal(PanelSide.Right, GetActiveSide(app));
     }
 
+    [Fact]
+    public void Run_VisiblePanels_DisablesConsoleScrollback()
+    {
+        var fs = new FakeFileSystemService();
+        fs.AddDirectory(_tempDir);
+
+        var driver = new FakeConsoleDriver(width: 80, height: 12);
+        driver.EnqueueKey(Key(ConsoleKey.F10));
+
+        var app = CreateApp(fs, driver, _tempDir);
+        app.Run();
+
+        Assert.False(driver.ConsoleScrollbackEnabled);
+    }
+
+    [Fact]
+    public void Run_HiddenBothPanels_EnablesConsoleScrollback()
+    {
+        var fs = new FakeFileSystemService();
+        fs.AddDirectory(_tempDir);
+
+        var driver = new FakeConsoleDriver(width: 80, height: 12);
+        driver.EnqueueKey(Key(ConsoleKey.O, keyChar: '\u000f', control: true));
+        driver.EnqueueKey(Key(ConsoleKey.F10));
+        driver.BeforeReadInput = beforeHide =>
+        {
+            Assert.False(beforeHide.ConsoleScrollbackEnabled);
+            beforeHide.BeforeReadInput = afterHide =>
+                Assert.True(afterHide.ConsoleScrollbackEnabled);
+        };
+
+        var app = CreateApp(fs, driver, _tempDir);
+        app.Run();
+    }
+
+    [Fact]
+    public void Run_PartiallyHiddenPanels_KeepsConsoleScrollbackDisabled()
+    {
+        var fs = new FakeFileSystemService();
+        fs.AddDirectory(_tempDir);
+
+        var driver = new FakeConsoleDriver(width: 80, height: 12);
+        driver.EnqueueKey(Key(ConsoleKey.F1, control: true));
+        driver.EnqueueKey(Key(ConsoleKey.F10));
+        driver.BeforeReadInput = beforeHide =>
+        {
+            Assert.False(beforeHide.ConsoleScrollbackEnabled);
+            beforeHide.BeforeReadInput = afterPartialHide =>
+                Assert.False(afterPartialHide.ConsoleScrollbackEnabled);
+        };
+
+        var app = CreateApp(fs, driver, _tempDir);
+        app.Run();
+    }
+
+    [Fact]
+    public void Run_ShowPanelsAgain_DisablesConsoleScrollback()
+    {
+        var fs = new FakeFileSystemService();
+        fs.AddDirectory(_tempDir);
+
+        var driver = new FakeConsoleDriver(width: 80, height: 12);
+        driver.EnqueueKey(Key(ConsoleKey.O, keyChar: '\u000f', control: true));
+        driver.EnqueueKey(Key(ConsoleKey.O, keyChar: '\u000f', control: true));
+        driver.EnqueueKey(Key(ConsoleKey.F10));
+        driver.BeforeReadInput = beforeHide =>
+        {
+            Assert.False(beforeHide.ConsoleScrollbackEnabled);
+            beforeHide.BeforeReadInput = afterHide =>
+            {
+                Assert.True(afterHide.ConsoleScrollbackEnabled);
+                afterHide.BeforeReadInput = afterShow =>
+                    Assert.False(afterShow.ConsoleScrollbackEnabled);
+            };
+        };
+
+        var app = CreateApp(fs, driver, _tempDir);
+        app.Run();
+    }
+
     [Theory]
     [InlineData(1, 1)]
     [InlineData(2, 3)]
