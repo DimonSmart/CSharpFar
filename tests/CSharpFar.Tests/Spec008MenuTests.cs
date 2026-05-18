@@ -1,7 +1,7 @@
 using CSharpFar.App;
 using CSharpFar.App.Commands;
 using CSharpFar.App.Menu;
-using CSharpFar.App.Plugins;
+using CSharpFar.App.Modules;
 using CSharpFar.App.Rendering;
 using CSharpFar.Console;
 using CSharpFar.Console.Input;
@@ -10,6 +10,8 @@ using CSharpFar.Core.Abstractions;
 using CSharpFar.Core.History;
 using CSharpFar.Core.Menu;
 using CSharpFar.Core.Models;
+using CSharpFar.Module.Ftp;
+using CSharpFar.Module.Sftp;
 using CSharpFar.Tests.Fakes;
 
 namespace CSharpFar.Tests;
@@ -474,13 +476,13 @@ public sealed class Spec008MenuProviderAndCommandTests : IDisposable
         Assert.Equal(PanelSide.Right, ((SetPanelViewModeArgs)rightFull.CommandArgs!).PanelSide);
         Assert.Equal(SortMode.LastWriteTime, ((SetPanelSortModeArgs)lastWrite.CommandArgs!).SortMode);
         Assert.Contains(menu.Items[2].Children, item =>
-            item.CommandId == MenuCommandIds.PluginOpen &&
-            item.CommandArgs is PluginOpenCommandArgs { PluginId: var pluginId } &&
-            pluginId == SftpPluginIds.PluginId);
+            item.CommandId == MenuCommandIds.ModuleOpen &&
+            item.CommandArgs is ModuleOpenCommandArgs { ActionId: var actionId } &&
+            actionId == SftpModuleIds.MenuActionId);
         Assert.Contains(menu.Items[2].Children, item =>
-            item.CommandId == MenuCommandIds.PluginOpen &&
-            item.CommandArgs is PluginOpenCommandArgs { PluginId: var pluginId } &&
-            pluginId == FtpPluginIds.PluginId);
+            item.CommandId == MenuCommandIds.ModuleOpen &&
+            item.CommandArgs is ModuleOpenCommandArgs { ActionId: var actionId } &&
+            actionId == FtpModuleIds.MenuActionId);
         Assert.Contains(menu.Items[3].Children, item => item.CommandId == MenuCommandIds.SettingsSave);
     }
 
@@ -565,16 +567,14 @@ public sealed class Spec008MenuProviderAndCommandTests : IDisposable
             RightViewMode = PanelViewMode.Full,
             Settings = settings,
             CanSaveSettings = canSaveSettings,
-            PluginMenuItems =
+            ModuleMenuItems =
             [
-                new PluginMenuProjection(
-                    SftpPluginIds.PluginId,
-                    SftpPluginIds.PluginMenuItemId,
+                new ModuleMenuProjection(
+                    SftpModuleIds.MenuActionId,
                     "SFTP...",
                     'S'),
-                new PluginMenuProjection(
-                    FtpPluginIds.PluginId,
-                    FtpPluginIds.PluginMenuItemId,
+                new ModuleMenuProjection(
+                    FtpModuleIds.MenuActionId,
                     "FTP/FTPS...",
                     'F'),
             ],

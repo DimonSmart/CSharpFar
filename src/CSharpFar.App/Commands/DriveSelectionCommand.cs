@@ -43,16 +43,15 @@ internal abstract class DriveSelectionCommand : IApplicationCommand
                 Action = VolumeSelectionAction.OpenVolume,
             })
             .ToList();
-        foreach (var pluginItem in context.PluginDiskMenuItems)
+        foreach (var moduleItem in context.ModuleDiskMenuItems)
         {
             items.Add(new VolumeSelectionItem
             {
-                Label = pluginItem.Text,
-                Shortcut = pluginItem.HotKey?.ToString(),
-                Action = VolumeSelectionAction.OpenPlugin,
-                PluginId = pluginItem.PluginId,
-                PluginItemId = pluginItem.ItemId,
-                PluginPanelSide = PanelSide,
+                Label = moduleItem.Text,
+                Shortcut = moduleItem.HotKey?.ToString(),
+                Action = VolumeSelectionAction.OpenModule,
+                ModuleActionId = moduleItem.ActionId,
+                ModulePanelSide = PanelSide,
             });
         }
 
@@ -62,10 +61,10 @@ internal abstract class DriveSelectionCommand : IApplicationCommand
         if (selected is null)
             return ApplicationCommandResult.Rendered();
 
-        if (selected.Action == VolumeSelectionAction.OpenPlugin)
+        if (selected.Action == VolumeSelectionAction.OpenModule)
         {
-            if (selected.PluginId is { } pluginId && selected.PluginItemId is { } itemId)
-                return context.OpenPluginDiskMenuItem(pluginId, itemId, selected.PluginPanelSide ?? PanelSide);
+            if (selected.ModuleActionId is { } actionId)
+                return context.OpenModuleDiskMenuItem(actionId, selected.ModulePanelSide ?? PanelSide);
             return ApplicationCommandResult.Rendered();
         }
 

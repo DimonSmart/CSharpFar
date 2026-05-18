@@ -1,5 +1,5 @@
 using CSharpFar.App.Commands;
-using CSharpFar.App.Plugins;
+using CSharpFar.App.Modules;
 using CSharpFar.Core.Menu;
 using CSharpFar.Core.Models;
 
@@ -14,7 +14,7 @@ public sealed class DefaultMenuDefinitionProvider
             [
                 BuildPanelMenu("Left", PanelSide.Left, context.LeftPanel, context.LeftViewMode),
                 BuildPanelMenu("Right", PanelSide.Right, context.RightPanel, context.RightViewMode),
-                BuildPluginsMenu(context.PluginMenuItems),
+                BuildModuleMenu(context.ModuleMenuItems),
                 BuildOptionsMenu(context),
             ],
         };
@@ -78,15 +78,16 @@ public sealed class DefaultMenuDefinitionProvider
         };
     }
 
-    private static TopMenuItemDefinition BuildPluginsMenu(IReadOnlyList<PluginMenuProjection> pluginMenuItems)
+    private static TopMenuItemDefinition BuildModuleMenu(
+        IReadOnlyList<ModuleMenuProjection> moduleMenuItems)
     {
-        var children = pluginMenuItems
+        var children = moduleMenuItems
             .Select(item => Command(
-                $"Plugins.{item.PluginId:D}.{item.ItemId:D}",
+                $"Plugins.Module.{item.ActionId:D}",
                 item.Text,
                 item.HotKey,
-                MenuCommandIds.PluginOpen,
-                new PluginOpenCommandArgs(item.PluginId, item.ItemId)))
+                MenuCommandIds.ModuleOpen,
+                new ModuleOpenCommandArgs(item.ActionId)))
             .ToList();
 
         if (children.Count == 0)

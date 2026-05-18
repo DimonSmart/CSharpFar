@@ -3,20 +3,25 @@ using System.Xml.Linq;
 using CSharpFar.App;
 using CSharpFar.App.Commands;
 using CSharpFar.App.Menu;
-using CSharpFar.App.Plugins;
+using CSharpFar.App.Modules;
 using CSharpFar.Console;
 using CSharpFar.Core.Abstractions;
 using CSharpFar.Core.History;
 using CSharpFar.Core.Menu;
 using CSharpFar.Core.Models;
 using CSharpFar.Core.Services;
-using CSharpFar.Plugin.Abstractions;
+using CSharpFar.FarNetHost;
 using CSharpFar.Tests.Fakes;
+using CSharpFar.Tests.Fixtures.FarNetDependency;
+using CSharpFar.Tests.Fixtures.FarNetModule;
 
 namespace CSharpFar.Tests;
 
 public sealed class Spec037PluginSystemTests : IDisposable
 {
+    private static readonly Guid FarNetDiskToolId =
+        Guid.Parse("2e2ee555-7153-4c4a-a73b-79b38b42c5d4");
+
     private readonly string _tempDir;
 
     public Spec037PluginSystemTests()
@@ -27,43 +32,17 @@ public sealed class Spec037PluginSystemTests : IDisposable
 
     public void Dispose()
     {
-        if (Directory.Exists(_tempDir))
-            Directory.Delete(_tempDir, recursive: true);
+        GC.Collect();
+        GC.WaitForPendingFinalizers();
+        GC.Collect();
+
+        DeleteTempDirectory();
     }
 
     [Fact]
-    public void PluginManager_RejectsDuplicatePluginIds()
+    public void MenuProvider_ProjectsNativeModuleMenuItems()
     {
-        var pluginId = Guid.Parse("84cf56e5-4877-4c1e-8130-958d9f7963dc");
-
-        Assert.Throws<InvalidOperationException>(() => new PluginManager(
-            [
-                new RecordingPlugin(pluginId),
-                new RecordingPlugin(pluginId),
-            ],
-            CreateStartupInfo()));
-    }
-
-    [Fact]
-    public void PluginManager_RejectsDuplicatePluginMenuItemIds()
-    {
-        var itemId = Guid.Parse("af25476f-820c-4fec-8554-e957df21d761");
-        var plugin = new RecordingPlugin(
-            Guid.Parse("343d07c3-f9b6-4e3b-b618-3c73a9a5394a"),
-            pluginMenuItems:
-            [
-                new PluginMenuItem { ItemId = itemId, Text = "One" },
-                new PluginMenuItem { ItemId = itemId, Text = "Two" },
-            ]);
-
-        Assert.Throws<InvalidOperationException>(() => new PluginManager([plugin], CreateStartupInfo()));
-    }
-
-    [Fact]
-    public void MenuProvider_ProjectsPluginMenuItems()
-    {
-        var pluginId = Guid.Parse("474cc664-8850-47c9-a451-96fe45924e7d");
-        var itemId = Guid.Parse("a2ae83c6-abef-4240-aae2-8b113c7c8659");
+        var actionId = Guid.Parse("d5eed145-392c-4eb9-81d0-66ed90c53ad6");
 
         var menu = new DefaultMenuDefinitionProvider().BuildMenu(new MenuBuildContext
         {
@@ -74,46 +53,28 @@ public sealed class Spec037PluginSystemTests : IDisposable
             RightViewMode = PanelViewMode.Full,
             Settings = new AppSettings(),
             CanSaveSettings = false,
-            PluginMenuItems = [new PluginMenuProjection(pluginId, itemId, "Network...", 'N')],
+            ModuleMenuItems = [new ModuleMenuProjection(actionId, "FarNet tool", 'F')],
         });
 
-        var pluginItem = menu.Items.Single(item => item.Text == "Plugins")
-            .Children.Single(item => item.Text == "Network...");
-        Assert.Equal(MenuCommandIds.PluginOpen, pluginItem.CommandId);
-        var args = Assert.IsType<PluginOpenCommandArgs>(pluginItem.CommandArgs);
-        Assert.Equal(pluginId, args.PluginId);
-        Assert.Equal(itemId, args.ItemId);
+        var moduleItem = menu.Items.Single(item => item.Text == "Plugins")
+            .Children.Single(item => item.Text == "FarNet tool");
+        Assert.Equal(MenuCommandIds.ModuleOpen, moduleItem.CommandId);
+        var args = Assert.IsType<ModuleOpenCommandArgs>(moduleItem.CommandArgs);
+        Assert.Equal(actionId, args.ActionId);
     }
 
-    [Theory]
-    [InlineData(ConsoleKey.F1, PluginOpenFrom.LeftDiskMenu)]
-    [InlineData(ConsoleKey.F2, PluginOpenFrom.RightDiskMenu)]
-    public void DriveSelection_DispatchesPluginDiskMenuItems(
-        ConsoleKey functionKey,
-        PluginOpenFrom expectedOpenFrom)
+    [Fact]
+    public void Application_DispatchesNativeFarNetDiskMenuItem()
     {
-        var plugin = new RecordingPlugin(
-            Guid.Parse("58ac4021-6c3a-44ac-a514-bf6fdfbb92ec"),
-            diskMenuItems:
-            [
-                new PluginMenuItem
-                {
-                    ItemId = Guid.Parse("6ec5190e-3c45-4013-b82d-df13d56772a7"),
-                    Text = "Network",
-                    HotKey = 'N',
-                },
-            ]);
+        using var host = CreateFarNetModuleHost();
         var driver = new FakeConsoleDriver();
-        driver.EnqueueKey(new ConsoleKeyInfo('\0', functionKey, shift: false, alt: true, control: false));
-        driver.EnqueueKey(new ConsoleKeyInfo('n', ConsoleKey.N, shift: false, alt: false, control: false));
-        driver.EnqueueKey(new ConsoleKeyInfo('\0', ConsoleKey.F10, shift: false, alt: false, control: false));
+        driver.EnqueueKey(new ConsoleKeyInfo('\r', ConsoleKey.Enter, shift: false, alt: false, control: false));
+        var app = CreateApp(driver, farNetModuleHost: host);
 
-        var app = CreateApp(driver, plugin);
-        app.Run();
+        var result = app.OpenModuleDiskMenuItem(FarNetDiskToolId, PanelSide.Left);
 
-        var openInfo = Assert.Single(plugin.OpenCalls);
-        Assert.Equal(expectedOpenFrom, openInfo.OpenFrom);
-        Assert.Equal(expectedOpenFrom == PluginOpenFrom.LeftDiskMenu ? PanelSide.Left : PanelSide.Right, openInfo.PanelSide);
+        Assert.True(result.ShouldRender);
+        Assert.Contains(driver.WriteRecords, record => record.Text.Contains("left", StringComparison.Ordinal));
     }
 
     [Fact]
@@ -148,7 +109,9 @@ public sealed class Spec037PluginSystemTests : IDisposable
         Assert.DoesNotContain("FluentFTP", packageNames);
     }
 
-    private Application CreateApp(FakeConsoleDriver driver, params ICSharpFarPlugin[] plugins)
+    private Application CreateApp(
+        FakeConsoleDriver driver,
+        FarNetModuleHost? farNetModuleHost = null)
     {
         var fs = new FakeFileSystemService();
         fs.AddDirectory(_tempDir);
@@ -164,21 +127,29 @@ public sealed class Spec037PluginSystemTests : IDisposable
             new NoOpFileOperationService(),
             new InMemoryHistoryStore(),
             settings,
-            plugins: plugins,
+            farNetModuleHost: farNetModuleHost,
+            enableBuiltInNetworkModules: false,
             configDirectory: _tempDir);
     }
 
-    private PluginStartupInfo CreateStartupInfo() =>
-        new()
-        {
-            Ui = new PluginUiServices
-            {
-                Screen = new ScreenRenderer(new FakeConsoleDriver()),
-                Palette = () => PaletteRegistry.Default,
-            },
-            Settings = new PluginSettingsService(_tempDir),
-            Panels = new FakePluginPanelHost(),
-        };
+    private FarNetModuleHost CreateFarNetModuleHost()
+    {
+        string modulesRoot = Path.Combine(_tempDir, "FarNet", "Modules");
+        string moduleName = typeof(MessageInputTool).Assembly.GetName().Name!;
+        string moduleDirectory = Path.Combine(modulesRoot, moduleName);
+        Directory.CreateDirectory(moduleDirectory);
+        CopyAssembly(typeof(MessageInputTool).Assembly, moduleDirectory);
+        CopyAssembly(typeof(MissingDependencyMarker).Assembly, moduleDirectory);
+
+        return new FarNetModuleHost(modulesRoot);
+    }
+
+    private static void CopyAssembly(Assembly assembly, string targetDirectory)
+    {
+        string sourcePath = assembly.Location;
+        string targetPath = Path.Combine(targetDirectory, Path.GetFileName(sourcePath));
+        File.Copy(sourcePath, targetPath, overwrite: true);
+    }
 
     private static string FindRepoRoot()
     {
@@ -193,69 +164,25 @@ public sealed class Spec037PluginSystemTests : IDisposable
         throw new InvalidOperationException("Repository root was not found.");
     }
 
-    private sealed class RecordingPlugin : ICSharpFarPlugin
+    private void DeleteTempDirectory()
     {
-        private readonly Guid _pluginId;
-        private readonly IReadOnlyList<PluginMenuItem> _pluginMenuItems;
-        private readonly IReadOnlyList<PluginMenuItem> _diskMenuItems;
+        if (!Directory.Exists(_tempDir))
+            return;
 
-        public RecordingPlugin(
-            Guid pluginId,
-            IReadOnlyList<PluginMenuItem>? pluginMenuItems = null,
-            IReadOnlyList<PluginMenuItem>? diskMenuItems = null)
+        for (int attempt = 0; attempt < 5; attempt++)
         {
-            _pluginId = pluginId;
-            _pluginMenuItems = pluginMenuItems ??
-            [
-                new PluginMenuItem
-                {
-                    ItemId = Guid.Parse("046be828-8aa4-4da1-924e-dc1eb3f3d49c"),
-                    Text = "Plugin...",
-                },
-            ];
-            _diskMenuItems = diskMenuItems ?? [];
-        }
-
-        public List<PluginOpenInfo> OpenCalls { get; } = [];
-
-        public PluginGlobalInfo GetGlobalInfo() =>
-            new()
+            try
             {
-                PluginId = _pluginId,
-                Title = "Recording plugin",
-            };
-
-        public PluginInfo GetPluginInfo() =>
-            new()
+                Directory.Delete(_tempDir, recursive: true);
+                return;
+            }
+            catch (UnauthorizedAccessException) when (attempt < 4)
             {
-                PluginMenuItems = _pluginMenuItems,
-                DiskMenuItems = _diskMenuItems,
-            };
-
-        public void SetStartupInfo(PluginStartupInfo startupInfo)
-        {
-        }
-
-        public PluginOpenResult Open(PluginOpenInfo openInfo)
-        {
-            OpenCalls.Add(openInfo);
-            return PluginOpenResult.Completed();
-        }
-    }
-
-    private sealed class FakePluginPanelHost : IPluginPanelHost
-    {
-        public PanelSide ActiveSide => PanelSide.Left;
-
-        public FilePanelState GetPanelState(PanelSide panelSide) =>
-            new() { CurrentDirectory = AppContext.BaseDirectory };
-
-        public void OpenPanel(PanelSide panelSide, IPluginPanel panel)
-        {
-        }
-
-        public void RefreshPanels()
-        {
+                GC.Collect();
+                GC.WaitForPendingFinalizers();
+                GC.Collect();
+                Thread.Sleep(50);
+            }
         }
     }
 

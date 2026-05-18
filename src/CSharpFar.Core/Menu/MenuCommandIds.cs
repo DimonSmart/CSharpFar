@@ -7,7 +7,7 @@ public static class MenuCommandIds
     public const string PanelToggleReverseSort = "panel.toggleReverseSort";
     public const string PanelRefresh = "panel.refresh";
 
-    public const string PluginOpen = "plugin.open";
+    public const string ModuleOpen = "module.open";
 
     public const string SettingsOpenPanelSettings = "settings.openPanelSettings";
     public const string SettingsToggleShowHiddenAndSystemFiles = "settings.toggleShowHiddenAndSystemFiles";

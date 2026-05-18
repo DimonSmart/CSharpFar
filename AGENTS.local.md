@@ -33,3 +33,6 @@ Read `AGENTS.md` first, then apply the rules here with higher priority.
 - Before adding or changing UI controls, read `docs/controls-registry.md` and
   prefer extending an existing control when its responsibility already matches
   the requested behavior.
+- FarNet compatibility should be modeled as CSharpFar's native extension domain
+  model, not as a proxy plugin layered on top of a separate CSharpFar plugin
+  abstraction.

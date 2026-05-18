@@ -32,7 +32,7 @@ internal static class DefaultApplicationCommands
         new PanelSetSortModeCommand(),
         new PanelToggleReverseSortCommand(),
         new PanelRefreshCommand(),
-        new PluginOpenCommand(),
+        new ModuleOpenCommand(),
         new OpenSettingsCommand(),
         new ToggleShowHiddenAndSystemFilesCommand(),
         new ToggleHighlightFilesCommand(),

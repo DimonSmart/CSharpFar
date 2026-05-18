@@ -1,3 +1,3 @@
 global using CSharpFar.Ui;
-global using CSharpFar.Plugin.Ftp;
-global using CSharpFar.Plugin.Sftp;
+global using CSharpFar.Module.Ftp;
+global using CSharpFar.Module.Sftp;

@@ -3,7 +3,7 @@ using CSharpFar.App.Commands;
 using CSharpFar.App.FunctionKeys;
 using CSharpFar.App.HitTesting;
 using CSharpFar.App.Menu;
-using CSharpFar.App.Plugins;
+using CSharpFar.App.Modules;
 using CSharpFar.App.Rendering;
 using CSharpFar.App.Editor;
 using CSharpFar.App.UserMenu;
@@ -19,7 +19,10 @@ using CSharpFar.Core.Menu;
 using CSharpFar.Core.Models;
 using CSharpFar.Core.Services;
 using CSharpFar.FileSystem;
-using CSharpFar.Plugin.Abstractions;
+using CSharpFar.Module.Abstractions;
+using CSharpFar.Module.Ftp;
+using CSharpFar.Module.Sftp;
+using CSharpFar.FarNetHost;
 using CSharpFar.Shell;
 using AppSettingsAlias = CSharpFar.Core.Models.AppSettings;
 
@@ -37,7 +40,7 @@ public sealed class Application
     private readonly IFileOperationService _fileOps;
     private readonly ISearchService _searchService;
     private readonly FilePanelSourceRegistry _sourceRegistry;
-    private readonly PluginManager _pluginManager;
+    private readonly NativeModuleCatalog _moduleCatalog;
     private readonly IHistoryStore _history;
     private readonly AppSettingsAlias _settings;
     private readonly UserMenuStore _userMenu;
@@ -162,7 +165,10 @@ public sealed class Application
         ISearchService?              searchService     = null,
         FilePanelSourceRegistry?     sourceRegistry    = null,
         ICredentialStore?            credentialStore   = null,
-        IReadOnlyList<ICSharpFarPlugin>? plugins = null,
+        SftpModule?                  sftpModule        = null,
+        FtpModule?                   ftpModule         = null,
+        FarNetModuleHost?            farNetModuleHost  = null,
+        bool                         enableBuiltInNetworkModules = true,
         string?                      configDirectory   = null)
     {
         _screen       = screen;
@@ -192,21 +198,31 @@ public sealed class Application
         _locationService  = locationService;
         _menuController   = new TopMenuController(_menuState, ExecuteMenuCommand);
         _palette          = PaletteRegistry.Resolve(_settings.Ui.Palette);
-        _pluginManager    = new PluginManager(
-            plugins ?? [],
-            new PluginStartupInfo
+        string effectiveConfigDirectory = configDirectory ?? Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+            "CSharpFar");
+        var moduleUiServices = new ModuleUiServices
+        {
+            Screen = _screen,
+            Palette = () => _palette,
+        };
+        farNetModuleHost?.Initialize(new FarNetModuleHostServices
+        {
+            Ui = moduleUiServices,
+            DataRoot = Path.Combine(effectiveConfigDirectory, "FarNet"),
+            GetActivePanelSide = () => ActiveSide,
+            GetPanelState = GetPanelState,
+        });
+        _moduleCatalog = CreateModuleCatalog(
+            enableBuiltInNetworkModules ? sftpModule ?? new SftpModule() : null,
+            enableBuiltInNetworkModules ? ftpModule ?? new FtpModule() : null,
+            farNetModuleHost,
+            new ModuleStartupInfo
             {
-                Ui = new PluginUiServices
-                {
-                    Screen = _screen,
-                    Palette = () => _palette,
-                },
-                Settings = new PluginSettingsService(
-                    configDirectory ?? Path.Combine(
-                        Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-                        "CSharpFar")),
+                Ui = moduleUiServices,
+                Settings = new ModuleSettingsService(effectiveConfigDirectory),
                 Credentials = credentialStore,
-                Panels = new ApplicationPluginPanelHost(this),
+                Panels = new ApplicationModulePanelHost(this),
             });
         _commandRegistry = ApplicationCommandRegistry.CreateDefault();
         _commandContext   = new ApplicationCommandContext(this);
@@ -233,6 +249,71 @@ public sealed class Application
         _ctrl.LoadDirectory(_right, rightStart, opts);
     }
 
+    private static NativeModuleCatalog CreateModuleCatalog(
+        SftpModule? sftpModule,
+        FtpModule? ftpModule,
+        FarNetModuleHost? farNetModuleHost,
+        ModuleStartupInfo startupInfo)
+    {
+        var catalog = new NativeModuleCatalog();
+
+        if (sftpModule is not null)
+        {
+            sftpModule.Initialize(startupInfo);
+            catalog.AddMenuAction(
+                new ModuleMenuProjection(SftpModuleIds.MenuActionId, "SFTP...", 'S'),
+                sftpModule.OpenFromMenu);
+            catalog.AddDiskMenuAction(
+                new ModuleMenuProjection(SftpModuleIds.DiskActionId, "SFTP", 'S'),
+                sftpModule.OpenFromDiskMenu);
+            catalog.AddCommandPrefix("sftp", (commandLine, side) => sftpModule.OpenFromCommandLine(side, commandLine));
+        }
+
+        if (ftpModule is not null)
+        {
+            ftpModule.Initialize(startupInfo);
+            catalog.AddMenuAction(
+                new ModuleMenuProjection(FtpModuleIds.MenuActionId, "FTP/FTPS...", 'F'),
+                ftpModule.OpenFromMenu);
+            catalog.AddDiskMenuAction(
+                new ModuleMenuProjection(FtpModuleIds.DiskActionId, "FTP/FTPS", 'F'),
+                ftpModule.OpenFromDiskMenu);
+            catalog.AddCommandPrefix("ftp", (commandLine, side) => ftpModule.OpenFromCommandLine(side, commandLine));
+            catalog.AddCommandPrefix("ftps", (commandLine, side) => ftpModule.OpenFromCommandLine(side, commandLine));
+        }
+
+        if (farNetModuleHost is not null)
+        {
+            foreach (var item in farNetModuleHost.MenuItems)
+            {
+                catalog.AddMenuAction(
+                    ToModuleMenuProjection(item),
+                    _ => NativeModuleCatalog.FromFarNet(farNetModuleHost.OpenFromMenu(item.ActionId)));
+            }
+
+            foreach (var item in farNetModuleHost.DiskMenuItems)
+            {
+                catalog.AddDiskMenuAction(
+                    ToModuleMenuProjection(item),
+                    side => NativeModuleCatalog.FromFarNet(
+                        farNetModuleHost.OpenFromDiskMenu(item.ActionId, side == PanelSide.Left)));
+            }
+
+            foreach (string prefix in farNetModuleHost.CommandPrefixes)
+            {
+                catalog.AddCommandPrefix(
+                    prefix,
+                    (commandLine, _) => NativeModuleCatalog.FromFarNet(
+                        farNetModuleHost.OpenFromCommandLine(commandLine)));
+            }
+        }
+
+        return catalog;
+    }
+
+    private static ModuleMenuProjection ToModuleMenuProjection(FarNetModuleMenuItem item) =>
+        new(item.ActionId, item.Text, item.HotKey);
+
     internal ScreenRenderer CommandScreen => _screen;
 
     internal PanelController CommandPanelController => _ctrl;
@@ -251,8 +332,8 @@ public sealed class Application
 
     internal IVolumeService? CommandVolumeService => _volumeService;
 
-    internal IReadOnlyList<PluginMenuProjection> PluginDiskMenuItems =>
-        _pluginManager.DiskMenuItems;
+    internal IReadOnlyList<ModuleMenuProjection> ModuleDiskMenuItems =>
+        _moduleCatalog.DiskMenuItems;
 
     internal FilePanelState CommandLeftPanel => _left;
 
@@ -784,7 +865,7 @@ public sealed class Application
             RightViewMode = _rightViewMode,
             Settings = _settings,
             CanSaveSettings = _saveSettings is not null,
-            PluginMenuItems = _pluginManager.PluginMenuItems,
+            ModuleMenuItems = _moduleCatalog.MenuItems,
         });
 
     private MenuRenderOptions BuildMenuRenderOptions() =>
@@ -2139,22 +2220,17 @@ public sealed class Application
     internal FilePanelState GetPanelState(PanelSide side) =>
         side == PanelSide.Left ? _left : _right;
 
-    internal ApplicationCommandResult OpenPluginMenuItem(Guid pluginId, Guid itemId) =>
-        HandlePluginOpenResult(
-            _pluginManager.OpenFromPluginMenu(pluginId, itemId),
+    internal ApplicationCommandResult OpenModuleMenuItem(Guid actionId) =>
+        HandleModuleOpenResult(
+            _moduleCatalog.OpenFromMenu(actionId, _active),
             _active);
 
-    internal ApplicationCommandResult OpenPluginDiskMenuItem(Guid pluginId, Guid itemId, PanelSide panelSide)
-    {
-        var openFrom = panelSide == PanelSide.Left
-            ? PluginOpenFrom.LeftDiskMenu
-            : PluginOpenFrom.RightDiskMenu;
-        return HandlePluginOpenResult(
-            _pluginManager.OpenFromDiskMenu(pluginId, itemId, openFrom),
+    internal ApplicationCommandResult OpenModuleDiskMenuItem(Guid actionId, PanelSide panelSide) =>
+        HandleModuleOpenResult(
+            _moduleCatalog.OpenFromDiskMenu(actionId, panelSide),
             panelSide);
-    }
 
-    internal void OpenPluginPanel(PanelSide panelSide, IPluginPanel panel)
+    internal void OpenModulePanel(PanelSide panelSide, IModulePanel panel)
     {
         ArgumentNullException.ThrowIfNull(panel);
 
@@ -2171,17 +2247,17 @@ public sealed class Application
         ActiveSide = panelSide;
     }
 
-    private ApplicationCommandResult HandlePluginOpenResult(
-        PluginOpenResult result,
+    private ApplicationCommandResult HandleModuleOpenResult(
+        ModuleActionResult result,
         PanelSide defaultPanelSide)
     {
         switch (result.Kind)
         {
-            case PluginOpenResultKind.OpenedPanel:
-                OpenPluginPanel(defaultPanelSide, result.Panel!);
+            case ModuleActionResultKind.OpenedPanel:
+                OpenModulePanel(defaultPanelSide, result.Panel!);
                 return ApplicationCommandResult.Rendered();
-            case PluginOpenResultKind.Failed:
-                new MessageDialog(_screen, _palette).Show("Plugin", result.Message ?? "Plugin operation failed.");
+            case ModuleActionResultKind.Failed:
+                new MessageDialog(_screen, _palette).Show("Module", result.Message ?? "Module operation failed.");
                 return ApplicationCommandResult.Rendered();
             default:
                 return ApplicationCommandResult.Rendered();
@@ -2283,12 +2359,24 @@ public sealed class Application
         HideCommandCompletion(temporarily: false);
         ResetCommandHistoryNavigation();
 
+        if (_moduleCatalog.TryOpenFromCommandLine(command, _active, out var moduleResult))
+        {
+            HandleModuleOpenResult(moduleResult, _active);
+            AddCommandHistory(command, workDir);
+            return;
+        }
+
         ExecuteInCurrentConsole(workDir, command, () => _shell.Execute(command, workDir));
 
+        AddCommandHistory(command, workDir);
+    }
+
+    private void AddCommandHistory(string command, string workingDirectory)
+    {
         _history.AddCommand(new CommandHistoryItem
         {
             Command          = command,
-            WorkingDirectory = workDir,
+            WorkingDirectory = workingDirectory,
         });
     }
 
@@ -2414,6 +2502,9 @@ public sealed class Application
             return;
         }
 
+        if (TryOpenFarNetPanelItem(state, side, item))
+            return;
+
         if (item.IsDirectory)
         {
             OpenDirectoryItem(state, side, item);
@@ -2421,6 +2512,27 @@ public sealed class Application
         }
 
         OpenFileItem(item);
+    }
+
+    private bool TryOpenFarNetPanelItem(FilePanelState state, PanelSide side, FilePanelItem item)
+    {
+        if (item.IsParentDirectory)
+            return false;
+        if (!_sourceRegistry.TryGetSource(state.SourceId, out var source) ||
+            source is not IFarNetPanelOperations farNetPanel)
+        {
+            return false;
+        }
+
+        var result = farNetPanel.OpenItem(item.SourcePath);
+        if (result.Kind == ModuleActionResultKind.Completed ||
+            result.Kind == ModuleActionResultKind.NoPanel)
+        {
+            return false;
+        }
+
+        HandleModuleOpenResult(result, side);
+        return true;
     }
 
     private void OpenDirectoryItem(FilePanelState state, PanelSide side, FilePanelItem item)

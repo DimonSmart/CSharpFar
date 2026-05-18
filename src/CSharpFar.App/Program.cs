@@ -4,8 +4,7 @@ using CSharpFar.App.Settings;
 using CSharpFar.App.UserMenu;
 using CSharpFar.Console;
 using CSharpFar.FileSystem;
-using CSharpFar.Plugin.Ftp;
-using CSharpFar.Plugin.Sftp;
+using CSharpFar.FarNetHost;
 using CSharpFar.Core.Services;
 using CSharpFar.Shell;
 
@@ -47,9 +46,5 @@ new Application(renderer, fs, shell, fileOps, history, settings, userMenu,
     searchService:     searchSvc,
     sourceRegistry:    panelSources,
     credentialStore:   credentials,
-    plugins:
-    [
-        new SftpPlugin(),
-        new FtpPlugin(),
-    ],
+    farNetModuleHost:  new FarNetModuleHost(),
     configDirectory:   settingsStore.ConfigDirectory).Run();

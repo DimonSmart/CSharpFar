@@ -1,5 +1,5 @@
 using CSharpFar.App.Rendering;
-using CSharpFar.App.Plugins;
+using CSharpFar.App.Modules;
 using CSharpFar.App.UserMenu;
 using CSharpFar.Console;
 using CSharpFar.Core.Abstractions;
@@ -47,8 +47,8 @@ internal sealed class ApplicationCommandContext
 
     public IVolumeService? VolumeService => _application.CommandVolumeService;
 
-    public IReadOnlyList<PluginMenuProjection> PluginDiskMenuItems =>
-        _application.PluginDiskMenuItems;
+    public IReadOnlyList<ModuleMenuProjection> ModuleDiskMenuItems =>
+        _application.ModuleDiskMenuItems;
 
     public FilePanelState LeftPanel => _application.CommandLeftPanel;
 
@@ -153,11 +153,11 @@ internal sealed class ApplicationCommandContext
         FilePanelItem item) =>
         _application.OpenPanelItem(state, side, item);
 
-    public ApplicationCommandResult OpenPluginMenuItem(Guid pluginId, Guid itemId) =>
-        _application.OpenPluginMenuItem(pluginId, itemId);
+    public ApplicationCommandResult OpenModuleMenuItem(Guid actionId) =>
+        _application.OpenModuleMenuItem(actionId);
 
-    public ApplicationCommandResult OpenPluginDiskMenuItem(Guid pluginId, Guid itemId, PanelSide panelSide) =>
-        _application.OpenPluginDiskMenuItem(pluginId, itemId, panelSide);
+    public ApplicationCommandResult OpenModuleDiskMenuItem(Guid actionId, PanelSide panelSide) =>
+        _application.OpenModuleDiskMenuItem(actionId, panelSide);
 
     public string CombinePanelPath(FilePanelState state, string name) =>
         _application.CombinePanelPath(state, name);

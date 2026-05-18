@@ -23,10 +23,10 @@ public sealed class Spec035FtpProviderTests : IDisposable
     }
 
     [Fact]
-    public void PanelSourceId_Plugin_UsesPluginPrefix()
+    public void PanelSourceId_Module_UsesLegacyPluginPrefix()
     {
-        Assert.Equal($"plugin:{FtpPluginIds.PluginId:D}:main", PanelSourceId.Plugin(FtpPluginIds.PluginId, "main").Value);
-        Assert.Throws<ArgumentException>(() => PanelSourceId.Plugin(FtpPluginIds.PluginId, " "));
+        Assert.Equal($"plugin:{FtpModuleIds.ModuleId:D}:main", PanelSourceId.Module(FtpModuleIds.ModuleId, "main").Value);
+        Assert.Throws<ArgumentException>(() => PanelSourceId.Module(FtpModuleIds.ModuleId, " "));
     }
 
     [Fact]
@@ -138,8 +138,8 @@ public sealed class Spec035FtpProviderTests : IDisposable
             {
                 Kind = FileOperationKind.Copy,
                 Sources = [],
-                SourceLocations = [new PanelLocation(PanelSourceId.Plugin(FtpPluginIds.PluginId, "left"), "/source.txt")],
-                DestinationLocation = new PanelLocation(PanelSourceId.Plugin(FtpPluginIds.PluginId, "right"), "/target"),
+                SourceLocations = [new PanelLocation(PanelSourceId.Module(FtpModuleIds.ModuleId, "left"), "/source.txt")],
+                DestinationLocation = new PanelLocation(PanelSourceId.Module(FtpModuleIds.ModuleId, "right"), "/target"),
                 Options = new FileOperationOptions(),
             },
             progress: null,
