@@ -36,3 +36,6 @@ Read `AGENTS.md` first, then apply the rules here with higher priority.
 - FarNet compatibility should be modeled as CSharpFar's native extension domain
   model, not as a proxy plugin layered on top of a separate CSharpFar plugin
   abstraction.
+- Editor work should build CSharpFar's internal editor model first. FarNet
+  editor compatibility should be exposed as boundary-facing API/facade methods
+  over that model, not as a separate adapter or highlighter/plugin layer.

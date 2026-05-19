@@ -9,6 +9,7 @@ public sealed class AppSettings
     public PanelsSettings  Panels  { get; set; } = new();
     public FileOperationSettings FileOperations { get; set; } = new();
     public HistorySettings History { get; set; } = new();
+    public EditorSettings  Editor  { get; set; } = new();
 
     public sealed class UiSettings
     {
@@ -79,5 +80,19 @@ public sealed class AppSettings
         public int MaxCommandHistoryItems   { get; set; } = 1000;
         public int MaxDirectoryHistoryItems { get; set; } = 500;
         public int MaxFileHistoryItems      { get; set; } = 200;
+    }
+
+    public sealed class EditorSettings
+    {
+        public long FileSizeLimitBytes { get; set; } = 10L * 1024 * 1024;
+        public int UndoSize { get; set; } = 2048;
+        public string WordDiv { get; set; } = " \t\r\n,.;:!?()[]{}<>+-*/\\=|&^%$#@\"'`~";
+        public int TabSize { get; set; } = 4;
+        public bool ExpandTabs { get; set; }
+        public bool OpenReadOnlyFilesReadOnly { get; set; } = true;
+        public bool AllowEmptySpaceAfterEof { get; set; }
+        public bool F7StartsAtNextCharacter { get; set; } = true;
+        public bool BSLikeDel { get; set; } = true;
+        public string DefaultLineEnding { get; set; } = "LF";
     }
 }

@@ -153,6 +153,9 @@ internal sealed class ApplicationCommandContext
         FilePanelItem item) =>
         _application.OpenPanelItem(state, side, item);
 
+    public bool TryEditFarNetPanelItem(FilePanelState state, FilePanelItem item) =>
+        _application.TryEditFarNetPanelItem(state, item);
+
     public ApplicationCommandResult OpenModuleMenuItem(Guid actionId) =>
         _application.OpenModuleMenuItem(actionId);
 

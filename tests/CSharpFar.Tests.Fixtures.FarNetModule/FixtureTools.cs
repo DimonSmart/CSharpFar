@@ -33,7 +33,7 @@ public sealed class DiskTool : ModuleTool
 public sealed class UnsupportedApiTool : ModuleTool
 {
     public override void Invoke(object sender, ModuleToolEventArgs e) =>
-        Far.Api.CreateMenu();
+        Far.Api.CreateListMenu();
 }
 
 [ModuleTool(

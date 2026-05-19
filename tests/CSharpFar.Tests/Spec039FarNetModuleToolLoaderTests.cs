@@ -109,7 +109,7 @@ public sealed class Spec039FarNetModuleToolLoaderTests : IDisposable
         var result = host.OpenFromMenu(UnsupportedApiToolId);
 
         Assert.Equal(FarNetModuleOpenResultKind.Failed, result.Kind);
-        Assert.Contains("CreateMenu", result.Message, StringComparison.Ordinal);
+        Assert.Contains("CreateListMenu", result.Message, StringComparison.Ordinal);
     }
 
     [Fact]

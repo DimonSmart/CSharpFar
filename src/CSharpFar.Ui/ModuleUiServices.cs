@@ -29,6 +29,9 @@ public sealed class ModuleUiServices
     public string? Input(string title, string prompt, string? initialText = null) =>
         new FarNetInputDialog(Screen, CurrentPalette).Show(title, prompt, initialText);
 
+    public int? ShowMenu(string title, IReadOnlyList<string> items, int selected) =>
+        new FarNetMenuDialog(Screen, CurrentPalette).Show(title, items, selected);
+
     public bool Confirm(string title, string question, string itemName) =>
         new ConfirmDialog(Screen).Show(title, question, itemName);
 }

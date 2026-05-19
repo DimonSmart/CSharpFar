@@ -90,6 +90,7 @@ public sealed class Application
     private DirectorySizeState?              _quickViewDirState;
     private string?                          _quickViewDirPath;
     private PanelScrollbarDrag?              _panelScrollbarDrag;
+    private bool                             _isCommandLineMouseSelecting;
 
     private readonly record struct PanelScrollbarDrag(PanelSide Side, ScrollBarDragState DragState);
 
@@ -1091,6 +1092,9 @@ public sealed class Application
         if (_panelQuickSearch is not null)
             ClosePanelQuickSearch();
 
+        if (TryHandleCommandLineMouse(evt))
+            return true;
+
         if (!HasVisiblePanels)
             return false;
 
@@ -1209,6 +1213,105 @@ public sealed class Application
         return false;
     }
 
+    private bool TryHandleCommandLineMouse(MouseConsoleInputEvent evt)
+    {
+        var size = LastRenderSizeOrCurrent();
+        int row = CommandLineRow(size);
+        bool isSelectionDrag = _isCommandLineMouseSelecting &&
+            evt.Button == MouseButton.Left &&
+            evt.Kind == MouseEventKind.Move;
+
+        if (evt.Y != row && !isSelectionDrag)
+            return false;
+
+        if (evt.Button == MouseButton.Left &&
+            evt.Kind is MouseEventKind.Down or MouseEventKind.Click)
+        {
+            _cmdLine.MoveCursorTo(CommandLineTextPositionFromMouseX(size, evt.X));
+            _isCommandLineMouseSelecting = evt.Kind == MouseEventKind.Down;
+            ResetCommandHistoryNavigation();
+            return true;
+        }
+
+        if (evt.Button == MouseButton.Left && evt.Kind == MouseEventKind.DoubleClick)
+        {
+            SelectCommandLineWordAt(CommandLineTextPositionFromMouseX(size, evt.X));
+            _isCommandLineMouseSelecting = false;
+            ResetCommandHistoryNavigation();
+            return true;
+        }
+
+        if (isSelectionDrag)
+        {
+            _cmdLine.MoveCursorWithSelection(CommandLineTextPositionFromMouseX(size, evt.X));
+            ResetCommandHistoryNavigation();
+            return true;
+        }
+
+        if (evt.Button == MouseButton.Left && evt.Kind == MouseEventKind.Up)
+        {
+            _isCommandLineMouseSelecting = false;
+            return true;
+        }
+
+        if (evt.Button == MouseButton.Right &&
+            evt.Kind is MouseEventKind.Down or MouseEventKind.Click)
+        {
+            PasteTextIntoCommandLine();
+            return true;
+        }
+
+        return false;
+    }
+
+    private int CommandLineTextPositionFromMouseX(ConsoleSize size, int mouseX)
+    {
+        if (size.Width <= 0)
+            return 0;
+
+        string prompt = ActiveState.CurrentDirectory + ">";
+        int fullLength = prompt.Length + _cmdLine.Text.Length;
+        int offset = GetCommandLineDisplayOffset(size.Width, prompt.Length, fullLength, _cmdLine.CursorPosition);
+        int x = Math.Clamp(mouseX, 0, size.Width - 1);
+        return Math.Clamp(x + offset - prompt.Length, 0, _cmdLine.Text.Length);
+    }
+
+    private static int GetCommandLineDisplayOffset(
+        int totalWidth,
+        int promptLength,
+        int fullLength,
+        int cursorPosition)
+    {
+        if (fullLength <= totalWidth)
+            return 0;
+
+        int rawCursorX = promptLength + cursorPosition;
+        int maxOffset = fullLength - totalWidth;
+        return Math.Clamp(rawCursorX - totalWidth + 1, 0, maxOffset);
+    }
+
+    private void SelectCommandLineWordAt(int position)
+    {
+        string text = _cmdLine.Text;
+        if (text.Length == 0)
+            return;
+
+        position = Math.Clamp(position, 0, text.Length - 1);
+        if (char.IsWhiteSpace(text[position]) && position > 0 && !char.IsWhiteSpace(text[position - 1]))
+            position--;
+
+        int start = position;
+        while (start > 0 && !char.IsWhiteSpace(text[start - 1]))
+            start--;
+
+        int end = position;
+        while (end < text.Length && !char.IsWhiteSpace(text[end]))
+            end++;
+
+        _cmdLine.MoveCursorTo(start);
+        _cmdLine.MoveCursorWithSelection(end);
+    }
+
     private int? HitTestPanelItemForMouse(
         MouseConsoleInputEvent evt,
         PanelSide side,
@@ -1259,6 +1362,9 @@ public sealed class Application
         if (!HasVisiblePanels)
             return HandleHiddenCommandLineKey(key);
 
+        if (TryHandleFarNetPanelShortcut(key))
+            return true;
+
         // Ctrl+S: settings dialog
         if (IsPlainControlKey(key, ConsoleKey.S, '\u0013'))
             return ExecuteRegisteredCommand(MenuCommandIds.SettingsOpenPanelSettings);
@@ -1307,21 +1413,14 @@ public sealed class Application
             return true;
         }
 
-        if ((key.Modifiers & ConsoleModifiers.Control) != 0 &&
-            (key.Modifiers & (ConsoleModifiers.Alt | ConsoleModifiers.Shift)) == 0)
-        {
-            if (key.Key == ConsoleKey.LeftArrow)
-            {
-                _cmdLine.MoveCursor(-1);
-                return true;
-            }
+        if (IsPlainControlKey(key, ConsoleKey.C, '\u0003'))
+            return CopyCommandLineSelection();
 
-            if (key.Key == ConsoleKey.RightArrow)
-            {
-                _cmdLine.MoveCursor(+1);
-                return true;
-            }
-        }
+        if (IsPlainControlKey(key, ConsoleKey.V, '\u0016'))
+            return PasteTextIntoCommandLine();
+
+        if (TryHandleCommandLineNavigationKey(key, forceCommandLine: false))
+            return true;
 
         // Ctrl+* - invert selection
         bool isControlShortcut =
@@ -1352,20 +1451,32 @@ public sealed class Application
         {
             // ── Horizontal navigation / command line editing ──────────────────
             case ConsoleKey.LeftArrow:
+                if (_cmdLine.HasText || _cmdLine.HasSelection)
+                {
+                    _cmdLine.MoveCursor(-1);
+                    return true;
+                }
+
                 MovePanelColumn(-1);
                 return true;
 
             case ConsoleKey.RightArrow:
+                if (_cmdLine.HasText || _cmdLine.HasSelection)
+                {
+                    _cmdLine.MoveCursor(+1);
+                    return true;
+                }
+
                 MovePanelColumn(+1);
                 return true;
 
             case ConsoleKey.Home:
-                if (_cmdLine.HasText) _cmdLine.MoveToStart();
+                if (_cmdLine.HasText || _cmdLine.HasSelection) _cmdLine.MoveToStart();
                 else _ctrl.MoveToFirst(ActiveState);
                 return true;
 
             case ConsoleKey.End:
-                if (_cmdLine.HasText) _cmdLine.MoveToEnd();
+                if (_cmdLine.HasText || _cmdLine.HasSelection) _cmdLine.MoveToEnd();
                 else _ctrl.MoveToLast(ActiveState, vr);
                 return true;
 
@@ -1462,6 +1573,142 @@ public sealed class Application
 
         return false;
     }
+
+    private bool TryHandleCommandLineNavigationKey(ConsoleKeyInfo key, bool forceCommandLine)
+    {
+        bool hasAlt = (key.Modifiers & ConsoleModifiers.Alt) != 0;
+        if (hasAlt)
+            return false;
+
+        bool hasControl = (key.Modifiers & ConsoleModifiers.Control) != 0;
+        bool hasShift = (key.Modifiers & ConsoleModifiers.Shift) != 0;
+        bool shouldUseCommandLine = forceCommandLine || _cmdLine.HasText || _cmdLine.HasSelection || hasControl || hasShift;
+
+        switch (key.Key)
+        {
+            case ConsoleKey.LeftArrow when shouldUseCommandLine:
+                if (hasControl && hasShift)
+                    _cmdLine.MoveToPreviousWordWithSelection();
+                else if (hasControl)
+                    _cmdLine.MoveToPreviousWord();
+                else if (hasShift)
+                    _cmdLine.MoveCursorWithSelection(_cmdLine.CursorPosition - 1);
+                else
+                    _cmdLine.MoveCursor(-1);
+                ResetCommandHistoryNavigation();
+                return true;
+
+            case ConsoleKey.RightArrow when shouldUseCommandLine:
+                if (hasControl && hasShift)
+                    _cmdLine.MoveToNextWordWithSelection();
+                else if (hasControl)
+                    _cmdLine.MoveToNextWord();
+                else if (hasShift)
+                    _cmdLine.MoveCursorWithSelection(_cmdLine.CursorPosition + 1);
+                else
+                    _cmdLine.MoveCursor(+1);
+                ResetCommandHistoryNavigation();
+                return true;
+
+            case ConsoleKey.Home when shouldUseCommandLine:
+                if (hasShift)
+                    _cmdLine.MoveCursorWithSelection(0);
+                else
+                    _cmdLine.MoveToStart();
+                ResetCommandHistoryNavigation();
+                return true;
+
+            case ConsoleKey.End when shouldUseCommandLine:
+                if (hasShift)
+                    _cmdLine.MoveCursorWithSelection(_cmdLine.Text.Length);
+                else
+                    _cmdLine.MoveToEnd();
+                ResetCommandHistoryNavigation();
+                return true;
+
+            default:
+                return false;
+        }
+    }
+
+    private bool CopyCommandLineSelection()
+    {
+        string? selectedText = _cmdLine.SelectedText;
+        if (!string.IsNullOrEmpty(selectedText))
+            TextCopy.ClipboardService.SetText(selectedText);
+
+        return true;
+    }
+
+    private bool PasteTextIntoCommandLine()
+    {
+        string text = TextCopy.ClipboardService.GetText() ?? string.Empty;
+        if (string.IsNullOrEmpty(text))
+            return true;
+
+        string singleLine = text.ReplaceLineEndings(" ").Trim();
+        if (string.IsNullOrEmpty(singleLine))
+            return true;
+
+        _cmdLine.InsertText(singleLine);
+        if (HasVisiblePanels)
+            OnVisibleCommandLineTextEdited();
+        else
+            ResetCommandHistoryNavigation();
+
+        return true;
+    }
+
+    private bool TryHandleFarNetPanelShortcut(ConsoleKeyInfo key)
+    {
+        if (!_sourceRegistry.TryGetSource(ActiveState.SourceId, out var source) ||
+            source is not IFarNetPanelOperations farNetPanel)
+        {
+            return false;
+        }
+
+        if (IsPlainControlKey(key, ConsoleKey.S, '\u0013'))
+            return HandleFarNetPanelKey(farNetPanel, key);
+
+        bool shiftOnly = (key.Modifiers & ConsoleModifiers.Shift) != 0 &&
+            (key.Modifiers & (ConsoleModifiers.Control | ConsoleModifiers.Alt)) == 0;
+        if (shiftOnly && key.Key is ConsoleKey.Delete or ConsoleKey.F8)
+            return HandleFarNetPanelKey(farNetPanel, key);
+
+        if (!_cmdLine.HasText &&
+            (key.Modifiers & (ConsoleModifiers.Control | ConsoleModifiers.Alt | ConsoleModifiers.Shift)) == 0 &&
+            key.Key == ConsoleKey.Delete)
+        {
+            return HandleFarNetPanelKey(farNetPanel, key);
+        }
+
+        return false;
+    }
+
+    private bool HandleFarNetPanelKey(IFarNetPanelOperations farNetPanel, ConsoleKeyInfo key)
+    {
+        var result = farNetPanel.PressKey(
+            _ctrl.CurrentItem(ActiveState)?.SourcePath,
+            GetVirtualKeyCode(key.Key),
+            (key.Modifiers & ConsoleModifiers.Shift) != 0,
+            (key.Modifiers & ConsoleModifiers.Control) != 0,
+            (key.Modifiers & ConsoleModifiers.Alt) != 0);
+        if (result.Kind == ModuleActionResultKind.Failed)
+            new MessageDialog(_screen, _palette).Show("FarNet panel", result.Message ?? "FarNet panel key failed.");
+        else
+            SafeRefresh(ActiveState, VisibleRows());
+
+        return result.Kind != ModuleActionResultKind.NoPanel;
+    }
+
+    private static int GetVirtualKeyCode(ConsoleKey key) =>
+        key switch
+        {
+            ConsoleKey.Delete => 46,
+            ConsoleKey.F8 => 119,
+            ConsoleKey.S => 83,
+            _ => (int)key,
+        };
 
     private PanelQuickSearchKeyResult HandlePanelQuickSearchKey(ConsoleKeyInfo key)
     {
@@ -1708,28 +1955,17 @@ public sealed class Application
             return true;
         }
 
+        if (IsPlainControlKey(key, ConsoleKey.C, '\u0003'))
+            return CopyCommandLineSelection();
+
+        if (IsPlainControlKey(key, ConsoleKey.V, '\u0016'))
+            return PasteTextIntoCommandLine();
+
+        if (TryHandleCommandLineNavigationKey(key, forceCommandLine: true))
+            return true;
+
         switch (key.Key)
         {
-            case ConsoleKey.LeftArrow:
-                ResetCommandHistoryNavigation();
-                _cmdLine.MoveCursor(-1);
-                return true;
-
-            case ConsoleKey.RightArrow:
-                ResetCommandHistoryNavigation();
-                _cmdLine.MoveCursor(+1);
-                return true;
-
-            case ConsoleKey.Home:
-                ResetCommandHistoryNavigation();
-                _cmdLine.MoveToStart();
-                return true;
-
-            case ConsoleKey.End:
-                ResetCommandHistoryNavigation();
-                _cmdLine.MoveToEnd();
-                return true;
-
             case ConsoleKey.Delete:
                 ResetCommandHistoryNavigation();
                 _cmdLine.DeleteForward();
@@ -2514,6 +2750,48 @@ public sealed class Application
         OpenFileItem(item);
     }
 
+    internal bool TryEditFarNetPanelItem(FilePanelState state, FilePanelItem item)
+    {
+        if (item.IsParentDirectory)
+            return false;
+        if (!_sourceRegistry.TryGetSource(state.SourceId, out var source) ||
+            source is not IFarNetPanelOperations farNetPanel)
+        {
+            return false;
+        }
+
+        if (!farNetPanel.TryGetEditableText(item.SourcePath, out string text, out string? error))
+        {
+            new MessageDialog(_screen, _palette).Show("Edit", error ?? "FarNet panel item cannot be edited.");
+            return true;
+        }
+
+        string tempDirectory = Path.Combine(Path.GetTempPath(), "CSharpFar", "FarNetEdit", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(tempDirectory);
+        string tempPath = Path.Combine(tempDirectory, GetSafeTempFileName(item.Name));
+        try
+        {
+            File.WriteAllText(tempPath, text);
+            new FileEditor(_screen, _palette, _settings.Editor).Show(tempPath);
+            string editedText = File.ReadAllText(tempPath);
+            if (string.Equals(editedText, text, StringComparison.Ordinal))
+                return true;
+
+            var result = farNetPanel.SetEditedText(item.SourcePath, editedText);
+            if (result.Kind == ModuleActionResultKind.Failed)
+                new MessageDialog(_screen, _palette).Show("Edit", result.Message ?? "FarNet panel item edit failed.");
+            else
+                SafeRefresh(state, VisibleRows(PanelSideForState(state)));
+
+            return true;
+        }
+        finally
+        {
+            try { Directory.Delete(tempDirectory, recursive: true); }
+            catch { }
+        }
+    }
+
     private bool TryOpenFarNetPanelItem(FilePanelState state, PanelSide side, FilePanelItem item)
     {
         if (item.IsParentDirectory)
@@ -2533,6 +2811,15 @@ public sealed class Application
 
         HandleModuleOpenResult(result, side);
         return true;
+    }
+
+    private static string GetSafeTempFileName(string name)
+    {
+        string fileName = string.IsNullOrWhiteSpace(name) ? "value.json" : name;
+        foreach (char invalid in Path.GetInvalidFileNameChars())
+            fileName = fileName.Replace(invalid, '_');
+
+        return fileName.Length == 0 ? "value.json" : fileName;
     }
 
     private void OpenDirectoryItem(FilePanelState state, PanelSide side, FilePanelItem item)

@@ -55,6 +55,43 @@ public class SingleLineTextInputTests
     }
 
     [Fact]
+    public void HandleKey_ControlArrowsMoveByWord()
+    {
+        var buffer = new CommandLineState();
+        buffer.SetText("alpha beta");
+        string? error = null;
+
+        var leftResult = SingleLineTextInput.HandleKey(
+            buffer,
+            new ConsoleKeyInfo('\0', ConsoleKey.LeftArrow, shift: false, alt: false, control: true),
+            ref error);
+        var rightResult = SingleLineTextInput.HandleKey(
+            buffer,
+            new ConsoleKeyInfo('\0', ConsoleKey.RightArrow, shift: false, alt: false, control: true),
+            ref error);
+
+        Assert.Equal(TextInputKeyResult.Handled, leftResult);
+        Assert.Equal(TextInputKeyResult.Handled, rightResult);
+        Assert.Equal(10, buffer.CursorPosition);
+    }
+
+    [Fact]
+    public void HandleKey_ControlShiftArrowSelectsWord()
+    {
+        var buffer = new CommandLineState();
+        buffer.SetText("alpha beta");
+        string? error = null;
+
+        var result = SingleLineTextInput.HandleKey(
+            buffer,
+            new ConsoleKeyInfo('\0', ConsoleKey.LeftArrow, shift: true, alt: false, control: true),
+            ref error);
+
+        Assert.Equal(TextInputKeyResult.Handled, result);
+        Assert.Equal("beta", buffer.SelectedText);
+    }
+
+    [Fact]
     public void Render_UsesSelectionStyleForVisibleSelectedText()
     {
         var driver = new FakeConsoleDriver(width: 20, height: 2);

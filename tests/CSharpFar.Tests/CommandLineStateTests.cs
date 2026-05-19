@@ -120,6 +120,42 @@ public class CommandLineStateTests
     }
 
     [Fact]
+    public void MoveToPreviousWord_MovesToCurrentWordStart()
+    {
+        var s = new CommandLineState();
+        s.SetText("alpha beta");
+
+        s.MoveToPreviousWord();
+
+        Assert.Equal(6, s.CursorPosition);
+    }
+
+    [Fact]
+    public void MoveToNextWord_MovesToNextWordStart()
+    {
+        var s = new CommandLineState();
+        s.SetText("alpha beta");
+        s.MoveToStart();
+
+        s.MoveToNextWord();
+
+        Assert.Equal(6, s.CursorPosition);
+    }
+
+    [Fact]
+    public void MoveToPreviousWordWithSelection_SelectsPreviousWord()
+    {
+        var s = new CommandLineState();
+        s.SetText("alpha beta");
+
+        s.MoveToPreviousWordWithSelection();
+
+        Assert.Equal(6, s.SelectionStart);
+        Assert.Equal(4, s.SelectionLength);
+        Assert.Equal("beta", s.SelectedText);
+    }
+
+    [Fact]
     public void Clear_EmptiesBufferAndResetsCursor()
     {
         var s = new CommandLineState();

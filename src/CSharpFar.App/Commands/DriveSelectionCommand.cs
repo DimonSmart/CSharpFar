@@ -33,6 +33,7 @@ internal abstract class DriveSelectionCommand : IApplicationCommand
     private ApplicationCommandResult ExecuteCore(ApplicationCommandContext context)
     {
         var targetState = PanelSide == PanelSide.Left ? context.LeftPanel : context.RightPanel;
+        var otherState = PanelSide == PanelSide.Left ? context.RightPanel : context.LeftPanel;
         var volumes = context.VolumeService?.GetVolumes() ?? [];
         var items = volumes
             .Select(v => new VolumeSelectionItem
@@ -69,13 +70,14 @@ internal abstract class DriveSelectionCommand : IApplicationCommand
         }
 
         var volume = selected.Volume!;
+        string directoryPath = SelectedVolumeDirectory(volume.RootPath, otherState.CurrentDirectory);
 
         context.QuickView = false;
         context.ActiveSide = PanelSide;
 
-        if (context.Controller.TryLoadDirectory(targetState, volume.RootPath, context.PanelOptions))
+        if (context.Controller.TryLoadDirectory(targetState, directoryPath, context.PanelOptions))
         {
-            context.History.AddDirectory(new DirectoryHistoryItem { Path = volume.RootPath });
+            context.History.AddDirectory(new DirectoryHistoryItem { Path = directoryPath });
             context.StartWatching(targetState, PanelSide);
         }
 
@@ -102,6 +104,29 @@ internal abstract class DriveSelectionCommand : IApplicationCommand
         }
 
         return bestIndex;
+    }
+
+    private static string SelectedVolumeDirectory(string rootPath, string otherPanelDirectory)
+    {
+        if (IsSameVolumePath(rootPath, otherPanelDirectory))
+            return otherPanelDirectory;
+
+        return rootPath;
+    }
+
+    private static bool IsSameVolumePath(string rootPath, string directory)
+    {
+        string normalizedRoot = NormalizeDirectoryPrefix(rootPath);
+        string normalizedDirectory = NormalizeDirectoryPrefix(directory);
+        return normalizedDirectory.StartsWith(normalizedRoot, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static string NormalizeDirectoryPrefix(string path)
+    {
+        string fullPath = Path.GetFullPath(path);
+        return Path.EndsInDirectorySeparator(fullPath)
+            ? fullPath
+            : fullPath + Path.DirectorySeparatorChar;
     }
 
 }

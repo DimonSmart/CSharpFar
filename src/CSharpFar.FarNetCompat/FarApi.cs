@@ -57,6 +57,8 @@ public abstract class IFar
 
     public abstract CultureInfo GetCurrentUICulture(bool update);
     public abstract void ShowHelp(string path, string topic, HelpOptions options);
+    public virtual string? PasteFromClipboard() => throw new FarNetUnsupportedApiException(nameof(PasteFromClipboard));
+    public virtual void CopyToClipboard(string text) => throw new FarNetUnsupportedApiException(nameof(CopyToClipboard));
 
     public virtual IMenu CreateMenu() => throw new FarNetUnsupportedApiException(nameof(CreateMenu));
     public virtual IListMenu CreateListMenu() => throw new FarNetUnsupportedApiException(nameof(CreateListMenu));

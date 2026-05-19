@@ -150,6 +150,48 @@ public sealed class SetColumn : FarColumn
     public override int Width { get; set; }
 }
 
+public abstract class FarItem
+{
+    public virtual string? Text { get; set; }
+    public virtual bool Checked { get; set; }
+    public virtual bool Disabled { get; set; }
+    public virtual bool Grayed { get; set; }
+    public virtual bool Hidden { get; set; }
+    public virtual bool IsSeparator { get; set; }
+    public virtual object? Data { get; set; }
+    public virtual EventHandler<MenuEventArgs>? Click { get; set; }
+}
+
+public sealed class SetItem : FarItem
+{
+    public override string? Text { get; set; }
+    public override bool Checked { get; set; }
+    public override bool Disabled { get; set; }
+    public override bool Grayed { get; set; }
+    public override bool Hidden { get; set; }
+    public override bool IsSeparator { get; set; }
+    public override object? Data { get; set; }
+    public override EventHandler<MenuEventArgs>? Click { get; set; }
+}
+
+public sealed class MenuEventArgs : EventArgs
+{
+    public MenuEventArgs(FarItem item)
+    {
+        Item = item;
+    }
+
+    public FarItem Item { get; }
+    public bool Ignore { get; set; }
+    public bool Restart { get; set; }
+}
+
+[Flags]
+public enum PatternOptions
+{
+    None = 0,
+}
+
 public sealed class PanelPlan
 {
     public FarColumn[] Columns { get; set; } = [];
@@ -202,6 +244,102 @@ public enum JobResult
     Done,
     Ignore,
     Incomplete,
+}
+
+[Flags]
+public enum ControlKeyStates
+{
+    None = 0,
+    RightAltPressed = 1,
+    LeftAltPressed = 2,
+    RightCtrlPressed = 4,
+    LeftCtrlPressed = 8,
+    ShiftPressed = 16,
+    CtrlAltShift = 31,
+    NumLockOn = 32,
+    ScrollLockOn = 64,
+    CapsLockOn = 128,
+    EnhancedKey = 256,
+    All = 511,
+}
+
+public class KeyBase
+{
+    protected KeyBase()
+        : this(ControlKeyStates.None)
+    {
+    }
+
+    protected KeyBase(ControlKeyStates controlKeyState)
+    {
+        ControlKeyState = controlKeyState;
+    }
+
+    public ControlKeyStates ControlKeyState { get; }
+
+    public bool Is() => CtrlAltShift() == ControlKeyStates.None;
+    public bool IsAlt() => CtrlAltShift() is ControlKeyStates.LeftAltPressed or ControlKeyStates.RightAltPressed;
+    public bool IsCtrl() => CtrlAltShift() is ControlKeyStates.LeftCtrlPressed or ControlKeyStates.RightCtrlPressed;
+    public bool IsShift() => CtrlAltShift() == ControlKeyStates.ShiftPressed;
+    public bool IsAltShift() => (CtrlAltShift() & ControlKeyStates.ShiftPressed) != 0 &&
+        (CtrlAltShift() & (ControlKeyStates.LeftAltPressed | ControlKeyStates.RightAltPressed)) != 0 &&
+        (CtrlAltShift() & (ControlKeyStates.LeftCtrlPressed | ControlKeyStates.RightCtrlPressed)) == 0;
+    public bool IsCtrlAlt() => (CtrlAltShift() & (ControlKeyStates.LeftCtrlPressed | ControlKeyStates.RightCtrlPressed)) != 0 &&
+        (CtrlAltShift() & (ControlKeyStates.LeftAltPressed | ControlKeyStates.RightAltPressed)) != 0 &&
+        (CtrlAltShift() & ControlKeyStates.ShiftPressed) == 0;
+    public bool IsCtrlShift() => (CtrlAltShift() & (ControlKeyStates.LeftCtrlPressed | ControlKeyStates.RightCtrlPressed)) != 0 &&
+        (CtrlAltShift() & ControlKeyStates.ShiftPressed) != 0 &&
+        (CtrlAltShift() & (ControlKeyStates.LeftAltPressed | ControlKeyStates.RightAltPressed)) == 0;
+    public ControlKeyStates CtrlAltShift() => ControlKeyState & ControlKeyStates.CtrlAltShift;
+}
+
+public class KeyData : KeyBase
+{
+    public KeyData(int virtualKeyCode)
+        : this(virtualKeyCode, ControlKeyStates.None)
+    {
+    }
+
+    public KeyData(int virtualKeyCode, ControlKeyStates controlKeyState)
+        : base(controlKeyState)
+    {
+        VirtualKeyCode = virtualKeyCode;
+    }
+
+    public static KeyData Empty { get; } = new(0);
+    public int VirtualKeyCode { get; }
+
+    public bool Is(int virtualKeyCode) => VirtualKeyCode == virtualKeyCode && Is();
+    public bool IsAlt(int virtualKeyCode) => VirtualKeyCode == virtualKeyCode && IsAlt();
+    public bool IsCtrl(int virtualKeyCode) => VirtualKeyCode == virtualKeyCode && IsCtrl();
+    public bool IsShift(int virtualKeyCode) => VirtualKeyCode == virtualKeyCode && IsShift();
+    public bool IsAltShift(int virtualKeyCode) => VirtualKeyCode == virtualKeyCode && IsAltShift();
+    public bool IsCtrlAlt(int virtualKeyCode) => VirtualKeyCode == virtualKeyCode && IsCtrlAlt();
+    public bool IsCtrlShift(int virtualKeyCode) => VirtualKeyCode == virtualKeyCode && IsCtrlShift();
+}
+
+public class KeyInfo : KeyData
+{
+    public KeyInfo(int virtualKeyCode, char character, ControlKeyStates controlKeyState, bool keyDown)
+        : base(virtualKeyCode, controlKeyState)
+    {
+        Character = character;
+        KeyDown = keyDown;
+    }
+
+    public char Character { get; }
+    public bool KeyDown { get; }
+}
+
+public sealed class KeyEventArgs : EventArgs
+{
+    public KeyEventArgs(KeyInfo key)
+    {
+        Key = key;
+    }
+
+    public KeyInfo Key { get; }
+    public bool Ignore { get; set; }
 }
 
 public abstract class FarFile
@@ -351,9 +489,13 @@ public class Panel : IPanel
     public bool NeedsNewFiles { get; set; } = true;
     public bool IsOpened { get; private set; }
     public IList<FarFile> Files { get; } = [];
+    public FarFile? CurrentFile { get; set; }
+    public int CurrentIndex { get; set; }
+    public IList<FarFile> SelectedFiles { get; } = [];
     public Hashtable Data { get; } = [];
     public PanelPlan ViewPlan { get; } = new();
     private readonly Dictionary<PanelViewMode, PanelPlan> _plans = [];
+    public event EventHandler<KeyEventArgs>? KeyPressed;
 
     public virtual void Open()
     {
@@ -393,6 +535,26 @@ public class Panel : IPanel
         _plans[mode] = plan;
     }
 
+    public void Update(bool keepSelection)
+    {
+        _ = keepSelection;
+        NeedsNewFiles = true;
+    }
+
+    public void Redraw()
+    {
+        NeedsNewFiles = true;
+    }
+
+    public void Redraw(int current, int top)
+    {
+        _ = current;
+        _ = top;
+        NeedsNewFiles = true;
+    }
+
+    public virtual bool SaveData() => true;
+
     public virtual void UICreateFile(CreateFileEventArgs args) => Explorer.CreateFile(args);
     public virtual void UIDeleteFiles(DeleteFilesEventArgs args) => Explorer.DeleteFiles(args);
     public virtual void UIGetContent(GetContentEventArgs args) => Explorer.GetContent(args);
@@ -410,6 +572,15 @@ public class Panel : IPanel
     }
 
     public virtual void UIEditFile(FarFile file) => throw new FarNetUnsupportedApiException(nameof(UIEditFile));
+
+    public void WorksKeyPressed(KeyEventArgs e) => KeyPressed?.Invoke(this, e);
+
+    public virtual bool UIKeyPressed(KeyInfo key)
+    {
+        var args = new KeyEventArgs(key);
+        WorksKeyPressed(args);
+        return args.Ignore;
+    }
 }
 
 public abstract class ExplorerEventArgs : EventArgs
@@ -566,12 +737,54 @@ public interface IFarNetPanelHost
     Panel? ConsumePendingPanel();
 }
 
-public interface IMenu
+public interface IAnyMenu
 {
+    int X { get; set; }
+    int Y { get; set; }
+    int MaxHeight { get; set; }
+    string? Title { get; set; }
+    string? Bottom { get; set; }
+    IList<FarItem> Items { get; }
+    int Selected { get; set; }
+    object? SelectedData { get; }
+    string? HelpTopic { get; set; }
+    bool SelectLast { get; set; }
+    object? Sender { get; set; }
+    bool ShowAmpersands { get; set; }
+    bool WrapCursor { get; set; }
+    bool AutoAssignHotkeys { get; set; }
+    bool NoShadow { get; set; }
+    KeyData Key { get; }
+
+    bool Show();
+    FarItem Add(string text);
+    FarItem Add(string text, EventHandler<MenuEventArgs> click);
+    void AddKey(int virtualKeyCode);
+    void AddKey(int virtualKeyCode, ControlKeyStates controlKeyState);
+    void AddKey(int virtualKeyCode, ControlKeyStates controlKeyState, EventHandler<MenuEventArgs> handler);
 }
 
-public interface IListMenu
+public interface IMenu : IAnyMenu
 {
+    bool ReverseAutoAssign { get; set; }
+    bool ChangeConsoleTitle { get; set; }
+    bool NoBox { get; set; }
+    bool NoMargin { get; set; }
+    bool SingleBox { get; set; }
+    void Lock();
+    void Unlock();
+}
+
+public interface IListMenu : IAnyMenu
+{
+    PatternOptions IncrementalOptions { get; set; }
+    string? Incremental { get; set; }
+    bool AutoSelect { get; set; }
+    bool NoInfo { get; set; }
+    int ScreenMargin { get; set; }
+    bool UsualMargins { get; set; }
+    int MaxWidth { get; set; }
+    Guid TypeId { get; set; }
 }
 
 public interface IInputBox

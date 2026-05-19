@@ -90,8 +90,16 @@ public sealed class CommandLineState
         CursorPosition = Math.Clamp(CursorPosition + delta, 0, _buffer.Count);
     }
 
+    public void MoveToPreviousWord() => MoveCursorTo(PreviousWordPosition(CursorPosition));
+    public void MoveToNextWord() => MoveCursorTo(NextWordPosition(CursorPosition));
     public void MoveToStart() { ClearSelection(); CursorPosition = 0; }
     public void MoveToEnd()   { ClearSelection(); CursorPosition = _buffer.Count; }
+
+    public void MoveCursorTo(int position)
+    {
+        ClearSelection();
+        CursorPosition = Math.Clamp(position, 0, _buffer.Count);
+    }
 
     /// <summary>
     /// Moves the cursor to <paramref name="newPosition"/> while extending or shrinking the selection.
@@ -122,6 +130,29 @@ public sealed class CommandLineState
             SelectionStart  = Math.Min(anchor, newPosition);
             SelectionLength = Math.Abs(newPosition - anchor);
         }
+    }
+
+    public void MoveToPreviousWordWithSelection() => MoveCursorWithSelection(PreviousWordPosition(CursorPosition));
+    public void MoveToNextWordWithSelection() => MoveCursorWithSelection(NextWordPosition(CursorPosition));
+
+    private int PreviousWordPosition(int position)
+    {
+        position = Math.Clamp(position, 0, _buffer.Count);
+        while (position > 0 && char.IsWhiteSpace(_buffer[position - 1]))
+            position--;
+        while (position > 0 && !char.IsWhiteSpace(_buffer[position - 1]))
+            position--;
+        return position;
+    }
+
+    private int NextWordPosition(int position)
+    {
+        position = Math.Clamp(position, 0, _buffer.Count);
+        while (position < _buffer.Count && !char.IsWhiteSpace(_buffer[position]))
+            position++;
+        while (position < _buffer.Count && char.IsWhiteSpace(_buffer[position]))
+            position++;
+        return position;
     }
 
     public void Clear()

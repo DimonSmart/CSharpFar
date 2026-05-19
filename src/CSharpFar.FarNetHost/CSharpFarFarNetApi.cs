@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Runtime.InteropServices;
 using CSharpFar.Core.Models;
 using FarNet;
 
@@ -6,6 +7,8 @@ namespace CSharpFar.FarNetHost;
 
 internal sealed class CSharpFarFarNetApi : IFar, IFarNetPanelHost
 {
+    private static readonly IWindow PanelsWindow = new FarNetPanelsWindow();
+
     private readonly FarNetModuleHostServices _services;
     private readonly IReadOnlyDictionary<Guid, IModuleAction> _actions;
     private readonly IReadOnlyDictionary<string, FarNetModuleManager> _managersByName;
@@ -97,6 +100,16 @@ internal sealed class CSharpFarFarNetApi : IFar, IFarNetPanelHost
         return CultureInfo.CurrentUICulture;
     }
 
+    public override IMenu CreateMenu() => new FarNetMenu(_services);
+
+    public override string? PasteFromClipboard() =>
+        Clipboard.TryGetText(out string? text) ? text : string.Empty;
+
+    public override void CopyToClipboard(string text) =>
+        Clipboard.SetText(text ?? string.Empty);
+
+    public override IWindow Window => PanelsWindow;
+
     public void OpenPanel(Panel panel)
     {
         ArgumentNullException.ThrowIfNull(panel);
@@ -143,4 +156,215 @@ internal sealed class CSharpFarFarNetApi : IFar, IFarNetPanelHost
 
     private static bool HasButtonGroup(MessageOptions options, MessageOptions buttonGroup) =>
         ((int)options & 0x70000) == (int)buttonGroup;
+
+    private sealed class FarNetPanelsWindow : IWindow
+    {
+        public WindowKind Kind => WindowKind.Panels;
+        public bool IsModal => false;
+    }
+
+    private static class Clipboard
+    {
+        private const uint CfUnicodeText = 13;
+        private const uint GmemMoveable = 0x0002;
+
+        public static bool TryGetText(out string? text)
+        {
+            text = null;
+            if (!OperatingSystem.IsWindows())
+                return false;
+
+            if (!OpenClipboard(IntPtr.Zero))
+                return false;
+
+            try
+            {
+                IntPtr handle = GetClipboardData(CfUnicodeText);
+                if (handle == IntPtr.Zero)
+                    return false;
+
+                IntPtr pointer = GlobalLock(handle);
+                if (pointer == IntPtr.Zero)
+                    return false;
+
+                try
+                {
+                    text = Marshal.PtrToStringUni(pointer);
+                    return true;
+                }
+                finally
+                {
+                    GlobalUnlock(handle);
+                }
+            }
+            finally
+            {
+                CloseClipboard();
+            }
+        }
+
+        public static void SetText(string text)
+        {
+            if (!OperatingSystem.IsWindows())
+                return;
+
+            if (!OpenClipboard(IntPtr.Zero))
+                return;
+
+            try
+            {
+                EmptyClipboard();
+                byte[] bytes = System.Text.Encoding.Unicode.GetBytes(text + '\0');
+                IntPtr handle = GlobalAlloc(GmemMoveable, (nuint)bytes.Length);
+                if (handle == IntPtr.Zero)
+                    return;
+
+                IntPtr pointer = GlobalLock(handle);
+                if (pointer == IntPtr.Zero)
+                    return;
+
+                try
+                {
+                    Marshal.Copy(bytes, 0, pointer, bytes.Length);
+                }
+                finally
+                {
+                    GlobalUnlock(handle);
+                }
+
+                _ = SetClipboardData(CfUnicodeText, handle);
+            }
+            finally
+            {
+                CloseClipboard();
+            }
+        }
+
+        [DllImport("user32.dll", SetLastError = true)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        private static extern bool OpenClipboard(IntPtr hWndNewOwner);
+
+        [DllImport("user32.dll", SetLastError = true)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        private static extern bool CloseClipboard();
+
+        [DllImport("user32.dll", SetLastError = true)]
+        private static extern IntPtr GetClipboardData(uint uFormat);
+
+        [DllImport("user32.dll", SetLastError = true)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        private static extern bool EmptyClipboard();
+
+        [DllImport("user32.dll", SetLastError = true)]
+        private static extern IntPtr SetClipboardData(uint uFormat, IntPtr hMem);
+
+        [DllImport("kernel32.dll", SetLastError = true)]
+        private static extern IntPtr GlobalAlloc(uint uFlags, nuint dwBytes);
+
+        [DllImport("kernel32.dll", SetLastError = true)]
+        private static extern IntPtr GlobalLock(IntPtr hMem);
+
+        [DllImport("kernel32.dll", SetLastError = true)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        private static extern bool GlobalUnlock(IntPtr hMem);
+    }
+
+    private sealed class FarNetMenu : IMenu
+    {
+        private readonly FarNetModuleHostServices _services;
+        private readonly Dictionary<(int VirtualKeyCode, ControlKeyStates State), EventHandler<MenuEventArgs>?> _keys = [];
+
+        public FarNetMenu(FarNetModuleHostServices services)
+        {
+            _services = services;
+        }
+
+        public int X { get; set; }
+        public int Y { get; set; }
+        public int MaxHeight { get; set; }
+        public string? Title { get; set; }
+        public string? Bottom { get; set; }
+        public IList<FarItem> Items { get; } = [];
+        public int Selected { get; set; }
+        public object? SelectedData => Selected >= 0 && Selected < Items.Count ? Items[Selected].Data : null;
+        public string? HelpTopic { get; set; }
+        public bool SelectLast { get; set; }
+        public object? Sender { get; set; }
+        public bool ShowAmpersands { get; set; }
+        public bool WrapCursor { get; set; } = true;
+        public bool AutoAssignHotkeys { get; set; }
+        public bool NoShadow { get; set; }
+        public KeyData Key { get; private set; } = KeyData.Empty;
+        public bool ReverseAutoAssign { get; set; }
+        public bool ChangeConsoleTitle { get; set; }
+        public bool NoBox { get; set; }
+        public bool NoMargin { get; set; }
+        public bool SingleBox { get; set; }
+
+        public bool Show()
+        {
+            var selectable = Items
+                .Select((item, index) => new { Item = item, Index = index })
+                .Where(candidate => !candidate.Item.Hidden && !candidate.Item.Disabled && !candidate.Item.IsSeparator)
+                .ToArray();
+            if (selectable.Length == 0)
+                return false;
+
+            int selected = Array.FindIndex(selectable, candidate => candidate.Index == Selected);
+            if (selected < 0)
+                selected = SelectLast ? selectable.Length - 1 : 0;
+
+            var texts = selectable
+                .Select(candidate => CleanText(candidate.Item.Text ?? string.Empty))
+                .ToArray();
+            int? chosen = _services.Ui.ShowMenu(Title ?? "FarNet", texts, selected);
+            if (chosen is null)
+                return false;
+
+            var chosenItem = selectable[chosen.Value].Item;
+            Selected = selectable[chosen.Value].Index;
+            var args = new MenuEventArgs(chosenItem);
+            chosenItem.Click?.Invoke(Sender ?? this, args);
+            return !args.Ignore;
+        }
+
+        public FarItem Add(string text)
+        {
+            var item = new SetItem { Text = text };
+            Items.Add(item);
+            return item;
+        }
+
+        public FarItem Add(string text, EventHandler<MenuEventArgs> click)
+        {
+            var item = new SetItem { Text = text, Click = click };
+            Items.Add(item);
+            return item;
+        }
+
+        public void AddKey(int virtualKeyCode) =>
+            AddKey(virtualKeyCode, ControlKeyStates.None, null);
+
+        public void AddKey(int virtualKeyCode, ControlKeyStates controlKeyState) =>
+            AddKey(virtualKeyCode, controlKeyState, null);
+
+        public void AddKey(
+            int virtualKeyCode,
+            ControlKeyStates controlKeyState,
+            EventHandler<MenuEventArgs>? handler)
+        {
+            _keys[(virtualKeyCode, controlKeyState)] = handler;
+        }
+
+        public void Lock()
+        {
+        }
+
+        public void Unlock()
+        {
+        }
+
+        private static string CleanText(string text) =>
+            text.Replace("&", string.Empty, StringComparison.Ordinal);
+    }
 }

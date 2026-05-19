@@ -106,10 +106,36 @@ internal static class Win32ConsoleApi
         public Coord     dwMaximumWindowSize;
     }
 
+    [StructLayout(LayoutKind.Sequential)]
+    internal struct ConsoleScreenBufferInfoEx
+    {
+        public int       cbSize;
+        public Coord     dwSize;
+        public Coord     dwCursorPosition;
+        public short     wAttributes;
+        public SmallRect srWindow;
+        public Coord     dwMaximumWindowSize;
+        public short     wPopupAttributes;
+        public bool      bFullscreenSupported;
+
+        [MarshalAs(UnmanagedType.ByValArray, SizeConst = 16)]
+        public int[]     ColorTable;
+    }
+
     [DllImport("kernel32.dll", SetLastError = true)]
     private static extern bool GetConsoleScreenBufferInfo(
         IntPtr hConsoleOutput,
         out ConsoleScreenBufferInfo lpConsoleScreenBufferInfo);
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    private static extern bool GetConsoleScreenBufferInfoEx(
+        IntPtr hConsoleOutput,
+        ref ConsoleScreenBufferInfoEx lpConsoleScreenBufferInfoEx);
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    private static extern bool SetConsoleScreenBufferInfoEx(
+        IntPtr hConsoleOutput,
+        ref ConsoleScreenBufferInfoEx lpConsoleScreenBufferInfoEx);
 
     [DllImport("kernel32.dll", SetLastError = true)]
     private static extern bool SetConsoleCursorPosition(
@@ -129,6 +155,28 @@ internal static class Win32ConsoleApi
 
     public static bool TryGetConsoleScreenBufferInfo(IntPtr handle, out ConsoleScreenBufferInfo info) =>
         GetConsoleScreenBufferInfo(handle, out info);
+
+    public static bool TryGetConsoleScreenBufferInfoEx(IntPtr handle, out ConsoleScreenBufferInfoEx info)
+    {
+        info = CreateConsoleScreenBufferInfoEx();
+        return GetConsoleScreenBufferInfoEx(handle, ref info);
+    }
+
+    public static bool TrySetConsoleScreenBufferInfoEx(IntPtr handle, ConsoleScreenBufferInfoEx info)
+    {
+        info.cbSize = Marshal.SizeOf<ConsoleScreenBufferInfoEx>();
+        return SetConsoleScreenBufferInfoEx(handle, ref info);
+    }
+
+    public static int MakeColorRef(byte red, byte green, byte blue) =>
+        red | (green << 8) | (blue << 16);
+
+    private static ConsoleScreenBufferInfoEx CreateConsoleScreenBufferInfoEx() =>
+        new()
+        {
+            cbSize = Marshal.SizeOf<ConsoleScreenBufferInfoEx>(),
+            ColorTable = new int[16],
+        };
 
     /// <summary>Sets the cursor to pre-computed absolute buffer coordinates.</summary>
     public static bool TrySetConsoleCursorPositionDirect(IntPtr handle, short absX, short absY) =>
@@ -327,7 +375,12 @@ internal static class Win32ConsoleApi
         }
 
         if ((rec.EventFlags & MOUSE_MOVED) != 0)
-            return null; // skip move events
+        {
+            var moveButton = GetMouseButton(rec.ButtonState);
+            return moveButton.HasValue
+                ? new MouseConsoleInputEvent(x, y, moveButton.Value, MouseEventKind.Move, mods)
+                : null;
+        }
 
         // Button down/up
         var button = GetMouseButton(rec.ButtonState);

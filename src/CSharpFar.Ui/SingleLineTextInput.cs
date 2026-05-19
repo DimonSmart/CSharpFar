@@ -66,13 +66,21 @@ public static class SingleLineTextInput
                 error = null;
                 return TextInputKeyResult.TextChanged;
             case ConsoleKey.LeftArrow:
-                if ((key.Modifiers & ConsoleModifiers.Shift) != 0)
+                if (HasControlWithoutAlt(key) && (key.Modifiers & ConsoleModifiers.Shift) != 0)
+                    buffer.MoveToPreviousWordWithSelection();
+                else if (HasControlWithoutAlt(key))
+                    buffer.MoveToPreviousWord();
+                else if ((key.Modifiers & ConsoleModifiers.Shift) != 0)
                     buffer.MoveCursorWithSelection(buffer.CursorPosition - 1);
                 else
                     buffer.MoveCursor(-1);
                 return TextInputKeyResult.Handled;
             case ConsoleKey.RightArrow:
-                if ((key.Modifiers & ConsoleModifiers.Shift) != 0)
+                if (HasControlWithoutAlt(key) && (key.Modifiers & ConsoleModifiers.Shift) != 0)
+                    buffer.MoveToNextWordWithSelection();
+                else if (HasControlWithoutAlt(key))
+                    buffer.MoveToNextWord();
+                else if ((key.Modifiers & ConsoleModifiers.Shift) != 0)
                     buffer.MoveCursorWithSelection(buffer.CursorPosition + 1);
                 else
                     buffer.MoveCursor(+1);
@@ -374,6 +382,10 @@ public static class SingleLineTextInput
         return !hasAlt && !hasShift &&
             ((hasControl && key.Key == ConsoleKey.A) || key.KeyChar == '\u0001');
     }
+
+    private static bool HasControlWithoutAlt(ConsoleKeyInfo key) =>
+        (key.Modifiers & ConsoleModifiers.Control) != 0 &&
+        (key.Modifiers & ConsoleModifiers.Alt) == 0;
 
     private static bool IsPlainControlV(ConsoleKeyInfo key)
     {

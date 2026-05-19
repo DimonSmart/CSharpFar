@@ -1,6 +1,7 @@
 using System.Reflection;
 using CSharpFar.App;
 using CSharpFar.Console;
+using CSharpFar.Console.Input;
 using CSharpFar.Core.Abstractions;
 using CSharpFar.Core.History;
 using CSharpFar.Core.Models;
@@ -135,6 +136,62 @@ public sealed class Spec027FarCommandLineShortcutTests : IDisposable
         Assert.Equal("third", GetCommandLine(app).Text);
     }
 
+    [Fact]
+    public void Run_CommandLineCtrlArrowMovesByWord()
+    {
+        var driver = new FakeConsoleDriver(width: 100, height: 12);
+        EnqueueText(driver, "alpha beta");
+        driver.EnqueueKey(Key(ConsoleKey.LeftArrow, control: true));
+        driver.EnqueueKey(Key(ConsoleKey.F10));
+
+        var app = CreateApp(CreateFileSystem(), driver, new InMemoryHistoryStore());
+        app.Run();
+
+        Assert.Equal(6, GetCommandLine(app).CursorPosition);
+    }
+
+    [Fact]
+    public void Run_CommandLineShiftArrowSelectsText()
+    {
+        var driver = new FakeConsoleDriver(width: 100, height: 12);
+        EnqueueText(driver, "abc");
+        driver.EnqueueKey(Key(ConsoleKey.LeftArrow, shift: true));
+        driver.EnqueueKey(Key(ConsoleKey.F10));
+
+        var app = CreateApp(CreateFileSystem(), driver, new InMemoryHistoryStore());
+        app.Run();
+
+        Assert.Equal("c", GetCommandLine(app).SelectedText);
+    }
+
+    [Fact]
+    public void Run_CommandLineMouseDragSelectsText()
+    {
+        var driver = new FakeConsoleDriver(width: 120, height: 12);
+        EnqueueText(driver, "abcdef");
+
+        int promptLength = _leftRoot.Length + 1;
+        int commandLineRow = 10;
+        driver.EnqueueInput(new MouseConsoleInputEvent(
+            promptLength + 1,
+            commandLineRow,
+            MouseButton.Left,
+            MouseEventKind.Down,
+            MouseKeyModifiers.None));
+        driver.EnqueueInput(new MouseConsoleInputEvent(
+            promptLength + 4,
+            commandLineRow,
+            MouseButton.Left,
+            MouseEventKind.Move,
+            MouseKeyModifiers.None));
+        driver.EnqueueKey(Key(ConsoleKey.F10));
+
+        var app = CreateApp(CreateFileSystem(), driver, new InMemoryHistoryStore());
+        app.Run();
+
+        Assert.Equal("bcd", GetCommandLine(app).SelectedText);
+    }
+
     private FakeFileSystemService CreateFileSystem(
         FilePanelItem[]? leftItems = null,
         FilePanelItem[]? rightItems = null)
@@ -188,11 +245,23 @@ public sealed class Spec027FarCommandLineShortcutTests : IDisposable
         return (CommandLineState)field.GetValue(app)!;
     }
 
+    private static void EnqueueText(FakeConsoleDriver driver, string text)
+    {
+        foreach (char ch in text)
+        {
+            var key = ch == ' '
+                ? ConsoleKey.Spacebar
+                : (ConsoleKey)char.ToUpperInvariant(ch);
+            driver.EnqueueKey(Key(key, keyChar: ch));
+        }
+    }
+
     private static ConsoleKeyInfo Key(
         ConsoleKey key,
         char keyChar = '\0',
-        bool control = false) =>
-        new(keyChar, key, shift: false, alt: false, control);
+        bool control = false,
+        bool shift = false) =>
+        new(keyChar, key, shift, alt: false, control);
 
     private sealed class NoOpShellService : IShellService
     {

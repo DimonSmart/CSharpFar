@@ -1,5 +1,6 @@
 using System.Text;
 using System.Runtime.Versioning;
+using CSharpFar.Core.Text;
 
 namespace CSharpFar.App.Viewer;
 
@@ -59,7 +60,8 @@ internal sealed class TextFileInfo
             long sampleLen = Math.Min(fs.Length, 65536);
             byte[] sample = new byte[sampleLen];
             int sampleRead = fs.Read(sample, 0, (int)sampleLen);
-            lineEnding = DetectLineEnding(sample, sampleRead);
+            lineEnding = TextLineEndingDetector.DisplayName(
+                TextLineEndingDetector.DetectBytes(sample.AsSpan(0, sampleRead)));
         }
         catch { }
 
@@ -88,35 +90,6 @@ internal sealed class TextFileInfo
         if (len >= 2 && buf[0] == 0xFE && buf[1] == 0xFF)
             return "UTF-16 BE";
         return null;
-    }
-
-    // ── line ending detection ─────────────────────────────────────────────────
-
-    private static string DetectLineEnding(byte[] buf, int len)
-    {
-        bool hasCrLf = false;
-        bool hasLf   = false;
-        bool hasCr   = false;
-
-        for (int i = 0; i < len; i++)
-        {
-            if (buf[i] == 0x0D)
-            {
-                if (i + 1 < len && buf[i + 1] == 0x0A) { hasCrLf = true; i++; }
-                else hasCr = true;
-            }
-            else if (buf[i] == 0x0A)
-            {
-                hasLf = true;
-            }
-        }
-
-        int kinds = (hasCrLf ? 1 : 0) + (hasLf ? 1 : 0) + (hasCr ? 1 : 0);
-        if (kinds == 0)   return string.Empty;
-        if (kinds > 1)    return "Mixed";
-        if (hasCrLf)      return "Windows (CRLF)";
-        if (hasLf)        return "Unix (LF)";
-        return "Classic Mac (CR)";
     }
 
     // ── associated application ────────────────────────────────────────────────

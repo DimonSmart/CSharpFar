@@ -105,6 +105,44 @@ public sealed class ApplicationVolumeTests : IDisposable
         Assert.Equal(volPath, GetRightPanel(app).CurrentDirectory);
     }
 
+    [Fact]
+    public void AltF1_SelectVolume_UsesSameVolumeDirectoryFromRightPanel()
+    {
+        string volPath = Path.Combine(_tempDir, "VolSame");
+        string rightSubDirectory = Path.Combine(volPath, "Projects");
+        Directory.CreateDirectory(rightSubDirectory);
+
+        var volService = new FakeVolumeService(new FileSystemVolume
+        {
+            Id = "S:\\", DisplayName = "S:", RootPath = volPath,
+            Kind = VolumeKind.Fixed, Status = VolumeStatus.Ready, Shortcut = "S",
+        });
+        var fs = new FakeFileSystemService();
+        fs.AddDirectory(_tempDir);
+        fs.AddDirectory(volPath);
+        fs.AddDirectory(rightSubDirectory);
+        var settings = new AppSettings();
+        settings.Panels.LeftStartDirectory = _tempDir;
+        settings.Panels.RightStartDirectory = rightSubDirectory;
+        var driver = new FakeConsoleDriver();
+        driver.EnqueueKey(new ConsoleKeyInfo('\0', ConsoleKey.F1, shift: false, alt: true, control: false));
+        driver.EnqueueKey(new ConsoleKeyInfo('\0', ConsoleKey.Enter, shift: false, alt: false, control: false));
+        driver.EnqueueKey(new ConsoleKeyInfo('\0', ConsoleKey.F10, shift: false, alt: false, control: false));
+
+        var app = new Application(
+            new ScreenRenderer(driver),
+            fs,
+            new NoOpShellService(),
+            new NoOpFileOperationService(),
+            new InMemoryHistoryStore(),
+            settings,
+            volumeService: volService);
+
+        app.Run();
+
+        Assert.Equal(rightSubDirectory, GetLeftPanel(app).CurrentDirectory);
+    }
+
     // ── Alt+F1 does NOT change right panel ───────────────────────────────────
 
     [Fact]

@@ -87,16 +87,23 @@ internal sealed class FarNetPanelAdapter : IModulePanel, IFarNetPanelOperations
         var files = _panel.Explorer.GetFiles(args).ToArray();
         _panel.NeedsNewFiles = false;
         _panel.Files.Clear();
+        _panel.SelectedFiles.Clear();
         _filesByPath.Clear();
 
         var items = new List<FilePanelItem>(files.Length);
-        foreach (FarFile file in files)
+        for (int index = 0; index < files.Length; index++)
         {
             cancellationToken.ThrowIfCancellationRequested();
+            FarFile file = files[index];
             _panel.Files.Add(file);
             string itemPath = NormalizePath(file.Name);
             _filesByPath[itemPath] = file;
             items.Add(ToFilePanelItem(file, itemPath));
+            if (index == 0 && _panel.CurrentFile is null)
+            {
+                _panel.CurrentFile = file;
+                _panel.CurrentIndex = 0;
+            }
         }
 
         return items;
@@ -254,6 +261,47 @@ internal sealed class FarNetPanelAdapter : IModulePanel, IFarNetPanelOperations
         }
     }
 
+    public ModuleActionResult PressKey(string? sourcePath, int virtualKeyCode, bool shift, bool control, bool alt)
+    {
+        try
+        {
+            if (!string.IsNullOrWhiteSpace(sourcePath) &&
+                TryGetFarFile(sourcePath, out FarFile? file) &&
+                file is not null)
+            {
+                _panel.CurrentFile = file;
+                _panel.CurrentIndex = Math.Max(0, _panel.Files.IndexOf(file));
+                _panel.SelectedFiles.Clear();
+                _panel.SelectedFiles.Add(file);
+            }
+
+            var key = new KeyInfo(
+                virtualKeyCode,
+                GetCharacter(virtualKeyCode, shift, control, alt),
+                GetControlKeyStates(shift, control, alt),
+                keyDown: true);
+            bool handled = _panel.UIKeyPressed(key);
+            if (!handled &&
+                IsDeleteKey(virtualKeyCode) &&
+                !string.IsNullOrWhiteSpace(sourcePath) &&
+                TryGetFarFile(sourcePath, out file) &&
+                file is not null)
+            {
+                _panel.UIDeleteFiles(new DeleteFilesEventArgs(ExplorerModes.None, [file], force: shift));
+                handled = true;
+            }
+
+            _panel.NeedsNewFiles = true;
+            return handled
+                ? ModuleActionResult.Completed()
+                : ModuleActionResult.NoPanel();
+        }
+        catch (Exception ex)
+        {
+            return ModuleActionResult.Failed(ex.Message);
+        }
+    }
+
     public Task<Stream> OpenReadAsync(
         string sourcePath,
         CancellationToken cancellationToken = default) =>
@@ -330,4 +378,30 @@ internal sealed class FarNetPanelAdapter : IModulePanel, IFarNetPanelOperations
 
         return _filesByPath.TryGetValue(path, out file);
     }
+
+    private static ControlKeyStates GetControlKeyStates(bool shift, bool control, bool alt)
+    {
+        var states = ControlKeyStates.None;
+        if (shift)
+            states |= ControlKeyStates.ShiftPressed;
+        if (control)
+            states |= ControlKeyStates.LeftCtrlPressed;
+        if (alt)
+            states |= ControlKeyStates.LeftAltPressed;
+        return states;
+    }
+
+    private static char GetCharacter(int virtualKeyCode, bool shift, bool control, bool alt)
+    {
+        if (control || alt)
+            return '\0';
+        if (virtualKeyCode is >= 'A' and <= 'Z')
+            return (char)(shift ? virtualKeyCode : char.ToLowerInvariant((char)virtualKeyCode));
+        if (virtualKeyCode is >= '0' and <= '9')
+            return (char)virtualKeyCode;
+        return '\0';
+    }
+
+    private static bool IsDeleteKey(int virtualKeyCode) =>
+        virtualKeyCode is 46 or 119;
 }

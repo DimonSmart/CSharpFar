@@ -21,11 +21,17 @@ internal sealed class EditFileCommand : IApplicationCommand
         }
 
         var item = context.Controller.CurrentItem(context.ActiveState);
-        if (item is null || item.IsParentDirectory || item.IsDirectory)
+        if (item is null || item.IsParentDirectory)
+            return ApplicationCommandResult.Rendered();
+
+        if (context.TryEditFarNetPanelItem(context.ActiveState, item))
+            return ApplicationCommandResult.Rendered();
+
+        if (item.IsDirectory)
             return ApplicationCommandResult.Rendered();
 
         context.History.AddFile(new FileHistoryItem { Path = item.FullPath });
-        new FileEditor(context.Screen, context.Palette).Show(item.FullPath);
+        new FileEditor(context.Screen, context.Palette, context.Settings.Editor).Show(item.FullPath);
         context.SafeRefresh(context.ActiveState, context.VisibleRows());
         return ApplicationCommandResult.Rendered();
     }

@@ -19,9 +19,11 @@ public sealed class SystemConsoleDriver : IConsoleDriver, IConsoleOutputModeDriv
     private readonly IntPtr _inputHandle;
     private readonly uint _originalInputMode;
     private readonly uint _originalOutputMode;
+    private readonly Win32ConsoleApi.ConsoleScreenBufferInfoEx _originalScreenBufferInfoEx;
     private readonly Coord _originalScreenBufferSize;
     private readonly bool _restoreInputMode;
     private readonly bool _restoreOutputMode;
+    private readonly bool _restoreConsolePalette;
     private readonly bool _restoreScreenBufferSize;
     private readonly Win32ModifierKeyTracker? _modifierKeyTracker;
     private ConsoleViewport _lastInputViewport;
@@ -40,6 +42,7 @@ public sealed class SystemConsoleDriver : IConsoleDriver, IConsoleOutputModeDriv
             _restoreScreenBufferSize = Win32ConsoleApi.TryGetConsoleScreenBufferInfo(_consoleHandle, out var sbi);
             if (_restoreScreenBufferSize)
                 _originalScreenBufferSize = sbi.dwSize;
+            _restoreConsolePalette = TryApplyApplicationConsolePalette(_consoleHandle, out _originalScreenBufferInfoEx);
             _modifierKeyTracker = new Win32ModifierKeyTracker();
         }
 
@@ -56,6 +59,8 @@ public sealed class SystemConsoleDriver : IConsoleDriver, IConsoleOutputModeDriv
             Win32ConsoleApi.TrySetConsoleMode(_inputHandle, _originalInputMode);
         if (OperatingSystem.IsWindows() && _restoreOutputMode)
             Win32ConsoleApi.TrySetConsoleMode(_consoleHandle, _originalOutputMode);
+        if (OperatingSystem.IsWindows() && _restoreConsolePalette)
+            Win32ConsoleApi.TrySetConsoleScreenBufferInfoEx(_consoleHandle, _originalScreenBufferInfoEx);
         if (OperatingSystem.IsWindows() && _restoreScreenBufferSize)
             TryRestoreConsoleScrollback();
         if (OperatingSystem.IsWindows())
@@ -417,6 +422,20 @@ public sealed class SystemConsoleDriver : IConsoleDriver, IConsoleOutputModeDriv
         appMode &= ~Win32ConsoleApi.ENABLE_INSERT_MODE;
         appMode &= ~Win32ConsoleApi.ENABLE_VIRTUAL_TERMINAL_INPUT;
         return appMode;
+    }
+
+    [SupportedOSPlatform("windows")]
+    private static bool TryApplyApplicationConsolePalette(
+        IntPtr consoleHandle,
+        out Win32ConsoleApi.ConsoleScreenBufferInfoEx originalInfo)
+    {
+        if (!Win32ConsoleApi.TryGetConsoleScreenBufferInfoEx(consoleHandle, out originalInfo))
+            return false;
+
+        var appInfo = originalInfo;
+        appInfo.ColorTable = [.. originalInfo.ColorTable];
+        appInfo.ColorTable[(int)ConsoleColor.DarkBlue] = Win32ConsoleApi.MakeColorRef(0, 0, 117);
+        return Win32ConsoleApi.TrySetConsoleScreenBufferInfoEx(consoleHandle, appInfo);
     }
 
     [SupportedOSPlatform("windows")]
