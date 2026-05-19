@@ -532,6 +532,28 @@ public sealed class ApplicationNavigationTests : IDisposable
         app.Run();
     }
 
+    [Fact]
+    public void CtrlOAfterCommandExecution_RestoresCommandOutputUnderlay()
+    {
+        var fs = new FakeFileSystemService();
+        fs.AddDirectory(_tempDir);
+
+        var driver = new FakeConsoleDriver(width: 80, height: 12);
+        driver.SetBufferHeight(30);
+        var app = CreateApp(fs, driver, _tempDir);
+
+        Render(app);
+        app.ExecuteInCurrentConsole(
+            _tempDir,
+            "test",
+            () => driver.WriteAt(0, 0, "COMMAND-OUTPUT".AsSpan()));
+        Render(app);
+
+        HandleKeyAndRender(app, Key(ConsoleKey.O, keyChar: '\u000f', control: true));
+
+        Assert.StartsWith("COMMAND-OUTPUT", driver.GetRow(0));
+    }
+
     [Theory]
     [InlineData(1, 1)]
     [InlineData(2, 3)]

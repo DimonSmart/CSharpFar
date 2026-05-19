@@ -21,6 +21,7 @@ public sealed class FakeConsoleDriver : IConsoleDriver, IConsoleOutputModeDriver
     private SnapshotCell[,] _buffer;
     private ConsoleSize _size;
     private int _bufferHeight;
+    private int _scrollbackBufferHeight;
     private int _viewportLeft;
     private int _viewportTop;
     private readonly Queue<ConsoleInputEvent> _inputQueue = new();
@@ -43,6 +44,7 @@ public sealed class FakeConsoleDriver : IConsoleDriver, IConsoleOutputModeDriver
     {
         _size = new ConsoleSize(width, height);
         _bufferHeight = height;
+        _scrollbackBufferHeight = height;
         _buffer = CreateBuffer(width, height);
     }
 
@@ -81,6 +83,7 @@ public sealed class FakeConsoleDriver : IConsoleDriver, IConsoleOutputModeDriver
             throw new ArgumentOutOfRangeException(nameof(height), "Buffer height cannot be smaller than the viewport height.");
 
         _bufferHeight = height;
+        _scrollbackBufferHeight = Math.Max(_scrollbackBufferHeight, height);
     }
 
     public void SetSize(int width, int height)
@@ -178,7 +181,21 @@ public sealed class FakeConsoleDriver : IConsoleDriver, IConsoleOutputModeDriver
     }
     public void SetCursorVisible(bool visible) { CursorVisible = visible; SetCursorVisibleCallCount++; }
     public void SetRenderingOutputMode(bool enabled) { RenderingOutputMode = enabled; }
-    public void SetConsoleScrollbackEnabled(bool enabled) { ConsoleScrollbackEnabled = enabled; }
+    public void SetConsoleScrollbackEnabled(bool enabled)
+    {
+        if (enabled)
+        {
+            ConsoleScrollbackEnabled = true;
+            _bufferHeight = Math.Max(_bufferHeight, _scrollbackBufferHeight);
+            TryScrollViewportToBottom();
+            return;
+        }
+
+        ConsoleScrollbackEnabled = false;
+        _viewportLeft = 0;
+        _viewportTop = 0;
+        _bufferHeight = _size.Height;
+    }
     public void RestoreApplicationInputMode() { }
 
     public ScreenSnapshot Capture(Rect region)

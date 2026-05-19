@@ -450,9 +450,15 @@ public sealed class SystemConsoleDriver : IConsoleDriver, IConsoleOutputModeDriv
         short width = (short)Math.Max(_originalScreenBufferSize.X, sbi.srWindow.Right - sbi.srWindow.Left + 1);
         short height = (short)Math.Max(_originalScreenBufferSize.Y, sbi.srWindow.Bottom - sbi.srWindow.Top + 1);
 
-        return Win32ConsoleApi.TrySetConsoleScreenBufferSize(
+        if (!Win32ConsoleApi.TrySetConsoleScreenBufferSize(
             _consoleHandle,
-            new Coord { X = width, Y = height });
+            new Coord { X = width, Y = height }))
+        {
+            return false;
+        }
+
+        TryScrollViewportToBottom();
+        return true;
     }
 
     [SupportedOSPlatform("windows")]
