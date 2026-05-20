@@ -182,6 +182,10 @@ internal sealed class FileEditor
             case ConsoleKey.Y when control:
                 session.Redo();
                 return true;
+            case ConsoleKey.A when control:
+                session.SelectAll();
+                _markMode = false;
+                return true;
             case ConsoleKey.C when control:
                 InternalClipboard = session.CopySelection();
                 return true;

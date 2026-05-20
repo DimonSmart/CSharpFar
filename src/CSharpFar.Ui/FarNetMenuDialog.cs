@@ -1,5 +1,7 @@
 using CSharpFar.Console;
+using CSharpFar.Console.Input;
 using CSharpFar.Console.Models;
+using CSharpFar.Core.Models;
 
 namespace CSharpFar.Ui;
 
@@ -23,30 +25,42 @@ public sealed class FarNetMenuDialog
         selected = Math.Clamp(selected, 0, items.Count - 1);
         var size = _screen.GetSize();
         var saved = _screen.Capture(new Rect(0, 0, size.Width, size.Height));
+        int firstVisibleIndex = 0;
+        ScrollBarDragState? scrollbarDrag = null;
         try
         {
             _screen.SetCursorVisible(false);
             while (true)
             {
-                Draw(title, items, selected, size);
-                var key = _screen.ReadKey();
-                switch (key.Key)
+                var layout = CalculateLayout(title, items, size);
+                firstVisibleIndex = ScrollStateCalculator.ClampFirstVisibleIndex(
+                    Math.Clamp(firstVisibleIndex, selected - layout.VisibleRows + 1, selected),
+                    items.Count,
+                    layout.VisibleRows);
+
+                Draw(title, items, selected, firstVisibleIndex, layout);
+                var input = _screen.ReadInput();
+                int? result;
+                switch (input)
                 {
-                    case ConsoleKey.Escape:
-                        return null;
-                    case ConsoleKey.Enter:
-                        return selected;
-                    case ConsoleKey.UpArrow:
-                        selected = selected == 0 ? items.Count - 1 : selected - 1;
+                    case KeyConsoleInputEvent key:
+                        if (HandleKey(key.Key, items.Count, ref selected, out result))
+                            return result;
                         break;
-                    case ConsoleKey.DownArrow:
-                        selected = selected == items.Count - 1 ? 0 : selected + 1;
-                        break;
-                    case ConsoleKey.Home:
-                        selected = 0;
-                        break;
-                    case ConsoleKey.End:
-                        selected = items.Count - 1;
+
+                    case MouseConsoleInputEvent mouse:
+                        if (HandleMouse(
+                                mouse,
+                                layout,
+                                items.Count,
+                                ref selected,
+                                ref firstVisibleIndex,
+                                ref scrollbarDrag,
+                                out result))
+                        {
+                            if (result is not null)
+                                return result;
+                        }
                         break;
                 }
             }
@@ -58,7 +72,101 @@ public sealed class FarNetMenuDialog
         }
     }
 
-    private void Draw(string title, IReadOnlyList<string> items, int selected, ConsoleSize size)
+    private static bool HandleKey(ConsoleKeyInfo key, int itemCount, ref int selected, out int? result)
+    {
+        result = null;
+        switch (key.Key)
+        {
+            case ConsoleKey.Escape:
+                return true;
+            case ConsoleKey.Enter:
+                result = selected;
+                return true;
+            case ConsoleKey.UpArrow:
+                selected = selected == 0 ? itemCount - 1 : selected - 1;
+                return false;
+            case ConsoleKey.DownArrow:
+                selected = selected == itemCount - 1 ? 0 : selected + 1;
+                return false;
+            case ConsoleKey.PageUp:
+                selected = Math.Max(0, selected - 10);
+                return false;
+            case ConsoleKey.PageDown:
+                selected = Math.Min(itemCount - 1, selected + 10);
+                return false;
+            case ConsoleKey.Home:
+                selected = 0;
+                return false;
+            case ConsoleKey.End:
+                selected = itemCount - 1;
+                return false;
+            default:
+                return false;
+        }
+    }
+
+    private static bool HandleMouse(
+        MouseConsoleInputEvent mouse,
+        MenuLayout layout,
+        int itemCount,
+        ref int selected,
+        ref int firstVisibleIndex,
+        ref ScrollBarDragState? scrollbarDrag,
+        out int? result)
+    {
+        result = null;
+
+        if (mouse.Button == MouseButton.WheelUp && mouse.Kind == MouseEventKind.Wheel)
+        {
+            selected = Math.Max(0, selected - 1);
+            return true;
+        }
+
+        if (mouse.Button == MouseButton.WheelDown && mouse.Kind == MouseEventKind.Wheel)
+        {
+            selected = Math.Min(itemCount - 1, selected + 1);
+            return true;
+        }
+
+        if (ScrollableListMouseHandler.TryHandleScrollbarMouse(
+                mouse,
+                layout.ScrollbarBounds,
+                itemCount,
+                layout.VisibleRows,
+                ref selected,
+                ref firstVisibleIndex,
+                ref scrollbarDrag))
+        {
+            return true;
+        }
+
+        if (mouse.Button != MouseButton.Left ||
+            mouse.Kind is not (MouseEventKind.Down or MouseEventKind.Click or MouseEventKind.DoubleClick))
+        {
+            return false;
+        }
+
+        if (mouse.X < layout.ContentBounds.X ||
+            mouse.X >= layout.ContentBounds.Right ||
+            mouse.Y < layout.ContentBounds.Y ||
+            mouse.Y >= layout.ContentBounds.Bottom)
+        {
+            return false;
+        }
+
+        int index = firstVisibleIndex + mouse.Y - layout.ContentBounds.Y;
+        if (index < 0 || index >= itemCount)
+            return false;
+
+        selected = index;
+        result = index;
+        return true;
+    }
+
+    private static MenuLayout CalculateLayout(
+        string title,
+        IReadOnlyList<string> items,
+        ConsoleSize size)
     {
         int contentWidth = Math.Min(
             Math.Max(items.Max(static item => item.Length), title.Length) + 2,
@@ -67,28 +175,51 @@ public sealed class FarNetMenuDialog
         int x = Math.Max(0, (size.Width - contentWidth - 2) / 2);
         int y = Math.Max(0, (size.Height - height) / 2);
         var bounds = new Rect(x, y, contentWidth + 2, height);
+        var contentBounds = new Rect(x + 1, y + 1, contentWidth, Math.Max(1, height - 2));
+        int visibleRows = contentBounds.Height;
+        return new MenuLayout(
+            bounds,
+            contentBounds,
+            new Rect(bounds.Right - 1, contentBounds.Y, 1, contentBounds.Height),
+            visibleRows);
+    }
+
+    private void Draw(
+        string title,
+        IReadOnlyList<string> items,
+        int selected,
+        int firstVisibleIndex,
+        MenuLayout layout)
+    {
+        var scrollState = items.Count > layout.VisibleRows
+            ? new ScrollState
+            {
+                TotalItems = items.Count,
+                ViewportItems = layout.VisibleRows,
+                FirstVisibleIndex = firstVisibleIndex,
+            }
+            : null;
 
         new DialogFrameRenderer().RenderFrame(
             _screen,
-            bounds,
+            layout.Bounds,
             title,
             false,
             PaletteStyles.DialogPopupOptions(_palette),
+            scrollState,
             (_, _) =>
             {
-                int visibleRows = height - 2;
-                int first = Math.Clamp(selected - visibleRows + 1, 0, Math.Max(0, items.Count - visibleRows));
-                for (int row = 0; row < visibleRows; row++)
+                for (int row = 0; row < layout.VisibleRows; row++)
                 {
-                    int index = first + row;
+                    int index = firstVisibleIndex + row;
                     string text = index < items.Count ? items[index] : string.Empty;
                     var style = index == selected
                         ? PaletteStyles.InputField(_palette)
                         : PaletteStyles.DialogFill(_palette);
                     _screen.Write(
-                        x + 1,
-                        y + 1 + row,
-                        Truncate(text, contentWidth).PadRight(contentWidth),
+                        layout.ContentBounds.X,
+                        layout.ContentBounds.Y + row,
+                        Truncate(text, layout.ContentBounds.Width).PadRight(layout.ContentBounds.Width),
                         style);
                 }
             });
@@ -96,4 +227,10 @@ public sealed class FarNetMenuDialog
 
     private static string Truncate(string value, int width) =>
         value.Length <= width ? value : value[..Math.Max(0, width)];
+
+    private readonly record struct MenuLayout(
+        Rect Bounds,
+        Rect ContentBounds,
+        Rect ScrollbarBounds,
+        int VisibleRows);
 }

@@ -85,6 +85,9 @@ public sealed class EditorSession
         Cursor = NormalizeCursorPosition(end);
     }
 
+    public void SelectAll() =>
+        SelectRange(EditorPosition.Start, Document.Buffer.End);
+
     public void MoveWordLeft(bool extendSelection = false)
     {
         var text = FlattenText();

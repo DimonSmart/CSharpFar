@@ -177,6 +177,53 @@ public sealed class Spec013FunctionKeyBarTests : IDisposable
         Assert.Equal(SortMode.LastWriteTime, GetLeftPanel(app).SortMode);
     }
 
+    [Fact]
+    public void Run_ClickPlainFunctionKeyBarF10Quits()
+    {
+        var fs = CreateFileSystem();
+        var driver = new FakeConsoleDriver(width: 100, height: 14);
+        driver.EnqueueInput(LeftMouse(x: 73, y: 13, MouseEventKind.Down));
+
+        var app = CreateApp(fs, driver);
+
+        app.Run();
+
+        string row = ComposeBottomRow(driver, y: 13, width: 100);
+        Assert.Contains("10Quit", row);
+    }
+
+    [Fact]
+    public void Run_ClickControlFunctionKeyBarSortsActivePanel()
+    {
+        var fs = CreateFileSystem(
+            new FilePanelItem
+            {
+                Name = "b.txt",
+                FullPath = Path.Combine(_root, "b.txt"),
+                IsDirectory = false,
+                Size = 2,
+                LastWriteTime = new DateTime(2026, 1, 1),
+            },
+            new FilePanelItem
+            {
+                Name = "a.txt",
+                FullPath = Path.Combine(_root, "a.txt"),
+                IsDirectory = false,
+                Size = 1,
+                LastWriteTime = new DateTime(2026, 1, 1),
+            });
+        var driver = new FakeConsoleDriver(width: 100, height: 14);
+        driver.EnqueueInput(LeftMouse(x: 33, y: 13, MouseEventKind.Down));
+        driver.EnqueueKey(Key(ConsoleKey.F10));
+
+        var app = CreateApp(fs, driver);
+        SetFunctionKeyLayer(app, FunctionKeyLayer.Control);
+
+        app.Run();
+
+        Assert.Equal(SortMode.LastWriteTime, GetLeftPanel(app).SortMode);
+    }
+
     private FakeFileSystemService CreateFileSystem(params FilePanelItem[] items)
     {
         var fs = new FakeFileSystemService();
@@ -241,6 +288,9 @@ public sealed class Spec013FunctionKeyBarTests : IDisposable
 
     private static ConsoleKeyInfo Key(ConsoleKey key, bool control = false, bool alt = false) =>
         new('\0', key, shift: false, alt: alt, control: control);
+
+    private static MouseConsoleInputEvent LeftMouse(int x, int y, MouseEventKind kind) =>
+        new(x, y, MouseButton.Left, kind, MouseKeyModifiers.None);
 
     private static FilePanelState GetLeftPanel(Application app)
     {

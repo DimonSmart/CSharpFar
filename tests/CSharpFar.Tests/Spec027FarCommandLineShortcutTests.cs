@@ -151,6 +151,20 @@ public sealed class Spec027FarCommandLineShortcutTests : IDisposable
     }
 
     [Fact]
+    public void Run_CommandLineCtrlASelectsAllWhenTextExists()
+    {
+        var driver = new FakeConsoleDriver(width: 100, height: 12);
+        EnqueueText(driver, "alpha beta");
+        driver.EnqueueKey(Key(ConsoleKey.A, keyChar: '\u0001', control: true));
+        driver.EnqueueKey(Key(ConsoleKey.F10));
+
+        var app = CreateApp(CreateFileSystem(), driver, new InMemoryHistoryStore());
+        app.Run();
+
+        Assert.Equal("alpha beta", GetCommandLine(app).SelectedText);
+    }
+
+    [Fact]
     public void Run_CommandLineShiftArrowSelectsText()
     {
         var driver = new FakeConsoleDriver(width: 100, height: 12);

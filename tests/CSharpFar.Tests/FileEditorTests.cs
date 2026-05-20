@@ -123,6 +123,23 @@ public sealed class FileEditorTests : IDisposable
     }
 
     [Fact]
+    public void Show_CtrlASelectsAllText()
+    {
+        string filePath = Path.Combine(_tempDir, "ctrl-a.txt");
+        File.WriteAllText(filePath, "abc");
+
+        var driver = new FakeConsoleDriver(80, 25);
+        driver.EnqueueKey(new ConsoleKeyInfo('\u0001', ConsoleKey.A, shift: false, alt: false, control: true));
+        driver.EnqueueKey(new ConsoleKeyInfo('X', ConsoleKey.X, shift: false, alt: false, control: false));
+        driver.EnqueueKey(new ConsoleKeyInfo('\0', ConsoleKey.F2, shift: false, alt: false, control: false));
+        driver.EnqueueKey(new ConsoleKeyInfo('\0', ConsoleKey.F10, shift: false, alt: false, control: false));
+
+        ShowFileEditor(new ScreenRenderer(driver), filePath);
+
+        Assert.Equal("X", File.ReadAllText(filePath));
+    }
+
+    [Fact]
     public void Show_SelectionOnEmptyLine_IsRenderedWithInvertedStyle()
     {
         string filePath = Path.Combine(_tempDir, "empty-selection.txt");

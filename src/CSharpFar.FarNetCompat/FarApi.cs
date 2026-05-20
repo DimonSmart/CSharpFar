@@ -49,6 +49,7 @@ public abstract class IFar
     public abstract Version FarNetVersion { get; }
     public abstract void ShowError(string? title, Exception exception);
     public abstract string CurrentDirectory { get; }
+    public abstract string GetFullPath(string path);
     public abstract string TempName(string? prefix);
     public string TempName() => TempName(null);
     public abstract IModuleManager GetModuleManager(string name);
@@ -108,6 +109,9 @@ internal sealed class UnsupportedFarApi : IFar
 
     public override string CurrentDirectory =>
         throw new FarNetUnsupportedApiException(nameof(CurrentDirectory));
+
+    public override string GetFullPath(string path) =>
+        throw new FarNetUnsupportedApiException(nameof(GetFullPath));
 
     public override string TempName(string? prefix) =>
         throw new FarNetUnsupportedApiException(nameof(TempName));

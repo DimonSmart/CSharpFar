@@ -70,6 +70,15 @@ internal sealed class CSharpFarFarNetApi : IFar, IFarNetPanelHost
     public override string CurrentDirectory =>
         _services.GetPanelState(_services.GetActivePanelSide()).CurrentDirectory;
 
+    public override string GetFullPath(string path)
+    {
+        ArgumentNullException.ThrowIfNull(path);
+
+        return Path.IsPathFullyQualified(path)
+            ? Path.GetFullPath(path)
+            : Path.GetFullPath(path, CurrentDirectory);
+    }
+
     public override string TempName(string? prefix)
     {
         string filePrefix = string.IsNullOrWhiteSpace(prefix) ? "FAR" : prefix!;
@@ -103,7 +112,7 @@ internal sealed class CSharpFarFarNetApi : IFar, IFarNetPanelHost
     public override IMenu CreateMenu() => new FarNetMenu(_services);
 
     public override string? PasteFromClipboard() =>
-        Clipboard.TryGetText(out string? text) ? text : string.Empty;
+        Clipboard.TryGetText(out string? text) ? NormalizeClipboardText(text) : string.Empty;
 
     public override void CopyToClipboard(string text) =>
         Clipboard.SetText(text ?? string.Empty);
@@ -135,8 +144,23 @@ internal sealed class CSharpFarFarNetApi : IFar, IFarNetPanelHost
         return panel;
     }
 
-    public override void ShowHelp(string path, string topic, HelpOptions options) =>
-        throw new FarNetUnsupportedApiException(nameof(ShowHelp));
+    public override void ShowHelp(string path, string topic, HelpOptions options)
+    {
+        string? helpFilePath = ResolveHelpFilePath(path, options);
+        if (helpFilePath is null)
+        {
+            _services.Ui.ShowMessage(
+                "FarNet help",
+                string.IsNullOrWhiteSpace(path)
+                    ? "Help path is empty."
+                    : "Help file was not found: " + path,
+                ["OK"]);
+            return;
+        }
+
+        string[] lines = ReadHelpTopic(helpFilePath, topic);
+        _services.Ui.ShowHelp(Path.GetFileNameWithoutExtension(helpFilePath), lines);
+    }
 
     private static IReadOnlyList<string> GetButtons(MessageArgs args)
     {
@@ -156,6 +180,98 @@ internal sealed class CSharpFarFarNetApi : IFar, IFarNetPanelHost
 
     private static bool HasButtonGroup(MessageOptions options, MessageOptions buttonGroup) =>
         ((int)options & 0x70000) == (int)buttonGroup;
+
+    internal static string NormalizeClipboardText(string? text)
+    {
+        if (string.IsNullOrEmpty(text))
+            return string.Empty;
+
+        return text[0] == '\uFEFF' ? text[1..] : text;
+    }
+
+    private static string? ResolveHelpFilePath(string? path, HelpOptions options)
+    {
+        _ = options;
+        if (string.IsNullOrWhiteSpace(path))
+            return null;
+
+        if (File.Exists(path))
+            return path;
+
+        if (!Directory.Exists(path))
+            return null;
+
+        string directoryName = new DirectoryInfo(path).Name;
+        string namedHelpFile = Path.Combine(path, directoryName + ".hlf");
+        if (File.Exists(namedHelpFile))
+            return namedHelpFile;
+
+        return Directory.GetFiles(path, "*.hlf").FirstOrDefault();
+    }
+
+    private static string[] ReadHelpTopic(string helpFilePath, string? topic)
+    {
+        string[] lines = File.ReadAllLines(helpFilePath);
+        if (lines.Length == 0)
+            return [];
+
+        int start = FindTopicLine(lines, topic);
+        int end = start < 0 ? lines.Length : FindNextTopicLine(lines, start + 1);
+        int contentStart = start < 0 ? 0 : start + 1;
+        if (end < 0)
+            end = lines.Length;
+
+        return lines[contentStart..end]
+            .Select(CleanHelpLine)
+            .ToArray();
+    }
+
+    private static int FindTopicLine(string[] lines, string? topic)
+    {
+        if (string.IsNullOrWhiteSpace(topic))
+            return Array.FindIndex(lines, IsHelpTopicLine);
+
+        for (int index = 0; index < lines.Length; index++)
+        {
+            string? lineTopic = TryGetTopicName(lines[index]);
+            if (string.Equals(lineTopic, topic, StringComparison.OrdinalIgnoreCase))
+                return index;
+        }
+
+        return Array.FindIndex(lines, IsHelpTopicLine);
+    }
+
+    private static int FindNextTopicLine(string[] lines, int startIndex)
+    {
+        for (int index = startIndex; index < lines.Length; index++)
+        {
+            if (IsHelpTopicLine(lines[index]))
+                return index;
+        }
+
+        return -1;
+    }
+
+    private static bool IsHelpTopicLine(string line) =>
+        TryGetTopicName(line) is not null;
+
+    private static string? TryGetTopicName(string line)
+    {
+        string text = line.Trim();
+        if (!text.StartsWith("$", StringComparison.Ordinal))
+            return null;
+
+        text = text[1..].Trim();
+        if (text.Length == 0)
+            return string.Empty;
+
+        return text.Trim('#', ' ');
+    }
+
+    private static string CleanHelpLine(string line) =>
+        line.Replace("§¦", string.Empty, StringComparison.Ordinal)
+            .Replace("#", string.Empty, StringComparison.Ordinal)
+            .Replace("~", string.Empty, StringComparison.Ordinal);
 
     private sealed class FarNetPanelsWindow : IWindow
     {

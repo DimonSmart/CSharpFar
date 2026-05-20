@@ -34,6 +34,8 @@ Known reuse points:
 - `CreateFolderDialog`;
 - `SearchDialog`;
 - `FileOperationDialog`;
+- `EditorFindDialog`;
+- `FarNetInputDialog`;
 - FTP and SFTP connection dialogs.
 
 Current adoption:
@@ -51,6 +53,10 @@ Functions:
 - command text editing through `CommandLineState`;
 - command execution;
 - Far-like shortcuts from spec 0027;
+- Ctrl+A selects all command text when the command line has text; with an empty
+  command line, it keeps the panel select-all behavior;
+- hidden-panel command-line mode uses the same text state and Ctrl+A selects the
+  command text;
 - hidden-panel history browsing;
 - visible-panel command history completion.
 
@@ -172,6 +178,22 @@ Functions:
 - buttons through `DialogButtonBar`;
 - body scrolling in short consoles for core dialogs.
 
+## Built-in text editor
+
+Owner: `src/CSharpFar.App/Editor/FileEditor.cs`, `src/CSharpFar.App/Editor/EditorSession.cs`
+
+Purpose: full-screen F4 text file editor.
+
+Functions:
+- document-backed text editing through `EditorSession`;
+- printable character insertion, Backspace/Delete, Enter;
+- cursor movement by character, word, line, page, and document;
+- Shift or mark-mode selection;
+- Ctrl+A select all;
+- internal copy, cut, paste;
+- find, repeat find, replace all;
+- format selection and save.
+
 ## Panels
 
 Owners:
@@ -224,6 +246,9 @@ Purpose: modal status, confirmation, and progress surfaces.
 
 Functions:
 - framed message display;
+- multi-line message wrapping;
+- keyboard scrolling for messages taller than the dialog viewport;
+- right-border scrollbar for scrollable messages;
 - focused action buttons where needed;
 - operation progress metrics;
 - cancel/pause/resume interactions where implemented.

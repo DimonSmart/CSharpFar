@@ -3,6 +3,16 @@ using FarNet;
 
 namespace CSharpFar.Tests.Fixtures.FarNetModule;
 
+public sealed class FixtureHost : ModuleHost
+{
+    internal static FixtureHost? Instance { get; private set; }
+
+    public FixtureHost()
+    {
+        Instance = this;
+    }
+}
+
 [ModuleTool(
     Name = "Ask user",
     Options = ModuleToolOptions.Panels,
@@ -34,6 +44,36 @@ public sealed class UnsupportedApiTool : ModuleTool
 {
     public override void Invoke(object sender, ModuleToolEventArgs e) =>
         Far.Api.CreateListMenu();
+}
+
+[ModuleTool(
+    Name = "Help tool",
+    Options = ModuleToolOptions.Panels,
+    Id = "d8b970d9-85c0-4c8c-aec0-8f02705a8d6d")]
+public sealed class HelpTool : ModuleTool
+{
+    public override void Invoke(object sender, ModuleToolEventArgs e) =>
+        ShowHelpTopic("menu");
+}
+
+[ModuleTool(
+    Name = "Full path",
+    Options = ModuleToolOptions.Panels,
+    Id = "72537710-df2a-4c79-9737-5697f74b8765")]
+public sealed class FullPathTool : ModuleTool
+{
+    public override void Invoke(object sender, ModuleToolEventArgs e) =>
+        Far.Api.Message(Far.Api.GetFullPath("relative.json"), "Full path", MessageOptions.Ok);
+}
+
+[ModuleTool(
+    Name = "Host dependent",
+    Options = ModuleToolOptions.Panels,
+    Id = "540d3106-79a8-4871-b915-df8d548d42c3")]
+public sealed class HostDependentTool : ModuleTool
+{
+    public override void Invoke(object sender, ModuleToolEventArgs e) =>
+        Far.Api.Message(FixtureHost.Instance is null ? "missing" : "present", "Host dependent", MessageOptions.Ok);
 }
 
 [ModuleTool(

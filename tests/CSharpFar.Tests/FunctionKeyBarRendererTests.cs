@@ -168,6 +168,26 @@ public class FunctionKeyBarRendererTests
         Assert.DoesNotContain("Help", row);
     }
 
+    [Theory]
+    [InlineData(0, 1)]
+    [InlineData(8, 2)]
+    [InlineData(72, 10)]
+    [InlineData(96, 12)]
+    [InlineData(99, 12)]
+    public void HitTest_UsesRenderedSlotsIncludingLastRemainder(int x, int expectedKeyNumber)
+    {
+        Assert.True(FunctionKeyBarRenderer.TryGetKeyNumberAtX(x, totalWidth: 100, out int keyNumber));
+        Assert.Equal(expectedKeyNumber, keyNumber);
+    }
+
+    [Theory]
+    [InlineData(-1)]
+    [InlineData(100)]
+    public void HitTest_RejectsPositionsOutsideBar(int x)
+    {
+        Assert.False(FunctionKeyBarRenderer.TryGetKeyNumberAtX(x, totalWidth: 100, out _));
+    }
+
     private static FunctionKeyBarRenderer CreateRenderer(ScreenRenderer screen) => new(screen);
 
     private static void Render(

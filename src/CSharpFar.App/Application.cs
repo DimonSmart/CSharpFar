@@ -1092,6 +1092,9 @@ public sealed class Application
         if (_panelQuickSearch is not null)
             ClosePanelQuickSearch();
 
+        if (TryHandleFunctionKeyBarMouse(evt))
+            return true;
+
         if (TryHandleCommandLineMouse(evt))
             return true;
 
@@ -1211,6 +1214,29 @@ public sealed class Application
         }
 
         return false;
+    }
+
+    private bool TryHandleFunctionKeyBarMouse(MouseConsoleInputEvent evt)
+    {
+        if (evt.Button != MouseButton.Left ||
+            evt.Kind is not (MouseEventKind.Down or MouseEventKind.Click))
+        {
+            return false;
+        }
+
+        var size = LastRenderSizeOrCurrent();
+        if (evt.Y != size.Height - 1 ||
+            !FunctionKeyBarRenderer.TryGetKeyNumberAtX(evt.X, size.Width, out int keyNumber))
+        {
+            return false;
+        }
+
+        var binding = _functionKeyBindings.FirstOrDefault(candidate =>
+            candidate.Layer == _functionKeyLayer &&
+            candidate.KeyNumber == keyNumber &&
+            CanExecuteFunctionKeyCommand(candidate.CommandId));
+
+        return binding is not null && ExecuteRegisteredCommand(binding.CommandId);
     }
 
     private bool TryHandleCommandLineMouse(MouseConsoleInputEvent evt)

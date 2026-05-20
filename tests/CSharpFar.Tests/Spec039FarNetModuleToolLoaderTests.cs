@@ -18,6 +18,12 @@ public sealed class Spec039FarNetModuleToolLoaderTests : IDisposable
         Guid.Parse("2e2ee555-7153-4c4a-a73b-79b38b42c5d4");
     private static readonly Guid UnsupportedApiToolId =
         Guid.Parse("ace47cd5-15b9-4316-a0e6-e0fcbbca8dfd");
+    private static readonly Guid HelpToolId =
+        Guid.Parse("d8b970d9-85c0-4c8c-aec0-8f02705a8d6d");
+    private static readonly Guid FullPathToolId =
+        Guid.Parse("72537710-df2a-4c79-9737-5697f74b8765");
+    private static readonly Guid HostDependentToolId =
+        Guid.Parse("540d3106-79a8-4871-b915-df8d548d42c3");
     private static readonly Guid DuplicateToolId =
         Guid.Parse("986c5308-7fa0-4bb6-bdcd-393317fe24ba");
 
@@ -60,6 +66,9 @@ public sealed class Spec039FarNetModuleToolLoaderTests : IDisposable
 
         Assert.Contains(host.MenuItems, item => item.ActionId == MessageInputToolId && item.Text == "Ask user");
         Assert.Contains(host.MenuItems, item => item.ActionId == UnsupportedApiToolId && item.Text == "Unsupported");
+        Assert.Contains(host.MenuItems, item => item.ActionId == HelpToolId && item.Text == "Help tool");
+        Assert.Contains(host.MenuItems, item => item.ActionId == FullPathToolId && item.Text == "Full path");
+        Assert.Contains(host.MenuItems, item => item.ActionId == HostDependentToolId && item.Text == "Host dependent");
         Assert.Contains(host.MenuItems, item => item.ActionId == DuplicateToolId && item.Text == "Duplicate one");
         Assert.DoesNotContain(host.MenuItems, item => item.Text == "Invalid id");
         Assert.DoesNotContain(host.MenuItems, item => item.Text == "Config only");
@@ -113,6 +122,58 @@ public sealed class Spec039FarNetModuleToolLoaderTests : IDisposable
     }
 
     [Fact]
+    public void OpenFromMenu_ShowHelpTopicOpensHelpFileTopic()
+    {
+        var driver = new FakeConsoleDriver();
+        driver.EnqueueKey(new ConsoleKeyInfo('\0', ConsoleKey.Escape, shift: false, alt: false, control: false));
+        var host = CreateHost(copyDependency: true);
+        WriteFixtureHelpFile();
+        host.Initialize(CreateHostServices(driver));
+
+        var result = host.OpenFromMenu(HelpToolId);
+
+        Assert.Equal(FarNetModuleOpenResultKind.Completed, result.Kind);
+        Assert.Contains(driver.WriteRecords, record => record.Text.Contains("Fixture menu help.", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void OpenFromMenu_GetFullPathUsesCurrentDirectory()
+    {
+        var driver = new FakeConsoleDriver();
+        driver.EnqueueKey(new ConsoleKeyInfo('\r', ConsoleKey.Enter, shift: false, alt: false, control: false));
+        var host = CreateHost(copyDependency: true);
+        host.Initialize(CreateHostServices(driver));
+
+        var result = host.OpenFromMenu(FullPathToolId);
+
+        Assert.Equal(FarNetModuleOpenResultKind.Completed, result.Kind);
+        string expectedPath = Path.Combine(AppContext.BaseDirectory, "relative.json");
+        Assert.Contains(driver.WriteRecords, record => record.Text.Contains(expectedPath, StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void NormalizeClipboardText_RemovesLeadingUnicodeBom()
+    {
+        string text = CSharpFarFarNetApi.NormalizeClipboardText("\uFEFF{\"items\":[1,2]}");
+
+        Assert.Equal("{\"items\":[1,2]}", text);
+    }
+
+    [Fact]
+    public void OpenFromMenu_ModuleHostInstanceIsCreatedBeforeToolsRun()
+    {
+        var driver = new FakeConsoleDriver();
+        driver.EnqueueKey(new ConsoleKeyInfo('\r', ConsoleKey.Enter, shift: false, alt: false, control: false));
+        var host = CreateHost(copyDependency: true);
+        host.Initialize(CreateHostServices(driver));
+
+        var result = host.OpenFromMenu(HostDependentToolId);
+
+        Assert.Equal(FarNetModuleOpenResultKind.Completed, result.Kind);
+        Assert.Contains(driver.WriteRecords, record => record.Text.Contains("present", StringComparison.Ordinal));
+    }
+
+    [Fact]
     public void MissingDependency_IsRecordedWithoutBlockingOtherTools()
     {
         var host = CreateHost(copyDependency: false);
@@ -163,6 +224,20 @@ public sealed class Spec039FarNetModuleToolLoaderTests : IDisposable
         var host = new FarNetModuleHost(modulesRoot);
         _disposables.Add(host);
         return host;
+    }
+
+    private void WriteFixtureHelpFile()
+    {
+        string moduleName = typeof(MessageInputTool).Assembly.GetName().Name!;
+        string moduleDirectory = Path.Combine(_tempDir, "FarNet", "Modules", moduleName);
+        File.WriteAllLines(
+            Path.Combine(moduleDirectory, moduleName + ".hlf"),
+            [
+                "$ #root#",
+                "Fixture root help.",
+                "$ #menu#",
+                "Fixture menu help.",
+            ]);
     }
 
     private static void CopyAssembly(Assembly assembly, string targetDirectory)

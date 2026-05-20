@@ -64,6 +64,21 @@ internal sealed class FunctionKeyBarRenderer
         }
     }
 
+    public static bool TryGetKeyNumberAtX(int x, int totalWidth, out int keyNumber)
+    {
+        keyNumber = 0;
+
+        if (x < 0 || x >= totalWidth)
+            return false;
+
+        int slotWidth = totalWidth / FunctionKeyCount;
+        if (slotWidth <= 0)
+            return false;
+
+        keyNumber = Math.Min(x / slotWidth + 1, FunctionKeyCount);
+        return true;
+    }
+
     private static string FitLabel(string label, int width)
     {
         if (width <= 0)

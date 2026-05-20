@@ -14,9 +14,11 @@ public sealed class FarNetModuleHost : IDisposable
     private readonly Dictionary<string, FarNetModuleManager> _managersByName = new(StringComparer.OrdinalIgnoreCase);
     private readonly List<FarNetModuleToolAction> _tools = [];
     private readonly List<FarNetModuleCommandAction> _commands = [];
+    private readonly List<ModuleHostRegistration> _moduleHosts = [];
     private readonly List<FarNetModuleDiagnostic> _diagnostics = [];
     private readonly List<FarNetModuleLoadContext> _loadContexts = [];
     private bool _loaded;
+    private bool _moduleHostsConnected;
     private FarNetModuleHostServices? _services;
     private CSharpFarFarNetApi? _currentApi;
 
@@ -86,6 +88,7 @@ public sealed class FarNetModuleHost : IDisposable
         _services = services;
         EnsureLoaded();
         InstallFarApi();
+        ConnectModuleHosts();
     }
 
     public FarNetModuleOpenResult OpenFromMenu(Guid actionId)
@@ -123,11 +126,13 @@ public sealed class FarNetModuleHost : IDisposable
 
     public void Dispose()
     {
+        DisconnectModuleHosts();
         Far.ResetApi();
         _currentApi = null;
         _services = null;
         _tools.Clear();
         _commands.Clear();
+        _moduleHosts.Clear();
         _actions.Clear();
         _managersByName.Clear();
         foreach (var loadContext in _loadContexts)
@@ -247,8 +252,33 @@ public sealed class FarNetModuleHost : IDisposable
             return;
         }
 
+        if (typeof(ModuleHost).IsAssignableFrom(type))
+        {
+            TryCreateModuleHost(moduleName, type);
+            return;
+        }
+
         if (typeof(ModuleAction).IsAssignableFrom(type))
             AddDiagnostic(moduleName, $"{type.FullName} is a FarNet {type.BaseType?.Name} item, but v1 supports only ModuleTool and ModuleCommand.");
+    }
+
+    private void TryCreateModuleHost(string moduleName, Type type)
+    {
+        try
+        {
+            var moduleHost = (ModuleHost?)Activator.CreateInstance(type);
+            if (moduleHost is null)
+            {
+                AddDiagnostic(moduleName, $"Cannot create FarNet module host '{type.FullName}'.");
+                return;
+            }
+
+            _moduleHosts.Add(new ModuleHostRegistration(moduleName, moduleHost));
+        }
+        catch (Exception ex)
+        {
+            AddDiagnostic(moduleName, Unwrap(ex).Message);
+        }
     }
 
     private void TryRegisterTool(string moduleName, FarNetModuleManager manager, Type type)
@@ -346,6 +376,46 @@ public sealed class FarNetModuleHost : IDisposable
 
         _currentApi = new CSharpFarFarNetApi(_services, _actions, _managersByName, _options);
         Far.Api = _currentApi;
+    }
+
+    private void ConnectModuleHosts()
+    {
+        if (_moduleHostsConnected || _services is null)
+            return;
+
+        foreach (var registration in _moduleHosts)
+        {
+            try
+            {
+                registration.Host.Connect();
+            }
+            catch (Exception ex)
+            {
+                AddDiagnostic(registration.ModuleName, Unwrap(ex).Message);
+            }
+        }
+
+        _moduleHostsConnected = true;
+    }
+
+    private void DisconnectModuleHosts()
+    {
+        if (!_moduleHostsConnected)
+            return;
+
+        foreach (var registration in Enumerable.Reverse(_moduleHosts))
+        {
+            try
+            {
+                registration.Host.Disconnect();
+            }
+            catch (Exception ex)
+            {
+                AddDiagnostic(registration.ModuleName, Unwrap(ex).Message);
+            }
+        }
+
+        _moduleHostsConnected = false;
     }
 
     private string GetDataRoot()
@@ -493,4 +563,6 @@ public sealed class FarNetModuleHost : IDisposable
 
         return commandLine[..index];
     }
+
+    private readonly record struct ModuleHostRegistration(string ModuleName, ModuleHost Host);
 }

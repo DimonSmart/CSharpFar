@@ -86,6 +86,18 @@ public sealed class EditorSessionTests
     }
 
     [Fact]
+    public void SelectAll_SelectsWholeDocumentAndMovesCursorToEnd()
+    {
+        var session = CreateSession("alpha\nbeta");
+
+        session.MoveTo(new EditorPosition(0, 2));
+        session.SelectAll();
+
+        Assert.Equal("alpha\nbeta", session.CopySelection());
+        Assert.Equal(new EditorPosition(1, 4), session.Cursor);
+    }
+
+    [Fact]
     public void Cursor_CanMovePastEndOfLine()
     {
         var session = CreateSession("a");

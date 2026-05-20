@@ -32,6 +32,9 @@ public sealed class ModuleUiServices
     public int? ShowMenu(string title, IReadOnlyList<string> items, int selected) =>
         new FarNetMenuDialog(Screen, CurrentPalette).Show(title, items, selected);
 
+    public void ShowHelp(string title, IReadOnlyList<string> lines) =>
+        new FarNetHelpDialog(Screen, CurrentPalette).Show(title, lines);
+
     public bool Confirm(string title, string question, string itemName) =>
         new ConfirmDialog(Screen).Show(title, question, itemName);
 }
