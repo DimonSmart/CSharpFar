@@ -102,8 +102,7 @@ internal sealed class SearchProgressDialog
                 NormalizeSelection(resultSnapshot.Length, listHeight, ref selectedIndex, ref scrollOffset);
                 Draw(request, progressSnapshot, resultSnapshot, selectedIndex, scrollOffset, buttonBar, focusedButton);
 
-                Thread.Sleep(RedrawDelayMilliseconds);
-                if (task.IsCompleted)
+                if (task.Wait(RedrawDelayMilliseconds))
                     break;
 
                 SearchResultItem[] inputResults;
