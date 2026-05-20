@@ -142,12 +142,13 @@ public sealed class Spec039FarNetModuleToolLoaderTests : IDisposable
         var driver = new FakeConsoleDriver();
         driver.EnqueueKey(new ConsoleKeyInfo('\r', ConsoleKey.Enter, shift: false, alt: false, control: false));
         var host = CreateHost(copyDependency: true);
-        host.Initialize(CreateHostServices(driver));
+        string currentDirectory = Path.Combine(Path.GetPathRoot(AppContext.BaseDirectory)!, "cfar-current");
+        host.Initialize(CreateHostServices(driver, currentDirectory));
 
         var result = host.OpenFromMenu(FullPathToolId);
 
         Assert.Equal(FarNetModuleOpenResultKind.Completed, result.Kind);
-        string expectedPath = Path.Combine(AppContext.BaseDirectory, "relative.json");
+        string expectedPath = Path.Combine(currentDirectory, "relative.json");
         Assert.Contains(driver.WriteRecords, record => record.Text.Contains(expectedPath, StringComparison.Ordinal));
     }
 
@@ -247,7 +248,7 @@ public sealed class Spec039FarNetModuleToolLoaderTests : IDisposable
         File.Copy(sourcePath, targetPath, overwrite: true);
     }
 
-    private FarNetModuleHostServices CreateHostServices(FakeConsoleDriver driver) =>
+    private FarNetModuleHostServices CreateHostServices(FakeConsoleDriver driver, string? currentDirectory = null) =>
         new()
         {
             Ui = new ModuleUiServices
@@ -257,6 +258,6 @@ public sealed class Spec039FarNetModuleToolLoaderTests : IDisposable
             },
             DataRoot = Path.Combine(_tempDir, "settings", "FarNet"),
             GetActivePanelSide = () => PanelSide.Left,
-            GetPanelState = _ => new FilePanelState { CurrentDirectory = AppContext.BaseDirectory },
+            GetPanelState = _ => new FilePanelState { CurrentDirectory = currentDirectory ?? AppContext.BaseDirectory },
         };
 }
