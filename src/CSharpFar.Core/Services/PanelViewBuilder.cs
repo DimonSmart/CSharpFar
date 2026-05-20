@@ -82,11 +82,17 @@ public sealed class PanelViewBuilder : IPanelViewBuilder
 
         // 4. Add .. (or not)
         bool isRoot = source?.IsRootPath(sourcePath) ?? IsRootDirectory(sourcePath, opts);
-        if (!isRoot || opts.ShowParentDirectoryInRootFolders)
+        string? sourceParentPath = source?.GetParentPath(sourcePath);
+        bool showParentDirectory = ShouldShowParentDirectory(
+            isRoot,
+            isLocal,
+            sourceParentPath,
+            opts);
+        if (showParentDirectory)
         {
-            string parentPath = isRoot
+            string parentPath = isRoot && isLocal
                 ? sourcePath
-                : source?.GetParentPath(sourcePath) ??
+                : sourceParentPath ??
                   Path.GetDirectoryName(
                       sourcePath.TrimEnd(
                           Path.DirectorySeparatorChar,
@@ -163,6 +169,21 @@ public sealed class PanelViewBuilder : IPanelViewBuilder
     }
 
     // ── helpers ─────────────────────────────────────────────────────────────
+
+    private static bool ShouldShowParentDirectory(
+        bool isRoot,
+        bool isLocal,
+        string? sourceParentPath,
+        AppSettings.PanelOptionsSettings options)
+    {
+        if (!isRoot)
+            return true;
+
+        if (isLocal)
+            return options.ShowParentDirectoryInRootFolders;
+
+        return sourceParentPath is not null;
+    }
 
     private bool IsRootDirectory(string path, AppSettings.PanelOptionsSettings options)
     {

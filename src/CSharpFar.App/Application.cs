@@ -46,6 +46,7 @@ public sealed class Application
     private readonly UserMenuStore _userMenu;
     private readonly Action? _saveSettings;
     private readonly IVolumeService? _volumeService;
+    private readonly ITextClipboard _clipboard;
 
     private readonly FilePanelState _left;
     private readonly FilePanelState _right;
@@ -170,7 +171,8 @@ public sealed class Application
         FtpModule?                   ftpModule         = null,
         FarNetModuleHost?            farNetModuleHost  = null,
         bool                         enableBuiltInNetworkModules = true,
-        string?                      configDirectory   = null)
+        string?                      configDirectory   = null,
+        ITextClipboard?              clipboard         = null)
     {
         _screen       = screen;
         _fs           = fs;
@@ -189,6 +191,7 @@ public sealed class Application
         _searchService = searchService ?? new CSharpFar.FileSystem.FileSystemSearchService();
         _history      = history      ?? new InMemoryHistoryStore();
         _settings     = settings     ?? new AppSettingsAlias();
+        _clipboard    = clipboard    ?? TextCopyTextClipboard.Instance;
         _userMenu     = userMenu     ?? new UserMenuStore(
             Path.Combine(
                 Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
@@ -328,6 +331,8 @@ public sealed class Application
     internal IHistoryStore CommandHistory => _history;
 
     internal UserMenuStore CommandUserMenu => _userMenu;
+
+    internal ITextClipboard CommandClipboard => _clipboard;
 
     internal AppSettingsAlias CommandSettings => _settings;
 
@@ -1661,15 +1666,14 @@ public sealed class Application
     {
         string? selectedText = _cmdLine.SelectedText;
         if (!string.IsNullOrEmpty(selectedText))
-            TextCopy.ClipboardService.SetText(selectedText);
+            _clipboard.TrySetText(selectedText);
 
         return true;
     }
 
     private bool PasteTextIntoCommandLine()
     {
-        string text = TextCopy.ClipboardService.GetText() ?? string.Empty;
-        if (string.IsNullOrEmpty(text))
+        if (!_clipboard.TryGetText(out string text) || string.IsNullOrEmpty(text))
             return true;
 
         string singleLine = text.ReplaceLineEndings(" ").Trim();
@@ -2798,7 +2802,7 @@ public sealed class Application
         try
         {
             File.WriteAllText(tempPath, text);
-            new FileEditor(_screen, _palette, _settings.Editor).Show(tempPath);
+            new FileEditor(_screen, _palette, _settings.Editor, _clipboard).Show(tempPath);
             string editedText = File.ReadAllText(tempPath);
             if (string.Equals(editedText, text, StringComparison.Ordinal))
                 return true;
@@ -2820,8 +2824,6 @@ public sealed class Application
 
     private bool TryOpenFarNetPanelItem(FilePanelState state, PanelSide side, FilePanelItem item)
     {
-        if (item.IsParentDirectory)
-            return false;
         if (!_sourceRegistry.TryGetSource(state.SourceId, out var source) ||
             source is not IFarNetPanelOperations farNetPanel)
         {

@@ -7,5 +7,5 @@ public sealed record FarNetModuleHostOptions
 
     public string? DataRoot { get; init; }
 
-    public bool EnablePanelTools { get; init; }
+    public bool EnablePanelTools { get; init; } = true;
 }

@@ -36,7 +36,7 @@ internal sealed class FileHistoryCommand : IApplicationCommand
                     break;
                 case OpenFileChoice.Edit:
                     context.History.AddFile(new FileHistoryItem { Path = path });
-                    new FileEditor(context.Screen, context.Palette, context.Settings.Editor).Show(path);
+                    new FileEditor(context.Screen, context.Palette, context.Settings.Editor, context.TextClipboard).Show(path);
                     context.SafeRefresh(context.ActiveState, context.VisibleRows());
                     break;
             }

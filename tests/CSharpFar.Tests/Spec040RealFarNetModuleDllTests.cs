@@ -151,6 +151,19 @@ public sealed class Spec040RealFarNetModuleDllTests : IDisposable
     }
 
     [Fact]
+    public void OfficialPanelCommand_DefaultHostOptionsReturnOpenedPanel()
+    {
+        var host = CreateHostWithDefaultOptions(resourceMode: ResourceMode.Valid);
+        host.Initialize(CreateHostServices(new FakeConsoleDriver()));
+
+        var result = host.OpenFromCommandLine("ofnp:");
+
+        Assert.Equal(FarNetModuleOpenResultKind.OpenedPanel, result.Kind);
+        Assert.NotNull(result.Panel);
+        Assert.Equal("Official panel", result.Panel.DisplayName);
+    }
+
+    [Fact]
     public void OfficialCommandParametersCommand_ParsesSubcommandAndParameters()
     {
         string samplePath = Path.Combine(_tempDir, "sample.json");
@@ -244,6 +257,25 @@ public sealed class Spec040RealFarNetModuleDllTests : IDisposable
         {
             ModulesRoot = modulesRoot,
             EnablePanelTools = enablePanelTools,
+        });
+        _disposables.Add(host);
+        return host;
+    }
+
+    private FarNetModuleHost CreateHostWithDefaultOptions(
+        ResourceMode resourceMode,
+        bool includeLocalRealFarNetDll = true)
+    {
+        string modulesRoot = Path.Combine(_tempDir, "FarNet", "Modules");
+        string moduleDirectory = Path.Combine(modulesRoot, OfficialModuleName);
+        Directory.CreateDirectory(moduleDirectory);
+
+        CopyOfficialFixture(moduleDirectory, includeLocalRealFarNetDll);
+        WriteResources(moduleDirectory, resourceMode);
+
+        var host = new FarNetModuleHost(new FarNetModuleHostOptions
+        {
+            ModulesRoot = modulesRoot,
         });
         _disposables.Add(host);
         return host;

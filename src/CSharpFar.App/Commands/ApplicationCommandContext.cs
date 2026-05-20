@@ -43,6 +43,8 @@ internal sealed class ApplicationCommandContext
 
     public UserMenuStore UserMenu => _application.CommandUserMenu;
 
+    public ITextClipboard TextClipboard => _application.CommandClipboard;
+
     public AppSettingsAlias Settings => _application.CommandSettings;
 
     public IVolumeService? VolumeService => _application.CommandVolumeService;

@@ -31,7 +31,7 @@ internal sealed class EditFileCommand : IApplicationCommand
             return ApplicationCommandResult.Rendered();
 
         context.History.AddFile(new FileHistoryItem { Path = item.FullPath });
-        new FileEditor(context.Screen, context.Palette, context.Settings.Editor).Show(item.FullPath);
+        new FileEditor(context.Screen, context.Palette, context.Settings.Editor, context.TextClipboard).Show(item.FullPath);
         context.SafeRefresh(context.ActiveState, context.VisibleRows());
         return ApplicationCommandResult.Rendered();
     }

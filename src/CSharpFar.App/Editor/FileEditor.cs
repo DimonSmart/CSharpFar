@@ -3,6 +3,7 @@ using CSharpFar.App.Rendering;
 using CSharpFar.Console;
 using CSharpFar.Console.Input;
 using CSharpFar.Console.Models;
+using CSharpFar.Core.Abstractions;
 using CSharpFar.Core.Models;
 using CSharpFar.Ui;
 
@@ -13,12 +14,11 @@ namespace CSharpFar.App.Editor;
 /// </summary>
 internal sealed class FileEditor
 {
-    private static string InternalClipboard = string.Empty;
-
     private readonly ScreenRenderer _screen;
     private readonly ConsolePalette _palette;
     private readonly AppSettings.EditorSettings _settings;
     private readonly EditorFileService _fileService;
+    private readonly ITextClipboard _clipboard;
     private EditorFindDialogResult? _lastFind;
     private bool _markMode;
 
@@ -32,11 +32,21 @@ internal sealed class FileEditor
         ScreenRenderer screen,
         ConsolePalette? palette,
         AppSettings.EditorSettings? settings)
+        : this(screen, palette, settings, null)
+    {
+    }
+
+    internal FileEditor(
+        ScreenRenderer screen,
+        ConsolePalette? palette,
+        AppSettings.EditorSettings? settings,
+        ITextClipboard? clipboard)
     {
         _screen = screen;
         _palette = palette ?? PaletteRegistry.Default;
         _settings = settings ?? new AppSettings.EditorSettings();
         _fileService = new EditorFileService(_settings);
+        _clipboard = clipboard ?? TextCopyTextClipboard.Instance;
     }
 
     public void Show(string filePath)
@@ -187,14 +197,14 @@ internal sealed class FileEditor
                 _markMode = false;
                 return true;
             case ConsoleKey.C when control:
-                InternalClipboard = session.CopySelection();
+                CopySelectionToClipboard(session);
                 return true;
             case ConsoleKey.X when control:
-                InternalClipboard = session.CopySelection();
+                CopySelectionToClipboard(session);
                 session.CutSelection();
                 return true;
             case ConsoleKey.V when control:
-                session.PasteText(InternalClipboard);
+                PasteClipboardText(session);
                 return true;
             case ConsoleKey.B when control:
                 session.ToggleBookmark();
@@ -218,11 +228,11 @@ internal sealed class FileEditor
                 ToggleMarkMode(session, EditorSelectionMode.Rectangular);
                 return true;
             case ConsoleKey.F5:
-                InternalClipboard = session.CopySelection();
+                CopySelectionToClipboard(session);
                 _markMode = false;
                 return true;
             case ConsoleKey.F6:
-                InternalClipboard = session.CopySelection();
+                CopySelectionToClipboard(session);
                 session.CutSelection();
                 _markMode = false;
                 return true;
@@ -245,6 +255,24 @@ internal sealed class FileEditor
 
         return false;
     }
+
+    private void CopySelectionToClipboard(EditorSession session)
+    {
+        string selectedText = session.CopySelection();
+        if (selectedText.Length > 0)
+            _clipboard.TrySetText(ClipboardTextForOperatingSystem(selectedText));
+    }
+
+    private void PasteClipboardText(EditorSession session)
+    {
+        if (_clipboard.TryGetText(out string clipboardText) && clipboardText.Length > 0)
+            session.PasteText(clipboardText);
+    }
+
+    private static string ClipboardTextForOperatingSystem(string text) =>
+        OperatingSystem.IsWindows()
+            ? text.ReplaceLineEndings("\r\n")
+            : text;
 
     private void ToggleMarkMode(EditorSession session, EditorSelectionMode mode)
     {

@@ -6,6 +6,8 @@ namespace CSharpFar.FarNetHost;
 
 internal sealed class FarNetPanelAdapter : IModulePanel, IFarNetPanelOperations
 {
+    private const string ParentPanelPath = "/..";
+
     private readonly Panel _panel;
     private readonly Dictionary<string, FarFile> _filesByPath = new(StringComparer.OrdinalIgnoreCase);
 
@@ -68,6 +70,9 @@ internal sealed class FarNetPanelAdapter : IModulePanel, IFarNetPanelOperations
     public string? GetParentPath(string sourcePath)
     {
         string path = NormalizePath(sourcePath);
+        if (path == "/" && _panel.Parent is not null)
+            return ParentPanelPath;
+
         if (path == "/")
             return null;
 
@@ -128,6 +133,11 @@ internal sealed class FarNetPanelAdapter : IModulePanel, IFarNetPanelOperations
 
     public ModuleActionResult OpenItem(string sourcePath)
     {
+        if (NormalizePath(sourcePath) == ParentPanelPath)
+            return _panel.Parent is null
+                ? ModuleActionResult.Completed()
+                : ModuleActionResult.OpenedPanel(new FarNetPanelAdapter(_panel.Parent));
+
         if (!TryGetFarFile(sourcePath, out FarFile? file) || file is null)
             return ModuleActionResult.Completed();
 

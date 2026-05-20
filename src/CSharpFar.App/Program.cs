@@ -46,5 +46,5 @@ new Application(renderer, fs, shell, fileOps, history, settings, userMenu,
     searchService:     searchSvc,
     sourceRegistry:    panelSources,
     credentialStore:   credentials,
-    farNetModuleHost:  new FarNetModuleHost(),
+    farNetModuleHost:  new FarNetModuleHost(new FarNetModuleHostOptions { EnablePanelTools = true }),
     configDirectory:   settingsStore.ConfigDirectory).Run();

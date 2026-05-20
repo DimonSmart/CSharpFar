@@ -1,6 +1,7 @@
 using CSharpFar.Console;
 using CSharpFar.Console.Input;
 using CSharpFar.Console.Models;
+using CSharpFar.Core.Abstractions;
 using CSharpFar.Core.Models;
 
 namespace CSharpFar.Ui;
@@ -16,8 +17,13 @@ public static class SingleLineTextInput
 {
     public const char HistoryDropdownArrow = '▼';
 
-    public static TextInputKeyResult HandleKey(CommandLineState buffer, ConsoleKeyInfo key, ref string? error)
+    public static TextInputKeyResult HandleKey(
+        CommandLineState buffer,
+        ConsoleKeyInfo key,
+        ref string? error,
+        ITextClipboard? clipboard = null)
     {
+        clipboard ??= TextCopyTextClipboard.Instance;
         bool isPrintable = key.KeyChar >= ' ' &&
             (key.Modifiers & (ConsoleModifiers.Control | ConsoleModifiers.Alt)) == 0;
 
@@ -36,8 +42,7 @@ public static class SingleLineTextInput
 
         if (IsPlainControlV(key))
         {
-            string text = TextCopy.ClipboardService.GetText() ?? string.Empty;
-            if (!string.IsNullOrEmpty(text))
+            if (clipboard.TryGetText(out string text) && !string.IsNullOrEmpty(text))
             {
                 string singleLine = text.ReplaceLineEndings(" ").Trim();
                 buffer.InsertText(singleLine);
@@ -51,7 +56,7 @@ public static class SingleLineTextInput
         {
             string? selected = buffer.SelectedText;
             if (!string.IsNullOrEmpty(selected))
-                TextCopy.ClipboardService.SetText(selected);
+                clipboard.TrySetText(selected);
             return TextInputKeyResult.Handled;
         }
 
@@ -107,10 +112,11 @@ public static class SingleLineTextInput
         ConsoleKeyInfo key,
         ref string? error,
         SingleLineTextHistoryState? history,
-        int availableDropdownContentRows)
+        int availableDropdownContentRows,
+        ITextClipboard? clipboard = null)
     {
         if (history is null)
-            return HandleKey(buffer, key, ref error);
+            return HandleKey(buffer, key, ref error, clipboard);
 
         if (history.IsDropdownOpen)
         {
@@ -134,7 +140,7 @@ public static class SingleLineTextInput
             }
         }
 
-        TextInputKeyResult result = HandleKey(buffer, key, ref error);
+        TextInputKeyResult result = HandleKey(buffer, key, ref error, clipboard);
         if (result == TextInputKeyResult.TextChanged)
             history.OpenForPrefix(buffer.Text, availableDropdownContentRows);
 

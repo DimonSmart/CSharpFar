@@ -2,6 +2,7 @@ using CSharpFar.App.Dialogs;
 using CSharpFar.Console;
 using CSharpFar.Console.Input;
 using CSharpFar.Console.Models;
+using CSharpFar.Core.Abstractions;
 using CSharpFar.Core.Models;
 using CSharpFar.Tests.Fakes;
 
@@ -89,6 +90,43 @@ public class SingleLineTextInputTests
 
         Assert.Equal(TextInputKeyResult.Handled, result);
         Assert.Equal("beta", buffer.SelectedText);
+    }
+
+    [Fact]
+    public void HandleKey_ControlCCopiesSelectionToTextClipboard()
+    {
+        var buffer = new CommandLineState();
+        buffer.SetText("alpha");
+        buffer.SelectAll();
+        var clipboard = new FakeTextClipboard();
+        string? error = null;
+
+        var result = SingleLineTextInput.HandleKey(
+            buffer,
+            new ConsoleKeyInfo('\u0003', ConsoleKey.C, shift: false, alt: false, control: true),
+            ref error,
+            clipboard);
+
+        Assert.Equal(TextInputKeyResult.Handled, result);
+        Assert.Equal("alpha", clipboard.Text);
+    }
+
+    [Fact]
+    public void HandleKey_ControlVPastesFromTextClipboard()
+    {
+        var buffer = new CommandLineState();
+        var clipboard = new FakeTextClipboard { Text = "alpha\nbeta" };
+        string? error = "old";
+
+        var result = SingleLineTextInput.HandleKey(
+            buffer,
+            new ConsoleKeyInfo('\u0016', ConsoleKey.V, shift: false, alt: false, control: true),
+            ref error,
+            clipboard);
+
+        Assert.Equal(TextInputKeyResult.TextChanged, result);
+        Assert.Equal("alpha beta", buffer.Text);
+        Assert.Null(error);
     }
 
     [Fact]
@@ -337,4 +375,21 @@ public class SingleLineTextInputTests
 
     private static MouseConsoleInputEvent LeftMouse(int x, int y) =>
         new(x, y, MouseButton.Left, MouseEventKind.Down, MouseKeyModifiers.None);
+
+    private sealed class FakeTextClipboard : ITextClipboard
+    {
+        public string Text { get; set; } = string.Empty;
+
+        public bool TrySetText(string text)
+        {
+            Text = text;
+            return true;
+        }
+
+        public bool TryGetText(out string text)
+        {
+            text = Text;
+            return true;
+        }
+    }
 }

@@ -1,7 +1,9 @@
 using System.Reflection;
+using CSharpFar.App.Editor;
 using CSharpFar.App.Viewer;
 using CSharpFar.Console;
 using CSharpFar.Console.Input;
+using CSharpFar.Core.Abstractions;
 using CSharpFar.Core.Models;
 using CSharpFar.Ui;
 using CSharpFar.Tests.Fakes;
@@ -107,6 +109,7 @@ public sealed class FileEditorTests : IDisposable
     {
         string filePath = Path.Combine(_tempDir, "mark-copy.txt");
         File.WriteAllText(filePath, "abc");
+        var clipboard = new FakeTextClipboard();
 
         var driver = new FakeConsoleDriver(80, 25);
         driver.EnqueueKey(new ConsoleKeyInfo('\0', ConsoleKey.F3, shift: false, alt: false, control: false));
@@ -117,9 +120,104 @@ public sealed class FileEditorTests : IDisposable
         driver.EnqueueKey(new ConsoleKeyInfo('\0', ConsoleKey.F2, shift: false, alt: false, control: false));
         driver.EnqueueKey(new ConsoleKeyInfo('\0', ConsoleKey.F10, shift: false, alt: false, control: false));
 
-        ShowFileEditor(new ScreenRenderer(driver), filePath);
+        ShowFileEditor(new ScreenRenderer(driver), filePath, clipboard: clipboard);
 
+        Assert.Equal("a", clipboard.Text);
         Assert.Equal("abca", File.ReadAllText(filePath));
+    }
+
+    [Fact]
+    public void Show_CtrlC_CopiesSelectionToSystemClipboard()
+    {
+        string filePath = Path.Combine(_tempDir, "system-copy.txt");
+        File.WriteAllText(filePath, "abc");
+        var clipboard = new FakeTextClipboard();
+
+        var driver = new FakeConsoleDriver(80, 25);
+        driver.EnqueueKey(new ConsoleKeyInfo('\0', ConsoleKey.F3, shift: false, alt: false, control: false));
+        driver.EnqueueKey(new ConsoleKeyInfo('\0', ConsoleKey.RightArrow, shift: false, alt: false, control: false));
+        driver.EnqueueKey(new ConsoleKeyInfo('\0', ConsoleKey.RightArrow, shift: false, alt: false, control: false));
+        driver.EnqueueKey(new ConsoleKeyInfo('\u0003', ConsoleKey.C, shift: false, alt: false, control: true));
+        driver.EnqueueKey(new ConsoleKeyInfo('\0', ConsoleKey.F10, shift: false, alt: false, control: false));
+
+        ShowFileEditor(new ScreenRenderer(driver), filePath, clipboard: clipboard);
+
+        Assert.Equal("ab", clipboard.Text);
+    }
+
+    [Fact]
+    public void Show_CtrlV_PastesFromSystemClipboard()
+    {
+        string filePath = Path.Combine(_tempDir, "system-paste.txt");
+        File.WriteAllText(filePath, "abc");
+        var clipboard = new FakeTextClipboard { Text = "Z" };
+
+        var driver = new FakeConsoleDriver(80, 25);
+        driver.EnqueueKey(new ConsoleKeyInfo('\0', ConsoleKey.End, shift: false, alt: false, control: false));
+        driver.EnqueueKey(new ConsoleKeyInfo('\u0016', ConsoleKey.V, shift: false, alt: false, control: true));
+        driver.EnqueueKey(new ConsoleKeyInfo('\0', ConsoleKey.F2, shift: false, alt: false, control: false));
+        driver.EnqueueKey(new ConsoleKeyInfo('\0', ConsoleKey.F10, shift: false, alt: false, control: false));
+
+        ShowFileEditor(new ScreenRenderer(driver), filePath, clipboard: clipboard);
+
+        Assert.Equal("abcZ", File.ReadAllText(filePath));
+    }
+
+    [Fact]
+    public void Show_CtrlV_WithEmptySystemClipboard_DoesNotPastePreviousCopy()
+    {
+        string filePath = Path.Combine(_tempDir, "empty-system-clipboard.txt");
+        File.WriteAllText(filePath, "abc");
+        var clipboard = new FakeTextClipboard { ClearAfterSet = true };
+
+        var driver = new FakeConsoleDriver(80, 25);
+        driver.EnqueueKey(new ConsoleKeyInfo('\0', ConsoleKey.F3, shift: false, alt: false, control: false));
+        driver.EnqueueKey(new ConsoleKeyInfo('\0', ConsoleKey.RightArrow, shift: false, alt: false, control: false));
+        driver.EnqueueKey(new ConsoleKeyInfo('\0', ConsoleKey.F5, shift: false, alt: false, control: false));
+        driver.EnqueueKey(new ConsoleKeyInfo('\0', ConsoleKey.End, shift: false, alt: false, control: false));
+        driver.EnqueueKey(new ConsoleKeyInfo('\u0016', ConsoleKey.V, shift: false, alt: false, control: true));
+        driver.EnqueueKey(new ConsoleKeyInfo('\0', ConsoleKey.F2, shift: false, alt: false, control: false));
+        driver.EnqueueKey(new ConsoleKeyInfo('\0', ConsoleKey.F10, shift: false, alt: false, control: false));
+
+        ShowFileEditor(new ScreenRenderer(driver), filePath, clipboard: clipboard);
+
+        Assert.Equal("abc", File.ReadAllText(filePath));
+    }
+
+    [Fact]
+    public void Show_CtrlAAndCtrlC_CopiesUtf8BomFileTextWithoutBom()
+    {
+        string filePath = Path.Combine(_tempDir, "system-copy-bom.json");
+        File.WriteAllText(filePath, "{\"items\":[1,2]}", new System.Text.UTF8Encoding(encoderShouldEmitUTF8Identifier: true));
+        var clipboard = new FakeTextClipboard();
+
+        var driver = new FakeConsoleDriver(80, 25);
+        driver.EnqueueKey(new ConsoleKeyInfo('\u0001', ConsoleKey.A, shift: false, alt: false, control: true));
+        driver.EnqueueKey(new ConsoleKeyInfo('\u0003', ConsoleKey.C, shift: false, alt: false, control: true));
+        driver.EnqueueKey(new ConsoleKeyInfo('\0', ConsoleKey.F10, shift: false, alt: false, control: false));
+
+        ShowFileEditor(new ScreenRenderer(driver), filePath, clipboard: clipboard);
+
+        Assert.Equal("{\"items\":[1,2]}", clipboard.Text);
+        Assert.False(clipboard.Text.StartsWith('\uFEFF'));
+    }
+
+    [Fact]
+    public void Show_CtrlAAndCtrlC_NormalizesSystemClipboardLineEndingsOnWindows()
+    {
+        string filePath = Path.Combine(_tempDir, "system-copy-lines.txt");
+        File.WriteAllText(filePath, "a\nb");
+        var clipboard = new FakeTextClipboard();
+
+        var driver = new FakeConsoleDriver(80, 25);
+        driver.EnqueueKey(new ConsoleKeyInfo('\u0001', ConsoleKey.A, shift: false, alt: false, control: true));
+        driver.EnqueueKey(new ConsoleKeyInfo('\u0003', ConsoleKey.C, shift: false, alt: false, control: true));
+        driver.EnqueueKey(new ConsoleKeyInfo('\0', ConsoleKey.F10, shift: false, alt: false, control: false));
+
+        ShowFileEditor(new ScreenRenderer(driver), filePath, clipboard: clipboard);
+
+        string expected = OperatingSystem.IsWindows() ? "a\r\nb" : "a\nb";
+        Assert.Equal(expected, clipboard.Text);
     }
 
     [Fact]
@@ -199,17 +297,40 @@ public sealed class FileEditorTests : IDisposable
     private static void ShowFileEditor(
         ScreenRenderer renderer,
         string filePath,
-        AppSettings.EditorSettings? settings = null)
+        AppSettings.EditorSettings? settings = null,
+        ITextClipboard? clipboard = null)
     {
         var editorType = typeof(TextFileReader).Assembly.GetType("CSharpFar.App.Editor.FileEditor", throwOnError: true)!;
         var editor = Activator.CreateInstance(
             editorType,
             BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic,
             binder: null,
-            args: settings is null ? [renderer] : [renderer, null, settings],
+            args: clipboard is null && settings is null
+                ? [renderer]
+                : [renderer, null, settings, clipboard],
             culture: null)!;
 
         editorType.GetMethod("Show", BindingFlags.Instance | BindingFlags.Public)!
             .Invoke(editor, [filePath]);
+    }
+
+    private sealed class FakeTextClipboard : ITextClipboard
+    {
+        public string Text { get; set; } = string.Empty;
+        public bool ClearAfterSet { get; set; }
+
+        public bool TrySetText(string text)
+        {
+            Text = text;
+            if (ClearAfterSet)
+                Text = string.Empty;
+            return true;
+        }
+
+        public bool TryGetText(out string text)
+        {
+            text = Text;
+            return true;
+        }
     }
 }

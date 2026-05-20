@@ -54,6 +54,21 @@ public sealed class EditorFileServiceTests : IDisposable
     }
 
     [Fact]
+    public void Load_StripsDetectedUtf8BomFromDocumentText()
+    {
+        string path = Path.Combine(_tempDir, "bom-json.txt");
+        File.WriteAllText(path, "{\"items\":[1,2]}", new UTF8Encoding(encoderShouldEmitUTF8Identifier: true));
+
+        var service = new EditorFileService(new AppSettings.EditorSettings());
+        var session = service.Load(path);
+
+        Assert.True(session.Document.Format.EmitByteOrderMark);
+        Assert.Equal("UTF-8 BOM", session.Document.Format.EncodingDisplayName);
+        Assert.Equal("{\"items\":[1,2]}", session.Document.Buffer.GetLine(0));
+        Assert.False(session.Document.Buffer.GetLine(0).StartsWith('\uFEFF'));
+    }
+
+    [Fact]
     public void Save_ConvertsLineEndingWhenFormatChanges()
     {
         string path = Path.Combine(_tempDir, "lf.txt");
