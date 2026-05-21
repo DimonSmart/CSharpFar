@@ -18,6 +18,11 @@
     </AssemblyAttribute>
   </ItemGroup>
 
+  <ItemGroup>
+    <PackageReference Include="TextMateSharp" Version="2.0.3" />
+    <PackageReference Include="TextMateSharp.Grammars" Version="2.0.3" />
+  </ItemGroup>
+
   <PropertyGroup>
     <AssemblyName>CSharpFar</AssemblyName>
     <ApplicationIcon>Assets\CSharpFar.ico</ApplicationIcon>

@@ -17,7 +17,8 @@ internal sealed class OpenSettingsCommand : IApplicationCommand
             context.LeftViewMode,
             context.RightViewMode,
             context.Settings.Ui.Palette,
-            context.Settings.Panels.FileHighlighting.Enabled);
+            context.Settings.Panels.FileHighlighting.Enabled,
+            context.Settings.Editor.SyntaxHighlightingEnabled);
 
         if (result is null)
             return ApplicationCommandResult.Rendered();
@@ -28,6 +29,7 @@ internal sealed class OpenSettingsCommand : IApplicationCommand
         context.Settings.Panels.RightViewMode = result.RightViewMode.ToString();
         context.Settings.Ui.Palette = result.PaletteName;
         context.Settings.Panels.FileHighlighting.Enabled = result.FileHighlightingEnabled;
+        context.Settings.Editor.SyntaxHighlightingEnabled = result.EditorSyntaxHighlightingEnabled;
         context.CommandPalette = PaletteRegistry.Resolve(result.PaletteName);
         context.HighlightService = context.CreateHighlightService();
         context.Controller.MoveCursor(context.LeftPanel, 0, context.VisibleRows(PanelSide.Left));

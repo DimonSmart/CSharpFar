@@ -19,6 +19,9 @@ public sealed class EditorSession
         _settings = settings;
         ReadOnly = readOnly;
         UndoHistory = new EditorUndoHistory(EditorSettingsResolver.ResolveUndoSize(settings));
+        SyntaxHighlightingEnabled = settings.SyntaxHighlightingEnabled;
+        SyntaxLanguage = EditorSettingsResolver.ResolveSyntaxLanguage(settings);
+        SyntaxTheme = EditorSettingsResolver.ResolveSyntaxTheme(settings);
     }
 
     public string FilePath { get; }
@@ -28,6 +31,12 @@ public sealed class EditorSession
     public EditorSelection? Selection { get; private set; }
     public bool ReadOnly { get; }
     public EditorUndoHistory UndoHistory { get; }
+    public EditorSyntaxHighlightCache SyntaxHighlightCache { get; } = new();
+    public bool SyntaxHighlightingEnabled { get; private set; }
+    public string SyntaxLanguage { get; private set; }
+    public string SyntaxTheme { get; private set; }
+    public EditorSyntaxDiagnostics SyntaxDiagnostics { get; private set; } =
+        EditorSyntaxDiagnostics.Plain("Syn:plain");
     public IReadOnlyCollection<int> Bookmarks => _bookmarks;
     public IReadOnlyDictionary<int, EditorPosition> NumberedBookmarks =>
         _numberedBookmarks
@@ -48,6 +57,38 @@ public sealed class EditorSession
     public void RaiseClosed() => Closed?.Invoke(this, new EditorSessionEventArgs(this));
     public void RaiseRedraw(int firstLine, int lineCount) =>
         Redraw?.Invoke(this, new EditorRedrawEventArgs(this, firstLine, lineCount));
+
+    public void ToggleSyntaxHighlighting()
+    {
+        SyntaxHighlightingEnabled = !SyntaxHighlightingEnabled;
+        SyntaxHighlightCache.Reset(SyntaxLanguage, SyntaxTheme);
+        SyntaxDiagnostics = SyntaxHighlightingEnabled
+            ? EditorSyntaxDiagnostics.Plain("Syn:pending")
+            : EditorSyntaxDiagnostics.Disabled("Syn:off");
+    }
+
+    public void SetSyntaxLanguage(string language)
+    {
+        string resolved = string.IsNullOrWhiteSpace(language) ? "auto" : language.Trim();
+        if (string.Equals(SyntaxLanguage, resolved, StringComparison.OrdinalIgnoreCase))
+            return;
+
+        SyntaxLanguage = resolved;
+        SyntaxHighlightCache.Reset(SyntaxLanguage, SyntaxTheme);
+    }
+
+    public void SetSyntaxTheme(string theme)
+    {
+        string resolved = string.IsNullOrWhiteSpace(theme) ? "Dark+" : theme.Trim();
+        if (string.Equals(SyntaxTheme, resolved, StringComparison.OrdinalIgnoreCase))
+            return;
+
+        SyntaxTheme = resolved;
+        SyntaxHighlightCache.Reset(SyntaxLanguage, SyntaxTheme);
+    }
+
+    public void SetSyntaxDiagnostics(EditorSyntaxDiagnostics diagnostics) =>
+        SyntaxDiagnostics = diagnostics;
 
     public void MoveLeft(bool extendSelection = false, bool preserveSelection = false)
     {
@@ -323,6 +364,7 @@ public sealed class EditorSession
         Document.RestoreRevision(transaction.BeforeRevision);
         Cursor = NormalizeCursorPosition(transaction.BeforeCursor);
         Selection = transaction.BeforeSelection;
+        SyntaxHighlightCache.InvalidateFromLine(transaction.Changes.Min(change => change.Start.Line));
         TextChanged?.Invoke(this, new EditorSessionEventArgs(this));
         return true;
     }
@@ -339,6 +381,7 @@ public sealed class EditorSession
         Document.RestoreRevision(transaction.AfterRevision);
         Cursor = NormalizeCursorPosition(transaction.AfterCursor);
         Selection = transaction.AfterSelection;
+        SyntaxHighlightCache.InvalidateFromLine(transaction.Changes.Min(change => change.Start.Line));
         TextChanged?.Invoke(this, new EditorSessionEventArgs(this));
         return true;
     }
@@ -612,6 +655,7 @@ public sealed class EditorSession
             BeforeRevision = Document.Revision - 1,
             AfterRevision = Document.Revision,
         });
+        SyntaxHighlightCache.InvalidateFromLine(matches.Min(match => match.Start.Line));
         TextChanged?.Invoke(this, new EditorSessionEventArgs(this));
         return matches.Count;
     }
@@ -872,6 +916,7 @@ public sealed class EditorSession
             AfterRevision = Document.Revision,
         };
         UndoHistory.Record(transaction);
+        SyntaxHighlightCache.InvalidateFromLine(start.Line);
         ShiftBookmarksAfterChange(start.Line, newText.Count(ch => ch == '\n') - oldText.Count(ch => ch == '\n'));
         TextChanged?.Invoke(this, new EditorSessionEventArgs(this));
     }
@@ -912,6 +957,7 @@ public sealed class EditorSession
         UndoHistory.Record(transaction);
         int firstChangedLine = orderedChanges.Min(change => change.Start.Line);
         int lineDelta = orderedChanges.Sum(change => change.NewText.Count(ch => ch == '\n') - change.OldText.Count(ch => ch == '\n'));
+        SyntaxHighlightCache.InvalidateFromLine(firstChangedLine);
         ShiftBookmarksAfterChange(firstChangedLine, lineDelta);
         TextChanged?.Invoke(this, new EditorSessionEventArgs(this));
     }

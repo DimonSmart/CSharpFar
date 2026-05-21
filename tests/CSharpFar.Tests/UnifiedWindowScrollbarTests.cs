@@ -318,7 +318,8 @@ public sealed class UnifiedWindowScrollbarTests
             PanelViewMode.Full,
             PanelViewMode.Full,
             "Default",
-            fileHighlightingEnabled: true);
+            fileHighlightingEnabled: true,
+            editorSyntaxHighlightingEnabled: true);
 
         Assert.NotNull(searchResult);
         Assert.NotNull(operationResult);

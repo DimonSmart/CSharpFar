@@ -20,6 +20,7 @@ internal sealed class FileEditor
     private readonly EditorFileService _fileService;
     private readonly ITextClipboard _clipboard;
     private readonly EditorFileNameInsertionContext? _fileNameInsertionContext;
+    private readonly IEditorSyntaxHighlighter _syntaxHighlighter;
     private EditorFindDialogResult? _lastFind;
     private bool _markMode;
     private bool _persistentSelection;
@@ -53,6 +54,17 @@ internal sealed class FileEditor
         AppSettings.EditorSettings? settings,
         ITextClipboard? clipboard,
         EditorFileNameInsertionContext? fileNameInsertionContext)
+        : this(screen, palette, settings, clipboard, fileNameInsertionContext, null)
+    {
+    }
+
+    internal FileEditor(
+        ScreenRenderer screen,
+        ConsolePalette? palette,
+        AppSettings.EditorSettings? settings,
+        ITextClipboard? clipboard,
+        EditorFileNameInsertionContext? fileNameInsertionContext,
+        IEditorSyntaxHighlighter? syntaxHighlighter)
     {
         _screen = screen;
         _palette = palette ?? PaletteRegistry.Default;
@@ -60,6 +72,7 @@ internal sealed class FileEditor
         _fileService = new EditorFileService(_settings);
         _clipboard = clipboard ?? TextCopyTextClipboard.Instance;
         _fileNameInsertionContext = fileNameInsertionContext;
+        _syntaxHighlighter = syntaxHighlighter ?? new TextMateEditorSyntaxHighlighter();
     }
 
     public void Show(string filePath) => Show(filePath, newFileFormat: null);
@@ -304,6 +317,15 @@ internal sealed class FileEditor
                 return true;
             case ConsoleKey.D when alt:
                 session.DeleteToLineEnd();
+                return true;
+            case ConsoleKey.H when alt:
+                session.ToggleSyntaxHighlighting();
+                return true;
+            case ConsoleKey.L when alt:
+                ShowSyntaxLanguageDialog(session);
+                return true;
+            case ConsoleKey.T when alt:
+                ShowSyntaxThemeDialog(session);
                 return true;
             case ConsoleKey.U when alt:
                 session.ShiftSelectedLinesLeftOrCurrentLine();
@@ -567,6 +589,28 @@ internal sealed class FileEditor
             new MessageDialog(_screen, _palette).Show("Replace", "Text not found.");
     }
 
+    private void ShowSyntaxLanguageDialog(EditorSession session)
+    {
+        string? language = new InputDialog(_screen, _palette).Show(
+            "Syntax",
+            "Language",
+            allowEmpty: false,
+            initialText: session.SyntaxLanguage);
+        if (language is not null)
+            session.SetSyntaxLanguage(language);
+    }
+
+    private void ShowSyntaxThemeDialog(EditorSession session)
+    {
+        string? theme = new InputDialog(_screen, _palette).Show(
+            "Syntax",
+            "Theme",
+            allowEmpty: false,
+            initialText: session.SyntaxTheme);
+        if (theme is not null)
+            session.SetSyntaxTheme(theme);
+    }
+
     private void Draw(
         EditorSession session,
         int contentHeight,
@@ -575,7 +619,8 @@ internal sealed class FileEditor
     {
         using var frame = _screen.BeginFrame();
         DrawHeader(session, size);
-        DrawContent(session, contentHeight, size);
+        EditorSyntaxHighlightResult syntaxResult = ResolveSyntaxHighlighting(session, contentHeight);
+        DrawContent(session, contentHeight, size, syntaxResult);
         DrawStatus(session, contentHeight + 1, size);
         DrawKeyBar(size, functionKeyModifiers);
         DrawCursor(session, contentHeight, size);
@@ -592,16 +637,59 @@ internal sealed class FileEditor
         _screen.Write(0, 0, Fit(left, leftWidth) + right, PaletteStyles.PathHeaderActive(_palette));
     }
 
-    private void DrawContent(EditorSession session, int contentHeight, ConsoleSize size)
+    private EditorSyntaxHighlightResult ResolveSyntaxHighlighting(EditorSession session, int contentHeight)
+    {
+        try
+        {
+            var result = _syntaxHighlighter.Highlight(new EditorSyntaxHighlightRequest
+            {
+                FilePath = session.FilePath,
+                Buffer = session.Document.Buffer,
+                DocumentRevision = session.Document.Revision,
+                FirstLineIndex = session.Viewport.TopLine,
+                LineCount = contentHeight,
+                Settings = _settings,
+                Cache = session.SyntaxHighlightCache,
+                Palette = _palette,
+                BaseStyle = EditorTextStyle(),
+                IsEnabledForSession = session.SyntaxHighlightingEnabled,
+                SessionLanguage = session.SyntaxLanguage,
+                SessionTheme = session.SyntaxTheme,
+            });
+            session.SetSyntaxDiagnostics(result.Diagnostics);
+            return result;
+        }
+        catch (Exception ex)
+        {
+            var result = EditorSyntaxHighlightResult.Disabled($"Syn:error {ex.Message}");
+            session.SetSyntaxDiagnostics(result.Diagnostics);
+            return result;
+        }
+    }
+
+    private void DrawContent(
+        EditorSession session,
+        int contentHeight,
+        ConsoleSize size,
+        EditorSyntaxHighlightResult syntaxResult)
     {
         int textWidth = Math.Max(1, size.Width - 1);
+        var syntaxSpansByLine = syntaxResult.Spans
+            .GroupBy(span => span.LineIndex)
+            .ToDictionary(group => group.Key, group => (IReadOnlyList<EditorColorSpan>)group.ToArray());
+
         for (int row = 0; row < contentHeight; row++)
         {
             int lineIndex = session.Viewport.TopLine + row;
             if (lineIndex < session.Document.Buffer.LineCount)
-                DrawTextLine(session, lineIndex, row + 1, textWidth);
+            {
+                syntaxSpansByLine.TryGetValue(lineIndex, out var lineSpans);
+                DrawTextLine(session, lineIndex, row + 1, textWidth, lineSpans ?? []);
+            }
             else
-                _screen.Write(0, row + 1, new string(' ', textWidth), PaletteStyles.CommandLine(_palette));
+            {
+                _screen.Write(0, row + 1, new string(' ', textWidth), EditorTextStyle());
+            }
         }
 
         new ScrollBarRenderer().RenderVerticalScrollbar(
@@ -620,8 +708,9 @@ internal sealed class FileEditor
     private void DrawStatus(EditorSession session, int y, ConsoleSize size)
     {
         string code = CurrentCharacterStatus(session);
+        string syntax = session.SyntaxDiagnostics.StatusText;
         string status =
-            $" Ln {session.Cursor.Line + 1} Col {session.Cursor.Column + 1}  {code}  Undo:{(session.UndoHistory.CanUndo ? "Y" : "N")} Redo:{(session.UndoHistory.CanRedo ? "Y" : "N")}";
+            $" Ln {session.Cursor.Line + 1} Col {session.Cursor.Column + 1}  {code}  Undo:{(session.UndoHistory.CanUndo ? "Y" : "N")} Redo:{(session.UndoHistory.CanRedo ? "Y" : "N")}  {syntax}";
         _screen.Write(0, y, Fit(status, size.Width), PaletteStyles.CommandLine(_palette));
     }
 
@@ -633,7 +722,12 @@ internal sealed class FileEditor
         new FunctionKeyBarRenderer(_screen, _palette).Render(size.Height - 1, size.Width, items);
     }
 
-    private void DrawTextLine(EditorSession session, int lineIndex, int screenY, int width)
+    private void DrawTextLine(
+        EditorSession session,
+        int lineIndex,
+        int screenY,
+        int width,
+        IReadOnlyList<EditorColorSpan> syntaxSpans)
     {
         string line = session.Document.Buffer.GetLine(lineIndex);
         for (int screenX = 0; screenX < width; screenX++)
@@ -642,16 +736,35 @@ internal sealed class FileEditor
             int logicalColumn = LogicalColumnFromVisualColumn(line, visualColumn);
             char ch = CharacterAtVisualColumn(line, visualColumn);
             bool selected = IsSelected(session.Selection, lineIndex, logicalColumn);
+            CellStyle style = SyntaxStyleAt(syntaxSpans, lineIndex, logicalColumn)
+                ?? EditorTextStyle();
             _screen.WriteChar(
                 screenX,
                 screenY,
                 ch,
-                selected ? EditorSelectionStyle() : PaletteStyles.CommandLine(_palette));
+                selected ? EditorSelectionStyle() : style);
         }
+    }
+
+    private static CellStyle? SyntaxStyleAt(
+        IReadOnlyList<EditorColorSpan> syntaxSpans,
+        int lineIndex,
+        int logicalColumn)
+    {
+        foreach (var span in syntaxSpans)
+        {
+            if (span.Contains(lineIndex, logicalColumn))
+                return span.Style;
+        }
+
+        return null;
     }
 
     private CellStyle EditorSelectionStyle() =>
         new(_palette.CommandLineBg, _palette.CommandLineFg);
+
+    private CellStyle EditorTextStyle() =>
+        new(_palette.CommandLineFg, _palette.PanelBackground);
 
     private void DrawCursor(EditorSession session, int contentHeight, ConsoleSize size)
     {

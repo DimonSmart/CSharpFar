@@ -11,7 +11,8 @@ public sealed record SettingsDialogResult(
     PanelViewMode LeftViewMode,
     PanelViewMode RightViewMode,
     string        PaletteName,
-    bool          FileHighlightingEnabled);
+    bool          FileHighlightingEnabled,
+    bool          EditorSyntaxHighlightingEnabled);
 
 /// <summary>
 /// Modal settings window.
@@ -21,8 +22,8 @@ public sealed record SettingsDialogResult(
 internal sealed class SettingsDialog
 {
     private const int DialogWidth  = 44;
-    private const int DialogHeight = 14;
-    private const int BodyRowCount = 9;
+    private const int DialogHeight = 15;
+    private const int BodyRowCount = 10;
 
     private static readonly PanelViewMode[] ViewModes    = [PanelViewMode.Full, PanelViewMode.BriefTwoColumns];
     private static readonly string[]        PaletteNames = [.. PaletteRegistry.Names];
@@ -38,7 +39,8 @@ internal sealed class SettingsDialog
         PanelViewMode leftMode,
         PanelViewMode rightMode,
         string        paletteName,
-        bool          fileHighlightingEnabled)
+        bool          fileHighlightingEnabled,
+        bool          editorSyntaxHighlightingEnabled)
     {
         var size   = _screen.GetSize();
         var region = new Rect(0, 0, size.Width, size.Height);
@@ -46,7 +48,7 @@ internal sealed class SettingsDialog
 
         try
         {
-            return RunLoop(size, leftMode, rightMode, paletteName, fileHighlightingEnabled);
+            return RunLoop(size, leftMode, rightMode, paletteName, fileHighlightingEnabled, editorSyntaxHighlightingEnabled);
         }
         finally
         {
@@ -61,7 +63,8 @@ internal sealed class SettingsDialog
         PanelViewMode leftMode,
         PanelViewMode rightMode,
         string        paletteName,
-        bool          hlEnabled)
+        bool          hlEnabled,
+        bool          syntaxEnabled)
     {
         int dialogWidth = Math.Min(DialogWidth, Math.Max(20, screenSize.Width - 2));
         int dialogHeight = Math.Min(DialogHeight, Math.Max(6, screenSize.Height - 2));
@@ -76,11 +79,11 @@ internal sealed class SettingsDialog
         if (rightIdx < 0) rightIdx = 0;
         if (palIdx   < 0) palIdx   = 0;
 
-        int focusRow = 0; // 0=left, 1=right, 2=palette, 3=file highlighting
+        int focusRow = 0; // 0=left, 1=right, 2=palette, 3=file highlighting, 4=editor syntax
         int bodyScrollTop = NormalizeBodyScroll(bounds, focusRow, 0);
         ScrollBarDragState? bodyScrollbarDrag = null;
 
-        Draw(bounds, bodyScrollTop, focusRow, leftIdx, rightIdx, palIdx, hlEnabled);
+        Draw(bounds, bodyScrollTop, focusRow, leftIdx, rightIdx, palIdx, hlEnabled, syntaxEnabled);
 
         while (true)
         {
@@ -88,7 +91,7 @@ internal sealed class SettingsDialog
             if (input is MouseConsoleInputEvent mouse &&
                 TryHandleBodyScrollbarMouse(mouse, bounds, ref bodyScrollTop, ref bodyScrollbarDrag))
             {
-                Draw(bounds, bodyScrollTop, focusRow, leftIdx, rightIdx, palIdx, hlEnabled);
+                Draw(bounds, bodyScrollTop, focusRow, leftIdx, rightIdx, palIdx, hlEnabled, syntaxEnabled);
                 continue;
             }
 
@@ -105,30 +108,37 @@ internal sealed class SettingsDialog
                         ViewModes[leftIdx],
                         ViewModes[rightIdx],
                         PaletteNames[palIdx],
-                        hlEnabled);
+                        hlEnabled,
+                        syntaxEnabled);
 
                 case ConsoleKey.UpArrow:
-                    focusRow = (focusRow + 3) % 4;
+                    focusRow = (focusRow + 4) % 5;
                     bodyScrollTop = NormalizeBodyScroll(bounds, focusRow, bodyScrollTop);
-                    Draw(bounds, bodyScrollTop, focusRow, leftIdx, rightIdx, palIdx, hlEnabled);
+                    Draw(bounds, bodyScrollTop, focusRow, leftIdx, rightIdx, palIdx, hlEnabled, syntaxEnabled);
                     break;
 
                 case ConsoleKey.DownArrow:
-                    focusRow = (focusRow + 1) % 4;
+                    focusRow = (focusRow + 1) % 5;
                     bodyScrollTop = NormalizeBodyScroll(bounds, focusRow, bodyScrollTop);
-                    Draw(bounds, bodyScrollTop, focusRow, leftIdx, rightIdx, palIdx, hlEnabled);
+                    Draw(bounds, bodyScrollTop, focusRow, leftIdx, rightIdx, palIdx, hlEnabled, syntaxEnabled);
                     break;
 
                 case ConsoleKey.Enter:
                 case ConsoleKey.Spacebar:
-                    Cycle(focusRow, ref leftIdx, ref rightIdx, ref palIdx, ref hlEnabled);
-                    Draw(bounds, bodyScrollTop, focusRow, leftIdx, rightIdx, palIdx, hlEnabled);
+                    Cycle(focusRow, ref leftIdx, ref rightIdx, ref palIdx, ref hlEnabled, ref syntaxEnabled);
+                    Draw(bounds, bodyScrollTop, focusRow, leftIdx, rightIdx, palIdx, hlEnabled, syntaxEnabled);
                     break;
             }
         }
     }
 
-    private static void Cycle(int focusRow, ref int leftIdx, ref int rightIdx, ref int palIdx, ref bool hlEnabled)
+    private static void Cycle(
+        int focusRow,
+        ref int leftIdx,
+        ref int rightIdx,
+        ref int palIdx,
+        ref bool hlEnabled,
+        ref bool syntaxEnabled)
     {
         switch (focusRow)
         {
@@ -136,6 +146,7 @@ internal sealed class SettingsDialog
             case 1: rightIdx = (rightIdx + 1) % ViewModes.Length;    break;
             case 2: palIdx   = (palIdx   + 1) % PaletteNames.Length; break;
             case 3: hlEnabled = !hlEnabled;                           break;
+            case 4: syntaxEnabled = !syntaxEnabled;                    break;
         }
     }
 
@@ -148,7 +159,8 @@ internal sealed class SettingsDialog
         int    leftIdx,
         int    rightIdx,
         int    palIdx,
-        bool   hlEnabled)
+        bool   hlEnabled,
+        bool   syntaxEnabled)
     {
         using var frame = _screen.BeginFrame();
 
@@ -198,10 +210,14 @@ internal sealed class SettingsDialog
                 "File highlight:", hlEnabled ? "Enabled" : "Disabled",
                 focusRow == 3, fill, focused);
 
-            DrawBodyText(5, "Enter/Space  change value", fill);
-            DrawBodyText(6, "Up/Down      select item", fill);
-            DrawBodyText(7, "F10          save & close", fill);
-            DrawBodyText(8, "Esc          close", fill);
+            DrawBodySettingRow(4,
+                "Editor syntax:", syntaxEnabled ? "Enabled" : "Disabled",
+                focusRow == 4, fill, focused);
+
+            DrawBodyText(6, "Enter/Space  change value", fill);
+            DrawBodyText(7, "Up/Down      select item", fill);
+            DrawBodyText(8, "F10          save & close", fill);
+            DrawBodyText(9, "Esc          close", fill);
 
             int? BodyY(int virtualRow)
             {

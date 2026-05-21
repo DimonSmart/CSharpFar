@@ -1,8 +1,8 @@
-using System.Reflection;
 using CSharpFar.App.Editor;
 using CSharpFar.App.Viewer;
 using CSharpFar.Console;
 using CSharpFar.Console.Input;
+using CSharpFar.Console.Models;
 using CSharpFar.Core.Abstractions;
 using CSharpFar.Core.Models;
 using CSharpFar.Ui;
@@ -549,27 +549,84 @@ public sealed class FileEditorTests : IDisposable
             record.Text.Contains("EOF", StringComparison.Ordinal));
     }
 
+    [Fact]
+    public void Show_SyntaxSpanAppliesTokenStyle()
+    {
+        string filePath = Path.Combine(_tempDir, "syntax-render.txt");
+        File.WriteAllText(filePath, "abc");
+        var highlighter = new StaticSyntaxHighlighter(
+            new EditorColorSpan(0, 1, 1, new CellStyle(ConsoleColor.Yellow, ConsoleColor.Black)));
+
+        var driver = new FakeConsoleDriver(80, 25);
+        driver.EnqueueKey(new ConsoleKeyInfo('\0', ConsoleKey.F10, shift: false, alt: false, control: false));
+
+        ShowFileEditor(new ScreenRenderer(driver), filePath, syntaxHighlighter: highlighter);
+
+        Assert.Contains(driver.WriteRecords, record =>
+            record.X == 1 &&
+            record.Y == 1 &&
+            record.Text == "b" &&
+            record.Foreground == ConsoleColor.Yellow);
+    }
+
+    [Fact]
+    public void Show_PlainEditorTextUsesPanelBackground()
+    {
+        string filePath = Path.Combine(_tempDir, "plain-editor-background.unknown");
+        File.WriteAllText(filePath, "abc");
+        var palette = PaletteRegistry.Default;
+
+        var driver = new FakeConsoleDriver(80, 25);
+        driver.EnqueueKey(new ConsoleKeyInfo('\0', ConsoleKey.F10, shift: false, alt: false, control: false));
+
+        ShowFileEditor(new ScreenRenderer(driver), filePath);
+
+        Assert.Contains(driver.WriteRecords, record =>
+            record.X == 0 &&
+            record.Y == 1 &&
+            record.Text.StartsWith('a') &&
+            record.Background == palette.PanelBackground);
+    }
+
+    [Fact]
+    public void Show_SelectionStyleOverridesSyntaxSpan()
+    {
+        string filePath = Path.Combine(_tempDir, "syntax-selection.txt");
+        File.WriteAllText(filePath, "abc");
+        var highlighter = new StaticSyntaxHighlighter(
+            new EditorColorSpan(0, 0, 3, new CellStyle(ConsoleColor.Red, ConsoleColor.Black)));
+        var palette = PaletteRegistry.Default;
+
+        var driver = new FakeConsoleDriver(80, 25);
+        driver.EnqueueKey(new ConsoleKeyInfo('\0', ConsoleKey.F3, shift: false, alt: false, control: false));
+        driver.EnqueueKey(new ConsoleKeyInfo('\0', ConsoleKey.RightArrow, shift: false, alt: false, control: false));
+        driver.EnqueueKey(new ConsoleKeyInfo('\0', ConsoleKey.F10, shift: false, alt: false, control: false));
+
+        ShowFileEditor(new ScreenRenderer(driver), filePath, syntaxHighlighter: highlighter);
+
+        Assert.Contains(driver.WriteRecords, record =>
+            record.X == 0 &&
+            record.Y == 1 &&
+            record.Text == "a" &&
+            record.Background == palette.CommandLineFg);
+    }
+
     private static void ShowFileEditor(
         ScreenRenderer renderer,
         string filePath,
         AppSettings.EditorSettings? settings = null,
         ITextClipboard? clipboard = null,
-        EditorFileNameInsertionContext? fileNameInsertionContext = null)
+        EditorFileNameInsertionContext? fileNameInsertionContext = null,
+        IEditorSyntaxHighlighter? syntaxHighlighter = null)
     {
-        var editorType = typeof(TextFileReader).Assembly.GetType("CSharpFar.App.Editor.FileEditor", throwOnError: true)!;
-        var editor = Activator.CreateInstance(
-            editorType,
-            BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic,
-            binder: null,
-            args: clipboard is null && settings is null && fileNameInsertionContext is null
-                ? [renderer]
-                : fileNameInsertionContext is null
-                    ? [renderer, null, settings, clipboard]
-                    : [renderer, null, settings, clipboard, fileNameInsertionContext],
-            culture: null)!;
-
-        editorType.GetMethod("Show", BindingFlags.Instance | BindingFlags.Public)!
-            .Invoke(editor, [filePath]);
+        var editor = new FileEditor(
+            renderer,
+            null,
+            settings,
+            clipboard,
+            fileNameInsertionContext,
+            syntaxHighlighter);
+        editor.Show(filePath);
     }
 
     private sealed class FakeTextClipboard : ITextClipboard
@@ -590,5 +647,18 @@ public sealed class FileEditorTests : IDisposable
             text = Text;
             return true;
         }
+    }
+
+    private sealed class StaticSyntaxHighlighter : IEditorSyntaxHighlighter
+    {
+        private readonly IReadOnlyList<EditorColorSpan> _spans;
+
+        public StaticSyntaxHighlighter(params EditorColorSpan[] spans)
+        {
+            _spans = spans;
+        }
+
+        public EditorSyntaxHighlightResult Highlight(EditorSyntaxHighlightRequest request) =>
+            new(_spans, EditorSyntaxDiagnostics.Active("Fake", "Fake", "palette"));
     }
 }

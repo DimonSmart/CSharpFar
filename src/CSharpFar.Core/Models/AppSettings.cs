@@ -94,5 +94,15 @@ public sealed class AppSettings
         public bool F7StartsAtNextCharacter { get; set; } = true;
         public bool BSLikeDel { get; set; } = true;
         public string DefaultLineEnding { get; set; } = "LF";
+        public bool SyntaxHighlightingEnabled { get; set; } = true;
+        public string SyntaxTheme { get; set; } = "Dark+";
+        public string SyntaxLanguage { get; set; } = "auto";
+        public int SyntaxMaxLineLength { get; set; } = 20000;
+        public int SyntaxTokenizationTimeoutMs { get; set; } = 50;
+        public int SyntaxMaxSynchronousLines { get; set; } = 300;
+        public string SyntaxUseTrueColor { get; set; } = "auto";
+        public bool SyntaxFallbackToPlainText { get; set; } = true;
+        public string? SyntaxUserGrammarsPath { get; set; }
+        public string? SyntaxUserThemesPath { get; set; }
     }
 }

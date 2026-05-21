@@ -17,4 +17,23 @@ internal static class EditorSettingsResolver
 
     public static int ResolveUndoSize(AppSettings.EditorSettings settings) =>
         Math.Max(0, settings.UndoSize);
+
+    public static int ResolveSyntaxMaxLineLength(AppSettings.EditorSettings settings) =>
+        Math.Max(1, settings.SyntaxMaxLineLength);
+
+    public static int ResolveSyntaxTokenizationTimeoutMs(AppSettings.EditorSettings settings) =>
+        Math.Clamp(settings.SyntaxTokenizationTimeoutMs, 1, 1000);
+
+    public static int ResolveSyntaxMaxSynchronousLines(AppSettings.EditorSettings settings) =>
+        Math.Max(1, settings.SyntaxMaxSynchronousLines);
+
+    public static string ResolveSyntaxLanguage(AppSettings.EditorSettings settings) =>
+        string.IsNullOrWhiteSpace(settings.SyntaxLanguage)
+            ? "auto"
+            : settings.SyntaxLanguage.Trim();
+
+    public static string ResolveSyntaxTheme(AppSettings.EditorSettings settings) =>
+        string.IsNullOrWhiteSpace(settings.SyntaxTheme)
+            ? "Dark+"
+            : settings.SyntaxTheme.Trim();
 }
