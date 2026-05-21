@@ -6,6 +6,7 @@ internal static class FunctionKeyCommandIds
     public const string UserMenu = "functionKey.userMenu";
     public const string View = "functionKey.view";
     public const string Edit = "functionKey.edit";
+    public const string OpenCreateFile = "functionKey.shift.openCreateFile";
     public const string Copy = "functionKey.copy";
     public const string RenameOrMove = "functionKey.renameOrMove";
     public const string CreateFolder = "functionKey.createFolder";

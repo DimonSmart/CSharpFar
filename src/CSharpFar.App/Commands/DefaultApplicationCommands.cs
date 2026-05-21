@@ -8,6 +8,7 @@ internal static class DefaultApplicationCommands
         new UserMenuCommand(),
         new ViewFileCommand(),
         new EditFileCommand(),
+        new OpenCreateFileCommand(),
         new CopyCommand(),
         new MoveCommand(),
         new CreateFolderCommand(),

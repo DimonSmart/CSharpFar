@@ -49,7 +49,12 @@ internal sealed class FileEditor
         _clipboard = clipboard ?? TextCopyTextClipboard.Instance;
     }
 
-    public void Show(string filePath)
+    public void Show(string filePath) => Show(filePath, newFileFormat: null);
+
+    public void ShowWithNewFileFormat(string filePath, EditorDocumentFormat newFileFormat) =>
+        Show(filePath, newFileFormat);
+
+    private void Show(string filePath, EditorDocumentFormat? newFileFormat)
     {
         if (_fileService.RequiresSizeWarning(filePath) &&
             !new ConfirmDialog(_screen).Show(
@@ -63,7 +68,7 @@ internal sealed class FileEditor
         EditorSession session;
         try
         {
-            session = _fileService.Load(filePath);
+            session = _fileService.Load(filePath, newFileFormat);
         }
         catch (Exception ex)
         {

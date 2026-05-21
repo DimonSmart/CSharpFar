@@ -17,16 +17,19 @@ public sealed class EditorFileService
 
     public bool RequiresSizeWarning(string filePath)
     {
+        if (!File.Exists(filePath))
+            return false;
+
         long limit = _settings.FileSizeLimitBytes;
         return limit > 0 && new FileInfo(filePath).Length > limit;
     }
 
-    public EditorSession Load(string filePath)
+    public EditorSession Load(string filePath, EditorDocumentFormat? newFileFormat = null)
     {
         if (!File.Exists(filePath))
         {
-            var newFileFormat = CreateNewFileFormat();
-            var newFileDocument = new EditorDocument(EditorTextBuffer.FromText(string.Empty), newFileFormat);
+            var initialFormat = newFileFormat ?? CreateDefaultNewFileFormat(_settings);
+            var newFileDocument = new EditorDocument(EditorTextBuffer.FromText(string.Empty), initialFormat);
             newFileDocument.MarkClean();
             return new EditorSession(filePath, newFileDocument, _settings, readOnly: false);
         }
@@ -107,13 +110,15 @@ public sealed class EditorFileService
             _ => TextLineEndingKind.Lf,
         };
 
-    private EditorDocumentFormat CreateNewFileFormat()
+    public static EditorDocumentFormat CreateDefaultNewFileFormat(AppSettings.EditorSettings settings)
     {
+        ArgumentNullException.ThrowIfNull(settings);
+
         var encoding = new UTF8Encoding(encoderShouldEmitUTF8Identifier: false);
         return new EditorDocumentFormat(
             encoding,
             emitByteOrderMark: false,
-            EditorSettingsResolver.ResolveDefaultLineEnding(_settings),
+            EditorSettingsResolver.ResolveDefaultLineEnding(settings),
             "UTF-8");
     }
 

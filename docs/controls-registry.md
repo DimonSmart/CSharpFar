@@ -164,6 +164,7 @@ without mixing unrelated domain behavior.
 ## Form dialogs
 
 Owners:
+- `OpenCreateFileDialog`;
 - `SearchDialog`;
 - `FileOperationDialog`;
 - `SettingsDialog`;
@@ -174,7 +175,7 @@ Purpose: modal multi-control forms.
 Functions:
 - focus row management;
 - text fields through `SingleLineTextInput`;
-- checkboxes/radio-like option rows;
+- checkboxes, radio-like option rows, and local combobox-like dropdown rows;
 - buttons through `DialogButtonBar`;
 - body scrolling in short consoles for core dialogs.
 

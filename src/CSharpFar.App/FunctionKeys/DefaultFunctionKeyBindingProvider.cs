@@ -26,6 +26,12 @@ internal sealed class DefaultFunctionKeyBindingProvider
             "Edit",
             RunsWhenUnavailable: true),
         new(
+            FunctionKeyCommandIds.OpenCreateFile,
+            FunctionKeyLayer.Shift,
+            ConsoleKey.F4,
+            "New",
+            RunsWhenUnavailable: true),
+        new(
             FunctionKeyCommandIds.Copy,
             FunctionKeyLayer.Plain,
             ConsoleKey.F5,

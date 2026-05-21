@@ -61,6 +61,7 @@ public static class HelpContent
         H("FILE OPERATIONS"),
         K("F3",              "View file (text viewer)"),
         K("F4",              "Edit file (text editor)"),
+        K("Shift+F4",        "Open / create file in editor"),
         K("F5",              "Copy selected files"),
         K("F6",              "Move / Rename selected files"),
         K("F7",              "Create folder"),
