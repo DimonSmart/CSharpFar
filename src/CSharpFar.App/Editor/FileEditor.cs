@@ -19,8 +19,10 @@ internal sealed class FileEditor
     private readonly AppSettings.EditorSettings _settings;
     private readonly EditorFileService _fileService;
     private readonly ITextClipboard _clipboard;
+    private readonly EditorFileNameInsertionContext? _fileNameInsertionContext;
     private EditorFindDialogResult? _lastFind;
     private bool _markMode;
+    private bool _persistentSelection;
 
     public FileEditor(ScreenRenderer screen)
         : this(screen, null, null) { }
@@ -41,12 +43,23 @@ internal sealed class FileEditor
         ConsolePalette? palette,
         AppSettings.EditorSettings? settings,
         ITextClipboard? clipboard)
+        : this(screen, palette, settings, clipboard, null)
+    {
+    }
+
+    internal FileEditor(
+        ScreenRenderer screen,
+        ConsolePalette? palette,
+        AppSettings.EditorSettings? settings,
+        ITextClipboard? clipboard,
+        EditorFileNameInsertionContext? fileNameInsertionContext)
     {
         _screen = screen;
         _palette = palette ?? PaletteRegistry.Default;
         _settings = settings ?? new AppSettings.EditorSettings();
         _fileService = new EditorFileService(_settings);
         _clipboard = clipboard ?? TextCopyTextClipboard.Instance;
+        _fileNameInsertionContext = fileNameInsertionContext;
     }
 
     public void Show(string filePath) => Show(filePath, newFileFormat: null);
@@ -123,6 +136,7 @@ internal sealed class FileEditor
                     ? new string(' ', EditorSettingsResolver.ResolveTabSize(_settings))
                     : key.KeyChar.ToString();
                 session.InsertText(text);
+                _persistentSelection = false;
                 continue;
             }
 
@@ -143,63 +157,106 @@ internal sealed class FileEditor
         bool control = (key.Modifiers & ConsoleModifiers.Control) != 0;
         bool alt = (key.Modifiers & ConsoleModifiers.Alt) != 0;
         bool extendSelection = shift || _markMode;
+        bool preserveSelection = _persistentSelection && !extendSelection;
+
+        if (TryHandleNumberedBookmarkKey(session, key, control, shift, alt))
+            return true;
 
         switch (key.Key)
         {
+            case ConsoleKey.Backspace when control:
+                session.DeleteWordLeft();
+                return true;
+            case ConsoleKey.Delete when control:
+                session.DeleteWordRight();
+                return true;
+            case ConsoleKey.Delete when shift:
+                CopySelectionToClipboard(session);
+                session.CutSelection();
+                _markMode = false;
+                _persistentSelection = false;
+                return true;
+            case ConsoleKey.Insert when control:
+                CopySelectionToClipboard(session);
+                return true;
+            case ConsoleKey.Insert when shift:
+                PasteClipboardText(session);
+                return true;
             case ConsoleKey.Backspace:
                 session.DeleteBack();
                 return true;
             case ConsoleKey.Delete:
                 session.DeleteForward();
                 return true;
+            case ConsoleKey.Enter when control && shift:
+                InsertPassivePanelFileName(session);
+                return true;
+            case ConsoleKey.Enter when shift:
+                InsertActivePanelFileName(session);
+                return true;
             case ConsoleKey.Enter:
                 session.BreakLine();
                 return true;
             case ConsoleKey.LeftArrow when control:
-                session.MoveWordLeft(extendSelection);
+                session.MoveWordLeft(extendSelection, preserveSelection);
                 return true;
             case ConsoleKey.RightArrow when control:
-                session.MoveWordRight(extendSelection);
+                session.MoveWordRight(extendSelection, preserveSelection);
+                return true;
+            case ConsoleKey.UpArrow when control:
+                ScrollViewport(session, -1, contentHeight);
+                return true;
+            case ConsoleKey.DownArrow when control:
+                ScrollViewport(session, 1, contentHeight);
                 return true;
             case ConsoleKey.LeftArrow:
-                session.MoveLeft(extendSelection);
+                session.MoveLeft(extendSelection, preserveSelection);
                 return true;
             case ConsoleKey.RightArrow:
-                session.MoveRight(extendSelection);
+                session.MoveRight(extendSelection, preserveSelection);
                 return true;
             case ConsoleKey.UpArrow:
-                session.MoveUp(extendSelection: extendSelection);
+                session.MoveUp(extendSelection: extendSelection, preserveSelection: preserveSelection);
                 return true;
             case ConsoleKey.DownArrow:
-                session.MoveDown(extendSelection: extendSelection);
+                session.MoveDown(extendSelection: extendSelection, preserveSelection: preserveSelection);
                 return true;
             case ConsoleKey.PageUp:
-                session.MoveUp(contentHeight, extendSelection);
+                session.MoveUp(contentHeight, extendSelection, preserveSelection);
                 return true;
             case ConsoleKey.PageDown:
-                session.MoveDown(contentHeight, extendSelection);
+                session.MoveDown(contentHeight, extendSelection, preserveSelection);
                 return true;
             case ConsoleKey.Home when control:
-                session.MoveToDocumentStart(extendSelection);
+                session.MoveToDocumentStart(extendSelection, preserveSelection);
                 return true;
             case ConsoleKey.Home:
-                session.MoveToLineStart(extendSelection);
+                session.MoveToLineStart(extendSelection, preserveSelection);
                 return true;
             case ConsoleKey.End when control:
-                session.MoveToDocumentEnd(extendSelection);
+                session.MoveToDocumentEnd(extendSelection, preserveSelection);
                 return true;
             case ConsoleKey.End:
-                session.MoveToLineEnd(extendSelection);
+                session.MoveToLineEnd(extendSelection, preserveSelection);
+                return true;
+            case ConsoleKey.Z when control && shift:
+                session.Redo();
                 return true;
             case ConsoleKey.Z when control:
                 session.Undo();
                 return true;
             case ConsoleKey.Y when control:
-                session.Redo();
+                session.DeleteCurrentLine();
                 return true;
             case ConsoleKey.A when control:
                 session.SelectAll();
                 _markMode = false;
+                _persistentSelection = false;
+                return true;
+            case ConsoleKey.U when control:
+                session.ClearSelection();
+                _markMode = false;
+                _persistentSelection = false;
                 return true;
             case ConsoleKey.C when control:
                 CopySelectionToClipboard(session);
@@ -207,9 +264,37 @@ internal sealed class FileEditor
             case ConsoleKey.X when control:
                 CopySelectionToClipboard(session);
                 session.CutSelection();
+                _persistentSelection = false;
                 return true;
             case ConsoleKey.V when control:
                 PasteClipboardText(session);
+                _persistentSelection = false;
+                return true;
+            case ConsoleKey.F when control:
+                session.InsertText(session.FilePath, "Insert edited file path");
+                return true;
+            case ConsoleKey.K when control:
+                session.DeleteToLineEnd();
+                return true;
+            case ConsoleKey.T when control:
+                session.DeleteWordRight();
+                return true;
+            case ConsoleKey.D when control:
+                session.DeleteSelection();
+                _markMode = false;
+                _persistentSelection = false;
+                return true;
+            case ConsoleKey.P when control:
+                if (!session.CopySelectionToCursor())
+                    new MessageDialog(_screen, _palette).Show("Editor", "Select text to copy block.");
+                _markMode = false;
+                _persistentSelection = false;
+                return true;
+            case ConsoleKey.M when control:
+                if (!session.MoveSelectionToCursor())
+                    new MessageDialog(_screen, _palette).Show("Editor", "Select text outside the cursor to move block.");
+                _markMode = false;
+                _persistentSelection = false;
                 return true;
             case ConsoleKey.B when control:
                 session.ToggleBookmark();
@@ -217,8 +302,14 @@ internal sealed class FileEditor
             case ConsoleKey.N when control:
                 session.MoveToNextBookmark();
                 return true;
-            case ConsoleKey.P when control:
-                session.MoveToPreviousBookmark();
+            case ConsoleKey.D when alt:
+                session.DeleteToLineEnd();
+                return true;
+            case ConsoleKey.U when alt:
+                session.ShiftSelectedLinesLeftOrCurrentLine();
+                return true;
+            case ConsoleKey.I when alt:
+                session.ShiftSelectedLinesRightOrCurrentLine();
                 return true;
             case ConsoleKey.F2 when shift:
                 ShowFormatDialog(session);
@@ -240,6 +331,7 @@ internal sealed class FileEditor
                 CopySelectionToClipboard(session);
                 session.CutSelection();
                 _markMode = false;
+                _persistentSelection = false;
                 return true;
             case ConsoleKey.F7 when control:
                 ShowReplaceDialog(session);
@@ -254,7 +346,7 @@ internal sealed class FileEditor
                 ShowFindDialog(session);
                 return true;
             case ConsoleKey.F8:
-                session.DeleteForward();
+                session.DeleteSelectionOrCurrentLine();
                 return true;
         }
 
@@ -274,6 +366,70 @@ internal sealed class FileEditor
             session.PasteText(clipboardText);
     }
 
+    private bool TryHandleNumberedBookmarkKey(
+        EditorSession session,
+        ConsoleKeyInfo key,
+        bool control,
+        bool shift,
+        bool alt)
+    {
+        if (!control || alt || !TryGetNumberKey(key.Key, out int slot))
+            return false;
+
+        if (shift)
+        {
+            session.SetNumberedBookmark(slot);
+            return true;
+        }
+
+        session.MoveToNumberedBookmark(slot);
+        return true;
+    }
+
+    private static bool TryGetNumberKey(ConsoleKey key, out int number)
+    {
+        number = key switch
+        {
+            ConsoleKey.D0 or ConsoleKey.NumPad0 => 0,
+            ConsoleKey.D1 or ConsoleKey.NumPad1 => 1,
+            ConsoleKey.D2 or ConsoleKey.NumPad2 => 2,
+            ConsoleKey.D3 or ConsoleKey.NumPad3 => 3,
+            ConsoleKey.D4 or ConsoleKey.NumPad4 => 4,
+            ConsoleKey.D5 or ConsoleKey.NumPad5 => 5,
+            ConsoleKey.D6 or ConsoleKey.NumPad6 => 6,
+            ConsoleKey.D7 or ConsoleKey.NumPad7 => 7,
+            ConsoleKey.D8 or ConsoleKey.NumPad8 => 8,
+            ConsoleKey.D9 or ConsoleKey.NumPad9 => 9,
+            _ => -1,
+        };
+        return number >= 0;
+    }
+
+    private void InsertActivePanelFileName(EditorSession session)
+    {
+        string text = _fileNameInsertionContext?.ActivePanelItemName
+            ?? Path.GetFileName(session.FilePath);
+        session.InsertText(text, "Insert active panel file name");
+    }
+
+    private void InsertPassivePanelFileName(EditorSession session)
+    {
+        string text = _fileNameInsertionContext?.PassivePanelItemName
+            ?? Path.GetFileName(session.FilePath);
+        session.InsertText(text, "Insert passive panel file name");
+    }
+
+    private static void ScrollViewport(EditorSession session, int delta, int contentHeight)
+    {
+        int maxTopLine = Math.Max(0, session.Document.Buffer.LineCount - contentHeight);
+        int topLine = Math.Clamp(session.Viewport.TopLine + delta, 0, maxTopLine);
+        session.Viewport.TopLine = topLine;
+        if (session.Cursor.Line < topLine)
+            session.MoveTo(new EditorPosition(topLine, session.Cursor.Column));
+        else if (session.Cursor.Line >= topLine + contentHeight)
+            session.MoveTo(new EditorPosition(topLine + contentHeight - 1, session.Cursor.Column));
+    }
+
     private static string ClipboardTextForOperatingSystem(string text) =>
         OperatingSystem.IsWindows()
             ? text.ReplaceLineEndings("\r\n")
@@ -281,9 +437,17 @@ internal sealed class FileEditor
 
     private void ToggleMarkMode(EditorSession session, EditorSelectionMode mode)
     {
-        _markMode = !_markMode || session.Selection?.Mode != mode;
+        bool wasMarkingSameMode = _markMode && session.Selection?.Mode == mode;
+        _markMode = !wasMarkingSameMode;
         if (_markMode)
+        {
+            _persistentSelection = false;
             session.SetSelectionMode(mode);
+        }
+        else
+        {
+            _persistentSelection = session.Selection is { IsEmpty: false };
+        }
     }
 
     private bool TryExit(EditorSession session)

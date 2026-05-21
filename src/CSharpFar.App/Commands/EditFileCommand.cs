@@ -31,8 +31,25 @@ internal sealed class EditFileCommand : IApplicationCommand
             return ApplicationCommandResult.Rendered();
 
         context.History.AddFile(new FileHistoryItem { Path = item.FullPath });
-        new FileEditor(context.Screen, context.Palette, context.Settings.Editor, context.TextClipboard).Show(item.FullPath);
+        new FileEditor(
+            context.Screen,
+            context.Palette,
+            context.Settings.Editor,
+            context.TextClipboard,
+            BuildFileNameInsertionContext(context, item)).Show(item.FullPath);
         context.SafeRefresh(context.ActiveState, context.VisibleRows());
         return ApplicationCommandResult.Rendered();
+    }
+
+    private static EditorFileNameInsertionContext BuildFileNameInsertionContext(
+        ApplicationCommandContext context,
+        FilePanelItem activeItem)
+    {
+        var passiveItem = context.Controller.CurrentItem(context.PassiveState);
+        return new EditorFileNameInsertionContext(
+            activeItem.Name,
+            activeItem.FullPath,
+            passiveItem is { IsParentDirectory: false } ? passiveItem.Name : null,
+            passiveItem is { IsParentDirectory: false } ? passiveItem.FullPath : null);
     }
 }

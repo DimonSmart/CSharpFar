@@ -43,7 +43,12 @@ internal sealed class OpenCreateFileCommand : IApplicationCommand
 
         bool existedBefore = File.Exists(filePath);
         EditorDocumentFormat newFileFormat = result.CodePage.CreateDocumentFormat(context.Settings.Editor);
-        new FileEditor(context.Screen, context.Palette, context.Settings.Editor, context.TextClipboard)
+        new FileEditor(
+            context.Screen,
+            context.Palette,
+            context.Settings.Editor,
+            context.TextClipboard,
+            BuildFileNameInsertionContext(context))
             .ShowWithNewFileFormat(filePath, newFileFormat);
 
         if (File.Exists(filePath))
@@ -55,6 +60,17 @@ internal sealed class OpenCreateFileCommand : IApplicationCommand
             context.Controller.SetCursorByName(context.ActiveState, Path.GetFileName(filePath), visibleRows);
 
         return ApplicationCommandResult.Rendered();
+    }
+
+    private static EditorFileNameInsertionContext BuildFileNameInsertionContext(ApplicationCommandContext context)
+    {
+        var activeItem = context.Controller.CurrentItem(context.ActiveState);
+        var passiveItem = context.Controller.CurrentItem(context.PassiveState);
+        return new EditorFileNameInsertionContext(
+            activeItem is { IsParentDirectory: false } ? activeItem.Name : null,
+            activeItem is { IsParentDirectory: false } ? activeItem.FullPath : null,
+            passiveItem is { IsParentDirectory: false } ? passiveItem.Name : null,
+            passiveItem is { IsParentDirectory: false } ? passiveItem.FullPath : null);
     }
 
     private static string? InitialPath(ApplicationCommandContext context)

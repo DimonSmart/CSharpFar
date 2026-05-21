@@ -36,7 +36,12 @@ internal sealed class FileHistoryCommand : IApplicationCommand
                     break;
                 case OpenFileChoice.Edit:
                     context.History.AddFile(new FileHistoryItem { Path = path });
-                    new FileEditor(context.Screen, context.Palette, context.Settings.Editor, context.TextClipboard).Show(path);
+                    new FileEditor(
+                        context.Screen,
+                        context.Palette,
+                        context.Settings.Editor,
+                        context.TextClipboard,
+                        BuildFileNameInsertionContext(context)).Show(path);
                     context.SafeRefresh(context.ActiveState, context.VisibleRows());
                     break;
             }
@@ -47,5 +52,16 @@ internal sealed class FileHistoryCommand : IApplicationCommand
         {
             context.ResetFunctionKeyLayer();
         }
+    }
+
+    private static EditorFileNameInsertionContext BuildFileNameInsertionContext(ApplicationCommandContext context)
+    {
+        var activeItem = context.Controller.CurrentItem(context.ActiveState);
+        var passiveItem = context.Controller.CurrentItem(context.PassiveState);
+        return new EditorFileNameInsertionContext(
+            activeItem is { IsParentDirectory: false } ? activeItem.Name : null,
+            activeItem is { IsParentDirectory: false } ? activeItem.FullPath : null,
+            passiveItem is { IsParentDirectory: false } ? passiveItem.Name : null,
+            passiveItem is { IsParentDirectory: false } ? passiveItem.FullPath : null);
     }
 }
