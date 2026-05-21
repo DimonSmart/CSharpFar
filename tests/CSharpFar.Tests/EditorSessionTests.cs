@@ -110,6 +110,92 @@ public sealed class EditorSessionTests
     }
 
     [Fact]
+    public void Cursor_MovesAcrossUtf8FourByteCharactersAsSingleCharacters()
+    {
+        string smile = char.ConvertFromUtf32(0x1F642);
+        var session = CreateSession("A" + smile + "B");
+
+        session.MoveRight();
+        Assert.Equal(new EditorPosition(0, 1), session.Cursor);
+
+        session.MoveRight();
+        Assert.Equal(new EditorPosition(0, 3), session.Cursor);
+
+        session.MoveRight();
+        Assert.Equal(new EditorPosition(0, 4), session.Cursor);
+
+        session.MoveLeft();
+        Assert.Equal(new EditorPosition(0, 3), session.Cursor);
+
+        session.MoveLeft();
+        Assert.Equal(new EditorPosition(0, 1), session.Cursor);
+    }
+
+    [Fact]
+    public void Selection_DoesNotSplitUtf8FourByteCharacter()
+    {
+        string smile = char.ConvertFromUtf32(0x1F642);
+        var session = CreateSession("A" + smile + "B");
+        session.MoveRight();
+
+        session.MoveRight(extendSelection: true);
+
+        Assert.Equal(smile, session.CopySelection());
+    }
+
+    [Fact]
+    public void DeleteForward_RemovesWholeUtf8FourByteCharacter()
+    {
+        string smile = char.ConvertFromUtf32(0x1F642);
+        var session = CreateSession("A" + smile + "B");
+        session.MoveRight();
+
+        Assert.True(session.DeleteForward());
+
+        Assert.Equal("AB", session.FlattenText());
+        Assert.Equal(new EditorPosition(0, 1), session.Cursor);
+    }
+
+    [Fact]
+    public void DeleteBack_RemovesWholeUtf8FourByteCharacter()
+    {
+        string smile = char.ConvertFromUtf32(0x1F642);
+        var session = CreateSession("A" + smile + "B");
+        session.MoveRight();
+        session.MoveRight();
+
+        Assert.True(session.DeleteBack());
+
+        Assert.Equal("AB", session.FlattenText());
+        Assert.Equal(new EditorPosition(0, 1), session.Cursor);
+    }
+
+    [Fact]
+    public void UnicodeDisplayWidth_DistinguishesEmojiFromNonEmojiSupplementaryScalar()
+    {
+        string smile = char.ConvertFromUtf32(0x1F642);
+        string gothicLetter = char.ConvertFromUtf32(0x10348);
+
+        Assert.Equal(2, EditorUnicode.DisplayCellWidthAt(smile, 0));
+        Assert.Equal(1, EditorUnicode.DisplayCellWidthAt(gothicLetter, 0));
+    }
+
+    [Fact]
+    public void BreakLine_AtEndOfLineWithUtf8FourByteCharactersMovesCursorToNextLineStart()
+    {
+        string smile = char.ConvertFromUtf32(0x1F642);
+        string grin = char.ConvertFromUtf32(0x1F600);
+        string gothicLetter = char.ConvertFromUtf32(0x10348);
+        var session = CreateSession("ascii A " + smile + " " + grin + " " + gothicLetter + " Z");
+        session.MoveToLineEnd();
+
+        Assert.True(session.BreakLine());
+
+        Assert.Equal(new EditorPosition(1, 0), session.Cursor);
+        Assert.Equal("ascii A " + smile + " " + grin + " " + gothicLetter + " Z\n", session.FlattenText());
+    }
+
+    [Fact]
     public void LinearCopy_ExcludesVirtualSpaceAfterLineEnd()
     {
         var session = CreateSession("a\nb");

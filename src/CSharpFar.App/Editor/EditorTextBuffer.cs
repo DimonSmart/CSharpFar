@@ -29,6 +29,7 @@ public sealed class EditorTextBuffer : IEditorTextBuffer
     {
         int line = Math.Clamp(position.Line, 0, _lines.Count - 1);
         int column = Math.Clamp(position.Column, 0, _lines[line].Text.Length);
+        column = EditorUnicode.NormalizeScalarBoundary(_lines[line].Text, column);
         return new EditorPosition(line, column);
     }
 

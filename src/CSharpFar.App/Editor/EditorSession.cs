@@ -92,17 +92,24 @@ public sealed class EditorSession
 
     public void MoveLeft(bool extendSelection = false, bool preserveSelection = false)
     {
-        var next = Cursor.Column > 0
+        string line = Document.Buffer.GetLine(Cursor.Line);
+        var next = Cursor.Column > line.Length
             ? Cursor with { Column = Cursor.Column - 1 }
-            : Cursor.Line > 0
-                ? new EditorPosition(Cursor.Line - 1, Document.Buffer.GetLine(Cursor.Line - 1).Length)
-                : Cursor;
+            : Cursor.Column > 0
+                ? Cursor with { Column = EditorUnicode.PreviousScalarColumn(line, Cursor.Column) }
+                : Cursor.Line > 0
+                    ? new EditorPosition(Cursor.Line - 1, Document.Buffer.GetLine(Cursor.Line - 1).Length)
+                    : Cursor;
         MoveCursor(next, extendSelection, preserveSelection);
     }
 
     public void MoveRight(bool extendSelection = false, bool preserveSelection = false)
     {
-        MoveCursor(Cursor with { Column = Cursor.Column + 1 }, extendSelection, preserveSelection);
+        string line = Document.Buffer.GetLine(Cursor.Line);
+        int column = Cursor.Column < line.Length
+            ? EditorUnicode.NextScalarColumn(line, Cursor.Column)
+            : Cursor.Column + 1;
+        MoveCursor(Cursor with { Column = column }, extendSelection, preserveSelection);
     }
 
     public void MoveUp(int count = 1, bool extendSelection = false, bool preserveSelection = false) =>
@@ -167,7 +174,7 @@ public sealed class EditorSession
         EditorPosition end = start;
         string oldText = string.Empty;
         string insertedText = virtualPadding + text;
-        EditorPosition after = NormalizeCursorPosition(EditorTextBuffer.Advance(start, insertedText));
+        EditorPosition after = EditorTextBuffer.Advance(start, insertedText);
         ApplyChange(transactionName, start, end, oldText, insertedText, after);
         return true;
     }
@@ -189,7 +196,7 @@ public sealed class EditorSession
         }
 
         EditorPosition start = Cursor.Column > 0
-            ? Cursor with { Column = Cursor.Column - 1 }
+            ? Cursor with { Column = EditorUnicode.PreviousScalarColumn(line, Cursor.Column) }
             : new EditorPosition(Cursor.Line - 1, Document.Buffer.GetLine(Cursor.Line - 1).Length);
         string oldText = Cursor.Column > 0 ? Document.Buffer.GetLine(Cursor.Line)[start.Column..Cursor.Column] : "\n";
         ApplyChange("Backspace", start, Cursor, oldText, string.Empty, start);
@@ -213,8 +220,9 @@ public sealed class EditorSession
 
         if (Cursor.Column < line.Length)
         {
-            end = Cursor with { Column = Cursor.Column + 1 };
-            oldText = line[Cursor.Column..(Cursor.Column + 1)];
+            int endColumn = EditorUnicode.NextScalarColumn(line, Cursor.Column);
+            end = Cursor with { Column = endColumn };
+            oldText = line[Cursor.Column..endColumn];
         }
         else
         {
@@ -433,7 +441,7 @@ public sealed class EditorSession
             start,
             string.Empty,
             insertedText,
-            NormalizeCursorPosition(EditorTextBuffer.Advance(start, insertedText)));
+            EditorTextBuffer.Advance(start, insertedText));
         return true;
     }
 
@@ -885,7 +893,10 @@ public sealed class EditorSession
     private EditorPosition NormalizeCursorPosition(EditorPosition position)
     {
         int line = Math.Clamp(position.Line, 0, Document.Buffer.LineCount - 1);
+        string text = Document.Buffer.GetLine(line);
         int column = Math.Max(0, position.Column);
+        if (column <= text.Length)
+            column = EditorUnicode.NormalizeScalarBoundary(text, column);
         return new EditorPosition(line, column);
     }
 

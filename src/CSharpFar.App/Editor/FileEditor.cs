@@ -1,3 +1,4 @@
+using System.Text;
 using CSharpFar.App.Dialogs;
 using CSharpFar.App.Rendering;
 using CSharpFar.Console;
@@ -14,6 +15,9 @@ namespace CSharpFar.App.Editor;
 /// </summary>
 internal sealed class FileEditor
 {
+    private const int CustomCursorBlinkIntervalMs = 500;
+    private const int CustomCursorInputPollMs = 25;
+
     private readonly ScreenRenderer _screen;
     private readonly ConsolePalette _palette;
     private readonly AppSettings.EditorSettings _settings;
@@ -24,6 +28,7 @@ internal sealed class FileEditor
     private EditorFindDialogResult? _lastFind;
     private bool _markMode;
     private bool _persistentSelection;
+    private bool _customCursorVisible = true;
 
     public FileEditor(ScreenRenderer screen)
         : this(screen, null, null) { }
@@ -126,9 +131,10 @@ internal sealed class FileEditor
             int contentWidth = Math.Max(1, size.Width - 1);
 
             EnsureCursorVisible(session, contentHeight, contentWidth);
+            _customCursorVisible = true;
             Draw(session, contentHeight, size, functionKeyModifiers);
 
-            var input = _screen.ReadInput();
+            var input = ReadInput(session, contentHeight, size, functionKeyModifiers);
             if (input is ModifierKeyConsoleInputEvent modifierEvent)
             {
                 functionKeyModifiers = modifierEvent.Modifiers;
@@ -161,6 +167,36 @@ internal sealed class FileEditor
                 if (TryExit(session))
                     return;
             }
+        }
+    }
+
+    private ConsoleInputEvent ReadInput(
+        EditorSession session,
+        int contentHeight,
+        ConsoleSize size,
+        ConsoleModifiers functionKeyModifiers)
+    {
+        if (!UsesCustomCursor(session))
+            return _screen.ReadInput();
+
+        long nextBlink = Environment.TickCount64 + CustomCursorBlinkIntervalMs;
+        while (true)
+        {
+            if (_screen.TryReadInput(out var input))
+            {
+                _customCursorVisible = true;
+                return input;
+            }
+
+            long now = Environment.TickCount64;
+            if (now >= nextBlink)
+            {
+                _customCursorVisible = !_customCursorVisible;
+                Draw(session, contentHeight, size, functionKeyModifiers);
+                nextBlink = now + CustomCursorBlinkIntervalMs;
+            }
+
+            Thread.Sleep(CustomCursorInputPollMs);
         }
     }
 
@@ -709,8 +745,9 @@ internal sealed class FileEditor
     {
         string code = CurrentCharacterStatus(session);
         string syntax = session.SyntaxDiagnostics.StatusText;
+        int cursorColumn = CursorColumnStatus(session);
         string status =
-            $" Ln {session.Cursor.Line + 1} Col {session.Cursor.Column + 1}  {code}  Undo:{(session.UndoHistory.CanUndo ? "Y" : "N")} Redo:{(session.UndoHistory.CanRedo ? "Y" : "N")}  {syntax}";
+            $" Ln {session.Cursor.Line + 1} Col {cursorColumn}  {code}  Undo:{(session.UndoHistory.CanUndo ? "Y" : "N")} Redo:{(session.UndoHistory.CanRedo ? "Y" : "N")}  {syntax}";
         _screen.Write(0, y, Fit(status, size.Width), PaletteStyles.CommandLine(_palette));
     }
 
@@ -736,13 +773,14 @@ internal sealed class FileEditor
             int logicalColumn = LogicalColumnFromVisualColumn(line, visualColumn);
             char ch = CharacterAtVisualColumn(line, visualColumn);
             bool selected = IsSelected(session.Selection, lineIndex, logicalColumn);
+            bool cursorCell = IsCursorCell(session, lineIndex, line, logicalColumn);
             CellStyle style = SyntaxStyleAt(syntaxSpans, lineIndex, logicalColumn)
                 ?? EditorTextStyle();
             _screen.WriteChar(
                 screenX,
                 screenY,
                 ch,
-                selected ? EditorSelectionStyle() : style);
+                cursorCell || selected ? EditorSelectionStyle() : style);
         }
     }
 
@@ -768,8 +806,16 @@ internal sealed class FileEditor
 
     private void DrawCursor(EditorSession session, int contentHeight, ConsoleSize size)
     {
+        string line = session.Document.Buffer.GetLine(session.Cursor.Line);
+        if (session.Cursor.Column < line.Length &&
+            EditorUnicode.DisplayCellWidthAt(line, session.Cursor.Column) > 1)
+        {
+            _screen.SetCursorVisible(false);
+            return;
+        }
+
         int screenRow = 1 + (session.Cursor.Line - session.Viewport.TopLine);
-        int screenCol = VisualColumn(session.Document.Buffer.GetLine(session.Cursor.Line), session.Cursor.Column)
+        int screenCol = VisualColumn(line, session.Cursor.Column)
             - session.Viewport.LeftColumn;
         if (screenRow >= 1 && screenRow <= contentHeight && screenCol >= 0 && screenCol < size.Width - 1)
         {
@@ -779,6 +825,32 @@ internal sealed class FileEditor
         }
 
         _screen.SetCursorVisible(false);
+    }
+
+    private bool IsCursorCell(
+        EditorSession session,
+        int lineIndex,
+        string line,
+        int logicalColumn)
+    {
+        if (!_customCursorVisible)
+            return false;
+
+        if (lineIndex != session.Cursor.Line ||
+            session.Cursor.Column >= line.Length ||
+            logicalColumn != session.Cursor.Column)
+        {
+            return false;
+        }
+
+        return EditorUnicode.DisplayCellWidthAt(line, session.Cursor.Column) > 1;
+    }
+
+    private static bool UsesCustomCursor(EditorSession session)
+    {
+        string line = session.Document.Buffer.GetLine(session.Cursor.Line);
+        return session.Cursor.Column < line.Length &&
+            EditorUnicode.DisplayCellWidthAt(line, session.Cursor.Column) > 1;
     }
 
     private void EnsureCursorVisible(EditorSession session, int contentHeight, int contentWidth)
@@ -831,12 +903,13 @@ internal sealed class FileEditor
     {
         int tabSize = EditorSettingsResolver.ResolveTabSize(_settings);
         int visual = 0;
-        int end = Math.Min(logicalColumn, line.Length);
-        for (int index = 0; index < end; index++)
+        int end = Math.Min(EditorUnicode.NormalizeScalarBoundary(line, logicalColumn), line.Length);
+        for (int index = 0; index < end;)
         {
             visual += line[index] == '\t'
                 ? tabSize - visual % tabSize
-                : 1;
+                : EditorUnicode.DisplayCellWidthAt(line, index);
+            index = EditorUnicode.NextScalarColumn(line, index);
         }
 
         return visual + Math.Max(0, logicalColumn - line.Length);
@@ -846,15 +919,16 @@ internal sealed class FileEditor
     {
         int tabSize = EditorSettingsResolver.ResolveTabSize(_settings);
         int visual = 0;
-        for (int logical = 0; logical < line.Length; logical++)
+        for (int logical = 0; logical < line.Length;)
         {
             int width = line[logical] == '\t'
                 ? tabSize - visual % tabSize
-                : 1;
+                : EditorUnicode.DisplayCellWidthAt(line, logical);
             if (targetVisualColumn < visual + width)
                 return logical;
 
             visual += width;
+            logical = EditorUnicode.NextScalarColumn(line, logical);
         }
 
         return line.Length + Math.Max(0, targetVisualColumn - visual);
@@ -864,15 +938,25 @@ internal sealed class FileEditor
     {
         int tabSize = EditorSettingsResolver.ResolveTabSize(_settings);
         int visual = 0;
-        foreach (char ch in line)
+        for (int logical = 0; logical < line.Length;)
         {
+            char ch = line[logical];
             int width = ch == '\t'
                 ? tabSize - visual % tabSize
-                : 1;
+                : EditorUnicode.DisplayCellWidthAt(line, logical);
             if (targetVisualColumn < visual + width)
-                return ch == '\t' ? ' ' : ch;
+            {
+                if (ch == '\t')
+                    return ' ';
+
+                int cellOffset = targetVisualColumn - visual;
+                int next = EditorUnicode.NextScalarColumn(line, logical);
+                int charIndex = logical + cellOffset;
+                return charIndex < next ? line[charIndex] : ' ';
+            }
 
             visual += width;
+            logical = EditorUnicode.NextScalarColumn(line, logical);
         }
 
         return ' ';
@@ -883,6 +967,9 @@ internal sealed class FileEditor
         string line = session.Document.Buffer.GetLine(session.Cursor.Line);
         if (session.Cursor.Column < line.Length)
         {
+            if (EditorUnicode.TryGetScalarAt(line, session.Cursor.Column, out Rune scalar))
+                return $"U+{scalar.Value:X4}/{scalar.Value}";
+
             char currentChar = line[session.Cursor.Column];
             return $"U+{(int)currentChar:X4}/{(int)currentChar}";
         }
@@ -892,6 +979,14 @@ internal sealed class FileEditor
             return LineEndingStatus(lineEnding);
 
         return "EOF";
+    }
+
+    private static int CursorColumnStatus(EditorSession session)
+    {
+        string line = session.Document.Buffer.GetLine(session.Cursor.Line);
+        int realColumn = Math.Min(session.Cursor.Column, line.Length);
+        int virtualColumn = Math.Max(0, session.Cursor.Column - line.Length);
+        return EditorUnicode.ScalarColumnFromUtf16Column(line, realColumn) + virtualColumn + 1;
     }
 
     private static string LineEndingStatus(string lineEnding) =>

@@ -37,6 +37,7 @@ public sealed class FakeConsoleDriver : IConsoleDriver, IConsoleOutputModeDriver
     public bool RenderingOutputMode { get; private set; }
     public bool ConsoleScrollbackEnabled { get; private set; } = true;
     public Action<FakeConsoleDriver>? BeforeReadInput { get; set; }
+    public Action<FakeConsoleDriver>? BeforeTryReadInput { get; set; }
     public IReadOnlyList<WriteRecord> WriteRecords => _writeRecords;
     public event Action<WriteRecord>? Wrote;
 
@@ -108,8 +109,11 @@ public sealed class FakeConsoleDriver : IConsoleDriver, IConsoleOutputModeDriver
             : throw new InvalidOperationException("No input events queued in FakeConsoleDriver.");
     }
 
-    public bool TryReadInput(bool intercept, [NotNullWhen(true)] out ConsoleInputEvent? inputEvent) =>
-        _inputQueue.TryDequeue(out inputEvent);
+    public bool TryReadInput(bool intercept, [NotNullWhen(true)] out ConsoleInputEvent? inputEvent)
+    {
+        InvokeBeforeTryReadInput();
+        return _inputQueue.TryDequeue(out inputEvent);
+    }
 
     public ConsoleKeyInfo ReadKey(bool intercept)
     {
@@ -260,6 +264,16 @@ public sealed class FakeConsoleDriver : IConsoleDriver, IConsoleOutputModeDriver
             return;
 
         BeforeReadInput = null;
+        callback(this);
+    }
+
+    private void InvokeBeforeTryReadInput()
+    {
+        var callback = BeforeTryReadInput;
+        if (callback is null)
+            return;
+
+        BeforeTryReadInput = null;
         callback(this);
     }
 }
