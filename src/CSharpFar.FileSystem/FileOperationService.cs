@@ -125,7 +125,7 @@ public sealed class FileOperationService : IFileOperationService
         var destinationSource = _sources!.GetSource(destination.SourceId);
 
         state.SetTotals(CalculateProviderSourcesSize(sources, cancellationToken), sources.Count);
-        state.StartCopying();
+        state.StartProgressTimer();
 
         foreach (var sourceLocation in sources)
         {
@@ -292,6 +292,7 @@ public sealed class FileOperationService : IFileOperationService
     {
         var sources = RequireSourceLocations(request);
         state.SetTotals(CalculateProviderSourcesSize(sources, cancellationToken), sources.Count);
+        state.StartProgressTimer();
 
         foreach (var sourceLocation in sources)
         {
@@ -300,14 +301,19 @@ public sealed class FileOperationService : IFileOperationService
             var item = source.GetItem(sourceLocation.SourcePath, cancellationToken);
             if (item is null)
             {
+                state.ReportDeleting(sourceLocation.SourcePath, 0, 0);
                 state.SkippedCount++;
                 state.CompleteItem();
                 continue;
             }
 
+            long bytes = CalculateProviderSourceSize(sourceLocation, cancellationToken);
+            state.ReportDeleting(sourceLocation.SourcePath, 0, bytes);
             await source.DeleteAsync(sourceLocation.SourcePath, item.IsDirectory, cancellationToken).ConfigureAwait(false);
             state.DeletedCount++;
+            state.AddBytes(bytes);
             state.CompleteItem();
+            state.ReportDeleting(sourceLocation.SourcePath, bytes, bytes);
         }
     }
 
@@ -333,7 +339,7 @@ public sealed class FileOperationService : IFileOperationService
         string destination = RequireDestination(request);
         var plan = BuildCopyPlan(request.Sources, destination, request.Options, state, cancellationToken);
         state.SetTotals(plan.TotalBytes, plan.FileCount + plan.DirectoryCount);
-        state.StartCopying();
+        state.StartProgressTimer();
 
         foreach (var directory in plan.Directories)
         {
@@ -393,7 +399,7 @@ public sealed class FileOperationService : IFileOperationService
         if (request.Options.FileMask is null or { Length: 0 })
         {
             state.SetTotals(CalculateSourcesSize(request.Sources), request.Sources.Count);
-            state.StartCopying();
+            state.StartProgressTimer();
             foreach (string source in request.Sources)
             {
                 cancellationToken.ThrowIfCancellationRequested();
@@ -438,23 +444,28 @@ public sealed class FileOperationService : IFileOperationService
     private static void Delete(FileOperationRequest request, OperationState state, CancellationToken cancellationToken)
     {
         state.SetTotals(CalculateSourcesSize(request.Sources), request.Sources.Count);
+        state.StartProgressTimer();
 
         foreach (string path in request.Sources)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            state.Report(path, null, 0, 0);
             try
             {
                 if (!File.Exists(path) && !Directory.Exists(path))
                 {
+                    state.ReportDeleting(path, 0, 0);
                     state.SkippedCount++;
                     state.CompleteItem();
                     continue;
                 }
 
+                long bytes = CalculateSourceSize(path);
+                state.ReportDeleting(path, 0, bytes);
                 DeletePath(path, request.Options.UseRecycleBinForDelete);
                 state.DeletedCount++;
+                state.AddBytes(bytes);
                 state.CompleteItem();
+                state.ReportDeleting(path, bytes, bytes);
             }
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException)
             {
@@ -1076,17 +1087,19 @@ public sealed class FileOperationService : IFileOperationService
     {
         long total = 0;
         foreach (string source in sources)
-        {
-            if (File.Exists(source))
-            {
-                total += GetFileSize(source);
-                continue;
-            }
+            total += CalculateSourceSize(source);
 
-            if (Directory.Exists(source))
-                total += Directory.EnumerateFiles(source, "*", System.IO.SearchOption.AllDirectories).Sum(GetFileSize);
-        }
         return total;
+    }
+
+    private static long CalculateSourceSize(string source)
+    {
+        if (File.Exists(source))
+            return GetFileSize(source);
+
+        return Directory.Exists(source)
+            ? Directory.EnumerateFiles(source, "*", System.IO.SearchOption.AllDirectories).Sum(GetFileSize)
+            : 0;
     }
 
     private static long GetFileSize(string path) =>
@@ -1277,7 +1290,7 @@ public sealed class FileOperationService : IFileOperationService
         private readonly IProgress<FileOperationProgress>? _progress;
         private readonly IFileOperationPauseController? _pauseController;
         private readonly Stopwatch _stopwatch = Stopwatch.StartNew();
-        private readonly Stopwatch _copyStopwatch = new();
+        private readonly Stopwatch _progressStopwatch = new();
         private long _totalBytes;
         private int _totalItems;
         private long _bytesProcessed;
@@ -1312,10 +1325,10 @@ public sealed class FileOperationService : IFileOperationService
             _totalItems = totalItems;
         }
 
-        public void StartCopying()
+        public void StartProgressTimer()
         {
-            if (!_copyStopwatch.IsRunning)
-                _copyStopwatch.Start();
+            if (!_progressStopwatch.IsRunning)
+                _progressStopwatch.Start();
         }
 
         public void AddBytes(long bytes) => _bytesProcessed += bytes;
@@ -1371,13 +1384,40 @@ public sealed class FileOperationService : IFileOperationService
                 FoldersDone = _foldersDone,
                 BytesPerSecond = 0,
                 TimeRemaining = null,
-                Elapsed = _copyStopwatch.Elapsed,
+                Elapsed = _progressStopwatch.Elapsed,
+            });
+        }
+
+        public void ReportDeleting(string currentPath, long currentBytesDone, long currentBytesTotal)
+        {
+            double seconds = Math.Max(_progressStopwatch.Elapsed.TotalSeconds, 0.001);
+            double speed = _bytesProcessed / seconds;
+            TimeSpan? remaining = speed <= 0 || _totalBytes <= _bytesProcessed
+                ? null
+                : TimeSpan.FromSeconds((_totalBytes - _bytesProcessed) / speed);
+
+            _progress?.Report(new FileOperationProgress
+            {
+                Kind = _kind,
+                Phase = FileOperationPhase.Deleting,
+                CurrentPath = currentPath,
+                StatusMessage = "Deleting the file",
+                CurrentBytesDone = currentBytesDone,
+                CurrentBytesTotal = currentBytesTotal,
+                TotalBytesDone = _bytesProcessed,
+                TotalBytesTotal = _totalBytes,
+                ItemsDone = _itemsDone,
+                ItemsTotal = _totalItems,
+                FoldersDone = _foldersDone,
+                BytesPerSecond = speed,
+                TimeRemaining = remaining,
+                Elapsed = _progressStopwatch.Elapsed,
             });
         }
 
         public void Report(string currentPath, string? currentDestinationPath, long currentBytesDone, long currentBytesTotal)
         {
-            double seconds = Math.Max(_copyStopwatch.Elapsed.TotalSeconds, 0.001);
+            double seconds = Math.Max(_progressStopwatch.Elapsed.TotalSeconds, 0.001);
             double speed = _bytesProcessed / seconds;
             TimeSpan? remaining = speed <= 0 || _totalBytes <= _bytesProcessed
                 ? null
@@ -1398,7 +1438,7 @@ public sealed class FileOperationService : IFileOperationService
                 FoldersDone = _foldersDone,
                 BytesPerSecond = speed,
                 TimeRemaining = remaining,
-                Elapsed = _copyStopwatch.Elapsed,
+                Elapsed = _progressStopwatch.Elapsed,
             });
         }
 

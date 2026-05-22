@@ -12,6 +12,8 @@ internal sealed class ProgressDialog
     private const int ScanOuterHeight = 12;
     private const int CopyOuterWidth = 74;
     private const int CopyOuterHeight = 18;
+    private const int DeleteOuterWidth = 68;
+    private const int DeleteOuterHeight = 12;
 
     private readonly ScreenRenderer _screen;
     private readonly ModalDialogRenderer _modalRenderer = new();
@@ -29,6 +31,8 @@ internal sealed class ProgressDialog
 
         if (progress.Phase == FileOperationPhase.Scanning)
             RenderScanning(progress);
+        else if (progress.Kind == FileOperationKind.Delete || progress.Phase == FileOperationPhase.Deleting)
+            RenderDeleting(progress);
         else
             RenderCopying(progress, showTotalProgress);
     }
@@ -74,6 +78,24 @@ internal sealed class ProgressDialog
 
             DrawSeparator(frameBounds, frameBounds.Y + 12);
             DrawTimeLine(contentX, frameBounds.Y + 13, contentWidth, progress);
+        });
+    }
+
+    private void RenderDeleting(FileOperationProgress progress)
+    {
+        var outer = _modalRenderer.CenteredOuterBounds(_screen, DeleteOuterWidth, DeleteOuterHeight);
+        RenderOuter(outer, "Delete", true, (frameBounds, contentX, contentWidth) =>
+        {
+            string status = progress.StatusMessage ?? "Deleting the file";
+            _screen.Write(contentX, frameBounds.Y + 1, ShortenMiddle(status, contentWidth).PadRight(contentWidth), FillStyle);
+            _screen.Write(contentX, frameBounds.Y + 2, ShortenMiddle(progress.CurrentPath, contentWidth).PadRight(contentWidth), FillStyle);
+
+            DrawTitledSeparator(frameBounds, frameBounds.Y + 4, "Total");
+            DrawCounter(contentX, frameBounds.Y + 5, contentWidth, "Files:", $"{FormatInteger(progress.ItemsDone)} / {FormatInteger(progress.ItemsTotal)}");
+            DrawCounter(contentX, frameBounds.Y + 6, contentWidth, "Bytes:", $"{FormatInteger(progress.TotalBytesDone)} / {FormatInteger(progress.TotalBytesTotal)}");
+
+            DrawSeparator(frameBounds, frameBounds.Y + 8);
+            DrawTimeLine(contentX, frameBounds.Y + 9, contentWidth, progress);
         });
     }
 

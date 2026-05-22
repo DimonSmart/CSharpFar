@@ -1,3 +1,5 @@
+using CSharpFar.Core.Abstractions;
+using CSharpFar.Core.Models;
 using CSharpFar.FileSystem;
 
 namespace CSharpFar.Tests;
@@ -65,6 +67,34 @@ public class DeleteOperationTests : IDisposable
         Assert.False(File.Exists(f2));
     }
 
+    [Fact]
+    public async Task Delete_ReportsDeletedBytesAndItems()
+    {
+        string f1 = Write(_src, "a.txt", "AA");
+        string f2 = Write(_src, "b.txt", "BBB");
+        var progress = new RecordingProgress();
+
+        FileOperationResult result = await Svc().ExecuteAsync(
+            new FileOperationRequest
+            {
+                Kind = FileOperationKind.Delete,
+                Sources = [f1, f2],
+                Options = new FileOperationOptions { UseRecycleBinForDelete = false },
+            },
+            progress,
+            new NoOpConflictResolver());
+
+        Assert.Equal(2, result.DeletedCount);
+        Assert.Equal(5, result.BytesProcessed);
+        Assert.Equal(5, result.TotalBytes);
+        Assert.Contains(progress.Items, p =>
+            p.Phase == FileOperationPhase.Deleting &&
+            p.ItemsDone == 2 &&
+            p.ItemsTotal == 2 &&
+            p.TotalBytesDone == 5 &&
+            p.TotalBytesTotal == 5);
+    }
+
     // ── Non-existent path silently skipped ────────────────────────────────────
 
     [Fact]
@@ -97,5 +127,18 @@ public class DeleteOperationTests : IDisposable
         string path = Path.Combine(dir, name);
         File.WriteAllText(path, content);
         return path;
+    }
+
+    private sealed class RecordingProgress : IProgress<FileOperationProgress>
+    {
+        public List<FileOperationProgress> Items { get; } = [];
+
+        public void Report(FileOperationProgress value) => Items.Add(value);
+    }
+
+    private sealed class NoOpConflictResolver : IFileOperationConflictResolver
+    {
+        public FileOperationConflictDecision Resolve(FileOperationConflict conflict) =>
+            FileOperationConflictDecision.FromMode(ConflictDecisionMode.Cancel);
     }
 }

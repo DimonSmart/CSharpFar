@@ -205,6 +205,43 @@ public sealed class Spec010FileOperationDialogTests
     }
 
     [Fact]
+    public void ProgressDialog_RendersDeleteSpecificProgress()
+    {
+        var driver = new FakeConsoleDriver(width: 100, height: 30);
+        var screen = new ScreenRenderer(driver);
+
+        new ProgressDialog(screen, @"C:\dst").Update(
+            new FileOperationProgress
+            {
+                Kind = FileOperationKind.Delete,
+                Phase = FileOperationPhase.Deleting,
+                CurrentPath = @"C:\src\a.bin",
+                CurrentDestinationPath = @"C:\dst\a.bin",
+                CurrentBytesDone = 1024,
+                CurrentBytesTotal = 4096,
+                TotalBytesDone = 1024,
+                TotalBytesTotal = 4096,
+                ResumeOffset = 1024,
+                ResumeRollbackBytes = 512,
+                ItemsDone = 1,
+                ItemsTotal = 2,
+                Elapsed = TimeSpan.FromSeconds(1),
+            },
+            showTotalProgress: true);
+
+        string text = driver.GetRegionText(new Rect(0, 0, 100, 30));
+        Assert.Contains("Delete", text, StringComparison.Ordinal);
+        Assert.Contains("Deleting the file", text, StringComparison.Ordinal);
+        Assert.Contains(@"C:\src\a.bin", text, StringComparison.Ordinal);
+        Assert.Contains("Files:", text, StringComparison.Ordinal);
+        Assert.Contains("Bytes:", text, StringComparison.Ordinal);
+        Assert.DoesNotContain(@"C:\dst\a.bin", text, StringComparison.Ordinal);
+        Assert.DoesNotContain("Resume offset:", text, StringComparison.Ordinal);
+        Assert.DoesNotContain("Rollback:", text, StringComparison.Ordinal);
+        Assert.DoesNotContain(driver.WriteRecords, r => r.Text.Trim() == "to");
+    }
+
+    [Fact]
     public void ProgressDialog_RendersScanningWithDoubleBorderAndBytesAboveBottomFrame()
     {
         var driver = new FakeConsoleDriver(width: 100, height: 30);

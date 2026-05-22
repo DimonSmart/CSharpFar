@@ -5,4 +5,5 @@ public enum FileOperationPhase
     Scanning,
     Validating,
     Copying,
+    Deleting,
 }
