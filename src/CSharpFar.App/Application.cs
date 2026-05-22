@@ -2546,7 +2546,8 @@ public sealed class Application
         if (state.SourceId == PanelSourceId.Local)
         {
             _history.AddFile(new FileHistoryItem { Path = item.FullPath });
-            new FileViewer(_screen, _palette).Show(item.FullPath);
+            new FileViewer(_screen, _palette).Show(item.FullPath, BuildLocalViewerOptions(state, item));
+            SafeRefresh(state, VisibleRows(PanelSideForState(state)));
             return;
         }
 
@@ -2569,6 +2570,36 @@ public sealed class Application
             try { Directory.Delete(Path.GetDirectoryName(tempPath)!, recursive: true); }
             catch { }
         }
+    }
+
+    private LargeFileViewerOptions BuildLocalViewerOptions(FilePanelState state, FilePanelItem item)
+    {
+        var filePaths = state.Items
+            .Where(panelItem => !panelItem.IsParentDirectory && !panelItem.IsDirectory)
+            .Select(panelItem => panelItem.FullPath)
+            .ToArray();
+        int currentIndex = Array.FindIndex(
+            filePaths,
+            path => string.Equals(path, item.FullPath, StringComparison.OrdinalIgnoreCase));
+
+        return new LargeFileViewerOptions
+        {
+            FilePaths = filePaths,
+            CurrentFileIndex = currentIndex,
+            Clipboard = _clipboard,
+            EditFile = path =>
+            {
+                _history.AddFile(new FileHistoryItem { Path = path });
+                new FileEditor(_screen, _palette, _settings.Editor, _clipboard).Show(path);
+            },
+            CurrentFileChanged = path =>
+            {
+                int panelIndex = state.Items.FindIndex(
+                    panelItem => string.Equals(panelItem.FullPath, path, StringComparison.OrdinalIgnoreCase));
+                if (panelIndex >= 0)
+                    _ctrl.SetCursorTo(state, panelIndex, VisibleRows(PanelSideForState(state)));
+            },
+        };
     }
 
     // ── file highlighting ─────────────────────────────────────────────────────

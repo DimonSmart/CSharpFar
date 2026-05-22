@@ -28,4 +28,15 @@ internal sealed class FileViewer
 
         new LargeFileViewer(_screen, _palette).Show(filePath);
     }
+
+    internal void Show(string filePath, LargeFileViewerOptions options)
+    {
+        if (!File.Exists(filePath))
+        {
+            new MessageDialog(_screen, _palette).Show("Viewer", "File not found.");
+            return;
+        }
+
+        new LargeFileViewer(_screen, _palette).Show(filePath, options);
+    }
 }

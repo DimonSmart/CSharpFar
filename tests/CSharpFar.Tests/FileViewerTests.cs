@@ -199,6 +199,35 @@ public class FileViewerTests : IDisposable
     }
 
     [Fact]
+    public void Show_F3ClosesViewer()
+    {
+        string path = Write("f3-close.txt", "closed by f3", new UTF8Encoding(false));
+        var driver = new FakeConsoleDriver(width: 80, height: 10);
+        driver.EnqueueKey(Key(ConsoleKey.F3));
+        var screen = new ScreenRenderer(driver);
+
+        new FileViewer(screen).Show(path);
+
+        Assert.Contains("closed by f3", WrittenText(driver));
+    }
+
+    [Fact]
+    public void Show_F4TogglesToHexMode()
+    {
+        string path = Write("f4-toggle.txt", "ABC", new UTF8Encoding(false));
+        var driver = new FakeConsoleDriver(width: 80, height: 10);
+        driver.EnqueueKey(Key(ConsoleKey.F4));
+        driver.EnqueueKey(Key(ConsoleKey.F10));
+        var screen = new ScreenRenderer(driver);
+
+        new FileViewer(screen).Show(path);
+
+        string writes = WrittenText(driver);
+        Assert.Contains("HEX", writes);
+        Assert.Contains("41 42 43", writes);
+    }
+
+    [Fact]
     public void Show_BinaryFileCanToggleToTextMode()
     {
         string path = WritePath("toggle-binary.bin");
@@ -253,6 +282,20 @@ public class FileViewerTests : IDisposable
         new FileViewer(screen).Show(path);
 
         Assert.Contains(" F ", WrittenText(driver));
+    }
+
+    [Fact]
+    public void Show_F2TogglesWrapStatus()
+    {
+        string path = Write("wrap.txt", "alpha beta gamma", new UTF8Encoding(false));
+        var driver = new FakeConsoleDriver(width: 80, height: 10);
+        driver.EnqueueKey(Key(ConsoleKey.F2));
+        driver.EnqueueKey(Key(ConsoleKey.F10));
+        var screen = new ScreenRenderer(driver);
+
+        new FileViewer(screen).Show(path);
+
+        Assert.Contains("WRAP-W", WrittenText(driver));
     }
 
     [Fact]
@@ -314,7 +357,7 @@ public class FileViewerTests : IDisposable
         string path = WritePath("manual-1251.txt");
         File.WriteAllBytes(path, Encoding.GetEncoding(1251).GetBytes(expected + "\n"));
         var driver = new FakeConsoleDriver(width: 100, height: 12);
-        driver.EnqueueKey(Key(ConsoleKey.F8));
+        driver.EnqueueKey(Key(ConsoleKey.F8, shift: true));
         for (int i = 0; i < 5; i++)
             driver.EnqueueKey(Key(ConsoleKey.DownArrow));
         driver.EnqueueKey(Key(ConsoleKey.Enter));
@@ -336,7 +379,7 @@ public class FileViewerTests : IDisposable
         string path = WritePath("preview-cp866.txt");
         File.WriteAllBytes(path, Encoding.GetEncoding(866).GetBytes(expected + "\n"));
         var driver = new FakeConsoleDriver(width: 100, height: 12);
-        driver.EnqueueKey(Key(ConsoleKey.F8));
+        driver.EnqueueKey(Key(ConsoleKey.F8, shift: true));
         for (int i = 0; i < 7; i++)
             driver.EnqueueKey(Key(ConsoleKey.DownArrow));
         driver.EnqueueKey(Key(ConsoleKey.Escape));
@@ -356,7 +399,7 @@ public class FileViewerTests : IDisposable
         string path = WritePath("binary-to-text.bin");
         File.WriteAllBytes(path, [0x41, 0x00, 0x42, 0x0A]);
         var driver = new FakeConsoleDriver(width: 100, height: 12);
-        driver.EnqueueKey(Key(ConsoleKey.F8));
+        driver.EnqueueKey(Key(ConsoleKey.F8, shift: true));
         for (int i = 0; i < 7; i++)
             driver.EnqueueKey(Key(ConsoleKey.DownArrow));
         driver.EnqueueKey(Key(ConsoleKey.Enter));
@@ -368,6 +411,150 @@ public class FileViewerTests : IDisposable
         string writes = WrittenText(driver);
         Assert.Contains("TEXT CP866", writes);
         Assert.Contains("A B", writes);
+    }
+
+    [Fact]
+    public void Show_F8CyclesCommonEncoding()
+    {
+        string path = Write("cycle-encoding.txt", "ABC", new UTF8Encoding(false));
+        var driver = new FakeConsoleDriver(width: 100, height: 12);
+        driver.EnqueueKey(Key(ConsoleKey.F8));
+        driver.EnqueueKey(Key(ConsoleKey.F10));
+        var screen = new ScreenRenderer(driver);
+
+        new FileViewer(screen).Show(path);
+
+        Assert.Contains("TEXT UTF-8", WrittenText(driver));
+    }
+
+    [Fact]
+    public void Show_AltF8UsesGoToDialog()
+    {
+        string path = Write("alt-f8-go.txt", "first\nsecond\nthird", new UTF8Encoding(false));
+        var driver = new FakeConsoleDriver(width: 80, height: 10);
+        driver.EnqueueKey(Key(ConsoleKey.F8, alt: true));
+        driver.EnqueueKey(Key(ConsoleKey.D2, '2'));
+        driver.EnqueueKey(Key(ConsoleKey.Enter));
+        driver.EnqueueKey(Key(ConsoleKey.F10));
+        var screen = new ScreenRenderer(driver);
+
+        new FileViewer(screen).Show(path);
+
+        Assert.Contains("second", WrittenText(driver));
+    }
+
+    [Fact]
+    public void Show_F7FindsTextAndShowsFindStatus()
+    {
+        string path = Write("find.txt", "alpha\ntargetf7\nomega", new UTF8Encoding(false));
+        var driver = new FakeConsoleDriver(width: 80, height: 12);
+        driver.EnqueueKey(Key(ConsoleKey.F7));
+        EnqueueText(driver, "targetf7");
+        driver.EnqueueKey(Key(ConsoleKey.Enter));
+        driver.EnqueueKey(Key(ConsoleKey.F10));
+        var screen = new ScreenRenderer(driver);
+
+        new FileViewer(screen).Show(path);
+
+        string writes = WrittenText(driver);
+        Assert.Contains("targetf7", writes);
+        Assert.Contains("FIND", writes);
+    }
+
+    [Fact]
+    public async Task ViewerSearchEngine_FindsTextForward()
+    {
+        string path = Write("find-engine.txt", "alpha\nenginehit\nomega", new UTF8Encoding(false));
+        using var reader = new RandomAccessFileByteReader(path);
+        var cache = new BlockCache(reader);
+        var scanner = await LineScanner.CreateAsync(cache, reader);
+        var state = new LargeFileViewerState(cache, scanner);
+
+        var match = ViewerSearchEngine.Find(
+            reader,
+            state,
+            new ViewerSearchRequest("enginehit", CaseSensitive: false, WholeWords: false, UseRegex: false, SearchHex: false),
+            searchBackward: false);
+
+        Assert.NotNull(match);
+        Assert.Equal("enginehit", match.MatchedText);
+    }
+
+    [Fact]
+    public void Show_CtrlCCopiesCurrentSearchMatch()
+    {
+        string path = Write("find-copy.txt", "alpha copytoken omega", new UTF8Encoding(false));
+        var driver = new FakeConsoleDriver(width: 80, height: 12);
+        driver.EnqueueKey(Key(ConsoleKey.F7));
+        EnqueueText(driver, "copytoken");
+        driver.EnqueueKey(Key(ConsoleKey.Enter));
+        driver.EnqueueKey(Key(ConsoleKey.C, control: true));
+        driver.EnqueueKey(Key(ConsoleKey.F10));
+        var clipboard = new FakeTextClipboard();
+        var screen = new ScreenRenderer(driver);
+
+        new FileViewer(screen).Show(path, new LargeFileViewerOptions { Clipboard = clipboard });
+
+        Assert.Equal("copytoken", clipboard.Text);
+    }
+
+    [Fact]
+    public void Show_F7FindsHexSequenceInHexMode()
+    {
+        string path = WritePath("find-hex.bin");
+        File.WriteAllBytes(path, [0x00, 0x41, 0x42, 0x43]);
+        var driver = new FakeConsoleDriver(width: 80, height: 12);
+        driver.EnqueueKey(Key(ConsoleKey.F7));
+        EnqueueText(driver, "41 42");
+        driver.EnqueueKey(Key(ConsoleKey.Enter));
+        driver.EnqueueKey(Key(ConsoleKey.F10));
+        var screen = new ScreenRenderer(driver);
+
+        new FileViewer(screen).Show(path);
+
+        string writes = WrittenText(driver);
+        Assert.Contains("FIND", writes);
+        Assert.Contains("41 42 43", writes);
+    }
+
+    [Fact]
+    public void Show_PlusMovesToNextSiblingFile()
+    {
+        string first = Write("first-sibling.txt", "first file", new UTF8Encoding(false));
+        string second = Write("second-sibling.txt", "second file", new UTF8Encoding(false));
+        var driver = new FakeConsoleDriver(width: 80, height: 10);
+        driver.EnqueueKey(Key(ConsoleKey.Add, '+'));
+        driver.EnqueueKey(Key(ConsoleKey.F10));
+        string? changedPath = null;
+        var screen = new ScreenRenderer(driver);
+
+        new FileViewer(screen).Show(first, new LargeFileViewerOptions
+        {
+            FilePaths = [first, second],
+            CurrentFileIndex = 0,
+            CurrentFileChanged = path => changedPath = path,
+        });
+
+        Assert.Equal(second, changedPath);
+        Assert.Contains("second file", WrittenText(driver));
+    }
+
+    [Fact]
+    public void Show_F6InvokesEditorLauncher()
+    {
+        string path = Write("viewer-edit.txt", "edit me", new UTF8Encoding(false));
+        var driver = new FakeConsoleDriver(width: 80, height: 10);
+        driver.EnqueueKey(Key(ConsoleKey.F6));
+        driver.EnqueueKey(Key(ConsoleKey.F10));
+        string? editedPath = null;
+        var screen = new ScreenRenderer(driver);
+
+        new FileViewer(screen).Show(path, new LargeFileViewerOptions
+        {
+            EditFile = value => editedPath = value,
+        });
+
+        Assert.Equal(path, editedPath);
     }
 
     // ── helpers ───────────────────────────────────────────────────────────────
@@ -394,9 +581,37 @@ public class FileViewerTests : IDisposable
         return path;
     }
 
-    private static ConsoleKeyInfo Key(ConsoleKey key, char keyChar = '\0') =>
-        new(keyChar, key, shift: false, alt: false, control: false);
+    private static ConsoleKeyInfo Key(
+        ConsoleKey key,
+        char keyChar = '\0',
+        bool shift = false,
+        bool alt = false,
+        bool control = false) =>
+        new(keyChar, key, shift, alt, control);
+
+    private static void EnqueueText(FakeConsoleDriver driver, string text)
+    {
+        foreach (char ch in text)
+            driver.EnqueueKey(Key((ConsoleKey)char.ToUpperInvariant(ch), ch));
+    }
 
     private static string WrittenText(FakeConsoleDriver driver) =>
         string.Concat(driver.WriteRecords.Select(record => record.Text));
+
+    private sealed class FakeTextClipboard : CSharpFar.Core.Abstractions.ITextClipboard
+    {
+        public string? Text { get; private set; }
+
+        public bool TrySetText(string text)
+        {
+            Text = text;
+            return true;
+        }
+
+        public bool TryGetText(out string text)
+        {
+            text = Text ?? string.Empty;
+            return Text is not null;
+        }
+    }
 }

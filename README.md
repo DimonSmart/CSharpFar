@@ -48,18 +48,31 @@ blocks by offset and keeps only a small LRU cache, so opening a log does not req
 loading the whole file first.
 
 Text-looking files open as text. Binary-looking files open as a 16-byte-per-row hex dump.
-Press `H` to switch the current file between text and hex.
+Press `F4` or `H` to switch the current file between text and hex.
 
 The viewer supports:
 
 - `Home` and `End` for start/end navigation;
 - `Up`, `Down`, `PageUp`, and `PageDown`;
-- horizontal scrolling with `Left` and `Right`;
-- `G` for a line number or percent jump, for example `12000` or `85%`;
+- fast page scrolling with `Alt+PageUp` and `Alt+PageDown`;
+- horizontal scrolling with `Left` and `Right`, plus `Ctrl+Left` and `Ctrl+Right` for
+  larger horizontal steps;
+- `Ctrl+Shift+Left` and `Ctrl+Shift+Right` for the start/end of the current screen line;
+- `G` or `Alt+F8` for a line number, byte offset, or percent jump, for example `12000`
+  or `85%`;
 - `F` follow mode for files that keep growing;
-- `H` for text/hex display mode;
-- `F8` to choose automatic detection, UTF-8, UTF-16, Windows ANSI, Windows-1251,
+- `F2` for line wrap and `Shift+F2` for word/character wrap mode;
+- `F4` or `H` for text/hex display mode;
+- `F7` to find text; in hex mode the same dialog can search a hex byte sequence;
+- `Shift+F7` or `Space` to repeat search forward, and `Alt+F7` to search backward;
+- `Ctrl+U` to clear the current search highlight;
+- `Ctrl+C` or `Ctrl+Insert` to copy the current search match;
+- `F8` to cycle UTF-8, CP866, and Windows-1251;
+- `Shift+F8` to choose automatic detection, UTF-8, UTF-16, Windows ANSI, Windows-1251,
   Windows-1252 or CP866 for the current viewer session.
+- `F6` to open the current local file in the built-in editor;
+- `+` and `-` to open the next or previous regular file from the panel list;
+- `F3`, `F10`, or `Esc` to close the viewer.
 
 Text decoding detects UTF-8 and UTF-16 BOMs, tries UTF-8 without a BOM, and falls back to
 the current Windows ANSI code page. The same bounded-sample detector is used by the viewer,

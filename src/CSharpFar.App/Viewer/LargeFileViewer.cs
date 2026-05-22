@@ -11,6 +11,8 @@ internal sealed class LargeFileViewer
 {
     private const int BinaryBytesPerRow = 16;
     private const int FollowPollMs = 250;
+    private const int FastHorizontalTextScrollChars = 20;
+    private const int FastPageMultiplier = 5;
 
     private readonly ScreenRenderer _screen;
     private readonly ConsolePalette _palette;
@@ -21,33 +23,84 @@ internal sealed class LargeFileViewer
         _palette = palette ?? PaletteRegistry.Default;
     }
 
-    public void Show(string filePath)
+    public void Show(string filePath) => Show(filePath, null);
+
+    internal void Show(string filePath, LargeFileViewerOptions? options)
     {
+        options ??= new LargeFileViewerOptions();
+        ScreenSnapshot? saved = null;
+        RandomAccessFileByteReader? reader = null;
+
         try
         {
-            using var reader = new RandomAccessFileByteReader(filePath);
-            var cache = new BlockCache(reader);
-            var scanner = LineScanner.CreateAsync(cache, reader).GetAwaiter().GetResult();
-            var state = new LargeFileViewerState(cache, scanner);
+            var opened = OpenViewerFile(filePath);
+            reader = opened.Reader;
+            var state = opened.State;
 
             var size = _screen.GetSize();
-            var saved = _screen.Capture(new Rect(0, 0, size.Width, size.Height));
-            try
+            saved = _screen.Capture(new Rect(0, 0, size.Width, size.Height));
+
+            while (true)
             {
-                RunLoop(filePath, reader, state);
-            }
-            finally
-            {
-                _screen.Restore(saved);
+                var action = RunLoop(filePath, reader, state, options);
+                if (action == ViewerLoopAction.Close)
+                    return;
+
+                if (!TryMoveToSibling(options, action == ViewerLoopAction.NextFile ? 1 : -1, out string nextPath))
+                {
+                    ShowUnsupported(action == ViewerLoopAction.NextFile ? "Next file" : "Previous file");
+                    continue;
+                }
+
+                reader.Dispose();
+                reader = null;
+
+                filePath = nextPath;
+                opened = OpenViewerFile(filePath);
+                reader = opened.Reader;
+                state = opened.State;
+                options.CurrentFileChanged?.Invoke(filePath);
             }
         }
         catch (Exception ex)
         {
+            if (saved is not null)
+            {
+                _screen.Restore(saved);
+                saved = null;
+            }
+
             new MessageDialog(_screen, _palette).Show("Viewer", ex.Message);
+        }
+        finally
+        {
+            reader?.Dispose();
+            if (saved is not null)
+                _screen.Restore(saved);
         }
     }
 
-    private void RunLoop(string filePath, IFileByteReader reader, LargeFileViewerState state)
+    private static (RandomAccessFileByteReader Reader, LargeFileViewerState State) OpenViewerFile(string filePath)
+    {
+        var reader = new RandomAccessFileByteReader(filePath);
+        try
+        {
+            var cache = new BlockCache(reader);
+            var scanner = LineScanner.CreateAsync(cache, reader).GetAwaiter().GetResult();
+            return (reader, new LargeFileViewerState(cache, scanner));
+        }
+        catch
+        {
+            reader.Dispose();
+            throw;
+        }
+    }
+
+    private ViewerLoopAction RunLoop(
+        string filePath,
+        IFileByteReader reader,
+        LargeFileViewerState state,
+        LargeFileViewerOptions options)
     {
         while (true)
         {
@@ -56,6 +109,16 @@ internal sealed class LargeFileViewer
             var view = Draw(filePath, reader, state, contentHeight, size);
 
             var key = ReadViewerKey(reader, state, contentHeight);
+            if (key.Key == ConsoleKey.NoName)
+                continue;
+
+            bool shift = (key.Modifiers & ConsoleModifiers.Shift) != 0;
+            bool alt = (key.Modifiers & ConsoleModifiers.Alt) != 0;
+            bool control = (key.Modifiers & ConsoleModifiers.Control) != 0;
+
+            if (TryHandleUnsupportedNumberedBookmark(key, control, shift, alt))
+                continue;
+
             switch (key.Key)
             {
                 case ConsoleKey.UpArrow:
@@ -66,16 +129,45 @@ internal sealed class LargeFileViewer
                     MoveDown(reader, state, view);
                     break;
 
+                case ConsoleKey.LeftArrow when control && shift:
+                    state.HorizontalOffset = 0;
+                    break;
+
+                case ConsoleKey.RightArrow when control && shift:
+                    MoveHorizontalToCurrentLineEnd(state, view, size.Width);
+                    break;
+
+                case ConsoleKey.LeftArrow when control:
+                    MoveHorizontal(state, -(state.IsHexMode ? 1 : FastHorizontalTextScrollChars));
+                    break;
+
+                case ConsoleKey.RightArrow when control:
+                    MoveHorizontal(state, state.IsHexMode ? 1 : FastHorizontalTextScrollChars);
+                    break;
+
+                case ConsoleKey.LeftArrow when shift:
+                case ConsoleKey.RightArrow when shift:
+                    ShowUnsupported("Viewer text selection");
+                    break;
+
                 case ConsoleKey.LeftArrow:
-                    state.HorizontalOffset = Math.Max(0, state.HorizontalOffset - 1);
+                    MoveHorizontal(state, -1);
                     break;
 
                 case ConsoleKey.RightArrow:
-                    state.HorizontalOffset++;
+                    MoveHorizontal(state, 1);
+                    break;
+
+                case ConsoleKey.PageUp when alt:
+                    MovePageUp(state, contentHeight, FastPageMultiplier);
+                    break;
+
+                case ConsoleKey.PageDown when alt:
+                    MovePageDown(reader, state, contentHeight, FastPageMultiplier);
                     break;
 
                 case ConsoleKey.PageUp:
-                    MovePageUp(state, contentHeight);
+                    MovePageUp(state, contentHeight, pages: 1);
                     break;
 
                 case ConsoleKey.PageDown:
@@ -94,29 +186,180 @@ internal sealed class LargeFileViewer
                     state.FollowMode = true;
                     break;
 
-                case ConsoleKey.F:
+                case ConsoleKey.F1:
+                    new HelpViewer(_screen, _palette).Show();
+                    break;
+
+                case ConsoleKey.F2 when shift && !alt && !control:
+                    state.WordWrap = !state.WordWrap;
+                    state.WrapLines = true;
+                    state.HorizontalOffset = 0;
+                    break;
+
+                case ConsoleKey.F2 when !shift && !alt && !control:
+                    state.WrapLines = !state.WrapLines;
+                    if (state.WrapLines)
+                        state.HorizontalOffset = 0;
+                    break;
+
+                case ConsoleKey.F3 when !shift && !alt && !control:
+                case ConsoleKey.NumPad5 when !shift && !alt && !control:
+                    return ViewerLoopAction.Close;
+
+                case ConsoleKey.F4 when !shift && !alt && !control:
+                    ToggleViewMode(state);
+                    break;
+
+                case ConsoleKey.F5 when alt:
+                    ShowUnsupported("Print");
+                    break;
+
+                case ConsoleKey.F5:
+                    ShowUnsupported("Raw/processed viewer mode");
+                    break;
+
+                case ConsoleKey.F6 when !shift && !alt && !control:
+                    EditCurrentFile(filePath, reader, state, options);
+                    break;
+
+                case ConsoleKey.F7 when control:
+                    ShowUnsupported("Viewer grep filter");
+                    break;
+
+                case ConsoleKey.F7 when alt:
+                    RepeatSearch(reader, state, searchBackward: true, size.Width);
+                    break;
+
+                case ConsoleKey.F7 when shift && !alt:
+                    RepeatSearch(reader, state, searchBackward: false, size.Width);
+                    break;
+
+                case ConsoleKey.F7 when !shift && !alt && !control:
+                    ShowFindDialog(reader, state, size.Width);
+                    break;
+
+                case ConsoleKey.F8 when alt:
+                    JumpToPosition(reader, state, contentHeight);
+                    break;
+
+                case ConsoleKey.F8 when control:
+                    ShowUnsupported("Ctrl+F8");
+                    break;
+
+                case ConsoleKey.F8 when shift:
+                    ChangeEncoding(filePath, reader, state, contentHeight, size);
+                    break;
+
+                case ConsoleKey.F8 when !shift && !alt && !control:
+                    CycleCommonEncoding(reader, state);
+                    break;
+
+                case ConsoleKey.F9:
+                    ShowUnsupported("Viewer settings");
+                    break;
+
+                case ConsoleKey.F10 when control:
+                    ShowUnsupported("Show current file in panel");
+                    break;
+
+                case ConsoleKey.F10 when !shift && !alt && !control:
+                case ConsoleKey.Escape:
+                    return ViewerLoopAction.Close;
+
+                case ConsoleKey.F11 when alt:
+                    ShowUnsupported("Viewer history");
+                    break;
+
+                case ConsoleKey.F11:
+                    ShowUnsupported("Plugin menu");
+                    break;
+
+                case ConsoleKey.F when !shift && !alt && !control:
                     state.FollowMode = !state.FollowMode;
                     if (state.FollowMode)
                         MoveToEnd(reader, state, contentHeight);
                     break;
 
-                case ConsoleKey.G:
+                case ConsoleKey.G when !shift && !alt && !control:
                     JumpToPosition(reader, state, contentHeight);
                     break;
 
-                case ConsoleKey.H:
+                case ConsoleKey.H when !shift && !alt && !control:
                     ToggleViewMode(state);
                     break;
 
-                case ConsoleKey.F8:
-                    ChangeEncoding(filePath, reader, state, contentHeight, size);
+                case ConsoleKey.Spacebar when !shift && !alt && !control:
+                    RepeatSearch(reader, state, searchBackward: false, size.Width);
                     break;
 
-                case ConsoleKey.Escape:
-                case ConsoleKey.F10:
-                    return;
+                case ConsoleKey.U when control:
+                    state.SearchMatch = null;
+                    break;
+
+                case ConsoleKey.C when control:
+                case ConsoleKey.Insert when control:
+                    CopySearchMatch(state, options);
+                    break;
+
+                case ConsoleKey.O when control:
+                    ShowUnsupported("Show work screen");
+                    break;
+
+                case ConsoleKey.B when control:
+                    ShowUnsupported(shift ? "Status line toggle" : "Function key bar toggle");
+                    break;
+
+                case ConsoleKey.S when control:
+                    ShowUnsupported("Scrollbar toggle");
+                    break;
+
+                case ConsoleKey.Z when control:
+                case ConsoleKey.Backspace when alt:
+                    ShowUnsupported("Undo viewer position");
+                    break;
+
+                case ConsoleKey.Add when !shift && !alt && !control:
+                case ConsoleKey.OemPlus when !shift && !alt && !control:
+                    return ViewerLoopAction.NextFile;
+
+                case ConsoleKey.Subtract when !shift && !alt && !control:
+                case ConsoleKey.OemMinus when !shift && !alt && !control:
+                    return ViewerLoopAction.PreviousFile;
             }
         }
+    }
+
+    private bool TryHandleUnsupportedNumberedBookmark(
+        ConsoleKeyInfo key,
+        bool control,
+        bool shift,
+        bool alt)
+    {
+        _ = shift;
+        if (!control || alt || !TryGetNumberKey(key.Key, out _))
+            return false;
+
+        ShowUnsupported("Viewer bookmarks");
+        return true;
+    }
+
+    private static bool TryGetNumberKey(ConsoleKey key, out int number)
+    {
+        number = key switch
+        {
+            ConsoleKey.D0 or ConsoleKey.NumPad0 => 0,
+            ConsoleKey.D1 or ConsoleKey.NumPad1 => 1,
+            ConsoleKey.D2 or ConsoleKey.NumPad2 => 2,
+            ConsoleKey.D3 or ConsoleKey.NumPad3 => 3,
+            ConsoleKey.D4 or ConsoleKey.NumPad4 => 4,
+            ConsoleKey.D5 or ConsoleKey.NumPad5 => 5,
+            ConsoleKey.D6 or ConsoleKey.NumPad6 => 6,
+            ConsoleKey.D7 or ConsoleKey.NumPad7 => 7,
+            ConsoleKey.D8 or ConsoleKey.NumPad8 => 8,
+            ConsoleKey.D9 or ConsoleKey.NumPad9 => 9,
+            _ => -1,
+        };
+        return number >= 0;
     }
 
     private ConsoleKeyInfo ReadViewerKey(
@@ -158,7 +401,7 @@ internal sealed class LargeFileViewer
             ? DrawBinaryContent(reader, state, contentHeight, size.Width)
             : DrawTextContent(reader, state, contentHeight, size.Width);
 
-        DrawFooter(size);
+        DrawFooter(size, state);
         return view;
     }
 
@@ -169,10 +412,14 @@ internal sealed class LargeFileViewer
         ConsoleSize size)
     {
         string mode = state.IsHexMode ? " HEX" : $" TEXT {state.LineScanner.EncodingDisplayName}";
+        string wrap = !state.IsHexMode && state.WrapLines
+            ? state.WordWrap ? " WRAP-W" : " WRAP-C"
+            : string.Empty;
         string follow = state.FollowMode ? " F" : string.Empty;
+        string found = state.SearchMatch is not null ? " FIND" : string.Empty;
         string posSection = reader.Length == 0
-            ? $" 0%{mode}{follow} "
-            : $" {FormatPercent(state.TopByteOffset, reader.Length)}%{mode}{follow} ";
+            ? $" 0%{mode}{wrap}{follow}{found} "
+            : $" {FormatPercent(state.TopByteOffset, reader.Length)}%{mode}{wrap}{follow}{found} ";
 
         int nameWidth = Math.Max(0, size.Width - posSection.Length);
         string nameSection = FormatHeaderPath(filePath, nameWidth);
@@ -202,6 +449,16 @@ internal sealed class LargeFileViewer
         int contentHeight,
         int width)
     {
+        return state.WrapLines
+            ? DrawWrappedTextContent(reader, state, contentHeight, width)
+            : DrawUnwrappedTextContent(state, contentHeight, width);
+    }
+
+    private LargeFileRenderView DrawUnwrappedTextContent(
+        LargeFileViewerState state,
+        int contentHeight,
+        int width)
+    {
         int bytesPerLine = Math.Max(256, (state.HorizontalOffset + width + 32) * 4);
         var scanned = state.LineScanner
             .ReadLinesAsync(state.TopByteOffset, contentHeight, bytesPerLine)
@@ -210,13 +467,67 @@ internal sealed class LargeFileViewer
 
         for (int row = 0; row < contentHeight; row++)
         {
-            string text = row < scanned.Lines.Count
-                ? FormatLine(scanned.Lines[row].Text, state.HorizontalOffset, width)
-                : new string(' ', width);
-            _screen.Write(0, row + 1, text, PaletteStyles.CommandLine(_palette));
+            if (row < scanned.Lines.Count)
+            {
+                var line = scanned.Lines[row];
+                WriteTextLine(line.Text, row + 1, state.HorizontalOffset, width, state.SearchMatch, line.StartOffset, segmentStartIndex: 0);
+            }
+            else
+            {
+                _screen.Write(0, row + 1, new string(' ', width), PaletteStyles.CommandLine(_palette));
+            }
         }
 
         return new LargeFileRenderView(scanned.Lines, scanned.NextOffset);
+    }
+
+    private LargeFileRenderView DrawWrappedTextContent(
+        IFileByteReader reader,
+        LargeFileViewerState state,
+        int contentHeight,
+        int width)
+    {
+        var lines = new List<ScannedLine>();
+        int row = 0;
+        long offset = Math.Clamp(state.TopByteOffset, state.LineScanner.ContentStartOffset, reader.Length);
+        long nextOffset = offset;
+        int bytesPerLine = Math.Max(256, Math.Max(1, width) * Math.Max(1, contentHeight) * 4 + 1024);
+
+        while (row < contentHeight && offset < reader.Length)
+        {
+            var scanned = state.LineScanner
+                .ReadLinesAsync(offset, 1, bytesPerLine)
+                .GetAwaiter()
+                .GetResult();
+            if (scanned.Lines.Count == 0)
+                break;
+
+            var line = scanned.Lines[0];
+            lines.Add(line);
+            nextOffset = line.NextOffset;
+
+            foreach (var segment in SplitWrappedLine(line.Text, Math.Max(1, width), state.WordWrap))
+            {
+                if (row >= contentHeight)
+                    break;
+
+                WriteTextLine(segment.Text, row + 1, scrollLeft: 0, width, state.SearchMatch, line.StartOffset, segment.StartIndex);
+                row++;
+            }
+
+            if (line.NextOffset <= offset)
+                break;
+
+            offset = line.NextOffset;
+        }
+
+        while (row < contentHeight)
+        {
+            _screen.Write(0, row + 1, new string(' ', width), PaletteStyles.CommandLine(_palette));
+            row++;
+        }
+
+        return new LargeFileRenderView(lines, nextOffset);
     }
 
     private LargeFileRenderView DrawBinaryContent(
@@ -237,21 +548,75 @@ internal sealed class LargeFileViewer
                 : string.Empty;
             rows.Add(new ScannedLine(rowOffset, Math.Min(reader.Length, rowOffset + BinaryBytesPerRow), text));
             nextOffset = Math.Min(reader.Length, rowOffset + BinaryBytesPerRow);
-            _screen.Write(0, row + 1, FormatLine(text, state.HorizontalOffset, width), PaletteStyles.CommandLine(_palette));
+            var style = IsHexMatchOnRow(state.SearchMatch, rowOffset)
+                ? PaletteStyles.InputHighlight(_palette)
+                : PaletteStyles.CommandLine(_palette);
+            _screen.Write(0, row + 1, FormatLine(text, state.HorizontalOffset, width), style);
         }
 
         return new LargeFileRenderView(rows, nextOffset);
     }
 
-    private void DrawFooter(ConsoleSize size)
+    private static bool IsHexMatchOnRow(ViewerSearchMatch? match, long rowOffset) =>
+        match is { IsHex: true } &&
+        match.ByteOffset < rowOffset + BinaryBytesPerRow &&
+        match.ByteOffset + match.ByteLength > rowOffset;
+
+    private void WriteTextLine(
+        string line,
+        int y,
+        int scrollLeft,
+        int width,
+        ViewerSearchMatch? match,
+        long lineStartOffset,
+        int segmentStartIndex)
+    {
+        if (width <= 0)
+            return;
+
+        string sanitized = SanitizeTextForConsole(line);
+        if (scrollLeft >= sanitized.Length)
+        {
+            _screen.Write(0, y, new string(' ', width), PaletteStyles.CommandLine(_palette));
+            return;
+        }
+
+        string visible = sanitized[scrollLeft..];
+        if (visible.Length > width)
+            visible = visible[..width];
+
+        _screen.Write(0, y, visible.PadRight(width), PaletteStyles.CommandLine(_palette));
+        if (match is not { IsHex: false } || match.LineStartOffset != lineStartOffset)
+            return;
+
+        int visibleStart = segmentStartIndex + scrollLeft;
+        int visibleEnd = visibleStart + visible.Length;
+        int matchStart = match.CharacterIndex;
+        int matchEnd = match.CharacterIndex + match.CharacterLength;
+        int highlightStart = Math.Max(visibleStart, matchStart);
+        int highlightEnd = Math.Min(visibleEnd, matchEnd);
+        if (highlightEnd <= highlightStart)
+            return;
+
+        int x = highlightStart - visibleStart;
+        int length = highlightEnd - highlightStart;
+        if (x >= 0 && x < visible.Length)
+            _screen.Write(x, y, visible.Substring(x, Math.Min(length, visible.Length - x)), PaletteStyles.InputHighlight(_palette));
+    }
+
+    private void DrawFooter(ConsoleSize size, LargeFileViewerState state)
     {
         _screen.FillRegion(new Rect(0, size.Height - 1, size.Width, 1), PaletteStyles.KeyBarLabel(_palette));
         int y = size.Height - 1;
-        WriteFooterItem(0, y, "F", "Follow", size.Width);
-        WriteFooterItem(10, y, "G", "Go", size.Width);
-        WriteFooterItem(16, y, "H", "Hex/Text", size.Width);
-        WriteFooterItem(28, y, "8", "Encoding", size.Width);
-        WriteFooterItem(39, y, "10", "Close", size.Width);
+        WriteFooterItem(0, y, "1", "Help", size.Width);
+        WriteFooterItem(7, y, "2", state.WrapLines ? "Unwrap" : "Wrap", size.Width);
+        WriteFooterItem(17, y, "4", "Hex", size.Width);
+        WriteFooterItem(23, y, "6", "Edit", size.Width);
+        WriteFooterItem(30, y, "7", "Find", size.Width);
+        WriteFooterItem(37, y, "8", "Enc", size.Width);
+        WriteFooterItem(43, y, "+", "Next", size.Width);
+        WriteFooterItem(50, y, "-", "Prev", size.Width);
+        WriteFooterItem(58, y, "10", "Close", size.Width);
     }
 
     private void WriteFooterItem(int x, int y, string key, string text, int width)
@@ -259,12 +624,12 @@ internal sealed class LargeFileViewer
         if (x >= width)
             return;
 
-        _screen.Write(x, y, sizeLimited(key, width - x), PaletteStyles.KeyBarNum(_palette));
+        _screen.Write(x, y, SizeLimited(key, width - x), PaletteStyles.KeyBarNum(_palette));
         int textX = x + key.Length;
         if (textX < width)
-            _screen.Write(textX, y, sizeLimited(text, width - textX), PaletteStyles.KeyBarLabel(_palette));
+            _screen.Write(textX, y, SizeLimited(text, width - textX), PaletteStyles.KeyBarLabel(_palette));
 
-        static string sizeLimited(string text, int maxLength) =>
+        static string SizeLimited(string text, int maxLength) =>
             text.Length <= maxLength ? text : text[..Math.Max(0, maxLength)];
     }
 
@@ -292,20 +657,24 @@ internal sealed class LargeFileViewer
         state.FollowMode = false;
     }
 
-    private void MovePageUp(LargeFileViewerState state, int contentHeight)
+    private void MovePageUp(LargeFileViewerState state, int contentHeight, int pages)
     {
-        if (state.IsHexMode)
+        int pageCount = Math.Max(1, pages);
+        for (int page = 0; page < pageCount; page++)
         {
-            long delta = (long)Math.Max(1, contentHeight) * BinaryBytesPerRow;
-            state.TopByteOffset = Math.Max(0, state.TopByteOffset - delta);
-        }
-        else
-        {
-            for (int i = 0; i < Math.Max(1, contentHeight); i++)
-                state.TopByteOffset = state.LineScanner
-                    .FindPreviousLineStartAsync(state.TopByteOffset)
-                    .GetAwaiter()
-                    .GetResult();
+            if (state.IsHexMode)
+            {
+                long delta = (long)Math.Max(1, contentHeight) * BinaryBytesPerRow;
+                state.TopByteOffset = Math.Max(0, state.TopByteOffset - delta);
+            }
+            else
+            {
+                for (int i = 0; i < Math.Max(1, contentHeight); i++)
+                    state.TopByteOffset = state.LineScanner
+                        .FindPreviousLineStartAsync(state.TopByteOffset)
+                        .GetAwaiter()
+                        .GetResult();
+            }
         }
 
         state.FollowMode = false;
@@ -330,6 +699,33 @@ internal sealed class LargeFileViewer
         state.FollowMode = false;
     }
 
+    private void MovePageDown(
+        IFileByteReader reader,
+        LargeFileViewerState state,
+        int contentHeight,
+        int pages)
+    {
+        int pageCount = Math.Max(1, pages);
+        for (int page = 0; page < pageCount; page++)
+        {
+            if (state.IsHexMode)
+            {
+                long delta = (long)Math.Max(1, contentHeight) * BinaryBytesPerRow;
+                state.TopByteOffset = Math.Min(reader.Length, state.TopByteOffset + delta);
+            }
+            else
+            {
+                var scanned = state.LineScanner
+                    .ReadLinesAsync(state.TopByteOffset, Math.Max(1, contentHeight), maxBytesPerLine: 256)
+                    .GetAwaiter()
+                    .GetResult();
+                state.TopByteOffset = scanned.NextOffset;
+            }
+        }
+
+        state.FollowMode = false;
+    }
+
     private void MoveToEnd(IFileByteReader reader, LargeFileViewerState state, int contentHeight)
     {
         state.TopByteOffset = state.IsHexMode
@@ -338,6 +734,26 @@ internal sealed class LargeFileViewer
                 .FindTailTopOffsetAsync(Math.Max(1, contentHeight))
                 .GetAwaiter()
                 .GetResult();
+    }
+
+    private void MoveHorizontal(LargeFileViewerState state, int delta)
+    {
+        if (state.WrapLines)
+            return;
+
+        state.HorizontalOffset = Math.Max(0, state.HorizontalOffset + delta);
+    }
+
+    private static void MoveHorizontalToCurrentLineEnd(
+        LargeFileViewerState state,
+        LargeFileRenderView view,
+        int width)
+    {
+        if (state.WrapLines || view.Lines.Count == 0)
+            return;
+
+        int lineLength = SanitizeTextForConsole(view.Lines[0].Text).Length;
+        state.HorizontalOffset = Math.Max(0, lineLength - Math.Max(1, width));
     }
 
     private void JumpToPosition(IFileByteReader reader, LargeFileViewerState state, int contentHeight)
@@ -396,6 +812,123 @@ internal sealed class LargeFileViewer
         }
 
         state.HorizontalOffset = 0;
+        state.SearchMatch = null;
+    }
+
+    private void ShowFindDialog(IFileByteReader reader, LargeFileViewerState state, int width)
+    {
+        var selected = new ViewerFindDialog(_screen, _palette).Show(state.LastSearch, state.IsHexMode);
+        if (selected is null)
+            return;
+
+        var request = ViewerSearchRequest.FromDialog(selected);
+        FindAndApply(reader, state, request, searchBackward: false, width);
+    }
+
+    private void RepeatSearch(
+        IFileByteReader reader,
+        LargeFileViewerState state,
+        bool searchBackward,
+        int width)
+    {
+        if (state.LastSearch is null)
+        {
+            ShowFindDialog(reader, state, width);
+            return;
+        }
+
+        FindAndApply(reader, state, state.LastSearch, searchBackward, width);
+    }
+
+    private void FindAndApply(
+        IFileByteReader reader,
+        LargeFileViewerState state,
+        ViewerSearchRequest request,
+        bool searchBackward,
+        int width)
+    {
+        ViewerSearchMatch? match;
+        try
+        {
+            match = ViewerSearchEngine.Find(reader, state, request, searchBackward);
+        }
+        catch (ArgumentException ex)
+        {
+            new MessageDialog(_screen, _palette).Show("Find", ex.Message);
+            return;
+        }
+
+        if (match is null)
+        {
+            new MessageDialog(_screen, _palette).Show("Find", "Text not found.");
+            return;
+        }
+
+        state.LastSearch = request;
+        state.SearchMatch = match;
+        state.TopByteOffset = match.TopByteOffset;
+        state.FollowMode = false;
+
+        if (!match.IsHex && !state.WrapLines)
+        {
+            int rightEdge = state.HorizontalOffset + Math.Max(1, width);
+            if (match.CharacterIndex < state.HorizontalOffset || match.CharacterIndex >= rightEdge)
+                state.HorizontalOffset = Math.Max(0, match.CharacterIndex - 4);
+        }
+        else if (match.IsHex)
+        {
+            state.ViewMode = LargeFileViewMode.Hex;
+        }
+    }
+
+    private void CopySearchMatch(LargeFileViewerState state, LargeFileViewerOptions options)
+    {
+        if (state.SearchMatch is null)
+        {
+            new MessageDialog(_screen, _palette).Show("Viewer", "No active search match.");
+            return;
+        }
+
+        if (options.Clipboard is null)
+        {
+            ShowUnsupported("Clipboard copy");
+            return;
+        }
+
+        if (!options.Clipboard.TrySetText(state.SearchMatch.MatchedText))
+            new MessageDialog(_screen, _palette).Show("Viewer", "Could not copy text to clipboard.");
+    }
+
+    private void EditCurrentFile(
+        string filePath,
+        IFileByteReader reader,
+        LargeFileViewerState state,
+        LargeFileViewerOptions options)
+    {
+        if (options.EditFile is null)
+        {
+            ShowUnsupported("Edit from viewer");
+            return;
+        }
+
+        options.EditFile(filePath);
+        RefreshScanner(reader, state);
+    }
+
+    private static void RefreshScanner(IFileByteReader reader, LargeFileViewerState state)
+    {
+        long anchorByteOffset = state.TopByteOffset;
+        var originalViewMode = state.ViewMode;
+        state.BlockCache.Clear();
+        var scanner = LineScanner
+            .CreateAsync(state.BlockCache, reader, state.EncodingSelection)
+            .GetAwaiter()
+            .GetResult();
+        state.ResetScanner(scanner, state.EncodingSelection);
+        state.ViewMode = originalViewMode;
+        state.TopByteOffset = state.IsHexMode
+            ? Math.Clamp(anchorByteOffset, 0, reader.Length)
+            : scanner.FindLineStartAtOrBeforeAsync(anchorByteOffset).GetAwaiter().GetResult();
     }
 
     private void ChangeEncoding(
@@ -434,6 +967,22 @@ internal sealed class LargeFileViewer
         ApplyEncodingSelection(reader, state, selected.Selection, anchorByteOffset, originalViewMode);
     }
 
+    private static void CycleCommonEncoding(IFileByteReader reader, LargeFileViewerState state)
+    {
+        int[] commonCodePages = [65001, 866, 1251];
+        int currentCodePage = state.EncodingSelection.Kind == TextEncodingSelectionKind.Explicit
+            ? state.EncodingSelection.CodePage ?? -1
+            : -1;
+        int currentIndex = Array.IndexOf(commonCodePages, currentCodePage);
+        int nextIndex = currentIndex < 0 ? 0 : (currentIndex + 1) % commonCodePages.Length;
+        ApplyEncodingSelection(
+            reader,
+            state,
+            TextEncodingSelection.Explicit(commonCodePages[nextIndex]),
+            state.TopByteOffset,
+            state.ViewMode);
+    }
+
     private static void ApplyEncodingSelection(
         IFileByteReader reader,
         LargeFileViewerState state,
@@ -459,6 +1008,35 @@ internal sealed class LargeFileViewer
             : scanner.FindLineStartAtOrBeforeAsync(anchorByteOffset).GetAwaiter().GetResult();
         state.HorizontalOffset = 0;
     }
+
+    private static bool TryMoveToSibling(
+        LargeFileViewerOptions options,
+        int direction,
+        out string filePath)
+    {
+        filePath = string.Empty;
+        if (!options.HasSiblingFiles)
+            return false;
+
+        int index = options.CurrentFileIndex + direction;
+        while (index >= 0 && index < options.FilePaths.Count)
+        {
+            string candidate = options.FilePaths[index];
+            if (File.Exists(candidate))
+            {
+                options.CurrentFileIndex = index;
+                filePath = candidate;
+                return true;
+            }
+
+            index += direction;
+        }
+
+        return false;
+    }
+
+    private void ShowUnsupported(string command) =>
+        new MessageDialog(_screen, _palette).Show("Viewer", $"{command} is not supported yet.");
 
     private static string? ValidateJump(string text, bool binary)
     {
@@ -516,6 +1094,30 @@ internal sealed class LargeFileViewer
         return new string(chars);
     }
 
+    private static IEnumerable<WrappedTextSegment> SplitWrappedLine(string line, int width, bool wordWrap)
+    {
+        if (line.Length == 0)
+        {
+            yield return new WrappedTextSegment(0, string.Empty);
+            yield break;
+        }
+
+        int index = 0;
+        while (index < line.Length)
+        {
+            int take = Math.Min(width, line.Length - index);
+            if (wordWrap && index + take < line.Length)
+            {
+                int breakAt = line.LastIndexOf(' ', index + take - 1, take);
+                if (breakAt > index)
+                    take = breakAt - index + 1;
+            }
+
+            yield return new WrappedTextSegment(index, line.Substring(index, take));
+            index += take;
+        }
+    }
+
     private static long FormatPercent(long offset, long length)
     {
         if (length <= 0)
@@ -525,4 +1127,13 @@ internal sealed class LargeFileViewer
     }
 
     private sealed record LargeFileRenderView(IReadOnlyList<ScannedLine> Lines, long NextOffset);
+
+    private sealed record WrappedTextSegment(int StartIndex, string Text);
+
+    private enum ViewerLoopAction
+    {
+        Close,
+        NextFile,
+        PreviousFile,
+    }
 }

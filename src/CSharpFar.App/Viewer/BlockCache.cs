@@ -27,6 +27,8 @@ internal sealed class BlockCache
 
     public int BlockSize { get; }
 
+    public void Clear() => _entries.Clear();
+
     public async Task<ReadOnlyMemory<byte>> ReadBlockAsync(
         long offset,
         CancellationToken cancellationToken = default)
