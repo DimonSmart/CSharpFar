@@ -8,19 +8,51 @@ using Microsoft.VisualBasic.FileIO;
 
 namespace CSharpFar.FileSystem;
 
+internal sealed record FileOperationServiceDependencies
+{
+    private static readonly CopyResumeAnalyzer ResumeAnalyzer = new();
+
+    public static FileOperationServiceDependencies Default { get; } = new();
+
+    public Func<TimeSpan, CancellationToken, Task> DelayAsync { get; init; } =
+        static (delay, cancellationToken) => Task.Delay(delay, cancellationToken);
+
+    public Func<string, FileMode, FileAccess, FileShare, int, FileOptions, Stream> OpenFileStream { get; init; } =
+        static (path, mode, access, share, bufferSize, options) =>
+            new FileStream(path, mode, access, share, bufferSize, options);
+
+    public Func<string, string, CopyResumeSourceSnapshot?, CancellationToken, CopyResumePlan> AnalyzeResume { get; init; } =
+        static (sourcePath, destinationPath, sourceSnapshot, cancellationToken) =>
+            ResumeAnalyzer.Analyze(sourcePath, destinationPath, sourceSnapshot, cancellationToken);
+}
+
 public sealed class FileOperationService : IFileOperationService
 {
     private const int CopyBufferSize = 1024 * 1024;
-    private static readonly CopyResumeAnalyzer ResumeAnalyzer = new();
+    private static readonly TimeSpan ParanoidCopyReadRetryDelay = TimeSpan.FromMinutes(1);
     private readonly IFilePanelSourceRegistry? _sources;
+    private readonly FileOperationServiceDependencies _dependencies;
 
-    public FileOperationService()
+    public FileOperationService() : this(null, FileOperationServiceDependencies.Default)
     {
     }
 
-    public FileOperationService(IFilePanelSourceRegistry sources)
+    public FileOperationService(IFilePanelSourceRegistry sources) : this(sources, FileOperationServiceDependencies.Default)
     {
+    }
+
+    internal FileOperationService(FileOperationServiceDependencies dependencies) : this(null, dependencies)
+    {
+    }
+
+    internal FileOperationService(
+        IFilePanelSourceRegistry? sources,
+        FileOperationServiceDependencies dependencies)
+    {
+        ArgumentNullException.ThrowIfNull(dependencies);
+
         _sources = sources;
+        _dependencies = dependencies;
     }
 
     public async Task<FileOperationResult> ExecuteAsync(
@@ -330,7 +362,7 @@ public sealed class FileOperationService : IFileOperationService
         state.CompleteItem();
     }
 
-    private static async Task CopyAsync(
+    private async Task CopyAsync(
         FileOperationRequest request,
         IFileOperationConflictResolver conflictResolver,
         OperationState state,
@@ -353,7 +385,8 @@ public sealed class FileOperationService : IFileOperationService
         {
             cancellationToken.ThrowIfCancellationRequested();
             state.WaitIfPaused(cancellationToken);
-            var copyTarget = ResolveDestinationPath(file, request.Options, conflictResolver, state, cancellationToken);
+            var copyTarget = await ResolveDestinationPathAsync(file, request.Options, conflictResolver, state, cancellationToken)
+                .ConfigureAwait(false);
             if (copyTarget.Path.Length == 0)
                 continue;
 
@@ -371,20 +404,20 @@ public sealed class FileOperationService : IFileOperationService
                 continue;
             }
 
-            await CopyFileContentsAsync(
-                    file.SourcePath,
-                    copyTarget.Path,
-                    file.Size,
-                    copyTarget.Action,
-                    copyTarget.ResumeOffset,
+            bool copied = await CopyFileContentsAsync(
+                    file,
+                    copyTarget,
                     request.Options,
+                    conflictResolver,
                     state,
                     cancellationToken)
                 .ConfigureAwait(false);
+            if (!copied)
+                continue;
         }
     }
 
-    private static async Task MoveAsync(
+    private async Task MoveAsync(
         FileOperationRequest request,
         IFileOperationConflictResolver conflictResolver,
         OperationState state,
@@ -589,7 +622,7 @@ public sealed class FileOperationService : IFileOperationService
         }
     }
 
-    private static CopyDestination ResolveDestinationPath(
+    private async Task<CopyDestination> ResolveDestinationPathAsync(
         CopyFilePlanItem file,
         FileOperationOptions options,
         IFileOperationConflictResolver conflictResolver,
@@ -618,9 +651,29 @@ public sealed class FileOperationService : IFileOperationService
 
             if (mode == ConflictDecisionMode.ResumeWithTailValidation)
             {
-                CopyDestination? resumeDestination = TryResolveTailValidatedResume(file, destinationPath, options, state, cancellationToken);
-                if (resumeDestination is not null)
-                    return resumeDestination.Value;
+                while (true)
+                {
+                    CopyDestination? resumeDestination = TryResolveTailValidatedResume(
+                        file,
+                        destinationPath,
+                        options,
+                        state,
+                        cancellationToken,
+                        out CopyResumePlan? sourceReadFailure);
+                    if (resumeDestination is not null)
+                        return resumeDestination.Value;
+
+                    if (sourceReadFailure is null)
+                        break;
+
+                    await WaitForParanoidReadRetryAsync(
+                            file,
+                            destinationPath,
+                            state,
+                            sourceReadFailure.Reason,
+                            cancellationToken)
+                        .ConfigureAwait(false);
+                }
 
                 var decision = conflictResolver.Resolve(BuildConflict(file.SourcePath, destinationPath));
                 mode = decision.Mode;
@@ -707,13 +760,16 @@ public sealed class FileOperationService : IFileOperationService
         }
     }
 
-    private static CopyDestination? TryResolveTailValidatedResume(
+    private CopyDestination? TryResolveTailValidatedResume(
         CopyFilePlanItem file,
         string destinationPath,
         FileOperationOptions options,
         OperationState state,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        out CopyResumePlan? sourceReadFailure)
     {
+        sourceReadFailure = null;
+
         if (!File.Exists(destinationPath) || Directory.Exists(destinationPath))
             return null;
 
@@ -742,9 +798,15 @@ public sealed class FileOperationService : IFileOperationService
             rollbackBytes: null);
 
         var snapshot = new CopyResumeSourceSnapshot(file.Size, file.LastWriteTimeUtc);
-        CopyResumePlan plan = ResumeAnalyzer.Analyze(file.SourcePath, destinationPath, snapshot, cancellationToken);
+        CopyResumePlan plan = _dependencies.AnalyzeResume(file.SourcePath, destinationPath, snapshot, cancellationToken);
         if (plan.Kind != CopyResumePlanKind.CanResume)
         {
+            if (plan.ReadFailureSide == CopyResumeReadFailureSide.Source)
+            {
+                sourceReadFailure = plan;
+                return null;
+            }
+
             state.ReportValidation(
                 file.SourcePath,
                 destinationPath,
@@ -773,84 +835,225 @@ public sealed class FileOperationService : IFileOperationService
             plan.RollbackBytes);
     }
 
-    private static async Task CopyFileContentsAsync(
-        string sourcePath,
+    private async Task WaitForParanoidReadRetryAsync(
+        CopyFilePlanItem file,
         string destinationPath,
-        long size,
-        CopyDestinationAction destinationAction,
-        long resumeOffset,
+        OperationState state,
+        string reason,
+        CancellationToken cancellationToken)
+    {
+        string status = string.IsNullOrWhiteSpace(reason)
+            ? "Source read failed; retrying in 1 minute..."
+            : $"Source read failed; retrying in 1 minute. {reason}";
+        state.ReportValidation(
+            file.SourcePath,
+            destinationPath,
+            file.Size,
+            status,
+            resumeOffset: null,
+            rollbackBytes: null);
+
+        await _dependencies.DelayAsync(ParanoidCopyReadRetryDelay, cancellationToken).ConfigureAwait(false);
+    }
+
+    private async Task<bool> CopyFileContentsAsync(
+        CopyFilePlanItem file,
+        CopyDestination initialTarget,
         FileOperationOptions options,
+        IFileOperationConflictResolver conflictResolver,
         OperationState state,
         CancellationToken cancellationToken)
     {
-        long currentBytes = destinationAction == CopyDestinationAction.ResumeWithTailValidation
-            ? resumeOffset
-            : 0;
-        if (currentBytes > 0)
-            state.AddBytes(currentBytes);
+        bool autoRetryReadFailures = options.DefaultConflictDecision == ConflictDecisionMode.ResumeWithTailValidation;
+        CopyDestination copyTarget = initialTarget;
+        long currentBytes = CurrentBytesForTarget(copyTarget);
+        long accountedCurrentBytes = 0;
+        AccountCurrentBytes(currentBytes);
+        state.Report(file.SourcePath, copyTarget.Path, currentBytes, file.Size);
 
-        state.Report(sourcePath, destinationPath, currentBytes, size);
-
-        var sourceInfo = new FileInfo(sourcePath);
-        FileAttributes sourceAttributes = sourceInfo.Attributes;
-
+        CopyAttemptResult copyResult;
+        while (true)
         {
-            await using var source = new FileStream(
-                sourcePath,
-                FileMode.Open,
-                FileAccess.Read,
-                FileShare.Read,
-                CopyBufferSize,
-                FileOptions.Asynchronous | FileOptions.SequentialScan);
-
-            await using var destination = new FileStream(
-                destinationPath,
-                destinationAction == CopyDestinationAction.Append
-                    ? FileMode.Append
-                    : destinationAction == CopyDestinationAction.ResumeWithTailValidation
-                        ? FileMode.Open
-                        : FileMode.Create,
-                destinationAction == CopyDestinationAction.ResumeWithTailValidation
-                    ? FileAccess.ReadWrite
-                    : FileAccess.Write,
-                FileShare.None,
-                CopyBufferSize,
-                FileOptions.Asynchronous | FileOptions.SequentialScan);
-
-            byte[] buffer = new byte[CopyBufferSize];
-            if (destinationAction == CopyDestinationAction.ResumeWithTailValidation)
+            try
             {
-                destination.SetLength(resumeOffset);
-                source.Seek(resumeOffset, SeekOrigin.Begin);
-                destination.Seek(resumeOffset, SeekOrigin.Begin);
-            }
-
-            while (true)
-            {
-                state.WaitIfPaused(cancellationToken);
-                int read = await source.ReadAsync(buffer.AsMemory(0, buffer.Length), cancellationToken)
+                copyResult = await CopyFileAttemptAsync(
+                        file,
+                        copyTarget,
+                        currentBytes,
+                        autoRetryReadFailures,
+                        AccountCurrentBytes,
+                        state,
+                        cancellationToken)
                     .ConfigureAwait(false);
-                if (read == 0)
-                    break;
+                break;
+            }
+            catch (CopySourceReadException ex) when (autoRetryReadFailures)
+            {
+                await WaitForParanoidReadRetryAsync(
+                        file,
+                        copyTarget.Path,
+                        state,
+                        ex.InnerException?.Message ?? ex.Message,
+                        cancellationToken)
+                    .ConfigureAwait(false);
 
-                await destination.WriteAsync(buffer.AsMemory(0, read), cancellationToken).ConfigureAwait(false);
-                currentBytes += read;
-                state.AddBytes(read);
-                state.Report(sourcePath, destinationPath, currentBytes, size);
+                copyTarget = await ResolveDestinationPathAsync(
+                        file,
+                        options,
+                        conflictResolver,
+                        state,
+                        cancellationToken)
+                    .ConfigureAwait(false);
+                if (copyTarget.Path.Length == 0)
+                    return false;
+
+                currentBytes = CurrentBytesForTarget(copyTarget);
+                AccountCurrentBytes(currentBytes);
+                state.Report(file.SourcePath, copyTarget.Path, currentBytes, file.Size);
             }
         }
 
-        bool preserveMetadata = destinationAction != CopyDestinationAction.Append;
+        bool preserveMetadata = copyTarget.Action != CopyDestinationAction.Append;
         if (preserveMetadata && options.PreserveTimestamps)
-            PreserveFileTimestamps(sourceInfo, destinationPath, state);
+            PreserveFileTimestamps(copyResult.SourceInfo, copyTarget.Path, state);
         if (preserveMetadata && options.PreserveAttributes)
-            File.SetAttributes(destinationPath, sourceAttributes);
+            File.SetAttributes(copyTarget.Path, copyResult.SourceAttributes);
         if (preserveMetadata && options.SecurityMode == FileSecurityMode.CopyAccessControl)
-            TryCopyAccessControl(sourcePath, destinationPath, state);
+            TryCopyAccessControl(file.SourcePath, copyTarget.Path, state);
 
         state.CopiedCount++;
         state.CompleteItem();
+        return true;
+
+        void AccountCurrentBytes(long newCurrentBytes)
+        {
+            long delta = newCurrentBytes - accountedCurrentBytes;
+            if (delta != 0)
+                state.AddBytes(delta);
+            accountedCurrentBytes = newCurrentBytes;
+        }
     }
+
+    private async Task<CopyAttemptResult> CopyFileAttemptAsync(
+        CopyFilePlanItem file,
+        CopyDestination copyTarget,
+        long startOffset,
+        bool wrapSourceReadFailures,
+        Action<long> accountCurrentBytes,
+        OperationState state,
+        CancellationToken cancellationToken)
+    {
+        FileInfo sourceInfo;
+        FileAttributes sourceAttributes;
+        try
+        {
+            sourceInfo = new FileInfo(file.SourcePath);
+            sourceAttributes = sourceInfo.Attributes;
+        }
+        catch (Exception ex) when (wrapSourceReadFailures && IsFileAccessException(ex))
+        {
+            throw new CopySourceReadException(ex);
+        }
+
+        await using Stream source = OpenFileStream(
+            file.SourcePath,
+            FileMode.Open,
+            FileAccess.Read,
+            FileShare.Read,
+            FileOptions.Asynchronous | FileOptions.SequentialScan,
+            wrapSourceReadFailures);
+
+        await using Stream destination = _dependencies.OpenFileStream(
+            copyTarget.Path,
+            copyTarget.Action == CopyDestinationAction.Append
+                ? FileMode.Append
+                : copyTarget.Action == CopyDestinationAction.ResumeWithTailValidation
+                    ? FileMode.Open
+                    : FileMode.Create,
+            copyTarget.Action == CopyDestinationAction.ResumeWithTailValidation
+                ? FileAccess.ReadWrite
+                : FileAccess.Write,
+            FileShare.None,
+            CopyBufferSize,
+            FileOptions.Asynchronous | FileOptions.SequentialScan);
+
+        if (copyTarget.Action == CopyDestinationAction.ResumeWithTailValidation)
+        {
+            destination.SetLength(copyTarget.ResumeOffset);
+            SeekSource(source, copyTarget.ResumeOffset, wrapSourceReadFailures);
+            destination.Seek(copyTarget.ResumeOffset, SeekOrigin.Begin);
+        }
+
+        byte[] buffer = new byte[CopyBufferSize];
+        long currentBytes = startOffset;
+        while (true)
+        {
+            state.WaitIfPaused(cancellationToken);
+            int read = await ReadFromSourceAsync(source, buffer, wrapSourceReadFailures, cancellationToken)
+                .ConfigureAwait(false);
+            if (read == 0)
+                break;
+
+            await destination.WriteAsync(buffer.AsMemory(0, read), cancellationToken).ConfigureAwait(false);
+            currentBytes += read;
+            accountCurrentBytes(currentBytes);
+            state.Report(file.SourcePath, copyTarget.Path, currentBytes, file.Size);
+        }
+
+        return new CopyAttemptResult(sourceInfo, sourceAttributes);
+    }
+
+    private Stream OpenFileStream(
+        string path,
+        FileMode mode,
+        FileAccess access,
+        FileShare share,
+        FileOptions options,
+        bool wrapSourceReadFailures)
+    {
+        try
+        {
+            return _dependencies.OpenFileStream(path, mode, access, share, CopyBufferSize, options);
+        }
+        catch (Exception ex) when (wrapSourceReadFailures && IsFileAccessException(ex))
+        {
+            throw new CopySourceReadException(ex);
+        }
+    }
+
+    private static async Task<int> ReadFromSourceAsync(
+        Stream source,
+        byte[] buffer,
+        bool wrapSourceReadFailures,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            return await source.ReadAsync(buffer.AsMemory(0, buffer.Length), cancellationToken)
+                .ConfigureAwait(false);
+        }
+        catch (Exception ex) when (wrapSourceReadFailures && IsFileAccessException(ex))
+        {
+            throw new CopySourceReadException(ex);
+        }
+    }
+
+    private static void SeekSource(Stream source, long offset, bool wrapSourceReadFailures)
+    {
+        try
+        {
+            source.Seek(offset, SeekOrigin.Begin);
+        }
+        catch (Exception ex) when (wrapSourceReadFailures && IsFileAccessException(ex))
+        {
+            throw new CopySourceReadException(ex);
+        }
+    }
+
+    private static long CurrentBytesForTarget(CopyDestination copyTarget) =>
+        copyTarget.Action == CopyDestinationAction.ResumeWithTailValidation
+            ? copyTarget.ResumeOffset
+            : 0;
 
     private static void CreateDirectoryTarget(
         string destinationPath,
@@ -1111,6 +1314,9 @@ public sealed class FileOperationService : IFileOperationService
         return new CopyResumeSourceSnapshot(source.Length, source.LastWriteTimeUtc);
     }
 
+    private static bool IsFileAccessException(Exception ex) =>
+        ex is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException;
+
     private static bool IsReparsePoint(string path)
     {
         if (!File.Exists(path) && !Directory.Exists(path))
@@ -1260,6 +1466,7 @@ public sealed class FileOperationService : IFileOperationService
             .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
 
     private sealed record CopyFilePlanItem(string SourcePath, string DestinationPath, long Size, DateTime LastWriteTimeUtc);
+    private sealed record CopyAttemptResult(FileInfo SourceInfo, FileAttributes SourceAttributes);
     private sealed record CopyDirectoryPlanItem(string SourcePath, string DestinationPath);
     private enum CopyDestinationAction
     {
@@ -1283,6 +1490,14 @@ public sealed class FileOperationService : IFileOperationService
         long TotalBytes,
         int FileCount,
         int DirectoryCount);
+
+    private sealed class CopySourceReadException : IOException
+    {
+        public CopySourceReadException(Exception innerException)
+            : base(innerException.Message, innerException)
+        {
+        }
+    }
 
     private sealed class OperationState
     {

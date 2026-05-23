@@ -220,6 +220,23 @@ internal sealed class FileOperationDialog
                 continue;
             }
 
+            if (input is MouseConsoleInputEvent bodyMouse &&
+                TryHandleBodyMouse(
+                    bodyMouse,
+                    size,
+                    bodyScrollTop,
+                    conflictModes,
+                    ref focusRow,
+                    ref conflictIndex,
+                    ref securityMode,
+                    ref preserveTimestamps,
+                    ref copySymlinkContents,
+                    ref useFilter))
+            {
+                DrawCurrent();
+                continue;
+            }
+
             if (input is MouseConsoleInputEvent &&
                 buttonBar.TryHandleInput(input, ref focusedButton, out buttonId) &&
                 buttonId is not null)
@@ -420,6 +437,145 @@ internal sealed class FileOperationDialog
             ref bodyScrollbarDrag);
     }
 
+    private static bool TryHandleBodyMouse(
+        MouseConsoleInputEvent mouse,
+        ConsoleSize size,
+        int bodyScrollTop,
+        IReadOnlyList<ConflictDecisionMode> conflictModes,
+        ref int focusRow,
+        ref int conflictIndex,
+        ref FileSecurityMode securityMode,
+        ref bool preserveTimestamps,
+        ref bool copySymlinkContents,
+        ref bool useFilter)
+    {
+        if (mouse.Button != MouseButton.Left ||
+            mouse.Kind is not (MouseEventKind.Down or MouseEventKind.Click))
+        {
+            return false;
+        }
+
+        if (!TryGetBodyMousePosition(size, bodyScrollTop, mouse.X, mouse.Y, out int virtualRow, out int contentColumn))
+            return false;
+
+        switch (virtualRow)
+        {
+            case 1:
+                focusRow = 0;
+                return true;
+            case 3:
+                focusRow = 1;
+                if (TryHitAccessRights(contentColumn, out FileSecurityMode selectedSecurityMode))
+                    securityMode = selectedSecurityMode;
+                return true;
+            case 5:
+                focusRow = 2;
+                return true;
+            case 6:
+                focusRow = 2;
+                if (TryHitConflictMode(contentColumn, conflictModes, startIndex: 0, Math.Min(4, conflictModes.Count), out int topConflictIndex))
+                    conflictIndex = topConflictIndex;
+                return true;
+            case 7:
+                focusRow = 2;
+                if (TryHitConflictMode(contentColumn, conflictModes, startIndex: 4, conflictModes.Count, out int bottomConflictIndex))
+                    conflictIndex = bottomConflictIndex;
+                return true;
+            case 9:
+                focusRow = 3;
+                preserveTimestamps = !preserveTimestamps;
+                return true;
+            case 10:
+                focusRow = 4;
+                copySymlinkContents = !copySymlinkContents;
+                return true;
+            case 12:
+                focusRow = 5;
+                useFilter = !useFilter;
+                return true;
+            case 14:
+                if (!useFilter)
+                    return false;
+                focusRow = 6;
+                return true;
+            default:
+                return false;
+        }
+    }
+
+    private static bool TryGetBodyMousePosition(
+        ConsoleSize size,
+        int bodyScrollTop,
+        int mouseX,
+        int mouseY,
+        out int virtualRow,
+        out int contentColumn)
+    {
+        virtualRow = -1;
+        contentColumn = -1;
+
+        Rect frameBounds = FrameBounds(size);
+        int contentX = frameBounds.X + 2;
+        int contentWidth = Math.Max(1, frameBounds.Width - 4);
+        int buttonY = frameBounds.Y + frameBounds.Height - 2;
+        int errorY = buttonY - 1;
+        int bodyTop = frameBounds.Y + 1;
+        int bodyHeight = Math.Max(1, errorY - bodyTop);
+
+        if (mouseX < contentX || mouseX >= contentX + contentWidth ||
+            mouseY < bodyTop || mouseY >= bodyTop + bodyHeight)
+        {
+            return false;
+        }
+
+        virtualRow = bodyScrollTop + mouseY - bodyTop;
+        contentColumn = mouseX - contentX;
+        return virtualRow >= 0 && virtualRow < BodyRowCount;
+    }
+
+    private static bool TryHitAccessRights(int contentColumn, out FileSecurityMode securityMode)
+    {
+        const string prefix = "Access rights: ";
+        int column = prefix.Length;
+        foreach ((FileSecurityMode mode, string label) in AccessRightLabels())
+        {
+            if (contentColumn >= column && contentColumn < column + label.Length)
+            {
+                securityMode = mode;
+                return true;
+            }
+
+            column += label.Length + 1;
+        }
+
+        securityMode = FileSecurityMode.Default;
+        return false;
+    }
+
+    private static bool TryHitConflictMode(
+        int contentColumn,
+        IReadOnlyList<ConflictDecisionMode> modes,
+        int startIndex,
+        int endIndex,
+        out int conflictIndex)
+    {
+        int column = 0;
+        for (int i = startIndex; i < endIndex; i++)
+        {
+            string label = $"( ) {ConflictLabel(modes[i])}";
+            if (contentColumn >= column && contentColumn < column + label.Length)
+            {
+                conflictIndex = i;
+                return true;
+            }
+
+            column += label.Length + 1;
+        }
+
+        conflictIndex = -1;
+        return false;
+    }
+
     private static FileOperationDialogResult? BuildResult(
         CommandLineState destination,
         CommandLineState filter,
@@ -543,6 +699,13 @@ internal sealed class FileOperationDialog
 
         return 0;
     }
+
+    private static IReadOnlyList<(FileSecurityMode Mode, string Label)> AccessRightLabels() =>
+    [
+        (FileSecurityMode.Default, "( ) Default"),
+        (FileSecurityMode.CopyAccessControl, "( ) Copy"),
+        (FileSecurityMode.Inherit, "( ) Inherit"),
+    ];
 
     private void Draw(
         ConsoleSize size,

@@ -18,48 +18,65 @@ public sealed class CopyResumeAnalyzer
         ArgumentException.ThrowIfNullOrWhiteSpace(sourcePath);
         ArgumentException.ThrowIfNullOrWhiteSpace(destinationPath);
 
-        FileInfo sourceInfo;
-        FileInfo destinationInfo;
+        FileInfo sourceInfo = new(sourcePath);
+        long sourceLength;
         try
         {
-            sourceInfo = new FileInfo(sourcePath);
-            destinationInfo = new FileInfo(destinationPath);
-
-            long sourceLength = sourceInfo.Length;
-            long destinationLength = destinationInfo.Length;
-
-            if (sourceSnapshot is not null &&
-                (sourceSnapshot.Length != sourceLength ||
-                 sourceSnapshot.LastWriteTimeUtc != sourceInfo.LastWriteTimeUtc))
-            {
-                return CopyResumePlan.CannotResume(
-                    sourceLength,
-                    destinationLength,
-                    "Source file changed since the copy plan was built.");
-            }
-
-            if (destinationLength == sourceLength)
-            {
-                return CopyResumePlan.AlreadyComplete(
-                    sourceLength,
-                    destinationLength,
-                    "Destination is already the same length as source.");
-            }
-
-            if (destinationLength > sourceLength)
-            {
-                return CopyResumePlan.CannotResume(
-                    sourceLength,
-                    destinationLength,
-                    "Destination is larger than source.");
-            }
-
-            return AnalyzeRanges(sourcePath, destinationPath, sourceLength, destinationLength, cancellationToken);
+            sourceLength = sourceInfo.Length;
         }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException)
+        catch (Exception ex) when (IsFileAccessException(ex))
         {
-            return CopyResumePlan.CannotResume(0, 0, ex.Message);
+            return CopyResumePlan.CannotResume(0, 0, ex.Message, CopyResumeReadFailureSide.Source);
         }
+
+        FileInfo destinationInfo = new(destinationPath);
+        long destinationLength;
+        try
+        {
+            destinationLength = destinationInfo.Length;
+        }
+        catch (Exception ex) when (IsFileAccessException(ex))
+        {
+            return CopyResumePlan.CannotResume(sourceLength, 0, ex.Message, CopyResumeReadFailureSide.Destination);
+        }
+
+        DateTime sourceLastWriteTimeUtc;
+        try
+        {
+            sourceLastWriteTimeUtc = sourceInfo.LastWriteTimeUtc;
+        }
+        catch (Exception ex) when (IsFileAccessException(ex))
+        {
+            return CopyResumePlan.CannotResume(sourceLength, destinationLength, ex.Message, CopyResumeReadFailureSide.Source);
+        }
+
+        if (sourceSnapshot is not null &&
+            (sourceSnapshot.Length != sourceLength ||
+             sourceSnapshot.LastWriteTimeUtc != sourceLastWriteTimeUtc))
+        {
+            return CopyResumePlan.CannotResume(
+                sourceLength,
+                destinationLength,
+                "Source file changed since the copy plan was built.");
+        }
+
+        if (destinationLength == sourceLength)
+        {
+            return CopyResumePlan.AlreadyComplete(
+                sourceLength,
+                destinationLength,
+                "Destination is already the same length as source.");
+        }
+
+        if (destinationLength > sourceLength)
+        {
+            return CopyResumePlan.CannotResume(
+                sourceLength,
+                destinationLength,
+                "Destination is larger than source.");
+        }
+
+        return AnalyzeRanges(sourcePath, destinationPath, sourceLength, destinationLength, cancellationToken);
     }
 
     private CopyResumePlan AnalyzeRanges(
@@ -79,6 +96,35 @@ public sealed class CopyResumeAnalyzer
                 _options.ComparisonBufferBytes,
                 FileOptions.RandomAccess);
 
+            if (!source.CanSeek)
+            {
+                return CopyResumePlan.CannotResume(
+                    sourceLength,
+                    destinationLength,
+                    "Source stream cannot seek.");
+            }
+
+            return AnalyzeRangesWithSource(source, destinationPath, sourceLength, destinationLength, cancellationToken);
+        }
+        catch (Exception ex) when (IsFileAccessException(ex))
+        {
+            return CopyResumePlan.CannotResume(
+                sourceLength,
+                destinationLength,
+                ex.Message,
+                CopyResumeReadFailureSide.Source);
+        }
+    }
+
+    private CopyResumePlan AnalyzeRangesWithSource(
+        FileStream source,
+        string destinationPath,
+        long sourceLength,
+        long destinationLength,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
             using var destination = new FileStream(
                 destinationPath,
                 FileMode.Open,
@@ -87,12 +133,12 @@ public sealed class CopyResumeAnalyzer
                 _options.ComparisonBufferBytes,
                 FileOptions.RandomAccess);
 
-            if (!source.CanSeek || !destination.CanSeek)
+            if (!destination.CanSeek)
             {
                 return CopyResumePlan.CannotResume(
                     sourceLength,
                     destinationLength,
-                    "Source or destination stream cannot seek.");
+                    "Destination stream cannot seek.");
             }
 
             if (destinationLength == 0)
@@ -100,7 +146,17 @@ public sealed class CopyResumeAnalyzer
 
             long tailLength = Math.Min(_options.InitialTailValidationBytes, destinationLength);
             long tailOffset = destinationLength - tailLength;
-            if (RangesMatch(source, destination, tailOffset, tailLength, cancellationToken))
+            RangeMatchResult tailResult = RangesMatch(source, destination, tailOffset, tailLength, cancellationToken);
+            if (tailResult.ReadFailureSide is { } tailReadFailureSide)
+            {
+                return CopyResumePlan.CannotResume(
+                    sourceLength,
+                    destinationLength,
+                    tailResult.ReadFailureMessage,
+                    tailReadFailureSide);
+            }
+
+            if (tailResult.IsMatch)
             {
                 return CopyResumePlan.CanResume(
                     sourceLength,
@@ -119,7 +175,17 @@ public sealed class CopyResumeAnalyzer
                 if (candidateOffset > 0 && validationLength < _options.MinimumValidationRangeBytes)
                     continue;
 
-                if (RangesMatch(source, destination, candidateOffset, validationLength, cancellationToken))
+                RangeMatchResult candidateResult = RangesMatch(source, destination, candidateOffset, validationLength, cancellationToken);
+                if (candidateResult.ReadFailureSide is { } candidateReadFailureSide)
+                {
+                    return CopyResumePlan.CannotResume(
+                        sourceLength,
+                        destinationLength,
+                        candidateResult.ReadFailureMessage,
+                        candidateReadFailureSide);
+                }
+
+                if (candidateResult.IsMatch)
                 {
                     return CopyResumePlan.CanResume(
                         sourceLength,
@@ -136,9 +202,13 @@ public sealed class CopyResumeAnalyzer
                 destinationLength,
                 "No matching validation range found within rollback limit.");
         }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException)
+        catch (Exception ex) when (IsFileAccessException(ex))
         {
-            return CopyResumePlan.CannotResume(sourceLength, destinationLength, ex.Message);
+            return CopyResumePlan.CannotResume(
+                sourceLength,
+                destinationLength,
+                ex.Message,
+                CopyResumeReadFailureSide.Destination);
         }
     }
 
@@ -150,7 +220,7 @@ public sealed class CopyResumeAnalyzer
             : next;
     }
 
-    private bool RangesMatch(
+    private RangeMatchResult RangesMatch(
         FileStream source,
         FileStream destination,
         long offset,
@@ -158,10 +228,25 @@ public sealed class CopyResumeAnalyzer
         CancellationToken cancellationToken)
     {
         if (length == 0)
-            return true;
+            return RangeMatchResult.Match;
 
-        source.Position = offset;
-        destination.Position = offset;
+        try
+        {
+            source.Position = offset;
+        }
+        catch (Exception ex) when (IsFileAccessException(ex))
+        {
+            return RangeMatchResult.ReadFailure(CopyResumeReadFailureSide.Source, ex.Message);
+        }
+
+        try
+        {
+            destination.Position = offset;
+        }
+        catch (Exception ex) when (IsFileAccessException(ex))
+        {
+            return RangeMatchResult.ReadFailure(CopyResumeReadFailureSide.Destination, ex.Message);
+        }
 
         byte[] sourceBuffer = new byte[_options.ComparisonBufferBytes];
         byte[] destinationBuffer = new byte[_options.ComparisonBufferBytes];
@@ -172,31 +257,81 @@ public sealed class CopyResumeAnalyzer
             cancellationToken.ThrowIfCancellationRequested();
 
             int requested = (int)Math.Min(sourceBuffer.Length, remaining);
-            int sourceRead = ReadExactlyUpTo(source, sourceBuffer, requested);
-            int destinationRead = ReadExactlyUpTo(destination, destinationBuffer, requested);
+            if (!TryReadExactlyUpTo(
+                source,
+                sourceBuffer,
+                requested,
+                out int sourceRead,
+                out string sourceReadError))
+            {
+                return RangeMatchResult.ReadFailure(CopyResumeReadFailureSide.Source, sourceReadError);
+            }
+
+            if (!TryReadExactlyUpTo(
+                destination,
+                destinationBuffer,
+                requested,
+                out int destinationRead,
+                out string destinationReadError))
+            {
+                return RangeMatchResult.ReadFailure(CopyResumeReadFailureSide.Destination, destinationReadError);
+            }
+
             if (sourceRead != requested || destinationRead != requested)
-                return false;
+                return RangeMatchResult.Mismatch;
 
             if (!sourceBuffer.AsSpan(0, requested).SequenceEqual(destinationBuffer.AsSpan(0, requested)))
-                return false;
+                return RangeMatchResult.Mismatch;
 
             remaining -= requested;
         }
 
-        return true;
+        return RangeMatchResult.Match;
     }
 
-    private static int ReadExactlyUpTo(FileStream stream, byte[] buffer, int count)
+    private static bool TryReadExactlyUpTo(
+        FileStream stream,
+        byte[] buffer,
+        int count,
+        out int total,
+        out string error)
     {
-        int total = 0;
-        while (total < count)
-        {
-            int read = stream.Read(buffer, total, count - total);
-            if (read == 0)
-                break;
-            total += read;
-        }
+        total = 0;
+        error = string.Empty;
 
-        return total;
+        try
+        {
+            while (total < count)
+            {
+                int read = stream.Read(buffer, total, count - total);
+                if (read == 0)
+                    break;
+                total += read;
+            }
+
+            return true;
+        }
+        catch (Exception ex) when (IsFileAccessException(ex))
+        {
+            error = ex.Message;
+            return false;
+        }
+    }
+
+    private static bool IsFileAccessException(Exception ex) =>
+        ex is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException;
+
+    private readonly record struct RangeMatchResult(
+        bool IsMatch,
+        CopyResumeReadFailureSide? ReadFailureSide,
+        string ReadFailureMessage)
+    {
+        public static RangeMatchResult Match { get; } = new(true, null, string.Empty);
+        public static RangeMatchResult Mismatch { get; } = new(false, null, string.Empty);
+
+        public static RangeMatchResult ReadFailure(
+            CopyResumeReadFailureSide readFailureSide,
+            string readFailureMessage) =>
+            new(false, readFailureSide, readFailureMessage);
     }
 }

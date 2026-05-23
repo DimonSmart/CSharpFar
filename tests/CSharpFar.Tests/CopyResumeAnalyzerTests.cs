@@ -109,6 +109,18 @@ public sealed class CopyResumeAnalyzerTests : IDisposable
         Assert.Contains("changed", plan.Reason, StringComparison.OrdinalIgnoreCase);
     }
 
+    [Fact]
+    public void CannotResume_ReportsSourceReadFailure_WhenSourceIsMissing()
+    {
+        string source = Path.Combine(_root, "missing.bin");
+        string destination = CreateDeterministicFile("destination.bin", 1024);
+
+        CopyResumePlan plan = new CopyResumeAnalyzer().Analyze(source, destination);
+
+        Assert.Equal(CopyResumePlanKind.CannotResume, plan.Kind);
+        Assert.Equal(CopyResumeReadFailureSide.Source, plan.ReadFailureSide);
+    }
+
     private string CreateDeterministicFile(string name, int length)
     {
         string path = Path.Combine(_root, name);

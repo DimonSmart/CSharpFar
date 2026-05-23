@@ -4,6 +4,13 @@ This registry records reusable UI controls and control-like surfaces in CSharpFa
 Before adding a new control, check this file and extend an existing control when its
 responsibility already matches the requested behavior.
 
+## Baseline control contract
+
+Reusable controls must support mouse interaction by default. A new control should not
+need a separate per-use opt-in for basic mouse behavior such as focusing, selecting,
+toggling, activating, scrolling, or opening a dropdown. If a control cannot receive
+mouse input, document the reason in its registry entry.
+
 ## Single-line text input
 
 Owner: `src/CSharpFar.Ui/SingleLineTextInput.cs`
@@ -175,7 +182,8 @@ Purpose: modal multi-control forms.
 Functions:
 - focus row management;
 - text fields through `SingleLineTextInput`;
-- checkboxes, radio-like option rows, and local combobox-like dropdown rows;
+- mouse focus/selection for text fields, checkboxes, radio-like option rows, and
+  local combobox-like dropdown rows;
 - buttons through `DialogButtonBar`;
 - body scrolling in short consoles for core dialogs.
 

@@ -76,6 +76,23 @@ public sealed class Spec010FileOperationDialogTests
     }
 
     [Fact]
+    public void ShowCopy_MouseSelectsParanoidConflictMode()
+    {
+        var driver = new FakeConsoleDriver(width: 100, height: 30);
+        var screen = new ScreenRenderer(driver);
+        driver.EnqueueInput(new MouseConsoleInputEvent(28, 13, MouseButton.Left, MouseEventKind.Down, MouseKeyModifiers.None));
+        driver.EnqueueKey(Key(ConsoleKey.F10));
+
+        var result = new FileOperationDialog(screen).ShowCopy(
+            [@"C:\source\a.txt"],
+            @"C:\destination",
+            new FileOperationOptions());
+
+        Assert.NotNull(result);
+        Assert.Equal(ConflictDecisionMode.ResumeWithTailValidation, result.Options.DefaultConflictDecision);
+    }
+
+    [Fact]
     public void ShowMove_DoesNotOfferParanoidForMove()
     {
         var driver = new FakeConsoleDriver(width: 100, height: 30);

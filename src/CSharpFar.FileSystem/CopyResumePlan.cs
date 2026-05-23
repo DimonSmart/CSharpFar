@@ -8,6 +8,7 @@ public sealed record CopyResumePlan
     public long SafeResumeOffset { get; init; }
     public long RollbackBytes => Math.Max(0, DestinationLength - SafeResumeOffset);
     public string Reason { get; init; } = string.Empty;
+    public CopyResumeReadFailureSide? ReadFailureSide { get; init; }
 
     public static CopyResumePlan CanResume(long sourceLength, long destinationLength, long safeResumeOffset) =>
         new()
@@ -18,13 +19,18 @@ public sealed record CopyResumePlan
             SafeResumeOffset = safeResumeOffset,
         };
 
-    public static CopyResumePlan CannotResume(long sourceLength, long destinationLength, string reason) =>
+    public static CopyResumePlan CannotResume(
+        long sourceLength,
+        long destinationLength,
+        string reason,
+        CopyResumeReadFailureSide? readFailureSide = null) =>
         new()
         {
             Kind = CopyResumePlanKind.CannotResume,
             SourceLength = sourceLength,
             DestinationLength = destinationLength,
             Reason = reason,
+            ReadFailureSide = readFailureSide,
         };
 
     public static CopyResumePlan AlreadyComplete(long sourceLength, long destinationLength, string reason) =>
