@@ -1960,7 +1960,11 @@ public sealed class Application
 
     private bool InsertPanelCurrentDirectoryIntoCommandLine(FilePanelState state)
     {
-        InsertTextIntoCommandLine(state.CurrentDirectory);
+        // Ensure the inserted directory path ends with a directory separator.
+        string path = state.CurrentDirectory;
+        if (!path.EndsWith(Path.DirectorySeparatorChar.ToString()))
+            path += Path.DirectorySeparatorChar;
+        InsertTextIntoCommandLine(path);
         return true;
     }
 
