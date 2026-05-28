@@ -193,6 +193,22 @@ public sealed class Spec013FunctionKeyBarTests : IDisposable
     }
 
     [Fact]
+    public void Run_ClickPlainFunctionKeyBarF10_WhenQuickViewOpen_Quits()
+    {
+        var fs = CreateFileSystem();
+        var driver = new FakeConsoleDriver(width: 100, height: 14);
+        driver.EnqueueInput(LeftMouse(x: 73, y: 13, MouseEventKind.Down));
+
+        var app = CreateApp(fs, driver);
+        app.QuickView = true;
+
+        app.Run();
+
+        string row = ComposeBottomRow(driver, y: 13, width: 100);
+        Assert.Contains("10Quit", row);
+    }
+
+    [Fact]
     public void Run_ClickControlFunctionKeyBarSortsActivePanel()
     {
         var fs = CreateFileSystem(

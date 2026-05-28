@@ -1117,8 +1117,6 @@ public sealed class Application
             return _menuController.HandleMouse(evt, definition, layout, _active);
         }
 
-        if (_quickView) return false;
-
         if (TryHandleCommandCompletionScrollbarMouse(evt))
             return true;
 
@@ -1139,6 +1137,12 @@ public sealed class Application
         var mode  = inLeft ? _leftViewMode : _rightViewMode;
         var bounds = inLeft ? _leftBounds : _rightBounds;
         int visRows = VisibleRows(side);
+
+        if (_quickView && side != _active)
+        {
+            ClearPanelItemClickOnMousePress(evt);
+            return false;
+        }
 
         if (TryHandlePanelScrollbarMouse(evt, side, state, mode, bounds, visRows))
             return true;

@@ -453,6 +453,44 @@ public sealed class ApplicationNavigationTests : IDisposable
     }
 
     [Fact]
+    public void HandleMouse_LeftClickActivePanel_WhenQuickViewOpen_SelectsItem()
+    {
+        var fs = new FakeFileSystemService();
+        fs.AddDirectory(_tempDir,
+            new FilePanelItem { Name = "first.txt", FullPath = Path.Combine(_tempDir, "first.txt"), IsDirectory = false },
+            new FilePanelItem { Name = "second.txt", FullPath = Path.Combine(_tempDir, "second.txt"), IsDirectory = false });
+
+        var driver = new FakeConsoleDriver(width: 80, height: 12);
+        var app = CreateApp(fs, driver, _tempDir);
+        app.QuickView = true;
+        GetLeftPanel(app).CursorIndex = 0;
+        Render(app);
+
+        Assert.True(HandleMouse(app, LeftMouse(1, 2, MouseEventKind.Down)));
+
+        Assert.Equal(PanelSide.Left, GetActiveSide(app));
+        Assert.Equal(1, GetLeftPanel(app).CursorIndex);
+    }
+
+    [Fact]
+    public void HandleMouse_LeftClickQuickViewPanel_IgnoresClick()
+    {
+        var fs = new FakeFileSystemService();
+        fs.AddDirectory(_tempDir,
+            new FilePanelItem { Name = "first.txt", FullPath = Path.Combine(_tempDir, "first.txt"), IsDirectory = false },
+            new FilePanelItem { Name = "second.txt", FullPath = Path.Combine(_tempDir, "second.txt"), IsDirectory = false });
+
+        var driver = new FakeConsoleDriver(width: 80, height: 12);
+        var app = CreateApp(fs, driver, _tempDir);
+        app.QuickView = true;
+        Render(app);
+
+        Assert.False(HandleMouse(app, LeftMouse(41, 2, MouseEventKind.Down)));
+
+        Assert.Equal(PanelSide.Left, GetActiveSide(app));
+    }
+
+    [Fact]
     public void Run_VisiblePanels_DisablesConsoleScrollback()
     {
         var fs = new FakeFileSystemService();
