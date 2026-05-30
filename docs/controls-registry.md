@@ -87,6 +87,24 @@ Functions:
 Prefer `SingleLineTextHistoryState` for new dialog fields. Keep this renderer for the
 main command line unless the command-line behavior is intentionally refactored.
 
+## Function key bar
+
+Owner: `src/CSharpFar.App/Rendering/FunctionKeyBarRenderer.cs`
+
+Purpose: shared Far-like bottom function-key row.
+
+Functions:
+- fixed `F1` through `F12` slot layout;
+- key-number and label rendering with shared key-bar colors;
+- label fitting within one row;
+- mouse hit testing for activation clicks;
+- key-number to `ConsoleKey.F*` mapping for local command dispatch.
+
+Known reuse points:
+- file panels through `Application`;
+- F3 file viewer through `LargeFileViewer`;
+- built-in text editor through `FileEditor`.
+
 ## Panel quick search input
 
 Owner: `src/CSharpFar.App/Rendering/PanelQuickSearchRenderer.cs`, `Application.PanelQuickSearchState`

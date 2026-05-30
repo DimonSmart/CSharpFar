@@ -141,6 +141,12 @@ internal sealed class FileEditor
                 continue;
             }
 
+            if (input is MouseConsoleInputEvent mouse &&
+                TryGetFunctionKeyBarKey(mouse, size, functionKeyModifiers, out var mouseKey))
+            {
+                input = new KeyConsoleInputEvent(mouseKey);
+            }
+
             if (input is not KeyConsoleInputEvent { Key: var key })
                 continue;
 
@@ -757,6 +763,31 @@ internal sealed class FileEditor
             .Select(binding => new FunctionKeyBarItem(binding.KeyNumber, binding.Label))
             .ToArray();
         new FunctionKeyBarRenderer(_screen, _palette).Render(size.Height - 1, size.Width, items);
+    }
+
+    private static bool TryGetFunctionKeyBarKey(
+        MouseConsoleInputEvent mouse,
+        ConsoleSize size,
+        ConsoleModifiers modifiers,
+        out ConsoleKeyInfo key)
+    {
+        key = default;
+
+        if (!FunctionKeyBarRenderer.TryGetKeyNumberAt(mouse, size.Height - 1, size.Width, out int keyNumber))
+            return false;
+
+        var binding = EditorCommandBindings.ForModifiers(modifiers)
+            .FirstOrDefault(candidate => candidate.KeyNumber == keyNumber);
+        if (binding is null)
+            return false;
+
+        key = new ConsoleKeyInfo(
+            '\0',
+            binding.Key,
+            shift: (binding.Modifiers & ConsoleModifiers.Shift) != 0,
+            alt: (binding.Modifiers & ConsoleModifiers.Alt) != 0,
+            control: (binding.Modifiers & ConsoleModifiers.Control) != 0);
+        return true;
     }
 
     private void DrawTextLine(

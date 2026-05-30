@@ -1,4 +1,5 @@
 using CSharpFar.Console;
+using CSharpFar.Console.Input;
 using CSharpFar.Console.Models;
 using CSharpFar.App.Rendering;
 using CSharpFar.Tests.Fakes;
@@ -186,6 +187,24 @@ public class FunctionKeyBarRendererTests
     public void HitTest_RejectsPositionsOutsideBar(int x)
     {
         Assert.False(FunctionKeyBarRenderer.TryGetKeyNumberAtX(x, totalWidth: 100, out _));
+    }
+
+    [Fact]
+    public void HitTest_MouseRequiresBarRowAndActivationClick()
+    {
+        var mouse = new MouseConsoleInputEvent(90, 24, MouseButton.Left, MouseEventKind.Down, MouseKeyModifiers.None);
+
+        Assert.True(FunctionKeyBarRenderer.TryGetKeyNumberAt(mouse, barY: 24, totalWidth: 120, out int keyNumber));
+        Assert.Equal(10, keyNumber);
+        Assert.False(FunctionKeyBarRenderer.TryGetKeyNumberAt(mouse, barY: 23, totalWidth: 120, out _));
+    }
+
+    [Fact]
+    public void HitTest_MapsKeyNumberToFunctionKey()
+    {
+        Assert.True(FunctionKeyBarRenderer.TryGetFunctionKey(10, out var key));
+        Assert.Equal(ConsoleKey.F10, key);
+        Assert.False(FunctionKeyBarRenderer.TryGetFunctionKey(13, out _));
     }
 
     private static FunctionKeyBarRenderer CreateRenderer(ScreenRenderer screen) => new(screen);

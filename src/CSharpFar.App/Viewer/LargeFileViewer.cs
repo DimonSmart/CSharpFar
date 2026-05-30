@@ -2,6 +2,7 @@ using System.Globalization;
 using CSharpFar.App.Dialogs;
 using CSharpFar.App.Rendering;
 using CSharpFar.Console;
+using CSharpFar.Console.Input;
 using CSharpFar.Console.Models;
 using CSharpFar.Core.Text;
 
@@ -107,8 +108,12 @@ internal sealed class LargeFileViewer
             var size = _screen.GetSize();
             int contentHeight = Math.Max(0, size.Height - 2);
             var view = Draw(filePath, reader, state, contentHeight, size);
+            var functionKeyBarItems = ViewerFunctionKeyBarItems(state);
 
-            var key = ReadViewerKey(reader, state, contentHeight);
+            var input = ReadViewerInput(reader, state, contentHeight);
+            if (!TryGetViewerKey(input, size, functionKeyBarItems, out var key))
+                continue;
+
             if (key.Key == ConsoleKey.NoName)
                 continue;
 
@@ -362,29 +367,57 @@ internal sealed class LargeFileViewer
         return number >= 0;
     }
 
-    private ConsoleKeyInfo ReadViewerKey(
+    private ConsoleInputEvent ReadViewerInput(
         IFileByteReader reader,
         LargeFileViewerState state,
         int contentHeight)
     {
         if (!state.FollowMode)
-            return _screen.ReadKey();
+            return _screen.ReadInput();
 
         long knownLength = reader.Length;
         while (true)
         {
-            if (_screen.TryReadInput(out var inputEvent) && inputEvent is CSharpFar.Console.Input.KeyConsoleInputEvent keyEvent)
-                return keyEvent.Key;
+            if (_screen.TryReadInput(out var inputEvent))
+                return inputEvent;
 
             long currentLength = reader.Length;
             if (currentLength != knownLength)
             {
                 MoveToEnd(reader, state, contentHeight);
-                return new ConsoleKeyInfo('\0', ConsoleKey.NoName, false, false, false);
+                return new KeyConsoleInputEvent(new ConsoleKeyInfo('\0', ConsoleKey.NoName, false, false, false));
             }
 
             Thread.Sleep(FollowPollMs);
         }
+    }
+
+    private static bool TryGetViewerKey(
+        ConsoleInputEvent input,
+        ConsoleSize size,
+        IReadOnlyList<FunctionKeyBarItem> functionKeyBarItems,
+        out ConsoleKeyInfo key)
+    {
+        key = default;
+
+        if (input is KeyConsoleInputEvent keyEvent)
+        {
+            key = keyEvent.Key;
+            return true;
+        }
+
+        if (input is not MouseConsoleInputEvent mouse)
+            return false;
+
+        if (!FunctionKeyBarRenderer.TryGetKeyNumberAt(mouse, size.Height - 1, size.Width, out int keyNumber) ||
+            !functionKeyBarItems.Any(item => item.KeyNumber == keyNumber) ||
+            !FunctionKeyBarRenderer.TryGetFunctionKey(keyNumber, out var functionKey))
+        {
+            return false;
+        }
+
+        key = new ConsoleKeyInfo('\0', functionKey, shift: false, alt: false, control: false);
+        return true;
     }
 
     private LargeFileRenderView Draw(
@@ -606,32 +639,21 @@ internal sealed class LargeFileViewer
 
     private void DrawFooter(ConsoleSize size, LargeFileViewerState state)
     {
-        _screen.FillRegion(new Rect(0, size.Height - 1, size.Width, 1), PaletteStyles.KeyBarLabel(_palette));
-        int y = size.Height - 1;
-        WriteFooterItem(0, y, "1", "Help", size.Width);
-        WriteFooterItem(7, y, "2", state.WrapLines ? "Unwrap" : "Wrap", size.Width);
-        WriteFooterItem(17, y, "4", "Hex", size.Width);
-        WriteFooterItem(23, y, "6", "Edit", size.Width);
-        WriteFooterItem(30, y, "7", "Find", size.Width);
-        WriteFooterItem(37, y, "8", "Enc", size.Width);
-        WriteFooterItem(43, y, "+", "Next", size.Width);
-        WriteFooterItem(50, y, "-", "Prev", size.Width);
-        WriteFooterItem(58, y, "10", "Close", size.Width);
+        new FunctionKeyBarRenderer(_screen, _palette)
+            .Render(size.Height - 1, size.Width, ViewerFunctionKeyBarItems(state));
     }
 
-    private void WriteFooterItem(int x, int y, string key, string text, int width)
-    {
-        if (x >= width)
-            return;
-
-        _screen.Write(x, y, SizeLimited(key, width - x), PaletteStyles.KeyBarNum(_palette));
-        int textX = x + key.Length;
-        if (textX < width)
-            _screen.Write(textX, y, SizeLimited(text, width - textX), PaletteStyles.KeyBarLabel(_palette));
-
-        static string SizeLimited(string text, int maxLength) =>
-            text.Length <= maxLength ? text : text[..Math.Max(0, maxLength)];
-    }
+    private static FunctionKeyBarItem[] ViewerFunctionKeyBarItems(LargeFileViewerState state) =>
+    [
+        new(1, "Help"),
+        new(2, state.WrapLines ? "Unwrap" : "Wrap"),
+        new(3, "Close"),
+        new(4, "Hex"),
+        new(6, "Edit"),
+        new(7, "Find"),
+        new(8, "Enc"),
+        new(10, "Close"),
+    ];
 
     private void MoveUp(LargeFileViewerState state)
     {

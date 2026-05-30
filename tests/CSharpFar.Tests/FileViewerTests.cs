@@ -1,5 +1,6 @@
 using System.Text;
 using CSharpFar.Console;
+using CSharpFar.Console.Input;
 using CSharpFar.App.Viewer;
 using CSharpFar.Core.Text;
 using CSharpFar.Tests.Fakes;
@@ -209,6 +210,58 @@ public class FileViewerTests : IDisposable
         new FileViewer(screen).Show(path);
 
         Assert.Contains("closed by f3", WrittenText(driver));
+    }
+
+    [Fact]
+    public void Show_RendersViewerFunctionKeyBarWithFixedSlots()
+    {
+        string path = Write("viewer-keybar-layout.txt", "text", new UTF8Encoding(false));
+        var driver = new FakeConsoleDriver(width: 120, height: 10);
+        driver.EnqueueKey(Key(ConsoleKey.F10));
+        var screen = new ScreenRenderer(driver);
+
+        new FileViewer(screen).Show(path);
+
+        string row = ComposeRow(driver, y: 9, width: 120);
+        Assert.Equal('1', row[0]);
+        Assert.Equal('2', row[10]);
+        Assert.Equal('3', row[20]);
+        Assert.Equal('4', row[30]);
+        Assert.Equal('6', row[50]);
+        Assert.Equal('7', row[60]);
+        Assert.Equal('8', row[70]);
+        Assert.Equal('1', row[90]);
+        Assert.Equal('0', row[91]);
+        Assert.Contains("1Help", row);
+        Assert.Contains("3Close", row);
+        Assert.Contains("10Close", row);
+    }
+
+    [Fact]
+    public void Show_FunctionKeyBarMouseClickF4TogglesHexMode()
+    {
+        string path = Write("viewer-keybar-mouse-f4.txt", "A B", new UTF8Encoding(false));
+        var driver = new FakeConsoleDriver(width: 120, height: 10);
+        driver.EnqueueInput(LeftMouse(x: 30, y: 9));
+        driver.EnqueueKey(Key(ConsoleKey.F10));
+        var screen = new ScreenRenderer(driver);
+
+        new FileViewer(screen).Show(path);
+
+        Assert.Contains("HEX", WrittenText(driver));
+    }
+
+    [Fact]
+    public void Show_FunctionKeyBarMouseClickF10ClosesViewer()
+    {
+        string path = Write("viewer-keybar-mouse-f10.txt", "text", new UTF8Encoding(false));
+        var driver = new FakeConsoleDriver(width: 120, height: 10);
+        driver.EnqueueInput(LeftMouse(x: 90, y: 9));
+        var screen = new ScreenRenderer(driver);
+
+        new FileViewer(screen).Show(path);
+
+        Assert.Contains("10Close", ComposeRow(driver, y: 9, width: 120));
     }
 
     [Fact]
@@ -589,6 +642,9 @@ public class FileViewerTests : IDisposable
         bool control = false) =>
         new(keyChar, key, shift, alt, control);
 
+    private static MouseConsoleInputEvent LeftMouse(int x, int y) =>
+        new(x, y, MouseButton.Left, MouseEventKind.Down, MouseKeyModifiers.None);
+
     private static void EnqueueText(FakeConsoleDriver driver, string text)
     {
         foreach (char ch in text)
@@ -597,6 +653,18 @@ public class FileViewerTests : IDisposable
 
     private static string WrittenText(FakeConsoleDriver driver) =>
         string.Concat(driver.WriteRecords.Select(record => record.Text));
+
+    private static string ComposeRow(FakeConsoleDriver driver, int y, int width)
+    {
+        var row = Enumerable.Repeat(' ', width).ToArray();
+        foreach (var record in driver.WriteRecords.Where(record => record.Y == y))
+        {
+            for (int i = 0; i < record.Text.Length && record.X + i < width; i++)
+                row[record.X + i] = record.Text[i];
+        }
+
+        return new string(row);
+    }
 
     private sealed class FakeTextClipboard : CSharpFar.Core.Abstractions.ITextClipboard
     {

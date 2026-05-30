@@ -1234,8 +1234,7 @@ public sealed class Application
         }
 
         var size = LastRenderSizeOrCurrent();
-        if (evt.Y != size.Height - 1 ||
-            !FunctionKeyBarRenderer.TryGetKeyNumberAtX(evt.X, size.Width, out int keyNumber))
+        if (!FunctionKeyBarRenderer.TryGetKeyNumberAt(evt, size.Height - 1, size.Width, out int keyNumber))
         {
             return false;
         }

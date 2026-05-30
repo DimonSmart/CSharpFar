@@ -86,6 +86,23 @@ public sealed class FileEditorTests : IDisposable
     }
 
     [Fact]
+    public void Show_FunctionKeyBarMouseClickSavesAndClosesEditor()
+    {
+        string filePath = Path.Combine(_tempDir, "mouse-keybar.txt");
+        File.WriteAllText(filePath, "abc");
+
+        var driver = new FakeConsoleDriver(width: 120, height: 25);
+        driver.EnqueueKey(new ConsoleKeyInfo('X', ConsoleKey.X, shift: false, alt: false, control: false));
+        driver.EnqueueInput(LeftMouse(x: 10, y: 24));
+        driver.EnqueueInput(LeftMouse(x: 90, y: 24));
+
+        ShowFileEditor(new ScreenRenderer(driver), filePath);
+
+        Assert.Equal("Xabc", File.ReadAllText(filePath));
+        Assert.Contains("10Close", ComposeRow(driver, y: 24, width: 120));
+    }
+
+    [Fact]
     public void Show_F3MarkAndF6Move_CutSelectedText()
     {
         string filePath = Path.Combine(_tempDir, "mark-move.txt");
@@ -785,6 +802,21 @@ public sealed class FileEditorTests : IDisposable
             fileNameInsertionContext,
             syntaxHighlighter);
         editor.Show(filePath);
+    }
+
+    private static MouseConsoleInputEvent LeftMouse(int x, int y) =>
+        new(x, y, MouseButton.Left, MouseEventKind.Down, MouseKeyModifiers.None);
+
+    private static string ComposeRow(FakeConsoleDriver driver, int y, int width)
+    {
+        var row = Enumerable.Repeat(' ', width).ToArray();
+        foreach (var record in driver.WriteRecords.Where(record => record.Y == y))
+        {
+            for (int i = 0; i < record.Text.Length && record.X + i < width; i++)
+                row[record.X + i] = record.Text[i];
+        }
+
+        return new string(row);
     }
 
     private sealed class FakeTextClipboard : ITextClipboard

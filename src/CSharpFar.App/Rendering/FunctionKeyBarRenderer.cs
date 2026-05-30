@@ -1,4 +1,5 @@
 using CSharpFar.Console;
+using CSharpFar.Console.Input;
 using CSharpFar.Console.Models;
 
 namespace CSharpFar.App.Rendering;
@@ -77,6 +78,45 @@ internal sealed class FunctionKeyBarRenderer
 
         keyNumber = Math.Min(x / slotWidth + 1, FunctionKeyCount);
         return true;
+    }
+
+    public static bool TryGetKeyNumberAt(
+        MouseConsoleInputEvent mouse,
+        int barY,
+        int totalWidth,
+        out int keyNumber)
+    {
+        keyNumber = 0;
+
+        if (mouse.Button != MouseButton.Left ||
+            mouse.Kind is not (MouseEventKind.Down or MouseEventKind.Click) ||
+            mouse.Y != barY)
+        {
+            return false;
+        }
+
+        return TryGetKeyNumberAtX(mouse.X, totalWidth, out keyNumber);
+    }
+
+    public static bool TryGetFunctionKey(int keyNumber, out ConsoleKey key)
+    {
+        key = keyNumber switch
+        {
+            1 => ConsoleKey.F1,
+            2 => ConsoleKey.F2,
+            3 => ConsoleKey.F3,
+            4 => ConsoleKey.F4,
+            5 => ConsoleKey.F5,
+            6 => ConsoleKey.F6,
+            7 => ConsoleKey.F7,
+            8 => ConsoleKey.F8,
+            9 => ConsoleKey.F9,
+            10 => ConsoleKey.F10,
+            11 => ConsoleKey.F11,
+            12 => ConsoleKey.F12,
+            _ => default,
+        };
+        return keyNumber is >= 1 and <= FunctionKeyCount;
     }
 
     private static string FitLabel(string label, int width)
