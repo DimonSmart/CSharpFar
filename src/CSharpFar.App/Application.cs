@@ -1,5 +1,6 @@
 using CSharpFar.App.Dialogs;
 using CSharpFar.App.Commands;
+using CSharpFar.App.DirectoryShortcuts;
 using CSharpFar.App.FunctionKeys;
 using CSharpFar.App.HitTesting;
 using CSharpFar.App.Menu;
@@ -610,6 +611,10 @@ public sealed class Application
                 panelRenderer.Render(rightBounds, _right, _active == PanelSide.Right, _rightViewMode);
         }
 
+        if (HasVisiblePanels)
+            new DirectoryShortcutBarRenderer(_screen, _palette)
+                .Render(panelH - 1, size.Width, _settings.DirectoryShortcuts);
+
         if (IsPanelVisible(PanelSide.Right))
             RenderClock(size);
 
@@ -904,6 +909,8 @@ public sealed class Application
 
     private bool HasVisiblePanels => _hiddenPanels != HiddenPanels.Both;
 
+    internal bool CommandHasVisiblePanels => HasVisiblePanels;
+
     private bool IsPanelVisible(PanelSide side) =>
         (_hiddenPanels & HiddenPanelFlag(side)) == 0;
 
@@ -1106,6 +1113,9 @@ public sealed class Application
         if (!HasVisiblePanels)
             return false;
 
+        if (TryHandleDirectoryShortcutBarMouse(evt))
+            return true;
+
         if (_menuState.OpenState != MenuOpenState.Closed || IsTopMenuActivationMouse(evt))
         {
             var definition = BuildMenuDefinition();
@@ -1245,6 +1255,24 @@ public sealed class Application
             CanExecuteFunctionKeyCommand(candidate.CommandId));
 
         return binding is not null && ExecuteRegisteredCommand(binding.CommandId);
+    }
+
+    private bool TryHandleDirectoryShortcutBarMouse(MouseConsoleInputEvent evt)
+    {
+        var size = LastRenderSizeOrCurrent();
+        if (!DirectoryShortcutBarRenderer.TryGetShortcutNumberAt(
+                evt,
+                PanelHeight(size) - 1,
+                size.Width,
+                _settings.DirectoryShortcuts,
+                out int number))
+        {
+            return false;
+        }
+
+        return ExecuteRegisteredCommand(
+            DirectoryShortcutCommandIds.Navigate,
+            new NavigateToDirectoryShortcutArgs(number));
     }
 
     private bool TryHandleCommandLineMouse(MouseConsoleInputEvent evt)
@@ -1397,6 +1425,9 @@ public sealed class Application
             return HandleHiddenCommandLineKey(key);
 
         if (TryHandleFarNetPanelShortcut(key))
+            return true;
+
+        if (TryHandleDirectoryShortcut(key))
             return true;
 
         // Ctrl+S: settings dialog
@@ -1606,6 +1637,38 @@ public sealed class Application
         }
 
         return false;
+    }
+
+    private bool TryHandleDirectoryShortcut(ConsoleKeyInfo key)
+    {
+        // ConsoleKeyInfo does not preserve left/right Ctrl identity. The Win32
+        // input layer can distinguish it, but the logical key contract cannot.
+        // Keep this as Ctrl+number until that contract carries the side.
+        if ((key.Modifiers & ConsoleModifiers.Control) == 0 ||
+            (key.Modifiers & (ConsoleModifiers.Alt | ConsoleModifiers.Shift)) != 0)
+        {
+            return false;
+        }
+
+        int? number = key.Key switch
+        {
+            ConsoleKey.D0 or ConsoleKey.NumPad0 => 0,
+            ConsoleKey.D1 or ConsoleKey.NumPad1 => 1,
+            ConsoleKey.D2 or ConsoleKey.NumPad2 => 2,
+            ConsoleKey.D3 or ConsoleKey.NumPad3 => 3,
+            ConsoleKey.D4 or ConsoleKey.NumPad4 => 4,
+            ConsoleKey.D5 or ConsoleKey.NumPad5 => 5,
+            ConsoleKey.D6 or ConsoleKey.NumPad6 => 6,
+            ConsoleKey.D7 or ConsoleKey.NumPad7 => 7,
+            ConsoleKey.D8 or ConsoleKey.NumPad8 => 8,
+            ConsoleKey.D9 or ConsoleKey.NumPad9 => 9,
+            _ => null,
+        };
+
+        return number is not null &&
+            ExecuteRegisteredCommand(
+                DirectoryShortcutCommandIds.Navigate,
+                new NavigateToDirectoryShortcutArgs(number.Value));
     }
 
     private bool TryHandleCommandLineNavigationKey(ConsoleKeyInfo key, bool forceCommandLine)
@@ -2318,6 +2381,13 @@ public sealed class Application
     internal void ResetCommandHistoryNavigation()
     {
         _commandHistoryNavigationIndex = null;
+    }
+
+    internal void ResetTransientNavigationUi()
+    {
+        ClosePanelQuickSearch();
+        HideCommandCompletion(temporarily: false);
+        ResetCommandHistoryNavigation();
     }
 
     private void MovePanelColumn(int direction)

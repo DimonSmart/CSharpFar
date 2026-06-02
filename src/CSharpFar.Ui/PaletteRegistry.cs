@@ -35,6 +35,7 @@ public static class PaletteRegistry
         CommandLineFg         = ConsoleColor.White,
         CommandLineBg         = ConsoleColor.Black,
         FunctionKeyBarBg      = ConsoleColor.Green,
+        DirectoryShortcutBarBg = ConsoleColor.DarkCyan,
     };
 
     public static IReadOnlyList<ConsolePalette> All { get; } =

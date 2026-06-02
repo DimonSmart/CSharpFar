@@ -35,6 +35,8 @@ internal static class DefaultApplicationCommands
         new PanelRefreshCommand(),
         new ModuleOpenCommand(),
         new OpenSettingsCommand(),
+        new OpenDirectoryShortcutEditorCommand(),
+        new NavigateToDirectoryShortcutCommand(),
         new ToggleShowHiddenAndSystemFilesCommand(),
         new ToggleHighlightFilesCommand(),
         new ToggleSelectFoldersCommand(),

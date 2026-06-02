@@ -49,6 +49,12 @@ public static class PaletteStyles
     public static CellStyle KeyBarLabel(ConsolePalette palette) =>
         new(palette.FunctionKeyTextFg, palette.FunctionKeyBarBg);
 
+    public static CellStyle DirectoryShortcutBarNumber(ConsolePalette palette) =>
+        new(palette.DirectoryShortcutBarNumberFg, palette.DirectoryShortcutBarBg);
+
+    public static CellStyle DirectoryShortcutBarLabel(ConsolePalette palette) =>
+        new(palette.DirectoryShortcutBarTextFg, palette.DirectoryShortcutBarBg);
+
     public static CellStyle HelpBody(ConsolePalette palette) =>
         new(palette.HelpBodyFg, palette.HelpBodyBg);
 

@@ -1,4 +1,5 @@
 using CSharpFar.App.Settings;
+using CSharpFar.Core.Models;
 
 namespace CSharpFar.Tests;
 
@@ -79,6 +80,27 @@ public class JsonSettingsStoreTests : IDisposable
         Assert.False(store2.Settings.Panels.Options.ShowHiddenAndSystemFiles);
         Assert.Equal(@"C:\Projects", store2.Settings.Panels.LeftStartDirectory);
         Assert.False(store2.Settings.FileOperations.PreserveAttributes);
+    }
+
+    [Fact]
+    public void SaveAndReload_PreservesDirectoryShortcuts()
+    {
+        string configDir = Path.Combine(_tempDir, "directory-shortcuts");
+        var store = new JsonSettingsStore(configDir);
+        store.Settings.DirectoryShortcuts.Items.Add(new AppSettings.DirectoryShortcutItem
+        {
+            Number = 4,
+            Name = "Work",
+            Path = @"C:\Work",
+        });
+
+        store.Save();
+
+        var store2 = new JsonSettingsStore(configDir);
+        var item = Assert.Single(store2.Settings.DirectoryShortcuts.Items);
+        Assert.Equal(4, item.Number);
+        Assert.Equal("Work", item.Name);
+        Assert.Equal(@"C:\Work", item.Path);
     }
 
     [Fact]

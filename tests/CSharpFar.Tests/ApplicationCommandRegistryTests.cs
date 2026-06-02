@@ -2,6 +2,7 @@ using System.Reflection;
 using CSharpFar.App;
 using CSharpFar.App.Commands;
 using CSharpFar.App.FunctionKeys;
+using CSharpFar.App.DirectoryShortcuts;
 using CSharpFar.App.Rendering;
 using CSharpFar.Console;
 using CSharpFar.Core.Abstractions;
@@ -41,6 +42,7 @@ public sealed class ApplicationCommandRegistryTests : IDisposable
             Assert.Contains(commandId, commandIds);
 
         Assert.Contains(ApplicationCommandIds.OpenCurrentItem, commandIds);
+        Assert.Contains(DirectoryShortcutCommandIds.Navigate, commandIds);
     }
 
     [Theory]

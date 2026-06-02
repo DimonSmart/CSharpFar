@@ -101,6 +101,8 @@ internal sealed class ApplicationCommandContext
 
     public bool CanSaveSettings => _application.CanSaveSettings;
 
+    public bool HasVisiblePanels => _application.CommandHasVisiblePanels;
+
     public void SaveSettings() => _application.SaveSettings();
 
     public int VisibleRows() => _application.VisibleRows();
@@ -186,6 +188,9 @@ internal sealed class ApplicationCommandContext
 
     public void ResetCommandHistoryNavigation() =>
         _application.ResetCommandHistoryNavigation();
+
+    public void ResetTransientNavigationUi() =>
+        _application.ResetTransientNavigationUi();
 
     public bool TogglePanelVisibility(PanelSide side) =>
         _application.TogglePanelVisibility(side);

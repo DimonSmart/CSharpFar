@@ -10,6 +10,7 @@ public sealed class AppSettings
     public FileOperationSettings FileOperations { get; set; } = new();
     public HistorySettings History { get; set; } = new();
     public EditorSettings  Editor  { get; set; } = new();
+    public DirectoryShortcutSettings DirectoryShortcuts { get; set; } = new();
 
     public sealed class UiSettings
     {
@@ -104,5 +105,17 @@ public sealed class AppSettings
         public bool SyntaxFallbackToPlainText { get; set; } = true;
         public string? SyntaxUserGrammarsPath { get; set; }
         public string? SyntaxUserThemesPath { get; set; }
+    }
+
+    public sealed class DirectoryShortcutSettings
+    {
+        public List<DirectoryShortcutItem> Items { get; set; } = [];
+    }
+
+    public sealed class DirectoryShortcutItem
+    {
+        public int Number { get; set; }
+        public string Name { get; set; } = "";
+        public string Path { get; set; } = "";
     }
 }
