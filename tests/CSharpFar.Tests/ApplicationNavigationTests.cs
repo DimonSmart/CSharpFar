@@ -592,6 +592,121 @@ public sealed class ApplicationNavigationTests : IDisposable
         Assert.StartsWith("COMMAND-OUTPUT", driver.GetRow(0));
     }
 
+    [Fact]
+    public void ExecuteCommand_CdExistingSubFolder_LoadsActivePanelWithoutShell()
+    {
+        string child = Directory.CreateDirectory(Path.Combine(_tempDir, "child")).FullName;
+        var fs = new FakeFileSystemService();
+        fs.AddDirectory(_tempDir);
+        fs.AddDirectory(child);
+
+        var shell = new RecordingShellService();
+        var app = CreateApp(fs, new FakeConsoleDriver(width: 80, height: 12), _tempDir, shell);
+
+        app.ExecuteCommand("cd child");
+
+        Assert.Equal(child, GetLeftPanel(app).CurrentDirectory);
+        Assert.Empty(shell.Commands);
+    }
+
+    [Fact]
+    public void ExecuteCommand_CdParent_LoadsParentDirectoryWithoutShell()
+    {
+        string child = Directory.CreateDirectory(Path.Combine(_tempDir, "child")).FullName;
+        var fs = new FakeFileSystemService();
+        fs.AddDirectory(_tempDir);
+        fs.AddDirectory(child);
+
+        var shell = new RecordingShellService();
+        var app = CreateApp(fs, new FakeConsoleDriver(width: 80, height: 12), child, shell);
+
+        app.ExecuteCommand("cd ..");
+
+        Assert.Equal(_tempDir, GetLeftPanel(app).CurrentDirectory);
+        Assert.Empty(shell.Commands);
+    }
+
+    [Fact]
+    public void ExecuteCommand_CdQuotedFolderWithSpaces_LoadsActivePanelWithoutShell()
+    {
+        string child = Directory.CreateDirectory(Path.Combine(_tempDir, "folder with spaces")).FullName;
+        var fs = new FakeFileSystemService();
+        fs.AddDirectory(_tempDir);
+        fs.AddDirectory(child);
+
+        var shell = new RecordingShellService();
+        var app = CreateApp(fs, new FakeConsoleDriver(width: 80, height: 12), _tempDir, shell);
+
+        app.ExecuteCommand(@"cd ""folder with spaces""");
+
+        Assert.Equal(child, GetLeftPanel(app).CurrentDirectory);
+        Assert.Empty(shell.Commands);
+    }
+
+    [Fact]
+    public void ExecuteCommand_CdWithDriveSwitch_LoadsActivePanelWithoutShell()
+    {
+        string child = Directory.CreateDirectory(Path.Combine(_tempDir, "child")).FullName;
+        var fs = new FakeFileSystemService();
+        fs.AddDirectory(_tempDir);
+        fs.AddDirectory(child);
+
+        var shell = new RecordingShellService();
+        var app = CreateApp(fs, new FakeConsoleDriver(width: 80, height: 12), _tempDir, shell);
+
+        app.ExecuteCommand($@"cd /d ""{child}""");
+
+        Assert.Equal(child, GetLeftPanel(app).CurrentDirectory);
+        Assert.Empty(shell.Commands);
+    }
+
+    [Fact]
+    public void ExecuteCommand_ChdirExistingSubFolder_LoadsActivePanelWithoutShell()
+    {
+        string child = Directory.CreateDirectory(Path.Combine(_tempDir, "child")).FullName;
+        var fs = new FakeFileSystemService();
+        fs.AddDirectory(_tempDir);
+        fs.AddDirectory(child);
+
+        var shell = new RecordingShellService();
+        var app = CreateApp(fs, new FakeConsoleDriver(width: 80, height: 12), _tempDir, shell);
+
+        app.ExecuteCommand("chdir child");
+
+        Assert.Equal(child, GetLeftPanel(app).CurrentDirectory);
+        Assert.Empty(shell.Commands);
+    }
+
+    [Fact]
+    public void ExecuteCommand_Dir_RunsShellAndLeavesActivePanel()
+    {
+        var fs = new FakeFileSystemService();
+        fs.AddDirectory(_tempDir);
+
+        var shell = new RecordingShellService();
+        var app = CreateApp(fs, new FakeConsoleDriver(width: 80, height: 12), _tempDir, shell);
+
+        app.ExecuteCommand("dir");
+
+        Assert.Equal(_tempDir, GetLeftPanel(app).CurrentDirectory);
+        Assert.Equal([("dir", _tempDir)], shell.Commands);
+    }
+
+    [Fact]
+    public void ExecuteCommand_CdMissingFolder_LeavesActivePanelWithoutShell()
+    {
+        var fs = new FakeFileSystemService();
+        fs.AddDirectory(_tempDir);
+
+        var shell = new RecordingShellService();
+        var app = CreateApp(fs, new FakeConsoleDriver(width: 80, height: 12), _tempDir, shell);
+
+        app.ExecuteCommand("cd missing");
+
+        Assert.Equal(_tempDir, GetLeftPanel(app).CurrentDirectory);
+        Assert.Empty(shell.Commands);
+    }
+
     [Theory]
     [InlineData(1, 1)]
     [InlineData(2, 3)]
@@ -609,7 +724,11 @@ public sealed class ApplicationNavigationTests : IDisposable
         app.Run();
     }
 
-    private Application CreateApp(FakeFileSystemService fs, FakeConsoleDriver driver, string startDirectory)
+    private Application CreateApp(
+        FakeFileSystemService fs,
+        FakeConsoleDriver driver,
+        string startDirectory,
+        IShellService? shell = null)
     {
         var settings = new AppSettings();
         settings.Panels.LeftStartDirectory = startDirectory;
@@ -618,7 +737,7 @@ public sealed class ApplicationNavigationTests : IDisposable
         return new Application(
             new ScreenRenderer(driver),
             fs,
-            new NoOpShellService(),
+            shell ?? new NoOpShellService(),
             new NoOpFileOperationService(),
             new InMemoryHistoryStore(),
             settings);
@@ -720,6 +839,14 @@ public sealed class ApplicationNavigationTests : IDisposable
     private sealed class NoOpShellService : IShellService
     {
         public void Execute(string command, string workingDirectory) { }
+    }
+
+    private sealed class RecordingShellService : IShellService
+    {
+        public List<(string Command, string WorkingDirectory)> Commands { get; } = [];
+
+        public void Execute(string command, string workingDirectory) =>
+            Commands.Add((command, workingDirectory));
     }
 
     private sealed class NoOpFileOperationService : IFileOperationService

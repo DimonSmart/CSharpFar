@@ -2740,6 +2740,12 @@ public sealed class Application
             return;
         }
 
+        if (TryExecuteChangeDirectoryCommand(command))
+        {
+            AddCommandHistory(command, workDir);
+            return;
+        }
+
         ExecuteInCurrentConsole(workDir, command, () => _shell.Execute(command, workDir));
 
         AddCommandHistory(command, workDir);
@@ -2753,6 +2759,118 @@ public sealed class Application
             WorkingDirectory = workingDirectory,
         });
     }
+
+    private bool TryExecuteChangeDirectoryCommand(string command)
+    {
+        if (!TryParseChangeDirectoryTarget(command, out string? rawTarget))
+            return false;
+
+        var state = ActiveState;
+        if (state.SourceId != PanelSourceId.Local)
+            return true;
+
+        string targetDirectory;
+        try
+        {
+            targetDirectory = Path.GetFullPath(rawTarget, state.CurrentDirectory);
+            if (!Directory.Exists(targetDirectory))
+                return true;
+        }
+        catch (Exception ex) when (IsChangeDirectoryException(ex))
+        {
+            return true;
+        }
+
+        if (string.Equals(
+            Path.GetFullPath(state.CurrentDirectory),
+            targetDirectory,
+            StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        try
+        {
+            if (_ctrl.TryLoadDirectory(state, targetDirectory, PanelOptions))
+                StartWatching(state, _active);
+        }
+        catch (Exception ex) when (IsChangeDirectoryException(ex))
+        {
+        }
+
+        return true;
+    }
+
+    private static bool TryParseChangeDirectoryTarget(string command, out string target)
+    {
+        target = string.Empty;
+
+        string trimmed = command.Trim();
+        int commandLength = ReadCommandWordLength(trimmed);
+        if (commandLength == 0)
+            return false;
+
+        string commandName = trimmed[..commandLength];
+        if (!string.Equals(commandName, "cd", StringComparison.OrdinalIgnoreCase) &&
+            !string.Equals(commandName, "chdir", StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        string rest = trimmed[commandLength..].TrimStart();
+        if (rest.StartsWith("/d", StringComparison.OrdinalIgnoreCase) &&
+            (rest.Length == 2 || char.IsWhiteSpace(rest[2])))
+        {
+            rest = rest[2..].TrimStart();
+        }
+
+        if (rest.Length == 0 || ContainsShellCommandSeparator(rest))
+            return false;
+
+        target = UnquoteChangeDirectoryTarget(rest);
+        return target.Length > 0;
+    }
+
+    private static int ReadCommandWordLength(string command)
+    {
+        int index = 0;
+        while (index < command.Length && !char.IsWhiteSpace(command[index]))
+            index++;
+        return index;
+    }
+
+    private static bool ContainsShellCommandSeparator(string text)
+    {
+        bool inQuotes = false;
+        foreach (char ch in text)
+        {
+            if (ch == '"')
+            {
+                inQuotes = !inQuotes;
+                continue;
+            }
+
+            if (!inQuotes && ch is '&' or '|' or '<' or '>')
+                return true;
+        }
+
+        return false;
+    }
+
+    private static string UnquoteChangeDirectoryTarget(string target)
+    {
+        string trimmed = target.Trim();
+        return trimmed.Length >= 2 && trimmed[0] == '"' && trimmed[^1] == '"'
+            ? trimmed[1..^1]
+            : trimmed;
+    }
+
+    private static bool IsChangeDirectoryException(Exception exception) =>
+        exception is UnauthorizedAccessException
+            or IOException
+            or ArgumentException
+            or NotSupportedException
+            or DirectoryNotFoundException;
 
     internal void ExecuteInCurrentConsole(string workDir, string displayCommand, Action execute)
     {
