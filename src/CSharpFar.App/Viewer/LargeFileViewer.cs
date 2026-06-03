@@ -111,6 +111,9 @@ internal sealed class LargeFileViewer
             var functionKeyBarItems = ViewerFunctionKeyBarItems(state);
 
             var input = ReadViewerInput(reader, state, contentHeight);
+            if (TryHandleMouseWheel(input, reader, state, view))
+                continue;
+
             if (!TryGetViewerKey(input, size, functionKeyBarItems, out var key))
                 continue;
 
@@ -418,6 +421,33 @@ internal sealed class LargeFileViewer
 
         key = new ConsoleKeyInfo('\0', functionKey, shift: false, alt: false, control: false);
         return true;
+    }
+
+    private bool TryHandleMouseWheel(
+        ConsoleInputEvent input,
+        IFileByteReader reader,
+        LargeFileViewerState state,
+        LargeFileRenderView view)
+    {
+        if (input is not MouseConsoleInputEvent { Kind: MouseEventKind.Wheel } mouse)
+            return false;
+
+        const int wheelLines = 3;
+        if (mouse.Button == MouseButton.WheelUp)
+        {
+            for (int i = 0; i < wheelLines; i++)
+                MoveUp(state);
+            return true;
+        }
+
+        if (mouse.Button == MouseButton.WheelDown)
+        {
+            for (int i = 0; i < wheelLines; i++)
+                MoveDown(reader, state, view);
+            return true;
+        }
+
+        return false;
     }
 
     private LargeFileRenderView Draw(

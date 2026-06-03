@@ -141,6 +141,9 @@ internal sealed class FileEditor
                 continue;
             }
 
+            if (TryHandleMouseWheel(input, session))
+                continue;
+
             if (input is MouseConsoleInputEvent mouse &&
                 TryGetFunctionKeyBarKey(mouse, size, functionKeyModifiers, out var mouseKey))
             {
@@ -174,6 +177,27 @@ internal sealed class FileEditor
                     return;
             }
         }
+    }
+
+    private static bool TryHandleMouseWheel(ConsoleInputEvent input, EditorSession session)
+    {
+        if (input is not MouseConsoleInputEvent { Kind: MouseEventKind.Wheel } mouse)
+            return false;
+
+        const int wheelLines = 3;
+        if (mouse.Button == MouseButton.WheelUp)
+        {
+            session.MoveUp(wheelLines);
+            return true;
+        }
+
+        if (mouse.Button == MouseButton.WheelDown)
+        {
+            session.MoveDown(wheelLines);
+            return true;
+        }
+
+        return false;
     }
 
     private ConsoleInputEvent ReadInput(

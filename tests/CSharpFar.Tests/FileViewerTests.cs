@@ -265,6 +265,20 @@ public class FileViewerTests : IDisposable
     }
 
     [Fact]
+    public void Show_MouseWheelScrollsTextDown()
+    {
+        string path = Write("viewer-wheel.txt", string.Join('\n', Enumerable.Range(1, 12).Select(i => $"line{i}")), new UTF8Encoding(false));
+        var driver = new FakeConsoleDriver(width: 80, height: 8);
+        driver.EnqueueInput(MouseWheelDown());
+        driver.EnqueueKey(Key(ConsoleKey.F10));
+        var screen = new ScreenRenderer(driver);
+
+        new FileViewer(screen).Show(path);
+
+        Assert.Contains("line4", WrittenText(driver));
+    }
+
+    [Fact]
     public void Show_F4TogglesToHexMode()
     {
         string path = Write("f4-toggle.txt", "ABC", new UTF8Encoding(false));
@@ -644,6 +658,9 @@ public class FileViewerTests : IDisposable
 
     private static MouseConsoleInputEvent LeftMouse(int x, int y) =>
         new(x, y, MouseButton.Left, MouseEventKind.Down, MouseKeyModifiers.None);
+
+    private static MouseConsoleInputEvent MouseWheelDown() =>
+        new(0, 1, MouseButton.WheelDown, MouseEventKind.Wheel, MouseKeyModifiers.None);
 
     private static void EnqueueText(FakeConsoleDriver driver, string text)
     {

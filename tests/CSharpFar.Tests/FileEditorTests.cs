@@ -103,6 +103,21 @@ public sealed class FileEditorTests : IDisposable
     }
 
     [Fact]
+    public void Show_MouseWheelScrollsTextDown()
+    {
+        string filePath = Path.Combine(_tempDir, "editor-wheel.txt");
+        File.WriteAllText(filePath, string.Join('\n', Enumerable.Range(1, 12).Select(i => $"line{i}")));
+
+        var driver = new FakeConsoleDriver(width: 80, height: 8);
+        driver.EnqueueInput(MouseWheelDown());
+        driver.EnqueueKey(new ConsoleKeyInfo('\0', ConsoleKey.F10, shift: false, alt: false, control: false));
+
+        ShowFileEditor(new ScreenRenderer(driver), filePath);
+
+        Assert.Contains("line4", string.Concat(driver.WriteRecords.Select(record => record.Text)));
+    }
+
+    [Fact]
     public void Show_F3MarkAndF6Move_CutSelectedText()
     {
         string filePath = Path.Combine(_tempDir, "mark-move.txt");
@@ -806,6 +821,9 @@ public sealed class FileEditorTests : IDisposable
 
     private static MouseConsoleInputEvent LeftMouse(int x, int y) =>
         new(x, y, MouseButton.Left, MouseEventKind.Down, MouseKeyModifiers.None);
+
+    private static MouseConsoleInputEvent MouseWheelDown() =>
+        new(0, 1, MouseButton.WheelDown, MouseEventKind.Wheel, MouseKeyModifiers.None);
 
     private static string ComposeRow(FakeConsoleDriver driver, int y, int width)
     {
