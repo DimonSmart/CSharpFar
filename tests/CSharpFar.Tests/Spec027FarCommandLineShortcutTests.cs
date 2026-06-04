@@ -276,19 +276,4 @@ public sealed class Spec027FarCommandLineShortcutTests : IDisposable
         bool control = false,
         bool shift = false) =>
         new(keyChar, key, shift, alt: false, control);
-
-    private sealed class NoOpShellService : IShellService
-    {
-        public void Execute(string command, string workingDirectory) { }
-    }
-
-    private sealed class NoOpFileOperationService : IFileOperationService
-    {
-        public Task<FileOperationResult> ExecuteAsync(
-            FileOperationRequest request,
-            IProgress<FileOperationProgress>? progress,
-            IFileOperationConflictResolver conflictResolver,
-            CancellationToken cancellationToken = default) =>
-            Task.FromResult(new FileOperationResult { Kind = request.Kind, Errors = [] });
-    }
 }

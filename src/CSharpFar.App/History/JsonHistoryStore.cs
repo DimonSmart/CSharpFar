@@ -7,7 +7,6 @@ namespace CSharpFar.App.History;
 /// <summary>
 /// IHistoryStore backed by a JSON file.
 /// Loads history at construction; saves after every mutation.
-/// All I/O errors are silently swallowed to avoid crashing the app.
 /// </summary>
 public sealed class JsonHistoryStore : IHistoryStore
 {
@@ -86,13 +85,18 @@ public sealed class JsonHistoryStore : IHistoryStore
         {
             string json = File.ReadAllText(_filePath);
             var data = JsonSerializer.Deserialize<HistoryData>(json, JsonOptions);
-            if (data is null) return;
+            if (data is null)
+                throw new InvalidDataException("History file does not contain a JSON object: " + _filePath);
+
             if (data.Commands    is not null) _commands.AddRange(data.Commands);
             if (data.Directories is not null) _directories.AddRange(data.Directories);
             if (data.Files       is not null) _files.AddRange(data.Files);
             NormalizeCommandHistory();
         }
-        catch { /* corrupt file — start fresh */ }
+        catch (Exception ex) when (ex is JsonException or NotSupportedException)
+        {
+            throw new InvalidDataException("History file is invalid: " + _filePath, ex);
+        }
     }
 
     private void NormalizeCommandHistory()

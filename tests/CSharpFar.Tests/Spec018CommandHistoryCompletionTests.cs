@@ -221,13 +221,4 @@ public sealed class Spec018CommandHistoryCompletionTests : IDisposable
             _executedCommands.Add(command);
     }
 
-    private sealed class NoOpFileOperationService : IFileOperationService
-    {
-        public Task<FileOperationResult> ExecuteAsync(
-            FileOperationRequest request,
-            IProgress<FileOperationProgress>? progress,
-            IFileOperationConflictResolver conflictResolver,
-            CancellationToken cancellationToken = default) =>
-            Task.FromResult(new FileOperationResult { Kind = request.Kind, Errors = [] });
-    }
 }

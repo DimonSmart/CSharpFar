@@ -6,7 +6,6 @@ namespace CSharpFar.App.UserMenu;
 /// <summary>
 /// Loads the user menu from user-menu.json in the config directory.
 /// Creates a default file with sample commands on first run.
-/// I/O errors are silently swallowed.
 /// </summary>
 public sealed class UserMenuStore
 {
@@ -40,9 +39,13 @@ public sealed class UserMenuStore
         try
         {
             string json = File.ReadAllText(_filePath);
-            return JsonSerializer.Deserialize<List<UserMenuItem>>(json, JsonOptions) ?? [];
+            return JsonSerializer.Deserialize<List<UserMenuItem>>(json, JsonOptions)
+                ?? throw new InvalidDataException("User menu file does not contain a JSON array: " + _filePath);
         }
-        catch { return []; }
+        catch (Exception ex) when (ex is JsonException or NotSupportedException)
+        {
+            throw new InvalidDataException("User menu file is invalid: " + _filePath, ex);
+        }
     }
 
     private void WriteFile(IReadOnlyList<UserMenuItem> items)

@@ -171,10 +171,12 @@ public class JsonHistoryStoreTests : IDisposable
     }
 
     [Fact]
-    public void Load_StartsFreshWhenFileIsCorrupt()
+    public void Load_CorruptJsonThrows()
     {
         File.WriteAllText(_tempFile, "{ not valid json {{{{");
-        var store = new JsonHistoryStore(_tempFile);
-        Assert.Empty(store.GetCommandHistory());
+
+        var ex = Assert.Throws<InvalidDataException>(() => new JsonHistoryStore(_tempFile));
+
+        Assert.Contains(_tempFile, ex.Message, StringComparison.Ordinal);
     }
 }

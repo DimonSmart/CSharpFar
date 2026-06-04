@@ -836,11 +836,6 @@ public sealed class ApplicationNavigationTests : IDisposable
         return (CommandLineState)field.GetValue(app)!;
     }
 
-    private sealed class NoOpShellService : IShellService
-    {
-        public void Execute(string command, string workingDirectory) { }
-    }
-
     private sealed class RecordingShellService : IShellService
     {
         public List<(string Command, string WorkingDirectory)> Commands { get; } = [];
@@ -849,13 +844,4 @@ public sealed class ApplicationNavigationTests : IDisposable
             Commands.Add((command, workingDirectory));
     }
 
-    private sealed class NoOpFileOperationService : IFileOperationService
-    {
-        public Task<FileOperationResult> ExecuteAsync(
-            FileOperationRequest request,
-            IProgress<FileOperationProgress>? progress,
-            IFileOperationConflictResolver conflictResolver,
-            CancellationToken cancellationToken = default) =>
-            Task.FromResult(new FileOperationResult { Kind = request.Kind, Errors = [] });
-    }
 }

@@ -33,21 +33,4 @@ public sealed class Spec007SettingsTests
         Assert.False(ar.NetworkDrivesAutoRefresh);
     }
 
-    [Fact]
-    public void PanelsSettings_HasOptions_WithCorrectType()
-    {
-        var panels = new AppSettings.PanelsSettings();
-
-        Assert.NotNull(panels.Options);
-        Assert.IsType<AppSettings.PanelOptionsSettings>(panels.Options);
-    }
-
-    [Fact]
-    public void AppSettings_HasPanelsOptions_AsSubProperty()
-    {
-        var settings = new AppSettings();
-
-        Assert.NotNull(settings.Panels.Options);
-        Assert.NotNull(settings.Panels.Options.AutoRefresh);
-    }
 }

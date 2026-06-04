@@ -406,13 +406,4 @@ public sealed class Spec040RealFarNetModuleDllTests : IDisposable
             Commands.Add((command, workingDirectory));
     }
 
-    private sealed class NoOpFileOperationService : IFileOperationService
-    {
-        public Task<FileOperationResult> ExecuteAsync(
-            FileOperationRequest request,
-            IProgress<FileOperationProgress>? progress,
-            IFileOperationConflictResolver conflictResolver,
-            CancellationToken cancellationToken = default) =>
-            Task.FromResult(new FileOperationResult { Kind = request.Kind, Errors = [] });
-    }
 }

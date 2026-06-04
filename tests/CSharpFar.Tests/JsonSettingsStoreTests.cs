@@ -131,15 +131,15 @@ public class JsonSettingsStoreTests : IDisposable
     }
 
     [Fact]
-    public void CorruptJsonFallsBackToDefaults()
+    public void CorruptJsonThrows()
     {
         string configDir = Path.Combine(_tempDir, "config4");
         Directory.CreateDirectory(configDir);
-        File.WriteAllText(Path.Combine(configDir, "settings.json"), "{ not valid json !!!}}}");
+        string filePath = Path.Combine(configDir, "settings.json");
+        File.WriteAllText(filePath, "{ not valid json !!!}}}");
 
-        var store = new JsonSettingsStore(configDir);
+        var ex = Assert.Throws<InvalidDataException>(() => new JsonSettingsStore(configDir));
 
-        Assert.Equal("cmd.exe", store.Settings.Shell.Executable);
-        Assert.True(store.Settings.Ui.ConfirmDelete);
+        Assert.Contains(filePath, ex.Message, StringComparison.Ordinal);
     }
 }

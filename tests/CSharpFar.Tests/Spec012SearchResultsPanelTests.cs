@@ -374,11 +374,6 @@ public sealed class Spec012SearchResultsPanelTests : IDisposable
         return (FilePanelState)field.GetValue(app)!;
     }
 
-    private sealed class NoOpShellService : IShellService
-    {
-        public void Execute(string command, string workingDirectory) { }
-    }
-
     private sealed class RecordingFileOperationService : IFileOperationService
     {
         public List<FileOperationRequest> Requests { get; } = [];

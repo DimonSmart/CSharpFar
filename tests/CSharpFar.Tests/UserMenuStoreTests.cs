@@ -49,12 +49,13 @@ public class UserMenuStoreTests : IDisposable
     }
 
     [Fact]
-    public void CorruptJsonReturnsEmptyList()
+    public void CorruptJsonThrows()
     {
-        File.WriteAllText(Path.Combine(_tempDir, "user-menu.json"), "{ not valid !!!}}}");
+        string filePath = Path.Combine(_tempDir, "user-menu.json");
+        File.WriteAllText(filePath, "{ not valid !!!}}}");
 
-        var store = new UserMenuStore(_tempDir);
+        var ex = Assert.Throws<InvalidDataException>(() => new UserMenuStore(_tempDir));
 
-        Assert.Empty(store.Items);
+        Assert.Contains(filePath, ex.Message, StringComparison.Ordinal);
     }
 }

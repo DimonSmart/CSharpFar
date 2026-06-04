@@ -97,19 +97,4 @@ public sealed class ApplicationCommandRegistryTests : IDisposable
         type.GetFields(BindingFlags.Public | BindingFlags.Static | BindingFlags.FlattenHierarchy)
             .Where(field => field.IsLiteral && !field.IsInitOnly && field.FieldType == typeof(string))
             .Select(field => (string)field.GetRawConstantValue()!);
-
-    private sealed class NoOpShellService : IShellService
-    {
-        public void Execute(string command, string workingDirectory) { }
-    }
-
-    private sealed class NoOpFileOperationService : IFileOperationService
-    {
-        public Task<FileOperationResult> ExecuteAsync(
-            FileOperationRequest request,
-            IProgress<FileOperationProgress>? progress,
-            IFileOperationConflictResolver conflictResolver,
-            CancellationToken cancellationToken = default) =>
-            Task.FromResult(new FileOperationResult { Kind = request.Kind, Errors = [] });
-    }
 }

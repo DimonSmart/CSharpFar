@@ -6,7 +6,7 @@ namespace CSharpFar.FileSystem;
 /// <summary>
 /// Classifies a file-system path as network, removable, fixed, etc.
 /// UNC paths are always network; otherwise uses DriveInfo.DriveType.
-/// Errors are silently swallowed – callers get safe defaults.
+/// Unreadable drive metadata is reported as an unknown local location.
 /// </summary>
 public sealed class FileSystemLocationService : IFileSystemLocationService
 {
@@ -44,7 +44,7 @@ public sealed class FileSystemLocationService : IFileSystemLocationService
                 RootPath         = root,
             };
         }
-        catch
+        catch (Exception ex) when (ex is ArgumentException or IOException or UnauthorizedAccessException)
         {
             return MakeUnknown(path);
         }

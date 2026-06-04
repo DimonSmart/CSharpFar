@@ -9,7 +9,6 @@ namespace CSharpFar.App.Settings;
 /// to the executable, config files go to CSharpFar.config/ beside the exe.
 /// Otherwise config files go to %APPDATA%\CSharpFar\.
 /// Creates a default settings.json on first run.
-/// All I/O errors are silently swallowed to avoid crashing the app.
 /// </summary>
 public sealed class JsonSettingsStore
 {
@@ -82,9 +81,12 @@ public sealed class JsonSettingsStore
         {
             string json = File.ReadAllText(_filePath);
             return JsonSerializer.Deserialize<AppSettings>(json, JsonOptions)
-                ?? new AppSettings();
+                ?? throw new InvalidDataException("Settings file does not contain a JSON object: " + _filePath);
         }
-        catch { return new AppSettings(); }
+        catch (Exception ex) when (ex is JsonException or NotSupportedException)
+        {
+            throw new InvalidDataException("Settings file is invalid: " + _filePath, ex);
+        }
     }
 
     private void WriteFile(AppSettings settings)

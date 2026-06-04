@@ -273,22 +273,6 @@ public sealed class Spec034PanelQuickSearchTests : IDisposable
             ?? throw new InvalidOperationException("PanelQuickSearchState.SearchText property not found.");
         return (string)property.GetValue(state)!;
     }
-
-    private sealed class NoOpShellService : IShellService
-    {
-        public void Execute(string command, string workingDirectory) { }
-    }
-
-    private sealed class NoOpFileOperationService : IFileOperationService
-    {
-        public Task<FileOperationResult> ExecuteAsync(
-            FileOperationRequest request,
-            IProgress<FileOperationProgress>? progress,
-            IFileOperationConflictResolver conflictResolver,
-            CancellationToken cancellationToken = default) =>
-            Task.FromResult(new FileOperationResult { Kind = request.Kind, Errors = [] });
-    }
-
     private sealed class RecordingFileLauncher : IFileLauncher
     {
         public List<string> OpenedFiles { get; } = [];
