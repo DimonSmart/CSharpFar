@@ -279,6 +279,29 @@ public class FileViewerTests : IDisposable
     }
 
     [Fact]
+    public void Show_MouseWheelRedrawDoesNotRewriteFunctionKeyBar()
+    {
+        string path = Write("viewer-wheel-keybar.txt", string.Join('\n', Enumerable.Range(1, 12).Select(i => $"line{i}")), new UTF8Encoding(false));
+        var driver = new FakeConsoleDriver(width: 80, height: 8);
+        var wheelRedrawWrites = Array.Empty<FakeConsoleDriver.WriteRecord>();
+        driver.BeforeReadInput = firstRead =>
+        {
+            firstRead.ClearRecordedOperations();
+            firstRead.BeforeReadInput = secondRead =>
+            {
+                wheelRedrawWrites = secondRead.WriteRecords.ToArray();
+            };
+        };
+        driver.EnqueueInput(MouseWheelDown());
+        driver.EnqueueKey(Key(ConsoleKey.F10));
+        var screen = new ScreenRenderer(driver);
+
+        new FileViewer(screen).Show(path);
+
+        Assert.DoesNotContain(wheelRedrawWrites, record => record.Y == 7);
+    }
+
+    [Fact]
     public void Show_F4TogglesToHexMode()
     {
         string path = Write("f4-toggle.txt", "ABC", new UTF8Encoding(false));

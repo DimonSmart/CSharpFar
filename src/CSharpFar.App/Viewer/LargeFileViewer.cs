@@ -17,6 +17,7 @@ internal sealed class LargeFileViewer
 
     private readonly ScreenRenderer _screen;
     private readonly ConsolePalette _palette;
+    private string? _renderedFooterSignature;
 
     public LargeFileViewer(ScreenRenderer screen, ConsolePalette? palette = null)
     {
@@ -29,6 +30,7 @@ internal sealed class LargeFileViewer
     internal void Show(string filePath, LargeFileViewerOptions? options)
     {
         options ??= new LargeFileViewerOptions();
+        _renderedFooterSignature = null;
         ScreenSnapshot? saved = null;
         RandomAccessFileByteReader? reader = null;
 
@@ -464,7 +466,7 @@ internal sealed class LargeFileViewer
             ? DrawBinaryContent(reader, state, contentHeight, size.Width)
             : DrawTextContent(reader, state, contentHeight, size.Width);
 
-        DrawFooter(size, state);
+        DrawFooter(size, state, force: false);
         return view;
     }
 
@@ -667,11 +669,19 @@ internal sealed class LargeFileViewer
             _screen.Write(x, y, visible.Substring(x, Math.Min(length, visible.Length - x)), PaletteStyles.InputHighlight(_palette));
     }
 
-    private void DrawFooter(ConsoleSize size, LargeFileViewerState state)
+    private void DrawFooter(ConsoleSize size, LargeFileViewerState state, bool force)
     {
+        string signature = FooterSignature(size, state);
+        if (!force && signature == _renderedFooterSignature)
+            return;
+
         new FunctionKeyBarRenderer(_screen, _palette)
             .Render(size.Height - 1, size.Width, ViewerFunctionKeyBarItems(state));
+        _renderedFooterSignature = signature;
     }
+
+    private static string FooterSignature(ConsoleSize size, LargeFileViewerState state) =>
+        $"{size.Width}x{size.Height}:{string.Join('|', ViewerFunctionKeyBarItems(state).Select(item => $"{item.KeyNumber}:{item.Label}"))}";
 
     private static FunctionKeyBarItem[] ViewerFunctionKeyBarItems(LargeFileViewerState state) =>
     [
@@ -1006,7 +1016,11 @@ internal sealed class LargeFileViewer
                 item.Selection,
                 anchorByteOffset,
                 originalViewMode),
-            renderUnderlay: () => Draw(filePath, reader, state, contentHeight, size));
+            renderUnderlay: () =>
+            {
+                _renderedFooterSignature = null;
+                Draw(filePath, reader, state, contentHeight, size);
+            });
 
         if (selected is null)
         {

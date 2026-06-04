@@ -118,6 +118,30 @@ public sealed class FileEditorTests : IDisposable
     }
 
     [Fact]
+    public void Show_MouseWheelRedrawDoesNotRewriteFunctionKeyBar()
+    {
+        string filePath = Path.Combine(_tempDir, "editor-wheel-keybar.txt");
+        File.WriteAllText(filePath, string.Join('\n', Enumerable.Range(1, 12).Select(i => $"line{i}")));
+
+        var driver = new FakeConsoleDriver(width: 80, height: 8);
+        var wheelRedrawWrites = Array.Empty<FakeConsoleDriver.WriteRecord>();
+        driver.BeforeReadInput = firstRead =>
+        {
+            firstRead.ClearRecordedOperations();
+            firstRead.BeforeReadInput = secondRead =>
+            {
+                wheelRedrawWrites = secondRead.WriteRecords.ToArray();
+            };
+        };
+        driver.EnqueueInput(MouseWheelDown());
+        driver.EnqueueKey(new ConsoleKeyInfo('\0', ConsoleKey.F10, shift: false, alt: false, control: false));
+
+        ShowFileEditor(new ScreenRenderer(driver), filePath);
+
+        Assert.DoesNotContain(wheelRedrawWrites, record => record.Y == 7);
+    }
+
+    [Fact]
     public void Show_F3MarkAndF6Move_CutSelectedText()
     {
         string filePath = Path.Combine(_tempDir, "mark-move.txt");
