@@ -22,8 +22,9 @@ internal sealed class PanelToggleReverseSortCommand : IApplicationCommand
         }
         else
         {
-            context.SortVirtualPanel(state, context.Controller.CurrentItem(state)?.FullPath);
-            context.Controller.MoveCursor(state, 0, context.VisibleRows(panelArgs.PanelSide));
+            int visibleRows = context.VisibleRows(panelArgs.PanelSide);
+            context.SortVirtualPanel(state, context.Controller.CurrentItem(state)?.FullPath, visibleRows);
+            context.Controller.NormalizeCursor(state, visibleRows);
         }
 
         return ApplicationCommandResult.Rendered();

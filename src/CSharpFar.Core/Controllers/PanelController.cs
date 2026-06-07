@@ -173,6 +173,34 @@ public sealed class PanelController
         EnsureVisible(state, visibleRows);
     }
 
+    public void NormalizeCursor(FilePanelState state, int visibleRows)
+    {
+        if (state.Items.Count == 0)
+        {
+            state.CursorIndex = 0;
+            state.ScrollOffset = 0;
+            return;
+        }
+
+        state.CursorIndex = Math.Clamp(state.CursorIndex, 0, state.Items.Count - 1);
+
+        if (visibleRows <= 0)
+        {
+            state.ScrollOffset = Math.Clamp(
+                state.ScrollOffset,
+                0,
+                Math.Max(0, state.Items.Count - 1));
+            return;
+        }
+
+        state.ScrollOffset = Math.Clamp(
+            state.ScrollOffset,
+            0,
+            Math.Max(0, state.Items.Count - visibleRows));
+
+        EnsureVisible(state, visibleRows);
+    }
+
     /// <summary>Sets cursor to a specific index and scrolls it into view.</summary>
     public void SetCursorTo(FilePanelState state, int index, int visibleRows)
     {
@@ -248,7 +276,11 @@ public sealed class PanelController
         int visibleRows,
         AppSettings.PanelOptionsSettings? options = null)
     {
-        string? cursorName    = CurrentItem(state)?.Name;
+        int previousCursorIndex = state.CursorIndex;
+        var previousItem = CurrentItem(state);
+        PanelLocation? previousLocation = previousItem?.Location;
+        string? previousFullPath = previousItem?.FullPath;
+        string? previousName = previousItem?.Name;
         var     selectedPaths = state.SelectedPaths.ToList();
 
         options ??= new AppSettings.PanelOptionsSettings();
@@ -283,16 +315,13 @@ public sealed class PanelController
         state.SelectedLocations.RemoveWhere(location => !availableLocations.Contains(location));
         RefreshSelectedSummary(state);
 
-        if (cursorName is not null)
-        {
-            int idx = state.Items.FindIndex(
-                i => string.Equals(i.Name, cursorName, StringComparison.OrdinalIgnoreCase));
-            if (idx >= 0)
-            {
-                state.CursorIndex = idx;
-                EnsureVisible(state, visibleRows);
-            }
-        }
+        RestoreCursorAfterItemsChanged(
+            state,
+            visibleRows,
+            previousCursorIndex,
+            previousLocation,
+            previousFullPath,
+            previousName);
     }
 
     public bool TryRefreshDirectory(
@@ -435,7 +464,11 @@ public sealed class PanelController
             state.SortDescending = false;
         }
 
-        string? cursorName = CurrentItem(state)?.Name;
+        int previousCursorIndex = state.CursorIndex;
+        var previousItem = CurrentItem(state);
+        PanelLocation? previousLocation = previousItem?.Location;
+        string? previousFullPath = previousItem?.FullPath;
+        string? previousName = previousItem?.Name;
 
         options ??= new AppSettings.PanelOptionsSettings();
         var view = _viewBuilder.Build(new PanelViewRequest
@@ -453,12 +486,13 @@ public sealed class PanelController
         state.ProviderCapabilities = view.ProviderCapabilities;
         state.LoadError = null;
 
-        if (cursorName is not null)
-        {
-            int idx = state.Items.FindIndex(
-                i => string.Equals(i.Name, cursorName, StringComparison.OrdinalIgnoreCase));
-            if (idx >= 0) { state.CursorIndex = idx; EnsureVisible(state, visibleRows); }
-        }
+        RestoreCursorAfterItemsChanged(
+            state,
+            visibleRows,
+            previousCursorIndex,
+            previousLocation,
+            previousFullPath,
+            previousName);
     }
 
     public static bool CanSelect(FilePanelItem item, AppSettings.PanelOptionsSettings options)
@@ -476,6 +510,47 @@ public sealed class PanelController
         else if (state.CursorIndex >= state.ScrollOffset + visibleRows)
             state.ScrollOffset = state.CursorIndex - visibleRows + 1;
         state.ScrollOffset = Math.Max(0, state.ScrollOffset);
+    }
+
+    private void RestoreCursorAfterItemsChanged(
+        FilePanelState state,
+        int visibleRows,
+        int previousCursorIndex,
+        PanelLocation? previousLocation,
+        string? previousFullPath,
+        string? previousName)
+    {
+        int index = -1;
+
+        if (previousLocation is not null)
+        {
+            index = state.Items.FindIndex(
+                i => i.Location.Equals(previousLocation.Value));
+        }
+
+        if (index < 0 && previousFullPath is not null)
+        {
+            index = state.Items.FindIndex(
+                i => string.Equals(
+                    i.FullPath,
+                    previousFullPath,
+                    StringComparison.OrdinalIgnoreCase));
+        }
+
+        if (index < 0 && previousName is not null)
+        {
+            index = state.Items.FindIndex(
+                i => string.Equals(
+                    i.Name,
+                    previousName,
+                    StringComparison.OrdinalIgnoreCase));
+        }
+
+        state.CursorIndex = index >= 0
+            ? index
+            : previousCursorIndex;
+
+        NormalizeCursor(state, visibleRows);
     }
 
     private static void RefreshSelectedSummary(FilePanelState state)

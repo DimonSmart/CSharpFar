@@ -112,6 +112,24 @@ public sealed class Spec012SearchResultsPanelTests : IDisposable
     }
 
     [Fact]
+    public void SortVirtualPanel_WhenKeptPathIsMissing_ClampsCursor()
+    {
+        var driver = new FakeConsoleDriver(width: 80, height: 14);
+        var app = CreateApp(CreateFileSystem(), driver, new RecordingFileOperationService());
+        var state = GetLeftPanel(app);
+        state.Items.Clear();
+        state.Items.Add(SearchResultPanelItem("a.txt"));
+        state.Items.Add(SearchResultPanelItem("b.txt"));
+        state.CursorIndex = 10;
+        state.ScrollOffset = 10;
+
+        app.SortVirtualPanel(state, Path.Combine(_root, "missing.txt"), visibleRows: 5);
+
+        Assert.Equal(1, state.CursorIndex);
+        Assert.Equal(0, state.ScrollOffset);
+    }
+
+    [Fact]
     public void Run_EnterOnSearchResultFileLoadsParentDirectoryAndSelectsFile()
     {
         string subDirectory = Path.Combine(_root, "sub");
@@ -297,15 +315,7 @@ public sealed class Spec012SearchResultsPanelTests : IDisposable
     {
         state.CurrentDirectory = _root;
         state.Items.Clear();
-        state.Items.Add(new FilePanelItem
-        {
-            Name = Path.GetFileName(fullPath),
-            FullPath = fullPath,
-            IsDirectory = isDirectory,
-            Size = isDirectory ? null : 1,
-            LastWriteTime = new DateTime(2026, 1, 1),
-            Attributes = isDirectory ? FileAttributes.Directory : FileAttributes.Archive,
-        });
+        state.Items.Add(SearchResultPanelItem(fullPath, isDirectory));
         state.SelectedPaths.Clear();
         state.CursorIndex = 0;
         state.ScrollOffset = 0;
@@ -320,6 +330,17 @@ public sealed class Spec012SearchResultsPanelTests : IDisposable
             MaxDegreeOfParallelism = 1,
         };
     }
+
+    private FilePanelItem SearchResultPanelItem(string fullPath, bool isDirectory = false) =>
+        new()
+        {
+            Name = Path.GetFileName(fullPath),
+            FullPath = Path.IsPathRooted(fullPath) ? fullPath : Path.Combine(_root, fullPath),
+            IsDirectory = isDirectory,
+            Size = isDirectory ? null : 1,
+            LastWriteTime = new DateTime(2026, 1, 1),
+            Attributes = isDirectory ? FileAttributes.Directory : FileAttributes.Archive,
+        };
 
     private static ConsoleKeyInfo Key(ConsoleKey key, bool alt = false) =>
         new('\0', key, shift: false, alt: alt, control: false);

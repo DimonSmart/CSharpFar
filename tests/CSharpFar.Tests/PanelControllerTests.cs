@@ -30,6 +30,23 @@ public class PanelControllerTests
         return (ctrl, state);
     }
 
+    private static FilePanelItem FileItem(string name) =>
+        new()
+        {
+            Name = name,
+            FullPath = $@"{Root}\{name}",
+            IsDirectory = false,
+        };
+
+    private static FilePanelItem ParentItem() =>
+        new()
+        {
+            Name = "..",
+            FullPath = @"C:\",
+            IsDirectory = true,
+            IsParentDirectory = true,
+        };
+
     // ── LoadDirectory ─────────────────────────────────────────────────────────
 
     [Fact]
@@ -117,6 +134,96 @@ public class PanelControllerTests
         Assert.Single(state.SelectedPaths);
     }
 
+    [Fact]
+    public void RefreshDirectory_WhenCurrentItemRemoved_MovesCursorToNextItem()
+    {
+        var fs = new FakeFileSystemService();
+        fs.AddDirectory(Root, FileItem("a.txt"), FileItem("b.txt"), FileItem("c.txt"));
+        var ctrl = new PanelController(new FakePanelViewBuilder(fs));
+        var state = new FilePanelState { CurrentDirectory = Root };
+        ctrl.LoadDirectory(state, Root);
+        state.CursorIndex = 1;
+
+        fs.AddDirectory(Root, FileItem("a.txt"), FileItem("c.txt"));
+
+        ctrl.RefreshDirectory(state, visibleRows: 10);
+
+        Assert.Equal(1, state.CursorIndex);
+        Assert.Equal("c.txt", ctrl.CurrentItem(state)?.Name);
+    }
+
+    [Fact]
+    public void RefreshDirectory_WhenLastItemRemoved_MovesCursorToPreviousItem()
+    {
+        var fs = new FakeFileSystemService();
+        fs.AddDirectory(Root, FileItem("a.txt"), FileItem("b.txt"), FileItem("c.txt"));
+        var ctrl = new PanelController(new FakePanelViewBuilder(fs));
+        var state = new FilePanelState { CurrentDirectory = Root };
+        ctrl.LoadDirectory(state, Root);
+        state.CursorIndex = 2;
+
+        fs.AddDirectory(Root, FileItem("a.txt"), FileItem("b.txt"));
+
+        ctrl.RefreshDirectory(state, visibleRows: 10);
+
+        Assert.Equal(1, state.CursorIndex);
+        Assert.Equal("b.txt", ctrl.CurrentItem(state)?.Name);
+    }
+
+    [Fact]
+    public void RefreshDirectory_WhenOnlyParentDirectoryRemains_MovesCursorToParentDirectory()
+    {
+        var fs = new FakeFileSystemService();
+        fs.AddDirectory(Root, ParentItem(), FileItem("a.txt"));
+        var ctrl = new PanelController(new FakePanelViewBuilder(fs));
+        var state = new FilePanelState { CurrentDirectory = Root };
+        ctrl.LoadDirectory(state, Root);
+        state.CursorIndex = 1;
+
+        fs.AddDirectory(Root, ParentItem());
+
+        ctrl.RefreshDirectory(state, visibleRows: 10);
+
+        Assert.Equal(0, state.CursorIndex);
+        Assert.Equal("..", ctrl.CurrentItem(state)?.Name);
+    }
+
+    [Fact]
+    public void RefreshDirectory_WhenDirectoryBecomesEmpty_ResetsCursorAndScroll()
+    {
+        var fs = new FakeFileSystemService();
+        fs.AddDirectory(Root, FileItem("a.txt"));
+        var ctrl = new PanelController(new FakePanelViewBuilder(fs));
+        var state = new FilePanelState { CurrentDirectory = Root };
+        ctrl.LoadDirectory(state, Root);
+        state.CursorIndex = 0;
+        state.ScrollOffset = 10;
+
+        fs.AddDirectory(Root);
+
+        ctrl.RefreshDirectory(state, visibleRows: 10);
+
+        Assert.Equal(0, state.CursorIndex);
+        Assert.Equal(0, state.ScrollOffset);
+    }
+
+    [Fact]
+    public void RefreshDirectory_WhenCurrentItemStillExists_KeepsCursorOnSameItem()
+    {
+        var fs = new FakeFileSystemService();
+        fs.AddDirectory(Root, FileItem("a.txt"), FileItem("b.txt"), FileItem("c.txt"));
+        var ctrl = new PanelController(new FakePanelViewBuilder(fs));
+        var state = new FilePanelState { CurrentDirectory = Root };
+        ctrl.LoadDirectory(state, Root);
+        state.CursorIndex = 1;
+
+        fs.AddDirectory(Root, FileItem("a.txt"), FileItem("b.txt"), FileItem("d.txt"));
+
+        ctrl.RefreshDirectory(state, visibleRows: 10);
+
+        Assert.Equal("b.txt", ctrl.CurrentItem(state)?.Name);
+    }
+
     // ── MoveCursor ────────────────────────────────────────────────────────────
 
     [Fact]
@@ -166,6 +273,44 @@ public class PanelControllerTests
 
         Assert.Equal(5, state.CursorIndex);
         Assert.Equal(5, state.ScrollOffset);
+    }
+
+    [Fact]
+    public void NormalizeCursor_WhenCursorIsOutOfRange_ClampsToLastItem()
+    {
+        var (ctrl, state) = MakePanel(2);
+        state.CursorIndex = 10;
+
+        ctrl.NormalizeCursor(state, visibleRows: 10);
+
+        Assert.Equal(1, state.CursorIndex);
+    }
+
+    [Fact]
+    public void NormalizeCursor_WhenItemsEmpty_ResetsCursorAndScroll()
+    {
+        var ctrl = new PanelController(new FakePanelViewBuilder(new FakeFileSystemService()));
+        var state = new FilePanelState { CurrentDirectory = Root };
+        state.CursorIndex = 10;
+        state.ScrollOffset = 10;
+
+        ctrl.NormalizeCursor(state, visibleRows: 10);
+
+        Assert.Equal(0, state.CursorIndex);
+        Assert.Equal(0, state.ScrollOffset);
+    }
+
+    [Fact]
+    public void NormalizeCursor_WhenCursorOutsideViewport_AdjustsScrollOffset()
+    {
+        var (ctrl, state) = MakePanel(20);
+        state.CursorIndex = 10;
+        state.ScrollOffset = 0;
+
+        ctrl.NormalizeCursor(state, visibleRows: 5);
+
+        Assert.True(state.ScrollOffset <= state.CursorIndex);
+        Assert.True(state.CursorIndex < state.ScrollOffset + 5);
     }
 
     // ── MoveToFirst / MoveToLast ──────────────────────────────────────────────
@@ -339,6 +484,41 @@ public class PanelControllerTests
 
         Assert.False(PanelController.TryFindFirstQuickSearchMatch(state, "z", out int itemIndex));
         Assert.Equal(-1, itemIndex);
+    }
+
+    [Fact]
+    public void SetSortMode_WhenCurrentItemStillExists_KeepsCursorOnSameItem()
+    {
+        var fs = new FakeFileSystemService();
+        fs.AddDirectory(Root,
+            new FilePanelItem { Name = "a.txt", FullPath = Root + @"\a.txt", IsDirectory = false, Size = 30 },
+            new FilePanelItem { Name = "b.txt", FullPath = Root + @"\b.txt", IsDirectory = false, Size = 10 },
+            new FilePanelItem { Name = "c.txt", FullPath = Root + @"\c.txt", IsDirectory = false, Size = 20 });
+        var ctrl = new PanelController(new FakePanelViewBuilder(fs));
+        var state = new FilePanelState { CurrentDirectory = Root };
+        ctrl.LoadDirectory(state, Root);
+        state.CursorIndex = 1;
+
+        ctrl.SetSortMode(state, SortMode.Size, visibleRows: 10);
+
+        Assert.Equal("b.txt", ctrl.CurrentItem(state)?.Name);
+    }
+
+    [Fact]
+    public void SetSortMode_WhenCursorIndexBecomesOutOfRange_ClampsCursor()
+    {
+        var fs = new FakeFileSystemService();
+        fs.AddDirectory(Root, FileItem("a.txt"), FileItem("b.txt"), FileItem("c.txt"));
+        var ctrl = new PanelController(new FakePanelViewBuilder(fs));
+        var state = new FilePanelState { CurrentDirectory = Root };
+        ctrl.LoadDirectory(state, Root);
+        state.CursorIndex = 2;
+
+        fs.AddDirectory(Root, FileItem("a.txt"), FileItem("b.txt"));
+
+        ctrl.SetSortMode(state, SortMode.Size, visibleRows: 10);
+
+        Assert.InRange(state.CursorIndex, 0, state.Items.Count - 1);
     }
 
     // ── GoToParent ────────────────────────────────────────────────────────────

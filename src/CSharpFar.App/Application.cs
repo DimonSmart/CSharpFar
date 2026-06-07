@@ -2433,7 +2433,7 @@ public sealed class Application
         state.SearchRequest = request;
         state.SearchWasCancelled = cancelled;
         state.AutoRefreshState = null;
-        SortVirtualPanel(state, keepCursorPath: null);
+        SortVirtualPanel(state, keepCursorPath: null, VisibleRows(PanelSideForState(state)));
         RefreshSearchResultsSummary(state);
     }
 
@@ -3191,6 +3191,7 @@ public sealed class Application
                 state.SelectedPaths.Add(selectedPath);
             state.CursorIndex = previousCursor;
             state.ScrollOffset = previousScroll;
+            _ctrl.NormalizeCursor(state, visibleRows);
             RefreshSearchResultsSummary(state);
             return;
         }
@@ -3210,6 +3211,7 @@ public sealed class Application
                 state.SelectedPaths.Add(selectedPath);
             state.CursorIndex = previousCursor;
             state.ScrollOffset = previousScroll;
+            _ctrl.NormalizeCursor(state, visibleRows);
             RefreshSearchResultsSummary(state);
             return;
         }
@@ -3219,9 +3221,9 @@ public sealed class Application
         state.SelectedPaths.Clear();
         state.SearchWasCancelled = false;
         state.DisplayTitle = BuildSearchResultsTitle(state.SearchRequest, cancelled: false);
-        SortVirtualPanel(state, cursorPath);
+        SortVirtualPanel(state, cursorPath, visibleRows);
         RefreshSearchResultsSummary(state);
-        _ctrl.MoveCursor(state, 0, visibleRows);
+        _ctrl.NormalizeCursor(state, visibleRows);
     }
 
     private PanelSide PanelSideForState(FilePanelState state) =>
@@ -3260,11 +3262,11 @@ public sealed class Application
             state.SortDescending = false;
         }
 
-        SortVirtualPanel(state, cursorPath);
-        _ctrl.MoveCursor(state, 0, visibleRows);
+        SortVirtualPanel(state, cursorPath, visibleRows);
+        _ctrl.NormalizeCursor(state, visibleRows);
     }
 
-    internal void SortVirtualPanel(FilePanelState state, string? keepCursorPath)
+    internal void SortVirtualPanel(FilePanelState state, string? keepCursorPath, int visibleRows)
     {
         ClosePanelQuickSearchForState(state);
         var sortOptions = new PanelSortOptions
@@ -3281,12 +3283,15 @@ public sealed class Application
         {
             state.CursorIndex = 0;
             state.ScrollOffset = 0;
+            _ctrl.NormalizeCursor(state, visibleRows);
             return;
         }
 
         int index = state.Items.FindIndex(i => string.Equals(i.FullPath, keepCursorPath, StringComparison.OrdinalIgnoreCase));
         if (index >= 0)
             state.CursorIndex = index;
+
+        _ctrl.NormalizeCursor(state, visibleRows);
     }
 
     private static void RefreshSearchResultsSummary(FilePanelState state)
