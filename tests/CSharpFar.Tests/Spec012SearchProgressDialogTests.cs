@@ -91,9 +91,10 @@ public sealed class Spec012SearchProgressDialogTests
     {
         var driver = new FakeConsoleDriver(width: 100, height: 30);
         var screen = new ScreenRenderer(driver);
-        driver.EnqueueKey(Key(ConsoleKey.F10));
 
-        var result = new SearchProgressDialog(screen, new DelayedEmptySearchService())
+        var result = new SearchProgressDialog(
+                screen,
+                new EmptySearchService(() => driver.EnqueueKey(Key(ConsoleKey.F10))))
             .Show(Request(@"C:\root", "*.txt"));
 
         Assert.False(result.Cancelled);
@@ -181,7 +182,7 @@ public sealed class Spec012SearchProgressDialogTests
         }
     }
 
-    private sealed class DelayedEmptySearchService : ISearchService
+    private sealed class EmptySearchService(Action onCompleting) : ISearchService
     {
         public async IAsyncEnumerable<SearchResultItem> SearchAsync(
             SearchRequest request,
@@ -189,6 +190,8 @@ public sealed class Spec012SearchProgressDialogTests
             [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
         {
             await Task.Delay(10, cancellationToken);
+            cancellationToken.ThrowIfCancellationRequested();
+            onCompleting();
             yield break;
         }
     }

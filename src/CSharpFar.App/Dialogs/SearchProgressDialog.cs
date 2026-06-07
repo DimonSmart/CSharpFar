@@ -102,9 +102,6 @@ internal sealed class SearchProgressDialog
                 NormalizeSelection(resultSnapshot.Length, listHeight, ref selectedIndex, ref scrollOffset);
                 Draw(request, progressSnapshot, resultSnapshot, selectedIndex, scrollOffset, buttonBar, focusedButton);
 
-                if (task.Wait(RedrawDelayMilliseconds))
-                    break;
-
                 SearchResultItem[] inputResults;
                 lock (syncRoot)
                     inputResults = [.. results];
@@ -158,6 +155,9 @@ internal sealed class SearchProgressDialog
                     else
                         stopRequested = false;
                 }
+
+                if (task.Wait(RedrawDelayMilliseconds))
+                    break;
             }
 
             try { task.Wait(2000); }
