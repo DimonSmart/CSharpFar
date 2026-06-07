@@ -1344,11 +1344,11 @@ public sealed class Application
         int fullLength,
         int cursorPosition)
     {
-        if (fullLength <= totalWidth)
+        if (fullLength < totalWidth)
             return 0;
 
         int rawCursorX = promptLength + cursorPosition;
-        int maxOffset = fullLength - totalWidth;
+        int maxOffset = Math.Max(0, fullLength - totalWidth + 1);
         return Math.Clamp(rawCursorX - totalWidth + 1, 0, maxOffset);
     }
 

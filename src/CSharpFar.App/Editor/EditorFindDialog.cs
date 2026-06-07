@@ -195,7 +195,10 @@ internal sealed class EditorFindDialog
 
                 if (focusRow == 0)
                 {
-                    int cursorX = Math.Min(content.X + 10 + pattern.CursorPosition, content.Right - 1);
+                    int inputX = content.X + 10;
+                    int inputWidth = Math.Max(1, content.Width - 10);
+                    int textWidth = Math.Max(0, inputWidth - 1);
+                    int cursorX = SingleLineTextInput.GetCursorX(inputX, textWidth, pattern);
                     _screen.SetCursorPosition(cursorX, content.Y);
                     _screen.SetCursorVisible(true);
                 }

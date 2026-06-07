@@ -144,7 +144,7 @@ internal sealed class DirectoryShortcutEditDialog
                 {
                     var buffer = focusRow == 0 ? name : path;
                     int fieldWidth = Math.Max(1, content.Width - LabelWidth);
-                    int cursorX = content.X + LabelWidth + Math.Min(buffer.CursorPosition, fieldWidth - 1);
+                    int cursorX = SingleLineTextInput.GetCursorX(content.X + LabelWidth, fieldWidth, buffer);
                     _screen.SetCursorPosition(cursorX, content.Y + focusRow * 2);
                     _screen.SetCursorVisible(true);
                 }

@@ -38,14 +38,15 @@ internal sealed class PanelQuickSearchRenderer
         int cursorY = bounds.Y + 1;
         _frameRenderer.RenderFrame(_screen, bounds, "Search", false, options, (_, contentBounds) =>
         {
-            string visibleText = VisibleTail(searchText, contentBounds.Width);
+            int visibleStart = VisibleStart(searchText, contentBounds.Width);
+            string visibleText = VisibleText(searchText, visibleStart, contentBounds.Width);
             _screen.Write(
                 contentBounds.X,
                 contentBounds.Y,
                 visibleText.PadRight(contentBounds.Width),
                 PaletteStyles.InputField(_palette));
 
-            cursorX = contentBounds.X + Math.Min(visibleText.Length, Math.Max(0, contentBounds.Width - 1));
+            cursorX = contentBounds.X + searchText.Length - visibleStart;
             cursorY = contentBounds.Y;
         });
 
@@ -54,11 +55,15 @@ internal sealed class PanelQuickSearchRenderer
         return true;
     }
 
-    private static string VisibleTail(string text, int width)
+    private static int VisibleStart(string text, int width) =>
+        Math.Max(0, text.Length - Math.Max(0, width - 1));
+
+    private static string VisibleText(string text, int visibleStart, int width)
     {
         if (width <= 0)
             return string.Empty;
 
-        return text.Length <= width ? text : text[^width..];
+        string visible = text.Length > visibleStart ? text[visibleStart..] : string.Empty;
+        return visible.Length > width ? visible[..width] : visible;
     }
 }

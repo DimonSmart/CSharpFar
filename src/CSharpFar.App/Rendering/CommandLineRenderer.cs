@@ -29,9 +29,10 @@ internal sealed class CommandLineRenderer
         string full   = prompt + state.Text;
         int offset    = GetDisplayOffset(totalWidth, prompt.Length, full.Length, state.CursorPosition);
 
-        string display = full.Length <= totalWidth
-            ? full
-            : full.Substring(offset, totalWidth);
+        string display = full.Length > offset ? full[offset..] : string.Empty;
+        if (display.Length > totalWidth)
+            display = display[..totalWidth];
+        display = display.PadRight(totalWidth);
 
         if (!state.HasSelection)
         {
@@ -64,7 +65,7 @@ internal sealed class CommandLineRenderer
         int offset    = GetDisplayOffset(totalWidth, prompt.Length, full.Length, state.CursorPosition);
 
         int adjusted = rawX - offset;
-        return adjusted < 0 ? -1 : Math.Min(adjusted, totalWidth - 1);
+        return adjusted < 0 || adjusted >= totalWidth ? -1 : adjusted;
     }
 
     private static int GetDisplayOffset(
@@ -73,11 +74,11 @@ internal sealed class CommandLineRenderer
         int fullLength,
         int cursorPosition)
     {
-        if (fullLength <= totalWidth)
+        if (fullLength < totalWidth)
             return 0;
 
         int rawCursorX = promptLength + cursorPosition;
-        int maxOffset = fullLength - totalWidth;
+        int maxOffset = Math.Max(0, fullLength - totalWidth + 1);
         return Math.Clamp(rawCursorX - totalWidth + 1, 0, maxOffset);
     }
 }

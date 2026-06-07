@@ -151,6 +151,25 @@ public class SingleLineTextInputTests
     }
 
     [Fact]
+    public void Render_LongInputAtEnd_ShowsBlankCellAfterLastCharacter()
+    {
+        var driver = new FakeConsoleDriver(width: 12, height: 1);
+        var screen = new ScreenRenderer(driver);
+        var buffer = new CommandLineState();
+        buffer.SetText("abcdefghij");
+
+        var normal = new CellStyle(ConsoleColor.Gray, ConsoleColor.Black);
+        var selected = new CellStyle(ConsoleColor.Yellow, ConsoleColor.Blue);
+
+        SingleLineTextInput.Render(screen, 1, 0, 10, buffer, normal, selected);
+
+        Assert.Equal("bcdefghij ", driver.GetRegionText(new Rect(1, 0, 10, 1)));
+        Assert.Equal(10, SingleLineTextInput.GetCursorX(1, 10, buffer));
+        Assert.Equal('j', driver.GetCell(9, 0).Character);
+        Assert.Equal(' ', driver.GetCell(10, 0).Character);
+    }
+
+    [Fact]
     public void History_AddKeepsUniqueRecencyOrder()
     {
         var history = new SingleLineTextHistoryState();
