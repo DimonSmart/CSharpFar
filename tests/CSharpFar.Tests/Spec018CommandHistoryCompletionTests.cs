@@ -94,6 +94,24 @@ public sealed class Spec018CommandHistoryCompletionTests : IDisposable
     }
 
     [Fact]
+    public void ExecuteCommand_AddsCommandHistoryBeforeShellExecution()
+    {
+        var history = new InMemoryHistoryStore();
+        var shell = new RecordingShellService((command, workingDirectory) =>
+        {
+            var item = Assert.Single(history.GetCommandHistory());
+            Assert.Equal("long-running-command", item.Command);
+            Assert.Equal(_root, item.WorkingDirectory);
+        });
+        var driver = new FakeConsoleDriver(width: 100, height: 12);
+
+        var app = CreateApp(driver, history, shell);
+        app.ExecuteCommand("long-running-command");
+
+        Assert.Equal(["long-running-command"], shell.ExecutedCommands);
+    }
+
+    [Fact]
     public void Run_VisiblePanels_CompletionRendersSingleBorderedList()
     {
         var history = CreateHistory("git status", "git commit", "git branch");
@@ -214,11 +232,20 @@ public sealed class Spec018CommandHistoryCompletionTests : IDisposable
     private sealed class RecordingShellService : IShellService
     {
         private readonly List<string> _executedCommands = [];
+        private readonly Action<string, string>? _onExecute;
+
+        public RecordingShellService(Action<string, string>? onExecute = null)
+        {
+            _onExecute = onExecute;
+        }
 
         public IReadOnlyList<string> ExecutedCommands => _executedCommands;
 
-        public void Execute(string command, string workingDirectory) =>
+        public void Execute(string command, string workingDirectory)
+        {
+            _onExecute?.Invoke(command, workingDirectory);
             _executedCommands.Add(command);
+        }
     }
 
 }

@@ -2732,23 +2732,18 @@ public sealed class Application
         _cmdLine.Clear();
         HideCommandCompletion(temporarily: false);
         ResetCommandHistoryNavigation();
+        AddCommandHistory(command, workDir);
 
         if (_moduleCatalog.TryOpenFromCommandLine(command, _active, out var moduleResult))
         {
             HandleModuleOpenResult(moduleResult, _active);
-            AddCommandHistory(command, workDir);
             return;
         }
 
         if (TryExecuteChangeDirectoryCommand(command))
-        {
-            AddCommandHistory(command, workDir);
             return;
-        }
 
         ExecuteInCurrentConsole(workDir, command, () => _shell.Execute(command, workDir));
-
-        AddCommandHistory(command, workDir);
     }
 
     private void AddCommandHistory(string command, string workingDirectory)
