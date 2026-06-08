@@ -142,6 +142,46 @@ public sealed class FileEditorTests : IDisposable
     }
 
     [Fact]
+    public void Show_ScrollbarIncreaseButtonScrollsTextDown()
+    {
+        string filePath = Path.Combine(_tempDir, "editor-scrollbar-increase.txt");
+        File.WriteAllText(filePath, string.Join('\n', Enumerable.Range(1, 12).Select(i => $"line{i}")));
+
+        var driver = new FakeConsoleDriver(width: 80, height: 8);
+        ClearRecordedOperationsBeforeFirstInput(driver);
+        driver.EnqueueInput(LeftMouse(x: 79, y: 5));
+        driver.EnqueueKey(new ConsoleKeyInfo('\0', ConsoleKey.F10, shift: false, alt: false, control: false));
+
+        ShowFileEditor(new ScreenRenderer(driver), filePath);
+
+        Assert.Contains(driver.WriteRecords, record =>
+            record.X == 4 &&
+            record.Y == 1 &&
+            record.Text == "2");
+    }
+
+    [Fact]
+    public void Show_ScrollbarThumbDragScrollsText()
+    {
+        string filePath = Path.Combine(_tempDir, "editor-scrollbar-drag.txt");
+        File.WriteAllText(filePath, string.Join('\n', Enumerable.Range(1, 12).Select(i => $"line{i}")));
+
+        var driver = new FakeConsoleDriver(width: 80, height: 10);
+        ClearRecordedOperationsBeforeFirstInput(driver);
+        driver.EnqueueInput(LeftMouse(x: 79, y: 2));
+        driver.EnqueueInput(MouseMove(x: 79, y: 6));
+        driver.EnqueueInput(MouseUp(x: 79, y: 6));
+        driver.EnqueueKey(new ConsoleKeyInfo('\0', ConsoleKey.F10, shift: false, alt: false, control: false));
+
+        ShowFileEditor(new ScreenRenderer(driver), filePath);
+
+        Assert.Contains(driver.WriteRecords, record =>
+            record.X == 4 &&
+            record.Y == 1 &&
+            record.Text == "6");
+    }
+
+    [Fact]
     public void Show_F3MarkAndF6Move_CutSelectedText()
     {
         string filePath = Path.Combine(_tempDir, "mark-move.txt");
@@ -846,8 +886,27 @@ public sealed class FileEditorTests : IDisposable
     private static MouseConsoleInputEvent LeftMouse(int x, int y) =>
         new(x, y, MouseButton.Left, MouseEventKind.Down, MouseKeyModifiers.None);
 
+    private static MouseConsoleInputEvent MouseMove(int x, int y) =>
+        new(x, y, MouseButton.Left, MouseEventKind.Move, MouseKeyModifiers.None);
+
+    private static MouseConsoleInputEvent MouseUp(int x, int y) =>
+        new(x, y, MouseButton.Left, MouseEventKind.Up, MouseKeyModifiers.None);
+
     private static MouseConsoleInputEvent MouseWheelDown() =>
         new(0, 1, MouseButton.WheelDown, MouseEventKind.Wheel, MouseKeyModifiers.None);
+
+    private static void ClearRecordedOperationsBeforeFirstInput(FakeConsoleDriver driver)
+    {
+        bool cleared = false;
+        driver.BeforeReadInput = currentDriver =>
+        {
+            if (cleared)
+                return;
+
+            currentDriver.ClearRecordedOperations();
+            cleared = true;
+        };
+    }
 
     private static string ComposeRow(FakeConsoleDriver driver, int y, int width)
     {

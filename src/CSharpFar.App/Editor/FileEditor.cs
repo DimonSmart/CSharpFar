@@ -26,6 +26,7 @@ internal sealed class FileEditor
     private readonly EditorFileNameInsertionContext? _fileNameInsertionContext;
     private readonly IEditorSyntaxHighlighter _syntaxHighlighter;
     private EditorFindDialogResult? _lastFind;
+    private ScrollBarDragState? _scrollbarDrag;
     private bool _markMode;
     private bool _persistentSelection;
     private bool _customCursorVisible = true;
@@ -124,6 +125,7 @@ internal sealed class FileEditor
     private void RunLoop(EditorSession session)
     {
         var functionKeyModifiers = default(ConsoleModifiers);
+        _scrollbarDrag = null;
         while (true)
         {
             var size = _screen.GetSize();
@@ -143,6 +145,12 @@ internal sealed class FileEditor
 
             if (TryHandleMouseWheel(input, session))
                 continue;
+
+            if (input is MouseConsoleInputEvent scrollbarMouse &&
+                TryHandleScrollbarMouse(scrollbarMouse, session, contentHeight, size))
+            {
+                continue;
+            }
 
             if (input is MouseConsoleInputEvent mouse &&
                 TryGetFunctionKeyBarKey(mouse, size, functionKeyModifiers, out var mouseKey))
@@ -198,6 +206,28 @@ internal sealed class FileEditor
         }
 
         return false;
+    }
+
+    private bool TryHandleScrollbarMouse(
+        MouseConsoleInputEvent mouse,
+        EditorSession session,
+        int contentHeight,
+        ConsoleSize size)
+    {
+        int topLine = session.Viewport.TopLine;
+        if (!ScrollBarMouseHandler.TryHandleMouse(
+                mouse,
+                new Rect(size.Width - 1, 1, 1, contentHeight),
+                session.Document.Buffer.LineCount,
+                contentHeight,
+                ref topLine,
+                ref _scrollbarDrag))
+        {
+            return false;
+        }
+
+        MoveViewportTo(session, topLine, contentHeight);
+        return true;
     }
 
     private ConsoleInputEvent ReadInput(
@@ -510,7 +540,13 @@ internal sealed class FileEditor
     private static void ScrollViewport(EditorSession session, int delta, int contentHeight)
     {
         int maxTopLine = Math.Max(0, session.Document.Buffer.LineCount - contentHeight);
-        int topLine = Math.Clamp(session.Viewport.TopLine + delta, 0, maxTopLine);
+        MoveViewportTo(session, Math.Clamp(session.Viewport.TopLine + delta, 0, maxTopLine), contentHeight);
+    }
+
+    private static void MoveViewportTo(EditorSession session, int topLine, int contentHeight)
+    {
+        int maxTopLine = Math.Max(0, session.Document.Buffer.LineCount - contentHeight);
+        topLine = Math.Clamp(topLine, 0, maxTopLine);
         session.Viewport.TopLine = topLine;
         if (session.Cursor.Line < topLine)
             session.MoveTo(new EditorPosition(topLine, session.Cursor.Column));
