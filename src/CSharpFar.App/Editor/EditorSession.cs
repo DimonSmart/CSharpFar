@@ -144,6 +144,41 @@ public sealed class EditorSession
 
     public void ClearSelection() => Selection = null;
 
+    public bool SelectWordAt(EditorPosition position)
+    {
+        position = NormalizeCursorPosition(position);
+        string line = Document.Buffer.GetLine(position.Line);
+        if (line.Length == 0)
+        {
+            MoveCursor(position, extendSelection: false);
+            return false;
+        }
+
+        int column = Math.Min(position.Column, line.Length - 1);
+        if (IsWordDiv(line[column]))
+        {
+            MoveCursor(position, extendSelection: false);
+            return false;
+        }
+
+        int start = column;
+        while (start > 0)
+        {
+            int previous = EditorUnicode.PreviousScalarColumn(line, start);
+            if (IsWordDiv(line[previous]))
+                break;
+
+            start = previous;
+        }
+
+        int end = EditorUnicode.NextScalarColumn(line, column);
+        while (end < line.Length && !IsWordDiv(line[end]))
+            end = EditorUnicode.NextScalarColumn(line, end);
+
+        SelectRange(new EditorPosition(position.Line, start), new EditorPosition(position.Line, end));
+        return true;
+    }
+
     public void MoveWordLeft(bool extendSelection = false, bool preserveSelection = false)
     {
         int offset = PositionToOffset(Cursor);

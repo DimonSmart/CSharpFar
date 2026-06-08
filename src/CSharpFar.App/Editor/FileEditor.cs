@@ -27,6 +27,7 @@ internal sealed class FileEditor
     private readonly IEditorSyntaxHighlighter _syntaxHighlighter;
     private EditorFindDialogResult? _lastFind;
     private ScrollBarDragState? _scrollbarDrag;
+    private EditorPosition? _mouseSelectionAnchor;
     private bool _markMode;
     private bool _persistentSelection;
     private bool _customCursorVisible = true;
@@ -126,6 +127,7 @@ internal sealed class FileEditor
     {
         var functionKeyModifiers = default(ConsoleModifiers);
         _scrollbarDrag = null;
+        _mouseSelectionAnchor = null;
         while (true)
         {
             var size = _screen.GetSize();
@@ -158,9 +160,16 @@ internal sealed class FileEditor
                 input = new KeyConsoleInputEvent(mouseKey);
             }
 
+            if (input is MouseConsoleInputEvent textMouse &&
+                TryHandleTextMouse(textMouse, session, contentHeight, size))
+            {
+                continue;
+            }
+
             if (input is not KeyConsoleInputEvent { Key: var key })
                 continue;
 
+            _mouseSelectionAnchor = null;
             functionKeyModifiers = key.Modifiers;
             session.RaiseInput(key);
 
@@ -206,6 +215,108 @@ internal sealed class FileEditor
         }
 
         return false;
+    }
+
+    private bool TryHandleTextMouse(
+        MouseConsoleInputEvent mouse,
+        EditorSession session,
+        int contentHeight,
+        ConsoleSize size)
+    {
+        if (mouse.Button != MouseButton.Left &&
+            _mouseSelectionAnchor is null)
+        {
+            return false;
+        }
+
+        switch (mouse.Kind)
+        {
+            case MouseEventKind.DoubleClick:
+                if (!TryGetTextMousePosition(mouse, session, contentHeight, size, clampToContent: false, out var doubleClickPosition))
+                    return false;
+
+                session.SelectWordAt(doubleClickPosition);
+                _mouseSelectionAnchor = null;
+                _markMode = false;
+                _persistentSelection = false;
+                return true;
+
+            case MouseEventKind.Down:
+                if (!TryGetTextMousePosition(mouse, session, contentHeight, size, clampToContent: false, out var clickPosition))
+                    return false;
+
+                session.MoveTo(clickPosition);
+                _mouseSelectionAnchor = clickPosition;
+                _markMode = false;
+                _persistentSelection = false;
+                return true;
+
+            case MouseEventKind.Click:
+                if (!TryGetTextMousePosition(mouse, session, contentHeight, size, clampToContent: false, out var singleClickPosition))
+                    return false;
+
+                session.MoveTo(singleClickPosition);
+                _mouseSelectionAnchor = null;
+                _markMode = false;
+                _persistentSelection = false;
+                return true;
+
+            case MouseEventKind.Move when _mouseSelectionAnchor is not null:
+                if (!TryGetTextMousePosition(mouse, session, contentHeight, size, clampToContent: true, out var movePosition))
+                    return false;
+
+                session.SelectRange(_mouseSelectionAnchor.Value, movePosition);
+                _markMode = false;
+                _persistentSelection = false;
+                return true;
+
+            case MouseEventKind.Up when _mouseSelectionAnchor is not null:
+                if (TryGetTextMousePosition(mouse, session, contentHeight, size, clampToContent: true, out var upPosition))
+                    session.SelectRange(_mouseSelectionAnchor.Value, upPosition);
+
+                _mouseSelectionAnchor = null;
+                _markMode = false;
+                _persistentSelection = false;
+                return true;
+        }
+
+        return false;
+    }
+
+    private bool TryGetTextMousePosition(
+        MouseConsoleInputEvent mouse,
+        EditorSession session,
+        int contentHeight,
+        ConsoleSize size,
+        bool clampToContent,
+        out EditorPosition position)
+    {
+        position = default;
+
+        int contentWidth = Math.Max(1, size.Width - 1);
+        int minY = 1;
+        int maxY = contentHeight;
+        int textX = mouse.X;
+        int textY = mouse.Y;
+
+        if (clampToContent)
+        {
+            textX = Math.Clamp(textX, 0, contentWidth - 1);
+            textY = Math.Clamp(textY, minY, maxY);
+        }
+        else if (textX < 0 || textX >= contentWidth || textY < minY || textY > maxY)
+        {
+            return false;
+        }
+
+        int lineIndex = Math.Clamp(
+            session.Viewport.TopLine + textY - 1,
+            0,
+            session.Document.Buffer.LineCount - 1);
+        string line = session.Document.Buffer.GetLine(lineIndex);
+        int visualColumn = session.Viewport.LeftColumn + textX;
+        position = new EditorPosition(lineIndex, LogicalColumnFromVisualColumn(line, visualColumn));
+        return true;
     }
 
     private bool TryHandleScrollbarMouse(
