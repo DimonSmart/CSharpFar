@@ -644,6 +644,35 @@ public sealed class ApplicationNavigationTests : IDisposable
     }
 
     [Fact]
+    public void ExecuteCommand_CdQuotedEnvironmentVariablePath_LoadsActivePanelWithoutShell()
+    {
+        string profile = Directory.CreateDirectory(Path.Combine(_tempDir, "profile")).FullName;
+        string child = Directory.CreateDirectory(Path.Combine(profile, "OneDrive")).FullName;
+        var fs = new FakeFileSystemService();
+        fs.AddDirectory(_tempDir);
+        fs.AddDirectory(profile);
+        fs.AddDirectory(child);
+
+        const string variableName = "CSHARPFAR_TEST_USERPROFILE";
+        string? previousValue = Environment.GetEnvironmentVariable(variableName);
+        Environment.SetEnvironmentVariable(variableName, profile);
+        try
+        {
+            var shell = new RecordingShellService();
+            var app = CreateApp(fs, new FakeConsoleDriver(width: 80, height: 12), _tempDir, shell);
+
+            app.ExecuteCommand($@"cd ""%{variableName}%\OneDrive""");
+
+            Assert.Equal(child, GetLeftPanel(app).CurrentDirectory);
+            Assert.Empty(shell.Commands);
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable(variableName, previousValue);
+        }
+    }
+
+    [Fact]
     public void ExecuteCommand_CdWithDriveSwitch_LoadsActivePanelWithoutShell()
     {
         string child = Directory.CreateDirectory(Path.Combine(_tempDir, "child")).FullName;

@@ -2772,7 +2772,8 @@ public sealed class Application
         string targetDirectory;
         try
         {
-            targetDirectory = Path.GetFullPath(rawTarget, state.CurrentDirectory);
+            string target = Environment.ExpandEnvironmentVariables(rawTarget);
+            targetDirectory = Path.GetFullPath(target, state.CurrentDirectory);
             if (!Directory.Exists(targetDirectory))
                 return true;
         }
