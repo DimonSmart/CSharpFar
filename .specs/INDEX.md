@@ -31,7 +31,7 @@
 | 0034 | Spec | Current | Panel quick search | Add Far-like quick search for the active file panel. When the main file manager UI is active, pressing `Alt` plus the first filename char... |
 | 0035 | Spec | Current | FTP and FTPS file system provider | Add a built-in FTP/FTPS panel source so a user can connect to an FTP server, browse remote directories in a normal panel, and use the exi... |
 | 0036 | Spec | Current | Application icon | Give CSharpFar its own Windows application icon with a Far-like file manager identity without copying Far Manager branding or artwork. |
-| 0038 | Spec | Current | History-enabled text input | Add optional command-history-style suggestions to reusable single-line text input controls, and document the current control ecosystem so... |
+| 0038 | Spec | Current | History-enabled text input | Add optional command-history-style suggestions to reusable single-line text input controls, document the current control ecosystem, and define reusable control mouse expectations. |
 | 0046 | Spec | Current | Built-in text editor | Turn the current F4 editor into a predictable Far-like text editor with a real internal editor model, explicit file format handling, undo... |
 | 0047 | Spec | Current | FarNet 10 managed API compatibility | Make CSharpFar's managed FarNet compatibility layer measurably converge on the public `FarNet` 10.0.30 API while keeping `FarNet.JsonKit`... |
 | 0048 | Spec | Current | Create new file dialog | Add a Far-like `Shift+F4` command that creates a new text file from the file panels and opens it in the built-in editor. The command must... |
@@ -40,7 +40,7 @@
 | 0051 | Spec | Current | Editor Unicode scalar cursor behavior | The built-in editor stores text as .NET strings, so internal positions are UTF-16 indexes. Unicode scalar values outside the Basic Multil... |
 | 0052 | Spec | Current | Viewer Far Hotkeys | Make the F3 file viewer accept the main Far Manager viewer keys so users can navigate, switch modes, search, change encoding, edit, and m... |
 | 0053 | Spec | Current | Delete progress dialog | Show file deletion with a delete-specific progress dialog instead of reusing the copy progress layout. |
-| 0054 | Spec | Current | Paranoid copy auto retry and control mouse | Make copy dialog options selectable by mouse through the shared form-dialog control model, and make `Paranoid` copy automatically retry r... |
+| 0054 | Spec | Current | Paranoid copy auto retry | Make `Paranoid` copy automatically retry read-side failures without showing a modal wait prompt. |
 | 0055 | Spec | Current | Directory shortcuts | Add Far-like directory shortcuts so the user can configure up to ten numbered directories and quickly navigate the active visible panel t... |
 | 0056 | Spec | Current | Built-in cd panel navigation | Handle `CD` and `CHDIR` typed in the built-in command line as CSharpFar built-in commands and navigate the active local file panel to the... |
 | 0057 | Spike | Open | Unix and macOS portability | What must change for CSharpFar to run predictably on Unix-like systems, especially Linux and macOS, without hiding platform differences b... |
