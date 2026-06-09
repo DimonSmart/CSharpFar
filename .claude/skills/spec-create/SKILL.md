@@ -31,6 +31,11 @@ rules, state the mismatch and use the correct document type.
 - Create a spec only for durable product intent.
 - Create an ADR for durable architectural decisions.
 - Create a spike for research before a decision.
+- Do not create replacement specs only to preserve old wording.
+- If the product area is the same, update the existing spec.
+- If the product area identity changes, delete the old spec and create a new
+  owning spec.
+- Git history preserves the deleted document.
 - If the requested type does not match the change, do not follow it blindly.
   State the mismatch and use the correct IDD document type.
 
@@ -53,7 +58,9 @@ rules, state the mismatch and use the correct document type.
 4. If an owner exists, stop and use `spec-change`.
 5. If current intent already exists, update the existing current document
    instead of creating a duplicate.
-6. Find the next number by scanning `.specs/` and `.specs/archive/`.
+6. Find the next number by scanning current numbered documents directly under
+   `.specs/`. Do not scan or create an archive directory. Deleted document
+   numbers are not reused.
 7. Create the document from the matching template.
 8. Update `INDEX.md` when a numbered document is added.
 9. Keep the document normative. Do not add local task notes.

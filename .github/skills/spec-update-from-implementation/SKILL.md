@@ -36,10 +36,16 @@ implementation.
 - Preserve stable document numbers and references.
 - Do not rewrite accepted ADRs semantically. If the decision changed, create a
   replacing ADR.
+- Do not archive old specs when implementation changes confirmed product
+  intent.
+- Update current owning specs directly.
+- If confirmed implementation replaces a whole product area, delete the old
+  spec and create a new owning spec.
+- Git history preserves previous versions.
 - If confirmed implementation behavior contradicts multiple current
   specifications, update all affected specifications consistently or report the
   conflict.
-- Update `INDEX.md` only when documents are added, archived, renamed, or their
+- Update `INDEX.md` only when documents are added, deleted, renamed, or their
   role changes.
 
 ## Workflow

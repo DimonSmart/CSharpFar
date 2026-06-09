@@ -30,7 +30,6 @@ scope:
 
 mode: propose | apply
 allowNewSpec: true | false
-allowArchive: true | false
 preserveMeaning: true
 ```
 
@@ -123,8 +122,8 @@ Current specs must not contain:
 - source-specific wrapper text from imported methodologies.
 
 Task, refactor, cleanup, progress, and status notes are not current product
-specs unless they define durable product behavior. Archive or convert task-like
-specs only when explicitly allowed.
+specs unless they define durable product behavior. Delete or convert task-like
+specs when they are not current product intent.
 
 ## Structural Normalization
 
@@ -161,7 +160,7 @@ Support these scenarios:
 - split one mixed-scope spec into several specs;
 - merge tiny spec X into a larger existing spec;
 - move misplaced behavior from one spec to another;
-- archive/convert a task-like spec only when explicitly allowed;
+- delete task-like, process-only, obsolete, duplicated, or incorrect documents;
 - replace moved fragments with references;
 - update `INDEX.md`;
 - preserve product meaning.
@@ -180,8 +179,13 @@ Support these scenarios:
   normative intent.
 - Keep source-specific behavior in the source spec when it is not general.
 - Replace moved duplicated text with references to the target spec.
-- Update `INDEX.md` when documents are added, archived, renamed, or their roles
+- Update `INDEX.md` when documents are added, deleted, renamed, or their roles
   change.
+- Do not archive obsolete documents.
+- Delete documents that no longer belong in the current working tree.
+- Git history is the only history mechanism.
+- If deleting a document would lose current product intent, stop and report the
+  conflict.
 - Stop and ask for confirmation when the operation would change product meaning.
 
 ## Workflow
@@ -203,7 +207,7 @@ Support these scenarios:
    - possible conflicts;
    - unrelated mentions.
 6. Build the focused normalized target structure.
-7. In `propose` mode, report the proposed split/merge/extract/archive plan and
+7. In `propose` mode, report the proposed split/merge/extract/delete plan and
    stop before edits.
 8. In `apply` mode, move only existing intent that preserves meaning.
 9. Replace moved fragments in source specs with short references.
@@ -268,6 +272,21 @@ Expected behavior:
 - leave non-control console behavior in the source spec;
 - replace the extracted section with a reference;
 - update `INDEX.md`.
+
+### Delete task-like spec
+
+User request:
+
+```text
+This spec is no longer needed; it was task-like/refactor-only.
+```
+
+Expected behavior:
+
+- confirm the document contains no current product intent;
+- delete the document from the working tree;
+- update `INDEX.md`;
+- do not preserve a copy elsewhere.
 
 ### Broad request
 

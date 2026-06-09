@@ -29,6 +29,13 @@ spec-change = user change request + affected specs + minimal product intent upda
   feature area.
 - Do not put implementation steps, temporary notes, generated plans, or chat
   history into specs.
+- Do not archive old specs.
+- If behavior changes inside the same product area, edit the existing spec.
+- If product area identity changes, delete the old spec and create a new owning
+  spec.
+- If a document becomes obsolete, duplicated, task-like, process-only, or
+  incorrect, delete it.
+- Git history preserves previous versions.
 - Update Behavior, Acceptance Criteria and Verification together when the change
   affects them.
 - If the request contradicts current specs and the user clearly asks for the new

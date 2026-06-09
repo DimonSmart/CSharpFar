@@ -1,11 +1,12 @@
 ---
-name: spec-create
-description: Create a new IDD spec, ADR, or spike for durable product intent.
+name: spec-new-document
+description: Create a new owning IDD spec, ADR, or spike only when no existing current document owns the area or decision.
 ---
 
-# spec-create
+# spec-new-document
 
-Use this skill to create a new specification, ADR, or spike.
+Use this skill to create a new owning specification, ADR, or spike when no
+existing current document owns the product area or decision.
 
 ## Input
 
@@ -24,7 +25,7 @@ rules, state the mismatch and use the correct document type.
 - Do not use this skill for changing behavior already covered by an existing
   current spec.
 - Use `spec-change` for user-requested changes to existing product behavior.
-- Use `spec-create` only when a new durable product area, ADR, or spike is
+- Use `spec-new-document` only when a new durable product area, ADR, or spike is
   needed.
 - Do not create a spec for task-level changes.
 - Do not create a spec for an ordinary dependency update.

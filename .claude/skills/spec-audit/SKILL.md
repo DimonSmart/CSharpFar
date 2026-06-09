@@ -1,6 +1,10 @@
 ---
 name: spec-audit
 description: Diagnose `.specs/` structure and recommend reorganizations without editing files.
+context: fork
+agent: Explore
+argument-hint: "[scope or audit focus]"
+allowed-tools: Read Glob Grep
 ---
 
 # spec-audit
@@ -22,7 +26,7 @@ split/merge decisions", "find structural problems", or "look across all specs".
 - Do not reorganize specs.
 - Do not resolve product conflicts.
 - Do not read the whole project unless needed to understand spec references.
-- Recommend `spec-reorganize` for focused follow-up work.
+- Recommend `spec-normalize-current` for focused follow-up work.
 - Recommend `spec-import` only when the problem is unnormalized raw source
   material.
 - Report uncertainty explicitly.
@@ -64,6 +68,14 @@ product behavior, or source-specific wrapper text from imported methodologies.
    - task/refactor/cleanup specs;
    - semantic conflicts;
    - obsolete references;
+   - `.specs` archive directory;
+   - `Archived` section in `INDEX.md`;
+   - archive references in skills or docs;
+   - obsolete documents that should be deleted;
+   - process-only documents that should be deleted;
+   - duplicated specs that should be merged or deleted;
+   - ADRs incorrectly moved out of the current document set;
+   - spikes that are resolved but still kept as current research;
    - specs that should be ADR;
    - specs that should be spike;
    - missing shared specs;
@@ -74,7 +86,7 @@ product behavior, or source-specific wrapper text from imported methodologies.
 ## Structural Diagnostics
 
 Use the same structural normalization concepts as `spec-import` and
-`spec-reorganize`, but only for diagnosis.
+`spec-normalize-current`, but only for diagnosis.
 
 Look for durable product areas such as product overview, panels, command line,
 file operations, viewer, editor, shared text format / encoding / BOM / EOL, UI
@@ -100,7 +112,7 @@ Short list of the most important structural problems.
 
 ### Finding: <short title>
 
-- Type: oversized | undersized | mixed-scope | duplicate | scattered-model | conflict | task-like | stale-reference | missing-shared-spec | adr-candidate | spike-candidate
+- Type: oversized | undersized | mixed-scope | duplicate | scattered-model | conflict | task-like | stale-reference | missing-shared-spec | adr-candidate | spike-candidate | archive-concept | delete-candidate | obsolete-current-doc | resolved-spike | superseded-adr-status-missing
 - Specs:
 - Problem:
 - Recommended action:
@@ -111,7 +123,7 @@ Short list of the most important structural problems.
 
 ## Proposed Reorganization Plan
 
-Ordered list of recommended split/merge/extract/archive actions.
+Ordered list of recommended split/merge/extract/delete actions.
 
 ## Product Decisions Required
 
@@ -135,7 +147,7 @@ Expected behavior:
 - use `spec-audit`;
 - do not edit files;
 - produce findings and a reorganization plan;
-- identify which follow-up actions should use `spec-reorganize`.
+- identify which follow-up actions should use `spec-normalize-current`.
 
 ## Non-goals
 

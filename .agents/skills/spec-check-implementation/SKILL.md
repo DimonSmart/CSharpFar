@@ -74,7 +74,9 @@ a code area, a spec, a behavior, a test failure, or an observed mismatch.
 
 - Use only current numbered documents directly under `.specs/` as normative
   product intent.
-- Treat archived documents as historical context only.
+- There is no `.specs` archive lifecycle.
+- Do not inspect deleted Git history unless the user explicitly asks for
+  historical investigation.
 - Do not treat implementation as product intent by itself.
 - Do not update specifications unless the user explicitly confirms that the
   implementation represents current product intent.
@@ -134,8 +136,8 @@ a code area, a spec, a behavior, a test failure, or an observed mismatch.
    - add or update tests;
    - ask for product intent confirmation;
    - update product intent using `spec-change`;
-   - create a new spec, ADR, or spike using `spec-create` only when no existing
-     current spec owns the area;
+   - create a new spec, ADR, or spike using `spec-new-document` only when no
+     existing current spec owns the area;
    - update spec from implementation using `spec-update-from-implementation`
      only after explicit confirmation;
    - create a spike if the correct intent requires research.
@@ -345,13 +347,14 @@ implementation or wants to change current behavior.
 Use `spec-implement` when current specs are clear and implementation should be
 changed to match them.
 
-Use `spec-create` when durable product intent needs a new spec, ADR, or spike.
+Use `spec-new-document` when durable product intent needs a new spec, ADR, or
+spike.
 
 Use `spec-update-from-implementation` only when the user explicitly confirms
 that verified implementation behavior represents current product intent.
 
-Use `spec-reorganize` when existing intent should be moved to a better location
-without changing meaning.
+Use `spec-normalize-current` when existing intent should be moved to a better
+location without changing meaning.
 
 Use `spec-check-implementation` before those actions when the problem is a
 possible mismatch between implementation and current specs.
@@ -365,7 +368,7 @@ possible mismatch between implementation and current specs.
 - If implementation contains desired behavior not yet specified, recommend
   `spec-update-from-implementation` only after explicit user confirmation.
 - If product intent is missing and user describes desired behavior, recommend
-  `spec-change`, not `spec-create`, unless no existing spec owns the area.
+  `spec-change`, not `spec-new-document`, unless no existing spec owns the area.
 
 ## Non-Goals
 
@@ -379,4 +382,4 @@ This skill does not:
 - replace tests;
 - replace code review;
 - run broad repository audits without focus;
-- treat archived specs as current intent.
+- inspect deleted history as current intent.

@@ -11,7 +11,7 @@ Use this skill to import raw specification material into a normalized IDD
 Formula:
 
 ```text
-spec-import = source triage + structural normalization + normalized spec writing
+spec-import = import + mandatory normalization + lint gate
 ```
 
 Use it when old `.worklog` content, GitHub Spec Kit folders, issue/task docs,
@@ -21,6 +21,24 @@ coherent current product specification set.
 Import is a migration of meaning, not a mechanical conversion from old files to
 new files. Source files are evidence. They are not the desired target structure.
 
+Import is not complete until the generated `.specs` tree is mechanically
+consistent.
+
+For successful apply-safe import, the expected final state is:
+
+- no `.specs/archive`;
+- no process-only import reports under `.specs`;
+- all current numbered documents are listed in `.specs/INDEX.md`;
+- all current documents listed in `.specs/INDEX.md` exist;
+- all numeric `Related`, `Replaces`, `Supersedes`, `Depends on`, and similar
+  references point to existing current documents;
+- imported current specs, ADRs, and active spikes follow the current document
+  shape;
+- `spec-lint` would return no errors.
+
+Warnings may remain only for genuinely semantic ambiguity. Mechanical errors
+must be fixed before finishing the import.
+
 ## Default Modes
 
 ```yaml
@@ -28,7 +46,6 @@ mode: apply-safe
 autoNormalize: true
 conflictMode: report-only
 allowNewSpecs: true
-allowArchive: true
 ```
 
 Supported modes:
@@ -38,7 +55,6 @@ mode: propose | apply-safe
 autoNormalize: true
 conflictMode: report-only
 allowNewSpecs: true
-allowArchive: true
 ```
 
 `apply-safe` may apply structural changes that preserve product meaning. It must
@@ -125,7 +141,7 @@ This is not a fixed enum. Prefer areas that match the actual product.
    - durable product intent;
    - architecture decision;
    - unresolved research / spike;
-   - historical context;
+   - obsolete source material;
    - task/progress/status notes;
    - implementation-only cleanup/refactor notes;
    - obsolete source-specific wrapper text.
@@ -138,15 +154,17 @@ This is not a fixed enum. Prefer areas that match the actual product.
 10. Merge multiple source docs when they describe one small area.
 11. Extract repeated common models into shared specs.
 12. Keep semantic conflicts visible and do not resolve them automatically.
-13. Update `.specs/INDEX.md`.
-14. Keep a short source reference only when it helps traceability; do not turn a
+13. Build and apply a source-to-target remap before writing final relations.
+14. Regenerate `.specs/INDEX.md` from actual current numbered documents.
+15. Run or simulate `spec-lint` and fix mechanical errors before finishing.
+16. Keep a short source reference only when it helps traceability; do not turn a
     spec into an imported journal.
 
 ## Source Triage
 
 Identify the source methodology and conventions before importing. Look for
-README or index files, templates, lifecycle markers, document types, archives,
-generated files, task sections, ADRs, spikes, research, and implementation
+README or index files, templates, lifecycle markers, document types, generated
+files, task sections, ADRs, spikes, research, and implementation
 sections.
 
 Use source-specific conventions as hints only. Classify each document and
@@ -186,12 +204,13 @@ Possible import actions:
 
 ```text
 import-current
-import-archive
 convert-to-adr
 convert-to-spike
 extract-fragments
 skip-process-only
 skip-generated
+delete-obsolete
+delete-duplicate
 needs-review
 ```
 
@@ -222,6 +241,62 @@ source-wrapper
 ```
 
 Import durable intent. Drop process noise.
+
+Do not import obsolete or process-only source material into an archive. Skip or
+delete source material that has no current product intent. Preserve old
+versions only through Git history.
+
+Never create `.specs/archive`.
+Never move obsolete imported documents into `.specs/archive`.
+Never preserve skipped, obsolete, duplicate, process-only, task-like, or
+historical source files as archived specs.
+Git history is the archive.
+
+## Source-to-target Remap
+
+Before writing final documents, build a source-to-target mapping for every
+imported, skipped, merged, deleted, absorbed, or converted source document.
+
+Track at least:
+
+```text
+source id/path
+source title
+source detected type
+action
+target document if any
+absorbed-by document if any
+reason
+reference rewrite rule
+```
+
+Possible actions:
+
+```text
+import-current
+convert-to-adr
+convert-to-spike
+extract-fragments
+merge-into-existing
+absorb-into-new
+skip-process-only
+skip-generated
+delete-obsolete
+delete-duplicate
+needs-review
+```
+
+Rules:
+
+- A numeric relation may be written only if the referenced target document
+  exists in current `.specs`.
+- If source document A was absorbed by target document B, references to A must
+  be rewritten to B when the relation is still meaningful.
+- If source document A was skipped as process-only, duplicate, obsolete,
+  generated, or historical-only, references to A must be removed or rewritten as
+  source history, not kept as normative numeric references.
+- If the correct remap cannot be inferred safely, do not leave a broken
+  reference. Report the unresolved mapping as a blocking import issue.
 
 ## Conflict Handling
 
@@ -256,8 +331,7 @@ Prefer:
 - one shared spec for common reusable behavior;
 - feature specs for user-visible capabilities;
 - ADRs for durable architectural decisions;
-- spikes for unresolved questions;
-- archive files for useful obsolete intent.
+- spikes for active unresolved questions.
 
 Avoid:
 
@@ -266,6 +340,135 @@ Avoid:
 - duplicate specs for the same behavior;
 - specs named after temporary work items;
 - specs that describe how the migration was performed.
+
+Create current specs only for durable current product intent. Create ADRs only
+for durable decision records. Create spikes only for active unresolved research.
+
+Imported current documents must use current IDD document shapes. Do not preserve
+legacy section layout when the document becomes current normative intent.
+
+Minimum shape for `Spec`:
+
+```md
+# 0000 - Title
+
+Type: Spec
+Status: Current
+
+## Context
+
+## Scope / Behavior
+
+## Non-goals
+
+## Acceptance criteria
+
+## Source history
+```
+
+Minimum shape for `ADR`:
+
+```md
+# 0000 - Title
+
+Type: ADR
+Status: Accepted | Proposed | Deprecated | Superseded
+
+## Context
+
+## Decision
+
+## Consequences
+
+## Related specs
+
+## Source history
+```
+
+Minimum shape for `Spike`:
+
+```md
+# 0000 - Title
+
+Type: Spike
+Status: Open | Resolved
+
+## Question
+
+## Findings
+
+## Result / Recommendation
+
+## Follow-up
+```
+
+If a spike already has `Result` or `Recommendation` and is no longer active
+research, import must choose one of these outcomes:
+
+- convert the result into a Spec or ADR if it defines current product intent;
+- delete or skip it if it is only historical research;
+- keep it as Spike only if the question is still active and unresolved.
+
+## Relation Normalization
+
+After writing documents, scan all current specs, ADRs, and spikes for numeric
+references.
+
+For each reference:
+
+1. Check whether the target file exists.
+2. If missing, consult the source-to-target map.
+3. Rewrite to the current target when safe.
+4. Remove historical-only references.
+5. Stop and report a blocking ambiguity only when the relation is
+   product-relevant but cannot be safely mapped.
+
+Do not finish with a relation such as:
+
+```text
+Related: 0026
+```
+
+when `0026` does not exist.
+
+It is valid to rewrite the relation when the source remap proves the target:
+
+```text
+Related: 0027
+```
+
+It is also valid to preserve traceability as non-normative history:
+
+```text
+Source history: extracted from legacy .worklog/0026.
+```
+
+Source history is not a normative relation.
+
+## Index Regeneration
+
+Regenerate `.specs/INDEX.md` from actual current numbered documents after
+import. Never leave placeholder index content. Never rely on the source index as
+the final target index.
+
+Minimum structure:
+
+```md
+# Specs Index
+
+| ID | Type | Status | Title | Summary |
+|----|------|--------|-------|---------|
+| 0001 | Spec | Current | ... | ... |
+| 0002 | ADR | Accepted | ... | ... |
+```
+
+Rules:
+
+- every current numbered document under `.specs/` must be listed;
+- every listed document must exist;
+- process reports, templates, README files, and support docs must not be listed
+  as current specs;
+- there must be no Archived section.
 
 ## Workflow
 
@@ -276,26 +479,52 @@ Avoid:
 4. Build the import inventory.
 5. Classify fragments into product intent, ADR, spike, historical context,
    process noise, cleanup/refactor notes, wrappers, and conflicts.
-6. Build a product area map.
-7. Perform structural normalization:
+6. Build the source-to-target remap.
+7. Build a product area map.
+8. Perform structural normalization:
    - split oversized or mixed-scope material;
    - merge tiny related fragments into existing areas;
    - extract shared models;
    - separate ADR and spike material;
    - reject task/refactor/cleanup notes as current specs.
-8. Propose or infer target files.
-9. Write normalized current specs, ADRs, spikes, or archive material according
-   to mode and safety.
-10. Keep conflicts visible and unresolved.
-11. Update `.specs/INDEX.md`.
-12. Write an import report for non-trivial imports.
-13. Run relevant repository checks.
+9. Propose or infer target files.
+10. Write normalized current specs, ADRs, or active spikes according to mode and
+   safety.
+11. Keep conflicts visible and unresolved.
+12. Run post-import cleanup.
+13. Return the import report in the assistant response, or write it outside
+    `.specs` only when persistent output is explicitly needed.
+14. Run relevant repository checks.
+
+## Post-import Cleanup
+
+Before finishing:
+
+1. Delete `.specs/archive` if it exists.
+2. Remove import/process reports from `.specs`.
+3. Regenerate `.specs/INDEX.md`.
+4. Validate and rewrite numeric relations through the source-to-target map.
+5. Normalize current specs, ADRs, and spikes to current section shapes.
+6. Reclassify resolved spikes.
+7. Remove or merge task-like, process-only, duplicate, and historical-only docs.
+8. Run or simulate `spec-lint`.
+9. Continue fixing mechanical errors until none remain.
 
 ## Import Report
 
-For non-trivial imports, create an import report outside current numbered specs,
-for example `.specs/import-report.md` or
-`.specs/archive/import-report-YYYYMMDD.md`.
+Do not create `.specs/import-report.md`.
+
+Import reports are process output, not product intent. They must not be stored
+inside `.specs`.
+
+Prefer returning the import report in the assistant response. If a persistent
+report is explicitly needed, write it outside `.specs`, for example:
+
+- `.intent-driven-development/import-report.md`;
+- `docs/import-report.md`.
+
+The report must not recommend creating `.specs/archive` or link to
+`.specs/archive/...`.
 
 Include:
 
@@ -306,7 +535,7 @@ Include:
 - fragments extracted from task/process documents;
 - structural normalization decisions;
 - conflicts found;
-- obsolete documents archived;
+- obsolete documents skipped or deleted;
 - documents requiring human review;
 - shared topics consolidated;
 - source-to-target mapping.
@@ -330,7 +559,14 @@ Before finishing, check:
 - Existing specs were updated when appropriate.
 - Conflicts are visible and unresolved.
 - ADR-worthy decisions and spike-worthy research are separated.
-- `.specs/INDEX.md` is updated.
+- `.specs/INDEX.md` is regenerated from actual current numbered documents.
+- numeric relations point only to existing current documents.
+- no process/import report remains under `.specs`.
+- no `.specs/archive` directory exists.
+- imported specs, ADRs, and active spikes use current document shapes.
+- resolved spikes are converted, removed, or justified as still-active
+  research.
+- `spec-lint` would return no errors.
 - The resulting specs describe target product state, not work history.
 
 ## Examples
@@ -354,6 +590,29 @@ Expected import behavior:
 - do not import the cleanup task as a current product spec;
 - report the Append conflict as a product decision;
 - update `.specs/INDEX.md`.
+
+### Import legacy `.worklog` with broken historical references
+
+Input:
+
+- old `.worklog` contains numbered documents;
+- some documents were archived or obsolete;
+- several current documents use `Related` / `Replaces` links to documents that
+  are not imported;
+- source has old section layouts;
+- source contains resolved spikes and task-like cleanup notes.
+
+Expected import behavior:
+
+- do not create `.specs/archive`;
+- do not create `.specs/import-report.md`;
+- build source-to-target mapping;
+- rewrite references to current targets when documents were absorbed or merged;
+- remove historical-only relations;
+- regenerate `.specs/INDEX.md`;
+- normalize specs, ADRs, and active spikes to current shapes;
+- convert or remove resolved spikes;
+- finish with no `spec-lint` errors.
 
 ### Spec Kit-like source
 
@@ -390,5 +649,5 @@ Do not use this skill for:
 - creating a project plan or implementation backlog.
 
 Use `spec-audit` for broad structural diagnostics without edits. Use
-`spec-reorganize` for focused normalization of existing current specs after
-import.
+`spec-normalize-current` only for later maintenance of an existing `.specs`
+tree, not as a required manual cleanup after import.
