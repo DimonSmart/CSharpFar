@@ -11,6 +11,13 @@ current product intent.
 
 Implementation evidence is not product intent by itself.
 
+Use `spec-update-from-implementation` when implementation behavior already exists
+and the user explicitly confirms that this implementation is current product
+intent.
+
+Use `spec-change` when the user describes desired future behavior before
+implementation.
+
 ## Rules
 
 - Do not treat incidental implementation details as requirements.

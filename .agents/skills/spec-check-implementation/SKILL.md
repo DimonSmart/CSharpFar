@@ -133,7 +133,9 @@ a code area, a spec, a behavior, a test failure, or an observed mismatch.
    - fix implementation;
    - add or update tests;
    - ask for product intent confirmation;
-   - create or update a spec using `spec-create`;
+   - update product intent using `spec-change`;
+   - create a new spec, ADR, or spike using `spec-create` only when no existing
+     current spec owns the area;
    - update spec from implementation using `spec-update-from-implementation`
      only after explicit confirmation;
    - create a spike if the correct intent requires research.
@@ -243,8 +245,9 @@ reset behavior.
 Recommended next step:
 
 ```text
-Ask whether this behavior is intended product intent. If yes, use spec-create or
-spec-update-from-implementation.
+Ask whether this behavior is intended product intent. If the user describes a
+desired behavior, use spec-change. If the user confirms existing implementation
+as intent, use spec-update-from-implementation.
 ```
 
 ### `unclear-intent`
@@ -336,6 +339,12 @@ Specify one of:
 
 ## Relationship To Other Skills
 
+Use `spec-change` when the user describes desired future product behavior before
+implementation or wants to change current behavior.
+
+Use `spec-implement` when current specs are clear and implementation should be
+changed to match them.
+
 Use `spec-create` when durable product intent needs a new spec, ADR, or spike.
 
 Use `spec-update-from-implementation` only when the user explicitly confirms
@@ -346,6 +355,17 @@ without changing meaning.
 
 Use `spec-check-implementation` before those actions when the problem is a
 possible mismatch between implementation and current specs.
+
+## Routing After Findings
+
+- If current spec is clear and implementation violates it, recommend
+  `spec-implement`.
+- If user wants to change current behavior, recommend `spec-change` before code
+  changes.
+- If implementation contains desired behavior not yet specified, recommend
+  `spec-update-from-implementation` only after explicit user confirmation.
+- If product intent is missing and user describes desired behavior, recommend
+  `spec-change`, not `spec-create`, unless no existing spec owns the area.
 
 ## Non-Goals
 

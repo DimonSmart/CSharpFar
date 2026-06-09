@@ -21,6 +21,11 @@ rules, state the mismatch and use the correct document type.
 
 ## Rules
 
+- Do not use this skill for changing behavior already covered by an existing
+  current spec.
+- Use `spec-change` for user-requested changes to existing product behavior.
+- Use `spec-create` only when a new durable product area, ADR, or spike is
+  needed.
 - Do not create a spec for task-level changes.
 - Do not create a spec for an ordinary dependency update.
 - Create a spec only for durable product intent.
@@ -43,9 +48,12 @@ rules, state the mismatch and use the correct document type.
 1. Read `.specs/README.md`, `.specs/INDEX.md`, and relevant current numbered
    documents directly under `.specs/`.
 2. Determine the document type from the explicit input or from the change.
-3. If current intent already exists, update the existing current document
+3. Before creating a new document, search `INDEX.md` and relevant current specs
+   for an existing owner of the product area.
+4. If an owner exists, stop and use `spec-change`.
+5. If current intent already exists, update the existing current document
    instead of creating a duplicate.
-4. Find the next number by scanning `.specs/` and `.specs/archive/`.
-5. Create the document from the matching template.
-6. Update `INDEX.md` when a numbered document is added.
-7. Keep the document normative. Do not add local task notes.
+6. Find the next number by scanning `.specs/` and `.specs/archive/`.
+7. Create the document from the matching template.
+8. Update `INDEX.md` when a numbered document is added.
+9. Keep the document normative. Do not add local task notes.
