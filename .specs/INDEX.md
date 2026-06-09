@@ -10,4 +10,5 @@ Git history is the source for deleted or previous document versions.
 
 | Document | Role | Area | Notes | Replaces |
 | --- | --- | --- | --- | --- |
-| Add numbered current specifications here | spec / adr / spike | Product area | Short navigation note | Optional replaced document |
+| `0010.spec-file-operations.md` | spec | File operations | Copy, move, delete, create-directory, shared progress and conflict behavior |  |
+| `0060.spec-file-rename-operation.md` | spec | File operations | Single-file rename operation dispatched from `F6` |  |
