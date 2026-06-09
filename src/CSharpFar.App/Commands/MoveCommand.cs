@@ -40,13 +40,9 @@ internal sealed class MoveCommand : IApplicationCommand
             return ApplicationCommandResult.Rendered();
         }
 
-        string preFill = sources.Count == 1
-            ? Path.GetFileName(sources[0]) ?? sources[0]
-            : targetState.CurrentDirectory;
-
         var dialogResult = new FileOperationDialog(context.Screen).ShowMove(
             sources,
-            preFill,
+            targetState.CurrentDirectory,
             context.BuildFileOperationOptions());
         if (dialogResult is null)
             return ApplicationCommandResult.Rendered();

@@ -9,6 +9,7 @@ internal static class FunctionKeyCommandIds
     public const string OpenCreateFile = "functionKey.shift.openCreateFile";
     public const string Copy = "functionKey.copy";
     public const string RenameOrMove = "functionKey.renameOrMove";
+    public const string Rename = "functionKey.shift.rename";
     public const string CreateFolder = "functionKey.createFolder";
     public const string Delete = "functionKey.delete";
     public const string TopMenu = "functionKey.topMenu";

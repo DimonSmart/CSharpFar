@@ -11,6 +11,7 @@ internal static class DefaultApplicationCommands
         new OpenCreateFileCommand(),
         new CopyCommand(),
         new MoveCommand(),
+        new RenameCommand(),
         new CreateFolderCommand(),
         new DeleteCommand(),
         new OpenTopMenuCommand(),

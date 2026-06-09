@@ -32,6 +32,7 @@ internal sealed class FileOperationDialog
         ConflictDecisionMode.Overwrite,
         ConflictDecisionMode.Skip,
         ConflictDecisionMode.Rename,
+        ConflictDecisionMode.OnlyNewer,
     ];
 
     private readonly ScreenRenderer _screen;
@@ -52,7 +53,7 @@ internal sealed class FileOperationDialog
         string prompt = sources.Count == 1
             ? $"Copy {Path.GetFileName(sources[0])} to:"
             : $"Copy {sources.Count} items to:";
-        return Show(title, prompt, "Copy", initialDestination, initialOptions, CopyConflictModes);
+        return Show(title, prompt, "Copy", initialDestination, initialOptions, CopyConflictModes, showOperationOptions: true);
     }
 
     public FileOperationDialogResult? ShowMove(
@@ -64,7 +65,19 @@ internal sealed class FileOperationDialog
         string prompt = sources.Count == 1
             ? "Move / Rename to:"
             : $"Move {sources.Count} items to:";
-        return Show(title, prompt, "Move", initialDestination, initialOptions, MoveConflictModes);
+        return Show(title, prompt, "Move", initialDestination, initialOptions, MoveConflictModes, showOperationOptions: true);
+    }
+
+    public FileOperationDialogResult? ShowRename(
+        string source,
+        string initialDestination,
+        FileOperationOptions initialOptions)
+    {
+        string sourceName = Path.GetFileName(source);
+        string prompt = string.IsNullOrEmpty(sourceName)
+            ? "Rename to:"
+            : $"Rename {sourceName} to:";
+        return Show("Rename", prompt, "Rename", initialDestination, initialOptions, MoveConflictModes, showOperationOptions: false);
     }
 
     private FileOperationDialogResult? Show(
@@ -73,7 +86,8 @@ internal sealed class FileOperationDialog
         string actionLabel,
         string initialDestination,
         FileOperationOptions initialOptions,
-        IReadOnlyList<ConflictDecisionMode> conflictModes)
+        IReadOnlyList<ConflictDecisionMode> conflictModes,
+        bool showOperationOptions)
     {
         var size = _screen.GetSize();
         var saved = _screen.Capture(new Rect(0, 0, size.Width, size.Height));
@@ -81,7 +95,7 @@ internal sealed class FileOperationDialog
 
         try
         {
-            return RunLoop(size, title, prompt, actionLabel, initialDestination, initialOptions, conflictModes);
+            return RunLoop(size, title, prompt, actionLabel, initialDestination, initialOptions, conflictModes, showOperationOptions);
         }
         finally
         {
@@ -97,7 +111,8 @@ internal sealed class FileOperationDialog
         string actionLabel,
         string initialDestination,
         FileOperationOptions initialOptions,
-        IReadOnlyList<ConflictDecisionMode> conflictModes)
+        IReadOnlyList<ConflictDecisionMode> conflictModes,
+        bool showOperationOptions)
     {
         var destination = new CommandLineState();
         destination.SetText(initialDestination);
@@ -143,6 +158,7 @@ internal sealed class FileOperationDialog
             preserveTimestamps,
             copySymlinkContents,
             useFilter,
+            showOperationOptions,
             focusRow,
             bodyScrollTop,
             buttonBar,
@@ -182,6 +198,7 @@ internal sealed class FileOperationDialog
                     preserveTimestamps,
                     copySymlinkContents,
                     useFilter,
+                    showOperationOptions,
                     focusRow,
                     bodyScrollTop,
                     buttonBar,
@@ -226,6 +243,7 @@ internal sealed class FileOperationDialog
                     size,
                     bodyScrollTop,
                     conflictModes,
+                    showOperationOptions,
                     ref focusRow,
                     ref conflictIndex,
                     ref securityMode,
@@ -351,11 +369,11 @@ internal sealed class FileOperationDialog
                             ref error);
                     break;
                 case ConsoleKey.UpArrow:
-                    focusRow = PreviousFocusableRow(focusRow, useFilter);
+                    focusRow = PreviousFocusableRow(focusRow, useFilter, showOperationOptions);
                     break;
                 case ConsoleKey.DownArrow:
                 case ConsoleKey.Tab:
-                    focusRow = NextFocusableRow(focusRow, useFilter);
+                    focusRow = NextFocusableRow(focusRow, useFilter, showOperationOptions);
                     break;
                 default:
                     if (focusRow is 0 or 6)
@@ -397,6 +415,7 @@ internal sealed class FileOperationDialog
                 preserveTimestamps,
                 copySymlinkContents,
                 useFilter,
+                showOperationOptions,
                 focusRow,
                 bodyScrollTop,
                 buttonBar,
@@ -442,6 +461,7 @@ internal sealed class FileOperationDialog
         ConsoleSize size,
         int bodyScrollTop,
         IReadOnlyList<ConflictDecisionMode> conflictModes,
+        bool showOperationOptions,
         ref int focusRow,
         ref int conflictIndex,
         ref FileSecurityMode securityMode,
@@ -464,6 +484,8 @@ internal sealed class FileOperationDialog
                 focusRow = 0;
                 return true;
             case 3:
+                if (!showOperationOptions)
+                    return false;
                 focusRow = 1;
                 if (TryHitAccessRights(contentColumn, out FileSecurityMode selectedSecurityMode))
                     securityMode = selectedSecurityMode;
@@ -482,18 +504,26 @@ internal sealed class FileOperationDialog
                     conflictIndex = bottomConflictIndex;
                 return true;
             case 9:
+                if (!showOperationOptions)
+                    return false;
                 focusRow = 3;
                 preserveTimestamps = !preserveTimestamps;
                 return true;
             case 10:
+                if (!showOperationOptions)
+                    return false;
                 focusRow = 4;
                 copySymlinkContents = !copySymlinkContents;
                 return true;
             case 12:
+                if (!showOperationOptions)
+                    return false;
                 focusRow = 5;
                 useFilter = !useFilter;
                 return true;
             case 14:
+                if (!showOperationOptions)
+                    return false;
                 if (!useFilter)
                     return false;
                 focusRow = 6;
@@ -667,8 +697,17 @@ internal sealed class FileOperationDialog
         }
     }
 
-    private static int NextFocusableRow(int focusRow, bool useFilter)
+    private static int NextFocusableRow(int focusRow, bool useFilter, bool showOperationOptions)
     {
+        if (!showOperationOptions)
+        {
+            if (focusRow == 0)
+                return 2;
+            if (focusRow == 2)
+                return 7;
+            return 0;
+        }
+
         if (focusRow == 5 && useFilter)
             return 6;
         if (focusRow == 5 || focusRow == 6)
@@ -678,8 +717,17 @@ internal sealed class FileOperationDialog
         return focusRow + 1;
     }
 
-    private static int PreviousFocusableRow(int focusRow, bool useFilter)
+    private static int PreviousFocusableRow(int focusRow, bool useFilter, bool showOperationOptions)
     {
+        if (!showOperationOptions)
+        {
+            if (focusRow == 0)
+                return 7;
+            if (focusRow == 7)
+                return 2;
+            return 0;
+        }
+
         if (focusRow == 0)
             return 7;
         if (focusRow == 7)
@@ -722,6 +770,7 @@ internal sealed class FileOperationDialog
         bool preserveTimestamps,
         bool copySymlinkContents,
         bool useFilter,
+        bool showOperationOptions,
         int focusRow,
         int bodyScrollTop,
         DialogButtonBar buttonBar,
@@ -754,22 +803,28 @@ internal sealed class FileOperationDialog
             WriteBodyRow(0, prompt, fill);
             DrawBodyInput(1, destination, destinationHistory, focusRow == 0);
             DrawBodySeparator(2);
-            DrawBodyAccessRights(3);
-            DrawBodySeparator(4);
+            if (showOperationOptions)
+            {
+                DrawBodyAccessRights(3);
+                DrawBodySeparator(4);
+            }
             WriteBodyRow(5, "Already existing files:", fill);
             DrawBodyConflictModeRow(6, 0, Math.Min(4, conflictModes.Count));
             DrawBodyConflictModeRow(7, 4, conflictModes.Count);
-            DrawBodySeparator(8);
-            DrawBodyCheckbox(9, "Preserve all timestamps", preserveTimestamps, focusRow == 3);
-            DrawBodyCheckbox(10, "Copy contents of symbolic links", copySymlinkContents, focusRow == 4);
-            DrawBodySeparator(11);
-            DrawBodyCheckbox(12, "Use filter", useFilter, focusRow == 5);
-            WriteBodyRow(13, "Filter mask:", fill);
-            if (useFilter)
-                DrawBodyInput(14, filter, filterHistory, focusRow == 6);
-            else
-                WriteBodyRow(14, SingleLineTextInput.VisibleText(filter, contentWidth), fill);
-            DrawBodySeparator(15);
+            if (showOperationOptions)
+            {
+                DrawBodySeparator(8);
+                DrawBodyCheckbox(9, "Preserve all timestamps", preserveTimestamps, focusRow == 3);
+                DrawBodyCheckbox(10, "Copy contents of symbolic links", copySymlinkContents, focusRow == 4);
+                DrawBodySeparator(11);
+                DrawBodyCheckbox(12, "Use filter", useFilter, focusRow == 5);
+                WriteBodyRow(13, "Filter mask:", fill);
+                if (useFilter)
+                    DrawBodyInput(14, filter, filterHistory, focusRow == 6);
+                else
+                    WriteBodyRow(14, SingleLineTextInput.VisibleText(filter, contentWidth), fill);
+                DrawBodySeparator(15);
+            }
 
             if (BodyRowCount > bodyHeight)
             {

@@ -44,6 +44,12 @@ internal sealed class DefaultFunctionKeyBindingProvider
             "RenMov",
             RunsWhenUnavailable: true),
         new(
+            FunctionKeyCommandIds.Rename,
+            FunctionKeyLayer.Shift,
+            ConsoleKey.F6,
+            "Rename",
+            RunsWhenUnavailable: true),
+        new(
             FunctionKeyCommandIds.CreateFolder,
             FunctionKeyLayer.Plain,
             ConsoleKey.F7,

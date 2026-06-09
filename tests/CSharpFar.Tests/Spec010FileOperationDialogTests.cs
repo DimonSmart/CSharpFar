@@ -113,6 +113,27 @@ public sealed class Spec010FileOperationDialogTests
     }
 
     [Fact]
+    public void ShowRename_UsesRenameTitleAndDoesNotOfferAppend()
+    {
+        var driver = new FakeConsoleDriver(width: 100, height: 30);
+        var screen = new ScreenRenderer(driver);
+        driver.EnqueueKey(Key(ConsoleKey.F10));
+
+        var result = new FileOperationDialog(screen).ShowRename(
+            @"C:\source\old.txt",
+            "old.txt",
+            new FileOperationOptions());
+
+        Assert.NotNull(result);
+        Assert.Equal("old.txt", result.Destination);
+        Assert.Contains(driver.WriteRecords, r => r.Text.Contains("Rename", StringComparison.Ordinal));
+        Assert.Contains(driver.WriteRecords, r => r.Text.Contains("Only newer", StringComparison.Ordinal));
+        Assert.DoesNotContain(driver.WriteRecords, r => r.Text.Contains("Access rights", StringComparison.Ordinal));
+        Assert.DoesNotContain(driver.WriteRecords, r => r.Text.Contains("Use filter", StringComparison.Ordinal));
+        Assert.DoesNotContain(driver.WriteRecords, r => r.Text.Contains("Append", StringComparison.Ordinal));
+    }
+
+    [Fact]
     public void ShowCopy_CancelButtonSupportsMouseClick()
     {
         var driver = new FakeConsoleDriver(width: 100, height: 30);

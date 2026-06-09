@@ -25,6 +25,8 @@ public sealed class FunctionKeyBindingProviderTests
             FunctionKeyLayer.Control, ConsoleKey.F3, "SortNm");
         AssertBinding(bindings, FunctionKeyCommandIds.SortBySize,
             FunctionKeyLayer.Control, ConsoleKey.F6, "SortSz");
+        AssertBinding(bindings, FunctionKeyCommandIds.Rename,
+            FunctionKeyLayer.Shift, ConsoleKey.F6, "Rename", runsWhenUnavailable: true);
     }
 
     [Fact]
@@ -36,6 +38,7 @@ public sealed class FunctionKeyBindingProviderTests
             FunctionKeyCommandIds.Edit,
             FunctionKeyCommandIds.Copy,
             FunctionKeyCommandIds.RenameOrMove,
+            FunctionKeyCommandIds.Rename,
             FunctionKeyCommandIds.CreateFolder,
             FunctionKeyCommandIds.Delete,
         ];
