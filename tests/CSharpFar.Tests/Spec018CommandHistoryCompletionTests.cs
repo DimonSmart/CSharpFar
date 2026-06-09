@@ -1,6 +1,7 @@
 using System.Reflection;
 using CSharpFar.App;
 using CSharpFar.Console;
+using CSharpFar.Console.Input;
 using CSharpFar.Core.Abstractions;
 using CSharpFar.Core.History;
 using CSharpFar.Core.Models;
@@ -76,7 +77,26 @@ public sealed class Spec018CommandHistoryCompletionTests : IDisposable
     }
 
     [Fact]
-    public void Run_VisiblePanels_EnterAcceptsSelectedCompletionWithoutExecuting()
+    public void Run_VisiblePanels_EnterOnDefaultNeutralCompletionExecutesTypedCommand()
+    {
+        var history = CreateHistory("git status", "git commit");
+        var shell = new RecordingShellService();
+        var driver = new FakeConsoleDriver(width: 100, height: 12);
+        driver.EnqueueKey(KeyChar('g', ConsoleKey.G));
+        driver.EnqueueKey(KeyChar('i', ConsoleKey.I));
+        driver.EnqueueKey(KeyChar('t', ConsoleKey.T));
+        driver.EnqueueKey(Key(ConsoleKey.Enter));
+        driver.EnqueueKey(Key(ConsoleKey.F10));
+
+        var app = CreateApp(driver, history, shell);
+        app.Run();
+
+        Assert.Equal(["git"], shell.ExecutedCommands);
+        Assert.Equal(string.Empty, GetCommandLine(app).Text);
+    }
+
+    [Fact]
+    public void Run_VisiblePanels_EnterAcceptsExplicitlySelectedCompletionWithoutExecuting()
     {
         var history = CreateHistory("git status", "git commit");
         var shell = new RecordingShellService();
@@ -89,7 +109,7 @@ public sealed class Spec018CommandHistoryCompletionTests : IDisposable
         var app = CreateApp(driver, history, shell);
         app.Run();
 
-        Assert.Equal("git status", GetCommandLine(app).Text);
+        Assert.Equal("git commit", GetCommandLine(app).Text);
         Assert.Empty(shell.ExecutedCommands);
     }
 
@@ -122,15 +142,48 @@ public sealed class Spec018CommandHistoryCompletionTests : IDisposable
         var app = CreateApp(driver, history, new RecordingShellService());
         app.Run();
 
-        Assert.Equal('┌', ComposeRow(driver, y: 5, width: 40)[0]);
-        Assert.Equal('┐', ComposeRow(driver, y: 5, width: 40)[39]);
-        Assert.Equal('│', ComposeRow(driver, y: 6, width: 40)[0]);
-        Assert.Equal('│', ComposeRow(driver, y: 6, width: 40)[39]);
+        Assert.Equal('┌', ComposeRow(driver, y: 4, width: 40)[0]);
+        Assert.Equal('┐', ComposeRow(driver, y: 4, width: 40)[39]);
+        Assert.Equal('│', ComposeRow(driver, y: 5, width: 40)[0]);
+        Assert.Equal('│', ComposeRow(driver, y: 5, width: 40)[39]);
         Assert.Equal('└', ComposeRow(driver, y: 9, width: 40)[0]);
         Assert.Equal('┘', ComposeRow(driver, y: 9, width: 40)[39]);
+        Assert.DoesNotContain("git", ComposeRow(driver, y: 5, width: 40), StringComparison.Ordinal);
         Assert.Contains("git branch", ComposeRow(driver, y: 6, width: 40), StringComparison.Ordinal);
         Assert.Contains("git commit", ComposeRow(driver, y: 7, width: 40), StringComparison.Ordinal);
         Assert.Contains("git status", ComposeRow(driver, y: 8, width: 40), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Run_VisiblePanels_MouseClickCompletionAcceptsSuggestionWithoutExecuting()
+    {
+        var history = CreateHistory("git status", "git commit", "git branch");
+        var shell = new RecordingShellService();
+        var driver = new FakeConsoleDriver(width: 40, height: 12);
+        driver.EnqueueKey(KeyChar('g', ConsoleKey.G));
+        driver.EnqueueInput(LeftMouse(2, 6));
+        driver.EnqueueKey(Key(ConsoleKey.F10));
+
+        var app = CreateApp(driver, history, shell);
+        app.Run();
+
+        Assert.Equal("git branch", GetCommandLine(app).Text);
+        Assert.Empty(shell.ExecutedCommands);
+    }
+
+    [Fact]
+    public void Run_VisiblePanels_MouseClickNeutralCompletionKeepsTypedCommand()
+    {
+        var history = CreateHistory("git status", "git commit", "git branch");
+        var driver = new FakeConsoleDriver(width: 40, height: 12);
+        driver.EnqueueKey(KeyChar('g', ConsoleKey.G));
+        driver.EnqueueInput(LeftMouse(2, 5));
+        driver.EnqueueKey(Key(ConsoleKey.F10));
+
+        var app = CreateApp(driver, history, new RecordingShellService());
+        app.Run();
+
+        Assert.Equal("g", GetCommandLine(app).Text);
     }
 
     [Fact]
@@ -228,6 +281,9 @@ public sealed class Spec018CommandHistoryCompletionTests : IDisposable
 
     private static ConsoleKeyInfo KeyChar(char ch, ConsoleKey key) =>
         new(ch, key, shift: false, alt: false, control: false);
+
+    private static MouseConsoleInputEvent LeftMouse(int x, int y) =>
+        new(x, y, MouseButton.Left, MouseEventKind.Down, MouseKeyModifiers.None);
 
     private sealed class RecordingShellService : IShellService
     {

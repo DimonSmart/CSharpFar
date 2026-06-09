@@ -31,6 +31,7 @@ namespace CSharpFar.App;
 
 public sealed class Application
 {
+    private const int CommandCompletionNeutralIndex = 0;
     private const int MaxCommandCompletionRows = CommandHistoryCompletionRenderer.MaxVisibleRows;
 
     private readonly ScreenRenderer _screen;
@@ -1128,6 +1129,9 @@ public sealed class Application
         }
 
         if (TryHandleCommandCompletionScrollbarMouse(evt))
+            return true;
+
+        if (TryHandleCommandCompletionItemMouse(evt))
             return true;
 
         if (TryHandlePanelScrollbarDrag(evt))
@@ -2230,7 +2234,14 @@ public sealed class Application
                 _commandCompletionMatches.Add(command);
         }
 
-        _commandCompletionVisible = _commandCompletionMatches.Count > 0;
+        if (_commandCompletionMatches.Count == 0)
+        {
+            _commandCompletionVisible = false;
+            return;
+        }
+
+        _commandCompletionMatches.Insert(CommandCompletionNeutralIndex, string.Empty);
+        _commandCompletionVisible = true;
         _commandCompletionFirstVisibleIndex = 0;
     }
 
@@ -2284,6 +2295,55 @@ public sealed class Application
         return true;
     }
 
+    private bool TryHandleCommandCompletionItemMouse(MouseConsoleInputEvent evt)
+    {
+        if (!_commandCompletionVisible ||
+            _commandCompletionMatches.Count == 0 ||
+            evt.Button != MouseButton.Left ||
+            evt.Kind is not (MouseEventKind.Down or MouseEventKind.Click or MouseEventKind.DoubleClick))
+        {
+            return false;
+        }
+
+        var size = LastRenderSizeOrCurrent();
+        int visibleRows = CommandCompletionVisibleRows(size);
+        if (visibleRows <= 0)
+            return false;
+
+        int rowCount = Math.Min(visibleRows, _commandCompletionMatches.Count);
+        int height = rowCount + 2;
+        int commandLineRow = CommandLineRow(size);
+        var contentBounds = new Rect(
+            1,
+            commandLineRow - height + 1,
+            Math.Max(0, size.Width - 2),
+            rowCount);
+
+        if (evt.X < contentBounds.X ||
+            evt.X >= contentBounds.Right ||
+            evt.Y < contentBounds.Y ||
+            evt.Y >= contentBounds.Bottom)
+        {
+            return false;
+        }
+
+        int itemIndex = _commandCompletionFirstVisibleIndex + evt.Y - contentBounds.Y;
+        if (itemIndex < 0 || itemIndex >= _commandCompletionMatches.Count)
+            return false;
+
+        _commandCompletionSelectedIndex = itemIndex;
+        if (IsCommandCompletionNeutralSelected())
+        {
+            HideCommandCompletion(temporarily: false);
+            return true;
+        }
+
+        _cmdLine.SetText(_commandCompletionMatches[_commandCompletionSelectedIndex]);
+        HideCommandCompletion(temporarily: false);
+        ResetCommandHistoryNavigation();
+        return true;
+    }
+
     private void ClampCommandCompletionSelectionToViewport(int visibleRows)
     {
         if (_commandCompletionMatches.Count == 0)
@@ -2328,11 +2388,21 @@ public sealed class Application
         if (!_commandCompletionVisible || _commandCompletionMatches.Count == 0 || !HasCommandCompletionRows())
             return false;
 
+        if (IsCommandCompletionNeutralSelected())
+        {
+            HideCommandCompletion(temporarily: false);
+            ResetCommandHistoryNavigation();
+            return false;
+        }
+
         _cmdLine.SetText(_commandCompletionMatches[_commandCompletionSelectedIndex]);
         HideCommandCompletion(temporarily: false);
         ResetCommandHistoryNavigation();
         return true;
     }
+
+    private bool IsCommandCompletionNeutralSelected() =>
+        _commandCompletionSelectedIndex == CommandCompletionNeutralIndex;
 
     private bool TryHideCommandCompletionTemporarily()
     {
