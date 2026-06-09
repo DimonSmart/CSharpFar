@@ -1,52 +1,67 @@
 ---
 name: spec-reorganize
-description: Reorganize existing `.specs/` intent without changing product meaning.
+description: Perform focused structural normalization of existing `.specs/` intent without changing product meaning.
 ---
 
 # spec-reorganize
 
-Use this skill to reorganize existing `.specs/` intent without changing product
-meaning.
+Use this skill to perform focused structural normalization over accepted current
+specs without changing product meaning.
 
-This skill requires a concrete reorganization focus.
+Formula:
 
-Specification reorganization moves existing intent to a better location. It
-changes where intent lives, not what the product means.
+```text
+spec-reorganize = focused structural normalization over accepted current specs
+```
+
+This skill works on an already accepted `.specs` structure, so it is more
+cautious than import. It requires a concrete focus and must not run a broad
+rewrite of `.specs`.
+
+## Parameters
+
+Describe the operation with parameters like:
+
+```yaml
+scope:
+  specs: [0019, 0054]
+  topic: "Paranoid copy retry"
+  target: "0019.spec-paranoid-copy-resume.md"
+
+mode: propose | apply
+allowNewSpec: true | false
+allowArchive: true | false
+preserveMeaning: true
+```
+
+`preserveMeaning` is mandatory. If the operation would change product meaning,
+stop and report the required product decision.
 
 ## Required Input
 
 The request must provide at least one concrete focus:
 
-1. Topic focus
+1. Topic focus: a topic to collect across current specifications.
+2. Source focus: a specific spec, section, or fragment to extract or move.
+3. Target focus: an existing or desired target specification.
 
-   A topic to collect across current specifications.
+Examples:
 
-   Examples:
+```text
+Use spec-reorganize with:
+--specs 0033,0046,0014,0048
+--topic "text encoding / BOM / EOL"
+--target new
+--mode propose
+```
 
-   - mouse support in console controls
-   - validation error behavior
-   - background job idempotency
-   - API authentication rules
-
-2. Source focus
-
-   A specific spec, section, or fragment to extract or move.
-
-   Examples:
-
-   - `0003.spec-console-ui.md`, section `Controls`
-   - the mouse support paragraph in `0007.spec-table-view.md`
-   - all session lifetime rules in authentication specs
-
-3. Target focus
-
-   An existing or desired target specification.
-
-   Examples:
-
-   - move this into `0012.spec-console-controls.md`
-   - create a dedicated spec for console control behavior
-   - consolidate these rules into the existing authentication spec
+```text
+Use spec-reorganize with:
+--specs 0019,0054
+--topic "Paranoid copy retry"
+--target 0019.spec-paranoid-copy-resume.md
+--mode apply
+```
 
 ## Missing Focus Rule
 
@@ -54,21 +69,102 @@ Do not run this skill if the user only asks to:
 
 - clean up specifications;
 - improve specs;
-- review specs;
+- review all specs;
+- find structural problems;
 - make specs better;
 - reorganize everything;
 - find problems generally;
 - rewrite documentation.
 
-If no concrete reorganization focus is provided, do not inspect or rewrite the
-specification set.
+If the request is broad, such as "review all specs" or "find structural
+problems", do not run spec-reorganize. Use `spec-audit` first.
 
-Ask for a concrete focus instead:
+If no concrete reorganization focus is provided, do not inspect or rewrite the
+specification set. Respond with:
 
 ```text
-Please specify what intent should be reorganized: a topic to collect, a source
-spec or section to extract, or a target spec to consolidate into.
+Cannot run spec-reorganize without a concrete reorganization focus.
+
+For broad structural diagnostics, use spec-audit first. For reorganization,
+specify a topic to collect, a source spec or section to extract, or a target
+spec to consolidate into.
 ```
+
+## Current Spec Test
+
+Current specs describe target product state, not the history of work.
+
+A spec answers:
+
+```text
+If the implementation is deleted but the specs remain, can the product be rebuilt?
+```
+
+Therefore current specs may contain:
+
+- product behavior;
+- user scenarios;
+- domain contracts;
+- durable architecture patterns;
+- durable technical constraints;
+- compatibility requirements;
+- non-goals;
+- acceptance criteria;
+- verification rules.
+
+Current specs must not contain:
+
+- local tasks;
+- temporary implementation notes;
+- progress logs;
+- chat history;
+- one-off cleanup notes;
+- plans that do not define product behavior;
+- source-specific wrapper text from imported methodologies.
+
+Task, refactor, cleanup, progress, and status notes are not current product
+specs unless they define durable product behavior. Archive or convert task-like
+specs only when explicitly allowed.
+
+## Structural Normalization
+
+Do not preserve existing file boundaries when the focused operation proves the
+current boundaries are wrong. Existing specs are accepted current intent, but
+their structure may still be oversized, undersized, mixed-scope, duplicated, or
+misplaced.
+
+For the requested focus, look for:
+
+- oversized specs that must be split;
+- tiny specs that should be merged into an existing area;
+- mixed-scope specs that describe unrelated product areas;
+- repeated common models that should become shared specs;
+- semantic conflicts that require a product decision;
+- task/refactor/cleanup notes that should not be current product specs;
+- ADR-worthy architectural decisions;
+- spike-worthy unresolved research;
+- obsolete or source-specific wrapper text;
+- duplicated behavior across current specs.
+
+Typical product areas include product overview, panels, command line, file
+operations, viewer, editor, shared text format / encoding / BOM / EOL, UI
+controls / dialogs, providers / virtual file systems, rendering / console
+viewport, settings, architecture decisions, and spikes / unresolved research.
+This is not a fixed enum.
+
+## Required Behavior
+
+Support these scenarios:
+
+- consolidate topic X from several specs into one existing spec;
+- extract shared model X into a new shared spec;
+- split one mixed-scope spec into several specs;
+- merge tiny spec X into a larger existing spec;
+- move misplaced behavior from one spec to another;
+- archive/convert a task-like spec only when explicitly allowed;
+- replace moved fragments with references;
+- update `INDEX.md`;
+- preserve product meaning.
 
 ## Rules
 
@@ -90,64 +186,31 @@ spec or section to extract, or a target spec to consolidate into.
 
 ## Workflow
 
-1. Identify the concrete reorganization focus from the request.
-2. If no concrete focus is present, stop and ask for one.
-3. Read `.specs/README.md`, `.specs/INDEX.md`, and relevant current numbered
-   documents directly under `.specs/`.
-4. Find current specification fragments related to the focus.
-5. Classify found fragments as:
-
+1. Identify the concrete reorganization focus.
+2. If no concrete focus is present, stop and direct broad requests to
+   `spec-audit`.
+3. Read `.specs/README.md`, `.specs/INDEX.md`, and only relevant current
+   numbered specs.
+4. Find current fragments related to the focus.
+5. Classify fragments as:
    - common behavior to move;
    - source-specific behavior to keep;
    - duplicate wording to replace with references;
+   - misplaced behavior;
+   - task-like/process material;
+   - ADR-worthy decisions;
+   - spike-worthy unresolved research;
    - possible conflicts;
    - unrelated mentions.
-
-6. If conflicts are found, report them and do not resolve them silently.
-7. Propose the target structure:
-
-   - create a new spec; or
-   - update an existing target spec; or
-   - move a section from one spec to another.
-
-8. Move only existing intent.
+6. Build the focused normalized target structure.
+7. In `propose` mode, report the proposed split/merge/extract/archive plan and
+   stop before edits.
+8. In `apply` mode, move only existing intent that preserves meaning.
 9. Replace moved fragments in source specs with short references.
-10. Preserve local exceptions and source-specific behavior.
-11. Update `INDEX.md` when the document set or document roles change.
-12. Run relevant verification.
-
-## Examples
-
-Good request:
-
-```text
-Use spec-reorganize to collect all current intent about mouse support in console
-controls and move it into a dedicated specification.
-```
-
-Good request:
-
-```text
-Use spec-reorganize to extract the Controls section from
-0003.spec-console-ui.md into a dedicated console controls specification.
-```
-
-Bad request:
-
-```text
-Use spec-reorganize to clean up the specs.
-```
-
-Response:
-
-```text
-Cannot run spec-reorganize without a concrete reorganization focus.
-
-Specify one of:
-- a topic to collect;
-- a source spec or section to extract;
-- a target spec to consolidate into.
-```
+10. Preserve local exceptions and feature-specific behavior.
+11. Keep conflicts visible and unresolved.
+12. Update `INDEX.md` when the document set or document roles change.
+13. Run relevant verification.
 
 ## Conflict Handling
 
@@ -168,7 +231,61 @@ This cannot be resolved as specification reorganization. It requires a product
 intent decision.
 ```
 
-## Non-Goals
+## Examples
+
+### Consolidate shared text encoding
+
+User request:
+
+```text
+Consolidate text encoding / BOM / EOL across viewer, editor, quick view and
+create-file dialog.
+```
+
+Expected behavior:
+
+- read only relevant specs;
+- propose or create a shared text-file-format-and-encoding spec;
+- move common model there;
+- leave feature-specific UI behavior in viewer/editor/quick-view/create-file
+  specs;
+- replace moved duplicate text with references;
+- update `INDEX.md`.
+
+### Extract from one spec
+
+User request:
+
+```text
+Use spec-reorganize to extract the Controls section from
+0003.spec-console-ui.md into a dedicated console controls specification.
+```
+
+Expected behavior:
+
+- read `0003.spec-console-ui.md` and closely related specs;
+- create or update the target controls spec if allowed;
+- leave non-control console behavior in the source spec;
+- replace the extracted section with a reference;
+- update `INDEX.md`.
+
+### Broad request
+
+Bad request:
+
+```text
+Use spec-reorganize to clean up the specs.
+```
+
+Expected response:
+
+```text
+Cannot run spec-reorganize without a concrete reorganization focus.
+
+Use spec-audit first to find broad structural problems.
+```
+
+## Non-goals
 
 This skill does not:
 
@@ -178,4 +295,7 @@ This skill does not:
 - update product intent;
 - infer new requirements from implementation;
 - create a new feature spec from a task;
-- normalize the whole `.specs/` directory.
+- normalize the whole `.specs` directory.
+
+Use `spec-audit` for broad structural diagnostics. Use `spec-import` when raw
+external material is being imported.

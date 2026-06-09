@@ -10,8 +10,10 @@ Do not load the whole `.specs/` directory by default. Read
 `.specs/README.md`, `.specs/INDEX.md`, then only relevant numbered specs.
 
 Use IDD skills for specific workflows:
+- `spec-audit`
 - `spec-create`
 - `spec-import`
+- `spec-lint`
 - `spec-reorganize`
 - `spec-check-implementation`
 - `spec-update-from-implementation`
