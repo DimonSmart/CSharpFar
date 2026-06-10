@@ -11,6 +11,7 @@ using CSharpFar.App.Menu;
 using CSharpFar.App.Modules;
 using CSharpFar.App.Panels;
 using CSharpFar.App.Rendering;
+using CSharpFar.App.State;
 using CSharpFar.App.Editor;
 using CSharpFar.App.UserMenu;
 using CSharpFar.App.Viewer;
@@ -80,16 +81,11 @@ public sealed class Application
     private PanelQuickSearchState? _panelQuickSearch;
 
     private PanelSide     _active        = PanelSide.Left;
-    private bool          _running       = true;
-    private HiddenPanels  _hiddenPanels;
-    private bool          _quickView     = false;
-    private ConsoleViewport? _lastRenderViewport;
-    private ConsolePalette          _palette;
+    private readonly ApplicationState _state;
+    private readonly UiTransientState _ui = new();
     private PanelViewMode           _leftViewMode;
     private PanelViewMode           _rightViewMode;
     private IFileHighlightService?          _highlightService;
-    private Rect                            _leftBounds;
-    private Rect                            _rightBounds;
     private readonly MenuState              _menuState = new();
     private readonly DefaultMenuDefinitionProvider _menuProvider = new();
     private readonly DefaultFunctionKeyBindingProvider _functionKeyBindingProvider = new();
@@ -103,25 +99,13 @@ public sealed class Application
     private readonly DirectorySizeCalculator _dirSizeCalc = new();
     private DirectorySizeState?              _quickViewDirState;
     private string?                          _quickViewDirPath;
-    private PanelScrollbarDrag?              _panelScrollbarDrag;
     private bool                             _isCommandLineMouseSelecting;
-
-    private readonly record struct PanelScrollbarDrag(PanelSide Side, ScrollBarDragState DragState);
 
     private enum ConsoleViewportChange
     {
         None,
         OriginOnly,
         Size,
-    }
-
-    [Flags]
-    private enum HiddenPanels
-    {
-        None = 0,
-        Left = 1,
-        Right = 2,
-        Both = Left | Right,
     }
 
     private enum PanelQuickSearchKeyResult
@@ -189,7 +173,7 @@ public sealed class Application
         _saveSettings     = saveSettings;
         _volumeService    = volumeService;
         _menuController   = new TopMenuController(_menuState, ExecuteMenuCommand);
-        _palette          = PaletteRegistry.Resolve(_settings.Ui.Palette);
+        _state            = new ApplicationState(PaletteRegistry.Resolve(_settings.Ui.Palette));
         _autoRefresh = new PanelAutoRefreshService(
             changeWatcher,
             locationService,
@@ -199,11 +183,11 @@ public sealed class Application
             SafeRefresh);
         _panelWorkspaceRenderer = new ApplicationPanelWorkspaceRenderer(
             _screen,
-            () => _palette,
+            () => _state.Palette,
             _ctrl,
             () => _highlightService,
             () => PanelOptions);
-        _clockRenderer = new ClockRenderer(_screen, () => _palette);
+        _clockRenderer = new ClockRenderer(_screen, () => _state.Palette);
         _panelSort = new PanelSortServiceFacade(
             _ctrl,
             () => PanelOptions,
@@ -218,7 +202,7 @@ public sealed class Application
         _searchResults = new PanelSearchResultsService(
             _screen,
             _searchService,
-            () => _palette,
+            () => _state.Palette,
             _ctrl,
             _history,
             () => PanelOptions,
@@ -236,7 +220,7 @@ public sealed class Application
             _searchResults.RefreshPanel);
         _panelFileViewer = new PanelFileViewerService(
             _screen,
-            () => _palette,
+            () => _state.Palette,
             _sourceRegistry,
             _history,
             _clipboard,
@@ -248,7 +232,7 @@ public sealed class Application
         _panelFileOpener = new PanelFileOpener(
             _fileLauncher,
             _screen,
-            () => _palette,
+            () => _state.Palette,
             ViewPanelFile,
             ExecuteInCurrentConsole);
         string effectiveConfigDirectory = configDirectory ?? Path.Combine(
@@ -257,7 +241,7 @@ public sealed class Application
         var moduleUiServices = new ModuleUiServices
         {
             Screen = _screen,
-            Palette = () => _palette,
+            Palette = () => _state.Palette,
         };
         farNetModuleHost?.Initialize(new FarNetModuleHostServices
         {
@@ -282,7 +266,7 @@ public sealed class Application
             _sourceRegistry,
             _ctrl,
             _screen,
-            () => _palette,
+            () => _state.Palette,
             () => PanelOptions,
             GetPanelState,
             side => ActiveSide = side,
@@ -291,7 +275,7 @@ public sealed class Application
             _sourceRegistry,
             _ctrl,
             _screen,
-            () => _palette,
+            () => _state.Palette,
             _settings,
             _clipboard,
             _modulePanelOpener,
@@ -303,20 +287,20 @@ public sealed class Application
         _functionKeyBindings = _functionKeyBindingProvider.GetBindings();
         _functionKeyBarRenderer = new ApplicationFunctionKeyBarRenderer(
             _screen,
-            () => _palette,
+            () => _state.Palette,
             _functionKeyBindings,
             CanExecuteFunctionKeyCommand);
         _overlayRenderer = new ApplicationOverlayRenderer(
             _screen,
-            () => _palette,
+            () => _state.Palette,
             _menuLayoutService);
-        _commandLineRenderer = new ApplicationCommandLineRenderer(_screen, () => _palette);
+        _commandLineRenderer = new ApplicationCommandLineRenderer(_screen, () => _state.Palette);
         _shellUnderlay = new ShellUnderlayService(_screen);
         _runtime = new ApplicationRuntime(
             _screen,
             new ApplicationRuntimeContext
             {
-                IsRunning = () => _running,
+                IsRunning = () => _state.Running,
                 HasVisiblePanels = () => HasVisiblePanels,
                 WaitToken = () => _autoRefresh.WaitToken,
                 CaptureUnderlay = _shellUnderlay.Capture,
@@ -386,8 +370,8 @@ public sealed class Application
 
     internal ConsolePalette CommandPalette
     {
-        get => _palette;
-        set => _palette = value;
+        get => _state.Palette;
+        set => _state.Palette = value;
     }
 
     internal PanelSide ActiveSide
@@ -398,14 +382,14 @@ public sealed class Application
 
     internal bool Running
     {
-        get => _running;
-        set => _running = value;
+        get => _state.Running;
+        set => _state.Running = value;
     }
 
     internal bool QuickView
     {
-        get => _quickView;
-        set => _quickView = value;
+        get => _state.QuickView;
+        set => _state.QuickView = value;
     }
 
     internal PanelViewMode LeftViewMode
@@ -492,7 +476,7 @@ public sealed class Application
 
     private void UpdateQuickViewDirSize()
     {
-        if (!_quickView) { _dirSizeCalc.Cancel(); return; }
+        if (!_state.QuickView) { _dirSizeCalc.Cancel(); return; }
 
         var item = _active == PanelSide.Left ? _ctrl.CurrentItem(_left) : _ctrl.CurrentItem(_right);
         if (item is not { IsDirectory: true, IsParentDirectory: false })
@@ -538,7 +522,7 @@ public sealed class Application
 
         var viewport = _screen.FrameViewport;
         var size   = viewport.Size;
-        _lastRenderViewport = viewport;
+        _ui.LastRenderViewport = viewport;
         var panelBounds = _panelWorkspaceRenderer.Render(
             size,
             _left,
@@ -546,15 +530,15 @@ public sealed class Application
             _active,
             _leftViewMode,
             _rightViewMode,
-            _quickView,
+            _state.QuickView,
             _quickViewDirState,
             IsPanelVisible);
         int panelH = panelBounds.PanelHeight;
-        _leftBounds = panelBounds.Left;
-        _rightBounds = panelBounds.Right;
+        _ui.LeftBounds = panelBounds.Left;
+        _ui.RightBounds = panelBounds.Right;
 
         if (HasVisiblePanels)
-            new DirectoryShortcutBarRenderer(_screen, _palette)
+            new DirectoryShortcutBarRenderer(_screen, _state.Palette)
                 .Render(panelH - 1, size.Width, _settings.DirectoryShortcuts);
 
         if (IsPanelVisible(PanelSide.Right))
@@ -573,8 +557,8 @@ public sealed class Application
             {
                 if (!_overlayRenderer.RenderPanelQuickSearch(
                         _panelQuickSearch,
-                        _leftBounds,
-                        _rightBounds,
+                        _ui.LeftBounds,
+                        _ui.RightBounds,
                         IsPanelVisible))
                 {
                     _screen.SetCursorVisible(false);
@@ -597,7 +581,7 @@ public sealed class Application
 
         var viewport = _screen.FrameViewport;
         var size = viewport.Size;
-        _lastRenderViewport = viewport;
+        _ui.LastRenderViewport = viewport;
 
         int row = ApplicationLayoutService.CommandLineRow(size);
         _commandLineRenderer.Render(row, size, ActiveState.CurrentDirectory, _cmdLine);
@@ -606,7 +590,7 @@ public sealed class Application
 
     private void RenderCommandLineOnlyUntilStable()
     {
-        while (_running)
+        while (_state.Running)
         {
             RenderCommandLineOnly();
             if (!_screen.FrameWasInterrupted)
@@ -629,11 +613,11 @@ public sealed class Application
 
     private ConsoleViewportChange GetConsoleViewportChange()
     {
-        if (!_lastRenderViewport.HasValue)
+        if (!_ui.LastRenderViewport.HasValue)
             return ConsoleViewportChange.None;
 
         var viewport = _screen.GetViewport();
-        var last = _lastRenderViewport.Value;
+        var last = _ui.LastRenderViewport.Value;
         if (viewport == last)
             return ConsoleViewportChange.None;
 
@@ -647,7 +631,7 @@ public sealed class Application
         if (HasVisiblePanels || viewportChange != ConsoleViewportChange.OriginOnly)
             return false;
 
-        _lastRenderViewport = _screen.GetViewport();
+        _ui.LastRenderViewport = _screen.GetViewport();
         return true;
     }
 
@@ -661,7 +645,7 @@ public sealed class Application
             return false;
 
         _shellUnderlay.Capture();
-        _lastRenderViewport = _shellUnderlay.CapturedViewport ?? _screen.GetViewport();
+        _ui.LastRenderViewport = _shellUnderlay.CapturedViewport ?? _screen.GetViewport();
         return scrolled;
     }
 
@@ -672,7 +656,7 @@ public sealed class Application
     private void RenderUntilStable()
     {
         int attempt = 0;
-        while (_running)
+        while (_state.Running)
         {
             attempt++;
             Render();
@@ -771,14 +755,14 @@ public sealed class Application
 
     // ── panel visibility ──────────────────────────────────────────────────────
 
-    private bool HasHiddenPanels => _hiddenPanels != HiddenPanels.None;
+    private bool HasHiddenPanels => _state.HiddenPanels != HiddenPanels.None;
 
-    private bool HasVisiblePanels => _hiddenPanels != HiddenPanels.Both;
+    private bool HasVisiblePanels => _state.HiddenPanels != HiddenPanels.Both;
 
     internal bool CommandHasVisiblePanels => HasVisiblePanels;
 
     private bool IsPanelVisible(PanelSide side) =>
-        (_hiddenPanels & HiddenPanelFlag(side)) == 0;
+        (_state.HiddenPanels & HiddenPanelFlag(side)) == 0;
 
     private static HiddenPanels HiddenPanelFlag(PanelSide side) =>
         side == PanelSide.Left ? HiddenPanels.Left : HiddenPanels.Right;
@@ -829,18 +813,18 @@ public sealed class Application
         ClosePanelQuickSearch();
         HideCommandCompletion(temporarily: false);
         ResetCommandHistoryNavigation();
-        _panelScrollbarDrag = null;
+        _ui.PanelScrollbarDrag = null;
 
-        if (_hiddenPanels == HiddenPanels.Both)
+        if (_state.HiddenPanels == HiddenPanels.Both)
         {
-            _hiddenPanels = HiddenPanels.None;
+            _state.HiddenPanels = HiddenPanels.None;
             _screen.TryScrollViewportToBottom();
-            _lastRenderViewport = _screen.GetViewport();
+            _ui.LastRenderViewport = _screen.GetViewport();
             _shellUnderlay.ApplyConsoleScrollbackMode(HasVisiblePanels);
             return true;
         }
 
-        _hiddenPanels = HiddenPanels.Both;
+        _state.HiddenPanels = HiddenPanels.Both;
         _shellUnderlay.ApplyConsoleScrollbackMode(HasVisiblePanels);
         _screen.SetCursorVisible(true);
         _shellUnderlay.RestoreForHiddenScreen(HasVisiblePanels);
@@ -853,26 +837,26 @@ public sealed class Application
         ClosePanelQuickSearch();
         HideCommandCompletion(temporarily: false);
         ResetCommandHistoryNavigation();
-        _panelScrollbarDrag = null;
+        _ui.PanelScrollbarDrag = null;
 
         var flag = HiddenPanelFlag(side);
-        bool wasHidden = (_hiddenPanels & flag) != 0;
+        bool wasHidden = (_state.HiddenPanels & flag) != 0;
 
         if (wasHidden)
         {
-            _hiddenPanels &= ~flag;
+            _state.HiddenPanels &= ~flag;
             _screen.TryScrollViewportToBottom();
-            _lastRenderViewport = _screen.GetViewport();
+            _ui.LastRenderViewport = _screen.GetViewport();
         }
         else
         {
-            _hiddenPanels |= flag;
+            _state.HiddenPanels |= flag;
         }
 
         EnsureActivePanelVisible();
         _shellUnderlay.ApplyConsoleScrollbackMode(HasVisiblePanels);
 
-        if (_hiddenPanels == HiddenPanels.Both)
+        if (_state.HiddenPanels == HiddenPanels.Both)
         {
             _screen.SetCursorVisible(true);
             _shellUnderlay.RestoreForHiddenScreen(HasVisiblePanels);
@@ -965,8 +949,8 @@ public sealed class Application
             return true;
 
         // Identify which panel was hit
-        bool inLeft  = IsPanelVisible(PanelSide.Left)  && _leftBounds.Contains(evt.X,  evt.Y);
-        bool inRight = IsPanelVisible(PanelSide.Right) && _rightBounds.Contains(evt.X, evt.Y);
+        bool inLeft  = IsPanelVisible(PanelSide.Left)  && _ui.LeftBounds.Contains(evt.X,  evt.Y);
+        bool inRight = IsPanelVisible(PanelSide.Right) && _ui.RightBounds.Contains(evt.X, evt.Y);
         if (!inLeft && !inRight)
         {
             ClearPanelItemClickOnMousePress(evt);
@@ -976,10 +960,10 @@ public sealed class Application
         var side  = inLeft ? PanelSide.Left : PanelSide.Right;
         var state = inLeft ? _left : _right;
         var mode  = inLeft ? _leftViewMode : _rightViewMode;
-        var bounds = inLeft ? _leftBounds : _rightBounds;
+        var bounds = inLeft ? _ui.LeftBounds : _ui.RightBounds;
         int visRows = VisibleRows(side);
 
-        if (_quickView && side != _active)
+        if (_state.QuickView && side != _active)
         {
             ClearPanelItemClickOnMousePress(evt);
             return false;
@@ -1299,7 +1283,7 @@ public sealed class Application
         // Ctrl+Q: toggle quick view
         if (IsPlainControlKey(key, ConsoleKey.Q, '\u0011'))
         {
-            _quickView = !_quickView;
+            _state.QuickView = !_state.QuickView;
             return true;
         }
 
@@ -1879,7 +1863,7 @@ public sealed class Application
                 return BrowseCommandHistory(+1, CommandHistoryNavigationStart.Oldest);
 
             case ConsoleKey.F10:
-                _running = false;
+                _state.Running = false;
                 return false;
         }
 
@@ -1905,7 +1889,7 @@ public sealed class Application
 
     private bool TryHandlePanelScrollbarDrag(MouseConsoleInputEvent evt)
     {
-        if (_panelScrollbarDrag is not { } drag)
+        if (_ui.PanelScrollbarDrag is not { } drag)
             return false;
 
         var state = GetPanelState(drag.Side);
@@ -1922,7 +1906,7 @@ public sealed class Application
             return false;
         }
 
-        _panelScrollbarDrag = dragState.HasValue
+        _ui.PanelScrollbarDrag = dragState.HasValue
             ? new PanelScrollbarDrag(drag.Side, dragState.Value)
             : null;
 
@@ -1956,7 +1940,7 @@ public sealed class Application
             return false;
         }
 
-        _panelScrollbarDrag = dragState.HasValue
+        _ui.PanelScrollbarDrag = dragState.HasValue
             ? new PanelScrollbarDrag(side, dragState.Value)
             : null;
 
@@ -2002,7 +1986,7 @@ public sealed class Application
     }
 
     private ConsoleSize LastRenderSizeOrCurrent() =>
-        _lastRenderViewport?.Size ?? _screen.GetSize();
+        _ui.LastRenderViewport?.Size ?? _screen.GetSize();
 
     private static int CommandCompletionVisibleRows(ConsoleSize size)
     {
@@ -2275,7 +2259,7 @@ public sealed class Application
 
     internal void ExecuteInCurrentConsole(string workDir, string displayCommand, Action execute)
     {
-        HiddenPanels hiddenPanelsAfterCommand = _hiddenPanels;
+        HiddenPanels hiddenPanelsAfterCommand = _state.HiddenPanels;
 
         ShowShellUnderlayForCommand();
         PrintExecutedCommandPrompt(workDir, displayCommand);
@@ -2295,7 +2279,7 @@ public sealed class Application
             _shellUnderlay.Capture();
 
             RefreshPanels();
-            _hiddenPanels = hiddenPanelsAfterCommand;
+            _state.HiddenPanels = hiddenPanelsAfterCommand;
             // Stable rendering is called by the main loop.
         }
     }
@@ -2490,7 +2474,7 @@ public sealed class Application
 
     internal void ShowReadOnlyPanelMessage(string action)
     {
-        new MessageDialog(_screen, _palette).Show(
+        new MessageDialog(_screen, _state.Palette).Show(
             action,
             "The current panel source does not support this operation.");
     }
