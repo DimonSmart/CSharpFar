@@ -3,6 +3,7 @@ using CSharpFar.App.CommandLine;
 using CSharpFar.App.Commands;
 using CSharpFar.App.Files;
 using CSharpFar.App.FunctionKeys;
+using CSharpFar.App.Input;
 using CSharpFar.App.Menu;
 using CSharpFar.App.Modules;
 using CSharpFar.App.Panels;
@@ -68,6 +69,8 @@ internal sealed class ApplicationServices
     public required ShellUnderlayService ShellUnderlay { get; init; }
     public required QuickViewDirectorySizeController QuickViewDirectorySize { get; init; }
     public required ApplicationRuntime Runtime { get; init; }
+    public required KeyboardInputContext KeyboardInputContext { get; init; }
+    public required KeyboardInputRouter KeyboardInputRouter { get; init; }
     public required string ConfigDirectory { get; init; }
     public required bool EnableBuiltInNetworkModules { get; init; }
     public required ICredentialStore? CredentialStore { get; init; }

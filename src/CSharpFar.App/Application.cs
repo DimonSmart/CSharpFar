@@ -8,6 +8,7 @@ using CSharpFar.App.Files;
 using CSharpFar.App.FunctionKeys;
 using CSharpFar.App.HitTesting;
 using CSharpFar.App.Highlighting;
+using CSharpFar.App.Input;
 using CSharpFar.App.Menu;
 using CSharpFar.App.Modules;
 using CSharpFar.App.Panels;
@@ -55,6 +56,8 @@ public sealed class Application
     private readonly ApplicationFunctionKeyBarRenderer _functionKeyBarRenderer;
     private readonly ApplicationOverlayRenderer _overlayRenderer;
     private readonly ApplicationCommandLineRenderer _commandLineRenderer;
+    private readonly KeyboardInputContext _keyboardInputContext;
+    private readonly KeyboardInputRouter _keyboardInputRouter;
     private readonly ShellUnderlayService _shellUnderlay;
     private readonly PanelRefreshService _panelRefresh;
     private readonly PanelSearchResultsService _searchResults;
@@ -227,11 +230,38 @@ public sealed class Application
         _functionKeyBarRenderer = services.FunctionKeyBarRenderer;
         _overlayRenderer = services.OverlayRenderer;
         _commandLineRenderer = services.CommandLineRenderer;
+        _keyboardInputContext = services.KeyboardInputContext;
+        _keyboardInputRouter = services.KeyboardInputRouter;
         _shellUnderlay = services.ShellUnderlay;
         _quickViewDirectorySize = services.QuickViewDirectorySize;
         BindCallbacks(services.Callbacks);
+        BindKeyboardInputContext(_keyboardInputContext);
         _runtime = services.Runtime;
 
+    }
+
+    private void BindKeyboardInputContext(KeyboardInputContext context)
+    {
+        context.BuildMenuDefinition = BuildMenuDefinition;
+        context.TogglePanels = TogglePanels;
+        context.TryHandleFarNetPanelShortcut = TryHandleFarNetPanelShortcut;
+        context.ExecuteRegisteredCommand = ExecuteRegisteredCommand;
+        context.SelectAllCommandLineTextOrPanelItems = SelectAllCommandLineTextOrPanelItems;
+        context.CopyCommandLineSelection = CopyCommandLineSelection;
+        context.PasteTextIntoCommandLine = PasteTextIntoCommandLine;
+        context.MovePanelColumn = MovePanelColumn;
+        context.OnVisibleCommandLineTextEdited = OnVisibleCommandLineTextEdited;
+        context.TryHideCommandCompletionTemporarily = TryHideCommandCompletionTemporarily;
+        context.CloseSearchResultsPanel = CloseSearchResultsPanel;
+        context.TryAcceptCommandCompletion = TryAcceptCommandCompletion;
+        context.ExecuteCommand = ExecuteCommand;
+        context.EnsureActivePanelVisible = EnsureActivePanelVisible;
+        context.TryMoveCommandCompletionSelection = TryMoveCommandCompletionSelection;
+        context.BrowseCommandHistory = BrowseCommandHistory;
+        context.HideCommandCompletion = HideCommandCompletion;
+        context.ResetCommandHistoryNavigation = ResetCommandHistoryNavigation;
+        context.TryGoUp = TryGoUp;
+        context.CanExecuteFunctionKeyCommand = CanExecuteFunctionKeyCommand;
     }
 
     private void BindCallbacks(ApplicationServiceCallbacks callbacks)
@@ -376,7 +406,7 @@ public sealed class Application
     {
         bool scrolledHiddenViewport = ScrollHiddenViewportToBottomForInput();
         bool functionKeyLayerChanged = SetFunctionKeyLayer(key.Modifiers);
-        bool shouldRender = HandleKey(key) || scrolledHiddenViewport || functionKeyLayerChanged;
+        bool shouldRender = _keyboardInputRouter.Handle(key) || scrolledHiddenViewport || functionKeyLayerChanged;
         return new ApplicationRuntimeRenderRequest(shouldRender, IsResize: false);
     }
 
@@ -563,56 +593,6 @@ public sealed class Application
         key.Key == ConsoleKey.NoName &&
         key.KeyChar == '\0' &&
         key.Modifiers == 0;
-
-    private static bool IsPlainControlKey(ConsoleKeyInfo key, ConsoleKey consoleKey, char controlChar)
-    {
-        bool hasControl = (key.Modifiers & ConsoleModifiers.Control) != 0;
-        bool hasAlt     = (key.Modifiers & ConsoleModifiers.Alt)     != 0;
-        bool hasShift   = (key.Modifiers & ConsoleModifiers.Shift)   != 0;
-
-        return !hasAlt && !hasShift &&
-               ((hasControl && key.Key == consoleKey) ||
-                key.KeyChar == controlChar);
-    }
-
-    private static bool IsPlainControlEnter(ConsoleKeyInfo key) =>
-        HasOnlyControlModifier(key) && key.Key == ConsoleKey.Enter;
-
-    private static bool IsPlainControlOpenBracket(ConsoleKeyInfo key) =>
-        IsPlainControlBracket(key, ConsoleKey.Oem4, '[', '\u001b');
-
-    private static bool IsPlainControlCloseBracket(ConsoleKeyInfo key) =>
-        IsPlainControlBracket(key, ConsoleKey.Oem6, ']', '\u001d');
-
-    private static bool IsPlainControlBackslash(ConsoleKeyInfo key) =>
-        HasOnlyControlModifier(key) &&
-        (key.Key == ConsoleKey.Oem5 || key.KeyChar == '\u001c');
-
-    private static bool IsPlainControlBracket(
-        ConsoleKeyInfo key,
-        ConsoleKey consoleKey,
-        char printableChar,
-        char controlChar)
-    {
-        if (!HasOnlyControlModifier(key))
-            return false;
-
-        return key.Key == consoleKey ||
-               key.KeyChar == printableChar ||
-               (key.Key != ConsoleKey.Escape && key.KeyChar == controlChar);
-    }
-
-    private static bool HasOnlyControlModifier(ConsoleKeyInfo key)
-    {
-        bool hasControl = (key.Modifiers & ConsoleModifiers.Control) != 0;
-        bool hasAlt     = (key.Modifiers & ConsoleModifiers.Alt)     != 0;
-        bool hasShift   = (key.Modifiers & ConsoleModifiers.Shift)   != 0;
-
-        return hasControl && !hasAlt && !hasShift;
-    }
-
-    private static string QuoteCommandLineInsertion(string text) =>
-        text.Contains(' ') ? $"\"{text}\"" : text;
 
     private bool SetFunctionKeyLayer(ConsoleModifiers modifiers)
     {
@@ -1100,341 +1080,6 @@ public sealed class Application
             _lastLeftPanelItemClick = null;
     }
 
-    private bool HandleKey(ConsoleKeyInfo key)
-    {
-        if (_menuState.OpenState != MenuOpenState.Closed)
-        {
-            if (!HasVisiblePanels)
-            {
-                _menuController.Close();
-                return true;
-            }
-
-            return _menuController.HandleKey(key, BuildMenuDefinition(), _active);
-        }
-
-        var quickSearchResult = _panelQuickSearch.HandleKey(key);
-        if (quickSearchResult == PanelQuickSearchKeyResult.Handled)
-            return true;
-
-        // Ctrl+O: toggle panels — check before printable-char routing
-        if (IsPlainControlKey(key, ConsoleKey.O, '\u000f'))
-            return TogglePanels();
-
-        if (TryHandleFarCommandLineShortcut(key))
-            return true;
-
-        if (!HasVisiblePanels)
-            return HandleHiddenCommandLineKey(key);
-
-        if (TryHandleFarNetPanelShortcut(key))
-            return true;
-
-        if (TryHandleDirectoryShortcut(key))
-            return true;
-
-        // Ctrl+S: settings dialog
-        if (IsPlainControlKey(key, ConsoleKey.S, '\u0013'))
-            return ExecuteRegisteredCommand(MenuCommandIds.SettingsOpenPanelSettings);
-
-        // Ctrl+\: navigate active panel to drive root
-        if (IsPlainControlBackslash(key))
-            return ExecuteRegisteredCommand(ApplicationCommandIds.NavigateToRoot);
-
-        // Alt+1 / Alt+2: view mode for active panel
-        if ((key.Modifiers & ConsoleModifiers.Alt) != 0 &&
-            (key.Modifiers & (ConsoleModifiers.Control | ConsoleModifiers.Shift)) == 0)
-        {
-            if (key.Key == ConsoleKey.D1 || key.Key == ConsoleKey.NumPad1)
-            {
-                return ExecuteRegisteredCommand(
-                    MenuCommandIds.PanelSetViewMode,
-                    new SetPanelViewModeArgs
-                    {
-                        PanelSide = _active,
-                        ViewMode = PanelViewMode.Full,
-                    });
-            }
-
-            if (key.Key == ConsoleKey.D2 || key.Key == ConsoleKey.NumPad2)
-            {
-                return ExecuteRegisteredCommand(
-                    MenuCommandIds.PanelSetViewMode,
-                    new SetPanelViewModeArgs
-                    {
-                        PanelSide = _active,
-                        ViewMode = PanelViewMode.BriefTwoColumns,
-                    });
-            }
-        }
-
-        // Ctrl+Q: toggle quick view
-        if (IsPlainControlKey(key, ConsoleKey.Q, '\u0011'))
-        {
-            _state.QuickView = !_state.QuickView;
-            return true;
-        }
-
-        if (IsPlainControlKey(key, ConsoleKey.A, '\u0001'))
-        {
-            SelectAllCommandLineTextOrPanelItems();
-            return true;
-        }
-
-        if (IsPlainControlKey(key, ConsoleKey.C, '\u0003'))
-            return CopyCommandLineSelection();
-
-        if (IsPlainControlKey(key, ConsoleKey.V, '\u0016'))
-            return PasteTextIntoCommandLine();
-
-        if (TryHandleCommandLineNavigationKey(key, forceCommandLine: false))
-            return true;
-
-        // Ctrl+* - invert selection
-        bool isControlShortcut =
-            (key.Modifiers & ConsoleModifiers.Control) != 0 &&
-            (key.Modifiers & ConsoleModifiers.Alt) == 0;
-        if (isControlShortcut)
-        {
-            switch (key.Key)
-            {
-                case ConsoleKey.Multiply:
-                    _ctrl.InvertSelection(ActiveState, PanelOptions);
-                    return true;
-                case ConsoleKey.D8 when (key.Modifiers & ConsoleModifiers.Shift) != 0:
-                    _ctrl.InvertSelection(ActiveState, PanelOptions);
-                    return true;
-            }
-        }
-
-        if (TryHandleFunctionKey(key, out bool functionKeyShouldRender))
-            return functionKeyShouldRender;
-
-        if (_panelQuickSearch.TryStart(key))
-        {
-            HideCommandCompletion(temporarily: false);
-            ResetCommandHistoryNavigation();
-            return true;
-        }
-
-        int vr = VisibleRows();
-
-        switch (key.Key)
-        {
-            // ── Horizontal navigation / command line editing ──────────────────
-            case ConsoleKey.LeftArrow:
-                if (_cmdLine.HasText || _cmdLine.HasSelection)
-                {
-                    _cmdLine.MoveCursor(-1);
-                    return true;
-                }
-
-                MovePanelColumn(-1);
-                return true;
-
-            case ConsoleKey.RightArrow:
-                if (_cmdLine.HasText || _cmdLine.HasSelection)
-                {
-                    _cmdLine.MoveCursor(+1);
-                    return true;
-                }
-
-                MovePanelColumn(+1);
-                return true;
-
-            case ConsoleKey.Home:
-                if (_cmdLine.HasText || _cmdLine.HasSelection) _cmdLine.MoveToStart();
-                else _ctrl.MoveToFirst(ActiveState);
-                return true;
-
-            case ConsoleKey.End:
-                if (_cmdLine.HasText || _cmdLine.HasSelection) _cmdLine.MoveToEnd();
-                else _ctrl.MoveToLast(ActiveState, vr);
-                return true;
-
-            case ConsoleKey.Delete:
-                _cmdLine.DeleteForward();
-                OnVisibleCommandLineTextEdited();
-                return true;
-
-            case ConsoleKey.Backspace:
-                bool hadCommandText = _cmdLine.HasText;
-                if (hadCommandText)
-                {
-                    _cmdLine.DeleteBack();
-                    OnVisibleCommandLineTextEdited();
-                }
-                else
-                {
-                    HideCommandCompletion(temporarily: false);
-                    TryGoUp();
-                }
-                return true;
-
-            case ConsoleKey.Escape:
-                if (TryHideCommandCompletionTemporarily())
-                    return true;
-
-                if (ActiveState.SearchRequest is not null)
-                {
-                    CloseSearchResultsPanel(ActiveState, _active);
-                    return true;
-                }
-
-                _cmdLine.Clear();
-                HideCommandCompletion(temporarily: false);
-                return true;
-
-            // ── Execution ─────────────────────────────────────────────────────
-            case ConsoleKey.Enter:
-                if (TryAcceptCommandCompletion())
-                    return true;
-
-                if (_cmdLine.HasText) ExecuteCommand(_cmdLine.Text);
-                else ExecuteRegisteredCommand(ApplicationCommandIds.OpenCurrentItem);
-                return true;
-
-            // ── Selection ────────────────────────────────────────────────────
-            case ConsoleKey.Insert:
-                _ctrl.ToggleSelection(ActiveState, vr, PanelOptions);
-                return true;
-
-            // ── Panel navigation ──────────────────────────────────────────────
-            case ConsoleKey.Tab:
-                var otherSide = OtherPanelSide(_active);
-                if (IsPanelVisible(otherSide))
-                    SetActiveSide(otherSide);
-                else
-                    EnsureActivePanelVisible();
-                return true;
-
-            case ConsoleKey.UpArrow:
-                if (TryMoveCommandCompletionSelection(-1))
-                    return true;
-
-                _ctrl.MoveCursor(ActiveState, -1, vr);
-                return true;
-
-            case ConsoleKey.DownArrow:
-                if (TryMoveCommandCompletionSelection(+1))
-                    return true;
-
-                _ctrl.MoveCursor(ActiveState, +1, vr);
-                return true;
-
-            case ConsoleKey.PageUp:
-                _ctrl.MoveCursor(ActiveState, -vr, vr);
-                return true;
-
-            case ConsoleKey.PageDown:
-                _ctrl.MoveCursor(ActiveState, +vr, vr);
-                return true;
-
-        }
-
-        // Printable characters always go to the command line. This must run
-        // after special keys so malformed function-key chars cannot be inserted.
-        bool isPrintable = key.KeyChar >= ' ' &&
-            (key.Modifiers & (ConsoleModifiers.Control | ConsoleModifiers.Alt)) == 0;
-        if (isPrintable)
-        {
-            _cmdLine.Insert(key.KeyChar);
-            OnVisibleCommandLineTextEdited();
-            return true;
-        }
-
-        return false;
-    }
-
-    private bool TryHandleDirectoryShortcut(ConsoleKeyInfo key)
-    {
-        // ConsoleKeyInfo does not preserve left/right Ctrl identity. The Win32
-        // input layer can distinguish it, but the logical key contract cannot.
-        // Keep this as Ctrl+number until that contract carries the side.
-        if ((key.Modifiers & ConsoleModifiers.Control) == 0 ||
-            (key.Modifiers & (ConsoleModifiers.Alt | ConsoleModifiers.Shift)) != 0)
-        {
-            return false;
-        }
-
-        int? number = key.Key switch
-        {
-            ConsoleKey.D0 or ConsoleKey.NumPad0 => 0,
-            ConsoleKey.D1 or ConsoleKey.NumPad1 => 1,
-            ConsoleKey.D2 or ConsoleKey.NumPad2 => 2,
-            ConsoleKey.D3 or ConsoleKey.NumPad3 => 3,
-            ConsoleKey.D4 or ConsoleKey.NumPad4 => 4,
-            ConsoleKey.D5 or ConsoleKey.NumPad5 => 5,
-            ConsoleKey.D6 or ConsoleKey.NumPad6 => 6,
-            ConsoleKey.D7 or ConsoleKey.NumPad7 => 7,
-            ConsoleKey.D8 or ConsoleKey.NumPad8 => 8,
-            ConsoleKey.D9 or ConsoleKey.NumPad9 => 9,
-            _ => null,
-        };
-
-        return number is not null &&
-            ExecuteRegisteredCommand(
-                DirectoryShortcutCommandIds.Navigate,
-                new NavigateToDirectoryShortcutArgs(number.Value));
-    }
-
-    private bool TryHandleCommandLineNavigationKey(ConsoleKeyInfo key, bool forceCommandLine)
-    {
-        bool hasAlt = (key.Modifiers & ConsoleModifiers.Alt) != 0;
-        if (hasAlt)
-            return false;
-
-        bool hasControl = (key.Modifiers & ConsoleModifiers.Control) != 0;
-        bool hasShift = (key.Modifiers & ConsoleModifiers.Shift) != 0;
-        bool shouldUseCommandLine = forceCommandLine || _cmdLine.HasText || _cmdLine.HasSelection || hasControl || hasShift;
-
-        switch (key.Key)
-        {
-            case ConsoleKey.LeftArrow when shouldUseCommandLine:
-                if (hasControl && hasShift)
-                    _cmdLine.MoveToPreviousWordWithSelection();
-                else if (hasControl)
-                    _cmdLine.MoveToPreviousWord();
-                else if (hasShift)
-                    _cmdLine.MoveCursorWithSelection(_cmdLine.CursorPosition - 1);
-                else
-                    _cmdLine.MoveCursor(-1);
-                ResetCommandHistoryNavigation();
-                return true;
-
-            case ConsoleKey.RightArrow when shouldUseCommandLine:
-                if (hasControl && hasShift)
-                    _cmdLine.MoveToNextWordWithSelection();
-                else if (hasControl)
-                    _cmdLine.MoveToNextWord();
-                else if (hasShift)
-                    _cmdLine.MoveCursorWithSelection(_cmdLine.CursorPosition + 1);
-                else
-                    _cmdLine.MoveCursor(+1);
-                ResetCommandHistoryNavigation();
-                return true;
-
-            case ConsoleKey.Home when shouldUseCommandLine:
-                if (hasShift)
-                    _cmdLine.MoveCursorWithSelection(0);
-                else
-                    _cmdLine.MoveToStart();
-                ResetCommandHistoryNavigation();
-                return true;
-
-            case ConsoleKey.End when shouldUseCommandLine:
-                if (hasShift)
-                    _cmdLine.MoveCursorWithSelection(_cmdLine.Text.Length);
-                else
-                    _cmdLine.MoveToEnd();
-                ResetCommandHistoryNavigation();
-                return true;
-
-            default:
-                return false;
-        }
-    }
-
     private bool CopyCommandLineSelection()
     {
         string? selectedText = _cmdLine.SelectedText;
@@ -1467,180 +1112,11 @@ public sealed class Application
         return _farNetPanelActions.TryHandleShortcut(ActiveState, _cmdLine.HasText, key);
     }
 
-    private bool TryHandleFunctionKey(ConsoleKeyInfo key, out bool shouldRender)
-    {
-        shouldRender = false;
-
-        if (key.Key is < ConsoleKey.F1 or > ConsoleKey.F12)
-            return false;
-
-        if (!FunctionKeyLayerResolver.TryResolveChordLayer(key.Modifiers, out var layer))
-            return false;
-
-        var binding = _functionKeyBindings.FirstOrDefault(candidate =>
-            candidate.Layer == layer &&
-            candidate.Key == key.Key);
-
-        if (binding is null)
-            return false;
-
-        if (!CanExecuteFunctionKeyCommand(binding.CommandId) && !binding.RunsWhenUnavailable)
-        {
-            shouldRender = true;
-            return true;
-        }
-
-        shouldRender = ExecuteRegisteredCommand(binding.CommandId);
-        return true;
-    }
-
-    private bool TryHandlePanelVisibilityFunctionKey(ConsoleKeyInfo key, out bool shouldRender)
-    {
-        shouldRender = false;
-
-        if (!HasOnlyControlModifier(key) ||
-            key.Key is not (ConsoleKey.F1 or ConsoleKey.F2))
-        {
-            return false;
-        }
-
-        return TryHandleFunctionKey(key, out shouldRender);
-    }
-
     private bool CanExecuteFunctionKeyCommand(string commandId) =>
         _commandRegistry.CanExecute(commandId, _commandContext);
 
     private bool ExecuteRegisteredCommand(string commandId, object? args = null) =>
         _commandRegistry.Execute(commandId, _commandContext, args).ShouldRender;
-
-    private bool TryHandleFarCommandLineShortcut(ConsoleKeyInfo key)
-    {
-        if (IsPlainControlKey(key, ConsoleKey.E, '\u0005'))
-            return BrowseCommandHistory(-1, CommandHistoryNavigationStart.Newest);
-
-        if (IsPlainControlKey(key, ConsoleKey.X, '\u0018'))
-            return BrowseCommandHistory(+1, CommandHistoryNavigationStart.Newest);
-
-        if (IsPlainControlKey(key, ConsoleKey.F, '\u0006'))
-            return InsertCurrentItemFullPathIntoCommandLine();
-
-        if (IsPlainControlEnter(key))
-            return InsertCurrentItemNameIntoCommandLine();
-
-        if (IsPlainControlOpenBracket(key))
-            return InsertPanelCurrentDirectoryIntoCommandLine(_left);
-
-        if (IsPlainControlCloseBracket(key))
-            return InsertPanelCurrentDirectoryIntoCommandLine(_right);
-
-        return false;
-    }
-
-    private bool InsertCurrentItemNameIntoCommandLine()
-    {
-        var item = _ctrl.CurrentItem(ActiveState);
-        if (item is null)
-            return true;
-
-        InsertTextIntoCommandLine(item.Name);
-        return true;
-    }
-
-    private bool InsertCurrentItemFullPathIntoCommandLine()
-    {
-        var item = _ctrl.CurrentItem(ActiveState);
-        if (item is null)
-            return true;
-
-        InsertTextIntoCommandLine(item.FullPath);
-        return true;
-    }
-
-    private bool InsertPanelCurrentDirectoryIntoCommandLine(FilePanelState state)
-    {
-        // Ensure the inserted directory path ends with a directory separator.
-        string path = state.CurrentDirectory;
-        if (!path.EndsWith(Path.DirectorySeparatorChar.ToString()))
-            path += Path.DirectorySeparatorChar;
-        InsertTextIntoCommandLine(path);
-        return true;
-    }
-
-    private void InsertTextIntoCommandLine(string text)
-    {
-        _cmdLine.InsertText(QuoteCommandLineInsertion(text));
-
-        if (HasVisiblePanels)
-            OnVisibleCommandLineTextEdited();
-        else
-            ResetCommandHistoryNavigation();
-    }
-
-    private bool HandleHiddenCommandLineKey(ConsoleKeyInfo key)
-    {
-        if (TryHandlePanelVisibilityFunctionKey(key, out bool shouldRender))
-            return shouldRender;
-
-        if (IsPlainControlKey(key, ConsoleKey.A, '\u0001'))
-        {
-            _cmdLine.SelectAll();
-            return true;
-        }
-
-        if (IsPlainControlKey(key, ConsoleKey.C, '\u0003'))
-            return CopyCommandLineSelection();
-
-        if (IsPlainControlKey(key, ConsoleKey.V, '\u0016'))
-            return PasteTextIntoCommandLine();
-
-        if (TryHandleCommandLineNavigationKey(key, forceCommandLine: true))
-            return true;
-
-        switch (key.Key)
-        {
-            case ConsoleKey.Delete:
-                ResetCommandHistoryNavigation();
-                _cmdLine.DeleteForward();
-                return true;
-
-            case ConsoleKey.Backspace:
-                ResetCommandHistoryNavigation();
-                _cmdLine.DeleteBack();
-                return true;
-
-            case ConsoleKey.Escape:
-                ResetCommandHistoryNavigation();
-                _cmdLine.Clear();
-                return true;
-
-            case ConsoleKey.Enter:
-                ResetCommandHistoryNavigation();
-                if (_cmdLine.HasText)
-                    ExecuteCommand(_cmdLine.Text);
-                return true;
-
-            case ConsoleKey.UpArrow:
-                return BrowseCommandHistory(-1, CommandHistoryNavigationStart.Newest);
-
-            case ConsoleKey.DownArrow:
-                return BrowseCommandHistory(+1, CommandHistoryNavigationStart.Oldest);
-
-            case ConsoleKey.F10:
-                _state.Running = false;
-                return false;
-        }
-
-        bool isPrintable = key.KeyChar >= ' ' &&
-            (key.Modifiers & (ConsoleModifiers.Control | ConsoleModifiers.Alt)) == 0;
-        if (isPrintable)
-        {
-            ResetCommandHistoryNavigation();
-            _cmdLine.Insert(key.KeyChar);
-            return true;
-        }
-
-        return false;
-    }
 
     private void SelectAllCommandLineTextOrPanelItems()
     {

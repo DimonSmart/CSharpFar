@@ -156,10 +156,17 @@ public sealed class DirectoryShortcutApplicationIntegrationTests : IDisposable
             settings);
     }
 
-    private static bool InvokeHandleKey(Application app, ConsoleKeyInfo key) =>
-        (bool)typeof(Application)
-            .GetMethod("HandleKey", BindingFlags.Instance | BindingFlags.NonPublic)!
-            .Invoke(app, [key])!;
+    private static bool InvokeHandleKey(Application app, ConsoleKeyInfo key)
+    {
+        var router = typeof(Application)
+            .GetField("_keyboardInputRouter", BindingFlags.Instance | BindingFlags.NonPublic)!
+            .GetValue(app)!;
+
+        return (bool)router
+            .GetType()
+            .GetMethod("Handle")!
+            .Invoke(router, [key])!;
+    }
 
     private static bool InvokeHandleMouse(Application app, MouseConsoleInputEvent mouse) =>
         (bool)typeof(Application)

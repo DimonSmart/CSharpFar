@@ -815,12 +815,15 @@ public sealed class ApplicationNavigationTests : IDisposable
 
     private static void HandleKeyAndRender(Application app, ConsoleKeyInfo key)
     {
-        var method = typeof(Application).GetMethod(
-            "HandleKey",
+        var router = typeof(Application).GetField(
+            "_keyboardInputRouter",
             BindingFlags.Instance | BindingFlags.NonPublic)
-            ?? throw new InvalidOperationException("Application.HandleKey method not found.");
+            ?.GetValue(app)
+            ?? throw new InvalidOperationException("Application keyboard input router not found.");
 
-        bool shouldRender = (bool)method.Invoke(app, [key])!;
+        var method = router.GetType().GetMethod("Handle")
+            ?? throw new InvalidOperationException("KeyboardInputRouter.Handle method not found.");
+        bool shouldRender = (bool)method.Invoke(router, [key])!;
         if (shouldRender)
             Render(app);
     }

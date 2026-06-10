@@ -4,6 +4,7 @@ using CSharpFar.App.Commands;
 using CSharpFar.App.Files;
 using CSharpFar.App.FunctionKeys;
 using CSharpFar.App.Highlighting;
+using CSharpFar.App.Input;
 using CSharpFar.App.Menu;
 using CSharpFar.App.Modules;
 using CSharpFar.App.Panels;
@@ -73,6 +74,48 @@ internal static class ApplicationServicesBuilder
         var effectiveFileLauncher = fileLauncher ?? new WindowsShellFileLauncher();
         var effectiveClipboard = clipboard ?? TextCopyTextClipboard.Instance;
         var callbacks = new ApplicationServiceCallbacks();
+        var keyboardInputContext = new KeyboardInputContext
+        {
+            MenuState = session.Menu.State,
+            MenuController = null!,
+            PanelQuickSearch = null!,
+            PanelController = controller,
+            CommandLine = session.CommandLine.State,
+            FunctionKeyBindings = functionKeyBindingProvider.GetBindings(),
+            BuildMenuDefinition = () => throw new InvalidOperationException("Keyboard input context is not assigned."),
+            ActiveSide = () => callbacks.GetActiveSide(),
+            SetActiveSide = side => callbacks.SetActiveSide(side),
+            ActiveState = () => callbacks.ActiveState(),
+            LeftPanel = () => session.Panels.Left,
+            RightPanel = () => session.Panels.Right,
+            HasVisiblePanels = () => callbacks.HasVisiblePanels(),
+            IsPanelVisible = side => callbacks.IsPanelVisible(side),
+            PanelOptions = () => callbacks.PanelOptions(),
+            VisibleRows = () => callbacks.VisibleRows(),
+            VisibleRowsForSide = side => callbacks.VisibleRowsForSide(side),
+            QuickView = () => session.App.QuickView,
+            SetQuickView = quickView => session.App.QuickView = quickView,
+            SetRunning = running => session.App.Running = running,
+            TogglePanels = () => throw new InvalidOperationException("Keyboard input context is not assigned."),
+            TryHandleFarNetPanelShortcut = _ => throw new InvalidOperationException("Keyboard input context is not assigned."),
+            ExecuteRegisteredCommand = (_, _) => throw new InvalidOperationException("Keyboard input context is not assigned."),
+            SelectAllCommandLineTextOrPanelItems = () => throw new InvalidOperationException("Keyboard input context is not assigned."),
+            CopyCommandLineSelection = () => throw new InvalidOperationException("Keyboard input context is not assigned."),
+            PasteTextIntoCommandLine = () => throw new InvalidOperationException("Keyboard input context is not assigned."),
+            MovePanelColumn = _ => throw new InvalidOperationException("Keyboard input context is not assigned."),
+            OnVisibleCommandLineTextEdited = () => throw new InvalidOperationException("Keyboard input context is not assigned."),
+            TryHideCommandCompletionTemporarily = () => throw new InvalidOperationException("Keyboard input context is not assigned."),
+            CloseSearchResultsPanel = (_, _) => throw new InvalidOperationException("Keyboard input context is not assigned."),
+            TryAcceptCommandCompletion = () => throw new InvalidOperationException("Keyboard input context is not assigned."),
+            ExecuteCommand = _ => throw new InvalidOperationException("Keyboard input context is not assigned."),
+            EnsureActivePanelVisible = () => throw new InvalidOperationException("Keyboard input context is not assigned."),
+            TryMoveCommandCompletionSelection = _ => throw new InvalidOperationException("Keyboard input context is not assigned."),
+            BrowseCommandHistory = (_, _) => throw new InvalidOperationException("Keyboard input context is not assigned."),
+            HideCommandCompletion = _ => throw new InvalidOperationException("Keyboard input context is not assigned."),
+            ResetCommandHistoryNavigation = () => throw new InvalidOperationException("Keyboard input context is not assigned."),
+            TryGoUp = () => throw new InvalidOperationException("Keyboard input context is not assigned."),
+            CanExecuteFunctionKeyCommand = _ => throw new InvalidOperationException("Keyboard input context is not assigned."),
+        };
         var menuLayoutService = new MenuLayoutService();
         var highlightService = FileHighlightServiceFactory.Create(effectiveSettings);
         var commandCompletionController = new CommandCompletionController(
@@ -138,6 +181,9 @@ internal static class ApplicationServicesBuilder
             side => callbacks.IsPanelVisible(side),
             side => callbacks.GetPanelState(side),
             side => callbacks.VisibleRowsForSide(side));
+        keyboardInputContext.MenuController = menuController;
+        keyboardInputContext.PanelQuickSearch = panelQuickSearch;
+        var keyboardInputRouter = new KeyboardInputRouter(keyboardInputContext);
         var panelFileViewer = new PanelFileViewerService(
             screen,
             () => session.App.Palette,
@@ -266,6 +312,8 @@ internal static class ApplicationServicesBuilder
             ShellUnderlay = shellUnderlay,
             QuickViewDirectorySize = quickViewDirectorySize,
             Runtime = runtime,
+            KeyboardInputContext = keyboardInputContext,
+            KeyboardInputRouter = keyboardInputRouter,
             ConfigDirectory = effectiveConfigDirectory,
             EnableBuiltInNetworkModules = enableBuiltInNetworkModules,
             CredentialStore = credentialStore,
