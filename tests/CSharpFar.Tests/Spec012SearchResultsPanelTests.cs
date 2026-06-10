@@ -380,20 +380,10 @@ public sealed class Spec012SearchResultsPanelTests : IDisposable
         };
 
     private static FilePanelState GetLeftPanel(Application app) =>
-        GetPanel(app, "_left");
+        app.Session.Panels.Left;
 
     private static FilePanelState GetRightPanel(Application app) =>
-        GetPanel(app, "_right");
-
-    private static FilePanelState GetPanel(Application app, string fieldName)
-    {
-        var field = typeof(Application).GetField(
-            fieldName,
-            System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)
-            ?? throw new InvalidOperationException($"Application.{fieldName} field not found.");
-
-        return (FilePanelState)field.GetValue(app)!;
-    }
+        app.Session.Panels.Right;
 
     private sealed class RecordingFileOperationService : IFileOperationService
     {

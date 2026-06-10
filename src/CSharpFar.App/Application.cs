@@ -75,19 +75,32 @@ public sealed class Application
     private readonly IVolumeService? _volumeService;
     private readonly ITextClipboard _clipboard;
 
-    private readonly FilePanelState _left;
-    private readonly FilePanelState _right;
-    private readonly CommandLineState _cmdLine;
-    private readonly CommandCompletionState _commandCompletion;
+    private readonly ApplicationSession _session;
     private readonly PanelQuickSearchController _panelQuickSearch;
 
-    private PanelSide     _active        = PanelSide.Left;
-    private readonly ApplicationState _state;
-    private readonly UiTransientState _ui;
-    private PanelViewMode           _leftViewMode;
-    private PanelViewMode           _rightViewMode;
+    private FilePanelState _left => _session.Panels.Left;
+    private FilePanelState _right => _session.Panels.Right;
+    private CommandLineState _cmdLine => _session.CommandLine.State;
+    private CommandCompletionState _commandCompletion => _session.CommandLine.Completion;
+    private PanelSide _active
+    {
+        get => _session.Panels.ActiveSide;
+        set => _session.Panels.ActiveSide = value;
+    }
+    private ApplicationState _state => _session.App;
+    private UiTransientState _ui => _session.Ui;
+    private PanelViewMode _leftViewMode
+    {
+        get => _session.Panels.LeftViewMode;
+        set => _session.Panels.LeftViewMode = value;
+    }
+    private PanelViewMode _rightViewMode
+    {
+        get => _session.Panels.RightViewMode;
+        set => _session.Panels.RightViewMode = value;
+    }
     private IFileHighlightService?          _highlightService;
-    private readonly MenuState              _menuState;
+    private MenuState _menuState => _session.Menu.State;
     private readonly DefaultMenuDefinitionProvider _menuProvider;
     private readonly DefaultFunctionKeyBindingProvider _functionKeyBindingProvider;
     private readonly ApplicationCommandRegistry _commandRegistry;
@@ -95,10 +108,22 @@ public sealed class Application
     private readonly MenuLayoutService      _menuLayoutService;
     private readonly TopMenuController      _menuController;
     private readonly IReadOnlyList<FunctionKeyBinding> _functionKeyBindings;
-    private PanelItemClick?                 _lastLeftPanelItemClick;
-    private FunctionKeyLayer                _functionKeyLayer = FunctionKeyLayer.Plain;
+    private PanelItemClick? _lastLeftPanelItemClick
+    {
+        get => _session.Mouse.LastLeftPanelItemClick;
+        set => _session.Mouse.LastLeftPanelItemClick = value;
+    }
+    private FunctionKeyLayer _functionKeyLayer
+    {
+        get => _session.FunctionKeyLayer;
+        set => _session.FunctionKeyLayer = value;
+    }
     private readonly QuickViewDirectorySizeController _quickViewDirectorySize;
-    private bool                             _isCommandLineMouseSelecting;
+    private bool _isCommandLineMouseSelecting
+    {
+        get => _session.Mouse.IsCommandLineSelecting;
+        set => _session.Mouse.IsCommandLineSelecting = value;
+    }
 
     private enum ConsoleViewportChange
     {
@@ -176,19 +201,11 @@ public sealed class Application
         _userMenu = services.UserMenu;
         _saveSettings = services.SaveSettings;
         _volumeService = services.VolumeService;
-        _state = services.State;
-        _ui = services.Ui;
-        _left = services.LeftPanel;
-        _right = services.RightPanel;
-        _cmdLine = services.CommandLine;
-        _commandCompletion = services.CommandCompletion;
-        _menuState = services.MenuState;
+        _session = services.Session;
         _menuProvider = services.MenuProvider;
         _functionKeyBindingProvider = services.FunctionKeyBindingProvider;
         _functionKeyBindings = services.FunctionKeyBindings;
         _menuLayoutService = services.MenuLayoutService;
-        _leftViewMode = services.LeftViewMode;
-        _rightViewMode = services.RightViewMode;
         _highlightService = services.HighlightService;
         _changeDirectoryCommandExecutor = new ChangeDirectoryCommandExecutor(
             _ctrl,
@@ -348,6 +365,8 @@ public sealed class Application
     }
 
     internal ScreenRenderer CommandScreen => _screen;
+
+    internal ApplicationSession Session => _session;
 
     internal PanelController CommandPanelController => _ctrl;
 
@@ -2382,8 +2401,4 @@ public sealed class Application
                   PlatformNotSupportedException;
     }
 
-    private readonly record struct PanelItemClick(
-        PanelSide PanelSide,
-        int ItemIndex,
-        string FullPath);
 }

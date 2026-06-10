@@ -310,32 +310,17 @@ public sealed class Spec013FunctionKeyBarTests : IDisposable
 
     private static FilePanelState GetLeftPanel(Application app)
     {
-        var field = typeof(Application).GetField(
-            "_left",
-            System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)
-            ?? throw new InvalidOperationException("Application._left field not found.");
-
-        return (FilePanelState)field.GetValue(app)!;
+        return app.Session.Panels.Left;
     }
 
     private static CommandLineState GetCommandLine(Application app)
     {
-        var field = typeof(Application).GetField(
-            "_cmdLine",
-            System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)
-            ?? throw new InvalidOperationException("Application._cmdLine field not found.");
-
-        return (CommandLineState)field.GetValue(app)!;
+        return app.Session.CommandLine.State;
     }
 
     private static void SetFunctionKeyLayer(Application app, FunctionKeyLayer layer)
     {
-        var field = typeof(Application).GetField(
-            "_functionKeyLayer",
-            System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)
-            ?? throw new InvalidOperationException("Application._functionKeyLayer field not found.");
-
-        field.SetValue(app, layer);
+        app.Session.FunctionKeyLayer = layer;
     }
 
     private static void Render(Application app)

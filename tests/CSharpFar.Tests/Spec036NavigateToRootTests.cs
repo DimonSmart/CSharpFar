@@ -79,8 +79,6 @@ public sealed class Spec036NavigateToRootTests : IDisposable
 
     private static FilePanelState GetLeftPanel(Application app)
     {
-        var field = typeof(Application).GetField("_left", BindingFlags.Instance | BindingFlags.NonPublic)
-            ?? throw new InvalidOperationException("Application._left field not found.");
-        return (FilePanelState)field.GetValue(app)!;
+        return app.Session.Panels.Left;
     }
 }

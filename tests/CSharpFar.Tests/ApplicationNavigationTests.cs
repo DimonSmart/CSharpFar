@@ -805,16 +805,12 @@ public sealed class ApplicationNavigationTests : IDisposable
 
     private static FilePanelState GetLeftPanel(Application app)
     {
-        var field = typeof(Application).GetField("_left", BindingFlags.Instance | BindingFlags.NonPublic)
-            ?? throw new InvalidOperationException("Application._left field not found.");
-        return (FilePanelState)field.GetValue(app)!;
+        return app.Session.Panels.Left;
     }
 
     private static FilePanelState GetRightPanel(Application app)
     {
-        var field = typeof(Application).GetField("_right", BindingFlags.Instance | BindingFlags.NonPublic)
-            ?? throw new InvalidOperationException("Application._right field not found.");
-        return (FilePanelState)field.GetValue(app)!;
+        return app.Session.Panels.Right;
     }
 
     private static void HandleKeyAndRender(Application app, ConsoleKeyInfo key)
@@ -851,9 +847,7 @@ public sealed class ApplicationNavigationTests : IDisposable
 
     private static PanelSide GetActiveSide(Application app)
     {
-        var field = typeof(Application).GetField("_active", BindingFlags.Instance | BindingFlags.NonPublic)
-            ?? throw new InvalidOperationException("Application._active field not found.");
-        return (PanelSide)field.GetValue(app)!;
+        return app.Session.Panels.ActiveSide;
     }
 
     private static void AssertLeftPanelOnly(FakeConsoleDriver driver)
@@ -884,9 +878,7 @@ public sealed class ApplicationNavigationTests : IDisposable
 
     private static CommandLineState GetCommandLine(Application app)
     {
-        var field = typeof(Application).GetField("_cmdLine", BindingFlags.Instance | BindingFlags.NonPublic)
-            ?? throw new InvalidOperationException("Application._cmdLine field not found.");
-        return (CommandLineState)field.GetValue(app)!;
+        return app.Session.CommandLine.State;
     }
 
     private sealed class RecordingShellService : IShellService

@@ -95,12 +95,7 @@ public sealed class Spec060RenameCommandTests : IDisposable
 
     private static FilePanelState GetLeftPanel(Application app)
     {
-        var field = typeof(Application).GetField(
-            "_left",
-            System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)
-            ?? throw new InvalidOperationException("Application._left field not found.");
-
-        return (FilePanelState)field.GetValue(app)!;
+        return app.Session.Panels.Left;
     }
 
     private sealed class RecordingFileOperationService : IFileOperationService

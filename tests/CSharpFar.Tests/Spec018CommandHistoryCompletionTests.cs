@@ -253,12 +253,7 @@ public sealed class Spec018CommandHistoryCompletionTests : IDisposable
 
     private static CommandLineState GetCommandLine(Application app)
     {
-        var field = typeof(Application).GetField(
-            "_cmdLine",
-            BindingFlags.Instance | BindingFlags.NonPublic)
-            ?? throw new InvalidOperationException("Application._cmdLine field not found.");
-
-        return (CommandLineState)field.GetValue(app)!;
+        return app.Session.CommandLine.State;
     }
 
     private static string ComposeRow(FakeConsoleDriver driver, int y, int width)

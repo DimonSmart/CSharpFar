@@ -231,30 +231,22 @@ public sealed class Spec034PanelQuickSearchTests : IDisposable
 
     private static FilePanelState GetLeftPanel(Application app)
     {
-        var field = typeof(Application).GetField("_left", BindingFlags.Instance | BindingFlags.NonPublic)
-            ?? throw new InvalidOperationException("Application._left field not found.");
-        return (FilePanelState)field.GetValue(app)!;
+        return app.Session.Panels.Left;
     }
 
     private static PanelSide GetActiveSide(Application app)
     {
-        var field = typeof(Application).GetField("_active", BindingFlags.Instance | BindingFlags.NonPublic)
-            ?? throw new InvalidOperationException("Application._active field not found.");
-        return (PanelSide)field.GetValue(app)!;
+        return app.Session.Panels.ActiveSide;
     }
 
     private static PanelViewMode GetLeftViewMode(Application app)
     {
-        var field = typeof(Application).GetField("_leftViewMode", BindingFlags.Instance | BindingFlags.NonPublic)
-            ?? throw new InvalidOperationException("Application._leftViewMode field not found.");
-        return (PanelViewMode)field.GetValue(app)!;
+        return app.Session.Panels.LeftViewMode;
     }
 
     private static CommandLineState GetCommandLine(Application app)
     {
-        var field = typeof(Application).GetField("_cmdLine", BindingFlags.Instance | BindingFlags.NonPublic)
-            ?? throw new InvalidOperationException("Application._cmdLine field not found.");
-        return (CommandLineState)field.GetValue(app)!;
+        return app.Session.CommandLine.State;
     }
 
     private static object? GetQuickSearchState(Application app)

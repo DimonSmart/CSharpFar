@@ -105,10 +105,7 @@ public sealed class ApplicationSettingsTests : IDisposable
 
         app.Run();
 
-        var cmdLine = typeof(Application).GetField("_cmdLine", BindingFlags.Instance | BindingFlags.NonPublic)
-            ?? throw new InvalidOperationException("Application._cmdLine field not found.");
-        var state = (CommandLineState)cmdLine.GetValue(app)!;
-        Assert.Equal(string.Empty, state.Text);
+        Assert.Equal(string.Empty, app.Session.CommandLine.State.Text);
     }
 
     [Fact]
@@ -122,10 +119,7 @@ public sealed class ApplicationSettingsTests : IDisposable
 
         app.Run();
 
-        var cmdLine = typeof(Application).GetField("_cmdLine", BindingFlags.Instance | BindingFlags.NonPublic)
-            ?? throw new InvalidOperationException("Application._cmdLine field not found.");
-        var state = (CommandLineState)cmdLine.GetValue(app)!;
-        Assert.Equal(string.Empty, state.Text);
+        Assert.Equal(string.Empty, app.Session.CommandLine.State.Text);
     }
 
     [Fact]
@@ -205,8 +199,6 @@ public sealed class ApplicationSettingsTests : IDisposable
 
     private static FilePanelState GetLeftPanel(Application app)
     {
-        var field = typeof(Application).GetField("_left", BindingFlags.Instance | BindingFlags.NonPublic)
-            ?? throw new InvalidOperationException("Application._left field not found.");
-        return (FilePanelState)field.GetValue(app)!;
+        return app.Session.Panels.Left;
     }
 }

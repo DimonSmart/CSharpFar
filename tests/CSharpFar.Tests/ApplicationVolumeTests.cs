@@ -576,17 +576,10 @@ public sealed class ApplicationVolumeTests : IDisposable
     }
 
     private static FilePanelState GetLeftPanel(Application app) =>
-        GetField<FilePanelState>(app, "_left");
+        app.Session.Panels.Left;
 
     private static FilePanelState GetRightPanel(Application app) =>
-        GetField<FilePanelState>(app, "_right");
-
-    private static T GetField<T>(object obj, string name)
-    {
-        var field = obj.GetType().GetField(name, BindingFlags.Instance | BindingFlags.NonPublic)
-            ?? throw new InvalidOperationException($"Field '{name}' not found.");
-        return (T)field.GetValue(obj)!;
-    }
+        app.Session.Panels.Right;
 
     // ── fakes ─────────────────────────────────────────────────────────────────
 

@@ -1,19 +1,15 @@
-using CSharpFar.Core.Abstractions;
+using CSharpFar.App.CommandLine;
+using CSharpFar.App.State;
 using CSharpFar.Core.Controllers;
 using CSharpFar.Core.Models;
+using CSharpFar.Ui;
 using AppSettingsAlias = CSharpFar.Core.Models.AppSettings;
 
 namespace CSharpFar.App.Bootstrap;
 
-internal sealed record ApplicationInitialSession(
-    FilePanelState LeftPanel,
-    FilePanelState RightPanel,
-    PanelViewMode LeftViewMode,
-    PanelViewMode RightViewMode);
-
 internal static class ApplicationSessionFactory
 {
-    public static ApplicationInitialSession Create(
+    public static ApplicationSession Create(
         AppSettingsAlias settings,
         PanelController controller)
     {
@@ -28,11 +24,28 @@ internal static class ApplicationSessionFactory
         controller.LoadDirectory(left, leftStart, options);
         controller.LoadDirectory(right, rightStart, options);
 
-        return new ApplicationInitialSession(
-            left,
-            right,
-            ResolveViewMode(settings.Panels.LeftViewMode),
-            ResolveViewMode(settings.Panels.RightViewMode));
+        return new ApplicationSession
+        {
+            App = new ApplicationState(PaletteRegistry.Resolve(settings.Ui.Palette)),
+            Ui = new UiTransientState(),
+            Panels = new PanelSessionState
+            {
+                Left = left,
+                Right = right,
+                LeftViewMode = ResolveViewMode(settings.Panels.LeftViewMode),
+                RightViewMode = ResolveViewMode(settings.Panels.RightViewMode),
+            },
+            CommandLine = new CommandLineSessionState
+            {
+                State = new CommandLineState(),
+                Completion = new CommandCompletionState(),
+            },
+            Menu = new MenuSessionState
+            {
+                State = new(),
+            },
+            Mouse = new MouseSessionState(),
+        };
     }
 
     private static string ResolveStartDir(string? configured, string fallback)

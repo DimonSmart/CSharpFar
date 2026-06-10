@@ -251,12 +251,7 @@ public sealed class Spec027FarCommandLineShortcutTests : IDisposable
 
     private static CommandLineState GetCommandLine(Application app)
     {
-        var field = typeof(Application).GetField(
-            "_cmdLine",
-            BindingFlags.Instance | BindingFlags.NonPublic)
-            ?? throw new InvalidOperationException("Application._cmdLine field not found.");
-
-        return (CommandLineState)field.GetValue(app)!;
+        return app.Session.CommandLine.State;
     }
 
     private static void EnqueueText(FakeConsoleDriver driver, string text)

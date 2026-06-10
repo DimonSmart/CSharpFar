@@ -1,13 +1,11 @@
 using CSharpFar.App.CommandLine;
 using CSharpFar.App.FunctionKeys;
 using CSharpFar.App.Highlighting;
-using CSharpFar.App.State;
 using CSharpFar.App.UserMenu;
 using CSharpFar.Console;
 using CSharpFar.Core.Abstractions;
 using CSharpFar.Core.Controllers;
 using CSharpFar.Core.History;
-using CSharpFar.Core.Models;
 using CSharpFar.Core.Services;
 using CSharpFar.FarNetHost;
 using CSharpFar.FileSystem;
@@ -57,7 +55,6 @@ internal static class ApplicationServicesBuilder
             sources: effectiveSourceRegistry);
         var controller = new PanelController(viewBuilder);
         var effectiveHistory = history ?? new InMemoryHistoryStore();
-        var commandCompletion = new CommandCompletionState();
         var functionKeyBindingProvider = new DefaultFunctionKeyBindingProvider();
         var session = ApplicationSessionFactory.Create(effectiveSettings, controller);
         var effectiveConfigDirectory = configDirectory ?? Path.Combine(
@@ -76,23 +73,15 @@ internal static class ApplicationServicesBuilder
             SourceRegistry = effectiveSourceRegistry,
             History = effectiveHistory,
             CommandHistoryNavigator = new CommandHistoryNavigator(effectiveHistory),
-            CommandCompletionController = new CommandCompletionController(effectiveHistory, commandCompletion),
+            CommandCompletionController = new CommandCompletionController(effectiveHistory, session.CommandLine.Completion),
             Settings = effectiveSettings,
             UserMenu = userMenu ?? new UserMenuStore(effectiveConfigDirectory),
             Clipboard = clipboard ?? TextCopyTextClipboard.Instance,
-            State = new ApplicationState(PaletteRegistry.Resolve(effectiveSettings.Ui.Palette)),
-            Ui = new UiTransientState(),
-            LeftPanel = session.LeftPanel,
-            RightPanel = session.RightPanel,
-            CommandLine = new CommandLineState(),
-            CommandCompletion = commandCompletion,
-            MenuState = new(),
+            Session = session,
             MenuProvider = new(),
             FunctionKeyBindingProvider = functionKeyBindingProvider,
             FunctionKeyBindings = functionKeyBindingProvider.GetBindings(),
             MenuLayoutService = new(),
-            LeftViewMode = session.LeftViewMode,
-            RightViewMode = session.RightViewMode,
             HighlightService = FileHighlightServiceFactory.Create(effectiveSettings),
             ConfigDirectory = effectiveConfigDirectory,
             EnableBuiltInNetworkModules = enableBuiltInNetworkModules,

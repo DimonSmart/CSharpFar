@@ -9,8 +9,6 @@ using CSharpFar.Core.Abstractions;
 using CSharpFar.Core.Controllers;
 using CSharpFar.Core.Highlighting;
 using CSharpFar.Core.History;
-using CSharpFar.Core.Menu;
-using CSharpFar.Core.Models;
 using CSharpFar.Core.Services;
 using CSharpFar.FarNetHost;
 using CSharpFar.Module.Ftp;
@@ -35,19 +33,11 @@ internal sealed class ApplicationServices
     public required AppSettingsAlias Settings { get; init; }
     public required UserMenuStore UserMenu { get; init; }
     public required ITextClipboard Clipboard { get; init; }
-    public required ApplicationState State { get; init; }
-    public required UiTransientState Ui { get; init; }
-    public required FilePanelState LeftPanel { get; init; }
-    public required FilePanelState RightPanel { get; init; }
-    public required CommandLineState CommandLine { get; init; }
-    public required CommandCompletionState CommandCompletion { get; init; }
-    public required MenuState MenuState { get; init; }
+    public required ApplicationSession Session { get; init; }
     public required DefaultMenuDefinitionProvider MenuProvider { get; init; }
     public required DefaultFunctionKeyBindingProvider FunctionKeyBindingProvider { get; init; }
     public required IReadOnlyList<FunctionKeyBinding> FunctionKeyBindings { get; init; }
     public required MenuLayoutService MenuLayoutService { get; init; }
-    public required PanelViewMode LeftViewMode { get; init; }
-    public required PanelViewMode RightViewMode { get; init; }
     public required IFileHighlightService? HighlightService { get; init; }
     public required string ConfigDirectory { get; init; }
     public required bool EnableBuiltInNetworkModules { get; init; }
