@@ -39,6 +39,7 @@ public sealed class Application
     private const int MaxCommandCompletionRows = CommandHistoryCompletionRenderer.MaxVisibleRows;
 
     private readonly ScreenRenderer _screen;
+    private readonly ApplicationRuntime _runtime;
     private readonly IFileSystemService _fs;
     private readonly PanelController _ctrl;
     private readonly IShellService _shell;
@@ -311,6 +312,27 @@ public sealed class Application
             _menuLayoutService);
         _commandLineRenderer = new ApplicationCommandLineRenderer(_screen, () => _palette);
         _shellUnderlay = new ShellUnderlayService(_screen);
+        _runtime = new ApplicationRuntime(
+            _screen,
+            new ApplicationRuntimeContext
+            {
+                IsRunning = () => _running,
+                HasVisiblePanels = () => HasVisiblePanels,
+                WaitToken = () => _autoRefresh.WaitToken,
+                CaptureUnderlay = _shellUnderlay.Capture,
+                StartWatchingInitialPanels = StartWatchingInitialPanels,
+                RenderUntilStable = RenderUntilStable,
+                RenderCommandLineOnlyUntilStable = RenderCommandLineOnlyUntilStable,
+                RestoreHiddenScreen = () => _shellUnderlay.RestoreForHiddenScreen(HasVisiblePanels),
+                ResetWaitToken = _autoRefresh.ResetWaitToken,
+                ProcessPendingRefreshes = _autoRefresh.ProcessPendingRefreshes,
+                DisposeRuntimeState = _dirSizeCalc.Dispose,
+                HandleResizeInput = HandleRuntimeResizeInput,
+                CheckViewportAfterInput = CheckRuntimeViewportAfterInput,
+                HandleKeyInput = HandleRuntimeKeyInput,
+                HandleModifierInput = HandleRuntimeModifierInput,
+                HandleMouseInput = HandleRuntimeMouseInput,
+            });
 
         _dirSizeCalc.Completed += OnDirSizeCalculated;
         _dirSizeCalc.Progress  += OnDirSizeProgress;
@@ -427,99 +449,43 @@ public sealed class Application
 
     public void Run()
     {
-        try
-        {
-            // Capture what was in the terminal before we draw anything.
-            // This becomes the initial underlay shown by Ctrl+O.
-            _shellUnderlay.Capture();
+        _runtime.Run();
+    }
 
-            StartWatching(_left,  PanelSide.Left);
-            StartWatching(_right, PanelSide.Right);
+    private void StartWatchingInitialPanels()
+    {
+        StartWatching(_left, PanelSide.Left);
+        StartWatching(_right, PanelSide.Right);
+    }
 
-            RenderUntilStable();
+    private ApplicationRuntimeRenderRequest HandleRuntimeResizeInput()
+    {
+        var viewportChange = GetConsoleViewportChange();
+        return !AcceptHiddenViewportScroll(viewportChange) &&
+            viewportChange != ConsoleViewportChange.None
+            ? new ApplicationRuntimeRenderRequest(ShouldRender: true, IsResize: true)
+            : ApplicationRuntimeRenderRequest.None;
+    }
 
-            while (_running)
-            {
-                ConsoleInputEvent evt;
-                try
-                {
-                    evt = _screen.ReadInput(_autoRefresh.WaitToken);
-                }
-                catch (OperationCanceledException)
-                {
-                    // Woken by auto-refresh — reset CTS and refresh affected panels.
-                    _autoRefresh.ResetWaitToken();
-                    _autoRefresh.ProcessPendingRefreshes();
-                    if (_running && HasVisiblePanels)
-                        RenderUntilStable();
-                    continue;
-                }
+    private ApplicationRuntimeRenderRequest CheckRuntimeViewportAfterInput() =>
+        HandleRuntimeResizeInput();
 
-                bool isResize     = false;
-                bool shouldRender = false;
+    private ApplicationRuntimeRenderRequest HandleRuntimeKeyInput(ConsoleKeyInfo key)
+    {
+        bool scrolledHiddenViewport = ScrollHiddenViewportToBottomForInput();
+        bool functionKeyLayerChanged = SetFunctionKeyLayer(key.Modifiers);
+        bool shouldRender = HandleKey(key) || scrolledHiddenViewport || functionKeyLayerChanged;
+        return new ApplicationRuntimeRenderRequest(shouldRender, IsResize: false);
+    }
 
-                switch (evt)
-                {
-                    case ConsoleResizeInputEvent:
-                    {
-                        var viewportChange = GetConsoleViewportChange();
-                        if (!AcceptHiddenViewportScroll(viewportChange) &&
-                            viewportChange != ConsoleViewportChange.None)
-                        {
-                            isResize = true;
-                            shouldRender = true;
-                        }
-                        break;
-                    }
-                    case KeyConsoleInputEvent { Key: var key }:
-                    {
-                        bool scrolledHiddenViewport = ScrollHiddenViewportToBottomForInput();
-                        bool functionKeyLayerChanged = SetFunctionKeyLayer(key.Modifiers);
-                        shouldRender = HandleKey(key) || scrolledHiddenViewport || functionKeyLayerChanged;
-                        break;
-                    }
-                    case ModifierKeyConsoleInputEvent { Modifiers: var modifiers }:
-                        shouldRender = SetFunctionKeyLayer(modifiers);
-                        break;
-                    case MouseConsoleInputEvent mouseEvt:
-                    {
-                        bool scrolledHiddenViewport = ScrollHiddenViewportToBottomForInput();
-                        shouldRender = HandleMouse(mouseEvt) || scrolledHiddenViewport;
-                        break;
-                    }
-                }
+    private ApplicationRuntimeRenderRequest HandleRuntimeModifierInput(ConsoleModifiers modifiers) =>
+        new(SetFunctionKeyLayer(modifiers), IsResize: false);
 
-                if (!shouldRender)
-                {
-                    var viewportChange = GetConsoleViewportChange();
-                    if (!AcceptHiddenViewportScroll(viewportChange) &&
-                        viewportChange != ConsoleViewportChange.None)
-                    {
-                        isResize = true;
-                        shouldRender = true;
-                    }
-                }
-
-                if (_running && shouldRender)
-                {
-                    if (HasVisiblePanels)
-                        RenderUntilStable();
-                    else
-                    {
-                        if (isResize)
-                            _shellUnderlay.RestoreForHiddenScreen(HasVisiblePanels);
-                        RenderCommandLineOnlyUntilStable();
-                    }
-                }
-            }
-
-            _screen.ClearScreen();
-        }
-        finally
-        {
-            _dirSizeCalc.Dispose();
-            _screen.SetCursorVisible(true);
-        }
+    private ApplicationRuntimeRenderRequest HandleRuntimeMouseInput(MouseConsoleInputEvent mouseEvt)
+    {
+        bool scrolledHiddenViewport = ScrollHiddenViewportToBottomForInput();
+        bool shouldRender = HandleMouse(mouseEvt) || scrolledHiddenViewport;
+        return new ApplicationRuntimeRenderRequest(shouldRender, IsResize: false);
     }
 
     // ── quick view dir size ───────────────────────────────────────────────────
