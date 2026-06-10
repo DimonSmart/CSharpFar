@@ -1,4 +1,5 @@
 using CSharpFar.App;
+using CSharpFar.App.Bootstrap;
 using CSharpFar.App.History;
 using CSharpFar.App.Settings;
 using CSharpFar.App.UserMenu;
@@ -35,7 +36,7 @@ var history = new JsonHistoryStore(
     settings.History.MaxDirectoryHistoryItems,
     settings.History.MaxFileHistoryItems);
 
-new Application(renderer, fs, shell, fileOps, history, settings, userMenu,
+ApplicationFactory.Create(renderer, fs, shell, fileOps, history, settings, userMenu,
     saveSettings:     () => settingsStore.Save(),
     volumeService:    volumeSvc,
     volumeInfoService: volumeInfoSvc,

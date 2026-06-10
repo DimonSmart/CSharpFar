@@ -1,5 +1,6 @@
 using CSharpFar.App.Dialogs;
 using CSharpFar.App.AutoRefresh;
+using CSharpFar.App.Bootstrap;
 using CSharpFar.App.Commands;
 using CSharpFar.App.CommandLine;
 using CSharpFar.App.DirectoryShortcuts;
@@ -76,22 +77,22 @@ public sealed class Application
 
     private readonly FilePanelState _left;
     private readonly FilePanelState _right;
-    private readonly CommandLineState _cmdLine = new();
-    private readonly CommandCompletionState _commandCompletion = new();
+    private readonly CommandLineState _cmdLine;
+    private readonly CommandCompletionState _commandCompletion;
     private readonly PanelQuickSearchController _panelQuickSearch;
 
     private PanelSide     _active        = PanelSide.Left;
     private readonly ApplicationState _state;
-    private readonly UiTransientState _ui = new();
+    private readonly UiTransientState _ui;
     private PanelViewMode           _leftViewMode;
     private PanelViewMode           _rightViewMode;
     private IFileHighlightService?          _highlightService;
-    private readonly MenuState              _menuState = new();
-    private readonly DefaultMenuDefinitionProvider _menuProvider = new();
-    private readonly DefaultFunctionKeyBindingProvider _functionKeyBindingProvider = new();
+    private readonly MenuState              _menuState;
+    private readonly DefaultMenuDefinitionProvider _menuProvider;
+    private readonly DefaultFunctionKeyBindingProvider _functionKeyBindingProvider;
     private readonly ApplicationCommandRegistry _commandRegistry;
     private readonly ApplicationCommandContext _commandContext;
-    private readonly MenuLayoutService      _menuLayoutService = new();
+    private readonly MenuLayoutService      _menuLayoutService;
     private readonly TopMenuController      _menuController;
     private readonly IReadOnlyList<FunctionKeyBinding> _functionKeyBindings;
     private PanelItemClick?                 _lastLeftPanelItemClick;
@@ -130,44 +131,75 @@ public sealed class Application
         bool                         enableBuiltInNetworkModules = true,
         string?                      configDirectory   = null,
         ITextClipboard?              clipboard         = null)
-    {
-        _screen       = screen;
-        _fs           = fs;
-        var sortSvc   = new PanelSortService();
-        _sourceRegistry = sourceRegistry ?? new FilePanelSourceRegistry([new LocalFilePanelSource(fs)]);
-        var viewBuilder = new PanelViewBuilder(
+        : this(ApplicationServicesBuilder.Create(
+            screen,
             fs,
-            sortSvc,
+            shell,
+            fileOps,
+            history,
+            settings,
+            userMenu,
+            saveSettings,
+            volumeService,
             volumeInfoService,
-            mountPoints: mountPointService,
-            sources: _sourceRegistry);
-        _ctrl         = new PanelController(viewBuilder);
-        _shell        = shell;
-        _fileLauncher = fileLauncher ?? new WindowsShellFileLauncher();
-        _fileOps      = fileOps;
-        _searchService = searchService ?? new CSharpFar.FileSystem.FileSystemSearchService();
-        _history      = history      ?? new InMemoryHistoryStore();
-        _commandHistoryNavigator = new CommandHistoryNavigator(_history);
-        _commandCompletionController = new CommandCompletionController(_history, _commandCompletion);
+            changeWatcher,
+            locationService,
+            mountPointService,
+            fileLauncher,
+            searchService,
+            sourceRegistry,
+            credentialStore,
+            sftpModule,
+            ftpModule,
+            farNetModuleHost,
+            enableBuiltInNetworkModules,
+            configDirectory,
+            clipboard))
+    {
+    }
+
+    internal Application(ApplicationServices services)
+    {
+        _screen = services.Screen;
+        _fs = services.FileSystem;
+        _sourceRegistry = services.SourceRegistry;
+        _ctrl = services.PanelController;
+        _shell = services.Shell;
+        _fileLauncher = services.FileLauncher;
+        _fileOps = services.FileOperations;
+        _searchService = services.SearchService;
+        _history = services.History;
+        _commandHistoryNavigator = services.CommandHistoryNavigator;
+        _commandCompletionController = services.CommandCompletionController;
+        _settings = services.Settings;
+        _clipboard = services.Clipboard;
+        _userMenu = services.UserMenu;
+        _saveSettings = services.SaveSettings;
+        _volumeService = services.VolumeService;
+        _state = services.State;
+        _ui = services.Ui;
+        _left = services.LeftPanel;
+        _right = services.RightPanel;
+        _cmdLine = services.CommandLine;
+        _commandCompletion = services.CommandCompletion;
+        _menuState = services.MenuState;
+        _menuProvider = services.MenuProvider;
+        _functionKeyBindingProvider = services.FunctionKeyBindingProvider;
+        _functionKeyBindings = services.FunctionKeyBindings;
+        _menuLayoutService = services.MenuLayoutService;
+        _leftViewMode = services.LeftViewMode;
+        _rightViewMode = services.RightViewMode;
+        _highlightService = services.HighlightService;
         _changeDirectoryCommandExecutor = new ChangeDirectoryCommandExecutor(
             _ctrl,
             () => ActiveState,
             () => _active,
             () => PanelOptions,
             StartWatching);
-        _settings     = settings     ?? new AppSettingsAlias();
-        _clipboard    = clipboard    ?? TextCopyTextClipboard.Instance;
-        _userMenu     = userMenu     ?? new UserMenuStore(
-            Path.Combine(
-                Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-                "CSharpFar"));
-        _saveSettings     = saveSettings;
-        _volumeService    = volumeService;
         _menuController   = new TopMenuController(_menuState, ExecuteMenuCommand);
-        _state            = new ApplicationState(PaletteRegistry.Resolve(_settings.Ui.Palette));
         _autoRefresh = new PanelAutoRefreshService(
-            changeWatcher,
-            locationService,
+            services.ChangeWatcher,
+            services.LocationService,
             () => PanelOptions,
             GetPanelState,
             VisibleRows,
@@ -233,30 +265,27 @@ public sealed class Application
             () => _state.Palette,
             ViewPanelFile,
             ExecuteInCurrentConsole);
-        string effectiveConfigDirectory = configDirectory ?? Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-            "CSharpFar");
         var moduleUiServices = new ModuleUiServices
         {
             Screen = _screen,
             Palette = () => _state.Palette,
         };
-        farNetModuleHost?.Initialize(new FarNetModuleHostServices
+        services.FarNetModuleHost?.Initialize(new FarNetModuleHostServices
         {
             Ui = moduleUiServices,
-            DataRoot = Path.Combine(effectiveConfigDirectory, "FarNet"),
+            DataRoot = Path.Combine(services.ConfigDirectory, "FarNet"),
             GetActivePanelSide = () => ActiveSide,
             GetPanelState = GetPanelState,
         });
         _moduleCatalog = ModuleCatalogFactory.Create(
-            enableBuiltInNetworkModules ? sftpModule ?? new SftpModule() : null,
-            enableBuiltInNetworkModules ? ftpModule ?? new FtpModule() : null,
-            farNetModuleHost,
+            services.EnableBuiltInNetworkModules ? services.SftpModule ?? new SftpModule() : null,
+            services.EnableBuiltInNetworkModules ? services.FtpModule ?? new FtpModule() : null,
+            services.FarNetModuleHost,
             new ModuleStartupInfo
             {
                 Ui = moduleUiServices,
-                Settings = new ModuleSettingsService(effectiveConfigDirectory),
-                Credentials = credentialStore,
+                Settings = new ModuleSettingsService(services.ConfigDirectory),
+                Credentials = services.CredentialStore,
                 Panels = new ApplicationModulePanelHost(this),
             });
         _modulePanelOpener = new ModulePanelOpener(
@@ -282,7 +311,6 @@ public sealed class Application
             SafeRefresh);
         _commandRegistry = ApplicationCommandRegistry.CreateDefault();
         _commandContext   = new ApplicationCommandContext(this);
-        _functionKeyBindings = _functionKeyBindingProvider.GetBindings();
         _functionKeyBarRenderer = new ApplicationFunctionKeyBarRenderer(
             _screen,
             () => _state.Palette,
@@ -317,21 +345,6 @@ public sealed class Application
                 HandleMouseInput = HandleRuntimeMouseInput,
             });
 
-        _leftViewMode     = ResolveViewMode(_settings.Panels.LeftViewMode);
-        _rightViewMode    = ResolveViewMode(_settings.Panels.RightViewMode);
-        _highlightService = FileHighlightServiceFactory.Create(_settings);
-
-        string cwd        = Directory.GetCurrentDirectory();
-        string leftStart  = ResolveStartDir(_settings.Panels.LeftStartDirectory,  cwd);
-        string rightStart = ResolveStartDir(_settings.Panels.RightStartDirectory, cwd);
-        var sortMode = ResolveSortMode(_settings.Panels.DefaultSortMode);
-
-        _left  = new FilePanelState { CurrentDirectory = leftStart,  SortMode = sortMode };
-        _right = new FilePanelState { CurrentDirectory = rightStart, SortMode = sortMode };
-
-        var opts = _settings.Panels.Options;
-        _ctrl.LoadDirectory(_left,  leftStart,  opts);
-        _ctrl.LoadDirectory(_right, rightStart, opts);
     }
 
     internal ScreenRenderer CommandScreen => _screen;
@@ -410,23 +423,6 @@ public sealed class Application
     internal AppSettingsAlias.PanelOptionsSettings PanelOptions => _settings.Panels.Options;
 
     internal void SaveSettings() => _saveSettings?.Invoke();
-
-    private static string ResolveStartDir(string? configured, string fallback)
-    {
-        if (!string.IsNullOrWhiteSpace(configured) && Directory.Exists(configured))
-            return configured;
-        return fallback;
-    }
-
-    private static SortMode ResolveSortMode(string? configured) =>
-        Enum.TryParse<SortMode>(configured, ignoreCase: true, out var mode)
-            ? mode
-            : SortMode.Name;
-
-    private static PanelViewMode ResolveViewMode(string? configured) =>
-        Enum.TryParse<PanelViewMode>(configured, ignoreCase: true, out var mode)
-            ? mode
-            : PanelViewMode.Full;
 
     public void Run()
     {
