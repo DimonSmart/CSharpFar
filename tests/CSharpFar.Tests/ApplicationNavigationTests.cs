@@ -593,6 +593,30 @@ public sealed class ApplicationNavigationTests : IDisposable
     }
 
     [Fact]
+    public void CtrlOAfterCommandExecutionAndResize_RestoresClippedCommandOutputUnderlay()
+    {
+        var fs = new FakeFileSystemService();
+        fs.AddDirectory(_tempDir);
+
+        var driver = new FakeConsoleDriver(width: 80, height: 12);
+        var app = CreateApp(fs, driver, _tempDir);
+
+        Render(app);
+        app.ExecuteInCurrentConsole(
+            _tempDir,
+            "test",
+            () => driver.WriteAt(0, 0, "COMMAND-OUTPUT-AFTER-RESIZE".AsSpan()));
+        Render(app);
+
+        driver.SetSize(18, 8);
+        Render(app);
+
+        HandleKeyAndRender(app, Key(ConsoleKey.O, keyChar: '\u000f', control: true));
+
+        Assert.Equal("COMMAND-OUTPUT-AFT", driver.GetRow(0));
+    }
+
+    [Fact]
     public void ExecuteCommand_CdExistingSubFolder_LoadsActivePanelWithoutShell()
     {
         string child = Directory.CreateDirectory(Path.Combine(_tempDir, "child")).FullName;

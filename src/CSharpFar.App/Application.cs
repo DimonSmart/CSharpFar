@@ -1037,23 +1037,38 @@ public sealed class Application
 
     private void RestoreOrClearUnderlay()
     {
-        if (_underlay is not null && UnderlayMatchesCurrentViewport())
-            _screen.Restore(_underlay);
-        else
+        if (_underlay is null)
+        {
             _screen.ClearScreen();
+            return;
+        }
+
+        var underlay = CreateUnderlaySnapshotForCurrentViewport(_underlay);
+        _screen.ClearScreen();
+        if (underlay is not null)
+            _screen.Restore(underlay);
     }
 
-    private bool UnderlayMatchesCurrentViewport()
+    private ScreenSnapshot? CreateUnderlaySnapshotForCurrentViewport(ScreenSnapshot underlay)
     {
-        if (_underlay is null)
-            return false;
-
         var viewport = _screen.GetViewport();
-        return _underlay.Region.X == 0 &&
-               _underlay.Region.Y == 0 &&
-               _underlay.Region.Width == viewport.Width &&
-               _underlay.Region.Height == viewport.Height &&
-               _underlay.Viewport == viewport;
+        int x = Math.Max(0, underlay.Region.X);
+        int y = Math.Max(0, underlay.Region.Y);
+        int right = Math.Min(viewport.Width, underlay.Region.Right);
+        int bottom = Math.Min(viewport.Height, underlay.Region.Bottom);
+        int width = right - x;
+        int height = bottom - y;
+        if (width <= 0 || height <= 0)
+            return null;
+
+        var cells = new SnapshotCell[height, width];
+        for (int row = 0; row < height; row++)
+        {
+            for (int col = 0; col < width; col++)
+                cells[row, col] = underlay.Cells[y - underlay.Region.Y + row, x - underlay.Region.X + col];
+        }
+
+        return new ScreenSnapshot(viewport, new Rect(x, y, width, height), cells);
     }
 
     // ── key handling ──────────────────────────────────────────────────────────
