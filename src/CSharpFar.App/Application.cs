@@ -45,12 +45,17 @@ public sealed class Application
     private readonly IFileLauncher _fileLauncher;
     private readonly IFileOperationService _fileOps;
     private readonly PanelFileViewerService _panelFileViewer;
+    private readonly PanelFileOpener _panelFileOpener;
     private readonly PanelAutoRefreshService _autoRefresh;
     private readonly PanelRefreshService _panelRefresh;
+    private readonly PanelSearchResultsService _searchResults;
+    private readonly PanelSortServiceFacade _panelSort;
+    private readonly PanelNavigationService _panelNavigation;
     private readonly ISearchService _searchService;
     private readonly FilePanelSourceRegistry _sourceRegistry;
     private readonly NativeModuleCatalog _moduleCatalog;
     private readonly ModulePanelOpener _modulePanelOpener;
+    private readonly FarNetPanelActionService _farNetPanelActions;
     private readonly IHistoryStore _history;
     private readonly CommandHistoryNavigator _commandHistoryNavigator;
     private readonly CommandCompletionController _commandCompletionController;
@@ -188,12 +193,36 @@ public sealed class Application
             GetPanelState,
             VisibleRows,
             SafeRefresh);
+        _panelSort = new PanelSortServiceFacade(
+            _ctrl,
+            () => PanelOptions,
+            ClosePanelQuickSearchForState);
+        _panelNavigation = new PanelNavigationService(
+            _ctrl,
+            _history,
+            () => PanelOptions,
+            VisibleRows,
+            ClosePanelQuickSearchForPanel,
+            StartWatching);
+        _searchResults = new PanelSearchResultsService(
+            _screen,
+            _searchService,
+            () => _palette,
+            _ctrl,
+            _history,
+            () => PanelOptions,
+            PanelSideForState,
+            VisibleRows,
+            ClosePanelQuickSearchForState,
+            ClosePanelQuickSearchForPanel,
+            StartWatching,
+            _panelSort.SortVirtualPanel);
         _panelRefresh = new PanelRefreshService(
             _ctrl,
             () => PanelOptions,
             VisibleRows,
             ClosePanelQuickSearchForState,
-            RefreshSearchResultsPanel);
+            _searchResults.RefreshPanel);
         _panelFileViewer = new PanelFileViewerService(
             _screen,
             () => _palette,
@@ -205,6 +234,12 @@ public sealed class Application
             PanelSideForState,
             VisibleRows,
             SafeRefresh);
+        _panelFileOpener = new PanelFileOpener(
+            _fileLauncher,
+            _screen,
+            () => _palette,
+            ViewPanelFile,
+            ExecuteInCurrentConsole);
         string effectiveConfigDirectory = configDirectory ?? Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
             "CSharpFar");
@@ -241,6 +276,17 @@ public sealed class Application
             GetPanelState,
             side => ActiveSide = side,
             quickView => QuickView = quickView);
+        _farNetPanelActions = new FarNetPanelActionService(
+            _sourceRegistry,
+            _ctrl,
+            _screen,
+            () => _palette,
+            _settings,
+            _clipboard,
+            _modulePanelOpener,
+            VisibleRows,
+            PanelSideForState,
+            SafeRefresh);
         _commandRegistry = ApplicationCommandRegistry.CreateDefault();
         _commandContext   = new ApplicationCommandContext(this);
         _functionKeyBindings = _functionKeyBindingProvider.GetBindings();
@@ -1713,54 +1759,8 @@ public sealed class Application
 
     private bool TryHandleFarNetPanelShortcut(ConsoleKeyInfo key)
     {
-        if (!_sourceRegistry.TryGetSource(ActiveState.SourceId, out var source) ||
-            source is not IFarNetPanelOperations farNetPanel)
-        {
-            return false;
-        }
-
-        if (IsPlainControlKey(key, ConsoleKey.S, '\u0013'))
-            return HandleFarNetPanelKey(farNetPanel, key);
-
-        bool shiftOnly = (key.Modifiers & ConsoleModifiers.Shift) != 0 &&
-            (key.Modifiers & (ConsoleModifiers.Control | ConsoleModifiers.Alt)) == 0;
-        if (shiftOnly && key.Key is ConsoleKey.Delete or ConsoleKey.F8)
-            return HandleFarNetPanelKey(farNetPanel, key);
-
-        if (!_cmdLine.HasText &&
-            (key.Modifiers & (ConsoleModifiers.Control | ConsoleModifiers.Alt | ConsoleModifiers.Shift)) == 0 &&
-            key.Key == ConsoleKey.Delete)
-        {
-            return HandleFarNetPanelKey(farNetPanel, key);
-        }
-
-        return false;
+        return _farNetPanelActions.TryHandleShortcut(ActiveState, _cmdLine.HasText, key);
     }
-
-    private bool HandleFarNetPanelKey(IFarNetPanelOperations farNetPanel, ConsoleKeyInfo key)
-    {
-        var result = farNetPanel.PressKey(
-            _ctrl.CurrentItem(ActiveState)?.SourcePath,
-            GetVirtualKeyCode(key.Key),
-            (key.Modifiers & ConsoleModifiers.Shift) != 0,
-            (key.Modifiers & ConsoleModifiers.Control) != 0,
-            (key.Modifiers & ConsoleModifiers.Alt) != 0);
-        if (result.Kind == ModuleActionResultKind.Failed)
-            new MessageDialog(_screen, _palette).Show("FarNet panel", result.Message ?? "FarNet panel key failed.");
-        else
-            SafeRefresh(ActiveState, VisibleRows());
-
-        return result.Kind != ModuleActionResultKind.NoPanel;
-    }
-
-    private static int GetVirtualKeyCode(ConsoleKey key) =>
-        key switch
-        {
-            ConsoleKey.Delete => 46,
-            ConsoleKey.F8 => 119,
-            ConsoleKey.S => 83,
-            _ => (int)key,
-        };
 
     private PanelQuickSearchKeyResult HandlePanelQuickSearchKey(ConsoleKeyInfo key)
     {
@@ -2355,102 +2355,23 @@ public sealed class Application
         IReadOnlyList<SearchResultItem> results,
         bool cancelled)
     {
-        ClosePanelQuickSearchForState(state);
-        state.CurrentLocation = PanelLocation.SearchResult(request.RootPath);
-        state.Items.Clear();
-        state.Items.AddRange(results.Select(ToFilePanelItem));
-        state.SelectedPaths.Clear();
-        state.SelectedLocations.Clear();
-        state.CursorIndex = 0;
-        state.ScrollOffset = 0;
-        state.ProviderCapabilities = PanelProviderCapabilities.SearchResults;
-        state.DisplayTitle = PanelSearchResultsSummaryBuilder.BuildTitle(request, cancelled);
-        state.ShowCurrentItemFullPath = true;
-        state.SearchRequest = request;
-        state.SearchWasCancelled = cancelled;
-        state.AutoRefreshState = null;
-        SortVirtualPanel(state, keepCursorPath: null, VisibleRows(PanelSideForState(state)));
-        state.Summary = PanelSearchResultsSummaryBuilder.BuildSummary(state);
+        _searchResults.OpenPanel(state, request, results, cancelled);
     }
 
     private void CloseSearchResultsPanel(FilePanelState state, PanelSide side)
     {
-        ClosePanelQuickSearchForPanel(side);
-        var rootPath = state.SearchRequest!.RootPath;
-        state.SearchRequest = null;
-        state.SearchWasCancelled = false;
-        state.ShowCurrentItemFullPath = false;
-        state.DisplayTitle = null;
-        if (_ctrl.TryLoadDirectory(state, rootPath, PanelOptions))
-            StartWatching(state, side);
+        _searchResults.ClosePanel(state, side);
     }
 
     internal void GoToSearchResult(FilePanelState state, PanelSide side, SearchResultItem result)
     {
-        GoToSearchResult(
-            state,
-            side,
-            result.FullPath,
-            result.Name,
-            result.Kind == SearchResultItemKind.Directory);
+        _searchResults.GoToResult(state, side, result);
     }
 
     internal void GoToSearchResult(FilePanelState state, PanelSide side, FilePanelItem result)
     {
-        GoToSearchResult(
-            state,
-            side,
-            result.FullPath,
-            result.Name,
-            result.IsDirectory);
+        _searchResults.GoToResult(state, side, result);
     }
-
-    private void GoToSearchResult(
-        FilePanelState state,
-        PanelSide side,
-        string fullPath,
-        string name,
-        bool isDirectory)
-    {
-        ClosePanelQuickSearchForPanel(side);
-        string? directoryPath = isDirectory
-            ? fullPath
-            : Path.GetDirectoryName(fullPath);
-
-        if (string.IsNullOrWhiteSpace(directoryPath))
-        {
-            new MessageDialog(_screen, _palette).Show("Search", $"Cannot open search result: {fullPath}");
-            return;
-        }
-
-        try
-        {
-            if (_ctrl.TryLoadDirectory(state, directoryPath, PanelOptions))
-            {
-                if (!isDirectory)
-                    _ctrl.SetCursorByName(state, name, VisibleRows(side));
-
-                _history.AddDirectory(new DirectoryHistoryItem { Path = state.CurrentDirectory });
-                StartWatching(state, side);
-            }
-        }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or DirectoryNotFoundException)
-        {
-            new MessageDialog(_screen, _palette).Show("Search", ex.Message);
-        }
-    }
-
-    private static FilePanelItem ToFilePanelItem(SearchResultItem item) =>
-        new()
-        {
-            Name = item.Name,
-            FullPath = item.FullPath,
-            IsDirectory = item.Kind == SearchResultItemKind.Directory,
-            Size = item.Size,
-            LastWriteTime = item.LastWriteTime,
-            Attributes = item.Attributes,
-            IsParentDirectory = false,
-        };
 
     // ── F5 — copy ─────────────────────────────────────────────────────────────
 
@@ -2659,139 +2580,27 @@ public sealed class Application
 
     internal bool TryEditFarNetPanelItem(FilePanelState state, FilePanelItem item)
     {
-        if (item.IsParentDirectory)
-            return false;
-        if (!_sourceRegistry.TryGetSource(state.SourceId, out var source) ||
-            source is not IFarNetPanelOperations farNetPanel)
-        {
-            return false;
-        }
-
-        if (!farNetPanel.TryGetEditableText(item.SourcePath, out string text, out string? error))
-        {
-            new MessageDialog(_screen, _palette).Show("Edit", error ?? "FarNet panel item cannot be edited.");
-            return true;
-        }
-
-        string tempDirectory = Path.Combine(Path.GetTempPath(), "CSharpFar", "FarNetEdit", Guid.NewGuid().ToString("N"));
-        Directory.CreateDirectory(tempDirectory);
-        string tempPath = Path.Combine(tempDirectory, GetSafeTempFileName(item.Name));
-        try
-        {
-            File.WriteAllText(tempPath, text);
-            new FileEditor(_screen, _palette, _settings.Editor, _clipboard).Show(tempPath);
-            string editedText = File.ReadAllText(tempPath);
-            if (string.Equals(editedText, text, StringComparison.Ordinal))
-                return true;
-
-            var result = farNetPanel.SetEditedText(item.SourcePath, editedText);
-            if (result.Kind == ModuleActionResultKind.Failed)
-                new MessageDialog(_screen, _palette).Show("Edit", result.Message ?? "FarNet panel item edit failed.");
-            else
-                SafeRefresh(state, VisibleRows(PanelSideForState(state)));
-
-            return true;
-        }
-        finally
-        {
-            try { Directory.Delete(tempDirectory, recursive: true); }
-            catch { }
-        }
+        return _farNetPanelActions.TryEditItem(state, item);
     }
 
     private bool TryOpenFarNetPanelItem(FilePanelState state, PanelSide side, FilePanelItem item)
     {
-        if (!_sourceRegistry.TryGetSource(state.SourceId, out var source) ||
-            source is not IFarNetPanelOperations farNetPanel)
-        {
-            return false;
-        }
-
-        var result = farNetPanel.OpenItem(item.SourcePath);
-        if (result.Kind == ModuleActionResultKind.Completed ||
-            result.Kind == ModuleActionResultKind.NoPanel)
-        {
-            return false;
-        }
-
-        _modulePanelOpener.HandleOpenResult(result, side);
-        return true;
-    }
-
-    private static string GetSafeTempFileName(string name)
-    {
-        string fileName = string.IsNullOrWhiteSpace(name) ? "value.json" : name;
-        foreach (char invalid in Path.GetInvalidFileNameChars())
-            fileName = fileName.Replace(invalid, '_');
-
-        return fileName.Length == 0 ? "value.json" : fileName;
+        return _farNetPanelActions.TryOpenItem(state, side, item);
     }
 
     private void OpenDirectoryItem(FilePanelState state, PanelSide side, FilePanelItem item)
     {
-        if (!HasCapability(state, PanelProviderCapabilities.Enumerate))
-            return;
-
-        ClosePanelQuickSearchForPanel(side);
-        bool loaded = item.IsParentDirectory
-            ? _ctrl.TryGoToParent(state, VisibleRows(side), PanelOptions)
-            : _ctrl.TryLoadLocation(state, item.Location, PanelOptions);
-
-        if (!loaded)
-            return;
-
-        if (state.SourceId == PanelSourceId.Local)
-            _history.AddDirectory(new DirectoryHistoryItem { Path = state.CurrentDirectory });
-        StartWatching(state, side);
+        _panelNavigation.OpenDirectoryItem(state, side, item);
     }
 
     private void OpenFileItem(FilePanelItem item)
     {
-        if (!HasCapability(ActiveState, PanelProviderCapabilities.OpenRead))
-            return;
-
-        try
-        {
-            if (ActiveState.SourceId != PanelSourceId.Local)
-            {
-                ViewPanelFile(ActiveState, item);
-                return;
-            }
-
-            string workDir = ActiveState.CurrentDirectory;
-            if (_fileLauncher.GetLaunchMode(item.FullPath) == FileLaunchMode.CurrentConsole)
-            {
-                ExecuteInCurrentConsole(
-                    workDir,
-                    item.FullPath,
-                    () => _fileLauncher.OpenFile(item.FullPath, workDir));
-                return;
-            }
-
-            _fileLauncher.OpenFile(item.FullPath, workDir);
-        }
-        catch (Exception ex) when (
-            ex is IOException or
-                  UnauthorizedAccessException or
-                  InvalidOperationException or
-                  System.ComponentModel.Win32Exception)
-        {
-            new MessageDialog(_screen, _palette).Show("Open file", ex.Message);
-        }
+        _panelFileOpener.OpenFileItem(ActiveState, item);
     }
 
     private void TryGoUp()
     {
-        if (!HasCapability(ActiveState, PanelProviderCapabilities.Enumerate))
-            return;
-
-        ClosePanelQuickSearchForPanel(_active);
-        if (!_ctrl.TryGoToParent(ActiveState, VisibleRows(), PanelOptions))
-            return;
-
-        if (ActiveState.SourceId == PanelSourceId.Local)
-            _history.AddDirectory(new DirectoryHistoryItem { Path = ActiveState.CurrentDirectory });
-        StartWatching(ActiveState, _active);
+        _panelNavigation.TryGoUp(ActiveState, _active);
     }
 
     internal void RefreshPanels()
@@ -2806,62 +2615,7 @@ public sealed class Application
 
     private void RefreshSearchResultsPanel(FilePanelState state, int visibleRows)
     {
-        if (state.SearchRequest is null)
-            return;
-
-        var previousItems = state.Items.ToList();
-        var previousSelectedPaths = state.SelectedPaths.ToList();
-        int previousCursor = state.CursorIndex;
-        int previousScroll = state.ScrollOffset;
-        string? cursorPath = _ctrl.CurrentItem(state)?.FullPath;
-
-        SearchRunResult result;
-        try
-        {
-            result = new SearchProgressDialog(_screen, _searchService, _palette).Show(state.SearchRequest);
-        }
-        catch
-        {
-            state.Items.Clear();
-            state.Items.AddRange(previousItems);
-            state.SelectedPaths.Clear();
-            foreach (string selectedPath in previousSelectedPaths)
-                state.SelectedPaths.Add(selectedPath);
-            state.CursorIndex = previousCursor;
-            state.ScrollOffset = previousScroll;
-            _ctrl.NormalizeCursor(state, visibleRows);
-            state.Summary = PanelSearchResultsSummaryBuilder.BuildSummary(state);
-            return;
-        }
-
-        if (result.GoToResult is not null)
-        {
-            GoToSearchResult(state, PanelSideForState(state), result.GoToResult);
-            return;
-        }
-
-        if (result.DiscardResults || result.Cancelled)
-        {
-            state.Items.Clear();
-            state.Items.AddRange(previousItems);
-            state.SelectedPaths.Clear();
-            foreach (string selectedPath in previousSelectedPaths)
-                state.SelectedPaths.Add(selectedPath);
-            state.CursorIndex = previousCursor;
-            state.ScrollOffset = previousScroll;
-            _ctrl.NormalizeCursor(state, visibleRows);
-            state.Summary = PanelSearchResultsSummaryBuilder.BuildSummary(state);
-            return;
-        }
-
-        state.Items.Clear();
-        state.Items.AddRange(result.Results.Select(ToFilePanelItem));
-        state.SelectedPaths.Clear();
-        state.SearchWasCancelled = false;
-        state.DisplayTitle = PanelSearchResultsSummaryBuilder.BuildTitle(state.SearchRequest, cancelled: false);
-        SortVirtualPanel(state, cursorPath, visibleRows);
-        state.Summary = PanelSearchResultsSummaryBuilder.BuildSummary(state);
-        _ctrl.NormalizeCursor(state, visibleRows);
+        _searchResults.RefreshPanel(state, visibleRows);
     }
 
     private PanelSide PanelSideForState(FilePanelState state) =>
@@ -2874,52 +2628,12 @@ public sealed class Application
 
     internal void SetPanelSortMode(FilePanelState state, SortMode mode, int visibleRows)
     {
-        ClosePanelQuickSearchForState(state);
-        if (state.SearchRequest is null)
-        {
-            _ctrl.SetSortMode(state, mode, visibleRows, PanelOptions);
-            return;
-        }
-
-        string? cursorPath = _ctrl.CurrentItem(state)?.FullPath;
-        if (state.SortMode == mode)
-            state.SortDescending = !state.SortDescending;
-        else
-        {
-            state.SortMode = mode;
-            state.SortDescending = false;
-        }
-
-        SortVirtualPanel(state, cursorPath, visibleRows);
-        _ctrl.NormalizeCursor(state, visibleRows);
+        _panelSort.SetPanelSortMode(state, mode, visibleRows);
     }
 
     internal void SortVirtualPanel(FilePanelState state, string? keepCursorPath, int visibleRows)
     {
-        ClosePanelQuickSearchForState(state);
-        var sortOptions = new PanelSortOptions
-        {
-            SortFoldersByExtension = PanelOptions.SortFoldersByExtension,
-            KeepParentDirectoryFirst = false,
-            DirectoriesFirst = true,
-        };
-        var sorted = new PanelSortService().Sort(state.Items, state.SortMode, state.SortDescending, sortOptions);
-        state.Items.Clear();
-        state.Items.AddRange(sorted);
-
-        if (keepCursorPath is null)
-        {
-            state.CursorIndex = 0;
-            state.ScrollOffset = 0;
-            _ctrl.NormalizeCursor(state, visibleRows);
-            return;
-        }
-
-        int index = state.Items.FindIndex(i => string.Equals(i.FullPath, keepCursorPath, StringComparison.OrdinalIgnoreCase));
-        if (index >= 0)
-            state.CursorIndex = index;
-
-        _ctrl.NormalizeCursor(state, visibleRows);
+        _panelSort.SortVirtualPanel(state, keepCursorPath, visibleRows);
     }
 
     internal static bool HasCapability(FilePanelState state, PanelProviderCapabilities capability) =>
