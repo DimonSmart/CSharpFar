@@ -1,4 +1,5 @@
 using CSharpFar.App.Rendering;
+using CSharpFar.App.Highlighting;
 using CSharpFar.App.Modules;
 using CSharpFar.App.UserMenu;
 using CSharpFar.Console;
@@ -215,5 +216,5 @@ internal sealed class ApplicationCommandContext
             _application.TryReadConsoleKeyForCommand).Execute(request);
 
     public IFileHighlightService? CreateHighlightService() =>
-        Application.CreateHighlightService(Settings);
+        FileHighlightServiceFactory.Create(Settings);
 }

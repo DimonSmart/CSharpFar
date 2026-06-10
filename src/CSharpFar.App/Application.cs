@@ -1,10 +1,14 @@
 using CSharpFar.App.Dialogs;
 using CSharpFar.App.Commands;
+using CSharpFar.App.CommandLine;
 using CSharpFar.App.DirectoryShortcuts;
+using CSharpFar.App.Files;
 using CSharpFar.App.FunctionKeys;
 using CSharpFar.App.HitTesting;
+using CSharpFar.App.Highlighting;
 using CSharpFar.App.Menu;
 using CSharpFar.App.Modules;
+using CSharpFar.App.Panels;
 using CSharpFar.App.Rendering;
 using CSharpFar.App.Editor;
 using CSharpFar.App.UserMenu;
@@ -219,7 +223,7 @@ public sealed class Application
             GetActivePanelSide = () => ActiveSide,
             GetPanelState = GetPanelState,
         });
-        _moduleCatalog = CreateModuleCatalog(
+        _moduleCatalog = ModuleCatalogFactory.Create(
             enableBuiltInNetworkModules ? sftpModule ?? new SftpModule() : null,
             enableBuiltInNetworkModules ? ftpModule ?? new FtpModule() : null,
             farNetModuleHost,
@@ -240,7 +244,7 @@ public sealed class Application
         _dirSizeCalc.Progress  += OnDirSizeProgress;
         _leftViewMode     = ResolveViewMode(_settings.Panels.LeftViewMode);
         _rightViewMode    = ResolveViewMode(_settings.Panels.RightViewMode);
-        _highlightService = CreateHighlightService(_settings);
+        _highlightService = FileHighlightServiceFactory.Create(_settings);
 
         string cwd        = Directory.GetCurrentDirectory();
         string leftStart  = ResolveStartDir(_settings.Panels.LeftStartDirectory,  cwd);
@@ -254,71 +258,6 @@ public sealed class Application
         _ctrl.LoadDirectory(_left,  leftStart,  opts);
         _ctrl.LoadDirectory(_right, rightStart, opts);
     }
-
-    private static NativeModuleCatalog CreateModuleCatalog(
-        SftpModule? sftpModule,
-        FtpModule? ftpModule,
-        FarNetModuleHost? farNetModuleHost,
-        ModuleStartupInfo startupInfo)
-    {
-        var catalog = new NativeModuleCatalog();
-
-        if (sftpModule is not null)
-        {
-            sftpModule.Initialize(startupInfo);
-            catalog.AddMenuAction(
-                new ModuleMenuProjection(SftpModuleIds.MenuActionId, "SFTP...", 'S'),
-                sftpModule.OpenFromMenu);
-            catalog.AddDiskMenuAction(
-                new ModuleMenuProjection(SftpModuleIds.DiskActionId, "SFTP", 'S'),
-                sftpModule.OpenFromDiskMenu);
-            catalog.AddCommandPrefix("sftp", (commandLine, side) => sftpModule.OpenFromCommandLine(side, commandLine));
-        }
-
-        if (ftpModule is not null)
-        {
-            ftpModule.Initialize(startupInfo);
-            catalog.AddMenuAction(
-                new ModuleMenuProjection(FtpModuleIds.MenuActionId, "FTP/FTPS...", 'F'),
-                ftpModule.OpenFromMenu);
-            catalog.AddDiskMenuAction(
-                new ModuleMenuProjection(FtpModuleIds.DiskActionId, "FTP/FTPS", 'F'),
-                ftpModule.OpenFromDiskMenu);
-            catalog.AddCommandPrefix("ftp", (commandLine, side) => ftpModule.OpenFromCommandLine(side, commandLine));
-            catalog.AddCommandPrefix("ftps", (commandLine, side) => ftpModule.OpenFromCommandLine(side, commandLine));
-        }
-
-        if (farNetModuleHost is not null)
-        {
-            foreach (var item in farNetModuleHost.MenuItems)
-            {
-                catalog.AddMenuAction(
-                    ToModuleMenuProjection(item),
-                    _ => NativeModuleCatalog.FromFarNet(farNetModuleHost.OpenFromMenu(item.ActionId)));
-            }
-
-            foreach (var item in farNetModuleHost.DiskMenuItems)
-            {
-                catalog.AddDiskMenuAction(
-                    ToModuleMenuProjection(item),
-                    side => NativeModuleCatalog.FromFarNet(
-                        farNetModuleHost.OpenFromDiskMenu(item.ActionId, side == PanelSide.Left)));
-            }
-
-            foreach (string prefix in farNetModuleHost.CommandPrefixes)
-            {
-                catalog.AddCommandPrefix(
-                    prefix,
-                    (commandLine, _) => NativeModuleCatalog.FromFarNet(
-                        farNetModuleHost.OpenFromCommandLine(commandLine)));
-            }
-        }
-
-        return catalog;
-    }
-
-    private static ModuleMenuProjection ToModuleMenuProjection(FarNetModuleMenuItem item) =>
-        new(item.ActionId, item.Text, item.HotKey);
 
     internal ScreenRenderer CommandScreen => _screen;
 
@@ -565,7 +504,7 @@ public sealed class Application
         var viewport = _screen.FrameViewport;
         var size   = viewport.Size;
         _lastRenderViewport = viewport;
-        int panelH = PanelHeight(size);
+        int panelH = ApplicationLayoutService.PanelHeight(size);
         int leftW  = size.Width / 2;
         int rightW = size.Width - leftW;
 
@@ -653,7 +592,7 @@ public sealed class Application
         var size = viewport.Size;
         _lastRenderViewport = viewport;
 
-        int row = CommandLineRow(size);
+        int row = ApplicationLayoutService.CommandLineRow(size);
         var cmdRenderer = new CommandLineRenderer(_screen, _palette);
         cmdRenderer.Render(row, size.Width, ActiveState.CurrentDirectory, _cmdLine);
         PositionCommandCursor(cmdRenderer, size, row);
@@ -771,10 +710,6 @@ public sealed class Application
         _lastRenderViewport = _underlay?.Viewport ?? _screen.GetViewport();
         return scrolled;
     }
-
-    private static int PanelHeight(ConsoleSize size) => Math.Max(0, size.Height - 2);
-
-    private static int CommandLineRow(ConsoleSize size) => Math.Max(0, size.Height - 2);
 
     /// <summary>
     /// Renders the screen, retrying if the console was resized mid-frame.
@@ -1092,7 +1027,7 @@ public sealed class Application
     private int VisibleRows(PanelViewMode mode)
     {
         var size   = _screen.GetSize();
-        int panelH = PanelHeight(size);
+        int panelH = ApplicationLayoutService.PanelHeight(size);
         var bounds = new Rect(0, 0, 0, panelH);
         return mode == PanelViewMode.BriefTwoColumns
             ? BriefTwoColumnsPanelRenderer.VisibleRows(bounds, PanelOptions)
@@ -1108,7 +1043,7 @@ public sealed class Application
             return (Math.Max(1, visibleRows), 1, visibleRows);
 
         var size = _screen.GetSize();
-        var bounds = new Rect(0, 0, 0, PanelHeight(size));
+        var bounds = new Rect(0, 0, 0, ApplicationLayoutService.PanelHeight(size));
         int rowsPerColumn = BriefTwoColumnsPanelRenderer.RowsPerColumn(bounds, PanelOptions);
         return (rowsPerColumn, 2, visibleRows);
     }
@@ -1281,7 +1216,7 @@ public sealed class Application
         var size = LastRenderSizeOrCurrent();
         if (!DirectoryShortcutBarRenderer.TryGetShortcutNumberAt(
                 evt,
-                PanelHeight(size) - 1,
+                ApplicationLayoutService.PanelHeight(size) - 1,
                 size.Width,
                 _settings.DirectoryShortcuts,
                 out int number))
@@ -1297,7 +1232,7 @@ public sealed class Application
     private bool TryHandleCommandLineMouse(MouseConsoleInputEvent evt)
     {
         var size = LastRenderSizeOrCurrent();
-        int row = CommandLineRow(size);
+        int row = ApplicationLayoutService.CommandLineRow(size);
         bool isSelectionDrag = _isCommandLineMouseSelecting &&
             evt.Button == MouseButton.Left &&
             evt.Kind == MouseEventKind.Move;
@@ -2271,7 +2206,7 @@ public sealed class Application
 
     private static int CommandCompletionVisibleRows(ConsoleSize size)
     {
-        int rowsAboveCommandLine = CommandLineRow(size) - 2;
+        int rowsAboveCommandLine = ApplicationLayoutService.CommandLineRow(size) - 2;
         return Math.Max(0, Math.Min(MaxCommandCompletionRows, rowsAboveCommandLine));
     }
 
@@ -2286,7 +2221,7 @@ public sealed class Application
             return false;
 
         int height = visibleRows + 2;
-        int commandLineRow = CommandLineRow(size);
+        int commandLineRow = ApplicationLayoutService.CommandLineRow(size);
         var scrollbarBounds = new Rect(size.Width - 1, commandLineRow - height + 1, 1, visibleRows);
         int firstVisibleIndex = _commandCompletionFirstVisibleIndex;
         var dragState = _commandCompletionScrollbarDrag;
@@ -2327,7 +2262,7 @@ public sealed class Application
 
         int rowCount = Math.Min(visibleRows, _commandCompletionMatches.Count);
         int height = rowCount + 2;
-        int commandLineRow = CommandLineRow(size);
+        int commandLineRow = ApplicationLayoutService.CommandLineRow(size);
         var contentBounds = new Rect(
             1,
             commandLineRow - height + 1,
@@ -2513,13 +2448,13 @@ public sealed class Application
         state.CursorIndex = 0;
         state.ScrollOffset = 0;
         state.ProviderCapabilities = PanelProviderCapabilities.SearchResults;
-        state.DisplayTitle = BuildSearchResultsTitle(request, cancelled);
+        state.DisplayTitle = PanelSearchResultsSummaryBuilder.BuildTitle(request, cancelled);
         state.ShowCurrentItemFullPath = true;
         state.SearchRequest = request;
         state.SearchWasCancelled = cancelled;
         state.AutoRefreshState = null;
         SortVirtualPanel(state, keepCursorPath: null, VisibleRows(PanelSideForState(state)));
-        RefreshSearchResultsSummary(state);
+        state.Summary = PanelSearchResultsSummaryBuilder.BuildSummary(state);
     }
 
     private void CloseSearchResultsPanel(FilePanelState state, PanelSide side)
@@ -2601,42 +2536,10 @@ public sealed class Application
             IsParentDirectory = false,
         };
 
-    private static string BuildSearchResultsTitle(SearchRequest request, bool cancelled)
-    {
-        string basis = !string.IsNullOrEmpty(request.ContainingText)
-            ? request.ContainingText
-            : request.FileMaskExpression;
-
-        string title = $"Search results: {basis}";
-        return cancelled ? $"{title}, cancelled" : title;
-    }
-
     // ── F5 — copy ─────────────────────────────────────────────────────────────
 
     internal FileOperationOptions BuildFileOperationOptions() =>
-        new()
-        {
-            DefaultConflictDecision = ParseEnum(
-                _settings.FileOperations.ConflictDecision,
-                ConflictDecisionMode.Ask),
-            PreserveTimestamps = _settings.FileOperations.PreserveTimestamps,
-            PreserveAttributes = _settings.FileOperations.PreserveAttributes,
-            SecurityMode = ParseEnum(
-                _settings.FileOperations.SecurityMode,
-                FileSecurityMode.Inherit),
-            SymlinkMode = ParseEnum(
-                _settings.FileOperations.SymlinkMode,
-                SymlinkCopyMode.CopyLink),
-            UseRecycleBinForDelete = _settings.FileOperations.UseRecycleBinForDelete,
-        };
-
-    private static TEnum ParseEnum<TEnum>(string? value, TEnum fallback)
-        where TEnum : struct
-    {
-        return Enum.TryParse<TEnum>(value, ignoreCase: true, out var parsed)
-            ? parsed
-            : fallback;
-    }
+        FileOperationOptionsFactory.Create(_settings);
 
     private MenuCommandResult ExecuteMenuCommand(MenuCommandRequest request)
     {
@@ -2764,50 +2667,6 @@ public sealed class Application
         };
     }
 
-    // ── file highlighting ─────────────────────────────────────────────────────
-
-    internal static IFileHighlightService? CreateHighlightService(AppSettingsAlias settings)
-    {
-        var hs = settings.Panels.FileHighlighting;
-        if (!hs.Enabled) return null;
-
-        var (rules, groups) = ResolveHighlightRules(hs);
-        return rules.Count == 0 ? null : new FileHighlightService(rules, groups);
-    }
-
-    private static (IReadOnlyList<FileHighlightRule> Rules,
-                    IReadOnlyDictionary<string, MaskGroup> Groups)
-        ResolveHighlightRules(AppSettingsAlias.FileHighlightingSettings hs)
-    {
-        if (!string.Equals(hs.Preset, "FarDefault", StringComparison.OrdinalIgnoreCase))
-            return (hs.Rules,
-                    hs.MaskGroups.ToDictionary(g => g.Name, g => g, StringComparer.OrdinalIgnoreCase));
-
-        return hs.Mode switch
-        {
-            "UserRulesOnly" => (
-                hs.Rules,
-                hs.MaskGroups.ToDictionary(g => g.Name, g => g, StringComparer.OrdinalIgnoreCase)),
-
-            "PresetOnly" => (
-                FarDefaultHighlightPreset.Rules,
-                FarDefaultHighlightPreset.GroupsByName),
-
-            _ => ( // PresetPlusUserRules (default)
-                [.. FarDefaultHighlightPreset.Rules, .. hs.Rules],
-                MergeHighlightGroups(FarDefaultHighlightPreset.Groups, hs.MaskGroups)),
-        };
-    }
-
-    private static IReadOnlyDictionary<string, MaskGroup> MergeHighlightGroups(
-        IReadOnlyList<MaskGroup> preset,
-        IReadOnlyList<MaskGroup> user)
-    {
-        var dict = preset.ToDictionary(g => g.Name, g => g, StringComparer.OrdinalIgnoreCase);
-        foreach (var g in user) dict[g.Name] = g; // user group replaces same preset name
-        return dict;
-    }
-
     // ── shell execution ───────────────────────────────────────────────────────
 
     internal void ExecuteCommand(string command)
@@ -2842,7 +2701,7 @@ public sealed class Application
 
     private bool TryExecuteChangeDirectoryCommand(string command)
     {
-        if (!TryParseChangeDirectoryTarget(command, out string? rawTarget))
+        if (!ChangeDirectoryCommandParser.TryParseTarget(command, out string? rawTarget))
             return false;
 
         var state = ActiveState;
@@ -2880,70 +2739,6 @@ public sealed class Application
         }
 
         return true;
-    }
-
-    private static bool TryParseChangeDirectoryTarget(string command, out string target)
-    {
-        target = string.Empty;
-
-        string trimmed = command.Trim();
-        int commandLength = ReadCommandWordLength(trimmed);
-        if (commandLength == 0)
-            return false;
-
-        string commandName = trimmed[..commandLength];
-        if (!string.Equals(commandName, "cd", StringComparison.OrdinalIgnoreCase) &&
-            !string.Equals(commandName, "chdir", StringComparison.OrdinalIgnoreCase))
-        {
-            return false;
-        }
-
-        string rest = trimmed[commandLength..].TrimStart();
-        if (rest.StartsWith("/d", StringComparison.OrdinalIgnoreCase) &&
-            (rest.Length == 2 || char.IsWhiteSpace(rest[2])))
-        {
-            rest = rest[2..].TrimStart();
-        }
-
-        if (rest.Length == 0 || ContainsShellCommandSeparator(rest))
-            return false;
-
-        target = UnquoteChangeDirectoryTarget(rest);
-        return target.Length > 0;
-    }
-
-    private static int ReadCommandWordLength(string command)
-    {
-        int index = 0;
-        while (index < command.Length && !char.IsWhiteSpace(command[index]))
-            index++;
-        return index;
-    }
-
-    private static bool ContainsShellCommandSeparator(string text)
-    {
-        bool inQuotes = false;
-        foreach (char ch in text)
-        {
-            if (ch == '"')
-            {
-                inQuotes = !inQuotes;
-                continue;
-            }
-
-            if (!inQuotes && ch is '&' or '|' or '<' or '>')
-                return true;
-        }
-
-        return false;
-    }
-
-    private static string UnquoteChangeDirectoryTarget(string target)
-    {
-        string trimmed = target.Trim();
-        return trimmed.Length >= 2 && trimmed[0] == '"' && trimmed[^1] == '"'
-            ? trimmed[1..^1]
-            : trimmed;
     }
 
     private static bool IsChangeDirectoryException(Exception exception) =>
@@ -2987,7 +2782,7 @@ public sealed class Application
             return;
 
         int cursorRow = SysConsole.CursorTop - SysConsole.WindowTop;
-        if (cursorRow < CommandLineRow(size))
+        if (cursorRow < ApplicationLayoutService.CommandLineRow(size))
             return;
 
         _screen.SetRenderingOutputMode(false);
@@ -3012,7 +2807,7 @@ public sealed class Application
         if (size.Width <= 0 || size.Height <= 0)
             return;
 
-        int row = CommandLineRow(size);
+        int row = ApplicationLayoutService.CommandLineRow(size);
         ClearShellPromptArea(size);
 
         int x = WriteShellText(0, row, workDir + ">", ConsoleColor.White);
@@ -3034,7 +2829,7 @@ public sealed class Application
 
         ClearShellPromptArea(size);
 
-        int row = CommandLineRow(size);
+        int row = ApplicationLayoutService.CommandLineRow(size);
         var cmdRenderer = new CommandLineRenderer(_screen, _palette);
         cmdRenderer.Render(row, size.Width, workDir, _cmdLine);
         PositionCommandCursor(cmdRenderer, size, row);
@@ -3042,7 +2837,7 @@ public sealed class Application
 
     private void ClearShellPromptArea(ConsoleSize size)
     {
-        int commandRow = CommandLineRow(size);
+        int commandRow = ApplicationLayoutService.CommandLineRow(size);
         _screen.FillRegion(new Rect(0, commandRow, size.Width, 1), CellStyle.Default);
 
         int bottomRow = size.Height - 1;
@@ -3240,7 +3035,7 @@ public sealed class Application
     {
         if (state.SearchRequest is not null)
         {
-            RefreshSearchResultsSummary(state);
+            state.Summary = PanelSearchResultsSummaryBuilder.BuildSummary(state);
             return;
         }
 
@@ -3273,7 +3068,7 @@ public sealed class Application
             state.CursorIndex = previousCursor;
             state.ScrollOffset = previousScroll;
             _ctrl.NormalizeCursor(state, visibleRows);
-            RefreshSearchResultsSummary(state);
+            state.Summary = PanelSearchResultsSummaryBuilder.BuildSummary(state);
             return;
         }
 
@@ -3293,7 +3088,7 @@ public sealed class Application
             state.CursorIndex = previousCursor;
             state.ScrollOffset = previousScroll;
             _ctrl.NormalizeCursor(state, visibleRows);
-            RefreshSearchResultsSummary(state);
+            state.Summary = PanelSearchResultsSummaryBuilder.BuildSummary(state);
             return;
         }
 
@@ -3301,9 +3096,9 @@ public sealed class Application
         state.Items.AddRange(result.Results.Select(ToFilePanelItem));
         state.SelectedPaths.Clear();
         state.SearchWasCancelled = false;
-        state.DisplayTitle = BuildSearchResultsTitle(state.SearchRequest, cancelled: false);
+        state.DisplayTitle = PanelSearchResultsSummaryBuilder.BuildTitle(state.SearchRequest, cancelled: false);
         SortVirtualPanel(state, cursorPath, visibleRows);
-        RefreshSearchResultsSummary(state);
+        state.Summary = PanelSearchResultsSummaryBuilder.BuildSummary(state);
         _ctrl.NormalizeCursor(state, visibleRows);
     }
 
@@ -3373,43 +3168,6 @@ public sealed class Application
             state.CursorIndex = index;
 
         _ctrl.NormalizeCursor(state, visibleRows);
-    }
-
-    private static void RefreshSearchResultsSummary(FilePanelState state)
-    {
-        int fileCount = 0;
-        int directoryCount = 0;
-        long totalFileSize = 0;
-        int selectedCount = 0;
-        long selectedFileSize = 0;
-
-        foreach (var item in state.Items)
-        {
-            if (item.IsDirectory)
-                directoryCount++;
-            else
-            {
-                fileCount++;
-                totalFileSize += item.Size ?? 0;
-            }
-
-            if (!state.SelectedPaths.Contains(item.FullPath))
-                continue;
-
-            selectedCount++;
-            if (!item.IsDirectory)
-                selectedFileSize += item.Size ?? 0;
-        }
-
-        state.Summary = new PanelSummary
-        {
-            VisibleItemCount = fileCount + directoryCount,
-            FileCount = fileCount,
-            DirectoryCount = directoryCount,
-            TotalFileSize = totalFileSize,
-            SelectedCount = selectedCount,
-            SelectedFileSize = selectedFileSize,
-        };
     }
 
     internal static bool HasCapability(FilePanelState state, PanelProviderCapabilities capability) =>
