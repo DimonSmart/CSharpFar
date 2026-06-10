@@ -50,6 +50,9 @@ public sealed class Application
     private readonly ApplicationPanelWorkspaceRenderer _panelWorkspaceRenderer;
     private readonly ClockRenderer _clockRenderer;
     private readonly ApplicationFunctionKeyBarRenderer _functionKeyBarRenderer;
+    private readonly ApplicationOverlayRenderer _overlayRenderer;
+    private readonly ApplicationCommandLineRenderer _commandLineRenderer;
+    private readonly ShellUnderlayService _shellUnderlay;
     private readonly PanelRefreshService _panelRefresh;
     private readonly PanelSearchResultsService _searchResults;
     private readonly PanelSortServiceFacade _panelSort;
@@ -80,7 +83,6 @@ public sealed class Application
     private HiddenPanels  _hiddenPanels;
     private bool          _quickView     = false;
     private ConsoleViewport? _lastRenderViewport;
-    private ScreenSnapshot? _underlay;          // last known screen content before panels
     private ConsolePalette          _palette;
     private PanelViewMode           _leftViewMode;
     private PanelViewMode           _rightViewMode;
@@ -93,8 +95,6 @@ public sealed class Application
     private readonly ApplicationCommandRegistry _commandRegistry;
     private readonly ApplicationCommandContext _commandContext;
     private readonly MenuLayoutService      _menuLayoutService = new();
-    private readonly MenuBarRenderer        _menuBarRenderer = new();
-    private readonly DropdownMenuRenderer   _dropdownMenuRenderer = new();
     private readonly TopMenuController      _menuController;
     private readonly IReadOnlyList<FunctionKeyBinding> _functionKeyBindings;
     private PanelItemClick?                 _lastLeftPanelItemClick;
@@ -305,6 +305,12 @@ public sealed class Application
             () => _palette,
             _functionKeyBindings,
             CanExecuteFunctionKeyCommand);
+        _overlayRenderer = new ApplicationOverlayRenderer(
+            _screen,
+            () => _palette,
+            _menuLayoutService);
+        _commandLineRenderer = new ApplicationCommandLineRenderer(_screen, () => _palette);
+        _shellUnderlay = new ShellUnderlayService(_screen);
 
         _dirSizeCalc.Completed += OnDirSizeCalculated;
         _dirSizeCalc.Progress  += OnDirSizeProgress;
@@ -425,7 +431,7 @@ public sealed class Application
         {
             // Capture what was in the terminal before we draw anything.
             // This becomes the initial underlay shown by Ctrl+O.
-            CaptureUnderlay();
+            _shellUnderlay.Capture();
 
             StartWatching(_left,  PanelSide.Left);
             StartWatching(_right, PanelSide.Right);
@@ -501,7 +507,7 @@ public sealed class Application
                     else
                     {
                         if (isResize)
-                            RestoreUnderlayForHiddenScreen();
+                            _shellUnderlay.RestoreForHiddenScreen(HasVisiblePanels);
                         RenderCommandLineOnlyUntilStable();
                     }
                 }
@@ -556,9 +562,9 @@ public sealed class Application
     private void Render()
     {
         UpdateQuickViewDirSize();
-        ApplyConsoleScrollbackMode();
+        _shellUnderlay.ApplyConsoleScrollbackMode(HasVisiblePanels);
         if (HasHiddenPanels)
-            RestoreUnderlayForHiddenScreen();
+            _shellUnderlay.RestoreForHiddenScreen(HasVisiblePanels);
 
         _screen.SetRenderingOutputMode(true);
         using var frame = _screen.BeginFrame();
@@ -588,24 +594,29 @@ public sealed class Application
         if (IsPanelVisible(PanelSide.Right))
             RenderClock(size);
 
-        var cmdRenderer = new CommandLineRenderer(_screen, _palette);
-        cmdRenderer.Render(panelH, size.Width, ActiveState.CurrentDirectory, _cmdLine);
-        RenderCommandCompletion(size, panelH);
+        _commandLineRenderer.Render(panelH, size, ActiveState.CurrentDirectory, _cmdLine);
+        _overlayRenderer.RenderCommandCompletion(size, panelH, _commandCompletion);
 
         RenderFunctionKeyBar(size);
 
-        RenderMenuOverlay(size);
+        _overlayRenderer.RenderMenuOverlay(size, BuildMenuDefinition(), _menuState);
 
         if (_menuState.OpenState == MenuOpenState.Closed)
         {
             if (_panelQuickSearch is not null)
             {
-                if (!RenderPanelQuickSearch())
+                if (!_overlayRenderer.RenderPanelQuickSearch(
+                        _panelQuickSearch,
+                        _leftBounds,
+                        _rightBounds,
+                        IsPanelVisible))
+                {
                     _screen.SetCursorVisible(false);
+                }
             }
             else
             {
-                PositionCommandCursor(cmdRenderer, size, panelH);
+                _commandLineRenderer.PositionCursor(panelH, size, ActiveState.CurrentDirectory, _cmdLine);
             }
         }
         else
@@ -614,7 +625,7 @@ public sealed class Application
 
     private void RenderCommandLineOnly()
     {
-        ApplyConsoleScrollbackMode();
+        _shellUnderlay.ApplyConsoleScrollbackMode(HasVisiblePanels);
         _screen.SetRenderingOutputMode(true);
         using var frame = _screen.BeginFrame();
 
@@ -623,9 +634,8 @@ public sealed class Application
         _lastRenderViewport = viewport;
 
         int row = ApplicationLayoutService.CommandLineRow(size);
-        var cmdRenderer = new CommandLineRenderer(_screen, _palette);
-        cmdRenderer.Render(row, size.Width, ActiveState.CurrentDirectory, _cmdLine);
-        PositionCommandCursor(cmdRenderer, size, row);
+        _commandLineRenderer.Render(row, size, ActiveState.CurrentDirectory, _cmdLine);
+        _commandLineRenderer.PositionCursor(row, size, ActiveState.CurrentDirectory, _cmdLine);
     }
 
     private void RenderCommandLineOnlyUntilStable()
@@ -649,46 +659,6 @@ public sealed class Application
     private void RenderFunctionKeyBar(ConsoleSize size)
     {
         _functionKeyBarRenderer.Render(size, _functionKeyLayer);
-    }
-
-    private void RenderCommandCompletion(ConsoleSize size, int commandLineRow)
-    {
-        if (!_commandCompletion.Visible)
-            return;
-
-        new CommandHistoryCompletionRenderer(_screen, _palette).Render(
-            commandLineRow,
-            size.Width,
-            _commandCompletion.Matches,
-            _commandCompletion.SelectedIndex,
-            _commandCompletion.FirstVisibleIndex);
-    }
-
-    private void RenderMenuOverlay(ConsoleSize size)
-    {
-        if (_menuState.OpenState == MenuOpenState.Closed)
-            return;
-
-        var bounds = new Rect(0, 0, size.Width, size.Height);
-        var definition = BuildMenuDefinition();
-        var layout = _menuLayoutService.CalculateLayout(bounds, definition, _menuState);
-        var options = BuildMenuRenderOptions();
-
-        _menuBarRenderer.Render(_screen, bounds, definition, _menuState, layout, options);
-        _dropdownMenuRenderer.Render(_screen, definition, _menuState, layout, options);
-    }
-
-    private bool RenderPanelQuickSearch()
-    {
-        if (_panelQuickSearch is not { } quickSearch ||
-            !IsPanelVisible(quickSearch.PanelSide))
-        {
-            return false;
-        }
-
-        var bounds = quickSearch.PanelSide == PanelSide.Left ? _leftBounds : _rightBounds;
-        return new PanelQuickSearchRenderer(_screen, _palette)
-            .Render(bounds, quickSearch.SearchText);
     }
 
     private ConsoleViewportChange GetConsoleViewportChange()
@@ -724,8 +694,8 @@ public sealed class Application
         if (!scrolled)
             return false;
 
-        CaptureUnderlay();
-        _lastRenderViewport = _underlay?.Viewport ?? _screen.GetViewport();
+        _shellUnderlay.Capture();
+        _lastRenderViewport = _shellUnderlay.CapturedViewport ?? _screen.GetViewport();
         return scrolled;
     }
 
@@ -833,30 +803,6 @@ public sealed class Application
             ModuleMenuItems = _moduleCatalog.MenuItems,
         });
 
-    private MenuRenderOptions BuildMenuRenderOptions() =>
-        new()
-        {
-            MenuBarNormalStyle = new CellStyle(_palette.MenuBarNormalFg, _palette.MenuBarNormalBg),
-            MenuBarActiveStyle = new CellStyle(_palette.MenuBarActiveFg, _palette.MenuBarActiveBg),
-            NormalStyle = new CellStyle(_palette.MenuNormalFg, _palette.MenuNormalBg),
-            ActiveStyle = new CellStyle(_palette.MenuActiveFg, _palette.MenuActiveBg),
-            HighlightStyle = new CellStyle(_palette.MenuHighlightFg, _palette.MenuHighlightBg),
-            ActiveHighlightStyle = new CellStyle(_palette.MenuActiveHighlightFg, _palette.MenuActiveHighlightBg),
-            DisabledStyle = new CellStyle(_palette.MenuDisabledFg, _palette.MenuDisabledBg),
-            BorderStyle = new CellStyle(_palette.MenuBorderFg, _palette.MenuBorderBg),
-            ShadowStyle = new CellStyle(_palette.MenuShadowFg, _palette.MenuShadowBg),
-        };
-
-    private void PositionCommandCursor(CommandLineRenderer cmdRenderer, ConsoleSize size, int row)
-    {
-        int curX = cmdRenderer.GetCursorX(size.Width, ActiveState.CurrentDirectory, _cmdLine);
-        if (curX >= 0 && curX < size.Width)
-        {
-            _screen.SetCursorPosition(curX, row);
-            _screen.SetCursorVisible(true);
-        }
-    }
-
     // ── panel visibility ──────────────────────────────────────────────────────
 
     private bool HasHiddenPanels => _hiddenPanels != HiddenPanels.None;
@@ -907,13 +853,6 @@ public sealed class Application
 
     // ── Ctrl+O ────────────────────────────────────────────────────────────────
 
-    /// <summary>Captures the full visible screen as the underlay snapshot.</summary>
-    private void CaptureUnderlay()
-    {
-        var viewport = _screen.GetViewport();
-        _underlay = _screen.Capture(new Rect(0, 0, viewport.Width, viewport.Height));
-    }
-
     /// <summary>
     /// Toggles panel visibility.
     /// Hide: restores the last captured underlay so the user sees shell output.
@@ -931,14 +870,14 @@ public sealed class Application
             _hiddenPanels = HiddenPanels.None;
             _screen.TryScrollViewportToBottom();
             _lastRenderViewport = _screen.GetViewport();
-            ApplyConsoleScrollbackMode();
+            _shellUnderlay.ApplyConsoleScrollbackMode(HasVisiblePanels);
             return true;
         }
 
         _hiddenPanels = HiddenPanels.Both;
-        ApplyConsoleScrollbackMode();
+        _shellUnderlay.ApplyConsoleScrollbackMode(HasVisiblePanels);
         _screen.SetCursorVisible(true);
-        RestoreUnderlayForHiddenScreen();
+        _shellUnderlay.RestoreForHiddenScreen(HasVisiblePanels);
         RenderCommandLineOnlyUntilStable();
         return false;
     }
@@ -965,63 +904,17 @@ public sealed class Application
         }
 
         EnsureActivePanelVisible();
-        ApplyConsoleScrollbackMode();
+        _shellUnderlay.ApplyConsoleScrollbackMode(HasVisiblePanels);
 
         if (_hiddenPanels == HiddenPanels.Both)
         {
             _screen.SetCursorVisible(true);
-            RestoreUnderlayForHiddenScreen();
+            _shellUnderlay.RestoreForHiddenScreen(HasVisiblePanels);
             RenderCommandLineOnlyUntilStable();
             return false;
         }
 
         return true;
-    }
-
-    private void RestoreUnderlayForHiddenScreen()
-    {
-        ApplyConsoleScrollbackMode();
-        _screen.SetRenderingOutputMode(false);
-        RestoreOrClearUnderlay();
-    }
-
-    private void ApplyConsoleScrollbackMode() =>
-        _screen.SetConsoleScrollbackEnabled(!HasVisiblePanels);
-
-    private void RestoreOrClearUnderlay()
-    {
-        if (_underlay is null)
-        {
-            _screen.ClearScreen();
-            return;
-        }
-
-        var underlay = CreateUnderlaySnapshotForCurrentViewport(_underlay);
-        _screen.ClearScreen();
-        if (underlay is not null)
-            _screen.Restore(underlay);
-    }
-
-    private ScreenSnapshot? CreateUnderlaySnapshotForCurrentViewport(ScreenSnapshot underlay)
-    {
-        var viewport = _screen.GetViewport();
-        int x = Math.Max(0, underlay.Region.X);
-        int y = Math.Max(0, underlay.Region.Y);
-        int right = Math.Min(viewport.Width, underlay.Region.Right);
-        int bottom = Math.Min(viewport.Height, underlay.Region.Bottom);
-        int width = right - x;
-        int height = bottom - y;
-        if (width <= 0 || height <= 0)
-            return null;
-
-        var cells = new SnapshotCell[height, width];
-        for (int row = 0; row < height; row++)
-        {
-            for (int col = 0; col < width; col++)
-                cells[row, col] = underlay.Cells[y - underlay.Region.Y + row, x - underlay.Region.X + col];
-        }
-
-        return new ScreenSnapshot(viewport, new Rect(x, y, width, height), cells);
     }
 
     // ── key handling ──────────────────────────────────────────────────────────
@@ -2433,7 +2326,7 @@ public sealed class Application
 
             // Capture shell output NOW, before Render() paints panels over it.
             // This snapshot is what Ctrl+O will restore.
-            CaptureUnderlay();
+            _shellUnderlay.Capture();
 
             RefreshPanels();
             _hiddenPanels = hiddenPanelsAfterCommand;
@@ -2461,7 +2354,7 @@ public sealed class Application
     {
         _screen.SetConsoleScrollbackEnabled(true);
         _screen.SetRenderingOutputMode(false);
-        RestoreOrClearUnderlay();
+        _shellUnderlay.RestoreOrClear();
 
         SysConsole.ResetColor();
         SysConsole.CursorVisible = true;
@@ -2496,9 +2389,8 @@ public sealed class Application
         ClearShellPromptArea(size);
 
         int row = ApplicationLayoutService.CommandLineRow(size);
-        var cmdRenderer = new CommandLineRenderer(_screen, _palette);
-        cmdRenderer.Render(row, size.Width, workDir, _cmdLine);
-        PositionCommandCursor(cmdRenderer, size, row);
+        _commandLineRenderer.Render(row, size, workDir, _cmdLine);
+        _commandLineRenderer.PositionCursor(row, size, workDir, _cmdLine);
     }
 
     private void ClearShellPromptArea(ConsoleSize size)
