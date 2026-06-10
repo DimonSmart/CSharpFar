@@ -1505,6 +1505,7 @@ public sealed class Application
 
         try
         {
+            using var childConsoleMode = _screen.EnterChildProcessConsoleMode();
             execute();
         }
         finally

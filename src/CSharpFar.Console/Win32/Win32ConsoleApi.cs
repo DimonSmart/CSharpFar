@@ -68,6 +68,17 @@ internal static class Win32ConsoleApi
     [DllImport("kernel32.dll", SetLastError = true)]
     private static extern bool SetConsoleMode(IntPtr hConsoleHandle, uint dwMode);
 
+    internal delegate bool ConsoleCtrlHandler(ConsoleCtrlEvent ctrlType);
+
+    internal enum ConsoleCtrlEvent
+    {
+        CtrlC = 0,
+        CtrlBreak = 1,
+    }
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    private static extern bool SetConsoleCtrlHandler(ConsoleCtrlHandler handlerRoutine, bool add);
+
     [DllImport("kernel32.dll", EntryPoint = "ReadConsoleInputW", ExactSpelling = true, SetLastError = true)]
     private static extern bool ReadConsoleInput(
         IntPtr hConsoleInput,
@@ -196,6 +207,9 @@ internal static class Win32ConsoleApi
 
     public static bool TrySetConsoleMode(IntPtr handle, uint mode) =>
         SetConsoleMode(handle, mode);
+
+    public static bool TrySetConsoleCtrlHandler(ConsoleCtrlHandler handler, bool add) =>
+        SetConsoleCtrlHandler(handler, add);
 
     /// <summary>
     /// Reads the next input event, blocking in short waits so that

@@ -92,6 +92,13 @@ public sealed class ScreenRenderer
             outputModeDriver.RestoreApplicationInputMode();
     }
 
+    public IDisposable EnterChildProcessConsoleMode()
+    {
+        return _driver is IConsoleOutputModeDriver outputModeDriver
+            ? outputModeDriver.EnterChildProcessConsoleMode()
+            : EmptyDisposable.Instance;
+    }
+
     public IDisposable BeginFrame()
     {
         if (_frameActive)
@@ -591,6 +598,19 @@ public sealed class ScreenRenderer
         {
             _owner?.EndFrame();
             _owner = null;
+        }
+    }
+
+    private sealed class EmptyDisposable : IDisposable
+    {
+        public static readonly EmptyDisposable Instance = new();
+
+        private EmptyDisposable()
+        {
+        }
+
+        public void Dispose()
+        {
         }
     }
 }

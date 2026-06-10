@@ -11,4 +11,10 @@ public interface IConsoleOutputModeDriver
     /// Call this after running a child process that may have changed the console input mode.
     /// </summary>
     void RestoreApplicationInputMode();
+
+    /// <summary>
+    /// Temporarily switches the console input mode for a current-console child process.
+    /// Dispose the returned scope before resuming application input.
+    /// </summary>
+    IDisposable EnterChildProcessConsoleMode();
 }

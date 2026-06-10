@@ -136,6 +136,21 @@ public sealed class Win32ConsoleInputLayoutTests
         Assert.Equal(0u, appMode & Win32ConsoleApi.ENABLE_VIRTUAL_TERMINAL_INPUT);
     }
 
+    [Fact]
+    [SupportedOSPlatform("windows")]
+    public void GetChildProcessInputMode_EnablesProcessedInput()
+    {
+        uint originalMode =
+            Win32ConsoleApi.ENABLE_LINE_INPUT |
+            Win32ConsoleApi.ENABLE_ECHO_INPUT;
+
+        uint childMode = SystemConsoleDriver.GetChildProcessInputMode(originalMode);
+
+        Assert.True((childMode & Win32ConsoleApi.ENABLE_PROCESSED_INPUT) != 0);
+        Assert.True((childMode & Win32ConsoleApi.ENABLE_LINE_INPUT) != 0);
+        Assert.True((childMode & Win32ConsoleApi.ENABLE_ECHO_INPUT) != 0);
+    }
+
     private static int OffsetOf<T>(string fieldName) =>
         Marshal.OffsetOf<T>(fieldName).ToInt32();
 }

@@ -36,6 +36,9 @@ public sealed class FakeConsoleDriver : IConsoleDriver, IConsoleOutputModeDriver
     public int TrySetCursorPositionInViewportCallCount { get; private set; }
     public bool RenderingOutputMode { get; private set; }
     public bool ConsoleScrollbackEnabled { get; private set; } = true;
+    public bool ChildProcessConsoleMode { get; private set; }
+    public int EnterChildProcessConsoleModeCallCount { get; private set; }
+    public int RestoreApplicationInputModeCallCount { get; private set; }
     public Action<FakeConsoleDriver>? BeforeReadInput { get; set; }
     public Action<FakeConsoleDriver>? BeforeTryReadInput { get; set; }
     public IReadOnlyList<WriteRecord> WriteRecords => _writeRecords;
@@ -200,7 +203,18 @@ public sealed class FakeConsoleDriver : IConsoleDriver, IConsoleOutputModeDriver
         _viewportTop = 0;
         _bufferHeight = _size.Height;
     }
-    public void RestoreApplicationInputMode() { }
+    public void RestoreApplicationInputMode()
+    {
+        RestoreApplicationInputModeCallCount++;
+        ChildProcessConsoleMode = false;
+    }
+
+    public IDisposable EnterChildProcessConsoleMode()
+    {
+        EnterChildProcessConsoleModeCallCount++;
+        ChildProcessConsoleMode = true;
+        return new ChildProcessConsoleModeScope(this);
+    }
 
     public ScreenSnapshot Capture(Rect region)
     {
@@ -275,5 +289,25 @@ public sealed class FakeConsoleDriver : IConsoleDriver, IConsoleOutputModeDriver
 
         BeforeTryReadInput = null;
         callback(this);
+    }
+
+    private sealed class ChildProcessConsoleModeScope : IDisposable
+    {
+        private readonly FakeConsoleDriver _owner;
+        private bool _disposed;
+
+        public ChildProcessConsoleModeScope(FakeConsoleDriver owner)
+        {
+            _owner = owner;
+        }
+
+        public void Dispose()
+        {
+            if (_disposed)
+                return;
+
+            _owner.RestoreApplicationInputMode();
+            _disposed = true;
+        }
     }
 }

@@ -30,6 +30,8 @@ public sealed class SystemConsoleDriver : IConsoleDriver, IConsoleOutputModeDriv
     private bool _renderingOutputMode;
     private bool _consoleScrollbackEnabled = true;
     private bool _disposed;
+    private static readonly Win32ConsoleApi.ConsoleCtrlHandler s_childProcessCtrlHandler = HandleChildProcessConsoleControl;
+    private static int s_childProcessConsoleModeDepth;
 
     public SystemConsoleDriver()
     {
@@ -73,6 +75,15 @@ public sealed class SystemConsoleDriver : IConsoleDriver, IConsoleOutputModeDriv
     {
         if (OperatingSystem.IsWindows() && _restoreInputMode)
             TryConfigureInputMode(_inputHandle, out _);
+    }
+
+    public IDisposable EnterChildProcessConsoleMode()
+    {
+        if (!OperatingSystem.IsWindows() || !_restoreInputMode)
+            return EmptyDisposable.Instance;
+
+        Win32ConsoleApi.TrySetConsoleMode(_inputHandle, GetChildProcessInputMode(_originalInputMode));
+        return new ChildProcessConsoleModeScope(this);
     }
 
     public void SetRenderingOutputMode(bool enabled)
@@ -422,6 +433,56 @@ public sealed class SystemConsoleDriver : IConsoleDriver, IConsoleOutputModeDriv
         appMode &= ~Win32ConsoleApi.ENABLE_INSERT_MODE;
         appMode &= ~Win32ConsoleApi.ENABLE_VIRTUAL_TERMINAL_INPUT;
         return appMode;
+    }
+
+    [SupportedOSPlatform("windows")]
+    internal static uint GetChildProcessInputMode(uint mode) =>
+        mode | Win32ConsoleApi.ENABLE_PROCESSED_INPUT;
+
+    private static bool HandleChildProcessConsoleControl(Win32ConsoleApi.ConsoleCtrlEvent controlEvent)
+    {
+        if (Volatile.Read(ref s_childProcessConsoleModeDepth) <= 0)
+            return false;
+
+        return (int)controlEvent is 0 or 1;
+    }
+
+    [SupportedOSPlatform("windows")]
+    private sealed class ChildProcessConsoleModeScope : IDisposable
+    {
+        private readonly SystemConsoleDriver _owner;
+        private bool _disposed;
+
+        public ChildProcessConsoleModeScope(SystemConsoleDriver owner)
+        {
+            _owner = owner;
+            if (Interlocked.Increment(ref s_childProcessConsoleModeDepth) == 1)
+                Win32ConsoleApi.TrySetConsoleCtrlHandler(s_childProcessCtrlHandler, add: true);
+        }
+
+        public void Dispose()
+        {
+            if (_disposed)
+                return;
+
+            if (Interlocked.Decrement(ref s_childProcessConsoleModeDepth) == 0)
+                Win32ConsoleApi.TrySetConsoleCtrlHandler(s_childProcessCtrlHandler, add: false);
+            _owner.RestoreApplicationInputMode();
+            _disposed = true;
+        }
+    }
+
+    private sealed class EmptyDisposable : IDisposable
+    {
+        public static readonly EmptyDisposable Instance = new();
+
+        private EmptyDisposable()
+        {
+        }
+
+        public void Dispose()
+        {
+        }
     }
 
     [SupportedOSPlatform("windows")]

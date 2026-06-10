@@ -746,6 +746,28 @@ public sealed class ApplicationNavigationTests : IDisposable
     }
 
     [Fact]
+    public void ExecuteCommand_Dir_UsesChildProcessConsoleModeDuringShellExecution()
+    {
+        var fs = new FakeFileSystemService();
+        fs.AddDirectory(_tempDir);
+
+        var driver = new FakeConsoleDriver(width: 80, height: 12);
+        bool childModeDuringShell = false;
+        var shell = new RecordingShellService((_, _) =>
+        {
+            childModeDuringShell = driver.ChildProcessConsoleMode;
+        });
+        var app = CreateApp(fs, driver, _tempDir, shell);
+
+        app.ExecuteCommand("dir");
+
+        Assert.True(childModeDuringShell);
+        Assert.False(driver.ChildProcessConsoleMode);
+        Assert.Equal(1, driver.EnterChildProcessConsoleModeCallCount);
+        Assert.True(driver.RestoreApplicationInputModeCallCount >= 1);
+    }
+
+    [Fact]
     public void ExecuteCommand_CdMissingFolder_LeavesActivePanelWithoutShell()
     {
         var fs = new FakeFileSystemService();
@@ -886,10 +908,20 @@ public sealed class ApplicationNavigationTests : IDisposable
 
     private sealed class RecordingShellService : IShellService
     {
+        private readonly Action<string, string>? _onExecute;
+
+        public RecordingShellService(Action<string, string>? onExecute = null)
+        {
+            _onExecute = onExecute;
+        }
+
         public List<(string Command, string WorkingDirectory)> Commands { get; } = [];
 
-        public void Execute(string command, string workingDirectory) =>
+        public void Execute(string command, string workingDirectory)
+        {
             Commands.Add((command, workingDirectory));
+            _onExecute?.Invoke(command, workingDirectory);
+        }
     }
 
 }

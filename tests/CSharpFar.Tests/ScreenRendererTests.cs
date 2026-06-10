@@ -310,6 +310,21 @@ public class ScreenRendererTests
     }
 
     [Fact]
+    public void EnterChildProcessConsoleMode_DelegatesScopedModeToDriver()
+    {
+        var (renderer, driver) = Create();
+
+        using (renderer.EnterChildProcessConsoleMode())
+        {
+            Assert.True(driver.ChildProcessConsoleMode);
+        }
+
+        Assert.False(driver.ChildProcessConsoleMode);
+        Assert.Equal(1, driver.EnterChildProcessConsoleModeCallCount);
+        Assert.Equal(1, driver.RestoreApplicationInputModeCallCount);
+    }
+
+    [Fact]
     public void DrawBox_RendersCorrectBorderCharacters()
     {
         var (renderer, driver) = Create(20, 10);
