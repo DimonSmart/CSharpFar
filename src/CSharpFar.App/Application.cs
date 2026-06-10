@@ -35,7 +35,6 @@ namespace CSharpFar.App;
 
 public sealed class Application
 {
-    private const int CommandCompletionNeutralIndex = 0;
     private const int MaxCommandCompletionRows = CommandHistoryCompletionRenderer.MaxVisibleRows;
 
     private readonly ScreenRenderer _screen;
@@ -44,10 +43,13 @@ public sealed class Application
     private readonly IShellService _shell;
     private readonly IFileLauncher _fileLauncher;
     private readonly IFileOperationService _fileOps;
+    private readonly PanelFileViewerService _panelFileViewer;
     private readonly ISearchService _searchService;
     private readonly FilePanelSourceRegistry _sourceRegistry;
     private readonly NativeModuleCatalog _moduleCatalog;
     private readonly IHistoryStore _history;
+    private readonly CommandHistoryNavigator _commandHistoryNavigator;
+    private readonly CommandCompletionController _commandCompletionController;
     private readonly AppSettingsAlias _settings;
     private readonly UserMenuStore _userMenu;
     private readonly Action? _saveSettings;
@@ -57,18 +59,12 @@ public sealed class Application
     private readonly FilePanelState _left;
     private readonly FilePanelState _right;
     private readonly CommandLineState _cmdLine = new();
-    private readonly List<string> _commandCompletionMatches = [];
+    private readonly CommandCompletionState _commandCompletion = new();
     private PanelQuickSearchState? _panelQuickSearch;
 
     private PanelSide     _active        = PanelSide.Left;
     private bool          _running       = true;
     private HiddenPanels  _hiddenPanels;
-    private bool          _commandCompletionVisible;
-    private bool          _commandCompletionTemporarilyHidden;
-    private int           _commandCompletionSelectedIndex;
-    private int           _commandCompletionFirstVisibleIndex;
-    private ScrollBarDragState? _commandCompletionScrollbarDrag;
-    private int?          _commandHistoryNavigationIndex;
     private bool          _quickView     = false;
     private ConsoleViewport? _lastRenderViewport;
     private ScreenSnapshot? _underlay;          // last known screen content before panels
@@ -117,42 +113,11 @@ public sealed class Application
         Both = Left | Right,
     }
 
-    private enum CommandHistoryNavigationStart
-    {
-        Oldest,
-        Newest,
-    }
-
     private enum PanelQuickSearchKeyResult
     {
         NotHandled,
         Handled,
         CloseAndContinue,
-    }
-
-    private sealed class PanelQuickSearchState
-    {
-        public PanelQuickSearchState(PanelSide panelSide, char firstCharacter)
-        {
-            PanelSide = panelSide;
-            SearchText = NormalizeQuickSearchCharacter(firstCharacter).ToString();
-        }
-
-        public PanelSide PanelSide { get; }
-
-        public string SearchText { get; private set; }
-
-        public void Append(char ch) =>
-            SearchText += NormalizeQuickSearchCharacter(ch);
-
-        public bool RemoveLastCharacter()
-        {
-            if (SearchText.Length == 0)
-                return false;
-
-            SearchText = SearchText[..^1];
-            return SearchText.Length > 0;
-        }
     }
 
     public Application(
@@ -196,6 +161,8 @@ public sealed class Application
         _fileOps      = fileOps;
         _searchService = searchService ?? new CSharpFar.FileSystem.FileSystemSearchService();
         _history      = history      ?? new InMemoryHistoryStore();
+        _commandHistoryNavigator = new CommandHistoryNavigator(_history);
+        _commandCompletionController = new CommandCompletionController(_history, _commandCompletion);
         _settings     = settings     ?? new AppSettingsAlias();
         _clipboard    = clipboard    ?? TextCopyTextClipboard.Instance;
         _userMenu     = userMenu     ?? new UserMenuStore(
@@ -208,6 +175,17 @@ public sealed class Application
         _locationService  = locationService;
         _menuController   = new TopMenuController(_menuState, ExecuteMenuCommand);
         _palette          = PaletteRegistry.Resolve(_settings.Ui.Palette);
+        _panelFileViewer = new PanelFileViewerService(
+            _screen,
+            () => _palette,
+            _sourceRegistry,
+            _history,
+            _clipboard,
+            _settings,
+            _ctrl,
+            PanelSideForState,
+            VisibleRows,
+            SafeRefresh);
         string effectiveConfigDirectory = configDirectory ?? Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
             "CSharpFar");
@@ -635,15 +613,15 @@ public sealed class Application
 
     private void RenderCommandCompletion(ConsoleSize size, int commandLineRow)
     {
-        if (!_commandCompletionVisible)
+        if (!_commandCompletion.Visible)
             return;
 
         new CommandHistoryCompletionRenderer(_screen, _palette).Render(
             commandLineRow,
             size.Width,
-            _commandCompletionMatches,
-            _commandCompletionSelectedIndex,
-            _commandCompletionFirstVisibleIndex);
+            _commandCompletion.Matches,
+            _commandCompletion.SelectedIndex,
+            _commandCompletion.FirstVisibleIndex);
     }
 
     private void RenderMenuOverlay(ConsoleSize size)
@@ -2152,47 +2130,16 @@ public sealed class Application
     private void OnVisibleCommandLineTextEdited()
     {
         ResetCommandHistoryNavigation();
-        _commandCompletionTemporarilyHidden = false;
+        _commandCompletion.TemporarilyHidden = false;
         RefreshCommandCompletion();
     }
 
     private void RefreshCommandCompletion()
     {
-        _commandCompletionMatches.Clear();
-        _commandCompletionSelectedIndex = 0;
-        _commandCompletionFirstVisibleIndex = 0;
-        _commandCompletionScrollbarDrag = null;
-
-        if (!HasVisiblePanels ||
-            _commandCompletionTemporarilyHidden ||
-            !HasCommandCompletionRows() ||
-            string.IsNullOrWhiteSpace(_cmdLine.Text))
-        {
-            _commandCompletionVisible = false;
-            return;
-        }
-
-        var seen = new HashSet<string>(StringComparer.Ordinal);
-        var history = _history.GetCommandHistory();
-        for (int i = history.Count - 1; i >= 0; i--)
-        {
-            string command = history[i].Command;
-            if (!command.StartsWith(_cmdLine.Text, StringComparison.OrdinalIgnoreCase))
-                continue;
-
-            if (seen.Add(command))
-                _commandCompletionMatches.Add(command);
-        }
-
-        if (_commandCompletionMatches.Count == 0)
-        {
-            _commandCompletionVisible = false;
-            return;
-        }
-
-        _commandCompletionMatches.Insert(CommandCompletionNeutralIndex, string.Empty);
-        _commandCompletionVisible = true;
-        _commandCompletionFirstVisibleIndex = 0;
+        _commandCompletionController.Refresh(
+            _cmdLine,
+            HasVisiblePanels,
+            HasCommandCompletionRows());
     }
 
     private bool HasCommandCompletionRows()
@@ -2212,23 +2159,23 @@ public sealed class Application
 
     private bool TryHandleCommandCompletionScrollbarMouse(MouseConsoleInputEvent evt)
     {
-        if (!_commandCompletionVisible && !_commandCompletionScrollbarDrag.HasValue)
+        if (!_commandCompletion.Visible && !_commandCompletion.ScrollbarDrag.HasValue)
             return false;
 
         var size = LastRenderSizeOrCurrent();
         int visibleRows = CommandCompletionVisibleRows(size);
-        if (visibleRows <= 0 || _commandCompletionMatches.Count <= visibleRows)
+        if (visibleRows <= 0 || _commandCompletion.Matches.Count <= visibleRows)
             return false;
 
         int height = visibleRows + 2;
         int commandLineRow = ApplicationLayoutService.CommandLineRow(size);
         var scrollbarBounds = new Rect(size.Width - 1, commandLineRow - height + 1, 1, visibleRows);
-        int firstVisibleIndex = _commandCompletionFirstVisibleIndex;
-        var dragState = _commandCompletionScrollbarDrag;
+        int firstVisibleIndex = _commandCompletion.FirstVisibleIndex;
+        var dragState = _commandCompletion.ScrollbarDrag;
         if (!ScrollBarMouseHandler.TryHandleMouse(
                 evt,
                 scrollbarBounds,
-                _commandCompletionMatches.Count,
+                _commandCompletion.Matches.Count,
                 visibleRows,
                 ref firstVisibleIndex,
                 ref dragState))
@@ -2236,19 +2183,19 @@ public sealed class Application
             return false;
         }
 
-        _commandCompletionScrollbarDrag = dragState;
-        _commandCompletionFirstVisibleIndex = ScrollStateCalculator.ClampFirstVisibleIndex(
+        _commandCompletion.ScrollbarDrag = dragState;
+        _commandCompletion.FirstVisibleIndex = ScrollStateCalculator.ClampFirstVisibleIndex(
             firstVisibleIndex,
-            _commandCompletionMatches.Count,
+            _commandCompletion.Matches.Count,
             visibleRows);
-        ClampCommandCompletionSelectionToViewport(visibleRows);
+        _commandCompletionController.ClampSelectionToViewport(visibleRows);
         return true;
     }
 
     private bool TryHandleCommandCompletionItemMouse(MouseConsoleInputEvent evt)
     {
-        if (!_commandCompletionVisible ||
-            _commandCompletionMatches.Count == 0 ||
+        if (!_commandCompletion.Visible ||
+            _commandCompletion.Matches.Count == 0 ||
             evt.Button != MouseButton.Left ||
             evt.Kind is not (MouseEventKind.Down or MouseEventKind.Click or MouseEventKind.DoubleClick))
         {
@@ -2260,7 +2207,7 @@ public sealed class Application
         if (visibleRows <= 0)
             return false;
 
-        int rowCount = Math.Min(visibleRows, _commandCompletionMatches.Count);
+        int rowCount = Math.Min(visibleRows, _commandCompletion.Matches.Count);
         int height = rowCount + 2;
         int commandLineRow = ApplicationLayoutService.CommandLineRow(size);
         var contentBounds = new Rect(
@@ -2277,65 +2224,33 @@ public sealed class Application
             return false;
         }
 
-        int itemIndex = _commandCompletionFirstVisibleIndex + evt.Y - contentBounds.Y;
-        if (itemIndex < 0 || itemIndex >= _commandCompletionMatches.Count)
+        int itemIndex = _commandCompletion.FirstVisibleIndex + evt.Y - contentBounds.Y;
+        if (itemIndex < 0 || itemIndex >= _commandCompletion.Matches.Count)
             return false;
 
-        _commandCompletionSelectedIndex = itemIndex;
+        _commandCompletion.SelectedIndex = itemIndex;
         if (IsCommandCompletionNeutralSelected())
         {
             HideCommandCompletion(temporarily: false);
             return true;
         }
 
-        _cmdLine.SetText(_commandCompletionMatches[_commandCompletionSelectedIndex]);
+        _cmdLine.SetText(_commandCompletion.Matches[_commandCompletion.SelectedIndex]);
         HideCommandCompletion(temporarily: false);
         ResetCommandHistoryNavigation();
         return true;
     }
 
-    private void ClampCommandCompletionSelectionToViewport(int visibleRows)
-    {
-        if (_commandCompletionMatches.Count == 0)
-        {
-            _commandCompletionSelectedIndex = 0;
-            _commandCompletionFirstVisibleIndex = 0;
-            return;
-        }
-
-        int lastVisibleIndex = Math.Min(
-            _commandCompletionMatches.Count - 1,
-            _commandCompletionFirstVisibleIndex + visibleRows - 1);
-        _commandCompletionSelectedIndex = Math.Clamp(
-            _commandCompletionSelectedIndex,
-            _commandCompletionFirstVisibleIndex,
-            lastVisibleIndex);
-    }
-
     private bool TryMoveCommandCompletionSelection(int delta)
     {
-        if (!_commandCompletionVisible || _commandCompletionMatches.Count == 0 || !HasCommandCompletionRows())
-            return false;
-
-        _commandCompletionSelectedIndex = Math.Clamp(
-            _commandCompletionSelectedIndex + delta,
-            0,
-            _commandCompletionMatches.Count - 1);
-        int visibleRows = CommandCompletionVisibleRows(LastRenderSizeOrCurrent());
-        _commandCompletionFirstVisibleIndex = ScrollStateCalculator.EnsureIndexVisible(
-            _commandCompletionSelectedIndex,
-            _commandCompletionFirstVisibleIndex,
-            visibleRows);
-        _commandCompletionFirstVisibleIndex = ScrollStateCalculator.ClampFirstVisibleIndex(
-            _commandCompletionFirstVisibleIndex,
-            _commandCompletionMatches.Count,
-            visibleRows);
-        return true;
+        return _commandCompletionController.TryMoveSelection(
+            delta,
+            CommandCompletionVisibleRows(LastRenderSizeOrCurrent()));
     }
 
     private bool TryAcceptCommandCompletion()
     {
-        if (!_commandCompletionVisible || _commandCompletionMatches.Count == 0 || !HasCommandCompletionRows())
+        if (!_commandCompletion.Visible || _commandCompletion.Matches.Count == 0 || !HasCommandCompletionRows())
             return false;
 
         if (IsCommandCompletionNeutralSelected())
@@ -2345,18 +2260,18 @@ public sealed class Application
             return false;
         }
 
-        _cmdLine.SetText(_commandCompletionMatches[_commandCompletionSelectedIndex]);
+        _cmdLine.SetText(_commandCompletion.Matches[_commandCompletion.SelectedIndex]);
         HideCommandCompletion(temporarily: false);
         ResetCommandHistoryNavigation();
         return true;
     }
 
     private bool IsCommandCompletionNeutralSelected() =>
-        _commandCompletionSelectedIndex == CommandCompletionNeutralIndex;
+        _commandCompletionController.IsNeutralSelected;
 
     private bool TryHideCommandCompletionTemporarily()
     {
-        if (!_commandCompletionVisible)
+        if (!_commandCompletion.Visible)
             return false;
 
         HideCommandCompletion(temporarily: true);
@@ -2365,42 +2280,19 @@ public sealed class Application
 
     internal void HideCommandCompletion(bool temporarily)
     {
-        _commandCompletionVisible = false;
-        _commandCompletionTemporarilyHidden = temporarily;
-        _commandCompletionMatches.Clear();
-        _commandCompletionSelectedIndex = 0;
-        _commandCompletionFirstVisibleIndex = 0;
-        _commandCompletionScrollbarDrag = null;
+        _commandCompletionController.Hide(temporarily);
     }
 
     private bool BrowseCommandHistory(int direction, CommandHistoryNavigationStart start)
     {
-        var history = _history.GetCommandHistory();
-        if (history.Count == 0)
-            return true;
-
-        if (_commandHistoryNavigationIndex is null)
-        {
-            _commandHistoryNavigationIndex = start == CommandHistoryNavigationStart.Newest
-                ? history.Count - 1
-                : 0;
-        }
-        else
-        {
-            _commandHistoryNavigationIndex = Math.Clamp(
-                _commandHistoryNavigationIndex.Value + direction,
-                0,
-                history.Count - 1);
-        }
-
-        _cmdLine.SetText(history[_commandHistoryNavigationIndex.Value].Command);
+        _commandHistoryNavigator.Browse(_cmdLine, direction, start);
         HideCommandCompletion(temporarily: false);
         return true;
     }
 
     internal void ResetCommandHistoryNavigation()
     {
-        _commandHistoryNavigationIndex = null;
+        _commandHistoryNavigator.Reset();
     }
 
     internal void ResetTransientNavigationUi()
@@ -2608,63 +2500,7 @@ public sealed class Application
 
     internal void ViewPanelFile(FilePanelState state, FilePanelItem item)
     {
-        if (state.SourceId == PanelSourceId.Local)
-        {
-            _history.AddFile(new FileHistoryItem { Path = item.FullPath });
-            new FileViewer(_screen, _palette).Show(item.FullPath, BuildLocalViewerOptions(state, item));
-            SafeRefresh(state, VisibleRows(PanelSideForState(state)));
-            return;
-        }
-
-        var source = _sourceRegistry.GetSource(item.SourceId);
-        string tempPath = Path.Combine(Path.GetTempPath(), "CSharpFar", Guid.NewGuid().ToString("N"), item.Name);
-        Directory.CreateDirectory(Path.GetDirectoryName(tempPath)!);
-        try
-        {
-            using (var input = source.OpenReadAsync(item.SourcePath).GetAwaiter().GetResult())
-            using (var output = File.Create(tempPath))
-            {
-                input.CopyTo(output);
-            }
-
-            _history.AddFile(new FileHistoryItem { Path = $"{item.SourceId}:{item.SourcePath}" });
-            new FileViewer(_screen, _palette).Show(tempPath);
-        }
-        finally
-        {
-            try { Directory.Delete(Path.GetDirectoryName(tempPath)!, recursive: true); }
-            catch { }
-        }
-    }
-
-    private LargeFileViewerOptions BuildLocalViewerOptions(FilePanelState state, FilePanelItem item)
-    {
-        var filePaths = state.Items
-            .Where(panelItem => !panelItem.IsParentDirectory && !panelItem.IsDirectory)
-            .Select(panelItem => panelItem.FullPath)
-            .ToArray();
-        int currentIndex = Array.FindIndex(
-            filePaths,
-            path => string.Equals(path, item.FullPath, StringComparison.OrdinalIgnoreCase));
-
-        return new LargeFileViewerOptions
-        {
-            FilePaths = filePaths,
-            CurrentFileIndex = currentIndex,
-            Clipboard = _clipboard,
-            EditFile = path =>
-            {
-                _history.AddFile(new FileHistoryItem { Path = path });
-                new FileEditor(_screen, _palette, _settings.Editor, _clipboard).Show(path);
-            },
-            CurrentFileChanged = path =>
-            {
-                int panelIndex = state.Items.FindIndex(
-                    panelItem => string.Equals(panelItem.FullPath, path, StringComparison.OrdinalIgnoreCase));
-                if (panelIndex >= 0)
-                    _ctrl.SetCursorTo(state, panelIndex, VisibleRows(PanelSideForState(state)));
-            },
-        };
+        _panelFileViewer.ViewPanelFile(state, item);
     }
 
     // ── shell execution ───────────────────────────────────────────────────────
