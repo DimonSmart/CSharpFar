@@ -47,6 +47,9 @@ public sealed class Application
     private readonly PanelFileViewerService _panelFileViewer;
     private readonly PanelFileOpener _panelFileOpener;
     private readonly PanelAutoRefreshService _autoRefresh;
+    private readonly ApplicationPanelWorkspaceRenderer _panelWorkspaceRenderer;
+    private readonly ClockRenderer _clockRenderer;
+    private readonly ApplicationFunctionKeyBarRenderer _functionKeyBarRenderer;
     private readonly PanelRefreshService _panelRefresh;
     private readonly PanelSearchResultsService _searchResults;
     private readonly PanelSortServiceFacade _panelSort;
@@ -193,6 +196,13 @@ public sealed class Application
             GetPanelState,
             VisibleRows,
             SafeRefresh);
+        _panelWorkspaceRenderer = new ApplicationPanelWorkspaceRenderer(
+            _screen,
+            () => _palette,
+            _ctrl,
+            () => _highlightService,
+            () => PanelOptions);
+        _clockRenderer = new ClockRenderer(_screen, () => _palette);
         _panelSort = new PanelSortServiceFacade(
             _ctrl,
             () => PanelOptions,
@@ -290,6 +300,11 @@ public sealed class Application
         _commandRegistry = ApplicationCommandRegistry.CreateDefault();
         _commandContext   = new ApplicationCommandContext(this);
         _functionKeyBindings = _functionKeyBindingProvider.GetBindings();
+        _functionKeyBarRenderer = new ApplicationFunctionKeyBarRenderer(
+            _screen,
+            () => _palette,
+            _functionKeyBindings,
+            CanExecuteFunctionKeyCommand);
 
         _dirSizeCalc.Completed += OnDirSizeCalculated;
         _dirSizeCalc.Progress  += OnDirSizeProgress;
@@ -552,52 +567,19 @@ public sealed class Application
         var viewport = _screen.FrameViewport;
         var size   = viewport.Size;
         _lastRenderViewport = viewport;
-        int panelH = ApplicationLayoutService.PanelHeight(size);
-        int leftW  = size.Width / 2;
-        int rightW = size.Width - leftW;
-
-        var panelRenderer = new PanelRenderer(_screen, _palette, _highlightService, PanelOptions);
-        var leftBounds  = new Rect(0,     0, leftW,  panelH);
-        var rightBounds = new Rect(leftW, 0, rightW, panelH);
-        _leftBounds  = leftBounds;
-        _rightBounds = rightBounds;
-
-        if (_quickView)
-        {
-            if (_active == PanelSide.Left)
-            {
-                var item = _ctrl.CurrentItem(_left);
-                if (IsPanelVisible(PanelSide.Left))
-                    panelRenderer.Render(leftBounds, _left, true, _leftViewMode);
-                if (IsPanelVisible(PanelSide.Right))
-                {
-                    new QuickViewRenderer(_screen, _palette).Render(
-                        rightBounds,
-                        item,
-                        item is { IsDirectory: true } ? _quickViewDirState : null);
-                }
-            }
-            else
-            {
-                var item = _ctrl.CurrentItem(_right);
-                if (IsPanelVisible(PanelSide.Left))
-                {
-                    new QuickViewRenderer(_screen, _palette).Render(
-                        leftBounds,
-                        item,
-                        item is { IsDirectory: true } ? _quickViewDirState : null);
-                }
-                if (IsPanelVisible(PanelSide.Right))
-                    panelRenderer.Render(rightBounds, _right, true, _rightViewMode);
-            }
-        }
-        else
-        {
-            if (IsPanelVisible(PanelSide.Left))
-                panelRenderer.Render(leftBounds, _left, _active == PanelSide.Left, _leftViewMode);
-            if (IsPanelVisible(PanelSide.Right))
-                panelRenderer.Render(rightBounds, _right, _active == PanelSide.Right, _rightViewMode);
-        }
+        var panelBounds = _panelWorkspaceRenderer.Render(
+            size,
+            _left,
+            _right,
+            _active,
+            _leftViewMode,
+            _rightViewMode,
+            _quickView,
+            _quickViewDirState,
+            IsPanelVisible);
+        int panelH = panelBounds.PanelHeight;
+        _leftBounds = panelBounds.Left;
+        _rightBounds = panelBounds.Right;
 
         if (HasVisiblePanels)
             new DirectoryShortcutBarRenderer(_screen, _palette)
@@ -661,24 +643,12 @@ public sealed class Application
 
     private void RenderClock(ConsoleSize size)
     {
-        string text = DateTime.Now.ToString("H:mm", System.Globalization.CultureInfo.InvariantCulture);
-        if (text.Length > size.Width)
-            return;
-
-        var style = new CellStyle(_palette.PanelPathActiveFg, _palette.PanelPathActiveBg);
-        _screen.Write(size.Width - text.Length, 0, text, style);
+        _clockRenderer.Render(size);
     }
 
     private void RenderFunctionKeyBar(ConsoleSize size)
     {
-        var items = _functionKeyBindings
-            .Where(binding =>
-                binding.Layer == _functionKeyLayer &&
-                CanExecuteFunctionKeyCommand(binding.CommandId))
-            .Select(binding => new FunctionKeyBarItem(binding.KeyNumber, binding.Label))
-            .ToArray();
-
-        new FunctionKeyBarRenderer(_screen, _palette).Render(size.Height - 1, size.Width, items);
+        _functionKeyBarRenderer.Render(size, _functionKeyLayer);
     }
 
     private void RenderCommandCompletion(ConsoleSize size, int commandLineRow)
