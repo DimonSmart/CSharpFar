@@ -1,4 +1,5 @@
 using CSharpFar.App.Dialogs;
+using CSharpFar.App.AutoRefresh;
 using CSharpFar.App.Commands;
 using CSharpFar.App.CommandLine;
 using CSharpFar.App.DirectoryShortcuts;
@@ -44,12 +45,16 @@ public sealed class Application
     private readonly IFileLauncher _fileLauncher;
     private readonly IFileOperationService _fileOps;
     private readonly PanelFileViewerService _panelFileViewer;
+    private readonly PanelAutoRefreshService _autoRefresh;
+    private readonly PanelRefreshService _panelRefresh;
     private readonly ISearchService _searchService;
     private readonly FilePanelSourceRegistry _sourceRegistry;
     private readonly NativeModuleCatalog _moduleCatalog;
+    private readonly ModulePanelOpener _modulePanelOpener;
     private readonly IHistoryStore _history;
     private readonly CommandHistoryNavigator _commandHistoryNavigator;
     private readonly CommandCompletionController _commandCompletionController;
+    private readonly ChangeDirectoryCommandExecutor _changeDirectoryCommandExecutor;
     private readonly AppSettingsAlias _settings;
     private readonly UserMenuStore _userMenu;
     private readonly Action? _saveSettings;
@@ -74,9 +79,6 @@ public sealed class Application
     private IFileHighlightService?          _highlightService;
     private Rect                            _leftBounds;
     private Rect                            _rightBounds;
-    private IFileSystemChangeWatcher?       _watcher;
-    private IFileSystemLocationService?     _locationService;
-    private CancellationTokenSource         _refreshCts = new();
     private readonly MenuState              _menuState = new();
     private readonly DefaultMenuDefinitionProvider _menuProvider = new();
     private readonly DefaultFunctionKeyBindingProvider _functionKeyBindingProvider = new();
@@ -163,6 +165,12 @@ public sealed class Application
         _history      = history      ?? new InMemoryHistoryStore();
         _commandHistoryNavigator = new CommandHistoryNavigator(_history);
         _commandCompletionController = new CommandCompletionController(_history, _commandCompletion);
+        _changeDirectoryCommandExecutor = new ChangeDirectoryCommandExecutor(
+            _ctrl,
+            () => ActiveState,
+            () => _active,
+            () => PanelOptions,
+            StartWatching);
         _settings     = settings     ?? new AppSettingsAlias();
         _clipboard    = clipboard    ?? TextCopyTextClipboard.Instance;
         _userMenu     = userMenu     ?? new UserMenuStore(
@@ -171,10 +179,21 @@ public sealed class Application
                 "CSharpFar"));
         _saveSettings     = saveSettings;
         _volumeService    = volumeService;
-        _watcher          = changeWatcher;
-        _locationService  = locationService;
         _menuController   = new TopMenuController(_menuState, ExecuteMenuCommand);
         _palette          = PaletteRegistry.Resolve(_settings.Ui.Palette);
+        _autoRefresh = new PanelAutoRefreshService(
+            changeWatcher,
+            locationService,
+            () => PanelOptions,
+            GetPanelState,
+            VisibleRows,
+            SafeRefresh);
+        _panelRefresh = new PanelRefreshService(
+            _ctrl,
+            () => PanelOptions,
+            VisibleRows,
+            ClosePanelQuickSearchForState,
+            RefreshSearchResultsPanel);
         _panelFileViewer = new PanelFileViewerService(
             _screen,
             () => _palette,
@@ -212,12 +231,20 @@ public sealed class Application
                 Credentials = credentialStore,
                 Panels = new ApplicationModulePanelHost(this),
             });
+        _modulePanelOpener = new ModulePanelOpener(
+            _moduleCatalog,
+            _sourceRegistry,
+            _ctrl,
+            _screen,
+            () => _palette,
+            () => PanelOptions,
+            GetPanelState,
+            side => ActiveSide = side,
+            quickView => QuickView = quickView);
         _commandRegistry = ApplicationCommandRegistry.CreateDefault();
         _commandContext   = new ApplicationCommandContext(this);
         _functionKeyBindings = _functionKeyBindingProvider.GetBindings();
 
-        if (_watcher != null)
-            _watcher.Changed += OnFileSystemChanged;
         _dirSizeCalc.Completed += OnDirSizeCalculated;
         _dirSizeCalc.Progress  += OnDirSizeProgress;
         _leftViewMode     = ResolveViewMode(_settings.Panels.LeftViewMode);
@@ -349,13 +376,13 @@ public sealed class Application
                 ConsoleInputEvent evt;
                 try
                 {
-                    evt = _screen.ReadInput(_refreshCts.Token);
+                    evt = _screen.ReadInput(_autoRefresh.WaitToken);
                 }
                 catch (OperationCanceledException)
                 {
                     // Woken by auto-refresh — reset CTS and refresh affected panels.
-                    ResetRefreshCts();
-                    ProcessPendingRefreshes();
+                    _autoRefresh.ResetWaitToken();
+                    _autoRefresh.ProcessPendingRefreshes();
                     if (_running && HasVisiblePanels)
                         RenderUntilStable();
                     continue;
@@ -460,10 +487,7 @@ public sealed class Application
     {
         if (_quickViewDirPath != path) return;
         _quickViewDirState = state;
-        // Signal the input loop to wake up and repaint.
-        // Do NOT replace the CTS here — just cancel the current one.
-        // ResetRefreshCts() will create a fresh CTS before the next ReadInput.
-        _refreshCts.Cancel();
+        _autoRefresh.WakeInputLoop();
     }
 
     // ── rendering ─────────────────────────────────────────────────────────────
@@ -2444,47 +2468,14 @@ public sealed class Application
         side == PanelSide.Left ? _left : _right;
 
     internal ApplicationCommandResult OpenModuleMenuItem(Guid actionId) =>
-        HandleModuleOpenResult(
-            _moduleCatalog.OpenFromMenu(actionId, _active),
-            _active);
+        _modulePanelOpener.OpenMenuItem(actionId, _active);
 
     internal ApplicationCommandResult OpenModuleDiskMenuItem(Guid actionId, PanelSide panelSide) =>
-        HandleModuleOpenResult(
-            _moduleCatalog.OpenFromDiskMenu(actionId, panelSide),
-            panelSide);
+        _modulePanelOpener.OpenDiskMenuItem(actionId, panelSide);
 
     internal void OpenModulePanel(PanelSide panelSide, IModulePanel panel)
     {
-        ArgumentNullException.ThrowIfNull(panel);
-
-        _sourceRegistry.Add(panel);
-        var panelInfo = panel.GetOpenPanelInfo();
-        var state = GetPanelState(panelSide);
-        _ctrl.TryLoadLocation(
-            state,
-            new PanelLocation(panel.SourceId, panelInfo.CurrentDirectory),
-            PanelOptions);
-        state.DisplayTitle = panelInfo.Title;
-        state.ShowCurrentItemFullPath = true;
-        QuickView = false;
-        ActiveSide = panelSide;
-    }
-
-    private ApplicationCommandResult HandleModuleOpenResult(
-        ModuleActionResult result,
-        PanelSide defaultPanelSide)
-    {
-        switch (result.Kind)
-        {
-            case ModuleActionResultKind.OpenedPanel:
-                OpenModulePanel(defaultPanelSide, result.Panel!);
-                return ApplicationCommandResult.Rendered();
-            case ModuleActionResultKind.Failed:
-                new MessageDialog(_screen, _palette).Show("Module", result.Message ?? "Module operation failed.");
-                return ApplicationCommandResult.Rendered();
-            default:
-                return ApplicationCommandResult.Rendered();
-        }
+        _modulePanelOpener.OpenPanel(panelSide, panel);
     }
 
     internal string CombinePanelPath(FilePanelState state, string name)
@@ -2514,13 +2505,10 @@ public sealed class Application
         ResetCommandHistoryNavigation();
         AddCommandHistory(command, workDir);
 
-        if (_moduleCatalog.TryOpenFromCommandLine(command, _active, out var moduleResult))
-        {
-            HandleModuleOpenResult(moduleResult, _active);
+        if (_modulePanelOpener.TryOpenFromCommandLine(command, _active))
             return;
-        }
 
-        if (TryExecuteChangeDirectoryCommand(command))
+        if (_changeDirectoryCommandExecutor.TryExecute(command))
             return;
 
         ExecuteInCurrentConsole(workDir, command, () => _shell.Execute(command, workDir));
@@ -2534,55 +2522,6 @@ public sealed class Application
             WorkingDirectory = workingDirectory,
         });
     }
-
-    private bool TryExecuteChangeDirectoryCommand(string command)
-    {
-        if (!ChangeDirectoryCommandParser.TryParseTarget(command, out string? rawTarget))
-            return false;
-
-        var state = ActiveState;
-        if (state.SourceId != PanelSourceId.Local)
-            return true;
-
-        string targetDirectory;
-        try
-        {
-            string target = Environment.ExpandEnvironmentVariables(rawTarget);
-            targetDirectory = Path.GetFullPath(target, state.CurrentDirectory);
-            if (!Directory.Exists(targetDirectory))
-                return true;
-        }
-        catch (Exception ex) when (IsChangeDirectoryException(ex))
-        {
-            return true;
-        }
-
-        if (string.Equals(
-            Path.GetFullPath(state.CurrentDirectory),
-            targetDirectory,
-            StringComparison.OrdinalIgnoreCase))
-        {
-            return true;
-        }
-
-        try
-        {
-            if (_ctrl.TryLoadDirectory(state, targetDirectory, PanelOptions))
-                StartWatching(state, _active);
-        }
-        catch (Exception ex) when (IsChangeDirectoryException(ex))
-        {
-        }
-
-        return true;
-    }
-
-    private static bool IsChangeDirectoryException(Exception exception) =>
-        exception is UnauthorizedAccessException
-            or IOException
-            or ArgumentException
-            or NotSupportedException
-            or DirectoryNotFoundException;
 
     internal void ExecuteInCurrentConsole(string workDir, string displayCommand, Action execute)
     {
@@ -2775,7 +2714,7 @@ public sealed class Application
             return false;
         }
 
-        HandleModuleOpenResult(result, side);
+        _modulePanelOpener.HandleOpenResult(result, side);
         return true;
     }
 
@@ -2857,25 +2796,12 @@ public sealed class Application
 
     internal void RefreshPanels()
     {
-        SafeRefresh(_left,  VisibleRows(PanelSide.Left));
-        SafeRefresh(_right, VisibleRows(PanelSide.Right));
+        _panelRefresh.RefreshPanels(_left, _right);
     }
 
     internal void RefreshPanelsAfterFileOperation()
     {
-        RefreshPanelAfterFileOperation(_left, PanelSide.Left);
-        RefreshPanelAfterFileOperation(_right, PanelSide.Right);
-    }
-
-    private void RefreshPanelAfterFileOperation(FilePanelState state, PanelSide side)
-    {
-        if (state.SearchRequest is not null)
-        {
-            state.Summary = PanelSearchResultsSummaryBuilder.BuildSummary(state);
-            return;
-        }
-
-        SafeRefresh(state, VisibleRows(side));
+        _panelRefresh.RefreshPanelsAfterFileOperation(_left, _right);
     }
 
     private void RefreshSearchResultsPanel(FilePanelState state, int visibleRows)
@@ -2943,17 +2869,7 @@ public sealed class Application
 
     internal void SafeRefresh(FilePanelState state, int visibleRows)
     {
-        if (!HasCapability(state, PanelProviderCapabilities.Refresh))
-            return;
-
-        ClosePanelQuickSearchForState(state);
-        if (state.SearchRequest is not null)
-        {
-            RefreshSearchResultsPanel(state, visibleRows);
-            return;
-        }
-
-        _ctrl.TryRefreshDirectory(state, visibleRows, PanelOptions);
+        _panelRefresh.SafeRefresh(state, visibleRows);
     }
 
     internal void SetPanelSortMode(FilePanelState state, SortMode mode, int visibleRows)
@@ -3041,65 +2957,7 @@ public sealed class Application
 
     internal void StartWatching(FilePanelState state, PanelSide side)
     {
-        if (_watcher == null || _locationService == null) return;
-        if (state.SourceId != PanelSourceId.Local ||
-            !HasCapability(state, PanelProviderCapabilities.Watch))
-        {
-            state.AutoRefreshState = null;
-            return;
-        }
-
-        var loc = _locationService.GetLocationInfo(state.CurrentDirectory);
-        var opts = PanelOptions.AutoRefresh;
-        var req = new PanelWatchRequest
-        {
-            PanelSide     = side,
-            DirectoryPath = state.CurrentDirectory,
-            ObjectCount   = state.Items.Count,
-            IsNetworkDrive = loc.IsNetworkDrive,
-            Options        = opts,
-        };
-        var refreshState = _watcher.StartWatching(req);
-        state.AutoRefreshState = refreshState;
-    }
-
-    private readonly Queue<FileSystemPanelChanged> _pendingRefreshEvents = new();
-
-    private void OnFileSystemChanged(object? sender, FileSystemPanelChanged e)
-    {
-        lock (_pendingRefreshEvents)
-            _pendingRefreshEvents.Enqueue(e);
-
-        // Wake the input loop
-        _refreshCts.Cancel();
-    }
-
-    private void ResetRefreshCts()
-    {
-        var old = Interlocked.Exchange(ref _refreshCts, new CancellationTokenSource());
-        old.Dispose();
-    }
-
-    private void ProcessPendingRefreshes()
-    {
-        while (true)
-        {
-            FileSystemPanelChanged? evt;
-            lock (_pendingRefreshEvents)
-            {
-                evt = _pendingRefreshEvents.Count > 0 ? _pendingRefreshEvents.Dequeue() : null;
-            }
-            if (evt is null) break;
-
-            var state = evt.PanelSide == PanelSide.Left ? _left : _right;
-            if (!string.Equals(state.CurrentDirectory, evt.DirectoryPath,
-                    StringComparison.OrdinalIgnoreCase))
-                continue;
-
-            int vr = VisibleRows(evt.PanelSide);
-            if (Directory.Exists(state.CurrentDirectory))
-                SafeRefresh(state, vr);
-        }
+        _autoRefresh.StartWatching(state, side);
     }
 
     // ── alias to avoid namespace conflict with CSharpFar.Console ─────────────
