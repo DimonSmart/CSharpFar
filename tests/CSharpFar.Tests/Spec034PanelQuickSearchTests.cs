@@ -1,5 +1,6 @@
 using System.Reflection;
 using CSharpFar.App;
+using CSharpFar.App.Panels;
 using CSharpFar.Console;
 using CSharpFar.Core.Abstractions;
 using CSharpFar.Core.History;
@@ -260,7 +261,8 @@ public sealed class Spec034PanelQuickSearchTests : IDisposable
     {
         var field = typeof(Application).GetField("_panelQuickSearch", BindingFlags.Instance | BindingFlags.NonPublic)
             ?? throw new InvalidOperationException("Application._panelQuickSearch field not found.");
-        return field.GetValue(app);
+        var controller = (PanelQuickSearchController)field.GetValue(app)!;
+        return controller.State;
     }
 
     private static string? GetQuickSearchText(Application app)
