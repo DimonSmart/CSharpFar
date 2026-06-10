@@ -1,9 +1,15 @@
+using CSharpFar.App.AutoRefresh;
 using CSharpFar.App.CommandLine;
+using CSharpFar.App.Commands;
+using CSharpFar.App.Files;
 using CSharpFar.App.FunctionKeys;
 using CSharpFar.App.Menu;
 using CSharpFar.App.Modules;
+using CSharpFar.App.Panels;
+using CSharpFar.App.Rendering;
 using CSharpFar.App.State;
 using CSharpFar.App.UserMenu;
+using CSharpFar.App.Viewer;
 using CSharpFar.Console;
 using CSharpFar.Core.Abstractions;
 using CSharpFar.Core.Controllers;
@@ -39,6 +45,29 @@ internal sealed class ApplicationServices
     public required IReadOnlyList<FunctionKeyBinding> FunctionKeyBindings { get; init; }
     public required MenuLayoutService MenuLayoutService { get; init; }
     public required IFileHighlightService? HighlightService { get; init; }
+    public required ApplicationServiceCallbacks Callbacks { get; init; }
+    public required ChangeDirectoryCommandExecutor ChangeDirectoryCommandExecutor { get; init; }
+    public required TopMenuController MenuController { get; init; }
+    public required PanelAutoRefreshService AutoRefresh { get; init; }
+    public required ApplicationPanelWorkspaceRenderer PanelWorkspaceRenderer { get; init; }
+    public required ClockRenderer ClockRenderer { get; init; }
+    public required PanelSortServiceFacade PanelSort { get; init; }
+    public required PanelNavigationService PanelNavigation { get; init; }
+    public required PanelSearchResultsService SearchResults { get; init; }
+    public required PanelRefreshService PanelRefresh { get; init; }
+    public required PanelQuickSearchController PanelQuickSearch { get; init; }
+    public required PanelFileViewerService PanelFileViewer { get; init; }
+    public required PanelFileOpener PanelFileOpener { get; init; }
+    public required NativeModuleCatalog ModuleCatalog { get; init; }
+    public required ModulePanelOpener ModulePanelOpener { get; init; }
+    public required FarNetPanelActionService FarNetPanelActions { get; init; }
+    public required ApplicationCommandRegistry CommandRegistry { get; init; }
+    public required ApplicationFunctionKeyBarRenderer FunctionKeyBarRenderer { get; init; }
+    public required ApplicationOverlayRenderer OverlayRenderer { get; init; }
+    public required ApplicationCommandLineRenderer CommandLineRenderer { get; init; }
+    public required ShellUnderlayService ShellUnderlay { get; init; }
+    public required QuickViewDirectorySizeController QuickViewDirectorySize { get; init; }
+    public required ApplicationRuntime Runtime { get; init; }
     public required string ConfigDirectory { get; init; }
     public required bool EnableBuiltInNetworkModules { get; init; }
     public required ICredentialStore? CredentialStore { get; init; }

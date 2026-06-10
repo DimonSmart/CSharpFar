@@ -207,161 +207,67 @@ public sealed class Application
         _functionKeyBindings = services.FunctionKeyBindings;
         _menuLayoutService = services.MenuLayoutService;
         _highlightService = services.HighlightService;
-        _changeDirectoryCommandExecutor = new ChangeDirectoryCommandExecutor(
-            _ctrl,
-            () => ActiveState,
-            () => _active,
-            () => PanelOptions,
-            StartWatching);
-        _menuController   = new TopMenuController(_menuState, ExecuteMenuCommand);
-        _autoRefresh = new PanelAutoRefreshService(
-            services.ChangeWatcher,
-            services.LocationService,
-            () => PanelOptions,
-            GetPanelState,
-            VisibleRows,
-            SafeRefresh);
-        _panelWorkspaceRenderer = new ApplicationPanelWorkspaceRenderer(
-            _screen,
-            () => _state.Palette,
-            _ctrl,
-            () => _highlightService,
-            () => PanelOptions);
-        _clockRenderer = new ClockRenderer(_screen, () => _state.Palette);
-        _panelSort = new PanelSortServiceFacade(
-            _ctrl,
-            () => PanelOptions,
-            ClosePanelQuickSearchForState);
-        _panelNavigation = new PanelNavigationService(
-            _ctrl,
-            _history,
-            () => PanelOptions,
-            VisibleRows,
-            ClosePanelQuickSearchForPanel,
-            StartWatching);
-        _searchResults = new PanelSearchResultsService(
-            _screen,
-            _searchService,
-            () => _state.Palette,
-            _ctrl,
-            _history,
-            () => PanelOptions,
-            PanelSideForState,
-            VisibleRows,
-            ClosePanelQuickSearchForState,
-            ClosePanelQuickSearchForPanel,
-            StartWatching,
-            _panelSort.SortVirtualPanel);
-        _panelRefresh = new PanelRefreshService(
-            _ctrl,
-            () => PanelOptions,
-            VisibleRows,
-            ClosePanelQuickSearchForState,
-            _searchResults.RefreshPanel);
-        _panelQuickSearch = new PanelQuickSearchController(
-            _ctrl,
-            () => _active,
-            () => HasVisiblePanels,
-            IsPanelVisible,
-            GetPanelState,
-            VisibleRows);
-        _panelFileViewer = new PanelFileViewerService(
-            _screen,
-            () => _state.Palette,
-            _sourceRegistry,
-            _history,
-            _clipboard,
-            _settings,
-            _ctrl,
-            PanelSideForState,
-            VisibleRows,
-            SafeRefresh);
-        _panelFileOpener = new PanelFileOpener(
-            _fileLauncher,
-            _screen,
-            () => _state.Palette,
-            ViewPanelFile,
-            ExecuteInCurrentConsole);
-        var moduleUiServices = new ModuleUiServices
-        {
-            Screen = _screen,
-            Palette = () => _state.Palette,
-        };
-        services.FarNetModuleHost?.Initialize(new FarNetModuleHostServices
-        {
-            Ui = moduleUiServices,
-            DataRoot = Path.Combine(services.ConfigDirectory, "FarNet"),
-            GetActivePanelSide = () => ActiveSide,
-            GetPanelState = GetPanelState,
-        });
-        _moduleCatalog = ModuleCatalogFactory.Create(
-            services.EnableBuiltInNetworkModules ? services.SftpModule ?? new SftpModule() : null,
-            services.EnableBuiltInNetworkModules ? services.FtpModule ?? new FtpModule() : null,
-            services.FarNetModuleHost,
-            new ModuleStartupInfo
-            {
-                Ui = moduleUiServices,
-                Settings = new ModuleSettingsService(services.ConfigDirectory),
-                Credentials = services.CredentialStore,
-                Panels = new ApplicationModulePanelHost(this),
-            });
-        _modulePanelOpener = new ModulePanelOpener(
-            _moduleCatalog,
-            _sourceRegistry,
-            _ctrl,
-            _screen,
-            () => _state.Palette,
-            () => PanelOptions,
-            GetPanelState,
-            side => ActiveSide = side,
-            quickView => QuickView = quickView);
-        _farNetPanelActions = new FarNetPanelActionService(
-            _sourceRegistry,
-            _ctrl,
-            _screen,
-            () => _state.Palette,
-            _settings,
-            _clipboard,
-            _modulePanelOpener,
-            VisibleRows,
-            PanelSideForState,
-            SafeRefresh);
-        _commandRegistry = ApplicationCommandRegistry.CreateDefault();
+        _changeDirectoryCommandExecutor = services.ChangeDirectoryCommandExecutor;
+        _menuController = services.MenuController;
+        _autoRefresh = services.AutoRefresh;
+        _panelWorkspaceRenderer = services.PanelWorkspaceRenderer;
+        _clockRenderer = services.ClockRenderer;
+        _panelSort = services.PanelSort;
+        _panelNavigation = services.PanelNavigation;
+        _searchResults = services.SearchResults;
+        _panelRefresh = services.PanelRefresh;
+        _panelQuickSearch = services.PanelQuickSearch;
+        _panelFileViewer = services.PanelFileViewer;
+        _panelFileOpener = services.PanelFileOpener;
+        _moduleCatalog = services.ModuleCatalog;
+        _modulePanelOpener = services.ModulePanelOpener;
+        _farNetPanelActions = services.FarNetPanelActions;
+        _commandRegistry = services.CommandRegistry;
         _commandContext   = new ApplicationCommandContext(this);
-        _functionKeyBarRenderer = new ApplicationFunctionKeyBarRenderer(
-            _screen,
-            () => _state.Palette,
-            _functionKeyBindings,
-            CanExecuteFunctionKeyCommand);
-        _overlayRenderer = new ApplicationOverlayRenderer(
-            _screen,
-            () => _state.Palette,
-            _menuLayoutService);
-        _commandLineRenderer = new ApplicationCommandLineRenderer(_screen, () => _state.Palette);
-        _shellUnderlay = new ShellUnderlayService(_screen);
-        _quickViewDirectorySize = new QuickViewDirectorySizeController(_autoRefresh.WakeInputLoop);
-        _runtime = new ApplicationRuntime(
-            _screen,
-            new ApplicationRuntimeContext
-            {
-                IsRunning = () => _state.Running,
-                HasVisiblePanels = () => HasVisiblePanels,
-                WaitToken = () => _autoRefresh.WaitToken,
-                CaptureUnderlay = _shellUnderlay.Capture,
-                StartWatchingInitialPanels = StartWatchingInitialPanels,
-                RenderUntilStable = RenderUntilStable,
-                RenderCommandLineOnlyUntilStable = RenderCommandLineOnlyUntilStable,
-                RestoreHiddenScreen = () => _shellUnderlay.RestoreForHiddenScreen(HasVisiblePanels),
-                ResetWaitToken = _autoRefresh.ResetWaitToken,
-                ProcessPendingRefreshes = _autoRefresh.ProcessPendingRefreshes,
-                DisposeRuntimeState = _quickViewDirectorySize.Dispose,
-                HandleResizeInput = HandleRuntimeResizeInput,
-                CheckViewportAfterInput = CheckRuntimeViewportAfterInput,
-                HandleKeyInput = HandleRuntimeKeyInput,
-                HandleModifierInput = HandleRuntimeModifierInput,
-                HandleMouseInput = HandleRuntimeMouseInput,
-            });
+        _functionKeyBarRenderer = services.FunctionKeyBarRenderer;
+        _overlayRenderer = services.OverlayRenderer;
+        _commandLineRenderer = services.CommandLineRenderer;
+        _shellUnderlay = services.ShellUnderlay;
+        _quickViewDirectorySize = services.QuickViewDirectorySize;
+        BindCallbacks(services.Callbacks);
+        _runtime = services.Runtime;
 
+    }
+
+    private void BindCallbacks(ApplicationServiceCallbacks callbacks)
+    {
+        callbacks.ActiveState = () => ActiveState;
+        callbacks.GetActiveSide = () => ActiveSide;
+        callbacks.SetActiveSide = side => ActiveSide = side;
+        callbacks.SetQuickView = quickView => QuickView = quickView;
+        callbacks.PanelOptions = () => PanelOptions;
+        callbacks.GetPanelState = GetPanelState;
+        callbacks.PanelSideForState = PanelSideForState;
+        callbacks.VisibleRows = VisibleRows;
+        callbacks.VisibleRowsForSide = VisibleRows;
+        callbacks.StartWatching = StartWatching;
+        callbacks.SafeRefresh = SafeRefresh;
+        callbacks.ClosePanelQuickSearchForState = ClosePanelQuickSearchForState;
+        callbacks.ClosePanelQuickSearchForPanel = ClosePanelQuickSearchForPanel;
+        callbacks.HasVisiblePanels = () => HasVisiblePanels;
+        callbacks.IsPanelVisible = IsPanelVisible;
+        callbacks.ViewPanelFile = ViewPanelFile;
+        callbacks.ExecuteInCurrentConsole = ExecuteInCurrentConsole;
+        callbacks.CanExecuteFunctionKeyCommand = CanExecuteFunctionKeyCommand;
+        callbacks.ExecuteMenuCommand = ExecuteMenuCommand;
+        callbacks.IsRunning = () => _state.Running;
+        callbacks.CaptureUnderlay = _shellUnderlay.Capture;
+        callbacks.StartWatchingInitialPanels = StartWatchingInitialPanels;
+        callbacks.RenderUntilStable = RenderUntilStable;
+        callbacks.RenderCommandLineOnlyUntilStable = RenderCommandLineOnlyUntilStable;
+        callbacks.RestoreHiddenScreen = () => _shellUnderlay.RestoreForHiddenScreen(HasVisiblePanels);
+        callbacks.HandleResizeInput = HandleRuntimeResizeInput;
+        callbacks.CheckViewportAfterInput = CheckRuntimeViewportAfterInput;
+        callbacks.HandleKeyInput = HandleRuntimeKeyInput;
+        callbacks.HandleModifierInput = HandleRuntimeModifierInput;
+        callbacks.HandleMouseInput = HandleRuntimeMouseInput;
+        callbacks.RefreshPanels = RefreshPanels;
+        callbacks.OpenModulePanel = OpenModulePanel;
     }
 
     internal ScreenRenderer CommandScreen => _screen;

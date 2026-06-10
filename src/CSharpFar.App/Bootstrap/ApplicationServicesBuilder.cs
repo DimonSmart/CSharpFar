@@ -1,7 +1,15 @@
+using CSharpFar.App.AutoRefresh;
 using CSharpFar.App.CommandLine;
+using CSharpFar.App.Commands;
+using CSharpFar.App.Files;
 using CSharpFar.App.FunctionKeys;
 using CSharpFar.App.Highlighting;
+using CSharpFar.App.Menu;
+using CSharpFar.App.Modules;
+using CSharpFar.App.Panels;
+using CSharpFar.App.Rendering;
 using CSharpFar.App.UserMenu;
+using CSharpFar.App.Viewer;
 using CSharpFar.Console;
 using CSharpFar.Core.Abstractions;
 using CSharpFar.Core.Controllers;
@@ -9,6 +17,7 @@ using CSharpFar.Core.History;
 using CSharpFar.Core.Services;
 using CSharpFar.FarNetHost;
 using CSharpFar.FileSystem;
+using CSharpFar.Module.Abstractions;
 using CSharpFar.Module.Ftp;
 using CSharpFar.Module.Sftp;
 using CSharpFar.Shell;
@@ -60,6 +69,157 @@ internal static class ApplicationServicesBuilder
         var effectiveConfigDirectory = configDirectory ?? Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
             "CSharpFar");
+        var effectiveSearchService = searchService ?? new FileSystemSearchService();
+        var effectiveFileLauncher = fileLauncher ?? new WindowsShellFileLauncher();
+        var effectiveClipboard = clipboard ?? TextCopyTextClipboard.Instance;
+        var callbacks = new ApplicationServiceCallbacks();
+        var menuLayoutService = new MenuLayoutService();
+        var highlightService = FileHighlightServiceFactory.Create(effectiveSettings);
+        var commandCompletionController = new CommandCompletionController(
+            effectiveHistory,
+            session.CommandLine.Completion);
+        var changeDirectoryCommandExecutor = new ChangeDirectoryCommandExecutor(
+            controller,
+            () => callbacks.ActiveState(),
+            () => callbacks.GetActiveSide(),
+            () => callbacks.PanelOptions(),
+            (state, side) => callbacks.StartWatching(state, side));
+        var menuController = new TopMenuController(
+            session.Menu.State,
+            request => callbacks.ExecuteMenuCommand(request));
+        var autoRefresh = new PanelAutoRefreshService(
+            changeWatcher,
+            locationService,
+            () => callbacks.PanelOptions(),
+            side => callbacks.GetPanelState(side),
+            side => callbacks.VisibleRowsForSide(side),
+            (state, rows) => callbacks.SafeRefresh(state, rows));
+        var panelWorkspaceRenderer = new ApplicationPanelWorkspaceRenderer(
+            screen,
+            () => session.App.Palette,
+            controller,
+            () => highlightService,
+            () => callbacks.PanelOptions());
+        var clockRenderer = new ClockRenderer(screen, () => session.App.Palette);
+        var panelSort = new PanelSortServiceFacade(
+            controller,
+            () => callbacks.PanelOptions(),
+            state => callbacks.ClosePanelQuickSearchForState(state));
+        var panelNavigation = new PanelNavigationService(
+            controller,
+            effectiveHistory,
+            () => callbacks.PanelOptions(),
+            side => callbacks.VisibleRowsForSide(side),
+            side => callbacks.ClosePanelQuickSearchForPanel(side),
+            (state, side) => callbacks.StartWatching(state, side));
+        var searchResults = new PanelSearchResultsService(
+            screen,
+            effectiveSearchService,
+            () => session.App.Palette,
+            controller,
+            effectiveHistory,
+            () => callbacks.PanelOptions(),
+            state => callbacks.PanelSideForState(state),
+            side => callbacks.VisibleRowsForSide(side),
+            state => callbacks.ClosePanelQuickSearchForState(state),
+            side => callbacks.ClosePanelQuickSearchForPanel(side),
+            (state, side) => callbacks.StartWatching(state, side),
+            panelSort.SortVirtualPanel);
+        var panelRefresh = new PanelRefreshService(
+            controller,
+            () => callbacks.PanelOptions(),
+            side => callbacks.VisibleRowsForSide(side),
+            state => callbacks.ClosePanelQuickSearchForState(state),
+            searchResults.RefreshPanel);
+        var panelQuickSearch = new PanelQuickSearchController(
+            controller,
+            () => callbacks.GetActiveSide(),
+            () => callbacks.HasVisiblePanels(),
+            side => callbacks.IsPanelVisible(side),
+            side => callbacks.GetPanelState(side),
+            side => callbacks.VisibleRowsForSide(side));
+        var panelFileViewer = new PanelFileViewerService(
+            screen,
+            () => session.App.Palette,
+            effectiveSourceRegistry,
+            effectiveHistory,
+            effectiveClipboard,
+            effectiveSettings,
+            controller,
+            state => callbacks.PanelSideForState(state),
+            side => callbacks.VisibleRowsForSide(side),
+            (state, rows) => callbacks.SafeRefresh(state, rows));
+        var panelFileOpener = new PanelFileOpener(
+            effectiveFileLauncher,
+            screen,
+            () => session.App.Palette,
+            (state, item) => callbacks.ViewPanelFile(state, item),
+            (workDir, displayCommand, execute) => callbacks.ExecuteInCurrentConsole(workDir, displayCommand, execute));
+        var moduleUiServices = new ModuleUiServices
+        {
+            Screen = screen,
+            Palette = () => session.App.Palette,
+        };
+        farNetModuleHost?.Initialize(new FarNetModuleHostServices
+        {
+            Ui = moduleUiServices,
+            DataRoot = Path.Combine(effectiveConfigDirectory, "FarNet"),
+            GetActivePanelSide = () => callbacks.GetActiveSide(),
+            GetPanelState = side => callbacks.GetPanelState(side),
+        });
+        var moduleCatalog = ModuleCatalogFactory.Create(
+            enableBuiltInNetworkModules ? sftpModule ?? new SftpModule() : null,
+            enableBuiltInNetworkModules ? ftpModule ?? new FtpModule() : null,
+            farNetModuleHost,
+            new ModuleStartupInfo
+            {
+                Ui = moduleUiServices,
+                Settings = new ModuleSettingsService(effectiveConfigDirectory),
+                Credentials = credentialStore,
+                Panels = new ApplicationModulePanelHost(callbacks),
+            });
+        var modulePanelOpener = new ModulePanelOpener(
+            moduleCatalog,
+            effectiveSourceRegistry,
+            controller,
+            screen,
+            () => session.App.Palette,
+            () => callbacks.PanelOptions(),
+            side => callbacks.GetPanelState(side),
+            side => callbacks.SetActiveSide(side),
+            quickView => callbacks.SetQuickView(quickView));
+        var farNetPanelActions = new FarNetPanelActionService(
+            effectiveSourceRegistry,
+            controller,
+            screen,
+            () => session.App.Palette,
+            effectiveSettings,
+            effectiveClipboard,
+            modulePanelOpener,
+            side => callbacks.VisibleRowsForSide(side),
+            state => callbacks.PanelSideForState(state),
+            (state, rows) => callbacks.SafeRefresh(state, rows));
+        var commandRegistry = ApplicationCommandRegistry.CreateDefault();
+        var functionKeyBarRenderer = new ApplicationFunctionKeyBarRenderer(
+            screen,
+            () => session.App.Palette,
+            functionKeyBindingProvider.GetBindings(),
+            commandId => callbacks.CanExecuteFunctionKeyCommand(commandId));
+        var overlayRenderer = new ApplicationOverlayRenderer(
+            screen,
+            () => session.App.Palette,
+            menuLayoutService);
+        var commandLineRenderer = new ApplicationCommandLineRenderer(
+            screen,
+            () => session.App.Palette);
+        var shellUnderlay = new ShellUnderlayService(screen);
+        var quickViewDirectorySize = new QuickViewDirectorySizeController(autoRefresh.WakeInputLoop);
+        var runtime = ApplicationRuntimeBuilder.Create(
+            screen,
+            callbacks,
+            autoRefresh,
+            shellUnderlay,
+            quickViewDirectorySize);
 
         return new ApplicationServices
         {
@@ -67,22 +227,45 @@ internal static class ApplicationServicesBuilder
             FileSystem = fs,
             PanelController = controller,
             Shell = shell,
-            FileLauncher = fileLauncher ?? new WindowsShellFileLauncher(),
+            FileLauncher = effectiveFileLauncher,
             FileOperations = fileOps,
-            SearchService = searchService ?? new FileSystemSearchService(),
+            SearchService = effectiveSearchService,
             SourceRegistry = effectiveSourceRegistry,
             History = effectiveHistory,
             CommandHistoryNavigator = new CommandHistoryNavigator(effectiveHistory),
-            CommandCompletionController = new CommandCompletionController(effectiveHistory, session.CommandLine.Completion),
+            CommandCompletionController = commandCompletionController,
             Settings = effectiveSettings,
             UserMenu = userMenu ?? new UserMenuStore(effectiveConfigDirectory),
-            Clipboard = clipboard ?? TextCopyTextClipboard.Instance,
+            Clipboard = effectiveClipboard,
             Session = session,
             MenuProvider = new(),
             FunctionKeyBindingProvider = functionKeyBindingProvider,
             FunctionKeyBindings = functionKeyBindingProvider.GetBindings(),
-            MenuLayoutService = new(),
-            HighlightService = FileHighlightServiceFactory.Create(effectiveSettings),
+            MenuLayoutService = menuLayoutService,
+            HighlightService = highlightService,
+            Callbacks = callbacks,
+            ChangeDirectoryCommandExecutor = changeDirectoryCommandExecutor,
+            MenuController = menuController,
+            AutoRefresh = autoRefresh,
+            PanelWorkspaceRenderer = panelWorkspaceRenderer,
+            ClockRenderer = clockRenderer,
+            PanelSort = panelSort,
+            PanelNavigation = panelNavigation,
+            SearchResults = searchResults,
+            PanelRefresh = panelRefresh,
+            PanelQuickSearch = panelQuickSearch,
+            PanelFileViewer = panelFileViewer,
+            PanelFileOpener = panelFileOpener,
+            ModuleCatalog = moduleCatalog,
+            ModulePanelOpener = modulePanelOpener,
+            FarNetPanelActions = farNetPanelActions,
+            CommandRegistry = commandRegistry,
+            FunctionKeyBarRenderer = functionKeyBarRenderer,
+            OverlayRenderer = overlayRenderer,
+            CommandLineRenderer = commandLineRenderer,
+            ShellUnderlay = shellUnderlay,
+            QuickViewDirectorySize = quickViewDirectorySize,
+            Runtime = runtime,
             ConfigDirectory = effectiveConfigDirectory,
             EnableBuiltInNetworkModules = enableBuiltInNetworkModules,
             CredentialStore = credentialStore,
