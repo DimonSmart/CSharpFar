@@ -62,6 +62,7 @@ internal sealed class ApplicationRuntime
         finally
         {
             _context.DisposeRuntimeState();
+            _context.RestoreTerminal();
             _screen.SetCursorVisible(true);
         }
     }
@@ -87,6 +88,7 @@ internal sealed class ApplicationRuntimeContext
     public required Action RenderUntilStable { get; init; }
     public required Action RenderCommandLineOnlyUntilStable { get; init; }
     public required Action RestoreHiddenScreen { get; init; }
+    public required Action RestoreTerminal { get; init; }
     public required Action ResetWaitToken { get; init; }
     public required Action ProcessPendingRefreshes { get; init; }
     public required Action DisposeRuntimeState { get; init; }

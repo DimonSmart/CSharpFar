@@ -13,12 +13,18 @@ namespace CSharpFar.Console;
 /// so that shell output underneath the panels is preserved for Ctrl+O.
 /// This class targets Windows. On other platforms, Capture/Restore use a blank fallback.
 /// </summary>
-public sealed class SystemConsoleDriver : IConsoleDriver, IConsoleOutputModeDriver, IDisposable
+public sealed class SystemConsoleDriver : IConsoleDriver, IConsoleOutputModeDriver, ITerminalScreenMode, IDisposable
 {
+    private const string EnterAltScreen = "\x1b[?1049h";
+    private const string LeaveAltScreen = "\x1b[?1049l";
+    private const string ShowCursor = "\x1b[?25h";
+    private const string ResetAttributes = "\x1b[0m";
+
     private readonly IntPtr _consoleHandle;
     private readonly IntPtr _inputHandle;
     private readonly uint _originalInputMode;
     private readonly uint _originalOutputMode;
+    private readonly uint _applicationOutputMode;
     private readonly Win32ConsoleApi.ConsoleScreenBufferInfoEx _originalScreenBufferInfoEx;
     private readonly Coord _originalScreenBufferSize;
     private readonly bool _restoreInputMode;
@@ -29,6 +35,8 @@ public sealed class SystemConsoleDriver : IConsoleDriver, IConsoleOutputModeDriv
     private ConsoleViewport _lastInputViewport;
     private bool _renderingOutputMode;
     private bool _consoleScrollbackEnabled = true;
+    private bool _terminalScreenModeSupported;
+    private bool _applicationScreenActive;
     private bool _disposed;
     private static readonly Win32ConsoleApi.ConsoleCtrlHandler s_childProcessCtrlHandler = HandleChildProcessConsoleControl;
     private static int s_childProcessConsoleModeDepth;
@@ -41,6 +49,10 @@ public sealed class SystemConsoleDriver : IConsoleDriver, IConsoleOutputModeDriv
             _inputHandle = Win32ConsoleApi.GetConsoleInputHandle();
             _restoreInputMode = TryConfigureInputMode(_inputHandle, out _originalInputMode);
             _restoreOutputMode = Win32ConsoleApi.TryGetConsoleMode(_consoleHandle, out _originalOutputMode);
+            _applicationOutputMode = _originalOutputMode | Win32ConsoleApi.ENABLE_VIRTUAL_TERMINAL_PROCESSING;
+            _terminalScreenModeSupported = !global::System.Console.IsOutputRedirected &&
+                _restoreOutputMode &&
+                Win32ConsoleApi.TrySetConsoleMode(_consoleHandle, _applicationOutputMode);
             _restoreScreenBufferSize = Win32ConsoleApi.TryGetConsoleScreenBufferInfo(_consoleHandle, out var sbi);
             if (_restoreScreenBufferSize)
                 _originalScreenBufferSize = sbi.dwSize;
@@ -52,10 +64,16 @@ public sealed class SystemConsoleDriver : IConsoleDriver, IConsoleOutputModeDriv
         _lastInputViewport = GetViewport();
     }
 
+    public bool IsSupported => _terminalScreenModeSupported;
+
+    public bool IsApplicationScreenActive => _applicationScreenActive;
+
     public void Dispose()
     {
         if (_disposed)
             return;
+
+        RestoreTerminal();
 
         if (OperatingSystem.IsWindows() && _restoreInputMode)
             Win32ConsoleApi.TrySetConsoleMode(_inputHandle, _originalInputMode);
@@ -92,11 +110,45 @@ public sealed class SystemConsoleDriver : IConsoleDriver, IConsoleOutputModeDriv
             return;
 
         uint mode = enabled
-            ? _originalOutputMode & ~Win32ConsoleApi.ENABLE_WRAP_AT_EOL_OUTPUT
-            : _originalOutputMode;
+            ? _applicationOutputMode & ~Win32ConsoleApi.ENABLE_WRAP_AT_EOL_OUTPUT
+            : _applicationOutputMode;
 
         if (Win32ConsoleApi.TrySetConsoleMode(_consoleHandle, mode))
             _renderingOutputMode = enabled;
+    }
+
+    public void EnterApplicationScreen()
+    {
+        if (!IsSupported || _applicationScreenActive)
+            return;
+
+        WriteTerminalControl(EnterAltScreen);
+        _applicationScreenActive = true;
+    }
+
+    public void LeaveApplicationScreen()
+    {
+        if (!IsSupported || !_applicationScreenActive)
+            return;
+
+        WriteTerminalControl(LeaveAltScreen);
+        _applicationScreenActive = false;
+    }
+
+    public void EnsureApplicationScreen() => EnterApplicationScreen();
+
+    public void EnsureMainScreen() => LeaveApplicationScreen();
+
+    public void RestoreTerminal()
+    {
+        if (!IsSupported)
+            return;
+
+        WriteTerminalControl(LeaveAltScreen + ShowCursor + ResetAttributes);
+        _applicationScreenActive = false;
+
+        if (OperatingSystem.IsWindows() && _restoreOutputMode)
+            Win32ConsoleApi.TrySetConsoleMode(_consoleHandle, _originalOutputMode);
     }
 
     public void SetConsoleScrollbackEnabled(bool enabled)
@@ -113,6 +165,12 @@ public sealed class SystemConsoleDriver : IConsoleDriver, IConsoleOutputModeDriv
 
         if (TryLockConsoleBufferToViewport())
             _consoleScrollbackEnabled = false;
+    }
+
+    private static void WriteTerminalControl(string sequence)
+    {
+        global::System.Console.Out.Write(sequence);
+        global::System.Console.Out.Flush();
     }
 
     public ConsoleViewport GetViewport()

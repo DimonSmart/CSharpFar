@@ -52,7 +52,8 @@ internal static class ApplicationServicesBuilder
         FarNetModuleHost? farNetModuleHost = null,
         bool enableBuiltInNetworkModules = true,
         string? configDirectory = null,
-        ITextClipboard? clipboard = null)
+        ITextClipboard? clipboard = null,
+        ITerminalScreenMode? terminalScreenMode = null)
     {
         var effectiveSettings = settings ?? new AppSettingsAlias();
         var effectiveSourceRegistry = sourceRegistry ?? new FilePanelSourceRegistry([new LocalFilePanelSource(fs)]);
@@ -270,6 +271,7 @@ internal static class ApplicationServicesBuilder
         return new ApplicationServices
         {
             Screen = screen,
+            TerminalScreenMode = terminalScreenMode,
             FileSystem = fs,
             PanelController = controller,
             Shell = shell,

@@ -18,6 +18,7 @@ internal static class Win32ConsoleApi
     public const uint ENABLE_EXTENDED_FLAGS     = 0x0080;
     public const uint ENABLE_VIRTUAL_TERMINAL_INPUT = 0x0200;
     public const uint ENABLE_WRAP_AT_EOL_OUTPUT = 0x0002;
+    public const uint ENABLE_VIRTUAL_TERMINAL_PROCESSING = 0x0004;
 
     private const ushort KEY_EVENT               = 0x0001;
     private const ushort MOUSE_EVENT             = 0x0002;

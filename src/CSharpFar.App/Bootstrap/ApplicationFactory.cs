@@ -34,7 +34,8 @@ public static class ApplicationFactory
         FarNetModuleHost? farNetModuleHost = null,
         bool enableBuiltInNetworkModules = true,
         string? configDirectory = null,
-        ITextClipboard? clipboard = null) =>
+        ITextClipboard? clipboard = null,
+        ITerminalScreenMode? terminalScreenMode = null) =>
         new(ApplicationServicesBuilder.Create(
             screen,
             fs,
@@ -58,6 +59,7 @@ public static class ApplicationFactory
             farNetModuleHost,
             enableBuiltInNetworkModules,
             configDirectory,
-            clipboard));
+            clipboard,
+            terminalScreenMode));
 
 }

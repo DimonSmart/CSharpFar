@@ -27,6 +27,7 @@ namespace CSharpFar.App.Bootstrap;
 internal sealed class ApplicationServices
 {
     public required ScreenRenderer Screen { get; init; }
+    public required ITerminalScreenMode? TerminalScreenMode { get; init; }
     public required IFileSystemService FileSystem { get; init; }
     public required PanelController PanelController { get; init; }
     public required IShellService Shell { get; init; }

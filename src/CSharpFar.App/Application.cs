@@ -42,6 +42,7 @@ public sealed class Application
     private const int MaxCommandCompletionRows = CommandHistoryCompletionRenderer.MaxVisibleRows;
 
     private readonly ScreenRenderer _screen;
+    private readonly ITerminalScreenMode? _terminalScreenMode;
     private readonly ApplicationRuntime _runtime;
     private readonly IFileSystemService _fs;
     private readonly PanelController _ctrl;
@@ -158,7 +159,8 @@ public sealed class Application
         FarNetModuleHost?            farNetModuleHost  = null,
         bool                         enableBuiltInNetworkModules = true,
         string?                      configDirectory   = null,
-        ITextClipboard?              clipboard         = null)
+        ITextClipboard?              clipboard         = null,
+        ITerminalScreenMode?         terminalScreenMode = null)
         : this(ApplicationServicesBuilder.Create(
             screen,
             fs,
@@ -182,13 +184,15 @@ public sealed class Application
             farNetModuleHost,
             enableBuiltInNetworkModules,
             configDirectory,
-            clipboard))
+            clipboard,
+            terminalScreenMode))
     {
     }
 
     internal Application(ApplicationServices services)
     {
         _screen = services.Screen;
+        _terminalScreenMode = services.TerminalScreenMode;
         _fs = services.FileSystem;
         _sourceRegistry = services.SourceRegistry;
         _ctrl = services.PanelController;
@@ -291,6 +295,7 @@ public sealed class Application
         callbacks.RenderUntilStable = RenderUntilStable;
         callbacks.RenderCommandLineOnlyUntilStable = RenderCommandLineOnlyUntilStable;
         callbacks.RestoreHiddenScreen = () => _shellUnderlay.RestoreForHiddenScreen(HasVisiblePanels);
+        callbacks.RestoreTerminal = RestoreTerminal;
         callbacks.HandleResizeInput = HandleRuntimeResizeInput;
         callbacks.CheckViewportAfterInput = CheckRuntimeViewportAfterInput;
         callbacks.HandleKeyInput = HandleRuntimeKeyInput;
@@ -433,8 +438,8 @@ public sealed class Application
     private void Render()
     {
         UpdateQuickViewDirSize();
-        _shellUnderlay.ApplyConsoleScrollbackMode(HasVisiblePanels);
-        if (HasHiddenPanels)
+        ApplyTerminalScreenMode();
+        if (!UsesTerminalScreenMode && HasHiddenPanels)
             _shellUnderlay.RestoreForHiddenScreen(HasVisiblePanels);
 
         _screen.SetRenderingOutputMode(true);
@@ -496,7 +501,7 @@ public sealed class Application
 
     private void RenderCommandLineOnly()
     {
-        _shellUnderlay.ApplyConsoleScrollbackMode(HasVisiblePanels);
+        ApplyTerminalScreenMode();
         _screen.SetRenderingOutputMode(true);
         using var frame = _screen.BeginFrame();
 
@@ -569,6 +574,26 @@ public sealed class Application
         _ui.LastRenderViewport = _shellUnderlay.CapturedViewport ?? _screen.GetViewport();
         return scrolled;
     }
+
+    private bool UsesTerminalScreenMode =>
+        _terminalScreenMode?.IsSupported == true;
+
+    private void ApplyTerminalScreenMode()
+    {
+        if (UsesTerminalScreenMode)
+        {
+            if (HasVisiblePanels)
+                _terminalScreenMode!.EnsureApplicationScreen();
+            else
+                _terminalScreenMode!.EnsureMainScreen();
+            return;
+        }
+
+        _shellUnderlay.ApplyLegacyConsoleScrollbackMode(HasVisiblePanels);
+    }
+
+    private void RestoreTerminal() =>
+        _terminalScreenMode?.RestoreTerminal();
 
     /// <summary>
     /// Renders the screen, retrying if the console was resized mid-frame.
@@ -688,14 +713,15 @@ public sealed class Application
             _state.HiddenPanels = HiddenPanels.None;
             _screen.TryScrollViewportToBottom();
             _ui.LastRenderViewport = _screen.GetViewport();
-            _shellUnderlay.ApplyConsoleScrollbackMode(HasVisiblePanels);
+            ApplyTerminalScreenMode();
             return true;
         }
 
         _state.HiddenPanels = HiddenPanels.Both;
-        _shellUnderlay.ApplyConsoleScrollbackMode(HasVisiblePanels);
+        ApplyTerminalScreenMode();
         _screen.SetCursorVisible(true);
-        _shellUnderlay.RestoreForHiddenScreen(HasVisiblePanels);
+        if (!UsesTerminalScreenMode)
+            _shellUnderlay.RestoreForHiddenScreen(HasVisiblePanels);
         RenderCommandLineOnlyUntilStable();
         return false;
     }
@@ -722,12 +748,13 @@ public sealed class Application
         }
 
         EnsureActivePanelVisible();
-        _shellUnderlay.ApplyConsoleScrollbackMode(HasVisiblePanels);
+        ApplyTerminalScreenMode();
 
         if (_state.HiddenPanels == HiddenPanels.Both)
         {
             _screen.SetCursorVisible(true);
-            _shellUnderlay.RestoreForHiddenScreen(HasVisiblePanels);
+            if (!UsesTerminalScreenMode)
+                _shellUnderlay.RestoreForHiddenScreen(HasVisiblePanels);
             RenderCommandLineOnlyUntilStable();
             return false;
         }
@@ -1520,6 +1547,7 @@ public sealed class Application
 
             RefreshPanels();
             _state.HiddenPanels = hiddenPanelsAfterCommand;
+            ApplyTerminalScreenMode();
             // Stable rendering is called by the main loop.
         }
     }
@@ -1542,9 +1570,14 @@ public sealed class Application
 
     private void ShowShellUnderlayForCommand()
     {
-        _screen.SetConsoleScrollbackEnabled(true);
+        if (UsesTerminalScreenMode)
+            _terminalScreenMode!.EnsureMainScreen();
+        else
+            _screen.SetConsoleScrollbackEnabled(true);
+
         _screen.SetRenderingOutputMode(false);
-        _shellUnderlay.RestoreOrClear();
+        if (!UsesTerminalScreenMode)
+            _shellUnderlay.RestoreOrClearVisibleArea();
 
         SysConsole.ResetColor();
         SysConsole.CursorVisible = true;

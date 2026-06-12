@@ -21,17 +21,17 @@ internal sealed class ShellUnderlayService
         _underlay = _screen.Capture(new Rect(0, 0, viewport.Width, viewport.Height));
     }
 
-    public void ApplyConsoleScrollbackMode(bool hasVisiblePanels) =>
+    public void ApplyLegacyConsoleScrollbackMode(bool hasVisiblePanels) =>
         _screen.SetConsoleScrollbackEnabled(!hasVisiblePanels);
 
     public void RestoreForHiddenScreen(bool hasVisiblePanels)
     {
-        ApplyConsoleScrollbackMode(hasVisiblePanels);
+        ApplyLegacyConsoleScrollbackMode(hasVisiblePanels);
         _screen.SetRenderingOutputMode(false);
-        RestoreOrClear();
+        RestoreOrClearVisibleArea();
     }
 
-    public void RestoreOrClear()
+    public void RestoreOrClearVisibleArea()
     {
         if (_underlay is null)
         {

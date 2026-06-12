@@ -48,4 +48,5 @@ ApplicationFactory.Create(renderer, fs, shell, fileOps, history, settings, userM
     sourceRegistry:    panelSources,
     credentialStore:   credentials,
     farNetModuleHost:  new FarNetModuleHost(new FarNetModuleHostOptions { EnablePanelTools = true }),
-    configDirectory:   settingsStore.ConfigDirectory).Run();
+    configDirectory:   settingsStore.ConfigDirectory,
+    terminalScreenMode: driver).Run();

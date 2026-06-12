@@ -571,6 +571,159 @@ public sealed class ApplicationNavigationTests : IDisposable
     }
 
     [Fact]
+    public void Run_VtSupportedHidingBothPanels_LeavesApplicationScreenWithoutLegacyScrollback()
+    {
+        var fs = new FakeFileSystemService();
+        fs.AddDirectory(_tempDir);
+
+        var driver = new FakeConsoleDriver(width: 80, height: 12) { IsSupported = true };
+        driver.EnqueueKey(Key(ConsoleKey.O, keyChar: '\u000f', control: true));
+        driver.EnqueueKey(Key(ConsoleKey.F10));
+        driver.BeforeReadInput = beforeHide =>
+        {
+            Assert.True(beforeHide.IsApplicationScreenActive);
+            beforeHide.BeforeReadInput = afterHide =>
+            {
+                Assert.False(afterHide.IsApplicationScreenActive);
+                Assert.Equal(0, afterHide.SetConsoleScrollbackEnabledCallCount);
+            };
+        };
+
+        var app = CreateApp(fs, driver, _tempDir, terminalScreenMode: driver);
+        app.Run();
+    }
+
+    [Fact]
+    public void Run_VtSupportedShowingPanelsAgain_EntersApplicationScreen()
+    {
+        var fs = new FakeFileSystemService();
+        fs.AddDirectory(_tempDir);
+
+        var driver = new FakeConsoleDriver(width: 80, height: 12) { IsSupported = true };
+        driver.EnqueueKey(Key(ConsoleKey.O, keyChar: '\u000f', control: true));
+        driver.EnqueueKey(Key(ConsoleKey.O, keyChar: '\u000f', control: true));
+        driver.EnqueueKey(Key(ConsoleKey.F10));
+        driver.BeforeReadInput = beforeHide =>
+        {
+            Assert.True(beforeHide.IsApplicationScreenActive);
+            beforeHide.BeforeReadInput = afterHide =>
+            {
+                Assert.False(afterHide.IsApplicationScreenActive);
+                afterHide.BeforeReadInput = afterShow =>
+                    Assert.True(afterShow.IsApplicationScreenActive);
+            };
+        };
+
+        var app = CreateApp(fs, driver, _tempDir, terminalScreenMode: driver);
+        app.Run();
+    }
+
+    [Fact]
+    public void Run_VtSupportedPartiallyHiddenPanels_RemainsInApplicationScreen()
+    {
+        var fs = new FakeFileSystemService();
+        fs.AddDirectory(_tempDir);
+
+        var driver = new FakeConsoleDriver(width: 80, height: 12) { IsSupported = true };
+        driver.EnqueueKey(Key(ConsoleKey.F1, control: true));
+        driver.EnqueueKey(Key(ConsoleKey.F10));
+        driver.BeforeReadInput = beforeHide =>
+        {
+            Assert.True(beforeHide.IsApplicationScreenActive);
+            beforeHide.BeforeReadInput = afterPartialHide =>
+            {
+                Assert.True(afterPartialHide.IsApplicationScreenActive);
+                Assert.Equal(1, afterPartialHide.EnterApplicationScreenCallCount);
+                Assert.Equal(0, afterPartialHide.SetConsoleScrollbackEnabledCallCount);
+            };
+        };
+
+        var app = CreateApp(fs, driver, _tempDir, terminalScreenMode: driver);
+        app.Run();
+    }
+
+    [Fact]
+    public void ExecuteCommand_VtSupportedVisiblePanels_UsesMainScreenDuringShellThenReturnsToApplicationScreen()
+    {
+        var fs = new FakeFileSystemService();
+        fs.AddDirectory(_tempDir);
+
+        var driver = new FakeConsoleDriver(width: 80, height: 12) { IsSupported = true };
+        bool mainScreenDuringShell = false;
+        var shell = new RecordingShellService((_, _) =>
+        {
+            mainScreenDuringShell = !driver.IsApplicationScreenActive;
+        });
+        var app = CreateApp(fs, driver, _tempDir, shell, terminalScreenMode: driver);
+
+        Render(app);
+        app.ExecuteCommand("dir");
+
+        Assert.True(mainScreenDuringShell);
+        Assert.True(driver.IsApplicationScreenActive);
+        Assert.True(driver.LeaveApplicationScreenCallCount >= 1);
+        Assert.Equal(0, driver.SetConsoleScrollbackEnabledCallCount);
+    }
+
+    [Fact]
+    public void ExecuteCommand_VtSupportedHiddenPanels_StaysInMainScreenAfterShell()
+    {
+        var fs = new FakeFileSystemService();
+        fs.AddDirectory(_tempDir);
+
+        var driver = new FakeConsoleDriver(width: 80, height: 12) { IsSupported = true };
+        var shell = new RecordingShellService();
+        var app = CreateApp(fs, driver, _tempDir, shell, terminalScreenMode: driver);
+
+        Render(app);
+        HandleKeyAndRender(app, Key(ConsoleKey.O, keyChar: '\u000f', control: true));
+        app.ExecuteCommand("dir");
+
+        Assert.False(driver.IsApplicationScreenActive);
+        Assert.Equal(0, driver.SetConsoleScrollbackEnabledCallCount);
+    }
+
+    [Fact]
+    public void Run_VtSupportedExit_RestoresTerminal()
+    {
+        var fs = new FakeFileSystemService();
+        fs.AddDirectory(_tempDir);
+
+        var driver = new FakeConsoleDriver(width: 80, height: 12) { IsSupported = true };
+        driver.EnqueueKey(Key(ConsoleKey.F10));
+
+        var app = CreateApp(fs, driver, _tempDir, terminalScreenMode: driver);
+        app.Run();
+        driver.RestoreTerminal();
+
+        Assert.False(driver.IsApplicationScreenActive);
+        Assert.True(driver.RestoreTerminalCallCount >= 2);
+    }
+
+    [Fact]
+    public void Run_VtUnsupported_UsesLegacyScrollbackFallback()
+    {
+        var fs = new FakeFileSystemService();
+        fs.AddDirectory(_tempDir);
+
+        var driver = new FakeConsoleDriver(width: 80, height: 12) { IsSupported = false };
+        driver.EnqueueKey(Key(ConsoleKey.O, keyChar: '\u000f', control: true));
+        driver.EnqueueKey(Key(ConsoleKey.F10));
+        driver.BeforeReadInput = beforeHide =>
+        {
+            Assert.False(beforeHide.ConsoleScrollbackEnabled);
+            beforeHide.BeforeReadInput = afterHide =>
+                Assert.True(afterHide.ConsoleScrollbackEnabled);
+        };
+
+        var app = CreateApp(fs, driver, _tempDir, terminalScreenMode: driver);
+        app.Run();
+
+        Assert.Equal(0, driver.EnterApplicationScreenCallCount);
+        Assert.True(driver.SetConsoleScrollbackEnabledCallCount > 0);
+    }
+
+    [Fact]
     public void CtrlOAfterCommandExecution_RestoresCommandOutputUnderlay()
     {
         var fs = new FakeFileSystemService();
@@ -803,7 +956,8 @@ public sealed class ApplicationNavigationTests : IDisposable
         FakeFileSystemService fs,
         FakeConsoleDriver driver,
         string startDirectory,
-        IShellService? shell = null)
+        IShellService? shell = null,
+        ITerminalScreenMode? terminalScreenMode = null)
     {
         var settings = new AppSettings();
         settings.Panels.LeftStartDirectory = startDirectory;
@@ -815,7 +969,8 @@ public sealed class ApplicationNavigationTests : IDisposable
             shell ?? new NoOpShellService(),
             new NoOpFileOperationService(),
             new InMemoryHistoryStore(),
-            settings);
+            settings,
+            terminalScreenMode: terminalScreenMode);
     }
 
     private static ConsoleKeyInfo Key(

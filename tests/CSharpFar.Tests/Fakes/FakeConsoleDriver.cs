@@ -9,7 +9,7 @@ namespace CSharpFar.Tests.Fakes;
 /// In-memory console driver for unit tests.
 /// Maintains a character/color buffer that can be inspected after rendering.
 /// </summary>
-public sealed class FakeConsoleDriver : IConsoleDriver, IConsoleOutputModeDriver
+public sealed class FakeConsoleDriver : IConsoleDriver, IConsoleOutputModeDriver, ITerminalScreenMode
 {
     public readonly record struct WriteRecord(
         int X,
@@ -36,9 +36,15 @@ public sealed class FakeConsoleDriver : IConsoleDriver, IConsoleOutputModeDriver
     public int TrySetCursorPositionInViewportCallCount { get; private set; }
     public bool RenderingOutputMode { get; private set; }
     public bool ConsoleScrollbackEnabled { get; private set; } = true;
+    public int SetConsoleScrollbackEnabledCallCount { get; private set; }
     public bool ChildProcessConsoleMode { get; private set; }
     public int EnterChildProcessConsoleModeCallCount { get; private set; }
     public int RestoreApplicationInputModeCallCount { get; private set; }
+    public bool IsSupported { get; set; }
+    public bool IsApplicationScreenActive { get; private set; }
+    public int EnterApplicationScreenCallCount { get; private set; }
+    public int LeaveApplicationScreenCallCount { get; private set; }
+    public int RestoreTerminalCallCount { get; private set; }
     public Action<FakeConsoleDriver>? BeforeReadInput { get; set; }
     public Action<FakeConsoleDriver>? BeforeTryReadInput { get; set; }
     public IReadOnlyList<WriteRecord> WriteRecords => _writeRecords;
@@ -190,6 +196,7 @@ public sealed class FakeConsoleDriver : IConsoleDriver, IConsoleOutputModeDriver
     public void SetRenderingOutputMode(bool enabled) { RenderingOutputMode = enabled; }
     public void SetConsoleScrollbackEnabled(bool enabled)
     {
+        SetConsoleScrollbackEnabledCallCount++;
         if (enabled)
         {
             ConsoleScrollbackEnabled = true;
@@ -202,6 +209,37 @@ public sealed class FakeConsoleDriver : IConsoleDriver, IConsoleOutputModeDriver
         _viewportLeft = 0;
         _viewportTop = 0;
         _bufferHeight = _size.Height;
+    }
+
+    public void EnterApplicationScreen()
+    {
+        if (!IsSupported || IsApplicationScreenActive)
+            return;
+
+        IsApplicationScreenActive = true;
+        EnterApplicationScreenCallCount++;
+    }
+
+    public void LeaveApplicationScreen()
+    {
+        if (!IsSupported || !IsApplicationScreenActive)
+            return;
+
+        IsApplicationScreenActive = false;
+        LeaveApplicationScreenCallCount++;
+    }
+
+    public void EnsureApplicationScreen() => EnterApplicationScreen();
+
+    public void EnsureMainScreen() => LeaveApplicationScreen();
+
+    public void RestoreTerminal()
+    {
+        if (!IsSupported)
+            return;
+
+        IsApplicationScreenActive = false;
+        RestoreTerminalCallCount++;
     }
     public void RestoreApplicationInputMode()
     {
@@ -268,6 +306,7 @@ public sealed class FakeConsoleDriver : IConsoleDriver, IConsoleOutputModeDriver
         ClearRegionCallCount = 0;
         SetCursorVisibleCallCount = 0;
         TrySetCursorPositionInViewportCallCount = 0;
+        SetConsoleScrollbackEnabledCallCount = 0;
         _writeRecords.Clear();
     }
 

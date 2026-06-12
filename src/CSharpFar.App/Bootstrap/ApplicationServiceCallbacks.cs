@@ -45,6 +45,7 @@ internal sealed class ApplicationServiceCallbacks
     public Action RenderUntilStable { get; set; } = () => throw Missing();
     public Action RenderCommandLineOnlyUntilStable { get; set; } = () => throw Missing();
     public Action RestoreHiddenScreen { get; set; } = () => throw Missing();
+    public Action RestoreTerminal { get; set; } = () => throw Missing();
     public Func<ApplicationRuntimeRenderRequest> HandleResizeInput { get; set; } =
         () => throw Missing();
     public Func<ApplicationRuntimeRenderRequest> CheckViewportAfterInput { get; set; } =

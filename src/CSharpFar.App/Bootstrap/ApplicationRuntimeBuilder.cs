@@ -26,6 +26,7 @@ internal static class ApplicationRuntimeBuilder
                 RenderUntilStable = () => callbacks.RenderUntilStable(),
                 RenderCommandLineOnlyUntilStable = () => callbacks.RenderCommandLineOnlyUntilStable(),
                 RestoreHiddenScreen = () => callbacks.RestoreHiddenScreen(),
+                RestoreTerminal = () => callbacks.RestoreTerminal(),
                 ResetWaitToken = autoRefresh.ResetWaitToken,
                 ProcessPendingRefreshes = autoRefresh.ProcessPendingRefreshes,
                 DisposeRuntimeState = quickViewDirectorySize.Dispose,
