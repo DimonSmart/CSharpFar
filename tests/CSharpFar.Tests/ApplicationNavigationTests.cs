@@ -577,14 +577,24 @@ public sealed class ApplicationNavigationTests : IDisposable
         fs.AddDirectory(_tempDir);
 
         var driver = new FakeConsoleDriver(width: 80, height: 12) { IsSupported = true };
+        driver.SetBufferHeight(30);
         driver.EnqueueKey(Key(ConsoleKey.O, keyChar: '\u000f', control: true));
         driver.EnqueueKey(Key(ConsoleKey.F10));
         driver.BeforeReadInput = beforeHide =>
         {
             Assert.True(beforeHide.IsApplicationScreenActive);
+            beforeHide.ClearRecordedOperations();
             beforeHide.BeforeReadInput = afterHide =>
             {
                 Assert.False(afterHide.IsApplicationScreenActive);
+                Assert.Equal(1, afterHide.TryScrollViewportToBottomCallCount);
+                Assert.Equal(18, afterHide.GetViewport().Top);
+                Assert.True(afterHide.WriteAtCallCount > 0);
+                AssertOperationOrder(
+                    afterHide,
+                    "LeaveApplicationScreen",
+                    "TryScrollViewportToBottom",
+                    "WriteAt");
                 Assert.Equal(0, afterHide.SetConsoleScrollbackEnabledCallCount);
             };
         };
@@ -600,17 +610,41 @@ public sealed class ApplicationNavigationTests : IDisposable
         fs.AddDirectory(_tempDir);
 
         var driver = new FakeConsoleDriver(width: 80, height: 12) { IsSupported = true };
+        driver.SetBufferHeight(30);
+        driver.EnqueueKey(Key(ConsoleKey.O, keyChar: '\u000f', control: true));
         driver.EnqueueKey(Key(ConsoleKey.O, keyChar: '\u000f', control: true));
         driver.EnqueueKey(Key(ConsoleKey.O, keyChar: '\u000f', control: true));
         driver.EnqueueKey(Key(ConsoleKey.F10));
         driver.BeforeReadInput = beforeHide =>
         {
             Assert.True(beforeHide.IsApplicationScreenActive);
+            beforeHide.ClearRecordedOperations();
             beforeHide.BeforeReadInput = afterHide =>
             {
                 Assert.False(afterHide.IsApplicationScreenActive);
+                Assert.Equal(1, afterHide.TryScrollViewportToBottomCallCount);
+                AssertOperationOrder(
+                    afterHide,
+                    "LeaveApplicationScreen",
+                    "TryScrollViewportToBottom",
+                    "WriteAt");
                 afterHide.BeforeReadInput = afterShow =>
+                {
                     Assert.True(afterShow.IsApplicationScreenActive);
+                    int scrollsAfterShow = afterShow.TryScrollViewportToBottomCallCount;
+                    afterShow.ClearRecordedOperations();
+                    afterShow.BeforeReadInput = afterSecondHide =>
+                    {
+                        Assert.False(afterSecondHide.IsApplicationScreenActive);
+                        Assert.Equal(1, afterSecondHide.TryScrollViewportToBottomCallCount);
+                        Assert.Equal(18, afterSecondHide.GetViewport().Top);
+                        AssertOperationOrder(
+                            afterSecondHide,
+                            "LeaveApplicationScreen",
+                            "TryScrollViewportToBottom",
+                            "WriteAt");
+                    };
+                };
             };
         };
 
@@ -625,7 +659,9 @@ public sealed class ApplicationNavigationTests : IDisposable
         fs.AddDirectory(_tempDir);
 
         var driver = new FakeConsoleDriver(width: 80, height: 12) { IsSupported = true };
+        driver.SetBufferHeight(30);
         driver.EnqueueKey(Key(ConsoleKey.F1, control: true));
+        driver.EnqueueKey(Key(ConsoleKey.F2, control: true));
         driver.EnqueueKey(Key(ConsoleKey.F10));
         driver.BeforeReadInput = beforeHide =>
         {
@@ -635,11 +671,46 @@ public sealed class ApplicationNavigationTests : IDisposable
                 Assert.True(afterPartialHide.IsApplicationScreenActive);
                 Assert.Equal(1, afterPartialHide.EnterApplicationScreenCallCount);
                 Assert.Equal(0, afterPartialHide.SetConsoleScrollbackEnabledCallCount);
+                Assert.Equal(0, afterPartialHide.TryScrollViewportToBottomCallCount);
+                afterPartialHide.ClearRecordedOperations();
+                afterPartialHide.BeforeReadInput = afterBothHidden =>
+                {
+                    Assert.False(afterBothHidden.IsApplicationScreenActive);
+                    Assert.Equal(1, afterBothHidden.TryScrollViewportToBottomCallCount);
+                    Assert.Equal(18, afterBothHidden.GetViewport().Top);
+                    AssertOperationOrder(
+                        afterBothHidden,
+                        "LeaveApplicationScreen",
+                        "TryScrollViewportToBottom",
+                        "WriteAt");
+                };
             };
         };
 
         var app = CreateApp(fs, driver, _tempDir, terminalScreenMode: driver);
         app.Run();
+    }
+
+    [Fact]
+    public void RenderCommandLineOnly_VtSupportedHiddenPanels_DoesNotAutoScroll()
+    {
+        var fs = new FakeFileSystemService();
+        fs.AddDirectory(_tempDir);
+
+        var driver = new FakeConsoleDriver(width: 80, height: 12) { IsSupported = true };
+        driver.SetBufferHeight(30);
+        var app = CreateApp(fs, driver, _tempDir, terminalScreenMode: driver);
+
+        Render(app);
+        HandleKeyAndRender(app, Key(ConsoleKey.O, keyChar: '\u000f', control: true));
+        driver.ClearRecordedOperations();
+        driver.SetViewportOrigin(0, 4);
+
+        RenderCommandLineOnly(app);
+
+        Assert.Equal(4, driver.GetViewport().Top);
+        Assert.Equal(0, driver.TryScrollViewportToBottomCallCount);
+        Assert.True(driver.WriteAtCallCount > 0);
     }
 
     [Fact]
@@ -649,14 +720,23 @@ public sealed class ApplicationNavigationTests : IDisposable
         fs.AddDirectory(_tempDir);
 
         var driver = new FakeConsoleDriver(width: 80, height: 12) { IsSupported = true };
+        driver.SetBufferHeight(30);
         bool mainScreenDuringShell = false;
         var shell = new RecordingShellService((_, _) =>
         {
             mainScreenDuringShell = !driver.IsApplicationScreenActive;
+            Assert.Equal(1, driver.TryScrollViewportToBottomCallCount);
+            Assert.Equal(18, driver.GetViewport().Top);
+            AssertOperationOrder(
+                driver,
+                "LeaveApplicationScreen",
+                "TryScrollViewportToBottom",
+                "WriteAt");
         });
         var app = CreateApp(fs, driver, _tempDir, shell, terminalScreenMode: driver);
 
         Render(app);
+        driver.ClearRecordedOperations();
         app.ExecuteCommand("dir");
 
         Assert.True(mainScreenDuringShell);
@@ -1023,6 +1103,38 @@ public sealed class ApplicationNavigationTests : IDisposable
             ?? throw new InvalidOperationException("Application.Render method not found.");
 
         method.Invoke(app, []);
+    }
+
+    private static void RenderCommandLineOnly(Application app)
+    {
+        var method = typeof(Application).GetMethod(
+            "RenderCommandLineOnly",
+            BindingFlags.Instance | BindingFlags.NonPublic)
+            ?? throw new InvalidOperationException("Application.RenderCommandLineOnly method not found.");
+
+        method.Invoke(app, []);
+    }
+
+    private static void AssertOperationOrder(FakeConsoleDriver driver, params string[] expected)
+    {
+        int previous = -1;
+        foreach (string operation in expected)
+        {
+            int current = -1;
+            for (int i = previous + 1; i < driver.OperationLog.Count; i++)
+            {
+                if (driver.OperationLog[i] != operation)
+                    continue;
+
+                current = i;
+                break;
+            }
+
+            Assert.True(
+                current > previous,
+                $"Expected operation '{operation}' after index {previous}. Log: {string.Join(", ", driver.OperationLog)}");
+            previous = current;
+        }
     }
 
     private static PanelSide GetActiveSide(Application app)

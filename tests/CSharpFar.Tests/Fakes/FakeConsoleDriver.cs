@@ -26,6 +26,7 @@ public sealed class FakeConsoleDriver : IConsoleDriver, IConsoleOutputModeDriver
     private int _viewportTop;
     private readonly Queue<ConsoleInputEvent> _inputQueue = new();
     private readonly List<WriteRecord> _writeRecords = [];
+    private readonly List<string> _operationLog = [];
 
     public int CursorX { get; private set; }
     public int CursorY { get; private set; }
@@ -34,6 +35,7 @@ public sealed class FakeConsoleDriver : IConsoleDriver, IConsoleOutputModeDriver
     public int ClearRegionCallCount { get; private set; }
     public int SetCursorVisibleCallCount { get; private set; }
     public int TrySetCursorPositionInViewportCallCount { get; private set; }
+    public int TryScrollViewportToBottomCallCount { get; private set; }
     public bool RenderingOutputMode { get; private set; }
     public bool ConsoleScrollbackEnabled { get; private set; } = true;
     public int SetConsoleScrollbackEnabledCallCount { get; private set; }
@@ -48,6 +50,7 @@ public sealed class FakeConsoleDriver : IConsoleDriver, IConsoleOutputModeDriver
     public Action<FakeConsoleDriver>? BeforeReadInput { get; set; }
     public Action<FakeConsoleDriver>? BeforeTryReadInput { get; set; }
     public IReadOnlyList<WriteRecord> WriteRecords => _writeRecords;
+    public IReadOnlyList<string> OperationLog => _operationLog;
     public event Action<WriteRecord>? Wrote;
 
     public FakeConsoleDriver(int width = 80, int height = 25)
@@ -73,6 +76,8 @@ public sealed class FakeConsoleDriver : IConsoleDriver, IConsoleOutputModeDriver
 
     public bool TryScrollViewportToBottom()
     {
+        TryScrollViewportToBottomCallCount++;
+        _operationLog.Add("TryScrollViewportToBottom");
         int targetTop = Math.Max(0, _bufferHeight - _size.Height);
         if (_viewportTop == targetTop)
             return false;
@@ -143,6 +148,7 @@ public sealed class FakeConsoleDriver : IConsoleDriver, IConsoleOutputModeDriver
         var fg = foreground ?? ConsoleColor.Gray;
         var bg = background ?? ConsoleColor.Black;
         WriteAtCallCount++;
+        _operationLog.Add("WriteAt");
         var record = new WriteRecord(x, y, text.ToString(), fg, bg);
         _writeRecords.Add(record);
         Wrote?.Invoke(record);
@@ -218,6 +224,7 @@ public sealed class FakeConsoleDriver : IConsoleDriver, IConsoleOutputModeDriver
 
         IsApplicationScreenActive = true;
         EnterApplicationScreenCallCount++;
+        _operationLog.Add("EnterApplicationScreen");
     }
 
     public void LeaveApplicationScreen()
@@ -227,6 +234,7 @@ public sealed class FakeConsoleDriver : IConsoleDriver, IConsoleOutputModeDriver
 
         IsApplicationScreenActive = false;
         LeaveApplicationScreenCallCount++;
+        _operationLog.Add("LeaveApplicationScreen");
     }
 
     public void EnsureApplicationScreen() => EnterApplicationScreen();
@@ -306,8 +314,10 @@ public sealed class FakeConsoleDriver : IConsoleDriver, IConsoleOutputModeDriver
         ClearRegionCallCount = 0;
         SetCursorVisibleCallCount = 0;
         TrySetCursorPositionInViewportCallCount = 0;
+        TryScrollViewportToBottomCallCount = 0;
         SetConsoleScrollbackEnabledCallCount = 0;
         _writeRecords.Clear();
+        _operationLog.Clear();
     }
 
     private void InvokeBeforeReadInput()

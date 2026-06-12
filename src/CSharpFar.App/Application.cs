@@ -592,6 +592,33 @@ public sealed class Application
         _shellUnderlay.ApplyLegacyConsoleScrollbackMode(HasVisiblePanels);
     }
 
+    private void EnterHiddenMainScreenAtBottom()
+    {
+        ApplyTerminalScreenMode();
+
+        if (UsesTerminalScreenMode)
+        {
+            _screen.TryScrollViewportToBottom();
+            _ui.LastRenderViewport = _screen.GetViewport();
+            return;
+        }
+
+        _shellUnderlay.RestoreForHiddenScreen(HasVisiblePanels);
+    }
+
+    private void PrepareMainScreenForExternalCommand()
+    {
+        if (UsesTerminalScreenMode)
+        {
+            _terminalScreenMode!.EnsureMainScreen();
+            _screen.TryScrollViewportToBottom();
+            _ui.LastRenderViewport = _screen.GetViewport();
+            return;
+        }
+
+        _screen.SetConsoleScrollbackEnabled(true);
+    }
+
     private void RestoreTerminal() =>
         _terminalScreenMode?.RestoreTerminal();
 
@@ -718,10 +745,8 @@ public sealed class Application
         }
 
         _state.HiddenPanels = HiddenPanels.Both;
-        ApplyTerminalScreenMode();
+        EnterHiddenMainScreenAtBottom();
         _screen.SetCursorVisible(true);
-        if (!UsesTerminalScreenMode)
-            _shellUnderlay.RestoreForHiddenScreen(HasVisiblePanels);
         RenderCommandLineOnlyUntilStable();
         return false;
     }
@@ -748,17 +773,16 @@ public sealed class Application
         }
 
         EnsureActivePanelVisible();
-        ApplyTerminalScreenMode();
 
         if (_state.HiddenPanels == HiddenPanels.Both)
         {
+            EnterHiddenMainScreenAtBottom();
             _screen.SetCursorVisible(true);
-            if (!UsesTerminalScreenMode)
-                _shellUnderlay.RestoreForHiddenScreen(HasVisiblePanels);
             RenderCommandLineOnlyUntilStable();
             return false;
         }
 
+        ApplyTerminalScreenMode();
         return true;
     }
 
@@ -1570,11 +1594,7 @@ public sealed class Application
 
     private void ShowShellUnderlayForCommand()
     {
-        if (UsesTerminalScreenMode)
-            _terminalScreenMode!.EnsureMainScreen();
-        else
-            _screen.SetConsoleScrollbackEnabled(true);
-
+        PrepareMainScreenForExternalCommand();
         _screen.SetRenderingOutputMode(false);
         if (!UsesTerminalScreenMode)
             _shellUnderlay.RestoreOrClearVisibleArea();
