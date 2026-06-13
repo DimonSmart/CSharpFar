@@ -1,5 +1,4 @@
 using CSharpFar.App.AutoRefresh;
-using CSharpFar.App.Rendering;
 using CSharpFar.App.Viewer;
 using CSharpFar.Console;
 
@@ -11,7 +10,6 @@ internal static class ApplicationRuntimeBuilder
         ScreenRenderer screen,
         ApplicationServiceCallbacks callbacks,
         PanelAutoRefreshService autoRefresh,
-        ShellUnderlayService shellUnderlay,
         QuickViewDirectorySizeController quickViewDirectorySize)
     {
         return new ApplicationRuntime(

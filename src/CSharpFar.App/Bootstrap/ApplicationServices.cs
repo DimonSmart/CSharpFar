@@ -27,7 +27,6 @@ namespace CSharpFar.App.Bootstrap;
 internal sealed class ApplicationServices
 {
     public required ScreenRenderer Screen { get; init; }
-    public required ITerminalScreenMode? TerminalScreenMode { get; init; }
     public required IFileSystemService FileSystem { get; init; }
     public required PanelController PanelController { get; init; }
     public required IShellService Shell { get; init; }
@@ -67,7 +66,7 @@ internal sealed class ApplicationServices
     public required ApplicationFunctionKeyBarRenderer FunctionKeyBarRenderer { get; init; }
     public required ApplicationOverlayRenderer OverlayRenderer { get; init; }
     public required ApplicationCommandLineRenderer CommandLineRenderer { get; init; }
-    public required ShellUnderlayService ShellUnderlay { get; init; }
+    public required TerminalSurfaceController TerminalSurface { get; init; }
     public required QuickViewDirectorySizeController QuickViewDirectorySize { get; init; }
     public required ApplicationRuntime Runtime { get; init; }
     public required KeyboardInputContext KeyboardInputContext { get; init; }

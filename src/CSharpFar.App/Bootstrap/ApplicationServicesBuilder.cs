@@ -291,18 +291,22 @@ internal static class ApplicationServicesBuilder
             screen,
             () => session.App.Palette);
         var shellUnderlay = new ShellUnderlayService(screen);
+        var terminalSurface = new TerminalSurfaceController(
+            screen,
+            terminalScreenMode,
+            shellUnderlay,
+            session.Ui,
+            () => callbacks.HasVisiblePanels());
         var quickViewDirectorySize = new QuickViewDirectorySizeController(autoRefresh.WakeInputLoop);
         var runtime = ApplicationRuntimeBuilder.Create(
             screen,
             callbacks,
             autoRefresh,
-            shellUnderlay,
             quickViewDirectorySize);
 
         return new ApplicationServices
         {
             Screen = screen,
-            TerminalScreenMode = terminalScreenMode,
             FileSystem = fs,
             PanelController = controller,
             Shell = shell,
@@ -342,7 +346,7 @@ internal static class ApplicationServicesBuilder
             FunctionKeyBarRenderer = functionKeyBarRenderer,
             OverlayRenderer = overlayRenderer,
             CommandLineRenderer = commandLineRenderer,
-            ShellUnderlay = shellUnderlay,
+            TerminalSurface = terminalSurface,
             QuickViewDirectorySize = quickViewDirectorySize,
             Runtime = runtime,
             KeyboardInputContext = keyboardInputContext,

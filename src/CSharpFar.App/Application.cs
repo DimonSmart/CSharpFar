@@ -40,7 +40,6 @@ public sealed class Application
     private const int MaxCommandCompletionRows = CommandHistoryCompletionRenderer.MaxVisibleRows;
 
     private readonly ScreenRenderer _screen;
-    private readonly ITerminalScreenMode? _terminalScreenMode;
     private readonly ApplicationRuntime _runtime;
     private readonly IFileSystemService _fs;
     private readonly PanelController _ctrl;
@@ -58,7 +57,7 @@ public sealed class Application
     private readonly KeyboardInputContext _keyboardInputContext;
     private readonly KeyboardInputRouter _keyboardInputRouter;
     private readonly MouseInputRouter _mouseInputRouter;
-    private readonly ShellUnderlayService _shellUnderlay;
+    private readonly TerminalSurfaceController _terminalSurface;
     private readonly PanelRefreshService _panelRefresh;
     private readonly PanelSearchResultsService _searchResults;
     private readonly PanelSortServiceFacade _panelSort;
@@ -116,13 +115,6 @@ public sealed class Application
     }
     private readonly QuickViewDirectorySizeController _quickViewDirectorySize;
 
-    private enum ConsoleViewportChange
-    {
-        None,
-        OriginOnly,
-        Size,
-    }
-
     public Application(
         ScreenRenderer         screen,
         IFileSystemService     fs,
@@ -179,7 +171,6 @@ public sealed class Application
     internal Application(ApplicationServices services)
     {
         _screen = services.Screen;
-        _terminalScreenMode = services.TerminalScreenMode;
         _fs = services.FileSystem;
         _sourceRegistry = services.SourceRegistry;
         _ctrl = services.PanelController;
@@ -222,7 +213,7 @@ public sealed class Application
         _keyboardInputContext = services.KeyboardInputContext;
         _keyboardInputRouter = services.KeyboardInputRouter;
         _mouseInputRouter = services.MouseInputRouter;
-        _shellUnderlay = services.ShellUnderlay;
+        _terminalSurface = services.TerminalSurface;
         _quickViewDirectorySize = services.QuickViewDirectorySize;
         BindCallbacks(services.Callbacks);
         BindKeyboardInputContext(_keyboardInputContext);
@@ -289,12 +280,12 @@ public sealed class Application
         callbacks.CanExecuteFunctionKeyCommand = CanExecuteFunctionKeyCommand;
         callbacks.ExecuteMenuCommand = ExecuteMenuCommand;
         callbacks.IsRunning = () => _state.Running;
-        callbacks.CaptureUnderlay = _shellUnderlay.Capture;
+        callbacks.CaptureUnderlay = _terminalSurface.CaptureUnderlay;
         callbacks.StartWatchingInitialPanels = StartWatchingInitialPanels;
         callbacks.RenderUntilStable = RenderUntilStable;
         callbacks.RenderCommandLineOnlyUntilStable = RenderCommandLineOnlyUntilStable;
-        callbacks.RestoreHiddenScreen = () => _shellUnderlay.RestoreForHiddenScreen(HasVisiblePanels);
-        callbacks.RestoreTerminal = RestoreTerminal;
+        callbacks.RestoreHiddenScreen = _terminalSurface.RestoreHiddenScreen;
+        callbacks.RestoreTerminal = _terminalSurface.RestoreTerminal;
         callbacks.HandleResizeInput = HandleRuntimeResizeInput;
         callbacks.CheckViewportAfterInput = CheckRuntimeViewportAfterInput;
         callbacks.HandleKeyInput = HandleRuntimeKeyInput;
@@ -396,9 +387,7 @@ public sealed class Application
 
     private ApplicationRuntimeRenderRequest HandleRuntimeResizeInput()
     {
-        var viewportChange = GetConsoleViewportChange();
-        return !AcceptHiddenViewportScroll(viewportChange) &&
-            viewportChange != ConsoleViewportChange.None
+        return _terminalSurface.HasRenderableViewportChange()
             ? new ApplicationRuntimeRenderRequest(ShouldRender: true, IsResize: true)
             : ApplicationRuntimeRenderRequest.None;
     }
@@ -408,7 +397,7 @@ public sealed class Application
 
     private ApplicationRuntimeRenderRequest HandleRuntimeKeyInput(ConsoleKeyInfo key)
     {
-        bool scrolledHiddenViewport = ScrollHiddenViewportToBottomForInput();
+        bool scrolledHiddenViewport = _terminalSurface.ScrollHiddenViewportToBottomForInput();
         bool functionKeyLayerChanged = SetFunctionKeyLayer(key.Modifiers);
         bool shouldRender = _keyboardInputRouter.Handle(key) || scrolledHiddenViewport || functionKeyLayerChanged;
         return new ApplicationRuntimeRenderRequest(shouldRender, IsResize: false);
@@ -424,7 +413,7 @@ public sealed class Application
 
     private ApplicationRuntimeRenderRequest HandleRuntimeMouseInput(MouseConsoleInputEvent mouseEvt)
     {
-        bool scrolledHiddenViewport = ScrollHiddenViewportToBottomForInput();
+        bool scrolledHiddenViewport = _terminalSurface.ScrollHiddenViewportToBottomForInput();
         bool shouldRender = _mouseInputRouter.Handle(mouseEvt) || scrolledHiddenViewport;
         return new ApplicationRuntimeRenderRequest(shouldRender, IsResize: false);
     }
@@ -442,9 +431,9 @@ public sealed class Application
     private void Render()
     {
         UpdateQuickViewDirSize();
-        ApplyTerminalScreenMode();
-        if (!UsesTerminalScreenMode && HasHiddenPanels)
-            _shellUnderlay.RestoreForHiddenScreen(HasVisiblePanels);
+        _terminalSurface.ApplyMode();
+        if (!_terminalSurface.UsesTerminalScreenMode && HasHiddenPanels)
+            _terminalSurface.RestoreHiddenScreen();
 
         _screen.SetRenderingOutputMode(true);
         using var frame = _screen.BeginFrame();
@@ -505,7 +494,7 @@ public sealed class Application
 
     private void RenderCommandLineOnly()
     {
-        ApplyTerminalScreenMode();
+        _terminalSurface.ApplyMode();
         _screen.SetRenderingOutputMode(true);
         using var frame = _screen.BeginFrame();
 
@@ -540,103 +529,6 @@ public sealed class Application
     {
         _functionKeyBarRenderer.Render(size, _functionKeyLayer);
     }
-
-    private ConsoleViewportChange GetConsoleViewportChange()
-    {
-        if (!_ui.LastRenderViewport.HasValue)
-            return ConsoleViewportChange.None;
-
-        var viewport = _screen.GetViewport();
-        var last = _ui.LastRenderViewport.Value;
-        if (viewport == last)
-            return ConsoleViewportChange.None;
-
-        return viewport.Width == last.Width && viewport.Height == last.Height
-            ? ConsoleViewportChange.OriginOnly
-            : ConsoleViewportChange.Size;
-    }
-
-    private bool AcceptHiddenViewportScroll(ConsoleViewportChange viewportChange)
-    {
-        if (HasVisiblePanels || viewportChange != ConsoleViewportChange.OriginOnly)
-            return false;
-
-        _ui.LastRenderViewport = _screen.GetViewport();
-        return true;
-    }
-
-    private bool ScrollHiddenViewportToBottomForInput()
-    {
-        if (HasVisiblePanels)
-            return false;
-
-        bool scrolled = _screen.TryScrollViewportToBottom();
-        if (!scrolled)
-            return false;
-
-        if (UsesTerminalScreenMode)
-            SyncRendererWithCurrentMainScreenViewport();
-        else
-        {
-            _shellUnderlay.Capture();
-            _ui.LastRenderViewport = _shellUnderlay.CapturedViewport ?? _screen.GetViewport();
-        }
-
-        return scrolled;
-    }
-
-    private bool UsesTerminalScreenMode =>
-        _terminalScreenMode?.IsSupported == true;
-
-    private void ApplyTerminalScreenMode()
-    {
-        if (UsesTerminalScreenMode)
-        {
-            if (HasVisiblePanels)
-                _terminalScreenMode!.EnsureApplicationScreen();
-            else
-                _terminalScreenMode!.EnsureMainScreen();
-            return;
-        }
-
-        _shellUnderlay.ApplyLegacyConsoleScrollbackMode(HasVisiblePanels);
-    }
-
-    private void EnterHiddenMainScreenAtBottom()
-    {
-        ApplyTerminalScreenMode();
-
-        if (UsesTerminalScreenMode)
-        {
-            _screen.TryScrollViewportToBottom();
-            SyncRendererWithCurrentMainScreenViewport();
-            return;
-        }
-
-        _shellUnderlay.RestoreForHiddenScreen(HasVisiblePanels);
-    }
-
-    private void PrepareMainScreenForExternalCommand()
-    {
-        if (UsesTerminalScreenMode)
-        {
-            _terminalScreenMode!.EnsureMainScreen();
-            _screen.TryScrollViewportToBottom();
-            SyncRendererWithCurrentMainScreenViewport();
-            return;
-        }
-
-        _screen.SetConsoleScrollbackEnabled(true);
-    }
-
-    private void SyncRendererWithCurrentMainScreenViewport()
-    {
-        _shellUnderlay.Capture();
-        _ui.LastRenderViewport = _shellUnderlay.CapturedViewport ?? _screen.GetViewport();
-    }
-
-    private void RestoreTerminal() =>
-        _terminalScreenMode?.RestoreTerminal();
 
     /// <summary>
     /// Renders the screen, retrying if the console was resized mid-frame.
@@ -749,14 +641,13 @@ public sealed class Application
         if (_state.HiddenPanels == HiddenPanels.Both)
         {
             _state.HiddenPanels = HiddenPanels.None;
-            _screen.TryScrollViewportToBottom();
-            _ui.LastRenderViewport = _screen.GetViewport();
-            ApplyTerminalScreenMode();
+            _terminalSurface.ScrollToBottomAndSyncViewport();
+            _terminalSurface.ApplyMode();
             return true;
         }
 
         _state.HiddenPanels = HiddenPanels.Both;
-        EnterHiddenMainScreenAtBottom();
+        _terminalSurface.EnterHiddenMainScreenAtBottom();
         _screen.SetCursorVisible(true);
         RenderCommandLineOnlyUntilStable();
         return false;
@@ -775,8 +666,7 @@ public sealed class Application
         if (wasHidden)
         {
             _state.HiddenPanels &= ~flag;
-            _screen.TryScrollViewportToBottom();
-            _ui.LastRenderViewport = _screen.GetViewport();
+            _terminalSurface.ScrollToBottomAndSyncViewport();
         }
         else
         {
@@ -787,13 +677,13 @@ public sealed class Application
 
         if (_state.HiddenPanels == HiddenPanels.Both)
         {
-            EnterHiddenMainScreenAtBottom();
+            _terminalSurface.EnterHiddenMainScreenAtBottom();
             _screen.SetCursorVisible(true);
             RenderCommandLineOnlyUntilStable();
             return false;
         }
 
-        ApplyTerminalScreenMode();
+        _terminalSurface.ApplyMode();
         return true;
     }
 
@@ -1114,11 +1004,11 @@ public sealed class Application
 
             // Capture shell output NOW, before Render() paints panels over it.
             // This snapshot is what Ctrl+O will restore.
-            _shellUnderlay.Capture();
+            _terminalSurface.CaptureUnderlay();
 
             RefreshPanels();
             _state.HiddenPanels = hiddenPanelsAfterCommand;
-            ApplyTerminalScreenMode();
+            _terminalSurface.ApplyMode();
             // Stable rendering is called by the main loop.
         }
     }
@@ -1141,10 +1031,10 @@ public sealed class Application
 
     private void ShowShellUnderlayForCommand()
     {
-        PrepareMainScreenForExternalCommand();
+        _terminalSurface.PrepareMainScreenForExternalCommand();
         _screen.SetRenderingOutputMode(false);
-        if (!UsesTerminalScreenMode)
-            _shellUnderlay.RestoreOrClearVisibleArea();
+        if (!_terminalSurface.UsesTerminalScreenMode)
+            _terminalSurface.RestoreOrClearVisibleArea();
 
         SysConsole.ResetColor();
         SysConsole.CursorVisible = true;
