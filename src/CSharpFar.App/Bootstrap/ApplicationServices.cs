@@ -72,6 +72,8 @@ internal sealed class ApplicationServices
     public required ApplicationRuntime Runtime { get; init; }
     public required KeyboardInputContext KeyboardInputContext { get; init; }
     public required KeyboardInputRouter KeyboardInputRouter { get; init; }
+    public required MouseInputContext MouseInputContext { get; init; }
+    public required MouseInputRouter MouseInputRouter { get; init; }
     public required string ConfigDirectory { get; init; }
     public required bool EnableBuiltInNetworkModules { get; init; }
     public required ICredentialStore? CredentialStore { get; init; }

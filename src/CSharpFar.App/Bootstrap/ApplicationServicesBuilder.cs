@@ -185,6 +185,37 @@ internal static class ApplicationServicesBuilder
         keyboardInputContext.MenuController = menuController;
         keyboardInputContext.PanelQuickSearch = panelQuickSearch;
         var keyboardInputRouter = new KeyboardInputRouter(keyboardInputContext);
+        var mouseInputContext = new MouseInputContext
+        {
+            MenuState = session.Menu.State,
+            MenuController = menuController,
+            MenuLayoutService = menuLayoutService,
+            PanelQuickSearch = panelQuickSearch,
+            PanelController = controller,
+            CommandLine = session.CommandLine.State,
+            CommandCompletion = session.CommandLine.Completion,
+            CommandCompletionController = commandCompletionController,
+            Ui = session.Ui,
+            Mouse = session.Mouse,
+            FunctionKeyBindings = functionKeyBindingProvider.GetBindings(),
+            FunctionKeyLayer = () => session.FunctionKeyLayer,
+            DirectoryShortcuts = () => effectiveSettings.DirectoryShortcuts,
+            PanelOptions = () => callbacks.PanelOptions(),
+            CurrentScreenSize = screen.GetSize,
+            LastRenderSizeOrCurrent = () => session.Ui.LastRenderViewport?.Size ?? screen.GetSize(),
+            ActiveSide = () => callbacks.GetActiveSide(),
+            SetActiveSide = side => callbacks.SetActiveSide(side),
+            ActiveState = () => callbacks.ActiveState(),
+            GetPanelState = side => callbacks.GetPanelState(side),
+            ViewModeForSide = side => side == CSharpFar.Core.Models.PanelSide.Left
+                ? session.Panels.LeftViewMode
+                : session.Panels.RightViewMode,
+            IsPanelVisible = side => callbacks.IsPanelVisible(side),
+            HasVisiblePanels = () => callbacks.HasVisiblePanels(),
+            QuickView = () => session.App.QuickView,
+            VisibleRowsForSide = side => callbacks.VisibleRowsForSide(side),
+        };
+        var mouseInputRouter = new MouseInputRouter(mouseInputContext);
         var panelFileViewer = new PanelFileViewerService(
             screen,
             () => session.App.Palette,
@@ -316,6 +347,8 @@ internal static class ApplicationServicesBuilder
             Runtime = runtime,
             KeyboardInputContext = keyboardInputContext,
             KeyboardInputRouter = keyboardInputRouter,
+            MouseInputContext = mouseInputContext,
+            MouseInputRouter = mouseInputRouter,
             ConfigDirectory = effectiveConfigDirectory,
             EnableBuiltInNetworkModules = enableBuiltInNetworkModules,
             CredentialStore = credentialStore,

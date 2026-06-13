@@ -3,10 +3,8 @@ using CSharpFar.App.AutoRefresh;
 using CSharpFar.App.Bootstrap;
 using CSharpFar.App.Commands;
 using CSharpFar.App.CommandLine;
-using CSharpFar.App.DirectoryShortcuts;
 using CSharpFar.App.Files;
 using CSharpFar.App.FunctionKeys;
-using CSharpFar.App.HitTesting;
 using CSharpFar.App.Highlighting;
 using CSharpFar.App.Input;
 using CSharpFar.App.Menu;
@@ -59,6 +57,7 @@ public sealed class Application
     private readonly ApplicationCommandLineRenderer _commandLineRenderer;
     private readonly KeyboardInputContext _keyboardInputContext;
     private readonly KeyboardInputRouter _keyboardInputRouter;
+    private readonly MouseInputRouter _mouseInputRouter;
     private readonly ShellUnderlayService _shellUnderlay;
     private readonly PanelRefreshService _panelRefresh;
     private readonly PanelSearchResultsService _searchResults;
@@ -109,25 +108,13 @@ public sealed class Application
     private readonly DefaultFunctionKeyBindingProvider _functionKeyBindingProvider;
     private readonly ApplicationCommandRegistry _commandRegistry;
     private readonly ApplicationCommandContext _commandContext;
-    private readonly MenuLayoutService      _menuLayoutService;
     private readonly TopMenuController      _menuController;
-    private readonly IReadOnlyList<FunctionKeyBinding> _functionKeyBindings;
-    private PanelItemClick? _lastLeftPanelItemClick
-    {
-        get => _session.Mouse.LastLeftPanelItemClick;
-        set => _session.Mouse.LastLeftPanelItemClick = value;
-    }
     private FunctionKeyLayer _functionKeyLayer
     {
         get => _session.FunctionKeyLayer;
         set => _session.FunctionKeyLayer = value;
     }
     private readonly QuickViewDirectorySizeController _quickViewDirectorySize;
-    private bool _isCommandLineMouseSelecting
-    {
-        get => _session.Mouse.IsCommandLineSelecting;
-        set => _session.Mouse.IsCommandLineSelecting = value;
-    }
 
     private enum ConsoleViewportChange
     {
@@ -211,8 +198,6 @@ public sealed class Application
         _session = services.Session;
         _menuProvider = services.MenuProvider;
         _functionKeyBindingProvider = services.FunctionKeyBindingProvider;
-        _functionKeyBindings = services.FunctionKeyBindings;
-        _menuLayoutService = services.MenuLayoutService;
         _highlightService = services.HighlightService;
         _changeDirectoryCommandExecutor = services.ChangeDirectoryCommandExecutor;
         _menuController = services.MenuController;
@@ -236,10 +221,12 @@ public sealed class Application
         _commandLineRenderer = services.CommandLineRenderer;
         _keyboardInputContext = services.KeyboardInputContext;
         _keyboardInputRouter = services.KeyboardInputRouter;
+        _mouseInputRouter = services.MouseInputRouter;
         _shellUnderlay = services.ShellUnderlay;
         _quickViewDirectorySize = services.QuickViewDirectorySize;
         BindCallbacks(services.Callbacks);
         BindKeyboardInputContext(_keyboardInputContext);
+        BindMouseInputContext(services.MouseInputContext);
         _runtime = services.Runtime;
 
     }
@@ -266,6 +253,18 @@ public sealed class Application
         context.ResetCommandHistoryNavigation = ResetCommandHistoryNavigation;
         context.TryGoUp = TryGoUp;
         context.CanExecuteFunctionKeyCommand = CanExecuteFunctionKeyCommand;
+    }
+
+    private void BindMouseInputContext(MouseInputContext context)
+    {
+        context.BuildMenuDefinition = BuildMenuDefinition;
+        context.ExecuteRegisteredCommand = ExecuteRegisteredCommand;
+        context.CanExecuteFunctionKeyCommand = CanExecuteFunctionKeyCommand;
+        context.PasteTextIntoCommandLine = PasteTextIntoCommandLine;
+        context.ResetCommandHistoryNavigation = ResetCommandHistoryNavigation;
+        context.HideCommandCompletion = HideCommandCompletion;
+        context.SafeRefresh = SafeRefresh;
+        context.OpenPanelItem = OpenPanelItem;
     }
 
     private void BindCallbacks(ApplicationServiceCallbacks callbacks)
@@ -426,7 +425,7 @@ public sealed class Application
     private ApplicationRuntimeRenderRequest HandleRuntimeMouseInput(MouseConsoleInputEvent mouseEvt)
     {
         bool scrolledHiddenViewport = ScrollHiddenViewportToBottomForInput();
-        bool shouldRender = HandleMouse(mouseEvt) || scrolledHiddenViewport;
+        bool shouldRender = _mouseInputRouter.Handle(mouseEvt) || scrolledHiddenViewport;
         return new ApplicationRuntimeRenderRequest(shouldRender, IsResize: false);
     }
 
@@ -675,11 +674,6 @@ public sealed class Application
 
     internal void ResetFunctionKeyLayer() => _functionKeyLayer = FunctionKeyLayer.Plain;
 
-    private static bool IsTopMenuActivationMouse(MouseConsoleInputEvent evt) =>
-        evt.Y == 0 &&
-        evt.Button == MouseButton.Left &&
-        (evt.Kind == MouseEventKind.Down || evt.Kind == MouseEventKind.Click);
-
     private MenuBarDefinition BuildMenuDefinition() =>
         _menuProvider.BuildMenu(new MenuBuildContext
         {
@@ -845,309 +839,6 @@ public sealed class Application
         return (rowsPerColumn, 2, visibleRows);
     }
 
-    // ── mouse handling ────────────────────────────────────────────────────────
-
-    private bool HandleMouse(MouseConsoleInputEvent evt)
-    {
-        if (_panelQuickSearch.State is not null)
-            ClosePanelQuickSearch();
-
-        if (TryHandleFunctionKeyBarMouse(evt))
-            return true;
-
-        if (TryHandleCommandLineMouse(evt))
-            return true;
-
-        if (!HasVisiblePanels)
-            return false;
-
-        if (TryHandleDirectoryShortcutBarMouse(evt))
-            return true;
-
-        if (_menuState.OpenState != MenuOpenState.Closed || IsTopMenuActivationMouse(evt))
-        {
-            var definition = BuildMenuDefinition();
-            var size = _screen.GetSize();
-            var layout = _menuLayoutService.CalculateLayout(
-                new Rect(0, 0, size.Width, size.Height),
-                definition,
-                _menuState);
-            return _menuController.HandleMouse(evt, definition, layout, _active);
-        }
-
-        if (TryHandleCommandCompletionScrollbarMouse(evt))
-            return true;
-
-        if (TryHandleCommandCompletionItemMouse(evt))
-            return true;
-
-        if (TryHandlePanelScrollbarDrag(evt))
-            return true;
-
-        // Identify which panel was hit
-        bool inLeft  = IsPanelVisible(PanelSide.Left)  && _ui.LeftBounds.Contains(evt.X,  evt.Y);
-        bool inRight = IsPanelVisible(PanelSide.Right) && _ui.RightBounds.Contains(evt.X, evt.Y);
-        if (!inLeft && !inRight)
-        {
-            ClearPanelItemClickOnMousePress(evt);
-            return false;
-        }
-
-        var side  = inLeft ? PanelSide.Left : PanelSide.Right;
-        var state = inLeft ? _left : _right;
-        var mode  = inLeft ? _leftViewMode : _rightViewMode;
-        var bounds = inLeft ? _ui.LeftBounds : _ui.RightBounds;
-        int visRows = VisibleRows(side);
-
-        if (_state.QuickView && side != _active)
-        {
-            ClearPanelItemClickOnMousePress(evt);
-            return false;
-        }
-
-        if (TryHandlePanelScrollbarMouse(evt, side, state, mode, bounds, visRows))
-            return true;
-
-        if (evt.Button == MouseButton.Left &&
-            (evt.Kind == MouseEventKind.Down || evt.Kind == MouseEventKind.Click) &&
-            PanelErrorRenderer.HitTestRetry(evt.X, evt.Y, bounds, state, mode, PanelOptions))
-        {
-            SetActiveSide(side);
-            SafeRefresh(state, visRows);
-            _lastLeftPanelItemClick = null;
-            return true;
-        }
-
-        // Mouse wheel: scroll the panel under cursor
-        if (evt.Kind == MouseEventKind.Wheel)
-        {
-            SetActiveSide(side);
-            int delta = evt.Button == MouseButton.WheelUp ? -3 : 3;
-            _ctrl.ScrollView(state, delta, visRows);
-            return true;
-        }
-
-        // Right click: activate panel, move cursor, optionally toggle selection
-        if (evt.Button == MouseButton.Right && evt.Kind == MouseEventKind.Down)
-        {
-            _lastLeftPanelItemClick = null;
-            SetActiveSide(side);
-            int? itemIdx = HitTestPanelItemForMouse(evt, side, bounds, state, mode);
-            if (itemIdx.HasValue)
-            {
-                _ctrl.SetCursorTo(state, itemIdx.Value, visRows);
-                if (PanelOptions.RightClickSelectsFiles)
-                {
-                    var item = state.Items[itemIdx.Value];
-                    if (PanelController.CanSelect(item, PanelOptions))
-                        _ctrl.ToggleCurrentSelection(state, PanelOptions);
-                }
-            }
-            return true;
-        }
-
-        if (evt.Button == MouseButton.Left && evt.Kind == MouseEventKind.DoubleClick)
-        {
-            SetActiveSide(side);
-            int? itemIdx = HitTestPanelItemForMouse(evt, side, bounds, state, mode);
-            if (itemIdx.HasValue)
-            {
-                _ctrl.SetCursorTo(state, itemIdx.Value, visRows);
-
-                var item = state.Items[itemIdx.Value];
-                var currentClick = new PanelItemClick(side, itemIdx.Value, item.FullPath);
-                if (_lastLeftPanelItemClick == currentClick)
-                    OpenPanelItem(state, side, item);
-            }
-
-            _lastLeftPanelItemClick = null;
-            return true;
-        }
-
-        // Left click: activate panel and move cursor
-        if (evt.Button == MouseButton.Left &&
-            (evt.Kind == MouseEventKind.Down || evt.Kind == MouseEventKind.Click))
-        {
-            SetActiveSide(side);
-            int? itemIdx = HitTestPanelItemForMouse(evt, side, bounds, state, mode);
-            if (itemIdx.HasValue)
-            {
-                _ctrl.SetCursorTo(state, itemIdx.Value, visRows);
-                var item = state.Items[itemIdx.Value];
-                _lastLeftPanelItemClick = new PanelItemClick(side, itemIdx.Value, item.FullPath);
-            }
-            else
-            {
-                _lastLeftPanelItemClick = null;
-            }
-            return true;
-        }
-
-        return false;
-    }
-
-    private bool TryHandleFunctionKeyBarMouse(MouseConsoleInputEvent evt)
-    {
-        if (evt.Button != MouseButton.Left ||
-            evt.Kind is not (MouseEventKind.Down or MouseEventKind.Click))
-        {
-            return false;
-        }
-
-        var size = LastRenderSizeOrCurrent();
-        if (!FunctionKeyBarRenderer.TryGetKeyNumberAt(evt, size.Height - 1, size.Width, out int keyNumber))
-        {
-            return false;
-        }
-
-        var binding = _functionKeyBindings.FirstOrDefault(candidate =>
-            candidate.Layer == _functionKeyLayer &&
-            candidate.KeyNumber == keyNumber &&
-            CanExecuteFunctionKeyCommand(candidate.CommandId));
-
-        return binding is not null && ExecuteRegisteredCommand(binding.CommandId);
-    }
-
-    private bool TryHandleDirectoryShortcutBarMouse(MouseConsoleInputEvent evt)
-    {
-        var size = LastRenderSizeOrCurrent();
-        if (!DirectoryShortcutBarRenderer.TryGetShortcutNumberAt(
-                evt,
-                ApplicationLayoutService.PanelHeight(size) - 1,
-                size.Width,
-                _settings.DirectoryShortcuts,
-                out int number))
-        {
-            return false;
-        }
-
-        return ExecuteRegisteredCommand(
-            DirectoryShortcutCommandIds.Navigate,
-            new NavigateToDirectoryShortcutArgs(number));
-    }
-
-    private bool TryHandleCommandLineMouse(MouseConsoleInputEvent evt)
-    {
-        var size = LastRenderSizeOrCurrent();
-        int row = ApplicationLayoutService.CommandLineRow(size);
-        bool isSelectionDrag = _isCommandLineMouseSelecting &&
-            evt.Button == MouseButton.Left &&
-            evt.Kind == MouseEventKind.Move;
-
-        if (evt.Y != row && !isSelectionDrag)
-            return false;
-
-        if (evt.Button == MouseButton.Left &&
-            evt.Kind is MouseEventKind.Down or MouseEventKind.Click)
-        {
-            _cmdLine.MoveCursorTo(CommandLineTextPositionFromMouseX(size, evt.X));
-            _isCommandLineMouseSelecting = evt.Kind == MouseEventKind.Down;
-            ResetCommandHistoryNavigation();
-            return true;
-        }
-
-        if (evt.Button == MouseButton.Left && evt.Kind == MouseEventKind.DoubleClick)
-        {
-            SelectCommandLineWordAt(CommandLineTextPositionFromMouseX(size, evt.X));
-            _isCommandLineMouseSelecting = false;
-            ResetCommandHistoryNavigation();
-            return true;
-        }
-
-        if (isSelectionDrag)
-        {
-            _cmdLine.MoveCursorWithSelection(CommandLineTextPositionFromMouseX(size, evt.X));
-            ResetCommandHistoryNavigation();
-            return true;
-        }
-
-        if (evt.Button == MouseButton.Left && evt.Kind == MouseEventKind.Up)
-        {
-            _isCommandLineMouseSelecting = false;
-            return true;
-        }
-
-        if (evt.Button == MouseButton.Right &&
-            evt.Kind is MouseEventKind.Down or MouseEventKind.Click)
-        {
-            PasteTextIntoCommandLine();
-            return true;
-        }
-
-        return false;
-    }
-
-    private int CommandLineTextPositionFromMouseX(ConsoleSize size, int mouseX)
-    {
-        if (size.Width <= 0)
-            return 0;
-
-        string prompt = ActiveState.CurrentDirectory + ">";
-        int fullLength = prompt.Length + _cmdLine.Text.Length;
-        int offset = GetCommandLineDisplayOffset(size.Width, prompt.Length, fullLength, _cmdLine.CursorPosition);
-        int x = Math.Clamp(mouseX, 0, size.Width - 1);
-        return Math.Clamp(x + offset - prompt.Length, 0, _cmdLine.Text.Length);
-    }
-
-    private static int GetCommandLineDisplayOffset(
-        int totalWidth,
-        int promptLength,
-        int fullLength,
-        int cursorPosition)
-    {
-        if (fullLength < totalWidth)
-            return 0;
-
-        int rawCursorX = promptLength + cursorPosition;
-        int maxOffset = Math.Max(0, fullLength - totalWidth + 1);
-        return Math.Clamp(rawCursorX - totalWidth + 1, 0, maxOffset);
-    }
-
-    private void SelectCommandLineWordAt(int position)
-    {
-        string text = _cmdLine.Text;
-        if (text.Length == 0)
-            return;
-
-        position = Math.Clamp(position, 0, text.Length - 1);
-        if (char.IsWhiteSpace(text[position]) && position > 0 && !char.IsWhiteSpace(text[position - 1]))
-            position--;
-
-        int start = position;
-        while (start > 0 && !char.IsWhiteSpace(text[start - 1]))
-            start--;
-
-        int end = position;
-        while (end < text.Length && !char.IsWhiteSpace(text[end]))
-            end++;
-
-        _cmdLine.MoveCursorTo(start);
-        _cmdLine.MoveCursorWithSelection(end);
-    }
-
-    private int? HitTestPanelItemForMouse(
-        MouseConsoleInputEvent evt,
-        PanelSide side,
-        Rect bounds,
-        FilePanelState state,
-        PanelViewMode mode)
-    {
-        int x = evt.X;
-
-        // Before panels had separate frames, the first usable right-panel column was
-        // where the new right-panel left border is now. Keep mouse targeting tolerant.
-        if (side == PanelSide.Right && x == bounds.X)
-            x++;
-
-        return PanelHitTester.HitTestItem(x, evt.Y, bounds, state, mode, PanelOptions);
-    }
-
-    private void ClearPanelItemClickOnMousePress(MouseConsoleInputEvent evt)
-    {
-        if (evt.Kind is MouseEventKind.Down or MouseEventKind.Click or MouseEventKind.DoubleClick)
-            _lastLeftPanelItemClick = null;
-    }
-
     private bool CopyCommandLineSelection()
     {
         string? selectedText = _cmdLine.SelectedText;
@@ -1194,83 +885,6 @@ public sealed class Application
             _ctrl.ToggleSelectAll(ActiveState, PanelOptions);
     }
 
-    private bool TryHandlePanelScrollbarDrag(MouseConsoleInputEvent evt)
-    {
-        if (_ui.PanelScrollbarDrag is not { } drag)
-            return false;
-
-        var state = GetPanelState(drag.Side);
-        int firstVisibleIndex = state.ScrollOffset;
-        ScrollBarDragState? dragState = drag.DragState;
-        if (!ScrollBarMouseHandler.TryHandleMouse(
-                evt,
-                drag.DragState.Bounds,
-                drag.DragState.TotalItems,
-                drag.DragState.ViewportItems,
-                ref firstVisibleIndex,
-                ref dragState))
-        {
-            return false;
-        }
-
-        _ui.PanelScrollbarDrag = dragState.HasValue
-            ? new PanelScrollbarDrag(drag.Side, dragState.Value)
-            : null;
-
-        SetActiveSide(drag.Side);
-        _ctrl.ScrollView(state, firstVisibleIndex - state.ScrollOffset, drag.DragState.ViewportItems);
-        _lastLeftPanelItemClick = null;
-        return true;
-    }
-
-    private bool TryHandlePanelScrollbarMouse(
-        MouseConsoleInputEvent evt,
-        PanelSide side,
-        FilePanelState state,
-        PanelViewMode mode,
-        Rect bounds,
-        int visibleRows)
-    {
-        if (!TryGetPanelScrollbarBounds(bounds, mode, out var scrollbarBounds))
-            return false;
-
-        int firstVisibleIndex = state.ScrollOffset;
-        ScrollBarDragState? dragState = null;
-        if (!ScrollBarMouseHandler.TryHandleMouse(
-                evt,
-                scrollbarBounds,
-                state.Items.Count,
-                visibleRows,
-                ref firstVisibleIndex,
-                ref dragState))
-        {
-            return false;
-        }
-
-        _ui.PanelScrollbarDrag = dragState.HasValue
-            ? new PanelScrollbarDrag(side, dragState.Value)
-            : null;
-
-        SetActiveSide(side);
-        _ctrl.ScrollView(state, firstVisibleIndex - state.ScrollOffset, visibleRows);
-        _lastLeftPanelItemClick = null;
-        return true;
-    }
-
-    private bool TryGetPanelScrollbarBounds(Rect bounds, PanelViewMode mode, out Rect scrollbarBounds)
-    {
-        if (mode == PanelViewMode.BriefTwoColumns)
-        {
-            int rowsPerColumn = BriefTwoColumnsPanelRenderer.RowsPerColumn(bounds, PanelOptions);
-            scrollbarBounds = new Rect(bounds.Right - 1, bounds.Y + 2, 1, rowsPerColumn);
-            return rowsPerColumn > 0;
-        }
-
-        int visibleRows = PanelRenderer.VisibleRows(bounds, PanelOptions);
-        scrollbarBounds = new Rect(bounds.Right - 1, bounds.Y + 1, 1, visibleRows);
-        return visibleRows > 0;
-    }
-
     private void OnVisibleCommandLineTextEdited()
     {
         ResetCommandHistoryNavigation();
@@ -1299,90 +913,6 @@ public sealed class Application
     {
         int rowsAboveCommandLine = ApplicationLayoutService.CommandLineRow(size) - 2;
         return Math.Max(0, Math.Min(MaxCommandCompletionRows, rowsAboveCommandLine));
-    }
-
-    private bool TryHandleCommandCompletionScrollbarMouse(MouseConsoleInputEvent evt)
-    {
-        if (!_commandCompletion.Visible && !_commandCompletion.ScrollbarDrag.HasValue)
-            return false;
-
-        var size = LastRenderSizeOrCurrent();
-        int visibleRows = CommandCompletionVisibleRows(size);
-        if (visibleRows <= 0 || _commandCompletion.Matches.Count <= visibleRows)
-            return false;
-
-        int height = visibleRows + 2;
-        int commandLineRow = ApplicationLayoutService.CommandLineRow(size);
-        var scrollbarBounds = new Rect(size.Width - 1, commandLineRow - height + 1, 1, visibleRows);
-        int firstVisibleIndex = _commandCompletion.FirstVisibleIndex;
-        var dragState = _commandCompletion.ScrollbarDrag;
-        if (!ScrollBarMouseHandler.TryHandleMouse(
-                evt,
-                scrollbarBounds,
-                _commandCompletion.Matches.Count,
-                visibleRows,
-                ref firstVisibleIndex,
-                ref dragState))
-        {
-            return false;
-        }
-
-        _commandCompletion.ScrollbarDrag = dragState;
-        _commandCompletion.FirstVisibleIndex = ScrollStateCalculator.ClampFirstVisibleIndex(
-            firstVisibleIndex,
-            _commandCompletion.Matches.Count,
-            visibleRows);
-        _commandCompletionController.ClampSelectionToViewport(visibleRows);
-        return true;
-    }
-
-    private bool TryHandleCommandCompletionItemMouse(MouseConsoleInputEvent evt)
-    {
-        if (!_commandCompletion.Visible ||
-            _commandCompletion.Matches.Count == 0 ||
-            evt.Button != MouseButton.Left ||
-            evt.Kind is not (MouseEventKind.Down or MouseEventKind.Click or MouseEventKind.DoubleClick))
-        {
-            return false;
-        }
-
-        var size = LastRenderSizeOrCurrent();
-        int visibleRows = CommandCompletionVisibleRows(size);
-        if (visibleRows <= 0)
-            return false;
-
-        int rowCount = Math.Min(visibleRows, _commandCompletion.Matches.Count);
-        int height = rowCount + 2;
-        int commandLineRow = ApplicationLayoutService.CommandLineRow(size);
-        var contentBounds = new Rect(
-            1,
-            commandLineRow - height + 1,
-            Math.Max(0, size.Width - 2),
-            rowCount);
-
-        if (evt.X < contentBounds.X ||
-            evt.X >= contentBounds.Right ||
-            evt.Y < contentBounds.Y ||
-            evt.Y >= contentBounds.Bottom)
-        {
-            return false;
-        }
-
-        int itemIndex = _commandCompletion.FirstVisibleIndex + evt.Y - contentBounds.Y;
-        if (itemIndex < 0 || itemIndex >= _commandCompletion.Matches.Count)
-            return false;
-
-        _commandCompletion.SelectedIndex = itemIndex;
-        if (IsCommandCompletionNeutralSelected())
-        {
-            HideCommandCompletion(temporarily: false);
-            return true;
-        }
-
-        _cmdLine.SetText(_commandCompletion.Matches[_commandCompletion.SelectedIndex]);
-        HideCommandCompletion(temporarily: false);
-        ResetCommandHistoryNavigation();
-        return true;
     }
 
     private bool TryMoveCommandCompletionSelection(int delta)

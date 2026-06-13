@@ -168,10 +168,17 @@ public sealed class DirectoryShortcutApplicationIntegrationTests : IDisposable
             .Invoke(router, [key])!;
     }
 
-    private static bool InvokeHandleMouse(Application app, MouseConsoleInputEvent mouse) =>
-        (bool)typeof(Application)
-            .GetMethod("HandleMouse", BindingFlags.Instance | BindingFlags.NonPublic)!
-            .Invoke(app, [mouse])!;
+    private static bool InvokeHandleMouse(Application app, MouseConsoleInputEvent mouse)
+    {
+        var router = typeof(Application)
+            .GetField("_mouseInputRouter", BindingFlags.Instance | BindingFlags.NonPublic)!
+            .GetValue(app)!;
+
+        return (bool)router
+            .GetType()
+            .GetMethod("Handle")!
+            .Invoke(router, [mouse])!;
+    }
 
     private static ConsoleKeyInfo Key(ConsoleKey key) =>
         new('\0', key, shift: false, alt: false, control: false);

@@ -1204,12 +1204,16 @@ public sealed class ApplicationNavigationTests : IDisposable
 
     private static bool HandleMouse(Application app, MouseConsoleInputEvent mouse)
     {
-        var method = typeof(Application).GetMethod(
-            "HandleMouse",
+        var router = typeof(Application).GetField(
+            "_mouseInputRouter",
             BindingFlags.Instance | BindingFlags.NonPublic)
-            ?? throw new InvalidOperationException("Application.HandleMouse method not found.");
+            ?.GetValue(app)
+            ?? throw new InvalidOperationException("Application mouse input router not found.");
 
-        return (bool)method.Invoke(app, [mouse])!;
+        var method = router.GetType().GetMethod("Handle")
+            ?? throw new InvalidOperationException("MouseInputRouter.Handle method not found.");
+
+        return (bool)method.Invoke(router, [mouse])!;
     }
 
     private static void Render(Application app)
