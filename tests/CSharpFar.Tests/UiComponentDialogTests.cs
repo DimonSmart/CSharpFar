@@ -387,6 +387,64 @@ public sealed class UiComponentDialogTests
     }
 
     [Fact]
+    public void ChoiceRow_KeyboardMovesPreviousAndNext()
+    {
+        var row = new ChoiceRow<string>(["one", "two", "three"], static value => value, selectedIndex: 1);
+
+        Assert.True(row.TryHandleKey(Key(ConsoleKey.LeftArrow)));
+        Assert.Equal("one", row.Value);
+        Assert.True(row.TryHandleKey(Key(ConsoleKey.RightArrow)));
+        Assert.Equal("two", row.Value);
+    }
+
+    [Fact]
+    public void ChoiceRow_SegmentedMouseSelectsConcreteItem()
+    {
+        var driver = new FakeConsoleDriver(80, 5);
+        var screen = new ScreenRenderer(driver);
+        var row = new ChoiceRow<string>(["Default", "Copy", "Inherit"], static value => value);
+        row.RenderSegmented(
+            screen,
+            x: 2,
+            y: 2,
+            width: 60,
+            label: "Access rights:",
+            focused: true,
+            fillStyle: new CellStyle(ConsoleColor.Gray, ConsoleColor.Black),
+            focusedStyle: new CellStyle(ConsoleColor.Black, ConsoleColor.Gray));
+
+        int inheritX = driver.GetRow(2).IndexOf("Inherit", StringComparison.Ordinal);
+        bool handled = row.TryHandleMouse(
+            new MouseConsoleInputEvent(inheritX, 2, MouseButton.Left, MouseEventKind.Down, MouseKeyModifiers.None));
+
+        Assert.True(handled);
+        Assert.Equal("Inherit", row.Value);
+    }
+
+    [Fact]
+    public void ChoiceRow_SegmentedMouseOutsideOptionDoesNotChangeValue()
+    {
+        var driver = new FakeConsoleDriver(80, 5);
+        var screen = new ScreenRenderer(driver);
+        var row = new ChoiceRow<string>(["Default", "Copy", "Inherit"], static value => value);
+        row.RenderSegmented(
+            screen,
+            x: 2,
+            y: 2,
+            width: 60,
+            label: "Access rights:",
+            focused: true,
+            fillStyle: new CellStyle(ConsoleColor.Gray, ConsoleColor.Black),
+            focusedStyle: new CellStyle(ConsoleColor.Black, ConsoleColor.Gray));
+
+        bool handled = row.TryHandleMouse(
+            new MouseConsoleInputEvent(3, 2, MouseButton.Left, MouseEventKind.Down, MouseKeyModifiers.None));
+
+        Assert.False(handled);
+        Assert.Equal("Default", row.Value);
+    }
+
+    [Fact]
     public void ScrollableFormDialog_KeepsFocusedRowVisible()
     {
         var form = new ScrollableFormDialog(

@@ -36,6 +36,13 @@ internal sealed class FileOperationDialog
         ConflictDecisionMode.OnlyNewer,
     ];
 
+    private static readonly FileSecurityMode[] SecurityModes =
+    [
+        FileSecurityMode.Default,
+        FileSecurityMode.CopyAccessControl,
+        FileSecurityMode.Inherit,
+    ];
+
     private readonly ScreenRenderer _screen;
     private static readonly SingleLineTextHistoryRegistry HistoryRegistry = new();
     private readonly ModalDialogRenderer _modalRenderer = new();
@@ -131,6 +138,14 @@ internal sealed class FileOperationDialog
 
         int conflictIndex = FindConflictIndex(initialOptions.DefaultConflictDecision, conflictModes);
         var securityMode = initialOptions.SecurityMode;
+        var securityModeRow = new ChoiceRow<FileSecurityMode>(
+            SecurityModes,
+            SecurityModeLabel,
+            Array.IndexOf(SecurityModes, securityMode) is var securityIndex && securityIndex >= 0 ? securityIndex : 0);
+        var conflictModeRow = new ChoiceRow<ConflictDecisionMode>(
+            conflictModes,
+            ConflictLabel,
+            conflictIndex);
         bool preserveTimestamps = initialOptions.PreserveTimestamps;
         bool copySymlinkContents = initialOptions.SymlinkMode == SymlinkCopyMode.CopyTargetContents;
         bool useFilter = !string.IsNullOrWhiteSpace(initialOptions.FileMask);
@@ -158,6 +173,8 @@ internal sealed class FileOperationDialog
             filterHistory,
             conflictModes,
             conflictIndex,
+            securityModeRow,
+            conflictModeRow,
             securityMode,
             preserveTimestamps,
             copySymlinkContents,
@@ -198,6 +215,8 @@ internal sealed class FileOperationDialog
                     filterHistory,
                     conflictModes,
                     conflictIndex,
+                    securityModeRow,
+                    conflictModeRow,
                     securityMode,
                     preserveTimestamps,
                     copySymlinkContents,
@@ -273,8 +292,9 @@ internal sealed class FileOperationDialog
                     bodyMouse,
                     size,
                     bodyScrollTop,
-                    conflictModes,
                     showOperationOptions,
+                    securityModeRow,
+                    conflictModeRow,
                     ref focusRow,
                     ref conflictIndex,
                     ref securityMode,
@@ -344,7 +364,7 @@ internal sealed class FileOperationDialog
                     else
                     {
                         CycleFocusedValue(focusRow, conflictModes, ref conflictIndex, ref securityMode, ref preserveTimestamps,
-                            ref copySymlinkContents, ref useFilter);
+                            ref copySymlinkContents, ref useFilter, securityModeRow, conflictModeRow);
                     }
                     break;
                 case ConsoleKey.Spacebar:
@@ -361,7 +381,7 @@ internal sealed class FileOperationDialog
                     else if (focusRow is not 0 and not 6)
                     {
                         CycleFocusedValue(focusRow, conflictModes, ref conflictIndex, ref securityMode, ref preserveTimestamps,
-                            ref copySymlinkContents, ref useFilter);
+                            ref copySymlinkContents, ref useFilter, securityModeRow, conflictModeRow);
                     }
                     else
                     {
@@ -442,6 +462,8 @@ internal sealed class FileOperationDialog
                 filterHistory,
                 conflictModes,
                 conflictIndex,
+                securityModeRow,
+                conflictModeRow,
                 securityMode,
                 preserveTimestamps,
                 copySymlinkContents,
@@ -491,8 +513,9 @@ internal sealed class FileOperationDialog
         MouseConsoleInputEvent mouse,
         ConsoleSize size,
         int bodyScrollTop,
-        IReadOnlyList<ConflictDecisionMode> conflictModes,
         bool showOperationOptions,
+        ChoiceRow<FileSecurityMode> securityModeRow,
+        ChoiceRow<ConflictDecisionMode> conflictModeRow,
         ref int focusRow,
         ref int conflictIndex,
         ref FileSecurityMode securityMode,
@@ -506,7 +529,7 @@ internal sealed class FileOperationDialog
             return false;
         }
 
-        if (!TryGetBodyMousePosition(size, bodyScrollTop, mouse.X, mouse.Y, out int virtualRow, out int contentColumn))
+        if (!TryGetBodyMousePosition(size, bodyScrollTop, mouse.X, mouse.Y, out int virtualRow))
             return false;
 
         switch (virtualRow)
@@ -518,21 +541,21 @@ internal sealed class FileOperationDialog
                 if (!showOperationOptions)
                     return false;
                 focusRow = 1;
-                if (TryHitAccessRights(contentColumn, out FileSecurityMode selectedSecurityMode))
-                    securityMode = selectedSecurityMode;
+                if (securityModeRow.TryHandleMouse(mouse))
+                    securityMode = securityModeRow.Value;
                 return true;
             case 5:
                 focusRow = 2;
                 return true;
             case 6:
                 focusRow = 2;
-                if (TryHitConflictMode(contentColumn, conflictModes, startIndex: 0, Math.Min(4, conflictModes.Count), out int topConflictIndex))
-                    conflictIndex = topConflictIndex;
+                if (conflictModeRow.TryHandleMouse(mouse))
+                    conflictIndex = conflictModeRow.SelectedIndex;
                 return true;
             case 7:
                 focusRow = 2;
-                if (TryHitConflictMode(contentColumn, conflictModes, startIndex: 4, conflictModes.Count, out int bottomConflictIndex))
-                    conflictIndex = bottomConflictIndex;
+                if (conflictModeRow.TryHandleMouse(mouse))
+                    conflictIndex = conflictModeRow.SelectedIndex;
                 return true;
             case 9:
                 if (!showOperationOptions)
@@ -569,11 +592,9 @@ internal sealed class FileOperationDialog
         int bodyScrollTop,
         int mouseX,
         int mouseY,
-        out int virtualRow,
-        out int contentColumn)
+        out int virtualRow)
     {
         virtualRow = -1;
-        contentColumn = -1;
 
         Rect frameBounds = FrameBounds(size);
         int contentX = frameBounds.X + 2;
@@ -590,51 +611,7 @@ internal sealed class FileOperationDialog
         }
 
         virtualRow = bodyScrollTop + mouseY - bodyTop;
-        contentColumn = mouseX - contentX;
         return virtualRow >= 0 && virtualRow < BodyRowCount;
-    }
-
-    private static bool TryHitAccessRights(int contentColumn, out FileSecurityMode securityMode)
-    {
-        const string prefix = "Access rights: ";
-        int column = prefix.Length;
-        foreach ((FileSecurityMode mode, string label) in AccessRightLabels())
-        {
-            if (contentColumn >= column && contentColumn < column + label.Length)
-            {
-                securityMode = mode;
-                return true;
-            }
-
-            column += label.Length + 1;
-        }
-
-        securityMode = FileSecurityMode.Default;
-        return false;
-    }
-
-    private static bool TryHitConflictMode(
-        int contentColumn,
-        IReadOnlyList<ConflictDecisionMode> modes,
-        int startIndex,
-        int endIndex,
-        out int conflictIndex)
-    {
-        int column = 0;
-        for (int i = startIndex; i < endIndex; i++)
-        {
-            string label = $"( ) {ConflictLabel(modes[i])}";
-            if (contentColumn >= column && contentColumn < column + label.Length)
-            {
-                conflictIndex = i;
-                return true;
-            }
-
-            column += label.Length + 1;
-        }
-
-        conflictIndex = -1;
-        return false;
     }
 
     private static FileOperationDialogResult? BuildResult(
@@ -701,20 +678,21 @@ internal sealed class FileOperationDialog
         ref FileSecurityMode securityMode,
         ref bool preserveTimestamps,
         ref bool copySymlinkContents,
-        ref bool useFilter)
+        ref bool useFilter,
+        ChoiceRow<FileSecurityMode> securityModeRow,
+        ChoiceRow<ConflictDecisionMode> conflictModeRow)
     {
         switch (focusRow)
         {
             case 1:
-                securityMode = securityMode switch
-                {
-                    FileSecurityMode.Default => FileSecurityMode.CopyAccessControl,
-                    FileSecurityMode.CopyAccessControl => FileSecurityMode.Inherit,
-                    _ => FileSecurityMode.Default,
-                };
+                securityModeRow.Value = securityMode;
+                securityModeRow.TryHandleKey(ToggleKey());
+                securityMode = securityModeRow.Value;
                 break;
             case 2:
-                conflictIndex = (conflictIndex + 1) % conflictModes.Count;
+                conflictModeRow.Value = conflictModes[conflictIndex];
+                conflictModeRow.TryHandleKey(ToggleKey());
+                conflictIndex = conflictModeRow.SelectedIndex;
                 break;
             case 3:
                 _preserveTimestamps.Value = preserveTimestamps;
@@ -788,13 +766,6 @@ internal sealed class FileOperationDialog
         return 0;
     }
 
-    private static IReadOnlyList<(FileSecurityMode Mode, string Label)> AccessRightLabels() =>
-    [
-        (FileSecurityMode.Default, "( ) Default"),
-        (FileSecurityMode.CopyAccessControl, "( ) Copy"),
-        (FileSecurityMode.Inherit, "( ) Inherit"),
-    ];
-
     private void Draw(
         ConsoleSize size,
         string title,
@@ -806,6 +777,8 @@ internal sealed class FileOperationDialog
         SingleLineTextHistoryState filterHistory,
         IReadOnlyList<ConflictDecisionMode> conflictModes,
         int conflictIndex,
+        ChoiceRow<FileSecurityMode> securityModeRow,
+        ChoiceRow<ConflictDecisionMode> conflictModeRow,
         FileSecurityMode securityMode,
         bool preserveTimestamps,
         bool copySymlinkContents,
@@ -928,7 +901,18 @@ internal sealed class FileOperationDialog
             void DrawBodyAccessRights(int virtualRow)
             {
                 if (BodyY(virtualRow) is { } y)
-                    DrawAccessRights(contentX, y, contentWidth, securityMode, focusRow == 1, fill, focused);
+                {
+                    securityModeRow.Value = securityMode;
+                    securityModeRow.RenderSegmented(
+                        _screen,
+                        contentX,
+                        y,
+                        contentWidth,
+                        "Access rights:",
+                        focusRow == 1,
+                        fill,
+                        focused);
+                }
             }
 
             void DrawBodyCheckbox(int virtualRow, string label, bool value, bool isFocused)
@@ -940,7 +924,20 @@ internal sealed class FileOperationDialog
             void DrawBodyConflictModeRow(int virtualRow, int startIndex, int endIndex)
             {
                 if (BodyY(virtualRow) is { } y)
-                    DrawConflictModeRow(contentX, y, contentWidth, conflictModes, conflictIndex, startIndex, endIndex, focusRow == 2, fill, focused);
+                {
+                    conflictModeRow.Value = conflictModes[conflictIndex];
+                    conflictModeRow.RenderSegmented(
+                        _screen,
+                        contentX,
+                        y,
+                        contentWidth,
+                        string.Empty,
+                        focusRow == 2,
+                        fill,
+                        focused,
+                        startIndex,
+                        endIndex);
+                }
             }
         });
 
@@ -1142,59 +1139,6 @@ internal sealed class FileOperationDialog
         }
     }
 
-    private void DrawAccessRights(
-        int x,
-        int y,
-        int width,
-        FileSecurityMode mode,
-        bool focused,
-        CellStyle fill,
-        CellStyle focusedStyle)
-    {
-        string text = mode switch
-        {
-            FileSecurityMode.CopyAccessControl => "Access rights: ( ) Default (x) Copy ( ) Inherit",
-            FileSecurityMode.Inherit => "Access rights: ( ) Default ( ) Copy (x) Inherit",
-            _ => "Access rights: (x) Default ( ) Copy ( ) Inherit",
-        };
-        _screen.Write(x, y, Truncate(text, width).PadRight(width), focused ? focusedStyle : fill);
-    }
-
-    private void DrawConflictModes(
-        int x,
-        int y,
-        int width,
-        IReadOnlyList<ConflictDecisionMode> modes,
-        int selectedIndex,
-        bool focused,
-        CellStyle fill,
-        CellStyle focusedStyle)
-    {
-        _screen.Write(x, y, "Already existing files:".PadRight(width), fill);
-        DrawConflictModeRow(x, y + 1, width, modes, selectedIndex, 0, Math.Min(4, modes.Count), focused, fill, focusedStyle);
-        DrawConflictModeRow(x, y + 2, width, modes, selectedIndex, 4, modes.Count, focused, fill, focusedStyle);
-    }
-
-    private void DrawConflictModeRow(
-        int x,
-        int y,
-        int width,
-        IReadOnlyList<ConflictDecisionMode> modes,
-        int selectedIndex,
-        int startIndex,
-        int endIndex,
-        bool focused,
-        CellStyle fill,
-        CellStyle focusedStyle)
-    {
-        var labels = new List<string>();
-        for (int i = startIndex; i < endIndex; i++)
-            labels.Add($"{(i == selectedIndex ? "(x)" : "( )")} {ConflictLabel(modes[i])}");
-
-        string text = string.Join(' ', labels);
-        _screen.Write(x, y, Truncate(text, width).PadRight(width), focused ? focusedStyle : fill);
-    }
-
     private CheckBoxLine CheckBoxForLabel(string label, bool value)
     {
         CheckBoxLine checkBox = label switch
@@ -1232,6 +1176,13 @@ internal sealed class FileOperationDialog
         ConflictDecisionMode.ResumeWithTailValidation => "Paranoid",
         ConflictDecisionMode.OnlyNewer => "Only newer",
         _ => "Ask",
+    };
+
+    private static string SecurityModeLabel(FileSecurityMode mode) => mode switch
+    {
+        FileSecurityMode.CopyAccessControl => "Copy",
+        FileSecurityMode.Inherit => "Inherit",
+        _ => "Default",
     };
 
     private static string Truncate(string value, int maxLength)
