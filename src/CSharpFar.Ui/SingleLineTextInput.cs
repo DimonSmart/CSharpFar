@@ -191,7 +191,6 @@ public static class SingleLineTextInput
         CellStyle normalStyle,
         CellStyle selectedStyle,
         SingleLineTextHistoryState? history,
-        ConsolePalette? palette = null,
         bool maskInput = false,
         bool renderDropdown = true)
     {
@@ -213,7 +212,7 @@ public static class SingleLineTextInput
         Render(screen, x, y, width - 1, buffer, normalStyle, selectedStyle, maskInput);
         screen.WriteChar(x + width - 1, y, HistoryDropdownArrow, normalStyle);
         if (renderDropdown)
-            RenderHistoryDropdown(screen, x, y, width, history, palette);
+            RenderHistoryDropdown(screen, x, y, width, history);
     }
 
     public static bool TryOpenHistoryDropdown(
@@ -329,8 +328,7 @@ public static class SingleLineTextInput
         int fieldX,
         int fieldY,
         int fieldWidth,
-        SingleLineTextHistoryState history,
-        ConsolePalette? palette = null)
+        SingleLineTextHistoryState history)
     {
         if (!history.IsDropdownOpen || history.Matches.Count == 0)
             return;
@@ -340,7 +338,7 @@ public static class SingleLineTextInput
         if (visibleRows <= 0)
             return;
 
-        palette ??= PaletteRegistry.Default;
+        var palette = UiTheme.Current;
         int scrollTop = ScrollStateCalculator.ClampFirstVisibleIndex(
             history.FirstVisibleIndex,
             history.Matches.Count,

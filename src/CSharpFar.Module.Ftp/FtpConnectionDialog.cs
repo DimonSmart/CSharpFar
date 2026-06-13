@@ -59,14 +59,12 @@ internal sealed class FtpConnectionDialog
     private const int FocusRowCount = 16;
 
     private readonly ScreenRenderer _screen;
-    private readonly ConsolePalette _palette;
     private static readonly SingleLineTextHistoryRegistry HistoryRegistry = new();
     private readonly ModalDialogRenderer _modalRenderer = new();
 
-    public FtpConnectionDialog(ScreenRenderer screen, ConsolePalette? palette = null)
+    public FtpConnectionDialog(ScreenRenderer screen)
     {
         _screen = screen;
-        _palette = palette ?? PaletteRegistry.Default;
     }
 
     public FtpConnectionDialogResult? Show(
@@ -1115,7 +1113,7 @@ internal sealed class FtpConnectionDialog
 
         var history = histories.ForRow(focusRow);
         if (history is not null)
-            SingleLineTextInput.RenderHistoryDropdown(_screen, fieldX, cursorY, fieldWidth, history, _palette);
+            SingleLineTextInput.RenderHistoryDropdown(_screen, fieldX, cursorY, fieldWidth, history);
 
         int textWidth = history is null ? fieldWidth : Math.Max(1, fieldWidth - 1);
         int cursorX = SingleLineTextInput.GetCursorX(fieldX, textWidth, buffer);
@@ -1199,8 +1197,7 @@ internal sealed class FtpConnectionDialog
             fieldStyle,
             FarDialogStyles.Input,
             history,
-            _palette,
-            mask,
+            maskInput: mask,
             renderDropdown: false);
     }
 

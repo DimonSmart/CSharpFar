@@ -19,10 +19,9 @@ internal sealed class SftpConnectionManagerDialog
 {
     private readonly ScreenRenderer _screen;
 
-    public SftpConnectionManagerDialog(ScreenRenderer screen, ConsolePalette? palette = null)
+    public SftpConnectionManagerDialog(ScreenRenderer screen)
     {
         _screen = screen;
-        _ = palette;
     }
 
     public SftpConnectionManagerResult? Show(IReadOnlyList<SftpConnectionInfo> connections)

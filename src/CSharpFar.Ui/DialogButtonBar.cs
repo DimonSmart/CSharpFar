@@ -8,6 +8,7 @@ public sealed class DialogButtonBar
 {
     private readonly IReadOnlyList<DialogButton> _buttons;
     private Rect[] _lastBounds;
+    private bool _hasRendered;
 
     public DialogButtonBar(IReadOnlyList<DialogButton> buttons)
     {
@@ -43,6 +44,8 @@ public sealed class DialogButtonBar
             _lastBounds[i] = new Rect(cursorX, y, label.Length, 1);
             cursorX += label.Length + 1;
         }
+
+        _hasRendered = true;
     }
 
     public bool TryHandleInput(ConsoleInputEvent input, ref int focusedIndex, out string? buttonId)
@@ -74,6 +77,9 @@ public sealed class DialogButtonBar
                 return true;
             case ConsoleKey.Enter:
             case ConsoleKey.Spacebar:
+                if (!_buttons[focusedIndex].IsEnabled)
+                    return true;
+
                 buttonId = _buttons[focusedIndex].Id;
                 return true;
         }
@@ -82,7 +88,8 @@ public sealed class DialogButtonBar
         {
             for (int i = 0; i < _buttons.Count; i++)
             {
-                if (char.ToUpperInvariant(key.KeyChar) != char.ToUpperInvariant(_buttons[i].HotKey))
+                if (!_buttons[i].IsEnabled ||
+                    char.ToUpperInvariant(key.KeyChar) != char.ToUpperInvariant(_buttons[i].HotKey))
                     continue;
 
                 focusedIndex = i;
@@ -98,6 +105,9 @@ public sealed class DialogButtonBar
     {
         buttonId = null;
 
+        if (!_hasRendered)
+            return false;
+
         if (mouse.Button != MouseButton.Left || mouse.Kind is not (MouseEventKind.Down or MouseEventKind.Click))
             return false;
 
@@ -107,7 +117,8 @@ public sealed class DialogButtonBar
                 continue;
 
             focusedIndex = i;
-            buttonId = _buttons[i].Id;
+            if (_buttons[i].IsEnabled)
+                buttonId = _buttons[i].Id;
             return true;
         }
 

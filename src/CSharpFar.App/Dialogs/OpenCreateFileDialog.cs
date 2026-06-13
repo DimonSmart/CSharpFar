@@ -136,7 +136,7 @@ internal sealed class OpenCreateFileDialog
                     continue;
                 }
 
-                if (codePageDropdown.TryHandleFieldMouse(mouse, size, CodePageFieldBounds(size)))
+                if (codePageDropdown.TryHandleFieldMouse(mouse, _screen, size, CodePageFieldBounds(size)))
                 {
                     focusRow = 1;
                     error = null;
@@ -374,13 +374,7 @@ internal sealed class OpenCreateFileDialog
         if (focusRow == 0)
             SingleLineTextInput.RenderHistoryDropdown(_screen, InputX(size), InputY(size), InputWidth(size), history);
         else
-            codePageDropdown.RenderPopup(
-                _screen,
-                size,
-                CodePageFieldBounds(size),
-                FarDialogStyles.Input,
-                FarDialogStyles.FocusedInput,
-                FarDialogStyles.FrameOptions);
+            codePageDropdown.RenderPopup(_screen, size, CodePageFieldBounds(size));
 
         if (focusRow == 0)
             SetInputCursor(InputX(size), InputY(size), InputWidth(size), filePath);

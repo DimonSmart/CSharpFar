@@ -27,7 +27,7 @@ internal sealed class NavigateToDirectoryShortcutCommand : IApplicationCommand
 
         if (!Directory.Exists(item.Path))
         {
-            new MessageDialog(context.Screen, context.Palette)
+            new MessageDialog(context.Screen)
                 .Show("Directory Shortcut", $"Directory not found: {item.Path}");
             return ApplicationCommandResult.Rendered();
         }
@@ -40,7 +40,7 @@ internal sealed class NavigateToDirectoryShortcutCommand : IApplicationCommand
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
-            new MessageDialog(context.Screen, context.Palette).Show("Directory Shortcut", ex.Message);
+            new MessageDialog(context.Screen).Show("Directory Shortcut", ex.Message);
         }
 
         return ApplicationCommandResult.Rendered();

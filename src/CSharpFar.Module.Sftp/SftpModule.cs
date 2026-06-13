@@ -47,9 +47,7 @@ public sealed class SftpModule
         while (true)
         {
             var connections = ConnectionStore.Load();
-            var result = new SftpConnectionManagerDialog(
-                StartupInfo.Ui.Screen,
-                StartupInfo.Ui.CurrentPalette).Show(connections);
+            var result = new SftpConnectionManagerDialog(StartupInfo.Ui.Screen).Show(connections);
             if (result is null)
                 return ModuleActionResult.Completed();
 
@@ -117,7 +115,7 @@ public sealed class SftpModule
             ? CredentialStore.TryReadPassword(connection.CredentialId)
             : null;
 
-        return new SftpConnectionDialog(StartupInfo.Ui.Screen, StartupInfo.Ui.CurrentPalette).Show(
+        return new SftpConnectionDialog(StartupInfo.Ui.Screen).Show(
             new SftpConnectionDialogRequest(
                 connection,
                 savedPassword,

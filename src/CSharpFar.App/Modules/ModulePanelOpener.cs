@@ -88,7 +88,7 @@ internal sealed class ModulePanelOpener
                 OpenPanel(defaultPanelSide, result.Panel!);
                 return ApplicationCommandResult.Rendered();
             case ModuleActionResultKind.Failed:
-                new MessageDialog(_screen, _palette()).Show("Module", result.Message ?? "Module operation failed.");
+                new MessageDialog(_screen).Show("Module", result.Message ?? "Module operation failed.");
                 return ApplicationCommandResult.Rendered();
             default:
                 return ApplicationCommandResult.Rendered();

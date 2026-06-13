@@ -11,12 +11,10 @@ public sealed class ModuleInputDialog
     private const int DialogHeight = 6;
 
     private readonly ScreenRenderer _screen;
-    private readonly ConsolePalette _palette;
 
-    public ModuleInputDialog(ScreenRenderer screen, ConsolePalette? palette = null)
+    public ModuleInputDialog(ScreenRenderer screen)
     {
         _screen = screen;
-        _palette = palette ?? PaletteRegistry.Default;
     }
 
     public string? Show(string title, string prompt, string? initialText)
@@ -61,18 +59,19 @@ public sealed class ModuleInputDialog
         int dlgY = Math.Max(0, (size.Height - DialogHeight) / 2);
         int fieldWidth = DialogWidth - 4;
         var bounds = new Rect(dlgX, dlgY, DialogWidth, DialogHeight);
+        var palette = UiTheme.Current;
 
-        new DialogFrameRenderer().RenderFrame(_screen, bounds, title, false, PaletteStyles.DialogPopupOptions(_palette), (_, _) =>
+        new DialogFrameRenderer().RenderFrame(_screen, bounds, title, false, PaletteStyles.DialogPopupOptions(palette), (_, _) =>
         {
-            _screen.Write(dlgX + 2, dlgY + 1, Truncate(prompt, fieldWidth).PadRight(fieldWidth), PaletteStyles.DialogFill(_palette));
+            _screen.Write(dlgX + 2, dlgY + 1, Truncate(prompt, fieldWidth).PadRight(fieldWidth), PaletteStyles.DialogFill(palette));
             SingleLineTextInput.Render(
                 _screen,
                 dlgX + 2,
                 dlgY + 2,
                 fieldWidth,
                 buffer,
-                PaletteStyles.InputField(_palette),
-                PaletteStyles.InputHighlight(_palette));
+                PaletteStyles.InputField(palette),
+                PaletteStyles.InputHighlight(palette));
 
             int cursorX = SingleLineTextInput.GetCursorX(dlgX + 2, fieldWidth, buffer);
             _screen.SetCursorPosition(Math.Min(dlgX + 1 + fieldWidth, cursorX), dlgY + 2);

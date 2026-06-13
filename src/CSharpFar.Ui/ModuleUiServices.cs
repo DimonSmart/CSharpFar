@@ -21,19 +21,19 @@ public sealed class ModuleUiServices
         Screen.Restore(snapshot);
 
     public void ShowMessage(string title, string message) =>
-        new MessageDialog(Screen, CurrentPalette).Show(title, message);
+        new MessageDialog(Screen).Show(title, message);
 
     public int ShowMessage(string title, string message, IReadOnlyList<string> buttons) =>
-        new MessageDialog(Screen, CurrentPalette).ShowButtons(title, message, buttons);
+        new MessageDialog(Screen).ShowButtons(title, message, buttons);
 
     public string? Input(string title, string prompt, string? initialText = null) =>
-        new ModuleInputDialog(Screen, CurrentPalette).Show(title, prompt, initialText);
+        new ModuleInputDialog(Screen).Show(title, prompt, initialText);
 
     public int? ShowMenu(string title, IReadOnlyList<string> items, int selected) =>
-        new ModuleMenuDialog(Screen, CurrentPalette).Show(title, items, selected);
+        new ModuleMenuDialog(Screen).Show(title, items, selected);
 
     public void ShowHelp(string title, IReadOnlyList<string> lines) =>
-        new ModuleHelpDialog(Screen, CurrentPalette).Show(title, lines);
+        new ModuleHelpDialog(Screen).Show(title, lines);
 
     public bool Confirm(string title, string question, string itemName) =>
         new ConfirmDialog(Screen).Show(title, question, itemName);

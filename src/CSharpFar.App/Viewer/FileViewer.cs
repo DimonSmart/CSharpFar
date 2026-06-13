@@ -22,7 +22,7 @@ internal sealed class FileViewer
     {
         if (!File.Exists(filePath))
         {
-            new MessageDialog(_screen, _palette).Show("Viewer", "File not found.");
+            new MessageDialog(_screen).Show("Viewer", "File not found.");
             return;
         }
 
@@ -33,7 +33,7 @@ internal sealed class FileViewer
     {
         if (!File.Exists(filePath))
         {
-            new MessageDialog(_screen, _palette).Show("Viewer", "File not found.");
+            new MessageDialog(_screen).Show("Viewer", "File not found.");
             return;
         }
 

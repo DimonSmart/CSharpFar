@@ -121,7 +121,7 @@ internal sealed class FileOperationUiRunner
         if (result.Cancelled)
             throw new OperationCanceledException();
         if (result.Errors.Count > 0)
-            new MessageDialog(_screen, _palette()).Show(
+            new MessageDialog(_screen).Show(
                 "File Operation",
                 $"{result.FailedCount} item(s) failed. First: {result.Errors[0].Message}");
 

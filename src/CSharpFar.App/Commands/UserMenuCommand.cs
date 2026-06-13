@@ -14,7 +14,7 @@ internal sealed class UserMenuCommand : IApplicationCommand
     {
         if (context.UserMenu.Items.Count == 0)
         {
-            new MessageDialog(context.Screen, context.Palette).Show(
+            new MessageDialog(context.Screen).Show(
                 "User Menu", "User menu is empty.\nEdit user-menu.json to add commands.");
             return ApplicationCommandResult.Rendered();
         }

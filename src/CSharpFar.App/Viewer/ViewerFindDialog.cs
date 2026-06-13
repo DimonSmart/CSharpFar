@@ -219,8 +219,7 @@ internal sealed class ViewerFindDialog
                     pattern,
                     focusRow == 0 ? PaletteStyles.InputField(_palette) : PaletteStyles.DialogFill(_palette),
                     PaletteStyles.InputHighlight(_palette),
-                    patternHistory,
-                    _palette);
+                    patternHistory);
 
                 DrawCheckbox(content.X, content.Y + 2, content.Width, "Case sensitive", caseSensitive, focusRow == 1);
                 DrawCheckbox(content.X, content.Y + 3, content.Width, "Whole words", wholeWords, focusRow == 2);

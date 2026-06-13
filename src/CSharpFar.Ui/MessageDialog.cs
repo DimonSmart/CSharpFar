@@ -12,12 +12,10 @@ public sealed class MessageDialog
     private const int MaxDialogWidth = 96;
 
     private readonly ScreenRenderer _screen;
-    private readonly ConsolePalette _palette;
 
-    public MessageDialog(ScreenRenderer screen, ConsolePalette? palette = null)
+    public MessageDialog(ScreenRenderer screen)
     {
         _screen = screen;
-        _palette = palette ?? PaletteRegistry.Default;
     }
 
     public void Show(string title, string message)
@@ -116,7 +114,8 @@ public sealed class MessageDialog
             }
             : null;
 
-        new DialogFrameRenderer().RenderFrame(_screen, layout.Bounds, title, false, PaletteStyles.DialogPopupOptions(_palette), scrollState, (_, contentBounds) =>
+        var palette = UiTheme.Current;
+        new DialogFrameRenderer().RenderFrame(_screen, layout.Bounds, title, false, PaletteStyles.DialogPopupOptions(palette), scrollState, (_, contentBounds) =>
         {
             int textX = contentBounds.X + 1;
             int textWidth = Math.Max(1, contentBounds.Width - 2);
@@ -130,7 +129,7 @@ public sealed class MessageDialog
                     textX,
                     contentBounds.Y + row,
                     Fit(text, textWidth),
-                    PaletteStyles.DialogError(_palette));
+                    PaletteStyles.DialogError(palette));
             }
 
             if (buttonBar is null)
@@ -140,7 +139,7 @@ public sealed class MessageDialog
                     layout.Bounds.X + Math.Max(0, (layout.Bounds.Width - hint.Length) / 2),
                     layout.ActionRow,
                     hint,
-                    PaletteStyles.DialogFill(_palette));
+                    PaletteStyles.DialogFill(palette));
                 return;
             }
 
@@ -150,8 +149,8 @@ public sealed class MessageDialog
                 layout.ActionRow,
                 textWidth,
                 focusedButton,
-                PaletteStyles.DialogFill(_palette),
-                PaletteStyles.InputField(_palette));
+                PaletteStyles.DialogFill(palette),
+                PaletteStyles.InputField(palette));
         });
     }
 

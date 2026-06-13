@@ -320,7 +320,7 @@ internal sealed class ApplicationCommandContext
 
     public void ShowReadOnlyPanelMessage(string action)
     {
-        new MessageDialog(Screen, Palette).Show(
+        new MessageDialog(Screen).Show(
             action,
             "The current panel source does not support this operation.");
     }

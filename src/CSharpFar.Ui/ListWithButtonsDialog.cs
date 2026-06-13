@@ -239,6 +239,11 @@ public sealed class ListWithButtonsDialog<T>
 
     private void Draw(ScreenRenderer screen, ListWithButtonsLayout layout, bool focusButtons, int focusedButton)
     {
+        var fill = FarDialogStyles.Fill;
+        var border = FarDialogStyles.Border;
+        var selected = FarDialogStyles.FocusedInput;
+        var outerOptions = FarDialogStyles.OuterOptions;
+        var frameOptions = FarDialogStyles.FrameOptions;
         var scrollState = _items.Count > layout.ListBounds.Height
             ? new ScrollState
             {
@@ -249,7 +254,7 @@ public sealed class ListWithButtonsDialog<T>
             : null;
 
         using var frame = screen.BeginFrame();
-        _modalRenderer.Render(screen, layout.Bounds, Title, true, FarDialogStyles.OuterOptions, FarDialogStyles.FrameOptions, (_, modalLayout) =>
+        _modalRenderer.Render(screen, layout.Bounds, Title, true, outerOptions, frameOptions, (_, modalLayout) =>
         {
             if (scrollState is not null)
             {
@@ -258,13 +263,13 @@ public sealed class ListWithButtonsDialog<T>
                     new Rect(modalLayout.FrameBounds.Right - 1, layout.ListBounds.Y, 1, layout.ListBounds.Height),
                     scrollState,
                     new ScrollBarOptions { Enabled = true, DrawWhenNotScrollable = false },
-                    FarDialogStyles.Border);
+                    border);
             }
 
-            screen.FillRegion(layout.ListBounds, FarDialogStyles.Fill);
+            screen.FillRegion(layout.ListBounds, fill);
             if (_items.Count == 0)
             {
-                screen.Write(layout.ListBounds.X, layout.ListBounds.Y, Fit(EmptyText ?? string.Empty, layout.ListBounds.Width), FarDialogStyles.Fill);
+                screen.Write(layout.ListBounds.X, layout.ListBounds.Y, Fit(EmptyText ?? string.Empty, layout.ListBounds.Width), fill);
             }
             else
             {
@@ -274,7 +279,7 @@ public sealed class ListWithButtonsDialog<T>
                     if (index >= _items.Count)
                         break;
 
-                    var style = index == SelectedIndex ? FarDialogStyles.FocusedInput : FarDialogStyles.Fill;
+                    var style = index == SelectedIndex ? selected : fill;
                     screen.Write(layout.ListBounds.X, layout.ListBounds.Y + row, Fit(_itemText(_items[index]), layout.ListBounds.Width), style);
                 }
             }
@@ -285,8 +290,8 @@ public sealed class ListWithButtonsDialog<T>
                 layout.ButtonY,
                 layout.ListBounds.Width,
                 focusedButton,
-                FarDialogStyles.Fill,
-                focusButtons ? FarDialogStyles.FocusedInput : FarDialogStyles.Fill);
+                fill,
+                focusButtons ? selected : fill);
         });
 
         screen.SetCursorVisible(false);

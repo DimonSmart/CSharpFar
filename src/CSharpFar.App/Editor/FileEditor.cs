@@ -105,7 +105,7 @@ internal sealed class FileEditor
         }
         catch (Exception ex)
         {
-            new MessageDialog(_screen, _palette).Show("Editor", ex.Message);
+            new MessageDialog(_screen).Show("Editor", ex.Message);
             return;
         }
 
@@ -506,13 +506,13 @@ internal sealed class FileEditor
                 return true;
             case ConsoleKey.P when control:
                 if (!session.CopySelectionToCursor())
-                    new MessageDialog(_screen, _palette).Show("Editor", "Select text to copy block.");
+                    new MessageDialog(_screen).Show("Editor", "Select text to copy block.");
                 _markMode = false;
                 _persistentSelection = false;
                 return true;
             case ConsoleKey.M when control:
                 if (!session.MoveSelectionToCursor())
-                    new MessageDialog(_screen, _palette).Show("Editor", "Select text outside the cursor to move block.");
+                    new MessageDialog(_screen).Show("Editor", "Select text outside the cursor to move block.");
                 _markMode = false;
                 _persistentSelection = false;
                 return true;
@@ -708,7 +708,7 @@ internal sealed class FileEditor
         }
         catch (Exception ex)
         {
-            new MessageDialog(_screen, _palette).Show("Save Error", ex.Message);
+            new MessageDialog(_screen).Show("Save Error", ex.Message);
             return false;
         }
     }
@@ -757,7 +757,7 @@ internal sealed class FileEditor
             UseRegex: false));
         if (match is null)
         {
-            new MessageDialog(_screen, _palette).Show("Find", "Text not found.");
+            new MessageDialog(_screen).Show("Find", "Text not found.");
             return;
         }
 
@@ -794,12 +794,12 @@ internal sealed class FileEditor
         }
         catch (ArgumentException ex)
         {
-            new MessageDialog(_screen, _palette).Show("Replace", ex.Message);
+            new MessageDialog(_screen).Show("Replace", ex.Message);
             return;
         }
 
         if (count == 0)
-            new MessageDialog(_screen, _palette).Show("Replace", "Text not found.");
+            new MessageDialog(_screen).Show("Replace", "Text not found.");
     }
 
     private void ShowSyntaxLanguageDialog(EditorSession session)

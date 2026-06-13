@@ -182,8 +182,7 @@ internal sealed class InputDialog
             PaletteStyles.InputField(_palette),
             PaletteStyles.InputHighlight(_palette),
             history,
-            _palette,
-            maskInput);
+            maskInput: maskInput);
     }
 
     private static int InputFieldY(ConsoleSize size) =>

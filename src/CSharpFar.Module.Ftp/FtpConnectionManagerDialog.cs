@@ -19,10 +19,9 @@ internal sealed class FtpConnectionManagerDialog
 {
     private readonly ScreenRenderer _screen;
 
-    public FtpConnectionManagerDialog(ScreenRenderer screen, ConsolePalette? palette = null)
+    public FtpConnectionManagerDialog(ScreenRenderer screen)
     {
         _screen = screen;
-        _ = palette;
     }
 
     public FtpConnectionManagerResult? Show(IReadOnlyList<FtpConnectionInfo> connections)

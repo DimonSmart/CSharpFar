@@ -47,9 +47,7 @@ public sealed class FtpModule
         while (true)
         {
             var connections = ConnectionStore.Load();
-            var result = new FtpConnectionManagerDialog(
-                StartupInfo.Ui.Screen,
-                StartupInfo.Ui.CurrentPalette).Show(connections);
+            var result = new FtpConnectionManagerDialog(StartupInfo.Ui.Screen).Show(connections);
             if (result is null)
                 return ModuleActionResult.Completed();
 
@@ -117,7 +115,7 @@ public sealed class FtpModule
             ? CredentialStore.TryReadPassword(connection.CredentialId)
             : null;
 
-        return new FtpConnectionDialog(StartupInfo.Ui.Screen, StartupInfo.Ui.CurrentPalette).Show(
+        return new FtpConnectionDialog(StartupInfo.Ui.Screen).Show(
             new FtpConnectionDialogRequest(
                 connection,
                 savedPassword,

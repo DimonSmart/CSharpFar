@@ -58,10 +58,9 @@ internal sealed class SftpConnectionDialog
     private static readonly SingleLineTextHistoryRegistry HistoryRegistry = new();
     private readonly ModalDialogRenderer _modalRenderer = new();
 
-    public SftpConnectionDialog(ScreenRenderer screen, ConsolePalette? palette = null)
+    public SftpConnectionDialog(ScreenRenderer screen)
     {
         _screen = screen;
-        _ = palette;
     }
 
     public SftpConnectionDialogResult? Show(

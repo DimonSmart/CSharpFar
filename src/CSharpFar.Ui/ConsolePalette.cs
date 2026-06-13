@@ -74,6 +74,19 @@ public sealed class ConsolePalette
     public ConsoleColor MenuShadowFg          { get; init; } = ConsoleColor.DarkGray;
     public ConsoleColor MenuShadowBg          { get; init; } = ConsoleColor.Black;
 
+    // Dialogs and reusable modal components
+    public ConsoleColor DialogForeground      { get; init; } = ConsoleColor.Black;
+    public ConsoleColor DialogBackground      { get; init; } = ConsoleColor.Gray;
+    public ConsoleColor DialogBorder          { get; init; } = ConsoleColor.DarkGray;
+    public ConsoleColor DialogTitle           { get; init; } = ConsoleColor.Black;
+    public ConsoleColor DialogShadowFg        { get; init; } = ConsoleColor.Black;
+    public ConsoleColor DialogShadowBg        { get; init; } = ConsoleColor.Black;
+    public ConsoleColor DialogError           { get; init; } = ConsoleColor.Yellow;
+    public ConsoleColor InputText             { get; init; } = ConsoleColor.White;
+    public ConsoleColor InputBackground       { get; init; } = ConsoleColor.DarkCyan;
+    public ConsoleColor InputFocusedText      { get; init; } = ConsoleColor.White;
+    public ConsoleColor InputFocusedBackground { get; init; } = ConsoleColor.DarkBlue;
+
     // ── Help viewer ───────────────────────────────────────────────────────────
     public ConsoleColor HelpBodyFg            { get; init; } = ConsoleColor.White;
     public ConsoleColor HelpBodyBg            { get; init; } = ConsoleColor.Black;

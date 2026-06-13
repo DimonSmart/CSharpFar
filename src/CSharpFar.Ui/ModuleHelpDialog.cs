@@ -8,12 +8,10 @@ namespace CSharpFar.Ui;
 public sealed class ModuleHelpDialog
 {
     private readonly ScreenRenderer _screen;
-    private readonly ConsolePalette _palette;
 
-    public ModuleHelpDialog(ScreenRenderer screen, ConsolePalette? palette = null)
+    public ModuleHelpDialog(ScreenRenderer screen)
     {
         _screen = screen;
-        _palette = palette ?? PaletteRegistry.Default;
     }
 
     public void Show(string title, IReadOnlyList<string> lines)
@@ -62,12 +60,13 @@ public sealed class ModuleHelpDialog
         ConsoleSize size,
         int contentHeight)
     {
-        var headerStyle = PaletteStyles.PathHeaderActive(_palette);
+        var palette = UiTheme.Current;
+        var headerStyle = PaletteStyles.PathHeaderActive(palette);
         string position = lines.Count == 0 ? " 0/0 " : $" {scrollTop + 1}/{lines.Count} ";
         int titleWidth = Math.Max(0, size.Width - position.Length);
         _screen.Write(0, 0, Truncate(" " + title + " ", titleWidth).PadRight(titleWidth) + position, headerStyle);
 
-        var bodyStyle = PaletteStyles.HelpBody(_palette);
+        var bodyStyle = PaletteStyles.HelpBody(palette);
         int contentWidth = Math.Max(0, size.Width - 1);
         for (int row = 0; row < contentHeight; row++)
         {
@@ -92,11 +91,11 @@ public sealed class ModuleHelpDialog
                     Enabled = true,
                     DrawWhenNotScrollable = false,
                 },
-                PaletteStyles.DialogBorder(_palette));
+                PaletteStyles.DialogBorder(palette));
         }
 
         string footer = "Esc/F10 Close";
-        _screen.Write(0, size.Height - 1, footer.PadRight(size.Width), PaletteStyles.KeyBarLabel(_palette));
+        _screen.Write(0, size.Height - 1, footer.PadRight(size.Width), PaletteStyles.KeyBarLabel(palette));
     }
 
     private static bool HandleKey(ConsoleKeyInfo key, int lineCount, int contentHeight, ref int scrollTop)

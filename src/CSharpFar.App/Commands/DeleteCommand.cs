@@ -60,7 +60,7 @@ internal sealed class DeleteCommand : IApplicationCommand
         catch (Exception ex)
         {
             context.Screen.Restore(saved);
-            new MessageDialog(context.Screen, context.Palette).Show("Delete Error", ex.Message);
+            new MessageDialog(context.Screen).Show("Delete Error", ex.Message);
         }
         finally
         {

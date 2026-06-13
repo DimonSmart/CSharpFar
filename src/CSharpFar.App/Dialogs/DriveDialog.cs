@@ -31,7 +31,7 @@ internal sealed class DriveDialog
     {
         if (items.Count == 0)
         {
-            new MessageDialog(_screen, _palette).Show("Change drive", "No volumes found.");
+            new MessageDialog(_screen).Show("Change drive", "No volumes found.");
             return null;
         }
 
@@ -92,7 +92,7 @@ internal sealed class DriveDialog
                             VolumeStatus.Disconnected => "disconnected",
                             _                         => "error",
                         };
-                        new MessageDialog(_screen, _palette).Show(
+                        new MessageDialog(_screen).Show(
                             "Change drive",
                             $"{clickedVol.DisplayName}: volume is {statusText}.");
                         var afterMsg = _screen.GetSize();
@@ -168,7 +168,7 @@ internal sealed class DriveDialog
                             VolumeStatus.Disconnected => "disconnected",
                             _                        => "error",
                         };
-                        new MessageDialog(_screen, _palette).Show(
+                        new MessageDialog(_screen).Show(
                             "Change drive",
                             $"{vol.DisplayName}: volume is {statusText}.");
                         // Restore the drive dialog background after MessageDialog closes

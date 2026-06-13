@@ -4,28 +4,29 @@ namespace CSharpFar.Ui;
 
 public static class FarDialogStyles
 {
-    public static CellStyle Fill { get; } = new(ConsoleColor.Black, ConsoleColor.Gray);
-    public static CellStyle Border { get; } = new(ConsoleColor.DarkGray, ConsoleColor.Gray);
-    public static CellStyle Title { get; } = new(ConsoleColor.Black, ConsoleColor.Gray);
-    public static CellStyle Input { get; } = new(ConsoleColor.White, ConsoleColor.DarkCyan);
-    public static CellStyle FocusedInput { get; } = new(ConsoleColor.White, ConsoleColor.DarkBlue);
-    public static CellStyle Error { get; } = new(ConsoleColor.Yellow, ConsoleColor.Gray);
-    public static CellStyle Shadow { get; } = new(ConsoleColor.Black, ConsoleColor.Black);
+    public static CellStyle Fill => new(UiTheme.Current.DialogForeground, UiTheme.Current.DialogBackground);
+    public static CellStyle Border => new(UiTheme.Current.DialogBorder, UiTheme.Current.DialogBackground);
+    public static CellStyle Title => new(UiTheme.Current.DialogTitle, UiTheme.Current.DialogBackground);
+    public static CellStyle Input => new(UiTheme.Current.InputText, UiTheme.Current.InputBackground);
+    public static CellStyle FocusedInput => new(UiTheme.Current.InputFocusedText, UiTheme.Current.InputFocusedBackground);
+    public static CellStyle Error => new(UiTheme.Current.DialogError, UiTheme.Current.DialogBackground);
+    public static CellStyle Shadow => new(UiTheme.Current.DialogShadowFg, UiTheme.Current.DialogShadowBg);
 
-    public static PopupRenderOptions OuterOptions { get; } =
-        new()
+    public static PopupRenderOptions OuterOptions =>
+        DialogOptions() with
         {
             DrawBorder = false,
-            BorderStyle = Border,
-            BackgroundStyle = Fill,
-            ShadowStyle = Shadow,
-            TitleStyle = Title,
         };
 
-    public static PopupRenderOptions FrameOptions { get; } =
-        new()
+    public static PopupRenderOptions FrameOptions =>
+        DialogOptions() with
         {
             DrawShadow = false,
+        };
+
+    private static PopupRenderOptions DialogOptions() =>
+        new()
+        {
             BorderStyle = Border,
             BackgroundStyle = Fill,
             ShadowStyle = Shadow,

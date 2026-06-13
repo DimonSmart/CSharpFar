@@ -57,7 +57,7 @@ internal sealed class PanelFileOpener
                   InvalidOperationException or
                   System.ComponentModel.Win32Exception)
         {
-            new MessageDialog(_screen, _palette()).Show("Open file", ex.Message);
+            new MessageDialog(_screen).Show("Open file", ex.Message);
         }
     }
 

@@ -73,7 +73,7 @@ internal sealed class LargeFileViewer
                 saved = null;
             }
 
-            new MessageDialog(_screen, _palette).Show("Viewer", ex.Message);
+            new MessageDialog(_screen).Show("Viewer", ex.Message);
         }
         finally
         {
@@ -916,13 +916,13 @@ internal sealed class LargeFileViewer
         }
         catch (ArgumentException ex)
         {
-            new MessageDialog(_screen, _palette).Show("Find", ex.Message);
+            new MessageDialog(_screen).Show("Find", ex.Message);
             return;
         }
 
         if (match is null)
         {
-            new MessageDialog(_screen, _palette).Show("Find", "Text not found.");
+            new MessageDialog(_screen).Show("Find", "Text not found.");
             return;
         }
 
@@ -947,7 +947,7 @@ internal sealed class LargeFileViewer
     {
         if (state.SearchMatch is null)
         {
-            new MessageDialog(_screen, _palette).Show("Viewer", "No active search match.");
+            new MessageDialog(_screen).Show("Viewer", "No active search match.");
             return;
         }
 
@@ -958,7 +958,7 @@ internal sealed class LargeFileViewer
         }
 
         if (!options.Clipboard.TrySetText(state.SearchMatch.MatchedText))
-            new MessageDialog(_screen, _palette).Show("Viewer", "Could not copy text to clipboard.");
+            new MessageDialog(_screen).Show("Viewer", "Could not copy text to clipboard.");
     }
 
     private void EditCurrentFile(
@@ -1102,7 +1102,7 @@ internal sealed class LargeFileViewer
     }
 
     private void ShowUnsupported(string command) =>
-        new MessageDialog(_screen, _palette).Show("Viewer", $"{command} is not supported yet.");
+        new MessageDialog(_screen).Show("Viewer", $"{command} is not supported yet.");
 
     private static string? ValidateJump(string text, bool binary)
     {

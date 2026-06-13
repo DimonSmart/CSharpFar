@@ -29,7 +29,7 @@ internal sealed class UserMenuDialog
             MaxWidth = 60,
             MaxVisibleRows = 15,
         };
-        var result = dialog.Show(_screen, _palette);
+        var result = dialog.Show(_screen);
         return result.IsConfirmed ? result.SelectedItem?.Command : null;
     }
 }

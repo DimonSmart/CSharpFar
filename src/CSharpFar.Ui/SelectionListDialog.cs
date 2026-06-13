@@ -48,13 +48,9 @@ public sealed class SelectionListDialog<T>
 
     public Action? RenderUnderlay { get; set; }
 
-    public SelectionListDialogResult<T> Show(ScreenRenderer screen, ConsolePalette palette)
+    public SelectionListDialogResult<T> Show(ScreenRenderer screen)
     {
         ArgumentNullException.ThrowIfNull(screen);
-        ArgumentNullException.ThrowIfNull(palette);
-
-        if (_items.Count == 0)
-            return new SelectionListDialogResult<T>(false, default, -1);
 
         var size = screen.GetSize();
         var saved = screen.Capture(new Rect(0, 0, size.Width, size.Height));
@@ -63,18 +59,20 @@ public sealed class SelectionListDialog<T>
 
         try
         {
-            SelectedIndex = Math.Clamp(SelectedIndex, 0, _items.Count - 1);
+            SelectedIndex = _items.Count == 0
+                ? -1
+                : Math.Clamp(SelectedIndex, 0, _items.Count - 1);
             while (true)
             {
                 var layout = CalculateLayout(size);
                 NormalizeSelection(layout.VisibleRows);
-                if (SelectedIndex != previousSelection)
+                if (_items.Count > 0 && SelectedIndex != previousSelection)
                 {
                     SelectionChanged?.Invoke(_items[SelectedIndex], SelectedIndex);
                     previousSelection = SelectedIndex;
                 }
 
-                Draw(screen, palette, layout);
+                Draw(screen, layout);
                 var input = screen.ReadInput();
 
                 if (input is MouseConsoleInputEvent mouse &&
@@ -89,7 +87,7 @@ public sealed class SelectionListDialog<T>
                     continue;
 
                 if (HandleKey(key, layout.VisibleRows, out bool isConfirmed))
-                    return isConfirmed ? Confirmed() : Cancelled();
+                    return isConfirmed && _items.Count > 0 ? Confirmed() : Cancelled();
             }
         }
         finally
@@ -219,8 +217,9 @@ public sealed class SelectionListDialog<T>
         return true;
     }
 
-    private void Draw(ScreenRenderer screen, ConsolePalette palette, SelectionListLayout layout)
+    private void Draw(ScreenRenderer screen, SelectionListLayout layout)
     {
+        var palette = UiTheme.Current;
         using var frame = screen.BeginFrame();
         RenderUnderlay?.Invoke();
 
@@ -272,7 +271,7 @@ public sealed class SelectionListDialog<T>
         contentWidth = Math.Min(contentWidth, Math.Max(DefaultMinWidth, maxWidth - 2));
 
         int maxRows = Math.Max(1, Math.Min(MaxVisibleRows, MaxHeight.GetValueOrDefault(size.Height) - 2));
-        int visibleRows = Math.Min(Math.Max(1, _items.Count), Math.Max(1, Math.Min(maxRows, size.Height - 2)));
+        int visibleRows = Math.Min(Math.Max(1, _items.Count == 0 ? 1 : _items.Count), Math.Max(1, Math.Min(maxRows, size.Height - 2)));
         int width = Math.Min(size.Width, contentWidth + 2);
         int height = Math.Min(size.Height, visibleRows + 2);
         int x = Math.Max(0, (size.Width - width) / 2);

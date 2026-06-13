@@ -56,10 +56,10 @@ public sealed class DropdownSelect<T>
         _scrollbarDrag = null;
     }
 
-    public void Toggle(ConsoleSize size, Rect fieldBounds)
+    public void Toggle(ScreenRenderer screen, ConsoleSize size, Rect fieldBounds)
     {
         if (IsOpen)
-            IsOpen = false;
+            Close(screen, commit: false);
         else
             Open(size, fieldBounds);
     }
@@ -79,10 +79,7 @@ public sealed class DropdownSelect<T>
     public void RenderPopup(
         ScreenRenderer screen,
         ConsoleSize size,
-        Rect fieldBounds,
-        CellStyle normalStyle,
-        CellStyle selectedStyle,
-        PopupRenderOptions popupOptions)
+        Rect fieldBounds)
     {
         if (!IsOpen)
         {
@@ -98,8 +95,9 @@ public sealed class DropdownSelect<T>
         _underlay ??= screen.Capture(bounds);
         int contentRows = ContentRows(size, fieldBounds);
         EnsureSelectedVisible(contentRows);
+        var palette = UiTheme.Current;
 
-        var scrollState = _items.Count > contentRows
+        var scrollState = contentRows > 0 && _items.Count > contentRows
             ? new ScrollState
             {
                 TotalItems = _items.Count,
@@ -107,11 +105,13 @@ public sealed class DropdownSelect<T>
                 FirstVisibleIndex = ScrollTop,
             }
             : null;
-        var options = popupOptions with
+        var options = PaletteStyles.DialogPopupOptions(palette) with
         {
             DrawDoubleBorder = false,
             VerticalScrollState = scrollState,
         };
+        var normalStyle = PaletteStyles.DialogFill(palette);
+        var selectedStyle = PaletteStyles.InputHighlight(palette);
 
         new PopupRenderer().RenderPopup(screen, bounds, options, (_, contentBounds) =>
         {
@@ -129,7 +129,11 @@ public sealed class DropdownSelect<T>
         });
     }
 
-    public bool TryHandleFieldMouse(MouseConsoleInputEvent mouse, ConsoleSize size, Rect fieldBounds)
+    public bool TryHandleFieldMouse(
+        MouseConsoleInputEvent mouse,
+        ScreenRenderer screen,
+        ConsoleSize size,
+        Rect fieldBounds)
     {
         if (mouse.Button != MouseButton.Left ||
             mouse.Kind != MouseEventKind.Down ||
@@ -140,7 +144,7 @@ public sealed class DropdownSelect<T>
             return false;
         }
 
-        Toggle(size, fieldBounds);
+        Toggle(screen, size, fieldBounds);
         return true;
     }
 
@@ -158,7 +162,7 @@ public sealed class DropdownSelect<T>
         Rect bounds = PopupBounds(size, fieldBounds);
         int contentRows = ContentRows(size, fieldBounds);
 
-        if (_items.Count > contentRows)
+        if (contentRows > 0 && _items.Count > contentRows)
         {
             int selectedIndex = SelectedIndex;
             int scrollTop = ScrollTop;
@@ -283,12 +287,19 @@ public sealed class DropdownSelect<T>
         int rowsBelow = Math.Max(0, size.Height - fieldBounds.Bottom - 2);
         int rowsAbove = Math.Max(0, fieldBounds.Y - 2);
         int available = Math.Max(rowsBelow, rowsAbove);
-        return Math.Clamp(available, Math.Min(3, _items.Count), Math.Min(MaxVisibleRows, _items.Count));
+        int maxRows = Math.Min(MaxVisibleRows, _items.Count);
+        return Math.Clamp(available, 0, maxRows);
     }
 
     private void EnsureSelectedVisible(int contentRows)
     {
         SelectedIndex = Math.Clamp(SelectedIndex, 0, _items.Count - 1);
+        if (contentRows <= 0)
+        {
+            ScrollTop = ScrollStateCalculator.ClampFirstVisibleIndex(ScrollTop, _items.Count, 1);
+            return;
+        }
+
         ScrollTop = ScrollStateCalculator.ClampFirstVisibleIndex(ScrollTop, _items.Count, contentRows);
         ScrollTop = ScrollStateCalculator.EnsureIndexVisible(SelectedIndex, ScrollTop, contentRows);
         ScrollTop = ScrollStateCalculator.ClampFirstVisibleIndex(ScrollTop, _items.Count, contentRows);

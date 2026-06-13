@@ -23,7 +23,7 @@ internal sealed class CopyCommand : IApplicationCommand
         var targetState = context.PassiveState;
         if (!context.HasCapability(targetState, PanelProviderCapabilities.CopyTo))
         {
-            new MessageDialog(context.Screen, context.Palette).Show(
+            new MessageDialog(context.Screen).Show(
                 "Copy",
                 "Cannot copy to search results panel.\nSearch results are read-only.");
             return ApplicationCommandResult.Rendered();
@@ -64,7 +64,7 @@ internal sealed class CopyCommand : IApplicationCommand
         catch (Exception ex)
         {
             context.Screen.Restore(saved);
-            new MessageDialog(context.Screen, context.Palette).Show("Copy Error", ex.Message);
+            new MessageDialog(context.Screen).Show("Copy Error", ex.Message);
         }
         finally
         {

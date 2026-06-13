@@ -165,7 +165,7 @@ internal sealed class PanelSearchResultsService
 
         if (string.IsNullOrWhiteSpace(directoryPath))
         {
-            new MessageDialog(_screen, _palette()).Show("Search", $"Cannot open search result: {fullPath}");
+            new MessageDialog(_screen).Show("Search", $"Cannot open search result: {fullPath}");
             return;
         }
 
@@ -182,7 +182,7 @@ internal sealed class PanelSearchResultsService
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or DirectoryNotFoundException)
         {
-            new MessageDialog(_screen, _palette()).Show("Search", ex.Message);
+            new MessageDialog(_screen).Show("Search", ex.Message);
         }
     }
 
