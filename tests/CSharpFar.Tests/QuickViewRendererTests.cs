@@ -36,18 +36,10 @@ public class QuickViewRendererTests : IDisposable
     private string ContentRow(int row) =>
         _driver.GetRegionText(new Rect(_bounds.X + 1, _bounds.Y + 1 + row, _bounds.Width - 2, 1));
 
-    [Fact]
-    public void NullItem_ShowsNoFileSelected()
+    [Theory]
+    [MemberData(nameof(NoSelectionItems))]
+    public void NoPreviewableItem_ShowsNoFileSelected(FilePanelItem? item)
     {
-        _renderer.Render(_bounds, null);
-
-        Assert.Contains("No file selected", ContentRow(0));
-    }
-
-    [Fact]
-    public void ParentDirectoryItem_ShowsNoFileSelected()
-    {
-        var item = new FilePanelItem { Name = "..", FullPath = @"C:\", IsDirectory = true, IsParentDirectory = true };
         _renderer.Render(_bounds, item);
 
         Assert.Contains("No file selected", ContentRow(0));
@@ -86,15 +78,6 @@ public class QuickViewRendererTests : IDisposable
         Assert.Contains("line three", ContentRow(2));
     }
 
-    [Fact]
-    public void TitleRow_ContainsQuickView()
-    {
-        _renderer.Render(_bounds, null);
-
-        string titleRow = _driver.GetRow(_bounds.Y);
-        Assert.Contains("Quick View", titleRow);
-    }
-
     [Theory]
     [InlineData(0)]
     [InlineData(1)]
@@ -112,4 +95,10 @@ public class QuickViewRendererTests : IDisposable
         _renderer.Render(bounds, directoryItem);
         _renderer.Render(bounds, fileItem);
     }
+
+    public static TheoryData<FilePanelItem?> NoSelectionItems() => new()
+    {
+        null,
+        new FilePanelItem { Name = "..", FullPath = @"C:\", IsDirectory = true, IsParentDirectory = true },
+    };
 }

@@ -252,33 +252,6 @@ public sealed class ApplicationVolumeTests : IDisposable
         Assert.Equal(_tempDir, GetLeftPanel(app).CurrentDirectory);
     }
 
-    // ── Error on one volume does not hide others ──────────────────────────────
-
-    [Fact]
-    public void GetVolumes_ErrorOnOneVolume_OthersStillPresent()
-    {
-        string goodPath = Path.Combine(_tempDir, "GoodVol");
-        Directory.CreateDirectory(goodPath);
-
-        var volService = new FakeVolumeService(
-            new FileSystemVolume
-            {
-                Id = "E:\\", DisplayName = "E:", RootPath = @"E:\",
-                Kind = VolumeKind.Fixed, Status = VolumeStatus.Error, Shortcut = "E",
-            },
-            new FileSystemVolume
-            {
-                Id = "F:\\", DisplayName = "F:", RootPath = goodPath,
-                Kind = VolumeKind.Fixed, Status = VolumeStatus.Ready, Shortcut = "F",
-            });
-
-        var volumes = volService.GetVolumes();
-
-        Assert.Equal(2, volumes.Count);
-        Assert.Contains(volumes, v => v.DisplayName == "E:" && v.Status == VolumeStatus.Error);
-        Assert.Contains(volumes, v => v.DisplayName == "F:" && v.Status == VolumeStatus.Ready);
-    }
-
     // ── Unix-like RootPath displayed without drive-letter assumption ──────────
 
     [Fact]

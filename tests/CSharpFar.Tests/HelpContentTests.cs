@@ -7,12 +7,6 @@ namespace CSharpFar.Tests;
 /// </summary>
 public class HelpContentTests
 {
-    [Fact]
-    public void Lines_IsNotEmpty()
-    {
-        Assert.NotEmpty(HelpContent.Lines);
-    }
-
     [Theory]
     [InlineData("F1")]
     [InlineData("F3")]
@@ -34,9 +28,4 @@ public class HelpContentTests
         Assert.Contains(HelpContent.Lines, l => l.FullText.Contains(keyText, StringComparison.OrdinalIgnoreCase));
     }
 
-    [Fact]
-    public void MaxLineLength_IsPositive()
-    {
-        Assert.True(HelpContent.MaxLineLength > 0);
-    }
 }

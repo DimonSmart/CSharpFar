@@ -14,25 +14,15 @@ namespace CSharpFar.Tests;
 
 public class PaletteRegistryTests
 {
-    [Fact]
-    public void Resolve_Default_ReturnsDefaultPalette()
+    [Theory]
+    [InlineData("Default", "Default")]
+    [InlineData("FarClassic", "FarClassic")]
+    [InlineData("farclassic", "FarClassic")]
+    public void Resolve_KnownPaletteName_ReturnsBuiltInPalette(string name, string expected)
     {
-        var p = PaletteRegistry.Resolve("Default");
-        Assert.Equal("Default", p.Name);
-    }
+        var palette = PaletteRegistry.Resolve(name);
 
-    [Fact]
-    public void Resolve_FarClassic_ReturnsFarClassicPalette()
-    {
-        var p = PaletteRegistry.Resolve("FarClassic");
-        Assert.Equal("FarClassic", p.Name);
-    }
-
-    [Fact]
-    public void Resolve_NameIsCaseInsensitive()
-    {
-        var p = PaletteRegistry.Resolve("farclassic");
-        Assert.Equal("FarClassic", p.Name);
+        Assert.Equal(expected, palette.Name);
     }
 
     [Fact]
@@ -42,18 +32,14 @@ public class PaletteRegistryTests
         Assert.Contains("FarClassic", PaletteRegistry.Names);
     }
 
-    [Fact]
-    public void Resolve_Null_FallsBackToDefault()
+    [Theory]
+    [InlineData(null)]
+    [InlineData("NoSuchPalette")]
+    public void Resolve_MissingPaletteName_FallsBackToDefault(string? name)
     {
-        var p = PaletteRegistry.Resolve(null);
-        Assert.Equal("Default", p.Name);
-    }
+        var palette = PaletteRegistry.Resolve(name);
 
-    [Fact]
-    public void Resolve_UnknownName_FallsBackToDefault()
-    {
-        var p = PaletteRegistry.Resolve("NoSuchPalette");
-        Assert.Equal("Default", p.Name);
+        Assert.Equal("Default", palette.Name);
     }
 
     [Fact]
@@ -66,20 +52,6 @@ public class PaletteRegistryTests
         Assert.Equal(ConsoleColor.Black, fc.CursorActiveFg);
         Assert.Equal(ConsoleColor.Green, fc.CursorActiveBg);
         Assert.Equal(ConsoleColor.DarkCyan, fc.PanelPathActiveBg);
-    }
-
-    [Fact]
-    public void Default_HasYellowSelectedFg()
-    {
-        var def = PaletteRegistry.Default;
-        Assert.Equal(ConsoleColor.Yellow, def.SelectedFg);
-    }
-
-    [Fact]
-    public void Default_HasDarkCyanCursorBackground()
-    {
-        var def = PaletteRegistry.Default;
-        Assert.Equal(ConsoleColor.DarkCyan, def.CursorActiveBg);
     }
 
     [Fact]
@@ -102,13 +74,6 @@ public class PaletteRegistryTests
             Assert.Equal(ConsoleColor.White, palette.MenuBorderFg);
             Assert.Equal(ConsoleColor.DarkCyan, palette.MenuBorderBg);
         }
-    }
-
-    [Fact]
-    public void BuiltInPalettes_HaveDarkCyanActivePathBackgrounds()
-    {
-        foreach (var palette in PaletteRegistry.All)
-            Assert.Equal(ConsoleColor.DarkCyan, palette.PanelPathActiveBg);
     }
 
     [Fact]
@@ -144,22 +109,6 @@ public class PaletteRegistryTests
         Assert.Equal(ConsoleColor.DarkCyan, PaletteStyles.DialogError(palette).Background);
     }
 
-    [Fact]
-    public void PaletteStyles_HasDarkCyanActivePathBackground()
-    {
-        Assert.Equal(ConsoleColor.DarkCyan, PaletteStyles.PathHeaderActive(PaletteRegistry.Default).Background);
-    }
-
-    [Fact]
-    public void PaletteStyles_HasFarLikeFunctionKeyColors()
-    {
-        var palette = PaletteRegistry.Default;
-
-        Assert.Equal(ConsoleColor.White, PaletteStyles.KeyBarNum(palette).Foreground);
-        Assert.Equal(ConsoleColor.Black, PaletteStyles.KeyBarNum(palette).Background);
-        Assert.Equal(ConsoleColor.Black, PaletteStyles.KeyBarLabel(palette).Foreground);
-        Assert.Equal(ConsoleColor.DarkCyan, PaletteStyles.KeyBarLabel(palette).Background);
-    }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

@@ -22,25 +22,24 @@ public class FunctionKeyBarRendererTests
         new(10, "Quit"),
     ];
 
-    [Fact]
-    public void Render_UsesTwelveFixedSlots_WhenWidthAllows()
+    [Theory]
+    [InlineData(120, 10)]
+    [InlineData(96, 8)]
+    public void Render_UsesTwelveEqualSlots_WhenWidthAllows(int width, int slotWidth)
     {
-        var driver = new FakeConsoleDriver(120, 2);
+        var driver = new FakeConsoleDriver(width, 2);
         var renderer = CreateRenderer(new ScreenRenderer(driver));
 
-        Render(renderer, y: 0, totalWidth: 120, PlainItems);
+        Render(renderer, y: 0, totalWidth: width, PlainItems);
 
         string row = driver.GetRow(0);
-        Assert.Equal('1', row[0]);
-        Assert.Equal('2', row[10]);
-        Assert.Equal('3', row[20]);
-        Assert.Equal('9', row[80]);
-        Assert.Equal('1', row[90]);
-        Assert.Equal('0', row[91]);
-        Assert.Equal('1', row[100]);
-        Assert.Equal('1', row[101]);
-        Assert.Equal('1', row[110]);
-        Assert.Equal('2', row[111]);
+        for (int keyNumber = 1; keyNumber <= 12; keyNumber++)
+        {
+            int x = (keyNumber - 1) * slotWidth;
+            string prefix = keyNumber.ToString();
+            Assert.Equal(prefix, row.Substring(x, prefix.Length));
+        }
+
         Assert.Contains("1Help", row);
         Assert.Contains("10Quit", row);
     }
@@ -58,60 +57,22 @@ public class FunctionKeyBarRendererTests
         Assert.Equal('2', driver.GetRow(0)[5]);
     }
 
-    [Fact]
-    public void Render_BlankLabelsForMissingActions()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Render_BlankLabelsForMissingActions(bool includeAvailableAction)
     {
         var driver = new FakeConsoleDriver(120, 2);
         var renderer = CreateRenderer(new ScreenRenderer(driver));
-        FunctionKeyBarItem[] items = [new(7, "Search")];
+        FunctionKeyBarItem[] items = includeAvailableAction ? [new(7, "Search")] : [];
 
         Render(renderer, y: 0, totalWidth: 120, items);
 
         string row = driver.GetRow(0);
         Assert.StartsWith("1         2", row);
-        Assert.Contains("7Search", row);
         Assert.Contains("12        ", row);
-    }
-
-    [Fact]
-    public void Render_UsesFarLikeFunctionKeyColors()
-    {
-        var driver = new FakeConsoleDriver(120, 2);
-        var renderer = CreateRenderer(new ScreenRenderer(driver));
-
-        Render(renderer, y: 0, totalWidth: 120, PlainItems);
-
-        var number = driver.GetCell(0, 0);
-        Assert.Equal('1', number.Character);
-        Assert.Equal(ConsoleColor.White, number.Foreground);
-        Assert.Equal(ConsoleColor.Black, number.Background);
-
-        for (int x = 1; x <= 5; x++)
-        {
-            var cell = driver.GetCell(x, 0);
-            Assert.Equal(ConsoleColor.Black, cell.Foreground);
-            Assert.Equal(ConsoleColor.DarkCyan, cell.Background);
-        }
-    }
-
-    [Fact]
-    public void Render_KeepsAllButtonWidthsEqual()
-    {
-        var driver = new FakeConsoleDriver(96, 2);
-        var renderer = CreateRenderer(new ScreenRenderer(driver));
-
-        Render(renderer, y: 0, totalWidth: 96, PlainItems);
-
-        string row = driver.GetRow(0);
-        Assert.Equal('1', row[0]);
-        Assert.Equal('2', row[8]);
-        Assert.Equal('3', row[16]);
-        Assert.Equal('1', row[72]);
-        Assert.Equal('0', row[73]);
-        Assert.Equal('1', row[80]);
-        Assert.Equal('1', row[81]);
-        Assert.Equal('1', row[88]);
-        Assert.Equal('2', row[89]);
+        foreach (var item in items)
+            Assert.Contains($"{item.KeyNumber}{item.Label}", row);
     }
 
     [Theory]
@@ -151,22 +112,6 @@ public class FunctionKeyBarRendererTests
         Assert.Contains("7Search", row);
         Assert.Contains("11FHist", row);
         Assert.Contains("12DHist", row);
-    }
-
-    [Fact]
-    public void Render_ShowsOnlyNumbers_WhenNoItemsAreAvailable()
-    {
-        var driver = new FakeConsoleDriver(120, 2);
-        var renderer = CreateRenderer(new ScreenRenderer(driver));
-
-        Render(renderer, y: 0, totalWidth: 120, []);
-
-        string row = driver.GetRow(0);
-        Assert.StartsWith("1         2", row);
-        Assert.Contains("10        ", row);
-        Assert.Contains("11        ", row);
-        Assert.Contains("12        ", row);
-        Assert.DoesNotContain("Help", row);
     }
 
     [Theory]

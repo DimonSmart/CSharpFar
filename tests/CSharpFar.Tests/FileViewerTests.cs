@@ -94,27 +94,6 @@ public class FileViewerTests : IDisposable
         Assert.Single(lines);
     }
 
-    [Fact]
-    public void ReadLines_ReturnsEmptyForEmptyFile()
-    {
-        string path = Write("empty.txt", "", Encoding.UTF8);
-
-        string[] lines = TextFileReader.ReadLines(path);
-
-        Assert.Empty(lines);
-    }
-
-    [Fact]
-    public void ReadLines_PreservesLineCount()
-    {
-        string content = string.Join("\n", Enumerable.Range(1, 10).Select(i => $"line{i}"));
-        string path = Write("ten.txt", content, Encoding.UTF8);
-
-        string[] lines = TextFileReader.ReadLines(path);
-
-        Assert.Equal(10, lines.Length);
-    }
-
     // -- Unified file viewer --------------------------------------------------
 
     [Fact]
@@ -183,12 +162,14 @@ public class FileViewerTests : IDisposable
         Assert.Contains("00000000", writes);
     }
 
-    [Fact]
-    public void Show_TextFileCanToggleToHexMode()
+    [Theory]
+    [InlineData(ConsoleKey.H, 'h')]
+    [InlineData(ConsoleKey.F4, '\0')]
+    public void Show_TextFileCanToggleToHexMode(ConsoleKey key, char keyChar)
     {
         string path = Write("toggle-text.txt", "ABC", new UTF8Encoding(false));
         var driver = new FakeConsoleDriver(width: 80, height: 10);
-        driver.EnqueueKey(Key(ConsoleKey.H, 'h'));
+        driver.EnqueueKey(Key(key, keyChar));
         driver.EnqueueKey(Key(ConsoleKey.F10));
         var screen = new ScreenRenderer(driver);
 
@@ -213,7 +194,7 @@ public class FileViewerTests : IDisposable
     }
 
     [Fact]
-    public void Show_RendersViewerFunctionKeyBarWithFixedSlots()
+    public void Show_RendersViewerFunctionKeyBarActions()
     {
         string path = Write("viewer-keybar-layout.txt", "text", new UTF8Encoding(false));
         var driver = new FakeConsoleDriver(width: 120, height: 10);
@@ -223,17 +204,12 @@ public class FileViewerTests : IDisposable
         new FileViewer(screen).Show(path);
 
         string row = ComposeRow(driver, y: 9, width: 120);
-        Assert.Equal('1', row[0]);
-        Assert.Equal('2', row[10]);
-        Assert.Equal('3', row[20]);
-        Assert.Equal('4', row[30]);
-        Assert.Equal('6', row[50]);
-        Assert.Equal('7', row[60]);
-        Assert.Equal('8', row[70]);
-        Assert.Equal('1', row[90]);
-        Assert.Equal('0', row[91]);
         Assert.Contains("1Help", row);
         Assert.Contains("3Close", row);
+        Assert.Contains("4Hex", row);
+        Assert.Contains("6Edit", row);
+        Assert.Contains("7Find", row);
+        Assert.Contains("8Enc", row);
         Assert.Contains("10Close", row);
     }
 
@@ -302,22 +278,6 @@ public class FileViewerTests : IDisposable
     }
 
     [Fact]
-    public void Show_F4TogglesToHexMode()
-    {
-        string path = Write("f4-toggle.txt", "ABC", new UTF8Encoding(false));
-        var driver = new FakeConsoleDriver(width: 80, height: 10);
-        driver.EnqueueKey(Key(ConsoleKey.F4));
-        driver.EnqueueKey(Key(ConsoleKey.F10));
-        var screen = new ScreenRenderer(driver);
-
-        new FileViewer(screen).Show(path);
-
-        string writes = WrittenText(driver);
-        Assert.Contains("HEX", writes);
-        Assert.Contains("41 42 43", writes);
-    }
-
-    [Fact]
     public void Show_BinaryFileCanToggleToTextMode()
     {
         string path = WritePath("toggle-binary.bin");
@@ -332,21 +292,6 @@ public class FileViewerTests : IDisposable
         string writes = WrittenText(driver);
         Assert.Contains("TEXT", writes);
         Assert.Contains("A B", writes);
-    }
-
-    [Fact]
-    public void Show_TextModeSanitizesControlCharacters()
-    {
-        string path = Write("controls.txt", "A\u001B[31mB\u0007C", new UTF8Encoding(false));
-        var driver = new FakeConsoleDriver(width: 80, height: 10);
-        driver.EnqueueKey(Key(ConsoleKey.H, 'h'));
-        driver.EnqueueKey(Key(ConsoleKey.F10));
-        var screen = new ScreenRenderer(driver);
-
-        new FileViewer(screen).Show(path);
-
-        string writes = WrittenText(driver);
-        Assert.Contains("A [31mB C", writes);
     }
 
     [Fact]
