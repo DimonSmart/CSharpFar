@@ -72,16 +72,13 @@ internal sealed class OpenCreateFileDialog
             filePath.SetText(initialPath);
 
         SingleLineTextHistoryState history = HistoryRegistry.GetOrCreate("OpenCreateFileDialog.FilePath");
-        int codePageIndex = 0;
-        int codePageScrollTop = 0;
+        var codePageDropdown = new DropdownSelect<EditorNewFileEncodingOption>(_codePages, static item => item.Label);
         int focusRow = 0;
         int focusedButton = 0;
         string? error = null;
-        bool codePageDropdownOpen = false;
-        ScreenSnapshot? codePageDropdownUnderlay = null;
         ScrollBarDragState? historyScrollbarDrag = null;
 
-        Draw(size, filePath, history, codePageIndex, codePageScrollTop, focusRow, focusedButton, error, codePageDropdownOpen, ref codePageDropdownUnderlay);
+        Draw(size, filePath, history, codePageDropdown, focusRow, focusedButton, error);
 
         while (true)
         {
@@ -94,12 +91,12 @@ internal sealed class OpenCreateFileDialog
                     return null;
                 if (buttonId == "ok")
                 {
-                    var result = TrySubmit(filePath, history, codePageIndex, validate, ref error);
+                    var result = TrySubmit(filePath, history, codePageDropdown.SelectedIndex, validate, ref error);
                     if (result is not null)
                         return result;
                 }
 
-                Draw(size, filePath, history, codePageIndex, codePageScrollTop, focusRow, focusedButton, error, codePageDropdownOpen, ref codePageDropdownUnderlay);
+                Draw(size, filePath, history, codePageDropdown, focusRow, focusedButton, error);
                 continue;
             }
 
@@ -107,44 +104,43 @@ internal sealed class OpenCreateFileDialog
                 TryHandleHistoryDropdownMouse(dropdownMouse, size, filePath, history, ref historyScrollbarDrag))
             {
                 focusRow = 0;
-                codePageDropdownOpen = false;
-                Draw(size, filePath, history, codePageIndex, codePageScrollTop, focusRow, focusedButton, error, codePageDropdownOpen, ref codePageDropdownUnderlay);
+                codePageDropdown.Close(_screen);
+                Draw(size, filePath, history, codePageDropdown, focusRow, focusedButton, error);
                 continue;
             }
 
             if (input is MouseConsoleInputEvent mouse)
             {
-                if (codePageDropdownOpen &&
-                    TryHandleCodePageDropdownMouse(mouse, size, ref codePageIndex, ref codePageScrollTop, ref codePageDropdownOpen))
+                if (codePageDropdown.TryHandlePopupMouse(mouse, _screen, size, CodePageFieldBounds(size), out _))
                 {
                     focusRow = 1;
                     error = null;
-                    Draw(size, filePath, history, codePageIndex, codePageScrollTop, focusRow, focusedButton, error, codePageDropdownOpen, ref codePageDropdownUnderlay);
+                    Draw(size, filePath, history, codePageDropdown, focusRow, focusedButton, error);
                     continue;
                 }
 
                 if (TryHandleHistoryArrow(mouse, size, history))
                 {
                     focusRow = 0;
-                    codePageDropdownOpen = false;
-                    Draw(size, filePath, history, codePageIndex, codePageScrollTop, focusRow, focusedButton, error, codePageDropdownOpen, ref codePageDropdownUnderlay);
+                    codePageDropdown.Close(_screen);
+                    Draw(size, filePath, history, codePageDropdown, focusRow, focusedButton, error);
                     continue;
                 }
 
                 if (TryHandlePathFieldMouse(mouse, size, filePath))
                 {
                     focusRow = 0;
-                    codePageDropdownOpen = false;
+                    codePageDropdown.Close(_screen);
                     error = null;
-                    Draw(size, filePath, history, codePageIndex, codePageScrollTop, focusRow, focusedButton, error, codePageDropdownOpen, ref codePageDropdownUnderlay);
+                    Draw(size, filePath, history, codePageDropdown, focusRow, focusedButton, error);
                     continue;
                 }
 
-                if (TryHandleCodePageMouse(mouse, size, codePageIndex, ref codePageScrollTop, ref codePageDropdownOpen))
+                if (codePageDropdown.TryHandleFieldMouse(mouse, size, CodePageFieldBounds(size)))
                 {
                     focusRow = 1;
                     error = null;
-                    Draw(size, filePath, history, codePageIndex, codePageScrollTop, focusRow, focusedButton, error, codePageDropdownOpen, ref codePageDropdownUnderlay);
+                    Draw(size, filePath, history, codePageDropdown, focusRow, focusedButton, error);
                     continue;
                 }
 
@@ -152,29 +148,29 @@ internal sealed class OpenCreateFileDialog
                     buttonId is not null)
                 {
                     focusRow = 2;
-                    codePageDropdownOpen = false;
+                    codePageDropdown.Close(_screen);
                     if (buttonId == "cancel")
                         return null;
 
-                    var result = TrySubmit(filePath, history, codePageIndex, validate, ref error);
+                        var result = TrySubmit(filePath, history, codePageDropdown.SelectedIndex, validate, ref error);
                     if (result is not null)
                         return result;
 
-                    Draw(size, filePath, history, codePageIndex, codePageScrollTop, focusRow, focusedButton, error, codePageDropdownOpen, ref codePageDropdownUnderlay);
+                    Draw(size, filePath, history, codePageDropdown, focusRow, focusedButton, error);
                     continue;
                 }
 
-                if (codePageDropdownOpen)
+                if (codePageDropdown.IsOpen)
                 {
-                    codePageDropdownOpen = false;
-                    Draw(size, filePath, history, codePageIndex, codePageScrollTop, focusRow, focusedButton, error, codePageDropdownOpen, ref codePageDropdownUnderlay);
+                    codePageDropdown.Close(_screen);
+                    Draw(size, filePath, history, codePageDropdown, focusRow, focusedButton, error);
                     continue;
                 }
             }
 
             if (input is not KeyConsoleInputEvent { Key: var key })
             {
-                Draw(size, filePath, history, codePageIndex, codePageScrollTop, focusRow, focusedButton, error, codePageDropdownOpen, ref codePageDropdownUnderlay);
+                Draw(size, filePath, history, codePageDropdown, focusRow, focusedButton, error);
                 continue;
             }
 
@@ -184,52 +180,23 @@ internal sealed class OpenCreateFileDialog
                 key.Key is ConsoleKey.UpArrow or ConsoleKey.DownArrow or ConsoleKey.Enter or ConsoleKey.Escape)
             {
                 SingleLineTextInput.HandleKey(filePath, key, ref error, history, availableRows);
-                Draw(size, filePath, history, codePageIndex, codePageScrollTop, focusRow, focusedButton, error, codePageDropdownOpen, ref codePageDropdownUnderlay);
+                Draw(size, filePath, history, codePageDropdown, focusRow, focusedButton, error);
                 continue;
             }
 
-            if (focusRow == 1 && codePageDropdownOpen)
+            if (focusRow == 1 && codePageDropdown.IsOpen)
             {
-                switch (key.Key)
+                if (key.Key == ConsoleKey.Tab)
                 {
-                    case ConsoleKey.Escape:
-                        codePageDropdownOpen = false;
-                        break;
-                    case ConsoleKey.Enter:
-                    case ConsoleKey.Spacebar:
-                        codePageDropdownOpen = false;
-                        break;
-                    case ConsoleKey.UpArrow:
-                        codePageIndex = Math.Max(0, codePageIndex - 1);
-                        EnsureCodePageVisible(codePageIndex, ref codePageScrollTop, CodePageDropdownContentRows(size));
-                        break;
-                    case ConsoleKey.DownArrow:
-                        codePageIndex = Math.Min(_codePages.Count - 1, codePageIndex + 1);
-                        EnsureCodePageVisible(codePageIndex, ref codePageScrollTop, CodePageDropdownContentRows(size));
-                        break;
-                    case ConsoleKey.PageUp:
-                        codePageIndex = Math.Max(0, codePageIndex - CodePageDropdownContentRows(size));
-                        EnsureCodePageVisible(codePageIndex, ref codePageScrollTop, CodePageDropdownContentRows(size));
-                        break;
-                    case ConsoleKey.PageDown:
-                        codePageIndex = Math.Min(_codePages.Count - 1, codePageIndex + CodePageDropdownContentRows(size));
-                        EnsureCodePageVisible(codePageIndex, ref codePageScrollTop, CodePageDropdownContentRows(size));
-                        break;
-                    case ConsoleKey.Home:
-                        codePageIndex = 0;
-                        EnsureCodePageVisible(codePageIndex, ref codePageScrollTop, CodePageDropdownContentRows(size));
-                        break;
-                    case ConsoleKey.End:
-                        codePageIndex = _codePages.Count - 1;
-                        EnsureCodePageVisible(codePageIndex, ref codePageScrollTop, CodePageDropdownContentRows(size));
-                        break;
-                    case ConsoleKey.Tab:
-                        codePageDropdownOpen = false;
-                        focusRow = 2;
-                        break;
+                    codePageDropdown.Close(_screen);
+                    focusRow = 2;
+                }
+                else
+                {
+                    codePageDropdown.TryHandleKey(key, size, CodePageFieldBounds(size), _screen, out _);
                 }
 
-                Draw(size, filePath, history, codePageIndex, codePageScrollTop, focusRow, focusedButton, error, codePageDropdownOpen, ref codePageDropdownUnderlay);
+                Draw(size, filePath, history, codePageDropdown, focusRow, focusedButton, error);
                 continue;
             }
 
@@ -244,38 +211,37 @@ internal sealed class OpenCreateFileDialog
                         return null;
 
                     {
-                        var result = TrySubmit(filePath, history, codePageIndex, validate, ref error);
+                    var result = TrySubmit(filePath, history, codePageDropdown.SelectedIndex, validate, ref error);
                         if (result is not null)
                             return result;
                         break;
                     }
 
                 case ConsoleKey.Tab:
-                    codePageDropdownOpen = false;
+                    codePageDropdown.Close(_screen);
                     focusRow = (focusRow + 1) % 3;
                     break;
 
                 case ConsoleKey.UpArrow:
-                    codePageDropdownOpen = false;
+                    codePageDropdown.Close(_screen);
                     focusRow = Math.Max(0, focusRow - 1);
                     break;
 
                 case ConsoleKey.DownArrow:
                     if (focusRow == 1)
                     {
-                        codePageDropdownOpen = true;
-                        EnsureCodePageVisible(codePageIndex, ref codePageScrollTop, CodePageDropdownContentRows(size));
+                        codePageDropdown.Open(size, CodePageFieldBounds(size));
                     }
                     else
                     {
-                        codePageDropdownOpen = false;
+                        codePageDropdown.Close(_screen);
                         focusRow = Math.Min(2, focusRow + 1);
                     }
                     break;
 
                 case ConsoleKey.LeftArrow:
                     if (focusRow == 1)
-                        codePageDropdownOpen = true;
+                        codePageDropdown.Open(size, CodePageFieldBounds(size));
                     else if (focusRow == 2)
                         _buttonBar.TryHandleInput(input, ref focusedButton, out _);
                     else
@@ -284,7 +250,7 @@ internal sealed class OpenCreateFileDialog
 
                 case ConsoleKey.RightArrow:
                     if (focusRow == 1)
-                        codePageDropdownOpen = true;
+                        codePageDropdown.Open(size, CodePageFieldBounds(size));
                     else if (focusRow == 2)
                         _buttonBar.TryHandleInput(input, ref focusedButton, out _);
                     else
@@ -294,15 +260,14 @@ internal sealed class OpenCreateFileDialog
                 case ConsoleKey.Spacebar:
                     if (focusRow == 1)
                     {
-                        codePageDropdownOpen = true;
-                        EnsureCodePageVisible(codePageIndex, ref codePageScrollTop, CodePageDropdownContentRows(size));
+                        codePageDropdown.Open(size, CodePageFieldBounds(size));
                     }
                     else if (focusRow == 2)
                     {
                         if (focusedButton == 1)
                             return null;
 
-                        var result = TrySubmit(filePath, history, codePageIndex, validate, ref error);
+                        var result = TrySubmit(filePath, history, codePageDropdown.SelectedIndex, validate, ref error);
                         if (result is not null)
                             return result;
                     }
@@ -318,7 +283,7 @@ internal sealed class OpenCreateFileDialog
                     break;
             }
 
-            Draw(size, filePath, history, codePageIndex, codePageScrollTop, focusRow, focusedButton, error, codePageDropdownOpen, ref codePageDropdownUnderlay);
+            Draw(size, filePath, history, codePageDropdown, focusRow, focusedButton, error);
         }
     }
 
@@ -358,20 +323,11 @@ internal sealed class OpenCreateFileDialog
         ConsoleSize size,
         CommandLineState filePath,
         SingleLineTextHistoryState history,
-        int codePageIndex,
-        int codePageScrollTop,
+        DropdownSelect<EditorNewFileEncodingOption> codePageDropdown,
         int focusRow,
         int focusedButton,
-        string? error,
-        bool codePageDropdownOpen,
-        ref ScreenSnapshot? codePageDropdownUnderlay)
+        string? error)
     {
-        if (!codePageDropdownOpen && codePageDropdownUnderlay is not null)
-        {
-            _screen.Restore(codePageDropdownUnderlay);
-            codePageDropdownUnderlay = null;
-        }
-
         using var frame = _screen.BeginFrame();
 
         int dialogWidth = Math.Min(DialogWidth, Math.Max(44, size.Width - 2));
@@ -397,7 +353,10 @@ internal sealed class OpenCreateFileDialog
                 DrawPathInput(contentX, bounds.Y + 1, contentWidth, filePath, history, focusRow == 0);
 
                 _screen.Write(contentX, bounds.Y + 3, "Code page:".PadRight(contentWidth), FarDialogStyles.Fill);
-                DrawCodePage(contentX, bounds.Y + 4, contentWidth, _codePages[codePageIndex], focusRow == 1);
+                codePageDropdown.RenderField(
+                    _screen,
+                    new Rect(contentX, bounds.Y + 4, contentWidth, 1),
+                    focusRow == 1 ? FarDialogStyles.FocusedInput : FarDialogStyles.Input);
 
                 string errorText = error is null ? string.Empty : Truncate(error, contentWidth);
                 _screen.Write(contentX, bounds.Y + 5, errorText.PadRight(contentWidth), FarDialogStyles.Error);
@@ -414,8 +373,14 @@ internal sealed class OpenCreateFileDialog
 
         if (focusRow == 0)
             SingleLineTextInput.RenderHistoryDropdown(_screen, InputX(size), InputY(size), InputWidth(size), history);
-        else if (codePageDropdownOpen)
-            DrawCodePageDropdown(size, codePageIndex, codePageScrollTop, ref codePageDropdownUnderlay);
+        else
+            codePageDropdown.RenderPopup(
+                _screen,
+                size,
+                CodePageFieldBounds(size),
+                FarDialogStyles.Input,
+                FarDialogStyles.FocusedInput,
+                FarDialogStyles.FrameOptions);
 
         if (focusRow == 0)
             SetInputCursor(InputX(size), InputY(size), InputWidth(size), filePath);
@@ -443,23 +408,6 @@ internal sealed class OpenCreateFileDialog
             renderDropdown: false);
     }
 
-    private void DrawCodePage(
-        int x,
-        int y,
-        int width,
-        EditorNewFileEncodingOption option,
-        bool focused)
-    {
-        string text = width > 1
-            ? Fit(option.Label, width - 1) + "\u2193"
-            : "\u2193";
-        _screen.Write(
-            x,
-            y,
-            text,
-            focused ? FarDialogStyles.FocusedInput : FarDialogStyles.Input);
-    }
-
     private void SetInputCursor(int x, int y, int width, CommandLineState buffer)
     {
         int textWidth = Math.Max(1, width - 1);
@@ -469,28 +417,6 @@ internal sealed class OpenCreateFileDialog
             _screen.SetCursorPosition(cursorX, y);
             _screen.SetCursorVisible(true);
         }
-    }
-
-    private bool TryHandleCodePageMouse(
-        MouseConsoleInputEvent mouse,
-        ConsoleSize size,
-        int codePageIndex,
-        ref int codePageScrollTop,
-        ref bool codePageDropdownOpen)
-    {
-        var bounds = CodePageFieldBounds(size);
-        if (mouse.Button != MouseButton.Left ||
-            mouse.Kind != MouseEventKind.Down ||
-            mouse.Y != bounds.Y ||
-            mouse.X < bounds.X ||
-            mouse.X >= bounds.Right)
-        {
-            return false;
-        }
-
-        EnsureCodePageVisible(codePageIndex, ref codePageScrollTop, CodePageDropdownContentRows(size));
-        codePageDropdownOpen = !codePageDropdownOpen;
-        return true;
     }
 
     private static bool TryHandlePathFieldMouse(
@@ -512,55 +438,6 @@ internal sealed class OpenCreateFileDialog
         int visibleStart = Math.Max(0, filePath.CursorPosition - Math.Max(0, textWidth - 1));
         int clickedPosition = visibleStart + Math.Min(mouse.X - bounds.X, textWidth - 1);
         filePath.MoveCursorTo(clickedPosition);
-        return true;
-    }
-
-    private bool TryHandleCodePageDropdownMouse(
-        MouseConsoleInputEvent mouse,
-        ConsoleSize size,
-        ref int codePageIndex,
-        ref int codePageScrollTop,
-        ref bool codePageDropdownOpen)
-    {
-        if (mouse.Kind != MouseEventKind.Down && mouse.Kind != MouseEventKind.Wheel)
-            return false;
-
-        Rect dropdownBounds = CodePageDropdownBounds(size);
-        int contentRows = CodePageDropdownContentRows(size);
-        if (mouse.Kind == MouseEventKind.Wheel)
-        {
-            if (mouse.Button == MouseButton.WheelUp)
-                codePageScrollTop = Math.Max(0, codePageScrollTop - 1);
-            else if (mouse.Button == MouseButton.WheelDown)
-                codePageScrollTop = Math.Min(MaxCodePageScrollTop(contentRows), codePageScrollTop + 1);
-            else
-                return false;
-
-            return true;
-        }
-
-        if (mouse.Button != MouseButton.Left)
-            return false;
-
-        if (mouse.X < dropdownBounds.X ||
-            mouse.X >= dropdownBounds.Right ||
-            mouse.Y < dropdownBounds.Y ||
-            mouse.Y >= dropdownBounds.Bottom)
-        {
-            codePageDropdownOpen = false;
-            return true;
-        }
-
-        int itemRow = mouse.Y - dropdownBounds.Y - 1;
-        if (itemRow < 0 || itemRow >= contentRows)
-            return true;
-
-        int itemIndex = codePageScrollTop + itemRow;
-        if (itemIndex >= _codePages.Count)
-            return true;
-
-        codePageIndex = itemIndex;
-        codePageDropdownOpen = false;
         return true;
     }
 
@@ -609,80 +486,6 @@ internal sealed class OpenCreateFileDialog
     private static Rect CodePageFieldBounds(ConsoleSize size) =>
         new(InputX(size), InputY(size) + 3, InputWidth(size), 1);
 
-    private static Rect CodePageDropdownBounds(ConsoleSize size)
-    {
-        Rect field = CodePageFieldBounds(size);
-        int contentRows = CodePageDropdownContentRows(size);
-        int height = contentRows + 2;
-        int y = field.Y + 1;
-        if (y + height > size.Height)
-            y = Math.Max(0, field.Y - height);
-
-        return new Rect(field.X, y, field.Width, height);
-    }
-
-    private static int CodePageDropdownContentRows(ConsoleSize size)
-    {
-        Rect field = CodePageFieldBounds(size);
-        int rowsBelow = Math.Max(0, size.Height - field.Bottom - 2);
-        int rowsAbove = Math.Max(0, field.Y - 2);
-        int available = Math.Max(rowsBelow, rowsAbove);
-        return Math.Clamp(available, 3, 6);
-    }
-
-    private int MaxCodePageScrollTop(int contentRows) =>
-        Math.Max(0, _codePages.Count - contentRows);
-
-    private void EnsureCodePageVisible(int codePageIndex, ref int codePageScrollTop, int contentRows)
-    {
-        if (codePageIndex < codePageScrollTop)
-            codePageScrollTop = codePageIndex;
-        else if (codePageIndex >= codePageScrollTop + contentRows)
-            codePageScrollTop = codePageIndex - contentRows + 1;
-
-        codePageScrollTop = Math.Clamp(codePageScrollTop, 0, MaxCodePageScrollTop(contentRows));
-    }
-
-    private void DrawCodePageDropdown(
-        ConsoleSize size,
-        int codePageIndex,
-        int codePageScrollTop,
-        ref ScreenSnapshot? codePageDropdownUnderlay)
-    {
-        Rect bounds = CodePageDropdownBounds(size);
-        codePageDropdownUnderlay ??= _screen.Capture(bounds);
-
-        int contentRows = CodePageDropdownContentRows(size);
-        var scrollState = new ScrollState
-        {
-            TotalItems = _codePages.Count,
-            ViewportItems = contentRows,
-            FirstVisibleIndex = codePageScrollTop,
-        };
-        var popupOptions = FarDialogStyles.FrameOptions with
-        {
-            DrawDoubleBorder = false,
-            VerticalScrollState = scrollState,
-        };
-
-        new PopupRenderer().RenderPopup(_screen, bounds, popupOptions, (_, contentBounds) =>
-        {
-            int textWidth = Math.Max(1, contentBounds.Width - 1);
-            for (int row = 0; row < contentRows; row++)
-            {
-                int itemIndex = codePageScrollTop + row;
-                string text = itemIndex < _codePages.Count
-                    ? Fit(_codePages[itemIndex].Label, textWidth)
-                    : new string(' ', textWidth);
-                _screen.Write(
-                    contentBounds.X,
-                    contentBounds.Y + row,
-                    text,
-                    itemIndex == codePageIndex ? FarDialogStyles.FocusedInput : FarDialogStyles.Input);
-            }
-        });
-    }
-
     private static Rect OuterBounds(ConsoleSize size)
     {
         int dialogWidth = Math.Min(DialogWidth, Math.Max(44, size.Width - 2));
@@ -690,15 +493,6 @@ internal sealed class OpenCreateFileDialog
         int dialogX = Math.Max(0, (size.Width - dialogWidth) / 2);
         int dialogY = Math.Max(0, (size.Height - dialogHeight) / 2);
         return new Rect(dialogX, dialogY, dialogWidth, dialogHeight);
-    }
-
-    private static int Mod(int value, int size) => ((value % size) + size) % size;
-
-    private static string Fit(string text, int width)
-    {
-        if (width <= 0)
-            return string.Empty;
-        return text.Length <= width ? text.PadRight(width) : text[..width];
     }
 
     private static string Truncate(string value, int maxLength)

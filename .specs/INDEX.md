@@ -19,7 +19,7 @@
 | 0017 | Spec | Current | Current-console program launch | Change external program launch behavior so executable files and typed commands run like Far Manager: the child console process writes dir... |
 | 0018 | Spec | Current | Command history completion | Improve command-line history so executed commands are stored once, repeated commands move to the top of history, and command entry can us... |
 | 0019 | Spec | Current | Paranoid copy resume | Add a copy mode named `Paranoid` in the copy start dialog. The mode must be available before copying begins, including recursive folder c... |
-| 0020 | Spec | Current | Unified window scrollbars | Use one visual scrollbar implementation for every scrollable window-like UI surface. Scrollbars should appear on the right window border,... |
+| 0020 | Spec | Current | Unified window scrollbars | Use the shared scrollbar component for every scrollable window-like UI surface. Scrollbars should appear on the right window border,... |
 | 0021 | Spec | Current | Scrollbar mouse interaction | Make the unified vertical scrollbar respond to standard mouse actions. |
 | 0022 | Spec | Current | Hidden console history scroll | When panels are hidden through `Ctrl+O`, the user can scroll the console viewport up to inspect older command output. CSharpFar must not... |
 | 0027 | Spec | Current | Far command-line shortcuts | Add Far-like command-line insertion shortcuts for panel items, panel paths, and command history navigation. |
@@ -31,7 +31,7 @@
 | 0034 | Spec | Current | Panel quick search | Add Far-like quick search for the active file panel. When the main file manager UI is active, pressing `Alt` plus the first filename char... |
 | 0035 | Spec | Current | FTP and FTPS file system provider | Add a built-in FTP/FTPS panel source so a user can connect to an FTP server, browse remote directories in a normal panel, and use the exi... |
 | 0036 | Spec | Current | Application icon | Give CSharpFar its own Windows application icon with a Far-like file manager identity without copying Far Manager branding or artwork. |
-| 0038 | Spec | Current | History-enabled text input | Add optional command-history-style suggestions to reusable single-line text input controls, document the current control ecosystem, and define reusable control mouse expectations. |
+| 0038 | Spec | Current | History-enabled text input | Add optional command-history-style suggestions to reusable single-line text input controls and define reusable control mouse expectations. |
 | 0046 | Spec | Current | Built-in text editor | Turn the current F4 editor into a predictable Far-like text editor with a real internal editor model, explicit file format handling, undo... |
 | 0048 | Spec | Current | Create new file dialog | Add a Far-like `Shift+F4` command that creates a new text file from the file panels and opens it in the built-in editor. The command must... |
 | 0049 | Spec | Current | Editor Far editing commands | Add the remaining Far-like editor commands from the implementation analysis as native CSharpFar editor behavior. The work should extend t... |
@@ -46,3 +46,4 @@
 | 0059 | Spec | Current | Panel cursor normalization | Keep file panel cursor and scroll state valid after panel item lists are refreshed, rebuilt, or sorted. |
 | 0060 | Spec | Current | File rename operation | Make renaming the current panel item a distinct user command. Plain `F6` remains primarily move; `Shift+F6` is the direct rename shortcut. |
 | 0061 | Spec | Current | Native plugin system | CSharpFar supports native .NET plugins designed around CSharpFar internal abstractions and intentionally does not emulate FarNet or Far Manager plugin APIs. |
+| 0062 | Spec | Current | Console UI component library | CSharpFar owns an internal reusable console UI component library for rendering, popup/dialog frames, scrollbars, text input, button bars, selection lists,... |
