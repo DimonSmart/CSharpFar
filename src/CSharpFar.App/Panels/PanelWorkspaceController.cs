@@ -64,6 +64,20 @@ internal sealed class PanelWorkspaceController
         return VisibleRows(mode);
     }
 
+    public (int RowsPerColumn, int ColumnCount, int VisibleRows) ActiveColumnGeometry()
+    {
+        var mode = ActiveViewMode;
+        int visibleRows = VisibleRows(mode);
+
+        if (mode != PanelViewMode.BriefTwoColumns)
+            return (Math.Max(1, visibleRows), 1, visibleRows);
+
+        var size = _screen.GetSize();
+        var bounds = new Rect(0, 0, 0, ApplicationLayoutService.PanelHeight(size));
+        int rowsPerColumn = BriefTwoColumnsPanelRenderer.RowsPerColumn(bounds, _panelOptions());
+        return (rowsPerColumn, 2, visibleRows);
+    }
+
     public void EnsureActivePanelVisible()
     {
         if (IsPanelVisible(ActiveSide))

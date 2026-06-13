@@ -230,7 +230,7 @@ public sealed class Application
         context.CloseSearchResultsPanel = CloseSearchResultsPanel;
         context.TryAcceptCommandCompletion = TryAcceptCommandCompletion;
         context.ExecuteCommand = ExecuteCommand;
-        context.EnsureActivePanelVisible = EnsureActivePanelVisible;
+        context.EnsureActivePanelVisible = _panelWorkspace.EnsureActivePanelVisible;
         context.TryMoveCommandCompletionSelection = TryMoveCommandCompletionSelection;
         context.BrowseCommandHistory = BrowseCommandHistory;
         context.HideCommandCompletion = HideCommandCompletion;
@@ -403,7 +403,7 @@ public sealed class Application
 
     private ApplicationRuntimeRenderRequest HandleRuntimeModifierInput(ConsoleModifiers modifiers)
     {
-        if (!HasVisiblePanels)
+        if (!_panelWorkspace.HasVisiblePanels)
             return ApplicationRuntimeRenderRequest.None;
 
         return new(SetFunctionKeyLayer(modifiers), IsResize: false);
@@ -454,17 +454,7 @@ public sealed class Application
 
     // ── panel visibility ──────────────────────────────────────────────────────
 
-    private bool HasHiddenPanels => _panelWorkspace.HasHiddenPanels;
-
-    private bool HasVisiblePanels => _panelWorkspace.HasVisiblePanels;
-
-    internal bool CommandHasVisiblePanels => HasVisiblePanels;
-
-    private bool IsPanelVisible(PanelSide side) =>
-        _panelWorkspace.IsPanelVisible(side);
-
-    private void EnsureActivePanelVisible() =>
-        _panelWorkspace.EnsureActivePanelVisible();
+    internal bool CommandHasVisiblePanels => _panelWorkspace.HasVisiblePanels;
 
     private void ClosePanelQuickSearch() =>
         _panelQuickSearch.Close();
@@ -487,28 +477,11 @@ public sealed class Application
 
     internal FilePanelState ActiveState => _panelWorkspace.ActiveState;
 
-    private PanelViewMode ActiveViewMode =>
-        _active == PanelSide.Left ? _leftViewMode : _rightViewMode;
-
     internal int VisibleRows() =>
         _panelWorkspace.VisibleRows();
 
     internal int VisibleRows(PanelSide side) =>
         _panelWorkspace.VisibleRows(side);
-
-    private (int RowsPerColumn, int ColumnCount, int VisibleRows) ActiveColumnGeometry()
-    {
-        var mode = ActiveViewMode;
-        int visibleRows = VisibleRows(mode);
-
-        if (mode != PanelViewMode.BriefTwoColumns)
-            return (Math.Max(1, visibleRows), 1, visibleRows);
-
-        var size = _screen.GetSize();
-        var bounds = new Rect(0, 0, 0, ApplicationLayoutService.PanelHeight(size));
-        int rowsPerColumn = BriefTwoColumnsPanelRenderer.RowsPerColumn(bounds, PanelOptions);
-        return (rowsPerColumn, 2, visibleRows);
-    }
 
     private bool CopyCommandLineSelection()
     {
@@ -529,7 +502,7 @@ public sealed class Application
             return true;
 
         _cmdLine.InsertText(singleLine);
-        if (HasVisiblePanels)
+        if (_panelWorkspace.HasVisiblePanels)
             OnVisibleCommandLineTextEdited();
         else
             ResetCommandHistoryNavigation();
@@ -567,7 +540,7 @@ public sealed class Application
     {
         _commandCompletionController.Refresh(
             _cmdLine,
-            HasVisiblePanels,
+            _panelWorkspace.HasVisiblePanels,
             HasCommandCompletionRows());
     }
 
@@ -649,7 +622,7 @@ public sealed class Application
 
     private void MovePanelColumn(int direction)
     {
-        var geometry = ActiveColumnGeometry();
+        var geometry = _panelWorkspace.ActiveColumnGeometry();
         _ctrl.MoveCursorByColumn(
             ActiveState,
             direction,
