@@ -122,6 +122,7 @@ internal static class ApplicationServicesBuilder
         var commandCompletionController = new CommandCompletionController(
             effectiveHistory,
             session.CommandLine.Completion);
+        var commandHistoryNavigator = new CommandHistoryNavigator(effectiveHistory);
         var changeDirectoryCommandExecutor = new ChangeDirectoryCommandExecutor(
             controller,
             () => callbacks.ActiveState(),
@@ -297,6 +298,25 @@ internal static class ApplicationServicesBuilder
             shellUnderlay,
             session.Ui,
             () => callbacks.HasVisiblePanels());
+        var externalConsoleCommandRunner = new ExternalConsoleCommandRunner(
+            screen,
+            terminalSurface,
+            commandLineRenderer,
+            session.App,
+            session.CommandLine.State,
+            () => callbacks.RefreshPanels());
+        var commandLineCommandExecutor = new CommandLineCommandExecutor(
+            session.CommandLine.State,
+            commandHistoryNavigator,
+            effectiveHistory,
+            modulePanelOpener,
+            changeDirectoryCommandExecutor,
+            shell,
+            externalConsoleCommandRunner,
+            () => callbacks.ActiveState(),
+            () => callbacks.GetActiveSide(),
+            panelQuickSearch.Close,
+            temporarily => commandCompletionController.Hide(temporarily));
         var quickViewDirectorySize = new QuickViewDirectorySizeController(autoRefresh.WakeInputLoop);
         var runtime = ApplicationRuntimeBuilder.Create(
             screen,
@@ -307,16 +327,16 @@ internal static class ApplicationServicesBuilder
         return new ApplicationServices
         {
             Screen = screen,
-            FileSystem = fs,
             PanelController = controller,
-            Shell = shell,
             FileLauncher = effectiveFileLauncher,
             FileOperations = fileOps,
             SearchService = effectiveSearchService,
             SourceRegistry = effectiveSourceRegistry,
             History = effectiveHistory,
-            CommandHistoryNavigator = new CommandHistoryNavigator(effectiveHistory),
+            CommandHistoryNavigator = commandHistoryNavigator,
             CommandCompletionController = commandCompletionController,
+            CommandLineCommandExecutor = commandLineCommandExecutor,
+            ExternalConsoleCommandRunner = externalConsoleCommandRunner,
             Settings = effectiveSettings,
             UserMenu = userMenu ?? new UserMenuStore(effectiveConfigDirectory),
             Clipboard = effectiveClipboard,

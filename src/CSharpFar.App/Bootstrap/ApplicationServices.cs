@@ -27,9 +27,7 @@ namespace CSharpFar.App.Bootstrap;
 internal sealed class ApplicationServices
 {
     public required ScreenRenderer Screen { get; init; }
-    public required IFileSystemService FileSystem { get; init; }
     public required PanelController PanelController { get; init; }
-    public required IShellService Shell { get; init; }
     public required IFileLauncher FileLauncher { get; init; }
     public required IFileOperationService FileOperations { get; init; }
     public required ISearchService SearchService { get; init; }
@@ -37,6 +35,8 @@ internal sealed class ApplicationServices
     public required IHistoryStore History { get; init; }
     public required CommandHistoryNavigator CommandHistoryNavigator { get; init; }
     public required CommandCompletionController CommandCompletionController { get; init; }
+    public required CommandLineCommandExecutor CommandLineCommandExecutor { get; init; }
+    public required ExternalConsoleCommandRunner ExternalConsoleCommandRunner { get; init; }
     public required AppSettingsAlias Settings { get; init; }
     public required UserMenuStore UserMenu { get; init; }
     public required ITextClipboard Clipboard { get; init; }

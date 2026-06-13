@@ -25,12 +25,10 @@ using CSharpFar.Core.History;
 using CSharpFar.Core.Menu;
 using CSharpFar.Core.Models;
 using CSharpFar.Core.Services;
-using CSharpFar.FileSystem;
 using CSharpFar.Module.Abstractions;
 using CSharpFar.Module.Ftp;
 using CSharpFar.Module.Sftp;
 using CSharpFar.FarNetHost;
-using CSharpFar.Shell;
 using AppSettingsAlias = CSharpFar.Core.Models.AppSettings;
 
 namespace CSharpFar.App;
@@ -41,9 +39,7 @@ public sealed class Application
 
     private readonly ScreenRenderer _screen;
     private readonly ApplicationRuntime _runtime;
-    private readonly IFileSystemService _fs;
     private readonly PanelController _ctrl;
-    private readonly IShellService _shell;
     private readonly IFileLauncher _fileLauncher;
     private readonly IFileOperationService _fileOps;
     private readonly PanelFileViewerService _panelFileViewer;
@@ -70,7 +66,8 @@ public sealed class Application
     private readonly IHistoryStore _history;
     private readonly CommandHistoryNavigator _commandHistoryNavigator;
     private readonly CommandCompletionController _commandCompletionController;
-    private readonly ChangeDirectoryCommandExecutor _changeDirectoryCommandExecutor;
+    private readonly CommandLineCommandExecutor _commandLineCommandExecutor;
+    private readonly ExternalConsoleCommandRunner _externalConsoleCommandRunner;
     private readonly AppSettingsAlias _settings;
     private readonly UserMenuStore _userMenu;
     private readonly Action? _saveSettings;
@@ -171,16 +168,16 @@ public sealed class Application
     internal Application(ApplicationServices services)
     {
         _screen = services.Screen;
-        _fs = services.FileSystem;
         _sourceRegistry = services.SourceRegistry;
         _ctrl = services.PanelController;
-        _shell = services.Shell;
         _fileLauncher = services.FileLauncher;
         _fileOps = services.FileOperations;
         _searchService = services.SearchService;
         _history = services.History;
         _commandHistoryNavigator = services.CommandHistoryNavigator;
         _commandCompletionController = services.CommandCompletionController;
+        _commandLineCommandExecutor = services.CommandLineCommandExecutor;
+        _externalConsoleCommandRunner = services.ExternalConsoleCommandRunner;
         _settings = services.Settings;
         _clipboard = services.Clipboard;
         _userMenu = services.UserMenu;
@@ -190,7 +187,6 @@ public sealed class Application
         _menuProvider = services.MenuProvider;
         _functionKeyBindingProvider = services.FunctionKeyBindingProvider;
         _highlightService = services.HighlightService;
-        _changeDirectoryCommandExecutor = services.ChangeDirectoryCommandExecutor;
         _menuController = services.MenuController;
         _autoRefresh = services.AutoRefresh;
         _panelWorkspaceRenderer = services.PanelWorkspaceRenderer;
@@ -276,7 +272,7 @@ public sealed class Application
         callbacks.HasVisiblePanels = () => HasVisiblePanels;
         callbacks.IsPanelVisible = IsPanelVisible;
         callbacks.ViewPanelFile = ViewPanelFile;
-        callbacks.ExecuteInCurrentConsole = ExecuteInCurrentConsole;
+        callbacks.ExecuteInCurrentConsole = _externalConsoleCommandRunner.Execute;
         callbacks.CanExecuteFunctionKeyCommand = CanExecuteFunctionKeyCommand;
         callbacks.ExecuteMenuCommand = ExecuteMenuCommand;
         callbacks.IsRunning = () => _state.Running;
@@ -957,146 +953,11 @@ public sealed class Application
 
     // ── shell execution ───────────────────────────────────────────────────────
 
-    internal void ExecuteCommand(string command)
-    {
-        string workDir = ActiveState.CurrentDirectory;
-        ClosePanelQuickSearch();
-        _cmdLine.Clear();
-        HideCommandCompletion(temporarily: false);
-        ResetCommandHistoryNavigation();
-        AddCommandHistory(command, workDir);
+    internal void ExecuteCommand(string command) =>
+        _commandLineCommandExecutor.Execute(command);
 
-        if (_modulePanelOpener.TryOpenFromCommandLine(command, _active))
-            return;
-
-        if (_changeDirectoryCommandExecutor.TryExecute(command))
-            return;
-
-        ExecuteInCurrentConsole(workDir, command, () => _shell.Execute(command, workDir));
-    }
-
-    private void AddCommandHistory(string command, string workingDirectory)
-    {
-        _history.AddCommand(new CommandHistoryItem
-        {
-            Command          = command,
-            WorkingDirectory = workingDirectory,
-        });
-    }
-
-    internal void ExecuteInCurrentConsole(string workDir, string displayCommand, Action execute)
-    {
-        HiddenPanels hiddenPanelsAfterCommand = _state.HiddenPanels;
-
-        ShowShellUnderlayForCommand();
-        PrintExecutedCommandPrompt(workDir, displayCommand);
-
-        try
-        {
-            using var childConsoleMode = _screen.EnterChildProcessConsoleMode();
-            execute();
-        }
-        finally
-        {
-            _screen.RestoreApplicationInputMode();
-            MoveShellOutputAbovePromptArea();
-            PrintInputPrompt(workDir);
-
-            // Capture shell output NOW, before Render() paints panels over it.
-            // This snapshot is what Ctrl+O will restore.
-            _terminalSurface.CaptureUnderlay();
-
-            RefreshPanels();
-            _state.HiddenPanels = hiddenPanelsAfterCommand;
-            _terminalSurface.ApplyMode();
-            // Stable rendering is called by the main loop.
-        }
-    }
-
-    private void MoveShellOutputAbovePromptArea()
-    {
-        var size = _screen.GetSize();
-        if (size.Width <= 0 || size.Height <= 0)
-            return;
-
-        int cursorRow = SysConsole.CursorTop - SysConsole.WindowTop;
-        if (cursorRow < ApplicationLayoutService.CommandLineRow(size))
-            return;
-
-        _screen.SetRenderingOutputMode(false);
-        SysConsole.ResetColor();
-        SysConsole.WriteLine();
-        SysConsole.WriteLine();
-    }
-
-    private void ShowShellUnderlayForCommand()
-    {
-        _terminalSurface.PrepareMainScreenForExternalCommand();
-        _screen.SetRenderingOutputMode(false);
-        if (!_terminalSurface.UsesTerminalScreenMode)
-            _terminalSurface.RestoreOrClearVisibleArea();
-
-        SysConsole.ResetColor();
-        SysConsole.CursorVisible = true;
-    }
-
-    private void PrintExecutedCommandPrompt(string workDir, string command)
-    {
-        var size = _screen.GetSize();
-        if (size.Width <= 0 || size.Height <= 0)
-            return;
-
-        int row = ApplicationLayoutService.CommandLineRow(size);
-        ClearShellPromptArea(size);
-
-        int x = WriteShellText(0, row, workDir + ">", ConsoleColor.White);
-        WriteShellText(x, row, command, ConsoleColor.Yellow);
-
-        SysConsole.ResetColor();
-
-        int outputRow = Math.Min(size.Height - 1, row + 1);
-        SysConsole.SetCursorPosition(0, SysConsole.WindowTop + outputRow);
-    }
-
-    private void PrintInputPrompt(string workDir)
-    {
-        _screen.SetRenderingOutputMode(true);
-
-        var size = _screen.GetSize();
-        if (size.Width <= 0 || size.Height <= 0)
-            return;
-
-        ClearShellPromptArea(size);
-
-        int row = ApplicationLayoutService.CommandLineRow(size);
-        _commandLineRenderer.Render(row, size, workDir, _cmdLine);
-        _commandLineRenderer.PositionCursor(row, size, workDir, _cmdLine);
-    }
-
-    private void ClearShellPromptArea(ConsoleSize size)
-    {
-        int commandRow = ApplicationLayoutService.CommandLineRow(size);
-        _screen.FillRegion(new Rect(0, commandRow, size.Width, 1), CellStyle.Default);
-
-        int bottomRow = size.Height - 1;
-        if (bottomRow != commandRow)
-            _screen.FillRegion(new Rect(0, bottomRow, size.Width, 1), CellStyle.Default);
-    }
-
-    private int WriteShellText(int x, int y, string text, ConsoleColor foreground)
-    {
-        var size = _screen.GetSize();
-        if (x >= size.Width || y >= size.Height)
-            return x;
-
-        int len = Math.Min(text.Length, size.Width - x);
-        if (len <= 0)
-            return x;
-
-        var style = new CellStyle(foreground, ConsoleColor.Black);
-        _screen.Write(x, y, text.AsSpan(0, len), style);
-        return x + len;
-    }
+    internal void ExecuteInCurrentConsole(string workDir, string displayCommand, Action execute) =>
+        _externalConsoleCommandRunner.Execute(workDir, displayCommand, execute);
 
     // ── navigation helpers ────────────────────────────────────────────────────
 
@@ -1214,64 +1075,6 @@ public sealed class Application
     internal void StartWatching(FilePanelState state, PanelSide side)
     {
         _autoRefresh.StartWatching(state, side);
-    }
-
-    // ── alias to avoid namespace conflict with CSharpFar.Console ─────────────
-    private static class SysConsole
-    {
-        public static int WindowTop
-        {
-            get
-            {
-                try { return global::System.Console.WindowTop; }
-                catch (Exception ex) when (IsConsoleStateException(ex)) { return 0; }
-            }
-        }
-
-        public static int CursorTop
-        {
-            get
-            {
-                try { return global::System.Console.CursorTop; }
-                catch (Exception ex) when (IsConsoleStateException(ex)) { return 0; }
-            }
-        }
-
-        public static bool CursorVisible
-        {
-            set
-            {
-                try { global::System.Console.CursorVisible = value; }
-                catch (Exception ex) when (IsConsoleStateException(ex)) { }
-            }
-        }
-
-        public static void ResetColor()
-        {
-            try { global::System.Console.ResetColor(); }
-            catch (Exception ex) when (IsConsoleStateException(ex)) { }
-        }
-
-        public static void SetCursorPosition(int x, int y) =>
-            TrySetCursorPosition(x, y);
-
-        public static void WriteLine()
-        {
-            try { global::System.Console.WriteLine(); }
-            catch (Exception ex) when (IsConsoleStateException(ex)) { }
-        }
-
-        private static void TrySetCursorPosition(int x, int y)
-        {
-            try { global::System.Console.SetCursorPosition(x, y); }
-            catch (Exception ex) when (IsConsoleStateException(ex)) { }
-        }
-
-        private static bool IsConsoleStateException(Exception ex) =>
-            ex is IOException or
-                  InvalidOperationException or
-                  ArgumentOutOfRangeException or
-                  PlatformNotSupportedException;
     }
 
 }
