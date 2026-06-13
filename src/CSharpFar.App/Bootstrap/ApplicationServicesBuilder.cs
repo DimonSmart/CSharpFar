@@ -184,6 +184,11 @@ internal static class ApplicationServicesBuilder
             side => callbacks.IsPanelVisible(side),
             side => callbacks.GetPanelState(side),
             side => callbacks.VisibleRowsForSide(side));
+        var panelWorkspace = new PanelWorkspaceController(
+            screen,
+            session,
+            panelQuickSearch,
+            () => callbacks.PanelOptions());
         keyboardInputContext.MenuController = menuController;
         keyboardInputContext.PanelQuickSearch = panelQuickSearch;
         var keyboardInputRouter = new KeyboardInputRouter(keyboardInputContext);
@@ -313,14 +318,14 @@ internal static class ApplicationServicesBuilder
             CommandCompletion = session.CommandLine.Completion,
             LeftPanel = session.Panels.Left,
             RightPanel = session.Panels.Right,
-            ActiveSide = () => callbacks.GetActiveSide(),
-            ActiveState = () => callbacks.ActiveState(),
+            ActiveSide = () => panelWorkspace.ActiveSide,
+            ActiveState = () => panelWorkspace.ActiveState,
             LeftViewMode = () => session.Panels.LeftViewMode,
             RightViewMode = () => session.Panels.RightViewMode,
             FunctionKeyLayer = () => session.FunctionKeyLayer,
-            HasHiddenPanels = () => session.App.HiddenPanels != HiddenPanels.None,
-            HasVisiblePanels = () => callbacks.HasVisiblePanels(),
-            IsPanelVisible = side => callbacks.IsPanelVisible(side),
+            HasHiddenPanels = () => panelWorkspace.HasHiddenPanels,
+            HasVisiblePanels = () => panelWorkspace.HasVisiblePanels,
+            IsPanelVisible = panelWorkspace.IsPanelVisible,
             DirectoryShortcuts = () => effectiveSettings.DirectoryShortcuts,
             QuickViewDirectorySize = quickViewDirectorySize,
         };
@@ -331,6 +336,15 @@ internal static class ApplicationServicesBuilder
             functionKeyBarRenderer,
             overlayRenderer,
             commandLineRenderer);
+        var panelVisibility = new PanelVisibilityController(
+            screen,
+            session,
+            panelWorkspace,
+            panelQuickSearch,
+            commandCompletionController,
+            commandHistoryNavigator,
+            terminalSurface,
+            renderCoordinator);
         var externalConsoleCommandRunner = new ExternalConsoleCommandRunner(
             screen,
             terminalSurface,
@@ -389,6 +403,8 @@ internal static class ApplicationServicesBuilder
             SearchResults = searchResults,
             PanelRefresh = panelRefresh,
             PanelQuickSearch = panelQuickSearch,
+            PanelWorkspace = panelWorkspace,
+            PanelVisibility = panelVisibility,
             PanelFileViewer = panelFileViewer,
             PanelFileOpener = panelFileOpener,
             ModuleCatalog = moduleCatalog,

@@ -55,6 +55,8 @@ public sealed class Application
     private readonly PanelSearchResultsService _searchResults;
     private readonly PanelSortServiceFacade _panelSort;
     private readonly PanelNavigationService _panelNavigation;
+    private readonly PanelWorkspaceController _panelWorkspace;
+    private readonly PanelVisibilityController _panelVisibility;
     private readonly ISearchService _searchService;
     private readonly FilePanelSourceRegistry _sourceRegistry;
     private readonly NativeModuleCatalog _moduleCatalog;
@@ -192,6 +194,8 @@ public sealed class Application
         _searchResults = services.SearchResults;
         _panelRefresh = services.PanelRefresh;
         _panelQuickSearch = services.PanelQuickSearch;
+        _panelWorkspace = services.PanelWorkspace;
+        _panelVisibility = services.PanelVisibility;
         _panelFileViewer = services.PanelFileViewer;
         _panelFileOpener = services.PanelFileOpener;
         _moduleCatalog = services.ModuleCatalog;
@@ -254,21 +258,21 @@ public sealed class Application
 
     private void BindCallbacks(ApplicationServiceCallbacks callbacks)
     {
-        callbacks.ActiveState = () => ActiveState;
-        callbacks.GetActiveSide = () => ActiveSide;
-        callbacks.SetActiveSide = side => ActiveSide = side;
+        callbacks.ActiveState = () => _panelWorkspace.ActiveState;
+        callbacks.GetActiveSide = () => _panelWorkspace.ActiveSide;
+        callbacks.SetActiveSide = _panelWorkspace.SetActiveSide;
         callbacks.SetQuickView = quickView => QuickView = quickView;
         callbacks.PanelOptions = () => PanelOptions;
-        callbacks.GetPanelState = GetPanelState;
-        callbacks.PanelSideForState = PanelSideForState;
-        callbacks.VisibleRows = VisibleRows;
-        callbacks.VisibleRowsForSide = VisibleRows;
+        callbacks.GetPanelState = _panelWorkspace.GetPanelState;
+        callbacks.PanelSideForState = _panelWorkspace.PanelSideForState;
+        callbacks.VisibleRows = _panelWorkspace.VisibleRows;
+        callbacks.VisibleRowsForSide = _panelWorkspace.VisibleRows;
         callbacks.StartWatching = StartWatching;
         callbacks.SafeRefresh = SafeRefresh;
         callbacks.ClosePanelQuickSearchForState = ClosePanelQuickSearchForState;
         callbacks.ClosePanelQuickSearchForPanel = ClosePanelQuickSearchForPanel;
-        callbacks.HasVisiblePanels = () => HasVisiblePanels;
-        callbacks.IsPanelVisible = IsPanelVisible;
+        callbacks.HasVisiblePanels = () => _panelWorkspace.HasVisiblePanels;
+        callbacks.IsPanelVisible = _panelWorkspace.IsPanelVisible;
         callbacks.ViewPanelFile = ViewPanelFile;
         callbacks.ExecuteInCurrentConsole = _externalConsoleCommandRunner.Execute;
         callbacks.CanExecuteFunctionKeyCommand = CanExecuteFunctionKeyCommand;
@@ -330,8 +334,8 @@ public sealed class Application
 
     internal PanelSide ActiveSide
     {
-        get => _active;
-        set => SetActiveSide(value);
+        get => _panelWorkspace.ActiveSide;
+        set => _panelWorkspace.SetActiveSide(value);
     }
 
     internal bool Running
@@ -450,39 +454,17 @@ public sealed class Application
 
     // ── panel visibility ──────────────────────────────────────────────────────
 
-    private bool HasHiddenPanels => _state.HiddenPanels != HiddenPanels.None;
+    private bool HasHiddenPanels => _panelWorkspace.HasHiddenPanels;
 
-    private bool HasVisiblePanels => _state.HiddenPanels != HiddenPanels.Both;
+    private bool HasVisiblePanels => _panelWorkspace.HasVisiblePanels;
 
     internal bool CommandHasVisiblePanels => HasVisiblePanels;
 
     private bool IsPanelVisible(PanelSide side) =>
-        (_state.HiddenPanels & HiddenPanelFlag(side)) == 0;
+        _panelWorkspace.IsPanelVisible(side);
 
-    private static HiddenPanels HiddenPanelFlag(PanelSide side) =>
-        side == PanelSide.Left ? HiddenPanels.Left : HiddenPanels.Right;
-
-    private static PanelSide OtherPanelSide(PanelSide side) =>
-        side == PanelSide.Left ? PanelSide.Right : PanelSide.Left;
-
-    private void SetActiveSide(PanelSide side)
-    {
-        if (_active == side)
-            return;
-
-        _panelQuickSearch.Close();
-        _active = side;
-    }
-
-    private void EnsureActivePanelVisible()
-    {
-        if (IsPanelVisible(_active))
-            return;
-
-        var otherSide = OtherPanelSide(_active);
-        if (IsPanelVisible(otherSide))
-            SetActiveSide(otherSide);
-    }
+    private void EnsureActivePanelVisible() =>
+        _panelWorkspace.EnsureActivePanelVisible();
 
     private void ClosePanelQuickSearch() =>
         _panelQuickSearch.Close();
@@ -495,94 +477,24 @@ public sealed class Application
 
     // ── Ctrl+O ────────────────────────────────────────────────────────────────
 
-    /// <summary>
-    /// Toggles panel visibility.
-    /// Hide: restores the last captured underlay so the user sees shell output.
-    /// Show: Render() will be called by the main loop.
-    /// </summary>
-    private bool TogglePanels()
-    {
-        ClosePanelQuickSearch();
-        HideCommandCompletion(temporarily: false);
-        ResetCommandHistoryNavigation();
-        _ui.PanelScrollbarDrag = null;
+    private bool TogglePanels() =>
+        _panelVisibility.TogglePanels();
 
-        if (_state.HiddenPanels == HiddenPanels.Both)
-        {
-            _state.HiddenPanels = HiddenPanels.None;
-            _terminalSurface.ScrollToBottomAndSyncViewport();
-            _terminalSurface.ApplyMode();
-            return true;
-        }
-
-        _state.HiddenPanels = HiddenPanels.Both;
-        _terminalSurface.EnterHiddenMainScreenAtBottom();
-        _screen.SetCursorVisible(true);
-        _renderCoordinator.RenderCommandLineOnlyUntilStable();
-        return false;
-    }
-
-    internal bool TogglePanelVisibility(PanelSide side)
-    {
-        ClosePanelQuickSearch();
-        HideCommandCompletion(temporarily: false);
-        ResetCommandHistoryNavigation();
-        _ui.PanelScrollbarDrag = null;
-
-        var flag = HiddenPanelFlag(side);
-        bool wasHidden = (_state.HiddenPanels & flag) != 0;
-
-        if (wasHidden)
-        {
-            _state.HiddenPanels &= ~flag;
-            _terminalSurface.ScrollToBottomAndSyncViewport();
-        }
-        else
-        {
-            _state.HiddenPanels |= flag;
-        }
-
-        EnsureActivePanelVisible();
-
-        if (_state.HiddenPanels == HiddenPanels.Both)
-        {
-            _terminalSurface.EnterHiddenMainScreenAtBottom();
-            _screen.SetCursorVisible(true);
-            _renderCoordinator.RenderCommandLineOnlyUntilStable();
-            return false;
-        }
-
-        _terminalSurface.ApplyMode();
-        return true;
-    }
+    internal bool TogglePanelVisibility(PanelSide side) =>
+        _panelVisibility.TogglePanel(side);
 
     // ── key handling ──────────────────────────────────────────────────────────
 
-    internal FilePanelState ActiveState => _active == PanelSide.Left ? _left : _right;
+    internal FilePanelState ActiveState => _panelWorkspace.ActiveState;
 
     private PanelViewMode ActiveViewMode =>
         _active == PanelSide.Left ? _leftViewMode : _rightViewMode;
 
-    internal int VisibleRows()
-    {
-        return VisibleRows(ActiveViewMode);
-    }
+    internal int VisibleRows() =>
+        _panelWorkspace.VisibleRows();
 
-    internal int VisibleRows(PanelSide side)
-    {
-        var mode = side == PanelSide.Left ? _leftViewMode : _rightViewMode;
-        return VisibleRows(mode);
-    }
-
-    private int VisibleRows(PanelViewMode mode)
-    {
-        var size   = _screen.GetSize();
-        int panelH = ApplicationLayoutService.PanelHeight(size);
-        var bounds = new Rect(0, 0, 0, panelH);
-        return mode == PanelViewMode.BriefTwoColumns
-            ? BriefTwoColumnsPanelRenderer.VisibleRows(bounds, PanelOptions)
-            : PanelRenderer.VisibleRows(bounds, PanelOptions);
-    }
+    internal int VisibleRows(PanelSide side) =>
+        _panelWorkspace.VisibleRows(side);
 
     private (int RowsPerColumn, int ColumnCount, int VisibleRows) ActiveColumnGeometry()
     {
