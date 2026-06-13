@@ -11,20 +11,10 @@ internal sealed class SearchDialog
 {
     private const int DialogWidth = 76;
     private const int DialogHeight = 19;
-    private const int ButtonRow = 10;
-    private const int BodyRowCount = 13;
 
-    private readonly ScreenRenderer _screen;
     private static readonly SingleLineTextHistoryRegistry HistoryRegistry = new();
+    private readonly ScreenRenderer _screen;
     private readonly ModalDialogRenderer _modalRenderer = new();
-    private readonly CheckBoxLine _caseSensitive = new("Case sensitive");
-    private readonly CheckBoxLine _wholeWords = new("Whole words");
-    private readonly CheckBoxLine _notContaining = new("Not containing");
-    private readonly CheckBoxLine _includeDirectoriesInResults = new("Search folders");
-    private readonly CheckBoxLine _searchInSymbolicLinks = new("Search in symbolic links");
-
-    // Bounds of clickable option rows (updated each Draw call)
-    private readonly Rect[] _optionBounds = new Rect[ButtonRow + 1];
 
     public SearchDialog(ScreenRenderer screen)
     {
@@ -96,459 +86,138 @@ internal sealed class SearchDialog
     {
         var mask = new CommandLineState();
         mask.SetText("*.*");
-
         var text = new CommandLineState();
         var parallelism = new CommandLineState();
         parallelism.SetText(DefaultParallelism().ToString(System.Globalization.CultureInfo.InvariantCulture));
+
         SingleLineTextHistoryState maskHistory = HistoryRegistry.GetOrCreate("SearchDialog.Mask");
         SingleLineTextHistoryState textHistory = HistoryRegistry.GetOrCreate("SearchDialog.Text");
         SingleLineTextHistoryState parallelismHistory = HistoryRegistry.GetOrCreate("SearchDialog.Parallelism");
 
-        bool caseSensitive = false;
-        bool wholeWords = false;
-        bool notContaining = false;
-        bool includeDirectoriesInResults = false;
-        bool searchInSymbolicLinks = false;
-        var scope = SearchScope.CurrentDirectoryRecursive;
-        var scopeRow = new ChoiceRow<SearchScope>(
-            [SearchScope.CurrentDirectoryRecursive, SearchScope.CurrentDirectoryOnly],
-            ScopeLabel);
-        int focusRow = 0;
-        int bodyScrollTop = 0;
-        ScrollBarDragState? bodyScrollbarDrag = null;
-        ScrollBarDragState? historyScrollbarDrag = null;
-        int focusedButton = 0;
+        var caseSensitiveRow = new CheckBoxRow(new CheckBoxLine("Case sensitive"));
+        var wholeWordsRow = new CheckBoxRow(new CheckBoxLine("Whole words"));
+        var notContainingRow = new CheckBoxRow(new CheckBoxLine("Not containing"));
+        var includeDirectoriesRow = new CheckBoxRow(new CheckBoxLine("Search folders"));
+        var searchLinksRow = new CheckBoxRow(new CheckBoxLine("Search in symbolic links"));
+        var scopeRow = new ChoiceFormRow<SearchScope>(
+            new ChoiceRow<SearchScope>(
+                [SearchScope.CurrentDirectoryRecursive, SearchScope.CurrentDirectoryOnly],
+                ScopeLabel),
+            "Select search area:");
+        var buttons = new ButtonRow(
+            [
+                new DialogButton("find", "Find", 'F', IsDefault: true),
+                new DialogButton("cancel", "Cancel", 'C'),
+            ],
+            FarDialogStyles.Fill,
+            FarDialogStyles.FocusedInput);
+        var form = new ScrollableFormDialog();
         string? error = null;
-        var buttonBar = new DialogButtonBar(
-        [
-            new DialogButton("find", "Find", 'F', IsDefault: true),
-            new DialogButton("cancel", "Cancel", 'C'),
-        ]);
-
-        bodyScrollTop = NormalizeBodyScroll(size, focusRow, bodyScrollTop);
-        Draw(
-            size,
-            mask,
-            text,
-            parallelism,
-            maskHistory,
-            textHistory,
-            parallelismHistory,
-            caseSensitive,
-            wholeWords,
-            notContaining,
-            includeDirectoriesInResults,
-            searchInSymbolicLinks,
-            scope,
-            scopeRow,
-            focusRow,
-            bodyScrollTop,
-            buttonBar,
-            focusedButton,
-            error);
 
         while (true)
         {
-            var input = _screen.ReadInput();
             bool hasText = text.Text.Length > 0;
-
-            if (!hasText && notContaining)
-                notContaining = false;
-            if (!IsFocusableRow(focusRow, hasText))
-                focusRow = NextFocusableRow(focusRow, hasText);
-
-            if (focusRow == ButtonRow &&
-                buttonBar.TryHandleInput(input, ref focusedButton, out string? buttonId))
-            {
-                if (buttonId is not null)
-                {
-                    if (buttonId == "cancel")
-                        return null;
-
-                    var result = BuildRequest(
-                        rootPath,
-                        mask,
-                        text,
-                        caseSensitive,
-                        wholeWords,
-                        notContaining,
-                        includeDirectoriesInResults,
-                        searchInSymbolicLinks,
-                        scope,
-                        parallelism,
-                        maskHistory,
-                        textHistory,
-                        parallelismHistory,
-                        ref error);
-                    if (result is not null)
-                        return result;
-                }
-
-                DrawCurrent();
-                continue;
-            }
-
-            if (input is MouseConsoleInputEvent mouse)
-            {
-                if (TryHandleHistoryDropdownMouse(
-                    mouse,
-                    size,
-                    bodyScrollTop,
-                    mask,
-                    text,
-                    parallelism,
-                    maskHistory,
-                    textHistory,
-                    parallelismHistory,
-                    ref historyScrollbarDrag))
-                {
-                    DrawCurrent(ensureFocusVisible: false);
-                    continue;
-                }
-
-                if (TryHandleBodyScrollbarMouse(mouse, size, ref bodyScrollTop, ref bodyScrollbarDrag))
-                {
-                    DrawCurrent(ensureFocusVisible: false);
-                    continue;
-                }
-
-                if (TryHandleHistoryArrow(mouse, maskHistory, textHistory, parallelismHistory))
-                {
-                    focusRow = HitTestOptionRow(mouse);
-                    DrawCurrent();
-                    continue;
-                }
-
-                if (_caseSensitive.TryHandleMouse(mouse))
-                {
-                    focusRow = 3;
-                    caseSensitive = _caseSensitive.Value;
-                    DrawCurrent();
-                    continue;
-                }
-
-                if (_wholeWords.TryHandleMouse(mouse))
-                {
-                    focusRow = 4;
-                    wholeWords = _wholeWords.Value;
-                    DrawCurrent();
-                    continue;
-                }
-
-                if (hasText && _notContaining.TryHandleMouse(mouse))
-                {
-                    focusRow = 5;
-                    notContaining = _notContaining.Value;
-                    DrawCurrent();
-                    continue;
-                }
-
-                if (_includeDirectoriesInResults.TryHandleMouse(mouse))
-                {
-                    focusRow = 6;
-                    includeDirectoriesInResults = _includeDirectoriesInResults.Value;
-                    DrawCurrent();
-                    continue;
-                }
-
-                if (_searchInSymbolicLinks.TryHandleMouse(mouse))
-                {
-                    focusRow = 7;
-                    searchInSymbolicLinks = _searchInSymbolicLinks.Value;
-                    DrawCurrent();
-                    continue;
-                }
-
-                // Check option row clicks first
-                int clickedRow = HitTestOptionRow(mouse);
-                if (clickedRow >= 0 &&
-                    mouse.Button == MouseButton.Left &&
-                    mouse.Kind is MouseEventKind.Down or MouseEventKind.Click)
-                {
-                    focusRow = clickedRow;
-                    if (clickedRow is not (0 or 1 or 9))
-                    {
-                        CycleValue(
-                            clickedRow,
-                            hasText,
-                            ref caseSensitive,
-                            ref wholeWords,
-                            ref notContaining,
-                            ref includeDirectoriesInResults,
-                            ref searchInSymbolicLinks,
-                            ref scope,
-                            scopeRow,
-                            mouse);
-                    }
-                    DrawCurrent();
-                    continue;
-                }
-
-                // Check button bar clicks
-                if (buttonBar.TryHandleInput(input, ref focusedButton, out buttonId) &&
-                    buttonId is not null)
-                {
-                    focusRow = ButtonRow;
-                    if (buttonId == "cancel")
-                        return null;
-
-                    var result = BuildRequest(
-                        rootPath,
-                        mask,
-                        text,
-                        caseSensitive,
-                        wholeWords,
-                        notContaining,
-                        includeDirectoriesInResults,
-                        searchInSymbolicLinks,
-                        scope,
-                        parallelism,
-                        maskHistory,
-                        textHistory,
-                        parallelismHistory,
-                        ref error);
-                    if (result is not null)
-                        return result;
-                }
-
-                DrawCurrent();
-                continue;
-            }
-
-            if (input is not KeyConsoleInputEvent { Key: var key })
-            {
-                DrawCurrent();
-                continue;
-            }
-
-            if (focusRow is 0 or 1 or 9 &&
-                CurrentHistory(focusRow, maskHistory, textHistory, parallelismHistory).IsDropdownOpen &&
-                key.Key is ConsoleKey.UpArrow or ConsoleKey.DownArrow or ConsoleKey.Enter or ConsoleKey.Escape)
-            {
-                EditText(
-                    CurrentBuffer(focusRow, mask, text, parallelism),
-                    key,
-                    CurrentHistory(focusRow, maskHistory, textHistory, parallelismHistory),
-                    DropdownRows(size, focusRow, bodyScrollTop),
-                    ref error);
-                DrawCurrent();
-                continue;
-            }
-
-            switch (key.Key)
-            {
-                case ConsoleKey.Escape:
-                    return null;
-                case ConsoleKey.F10:
-                    var f10Result = BuildRequest(
-                        rootPath,
-                        mask,
-                        text,
-                        caseSensitive,
-                        wholeWords,
-                        notContaining,
-                        includeDirectoriesInResults,
-                        searchInSymbolicLinks,
-                        scope,
-                        parallelism,
-                        maskHistory,
-                        textHistory,
-                        parallelismHistory,
-                        ref error);
-                    if (f10Result is not null)
-                        return f10Result;
-                    break;
-                case ConsoleKey.Enter:
-                    if (focusRow == ButtonRow && focusedButton == 1)
-                        return null;
-                    if (focusRow == ButtonRow || focusRow is 0 or 1 or 9)
-                    {
-                        var result = BuildRequest(
-                            rootPath,
-                            mask,
-                            text,
-                            caseSensitive,
-                            wholeWords,
-                            notContaining,
-                            includeDirectoriesInResults,
-                            searchInSymbolicLinks,
-                            scope,
-                            parallelism,
-                            maskHistory,
-                            textHistory,
-                            parallelismHistory,
-                            ref error);
-                        if (result is not null)
-                            return result;
-                    }
-                    else
-                    {
-                        CycleValue(
-                            focusRow,
-                            hasText,
-                            ref caseSensitive,
-                            ref wholeWords,
-                            ref notContaining,
-                            ref includeDirectoriesInResults,
-                            ref searchInSymbolicLinks,
-                            ref scope,
-                            scopeRow);
-                    }
-                    break;
-                case ConsoleKey.Spacebar:
-                    if (focusRow == ButtonRow)
-                    {
-                        if (focusedButton == 1)
-                            return null;
-
-                        var result = BuildRequest(
-                            rootPath,
-                            mask,
-                            text,
-                            caseSensitive,
-                            wholeWords,
-                            notContaining,
-                            includeDirectoriesInResults,
-                            searchInSymbolicLinks,
-                            scope,
-                            parallelism,
-                            maskHistory,
-                            textHistory,
-                            parallelismHistory,
-                            ref error);
-                        if (result is not null)
-                            return result;
-                    }
-                    else if (focusRow is 0 or 1 or 9)
-                    {
-                        EditText(
-                            CurrentBuffer(focusRow, mask, text, parallelism),
-                            key,
-                            CurrentHistory(focusRow, maskHistory, textHistory, parallelismHistory),
-                            DropdownRows(size, focusRow, bodyScrollTop),
-                            ref error);
-                    }
-                    else
-                    {
-                        CycleValue(
-                            focusRow,
-                            hasText,
-                            ref caseSensitive,
-                            ref wholeWords,
-                            ref notContaining,
-                            ref includeDirectoriesInResults,
-                            ref searchInSymbolicLinks,
-                            ref scope,
-                            scopeRow);
-                    }
-                    break;
-                case ConsoleKey.UpArrow:
-                    focusRow = PreviousFocusableRow(focusRow, hasText);
-                    break;
-                case ConsoleKey.DownArrow:
-                case ConsoleKey.Tab:
-                    focusRow = NextFocusableRow(focusRow, hasText);
-                    break;
-                case ConsoleKey.LeftArrow:
-                    if (focusRow == ButtonRow)
-                        buttonBar.TryHandleInput(input, ref focusedButton, out _);
-                    else if (focusRow is 0 or 1 or 9)
-                        EditText(
-                            CurrentBuffer(focusRow, mask, text, parallelism),
-                            key,
-                            CurrentHistory(focusRow, maskHistory, textHistory, parallelismHistory),
-                            DropdownRows(size, focusRow, bodyScrollTop),
-                            ref error);
-                    break;
-                case ConsoleKey.RightArrow:
-                    if (focusRow == ButtonRow)
-                        buttonBar.TryHandleInput(input, ref focusedButton, out _);
-                    else if (focusRow is 0 or 1 or 9)
-                        EditText(
-                            CurrentBuffer(focusRow, mask, text, parallelism),
-                            key,
-                            CurrentHistory(focusRow, maskHistory, textHistory, parallelismHistory),
-                            DropdownRows(size, focusRow, bodyScrollTop),
-                            ref error);
-                    break;
-                default:
-                    if (focusRow is 0 or 1 or 9)
-                        EditText(
-                            CurrentBuffer(focusRow, mask, text, parallelism),
-                            key,
-                            CurrentHistory(focusRow, maskHistory, textHistory, parallelismHistory),
-                            DropdownRows(size, focusRow, bodyScrollTop),
-                            ref error);
-                    break;
-            }
-
-            DrawCurrent();
-        }
-
-        void DrawCurrent(bool ensureFocusVisible = true)
-        {
-            bodyScrollTop = ensureFocusVisible
-                ? NormalizeBodyScroll(size, focusRow, bodyScrollTop)
-                : ScrollStateCalculator.ClampFirstVisibleIndex(
-                    bodyScrollTop,
-                    BodyRowCount,
-                    SearchBodyViewportRows(size));
-            Draw(
-                size,
+            form.SetRows(BuildRows(
                 mask,
                 text,
                 parallelism,
                 maskHistory,
                 textHistory,
                 parallelismHistory,
-                caseSensitive,
-                wholeWords,
-                notContaining,
-                includeDirectoriesInResults,
-                searchInSymbolicLinks,
-                scope,
+                caseSensitiveRow,
+                wholeWordsRow,
+                notContainingRow,
+                includeDirectoriesRow,
+                searchLinksRow,
                 scopeRow,
-                focusRow,
-                bodyScrollTop,
-                buttonBar,
-                focusedButton,
-                error);
+                buttons,
+                hasText));
+            Draw(size, form, error);
+
+            var input = _screen.ReadInput();
+            FormInputResult result = input switch
+            {
+                KeyConsoleInputEvent { Key: var key } => HandleSearchKey(form, key),
+                MouseConsoleInputEvent mouse => form.HandleMouse(mouse),
+                _ => FormInputResult.NotHandled,
+            };
+
+            if (result.Kind == FormInputResultKind.Cancel)
+                return null;
+
+            if (result.Kind == FormInputResultKind.Submit ||
+                input is KeyConsoleInputEvent { Key.Key: ConsoleKey.F10 })
+            {
+                var request = BuildRequest(
+                    rootPath,
+                    mask,
+                    text,
+                    caseSensitiveRow.Value,
+                    wholeWordsRow.Value,
+                    notContainingRow.Value,
+                    includeDirectoriesRow.Value,
+                    searchLinksRow.Value,
+                    scopeRow.Value,
+                    parallelism,
+                    maskHistory,
+                    textHistory,
+                    parallelismHistory,
+                    ref error);
+                if (request is not null)
+                    return request;
+            }
         }
     }
 
-    private static bool TryHandleBodyScrollbarMouse(
-        MouseConsoleInputEvent mouse,
-        ConsoleSize size,
-        ref int bodyScrollTop,
-        ref ScrollBarDragState? bodyScrollbarDrag)
+    private static IReadOnlyList<IFormRow> BuildRows(
+        CommandLineState mask,
+        CommandLineState text,
+        CommandLineState parallelism,
+        SingleLineTextHistoryState maskHistory,
+        SingleLineTextHistoryState textHistory,
+        SingleLineTextHistoryState parallelismHistory,
+        CheckBoxRow caseSensitive,
+        CheckBoxRow wholeWords,
+        CheckBoxRow notContaining,
+        CheckBoxRow includeDirectories,
+        CheckBoxRow searchLinks,
+        ChoiceFormRow<SearchScope> scope,
+        ButtonRow buttons,
+        bool hasText)
     {
-        int dialogWidth = Math.Min(DialogWidth, Math.Max(48, size.Width - 2));
-        int dialogHeight = Math.Min(DialogHeight, Math.Max(8, size.Height - 2));
-        int dialogX = Math.Max(0, (size.Width - dialogWidth) / 2);
-        int dialogY = Math.Max(0, (size.Height - dialogHeight) / 2);
-        var frameBounds = new Rect(
-            dialogX + 1,
-            dialogY + 1,
-            Math.Max(1, dialogWidth - 2),
-            Math.Max(1, dialogHeight - 2));
-        int buttonY = frameBounds.Y + frameBounds.Height - 2;
-        int errorY = buttonY - 1;
-        int bodyTop = frameBounds.Y + 1;
-        int bodyHeight = Math.Max(1, errorY - bodyTop);
-        if (BodyRowCount <= bodyHeight)
-            return false;
-
-        var scrollbarBounds = new Rect(frameBounds.Right - 1, bodyTop, 1, bodyHeight);
-        return ScrollableFormDialog.TryHandleScrollbarMouse(
-            mouse,
-            scrollbarBounds,
-            BodyRowCount,
-            bodyHeight,
-            ref bodyScrollTop,
-            ref bodyScrollbarDrag);
+        var fill = FarDialogStyles.Fill;
+        var disabled = new CellStyle(ConsoleColor.DarkGray, fill.Background);
+        return
+        [
+            new LabelRow("A file mask or several file masks:", fill),
+            new TextInputRow(mask, maskHistory),
+            new LabelRow("Containing text:", fill),
+            new TextInputRow(text, textHistory),
+            new LabelRow("Using code page: Automatic detection", fill),
+            caseSensitive,
+            wholeWords,
+            hasText ? notContaining : new LabelRow("[ ] Not containing", disabled),
+            includeDirectories,
+            searchLinks,
+            scope,
+            new LabelRow("Parallelism:", fill),
+            new TextInputRow(parallelism, parallelismHistory, width: 8),
+            new SeparatorRow(fill, drawLine: false),
+            buttons,
+        ];
     }
 
-    private static SearchRequest? BuildRequest(
+    private static FormInputResult HandleSearchKey(ScrollableFormDialog form, ConsoleKeyInfo key)
+    {
+        if (key.Key == ConsoleKey.F10)
+            return FormInputResult.Submit("find");
+        if (key.Key == ConsoleKey.Enter && form.FocusIndex is 0 or 1 or 8)
+            return FormInputResult.Submit("find");
+
+        return form.HandleKey(key);
+    }
+
+    private SearchRequest? BuildRequest(
         string rootPath,
         CommandLineState mask,
         CommandLineState text,
@@ -564,7 +233,7 @@ internal sealed class SearchDialog
         SingleLineTextHistoryState parallelismHistory,
         ref string? error)
     {
-        SearchRequest? request = TryCreateRequest(
+        var request = TryCreateRequest(
             rootPath,
             mask.Text,
             text.Text,
@@ -576,437 +245,48 @@ internal sealed class SearchDialog
             scope,
             parallelism.Text,
             out error);
+
         if (request is null)
             return null;
 
-        maskHistory.Add(mask.Text.Trim());
-        textHistory.Add(text.Text.Trim());
-        parallelismHistory.Add(parallelism.Text.Trim());
+        maskHistory.Add(request.FileMaskExpression);
+        if (request.ContainingText is not null)
+            textHistory.Add(request.ContainingText);
+        parallelismHistory.Add(request.MaxDegreeOfParallelism.ToString(System.Globalization.CultureInfo.InvariantCulture));
         return request;
     }
 
-    private static CommandLineState CurrentBuffer(
-        int focusRow,
-        CommandLineState mask,
-        CommandLineState text,
-        CommandLineState parallelism) =>
-        focusRow switch
-        {
-            0 => mask,
-            1 => text,
-            _ => parallelism,
-        };
-
-    private static SingleLineTextHistoryState CurrentHistory(
-        int focusRow,
-        SingleLineTextHistoryState maskHistory,
-        SingleLineTextHistoryState textHistory,
-        SingleLineTextHistoryState parallelismHistory) =>
-        focusRow switch
-        {
-            0 => maskHistory,
-            1 => textHistory,
-            _ => parallelismHistory,
-        };
-
-    private void CycleValue(
-        int focusRow,
-        bool hasText,
-        ref bool caseSensitive,
-        ref bool wholeWords,
-        ref bool notContaining,
-        ref bool includeDirectoriesInResults,
-        ref bool searchInSymbolicLinks,
-        ref SearchScope scope,
-        ChoiceRow<SearchScope> scopeRow,
-        MouseConsoleInputEvent? mouse = null)
-    {
-        switch (focusRow)
-        {
-            case 3:
-                _caseSensitive.Value = caseSensitive;
-                _caseSensitive.TryHandleKey(ToggleKey());
-                caseSensitive = _caseSensitive.Value;
-                break;
-            case 4:
-                _wholeWords.Value = wholeWords;
-                _wholeWords.TryHandleKey(ToggleKey());
-                wholeWords = _wholeWords.Value;
-                break;
-            case 5 when hasText:
-                _notContaining.Value = notContaining;
-                _notContaining.TryHandleKey(ToggleKey());
-                notContaining = _notContaining.Value;
-                break;
-            case 6:
-                _includeDirectoriesInResults.Value = includeDirectoriesInResults;
-                _includeDirectoriesInResults.TryHandleKey(ToggleKey());
-                includeDirectoriesInResults = _includeDirectoriesInResults.Value;
-                break;
-            case 7:
-                _searchInSymbolicLinks.Value = searchInSymbolicLinks;
-                _searchInSymbolicLinks.TryHandleKey(ToggleKey());
-                searchInSymbolicLinks = _searchInSymbolicLinks.Value;
-                break;
-            case 8:
-                scopeRow.Value = scope;
-                if (mouse is null)
-                    scopeRow.TryHandleKey(ToggleKey());
-                else
-                    scopeRow.TryHandleMouse(mouse);
-                scope = scopeRow.Value;
-                break;
-        }
-    }
-
-    private static ConsoleKeyInfo ToggleKey() =>
-        new('\0', ConsoleKey.Spacebar, shift: false, alt: false, control: false);
-
-    private static int NextFocusableRow(int focusRow, bool hasText)
-        => ScrollableFormDialog.MoveFocus(
-            focusRow,
-            ButtonRow + 1,
-            delta: 1,
-            row => IsFocusableRow(row, hasText));
-
-    private static int PreviousFocusableRow(int focusRow, bool hasText)
-        => ScrollableFormDialog.MoveFocus(
-            focusRow,
-            ButtonRow + 1,
-            delta: -1,
-            row => IsFocusableRow(row, hasText));
-
-    private static bool IsFocusableRow(int row, bool hasText) =>
-        row is 0 or 1 or 3 or 4 or 6 or 7 or 8 or 9 or ButtonRow ||
-        (row == 5 && hasText);
-
-    private static void EditText(
-        CommandLineState buffer,
-        ConsoleKeyInfo key,
-        SingleLineTextHistoryState history,
-        int availableRows,
-        ref string? error)
-    {
-        SingleLineTextInput.HandleKey(buffer, key, ref error, history, availableRows);
-    }
-
-    private void Draw(
-        ConsoleSize size,
-        CommandLineState mask,
-        CommandLineState text,
-        CommandLineState parallelism,
-        SingleLineTextHistoryState maskHistory,
-        SingleLineTextHistoryState textHistory,
-        SingleLineTextHistoryState parallelismHistory,
-        bool caseSensitive,
-        bool wholeWords,
-        bool notContaining,
-        bool includeDirectoriesInResults,
-        bool searchInSymbolicLinks,
-        SearchScope scope,
-        ChoiceRow<SearchScope> scopeRow,
-        int focusRow,
-        int bodyScrollTop,
-        DialogButtonBar buttonBar,
-        int focusedButton,
-        string? error)
+    private void Draw(ConsoleSize size, ScrollableFormDialog form, string? error)
     {
         using var frame = _screen.BeginFrame();
-
-        int dialogWidth = Math.Min(DialogWidth, Math.Max(48, size.Width - 2));
-        int dialogHeight = Math.Min(DialogHeight, Math.Max(8, size.Height - 2));
-        int dialogX = Math.Max(0, (size.Width - dialogWidth) / 2);
-        int dialogY = Math.Max(0, (size.Height - dialogHeight) / 2);
-        var outerBounds = new Rect(dialogX, dialogY, dialogWidth, dialogHeight);
-
-        var fill = FarDialogStyles.Fill;
-        var focused = FarDialogStyles.FocusedInput;
-        var disabled = new CellStyle(ConsoleColor.DarkGray, fill.Background);
+        Rect outerBounds = OuterBounds(size);
 
         _modalRenderer.Render(_screen, outerBounds, "Find file", true, FarDialogStyles.OuterOptions, FarDialogStyles.FrameOptions, (_, layout) =>
         {
             Rect bounds = layout.FrameBounds;
             int contentX = bounds.X + 2;
             int contentWidth = Math.Max(1, bounds.Width - 4);
-
-            Array.Clear(_optionBounds);
-            int buttonY = bounds.Y + bounds.Height - 2;
-            int errorY = buttonY - 1;
+            int errorY = bounds.Y + bounds.Height - 2;
             int bodyTop = bounds.Y + 1;
             int bodyHeight = Math.Max(1, errorY - bodyTop);
-            _screen.FillRegion(new Rect(contentX, bodyTop, contentWidth, bodyHeight), fill);
 
-            WriteBodyRow(0, "A file mask or several file masks:", fill);
-            DrawBodyInput(1, mask, maskHistory, focusRow == 0, focusRow: 0);
-            WriteBodyRow(2, "Containing text:", fill);
-            DrawBodyInput(3, text, textHistory, focusRow == 1, focusRow: 1);
-            DrawBodyValueRow(4, "Using code page:", "Automatic detection", false, fill, focused);
-            DrawBodyCheckbox(5, "Case sensitive", caseSensitive, focusRow == 3, fill, focused, focusRow: 3);
-            DrawBodyCheckbox(6, "Whole words", wholeWords, focusRow == 4, fill, focused, focusRow: 4);
-            DrawBodyCheckbox(
-                7,
-                "Not containing",
-                text.Text.Length > 0 && notContaining,
-                focusRow == 5,
-                text.Text.Length > 0 ? fill : disabled,
-                focused,
-                focusRow: 5);
-            DrawBodyCheckbox(8, "Search folders", includeDirectoriesInResults, focusRow == 6, fill, focused, focusRow: 6);
-            DrawBodyCheckbox(9, "Search in symbolic links", searchInSymbolicLinks, focusRow == 7, fill, focused, focusRow: 7);
-            DrawBodyChoiceRow(10, scope, focusRow == 8, focusRow: 8);
-            WriteBodyRow(11, "Parallelism:", fill);
-            DrawBodyInput(12, parallelism, parallelismHistory, focusRow == 9, Math.Min(8, contentWidth), focusRow: 9);
-
-            if (BodyRowCount > bodyHeight)
-            {
-                new ScrollBarRenderer().RenderVerticalScrollbar(
-                    _screen,
-                    new Rect(bounds.Right - 1, bodyTop, 1, bodyHeight),
-                    new ScrollState
-                    {
-                        TotalItems = BodyRowCount,
-                        ViewportItems = bodyHeight,
-                        FirstVisibleIndex = bodyScrollTop,
-                    },
-                    new ScrollBarOptions
-                    {
-                        Enabled = true,
-                        DrawWhenNotScrollable = false,
-                    },
-                    FarDialogStyles.Border);
-            }
+            form.Render(new FormRenderContext(
+                _screen,
+                new Rect(contentX, bodyTop, contentWidth, bodyHeight),
+                FarDialogStyles.Border));
 
             string errorText = error is null ? string.Empty : Truncate(error, contentWidth);
             _screen.Write(contentX, errorY, errorText.PadRight(contentWidth), FarDialogStyles.Error);
-
-            buttonBar.Render(
-                _screen,
-                contentX,
-                buttonY,
-                contentWidth,
-                focusedButton,
-                fill,
-                focusRow == ButtonRow ? focused : fill);
-
-            int? BodyY(int virtualRow)
-            {
-                int row = virtualRow - bodyScrollTop;
-                return row >= 0 && row < bodyHeight ? bodyTop + row : null;
-            }
-
-            void WriteBodyRow(int virtualRow, string value, CellStyle style)
-            {
-                if (BodyY(virtualRow) is { } y)
-                    _screen.Write(contentX, y, Truncate(value, contentWidth).PadRight(contentWidth), style);
-            }
-
-            void DrawBodyInput(
-                int virtualRow,
-                CommandLineState buffer,
-                SingleLineTextHistoryState history,
-                bool isFocused,
-                int? width = null,
-                int focusRow = -1)
-            {
-                if (BodyY(virtualRow) is not { } y)
-                    return;
-
-                int inputWidth = width ?? contentWidth;
-                DrawInput(contentX, y, inputWidth, buffer, history, isFocused);
-                if (focusRow >= 0)
-                    _optionBounds[focusRow] = new Rect(contentX, y, inputWidth, 1);
-            }
-
-            void DrawBodyValueRow(
-                int virtualRow,
-                string label,
-                string value,
-                bool isFocused,
-                CellStyle rowFill,
-                CellStyle rowFocused,
-                int focusRow = -1)
-            {
-                if (BodyY(virtualRow) is not { } y)
-                    return;
-
-                DrawValueRow(contentX, y, contentWidth, label, value, isFocused, rowFill, rowFocused);
-                if (focusRow >= 0)
-                    _optionBounds[focusRow] = new Rect(contentX, y, contentWidth, 1);
-            }
-
-            void DrawBodyCheckbox(
-                int virtualRow,
-                string label,
-                bool value,
-                bool isFocused,
-                CellStyle rowFill,
-                CellStyle rowFocused,
-                int focusRow)
-            {
-                if (BodyY(virtualRow) is not { } y)
-                    return;
-
-                CheckBoxForLabel(label, value).Render(_screen, contentX, y, contentWidth, isFocused);
-                _optionBounds[focusRow] = new Rect(contentX, y, contentWidth, 1);
-            }
-
-            void DrawBodyChoiceRow(
-                int virtualRow,
-                SearchScope value,
-                bool isFocused,
-                int focusRow)
-            {
-                if (BodyY(virtualRow) is not { } y)
-                    return;
-
-                scopeRow.Value = value;
-                scopeRow.RenderSegmented(
-                    _screen,
-                    contentX,
-                    y,
-                    contentWidth,
-                    "Select search area:",
-                    isFocused,
-                    fill,
-                    focused);
-                _optionBounds[focusRow] = new Rect(contentX, y, contentWidth, 1);
-            }
         });
-
-        Rect frameBounds = new(
-            outerBounds.X + 1,
-            outerBounds.Y + 1,
-            Math.Max(1, outerBounds.Width - 2),
-            Math.Max(1, outerBounds.Height - 2));
-        int inputX = frameBounds.X + 2;
-        int inputWidth = Math.Max(1, frameBounds.Width - 4);
-        if (focusRow == 0 && InputCursorY(frameBounds, bodyScrollTop, 1) is { } maskY)
-        {
-            SingleLineTextInput.RenderHistoryDropdown(_screen, inputX, maskY, inputWidth, maskHistory);
-            SetInputCursor(inputX, maskY, inputWidth, mask, hasHistory: true);
-        }
-        else if (focusRow == 1 && InputCursorY(frameBounds, bodyScrollTop, 3) is { } textY)
-        {
-            SingleLineTextInput.RenderHistoryDropdown(_screen, inputX, textY, inputWidth, textHistory);
-            SetInputCursor(inputX, textY, inputWidth, text, hasHistory: true);
-        }
-        else if (focusRow == 9 && InputCursorY(frameBounds, bodyScrollTop, 12) is { } parallelismY)
-        {
-            int parallelismWidth = Math.Min(8, inputWidth);
-            SingleLineTextInput.RenderHistoryDropdown(_screen, inputX, parallelismY, parallelismWidth, parallelismHistory);
-            SetInputCursor(inputX, parallelismY, parallelismWidth, parallelism, hasHistory: true);
-        }
-        else
-            _screen.SetCursorVisible(false);
     }
 
-    private static int NormalizeBodyScroll(ConsoleSize size, int focusRow, int bodyScrollTop)
-        => ScrollableFormDialog.NormalizeBodyScroll(
-            BodyRowCount,
-            focusRow,
-            bodyScrollTop,
-            SearchBodyViewportRows(size),
-            FocusVirtualRow);
-
-    private static int SearchBodyViewportRows(ConsoleSize size)
+    private static Rect OuterBounds(ConsoleSize size)
     {
+        int dialogWidth = Math.Min(DialogWidth, Math.Max(48, size.Width - 2));
         int dialogHeight = Math.Min(DialogHeight, Math.Max(8, size.Height - 2));
-        int frameHeight = Math.Max(1, dialogHeight - 2);
-        int buttonRow = frameHeight - 2;
-        int errorRow = buttonRow - 1;
-        return Math.Max(1, errorRow - 1);
-    }
-
-    private static int FocusVirtualRow(int focusRow) => focusRow switch
-    {
-        0 => 1,
-        1 => 3,
-        3 => 5,
-        4 => 6,
-        5 => 7,
-        6 => 8,
-        7 => 9,
-        8 => 10,
-        9 => 12,
-        _ => -1,
-    };
-
-    private static int? InputCursorY(Rect frameBounds, int bodyScrollTop, int virtualRow)
-    {
-        int buttonY = frameBounds.Y + frameBounds.Height - 2;
-        int errorY = buttonY - 1;
-        int bodyTop = frameBounds.Y + 1;
-        int bodyHeight = Math.Max(1, errorY - bodyTop);
-        int row = virtualRow - bodyScrollTop;
-        return row >= 0 && row < bodyHeight ? bodyTop + row : null;
-    }
-
-    private void DrawInput(
-        int x,
-        int y,
-        int width,
-        CommandLineState buffer,
-        SingleLineTextHistoryState history,
-        bool focused)
-    {
-        SingleLineTextInput.Render(
-            _screen,
-            x,
-            y,
-            width,
-            buffer,
-            focused ? FarDialogStyles.FocusedInput : FarDialogStyles.Input,
-            FarDialogStyles.Input,
-            history,
-            renderDropdown: false);
-    }
-
-    private void DrawValueRow(
-        int x,
-        int y,
-        int width,
-        string label,
-        string value,
-        bool focused,
-        CellStyle fill,
-        CellStyle focusedStyle)
-    {
-        string labelText = $"{label} ";
-        int labelWidth = Math.Min(labelText.Length, width);
-        _screen.Write(x, y, labelText[..labelWidth], fill);
-
-        int valueWidth = Math.Max(0, width - labelWidth);
-        if (valueWidth == 0)
-            return;
-
-        string valueText = Truncate(value, valueWidth).PadRight(valueWidth);
-        _screen.Write(x + labelWidth, y, valueText, focused ? focusedStyle : FarDialogStyles.Input);
-    }
-
-    private CheckBoxLine CheckBoxForLabel(string label, bool value)
-    {
-        CheckBoxLine checkBox = label switch
-        {
-            "Case sensitive" => _caseSensitive,
-            "Whole words" => _wholeWords,
-            "Not containing" => _notContaining,
-            "Search folders" => _includeDirectoriesInResults,
-            "Search in symbolic links" => _searchInSymbolicLinks,
-            _ => throw new InvalidOperationException($"Unknown checkbox label: {label}"),
-        };
-        checkBox.Value = value;
-        return checkBox;
-    }
-
-    private void SetInputCursor(int x, int y, int width, CommandLineState buffer, bool hasHistory)
-    {
-        int textWidth = hasHistory ? Math.Max(1, width - 1) : width;
-        int cursorX = SingleLineTextInput.GetCursorX(x, textWidth, buffer);
-        if (cursorX < x + textWidth)
-        {
-            _screen.SetCursorPosition(cursorX, y);
-            _screen.SetCursorVisible(true);
-        }
+        int dialogX = Math.Max(0, (size.Width - dialogWidth) / 2);
+        int dialogY = Math.Max(0, (size.Height - dialogHeight) / 2);
+        return new Rect(dialogX, dialogY, dialogWidth, dialogHeight);
     }
 
     private static string ScopeLabel(SearchScope scope) => scope switch
@@ -1014,118 +294,6 @@ internal sealed class SearchDialog
         SearchScope.CurrentDirectoryOnly => "In current folder",
         _ => "From the current folder",
     };
-
-    private int HitTestOptionRow(MouseConsoleInputEvent mouse)
-    {
-        for (int row = 0; row < _optionBounds.Length; row++)
-        {
-            var b = _optionBounds[row];
-            if (b.Width == 0) continue;
-            if (mouse.X >= b.X && mouse.X < b.Right &&
-                mouse.Y >= b.Y && mouse.Y < b.Bottom)
-                return row;
-        }
-        return -1;
-    }
-
-    private bool TryHandleHistoryArrow(
-        MouseConsoleInputEvent mouse,
-        SingleLineTextHistoryState maskHistory,
-        SingleLineTextHistoryState textHistory,
-        SingleLineTextHistoryState parallelismHistory)
-    {
-        int row = HitTestOptionRow(mouse);
-        if (row is not (0 or 1 or 9))
-            return false;
-
-        Rect bounds = _optionBounds[row];
-        if (!SingleLineTextInput.IsHistoryArrowHit(bounds.X, bounds.Width, bounds.Y, mouse.X, mouse.Y))
-            return false;
-
-        return SingleLineTextInput.TryOpenHistoryDropdown(
-            CurrentHistory(row, maskHistory, textHistory, parallelismHistory),
-            bounds.Y,
-            _screen.GetSize().Height);
-    }
-
-    private static bool TryHandleHistoryDropdownMouse(
-        MouseConsoleInputEvent mouse,
-        ConsoleSize size,
-        int bodyScrollTop,
-        CommandLineState mask,
-        CommandLineState text,
-        CommandLineState parallelism,
-        SingleLineTextHistoryState maskHistory,
-        SingleLineTextHistoryState textHistory,
-        SingleLineTextHistoryState parallelismHistory,
-        ref ScrollBarDragState? historyScrollbarDrag)
-    {
-        Rect frameBounds = FrameBounds(size);
-        int inputX = frameBounds.X + 2;
-        int inputWidth = Math.Max(1, frameBounds.Width - 4);
-        return TryHandleHistoryDropdownRow(mouse, size, bodyScrollTop, frameBounds, inputX, inputWidth, 1, mask, maskHistory, ref historyScrollbarDrag) ||
-               TryHandleHistoryDropdownRow(mouse, size, bodyScrollTop, frameBounds, inputX, inputWidth, 3, text, textHistory, ref historyScrollbarDrag) ||
-               TryHandleHistoryDropdownRow(mouse, size, bodyScrollTop, frameBounds, inputX, Math.Min(8, inputWidth), 12, parallelism, parallelismHistory, ref historyScrollbarDrag);
-    }
-
-    private static bool TryHandleHistoryDropdownRow(
-        MouseConsoleInputEvent mouse,
-        ConsoleSize size,
-        int bodyScrollTop,
-        Rect frameBounds,
-        int inputX,
-        int inputWidth,
-        int virtualRow,
-        CommandLineState buffer,
-        SingleLineTextHistoryState history,
-        ref ScrollBarDragState? historyScrollbarDrag)
-    {
-        if (InputCursorY(frameBounds, bodyScrollTop, virtualRow) is not { } fieldY)
-            return false;
-
-        return SingleLineTextInput.TryHandleHistoryDropdownMouse(
-            history,
-            buffer,
-            mouse,
-            inputX,
-            fieldY,
-            inputWidth,
-            size.Height,
-            ref historyScrollbarDrag);
-    }
-
-    private static int DropdownRows(ConsoleSize size, int focusRow, int bodyScrollTop)
-    {
-        int? fieldY = focusRow switch
-        {
-            0 => TextFieldY(size, bodyScrollTop, 1),
-            1 => TextFieldY(size, bodyScrollTop, 3),
-            9 => TextFieldY(size, bodyScrollTop, 12),
-            _ => null,
-        };
-        return fieldY is null
-            ? 0
-            : SingleLineTextInput.AvailableDropdownContentRows(fieldY.Value, size.Height);
-    }
-
-    private static int? TextFieldY(ConsoleSize size, int bodyScrollTop, int virtualRow)
-    {
-        var frameBounds = FrameBounds(size);
-        return InputCursorY(frameBounds, bodyScrollTop, virtualRow);
-    }
-
-    private static Rect FrameBounds(ConsoleSize size)
-    {
-        int dialogWidth = Math.Min(DialogWidth, Math.Max(48, size.Width - 2));
-        int dialogHeight = Math.Min(DialogHeight, Math.Max(8, size.Height - 2));
-        int dialogX = Math.Max(0, (size.Width - dialogWidth) / 2);
-        int dialogY = Math.Max(0, (size.Height - dialogHeight) / 2);
-        return new Rect(
-            dialogX + 1,
-            dialogY + 1,
-            Math.Max(1, dialogWidth - 2),
-            Math.Max(1, dialogHeight - 2));
-    }
 
     private static string Truncate(string value, int maxLength)
     {

@@ -15,7 +15,6 @@ internal sealed class FileOperationDialog
 {
     private const int DialogWidth = 78;
     private const int DialogHeight = 22;
-    private const int BodyRowCount = 16;
 
     private static readonly ConflictDecisionMode[] CopyConflictModes =
     [
@@ -43,12 +42,9 @@ internal sealed class FileOperationDialog
         FileSecurityMode.Inherit,
     ];
 
-    private readonly ScreenRenderer _screen;
     private static readonly SingleLineTextHistoryRegistry HistoryRegistry = new();
+    private readonly ScreenRenderer _screen;
     private readonly ModalDialogRenderer _modalRenderer = new();
-    private readonly CheckBoxLine _preserveTimestamps = new("Preserve all timestamps");
-    private readonly CheckBoxLine _copySymlinkContents = new("Copy contents of symbolic links");
-    private readonly CheckBoxLine _useFilter = new("Use filter");
 
     public FileOperationDialog(ScreenRenderer screen)
     {
@@ -60,11 +56,10 @@ internal sealed class FileOperationDialog
         string initialDestination,
         FileOperationOptions initialOptions)
     {
-        string title = "Copy";
         string prompt = sources.Count == 1
             ? $"Copy {Path.GetFileName(sources[0])} to:"
             : $"Copy {sources.Count} items to:";
-        return Show(title, prompt, "Copy", initialDestination, initialOptions, CopyConflictModes, showOperationOptions: true);
+        return Show("Copy", prompt, "Copy", initialDestination, initialOptions, CopyConflictModes, showOperationOptions: true);
     }
 
     public FileOperationDialogResult? ShowMove(
@@ -72,11 +67,10 @@ internal sealed class FileOperationDialog
         string initialDestination,
         FileOperationOptions initialOptions)
     {
-        string title = "Move";
         string prompt = sources.Count == 1
             ? "Move / Rename to:"
             : $"Move {sources.Count} items to:";
-        return Show(title, prompt, "Move", initialDestination, initialOptions, MoveConflictModes, showOperationOptions: true);
+        return Show("Move", prompt, "Move", initialDestination, initialOptions, MoveConflictModes, showOperationOptions: true);
     }
 
     public FileOperationDialogResult? ShowRename(
@@ -127,491 +121,163 @@ internal sealed class FileOperationDialog
     {
         var destination = new CommandLineState();
         destination.SetText(initialDestination);
-
         var filter = new CommandLineState();
-        if (!string.IsNullOrWhiteSpace(initialOptions.FileMask))
-            filter.SetText(initialOptions.FileMask);
-        else
-            filter.SetText("*");
+        filter.SetText(string.IsNullOrWhiteSpace(initialOptions.FileMask) ? "*" : initialOptions.FileMask);
+
         SingleLineTextHistoryState destinationHistory = HistoryRegistry.GetOrCreate("FileOperationDialog.Destination");
         SingleLineTextHistoryState filterHistory = HistoryRegistry.GetOrCreate("FileOperationDialog.Filter");
 
-        int conflictIndex = FindConflictIndex(initialOptions.DefaultConflictDecision, conflictModes);
-        var securityMode = initialOptions.SecurityMode;
-        var securityModeRow = new ChoiceRow<FileSecurityMode>(
-            SecurityModes,
-            SecurityModeLabel,
-            Array.IndexOf(SecurityModes, securityMode) is var securityIndex && securityIndex >= 0 ? securityIndex : 0);
-        var conflictModeRow = new ChoiceRow<ConflictDecisionMode>(
+        var securityChoice = new ChoiceFormRow<FileSecurityMode>(
+            new ChoiceRow<FileSecurityMode>(
+                SecurityModes,
+                SecurityModeLabel,
+                Array.IndexOf(SecurityModes, initialOptions.SecurityMode) is var securityIndex && securityIndex >= 0 ? securityIndex : 0),
+            "Access rights:");
+        var conflictChoice = new ChoiceRow<ConflictDecisionMode>(
             conflictModes,
             ConflictLabel,
-            conflictIndex);
-        bool preserveTimestamps = initialOptions.PreserveTimestamps;
-        bool copySymlinkContents = initialOptions.SymlinkMode == SymlinkCopyMode.CopyTargetContents;
-        bool useFilter = !string.IsNullOrWhiteSpace(initialOptions.FileMask);
-        int focusRow = 0;
-        int bodyScrollTop = 0;
-        ScrollBarDragState? bodyScrollbarDrag = null;
-        ScrollBarDragState? historyScrollbarDrag = null;
-        int focusedButton = 0;
+            FindConflictIndex(initialOptions.DefaultConflictDecision, conflictModes));
+        var conflictFirstRow = new ChoiceFormRow<ConflictDecisionMode>(
+            conflictChoice,
+            string.Empty,
+            startIndex: 0,
+            endIndex: Math.Min(4, conflictModes.Count));
+        var conflictSecondRow = new ChoiceFormRow<ConflictDecisionMode>(
+            conflictChoice,
+            string.Empty,
+            startIndex: 4,
+            endIndex: conflictModes.Count,
+            isFocusable: false);
+        var preserveTimestamps = new CheckBoxRow(new CheckBoxLine("Preserve all timestamps", initialOptions.PreserveTimestamps));
+        var copySymlinkContents = new CheckBoxRow(new CheckBoxLine(
+            "Copy contents of symbolic links",
+            initialOptions.SymlinkMode == SymlinkCopyMode.CopyTargetContents));
+        var useFilter = new CheckBoxRow(new CheckBoxLine("Use filter", !string.IsNullOrWhiteSpace(initialOptions.FileMask)));
+        var buttons = new ButtonRow(
+            [
+                new DialogButton("submit", actionLabel, actionLabel[0], IsDefault: true),
+                new DialogButton("cancel", "Cancel", 'C'),
+            ],
+            FarDialogStyles.Fill,
+            FarDialogStyles.FocusedInput);
+        var form = new ScrollableFormDialog();
         string? error = null;
-        var buttonBar = new DialogButtonBar(
-        [
-            new DialogButton("submit", actionLabel, actionLabel[0], IsDefault: true),
-            new DialogButton("cancel", "Cancel", 'C'),
-        ]);
-
-        bodyScrollTop = NormalizeBodyScroll(size, focusRow, bodyScrollTop);
-        Draw(
-            size,
-            title,
-            prompt,
-            actionLabel,
-            destination,
-            filter,
-            destinationHistory,
-            filterHistory,
-            conflictModes,
-            conflictIndex,
-            securityModeRow,
-            conflictModeRow,
-            securityMode,
-            preserveTimestamps,
-            copySymlinkContents,
-            useFilter,
-            showOperationOptions,
-            focusRow,
-            bodyScrollTop,
-            buttonBar,
-            focusedButton,
-            error);
 
         while (true)
         {
-            var input = _screen.ReadInput();
-
-            if (focusRow == 7 &&
-                buttonBar.TryHandleInput(input, ref focusedButton, out string? buttonId))
-            {
-                if (buttonId is not null)
-                {
-                    if (buttonId == "cancel")
-                        return null;
-
-                    var result = BuildResult(destination, filter, initialOptions, conflictModes[conflictIndex],
-                        securityMode, preserveTimestamps, copySymlinkContents, useFilter, destinationHistory, filterHistory, ref error);
-                    if (result is not null)
-                        return result;
-                }
-
-                Draw(
-                    size,
-                    title,
-                    prompt,
-                    actionLabel,
-                    destination,
-                    filter,
-                    destinationHistory,
-                    filterHistory,
-                    conflictModes,
-                    conflictIndex,
-                    securityModeRow,
-                    conflictModeRow,
-                    securityMode,
-                    preserveTimestamps,
-                    copySymlinkContents,
-                    useFilter,
-                    showOperationOptions,
-                    focusRow,
-                    bodyScrollTop,
-                    buttonBar,
-                    focusedButton,
-                    error);
-                continue;
-            }
-
-            if (input is MouseConsoleInputEvent dropdownMouse &&
-                TryHandleHistoryDropdownMouse(
-                    dropdownMouse,
-                    size,
-                    bodyScrollTop,
-                    destination,
-                    filter,
-                    destinationHistory,
-                    filterHistory,
-                    ref historyScrollbarDrag))
-            {
-                DrawCurrent(ensureFocusVisible: false);
-                continue;
-            }
-
-            if (input is MouseConsoleInputEvent mouse &&
-                TryHandleBodyScrollbarMouse(mouse, size, ref bodyScrollTop, ref bodyScrollbarDrag))
-            {
-                DrawCurrent(ensureFocusVisible: false);
-                continue;
-            }
-
-            if (input is MouseConsoleInputEvent historyMouse &&
-                TryHandleHistoryArrow(historyMouse, size, bodyScrollTop, destinationHistory, filterHistory, out int historyFocusRow))
-            {
-                focusRow = historyFocusRow;
-                DrawCurrent();
-                continue;
-            }
-
-            if (input is MouseConsoleInputEvent checkboxMouse && showOperationOptions)
-            {
-                if (_preserveTimestamps.TryHandleMouse(checkboxMouse))
-                {
-                    focusRow = 3;
-                    preserveTimestamps = _preserveTimestamps.Value;
-                    DrawCurrent();
-                    continue;
-                }
-
-                if (_copySymlinkContents.TryHandleMouse(checkboxMouse))
-                {
-                    focusRow = 4;
-                    copySymlinkContents = _copySymlinkContents.Value;
-                    DrawCurrent();
-                    continue;
-                }
-
-                if (_useFilter.TryHandleMouse(checkboxMouse))
-                {
-                    focusRow = 5;
-                    useFilter = _useFilter.Value;
-                    DrawCurrent();
-                    continue;
-                }
-            }
-
-            if (input is MouseConsoleInputEvent bodyMouse &&
-                TryHandleBodyMouse(
-                    bodyMouse,
-                    size,
-                    bodyScrollTop,
-                    showOperationOptions,
-                    securityModeRow,
-                    conflictModeRow,
-                    ref focusRow,
-                    ref conflictIndex,
-                    ref securityMode,
-                    ref preserveTimestamps,
-                    ref copySymlinkContents,
-                    ref useFilter))
-            {
-                DrawCurrent();
-                continue;
-            }
-
-            if (input is MouseConsoleInputEvent &&
-                buttonBar.TryHandleInput(input, ref focusedButton, out buttonId) &&
-                buttonId is not null)
-            {
-                focusRow = 7;
-                if (buttonId == "cancel")
-                    return null;
-
-                var result = BuildResult(destination, filter, initialOptions, conflictModes[conflictIndex],
-                    securityMode, preserveTimestamps, copySymlinkContents, useFilter, destinationHistory, filterHistory, ref error);
-                if (result is not null)
-                    return result;
-            }
-
-            if (input is not KeyConsoleInputEvent { Key: var key })
-            {
-                DrawCurrent();
-                continue;
-            }
-
-            if (focusRow is 0 or 6 &&
-                CurrentHistory(focusRow, destinationHistory, filterHistory).IsDropdownOpen &&
-                key.Key is ConsoleKey.UpArrow or ConsoleKey.DownArrow or ConsoleKey.Enter or ConsoleKey.Escape)
-            {
-                EditText(
-                    focusRow == 0 ? destination : filter,
-                    key,
-                    CurrentHistory(focusRow, destinationHistory, filterHistory),
-                    DropdownRows(size, focusRow, bodyScrollTop),
-                    ref error);
-                DrawCurrent();
-                continue;
-            }
-
-            switch (key.Key)
-            {
-                case ConsoleKey.Escape:
-                    return null;
-                case ConsoleKey.F10:
-                    var f10Result = BuildResult(destination, filter, initialOptions, conflictModes[conflictIndex],
-                        securityMode, preserveTimestamps, copySymlinkContents, useFilter, destinationHistory, filterHistory, ref error);
-                    if (f10Result is not null)
-                        return f10Result;
-                    break;
-                case ConsoleKey.Enter:
-                    if (focusRow is 0 or 6 or 7)
-                    {
-                        if (focusRow == 7 && focusedButton == 1)
-                            return null;
-
-                        var result = BuildResult(destination, filter, initialOptions, conflictModes[conflictIndex],
-                            securityMode, preserveTimestamps, copySymlinkContents, useFilter, destinationHistory, filterHistory, ref error);
-                        if (result is not null)
-                            return result;
-                    }
-                    else
-                    {
-                        CycleFocusedValue(focusRow, conflictModes, ref conflictIndex, ref securityMode, ref preserveTimestamps,
-                            ref copySymlinkContents, ref useFilter, securityModeRow, conflictModeRow);
-                    }
-                    break;
-                case ConsoleKey.Spacebar:
-                    if (focusRow == 7)
-                    {
-                        if (focusedButton == 1)
-                            return null;
-
-                        var result = BuildResult(destination, filter, initialOptions, conflictModes[conflictIndex],
-                            securityMode, preserveTimestamps, copySymlinkContents, useFilter, destinationHistory, filterHistory, ref error);
-                        if (result is not null)
-                            return result;
-                    }
-                    else if (focusRow is not 0 and not 6)
-                    {
-                        CycleFocusedValue(focusRow, conflictModes, ref conflictIndex, ref securityMode, ref preserveTimestamps,
-                            ref copySymlinkContents, ref useFilter, securityModeRow, conflictModeRow);
-                    }
-                    else
-                    {
-                        EditText(
-                            focusRow == 0 ? destination : filter,
-                            key,
-                            CurrentHistory(focusRow, destinationHistory, filterHistory),
-                            DropdownRows(size, focusRow, bodyScrollTop),
-                            ref error);
-                    }
-                    break;
-                case ConsoleKey.LeftArrow:
-                    if (focusRow == 7)
-                        buttonBar.TryHandleInput(input, ref focusedButton, out _);
-                    else if (focusRow == 2)
-                        conflictIndex = conflictIndex <= 0 ? conflictModes.Count - 1 : conflictIndex - 1;
-                    else if (focusRow is 0 or 6)
-                        EditText(
-                            focusRow == 0 ? destination : filter,
-                            key,
-                            CurrentHistory(focusRow, destinationHistory, filterHistory),
-                            DropdownRows(size, focusRow, bodyScrollTop),
-                            ref error);
-                    break;
-                case ConsoleKey.RightArrow:
-                    if (focusRow == 7)
-                        buttonBar.TryHandleInput(input, ref focusedButton, out _);
-                    else if (focusRow == 2)
-                        conflictIndex = (conflictIndex + 1) % conflictModes.Count;
-                    else if (focusRow is 0 or 6)
-                        EditText(
-                            focusRow == 0 ? destination : filter,
-                            key,
-                            CurrentHistory(focusRow, destinationHistory, filterHistory),
-                            DropdownRows(size, focusRow, bodyScrollTop),
-                            ref error);
-                    break;
-                case ConsoleKey.UpArrow:
-                    focusRow = PreviousFocusableRow(focusRow, useFilter, showOperationOptions);
-                    break;
-                case ConsoleKey.DownArrow:
-                case ConsoleKey.Tab:
-                    focusRow = NextFocusableRow(focusRow, useFilter, showOperationOptions);
-                    break;
-                default:
-                    if (focusRow is 0 or 6)
-                        EditText(
-                            focusRow == 0 ? destination : filter,
-                            key,
-                            CurrentHistory(focusRow, destinationHistory, filterHistory),
-                            DropdownRows(size, focusRow, bodyScrollTop),
-                            ref error);
-                    break;
-            }
-
-            if (!useFilter && focusRow == 6)
-                focusRow = 5;
-
-            DrawCurrent();
-        }
-
-        void DrawCurrent(bool ensureFocusVisible = true)
-        {
-            bodyScrollTop = ensureFocusVisible
-                ? NormalizeBodyScroll(size, focusRow, bodyScrollTop)
-                : ScrollStateCalculator.ClampFirstVisibleIndex(
-                    bodyScrollTop,
-                    BodyRowCount,
-                    FileOperationBodyViewportRows(size));
-            Draw(
-                size,
-                title,
+            form.SetRows(BuildRows(
                 prompt,
-                actionLabel,
                 destination,
                 filter,
                 destinationHistory,
                 filterHistory,
-                conflictModes,
-                conflictIndex,
-                securityModeRow,
-                conflictModeRow,
-                securityMode,
+                securityChoice,
+                conflictFirstRow,
+                conflictSecondRow,
                 preserveTimestamps,
                 copySymlinkContents,
                 useFilter,
-                showOperationOptions,
-                focusRow,
-                bodyScrollTop,
-                buttonBar,
-                focusedButton,
-                error);
+                showOperationOptions));
+            Draw(size, title, form, buttons, error);
+
+            var input = _screen.ReadInput();
+            FormInputResult result = input switch
+            {
+                KeyConsoleInputEvent { Key: var key } => HandleOperationKey(form, buttons, key),
+                MouseConsoleInputEvent mouse => HandleOperationMouse(form, buttons, mouse),
+                _ => FormInputResult.NotHandled,
+            };
+
+            if (!useFilter.Value && form.FocusIndex == 6)
+                form.SetFocusRow(5, 1);
+
+            if (result.Kind == FormInputResultKind.Cancel)
+                return null;
+
+            if (result.Kind == FormInputResultKind.Submit ||
+                input is KeyConsoleInputEvent { Key.Key: ConsoleKey.F10 })
+            {
+                var dialogResult = BuildResult(
+                    destination,
+                    filter,
+                    initialOptions,
+                    conflictChoice.Value,
+                    securityChoice.Value,
+                    preserveTimestamps.Value,
+                    copySymlinkContents.Value,
+                    useFilter.Value,
+                    destinationHistory,
+                    filterHistory,
+                    ref error);
+                if (dialogResult is not null)
+                    return dialogResult;
+            }
         }
     }
 
-    private static bool TryHandleBodyScrollbarMouse(
-        MouseConsoleInputEvent mouse,
-        ConsoleSize size,
-        ref int bodyScrollTop,
-        ref ScrollBarDragState? bodyScrollbarDrag)
+    private static IReadOnlyList<IFormRow> BuildRows(
+        string prompt,
+        CommandLineState destination,
+        CommandLineState filter,
+        SingleLineTextHistoryState destinationHistory,
+        SingleLineTextHistoryState filterHistory,
+        ChoiceFormRow<FileSecurityMode> securityChoice,
+        ChoiceFormRow<ConflictDecisionMode> conflictFirstRow,
+        ChoiceFormRow<ConflictDecisionMode> conflictSecondRow,
+        CheckBoxRow preserveTimestamps,
+        CheckBoxRow copySymlinkContents,
+        CheckBoxRow useFilter,
+        bool showOperationOptions)
     {
-        int dialogWidth = Math.Min(DialogWidth, Math.Max(40, size.Width - 2));
-        int dialogHeight = Math.Min(DialogHeight, Math.Max(8, size.Height - 2));
-        int dialogX = Math.Max(0, (size.Width - dialogWidth) / 2);
-        int dialogY = Math.Max(0, (size.Height - dialogHeight) / 2);
-        var frameBounds = new Rect(
-            dialogX + 1,
-            dialogY + 1,
-            Math.Max(1, dialogWidth - 2),
-            Math.Max(1, dialogHeight - 2));
-        int buttonY = frameBounds.Y + frameBounds.Height - 2;
-        int errorY = buttonY - 1;
-        int bodyTop = frameBounds.Y + 1;
-        int bodyHeight = Math.Max(1, errorY - bodyTop);
-        if (BodyRowCount <= bodyHeight)
-            return false;
-
-        var scrollbarBounds = new Rect(frameBounds.Right - 1, bodyTop, 1, bodyHeight);
-        return ScrollableFormDialog.TryHandleScrollbarMouse(
-            mouse,
-            scrollbarBounds,
-            BodyRowCount,
-            bodyHeight,
-            ref bodyScrollTop,
-            ref bodyScrollbarDrag);
-    }
-
-    private static bool TryHandleBodyMouse(
-        MouseConsoleInputEvent mouse,
-        ConsoleSize size,
-        int bodyScrollTop,
-        bool showOperationOptions,
-        ChoiceRow<FileSecurityMode> securityModeRow,
-        ChoiceRow<ConflictDecisionMode> conflictModeRow,
-        ref int focusRow,
-        ref int conflictIndex,
-        ref FileSecurityMode securityMode,
-        ref bool preserveTimestamps,
-        ref bool copySymlinkContents,
-        ref bool useFilter)
-    {
-        if (mouse.Button != MouseButton.Left ||
-            mouse.Kind is not (MouseEventKind.Down or MouseEventKind.Click))
+        var fill = FarDialogStyles.Fill;
+        var rows = new List<IFormRow>
         {
-            return false;
-        }
+            new LabelRow(prompt, fill),
+            new TextInputRow(destination, destinationHistory),
+            new SeparatorRow(fill, drawLine: false),
+        };
 
-        if (!TryGetBodyMousePosition(size, bodyScrollTop, mouse.X, mouse.Y, out int virtualRow))
-            return false;
-
-        switch (virtualRow)
+        if (showOperationOptions)
         {
-            case 1:
-                focusRow = 0;
-                return true;
-            case 3:
-                if (!showOperationOptions)
-                    return false;
-                focusRow = 1;
-                if (securityModeRow.TryHandleMouse(mouse))
-                    securityMode = securityModeRow.Value;
-                return true;
-            case 5:
-                focusRow = 2;
-                return true;
-            case 6:
-                focusRow = 2;
-                if (conflictModeRow.TryHandleMouse(mouse))
-                    conflictIndex = conflictModeRow.SelectedIndex;
-                return true;
-            case 7:
-                focusRow = 2;
-                if (conflictModeRow.TryHandleMouse(mouse))
-                    conflictIndex = conflictModeRow.SelectedIndex;
-                return true;
-            case 9:
-                if (!showOperationOptions)
-                    return false;
-                focusRow = 3;
-                preserveTimestamps = !preserveTimestamps;
-                return true;
-            case 10:
-                if (!showOperationOptions)
-                    return false;
-                focusRow = 4;
-                copySymlinkContents = !copySymlinkContents;
-                return true;
-            case 12:
-                if (!showOperationOptions)
-                    return false;
-                focusRow = 5;
-                useFilter = !useFilter;
-                return true;
-            case 14:
-                if (!showOperationOptions)
-                    return false;
-                if (!useFilter)
-                    return false;
-                focusRow = 6;
-                return true;
-            default:
-                return false;
+            rows.Add(securityChoice);
+            rows.Add(new SeparatorRow(fill, drawLine: false));
         }
+
+        rows.Add(new LabelRow("Already existing files:", fill));
+        rows.Add(conflictFirstRow);
+        rows.Add(conflictSecondRow);
+
+        if (showOperationOptions)
+        {
+            rows.Add(new SeparatorRow(fill, drawLine: false));
+            rows.Add(preserveTimestamps);
+            rows.Add(copySymlinkContents);
+            rows.Add(new SeparatorRow(fill, drawLine: false));
+            rows.Add(useFilter);
+            rows.Add(new LabelRow("Filter mask:", fill));
+            rows.Add(useFilter.Value
+                ? new TextInputRow(filter, filterHistory)
+                : new LabelRow(SingleLineTextInput.VisibleText(filter, 60), fill));
+            rows.Add(new SeparatorRow(fill, drawLine: false));
+        }
+
+        return rows;
     }
 
-    private static bool TryGetBodyMousePosition(
-        ConsoleSize size,
-        int bodyScrollTop,
-        int mouseX,
-        int mouseY,
-        out int virtualRow)
+    private static FormInputResult HandleOperationKey(ScrollableFormDialog form, ButtonRow buttons, ConsoleKeyInfo key)
     {
-        virtualRow = -1;
+        if (key.Key == ConsoleKey.F10)
+            return FormInputResult.Submit("submit");
+        if (key.Key == ConsoleKey.Enter && form.FocusIndex is 0 or 6)
+            return FormInputResult.Submit("submit");
 
-        Rect frameBounds = FrameBounds(size);
-        int contentX = frameBounds.X + 2;
-        int contentWidth = Math.Max(1, frameBounds.Width - 4);
-        int buttonY = frameBounds.Y + frameBounds.Height - 2;
-        int errorY = buttonY - 1;
-        int bodyTop = frameBounds.Y + 1;
-        int bodyHeight = Math.Max(1, errorY - bodyTop);
+        return form.HandleKey(key);
+    }
 
-        return ScrollableFormDialog.TryHitTestBodyRow(
-            new Rect(contentX, bodyTop, contentWidth, bodyHeight),
-            bodyScrollTop,
-            BodyRowCount,
-            bodyHeight,
-            mouseX,
-            mouseY,
-            out virtualRow);
+    private static FormInputResult HandleOperationMouse(ScrollableFormDialog form, ButtonRow buttons, MouseConsoleInputEvent mouse)
+    {
+        FormInputResult buttonResult = buttons.HandleMouse(mouse, new FormRowMouseContext(default, 0, focused: false, screenHeight: 0));
+        return buttonResult.IsHandled ? buttonResult : form.HandleMouse(mouse);
     }
 
     private static FileOperationDialogResult? BuildResult(
@@ -628,9 +294,9 @@ internal sealed class FileOperationDialog
         ref string? error)
     {
         string destinationText = destination.Text.Trim();
-        if (destinationText.Length == 0)
+        if (string.IsNullOrWhiteSpace(destinationText))
         {
-            error = "Destination is required.";
+            error = "Destination must not be empty.";
             return null;
         }
 
@@ -655,84 +321,43 @@ internal sealed class FileOperationDialog
             });
     }
 
-    private static SingleLineTextHistoryState CurrentHistory(
-        int focusRow,
-        SingleLineTextHistoryState destinationHistory,
-        SingleLineTextHistoryState filterHistory) =>
-        focusRow == 0 ? destinationHistory : filterHistory;
-
-    private static void EditText(
-        CommandLineState buffer,
-        ConsoleKeyInfo key,
-        SingleLineTextHistoryState history,
-        int availableRows,
-        ref string? error)
+    private void Draw(ConsoleSize size, string title, ScrollableFormDialog form, ButtonRow buttons, string? error)
     {
-        SingleLineTextInput.HandleKey(buffer, key, ref error, history, availableRows);
-    }
+        using var frame = _screen.BeginFrame();
+        Rect outerBounds = OuterBounds(size);
 
-    private void CycleFocusedValue(
-        int focusRow,
-        IReadOnlyList<ConflictDecisionMode> conflictModes,
-        ref int conflictIndex,
-        ref FileSecurityMode securityMode,
-        ref bool preserveTimestamps,
-        ref bool copySymlinkContents,
-        ref bool useFilter,
-        ChoiceRow<FileSecurityMode> securityModeRow,
-        ChoiceRow<ConflictDecisionMode> conflictModeRow)
-    {
-        switch (focusRow)
+        _modalRenderer.Render(_screen, outerBounds, title, true, FarDialogStyles.OuterOptions, FarDialogStyles.FrameOptions, (_, layout) =>
         {
-            case 1:
-                securityModeRow.Value = securityMode;
-                securityModeRow.TryHandleKey(ToggleKey());
-                securityMode = securityModeRow.Value;
-                break;
-            case 2:
-                conflictModeRow.Value = conflictModes[conflictIndex];
-                conflictModeRow.TryHandleKey(ToggleKey());
-                conflictIndex = conflictModeRow.SelectedIndex;
-                break;
-            case 3:
-                _preserveTimestamps.Value = preserveTimestamps;
-                _preserveTimestamps.TryHandleKey(ToggleKey());
-                preserveTimestamps = _preserveTimestamps.Value;
-                break;
-            case 4:
-                _copySymlinkContents.Value = copySymlinkContents;
-                _copySymlinkContents.TryHandleKey(ToggleKey());
-                copySymlinkContents = _copySymlinkContents.Value;
-                break;
-            case 5:
-                _useFilter.Value = useFilter;
-                _useFilter.TryHandleKey(ToggleKey());
-                useFilter = _useFilter.Value;
-                break;
-        }
+            Rect bounds = layout.FrameBounds;
+            int contentX = bounds.X + 2;
+            int contentWidth = Math.Max(1, bounds.Width - 4);
+            int buttonY = bounds.Y + bounds.Height - 2;
+            int errorY = buttonY - 1;
+            int bodyTop = bounds.Y + 1;
+            int bodyHeight = Math.Max(1, errorY - bodyTop);
+
+            form.Render(new FormRenderContext(
+                _screen,
+                new Rect(contentX, bodyTop, contentWidth, bodyHeight),
+                FarDialogStyles.Border));
+
+            string errorText = error is null ? string.Empty : Truncate(error, contentWidth);
+            _screen.Write(contentX, errorY, errorText.PadRight(contentWidth), FarDialogStyles.Error);
+            buttons.Render(new FormRowRenderContext(
+                _screen,
+                new Rect(contentX, buttonY, contentWidth, 1),
+                focused: false));
+        });
     }
 
-    private static ConsoleKeyInfo ToggleKey() =>
-        new('\0', ConsoleKey.Spacebar, shift: false, alt: false, control: false);
-
-    private static int NextFocusableRow(int focusRow, bool useFilter, bool showOperationOptions)
-        => ScrollableFormDialog.MoveFocus(
-            focusRow,
-            8,
-            delta: 1,
-            row => IsFocusableRow(row, useFilter, showOperationOptions));
-
-    private static int PreviousFocusableRow(int focusRow, bool useFilter, bool showOperationOptions)
-        => ScrollableFormDialog.MoveFocus(
-            focusRow,
-            8,
-            delta: -1,
-            row => IsFocusableRow(row, useFilter, showOperationOptions));
-
-    private static bool IsFocusableRow(int row, bool useFilter, bool showOperationOptions) =>
-        row is 0 or 2 or 7 ||
-        (showOperationOptions && row is 1 or 3 or 4 or 5) ||
-        (showOperationOptions && useFilter && row == 6);
+    private static Rect OuterBounds(ConsoleSize size)
+    {
+        int dialogWidth = Math.Min(DialogWidth, Math.Max(40, size.Width - 2));
+        int dialogHeight = Math.Min(DialogHeight, Math.Max(8, size.Height - 2));
+        int dialogX = Math.Max(0, (size.Width - dialogWidth) / 2);
+        int dialogY = Math.Max(0, (size.Height - dialogHeight) / 2);
+        return new Rect(dialogX, dialogY, dialogWidth, dialogHeight);
+    }
 
     private static int FindConflictIndex(ConflictDecisionMode mode, IReadOnlyList<ConflictDecisionMode> conflictModes)
     {
@@ -743,401 +368,6 @@ internal sealed class FileOperationDialog
         }
 
         return 0;
-    }
-
-    private void Draw(
-        ConsoleSize size,
-        string title,
-        string prompt,
-        string actionLabel,
-        CommandLineState destination,
-        CommandLineState filter,
-        SingleLineTextHistoryState destinationHistory,
-        SingleLineTextHistoryState filterHistory,
-        IReadOnlyList<ConflictDecisionMode> conflictModes,
-        int conflictIndex,
-        ChoiceRow<FileSecurityMode> securityModeRow,
-        ChoiceRow<ConflictDecisionMode> conflictModeRow,
-        FileSecurityMode securityMode,
-        bool preserveTimestamps,
-        bool copySymlinkContents,
-        bool useFilter,
-        bool showOperationOptions,
-        int focusRow,
-        int bodyScrollTop,
-        DialogButtonBar buttonBar,
-        int focusedButton,
-        string? error)
-    {
-        using var frame = _screen.BeginFrame();
-
-        int dialogWidth = Math.Min(DialogWidth, Math.Max(40, size.Width - 2));
-        int dialogHeight = Math.Min(DialogHeight, Math.Max(8, size.Height - 2));
-        int dialogX = Math.Max(0, (size.Width - dialogWidth) / 2);
-        int dialogY = Math.Max(0, (size.Height - dialogHeight) / 2);
-        var outerBounds = new Rect(dialogX, dialogY, dialogWidth, dialogHeight);
-
-        var fill = FarDialogStyles.Fill;
-        var focused = FarDialogStyles.FocusedInput;
-
-        _modalRenderer.Render(_screen, outerBounds, title, true, FarDialogStyles.OuterOptions, FarDialogStyles.FrameOptions, (_, layout) =>
-        {
-            Rect bounds = layout.FrameBounds;
-            int contentX = bounds.X + 2;
-            int contentWidth = Math.Max(1, bounds.Width - 4);
-
-            int buttonY = bounds.Y + bounds.Height - 2;
-            int errorY = buttonY - 1;
-            int bodyTop = bounds.Y + 1;
-            int bodyHeight = Math.Max(1, errorY - bodyTop);
-            _screen.FillRegion(new Rect(contentX, bodyTop, contentWidth, bodyHeight), fill);
-
-            WriteBodyRow(0, prompt, fill);
-            DrawBodyInput(1, destination, destinationHistory, focusRow == 0);
-            DrawBodySeparator(2);
-            if (showOperationOptions)
-            {
-                DrawBodyAccessRights(3);
-                DrawBodySeparator(4);
-            }
-            WriteBodyRow(5, "Already existing files:", fill);
-            DrawBodyConflictModeRow(6, 0, Math.Min(4, conflictModes.Count));
-            DrawBodyConflictModeRow(7, 4, conflictModes.Count);
-            if (showOperationOptions)
-            {
-                DrawBodySeparator(8);
-                DrawBodyCheckbox(9, "Preserve all timestamps", preserveTimestamps, focusRow == 3);
-                DrawBodyCheckbox(10, "Copy contents of symbolic links", copySymlinkContents, focusRow == 4);
-                DrawBodySeparator(11);
-                DrawBodyCheckbox(12, "Use filter", useFilter, focusRow == 5);
-                WriteBodyRow(13, "Filter mask:", fill);
-                if (useFilter)
-                    DrawBodyInput(14, filter, filterHistory, focusRow == 6);
-                else
-                    WriteBodyRow(14, SingleLineTextInput.VisibleText(filter, contentWidth), fill);
-                DrawBodySeparator(15);
-            }
-
-            if (BodyRowCount > bodyHeight)
-            {
-                new ScrollBarRenderer().RenderVerticalScrollbar(
-                    _screen,
-                    new Rect(bounds.Right - 1, bodyTop, 1, bodyHeight),
-                    new ScrollState
-                    {
-                        TotalItems = BodyRowCount,
-                        ViewportItems = bodyHeight,
-                        FirstVisibleIndex = bodyScrollTop,
-                    },
-                    new ScrollBarOptions
-                    {
-                        Enabled = true,
-                        DrawWhenNotScrollable = false,
-                    },
-                    FarDialogStyles.Border);
-            }
-
-            string errorText = error is null ? string.Empty : Truncate(error, contentWidth);
-            _screen.Write(contentX, errorY, errorText.PadRight(contentWidth), FarDialogStyles.Error);
-
-            buttonBar.Render(
-                _screen,
-                contentX,
-                buttonY,
-                contentWidth,
-                focusedButton,
-                fill,
-                focusRow == 7 ? focused : fill);
-
-            int? BodyY(int virtualRow)
-            {
-                int row = virtualRow - bodyScrollTop;
-                return row >= 0 && row < bodyHeight ? bodyTop + row : null;
-            }
-
-            void WriteBodyRow(int virtualRow, string value, CellStyle style)
-            {
-                if (BodyY(virtualRow) is { } y)
-                    _screen.Write(contentX, y, Truncate(value, contentWidth).PadRight(contentWidth), style);
-            }
-
-            void DrawBodyInput(
-                int virtualRow,
-                CommandLineState buffer,
-                SingleLineTextHistoryState history,
-                bool isFocused)
-            {
-                if (BodyY(virtualRow) is { } y)
-                    DrawInput(contentX, y, contentWidth, buffer, history, isFocused);
-            }
-
-            void DrawBodySeparator(int virtualRow)
-            {
-                if (BodyY(virtualRow) is { } y)
-                    DrawSeparator(bounds, y);
-            }
-
-            void DrawBodyAccessRights(int virtualRow)
-            {
-                if (BodyY(virtualRow) is { } y)
-                {
-                    securityModeRow.Value = securityMode;
-                    securityModeRow.RenderSegmented(
-                        _screen,
-                        contentX,
-                        y,
-                        contentWidth,
-                        "Access rights:",
-                        focusRow == 1,
-                        fill,
-                        focused);
-                }
-            }
-
-            void DrawBodyCheckbox(int virtualRow, string label, bool value, bool isFocused)
-            {
-                if (BodyY(virtualRow) is { } y)
-                    CheckBoxForLabel(label, value).Render(_screen, contentX, y, contentWidth, isFocused);
-            }
-
-            void DrawBodyConflictModeRow(int virtualRow, int startIndex, int endIndex)
-            {
-                if (BodyY(virtualRow) is { } y)
-                {
-                    conflictModeRow.Value = conflictModes[conflictIndex];
-                    conflictModeRow.RenderSegmented(
-                        _screen,
-                        contentX,
-                        y,
-                        contentWidth,
-                        string.Empty,
-                        focusRow == 2,
-                        fill,
-                        focused,
-                        startIndex,
-                        endIndex);
-                }
-            }
-        });
-
-        Rect frameBounds = new(
-            outerBounds.X + 1,
-            outerBounds.Y + 1,
-            Math.Max(1, outerBounds.Width - 2),
-            Math.Max(1, outerBounds.Height - 2));
-        int inputX = frameBounds.X + 2;
-        int inputWidth = Math.Max(1, frameBounds.Width - 4);
-        if (focusRow == 0 && InputCursorY(frameBounds, bodyScrollTop, 1) is { } destinationY)
-        {
-            SingleLineTextInput.RenderHistoryDropdown(_screen, inputX, destinationY, inputWidth, destinationHistory);
-            SetInputCursor(inputX, destinationY, inputWidth, destination, hasHistory: true);
-        }
-        else if (focusRow == 6 && InputCursorY(frameBounds, bodyScrollTop, 14) is { } filterY)
-        {
-            SingleLineTextInput.RenderHistoryDropdown(_screen, inputX, filterY, inputWidth, filterHistory);
-            SetInputCursor(inputX, filterY, inputWidth, filter, hasHistory: true);
-        }
-        else
-            _screen.SetCursorVisible(false);
-    }
-
-    private static int NormalizeBodyScroll(ConsoleSize size, int focusRow, int bodyScrollTop)
-        => ScrollableFormDialog.NormalizeBodyScroll(
-            BodyRowCount,
-            focusRow,
-            bodyScrollTop,
-            FileOperationBodyViewportRows(size),
-            FocusVirtualRow);
-
-    private static int FileOperationBodyViewportRows(ConsoleSize size)
-    {
-        int dialogHeight = Math.Min(DialogHeight, Math.Max(8, size.Height - 2));
-        int frameHeight = Math.Max(1, dialogHeight - 2);
-        int buttonRow = frameHeight - 2;
-        int errorRow = buttonRow - 1;
-        return Math.Max(1, errorRow - 1);
-    }
-
-    private static int FocusVirtualRow(int focusRow) => focusRow switch
-    {
-        0 => 1,
-        1 => 3,
-        2 => 6,
-        3 => 9,
-        4 => 10,
-        5 => 12,
-        6 => 14,
-        _ => -1,
-    };
-
-    private static int? InputCursorY(Rect frameBounds, int bodyScrollTop, int virtualRow)
-    {
-        int buttonY = frameBounds.Y + frameBounds.Height - 2;
-        int errorY = buttonY - 1;
-        int bodyTop = frameBounds.Y + 1;
-        int bodyHeight = Math.Max(1, errorY - bodyTop);
-        int row = virtualRow - bodyScrollTop;
-        return row >= 0 && row < bodyHeight ? bodyTop + row : null;
-    }
-
-    private static bool TryHandleHistoryArrow(
-        MouseConsoleInputEvent mouse,
-        ConsoleSize size,
-        int bodyScrollTop,
-        SingleLineTextHistoryState destinationHistory,
-        SingleLineTextHistoryState filterHistory,
-        out int focusRow)
-    {
-        focusRow = -1;
-        if (mouse.Button != MouseButton.Left ||
-            mouse.Kind is not (MouseEventKind.Down or MouseEventKind.Click))
-        {
-            return false;
-        }
-
-        Rect frameBounds = FrameBounds(size);
-        int inputX = frameBounds.X + 2;
-        int inputWidth = Math.Max(1, frameBounds.Width - 4);
-        if (InputCursorY(frameBounds, bodyScrollTop, 1) is { } destinationY &&
-            SingleLineTextInput.IsHistoryArrowHit(inputX, inputWidth, destinationY, mouse.X, mouse.Y))
-        {
-            focusRow = 0;
-            return SingleLineTextInput.TryOpenHistoryDropdown(destinationHistory, destinationY, size.Height);
-        }
-
-        if (InputCursorY(frameBounds, bodyScrollTop, 14) is { } filterY &&
-            SingleLineTextInput.IsHistoryArrowHit(inputX, inputWidth, filterY, mouse.X, mouse.Y))
-        {
-            focusRow = 6;
-            return SingleLineTextInput.TryOpenHistoryDropdown(filterHistory, filterY, size.Height);
-        }
-
-        return false;
-    }
-
-    private static bool TryHandleHistoryDropdownMouse(
-        MouseConsoleInputEvent mouse,
-        ConsoleSize size,
-        int bodyScrollTop,
-        CommandLineState destination,
-        CommandLineState filter,
-        SingleLineTextHistoryState destinationHistory,
-        SingleLineTextHistoryState filterHistory,
-        ref ScrollBarDragState? historyScrollbarDrag)
-    {
-        Rect frameBounds = FrameBounds(size);
-        int inputX = frameBounds.X + 2;
-        int inputWidth = Math.Max(1, frameBounds.Width - 4);
-        return TryHandleHistoryDropdownRow(mouse, size, bodyScrollTop, frameBounds, inputX, inputWidth, 1, destination, destinationHistory, ref historyScrollbarDrag) ||
-               TryHandleHistoryDropdownRow(mouse, size, bodyScrollTop, frameBounds, inputX, inputWidth, 14, filter, filterHistory, ref historyScrollbarDrag);
-    }
-
-    private static bool TryHandleHistoryDropdownRow(
-        MouseConsoleInputEvent mouse,
-        ConsoleSize size,
-        int bodyScrollTop,
-        Rect frameBounds,
-        int inputX,
-        int inputWidth,
-        int virtualRow,
-        CommandLineState buffer,
-        SingleLineTextHistoryState history,
-        ref ScrollBarDragState? historyScrollbarDrag)
-    {
-        if (InputCursorY(frameBounds, bodyScrollTop, virtualRow) is not { } fieldY)
-            return false;
-
-        return SingleLineTextInput.TryHandleHistoryDropdownMouse(
-            history,
-            buffer,
-            mouse,
-            inputX,
-            fieldY,
-            inputWidth,
-            size.Height,
-            ref historyScrollbarDrag);
-    }
-
-    private static int DropdownRows(ConsoleSize size, int focusRow, int bodyScrollTop)
-    {
-        Rect frameBounds = FrameBounds(size);
-        int? fieldY = focusRow switch
-        {
-            0 => InputCursorY(frameBounds, bodyScrollTop, 1),
-            6 => InputCursorY(frameBounds, bodyScrollTop, 14),
-            _ => null,
-        };
-        return fieldY is null
-            ? 0
-            : SingleLineTextInput.AvailableDropdownContentRows(fieldY.Value, size.Height);
-    }
-
-    private static Rect FrameBounds(ConsoleSize size)
-    {
-        int dialogWidth = Math.Min(DialogWidth, Math.Max(40, size.Width - 2));
-        int dialogHeight = Math.Min(DialogHeight, Math.Max(8, size.Height - 2));
-        int dialogX = Math.Max(0, (size.Width - dialogWidth) / 2);
-        int dialogY = Math.Max(0, (size.Height - dialogHeight) / 2);
-        return new Rect(
-            dialogX + 1,
-            dialogY + 1,
-            Math.Max(1, dialogWidth - 2),
-            Math.Max(1, dialogHeight - 2));
-    }
-
-    private void DrawInput(
-        int x,
-        int y,
-        int width,
-        CommandLineState buffer,
-        SingleLineTextHistoryState history,
-        bool focused)
-    {
-        SingleLineTextInput.Render(
-            _screen,
-            x,
-            y,
-            width,
-            buffer,
-            focused ? FarDialogStyles.FocusedInput : FarDialogStyles.Input,
-            FarDialogStyles.Input,
-            history,
-            renderDropdown: false);
-    }
-
-    private void SetInputCursor(int x, int y, int width, CommandLineState buffer, bool hasHistory)
-    {
-        int textWidth = hasHistory ? Math.Max(1, width - 1) : width;
-        int cursorX = SingleLineTextInput.GetCursorX(x, textWidth, buffer);
-        if (cursorX < x + textWidth)
-        {
-            _screen.SetCursorPosition(cursorX, y);
-            _screen.SetCursorVisible(true);
-        }
-    }
-
-    private CheckBoxLine CheckBoxForLabel(string label, bool value)
-    {
-        CheckBoxLine checkBox = label switch
-        {
-            "Preserve all timestamps" => _preserveTimestamps,
-            "Copy contents of symbolic links" => _copySymlinkContents,
-            "Use filter" => _useFilter,
-            _ => throw new InvalidOperationException($"Unknown checkbox label: {label}"),
-        };
-        checkBox.Value = value;
-        return checkBox;
-    }
-
-    private void DrawSeparator(Rect bounds, int y)
-    {
-        if (y <= bounds.Y || y >= bounds.Bottom - 1)
-            return;
-
-        var style = FarDialogStyles.Border;
-        _screen.WriteChar(bounds.X, y, '╟', style);
-        _screen.Write(bounds.X + 1, y, new string('─', Math.Max(0, bounds.Width - 2)), style);
-        _screen.WriteChar(bounds.Right - 1, y, '╢', style);
     }
 
     private static string ConflictLabel(ConflictDecisionMode mode) => mode switch
@@ -1168,5 +398,4 @@ internal sealed class FileOperationDialog
             return string.Empty;
         return value.Length <= maxLength ? value : value[..Math.Max(0, maxLength - 1)] + "\u2026";
     }
-
 }
