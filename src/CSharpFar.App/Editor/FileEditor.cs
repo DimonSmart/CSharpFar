@@ -930,10 +930,13 @@ internal sealed class FileEditor
 
     private void DrawKeyBar(ConsoleSize size, ConsoleModifiers modifiers)
     {
-        var items = EditorCommandBindings.ForModifiers(modifiers)
-            .Select(binding => new FunctionKeyBarItem(binding.KeyNumber, binding.Label))
+        var actions = EditorCommandBindings.ForModifiers(modifiers)
+            .Select(binding => new FunctionKeyBarAction<ConsoleKeyInfo>(
+                binding.KeyNumber,
+                binding.Label,
+                ToConsoleKeyInfo(binding)))
             .ToArray();
-        new FunctionKeyBar().Render(_screen, size.Height - 1, size.Width, items);
+        new FunctionKeyBarController<ConsoleKeyInfo>().Render(_screen, size.Height - 1, size.Width, actions);
     }
 
     private static bool TryGetFunctionKeyBarKey(
@@ -944,22 +947,28 @@ internal sealed class FileEditor
     {
         key = default;
 
-        if (!new FunctionKeyBar().TryHitTest(mouse, size.Height - 1, size.Width, out var hit))
-            return false;
+        var actions = EditorCommandBindings.ForModifiers(modifiers)
+            .Select(binding => new FunctionKeyBarAction<ConsoleKeyInfo>(
+                binding.KeyNumber,
+                binding.Label,
+                ToConsoleKeyInfo(binding)))
+            .ToArray();
 
-        var binding = EditorCommandBindings.ForModifiers(modifiers)
-            .FirstOrDefault(candidate => candidate.KeyNumber == hit.KeyNumber);
-        if (binding is null)
-            return false;
+        return new FunctionKeyBarController<ConsoleKeyInfo>().TryGetAction(
+            mouse,
+            size.Height - 1,
+            size.Width,
+            actions,
+            out key);
+    }
 
-        key = new ConsoleKeyInfo(
+    private static ConsoleKeyInfo ToConsoleKeyInfo(EditorCommandBinding binding) =>
+        new(
             '\0',
             binding.Key,
             shift: (binding.Modifiers & ConsoleModifiers.Shift) != 0,
             alt: (binding.Modifiers & ConsoleModifiers.Alt) != 0,
             control: (binding.Modifiers & ConsoleModifiers.Control) != 0);
-        return true;
-    }
 
     private void DrawTextLine(
         EditorSession session,

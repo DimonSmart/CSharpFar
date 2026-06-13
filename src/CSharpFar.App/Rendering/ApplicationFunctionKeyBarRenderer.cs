@@ -23,13 +23,16 @@ internal sealed class ApplicationFunctionKeyBarRenderer
 
     public void Render(ConsoleSize size, FunctionKeyLayer layer)
     {
-        var items = _bindings
+        var actions = _bindings
             .Where(binding =>
                 binding.Layer == layer &&
                 _canExecuteCommand(binding.CommandId))
-            .Select(binding => new FunctionKeyBarItem(binding.KeyNumber, binding.Label))
+            .Select(binding => new FunctionKeyBarAction<string>(
+                binding.KeyNumber,
+                binding.Label,
+                binding.CommandId))
             .ToArray();
 
-        new FunctionKeyBar().Render(_screen, size.Height - 1, size.Width, items);
+        new FunctionKeyBarController<string>().Render(_screen, size.Height - 1, size.Width, actions);
     }
 }

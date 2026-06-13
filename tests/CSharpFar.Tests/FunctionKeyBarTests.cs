@@ -179,6 +179,55 @@ public class FunctionKeyBarTests
         Assert.False(FunctionKeyBar.TryGetFunctionKey(13, out _));
     }
 
+    [Theory]
+    [InlineData(MouseEventKind.Down)]
+    [InlineData(MouseEventKind.Click)]
+    public void Controller_ReturnsEnabledActionForActivationMouseEvents(MouseEventKind kind)
+    {
+        var controller = new FunctionKeyBarController<string>();
+        FunctionKeyBarAction<string>[] actions =
+        [
+            new(1, "Help", "help"),
+            new(10, "Quit", "quit"),
+        ];
+        var mouse = new MouseConsoleInputEvent(90, 24, MouseButton.Left, kind, MouseKeyModifiers.None);
+
+        bool handled = controller.TryGetAction(mouse, y: 24, totalWidth: 120, actions, out string action);
+
+        Assert.True(handled);
+        Assert.Equal("quit", action);
+    }
+
+    [Fact]
+    public void Controller_IgnoresDisabledAndMissingActions()
+    {
+        var controller = new FunctionKeyBarController<string>();
+        FunctionKeyBarAction<string>[] actions =
+        [
+            new(10, "Quit", "quit", Enabled: false),
+        ];
+        var mouse = new MouseConsoleInputEvent(90, 24, MouseButton.Left, MouseEventKind.Down, MouseKeyModifiers.None);
+
+        Assert.False(controller.TryGetAction(mouse, y: 24, totalWidth: 120, actions, out _));
+    }
+
+    [Theory]
+    [InlineData(0, 23, MouseButton.Left, MouseEventKind.Down)]
+    [InlineData(0, 24, MouseButton.Right, MouseEventKind.Down)]
+    [InlineData(0, 24, MouseButton.Left, MouseEventKind.Up)]
+    public void Controller_IgnoresNonActivationMouseEvents(
+        int x,
+        int y,
+        MouseButton button,
+        MouseEventKind kind)
+    {
+        var controller = new FunctionKeyBarController<string>();
+        FunctionKeyBarAction<string>[] actions = [new(1, "Help", "help")];
+        var mouse = new MouseConsoleInputEvent(x, y, button, kind, MouseKeyModifiers.None);
+
+        Assert.False(controller.TryGetAction(mouse, y: 24, totalWidth: 120, actions, out _));
+    }
+
     private static FunctionKeyBar CreateRenderer() => new();
 
     private static void Render(

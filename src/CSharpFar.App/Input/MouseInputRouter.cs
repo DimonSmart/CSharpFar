@@ -166,22 +166,27 @@ internal sealed class MouseInputRouter
 
     private bool TryHandleFunctionKeyBarMouse(MouseConsoleInputEvent evt)
     {
-        if (evt.Button != MouseButton.Left ||
-            evt.Kind is not (MouseEventKind.Down or MouseEventKind.Click))
+        var size = _context.LastRenderSizeOrCurrent();
+        var actions = _context.FunctionKeyBindings
+            .Where(binding => binding.Layer == _context.FunctionKeyLayer())
+            .Select(binding => new FunctionKeyBarAction<string>(
+                binding.KeyNumber,
+                binding.Label,
+                binding.CommandId,
+                _context.CanExecuteFunctionKeyCommand(binding.CommandId)))
+            .ToArray();
+
+        if (!new FunctionKeyBarController<string>().TryGetAction(
+                evt,
+                size.Height - 1,
+                size.Width,
+                actions,
+                out string commandId))
         {
             return false;
         }
 
-        var size = _context.LastRenderSizeOrCurrent();
-        if (!new FunctionKeyBar().TryHitTest(evt, size.Height - 1, size.Width, out var hit))
-            return false;
-
-        var binding = _context.FunctionKeyBindings.FirstOrDefault(candidate =>
-            candidate.Layer == _context.FunctionKeyLayer() &&
-            candidate.KeyNumber == hit.KeyNumber &&
-            _context.CanExecuteFunctionKeyCommand(candidate.CommandId));
-
-        return binding is not null && _context.ExecuteRegisteredCommand(binding.CommandId, null);
+        return _context.ExecuteRegisteredCommand(commandId, null);
     }
 
     private bool TryHandleDirectoryShortcutBarMouse(MouseConsoleInputEvent evt)

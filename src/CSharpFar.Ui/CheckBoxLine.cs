@@ -20,15 +20,34 @@ public sealed class CheckBoxLine
 
     public void Render(ScreenRenderer screen, int x, int y, int width, bool focused)
     {
+        var palette = UiTheme.Current;
+        Render(
+            screen,
+            x,
+            y,
+            width,
+            focused,
+            PaletteStyles.DialogFill(palette),
+            PaletteStyles.InputField(palette));
+    }
+
+    public void Render(
+        ScreenRenderer screen,
+        int x,
+        int y,
+        int width,
+        bool focused,
+        CellStyle fillStyle,
+        CellStyle focusedStyle)
+    {
         ArgumentNullException.ThrowIfNull(screen);
 
-        var palette = UiTheme.Current;
         string text = $"[{(Value ? 'x' : ' ')}] {Label}";
         screen.Write(
             x,
             y,
             Fit(text, width),
-            focused ? PaletteStyles.InputField(palette) : PaletteStyles.DialogFill(palette));
+            focused ? focusedStyle : fillStyle);
         _lastBounds = new Rect(x, y, Math.Max(0, width), 1);
         _hasRendered = true;
     }

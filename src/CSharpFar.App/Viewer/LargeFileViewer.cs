@@ -111,13 +111,13 @@ internal sealed class LargeFileViewer
             var size = _screen.GetSize();
             int contentHeight = Math.Max(0, size.Height - 2);
             var view = Draw(filePath, reader, state, contentHeight, size);
-            var functionKeyBarItems = ViewerFunctionKeyBarItems(state);
+            var functionKeyBarActions = ViewerFunctionKeyBarActions(state);
 
             var input = ReadViewerInput(reader, state, contentHeight);
             if (TryHandleMouseWheel(input, reader, state, view))
                 continue;
 
-            if (!TryGetViewerKey(input, size, functionKeyBarItems, out var key))
+            if (!TryGetViewerKey(input, size, functionKeyBarActions, out var key))
                 continue;
 
             if (key.Key == ConsoleKey.NoName)
@@ -401,7 +401,7 @@ internal sealed class LargeFileViewer
     private static bool TryGetViewerKey(
         ConsoleInputEvent input,
         ConsoleSize size,
-        IReadOnlyList<FunctionKeyBarItem> functionKeyBarItems,
+        IReadOnlyList<FunctionKeyBarAction<ConsoleKeyInfo>> functionKeyBarActions,
         out ConsoleKeyInfo key)
     {
         key = default;
@@ -415,14 +415,12 @@ internal sealed class LargeFileViewer
         if (input is not MouseConsoleInputEvent mouse)
             return false;
 
-        if (!new FunctionKeyBar().TryHitTest(mouse, size.Height - 1, size.Width, out var hit) ||
-            !functionKeyBarItems.Any(item => item.KeyNumber == hit.KeyNumber))
-        {
-            return false;
-        }
-
-        key = new ConsoleKeyInfo('\0', hit.Key, shift: false, alt: false, control: false);
-        return true;
+        return new FunctionKeyBarController<ConsoleKeyInfo>().TryGetAction(
+            mouse,
+            size.Height - 1,
+            size.Width,
+            functionKeyBarActions,
+            out key);
     }
 
     private bool TryHandleMouseWheel(
@@ -675,24 +673,34 @@ internal sealed class LargeFileViewer
         if (!force && signature == _renderedFooterSignature)
             return;
 
-        new FunctionKeyBar().Render(_screen, size.Height - 1, size.Width, ViewerFunctionKeyBarItems(state));
+        new FunctionKeyBarController<ConsoleKeyInfo>().Render(
+            _screen,
+            size.Height - 1,
+            size.Width,
+            ViewerFunctionKeyBarActions(state));
         _renderedFooterSignature = signature;
     }
 
     private static string FooterSignature(ConsoleSize size, LargeFileViewerState state) =>
-        $"{size.Width}x{size.Height}:{string.Join('|', ViewerFunctionKeyBarItems(state).Select(item => $"{item.KeyNumber}:{item.Label}"))}";
+        $"{size.Width}x{size.Height}:{string.Join('|', ViewerFunctionKeyBarActions(state).Select(item => $"{item.KeyNumber}:{item.Label}"))}";
 
-    private static FunctionKeyBarItem[] ViewerFunctionKeyBarItems(LargeFileViewerState state) =>
+    private static FunctionKeyBarAction<ConsoleKeyInfo>[] ViewerFunctionKeyBarActions(LargeFileViewerState state) =>
     [
-        new(1, "Help"),
-        new(2, state.WrapLines ? "Unwrap" : "Wrap"),
-        new(3, "Close"),
-        new(4, "Hex"),
-        new(6, "Edit"),
-        new(7, "Find"),
-        new(8, "Enc"),
-        new(10, "Close"),
+        ViewerFunctionKeyAction(1, "Help", ConsoleKey.F1),
+        ViewerFunctionKeyAction(2, state.WrapLines ? "Unwrap" : "Wrap", ConsoleKey.F2),
+        ViewerFunctionKeyAction(3, "Close", ConsoleKey.F3),
+        ViewerFunctionKeyAction(4, "Hex", ConsoleKey.F4),
+        ViewerFunctionKeyAction(6, "Edit", ConsoleKey.F6),
+        ViewerFunctionKeyAction(7, "Find", ConsoleKey.F7),
+        ViewerFunctionKeyAction(8, "Enc", ConsoleKey.F8),
+        ViewerFunctionKeyAction(10, "Close", ConsoleKey.F10),
     ];
+
+    private static FunctionKeyBarAction<ConsoleKeyInfo> ViewerFunctionKeyAction(
+        int keyNumber,
+        string label,
+        ConsoleKey key) =>
+        new(keyNumber, label, new ConsoleKeyInfo('\0', key, shift: false, alt: false, control: false));
 
     private void MoveUp(LargeFileViewerState state)
     {

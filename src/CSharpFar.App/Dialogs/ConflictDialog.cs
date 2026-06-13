@@ -3,6 +3,7 @@ using CSharpFar.Console;
 using CSharpFar.Console.Input;
 using CSharpFar.Console.Models;
 using CSharpFar.Core.Models;
+using CSharpFar.Ui;
 using System.Globalization;
 
 namespace CSharpFar.App.Dialogs;
@@ -22,7 +23,6 @@ internal sealed class ConflictDialog
     private readonly ConsolePalette _palette;
     private readonly ModalDialogRenderer _modalRenderer = new();
     private readonly DialogButtonBar _buttonBar;
-    private Rect _rememberBounds;
 
     public ConflictDialog(ScreenRenderer screen, ConsolePalette? palette = null, bool allowAppend = true)
     {
@@ -36,6 +36,7 @@ internal sealed class ConflictDialog
         var size = _screen.GetSize();
         var saved = _screen.Capture(new Rect(0, 0, size.Width, size.Height));
         bool rememberChoice = false;
+        var rememberChoiceLine = new CheckBoxLine("Remember choice");
         int focusSection = 1;
         int focusedButton = 0;
 
@@ -45,7 +46,8 @@ internal sealed class ConflictDialog
 
             while (true)
             {
-                Draw(conflict, size, rememberChoice, focusSection, focusedButton);
+                rememberChoiceLine.Value = rememberChoice;
+                Draw(conflict, size, rememberChoiceLine, focusSection, focusedButton);
                 var input = _screen.ReadInput();
 
                 if ((focusSection == 1 || input is MouseConsoleInputEvent) &&
@@ -71,16 +73,17 @@ internal sealed class ConflictDialog
 
                         if (focusSection == 0 && key.Key is (ConsoleKey.Spacebar or ConsoleKey.Enter))
                         {
-                            rememberChoice = !rememberChoice;
+                            rememberChoiceLine.TryHandleKey(key);
+                            rememberChoice = rememberChoiceLine.Value;
                             continue;
                         }
 
                         break;
                     case MouseConsoleInputEvent mouse:
-                        if (IsRememberClick(mouse))
+                        if (rememberChoiceLine.TryHandleMouse(mouse))
                         {
                             focusSection = 0;
-                            rememberChoice = !rememberChoice;
+                            rememberChoice = rememberChoiceLine.Value;
                         }
 
                         break;
@@ -94,7 +97,12 @@ internal sealed class ConflictDialog
         }
     }
 
-    private void Draw(FileOperationConflict conflict, ConsoleSize size, bool rememberChoice, int focusSection, int focusedButton)
+    private void Draw(
+        FileOperationConflict conflict,
+        ConsoleSize size,
+        CheckBoxLine rememberChoiceLine,
+        int focusSection,
+        int focusedButton)
     {
         int dlgX = Math.Max(0, (size.Width - DialogWidth) / 2);
         int dlgY = Math.Max(0, (size.Height - DialogHeight) / 2);
@@ -114,10 +122,14 @@ internal sealed class ConflictDialog
             _screen.Write(contentX, frameBounds.Y + 4, BuildInfoLine("New", conflict.SourceSize, conflict.SourceLastWriteTime, contentWidth), WarningDialogStyles.Fill);
             _screen.Write(contentX, frameBounds.Y + 5, BuildInfoLine("Existing", conflict.DestinationSize, conflict.DestinationLastWriteTime, contentWidth), WarningDialogStyles.Fill);
 
-            var rememberStyle = focusSection == 0 ? WarningDialogStyles.ButtonFocus : WarningDialogStyles.Fill;
-            string remember = $"[{(rememberChoice ? "x" : " ")}] Remember choice";
-            _screen.Write(contentX, frameBounds.Y + 7, remember.PadRight(contentWidth), rememberStyle);
-            _rememberBounds = new Rect(contentX, frameBounds.Y + 7, remember.Length, 1);
+            rememberChoiceLine.Render(
+                _screen,
+                contentX,
+                frameBounds.Y + 7,
+                contentWidth,
+                focusSection == 0,
+                WarningDialogStyles.Fill,
+                WarningDialogStyles.ButtonFocus);
 
             DrawSeparator(frameBounds, frameBounds.Y + 8);
             _buttonBar.Render(
@@ -232,11 +244,4 @@ internal sealed class ConflictDialog
         _screen.WriteChar(frameBounds.Right - 1, y, '╢', WarningDialogStyles.Border);
     }
 
-    private bool IsRememberClick(MouseConsoleInputEvent mouse) =>
-        mouse.Button == MouseButton.Left &&
-        mouse.Kind is MouseEventKind.Down or MouseEventKind.Click &&
-        mouse.X >= _rememberBounds.X &&
-        mouse.X < _rememberBounds.Right &&
-        mouse.Y >= _rememberBounds.Y &&
-        mouse.Y < _rememberBounds.Bottom;
 }
