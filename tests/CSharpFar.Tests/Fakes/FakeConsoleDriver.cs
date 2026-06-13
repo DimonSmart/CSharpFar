@@ -264,6 +264,7 @@ public sealed class FakeConsoleDriver : IConsoleDriver, IConsoleOutputModeDriver
 
     public ScreenSnapshot Capture(Rect region)
     {
+        _operationLog.Add("Capture");
         var cells = new SnapshotCell[region.Height, region.Width];
         for (int row = 0; row < region.Height; row++)
             for (int col = 0; col < region.Width; col++)

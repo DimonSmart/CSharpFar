@@ -599,7 +599,7 @@ public sealed class Application
         if (UsesTerminalScreenMode)
         {
             _screen.TryScrollViewportToBottom();
-            _ui.LastRenderViewport = _screen.GetViewport();
+            SyncRendererWithCurrentMainScreenViewport();
             return;
         }
 
@@ -612,11 +612,17 @@ public sealed class Application
         {
             _terminalScreenMode!.EnsureMainScreen();
             _screen.TryScrollViewportToBottom();
-            _ui.LastRenderViewport = _screen.GetViewport();
+            SyncRendererWithCurrentMainScreenViewport();
             return;
         }
 
         _screen.SetConsoleScrollbackEnabled(true);
+    }
+
+    private void SyncRendererWithCurrentMainScreenViewport()
+    {
+        _shellUnderlay.Capture();
+        _ui.LastRenderViewport = _shellUnderlay.CapturedViewport ?? _screen.GetViewport();
     }
 
     private void RestoreTerminal() =>

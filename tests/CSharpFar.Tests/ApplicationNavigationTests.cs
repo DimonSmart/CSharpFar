@@ -594,7 +594,9 @@ public sealed class ApplicationNavigationTests : IDisposable
                     afterHide,
                     "LeaveApplicationScreen",
                     "TryScrollViewportToBottom",
+                    "Capture",
                     "WriteAt");
+                Assert.Equal(0, afterHide.ClearRegionCallCount);
                 Assert.Equal(0, afterHide.SetConsoleScrollbackEnabledCallCount);
             };
         };
@@ -627,6 +629,7 @@ public sealed class ApplicationNavigationTests : IDisposable
                     afterHide,
                     "LeaveApplicationScreen",
                     "TryScrollViewportToBottom",
+                    "Capture",
                     "WriteAt");
                 afterHide.BeforeReadInput = afterShow =>
                 {
@@ -642,7 +645,9 @@ public sealed class ApplicationNavigationTests : IDisposable
                             afterSecondHide,
                             "LeaveApplicationScreen",
                             "TryScrollViewportToBottom",
+                            "Capture",
                             "WriteAt");
+                        Assert.Equal(0, afterSecondHide.ClearRegionCallCount);
                     };
                 };
             };
@@ -682,7 +687,9 @@ public sealed class ApplicationNavigationTests : IDisposable
                         afterBothHidden,
                         "LeaveApplicationScreen",
                         "TryScrollViewportToBottom",
+                        "Capture",
                         "WriteAt");
+                    Assert.Equal(0, afterBothHidden.ClearRegionCallCount);
                 };
             };
         };
@@ -714,6 +721,38 @@ public sealed class ApplicationNavigationTests : IDisposable
     }
 
     [Fact]
+    public void Run_VtSupportedHideAfterCommandOutput_CapturesMainViewportBeforeCommandLineRender()
+    {
+        var fs = new FakeFileSystemService();
+        fs.AddDirectory(_tempDir);
+
+        var driver = new FakeConsoleDriver(width: 80, height: 12) { IsSupported = true };
+        driver.SetBufferHeight(30);
+        var shell = new RecordingShellService((_, _) =>
+            driver.WriteAt(0, 0, "COMMAND-OUTPUT".AsSpan()));
+        var app = CreateApp(fs, driver, _tempDir, shell, terminalScreenMode: driver);
+
+        Render(app);
+        HandleKeyAndRender(app, Key(ConsoleKey.O, keyChar: '\u000f', control: true));
+        app.ExecuteCommand("dir");
+        HandleKeyAndRender(app, Key(ConsoleKey.O, keyChar: '\u000f', control: true));
+        HandleKeyAndRender(app, Key(ConsoleKey.A, keyChar: 'a'));
+        driver.ClearRecordedOperations();
+
+        HandleKeyAndRender(app, Key(ConsoleKey.O, keyChar: '\u000f', control: true));
+
+        Assert.False(driver.IsApplicationScreenActive);
+        Assert.Equal(1, driver.TryScrollViewportToBottomCallCount);
+        AssertOperationOrder(
+            driver,
+            "LeaveApplicationScreen",
+            "TryScrollViewportToBottom",
+            "Capture");
+        Assert.Equal(0, driver.ClearRegionCallCount);
+        Assert.Contains(driver.OperationLog, operation => operation == "Capture");
+    }
+
+    [Fact]
     public void ExecuteCommand_VtSupportedVisiblePanels_UsesMainScreenDuringShellThenReturnsToApplicationScreen()
     {
         var fs = new FakeFileSystemService();
@@ -731,6 +770,7 @@ public sealed class ApplicationNavigationTests : IDisposable
                 driver,
                 "LeaveApplicationScreen",
                 "TryScrollViewportToBottom",
+                "Capture",
                 "WriteAt");
         });
         var app = CreateApp(fs, driver, _tempDir, shell, terminalScreenMode: driver);
