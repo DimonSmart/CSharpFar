@@ -3,6 +3,7 @@ using CSharpFar.Console;
 using CSharpFar.Console.Input;
 using CSharpFar.Console.Models;
 using CSharpFar.Core.Models;
+using CSharpFar.Ui;
 
 namespace CSharpFar.App.Dialogs;
 
@@ -16,6 +17,11 @@ internal sealed class SearchDialog
     private readonly ScreenRenderer _screen;
     private static readonly SingleLineTextHistoryRegistry HistoryRegistry = new();
     private readonly ModalDialogRenderer _modalRenderer = new();
+    private readonly CheckBoxLine _caseSensitive = new("Case sensitive");
+    private readonly CheckBoxLine _wholeWords = new("Whole words");
+    private readonly CheckBoxLine _notContaining = new("Not containing");
+    private readonly CheckBoxLine _includeDirectoriesInResults = new("Search folders");
+    private readonly CheckBoxLine _searchInSymbolicLinks = new("Search in symbolic links");
 
     // Bounds of clickable option rows (updated each Draw call)
     private readonly Rect[] _optionBounds = new Rect[ButtonRow + 1];
@@ -205,6 +211,46 @@ internal sealed class SearchDialog
                 if (TryHandleHistoryArrow(mouse, maskHistory, textHistory, parallelismHistory))
                 {
                     focusRow = HitTestOptionRow(mouse);
+                    DrawCurrent();
+                    continue;
+                }
+
+                if (_caseSensitive.TryHandleMouse(mouse))
+                {
+                    focusRow = 3;
+                    caseSensitive = _caseSensitive.Value;
+                    DrawCurrent();
+                    continue;
+                }
+
+                if (_wholeWords.TryHandleMouse(mouse))
+                {
+                    focusRow = 4;
+                    wholeWords = _wholeWords.Value;
+                    DrawCurrent();
+                    continue;
+                }
+
+                if (hasText && _notContaining.TryHandleMouse(mouse))
+                {
+                    focusRow = 5;
+                    notContaining = _notContaining.Value;
+                    DrawCurrent();
+                    continue;
+                }
+
+                if (_includeDirectoriesInResults.TryHandleMouse(mouse))
+                {
+                    focusRow = 6;
+                    includeDirectoriesInResults = _includeDirectoriesInResults.Value;
+                    DrawCurrent();
+                    continue;
+                }
+
+                if (_searchInSymbolicLinks.TryHandleMouse(mouse))
+                {
+                    focusRow = 7;
+                    searchInSymbolicLinks = _searchInSymbolicLinks.Value;
                     DrawCurrent();
                     continue;
                 }
@@ -554,7 +600,7 @@ internal sealed class SearchDialog
             _ => parallelismHistory,
         };
 
-    private static void CycleValue(
+    private void CycleValue(
         int focusRow,
         bool hasText,
         ref bool caseSensitive,
@@ -567,19 +613,29 @@ internal sealed class SearchDialog
         switch (focusRow)
         {
             case 3:
-                caseSensitive = !caseSensitive;
+                _caseSensitive.Value = caseSensitive;
+                _caseSensitive.TryHandleKey(ToggleKey());
+                caseSensitive = _caseSensitive.Value;
                 break;
             case 4:
-                wholeWords = !wholeWords;
+                _wholeWords.Value = wholeWords;
+                _wholeWords.TryHandleKey(ToggleKey());
+                wholeWords = _wholeWords.Value;
                 break;
             case 5 when hasText:
-                notContaining = !notContaining;
+                _notContaining.Value = notContaining;
+                _notContaining.TryHandleKey(ToggleKey());
+                notContaining = _notContaining.Value;
                 break;
             case 6:
-                includeDirectoriesInResults = !includeDirectoriesInResults;
+                _includeDirectoriesInResults.Value = includeDirectoriesInResults;
+                _includeDirectoriesInResults.TryHandleKey(ToggleKey());
+                includeDirectoriesInResults = _includeDirectoriesInResults.Value;
                 break;
             case 7:
-                searchInSymbolicLinks = !searchInSymbolicLinks;
+                _searchInSymbolicLinks.Value = searchInSymbolicLinks;
+                _searchInSymbolicLinks.TryHandleKey(ToggleKey());
+                searchInSymbolicLinks = _searchInSymbolicLinks.Value;
                 break;
             case 8:
                 scope = scope == SearchScope.CurrentDirectoryOnly
@@ -588,6 +644,9 @@ internal sealed class SearchDialog
                 break;
         }
     }
+
+    private static ConsoleKeyInfo ToggleKey() =>
+        new('\0', ConsoleKey.Spacebar, shift: false, alt: false, control: false);
 
     private static int NextFocusableRow(int focusRow, bool hasText)
     {
@@ -784,7 +843,7 @@ internal sealed class SearchDialog
                 if (BodyY(virtualRow) is not { } y)
                     return;
 
-                DrawCheckbox(contentX, y, contentWidth, label, value, isFocused, rowFill, rowFocused);
+                CheckBoxForLabel(label, value).Render(_screen, contentX, y, contentWidth, isFocused);
                 _optionBounds[focusRow] = new Rect(contentX, y, contentWidth, 1);
             }
         });
@@ -901,18 +960,19 @@ internal sealed class SearchDialog
         _screen.Write(x + labelWidth, y, valueText, focused ? focusedStyle : FarDialogStyles.Input);
     }
 
-    private void DrawCheckbox(
-        int x,
-        int y,
-        int width,
-        string label,
-        bool value,
-        bool focused,
-        CellStyle fill,
-        CellStyle focusedStyle)
+    private CheckBoxLine CheckBoxForLabel(string label, bool value)
     {
-        string text = $"[{(value ? "x" : " ")}] {label}";
-        _screen.Write(x, y, Truncate(text, width).PadRight(width), focused ? focusedStyle : fill);
+        CheckBoxLine checkBox = label switch
+        {
+            "Case sensitive" => _caseSensitive,
+            "Whole words" => _wholeWords,
+            "Not containing" => _notContaining,
+            "Search folders" => _includeDirectoriesInResults,
+            "Search in symbolic links" => _searchInSymbolicLinks,
+            _ => throw new InvalidOperationException($"Unknown checkbox label: {label}"),
+        };
+        checkBox.Value = value;
+        return checkBox;
     }
 
     private void SetInputCursor(int x, int y, int width, CommandLineState buffer, bool hasHistory)

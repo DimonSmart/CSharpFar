@@ -3,6 +3,7 @@ using CSharpFar.Console;
 using CSharpFar.Console.Input;
 using CSharpFar.Console.Models;
 using CSharpFar.Core.Models;
+using CSharpFar.Ui;
 
 namespace CSharpFar.App.Dialogs;
 
@@ -38,6 +39,9 @@ internal sealed class FileOperationDialog
     private readonly ScreenRenderer _screen;
     private static readonly SingleLineTextHistoryRegistry HistoryRegistry = new();
     private readonly ModalDialogRenderer _modalRenderer = new();
+    private readonly CheckBoxLine _preserveTimestamps = new("Preserve all timestamps");
+    private readonly CheckBoxLine _copySymlinkContents = new("Copy contents of symbolic links");
+    private readonly CheckBoxLine _useFilter = new("Use filter");
 
     public FileOperationDialog(ScreenRenderer screen)
     {
@@ -235,6 +239,33 @@ internal sealed class FileOperationDialog
                 focusRow = historyFocusRow;
                 DrawCurrent();
                 continue;
+            }
+
+            if (input is MouseConsoleInputEvent checkboxMouse && showOperationOptions)
+            {
+                if (_preserveTimestamps.TryHandleMouse(checkboxMouse))
+                {
+                    focusRow = 3;
+                    preserveTimestamps = _preserveTimestamps.Value;
+                    DrawCurrent();
+                    continue;
+                }
+
+                if (_copySymlinkContents.TryHandleMouse(checkboxMouse))
+                {
+                    focusRow = 4;
+                    copySymlinkContents = _copySymlinkContents.Value;
+                    DrawCurrent();
+                    continue;
+                }
+
+                if (_useFilter.TryHandleMouse(checkboxMouse))
+                {
+                    focusRow = 5;
+                    useFilter = _useFilter.Value;
+                    DrawCurrent();
+                    continue;
+                }
             }
 
             if (input is MouseConsoleInputEvent bodyMouse &&
@@ -663,7 +694,7 @@ internal sealed class FileOperationDialog
         SingleLineTextInput.HandleKey(buffer, key, ref error, history, availableRows);
     }
 
-    private static void CycleFocusedValue(
+    private void CycleFocusedValue(
         int focusRow,
         IReadOnlyList<ConflictDecisionMode> conflictModes,
         ref int conflictIndex,
@@ -686,16 +717,25 @@ internal sealed class FileOperationDialog
                 conflictIndex = (conflictIndex + 1) % conflictModes.Count;
                 break;
             case 3:
-                preserveTimestamps = !preserveTimestamps;
+                _preserveTimestamps.Value = preserveTimestamps;
+                _preserveTimestamps.TryHandleKey(ToggleKey());
+                preserveTimestamps = _preserveTimestamps.Value;
                 break;
             case 4:
-                copySymlinkContents = !copySymlinkContents;
+                _copySymlinkContents.Value = copySymlinkContents;
+                _copySymlinkContents.TryHandleKey(ToggleKey());
+                copySymlinkContents = _copySymlinkContents.Value;
                 break;
             case 5:
-                useFilter = !useFilter;
+                _useFilter.Value = useFilter;
+                _useFilter.TryHandleKey(ToggleKey());
+                useFilter = _useFilter.Value;
                 break;
         }
     }
+
+    private static ConsoleKeyInfo ToggleKey() =>
+        new('\0', ConsoleKey.Spacebar, shift: false, alt: false, control: false);
 
     private static int NextFocusableRow(int focusRow, bool useFilter, bool showOperationOptions)
     {
@@ -894,7 +934,7 @@ internal sealed class FileOperationDialog
             void DrawBodyCheckbox(int virtualRow, string label, bool value, bool isFocused)
             {
                 if (BodyY(virtualRow) is { } y)
-                    DrawCheckbox(contentX, y, contentWidth, label, value, isFocused, fill, focused);
+                    CheckBoxForLabel(label, value).Render(_screen, contentX, y, contentWidth, isFocused);
             }
 
             void DrawBodyConflictModeRow(int virtualRow, int startIndex, int endIndex)
@@ -1155,18 +1195,17 @@ internal sealed class FileOperationDialog
         _screen.Write(x, y, Truncate(text, width).PadRight(width), focused ? focusedStyle : fill);
     }
 
-    private void DrawCheckbox(
-        int x,
-        int y,
-        int width,
-        string label,
-        bool value,
-        bool focused,
-        CellStyle fill,
-        CellStyle focusedStyle)
+    private CheckBoxLine CheckBoxForLabel(string label, bool value)
     {
-        string text = $"[{(value ? "x" : " ")}] {label}";
-        _screen.Write(x, y, Truncate(text, width).PadRight(width), focused ? focusedStyle : fill);
+        CheckBoxLine checkBox = label switch
+        {
+            "Preserve all timestamps" => _preserveTimestamps,
+            "Copy contents of symbolic links" => _copySymlinkContents,
+            "Use filter" => _useFilter,
+            _ => throw new InvalidOperationException($"Unknown checkbox label: {label}"),
+        };
+        checkBox.Value = value;
+        return checkBox;
     }
 
     private void DrawSeparator(Rect bounds, int y)
