@@ -1,5 +1,4 @@
 using CSharpFar.Core.Models;
-using CSharpFar.FarNetHost;
 using CSharpFar.Module.Abstractions;
 
 namespace CSharpFar.App.Modules;
@@ -81,15 +80,6 @@ internal sealed class NativeModuleCatalog
         items.Add(item);
         actions.Add(item.ActionId, action);
     }
-
-    public static ModuleActionResult FromFarNet(FarNetModuleOpenResult result) =>
-        result.Kind switch
-        {
-            FarNetModuleOpenResultKind.OpenedPanel => ModuleActionResult.OpenedPanel(result.Panel!),
-            FarNetModuleOpenResultKind.Failed => ModuleActionResult.Failed(result.Message ?? "FarNet module action failed."),
-            FarNetModuleOpenResultKind.NoPanel => ModuleActionResult.NoPanel(),
-            _ => ModuleActionResult.Completed(),
-        };
 
     private static string GetCommandPrefix(string commandLine)
     {

@@ -17,7 +17,6 @@ using CSharpFar.Core.Controllers;
 using CSharpFar.Core.Highlighting;
 using CSharpFar.Core.History;
 using CSharpFar.Core.Services;
-using CSharpFar.FarNetHost;
 using CSharpFar.Module.Ftp;
 using CSharpFar.Module.Sftp;
 using AppSettingsAlias = CSharpFar.Core.Models.AppSettings;
@@ -51,7 +50,6 @@ internal sealed class ApplicationServices
     public required PanelFileOpener PanelFileOpener { get; init; }
     public required NativeModuleCatalog ModuleCatalog { get; init; }
     public required ModulePanelOpener ModulePanelOpener { get; init; }
-    public required FarNetPanelActionService FarNetPanelActions { get; init; }
     public required ApplicationCommandRegistry CommandRegistry { get; init; }
     public required ApplicationRenderContext RenderContext { get; init; }
     public required ApplicationRenderCoordinator RenderCoordinator { get; init; }

@@ -1,27 +1,16 @@
 using System.Reflection;
 using System.Xml.Linq;
-using CSharpFar.App;
 using CSharpFar.App.Commands;
 using CSharpFar.App.Menu;
 using CSharpFar.App.Modules;
-using CSharpFar.Console;
 using CSharpFar.Core.Abstractions;
-using CSharpFar.Core.History;
 using CSharpFar.Core.Menu;
 using CSharpFar.Core.Models;
-using CSharpFar.Core.Services;
-using CSharpFar.FarNetHost;
-using CSharpFar.Tests.Fakes;
-using CSharpFar.Tests.Fixtures.FarNetDependency;
-using CSharpFar.Tests.Fixtures.FarNetModule;
 
 namespace CSharpFar.Tests;
 
 public sealed class Spec037PluginSystemTests : IDisposable
 {
-    private static readonly Guid FarNetDiskToolId =
-        Guid.Parse("2e2ee555-7153-4c4a-a73b-79b38b42c5d4");
-
     private readonly string _tempDir;
 
     public Spec037PluginSystemTests()
@@ -53,28 +42,14 @@ public sealed class Spec037PluginSystemTests : IDisposable
             RightViewMode = PanelViewMode.Full,
             Settings = new AppSettings(),
             CanSaveSettings = false,
-            ModuleMenuItems = [new ModuleMenuProjection(actionId, "FarNet tool", 'F')],
+            ModuleMenuItems = [new ModuleMenuProjection(actionId, "Network plugin", 'N')],
         });
 
         var moduleItem = menu.Items.Single(item => item.Text == "Plugins")
-            .Children.Single(item => item.Text == "FarNet tool");
+            .Children.Single(item => item.Text == "Network plugin");
         Assert.Equal(MenuCommandIds.ModuleOpen, moduleItem.CommandId);
         var args = Assert.IsType<ModuleOpenCommandArgs>(moduleItem.CommandArgs);
         Assert.Equal(actionId, args.ActionId);
-    }
-
-    [Fact]
-    public void Application_DispatchesNativeFarNetDiskMenuItem()
-    {
-        using var host = CreateFarNetModuleHost();
-        var driver = new FakeConsoleDriver();
-        driver.EnqueueKey(new ConsoleKeyInfo('\r', ConsoleKey.Enter, shift: false, alt: false, control: false));
-        var app = CreateApp(driver, farNetModuleHost: host);
-
-        var result = app.OpenModuleDiskMenuItem(FarNetDiskToolId, PanelSide.Left);
-
-        Assert.True(result.ShouldRender);
-        Assert.Contains(driver.WriteRecords, record => record.Text.Contains("left", StringComparison.Ordinal));
     }
 
     [Fact]
@@ -107,48 +82,6 @@ public sealed class Spec037PluginSystemTests : IDisposable
 
         Assert.DoesNotContain("SSH.NET", packageNames);
         Assert.DoesNotContain("FluentFTP", packageNames);
-    }
-
-    private Application CreateApp(
-        FakeConsoleDriver driver,
-        FarNetModuleHost? farNetModuleHost = null)
-    {
-        var fs = new FakeFileSystemService();
-        fs.AddDirectory(_tempDir);
-
-        var settings = new AppSettings();
-        settings.Panels.LeftStartDirectory = _tempDir;
-        settings.Panels.RightStartDirectory = _tempDir;
-
-        return new Application(
-            new ScreenRenderer(driver),
-            fs,
-            new NoOpShellService(),
-            new NoOpFileOperationService(),
-            new InMemoryHistoryStore(),
-            settings,
-            farNetModuleHost: farNetModuleHost,
-            enableBuiltInNetworkModules: false,
-            configDirectory: _tempDir);
-    }
-
-    private FarNetModuleHost CreateFarNetModuleHost()
-    {
-        string modulesRoot = Path.Combine(_tempDir, "FarNet", "Modules");
-        string moduleName = typeof(MessageInputTool).Assembly.GetName().Name!;
-        string moduleDirectory = Path.Combine(modulesRoot, moduleName);
-        Directory.CreateDirectory(moduleDirectory);
-        CopyAssembly(typeof(MessageInputTool).Assembly, moduleDirectory);
-        CopyAssembly(typeof(MissingDependencyMarker).Assembly, moduleDirectory);
-
-        return new FarNetModuleHost(modulesRoot);
-    }
-
-    private static void CopyAssembly(Assembly assembly, string targetDirectory)
-    {
-        string sourcePath = assembly.Location;
-        string targetPath = Path.Combine(targetDirectory, Path.GetFileName(sourcePath));
-        File.Copy(sourcePath, targetPath, overwrite: true);
     }
 
     private static string FindRepoRoot()

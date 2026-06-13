@@ -5,7 +5,6 @@
     <ProjectReference Include="..\CSharpFar.Console\CSharpFar.Console.csproj" />
     <ProjectReference Include="..\CSharpFar.Ui\CSharpFar.Ui.csproj" />
     <ProjectReference Include="..\CSharpFar.Module.Abstractions\CSharpFar.Module.Abstractions.csproj" />
-    <ProjectReference Include="..\CSharpFar.FarNetHost\CSharpFar.FarNetHost.csproj" />
     <ProjectReference Include="..\CSharpFar.Module.Sftp\CSharpFar.Module.Sftp.csproj" />
     <ProjectReference Include="..\CSharpFar.Module.Ftp\CSharpFar.Module.Ftp.csproj" />
     <ProjectReference Include="..\CSharpFar.FileSystem\CSharpFar.FileSystem.csproj" />

@@ -17,7 +17,6 @@ using CSharpFar.Core.Abstractions;
 using CSharpFar.Core.Controllers;
 using CSharpFar.Core.History;
 using CSharpFar.Core.Services;
-using CSharpFar.FarNetHost;
 using CSharpFar.FileSystem;
 using CSharpFar.Module.Abstractions;
 using CSharpFar.Module.Ftp;
@@ -50,7 +49,6 @@ internal static class ApplicationServicesBuilder
         ICredentialStore? credentialStore = null,
         SftpModule? sftpModule = null,
         FtpModule? ftpModule = null,
-        FarNetModuleHost? farNetModuleHost = null,
         bool enableBuiltInNetworkModules = true,
         string? configDirectory = null,
         ITextClipboard? clipboard = null,
@@ -104,7 +102,6 @@ internal static class ApplicationServicesBuilder
             SetQuickView = quickView => session.App.QuickView = quickView,
             SetRunning = running => session.App.Running = running,
             TogglePanels = () => throw new InvalidOperationException("Keyboard input context is not assigned."),
-            TryHandleFarNetPanelShortcut = _ => throw new InvalidOperationException("Keyboard input context is not assigned."),
             ExecuteRegisteredCommand = (_, _) => throw new InvalidOperationException("Keyboard input context is not assigned."),
             SelectAllCommandLineTextOrPanelItems = () => throw new InvalidOperationException("Keyboard input context is not assigned."),
             CopyCommandLineSelection = () => throw new InvalidOperationException("Keyboard input context is not assigned."),
@@ -236,17 +233,9 @@ internal static class ApplicationServicesBuilder
             Screen = screen,
             Palette = () => session.App.Palette,
         };
-        farNetModuleHost?.Initialize(new FarNetModuleHostServices
-        {
-            Ui = moduleUiServices,
-            DataRoot = Path.Combine(effectiveConfigDirectory, "FarNet"),
-            GetActivePanelSide = () => callbacks.GetActiveSide(),
-            GetPanelState = side => callbacks.GetPanelState(side),
-        });
         var moduleCatalog = ModuleCatalogFactory.Create(
             enableBuiltInNetworkModules ? sftpModule ?? new SftpModule() : null,
             enableBuiltInNetworkModules ? ftpModule ?? new FtpModule() : null,
-            farNetModuleHost,
             new ModuleStartupInfo
             {
                 Ui = moduleUiServices,
@@ -264,17 +253,6 @@ internal static class ApplicationServicesBuilder
             side => callbacks.GetPanelState(side),
             side => callbacks.SetActiveSide(side),
             quickView => callbacks.SetQuickView(quickView));
-        var farNetPanelActions = new FarNetPanelActionService(
-            effectiveSourceRegistry,
-            controller,
-            screen,
-            () => session.App.Palette,
-            effectiveSettings,
-            effectiveClipboard,
-            modulePanelOpener,
-            side => callbacks.VisibleRowsForSide(side),
-            state => callbacks.PanelSideForState(state),
-            (state, rows) => callbacks.SafeRefresh(state, rows));
         var rendering = RenderingServicesFactory.Create(
             screen,
             terminalScreenMode,
@@ -327,7 +305,6 @@ internal static class ApplicationServicesBuilder
             panelFileOpener,
             moduleCatalog,
             modulePanelOpener,
-            farNetPanelActions,
             terminalSurface,
             commandLineRenderer,
             commandCompletionController,
@@ -369,7 +346,6 @@ internal static class ApplicationServicesBuilder
             PanelFileOpener = panelFileOpener,
             ModuleCatalog = moduleCatalog,
             ModulePanelOpener = modulePanelOpener,
-            FarNetPanelActions = farNetPanelActions,
             CommandRegistry = commandServices.CommandRegistry,
             RenderContext = rendering.RenderContext,
             RenderCoordinator = renderCoordinator,

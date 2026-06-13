@@ -33,7 +33,6 @@
 | 0036 | Spec | Current | Application icon | Give CSharpFar its own Windows application icon with a Far-like file manager identity without copying Far Manager branding or artwork. |
 | 0038 | Spec | Current | History-enabled text input | Add optional command-history-style suggestions to reusable single-line text input controls, document the current control ecosystem, and define reusable control mouse expectations. |
 | 0046 | Spec | Current | Built-in text editor | Turn the current F4 editor into a predictable Far-like text editor with a real internal editor model, explicit file format handling, undo... |
-| 0047 | Spec | Current | FarNet 10 managed API compatibility | Make CSharpFar's managed FarNet compatibility layer measurably converge on the public `FarNet` 10.0.30 API while keeping `FarNet.JsonKit`... |
 | 0048 | Spec | Current | Create new file dialog | Add a Far-like `Shift+F4` command that creates a new text file from the file panels and opens it in the built-in editor. The command must... |
 | 0049 | Spec | Current | Editor Far editing commands | Add the remaining Far-like editor commands from the implementation analysis as native CSharpFar editor behavior. The work should extend t... |
 | 0050 | Spec | Current | Editor TextMate syntax highlighting | Add syntax highlighting to the built-in CSharpFar editor using TextMate grammars. The first implementation should color visible editor te... |
@@ -46,3 +45,4 @@
 | 0057 | Spike | Open | Unix and macOS portability | What must change for CSharpFar to run predictably on Unix-like systems, especially Linux and macOS, without hiding platform differences b... |
 | 0059 | Spec | Current | Panel cursor normalization | Keep file panel cursor and scroll state valid after panel item lists are refreshed, rebuilt, or sorted. |
 | 0060 | Spec | Current | File rename operation | Make renaming the current panel item a distinct user command. Plain `F6` remains primarily move; `Shift+F6` is the direct rename shortcut. |
+| 0061 | Spec | Current | Native plugin system | CSharpFar supports native .NET plugins designed around CSharpFar internal abstractions and intentionally does not emulate FarNet or Far Manager plugin APIs. |

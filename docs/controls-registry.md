@@ -42,7 +42,7 @@ Known reuse points:
 - `SearchDialog`;
 - `FileOperationDialog`;
 - `EditorFindDialog`;
-- `FarNetInputDialog`;
+- `ModuleInputDialog`;
 - FTP and SFTP connection dialogs.
 
 Current adoption:

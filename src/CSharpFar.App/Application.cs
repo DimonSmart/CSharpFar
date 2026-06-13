@@ -28,7 +28,6 @@ using CSharpFar.Core.Services;
 using CSharpFar.Module.Abstractions;
 using CSharpFar.Module.Ftp;
 using CSharpFar.Module.Sftp;
-using CSharpFar.FarNetHost;
 using AppSettingsAlias = CSharpFar.Core.Models.AppSettings;
 
 namespace CSharpFar.App;
@@ -57,7 +56,6 @@ public sealed class Application
     private readonly PanelVisibilityController _panelVisibility;
     private readonly NativeModuleCatalog _moduleCatalog;
     private readonly ModulePanelOpener _modulePanelOpener;
-    private readonly FarNetPanelActionService _farNetPanelActions;
     private readonly CommandHistoryNavigator _commandHistoryNavigator;
     private readonly CommandCompletionController _commandCompletionController;
     private readonly CommandLineCommandExecutor _commandLineCommandExecutor;
@@ -121,7 +119,6 @@ public sealed class Application
         ICredentialStore?            credentialStore   = null,
         SftpModule?                  sftpModule        = null,
         FtpModule?                   ftpModule         = null,
-        FarNetModuleHost?            farNetModuleHost  = null,
         bool                         enableBuiltInNetworkModules = true,
         string?                      configDirectory   = null,
         ITextClipboard?              clipboard         = null,
@@ -146,7 +143,6 @@ public sealed class Application
             credentialStore,
             sftpModule,
             ftpModule,
-            farNetModuleHost,
             enableBuiltInNetworkModules,
             configDirectory,
             clipboard,
@@ -182,7 +178,6 @@ public sealed class Application
         _panelFileOpener = services.PanelFileOpener;
         _moduleCatalog = services.ModuleCatalog;
         _modulePanelOpener = services.ModulePanelOpener;
-        _farNetPanelActions = services.FarNetPanelActions;
         _commandRegistry = services.CommandRegistry;
         _commandContext = services.CommandContext;
         _keyboardInputContext = services.KeyboardInputContext;
@@ -201,7 +196,6 @@ public sealed class Application
     {
         context.BuildMenuDefinition = BuildMenuDefinition;
         context.TogglePanels = TogglePanels;
-        context.TryHandleFarNetPanelShortcut = TryHandleFarNetPanelShortcut;
         context.ExecuteRegisteredCommand = ExecuteRegisteredCommand;
         context.SelectAllCommandLineTextOrPanelItems = SelectAllCommandLineTextOrPanelItems;
         context.CopyCommandLineSelection = CopyCommandLineSelection;
@@ -421,11 +415,6 @@ public sealed class Application
         return true;
     }
 
-    private bool TryHandleFarNetPanelShortcut(ConsoleKeyInfo key)
-    {
-        return _farNetPanelActions.TryHandleShortcut(ActiveState, _cmdLine.HasText, key);
-    }
-
     private bool CanExecuteFunctionKeyCommand(string commandId) =>
         _commandRegistry.CanExecute(commandId, _commandContext);
 
@@ -621,9 +610,6 @@ public sealed class Application
             return;
         }
 
-        if (TryOpenFarNetPanelItem(state, side, item))
-            return;
-
         if (item.IsDirectory)
         {
             OpenDirectoryItem(state, side, item);
@@ -631,16 +617,6 @@ public sealed class Application
         }
 
         OpenFileItem(item);
-    }
-
-    internal bool TryEditFarNetPanelItem(FilePanelState state, FilePanelItem item)
-    {
-        return _farNetPanelActions.TryEditItem(state, item);
-    }
-
-    private bool TryOpenFarNetPanelItem(FilePanelState state, PanelSide side, FilePanelItem item)
-    {
-        return _farNetPanelActions.TryOpenItem(state, side, item);
     }
 
     private void OpenDirectoryItem(FilePanelState state, PanelSide side, FilePanelItem item)

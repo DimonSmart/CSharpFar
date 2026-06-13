@@ -1,8 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <ItemGroup>
-    <ProjectReference Include="..\..\src\CSharpFar.FarNetCompat\CSharpFar.FarNetCompat.csproj" />
-    <ProjectReference Include="..\CSharpFar.Tests.Fixtures.FarNetDependency\CSharpFar.Tests.Fixtures.FarNetDependency.csproj" />
+    <ProjectReference Include="..\CSharpFar.Core\CSharpFar.Core.csproj" />
   </ItemGroup>
 
   <PropertyGroup>

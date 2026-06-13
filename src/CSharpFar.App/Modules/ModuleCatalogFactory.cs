@@ -1,5 +1,4 @@
 using CSharpFar.Core.Models;
-using CSharpFar.FarNetHost;
 using CSharpFar.Module.Abstractions;
 using CSharpFar.Module.Ftp;
 using CSharpFar.Module.Sftp;
@@ -11,7 +10,6 @@ internal static class ModuleCatalogFactory
     public static NativeModuleCatalog Create(
         SftpModule? sftpModule,
         FtpModule? ftpModule,
-        FarNetModuleHost? farNetModuleHost,
         ModuleStartupInfo startupInfo)
     {
         var catalog = new NativeModuleCatalog();
@@ -41,35 +39,6 @@ internal static class ModuleCatalogFactory
             catalog.AddCommandPrefix("ftps", (commandLine, side) => ftpModule.OpenFromCommandLine(side, commandLine));
         }
 
-        if (farNetModuleHost is not null)
-        {
-            foreach (var item in farNetModuleHost.MenuItems)
-            {
-                catalog.AddMenuAction(
-                    ToModuleMenuProjection(item),
-                    _ => NativeModuleCatalog.FromFarNet(farNetModuleHost.OpenFromMenu(item.ActionId)));
-            }
-
-            foreach (var item in farNetModuleHost.DiskMenuItems)
-            {
-                catalog.AddDiskMenuAction(
-                    ToModuleMenuProjection(item),
-                    side => NativeModuleCatalog.FromFarNet(
-                        farNetModuleHost.OpenFromDiskMenu(item.ActionId, side == PanelSide.Left)));
-            }
-
-            foreach (string prefix in farNetModuleHost.CommandPrefixes)
-            {
-                catalog.AddCommandPrefix(
-                    prefix,
-                    (commandLine, _) => NativeModuleCatalog.FromFarNet(
-                        farNetModuleHost.OpenFromCommandLine(commandLine)));
-            }
-        }
-
         return catalog;
     }
-
-    private static ModuleMenuProjection ToModuleMenuProjection(FarNetModuleMenuItem item) =>
-        new(item.ActionId, item.Text, item.HotKey);
 }

@@ -13,15 +13,15 @@ public sealed class MessageDialogTests
         driver.EnqueueKey(new ConsoleKeyInfo('\r', ConsoleKey.Enter, shift: false, alt: false, control: false));
         string message =
             "Open from clipboard expects JSON array or object or a file path like \"*.json\".\r\n" +
-            "Error: FarNet API 'AnyEditor' is not supported by CSharpFar FarNet compatibility v1.";
+            "Error: Plugin command 'open-from-clipboard' failed while parsing the input payload.";
 
         new MessageDialog(new ScreenRenderer(driver)).Show("Module", message);
 
         string rendered = string.Join('\n', driver.WriteRecords.Select(record => record.Text));
         Assert.Contains("Open from clipboard expects", rendered, StringComparison.Ordinal);
-        Assert.Contains("FarNet API 'AnyEditor'", rendered, StringComparison.Ordinal);
-        Assert.Contains("compatibility v1.", rendered, StringComparison.Ordinal);
-        Assert.DoesNotContain("\u2026supported", rendered, StringComparison.Ordinal);
+        Assert.Contains("Plugin command", rendered, StringComparison.Ordinal);
+        Assert.Contains("input payload.", rendered, StringComparison.Ordinal);
+        Assert.DoesNotContain("\u2026failed", rendered, StringComparison.Ordinal);
     }
 
     [Fact]

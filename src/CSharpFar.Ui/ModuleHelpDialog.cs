@@ -5,12 +5,12 @@ using CSharpFar.Core.Models;
 
 namespace CSharpFar.Ui;
 
-public sealed class FarNetHelpDialog
+public sealed class ModuleHelpDialog
 {
     private readonly ScreenRenderer _screen;
     private readonly ConsolePalette _palette;
 
-    public FarNetHelpDialog(ScreenRenderer screen, ConsolePalette? palette = null)
+    public ModuleHelpDialog(ScreenRenderer screen, ConsolePalette? palette = null)
     {
         _screen = screen;
         _palette = palette ?? PaletteRegistry.Default;

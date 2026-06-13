@@ -3,19 +3,15 @@
     <Project Path="src/CSharpFar.App/CSharpFar.App.csproj" />
     <Project Path="src/CSharpFar.Console/CSharpFar.Console.csproj" />
     <Project Path="src/CSharpFar.Core/CSharpFar.Core.csproj" />
-    <Project Path="src/CSharpFar.FarNetCompat/CSharpFar.FarNetCompat.csproj" />
     <Project Path="src/CSharpFar.FileSystem/CSharpFar.FileSystem.csproj" />
     <Project Path="src/CSharpFar.Module.Abstractions/CSharpFar.Module.Abstractions.csproj" />
-    <Project Path="src/CSharpFar.FarNetHost/CSharpFar.FarNetHost.csproj" />
+    <Project Path="src/CSharpFar.Plugin.Abstractions/CSharpFar.Plugin.Abstractions.csproj" />
     <Project Path="src/CSharpFar.Module.Ftp/CSharpFar.Module.Ftp.csproj" />
     <Project Path="src/CSharpFar.Module.Sftp/CSharpFar.Module.Sftp.csproj" />
     <Project Path="src/CSharpFar.Shell/CSharpFar.Shell.csproj" />
     <Project Path="src/CSharpFar.Ui/CSharpFar.Ui.csproj" />
   </Folder>
   <Folder Name="/tests/">
-    <Project Path="tests/CSharpFar.Tests.Fixtures.FarNetDependency/CSharpFar.Tests.Fixtures.FarNetDependency.csproj" />
-    <Project Path="tests/CSharpFar.Tests.Fixtures.FarNetModule/CSharpFar.Tests.Fixtures.FarNetModule.csproj" />
-    <Project Path="tests/CSharpFar.Tests.Fixtures.OfficialFarNetModule/CSharpFar.Tests.Fixtures.OfficialFarNetModule.csproj" />
     <Project Path="tests/CSharpFar.Tests/CSharpFar.Tests.csproj" />
   </Folder>
 </Solution>

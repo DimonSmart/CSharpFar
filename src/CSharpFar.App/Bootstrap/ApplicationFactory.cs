@@ -2,7 +2,6 @@ using CSharpFar.App.UserMenu;
 using CSharpFar.Console;
 using CSharpFar.Core.Abstractions;
 using CSharpFar.Core.Services;
-using CSharpFar.FarNetHost;
 using CSharpFar.Module.Ftp;
 using CSharpFar.Module.Sftp;
 using AppSettingsAlias = CSharpFar.Core.Models.AppSettings;
@@ -31,7 +30,6 @@ public static class ApplicationFactory
         ICredentialStore? credentialStore = null,
         SftpModule? sftpModule = null,
         FtpModule? ftpModule = null,
-        FarNetModuleHost? farNetModuleHost = null,
         bool enableBuiltInNetworkModules = true,
         string? configDirectory = null,
         ITextClipboard? clipboard = null,
@@ -56,7 +54,6 @@ public static class ApplicationFactory
             credentialStore,
             sftpModule,
             ftpModule,
-            farNetModuleHost,
             enableBuiltInNetworkModules,
             configDirectory,
             clipboard,

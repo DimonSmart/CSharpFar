@@ -24,9 +24,6 @@ internal sealed class EditFileCommand : IApplicationCommand
         if (item is null || item.IsParentDirectory)
             return ApplicationCommandResult.Rendered();
 
-        if (context.TryEditFarNetPanelItem(context.ActiveState, item))
-            return ApplicationCommandResult.Rendered();
-
         if (item.IsDirectory)
             return ApplicationCommandResult.Rendered();
 

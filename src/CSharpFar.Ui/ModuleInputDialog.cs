@@ -5,7 +5,7 @@ using CSharpFar.Core.Models;
 
 namespace CSharpFar.Ui;
 
-public sealed class FarNetInputDialog
+public sealed class ModuleInputDialog
 {
     private const int DialogWidth = 52;
     private const int DialogHeight = 6;
@@ -13,7 +13,7 @@ public sealed class FarNetInputDialog
     private readonly ScreenRenderer _screen;
     private readonly ConsolePalette _palette;
 
-    public FarNetInputDialog(ScreenRenderer screen, ConsolePalette? palette = null)
+    public ModuleInputDialog(ScreenRenderer screen, ConsolePalette? palette = null)
     {
         _screen = screen;
         _palette = palette ?? PaletteRegistry.Default;

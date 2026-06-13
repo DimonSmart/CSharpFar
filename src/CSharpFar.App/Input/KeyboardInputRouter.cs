@@ -46,9 +46,6 @@ internal sealed class KeyboardInputRouter
         if (!_context.HasVisiblePanels())
             return HandleHiddenCommandLineKey(key);
 
-        if (_context.TryHandleFarNetPanelShortcut(key))
-            return true;
-
         if (TryHandleDirectoryShortcut(key))
             return true;
 

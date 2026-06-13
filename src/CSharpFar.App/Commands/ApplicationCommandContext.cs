@@ -36,7 +36,6 @@ internal sealed class ApplicationCommandContext
     private readonly PanelFileOpener _panelFileOpener;
     private readonly NativeModuleCatalog _moduleCatalog;
     private readonly ModulePanelOpener _modulePanelOpener;
-    private readonly FarNetPanelActionService _farNetPanelActions;
     private readonly CommandLineCommandExecutor _commandLineCommandExecutor;
     private readonly ExternalConsoleCommandRunner _externalConsoleCommandRunner;
     private readonly CommandCompletionController _commandCompletionController;
@@ -71,7 +70,6 @@ internal sealed class ApplicationCommandContext
         PanelFileOpener panelFileOpener,
         NativeModuleCatalog moduleCatalog,
         ModulePanelOpener modulePanelOpener,
-        FarNetPanelActionService farNetPanelActions,
         CommandLineCommandExecutor commandLineCommandExecutor,
         ExternalConsoleCommandRunner externalConsoleCommandRunner,
         CommandCompletionController commandCompletionController,
@@ -104,7 +102,6 @@ internal sealed class ApplicationCommandContext
         _panelFileOpener = panelFileOpener;
         _moduleCatalog = moduleCatalog;
         _modulePanelOpener = modulePanelOpener;
-        _farNetPanelActions = farNetPanelActions;
         _commandLineCommandExecutor = commandLineCommandExecutor;
         _externalConsoleCommandRunner = externalConsoleCommandRunner;
         _commandCompletionController = commandCompletionController;
@@ -254,9 +251,6 @@ internal sealed class ApplicationCommandContext
             return;
         }
 
-        if (_farNetPanelActions.TryOpenItem(state, side, item))
-            return;
-
         if (item.IsDirectory)
         {
             _panelNavigation.OpenDirectoryItem(state, side, item);
@@ -265,9 +259,6 @@ internal sealed class ApplicationCommandContext
 
         _panelFileOpener.OpenFileItem(ActiveState, item);
     }
-
-    public bool TryEditFarNetPanelItem(FilePanelState state, FilePanelItem item) =>
-        _farNetPanelActions.TryEditItem(state, item);
 
     public ApplicationCommandResult OpenModuleMenuItem(Guid actionId) =>
         _modulePanelOpener.OpenMenuItem(actionId, ActiveSide);

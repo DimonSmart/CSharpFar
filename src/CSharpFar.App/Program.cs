@@ -5,7 +5,6 @@ using CSharpFar.App.Settings;
 using CSharpFar.App.UserMenu;
 using CSharpFar.Console;
 using CSharpFar.FileSystem;
-using CSharpFar.FarNetHost;
 using CSharpFar.Core.Services;
 using CSharpFar.Shell;
 
@@ -47,6 +46,5 @@ ApplicationFactory.Create(renderer, fs, shell, fileOps, history, settings, userM
     searchService:     searchSvc,
     sourceRegistry:    panelSources,
     credentialStore:   credentials,
-    farNetModuleHost:  new FarNetModuleHost(new FarNetModuleHostOptions { EnablePanelTools = true }),
     configDirectory:   settingsStore.ConfigDirectory,
     terminalScreenMode: driver).Run();
