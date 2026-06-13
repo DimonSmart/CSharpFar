@@ -66,6 +66,26 @@ public sealed class Spec012SearchDialogTests
         Assert.True(result.CaseSensitive);
     }
 
+    [Fact]
+    public void Show_MouseClickSearchScopeChangesScope()
+    {
+        var driver = new FakeConsoleDriver(width: 100, height: 30);
+        var screen = new ScreenRenderer(driver);
+        driver.BeforeReadInput = currentDriver =>
+        {
+            var row = currentDriver.WriteRecords.Last(record =>
+                record.Text.Contains("In current folder", StringComparison.Ordinal));
+            int x = row.X + row.Text.IndexOf("In current folder", StringComparison.Ordinal);
+            currentDriver.EnqueueInput(new MouseConsoleInputEvent(x, row.Y, MouseButton.Left, MouseEventKind.Down, MouseKeyModifiers.None));
+            currentDriver.EnqueueKey(Key(ConsoleKey.F10));
+        };
+
+        var result = new SearchDialog(screen).Show(@"C:\Work");
+
+        Assert.NotNull(result);
+        Assert.Equal(SearchScope.CurrentDirectoryOnly, result.Scope);
+    }
+
     private static ConsoleKeyInfo Key(ConsoleKey key) =>
         new('\0', key, shift: false, alt: false, control: false);
 }

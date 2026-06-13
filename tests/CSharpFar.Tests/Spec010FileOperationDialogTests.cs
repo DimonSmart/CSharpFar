@@ -93,6 +93,29 @@ public sealed class Spec010FileOperationDialogTests
     }
 
     [Fact]
+    public void ShowCopy_MouseSelectsAccessRightsMode()
+    {
+        var driver = new FakeConsoleDriver(width: 100, height: 30);
+        var screen = new ScreenRenderer(driver);
+        driver.BeforeReadInput = currentDriver =>
+        {
+            var row = currentDriver.WriteRecords.Last(record =>
+                record.Text.Contains("Access rights:", StringComparison.Ordinal));
+            int x = row.X + row.Text.IndexOf("Inherit", StringComparison.Ordinal);
+            currentDriver.EnqueueInput(new MouseConsoleInputEvent(x, row.Y, MouseButton.Left, MouseEventKind.Down, MouseKeyModifiers.None));
+            currentDriver.EnqueueKey(Key(ConsoleKey.F10));
+        };
+
+        var result = new FileOperationDialog(screen).ShowCopy(
+            [@"C:\source\a.txt"],
+            @"C:\destination",
+            new FileOperationOptions());
+
+        Assert.NotNull(result);
+        Assert.Equal(FileSecurityMode.Inherit, result.Options.SecurityMode);
+    }
+
+    [Fact]
     public void ShowCopy_MouseClickCheckboxTogglesPreserveTimestampsOff()
     {
         var driver = new FakeConsoleDriver(width: 100, height: 30);

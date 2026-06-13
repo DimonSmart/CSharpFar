@@ -500,7 +500,7 @@ internal sealed class FileOperationDialog
             return false;
 
         var scrollbarBounds = new Rect(frameBounds.Right - 1, bodyTop, 1, bodyHeight);
-        return ScrollBarMouseHandler.TryHandleMouse(
+        return ScrollableFormDialog.TryHandleScrollbarMouse(
             mouse,
             scrollbarBounds,
             BodyRowCount,
@@ -604,14 +604,14 @@ internal sealed class FileOperationDialog
         int bodyTop = frameBounds.Y + 1;
         int bodyHeight = Math.Max(1, errorY - bodyTop);
 
-        if (mouseX < contentX || mouseX >= contentX + contentWidth ||
-            mouseY < bodyTop || mouseY >= bodyTop + bodyHeight)
-        {
-            return false;
-        }
-
-        virtualRow = bodyScrollTop + mouseY - bodyTop;
-        return virtualRow >= 0 && virtualRow < BodyRowCount;
+        return ScrollableFormDialog.TryHitTestBodyRow(
+            new Rect(contentX, bodyTop, contentWidth, bodyHeight),
+            bodyScrollTop,
+            BodyRowCount,
+            bodyHeight,
+            mouseX,
+            mouseY,
+            out virtualRow);
     }
 
     private static FileOperationDialogResult? BuildResult(
@@ -716,44 +716,23 @@ internal sealed class FileOperationDialog
         new('\0', ConsoleKey.Spacebar, shift: false, alt: false, control: false);
 
     private static int NextFocusableRow(int focusRow, bool useFilter, bool showOperationOptions)
-    {
-        if (!showOperationOptions)
-        {
-            if (focusRow == 0)
-                return 2;
-            if (focusRow == 2)
-                return 7;
-            return 0;
-        }
-
-        if (focusRow == 5 && useFilter)
-            return 6;
-        if (focusRow == 5 || focusRow == 6)
-            return 7;
-        if (focusRow >= 7)
-            return 0;
-        return focusRow + 1;
-    }
+        => ScrollableFormDialog.MoveFocus(
+            focusRow,
+            8,
+            delta: 1,
+            row => IsFocusableRow(row, useFilter, showOperationOptions));
 
     private static int PreviousFocusableRow(int focusRow, bool useFilter, bool showOperationOptions)
-    {
-        if (!showOperationOptions)
-        {
-            if (focusRow == 0)
-                return 7;
-            if (focusRow == 7)
-                return 2;
-            return 0;
-        }
+        => ScrollableFormDialog.MoveFocus(
+            focusRow,
+            8,
+            delta: -1,
+            row => IsFocusableRow(row, useFilter, showOperationOptions));
 
-        if (focusRow == 0)
-            return 7;
-        if (focusRow == 7)
-            return useFilter ? 6 : 5;
-        if (focusRow == 6)
-            return 5;
-        return focusRow - 1;
-    }
+    private static bool IsFocusableRow(int row, bool useFilter, bool showOperationOptions) =>
+        row is 0 or 2 or 7 ||
+        (showOperationOptions && row is 1 or 3 or 4 or 5) ||
+        (showOperationOptions && useFilter && row == 6);
 
     private static int FindConflictIndex(ConflictDecisionMode mode, IReadOnlyList<ConflictDecisionMode> conflictModes)
     {
@@ -963,14 +942,12 @@ internal sealed class FileOperationDialog
     }
 
     private static int NormalizeBodyScroll(ConsoleSize size, int focusRow, int bodyScrollTop)
-    {
-        int viewportRows = FileOperationBodyViewportRows(size);
-        bodyScrollTop = ScrollStateCalculator.ClampFirstVisibleIndex(bodyScrollTop, BodyRowCount, viewportRows);
-        int focusVirtualRow = FocusVirtualRow(focusRow);
-        if (focusVirtualRow >= 0)
-            bodyScrollTop = ScrollStateCalculator.EnsureIndexVisible(focusVirtualRow, bodyScrollTop, viewportRows);
-        return ScrollStateCalculator.ClampFirstVisibleIndex(bodyScrollTop, BodyRowCount, viewportRows);
-    }
+        => ScrollableFormDialog.NormalizeBodyScroll(
+            BodyRowCount,
+            focusRow,
+            bodyScrollTop,
+            FileOperationBodyViewportRows(size),
+            FocusVirtualRow);
 
     private static int FileOperationBodyViewportRows(ConsoleSize size)
     {

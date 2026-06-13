@@ -211,6 +211,25 @@ public class FunctionKeyBarTests
         Assert.False(controller.TryGetAction(mouse, y: 24, totalWidth: 120, actions, out _));
     }
 
+    [Fact]
+    public void Controller_RenderFiltersDisabledActions()
+    {
+        var driver = new FakeConsoleDriver(120, 2);
+        var screen = new ScreenRenderer(driver);
+        var controller = new FunctionKeyBarController<string>();
+        FunctionKeyBarAction<string>[] actions =
+        [
+            new(5, "Copy", "copy", Enabled: false),
+            new(10, "Quit", "quit"),
+        ];
+
+        controller.Render(screen, y: 0, totalWidth: 120, actions);
+
+        string row = driver.GetRow(0);
+        Assert.DoesNotContain("5Copy", row);
+        Assert.Contains("10Quit", row);
+    }
+
     [Theory]
     [InlineData(0, 23, MouseButton.Left, MouseEventKind.Down)]
     [InlineData(0, 24, MouseButton.Right, MouseEventKind.Down)]

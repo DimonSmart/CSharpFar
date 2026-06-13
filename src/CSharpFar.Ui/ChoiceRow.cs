@@ -15,17 +15,14 @@ public sealed class ChoiceRow<T>
 
     public ChoiceRow(IReadOnlyList<T> choices, Func<T, string> format, int selectedIndex = 0)
     {
-        if (choices.Count == 0)
-            throw new ArgumentException("At least one choice is required.", nameof(choices));
-
         _choices = choices;
         _format = format;
-        SelectedIndex = Math.Clamp(selectedIndex, 0, choices.Count - 1);
+        SelectedIndex = choices.Count == 0 ? -1 : Math.Clamp(selectedIndex, 0, choices.Count - 1);
     }
 
     public T Value
     {
-        get => _choices[SelectedIndex];
+        get => SelectedIndex < 0 ? default! : _choices[SelectedIndex];
         set
         {
             for (int i = 0; i < _choices.Count; i++)
@@ -46,7 +43,7 @@ public sealed class ChoiceRow<T>
         ArgumentNullException.ThrowIfNull(screen);
 
         var palette = UiTheme.Current;
-        string text = $"{label}: {_format(Value)}";
+        string text = SelectedIndex < 0 ? $"{label}: " : $"{label}: {_format(Value)}";
         screen.Write(
             x,
             y,
@@ -97,6 +94,9 @@ public sealed class ChoiceRow<T>
 
     public bool TryHandleKey(ConsoleKeyInfo key)
     {
+        if (_choices.Count == 0)
+            return false;
+
         int previous = SelectedIndex;
         SelectedIndex = key.Key switch
         {
@@ -109,6 +109,9 @@ public sealed class ChoiceRow<T>
 
     public bool TryHandleMouse(MouseConsoleInputEvent mouse)
     {
+        if (_choices.Count == 0)
+            return false;
+
         if (!_hasRendered ||
             mouse.Button != MouseButton.Left ||
             mouse.Kind is not (MouseEventKind.Down or MouseEventKind.Click) ||

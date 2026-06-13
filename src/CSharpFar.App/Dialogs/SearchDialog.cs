@@ -110,6 +110,9 @@ internal sealed class SearchDialog
         bool includeDirectoriesInResults = false;
         bool searchInSymbolicLinks = false;
         var scope = SearchScope.CurrentDirectoryRecursive;
+        var scopeRow = new ChoiceRow<SearchScope>(
+            [SearchScope.CurrentDirectoryRecursive, SearchScope.CurrentDirectoryOnly],
+            ScopeLabel);
         int focusRow = 0;
         int bodyScrollTop = 0;
         ScrollBarDragState? bodyScrollbarDrag = null;
@@ -137,6 +140,7 @@ internal sealed class SearchDialog
             includeDirectoriesInResults,
             searchInSymbolicLinks,
             scope,
+            scopeRow,
             focusRow,
             bodyScrollTop,
             buttonBar,
@@ -272,7 +276,9 @@ internal sealed class SearchDialog
                             ref notContaining,
                             ref includeDirectoriesInResults,
                             ref searchInSymbolicLinks,
-                            ref scope);
+                            ref scope,
+                            scopeRow,
+                            mouse);
                     }
                     DrawCurrent();
                     continue;
@@ -385,7 +391,8 @@ internal sealed class SearchDialog
                             ref notContaining,
                             ref includeDirectoriesInResults,
                             ref searchInSymbolicLinks,
-                            ref scope);
+                            ref scope,
+                            scopeRow);
                     }
                     break;
                 case ConsoleKey.Spacebar:
@@ -431,7 +438,8 @@ internal sealed class SearchDialog
                             ref notContaining,
                             ref includeDirectoriesInResults,
                             ref searchInSymbolicLinks,
-                            ref scope);
+                            ref scope,
+                            scopeRow);
                     }
                     break;
                 case ConsoleKey.UpArrow:
@@ -499,6 +507,7 @@ internal sealed class SearchDialog
                 includeDirectoriesInResults,
                 searchInSymbolicLinks,
                 scope,
+                scopeRow,
                 focusRow,
                 bodyScrollTop,
                 buttonBar,
@@ -530,7 +539,7 @@ internal sealed class SearchDialog
             return false;
 
         var scrollbarBounds = new Rect(frameBounds.Right - 1, bodyTop, 1, bodyHeight);
-        return ScrollBarMouseHandler.TryHandleMouse(
+        return ScrollableFormDialog.TryHandleScrollbarMouse(
             mouse,
             scrollbarBounds,
             BodyRowCount,
@@ -608,7 +617,9 @@ internal sealed class SearchDialog
         ref bool notContaining,
         ref bool includeDirectoriesInResults,
         ref bool searchInSymbolicLinks,
-        ref SearchScope scope)
+        ref SearchScope scope,
+        ChoiceRow<SearchScope> scopeRow,
+        MouseConsoleInputEvent? mouse = null)
     {
         switch (focusRow)
         {
@@ -638,9 +649,12 @@ internal sealed class SearchDialog
                 searchInSymbolicLinks = _searchInSymbolicLinks.Value;
                 break;
             case 8:
-                scope = scope == SearchScope.CurrentDirectoryOnly
-                    ? SearchScope.CurrentDirectoryRecursive
-                    : SearchScope.CurrentDirectoryOnly;
+                scopeRow.Value = scope;
+                if (mouse is null)
+                    scopeRow.TryHandleKey(ToggleKey());
+                else
+                    scopeRow.TryHandleMouse(mouse);
+                scope = scopeRow.Value;
                 break;
         }
     }
@@ -649,30 +663,18 @@ internal sealed class SearchDialog
         new('\0', ConsoleKey.Spacebar, shift: false, alt: false, control: false);
 
     private static int NextFocusableRow(int focusRow, bool hasText)
-    {
-        for (int i = 0; i <= ButtonRow; i++)
-        {
-            int next = focusRow >= ButtonRow ? 0 : focusRow + 1;
-            if (IsFocusableRow(next, hasText))
-                return next;
-            focusRow = next;
-        }
-
-        return 0;
-    }
+        => ScrollableFormDialog.MoveFocus(
+            focusRow,
+            ButtonRow + 1,
+            delta: 1,
+            row => IsFocusableRow(row, hasText));
 
     private static int PreviousFocusableRow(int focusRow, bool hasText)
-    {
-        for (int i = 0; i <= ButtonRow; i++)
-        {
-            int previous = focusRow <= 0 ? ButtonRow : focusRow - 1;
-            if (IsFocusableRow(previous, hasText))
-                return previous;
-            focusRow = previous;
-        }
-
-        return 0;
-    }
+        => ScrollableFormDialog.MoveFocus(
+            focusRow,
+            ButtonRow + 1,
+            delta: -1,
+            row => IsFocusableRow(row, hasText));
 
     private static bool IsFocusableRow(int row, bool hasText) =>
         row is 0 or 1 or 3 or 4 or 6 or 7 or 8 or 9 or ButtonRow ||
@@ -702,6 +704,7 @@ internal sealed class SearchDialog
         bool includeDirectoriesInResults,
         bool searchInSymbolicLinks,
         SearchScope scope,
+        ChoiceRow<SearchScope> scopeRow,
         int focusRow,
         int bodyScrollTop,
         DialogButtonBar buttonBar,
@@ -750,7 +753,7 @@ internal sealed class SearchDialog
                 focusRow: 5);
             DrawBodyCheckbox(8, "Search folders", includeDirectoriesInResults, focusRow == 6, fill, focused, focusRow: 6);
             DrawBodyCheckbox(9, "Search in symbolic links", searchInSymbolicLinks, focusRow == 7, fill, focused, focusRow: 7);
-            DrawBodyValueRow(10, "Select search area:", ScopeLabel(scope), focusRow == 8, fill, focused, focusRow: 8);
+            DrawBodyChoiceRow(10, scope, focusRow == 8, focusRow: 8);
             WriteBodyRow(11, "Parallelism:", fill);
             DrawBodyInput(12, parallelism, parallelismHistory, focusRow == 9, Math.Min(8, contentWidth), focusRow: 9);
 
@@ -846,6 +849,28 @@ internal sealed class SearchDialog
                 CheckBoxForLabel(label, value).Render(_screen, contentX, y, contentWidth, isFocused);
                 _optionBounds[focusRow] = new Rect(contentX, y, contentWidth, 1);
             }
+
+            void DrawBodyChoiceRow(
+                int virtualRow,
+                SearchScope value,
+                bool isFocused,
+                int focusRow)
+            {
+                if (BodyY(virtualRow) is not { } y)
+                    return;
+
+                scopeRow.Value = value;
+                scopeRow.RenderSegmented(
+                    _screen,
+                    contentX,
+                    y,
+                    contentWidth,
+                    "Select search area:",
+                    isFocused,
+                    fill,
+                    focused);
+                _optionBounds[focusRow] = new Rect(contentX, y, contentWidth, 1);
+            }
         });
 
         Rect frameBounds = new(
@@ -876,14 +901,12 @@ internal sealed class SearchDialog
     }
 
     private static int NormalizeBodyScroll(ConsoleSize size, int focusRow, int bodyScrollTop)
-    {
-        int viewportRows = SearchBodyViewportRows(size);
-        bodyScrollTop = ScrollStateCalculator.ClampFirstVisibleIndex(bodyScrollTop, BodyRowCount, viewportRows);
-        int focusVirtualRow = FocusVirtualRow(focusRow);
-        if (focusVirtualRow >= 0)
-            bodyScrollTop = ScrollStateCalculator.EnsureIndexVisible(focusVirtualRow, bodyScrollTop, viewportRows);
-        return ScrollStateCalculator.ClampFirstVisibleIndex(bodyScrollTop, BodyRowCount, viewportRows);
-    }
+        => ScrollableFormDialog.NormalizeBodyScroll(
+            BodyRowCount,
+            focusRow,
+            bodyScrollTop,
+            SearchBodyViewportRows(size),
+            FocusVirtualRow);
 
     private static int SearchBodyViewportRows(ConsoleSize size)
     {

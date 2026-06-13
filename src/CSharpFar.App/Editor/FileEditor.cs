@@ -930,12 +930,7 @@ internal sealed class FileEditor
 
     private void DrawKeyBar(ConsoleSize size, ConsoleModifiers modifiers)
     {
-        var actions = EditorCommandBindings.ForModifiers(modifiers)
-            .Select(binding => new FunctionKeyBarAction<ConsoleKeyInfo>(
-                binding.KeyNumber,
-                binding.Label,
-                ToConsoleKeyInfo(binding)))
-            .ToArray();
+        var actions = CreateEditorFunctionKeyBarActions(modifiers);
         new FunctionKeyBarController<ConsoleKeyInfo>().Render(_screen, size.Height - 1, size.Width, actions);
     }
 
@@ -947,12 +942,7 @@ internal sealed class FileEditor
     {
         key = default;
 
-        var actions = EditorCommandBindings.ForModifiers(modifiers)
-            .Select(binding => new FunctionKeyBarAction<ConsoleKeyInfo>(
-                binding.KeyNumber,
-                binding.Label,
-                ToConsoleKeyInfo(binding)))
-            .ToArray();
+        var actions = CreateEditorFunctionKeyBarActions(modifiers);
 
         return new FunctionKeyBarController<ConsoleKeyInfo>().TryGetAction(
             mouse,
@@ -961,6 +951,15 @@ internal sealed class FileEditor
             actions,
             out key);
     }
+
+    private static IReadOnlyList<FunctionKeyBarAction<ConsoleKeyInfo>> CreateEditorFunctionKeyBarActions(
+        ConsoleModifiers modifiers) =>
+        EditorCommandBindings.ForModifiers(modifiers)
+            .Select(binding => new FunctionKeyBarAction<ConsoleKeyInfo>(
+                binding.KeyNumber,
+                binding.Label,
+                ToConsoleKeyInfo(binding)))
+            .ToArray();
 
     private static ConsoleKeyInfo ToConsoleKeyInfo(EditorCommandBinding binding) =>
         new(
