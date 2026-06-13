@@ -279,6 +279,113 @@ public sealed class UiComponentDialogTests
         Assert.Null(buttonId);
     }
 
+    [Fact]
+    public void ChoiceDialog_EnterActivatesDefaultButton()
+    {
+        var driver = new FakeConsoleDriver(80, 20);
+        driver.EnqueueKey(Key(ConsoleKey.Enter));
+
+        var result = new ChoiceDialog(new ScreenRenderer(driver)).Show(CreateChoiceOptions());
+
+        Assert.Equal(0, result.ButtonIndex);
+        Assert.Equal("yes", result.ButtonId);
+    }
+
+    [Fact]
+    public void ChoiceDialog_EscapeReturnsCancelButton()
+    {
+        var driver = new FakeConsoleDriver(80, 20);
+        driver.EnqueueKey(Key(ConsoleKey.Escape));
+
+        var result = new ChoiceDialog(new ScreenRenderer(driver)).Show(CreateChoiceOptions());
+
+        Assert.Equal(1, result.ButtonIndex);
+        Assert.Equal("no", result.ButtonId);
+    }
+
+    [Fact]
+    public void ChoiceDialog_MouseClickActivatesButton()
+    {
+        var driver = new FakeConsoleDriver(80, 20);
+        driver.EnqueueInput(new MouseConsoleInputEvent(42, 10, MouseButton.Left, MouseEventKind.Click, MouseKeyModifiers.None));
+        driver.EnqueueKey(Key(ConsoleKey.Escape));
+
+        var result = new ChoiceDialog(new ScreenRenderer(driver)).Show(CreateChoiceOptions());
+
+        Assert.Equal("no", result.ButtonId);
+    }
+
+    [Fact]
+    public void SingleLineInputDialog_EnterConfirmsInitialText()
+    {
+        var driver = new FakeConsoleDriver(80, 20);
+        driver.EnqueueKey(Key(ConsoleKey.Enter));
+
+        var result = new SingleLineInputDialog(new ScreenRenderer(driver)).Show(new SingleLineInputDialogOptions
+        {
+            Title = "Input",
+            Prompt = "Name",
+            InitialText = "value",
+        });
+
+        Assert.True(result.IsConfirmed);
+        Assert.Equal("value", result.Text);
+    }
+
+    [Fact]
+    public void SingleLineInputDialog_RejectsEmptyUntilAllowedValueEntered()
+    {
+        var driver = new FakeConsoleDriver(80, 20);
+        driver.EnqueueKey(Key(ConsoleKey.Enter));
+        driver.EnqueueKey(new ConsoleKeyInfo('a', ConsoleKey.A, false, false, false));
+        driver.EnqueueKey(Key(ConsoleKey.Enter));
+
+        var result = new SingleLineInputDialog(new ScreenRenderer(driver)).Show(new SingleLineInputDialogOptions
+        {
+            Title = "Input",
+            Prompt = "Name",
+            AllowEmpty = false,
+        });
+
+        Assert.True(result.IsConfirmed);
+        Assert.Equal("a", result.Text);
+    }
+
+    [Fact]
+    public void SingleLineInputDialog_ShowsValidationErrorAndReprompts()
+    {
+        var driver = new FakeConsoleDriver(80, 20);
+        driver.EnqueueKey(Key(ConsoleKey.Enter));
+        driver.EnqueueKey(new ConsoleKeyInfo('x', ConsoleKey.X, false, false, false));
+        driver.EnqueueKey(Key(ConsoleKey.Enter));
+
+        var result = new SingleLineInputDialog(new ScreenRenderer(driver)).Show(new SingleLineInputDialogOptions
+        {
+            Title = "Input",
+            Prompt = "Name",
+            InitialText = "bad",
+            Validate = text => text == "bad" ? "Invalid" : null,
+        });
+
+        Assert.True(result.IsConfirmed);
+        Assert.Equal("badx", result.Text);
+        Assert.Contains(driver.WriteRecords, write => write.Text.Contains("Invalid", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void CheckBoxLine_MouseClickTogglesValue()
+    {
+        var driver = new FakeConsoleDriver(30, 5);
+        var screen = new ScreenRenderer(driver);
+        var checkBox = new CheckBoxLine("Option");
+        checkBox.Render(screen, 2, 2, 20, focused: false);
+
+        bool handled = checkBox.TryHandleMouse(new MouseConsoleInputEvent(3, 2, MouseButton.Left, MouseEventKind.Down, MouseKeyModifiers.None));
+
+        Assert.True(handled);
+        Assert.True(checkBox.Value);
+    }
+
     private static ListWithButtonsDialog<string> CreateListWithButtons(IReadOnlyList<string> items) =>
         new(
             items,
@@ -294,6 +401,20 @@ public sealed class UiComponentDialogTests
             DefaultListActionId = "connect",
             DeleteActionId = "delete",
             CancelActionId = "cancel",
+        };
+
+    private static ChoiceDialogOptions CreateChoiceOptions() =>
+        new()
+        {
+            Title = "Question",
+            Lines = ["Continue?"],
+            Buttons =
+            [
+                new DialogButton("yes", "Yes", 'Y', IsDefault: true),
+                new DialogButton("no", "No", 'N'),
+            ],
+            DefaultButtonIndex = 0,
+            CancelButtonIndex = 1,
         };
 
     private static ConsoleKeyInfo Key(ConsoleKey key) => new('\0', key, false, false, false);

@@ -19,6 +19,10 @@ internal sealed class ViewerFindDialog
     private readonly ScreenRenderer _screen;
     private readonly ConsolePalette _palette;
     private readonly ModalDialogRenderer _modalRenderer = new();
+    private readonly CheckBoxLine _caseSensitive = new("Case sensitive");
+    private readonly CheckBoxLine _wholeWords = new("Whole words");
+    private readonly CheckBoxLine _useRegex = new("Regular expression");
+    private readonly CheckBoxLine _searchHex = new("Hex sequence");
     private readonly DialogButtonBar _buttonBar = new(
     [
         new DialogButton("find", "Find", 'F', IsDefault: true),
@@ -73,6 +77,62 @@ internal sealed class ViewerFindDialog
         {
             Draw(size, pattern, patternHistory, caseSensitive, wholeWords, useRegex, searchHex, focusRow, focusedButton, error);
             var input = _screen.ReadInput();
+            if (input is MouseConsoleInputEvent mouse)
+            {
+                if (_caseSensitive.TryHandleMouse(mouse))
+                {
+                    caseSensitive = _caseSensitive.Value;
+                    focusRow = 1;
+                    continue;
+                }
+
+                if (_wholeWords.TryHandleMouse(mouse))
+                {
+                    wholeWords = _wholeWords.Value;
+                    focusRow = 2;
+                    continue;
+                }
+
+                if (_useRegex.TryHandleMouse(mouse))
+                {
+                    useRegex = _useRegex.Value;
+                    if (useRegex)
+                    {
+                        searchHex = false;
+                        _searchHex.Value = false;
+                    }
+                    focusRow = 3;
+                    continue;
+                }
+
+                if (_searchHex.TryHandleMouse(mouse))
+                {
+                    searchHex = _searchHex.Value;
+                    if (searchHex)
+                    {
+                        useRegex = false;
+                        _useRegex.Value = false;
+                    }
+                    focusRow = 4;
+                    continue;
+                }
+
+                if (_buttonBar.TryHandleInput(input, ref focusedButton, out string? mouseButtonId))
+                {
+                    focusRow = ButtonFocusRow;
+                    if (mouseButtonId == "cancel")
+                        return null;
+                    if (mouseButtonId == "find")
+                    {
+                        var result = TryAccept(pattern.Text, caseSensitive, wholeWords, useRegex, searchHex, patternHistory, ref error);
+                        if (result is not null)
+                            return result;
+                    }
+
+                    continue;
+                }
+            }
+
             if (input is not KeyConsoleInputEvent { Key: var key })
                 continue;
 
@@ -110,18 +170,30 @@ internal sealed class ViewerFindDialog
                 case ConsoleKey.Spacebar:
                 case ConsoleKey.Enter:
                     if (focusRow == 1)
-                        caseSensitive = !caseSensitive;
+                    {
+                        _caseSensitive.Value = caseSensitive;
+                        _caseSensitive.TryHandleKey(key);
+                        caseSensitive = _caseSensitive.Value;
+                    }
                     else if (focusRow == 2)
-                        wholeWords = !wholeWords;
+                    {
+                        _wholeWords.Value = wholeWords;
+                        _wholeWords.TryHandleKey(key);
+                        wholeWords = _wholeWords.Value;
+                    }
                     else if (focusRow == 3)
                     {
-                        useRegex = !useRegex;
+                        _useRegex.Value = useRegex;
+                        _useRegex.TryHandleKey(key);
+                        useRegex = _useRegex.Value;
                         if (useRegex)
                             searchHex = false;
                     }
                     else if (focusRow == 4)
                     {
-                        searchHex = !searchHex;
+                        _searchHex.Value = searchHex;
+                        _searchHex.TryHandleKey(key);
+                        searchHex = _searchHex.Value;
                         if (searchHex)
                             useRegex = false;
                     }
@@ -221,10 +293,14 @@ internal sealed class ViewerFindDialog
                     PaletteStyles.InputHighlight(_palette),
                     patternHistory);
 
-                DrawCheckbox(content.X, content.Y + 2, content.Width, "Case sensitive", caseSensitive, focusRow == 1);
-                DrawCheckbox(content.X, content.Y + 3, content.Width, "Whole words", wholeWords, focusRow == 2);
-                DrawCheckbox(content.X, content.Y + 4, content.Width, "Regular expression", useRegex, focusRow == 3);
-                DrawCheckbox(content.X, content.Y + 5, content.Width, "Hex sequence", searchHex, focusRow == 4);
+                _caseSensitive.Value = caseSensitive;
+                _wholeWords.Value = wholeWords;
+                _useRegex.Value = useRegex;
+                _searchHex.Value = searchHex;
+                _caseSensitive.Render(_screen, content.X, content.Y + 2, content.Width, focusRow == 1);
+                _wholeWords.Render(_screen, content.X, content.Y + 3, content.Width, focusRow == 2);
+                _useRegex.Render(_screen, content.X, content.Y + 4, content.Width, focusRow == 3);
+                _searchHex.Render(_screen, content.X, content.Y + 5, content.Width, focusRow == 4);
 
                 string errorText = error is null ? string.Empty : error;
                 _screen.Write(content.X, content.Y + 6, Fit(errorText, content.Width), PaletteStyles.DialogError(_palette));
@@ -257,12 +333,6 @@ internal sealed class ViewerFindDialog
 
     private static int InputFieldY(ConsoleSize size) =>
         Math.Max(0, (size.Height - DialogHeight) / 2) + 2;
-
-    private void DrawCheckbox(int x, int y, int width, string label, bool value, bool focused)
-    {
-        string text = $"[{(value ? 'x' : ' ')}] {label}";
-        _screen.Write(x, y, Fit(text, width), focused ? PaletteStyles.InputField(_palette) : PaletteStyles.DialogFill(_palette));
-    }
 
     private static string Fit(string text, int width)
     {

@@ -1,5 +1,6 @@
 using CSharpFar.App.Editor;
 using CSharpFar.Console;
+using CSharpFar.Console.Input;
 using CSharpFar.Tests.Fakes;
 using CSharpFar.Ui;
 
@@ -14,6 +15,7 @@ public sealed class EditorFindDialogTests
         firstDriver.EnqueueKey(new ConsoleKeyInfo('a', ConsoleKey.A, shift: false, alt: false, control: false));
         firstDriver.EnqueueKey(new ConsoleKeyInfo('b', ConsoleKey.B, shift: false, alt: false, control: false));
         firstDriver.EnqueueKey(new ConsoleKeyInfo('c', ConsoleKey.C, shift: false, alt: false, control: false));
+        firstDriver.EnqueueKey(new ConsoleKeyInfo('\0', ConsoleKey.Enter, shift: false, alt: false, control: false));
         firstDriver.EnqueueKey(new ConsoleKeyInfo('\0', ConsoleKey.Enter, shift: false, alt: false, control: false));
 
         var first = new EditorFindDialog(new ScreenRenderer(firstDriver), PaletteRegistry.Default).Show(null);
@@ -48,5 +50,21 @@ public sealed class EditorFindDialogTests
                 WholeWords: false));
 
         Assert.Null(result);
+    }
+
+    [Fact]
+    public void Show_MouseClickCheckboxTogglesOption()
+    {
+        var driver = new FakeConsoleDriver(80, 25);
+        driver.EnqueueInput(new MouseConsoleInputEvent(15, 11, MouseButton.Left, MouseEventKind.Down, MouseKeyModifiers.None));
+        driver.EnqueueInput(new MouseConsoleInputEvent(35, 14, MouseButton.Left, MouseEventKind.Down, MouseKeyModifiers.None));
+        driver.EnqueueKey(new ConsoleKeyInfo('\0', ConsoleKey.Escape, shift: false, alt: false, control: false));
+
+        var result = new EditorFindDialog(new ScreenRenderer(driver), PaletteRegistry.Default)
+            .Show(new EditorFindDialogResult("abc", CaseSensitive: false, WholeWords: false));
+
+        Assert.NotNull(result);
+        Assert.True(result.CaseSensitive);
+        Assert.False(result.WholeWords);
     }
 }

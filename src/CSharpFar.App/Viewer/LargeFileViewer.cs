@@ -5,6 +5,7 @@ using CSharpFar.Console;
 using CSharpFar.Console.Input;
 using CSharpFar.Console.Models;
 using CSharpFar.Core.Text;
+using CSharpFar.Ui;
 
 namespace CSharpFar.App.Viewer;
 
@@ -414,14 +415,13 @@ internal sealed class LargeFileViewer
         if (input is not MouseConsoleInputEvent mouse)
             return false;
 
-        if (!FunctionKeyBarRenderer.TryGetKeyNumberAt(mouse, size.Height - 1, size.Width, out int keyNumber) ||
-            !functionKeyBarItems.Any(item => item.KeyNumber == keyNumber) ||
-            !FunctionKeyBarRenderer.TryGetFunctionKey(keyNumber, out var functionKey))
+        if (!new FunctionKeyBar().TryHitTest(mouse, size.Height - 1, size.Width, out var hit) ||
+            !functionKeyBarItems.Any(item => item.KeyNumber == hit.KeyNumber))
         {
             return false;
         }
 
-        key = new ConsoleKeyInfo('\0', functionKey, shift: false, alt: false, control: false);
+        key = new ConsoleKeyInfo('\0', hit.Key, shift: false, alt: false, control: false);
         return true;
     }
 
@@ -675,8 +675,7 @@ internal sealed class LargeFileViewer
         if (!force && signature == _renderedFooterSignature)
             return;
 
-        new FunctionKeyBarRenderer(_screen, _palette)
-            .Render(size.Height - 1, size.Width, ViewerFunctionKeyBarItems(state));
+        new FunctionKeyBar().Render(_screen, size.Height - 1, size.Width, ViewerFunctionKeyBarItems(state));
         _renderedFooterSignature = signature;
     }
 
@@ -820,7 +819,7 @@ internal sealed class LargeFileViewer
 
     private void JumpToPosition(IFileByteReader reader, LargeFileViewerState state, int contentHeight)
     {
-        string? input = new InputDialog(_screen, _palette).Show(
+        string? input = new InputDialog(_screen).Show(
             "Viewer",
             state.IsHexMode ? "Percent or byte offset:" : "Line number or percent:",
             validate: text => ValidateJump(text, state.IsHexMode));

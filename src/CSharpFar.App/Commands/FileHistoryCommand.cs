@@ -27,7 +27,7 @@ internal sealed class FileHistoryCommand : IApplicationCommand
                 return ApplicationCommandResult.Rendered();
             }
 
-            var choice = new OpenFileDialog(context.Screen, context.Palette).Show(Path.GetFileName(path));
+            var choice = new OpenFileDialog(context.Screen).Show(Path.GetFileName(path));
             switch (choice)
             {
                 case OpenFileChoice.View:

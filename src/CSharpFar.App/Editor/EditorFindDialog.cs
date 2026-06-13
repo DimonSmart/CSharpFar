@@ -16,6 +16,8 @@ internal sealed class EditorFindDialog
     private readonly ConsolePalette _palette;
     private static readonly SingleLineTextHistoryRegistry HistoryRegistry = new();
     private readonly ModalDialogRenderer _modalRenderer = new();
+    private readonly CheckBoxLine _caseSensitive = new("CaseSensitive");
+    private readonly CheckBoxLine _wholeWords = new("WholeWords");
     private readonly DialogButtonBar _buttonBar = new(
     [
         new DialogButton("find", "Find", 'F', IsDefault: true),
@@ -62,6 +64,43 @@ internal sealed class EditorFindDialog
         {
             Draw(size, pattern, patternHistory, caseSensitive, wholeWords, focusRow, focusedButton, error);
             var input = _screen.ReadInput();
+            if (input is MouseConsoleInputEvent mouse)
+            {
+                if (_caseSensitive.TryHandleMouse(mouse))
+                {
+                    caseSensitive = _caseSensitive.Value;
+                    focusRow = 1;
+                    continue;
+                }
+
+                if (_wholeWords.TryHandleMouse(mouse))
+                {
+                    wholeWords = _wholeWords.Value;
+                    focusRow = 2;
+                    continue;
+                }
+
+                if (_buttonBar.TryHandleInput(input, ref focusedButton, out string? mouseButtonId))
+                {
+                    focusRow = 3;
+                    if (mouseButtonId == "cancel")
+                        return null;
+                    if (mouseButtonId == "find")
+                    {
+                        if (pattern.Text.Length == 0)
+                        {
+                            error = "Search text is required.";
+                            continue;
+                        }
+
+                        patternHistory.Add(pattern.Text);
+                        return new EditorFindDialogResult(pattern.Text, caseSensitive, wholeWords);
+                    }
+
+                    continue;
+                }
+            }
+
             if (input is not KeyConsoleInputEvent { Key: var key })
                 continue;
 
@@ -98,19 +137,31 @@ internal sealed class EditorFindDialog
                     break;
                 case ConsoleKey.Spacebar:
                     if (focusRow == 1)
-                        caseSensitive = !caseSensitive;
+                    {
+                        _caseSensitive.Value = caseSensitive;
+                        _caseSensitive.TryHandleKey(key);
+                        caseSensitive = _caseSensitive.Value;
+                    }
                     else if (focusRow == 2)
-                        wholeWords = !wholeWords;
+                    {
+                        _wholeWords.Value = wholeWords;
+                        _wholeWords.TryHandleKey(key);
+                        wholeWords = _wholeWords.Value;
+                    }
                     break;
                 case ConsoleKey.Enter:
                     if (focusRow == 1)
                     {
-                        caseSensitive = !caseSensitive;
+                        _caseSensitive.Value = caseSensitive;
+                        _caseSensitive.TryHandleKey(key);
+                        caseSensitive = _caseSensitive.Value;
                         break;
                     }
                     if (focusRow == 2)
                     {
-                        wholeWords = !wholeWords;
+                        _wholeWords.Value = wholeWords;
+                        _wholeWords.TryHandleKey(key);
+                        wholeWords = _wholeWords.Value;
                         break;
                     }
 
@@ -178,8 +229,10 @@ internal sealed class EditorFindDialog
                     PaletteStyles.InputHighlight(_palette),
                     patternHistory);
 
-                DrawCheckbox(content.X, content.Y + 2, content.Width, "CaseSensitive", caseSensitive, focusRow == 1);
-                DrawCheckbox(content.X, content.Y + 3, content.Width, "WholeWords", wholeWords, focusRow == 2);
+                _caseSensitive.Value = caseSensitive;
+                _wholeWords.Value = wholeWords;
+                _caseSensitive.Render(_screen, content.X, content.Y + 2, content.Width, focusRow == 1);
+                _wholeWords.Render(_screen, content.X, content.Y + 3, content.Width, focusRow == 2);
 
                 string errorText = error is null ? string.Empty : error;
                 _screen.Write(content.X, content.Y + 4, Fit(errorText, content.Width), PaletteStyles.DialogError(_palette));
@@ -212,12 +265,6 @@ internal sealed class EditorFindDialog
 
     private static int InputFieldY(ConsoleSize size) =>
         Math.Max(0, (size.Height - DialogHeight) / 2) + 2;
-
-    private void DrawCheckbox(int x, int y, int width, string label, bool value, bool focused)
-    {
-        string text = $"[{(value ? 'x' : ' ')}] {label}";
-        _screen.Write(x, y, Fit(text, width), focused ? PaletteStyles.InputField(_palette) : PaletteStyles.DialogFill(_palette));
-    }
 
     private static string Fit(string text, int width)
     {

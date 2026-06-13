@@ -39,7 +39,6 @@ internal static class RenderingServicesFactory
         var clockRenderer = new ClockRenderer(screen, () => session.App.Palette);
         var functionKeyBarRenderer = new ApplicationFunctionKeyBarRenderer(
             screen,
-            () => session.App.Palette,
             functionKeyBindingProvider.GetBindings(),
             commandId => callbacks.CanExecuteFunctionKeyCommand(commandId));
         var overlayRenderer = new ApplicationOverlayRenderer(

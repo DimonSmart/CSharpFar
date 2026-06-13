@@ -2,38 +2,35 @@ using CSharpFar.Console;
 using CSharpFar.Console.Input;
 using CSharpFar.Console.Models;
 
-namespace CSharpFar.App.Rendering;
+namespace CSharpFar.Ui;
 
-internal readonly record struct FunctionKeyBarItem(int KeyNumber, string Label);
+public readonly record struct FunctionKeyBarItem(int KeyNumber, string Label);
 
-internal sealed class FunctionKeyBarRenderer
+public readonly record struct FunctionKeyBarMouseHit(int KeyNumber, ConsoleKey Key);
+
+public sealed class FunctionKeyBar
 {
     private const int FunctionKeyCount = 12;
     private const string Ellipsis = "...";
 
-    private readonly ScreenRenderer _screen;
-    private readonly CellStyle      _numStyle;
-    private readonly CellStyle      _labelStyle;
-    private readonly CellStyle      _gapStyle;
-
-    internal FunctionKeyBarRenderer(ScreenRenderer screen)
-        : this(screen, palette: null) { }
-
-    public FunctionKeyBarRenderer(ScreenRenderer screen, ConsolePalette? palette)
+    public void Render(
+        ScreenRenderer screen,
+        int y,
+        int totalWidth,
+        IReadOnlyList<FunctionKeyBarItem> items)
     {
-        _screen = screen;
-        palette ??= PaletteRegistry.Default;
-        _numStyle      = PaletteStyles.KeyBarNum(palette);
-        _labelStyle    = PaletteStyles.KeyBarLabel(palette);
-        _gapStyle      = PaletteStyles.CommandLine(palette);
-    }
+        ArgumentNullException.ThrowIfNull(screen);
+        ArgumentNullException.ThrowIfNull(items);
 
-    public void Render(int y, int totalWidth, IReadOnlyList<FunctionKeyBarItem> items)
-    {
         if (totalWidth <= 0)
             return;
 
-        _screen.FillRegion(new Rect(0, y, totalWidth, 1), _gapStyle);
+        var palette = UiTheme.Current;
+        var numStyle = PaletteStyles.KeyBarNum(palette);
+        var labelStyle = PaletteStyles.KeyBarLabel(palette);
+        var gapStyle = PaletteStyles.CommandLine(palette);
+
+        screen.FillRegion(new Rect(0, y, totalWidth, 1), gapStyle);
         int slotWidth = totalWidth / FunctionKeyCount;
         if (slotWidth <= 0)
             return;
@@ -51,7 +48,7 @@ internal sealed class FunctionKeyBarRenderer
             string keyText = keyNumber.ToString(System.Globalization.CultureInfo.InvariantCulture);
             int keyWidth = Math.Min(keyText.Length, slotWidth);
             if (keyWidth > 0)
-                _screen.Write(x, y, keyText.AsSpan(0, keyWidth), _numStyle);
+                screen.Write(x, y, keyText.AsSpan(0, keyWidth), numStyle);
 
             int slotEnd = keyNumber < FunctionKeyCount ? x + slotWidth : totalWidth;
             int labelWidth = slotEnd - x - keyWidth;
@@ -61,8 +58,26 @@ internal sealed class FunctionKeyBarRenderer
             labelsByKey.TryGetValue(keyNumber, out string? label);
             string fittedLabel = FitLabel(label ?? string.Empty, labelWidth);
             if (fittedLabel.Length > 0)
-                _screen.Write(x + keyWidth, y, fittedLabel, _labelStyle);
+                screen.Write(x + keyWidth, y, fittedLabel, labelStyle);
         }
+    }
+
+    public bool TryHitTest(
+        MouseConsoleInputEvent mouse,
+        int y,
+        int totalWidth,
+        out FunctionKeyBarMouseHit hit)
+    {
+        hit = default;
+
+        if (!TryGetKeyNumberAt(mouse, y, totalWidth, out int keyNumber) ||
+            !TryGetFunctionKey(keyNumber, out var key))
+        {
+            return false;
+        }
+
+        hit = new FunctionKeyBarMouseHit(keyNumber, key);
+        return true;
     }
 
     public static bool TryGetKeyNumberAtX(int x, int totalWidth, out int keyNumber)
@@ -82,7 +97,7 @@ internal sealed class FunctionKeyBarRenderer
 
     public static bool TryGetKeyNumberAt(
         MouseConsoleInputEvent mouse,
-        int barY,
+        int y,
         int totalWidth,
         out int keyNumber)
     {
@@ -90,7 +105,7 @@ internal sealed class FunctionKeyBarRenderer
 
         if (mouse.Button != MouseButton.Left ||
             mouse.Kind is not (MouseEventKind.Down or MouseEventKind.Click) ||
-            mouse.Y != barY)
+            mouse.Y != y)
         {
             return false;
         }

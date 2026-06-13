@@ -173,12 +173,12 @@ internal sealed class MouseInputRouter
         }
 
         var size = _context.LastRenderSizeOrCurrent();
-        if (!FunctionKeyBarRenderer.TryGetKeyNumberAt(evt, size.Height - 1, size.Width, out int keyNumber))
+        if (!new FunctionKeyBar().TryHitTest(evt, size.Height - 1, size.Width, out var hit))
             return false;
 
         var binding = _context.FunctionKeyBindings.FirstOrDefault(candidate =>
             candidate.Layer == _context.FunctionKeyLayer() &&
-            candidate.KeyNumber == keyNumber &&
+            candidate.KeyNumber == hit.KeyNumber &&
             _context.CanExecuteFunctionKeyCommand(candidate.CommandId));
 
         return binding is not null && _context.ExecuteRegisteredCommand(binding.CommandId, null);

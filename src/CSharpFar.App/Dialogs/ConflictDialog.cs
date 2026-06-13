@@ -151,7 +151,7 @@ internal sealed class ConflictDialog
         if (rememberChoice)
             return FileOperationConflictDecision.FromMode(ConflictDecisionMode.RenameAll);
 
-        string? renamed = new InputDialog(_screen, _palette).Show(
+        string? renamed = new InputDialog(_screen).Show(
             "Rename",
             "New destination:",
             initialText: conflict.DestinationPath);

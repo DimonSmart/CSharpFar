@@ -1,6 +1,5 @@
-using CSharpFar.App.Rendering;
 using CSharpFar.Console;
-using CSharpFar.Console.Models;
+using CSharpFar.Ui;
 
 namespace CSharpFar.App.Dialogs;
 
@@ -12,62 +11,35 @@ public enum SaveChangesChoice { Save, Discard, Cancel }
 /// </summary>
 internal sealed class SaveChangesDialog
 {
-    private const int DialogWidth  = 52;
-    private const int DialogHeight = 5;
-
     private readonly ScreenRenderer _screen;
-    private readonly ConsolePalette _palette;
 
-    public SaveChangesDialog(ScreenRenderer screen, ConsolePalette? palette = null)
+    public SaveChangesDialog(ScreenRenderer screen)
     {
         _screen = screen;
-        _palette = palette ?? PaletteRegistry.Default;
     }
 
     public SaveChangesChoice Show(string fileName)
     {
-        var size  = _screen.GetSize();
-        var saved = _screen.Capture(new Rect(0, 0, size.Width, size.Height));
-
-        try
+        var result = new ChoiceDialog(_screen).Show(new ChoiceDialogOptions
         {
-            Draw(fileName, size);
-            _screen.SetCursorVisible(false);
-
-            while (true)
-            {
-                var key = _screen.ReadKey();
-                switch (key.Key)
-                {
-                    case ConsoleKey.S:
-                    case ConsoleKey.Enter:  return SaveChangesChoice.Save;
-                    case ConsoleKey.D:      return SaveChangesChoice.Discard;
-                    case ConsoleKey.C:
-                    case ConsoleKey.Escape: return SaveChangesChoice.Cancel;
-                }
-            }
-        }
-        finally
-        {
-            _screen.Restore(saved);
-        }
-    }
-
-    private void Draw(string fileName, ConsoleSize size)
-    {
-        int dlgX = Math.Max(0, (size.Width  - DialogWidth)  / 2);
-        int dlgY = Math.Max(0, (size.Height - DialogHeight) / 2);
-        int fw   = DialogWidth - 4;
-
-        var bounds = new Rect(dlgX, dlgY, DialogWidth, DialogHeight);
-        new DialogFrameRenderer().RenderFrame(_screen, bounds, "Save Changes?", false, PaletteStyles.DialogPopupOptions(_palette), (_, _) =>
-        {
-            string msg = Truncate($"\"{fileName}\" has been modified.", fw).PadRight(fw);
-            _screen.Write(dlgX + 2, dlgY + 1, msg, PaletteStyles.DialogFill(_palette));
-
-            const string buttons = "[S]ave   [D]iscard   [C]ancel";
-            _screen.Write(dlgX + (DialogWidth - buttons.Length) / 2, dlgY + 3, buttons, PaletteStyles.DialogFill(_palette));
+            Title = "Save Changes?",
+            Lines = [Truncate($"\"{fileName}\" has been modified.", 48)],
+            Buttons =
+            [
+                new DialogButton("save", "Save", 'S', IsDefault: true),
+                new DialogButton("discard", "Discard", 'D'),
+                new DialogButton("cancel", "Cancel", 'C'),
+            ],
+            DefaultButtonIndex = 0,
+            CancelButtonIndex = 2,
         });
+
+        return result.ButtonId switch
+        {
+            "save" => SaveChangesChoice.Save,
+            "discard" => SaveChangesChoice.Discard,
+            _ => SaveChangesChoice.Cancel,
+        };
     }
 
     private static string Truncate(string s, int maxLen) =>

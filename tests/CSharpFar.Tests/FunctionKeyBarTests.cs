@@ -1,12 +1,12 @@
 using CSharpFar.Console;
 using CSharpFar.Console.Input;
 using CSharpFar.Console.Models;
-using CSharpFar.App.Rendering;
+using CSharpFar.Ui;
 using CSharpFar.Tests.Fakes;
 
 namespace CSharpFar.Tests;
 
-public class FunctionKeyBarRendererTests
+public class FunctionKeyBarTests
 {
     private static readonly FunctionKeyBarItem[] PlainItems =
     [
@@ -28,9 +28,10 @@ public class FunctionKeyBarRendererTests
     public void Render_UsesTwelveEqualSlots_WhenWidthAllows(int width, int slotWidth)
     {
         var driver = new FakeConsoleDriver(width, 2);
-        var renderer = CreateRenderer(new ScreenRenderer(driver));
+        var screen = new ScreenRenderer(driver);
+        var renderer = CreateRenderer();
 
-        Render(renderer, y: 0, totalWidth: width, PlainItems);
+        Render(renderer, screen, y: 0, totalWidth: width, PlainItems);
 
         string row = driver.GetRow(0);
         for (int keyNumber = 1; keyNumber <= 12; keyNumber++)
@@ -48,10 +49,11 @@ public class FunctionKeyBarRendererTests
     public void Render_TruncatesLabelsWithEllipsis_WhenSlotIsTooSmall()
     {
         var driver = new FakeConsoleDriver(60, 2);
-        var renderer = CreateRenderer(new ScreenRenderer(driver));
+        var screen = new ScreenRenderer(driver);
+        var renderer = CreateRenderer();
         FunctionKeyBarItem[] items = [new(1, "LongLabel")];
 
-        Render(renderer, y: 0, totalWidth: 60, items);
+        Render(renderer, screen, y: 0, totalWidth: 60, items);
 
         Assert.StartsWith("1L...", driver.GetRow(0));
         Assert.Equal('2', driver.GetRow(0)[5]);
@@ -63,10 +65,11 @@ public class FunctionKeyBarRendererTests
     public void Render_BlankLabelsForMissingActions(bool includeAvailableAction)
     {
         var driver = new FakeConsoleDriver(120, 2);
-        var renderer = CreateRenderer(new ScreenRenderer(driver));
+        var screen = new ScreenRenderer(driver);
+        var renderer = CreateRenderer();
         FunctionKeyBarItem[] items = includeAvailableAction ? [new(7, "Search")] : [];
 
-        Render(renderer, y: 0, totalWidth: 120, items);
+        Render(renderer, screen, y: 0, totalWidth: 120, items);
 
         string row = driver.GetRow(0);
         Assert.StartsWith("1         2", row);
@@ -82,9 +85,10 @@ public class FunctionKeyBarRendererTests
     public void Render_KeepsStatusBarOnOneRow_ForOddAndEvenWidths(int width)
     {
         var driver = new FakeConsoleDriver(width, 2);
-        var renderer = CreateRenderer(new ScreenRenderer(driver));
+        var screen = new ScreenRenderer(driver);
+        var renderer = CreateRenderer();
 
-        Render(renderer, y: 1, totalWidth: width, PlainItems);
+        Render(renderer, screen, y: 1, totalWidth: width, PlainItems);
 
         Assert.Equal(width, driver.GetRow(1).Length);
         Assert.Equal(new string(' ', width), driver.GetRow(0));
@@ -94,7 +98,8 @@ public class FunctionKeyBarRendererTests
     public void Render_SupportsAltFunctionKeysBeyondF10()
     {
         var driver = new FakeConsoleDriver(120, 2);
-        var renderer = CreateRenderer(new ScreenRenderer(driver));
+        var screen = new ScreenRenderer(driver);
+        var renderer = CreateRenderer();
         FunctionKeyBarItem[] items =
         [
             new(1, "Left"),
@@ -105,7 +110,7 @@ public class FunctionKeyBarRendererTests
             new(12, "DHist"),
         ];
 
-        Render(renderer, y: 0, totalWidth: 120, items);
+        Render(renderer, screen, y: 0, totalWidth: 120, items);
 
         string row = driver.GetRow(0);
         Assert.Contains("1Left", row);
@@ -122,7 +127,7 @@ public class FunctionKeyBarRendererTests
     [InlineData(99, 12)]
     public void HitTest_UsesRenderedSlotsIncludingLastRemainder(int x, int expectedKeyNumber)
     {
-        Assert.True(FunctionKeyBarRenderer.TryGetKeyNumberAtX(x, totalWidth: 100, out int keyNumber));
+        Assert.True(FunctionKeyBar.TryGetKeyNumberAtX(x, totalWidth: 100, out int keyNumber));
         Assert.Equal(expectedKeyNumber, keyNumber);
     }
 
@@ -131,7 +136,7 @@ public class FunctionKeyBarRendererTests
     [InlineData(100)]
     public void HitTest_RejectsPositionsOutsideBar(int x)
     {
-        Assert.False(FunctionKeyBarRenderer.TryGetKeyNumberAtX(x, totalWidth: 100, out _));
+        Assert.False(FunctionKeyBar.TryGetKeyNumberAtX(x, totalWidth: 100, out _));
     }
 
     [Fact]
@@ -139,25 +144,48 @@ public class FunctionKeyBarRendererTests
     {
         var mouse = new MouseConsoleInputEvent(90, 24, MouseButton.Left, MouseEventKind.Down, MouseKeyModifiers.None);
 
-        Assert.True(FunctionKeyBarRenderer.TryGetKeyNumberAt(mouse, barY: 24, totalWidth: 120, out int keyNumber));
+        Assert.True(FunctionKeyBar.TryGetKeyNumberAt(mouse, y: 24, totalWidth: 120, out int keyNumber));
         Assert.Equal(10, keyNumber);
-        Assert.False(FunctionKeyBarRenderer.TryGetKeyNumberAt(mouse, barY: 23, totalWidth: 120, out _));
+        Assert.False(FunctionKeyBar.TryGetKeyNumberAt(mouse, y: 23, totalWidth: 120, out _));
+    }
+
+    [Theory]
+    [InlineData(MouseButton.Right, MouseEventKind.Down)]
+    [InlineData(MouseButton.Middle, MouseEventKind.Down)]
+    [InlineData(MouseButton.WheelDown, MouseEventKind.Wheel)]
+    [InlineData(MouseButton.Left, MouseEventKind.Up)]
+    public void HitTest_RejectsNonActivationMouseEvents(MouseButton button, MouseEventKind kind)
+    {
+        var mouse = new MouseConsoleInputEvent(10, 24, button, kind, MouseKeyModifiers.None);
+
+        Assert.False(new FunctionKeyBar().TryHitTest(mouse, y: 24, totalWidth: 120, out _));
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(11)]
+    public void HitTest_SmallWidthsDoNotThrow(int width)
+    {
+        var mouse = new MouseConsoleInputEvent(0, 0, MouseButton.Left, MouseEventKind.Down, MouseKeyModifiers.None);
+
+        Assert.False(new FunctionKeyBar().TryHitTest(mouse, y: 0, totalWidth: width, out _));
     }
 
     [Fact]
     public void HitTest_MapsKeyNumberToFunctionKey()
     {
-        Assert.True(FunctionKeyBarRenderer.TryGetFunctionKey(10, out var key));
+        Assert.True(FunctionKeyBar.TryGetFunctionKey(10, out var key));
         Assert.Equal(ConsoleKey.F10, key);
-        Assert.False(FunctionKeyBarRenderer.TryGetFunctionKey(13, out _));
+        Assert.False(FunctionKeyBar.TryGetFunctionKey(13, out _));
     }
 
-    private static FunctionKeyBarRenderer CreateRenderer(ScreenRenderer screen) => new(screen);
+    private static FunctionKeyBar CreateRenderer() => new();
 
     private static void Render(
-        FunctionKeyBarRenderer renderer,
+        FunctionKeyBar renderer,
+        ScreenRenderer screen,
         int y,
         int totalWidth,
         IReadOnlyList<FunctionKeyBarItem> items) =>
-        renderer.Render(y, totalWidth, items);
+        renderer.Render(screen, y, totalWidth, items);
 }

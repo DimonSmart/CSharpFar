@@ -690,7 +690,7 @@ internal sealed class FileEditor
         if (!session.Document.IsDirty)
             return true;
 
-        var choice = new SaveChangesDialog(_screen, _palette).Show(Path.GetFileName(session.FilePath));
+        var choice = new SaveChangesDialog(_screen).Show(Path.GetFileName(session.FilePath));
         return choice switch
         {
             SaveChangesChoice.Save => SaveFile(session),
@@ -779,11 +779,11 @@ internal sealed class FileEditor
 
     private void ShowReplaceDialog(EditorSession session)
     {
-        string? pattern = new InputDialog(_screen, _palette).Show("Replace", "Find", allowEmpty: false);
+        string? pattern = new InputDialog(_screen).Show("Replace", "Find", allowEmpty: false);
         if (pattern is null)
             return;
 
-        string? replacement = new InputDialog(_screen, _palette).Show("Replace", "With", allowEmpty: true);
+        string? replacement = new InputDialog(_screen).Show("Replace", "With", allowEmpty: true);
         if (replacement is null)
             return;
 
@@ -804,7 +804,7 @@ internal sealed class FileEditor
 
     private void ShowSyntaxLanguageDialog(EditorSession session)
     {
-        string? language = new InputDialog(_screen, _palette).Show(
+        string? language = new InputDialog(_screen).Show(
             "Syntax",
             "Language",
             allowEmpty: false,
@@ -815,7 +815,7 @@ internal sealed class FileEditor
 
     private void ShowSyntaxThemeDialog(EditorSession session)
     {
-        string? theme = new InputDialog(_screen, _palette).Show(
+        string? theme = new InputDialog(_screen).Show(
             "Syntax",
             "Theme",
             allowEmpty: false,
@@ -933,7 +933,7 @@ internal sealed class FileEditor
         var items = EditorCommandBindings.ForModifiers(modifiers)
             .Select(binding => new FunctionKeyBarItem(binding.KeyNumber, binding.Label))
             .ToArray();
-        new FunctionKeyBarRenderer(_screen, _palette).Render(size.Height - 1, size.Width, items);
+        new FunctionKeyBar().Render(_screen, size.Height - 1, size.Width, items);
     }
 
     private static bool TryGetFunctionKeyBarKey(
@@ -944,11 +944,11 @@ internal sealed class FileEditor
     {
         key = default;
 
-        if (!FunctionKeyBarRenderer.TryGetKeyNumberAt(mouse, size.Height - 1, size.Width, out int keyNumber))
+        if (!new FunctionKeyBar().TryHitTest(mouse, size.Height - 1, size.Width, out var hit))
             return false;
 
         var binding = EditorCommandBindings.ForModifiers(modifiers)
-            .FirstOrDefault(candidate => candidate.KeyNumber == keyNumber);
+            .FirstOrDefault(candidate => candidate.KeyNumber == hit.KeyNumber);
         if (binding is null)
             return false;
 
