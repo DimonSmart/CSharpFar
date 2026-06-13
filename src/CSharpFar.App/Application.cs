@@ -415,8 +415,13 @@ public sealed class Application
         return new ApplicationRuntimeRenderRequest(shouldRender, IsResize: false);
     }
 
-    private ApplicationRuntimeRenderRequest HandleRuntimeModifierInput(ConsoleModifiers modifiers) =>
-        new(SetFunctionKeyLayer(modifiers), IsResize: false);
+    private ApplicationRuntimeRenderRequest HandleRuntimeModifierInput(ConsoleModifiers modifiers)
+    {
+        if (!HasVisiblePanels)
+            return ApplicationRuntimeRenderRequest.None;
+
+        return new(SetFunctionKeyLayer(modifiers), IsResize: false);
+    }
 
     private ApplicationRuntimeRenderRequest HandleRuntimeMouseInput(MouseConsoleInputEvent mouseEvt)
     {
@@ -570,8 +575,14 @@ public sealed class Application
         if (!scrolled)
             return false;
 
-        _shellUnderlay.Capture();
-        _ui.LastRenderViewport = _shellUnderlay.CapturedViewport ?? _screen.GetViewport();
+        if (UsesTerminalScreenMode)
+            SyncRendererWithCurrentMainScreenViewport();
+        else
+        {
+            _shellUnderlay.Capture();
+            _ui.LastRenderViewport = _shellUnderlay.CapturedViewport ?? _screen.GetViewport();
+        }
+
         return scrolled;
     }
 
