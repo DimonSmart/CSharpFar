@@ -40,8 +40,6 @@ public sealed class Application
     private readonly ScreenRenderer _screen;
     private readonly ApplicationRuntime _runtime;
     private readonly PanelController _ctrl;
-    private readonly IFileLauncher _fileLauncher;
-    private readonly IFileOperationService _fileOps;
     private readonly PanelFileViewerService _panelFileViewer;
     private readonly PanelFileOpener _panelFileOpener;
     private readonly PanelAutoRefreshService _autoRefresh;
@@ -57,20 +55,15 @@ public sealed class Application
     private readonly PanelNavigationService _panelNavigation;
     private readonly PanelWorkspaceController _panelWorkspace;
     private readonly PanelVisibilityController _panelVisibility;
-    private readonly ISearchService _searchService;
-    private readonly FilePanelSourceRegistry _sourceRegistry;
     private readonly NativeModuleCatalog _moduleCatalog;
     private readonly ModulePanelOpener _modulePanelOpener;
     private readonly FarNetPanelActionService _farNetPanelActions;
-    private readonly IHistoryStore _history;
     private readonly CommandHistoryNavigator _commandHistoryNavigator;
     private readonly CommandCompletionController _commandCompletionController;
     private readonly CommandLineCommandExecutor _commandLineCommandExecutor;
     private readonly ExternalConsoleCommandRunner _externalConsoleCommandRunner;
     private readonly AppSettingsAlias _settings;
-    private readonly UserMenuStore _userMenu;
     private readonly Action? _saveSettings;
-    private readonly IVolumeService? _volumeService;
     private readonly ITextClipboard _clipboard;
 
     private readonly ApplicationSession _session;
@@ -97,10 +90,8 @@ public sealed class Application
         get => _session.Panels.RightViewMode;
         set => _session.Panels.RightViewMode = value;
     }
-    private IFileHighlightService?          _highlightService;
     private MenuState _menuState => _session.Menu.State;
     private readonly DefaultMenuDefinitionProvider _menuProvider;
-    private readonly DefaultFunctionKeyBindingProvider _functionKeyBindingProvider;
     private readonly ApplicationCommandRegistry _commandRegistry;
     private readonly ApplicationCommandContext _commandContext;
     private readonly TopMenuController      _menuController;
@@ -166,25 +157,16 @@ public sealed class Application
     internal Application(ApplicationServices services)
     {
         _screen = services.Screen;
-        _sourceRegistry = services.SourceRegistry;
         _ctrl = services.PanelController;
-        _fileLauncher = services.FileLauncher;
-        _fileOps = services.FileOperations;
-        _searchService = services.SearchService;
-        _history = services.History;
         _commandHistoryNavigator = services.CommandHistoryNavigator;
         _commandCompletionController = services.CommandCompletionController;
         _commandLineCommandExecutor = services.CommandLineCommandExecutor;
         _externalConsoleCommandRunner = services.ExternalConsoleCommandRunner;
         _settings = services.Settings;
         _clipboard = services.Clipboard;
-        _userMenu = services.UserMenu;
         _saveSettings = services.SaveSettings;
-        _volumeService = services.VolumeService;
         _session = services.Session;
         _menuProvider = services.MenuProvider;
-        _functionKeyBindingProvider = services.FunctionKeyBindingProvider;
-        _highlightService = services.HighlightService;
         _menuController = services.MenuController;
         _autoRefresh = services.AutoRefresh;
         _renderContext = services.RenderContext;
@@ -202,7 +184,7 @@ public sealed class Application
         _modulePanelOpener = services.ModulePanelOpener;
         _farNetPanelActions = services.FarNetPanelActions;
         _commandRegistry = services.CommandRegistry;
-        _commandContext   = new ApplicationCommandContext(this);
+        _commandContext = services.CommandContext;
         _keyboardInputContext = services.KeyboardInputContext;
         _keyboardInputRouter = services.KeyboardInputRouter;
         _mouseInputRouter = services.MouseInputRouter;
@@ -293,56 +275,7 @@ public sealed class Application
         callbacks.OpenModulePanel = OpenModulePanel;
     }
 
-    internal ScreenRenderer CommandScreen => _screen;
-
     internal ApplicationSession Session => _session;
-
-    internal PanelController CommandPanelController => _ctrl;
-
-    internal IFileLauncher CommandFileLauncher => _fileLauncher;
-
-    internal IFileOperationService CommandFileOperations => _fileOps;
-
-    internal ISearchService CommandSearchService => _searchService;
-
-    internal IHistoryStore CommandHistory => _history;
-
-    internal UserMenuStore CommandUserMenu => _userMenu;
-
-    internal ITextClipboard CommandClipboard => _clipboard;
-
-    internal AppSettingsAlias CommandSettings => _settings;
-
-    internal IVolumeService? CommandVolumeService => _volumeService;
-
-    internal IReadOnlyList<ModuleMenuProjection> ModuleDiskMenuItems =>
-        _moduleCatalog.DiskMenuItems;
-
-    internal FilePanelState CommandLeftPanel => _left;
-
-    internal FilePanelState CommandRightPanel => _right;
-
-    internal CommandLineState CommandLine => _cmdLine;
-
-    internal bool CanSaveSettings => _saveSettings is not null;
-
-    internal ConsolePalette CommandPalette
-    {
-        get => _state.Palette;
-        set => _state.Palette = value;
-    }
-
-    internal PanelSide ActiveSide
-    {
-        get => _panelWorkspace.ActiveSide;
-        set => _panelWorkspace.SetActiveSide(value);
-    }
-
-    internal bool Running
-    {
-        get => _state.Running;
-        set => _state.Running = value;
-    }
 
     internal bool QuickView
     {
@@ -350,27 +283,7 @@ public sealed class Application
         set => _state.QuickView = value;
     }
 
-    internal PanelViewMode LeftViewMode
-    {
-        get => _leftViewMode;
-        set => _leftViewMode = value;
-    }
-
-    internal PanelViewMode RightViewMode
-    {
-        get => _rightViewMode;
-        set => _rightViewMode = value;
-    }
-
-    internal IFileHighlightService? HighlightService
-    {
-        get => _highlightService;
-        set => _highlightService = value;
-    }
-
-    internal AppSettingsAlias.PanelOptionsSettings PanelOptions => _settings.Panels.Options;
-
-    internal void SaveSettings() => _saveSettings?.Invoke();
+    private AppSettingsAlias.PanelOptionsSettings PanelOptions => _settings.Panels.Options;
 
     public void Run()
     {
@@ -453,8 +366,6 @@ public sealed class Application
         });
 
     // ── panel visibility ──────────────────────────────────────────────────────
-
-    internal bool CommandHasVisiblePanels => _panelWorkspace.HasVisiblePanels;
 
     private void ClosePanelQuickSearch() =>
         _panelQuickSearch.Close();
@@ -669,9 +580,6 @@ public sealed class Application
 
     // ── F5 — copy ─────────────────────────────────────────────────────────────
 
-    internal FileOperationOptions BuildFileOperationOptions() =>
-        FileOperationOptionsFactory.Create(_settings);
-
     private MenuCommandResult ExecuteMenuCommand(MenuCommandRequest request)
     {
         return _commandRegistry
@@ -682,26 +590,12 @@ public sealed class Application
     internal FilePanelState GetPanelState(PanelSide side) =>
         side == PanelSide.Left ? _left : _right;
 
-    internal ApplicationCommandResult OpenModuleMenuItem(Guid actionId) =>
-        _modulePanelOpener.OpenMenuItem(actionId, _active);
-
     internal ApplicationCommandResult OpenModuleDiskMenuItem(Guid actionId, PanelSide panelSide) =>
         _modulePanelOpener.OpenDiskMenuItem(actionId, panelSide);
 
     internal void OpenModulePanel(PanelSide panelSide, IModulePanel panel)
     {
         _modulePanelOpener.OpenPanel(panelSide, panel);
-    }
-
-    internal string CombinePanelPath(FilePanelState state, string name)
-    {
-        if (state.SourceId == PanelSourceId.Local)
-            return Path.Combine(state.SourcePath, name);
-
-        string directory = state.SourcePath.TrimEnd('/');
-        return directory.Length == 0 || directory == "/"
-            ? "/" + name
-            : directory + "/" + name;
     }
 
     internal void ViewPanelFile(FilePanelState state, FilePanelItem item)
@@ -799,34 +693,6 @@ public sealed class Application
 
     internal static bool HasCapability(FilePanelState state, PanelProviderCapabilities capability) =>
         (state.ProviderCapabilities & capability) == capability;
-
-    private static bool TryReadConsoleKey(out ConsoleKeyInfo key)
-    {
-        try
-        {
-            if (global::System.Console.KeyAvailable)
-            {
-                key = global::System.Console.ReadKey(intercept: true);
-                return true;
-            }
-        }
-        catch (InvalidOperationException)
-        {
-        }
-
-        key = default;
-        return false;
-    }
-
-    internal ConsoleKeyInfo? TryReadConsoleKeyForCommand() =>
-        TryReadConsoleKey(out var key) ? key : null;
-
-    internal void ShowReadOnlyPanelMessage(string action)
-    {
-        new MessageDialog(_screen, _state.Palette).Show(
-            action,
-            "The current panel source does not support this operation.");
-    }
 
     // ── auto-refresh ──────────────────────────────────────────────────────────
 

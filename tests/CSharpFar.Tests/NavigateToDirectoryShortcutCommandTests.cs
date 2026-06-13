@@ -1,4 +1,4 @@
-using CSharpFar.App;
+using CSharpFar.App.Bootstrap;
 using CSharpFar.App.Commands;
 using CSharpFar.App.DirectoryShortcuts;
 using CSharpFar.App.Rendering;
@@ -80,14 +80,14 @@ public sealed class NavigateToDirectoryShortcutCommandTests : IDisposable
         var fs = new FakeFileSystemService();
         fs.AddDirectory(_root);
         fs.AddDirectory(_target);
-        var app = new Application(
+        var services = ApplicationServicesBuilder.Create(
             new ScreenRenderer(driver),
             fs,
             new NoOpShellService(),
             new NoOpFileOperationService(),
             new InMemoryHistoryStore(),
             settings);
-        return new ApplicationCommandContext(app);
+        return services.CommandContext;
     }
 
     private static AppSettings.DirectoryShortcutItem Item(int number, string path) =>

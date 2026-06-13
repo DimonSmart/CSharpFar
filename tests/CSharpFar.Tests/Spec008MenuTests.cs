@@ -601,7 +601,16 @@ public sealed class Spec008MenuProviderAndCommandTests : IDisposable
     private static MenuCommandResult Execute(Application app, MenuCommandRequest request)
     {
         var registry = ApplicationCommandRegistry.CreateDefault();
-        var context = new ApplicationCommandContext(app);
+        var context = GetCommandContext(app);
         return registry.Execute(request.CommandId, context, request.Args).ToMenuCommandResult();
+    }
+
+    private static ApplicationCommandContext GetCommandContext(Application app)
+    {
+        var field = typeof(Application).GetField(
+            "_commandContext",
+            System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+
+        return (ApplicationCommandContext)field!.GetValue(app)!;
     }
 }

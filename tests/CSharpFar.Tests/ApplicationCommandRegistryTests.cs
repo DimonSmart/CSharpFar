@@ -1,5 +1,5 @@
 using System.Reflection;
-using CSharpFar.App;
+using CSharpFar.App.Bootstrap;
 using CSharpFar.App.Commands;
 using CSharpFar.App.FunctionKeys;
 using CSharpFar.App.DirectoryShortcuts;
@@ -82,7 +82,7 @@ public sealed class ApplicationCommandRegistryTests : IDisposable
         settings.Panels.LeftStartDirectory = _tempDir;
         settings.Panels.RightStartDirectory = _tempDir;
 
-        var app = new Application(
+        var services = ApplicationServicesBuilder.Create(
             new ScreenRenderer(new FakeConsoleDriver()),
             fs,
             new NoOpShellService(),
@@ -90,7 +90,7 @@ public sealed class ApplicationCommandRegistryTests : IDisposable
             new InMemoryHistoryStore(),
             settings);
 
-        return new ApplicationCommandContext(app);
+        return services.CommandContext;
     }
 
     private static IEnumerable<string> ConstStringValues(Type type) =>

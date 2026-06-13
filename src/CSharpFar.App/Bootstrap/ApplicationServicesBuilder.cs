@@ -56,25 +56,30 @@ internal static class ApplicationServicesBuilder
         ITextClipboard? clipboard = null,
         ITerminalScreenMode? terminalScreenMode = null)
     {
-        var effectiveSettings = settings ?? new AppSettingsAlias();
-        var effectiveSourceRegistry = sourceRegistry ?? new FilePanelSourceRegistry([new LocalFilePanelSource(fs)]);
-        var sortService = new PanelSortService();
-        var viewBuilder = new PanelViewBuilder(
+        var core = CoreServicesFactory.Create(
             fs,
-            sortService,
+            history,
+            settings,
+            userMenu,
             volumeInfoService,
-            mountPoints: mountPointService,
-            sources: effectiveSourceRegistry);
-        var controller = new PanelController(viewBuilder);
-        var effectiveHistory = history ?? new InMemoryHistoryStore();
-        var functionKeyBindingProvider = new DefaultFunctionKeyBindingProvider();
-        var session = ApplicationSessionFactory.Create(effectiveSettings, controller);
-        var effectiveConfigDirectory = configDirectory ?? Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-            "CSharpFar");
-        var effectiveSearchService = searchService ?? new FileSystemSearchService();
-        var effectiveFileLauncher = fileLauncher ?? new WindowsShellFileLauncher();
-        var effectiveClipboard = clipboard ?? TextCopyTextClipboard.Instance;
+            mountPointService,
+            fileLauncher,
+            searchService,
+            sourceRegistry,
+            configDirectory,
+            clipboard);
+        var effectiveSettings = core.Settings;
+        var effectiveSourceRegistry = core.SourceRegistry;
+        var controller = core.PanelController;
+        var effectiveHistory = core.History;
+        var functionKeyBindingProvider = core.FunctionKeyBindingProvider;
+        var session = core.Session;
+        var effectiveConfigDirectory = core.ConfigDirectory;
+        var effectiveSearchService = core.SearchService;
+        var effectiveFileLauncher = core.FileLauncher;
+        var effectiveClipboard = core.Clipboard;
+        var effectiveUserMenu = core.UserMenu;
+        var menuProvider = core.MenuProvider;
         var callbacks = new ApplicationServiceCallbacks();
         var keyboardInputContext = new KeyboardInputContext
         {
@@ -120,16 +125,9 @@ internal static class ApplicationServicesBuilder
         };
         var menuLayoutService = new MenuLayoutService();
         var highlightService = FileHighlightServiceFactory.Create(effectiveSettings);
-        var commandCompletionController = new CommandCompletionController(
-            effectiveHistory,
-            session.CommandLine.Completion);
-        var commandHistoryNavigator = new CommandHistoryNavigator(effectiveHistory);
-        var changeDirectoryCommandExecutor = new ChangeDirectoryCommandExecutor(
-            controller,
-            () => callbacks.ActiveState(),
-            () => callbacks.GetActiveSide(),
-            () => callbacks.PanelOptions(),
-            (state, side) => callbacks.StartWatching(state, side));
+        var commandNavigation = CommandServicesFactory.CreateNavigation(effectiveHistory, session);
+        var commandCompletionController = commandNavigation.CommandCompletionController;
+        var commandHistoryNavigator = commandNavigation.CommandHistoryNavigator;
         var menuController = new TopMenuController(
             session.Menu.State,
             request => callbacks.ExecuteMenuCommand(request));
@@ -140,13 +138,6 @@ internal static class ApplicationServicesBuilder
             side => callbacks.GetPanelState(side),
             side => callbacks.VisibleRowsForSide(side),
             (state, rows) => callbacks.SafeRefresh(state, rows));
-        var panelWorkspaceRenderer = new ApplicationPanelWorkspaceRenderer(
-            screen,
-            () => session.App.Palette,
-            controller,
-            () => highlightService,
-            () => callbacks.PanelOptions());
-        var clockRenderer = new ClockRenderer(screen, () => session.App.Palette);
         var panelSort = new PanelSortServiceFacade(
             controller,
             () => callbacks.PanelOptions(),
@@ -284,58 +275,23 @@ internal static class ApplicationServicesBuilder
             side => callbacks.VisibleRowsForSide(side),
             state => callbacks.PanelSideForState(state),
             (state, rows) => callbacks.SafeRefresh(state, rows));
-        var commandRegistry = ApplicationCommandRegistry.CreateDefault();
-        var functionKeyBarRenderer = new ApplicationFunctionKeyBarRenderer(
-            screen,
-            () => session.App.Palette,
-            functionKeyBindingProvider.GetBindings(),
-            commandId => callbacks.CanExecuteFunctionKeyCommand(commandId));
-        var overlayRenderer = new ApplicationOverlayRenderer(
-            screen,
-            () => session.App.Palette,
-            menuLayoutService);
-        var commandLineRenderer = new ApplicationCommandLineRenderer(
-            screen,
-            () => session.App.Palette);
-        var shellUnderlay = new ShellUnderlayService(screen);
-        var terminalSurface = new TerminalSurfaceController(
+        var rendering = RenderingServicesFactory.Create(
             screen,
             terminalScreenMode,
-            shellUnderlay,
-            session.Ui,
-            () => callbacks.HasVisiblePanels());
-        var quickViewDirectorySize = new QuickViewDirectorySizeController(autoRefresh.WakeInputLoop);
-        var renderContext = new ApplicationRenderContext
-        {
-            Screen = screen,
-            TerminalSurface = terminalSurface,
-            PanelController = controller,
-            App = session.App,
-            Ui = session.Ui,
-            MenuState = session.Menu.State,
-            PanelQuickSearch = panelQuickSearch,
-            CommandLine = session.CommandLine.State,
-            CommandCompletion = session.CommandLine.Completion,
-            LeftPanel = session.Panels.Left,
-            RightPanel = session.Panels.Right,
-            ActiveSide = () => panelWorkspace.ActiveSide,
-            ActiveState = () => panelWorkspace.ActiveState,
-            LeftViewMode = () => session.Panels.LeftViewMode,
-            RightViewMode = () => session.Panels.RightViewMode,
-            FunctionKeyLayer = () => session.FunctionKeyLayer,
-            HasHiddenPanels = () => panelWorkspace.HasHiddenPanels,
-            HasVisiblePanels = () => panelWorkspace.HasVisiblePanels,
-            IsPanelVisible = panelWorkspace.IsPanelVisible,
-            DirectoryShortcuts = () => effectiveSettings.DirectoryShortcuts,
-            QuickViewDirectorySize = quickViewDirectorySize,
-        };
-        var renderCoordinator = new ApplicationRenderCoordinator(
-            renderContext,
-            panelWorkspaceRenderer,
-            clockRenderer,
-            functionKeyBarRenderer,
-            overlayRenderer,
-            commandLineRenderer);
+            session,
+            controller,
+            panelQuickSearch,
+            panelWorkspace,
+            autoRefresh,
+            functionKeyBindingProvider,
+            menuLayoutService,
+            callbacks,
+            effectiveSettings,
+            highlightService);
+        var terminalSurface = rendering.TerminalSurface;
+        var commandLineRenderer = rendering.CommandLineRenderer;
+        var renderCoordinator = rendering.RenderCoordinator;
+        var quickViewDirectorySize = rendering.QuickViewDirectorySize;
         var panelVisibility = new PanelVisibilityController(
             screen,
             session,
@@ -345,25 +301,41 @@ internal static class ApplicationServicesBuilder
             commandHistoryNavigator,
             terminalSurface,
             renderCoordinator);
-        var externalConsoleCommandRunner = new ExternalConsoleCommandRunner(
+        var commandServices = CommandServicesFactory.Create(
             screen,
+            shell,
+            fileOps,
+            effectiveFileLauncher,
+            effectiveSearchService,
+            effectiveHistory,
+            effectiveUserMenu,
+            effectiveClipboard,
+            effectiveSettings,
+            session,
+            menuProvider,
+            callbacks,
+            controller,
+            autoRefresh,
+            panelRefresh,
+            panelSort,
+            panelNavigation,
+            searchResults,
+            panelQuickSearch,
+            panelWorkspace,
+            panelVisibility,
+            panelFileViewer,
+            panelFileOpener,
+            moduleCatalog,
+            modulePanelOpener,
+            farNetPanelActions,
             terminalSurface,
             commandLineRenderer,
-            session.App,
-            session.CommandLine.State,
-            () => callbacks.RefreshPanels());
-        var commandLineCommandExecutor = new CommandLineCommandExecutor(
-            session.CommandLine.State,
+            commandCompletionController,
             commandHistoryNavigator,
-            effectiveHistory,
-            modulePanelOpener,
-            changeDirectoryCommandExecutor,
-            shell,
-            externalConsoleCommandRunner,
-            () => callbacks.ActiveState(),
-            () => callbacks.GetActiveSide(),
-            panelQuickSearch.Close,
-            temporarily => commandCompletionController.Hide(temporarily));
+            menuController,
+            saveSettings,
+            volumeService,
+            highlightService);
         var runtime = ApplicationRuntimeBuilder.Create(
             screen,
             callbacks,
@@ -374,30 +346,18 @@ internal static class ApplicationServicesBuilder
         {
             Screen = screen,
             PanelController = controller,
-            FileLauncher = effectiveFileLauncher,
-            FileOperations = fileOps,
-            SearchService = effectiveSearchService,
-            SourceRegistry = effectiveSourceRegistry,
-            History = effectiveHistory,
             CommandHistoryNavigator = commandHistoryNavigator,
             CommandCompletionController = commandCompletionController,
-            CommandLineCommandExecutor = commandLineCommandExecutor,
-            ExternalConsoleCommandRunner = externalConsoleCommandRunner,
+            CommandLineCommandExecutor = commandServices.CommandLineCommandExecutor,
+            ExternalConsoleCommandRunner = commandServices.ExternalConsoleCommandRunner,
+            CommandContext = commandServices.CommandContext,
             Settings = effectiveSettings,
-            UserMenu = userMenu ?? new UserMenuStore(effectiveConfigDirectory),
             Clipboard = effectiveClipboard,
             Session = session,
-            MenuProvider = new(),
-            FunctionKeyBindingProvider = functionKeyBindingProvider,
-            FunctionKeyBindings = functionKeyBindingProvider.GetBindings(),
-            MenuLayoutService = menuLayoutService,
-            HighlightService = highlightService,
+            MenuProvider = menuProvider,
             Callbacks = callbacks,
-            ChangeDirectoryCommandExecutor = changeDirectoryCommandExecutor,
             MenuController = menuController,
             AutoRefresh = autoRefresh,
-            PanelWorkspaceRenderer = panelWorkspaceRenderer,
-            ClockRenderer = clockRenderer,
             PanelSort = panelSort,
             PanelNavigation = panelNavigation,
             SearchResults = searchResults,
@@ -410,31 +370,16 @@ internal static class ApplicationServicesBuilder
             ModuleCatalog = moduleCatalog,
             ModulePanelOpener = modulePanelOpener,
             FarNetPanelActions = farNetPanelActions,
-            CommandRegistry = commandRegistry,
-            FunctionKeyBarRenderer = functionKeyBarRenderer,
-            OverlayRenderer = overlayRenderer,
-            CommandLineRenderer = commandLineRenderer,
-            RenderContext = renderContext,
+            CommandRegistry = commandServices.CommandRegistry,
+            RenderContext = rendering.RenderContext,
             RenderCoordinator = renderCoordinator,
             TerminalSurface = terminalSurface,
-            QuickViewDirectorySize = quickViewDirectorySize,
             Runtime = runtime,
             KeyboardInputContext = keyboardInputContext,
             KeyboardInputRouter = keyboardInputRouter,
             MouseInputContext = mouseInputContext,
             MouseInputRouter = mouseInputRouter,
-            ConfigDirectory = effectiveConfigDirectory,
-            EnableBuiltInNetworkModules = enableBuiltInNetworkModules,
-            CredentialStore = credentialStore,
-            SftpModule = sftpModule,
-            FtpModule = ftpModule,
-            FarNetModuleHost = farNetModuleHost,
             SaveSettings = saveSettings,
-            VolumeService = volumeService,
-            VolumeInfoService = volumeInfoService,
-            ChangeWatcher = changeWatcher,
-            LocationService = locationService,
-            MountPointService = mountPointService,
         };
     }
 }
