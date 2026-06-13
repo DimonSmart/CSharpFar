@@ -45,11 +45,8 @@ public sealed class Application
     private readonly PanelFileViewerService _panelFileViewer;
     private readonly PanelFileOpener _panelFileOpener;
     private readonly PanelAutoRefreshService _autoRefresh;
-    private readonly ApplicationPanelWorkspaceRenderer _panelWorkspaceRenderer;
-    private readonly ClockRenderer _clockRenderer;
-    private readonly ApplicationFunctionKeyBarRenderer _functionKeyBarRenderer;
-    private readonly ApplicationOverlayRenderer _overlayRenderer;
-    private readonly ApplicationCommandLineRenderer _commandLineRenderer;
+    private readonly ApplicationRenderContext _renderContext;
+    private readonly ApplicationRenderCoordinator _renderCoordinator;
     private readonly KeyboardInputContext _keyboardInputContext;
     private readonly KeyboardInputRouter _keyboardInputRouter;
     private readonly MouseInputRouter _mouseInputRouter;
@@ -110,7 +107,6 @@ public sealed class Application
         get => _session.FunctionKeyLayer;
         set => _session.FunctionKeyLayer = value;
     }
-    private readonly QuickViewDirectorySizeController _quickViewDirectorySize;
 
     public Application(
         ScreenRenderer         screen,
@@ -189,8 +185,8 @@ public sealed class Application
         _highlightService = services.HighlightService;
         _menuController = services.MenuController;
         _autoRefresh = services.AutoRefresh;
-        _panelWorkspaceRenderer = services.PanelWorkspaceRenderer;
-        _clockRenderer = services.ClockRenderer;
+        _renderContext = services.RenderContext;
+        _renderCoordinator = services.RenderCoordinator;
         _panelSort = services.PanelSort;
         _panelNavigation = services.PanelNavigation;
         _searchResults = services.SearchResults;
@@ -203,17 +199,14 @@ public sealed class Application
         _farNetPanelActions = services.FarNetPanelActions;
         _commandRegistry = services.CommandRegistry;
         _commandContext   = new ApplicationCommandContext(this);
-        _functionKeyBarRenderer = services.FunctionKeyBarRenderer;
-        _overlayRenderer = services.OverlayRenderer;
-        _commandLineRenderer = services.CommandLineRenderer;
         _keyboardInputContext = services.KeyboardInputContext;
         _keyboardInputRouter = services.KeyboardInputRouter;
         _mouseInputRouter = services.MouseInputRouter;
         _terminalSurface = services.TerminalSurface;
-        _quickViewDirectorySize = services.QuickViewDirectorySize;
         BindCallbacks(services.Callbacks);
         BindKeyboardInputContext(_keyboardInputContext);
         BindMouseInputContext(services.MouseInputContext);
+        BindRenderContext(_renderContext);
         _runtime = services.Runtime;
 
     }
@@ -254,6 +247,11 @@ public sealed class Application
         context.OpenPanelItem = OpenPanelItem;
     }
 
+    private void BindRenderContext(ApplicationRenderContext context)
+    {
+        context.BuildMenuDefinition = BuildMenuDefinition;
+    }
+
     private void BindCallbacks(ApplicationServiceCallbacks callbacks)
     {
         callbacks.ActiveState = () => ActiveState;
@@ -278,8 +276,8 @@ public sealed class Application
         callbacks.IsRunning = () => _state.Running;
         callbacks.CaptureUnderlay = _terminalSurface.CaptureUnderlay;
         callbacks.StartWatchingInitialPanels = StartWatchingInitialPanels;
-        callbacks.RenderUntilStable = RenderUntilStable;
-        callbacks.RenderCommandLineOnlyUntilStable = RenderCommandLineOnlyUntilStable;
+        callbacks.RenderUntilStable = _renderCoordinator.RenderUntilStable;
+        callbacks.RenderCommandLineOnlyUntilStable = _renderCoordinator.RenderCommandLineOnlyUntilStable;
         callbacks.RestoreHiddenScreen = _terminalSurface.RestoreHiddenScreen;
         callbacks.RestoreTerminal = _terminalSurface.RestoreTerminal;
         callbacks.HandleResizeInput = HandleRuntimeResizeInput;
@@ -414,136 +412,11 @@ public sealed class Application
         return new ApplicationRuntimeRenderRequest(shouldRender, IsResize: false);
     }
 
-    // ── quick view dir size ───────────────────────────────────────────────────
+    private void Render() =>
+        _renderCoordinator.Render();
 
-    private void UpdateQuickViewDirSize()
-    {
-        var item = _active == PanelSide.Left ? _ctrl.CurrentItem(_left) : _ctrl.CurrentItem(_right);
-        _quickViewDirectorySize.Update(_state.QuickView, item);
-    }
-
-    // ── rendering ─────────────────────────────────────────────────────────────
-
-    private void Render()
-    {
-        UpdateQuickViewDirSize();
-        _terminalSurface.ApplyMode();
-        if (!_terminalSurface.UsesTerminalScreenMode && HasHiddenPanels)
-            _terminalSurface.RestoreHiddenScreen();
-
-        _screen.SetRenderingOutputMode(true);
-        using var frame = _screen.BeginFrame();
-        _screen.SetCursorVisible(false);
-
-        var viewport = _screen.FrameViewport;
-        var size   = viewport.Size;
-        _ui.LastRenderViewport = viewport;
-        var panelBounds = _panelWorkspaceRenderer.Render(
-            size,
-            _left,
-            _right,
-            _active,
-            _leftViewMode,
-            _rightViewMode,
-            _state.QuickView,
-            _quickViewDirectorySize.CurrentState,
-            IsPanelVisible);
-        int panelH = panelBounds.PanelHeight;
-        _ui.LeftBounds = panelBounds.Left;
-        _ui.RightBounds = panelBounds.Right;
-
-        if (HasVisiblePanels)
-            new DirectoryShortcutBarRenderer(_screen, _state.Palette)
-                .Render(panelH - 1, size.Width, _settings.DirectoryShortcuts);
-
-        if (IsPanelVisible(PanelSide.Right))
-            RenderClock(size);
-
-        _commandLineRenderer.Render(panelH, size, ActiveState.CurrentDirectory, _cmdLine);
-        _overlayRenderer.RenderCommandCompletion(size, panelH, _commandCompletion);
-
-        RenderFunctionKeyBar(size);
-
-        _overlayRenderer.RenderMenuOverlay(size, BuildMenuDefinition(), _menuState);
-
-        if (_menuState.OpenState == MenuOpenState.Closed)
-        {
-            if (_panelQuickSearch.State is not null)
-            {
-                if (!_overlayRenderer.RenderPanelQuickSearch(
-                        _panelQuickSearch.State,
-                        _ui.LeftBounds,
-                        _ui.RightBounds,
-                        IsPanelVisible))
-                {
-                    _screen.SetCursorVisible(false);
-                }
-            }
-            else
-            {
-                _commandLineRenderer.PositionCursor(panelH, size, ActiveState.CurrentDirectory, _cmdLine);
-            }
-        }
-        else
-            _screen.SetCursorVisible(false);
-    }
-
-    private void RenderCommandLineOnly()
-    {
-        _terminalSurface.ApplyMode();
-        _screen.SetRenderingOutputMode(true);
-        using var frame = _screen.BeginFrame();
-
-        var viewport = _screen.FrameViewport;
-        var size = viewport.Size;
-        _ui.LastRenderViewport = viewport;
-
-        int row = ApplicationLayoutService.CommandLineRow(size);
-        _commandLineRenderer.Render(row, size, ActiveState.CurrentDirectory, _cmdLine);
-        _commandLineRenderer.PositionCursor(row, size, ActiveState.CurrentDirectory, _cmdLine);
-    }
-
-    private void RenderCommandLineOnlyUntilStable()
-    {
-        while (_state.Running)
-        {
-            RenderCommandLineOnly();
-            if (!_screen.FrameWasInterrupted)
-            {
-                _screen.DrainResizeEvents();
-                break;
-            }
-        }
-    }
-
-    private void RenderClock(ConsoleSize size)
-    {
-        _clockRenderer.Render(size);
-    }
-
-    private void RenderFunctionKeyBar(ConsoleSize size)
-    {
-        _functionKeyBarRenderer.Render(size, _functionKeyLayer);
-    }
-
-    /// <summary>
-    /// Renders the screen, retrying if the console was resized mid-frame.
-    /// Loops until a complete, uninterrupted frame is flushed.
-    /// </summary>
-    private void RenderUntilStable()
-    {
-        int attempt = 0;
-        while (_state.Running)
-        {
-            attempt++;
-            Render();
-            if (!_screen.FrameWasInterrupted)
-            {
-                _screen.DrainResizeEvents();
-                break;
-            }
-        }
-    }
+    private void RenderCommandLineOnly() =>
+        _renderCoordinator.RenderCommandLineOnly();
 
     private static bool IsResizeEvent(ConsoleKeyInfo key) =>
         key.Key == ConsoleKey.NoName &&
@@ -645,7 +518,7 @@ public sealed class Application
         _state.HiddenPanels = HiddenPanels.Both;
         _terminalSurface.EnterHiddenMainScreenAtBottom();
         _screen.SetCursorVisible(true);
-        RenderCommandLineOnlyUntilStable();
+        _renderCoordinator.RenderCommandLineOnlyUntilStable();
         return false;
     }
 
@@ -675,7 +548,7 @@ public sealed class Application
         {
             _terminalSurface.EnterHiddenMainScreenAtBottom();
             _screen.SetCursorVisible(true);
-            RenderCommandLineOnlyUntilStable();
+            _renderCoordinator.RenderCommandLineOnlyUntilStable();
             return false;
         }
 

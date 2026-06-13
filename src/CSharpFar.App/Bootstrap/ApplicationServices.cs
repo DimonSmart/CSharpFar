@@ -66,6 +66,8 @@ internal sealed class ApplicationServices
     public required ApplicationFunctionKeyBarRenderer FunctionKeyBarRenderer { get; init; }
     public required ApplicationOverlayRenderer OverlayRenderer { get; init; }
     public required ApplicationCommandLineRenderer CommandLineRenderer { get; init; }
+    public required ApplicationRenderContext RenderContext { get; init; }
+    public required ApplicationRenderCoordinator RenderCoordinator { get; init; }
     public required TerminalSurfaceController TerminalSurface { get; init; }
     public required QuickViewDirectorySizeController QuickViewDirectorySize { get; init; }
     public required ApplicationRuntime Runtime { get; init; }

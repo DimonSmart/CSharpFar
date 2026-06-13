@@ -126,14 +126,11 @@ public sealed class ApplicationSettingsTests : IDisposable
     public void RenderClock_UsesActivePathColors()
     {
         var driver = new FakeConsoleDriver(width: 20, height: 5);
-        var app = CreateApp("Name", driver);
+        var renderer = new ClockRenderer(
+            new ScreenRenderer(driver),
+            () => PaletteRegistry.Default);
 
-        var method = typeof(Application).GetMethod(
-            "RenderClock",
-            BindingFlags.Instance | BindingFlags.NonPublic)
-            ?? throw new InvalidOperationException("Application.RenderClock method not found.");
-
-        method.Invoke(app, [new ConsoleSize(20, 5)]);
+        renderer.Render(new ConsoleSize(20, 5));
 
         for (int x = 0; x < 20; x++)
         {

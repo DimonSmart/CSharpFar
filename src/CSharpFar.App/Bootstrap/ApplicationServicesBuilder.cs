@@ -9,6 +9,7 @@ using CSharpFar.App.Menu;
 using CSharpFar.App.Modules;
 using CSharpFar.App.Panels;
 using CSharpFar.App.Rendering;
+using CSharpFar.App.State;
 using CSharpFar.App.UserMenu;
 using CSharpFar.App.Viewer;
 using CSharpFar.Console;
@@ -298,6 +299,38 @@ internal static class ApplicationServicesBuilder
             shellUnderlay,
             session.Ui,
             () => callbacks.HasVisiblePanels());
+        var quickViewDirectorySize = new QuickViewDirectorySizeController(autoRefresh.WakeInputLoop);
+        var renderContext = new ApplicationRenderContext
+        {
+            Screen = screen,
+            TerminalSurface = terminalSurface,
+            PanelController = controller,
+            App = session.App,
+            Ui = session.Ui,
+            MenuState = session.Menu.State,
+            PanelQuickSearch = panelQuickSearch,
+            CommandLine = session.CommandLine.State,
+            CommandCompletion = session.CommandLine.Completion,
+            LeftPanel = session.Panels.Left,
+            RightPanel = session.Panels.Right,
+            ActiveSide = () => callbacks.GetActiveSide(),
+            ActiveState = () => callbacks.ActiveState(),
+            LeftViewMode = () => session.Panels.LeftViewMode,
+            RightViewMode = () => session.Panels.RightViewMode,
+            FunctionKeyLayer = () => session.FunctionKeyLayer,
+            HasHiddenPanels = () => session.App.HiddenPanels != HiddenPanels.None,
+            HasVisiblePanels = () => callbacks.HasVisiblePanels(),
+            IsPanelVisible = side => callbacks.IsPanelVisible(side),
+            DirectoryShortcuts = () => effectiveSettings.DirectoryShortcuts,
+            QuickViewDirectorySize = quickViewDirectorySize,
+        };
+        var renderCoordinator = new ApplicationRenderCoordinator(
+            renderContext,
+            panelWorkspaceRenderer,
+            clockRenderer,
+            functionKeyBarRenderer,
+            overlayRenderer,
+            commandLineRenderer);
         var externalConsoleCommandRunner = new ExternalConsoleCommandRunner(
             screen,
             terminalSurface,
@@ -317,7 +350,6 @@ internal static class ApplicationServicesBuilder
             () => callbacks.GetActiveSide(),
             panelQuickSearch.Close,
             temporarily => commandCompletionController.Hide(temporarily));
-        var quickViewDirectorySize = new QuickViewDirectorySizeController(autoRefresh.WakeInputLoop);
         var runtime = ApplicationRuntimeBuilder.Create(
             screen,
             callbacks,
@@ -366,6 +398,8 @@ internal static class ApplicationServicesBuilder
             FunctionKeyBarRenderer = functionKeyBarRenderer,
             OverlayRenderer = overlayRenderer,
             CommandLineRenderer = commandLineRenderer,
+            RenderContext = renderContext,
+            RenderCoordinator = renderCoordinator,
             TerminalSurface = terminalSurface,
             QuickViewDirectorySize = quickViewDirectorySize,
             Runtime = runtime,
