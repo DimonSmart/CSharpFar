@@ -22,6 +22,8 @@ internal sealed class UnixTerminalMode : IDisposable
     private const int TCSANOW = 0;
 
     private readonly Termios _original;
+    private readonly Termios _raw;
+    private bool _rawActive;
     private bool _disposed;
 
     public UnixTerminalMode()
@@ -32,16 +34,41 @@ internal sealed class UnixTerminalMode : IDisposable
         if (tcgetattr(STDIN_FILENO, out _original) != 0)
             throw new InvalidOperationException("Failed to read terminal mode.", new Win32Exception(Marshal.GetLastPInvokeError()));
 
-        var raw = _original;
-        raw.c_iflag &= ~(BRKINT | ICRNL | INPCK | ISTRIP | IXON);
-        raw.c_oflag &= ~OPOST;
-        raw.c_cflag |= CS8;
-        raw.c_lflag &= ~(ECHO | ICANON | IEXTEN | ISIG);
-        raw.c_cc[VMIN] = 1;
-        raw.c_cc[VTIME] = 0;
+        _raw = _original;
+        _raw.c_iflag &= ~(BRKINT | ICRNL | INPCK | ISTRIP | IXON);
+        _raw.c_oflag &= ~OPOST;
+        _raw.c_cflag |= CS8;
+        _raw.c_lflag &= ~(ECHO | ICANON | IEXTEN | ISIG);
+        _raw.c_cc[VMIN] = 1;
+        _raw.c_cc[VTIME] = 0;
 
+        EnableRawMode();
+    }
+
+    public void EnableRawMode()
+    {
+        ThrowIfDisposed();
+        if (_rawActive)
+            return;
+
+        var raw = _raw;
         if (tcsetattr(STDIN_FILENO, TCSANOW, ref raw) != 0)
             throw new InvalidOperationException("Failed to enable terminal raw mode.", new Win32Exception(Marshal.GetLastPInvokeError()));
+
+        _rawActive = true;
+    }
+
+    public void RestoreOriginalMode()
+    {
+        ThrowIfDisposed();
+        if (!_rawActive)
+            return;
+
+        var original = _original;
+        if (tcsetattr(STDIN_FILENO, TCSANOW, ref original) != 0)
+            throw new InvalidOperationException("Failed to restore terminal mode.", new Win32Exception(Marshal.GetLastPInvokeError()));
+
+        _rawActive = false;
     }
 
     public void Dispose()
@@ -51,8 +78,12 @@ internal sealed class UnixTerminalMode : IDisposable
 
         var original = _original;
         _ = tcsetattr(STDIN_FILENO, TCSANOW, ref original);
+        _rawActive = false;
         _disposed = true;
     }
+
+    private void ThrowIfDisposed() =>
+        ObjectDisposedException.ThrowIf(_disposed, this);
 
     [DllImport("libc", SetLastError = true)]
     private static extern int tcgetattr(int fd, out Termios termios);

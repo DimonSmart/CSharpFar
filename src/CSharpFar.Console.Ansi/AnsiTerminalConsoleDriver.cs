@@ -4,7 +4,7 @@ using CSharpFar.Console.Models;
 
 namespace CSharpFar.Console.Ansi;
 
-public sealed class AnsiTerminalConsoleDriver : IConsoleDriver, ITerminalScreenMode, IDisposable
+public sealed class AnsiTerminalConsoleDriver : IConsoleDriver, ITerminalScreenMode, IConsoleOutputModeDriver, IDisposable
 {
     private const string ClearScreen = "\x1b[2J";
     private const string CursorHome = "\x1b[H";
@@ -17,6 +17,7 @@ public sealed class AnsiTerminalConsoleDriver : IConsoleDriver, ITerminalScreenM
     private readonly UnixTerminalMode _terminalMode;
     private readonly Stream _input;
     private readonly AnsiInputParser _inputParser = new();
+    private ConsoleSize _lastKnownSize;
     private bool _applicationScreenActive;
     private ConsoleColor? _currentForeground;
     private ConsoleColor? _currentBackground;
@@ -34,6 +35,7 @@ public sealed class AnsiTerminalConsoleDriver : IConsoleDriver, ITerminalScreenM
         global::System.Console.OutputEncoding = System.Text.Encoding.UTF8;
         _terminalMode = new UnixTerminalMode();
         _input = global::System.Console.OpenStandardInput();
+        _lastKnownSize = GetSize();
     }
 
     public bool IsSupported => true;
@@ -46,11 +48,20 @@ public sealed class AnsiTerminalConsoleDriver : IConsoleDriver, ITerminalScreenM
 
     public bool TryScrollViewportToBottom() => false;
 
-    public ConsoleInputEvent ReadInput(bool intercept, CancellationToken cancellationToken = default) =>
-        new KeyConsoleInputEvent(ReadKey(intercept));
+    public ConsoleInputEvent ReadInput(bool intercept, CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        if (TryReadResize(out var resize))
+            return resize;
+
+        return new KeyConsoleInputEvent(ReadKey(intercept));
+    }
 
     public bool TryReadInput(bool intercept, [NotNullWhen(true)] out ConsoleInputEvent? inputEvent)
     {
+        if (TryReadResize(out inputEvent))
+            return true;
+
         inputEvent = null;
         if (!global::System.Console.KeyAvailable)
             return false;
@@ -132,9 +143,9 @@ public sealed class AnsiTerminalConsoleDriver : IConsoleDriver, ITerminalScreenM
 
     public void Write(string text) => global::System.Console.Out.Write(text);
 
-    public int GetBufferWidth() => global::System.Console.WindowWidth;
+    public int GetBufferWidth() => Math.Max(1, global::System.Console.WindowWidth);
 
-    public int GetBufferHeight() => global::System.Console.WindowHeight;
+    public int GetBufferHeight() => Math.Max(1, global::System.Console.WindowHeight);
 
     public void EnterAlternateScreen() => EnterApplicationScreen();
 
@@ -165,12 +176,34 @@ public sealed class AnsiTerminalConsoleDriver : IConsoleDriver, ITerminalScreenM
 
     public void EnsureMainScreen() => LeaveApplicationScreen();
 
+    public void SetRenderingOutputMode(bool enabled)
+    {
+    }
+
+    public void SetConsoleScrollbackEnabled(bool enabled)
+    {
+    }
+
+    public void RestoreApplicationInputMode() => _terminalMode.EnableRawMode();
+
+    public IDisposable EnterChildProcessConsoleMode()
+    {
+        WriteControl(ResetAttributes + ShowCursor);
+        _cursorVisible = true;
+        EnsureMainScreen();
+        _terminalMode.RestoreOriginalMode();
+        Flush();
+        return new ChildProcessConsoleModeScope(this);
+    }
+
     public void RestoreTerminal()
     {
         WriteControl(LeaveAltScreen + ShowCursor + ResetAttributes);
         ResetCachedState();
         _cursorVisible = true;
         _applicationScreenActive = false;
+        _terminalMode.RestoreOriginalMode();
+        Flush();
     }
 
     public void Dispose()
@@ -188,6 +221,23 @@ public sealed class AnsiTerminalConsoleDriver : IConsoleDriver, ITerminalScreenM
     {
         global::System.Console.Out.Write(sequence);
         global::System.Console.Out.Flush();
+    }
+
+    private static void Flush() => global::System.Console.Out.Flush();
+
+    private bool TryReadResize([NotNullWhen(true)] out ConsoleInputEvent? inputEvent)
+    {
+        var size = GetSize();
+        if (size.Width == _lastKnownSize.Width && size.Height == _lastKnownSize.Height)
+        {
+            inputEvent = null;
+            return false;
+        }
+
+        _lastKnownSize = size;
+        ResetCachedState();
+        inputEvent = new ConsoleResizeInputEvent();
+        return true;
     }
 
     private void ApplyStyle(ConsoleColor foreground, ConsoleColor background, TextAttributes attributes)
@@ -212,5 +262,25 @@ public sealed class AnsiTerminalConsoleDriver : IConsoleDriver, ITerminalScreenM
         _currentAttributes = TextAttributes.None;
         _cursorX = -1;
         _cursorY = -1;
+    }
+
+    private sealed class ChildProcessConsoleModeScope : IDisposable
+    {
+        private readonly AnsiTerminalConsoleDriver _owner;
+        private bool _disposed;
+
+        public ChildProcessConsoleModeScope(AnsiTerminalConsoleDriver owner)
+        {
+            _owner = owner;
+        }
+
+        public void Dispose()
+        {
+            if (_disposed)
+                return;
+
+            _owner.RestoreApplicationInputMode();
+            _disposed = true;
+        }
     }
 }

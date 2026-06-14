@@ -19,7 +19,10 @@ if (args is ["--self-test"])
     return RunSelfTest(settingsStore);
 
 if (args is ["--check-terminal"])
-    return RunTerminalCheck();
+    return RunTerminalCheck(inputMode: false);
+
+if (args is ["--check-terminal", "--input"])
+    return RunTerminalCheck(inputMode: true);
 
 using var platform = UnixPlatformServices.Create(
     settingsStore.ConfigDirectory,
@@ -62,7 +65,7 @@ static int RunSelfTest(JsonSettingsStore settingsStore)
     return 0;
 }
 
-static int RunTerminalCheck()
+static int RunTerminalCheck(bool inputMode)
 {
     if (Console.IsInputRedirected || Console.IsOutputRedirected)
     {
@@ -73,7 +76,10 @@ static int RunTerminalCheck()
     try
     {
         using var driver = new AnsiTerminalConsoleDriver();
-        Console.WriteLine("Terminal check passed.");
+        if (inputMode)
+            RunTerminalInputCheck(driver);
+        else
+            RunTerminalVisualCheck(driver);
         return 0;
     }
     catch (Exception ex) when (ex is InvalidOperationException or PlatformNotSupportedException)
@@ -81,6 +87,76 @@ static int RunTerminalCheck()
         Console.Error.WriteLine(ex.Message);
         return 1;
     }
+}
+
+static void RunTerminalVisualCheck(AnsiTerminalConsoleDriver driver)
+{
+    driver.EnterApplicationScreen();
+    driver.SetCursorVisible(false);
+    driver.Clear();
+
+    var colors = Enum.GetValues<ConsoleColor>();
+    driver.WriteAt(2, 1, "CSharpFar terminal backend check", ConsoleColor.White, ConsoleColor.DarkBlue, CSharpFar.Console.Models.TextAttributes.Bold);
+    driver.WriteAt(2, 3, "Foreground colors", ConsoleColor.White, ConsoleColor.Black, CSharpFar.Console.Models.TextAttributes.Underline);
+
+    for (int i = 0; i < colors.Length; i++)
+    {
+        var color = colors[i];
+        driver.WriteAt(4, 5 + i, color.ToString().PadRight(12), color, ConsoleColor.Black);
+        driver.WriteAt(20, 5 + i, "  " + color + "  ", ConsoleColor.Black, color);
+    }
+
+    int boxX = 42;
+    int boxY = 5;
+    int boxW = 30;
+    int boxH = 9;
+    driver.WriteAt(boxX, boxY, "+" + new string('-', boxW - 2) + "+", ConsoleColor.Cyan, ConsoleColor.Black);
+    for (int y = boxY + 1; y < boxY + boxH - 1; y++)
+        driver.WriteAt(boxX, y, "|" + new string(' ', boxW - 2) + "|", ConsoleColor.Cyan, ConsoleColor.DarkBlue);
+    driver.WriteAt(boxX, boxY + boxH - 1, "+" + new string('-', boxW - 2) + "+", ConsoleColor.Cyan, ConsoleColor.Black);
+    driver.WriteAt(boxX + 2, boxY + 2, "Panel frame", ConsoleColor.Yellow, ConsoleColor.DarkBlue, CSharpFar.Console.Models.TextAttributes.Bold);
+    driver.WriteAt(boxX + 2, boxY + 4, "normal", ConsoleColor.Gray, ConsoleColor.DarkBlue);
+    driver.WriteAt(boxX + 10, boxY + 4, "reverse", ConsoleColor.Gray, ConsoleColor.DarkBlue, CSharpFar.Console.Models.TextAttributes.Reverse);
+    driver.WriteAt(boxX + 2, boxY + 6, "bold", ConsoleColor.White, ConsoleColor.DarkBlue, CSharpFar.Console.Models.TextAttributes.Bold);
+    driver.WriteAt(boxX + 10, boxY + 6, "underline", ConsoleColor.White, ConsoleColor.DarkBlue, CSharpFar.Console.Models.TextAttributes.Underline);
+
+    int promptY = Math.Max(0, Math.Min(driver.GetBufferHeight() - 2, 23));
+    driver.WriteAt(2, promptY, Directory.GetCurrentDirectory() + ">", ConsoleColor.White, ConsoleColor.Black);
+    driver.WriteAt(2, promptY + 1, "Press any key", ConsoleColor.Yellow, ConsoleColor.Black);
+    driver.SetCursorPosition(Math.Min(driver.GetBufferWidth() - 1, Directory.GetCurrentDirectory().Length + 3), promptY);
+    driver.SetCursorVisible(true);
+    driver.ReadKey(intercept: true);
+    driver.RestoreTerminal();
+}
+
+static void RunTerminalInputCheck(AnsiTerminalConsoleDriver driver)
+{
+    driver.EnterApplicationScreen();
+    driver.Clear();
+    driver.SetCursorVisible(false);
+    driver.WriteAt(2, 1, "Input check. Press Esc or Ctrl+C to exit.", ConsoleColor.White, ConsoleColor.DarkBlue, CSharpFar.Console.Models.TextAttributes.Bold);
+
+    int row = 3;
+    while (true)
+    {
+        var key = driver.ReadKey(intercept: true);
+        driver.WriteAt(2, row, new string(' ', Math.Max(1, driver.GetBufferWidth() - 4)), ConsoleColor.Gray, ConsoleColor.Black);
+        driver.WriteAt(2, row, $"Key: {key.Key}, Modifiers: {key.Modifiers}", ConsoleColor.Yellow, ConsoleColor.Black);
+        row++;
+        if (row >= Math.Max(4, driver.GetBufferHeight() - 1))
+        {
+            row = 3;
+            driver.ClearRegion(new CSharpFar.Console.Models.Rect(0, 3, driver.GetBufferWidth(), Math.Max(1, driver.GetBufferHeight() - 3)));
+        }
+
+        if (key.Key == ConsoleKey.Escape ||
+            (key.Key == ConsoleKey.C && key.Modifiers.HasFlag(ConsoleModifiers.Control)))
+        {
+            break;
+        }
+    }
+
+    driver.RestoreTerminal();
 }
 
 static void ValidateShellSettings(JsonSettingsStore settingsStore)
