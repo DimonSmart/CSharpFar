@@ -1,6 +1,7 @@
 using CSharpFar.App.AutoRefresh;
 using CSharpFar.App.CommandLine;
 using CSharpFar.App.Commands;
+using CSharpFar.App.Dialogs;
 using CSharpFar.App.Files;
 using CSharpFar.App.Menu;
 using CSharpFar.App.Modules;
@@ -59,6 +60,8 @@ internal static class CommandServicesFactory
         TopMenuController menuController,
         Action? saveSettings,
         IVolumeService? volumeService,
+        IFileMetadataService fileMetadata,
+        Func<IFileAttributesDialog> fileAttributesDialogFactory,
         IFileHighlightService? highlightService)
     {
         var changeDirectoryCommandExecutor = new ChangeDirectoryCommandExecutor(
@@ -118,6 +121,8 @@ internal static class CommandServicesFactory
             menuController,
             saveSettings,
             volumeService,
+            fileMetadata,
+            fileAttributesDialogFactory,
             highlightService);
 
         return new CommandServices(

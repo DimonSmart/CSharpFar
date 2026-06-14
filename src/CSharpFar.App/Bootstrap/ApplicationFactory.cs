@@ -1,4 +1,5 @@
 using CSharpFar.App.UserMenu;
+using CSharpFar.App.Dialogs;
 using CSharpFar.Console;
 using CSharpFar.Core.Abstractions;
 using CSharpFar.Core.Services;
@@ -33,7 +34,9 @@ public static class ApplicationFactory
         bool enableBuiltInNetworkModules = true,
         string? configDirectory = null,
         ITextClipboard? clipboard = null,
-        ITerminalScreenMode? terminalScreenMode = null) =>
+        ITerminalScreenMode? terminalScreenMode = null,
+        IFileMetadataService? fileMetadata = null,
+        Func<IFileAttributesDialog>? fileAttributesDialogFactory = null) =>
         new(ApplicationServicesBuilder.Create(
             screen,
             fs,
@@ -57,6 +60,8 @@ public static class ApplicationFactory
             enableBuiltInNetworkModules,
             configDirectory,
             clipboard,
-            terminalScreenMode));
+            terminalScreenMode,
+            fileMetadata,
+            fileAttributesDialogFactory));
 
 }

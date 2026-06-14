@@ -50,6 +50,12 @@ internal sealed class DefaultFunctionKeyBindingProvider
             "Rename",
             RunsWhenUnavailable: true),
         new(
+            FunctionKeyCommandIds.Attributes,
+            FunctionKeyLayer.Shift,
+            ConsoleKey.F9,
+            "Attr",
+            RunsWhenUnavailable: true),
+        new(
             FunctionKeyCommandIds.CreateFolder,
             FunctionKeyLayer.Plain,
             ConsoleKey.F7,

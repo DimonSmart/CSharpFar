@@ -1,6 +1,7 @@
 using CSharpFar.App.AutoRefresh;
 using CSharpFar.App.CommandLine;
 using CSharpFar.App.Commands;
+using CSharpFar.App.Dialogs;
 using CSharpFar.App.Files;
 using CSharpFar.App.FunctionKeys;
 using CSharpFar.App.Highlighting;
@@ -52,7 +53,9 @@ internal static class ApplicationServicesBuilder
         bool enableBuiltInNetworkModules = true,
         string? configDirectory = null,
         ITextClipboard? clipboard = null,
-        ITerminalScreenMode? terminalScreenMode = null)
+        ITerminalScreenMode? terminalScreenMode = null,
+        IFileMetadataService? fileMetadata = null,
+        Func<IFileAttributesDialog>? fileAttributesDialogFactory = null)
     {
         var core = CoreServicesFactory.Create(
             fs,
@@ -77,6 +80,7 @@ internal static class ApplicationServicesBuilder
         var effectiveFileLauncher = core.FileLauncher;
         var effectiveClipboard = core.Clipboard;
         var effectiveUserMenu = core.UserMenu;
+        var effectiveFileMetadata = fileMetadata ?? new FileMetadataService();
         var menuProvider = core.MenuProvider;
         var callbacks = new ApplicationServiceCallbacks();
         var keyboardInputContext = new KeyboardInputContext
@@ -312,6 +316,11 @@ internal static class ApplicationServicesBuilder
             menuController,
             saveSettings,
             volumeService,
+            effectiveFileMetadata,
+            fileAttributesDialogFactory ?? (() => new FileAttributesDialog(
+                screen,
+                canOpenSystemProperties: System.Runtime.InteropServices.RuntimeInformation.IsOSPlatform(
+                    System.Runtime.InteropServices.OSPlatform.Windows))),
             highlightService);
         var runtime = ApplicationRuntimeBuilder.Create(
             screen,

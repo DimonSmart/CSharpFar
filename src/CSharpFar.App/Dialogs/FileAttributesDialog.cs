@@ -1,0 +1,365 @@
+using System.Globalization;
+using CSharpFar.Console;
+using CSharpFar.Console.Input;
+using CSharpFar.Console.Models;
+using CSharpFar.Core.Models;
+using CSharpFar.Ui;
+
+namespace CSharpFar.App.Dialogs;
+
+internal sealed class FileAttributesDialog : IFileAttributesDialog
+{
+    private const int DialogWidth = 76;
+    private const int DialogHeight = 25;
+    private const string DateTimeFormat = "dd.MM.yyyy HH:mm:ss";
+
+    private readonly ScreenRenderer _screen;
+    private readonly IClock _clock;
+    private readonly bool _canOpenSystemProperties;
+    private readonly ModalDialogRenderer _modalRenderer = new();
+
+    public FileAttributesDialog(ScreenRenderer screen, IClock? clock = null, bool canOpenSystemProperties = false)
+    {
+        _screen = screen;
+        _clock = clock ?? new SystemClock();
+        _canOpenSystemProperties = canOpenSystemProperties;
+    }
+
+    public FileAttributesDialogResult? Show(FileMetadataSnapshot snapshot)
+    {
+        var size = _screen.GetSize();
+        var saved = _screen.Capture(new Rect(0, 0, size.Width, size.Height));
+        _screen.SetCursorVisible(false);
+
+        try
+        {
+            return RunLoop(size, snapshot);
+        }
+        finally
+        {
+            _screen.Restore(saved);
+            _screen.SetCursorVisible(false);
+        }
+    }
+
+    internal static FileMetadataChangeSet CreateChangeSet(
+        FileMetadataSnapshot original,
+        IReadOnlyDictionary<FileAttributeId, AttributeEditState> currentAttributeStates,
+        string creationText,
+        string writeText,
+        string accessText,
+        out string? error)
+    {
+        error = null;
+        var changes = new Dictionary<FileAttributeId, AttributeEditState>();
+        foreach (var descriptor in original.AttributesDescriptors.Where(static descriptor => descriptor.IsEditable))
+        {
+            var before = original.AttributeStates.TryGetValue(descriptor.Id, out var state)
+                ? state
+                : AttributeEditState.Unchecked;
+            var after = currentAttributeStates.TryGetValue(descriptor.Id, out var current)
+                ? current
+                : before;
+            if (after != before && after != AttributeEditState.Indeterminate)
+                changes[descriptor.Id] = after;
+        }
+
+        DateTime? creation = ParseChangedTime(
+            "creation",
+            creationText,
+            original.CreationTime,
+            original.CanEditCreationTime,
+            ref error);
+        DateTime? write = ParseChangedTime(
+            "write",
+            writeText,
+            original.LastWriteTime,
+            original.CanEditLastWriteTime,
+            ref error);
+        DateTime? access = ParseChangedTime(
+            "access",
+            accessText,
+            original.LastAccessTime,
+            original.CanEditLastAccessTime,
+            ref error);
+
+        return new FileMetadataChangeSet(changes, creation, write, access);
+    }
+
+    internal static string FormatTime(DateTime? value) =>
+        value is null ? string.Empty : value.Value.ToString(DateTimeFormat, CultureInfo.InvariantCulture);
+
+    private FileAttributesDialogResult? RunLoop(ConsoleSize size, FileMetadataSnapshot snapshot)
+    {
+        var attributeRows = snapshot.AttributesDescriptors
+            .Select(descriptor => new AttributeDialogRow(
+                descriptor,
+                new TriStateCheckBoxRow(new TriStateCheckBoxLine(
+                    descriptor.Label,
+                    snapshot.AttributeStates.TryGetValue(descriptor.Id, out var state) ? state : AttributeEditState.Unchecked,
+                    descriptor.IsEditable))))
+            .ToList();
+        var creation = TextState(FormatTime(snapshot.CreationTime));
+        var write = TextState(FormatTime(snapshot.LastWriteTime));
+        var access = TextState(FormatTime(snapshot.LastAccessTime));
+        var form = new ScrollableFormDialog();
+        string? error = null;
+
+        while (true)
+        {
+            form.SetRows(BuildRows(snapshot, attributeRows, creation, write, access));
+            Draw(size, form, error);
+
+            var input = _screen.ReadInput();
+            FormInputResult result = input switch
+            {
+                KeyConsoleInputEvent { Key: var key } => HandleKey(form, key),
+                MouseConsoleInputEvent mouse => form.HandleMouse(mouse),
+                _ => FormInputResult.NotHandled,
+            };
+
+            if (result.Kind == FormInputResultKind.Cancel)
+                return null;
+
+            if (result.Kind == FormInputResultKind.Submit)
+            {
+                if (IsTimeCommand(result.Command))
+                {
+                    ApplyTimeCommand(result.Command, snapshot, creation, write, access);
+                    continue;
+                }
+
+                switch (result.Command)
+                {
+                    case "properties":
+                        return new FileAttributesDialogResult(EmptyChangeSet(), OpenSystemProperties: true);
+                    case "set":
+                    case null:
+                        var states = attributeRows.ToDictionary(row => row.Descriptor.Id, row => row.Row.Value);
+                        var changeSet = CreateChangeSet(snapshot, states, creation.Text, write.Text, access.Text, out error);
+                        if (error is null)
+                            return new FileAttributesDialogResult(changeSet, OpenSystemProperties: false);
+                        continue;
+                }
+            }
+        }
+    }
+
+    private IReadOnlyList<IFormRow> BuildRows(
+        FileMetadataSnapshot snapshot,
+        IReadOnlyList<AttributeDialogRow> attributeRows,
+        CommandLineState creation,
+        CommandLineState write,
+        CommandLineState access)
+    {
+        var fill = FarDialogStyles.Fill;
+        var disabled = new CellStyle(ConsoleColor.DarkGray, fill.Background);
+        var rows = new List<IFormRow>
+        {
+            new LabelRow("Change file attributes for", fill),
+            new LabelRow(snapshot.DisplayName, fill),
+            new SeparatorRow(fill, drawLine: false),
+        };
+
+        rows.AddRange(attributeRows.Select(row => row.Descriptor.IsEditable
+            ? (IFormRow)row.Row
+            : new LabelRow(FormatDisabledAttribute(row), disabled)));
+
+        rows.Add(new SeparatorRow(fill, drawLine: false));
+        rows.Add(new LabelRow("Date/Time:", fill));
+        AddTimeRows(rows, "write:", "write.", write, snapshot.LastWriteTime, snapshot.CanEditLastWriteTime, disabled);
+        AddTimeRows(rows, "creation:", "creation.", creation, snapshot.CreationTime, snapshot.CanEditCreationTime, disabled);
+        AddTimeRows(rows, "access:", "access.", access, snapshot.LastAccessTime, snapshot.CanEditLastAccessTime, disabled);
+        rows.Add(new SeparatorRow(fill, drawLine: false));
+        rows.Add(new LabelRow("Owner:", fill));
+        rows.Add(new LabelRow(snapshot.OwnerDisplayName ?? "<not available>", fill));
+        rows.Add(new SeparatorRow(fill, drawLine: false));
+
+        var buttons = _canOpenSystemProperties
+            ? new[]
+            {
+                new DialogButton("set", "Set", 'S', IsDefault: true),
+                new DialogButton("properties", "System properties", 'P'),
+                new DialogButton("cancel", "Cancel", 'C'),
+            }
+            : [new DialogButton("set", "Set", 'S', IsDefault: true), new DialogButton("cancel", "Cancel", 'C')];
+        rows.Add(new ButtonRow(buttons, FarDialogStyles.Fill, FarDialogStyles.FocusedInput));
+        return rows;
+    }
+
+    private static void AddTimeRows(
+        List<IFormRow> rows,
+        string label,
+        string commandPrefix,
+        CommandLineState value,
+        DateTime? original,
+        bool enabled,
+        CellStyle disabled)
+    {
+        if (!enabled)
+        {
+            rows.Add(new LabelRow($"{label} {FormatTime(original)}", disabled));
+            return;
+        }
+
+        rows.Add(new TextInputWithButtonsRow(
+            label.PadRight(10),
+            value,
+            [
+                new DialogButton("original", "Original", 'O'),
+                new DialogButton("current", "Current", 'U'),
+                new DialogButton("blank", "Blank", 'B'),
+            ],
+            commandPrefix,
+            inputWidth: DateTimeFormat.Length,
+            buttonAreaWidth: 36));
+    }
+
+    private static FormInputResult HandleKey(ScrollableFormDialog form, ConsoleKeyInfo key)
+    {
+        if (key.Key == ConsoleKey.F10)
+            return FormInputResult.Submit("set");
+        return form.HandleKey(key);
+    }
+
+    private void Draw(ConsoleSize size, ScrollableFormDialog form, string? error)
+    {
+        using var frame = _screen.BeginFrame();
+        Rect outerBounds = OuterBounds(size);
+
+        _modalRenderer.Render(_screen, outerBounds, "Attributes", true, FarDialogStyles.OuterOptions, FarDialogStyles.FrameOptions, (_, layout) =>
+        {
+            Rect bounds = layout.FrameBounds;
+            int contentX = bounds.X + 2;
+            int contentWidth = Math.Max(1, bounds.Width - 4);
+            int errorY = bounds.Y + bounds.Height - 2;
+            int bodyTop = bounds.Y + 1;
+            int bodyHeight = Math.Max(1, errorY - bodyTop);
+
+            form.Render(new FormRenderContext(
+                _screen,
+                new Rect(contentX, bodyTop, contentWidth, bodyHeight),
+                FarDialogStyles.Border));
+
+            string errorText = error is null ? string.Empty : Truncate(error, contentWidth);
+            _screen.Write(contentX, errorY, errorText.PadRight(contentWidth), FarDialogStyles.Error);
+        });
+    }
+
+    private static DateTime? ParseChangedTime(
+        string label,
+        string text,
+        DateTime? original,
+        bool editable,
+        ref string? error)
+    {
+        if (error is not null || !editable)
+            return null;
+        if (string.IsNullOrWhiteSpace(text))
+            return null;
+        if (!DateTime.TryParseExact(
+                text.Trim(),
+                DateTimeFormat,
+                CultureInfo.InvariantCulture,
+                DateTimeStyles.None,
+                out var value))
+        {
+            error = $"{label} time must use {DateTimeFormat}.";
+            return null;
+        }
+
+        return value == original ? null : value;
+    }
+
+    private static string FormatDisabledAttribute(AttributeDialogRow row)
+    {
+        string marker = row.Row.Value switch
+        {
+            AttributeEditState.Checked => "x",
+            AttributeEditState.Indeterminate => "-",
+            _ => " ",
+        };
+        return $"[{marker}] {row.Descriptor.Label}";
+    }
+
+    private static CommandLineState TextState(string text)
+    {
+        var state = new CommandLineState();
+        state.SetText(text);
+        return state;
+    }
+
+    private static bool IsTimeCommand(string? command) =>
+        command is not null &&
+        (command.StartsWith("creation.", StringComparison.Ordinal) ||
+         command.StartsWith("write.", StringComparison.Ordinal) ||
+         command.StartsWith("access.", StringComparison.Ordinal));
+
+    private void ApplyTimeCommand(
+        string? command,
+        FileMetadataSnapshot snapshot,
+        CommandLineState creation,
+        CommandLineState write,
+        CommandLineState access)
+    {
+        if (command is null)
+            return;
+
+        var target = command.Split('.', 2);
+        if (target.Length != 2)
+            return;
+
+        CommandLineState? state = target[0] switch
+        {
+            "creation" when snapshot.CanEditCreationTime => creation,
+            "write" when snapshot.CanEditLastWriteTime => write,
+            "access" when snapshot.CanEditLastAccessTime => access,
+            _ => null,
+        };
+        DateTime? original = target[0] switch
+        {
+            "creation" => snapshot.CreationTime,
+            "write" => snapshot.LastWriteTime,
+            "access" => snapshot.LastAccessTime,
+            _ => null,
+        };
+        if (state is null)
+            return;
+
+        switch (target[1])
+        {
+            case "original":
+                state.SetText(FormatTime(original));
+                break;
+            case "current":
+                state.SetText(FormatTime(_clock.Now));
+                break;
+            case "blank":
+                state.Clear();
+                break;
+        }
+    }
+
+    private static FileMetadataChangeSet EmptyChangeSet() =>
+        new(new Dictionary<FileAttributeId, AttributeEditState>(), null, null, null);
+
+    private static Rect OuterBounds(ConsoleSize size)
+    {
+        int dialogWidth = Math.Min(DialogWidth, Math.Max(48, size.Width - 2));
+        int dialogHeight = Math.Min(DialogHeight, Math.Max(12, size.Height - 2));
+        int dialogX = Math.Max(0, (size.Width - dialogWidth) / 2);
+        int dialogY = Math.Max(0, (size.Height - dialogHeight) / 2);
+        return new Rect(dialogX, dialogY, dialogWidth, dialogHeight);
+    }
+
+    private static string Truncate(string value, int maxLength)
+    {
+        if (maxLength <= 0)
+            return string.Empty;
+        return value.Length <= maxLength ? value : value[..Math.Max(0, maxLength - 1)] + "~";
+    }
+
+    private sealed record AttributeDialogRow(
+        FileAttributeDescriptor Descriptor,
+        TriStateCheckBoxRow Row);
+}

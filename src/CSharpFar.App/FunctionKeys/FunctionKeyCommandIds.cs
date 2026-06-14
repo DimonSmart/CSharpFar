@@ -10,6 +10,7 @@ internal static class FunctionKeyCommandIds
     public const string Copy = "functionKey.copy";
     public const string RenameOrMove = "functionKey.renameOrMove";
     public const string Rename = "functionKey.shift.rename";
+    public const string Attributes = "functionKey.shift.attributes";
     public const string CreateFolder = "functionKey.createFolder";
     public const string Delete = "functionKey.delete";
     public const string TopMenu = "functionKey.topMenu";

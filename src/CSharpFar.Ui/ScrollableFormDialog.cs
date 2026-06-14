@@ -318,6 +318,126 @@ public sealed class TextInputRowState
     public ScrollBarDragState? HistoryScrollbarDrag;
 }
 
+public sealed class TextInputWithButtonsRow : FormRow, IFormOverlayRow
+{
+    private readonly string _label;
+    private readonly CommandLineState _buffer;
+    private readonly TextInputRowState _state;
+    private readonly DialogButtonBar _buttonBar;
+    private readonly int _inputWidth;
+    private readonly int _buttonAreaWidth;
+    private readonly string _commandPrefix;
+    private Rect _inputBounds;
+    private Rect _buttonBounds;
+
+    public TextInputWithButtonsRow(
+        string label,
+        CommandLineState buffer,
+        IReadOnlyList<DialogButton> buttons,
+        string commandPrefix,
+        int inputWidth,
+        int buttonAreaWidth,
+        TextInputRowState? state = null)
+    {
+        _label = label;
+        _buffer = buffer;
+        _buttonBar = new DialogButtonBar(buttons);
+        _commandPrefix = commandPrefix;
+        _inputWidth = inputWidth;
+        _buttonAreaWidth = buttonAreaWidth;
+        _state = state ?? new TextInputRowState();
+    }
+
+    public CommandLineState Buffer => _buffer;
+    public TextInputRowState State => _state;
+
+    public override void Render(FormRowRenderContext context)
+    {
+        int labelWidth = Math.Min(_label.Length + 1, Math.Max(0, context.Bounds.Width));
+        context.Screen.Write(
+            context.Bounds.X,
+            context.Bounds.Y,
+            ScrollableFormDialog.Fit(_label.PadRight(labelWidth), labelWidth),
+            FarDialogStyles.Fill);
+
+        int inputX = context.Bounds.X + labelWidth;
+        int remainingAfterLabel = Math.Max(0, context.Bounds.Width - labelWidth);
+        int inputWidth = Math.Min(_inputWidth, remainingAfterLabel);
+        _inputBounds = new Rect(inputX, context.Bounds.Y, inputWidth, 1);
+        SingleLineTextInput.Render(
+            context.Screen,
+            _inputBounds.X,
+            _inputBounds.Y,
+            _inputBounds.Width,
+            _buffer,
+            context.Focused ? FarDialogStyles.FocusedInput : FarDialogStyles.Input,
+            FarDialogStyles.Input,
+            history: null,
+            renderDropdown: false);
+
+        int buttonX = _inputBounds.Right + 1;
+        int buttonWidth = Math.Min(_buttonAreaWidth, Math.Max(0, context.Bounds.Right - buttonX));
+        _buttonBounds = new Rect(buttonX, context.Bounds.Y, buttonWidth, 1);
+        if (buttonWidth > 0)
+        {
+            _buttonBar.Render(
+                context.Screen,
+                _buttonBounds.X,
+                _buttonBounds.Y,
+                _buttonBounds.Width,
+                focusedIndex: 0,
+                FarDialogStyles.Fill,
+                context.Focused ? FarDialogStyles.FocusedInput : FarDialogStyles.Fill);
+        }
+    }
+
+    public void RenderOverlay(FormRowRenderContext context)
+    {
+    }
+
+    public override FormInputResult HandleKey(ConsoleKeyInfo key, FormRowInputContext context)
+    {
+        string? error = null;
+        string before = _buffer.Text;
+        TextInputKeyResult result = SingleLineTextInput.HandleKey(
+            _buffer,
+            key,
+            ref error,
+            history: null,
+            availableDropdownContentRows: 0);
+
+        return result switch
+        {
+            TextInputKeyResult.TextChanged when _buffer.Text != before => FormInputResult.ValueChanged,
+            TextInputKeyResult.TextChanged => FormInputResult.Handled,
+            TextInputKeyResult.Handled => FormInputResult.Handled,
+            _ => FormInputResult.NotHandled,
+        };
+    }
+
+    public override FormInputResult HandleMouse(MouseConsoleInputEvent mouse, FormRowMouseContext context)
+    {
+        int focusedButton = 0;
+        if (_buttonBar.TryHandleInput(mouse, ref focusedButton, out string? buttonId))
+            return buttonId is null
+                ? FormInputResult.Handled
+                : FormInputResult.Submit(_commandPrefix + buttonId);
+
+        if (mouse.Button != MouseButton.Left ||
+            mouse.Kind is not (MouseEventKind.Down or MouseEventKind.Click) ||
+            mouse.Y != _inputBounds.Y ||
+            mouse.X < _inputBounds.X ||
+            mouse.X >= _inputBounds.Right)
+        {
+            return FormInputResult.NotHandled;
+        }
+
+        int target = Math.Clamp(mouse.X - _inputBounds.X, 0, Math.Min(_buffer.Text.Length, _inputBounds.Width));
+        _buffer.MoveCursor(target - _buffer.CursorPosition);
+        return FormInputResult.Handled;
+    }
+}
+
 public sealed class CheckBoxRow : FormRow
 {
     private readonly CheckBoxLine _checkBox;
@@ -348,6 +468,49 @@ public sealed class CheckBoxRow : FormRow
     public override FormInputResult HandleMouse(MouseConsoleInputEvent mouse, FormRowMouseContext context)
     {
         bool before = _checkBox.Value;
+        if (!_checkBox.TryHandleMouse(mouse))
+            return FormInputResult.NotHandled;
+
+        return _checkBox.Value != before ? FormInputResult.ValueChanged : FormInputResult.Handled;
+    }
+}
+
+public sealed class TriStateCheckBoxRow : FormRow
+{
+    private readonly TriStateCheckBoxLine _checkBox;
+
+    public TriStateCheckBoxRow(TriStateCheckBoxLine checkBox)
+    {
+        _checkBox = checkBox;
+    }
+
+    public AttributeEditState Value
+    {
+        get => _checkBox.Value;
+        set => _checkBox.Value = value;
+    }
+
+    public bool Enabled
+    {
+        get => _checkBox.Enabled;
+        set => _checkBox.Enabled = value;
+    }
+
+    public override void Render(FormRowRenderContext context) =>
+        _checkBox.Render(context.Screen, context.Bounds.X, context.Bounds.Y, context.Bounds.Width, context.Focused);
+
+    public override FormInputResult HandleKey(ConsoleKeyInfo key, FormRowInputContext context)
+    {
+        AttributeEditState before = _checkBox.Value;
+        if (!_checkBox.TryHandleKey(key))
+            return FormInputResult.NotHandled;
+
+        return _checkBox.Value != before ? FormInputResult.ValueChanged : FormInputResult.Handled;
+    }
+
+    public override FormInputResult HandleMouse(MouseConsoleInputEvent mouse, FormRowMouseContext context)
+    {
+        AttributeEditState before = _checkBox.Value;
         if (!_checkBox.TryHandleMouse(mouse))
             return FormInputResult.NotHandled;
 

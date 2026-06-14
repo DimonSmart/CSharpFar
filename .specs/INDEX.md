@@ -47,3 +47,4 @@
 | 0060 | Spec | Current | File rename operation | Make renaming the current panel item a distinct user command. Plain `F6` remains primarily move; `Shift+F6` is the direct rename shortcut. |
 | 0061 | Spec | Current | Native plugin system | CSharpFar supports native .NET plugins designed around CSharpFar internal abstractions and intentionally does not emulate FarNet or Far Manager plugin APIs. |
 | 0062 | Spec | Current | Console UI component library | CSharpFar owns an internal reusable console UI component library for rendering, popup/dialog frames, scrollbars, text input, button bars, selection lists,... |
+| 0063 | Spec | Current | File attributes dialog | CSharpFar provides a Far-like local file metadata dialog for viewing and changing provider-supported attributes and file times through capability-based metadata services. |

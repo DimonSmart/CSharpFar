@@ -44,6 +44,8 @@ internal sealed class ApplicationCommandContext
     private readonly DefaultMenuDefinitionProvider _menuProvider;
     private readonly Action? _saveSettings;
     private readonly IVolumeService? _volumeService;
+    private readonly IFileMetadataService _fileMetadata;
+    private readonly Func<IFileAttributesDialog> _fileAttributesDialogFactory;
     private IFileHighlightService? _highlightService;
 
     public ApplicationCommandContext(
@@ -77,6 +79,8 @@ internal sealed class ApplicationCommandContext
         TopMenuController menuController,
         Action? saveSettings,
         IVolumeService? volumeService,
+        IFileMetadataService fileMetadata,
+        Func<IFileAttributesDialog> fileAttributesDialogFactory,
         IFileHighlightService? highlightService)
     {
         Screen = screen;
@@ -109,6 +113,8 @@ internal sealed class ApplicationCommandContext
         _menuController = menuController;
         _saveSettings = saveSettings;
         _volumeService = volumeService;
+        _fileMetadata = fileMetadata;
+        _fileAttributesDialogFactory = fileAttributesDialogFactory;
         _highlightService = highlightService;
     }
 
@@ -141,6 +147,8 @@ internal sealed class ApplicationCommandContext
     public AppSettingsAlias Settings { get; }
 
     public IVolumeService? VolumeService => _volumeService;
+
+    public IFileMetadataService FileMetadata => _fileMetadata;
 
     public IReadOnlyList<ModuleMenuProjection> ModuleDiskMenuItems =>
         _moduleCatalog.DiskMenuItems;
@@ -196,6 +204,8 @@ internal sealed class ApplicationCommandContext
     public bool HasVisiblePanels => _panelWorkspace.HasVisiblePanels;
 
     public void SaveSettings() => _saveSettings?.Invoke();
+
+    public IFileAttributesDialog CreateFileAttributesDialog() => _fileAttributesDialogFactory();
 
     public int VisibleRows() => _panelWorkspace.VisibleRows();
 

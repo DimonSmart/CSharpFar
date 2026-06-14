@@ -15,8 +15,13 @@ public sealed class FakeFileSystemService : IFileSystemService
     public void AddDirectory(string path, params FilePanelItem[] items) =>
         _dirs[path] = [.. items];
 
-    public IReadOnlyList<FilePanelItem> ReadDirectory(string path) =>
-        _dirs.TryGetValue(path, out var items) ? items : [];
+    public int ReadDirectoryCallCount { get; private set; }
+
+    public IReadOnlyList<FilePanelItem> ReadDirectory(string path)
+    {
+        ReadDirectoryCallCount++;
+        return _dirs.TryGetValue(path, out var items) ? items : [];
+    }
 
     public bool DirectoryExists(string path) => _dirs.ContainsKey(path);
     public bool FileExists(string path) => false;

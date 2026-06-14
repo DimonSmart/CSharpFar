@@ -1,0 +1,36 @@
+using CSharpFar.Core.Models;
+
+namespace CSharpFar.FileSystem.Platform;
+
+internal sealed class MacOsFileMetadataProvider : UnixFileMetadataProvider
+{
+    public override IReadOnlyList<FileAttributeDescriptor> GetAttributeDescriptors(string path, FileAttributes attributes)
+    {
+        var descriptors = base.GetAttributeDescriptors(path, attributes).ToList();
+        int hiddenIndex = descriptors.FindIndex(static descriptor => descriptor.Id == FileAttributeId.Hidden);
+        if (hiddenIndex >= 0)
+            descriptors[hiddenIndex] = Descriptor(FileAttributeId.Hidden, editable: true);
+        return descriptors;
+    }
+
+    public override void ApplyAttributes(
+        string path,
+        FileAttributes currentAttributes,
+        IReadOnlyDictionary<FileAttributeId, AttributeEditState> changes)
+    {
+        base.ApplyAttributes(path, currentAttributes, changes);
+
+        if (!changes.TryGetValue(FileAttributeId.Hidden, out var hidden) ||
+            hidden == AttributeEditState.Indeterminate)
+        {
+            return;
+        }
+
+        var refreshed = File.GetAttributes(path);
+        var next = hidden == AttributeEditState.Checked
+            ? refreshed | FileAttributes.Hidden
+            : refreshed & ~FileAttributes.Hidden;
+        if (next != refreshed)
+            File.SetAttributes(path, next);
+    }
+}

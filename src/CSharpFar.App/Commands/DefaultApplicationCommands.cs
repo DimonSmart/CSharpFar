@@ -14,6 +14,7 @@ internal static class DefaultApplicationCommands
         new RenameCommand(),
         new CreateFolderCommand(),
         new DeleteCommand(),
+        new OpenFileAttributesCommand(),
         new OpenTopMenuCommand(),
         new QuitCommand(),
         new SelectLeftDriveCommand(),

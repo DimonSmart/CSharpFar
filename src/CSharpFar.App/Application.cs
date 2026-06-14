@@ -122,7 +122,9 @@ public sealed class Application
         bool                         enableBuiltInNetworkModules = true,
         string?                      configDirectory   = null,
         ITextClipboard?              clipboard         = null,
-        ITerminalScreenMode?         terminalScreenMode = null)
+        ITerminalScreenMode?         terminalScreenMode = null,
+        IFileMetadataService?        fileMetadata = null,
+        Func<IFileAttributesDialog>? fileAttributesDialogFactory = null)
         : this(ApplicationServicesBuilder.Create(
             screen,
             fs,
@@ -146,7 +148,9 @@ public sealed class Application
             enableBuiltInNetworkModules,
             configDirectory,
             clipboard,
-            terminalScreenMode))
+            terminalScreenMode,
+            fileMetadata,
+            fileAttributesDialogFactory))
     {
     }
 
