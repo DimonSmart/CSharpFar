@@ -1,6 +1,7 @@
 ﻿using CSharpFar.Core.Controllers;
 using CSharpFar.Core.Abstractions;
 using CSharpFar.Core.Models;
+using CSharpFar.Core.Services;
 using CSharpFar.Tests.Fakes;
 
 namespace CSharpFar.Tests;
@@ -524,14 +525,14 @@ public class PanelControllerTests
     // ── GoToParent ────────────────────────────────────────────────────────────
 
     [Fact]
-    public void GoToParent_NavigatesToParentDirectory()
+    public void WindowsGoToParent_NavigatesToParentDirectory()
     {
         var fs = new FakeFileSystemService();
         fs.AddDirectory(Sub1);
         fs.AddDirectory(Root,
             new FilePanelItem { Name = "Sub1", FullPath = Sub1, IsDirectory = true });
 
-        var ctrl  = new PanelController(new FakePanelViewBuilder(fs));
+        var ctrl  = new PanelController(new FakePanelViewBuilder(fs), new WindowsPanelPathSemantics());
         var state = new FilePanelState { CurrentDirectory = Sub1 };
         ctrl.LoadDirectory(state, Sub1);
 
@@ -541,7 +542,7 @@ public class PanelControllerTests
     }
 
     [Fact]
-    public void GoToParent_PositionsCursorOnChildDirectory()
+    public void WindowsGoToParent_PositionsCursorOnChildDirectory()
     {
         var fs = new FakeFileSystemService();
         fs.AddDirectory(Sub1);
@@ -550,7 +551,7 @@ public class PanelControllerTests
             new FilePanelItem { Name = "Sub1",     FullPath = Sub1,                IsDirectory = true },
             new FilePanelItem { Name = "ZDir",     FullPath = @"C:\Root\ZDir",     IsDirectory = true });
 
-        var ctrl  = new PanelController(new FakePanelViewBuilder(fs));
+        var ctrl  = new PanelController(new FakePanelViewBuilder(fs), new WindowsPanelPathSemantics());
         var state = new FilePanelState { CurrentDirectory = Sub1 };
         ctrl.LoadDirectory(state, Sub1);
 
@@ -560,7 +561,7 @@ public class PanelControllerTests
     }
 
     [Fact]
-    public void GoToParent_ScrollsToChildDirectoryWhenItIsBelowVisibleRows()
+    public void WindowsGoToParent_ScrollsToChildDirectoryWhenItIsBelowVisibleRows()
     {
         var fs = new FakeFileSystemService();
         var childPath = @"C:\Root\Sub25";
@@ -583,7 +584,7 @@ public class PanelControllerTests
 
         fs.AddDirectory(Root, rootItems);
 
-        var ctrl = new PanelController(new FakePanelViewBuilder(fs));
+        var ctrl = new PanelController(new FakePanelViewBuilder(fs), new WindowsPanelPathSemantics());
         var state = new FilePanelState { CurrentDirectory = childPath };
         ctrl.LoadDirectory(state, childPath);
 
@@ -592,6 +593,131 @@ public class PanelControllerTests
         Assert.Equal("Sub25", ctrl.CurrentItem(state)?.Name);
         Assert.True(state.ScrollOffset <= state.CursorIndex);
         Assert.True(state.CursorIndex < state.ScrollOffset + 5);
+    }
+
+    [Fact]
+    public void WindowsGoToParent_FromDirectoryBelowDriveRoot_NavigatesToDriveRoot()
+    {
+        var fs = new FakeFileSystemService();
+        fs.AddDirectory(Root);
+        fs.AddDirectory(@"C:\",
+            new FilePanelItem { Name = "Root", FullPath = Root, IsDirectory = true });
+
+        var ctrl = new PanelController(new FakePanelViewBuilder(fs), new WindowsPanelPathSemantics());
+        var state = new FilePanelState { CurrentDirectory = Root };
+        ctrl.LoadDirectory(state, Root);
+
+        ctrl.GoToParent(state, visibleRows: 10);
+
+        Assert.Equal(@"C:\", state.CurrentDirectory);
+        Assert.Equal("Root", ctrl.CurrentItem(state)?.Name);
+    }
+
+    [Fact]
+    public void WindowsGoToParent_FromDriveRoot_DoesNothing()
+    {
+        var fs = new FakeFileSystemService();
+        fs.AddDirectory(@"C:\",
+            new FilePanelItem { Name = "Root", FullPath = Root, IsDirectory = true });
+
+        var ctrl = new PanelController(new FakePanelViewBuilder(fs), new WindowsPanelPathSemantics());
+        var state = new FilePanelState { CurrentDirectory = @"C:\" };
+        ctrl.LoadDirectory(state, @"C:\");
+
+        ctrl.GoToParent(state, visibleRows: 10);
+
+        Assert.Equal(@"C:\", state.CurrentDirectory);
+        Assert.Equal("Root", ctrl.CurrentItem(state)?.Name);
+    }
+
+    [Fact]
+    public void UnixGoToParent_FromUnixPath_NavigatesToParentDirectory()
+    {
+        var fs = new FakeFileSystemService();
+        fs.AddDirectory("/home/user/project");
+        fs.AddDirectory("/home/user",
+            new FilePanelItem { Name = "project", FullPath = "/home/user/project", IsDirectory = true });
+
+        var ctrl = new PanelController(new FakePanelViewBuilder(fs), new UnixPanelPathSemantics());
+        var state = new FilePanelState { CurrentDirectory = "/home/user/project" };
+        ctrl.LoadDirectory(state, "/home/user/project");
+
+        ctrl.GoToParent(state, visibleRows: 10);
+
+        Assert.Equal("/home/user", state.CurrentDirectory);
+    }
+
+    [Fact]
+    public void UnixGoToParent_FromUnixPath_PositionsCursorOnChildDirectory()
+    {
+        var fs = new FakeFileSystemService();
+        fs.AddDirectory("/home/user");
+        fs.AddDirectory("/home",
+            new FilePanelItem { Name = "other", FullPath = "/home/other", IsDirectory = true },
+            new FilePanelItem { Name = "user", FullPath = "/home/user", IsDirectory = true });
+
+        var ctrl = new PanelController(new FakePanelViewBuilder(fs), new UnixPanelPathSemantics());
+        var state = new FilePanelState { CurrentDirectory = "/home/user" };
+        ctrl.LoadDirectory(state, "/home/user");
+
+        ctrl.GoToParent(state, visibleRows: 10);
+
+        Assert.Equal("/home", state.CurrentDirectory);
+        Assert.Equal("user", ctrl.CurrentItem(state)?.Name);
+    }
+
+    [Fact]
+    public void UnixGoToParent_FromDirectoryBelowRoot_NavigatesToRoot()
+    {
+        var fs = new FakeFileSystemService();
+        fs.AddDirectory("/home");
+        fs.AddDirectory("/",
+            new FilePanelItem { Name = "home", FullPath = "/home", IsDirectory = true });
+
+        var ctrl = new PanelController(new FakePanelViewBuilder(fs), new UnixPanelPathSemantics());
+        var state = new FilePanelState { CurrentDirectory = "/home" };
+        ctrl.LoadDirectory(state, "/home");
+
+        ctrl.GoToParent(state, visibleRows: 10);
+
+        Assert.Equal("/", state.CurrentDirectory);
+        Assert.Equal("home", ctrl.CurrentItem(state)?.Name);
+    }
+
+    [Fact]
+    public void UnixGoToParent_FromUnixRoot_DoesNothing()
+    {
+        var fs = new FakeFileSystemService();
+        fs.AddDirectory("/",
+            new FilePanelItem { Name = "home", FullPath = "/home", IsDirectory = true });
+
+        var ctrl = new PanelController(new FakePanelViewBuilder(fs), new UnixPanelPathSemantics());
+        var state = new FilePanelState { CurrentDirectory = "/" };
+        ctrl.LoadDirectory(state, "/");
+
+        ctrl.GoToParent(state, visibleRows: 10);
+
+        Assert.Equal("/", state.CurrentDirectory);
+        Assert.Equal("home", ctrl.CurrentItem(state)?.Name);
+    }
+
+    [Fact]
+    public void TryGoToParent_UsesConfiguredPathSemantics()
+    {
+        var fs = new FakeFileSystemService();
+        fs.AddDirectory("/home/user");
+        fs.AddDirectory("/home",
+            new FilePanelItem { Name = "user", FullPath = "/home/user", IsDirectory = true });
+
+        var ctrl = new PanelController(new FakePanelViewBuilder(fs), new UnixPanelPathSemantics());
+        var state = new FilePanelState { CurrentDirectory = "/home/user" };
+        ctrl.LoadDirectory(state, "/home/user");
+
+        bool navigated = ctrl.TryGoToParent(state, visibleRows: 10);
+
+        Assert.True(navigated);
+        Assert.Equal("/home", state.CurrentDirectory);
+        Assert.Equal("user", ctrl.CurrentItem(state)?.Name);
     }
 
     private sealed class ThrowingFileSystemService : IFileSystemService

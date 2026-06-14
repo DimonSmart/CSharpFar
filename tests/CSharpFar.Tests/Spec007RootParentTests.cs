@@ -10,10 +10,16 @@ namespace CSharpFar.Tests;
 /// </summary>
 public sealed class Spec007RootParentTests
 {
-    private static PanelViewBuilder MakeBuilder(IFileSystemService fs)
+    private static PanelViewBuilder MakeWindowsBuilder(IFileSystemService fs)
     {
         var sort = new PanelSortService();
-        return new PanelViewBuilder(fs, sort);
+        return new PanelViewBuilder(fs, sort, pathSemantics: new WindowsPanelPathSemantics());
+    }
+
+    private static PanelViewBuilder MakeUnixBuilder(IFileSystemService fs)
+    {
+        var sort = new PanelSortService();
+        return new PanelViewBuilder(fs, sort, pathSemantics: new UnixPanelPathSemantics());
     }
 
     private static PanelViewRequest Request(string path, bool showParentInRoot) =>
@@ -32,12 +38,12 @@ public sealed class Spec007RootParentTests
     // ── Non-root always shows ".." ─────────────────────────────────────────────
 
     [Fact]
-    public void NonRoot_ShowsParent_Regardless_OfOption()
+    public void WindowsNonRoot_ShowsParent_Regardless_OfOption()
     {
         var path = @"C:\Users\Test";
         var fs   = new FakeFileSystemService();
         fs.AddDirectory(path);
-        var builder = MakeBuilder(fs);
+        var builder = MakeWindowsBuilder(fs);
 
         var viewFalse = builder.Build(Request(path, showParentInRoot: false));
         var viewTrue  = builder.Build(Request(path, showParentInRoot: true));
@@ -49,12 +55,12 @@ public sealed class Spec007RootParentTests
     // ── Windows drive root ─────────────────────────────────────────────────────
 
     [Fact]
-    public void DriveRoot_HidesParent_WhenShowParentInRoot_False()
+    public void WindowsDriveRoot_HidesParent_WhenShowParentInRoot_False()
     {
         var path = @"C:\";
         var fs   = new FakeFileSystemService();
         fs.AddDirectory(path);
-        var builder = MakeBuilder(fs);
+        var builder = MakeWindowsBuilder(fs);
 
         var view = builder.Build(Request(path, showParentInRoot: false));
 
@@ -62,12 +68,12 @@ public sealed class Spec007RootParentTests
     }
 
     [Fact]
-    public void DriveRoot_ShowsParent_WhenShowParentInRoot_True()
+    public void WindowsDriveRoot_ShowsParent_WhenShowParentInRoot_True()
     {
         var path = @"C:\";
         var fs   = new FakeFileSystemService();
         fs.AddDirectory(path);
-        var builder = MakeBuilder(fs);
+        var builder = MakeWindowsBuilder(fs);
 
         var view = builder.Build(Request(path, showParentInRoot: true));
 
@@ -75,12 +81,12 @@ public sealed class Spec007RootParentTests
     }
 
     [Fact]
-    public void DriveRoot_IsRootDirectory_True()
+    public void WindowsDriveRoot_IsRootDirectory_True()
     {
         var path = @"C:\";
         var fs   = new FakeFileSystemService();
         fs.AddDirectory(path);
-        var builder = MakeBuilder(fs);
+        var builder = MakeWindowsBuilder(fs);
 
         var view = builder.Build(Request(path, showParentInRoot: false));
 
@@ -88,12 +94,12 @@ public sealed class Spec007RootParentTests
     }
 
     [Fact]
-    public void NonRoot_IsRootDirectory_False()
+    public void WindowsNonRoot_IsRootDirectory_False()
     {
         var path = @"C:\Windows";
         var fs   = new FakeFileSystemService();
         fs.AddDirectory(path);
-        var builder = MakeBuilder(fs);
+        var builder = MakeWindowsBuilder(fs);
 
         var view = builder.Build(Request(path, showParentInRoot: false));
 
@@ -103,12 +109,12 @@ public sealed class Spec007RootParentTests
     // ── UNC share root ────────────────────────────────────────────────────────
 
     [Fact]
-    public void UncShareRoot_HidesParent_WhenShowParentInRoot_False()
+    public void WindowsUncShareRoot_HidesParent_WhenShowParentInRoot_False()
     {
         var path = @"\\server\share";
         var fs   = new FakeFileSystemService();
         fs.AddDirectory(path);
-        var builder = MakeBuilder(fs);
+        var builder = MakeWindowsBuilder(fs);
 
         var view = builder.Build(Request(path, showParentInRoot: false));
 
@@ -116,12 +122,12 @@ public sealed class Spec007RootParentTests
     }
 
     [Fact]
-    public void UncShareRoot_ShowsParent_WhenShowParentInRoot_True()
+    public void WindowsUncShareRoot_ShowsParent_WhenShowParentInRoot_True()
     {
         var path = @"\\server\share";
         var fs   = new FakeFileSystemService();
         fs.AddDirectory(path);
-        var builder = MakeBuilder(fs);
+        var builder = MakeWindowsBuilder(fs);
 
         var view = builder.Build(Request(path, showParentInRoot: true));
 
@@ -131,17 +137,72 @@ public sealed class Spec007RootParentTests
     // ── Root ".." FullPath is same as current directory ────────────────────────
 
     [Fact]
-    public void DriveRoot_ParentItem_FullPath_EqualsCurrentDirectory()
+    public void WindowsDriveRoot_ParentItem_FullPath_EqualsCurrentDirectory()
     {
         var path = @"C:\";
         var fs   = new FakeFileSystemService();
         fs.AddDirectory(path);
-        var builder = MakeBuilder(fs);
+        var builder = MakeWindowsBuilder(fs);
 
         var view = builder.Build(Request(path, showParentInRoot: true));
 
         var dotdot = view.Items.First(i => i.IsParentDirectory);
         Assert.Equal(path, dotdot.FullPath,
             StringComparer.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void UnixRoot_HidesParent_WhenShowParentInRoot_False()
+    {
+        var path = "/";
+        var fs = new FakeFileSystemService();
+        fs.AddDirectory(path);
+        var builder = MakeUnixBuilder(fs);
+
+        var view = builder.Build(Request(path, showParentInRoot: false));
+
+        Assert.DoesNotContain(view.Items, i => i.IsParentDirectory);
+    }
+
+    [Fact]
+    public void UnixRoot_ShowsParent_WhenShowParentInRoot_True()
+    {
+        var path = "/";
+        var fs = new FakeFileSystemService();
+        fs.AddDirectory(path);
+        var builder = MakeUnixBuilder(fs);
+
+        var view = builder.Build(Request(path, showParentInRoot: true));
+
+        var dotdot = Assert.Single(view.Items, i => i.IsParentDirectory);
+        Assert.Equal(path, dotdot.FullPath);
+    }
+
+    [Fact]
+    public void UnixNonRoot_ShowsParent_Regardless_OfOption()
+    {
+        var path = "/home/user";
+        var fs = new FakeFileSystemService();
+        fs.AddDirectory(path);
+        var builder = MakeUnixBuilder(fs);
+
+        var viewFalse = builder.Build(Request(path, showParentInRoot: false));
+        var viewTrue = builder.Build(Request(path, showParentInRoot: true));
+
+        Assert.Contains(viewFalse.Items, i => i.IsParentDirectory && i.FullPath == "/home");
+        Assert.Contains(viewTrue.Items, i => i.IsParentDirectory && i.FullPath == "/home");
+    }
+
+    [Fact]
+    public void UnixRoot_IsRootDirectory_True()
+    {
+        var path = "/";
+        var fs = new FakeFileSystemService();
+        fs.AddDirectory(path);
+        var builder = MakeUnixBuilder(fs);
+
+        var view = builder.Build(Request(path, showParentInRoot: false));
+
+        Assert.True(view.IsRootDirectory);
     }
 }

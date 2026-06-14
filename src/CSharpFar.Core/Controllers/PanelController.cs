@@ -1,13 +1,22 @@
 ﻿using CSharpFar.Core.Abstractions;
 using CSharpFar.Core.Models;
 
+using CSharpFar.Core.Services;
+
 namespace CSharpFar.Core.Controllers;
 
 public sealed class PanelController
 {
     private readonly IPanelViewBuilder _viewBuilder;
+    private readonly IPanelPathSemantics _pathSemantics;
 
-    public PanelController(IPanelViewBuilder viewBuilder) => _viewBuilder = viewBuilder;
+    public PanelController(
+        IPanelViewBuilder viewBuilder,
+        IPanelPathSemantics? pathSemantics = null)
+    {
+        _viewBuilder = viewBuilder;
+        _pathSemantics = pathSemantics ?? PanelPathSemantics.Current;
+    }
 
     public void LoadDirectory(
         FilePanelState state,
@@ -111,11 +120,11 @@ public sealed class PanelController
             return;
         }
 
-        var info = new DirectoryInfo(state.SourcePath);
-        if (info.Parent == null) return;
+        string? parentPath = _pathSemantics.GetParentPath(state.SourcePath);
+        if (parentPath is null) return;
 
-        string childLocalName = info.Name;
-        LoadDirectory(state, info.Parent.FullName, options);
+        string childLocalName = _pathSemantics.GetFileName(state.SourcePath);
+        LoadDirectory(state, parentPath, options);
 
         int idx = state.Items.FindIndex(
             item => string.Equals(item.Name, childLocalName, StringComparison.OrdinalIgnoreCase));
@@ -146,12 +155,12 @@ public sealed class PanelController
             return true;
         }
 
-        var info = new DirectoryInfo(state.SourcePath);
-        if (info.Parent == null)
+        string? parentPath = _pathSemantics.GetParentPath(state.SourcePath);
+        if (parentPath is null)
             return true;
 
-        string childLocalName = info.Name;
-        if (!TryLoadDirectory(state, info.Parent.FullName, options))
+        string childLocalName = _pathSemantics.GetFileName(state.SourcePath);
+        if (!TryLoadDirectory(state, parentPath, options))
             return false;
 
         int idx = state.Items.FindIndex(

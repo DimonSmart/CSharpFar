@@ -10,19 +10,22 @@ public sealed class PanelViewBuilder : IPanelViewBuilder
     private readonly IVolumeInfoService?    _volumeInfo;
     private readonly IVolumeMountPointService? _mountPoints;
     private readonly IFilePanelSourceRegistry? _sources;
+    private readonly IPanelPathSemantics _pathSemantics;
 
     public PanelViewBuilder(
         IFileSystemService        fs,
         IPanelSortService         sort,
         IVolumeInfoService?       volumeInfo   = null,
         IVolumeMountPointService? mountPoints  = null,
-        IFilePanelSourceRegistry? sources      = null)
+        IFilePanelSourceRegistry? sources      = null,
+        IPanelPathSemantics?      pathSemantics = null)
     {
         _fs          = fs;
         _sort        = sort;
         _volumeInfo  = volumeInfo;
         _mountPoints = mountPoints;
         _sources     = sources;
+        _pathSemantics = pathSemantics ?? PanelPathSemantics.Current;
     }
 
     public PanelView Build(PanelViewRequest request)
@@ -83,6 +86,7 @@ public sealed class PanelViewBuilder : IPanelViewBuilder
         // 4. Add .. (or not)
         bool isRoot = source?.IsRootPath(sourcePath) ?? IsRootDirectory(sourcePath, opts);
         string? sourceParentPath = source?.GetParentPath(sourcePath);
+        string? localParentPath = isLocal ? _pathSemantics.GetParentPath(sourcePath) : null;
         bool showParentDirectory = ShouldShowParentDirectory(
             isRoot,
             isLocal,
@@ -92,12 +96,7 @@ public sealed class PanelViewBuilder : IPanelViewBuilder
         {
             string parentPath = isRoot && isLocal
                 ? sourcePath
-                : sourceParentPath ??
-                  Path.GetDirectoryName(
-                      sourcePath.TrimEnd(
-                          Path.DirectorySeparatorChar,
-                          Path.AltDirectorySeparatorChar))
-                  ?? sourcePath;
+                : sourceParentPath ?? localParentPath ?? sourcePath;
 
             items.Insert(0, new FilePanelItem
             {
@@ -187,24 +186,8 @@ public sealed class PanelViewBuilder : IPanelViewBuilder
 
     private bool IsRootDirectory(string path, AppSettings.PanelOptionsSettings options)
     {
-        string norm = path.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
-
-        // Windows drive root: "C:" after trimming
-        if (norm.Length == 2 && char.IsLetter(norm[0]) && norm[1] == ':')
+        if (_pathSemantics.IsRoot(path))
             return true;
-
-        // Path.GetDirectoryName returns null for root paths
-        string? parent = Path.GetDirectoryName(
-            path.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar));
-        if (parent is null)
-            return true;
-
-        // UNC share root: \\server\share
-        if (path.StartsWith(@"\\", StringComparison.Ordinal))
-        {
-            string[] parts = path.TrimStart('\\').Split('\\', StringSplitOptions.RemoveEmptyEntries);
-            if (parts.Length <= 2) return true;
-        }
 
         if (options.DetectVolumeMountPoints && _mountPoints is not null)
         {
