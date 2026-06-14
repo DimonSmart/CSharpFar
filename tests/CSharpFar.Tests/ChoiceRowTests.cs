@@ -98,6 +98,41 @@ public sealed class ChoiceRowTests
     }
 
     [Fact]
+    public void ClickOnConcreteSegment_SelectsItemRenderedOnEarlierSegmentedRow()
+    {
+        var driver = new FakeConsoleDriver(80, 4);
+        var screen = new ScreenRenderer(driver);
+        var row = new ChoiceRow<string>(["Ask", "Overwrite", "Skip", "Rename", "Append", "Paranoid"], static value => value);
+        row.RenderSegmented(
+            screen,
+            2,
+            1,
+            60,
+            string.Empty,
+            focused: true,
+            fillStyle: new CellStyle(ConsoleColor.Gray, ConsoleColor.Black),
+            focusedStyle: new CellStyle(ConsoleColor.Black, ConsoleColor.Gray),
+            startIndex: 0,
+            endIndex: 4);
+        row.RenderSegmented(
+            screen,
+            2,
+            2,
+            60,
+            string.Empty,
+            focused: false,
+            fillStyle: new CellStyle(ConsoleColor.Gray, ConsoleColor.Black),
+            focusedStyle: new CellStyle(ConsoleColor.Black, ConsoleColor.Gray),
+            startIndex: 4,
+            endIndex: 6);
+
+        int renameX = driver.GetRow(1).IndexOf("Rename", StringComparison.Ordinal);
+        Assert.True(row.TryHandleMouse(Mouse(renameX, 1)));
+
+        Assert.Equal("Rename", row.Value);
+    }
+
+    [Fact]
     public void ClickOutsideSegment_DoesNotChangeValue()
     {
         var driver = new FakeConsoleDriver(80, 4);

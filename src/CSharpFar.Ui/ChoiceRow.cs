@@ -9,7 +9,8 @@ public sealed class ChoiceRow<T>
     private readonly IReadOnlyList<T> _choices;
     private readonly Func<T, string> _format;
     private readonly List<(int Index, Rect Bounds)> _choiceBounds = [];
-    private Rect _lastBounds;
+    private readonly List<Rect> _rowBounds = [];
+    private int _lastRenderY;
     private bool _hasRendered;
     private bool _hasChoiceBounds;
 
@@ -49,7 +50,9 @@ public sealed class ChoiceRow<T>
             y,
             Fit(text, width),
             focused ? PaletteStyles.InputField(palette) : PaletteStyles.DialogFill(palette));
-        _lastBounds = new Rect(x, y, Math.Max(0, width), 1);
+        _rowBounds.Clear();
+        _rowBounds.Add(new Rect(x, y, Math.Max(0, width), 1));
+        _lastRenderY = y;
         _hasRendered = true;
         _hasChoiceBounds = false;
         _choiceBounds.Clear();
@@ -74,7 +77,11 @@ public sealed class ChoiceRow<T>
         var style = focused ? focusedStyle : fillStyle;
         string prefix = string.IsNullOrEmpty(label) ? string.Empty : label + " ";
         var parts = new List<string>();
-        _choiceBounds.Clear();
+        if (!_hasRendered || y <= _lastRenderY)
+        {
+            _rowBounds.Clear();
+            _choiceBounds.Clear();
+        }
 
         int column = prefix.Length;
         for (int i = startIndex; i < exclusiveEnd; i++)
@@ -87,7 +94,8 @@ public sealed class ChoiceRow<T>
 
         string text = prefix + string.Join(' ', parts);
         screen.Write(x, y, Fit(text, width), style);
-        _lastBounds = new Rect(x, y, Math.Max(0, width), 1);
+        _rowBounds.Add(new Rect(x, y, Math.Max(0, width), 1));
+        _lastRenderY = y;
         _hasRendered = true;
         _hasChoiceBounds = true;
     }
@@ -115,7 +123,7 @@ public sealed class ChoiceRow<T>
         if (!_hasRendered ||
             mouse.Button != MouseButton.Left ||
             mouse.Kind is not (MouseEventKind.Down or MouseEventKind.Click) ||
-            !Contains(_lastBounds, mouse.X, mouse.Y))
+            !_rowBounds.Any(bounds => Contains(bounds, mouse.X, mouse.Y)))
         {
             return false;
         }
