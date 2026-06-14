@@ -16,7 +16,8 @@ public sealed class FakeConsoleDriver : IConsoleDriver, IConsoleOutputModeDriver
         int Y,
         string Text,
         ConsoleColor Foreground,
-        ConsoleColor Background);
+        ConsoleColor Background,
+        TextAttributes Attributes);
 
     private SnapshotCell[,] _buffer;
     private ConsoleSize _size;
@@ -139,8 +140,13 @@ public sealed class FakeConsoleDriver : IConsoleDriver, IConsoleOutputModeDriver
             : throw new InvalidOperationException("Next queued input event is not a key.");
     }
 
-    public void WriteAt(int x, int y, ReadOnlySpan<char> text,
-        ConsoleColor? foreground = null, ConsoleColor? background = null)
+    public void WriteAt(
+        int x,
+        int y,
+        ReadOnlySpan<char> text,
+        ConsoleColor? foreground = null,
+        ConsoleColor? background = null,
+        TextAttributes attributes = TextAttributes.None)
     {
         if (text.IsEmpty || x < 0 || y < 0 || y >= _size.Height)
             return;
@@ -149,7 +155,7 @@ public sealed class FakeConsoleDriver : IConsoleDriver, IConsoleOutputModeDriver
         var bg = background ?? ConsoleColor.Black;
         WriteAtCallCount++;
         _operationLog.Add("WriteAt");
-        var record = new WriteRecord(x, y, text.ToString(), fg, bg);
+        var record = new WriteRecord(x, y, text.ToString(), fg, bg, attributes);
         _writeRecords.Add(record);
         Wrote?.Invoke(record);
 
@@ -157,7 +163,7 @@ public sealed class FakeConsoleDriver : IConsoleDriver, IConsoleOutputModeDriver
         {
             int col = x + i;
             if (col >= _size.Width) break;
-            _buffer[y, col] = new SnapshotCell { Character = text[i], Foreground = fg, Background = bg };
+            _buffer[y, col] = new SnapshotCell { Character = text[i], Foreground = fg, Background = bg, Attributes = attributes };
         }
     }
 
@@ -167,12 +173,13 @@ public sealed class FakeConsoleDriver : IConsoleDriver, IConsoleOutputModeDriver
         int y,
         ReadOnlySpan<char> text,
         ConsoleColor? foreground = null,
-        ConsoleColor? background = null)
+        ConsoleColor? background = null,
+        TextAttributes attributes = TextAttributes.None)
     {
         if (viewport != GetViewport())
             return false;
 
-        WriteAt(x, y, text, foreground, background);
+        WriteAt(x, y, text, foreground, background, attributes);
         return true;
     }
 

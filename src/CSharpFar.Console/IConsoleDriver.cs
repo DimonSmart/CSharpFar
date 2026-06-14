@@ -22,14 +22,17 @@ public interface IConsoleDriver
     ConsoleKeyInfo ReadKey(bool intercept);
 
     void WriteAt(int x, int y, ReadOnlySpan<char> text,
-        ConsoleColor? foreground = null, ConsoleColor? background = null);
+        ConsoleColor? foreground = null,
+        ConsoleColor? background = null,
+        TextAttributes attributes = TextAttributes.None);
     bool TryWriteAtViewport(
         ConsoleViewport viewport,
         int x,
         int y,
         ReadOnlySpan<char> text,
         ConsoleColor? foreground = null,
-        ConsoleColor? background = null);
+        ConsoleColor? background = null,
+        TextAttributes attributes = TextAttributes.None);
     void ClearRegion(Rect region);
     void SetCursorPosition(int x, int y);
     bool TrySetCursorPositionInViewport(ConsoleViewport viewport, int x, int y);

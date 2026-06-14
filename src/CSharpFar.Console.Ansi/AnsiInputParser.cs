@@ -43,7 +43,10 @@ internal sealed class AnsiInputParser
             return false;
 
         if (prefix != '[' && prefix != 'O')
-            return false;
+        {
+            key = MakeAltKey((byte)prefix, input);
+            return true;
+        }
 
         var sequence = new List<byte>();
         while (sequence.Count < 16)
@@ -69,8 +72,35 @@ internal sealed class AnsiInputParser
             return true;
         }
 
+        if (prefix == 'O')
+        {
+            var functionKey = sequence switch
+            {
+                "P" => ConsoleKey.F1,
+                "Q" => ConsoleKey.F2,
+                "R" => ConsoleKey.F3,
+                "S" => ConsoleKey.F4,
+                _ => ConsoleKey.NoName,
+            };
+
+            if (functionKey == ConsoleKey.NoName)
+                return false;
+
+            key = MakeKey('\0', functionKey);
+            return true;
+        }
+
         if (prefix != '[')
             return false;
+
+        if (sequence == "Z")
+        {
+            key = MakeKey('\0', ConsoleKey.Tab, shift: true);
+            return true;
+        }
+
+        if (TryMapCsiFinal(sequence, out key))
+            return true;
 
         var mapped = sequence switch
         {
@@ -84,6 +114,14 @@ internal sealed class AnsiInputParser
             "3~" => ConsoleKey.Delete,
             "5~" => ConsoleKey.PageUp,
             "6~" => ConsoleKey.PageDown,
+            "15~" => ConsoleKey.F5,
+            "17~" => ConsoleKey.F6,
+            "18~" => ConsoleKey.F7,
+            "19~" => ConsoleKey.F8,
+            "20~" => ConsoleKey.F9,
+            "21~" => ConsoleKey.F10,
+            "23~" => ConsoleKey.F11,
+            "24~" => ConsoleKey.F12,
             _ => ConsoleKey.NoName,
         };
 
@@ -91,6 +129,44 @@ internal sealed class AnsiInputParser
             return false;
 
         key = MakeKey('\0', mapped);
+        return true;
+    }
+
+    private static bool TryMapCsiFinal(string sequence, out ConsoleKeyInfo key)
+    {
+        key = default;
+        char final = sequence[^1];
+        var mapped = final switch
+        {
+            'A' => ConsoleKey.UpArrow,
+            'B' => ConsoleKey.DownArrow,
+            'C' => ConsoleKey.RightArrow,
+            'D' => ConsoleKey.LeftArrow,
+            'H' => ConsoleKey.Home,
+            'F' => ConsoleKey.End,
+            _ => ConsoleKey.NoName,
+        };
+
+        if (mapped == ConsoleKey.NoName)
+            return false;
+
+        string parameters = sequence[..^1];
+        if (parameters.Length == 0)
+        {
+            key = MakeKey('\0', mapped);
+            return true;
+        }
+
+        var parts = parameters.Split(';');
+        if (parts.Length < 2 || !int.TryParse(parts[^1], out int modifierCode))
+            return false;
+
+        key = MakeKey(
+            '\0',
+            mapped,
+            ModifierShift(modifierCode),
+            ModifierAlt(modifierCode),
+            ModifierControl(modifierCode));
         return true;
     }
 
@@ -131,8 +207,31 @@ internal sealed class AnsiInputParser
         return MakeKey(ch, key);
     }
 
-    private static ConsoleKeyInfo MakeKey(char keyChar, ConsoleKey key) =>
-        new(keyChar, key, shift: false, alt: false, control: false);
+    private static ConsoleKeyInfo MakeAltKey(byte first, Stream input)
+    {
+        var parser = new AnsiInputParser();
+        var parsed = parser.ParseFirstByte(first, input);
+        return new ConsoleKeyInfo(
+            parsed.KeyChar,
+            parsed.Key,
+            parsed.Modifiers.HasFlag(ConsoleModifiers.Shift),
+            alt: true,
+            parsed.Modifiers.HasFlag(ConsoleModifiers.Control));
+    }
+
+    private static ConsoleKeyInfo MakeKey(
+        char keyChar,
+        ConsoleKey key,
+        bool shift = false,
+        bool alt = false,
+        bool control = false) =>
+        new(keyChar, key, shift, alt, control);
+
+    private static bool ModifierShift(int code) => code is 2 or 4 or 6 or 8;
+
+    private static bool ModifierAlt(int code) => code is 3 or 4 or 7 or 8;
+
+    private static bool ModifierControl(int code) => code is 5 or 6 or 7 or 8;
 
     private static void ReadExactly(Stream stream, Span<byte> buffer)
     {

@@ -297,8 +297,13 @@ public sealed class SystemConsoleDriver : IConsoleDriver, IConsoleOutputModeDriv
         return global::System.Console.ReadKey(intercept);
     }
 
-    public void WriteAt(int x, int y, ReadOnlySpan<char> text,
-        ConsoleColor? foreground = null, ConsoleColor? background = null)
+    public void WriteAt(
+        int x,
+        int y,
+        ReadOnlySpan<char> text,
+        ConsoleColor? foreground = null,
+        ConsoleColor? background = null,
+        TextAttributes attributes = TextAttributes.None)
     {
         if (text.IsEmpty || x < 0 || y < 0)
             return;
@@ -307,7 +312,7 @@ public sealed class SystemConsoleDriver : IConsoleDriver, IConsoleOutputModeDriv
         {
             var fg2 = foreground ?? global::System.Console.ForegroundColor;
             var bg2 = background ?? global::System.Console.BackgroundColor;
-            TryWriteAtViewport(GetViewport(), x, y, text, fg2, bg2);
+            TryWriteAtViewport(GetViewport(), x, y, text, fg2, bg2, attributes);
             return;
         }
 
@@ -347,7 +352,8 @@ public sealed class SystemConsoleDriver : IConsoleDriver, IConsoleOutputModeDriv
         int y,
         ReadOnlySpan<char> text,
         ConsoleColor? foreground = null,
-        ConsoleColor? background = null)
+        ConsoleColor? background = null,
+        TextAttributes attributes = TextAttributes.None)
     {
         if (text.IsEmpty || x < 0 || y < 0)
             return true;
@@ -362,7 +368,7 @@ public sealed class SystemConsoleDriver : IConsoleDriver, IConsoleOutputModeDriv
         if (GetViewport() != viewport)
             return false;
 
-        WriteAt(x, y, text, foreground, background);
+        WriteAt(x, y, text, foreground, background, attributes);
         return true;
     }
 

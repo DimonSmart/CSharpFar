@@ -5,6 +5,7 @@ public readonly struct SnapshotCell
     public char Character { get; init; }
     public ConsoleColor Foreground { get; init; }
     public ConsoleColor Background { get; init; }
+    public TextAttributes Attributes { get; init; }
 }
 
 public sealed class ScreenSnapshot

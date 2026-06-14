@@ -18,6 +18,12 @@ public sealed class AnsiTerminalConsoleDriver : IConsoleDriver, ITerminalScreenM
     private readonly Stream _input;
     private readonly AnsiInputParser _inputParser = new();
     private bool _applicationScreenActive;
+    private ConsoleColor? _currentForeground;
+    private ConsoleColor? _currentBackground;
+    private TextAttributes _currentAttributes;
+    private int _cursorX = -1;
+    private int _cursorY = -1;
+    private bool? _cursorVisible;
     private bool _disposed;
 
     public AnsiTerminalConsoleDriver()
@@ -60,9 +66,11 @@ public sealed class AnsiTerminalConsoleDriver : IConsoleDriver, ITerminalScreenM
         int y,
         ReadOnlySpan<char> text,
         ConsoleColor? foreground = null,
-        ConsoleColor? background = null)
+        ConsoleColor? background = null,
+        TextAttributes attributes = TextAttributes.None)
     {
         SetCursorPosition(x, y);
+        ApplyStyle(foreground ?? ConsoleColor.Gray, background ?? ConsoleColor.Black, attributes);
         global::System.Console.Out.Write(text);
     }
 
@@ -72,9 +80,10 @@ public sealed class AnsiTerminalConsoleDriver : IConsoleDriver, ITerminalScreenM
         int y,
         ReadOnlySpan<char> text,
         ConsoleColor? foreground = null,
-        ConsoleColor? background = null)
+        ConsoleColor? background = null,
+        TextAttributes attributes = TextAttributes.None)
     {
-        WriteAt(viewport.Left + x, viewport.Top + y, text, foreground, background);
+        WriteAt(viewport.Left + x, viewport.Top + y, text, foreground, background, attributes);
         return true;
     }
 
@@ -85,8 +94,17 @@ public sealed class AnsiTerminalConsoleDriver : IConsoleDriver, ITerminalScreenM
             WriteAt(region.X, y, blank);
     }
 
-    public void SetCursorPosition(int x, int y) =>
-        WriteControl($"\x1b[{Math.Max(1, y + 1)};{Math.Max(1, x + 1)}H");
+    public void SetCursorPosition(int x, int y)
+    {
+        int column = Math.Max(0, x);
+        int row = Math.Max(0, y);
+        if (_cursorX == column && _cursorY == row)
+            return;
+
+        WriteControl($"\x1b[{row + 1};{column + 1}H");
+        _cursorX = column;
+        _cursorY = row;
+    }
 
     public bool TrySetCursorPositionInViewport(ConsoleViewport viewport, int x, int y)
     {
@@ -94,7 +112,14 @@ public sealed class AnsiTerminalConsoleDriver : IConsoleDriver, ITerminalScreenM
         return true;
     }
 
-    public void SetCursorVisible(bool visible) => WriteControl(visible ? ShowCursor : HideCursor);
+    public void SetCursorVisible(bool visible)
+    {
+        if (_cursorVisible == visible)
+            return;
+
+        WriteControl(visible ? ShowCursor : HideCursor);
+        _cursorVisible = visible;
+    }
 
     public ScreenSnapshot Capture(Rect region) =>
         new(GetViewport(), region, new SnapshotCell[Math.Max(0, region.Height), Math.Max(0, region.Width)]);
@@ -121,6 +146,7 @@ public sealed class AnsiTerminalConsoleDriver : IConsoleDriver, ITerminalScreenM
             return;
 
         WriteControl(EnterAltScreen + ClearScreen + CursorHome);
+        ResetCachedState();
         _applicationScreenActive = true;
     }
 
@@ -129,7 +155,9 @@ public sealed class AnsiTerminalConsoleDriver : IConsoleDriver, ITerminalScreenM
         if (!_applicationScreenActive)
             return;
 
-        WriteControl(LeaveAltScreen);
+        WriteControl(ResetAttributes + ShowCursor + LeaveAltScreen);
+        ResetCachedState();
+        _cursorVisible = true;
         _applicationScreenActive = false;
     }
 
@@ -140,6 +168,8 @@ public sealed class AnsiTerminalConsoleDriver : IConsoleDriver, ITerminalScreenM
     public void RestoreTerminal()
     {
         WriteControl(LeaveAltScreen + ShowCursor + ResetAttributes);
+        ResetCachedState();
+        _cursorVisible = true;
         _applicationScreenActive = false;
     }
 
@@ -158,5 +188,29 @@ public sealed class AnsiTerminalConsoleDriver : IConsoleDriver, ITerminalScreenM
     {
         global::System.Console.Out.Write(sequence);
         global::System.Console.Out.Flush();
+    }
+
+    private void ApplyStyle(ConsoleColor foreground, ConsoleColor background, TextAttributes attributes)
+    {
+        if (_currentForeground == foreground &&
+            _currentBackground == background &&
+            _currentAttributes == attributes)
+        {
+            return;
+        }
+
+        WriteControl(AnsiStyleSequences.BuildSgr(foreground, background, attributes));
+        _currentForeground = foreground;
+        _currentBackground = background;
+        _currentAttributes = attributes;
+    }
+
+    private void ResetCachedState()
+    {
+        _currentForeground = null;
+        _currentBackground = null;
+        _currentAttributes = TextAttributes.None;
+        _cursorX = -1;
+        _cursorY = -1;
     }
 }

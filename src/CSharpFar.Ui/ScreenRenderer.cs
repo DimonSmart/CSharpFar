@@ -146,7 +146,7 @@ public sealed class ScreenRenderer
             return;
         }
 
-        _driver.WriteAt(x, y, clipped, style.Foreground, style.Background);
+        _driver.WriteAt(x, y, clipped, style.Foreground, style.Background, style.Attributes);
         EnsureBuffers(size);
         WriteToBuffer(_frontBuffer!, x, y, clipped, style);
     }
@@ -176,7 +176,7 @@ public sealed class ScreenRenderer
 
         var spaces = new string(' ', w);
         for (int y = y1; y < y2; y++)
-            _driver.WriteAt(x1, y, spaces.AsSpan(), style.Foreground, style.Background);
+            _driver.WriteAt(x1, y, spaces.AsSpan(), style.Foreground, style.Background, style.Attributes);
 
         EnsureBuffers(size);
         FillBuffer(_frontBuffer!, x1, y1, w, y2 - y1, style);
@@ -438,7 +438,7 @@ public sealed class ScreenRenderer
                 for (int i = 0; i < len; i++)
                     chars[i] = _backBuffer[y, start + i].Character;
 
-                if (!_driver.TryWriteAtViewport(_frameViewport, start, y, chars, first.Foreground, first.Background))
+                if (!_driver.TryWriteAtViewport(_frameViewport, start, y, chars, first.Foreground, first.Background, first.Attributes))
                 {
                     InterruptFrame();
                     return;
@@ -519,6 +519,7 @@ public sealed class ScreenRenderer
                 Character = text[i],
                 Foreground = style.Foreground,
                 Background = style.Background,
+                Attributes = style.Attributes,
             };
         }
     }
@@ -530,6 +531,7 @@ public sealed class ScreenRenderer
             Character = ' ',
             Foreground = style.Foreground,
             Background = style.Background,
+            Attributes = style.Attributes,
         };
 
         for (int row = y; row < y + height; row++)
@@ -586,7 +588,8 @@ public sealed class ScreenRenderer
 
     private static bool SameStyle(SnapshotCell left, SnapshotCell right) =>
         left.Foreground == right.Foreground &&
-        left.Background == right.Background;
+        left.Background == right.Background &&
+        left.Attributes == right.Attributes;
 
     private sealed class Frame : IDisposable
     {
