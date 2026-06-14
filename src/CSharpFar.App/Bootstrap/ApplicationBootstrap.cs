@@ -20,7 +20,7 @@ public static class ApplicationBootstrap
 
         var fs = new FileSystemService();
         var panelSources = new FilePanelSourceRegistry([new LocalFilePanelSource(fs)]);
-        var fileOps = new FileOperationService(panelSources);
+        var fileOps = new FileOperationService(panelSources, platform.FileSystemOperations);
         var searchService = new FileSystemSearchService();
         var userMenu = new UserMenuStore(settingsStore.ConfigDirectory);
 

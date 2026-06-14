@@ -1,10 +1,8 @@
 using System.Diagnostics;
-using System.Reflection;
 using CSharpFar.Core.Abstractions;
 using CSharpFar.Core.FileMasks;
 using CSharpFar.Core.Highlighting;
 using CSharpFar.Core.Models;
-using Microsoft.VisualBasic.FileIO;
 
 namespace CSharpFar.FileSystem;
 
@@ -32,12 +30,18 @@ public sealed class FileOperationService : IFileOperationService
     private static readonly TimeSpan ParanoidCopyReadRetryDelay = TimeSpan.FromMinutes(1);
     private readonly IFilePanelSourceRegistry? _sources;
     private readonly FileOperationServiceDependencies _dependencies;
+    private readonly IFileSystemPlatformOperations _platformOperations;
 
     public FileOperationService() : this(null, FileOperationServiceDependencies.Default)
     {
     }
 
-    public FileOperationService(IFilePanelSourceRegistry sources) : this(sources, FileOperationServiceDependencies.Default)
+    public FileOperationService(IFilePanelSourceRegistry sources) : this(sources, new DefaultFileSystemPlatformOperations(), FileOperationServiceDependencies.Default)
+    {
+    }
+
+    public FileOperationService(IFilePanelSourceRegistry sources, IFileSystemPlatformOperations platformOperations)
+        : this(sources, platformOperations, FileOperationServiceDependencies.Default)
     {
     }
 
@@ -48,10 +52,20 @@ public sealed class FileOperationService : IFileOperationService
     internal FileOperationService(
         IFilePanelSourceRegistry? sources,
         FileOperationServiceDependencies dependencies)
+        : this(sources, new DefaultFileSystemPlatformOperations(), dependencies)
+    {
+    }
+
+    internal FileOperationService(
+        IFilePanelSourceRegistry? sources,
+        IFileSystemPlatformOperations platformOperations,
+        FileOperationServiceDependencies dependencies)
     {
         ArgumentNullException.ThrowIfNull(dependencies);
+        ArgumentNullException.ThrowIfNull(platformOperations);
 
         _sources = sources;
+        _platformOperations = platformOperations;
         _dependencies = dependencies;
     }
 
@@ -474,7 +488,7 @@ public sealed class FileOperationService : IFileOperationService
         }
     }
 
-    private static void Delete(FileOperationRequest request, OperationState state, CancellationToken cancellationToken)
+    private void Delete(FileOperationRequest request, OperationState state, CancellationToken cancellationToken)
     {
         state.SetTotals(CalculateSourcesSize(request.Sources), request.Sources.Count);
         state.StartProgressTimer();
@@ -521,7 +535,7 @@ public sealed class FileOperationService : IFileOperationService
         state.CompleteItem();
     }
 
-    private static CopyPlan BuildCopyPlan(
+    private CopyPlan BuildCopyPlan(
         IReadOnlyList<string> sources,
         string destination,
         FileOperationOptions options,
@@ -914,12 +928,8 @@ public sealed class FileOperationService : IFileOperationService
         }
 
         bool preserveMetadata = copyTarget.Action != CopyDestinationAction.Append;
-        if (preserveMetadata && options.PreserveTimestamps)
-            PreserveFileTimestamps(copyResult.SourceInfo, copyTarget.Path, state);
-        if (preserveMetadata && options.PreserveAttributes)
-            File.SetAttributes(copyTarget.Path, copyResult.SourceAttributes);
-        if (preserveMetadata && options.SecurityMode == FileSecurityMode.CopyAccessControl)
-            TryCopyAccessControl(file.SourcePath, copyTarget.Path, state);
+        if (preserveMetadata)
+            _platformOperations.PreserveFileMetadata(file.SourcePath, copyTarget.Path, options, state);
 
         state.CopiedCount++;
         state.CompleteItem();
@@ -1055,7 +1065,7 @@ public sealed class FileOperationService : IFileOperationService
             ? copyTarget.ResumeOffset
             : 0;
 
-    private static void CreateDirectoryTarget(
+    private void CreateDirectoryTarget(
         string destinationPath,
         string sourcePath,
         FileOperationOptions options,
@@ -1063,19 +1073,7 @@ public sealed class FileOperationService : IFileOperationService
     {
         Directory.CreateDirectory(destinationPath);
 
-        if (options.PreserveTimestamps)
-        {
-            var source = new DirectoryInfo(sourcePath);
-            Directory.SetCreationTime(destinationPath, source.CreationTime);
-            Directory.SetLastWriteTime(destinationPath, source.LastWriteTime);
-            Directory.SetLastAccessTime(destinationPath, source.LastAccessTime);
-        }
-
-        if (options.PreserveAttributes)
-            File.SetAttributes(destinationPath, File.GetAttributes(sourcePath));
-
-        if (options.SecurityMode == FileSecurityMode.CopyAccessControl)
-            TryCopyAccessControl(sourcePath, destinationPath, state);
+        _platformOperations.PreserveFileMetadata(sourcePath, destinationPath, options, state);
     }
 
     private static bool TryMoveDirect(
@@ -1166,7 +1164,7 @@ public sealed class FileOperationService : IFileOperationService
         }
     }
 
-    private static void CopyReparsePoint(
+    private void CopyReparsePoint(
         string sourcePath,
         string destinationPath,
         FileOperationOptions options,
@@ -1175,86 +1173,23 @@ public sealed class FileOperationService : IFileOperationService
         if (options.SymlinkMode == SymlinkCopyMode.CopyTargetContents)
             return;
 
-        string? target = Directory.Exists(sourcePath)
-            ? new DirectoryInfo(sourcePath).LinkTarget
-            : new FileInfo(sourcePath).LinkTarget;
-
-        if (string.IsNullOrWhiteSpace(target))
+        if (!_platformOperations.TryCopySymbolicLink(sourcePath, destinationPath, out string? error))
         {
-            state.Errors.Add(new FileOperationItemError
-            {
-                Path = sourcePath,
-                Message = "Cannot copy link because its target is unavailable.",
-            });
-            return;
+            state.AddError(sourcePath, error ?? "Cannot copy symbolic link.");
         }
-
-        if (Directory.Exists(sourcePath))
-            Directory.CreateSymbolicLink(destinationPath, target);
-        else
-            File.CreateSymbolicLink(destinationPath, target);
     }
 
-    private static void DeletePath(string path, bool useRecycleBin)
+    private void DeletePath(string path, bool useRecycleBin)
     {
-        if (!useRecycleBin)
-        {
-            if (File.Exists(path))
-                File.Delete(path);
-            else if (Directory.Exists(path))
-                Directory.Delete(path, recursive: true);
-            return;
-        }
-
         if (File.Exists(path))
-        {
-            Microsoft.VisualBasic.FileIO.FileSystem.DeleteFile(path, UIOption.OnlyErrorDialogs, RecycleOption.SendToRecycleBin);
-            return;
-        }
-
-        if (Directory.Exists(path))
-            Microsoft.VisualBasic.FileIO.FileSystem.DeleteDirectory(path, UIOption.OnlyErrorDialogs, RecycleOption.SendToRecycleBin);
+            _platformOperations.DeleteFile(path, useRecycleBin);
+        else if (Directory.Exists(path))
+            _platformOperations.DeleteDirectory(path, recursive: true, useRecycleBin);
     }
 
-    private static void PreserveFileTimestamps(FileInfo source, string destinationPath, OperationState state)
+    private bool IsReparsePoint(string path)
     {
-        try
-        {
-            File.SetCreationTime(destinationPath, source.CreationTime);
-            File.SetLastWriteTime(destinationPath, source.LastWriteTime);
-            File.SetLastAccessTime(destinationPath, source.LastAccessTime);
-        }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
-        {
-            state.Errors.Add(new FileOperationItemError { Path = destinationPath, Message = ex.Message });
-        }
-    }
-
-    private static void TryCopyAccessControl(string sourcePath, string destinationPath, OperationState state)
-    {
-        try
-        {
-            Type infoType = Directory.Exists(sourcePath) ? typeof(DirectoryInfo) : typeof(FileInfo);
-            object sourceInfo = Directory.Exists(sourcePath) ? new DirectoryInfo(sourcePath) : new FileInfo(sourcePath);
-            object destinationInfo = Directory.Exists(destinationPath) ? new DirectoryInfo(destinationPath) : new FileInfo(destinationPath);
-            MethodInfo? getAccessControl = infoType.GetMethod("GetAccessControl", Type.EmptyTypes);
-            MethodInfo? setAccessControl = infoType.GetMethods()
-                .FirstOrDefault(m => m.Name == "SetAccessControl" && m.GetParameters().Length == 1);
-
-            if (getAccessControl is null || setAccessControl is null)
-                throw new PlatformNotSupportedException("Access control copy is not available in this runtime.");
-
-            object? accessControl = getAccessControl.Invoke(sourceInfo, null);
-            setAccessControl.Invoke(destinationInfo, [accessControl]);
-        }
-        catch (Exception ex) when (ex is TargetInvocationException or IOException or UnauthorizedAccessException or PlatformNotSupportedException)
-        {
-            state.Errors.Add(new FileOperationItemError
-            {
-                Path = destinationPath,
-                Message = ex.InnerException?.Message ?? ex.Message,
-            });
-        }
+        return _platformOperations.IsSymbolicLink(path);
     }
 
     private static FileOperationConflict BuildConflict(string sourcePath, string destinationPath)
@@ -1316,13 +1251,6 @@ public sealed class FileOperationService : IFileOperationService
 
     private static bool IsFileAccessException(Exception ex) =>
         ex is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException;
-
-    private static bool IsReparsePoint(string path)
-    {
-        if (!File.Exists(path) && !Directory.Exists(path))
-            return false;
-        return (File.GetAttributes(path) & FileAttributes.ReparsePoint) != 0;
-    }
 
     private static string GenerateName(string destinationPath)
     {
@@ -1499,7 +1427,7 @@ public sealed class FileOperationService : IFileOperationService
         }
     }
 
-    private sealed class OperationState
+    private sealed class OperationState : IFileOperationErrorSink
     {
         private readonly FileOperationKind _kind;
         private readonly IProgress<FileOperationProgress>? _progress;
@@ -1551,6 +1479,11 @@ public sealed class FileOperationService : IFileOperationService
         public void CompleteItem() => _itemsDone++;
 
         public void CompleteFolder() => _foldersDone++;
+
+        public void AddError(string path, string message)
+        {
+            Errors.Add(new FileOperationItemError { Path = path, Message = message });
+        }
 
         public void ReportScanning(string currentPath, int fileCount, int folderCount, long byteCount)
         {

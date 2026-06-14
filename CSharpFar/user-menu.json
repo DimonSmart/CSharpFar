@@ -1,0 +1,14 @@
+[
+  {
+    "title": "Open Explorer here",
+    "command": "explorer \u0022{panelDir}\u0022"
+  },
+  {
+    "title": "List directory",
+    "command": "dir \u0022{panelDir}\u0022"
+  },
+  {
+    "title": "Copy path to clipboard",
+    "command": "echo {current}| clip"
+  }
+]

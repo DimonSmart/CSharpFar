@@ -39,11 +39,13 @@ public sealed class PlatformCompositionTests
             new WindowsVolumeService(),
             new VolumeInfoService(),
             new FileSystemLocationService(),
-            new VolumeMountPointService());
+            new VolumeMountPointService(),
+            new WindowsFileSystemPlatformOperations());
 
         Assert.IsType<WindowsShellFileLauncher>(platform.FileLauncher);
         Assert.IsType<DpapiCredentialStore>(platform.CredentialStore);
         Assert.IsType<WindowsVolumeService>(platform.VolumeService);
+        Assert.IsType<WindowsFileSystemPlatformOperations>(platform.FileSystemOperations);
     }
 
     [Fact]
@@ -59,7 +61,8 @@ public sealed class PlatformCompositionTests
             new UnixVolumeService(),
             new VolumeInfoService(),
             new FileSystemLocationService(),
-            new UnixVolumeMountPointService());
+            new UnixVolumeMountPointService(),
+            new UnixFileSystemPlatformOperations());
 
         Assert.IsNotType<WindowsShellFileLauncher>(platform.FileLauncher);
         Assert.IsNotType<DpapiCredentialStore>(platform.CredentialStore);
@@ -67,5 +70,6 @@ public sealed class PlatformCompositionTests
         Assert.IsType<UnixShellFileLauncher>(platform.FileLauncher);
         Assert.IsType<FileCredentialStore>(platform.CredentialStore);
         Assert.IsType<UnixVolumeService>(platform.VolumeService);
+        Assert.IsType<UnixFileSystemPlatformOperations>(platform.FileSystemOperations);
     }
 }

@@ -7,20 +7,30 @@ namespace CSharpFar.Shell;
 public sealed class UnixShellFileLauncher : IFileLauncher
 {
     private readonly IExecutableFileDetector _executableDetector;
+    private readonly IUnixAssociationLauncher _associationLauncher;
     private readonly Func<ProcessStartInfo, Process?> _startProcess;
     private readonly Action<Process> _waitForExit;
 
     public UnixShellFileLauncher(IExecutableFileDetector executableDetector)
-        : this(executableDetector, Process.Start, process => process.WaitForExit())
+        : this(executableDetector, new UnixAssociationLauncher(new UnixEnvironment()))
+    {
+    }
+
+    public UnixShellFileLauncher(
+        IExecutableFileDetector executableDetector,
+        IUnixAssociationLauncher associationLauncher)
+        : this(executableDetector, associationLauncher, Process.Start, process => process.WaitForExit())
     {
     }
 
     internal UnixShellFileLauncher(
         IExecutableFileDetector executableDetector,
+        IUnixAssociationLauncher associationLauncher,
         Func<ProcessStartInfo, Process?> startProcess,
         Action<Process> waitForExit)
     {
         _executableDetector = executableDetector;
+        _associationLauncher = associationLauncher;
         _startProcess = startProcess;
         _waitForExit = waitForExit;
     }
@@ -51,18 +61,8 @@ public sealed class UnixShellFileLauncher : IFileLauncher
 
     private void OpenAssociation(string fullPath, string workingDirectory)
     {
-        var startInfo = CreateCurrentConsoleStartInfo("xdg-open", workingDirectory);
-        startInfo.ArgumentList.Add(fullPath);
-
-        try
-        {
-            using var process = _startProcess(startInfo)
-                ?? throw new InvalidOperationException("Failed to start xdg-open.");
-        }
-        catch (Exception ex) when (ex is InvalidOperationException or System.ComponentModel.Win32Exception)
-        {
-            throw new InvalidOperationException("Cannot open the file because xdg-open is not available.", ex);
-        }
+        if (!_associationLauncher.TryOpen(fullPath, workingDirectory, out string? error))
+            throw new InvalidOperationException(error);
     }
 
     private static ProcessStartInfo CreateCurrentConsoleStartInfo(

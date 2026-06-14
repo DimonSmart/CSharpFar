@@ -5,6 +5,18 @@ namespace CSharpFar.FileSystem;
 
 public sealed class UnixVolumeMountPointService : IVolumeMountPointService
 {
+    private readonly UnixMountInfoReader _mountInfoReader;
+
+    public UnixVolumeMountPointService()
+        : this(new UnixMountInfoReader())
+    {
+    }
+
+    internal UnixVolumeMountPointService(UnixMountInfoReader mountInfoReader)
+    {
+        _mountInfoReader = mountInfoReader;
+    }
+
     public VolumeMountPointInfo GetMountPointInfo(string directoryPath)
     {
         try
@@ -12,14 +24,19 @@ public sealed class UnixVolumeMountPointService : IVolumeMountPointService
             if (!Directory.Exists(directoryPath))
                 return NotMounted();
 
-            string fullPath = Path.GetFullPath(directoryPath);
-            if (fullPath == Path.GetPathRoot(fullPath))
+            string fullPath = UnixMountInfoReader.NormalizeMountPoint(directoryPath);
+            var entry = _mountInfoReader.Read()
+                .FirstOrDefault(e => string.Equals(
+                    UnixMountInfoReader.NormalizeMountPoint(e.MountPoint),
+                    fullPath,
+                    StringComparison.Ordinal));
+            if (entry is not null)
             {
                 return new VolumeMountPointInfo
                 {
                     IsVolumeMountPoint = true,
-                    VolumeName = fullPath,
-                    VolumePath = fullPath,
+                    VolumeName = entry.Source,
+                    VolumePath = UnixMountInfoReader.NormalizeMountPoint(entry.MountPoint),
                 };
             }
         }

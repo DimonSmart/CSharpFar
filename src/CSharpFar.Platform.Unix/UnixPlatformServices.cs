@@ -1,4 +1,5 @@
 using CSharpFar.Console;
+using CSharpFar.Console.Ansi;
 using CSharpFar.Core.Abstractions;
 using CSharpFar.Core.Models;
 using CSharpFar.FileSystem;
@@ -20,7 +21,8 @@ public sealed class UnixPlatformServices : IPlatformServices
         IVolumeService volumeService,
         IVolumeInfoService volumeInfoService,
         IFileSystemLocationService locationService,
-        IVolumeMountPointService volumeMountPointService)
+        IVolumeMountPointService volumeMountPointService,
+        IFileSystemPlatformOperations fileSystemOperations)
     {
         _disposableConsoleDriver = consoleDriver as IDisposable;
         ConsoleDriver = consoleDriver;
@@ -31,6 +33,7 @@ public sealed class UnixPlatformServices : IPlatformServices
         VolumeInfoService = volumeInfoService;
         LocationService = locationService;
         VolumeMountPointService = volumeMountPointService;
+        FileSystemOperations = fileSystemOperations;
         TerminalScreenMode = terminalScreenMode;
     }
 
@@ -42,6 +45,7 @@ public sealed class UnixPlatformServices : IPlatformServices
     public IVolumeInfoService VolumeInfoService { get; }
     public IFileSystemLocationService LocationService { get; }
     public IVolumeMountPointService VolumeMountPointService { get; }
+    public IFileSystemPlatformOperations FileSystemOperations { get; }
     public ITerminalScreenMode TerminalScreenMode { get; }
 
     public static UnixPlatformServices Create(string configDirectory, AppSettings.ShellSettings shellSettings)
@@ -50,24 +54,25 @@ public sealed class UnixPlatformServices : IPlatformServices
         return new UnixPlatformServices(
             consoleDriver,
             consoleDriver,
-            new ShellService(shellSettings.Executable, shellSettings.ArgumentsFormat),
-            new UnixShellFileLauncher(new UnixExecutableFileDetector()),
+            new ShellService(new UnixShellCommandLineBuilder(shellSettings.Executable)),
+            new UnixShellFileLauncher(new UnixExecutableFileDetector(), new UnixAssociationLauncher(new UnixEnvironment())),
             new FileCredentialStore(configDirectory),
             new UnixVolumeService(),
             new VolumeInfoService(),
             new FileSystemLocationService(),
-            new UnixVolumeMountPointService());
+            new UnixVolumeMountPointService(),
+            new UnixFileSystemPlatformOperations());
     }
 
     public static AppSettings CreateDefaultSettings()
     {
         var settings = new AppSettings();
         settings.Shell.Executable = "/bin/sh";
-        settings.Shell.ArgumentsFormat = "-c \"{0}\"";
+        settings.Shell.ArgumentsFormat = "-c";
         return settings;
     }
 
     public void Dispose() => _disposableConsoleDriver?.Dispose();
 
-    private static SystemConsoleDriver CreateConsoleDriver() => new();
+    private static AnsiTerminalConsoleDriver CreateConsoleDriver() => new();
 }

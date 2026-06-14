@@ -5,37 +5,38 @@ namespace CSharpFar.Shell;
 
 public sealed class ShellService : IShellService
 {
-    private readonly string _shellExecutable;
-    private readonly string _shellArgsFormat; // e.g. "/c {0}"
+    private readonly IShellCommandLineBuilder _commandLineBuilder;
 
-    public ShellService(string shellExecutable = "cmd.exe", string shellArgsFormat = "/c {0}")
+    public ShellService()
+        : this(new WindowsShellCommandLineBuilder("cmd.exe"))
     {
-        _shellExecutable = shellExecutable;
-        _shellArgsFormat = shellArgsFormat;
+    }
+
+    public ShellService(IShellCommandLineBuilder commandLineBuilder)
+    {
+        _commandLineBuilder = commandLineBuilder;
+    }
+
+    public ShellService(string shellExecutable, string shellArgsFormat)
+        : this(CreateCompatibilityBuilder(shellExecutable, shellArgsFormat))
+    {
     }
 
     public void Execute(string command, string workingDirectory)
     {
-        string args = string.Format(_shellArgsFormat, command);
-
-        var psi = new ProcessStartInfo
-        {
-            FileName         = _shellExecutable,
-            Arguments        = args,
-            WorkingDirectory = workingDirectory,
-            UseShellExecute  = false,
-            RedirectStandardInput = false,
-            RedirectStandardOutput = false,
-            RedirectStandardError = false,
-            CreateNoWindow = false,
-            // stdin/stdout/stderr are NOT redirected → the child process inherits
-            // our console and its output appears directly in the console buffer.
-        };
-
-        using var process = Process.Start(psi)
-            ?? throw new InvalidOperationException(
-                $"Failed to start shell process: {_shellExecutable}");
+        using var process = Process.Start(_commandLineBuilder.CreateStartInfo(command, workingDirectory))
+            ?? throw new InvalidOperationException("Failed to start shell process.");
 
         process.WaitForExit();
+    }
+
+    private static IShellCommandLineBuilder CreateCompatibilityBuilder(
+        string shellExecutable,
+        string shellArgsFormat)
+    {
+        if (shellArgsFormat.TrimStart().StartsWith("-c", StringComparison.Ordinal))
+            return new UnixShellCommandLineBuilder(shellExecutable);
+
+        return new WindowsShellCommandLineBuilder(shellExecutable);
     }
 }

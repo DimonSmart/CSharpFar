@@ -5,45 +5,87 @@ namespace CSharpFar.FileSystem;
 
 public sealed class UnixVolumeService : IVolumeService
 {
-    public IReadOnlyList<FileSystemVolume> GetVolumes()
+    private readonly UnixMountInfoReader _mountInfoReader;
+
+    public UnixVolumeService()
+        : this(new UnixMountInfoReader())
     {
-        var volumes = new List<FileSystemVolume>
-        {
-            new()
-            {
-                Id = "/",
-                DisplayName = "/",
-                RootPath = "/",
-                Kind = VolumeKind.Fixed,
-                Status = Directory.Exists("/") ? VolumeStatus.Ready : VolumeStatus.Error,
-                Shortcut = null,
-            },
-        };
-
-        DriveInfo[] drives;
-        try { drives = DriveInfo.GetDrives(); }
-        catch { return volumes; }
-
-        foreach (var drive in drives)
-        {
-            string rootPath = drive.RootDirectory.FullName;
-            if (volumes.Any(v => string.Equals(v.RootPath, rootPath, StringComparison.Ordinal)))
-                continue;
-
-            volumes.Add(BuildVolume(drive));
-        }
-
-        return volumes;
     }
 
-    private static FileSystemVolume BuildVolume(DriveInfo drive)
+    internal UnixVolumeService(UnixMountInfoReader mountInfoReader)
     {
-        var status = VolumeStatus.Unchecked;
-        long? total = null;
-        long? free = null;
+        _mountInfoReader = mountInfoReader;
+    }
+
+    public IReadOnlyList<FileSystemVolume> GetVolumes()
+    {
+        var mountEntries = _mountInfoReader.Read()
+            .Where(UnixMountInfoReader.IsUserVisible)
+            .GroupBy(static entry => UnixMountInfoReader.NormalizeMountPoint(entry.MountPoint), StringComparer.Ordinal)
+            .Select(static group => group.First())
+            .OrderBy(static entry => entry.MountPoint, StringComparer.Ordinal)
+            .ToList();
+
+        if (mountEntries.Count > 0)
+            return mountEntries.Select(BuildVolume).ToList();
+
+        return [BuildRootVolume()];
+    }
+
+    private static FileSystemVolume BuildVolume(UnixMountInfoEntry entry)
+    {
+        string rootPath = UnixMountInfoReader.NormalizeMountPoint(entry.MountPoint);
+        TryGetSpace(rootPath, out long? total, out long? free, out var status);
+
+        return new FileSystemVolume
+        {
+            Id = rootPath,
+            DisplayName = rootPath,
+            RootPath = rootPath,
+            Kind = GetKind(entry),
+            Status = status,
+            TotalBytes = total,
+            FreeBytes = free,
+            Shortcut = null,
+        };
+    }
+
+    private static FileSystemVolume BuildRootVolume()
+    {
+        TryGetSpace("/", out long? total, out long? free, out var status);
+        return new FileSystemVolume
+        {
+            Id = "/",
+            DisplayName = "/",
+            RootPath = "/",
+            Kind = VolumeKind.Fixed,
+            Status = status,
+            TotalBytes = total,
+            FreeBytes = free,
+            Shortcut = null,
+        };
+    }
+
+    private static VolumeKind GetKind(UnixMountInfoEntry entry)
+    {
+        if (entry.MountPoint == "/")
+            return VolumeKind.Fixed;
+        if (UnixMountInfoReader.IsNetworkFileSystem(entry.FileSystemType))
+            return VolumeKind.Network;
+        if (entry.FileSystemType is "tmpfs" or "ramfs")
+            return VolumeKind.Ram;
+        return VolumeKind.MountPoint;
+    }
+
+    private static void TryGetSpace(string path, out long? total, out long? free, out VolumeStatus status)
+    {
+        total = null;
+        free = null;
+        status = VolumeStatus.Unchecked;
 
         try
         {
+            var drive = new DriveInfo(path);
             status = drive.IsReady ? VolumeStatus.Ready : VolumeStatus.NotReady;
             if (drive.IsReady)
             {
@@ -53,19 +95,7 @@ public sealed class UnixVolumeService : IVolumeService
         }
         catch
         {
-            status = VolumeStatus.Error;
+            status = Directory.Exists(path) ? VolumeStatus.Ready : VolumeStatus.Error;
         }
-
-        return new FileSystemVolume
-        {
-            Id = drive.Name,
-            DisplayName = drive.Name.TrimEnd('/'),
-            RootPath = drive.RootDirectory.FullName,
-            Kind = drive.DriveType == DriveType.Network ? VolumeKind.Network : VolumeKind.MountPoint,
-            Status = status,
-            TotalBytes = total,
-            FreeBytes = free,
-            Shortcut = null,
-        };
     }
 }

@@ -1,0 +1,79 @@
+{
+  "ui": {
+    "confirmDelete": true,
+    "palette": "Default"
+  },
+  "shell": {
+    "executable": "/bin/sh",
+    "argumentsFormat": "-c"
+  },
+  "panels": {
+    "leftStartDirectory": null,
+    "rightStartDirectory": null,
+    "defaultSortMode": "name",
+    "leftViewMode": "Full",
+    "rightViewMode": "Full",
+    "fileHighlighting": {
+      "enabled": true,
+      "preset": "FarDefault",
+      "mode": "PresetPlusUserRules",
+      "rules": [],
+      "maskGroups": []
+    },
+    "options": {
+      "showHiddenAndSystemFiles": true,
+      "selectFolders": true,
+      "rightClickSelectsFiles": true,
+      "sortFoldersByExtension": true,
+      "autoRefresh": {
+        "disableIfObjectCountExceeds": 0,
+        "networkDrivesAutoRefresh": false
+      },
+      "detectVolumeMountPoints": false,
+      "showStatusLine": true,
+      "showFilesTotalInformation": true,
+      "showFreeSize": false,
+      "showSortModeLetter": true,
+      "showParentDirectoryInRootFolders": false
+    }
+  },
+  "fileOperations": {
+    "showTotalProgress": true,
+    "preserveTimestamps": true,
+    "preserveAttributes": true,
+    "securityMode": "Inherit",
+    "symlinkMode": "CopyLink",
+    "useRecycleBinForDelete": true,
+    "conflictDecision": "Ask"
+  },
+  "history": {
+    "maxCommandHistoryItems": 1000,
+    "maxDirectoryHistoryItems": 500,
+    "maxFileHistoryItems": 200
+  },
+  "editor": {
+    "fileSizeLimitBytes": 10485760,
+    "undoSize": 2048,
+    "wordDiv": " \t\r\n,.;:!?()[]{}\u003C\u003E\u002B-*/\\=|\u0026^%$#@\u0022\u0027\u0060~",
+    "tabSize": 4,
+    "expandTabs": false,
+    "openReadOnlyFilesReadOnly": true,
+    "allowEmptySpaceAfterEof": false,
+    "f7StartsAtNextCharacter": true,
+    "bsLikeDel": true,
+    "defaultLineEnding": "LF",
+    "syntaxHighlightingEnabled": true,
+    "syntaxTheme": "Dark\u002B",
+    "syntaxLanguage": "auto",
+    "syntaxMaxLineLength": 20000,
+    "syntaxTokenizationTimeoutMs": 50,
+    "syntaxMaxSynchronousLines": 300,
+    "syntaxUseTrueColor": "auto",
+    "syntaxFallbackToPlainText": true,
+    "syntaxUserGrammarsPath": null,
+    "syntaxUserThemesPath": null
+  },
+  "directoryShortcuts": {
+    "items": []
+  }
+}

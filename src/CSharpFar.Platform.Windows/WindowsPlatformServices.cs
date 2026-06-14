@@ -20,7 +20,8 @@ public sealed class WindowsPlatformServices : IPlatformServices
         IVolumeService volumeService,
         IVolumeInfoService volumeInfoService,
         IFileSystemLocationService locationService,
-        IVolumeMountPointService volumeMountPointService)
+        IVolumeMountPointService volumeMountPointService,
+        IFileSystemPlatformOperations fileSystemOperations)
     {
         _disposableConsoleDriver = consoleDriver as IDisposable;
         ConsoleDriver = consoleDriver;
@@ -31,6 +32,7 @@ public sealed class WindowsPlatformServices : IPlatformServices
         VolumeInfoService = volumeInfoService;
         LocationService = locationService;
         VolumeMountPointService = volumeMountPointService;
+        FileSystemOperations = fileSystemOperations;
         TerminalScreenMode = terminalScreenMode;
     }
 
@@ -42,6 +44,7 @@ public sealed class WindowsPlatformServices : IPlatformServices
     public IVolumeInfoService VolumeInfoService { get; }
     public IFileSystemLocationService LocationService { get; }
     public IVolumeMountPointService VolumeMountPointService { get; }
+    public IFileSystemPlatformOperations FileSystemOperations { get; }
     public ITerminalScreenMode TerminalScreenMode { get; }
 
     public static WindowsPlatformServices Create(string configDirectory, AppSettings.ShellSettings shellSettings)
@@ -50,13 +53,14 @@ public sealed class WindowsPlatformServices : IPlatformServices
         return new WindowsPlatformServices(
             consoleDriver,
             consoleDriver,
-            new ShellService(shellSettings.Executable, shellSettings.ArgumentsFormat),
+            new ShellService(new WindowsShellCommandLineBuilder(shellSettings.Executable)),
             new WindowsShellFileLauncher(new WindowsExecutableFileDetector()),
             new DpapiCredentialStore(configDirectory),
             new WindowsVolumeService(),
             new VolumeInfoService(),
             new FileSystemLocationService(),
-            new VolumeMountPointService());
+            new VolumeMountPointService(),
+            new WindowsFileSystemPlatformOperations());
     }
 
     public static AppSettings CreateDefaultSettings()

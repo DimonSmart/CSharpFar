@@ -20,6 +20,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\CSharpFar.Core\CSharpFar.Core.csproj" />
+    <ProjectReference Include="..\..\src\CSharpFar.Console.Ansi\CSharpFar.Console.Ansi.csproj" />
     <ProjectReference Include="..\..\src\CSharpFar.Console\CSharpFar.Console.csproj" />
     <ProjectReference Include="..\..\src\CSharpFar.Ui\CSharpFar.Ui.csproj" />
     <ProjectReference Include="..\..\src\CSharpFar.Module.Abstractions\CSharpFar.Module.Abstractions.csproj" />

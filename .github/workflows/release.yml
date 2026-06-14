@@ -113,6 +113,16 @@ jobs:
             }
           }
 
+          & $binaryPath --version
+          if ($LASTEXITCODE -ne 0) {
+            throw "--version failed for $binaryPath"
+          }
+
+          & $binaryPath --self-test
+          if ($LASTEXITCODE -ne 0) {
+            throw "--self-test failed for $binaryPath"
+          }
+
       - name: Package
         shell: pwsh
         run: |
