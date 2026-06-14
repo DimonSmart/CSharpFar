@@ -22,24 +22,26 @@ public sealed class JsonSettingsStore
 
     public string      ConfigDirectory { get; }
     public AppSettings Settings        { get; }
+    private readonly Func<AppSettings> _createDefaultSettings;
 
-    public JsonSettingsStore(string configDirectory)
+    public JsonSettingsStore(string configDirectory, Func<AppSettings>? createDefaultSettings = null)
     {
         ConfigDirectory = configDirectory;
         _filePath = Path.Combine(configDirectory, "settings.json");
+        _createDefaultSettings = createDefaultSettings ?? (() => new AppSettings());
         Settings  = Load();
     }
 
     /// <summary>
     /// Creates a store using the resolved config directory (portable or AppData).
     /// </summary>
-    public static JsonSettingsStore Create(string? exePath = null)
+    public static JsonSettingsStore Create(string? exePath = null, Func<AppSettings>? createDefaultSettings = null)
     {
         string resolved = exePath
             ?? Environment.ProcessPath
             ?? AppContext.BaseDirectory;
         string exeDir = Path.GetDirectoryName(resolved) ?? ".";
-        return new JsonSettingsStore(ResolveConfigDirectory(exeDir));
+        return new JsonSettingsStore(ResolveConfigDirectory(exeDir), createDefaultSettings);
     }
 
     /// <summary>
@@ -72,7 +74,7 @@ public sealed class JsonSettingsStore
     {
         if (!File.Exists(_filePath))
         {
-            var defaults = new AppSettings();
+            var defaults = _createDefaultSettings();
             WriteFile(defaults);
             return defaults;
         }

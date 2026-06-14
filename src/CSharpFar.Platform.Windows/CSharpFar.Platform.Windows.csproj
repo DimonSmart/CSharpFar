@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleTo">
+      <_Parameter1>CSharpFar.Tests</_Parameter1>
+    </AssemblyAttribute>
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\CSharpFar.Console\CSharpFar.Console.csproj" />
+    <ProjectReference Include="..\CSharpFar.Core\CSharpFar.Core.csproj" />
+    <ProjectReference Include="..\CSharpFar.FileSystem\CSharpFar.FileSystem.csproj" />
+    <ProjectReference Include="..\CSharpFar.Platform.Abstractions\CSharpFar.Platform.Abstractions.csproj" />
+    <ProjectReference Include="..\CSharpFar.Shell\CSharpFar.Shell.csproj" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+</Project>

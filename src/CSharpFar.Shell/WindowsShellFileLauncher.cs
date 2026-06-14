@@ -6,31 +6,41 @@ namespace CSharpFar.Shell;
 
 public sealed class WindowsShellFileLauncher : IFileLauncher
 {
+    private readonly IExecutableFileDetector _executableDetector;
     private readonly Func<ProcessStartInfo, Process?> _startProcess;
     private readonly Action<Process> _waitForExit;
 
     public WindowsShellFileLauncher()
-        : this(Process.Start, process => process.WaitForExit())
+        : this(new WindowsExecutableFileDetector())
+    {
+    }
+
+    public WindowsShellFileLauncher(IExecutableFileDetector executableDetector)
+        : this(executableDetector, Process.Start, process => process.WaitForExit())
     {
     }
 
     internal WindowsShellFileLauncher(
         Func<ProcessStartInfo, Process?> startProcess,
         Action<Process> waitForExit)
+        : this(new WindowsExecutableFileDetector(), startProcess, waitForExit)
     {
+    }
+
+    internal WindowsShellFileLauncher(
+        IExecutableFileDetector executableDetector,
+        Func<ProcessStartInfo, Process?> startProcess,
+        Action<Process> waitForExit)
+    {
+        _executableDetector = executableDetector;
         _startProcess = startProcess;
         _waitForExit = waitForExit;
     }
 
-    public FileLaunchMode GetLaunchMode(string fullPath)
-    {
-        string extension = Path.GetExtension(fullPath);
-        return extension.ToUpperInvariant() switch
-        {
-            ".EXE" or ".COM" or ".BAT" or ".CMD" => FileLaunchMode.CurrentConsole,
-            _ => FileLaunchMode.ShellAssociation,
-        };
-    }
+    public FileLaunchMode GetLaunchMode(string fullPath) =>
+        _executableDetector.IsExecutableFile(fullPath)
+            ? FileLaunchMode.CurrentConsole
+            : FileLaunchMode.ShellAssociation;
 
     public void OpenFile(string fullPath, string workingDirectory)
     {

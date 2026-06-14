@@ -9,7 +9,7 @@ using CSharpFar.Core.History;
 using CSharpFar.Core.Services;
 using CSharpFar.FileSystem;
 using CSharpFar.App.Menu;
-using CSharpFar.Shell;
+using CSharpFar.Core.Models;
 using AppSettingsAlias = CSharpFar.Core.Models.AppSettings;
 
 namespace CSharpFar.App.Bootstrap;
@@ -53,7 +53,7 @@ internal static class CoreServicesFactory
             session,
             effectiveConfigDirectory,
             searchService ?? new FileSystemSearchService(),
-            fileLauncher ?? new WindowsShellFileLauncher(),
+            fileLauncher ?? MissingPlatformFileLauncher.Instance,
             clipboard ?? TextCopyTextClipboard.Instance,
             userMenu ?? new UserMenuStore(effectiveConfigDirectory),
             new DefaultFunctionKeyBindingProvider(),
@@ -74,3 +74,17 @@ internal sealed record CoreServices(
     UserMenuStore UserMenu,
     DefaultFunctionKeyBindingProvider FunctionKeyBindingProvider,
     DefaultMenuDefinitionProvider MenuProvider);
+
+internal sealed class MissingPlatformFileLauncher : IFileLauncher
+{
+    public static readonly MissingPlatformFileLauncher Instance = new();
+
+    private MissingPlatformFileLauncher()
+    {
+    }
+
+    public FileLaunchMode GetLaunchMode(string fullPath) => FileLaunchMode.ShellAssociation;
+
+    public void OpenFile(string fullPath, string workingDirectory) =>
+        throw new InvalidOperationException("No platform file launcher is configured.");
+}

@@ -11,17 +11,28 @@ permissions:
   id-token: write
 
 env:
-  APP_EXE: CSharpFar.exe
-  APP_PROJECT: src/CSharpFar.App/CSharpFar.App.csproj
   CHECKSUMS_NAME: SHA256SUMS.txt
   DOTNET_NOLOGO: true
-  PUBLISH_DIR: artifacts/publish/CSharpFar
-  RUNTIME_ID: win-x64
 
 jobs:
-  release:
-    name: Publish release
-    runs-on: windows-latest
+  build:
+    name: Build ${{ matrix.runtime }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        include:
+          - os: windows-latest
+            project: src/CSharpFar.Host.Windows/CSharpFar.Host.Windows.csproj
+            runtime: win-x64
+            archive: zip
+            binary: CSharpFar.exe
+            asset: CSharpFar-${{ github.ref_name }}-win-x64.zip
+          - os: ubuntu-latest
+            project: src/CSharpFar.Host.Unix/CSharpFar.Host.Unix.csproj
+            runtime: linux-x64
+            archive: tar.gz
+            binary: csharpfar
+            asset: CSharpFar-${{ github.ref_name }}-linux-x64.tar.gz
 
     steps:
       - name: Validate version tag
@@ -34,7 +45,6 @@ jobs:
           $version = $env:GITHUB_REF_NAME.Substring(1)
           "VERSION=$version" >> $env:GITHUB_ENV
           "ASSEMBLY_VERSION=$version.0" >> $env:GITHUB_ENV
-          "ASSET_NAME=CSharpFar-$($env:GITHUB_REF_NAME)-$($env:RUNTIME_ID).zip" >> $env:GITHUB_ENV
 
       - name: Checkout
         uses: actions/checkout@v4
@@ -58,11 +68,14 @@ jobs:
       - name: Publish
         shell: pwsh
         run: |
-          dotnet publish $env:APP_PROJECT `
+          $publishDir = Join-Path $env:RUNNER_TEMP "publish-${{ matrix.runtime }}"
+          "PUBLISH_DIR=$publishDir" >> $env:GITHUB_ENV
+
+          dotnet publish "${{ matrix.project }}" `
             --configuration Release `
-            --runtime $env:RUNTIME_ID `
+            --runtime "${{ matrix.runtime }}" `
             --self-contained true `
-            --output $env:PUBLISH_DIR `
+            --output $publishDir `
             /p:PublishSingleFile=true `
             /p:IncludeNativeLibrariesForSelfExtract=true `
             /p:DebugType=None `
@@ -72,20 +85,14 @@ jobs:
             /p:FileVersion=$env:ASSEMBLY_VERSION `
             /p:InformationalVersion=$env:GITHUB_REF_NAME
 
-      - name: Verify executable name
+      - name: Verify publish output
         shell: pwsh
         run: |
-          $expectedExe = Join-Path $env:PUBLISH_DIR $env:APP_EXE
-          if (-not (Test-Path $expectedExe -PathType Leaf)) {
-            $publishedExes = Get-ChildItem -Path $env:PUBLISH_DIR -Filter *.exe -File |
-              Select-Object -ExpandProperty Name
-
-            throw "Expected '$env:APP_EXE' in publish output, found: $($publishedExes -join ', ')"
+          $binaryPath = Join-Path $env:PUBLISH_DIR "${{ matrix.binary }}"
+          if (-not (Test-Path $binaryPath -PathType Leaf)) {
+            throw "Expected '${{ matrix.binary }}' in publish output."
           }
 
-      - name: Verify no debug symbols
-        shell: pwsh
-        run: |
           $debugSymbols = Get-ChildItem -Path $env:PUBLISH_DIR -Filter *.pdb -File -Recurse
           if ($debugSymbols) {
             $debugSymbolNames = $debugSymbols |
@@ -94,21 +101,91 @@ jobs:
             throw "Publish output must not contain .pdb files: $($debugSymbolNames -join ', ')"
           }
 
+          if ("${{ matrix.runtime }}" -eq "linux-x64") {
+            if (-not (Test-Path $binaryPath -PathType Leaf)) {
+              throw "Linux binary is missing: $binaryPath"
+            }
+
+            chmod +x $binaryPath
+            bash -c "test -x '$binaryPath'"
+            if ($LASTEXITCODE -ne 0) {
+              throw "Linux binary is not executable: $binaryPath"
+            }
+          }
+
       - name: Package
         shell: pwsh
         run: |
-          $assetPath = Join-Path $env:RUNNER_TEMP $env:ASSET_NAME
+          $assetPath = Join-Path $env:RUNNER_TEMP "${{ matrix.asset }}"
           if (Test-Path $assetPath) {
             Remove-Item $assetPath
           }
 
-          Compress-Archive -Path "$env:PUBLISH_DIR\*" -DestinationPath $assetPath -CompressionLevel Optimal
+          if ("${{ matrix.archive }}" -eq "zip") {
+            Compress-Archive -Path (Join-Path $env:PUBLISH_DIR "*") -DestinationPath $assetPath -CompressionLevel Optimal
+          }
+          else {
+            tar -czf $assetPath -C $env:PUBLISH_DIR .
+          }
 
-          $checksumsPath = Join-Path $env:RUNNER_TEMP $env:CHECKSUMS_NAME
           $assetHash = (Get-FileHash -Path $assetPath -Algorithm SHA256).Hash.ToLowerInvariant()
-          "$assetHash  $env:ASSET_NAME" | Set-Content -Path $checksumsPath -Encoding ascii
-
+          "$assetHash  ${{ matrix.asset }}" | Set-Content -Path (Join-Path $env:RUNNER_TEMP "${{ matrix.asset }}.sha256") -Encoding ascii
           "ASSET_PATH=$assetPath" >> $env:GITHUB_ENV
+
+      - name: Upload packaged artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.asset }}
+          path: ${{ env.ASSET_PATH }}
+          if-no-files-found: error
+
+      - name: Upload checksum fragment
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.asset }}.sha256
+          path: ${{ runner.temp }}/${{ matrix.asset }}.sha256
+          if-no-files-found: error
+
+      - name: Generate artifact attestation
+        uses: actions/attest@v4
+        with:
+          subject-path: ${{ env.ASSET_PATH }}
+
+  release:
+    name: Create release
+    runs-on: ubuntu-latest
+    needs: build
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: ${{ runner.temp }}/release
+
+      - name: Prepare release assets
+        shell: pwsh
+        run: |
+          $releaseDir = Join-Path $env:RUNNER_TEMP "release"
+          $assetsDir = Join-Path $env:RUNNER_TEMP "assets"
+          New-Item -ItemType Directory -Force -Path $assetsDir | Out-Null
+
+          Get-ChildItem -Path $releaseDir -File -Recurse |
+            Where-Object { $_.Name -notlike "*.sha256" } |
+            Copy-Item -Destination $assetsDir
+
+          $checksumLines = Get-ChildItem -Path $releaseDir -Filter "*.sha256" -File -Recurse |
+            Sort-Object Name |
+            ForEach-Object { Get-Content -Raw $_.FullName }
+
+          $checksumsPath = Join-Path $assetsDir $env:CHECKSUMS_NAME
+          $checksumLines | Set-Content -Path $checksumsPath -Encoding ascii
+
+          "ASSETS_DIR=$assetsDir" >> $env:GITHUB_ENV
           "CHECKSUMS_PATH=$checksumsPath" >> $env:GITHUB_ENV
 
       - name: Generate release notes
@@ -133,50 +210,44 @@ jobs:
             $changes = @("- No commit summary available.")
           }
 
+          $windowsAsset = "CSharpFar-$env:GITHUB_REF_NAME-win-x64.zip"
+          $linuxAsset = "CSharpFar-$env:GITHUB_REF_NAME-linux-x64.tar.gz"
           $notes = @(
             "## CSharpFar $env:GITHUB_REF_NAME",
             "",
-            "Experimental Windows x64 build.",
+            "Experimental Windows x64 and Linux x64 builds.",
             "",
             "### Download",
-            "Download ``$env:ASSET_NAME``, unpack it and run ``$env:APP_EXE``.",
+            "- Windows: download ``$windowsAsset``, unpack it and run ``CSharpFar.exe``.",
+            "- Linux: download ``$linuxAsset``, unpack it and run ``csharpfar``.",
             "",
             "### Verification",
-            "Download ``$env:CHECKSUMS_NAME`` and compare the archive hash:",
-            "",
-            "``````powershell",
-            "Get-FileHash -Algorithm SHA256 .\$env:ASSET_NAME",
-            "``````",
-            "",
-            "GitHub artifact attestation is generated for the archive and can be verified with GitHub CLI:",
+            "Download ``$env:CHECKSUMS_NAME`` and compare archive hashes:",
             "",
             "``````bash",
-            "gh attestation verify $env:ASSET_NAME -R $env:GITHUB_REPOSITORY",
+            "sha256sum -c $env:CHECKSUMS_NAME",
             "``````",
             "",
             $changesHeading,
             $changes,
             "",
             "### Notes",
-            "- Windows x64 only.",
             "- Early development build.",
-            "- The executable is not code-signed yet, so Windows SmartScreen may show a warning."
+            "- Windows executable is not code-signed yet, so Windows SmartScreen may show a warning."
           )
 
           $notes | Set-Content -Path $notesPath -Encoding utf8
           "RELEASE_NOTES_PATH=$notesPath" >> $env:GITHUB_ENV
-
-      - name: Generate artifact attestation
-        uses: actions/attest@v4
-        with:
-          subject-path: ${{ runner.temp }}/CSharpFar-${{ github.ref_name }}-${{ env.RUNTIME_ID }}.zip
 
       - name: Create GitHub release
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create $env:GITHUB_REF_NAME $env:ASSET_PATH $env:CHECKSUMS_PATH `
+          $assets = Get-ChildItem -Path $env:ASSETS_DIR -File |
+            ForEach-Object { $_.FullName }
+
+          gh release create $env:GITHUB_REF_NAME $assets `
             --verify-tag `
             --title "CSharpFar $env:GITHUB_REF_NAME" `
             --notes-file $env:RELEASE_NOTES_PATH

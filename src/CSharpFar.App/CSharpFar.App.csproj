@@ -8,6 +8,7 @@
     <ProjectReference Include="..\CSharpFar.Module.Sftp\CSharpFar.Module.Sftp.csproj" />
     <ProjectReference Include="..\CSharpFar.Module.Ftp\CSharpFar.Module.Ftp.csproj" />
     <ProjectReference Include="..\CSharpFar.FileSystem\CSharpFar.FileSystem.csproj" />
+    <ProjectReference Include="..\CSharpFar.Platform.Abstractions\CSharpFar.Platform.Abstractions.csproj" />
     <ProjectReference Include="..\CSharpFar.Shell\CSharpFar.Shell.csproj" />
   </ItemGroup>
 
@@ -23,11 +24,9 @@
   </ItemGroup>
 
   <PropertyGroup>
-    <AssemblyName>CSharpFar</AssemblyName>
-    <ApplicationIcon>Assets\CSharpFar.ico</ApplicationIcon>
+    <AssemblyName>CSharpFar.App</AssemblyName>
     <RootNamespace>CSharpFar.App</RootNamespace>
     <Product>CSharpFar</Product>
-    <OutputType>Exe</OutputType>
     <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>

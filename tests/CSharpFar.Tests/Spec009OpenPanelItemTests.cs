@@ -260,6 +260,7 @@ public sealed class Spec009OpenPanelItemTests : IDisposable
         ProcessStartInfo? captured = null;
         bool waited = false;
         var launcher = new WindowsShellFileLauncher(
+            new FixedExecutableFileDetector(true),
             startInfo =>
             {
                 captured = startInfo;
@@ -288,6 +289,7 @@ public sealed class Spec009OpenPanelItemTests : IDisposable
         ProcessStartInfo? captured = null;
         bool waited = false;
         var launcher = new WindowsShellFileLauncher(
+            new FixedExecutableFileDetector(true),
             startInfo =>
             {
                 captured = startInfo;
@@ -372,5 +374,17 @@ public sealed class Spec009OpenPanelItemTests : IDisposable
             _openedFiles.Add(fullPath);
             _workingDirectories.Add(workingDirectory);
         }
+    }
+
+    private sealed class FixedExecutableFileDetector : IExecutableFileDetector
+    {
+        private readonly bool _result;
+
+        public FixedExecutableFileDetector(bool result)
+        {
+            _result = result;
+        }
+
+        public bool IsExecutableFile(string path) => _result;
     }
 }

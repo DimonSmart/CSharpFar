@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="..\CSharpFar.App\CSharpFar.App.csproj" />
+    <ProjectReference Include="..\CSharpFar.Platform.Windows\CSharpFar.Platform.Windows.csproj" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <AssemblyName>CSharpFar</AssemblyName>
+    <ApplicationIcon>..\CSharpFar.App\Assets\CSharpFar.ico</ApplicationIcon>
+    <RootNamespace>CSharpFar.Host.Windows</RootNamespace>
+    <Product>CSharpFar</Product>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+</Project>
