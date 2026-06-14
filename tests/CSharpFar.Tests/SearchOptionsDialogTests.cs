@@ -34,7 +34,12 @@ public sealed class SearchOptionsDialogTests
     public void Show_MouseClickButtonConfirms()
     {
         var driver = new FakeConsoleDriver(80, 25);
-        driver.EnqueueInput(new MouseConsoleInputEvent(35, 14, MouseButton.Left, MouseEventKind.Down, MouseKeyModifiers.None));
+        driver.BeforeReadInput = currentDriver =>
+        {
+            var row = currentDriver.WriteRecords.Last(record => record.Text.Contains("{ Find }", StringComparison.Ordinal));
+            int x = row.X + row.Text.IndexOf("Find", StringComparison.Ordinal);
+            currentDriver.EnqueueInput(new MouseConsoleInputEvent(x, row.Y, MouseButton.Left, MouseEventKind.Down, MouseKeyModifiers.None));
+        };
 
         var result = ShowDialog(driver, initialPattern: "abc");
 
@@ -46,8 +51,32 @@ public sealed class SearchOptionsDialogTests
     public void Show_MouseClickCheckboxTogglesOption()
     {
         var driver = new FakeConsoleDriver(80, 25);
-        driver.EnqueueInput(new MouseConsoleInputEvent(15, 11, MouseButton.Left, MouseEventKind.Down, MouseKeyModifiers.None));
-        driver.EnqueueInput(new MouseConsoleInputEvent(35, 14, MouseButton.Left, MouseEventKind.Down, MouseKeyModifiers.None));
+        int inputIndex = 0;
+        driver.BeforeReadInput = currentDriver =>
+        {
+            if (inputIndex++ == 0)
+            {
+                var row = currentDriver.WriteRecords.Last(record => record.Text.Contains("Case sensitive", StringComparison.Ordinal));
+                int x = row.X + row.Text.IndexOf("Case sensitive", StringComparison.Ordinal);
+                currentDriver.EnqueueInput(new MouseConsoleInputEvent(x, row.Y, MouseButton.Left, MouseEventKind.Down, MouseKeyModifiers.None));
+                currentDriver.EnqueueKey(new ConsoleKeyInfo('\0', ConsoleKey.F10, shift: false, alt: false, control: false));
+                return;
+            }
+        };
+
+        var result = ShowDialog(driver, initialPattern: "abc");
+
+        Assert.NotNull(result);
+        Assert.True(result.GetOption("case-sensitive"));
+    }
+
+    [Fact]
+    public void Show_KeyboardNavigationTogglesOptionAndConfirms()
+    {
+        var driver = new FakeConsoleDriver(80, 25);
+        driver.EnqueueKey(new ConsoleKeyInfo('\0', ConsoleKey.DownArrow, shift: false, alt: false, control: false));
+        driver.EnqueueKey(new ConsoleKeyInfo('\0', ConsoleKey.Spacebar, shift: false, alt: false, control: false));
+        driver.EnqueueKey(new ConsoleKeyInfo('\0', ConsoleKey.F10, shift: false, alt: false, control: false));
 
         var result = ShowDialog(driver, initialPattern: "abc");
 

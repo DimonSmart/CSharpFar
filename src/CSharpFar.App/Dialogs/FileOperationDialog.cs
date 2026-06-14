@@ -188,9 +188,6 @@ internal sealed class FileOperationDialog
                 _ => FormInputResult.NotHandled,
             };
 
-            if (!useFilter.Value && form.FocusIndex == 6)
-                form.SetFocusRow(5, 1);
-
             if (result.Kind == FormInputResultKind.Cancel)
                 return null;
 
@@ -266,9 +263,7 @@ internal sealed class FileOperationDialog
 
     private static FormInputResult HandleOperationKey(ScrollableFormDialog form, ButtonRow buttons, ConsoleKeyInfo key)
     {
-        if (key.Key == ConsoleKey.F10)
-            return FormInputResult.Submit("submit");
-        if (key.Key == ConsoleKey.Enter && form.FocusIndex is 0 or 6)
+        if (key.Key is ConsoleKey.Enter or ConsoleKey.F10)
             return FormInputResult.Submit("submit");
 
         return form.HandleKey(key);

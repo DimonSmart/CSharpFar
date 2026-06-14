@@ -33,6 +33,55 @@ public sealed class Spec010FileOperationDialogTests
     }
 
     [Fact]
+    public void ShowCopy_EnterConfirmsDialog()
+    {
+        var driver = new FakeConsoleDriver(width: 100, height: 30);
+        var screen = new ScreenRenderer(driver);
+        driver.EnqueueKey(Key(ConsoleKey.Enter));
+
+        var result = new FileOperationDialog(screen).ShowCopy(
+            [@"C:\source\a.txt"],
+            @"C:\destination",
+            new FileOperationOptions());
+
+        Assert.NotNull(result);
+        Assert.Equal(@"C:\destination", result.Destination);
+    }
+
+    [Fact]
+    public void ShowCopy_EscapeCancelsDialog()
+    {
+        var driver = new FakeConsoleDriver(width: 100, height: 30);
+        var screen = new ScreenRenderer(driver);
+        driver.EnqueueKey(Key(ConsoleKey.Escape));
+
+        var result = new FileOperationDialog(screen).ShowCopy(
+            [@"C:\source\a.txt"],
+            @"C:\destination",
+            new FileOperationOptions());
+
+        Assert.Null(result);
+    }
+
+    [Fact]
+    public void ShowCopy_TabDoesNotMoveKeyboardFocusToFooterButtons()
+    {
+        var driver = new FakeConsoleDriver(width: 100, height: 30);
+        var screen = new ScreenRenderer(driver);
+        for (int i = 0; i < 12; i++)
+            driver.EnqueueKey(Key(ConsoleKey.Tab));
+        driver.EnqueueKey(Key(ConsoleKey.Enter));
+
+        var result = new FileOperationDialog(screen).ShowCopy(
+            [@"C:\source\a.txt"],
+            @"C:\destination",
+            new FileOperationOptions());
+
+        Assert.NotNull(result);
+        Assert.Equal(@"C:\destination", result.Destination);
+    }
+
+    [Fact]
     public void ShowCopy_CollectsFilterInSameDialog()
     {
         var driver = new FakeConsoleDriver(width: 100, height: 30);

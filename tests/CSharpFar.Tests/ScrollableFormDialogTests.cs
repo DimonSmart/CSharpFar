@@ -38,6 +38,22 @@ public sealed class ScrollableFormDialogTests
         Assert.Equal(1, form.FocusIndex);
     }
 
+    [Fact]
+    public void DownAndUp_MoveBetweenFocusableRows()
+    {
+        var form = new ScrollableFormDialog([
+            new CheckBoxRow(new CheckBoxLine("one")),
+            new CheckBoxRow(new CheckBoxLine("two")),
+        ]);
+        Render(form, visibleRows: 2);
+
+        form.HandleKey(Key(ConsoleKey.DownArrow));
+        Assert.Equal(1, form.FocusIndex);
+
+        form.HandleKey(Key(ConsoleKey.UpArrow));
+        Assert.Equal(0, form.FocusIndex);
+    }
+
     [Theory]
     [InlineData(ConsoleKey.Home, 0)]
     [InlineData(ConsoleKey.End, 2)]
@@ -90,6 +106,19 @@ public sealed class ScrollableFormDialogTests
     }
 
     [Fact]
+    public void FocusMovementUp_ScrollsBackToFocusedRow()
+    {
+        var form = LongForm();
+        Render(form, visibleRows: 2);
+        form.HandleKey(Key(ConsoleKey.End));
+
+        form.HandleKey(Key(ConsoleKey.Home));
+
+        Assert.Equal(0, form.FocusIndex);
+        Assert.Equal(0, form.ScrollTop);
+    }
+
+    [Fact]
     public void Wheel_ClampsScroll()
     {
         var form = LongForm();
@@ -99,6 +128,21 @@ public sealed class ScrollableFormDialogTests
         Assert.Equal(3, form.ScrollTop);
 
         form.HandleMouse(Mouse(2, 1, MouseButton.WheelUp, MouseEventKind.Wheel));
+        Assert.Equal(0, form.ScrollTop);
+    }
+
+    [Fact]
+    public void Wheel_StaysWithinScrollBounds()
+    {
+        var form = LongForm();
+        Render(form, visibleRows: 3);
+
+        for (int i = 0; i < 10; i++)
+            form.HandleMouse(Mouse(2, 1, MouseButton.WheelDown, MouseEventKind.Wheel));
+        Assert.Equal(3, form.ScrollTop);
+
+        for (int i = 0; i < 10; i++)
+            form.HandleMouse(Mouse(2, 1, MouseButton.WheelUp, MouseEventKind.Wheel));
         Assert.Equal(0, form.ScrollTop);
     }
 
@@ -247,6 +291,30 @@ public sealed class ScrollableFormDialogTests
     }
 
     [Fact]
+    public void TextInputRowState_PreservesHistoryScrollbarDragAcrossRowRecreation()
+    {
+        var text = new CommandLineState();
+        var history = new SingleLineTextHistoryState();
+        for (int i = 0; i < 20; i++)
+            history.Add("item-" + i);
+        Assert.True(history.OpenAll(availableContentRows: 5));
+
+        var state = new TextInputRowState();
+        var form = new ScrollableFormDialog([new TextInputRow(text, history, state)]);
+        Render(form, visibleRows: 1, screenHeight: 8);
+
+        form.HandleMouse(Mouse(19, 3, MouseButton.Left, MouseEventKind.Down));
+        Assert.NotNull(state.HistoryScrollbarDrag);
+
+        form.SetRows([new TextInputRow(text, history, state)]);
+        form.HandleMouse(Mouse(19, 5, MouseButton.Left, MouseEventKind.Move));
+        form.HandleMouse(Mouse(19, 5, MouseButton.Left, MouseEventKind.Up));
+
+        Assert.Null(state.HistoryScrollbarDrag);
+        Assert.True(history.FirstVisibleIndex > 0);
+    }
+
+    [Fact]
     public void ButtonRow_ReturnsSubmitAndCancel()
     {
         var form = new ScrollableFormDialog([
@@ -276,9 +344,9 @@ public sealed class ScrollableFormDialogTests
             new CheckBoxRow(new CheckBoxLine("six")),
         ]);
 
-    private static FakeConsoleDriver Render(ScrollableFormDialog form, int visibleRows)
+    private static FakeConsoleDriver Render(ScrollableFormDialog form, int visibleRows, int? screenHeight = null)
     {
-        var driver = new FakeConsoleDriver(20, Math.Max(5, visibleRows + 2));
+        var driver = new FakeConsoleDriver(20, screenHeight ?? Math.Max(5, visibleRows + 2));
         var screen = new ScreenRenderer(driver);
         form.Render(new FormRenderContext(
             screen,

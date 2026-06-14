@@ -62,17 +62,11 @@ public sealed class SearchOptionsDialog
 {
     private const int MinimumWidth = 40;
     private const int MinimumHeight = 8;
-    private const int ButtonFocusOffset = 1;
 
     private static readonly SingleLineTextHistoryRegistry HistoryRegistry = new();
 
     private readonly ScreenRenderer _screen;
     private readonly ModalDialogRenderer _modalRenderer = new();
-    private readonly DialogButtonBar _buttonBar = new(
-    [
-        new DialogButton("find", "Find", 'F', IsDefault: true),
-        new DialogButton("cancel", "Cancel", 'C'),
-    ]);
 
     public SearchOptionsDialog(ScreenRenderer screen)
     {
@@ -106,145 +100,92 @@ public sealed class SearchOptionsDialog
 
         var state = new SearchOptionsDialogState(pattern.Text, options.Options);
         SingleLineTextHistoryState patternHistory = HistoryRegistry.GetOrCreate(options.HistoryKey);
-        ScrollBarDragState? historyScrollbarDrag = null;
-        var checkboxes = options.Options.Select(option => new CheckBoxLine(option.Label, option.IsChecked)).ToArray();
-        int focusRow = 0;
-        int focusedButton = 0;
+        var patternRowState = new TextInputRowState();
+        var checkboxes = options.Options
+            .Select(option => new CheckBoxRow(new CheckBoxLine(option.Label, option.IsChecked)))
+            .ToArray();
+        var buttons = new ButtonRow(
+            [
+                new DialogButton("find", "Find", 'F', IsDefault: true),
+                new DialogButton("cancel", "Cancel", 'C'),
+            ],
+            FarDialogStyles.Fill,
+            FarDialogStyles.FocusedInput);
+        var form = new ScrollableFormDialog(BuildRows(options, pattern, patternHistory, patternRowState, checkboxes, buttons));
         string? error = null;
         var layout = SearchOptionsDialogLayout.Create(size, options.Width, options.Options.Count);
-        int buttonFocusRow = options.Options.Count + ButtonFocusOffset;
 
         while (true)
         {
-            Draw(options, layout, pattern, patternHistory, checkboxes, focusRow, focusedButton, error);
+            Draw(options, layout, form, pattern, error);
             var input = _screen.ReadInput();
-            int availableRows = SingleLineTextInput.AvailableDropdownContentRows(layout.InputY, size.Height);
-
-            if (input is MouseConsoleInputEvent mouse)
+            FormInputResult result = input switch
             {
-                if (SingleLineTextInput.TryHandleHistoryDropdownMouse(
-                        patternHistory,
-                        pattern,
-                        mouse,
-                        layout.InputX,
-                        layout.InputY,
-                        layout.InputWidth,
-                        size.Height,
-                        ref historyScrollbarDrag) ||
-                    (SingleLineTextInput.IsHistoryArrowHit(layout.InputX, layout.InputWidth, layout.InputY, mouse.X, mouse.Y) &&
-                     SingleLineTextInput.TryOpenHistoryDropdown(patternHistory, layout.InputY, size.Height)))
-                {
-                    focusRow = 0;
-                    error = null;
-                    continue;
-                }
+                KeyConsoleInputEvent { Key: var key } => HandleKey(form, patternHistory, key),
+                MouseConsoleInputEvent mouse => form.HandleMouse(mouse),
+                _ => FormInputResult.NotHandled,
+            };
 
-                bool handledOptionMouse = false;
-                for (int i = 0; i < checkboxes.Length; i++)
-                {
-                    if (!checkboxes[i].TryHandleMouse(mouse))
-                        continue;
+            if (result.Kind == FormInputResultKind.ValueChanged)
+                SynchronizeOptions(options, state, checkboxes);
 
-                    focusRow = i + 1;
-                    SetStateOption(options, state, checkboxes, i);
-                    handledOptionMouse = true;
-                    break;
-                }
+            if (result.Kind == FormInputResultKind.Cancel)
+                return null;
 
-                if (handledOptionMouse)
-                    continue;
-
-                if (_buttonBar.TryHandleInput(input, ref focusedButton, out string? mouseButtonId))
-                {
-                    focusRow = buttonFocusRow;
-                    var accepted = HandleButton(mouseButtonId, options, state, pattern, patternHistory, ref error);
-                    if (accepted.HasValue)
-                        return accepted.Value ? CreateResult(state) : null;
-
-                    continue;
-                }
-            }
-
-            if (input is not KeyConsoleInputEvent { Key: var key })
-                continue;
-
-            if (focusRow == 0)
+            if (result.Kind == FormInputResultKind.Submit)
             {
-                if (patternHistory.IsDropdownOpen &&
-                    key.Key is ConsoleKey.UpArrow or ConsoleKey.DownArrow or ConsoleKey.Enter or ConsoleKey.Escape)
-                {
-                    SingleLineTextInput.HandleKey(pattern, key, ref error, patternHistory, availableRows);
-                    continue;
-                }
-
-                if (key.Key == ConsoleKey.Tab || key.Key == ConsoleKey.DownArrow)
-                {
-                    focusRow = NextFocusRow(focusRow, buttonFocusRow, key);
-                    continue;
-                }
-
-                if (SingleLineTextInput.HandleKey(pattern, key, ref error, patternHistory, availableRows) != TextInputKeyResult.Ignored)
-                    continue;
-            }
-
-            switch (key.Key)
-            {
-                case ConsoleKey.Escape:
-                    return null;
-                case ConsoleKey.UpArrow:
-                    focusRow = Math.Max(0, focusRow - 1);
-                    break;
-                case ConsoleKey.DownArrow:
-                    focusRow = Math.Min(buttonFocusRow, focusRow + 1);
-                    break;
-                case ConsoleKey.Tab:
-                    focusRow = NextFocusRow(focusRow, buttonFocusRow, key);
-                    break;
-                case ConsoleKey.Spacebar:
-                case ConsoleKey.Enter:
-                    if (focusRow is > 0 && focusRow < buttonFocusRow)
-                    {
-                        int optionIndex = focusRow - 1;
-                        checkboxes[optionIndex].TryHandleKey(key);
-                        SetStateOption(options, state, checkboxes, optionIndex);
-                        break;
-                    }
-
-                    if (focusRow == buttonFocusRow)
-                    {
-                        if (_buttonBar.TryHandleInput(input, ref focusedButton, out string? buttonId))
-                        {
-                            var accepted = HandleButton(buttonId, options, state, pattern, patternHistory, ref error);
-                            if (accepted.HasValue)
-                                return accepted.Value ? CreateResult(state) : null;
-                        }
-
-                        break;
-                    }
-
-                    if (TryAccept(options, state, pattern, patternHistory, ref error))
-                        return CreateResult(state);
-                    break;
+                var accepted = HandleButton(result.Command, options, state, pattern, patternHistory, ref error);
+                if (accepted.HasValue)
+                    return accepted.Value ? CreateResult(state) : null;
             }
         }
     }
 
-    private static int NextFocusRow(int focusRow, int buttonFocusRow, ConsoleKeyInfo key)
+    private static IReadOnlyList<IFormRow> BuildRows(
+        SearchOptionsDialogOptions options,
+        CommandLineState pattern,
+        SingleLineTextHistoryState patternHistory,
+        TextInputRowState patternRowState,
+        IReadOnlyList<CheckBoxRow> checkboxes,
+        ButtonRow buttons)
     {
-        bool backward = key.Key == ConsoleKey.Tab && (key.Modifiers & ConsoleModifiers.Shift) != 0;
-        return backward
-            ? focusRow <= 0 ? buttonFocusRow : focusRow - 1
-            : focusRow >= buttonFocusRow ? 0 : focusRow + 1;
+        var rows = new List<IFormRow>
+        {
+            new LabelRow(options.TextLabel, FarDialogStyles.Fill),
+            new TextInputRow(pattern, patternHistory, patternRowState),
+        };
+        rows.AddRange(checkboxes);
+        rows.Add(new SeparatorRow(FarDialogStyles.Fill, drawLine: false));
+        rows.Add(buttons);
+        return rows;
     }
 
-    private static void SetStateOption(
+    private static FormInputResult HandleKey(ScrollableFormDialog form, SingleLineTextHistoryState patternHistory, ConsoleKeyInfo key)
+    {
+        if (key.Key == ConsoleKey.F10 ||
+            (key.Key == ConsoleKey.Enter && form.FocusIndex == 0 && !patternHistory.IsDropdownOpen))
+        {
+            return FormInputResult.Submit("find");
+        }
+
+        return form.HandleKey(key);
+    }
+
+    private static void SynchronizeOptions(
         SearchOptionsDialogOptions options,
         SearchOptionsDialogState state,
-        IReadOnlyList<CheckBoxLine> checkboxes,
-        int optionIndex)
+        IReadOnlyList<CheckBoxRow> checkboxes)
     {
-        state.SetOption(options.Options[optionIndex].Id, checkboxes[optionIndex].Value);
-        options.NormalizeOptions?.Invoke(state, options.Options[optionIndex].Id);
+        for (int i = 0; i < checkboxes.Count; i++)
+        {
+            string optionId = options.Options[i].Id;
+            if (state.GetOption(optionId) == checkboxes[i].Value)
+                continue;
+
+            state.SetOption(optionId, checkboxes[i].Value);
+            options.NormalizeOptions?.Invoke(state, optionId);
+            break;
+        }
 
         for (int i = 0; i < checkboxes.Count; i++)
             checkboxes[i].Value = state.GetOption(options.Options[i].Id);
@@ -295,11 +236,8 @@ public sealed class SearchOptionsDialog
     private void Draw(
         SearchOptionsDialogOptions options,
         SearchOptionsDialogLayout layout,
+        ScrollableFormDialog form,
         CommandLineState pattern,
-        SingleLineTextHistoryState patternHistory,
-        IReadOnlyList<CheckBoxLine> checkboxes,
-        int focusRow,
-        int focusedButton,
         string? error)
     {
         var palette = UiTheme.Current;
@@ -315,36 +253,17 @@ public sealed class SearchOptionsDialog
             (_, modalLayout) =>
             {
                 Rect content = modalLayout.ContentBounds;
-                _screen.Write(content.X, content.Y, Fit(options.TextLabel, layout.LabelWidth), PaletteStyles.DialogFill(palette));
-                SingleLineTextInput.Render(
+                form.Render(new FormRenderContext(
                     _screen,
-                    layout.InputX,
-                    layout.InputY,
-                    layout.InputWidth,
-                    pattern,
-                    focusRow == 0 ? PaletteStyles.InputField(palette) : PaletteStyles.DialogFill(palette),
-                    PaletteStyles.InputHighlight(palette),
-                    patternHistory);
-
-                for (int i = 0; i < checkboxes.Count; i++)
-                    checkboxes[i].Render(_screen, content.X, content.Y + 2 + i, content.Width, focusRow == i + 1);
+                    new Rect(content.X, content.Y, content.Width, layout.BodyHeight),
+                    FarDialogStyles.Border));
 
                 string errorText = error is null ? string.Empty : error;
-                _screen.Write(content.X, layout.ErrorY, Fit(errorText, content.Width), PaletteStyles.DialogError(palette));
-                _buttonBar.Render(
-                    _screen,
-                    content.X,
-                    layout.ButtonY,
-                    content.Width,
-                    focusRow == checkboxes.Count + ButtonFocusOffset ? focusedButton : -1,
-                    PaletteStyles.DialogFill(palette),
-                    PaletteStyles.InputField(palette));
-
-                if (focusRow == 0)
+                _screen.Write(content.X, layout.ErrorY, ScrollableFormDialog.Fit(errorText, content.Width), PaletteStyles.DialogError(palette));
+                if (form.FocusIndex == 0)
                 {
-                    int textWidth = Math.Max(0, layout.InputWidth - 1);
-                    int cursorX = SingleLineTextInput.GetCursorX(layout.InputX, textWidth, pattern);
-                    _screen.SetCursorPosition(cursorX, layout.InputY);
+                    int cursorX = SingleLineTextInput.GetCursorX(content.X, Math.Max(0, content.Width - 1), pattern);
+                    _screen.SetCursorPosition(cursorX, content.Y + 1 - form.ScrollTop);
                     _screen.SetCursorVisible(true);
                 }
                 else
@@ -354,22 +273,10 @@ public sealed class SearchOptionsDialog
             });
     }
 
-    private static string Fit(string text, int width)
-    {
-        if (width <= 0)
-            return string.Empty;
-
-        return text.Length <= width ? text.PadRight(width) : text[..width];
-    }
-
     private readonly record struct SearchOptionsDialogLayout(
         Rect Bounds,
-        int LabelWidth,
-        int InputX,
-        int InputY,
-        int InputWidth,
-        int ErrorY,
-        int ButtonY)
+        int BodyHeight,
+        int ErrorY)
     {
         public static SearchOptionsDialogLayout Create(ConsoleSize size, int preferredWidth, int optionCount)
         {
@@ -378,19 +285,12 @@ public sealed class SearchOptionsDialog
             int x = Math.Max(0, (size.Width - width) / 2);
             int y = Math.Max(0, (size.Height - height) / 2);
             var bounds = new Rect(x, y, width, height);
-            int contentX = x + 2;
             int contentY = y + 2;
-            const int labelWidth = 10;
-            int inputX = contentX + labelWidth;
-            int inputWidth = Math.Max(1, width - 4 - labelWidth);
+            int bodyHeight = Math.Max(1, optionCount + 4);
             return new SearchOptionsDialogLayout(
                 bounds,
-                labelWidth,
-                inputX,
-                contentY,
-                inputWidth,
-                contentY + optionCount + 2,
-                contentY + optionCount + 3);
+                bodyHeight,
+                contentY + bodyHeight);
         }
     }
 }
