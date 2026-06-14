@@ -51,10 +51,14 @@ internal static class DirectoryShortcutNormalizer
         if (string.IsNullOrWhiteSpace(path))
             return string.Empty;
 
-        string trimmedPath = path.Trim().TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
-        string name = Path.GetFileName(trimmedPath);
-        if (name.Length == 0)
-            name = Path.GetPathRoot(path)?.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar) ?? path;
+        string trimmedPath = path.Trim().TrimEnd('/', '\\');
+        if (trimmedPath.Length == 0)
+            return string.Empty;
+
+        int separatorIndex = trimmedPath.LastIndexOfAny(['/', '\\']);
+        string name = separatorIndex >= 0
+            ? trimmedPath[(separatorIndex + 1)..]
+            : trimmedPath;
 
         return NormalizeName(name);
     }

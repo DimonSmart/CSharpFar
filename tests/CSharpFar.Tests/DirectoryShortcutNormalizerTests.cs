@@ -59,6 +59,7 @@ public sealed class DirectoryShortcutNormalizerTests
     public void GetDefaultNameFromPath_UsesLastDirectoryName()
     {
         Assert.Equal("CSharpFa", DirectoryShortcutNormalizer.GetDefaultNameFromPath(@"C:\Projects\CSharpFar"));
+        Assert.Equal("CSharpFa", DirectoryShortcutNormalizer.GetDefaultNameFromPath("/home/user/CSharpFar"));
     }
 
     private static AppSettings.DirectoryShortcutItem Item(int number, string name, string path) =>
