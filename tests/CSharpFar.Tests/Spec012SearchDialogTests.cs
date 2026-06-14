@@ -3,6 +3,7 @@ using CSharpFar.Console;
 using CSharpFar.Console.Input;
 using CSharpFar.Core.Models;
 using CSharpFar.Tests.Fakes;
+using CSharpFar.Ui;
 
 namespace CSharpFar.Tests;
 
@@ -84,6 +85,64 @@ public sealed class Spec012SearchDialogTests
 
         Assert.NotNull(result);
         Assert.Equal(SearchScope.CurrentDirectoryOnly, result.Scope);
+    }
+
+    [Fact]
+    public void BuildRows_ReusesSearchTextInputRowStates()
+    {
+        var maskRowState = new TextInputRowState();
+        var textRowState = new TextInputRowState();
+        var parallelismRowState = new TextInputRowState();
+        var firstRows = BuildSearchRows(maskRowState, textRowState, parallelismRowState);
+        var secondRows = BuildSearchRows(maskRowState, textRowState, parallelismRowState);
+
+        var firstInputs = firstRows.OfType<TextInputRow>().ToArray();
+        var secondInputs = secondRows.OfType<TextInputRow>().ToArray();
+
+        Assert.Same(maskRowState, firstInputs[0].State);
+        Assert.Same(textRowState, firstInputs[1].State);
+        Assert.Same(parallelismRowState, firstInputs[2].State);
+        Assert.Same(maskRowState, secondInputs[0].State);
+        Assert.Same(textRowState, secondInputs[1].State);
+        Assert.Same(parallelismRowState, secondInputs[2].State);
+    }
+
+    private static IReadOnlyList<IFormRow> BuildSearchRows(
+        TextInputRowState maskRowState,
+        TextInputRowState textRowState,
+        TextInputRowState parallelismRowState)
+    {
+        var method = typeof(SearchDialog).GetMethod(
+            "BuildRows",
+            System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static)
+            ?? throw new InvalidOperationException("SearchDialog.BuildRows was not found.");
+
+        return (IReadOnlyList<IFormRow>)method.Invoke(
+            null,
+            [
+                new CommandLineState(),
+                new CommandLineState(),
+                new CommandLineState(),
+                new SingleLineTextHistoryState(),
+                new SingleLineTextHistoryState(),
+                new SingleLineTextHistoryState(),
+                maskRowState,
+                textRowState,
+                parallelismRowState,
+                new CheckBoxRow(new CheckBoxLine("Case sensitive")),
+                new CheckBoxRow(new CheckBoxLine("Whole words")),
+                new CheckBoxRow(new CheckBoxLine("Not containing")),
+                new CheckBoxRow(new CheckBoxLine("Search folders")),
+                new CheckBoxRow(new CheckBoxLine("Search in symbolic links")),
+                new ChoiceFormRow<SearchScope>(
+                    new ChoiceRow<SearchScope>([SearchScope.CurrentDirectoryRecursive], static scope => scope.ToString()),
+                    "Select search area:"),
+                new ButtonRow(
+                    [new DialogButton("find", "Find", 'F', IsDefault: true)],
+                    FarDialogStyles.Fill,
+                    FarDialogStyles.FocusedInput),
+                true,
+            ])!;
     }
 
     private static ConsoleKeyInfo Key(ConsoleKey key) =>

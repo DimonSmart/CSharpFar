@@ -93,6 +93,9 @@ internal sealed class SearchDialog
         SingleLineTextHistoryState maskHistory = HistoryRegistry.GetOrCreate("SearchDialog.Mask");
         SingleLineTextHistoryState textHistory = HistoryRegistry.GetOrCreate("SearchDialog.Text");
         SingleLineTextHistoryState parallelismHistory = HistoryRegistry.GetOrCreate("SearchDialog.Parallelism");
+        var maskRowState = new TextInputRowState();
+        var textRowState = new TextInputRowState();
+        var parallelismRowState = new TextInputRowState();
 
         var caseSensitiveRow = new CheckBoxRow(new CheckBoxLine("Case sensitive"));
         var wholeWordsRow = new CheckBoxRow(new CheckBoxLine("Whole words"));
@@ -124,6 +127,9 @@ internal sealed class SearchDialog
                 maskHistory,
                 textHistory,
                 parallelismHistory,
+                maskRowState,
+                textRowState,
+                parallelismRowState,
                 caseSensitiveRow,
                 wholeWordsRow,
                 notContainingRow,
@@ -176,6 +182,9 @@ internal sealed class SearchDialog
         SingleLineTextHistoryState maskHistory,
         SingleLineTextHistoryState textHistory,
         SingleLineTextHistoryState parallelismHistory,
+        TextInputRowState maskRowState,
+        TextInputRowState textRowState,
+        TextInputRowState parallelismRowState,
         CheckBoxRow caseSensitive,
         CheckBoxRow wholeWords,
         CheckBoxRow notContaining,
@@ -190,9 +199,9 @@ internal sealed class SearchDialog
         return
         [
             new LabelRow("A file mask or several file masks:", fill),
-            new TextInputRow(mask, maskHistory),
+            new TextInputRow(mask, maskHistory, maskRowState),
             new LabelRow("Containing text:", fill),
-            new TextInputRow(text, textHistory),
+            new TextInputRow(text, textHistory, textRowState),
             new LabelRow("Using code page: Automatic detection", fill),
             caseSensitive,
             wholeWords,
@@ -201,7 +210,7 @@ internal sealed class SearchDialog
             searchLinks,
             scope,
             new LabelRow("Parallelism:", fill),
-            new TextInputRow(parallelism, parallelismHistory, width: 8),
+            new TextInputRow(parallelism, parallelismHistory, parallelismRowState, width: 8),
             new SeparatorRow(fill, drawLine: false),
             buttons,
         ];
@@ -253,6 +262,9 @@ internal sealed class SearchDialog
         if (request.ContainingText is not null)
             textHistory.Add(request.ContainingText);
         parallelismHistory.Add(request.MaxDegreeOfParallelism.ToString(System.Globalization.CultureInfo.InvariantCulture));
+        maskHistory.Close();
+        textHistory.Close();
+        parallelismHistory.Close();
         return request;
     }
 

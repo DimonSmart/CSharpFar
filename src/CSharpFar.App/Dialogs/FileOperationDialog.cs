@@ -126,6 +126,8 @@ internal sealed class FileOperationDialog
 
         SingleLineTextHistoryState destinationHistory = HistoryRegistry.GetOrCreate("FileOperationDialog.Destination");
         SingleLineTextHistoryState filterHistory = HistoryRegistry.GetOrCreate("FileOperationDialog.Filter");
+        var destinationRowState = new TextInputRowState();
+        var filterRowState = new TextInputRowState();
 
         var securityChoice = new ChoiceFormRow<FileSecurityMode>(
             new ChoiceRow<FileSecurityMode>(
@@ -171,6 +173,8 @@ internal sealed class FileOperationDialog
                 filter,
                 destinationHistory,
                 filterHistory,
+                destinationRowState,
+                filterRowState,
                 securityChoice,
                 conflictFirstRow,
                 conflictSecondRow,
@@ -218,6 +222,8 @@ internal sealed class FileOperationDialog
         CommandLineState filter,
         SingleLineTextHistoryState destinationHistory,
         SingleLineTextHistoryState filterHistory,
+        TextInputRowState destinationRowState,
+        TextInputRowState filterRowState,
         ChoiceFormRow<FileSecurityMode> securityChoice,
         ChoiceFormRow<ConflictDecisionMode> conflictFirstRow,
         ChoiceFormRow<ConflictDecisionMode> conflictSecondRow,
@@ -230,7 +236,7 @@ internal sealed class FileOperationDialog
         var rows = new List<IFormRow>
         {
             new LabelRow(prompt, fill),
-            new TextInputRow(destination, destinationHistory),
+            new TextInputRow(destination, destinationHistory, destinationRowState),
             new SeparatorRow(fill, drawLine: false),
         };
 
@@ -253,7 +259,7 @@ internal sealed class FileOperationDialog
             rows.Add(useFilter);
             rows.Add(new LabelRow("Filter mask:", fill));
             rows.Add(useFilter.Value
-                ? new TextInputRow(filter, filterHistory)
+                ? new TextInputRow(filter, filterHistory, filterRowState)
                 : new LabelRow(SingleLineTextInput.VisibleText(filter, 60), fill));
             rows.Add(new SeparatorRow(fill, drawLine: false));
         }
@@ -303,6 +309,8 @@ internal sealed class FileOperationDialog
         destinationHistory.Add(destinationText);
         if (mask is not null)
             filterHistory.Add(mask);
+        destinationHistory.Close();
+        filterHistory.Close();
 
         return new FileOperationDialogResult(
             destinationText,

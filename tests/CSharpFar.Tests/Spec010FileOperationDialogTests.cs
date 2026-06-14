@@ -4,6 +4,7 @@ using CSharpFar.Console.Input;
 using CSharpFar.Console.Models;
 using CSharpFar.Core.Models;
 using CSharpFar.Tests.Fakes;
+using CSharpFar.Ui;
 
 namespace CSharpFar.Tests;
 
@@ -241,6 +242,23 @@ public sealed class Spec010FileOperationDialogTests
             new FileOperationOptions());
 
         Assert.Null(result);
+    }
+
+    [Fact]
+    public void BuildRows_ReusesDestinationAndFilterTextInputRowState()
+    {
+        var destinationRowState = new TextInputRowState();
+        var filterRowState = new TextInputRowState();
+        var firstRows = BuildFileOperationRows(destinationRowState, filterRowState);
+        var secondRows = BuildFileOperationRows(destinationRowState, filterRowState);
+
+        var firstInputs = firstRows.OfType<TextInputRow>().ToArray();
+        var secondInputs = secondRows.OfType<TextInputRow>().ToArray();
+
+        Assert.Same(destinationRowState, firstInputs[0].State);
+        Assert.Same(filterRowState, firstInputs[1].State);
+        Assert.Same(destinationRowState, secondInputs[0].State);
+        Assert.Same(filterRowState, secondInputs[1].State);
     }
 
     [Fact]
@@ -494,6 +512,39 @@ public sealed class Spec010FileOperationDialogTests
     {
         foreach (char ch in text)
             driver.EnqueueKey(new ConsoleKeyInfo(ch, ConsoleKey.None, shift: false, alt: false, control: false));
+    }
+
+    private static IReadOnlyList<IFormRow> BuildFileOperationRows(TextInputRowState destinationRowState, TextInputRowState filterRowState)
+    {
+        var destination = new CommandLineState();
+        var filter = new CommandLineState();
+        filter.SetText("*");
+        var conflictChoice = new ChoiceRow<ConflictDecisionMode>([ConflictDecisionMode.Ask], static mode => mode.ToString());
+        var method = typeof(FileOperationDialog).GetMethod(
+            "BuildRows",
+            System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static)
+            ?? throw new InvalidOperationException("FileOperationDialog.BuildRows was not found.");
+
+        return (IReadOnlyList<IFormRow>)method.Invoke(
+            null,
+            [
+                "Copy to:",
+                destination,
+                filter,
+                new SingleLineTextHistoryState(),
+                new SingleLineTextHistoryState(),
+                destinationRowState,
+                filterRowState,
+                new ChoiceFormRow<FileSecurityMode>(
+                    new ChoiceRow<FileSecurityMode>([FileSecurityMode.Default], static mode => mode.ToString()),
+                    "Access rights:"),
+                new ChoiceFormRow<ConflictDecisionMode>(conflictChoice, string.Empty, 0, 1),
+                new ChoiceFormRow<ConflictDecisionMode>(conflictChoice, string.Empty, 1, 1, isFocusable: false),
+                new CheckBoxRow(new CheckBoxLine("Preserve all timestamps")),
+                new CheckBoxRow(new CheckBoxLine("Copy contents of symbolic links")),
+                new CheckBoxRow(new CheckBoxLine("Use filter", value: true)),
+                true,
+            ])!;
     }
 
     private static ConsoleKeyInfo Key(ConsoleKey key) =>

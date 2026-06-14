@@ -526,15 +526,6 @@ public sealed class ScrollableFormDialog
         if (TryHandleWheel(mouse, _lastViewportRows))
             return FormInputResult.Handled;
 
-        if (BodyRowCount > _lastViewportRows &&
-            TryHandleScrollbarMouse(
-                mouse,
-                new Rect(_lastBodyBounds.Right - 1, _lastBodyBounds.Y, 1, _lastViewportRows),
-                _lastViewportRows))
-        {
-            return FormInputResult.Handled;
-        }
-
         if (FocusedRow() is not null && TryGetFocusedRowBounds(out Rect focusedBounds))
         {
             FormInputResult focusedResult = FocusedRow()!.HandleMouse(
@@ -542,6 +533,15 @@ public sealed class ScrollableFormDialog
                 new FormRowMouseContext(focusedBounds, FocusIndex, focused: true, _lastScreenHeight));
             if (focusedResult.IsHandled)
                 return ApplyResult(focusedResult);
+        }
+
+        if (BodyRowCount > _lastViewportRows &&
+            TryHandleScrollbarMouse(
+                mouse,
+                new Rect(_lastBodyBounds.Right - 1, _lastBodyBounds.Y, 1, _lastViewportRows),
+                _lastViewportRows))
+        {
+            return FormInputResult.Handled;
         }
 
         if (!TryHitTestRow(_lastBodyBounds, _lastViewportRows, mouse.X, mouse.Y, out int rowIndex, out Rect rowBounds, out int focusIndex))
