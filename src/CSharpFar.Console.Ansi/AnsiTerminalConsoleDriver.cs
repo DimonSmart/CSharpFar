@@ -75,9 +75,28 @@ public sealed class AnsiTerminalConsoleDriver : IConsoleDriver, ITerminalScreenM
 
     public AnsiInputReadResult ReadRawInput()
     {
-        _terminalMode ??= new UnixTerminalMode();
+        EnableRawInputMode();
         return _inputParser.Read(_input);
     }
+
+    public bool TryReadRawInput(int timeoutMilliseconds, [NotNullWhen(true)] out AnsiInputReadResult? result)
+    {
+        EnableRawInputMode();
+        if (!_input.WaitForInput(timeoutMilliseconds))
+        {
+            result = null;
+            return false;
+        }
+
+        result = _inputParser.Read(_input);
+        return true;
+    }
+
+    public void EnableRawInputMode() =>
+        _terminalMode ??= new UnixTerminalMode();
+
+    public void WriteRawControl(string sequence) =>
+        WriteControl(sequence);
 
     public void WriteAt(
         int x,

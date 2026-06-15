@@ -27,6 +27,9 @@ if (args is ["--check-terminal", "--input"])
 if (args is ["--check-terminal", "--raw-input"])
     return RunRawTerminalInputCheck();
 
+if (args is ["--check-terminal", "--enhanced-input"] or ["--check-terminal", "--kitty-input"])
+    return RunEnhancedTerminalInputCheck();
+
 using var platform = UnixPlatformServices.Create(
     settingsStore.ConfigDirectory,
     settingsStore.Settings.Shell);
@@ -104,6 +107,27 @@ static int RunRawTerminalInputCheck()
     {
         using var driver = new AnsiTerminalConsoleDriver();
         RunTerminalRawInputCheck(driver);
+        return 0;
+    }
+    catch (Exception ex) when (ex is InvalidOperationException or PlatformNotSupportedException)
+    {
+        Console.Error.WriteLine(ex.Message);
+        return 1;
+    }
+}
+
+static int RunEnhancedTerminalInputCheck()
+{
+    if (Console.IsInputRedirected || Console.IsOutputRedirected)
+    {
+        Console.WriteLine("Terminal check skipped: stdin/stdout are not attached to a terminal.");
+        return 0;
+    }
+
+    try
+    {
+        using var driver = new AnsiTerminalConsoleDriver();
+        RunTerminalEnhancedInputCheck(driver);
         return 0;
     }
     catch (Exception ex) when (ex is InvalidOperationException or PlatformNotSupportedException)
@@ -216,6 +240,136 @@ static void RunTerminalRawInputCheck(AnsiTerminalConsoleDriver driver)
     driver.RestoreTerminal();
 }
 
+static void RunTerminalEnhancedInputCheck(AnsiTerminalConsoleDriver driver)
+{
+    const string Csi = "\x1b[";
+    const int RequestedFlags = 11;
+
+    driver.EnterApplicationScreen();
+    driver.Clear();
+    driver.SetCursorVisible(false);
+    driver.EnableRawInputMode();
+
+    try
+    {
+        Console.WriteLine("Enhanced terminal input check");
+        Console.WriteLine("This is an experiment. It does not represent production Unix input behavior.");
+        Console.WriteLine("Press Esc or Ctrl+C to exit.");
+        Console.WriteLine();
+        PrintManualEnhancedInputChecklist();
+        Console.WriteLine();
+        Console.WriteLine("Terminal protocol handshake:");
+
+        int? before = SendEnhancedInputQuery(driver, $"{Csi}?u", expectResponse: true);
+        SendEnhancedInputQuery(driver, $"{Csi}>u", expectResponse: false);
+        SendEnhancedInputQuery(driver, $"{Csi}=11;1u", expectResponse: false);
+        int? after = SendEnhancedInputQuery(driver, $"{Csi}?u", expectResponse: true);
+
+        int? reportedFlags = after ?? before;
+        string support = reportedFlags.HasValue
+            ? (reportedFlags.Value & RequestedFlags) == RequestedFlags ? "yes" : "no"
+            : "unknown";
+        Console.WriteLine($"  support: {support}");
+        Console.WriteLine($"  requested flags: {RequestedFlags}");
+        Console.WriteLine($"  reported flags: {FormatNullableNumber(reportedFlags)}");
+        if (!reportedFlags.HasValue)
+        {
+            Console.WriteLine("Protocol support: unknown or not supported");
+            Console.WriteLine("Continuing raw input capture without confirmed enhanced mode.");
+        }
+
+        Console.WriteLine();
+
+        while (true)
+        {
+            var result = driver.ReadRawInput();
+            var enhanced = EnhancedTerminalKeyParser.Parse(result.Bytes);
+            PrintEnhancedInputEvent(result, enhanced);
+            Console.Out.Flush();
+
+            if (IsEnhancedInputExit(result.Key, enhanced))
+                break;
+        }
+    }
+    finally
+    {
+        driver.WriteRawControl($"{Csi}<u");
+        driver.RestoreTerminal();
+    }
+}
+
+static int? SendEnhancedInputQuery(
+    AnsiTerminalConsoleDriver driver,
+    string sequence,
+    bool expectResponse)
+{
+    Console.WriteLine($"  sent: {FormatSentControl(sequence)}");
+    driver.WriteRawControl(sequence);
+    if (!expectResponse)
+        return null;
+
+    if (!driver.TryReadRawInput(200, out var response))
+    {
+        Console.WriteLine("  recv: <timeout>");
+        return null;
+    }
+
+    Console.WriteLine($"  recv: {FormatInputText(response.Bytes)}");
+    return TryParseEnhancedKeyboardFlags(response.Bytes, out int flags) ? flags : null;
+}
+
+static void PrintManualEnhancedInputChecklist()
+{
+    Console.WriteLine("Manual test checklist:");
+    Console.WriteLine();
+    Console.WriteLine("1. Press and release Ctrl alone.");
+    Console.WriteLine("2. Press and release Shift alone.");
+    Console.WriteLine("3. Press and release Alt alone.");
+    Console.WriteLine("4. Press Ctrl+Right.");
+    Console.WriteLine("5. Press Shift+F5.");
+    Console.WriteLine("6. Press Alt+Left.");
+    Console.WriteLine("7. Press Ctrl+C.");
+    Console.WriteLine("8. Press Esc.");
+    Console.WriteLine("9. Type plain text: abc.");
+    Console.WriteLine("10. Press Enter, Tab, Backspace.");
+}
+
+static void PrintEnhancedInputEvent(AnsiInputReadResult result, EnhancedTerminalKeyEvent enhanced)
+{
+    Console.WriteLine($"bytes   : {FormatBytes(result.Bytes)}");
+    Console.WriteLine($"text    : {FormatInputText(result.Bytes)}");
+    if (enhanced.IsKnown)
+    {
+        Console.WriteLine($"event   : keyCode={enhanced.KeyCode}, modifiersRaw={enhanced.ModifiersRaw}, eventType={enhanced.EventType}");
+        Console.WriteLine(
+            "mods    : " +
+            $"Shift={enhanced.Modifiers.HasFlag(EnhancedModifiers.Shift)}, " +
+            $"Alt={enhanced.Modifiers.HasFlag(EnhancedModifiers.Alt)}, " +
+            $"Ctrl={enhanced.Modifiers.HasFlag(EnhancedModifiers.Ctrl)}, " +
+            $"Super={enhanced.Modifiers.HasFlag(EnhancedModifiers.Super)}, " +
+            $"Hyper={enhanced.Modifiers.HasFlag(EnhancedModifiers.Hyper)}, " +
+            $"Meta={enhanced.Modifiers.HasFlag(EnhancedModifiers.Meta)}");
+        Console.WriteLine($"parsed  : ConsoleKey={enhanced.ParsedKey.Key}, ConsoleModifiers={enhanced.ParsedKey.Modifiers}");
+        Console.WriteLine($"modifier-only: {enhanced.ModifierOnly.ToString().ToLowerInvariant()}");
+        if (enhanced.ModifierOnly)
+            Console.WriteLine($"{FormatModifierName(enhanced.ModifierKeyName)} {enhanced.EventType.ToString().ToLowerInvariant()}");
+    }
+    else
+    {
+        Console.WriteLine("parsed: UnknownEnhancedSequence");
+        Console.WriteLine($"fallback: ConsoleKey={result.Key.Key}, ConsoleModifiers={result.Key.Modifiers}");
+    }
+
+    Console.WriteLine();
+}
+
+static bool IsEnhancedInputExit(ConsoleKeyInfo fallbackKey, EnhancedTerminalKeyEvent enhanced)
+{
+    var key = enhanced.IsKnown ? enhanced.ParsedKey : fallbackKey;
+    return key.Key == ConsoleKey.Escape ||
+        (key.Key == ConsoleKey.C && key.Modifiers.HasFlag(ConsoleModifiers.Control));
+}
+
 static int NextRawInputRow(AnsiTerminalConsoleDriver driver, int row)
 {
     row++;
@@ -243,6 +397,40 @@ static string FormatInputText(IReadOnlyList<byte> bytes)
     });
 
     return string.Join(' ', parts);
+}
+
+static string FormatSentControl(string sequence) =>
+    sequence.Replace("\x1b", "ESC", StringComparison.Ordinal);
+
+static string FormatNullableNumber(int? value) =>
+    value.HasValue ? value.Value.ToString() : "unknown";
+
+static string FormatModifierName(string? modifierName)
+{
+    if (modifierName is null)
+        return "MODIFIER";
+
+    if (modifierName.StartsWith("LEFT_", StringComparison.Ordinal))
+        return "LEFT_" + modifierName[5..];
+    if (modifierName.StartsWith("RIGHT_", StringComparison.Ordinal))
+        return "RIGHT_" + modifierName[6..];
+
+    return modifierName;
+}
+
+static bool TryParseEnhancedKeyboardFlags(IReadOnlyList<byte> bytes, out int flags)
+{
+    flags = 0;
+    string text = new(bytes.Select(static b => b <= 0x7f ? (char)b : '\ufffd').ToArray());
+    const string prefix = "\x1b[?";
+    if (!text.StartsWith(prefix, StringComparison.Ordinal) ||
+        !text.EndsWith('u') ||
+        text.Length <= prefix.Length + 1)
+    {
+        return false;
+    }
+
+    return int.TryParse(text[prefix.Length..^1], out flags);
 }
 
 static void ValidateShellSettings(JsonSettingsStore settingsStore)
