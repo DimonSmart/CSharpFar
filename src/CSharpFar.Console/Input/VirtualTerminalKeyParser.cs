@@ -26,6 +26,28 @@ internal static class VirtualTerminalKeyParser
     {
         keyInfo = default;
 
+        if (body.Length == 0 && final == 'Z')
+        {
+            keyInfo = new ConsoleKeyInfo('\0', ConsoleKey.Tab, shift: true, alt: false, control: false);
+            return true;
+        }
+
+        if (body == "[" && final is 'A' or 'B' or 'C' or 'D' or 'E')
+        {
+            var key = final switch
+            {
+                'A' => ConsoleKey.F1,
+                'B' => ConsoleKey.F2,
+                'C' => ConsoleKey.F3,
+                'D' => ConsoleKey.F4,
+                'E' => ConsoleKey.F5,
+                _ => ConsoleKey.NoName,
+            };
+
+            keyInfo = MakeKeyInfo(key, MouseKeyModifiers.None);
+            return true;
+        }
+
         if (final is 'A' or 'B' or 'C' or 'D' or 'H' or 'F')
         {
             var modifiers = ParseModifiers(body);
@@ -41,6 +63,21 @@ internal static class VirtualTerminalKeyParser
             };
 
             keyInfo = MakeKeyInfo(key, modifiers);
+            return true;
+        }
+
+        if (final is 'P' or 'Q' or 'R' or 'S')
+        {
+            var key = final switch
+            {
+                'P' => ConsoleKey.F1,
+                'Q' => ConsoleKey.F2,
+                'R' => ConsoleKey.F3,
+                'S' => ConsoleKey.F4,
+                _ => ConsoleKey.NoName,
+            };
+
+            keyInfo = MakeKeyInfo(key, ParseModifiers(body));
             return true;
         }
 
@@ -89,6 +126,10 @@ internal static class VirtualTerminalKeyParser
 
         var mapped = final switch
         {
+            'A' => ConsoleKey.UpArrow,
+            'B' => ConsoleKey.DownArrow,
+            'C' => ConsoleKey.RightArrow,
+            'D' => ConsoleKey.LeftArrow,
             'P' => ConsoleKey.F1,
             'Q' => ConsoleKey.F2,
             'R' => ConsoleKey.F3,

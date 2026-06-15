@@ -10,6 +10,9 @@
     <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleTo">
       <_Parameter1>CSharpFar.Tests</_Parameter1>
     </AssemblyAttribute>
+    <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleTo">
+      <_Parameter1>CSharpFar.Console.Ansi</_Parameter1>
+    </AssemblyAttribute>
   </ItemGroup>
 
 </Project>

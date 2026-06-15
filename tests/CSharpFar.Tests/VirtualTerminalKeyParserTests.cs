@@ -9,7 +9,11 @@ public sealed class VirtualTerminalKeyParserTests
     [InlineData('[', "B", ConsoleKey.DownArrow)]
     [InlineData('[', "C", ConsoleKey.RightArrow)]
     [InlineData('[', "D", ConsoleKey.LeftArrow)]
+    [InlineData('O', "A", ConsoleKey.UpArrow)]
+    [InlineData('O', "D", ConsoleKey.LeftArrow)]
+    [InlineData('[', "11~", ConsoleKey.F1)]
     [InlineData('[', "21~", ConsoleKey.F10)]
+    [InlineData('[', "[E", ConsoleKey.F5)]
     [InlineData('O', "P", ConsoleKey.F1)]
     public void TryParse_KnownSequence_ReturnsConsoleKey(char prefix, string sequence, ConsoleKey expectedKey)
     {

@@ -24,6 +24,9 @@ if (args is ["--check-terminal"])
 if (args is ["--check-terminal", "--input"])
     return RunTerminalCheck(inputMode: true);
 
+if (args is ["--check-terminal", "--raw-input"])
+    return RunRawTerminalInputCheck();
+
 using var platform = UnixPlatformServices.Create(
     settingsStore.ConfigDirectory,
     settingsStore.Settings.Shell);
@@ -80,6 +83,27 @@ static int RunTerminalCheck(bool inputMode)
             RunTerminalInputCheck(driver);
         else
             RunTerminalVisualCheck(driver);
+        return 0;
+    }
+    catch (Exception ex) when (ex is InvalidOperationException or PlatformNotSupportedException)
+    {
+        Console.Error.WriteLine(ex.Message);
+        return 1;
+    }
+}
+
+static int RunRawTerminalInputCheck()
+{
+    if (Console.IsInputRedirected || Console.IsOutputRedirected)
+    {
+        Console.WriteLine("Terminal check skipped: stdin/stdout are not attached to a terminal.");
+        return 0;
+    }
+
+    try
+    {
+        using var driver = new AnsiTerminalConsoleDriver();
+        RunTerminalRawInputCheck(driver);
         return 0;
     }
     catch (Exception ex) when (ex is InvalidOperationException or PlatformNotSupportedException)
@@ -157,6 +181,68 @@ static void RunTerminalInputCheck(AnsiTerminalConsoleDriver driver)
     }
 
     driver.RestoreTerminal();
+}
+
+static void RunTerminalRawInputCheck(AnsiTerminalConsoleDriver driver)
+{
+    driver.EnterApplicationScreen();
+    driver.Clear();
+    driver.SetCursorVisible(false);
+    driver.WriteAt(2, 1, "Raw input check. Press Esc or Ctrl+C to exit.", ConsoleColor.White, ConsoleColor.DarkBlue, CSharpFar.Console.Models.TextAttributes.Bold);
+
+    int row = 3;
+    while (true)
+    {
+        var result = driver.ReadRawInput();
+        var key = result.Key;
+        driver.WriteAt(2, row, new string(' ', Math.Max(1, driver.GetBufferWidth() - 4)), ConsoleColor.Gray, ConsoleColor.Black);
+        driver.WriteAt(2, row, $"bytes: {FormatBytes(result.Bytes)}", ConsoleColor.Gray, ConsoleColor.Black);
+        row = NextRawInputRow(driver, row);
+        driver.WriteAt(2, row, new string(' ', Math.Max(1, driver.GetBufferWidth() - 4)), ConsoleColor.Gray, ConsoleColor.Black);
+        driver.WriteAt(2, row, $"text : {FormatInputText(result.Bytes)}", ConsoleColor.Gray, ConsoleColor.Black);
+        row = NextRawInputRow(driver, row);
+        driver.WriteAt(2, row, new string(' ', Math.Max(1, driver.GetBufferWidth() - 4)), ConsoleColor.Gray, ConsoleColor.Black);
+        driver.WriteAt(2, row, $"parsed: {key.Key}, Modifiers: {key.Modifiers}", ConsoleColor.Yellow, ConsoleColor.Black);
+        Console.Out.Flush();
+        row = NextRawInputRow(driver, row);
+
+        if (key.Key == ConsoleKey.Escape ||
+            (key.Key == ConsoleKey.C && key.Modifiers.HasFlag(ConsoleModifiers.Control)))
+        {
+            break;
+        }
+    }
+
+    driver.RestoreTerminal();
+}
+
+static int NextRawInputRow(AnsiTerminalConsoleDriver driver, int row)
+{
+    row++;
+    if (row < Math.Max(4, driver.GetBufferHeight() - 1))
+        return row;
+
+    driver.ClearRegion(new CSharpFar.Console.Models.Rect(0, 3, driver.GetBufferWidth(), Math.Max(1, driver.GetBufferHeight() - 3)));
+    return 3;
+}
+
+static string FormatBytes(IReadOnlyList<byte> bytes) =>
+    string.Join(' ', bytes.Select(static b => b.ToString("X2")));
+
+static string FormatInputText(IReadOnlyList<byte> bytes)
+{
+    var parts = bytes.Select(static b => b switch
+    {
+        0x1b => "ESC",
+        0x09 => "TAB",
+        0x0d => "CR",
+        0x0a => "LF",
+        0x7f => "DEL",
+        >= 0x20 and <= 0x7e => ((char)b).ToString(),
+        _ => $"0x{b:X2}",
+    });
+
+    return string.Join(' ', parts);
 }
 
 static void ValidateShellSettings(JsonSettingsStore settingsStore)

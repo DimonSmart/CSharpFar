@@ -1,4 +1,6 @@
 using System.Diagnostics.CodeAnalysis;
+using System.ComponentModel;
+using System.Runtime.InteropServices;
 using CSharpFar.Console.Input;
 using CSharpFar.Console.Models;
 
@@ -13,9 +15,8 @@ public sealed class AnsiTerminalConsoleDriver : IConsoleDriver, ITerminalScreenM
     private const string EnterAltScreen = "\x1b[?1049h";
     private const string LeaveAltScreen = "\x1b[?1049l";
     private const string ResetAttributes = "\x1b[0m";
-
-    private readonly UnixTerminalMode _terminalMode;
-    private readonly Stream _input;
+    private UnixTerminalMode? _terminalMode;
+    private readonly UnixTerminalInputByteReader _input;
     private readonly AnsiInputParser _inputParser = new();
     private ConsoleSize _lastKnownSize;
     private bool _applicationScreenActive;
@@ -33,8 +34,7 @@ public sealed class AnsiTerminalConsoleDriver : IConsoleDriver, ITerminalScreenM
             throw new InvalidOperationException("Ansi terminal console driver requires attached stdin and stdout terminals.");
 
         global::System.Console.OutputEncoding = System.Text.Encoding.UTF8;
-        _terminalMode = new UnixTerminalMode();
-        _input = global::System.Console.OpenStandardInput();
+        _input = new UnixTerminalInputByteReader();
         _lastKnownSize = GetSize();
     }
 
@@ -70,7 +70,14 @@ public sealed class AnsiTerminalConsoleDriver : IConsoleDriver, ITerminalScreenM
         return true;
     }
 
-    public ConsoleKeyInfo ReadKey(bool intercept) => _inputParser.ReadKey(_input);
+    public ConsoleKeyInfo ReadKey(bool intercept) =>
+        global::System.Console.ReadKey(intercept);
+
+    public AnsiInputReadResult ReadRawInput()
+    {
+        _terminalMode ??= new UnixTerminalMode();
+        return _inputParser.Read(_input);
+    }
 
     public void WriteAt(
         int x,
@@ -184,14 +191,14 @@ public sealed class AnsiTerminalConsoleDriver : IConsoleDriver, ITerminalScreenM
     {
     }
 
-    public void RestoreApplicationInputMode() => _terminalMode.EnableRawMode();
+    public void RestoreApplicationInputMode() => _terminalMode?.EnableRawMode();
 
     public IDisposable EnterChildProcessConsoleMode()
     {
         WriteControl(ResetAttributes + ShowCursor);
         _cursorVisible = true;
         EnsureMainScreen();
-        _terminalMode.RestoreOriginalMode();
+        _terminalMode?.RestoreOriginalMode();
         Flush();
         return new ChildProcessConsoleModeScope(this);
     }
@@ -202,7 +209,7 @@ public sealed class AnsiTerminalConsoleDriver : IConsoleDriver, ITerminalScreenM
         ResetCachedState();
         _cursorVisible = true;
         _applicationScreenActive = false;
-        _terminalMode.RestoreOriginalMode();
+        _terminalMode?.RestoreOriginalMode();
         Flush();
     }
 
@@ -212,8 +219,7 @@ public sealed class AnsiTerminalConsoleDriver : IConsoleDriver, ITerminalScreenM
             return;
 
         RestoreTerminal();
-        _terminalMode.Dispose();
-        _input.Dispose();
+        _terminalMode?.Dispose();
         _disposed = true;
     }
 
@@ -281,6 +287,104 @@ public sealed class AnsiTerminalConsoleDriver : IConsoleDriver, ITerminalScreenM
 
             _owner.RestoreApplicationInputMode();
             _disposed = true;
+        }
+    }
+
+    private sealed class UnixTerminalInputByteReader : IAnsiInputByteReader
+    {
+        private const int STDIN_FILENO = 0;
+        private const short POLLIN = 0x0001;
+        private const int PacketIdleTimeoutMilliseconds = 100;
+
+        private readonly Queue<byte> _pending = new();
+
+        public byte ReadByte()
+        {
+            while (_pending.Count == 0)
+                ReadPacket(block: true);
+
+            return _pending.Dequeue();
+        }
+
+        public bool TryReadByte(out byte value)
+        {
+            if (_pending.Count == 0 && !ReadPacket(block: false))
+            {
+                value = default;
+                return false;
+            }
+
+            value = _pending.Dequeue();
+            return true;
+        }
+
+        public bool WaitForInput(int timeoutMilliseconds)
+        {
+            if (_pending.Count > 0)
+                return true;
+
+            return PollInput(timeoutMilliseconds);
+        }
+
+        private bool ReadPacket(bool block)
+        {
+            if (!PollInput(block ? -1 : 0))
+                return false;
+
+            do
+            {
+                byte[] buffer = new byte[32];
+                int readCount = ReadInto(buffer);
+                if (readCount < 0)
+                    throw new InvalidOperationException("Failed to read terminal input.", new Win32Exception(Marshal.GetLastPInvokeError()));
+
+                for (int i = 0; i < readCount; i++)
+                    _pending.Enqueue(buffer[i]);
+            }
+            while (PollInput(PacketIdleTimeoutMilliseconds));
+
+            return _pending.Count > 0;
+        }
+
+        private static bool PollInput(int timeoutMilliseconds)
+        {
+            var fds = new[] { new PollFd { Fd = STDIN_FILENO, Events = POLLIN } };
+            int result = poll(fds, 1, timeoutMilliseconds);
+            if (result < 0)
+                throw new InvalidOperationException("Failed to poll terminal input.", new Win32Exception(Marshal.GetLastPInvokeError()));
+
+            return result > 0 && (fds[0].Revents & POLLIN) != 0;
+        }
+
+        private static int ReadInto(byte[] buffer)
+        {
+            IntPtr nativeBuffer = Marshal.AllocHGlobal(buffer.Length);
+            try
+            {
+                nint readCount = read(STDIN_FILENO, nativeBuffer, (nuint)buffer.Length);
+                if (readCount > 0)
+                    Marshal.Copy(nativeBuffer, buffer, 0, (int)readCount);
+
+                return (int)readCount;
+            }
+            finally
+            {
+                Marshal.FreeHGlobal(nativeBuffer);
+            }
+        }
+
+        [DllImport("libc", SetLastError = true)]
+        private static extern int poll(PollFd[] fds, nuint nfds, int timeout);
+
+        [DllImport("libc", SetLastError = true)]
+        private static extern nint read(int fd, IntPtr buffer, nuint count);
+
+        [StructLayout(LayoutKind.Sequential)]
+        private struct PollFd
+        {
+            public int Fd;
+            public short Events;
+            public short Revents;
         }
     }
 }

@@ -6,17 +6,6 @@ namespace CSharpFar.Console.Ansi;
 internal sealed class UnixTerminalMode : IDisposable
 {
     private const int STDIN_FILENO = 0;
-    private const uint BRKINT = 0x0002;
-    private const uint ICRNL = 0x0100;
-    private const uint INPCK = 0x0010;
-    private const uint ISTRIP = 0x0020;
-    private const uint IXON = 0x0400;
-    private const uint OPOST = 0x0001;
-    private const uint ECHO = 0x0008;
-    private const uint ICANON = 0x0002;
-    private const uint IEXTEN = 0x8000;
-    private const uint ISIG = 0x0001;
-    private const uint CS8 = 0x0030;
     private const int VMIN = 6;
     private const int VTIME = 5;
     private const int TCSANOW = 0;
@@ -35,12 +24,9 @@ internal sealed class UnixTerminalMode : IDisposable
             throw new InvalidOperationException("Failed to read terminal mode.", new Win32Exception(Marshal.GetLastPInvokeError()));
 
         _raw = _original;
-        _raw.c_iflag &= ~(BRKINT | ICRNL | INPCK | ISTRIP | IXON);
-        _raw.c_oflag &= ~OPOST;
-        _raw.c_cflag |= CS8;
-        _raw.c_lflag &= ~(ECHO | ICANON | IEXTEN | ISIG);
-        _raw.c_cc[VMIN] = 1;
-        _raw.c_cc[VTIME] = 0;
+        cfmakeraw(ref _raw);
+        _raw.c_cc[VMIN] = 0;
+        _raw.c_cc[VTIME] = 1;
 
         EnableRawMode();
     }
@@ -90,6 +76,9 @@ internal sealed class UnixTerminalMode : IDisposable
 
     [DllImport("libc", SetLastError = true)]
     private static extern int tcsetattr(int fd, int optionalActions, ref Termios termios);
+
+    [DllImport("libc", SetLastError = true)]
+    private static extern void cfmakeraw(ref Termios termios);
 
     [StructLayout(LayoutKind.Sequential)]
     private struct Termios
