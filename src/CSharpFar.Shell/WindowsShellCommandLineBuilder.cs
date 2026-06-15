@@ -16,9 +16,8 @@ public sealed class WindowsShellCommandLineBuilder : IShellCommandLineBuilder
     {
         var startInfo = CreateBaseStartInfo(_shellExecutable, workingDirectory);
         startInfo.ArgumentList.Add("/d");
-        startInfo.ArgumentList.Add("/s");
         startInfo.ArgumentList.Add("/c");
-        startInfo.ArgumentList.Add(WrapCommandForCmd(command));
+        startInfo.ArgumentList.Add(command);
         return startInfo;
     }
 
@@ -33,6 +32,4 @@ public sealed class WindowsShellCommandLineBuilder : IShellCommandLineBuilder
             RedirectStandardError = false,
             CreateNoWindow = false,
         };
-
-    private static string WrapCommandForCmd(string command) => $"\"{command}\"";
 }

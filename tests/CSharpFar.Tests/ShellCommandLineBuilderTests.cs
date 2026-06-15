@@ -11,17 +11,27 @@ public sealed class ShellCommandLineBuilderTests
         var startInfo = new WindowsShellCommandLineBuilder().CreateStartInfo(command, "C:\\");
 
         Assert.Equal("cmd.exe", startInfo.FileName);
-        Assert.Equal(["/d", "/s", "/c", $"\"{command}\""], startInfo.ArgumentList);
+        Assert.Equal(["/d", "/c", command], startInfo.ArgumentList);
         Assert.True(string.IsNullOrEmpty(startInfo.Arguments));
     }
 
     [Fact]
-    public void WindowsBuilder_WrapsQuotedCommandForCmdQuoteStripping()
+    public void WindowsBuilder_PreservesQuotedCommandArguments()
     {
         string command = "git commit -m \"Initial commit\"";
         var startInfo = new WindowsShellCommandLineBuilder().CreateStartInfo(command, "C:\\");
 
-        Assert.Equal(["/d", "/s", "/c", "\"git commit -m \"Initial commit\"\""], startInfo.ArgumentList);
+        Assert.Equal(["/d", "/c", command], startInfo.ArgumentList);
+        Assert.True(string.IsNullOrEmpty(startInfo.Arguments));
+    }
+
+    [Fact]
+    public void WindowsBuilder_DoesNotWrapWholeCommandAsExecutableName()
+    {
+        string command = "npm run package";
+        var startInfo = new WindowsShellCommandLineBuilder().CreateStartInfo(command, "C:\\");
+
+        Assert.Equal(["/d", "/c", command], startInfo.ArgumentList);
         Assert.True(string.IsNullOrEmpty(startInfo.Arguments));
     }
 
