@@ -842,6 +842,20 @@ public sealed class ApplicationNavigationTests : IDisposable
     }
 
     [Fact]
+    public void ExecuteCommand_WithQuotedArguments_PreservesQuotesForShell()
+    {
+        var fs = new FakeFileSystemService();
+        fs.AddDirectory(_tempDir);
+
+        var shell = new RecordingShellService();
+        var app = CreateApp(fs, new FakeConsoleDriver(width: 80, height: 12), _tempDir, shell);
+
+        app.ExecuteCommand("git commit -m \"Initial commit\"");
+
+        Assert.Equal([("git commit -m \"Initial commit\"", _tempDir)], shell.Commands);
+    }
+
+    [Fact]
     public void ExecuteCommand_Dir_UsesChildProcessConsoleModeDuringShellExecution()
     {
         var fs = new FakeFileSystemService();

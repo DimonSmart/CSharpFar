@@ -11,7 +11,17 @@ public sealed class ShellCommandLineBuilderTests
         var startInfo = new WindowsShellCommandLineBuilder().CreateStartInfo(command, "C:\\");
 
         Assert.Equal("cmd.exe", startInfo.FileName);
-        Assert.Equal(["/c", command], startInfo.ArgumentList);
+        Assert.Equal(["/d", "/s", "/c", $"\"{command}\""], startInfo.ArgumentList);
+        Assert.True(string.IsNullOrEmpty(startInfo.Arguments));
+    }
+
+    [Fact]
+    public void WindowsBuilder_WrapsQuotedCommandForCmdQuoteStripping()
+    {
+        string command = "git commit -m \"Initial commit\"";
+        var startInfo = new WindowsShellCommandLineBuilder().CreateStartInfo(command, "C:\\");
+
+        Assert.Equal(["/d", "/s", "/c", "\"git commit -m \"Initial commit\"\""], startInfo.ArgumentList);
         Assert.True(string.IsNullOrEmpty(startInfo.Arguments));
     }
 
