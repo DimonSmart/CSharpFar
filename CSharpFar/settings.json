@@ -11,7 +11,7 @@
     "leftStartDirectory": null,
     "rightStartDirectory": null,
     "defaultSortMode": "name",
-    "leftViewMode": "Full",
+    "leftViewMode": "BriefTwoColumns",
     "rightViewMode": "Full",
     "fileHighlighting": {
       "enabled": true,

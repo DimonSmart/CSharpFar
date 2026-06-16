@@ -49,6 +49,18 @@
     {
       "Path": "/mnt/c/temp/00000",
       "TimestampUtc": "2026-06-15T10:08:24.7607602Z"
+    },
+    {
+      "Path": "/mnt/c/Private/CSharpFar/CSharpFar",
+      "TimestampUtc": "2026-06-15T14:18:18.8147045Z"
+    },
+    {
+      "Path": "/mnt/c/Private/CSharpFar",
+      "TimestampUtc": "2026-06-15T14:18:20.04599Z"
+    },
+    {
+      "Path": "/mnt/c/Private/CSharpFar/.specs",
+      "TimestampUtc": "2026-06-15T14:18:46.1915338Z"
     }
   ],
   "Files": [
