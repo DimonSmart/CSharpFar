@@ -86,6 +86,7 @@ internal sealed class SearchDialog
     {
         var mask = new CommandLineState();
         mask.SetText("*.*");
+        mask.SelectAll();
         var text = new CommandLineState();
         var parallelism = new CommandLineState();
         parallelism.SetText(DefaultParallelism().ToString(System.Globalization.CultureInfo.InvariantCulture));

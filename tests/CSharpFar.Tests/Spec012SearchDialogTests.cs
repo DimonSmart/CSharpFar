@@ -88,6 +88,55 @@ public sealed class Spec012SearchDialogTests
     }
 
     [Fact]
+    public void Show_InitialMaskFieldShowsCursor()
+    {
+        var driver = new FakeConsoleDriver(width: 100, height: 30);
+        var screen = new ScreenRenderer(driver);
+        driver.BeforeReadInput = currentDriver =>
+        {
+            Assert.True(currentDriver.CursorVisible);
+            Assert.True(currentDriver.CursorX > 0);
+            Assert.True(currentDriver.CursorY > 0);
+            currentDriver.EnqueueKey(Key(ConsoleKey.Escape));
+        };
+
+        _ = new SearchDialog(screen).Show(@"C:\Work");
+    }
+
+    [Fact]
+    public void Show_TypingReplacesInitiallySelectedMask()
+    {
+        var driver = new FakeConsoleDriver(width: 100, height: 30);
+        var screen = new ScreenRenderer(driver);
+        driver.EnqueueKey(CharKey('a'));
+        driver.EnqueueKey(CharKey('b'));
+        driver.EnqueueKey(CharKey('c'));
+        driver.EnqueueKey(Key(ConsoleKey.F10));
+
+        var result = new SearchDialog(screen).Show(@"C:\Work");
+
+        Assert.NotNull(result);
+        Assert.Equal("abc", result.FileMaskExpression);
+    }
+
+    [Fact]
+    public void Show_RightArrowBeforeTypingKeepsInitialMask()
+    {
+        var driver = new FakeConsoleDriver(width: 100, height: 30);
+        var screen = new ScreenRenderer(driver);
+        driver.EnqueueKey(Key(ConsoleKey.RightArrow));
+        driver.EnqueueKey(CharKey('a'));
+        driver.EnqueueKey(CharKey('b'));
+        driver.EnqueueKey(CharKey('c'));
+        driver.EnqueueKey(Key(ConsoleKey.F10));
+
+        var result = new SearchDialog(screen).Show(@"C:\Work");
+
+        Assert.NotNull(result);
+        Assert.Equal("*.*abc", result.FileMaskExpression);
+    }
+
+    [Fact]
     public void BuildRows_ReusesSearchTextInputRowStates()
     {
         var maskRowState = new TextInputRowState();
@@ -147,4 +196,7 @@ public sealed class Spec012SearchDialogTests
 
     private static ConsoleKeyInfo Key(ConsoleKey key) =>
         new('\0', key, shift: false, alt: false, control: false);
+
+    private static ConsoleKeyInfo CharKey(char ch) =>
+        new(ch, (ConsoleKey)char.ToUpperInvariant(ch), shift: false, alt: false, control: false);
 }

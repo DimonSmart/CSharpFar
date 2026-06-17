@@ -241,6 +241,16 @@ public sealed class TextInputRow : FormRow, IFormOverlayRow
             FarDialogStyles.Input,
             _history,
             renderDropdown: false);
+
+        if (!context.Focused)
+            return;
+
+        int textWidth = _history is null ? width : Math.Max(1, width - 1);
+        int cursorX = Math.Min(
+            context.Bounds.X + textWidth - 1,
+            SingleLineTextInput.GetCursorX(context.Bounds.X, textWidth, _buffer));
+        context.Screen.SetCursorPosition(cursorX, context.Bounds.Y);
+        context.Screen.SetCursorVisible(true);
     }
 
     public void RenderOverlay(FormRowRenderContext context)
