@@ -38,6 +38,22 @@ public sealed class ChoiceRow<T>
     }
 
     public int SelectedIndex { get; private set; }
+    public int Count => _choices.Count;
+
+    public bool TryGetSelectedMarkerBounds(out Rect bounds)
+    {
+        foreach (var (index, choiceBounds) in _choiceBounds)
+        {
+            if (index != SelectedIndex)
+                continue;
+
+            bounds = choiceBounds;
+            return true;
+        }
+
+        bounds = default;
+        return false;
+    }
 
     public void Render(ScreenRenderer screen, int x, int y, int width, string label, bool focused)
     {

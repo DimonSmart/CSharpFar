@@ -103,17 +103,19 @@ public sealed class Spec010FileOperationDialogTests
     }
 
     [Fact]
-    public void ShowCopy_HidesCursorWhenFocusMovesFromTextInputToOptionRow()
+    public void ShowCopy_MovesCursorFromTextInputToOptionRow()
     {
         var driver = new FakeConsoleDriver(width: 100, height: 30);
         var screen = new ScreenRenderer(driver);
         driver.BeforeReadInput = currentDriver =>
         {
             Assert.True(currentDriver.CursorVisible);
+            var inputCursor = (currentDriver.CursorX, currentDriver.CursorY);
             currentDriver.EnqueueKey(Key(ConsoleKey.DownArrow));
             currentDriver.BeforeReadInput = nextDriver =>
             {
-                Assert.False(nextDriver.CursorVisible);
+                Assert.True(nextDriver.CursorVisible);
+                Assert.NotEqual(inputCursor, (nextDriver.CursorX, nextDriver.CursorY));
                 nextDriver.EnqueueKey(Key(ConsoleKey.F10));
             };
         };
@@ -127,17 +129,19 @@ public sealed class Spec010FileOperationDialogTests
     }
 
     [Fact]
-    public void ShowCopy_HidesCursorWhenTabMovesFocusFromTextInputToOptionRow()
+    public void ShowCopy_MovesCursorWhenTabMovesFocusFromTextInputToOptionRow()
     {
         var driver = new FakeConsoleDriver(width: 100, height: 30);
         var screen = new ScreenRenderer(driver);
         driver.BeforeReadInput = currentDriver =>
         {
             Assert.True(currentDriver.CursorVisible);
+            var inputCursor = (currentDriver.CursorX, currentDriver.CursorY);
             currentDriver.EnqueueKey(Key(ConsoleKey.Tab));
             currentDriver.BeforeReadInput = nextDriver =>
             {
-                Assert.False(nextDriver.CursorVisible);
+                Assert.True(nextDriver.CursorVisible);
+                Assert.NotEqual(inputCursor, (nextDriver.CursorX, nextDriver.CursorY));
                 nextDriver.EnqueueKey(Key(ConsoleKey.F10));
             };
         };
@@ -654,8 +658,7 @@ public sealed class Spec010FileOperationDialogTests
                 new ChoiceFormRow<FileSecurityMode>(
                     new ChoiceRow<FileSecurityMode>([FileSecurityMode.Default], static mode => mode.ToString()),
                     "Access rights:"),
-                new ChoiceFormRow<ConflictDecisionMode>(conflictChoice, string.Empty, 0, 1),
-                new ChoiceFormRow<ConflictDecisionMode>(conflictChoice, string.Empty, 1, 1, isFocusable: false),
+                new MultiLineChoiceFormRow<ConflictDecisionMode>(conflictChoice, string.Empty, [1, 1]),
                 new CheckBoxRow(new CheckBoxLine("Preserve all timestamps")),
                 new CheckBoxRow(new CheckBoxLine("Copy contents of symbolic links")),
                 new CheckBoxRow(new CheckBoxLine("Use filter", value: true)),

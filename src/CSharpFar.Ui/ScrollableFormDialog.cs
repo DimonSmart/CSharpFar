@@ -43,6 +43,13 @@ public interface IFormOverlayRow
     void RenderOverlay(FormRowRenderContext context);
 }
 
+public readonly record struct FormCursorPlacement(int X, int Y);
+
+public interface IFormCursorProvider
+{
+    bool TryGetCursor(FormRowRenderContext context, out FormCursorPlacement cursor);
+}
+
 public sealed class FormRenderContext
 {
     public FormRenderContext(ScreenRenderer screen, Rect bodyBounds, CellStyle? scrollbarStyle = null)
@@ -209,7 +216,7 @@ public sealed class ButtonRow : FormRow
         };
 }
 
-public sealed class TextInputRow : FormRow, IFormOverlayRow
+public sealed class TextInputRow : FormRow, IFormOverlayRow, IFormCursorProvider
 {
     private readonly CommandLineState _buffer;
     private readonly SingleLineTextHistoryState? _history;
@@ -242,15 +249,17 @@ public sealed class TextInputRow : FormRow, IFormOverlayRow
             _history,
             renderDropdown: false);
 
-        if (!context.Focused)
-            return;
+    }
 
+    public bool TryGetCursor(FormRowRenderContext context, out FormCursorPlacement cursor)
+    {
+        int width = Math.Min(context.Bounds.Width, _width ?? context.Bounds.Width);
         int textWidth = _history is null ? width : Math.Max(1, width - 1);
         int cursorX = Math.Min(
             context.Bounds.X + textWidth - 1,
             SingleLineTextInput.GetCursorX(context.Bounds.X, textWidth, _buffer));
-        context.Screen.SetCursorPosition(cursorX, context.Bounds.Y);
-        context.Screen.SetCursorVisible(true);
+        cursor = new FormCursorPlacement(cursorX, context.Bounds.Y);
+        return context.Focused && width > 0;
     }
 
     public void RenderOverlay(FormRowRenderContext context)
@@ -328,7 +337,7 @@ public sealed class TextInputRowState
     public ScrollBarDragState? HistoryScrollbarDrag;
 }
 
-public sealed class TextInputWithButtonsRow : FormRow, IFormOverlayRow
+public sealed class TextInputWithButtonsRow : FormRow, IFormOverlayRow, IFormCursorProvider
 {
     private readonly string _label;
     private readonly CommandLineState _buffer;
@@ -405,6 +414,15 @@ public sealed class TextInputWithButtonsRow : FormRow, IFormOverlayRow
     {
     }
 
+    public bool TryGetCursor(FormRowRenderContext context, out FormCursorPlacement cursor)
+    {
+        int cursorX = Math.Min(
+            _inputBounds.Right - 1,
+            SingleLineTextInput.GetCursorX(_inputBounds.X, _inputBounds.Width, _buffer));
+        cursor = new FormCursorPlacement(cursorX, _inputBounds.Y);
+        return context.Focused && _inputBounds.Width > 0;
+    }
+
     public override FormInputResult HandleKey(ConsoleKeyInfo key, FormRowInputContext context)
     {
         string? error = null;
@@ -448,7 +466,7 @@ public sealed class TextInputWithButtonsRow : FormRow, IFormOverlayRow
     }
 }
 
-public sealed class CheckBoxRow : FormRow
+public sealed class CheckBoxRow : FormRow, IFormCursorProvider
 {
     private readonly CheckBoxLine _checkBox;
 
@@ -465,6 +483,12 @@ public sealed class CheckBoxRow : FormRow
 
     public override void Render(FormRowRenderContext context) =>
         _checkBox.Render(context.Screen, context.Bounds.X, context.Bounds.Y, context.Bounds.Width, context.Focused);
+
+    public bool TryGetCursor(FormRowRenderContext context, out FormCursorPlacement cursor)
+    {
+        cursor = new FormCursorPlacement(context.Bounds.X + 1, context.Bounds.Y);
+        return context.Focused && context.Bounds.Width >= 3;
+    }
 
     public override FormInputResult HandleKey(ConsoleKeyInfo key, FormRowInputContext context)
     {
@@ -485,7 +509,7 @@ public sealed class CheckBoxRow : FormRow
     }
 }
 
-public sealed class TriStateCheckBoxRow : FormRow
+public sealed class TriStateCheckBoxRow : FormRow, IFormCursorProvider
 {
     private readonly TriStateCheckBoxLine _checkBox;
 
@@ -509,6 +533,12 @@ public sealed class TriStateCheckBoxRow : FormRow
     public override void Render(FormRowRenderContext context) =>
         _checkBox.Render(context.Screen, context.Bounds.X, context.Bounds.Y, context.Bounds.Width, context.Focused);
 
+    public bool TryGetCursor(FormRowRenderContext context, out FormCursorPlacement cursor)
+    {
+        cursor = new FormCursorPlacement(context.Bounds.X + 1, context.Bounds.Y);
+        return context.Focused && context.Bounds.Width >= 3;
+    }
+
     public override FormInputResult HandleKey(ConsoleKeyInfo key, FormRowInputContext context)
     {
         AttributeEditState before = _checkBox.Value;
@@ -528,7 +558,7 @@ public sealed class TriStateCheckBoxRow : FormRow
     }
 }
 
-public sealed class ChoiceFormRow<T> : FormRow
+public sealed class ChoiceFormRow<T> : FormRow, IFormCursorProvider
 {
     private readonly ChoiceRow<T> _choice;
     private readonly string _label;
@@ -561,6 +591,102 @@ public sealed class ChoiceFormRow<T> : FormRow
             FarDialogStyles.FocusedInput,
             _startIndex,
             _endIndex);
+
+    public bool TryGetCursor(FormRowRenderContext context, out FormCursorPlacement cursor)
+    {
+        if (context.Focused && _choice.TryGetSelectedMarkerBounds(out Rect bounds))
+        {
+            cursor = new FormCursorPlacement(bounds.X + 1, bounds.Y);
+            return true;
+        }
+
+        cursor = default;
+        return false;
+    }
+
+    public override FormInputResult HandleKey(ConsoleKeyInfo key, FormRowInputContext context)
+    {
+        int before = _choice.SelectedIndex;
+        if (!_choice.TryHandleKey(key))
+            return FormInputResult.NotHandled;
+
+        return _choice.SelectedIndex != before ? FormInputResult.ValueChanged : FormInputResult.Handled;
+    }
+
+    public override FormInputResult HandleMouse(MouseConsoleInputEvent mouse, FormRowMouseContext context)
+    {
+        int before = _choice.SelectedIndex;
+        if (!_choice.TryHandleMouse(mouse))
+            return FormInputResult.NotHandled;
+
+        return _choice.SelectedIndex != before ? FormInputResult.ValueChanged : FormInputResult.Handled;
+    }
+}
+
+public sealed class MultiLineChoiceFormRow<T> : FormRow, IFormCursorProvider
+{
+    private readonly ChoiceRow<T> _choice;
+    private readonly string _label;
+    private readonly IReadOnlyList<int> _segmentEndIndices;
+
+    public MultiLineChoiceFormRow(ChoiceRow<T> choice, string label, IReadOnlyList<int> segmentEndIndices)
+    {
+        ArgumentNullException.ThrowIfNull(choice);
+        ArgumentNullException.ThrowIfNull(segmentEndIndices);
+        if (segmentEndIndices.Count == 0)
+            throw new ArgumentException("At least one segment is required.", nameof(segmentEndIndices));
+
+        int previousEnd = 0;
+        foreach (int endIndex in segmentEndIndices)
+        {
+            if (endIndex < previousEnd || endIndex > choice.Count)
+                throw new ArgumentOutOfRangeException(nameof(segmentEndIndices), "Segment ends must be ordered choice indexes.");
+            previousEnd = endIndex;
+        }
+        if (previousEnd != choice.Count)
+            throw new ArgumentException("The final segment must include every choice.", nameof(segmentEndIndices));
+
+        _choice = choice;
+        _label = label;
+        _segmentEndIndices = segmentEndIndices.ToArray();
+    }
+
+    public override int Height => _segmentEndIndices.Count;
+    public ChoiceRow<T> Choice => _choice;
+    public T Value => _choice.Value;
+
+    public override void Render(FormRowRenderContext context)
+    {
+        int startIndex = 0;
+        for (int line = 0; line < _segmentEndIndices.Count; line++)
+        {
+            int endIndex = _segmentEndIndices[line];
+            _choice.RenderSegmented(
+                context.Screen,
+                context.Bounds.X,
+                context.Bounds.Y + line,
+                context.Bounds.Width,
+                line == 0 ? _label : string.Empty,
+                context.Focused,
+                FarDialogStyles.Fill,
+                FarDialogStyles.FocusedInput,
+                startIndex,
+                endIndex);
+            startIndex = endIndex;
+        }
+    }
+
+    public bool TryGetCursor(FormRowRenderContext context, out FormCursorPlacement cursor)
+    {
+        if (context.Focused && _choice.TryGetSelectedMarkerBounds(out Rect bounds))
+        {
+            cursor = new FormCursorPlacement(bounds.X + 1, bounds.Y);
+            return true;
+        }
+
+        cursor = default;
+        return false;
+    }
 
     public override FormInputResult HandleKey(ConsoleKeyInfo key, FormRowInputContext context)
     {
@@ -627,6 +753,8 @@ public sealed class ScrollableFormDialog
         context.Screen.FillRegion(context.BodyBounds, FarDialogStyles.Fill);
         int virtualTop = 0;
         int focusIndex = 0;
+        FormRowRenderContext? focusedRenderContext = null;
+        IFormCursorProvider? cursorProvider = null;
         for (int rowIndex = 0; rowIndex < _rows.Count; rowIndex++)
         {
             IFormRow row = _rows[rowIndex];
@@ -636,7 +764,14 @@ public sealed class ScrollableFormDialog
             {
                 int y = context.BodyBounds.Y + virtualTop - ScrollTop;
                 var rowBounds = new Rect(context.BodyBounds.X, y, context.BodyBounds.Width, rowHeight);
-                row.Render(new FormRowRenderContext(context.Screen, rowBounds, row.IsFocusable && focusIndex == FocusIndex));
+                bool focused = row.IsFocusable && focusIndex == FocusIndex;
+                var rowContext = new FormRowRenderContext(context.Screen, rowBounds, focused);
+                row.Render(rowContext);
+                if (focused && row is IFormCursorProvider provider)
+                {
+                    focusedRenderContext = rowContext;
+                    cursorProvider = provider;
+                }
             }
 
             if (row.IsFocusable)
@@ -664,6 +799,20 @@ public sealed class ScrollableFormDialog
         }
 
         RenderFocusedOverlay(context.Screen);
+
+        if (cursorProvider is not null &&
+            focusedRenderContext is not null &&
+            cursorProvider.TryGetCursor(focusedRenderContext, out FormCursorPlacement cursor) &&
+            cursor.X >= context.BodyBounds.X && cursor.X < context.BodyBounds.Right &&
+            cursor.Y >= context.BodyBounds.Y && cursor.Y < context.BodyBounds.Bottom)
+        {
+            context.Screen.SetCursorPosition(cursor.X, cursor.Y);
+            context.Screen.SetCursorVisible(true);
+        }
+        else
+        {
+            context.Screen.SetCursorVisible(false);
+        }
     }
 
     public FormInputResult HandleKey(ConsoleKeyInfo key)
@@ -764,7 +913,12 @@ public sealed class ScrollableFormDialog
 
         int focusVirtualRow = FocusIndexToVirtualRow(FocusIndex);
         if (focusVirtualRow >= 0)
+        {
             ScrollTop = ScrollStateCalculator.EnsureIndexVisible(focusVirtualRow, ScrollTop, clampedViewportRows);
+            int focusHeight = Math.Max(1, FocusedRow()?.Height ?? 1);
+            if (focusHeight <= clampedViewportRows && focusVirtualRow + focusHeight > ScrollTop + clampedViewportRows)
+                ScrollTop = focusVirtualRow + focusHeight - clampedViewportRows;
+        }
 
         ScrollTop = ScrollStateCalculator.ClampFirstVisibleIndex(ScrollTop, BodyRowCount, clampedViewportRows);
     }

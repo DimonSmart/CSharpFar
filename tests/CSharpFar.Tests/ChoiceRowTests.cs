@@ -76,6 +76,23 @@ public sealed class ChoiceRowTests
     }
 
     [Fact]
+    public void SelectedMarkerBounds_FollowKeyboardSelection()
+    {
+        var driver = new FakeConsoleDriver(80, 4);
+        var screen = new ScreenRenderer(driver);
+        var row = new ChoiceRow<string>(["one", "two"], static value => value);
+        row.RenderSegmented(screen, 2, 1, 60, string.Empty, true, FarDialogStyles.Fill, FarDialogStyles.FocusedInput);
+        Assert.True(row.TryGetSelectedMarkerBounds(out Rect first));
+
+        row.TryHandleKey(Key(ConsoleKey.RightArrow));
+        row.RenderSegmented(screen, 2, 1, 60, string.Empty, true, FarDialogStyles.Fill, FarDialogStyles.FocusedInput);
+        Assert.True(row.TryGetSelectedMarkerBounds(out Rect second));
+
+        Assert.True(second.X > first.X);
+        Assert.Equal(first.Y, second.Y);
+    }
+
+    [Fact]
     public void ClickOnConcreteSegment_SelectsConcreteItem()
     {
         var driver = new FakeConsoleDriver(80, 4);

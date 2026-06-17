@@ -117,7 +117,7 @@ public sealed class SearchOptionsDialog
 
         while (true)
         {
-            Draw(options, layout, form, pattern, error);
+            Draw(options, layout, form, error);
             var input = _screen.ReadInput();
             FormInputResult result = input switch
             {
@@ -237,7 +237,6 @@ public sealed class SearchOptionsDialog
         SearchOptionsDialogOptions options,
         SearchOptionsDialogLayout layout,
         ScrollableFormDialog form,
-        CommandLineState pattern,
         string? error)
     {
         var palette = UiTheme.Current;
@@ -260,16 +259,6 @@ public sealed class SearchOptionsDialog
 
                 string errorText = error is null ? string.Empty : error;
                 _screen.Write(content.X, layout.ErrorY, ScrollableFormDialog.Fit(errorText, content.Width), PaletteStyles.DialogError(palette));
-                if (form.FocusIndex == 0)
-                {
-                    int cursorX = SingleLineTextInput.GetCursorX(content.X, Math.Max(0, content.Width - 1), pattern);
-                    _screen.SetCursorPosition(cursorX, content.Y + 1 - form.ScrollTop);
-                    _screen.SetCursorVisible(true);
-                }
-                else
-                {
-                    _screen.SetCursorVisible(false);
-                }
             });
     }
 

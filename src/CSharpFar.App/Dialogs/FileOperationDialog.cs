@@ -139,17 +139,10 @@ internal sealed class FileOperationDialog
             conflictModes,
             ConflictLabel,
             FindConflictIndex(initialOptions.DefaultConflictDecision, conflictModes));
-        var conflictFirstRow = new ChoiceFormRow<ConflictDecisionMode>(
+        var conflictChoiceRow = new MultiLineChoiceFormRow<ConflictDecisionMode>(
             conflictChoice,
             string.Empty,
-            startIndex: 0,
-            endIndex: Math.Min(4, conflictModes.Count));
-        var conflictSecondRow = new ChoiceFormRow<ConflictDecisionMode>(
-            conflictChoice,
-            string.Empty,
-            startIndex: 4,
-            endIndex: conflictModes.Count,
-            isFocusable: false);
+            [Math.Min(4, conflictModes.Count), conflictModes.Count]);
         var preserveTimestamps = new CheckBoxRow(new CheckBoxLine("Preserve all timestamps", initialOptions.PreserveTimestamps));
         var copySymlinkContents = new CheckBoxRow(new CheckBoxLine(
             "Copy contents of symbolic links",
@@ -177,8 +170,7 @@ internal sealed class FileOperationDialog
                 destinationRowState,
                 filterRowState,
                 securityChoice,
-                conflictFirstRow,
-                conflictSecondRow,
+                conflictChoiceRow,
                 preserveTimestamps,
                 copySymlinkContents,
                 useFilter,
@@ -226,8 +218,7 @@ internal sealed class FileOperationDialog
         TextInputRowState destinationRowState,
         TextInputRowState filterRowState,
         ChoiceFormRow<FileSecurityMode> securityChoice,
-        ChoiceFormRow<ConflictDecisionMode> conflictFirstRow,
-        ChoiceFormRow<ConflictDecisionMode> conflictSecondRow,
+        MultiLineChoiceFormRow<ConflictDecisionMode> conflictChoiceRow,
         CheckBoxRow preserveTimestamps,
         CheckBoxRow copySymlinkContents,
         CheckBoxRow useFilter,
@@ -248,8 +239,7 @@ internal sealed class FileOperationDialog
         }
 
         rows.Add(new LabelRow("Already existing files:", fill));
-        rows.Add(conflictFirstRow);
-        rows.Add(conflictSecondRow);
+        rows.Add(conflictChoiceRow);
 
         if (showOperationOptions)
         {

@@ -291,6 +291,74 @@ public sealed class ScrollableFormDialogTests
     }
 
     [Fact]
+    public void CursorPlacement_FollowsFocusedTextCheckboxAndChoiceRows()
+    {
+        var text = new CommandLineState();
+        text.SetText("abc");
+        var form = new ScrollableFormDialog([
+            new TextInputRow(text),
+            new CheckBoxRow(new CheckBoxLine("check")),
+            new ChoiceFormRow<string>(new ChoiceRow<string>(["one", "two"], static value => value), string.Empty),
+        ]);
+
+        var driver = Render(form, visibleRows: 3);
+        Assert.True(driver.CursorVisible);
+        Assert.Equal((3, 0), (driver.CursorX, driver.CursorY));
+
+        form.HandleKey(Key(ConsoleKey.Tab));
+        Render(form, driver, visibleRows: 3);
+        Assert.Equal((1, 1), (driver.CursorX, driver.CursorY));
+
+        form.HandleKey(Key(ConsoleKey.Tab));
+        Render(form, driver, visibleRows: 3);
+        Assert.Equal((1, 2), (driver.CursorX, driver.CursorY));
+
+        form.HandleKey(Key(ConsoleKey.RightArrow));
+        Render(form, driver, visibleRows: 3);
+        Assert.Equal((9, 2), (driver.CursorX, driver.CursorY));
+    }
+
+    [Fact]
+    public void FocusedRowWithoutCursorProvider_HidesCursor()
+    {
+        var form = new ScrollableFormDialog([
+            new TextInputRow(new CommandLineState()),
+            new ButtonRow([new DialogButton("ok", "OK", 'O')], FarDialogStyles.Fill, FarDialogStyles.FocusedInput),
+        ]);
+        var driver = Render(form, visibleRows: 2);
+        Assert.True(driver.CursorVisible);
+
+        form.HandleKey(Key(ConsoleKey.Tab));
+        Render(form, driver, visibleRows: 2);
+
+        Assert.False(driver.CursorVisible);
+    }
+
+    [Fact]
+    public void MultiLineChoice_IsOneFocusableControlAndCursorFollowsSecondLineSelection()
+    {
+        var choice = new ChoiceRow<string>(["one", "two", "three", "four"], static value => value, selectedIndex: 2);
+        var multiLine = new MultiLineChoiceFormRow<string>(choice, string.Empty, [2, 4]);
+        var form = new ScrollableFormDialog([
+            multiLine,
+            new CheckBoxRow(new CheckBoxLine("next")),
+        ]);
+
+        var driver = Render(form, visibleRows: 3);
+
+        Assert.Equal(2, multiLine.Height);
+        Assert.Equal(2, form.FocusableCount);
+        Assert.Equal((1, 1), (driver.CursorX, driver.CursorY));
+
+        form.HandleKey(Key(ConsoleKey.RightArrow));
+        Render(form, driver, visibleRows: 3);
+        Assert.Equal((11, 1), (driver.CursorX, driver.CursorY));
+
+        form.HandleKey(Key(ConsoleKey.Tab));
+        Assert.Equal(1, form.FocusIndex);
+    }
+
+    [Fact]
     public void TextInputRowState_PreservesHistoryScrollbarDragAcrossRowRecreation()
     {
         var text = new CommandLineState();
@@ -347,12 +415,17 @@ public sealed class ScrollableFormDialogTests
     private static FakeConsoleDriver Render(ScrollableFormDialog form, int visibleRows, int? screenHeight = null)
     {
         var driver = new FakeConsoleDriver(20, screenHeight ?? Math.Max(5, visibleRows + 2));
+        Render(form, driver, visibleRows);
+        return driver;
+    }
+
+    private static void Render(ScrollableFormDialog form, FakeConsoleDriver driver, int visibleRows)
+    {
         var screen = new ScreenRenderer(driver);
         form.Render(new FormRenderContext(
             screen,
             new Rect(0, 0, 20, visibleRows),
             FarDialogStyles.Border));
-        return driver;
     }
 
     private static ConsoleKeyInfo Key(ConsoleKey key) =>
