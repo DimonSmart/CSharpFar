@@ -143,6 +143,25 @@ public sealed class Spec010FileOperationTests : IDisposable
     }
 
     [Fact]
+    public async Task ExecuteAsync_OverwriteReplacesReadOnlyDestinationFile()
+    {
+        string source = Write(_source, "dup.txt", "new");
+        string destination = Write(_destination, "dup.txt", "old");
+        File.SetAttributes(destination, File.GetAttributes(destination) | FileAttributes.ReadOnly);
+
+        FileOperationResult result = await ExecuteAsync(
+            FileOperationKind.Copy,
+            [source],
+            _destination,
+            new FileOperationOptions(),
+            new FixedConflictResolver(ConflictDecisionMode.Overwrite));
+
+        Assert.Empty(result.Errors);
+        Assert.Equal("new", File.ReadAllText(destination));
+        Assert.False((File.GetAttributes(destination) & FileAttributes.ReadOnly) != 0);
+    }
+
+    [Fact]
     public async Task ExecuteAsync_AppendAddsSourceBytesToExistingFile()
     {
         string source = Write(_source, "dup.txt", "new");

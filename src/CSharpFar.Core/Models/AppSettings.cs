@@ -70,7 +70,7 @@ public sealed class AppSettings
         public bool ShowTotalProgress { get; set; } = true;
         public bool PreserveTimestamps { get; set; } = true;
         public bool PreserveAttributes { get; set; } = true;
-        public string SecurityMode { get; set; } = "Inherit";
+        public string SecurityMode { get; set; } = "Default";
         public string SymlinkMode { get; set; } = "CopyLink";
         public bool UseRecycleBinForDelete { get; set; } = true;
         public string ConflictDecision { get; set; } = "Ask";

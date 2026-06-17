@@ -306,6 +306,13 @@ public sealed class ScreenRenderer
 
     public void SetCursorVisible(bool visible)
     {
+        if (_frameActive && !visible)
+        {
+            _pendingCursorVisible = false;
+            ApplyCursorVisible(false);
+            return;
+        }
+
         if (_frameActive && visible)
         {
             _pendingCursorVisible = visible;

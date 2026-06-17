@@ -703,7 +703,7 @@ public sealed class FileOperationService : IFileOperationService
                 case ConflictDecisionMode.Overwrite:
                     if (Directory.Exists(destinationPath))
                         throw new IOException("Cannot overwrite a directory with a file.");
-                    File.Delete(destinationPath);
+                    DeleteFileTarget(destinationPath);
                     return new CopyDestination(destinationPath, CopyDestinationAction.CreateOrOverwrite);
                 case ConflictDecisionMode.Skip:
                     state.SkippedCount++;
@@ -721,7 +721,7 @@ public sealed class FileOperationService : IFileOperationService
                 case ConflictDecisionMode.OnlyNewer:
                     if (File.Exists(destinationPath) && IsSourceNewer(file.SourcePath, destinationPath))
                     {
-                        File.Delete(destinationPath);
+                        DeleteFileTarget(destinationPath);
                         return new CopyDestination(destinationPath, CopyDestinationAction.CreateOrOverwrite);
                     }
                     state.SkippedCount++;
@@ -1149,7 +1149,7 @@ public sealed class FileOperationService : IFileOperationService
             }
 
             if (File.Exists(destination))
-                File.Delete(destination);
+                DeleteFileTarget(destination);
             else if (Directory.Exists(destination))
                 Directory.Delete(destination, recursive: true);
         }
@@ -1230,6 +1230,18 @@ public sealed class FileOperationService : IFileOperationService
 
     private static bool IsSourceNewer(string source, string destination) =>
         File.GetLastWriteTime(source) > File.GetLastWriteTime(destination);
+
+    private static void DeleteFileTarget(string path)
+    {
+        if (!File.Exists(path))
+            return;
+
+        var attributes = File.GetAttributes(path);
+        if ((attributes & FileAttributes.ReadOnly) != 0)
+            File.SetAttributes(path, attributes & ~FileAttributes.ReadOnly);
+
+        File.Delete(path);
+    }
 
     private static long CalculateSourcesSize(IReadOnlyList<string> sources)
     {

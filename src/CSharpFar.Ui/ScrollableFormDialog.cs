@@ -598,6 +598,7 @@ public sealed class ScrollableFormDialog
     }
 
     public int FocusIndex { get; private set; }
+    public int FocusableCount => FocusableRowCount;
     public int ScrollTop { get; private set; }
     public ScrollBarDragState? ScrollbarDrag { get; private set; }
 
@@ -617,6 +618,7 @@ public sealed class ScrollableFormDialog
 
     public void Render(FormRenderContext context)
     {
+        context.Screen.SetCursorVisible(false);
         _lastBodyBounds = context.BodyBounds;
         _lastViewportRows = Math.Max(1, context.BodyBounds.Height);
         _lastScreenHeight = context.Screen.GetSize().Height;

@@ -6,7 +6,7 @@ public sealed record FileOperationOptions
     public bool OnlyNewer { get; init; }
     public bool PreserveTimestamps { get; init; } = true;
     public bool PreserveAttributes { get; init; } = true;
-    public FileSecurityMode SecurityMode { get; init; } = FileSecurityMode.Inherit;
+    public FileSecurityMode SecurityMode { get; init; } = FileSecurityMode.Default;
     public SymlinkCopyMode SymlinkMode { get; init; } = SymlinkCopyMode.CopyLink;
     public bool UseRecycleBinForDelete { get; init; }
     public string? FileMask { get; init; }

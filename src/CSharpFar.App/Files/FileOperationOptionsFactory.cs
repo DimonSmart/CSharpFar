@@ -15,7 +15,7 @@ internal static class FileOperationOptionsFactory
             PreserveAttributes = settings.FileOperations.PreserveAttributes,
             SecurityMode = ParseEnum(
                 settings.FileOperations.SecurityMode,
-                FileSecurityMode.Inherit),
+                FileSecurityMode.Default),
             SymlinkMode = ParseEnum(
                 settings.FileOperations.SymlinkMode,
                 SymlinkCopyMode.CopyLink),

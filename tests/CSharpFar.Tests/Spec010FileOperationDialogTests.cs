@@ -1,4 +1,5 @@
 using CSharpFar.App.Dialogs;
+using CSharpFar.App.Commands;
 using CSharpFar.Console;
 using CSharpFar.Console.Input;
 using CSharpFar.Console.Models;
@@ -24,6 +25,7 @@ public sealed class Spec010FileOperationDialogTests
 
         Assert.NotNull(result);
         Assert.Equal(@"C:\destination", result.Destination);
+        Assert.Equal(FileSecurityMode.Default, result.Options.SecurityMode);
         Assert.Null(result.Options.FileMask);
         Assert.Contains(driver.WriteRecords, r => r.Text.Contains("Already existing files:", StringComparison.Ordinal));
         Assert.Contains(driver.WriteRecords, r => r.Text.Contains("Paranoid", StringComparison.Ordinal));
@@ -65,11 +67,11 @@ public sealed class Spec010FileOperationDialogTests
     }
 
     [Fact]
-    public void ShowCopy_TabDoesNotMoveKeyboardFocusToFooterButtons()
+    public void ShowCopy_TabMovesKeyboardFocusToFooterButtons()
     {
         var driver = new FakeConsoleDriver(width: 100, height: 30);
         var screen = new ScreenRenderer(driver);
-        for (int i = 0; i < 12; i++)
+        for (int i = 0; i < 6; i++)
             driver.EnqueueKey(Key(ConsoleKey.Tab));
         driver.EnqueueKey(Key(ConsoleKey.Enter));
 
@@ -80,6 +82,48 @@ public sealed class Spec010FileOperationDialogTests
 
         Assert.NotNull(result);
         Assert.Equal(@"C:\destination", result.Destination);
+    }
+
+    [Fact]
+    public void ShowCopy_FocusedFooterCancelButtonActivatesWithKeyboard()
+    {
+        var driver = new FakeConsoleDriver(width: 100, height: 30);
+        var screen = new ScreenRenderer(driver);
+        for (int i = 0; i < 6; i++)
+            driver.EnqueueKey(Key(ConsoleKey.Tab));
+        driver.EnqueueKey(Key(ConsoleKey.RightArrow));
+        driver.EnqueueKey(Key(ConsoleKey.Enter));
+
+        var result = new FileOperationDialog(screen).ShowCopy(
+            [@"C:\source\a.txt"],
+            @"C:\destination",
+            new FileOperationOptions());
+
+        Assert.Null(result);
+    }
+
+    [Fact]
+    public void ShowCopy_HidesCursorWhenFocusMovesFromTextInputToOptionRow()
+    {
+        var driver = new FakeConsoleDriver(width: 100, height: 30);
+        var screen = new ScreenRenderer(driver);
+        driver.BeforeReadInput = currentDriver =>
+        {
+            Assert.True(currentDriver.CursorVisible);
+            currentDriver.EnqueueKey(Key(ConsoleKey.DownArrow));
+            currentDriver.BeforeReadInput = nextDriver =>
+            {
+                Assert.False(nextDriver.CursorVisible);
+                nextDriver.EnqueueKey(Key(ConsoleKey.F10));
+            };
+        };
+
+        var result = new FileOperationDialog(screen).ShowCopy(
+            [@"C:\source\a.txt"],
+            @"C:\destination",
+            new FileOperationOptions());
+
+        Assert.NotNull(result);
     }
 
     [Fact]
@@ -345,6 +389,30 @@ public sealed class Spec010FileOperationDialogTests
         Assert.Contains('█', text);
         Assert.Contains('░', text);
         Assert.DoesNotContain('#', text);
+    }
+
+    [Fact]
+    public void FileOperationUiRunner_HidesCursorWhileOperationRuns()
+    {
+        var driver = new FakeConsoleDriver(width: 100, height: 30);
+        var screen = new ScreenRenderer(driver);
+        var runner = new FileOperationUiRunner(
+            screen,
+            () => PaletteRegistry.Default,
+            new NoOpFileOperationService(),
+            () => true,
+            () => null);
+
+        runner.Execute(new FileOperationRequest
+        {
+            Kind = FileOperationKind.Copy,
+            Sources = [@"C:\source\a.txt"],
+            Destination = @"C:\destination",
+            Options = new FileOperationOptions(),
+        });
+
+        Assert.False(driver.CursorVisible);
+        Assert.True(driver.SetCursorVisibleCallCount > 0);
     }
 
     [Fact]

@@ -30,6 +30,7 @@ internal sealed class FileOperationUiRunner
 
     public FileOperationResult Execute(FileOperationRequest request)
     {
+        _screen.SetCursorVisible(false);
         var progressDialog = new ProgressDialog(_screen, request.Destination ?? string.Empty);
         var conflictDialog = new ConflictDialog(_screen, _palette(), request.Kind == FileOperationKind.Copy);
         var cancelDialog = new OperationCancelDialog(_screen);
@@ -108,24 +109,31 @@ internal sealed class FileOperationUiRunner
             Thread.Sleep(30);
         }
 
-        if (latestProgress is not null && !ReferenceEquals(latestProgress, renderedProgress))
-            progressDialog.Update(latestProgress, _showTotalProgress());
+        try
+        {
+            if (latestProgress is not null && !ReferenceEquals(latestProgress, renderedProgress))
+                progressDialog.Update(latestProgress, _showTotalProgress());
 
-        if (task.IsCanceled)
-            throw new OperationCanceledException();
-        if (completedException is not null)
-            throw completedException;
+            if (task.IsCanceled)
+                throw new OperationCanceledException();
+            if (completedException is not null)
+                throw completedException;
 
-        FileOperationResult result = completedResult
-            ?? throw new InvalidOperationException("File operation did not return a result.");
-        if (result.Cancelled)
-            throw new OperationCanceledException();
-        if (result.Errors.Count > 0)
-            new MessageDialog(_screen).Show(
-                "File Operation",
-                $"{result.FailedCount} item(s) failed. First: {result.Errors[0].Message}");
+            FileOperationResult result = completedResult
+                ?? throw new InvalidOperationException("File operation did not return a result.");
+            if (result.Cancelled)
+                throw new OperationCanceledException();
+            if (result.Errors.Count > 0)
+                new MessageDialog(_screen).Show(
+                    "File Operation",
+                    $"{result.FailedCount} item(s) failed. First: {result.Errors[0].Message}");
 
-        return result;
+            return result;
+        }
+        finally
+        {
+            _screen.SetCursorVisible(false);
+        }
     }
 
     private sealed class DialogConflictResolver : IFileOperationConflictResolver

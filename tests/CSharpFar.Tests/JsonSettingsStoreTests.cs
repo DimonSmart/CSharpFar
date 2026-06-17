@@ -33,7 +33,7 @@ public class JsonSettingsStoreTests : IDisposable
         Assert.True(store.Settings.Ui.ConfirmDelete);
         Assert.Equal("cmd.exe", store.Settings.Shell.Executable);
         Assert.True(store.Settings.FileOperations.ShowTotalProgress);
-        Assert.Equal("Inherit", store.Settings.FileOperations.SecurityMode);
+        Assert.Equal("Default", store.Settings.FileOperations.SecurityMode);
         Assert.Equal(1000, store.Settings.History.MaxCommandHistoryItems);
     }
 
