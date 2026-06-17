@@ -390,7 +390,7 @@ public sealed class FileOperationService : IFileOperationService
         foreach (var directory in plan.Directories)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            CreateDirectoryTarget(directory.DestinationPath, directory.SourcePath, request.Options, state);
+            CreateDirectoryTarget(directory.DestinationPath);
             state.CompleteItem();
             state.CompleteFolder();
         }
@@ -429,6 +429,8 @@ public sealed class FileOperationService : IFileOperationService
             if (!copied)
                 continue;
         }
+
+        PreserveDirectoryTargetsMetadata(plan.Directories, request.Options, state, cancellationToken);
     }
 
     private async Task MoveAsync(
@@ -1065,15 +1067,23 @@ public sealed class FileOperationService : IFileOperationService
             ? copyTarget.ResumeOffset
             : 0;
 
-    private void CreateDirectoryTarget(
-        string destinationPath,
-        string sourcePath,
-        FileOperationOptions options,
-        OperationState state)
+    private static void CreateDirectoryTarget(string destinationPath)
     {
         Directory.CreateDirectory(destinationPath);
+    }
 
-        _platformOperations.PreserveFileMetadata(sourcePath, destinationPath, options, state);
+    private void PreserveDirectoryTargetsMetadata(
+        IReadOnlyList<CopyDirectoryPlanItem> directories,
+        FileOperationOptions options,
+        OperationState state,
+        CancellationToken cancellationToken)
+    {
+        for (int i = directories.Count - 1; i >= 0; i--)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var directory = directories[i];
+            _platformOperations.PreserveFileMetadata(directory.SourcePath, directory.DestinationPath, options, state);
+        }
     }
 
     private static bool TryMoveDirect(

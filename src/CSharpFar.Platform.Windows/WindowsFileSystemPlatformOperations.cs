@@ -73,6 +73,14 @@ public sealed class WindowsFileSystemPlatformOperations : IFileSystemPlatformOpe
 
         try
         {
+            if (Directory.Exists(sourcePath))
+            {
+                Directory.SetCreationTime(destinationPath, Directory.GetCreationTime(sourcePath));
+                Directory.SetLastWriteTime(destinationPath, Directory.GetLastWriteTime(sourcePath));
+                Directory.SetLastAccessTime(destinationPath, Directory.GetLastAccessTime(sourcePath));
+                return;
+            }
+
             File.SetCreationTime(destinationPath, File.GetCreationTime(sourcePath));
             File.SetLastWriteTime(destinationPath, File.GetLastWriteTime(sourcePath));
             File.SetLastAccessTime(destinationPath, File.GetLastAccessTime(sourcePath));

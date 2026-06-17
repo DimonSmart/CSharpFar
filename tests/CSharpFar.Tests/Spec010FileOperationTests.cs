@@ -105,6 +105,27 @@ public sealed class Spec010FileOperationTests : IDisposable
     }
 
     [Fact]
+    public async Task ExecuteAsync_RestoresDirectoryTimestampsAfterChildrenAreCopied()
+    {
+        string childDirectory = Path.Combine(_source, "child");
+        Directory.CreateDirectory(childDirectory);
+        Write(childDirectory, "file.txt", "content");
+        var expected = new DateTime(2023, 5, 4, 3, 2, 1);
+        Directory.SetLastWriteTime(childDirectory, expected);
+
+        FileOperationResult result = await ExecuteAsync(
+            FileOperationKind.Copy,
+            [_source],
+            _destination,
+            new FileOperationOptions { PreserveTimestamps = true });
+
+        string copied = Path.Combine(_destination, "source", "child");
+        Assert.Empty(result.Errors);
+        Assert.True(File.Exists(Path.Combine(copied, "file.txt")));
+        Assert.Equal(expected, Directory.GetLastWriteTime(copied));
+    }
+
+    [Fact]
     public async Task ExecuteAsync_RenameAllGeneratesPredictableNames()
     {
         string source = Write(_source, "dup.txt", "new");
