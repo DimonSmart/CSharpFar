@@ -151,10 +151,17 @@ public sealed class AnsiTerminalConsoleDriver : IConsoleDriver, ITerminalScreenM
 
     public void SetCursorVisible(bool visible)
     {
+        if (!visible)
+        {
+            WriteControl(HideCursor);
+            _cursorVisible = false;
+            return;
+        }
+
         if (_cursorVisible == visible)
             return;
 
-        WriteControl(visible ? ShowCursor : HideCursor);
+        WriteControl(ShowCursor);
         _cursorVisible = visible;
     }
 

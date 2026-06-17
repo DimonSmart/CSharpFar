@@ -127,6 +127,30 @@ public sealed class Spec010FileOperationDialogTests
     }
 
     [Fact]
+    public void ShowCopy_HidesCursorWhenTabMovesFocusFromTextInputToOptionRow()
+    {
+        var driver = new FakeConsoleDriver(width: 100, height: 30);
+        var screen = new ScreenRenderer(driver);
+        driver.BeforeReadInput = currentDriver =>
+        {
+            Assert.True(currentDriver.CursorVisible);
+            currentDriver.EnqueueKey(Key(ConsoleKey.Tab));
+            currentDriver.BeforeReadInput = nextDriver =>
+            {
+                Assert.False(nextDriver.CursorVisible);
+                nextDriver.EnqueueKey(Key(ConsoleKey.F10));
+            };
+        };
+
+        var result = new FileOperationDialog(screen).ShowCopy(
+            [@"C:\source\a.txt"],
+            @"C:\destination",
+            new FileOperationOptions());
+
+        Assert.NotNull(result);
+    }
+
+    [Fact]
     public void ShowCopy_CollectsFilterInSameDialog()
     {
         var driver = new FakeConsoleDriver(width: 100, height: 30);

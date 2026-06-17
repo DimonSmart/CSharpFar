@@ -273,7 +273,7 @@ public class ScreenRendererTests
     }
 
     [Fact]
-    public void SetCursorVisible_IgnoresRepeatedState()
+    public void SetCursorVisible_ForwardsRepeatedHide()
     {
         var (renderer, driver) = Create();
 
@@ -282,7 +282,7 @@ public class ScreenRendererTests
         renderer.SetCursorVisible(true);
         renderer.SetCursorVisible(true);
 
-        Assert.Equal(2, driver.SetCursorVisibleCallCount);
+        Assert.Equal(3, driver.SetCursorVisibleCallCount);
     }
 
     [Fact]

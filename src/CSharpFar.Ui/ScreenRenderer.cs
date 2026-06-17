@@ -582,6 +582,13 @@ public sealed class ScreenRenderer
 
     private void ApplyCursorVisible(bool visible)
     {
+        if (!visible)
+        {
+            _driver.SetCursorVisible(false);
+            _cursorVisible = false;
+            return;
+        }
+
         if (_cursorVisible == visible)
             return;
 
