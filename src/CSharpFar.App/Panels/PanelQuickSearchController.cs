@@ -117,10 +117,16 @@ internal sealed class PanelQuickSearchController
     private static bool TryGetAppendCharacter(ConsoleKeyInfo key, out char ch)
     {
         ch = default;
-        if ((key.Modifiers & (ConsoleModifiers.Control | ConsoleModifiers.Alt)) != 0)
+        if ((key.Modifiers & ConsoleModifiers.Control) != 0 ||
+            key.Key is ConsoleKey.D1 or ConsoleKey.NumPad1 or ConsoleKey.D2 or ConsoleKey.NumPad2 ||
+            key.Key is >= ConsoleKey.F1 and <= ConsoleKey.F24)
+        {
             return false;
+        }
 
-        return TryGetCharacterFromKeyInfo(key, out ch);
+        return TryGetCharacterFromKeyInfo(key, out ch) ||
+               ((key.Modifiers & ConsoleModifiers.Alt) != 0 &&
+                TryGetAltLetterCharacter(key, out ch));
     }
 
     private static bool TryGetCharacterFromKeyInfo(ConsoleKeyInfo key, out char ch)

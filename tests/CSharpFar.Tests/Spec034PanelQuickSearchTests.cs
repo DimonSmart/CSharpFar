@@ -62,6 +62,25 @@ public sealed class Spec034PanelQuickSearchTests : IDisposable
     }
 
     [Fact]
+    public void HandleKey_QuickSearchTypingIgnoresWhetherAltRemainsHeld()
+    {
+        var driver = new FakeConsoleDriver(width: 80, height: 14);
+        var app = CreateApp(driver,
+            FileItem("test.txt"),
+            FileItem("team.txt"));
+
+        HandleKeyAndRender(app, Key(ConsoleKey.T, alt: true));
+        HandleKeyAndRender(app, Key(ConsoleKey.E, alt: true));
+        HandleKeyAndRender(app, Key(ConsoleKey.S, keyChar: 's'));
+        HandleKeyAndRender(app, Key(ConsoleKey.T, alt: true));
+
+        var left = GetLeftPanel(app);
+        Assert.Equal("test.txt", left.Items[left.CursorIndex].Name);
+        Assert.Equal("test", GetQuickSearchText(app));
+        Assert.Equal(string.Empty, GetCommandLine(app).Text);
+    }
+
+    [Fact]
     public void HandleKey_QuickSearchNoMatchKeepsCursorOnLastMatch()
     {
         var driver = new FakeConsoleDriver(width: 80, height: 14);
