@@ -49,7 +49,7 @@ public sealed class ConsolePalette
 
     // ── Directory shortcut bar ────────────────────────────────────────────────
     public ConsoleColor DirectoryShortcutBarBg       { get; init; } = ConsoleColor.Blue;
-    public ConsoleColor DirectoryShortcutBarNumberFg { get; init; } = ConsoleColor.White;
+    public ConsoleColor DirectoryShortcutBarNumberFg { get; init; } = ConsoleColor.Black;
     public ConsoleColor DirectoryShortcutBarNumberBg { get; init; } = ConsoleColor.Black;
     public ConsoleColor DirectoryShortcutBarTextFg   { get; init; } = ConsoleColor.White;
 

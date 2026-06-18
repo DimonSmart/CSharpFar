@@ -49,7 +49,7 @@ public sealed class DirectoryShortcutBarRendererTests
         new DirectoryShortcutBarRenderer(new ScreenRenderer(driver)).Render(0, 80, settings);
 
         var number = driver.GetCell(1, 0);
-        Assert.Equal(ConsoleColor.White, number.Foreground);
+        Assert.Equal(ConsoleColor.Black, number.Foreground);
         Assert.Equal(ConsoleColor.Black, number.Background);
 
         var label = driver.GetCell(2, 0);
