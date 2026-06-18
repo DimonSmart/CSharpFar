@@ -7,30 +7,37 @@ namespace CSharpFar.Ui;
 
 public sealed class DropdownSelect<T>
 {
-    private readonly IReadOnlyList<T> _items;
-    private readonly Func<T, string> _itemText;
+    private readonly ScrollableList<T> _list;
     private ScreenSnapshot? _underlay;
     private ScrollBarDragState? _scrollbarDrag;
     private int _selectedIndexBeforeOpen;
 
     public DropdownSelect(IReadOnlyList<T> items, Func<T, string> itemText)
     {
+        ArgumentNullException.ThrowIfNull(items);
         if (items.Count == 0)
             throw new ArgumentException("Dropdown requires at least one item.", nameof(items));
 
-        _items = items;
-        _itemText = itemText;
+        _list = new ScrollableList<T>(items, itemText);
     }
 
-    public int SelectedIndex { get; set; }
+    public int SelectedIndex
+    {
+        get => _list.SelectedIndex;
+        set => _list.SelectedIndex = value;
+    }
 
-    public int ScrollTop { get; set; }
+    public int ScrollTop
+    {
+        get => _list.ScrollTop;
+        set => _list.ScrollTop = value;
+    }
 
     public bool IsOpen { get; private set; }
 
     public int MaxVisibleRows { get; set; } = 6;
 
-    public T SelectedItem => _items[Math.Clamp(SelectedIndex, 0, _items.Count - 1)];
+    public T SelectedItem => _list.Items[Math.Clamp(SelectedIndex, 0, _list.Count - 1)];
 
     public void Open(ConsoleSize size, Rect fieldBounds)
     {
@@ -38,13 +45,13 @@ public sealed class DropdownSelect<T>
             _selectedIndexBeforeOpen = SelectedIndex;
 
         IsOpen = true;
-        EnsureSelectedVisible(ContentRows(size, fieldBounds));
+        _list.Normalize(ContentRows(size, fieldBounds));
     }
 
     public void Close(ScreenRenderer screen, bool commit = false)
     {
         if (IsOpen && !commit)
-            SelectedIndex = Math.Clamp(_selectedIndexBeforeOpen, 0, _items.Count - 1);
+            SelectedIndex = Math.Clamp(_selectedIndexBeforeOpen, 0, _list.Count - 1);
 
         if (_underlay is not null)
         {
@@ -69,7 +76,7 @@ public sealed class DropdownSelect<T>
         Rect fieldBounds,
         CellStyle style)
     {
-        string label = _itemText(SelectedItem);
+        string label = _list.ItemText(SelectedItem);
         string text = fieldBounds.Width > 1
             ? Fit(label, fieldBounds.Width - 1) + "\u2193"
             : "\u2193";
@@ -94,17 +101,10 @@ public sealed class DropdownSelect<T>
         Rect bounds = PopupBounds(size, fieldBounds);
         _underlay ??= screen.Capture(bounds);
         int contentRows = ContentRows(size, fieldBounds);
-        EnsureSelectedVisible(contentRows);
+        _list.Normalize(contentRows);
         var palette = UiTheme.Current;
 
-        var scrollState = contentRows > 0 && _items.Count > contentRows
-            ? new ScrollState
-            {
-                TotalItems = _items.Count,
-                ViewportItems = contentRows,
-                FirstVisibleIndex = ScrollTop,
-            }
-            : null;
+        var scrollState = contentRows > 0 ? _list.GetScrollState(contentRows) : null;
         var options = PaletteStyles.DialogPopupOptions(palette) with
         {
             DrawDoubleBorder = false,
@@ -112,20 +112,14 @@ public sealed class DropdownSelect<T>
         };
         var normalStyle = PaletteStyles.DialogFill(palette);
         var selectedStyle = PaletteStyles.InputHighlight(palette);
+        _list.NormalStyle = normalStyle;
+        _list.SelectedStyle = selectedStyle;
+        _list.EmptyStyle = normalStyle;
 
         new PopupRenderer().RenderPopup(screen, bounds, options, (_, contentBounds) =>
         {
             int textWidth = Math.Max(1, contentBounds.Width - 1);
-            for (int row = 0; row < contentRows; row++)
-            {
-                int itemIndex = ScrollTop + row;
-                string text = itemIndex < _items.Count ? _itemText(_items[itemIndex]) : string.Empty;
-                screen.Write(
-                    contentBounds.X,
-                    contentBounds.Y + row,
-                    Fit(text, textWidth),
-                    itemIndex == SelectedIndex ? selectedStyle : normalStyle);
-            }
+            _list.Render(screen, new Rect(contentBounds.X, contentBounds.Y, textWidth, contentRows));
         });
     }
 
@@ -162,58 +156,31 @@ public sealed class DropdownSelect<T>
         Rect bounds = PopupBounds(size, fieldBounds);
         int contentRows = ContentRows(size, fieldBounds);
 
-        if (contentRows > 0 && _items.Count > contentRows)
-        {
-            int selectedIndex = SelectedIndex;
-            int scrollTop = ScrollTop;
-            if (ScrollableListMouseHandler.TryHandleScrollbarMouse(
-                    mouse,
-                    new Rect(bounds.Right - 1, bounds.Y + 1, 1, contentRows),
-                    _items.Count,
-                    contentRows,
-                    ref selectedIndex,
-                    ref scrollTop,
-                    ref _scrollbarDrag))
-            {
-                SelectedIndex = selectedIndex;
-                ScrollTop = scrollTop;
-                return true;
-            }
-        }
-
-        if (mouse.Kind == MouseEventKind.Wheel)
-        {
-            if (mouse.Button == MouseButton.WheelUp)
-                SelectedIndex = Math.Max(0, SelectedIndex - 1);
-            else if (mouse.Button == MouseButton.WheelDown)
-                SelectedIndex = Math.Min(_items.Count - 1, SelectedIndex + 1);
-            else
-                return false;
-
-            EnsureSelectedVisible(contentRows);
-            return true;
-        }
-
-        if (mouse.Kind != MouseEventKind.Down || mouse.Button != MouseButton.Left)
-            return false;
-
-        if (mouse.X < bounds.X || mouse.X >= bounds.Right || mouse.Y < bounds.Y || mouse.Y >= bounds.Bottom)
+        if (mouse.Kind == MouseEventKind.Down && mouse.Button == MouseButton.Left &&
+            (mouse.X < bounds.X || mouse.X >= bounds.Right || mouse.Y < bounds.Y || mouse.Y >= bounds.Bottom))
         {
             Close(screen);
             return true;
         }
 
-        int itemRow = mouse.Y - bounds.Y - 1;
-        if (itemRow < 0 || itemRow >= contentRows)
-            return true;
+        var listInput = _list.HandleMouse(
+            mouse,
+            new Rect(bounds.X, bounds.Y + 1, bounds.Width, contentRows),
+            contentRows > 0 ? new Rect(bounds.Right - 1, bounds.Y + 1, 1, contentRows) : null,
+            contentRows,
+            ref _scrollbarDrag,
+            confirmOnMouseDown: true,
+            confirmOnClick: true,
+            confirmOnDoubleClick: true);
+        if (!listInput.IsHandled)
+            return mouse.Kind == MouseEventKind.Down && mouse.Button == MouseButton.Left &&
+                mouse.X >= bounds.X && mouse.X < bounds.Right && mouse.Y >= bounds.Y && mouse.Y < bounds.Bottom;
 
-        int itemIndex = ScrollTop + itemRow;
-        if (itemIndex >= _items.Count)
-            return true;
-
-        SelectedIndex = itemIndex;
-        selected = true;
-        Close(screen, commit: true);
+        if (listInput.Kind == ScrollableListInputResultKind.Confirmed)
+        {
+            selected = true;
+            Close(screen, commit: true);
+        }
         return true;
     }
 
@@ -242,33 +209,9 @@ public sealed class DropdownSelect<T>
                 selected = true;
                 Close(screen, commit: true);
                 return true;
-            case ConsoleKey.UpArrow:
-                SelectedIndex = Math.Max(0, SelectedIndex - 1);
-                EnsureSelectedVisible(contentRows);
-                return true;
-            case ConsoleKey.DownArrow:
-                SelectedIndex = Math.Min(_items.Count - 1, SelectedIndex + 1);
-                EnsureSelectedVisible(contentRows);
-                return true;
-            case ConsoleKey.PageUp:
-                SelectedIndex = Math.Max(0, SelectedIndex - contentRows);
-                EnsureSelectedVisible(contentRows);
-                return true;
-            case ConsoleKey.PageDown:
-                SelectedIndex = Math.Min(_items.Count - 1, SelectedIndex + contentRows);
-                EnsureSelectedVisible(contentRows);
-                return true;
-            case ConsoleKey.Home:
-                SelectedIndex = 0;
-                EnsureSelectedVisible(contentRows);
-                return true;
-            case ConsoleKey.End:
-                SelectedIndex = _items.Count - 1;
-                EnsureSelectedVisible(contentRows);
-                return true;
-            default:
-                return false;
         }
+
+        return _list.HandleKey(key, contentRows).IsHandled;
     }
 
     public Rect PopupBounds(ConsoleSize size, Rect fieldBounds)
@@ -287,22 +230,8 @@ public sealed class DropdownSelect<T>
         int rowsBelow = Math.Max(0, size.Height - fieldBounds.Bottom - 2);
         int rowsAbove = Math.Max(0, fieldBounds.Y - 2);
         int available = Math.Max(rowsBelow, rowsAbove);
-        int maxRows = Math.Min(MaxVisibleRows, _items.Count);
+        int maxRows = Math.Min(MaxVisibleRows, _list.Count);
         return Math.Clamp(available, 0, maxRows);
-    }
-
-    private void EnsureSelectedVisible(int contentRows)
-    {
-        SelectedIndex = Math.Clamp(SelectedIndex, 0, _items.Count - 1);
-        if (contentRows <= 0)
-        {
-            ScrollTop = ScrollStateCalculator.ClampFirstVisibleIndex(ScrollTop, _items.Count, 1);
-            return;
-        }
-
-        ScrollTop = ScrollStateCalculator.ClampFirstVisibleIndex(ScrollTop, _items.Count, contentRows);
-        ScrollTop = ScrollStateCalculator.EnsureIndexVisible(SelectedIndex, ScrollTop, contentRows);
-        ScrollTop = ScrollStateCalculator.ClampFirstVisibleIndex(ScrollTop, _items.Count, contentRows);
     }
 
     private static string Fit(string text, int width)

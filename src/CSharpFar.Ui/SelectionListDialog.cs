@@ -15,8 +15,7 @@ public sealed class SelectionListDialog<T>
     private const int DefaultMaxVisibleRows = 15;
     private const int DefaultMinWidth = 20;
 
-    private readonly IReadOnlyList<T> _items;
-    private readonly Func<T, string> _itemText;
+    private readonly ScrollableList<T> _list;
     private readonly string _title;
     private readonly DialogFrameRenderer _frameRenderer = new();
 
@@ -25,14 +24,21 @@ public sealed class SelectionListDialog<T>
         Func<T, string> itemText,
         string title)
     {
-        _items = items ?? throw new ArgumentNullException(nameof(items));
-        _itemText = itemText ?? throw new ArgumentNullException(nameof(itemText));
+        _list = new ScrollableList<T>(items, itemText);
         _title = title ?? throw new ArgumentNullException(nameof(title));
     }
 
-    public int SelectedIndex { get; set; }
+    public int SelectedIndex
+    {
+        get => _list.SelectedIndex;
+        set => _list.SelectedIndex = value;
+    }
 
-    public int ScrollTop { get; set; }
+    public int ScrollTop
+    {
+        get => _list.ScrollTop;
+        set => _list.ScrollTop = value;
+    }
 
     public int MaxVisibleRows { get; set; } = DefaultMaxVisibleRows;
 
@@ -40,11 +46,19 @@ public sealed class SelectionListDialog<T>
 
     public int? MaxHeight { get; set; }
 
-    public string? EmptyText { get; set; }
+    public string? EmptyText
+    {
+        get => _list.EmptyText;
+        set => _list.EmptyText = value;
+    }
 
     public bool DoubleBorder { get; set; }
 
-    public Action<T, int>? SelectionChanged { get; set; }
+    public Action<T, int>? SelectionChanged
+    {
+        get => _list.SelectionChanged;
+        set => _list.SelectionChanged = value;
+    }
 
     public Action? RenderUnderlay { get; set; }
 
@@ -55,21 +69,18 @@ public sealed class SelectionListDialog<T>
         var size = screen.GetSize();
         var saved = screen.Capture(new Rect(0, 0, size.Width, size.Height));
         ScrollBarDragState? scrollbarDrag = null;
-        int previousSelection = -1;
+        bool initialSelectionNotified = false;
 
         try
         {
-            SelectedIndex = _items.Count == 0
-                ? -1
-                : Math.Clamp(SelectedIndex, 0, _items.Count - 1);
             while (true)
             {
                 var layout = CalculateLayout(size);
-                NormalizeSelection(layout.VisibleRows);
-                if (_items.Count > 0 && SelectedIndex != previousSelection)
+                _list.Normalize(layout.VisibleRows);
+                if (_list.HasItems && !initialSelectionNotified)
                 {
-                    SelectionChanged?.Invoke(_items[SelectedIndex], SelectedIndex);
-                    previousSelection = SelectedIndex;
+                    SelectionChanged?.Invoke(_list.Items[SelectedIndex], SelectedIndex);
+                    initialSelectionNotified = true;
                 }
 
                 Draw(screen, layout);
@@ -87,7 +98,7 @@ public sealed class SelectionListDialog<T>
                     continue;
 
                 if (HandleKey(key, layout.VisibleRows, out bool isConfirmed))
-                    return isConfirmed && _items.Count > 0 ? Confirmed() : Cancelled();
+                    return isConfirmed && _list.HasItems ? Confirmed() : Cancelled();
             }
         }
         finally
@@ -98,7 +109,7 @@ public sealed class SelectionListDialog<T>
     }
 
     private SelectionListDialogResult<T> Confirmed() =>
-        new(true, _items[SelectedIndex], SelectedIndex);
+        new(true, _list.Items[SelectedIndex], SelectedIndex);
 
     private static SelectionListDialogResult<T> Cancelled() =>
         new(false, default, -1);
@@ -111,30 +122,16 @@ public sealed class SelectionListDialog<T>
             case ConsoleKey.Escape:
             case ConsoleKey.F10:
                 return true;
-            case ConsoleKey.Enter:
-                confirmed = true;
-                return true;
-            case ConsoleKey.UpArrow:
-                SelectedIndex = Math.Max(0, SelectedIndex - 1);
-                return false;
-            case ConsoleKey.DownArrow:
-                SelectedIndex = Math.Min(_items.Count - 1, SelectedIndex + 1);
-                return false;
-            case ConsoleKey.PageUp:
-                SelectedIndex = Math.Max(0, SelectedIndex - visibleRows);
-                return false;
-            case ConsoleKey.PageDown:
-                SelectedIndex = Math.Min(_items.Count - 1, SelectedIndex + visibleRows);
-                return false;
-            case ConsoleKey.Home:
-                SelectedIndex = 0;
-                return false;
-            case ConsoleKey.End:
-                SelectedIndex = _items.Count - 1;
-                return false;
-            default:
-                return false;
         }
+
+        var result = _list.HandleKey(key, visibleRows);
+        if (result.Kind == ScrollableListInputResultKind.Confirmed)
+        {
+            confirmed = true;
+            return true;
+        }
+
+        return key.Key == ConsoleKey.Enter && !_list.HasItems;
     }
 
     private bool HandleMouse(
@@ -143,78 +140,16 @@ public sealed class SelectionListDialog<T>
         ref ScrollBarDragState? scrollbarDrag,
         out bool confirmed)
     {
-        confirmed = false;
-
-        if (mouse.Kind == MouseEventKind.Wheel)
-        {
-            if (mouse.Button == MouseButton.WheelUp)
-                SelectedIndex = Math.Max(0, SelectedIndex - 1);
-            else if (mouse.Button == MouseButton.WheelDown)
-                SelectedIndex = Math.Min(_items.Count - 1, SelectedIndex + 1);
-            else
-                return false;
-
-            return true;
-        }
-
-        if (_items.Count > layout.VisibleRows &&
-            TryHandleScrollbarMouse(
-                mouse,
-                layout.ScrollbarBounds,
-                _items.Count,
-                layout.VisibleRows,
-                ref scrollbarDrag))
-        {
-            return true;
-        }
-
-        if (mouse.Button != MouseButton.Left ||
-            mouse.Kind is not (MouseEventKind.Down or MouseEventKind.Click or MouseEventKind.DoubleClick))
-        {
-            return false;
-        }
-
-        if (mouse.X < layout.ContentBounds.X ||
-            mouse.X >= layout.ContentBounds.Right ||
-            mouse.Y < layout.ContentBounds.Y ||
-            mouse.Y >= layout.ContentBounds.Bottom)
-        {
-            return false;
-        }
-
-        int index = ScrollTop + mouse.Y - layout.ContentBounds.Y;
-        if (index < 0 || index >= _items.Count)
-            return false;
-
-        SelectedIndex = index;
-        confirmed = mouse.Kind is MouseEventKind.Click or MouseEventKind.DoubleClick;
-        return true;
-    }
-
-    private bool TryHandleScrollbarMouse(
-        MouseConsoleInputEvent mouse,
-        Rect scrollbarBounds,
-        int totalItems,
-        int viewportItems,
-        ref ScrollBarDragState? dragState)
-    {
-        int selectedIndex = SelectedIndex;
-        int scrollTop = ScrollTop;
-        if (!ScrollableListMouseHandler.TryHandleScrollbarMouse(
-                mouse,
-                scrollbarBounds,
-                totalItems,
-                viewportItems,
-                ref selectedIndex,
-                ref scrollTop,
-                ref dragState))
-        {
-            return false;
-        }
-
-        SelectedIndex = selectedIndex;
-        ScrollTop = scrollTop;
-        return true;
+        var result = _list.HandleMouse(
+            mouse,
+            layout.ContentBounds,
+            layout.ScrollbarBounds,
+            layout.VisibleRows,
+            ref scrollbarDrag,
+            confirmOnClick: true,
+            confirmOnDoubleClick: true);
+        confirmed = result.Kind == ScrollableListInputResultKind.Confirmed;
+        return result.IsHandled;
     }
 
     private void Draw(ScreenRenderer screen, SelectionListLayout layout)
@@ -223,14 +158,10 @@ public sealed class SelectionListDialog<T>
         using var frame = screen.BeginFrame();
         RenderUnderlay?.Invoke();
 
-        var scrollState = _items.Count > layout.VisibleRows
-            ? new ScrollState
-            {
-                TotalItems = _items.Count,
-                ViewportItems = layout.VisibleRows,
-                FirstVisibleIndex = ScrollTop,
-            }
-            : null;
+        _list.NormalStyle = PaletteStyles.DialogFill(palette);
+        _list.SelectedStyle = PaletteStyles.InputField(palette);
+        _list.EmptyStyle = PaletteStyles.DialogFill(palette);
+        var scrollState = _list.GetScrollState(layout.VisibleRows);
 
         _frameRenderer.RenderFrame(
             screen,
@@ -239,39 +170,20 @@ public sealed class SelectionListDialog<T>
             DoubleBorder,
             PaletteStyles.DialogPopupOptions(palette),
             scrollState,
-            (_, _) =>
-            {
-                for (int row = 0; row < layout.VisibleRows; row++)
-                {
-                    int index = ScrollTop + row;
-                    string text = index < _items.Count
-                        ? _itemText(_items[index])
-                        : row == 0 && _items.Count == 0 && EmptyText is not null
-                            ? EmptyText
-                            : string.Empty;
-                    var style = index == SelectedIndex
-                        ? PaletteStyles.InputField(palette)
-                        : PaletteStyles.DialogFill(palette);
-                    screen.Write(
-                        layout.ContentBounds.X,
-                        layout.ContentBounds.Y + row,
-                        Fit(text, layout.ContentBounds.Width),
-                        style);
-                }
-            });
+            (_, _) => _list.Render(screen, layout.ContentBounds));
 
         screen.SetCursorVisible(false);
     }
 
     private SelectionListLayout CalculateLayout(ConsoleSize size)
     {
-        int itemWidth = _items.Count == 0 ? EmptyText?.Length ?? 0 : _items.Max(item => _itemText(item).Length);
+        int itemWidth = _list.Count == 0 ? EmptyText?.Length ?? 0 : _list.Items.Max(item => _list.ItemText(item).Length);
         int contentWidth = Math.Max(DefaultMinWidth, Math.Max(itemWidth, _title.Length) + 2);
         int maxWidth = MaxWidth.HasValue ? Math.Min(MaxWidth.Value, size.Width) : size.Width - 2;
         contentWidth = Math.Min(contentWidth, Math.Max(DefaultMinWidth, maxWidth - 2));
 
         int maxRows = Math.Max(1, Math.Min(MaxVisibleRows, MaxHeight.GetValueOrDefault(size.Height) - 2));
-        int visibleRows = Math.Min(Math.Max(1, _items.Count == 0 ? 1 : _items.Count), Math.Max(1, Math.Min(maxRows, size.Height - 2)));
+        int visibleRows = Math.Min(Math.Max(1, _list.Count == 0 ? 1 : _list.Count), Math.Max(1, Math.Min(maxRows, size.Height - 2)));
         int width = Math.Min(size.Width, contentWidth + 2);
         int height = Math.Min(size.Height, visibleRows + 2);
         int x = Math.Max(0, (size.Width - width) / 2);
@@ -283,21 +195,6 @@ public sealed class SelectionListDialog<T>
             contentBounds,
             new Rect(bounds.Right - 1, contentBounds.Y, 1, contentBounds.Height),
             contentBounds.Height);
-    }
-
-    private void NormalizeSelection(int visibleRows)
-    {
-        SelectedIndex = Math.Clamp(SelectedIndex, 0, Math.Max(0, _items.Count - 1));
-        ScrollTop = ScrollStateCalculator.ClampFirstVisibleIndex(ScrollTop, _items.Count, visibleRows);
-        ScrollTop = ScrollStateCalculator.EnsureIndexVisible(SelectedIndex, ScrollTop, visibleRows);
-        ScrollTop = ScrollStateCalculator.ClampFirstVisibleIndex(ScrollTop, _items.Count, visibleRows);
-    }
-
-    private static string Fit(string text, int width)
-    {
-        if (width <= 0)
-            return string.Empty;
-        return text.Length <= width ? text.PadRight(width) : text[..width];
     }
 
     private readonly record struct SelectionListLayout(

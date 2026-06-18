@@ -12,8 +12,7 @@ public sealed record ListWithButtonsDialogResult<T>(
 
 public sealed class ListWithButtonsDialog<T>
 {
-    private readonly IReadOnlyList<T> _items;
-    private readonly Func<T, string> _itemText;
+    private readonly ScrollableList<T> _list;
     private readonly DialogButtonBar _buttonBar;
     private readonly ModalDialogRenderer _modalRenderer = new();
 
@@ -23,8 +22,7 @@ public sealed class ListWithButtonsDialog<T>
         IReadOnlyList<DialogButton> buttons,
         string title)
     {
-        _items = items ?? throw new ArgumentNullException(nameof(items));
-        _itemText = itemText ?? throw new ArgumentNullException(nameof(itemText));
+        _list = new ScrollableList<T>(items, itemText);
         _buttonBar = new DialogButtonBar(buttons ?? throw new ArgumentNullException(nameof(buttons)));
         Title = title ?? throw new ArgumentNullException(nameof(title));
     }
@@ -37,7 +35,11 @@ public sealed class ListWithButtonsDialog<T>
 
     public int MaxVisibleRows { get; set; } = 12;
 
-    public string? EmptyText { get; set; }
+    public string? EmptyText
+    {
+        get => _list.EmptyText;
+        set => _list.EmptyText = value;
+    }
 
     public string DefaultListActionId { get; set; } = "default";
 
@@ -45,9 +47,17 @@ public sealed class ListWithButtonsDialog<T>
 
     public string? DeleteActionId { get; set; }
 
-    public int SelectedIndex { get; set; }
+    public int SelectedIndex
+    {
+        get => _list.SelectedIndex;
+        set => _list.SelectedIndex = value;
+    }
 
-    public int ScrollTop { get; set; }
+    public int ScrollTop
+    {
+        get => _list.ScrollTop;
+        set => _list.ScrollTop = value;
+    }
 
     public ListWithButtonsDialogResult<T>? Show(ScreenRenderer screen)
     {
@@ -56,7 +66,7 @@ public sealed class ListWithButtonsDialog<T>
         var size = screen.GetSize();
         var saved = screen.Capture(new Rect(0, 0, size.Width, size.Height));
         int focusedButton = 0;
-        bool focusButtons = _items.Count == 0;
+        bool focusButtons = !_list.HasItems;
         ScrollBarDragState? scrollbarDrag = null;
         screen.SetCursorVisible(false);
 
@@ -65,7 +75,7 @@ public sealed class ListWithButtonsDialog<T>
             while (true)
             {
                 var layout = CalculateLayout(size);
-                NormalizeSelection(layout.ListBounds.Height);
+                _list.Normalize(layout.ListBounds.Height);
                 focusedButton = Math.Clamp(focusedButton, 0, _buttonBar.Count - 1);
                 Draw(screen, layout, focusButtons, focusedButton);
 
@@ -114,56 +124,34 @@ public sealed class ListWithButtonsDialog<T>
                 result = CreateResult(CancelActionId);
                 return true;
             case ConsoleKey.Tab:
-                focusButtons = _items.Count == 0 || !focusButtons;
+                focusButtons = !_list.HasItems || !focusButtons;
                 return false;
             case ConsoleKey.Delete:
-                if (DeleteActionId is not null && _items.Count > 0)
+                if (DeleteActionId is not null && _list.HasItems)
                 {
                     result = CreateResult(DeleteActionId);
                     return true;
                 }
                 return false;
-            case ConsoleKey.Enter:
-                if (_items.Count > 0)
-                {
-                    result = CreateResult(DefaultListActionId);
-                    return true;
-                }
-                focusButtons = true;
-                return false;
-            case ConsoleKey.UpArrow:
-                if (_items.Count == 0) { focusButtons = true; return false; }
-                focusButtons = false;
-                SelectedIndex = Math.Max(0, SelectedIndex - 1);
-                return false;
-            case ConsoleKey.DownArrow:
-                if (_items.Count == 0) { focusButtons = true; return false; }
-                focusButtons = false;
-                SelectedIndex = Math.Min(_items.Count - 1, SelectedIndex + 1);
-                return false;
-            case ConsoleKey.PageUp:
-                if (_items.Count == 0) { focusButtons = true; return false; }
-                focusButtons = false;
-                SelectedIndex = Math.Max(0, SelectedIndex - visibleRows);
-                return false;
-            case ConsoleKey.PageDown:
-                if (_items.Count == 0) { focusButtons = true; return false; }
-                focusButtons = false;
-                SelectedIndex = Math.Min(_items.Count - 1, SelectedIndex + visibleRows);
-                return false;
-            case ConsoleKey.Home:
-                if (_items.Count == 0) { focusButtons = true; return false; }
-                focusButtons = false;
-                SelectedIndex = 0;
-                return false;
-            case ConsoleKey.End:
-                if (_items.Count == 0) { focusButtons = true; return false; }
-                focusButtons = false;
-                SelectedIndex = _items.Count - 1;
-                return false;
-            default:
-                return false;
         }
+
+        var listResult = _list.HandleKey(key, visibleRows);
+        if (!listResult.IsHandled)
+            return false;
+        if (!_list.HasItems)
+        {
+            focusButtons = true;
+            return false;
+        }
+
+        focusButtons = false;
+        if (listResult.Kind == ScrollableListInputResultKind.Confirmed)
+        {
+            result = CreateResult(DefaultListActionId);
+            return true;
+        }
+
+        return false;
     }
 
     private bool HandleMouse(
@@ -176,22 +164,30 @@ public sealed class ListWithButtonsDialog<T>
     {
         result = null;
 
-        if (_items.Count > layout.ListBounds.Height)
+        var scrollbarBounds = new Rect(
+            layout.FrameBounds.Right - 1,
+            layout.ListBounds.Y,
+            1,
+            layout.ListBounds.Height);
+        bool wheelInListOrScrollbar = mouse.Kind != MouseEventKind.Wheel ||
+            mouse.Y >= layout.ListBounds.Y && mouse.Y < layout.ListBounds.Bottom &&
+            (mouse.X >= layout.ListBounds.X && mouse.X < layout.ListBounds.Right ||
+             mouse.X == scrollbarBounds.X);
+        if (wheelInListOrScrollbar)
         {
-            int selected = SelectedIndex;
-            int scrollTop = ScrollTop;
-            if (ScrollableListMouseHandler.TryHandleScrollbarMouse(
-                    mouse,
-                    new Rect(layout.FrameBounds.Right - 1, layout.ListBounds.Y, 1, layout.ListBounds.Height),
-                    _items.Count,
-                    layout.ListBounds.Height,
-                    ref selected,
-                    ref scrollTop,
-                    ref scrollbarDrag))
+            var listInput = _list.HandleMouse(
+                mouse,
+                layout.ListBounds,
+                scrollbarBounds,
+                layout.ListBounds.Height,
+                ref scrollbarDrag,
+                confirmOnClick: false,
+                confirmOnDoubleClick: true);
+            if (listInput.IsHandled)
             {
-                SelectedIndex = selected;
-                ScrollTop = scrollTop;
                 focusButtons = false;
+                if (listInput.Kind == ScrollableListInputResultKind.Confirmed)
+                    result = CreateResult(DefaultListActionId);
                 return true;
             }
         }
@@ -204,37 +200,14 @@ public sealed class ListWithButtonsDialog<T>
             return true;
         }
 
-        if (_items.Count == 0 ||
-            mouse.Button != MouseButton.Left ||
-            mouse.Kind is not (MouseEventKind.Down or MouseEventKind.Click or MouseEventKind.DoubleClick))
-        {
-            return false;
-        }
-
-        if (mouse.X < layout.ListBounds.X ||
-            mouse.X >= layout.ListBounds.Right ||
-            mouse.Y < layout.ListBounds.Y ||
-            mouse.Y >= layout.ListBounds.Bottom)
-        {
-            return false;
-        }
-
-        int index = ScrollTop + mouse.Y - layout.ListBounds.Y;
-        if (index < 0 || index >= _items.Count)
-            return false;
-
-        SelectedIndex = index;
-        focusButtons = false;
-        if (mouse.Kind == MouseEventKind.DoubleClick)
-            result = CreateResult(DefaultListActionId);
-        return true;
+        return false;
     }
 
     private ListWithButtonsDialogResult<T> CreateResult(string actionId)
     {
-        if (_items.Count == 0 || SelectedIndex < 0 || SelectedIndex >= _items.Count)
+        if (!_list.HasItems || SelectedIndex < 0 || SelectedIndex >= _list.Count)
             return new ListWithButtonsDialogResult<T>(actionId, default, -1);
-        return new ListWithButtonsDialogResult<T>(actionId, _items[SelectedIndex], SelectedIndex);
+        return new ListWithButtonsDialogResult<T>(actionId, _list.Items[SelectedIndex], SelectedIndex);
     }
 
     private void Draw(ScreenRenderer screen, ListWithButtonsLayout layout, bool focusButtons, int focusedButton)
@@ -244,14 +217,10 @@ public sealed class ListWithButtonsDialog<T>
         var selected = FarDialogStyles.FocusedInput;
         var outerOptions = FarDialogStyles.OuterOptions;
         var frameOptions = FarDialogStyles.FrameOptions;
-        var scrollState = _items.Count > layout.ListBounds.Height
-            ? new ScrollState
-            {
-                TotalItems = _items.Count,
-                ViewportItems = layout.ListBounds.Height,
-                FirstVisibleIndex = ScrollTop,
-            }
-            : null;
+        _list.NormalStyle = fill;
+        _list.SelectedStyle = selected;
+        _list.EmptyStyle = fill;
+        var scrollState = _list.GetScrollState(layout.ListBounds.Height);
 
         using var frame = screen.BeginFrame();
         _modalRenderer.Render(screen, layout.Bounds, Title, true, outerOptions, frameOptions, (_, modalLayout) =>
@@ -266,23 +235,7 @@ public sealed class ListWithButtonsDialog<T>
                     border);
             }
 
-            screen.FillRegion(layout.ListBounds, fill);
-            if (_items.Count == 0)
-            {
-                screen.Write(layout.ListBounds.X, layout.ListBounds.Y, Fit(EmptyText ?? string.Empty, layout.ListBounds.Width), fill);
-            }
-            else
-            {
-                for (int row = 0; row < layout.ListBounds.Height; row++)
-                {
-                    int index = ScrollTop + row;
-                    if (index >= _items.Count)
-                        break;
-
-                    var style = index == SelectedIndex ? selected : fill;
-                    screen.Write(layout.ListBounds.X, layout.ListBounds.Y + row, Fit(_itemText(_items[index]), layout.ListBounds.Width), style);
-                }
-            }
+            _list.Render(screen, layout.ListBounds);
 
             _buttonBar.Render(
                 screen,
@@ -300,7 +253,7 @@ public sealed class ListWithButtonsDialog<T>
     private ListWithButtonsLayout CalculateLayout(ConsoleSize size)
     {
         int width = Math.Min(DialogWidth, Math.Max(MinDialogWidth, size.Width - 2));
-        int targetListRows = Math.Min(MaxVisibleRows, Math.Max(1, _items.Count));
+        int targetListRows = Math.Min(MaxVisibleRows, Math.Max(1, _list.Count));
         int height = Math.Min(targetListRows + 7, Math.Max(8, size.Height - 2));
         int x = Math.Max(0, (size.Width - width) / 2);
         int y = Math.Max(0, (size.Height - height) / 2);
@@ -310,22 +263,6 @@ public sealed class ListWithButtonsDialog<T>
         int buttonY = contentBounds.Bottom - 1;
         var listBounds = new Rect(contentBounds.X + 2, contentBounds.Y, Math.Max(1, contentBounds.Width - 4), Math.Max(1, buttonY - contentBounds.Y - 1));
         return new ListWithButtonsLayout(bounds, frameBounds, listBounds, buttonY);
-    }
-
-    private void NormalizeSelection(int visibleRows)
-    {
-        SelectedIndex = Math.Clamp(SelectedIndex, 0, Math.Max(0, _items.Count - 1));
-        ScrollTop = ScrollStateCalculator.ClampFirstVisibleIndex(ScrollTop, _items.Count, visibleRows);
-        if (_items.Count > 0)
-            ScrollTop = ScrollStateCalculator.EnsureIndexVisible(SelectedIndex, ScrollTop, visibleRows);
-        ScrollTop = ScrollStateCalculator.ClampFirstVisibleIndex(ScrollTop, _items.Count, visibleRows);
-    }
-
-    private static string Fit(string text, int width)
-    {
-        if (width <= 0)
-            return string.Empty;
-        return text.Length <= width ? text.PadRight(width) : text[..width];
     }
 
     private readonly record struct ListWithButtonsLayout(
