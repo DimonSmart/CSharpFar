@@ -99,8 +99,9 @@ public sealed class DropdownSelect<T>
         }
 
         Rect bounds = PopupBounds(size, fieldBounds);
+        Rect contentBounds = PopupRenderer.GetContentBounds(bounds, drawBorder: true);
         _underlay ??= screen.Capture(bounds);
-        int contentRows = ContentRows(size, fieldBounds);
+        int contentRows = contentBounds.Height;
         _list.Normalize(contentRows);
         var palette = UiTheme.Current;
 
@@ -116,10 +117,9 @@ public sealed class DropdownSelect<T>
         _list.SelectedStyle = selectedStyle;
         _list.EmptyStyle = normalStyle;
 
-        new PopupRenderer().RenderPopup(screen, bounds, options, (_, contentBounds) =>
+        new PopupRenderer().RenderPopup(screen, bounds, options, (_, renderedContentBounds) =>
         {
-            int textWidth = Math.Max(1, contentBounds.Width - 1);
-            _list.Render(screen, new Rect(contentBounds.X, contentBounds.Y, textWidth, contentRows));
+            _list.Render(screen, renderedContentBounds);
         });
     }
 
@@ -154,7 +154,8 @@ public sealed class DropdownSelect<T>
             return false;
 
         Rect bounds = PopupBounds(size, fieldBounds);
-        int contentRows = ContentRows(size, fieldBounds);
+        Rect contentBounds = PopupRenderer.GetContentBounds(bounds, drawBorder: true);
+        int contentRows = contentBounds.Height;
 
         if (mouse.Kind == MouseEventKind.Down && mouse.Button == MouseButton.Left &&
             (mouse.X < bounds.X || mouse.X >= bounds.Right || mouse.Y < bounds.Y || mouse.Y >= bounds.Bottom))
@@ -165,8 +166,8 @@ public sealed class DropdownSelect<T>
 
         var listInput = _list.HandleMouse(
             mouse,
-            new Rect(bounds.X, bounds.Y + 1, bounds.Width, contentRows),
-            contentRows > 0 ? new Rect(bounds.Right - 1, bounds.Y + 1, 1, contentRows) : null,
+            contentBounds,
+            contentRows > 0 ? new Rect(bounds.Right - 1, contentBounds.Y, 1, contentRows) : null,
             contentRows,
             ref _scrollbarDrag,
             confirmOnMouseDown: true,

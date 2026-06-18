@@ -27,19 +27,13 @@ public sealed class PopupRenderer
 
         screen.FillRegion(bounds, options.BackgroundStyle);
 
-        Rect contentBounds = bounds;
+        Rect contentBounds = GetContentBounds(bounds, options.DrawBorder);
         if (options.DrawBorder)
         {
             if (options.DrawDoubleBorder)
                 screen.DrawDoubleBox(bounds, options.BorderStyle);
             else
                 screen.DrawBox(bounds, options.BorderStyle);
-
-            contentBounds = new Rect(
-                bounds.X + 1,
-                bounds.Y + 1,
-                Math.Max(0, bounds.Width - 2),
-                Math.Max(0, bounds.Height - 2));
         }
 
         renderContent(screen, contentBounds);
@@ -58,4 +52,13 @@ public sealed class PopupRenderer
                 options.BorderStyle);
         }
     }
+
+    internal static Rect GetContentBounds(Rect bounds, bool drawBorder) =>
+        drawBorder
+            ? new Rect(
+                bounds.X + 1,
+                bounds.Y + 1,
+                Math.Max(0, bounds.Width - 2),
+                Math.Max(0, bounds.Height - 2))
+            : bounds;
 }

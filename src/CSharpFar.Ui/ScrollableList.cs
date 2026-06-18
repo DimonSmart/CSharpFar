@@ -162,6 +162,11 @@ public sealed class ScrollableList<T>
     {
         if (mouse.Kind == MouseEventKind.Wheel)
         {
+            bool insideContent = contentBounds.Contains(mouse.X, mouse.Y);
+            bool insideScrollbar = scrollbarBounds is Rect wheelScrollbar && wheelScrollbar.Contains(mouse.X, mouse.Y);
+            if (!insideContent && !insideScrollbar)
+                return ScrollableListInputResult.NotHandled;
+
             if (mouse.Button == MouseButton.WheelUp)
                 return HasItems ? ChangeSelection(SelectedIndex - 1, viewportRows) : ScrollableListInputResult.Handled;
             if (mouse.Button == MouseButton.WheelDown)

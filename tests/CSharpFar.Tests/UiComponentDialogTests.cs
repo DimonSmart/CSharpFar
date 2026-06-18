@@ -174,6 +174,56 @@ public sealed class UiComponentDialogTests
     }
 
     [Fact]
+    public void DropdownSelect_ClickOnPopupBorder_DoesNotSelectItem()
+    {
+        var driver = new FakeConsoleDriver(40, 12);
+        var screen = new ScreenRenderer(driver);
+        var dropdown = new DropdownSelect<string>(["one", "two", "three"], static item => item);
+        var field = new Rect(5, 4, 12, 1);
+        dropdown.Open(driver.GetSize(), field);
+        dropdown.RenderPopup(screen, driver.GetSize(), field);
+        Rect popupBounds = dropdown.PopupBounds(driver.GetSize(), field);
+
+        bool handled = dropdown.TryHandlePopupMouse(
+            new MouseConsoleInputEvent(popupBounds.X, popupBounds.Y + 1, MouseButton.Left, MouseEventKind.Down, MouseKeyModifiers.None),
+            screen,
+            driver.GetSize(),
+            field,
+            out bool selected);
+
+        Assert.True(handled);
+        Assert.False(selected);
+        Assert.True(dropdown.IsOpen);
+        Assert.Equal(0, dropdown.SelectedIndex);
+        Assert.Equal("one", dropdown.SelectedItem);
+    }
+
+    [Fact]
+    public void DropdownSelect_ClickOnRenderedItem_SelectsItem()
+    {
+        var driver = new FakeConsoleDriver(40, 12);
+        var screen = new ScreenRenderer(driver);
+        var dropdown = new DropdownSelect<string>(["one", "two", "three"], static item => item);
+        var field = new Rect(5, 4, 12, 1);
+        dropdown.Open(driver.GetSize(), field);
+        dropdown.RenderPopup(screen, driver.GetSize(), field);
+        Rect popupBounds = dropdown.PopupBounds(driver.GetSize(), field);
+
+        bool handled = dropdown.TryHandlePopupMouse(
+            new MouseConsoleInputEvent(popupBounds.X + 1, popupBounds.Y + 2, MouseButton.Left, MouseEventKind.Down, MouseKeyModifiers.None),
+            screen,
+            driver.GetSize(),
+            field,
+            out bool selected);
+
+        Assert.True(handled);
+        Assert.True(selected);
+        Assert.False(dropdown.IsOpen);
+        Assert.Equal(1, dropdown.SelectedIndex);
+        Assert.Equal("two", dropdown.SelectedItem);
+    }
+
+    [Fact]
     public void DropdownSelect_ToggleCloseRestoresPreviousSelection()
     {
         var driver = new FakeConsoleDriver(40, 12);

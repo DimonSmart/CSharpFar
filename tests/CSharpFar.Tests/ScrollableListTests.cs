@@ -107,16 +107,56 @@ public sealed class ScrollableListTests
     }
 
     [Fact]
-    public void HandleMouse_WheelUpDown_ChangesSelectionAndKeepsVisible()
+    public void HandleMouse_WheelInsideContent_ChangesSelectionAndKeepsVisible()
     {
         var list = Create(["0", "1", "2", "3"]);
         ScrollBarDragState? drag = null;
 
-        list.HandleMouse(Mouse(MouseButton.WheelDown, MouseEventKind.Wheel), new Rect(0, 0, 5, 2), null, 2, ref drag);
-        list.HandleMouse(Mouse(MouseButton.WheelDown, MouseEventKind.Wheel), new Rect(0, 0, 5, 2), null, 2, ref drag);
+        var firstResult = list.HandleMouse(Mouse(MouseButton.WheelDown, MouseEventKind.Wheel, 2, 1), new Rect(0, 0, 5, 2), null, 2, ref drag);
+        list.HandleMouse(Mouse(MouseButton.WheelDown, MouseEventKind.Wheel, 2, 1), new Rect(0, 0, 5, 2), null, 2, ref drag);
+
+        Assert.True(firstResult.IsHandled);
         Assert.Equal(2, list.SelectedIndex);
         Assert.Equal(1, list.ScrollTop);
-        list.HandleMouse(Mouse(MouseButton.WheelUp, MouseEventKind.Wheel), new Rect(0, 0, 5, 2), null, 2, ref drag);
+        list.HandleMouse(Mouse(MouseButton.WheelUp, MouseEventKind.Wheel, 2, 1), new Rect(0, 0, 5, 2), null, 2, ref drag);
+        Assert.Equal(1, list.SelectedIndex);
+    }
+
+    [Fact]
+    public void HandleMouse_WheelOutsideContentAndScrollbar_ReturnsNotHandled()
+    {
+        var list = Create(Enumerable.Range(0, 20).Select(i => i.ToString()).ToArray());
+        var changes = new List<int>();
+        list.SelectionChanged = (_, index) => changes.Add(index);
+        ScrollBarDragState? drag = null;
+
+        var result = list.HandleMouse(
+            Mouse(MouseButton.WheelDown, MouseEventKind.Wheel, 12, 8),
+            new Rect(0, 0, 9, 5),
+            new Rect(9, 0, 1, 5),
+            5,
+            ref drag);
+
+        Assert.Equal(ScrollableListInputResultKind.NotHandled, result.Kind);
+        Assert.Equal(0, list.SelectedIndex);
+        Assert.Equal(0, list.ScrollTop);
+        Assert.Empty(changes);
+    }
+
+    [Fact]
+    public void HandleMouse_WheelInsideScrollbar_HandlesScroll()
+    {
+        var list = Create(Enumerable.Range(0, 20).Select(i => i.ToString()).ToArray());
+        ScrollBarDragState? drag = null;
+
+        var result = list.HandleMouse(
+            Mouse(MouseButton.WheelDown, MouseEventKind.Wheel, 9, 2),
+            new Rect(0, 0, 9, 5),
+            new Rect(9, 0, 1, 5),
+            5,
+            ref drag);
+
+        Assert.True(result.IsHandled);
         Assert.Equal(1, list.SelectedIndex);
     }
 
