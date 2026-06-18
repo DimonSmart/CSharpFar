@@ -85,7 +85,16 @@ public class PaletteRegistryTests
             Assert.Equal(ConsoleColor.Black, palette.FunctionKeyNumBg);
             Assert.Equal(ConsoleColor.Black, palette.FunctionKeyTextFg);
             Assert.Equal(palette.CursorActiveBg, palette.FunctionKeyBarBg);
-            Assert.Equal(ConsoleColor.Black, palette.DirectoryShortcutBarNumberFg);
+        }
+    }
+
+    [Fact]
+    public void BuiltInPalettes_HaveDirectoryShortcutNumberColors()
+    {
+        foreach (var palette in PaletteRegistry.All)
+        {
+            Assert.Equal(ConsoleColor.White, palette.DirectoryShortcutBarNumberFg);
+            Assert.Equal(ConsoleColor.Black, palette.DirectoryShortcutBarNumberBg);
         }
     }
 
