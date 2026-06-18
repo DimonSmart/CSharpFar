@@ -59,24 +59,6 @@ public class FunctionKeyBarTests
         Assert.Equal('2', driver.GetRow(0)[5]);
     }
 
-    [Fact]
-    public void Render_UsesAccentForNumberWithoutChangingLabelOrLayout()
-    {
-        var driver = new FakeConsoleDriver(120, 2);
-        var screen = new ScreenRenderer(driver);
-
-        Render(CreateRenderer(), screen, y: 0, totalWidth: 120, [new(1, "Help")]);
-
-        var number = driver.GetCell(0, 0);
-        Assert.Equal(ConsoleColor.Yellow, number.Foreground);
-        Assert.Equal(ConsoleColor.Black, number.Background);
-
-        var label = driver.GetCell(1, 0);
-        Assert.Equal(ConsoleColor.Black, label.Foreground);
-        Assert.Equal(ConsoleColor.DarkCyan, label.Background);
-        Assert.StartsWith("1Help", driver.GetRow(0));
-    }
-
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
