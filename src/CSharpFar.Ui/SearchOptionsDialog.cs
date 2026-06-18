@@ -141,7 +141,7 @@ public sealed class SearchOptionsDialog
         }
     }
 
-    private static IReadOnlyList<IFormRow> BuildRows(
+    internal static IReadOnlyList<IFormRow> BuildRows(
         SearchOptionsDialogOptions options,
         CommandLineState pattern,
         SingleLineTextHistoryState patternHistory,
@@ -152,7 +152,12 @@ public sealed class SearchOptionsDialog
         var rows = new List<IFormRow>
         {
             new LabelRow(options.TextLabel, FarDialogStyles.Fill),
-            new TextInputRow(pattern, patternHistory, patternRowState),
+            new TextInputRow(pattern, patternHistory, patternRowState)
+            {
+                Id = "pattern",
+                Role = FormRowRole.TextInput,
+                SubmitOnEnter = true,
+            },
         };
         rows.AddRange(checkboxes);
         rows.Add(new SeparatorRow(FarDialogStyles.Fill, drawLine: false));
@@ -160,10 +165,17 @@ public sealed class SearchOptionsDialog
         return rows;
     }
 
-    private static FormInputResult HandleKey(ScrollableFormDialog form, SingleLineTextHistoryState patternHistory, ConsoleKeyInfo key)
+    internal static FormInputResult HandleKey(
+        ScrollableFormDialog form,
+        SingleLineTextHistoryState patternHistory,
+        ConsoleKeyInfo key)
     {
-        if (key.Key == ConsoleKey.F10 ||
-            (key.Key == ConsoleKey.Enter && form.FocusIndex == 0 && !patternHistory.IsDropdownOpen))
+        if (key.Key == ConsoleKey.F10)
+            return FormInputResult.Submit("find");
+
+        if (key.Key == ConsoleKey.Enter &&
+            form.IsFocusedOnSubmitRow &&
+            !patternHistory.IsDropdownOpen)
         {
             return FormInputResult.Submit("find");
         }
