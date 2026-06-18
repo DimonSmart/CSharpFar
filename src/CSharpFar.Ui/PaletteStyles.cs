@@ -50,7 +50,7 @@ public static class PaletteStyles
         new(palette.FunctionKeyTextFg, palette.FunctionKeyBarBg);
 
     public static CellStyle DirectoryShortcutBarNumber(ConsolePalette palette) =>
-        new(palette.DirectoryShortcutBarNumberFg, palette.DirectoryShortcutBarBg);
+        new(palette.DirectoryShortcutBarNumberFg, palette.DirectoryShortcutBarNumberBg);
 
     public static CellStyle DirectoryShortcutBarLabel(ConsolePalette palette) =>
         new(palette.DirectoryShortcutBarTextFg, palette.DirectoryShortcutBarBg);
