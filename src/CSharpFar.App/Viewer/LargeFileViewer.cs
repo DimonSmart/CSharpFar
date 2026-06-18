@@ -1014,7 +1014,7 @@ internal sealed class LargeFileViewer
         int originalHorizontalOffset = state.HorizontalOffset;
         bool originalFollowMode = state.FollowMode;
 
-        var selected = new EncodingSelectionDialog(_screen, _palette).Show(
+        var selected = new EncodingSelectionDialog(_screen).Show(
             items,
             state.EncodingSelection,
             previewSelection: item => ApplyEncodingSelection(

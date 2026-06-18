@@ -7,12 +7,10 @@ namespace CSharpFar.App.Dialogs;
 internal sealed class EncodingSelectionDialog
 {
     private readonly ScreenRenderer _screen;
-    private readonly ConsolePalette _palette;
 
-    public EncodingSelectionDialog(ScreenRenderer screen, ConsolePalette? palette = null)
+    public EncodingSelectionDialog(ScreenRenderer screen)
     {
         _screen = screen;
-        _palette = palette ?? PaletteRegistry.Default;
     }
 
     public TextEncodingCatalogItem? Show(

@@ -11,12 +11,10 @@ namespace CSharpFar.App.Dialogs;
 internal sealed class UserMenuDialog
 {
     private readonly ScreenRenderer _screen;
-    private readonly ConsolePalette _palette;
 
-    public UserMenuDialog(ScreenRenderer screen, ConsolePalette? palette = null)
+    public UserMenuDialog(ScreenRenderer screen)
     {
         _screen = screen;
-        _palette = palette ?? PaletteRegistry.Default;
     }
 
     public string? Show(IReadOnlyList<UserMenuItem> items)

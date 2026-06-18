@@ -15,6 +15,29 @@ namespace CSharpFar.Tests;
 public sealed class UnifiedWindowScrollbarTests
 {
     [Fact]
+    public void ScrollableListMouse_EmptyList_KeepsNoSelectionAndZeroScrollTop()
+    {
+        var bounds = new Rect(0, 0, 1, 5);
+        int selectedIndex = 0;
+        int firstVisibleIndex = 3;
+        ScrollBarDragState? dragState = new(bounds, 0, 5, 0);
+
+        bool handled = ScrollableListMouseHandler.TryHandleScrollbarMouse(
+            new MouseConsoleInputEvent(0, 2, MouseButton.Left, MouseEventKind.Up, MouseKeyModifiers.None),
+            bounds,
+            totalItems: 0,
+            viewportItems: 5,
+            ref selectedIndex,
+            ref firstVisibleIndex,
+            ref dragState);
+
+        Assert.True(handled);
+        Assert.Equal(-1, selectedIndex);
+        Assert.Equal(0, firstVisibleIndex);
+        Assert.Null(dragState);
+    }
+
+    [Fact]
     public void ScrollbarMouse_ClickTopArrow_DecreasesFirstVisibleIndex()
     {
         int firstVisibleIndex = 5;

@@ -167,6 +167,7 @@ public sealed class ScrollableList<T>
             if (!insideContent && !insideScrollbar)
                 return ScrollableListInputResult.NotHandled;
 
+            // Far-like wheel navigation moves selection and keeps the selected item visible.
             if (mouse.Button == MouseButton.WheelUp)
                 return HasItems ? ChangeSelection(SelectedIndex - 1, viewportRows) : ScrollableListInputResult.Handled;
             if (mouse.Button == MouseButton.WheelDown)

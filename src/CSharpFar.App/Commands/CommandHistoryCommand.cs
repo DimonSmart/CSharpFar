@@ -13,7 +13,7 @@ internal sealed class CommandHistoryCommand : IApplicationCommand
     {
         try
         {
-            string? command = new HistoryDialog(context.Screen, context.Palette).Show(context.History.GetCommandHistory());
+            string? command = new HistoryDialog(context.Screen).Show(context.History.GetCommandHistory());
             if (command is not null)
                 context.CommandLine.SetText(command);
 

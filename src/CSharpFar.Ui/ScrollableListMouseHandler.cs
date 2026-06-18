@@ -33,7 +33,8 @@ public static class ScrollableListMouseHandler
 
         if (totalItems <= 0)
         {
-            selectedIndex = 0;
+            selectedIndex = -1;
+            firstVisibleIndex = 0;
             return true;
         }
 

@@ -11,12 +11,10 @@ namespace CSharpFar.App.Dialogs;
 internal sealed class FileHistoryDialog
 {
     private readonly ScreenRenderer _screen;
-    private readonly ConsolePalette _palette;
 
-    public FileHistoryDialog(ScreenRenderer screen, ConsolePalette? palette = null)
+    public FileHistoryDialog(ScreenRenderer screen)
     {
         _screen = screen;
-        _palette = palette ?? PaletteRegistry.Default;
     }
 
     public string? Show(IReadOnlyList<FileHistoryItem> history)

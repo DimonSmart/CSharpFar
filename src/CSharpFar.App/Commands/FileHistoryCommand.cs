@@ -17,7 +17,7 @@ internal sealed class FileHistoryCommand : IApplicationCommand
     {
         try
         {
-            string? path = new FileHistoryDialog(context.Screen, context.Palette).Show(context.History.GetFileHistory());
+            string? path = new FileHistoryDialog(context.Screen).Show(context.History.GetFileHistory());
             if (path is null)
                 return ApplicationCommandResult.Rendered();
 
