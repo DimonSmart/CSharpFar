@@ -476,6 +476,184 @@ public sealed class ScrollableFormDialogTests
         Assert.Equal(FormInputResultKind.Cancel, form.HandleKey(Key(ConsoleKey.Enter)).Kind);
     }
 
+    [Fact]
+    public void Tab_MovesFromLastBodyRowToFooterRow()
+    {
+        ScrollableFormDialog form = FooterForm();
+        Assert.True(form.TryFocus("lastBody"));
+
+        FormInputResult result = form.HandleKey(Key(ConsoleKey.Tab));
+
+        Assert.Equal(FormInputResultKind.Handled, result.Kind);
+        Assert.Equal("footerButtons", form.FocusedRowId);
+    }
+
+    [Fact]
+    public void ShiftTab_MovesFromFooterRowToLastBodyRow()
+    {
+        ScrollableFormDialog form = FooterForm();
+        Assert.True(form.TryFocus("footerButtons"));
+
+        form.HandleKey(new ConsoleKeyInfo('\0', ConsoleKey.Tab, shift: true, alt: false, control: false));
+
+        Assert.Equal("lastBody", form.FocusedRowId);
+    }
+
+    [Fact]
+    public void Tab_FromFooterWrapsToFirstBodyRow()
+    {
+        ScrollableFormDialog form = FooterForm();
+        Assert.True(form.TryFocus("footerButtons"));
+
+        form.HandleKey(Key(ConsoleKey.Tab));
+
+        Assert.Equal("first", form.FocusedRowId);
+    }
+
+    [Fact]
+    public void ShiftTab_FromFirstBodyWrapsToFooter()
+    {
+        ScrollableFormDialog form = FooterForm();
+
+        form.HandleKey(new ConsoleKeyInfo('\0', ConsoleKey.Tab, shift: true, alt: false, control: false));
+
+        Assert.Equal("footerButtons", form.FocusedRowId);
+    }
+
+    [Fact]
+    public void FooterButton_EnterReturnsSubmit()
+    {
+        ScrollableFormDialog form = FooterForm();
+        Assert.True(form.TryFocus("footerButtons"));
+
+        FormInputResult result = form.HandleKey(Key(ConsoleKey.Enter));
+
+        Assert.Equal(FormInputResultKind.Submit, result.Kind);
+        Assert.Equal("submit", result.Command);
+    }
+
+    [Fact]
+    public void FooterButton_CancelHotkeyReturnsCancel()
+    {
+        ScrollableFormDialog form = FooterForm();
+        Assert.True(form.TryFocus("footerButtons"));
+
+        FormInputResult result = form.HandleKey(new ConsoleKeyInfo('c', ConsoleKey.C, shift: false, alt: false, control: false));
+
+        Assert.Equal(FormInputResultKind.Cancel, result.Kind);
+        Assert.Equal("cancel", result.Command);
+    }
+
+    [Fact]
+    public void MouseClickFooterButton_FocusesFooterAndSubmits()
+    {
+        ScrollableFormDialog form = FooterForm();
+        FakeConsoleDriver driver = RenderWithFooter(form, bodyRows: 2, footerY: 3);
+        int submitX = driver.GetRow(3).IndexOf("Submit", StringComparison.Ordinal);
+
+        FormInputResult result = form.HandleMouse(Mouse(submitX, 3));
+
+        Assert.Equal("footerButtons", form.FocusedRowId);
+        Assert.Equal(FormInputResultKind.Submit, result.Kind);
+    }
+
+    [Fact]
+    public void MouseClickBodyAfterFooterFocus_ReturnsFocusToBody()
+    {
+        ScrollableFormDialog form = FooterForm();
+        RenderWithFooter(form, bodyRows: 2, footerY: 3);
+        Assert.True(form.TryFocus("footerButtons"));
+
+        form.HandleMouse(Mouse(2, 1));
+
+        Assert.Equal("lastBody", form.FocusedRowId);
+    }
+
+    [Fact]
+    public void FooterDoesNotAffectBodyScrollTop()
+    {
+        var footer = FooterButtons();
+        var form = LongForm();
+        form.SetRows(
+            [
+                new CheckBoxRow(new CheckBoxLine("one")),
+                new CheckBoxRow(new CheckBoxLine("two")),
+                new CheckBoxRow(new CheckBoxLine("three")),
+                new CheckBoxRow(new CheckBoxLine("four")),
+                new CheckBoxRow(new CheckBoxLine("five")),
+                new CheckBoxRow(new CheckBoxLine("six")),
+            ],
+            [footer]);
+        FakeConsoleDriver driver = RenderWithFooter(form, bodyRows: 2, footerY: 3);
+
+        form.HandleMouse(Mouse(2, 0, MouseButton.WheelDown, MouseEventKind.Wheel));
+
+        Assert.Equal(3, form.ScrollTop);
+        Assert.Contains("Submit", driver.GetRow(3), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void TryFocus_FindsFooterRow()
+    {
+        ScrollableFormDialog form = FooterForm();
+
+        Assert.True(form.TryFocus("footerButtons"));
+        Assert.Equal("footerButtons", form.FocusedRowId);
+        Assert.Equal(FormRowRole.ButtonBar, form.FocusedRowRole);
+    }
+
+    [Fact]
+    public void DuplicateIdsAcrossBodyAndFooterThrow()
+    {
+        var form = new ScrollableFormDialog();
+
+        Assert.Throws<InvalidOperationException>(() => form.SetRows(
+            [new CheckBoxRow(new CheckBoxLine("body")) { Id = "same" }],
+            [new ButtonRow([new DialogButton("ok", "OK", 'O')], FarDialogStyles.Fill, FarDialogStyles.FocusedInput) { Id = "same" }]));
+    }
+
+    [Fact]
+    public void CursorHiddenWhenFooterButtonFocusedAndRestoredInBody()
+    {
+        ScrollableFormDialog form = FooterForm();
+        FakeConsoleDriver driver = RenderWithFooter(form, bodyRows: 2, footerY: 3);
+        Assert.True(driver.CursorVisible);
+        Assert.True(form.TryFocus("footerButtons"));
+
+        RenderWithFooter(form, driver, bodyRows: 2, footerY: 3);
+        Assert.False(driver.CursorVisible);
+
+        form.HandleKey(new ConsoleKeyInfo('\0', ConsoleKey.Tab, shift: true, alt: false, control: false));
+        form.HandleKey(new ConsoleKeyInfo('\0', ConsoleKey.Tab, shift: true, alt: false, control: false));
+        RenderWithFooter(form, driver, bodyRows: 2, footerY: 3);
+        Assert.True(driver.CursorVisible);
+        Assert.Equal("first", form.FocusedRowId);
+    }
+
+    private static ScrollableFormDialog FooterForm()
+    {
+        var form = new ScrollableFormDialog();
+        form.SetRows(
+            [
+                new TextInputRow(new CommandLineState()) { Id = "first" },
+                new CheckBoxRow(new CheckBoxLine("last")) { Id = "lastBody" },
+            ],
+            [FooterButtons()]);
+        return form;
+    }
+
+    private static ButtonRow FooterButtons() =>
+        new(
+            [
+                new DialogButton("submit", "Submit", 'S', IsDefault: true),
+                new DialogButton("cancel", "Cancel", 'C'),
+            ],
+            FarDialogStyles.Fill,
+            FarDialogStyles.FocusedInput)
+        {
+            Id = "footerButtons",
+        };
+
     private static ScrollableFormDialog LongForm() =>
         new([
             new CheckBoxRow(new CheckBoxLine("one")),
@@ -500,6 +678,23 @@ public sealed class ScrollableFormDialogTests
             screen,
             new Rect(0, 0, 20, visibleRows),
             FarDialogStyles.Border));
+    }
+
+    private static FakeConsoleDriver RenderWithFooter(ScrollableFormDialog form, int bodyRows, int footerY)
+    {
+        var driver = new FakeConsoleDriver(20, Math.Max(6, footerY + 2));
+        RenderWithFooter(form, driver, bodyRows, footerY);
+        return driver;
+    }
+
+    private static void RenderWithFooter(ScrollableFormDialog form, FakeConsoleDriver driver, int bodyRows, int footerY)
+    {
+        var screen = new ScreenRenderer(driver);
+        form.Render(new FormRenderContext(
+            screen,
+            new Rect(0, 0, 20, bodyRows),
+            FarDialogStyles.Border,
+            new Rect(0, footerY, 20, 1)));
     }
 
     private static ConsoleKeyInfo Key(ConsoleKey key) =>

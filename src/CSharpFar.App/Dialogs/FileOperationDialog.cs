@@ -169,10 +169,12 @@ internal sealed class FileOperationDialog
                 new DialogButton("cancel", "Cancel", 'C'),
             ],
             FarDialogStyles.Fill,
-            FarDialogStyles.FocusedInput);
+            FarDialogStyles.FocusedInput)
+        {
+            Id = "footerButtons",
+        };
         var form = new ScrollableFormDialog();
         string? error = null;
-        bool footerFocused = false;
 
         while (true)
         {
@@ -189,17 +191,15 @@ internal sealed class FileOperationDialog
                 preserveTimestamps,
                 copySymlinkContents,
                 useFilter,
-                showOperationOptions));
-            Draw(size, title, form, buttons, error, footerFocused);
+                showOperationOptions),
+                footerRows: [buttons]);
+            Draw(size, title, form, error);
 
             var input = _screen.ReadInput();
-            string lastBodyRowId = showOperationOptions
-                ? useFilter.Value ? "filter" : "useFilter"
-                : "conflict";
             FormInputResult result = input switch
             {
-                KeyConsoleInputEvent { Key: var key } => HandleOperationKey(form, buttons, lastBodyRowId, key, ref footerFocused),
-                MouseConsoleInputEvent mouse => HandleOperationMouse(form, buttons, mouse, ref footerFocused),
+                KeyConsoleInputEvent { Key: var key } => HandleOperationKey(form, key),
+                MouseConsoleInputEvent mouse => form.HandleMouse(mouse),
                 _ => FormInputResult.NotHandled,
             };
 
@@ -286,62 +286,18 @@ internal sealed class FileOperationDialog
 
     private static FormInputResult HandleOperationKey(
         ScrollableFormDialog form,
-        ButtonRow buttons,
-        string lastBodyRowId,
-        ConsoleKeyInfo key,
-        ref bool footerFocused)
+        ConsoleKeyInfo key)
     {
         if (key.Key == ConsoleKey.F10)
             return FormInputResult.Submit("submit");
-
-        bool shiftTab = key.Key == ConsoleKey.Tab && (key.Modifiers & ConsoleModifiers.Shift) != 0;
-        if (footerFocused)
-        {
-            if (shiftTab || key.Key == ConsoleKey.Tab)
-            {
-                footerFocused = false;
-                return FormInputResult.Handled;
-            }
-
-            return buttons.HandleKey(key, new FormRowInputContext(form.FocusableCount, focused: true));
-        }
-
-        if (key.Key == ConsoleKey.Tab &&
-            !shiftTab &&
-            form.FocusableCount > 0 &&
-            form.IsFocused(lastBodyRowId))
-        {
-            footerFocused = true;
-            return FormInputResult.Handled;
-        }
 
         FormInputResult formResult = form.HandleKey(key);
         if (formResult.IsHandled)
             return formResult;
 
-        return key.Key == ConsoleKey.Enter
+        return key.Key == ConsoleKey.Enter && form.IsFocusedOnSubmitRow
             ? FormInputResult.Submit("submit")
             : FormInputResult.NotHandled;
-    }
-
-    private static FormInputResult HandleOperationMouse(
-        ScrollableFormDialog form,
-        ButtonRow buttons,
-        MouseConsoleInputEvent mouse,
-        ref bool footerFocused)
-    {
-        FormInputResult buttonResult = buttons.HandleMouse(mouse, new FormRowMouseContext(default, 0, focused: footerFocused, screenHeight: 0));
-        if (buttonResult.IsHandled)
-        {
-            footerFocused = true;
-            return buttonResult;
-        }
-
-        FormInputResult formResult = form.HandleMouse(mouse);
-        if (formResult.IsHandled)
-            footerFocused = false;
-
-        return formResult;
     }
 
     private static FileOperationDialogResult? BuildResult(
@@ -387,7 +343,7 @@ internal sealed class FileOperationDialog
             });
     }
 
-    private void Draw(ConsoleSize size, string title, ScrollableFormDialog form, ButtonRow buttons, string? error, bool footerFocused)
+    private void Draw(ConsoleSize size, string title, ScrollableFormDialog form, string? error)
     {
         using var frame = _screen.BeginFrame();
         Rect outerBounds = OuterBounds(size);
@@ -405,17 +361,11 @@ internal sealed class FileOperationDialog
             form.Render(new FormRenderContext(
                 _screen,
                 new Rect(contentX, bodyTop, contentWidth, bodyHeight),
-                FarDialogStyles.Border));
+                FarDialogStyles.Border,
+                new Rect(contentX, buttonY, contentWidth, 1)));
 
             string errorText = error is null ? string.Empty : Truncate(error, contentWidth);
             _screen.Write(contentX, errorY, errorText.PadRight(contentWidth), FarDialogStyles.Error);
-            buttons.Render(new FormRowRenderContext(
-                _screen,
-                new Rect(contentX, buttonY, contentWidth, 1),
-                focused: footerFocused));
-
-            if (footerFocused)
-                _screen.SetCursorVisible(false);
         });
     }
 
