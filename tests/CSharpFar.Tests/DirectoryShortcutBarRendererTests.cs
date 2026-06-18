@@ -49,12 +49,13 @@ public sealed class DirectoryShortcutBarRendererTests
         new DirectoryShortcutBarRenderer(new ScreenRenderer(driver)).Render(0, 80, settings);
 
         var number = driver.GetCell(1, 0);
-        Assert.Equal(ConsoleColor.White, number.Foreground);
+        Assert.Equal(ConsoleColor.Yellow, number.Foreground);
         Assert.Equal(ConsoleColor.Blue, number.Background);
 
         var label = driver.GetCell(2, 0);
         Assert.Equal(ConsoleColor.White, label.Foreground);
         Assert.Equal(ConsoleColor.Blue, label.Background);
+        Assert.Equal("1Projects", driver.GetRow(0).Substring(1, 9));
     }
 
     [Fact]

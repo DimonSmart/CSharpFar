@@ -43,13 +43,13 @@ public sealed class ConsolePalette
 
     // ── Function key bar ──────────────────────────────────────────────────────
     public ConsoleColor FunctionKeyBarBg      { get; init; } = ConsoleColor.DarkCyan;
-    public ConsoleColor FunctionKeyNumFg      { get; init; } = ConsoleColor.White;
+    public ConsoleColor FunctionKeyNumFg      { get; init; } = ConsoleColor.Yellow;
     public ConsoleColor FunctionKeyNumBg      { get; init; } = ConsoleColor.Black;
     public ConsoleColor FunctionKeyTextFg     { get; init; } = ConsoleColor.Black;
 
     // ── Directory shortcut bar ────────────────────────────────────────────────
     public ConsoleColor DirectoryShortcutBarBg       { get; init; } = ConsoleColor.Blue;
-    public ConsoleColor DirectoryShortcutBarNumberFg { get; init; } = ConsoleColor.White;
+    public ConsoleColor DirectoryShortcutBarNumberFg { get; init; } = ConsoleColor.Yellow;
     public ConsoleColor DirectoryShortcutBarTextFg   { get; init; } = ConsoleColor.White;
 
     // Horizontal menu bar

@@ -81,10 +81,11 @@ public class PaletteRegistryTests
     {
         foreach (var palette in PaletteRegistry.All)
         {
-            Assert.Equal(ConsoleColor.White, palette.FunctionKeyNumFg);
+            Assert.Equal(ConsoleColor.Yellow, palette.FunctionKeyNumFg);
             Assert.Equal(ConsoleColor.Black, palette.FunctionKeyNumBg);
             Assert.Equal(ConsoleColor.Black, palette.FunctionKeyTextFg);
             Assert.Equal(palette.CursorActiveBg, palette.FunctionKeyBarBg);
+            Assert.Equal(ConsoleColor.Yellow, palette.DirectoryShortcutBarNumberFg);
         }
     }
 
