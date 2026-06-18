@@ -169,27 +169,20 @@ public sealed class ListWithButtonsDialog<T>
             layout.ListBounds.Y,
             1,
             layout.ListBounds.Height);
-        bool wheelInListOrScrollbar = mouse.Kind != MouseEventKind.Wheel ||
-            mouse.Y >= layout.ListBounds.Y && mouse.Y < layout.ListBounds.Bottom &&
-            (mouse.X >= layout.ListBounds.X && mouse.X < layout.ListBounds.Right ||
-             mouse.X == scrollbarBounds.X);
-        if (wheelInListOrScrollbar)
+        var listInput = _list.HandleMouse(
+            mouse,
+            layout.ListBounds,
+            scrollbarBounds,
+            layout.ListBounds.Height,
+            ref scrollbarDrag,
+            confirmOnClick: false,
+            confirmOnDoubleClick: true);
+        if (listInput.IsHandled)
         {
-            var listInput = _list.HandleMouse(
-                mouse,
-                layout.ListBounds,
-                scrollbarBounds,
-                layout.ListBounds.Height,
-                ref scrollbarDrag,
-                confirmOnClick: false,
-                confirmOnDoubleClick: true);
-            if (listInput.IsHandled)
-            {
-                focusButtons = false;
-                if (listInput.Kind == ScrollableListInputResultKind.Confirmed)
-                    result = CreateResult(DefaultListActionId);
-                return true;
-            }
+            focusButtons = false;
+            if (listInput.Kind == ScrollableListInputResultKind.Confirmed)
+                result = CreateResult(DefaultListActionId);
+            return true;
         }
 
         if (_buttonBar.TryHandleInput(mouse, ref focusedButton, out string? buttonId))
