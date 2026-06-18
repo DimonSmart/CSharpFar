@@ -156,6 +156,30 @@ public sealed class Spec012SearchDialogTests
         Assert.Same(parallelismRowState, secondInputs[2].State);
     }
 
+    [Fact]
+    public void Enter_SubmitsFromRowsMarkedForSubmission()
+    {
+        IReadOnlyList<IFormRow> rows = BuildSearchRows(
+            new TextInputRowState(),
+            new TextInputRowState(),
+            new TextInputRowState());
+        var form = new ScrollableFormDialog(rows);
+        var method = typeof(SearchDialog).GetMethod(
+            "HandleSearchKey",
+            System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static)
+            ?? throw new InvalidOperationException("SearchDialog.HandleSearchKey was not found.");
+
+        foreach (string rowId in new[] { "mask", "text", "parallelism" })
+        {
+            Assert.True(form.TryFocus(rowId));
+
+            var result = (FormInputResult)method.Invoke(null, [form, Key(ConsoleKey.Enter)])!;
+
+            Assert.Equal(FormInputResultKind.Submit, result.Kind);
+            Assert.Equal("find", result.Command);
+        }
+    }
+
     private static IReadOnlyList<IFormRow> BuildSearchRows(
         TextInputRowState maskRowState,
         TextInputRowState textRowState,

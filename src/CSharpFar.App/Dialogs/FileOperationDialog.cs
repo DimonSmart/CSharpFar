@@ -134,7 +134,10 @@ internal sealed class FileOperationDialog
                 SecurityModes,
                 SecurityModeLabel,
                 Array.IndexOf(SecurityModes, initialOptions.SecurityMode) is var securityIndex && securityIndex >= 0 ? securityIndex : 0),
-            "Access rights:");
+            "Access rights:")
+        {
+            Id = "security",
+        };
         var conflictChoice = new ChoiceRow<ConflictDecisionMode>(
             conflictModes,
             ConflictLabel,
@@ -142,12 +145,24 @@ internal sealed class FileOperationDialog
         var conflictChoiceRow = new MultiLineChoiceFormRow<ConflictDecisionMode>(
             conflictChoice,
             string.Empty,
-            [Math.Min(4, conflictModes.Count), conflictModes.Count]);
-        var preserveTimestamps = new CheckBoxRow(new CheckBoxLine("Preserve all timestamps", initialOptions.PreserveTimestamps));
+            [Math.Min(4, conflictModes.Count), conflictModes.Count])
+        {
+            Id = "conflict",
+        };
+        var preserveTimestamps = new CheckBoxRow(new CheckBoxLine("Preserve all timestamps", initialOptions.PreserveTimestamps))
+        {
+            Id = "preserveTimestamps",
+        };
         var copySymlinkContents = new CheckBoxRow(new CheckBoxLine(
             "Copy contents of symbolic links",
-            initialOptions.SymlinkMode == SymlinkCopyMode.CopyTargetContents));
-        var useFilter = new CheckBoxRow(new CheckBoxLine("Use filter", !string.IsNullOrWhiteSpace(initialOptions.FileMask)));
+            initialOptions.SymlinkMode == SymlinkCopyMode.CopyTargetContents))
+        {
+            Id = "copySymlinkContents",
+        };
+        var useFilter = new CheckBoxRow(new CheckBoxLine("Use filter", !string.IsNullOrWhiteSpace(initialOptions.FileMask)))
+        {
+            Id = "useFilter",
+        };
         var buttons = new ButtonRow(
             [
                 new DialogButton("submit", actionLabel, actionLabel[0], IsDefault: true),
@@ -178,9 +193,12 @@ internal sealed class FileOperationDialog
             Draw(size, title, form, buttons, error, footerFocused);
 
             var input = _screen.ReadInput();
+            string lastBodyRowId = showOperationOptions
+                ? useFilter.Value ? "filter" : "useFilter"
+                : "conflict";
             FormInputResult result = input switch
             {
-                KeyConsoleInputEvent { Key: var key } => HandleOperationKey(form, buttons, key, ref footerFocused),
+                KeyConsoleInputEvent { Key: var key } => HandleOperationKey(form, buttons, lastBodyRowId, key, ref footerFocused),
                 MouseConsoleInputEvent mouse => HandleOperationMouse(form, buttons, mouse, ref footerFocused),
                 _ => FormInputResult.NotHandled,
             };
@@ -228,7 +246,11 @@ internal sealed class FileOperationDialog
         var rows = new List<IFormRow>
         {
             new LabelRow(prompt, fill),
-            new TextInputRow(destination, destinationHistory, destinationRowState),
+            new TextInputRow(destination, destinationHistory, destinationRowState)
+            {
+                Id = "destination",
+                SubmitOnEnter = true,
+            },
             new SeparatorRow(fill, drawLine: false),
         };
 
@@ -251,7 +273,11 @@ internal sealed class FileOperationDialog
             rows.Add(new LabelRow("Filter mask:", fill));
             rows.Add(useFilter.Value
                 ? new TextInputRow(filter, filterHistory, filterRowState)
-                : new LabelRow(SingleLineTextInput.VisibleText(filter, 60), fill));
+                {
+                    Id = "filter",
+                    SubmitOnEnter = true,
+                }
+                : new LabelRow(SingleLineTextInput.VisibleText(filter, 60), fill) { Id = "filter" });
             rows.Add(new SeparatorRow(fill, drawLine: false));
         }
 
@@ -261,6 +287,7 @@ internal sealed class FileOperationDialog
     private static FormInputResult HandleOperationKey(
         ScrollableFormDialog form,
         ButtonRow buttons,
+        string lastBodyRowId,
         ConsoleKeyInfo key,
         ref bool footerFocused)
     {
@@ -282,7 +309,7 @@ internal sealed class FileOperationDialog
         if (key.Key == ConsoleKey.Tab &&
             !shiftTab &&
             form.FocusableCount > 0 &&
-            form.FocusIndex == form.FocusableCount - 1)
+            form.IsFocused(lastBodyRowId))
         {
             footerFocused = true;
             return FormInputResult.Handled;

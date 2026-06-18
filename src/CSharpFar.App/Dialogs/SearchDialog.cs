@@ -200,9 +200,9 @@ internal sealed class SearchDialog
         return
         [
             new LabelRow("A file mask or several file masks:", fill),
-            new TextInputRow(mask, maskHistory, maskRowState),
+            new TextInputRow(mask, maskHistory, maskRowState) { Id = "mask", SubmitOnEnter = true },
             new LabelRow("Containing text:", fill),
-            new TextInputRow(text, textHistory, textRowState),
+            new TextInputRow(text, textHistory, textRowState) { Id = "text", SubmitOnEnter = true },
             new LabelRow("Using code page: Automatic detection", fill),
             caseSensitive,
             wholeWords,
@@ -211,7 +211,11 @@ internal sealed class SearchDialog
             searchLinks,
             scope,
             new LabelRow("Parallelism:", fill),
-            new TextInputRow(parallelism, parallelismHistory, parallelismRowState, width: 8),
+            new TextInputRow(parallelism, parallelismHistory, parallelismRowState, width: 8)
+            {
+                Id = "parallelism",
+                SubmitOnEnter = true,
+            },
             new SeparatorRow(fill, drawLine: false),
             buttons,
         ];
@@ -221,7 +225,7 @@ internal sealed class SearchDialog
     {
         if (key.Key == ConsoleKey.F10)
             return FormInputResult.Submit("find");
-        if (key.Key == ConsoleKey.Enter && form.FocusIndex is 0 or 1 or 8)
+        if (key.Key == ConsoleKey.Enter && form.IsFocusedOnSubmitRow)
             return FormInputResult.Submit("find");
 
         return form.HandleKey(key);

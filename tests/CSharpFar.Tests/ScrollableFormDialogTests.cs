@@ -10,6 +10,80 @@ namespace CSharpFar.Tests;
 public sealed class ScrollableFormDialogTests
 {
     [Fact]
+    public void FocusedRowId_ReturnsCurrentFocusableRowId()
+    {
+        var form = new ScrollableFormDialog([
+            new LabelRow("label", FarDialogStyles.Fill),
+            new TextInputRow(new CommandLineState()) { Id = "first" },
+            new CheckBoxRow(new CheckBoxLine("second")) { Id = "second" },
+        ]);
+
+        Assert.Equal("first", form.FocusedRowId);
+
+        form.HandleKey(Key(ConsoleKey.Tab));
+
+        Assert.Equal("second", form.FocusedRowId);
+    }
+
+    [Fact]
+    public void TryFocus_MovesFocusToRowById()
+    {
+        var form = new ScrollableFormDialog([
+            new CheckBoxRow(new CheckBoxLine("first")) { Id = "first" },
+            new LabelRow("label", FarDialogStyles.Fill),
+            new CheckBoxRow(new CheckBoxLine("target")) { Id = "target" },
+        ]);
+        Render(form, visibleRows: 1);
+
+        Assert.True(form.TryFocus("target"));
+
+        Assert.Equal("target", form.FocusedRowId);
+        Assert.Equal(2, form.ScrollTop);
+    }
+
+    [Fact]
+    public void TryFocus_ReturnsFalseForMissingId()
+    {
+        var form = new ScrollableFormDialog([
+            new CheckBoxRow(new CheckBoxLine("first")) { Id = "first" },
+            new CheckBoxRow(new CheckBoxLine("second")) { Id = "second" },
+        ]);
+        int initialFocusIndex = form.FocusIndex;
+
+        Assert.False(form.TryFocus("missing"));
+
+        Assert.Equal(initialFocusIndex, form.FocusIndex);
+    }
+
+    [Fact]
+    public void IsFocusedOnSubmitRow_UsesSubmitOnEnter()
+    {
+        var form = new ScrollableFormDialog([
+            new TextInputRow(new CommandLineState()) { Id = "search", SubmitOnEnter = true },
+            new CheckBoxRow(new CheckBoxLine("option")) { Id = "option" },
+        ]);
+
+        Assert.True(form.IsFocusedOnSubmitRow);
+
+        form.HandleKey(Key(ConsoleKey.Tab));
+
+        Assert.False(form.IsFocusedOnSubmitRow);
+    }
+
+    [Fact]
+    public void SetRows_DuplicateFocusableIds_Throws()
+    {
+        var form = new ScrollableFormDialog();
+
+        InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() => form.SetRows([
+            new TextInputRow(new CommandLineState()) { Id = "duplicate" },
+            new CheckBoxRow(new CheckBoxLine("second")) { Id = "duplicate" },
+        ]));
+
+        Assert.Contains("duplicate", exception.Message);
+    }
+
+    [Fact]
     public void InitialFocus_UsesFirstFocusableRow()
     {
         var form = new ScrollableFormDialog([
