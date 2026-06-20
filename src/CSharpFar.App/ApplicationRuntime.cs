@@ -51,9 +51,7 @@ internal sealed class ApplicationRuntime
                 }
                 else
                 {
-                    if (renderRequest.IsResize)
-                        _context.RestoreHiddenScreen();
-                    _context.RenderCommandLineOnlyUntilStable();
+                    _context.RenderCommandLineOnlyUntilStable(renderRequest.IsResize);
                 }
             }
 
@@ -86,8 +84,7 @@ internal sealed class ApplicationRuntimeContext
     public required Action CaptureUnderlay { get; init; }
     public required Action StartWatchingInitialPanels { get; init; }
     public required Action RenderUntilStable { get; init; }
-    public required Action RenderCommandLineOnlyUntilStable { get; init; }
-    public required Action RestoreHiddenScreen { get; init; }
+    public required Action<bool> RenderCommandLineOnlyUntilStable { get; init; }
     public required Action RestoreTerminal { get; init; }
     public required Action ResetWaitToken { get; init; }
     public required Action ProcessPendingRefreshes { get; init; }

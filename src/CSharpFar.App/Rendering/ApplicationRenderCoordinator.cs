@@ -42,10 +42,13 @@ internal sealed class ApplicationRenderCoordinator
         }
     }
 
-    public void RenderCommandLineOnlyUntilStable()
+    public void RenderCommandLineOnlyUntilStable(bool restoreHiddenScreenBeforeEachAttempt = false)
     {
         while (_context.App.Running)
         {
+            if (restoreHiddenScreenBeforeEachAttempt)
+                _context.TerminalSurface.RestoreHiddenScreen();
+
             RenderCommandLineOnly();
             if (!_context.Screen.FrameWasInterrupted)
             {

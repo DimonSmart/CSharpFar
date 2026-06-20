@@ -262,7 +262,6 @@ public sealed class Application
         callbacks.StartWatchingInitialPanels = StartWatchingInitialPanels;
         callbacks.RenderUntilStable = _renderCoordinator.RenderUntilStable;
         callbacks.RenderCommandLineOnlyUntilStable = _renderCoordinator.RenderCommandLineOnlyUntilStable;
-        callbacks.RestoreHiddenScreen = _terminalSurface.RestoreHiddenScreen;
         callbacks.RestoreTerminal = _terminalSurface.RestoreTerminal;
         callbacks.HandleResizeInput = HandleRuntimeResizeInput;
         callbacks.CheckViewportAfterInput = CheckRuntimeViewportAfterInput;

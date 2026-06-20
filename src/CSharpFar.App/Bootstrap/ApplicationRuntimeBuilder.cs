@@ -22,8 +22,8 @@ internal static class ApplicationRuntimeBuilder
                 CaptureUnderlay = () => callbacks.CaptureUnderlay(),
                 StartWatchingInitialPanels = () => callbacks.StartWatchingInitialPanels(),
                 RenderUntilStable = () => callbacks.RenderUntilStable(),
-                RenderCommandLineOnlyUntilStable = () => callbacks.RenderCommandLineOnlyUntilStable(),
-                RestoreHiddenScreen = () => callbacks.RestoreHiddenScreen(),
+                RenderCommandLineOnlyUntilStable = restoreHiddenScreenBeforeEachAttempt =>
+                    callbacks.RenderCommandLineOnlyUntilStable(restoreHiddenScreenBeforeEachAttempt),
                 RestoreTerminal = () => callbacks.RestoreTerminal(),
                 ResetWaitToken = autoRefresh.ResetWaitToken,
                 ProcessPendingRefreshes = autoRefresh.ProcessPendingRefreshes,

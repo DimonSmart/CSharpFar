@@ -225,6 +225,48 @@ public sealed class ApplicationNavigationTests : IDisposable
     }
 
     [Fact]
+    public void Run_HiddenPanelsInterruptedResize_RestoresUnderlayBeforeEveryAttempt()
+    {
+        var fs = new FakeFileSystemService();
+        fs.AddDirectory(_tempDir);
+
+        var driver = new FakeConsoleDriver(width: 40, height: 8);
+        driver.EnqueueKey(Key(ConsoleKey.O, keyChar: '\u000f', control: true));
+        driver.EnqueueInput(new ConsoleResizeInputEvent());
+        driver.EnqueueKey(Key(ConsoleKey.F10));
+        driver.BeforeReadInput = d =>
+        {
+            d.BeforeReadInput = afterHide =>
+            {
+                afterHide.SetSize(40, 9);
+                afterHide.ClearRecordedOperations();
+
+                bool interrupted = false;
+                afterHide.Wrote += _ =>
+                {
+                    if (interrupted)
+                        return;
+
+                    interrupted = true;
+                    afterHide.SetSize(40, 8);
+                };
+
+                afterHide.BeforeReadInput = afterResize =>
+                {
+                    Assert.True(interrupted);
+                    Assert.Equal(2, afterResize.RestoreCallCount);
+                    Assert.Contains(">", afterResize.GetRow(6), StringComparison.Ordinal);
+                    Assert.DoesNotContain(">", afterResize.GetRow(7), StringComparison.Ordinal);
+                    Assert.Equal(6, afterResize.CursorY);
+                };
+            };
+        };
+
+        var app = CreateApp(fs, driver, _tempDir);
+        app.Run();
+    }
+
+    [Fact]
     public void Run_HiddenPanelsInputAfterScroll_ReturnsViewportToBottom()
     {
         var fs = new FakeFileSystemService();

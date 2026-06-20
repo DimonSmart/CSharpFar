@@ -119,6 +119,7 @@ internal static class CommandServicesFactory
             commandCompletionController,
             commandHistoryNavigator,
             menuController,
+            terminalSurface,
             saveSettings,
             volumeService,
             fileMetadata,

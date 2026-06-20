@@ -45,6 +45,14 @@ public sealed class ApplicationCommandRegistryTests : IDisposable
         Assert.Contains(DirectoryShortcutCommandIds.Navigate, commandIds);
     }
 
+    [Fact]
+    public void CreateDefault_ContainsTerminalDiagnosticsCommand()
+    {
+        var registry = ApplicationCommandRegistry.CreateDefault();
+
+        Assert.Contains(MenuCommandIds.DiagnosticsPrintTerminalInfo, registry.CommandIds);
+    }
+
     [Theory]
     [InlineData(MenuCommandIds.PanelSetViewMode)]
     [InlineData(MenuCommandIds.PanelSetSortMode)]

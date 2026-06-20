@@ -144,6 +144,9 @@ public sealed class DefaultMenuDefinitionProvider
             CheckBox("Options.showParentDirectoryInRootFolders", "Show \"..\" in root folders", 'D',
                 MenuCommandIds.SettingsToggleShowParentDirectoryInRootFolders, null,
                 options.ShowParentDirectoryInRootFolders),
+            Separator("Options.sep.diagnostics"),
+            Command("Options.diagnostics", "Terminal diagnostics", 'G',
+                MenuCommandIds.DiagnosticsPrintTerminalInfo),
         ];
 
         if (context.CanSaveSettings)

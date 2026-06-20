@@ -34,6 +34,7 @@ public sealed class FakeConsoleDriver : IConsoleDriver, IConsoleOutputModeDriver
     public bool CursorVisible { get; private set; } = true;
     public int WriteAtCallCount { get; private set; }
     public int ClearRegionCallCount { get; private set; }
+    public int RestoreCallCount { get; private set; }
     public int SetCursorVisibleCallCount { get; private set; }
     public int TrySetCursorPositionInViewportCallCount { get; private set; }
     public int TryScrollViewportToBottomCallCount { get; private set; }
@@ -286,6 +287,7 @@ public sealed class FakeConsoleDriver : IConsoleDriver, IConsoleOutputModeDriver
 
     public void Restore(ScreenSnapshot snapshot)
     {
+        RestoreCallCount++;
         for (int row = 0; row < snapshot.Region.Height; row++)
             for (int col = 0; col < snapshot.Region.Width; col++)
             {
@@ -320,6 +322,7 @@ public sealed class FakeConsoleDriver : IConsoleDriver, IConsoleOutputModeDriver
     {
         WriteAtCallCount = 0;
         ClearRegionCallCount = 0;
+        RestoreCallCount = 0;
         SetCursorVisibleCallCount = 0;
         TrySetCursorPositionInViewportCallCount = 0;
         TryScrollViewportToBottomCallCount = 0;

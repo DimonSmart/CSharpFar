@@ -43,8 +43,7 @@ internal sealed class ApplicationServiceCallbacks
     public Action CaptureUnderlay { get; set; } = () => throw Missing();
     public Action StartWatchingInitialPanels { get; set; } = () => throw Missing();
     public Action RenderUntilStable { get; set; } = () => throw Missing();
-    public Action RenderCommandLineOnlyUntilStable { get; set; } = () => throw Missing();
-    public Action RestoreHiddenScreen { get; set; } = () => throw Missing();
+    public Action<bool> RenderCommandLineOnlyUntilStable { get; set; } = _ => throw Missing();
     public Action RestoreTerminal { get; set; } = () => throw Missing();
     public Func<ApplicationRuntimeRenderRequest> HandleResizeInput { get; set; } =
         () => throw Missing();

@@ -36,6 +36,7 @@ internal static class DefaultApplicationCommands
         new PanelToggleReverseSortCommand(),
         new PanelRefreshCommand(),
         new ModuleOpenCommand(),
+        new PrintTerminalDiagnosticsCommand(),
         new OpenSettingsCommand(),
         new OpenDirectoryShortcutEditorCommand(),
         new NavigateToDirectoryShortcutCommand(),

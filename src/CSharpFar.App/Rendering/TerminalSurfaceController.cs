@@ -29,6 +29,13 @@ internal sealed class TerminalSurfaceController
     public bool UsesTerminalScreenMode =>
         _terminalScreenMode?.IsSupported == true;
 
+    public TerminalSurfaceDiagnostics GetDiagnostics() =>
+        new(
+            UsesTerminalScreenMode,
+            _terminalScreenMode?.IsSupported,
+            _terminalScreenMode?.IsApplicationScreenActive,
+            UsesLegacyConsoleMode: !UsesTerminalScreenMode);
+
     public void CaptureUnderlay() =>
         _shellUnderlay.Capture();
 

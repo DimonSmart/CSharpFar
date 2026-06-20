@@ -9,6 +9,8 @@ public static class MenuCommandIds
 
     public const string ModuleOpen = "module.open";
 
+    public const string DiagnosticsPrintTerminalInfo = "diagnostics.printTerminalInfo";
+
     public const string SettingsOpenPanelSettings = "settings.openPanelSettings";
     public const string SettingsOpenDirectoryShortcuts = "settings.openDirectoryShortcuts";
     public const string SettingsToggleShowHiddenAndSystemFiles = "settings.toggleShowHiddenAndSystemFiles";

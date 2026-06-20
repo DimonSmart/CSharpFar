@@ -484,6 +484,9 @@ public sealed class Spec008MenuProviderAndCommandTests : IDisposable
             item.CommandArgs is ModuleOpenCommandArgs { ActionId: var actionId } &&
             actionId == FtpModuleIds.MenuActionId);
         Assert.Contains(menu.Items[3].Children, item => item.CommandId == MenuCommandIds.SettingsSave);
+        Assert.Contains(menu.Items[3].Children, item =>
+            item.Id == "Options.diagnostics" &&
+            item.CommandId == MenuCommandIds.DiagnosticsPrintTerminalInfo);
     }
 
     [Fact]

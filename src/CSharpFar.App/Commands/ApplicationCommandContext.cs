@@ -42,6 +42,7 @@ internal sealed class ApplicationCommandContext
     private readonly CommandHistoryNavigator _commandHistoryNavigator;
     private readonly TopMenuController _menuController;
     private readonly DefaultMenuDefinitionProvider _menuProvider;
+    private readonly TerminalSurfaceController _terminalSurface;
     private readonly Action? _saveSettings;
     private readonly IVolumeService? _volumeService;
     private readonly IFileMetadataService _fileMetadata;
@@ -77,6 +78,7 @@ internal sealed class ApplicationCommandContext
         CommandCompletionController commandCompletionController,
         CommandHistoryNavigator commandHistoryNavigator,
         TopMenuController menuController,
+        TerminalSurfaceController terminalSurface,
         Action? saveSettings,
         IVolumeService? volumeService,
         IFileMetadataService fileMetadata,
@@ -111,6 +113,7 @@ internal sealed class ApplicationCommandContext
         _commandCompletionController = commandCompletionController;
         _commandHistoryNavigator = commandHistoryNavigator;
         _menuController = menuController;
+        _terminalSurface = terminalSurface;
         _saveSettings = saveSettings;
         _volumeService = volumeService;
         _fileMetadata = fileMetadata;
@@ -202,6 +205,9 @@ internal sealed class ApplicationCommandContext
     public bool CanSaveSettings => _saveSettings is not null;
 
     public bool HasVisiblePanels => _panelWorkspace.HasVisiblePanels;
+
+    public TerminalSurfaceDiagnostics GetTerminalDiagnostics() =>
+        _terminalSurface.GetDiagnostics();
 
     public void SaveSettings() => _saveSettings?.Invoke();
 
