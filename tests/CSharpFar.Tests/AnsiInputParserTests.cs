@@ -1,5 +1,6 @@
 using System.Text;
 using CSharpFar.Console.Ansi;
+using CSharpFar.Console.Input;
 
 namespace CSharpFar.Tests;
 
@@ -102,5 +103,99 @@ public sealed class AnsiInputParserTests
 
         Assert.Equal(ConsoleKey.UpArrow, result.Key.Key);
         Assert.Equal([0x1b, 0x5b, 0x41], result.Bytes);
+    }
+
+    [Theory]
+    [InlineData("\u001b[<0;10;5M", MouseButton.Left, MouseEventKind.Down, 9, 4)]
+    [InlineData("\u001b[<0;10;5m", MouseButton.Left, MouseEventKind.Up, 9, 4)]
+    [InlineData("\u001b[<1;10;5M", MouseButton.Middle, MouseEventKind.Down, 9, 4)]
+    [InlineData("\u001b[<2;10;5M", MouseButton.Right, MouseEventKind.Down, 9, 4)]
+    [InlineData("\u001b[<32;10;5M", MouseButton.Left, MouseEventKind.Move, 9, 4)]
+    [InlineData("\u001b[<64;10;5M", MouseButton.WheelUp, MouseEventKind.Wheel, 9, 4)]
+    [InlineData("\u001b[<65;10;5M", MouseButton.WheelDown, MouseEventKind.Wheel, 9, 4)]
+    public void SgrMouseInputParser_ParsesMouseEvents(
+        string sequence,
+        MouseButton expectedButton,
+        MouseEventKind expectedKind,
+        int expectedX,
+        int expectedY)
+    {
+        var lastPressedButton = MouseButton.Left;
+
+        bool parsed = SgrMouseInputParser.TryParse(
+            Encoding.ASCII.GetBytes(sequence),
+            ref lastPressedButton,
+            out var result,
+            out var error);
+
+        Assert.True(parsed, error);
+        Assert.NotNull(result);
+        Assert.Equal(expectedButton, result.Mouse.Button);
+        Assert.Equal(expectedKind, result.Mouse.Kind);
+        Assert.Equal(expectedX, result.Mouse.X);
+        Assert.Equal(expectedY, result.Mouse.Y);
+    }
+
+    [Theory]
+    [InlineData("\u001b[<4;10;5M", MouseKeyModifiers.Shift)]
+    [InlineData("\u001b[<8;10;5M", MouseKeyModifiers.Alt)]
+    [InlineData("\u001b[<16;10;5M", MouseKeyModifiers.Control)]
+    [InlineData("\u001b[<28;10;5M", MouseKeyModifiers.Shift | MouseKeyModifiers.Alt | MouseKeyModifiers.Control)]
+    public void SgrMouseInputParser_ParsesModifiers(string sequence, MouseKeyModifiers expectedModifiers)
+    {
+        var lastPressedButton = MouseButton.Left;
+
+        bool parsed = SgrMouseInputParser.TryParse(
+            Encoding.ASCII.GetBytes(sequence),
+            ref lastPressedButton,
+            out var result,
+            out var error);
+
+        Assert.True(parsed, error);
+        Assert.NotNull(result);
+        Assert.Equal(expectedModifiers, result.Mouse.Modifiers);
+    }
+
+    [Fact]
+    public void SgrMouseInputParser_UsesLastPressedButtonForRelease()
+    {
+        var lastPressedButton = MouseButton.Left;
+        Assert.True(SgrMouseInputParser.TryParse(
+            Encoding.ASCII.GetBytes("\u001b[<2;10;5M"),
+            ref lastPressedButton,
+            out _,
+            out _));
+
+        Assert.True(SgrMouseInputParser.TryParse(
+            Encoding.ASCII.GetBytes("\u001b[<0;10;5m"),
+            ref lastPressedButton,
+            out var release,
+            out var error), error);
+
+        Assert.NotNull(release);
+        Assert.Equal(MouseButton.Right, release.Mouse.Button);
+        Assert.Equal(MouseEventKind.Up, release.Mouse.Kind);
+        Assert.Equal(0, release.EncodedButton);
+        Assert.Equal('m', release.Final);
+    }
+
+    [Theory]
+    [InlineData("\u001b[A", null)]
+    [InlineData("abc", null)]
+    [InlineData("\u001b[<0;10M", "SGR mouse sequence must contain Cb, Px, and Py.")]
+    [InlineData("\u001b[<x;10;5M", "SGR mouse sequence contains a non-numeric or overflowing field.")]
+    public void SgrMouseInputParser_RejectsNonMouseSequences(string sequence, string? expectedError)
+    {
+        var lastPressedButton = MouseButton.Left;
+
+        bool parsed = SgrMouseInputParser.TryParse(
+            Encoding.ASCII.GetBytes(sequence),
+            ref lastPressedButton,
+            out var result,
+            out var error);
+
+        Assert.False(parsed);
+        Assert.Null(result);
+        Assert.Equal(expectedError, error);
     }
 }

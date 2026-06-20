@@ -1,8 +1,10 @@
 using CSharpFar.App.Bootstrap;
 using CSharpFar.App.Settings;
 using CSharpFar.Console.Ansi;
+using CSharpFar.Console.Input;
 using CSharpFar.Platform.Unix;
 using System.Reflection;
+using System.Runtime.InteropServices;
 
 var settingsStore = JsonSettingsStore.Create(
     createDefaultSettings: UnixPlatformServices.CreateDefaultSettings);
@@ -26,6 +28,9 @@ if (args is ["--check-terminal", "--input"])
 
 if (args is ["--check-terminal", "--raw-input"])
     return RunRawTerminalInputCheck();
+
+if (args is ["--check-terminal", "--mouse-input"])
+    return RunMouseTerminalInputCheck();
 
 if (args is ["--check-terminal", "--enhanced-input"] or ["--check-terminal", "--kitty-input"])
     return RunEnhancedTerminalInputCheck();
@@ -128,6 +133,27 @@ static int RunEnhancedTerminalInputCheck()
     {
         using var driver = new AnsiTerminalConsoleDriver();
         RunTerminalEnhancedInputCheck(driver);
+        return 0;
+    }
+    catch (Exception ex) when (ex is InvalidOperationException or PlatformNotSupportedException)
+    {
+        Console.Error.WriteLine(ex.Message);
+        return 1;
+    }
+}
+
+static int RunMouseTerminalInputCheck()
+{
+    if (Console.IsInputRedirected || Console.IsOutputRedirected)
+    {
+        Console.WriteLine("Terminal check skipped: stdin/stdout are not attached to a terminal.");
+        return 0;
+    }
+
+    try
+    {
+        using var driver = new AnsiTerminalConsoleDriver();
+        RunTerminalMouseInputCheck(driver);
         return 0;
     }
     catch (Exception ex) when (ex is InvalidOperationException or PlatformNotSupportedException)
@@ -297,6 +323,162 @@ static void RunTerminalEnhancedInputCheck(AnsiTerminalConsoleDriver driver)
         driver.RestoreTerminal();
     }
 }
+
+static void RunTerminalMouseInputCheck(AnsiTerminalConsoleDriver driver)
+{
+    const string EnableMouse = "\x1b[?1002h\x1b[?1006h";
+    const string DisableMouse = "\x1b[?1002l\x1b[?1006l";
+    string logPath = Path.Combine(
+        Path.GetTempPath(),
+        $"csharpfar-mouse-input-check-{DateTime.Now:yyyyMMdd-HHmmss}.log");
+
+    using var log = new StreamWriter(logPath, append: false) { AutoFlush = true };
+    driver.EnterApplicationScreen();
+    driver.Clear();
+    driver.SetCursorVisible(false);
+    driver.EnableRawInputMode();
+
+    try
+    {
+        driver.WriteRawControl(EnableMouse);
+        PrintMouseInputHeader(log, logPath);
+
+        int eventNumber = 0;
+        var lastPressedButton = MouseButton.Left;
+        var lastSize = driver.GetSize();
+        while (true)
+        {
+            var size = driver.GetSize();
+            if (size.Width != lastSize.Width || size.Height != lastSize.Height)
+            {
+                lastSize = size;
+                PrintDiagnosticEvent(
+                    log,
+                    ++eventNumber,
+                    [$"resize: width={size.Width} height={size.Height}"]);
+            }
+
+            if (!driver.TryReadRawInput(100, out var input))
+                continue;
+
+            if (SgrMouseInputParser.TryParse(
+                    input.Bytes,
+                    ref lastPressedButton,
+                    out var mouseResult,
+                    out string? parseError))
+            {
+                var mouse = mouseResult.Mouse;
+                PrintDiagnosticEvent(
+                    log,
+                    ++eventNumber,
+                    [
+                        $"bytes : {FormatBytes(input.Bytes)}",
+                        $"text  : {FormatInputText(input.Bytes)}",
+                        $"mouse : {mouse.Kind} {mouse.Button} x={mouse.X} y={mouse.Y} " +
+                        $"mods={FormatMouseModifiers(mouse.Modifiers)} cb={mouseResult.EncodedButton} final={mouseResult.Final}",
+                    ]);
+            }
+            else
+            {
+                var lines = new List<string>
+                {
+                    $"bytes : {FormatBytes(input.Bytes)}",
+                    $"text  : {FormatInputText(input.Bytes)}",
+                    $"key   : {input.Key.Key} mods={FormatConsoleModifiers(input.Key.Modifiers)}",
+                };
+                if (parseError is not null)
+                    lines.Add($"mouse parse error: {parseError}");
+
+                PrintDiagnosticEvent(log, ++eventNumber, lines);
+            }
+
+            Console.Out.Flush();
+            if (input.Key.Key == ConsoleKey.Escape ||
+                (input.Key.Key == ConsoleKey.C && input.Key.Modifiers.HasFlag(ConsoleModifiers.Control)))
+            {
+                break;
+            }
+        }
+    }
+    finally
+    {
+        driver.WriteRawControl(DisableMouse);
+        driver.RestoreTerminal();
+    }
+}
+
+static void PrintMouseInputHeader(StreamWriter log, string logPath)
+{
+    string[] environmentVariables =
+    [
+        "TERM",
+        "COLORTERM",
+        "WT_SESSION",
+        "WSL_DISTRO_NAME",
+        "SSH_TTY",
+        "TTY",
+    ];
+
+    var lines = new List<string>
+    {
+        "CSharpFar Unix mouse input check",
+        "This is an experiment. It does not represent production Unix input behavior.",
+        "Press Esc or Ctrl+C to exit.",
+        "",
+        $"Log file: {logPath}",
+        $"Date/time: {DateTimeOffset.Now:O}",
+        $"OS: {RuntimeInformation.OSDescription}",
+        $"Process architecture: {RuntimeInformation.ProcessArchitecture}",
+        "",
+        "Environment:",
+    };
+    lines.AddRange(environmentVariables.Select(
+        name => $"  {name}={Environment.GetEnvironmentVariable(name) ?? "<unset>"}"));
+    lines.AddRange(
+    [
+        "",
+        "Mouse mode:",
+        "  enabled: ESC[?1002h ESC[?1006h",
+        "  disabled on exit: ESC[?1002l ESC[?1006l",
+        "",
+        "Manual checklist:",
+        "  1. Type abc",
+        "  2. Press arrows, Enter, Tab, Backspace, Esc",
+        "  3. Click left/right/middle",
+        "  4. Double click left",
+        "  5. Drag with left button",
+        "  6. Use mouse wheel up/down",
+        "  7. Shift+click, Ctrl+click, Alt+click",
+        "  8. Resize terminal window",
+        "",
+    ]);
+
+    foreach (string line in lines)
+    {
+        Console.WriteLine(line);
+        log.WriteLine(line);
+    }
+}
+
+static void PrintDiagnosticEvent(StreamWriter log, int eventNumber, IEnumerable<string> lines)
+{
+    Console.WriteLine($"#{eventNumber}");
+    log.WriteLine($"#{eventNumber}");
+    foreach (string line in lines)
+    {
+        Console.WriteLine(line);
+        log.WriteLine(line);
+    }
+
+    Console.WriteLine();
+    log.WriteLine();
+}
+
+static string FormatMouseModifiers(MouseKeyModifiers modifiers) =>
+    modifiers == MouseKeyModifiers.None ? "None" : modifiers.ToString();
+
+static string FormatConsoleModifiers(ConsoleModifiers modifiers) =>
+    modifiers == 0 ? "None" : modifiers.ToString();
 
 static int? SendEnhancedInputQuery(
     AnsiTerminalConsoleDriver driver,
