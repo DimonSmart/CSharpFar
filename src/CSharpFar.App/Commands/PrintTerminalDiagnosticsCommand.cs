@@ -1,6 +1,7 @@
 using System.Runtime.InteropServices;
 using CSharpFar.App.Rendering;
 using CSharpFar.Core.Menu;
+using CSharpFar.Core.Models;
 
 namespace CSharpFar.App.Commands;
 
@@ -15,11 +16,12 @@ internal sealed class PrintTerminalDiagnosticsCommand : IApplicationCommand
         var viewport = context.Screen.GetViewport();
         var size = context.Screen.GetSize();
         var terminal = context.GetTerminalDiagnostics();
-        string currentDirectory = context.ActiveState.CurrentDirectory;
+        string activeDirectory = context.ActiveState.CurrentDirectory;
+        string processCurrentDirectory = Environment.CurrentDirectory;
         bool hasVisiblePanels = context.HasVisiblePanels;
         var activeSide = context.ActiveSide;
 
-        context.ExecuteInCurrentConsole(currentDirectory, "diagnostics", () =>
+        context.ExecuteInCurrentConsole(activeDirectory, "diagnostics", () =>
         {
             global::System.Console.WriteLine("CSharpFar diagnostics");
             global::System.Console.WriteLine($"Timestamp: {DateTimeOffset.Now:O}");
@@ -27,7 +29,7 @@ internal sealed class PrintTerminalDiagnosticsCommand : IApplicationCommand
             global::System.Console.WriteLine($"  OS: {RuntimeInformation.OSDescription}");
             global::System.Console.WriteLine($"  Framework: {RuntimeInformation.FrameworkDescription}");
             global::System.Console.WriteLine($"  Process architecture: {RuntimeInformation.ProcessArchitecture}");
-            global::System.Console.WriteLine($"  Current directory: {currentDirectory}");
+            global::System.Console.WriteLine($"  Current directory: {processCurrentDirectory}");
             global::System.Console.WriteLine("Console:");
             global::System.Console.WriteLine(
                 $"  Viewport: Left={viewport.Left}, Top={viewport.Top}, Width={viewport.Width}, Height={viewport.Height}");
@@ -43,6 +45,8 @@ internal sealed class PrintTerminalDiagnosticsCommand : IApplicationCommand
             global::System.Console.WriteLine($"  Active side: {activeSide}");
             global::System.Console.WriteLine($"  Command line row: {ApplicationLayoutService.CommandLineRow(size)}");
             global::System.Console.WriteLine($"  Panel height: {ApplicationLayoutService.PanelHeight(size)}");
+            WritePanelDiagnostics("Left panel", context.LeftPanel);
+            WritePanelDiagnostics("Right panel", context.RightPanel);
             global::System.Console.WriteLine("Terminal mode:");
             global::System.Console.WriteLine($"  Uses terminal screen mode: {terminal.UsesTerminalScreenMode}");
             global::System.Console.WriteLine($"  Terminal screen mode supported: {Value(terminal.IsTerminalScreenModeSupported)}");
@@ -68,4 +72,23 @@ internal sealed class PrintTerminalDiagnosticsCommand : IApplicationCommand
 
     private static string Value(bool? value) =>
         value?.ToString() ?? "unavailable";
+
+    private static void WritePanelDiagnostics(string heading, FilePanelState panel)
+    {
+        global::System.Console.WriteLine($"  {heading}:");
+        global::System.Console.WriteLine($"    Source id: {panel.SourceId}");
+        global::System.Console.WriteLine($"    Source path: {panel.SourcePath}");
+        global::System.Console.WriteLine($"    Current directory: {panel.CurrentDirectory}");
+        global::System.Console.WriteLine($"    Items count: {panel.Items.Count}");
+        global::System.Console.WriteLine($"    Cursor index: {panel.CursorIndex}");
+        global::System.Console.WriteLine($"    Scroll offset: {panel.ScrollOffset}");
+        global::System.Console.WriteLine($"    Has load error: {panel.LoadError is not null}");
+
+        if (panel.LoadError is not { } loadError)
+            return;
+
+        global::System.Console.WriteLine($"    Load error: {loadError.Message}");
+        global::System.Console.WriteLine($"    Retry source id: {loadError.RetryLocation.SourceId}");
+        global::System.Console.WriteLine($"    Retry source path: {loadError.RetryLocation.SourcePath}");
+    }
 }
