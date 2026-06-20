@@ -23,8 +23,7 @@ public sealed class AnsiTerminalConsoleDriver : IConsoleDriver, ITerminalScreenM
     private ConsoleColor? _currentForeground;
     private ConsoleColor? _currentBackground;
     private TextAttributes _currentAttributes;
-    private int _cursorX = -1;
-    private int _cursorY = -1;
+    private readonly AnsiCursorPositionCache _cursorPosition = new();
     private bool? _cursorVisible;
     private bool _disposed;
 
@@ -106,9 +105,12 @@ public sealed class AnsiTerminalConsoleDriver : IConsoleDriver, ITerminalScreenM
         ConsoleColor? background = null,
         TextAttributes attributes = TextAttributes.None)
     {
-        SetCursorPosition(x, y);
+        int column = Math.Max(0, x);
+        int row = Math.Max(0, y);
+        SetCursorPosition(column, row);
         ApplyStyle(foreground ?? ConsoleColor.Gray, background ?? ConsoleColor.Black, attributes);
         global::System.Console.Out.Write(text);
+        _cursorPosition.TrackWrite(column, row, text.Length, GetBufferWidth());
     }
 
     public bool TryWriteAtViewport(
@@ -135,12 +137,11 @@ public sealed class AnsiTerminalConsoleDriver : IConsoleDriver, ITerminalScreenM
     {
         int column = Math.Max(0, x);
         int row = Math.Max(0, y);
-        if (_cursorX == column && _cursorY == row)
+        if (_cursorPosition.IsAt(column, row))
             return;
 
         WriteControl($"\x1b[{row + 1};{column + 1}H");
-        _cursorX = column;
-        _cursorY = row;
+        _cursorPosition.Set(column, row);
     }
 
     public bool TrySetCursorPositionInViewport(ConsoleViewport viewport, int x, int y)
@@ -174,7 +175,11 @@ public sealed class AnsiTerminalConsoleDriver : IConsoleDriver, ITerminalScreenM
 
     public void Clear() => WriteControl(ClearScreen + CursorHome);
 
-    public void Write(string text) => global::System.Console.Out.Write(text);
+    public void Write(string text)
+    {
+        global::System.Console.Out.Write(text);
+        _cursorPosition.Reset();
+    }
 
     public int GetBufferWidth() => Math.Max(1, global::System.Console.WindowWidth);
 
@@ -292,8 +297,7 @@ public sealed class AnsiTerminalConsoleDriver : IConsoleDriver, ITerminalScreenM
         _currentForeground = null;
         _currentBackground = null;
         _currentAttributes = TextAttributes.None;
-        _cursorX = -1;
-        _cursorY = -1;
+        _cursorPosition.Reset();
     }
 
     private sealed class ChildProcessConsoleModeScope : IDisposable
