@@ -8,6 +8,13 @@ namespace CSharpFar.Tests;
 public sealed class FileSystemPlatformOperationsTests
 {
     [Fact]
+    public void PlatformOperations_ReportRecycleBinSupport()
+    {
+        Assert.True(new WindowsFileSystemPlatformOperations().SupportsRecycleBin);
+        Assert.False(new UnixFileSystemPlatformOperations().SupportsRecycleBin);
+    }
+
+    [Fact]
     public void Windows_IsSymbolicLink_ReturnsFalseForOrdinaryFile()
     {
         if (!OperatingSystem.IsWindows())
@@ -42,6 +49,25 @@ public sealed class FileSystemPlatformOperationsTests
         var operations = new UnixFileSystemPlatformOperations();
 
         Assert.Throws<PlatformNotSupportedException>(() => operations.DeleteFile("/tmp/not-created", useRecycleBin: true));
+    }
+
+    [Fact]
+    public void Unix_PermanentDelete_RemovesFileAndDirectoryRecursively()
+    {
+        string directory = Directory.CreateTempSubdirectory().FullName;
+        string file = Path.Combine(directory, "file.txt");
+        string childDirectory = Path.Combine(directory, "child");
+        File.WriteAllText(file, "content");
+        Directory.CreateDirectory(childDirectory);
+        File.WriteAllText(Path.Combine(childDirectory, "child.txt"), "content");
+        var operations = new UnixFileSystemPlatformOperations();
+
+        operations.DeleteFile(file, useRecycleBin: false);
+        operations.DeleteDirectory(childDirectory, recursive: true, useRecycleBin: false);
+
+        Assert.False(File.Exists(file));
+        Assert.False(Directory.Exists(childDirectory));
+        Directory.Delete(directory);
     }
 
     [Fact]

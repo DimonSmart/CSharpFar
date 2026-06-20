@@ -29,7 +29,8 @@ internal sealed class DeleteCommand : IApplicationCommand
             : $"{sources.Count} items";
 
         bool useRecycleBin = context.ActiveState.SourceId == PanelSourceId.Local &&
-                             context.Settings.FileOperations.UseRecycleBinForDelete;
+                             context.Settings.FileOperations.UseRecycleBinForDelete &&
+                             context.FileOperations.SupportsRecycleBin;
         string confirmation = useRecycleBin
             ? "Do you wish to move to the Recycle Bin?"
             : "Do you wish to delete permanently?";

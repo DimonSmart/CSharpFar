@@ -100,6 +100,8 @@ public sealed class Spec060RenameCommandTests : IDisposable
 
     private sealed class RecordingFileOperationService : IFileOperationService
     {
+        public bool SupportsRecycleBin => true;
+
         public List<FileOperationRequest> Requests { get; } = [];
 
         public Task<FileOperationResult> ExecuteAsync(

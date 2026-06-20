@@ -5,6 +5,8 @@ namespace CSharpFar.Tests.Fakes;
 
 public sealed class NoOpFileOperationService : IFileOperationService
 {
+    public bool SupportsRecycleBin => true;
+
     public Task<FileOperationResult> ExecuteAsync(
         FileOperationRequest request,
         IProgress<FileOperationProgress>? progress,

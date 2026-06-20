@@ -32,6 +32,8 @@ public sealed class FileOperationService : IFileOperationService
     private readonly FileOperationServiceDependencies _dependencies;
     private readonly IFileSystemPlatformOperations _platformOperations;
 
+    public bool SupportsRecycleBin => _platformOperations.SupportsRecycleBin;
+
     public FileOperationService() : this(null, FileOperationServiceDependencies.Default)
     {
     }

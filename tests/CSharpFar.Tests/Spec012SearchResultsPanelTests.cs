@@ -387,6 +387,8 @@ public sealed class Spec012SearchResultsPanelTests : IDisposable
 
     private sealed class RecordingFileOperationService : IFileOperationService
     {
+        public bool SupportsRecycleBin => true;
+
         public List<FileOperationRequest> Requests { get; } = [];
 
         public Task<FileOperationResult> ExecuteAsync(
