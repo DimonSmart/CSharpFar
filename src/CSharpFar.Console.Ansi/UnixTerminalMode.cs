@@ -3,7 +3,14 @@ using System.Runtime.InteropServices;
 
 namespace CSharpFar.Console.Ansi;
 
-internal sealed class UnixTerminalMode : IDisposable
+internal interface ITerminalInputMode : IDisposable
+{
+    void EnableRawMode();
+
+    void RestoreOriginalMode();
+}
+
+internal sealed class UnixTerminalMode : ITerminalInputMode
 {
     private const int STDIN_FILENO = 0;
     private const int VMIN = 6;

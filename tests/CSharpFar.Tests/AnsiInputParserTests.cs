@@ -76,6 +76,206 @@ public sealed class AnsiInputParserTests
         Assert.Equal('Ж', key.KeyChar);
     }
 
+    [Theory]
+    [InlineData("A", ConsoleKey.A, ConsoleModifiers.None)]
+    [InlineData("\r", ConsoleKey.Enter, ConsoleModifiers.None)]
+    [InlineData("\t", ConsoleKey.Tab, ConsoleModifiers.None)]
+    [InlineData("\u007f", ConsoleKey.Backspace, ConsoleModifiers.None)]
+    [InlineData("\u001b[2~", ConsoleKey.Insert, ConsoleModifiers.None)]
+    [InlineData("\u001b[5~", ConsoleKey.PageUp, ConsoleModifiers.None)]
+    [InlineData("\u001b[6~", ConsoleKey.PageDown, ConsoleModifiers.None)]
+    [InlineData("\u001b[15;3~", ConsoleKey.F5, ConsoleModifiers.Alt)]
+    [InlineData("\u001b[15;5~", ConsoleKey.F5, ConsoleModifiers.Control)]
+    [InlineData("\u001bA", ConsoleKey.A, ConsoleModifiers.Alt)]
+    [InlineData("\u001b\u001b[D", ConsoleKey.LeftArrow, ConsoleModifiers.Alt)]
+    public void ProductionParser_MapsKeyboardEvents(
+        string sequence,
+        ConsoleKey expectedKey,
+        ConsoleModifiers expectedModifiers)
+    {
+        using var input = new MemoryStream(Encoding.UTF8.GetBytes(sequence));
+        var parser = new AnsiConsoleInputParser();
+
+        bool parsed = parser.TryRead(new StreamAnsiInputByteReader(input, null), out var inputEvent);
+
+        var keyEvent = Assert.IsType<KeyConsoleInputEvent>(inputEvent);
+        Assert.True(parsed);
+        Assert.Equal(expectedKey, keyEvent.Key.Key);
+        Assert.Equal(expectedModifiers, keyEvent.Key.Modifiers);
+    }
+
+    [Fact]
+    public void ProductionParser_MapsAltUtf8Character()
+    {
+        using var input = new MemoryStream(Encoding.UTF8.GetBytes("\u001bф"));
+        var parser = new AnsiConsoleInputParser();
+
+        Assert.True(parser.TryRead(new StreamAnsiInputByteReader(input, null), out var inputEvent));
+
+        var keyEvent = Assert.IsType<KeyConsoleInputEvent>(inputEvent);
+        Assert.Equal('ф', keyEvent.Key.KeyChar);
+        Assert.True(keyEvent.Key.Modifiers.HasFlag(ConsoleModifiers.Alt));
+    }
+
+    [Fact]
+    public void ProductionParser_ReturnsSgrMouseEvent()
+    {
+        using var input = new MemoryStream(Encoding.ASCII.GetBytes("\u001b[<0;42;10M"));
+        var parser = new AnsiConsoleInputParser();
+
+        Assert.True(parser.TryRead(new StreamAnsiInputByteReader(input, null), out var inputEvent));
+
+        var mouse = Assert.IsType<MouseConsoleInputEvent>(inputEvent);
+        Assert.Equal((41, 9, MouseButton.Left, MouseEventKind.Down),
+            (mouse.X, mouse.Y, mouse.Button, mouse.Kind));
+    }
+
+    [Fact]
+    public void ProductionParser_SynthesizesDoubleClickForSameCellWithinInterval()
+    {
+        using var input = new MemoryStream(Encoding.ASCII.GetBytes(
+            "\u001b[<0;42;10M\u001b[<0;42;10m\u001b[<0;42;10M"));
+        long timestamp = 1_000;
+        var parser = new AnsiConsoleInputParser(50, () => timestamp);
+        var reader = new StreamAnsiInputByteReader(input, null);
+
+        Assert.True(parser.TryRead(reader, out var firstPress));
+        Assert.Equal(MouseEventKind.Down, Assert.IsType<MouseConsoleInputEvent>(firstPress).Kind);
+        Assert.True(parser.TryRead(reader, out var release));
+        Assert.Equal(MouseEventKind.Up, Assert.IsType<MouseConsoleInputEvent>(release).Kind);
+
+        timestamp += 300;
+        Assert.True(parser.TryRead(reader, out var secondPress));
+
+        var doubleClick = Assert.IsType<MouseConsoleInputEvent>(secondPress);
+        Assert.Equal(MouseEventKind.DoubleClick, doubleClick.Kind);
+        Assert.Equal((41, 9, MouseButton.Left),
+            (doubleClick.X, doubleClick.Y, doubleClick.Button));
+    }
+
+    [Theory]
+    [InlineData("\u001b[<0;43;10M", 300)]
+    [InlineData("\u001b[<0;42;10M", 501)]
+    public void ProductionParser_DoesNotSynthesizeDoubleClickForDifferentCellOrExpiredInterval(
+        string secondPress,
+        int elapsedMilliseconds)
+    {
+        using var input = new MemoryStream(Encoding.ASCII.GetBytes(
+            "\u001b[<0;42;10M\u001b[<0;42;10m" + secondPress));
+        long timestamp = 1_000;
+        var parser = new AnsiConsoleInputParser(50, () => timestamp);
+        var reader = new StreamAnsiInputByteReader(input, null);
+
+        Assert.True(parser.TryRead(reader, out _));
+        Assert.True(parser.TryRead(reader, out _));
+        timestamp += elapsedMilliseconds;
+        Assert.True(parser.TryRead(reader, out var inputEvent));
+
+        Assert.Equal(MouseEventKind.Down, Assert.IsType<MouseConsoleInputEvent>(inputEvent).Kind);
+    }
+
+    [Fact]
+    public void ProductionParser_IgnoresMalformedSgrMouseEvent()
+    {
+        using var input = new MemoryStream(Encoding.ASCII.GetBytes("\u001b[<x;42;10M"));
+        var parser = new AnsiConsoleInputParser();
+
+        Assert.False(parser.TryRead(new StreamAnsiInputByteReader(input, null), out var inputEvent));
+        Assert.Null(inputEvent);
+    }
+
+    [Fact]
+    public void ProductionParser_MapsUnknownKeyboardSequenceToEscape()
+    {
+        using var input = new MemoryStream(Encoding.ASCII.GetBytes("\u001b[999~"));
+        var parser = new AnsiConsoleInputParser();
+
+        Assert.True(parser.TryRead(new StreamAnsiInputByteReader(input, null), out var inputEvent));
+
+        var keyEvent = Assert.IsType<KeyConsoleInputEvent>(inputEvent);
+        Assert.Equal(ConsoleKey.Escape, keyEvent.Key.Key);
+    }
+
+    [Theory]
+    [InlineData(null, "legacy")]
+    [InlineData("", "legacy")]
+    [InlineData("legacy", "legacy")]
+    [InlineData("raw-vt", "raw-vt")]
+    public void UnixInputReaderFactory_ResolvesBackend(string? configuredValue, string expected)
+    {
+        Assert.Equal(expected, UnixInputReaderFactory.ResolveBackendName(configuredValue));
+    }
+
+    [Fact]
+    public void UnixInputReaderFactory_RejectsUnknownBackend()
+    {
+        Assert.Throws<InvalidOperationException>(() =>
+            UnixInputReaderFactory.ResolveBackendName("automatic"));
+    }
+
+    [Fact]
+    public void UnixRawTerminalInputReader_ManagesMouseAndRawModeLifetime()
+    {
+        var terminalMode = new FakeTerminalInputMode();
+        var controls = new List<string>();
+        var reader = new UnixRawTerminalInputReader(
+            new StreamAnsiInputByteReader(new MemoryStream(), null),
+            () => new CSharpFar.Console.Models.ConsoleSize(80, 25),
+            () => { },
+            controls.Add,
+            terminalMode);
+
+        Assert.True(reader.MouseTrackingEnabled);
+        Assert.Equal(1, terminalMode.EnableCount);
+        Assert.Equal("\u001b[?1002h\u001b[?1006h", controls[^1]);
+
+        reader.SuspendInputMode();
+
+        Assert.False(reader.MouseTrackingEnabled);
+        Assert.Equal(1, terminalMode.RestoreCount);
+        Assert.Equal("\u001b[?1000l\u001b[?1002l\u001b[?1003l\u001b[?1006l", controls[^1]);
+
+        reader.RestoreInputMode();
+
+        Assert.True(reader.MouseTrackingEnabled);
+        Assert.Equal(2, terminalMode.EnableCount);
+        Assert.Equal("\u001b[?1002h\u001b[?1006h", controls[^1]);
+
+        reader.Dispose();
+
+        Assert.True(terminalMode.Disposed);
+        Assert.Equal("\u001b[?1000l\u001b[?1002l\u001b[?1003l\u001b[?1006l", controls[^1]);
+    }
+
+    [Fact]
+    public void UnixRawTerminalInputReader_RestoresModeWhenMouseEnableFails()
+    {
+        var terminalMode = new FakeTerminalInputMode();
+
+        Assert.Throws<IOException>(() => new UnixRawTerminalInputReader(
+            new StreamAnsiInputByteReader(new MemoryStream(), null),
+            () => new CSharpFar.Console.Models.ConsoleSize(80, 25),
+            () => { },
+            _ => throw new IOException("write failed"),
+            terminalMode));
+
+        Assert.Equal(1, terminalMode.RestoreCount);
+        Assert.True(terminalMode.Disposed);
+    }
+
+    private sealed class FakeTerminalInputMode : ITerminalInputMode
+    {
+        public int EnableCount { get; private set; }
+        public int RestoreCount { get; private set; }
+        public bool Disposed { get; private set; }
+
+        public void EnableRawMode() => EnableCount++;
+
+        public void RestoreOriginalMode() => RestoreCount++;
+
+        public void Dispose() => Disposed = true;
+    }
+
     [Fact]
     public void ParseSingle_MapsCtrlLetter()
     {

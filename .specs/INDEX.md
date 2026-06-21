@@ -48,3 +48,4 @@
 | 0061 | Spec | Current | Native plugin system | CSharpFar supports native .NET plugins designed around CSharpFar internal abstractions and intentionally does not emulate FarNet or Far Manager plugin APIs. |
 | 0062 | Spec | Current | Console UI component library | CSharpFar owns an internal reusable console UI component library for rendering, popup/dialog frames, scrollbars, text input, button bars, selection lists,... |
 | 0063 | Spec | Current | File attributes dialog | CSharpFar provides a Far-like local file metadata dialog for viewing and changing provider-supported attributes and file times through capability-based metadata services. |
+| 0064 | Spec | Current | Unix terminal input | Unix hosts can select a raw VT keyboard, SGR mouse, and resize input backend while retaining an explicit Console.ReadKey fallback. |

@@ -83,6 +83,9 @@ internal sealed class AnsiInputParser
                 return false;
 
             sequence.Add((char)next);
+            if (sequence.Count == 1 && next == '<')
+                return ReadSgrMousePacket(input, bytes, out key);
+
             if (VirtualTerminalKeyParser.IsFinalChar((char)next) &&
                 !(prefix == '[' && sequence.Count == 1 && next == '['))
             {
@@ -91,6 +94,20 @@ internal sealed class AnsiInputParser
         }
 
         return false;
+    }
+
+    private bool ReadSgrMousePacket(IAnsiInputByteReader input, List<byte> bytes, out ConsoleKeyInfo key)
+    {
+        key = MakeKey('\x1b', ConsoleKey.Escape);
+        while (bytes.Count < 64 && input.WaitForInput(_escapeTimeoutMilliseconds))
+        {
+            if (!TryReadByte(input, bytes, out byte next))
+                break;
+            if (next is (byte)'M' or (byte)'m')
+                break;
+        }
+
+        return true;
     }
 
     private ConsoleKeyInfo ParseUtf8(byte first, IAnsiInputByteReader input, List<byte> bytes)

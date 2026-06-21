@@ -98,6 +98,8 @@ static int RunTerminalCheck(bool inputMode)
     try
     {
         using var driver = new AnsiTerminalConsoleDriver();
+        Console.Error.WriteLine($"Unix input backend: {driver.InputBackendName}");
+        Console.Error.WriteLine($"Mouse tracking: {(driver.IsMouseTrackingEnabled ? "enabled" : "disabled")}");
         if (inputMode)
             RunTerminalInputCheck(driver);
         else
