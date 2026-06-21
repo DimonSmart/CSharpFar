@@ -35,6 +35,17 @@ if (args is ["--check-terminal", "--mouse-input"])
 if (args is ["--check-terminal", "--enhanced-input"] or ["--check-terminal", "--kitty-input"])
     return RunEnhancedTerminalInputCheck();
 
+if (args.Length >= 2 && args[0] == "--check-terminal" && args[1] == "--input-lab")
+{
+    if (!TerminalInputLabOptions.TryParse(args.Skip(2), out var options, out string? error))
+    {
+        Console.Error.WriteLine(error);
+        return 2;
+    }
+
+    return TerminalInputLab.Run(options);
+}
+
 using var platform = UnixPlatformServices.Create(
     settingsStore.ConfigDirectory,
     settingsStore.Settings.Shell);

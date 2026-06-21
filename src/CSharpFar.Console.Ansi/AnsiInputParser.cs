@@ -8,6 +8,13 @@ internal sealed class AnsiInputParser
     private const int DefaultEscapeTimeoutMilliseconds = 50;
 
     private readonly Decoder _decoder = Encoding.UTF8.GetDecoder();
+    private readonly int _escapeTimeoutMilliseconds;
+
+    public AnsiInputParser(int escapeTimeoutMilliseconds = DefaultEscapeTimeoutMilliseconds)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(escapeTimeoutMilliseconds);
+        _escapeTimeoutMilliseconds = escapeTimeoutMilliseconds;
+    }
 
     public ConsoleKeyInfo ReadKey(Stream input, Func<bool>? inputAvailable = null) =>
         Read(new StreamAnsiInputByteReader(input, inputAvailable)).Key;
@@ -36,7 +43,7 @@ internal sealed class AnsiInputParser
     {
         if (first == 0x1b)
         {
-            return input.WaitForInput(DefaultEscapeTimeoutMilliseconds) &&
+            return input.WaitForInput(_escapeTimeoutMilliseconds) &&
                 TryReadEscapeSequence(input, bytes, out var escapeKey)
                 ? escapeKey
                 : MakeKey('\x1b', ConsoleKey.Escape);
@@ -69,7 +76,7 @@ internal sealed class AnsiInputParser
         var sequence = new List<char>();
         while (sequence.Count < 16)
         {
-            if (!input.WaitForInput(DefaultEscapeTimeoutMilliseconds))
+            if (!input.WaitForInput(_escapeTimeoutMilliseconds))
                 return false;
 
             if (!TryReadByte(input, bytes, out byte next))

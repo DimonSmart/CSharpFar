@@ -25,6 +25,8 @@ internal sealed class UnixTerminalMode : IDisposable
 
         _raw = _original;
         cfmakeraw(ref _raw);
+        // Raw byte input must not disable the terminal's newline/output processing.
+        _raw.c_oflag = _original.c_oflag;
         _raw.c_cc[VMIN] = 0;
         _raw.c_cc[VTIME] = 1;
 

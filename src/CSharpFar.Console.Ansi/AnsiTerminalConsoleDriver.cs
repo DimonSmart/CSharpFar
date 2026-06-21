@@ -78,6 +78,12 @@ public sealed class AnsiTerminalConsoleDriver : IConsoleDriver, ITerminalScreenM
         return _inputParser.Read(_input);
     }
 
+    public AnsiInputReadResult ReadRawInput(int escapeTimeoutMilliseconds)
+    {
+        EnableRawInputMode();
+        return new AnsiInputParser(escapeTimeoutMilliseconds).Read(_input);
+    }
+
     public bool TryReadRawInput(int timeoutMilliseconds, [NotNullWhen(true)] out AnsiInputReadResult? result)
     {
         EnableRawInputMode();
@@ -88,6 +94,22 @@ public sealed class AnsiTerminalConsoleDriver : IConsoleDriver, ITerminalScreenM
         }
 
         result = _inputParser.Read(_input);
+        return true;
+    }
+
+    public bool TryReadRawInput(
+        int timeoutMilliseconds,
+        int escapeTimeoutMilliseconds,
+        [NotNullWhen(true)] out AnsiInputReadResult? result)
+    {
+        EnableRawInputMode();
+        if (!_input.WaitForInput(timeoutMilliseconds))
+        {
+            result = null;
+            return false;
+        }
+
+        result = new AnsiInputParser(escapeTimeoutMilliseconds).Read(_input);
         return true;
     }
 
@@ -323,6 +345,7 @@ public sealed class AnsiTerminalConsoleDriver : IConsoleDriver, ITerminalScreenM
     private sealed class UnixTerminalInputByteReader : IAnsiInputByteReader
     {
         private const int STDIN_FILENO = 0;
+        private const int EINTR = 4;
         private const short POLLIN = 0x0001;
         private const int PacketIdleTimeoutMilliseconds = 100;
 
@@ -378,12 +401,19 @@ public sealed class AnsiTerminalConsoleDriver : IConsoleDriver, ITerminalScreenM
 
         private static bool PollInput(int timeoutMilliseconds)
         {
-            var fds = new[] { new PollFd { Fd = STDIN_FILENO, Events = POLLIN } };
-            int result = poll(fds, 1, timeoutMilliseconds);
-            if (result < 0)
-                throw new InvalidOperationException("Failed to poll terminal input.", new Win32Exception(Marshal.GetLastPInvokeError()));
+            while (true)
+            {
+                var fds = new[] { new PollFd { Fd = STDIN_FILENO, Events = POLLIN } };
+                int result = poll(fds, 1, timeoutMilliseconds);
+                if (result >= 0)
+                    return result > 0 && (fds[0].Revents & POLLIN) != 0;
 
-            return result > 0 && (fds[0].Revents & POLLIN) != 0;
+                int error = Marshal.GetLastPInvokeError();
+                if (error == EINTR)
+                    continue;
+
+                throw new InvalidOperationException("Failed to poll terminal input.", new Win32Exception(error));
+            }
         }
 
         private static int ReadInto(byte[] buffer)
@@ -404,7 +434,7 @@ public sealed class AnsiTerminalConsoleDriver : IConsoleDriver, ITerminalScreenM
         }
 
         [DllImport("libc", SetLastError = true)]
-        private static extern int poll(PollFd[] fds, nuint nfds, int timeout);
+        private static extern int poll([In, Out] PollFd[] fds, nuint nfds, int timeout);
 
         [DllImport("libc", SetLastError = true)]
         private static extern nint read(int fd, IntPtr buffer, nuint count);

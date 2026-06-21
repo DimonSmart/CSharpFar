@@ -122,6 +122,7 @@ internal sealed record ProbeOptions(string Mode, string? LogPath)
 internal sealed class RawInputByteReader : IAnsiInputByteReader
 {
     private const int STDIN_FILENO = 0;
+    private const int EINTR = 4;
     private const short POLLIN = 0x0001;
     private const int PacketIdleTimeoutMilliseconds = 100;
 
@@ -177,12 +178,19 @@ internal sealed class RawInputByteReader : IAnsiInputByteReader
 
     private static bool PollInput(int timeoutMilliseconds)
     {
-        var fds = new[] { new PollFd { Fd = STDIN_FILENO, Events = POLLIN } };
-        int result = Posix.poll(fds, 1, timeoutMilliseconds);
-        if (result < 0)
-            throw new InvalidOperationException("poll(2) failed.", new Win32Exception(Marshal.GetLastPInvokeError()));
+        while (true)
+        {
+            var fds = new[] { new PollFd { Fd = STDIN_FILENO, Events = POLLIN } };
+            int result = Posix.poll(fds, 1, timeoutMilliseconds);
+            if (result >= 0)
+                return result > 0 && (fds[0].Revents & POLLIN) != 0;
 
-        return result > 0 && (fds[0].Revents & POLLIN) != 0;
+            int error = Marshal.GetLastPInvokeError();
+            if (error == EINTR)
+                continue;
+
+            throw new InvalidOperationException("poll(2) failed.", new Win32Exception(error));
+        }
     }
 }
 
@@ -243,7 +251,7 @@ internal static class Posix
     }
 
     [DllImport("libc", SetLastError = true)]
-    public static extern int poll(PollFd[] fds, nuint nfds, int timeout);
+    public static extern int poll([In, Out] PollFd[] fds, nuint nfds, int timeout);
 
     [DllImport("libc", SetLastError = true)]
     private static extern nint read(int fd, IntPtr buffer, nuint count);
