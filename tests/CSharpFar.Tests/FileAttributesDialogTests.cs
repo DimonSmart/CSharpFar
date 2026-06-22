@@ -88,6 +88,37 @@ public sealed class FileAttributesDialogTests
             changeSet.UnixPermissionChanges);
     }
 
+    [Fact]
+    public void FormatUnixMode_ReturnsDisplayModeWhenPermissionsAreUniform()
+    {
+        UnixFileMetadata metadata = UnixMetadata(0x1a4, AttributeEditState.Checked);
+
+        Assert.Equal("0644  rw-r--r--", FileAttributesDialog.FormatUnixMode(metadata));
+    }
+
+    [Fact]
+    public void FormatUnixMode_ReturnsMixedWhenAnyPermissionIsIndeterminate()
+    {
+        UnixFileMetadata metadata = UnixMetadata(0x1a4, AttributeEditState.Indeterminate);
+
+        Assert.Equal("<mixed>", FileAttributesDialog.FormatUnixMode(metadata));
+    }
+
+    private static UnixFileMetadata UnixMetadata(int permissions, AttributeEditState ownerReadState) =>
+        new(
+            (UnixPermissionBits)permissions,
+            Enum.GetValues<UnixPermissionBit>().ToDictionary(
+                static bit => bit,
+                bit => bit == UnixPermissionBit.OwnerRead
+                    ? ownerReadState
+                    : AttributeEditState.Unchecked),
+            1000,
+            1000,
+            "owner",
+            "group",
+            true,
+            null);
+
     private static FileMetadataSnapshot Snapshot()
     {
         var created = new DateTime(2026, 1, 1, 1, 2, 3);

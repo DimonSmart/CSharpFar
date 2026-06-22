@@ -365,11 +365,11 @@ internal sealed class FileAttributesDialog : IFileAttributesDialog
         _ => bit.ToString(),
     };
 
-    private static string FormatUnixMode(UnixFileMetadata metadata)
+    internal static string FormatUnixMode(UnixFileMetadata metadata)
     {
         if (metadata.PermissionStates.Values.Any(static state => state == AttributeEditState.Indeterminate))
             return "<mixed>";
-        return Convert.ToString((int)metadata.Permissions, 8).PadLeft(4, '0');
+        return UnixPermissionFormatter.ToDisplayString(metadata.Permissions);
     }
 
     private static UnixPermissionMatrixRow MatrixRow(
