@@ -196,23 +196,6 @@ public sealed class AnsiInputParserTests
         Assert.Equal(ConsoleKey.Escape, keyEvent.Key.Key);
     }
 
-    [Theory]
-    [InlineData(null, "legacy")]
-    [InlineData("", "legacy")]
-    [InlineData("legacy", "legacy")]
-    [InlineData("raw-vt", "raw-vt")]
-    public void UnixInputReaderFactory_ResolvesBackend(string? configuredValue, string expected)
-    {
-        Assert.Equal(expected, UnixInputReaderFactory.ResolveBackendName(configuredValue));
-    }
-
-    [Fact]
-    public void UnixInputReaderFactory_RejectsUnknownBackend()
-    {
-        Assert.Throws<InvalidOperationException>(() =>
-            UnixInputReaderFactory.ResolveBackendName("automatic"));
-    }
-
     [Fact]
     public void UnixRawTerminalInputReader_ManagesMouseAndRawModeLifetime()
     {
@@ -230,11 +213,13 @@ public sealed class AnsiInputParserTests
         Assert.Equal("\u001b[?1002h\u001b[?1006h", controls[^1]);
 
         reader.SuspendInputMode();
+        reader.SuspendInputMode();
 
         Assert.False(reader.MouseTrackingEnabled);
         Assert.Equal(1, terminalMode.RestoreCount);
         Assert.Equal("\u001b[?1000l\u001b[?1002l\u001b[?1003l\u001b[?1006l", controls[^1]);
 
+        reader.RestoreInputMode();
         reader.RestoreInputMode();
 
         Assert.True(reader.MouseTrackingEnabled);
@@ -242,8 +227,10 @@ public sealed class AnsiInputParserTests
         Assert.Equal("\u001b[?1002h\u001b[?1006h", controls[^1]);
 
         reader.Dispose();
+        reader.Dispose();
 
         Assert.True(terminalMode.Disposed);
+        Assert.Equal(1, terminalMode.DisposeCount);
         Assert.Equal("\u001b[?1000l\u001b[?1002l\u001b[?1003l\u001b[?1006l", controls[^1]);
     }
 
@@ -268,12 +255,17 @@ public sealed class AnsiInputParserTests
         public int EnableCount { get; private set; }
         public int RestoreCount { get; private set; }
         public bool Disposed { get; private set; }
+        public int DisposeCount { get; private set; }
 
         public void EnableRawMode() => EnableCount++;
 
         public void RestoreOriginalMode() => RestoreCount++;
 
-        public void Dispose() => Disposed = true;
+        public void Dispose()
+        {
+            Disposed = true;
+            DisposeCount++;
+        }
     }
 
     [Fact]

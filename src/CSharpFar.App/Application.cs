@@ -332,11 +332,6 @@ public sealed class Application
     private void RenderCommandLineOnly() =>
         _renderCoordinator.RenderCommandLineOnly();
 
-    private static bool IsResizeEvent(ConsoleKeyInfo key) =>
-        key.Key == ConsoleKey.NoName &&
-        key.KeyChar == '\0' &&
-        key.Modifiers == 0;
-
     private bool SetFunctionKeyLayer(ConsoleModifiers modifiers)
     {
         var layer = FunctionKeyLayerResolver.ResolvePressedLayer(modifiers);

@@ -1,42 +1,8 @@
 using System.Diagnostics.CodeAnalysis;
-using System.Diagnostics;
 using CSharpFar.Console.Input;
 using CSharpFar.Console.Models;
 
 namespace CSharpFar.Console.Ansi;
-
-internal static class UnixInputReaderFactory
-{
-    internal const string EnvironmentVariableName = "CSHARPFAR_UNIX_INPUT";
-
-    public static IConsoleInputReader Create(
-        Func<ConsoleSize> getSize,
-        Action resetCachedOutputState,
-        Action<string> writeControl)
-    {
-        string backend = ResolveBackendName(Environment.GetEnvironmentVariable(EnvironmentVariableName));
-        return backend switch
-        {
-            "legacy" => new SystemConsoleInputReader(getSize, resetCachedOutputState),
-            "raw-vt" => new UnixRawTerminalInputReader(
-                new UnixTerminalInputByteReader(),
-                getSize,
-                resetCachedOutputState,
-                writeControl),
-            _ => throw new UnreachableException(),
-        };
-    }
-
-    internal static string ResolveBackendName(string? configuredValue) =>
-        configuredValue?.Trim().ToLowerInvariant() switch
-        {
-            null or "" => "legacy",
-            "legacy" => "legacy",
-            "raw-vt" => "raw-vt",
-            _ => throw new InvalidOperationException(
-                $"{EnvironmentVariableName} must be 'legacy' or 'raw-vt'."),
-        };
-}
 
 internal abstract class ConsoleInputReaderBase : IConsoleInputReader
 {
@@ -88,48 +54,6 @@ internal abstract class ConsoleInputReaderBase : IConsoleInputReader
         inputEvent = new ConsoleResizeInputEvent();
         return true;
     }
-}
-
-internal sealed class SystemConsoleInputReader : ConsoleInputReaderBase
-{
-    public SystemConsoleInputReader(Func<ConsoleSize> getSize, Action resetCachedOutputState)
-        : base(getSize, resetCachedOutputState)
-    {
-    }
-
-    public override string BackendName => "legacy";
-
-    public override bool MouseTrackingEnabled => false;
-
-    public override ConsoleInputEvent ReadInput(bool intercept, CancellationToken cancellationToken = default)
-    {
-        cancellationToken.ThrowIfCancellationRequested();
-        if (TryReadResize(out var resize))
-            return resize;
-
-        return new KeyConsoleInputEvent(global::System.Console.ReadKey(intercept));
-    }
-
-    public override bool TryReadInput(bool intercept, [NotNullWhen(true)] out ConsoleInputEvent? inputEvent)
-    {
-        if (TryReadResize(out inputEvent))
-            return true;
-
-        if (!global::System.Console.KeyAvailable)
-        {
-            inputEvent = null;
-            return false;
-        }
-
-        inputEvent = new KeyConsoleInputEvent(global::System.Console.ReadKey(intercept));
-        return true;
-    }
-
-    public override void SuspendInputMode() { }
-
-    public override void RestoreInputMode() { }
-
-    public override void Dispose() { }
 }
 
 internal sealed class UnixRawTerminalInputReader : ConsoleInputReaderBase

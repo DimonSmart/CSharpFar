@@ -37,7 +37,11 @@ public sealed class AnsiTerminalConsoleDriver : IConsoleDriver, ITerminalScreenM
 
         global::System.Console.OutputEncoding = System.Text.Encoding.UTF8;
         _diagnosticInput = new UnixTerminalInputByteReader();
-        _inputReader = inputReader ?? UnixInputReaderFactory.Create(GetSize, ResetCachedState, WriteControl);
+        _inputReader = inputReader ?? new UnixRawTerminalInputReader(
+            new UnixTerminalInputByteReader(),
+            GetSize,
+            ResetCachedState,
+            WriteControl);
     }
 
     public bool IsSupported => true;
