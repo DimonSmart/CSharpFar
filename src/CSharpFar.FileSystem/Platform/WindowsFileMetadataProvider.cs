@@ -42,6 +42,7 @@ internal sealed class WindowsFileMetadataProvider : IFileMetadataProvider
     public bool CanEditLastAccessTime(string path, FileAttributes attributes) => true;
 
     public string? GetOwnerDisplayName(string path) => null;
+    public UnixFileMetadata? GetUnixMetadata(string path, FileAttributes attributes) => null;
 
     public void ApplyAttributes(
         string path,
@@ -69,6 +70,12 @@ internal sealed class WindowsFileMetadataProvider : IFileMetadataProvider
             UseShellExecute = true,
             Verb = "properties",
         });
+
+    public void ApplyUnixPermissions(
+        string path,
+        UnixFileMetadata currentMetadata,
+        IReadOnlyDictionary<UnixPermissionBit, AttributeEditState> changes) =>
+        throw new PlatformNotSupportedException("Unix permissions are not supported on Windows.");
 
     private static FileAttributeDescriptor Descriptor(
         FileAttributeId id,

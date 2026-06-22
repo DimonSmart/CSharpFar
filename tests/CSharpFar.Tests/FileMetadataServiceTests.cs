@@ -25,6 +25,9 @@ public sealed class FileMetadataServiceTests : IDisposable
     [Fact]
     public void ApplyMetadata_SetsAndClearsReadOnly()
     {
+        if (!OperatingSystem.IsWindows() && !OperatingSystem.IsMacOS())
+            return;
+
         string path = Path.Combine(_root, "file.txt");
         File.WriteAllText(path, "content");
         var service = new FileMetadataService();
@@ -93,6 +96,24 @@ public sealed class FileMetadataServiceTests : IDisposable
     }
 
     [Fact]
+    public void UnixDescriptors_DisableReadOnlyWhenPermissionsAreAvailable()
+    {
+        if (OperatingSystem.IsWindows() || OperatingSystem.IsMacOS())
+            return;
+
+        string path = Path.Combine(_root, "file.txt");
+        File.WriteAllText(path, "content");
+
+        FileAttributeDescriptor readOnly = new FileMetadataService()
+            .GetMetadata(path)
+            .AttributesDescriptors
+            .Single(static descriptor => descriptor.Id == FileAttributeId.ReadOnly);
+
+        Assert.False(readOnly.IsEditable);
+        Assert.Equal("Use Unix permissions to edit write bits.", readOnly.DisabledReason);
+    }
+
+    [Fact]
     public void GetMergedMetadata_DifferentReadOnlyStatesAreIndeterminate()
     {
         string first = Path.Combine(_root, "first.txt");
@@ -108,5 +129,10 @@ public sealed class FileMetadataServiceTests : IDisposable
     }
 
     private static FileMetadataChangeSet Change(FileAttributeId id, AttributeEditState state) =>
-        new(new Dictionary<FileAttributeId, AttributeEditState> { [id] = state }, null, null, null);
+        new(
+            new Dictionary<FileAttributeId, AttributeEditState> { [id] = state },
+            null,
+            null,
+            null,
+            new Dictionary<UnixPermissionBit, AttributeEditState>());
 }

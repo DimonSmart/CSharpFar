@@ -1,9 +1,13 @@
 using CSharpFar.Core.Models;
+using System.Runtime.Versioning;
 
 namespace CSharpFar.FileSystem.Platform;
 
+[SupportedOSPlatform("macos")]
 internal sealed class MacOsFileMetadataProvider : UnixFileMetadataProvider
 {
+    public override UnixFileMetadata? GetUnixMetadata(string path, FileAttributes attributes) => null;
+
     public override IReadOnlyList<FileAttributeDescriptor> GetAttributeDescriptors(string path, FileAttributes attributes)
     {
         var descriptors = base.GetAttributeDescriptors(path, attributes).ToList();
@@ -18,7 +22,7 @@ internal sealed class MacOsFileMetadataProvider : UnixFileMetadataProvider
         FileAttributes currentAttributes,
         IReadOnlyDictionary<FileAttributeId, AttributeEditState> changes)
     {
-        base.ApplyAttributes(path, currentAttributes, changes);
+        ApplyReadOnlyCompatibility(path, currentAttributes, changes);
 
         if (!changes.TryGetValue(FileAttributeId.Hidden, out var hidden) ||
             hidden == AttributeEditState.Indeterminate)
@@ -33,4 +37,10 @@ internal sealed class MacOsFileMetadataProvider : UnixFileMetadataProvider
         if (next != refreshed)
             File.SetAttributes(path, next);
     }
+
+    public override void ApplyUnixPermissions(
+        string path,
+        UnixFileMetadata currentMetadata,
+        IReadOnlyDictionary<UnixPermissionBit, AttributeEditState> changes) =>
+        throw new PlatformNotSupportedException("Unix permission editing is not enabled by the macOS metadata provider.");
 }

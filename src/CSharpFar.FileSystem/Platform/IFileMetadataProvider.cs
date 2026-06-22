@@ -9,7 +9,12 @@ internal interface IFileMetadataProvider
     bool CanEditLastWriteTime(string path, FileAttributes attributes);
     bool CanEditLastAccessTime(string path, FileAttributes attributes);
     string? GetOwnerDisplayName(string path);
+    UnixFileMetadata? GetUnixMetadata(string path, FileAttributes attributes);
     void ApplyAttributes(string path, FileAttributes currentAttributes, IReadOnlyDictionary<FileAttributeId, AttributeEditState> changes);
+    void ApplyUnixPermissions(
+        string path,
+        UnixFileMetadata currentMetadata,
+        IReadOnlyDictionary<UnixPermissionBit, AttributeEditState> changes);
     void OpenSystemProperties(string path);
     bool CanOpenSystemProperties { get; }
 }

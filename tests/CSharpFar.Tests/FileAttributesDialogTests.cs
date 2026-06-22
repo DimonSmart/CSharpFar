@@ -13,6 +13,7 @@ public sealed class FileAttributesDialogTests
         FileMetadataChangeSet changeSet = FileAttributesDialog.CreateChangeSet(
             snapshot,
             snapshot.AttributeStates,
+            new Dictionary<UnixPermissionBit, AttributeEditState>(),
             creationText: string.Empty,
             writeText: string.Empty,
             accessText: string.Empty,
@@ -35,6 +36,7 @@ public sealed class FileAttributesDialogTests
         FileMetadataChangeSet changeSet = FileAttributesDialog.CreateChangeSet(
             snapshot,
             states,
+            new Dictionary<UnixPermissionBit, AttributeEditState>(),
             creationText: FileAttributesDialog.FormatTime(snapshot.CreationTime),
             writeText: newWrite,
             accessText: FileAttributesDialog.FormatTime(snapshot.LastAccessTime),
@@ -45,6 +47,45 @@ public sealed class FileAttributesDialogTests
         Assert.Null(changeSet.CreationTime);
         Assert.Equal(new DateTime(2026, 6, 14, 15, 3, 39), changeSet.LastWriteTime);
         Assert.Null(changeSet.LastAccessTime);
+    }
+
+    [Fact]
+    public void CreateChangeSet_ReturnsOnlyChangedUnixPermissions()
+    {
+        var permissions = UnixPermissionBits.OwnerRead | UnixPermissionBits.OwnerWrite | UnixPermissionBits.GroupRead;
+        var unixMetadata = new UnixFileMetadata(
+            permissions,
+            Enum.GetValues<UnixPermissionBit>().ToDictionary(
+                static bit => bit,
+                bit => bit is UnixPermissionBit.OwnerRead or UnixPermissionBit.OwnerWrite or UnixPermissionBit.GroupRead
+                    ? AttributeEditState.Checked
+                    : AttributeEditState.Unchecked),
+            1000,
+            1000,
+            "owner",
+            "group",
+            true,
+            null);
+        FileMetadataSnapshot snapshot = Snapshot() with { UnixMetadata = unixMetadata };
+        var current = unixMetadata.PermissionStates.ToDictionary();
+        current[UnixPermissionBit.GroupRead] = AttributeEditState.Unchecked;
+
+        FileMetadataChangeSet changeSet = FileAttributesDialog.CreateChangeSet(
+            snapshot,
+            snapshot.AttributeStates,
+            current,
+            FileAttributesDialog.FormatTime(snapshot.CreationTime),
+            FileAttributesDialog.FormatTime(snapshot.LastWriteTime),
+            FileAttributesDialog.FormatTime(snapshot.LastAccessTime),
+            out string? error);
+
+        Assert.Null(error);
+        Assert.Equal(
+            new Dictionary<UnixPermissionBit, AttributeEditState>
+            {
+                [UnixPermissionBit.GroupRead] = AttributeEditState.Unchecked,
+            },
+            changeSet.UnixPermissionChanges);
     }
 
     private static FileMetadataSnapshot Snapshot()
@@ -68,6 +109,7 @@ public sealed class FileAttributesDialogTests
             },
             CanEditCreationTime: true,
             CanEditLastWriteTime: true,
-            CanEditLastAccessTime: true);
+            CanEditLastAccessTime: true,
+            UnixMetadata: null);
     }
 }

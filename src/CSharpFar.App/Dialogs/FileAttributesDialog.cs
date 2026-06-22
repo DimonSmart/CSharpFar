@@ -45,6 +45,7 @@ internal sealed class FileAttributesDialog : IFileAttributesDialog
     internal static FileMetadataChangeSet CreateChangeSet(
         FileMetadataSnapshot original,
         IReadOnlyDictionary<FileAttributeId, AttributeEditState> currentAttributeStates,
+        IReadOnlyDictionary<UnixPermissionBit, AttributeEditState> currentUnixPermissionStates,
         string creationText,
         string writeText,
         string accessText,
@@ -83,7 +84,19 @@ internal sealed class FileAttributesDialog : IFileAttributesDialog
             original.CanEditLastAccessTime,
             ref error);
 
-        return new FileMetadataChangeSet(changes, creation, write, access);
+        var unixChanges = new Dictionary<UnixPermissionBit, AttributeEditState>();
+        if (original.UnixMetadata is { CanEditPermissions: true } unixMetadata)
+        {
+            foreach (UnixPermissionBit bit in Enum.GetValues<UnixPermissionBit>())
+            {
+                AttributeEditState before = unixMetadata.PermissionStates[bit];
+                AttributeEditState after = currentUnixPermissionStates.TryGetValue(bit, out var current) ? current : before;
+                if (after != before && after != AttributeEditState.Indeterminate)
+                    unixChanges[bit] = after;
+            }
+        }
+
+        return new FileMetadataChangeSet(changes, creation, write, access, unixChanges);
     }
 
     internal static string FormatTime(DateTime? value) =>
@@ -102,12 +115,31 @@ internal sealed class FileAttributesDialog : IFileAttributesDialog
         var creation = TextState(FormatTime(snapshot.CreationTime));
         var write = TextState(FormatTime(snapshot.LastWriteTime));
         var access = TextState(FormatTime(snapshot.LastAccessTime));
+        var permissionLines = snapshot.UnixMetadata?.PermissionStates.ToDictionary(
+            static pair => pair.Key,
+            pair => new TriStateCheckBoxLine(
+                PermissionColumnLabel(pair.Key),
+                pair.Value,
+                snapshot.UnixMetadata.CanEditPermissions))
+            ?? new Dictionary<UnixPermissionBit, TriStateCheckBoxLine>();
+        var unixMatrixRows = snapshot.UnixMetadata is null
+            ? []
+            : new List<UnixPermissionMatrixRow>
+            {
+                MatrixRow("Owner", UnixPermissionBit.OwnerRead, UnixPermissionBit.OwnerWrite, UnixPermissionBit.OwnerExecute, permissionLines),
+                MatrixRow("Group", UnixPermissionBit.GroupRead, UnixPermissionBit.GroupWrite, UnixPermissionBit.GroupExecute, permissionLines),
+                MatrixRow("Others", UnixPermissionBit.OthersRead, UnixPermissionBit.OthersWrite, UnixPermissionBit.OthersExecute, permissionLines),
+            };
+        var unixSpecialRows = new[] { UnixPermissionBit.SetUid, UnixPermissionBit.SetGid, UnixPermissionBit.Sticky }
+            .Where(permissionLines.ContainsKey)
+            .Select(bit => new UnixPermissionDialogRow(bit, new TriStateCheckBoxRow(permissionLines[bit])))
+            .ToList();
         var form = new ScrollableFormDialog();
         string? error = null;
 
         while (true)
         {
-            form.SetRows(BuildRows(snapshot, attributeRows, creation, write, access));
+            form.SetRows(BuildRows(snapshot, attributeRows, unixMatrixRows, unixSpecialRows, creation, write, access));
             Draw(size, form, error);
 
             var input = _screen.ReadInput();
@@ -136,7 +168,8 @@ internal sealed class FileAttributesDialog : IFileAttributesDialog
                     case "set":
                     case null:
                         var states = attributeRows.ToDictionary(row => row.Descriptor.Id, row => row.Row.Value);
-                        var changeSet = CreateChangeSet(snapshot, states, creation.Text, write.Text, access.Text, out error);
+                        var unixStates = permissionLines.ToDictionary(static pair => pair.Key, static pair => pair.Value.Value);
+                        var changeSet = CreateChangeSet(snapshot, states, unixStates, creation.Text, write.Text, access.Text, out error);
                         if (error is null)
                             return new FileAttributesDialogResult(changeSet, OpenSystemProperties: false);
                         continue;
@@ -148,6 +181,8 @@ internal sealed class FileAttributesDialog : IFileAttributesDialog
     private IReadOnlyList<IFormRow> BuildRows(
         FileMetadataSnapshot snapshot,
         IReadOnlyList<AttributeDialogRow> attributeRows,
+        IReadOnlyList<UnixPermissionMatrixRow> unixMatrixRows,
+        IReadOnlyList<UnixPermissionDialogRow> unixSpecialRows,
         CommandLineState creation,
         CommandLineState write,
         CommandLineState access)
@@ -165,14 +200,33 @@ internal sealed class FileAttributesDialog : IFileAttributesDialog
             ? (IFormRow)row.Row
             : new LabelRow(FormatDisabledAttribute(row), disabled)));
 
+        if (snapshot.UnixMetadata is { } unixMetadata)
+        {
+            rows.Add(new SeparatorRow(fill, drawLine: false));
+            rows.Add(new LabelRow("Unix permissions:", fill));
+            if (!unixMetadata.CanEditPermissions && unixMetadata.PermissionsDisabledReason is { Length: > 0 } reason)
+                rows.Add(new LabelRow(reason, disabled));
+            rows.Add(new LabelRow("          Read        Write       Exec", fill));
+            rows.AddRange(unixMatrixRows);
+            rows.AddRange(unixSpecialRows.Select(row => unixMetadata.CanEditPermissions
+                ? (IFormRow)row.Row
+                : new LabelRow(FormatDisabledPermission(row), disabled)));
+            rows.Add(new LabelRow($"Owner: {unixMetadata.OwnerName ?? unixMetadata.Uid?.ToString(CultureInfo.InvariantCulture) ?? "<not available>"}", fill));
+            rows.Add(new LabelRow($"Group: {unixMetadata.GroupName ?? unixMetadata.Gid?.ToString(CultureInfo.InvariantCulture) ?? "<not available>"}", fill));
+            rows.Add(new LabelRow($"Mode: {FormatUnixMode(unixMetadata)}", fill));
+        }
+
         rows.Add(new SeparatorRow(fill, drawLine: false));
         rows.Add(new LabelRow("Date/Time:", fill));
         AddTimeRows(rows, "write:", "write.", write, snapshot.LastWriteTime, snapshot.CanEditLastWriteTime, disabled);
         AddTimeRows(rows, "creation:", "creation.", creation, snapshot.CreationTime, snapshot.CanEditCreationTime, disabled);
         AddTimeRows(rows, "access:", "access.", access, snapshot.LastAccessTime, snapshot.CanEditLastAccessTime, disabled);
         rows.Add(new SeparatorRow(fill, drawLine: false));
-        rows.Add(new LabelRow("Owner:", fill));
-        rows.Add(new LabelRow(snapshot.OwnerDisplayName ?? "<not available>", fill));
+        if (snapshot.UnixMetadata is null)
+        {
+            rows.Add(new LabelRow("Owner:", fill));
+            rows.Add(new LabelRow(snapshot.OwnerDisplayName ?? "<not available>", fill));
+        }
         rows.Add(new SeparatorRow(fill, drawLine: false));
 
         var buttons = _canOpenSystemProperties
@@ -279,8 +333,63 @@ internal sealed class FileAttributesDialog : IFileAttributesDialog
             AttributeEditState.Indeterminate => "-",
             _ => " ",
         };
-        return $"[{marker}] {row.Descriptor.Label}";
+        string reason = row.Descriptor.DisabledReason is { Length: > 0 } value ? $" - {value}" : string.Empty;
+        return $"[{marker}] {row.Descriptor.Label}{reason}";
     }
+
+    private static string FormatDisabledPermission(UnixPermissionDialogRow row)
+    {
+        string marker = row.Row.Value switch
+        {
+            AttributeEditState.Checked => "x",
+            AttributeEditState.Indeterminate => "-",
+            _ => " ",
+        };
+        return $"[{marker}] {PermissionLabel(row.Bit)}";
+    }
+
+    private static string PermissionLabel(UnixPermissionBit bit) => bit switch
+    {
+        UnixPermissionBit.OwnerRead => "Owner read",
+        UnixPermissionBit.OwnerWrite => "Owner write",
+        UnixPermissionBit.OwnerExecute => "Owner execute",
+        UnixPermissionBit.GroupRead => "Group read",
+        UnixPermissionBit.GroupWrite => "Group write",
+        UnixPermissionBit.GroupExecute => "Group execute",
+        UnixPermissionBit.OthersRead => "Others read",
+        UnixPermissionBit.OthersWrite => "Others write",
+        UnixPermissionBit.OthersExecute => "Others execute",
+        UnixPermissionBit.SetUid => "Set UID",
+        UnixPermissionBit.SetGid => "Set GID",
+        UnixPermissionBit.Sticky => "Sticky",
+        _ => bit.ToString(),
+    };
+
+    private static string FormatUnixMode(UnixFileMetadata metadata)
+    {
+        if (metadata.PermissionStates.Values.Any(static state => state == AttributeEditState.Indeterminate))
+            return "<mixed>";
+        return Convert.ToString((int)metadata.Permissions, 8).PadLeft(4, '0');
+    }
+
+    private static UnixPermissionMatrixRow MatrixRow(
+        string label,
+        UnixPermissionBit read,
+        UnixPermissionBit write,
+        UnixPermissionBit execute,
+        IReadOnlyDictionary<UnixPermissionBit, TriStateCheckBoxLine> lines) =>
+        new(label, lines[read], lines[write], lines[execute]);
+
+    private static string PermissionColumnLabel(UnixPermissionBit bit) => bit switch
+    {
+        UnixPermissionBit.SetUid => "Set UID",
+        UnixPermissionBit.SetGid => "Set GID",
+        UnixPermissionBit.Sticky => "Sticky",
+        UnixPermissionBit.OwnerRead or UnixPermissionBit.GroupRead or UnixPermissionBit.OthersRead => "Read",
+        UnixPermissionBit.OwnerWrite or UnixPermissionBit.GroupWrite or UnixPermissionBit.OthersWrite => "Write",
+        UnixPermissionBit.OwnerExecute or UnixPermissionBit.GroupExecute or UnixPermissionBit.OthersExecute => "Exec",
+        _ => bit.ToString(),
+    };
 
     private static CommandLineState TextState(string text)
     {
@@ -341,7 +450,12 @@ internal sealed class FileAttributesDialog : IFileAttributesDialog
     }
 
     private static FileMetadataChangeSet EmptyChangeSet() =>
-        new(new Dictionary<FileAttributeId, AttributeEditState>(), null, null, null);
+        new(
+            new Dictionary<FileAttributeId, AttributeEditState>(),
+            null,
+            null,
+            null,
+            new Dictionary<UnixPermissionBit, AttributeEditState>());
 
     private static Rect OuterBounds(ConsoleSize size)
     {
@@ -362,4 +476,72 @@ internal sealed class FileAttributesDialog : IFileAttributesDialog
     private sealed record AttributeDialogRow(
         FileAttributeDescriptor Descriptor,
         TriStateCheckBoxRow Row);
+
+    private sealed record UnixPermissionDialogRow(
+        UnixPermissionBit Bit,
+        TriStateCheckBoxRow Row);
+
+    private sealed class UnixPermissionMatrixRow : FormRow
+    {
+        private const int LabelWidth = 9;
+        private const int ColumnWidth = 12;
+        private readonly string _label;
+        private readonly TriStateCheckBoxLine[] _columns;
+        private int _focusedColumn;
+
+        internal UnixPermissionMatrixRow(
+            string label,
+            TriStateCheckBoxLine read,
+            TriStateCheckBoxLine write,
+            TriStateCheckBoxLine execute)
+        {
+            _label = label;
+            _columns = [read, write, execute];
+        }
+
+        public override void Render(FormRowRenderContext context)
+        {
+            context.Screen.Write(
+                context.Bounds.X,
+                context.Bounds.Y,
+                _label.PadRight(Math.Min(LabelWidth, context.Bounds.Width)),
+                FarDialogStyles.Fill);
+            for (int index = 0; index < _columns.Length; index++)
+            {
+                int x = context.Bounds.X + LabelWidth + index * ColumnWidth;
+                int width = Math.Min(ColumnWidth, context.Bounds.Right - x);
+                if (width > 0)
+                    _columns[index].Render(context.Screen, x, context.Bounds.Y, width, context.Focused && index == _focusedColumn);
+            }
+        }
+
+        public override bool IsFocusable => _columns.Any(static column => column.Enabled);
+
+        public override FormInputResult HandleKey(ConsoleKeyInfo key, FormRowInputContext context)
+        {
+            if (key.Key is ConsoleKey.LeftArrow or ConsoleKey.RightArrow)
+            {
+                int delta = key.Key == ConsoleKey.LeftArrow ? -1 : 1;
+                _focusedColumn = (_focusedColumn + delta + _columns.Length) % _columns.Length;
+                return FormInputResult.Handled;
+            }
+
+            return _columns[_focusedColumn].TryHandleKey(key)
+                ? FormInputResult.Handled
+                : FormInputResult.NotHandled;
+        }
+
+        public override FormInputResult HandleMouse(MouseConsoleInputEvent mouse, FormRowMouseContext context)
+        {
+            for (int index = 0; index < _columns.Length; index++)
+            {
+                if (!_columns[index].TryHandleMouse(mouse))
+                    continue;
+                _focusedColumn = index;
+                return FormInputResult.Handled;
+            }
+
+            return FormInputResult.NotHandled;
+        }
+    }
 }

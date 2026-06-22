@@ -13,4 +13,5 @@ public sealed record FileMetadataSnapshot(
     IReadOnlyDictionary<FileAttributeId, AttributeEditState> AttributeStates,
     bool CanEditCreationTime,
     bool CanEditLastWriteTime,
-    bool CanEditLastAccessTime);
+    bool CanEditLastAccessTime,
+    UnixFileMetadata? UnixMetadata);

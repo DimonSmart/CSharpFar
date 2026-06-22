@@ -56,7 +56,8 @@ public sealed class Spec063FileAttributesCommandTests : IDisposable
                 },
                 null,
                 null,
-                null),
+                null,
+                new Dictionary<UnixPermissionBit, AttributeEditState>()),
             OpenSystemProperties: false)), driver);
         app.Session.Panels.Left.CursorIndex = 1;
 
@@ -139,7 +140,8 @@ public sealed class Spec063FileAttributesCommandTests : IDisposable
             },
             true,
             true,
-            true);
+            true,
+            null);
 
     private static ConsoleKeyInfo Key(ConsoleKey key, bool shift = false) =>
         new('\0', key, shift, alt: false, control: false);

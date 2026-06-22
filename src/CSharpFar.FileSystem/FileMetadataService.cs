@@ -23,6 +23,7 @@ public sealed class FileMetadataService : IFileMetadataService
     {
         FileAttributes attributes = File.GetAttributes(path);
         bool isDirectory = (attributes & FileAttributes.Directory) != 0;
+        UnixFileMetadata? unixMetadata = SafeGet(() => _provider.GetUnixMetadata(path, attributes));
 
         return new FileMetadataSnapshot(
             Path: path,
@@ -34,12 +35,13 @@ public sealed class FileMetadataService : IFileMetadataService
             CreationTime: SafeGet(() => isDirectory ? Directory.GetCreationTime(path) : File.GetCreationTime(path)),
             LastWriteTime: SafeGet(() => isDirectory ? Directory.GetLastWriteTime(path) : File.GetLastWriteTime(path)),
             LastAccessTime: SafeGet(() => isDirectory ? Directory.GetLastAccessTime(path) : File.GetLastAccessTime(path)),
-            OwnerDisplayName: SafeGet(() => _provider.GetOwnerDisplayName(path)),
+            OwnerDisplayName: unixMetadata?.OwnerName ?? SafeGet(() => _provider.GetOwnerDisplayName(path)),
             AttributesDescriptors: _provider.GetAttributeDescriptors(path, attributes).Where(static d => d.IsVisible).ToList(),
             AttributeStates: AttributeStates(attributes),
             CanEditCreationTime: _provider.CanEditCreationTime(path, attributes),
             CanEditLastWriteTime: _provider.CanEditLastWriteTime(path, attributes),
-            CanEditLastAccessTime: _provider.CanEditLastAccessTime(path, attributes));
+            CanEditLastAccessTime: _provider.CanEditLastAccessTime(path, attributes),
+            UnixMetadata: unixMetadata);
     }
 
     public FileMetadataSnapshot GetMergedMetadata(IReadOnlyList<string> paths)
@@ -54,6 +56,7 @@ public sealed class FileMetadataService : IFileMetadataService
             .GroupBy(static descriptor => descriptor.Id)
             .Select(static group => group.First())
             .ToList();
+        UnixFileMetadata? mergedUnixMetadata = MergeUnixMetadata(snapshots);
 
         return first with
         {
@@ -64,12 +67,13 @@ public sealed class FileMetadataService : IFileMetadataService
             CreationTime = SameOrNull(snapshots.Select(static snapshot => snapshot.CreationTime)),
             LastWriteTime = SameOrNull(snapshots.Select(static snapshot => snapshot.LastWriteTime)),
             LastAccessTime = SameOrNull(snapshots.Select(static snapshot => snapshot.LastAccessTime)),
-            OwnerDisplayName = SameOrNull(snapshots.Select(static snapshot => snapshot.OwnerDisplayName)),
+            OwnerDisplayName = mergedUnixMetadata?.OwnerName ?? SameOrNull(snapshots.Select(static snapshot => snapshot.OwnerDisplayName)),
             AttributesDescriptors = descriptorIds,
             AttributeStates = MergedAttributeStates(snapshots),
             CanEditCreationTime = snapshots.All(static snapshot => snapshot.CanEditCreationTime),
             CanEditLastWriteTime = snapshots.All(static snapshot => snapshot.CanEditLastWriteTime),
             CanEditLastAccessTime = snapshots.All(static snapshot => snapshot.CanEditLastAccessTime),
+            UnixMetadata = mergedUnixMetadata,
         };
     }
 
@@ -106,6 +110,21 @@ public sealed class FileMetadataService : IFileMetadataService
                 catch (Exception ex)
                 {
                     errors.Add(new FileMetadataApplyError(path, "Set attributes", ex.Message, ex));
+                }
+            }
+
+            if (changes.UnixPermissionChanges.Count > 0)
+            {
+                try
+                {
+                    UnixFileMetadata currentMetadata = _provider.GetUnixMetadata(path, attributes)
+                        ?? throw new PlatformNotSupportedException("Unix metadata is not available for this item.");
+                    _provider.ApplyUnixPermissions(path, currentMetadata, changes.UnixPermissionChanges);
+                    itemChanged = true;
+                }
+                catch (Exception ex)
+                {
+                    errors.Add(new FileMetadataApplyError(path, "Set Unix permissions", ex.Message, ex));
                 }
             }
 
@@ -203,6 +222,45 @@ public sealed class FileMetadataService : IFileMetadataService
                             ? AttributeEditState.Indeterminate
                             : AttributeEditState.Unchecked;
                 });
+
+    private static UnixFileMetadata? MergeUnixMetadata(IReadOnlyList<FileMetadataSnapshot> snapshots)
+    {
+        if (snapshots.Any(static snapshot => snapshot.UnixMetadata is null))
+            return null;
+
+        var metadata = snapshots.Select(static snapshot => snapshot.UnixMetadata!).ToList();
+        var states = Enum.GetValues<UnixPermissionBit>().ToDictionary(
+            static bit => bit,
+            bit =>
+            {
+                bool allChecked = metadata.All(item => item.PermissionStates[bit] == AttributeEditState.Checked);
+                bool allUnchecked = metadata.All(item => item.PermissionStates[bit] == AttributeEditState.Unchecked);
+                return allChecked
+                    ? AttributeEditState.Checked
+                    : allUnchecked
+                        ? AttributeEditState.Unchecked
+                        : AttributeEditState.Indeterminate;
+            });
+        UnixPermissionBits permissions = UnixPermissionBits.None;
+        foreach (var (bit, state) in states)
+        {
+            if (state == AttributeEditState.Checked)
+                permissions = UnixPermissionMapping.ApplyChanges(
+                    permissions,
+                    new Dictionary<UnixPermissionBit, AttributeEditState> { [bit] = state });
+        }
+
+        bool canEdit = metadata.All(static item => item.CanEditPermissions);
+        return new UnixFileMetadata(
+            permissions,
+            states,
+            SameOrNull(metadata.Select(static item => item.Uid)),
+            SameOrNull(metadata.Select(static item => item.Gid)),
+            SameOrNull(metadata.Select(static item => item.OwnerName)),
+            SameOrNull(metadata.Select(static item => item.GroupName)),
+            canEdit,
+            canEdit ? null : metadata.Select(static item => item.PermissionsDisabledReason).FirstOrDefault(static reason => reason is not null));
+    }
 
     private static T? SameOrNull<T>(IEnumerable<T?> values)
     {
