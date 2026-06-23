@@ -100,11 +100,19 @@ jobs:
             -DebsDir $env:DEBS_DIR `
             -SiteDir (Join-Path $env:RUNNER_TEMP "site")
 
+      - name: Add installer to Pages site
+        shell: pwsh
+        run: |
+          $site = Join-Path $env:RUNNER_TEMP "site"
+          Copy-Item -LiteralPath "docs/install.sh" -Destination (Join-Path $site "install.sh")
+          chmod 0644 (Join-Path $site "install.sh")
+
       - name: Verify generated repository
         shell: pwsh
         run: |
           $site = Join-Path $env:RUNNER_TEMP "site"
           $required = @(
+            "install.sh",
             "apt/dists/stable/InRelease",
             "apt/dists/stable/Release",
             "apt/dists/stable/Release.gpg",
@@ -115,6 +123,16 @@ jobs:
           foreach ($file in $required) {
             if (-not (Test-Path -LiteralPath (Join-Path $site $file) -PathType Leaf)) {
               throw "Generated repository is missing '$file'."
+            }
+          }
+
+          $requiredDirectories = @(
+            "apt/dists",
+            "apt/pool"
+          )
+          foreach ($directory in $requiredDirectories) {
+            if (-not (Test-Path -LiteralPath (Join-Path $site $directory) -PathType Container)) {
+              throw "Generated repository is missing '$directory'."
             }
           }
 
