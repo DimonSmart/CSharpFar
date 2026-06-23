@@ -209,6 +209,7 @@ public sealed class Application
         context.TryHideCommandCompletionTemporarily = TryHideCommandCompletionTemporarily;
         context.CloseSearchResultsPanel = CloseSearchResultsPanel;
         context.TryAcceptCommandCompletion = TryAcceptCommandCompletion;
+        context.TryRemoveSelectedCommandCompletion = TryRemoveSelectedCommandCompletion;
         context.ExecuteCommand = ExecuteCommand;
         context.EnsureActivePanelVisible = _panelWorkspace.EnsureActivePanelVisible;
         context.TryMoveCommandCompletionSelection = TryMoveCommandCompletionSelection;
@@ -480,6 +481,17 @@ public sealed class Application
         HideCommandCompletion(temporarily: false);
         ResetCommandHistoryNavigation();
         return true;
+    }
+
+    private bool TryRemoveSelectedCommandCompletion()
+    {
+        bool removed = _commandCompletionController.TryRemoveSelectedCommand(
+            _cmdLine,
+            CommandCompletionVisibleRows(LastRenderSizeOrCurrent()));
+        if (removed)
+            ResetCommandHistoryNavigation();
+
+        return removed;
     }
 
     private bool IsCommandCompletionNeutralSelected() =>

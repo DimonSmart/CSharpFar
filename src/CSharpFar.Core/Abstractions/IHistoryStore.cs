@@ -6,6 +6,7 @@ public interface IHistoryStore
 {
     IReadOnlyList<CommandHistoryItem> GetCommandHistory();
     void AddCommand(CommandHistoryItem item);
+    bool RemoveCommand(string command);
 
     IReadOnlyList<DirectoryHistoryItem> GetDirectoryHistory();
     void AddDirectory(DirectoryHistoryItem item);

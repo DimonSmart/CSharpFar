@@ -202,6 +202,60 @@ public sealed class Spec018CommandHistoryCompletionTests : IDisposable
     }
 
     [Fact]
+    public void Run_VisiblePanels_DeleteOnSelectedCompletionRemovesCommandFromHistory()
+    {
+        var history = CreateHistory("git status", "git commit", "git branch");
+        var driver = new FakeConsoleDriver(width: 100, height: 12);
+        driver.EnqueueKey(KeyChar('g', ConsoleKey.G));
+        driver.EnqueueKey(Key(ConsoleKey.DownArrow));
+        driver.EnqueueKey(Key(ConsoleKey.Delete));
+        driver.EnqueueKey(Key(ConsoleKey.F10));
+
+        var app = CreateApp(driver, history, new RecordingShellService());
+        app.Run();
+
+        Assert.Equal("g", GetCommandLine(app).Text);
+        Assert.DoesNotContain("git branch", app.Session.CommandLine.Completion.Matches);
+        Assert.DoesNotContain(history.GetCommandHistory(), item => item.Command == "git branch");
+        Assert.Equal(["git status", "git commit"], history.GetCommandHistory().Select(item => item.Command).ToArray());
+    }
+
+    [Fact]
+    public void Run_VisiblePanels_DeleteOnNeutralCompletionKeepsHistory()
+    {
+        var history = CreateHistory("git status", "git commit");
+        var driver = new FakeConsoleDriver(width: 100, height: 12);
+        driver.EnqueueKey(KeyChar('g', ConsoleKey.G));
+        driver.EnqueueKey(Key(ConsoleKey.Delete));
+        driver.EnqueueKey(Key(ConsoleKey.F10));
+
+        var app = CreateApp(driver, history, new RecordingShellService());
+        app.Run();
+
+        Assert.Equal("g", GetCommandLine(app).Text);
+        Assert.Equal(["git status", "git commit"], history.GetCommandHistory().Select(item => item.Command).ToArray());
+    }
+
+    [Fact]
+    public void Run_VisiblePanels_DeleteBeforeCommandLineEndKeepsHistory()
+    {
+        var history = CreateHistory("git status", "git commit", "git branch");
+        var driver = new FakeConsoleDriver(width: 100, height: 12);
+        driver.EnqueueKey(KeyChar('g', ConsoleKey.G));
+        driver.EnqueueKey(KeyChar('i', ConsoleKey.I));
+        driver.EnqueueKey(Key(ConsoleKey.DownArrow));
+        driver.EnqueueKey(Key(ConsoleKey.LeftArrow));
+        driver.EnqueueKey(Key(ConsoleKey.Delete));
+        driver.EnqueueKey(Key(ConsoleKey.F10));
+
+        var app = CreateApp(driver, history, new RecordingShellService());
+        app.Run();
+
+        Assert.Equal("g", GetCommandLine(app).Text);
+        Assert.Contains(history.GetCommandHistory(), item => item.Command == "git branch");
+    }
+
+    [Fact]
     public void Run_ShortConsoleWithMatchingCompletion_DoesNotThrow()
     {
         var history = CreateHistory("git status");

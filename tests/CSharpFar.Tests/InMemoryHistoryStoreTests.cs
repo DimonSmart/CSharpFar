@@ -56,6 +56,33 @@ public class InMemoryHistoryStoreTests
     }
 
     [Fact]
+    public void RemoveCommand_RemovesMatchingCommand()
+    {
+        var store = new InMemoryHistoryStore();
+        store.AddCommand(new CommandHistoryItem { Command = "dir", WorkingDirectory = @"C:\" });
+        store.AddCommand(new CommandHistoryItem { Command = "cls", WorkingDirectory = @"C:\" });
+
+        bool removed = store.RemoveCommand("dir");
+
+        Assert.True(removed);
+        var item = Assert.Single(store.GetCommandHistory());
+        Assert.Equal("cls", item.Command);
+    }
+
+    [Fact]
+    public void RemoveCommand_ReturnsFalseForMissingCommand()
+    {
+        var store = new InMemoryHistoryStore();
+        store.AddCommand(new CommandHistoryItem { Command = "dir", WorkingDirectory = @"C:\" });
+
+        bool removed = store.RemoveCommand("missing");
+
+        Assert.False(removed);
+        var item = Assert.Single(store.GetCommandHistory());
+        Assert.Equal("dir", item.Command);
+    }
+
+    [Fact]
     public void AddDirectory_AppearsInHistory()
     {
         var store = new InMemoryHistoryStore();

@@ -42,6 +42,7 @@ internal sealed class KeyboardInputContext
     public Action<FilePanelState, PanelSide> CloseSearchResultsPanel { get; set; } =
         (_, _) => throw Missing();
     public Func<bool> TryAcceptCommandCompletion { get; set; } = () => throw Missing();
+    public Func<bool> TryRemoveSelectedCommandCompletion { get; set; } = () => throw Missing();
     public Action<string> ExecuteCommand { get; set; } = _ => throw Missing();
     public Action EnsureActivePanelVisible { get; set; } = () => throw Missing();
     public Func<int, bool> TryMoveCommandCompletionSelection { get; set; } = _ => throw Missing();

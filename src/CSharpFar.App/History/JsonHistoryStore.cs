@@ -50,6 +50,20 @@ public sealed class JsonHistoryStore : IHistoryStore
         Save();
     }
 
+    public bool RemoveCommand(string command)
+    {
+        if (string.IsNullOrWhiteSpace(command))
+            return false;
+
+        int removed = _commands.RemoveAll(existing =>
+            string.Equals(existing.Command, command, StringComparison.Ordinal));
+        if (removed == 0)
+            return false;
+
+        Save();
+        return true;
+    }
+
     public IReadOnlyList<DirectoryHistoryItem> GetDirectoryHistory() => _directories;
 
     public void AddDirectory(DirectoryHistoryItem item)

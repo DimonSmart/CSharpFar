@@ -88,6 +88,40 @@ internal sealed class CommandCompletionController
         return true;
     }
 
+    public bool TryRemoveSelectedCommand(CommandLineState commandLine, int visibleRows)
+    {
+        if (!_state.Visible ||
+            _state.SelectedIndex == NeutralIndex ||
+            _state.SelectedIndex >= _state.Matches.Count ||
+            commandLine.HasSelection ||
+            commandLine.CursorPosition != commandLine.Text.Length)
+        {
+            return false;
+        }
+
+        string command = _state.Matches[_state.SelectedIndex];
+        if (string.IsNullOrEmpty(command) || !_history.RemoveCommand(command))
+            return false;
+
+        _state.Matches.RemoveAt(_state.SelectedIndex);
+        if (_state.Matches.Count <= 1)
+        {
+            _state.ClearMatches();
+            return true;
+        }
+
+        _state.SelectedIndex = Math.Min(_state.SelectedIndex, _state.Matches.Count - 1);
+        _state.FirstVisibleIndex = ScrollStateCalculator.EnsureIndexVisible(
+            _state.SelectedIndex,
+            _state.FirstVisibleIndex,
+            visibleRows);
+        _state.FirstVisibleIndex = ScrollStateCalculator.ClampFirstVisibleIndex(
+            _state.FirstVisibleIndex,
+            _state.Matches.Count,
+            visibleRows);
+        return true;
+    }
+
     public void Hide(bool temporarily) =>
         _state.Reset(temporarily);
 }

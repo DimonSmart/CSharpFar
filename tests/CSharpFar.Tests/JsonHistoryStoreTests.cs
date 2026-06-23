@@ -82,6 +82,35 @@ public class JsonHistoryStoreTests : IDisposable
         Assert.Equal(@"C:\C", history[1].WorkingDirectory);
     }
 
+    [Fact]
+    public void RemoveCommand_RemovesCommandFromFile()
+    {
+        var store = new JsonHistoryStore(_tempFile);
+        store.AddCommand(new CommandHistoryItem { Command = "dir", WorkingDirectory = @"C:\" });
+        store.AddCommand(new CommandHistoryItem { Command = "cls", WorkingDirectory = @"C:\" });
+
+        bool removed = store.RemoveCommand("dir");
+
+        Assert.True(removed);
+        var store2 = new JsonHistoryStore(_tempFile);
+        var item = Assert.Single(store2.GetCommandHistory());
+        Assert.Equal("cls", item.Command);
+    }
+
+    [Fact]
+    public void RemoveCommand_ReturnsFalseForMissingCommand()
+    {
+        var store = new JsonHistoryStore(_tempFile);
+        store.AddCommand(new CommandHistoryItem { Command = "dir", WorkingDirectory = @"C:\" });
+
+        bool removed = store.RemoveCommand("missing");
+
+        Assert.False(removed);
+        var store2 = new JsonHistoryStore(_tempFile);
+        var item = Assert.Single(store2.GetCommandHistory());
+        Assert.Equal("dir", item.Command);
+    }
+
     // ── Directory history ─────────────────────────────────────────────────────
 
     [Fact]

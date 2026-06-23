@@ -34,6 +34,15 @@ public sealed class InMemoryHistoryStore : IHistoryStore
             _commands.RemoveAt(0);
     }
 
+    public bool RemoveCommand(string command)
+    {
+        if (string.IsNullOrWhiteSpace(command))
+            return false;
+
+        return _commands.RemoveAll(existing =>
+            string.Equals(existing.Command, command, StringComparison.Ordinal)) > 0;
+    }
+
     public IReadOnlyList<DirectoryHistoryItem> GetDirectoryHistory() => _directories;
 
     public void AddDirectory(DirectoryHistoryItem item)

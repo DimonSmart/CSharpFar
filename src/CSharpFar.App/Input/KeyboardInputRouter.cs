@@ -167,6 +167,9 @@ internal sealed class KeyboardInputRouter
                 return true;
 
             case ConsoleKey.Delete:
+                if (_context.TryRemoveSelectedCommandCompletion())
+                    return true;
+
                 _context.CommandLine.DeleteForward();
                 _context.OnVisibleCommandLineTextEdited();
                 return true;

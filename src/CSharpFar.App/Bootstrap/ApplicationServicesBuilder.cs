@@ -115,6 +115,7 @@ internal static class ApplicationServicesBuilder
             TryHideCommandCompletionTemporarily = () => throw new InvalidOperationException("Keyboard input context is not assigned."),
             CloseSearchResultsPanel = (_, _) => throw new InvalidOperationException("Keyboard input context is not assigned."),
             TryAcceptCommandCompletion = () => throw new InvalidOperationException("Keyboard input context is not assigned."),
+            TryRemoveSelectedCommandCompletion = () => throw new InvalidOperationException("Keyboard input context is not assigned."),
             ExecuteCommand = _ => throw new InvalidOperationException("Keyboard input context is not assigned."),
             EnsureActivePanelVisible = () => throw new InvalidOperationException("Keyboard input context is not assigned."),
             TryMoveCommandCompletionSelection = _ => throw new InvalidOperationException("Keyboard input context is not assigned."),
