@@ -1,0 +1,128 @@
+name: APT Pages
+
+on:
+  workflow_dispatch:
+  workflow_run:
+    workflows: ["Release"]
+    types: [completed]
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: github-pages
+  cancel-in-progress: false
+
+jobs:
+  deploy-apt:
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install APT repository tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y apt-utils gnupg
+
+      - name: Download Debian release assets
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $debsDir = Join-Path $env:RUNNER_TEMP "debs"
+          New-Item -ItemType Directory -Force -Path $debsDir | Out-Null
+
+          $releases = gh release list --limit 1000 --json tagName,isDraft | ConvertFrom-Json
+          foreach ($release in $releases | Where-Object { -not $_.isDraft }) {
+            $assetNames = @(gh release view $release.tagName --json assets --jq '.assets[].name')
+            foreach ($assetName in $assetNames | Where-Object { $_ -like "csharpfar_*_amd64.deb" }) {
+              gh release download $release.tagName `
+                --pattern $assetName `
+                --dir $debsDir `
+                --skip-existing
+              if ($LASTEXITCODE -ne 0) {
+                throw "Failed to download '$assetName' from release '$($release.tagName)'."
+              }
+            }
+          }
+
+          $debs = @(Get-ChildItem -LiteralPath $debsDir -File -Filter "csharpfar_*_amd64.deb")
+          if ($debs.Count -eq 0) {
+            throw "No csharpfar_*_amd64.deb assets were found in non-draft GitHub Releases."
+          }
+
+          "DEBS_DIR=$debsDir" >> $env:GITHUB_ENV
+
+      - name: Import APT signing key
+        shell: pwsh
+        env:
+          APT_GPG_PRIVATE_KEY: ${{ secrets.APT_GPG_PRIVATE_KEY }}
+        run: |
+          if ([string]::IsNullOrWhiteSpace($env:APT_GPG_PRIVATE_KEY)) {
+            throw "Repository secret APT_GPG_PRIVATE_KEY is not configured."
+          }
+
+          $gnupgHome = Join-Path $env:RUNNER_TEMP "gnupg"
+          New-Item -ItemType Directory -Force -Path $gnupgHome | Out-Null
+          chmod 0700 $gnupgHome
+          "GNUPGHOME=$gnupgHome" >> $env:GITHUB_ENV
+          $env:GNUPGHOME = $gnupgHome
+
+          $env:APT_GPG_PRIVATE_KEY | gpg --batch --import
+          if ($LASTEXITCODE -ne 0) {
+            throw "Failed to import APT_GPG_PRIVATE_KEY."
+          }
+
+          $fingerprint = gpg --batch --with-colons --list-secret-keys |
+            Where-Object { $_ -like "fpr:*" } |
+            ForEach-Object { ($_ -split ':')[9] } |
+            Select-Object -First 1
+          if ([string]::IsNullOrWhiteSpace($fingerprint)) {
+            throw "No secret-key fingerprint was found after import."
+          }
+
+          "APT_GPG_FINGERPRINT=$fingerprint" >> $env:GITHUB_ENV
+
+      - name: Build signed APT repository
+        shell: pwsh
+        env:
+          APT_GPG_PASSPHRASE: ${{ secrets.APT_GPG_PASSPHRASE }}
+        run: |
+          ./eng/packaging/build-apt-repository.ps1 `
+            -DebsDir $env:DEBS_DIR `
+            -SiteDir (Join-Path $env:RUNNER_TEMP "site")
+
+      - name: Verify generated repository
+        shell: pwsh
+        run: |
+          $site = Join-Path $env:RUNNER_TEMP "site"
+          $required = @(
+            "apt/dists/stable/InRelease",
+            "apt/dists/stable/Release",
+            "apt/dists/stable/Release.gpg",
+            "apt/dists/stable/main/binary-amd64/Packages",
+            "apt/dists/stable/main/binary-amd64/Packages.gz",
+            "apt/csharpfar-archive-keyring.gpg"
+          )
+          foreach ($file in $required) {
+            if (-not (Test-Path -LiteralPath (Join-Path $site $file) -PathType Leaf)) {
+              throw "Generated repository is missing '$file'."
+            }
+          }
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v5
+        with:
+          path: ${{ runner.temp }}/site
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v5

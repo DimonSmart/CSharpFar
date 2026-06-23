@@ -120,6 +120,38 @@ dotnet build
 
 Run instructions may change while the project structure is still evolving.
 
+## Install on Debian/Ubuntu
+
+```bash
+sudo install -m 0755 -d /etc/apt/keyrings
+```
+
+```bash
+curl -fsSL https://dimonsmart.github.io/CSharpFar/apt/csharpfar-archive-keyring.gpg | sudo tee /etc/apt/keyrings/csharpfar.gpg > /dev/null
+```
+
+```bash
+echo "deb [arch=amd64 signed-by=/etc/apt/keyrings/csharpfar.gpg] https://dimonsmart.github.io/CSharpFar/apt stable main" | sudo tee /etc/apt/sources.list.d/csharpfar.list > /dev/null
+```
+
+```bash
+sudo apt update
+```
+
+```bash
+sudo apt install csharpfar
+```
+
+### Verify installation
+
+```bash
+csharpfar --version
+```
+
+```bash
+csharpfar --self-test
+```
+
 ## Contributing
 
 This is an experimental project, so the best contributions are practical and specific:

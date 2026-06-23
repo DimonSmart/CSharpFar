@@ -123,6 +123,25 @@ jobs:
             throw "--self-test failed for $binaryPath"
           }
 
+      - name: Build Debian package
+        if: matrix.runtime == 'linux-x64'
+        shell: pwsh
+        run: |
+          $binaryPath = Join-Path $env:PUBLISH_DIR "csharpfar"
+          ldd $binaryPath | Out-Host
+
+          $debPath = ./eng/packaging/build-deb.ps1 `
+            -PublishDir $env:PUBLISH_DIR `
+            -Version $env:VERSION `
+            -PackageRevision "1" `
+            -OutputDir $env:RUNNER_TEMP
+
+          "DEB_PATH=$debPath" >> $env:GITHUB_ENV
+
+          $debName = Split-Path -Path $debPath -Leaf
+          $debHash = (Get-FileHash -Path $debPath -Algorithm SHA256).Hash.ToLowerInvariant()
+          "$debHash  $debName" | Set-Content -Path "$debPath.sha256" -Encoding ascii
+
       - name: Package
         shell: pwsh
         run: |
@@ -154,6 +173,22 @@ jobs:
         with:
           name: ${{ matrix.asset }}.sha256
           path: ${{ runner.temp }}/${{ matrix.asset }}.sha256
+          if-no-files-found: error
+
+      - name: Upload Debian package artifact
+        if: matrix.runtime == 'linux-x64'
+        uses: actions/upload-artifact@v4
+        with:
+          name: csharpfar-deb
+          path: ${{ env.DEB_PATH }}
+          if-no-files-found: error
+
+      - name: Upload Debian checksum fragment
+        if: matrix.runtime == 'linux-x64'
+        uses: actions/upload-artifact@v4
+        with:
+          name: csharpfar-deb.sha256
+          path: ${{ env.DEB_PATH }}.sha256
           if-no-files-found: error
 
       - name: Generate artifact attestation
@@ -222,6 +257,7 @@ jobs:
 
           $windowsAsset = "CSharpFar-$env:GITHUB_REF_NAME-win-x64.zip"
           $linuxAsset = "CSharpFar-$env:GITHUB_REF_NAME-linux-x64.tar.gz"
+          $debianAsset = "csharpfar_$($env:GITHUB_REF_NAME.Substring(1))-1_amd64.deb"
           $notes = @(
             "## CSharpFar $env:GITHUB_REF_NAME",
             "",
@@ -229,7 +265,17 @@ jobs:
             "",
             "### Download",
             "- Windows: download ``$windowsAsset``, unpack it and run ``CSharpFar.exe``.",
-            "- Linux: download ``$linuxAsset``, unpack it and run ``csharpfar``.",
+            "- Debian/Ubuntu: download ``$debianAsset`` and install it with ``sudo apt install ./$debianAsset``.",
+            "- Portable Linux: download ``$linuxAsset``, unpack it and run ``csharpfar``.",
+            "",
+            "### Install from the APT repository",
+            "``````bash",
+            "sudo install -m 0755 -d /etc/apt/keyrings",
+            "curl -fsSL https://dimonsmart.github.io/CSharpFar/apt/csharpfar-archive-keyring.gpg | sudo tee /etc/apt/keyrings/csharpfar.gpg > /dev/null",
+            "echo `"deb [arch=amd64 signed-by=/etc/apt/keyrings/csharpfar.gpg] https://dimonsmart.github.io/CSharpFar/apt stable main`" | sudo tee /etc/apt/sources.list.d/csharpfar.list > /dev/null",
+            "sudo apt update",
+            "sudo apt install csharpfar",
+            "``````",
             "",
             "### Verification",
             "Download ``$env:CHECKSUMS_NAME`` and compare archive hashes:",
