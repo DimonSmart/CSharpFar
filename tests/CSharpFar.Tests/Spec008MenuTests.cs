@@ -1,5 +1,6 @@
 using CSharpFar.App;
 using CSharpFar.App.Commands;
+using CSharpFar.App.Dialogs;
 using CSharpFar.App.FunctionKeys;
 using CSharpFar.App.Menu;
 using CSharpFar.App.Modules;
@@ -578,6 +579,37 @@ public sealed class Spec008MenuProviderAndCommandTests : IDisposable
         Assert.Equal(1, saveCount);
     }
 
+    [Fact]
+    public void Application_FileAttributesMenuCommand_RedrawsClosedMenuBeforeOpeningDialog()
+    {
+        string path = Path.Combine(_tempDir, "file.txt");
+        var fs = new FakeFileSystemService();
+        fs.AddDirectory(_tempDir, Item("file.txt", path));
+        var driver = new FakeConsoleDriver(width: 100, height: 30);
+        driver.EnqueueKey(Key(ConsoleKey.F9));
+        driver.EnqueueKey(Key(ConsoleKey.LeftArrow));
+        driver.EnqueueKey(Key(ConsoleKey.DownArrow));
+        driver.EnqueueKey(Key(ConsoleKey.DownArrow));
+        driver.EnqueueKey(Key(ConsoleKey.Enter));
+        driver.EnqueueKey(Key(ConsoleKey.F10));
+        var dialog = new InspectingAttributesDialog(driver);
+        var app = CreateApp(
+            new AppSettings(),
+            saveSettings: null,
+            fs,
+            new RecordingMetadataService(Snapshot(path)),
+            dialog,
+            driver);
+        app.Session.Panels.Left.CursorIndex = 1;
+
+        app.Run();
+
+        Assert.Equal(1, dialog.ShowCount);
+        Assert.DoesNotContain("View", dialog.ScreenTextAtShow, StringComparison.Ordinal);
+        Assert.DoesNotContain("Edit", dialog.ScreenTextAtShow, StringComparison.Ordinal);
+        Assert.DoesNotContain("Attributes", dialog.ScreenTextAtShow, StringComparison.Ordinal);
+    }
+
     private MenuBarDefinition BuildProviderMenu(bool canSaveSettings)
     {
         var left = new FilePanelState
@@ -630,6 +662,29 @@ public sealed class Spec008MenuProviderAndCommandTests : IDisposable
             saveSettings: saveSettings);
     }
 
+    private Application CreateApp(
+        AppSettings settings,
+        Action? saveSettings,
+        FakeFileSystemService fs,
+        IFileMetadataService metadata,
+        IFileAttributesDialog dialog,
+        FakeConsoleDriver driver)
+    {
+        settings.Panels.LeftStartDirectory = _tempDir;
+        settings.Panels.RightStartDirectory = _tempDir;
+
+        return new Application(
+            new ScreenRenderer(driver),
+            fs,
+            new NoOpShellService(),
+            new NoOpFileOperationService(),
+            new InMemoryHistoryStore(),
+            settings,
+            saveSettings: saveSettings,
+            fileMetadata: metadata,
+            fileAttributesDialogFactory: () => dialog);
+    }
+
     private static MenuCommandResult Execute(Application app, MenuCommandRequest request)
     {
         var registry = ApplicationCommandRegistry.CreateDefault();
@@ -644,5 +699,61 @@ public sealed class Spec008MenuProviderAndCommandTests : IDisposable
             System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
 
         return (ApplicationCommandContext)field!.GetValue(app)!;
+    }
+
+    private static ConsoleKeyInfo Key(ConsoleKey key) => new('\0', key, false, false, false);
+
+    private static FilePanelItem Item(string name, string path) =>
+        new()
+        {
+            Name = name,
+            FullPath = path,
+            IsDirectory = false,
+            Size = 1,
+            LastWriteTime = new DateTime(2026, 1, 1),
+            Attributes = FileAttributes.Archive,
+        };
+
+    private static FileMetadataSnapshot Snapshot(string path) =>
+        new(
+            path,
+            Path.GetFileName(path),
+            false,
+            FileAttributes.Archive,
+            DateTime.Now,
+            DateTime.Now,
+            DateTime.Now,
+            null,
+            [new FileAttributeDescriptor(FileAttributeId.ReadOnly, "Read only", 'R', true, true)],
+            new Dictionary<FileAttributeId, AttributeEditState>
+            {
+                [FileAttributeId.ReadOnly] = AttributeEditState.Unchecked,
+            },
+            true,
+            true,
+            true,
+            null);
+
+    private sealed class InspectingAttributesDialog(FakeConsoleDriver driver) : IFileAttributesDialog
+    {
+        public int ShowCount { get; private set; }
+        public string ScreenTextAtShow { get; private set; } = string.Empty;
+
+        public FileAttributesDialogResult? Show(FileMetadataSnapshot snapshot)
+        {
+            ShowCount++;
+            ScreenTextAtShow = driver.GetRegionText(new Rect(0, 1, 14, 4));
+            return null;
+        }
+    }
+
+    private sealed class RecordingMetadataService(FileMetadataSnapshot snapshot) : IFileMetadataService
+    {
+        public FileMetadataSnapshot GetMetadata(string path) => snapshot;
+
+        public FileMetadataSnapshot GetMergedMetadata(IReadOnlyList<string> paths) => snapshot;
+
+        public FileMetadataApplyResult ApplyMetadata(IReadOnlyList<string> paths, FileMetadataChangeSet changes) =>
+            new(paths.Count, paths.Count, []);
     }
 }

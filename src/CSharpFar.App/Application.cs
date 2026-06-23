@@ -581,6 +581,7 @@ public sealed class Application
 
     private MenuCommandResult ExecuteMenuCommand(MenuCommandRequest request)
     {
+        _renderCoordinator.RenderUntilStable();
         return _commandRegistry
             .Execute(request.CommandId, _commandContext, request.Args)
             .ToMenuCommandResult();
