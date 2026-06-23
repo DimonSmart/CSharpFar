@@ -280,12 +280,13 @@ public sealed class TopMenuController
         if (!IsSelectable(item) || item.CommandId is null)
             return;
 
-        _executeCommand(new MenuCommandRequest
+        var request = new MenuCommandRequest
         {
             CommandId = item.CommandId,
             Args = item.CommandArgs,
-        });
+        };
         Close();
+        _executeCommand(request);
     }
 
     private bool TryHandleHotKey(char keyChar, MenuBarDefinition definition)

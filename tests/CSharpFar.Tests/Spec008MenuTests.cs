@@ -83,6 +83,18 @@ public sealed class Spec008MenuControllerTests
     }
 
     [Fact]
+    public void Enter_ClosesMenuBeforeExecutingSelectedCommand()
+    {
+        var state = OpenState();
+        MenuOpenState? stateDuringExecution = null;
+        var controller = CreateController(state, _ => stateDuringExecution = state.OpenState);
+
+        controller.HandleKey(Key(ConsoleKey.Enter), Definition(), PanelSide.Left);
+
+        Assert.Equal(MenuOpenState.Closed, stateDuringExecution);
+    }
+
+    [Fact]
     public void Enter_OnDisabledItem_DoesNotExecute()
     {
         var state = OpenState();
