@@ -483,3 +483,5 @@ $RECYCLE.BIN/
 # Vim temporary swap files
 *.swp
 /CSharpFar/history.json
+/csharpfar-apt-private.asc
+/csharpfar-apt-public.asc
