@@ -1,4 +1,5 @@
 using CSharpFar.App.Commands;
+using CSharpFar.App.FunctionKeys;
 using CSharpFar.App.Modules;
 using CSharpFar.Core.Menu;
 using CSharpFar.Core.Models;
@@ -12,10 +13,25 @@ public sealed class DefaultMenuDefinitionProvider
         {
             Items =
             [
+                BuildFileMenu(),
                 BuildPanelMenu("Left", PanelSide.Left, context.LeftPanel, context.LeftViewMode),
                 BuildPanelMenu("Right", PanelSide.Right, context.RightPanel, context.RightViewMode),
                 BuildModuleMenu(context.ModuleMenuItems),
                 BuildOptionsMenu(context),
+            ],
+        };
+
+    private static TopMenuItemDefinition BuildFileMenu() =>
+        new()
+        {
+            Id = "File",
+            Text = "File",
+            HotKey = 'F',
+            Children =
+            [
+                Command("File.view", "View", 'V', FunctionKeyCommandIds.View),
+                Command("File.edit", "Edit", 'E', FunctionKeyCommandIds.Edit),
+                Command("File.attributes", "Attributes", 'A', FunctionKeyCommandIds.Attributes),
             ],
         };
 

@@ -1,5 +1,6 @@
 using CSharpFar.App;
 using CSharpFar.App.Commands;
+using CSharpFar.App.FunctionKeys;
 using CSharpFar.App.Menu;
 using CSharpFar.App.Modules;
 using CSharpFar.App.Rendering;
@@ -289,17 +290,18 @@ public sealed class Spec008MenuControllerTests
 public sealed class Spec008MenuLayoutAndRenderingTests
 {
     [Fact]
-    public void Layout_TopItems_AreInLeftRightPluginsOptionsOrder()
+    public void Layout_TopItems_AreInFileLeftRightPluginsOptionsOrder()
     {
         var layout = new MenuLayoutService().CalculateLayout(
             new Rect(0, 0, 80, 25),
             ProviderMenu(),
             new MenuState());
 
-        Assert.Equal(4, layout.TopItemBounds.Count);
+        Assert.Equal(5, layout.TopItemBounds.Count);
         Assert.True(layout.TopItemBounds[0].X < layout.TopItemBounds[1].X);
         Assert.True(layout.TopItemBounds[1].X < layout.TopItemBounds[2].X);
         Assert.True(layout.TopItemBounds[2].X < layout.TopItemBounds[3].X);
+        Assert.True(layout.TopItemBounds[3].X < layout.TopItemBounds[4].X);
     }
 
     [Fact]
@@ -451,21 +453,36 @@ public sealed class Spec008MenuProviderAndCommandTests : IDisposable
     }
 
     [Fact]
-    public void Provider_BuildsLeftRightPluginsOptionsWithoutWideMode()
+    public void Provider_BuildsFileLeftRightPluginsOptionsWithoutWideMode()
     {
         var menu = BuildProviderMenu(canSaveSettings: false);
 
-        Assert.Equal(["Left", "Right", "Plugins", "Options"], menu.Items.Select(i => i.Text).ToArray());
-        Assert.DoesNotContain(menu.Items[0].Children, item => item.Text.Contains("Wide", StringComparison.OrdinalIgnoreCase));
-        Assert.DoesNotContain(menu.Items[3].Children, item => item.CommandId == MenuCommandIds.SettingsSave);
+        Assert.Equal(["File", "Left", "Right", "Plugins", "Options"], menu.Items.Select(i => i.Text).ToArray());
+        Assert.DoesNotContain(menu.Items[1].Children, item => item.Text.Contains("Wide", StringComparison.OrdinalIgnoreCase));
+        Assert.DoesNotContain(menu.Items[4].Children, item => item.CommandId == MenuCommandIds.SettingsSave);
+    }
+
+    [Fact]
+    public void Provider_FileMenuContainsViewerEditorAndAttributesCommands()
+    {
+        var menu = BuildProviderMenu(canSaveSettings: false);
+        var file = menu.Items[0];
+
+        Assert.Equal("File", file.Text);
+        Assert.Equal(
+            ["View", "Edit", "Attributes"],
+            file.Children.Select(item => item.Text).ToArray());
+        Assert.Equal(
+            [FunctionKeyCommandIds.View, FunctionKeyCommandIds.Edit, FunctionKeyCommandIds.Attributes],
+            file.Children.Select(item => item.CommandId!).ToArray());
     }
 
     [Fact]
     public void Provider_UsesExpectedPanelCommandArgsAndLabels()
     {
         var menu = BuildProviderMenu(canSaveSettings: true);
-        var left = menu.Items[0].Children;
-        var right = menu.Items[1].Children;
+        var left = menu.Items[1].Children;
+        var right = menu.Items[2].Children;
 
         var leftBrief = left.Single(i => i.Text == "Brief mode");
         var rightFull = right.Single(i => i.Text == "Full mode");
@@ -475,16 +492,16 @@ public sealed class Spec008MenuProviderAndCommandTests : IDisposable
         Assert.Equal(PanelViewMode.BriefTwoColumns, ((SetPanelViewModeArgs)leftBrief.CommandArgs!).ViewMode);
         Assert.Equal(PanelSide.Right, ((SetPanelViewModeArgs)rightFull.CommandArgs!).PanelSide);
         Assert.Equal(SortMode.LastWriteTime, ((SetPanelSortModeArgs)lastWrite.CommandArgs!).SortMode);
-        Assert.Contains(menu.Items[2].Children, item =>
+        Assert.Contains(menu.Items[3].Children, item =>
             item.CommandId == MenuCommandIds.ModuleOpen &&
             item.CommandArgs is ModuleOpenCommandArgs { ActionId: var actionId } &&
             actionId == SftpModuleIds.MenuActionId);
-        Assert.Contains(menu.Items[2].Children, item =>
+        Assert.Contains(menu.Items[3].Children, item =>
             item.CommandId == MenuCommandIds.ModuleOpen &&
             item.CommandArgs is ModuleOpenCommandArgs { ActionId: var actionId } &&
             actionId == FtpModuleIds.MenuActionId);
-        Assert.Contains(menu.Items[3].Children, item => item.CommandId == MenuCommandIds.SettingsSave);
-        Assert.Contains(menu.Items[3].Children, item =>
+        Assert.Contains(menu.Items[4].Children, item => item.CommandId == MenuCommandIds.SettingsSave);
+        Assert.Contains(menu.Items[4].Children, item =>
             item.Id == "Options.diagnostics" &&
             item.CommandId == MenuCommandIds.DiagnosticsPrintTerminalInfo);
     }
@@ -506,8 +523,8 @@ public sealed class Spec008MenuProviderAndCommandTests : IDisposable
             CanSaveSettings = true,
         });
 
-        Assert.False(menu.Items[0].Children.Single(i => i.Text == "Refresh").IsEnabled);
-        Assert.True(menu.Items[1].Children.Single(i => i.Text == "Refresh").IsEnabled);
+        Assert.False(menu.Items[1].Children.Single(i => i.Text == "Refresh").IsEnabled);
+        Assert.True(menu.Items[2].Children.Single(i => i.Text == "Refresh").IsEnabled);
     }
 
     [Fact]
