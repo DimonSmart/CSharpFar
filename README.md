@@ -86,9 +86,9 @@ files.
 
 ## File operations
 
-### Paranoid copy
+### Reliable copy
 
-When copying files, the copy dialog has a `Paranoid` conflict mode.
+When copying files, the copy dialog has a `Reliable` copy mode.
 
 If a destination file already exists and is shorter than the source, for example after an interrupted copy, CSharpFar does the following:
 

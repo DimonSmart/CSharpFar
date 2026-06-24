@@ -18,7 +18,7 @@
 | 0016 | ADR | Accepted | Viewport-bound console rendering | The buffered rendering strategy from `0002` reduces flicker by building a full logical frame and flushing only changed horizontal runs. W... |
 | 0017 | Spec | Current | Current-console program launch | Change external program launch behavior so executable files and typed commands run like Far Manager: the child console process writes dir... |
 | 0018 | Spec | Current | Command history completion | Improve command-line history so executed commands are stored once, repeated commands move to the top of history, and command entry can us... |
-| 0019 | Spec | Current | Paranoid copy resume | Add a copy mode named `Paranoid` in the copy start dialog. The mode must be available before copying begins, including recursive folder c... |
+| 0019 | Spec | Current | Reliable copy resume | Add a copy mode named `Reliable` in the copy start dialog. The mode must be available before copying begins, including recursive folder c... |
 | 0020 | Spec | Current | Unified window scrollbars | Use the shared scrollbar component for every scrollable window-like UI surface. Scrollbars should appear on the right window border,... |
 | 0021 | Spec | Current | Scrollbar mouse interaction | Make the unified vertical scrollbar respond to standard mouse actions. |
 | 0022 | Spec | Current | Hidden console history scroll | When panels are hidden through `Ctrl+O`, the user can scroll the console viewport up to inspect older command output. CSharpFar must not... |
@@ -39,7 +39,7 @@
 | 0051 | Spec | Current | Editor Unicode scalar cursor behavior | The built-in editor stores text as .NET strings, so internal positions are UTF-16 indexes. Unicode scalar values outside the Basic Multil... |
 | 0052 | Spec | Current | Viewer Far Hotkeys | Make the F3 file viewer accept the main Far Manager viewer keys so users can navigate, switch modes, search, change encoding, edit, and m... |
 | 0053 | Spec | Current | Delete progress dialog | Show file deletion with a delete-specific progress dialog instead of reusing the copy progress layout. |
-| 0054 | Spec | Current | Paranoid copy auto retry | Make `Paranoid` copy automatically retry read-side failures without showing a modal wait prompt. |
+| 0054 | Spec | Current | Reliable copy auto retry | Make `Reliable` copy automatically retry read-side and destination write failures without showing a modal wait prompt. |
 | 0055 | Spec | Current | Directory shortcuts | Add Far-like directory shortcuts so the user can configure up to ten numbered directories and quickly navigate the active visible panel t... |
 | 0056 | Spec | Current | Built-in cd panel navigation | Handle `CD` and `CHDIR` typed in the built-in command line as CSharpFar built-in commands and navigate the active local file panel to the... |
 | 0057 | Spike | Open | Unix and macOS portability | What must change for CSharpFar to run predictably on Unix-like systems, especially Linux and macOS, without hiding platform differences b... |

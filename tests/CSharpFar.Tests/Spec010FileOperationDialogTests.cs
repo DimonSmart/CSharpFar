@@ -28,8 +28,11 @@ public sealed class Spec010FileOperationDialogTests
         Assert.Equal(FileSecurityMode.Default, result.Options.SecurityMode);
         Assert.Null(result.Options.FileMask);
         Assert.Contains(driver.WriteRecords, r => r.Text.Contains("Already existing files:", StringComparison.Ordinal));
-        Assert.Contains(driver.WriteRecords, r => r.Text.Contains("Paranoid", StringComparison.Ordinal));
+        Assert.Contains(driver.WriteRecords, r => r.Text.Contains("Copy mode:", StringComparison.Ordinal));
+        Assert.Contains(driver.WriteRecords, r => r.Text.Contains("Reliable", StringComparison.Ordinal));
+        Assert.Contains(driver.WriteRecords, r => r.Text.Contains("Fast salvage", StringComparison.Ordinal));
         Assert.Contains(driver.WriteRecords, r => r.Text.Contains("Access rights:", StringComparison.Ordinal));
+        Assert.Contains(driver.WriteRecords, r => r.Text.Contains("Preserve attributes", StringComparison.Ordinal));
         Assert.Contains(driver.WriteRecords, r => r.Text.Contains("Use filter", StringComparison.Ordinal));
         Assert.Contains(driver.WriteRecords, r => r.Text.Trim() == "*");
         Assert.DoesNotContain(driver.WriteRecords, r => r.Text.Contains("Process multiple destinations", StringComparison.Ordinal));
@@ -71,7 +74,7 @@ public sealed class Spec010FileOperationDialogTests
     {
         var driver = new FakeConsoleDriver(width: 100, height: 30);
         var screen = new ScreenRenderer(driver);
-        for (int i = 0; i < 6; i++)
+        for (int i = 0; i < 8; i++)
             driver.EnqueueKey(Key(ConsoleKey.Tab));
         driver.EnqueueKey(Key(ConsoleKey.Enter));
 
@@ -89,7 +92,7 @@ public sealed class Spec010FileOperationDialogTests
     {
         var driver = new FakeConsoleDriver(width: 100, height: 30);
         var screen = new ScreenRenderer(driver);
-        for (int i = 0; i < 6; i++)
+        for (int i = 0; i < 8; i++)
             driver.EnqueueKey(Key(ConsoleKey.Tab));
         driver.EnqueueKey(Key(ConsoleKey.RightArrow));
         driver.EnqueueKey(Key(ConsoleKey.Enter));
@@ -159,7 +162,7 @@ public sealed class Spec010FileOperationDialogTests
     {
         var driver = new FakeConsoleDriver(width: 100, height: 30);
         var screen = new ScreenRenderer(driver);
-        for (int i = 0; i < 5; i++)
+        for (int i = 0; i < 7; i++)
             driver.EnqueueKey(Key(ConsoleKey.DownArrow));
         driver.EnqueueKey(Key(ConsoleKey.Spacebar));
         driver.EnqueueKey(Key(ConsoleKey.DownArrow));
@@ -177,13 +180,12 @@ public sealed class Spec010FileOperationDialogTests
     }
 
     [Fact]
-    public void ShowCopy_OffersParanoidForCopyOnly()
+    public void ShowCopy_OffersCopyModeNormalReliableFastSalvage()
     {
         var driver = new FakeConsoleDriver(width: 100, height: 30);
         var screen = new ScreenRenderer(driver);
         driver.EnqueueKey(Key(ConsoleKey.DownArrow));
-        driver.EnqueueKey(Key(ConsoleKey.DownArrow));
-        for (int i = 0; i < 5; i++)
+        for (int i = 0; i < 2; i++)
             driver.EnqueueKey(Key(ConsoleKey.Spacebar));
         driver.EnqueueKey(Key(ConsoleKey.F10));
 
@@ -193,16 +195,18 @@ public sealed class Spec010FileOperationDialogTests
             new FileOperationOptions());
 
         Assert.NotNull(result);
-        Assert.Equal(ConflictDecisionMode.ResumeWithTailValidation, result.Options.DefaultConflictDecision);
-        Assert.Contains(driver.WriteRecords, r => r.Text.Contains("Paranoid", StringComparison.Ordinal));
+        Assert.Equal(CopyMode.FastSalvage, result.Options.CopyMode);
+        Assert.Equal(ConflictDecisionMode.Ask, result.Options.DefaultConflictDecision);
+        Assert.Contains(driver.WriteRecords, r => r.Text.Contains("Normal", StringComparison.Ordinal));
+        Assert.Contains(driver.WriteRecords, r => r.Text.Contains("Reliable", StringComparison.Ordinal));
+        Assert.Contains(driver.WriteRecords, r => r.Text.Contains("Fast salvage", StringComparison.Ordinal));
     }
 
     [Fact]
-    public void ShowCopy_MouseSelectsParanoidConflictMode()
+    public void ShowCopy_ReliableIsNotInConflictDecisionList()
     {
         var driver = new FakeConsoleDriver(width: 100, height: 30);
         var screen = new ScreenRenderer(driver);
-        driver.EnqueueInput(new MouseConsoleInputEvent(28, 13, MouseButton.Left, MouseEventKind.Down, MouseKeyModifiers.None));
         driver.EnqueueKey(Key(ConsoleKey.F10));
 
         var result = new FileOperationDialog(screen).ShowCopy(
@@ -211,7 +215,11 @@ public sealed class Spec010FileOperationDialogTests
             new FileOperationOptions());
 
         Assert.NotNull(result);
-        Assert.Equal(ConflictDecisionMode.ResumeWithTailValidation, result.Options.DefaultConflictDecision);
+        var conflictRows = driver.WriteRecords.Where(r =>
+            r.Text.Contains("Ask", StringComparison.Ordinal) &&
+            r.Text.Contains("Overwrite", StringComparison.Ordinal));
+        Assert.DoesNotContain(conflictRows, r => r.Text.Contains("Reliable", StringComparison.Ordinal));
+        Assert.DoesNotContain(conflictRows, r => r.Text.Contains("Fast salvage", StringComparison.Ordinal));
     }
 
     [Fact]
@@ -285,7 +293,7 @@ public sealed class Spec010FileOperationDialogTests
     }
 
     [Fact]
-    public void ShowMove_DoesNotOfferParanoidForMove()
+    public void ShowMove_DoesNotOfferCopyMode()
     {
         var driver = new FakeConsoleDriver(width: 100, height: 30);
         var screen = new ScreenRenderer(driver);
@@ -296,12 +304,14 @@ public sealed class Spec010FileOperationDialogTests
             @"C:\destination",
             new FileOperationOptions
             {
-                DefaultConflictDecision = ConflictDecisionMode.ResumeWithTailValidation,
+                CopyMode = CopyMode.Reliable,
             });
 
         Assert.NotNull(result);
         Assert.Equal(ConflictDecisionMode.Ask, result.Options.DefaultConflictDecision);
-        Assert.DoesNotContain(driver.WriteRecords, r => r.Text.Contains("Paranoid", StringComparison.Ordinal));
+        Assert.Equal(CopyMode.Normal, result.Options.CopyMode);
+        Assert.DoesNotContain(driver.WriteRecords, r => r.Text.Contains("Copy mode:", StringComparison.Ordinal));
+        Assert.DoesNotContain(driver.WriteRecords, r => r.Text.Contains("Reliable", StringComparison.Ordinal));
     }
 
     [Fact]
@@ -319,7 +329,8 @@ public sealed class Spec010FileOperationDialogTests
         Assert.NotNull(result);
         Assert.Equal("old.txt", result.Destination);
         Assert.Contains(driver.WriteRecords, r => r.Text.Contains("Rename", StringComparison.Ordinal));
-        Assert.Contains(driver.WriteRecords, r => r.Text.Contains("Only newer", StringComparison.Ordinal));
+        Assert.DoesNotContain(driver.WriteRecords, r => r.Text.Contains("Copy mode:", StringComparison.Ordinal));
+        Assert.DoesNotContain(driver.WriteRecords, r => r.Text.Contains("Only newer", StringComparison.Ordinal));
         Assert.DoesNotContain(driver.WriteRecords, r => r.Text.Contains("Access rights", StringComparison.Ordinal));
         Assert.DoesNotContain(driver.WriteRecords, r => r.Text.Contains("Use filter", StringComparison.Ordinal));
         Assert.DoesNotContain(driver.WriteRecords, r => r.Text.Contains("Append", StringComparison.Ordinal));
@@ -330,7 +341,13 @@ public sealed class Spec010FileOperationDialogTests
     {
         var driver = new FakeConsoleDriver(width: 100, height: 30);
         var screen = new ScreenRenderer(driver);
-        driver.EnqueueInput(new MouseConsoleInputEvent(52, 23, MouseButton.Left, MouseEventKind.Down, MouseKeyModifiers.None));
+        driver.BeforeReadInput = currentDriver =>
+        {
+            var row = currentDriver.WriteRecords.Last(record =>
+                record.Text.Contains("Cancel", StringComparison.Ordinal));
+            int x = row.X + row.Text.IndexOf("Cancel", StringComparison.Ordinal);
+            currentDriver.EnqueueInput(new MouseConsoleInputEvent(x, row.Y, MouseButton.Left, MouseEventKind.Down, MouseKeyModifiers.None));
+        };
 
         var result = new FileOperationDialog(screen).ShowCopy(
             [@"C:\source\a.txt"],
@@ -585,11 +602,11 @@ public sealed class Spec010FileOperationDialogTests
     }
 
     [Fact]
-    public void ConflictDialog_AppendButtonSupportsMouseClick()
+    public void ConflictDialog_DoesNotOfferAppend()
     {
         var driver = new FakeConsoleDriver(width: 100, height: 30);
         var screen = new ScreenRenderer(driver);
-        driver.EnqueueInput(new MouseConsoleInputEvent(58, 18, MouseButton.Left, MouseEventKind.Down, MouseKeyModifiers.None));
+        driver.EnqueueKey(Key(ConsoleKey.Escape));
 
         var decision = new ConflictDialog(screen).Show(
             new FileOperationConflict
@@ -600,7 +617,8 @@ public sealed class Spec010FileOperationDialogTests
                 DestinationSize = 5,
             });
 
-        Assert.Equal(ConflictDecisionMode.Append, decision.Mode);
+        Assert.Equal(ConflictDecisionMode.Cancel, decision.Mode);
+        Assert.DoesNotContain(driver.WriteRecords, r => r.Text.Contains("Append", StringComparison.Ordinal));
     }
 
     [Fact]
@@ -658,8 +676,12 @@ public sealed class Spec010FileOperationDialogTests
                 new ChoiceFormRow<FileSecurityMode>(
                     new ChoiceRow<FileSecurityMode>([FileSecurityMode.Default], static mode => mode.ToString()),
                     "Access rights:"),
+                new ChoiceFormRow<CopyMode>(
+                    new ChoiceRow<CopyMode>([CopyMode.Normal], static mode => mode.ToString()),
+                    "Copy mode:"),
                 new MultiLineChoiceFormRow<ConflictDecisionMode>(conflictChoice, string.Empty, [1, 1]),
                 new CheckBoxRow(new CheckBoxLine("Preserve all timestamps")),
+                new CheckBoxRow(new CheckBoxLine("Preserve attributes")),
                 new CheckBoxRow(new CheckBoxLine("Copy contents of symbolic links")),
                 new CheckBoxRow(new CheckBoxLine("Use filter", value: true)),
                 true,

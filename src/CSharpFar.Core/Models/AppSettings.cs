@@ -73,6 +73,7 @@ public sealed class AppSettings
         public string SecurityMode { get; set; } = "Default";
         public string SymlinkMode { get; set; } = "CopyLink";
         public bool UseRecycleBinForDelete { get; set; } = true;
+        public string CopyMode { get; set; } = "Normal";
         public string ConflictDecision { get; set; } = "Ask";
     }
 

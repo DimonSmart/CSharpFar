@@ -55,6 +55,53 @@ public sealed class Spec029SftpProviderTests : IDisposable
     }
 
     [Fact]
+    public async Task ProviderCopy_DoesNotAllowReliableMode()
+    {
+        var service = CreateProviderCopyService(out var remote);
+        remote.WriteFile("/hello.txt", "hello from remote");
+
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            service.ExecuteAsync(
+                CreateProviderCopyRequest(remote.SourceId, new FileOperationOptions { CopyMode = CopyMode.Reliable }),
+                progress: null,
+                conflictResolver: new NoOpConflictResolver()));
+
+        Assert.Equal("Reliable copy is not supported for provider copy.", ex.Message);
+    }
+
+    [Fact]
+    public async Task ProviderCopy_DoesNotAllowFastSalvageMode()
+    {
+        var service = CreateProviderCopyService(out var remote);
+        remote.WriteFile("/hello.txt", "hello from remote");
+
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            service.ExecuteAsync(
+                CreateProviderCopyRequest(remote.SourceId, new FileOperationOptions { CopyMode = CopyMode.FastSalvage }),
+                progress: null,
+                conflictResolver: new NoOpConflictResolver()));
+
+        Assert.Equal("Fast salvage copy is not supported for provider copy.", ex.Message);
+    }
+
+    [Fact]
+    public async Task ProviderCopy_DoesNotAllowOnlyNewer()
+    {
+        var service = CreateProviderCopyService(out var remote);
+        remote.WriteFile("/hello.txt", "hello from remote");
+
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            service.ExecuteAsync(
+                CreateProviderCopyRequest(
+                    remote.SourceId,
+                    new FileOperationOptions { DefaultConflictDecision = ConflictDecisionMode.OnlyNewer }),
+                progress: null,
+                conflictResolver: new NoOpConflictResolver()));
+
+        Assert.Equal("Only newer is not supported for provider copy.", ex.Message);
+    }
+
+    [Fact]
     public void PanelLocation_SelectionKeyIncludesSourceId()
     {
         var left = new PanelLocation(new PanelSourceId("left"), "/same/path.txt");
@@ -285,6 +332,32 @@ public sealed class Spec029SftpProviderTests : IDisposable
             RemoteRootPath = "/",
             ExpectedHostKeyFingerprint = "AA:BB",
             ShowInDriveSelection = true,
+        };
+
+    private FileOperationService CreateProviderCopyService(out MemoryPanelSource remote)
+    {
+        Directory.CreateDirectory(_tempDir);
+        remote = new MemoryPanelSource(new PanelSourceId("fake-remote"));
+        var localFs = new FileSystemService();
+        var registry = new FilePanelSourceRegistry(
+        [
+            remote,
+            new LocalFilePanelSource(localFs),
+        ]);
+        return new FileOperationService(registry);
+    }
+
+    private FileOperationRequest CreateProviderCopyRequest(
+        PanelSourceId remoteSourceId,
+        FileOperationOptions options) =>
+        new()
+        {
+            Kind = FileOperationKind.Copy,
+            Sources = [],
+            SourceLocations = [new PanelLocation(remoteSourceId, "/hello.txt")],
+            Destination = _tempDir,
+            DestinationLocation = PanelLocation.Local(_tempDir),
+            Options = options,
         };
 
     private sealed class NoOpConflictResolver : IFileOperationConflictResolver

@@ -4,13 +4,13 @@ using CSharpFar.FileSystem;
 
 namespace CSharpFar.Tests;
 
-public sealed class Spec019ParanoidCopyTests : IDisposable
+public sealed class Spec019ReliableCopyTests : IDisposable
 {
     private readonly string _root;
     private readonly string _source;
     private readonly string _destination;
 
-    public Spec019ParanoidCopyTests()
+    public Spec019ReliableCopyTests()
     {
         _root = Path.Combine(Path.GetTempPath(), $"CSharpFarSpec019_{Guid.NewGuid():N}");
         _source = Path.Combine(_root, "source");
@@ -26,14 +26,14 @@ public sealed class Spec019ParanoidCopyTests : IDisposable
     }
 
     [Fact]
-    public async Task ParanoidCopy_ProducesExactFile_WhenPartialFileIsValid()
+    public async Task ReliableCopy_ProducesExactFile_WhenPartialFileIsValid()
     {
         string source = CreateDeterministicFile(_source, "large.bin", 3 * 1024 * 1024);
         string destination = Path.Combine(_destination, "large.bin");
         CopyPrefix(source, destination, 1536 * 1024);
         var progress = new List<FileOperationProgress>();
 
-        FileOperationResult result = await CopyWithParanoidAsync(
+        FileOperationResult result = await CopyWithReliableAsync(
             [source],
             _destination,
             progress: progress);
@@ -52,7 +52,7 @@ public sealed class Spec019ParanoidCopyTests : IDisposable
     }
 
     [Fact]
-    public async Task ParanoidCopy_ProducesExactFile_WhenPartialTailIsCorrupted()
+    public async Task ReliableCopy_ProducesExactFile_WhenPartialTailIsCorrupted()
     {
         string source = CreateDeterministicFile(_source, "large.bin", 8 * 1024 * 1024);
         string destination = Path.Combine(_destination, "large.bin");
@@ -60,7 +60,7 @@ public sealed class Spec019ParanoidCopyTests : IDisposable
         CorruptRange(destination, startOffset: (6 * 1024 * 1024) - (32 * 1024), length: 32 * 1024);
         var progress = new List<FileOperationProgress>();
 
-        FileOperationResult result = await CopyWithParanoidAsync(
+        FileOperationResult result = await CopyWithReliableAsync(
             [source],
             _destination,
             progress: progress);
@@ -75,7 +75,7 @@ public sealed class Spec019ParanoidCopyTests : IDisposable
     }
 
     [Fact]
-    public async Task ParanoidCopy_AppliesToFilesInsideCopiedDirectory()
+    public async Task ReliableCopy_AppliesToFilesInsideCopiedDirectory()
     {
         string sourceFile = CreateDeterministicFile(_source, "nested.bin", 2 * 1024 * 1024);
         string copiedDirectory = Path.Combine(_destination, "source");
@@ -83,13 +83,13 @@ public sealed class Spec019ParanoidCopyTests : IDisposable
         string destinationFile = Path.Combine(copiedDirectory, "nested.bin");
         CopyPrefix(sourceFile, destinationFile, 1024 * 1024);
 
-        await CopyWithParanoidAsync([_source], _destination);
+        await CopyWithReliableAsync([_source], _destination);
 
         Assert.Equal(File.ReadAllBytes(sourceFile), File.ReadAllBytes(destinationFile));
     }
 
     [Fact]
-    public async Task ParanoidCopy_FallsBackToConflictDecision_WhenResumeIsUnsafe()
+    public async Task ReliableCopy_FallsBackToConflictDecision_WhenResumeIsUnsafe()
     {
         string source = CreateDeterministicFile(_source, "unsafe.bin", 4 * 1024 * 1024);
         string destination = Path.Combine(_destination, "unsafe.bin");
@@ -97,7 +97,7 @@ public sealed class Spec019ParanoidCopyTests : IDisposable
         File.WriteAllBytes(destination, destinationBytes);
         var resolver = new RecordingConflictResolver(ConflictDecisionMode.Skip);
 
-        FileOperationResult result = await CopyWithParanoidAsync(
+        FileOperationResult result = await CopyWithReliableAsync(
             [source],
             _destination,
             resolver);
@@ -108,7 +108,7 @@ public sealed class Spec019ParanoidCopyTests : IDisposable
     }
 
     [Fact]
-    public async Task ParanoidCopy_AutomaticallyRetriesAnalyzerSourceReadFailure()
+    public async Task ReliableCopy_AutomaticallyRetriesAnalyzerSourceReadFailure()
     {
         string source = CreateDeterministicFile(_source, "analyzer-retry.bin", 3 * 1024 * 1024);
         string destination = Path.Combine(_destination, "analyzer-retry.bin");
@@ -139,7 +139,7 @@ public sealed class Spec019ParanoidCopyTests : IDisposable
             },
         };
 
-        FileOperationResult result = await CopyWithParanoidAsync(
+        FileOperationResult result = await CopyWithReliableAsync(
             [source],
             _destination,
             resolver,
@@ -147,13 +147,13 @@ public sealed class Spec019ParanoidCopyTests : IDisposable
 
         Assert.Equal(1, result.CopiedCount);
         Assert.Equal(0, resolver.CallCount);
-        Assert.Equal(new[] { TimeSpan.FromMinutes(1) }, retryDelays);
+        Assert.Equal(new[] { TimeSpan.FromSeconds(1) }, retryDelays);
         Assert.True(analyzeCalls >= 2);
         Assert.Equal(File.ReadAllBytes(source), File.ReadAllBytes(destination));
     }
 
     [Fact]
-    public async Task ParanoidCopy_AutomaticallyRetriesTransientSourceReadFailure()
+    public async Task ReliableCopy_AutomaticallyRetriesTransientSourceReadFailure()
     {
         string source = CreateDeterministicFile(_source, "read-retry.bin", 3 * 1024 * 1024);
         string destination = Path.Combine(_destination, "read-retry.bin");
@@ -182,7 +182,7 @@ public sealed class Spec019ParanoidCopyTests : IDisposable
             },
         };
 
-        FileOperationResult result = await CopyWithParanoidAsync(
+        FileOperationResult result = await CopyWithReliableAsync(
             [source],
             _destination,
             resolver,
@@ -190,12 +190,12 @@ public sealed class Spec019ParanoidCopyTests : IDisposable
 
         Assert.Equal(1, result.CopiedCount);
         Assert.Equal(0, resolver.CallCount);
-        Assert.Equal(new[] { TimeSpan.FromMinutes(1) }, retryDelays);
+        Assert.Equal(new[] { TimeSpan.FromSeconds(1) }, retryDelays);
         Assert.Equal(File.ReadAllBytes(source), File.ReadAllBytes(destination));
     }
 
     [Fact]
-    public async Task ParanoidCopy_DoesNotRollbackAcrossRepeatedSourceReadFailures()
+    public async Task ReliableCopy_DoesNotRollbackAcrossRepeatedSourceReadFailures()
     {
         string source = CreateDeterministicFile(_source, "repeated-read-retry.bin", 3 * 1024 * 1024);
         string destination = Path.Combine(_destination, "repeated-read-retry.bin");
@@ -224,24 +224,25 @@ public sealed class Spec019ParanoidCopyTests : IDisposable
             },
         };
 
-        FileOperationResult result = await CopyWithParanoidAsync(
+        FileOperationResult result = await CopyWithReliableAsync(
             [source],
             _destination,
             progress: progress,
             dependencies: dependencies);
 
         Assert.Equal(1, result.CopiedCount);
-        Assert.Equal(new[] { TimeSpan.FromMinutes(1), TimeSpan.FromMinutes(1) }, retryDelays);
+        Assert.Equal(new[] { TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(1) }, retryDelays);
         Assert.DoesNotContain(progress, p => p.ResumeRollbackBytes > 0);
         Assert.Equal(File.ReadAllBytes(source), File.ReadAllBytes(destination));
     }
 
     [Fact]
-    public async Task ParanoidCopy_WriteFailureIsNotAutomaticallyRetried()
+    public async Task ReliableCopy_RetriesDestinationWriteFailureWithTailValidation()
     {
         string source = CreateDeterministicFile(_source, "write-failure.bin", 3 * 1024 * 1024);
         string destination = Path.Combine(_destination, "write-failure.bin");
         var retryDelays = new List<TimeSpan>();
+        int writeFailuresRemaining = 1;
         var dependencies = FileOperationServiceDependencies.Default with
         {
             DelayAsync = (delay, _) =>
@@ -252,21 +253,23 @@ public sealed class Spec019ParanoidCopyTests : IDisposable
             OpenFileStream = (path, mode, access, share, bufferSize, options) =>
             {
                 Stream stream = FileOperationServiceDependencies.Default.OpenFileStream(path, mode, access, share, bufferSize, options);
-                return path == destination && access != FileAccess.Read
-                    ? new ThrowingWriteStream(stream)
+                return path == destination && access != FileAccess.Read && writeFailuresRemaining > 0
+                    ? new ThrowingWriteStream(stream, () => writeFailuresRemaining--)
                     : stream;
             },
         };
 
-        await Assert.ThrowsAsync<IOException>(() => CopyWithParanoidAsync(
+        FileOperationResult result = await CopyWithReliableAsync(
             [source],
             _destination,
-            dependencies: dependencies));
+            dependencies: dependencies);
 
-        Assert.Empty(retryDelays);
+        Assert.Equal(1, result.CopiedCount);
+        Assert.Equal(new[] { TimeSpan.FromSeconds(1) }, retryDelays);
+        Assert.Equal(File.ReadAllBytes(source), File.ReadAllBytes(destination));
     }
 
-    private static async Task<FileOperationResult> CopyWithParanoidAsync(
+    private static async Task<FileOperationResult> CopyWithReliableAsync(
         IReadOnlyList<string> sources,
         string destination,
         IFileOperationConflictResolver? resolver = null,
@@ -285,7 +288,8 @@ public sealed class Spec019ParanoidCopyTests : IDisposable
                 Destination = destination,
                 Options = new FileOperationOptions
                 {
-                    DefaultConflictDecision = ConflictDecisionMode.ResumeWithTailValidation,
+                    CopyMode = CopyMode.Reliable,
+                    DefaultConflictDecision = ConflictDecisionMode.Ask,
                 },
             },
             progress is null ? null : new Progress<FileOperationProgress>(progress.Add),
@@ -414,10 +418,13 @@ public sealed class Spec019ParanoidCopyTests : IDisposable
     private sealed class ThrowingWriteStream : Stream
     {
         private readonly Stream _inner;
+        private readonly Action _onThrow;
+        private bool _thrown;
 
-        public ThrowingWriteStream(Stream inner)
+        public ThrowingWriteStream(Stream inner, Action onThrow)
         {
             _inner = inner;
+            _onThrow = onThrow;
         }
 
         public override bool CanRead => _inner.CanRead;
@@ -435,16 +442,27 @@ public sealed class Spec019ParanoidCopyTests : IDisposable
         public override int Read(byte[] buffer, int offset, int count) => _inner.Read(buffer, offset, count);
         public override long Seek(long offset, SeekOrigin origin) => _inner.Seek(offset, origin);
         public override void SetLength(long value) => _inner.SetLength(value);
-        public override void Write(byte[] buffer, int offset, int count) => throw new IOException("Destination write failed.");
+        public override void Write(byte[] buffer, int offset, int count) => ThrowOnce();
 
         public override ValueTask WriteAsync(ReadOnlyMemory<byte> buffer, CancellationToken cancellationToken = default) =>
-            throw new IOException("Destination write failed.");
+            throw ThrowOnce();
 
         protected override void Dispose(bool disposing)
         {
             if (disposing)
                 _inner.Dispose();
             base.Dispose(disposing);
+        }
+
+        private IOException ThrowOnce()
+        {
+            if (!_thrown)
+            {
+                _thrown = true;
+                _onThrow();
+            }
+
+            return new IOException("Destination write failed.");
         }
     }
 }

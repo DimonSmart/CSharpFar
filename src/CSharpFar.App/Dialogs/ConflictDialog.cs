@@ -16,7 +16,6 @@ internal sealed class ConflictDialog
     private const string OverwriteButton = "overwrite";
     private const string SkipButton = "skip";
     private const string RenameButton = "rename";
-    private const string AppendButton = "append";
     private const string CancelButton = "cancel";
 
     private readonly ScreenRenderer _screen;
@@ -24,11 +23,11 @@ internal sealed class ConflictDialog
     private readonly ModalDialogRenderer _modalRenderer = new();
     private readonly DialogButtonBar _buttonBar;
 
-    public ConflictDialog(ScreenRenderer screen, ConsolePalette? palette = null, bool allowAppend = true)
+    public ConflictDialog(ScreenRenderer screen, ConsolePalette? palette = null)
     {
         _screen = screen;
         _palette = palette ?? PaletteRegistry.Default;
-        _buttonBar = CreateButtons(allowAppend);
+        _buttonBar = CreateButtons();
     }
 
     public FileOperationConflictDecision Show(FileOperationConflict conflict)
@@ -152,8 +151,6 @@ internal sealed class ConflictDialog
             SkipButton => FileOperationConflictDecision.FromMode(
                 rememberChoice ? ConflictDecisionMode.SkipAll : ConflictDecisionMode.Skip),
             RenameButton => BuildRenameDecision(rememberChoice, conflict),
-            AppendButton => FileOperationConflictDecision.FromMode(
-                rememberChoice ? ConflictDecisionMode.AppendAll : ConflictDecisionMode.Append),
             _ => FileOperationConflictDecision.FromMode(ConflictDecisionMode.Cancel),
         };
     }
@@ -176,7 +173,7 @@ internal sealed class ConflictDialog
             };
     }
 
-    private static DialogButtonBar CreateButtons(bool allowAppend)
+    private static DialogButtonBar CreateButtons()
     {
         var buttons = new List<DialogButton>
         {
@@ -184,9 +181,6 @@ internal sealed class ConflictDialog
             new(SkipButton, "Skip", 'S'),
             new(RenameButton, "Rename", 'R'),
         };
-
-        if (allowAppend)
-            buttons.Add(new DialogButton(AppendButton, "Append", 'A'));
 
         buttons.Add(new DialogButton(CancelButton, "Cancel", 'C'));
         return new DialogButtonBar(buttons);

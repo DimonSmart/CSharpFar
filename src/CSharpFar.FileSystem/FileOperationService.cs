@@ -27,7 +27,8 @@ internal sealed record FileOperationServiceDependencies
 public sealed class FileOperationService : IFileOperationService
 {
     private const int CopyBufferSize = 1024 * 1024;
-    private static readonly TimeSpan ParanoidCopyReadRetryDelay = TimeSpan.FromMinutes(1);
+    private static readonly TimeSpan ReliableCopyRetryDelay = TimeSpan.FromSeconds(1);
+    private const int ReliableCopyRetryCount = 20;
     private readonly IFilePanelSourceRegistry? _sources;
     private readonly FileOperationServiceDependencies _dependencies;
     private readonly IFileSystemPlatformOperations _platformOperations;
@@ -162,6 +163,8 @@ public sealed class FileOperationService : IFileOperationService
         OperationState state,
         CancellationToken cancellationToken)
     {
+        ValidateProviderCopyOptions(request.Options);
+
         var destination = RequireDestinationLocation(request);
         var sources = RequireSourceLocations(request);
         if (destination.SourceId != PanelSourceId.Local &&
@@ -282,11 +285,8 @@ public sealed class FileOperationService : IFileOperationService
                 case ConflictDecisionMode.OverwriteAll:
                     await destinationSource.DeleteAsync(destinationPath, recursive: false, cancellationToken).ConfigureAwait(false);
                     break;
-                case ConflictDecisionMode.Append:
-                case ConflictDecisionMode.AppendAll:
                 case ConflictDecisionMode.OnlyNewer:
-                case ConflictDecisionMode.ResumeWithTailValidation:
-                    throw new InvalidOperationException("The selected conflict mode is not supported for provider copy.");
+                    throw new InvalidOperationException("Only newer is not supported for provider copy.");
             }
         }
 
@@ -317,6 +317,8 @@ public sealed class FileOperationService : IFileOperationService
         OperationState state,
         CancellationToken cancellationToken)
     {
+        ValidateMoveConflictDecision(request.Options.DefaultConflictDecision);
+
         var sources = RequireSourceLocations(request);
         if (sources.Count != 1)
             throw new InvalidOperationException("Provider move supports a single-source rename only.");
@@ -401,35 +403,56 @@ public sealed class FileOperationService : IFileOperationService
         {
             cancellationToken.ThrowIfCancellationRequested();
             state.WaitIfPaused(cancellationToken);
-            var copyTarget = await ResolveDestinationPathAsync(file, request.Options, conflictResolver, state, cancellationToken)
-                .ConfigureAwait(false);
-            if (copyTarget.Path.Length == 0)
-                continue;
-
-            Directory.CreateDirectory(Path.GetDirectoryName(copyTarget.Path)!);
-
-            if (copyTarget.Action == CopyDestinationAction.CreateOrOverwrite &&
-                IsReparsePoint(file.SourcePath) &&
-                request.Options.SymlinkMode == SymlinkCopyMode.CopyLink)
+            CopyDestination copyTarget = CopyDestination.Skip;
+            try
             {
-                CopyReparsePoint(file.SourcePath, copyTarget.Path, request.Options, state);
-                state.CopiedCount++;
-                state.AddBytes(file.Size);
-                state.CompleteItem();
-                state.Report(file.SourcePath, copyTarget.Path, file.Size, file.Size);
-                continue;
-            }
+                copyTarget = await ResolveDestinationPathAsync(file, request.Options, conflictResolver, state, cancellationToken)
+                    .ConfigureAwait(false);
+                if (copyTarget.Path.Length == 0)
+                    continue;
 
-            bool copied = await CopyFileContentsAsync(
-                    file,
-                    copyTarget,
-                    request.Options,
-                    conflictResolver,
-                    state,
-                    cancellationToken)
-                .ConfigureAwait(false);
-            if (!copied)
-                continue;
+                Directory.CreateDirectory(Path.GetDirectoryName(copyTarget.Path)!);
+
+                if (copyTarget.Action == CopyDestinationAction.CreateOrOverwrite &&
+                    IsReparsePoint(file.SourcePath) &&
+                    request.Options.SymlinkMode == SymlinkCopyMode.CopyLink)
+                {
+                    CopyReparsePoint(file.SourcePath, copyTarget.Path, request.Options, state);
+                    state.CopiedCount++;
+                    state.AddBytes(file.Size);
+                    state.CompleteItem();
+                    state.Report(file.SourcePath, copyTarget.Path, file.Size, file.Size);
+                    continue;
+                }
+
+                bool copied = await CopyFileContentsAsync(
+                        file,
+                        copyTarget,
+                        request.Options,
+                        conflictResolver,
+                        state,
+                        cancellationToken)
+                    .ConfigureAwait(false);
+                if (!copied)
+                    continue;
+            }
+            catch (CopyRetryableIOException ex) when (
+                request.Options.CopyMode == CopyMode.FastSalvage &&
+                ex.FailureKind == "Read failed")
+            {
+                string partialPath = copyTarget.Path.Length == 0 ? file.DestinationPath : copyTarget.Path;
+                CleanupPartialDestination(partialPath, request.Options, state);
+                state.AddError(file.SourcePath, ex.Message);
+                state.SkippedCount++;
+                state.CompleteItem();
+                state.ReportValidation(
+                    file.SourcePath,
+                    partialPath,
+                    file.Size,
+                    "Read failed, skipping file...",
+                    resumeOffset: null,
+                    rollbackBytes: null);
+            }
         }
 
         PreserveDirectoryTargetsMetadata(plan.Directories, request.Options, state, cancellationToken);
@@ -441,6 +464,8 @@ public sealed class FileOperationService : IFileOperationService
         OperationState state,
         CancellationToken cancellationToken)
     {
+        ValidateMoveConflictDecision(request.Options.DefaultConflictDecision);
+
         string destination = RequireDestination(request);
         bool singleRename = request.Sources.Count == 1 && !IsPath(destination);
         string effectiveDestination = singleRename
@@ -650,24 +675,10 @@ public sealed class FileOperationService : IFileOperationService
         string destinationPath = file.DestinationPath;
         while (File.Exists(destinationPath) || Directory.Exists(destinationPath))
         {
-            if (File.Exists(destinationPath) && options.OnlyNewer && !IsSourceNewer(file.SourcePath, destinationPath))
-            {
-                state.SkippedCount++;
-                state.CompleteItem();
-                return CopyDestination.Skip;
-            }
-
             ConflictDecisionMode mode = ResolveConfiguredConflictDecision(options, state);
             string? newDestination = null;
 
-            if (mode == ConflictDecisionMode.Ask)
-            {
-                var decision = conflictResolver.Resolve(BuildConflict(file.SourcePath, destinationPath));
-                mode = decision.Mode;
-                newDestination = decision.NewDestinationPath;
-            }
-
-            if (mode == ConflictDecisionMode.ResumeWithTailValidation)
+            if (options.CopyMode == CopyMode.Reliable)
             {
                 while (true)
                 {
@@ -684,15 +695,19 @@ public sealed class FileOperationService : IFileOperationService
                     if (sourceReadFailure is null)
                         break;
 
-                    await WaitForParanoidReadRetryAsync(
+                    await WaitForReliableRetryAsync(
                             file,
                             destinationPath,
                             state,
+                            "Read failed",
                             sourceReadFailure.Reason,
                             cancellationToken)
                         .ConfigureAwait(false);
                 }
+            }
 
+            if (mode == ConflictDecisionMode.Ask)
+            {
                 var decision = conflictResolver.Resolve(BuildConflict(file.SourcePath, destinationPath));
                 mode = decision.Mode;
                 newDestination = decision.NewDestinationPath;
@@ -716,10 +731,6 @@ public sealed class FileOperationService : IFileOperationService
                         ? GenerateName(destinationPath)
                         : newDestination;
                     continue;
-                case ConflictDecisionMode.Append:
-                    if (Directory.Exists(destinationPath))
-                        throw new IOException("Cannot append a file to a directory.");
-                    return new CopyDestination(destinationPath, CopyDestinationAction.Append);
                 case ConflictDecisionMode.OnlyNewer:
                     if (File.Exists(destinationPath) && IsSourceNewer(file.SourcePath, destinationPath))
                     {
@@ -750,7 +761,6 @@ public sealed class FileOperationService : IFileOperationService
             ConflictDecisionMode.Skip => ConflictDecisionMode.Skip,
             ConflictDecisionMode.Overwrite => ConflictDecisionMode.Overwrite,
             ConflictDecisionMode.Rename => ConflictDecisionMode.Rename,
-            ConflictDecisionMode.Append => ConflictDecisionMode.Append,
             _ => options.DefaultConflictDecision,
         };
     }
@@ -770,9 +780,6 @@ public sealed class FileOperationService : IFileOperationService
             case ConflictDecisionMode.RenameAll:
                 state.StickyConflictDecision = ConflictDecisionMode.Rename;
                 return ConflictDecisionMode.Rename;
-            case ConflictDecisionMode.AppendAll:
-                state.StickyConflictDecision = ConflictDecisionMode.Append;
-                return ConflictDecisionMode.Append;
             default:
                 return mode;
         }
@@ -853,16 +860,17 @@ public sealed class FileOperationService : IFileOperationService
             plan.RollbackBytes);
     }
 
-    private async Task WaitForParanoidReadRetryAsync(
+    private async Task WaitForReliableRetryAsync(
         CopyFilePlanItem file,
         string destinationPath,
         OperationState state,
+        string failureKind,
         string reason,
         CancellationToken cancellationToken)
     {
         string status = string.IsNullOrWhiteSpace(reason)
-            ? "Source read failed; retrying in 1 minute..."
-            : $"Source read failed; retrying in 1 minute. {reason}";
+            ? $"{failureKind}; retrying..."
+            : $"{failureKind}; retrying. {reason}";
         state.ReportValidation(
             file.SourcePath,
             destinationPath,
@@ -871,7 +879,7 @@ public sealed class FileOperationService : IFileOperationService
             resumeOffset: null,
             rollbackBytes: null);
 
-        await _dependencies.DelayAsync(ParanoidCopyReadRetryDelay, cancellationToken).ConfigureAwait(false);
+        await _dependencies.DelayAsync(ReliableCopyRetryDelay, cancellationToken).ConfigureAwait(false);
     }
 
     private async Task<bool> CopyFileContentsAsync(
@@ -882,10 +890,12 @@ public sealed class FileOperationService : IFileOperationService
         OperationState state,
         CancellationToken cancellationToken)
     {
-        bool autoRetryReadFailures = options.DefaultConflictDecision == ConflictDecisionMode.ResumeWithTailValidation;
+        bool reliableRetry = options.CopyMode == CopyMode.Reliable;
+        bool wrapFailures = reliableRetry || options.CopyMode == CopyMode.FastSalvage;
         CopyDestination copyTarget = initialTarget;
         long currentBytes = CurrentBytesForTarget(copyTarget);
         long accountedCurrentBytes = 0;
+        int retryNumber = 0;
         AccountCurrentBytes(currentBytes);
         state.Report(file.SourcePath, copyTarget.Path, currentBytes, file.Size);
 
@@ -898,19 +908,21 @@ public sealed class FileOperationService : IFileOperationService
                         file,
                         copyTarget,
                         currentBytes,
-                        autoRetryReadFailures,
+                        wrapFailures,
                         AccountCurrentBytes,
                         state,
                         cancellationToken)
                     .ConfigureAwait(false);
                 break;
             }
-            catch (CopySourceReadException ex) when (autoRetryReadFailures)
+            catch (CopyRetryableIOException ex) when (reliableRetry && retryNumber < ReliableCopyRetryCount)
             {
-                await WaitForParanoidReadRetryAsync(
+                retryNumber++;
+                await WaitForReliableRetryAsync(
                         file,
                         copyTarget.Path,
                         state,
+                        ex.FailureKind,
                         ex.InnerException?.Message ?? ex.Message,
                         cancellationToken)
                     .ConfigureAwait(false);
@@ -931,9 +943,7 @@ public sealed class FileOperationService : IFileOperationService
             }
         }
 
-        bool preserveMetadata = copyTarget.Action != CopyDestinationAction.Append;
-        if (preserveMetadata)
-            _platformOperations.PreserveFileMetadata(file.SourcePath, copyTarget.Path, options, state);
+        _platformOperations.PreserveFileMetadata(file.SourcePath, copyTarget.Path, options, state);
 
         state.CopiedCount++;
         state.CompleteItem();
@@ -966,7 +976,7 @@ public sealed class FileOperationService : IFileOperationService
         }
         catch (Exception ex) when (wrapSourceReadFailures && IsFileAccessException(ex))
         {
-            throw new CopySourceReadException(ex);
+            throw new CopyRetryableIOException("Read failed", ex);
         }
 
         await using Stream source = OpenFileStream(
@@ -977,19 +987,17 @@ public sealed class FileOperationService : IFileOperationService
             FileOptions.Asynchronous | FileOptions.SequentialScan,
             wrapSourceReadFailures);
 
-        await using Stream destination = _dependencies.OpenFileStream(
+        await using Stream destination = OpenDestinationStream(
             copyTarget.Path,
-            copyTarget.Action == CopyDestinationAction.Append
-                ? FileMode.Append
-                : copyTarget.Action == CopyDestinationAction.ResumeWithTailValidation
-                    ? FileMode.Open
-                    : FileMode.Create,
+            copyTarget.Action == CopyDestinationAction.ResumeWithTailValidation
+                ? FileMode.Open
+                : FileMode.Create,
             copyTarget.Action == CopyDestinationAction.ResumeWithTailValidation
                 ? FileAccess.ReadWrite
                 : FileAccess.Write,
             FileShare.None,
-            CopyBufferSize,
-            FileOptions.Asynchronous | FileOptions.SequentialScan);
+            FileOptions.Asynchronous | FileOptions.SequentialScan,
+            wrapSourceReadFailures);
 
         if (copyTarget.Action == CopyDestinationAction.ResumeWithTailValidation)
         {
@@ -1008,7 +1016,8 @@ public sealed class FileOperationService : IFileOperationService
             if (read == 0)
                 break;
 
-            await destination.WriteAsync(buffer.AsMemory(0, read), cancellationToken).ConfigureAwait(false);
+            await WriteToDestinationAsync(destination, buffer, read, wrapSourceReadFailures, cancellationToken)
+                .ConfigureAwait(false);
             currentBytes += read;
             accountCurrentBytes(currentBytes);
             state.Report(file.SourcePath, copyTarget.Path, currentBytes, file.Size);
@@ -1031,7 +1040,25 @@ public sealed class FileOperationService : IFileOperationService
         }
         catch (Exception ex) when (wrapSourceReadFailures && IsFileAccessException(ex))
         {
-            throw new CopySourceReadException(ex);
+            throw new CopyRetryableIOException("Read failed", ex);
+        }
+    }
+
+    private Stream OpenDestinationStream(
+        string path,
+        FileMode mode,
+        FileAccess access,
+        FileShare share,
+        FileOptions options,
+        bool wrapFailures)
+    {
+        try
+        {
+            return _dependencies.OpenFileStream(path, mode, access, share, CopyBufferSize, options);
+        }
+        catch (Exception ex) when (wrapFailures && IsFileAccessException(ex))
+        {
+            throw new CopyRetryableIOException("Write failed", ex);
         }
     }
 
@@ -1048,7 +1075,25 @@ public sealed class FileOperationService : IFileOperationService
         }
         catch (Exception ex) when (wrapSourceReadFailures && IsFileAccessException(ex))
         {
-            throw new CopySourceReadException(ex);
+            throw new CopyRetryableIOException("Read failed", ex);
+        }
+    }
+
+    private static async Task WriteToDestinationAsync(
+        Stream destination,
+        byte[] buffer,
+        int count,
+        bool wrapFailures,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            await destination.WriteAsync(buffer.AsMemory(0, count), cancellationToken)
+                .ConfigureAwait(false);
+        }
+        catch (Exception ex) when (wrapFailures && IsFileAccessException(ex))
+        {
+            throw new CopyRetryableIOException("Write failed", ex);
         }
     }
 
@@ -1060,7 +1105,7 @@ public sealed class FileOperationService : IFileOperationService
         }
         catch (Exception ex) when (wrapSourceReadFailures && IsFileAccessException(ex))
         {
-            throw new CopySourceReadException(ex);
+            throw new CopyRetryableIOException("Read failed", ex);
         }
     }
 
@@ -1132,22 +1177,14 @@ public sealed class FileOperationService : IFileOperationService
                     return true;
                 case ConflictDecisionMode.Cancel:
                     throw new OperationCanceledException("Move cancelled by user.");
-                case ConflictDecisionMode.OnlyNewer:
-                    if (!sourceIsFile || !IsSourceNewer(source, destination))
-                    {
-                        state.SkippedCount++;
-                        state.CompleteItem();
-                        return true;
-                    }
-                    break;
                 case ConflictDecisionMode.Rename:
                 case ConflictDecisionMode.RenameAll:
                     destination = string.IsNullOrWhiteSpace(decision.NewDestinationPath)
                         ? GenerateName(destination)
                         : decision.NewDestinationPath;
                     break;
-                case ConflictDecisionMode.ResumeWithTailValidation:
-                    throw new InvalidOperationException("Tail-validated resume is only supported for copy operations.");
+                case ConflictDecisionMode.OnlyNewer:
+                    throw new InvalidOperationException("Only newer is only supported for copy operations.");
             }
 
             if (File.Exists(destination))
@@ -1273,8 +1310,70 @@ public sealed class FileOperationService : IFileOperationService
         return new CopyResumeSourceSnapshot(source.Length, source.LastWriteTimeUtc);
     }
 
+    private static void ValidateProviderCopyOptions(FileOperationOptions options)
+    {
+        if (options.CopyMode == CopyMode.Reliable)
+            throw new InvalidOperationException("Reliable copy is not supported for provider copy.");
+        if (options.CopyMode == CopyMode.FastSalvage)
+            throw new InvalidOperationException("Fast salvage copy is not supported for provider copy.");
+        if (options.DefaultConflictDecision == ConflictDecisionMode.OnlyNewer)
+            throw new InvalidOperationException("Only newer is not supported for provider copy.");
+    }
+
+    private static void ValidateMoveConflictDecision(ConflictDecisionMode mode)
+    {
+        if (mode == ConflictDecisionMode.OnlyNewer)
+            throw new InvalidOperationException("Only newer is only supported for copy operations.");
+    }
+
+    private static void CleanupPartialDestination(
+        string destinationPath,
+        FileOperationOptions options,
+        OperationState state)
+    {
+        if (string.IsNullOrWhiteSpace(destinationPath) || !File.Exists(destinationPath))
+            return;
+
+        if (!options.KeepPartialFilesOnError)
+        {
+            DeleteFileTarget(destinationPath);
+            state.ReportValidation(
+                destinationPath,
+                destinationPath,
+                0,
+                "Partial destination deleted",
+                resumeOffset: null,
+                rollbackBytes: null);
+            return;
+        }
+
+        string partialPath = GeneratePartialName(destinationPath);
+        File.Move(destinationPath, partialPath);
+        state.ReportValidation(
+            destinationPath,
+            partialPath,
+            0,
+            "Partial destination kept",
+            resumeOffset: null,
+            rollbackBytes: null);
+    }
+
     private static bool IsFileAccessException(Exception ex) =>
         ex is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException;
+
+    private static string GeneratePartialName(string destinationPath)
+    {
+        string candidate = destinationPath + ".partial";
+        if (!File.Exists(candidate) && !Directory.Exists(candidate))
+            return candidate;
+
+        for (int i = 2; ; i++)
+        {
+            candidate = destinationPath + $".partial.{i}";
+            if (!File.Exists(candidate) && !Directory.Exists(candidate))
+                return candidate;
+        }
+    }
 
     private static string GenerateName(string destinationPath)
     {
@@ -1423,7 +1522,6 @@ public sealed class FileOperationService : IFileOperationService
     private enum CopyDestinationAction
     {
         CreateOrOverwrite,
-        Append,
         ResumeWithTailValidation,
     }
 
@@ -1443,12 +1541,15 @@ public sealed class FileOperationService : IFileOperationService
         int FileCount,
         int DirectoryCount);
 
-    private sealed class CopySourceReadException : IOException
+    private sealed class CopyRetryableIOException : IOException
     {
-        public CopySourceReadException(Exception innerException)
+        public CopyRetryableIOException(string failureKind, Exception innerException)
             : base(innerException.Message, innerException)
         {
+            FailureKind = failureKind;
         }
+
+        public string FailureKind { get; }
     }
 
     private sealed class OperationState : IFileOperationErrorSink

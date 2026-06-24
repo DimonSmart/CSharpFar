@@ -14,7 +14,7 @@ internal sealed record FileOperationDialogResult(
 internal sealed class FileOperationDialog
 {
     private const int DialogWidth = 78;
-    private const int DialogHeight = 22;
+    private const int DialogHeight = 26;
 
     private static readonly ConflictDecisionMode[] CopyConflictModes =
     [
@@ -22,8 +22,7 @@ internal sealed class FileOperationDialog
         ConflictDecisionMode.Overwrite,
         ConflictDecisionMode.Skip,
         ConflictDecisionMode.Rename,
-        ConflictDecisionMode.Append,
-        ConflictDecisionMode.ResumeWithTailValidation,
+        ConflictDecisionMode.OnlyNewer,
     ];
 
     private static readonly ConflictDecisionMode[] MoveConflictModes =
@@ -32,7 +31,13 @@ internal sealed class FileOperationDialog
         ConflictDecisionMode.Overwrite,
         ConflictDecisionMode.Skip,
         ConflictDecisionMode.Rename,
-        ConflictDecisionMode.OnlyNewer,
+    ];
+
+    private static readonly CopyMode[] LocalCopyModes =
+    [
+        CopyMode.Normal,
+        CopyMode.Reliable,
+        CopyMode.FastSalvage,
     ];
 
     private static readonly FileSecurityMode[] SecurityModes =
@@ -59,7 +64,7 @@ internal sealed class FileOperationDialog
         string prompt = sources.Count == 1
             ? $"Copy {Path.GetFileName(sources[0])} to:"
             : $"Copy {sources.Count} items to:";
-        return Show("Copy", prompt, "Copy", initialDestination, initialOptions, CopyConflictModes, showOperationOptions: true);
+        return Show("Copy", prompt, "Copy", initialDestination, initialOptions, CopyConflictModes, LocalCopyModes, showOperationOptions: true);
     }
 
     public FileOperationDialogResult? ShowMove(
@@ -70,7 +75,7 @@ internal sealed class FileOperationDialog
         string prompt = sources.Count == 1
             ? "Move / Rename to:"
             : $"Move {sources.Count} items to:";
-        return Show("Move", prompt, "Move", initialDestination, initialOptions, MoveConflictModes, showOperationOptions: true);
+        return Show("Move", prompt, "Move", initialDestination, initialOptions, MoveConflictModes, copyModes: null, showOperationOptions: true);
     }
 
     public FileOperationDialogResult? ShowRename(
@@ -82,7 +87,7 @@ internal sealed class FileOperationDialog
         string prompt = string.IsNullOrEmpty(sourceName)
             ? "Rename to:"
             : $"Rename {sourceName} to:";
-        return Show("Rename", prompt, "Rename", initialDestination, initialOptions, MoveConflictModes, showOperationOptions: false);
+        return Show("Rename", prompt, "Rename", initialDestination, initialOptions, MoveConflictModes, copyModes: null, showOperationOptions: false);
     }
 
     private FileOperationDialogResult? Show(
@@ -92,6 +97,7 @@ internal sealed class FileOperationDialog
         string initialDestination,
         FileOperationOptions initialOptions,
         IReadOnlyList<ConflictDecisionMode> conflictModes,
+        IReadOnlyList<CopyMode>? copyModes,
         bool showOperationOptions)
     {
         var size = _screen.GetSize();
@@ -100,7 +106,7 @@ internal sealed class FileOperationDialog
 
         try
         {
-            return RunLoop(size, title, prompt, actionLabel, initialDestination, initialOptions, conflictModes, showOperationOptions);
+            return RunLoop(size, title, prompt, actionLabel, initialDestination, initialOptions, conflictModes, copyModes, showOperationOptions);
         }
         finally
         {
@@ -117,6 +123,7 @@ internal sealed class FileOperationDialog
         string initialDestination,
         FileOperationOptions initialOptions,
         IReadOnlyList<ConflictDecisionMode> conflictModes,
+        IReadOnlyList<CopyMode>? copyModes,
         bool showOperationOptions)
     {
         var destination = new CommandLineState();
@@ -138,6 +145,17 @@ internal sealed class FileOperationDialog
         {
             Id = "security",
         };
+        ChoiceFormRow<CopyMode>? copyModeChoice = copyModes is null
+            ? null
+            : new ChoiceFormRow<CopyMode>(
+                new ChoiceRow<CopyMode>(
+                    copyModes,
+                    CopyModeLabel,
+                    FindCopyModeIndex(initialOptions.CopyMode, copyModes)),
+                "Copy mode:")
+            {
+                Id = "copyMode",
+            };
         var conflictChoice = new ChoiceRow<ConflictDecisionMode>(
             conflictModes,
             ConflictLabel,
@@ -152,6 +170,10 @@ internal sealed class FileOperationDialog
         var preserveTimestamps = new CheckBoxRow(new CheckBoxLine("Preserve all timestamps", initialOptions.PreserveTimestamps))
         {
             Id = "preserveTimestamps",
+        };
+        var preserveAttributes = new CheckBoxRow(new CheckBoxLine("Preserve attributes", initialOptions.PreserveAttributes))
+        {
+            Id = "preserveAttributes",
         };
         var copySymlinkContents = new CheckBoxRow(new CheckBoxLine(
             "Copy contents of symbolic links",
@@ -187,8 +209,10 @@ internal sealed class FileOperationDialog
                 destinationRowState,
                 filterRowState,
                 securityChoice,
+                copyModeChoice,
                 conflictChoiceRow,
                 preserveTimestamps,
+                preserveAttributes,
                 copySymlinkContents,
                 useFilter,
                 showOperationOptions),
@@ -214,8 +238,10 @@ internal sealed class FileOperationDialog
                     filter,
                     initialOptions,
                     conflictChoice.Value,
+                    copyModeChoice?.Value ?? CopyMode.Normal,
                     securityChoice.Value,
                     preserveTimestamps.Value,
+                    preserveAttributes.Value,
                     copySymlinkContents.Value,
                     useFilter.Value,
                     destinationHistory,
@@ -236,8 +262,10 @@ internal sealed class FileOperationDialog
         TextInputRowState destinationRowState,
         TextInputRowState filterRowState,
         ChoiceFormRow<FileSecurityMode> securityChoice,
+        ChoiceFormRow<CopyMode>? copyModeChoice,
         MultiLineChoiceFormRow<ConflictDecisionMode> conflictChoiceRow,
         CheckBoxRow preserveTimestamps,
+        CheckBoxRow preserveAttributes,
         CheckBoxRow copySymlinkContents,
         CheckBoxRow useFilter,
         bool showOperationOptions)
@@ -256,6 +284,12 @@ internal sealed class FileOperationDialog
 
         if (showOperationOptions)
         {
+            if (copyModeChoice is not null)
+            {
+                rows.Add(copyModeChoice);
+                rows.Add(new SeparatorRow(fill, drawLine: false));
+            }
+
             rows.Add(securityChoice);
             rows.Add(new SeparatorRow(fill, drawLine: false));
         }
@@ -267,6 +301,7 @@ internal sealed class FileOperationDialog
         {
             rows.Add(new SeparatorRow(fill, drawLine: false));
             rows.Add(preserveTimestamps);
+            rows.Add(preserveAttributes);
             rows.Add(copySymlinkContents);
             rows.Add(new SeparatorRow(fill, drawLine: false));
             rows.Add(useFilter);
@@ -305,8 +340,10 @@ internal sealed class FileOperationDialog
         CommandLineState filter,
         FileOperationOptions initialOptions,
         ConflictDecisionMode conflictMode,
+        CopyMode copyMode,
         FileSecurityMode securityMode,
         bool preserveTimestamps,
+        bool preserveAttributes,
         bool copySymlinkContents,
         bool useFilter,
         SingleLineTextHistoryState destinationHistory,
@@ -336,8 +373,10 @@ internal sealed class FileOperationDialog
             initialOptions with
             {
                 DefaultConflictDecision = conflictMode,
+                CopyMode = copyMode,
                 SecurityMode = securityMode,
                 PreserveTimestamps = preserveTimestamps,
+                PreserveAttributes = preserveAttributes,
                 SymlinkMode = copySymlinkContents ? SymlinkCopyMode.CopyTargetContents : SymlinkCopyMode.CopyLink,
                 FileMask = mask,
             });
@@ -389,6 +428,17 @@ internal sealed class FileOperationDialog
         return 0;
     }
 
+    private static int FindCopyModeIndex(CopyMode mode, IReadOnlyList<CopyMode> copyModes)
+    {
+        for (int i = 0; i < copyModes.Count; i++)
+        {
+            if (copyModes[i] == mode)
+                return i;
+        }
+
+        return 0;
+    }
+
     private static string ConflictLabel(ConflictDecisionMode mode) => mode switch
     {
         ConflictDecisionMode.Overwrite => "Overwrite",
@@ -397,11 +447,15 @@ internal sealed class FileOperationDialog
         ConflictDecisionMode.SkipAll => "Skip all",
         ConflictDecisionMode.Rename => "Rename",
         ConflictDecisionMode.RenameAll => "Rename all",
-        ConflictDecisionMode.Append => "Append",
-        ConflictDecisionMode.AppendAll => "Append all",
-        ConflictDecisionMode.ResumeWithTailValidation => "Paranoid",
         ConflictDecisionMode.OnlyNewer => "Only newer",
         _ => "Ask",
+    };
+
+    private static string CopyModeLabel(CopyMode mode) => mode switch
+    {
+        CopyMode.Reliable => "Reliable",
+        CopyMode.FastSalvage => "Fast salvage",
+        _ => "Normal",
     };
 
     private static string SecurityModeLabel(FileSecurityMode mode) => mode switch

@@ -2,8 +2,9 @@ namespace CSharpFar.Core.Models;
 
 public sealed record FileOperationOptions
 {
+    public CopyMode CopyMode { get; init; } = CopyMode.Normal;
     public ConflictDecisionMode DefaultConflictDecision { get; init; } = ConflictDecisionMode.Ask;
-    public bool OnlyNewer { get; init; }
+    public bool KeepPartialFilesOnError { get; init; }
     public bool PreserveTimestamps { get; init; } = true;
     public bool PreserveAttributes { get; init; } = true;
     public FileSecurityMode SecurityMode { get; init; } = FileSecurityMode.Default;

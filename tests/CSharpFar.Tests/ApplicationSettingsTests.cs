@@ -1,5 +1,6 @@
 using System.Reflection;
 using CSharpFar.App;
+using CSharpFar.App.Files;
 using CSharpFar.App.Rendering;
 using CSharpFar.Console;
 using CSharpFar.Console.Models;
@@ -163,6 +164,54 @@ public sealed class ApplicationSettingsTests : IDisposable
         Assert.Equal('╔', driver.GetCell(40, 0).Character);
         Assert.Equal('╟', driver.GetCell(40, 6).Character);
         Assert.Equal('╚', driver.GetCell(40, 9).Character);
+    }
+
+    [Theory]
+    [InlineData("Append")]
+    [InlineData("AppendAll")]
+    public void FileOperationOptionsFactory_MapsOldAppendConflictDecisionToAsk(string conflictDecision)
+    {
+        var settings = new AppSettings();
+        settings.FileOperations.ConflictDecision = conflictDecision;
+
+        FileOperationOptions options = FileOperationOptionsFactory.Create(settings);
+
+        Assert.Equal(CopyMode.Normal, options.CopyMode);
+        Assert.Equal(ConflictDecisionMode.Ask, options.DefaultConflictDecision);
+    }
+
+    [Fact]
+    public void FileOperationOptionsFactory_MapsOldResumeWithTailValidationToReliableCopyMode()
+    {
+        var settings = new AppSettings();
+        settings.FileOperations.ConflictDecision = "ResumeWithTailValidation";
+
+        FileOperationOptions options = FileOperationOptionsFactory.Create(settings);
+
+        Assert.Equal(CopyMode.Reliable, options.CopyMode);
+        Assert.Equal(ConflictDecisionMode.Ask, options.DefaultConflictDecision);
+    }
+
+    [Fact]
+    public void FileOperationOptionsFactory_ParsesCopyMode()
+    {
+        var settings = new AppSettings();
+        settings.FileOperations.CopyMode = "FastSalvage";
+
+        FileOperationOptions options = FileOperationOptionsFactory.Create(settings);
+
+        Assert.Equal(CopyMode.FastSalvage, options.CopyMode);
+    }
+
+    [Fact]
+    public void FileOperationOptionsFactory_InvalidCopyModeFallsBackToNormal()
+    {
+        var settings = new AppSettings();
+        settings.FileOperations.CopyMode = "invalid";
+
+        FileOperationOptions options = FileOperationOptionsFactory.Create(settings);
+
+        Assert.Equal(CopyMode.Normal, options.CopyMode);
     }
 
     private Application CreateApp(string sortMode, params FilePanelItem[] items)

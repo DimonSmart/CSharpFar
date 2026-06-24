@@ -9,9 +9,6 @@ public enum ConflictDecisionMode
     SkipAll,
     Rename,
     RenameAll,
-    Append,
-    AppendAll,
-    ResumeWithTailValidation,
     OnlyNewer,
     Cancel,
 }

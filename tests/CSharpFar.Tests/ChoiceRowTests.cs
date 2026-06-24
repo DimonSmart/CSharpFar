@@ -119,7 +119,7 @@ public sealed class ChoiceRowTests
     {
         var driver = new FakeConsoleDriver(80, 4);
         var screen = new ScreenRenderer(driver);
-        var row = new ChoiceRow<string>(["Ask", "Overwrite", "Skip", "Rename", "Append", "Paranoid"], static value => value);
+        var row = new ChoiceRow<string>(["Ask", "Overwrite", "Skip", "Rename", "Only newer", "Reliable"], static value => value);
         row.RenderSegmented(
             screen,
             2,

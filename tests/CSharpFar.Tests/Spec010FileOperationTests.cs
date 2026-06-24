@@ -79,7 +79,7 @@ public sealed class Spec010FileOperationTests : IDisposable
             FileOperationKind.Copy,
             [source],
             _destination,
-            new FileOperationOptions { OnlyNewer = true });
+            new FileOperationOptions { DefaultConflictDecision = ConflictDecisionMode.OnlyNewer });
 
         Assert.Equal(1, result.SkippedCount);
         Assert.Equal("new", File.ReadAllText(destination));
@@ -162,38 +162,89 @@ public sealed class Spec010FileOperationTests : IDisposable
     }
 
     [Fact]
-    public async Task ExecuteAsync_AppendAddsSourceBytesToExistingFile()
+    public void ConflictDecisionMode_DoesNotContainAppend()
     {
-        string source = Write(_source, "dup.txt", "new");
-        Write(_destination, "dup.txt", "old");
+        string[] names = Enum.GetNames<ConflictDecisionMode>();
 
-        await ExecuteAsync(
-            FileOperationKind.Copy,
-            [source],
-            _destination,
-            new FileOperationOptions(),
-            new FixedConflictResolver(ConflictDecisionMode.Append));
-
-        Assert.Equal("oldnew", File.ReadAllText(Path.Combine(_destination, "dup.txt")));
+        Assert.DoesNotContain("Append", names);
+        Assert.DoesNotContain("AppendAll", names);
     }
 
     [Fact]
-    public async Task ExecuteAsync_AppendAllAppliesToLaterConflictsInSameOperation()
+    public async Task FastSalvage_ContinuesAfterUnreadableFileAndDeletesPartialByDefault()
     {
-        string first = Write(_source, "first.txt", "new1");
-        string second = Write(_source, "second.txt", "new2");
-        Write(_destination, "first.txt", "old1");
-        Write(_destination, "second.txt", "old2");
+        string bad = Write(_source, "bad.txt", "bad");
+        string good = Write(_source, "good.txt", "good");
+        var dependencies = ThrowOnReadDependency(bad);
 
-        await ExecuteAsync(
+        FileOperationResult result = await ExecuteAsync(
             FileOperationKind.Copy,
-            [first, second],
+            [bad, good],
             _destination,
-            new FileOperationOptions(),
-            new FixedConflictResolver(ConflictDecisionMode.AppendAll));
+            new FileOperationOptions { CopyMode = CopyMode.FastSalvage },
+            dependencies: dependencies);
 
-        Assert.Equal("old1new1", File.ReadAllText(Path.Combine(_destination, "first.txt")));
-        Assert.Equal("old2new2", File.ReadAllText(Path.Combine(_destination, "second.txt")));
+        Assert.Equal(1, result.CopiedCount);
+        Assert.Equal(1, result.SkippedCount);
+        Assert.Equal(1, result.FailedCount);
+        Assert.False(File.Exists(Path.Combine(_destination, "bad.txt")));
+        Assert.Equal("good", File.ReadAllText(Path.Combine(_destination, "good.txt")));
+        Assert.Contains(result.Errors, e => e.Path == bad);
+    }
+
+    [Fact]
+    public async Task FastSalvage_KeepsPartialDestination_WhenOptionEnabled()
+    {
+        string bad = Write(_source, "bad.txt", "bad");
+        var dependencies = ThrowOnReadDependency(bad);
+
+        FileOperationResult result = await ExecuteAsync(
+            FileOperationKind.Copy,
+            [bad],
+            _destination,
+            new FileOperationOptions
+            {
+                CopyMode = CopyMode.FastSalvage,
+                KeepPartialFilesOnError = true,
+            },
+            dependencies: dependencies);
+
+        Assert.Equal(1, result.FailedCount);
+        Assert.False(File.Exists(Path.Combine(_destination, "bad.txt")));
+        Assert.True(File.Exists(Path.Combine(_destination, "bad.txt.partial")));
+    }
+
+    [Fact]
+    public async Task FastSalvage_WriteFailureDoesNotSilentlySkipAllFiles()
+    {
+        string bad = Write(_source, "bad.txt", "bad");
+        string good = Write(_source, "good.txt", "good");
+        string badDestination = Path.Combine(_destination, "bad.txt");
+        var dependencies = FileOperationServiceDependencies.Default with
+        {
+            OpenFileStream = (path, mode, access, share, bufferSize, options) =>
+            {
+                Stream stream = FileOperationServiceDependencies.Default.OpenFileStream(
+                    path,
+                    mode,
+                    access,
+                    share,
+                    bufferSize,
+                    options);
+                return path == badDestination && access != FileAccess.Read
+                    ? new ThrowingWriteStream(stream)
+                    : stream;
+            },
+        };
+
+        await Assert.ThrowsAnyAsync<IOException>(() => ExecuteAsync(
+            FileOperationKind.Copy,
+            [bad, good],
+            _destination,
+            new FileOperationOptions { CopyMode = CopyMode.FastSalvage },
+            dependencies: dependencies));
+
+        Assert.False(File.Exists(Path.Combine(_destination, "good.txt")));
     }
 
     [Fact]
@@ -216,9 +267,14 @@ public sealed class Spec010FileOperationTests : IDisposable
         string? destination,
         FileOperationOptions options,
         IFileOperationConflictResolver? resolver = null,
-        IProgress<FileOperationProgress>? progress = null)
+        IProgress<FileOperationProgress>? progress = null,
+        FileOperationServiceDependencies? dependencies = null)
     {
-        return await new FileOperationService().ExecuteAsync(
+        var service = dependencies is null
+            ? new FileOperationService()
+            : new FileOperationService(dependencies);
+
+        return await service.ExecuteAsync(
             new FileOperationRequest
             {
                 Kind = kind,
@@ -229,6 +285,24 @@ public sealed class Spec010FileOperationTests : IDisposable
             progress,
             resolver ?? new FixedConflictResolver(ConflictDecisionMode.Overwrite));
     }
+
+    private static FileOperationServiceDependencies ThrowOnReadDependency(string unreadablePath) =>
+        FileOperationServiceDependencies.Default with
+        {
+            OpenFileStream = (path, mode, access, share, bufferSize, options) =>
+            {
+                Stream stream = FileOperationServiceDependencies.Default.OpenFileStream(
+                    path,
+                    mode,
+                    access,
+                    share,
+                    bufferSize,
+                    options);
+                return path == unreadablePath && access == FileAccess.Read
+                    ? new ThrowingReadStream(stream)
+                    : stream;
+            },
+        };
 
     private static string Write(string directory, string name, string content)
     {
@@ -248,5 +322,77 @@ public sealed class Spec010FileOperationTests : IDisposable
 
         public FileOperationConflictDecision Resolve(FileOperationConflict conflict) =>
             FileOperationConflictDecision.FromMode(_mode);
+    }
+
+    private sealed class ThrowingReadStream : Stream
+    {
+        private readonly Stream _inner;
+
+        public ThrowingReadStream(Stream inner)
+        {
+            _inner = inner;
+        }
+
+        public override bool CanRead => _inner.CanRead;
+        public override bool CanSeek => _inner.CanSeek;
+        public override bool CanWrite => _inner.CanWrite;
+        public override long Length => _inner.Length;
+
+        public override long Position
+        {
+            get => _inner.Position;
+            set => _inner.Position = value;
+        }
+
+        public override void Flush() => _inner.Flush();
+        public override int Read(byte[] buffer, int offset, int count) => throw new IOException("Source read failed.");
+        public override ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken cancellationToken = default) =>
+            throw new IOException("Source read failed.");
+        public override long Seek(long offset, SeekOrigin origin) => _inner.Seek(offset, origin);
+        public override void SetLength(long value) => _inner.SetLength(value);
+        public override void Write(byte[] buffer, int offset, int count) => _inner.Write(buffer, offset, count);
+
+        protected override void Dispose(bool disposing)
+        {
+            if (disposing)
+                _inner.Dispose();
+            base.Dispose(disposing);
+        }
+    }
+
+    private sealed class ThrowingWriteStream : Stream
+    {
+        private readonly Stream _inner;
+
+        public ThrowingWriteStream(Stream inner)
+        {
+            _inner = inner;
+        }
+
+        public override bool CanRead => _inner.CanRead;
+        public override bool CanSeek => _inner.CanSeek;
+        public override bool CanWrite => _inner.CanWrite;
+        public override long Length => _inner.Length;
+
+        public override long Position
+        {
+            get => _inner.Position;
+            set => _inner.Position = value;
+        }
+
+        public override void Flush() => _inner.Flush();
+        public override int Read(byte[] buffer, int offset, int count) => _inner.Read(buffer, offset, count);
+        public override long Seek(long offset, SeekOrigin origin) => _inner.Seek(offset, origin);
+        public override void SetLength(long value) => _inner.SetLength(value);
+        public override void Write(byte[] buffer, int offset, int count) => throw new IOException("Destination write failed.");
+        public override ValueTask WriteAsync(ReadOnlyMemory<byte> buffer, CancellationToken cancellationToken = default) =>
+            throw new IOException("Destination write failed.");
+
+        protected override void Dispose(bool disposing)
+        {
+            if (disposing)
+                _inner.Dispose();
+            base.Dispose(disposing);
+        }
     }
 }

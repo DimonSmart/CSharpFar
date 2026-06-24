@@ -92,7 +92,7 @@ public static class HelpContent
         P("  The default copy mode can be changed in the copy dialog."),
         K("Overwrite",        "Replace the destination file unconditionally."),
         K("Skip",             "Leave the destination file untouched."),
-        K("Paranoid copy",    "Resume-with-tail-validation mode."),
+        K("Reliable copy",    "Resume-with-tail-validation mode."),
         P("  When a destination file already exists and is shorter than the source,"),
         P("  CSharpFar compares the tail of the destination against the corresponding"),
         P("  bytes of the source. If the tail matches, copying resumes from that point."),

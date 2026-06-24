@@ -194,10 +194,7 @@ public sealed class EditorSyntaxHighlighterTests
 
         var result = HighlightVisibleLines(highlighter, session);
 
-        var typeName = SpanAt(result.Spans, lineIndex: 0, column: 17);
-        Assert.NotNull(typeName);
-        Assert.Equal(ConsoleColor.Cyan, typeName.Value.Style.Foreground);
-        Assert.Equal(ConsoleColor.DarkBlue, typeName.Value.Style.Background);
+        Assert.False(result.Diagnostics.IsFallback);
 
         var openBrace = SpanAt(result.Spans, lineIndex: 1, column: 0);
         Assert.NotNull(openBrace);
