@@ -31,7 +31,7 @@ public sealed class MenuBarRenderer
                 ? options.ActiveHighlightStyle
                 : options.HighlightStyle;
 
-            WriteWithHotKey(screen, bounds.X, bounds.Y, text, definition.Items[i].HotKey, style, highlightStyle);
+            WriteWithHotKey(screen, bounds.X, bounds.Y, text, definition.Items[i].HotChar, style, highlightStyle);
         }
     }
 

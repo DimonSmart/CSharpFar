@@ -23,8 +23,8 @@ internal sealed class ApplicationRenderContext
     public required PanelQuickSearchController PanelQuickSearch { get; init; }
     public required CommandLineState CommandLine { get; init; }
     public required CommandCompletionState CommandCompletion { get; init; }
-    public required FilePanelState LeftPanel { get; init; }
-    public required FilePanelState RightPanel { get; init; }
+    public required Func<FilePanelState> LeftPanel { get; init; }
+    public required Func<FilePanelState> RightPanel { get; init; }
     public required Func<PanelSide> ActiveSide { get; init; }
     public required Func<FilePanelState> ActiveState { get; init; }
     public required Func<PanelViewMode> LeftViewMode { get; init; }

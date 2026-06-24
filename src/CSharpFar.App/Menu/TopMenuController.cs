@@ -299,7 +299,7 @@ public sealed class TopMenuController
             var children = CurrentChildren(definition);
             for (int i = 0; i < children.Count; i++)
             {
-                if (IsSelectable(children[i]) && MatchesHotKey(children[i].HotKey, keyChar))
+                if (IsSelectable(children[i]) && MatchesHotChar(children[i].HotChar, keyChar))
                 {
                     ExecuteDropdownItem(definition, i);
                     return true;
@@ -309,7 +309,7 @@ public sealed class TopMenuController
 
         for (int i = 0; i < definition.Items.Count; i++)
         {
-            if (MatchesHotKey(definition.Items[i].HotKey, keyChar))
+            if (MatchesHotChar(definition.Items[i].HotChar, keyChar))
             {
                 OpenDropdown(definition, i);
                 return true;
@@ -381,9 +381,9 @@ public sealed class TopMenuController
     private static bool IsSelectable(MenuItemDefinition item) =>
         item.Kind != MenuItemKind.Separator && item.IsEnabled;
 
-    private static bool MatchesHotKey(char? hotKey, char keyChar) =>
-        hotKey.HasValue &&
-        char.ToUpperInvariant(hotKey.Value) == char.ToUpperInvariant(keyChar);
+    private static bool MatchesHotChar(char? hotChar, char keyChar) =>
+        hotChar.HasValue &&
+        char.ToUpperInvariant(hotChar.Value) == char.ToUpperInvariant(keyChar);
 
     private static bool IsPlainKey(ConsoleKeyInfo key, ConsoleKey consoleKey) =>
         key.Key == consoleKey && key.Modifiers == 0;

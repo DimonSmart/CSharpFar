@@ -324,6 +324,21 @@ internal sealed class ApplicationCommandContext
     public bool TogglePanelVisibility(PanelSide side) =>
         _panelVisibility.TogglePanel(side);
 
+    public bool TogglePanels() =>
+        _panelVisibility.TogglePanels();
+
+    public void SwapPanels()
+    {
+        ResetTransientNavigationUi();
+
+        (_session.Panels.Left, _session.Panels.Right) = (_session.Panels.Right, _session.Panels.Left);
+        (_session.Panels.LeftViewMode, _session.Panels.RightViewMode) =
+            (_session.Panels.RightViewMode, _session.Panels.LeftViewMode);
+
+        StartWatching(LeftPanel, PanelSide.Left);
+        StartWatching(RightPanel, PanelSide.Right);
+    }
+
     public bool OpenTopMenu()
     {
         _panelQuickSearch.Close();

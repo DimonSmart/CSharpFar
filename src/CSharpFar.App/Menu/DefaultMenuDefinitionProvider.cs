@@ -14,6 +14,7 @@ public sealed class DefaultMenuDefinitionProvider
             Items =
             [
                 BuildFileMenu(),
+                BuildCommandsMenu(),
                 BuildPanelMenu("Left", PanelSide.Left, context.LeftPanel, context.LeftViewMode),
                 BuildPanelMenu("Right", PanelSide.Right, context.RightPanel, context.RightViewMode),
                 BuildModuleMenu(context.ModuleMenuItems),
@@ -26,12 +27,33 @@ public sealed class DefaultMenuDefinitionProvider
         {
             Id = "File",
             Text = "File",
-            HotKey = 'F',
+            HotChar = 'F',
             Children =
             [
                 Command("File.view", "View", 'V', FunctionKeyCommandIds.View),
                 Command("File.edit", "Edit", 'E', FunctionKeyCommandIds.Edit),
                 Command("File.attributes", "Attributes", 'A', FunctionKeyCommandIds.Attributes),
+            ],
+        };
+
+    private static TopMenuItemDefinition BuildCommandsMenu() =>
+        new()
+        {
+            Id = "Commands",
+            Text = "Commands",
+            HotChar = 'C',
+            Children =
+            [
+                Command(
+                    "Commands.togglePanels",
+                    "Panels on/off",
+                    'P',
+                    ApplicationCommandIds.TogglePanels),
+                Command(
+                    "Commands.swapPanels",
+                    "Swap panels",
+                    'S',
+                    ApplicationCommandIds.SwapPanels),
             ],
         };
 
@@ -47,7 +69,7 @@ public sealed class DefaultMenuDefinitionProvider
         {
             Id = id,
             Text = text,
-            HotKey = text[0],
+            HotChar = text[0],
             Children =
             [
                 Radio($"{id}.full", "Full mode", 'F',
@@ -113,7 +135,7 @@ public sealed class DefaultMenuDefinitionProvider
         {
             Id = "Plugins",
             Text = "Plugins",
-            HotKey = 'P',
+            HotChar = 'P',
             Children = children,
         };
     }
@@ -175,7 +197,7 @@ public sealed class DefaultMenuDefinitionProvider
         {
             Id = "Options",
             Text = "Options",
-            HotKey = 'O',
+            HotChar = 'O',
             Children = children,
         };
     }
@@ -191,7 +213,7 @@ public sealed class DefaultMenuDefinitionProvider
         {
             Id = id,
             Text = text,
-            HotKey = hotKey,
+            HotChar = hotKey,
             CommandId = commandId,
             CommandArgs = args,
             IsEnabled = isEnabled,

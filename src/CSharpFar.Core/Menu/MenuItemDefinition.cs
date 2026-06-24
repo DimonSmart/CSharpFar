@@ -4,7 +4,7 @@ public sealed record MenuItemDefinition
 {
     public required string Id { get; init; }
     public required string Text { get; init; }
-    public char? HotKey { get; init; }
+    public char? HotChar { get; init; }
     public MenuItemKind Kind { get; init; } = MenuItemKind.Command;
     public string? CommandId { get; init; }
     public object? CommandArgs { get; init; }

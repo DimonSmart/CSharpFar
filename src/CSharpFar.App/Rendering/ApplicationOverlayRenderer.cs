@@ -13,7 +13,7 @@ internal sealed class ApplicationOverlayRenderer
     private readonly Func<ConsolePalette> _palette;
     private readonly MenuLayoutService _menuLayoutService;
     private readonly MenuBarRenderer _menuBarRenderer = new();
-    private readonly DropdownMenuRenderer _dropdownMenuRenderer = new();
+    private readonly DropdownMenuRenderer _dropdownMenuRenderer;
 
     public ApplicationOverlayRenderer(
         ScreenRenderer screen,
@@ -23,6 +23,7 @@ internal sealed class ApplicationOverlayRenderer
         _screen = screen;
         _palette = palette;
         _menuLayoutService = menuLayoutService;
+        _dropdownMenuRenderer = new DropdownMenuRenderer(menuLayoutService);
     }
 
     public void RenderCommandCompletion(

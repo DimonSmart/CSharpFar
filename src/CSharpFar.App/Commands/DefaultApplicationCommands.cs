@@ -25,6 +25,8 @@ internal static class DefaultApplicationCommands
         new DirectoryHistoryCommand(),
         new ToggleLeftPanelVisibilityCommand(),
         new ToggleRightPanelVisibilityCommand(),
+        new TogglePanelsCommand(),
+        new SwapPanelsCommand(),
         new SortByNameCommand(),
         new SortByExtensionCommand(),
         new SortByLastWriteTimeCommand(),

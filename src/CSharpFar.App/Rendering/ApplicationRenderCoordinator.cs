@@ -74,8 +74,8 @@ internal sealed class ApplicationRenderCoordinator
         _context.Ui.LastRenderViewport = viewport;
         var panelBounds = _panelWorkspaceRenderer.Render(
             size,
-            _context.LeftPanel,
-            _context.RightPanel,
+            _context.LeftPanel(),
+            _context.RightPanel(),
             _context.ActiveSide(),
             _context.LeftViewMode(),
             _context.RightViewMode(),
@@ -156,8 +156,8 @@ internal sealed class ApplicationRenderCoordinator
     private void UpdateQuickViewDirSize()
     {
         var item = _context.ActiveSide() == PanelSide.Left
-            ? _context.PanelController.CurrentItem(_context.LeftPanel)
-            : _context.PanelController.CurrentItem(_context.RightPanel);
+            ? _context.PanelController.CurrentItem(_context.LeftPanel())
+            : _context.PanelController.CurrentItem(_context.RightPanel());
         _context.QuickViewDirectorySize.Update(_context.App.QuickView, item);
     }
 }

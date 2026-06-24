@@ -1,3 +1,4 @@
+using CSharpFar.App.Input;
 using CSharpFar.Console.Models;
 using CSharpFar.Core.Menu;
 using CSharpFar.Core.Models;
@@ -8,6 +9,19 @@ public sealed class MenuLayoutService
 {
     private const int TopItemPadding = 1;
     private const int TopItemSpacing = 3;
+    internal const int ShortcutGap = 2;
+
+    private readonly ICommandShortcutTextProvider _shortcutTextProvider;
+
+    public MenuLayoutService()
+        : this(NullCommandShortcutTextProvider.Instance)
+    {
+    }
+
+    internal MenuLayoutService(ICommandShortcutTextProvider shortcutTextProvider)
+    {
+        _shortcutTextProvider = shortcutTextProvider;
+    }
 
     public MenuLayout CalculateLayout(
         Rect screenBounds,
@@ -72,10 +86,21 @@ public sealed class MenuLayoutService
         };
     }
 
-    internal static int DropdownTextLength(MenuItemDefinition item) =>
+    internal int DropdownTextLength(MenuItemDefinition item) =>
         item.Kind == MenuItemKind.Separator
             ? 1
-            : DropdownPrefix(item).Length + item.Text.Length;
+            : DropdownPrefix(item).Length + item.Text.Length + ShortcutSuffixLength(item);
+
+    internal int ShortcutSuffixLength(MenuItemDefinition item)
+    {
+        string? shortcutText = ShortcutText(item);
+        return string.IsNullOrEmpty(shortcutText) ? 0 : ShortcutGap + shortcutText.Length;
+    }
+
+    internal string? ShortcutText(MenuItemDefinition item) =>
+        item.Kind == MenuItemKind.Separator || item.CommandId is null
+            ? null
+            : _shortcutTextProvider.GetPrimaryShortcutText(item.CommandId);
 
     internal static string DropdownPrefix(MenuItemDefinition item) => item.Kind switch
     {

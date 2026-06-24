@@ -105,7 +105,6 @@ internal static class ApplicationServicesBuilder
             QuickView = () => session.App.QuickView,
             SetQuickView = quickView => session.App.QuickView = quickView,
             SetRunning = running => session.App.Running = running,
-            TogglePanels = () => throw new InvalidOperationException("Keyboard input context is not assigned."),
             ExecuteRegisteredCommand = (_, _) => throw new InvalidOperationException("Keyboard input context is not assigned."),
             SelectAllCommandLineTextOrPanelItems = () => throw new InvalidOperationException("Keyboard input context is not assigned."),
             CopyCommandLineSelection = () => throw new InvalidOperationException("Keyboard input context is not assigned."),
@@ -125,7 +124,10 @@ internal static class ApplicationServicesBuilder
             TryGoUp = () => throw new InvalidOperationException("Keyboard input context is not assigned."),
             CanExecuteFunctionKeyCommand = _ => throw new InvalidOperationException("Keyboard input context is not assigned."),
         };
-        var menuLayoutService = new MenuLayoutService();
+        var shortcutTextProvider = new CommandShortcutTextProvider(
+            new DefaultKeyboardShortcutBindingProvider().GetBindings(),
+            functionKeyBindingProvider.GetBindings());
+        var menuLayoutService = new MenuLayoutService(shortcutTextProvider);
         var highlightService = FileHighlightServiceFactory.Create(effectiveSettings);
         var commandNavigation = CommandServicesFactory.CreateNavigation(effectiveHistory, session);
         var commandCompletionController = commandNavigation.CommandCompletionController;

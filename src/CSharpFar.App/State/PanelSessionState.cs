@@ -4,9 +4,9 @@ namespace CSharpFar.App.State;
 
 internal sealed class PanelSessionState
 {
-    public required FilePanelState Left { get; init; }
+    public required FilePanelState Left { get; set; }
 
-    public required FilePanelState Right { get; init; }
+    public required FilePanelState Right { get; set; }
 
     public PanelSide ActiveSide { get; set; } = PanelSide.Left;
 

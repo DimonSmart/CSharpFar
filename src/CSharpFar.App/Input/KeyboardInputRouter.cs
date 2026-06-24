@@ -38,7 +38,7 @@ internal sealed class KeyboardInputRouter
             return true;
 
         if (KeyboardShortcutClassifier.IsPlainControlKey(key, ConsoleKey.O, '\u000f'))
-            return _context.TogglePanels();
+            return _context.ExecuteRegisteredCommand(ApplicationCommandIds.TogglePanels, null);
 
         if (TryHandleFarCommandLineShortcut(key))
             return true;

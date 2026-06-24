@@ -199,7 +199,6 @@ public sealed class Application
     private void BindKeyboardInputContext(KeyboardInputContext context)
     {
         context.BuildMenuDefinition = BuildMenuDefinition;
-        context.TogglePanels = TogglePanels;
         context.ExecuteRegisteredCommand = ExecuteRegisteredCommand;
         context.SelectAllCommandLineTextOrPanelItems = SelectAllCommandLineTextOrPanelItems;
         context.CopyCommandLineSelection = CopyCommandLineSelection;

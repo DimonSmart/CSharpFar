@@ -2,6 +2,7 @@ using CSharpFar.App;
 using CSharpFar.App.Commands;
 using CSharpFar.App.Dialogs;
 using CSharpFar.App.FunctionKeys;
+using CSharpFar.App.Input;
 using CSharpFar.App.Menu;
 using CSharpFar.App.Modules;
 using CSharpFar.App.Rendering;
@@ -244,14 +245,14 @@ public sealed class Spec008MenuControllerTests
                 {
                     Id = "Options",
                     Text = "Options",
-                    HotKey = 'O',
+                    HotChar = 'O',
                     Children =
                     [
                         new MenuItemDefinition
                         {
                             Id = "options.panel",
                             Text = "Panel settings",
-                            HotKey = 'P',
+                            HotChar = 'P',
                             CommandId = "options.panel",
                         },
                     ],
@@ -264,14 +265,14 @@ public sealed class Spec008MenuControllerTests
         {
             Id = text,
             Text = text,
-            HotKey = text[0],
+            HotChar = text[0],
             Children =
             [
                 new MenuItemDefinition
                 {
                     Id = $"{commandPrefix}.full",
                     Text = "Full mode",
-                    HotKey = 'F',
+                    HotChar = 'F',
                     CommandId = $"{commandPrefix}.full",
                 },
                 new MenuItemDefinition
@@ -285,7 +286,7 @@ public sealed class Spec008MenuControllerTests
                 {
                     Id = $"{commandPrefix}.disabled",
                     Text = "Disabled",
-                    HotKey = 'D',
+                    HotChar = 'D',
                     CommandId = $"{commandPrefix}.disabled",
                     IsEnabled = false,
                 },
@@ -293,7 +294,7 @@ public sealed class Spec008MenuControllerTests
                 {
                     Id = $"{commandPrefix}.refresh",
                     Text = "Refresh",
-                    HotKey = 'R',
+                    HotChar = 'R',
                     CommandId = $"{commandPrefix}.refresh",
                 },
             ],
@@ -303,18 +304,19 @@ public sealed class Spec008MenuControllerTests
 public sealed class Spec008MenuLayoutAndRenderingTests
 {
     [Fact]
-    public void Layout_TopItems_AreInFileLeftRightPluginsOptionsOrder()
+    public void Layout_TopItems_AreInFileCommandsLeftRightPluginsOptionsOrder()
     {
         var layout = new MenuLayoutService().CalculateLayout(
             new Rect(0, 0, 80, 25),
             ProviderMenu(),
             new MenuState());
 
-        Assert.Equal(5, layout.TopItemBounds.Count);
+        Assert.Equal(6, layout.TopItemBounds.Count);
         Assert.True(layout.TopItemBounds[0].X < layout.TopItemBounds[1].X);
         Assert.True(layout.TopItemBounds[1].X < layout.TopItemBounds[2].X);
         Assert.True(layout.TopItemBounds[2].X < layout.TopItemBounds[3].X);
         Assert.True(layout.TopItemBounds[3].X < layout.TopItemBounds[4].X);
+        Assert.True(layout.TopItemBounds[4].X < layout.TopItemBounds[5].X);
     }
 
     [Fact]
@@ -402,6 +404,116 @@ public sealed class Spec008MenuLayoutAndRenderingTests
     }
 
     [Fact]
+    public void DropdownLayout_IncludesShortcutWidth()
+    {
+        var definition = ShortcutMenu();
+        var state = new MenuState
+        {
+            OpenState = MenuOpenState.DropdownOpen,
+            ActiveTopMenuIndex = 0,
+        };
+        var withoutShortcut = new MenuLayoutService()
+            .CalculateLayout(new Rect(0, 0, 80, 25), definition, state);
+        var withShortcut = ShortcutLayoutService()
+            .CalculateLayout(new Rect(0, 0, 80, 25), definition, state);
+
+        Assert.True(withShortcut.DropdownBounds!.Value.Width > withoutShortcut.DropdownBounds!.Value.Width);
+    }
+
+    [Fact]
+    public void DropdownRenderer_RendersShortcutAtRightSide()
+    {
+        var definition = ShortcutMenu();
+        var state = new MenuState
+        {
+            OpenState = MenuOpenState.DropdownOpen,
+            ActiveTopMenuIndex = 0,
+        };
+        var layoutService = ShortcutLayoutService();
+        var layout = layoutService.CalculateLayout(new Rect(0, 0, 80, 25), definition, state);
+        var driver = new FakeConsoleDriver(width: 80, height: 25);
+        var screen = new ScreenRenderer(driver);
+
+        new DropdownMenuRenderer(layoutService).Render(screen, definition, state, layout, MenuOptions());
+
+        var dropdown = layout.DropdownBounds!.Value;
+        string content = driver.GetRow(dropdown.Y + 1)
+            .Substring(dropdown.X + 1, dropdown.Width - 2);
+        Assert.EndsWith("Ctrl+O", content, StringComparison.Ordinal);
+        Assert.Contains("Panels on/off", content, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void DropdownRenderer_HighlightsHotCharInTextOnly()
+    {
+        var definition = ShortcutMenu();
+        var state = new MenuState
+        {
+            OpenState = MenuOpenState.DropdownOpen,
+            ActiveTopMenuIndex = 0,
+        };
+        var layoutService = ShortcutLayoutService();
+        var layout = layoutService.CalculateLayout(new Rect(0, 0, 80, 25), definition, state);
+        var driver = new FakeConsoleDriver(width: 80, height: 25);
+        var screen = new ScreenRenderer(driver);
+        var options = MenuOptions();
+
+        new DropdownMenuRenderer(layoutService).Render(screen, definition, state, layout, options);
+
+        var dropdown = layout.DropdownBounds!.Value;
+        int row = dropdown.Y + 1;
+        int contentX = dropdown.X + 1;
+        Assert.Equal('P', driver.GetCell(contentX + 4, row).Character);
+        Assert.Equal(options.ActiveHighlightStyle.Foreground, driver.GetCell(contentX + 4, row).Foreground);
+
+        int shortcutX = driver.GetRow(row).IndexOf("Ctrl+O", StringComparison.Ordinal);
+        Assert.True(shortcutX >= 0);
+        Assert.NotEqual(options.ActiveHighlightStyle.Foreground, driver.GetCell(shortcutX, row).Foreground);
+    }
+
+    [Fact]
+    public void DropdownRenderer_NoShortcut_KeepsOldLayout()
+    {
+        var definition = new MenuBarDefinition
+        {
+            Items =
+            [
+                new TopMenuItemDefinition
+                {
+                    Id = "Commands",
+                    Text = "Commands",
+                    HotChar = 'C',
+                    Children =
+                    [
+                        new MenuItemDefinition
+                        {
+                            Id = "Commands.swapPanels",
+                            Text = "Swap panels",
+                            HotChar = 'S',
+                            CommandId = ApplicationCommandIds.SwapPanels,
+                        },
+                    ],
+                },
+            ],
+        };
+        var state = new MenuState
+        {
+            OpenState = MenuOpenState.DropdownOpen,
+            ActiveTopMenuIndex = 0,
+        };
+        var layout = new MenuLayoutService().CalculateLayout(new Rect(0, 0, 80, 25), definition, state);
+        var driver = new FakeConsoleDriver(width: 80, height: 25);
+        var screen = new ScreenRenderer(driver);
+
+        new DropdownMenuRenderer().Render(screen, definition, state, layout, MenuOptions());
+
+        var dropdown = layout.DropdownBounds!.Value;
+        string content = driver.GetRow(dropdown.Y + 1)
+            .Substring(dropdown.X + 1, dropdown.Width - 2);
+        Assert.Equal("    Swap panels", content);
+    }
+
+    [Fact]
     public void DialogFrameRenderer_UsesPopupShadow()
     {
         var driver = new FakeConsoleDriver(width: 20, height: 10);
@@ -447,6 +559,35 @@ public sealed class Spec008MenuLayoutAndRenderingTests
             CanSaveSettings = true,
         });
     }
+
+    private static MenuLayoutService ShortcutLayoutService() =>
+        new(new CommandShortcutTextProvider(
+            new DefaultKeyboardShortcutBindingProvider().GetBindings(),
+            new DefaultFunctionKeyBindingProvider().GetBindings()));
+
+    private static MenuBarDefinition ShortcutMenu() =>
+        new()
+        {
+            Items =
+            [
+                new TopMenuItemDefinition
+                {
+                    Id = "Commands",
+                    Text = "Commands",
+                    HotChar = 'C',
+                    Children =
+                    [
+                        new MenuItemDefinition
+                        {
+                            Id = "Commands.togglePanels",
+                            Text = "Panels on/off",
+                            HotChar = 'P',
+                            CommandId = ApplicationCommandIds.TogglePanels,
+                        },
+                    ],
+                },
+            ],
+        };
 }
 
 public sealed class Spec008MenuProviderAndCommandTests : IDisposable
@@ -466,13 +607,91 @@ public sealed class Spec008MenuProviderAndCommandTests : IDisposable
     }
 
     [Fact]
-    public void Provider_BuildsFileLeftRightPluginsOptionsWithoutWideMode()
+    public void Provider_BuildsFileCommandsLeftRightPluginsOptionsWithoutWideMode()
     {
         var menu = BuildProviderMenu(canSaveSettings: false);
 
-        Assert.Equal(["File", "Left", "Right", "Plugins", "Options"], menu.Items.Select(i => i.Text).ToArray());
-        Assert.DoesNotContain(menu.Items[1].Children, item => item.Text.Contains("Wide", StringComparison.OrdinalIgnoreCase));
-        Assert.DoesNotContain(menu.Items[4].Children, item => item.CommandId == MenuCommandIds.SettingsSave);
+        Assert.Equal(["File", "Commands", "Left", "Right", "Plugins", "Options"], menu.Items.Select(i => i.Text).ToArray());
+        Assert.DoesNotContain(menu.Items[2].Children, item => item.Text.Contains("Wide", StringComparison.OrdinalIgnoreCase));
+        Assert.DoesNotContain(menu.Items[5].Children, item => item.CommandId == MenuCommandIds.SettingsSave);
+    }
+
+    [Fact]
+    public void MenuItemDefinition_UsesHotChar_NotHotKey()
+    {
+        Assert.NotNull(typeof(MenuItemDefinition).GetProperty(nameof(MenuItemDefinition.HotChar)));
+        Assert.Null(typeof(MenuItemDefinition).GetProperty("HotKey"));
+        Assert.NotNull(typeof(TopMenuItemDefinition).GetProperty(nameof(TopMenuItemDefinition.HotChar)));
+        Assert.Null(typeof(TopMenuItemDefinition).GetProperty("HotKey"));
+    }
+
+    [Fact]
+    public void CommandsMenu_IsPresentAfterFileMenu()
+    {
+        var menu = BuildProviderMenu(canSaveSettings: false);
+
+        Assert.Equal("File", menu.Items[0].Text);
+        Assert.Equal("Commands", menu.Items[1].Text);
+        Assert.Equal('C', menu.Items[1].HotChar);
+    }
+
+    [Fact]
+    public void CommandsMenu_ContainsPanelsOnOff()
+    {
+        var commands = BuildProviderMenu(canSaveSettings: false).Items[1];
+
+        var item = commands.Children.Single(item => item.Text == "Panels on/off");
+
+        Assert.Equal("Commands.togglePanels", item.Id);
+        Assert.Equal('P', item.HotChar);
+    }
+
+    [Fact]
+    public void CommandsMenu_ContainsSwapPanels()
+    {
+        var commands = BuildProviderMenu(canSaveSettings: false).Items[1];
+
+        var item = commands.Children.Single(item => item.Text == "Swap panels");
+
+        Assert.Equal("Commands.swapPanels", item.Id);
+        Assert.Equal(ApplicationCommandIds.SwapPanels, item.CommandId);
+        Assert.Equal('S', item.HotChar);
+    }
+
+    [Fact]
+    public void PanelsOnOff_MenuItem_UsesTogglePanelsCommandId()
+    {
+        var commands = BuildProviderMenu(canSaveSettings: false).Items[1];
+
+        var item = commands.Children.Single(item => item.Text == "Panels on/off");
+
+        Assert.Equal(ApplicationCommandIds.TogglePanels, item.CommandId);
+    }
+
+    [Fact]
+    public void PanelsOnOff_DisplaysCtrlO_FromShortcutRegistry()
+    {
+        var provider = ShortcutTextProvider();
+
+        Assert.Equal("Ctrl+O", provider.GetPrimaryShortcutText(ApplicationCommandIds.TogglePanels));
+    }
+
+    [Fact]
+    public void CommandShortcutTextProvider_ReturnsFunctionKeyShortcut()
+    {
+        var provider = ShortcutTextProvider();
+
+        Assert.Equal("Alt+F7", provider.GetPrimaryShortcutText(FunctionKeyCommandIds.Search));
+        Assert.Equal("F3", provider.GetPrimaryShortcutText(FunctionKeyCommandIds.View));
+        Assert.Equal("Ctrl+F1", provider.GetPrimaryShortcutText(FunctionKeyCommandIds.ToggleLeftPanel));
+    }
+
+    [Fact]
+    public void CommandShortcutTextProvider_ReturnsKeyboardShortcut()
+    {
+        var provider = ShortcutTextProvider();
+
+        Assert.Equal("Ctrl+O", provider.GetPrimaryShortcutText(ApplicationCommandIds.TogglePanels));
     }
 
     [Fact]
@@ -494,8 +713,8 @@ public sealed class Spec008MenuProviderAndCommandTests : IDisposable
     public void Provider_UsesExpectedPanelCommandArgsAndLabels()
     {
         var menu = BuildProviderMenu(canSaveSettings: true);
-        var left = menu.Items[1].Children;
-        var right = menu.Items[2].Children;
+        var left = menu.Items[2].Children;
+        var right = menu.Items[3].Children;
 
         var leftBrief = left.Single(i => i.Text == "Brief mode");
         var rightFull = right.Single(i => i.Text == "Full mode");
@@ -505,16 +724,16 @@ public sealed class Spec008MenuProviderAndCommandTests : IDisposable
         Assert.Equal(PanelViewMode.BriefTwoColumns, ((SetPanelViewModeArgs)leftBrief.CommandArgs!).ViewMode);
         Assert.Equal(PanelSide.Right, ((SetPanelViewModeArgs)rightFull.CommandArgs!).PanelSide);
         Assert.Equal(SortMode.LastWriteTime, ((SetPanelSortModeArgs)lastWrite.CommandArgs!).SortMode);
-        Assert.Contains(menu.Items[3].Children, item =>
+        Assert.Contains(menu.Items[4].Children, item =>
             item.CommandId == MenuCommandIds.ModuleOpen &&
             item.CommandArgs is ModuleOpenCommandArgs { ActionId: var actionId } &&
             actionId == SftpModuleIds.MenuActionId);
-        Assert.Contains(menu.Items[3].Children, item =>
+        Assert.Contains(menu.Items[4].Children, item =>
             item.CommandId == MenuCommandIds.ModuleOpen &&
             item.CommandArgs is ModuleOpenCommandArgs { ActionId: var actionId } &&
             actionId == FtpModuleIds.MenuActionId);
-        Assert.Contains(menu.Items[4].Children, item => item.CommandId == MenuCommandIds.SettingsSave);
-        Assert.Contains(menu.Items[4].Children, item =>
+        Assert.Contains(menu.Items[5].Children, item => item.CommandId == MenuCommandIds.SettingsSave);
+        Assert.Contains(menu.Items[5].Children, item =>
             item.Id == "Options.diagnostics" &&
             item.CommandId == MenuCommandIds.DiagnosticsPrintTerminalInfo);
     }
@@ -536,8 +755,8 @@ public sealed class Spec008MenuProviderAndCommandTests : IDisposable
             CanSaveSettings = true,
         });
 
-        Assert.False(menu.Items[1].Children.Single(i => i.Text == "Refresh").IsEnabled);
-        Assert.True(menu.Items[2].Children.Single(i => i.Text == "Refresh").IsEnabled);
+        Assert.False(menu.Items[2].Children.Single(i => i.Text == "Refresh").IsEnabled);
+        Assert.True(menu.Items[3].Children.Single(i => i.Text == "Refresh").IsEnabled);
     }
 
     [Fact]
@@ -580,6 +799,44 @@ public sealed class Spec008MenuProviderAndCommandTests : IDisposable
     }
 
     [Fact]
+    public void SwapPanels_SwapsLeftAndRightPanelStates()
+    {
+        var app = CreateApp(new AppSettings(), saveSettings: null);
+        var leftBefore = app.Session.Panels.Left;
+        var rightBefore = app.Session.Panels.Right;
+
+        var result = Execute(app, new MenuCommandRequest { CommandId = ApplicationCommandIds.SwapPanels });
+
+        Assert.True(result.Success);
+        Assert.Same(rightBefore, app.Session.Panels.Left);
+        Assert.Same(leftBefore, app.Session.Panels.Right);
+    }
+
+    [Fact]
+    public void SwapPanels_KeepsActiveSide()
+    {
+        var app = CreateApp(new AppSettings(), saveSettings: null);
+        app.Session.Panels.ActiveSide = PanelSide.Left;
+
+        Execute(app, new MenuCommandRequest { CommandId = ApplicationCommandIds.SwapPanels });
+
+        Assert.Equal(PanelSide.Left, app.Session.Panels.ActiveSide);
+    }
+
+    [Fact]
+    public void SwapPanels_SwapsLeftAndRightViewModes()
+    {
+        var app = CreateApp(new AppSettings(), saveSettings: null);
+        app.Session.Panels.LeftViewMode = PanelViewMode.BriefTwoColumns;
+        app.Session.Panels.RightViewMode = PanelViewMode.Full;
+
+        Execute(app, new MenuCommandRequest { CommandId = ApplicationCommandIds.SwapPanels });
+
+        Assert.Equal(PanelViewMode.Full, app.Session.Panels.LeftViewMode);
+        Assert.Equal(PanelViewMode.BriefTwoColumns, app.Session.Panels.RightViewMode);
+    }
+
+    [Fact]
     public void Application_FileAttributesMenuCommand_RedrawsClosedMenuBeforeOpeningDialog()
     {
         string path = Path.Combine(_tempDir, "file.txt");
@@ -587,6 +844,7 @@ public sealed class Spec008MenuProviderAndCommandTests : IDisposable
         fs.AddDirectory(_tempDir, Item("file.txt", path));
         var driver = new FakeConsoleDriver(width: 100, height: 30);
         driver.EnqueueKey(Key(ConsoleKey.F9));
+        driver.EnqueueKey(Key(ConsoleKey.LeftArrow));
         driver.EnqueueKey(Key(ConsoleKey.LeftArrow));
         driver.EnqueueKey(Key(ConsoleKey.DownArrow));
         driver.EnqueueKey(Key(ConsoleKey.DownArrow));
@@ -691,6 +949,11 @@ public sealed class Spec008MenuProviderAndCommandTests : IDisposable
         var context = GetCommandContext(app);
         return registry.Execute(request.CommandId, context, request.Args).ToMenuCommandResult();
     }
+
+    private static CommandShortcutTextProvider ShortcutTextProvider() =>
+        new(
+            new DefaultKeyboardShortcutBindingProvider().GetBindings(),
+            new DefaultFunctionKeyBindingProvider().GetBindings());
 
     private static ApplicationCommandContext GetCommandContext(Application app)
     {

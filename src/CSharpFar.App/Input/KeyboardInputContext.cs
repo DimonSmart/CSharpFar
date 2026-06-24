@@ -31,7 +31,6 @@ internal sealed class KeyboardInputContext
     public required Func<bool> QuickView { get; init; }
     public required Action<bool> SetQuickView { get; init; }
     public required Action<bool> SetRunning { get; init; }
-    public Func<bool> TogglePanels { get; set; } = () => throw Missing();
     public Func<string, object?, bool> ExecuteRegisteredCommand { get; set; } = (_, _) => throw Missing();
     public Action SelectAllCommandLineTextOrPanelItems { get; set; } = () => throw Missing();
     public Func<bool> CopyCommandLineSelection { get; set; } = () => throw Missing();

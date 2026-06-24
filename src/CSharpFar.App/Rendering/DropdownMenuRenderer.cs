@@ -9,6 +9,17 @@ namespace CSharpFar.App.Rendering;
 public sealed class DropdownMenuRenderer
 {
     private readonly PopupRenderer _popupRenderer = new();
+    private readonly MenuLayoutService _menuLayoutService;
+
+    public DropdownMenuRenderer()
+        : this(new MenuLayoutService())
+    {
+    }
+
+    public DropdownMenuRenderer(MenuLayoutService menuLayoutService)
+    {
+        _menuLayoutService = menuLayoutService;
+    }
 
     public void Render(
         ScreenRenderer screen,
@@ -54,7 +65,7 @@ public sealed class DropdownMenuRenderer
                 options));
     }
 
-    private static void RenderItems(
+    private void RenderItems(
         ScreenRenderer screen,
         Rect contentBounds,
         IReadOnlyList<MenuItemDefinition> items,
@@ -84,7 +95,7 @@ public sealed class DropdownMenuRenderer
                     ? options.ActiveStyle
                     : options.NormalStyle;
 
-            string text = FormatItem(item);
+            string text = FormatItem(item, contentBounds.Width);
             int hotKeyIndex = FindHotKeyIndex(item);
             if (text.Length > contentBounds.Width)
                 text = text[..contentBounds.Width];
@@ -104,15 +115,26 @@ public sealed class DropdownMenuRenderer
         }
     }
 
-    private static string FormatItem(MenuItemDefinition item) =>
-        MenuLayoutService.DropdownPrefix(item) + item.Text;
+    private string FormatItem(MenuItemDefinition item, int contentWidth)
+    {
+        string prefix = MenuLayoutService.DropdownPrefix(item);
+        string left = prefix + item.Text;
+        string? shortcutText = _menuLayoutService.ShortcutText(item);
+        if (string.IsNullOrEmpty(shortcutText))
+            return left;
+
+        int gap = Math.Max(
+            MenuLayoutService.ShortcutGap,
+            contentWidth - left.Length - shortcutText.Length);
+        return left + new string(' ', gap) + shortcutText;
+    }
 
     private static int FindHotKeyIndex(MenuItemDefinition item)
     {
-        if (!item.HotKey.HasValue)
+        if (!item.HotChar.HasValue)
             return -1;
 
-        int index = item.Text.IndexOf(item.HotKey.Value, StringComparison.OrdinalIgnoreCase);
+        int index = item.Text.IndexOf(item.HotChar.Value, StringComparison.OrdinalIgnoreCase);
         return index < 0 ? -1 : MenuLayoutService.DropdownPrefix(item).Length + index;
     }
 

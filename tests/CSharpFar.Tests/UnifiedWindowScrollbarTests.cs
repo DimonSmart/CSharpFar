@@ -361,13 +361,13 @@ public sealed class UnifiedWindowScrollbarTests
                 {
                     Id = "Large",
                     Text = "Large",
-                    HotKey = 'L',
+                    HotChar = 'L',
                     Children = Enumerable.Range(0, 10)
                         .Select(i => new MenuItemDefinition
                         {
                             Id = $"item-{i}",
                             Text = $"Item {i}",
-                            HotKey = i.ToString(System.Globalization.CultureInfo.InvariantCulture)[0],
+                            HotChar = i.ToString(System.Globalization.CultureInfo.InvariantCulture)[0],
                             CommandId = $"item-{i}",
                         })
                         .ToArray(),
