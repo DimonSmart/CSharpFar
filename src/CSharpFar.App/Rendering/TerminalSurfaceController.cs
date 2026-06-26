@@ -42,6 +42,12 @@ internal sealed class TerminalSurfaceController
     public void RestoreHiddenScreen() =>
         _shellUnderlay.RestoreForHiddenScreen(_hasVisiblePanels());
 
+    public void PrepareHiddenCommandLineOverlay(ConsoleViewport viewport, int row, int width) =>
+        _shellUnderlay.PrepareHiddenCommandLineOverlay(viewport, row, width);
+
+    public void RemoveHiddenCommandLineOverlay() =>
+        _shellUnderlay.RemoveHiddenCommandLineOverlay();
+
     public void RestoreOrClearVisibleArea() =>
         _shellUnderlay.RestoreOrClearVisibleArea();
 
@@ -60,6 +66,8 @@ internal sealed class TerminalSurfaceController
         bool scrolled = _screen.TryScrollViewportToBottom();
         if (!scrolled)
             return false;
+
+        _shellUnderlay.RemoveHiddenCommandLineOverlay();
 
         if (UsesTerminalScreenMode)
             SyncRendererWithCurrentMainScreenViewport();
@@ -89,6 +97,7 @@ internal sealed class TerminalSurfaceController
     public void ScrollToBottomAndSyncViewport()
     {
         _screen.TryScrollViewportToBottom();
+        _shellUnderlay.RemoveHiddenCommandLineOverlay();
         _ui.LastRenderViewport = _screen.GetViewport();
     }
 
@@ -99,6 +108,7 @@ internal sealed class TerminalSurfaceController
         if (UsesTerminalScreenMode)
         {
             _screen.TryScrollViewportToBottom();
+            _shellUnderlay.RemoveHiddenCommandLineOverlay();
             SyncRendererWithCurrentMainScreenViewport();
             return;
         }
@@ -112,10 +122,12 @@ internal sealed class TerminalSurfaceController
         {
             _terminalScreenMode!.EnsureMainScreen();
             _screen.TryScrollViewportToBottom();
+            _shellUnderlay.RemoveHiddenCommandLineOverlay();
             SyncRendererWithCurrentMainScreenViewport();
             return;
         }
 
+        _shellUnderlay.RemoveHiddenCommandLineOverlay();
         _screen.SetConsoleScrollbackEnabled(true);
     }
 

@@ -134,13 +134,19 @@ internal sealed class ApplicationRenderCoordinator
     {
         _context.TerminalSurface.ApplyMode();
         _context.Screen.SetRenderingOutputMode(true);
+
+        var viewport = _context.Screen.GetViewport();
+        var size = viewport.Size;
+        int row = ApplicationLayoutService.CommandLineRow(size);
+        _context.TerminalSurface.PrepareHiddenCommandLineOverlay(viewport, row, size.Width);
+
         using var frame = _context.Screen.BeginFrame();
 
-        var viewport = _context.Screen.FrameViewport;
-        var size = viewport.Size;
+        viewport = _context.Screen.FrameViewport;
+        size = viewport.Size;
         _context.Ui.LastRenderViewport = viewport;
 
-        int row = ApplicationLayoutService.CommandLineRow(size);
+        row = ApplicationLayoutService.CommandLineRow(size);
         _commandLineRenderer.Render(
             row,
             size,

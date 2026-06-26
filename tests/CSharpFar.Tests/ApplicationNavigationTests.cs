@@ -1,7 +1,9 @@
 using System.Reflection;
 using CSharpFar.App;
+using CSharpFar.App.Rendering;
 using CSharpFar.Console;
 using CSharpFar.Console.Input;
+using CSharpFar.Console.Models;
 using CSharpFar.Core.Abstractions;
 using CSharpFar.Core.History;
 using CSharpFar.Core.Models;
@@ -261,6 +263,110 @@ public sealed class ApplicationNavigationTests : IDisposable
                 };
             };
         };
+
+        var app = CreateApp(fs, driver, _tempDir);
+        app.Run();
+    }
+
+    [Fact]
+    public void Run_HiddenResizeShowGrowHide_DoesNotLeaveStaleCommandLine()
+    {
+        var fs = new FakeFileSystemService();
+        fs.AddDirectory(_tempDir);
+
+        var driver = new FakeConsoleDriver(width: 80, height: 12);
+        driver.EnqueueKey(Key(ConsoleKey.O, keyChar: '\u000f', control: true));
+        driver.EnqueueInput(new ConsoleResizeInputEvent());
+        driver.EnqueueKey(Key(ConsoleKey.O, keyChar: '\u000f', control: true));
+        driver.EnqueueInput(new ConsoleResizeInputEvent());
+        driver.EnqueueKey(Key(ConsoleKey.O, keyChar: '\u000f', control: true));
+        driver.EnqueueKey(Key(ConsoleKey.F10));
+
+        int oldRow = ApplicationLayoutService.CommandLineRow(new ConsoleSize(80, 8));
+        int finalRow = ApplicationLayoutService.CommandLineRow(new ConsoleSize(80, 16));
+        BeforeEachRead(
+            driver,
+            _ => { },
+            afterHide => afterHide.SetSize(80, 8),
+            _ => { },
+            afterShow => afterShow.SetSize(80, 16),
+            _ => { },
+            afterSecondHide =>
+            {
+                var promptRows = RowsContainingCommandPrompt(afterSecondHide);
+                Assert.Equal([finalRow], promptRows);
+                Assert.DoesNotContain(">", afterSecondHide.GetRow(oldRow), StringComparison.Ordinal);
+            });
+
+        var app = CreateApp(fs, driver, _tempDir);
+        app.Run();
+    }
+
+    [Fact]
+    public void Run_VtSupportedHiddenResizeShowGrowHide_DoesNotLeaveStaleCommandLine()
+    {
+        var fs = new FakeFileSystemService();
+        fs.AddDirectory(_tempDir);
+
+        var driver = new FakeConsoleDriver(width: 80, height: 12) { IsSupported = true };
+        driver.EnqueueKey(Key(ConsoleKey.O, keyChar: '\u000f', control: true));
+        driver.EnqueueInput(new ConsoleResizeInputEvent());
+        driver.EnqueueKey(Key(ConsoleKey.O, keyChar: '\u000f', control: true));
+        driver.EnqueueInput(new ConsoleResizeInputEvent());
+        driver.EnqueueKey(Key(ConsoleKey.O, keyChar: '\u000f', control: true));
+        driver.EnqueueKey(Key(ConsoleKey.F10));
+
+        int oldRow = ApplicationLayoutService.CommandLineRow(new ConsoleSize(80, 8));
+        int finalRow = ApplicationLayoutService.CommandLineRow(new ConsoleSize(80, 16));
+        BeforeEachRead(
+            driver,
+            _ => { },
+            afterHide => afterHide.SetSize(80, 8),
+            _ => { },
+            afterShow =>
+            {
+                Assert.True(afterShow.IsApplicationScreenActive);
+                afterShow.SetSize(80, 16);
+            },
+            _ => { },
+            afterSecondHide =>
+            {
+                Assert.False(afterSecondHide.IsApplicationScreenActive);
+                Assert.True(afterSecondHide.LeaveApplicationScreenCallCount > 0);
+                Assert.True(afterSecondHide.EnterApplicationScreenCallCount > 0);
+                var promptRows = RowsContainingCommandPrompt(afterSecondHide);
+                Assert.Equal([finalRow], promptRows);
+                Assert.DoesNotContain(">", afterSecondHide.GetRow(oldRow), StringComparison.Ordinal);
+            });
+
+        var app = CreateApp(fs, driver, _tempDir, terminalScreenMode: driver);
+        app.Run();
+    }
+
+    [Fact]
+    public void Run_HiddenPanelsRepeatedVerticalResize_LeavesOnlyFinalCommandLine()
+    {
+        var fs = new FakeFileSystemService();
+        fs.AddDirectory(_tempDir);
+
+        var driver = new FakeConsoleDriver(width: 80, height: 12);
+        driver.EnqueueKey(Key(ConsoleKey.O, keyChar: '\u000f', control: true));
+        driver.EnqueueInput(new ConsoleResizeInputEvent());
+        driver.EnqueueInput(new ConsoleResizeInputEvent());
+        driver.EnqueueInput(new ConsoleResizeInputEvent());
+        driver.EnqueueInput(new ConsoleResizeInputEvent());
+        driver.EnqueueKey(Key(ConsoleKey.F10));
+
+        int finalRow = ApplicationLayoutService.CommandLineRow(new ConsoleSize(80, 16));
+        BeforeEachRead(
+            driver,
+            _ => { },
+            afterHide => afterHide.SetSize(80, 8),
+            afterFirstResize => afterFirstResize.SetSize(80, 14),
+            afterSecondResize => afterSecondResize.SetSize(80, 10),
+            afterThirdResize => afterThirdResize.SetSize(80, 16),
+            afterFinalResize =>
+                Assert.Equal([finalRow], RowsContainingCommandPrompt(afterFinalResize)));
 
         var app = CreateApp(fs, driver, _tempDir);
         app.Run();
@@ -1065,6 +1171,31 @@ public sealed class ApplicationNavigationTests : IDisposable
                 current > previous,
                 $"Expected operation '{operation}' after index {previous}. Log: {string.Join(", ", driver.OperationLog)}");
             previous = current;
+        }
+    }
+
+    private static IReadOnlyList<int> RowsContainingCommandPrompt(FakeConsoleDriver driver)
+    {
+        var rows = new List<int>();
+        for (int row = 0; row < driver.GetSize().Height; row++)
+        {
+            if (driver.GetRow(row).Contains('>'))
+                rows.Add(row);
+        }
+
+        return rows;
+    }
+
+    private static void BeforeEachRead(FakeConsoleDriver driver, params Action<FakeConsoleDriver>[] actions)
+    {
+        int index = 0;
+        driver.BeforeReadInput = RunNext;
+
+        void RunNext(FakeConsoleDriver current)
+        {
+            actions[index++](current);
+            if (index < actions.Length)
+                current.BeforeReadInput = RunNext;
         }
     }
 

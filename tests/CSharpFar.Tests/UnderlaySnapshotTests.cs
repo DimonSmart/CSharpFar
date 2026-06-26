@@ -1,5 +1,7 @@
+using CSharpFar.App.Rendering;
 using CSharpFar.Console;
 using CSharpFar.Console.Models;
+using CSharpFar.Core.Models;
 using CSharpFar.Tests.Fakes;
 
 namespace CSharpFar.Tests;
@@ -111,5 +113,27 @@ public class UnderlaySnapshotTests
         Assert.Equal('C',                  driver.GetCell(0, 0).Character);
         Assert.Equal(ConsoleColor.Yellow,   driver.GetCell(0, 0).Foreground);
         Assert.Equal(ConsoleColor.DarkRed,  driver.GetCell(0, 0).Background);
+    }
+
+    [Fact]
+    public void HiddenCommandLineOverlayCleanup_RestoresPreviousShellRowContent()
+    {
+        var (renderer, driver) = Create(40, 8);
+        var shellStyle = new CellStyle(ConsoleColor.Gray, ConsoleColor.Black);
+        renderer.Write(0, 6, "SHELL-BEFORE".AsSpan(), shellStyle);
+
+        var underlay = new ShellUnderlayService(renderer);
+        var viewport = renderer.GetViewport();
+        int row = ApplicationLayoutService.CommandLineRow(viewport.Size);
+        underlay.PrepareHiddenCommandLineOverlay(viewport, row, viewport.Width);
+
+        new ApplicationCommandLineRenderer(renderer, () => PaletteRegistry.Default)
+            .Render(row, viewport.Size, @"C:\Work", new CommandLineState());
+        Assert.Contains(">", driver.GetRow(row), StringComparison.Ordinal);
+
+        underlay.RemoveHiddenCommandLineOverlay();
+
+        Assert.StartsWith("SHELL-BEFORE", driver.GetRow(row));
+        Assert.DoesNotContain(@"C:\Work>", driver.GetRow(row), StringComparison.Ordinal);
     }
 }

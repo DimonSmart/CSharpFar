@@ -105,9 +105,19 @@ public sealed class FakeConsoleDriver : IConsoleDriver, IConsoleOutputModeDriver
 
     public void SetSize(int width, int height)
     {
+        var oldBuffer = _buffer;
+        int oldWidth = _size.Width;
+        int oldHeight = _size.Height;
+
         _size = new ConsoleSize(width, height);
         _bufferHeight = Math.Max(_bufferHeight, height);
         _buffer = CreateBuffer(width, height);
+
+        int copyWidth = Math.Min(oldWidth, width);
+        int copyHeight = Math.Min(oldHeight, height);
+        for (int y = 0; y < copyHeight; y++)
+            for (int x = 0; x < copyWidth; x++)
+                _buffer[y, x] = oldBuffer[y, x];
     }
 
     public void EnqueueKey(ConsoleKeyInfo key) =>
