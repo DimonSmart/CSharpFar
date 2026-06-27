@@ -3,7 +3,17 @@ set -euo pipefail
 
 export PATH="$PATH:$HOME/.dotnet:/usr/share/dotnet:/usr/local/share/dotnet:/snap/bin"
 
-dotnet_path="$(command -v dotnet || true)"
+dotnet_path=""
+for candidate in /usr/bin/dotnet /usr/share/dotnet/dotnet "$HOME/.dotnet/dotnet"; do
+    if [[ -x "$candidate" ]]; then
+        dotnet_path="$candidate"
+        break
+    fi
+done
+if [[ -z "$dotnet_path" ]]; then
+    dotnet_path="$(command -v dotnet || true)"
+fi
+
 if [[ -z "$dotnet_path" ]]; then
     echo "Linux dotnet SDK was not found in this WSL distribution."
     echo "Installing dotnet-sdk-10.0 with apt. sudo may ask for your Ubuntu password."
@@ -20,13 +30,14 @@ fi
 
 "$dotnet_path" build src/CSharpFar.Host.Unix/CSharpFar.Host.Unix.csproj -c Debug
 
-echo "Requesting sudo before launching CSharpFar..."
-sudo -v
-echo "Launching CSharpFar with sudo:"
-sudo id
-
-sudo env \
-    PATH="$PATH" \
-    TERM="${TERM:-xterm-256color}" \
-    DOTNET_ROOT="${DOTNET_ROOT:-}" \
-    "$dotnet_path" ./src/CSharpFar.Host.Unix/bin/Debug/net10.0/csharpfar.dll
+if [[ "${EUID:-$(id -u)}" -eq 0 ]]; then
+    echo "Launching CSharpFar as root:"
+    id
+    env PATH="$PATH" TERM="${TERM:-xterm-256color}" DOTNET_ROOT="${DOTNET_ROOT:-}" "$dotnet_path" ./src/CSharpFar.Host.Unix/bin/Debug/net10.0/csharpfar.dll
+else
+    echo "Requesting sudo before launching CSharpFar..."
+    sudo -v
+    echo "Launching CSharpFar with sudo:"
+    sudo id
+    sudo env PATH="$PATH" TERM="${TERM:-xterm-256color}" DOTNET_ROOT="${DOTNET_ROOT:-}" "$dotnet_path" ./src/CSharpFar.Host.Unix/bin/Debug/net10.0/csharpfar.dll
+fi
