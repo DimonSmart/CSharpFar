@@ -227,6 +227,172 @@ public sealed class ApplicationNavigationTests : IDisposable
     }
 
     [Fact]
+    public void Run_VtSupportedHiddenVerticalGrowWhilePinned_KeepsViewportAtBottom()
+    {
+        var fs = new FakeFileSystemService();
+        fs.AddDirectory(_tempDir);
+
+        var driver = new FakeConsoleDriver(width: 40, height: 20) { IsSupported = true };
+        driver.SetBufferHeight(100);
+        driver.SetViewportOrigin(0, 80);
+        driver.EnqueueKey(Key(ConsoleKey.O, keyChar: '\u000f', control: true));
+        driver.EnqueueInput(new ConsoleResizeInputEvent());
+        driver.EnqueueKey(Key(ConsoleKey.F10));
+        BeforeEachRead(
+            driver,
+            _ => { },
+            afterHide =>
+            {
+                afterHide.WriteAt(0, 0, "COMMAND-OUTPUT".AsSpan());
+                afterHide.ClearRecordedOperations();
+                afterHide.SetSize(40, 30);
+            },
+            afterResize =>
+            {
+                Assert.Equal(70, afterResize.GetViewport().Top);
+                Assert.Equal(1, afterResize.TryScrollViewportToBottomCallCount);
+                Assert.True(afterResize.WriteAtCallCount > 0);
+                Assert.StartsWith("COMMAND-OUTPUT", afterResize.GetRow(0));
+            });
+
+        var app = CreateApp(fs, driver, _tempDir, terminalScreenMode: driver);
+        app.Run();
+    }
+
+    [Fact]
+    public void Run_VtSupportedHiddenVerticalShrinkWhilePinned_KeepsViewportAtBottom()
+    {
+        var fs = new FakeFileSystemService();
+        fs.AddDirectory(_tempDir);
+
+        var driver = new FakeConsoleDriver(width: 40, height: 30) { IsSupported = true };
+        driver.SetBufferHeight(100);
+        driver.SetViewportOrigin(0, 70);
+        driver.EnqueueKey(Key(ConsoleKey.O, keyChar: '\u000f', control: true));
+        driver.EnqueueInput(new ConsoleResizeInputEvent());
+        driver.EnqueueKey(Key(ConsoleKey.F10));
+        BeforeEachRead(
+            driver,
+            _ => { },
+            afterHide =>
+            {
+                afterHide.ClearRecordedOperations();
+                afterHide.SetSize(40, 15);
+            },
+            afterResize =>
+            {
+                Assert.Equal(85, afterResize.GetViewport().Top);
+                Assert.Equal(1, afterResize.TryScrollViewportToBottomCallCount);
+                Assert.True(afterResize.WriteAtCallCount > 0);
+            });
+
+        var app = CreateApp(fs, driver, _tempDir, terminalScreenMode: driver);
+        app.Run();
+    }
+
+    [Fact]
+    public void Run_VtSupportedHiddenResizeWhileViewingScrollback_DoesNotForceBottom()
+    {
+        var fs = new FakeFileSystemService();
+        fs.AddDirectory(_tempDir);
+
+        var driver = new FakeConsoleDriver(width: 40, height: 20) { IsSupported = true };
+        driver.SetBufferHeight(100);
+        driver.SetViewportOrigin(0, 80);
+        driver.EnqueueKey(Key(ConsoleKey.O, keyChar: '\u000f', control: true));
+        driver.EnqueueInput(new ConsoleResizeInputEvent());
+        driver.EnqueueInput(new ConsoleResizeInputEvent());
+        driver.EnqueueKey(Key(ConsoleKey.F10));
+        BeforeEachRead(
+            driver,
+            _ => { },
+            afterHide => afterHide.SetViewportOrigin(0, 40),
+            afterOriginOnly =>
+            {
+                Assert.Equal(40, afterOriginOnly.GetViewport().Top);
+                afterOriginOnly.ClearRecordedOperations();
+                afterOriginOnly.SetSize(40, 30);
+            },
+            afterResize =>
+            {
+                Assert.Equal(40, afterResize.GetViewport().Top);
+                Assert.Equal(0, afterResize.TryScrollViewportToBottomCallCount);
+                Assert.True(afterResize.WriteAtCallCount > 0);
+            });
+
+        var app = CreateApp(fs, driver, _tempDir, terminalScreenMode: driver);
+        app.Run();
+    }
+
+    [Fact]
+    public void Run_VtSupportedHiddenOriginOnlyScrollBackToBottom_UpdatesPinnedState()
+    {
+        var fs = new FakeFileSystemService();
+        fs.AddDirectory(_tempDir);
+
+        var driver = new FakeConsoleDriver(width: 40, height: 20) { IsSupported = true };
+        driver.SetBufferHeight(100);
+        driver.SetViewportOrigin(0, 80);
+        driver.EnqueueKey(Key(ConsoleKey.O, keyChar: '\u000f', control: true));
+        driver.EnqueueInput(new ConsoleResizeInputEvent());
+        driver.EnqueueInput(new ConsoleResizeInputEvent());
+        driver.EnqueueInput(new ConsoleResizeInputEvent());
+        driver.EnqueueKey(Key(ConsoleKey.F10));
+        BeforeEachRead(
+            driver,
+            _ => { },
+            afterHide => afterHide.SetViewportOrigin(0, 40),
+            afterScrollUp =>
+            {
+                Assert.Equal(40, afterScrollUp.GetViewport().Top);
+                Assert.Equal(0, afterScrollUp.WriteAtCallCount);
+                afterScrollUp.SetViewportOrigin(0, 80);
+            },
+            afterScrollToBottom =>
+            {
+                Assert.Equal(80, afterScrollToBottom.GetViewport().Top);
+                afterScrollToBottom.ClearRecordedOperations();
+                afterScrollToBottom.SetSize(40, 30);
+            },
+            afterResize =>
+            {
+                Assert.Equal(70, afterResize.GetViewport().Top);
+                Assert.Equal(1, afterResize.TryScrollViewportToBottomCallCount);
+            });
+
+        var app = CreateApp(fs, driver, _tempDir, terminalScreenMode: driver);
+        app.Run();
+    }
+
+    [Fact]
+    public void Run_VisiblePanelsResize_DoesNotRunHiddenBottomAnchorLogic()
+    {
+        var fs = new FakeFileSystemService();
+        fs.AddDirectory(_tempDir);
+
+        var driver = new FakeConsoleDriver(width: 40, height: 20) { IsSupported = true };
+        driver.SetBufferHeight(100);
+        driver.EnqueueInput(new ConsoleResizeInputEvent());
+        driver.EnqueueKey(Key(ConsoleKey.F10));
+        BeforeEachRead(
+            driver,
+            beforeResize =>
+            {
+                beforeResize.ClearRecordedOperations();
+                beforeResize.SetSize(40, 30);
+            },
+            afterResize =>
+            {
+                Assert.True(afterResize.IsApplicationScreenActive);
+                Assert.Equal(0, afterResize.TryScrollViewportToBottomCallCount);
+                Assert.True(afterResize.WriteAtCallCount > 0);
+            });
+
+        var app = CreateApp(fs, driver, _tempDir, terminalScreenMode: driver);
+        app.Run();
+    }
+
+    [Fact]
     public void Run_HiddenPanelsInterruptedResize_RestoresUnderlayBeforeEveryAttempt()
     {
         var fs = new FakeFileSystemService();
@@ -265,6 +431,121 @@ public sealed class ApplicationNavigationTests : IDisposable
         };
 
         var app = CreateApp(fs, driver, _tempDir);
+        app.Run();
+    }
+
+    [Fact]
+    public void Run_VtSupportedHiddenPanelsInterruptedResize_PreservesCommandOutput()
+    {
+        var fs = new FakeFileSystemService();
+        fs.AddDirectory(_tempDir);
+
+        var driver = new FakeConsoleDriver(width: 40, height: 8) { IsSupported = true };
+        driver.SetBufferHeight(30);
+        driver.SetViewportOrigin(0, 22);
+        driver.EnqueueKey(Key(ConsoleKey.O, keyChar: '\u000f', control: true));
+        driver.EnqueueInput(new ConsoleResizeInputEvent());
+        driver.EnqueueKey(Key(ConsoleKey.F10));
+        driver.BeforeReadInput = d =>
+        {
+            d.BeforeReadInput = afterHide =>
+            {
+                afterHide.WriteAt(0, 0, "COMMAND-OUTPUT".AsSpan());
+                afterHide.SetSize(40, 9);
+                afterHide.ClearRecordedOperations();
+
+                bool interrupted = false;
+                afterHide.Wrote += _ =>
+                {
+                    if (interrupted)
+                        return;
+
+                    interrupted = true;
+                    afterHide.SetSize(40, 10);
+                    afterHide.WriteAt(0, 0, "COMMAND-OUTPUT".AsSpan());
+                };
+
+                afterHide.BeforeReadInput = afterResize =>
+                {
+                    Assert.True(interrupted);
+                    Assert.True(afterResize.OperationLog.Count(operation => operation == "Capture") >= 2);
+                    Assert.Equal(20, afterResize.GetViewport().Top);
+                    Assert.StartsWith("COMMAND-OUTPUT", afterResize.GetRow(0));
+                    Assert.Equal([8], RowsContainingCommandPrompt(afterResize));
+                };
+            };
+        };
+
+        var app = CreateApp(fs, driver, _tempDir, terminalScreenMode: driver);
+        app.Run();
+    }
+
+    [Fact]
+    public void Run_VtSupportedHiddenResizeDuringDrain_RendersAgainForFinalViewport()
+    {
+        var fs = new FakeFileSystemService();
+        fs.AddDirectory(_tempDir);
+
+        var driver = new FakeConsoleDriver(width: 40, height: 20) { IsSupported = true };
+        driver.SetBufferHeight(100);
+        driver.SetViewportOrigin(0, 80);
+        driver.EnqueueKey(Key(ConsoleKey.O, keyChar: '\u000f', control: true));
+        driver.EnqueueInput(new ConsoleResizeInputEvent());
+        driver.EnqueueKey(Key(ConsoleKey.F10));
+        driver.BeforeReadInput = d =>
+        {
+            d.BeforeReadInput = afterHide =>
+            {
+                afterHide.ClearRecordedOperations();
+                afterHide.SetSize(40, 19);
+                afterHide.BeforeTryReadInput = duringDrain =>
+                {
+                    duringDrain.SetSize(40, 18);
+                    duringDrain.EnqueueInput(new ConsoleResizeInputEvent());
+                };
+
+                afterHide.BeforeReadInput = afterResize =>
+                {
+                    Assert.Equal(82, afterResize.GetViewport().Top);
+                    Assert.Equal([16], RowsContainingCommandPrompt(afterResize));
+                };
+            };
+        };
+
+        var app = CreateApp(fs, driver, _tempDir, terminalScreenMode: driver);
+        app.Run();
+    }
+
+    [Fact]
+    public void Run_VtSupportedHiddenResizeStartedPinned_DoesNotLearnIntermediateUnpinnedState()
+    {
+        var fs = new FakeFileSystemService();
+        fs.AddDirectory(_tempDir);
+
+        var driver = new FakeConsoleDriver(width: 40, height: 20) { IsSupported = true };
+        driver.SetBufferHeight(100);
+        driver.SetViewportOrigin(0, 80);
+        driver.EnqueueKey(Key(ConsoleKey.O, keyChar: '\u000f', control: true));
+        driver.EnqueueInput(new ConsoleResizeInputEvent());
+        driver.EnqueueKey(Key(ConsoleKey.F10));
+        driver.BeforeReadInput = d =>
+        {
+            d.BeforeReadInput = afterHide =>
+            {
+                afterHide.ClearRecordedOperations();
+                afterHide.SetSize(40, 19);
+                afterHide.BeforeTryReadInput = duringDrain =>
+                    duringDrain.SetViewportOrigin(0, 70);
+
+                afterHide.BeforeReadInput = afterResize =>
+                {
+                    Assert.Equal(81, afterResize.GetViewport().Top);
+                    Assert.Equal([17], RowsContainingCommandPrompt(afterResize));
+                };
+            };
+        };
+
+        var app = CreateApp(fs, driver, _tempDir, terminalScreenMode: driver);
         app.Run();
     }
 
@@ -785,7 +1066,7 @@ public sealed class ApplicationNavigationTests : IDisposable
 
         Assert.Equal(4, driver.GetViewport().Top);
         Assert.Equal(0, driver.TryScrollViewportToBottomCallCount);
-        Assert.True(driver.WriteAtCallCount > 0);
+        Assert.Contains(">", driver.GetRow(ApplicationLayoutService.CommandLineRow(driver.GetSize())), StringComparison.Ordinal);
     }
 
     [Fact]

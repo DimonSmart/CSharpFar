@@ -12,6 +12,8 @@ public interface IConsoleDriver
 
     bool TryScrollViewportToBottom();
 
+    bool TryIsViewportAtBottom(out bool isAtBottom);
+
     /// <summary>Reads the next keyboard, mouse, or resize event.</summary>
     ConsoleInputEvent ReadInput(bool intercept, CancellationToken cancellationToken = default);
 

@@ -20,6 +20,7 @@ internal sealed class ShellUnderlayService
     {
         RemoveHiddenCommandLineOverlay();
         var viewport = _screen.GetViewport();
+        HiddenResizeTrace.Write($"ShellUnderlay.Capture viewport={HiddenResizeTrace.Viewport(viewport)}");
         _underlay = _screen.Capture(new Rect(0, 0, viewport.Width, viewport.Height));
     }
 
@@ -55,17 +56,23 @@ internal sealed class ShellUnderlayService
         if (width <= 0 || row < 0 || row >= viewport.Height)
             return;
 
+        HiddenResizeTrace.Write(
+            $"Overlay.Prepare requested viewport={HiddenResizeTrace.Viewport(viewport)} row={row} width={width}");
+
         if (_hiddenCommandLineOverlay is { } current &&
             current.Viewport == viewport &&
             current.Row == row &&
             current.Width == width)
         {
+            HiddenResizeTrace.Write("Overlay.Prepare reuse");
             return;
         }
 
         RemoveHiddenCommandLineOverlay();
 
         var snapshot = _screen.Capture(new Rect(0, row, width, 1));
+        HiddenResizeTrace.Write(
+            $"Overlay.Prepare captured snapshotViewport={HiddenResizeTrace.Viewport(snapshot.Viewport)} row={row}");
         _hiddenCommandLineOverlay = new HiddenCommandLineOverlay(viewport, row, width, snapshot);
     }
 
@@ -77,20 +84,62 @@ internal sealed class ShellUnderlayService
         _hiddenCommandLineOverlay = null;
 
         var viewport = _screen.GetViewport();
-        if (overlay.Row < 0 || overlay.Row >= viewport.Height)
-            return;
-
-        bool sameOrigin = viewport.Left == overlay.Viewport.Left && viewport.Top == overlay.Viewport.Top;
-        if (!sameOrigin)
-            return;
+        HiddenResizeTrace.Write(
+            $"Overlay.Remove current={HiddenResizeTrace.Viewport(viewport)} overlayViewport={HiddenResizeTrace.Viewport(overlay.Viewport)} overlayRow={overlay.Row}");
 
         if (overlay.RowUnderlay is not null)
         {
-            _screen.Restore(overlay.RowUnderlay);
+            var rowUnderlay = CreateOverlayRowUnderlayForCurrentViewport(overlay, viewport);
+            if (rowUnderlay is not null)
+            {
+                HiddenResizeTrace.Write(
+                    $"Overlay.Remove restore row={rowUnderlay.Region.Y} width={rowUnderlay.Region.Width}");
+                _screen.Restore(rowUnderlay);
+            }
+            else
+            {
+                HiddenResizeTrace.Write("Overlay.Remove skipped notInCurrentViewport");
+            }
             return;
         }
 
-        _screen.ClearRegion(new Rect(0, overlay.Row, Math.Min(overlay.Width, viewport.Width), 1));
+        int absoluteRow = overlay.Viewport.Top + overlay.Row;
+        if (absoluteRow < viewport.Top || absoluteRow > viewport.Bottom)
+        {
+            HiddenResizeTrace.Write("Overlay.Remove clear skipped notInCurrentViewport");
+            return;
+        }
+
+        int row = absoluteRow - viewport.Top;
+        HiddenResizeTrace.Write($"Overlay.Remove clear row={row}");
+        _screen.ClearRegion(new Rect(0, row, Math.Min(overlay.Width, viewport.Width), 1));
+    }
+
+    private static ScreenSnapshot? CreateOverlayRowUnderlayForCurrentViewport(
+        HiddenCommandLineOverlay overlay,
+        ConsoleViewport viewport)
+    {
+        var underlay = overlay.RowUnderlay;
+        if (underlay is null)
+            return null;
+
+        int absoluteRow = overlay.Viewport.Top + overlay.Row;
+        if (absoluteRow < viewport.Top || absoluteRow > viewport.Bottom)
+            return null;
+
+        if (overlay.Viewport.Left != viewport.Left)
+            return null;
+
+        int row = absoluteRow - viewport.Top;
+        int width = Math.Min(underlay.Region.Width, viewport.Width);
+        if (width <= 0)
+            return null;
+
+        var cells = new SnapshotCell[1, width];
+        for (int col = 0; col < width; col++)
+            cells[0, col] = underlay.Cells[0, col];
+
+        return new ScreenSnapshot(viewport, new Rect(0, row, width, 1), cells);
     }
 
     private ScreenSnapshot? CreateUnderlaySnapshotForCurrentViewport(ScreenSnapshot underlay)

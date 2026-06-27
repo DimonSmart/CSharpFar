@@ -11,6 +11,8 @@ internal sealed class TerminalSurfaceController
     private readonly ShellUnderlayService _shellUnderlay;
     private readonly UiTransientState _ui;
     private readonly Func<bool> _hasVisiblePanels;
+    private bool _hiddenViewportPinnedToBottom;
+    private bool _hiddenResizeStartedPinnedToBottom;
 
     public TerminalSurfaceController(
         ScreenRenderer screen,
@@ -54,6 +56,8 @@ internal sealed class TerminalSurfaceController
     public bool HasRenderableViewportChange()
     {
         var viewportChange = GetViewportChange();
+        HiddenResizeTrace.Write(
+            $"HasRenderableViewportChange change={viewportChange} visible={_hasVisiblePanels()} current={HiddenResizeTrace.Viewport(_screen.GetViewport())} last={(_ui.LastRenderViewport.HasValue ? HiddenResizeTrace.Viewport(_ui.LastRenderViewport.Value) : "<none>")}");
         return !AcceptHiddenViewportScroll(viewportChange) &&
             viewportChange != ConsoleViewportChange.None;
     }
@@ -65,7 +69,10 @@ internal sealed class TerminalSurfaceController
 
         bool scrolled = _screen.TryScrollViewportToBottom();
         if (!scrolled)
+        {
+            RefreshHiddenViewportPinnedState();
             return false;
+        }
 
         _shellUnderlay.RemoveHiddenCommandLineOverlay();
 
@@ -77,6 +84,7 @@ internal sealed class TerminalSurfaceController
             _ui.LastRenderViewport = _shellUnderlay.CapturedViewport ?? _screen.GetViewport();
         }
 
+        _hiddenViewportPinnedToBottom = true;
         return scrolled;
     }
 
@@ -99,6 +107,7 @@ internal sealed class TerminalSurfaceController
         _screen.TryScrollViewportToBottom();
         _shellUnderlay.RemoveHiddenCommandLineOverlay();
         _ui.LastRenderViewport = _screen.GetViewport();
+        _hiddenViewportPinnedToBottom = true;
     }
 
     public void EnterHiddenMainScreenAtBottom()
@@ -110,10 +119,56 @@ internal sealed class TerminalSurfaceController
             _screen.TryScrollViewportToBottom();
             _shellUnderlay.RemoveHiddenCommandLineOverlay();
             SyncRendererWithCurrentMainScreenViewport();
+            _hiddenViewportPinnedToBottom = true;
             return;
         }
 
         _shellUnderlay.RestoreForHiddenScreen(_hasVisiblePanels());
+        RefreshHiddenViewportPinnedState();
+    }
+
+    public void PrepareHiddenResize()
+    {
+        if (_hasVisiblePanels())
+            return;
+
+        HiddenResizeTrace.Write(
+            $"PrepareHiddenResize start pinned={_hiddenViewportPinnedToBottom} viewport={HiddenResizeTrace.Viewport(_screen.GetViewport())}");
+
+        _hiddenResizeStartedPinnedToBottom = _hiddenViewportPinnedToBottom;
+        if (_hiddenResizeStartedPinnedToBottom)
+            _screen.TryScrollViewportToBottom();
+
+        HiddenResizeTrace.Write(
+            $"PrepareHiddenResize afterScroll viewport={HiddenResizeTrace.Viewport(_screen.GetViewport())}");
+        _shellUnderlay.RemoveHiddenCommandLineOverlay();
+        HiddenResizeTrace.Write(
+            $"PrepareHiddenResize afterOverlayRemove viewport={HiddenResizeTrace.Viewport(_screen.GetViewport())}");
+
+        if (UsesTerminalScreenMode)
+            SyncRendererWithCurrentMainScreenViewport();
+
+        HiddenResizeTrace.Write(
+            $"PrepareHiddenResize done viewport={HiddenResizeTrace.Viewport(_screen.GetViewport())} last={(_ui.LastRenderViewport.HasValue ? HiddenResizeTrace.Viewport(_ui.LastRenderViewport.Value) : "<none>")}");
+    }
+
+    public void MarkHiddenCommandLineRenderCompleted()
+    {
+        if (_hasVisiblePanels())
+            return;
+
+        if (_hiddenResizeStartedPinnedToBottom)
+        {
+            _hiddenViewportPinnedToBottom = true;
+            _hiddenResizeStartedPinnedToBottom = false;
+            HiddenResizeTrace.Write(
+                $"MarkHiddenCommandLineRenderCompleted preservePinned viewport={HiddenResizeTrace.Viewport(_screen.GetViewport())}");
+            return;
+        }
+
+        RefreshHiddenViewportPinnedState();
+        HiddenResizeTrace.Write(
+            $"MarkHiddenCommandLineRenderCompleted refreshed pinned={_hiddenViewportPinnedToBottom} viewport={HiddenResizeTrace.Viewport(_screen.GetViewport())}");
     }
 
     public void PrepareMainScreenForExternalCommand()
@@ -124,6 +179,7 @@ internal sealed class TerminalSurfaceController
             _screen.TryScrollViewportToBottom();
             _shellUnderlay.RemoveHiddenCommandLineOverlay();
             SyncRendererWithCurrentMainScreenViewport();
+            _hiddenViewportPinnedToBottom = true;
             return;
         }
 
@@ -155,13 +211,26 @@ internal sealed class TerminalSurfaceController
             return false;
 
         _ui.LastRenderViewport = _screen.GetViewport();
+        RefreshHiddenViewportPinnedState();
+        HiddenResizeTrace.Write(
+            $"AcceptHiddenViewportScroll pinned={_hiddenViewportPinnedToBottom} viewport={HiddenResizeTrace.Viewport(_ui.LastRenderViewport.Value)}");
         return true;
     }
 
     private void SyncRendererWithCurrentMainScreenViewport()
     {
+        HiddenResizeTrace.Write(
+            $"SyncRendererWithCurrentMainScreenViewport before={HiddenResizeTrace.Viewport(_screen.GetViewport())}");
         _shellUnderlay.Capture();
         _ui.LastRenderViewport = _shellUnderlay.CapturedViewport ?? _screen.GetViewport();
+        HiddenResizeTrace.Write(
+            $"SyncRendererWithCurrentMainScreenViewport after captured={(_shellUnderlay.CapturedViewport.HasValue ? HiddenResizeTrace.Viewport(_shellUnderlay.CapturedViewport.Value) : "<none>")} current={HiddenResizeTrace.Viewport(_screen.GetViewport())}");
+    }
+
+    private void RefreshHiddenViewportPinnedState()
+    {
+        if (_screen.TryIsViewportAtBottom(out bool isAtBottom))
+            _hiddenViewportPinnedToBottom = isAtBottom;
     }
 
     private enum ConsoleViewportChange

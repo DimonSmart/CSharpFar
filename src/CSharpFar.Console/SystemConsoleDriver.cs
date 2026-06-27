@@ -192,6 +192,23 @@ public sealed class SystemConsoleDriver : IConsoleDriver, IConsoleOutputModeDriv
 
     public ConsoleSize GetSize() => GetViewport().Size;
 
+    public bool TryIsViewportAtBottom(out bool isAtBottom)
+    {
+        isAtBottom = false;
+
+        if (!OperatingSystem.IsWindows())
+            return false;
+
+        if (!Win32ConsoleApi.TryGetConsoleScreenBufferInfo(_consoleHandle, out var sbi))
+            return false;
+
+        if (sbi.dwSize.Y <= 0 || sbi.srWindow.Bottom < sbi.srWindow.Top)
+            return false;
+
+        isAtBottom = sbi.srWindow.Bottom >= sbi.dwSize.Y - 1;
+        return true;
+    }
+
     public bool TryScrollViewportToBottom()
     {
         if (!OperatingSystem.IsWindows())

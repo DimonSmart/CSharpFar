@@ -136,4 +136,48 @@ public class UnderlaySnapshotTests
         Assert.StartsWith("SHELL-BEFORE", driver.GetRow(row));
         Assert.DoesNotContain(@"C:\Work>", driver.GetRow(row), StringComparison.Ordinal);
     }
+
+    [Fact]
+    public void HiddenCommandLineOverlayCleanup_RestoresShellRowAfterViewportTopChange()
+    {
+        var (renderer, driver) = Create(40, 8);
+        var shellStyle = new CellStyle(ConsoleColor.Gray, ConsoleColor.Black);
+        renderer.Write(0, 7, "SHELL-BEFORE".AsSpan(), shellStyle);
+        driver.SetViewportOrigin(0, 3);
+
+        var underlay = new ShellUnderlayService(renderer);
+        var viewport = renderer.GetViewport();
+        underlay.PrepareHiddenCommandLineOverlay(viewport, row: 7, viewport.Width);
+
+        new ApplicationCommandLineRenderer(renderer, () => PaletteRegistry.Default)
+            .Render(7, viewport.Size, @"C:\Work", new CommandLineState());
+        Assert.Contains(">", driver.GetRow(7), StringComparison.Ordinal);
+
+        driver.SetViewportOrigin(0, 5);
+        underlay.RemoveHiddenCommandLineOverlay();
+
+        Assert.StartsWith("SHELL-BEFORE", driver.GetRow(5));
+    }
+
+    [Fact]
+    public void HiddenCommandLineOverlayCleanup_RestoresShellRowAfterViewportShrink()
+    {
+        var (renderer, driver) = Create(40, 30);
+        var shellStyle = new CellStyle(ConsoleColor.Gray, ConsoleColor.Black);
+        renderer.Write(0, 28, "SHELL-BEFORE".AsSpan(), shellStyle);
+
+        var underlay = new ShellUnderlayService(renderer);
+        var viewport = renderer.GetViewport();
+        underlay.PrepareHiddenCommandLineOverlay(viewport, row: 28, viewport.Width);
+
+        new ApplicationCommandLineRenderer(renderer, () => PaletteRegistry.Default)
+            .Render(28, viewport.Size, @"C:\Work", new CommandLineState());
+        Assert.Contains(">", driver.GetRow(28), StringComparison.Ordinal);
+
+        driver.SetSize(40, 10);
+        driver.SetViewportOrigin(0, 20);
+        underlay.RemoveHiddenCommandLineOverlay();
+
+        Assert.StartsWith("SHELL-BEFORE", driver.GetRow(8));
+    }
 }

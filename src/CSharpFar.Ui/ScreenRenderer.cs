@@ -61,6 +61,9 @@ public sealed class ScreenRenderer
         return true;
     }
 
+    public bool TryIsViewportAtBottom(out bool isAtBottom) =>
+        _driver.TryIsViewportAtBottom(out isAtBottom);
+
     /// <summary>
     /// The size captured at <see cref="BeginFrame"/>. All rendering within a frame
     /// must use this value — not a second call to <see cref="GetSize"/> — to guarantee
@@ -105,6 +108,29 @@ public sealed class ScreenRenderer
             throw new InvalidOperationException("A render frame is already active.");
 
         var viewport = _driver.GetViewport();
+        return BeginFrame(viewport);
+    }
+
+    public IDisposable BeginFrameFromCurrentViewportCapture()
+    {
+        if (_frameActive)
+            throw new InvalidOperationException("A render frame is already active.");
+
+        var viewport = _driver.GetViewport();
+        var snapshot = _driver.Capture(new Rect(0, 0, viewport.Width, viewport.Height));
+        viewport = snapshot.Viewport;
+        var size = viewport.Size;
+        EnsureBuffers(size);
+        CopySnapshotToBuffer(_frontBuffer!, snapshot);
+        _frontBufferKnown = true;
+        _frontBufferViewport = viewport;
+        _forceFullFrame = false;
+
+        return BeginFrame(viewport);
+    }
+
+    private IDisposable BeginFrame(ConsoleViewport viewport)
+    {
         var size = viewport.Size;
         EnsureBuffers(size);
         if (_frontBufferKnown &&

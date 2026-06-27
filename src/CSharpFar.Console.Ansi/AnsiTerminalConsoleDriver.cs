@@ -54,6 +54,12 @@ public sealed class AnsiTerminalConsoleDriver : IConsoleDriver, ITerminalScreenM
 
     public bool TryScrollViewportToBottom() => false;
 
+    public bool TryIsViewportAtBottom(out bool isAtBottom)
+    {
+        isAtBottom = false;
+        return false;
+    }
+
     public string InputBackendName => _inputReader.BackendName;
 
     public bool IsMouseTrackingEnabled => _inputReader.MouseTrackingEnabled;

@@ -88,6 +88,14 @@ public sealed class FakeConsoleDriver : IConsoleDriver, IConsoleOutputModeDriver
         return true;
     }
 
+    public bool TryIsViewportAtBottom(out bool isAtBottom)
+    {
+        isAtBottom = _size.Height > 0 &&
+            _bufferHeight > 0 &&
+            _viewportTop + _size.Height >= _bufferHeight;
+        return true;
+    }
+
     public void SetViewportOrigin(int left, int top)
     {
         _viewportLeft = left;
