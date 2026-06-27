@@ -1,5 +1,6 @@
 using CSharpFar.App.State;
 using CSharpFar.Console;
+using CSharpFar.Console.Input;
 using CSharpFar.Console.Models;
 
 namespace CSharpFar.App.Rendering;
@@ -31,12 +32,26 @@ internal sealed class TerminalSurfaceController
     public bool UsesTerminalScreenMode =>
         _terminalScreenMode?.IsSupported == true;
 
-    public TerminalSurfaceDiagnostics GetDiagnostics() =>
-        new(
+    public TerminalSurfaceDiagnostics GetDiagnostics()
+    {
+        var input = _screen.GetInputDiagnostics();
+        return new(
             UsesTerminalScreenMode,
             _terminalScreenMode?.IsSupported,
             _terminalScreenMode?.IsApplicationScreenActive,
-            UsesLegacyConsoleMode: !UsesTerminalScreenMode);
+            UsesLegacyConsoleMode: !UsesTerminalScreenMode,
+            ConsoleDriver: _screen.ConsoleDriverName,
+            InputBackend: input?.InputBackendName ?? "unknown",
+            MouseTrackingEnabled: input?.MouseTrackingEnabled,
+            ModifierKeyTracking: input?.ModifierKeyTracking ?? new ModifierKeyTrackingSnapshot(
+                "none",
+                IsPlatformSupported: false,
+                IsEnabled: false,
+                CanTrackShiftOnly: false,
+                Status: ModifierKeyTrackingStatus.PlatformNotSupported,
+                FailureReason: null,
+                Devices: []));
+    }
 
     public void CaptureUnderlay() =>
         _shellUnderlay.Capture();

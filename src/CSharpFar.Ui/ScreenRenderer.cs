@@ -42,6 +42,11 @@ public sealed class ScreenRenderer
 
     public ConsoleSize GetSize() => _driver.GetSize();
 
+    public string ConsoleDriverName => _driver.GetType().Name;
+
+    public IConsoleInputDiagnostics? GetInputDiagnostics() =>
+        _driver as IConsoleInputDiagnostics;
+
     public bool TryScrollViewportToBottom()
     {
         if (_frameActive)

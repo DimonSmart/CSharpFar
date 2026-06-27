@@ -2,12 +2,8 @@ using System.Diagnostics.CodeAnalysis;
 
 namespace CSharpFar.Console.Input;
 
-public interface IConsoleInputReader : IDisposable
+public interface IConsoleInputReader : IConsoleInputDiagnostics, IDisposable
 {
-    string BackendName { get; }
-
-    bool MouseTrackingEnabled { get; }
-
     ConsoleInputEvent ReadInput(bool intercept, CancellationToken cancellationToken = default);
 
     bool TryReadInput(bool intercept, [NotNullWhen(true)] out ConsoleInputEvent? inputEvent);

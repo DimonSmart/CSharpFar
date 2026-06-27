@@ -4,7 +4,7 @@ using CSharpFar.Console.Models;
 
 namespace CSharpFar.Console.Ansi;
 
-public sealed class AnsiTerminalConsoleDriver : IConsoleDriver, ITerminalScreenMode, IConsoleOutputModeDriver, IDisposable
+public sealed class AnsiTerminalConsoleDriver : IConsoleDriver, ITerminalScreenMode, IConsoleOutputModeDriver, IConsoleInputDiagnostics, IDisposable
 {
     private const string ClearScreen = "\x1b[2J";
     private const string CursorHome = "\x1b[H";
@@ -60,9 +60,13 @@ public sealed class AnsiTerminalConsoleDriver : IConsoleDriver, ITerminalScreenM
         return false;
     }
 
-    public string InputBackendName => _inputReader.BackendName;
+    public string InputBackendName => _inputReader.InputBackendName;
 
     public bool IsMouseTrackingEnabled => _inputReader.MouseTrackingEnabled;
+
+    public bool MouseTrackingEnabled => _inputReader.MouseTrackingEnabled;
+
+    public ModifierKeyTrackingSnapshot ModifierKeyTracking => _inputReader.ModifierKeyTracking;
 
     public ConsoleInputEvent ReadInput(bool intercept, CancellationToken cancellationToken = default) =>
         _inputReader.ReadInput(intercept, cancellationToken);

@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using System.Text;
 using CSharpFar.Console.Ansi;
 using CSharpFar.Console.Input;
@@ -250,6 +251,122 @@ public sealed class AnsiInputParserTests
         Assert.True(terminalMode.Disposed);
     }
 
+    [Fact]
+    public void ShiftDown_EmitsShiftModifierEvent()
+    {
+        var last = default(ConsoleModifiers);
+
+        Assert.True(LinuxEvdevModifierKeyTracker.TryCreateModifierStateChangeEvent(
+            ref last,
+            leftShiftDown: true,
+            rightShiftDown: false,
+            out var inputEvent));
+
+        Assert.Equal(ConsoleModifiers.Shift, inputEvent.Modifiers);
+    }
+
+    [Fact]
+    public void ShiftUp_EmitsPlainModifierEvent()
+    {
+        var last = ConsoleModifiers.Shift;
+
+        Assert.True(LinuxEvdevModifierKeyTracker.TryCreateModifierStateChangeEvent(
+            ref last,
+            leftShiftDown: false,
+            rightShiftDown: false,
+            out var inputEvent));
+
+        Assert.Equal(default, inputEvent.Modifiers);
+    }
+
+    [Fact]
+    public void DuplicateShiftDown_DoesNotEmitDuplicateEvent()
+    {
+        var last = ConsoleModifiers.Shift;
+
+        Assert.False(LinuxEvdevModifierKeyTracker.TryCreateModifierStateChangeEvent(
+            ref last,
+            leftShiftDown: true,
+            rightShiftDown: false,
+            out var inputEvent));
+
+        Assert.Null(inputEvent);
+    }
+
+    [Fact]
+    public void LeftAndRightShift_ReleaseOneStillKeepsShiftActive()
+    {
+        var last = ConsoleModifiers.Shift;
+
+        Assert.False(LinuxEvdevModifierKeyTracker.TryCreateModifierStateChangeEvent(
+            ref last,
+            leftShiftDown: false,
+            rightShiftDown: true,
+            out var inputEvent));
+
+        Assert.Null(inputEvent);
+    }
+
+    [Fact]
+    public void ReleaseLastShift_EmitsPlainModifierEvent()
+    {
+        var last = ConsoleModifiers.Shift;
+
+        Assert.True(LinuxEvdevModifierKeyTracker.TryCreateModifierStateChangeEvent(
+            ref last,
+            leftShiftDown: false,
+            rightShiftDown: false,
+            out var inputEvent));
+
+        Assert.Equal(default, inputEvent.Modifiers);
+    }
+
+    [Fact]
+    public void UnixRawTerminalInputReader_ReturnsModifierEventBeforeBlockingInput()
+    {
+        using var tracker = new FakeModifierKeyTracker();
+        tracker.Pending = new ModifierKeyConsoleInputEvent(ConsoleModifiers.Shift);
+        using var reader = CreateReaderWithTracker(tracker);
+
+        var inputEvent = reader.ReadInput(intercept: true, new CancellationTokenSource(1000).Token);
+
+        Assert.Same(tracker.LastReturned, inputEvent);
+    }
+
+    [Fact]
+    public void UnixRawTerminalInputReader_TryReadInput_ReturnsPendingModifierEvent()
+    {
+        using var tracker = new FakeModifierKeyTracker();
+        tracker.Pending = new ModifierKeyConsoleInputEvent(ConsoleModifiers.Shift);
+        using var reader = CreateReaderWithTracker(tracker);
+
+        Assert.True(reader.TryReadInput(intercept: true, out var inputEvent));
+
+        Assert.Same(tracker.LastReturned, inputEvent);
+    }
+
+    [Fact]
+    public void UnixRawTerminalInputReader_SuspendInputMode_SuspendsModifierTracker()
+    {
+        using var tracker = new FakeModifierKeyTracker();
+        using var reader = CreateReaderWithTracker(tracker);
+
+        reader.SuspendInputMode();
+
+        Assert.Equal(1, tracker.SuspendCount);
+    }
+
+    [Fact]
+    public void UnixRawTerminalInputReader_Dispose_DisposesModifierTracker()
+    {
+        var tracker = new FakeModifierKeyTracker();
+        using (CreateReaderWithTracker(tracker))
+        {
+        }
+
+        Assert.True(tracker.Disposed);
+    }
+
     private sealed class FakeTerminalInputMode : ITerminalInputMode
     {
         public int EnableCount { get; private set; }
@@ -266,6 +383,55 @@ public sealed class AnsiInputParserTests
             Disposed = true;
             DisposeCount++;
         }
+    }
+
+    private static UnixRawTerminalInputReader CreateReaderWithTracker(FakeModifierKeyTracker tracker) =>
+        new(
+            new StreamAnsiInputByteReader(new MemoryStream(), null),
+            () => new CSharpFar.Console.Models.ConsoleSize(80, 25),
+            () => { },
+            _ => { },
+            new FakeTerminalInputMode(),
+            tracker);
+
+    private sealed class FakeModifierKeyTracker : IModifierKeyTracker
+    {
+        public ModifierKeyConsoleInputEvent? Pending { get; set; }
+        public ModifierKeyConsoleInputEvent? LastReturned { get; private set; }
+        public int SuspendCount { get; private set; }
+        public bool Disposed { get; private set; }
+
+        public string BackendName => "fake";
+
+        public ModifierKeyTrackingSnapshot GetSnapshot() =>
+            new(
+                BackendName,
+                IsPlatformSupported: true,
+                IsEnabled: true,
+                CanTrackShiftOnly: true,
+                Status: ModifierKeyTrackingStatus.Enabled,
+                FailureReason: null,
+                Devices: []);
+
+        public bool TryCreateInputEvent([NotNullWhen(true)] out ModifierKeyConsoleInputEvent? inputEvent)
+        {
+            inputEvent = Pending;
+            LastReturned = Pending;
+            Pending = null;
+            return inputEvent is not null;
+        }
+
+        public void ObserveConsoleInput(ConsoleInputEvent inputEvent)
+        {
+        }
+
+        public void Suspend() => SuspendCount++;
+
+        public void Resume()
+        {
+        }
+
+        public void Dispose() => Disposed = true;
     }
 
     [Fact]

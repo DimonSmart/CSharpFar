@@ -13,7 +13,7 @@ namespace CSharpFar.Console;
 /// so that shell output underneath the panels is preserved for Ctrl+O.
 /// This class targets Windows. On other platforms, Capture/Restore use a blank fallback.
 /// </summary>
-public sealed class SystemConsoleDriver : IConsoleDriver, IConsoleOutputModeDriver, ITerminalScreenMode, IDisposable
+public sealed class SystemConsoleDriver : IConsoleDriver, IConsoleOutputModeDriver, ITerminalScreenMode, IConsoleInputDiagnostics, IDisposable
 {
     private const string EnterAltScreen = "\x1b[?1049h";
     private const string LeaveAltScreen = "\x1b[?1049l";
@@ -67,6 +67,29 @@ public sealed class SystemConsoleDriver : IConsoleDriver, IConsoleOutputModeDriv
     public bool IsSupported => _terminalScreenModeSupported;
 
     public bool IsApplicationScreenActive => _applicationScreenActive;
+
+    public string InputBackendName => OperatingSystem.IsWindows()
+        ? "win32-console"
+        : "system-console";
+
+    public bool MouseTrackingEnabled => OperatingSystem.IsWindows() && _restoreInputMode;
+
+    public ModifierKeyTrackingSnapshot ModifierKeyTracking => GetModifierKeyTrackingSnapshot();
+
+    private ModifierKeyTrackingSnapshot GetModifierKeyTrackingSnapshot()
+    {
+        if (OperatingSystem.IsWindows() && _modifierKeyTracker is not null)
+            return _modifierKeyTracker.GetSnapshot();
+
+        return new ModifierKeyTrackingSnapshot(
+            "none",
+            IsPlatformSupported: false,
+            IsEnabled: false,
+            CanTrackShiftOnly: false,
+            Status: ModifierKeyTrackingStatus.PlatformNotSupported,
+            FailureReason: null,
+            Devices: []);
+    }
 
     public void Dispose()
     {

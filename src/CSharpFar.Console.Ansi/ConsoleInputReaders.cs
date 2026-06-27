@@ -19,7 +19,12 @@ internal abstract class ConsoleInputReaderBase : IConsoleInputReader
 
     public abstract string BackendName { get; }
 
+    public string InputBackendName => BackendName;
+
     public abstract bool MouseTrackingEnabled { get; }
+
+    public virtual ModifierKeyTrackingSnapshot ModifierKeyTracking =>
+        ModifierKeyTrackerFactory.UnsupportedSnapshot;
 
     public abstract ConsoleInputEvent ReadInput(bool intercept, CancellationToken cancellationToken = default);
 
@@ -65,6 +70,7 @@ internal sealed class UnixRawTerminalInputReader : ConsoleInputReaderBase
     private readonly IAnsiInputByteReader _input;
     private readonly AnsiConsoleInputParser _parser = new();
     private readonly ITerminalInputMode _terminalMode;
+    private readonly IModifierKeyTracker? _modifierKeyTracker;
     private readonly Action<string> _writeControl;
     private bool _active;
     private bool _disposed;
@@ -74,12 +80,14 @@ internal sealed class UnixRawTerminalInputReader : ConsoleInputReaderBase
         Func<ConsoleSize> getSize,
         Action resetCachedOutputState,
         Action<string> writeControl,
-        ITerminalInputMode? terminalMode = null)
+        ITerminalInputMode? terminalMode = null,
+        IModifierKeyTracker? modifierKeyTracker = null)
         : base(getSize, resetCachedOutputState)
     {
         _input = input;
         _writeControl = writeControl;
         _terminalMode = terminalMode ?? new UnixTerminalMode();
+        _modifierKeyTracker = modifierKeyTracker ?? ModifierKeyTrackerFactory.TryCreateForCurrentPlatform();
         try
         {
             EnableInputMode();
@@ -87,6 +95,7 @@ internal sealed class UnixRawTerminalInputReader : ConsoleInputReaderBase
         catch
         {
             _terminalMode.Dispose();
+            _modifierKeyTracker?.Dispose();
             throw;
         }
     }
@@ -95,17 +104,27 @@ internal sealed class UnixRawTerminalInputReader : ConsoleInputReaderBase
 
     public override bool MouseTrackingEnabled => _active;
 
+    public override ModifierKeyTrackingSnapshot ModifierKeyTracking =>
+        _modifierKeyTracker?.GetSnapshot() ?? ModifierKeyTrackerFactory.UnsupportedSnapshot;
+
     public override ConsoleInputEvent ReadInput(bool intercept, CancellationToken cancellationToken = default)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
         while (true)
         {
             cancellationToken.ThrowIfCancellationRequested();
+            if (_modifierKeyTracker?.TryCreateInputEvent(out var modifierEvent) == true)
+                return modifierEvent;
+
             if (TryReadResize(out var resize))
                 return resize;
 
             if (!_input.WaitForInput(CancellationPollMilliseconds))
+            {
+                if (_modifierKeyTracker?.TryCreateInputEvent(out modifierEvent) == true)
+                    return modifierEvent;
                 continue;
+            }
 
             if (TryReadParsedEvent(intercept, out var inputEvent))
                 return inputEvent;
@@ -115,6 +134,12 @@ internal sealed class UnixRawTerminalInputReader : ConsoleInputReaderBase
     public override bool TryReadInput(bool intercept, [NotNullWhen(true)] out ConsoleInputEvent? inputEvent)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
+        if (_modifierKeyTracker?.TryCreateInputEvent(out var modifierEvent) == true)
+        {
+            inputEvent = modifierEvent;
+            return true;
+        }
+
         if (TryReadResize(out inputEvent))
             return true;
 
@@ -136,6 +161,7 @@ internal sealed class UnixRawTerminalInputReader : ConsoleInputReaderBase
 
         try
         {
+            _modifierKeyTracker?.Suspend();
             _writeControl(DisableMouseTracking);
         }
         finally
@@ -165,6 +191,7 @@ internal sealed class UnixRawTerminalInputReader : ConsoleInputReaderBase
         {
             _active = false;
             _terminalMode.Dispose();
+            _modifierKeyTracker?.Dispose();
             _disposed = true;
         }
     }
@@ -175,6 +202,8 @@ internal sealed class UnixRawTerminalInputReader : ConsoleInputReaderBase
     {
         if (!_parser.TryRead(_input, out inputEvent))
             return false;
+
+        _modifierKeyTracker?.ObserveConsoleInput(inputEvent);
 
         if (!intercept && inputEvent is KeyConsoleInputEvent { Key.KeyChar: not '\0' } keyEvent)
             _writeControl(keyEvent.Key.KeyChar.ToString());
@@ -191,6 +220,7 @@ internal sealed class UnixRawTerminalInputReader : ConsoleInputReaderBase
         try
         {
             _writeControl(EnableMouseTracking);
+            _modifierKeyTracker?.Resume();
             _active = true;
         }
         catch

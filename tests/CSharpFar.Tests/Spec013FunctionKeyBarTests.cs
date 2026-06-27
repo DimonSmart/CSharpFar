@@ -34,6 +34,8 @@ public sealed class Spec013FunctionKeyBarTests : IDisposable
         driver.EnqueueInput(new ModifierKeyConsoleInputEvent(default));
         driver.EnqueueInput(new ModifierKeyConsoleInputEvent(ConsoleModifiers.Control));
         driver.EnqueueInput(new ModifierKeyConsoleInputEvent(default));
+        driver.EnqueueInput(new ModifierKeyConsoleInputEvent(ConsoleModifiers.Shift));
+        driver.EnqueueInput(new ModifierKeyConsoleInputEvent(default));
         driver.EnqueueKey(Key(ConsoleKey.F10));
 
         var app = CreateApp(fs, driver);
@@ -46,6 +48,7 @@ public sealed class Spec013FunctionKeyBarTests : IDisposable
 
         Assert.Contains(bottomWrites, text => text.Contains("Search", StringComparison.Ordinal));
         Assert.Contains(bottomWrites, text => text.Contains("SortNm", StringComparison.Ordinal));
+        Assert.Contains(bottomWrites, text => text.Contains("New", StringComparison.Ordinal));
         Assert.Contains(bottomWrites, text => text.Contains("Help", StringComparison.Ordinal));
     }
 

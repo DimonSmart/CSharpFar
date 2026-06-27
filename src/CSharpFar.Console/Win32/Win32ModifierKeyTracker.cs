@@ -7,7 +7,7 @@ using CSharpFar.Console.Input;
 namespace CSharpFar.Console.Win32;
 
 [SupportedOSPlatform("windows")]
-internal sealed class Win32ModifierKeyTracker : IDisposable
+internal sealed class Win32ModifierKeyTracker : IModifierKeyTracker
 {
     private const int WH_KEYBOARD_LL = 13;
     private const int WM_KEYDOWN     = 0x0100;
@@ -50,6 +50,22 @@ internal sealed class Win32ModifierKeyTracker : IDisposable
         _started.Wait(TimeSpan.FromSeconds(1));
     }
 
+    public string BackendName => "win32-low-level-hook";
+
+    public ModifierKeyTrackingSnapshot GetSnapshot() =>
+        new(
+            BackendName,
+            IsPlatformSupported: OperatingSystem.IsWindows(),
+            IsEnabled: !_disposed && _hookHandle != IntPtr.Zero,
+            CanTrackShiftOnly: !_disposed && _hookHandle != IntPtr.Zero,
+            Status: OperatingSystem.IsWindows()
+                ? (_hookHandle != IntPtr.Zero ? ModifierKeyTrackingStatus.Enabled : ModifierKeyTrackingStatus.Failed)
+                : ModifierKeyTrackingStatus.PlatformNotSupported,
+            FailureReason: OperatingSystem.IsWindows() && _hookHandle == IntPtr.Zero
+                ? "Low-level keyboard hook was not installed."
+                : null,
+            Devices: []);
+
     public bool TryCreateInputEvent([NotNullWhen(true)] out ModifierKeyConsoleInputEvent? inputEvent) =>
         TryCreateModifierStateChangeEvent(
             ref _lastModifiers,
@@ -70,6 +86,14 @@ internal sealed class Win32ModifierKeyTracker : IDisposable
 
         _lastModifiers = modifiers.Value;
         UpdateHookModifiers(modifiers.Value);
+    }
+
+    public void Suspend()
+    {
+    }
+
+    public void Resume()
+    {
     }
 
     internal static bool TryCreateModifierStateChangeEvent(
