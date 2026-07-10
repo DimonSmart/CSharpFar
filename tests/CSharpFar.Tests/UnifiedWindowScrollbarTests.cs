@@ -191,7 +191,7 @@ public sealed class UnifiedWindowScrollbarTests
             KeyChar('S', ConsoleKey.S),
             Key(ConsoleKey.Enter));
 
-        _ = new SearchProgressDialog(screen, new ManyResultsSearchService())
+        _ = new SearchProgressDialog(ModalTestHost.Create(screen), new ManyResultsSearchService())
             .Show(new SearchRequest
             {
                 RootPath = @"C:\root",
@@ -281,7 +281,7 @@ public sealed class UnifiedWindowScrollbarTests
         var driveDriver = new FakeConsoleDriver(width: 80, height: 10);
         driveDriver.EnqueueKey(Key(ConsoleKey.Escape));
         var driveScreen = new ScreenRenderer(driveDriver);
-        _ = new DriveDialog(driveScreen, ModalTestHost.Create(driveScreen)).Show(
+        _ = new DriveDialog(ModalTestHost.Create(driveScreen)).Show(
             Enumerable.Range(0, 20)
                 .Select(i => new VolumeSelectionItem
                 {

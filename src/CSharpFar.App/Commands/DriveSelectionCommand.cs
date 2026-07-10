@@ -58,7 +58,7 @@ internal abstract class DriveSelectionCommand : IApplicationCommand
 
         int initialCursor = FindInitialCursor(items, targetState.CurrentDirectory);
 
-        var selected = new DriveDialog(context.Screen, context.ModalDialogs, context.Palette).Show(items, initialCursor);
+        var selected = new DriveDialog(context.ModalDialogs, context.Palette).Show(items, initialCursor);
         if (selected is null)
             return ApplicationCommandResult.Rendered();
 

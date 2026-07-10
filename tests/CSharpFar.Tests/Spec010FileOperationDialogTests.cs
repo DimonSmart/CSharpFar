@@ -629,7 +629,7 @@ public sealed class Spec010FileOperationDialogTests
         var screen = new ScreenRenderer(driver);
         driver.EnqueueInput(new MouseConsoleInputEvent(53, 16, MouseButton.Left, MouseEventKind.Down, MouseKeyModifiers.None));
 
-        bool result = new OperationCancelDialog(screen).Show();
+        bool result = new OperationCancelDialog(ModalTestHost.Create(screen)).Show();
 
         Assert.False(result);
 

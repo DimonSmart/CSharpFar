@@ -17,7 +17,7 @@ public sealed class Spec012SearchProgressDialogTests
         driver.EnqueueKey(KeyChar('S', ConsoleKey.S));
         driver.EnqueueKey(Key(ConsoleKey.Enter));
 
-        var result = new SearchProgressDialog(screen, new BlockingSearchService(Result(@"C:\root\found.cs")))
+        var result = new SearchProgressDialog(ModalTestHost.Create(screen), new BlockingSearchService(Result(@"C:\root\found.cs")))
             .Show(Request(@"C:\root", "*.cs"));
 
         Assert.True(result.Cancelled);
@@ -40,7 +40,7 @@ public sealed class Spec012SearchProgressDialogTests
             KeyChar('S', ConsoleKey.S),
             Key(ConsoleKey.Enter));
 
-        var result = new SearchProgressDialog(screen, new BlockingSearchService(Result(@"C:\root\found.txt")))
+        var result = new SearchProgressDialog(ModalTestHost.Create(screen), new BlockingSearchService(Result(@"C:\root\found.txt")))
             .Show(Request(@"C:\root", "*.txt"));
 
         Assert.True(result.Cancelled);
@@ -58,7 +58,7 @@ public sealed class Spec012SearchProgressDialogTests
         var screen = new ScreenRenderer(driver);
         EnqueueKeysWhenWriteContains(driver, "found.txt", Key(ConsoleKey.Enter));
 
-        var result = new SearchProgressDialog(screen, service).Show(Request(@"C:\root", "*.txt"));
+        var result = new SearchProgressDialog(ModalTestHost.Create(screen), service).Show(Request(@"C:\root", "*.txt"));
 
         Assert.True(result.Cancelled);
         Assert.Same(item, result.GoToResult);
@@ -79,7 +79,7 @@ public sealed class Spec012SearchProgressDialogTests
             KeyChar('N', ConsoleKey.N),
             KeyChar('G', ConsoleKey.G));
 
-        var result = new SearchProgressDialog(screen, service).Show(Request(@"C:\root", "*.txt"));
+        var result = new SearchProgressDialog(ModalTestHost.Create(screen), service).Show(Request(@"C:\root", "*.txt"));
 
         Assert.True(result.Cancelled);
         Assert.False(result.DiscardResults);
@@ -93,7 +93,7 @@ public sealed class Spec012SearchProgressDialogTests
         var screen = new ScreenRenderer(driver);
 
         var result = new SearchProgressDialog(
-                screen,
+                ModalTestHost.Create(screen),
                 new EmptySearchService(() => driver.EnqueueKey(Key(ConsoleKey.F10))))
             .Show(Request(@"C:\root", "*.txt"));
 

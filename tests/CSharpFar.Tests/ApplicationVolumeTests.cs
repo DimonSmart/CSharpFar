@@ -450,7 +450,7 @@ public sealed class ApplicationVolumeTests : IDisposable
             },
         };
 
-        new DriveDialog(screen, ModalTestHost.Create(screen)).Show(items);
+        new DriveDialog(ModalTestHost.Create(screen)).Show(items);
 
         string text = string.Join(Environment.NewLine, driver.WriteRecords.Select(r => r.Text));
         Assert.Contains("Disk", text);

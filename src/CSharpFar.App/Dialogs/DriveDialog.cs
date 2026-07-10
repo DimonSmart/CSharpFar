@@ -17,15 +17,15 @@ internal sealed class DriveDialog
     private const int DiskColW = 18;
     private const int SizeColW = 10;
 
-    private readonly ScreenRenderer _screen;
     private readonly ModalDialogHost _modalDialogs;
+    private readonly ScreenRenderer _screen;
     private readonly ConsolePalette _palette;
     private readonly ModalDialogRenderer _modalRenderer = new();
 
-    public DriveDialog(ScreenRenderer screen, ModalDialogHost modalDialogs, ConsolePalette? palette = null)
+    public DriveDialog(ModalDialogHost modalDialogs, ConsolePalette? palette = null)
     {
-        _screen = screen;
         _modalDialogs = modalDialogs;
+        _screen = modalDialogs.Screen;
         _palette = palette ?? PaletteRegistry.Default;
     }
 
@@ -37,50 +37,37 @@ internal sealed class DriveDialog
             return null;
         }
 
-        var size  = _screen.GetSize();
-        var saved = _screen.Capture(new Rect(0, 0, size.Width, size.Height));
-
-        try
-        {
-            return RunLoop(items, size, Math.Clamp(initialCursor, 0, items.Count - 1));
-        }
-        finally
-        {
-            _screen.Restore(saved);
-        }
+        return RunLoop(items, Math.Clamp(initialCursor, 0, items.Count - 1));
     }
 
-    private VolumeSelectionItem? RunLoop(IReadOnlyList<VolumeSelectionItem> items, ConsoleSize size, int initialCursor)
+    private VolumeSelectionItem? RunLoop(IReadOnlyList<VolumeSelectionItem> items, int initialCursor)
     {
-        int maxVisible = Math.Max(1, size.Height - 6);
-        int visible    = Math.Min(items.Count, maxVisible);
-        int dlgH       = visible + 6;
-        int dlgX       = Math.Max(0, (size.Width  - DialogWidth) / 2);
-        int dlgY       = Math.Max(0, (size.Height - dlgH)        / 2);
-        var bounds     = new Rect(dlgX, dlgY, DialogWidth, dlgH);
-
         int cursor    = initialCursor;
-        // Centre the initial cursor in the visible area.
-        int scrollTop = Math.Min(
-            Math.Max(0, cursor - visible / 2),
-            Math.Max(0, items.Count - visible));
+        int scrollTop = 0;
+        DriveDialogLayout? lastLayout = null;
         ScrollBarDragState? scrollbarDrag = null;
 
         // Track last cycle shortcut for multi-match cycling
         string? lastShortcut = null;
 
+        using var modal = _modalDialogs.Open(context =>
+        {
+            lastLayout = Draw(context, items, cursor, scrollTop);
+        });
         while (true)
         {
-            Draw(items, bounds, cursor, scrollTop, visible);
-            var input = _screen.ReadInput();
+            modal.Render();
+            var input = modal.ReadInput();
             if (input is MouseConsoleInputEvent mouse &&
-                TryHandleScrollbarMouse(mouse, items.Count, visible, bounds, ref cursor, ref scrollTop, ref scrollbarDrag))
+                lastLayout is { } layout &&
+                TryHandleScrollbarMouse(mouse, items.Count, layout.Visible, layout.Bounds, ref cursor, ref scrollTop, ref scrollbarDrag))
             {
                 continue;
             }
 
             if (input is MouseConsoleInputEvent listMouse &&
-                TryHandleListMouse(listMouse, bounds, items.Count, scrollTop, visible, ref cursor, out bool select))
+                lastLayout is { } listLayout &&
+                TryHandleListMouse(listMouse, listLayout.Bounds, items.Count, scrollTop, listLayout.Visible, ref cursor, out bool select))
             {
                 lastShortcut = null;
                 if (select)
@@ -97,9 +84,6 @@ internal sealed class DriveDialog
                         new MessageDialog(_modalDialogs).Show(
                             "Change drive",
                             $"{clickedVol.DisplayName}: volume is {statusText}.");
-                        var afterMsg = _screen.GetSize();
-                        var resaved  = _screen.Capture(new Rect(0, 0, afterMsg.Width, afterMsg.Height));
-                        _screen.Restore(resaved);
                     }
                     else
                     {
@@ -131,20 +115,20 @@ internal sealed class DriveDialog
                     if (cursor < items.Count - 1)
                     {
                         cursor++;
-                        if (cursor >= scrollTop + visible) scrollTop = cursor - visible + 1;
+                        if (cursor >= scrollTop + (lastLayout?.Visible ?? 1)) scrollTop = cursor - (lastLayout?.Visible ?? 1) + 1;
                     }
                     lastShortcut = null;
                     break;
 
                 case ConsoleKey.PageUp:
-                    cursor    = Math.Max(0, cursor - visible);
+                    cursor    = Math.Max(0, cursor - (lastLayout?.Visible ?? 1));
                     scrollTop = Math.Max(0, cursor);
                     lastShortcut = null;
                     break;
 
                 case ConsoleKey.PageDown:
-                    cursor    = Math.Min(items.Count - 1, cursor + visible);
-                    scrollTop = Math.Max(0, cursor - visible + 1);
+                    cursor    = Math.Min(items.Count - 1, cursor + (lastLayout?.Visible ?? 1));
+                    scrollTop = Math.Max(0, cursor - (lastLayout?.Visible ?? 1) + 1);
                     lastShortcut = null;
                     break;
 
@@ -156,7 +140,7 @@ internal sealed class DriveDialog
 
                 case ConsoleKey.End:
                     cursor    = items.Count - 1;
-                    scrollTop = Math.Max(0, cursor - visible + 1);
+                    scrollTop = Math.Max(0, cursor - (lastLayout?.Visible ?? 1) + 1);
                     lastShortcut = null;
                     break;
 
@@ -173,10 +157,6 @@ internal sealed class DriveDialog
                         new MessageDialog(_modalDialogs).Show(
                             "Change drive",
                             $"{vol.DisplayName}: volume is {statusText}.");
-                        // Restore the drive dialog background after MessageDialog closes
-                        var afterMsg = _screen.GetSize();
-                        var resaved  = _screen.Capture(new Rect(0, 0, afterMsg.Width, afterMsg.Height));
-                        _screen.Restore(resaved);
                         break; // stay in loop
                     }
                     return selected;
@@ -188,7 +168,7 @@ internal sealed class DriveDialog
                     {
                         string sc = key.KeyChar.ToString().ToUpperInvariant();
                         var immediate = HandleShortcut(
-                            items, sc, ref cursor, ref scrollTop, visible, ref lastShortcut);
+                            items, sc, ref cursor, ref scrollTop, lastLayout?.Visible ?? 1, ref lastShortcut);
                         if (immediate is not null)
                             return immediate;
                     }
@@ -246,22 +226,27 @@ internal sealed class DriveDialog
 
     // ── drawing ───────────────────────────────────────────────────────────────
 
-    private void Draw(
+    private DriveDialogLayout Draw(
+        UiRenderContext context,
         IReadOnlyList<VolumeSelectionItem> items,
-        Rect  bounds,
-        int   cursor,
-        int   scrollTop,
-        int   visible)
+        int cursor,
+        int scrollTop)
     {
-        using var frame = _screen.BeginFrame();
+        int visible = Math.Min(items.Count, Math.Max(1, context.Size.Height - 6));
+        cursor = Math.Clamp(cursor, 0, items.Count - 1);
+        scrollTop = Math.Clamp(scrollTop, 0, Math.Max(0, items.Count - visible));
+        if (cursor < scrollTop) scrollTop = cursor;
+        if (cursor >= scrollTop + visible) scrollTop = cursor - visible + 1;
+        int height = visible + 6;
+        var bounds = new Rect(Math.Max(0, (context.Size.Width - DialogWidth) / 2), Math.Max(0, (context.Size.Height - height) / 2), Math.Min(DialogWidth, context.Size.Width), height);
 
-        _modalRenderer.Render(_screen, bounds, "Change drive", true, DriveOuterOptions, DriveFrameOptions, (_, layout) =>
+        _modalRenderer.Render(context.Screen, bounds, "Change drive", true, DriveOuterOptions, DriveFrameOptions, (_, layout) =>
         {
             Rect frameBounds = layout.FrameBounds;
             Rect contentBounds = layout.ContentBounds;
             const string hint = " Enter  Esc ";
             int hintX = frameBounds.X + (frameBounds.Width - hint.Length) / 2;
-            _screen.Write(hintX, frameBounds.Y + frameBounds.Height - 1, hint, PaletteStyles.DialogTitle(_palette));
+            context.Screen.Write(hintX, frameBounds.Y + frameBounds.Height - 1, hint, PaletteStyles.DialogTitle(_palette));
 
             WriteHeader(contentBounds.X, contentBounds.Y, contentBounds.Width);
             WriteTableSeparator(contentBounds.X, contentBounds.Y + 1, contentBounds.Width);
@@ -282,7 +267,7 @@ internal sealed class DriveDialog
             if (items.Count > visible)
             {
                 new ScrollBarRenderer().RenderVerticalScrollbar(
-                    _screen,
+                    context.Screen,
                     new Rect(frameBounds.Right - 1, contentBounds.Y + 2, 1, visible),
                     new ScrollState
                     {
@@ -299,8 +284,11 @@ internal sealed class DriveDialog
             }
         });
 
-        _screen.SetCursorVisible(false);
+        context.Screen.SetCursorVisible(false);
+        return new DriveDialogLayout(bounds, visible);
     }
+
+    private sealed record DriveDialogLayout(Rect Bounds, int Visible);
 
     private static bool TryHandleListMouse(
         MouseConsoleInputEvent mouse,
@@ -382,7 +370,7 @@ internal sealed class DriveDialog
             Fit("Free", SizeColW) +
             " │ " +
             Fit("Total", SizeColW);
-        _screen.Write(x, y, TruncateToWidth(header, width).PadRight(width), PaletteStyles.DialogTitle(_palette));
+            _modalDialogs.Screen.Write(x, y, TruncateToWidth(header, width).PadRight(width), PaletteStyles.DialogTitle(_palette));
     }
 
     private void WriteTableSeparator(int x, int y, int width)
@@ -393,7 +381,7 @@ internal sealed class DriveDialog
             new string('─', SizeColW) +
             "─┼─" +
             new string('─', SizeColW);
-        _screen.Write(x, y, TruncateToWidth(separator, width).PadRight(width), PaletteStyles.DialogBorder(_palette));
+        _modalDialogs.Screen.Write(x, y, TruncateToWidth(separator, width).PadRight(width), PaletteStyles.DialogBorder(_palette));
     }
 
     private void WriteRow(VolumeSelectionItem item, int x, int y, int innerWidth, bool isCursor)
@@ -419,7 +407,7 @@ internal sealed class DriveDialog
         WriteSegment(ref x, y, ref innerWidth, totalCol, normalStyle);
 
         if (innerWidth > 0)
-            _screen.Write(x, y, new string(' ', innerWidth), normalStyle);
+            _modalDialogs.Screen.Write(x, y, new string(' ', innerWidth), normalStyle);
     }
 
     private void WriteSegment(ref int x, int y, ref int remainingWidth, string text, CellStyle style)
@@ -428,7 +416,7 @@ internal sealed class DriveDialog
             return;
 
         string visible = TruncateToWidth(text, remainingWidth);
-        _screen.Write(x, y, visible, style);
+        _modalDialogs.Screen.Write(x, y, visible, style);
         x += visible.Length;
         remainingWidth -= visible.Length;
     }

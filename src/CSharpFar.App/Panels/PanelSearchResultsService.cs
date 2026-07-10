@@ -125,7 +125,7 @@ internal sealed class PanelSearchResultsService
         SearchRunResult result;
         try
         {
-            result = new SearchProgressDialog(_screen, _searchService, _palette()).Show(state.SearchRequest);
+            result = new SearchProgressDialog(_modalDialogs, _searchService, _palette()).Show(state.SearchRequest);
         }
         catch
         {

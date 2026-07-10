@@ -4,6 +4,7 @@ using CSharpFar.Console.Input;
 using CSharpFar.Console.Models;
 using CSharpFar.Core.Abstractions;
 using CSharpFar.Core.Models;
+using CSharpFar.Ui;
 
 namespace CSharpFar.App.Dialogs;
 
@@ -22,15 +23,17 @@ internal sealed class SearchProgressDialog
     private const string StopButton = "stop";
 
     private readonly ScreenRenderer _screen;
+    private readonly ModalDialogHost _modalDialogs;
     private readonly ISearchService _searchService;
     private readonly ModalDialogRenderer _modalRenderer = new();
 
     public SearchProgressDialog(
-        ScreenRenderer screen,
+        ModalDialogHost modalDialogs,
         ISearchService searchService,
         ConsolePalette? palette = null)
     {
-        _screen = screen;
+        _modalDialogs = modalDialogs;
+        _screen = modalDialogs.Screen;
         _searchService = searchService;
     }
 
@@ -187,7 +190,7 @@ internal sealed class SearchProgressDialog
     }
 
     private bool ConfirmStopSearch() =>
-        new OperationCancelDialog(_screen).Show(
+        new OperationCancelDialog(_modalDialogs).Show(
             "Search has been interrupted",
             "Do you really want to stop it?");
 
