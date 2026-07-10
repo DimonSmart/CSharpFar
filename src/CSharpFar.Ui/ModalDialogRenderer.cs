@@ -17,8 +17,8 @@ public sealed class ModalDialogRenderer
 
     public Rect CenteredOuterBounds(ConsoleSize size, int outerWidth, int outerHeight, int minWidth = 20, int minHeight = 8)
     {
-        int width = Math.Min(outerWidth, Math.Max(minWidth, size.Width - 2));
-        int height = Math.Min(outerHeight, Math.Max(minHeight, size.Height - 2));
+        int width = Math.Min(Math.Max(minWidth, outerWidth), Math.Max(1, size.Width - 2));
+        int height = Math.Min(Math.Max(minHeight, outerHeight), Math.Max(1, size.Height - 2));
         return new Rect(
             Math.Max(0, (size.Width - width) / 2),
             Math.Max(0, (size.Height - height) / 2),

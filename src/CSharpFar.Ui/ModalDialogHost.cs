@@ -29,43 +29,18 @@ public sealed class ModalDialogSession : IDisposable
     public void Render() => _composition.Render();
 
     public ConsoleInputEvent ReadInput(CancellationToken cancellationToken = default)
-    {
-        while (true)
-        {
-            var input = _composition.Screen.ReadInput(cancellationToken);
-            if (input is ConsoleResizeInputEvent || _composition.HasViewportChanged())
-            {
-                _composition.Render(isResizeRecovery: true);
-                if (input is ConsoleResizeInputEvent)
-                    continue;
-            }
-            return input;
-        }
-    }
+        => _composition.ReadCompositionInput(cancellationToken);
 
     public bool TryReadInput(out ConsoleInputEvent? input)
-    {
-        while (_composition.Screen.TryReadInput(out input))
-        {
-            if (input is ConsoleResizeInputEvent || _composition.HasViewportChanged())
-            {
-                _composition.Render(isResizeRecovery: true);
-                if (input is ConsoleResizeInputEvent)
-                    continue;
-            }
-            return true;
-        }
-
-        input = null;
-        return false;
-    }
+        => _composition.TryReadCompositionInput(out input);
 
     public void Dispose()
     {
-        var overlay = Interlocked.Exchange(ref _overlay, null);
+        var overlay = _overlay;
         if (overlay is null)
             return;
         overlay.Dispose();
+        _overlay = null;
         _composition.Render();
     }
 }

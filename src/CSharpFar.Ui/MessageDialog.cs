@@ -21,10 +21,7 @@ public sealed class MessageDialog
     }
 
     [Obsolete("Use the ModalDialogHost constructor.")]
-    public MessageDialog(ScreenRenderer screen)
-    {
-        _screen = screen;
-    }
+    public MessageDialog(ScreenRenderer screen) => _screen = screen;
 
     public void Show(string title, string message)
     {
@@ -34,16 +31,17 @@ public sealed class MessageDialog
             return;
         }
         int firstVisibleLine = 0;
+        MessageDialogLayout layout = default!;
         using var session = _modalDialogs.Open(context =>
         {
-            var layout = CreateLayout(title, message, context.Size, buttons: null);
+            layout = CreateLayout(title, message, context.Size, buttons: null);
+            NormalizeScroll(layout, ref firstVisibleLine);
             Draw(title, layout, firstVisibleLine, buttonBar: null, focusedButton: 0);
             context.Screen.SetCursorVisible(false);
         });
         while (true)
         {
             session.Render();
-            var layout = CreateLayout(title, message, _modalDialogs.Screen.FrameViewport.Size, buttons: null);
             var input = session.ReadInput();
             if (input is KeyConsoleInputEvent { Key.Key: ConsoleKey.Enter or ConsoleKey.Escape })
                 return;
@@ -58,16 +56,17 @@ public sealed class MessageDialog
             throw new ArgumentException("At least one button is required.", nameof(buttons));
         if (_modalDialogs is null)
             return ShowButtonsLegacy(title, message, buttons);
-
         var dialogButtons = buttons
             .Select((text, index) => new DialogButton(index.ToString(), text, HotKeyFrom(text), index == 0))
             .ToArray();
         var buttonBar = new DialogButtonBar(dialogButtons);
         int focusedButton = 0;
         int firstVisibleLine = 0;
+        MessageDialogLayout layout = default!;
         using var session = _modalDialogs.Open(context =>
         {
-            var layout = CreateLayout(title, message, context.Size, dialogButtons);
+            layout = CreateLayout(title, message, context.Size, dialogButtons);
+            NormalizeScroll(layout, ref firstVisibleLine);
             Draw(title, layout, firstVisibleLine, buttonBar, focusedButton);
             context.Screen.SetCursorVisible(false);
         });
@@ -75,7 +74,6 @@ public sealed class MessageDialog
         while (true)
         {
             session.Render();
-            var layout = CreateLayout(title, message, _modalDialogs.Screen.FrameViewport.Size, dialogButtons);
             var input = session.ReadInput();
             if (TryScroll(input, layout, ref firstVisibleLine))
                 continue;
@@ -91,20 +89,23 @@ public sealed class MessageDialog
         }
     }
 
+    private static void NormalizeScroll(MessageDialogLayout layout, ref int firstVisibleLine) =>
+        firstVisibleLine = Math.Clamp(firstVisibleLine, 0, Math.Max(0, layout.MessageLines.Count - layout.ContentHeight));
+
     private void ShowLegacy(string title, string message)
     {
         int firstVisibleLine = 0;
         while (true)
         {
-            var size = _screen.GetSize();
-            var layout = CreateLayout(title, message, size, null);
+            var layout = CreateLayout(title, message, _screen.GetSize(), null);
             using (var frame = _screen.BeginFrame())
             {
                 Draw(title, layout, firstVisibleLine, null, 0);
                 _screen.SetCursorVisible(false);
             }
             var input = _screen.ReadInput();
-            if (input is KeyConsoleInputEvent { Key.Key: ConsoleKey.Enter or ConsoleKey.Escape }) return;
+            if (input is KeyConsoleInputEvent { Key.Key: ConsoleKey.Enter or ConsoleKey.Escape })
+                return;
             TryScroll(input, layout, ref firstVisibleLine);
         }
     }

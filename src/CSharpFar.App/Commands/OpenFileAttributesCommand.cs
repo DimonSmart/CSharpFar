@@ -17,7 +17,7 @@ internal sealed class OpenFileAttributesCommand : IApplicationCommand
     {
         if (context.ActiveState.SourceId != PanelSourceId.Local)
         {
-            new MessageDialog(context.Screen).Show("Attributes", "File attributes are supported only for local files.");
+            new MessageDialog(context.ModalDialogs).Show("Attributes", "File attributes are supported only for local files.");
             return ApplicationCommandResult.Rendered();
         }
 
@@ -35,7 +35,7 @@ internal sealed class OpenFileAttributesCommand : IApplicationCommand
         }
         catch (Exception ex)
         {
-            new MessageDialog(context.Screen).Show("Attributes Error", ex.Message);
+            new MessageDialog(context.ModalDialogs).Show("Attributes Error", ex.Message);
             return ApplicationCommandResult.Rendered();
         }
 
@@ -86,7 +86,7 @@ internal sealed class OpenFileAttributesCommand : IApplicationCommand
             Environment.NewLine,
             result.Errors.Select(error => $"{Path.GetFileName(error.Path)}: {error.Message}"));
         string message = $"Changed: {result.ChangedCount}{Environment.NewLine}Failed: {result.Errors.Count}{Environment.NewLine}{Environment.NewLine}{details}";
-        new MessageDialog(context.Screen).Show("Attributes Error", message);
+        new MessageDialog(context.ModalDialogs).Show("Attributes Error", message);
     }
 
     private static void OpenSystemProperties(string path, ApplicationCommandContext context)
@@ -105,7 +105,7 @@ internal sealed class OpenFileAttributesCommand : IApplicationCommand
         }
         catch (Exception ex)
         {
-            new MessageDialog(context.Screen).Show("System Properties", ex.Message);
+            new MessageDialog(context.ModalDialogs).Show("System Properties", ex.Message);
         }
     }
 }

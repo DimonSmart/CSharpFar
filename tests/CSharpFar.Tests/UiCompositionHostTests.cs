@@ -91,4 +91,70 @@ public sealed class UiCompositionHostTests
 
         host.Render();
     }
+
+    [Fact]
+    public void DisposeSurfaceDuringRender_ThrowsWithoutRemovingSurface()
+    {
+        var host = new UiCompositionHost(new ScreenRenderer(new FakeConsoleDriver()));
+        host.SetRootSurface(new ScreenRendererSurface(host.Screen, _ => { }));
+        UiCompositionHost.UiSurfaceSession? surface = null;
+        surface = host.OpenSurface(_ => Assert.Throws<InvalidOperationException>(() => surface!.Dispose()));
+
+        host.Render();
+        var nested = host.OpenSurface(_ => { });
+        nested.Dispose();
+        surface.Dispose();
+    }
+
+    [Fact]
+    public void DisposeOverlayDuringRender_ThrowsWithoutRemovingOverlay()
+    {
+        var host = new UiCompositionHost(new ScreenRenderer(new FakeConsoleDriver()));
+        host.SetRootSurface(new ScreenRendererSurface(host.Screen, _ => { }));
+        var modals = new ModalDialogHost(host);
+        ModalDialogSession? overlay = null;
+        overlay = modals.Open(_ => Assert.Throws<InvalidOperationException>(() => overlay!.Dispose()));
+
+        overlay.Render();
+        overlay.Dispose();
+        host.Render();
+    }
+
+    [Fact]
+    public void OutOfOrderSurfaceDispose_DoesNotInvalidateScope()
+    {
+        var host = new UiCompositionHost(new ScreenRenderer(new FakeConsoleDriver()));
+        host.SetRootSurface(new ScreenRendererSurface(host.Screen, _ => { }));
+        var first = host.OpenSurface(_ => { });
+        var second = host.OpenSurface(_ => { });
+
+        Assert.Throws<InvalidOperationException>(() => first.Dispose());
+        second.Dispose();
+        first.Dispose();
+    }
+
+    [Fact]
+    public void OutOfOrderOverlayDispose_DoesNotInvalidateScope()
+    {
+        var host = new UiCompositionHost(new ScreenRenderer(new FakeConsoleDriver()));
+        host.SetRootSurface(new ScreenRendererSurface(host.Screen, _ => { }));
+        var modals = new ModalDialogHost(host);
+        var first = modals.Open(_ => { });
+        var second = modals.Open(_ => { });
+
+        Assert.Throws<InvalidOperationException>(() => first.Dispose());
+        second.Dispose();
+        first.Dispose();
+    }
+
+    [Fact]
+    public void RepeatedSuccessfulDispose_IsSafe()
+    {
+        var host = new UiCompositionHost(new ScreenRenderer(new FakeConsoleDriver()));
+        host.SetRootSurface(new ScreenRendererSurface(host.Screen, _ => { }));
+        var surface = host.OpenSurface(_ => { });
+
+        surface.Dispose();
+        surface.Dispose();
+    }
 }

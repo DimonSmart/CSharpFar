@@ -40,7 +40,7 @@ internal sealed class NavigateToDirectoryShortcutCommand : IApplicationCommand
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
-            new MessageDialog(context.Screen).Show("Directory Shortcut", ex.Message);
+            new MessageDialog(context.ModalDialogs).Show("Directory Shortcut", ex.Message);
         }
 
         return ApplicationCommandResult.Rendered();

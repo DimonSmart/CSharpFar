@@ -149,6 +149,7 @@ public sealed class UiCompositionHost
 
     private void CloseSurface(IUiSurface surface)
     {
+        EnsureNotRendering();
         if (_surfaces.Count <= 1 || !ReferenceEquals(_surfaces[^1], surface))
             throw new InvalidOperationException("Temporary surfaces must be disposed in LIFO order.");
         _surfaces.RemoveAt(_surfaces.Count - 1);
@@ -156,6 +157,7 @@ public sealed class UiCompositionHost
 
     private void CloseOverlay(Action<UiRenderContext> overlay)
     {
+        EnsureNotRendering();
         if (_overlays.Count == 0 || !ReferenceEquals(_overlays[^1], overlay))
             throw new InvalidOperationException("Overlays must be disposed in LIFO order.");
         _overlays.RemoveAt(_overlays.Count - 1);
@@ -183,22 +185,23 @@ public sealed class UiCompositionHost
         public void Render() => (_host ?? throw new ObjectDisposedException(nameof(UiSurfaceSession))).Render();
 
         public ConsoleInputEvent ReadInput(CancellationToken cancellationToken = default) =>
-            (_host ?? throw new ObjectDisposedException(nameof(UiSurfaceSession))).ReadSurfaceInput(cancellationToken);
+            (_host ?? throw new ObjectDisposedException(nameof(UiSurfaceSession))).ReadCompositionInput(cancellationToken);
 
         public bool TryReadInput(out ConsoleInputEvent? input) =>
-            (_host ?? throw new ObjectDisposedException(nameof(UiSurfaceSession))).TryReadSurfaceInput(out input);
+            (_host ?? throw new ObjectDisposedException(nameof(UiSurfaceSession))).TryReadCompositionInput(out input);
 
         public void Dispose()
         {
-            var host = Interlocked.Exchange(ref _host, null);
+            var host = _host;
             if (host is null)
                 return;
             host.CloseSurface(_surface);
+            _host = null;
             host.Render();
         }
     }
 
-    private ConsoleInputEvent ReadSurfaceInput(CancellationToken cancellationToken)
+    internal ConsoleInputEvent ReadCompositionInput(CancellationToken cancellationToken)
     {
         while (true)
         {
@@ -213,7 +216,7 @@ public sealed class UiCompositionHost
         }
     }
 
-    private bool TryReadSurfaceInput(out ConsoleInputEvent? input)
+    internal bool TryReadCompositionInput(out ConsoleInputEvent? input)
     {
         while (Screen.TryReadInput(out input))
         {
@@ -238,8 +241,12 @@ public sealed class UiCompositionHost
 
         public void Dispose()
         {
-            var host = Interlocked.Exchange(ref _host, null);
-            host?.CloseOverlay(_overlay);
+            var host = _host;
+            if (host is null)
+                return;
+
+            host.CloseOverlay(_overlay);
+            _host = null;
         }
     }
 }

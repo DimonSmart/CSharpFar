@@ -38,9 +38,8 @@ public sealed class ConfirmDialog
         int focused = 0;
         while (true)
         {
-            var size = _screen.GetSize();
             using (var frame = _screen.BeginFrame())
-                RenderLayer(_screen, title, question, itemName, size, focused);
+                RenderLayer(_screen, title, question, itemName, _screen.GetSize(), focused);
             var input = _screen.ReadInput();
             if (_buttonBar.TryHandleInput(input, ref focused, out var id) && id is not null)
                 return id == "ok";
@@ -77,9 +76,7 @@ public sealed class ConfirmDialog
     private void RenderLayer(ScreenRenderer screen, string title, string question, string itemName, ConsoleSize size, int focusedButton)
     {
 
-        int dlgX = Math.Max(0, (size.Width  - DialogWidth)  / 2);
-        int dlgY = Math.Max(0, (size.Height - DialogHeight) / 2);
-        var outerBounds = new Rect(dlgX, dlgY, DialogWidth, DialogHeight);
+        var outerBounds = _modalRenderer.CenteredOuterBounds(size, DialogWidth, DialogHeight, minWidth: 20, minHeight: 5);
 
         _modalRenderer.Render(screen, outerBounds, title, true, FarDialogStyles.OuterOptions, FarDialogStyles.FrameOptions, (_, layout) =>
         {
