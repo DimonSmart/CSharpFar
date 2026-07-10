@@ -59,6 +59,16 @@ internal sealed class SearchProgressDialog
                 new DialogButton(GoToButton, "Go to", 'G', IsDefault: true),
                 new DialogButton(StopButton, "Stop", 'S'),
             ]);
+            SearchProgress renderProgress = latestProgress;
+            SearchResultItem[] renderResults = [];
+            using var modal = _modalDialogs.Open(_ => Draw(
+                request,
+                renderProgress,
+                renderResults,
+                selectedIndex,
+                scrollOffset,
+                buttonBar,
+                focusedButton));
 
             var progress = new Progress<SearchProgress>(p =>
             {
@@ -95,10 +105,18 @@ internal sealed class SearchProgressDialog
                     progressSnapshot = latestProgress;
                     resultSnapshot = [.. results];
                 }
+                renderProgress = progressSnapshot;
+                renderResults = resultSnapshot;
 
                 int listHeight = VisibleResultRows();
                 NormalizeSelection(resultSnapshot.Length, listHeight, ref selectedIndex, ref scrollOffset);
-                Draw(request, progressSnapshot, resultSnapshot, selectedIndex, scrollOffset, buttonBar, focusedButton);
+                modal.Render();
+
+                if (task.IsCompleted)
+                    break;
+
+                if (task.Wait(RedrawDelayMilliseconds))
+                    break;
 
                 SearchResultItem[] inputResults;
                 lock (syncRoot)
@@ -108,7 +126,7 @@ internal sealed class SearchProgressDialog
                 if (task.IsCompleted)
                     break;
 
-                if (_screen.TryReadInput(out var input))
+                if (modal.TryReadInput(out var input))
                 {
                     if (input is MouseConsoleInputEvent mouse &&
                         TryHandleResultScrollbarMouse(
@@ -154,8 +172,6 @@ internal sealed class SearchProgressDialog
                         stopRequested = false;
                 }
 
-                if (task.Wait(RedrawDelayMilliseconds))
-                    break;
             }
 
             try { task.Wait(2000); }
@@ -388,7 +404,6 @@ internal sealed class SearchProgressDialog
         ref int scrollOffset,
         ref ScrollBarDragState? dragState)
     {
-        using var frame = _screen.BeginFrame();
         if (resultCount <= listHeight)
             return false;
 

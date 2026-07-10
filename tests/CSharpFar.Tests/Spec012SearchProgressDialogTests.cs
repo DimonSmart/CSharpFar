@@ -99,7 +99,7 @@ public sealed class Spec012SearchProgressDialogTests
 
         Assert.False(result.Cancelled);
         Assert.Empty(result.Results);
-        Assert.Equal(ConsoleKey.F10, driver.ReadKey(intercept: true).Key);
+        Assert.Equal(ConsoleKey.F10, screen.ReadKey().Key);
     }
 
     private static SearchRequest Request(string rootPath, string fileMaskExpression) =>
