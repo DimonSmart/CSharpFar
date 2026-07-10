@@ -53,4 +53,5 @@
 | 0066 | Spec | Current | Folder and file-set comparison | Add read-only comparison commands for local panel folders: folder structure mode matches by relative path, while file-set mode ignores folder structure and handles duplicates explicitly. |
 | 0067 | Spec | Current | UI layer composition and modal resize | Compose the active full-screen surface and modal overlays through one shared host so resize redraws current state rather than restoring snapshots. |
 | 0068 | Spec | Superseded by 0069 | Complete UI composition migration | Replaced by the corrective completion specification after the implementation audit found remaining legacy UI lifecycles. |
-| 0069 | Spec | Current | Finish UI composition migration | Complete the remaining application-owned UI migration and enforce one stable composition/input lifecycle through source-contract and buffer-level tests. |
+| 0069 | Spec | Superseded by 0070 | Finish UI composition migration | Complete the remaining application-owned UI migration and enforce one stable composition/input lifecycle through source-contract and buffer-level tests. |
+| 0070 | Spec | Current | Complete resize composition migration | Complete the composition migration so all application-owned UI redraws current state at the current viewport without snapshot restoration. |

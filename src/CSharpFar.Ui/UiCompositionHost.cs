@@ -233,7 +233,6 @@ public sealed class UiCompositionHost
             if (HasViewportChanged())
             {
                 Render(isResizeRecovery: true);
-                continue;
             }
 
             return input;
@@ -255,7 +254,6 @@ public sealed class UiCompositionHost
             if (HasViewportChanged())
             {
                 Render(isResizeRecovery: true);
-                continue;
             }
 
             return true;

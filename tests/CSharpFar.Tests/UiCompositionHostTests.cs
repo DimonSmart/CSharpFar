@@ -203,6 +203,72 @@ public sealed class UiCompositionHostTests
     }
 
     [Fact]
+    public void ReadInput_ViewportChangedBeforeSemanticKey_DoesNotLoseKey()
+    {
+        var driver = new FakeConsoleDriver(80, 25);
+        var host = new UiCompositionHost(new ScreenRenderer(driver));
+        int renders = 0;
+        host.SetRootSurface(new ScreenRendererSurface(host.Screen, _ => renders++));
+        host.Render();
+        driver.SetSize(100, 35);
+        driver.EnqueueKey(new ConsoleKeyInfo('x', ConsoleKey.X, false, false, false));
+
+        var input = host.ReadInput();
+
+        Assert.Equal(ConsoleKey.X, Assert.IsType<KeyConsoleInputEvent>(input).Key.Key);
+        Assert.Equal(2, renders);
+        Assert.Equal(driver.GetViewport(), host.LastStableViewport);
+    }
+
+    [Fact]
+    public void TryReadInput_ViewportChangedBeforeSemanticKey_DoesNotLoseKey()
+    {
+        var driver = new FakeConsoleDriver(80, 25);
+        var host = new UiCompositionHost(new ScreenRenderer(driver));
+        host.SetRootSurface(new ScreenRendererSurface(host.Screen, _ => { }));
+        host.Render();
+        driver.SetSize(100, 35);
+        driver.EnqueueKey(new ConsoleKeyInfo('x', ConsoleKey.X, false, false, false));
+
+        Assert.True(host.TryReadInput(out var input));
+
+        Assert.Equal(ConsoleKey.X, Assert.IsType<KeyConsoleInputEvent>(input).Key.Key);
+        Assert.Equal(driver.GetViewport(), host.LastStableViewport);
+    }
+
+    [Fact]
+    public void ReadInput_ViewportChangedBeforeMouse_DoesNotLoseMouse()
+    {
+        var driver = new FakeConsoleDriver(80, 25);
+        var host = new UiCompositionHost(new ScreenRenderer(driver));
+        host.SetRootSurface(new ScreenRendererSurface(host.Screen, _ => { }));
+        host.Render();
+        driver.SetSize(100, 35);
+        driver.EnqueueInput(new MouseConsoleInputEvent(2, 3, MouseButton.Left, MouseEventKind.Click, MouseKeyModifiers.None));
+
+        var input = host.ReadInput();
+
+        Assert.IsType<MouseConsoleInputEvent>(input);
+        Assert.Equal(driver.GetViewport(), host.LastStableViewport);
+    }
+
+    [Fact]
+    public void TryReadInput_ViewportChangedBeforeModifier_DoesNotLoseModifier()
+    {
+        var driver = new FakeConsoleDriver(80, 25);
+        var host = new UiCompositionHost(new ScreenRenderer(driver));
+        host.SetRootSurface(new ScreenRendererSurface(host.Screen, _ => { }));
+        host.Render();
+        driver.SetSize(100, 35);
+        driver.EnqueueInput(new ModifierKeyConsoleInputEvent(ConsoleModifiers.Control));
+
+        Assert.True(host.TryReadInput(out var input));
+
+        Assert.IsType<ModifierKeyConsoleInputEvent>(input);
+        Assert.Equal(driver.GetViewport(), host.LastStableViewport);
+    }
+
+    [Fact]
     public void PollingResizeRecovery_DoesNotRenderRepeatedlyWhenStable()
     {
         var driver = new FakeConsoleDriver(80, 25);

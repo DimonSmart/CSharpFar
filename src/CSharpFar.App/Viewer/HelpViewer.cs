@@ -1,6 +1,8 @@
 using CSharpFar.App.Rendering;
 using CSharpFar.Console;
+using CSharpFar.Console.Input;
 using CSharpFar.Console.Models;
+using CSharpFar.Ui;
 
 namespace CSharpFar.App.Viewer;
 
@@ -11,42 +13,43 @@ namespace CSharpFar.App.Viewer;
 /// </summary>
 internal sealed class HelpViewer
 {
-    private readonly ScreenRenderer _screen;
+    private readonly UiCompositionHost _composition;
     private readonly ConsolePalette _palette;
 
     // Column at which description starts for key-binding lines.
     private const int KeyColumnWidth = 20;
 
-    public HelpViewer(ScreenRenderer screen, ConsolePalette? palette = null)
+    public HelpViewer(UiCompositionHost composition, ConsolePalette? palette = null)
     {
-        _screen = screen;
+        _composition = composition;
         _palette = palette ?? PaletteRegistry.Default;
     }
 
     public void Show()
     {
-        var size  = _screen.GetSize();
-        var saved = _screen.Capture(new Rect(0, 0, size.Width, size.Height));
-        try   { RunLoop(); }
-        finally { _screen.Restore(saved); }
-    }
+        var lines = HelpContent.Lines;
+        int scrollTop = 0;
+        int scrollLeft = 0;
+        HelpViewerLayout? layout = null;
 
-    // ── main loop ─────────────────────────────────────────────────────────────
-
-    private void RunLoop()
-    {
-        var    lines      = HelpContent.Lines;
-        int    scrollTop  = 0;
-        int    scrollLeft = 0;
+        using var surface = _composition.OpenSurface(context =>
+        {
+            int contentHeight = Math.Max(0, context.Size.Height - 2);
+            int maxScrollTop = Math.Max(0, lines.Length - contentHeight);
+            scrollTop = Math.Clamp(scrollTop, 0, maxScrollTop);
+            scrollLeft = Math.Max(0, scrollLeft);
+            layout = new HelpViewerLayout(context.Size, contentHeight, maxScrollTop);
+            Draw(context.Screen, lines, scrollTop, scrollLeft, layout);
+        });
 
         while (true)
         {
-            var size     = _screen.GetSize();
-            int contentH = size.Height - 2;
+            surface.Render();
+            var currentLayout = layout ?? throw new InvalidOperationException("Help viewer layout is unavailable.");
+            if (surface.ReadInput() is not KeyConsoleInputEvent keyEvent)
+                continue;
 
-            Draw(lines, scrollTop, scrollLeft, contentH, size);
-
-            var key = _screen.ReadKey();
+            var key = keyEvent.Key;
             switch (key.Key)
             {
                 case ConsoleKey.UpArrow:
@@ -54,7 +57,7 @@ internal sealed class HelpViewer
                     break;
 
                 case ConsoleKey.DownArrow:
-                    scrollTop = Math.Min(Math.Max(0, lines.Length - contentH), scrollTop + 1);
+                    scrollTop = Math.Min(currentLayout.MaxScrollTop, scrollTop + 1);
                     break;
 
                 case ConsoleKey.LeftArrow:
@@ -66,11 +69,11 @@ internal sealed class HelpViewer
                     break;
 
                 case ConsoleKey.PageUp:
-                    scrollTop = Math.Max(0, scrollTop - contentH);
+                    scrollTop = Math.Max(0, scrollTop - currentLayout.ContentHeight);
                     break;
 
                 case ConsoleKey.PageDown:
-                    scrollTop = Math.Min(Math.Max(0, lines.Length - contentH), scrollTop + contentH);
+                    scrollTop = Math.Min(currentLayout.MaxScrollTop, scrollTop + currentLayout.ContentHeight);
                     break;
 
                 case ConsoleKey.Home:
@@ -79,7 +82,7 @@ internal sealed class HelpViewer
                     break;
 
                 case ConsoleKey.End:
-                    scrollTop  = Math.Max(0, lines.Length - contentH);
+                    scrollTop  = currentLayout.MaxScrollTop;
                     scrollLeft = 0;
                     break;
 
@@ -94,46 +97,47 @@ internal sealed class HelpViewer
     // ── rendering ─────────────────────────────────────────────────────────────
 
     private void Draw(
-        HelpLine[] lines, int scrollTop, int scrollLeft,
-        int contentH, ConsoleSize size)
+        ScreenRenderer screen, HelpLine[] lines, int scrollTop, int scrollLeft,
+        HelpViewerLayout layout)
     {
-        _screen.SetCursorVisible(false);
+        var size = layout.Size;
+        screen.SetCursorVisible(false);
 
         // Header
         const string title    = " CSharpFar Help ";
         string       posStr   = lines.Length == 0 ? " 0/0 " : $" {scrollTop + 1}/{lines.Length} ";
         int          nameWidth = Math.Max(0, size.Width - posStr.Length);
         string       header    = title.PadRight(nameWidth)[..nameWidth] + posStr;
-        _screen.Write(0, 0, header, PaletteStyles.PathHeaderActive(_palette));
+        screen.Write(0, 0, header, PaletteStyles.PathHeaderActive(_palette));
 
         // Content
         var bodyStyle = PaletteStyles.HelpBody(_palette);
-        for (int i = 0; i < contentH; i++)
+        for (int i = 0; i < layout.ContentHeight; i++)
         {
             int lineIdx = scrollTop + i;
             int row     = i + 1;
 
             if (lineIdx >= lines.Length)
             {
-                _screen.FillRegion(new Rect(0, row, size.Width, 1), bodyStyle);
+                screen.FillRegion(new Rect(0, row, size.Width, 1), bodyStyle);
                 continue;
             }
 
-            DrawHelpLine(lines[lineIdx], row, scrollLeft, size.Width);
+            DrawHelpLine(screen, lines[lineIdx], row, scrollLeft, size.Width);
         }
 
         // Footer key bar
-        _screen.FillRegion(new Rect(0, size.Height - 1, size.Width, 1), PaletteStyles.KeyBarLabel(_palette));
-        _screen.Write(0, size.Height - 1, "10", PaletteStyles.KeyBarNum(_palette));
-        _screen.Write(2, size.Height - 1, "Close", PaletteStyles.KeyBarLabel(_palette));
+        screen.FillRegion(new Rect(0, size.Height - 1, size.Width, 1), PaletteStyles.KeyBarLabel(_palette));
+        screen.Write(0, size.Height - 1, "10", PaletteStyles.KeyBarNum(_palette));
+        screen.Write(2, size.Height - 1, "Close", PaletteStyles.KeyBarLabel(_palette));
     }
 
-    private void DrawHelpLine(HelpLine line, int row, int scrollLeft, int width)
+    private void DrawHelpLine(ScreenRenderer screen, HelpLine line, int row, int scrollLeft, int width)
     {
         var bodyStyle = PaletteStyles.HelpBody(_palette);
 
         // Fill background first
-        _screen.FillRegion(new Rect(0, row, width, 1), bodyStyle);
+        screen.FillRegion(new Rect(0, row, width, 1), bodyStyle);
 
         switch (line.Kind)
         {
@@ -141,17 +145,17 @@ internal sealed class HelpViewer
                 break;
 
             case HelpLineKind.Title:
-                WriteClipped(0, row, line.Description, scrollLeft, width,
+                WriteClipped(screen, 0, row, line.Description, scrollLeft, width,
                     PaletteStyles.HelpHeading(_palette));
                 break;
 
             case HelpLineKind.Separator:
-                WriteClipped(0, row, line.Description, scrollLeft, width,
+                WriteClipped(screen, 0, row, line.Description, scrollLeft, width,
                     PaletteStyles.HelpSeparator(_palette));
                 break;
 
             case HelpLineKind.Heading:
-                WriteClipped(0, row, line.Description, scrollLeft, width,
+                WriteClipped(screen, 0, row, line.Description, scrollLeft, width,
                     PaletteStyles.HelpHeading(_palette));
                 break;
 
@@ -166,7 +170,7 @@ internal sealed class HelpViewer
 
                 // Write key part (cyan)
                 string keyPadded = keyPart.PadRight(keyDisplayWidth);
-                WriteClipped(0, row, keyPadded, scrollLeft, width,
+                WriteClipped(screen, 0, row, keyPadded, scrollLeft, width,
                     PaletteStyles.HelpKey(_palette));
 
                 // Write description part (white) right after key column
@@ -178,23 +182,25 @@ internal sealed class HelpViewer
                         ? descPart[descScrollLeft..]
                         : string.Empty;
                     if (descVisible.Length > 0)
-                        WriteClipped(descX, row, descVisible, 0, width - descX, bodyStyle);
+                        WriteClipped(screen, descX, row, descVisible, 0, width - descX, bodyStyle);
                 }
                 break;
             }
 
             case HelpLineKind.Plain:
-                WriteClipped(0, row, line.Description, scrollLeft, width, bodyStyle);
+                WriteClipped(screen, 0, row, line.Description, scrollLeft, width, bodyStyle);
                 break;
         }
     }
 
-    private void WriteClipped(int x, int row, string text, int scrollLeft, int maxWidth, CellStyle style)
+    private static void WriteClipped(ScreenRenderer screen, int x, int row, string text, int scrollLeft, int maxWidth, CellStyle style)
     {
         if (maxWidth <= 0 || text.Length == 0) return;
         string visible = scrollLeft < text.Length ? text[scrollLeft..] : string.Empty;
         if (visible.Length == 0) return;
         if (visible.Length > maxWidth) visible = visible[..maxWidth];
-        _screen.Write(x, row, visible, style);
+        screen.Write(x, row, visible, style);
     }
+
+    private sealed record HelpViewerLayout(ConsoleSize Size, int ContentHeight, int MaxScrollTop);
 }

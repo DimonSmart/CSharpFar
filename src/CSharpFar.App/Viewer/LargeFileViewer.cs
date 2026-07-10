@@ -200,7 +200,7 @@ internal sealed class LargeFileViewer
                     break;
 
                 case ConsoleKey.F1:
-                    new HelpViewer(_screen, _palette).Show();
+                    new HelpViewer(_modalDialogs.Composition, _palette).Show();
                     break;
 
                 case ConsoleKey.F2 when shift && !alt && !control:

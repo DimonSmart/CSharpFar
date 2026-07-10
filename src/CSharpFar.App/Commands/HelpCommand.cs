@@ -11,7 +11,7 @@ internal sealed class HelpCommand : IApplicationCommand
 
     public ApplicationCommandResult Execute(ApplicationCommandContext context, object? args = null)
     {
-        new HelpViewer(context.Screen, context.Palette).Show();
+        new HelpViewer(context.Composition, context.Palette).Show();
         return ApplicationCommandResult.Rendered();
     }
 }
