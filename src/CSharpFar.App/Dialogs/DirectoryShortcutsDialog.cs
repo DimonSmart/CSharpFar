@@ -17,6 +17,7 @@ internal sealed class DirectoryShortcutsDialog
     private const int DialogWidth = 68;
     private const int DialogHeight = 16;
 
+    private readonly ModalDialogHost _modalDialogs;
     private readonly ScreenRenderer _screen;
     private readonly ConsolePalette _palette;
     private readonly ModalDialogRenderer _modalRenderer = new();
@@ -26,9 +27,10 @@ internal sealed class DirectoryShortcutsDialog
         new DialogButton("close", "Close", 'C'),
     ]);
 
-    public DirectoryShortcutsDialog(ScreenRenderer screen, ConsolePalette? palette = null)
+    public DirectoryShortcutsDialog(ModalDialogHost modalDialogs, ConsolePalette? palette = null)
     {
-        _screen = screen;
+        _modalDialogs = modalDialogs;
+        _screen = modalDialogs.Screen;
         _palette = palette ?? PaletteRegistry.Default;
     }
 
@@ -38,74 +40,72 @@ internal sealed class DirectoryShortcutsDialog
     {
         var items = currentItems.ToDictionary(item => item.Number);
         var initialItems = CloneItems(items);
-        var size = _screen.GetSize();
-        var saved = _screen.Capture(new Rect(0, 0, size.Width, size.Height));
         int cursor = 0;
         int focusedButton = 0;
+        ModalDialogRenderer.Layout layout = default;
 
-        try
+        using var modal = _modalDialogs.Open(context =>
         {
-            while (true)
+            layout = Draw(context.Size, items, cursor, focusedButton);
+        });
+        modal.Render();
+        while (true)
+        {
+            var input = modal.ReadInput();
+            if (input is MouseConsoleInputEvent mouse &&
+                TrySelectRow(mouse, layout.ContentBounds, ref cursor))
             {
-                var layout = Draw(items, cursor, focusedButton);
-                var input = _screen.ReadInput();
-                if (input is MouseConsoleInputEvent mouse &&
-                    TrySelectRow(mouse, layout.ContentBounds, ref cursor))
-                {
-                    if (mouse.Kind == MouseEventKind.DoubleClick)
-                        EditSelected(items, cursor, activePanelPath);
-                    continue;
-                }
-
-                if (_buttonBar.TryHandleInput(input, ref focusedButton, out string? buttonId))
-                {
-                    if (buttonId == "close")
-                        return Result(initialItems, items);
-                    if (buttonId == "edit")
-                        EditSelected(items, cursor, activePanelPath);
-                    continue;
-                }
-
-                if (input is not KeyConsoleInputEvent { Key: var key })
-                    continue;
-
-                switch (key.Key)
-                {
-                    case ConsoleKey.UpArrow:
-                        cursor = Math.Max(0, cursor - 1);
-                        break;
-                    case ConsoleKey.DownArrow:
-                        cursor = Math.Min(DirectoryShortcutNormalizer.DisplayOrder.Count - 1, cursor + 1);
-                        break;
-                    case ConsoleKey.Home:
-                        cursor = 0;
-                        break;
-                    case ConsoleKey.End:
-                        cursor = DirectoryShortcutNormalizer.DisplayOrder.Count - 1;
-                        break;
-                    case ConsoleKey.Enter:
-                        EditSelected(items, cursor, activePanelPath);
-                        break;
-                    case ConsoleKey.Escape:
-                    case ConsoleKey.F10:
-                        return Result(initialItems, items);
-                }
+                if (mouse.Kind == MouseEventKind.DoubleClick)
+                    EditSelected(items, cursor, activePanelPath);
+                modal.Render();
+                continue;
             }
-        }
-        finally
-        {
-            _screen.Restore(saved);
-            _screen.SetCursorVisible(false);
+
+            if (_buttonBar.TryHandleInput(input, ref focusedButton, out string? buttonId))
+            {
+                if (buttonId == "close")
+                    return Result(initialItems, items);
+                if (buttonId == "edit")
+                    EditSelected(items, cursor, activePanelPath);
+                modal.Render();
+                continue;
+            }
+
+            if (input is not KeyConsoleInputEvent { Key: var key })
+                continue;
+
+            switch (key.Key)
+            {
+                case ConsoleKey.UpArrow:
+                    cursor = Math.Max(0, cursor - 1);
+                    break;
+                case ConsoleKey.DownArrow:
+                    cursor = Math.Min(DirectoryShortcutNormalizer.DisplayOrder.Count - 1, cursor + 1);
+                    break;
+                case ConsoleKey.Home:
+                    cursor = 0;
+                    break;
+                case ConsoleKey.End:
+                    cursor = DirectoryShortcutNormalizer.DisplayOrder.Count - 1;
+                    break;
+                case ConsoleKey.Enter:
+                    EditSelected(items, cursor, activePanelPath);
+                    break;
+                case ConsoleKey.Escape:
+                case ConsoleKey.F10:
+                    return Result(initialItems, items);
+            }
+            modal.Render();
         }
     }
 
     private ModalDialogRenderer.Layout Draw(
+        ConsoleSize size,
         IReadOnlyDictionary<int, AppSettings.DirectoryShortcutItem> items,
         int cursor,
         int focusedButton)
     {
-        using var frame = _screen.BeginFrame();
-        Rect outerBounds = _modalRenderer.CenteredOuterBounds(_screen, DialogWidth, DialogHeight);
+        Rect outerBounds = _modalRenderer.CenteredOuterBounds(size, DialogWidth, DialogHeight);
         ModalDialogRenderer.Layout layout = default;
         _modalRenderer.Render(
             _screen,
@@ -150,7 +150,7 @@ internal sealed class DirectoryShortcutsDialog
     {
         int number = DirectoryShortcutNormalizer.DisplayOrder[cursor];
         items.TryGetValue(number, out var currentItem);
-        var result = new DirectoryShortcutEditDialog(_screen, _palette)
+        var result = new DirectoryShortcutEditDialog(_modalDialogs, _palette)
             .Show(number, currentItem, activePanelPath);
         if (!result.Accepted)
             return;

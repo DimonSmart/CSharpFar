@@ -61,7 +61,7 @@ public sealed class Spec012SearchDialogTests
         driver.EnqueueInput(new MouseConsoleInputEvent(16, 12, MouseButton.Left, MouseEventKind.Down, MouseKeyModifiers.None));
         driver.EnqueueKey(Key(ConsoleKey.F10));
 
-        var result = new SearchDialog(screen).Show(@"C:\Work");
+        var result = new SearchDialog(ModalTestHost.Create(screen)).Show(@"C:\Work");
 
         Assert.NotNull(result);
         Assert.True(result.CaseSensitive);
@@ -81,7 +81,7 @@ public sealed class Spec012SearchDialogTests
             currentDriver.EnqueueKey(Key(ConsoleKey.F10));
         };
 
-        var result = new SearchDialog(screen).Show(@"C:\Work");
+        var result = new SearchDialog(ModalTestHost.Create(screen)).Show(@"C:\Work");
 
         Assert.NotNull(result);
         Assert.Equal(SearchScope.CurrentDirectoryOnly, result.Scope);
@@ -100,7 +100,7 @@ public sealed class Spec012SearchDialogTests
             currentDriver.EnqueueKey(Key(ConsoleKey.Escape));
         };
 
-        _ = new SearchDialog(screen).Show(@"C:\Work");
+        _ = new SearchDialog(ModalTestHost.Create(screen)).Show(@"C:\Work");
     }
 
     [Fact]
@@ -113,7 +113,7 @@ public sealed class Spec012SearchDialogTests
         driver.EnqueueKey(CharKey('c'));
         driver.EnqueueKey(Key(ConsoleKey.F10));
 
-        var result = new SearchDialog(screen).Show(@"C:\Work");
+        var result = new SearchDialog(ModalTestHost.Create(screen)).Show(@"C:\Work");
 
         Assert.NotNull(result);
         Assert.Equal("abc", result.FileMaskExpression);
@@ -130,7 +130,7 @@ public sealed class Spec012SearchDialogTests
         driver.EnqueueKey(CharKey('c'));
         driver.EnqueueKey(Key(ConsoleKey.F10));
 
-        var result = new SearchDialog(screen).Show(@"C:\Work");
+        var result = new SearchDialog(ModalTestHost.Create(screen)).Show(@"C:\Work");
 
         Assert.NotNull(result);
         Assert.Equal("*.*abc", result.FileMaskExpression);

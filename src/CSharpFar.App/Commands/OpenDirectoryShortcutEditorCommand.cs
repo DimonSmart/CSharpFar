@@ -17,7 +17,7 @@ internal sealed class OpenDirectoryShortcutEditorCommand : IApplicationCommand
             return ApplicationCommandResult.Rendered();
 
         var normalized = DirectoryShortcutNormalizer.Normalize(context.Settings.DirectoryShortcuts);
-        var result = new DirectoryShortcutsDialog(context.Screen, context.Palette)
+        var result = new DirectoryShortcutsDialog(context.ModalDialogs, context.Palette)
             .Show(normalized, context.ActiveState.CurrentDirectory);
         if (!result.Changed)
             return ApplicationCommandResult.Rendered();

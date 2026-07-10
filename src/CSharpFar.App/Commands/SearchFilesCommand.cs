@@ -23,7 +23,7 @@ internal sealed class SearchFilesCommand : IApplicationCommand
 
         try
         {
-            var request = new SearchDialog(context.Screen).Show(context.ActiveState.CurrentDirectory);
+            var request = new SearchDialog(context.ModalDialogs).Show(context.ActiveState.CurrentDirectory);
             if (request is null)
                 return ApplicationCommandResult.Rendered();
 

@@ -18,6 +18,7 @@ internal sealed class DirectoryShortcutEditDialog
     private const int DialogHeight = 10;
     private const int LabelWidth = 8;
 
+    private readonly ModalDialogHost _modalDialogs;
     private readonly ScreenRenderer _screen;
     private readonly ConsolePalette _palette;
     private readonly ModalDialogRenderer _modalRenderer = new();
@@ -27,9 +28,10 @@ internal sealed class DirectoryShortcutEditDialog
         new DialogButton("cancel", "Cancel", 'C'),
     ]);
 
-    public DirectoryShortcutEditDialog(ScreenRenderer screen, ConsolePalette? palette = null)
+    public DirectoryShortcutEditDialog(ModalDialogHost modalDialogs, ConsolePalette? palette = null)
     {
-        _screen = screen;
+        _modalDialogs = modalDialogs;
+        _screen = modalDialogs.Screen;
         _palette = palette ?? PaletteRegistry.Default;
     }
 
@@ -40,83 +42,77 @@ internal sealed class DirectoryShortcutEditDialog
     {
         var name = Buffer(currentItem?.Name ?? DirectoryShortcutNormalizer.GetDefaultNameFromPath(activePanelPath));
         var path = Buffer(currentItem?.Path ?? activePanelPath);
-        var size = _screen.GetSize();
-        var saved = _screen.Capture(new Rect(0, 0, size.Width, size.Height));
         int focusRow = 0;
         int focusedButton = 0;
         string? error = null;
 
-        try
+        ModalDialogRenderer.Layout layout = default;
+        using var modal = _modalDialogs.Open(context =>
         {
-            while (true)
+            layout = Draw(context.Size, number, name, path, focusRow, focusedButton);
+        });
+        modal.Render();
+        while (true)
+        {
+            var input = modal.ReadInput();
+            if (input is MouseConsoleInputEvent mouse &&
+                TryFocusField(mouse, layout.ContentBounds, ref focusRow))
             {
-                var layout = Draw(number, name, path, focusRow, focusedButton);
-                var input = _screen.ReadInput();
-                if (input is MouseConsoleInputEvent mouse &&
-                    TryFocusField(mouse, layout.ContentBounds, ref focusRow))
-                {
-                    continue;
-                }
+                modal.Render();
+                continue;
+            }
 
-                if (_buttonBar.TryHandleInput(input, ref focusedButton, out string? buttonId) &&
-                    (focusRow == 2 || input is MouseConsoleInputEvent))
-                {
-                    focusRow = 2;
-                    if (buttonId == "cancel")
-                        return new DirectoryShortcutEditResult(false, currentItem);
-                    if (buttonId == "ok")
-                        return Accepted(number, name.Text, path.Text);
-                    continue;
-                }
-
-                if (input is not KeyConsoleInputEvent { Key: var key })
-                    continue;
-
-                if (key.Key == ConsoleKey.Escape)
+            if (_buttonBar.TryHandleInput(input, ref focusedButton, out string? buttonId) &&
+                (focusRow == 2 || input is MouseConsoleInputEvent))
+            {
+                focusRow = 2;
+                if (buttonId == "cancel")
                     return new DirectoryShortcutEditResult(false, currentItem);
+                if (buttonId == "ok")
+                    return Accepted(number, name.Text, path.Text);
+                modal.Render();
+                continue;
+            }
 
-                if (key.Key is ConsoleKey.Tab or ConsoleKey.DownArrow)
-                {
-                    focusRow = Math.Min(2, focusRow + 1);
-                    continue;
-                }
+            if (input is not KeyConsoleInputEvent { Key: var key })
+                continue;
 
-                if (key.Key == ConsoleKey.UpArrow)
-                {
-                    focusRow = Math.Max(0, focusRow - 1);
-                    continue;
-                }
+            if (key.Key == ConsoleKey.Escape)
+                return new DirectoryShortcutEditResult(false, currentItem);
 
-                if (key.Key == ConsoleKey.Enter)
-                {
-                    if (focusRow < 2)
-                        focusRow++;
-                    else
-                        return Accepted(number, name.Text, path.Text);
-                    continue;
-                }
+            if (key.Key is ConsoleKey.Tab or ConsoleKey.DownArrow)
+                focusRow = Math.Min(2, focusRow + 1);
 
+            else if (key.Key == ConsoleKey.UpArrow)
+                focusRow = Math.Max(0, focusRow - 1);
+
+            else if (key.Key == ConsoleKey.Enter)
+            {
+                if (focusRow < 2)
+                    focusRow++;
+                else
+                    return Accepted(number, name.Text, path.Text);
+            }
+
+            else
+            {
                 var buffer = focusRow == 0 ? name : focusRow == 1 ? path : null;
                 if (buffer is not null)
                     SingleLineTextInput.HandleKey(buffer, key, ref error);
             }
-        }
-        finally
-        {
-            _screen.Restore(saved);
-            _screen.SetCursorVisible(false);
+            modal.Render();
         }
     }
 
     private ModalDialogRenderer.Layout Draw(
+        ConsoleSize size,
         int number,
         CommandLineState name,
         CommandLineState path,
         int focusRow,
         int focusedButton)
     {
-        using var frame = _screen.BeginFrame();
-        Rect outerBounds = _modalRenderer.CenteredOuterBounds(_screen, DialogWidth, DialogHeight);
+        Rect outerBounds = _modalRenderer.CenteredOuterBounds(size, DialogWidth, DialogHeight);
         ModalDialogRenderer.Layout layout = default;
         _modalRenderer.Render(
             _screen,

@@ -13,29 +13,19 @@ internal sealed class SearchDialog
     private const int DialogHeight = 19;
 
     private static readonly SingleLineTextHistoryRegistry HistoryRegistry = new();
+    private readonly ModalDialogHost _modalDialogs;
     private readonly ScreenRenderer _screen;
     private readonly ModalDialogRenderer _modalRenderer = new();
 
-    public SearchDialog(ScreenRenderer screen)
+    public SearchDialog(ModalDialogHost modalDialogs)
     {
-        _screen = screen;
+        _modalDialogs = modalDialogs;
+        _screen = modalDialogs.Screen;
     }
 
     public SearchRequest? Show(string rootPath)
     {
-        var size = _screen.GetSize();
-        var saved = _screen.Capture(new Rect(0, 0, size.Width, size.Height));
-        _screen.SetCursorVisible(false);
-
-        try
-        {
-            return RunLoop(size, rootPath);
-        }
-        finally
-        {
-            _screen.Restore(saved);
-            _screen.SetCursorVisible(false);
-        }
+        return RunLoop(rootPath);
     }
 
     internal static SearchRequest? TryCreateRequest(
@@ -82,7 +72,7 @@ internal sealed class SearchDialog
     internal static int DefaultParallelism() =>
         Math.Clamp(Math.Min(Environment.ProcessorCount, 4), 1, 16);
 
-    private SearchRequest? RunLoop(ConsoleSize size, string rootPath)
+    private SearchRequest? RunLoop(string rootPath)
     {
         var mask = new CommandLineState();
         mask.SetText("*.*");
@@ -118,7 +108,7 @@ internal sealed class SearchDialog
         var form = new ScrollableFormDialog();
         string? error = null;
 
-        while (true)
+        using var modal = _modalDialogs.Open(context =>
         {
             bool hasText = text.Text.Length > 0;
             form.SetRows(BuildRows(
@@ -139,9 +129,13 @@ internal sealed class SearchDialog
                 scopeRow,
                 buttons,
                 hasText));
-            Draw(size, form, error);
+            Draw(context.Size, form, error);
+        });
+        modal.Render();
 
-            var input = _screen.ReadInput();
+        while (true)
+        {
+            var input = modal.ReadInput();
             FormInputResult result = input switch
             {
                 KeyConsoleInputEvent { Key: var key } => HandleSearchKey(form, key),
@@ -275,7 +269,6 @@ internal sealed class SearchDialog
 
     private void Draw(ConsoleSize size, ScrollableFormDialog form, string? error)
     {
-        using var frame = _screen.BeginFrame();
         Rect outerBounds = OuterBounds(size);
 
         _modalRenderer.Render(_screen, outerBounds, "Find file", true, FarDialogStyles.OuterOptions, FarDialogStyles.FrameOptions, (_, layout) =>

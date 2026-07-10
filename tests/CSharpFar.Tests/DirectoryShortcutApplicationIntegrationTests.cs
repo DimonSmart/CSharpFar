@@ -82,7 +82,8 @@ public sealed class DirectoryShortcutApplicationIntegrationTests : IDisposable
         driver.EnqueueKey(Key(ConsoleKey.Enter));
         driver.EnqueueKey(Key(ConsoleKey.Enter));
 
-        var result = new DirectoryShortcutEditDialog(new ScreenRenderer(driver))
+        var screen = new ScreenRenderer(driver);
+        var result = new DirectoryShortcutEditDialog(ModalTestHost.Create(screen))
             .Show(1, currentItem: null, _target);
 
         Assert.True(result.Accepted);
@@ -106,7 +107,8 @@ public sealed class DirectoryShortcutApplicationIntegrationTests : IDisposable
             Path = _target,
         };
 
-        var result = new DirectoryShortcutEditDialog(new ScreenRenderer(driver))
+        var screen = new ScreenRenderer(driver);
+        var result = new DirectoryShortcutEditDialog(ModalTestHost.Create(screen))
             .Show(1, currentItem, _root);
 
         Assert.False(result.Accepted);
@@ -124,7 +126,8 @@ public sealed class DirectoryShortcutApplicationIntegrationTests : IDisposable
             MouseEventKind.Click,
             MouseKeyModifiers.None));
 
-        var result = new DirectoryShortcutEditDialog(new ScreenRenderer(driver))
+        var screen = new ScreenRenderer(driver);
+        var result = new DirectoryShortcutEditDialog(ModalTestHost.Create(screen))
             .Show(1, currentItem: null, _target);
 
         Assert.True(result.Accepted);

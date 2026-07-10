@@ -327,7 +327,8 @@ public sealed class UnifiedWindowScrollbarTests
     {
         var searchDriver = new FakeConsoleDriver(width: 80, height: 11);
         searchDriver.EnqueueKey(Key(ConsoleKey.F10));
-        var searchResult = new SearchDialog(new ScreenRenderer(searchDriver)).Show(@"C:\root");
+        var searchScreen = new ScreenRenderer(searchDriver);
+        var searchResult = new SearchDialog(ModalTestHost.Create(searchScreen)).Show(@"C:\root");
 
         var operationDriver = new FakeConsoleDriver(width: 80, height: 11);
         operationDriver.EnqueueKey(Key(ConsoleKey.F10));
