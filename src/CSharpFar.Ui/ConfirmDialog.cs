@@ -11,6 +11,7 @@ public sealed class ConfirmDialog
     private const int DialogHeight = 7;
 
     private readonly ScreenRenderer _screen;
+    private readonly ModalDialogHost? _modalDialogs;
     private readonly ModalDialogRenderer _modalRenderer = new();
     private readonly DialogButtonBar _buttonBar = new(
     [
@@ -23,11 +24,20 @@ public sealed class ConfirmDialog
         _screen = screen;
     }
 
+    public ConfirmDialog(ModalDialogHost modalDialogs)
+    {
+        _modalDialogs = modalDialogs;
+        _screen = modalDialogs.Screen;
+    }
+
     /// <summary>
     /// Draws the dialog and waits for input. Returns true if confirmed.
     /// </summary>
     public bool Show(string title, string question, string itemName)
     {
+        if (_modalDialogs is not null)
+            return ShowComposed(title, question, itemName);
+
         var size  = _screen.GetSize();
         var saved = _screen.Capture(new Rect(0, 0, size.Width, size.Height));
         _screen.SetCursorVisible(false);
@@ -40,6 +50,31 @@ public sealed class ConfirmDialog
         {
             _screen.Restore(saved);
             _screen.SetCursorVisible(false);
+        }
+    }
+
+    private bool ShowComposed(string title, string question, string itemName)
+    {
+        int focusedButton = 0;
+        using var session = _modalDialogs!.Open(context =>
+            RenderLayer(context.Screen, title, question, itemName, context.Size, focusedButton));
+
+        while (true)
+        {
+            session.Render();
+            var input = session.ReadInput();
+            if (_buttonBar.TryHandleInput(input, ref focusedButton, out string? buttonId))
+            {
+                if (buttonId == "cancel") return false;
+                if (buttonId == "ok") return true;
+                continue;
+            }
+
+            if (input is KeyConsoleInputEvent { Key: var key })
+            {
+                if (key.Key == ConsoleKey.Escape) return false;
+                if (key.Key == ConsoleKey.Enter) return focusedButton == 0;
+            }
         }
     }
 
@@ -79,26 +114,31 @@ public sealed class ConfirmDialog
     private void Draw(string title, string question, string itemName, ConsoleSize size, int focusedButton)
     {
         using var frame = _screen.BeginFrame();
+        RenderLayer(_screen, title, question, itemName, size, focusedButton);
+    }
+
+    private void RenderLayer(ScreenRenderer screen, string title, string question, string itemName, ConsoleSize size, int focusedButton)
+    {
 
         int dlgX = Math.Max(0, (size.Width  - DialogWidth)  / 2);
         int dlgY = Math.Max(0, (size.Height - DialogHeight) / 2);
         var outerBounds = new Rect(dlgX, dlgY, DialogWidth, DialogHeight);
 
-        _modalRenderer.Render(_screen, outerBounds, title, true, FarDialogStyles.OuterOptions, FarDialogStyles.FrameOptions, (_, layout) =>
+        _modalRenderer.Render(screen, outerBounds, title, true, FarDialogStyles.OuterOptions, FarDialogStyles.FrameOptions, (_, layout) =>
         {
             Rect bounds = layout.FrameBounds;
             int contentX = bounds.X + 2;
             int contentWidth = Math.Max(1, bounds.Width - 4);
 
-            _screen.Write(contentX, bounds.Y + 1, Truncate(question, contentWidth).PadRight(contentWidth), FarDialogStyles.Fill);
+            screen.Write(contentX, bounds.Y + 1, Truncate(question, contentWidth).PadRight(contentWidth), FarDialogStyles.Fill);
 
             string truncatedName = Truncate(itemName, contentWidth);
             int nameX = contentX + Math.Max(0, (contentWidth - truncatedName.Length) / 2);
-            _screen.Write(contentX, bounds.Y + 2, new string(' ', contentWidth), FarDialogStyles.Fill);
-            _screen.Write(nameX, bounds.Y + 2, truncatedName, FarDialogStyles.Fill);
+            screen.Write(contentX, bounds.Y + 2, new string(' ', contentWidth), FarDialogStyles.Fill);
+            screen.Write(nameX, bounds.Y + 2, truncatedName, FarDialogStyles.Fill);
 
             _buttonBar.Render(
-                _screen,
+                screen,
                 contentX,
                 bounds.Y + bounds.Height - 2,
                 contentWidth,

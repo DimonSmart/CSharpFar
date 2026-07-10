@@ -3,6 +3,7 @@ using CSharpFar.App.Rendering;
 using CSharpFar.App.State;
 using CSharpFar.Console;
 using CSharpFar.Core.Models;
+using CSharpFar.Ui;
 
 namespace CSharpFar.App.Panels;
 
@@ -15,7 +16,7 @@ internal sealed class PanelVisibilityController
     private readonly CommandCompletionController _commandCompletionController;
     private readonly CommandHistoryNavigator _commandHistoryNavigator;
     private readonly TerminalSurfaceController _terminalSurface;
-    private readonly ApplicationRenderCoordinator _renderCoordinator;
+    private readonly UiCompositionHost _composition;
 
     public PanelVisibilityController(
         ScreenRenderer screen,
@@ -25,7 +26,7 @@ internal sealed class PanelVisibilityController
         CommandCompletionController commandCompletionController,
         CommandHistoryNavigator commandHistoryNavigator,
         TerminalSurfaceController terminalSurface,
-        ApplicationRenderCoordinator renderCoordinator)
+        UiCompositionHost composition)
     {
         _screen = screen;
         _session = session;
@@ -34,7 +35,7 @@ internal sealed class PanelVisibilityController
         _commandCompletionController = commandCompletionController;
         _commandHistoryNavigator = commandHistoryNavigator;
         _terminalSurface = terminalSurface;
-        _renderCoordinator = renderCoordinator;
+        _composition = composition;
     }
 
     public bool TogglePanels()
@@ -52,7 +53,7 @@ internal sealed class PanelVisibilityController
         _session.App.HiddenPanels = HiddenPanels.Both;
         _terminalSurface.EnterHiddenMainScreenAtBottom();
         _screen.SetCursorVisible(true);
-        _renderCoordinator.RenderCommandLineOnlyUntilStable();
+        _composition.Render();
         return false;
     }
 
@@ -79,7 +80,7 @@ internal sealed class PanelVisibilityController
         {
             _terminalSurface.EnterHiddenMainScreenAtBottom();
             _screen.SetCursorVisible(true);
-            _renderCoordinator.RenderCommandLineOnlyUntilStable();
+            _composition.Render();
             return false;
         }
 

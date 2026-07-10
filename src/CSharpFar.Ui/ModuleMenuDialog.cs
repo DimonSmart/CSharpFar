@@ -4,11 +4,11 @@ namespace CSharpFar.Ui;
 
 public sealed class ModuleMenuDialog
 {
-    private readonly ScreenRenderer _screen;
+    private readonly ModalDialogHost _modalDialogs;
 
-    public ModuleMenuDialog(ScreenRenderer screen)
+    public ModuleMenuDialog(ModalDialogHost modalDialogs)
     {
-        _screen = screen;
+        _modalDialogs = modalDialogs;
     }
 
     public int? Show(string title, IReadOnlyList<string> items, int selected)
@@ -21,7 +21,7 @@ public sealed class ModuleMenuDialog
             SelectedIndex = Math.Clamp(selected, 0, items.Count - 1),
             MaxVisibleRows = 10,
         };
-        var result = dialog.Show(_screen);
+        var result = dialog.Show(_modalDialogs);
         return result.IsConfirmed ? result.SelectedIndex : null;
     }
 }

@@ -19,6 +19,7 @@ using CSharpFar.Core.History;
 using CSharpFar.Core.Services;
 using CSharpFar.Module.Ftp;
 using CSharpFar.Module.Sftp;
+using CSharpFar.Ui;
 using AppSettingsAlias = CSharpFar.Core.Models.AppSettings;
 
 namespace CSharpFar.App.Bootstrap;
@@ -53,6 +54,8 @@ internal sealed class ApplicationServices
     public required ApplicationCommandRegistry CommandRegistry { get; init; }
     public required ApplicationRenderContext RenderContext { get; init; }
     public required ApplicationRenderCoordinator RenderCoordinator { get; init; }
+    public required UiCompositionHost Composition { get; init; }
+    public required ModalDialogHost ModalDialogs { get; init; }
     public required TerminalSurfaceController TerminalSurface { get; init; }
     public required ApplicationRuntime Runtime { get; init; }
     public required KeyboardInputContext KeyboardInputContext { get; init; }

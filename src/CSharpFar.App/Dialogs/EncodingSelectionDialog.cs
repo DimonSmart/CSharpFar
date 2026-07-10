@@ -17,7 +17,7 @@ internal sealed class EncodingSelectionDialog
         IReadOnlyList<TextEncodingCatalogItem> items,
         TextEncodingSelection currentSelection,
         Action<TextEncodingCatalogItem>? previewSelection = null,
-        Action? renderUnderlay = null)
+        Action? previewRedraw = null)
     {
         if (items.Count == 0)
             return null;
@@ -28,10 +28,10 @@ internal sealed class EncodingSelectionDialog
             MaxWidth = 44,
             MaxVisibleRows = items.Count,
             SelectedIndex = FindInitialCursor(items, currentSelection),
-            RenderUnderlay = renderUnderlay,
             SelectionChanged = (item, _) =>
             {
                 previewSelection?.Invoke(item);
+                previewRedraw?.Invoke();
             },
         };
 

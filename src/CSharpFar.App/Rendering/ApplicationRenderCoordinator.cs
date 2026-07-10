@@ -1,4 +1,5 @@
 using CSharpFar.Console.Models;
+using CSharpFar.Ui;
 using CSharpFar.Core.Menu;
 using CSharpFar.Core.Models;
 
@@ -29,73 +30,12 @@ internal sealed class ApplicationRenderCoordinator
         _commandLineRenderer = commandLineRenderer;
     }
 
-    public void RenderUntilStable()
-    {
-        while (_context.App.Running)
-        {
-            Render();
-            if (!_context.Screen.FrameWasInterrupted)
-            {
-                _context.Screen.DrainResizeEvents();
-                break;
-            }
-        }
-    }
-
-    public void RenderCommandLineOnlyUntilStable(bool restoreHiddenScreenBeforeEachAttempt = false)
-    {
-        int attempt = 0;
-        while (_context.App.Running)
-        {
-            attempt++;
-            HiddenResizeTrace.Write(
-                $"RenderCommandLineOnlyUntilStable attempt={attempt} resize={restoreHiddenScreenBeforeEachAttempt} before={HiddenResizeTrace.Viewport(_context.Screen.GetViewport())}");
-
-            if (restoreHiddenScreenBeforeEachAttempt)
-            {
-                if (_context.TerminalSurface.UsesTerminalScreenMode)
-                    _context.TerminalSurface.PrepareHiddenResize();
-                else
-                    _context.TerminalSurface.RestoreHiddenScreen();
-            }
-
-            RenderCommandLineOnly();
-            HiddenResizeTrace.Write(
-                $"RenderCommandLineOnlyUntilStable attempt={attempt} interrupted={_context.Screen.FrameWasInterrupted} after={HiddenResizeTrace.Viewport(_context.Screen.GetViewport())}");
-
-            if (!_context.Screen.FrameWasInterrupted)
-            {
-                _context.Screen.DrainResizeEvents();
-                HiddenResizeTrace.Write(
-                    $"RenderCommandLineOnlyUntilStable stable afterDrain={HiddenResizeTrace.Viewport(_context.Screen.GetViewport())}");
-                if (_context.Ui.LastRenderViewport is { } last &&
-                    _context.Screen.GetViewport() != last)
-                {
-                    HiddenResizeTrace.Write(
-                        $"RenderCommandLineOnlyUntilStable viewportChangedAfterDrain last={HiddenResizeTrace.Viewport(last)} current={HiddenResizeTrace.Viewport(_context.Screen.GetViewport())}");
-                    restoreHiddenScreenBeforeEachAttempt = true;
-                    continue;
-                }
-
-                break;
-            }
-        }
-    }
-
-    public void Render()
+    public void RenderMainContent(UiRenderContext context)
     {
         UpdateQuickViewDirSize();
-        _context.TerminalSurface.ApplyMode();
-        if (!_context.TerminalSurface.UsesTerminalScreenMode && _context.HasHiddenPanels())
-            _context.TerminalSurface.RestoreHiddenScreen();
-
-        _context.Screen.SetRenderingOutputMode(true);
-        using var frame = _context.Screen.BeginFrame();
         _context.Screen.SetCursorVisible(false);
-
-        var viewport = _context.Screen.FrameViewport;
-        var size = viewport.Size;
-        _context.Ui.LastRenderViewport = viewport;
+        var size = context.Size;
+        _context.Ui.LastRenderViewport = context.Viewport;
         var panelBounds = _panelWorkspaceRenderer.Render(
             size,
             _context.LeftPanel(),
@@ -154,46 +94,14 @@ internal sealed class ApplicationRenderCoordinator
             _context.Screen.SetCursorVisible(false);
     }
 
-    public void RenderCommandLineOnly()
+    public void RenderHiddenCommandLineContent(UiRenderContext context)
     {
-        _context.TerminalSurface.ApplyMode();
-        _context.Screen.SetRenderingOutputMode(true);
-
-        var viewport = _context.Screen.GetViewport();
-        var size = viewport.Size;
+        var viewport = context.Viewport;
+        var size = context.Size;
         int row = ApplicationLayoutService.CommandLineRow(size);
-        HiddenResizeTrace.Write(
-            $"RenderCommandLineOnly prepareOverlay viewport={HiddenResizeTrace.Viewport(viewport)} row={row}");
-        _context.TerminalSurface.PrepareHiddenCommandLineOverlay(viewport, row, size.Width);
-
-        using (var frame = _context.TerminalSurface.UsesTerminalScreenMode
-            ? _context.Screen.BeginFrameFromCurrentViewportCapture()
-            : _context.Screen.BeginFrame())
-        {
-            viewport = _context.Screen.FrameViewport;
-            size = viewport.Size;
-            _context.Ui.LastRenderViewport = viewport;
-            HiddenResizeTrace.Write(
-                $"RenderCommandLineOnly frame viewport={HiddenResizeTrace.Viewport(viewport)}");
-
-            row = ApplicationLayoutService.CommandLineRow(size);
-            _commandLineRenderer.Render(
-                row,
-                size,
-                _context.ActiveState().CurrentDirectory,
-                _context.CommandLine);
-            _commandLineRenderer.PositionCursor(
-                row,
-                size,
-                _context.ActiveState().CurrentDirectory,
-                _context.CommandLine);
-        }
-
-        HiddenResizeTrace.Write(
-            $"RenderCommandLineOnly frameDone interrupted={_context.Screen.FrameWasInterrupted} viewport={HiddenResizeTrace.Viewport(_context.Screen.GetViewport())}");
-
-        if (!_context.Screen.FrameWasInterrupted)
-            _context.TerminalSurface.MarkHiddenCommandLineRenderCompleted();
+        _context.Ui.LastRenderViewport = viewport;
+        _commandLineRenderer.Render(row, size, _context.ActiveState().CurrentDirectory, _context.CommandLine);
+        _commandLineRenderer.PositionCursor(row, size, _context.ActiveState().CurrentDirectory, _context.CommandLine);
     }
 
     private void UpdateQuickViewDirSize()

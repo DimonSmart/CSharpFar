@@ -10,6 +10,7 @@ using CSharpFar.Console;
 using CSharpFar.Console.Models;
 using CSharpFar.Core.Controllers;
 using CSharpFar.Core.Highlighting;
+using CSharpFar.Ui;
 using AppSettingsAlias = CSharpFar.Core.Models.AppSettings;
 
 namespace CSharpFar.App.Bootstrap;
@@ -87,13 +88,18 @@ internal static class RenderingServicesFactory
             functionKeyBarRenderer,
             overlayRenderer,
             commandLineRenderer);
+        var composition = new UiCompositionHost(screen);
+        composition.SetRootSurface(new ApplicationUiSurface(renderContext, renderCoordinator));
+        var modalDialogs = new ModalDialogHost(composition);
 
         return new RenderingServices(
             commandLineRenderer,
             terminalSurface,
             quickViewDirectorySize,
             renderContext,
-            renderCoordinator);
+            renderCoordinator,
+            composition,
+            modalDialogs);
     }
 }
 
@@ -102,4 +108,6 @@ internal sealed record RenderingServices(
     TerminalSurfaceController TerminalSurface,
     QuickViewDirectorySizeController QuickViewDirectorySize,
     ApplicationRenderContext RenderContext,
-    ApplicationRenderCoordinator RenderCoordinator);
+    ApplicationRenderCoordinator RenderCoordinator,
+    UiCompositionHost Composition,
+    ModalDialogHost ModalDialogs);

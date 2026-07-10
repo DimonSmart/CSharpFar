@@ -28,6 +28,7 @@ using CSharpFar.Core.Services;
 using CSharpFar.Module.Abstractions;
 using CSharpFar.Module.Ftp;
 using CSharpFar.Module.Sftp;
+using CSharpFar.Ui;
 using AppSettingsAlias = CSharpFar.Core.Models.AppSettings;
 
 namespace CSharpFar.App;
@@ -44,6 +45,7 @@ public sealed class Application
     private readonly PanelAutoRefreshService _autoRefresh;
     private readonly ApplicationRenderContext _renderContext;
     private readonly ApplicationRenderCoordinator _renderCoordinator;
+    private readonly UiCompositionHost _composition;
     private readonly KeyboardInputContext _keyboardInputContext;
     private readonly KeyboardInputRouter _keyboardInputRouter;
     private readonly MouseInputRouter _mouseInputRouter;
@@ -171,6 +173,7 @@ public sealed class Application
         _autoRefresh = services.AutoRefresh;
         _renderContext = services.RenderContext;
         _renderCoordinator = services.RenderCoordinator;
+        _composition = services.Composition;
         _panelSort = services.PanelSort;
         _panelNavigation = services.PanelNavigation;
         _searchResults = services.SearchResults;
@@ -260,8 +263,8 @@ public sealed class Application
         callbacks.IsRunning = () => _state.Running;
         callbacks.CaptureUnderlay = _terminalSurface.CaptureUnderlay;
         callbacks.StartWatchingInitialPanels = StartWatchingInitialPanels;
-        callbacks.RenderUntilStable = _renderCoordinator.RenderUntilStable;
-        callbacks.RenderCommandLineOnlyUntilStable = _renderCoordinator.RenderCommandLineOnlyUntilStable;
+        callbacks.RenderUntilStable = () => _composition.Render();
+        callbacks.RenderCommandLineOnlyUntilStable = isResize => _composition.Render(isResize);
         callbacks.RestoreTerminal = _terminalSurface.RestoreTerminal;
         callbacks.HandleResizeInput = HandleRuntimeResizeInput;
         callbacks.CheckViewportAfterInput = CheckRuntimeViewportAfterInput;
@@ -326,11 +329,9 @@ public sealed class Application
         return new ApplicationRuntimeRenderRequest(shouldRender, IsResize: false);
     }
 
-    private void Render() =>
-        _renderCoordinator.Render();
+    private void Render() => _composition.Render();
 
-    private void RenderCommandLineOnly() =>
-        _renderCoordinator.RenderCommandLineOnly();
+    private void RenderCommandLineOnly() => _composition.Render();
 
     private bool SetFunctionKeyLayer(ConsoleModifiers modifiers)
     {
@@ -580,7 +581,7 @@ public sealed class Application
 
     private MenuCommandResult ExecuteMenuCommand(MenuCommandRequest request)
     {
-        _renderCoordinator.RenderUntilStable();
+        _composition.Render();
         return _commandRegistry
             .Execute(request.CommandId, _commandContext, request.Args)
             .ToMenuCommandResult();

@@ -1023,7 +1023,7 @@ internal sealed class LargeFileViewer
                 item.Selection,
                 anchorByteOffset,
                 originalViewMode),
-            renderUnderlay: () =>
+            previewRedraw: () =>
             {
                 _renderedFooterSignature = null;
                 Draw(filePath, reader, state, contentHeight, size);

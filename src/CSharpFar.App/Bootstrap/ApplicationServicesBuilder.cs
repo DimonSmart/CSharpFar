@@ -235,9 +235,29 @@ internal static class ApplicationServicesBuilder
             () => session.App.Palette,
             (state, item) => callbacks.ViewPanelFile(state, item),
             (workDir, displayCommand, execute) => callbacks.ExecuteInCurrentConsole(workDir, displayCommand, execute));
+        var rendering = RenderingServicesFactory.Create(
+            screen,
+            terminalScreenMode,
+            session,
+            controller,
+            panelQuickSearch,
+            panelWorkspace,
+            autoRefresh,
+            functionKeyBindingProvider,
+            menuLayoutService,
+            callbacks,
+            effectiveSettings,
+            highlightService);
+        var terminalSurface = rendering.TerminalSurface;
+        var commandLineRenderer = rendering.CommandLineRenderer;
+        var renderCoordinator = rendering.RenderCoordinator;
+        var composition = rendering.Composition;
+        var modalDialogs = rendering.ModalDialogs;
+        var quickViewDirectorySize = rendering.QuickViewDirectorySize;
         var moduleUiServices = new ModuleUiServices
         {
             Screen = screen,
+            ModalDialogs = modalDialogs,
             Palette = () => session.App.Palette,
         };
         var moduleCatalog = ModuleCatalogFactory.Create(
@@ -260,23 +280,6 @@ internal static class ApplicationServicesBuilder
             side => callbacks.GetPanelState(side),
             side => callbacks.SetActiveSide(side),
             quickView => callbacks.SetQuickView(quickView));
-        var rendering = RenderingServicesFactory.Create(
-            screen,
-            terminalScreenMode,
-            session,
-            controller,
-            panelQuickSearch,
-            panelWorkspace,
-            autoRefresh,
-            functionKeyBindingProvider,
-            menuLayoutService,
-            callbacks,
-            effectiveSettings,
-            highlightService);
-        var terminalSurface = rendering.TerminalSurface;
-        var commandLineRenderer = rendering.CommandLineRenderer;
-        var renderCoordinator = rendering.RenderCoordinator;
-        var quickViewDirectorySize = rendering.QuickViewDirectorySize;
         var panelVisibility = new PanelVisibilityController(
             screen,
             session,
@@ -285,7 +288,7 @@ internal static class ApplicationServicesBuilder
             commandCompletionController,
             commandHistoryNavigator,
             terminalSurface,
-            renderCoordinator);
+            composition);
         var commandServices = CommandServicesFactory.Create(
             screen,
             shell,
@@ -361,6 +364,8 @@ internal static class ApplicationServicesBuilder
             CommandRegistry = commandServices.CommandRegistry,
             RenderContext = rendering.RenderContext,
             RenderCoordinator = renderCoordinator,
+            Composition = composition,
+            ModalDialogs = modalDialogs,
             TerminalSurface = terminalSurface,
             Runtime = runtime,
             KeyboardInputContext = keyboardInputContext,

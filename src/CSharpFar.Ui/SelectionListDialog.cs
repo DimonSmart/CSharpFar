@@ -60,8 +60,6 @@ public sealed class SelectionListDialog<T>
         set => _list.SelectionChanged = value;
     }
 
-    public Action? RenderUnderlay { get; set; }
-
     public SelectionListDialogResult<T> Show(ScreenRenderer screen)
     {
         ArgumentNullException.ThrowIfNull(screen);
@@ -105,6 +103,43 @@ public sealed class SelectionListDialog<T>
         {
             screen.Restore(saved);
             screen.SetCursorVisible(false);
+        }
+    }
+
+    public SelectionListDialogResult<T> Show(ModalDialogHost modalDialogs)
+    {
+        ArgumentNullException.ThrowIfNull(modalDialogs);
+        ScrollBarDragState? scrollbarDrag = null;
+        SelectionListLayout layout = default;
+        bool initialSelectionNotified = false;
+
+        using var session = modalDialogs.Open(context =>
+        {
+            layout = CalculateLayout(context.Size);
+            _list.Normalize(layout.VisibleRows);
+            if (_list.HasItems && !initialSelectionNotified)
+            {
+                SelectionChanged?.Invoke(_list.Items[SelectedIndex], SelectedIndex);
+                initialSelectionNotified = true;
+            }
+            RenderLayer(context.Screen, layout);
+        });
+
+        while (true)
+        {
+            session.Render();
+            var input = session.ReadInput();
+            if (input is MouseConsoleInputEvent mouse &&
+                HandleMouse(mouse, layout, ref scrollbarDrag, out bool confirmed))
+            {
+                if (confirmed)
+                    return Confirmed();
+                continue;
+            }
+
+            if (input is KeyConsoleInputEvent { Key: var key } &&
+                HandleKey(key, layout.VisibleRows, out bool isConfirmed))
+                return isConfirmed && _list.HasItems ? Confirmed() : Cancelled();
         }
     }
 
@@ -154,9 +189,13 @@ public sealed class SelectionListDialog<T>
 
     private void Draw(ScreenRenderer screen, SelectionListLayout layout)
     {
-        var palette = UiTheme.Current;
         using var frame = screen.BeginFrame();
-        RenderUnderlay?.Invoke();
+        RenderLayer(screen, layout);
+    }
+
+    private void RenderLayer(ScreenRenderer screen, SelectionListLayout layout)
+    {
+        var palette = UiTheme.Current;
 
         _list.NormalStyle = PaletteStyles.DialogFill(palette);
         _list.SelectedStyle = PaletteStyles.InputField(palette);

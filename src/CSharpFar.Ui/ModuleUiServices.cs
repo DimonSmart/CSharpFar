@@ -7,6 +7,8 @@ public sealed class ModuleUiServices
 {
     public required ScreenRenderer Screen { get; init; }
 
+    public required ModalDialogHost ModalDialogs { get; init; }
+
     public required Func<ConsolePalette> Palette { get; init; }
 
     public ConsolePalette CurrentPalette => Palette();
@@ -30,11 +32,11 @@ public sealed class ModuleUiServices
         new ModuleInputDialog(Screen).Show(title, prompt, initialText);
 
     public int? ShowMenu(string title, IReadOnlyList<string> items, int selected) =>
-        new ModuleMenuDialog(Screen).Show(title, items, selected);
+        new ModuleMenuDialog(ModalDialogs).Show(title, items, selected);
 
     public void ShowHelp(string title, IReadOnlyList<string> lines) =>
         new ModuleHelpDialog(Screen).Show(title, lines);
 
     public bool Confirm(string title, string question, string itemName) =>
-        new ConfirmDialog(Screen).Show(title, question, itemName);
+        new ConfirmDialog(ModalDialogs).Show(title, question, itemName);
 }
