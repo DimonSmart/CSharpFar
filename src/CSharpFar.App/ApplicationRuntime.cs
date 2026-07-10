@@ -1,16 +1,17 @@
 using CSharpFar.Console;
 using CSharpFar.Console.Input;
+using CSharpFar.Ui;
 
 namespace CSharpFar.App;
 
 internal sealed class ApplicationRuntime
 {
-    private readonly ScreenRenderer _screen;
+    private readonly UiCompositionHost _composition;
     private readonly ApplicationRuntimeContext _context;
 
-    public ApplicationRuntime(ScreenRenderer screen, ApplicationRuntimeContext context)
+    public ApplicationRuntime(UiCompositionHost composition, ApplicationRuntimeContext context)
     {
-        _screen = screen;
+        _composition = composition;
         _context = context;
     }
 
@@ -20,48 +21,44 @@ internal sealed class ApplicationRuntime
         {
             _context.CaptureUnderlay();
             _context.StartWatchingInitialPanels();
-            _context.RenderUi(false);
+            _composition.Render();
 
             while (_context.IsRunning())
             {
                 ConsoleInputEvent evt;
                 try
                 {
-                    evt = _screen.ReadInput(_context.WaitToken());
+                    evt = _composition.ReadInput(_context.WaitToken());
                 }
                 catch (OperationCanceledException)
                 {
                     _context.ResetWaitToken();
                     _context.ProcessPendingRefreshes();
                     if (_context.IsRunning())
-                        _context.RenderUi(false);
+                        _composition.Render();
                     continue;
                 }
 
                 var renderRequest = DispatchInput(evt);
-                if (!renderRequest.ShouldRender)
-                    renderRequest = _context.CheckViewportAfterInput();
-
                 if (!_context.IsRunning() || !renderRequest.ShouldRender)
                     continue;
 
-                _context.RenderUi(renderRequest.IsResize);
+                _composition.Render();
             }
 
-            _screen.ClearScreen();
+            _composition.Screen.ClearScreen();
         }
         finally
         {
             _context.DisposeRuntimeState();
             _context.RestoreTerminal();
-            _screen.SetCursorVisible(true);
+            _composition.Screen.SetCursorVisible(true);
         }
     }
 
     private ApplicationRuntimeRenderRequest DispatchInput(ConsoleInputEvent evt) =>
         evt switch
         {
-            ConsoleResizeInputEvent => _context.HandleResizeInput(),
             KeyConsoleInputEvent { Key: var key } => _context.HandleKeyInput(key),
             ModifierKeyConsoleInputEvent { Modifiers: var modifiers } => _context.HandleModifierInput(modifiers),
             MouseConsoleInputEvent mouseEvt => _context.HandleMouseInput(mouseEvt),
@@ -75,13 +72,10 @@ internal sealed class ApplicationRuntimeContext
     public required Func<CancellationToken> WaitToken { get; init; }
     public required Action CaptureUnderlay { get; init; }
     public required Action StartWatchingInitialPanels { get; init; }
-    public required Action<bool> RenderUi { get; init; }
     public required Action RestoreTerminal { get; init; }
     public required Action ResetWaitToken { get; init; }
     public required Action ProcessPendingRefreshes { get; init; }
     public required Action DisposeRuntimeState { get; init; }
-    public required Func<ApplicationRuntimeRenderRequest> HandleResizeInput { get; init; }
-    public required Func<ApplicationRuntimeRenderRequest> CheckViewportAfterInput { get; init; }
     public required Func<ConsoleKeyInfo, ApplicationRuntimeRenderRequest> HandleKeyInput { get; init; }
     public required Func<ConsoleModifiers, ApplicationRuntimeRenderRequest> HandleModifierInput { get; init; }
     public required Func<MouseConsoleInputEvent, ApplicationRuntimeRenderRequest> HandleMouseInput { get; init; }

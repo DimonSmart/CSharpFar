@@ -42,12 +42,7 @@ internal sealed class ApplicationServiceCallbacks
     public Func<bool> IsRunning { get; set; } = () => throw Missing();
     public Action CaptureUnderlay { get; set; } = () => throw Missing();
     public Action StartWatchingInitialPanels { get; set; } = () => throw Missing();
-    public Action<bool> RenderUi { get; set; } = _ => throw Missing();
     public Action RestoreTerminal { get; set; } = () => throw Missing();
-    public Func<ApplicationRuntimeRenderRequest> HandleResizeInput { get; set; } =
-        () => throw Missing();
-    public Func<ApplicationRuntimeRenderRequest> CheckViewportAfterInput { get; set; } =
-        () => throw Missing();
     public Func<ConsoleKeyInfo, ApplicationRuntimeRenderRequest> HandleKeyInput { get; set; } =
         _ => throw Missing();
     public Func<ConsoleModifiers, ApplicationRuntimeRenderRequest> HandleModifierInput { get; set; } =

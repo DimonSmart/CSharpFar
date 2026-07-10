@@ -263,10 +263,7 @@ public sealed class Application
         callbacks.IsRunning = () => _state.Running;
         callbacks.CaptureUnderlay = _terminalSurface.CaptureUnderlay;
         callbacks.StartWatchingInitialPanels = StartWatchingInitialPanels;
-        callbacks.RenderUi = isResize => _composition.Render(isResize);
         callbacks.RestoreTerminal = _terminalSurface.RestoreTerminal;
-        callbacks.HandleResizeInput = HandleRuntimeResizeInput;
-        callbacks.CheckViewportAfterInput = CheckRuntimeViewportAfterInput;
         callbacks.HandleKeyInput = HandleRuntimeKeyInput;
         callbacks.HandleModifierInput = HandleRuntimeModifierInput;
         callbacks.HandleMouseInput = HandleRuntimeMouseInput;
@@ -294,16 +291,6 @@ public sealed class Application
         StartWatching(_left, PanelSide.Left);
         StartWatching(_right, PanelSide.Right);
     }
-
-    private ApplicationRuntimeRenderRequest HandleRuntimeResizeInput()
-    {
-        return _terminalSurface.HasRenderableViewportChange()
-            ? new ApplicationRuntimeRenderRequest(ShouldRender: true, IsResize: true)
-            : ApplicationRuntimeRenderRequest.None;
-    }
-
-    private ApplicationRuntimeRenderRequest CheckRuntimeViewportAfterInput() =>
-        HandleRuntimeResizeInput();
 
     private ApplicationRuntimeRenderRequest HandleRuntimeKeyInput(ConsoleKeyInfo key)
     {

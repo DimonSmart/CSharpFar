@@ -13,7 +13,7 @@ internal sealed class OpenSettingsCommand : IApplicationCommand
 
     public ApplicationCommandResult Execute(ApplicationCommandContext context, object? args = null)
     {
-        var result = new SettingsDialog(context.Screen).Show(
+        var result = new SettingsDialog(context.ModalDialogs).Show(
             context.LeftViewMode,
             context.RightViewMode,
             context.Settings.Ui.Palette,

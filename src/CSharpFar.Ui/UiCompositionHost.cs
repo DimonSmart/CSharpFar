@@ -147,6 +147,12 @@ public sealed class UiCompositionHost
         }
     }
 
+    public ConsoleInputEvent ReadInput(CancellationToken cancellationToken = default) =>
+        ReadCompositionInput(cancellationToken);
+
+    public bool TryReadInput(out ConsoleInputEvent? input) =>
+        TryReadCompositionInput(out input);
+
     private ActiveComposition CaptureActiveComposition()
     {
         int surfaceIndex = _layers.FindLastIndex(entry => entry.Kind == UiLayerKind.Surface);

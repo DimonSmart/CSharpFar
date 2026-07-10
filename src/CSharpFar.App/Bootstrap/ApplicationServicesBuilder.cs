@@ -341,7 +341,7 @@ internal static class ApplicationServicesBuilder
                     System.Runtime.InteropServices.OSPlatform.Windows))),
             highlightService);
         var runtime = ApplicationRuntimeBuilder.Create(
-            screen,
+            composition,
             callbacks,
             autoRefresh,
             quickViewDirectorySize);

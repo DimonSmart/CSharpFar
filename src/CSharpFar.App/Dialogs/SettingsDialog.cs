@@ -3,6 +3,7 @@ using CSharpFar.Console;
 using CSharpFar.Console.Input;
 using CSharpFar.Console.Models;
 using CSharpFar.Core.Models;
+using CSharpFar.Ui;
 
 namespace CSharpFar.App.Dialogs;
 
@@ -28,9 +29,15 @@ internal sealed class SettingsDialog
     private static readonly PanelViewMode[] ViewModes    = [PanelViewMode.Full, PanelViewMode.BriefTwoColumns];
     private static readonly string[]        PaletteNames = [.. PaletteRegistry.Names];
 
+    private readonly ModalDialogHost _modalDialogs;
     private readonly ScreenRenderer _screen;
+    private Rect? _lastBounds;
 
-    public SettingsDialog(ScreenRenderer screen) => _screen = screen;
+    public SettingsDialog(ModalDialogHost modalDialogs)
+    {
+        _modalDialogs = modalDialogs;
+        _screen = modalDialogs.Screen;
+    }
 
     /// <summary>
     /// Shows the settings dialog. Returns new settings on F10, null on Esc.
@@ -42,36 +49,18 @@ internal sealed class SettingsDialog
         bool          fileHighlightingEnabled,
         bool          editorSyntaxHighlightingEnabled)
     {
-        var size   = _screen.GetSize();
-        var region = new Rect(0, 0, size.Width, size.Height);
-        var saved  = _screen.Capture(region);
-
-        try
-        {
-            return RunLoop(size, leftMode, rightMode, paletteName, fileHighlightingEnabled, editorSyntaxHighlightingEnabled);
-        }
-        finally
-        {
-            _screen.Restore(saved);
-        }
+        return RunLoop(leftMode, rightMode, paletteName, fileHighlightingEnabled, editorSyntaxHighlightingEnabled);
     }
 
     // ── dialog loop ───────────────────────────────────────────────────────────
 
     private SettingsDialogResult? RunLoop(
-        ConsoleSize   screenSize,
         PanelViewMode leftMode,
         PanelViewMode rightMode,
         string        paletteName,
         bool          hlEnabled,
         bool          syntaxEnabled)
     {
-        int dialogWidth = Math.Min(DialogWidth, Math.Max(20, screenSize.Width - 2));
-        int dialogHeight = Math.Min(DialogHeight, Math.Max(6, screenSize.Height - 2));
-        int dialogX = Math.Max(0, (screenSize.Width  - dialogWidth)  / 2);
-        int dialogY = Math.Max(0, (screenSize.Height - dialogHeight) / 2);
-        var bounds  = new Rect(dialogX, dialogY, dialogWidth, dialogHeight);
-
         int leftIdx  = Array.IndexOf(ViewModes,    leftMode);
         int rightIdx = Array.IndexOf(ViewModes,    rightMode);
         int palIdx   = FindPaletteIndex(paletteName);
@@ -80,18 +69,26 @@ internal sealed class SettingsDialog
         if (palIdx   < 0) palIdx   = 0;
 
         int focusRow = 0; // 0=left, 1=right, 2=palette, 3=file highlighting, 4=editor syntax
-        int bodyScrollTop = NormalizeBodyScroll(bounds, focusRow, 0);
+        int bodyScrollTop = 0;
         ScrollBarDragState? bodyScrollbarDrag = null;
 
-        Draw(bounds, bodyScrollTop, focusRow, leftIdx, rightIdx, palIdx, hlEnabled, syntaxEnabled);
+        using var modal = _modalDialogs.Open(context =>
+        {
+            var bounds = BuildBounds(context.Size);
+            _lastBounds = bounds;
+            bodyScrollTop = NormalizeBodyScroll(bounds, focusRow, bodyScrollTop);
+            Draw(context, bounds, bodyScrollTop, focusRow, leftIdx, rightIdx, palIdx, hlEnabled, syntaxEnabled);
+        });
+        modal.Render();
 
         while (true)
         {
-            var input = _screen.ReadInput();
+            var input = modal.ReadInput();
             if (input is MouseConsoleInputEvent mouse &&
+                _lastBounds is { } bounds &&
                 TryHandleBodyScrollbarMouse(mouse, bounds, ref bodyScrollTop, ref bodyScrollbarDrag))
             {
-                Draw(bounds, bodyScrollTop, focusRow, leftIdx, rightIdx, palIdx, hlEnabled, syntaxEnabled);
+                modal.Render();
                 continue;
             }
 
@@ -113,20 +110,18 @@ internal sealed class SettingsDialog
 
                 case ConsoleKey.UpArrow:
                     focusRow = (focusRow + 4) % 5;
-                    bodyScrollTop = NormalizeBodyScroll(bounds, focusRow, bodyScrollTop);
-                    Draw(bounds, bodyScrollTop, focusRow, leftIdx, rightIdx, palIdx, hlEnabled, syntaxEnabled);
+                    modal.Render();
                     break;
 
                 case ConsoleKey.DownArrow:
                     focusRow = (focusRow + 1) % 5;
-                    bodyScrollTop = NormalizeBodyScroll(bounds, focusRow, bodyScrollTop);
-                    Draw(bounds, bodyScrollTop, focusRow, leftIdx, rightIdx, palIdx, hlEnabled, syntaxEnabled);
+                    modal.Render();
                     break;
 
                 case ConsoleKey.Enter:
                 case ConsoleKey.Spacebar:
                     Cycle(focusRow, ref leftIdx, ref rightIdx, ref palIdx, ref hlEnabled, ref syntaxEnabled);
-                    Draw(bounds, bodyScrollTop, focusRow, leftIdx, rightIdx, palIdx, hlEnabled, syntaxEnabled);
+                    modal.Render();
                     break;
             }
         }
@@ -153,7 +148,8 @@ internal sealed class SettingsDialog
     // ── drawing ───────────────────────────────────────────────────────────────
 
     private void Draw(
-        Rect   bounds,
+        UiRenderContext context,
+        Rect bounds,
         int    bodyScrollTop,
         int    focusRow,
         int    leftIdx,
@@ -162,8 +158,6 @@ internal sealed class SettingsDialog
         bool   hlEnabled,
         bool   syntaxEnabled)
     {
-        using var frame = _screen.BeginFrame();
-
         var palette = PaletteRegistry.Resolve(PaletteNames[palIdx]);
         var fill    = new CellStyle(palette.MenuNormalFg, palette.MenuNormalBg);
         var border  = new CellStyle(palette.MenuBorderFg, palette.MenuBorderBg);
@@ -246,6 +240,17 @@ internal sealed class SettingsDialog
                 _screen.Write(contentX, y, Truncate(text, width).PadRight(width), style);
             }
         });
+    }
+
+    private static Rect BuildBounds(ConsoleSize screenSize)
+    {
+        int dialogWidth = Math.Min(DialogWidth, Math.Max(20, screenSize.Width - 2));
+        int dialogHeight = Math.Min(DialogHeight, Math.Max(6, screenSize.Height - 2));
+        return new Rect(
+            Math.Max(0, (screenSize.Width - dialogWidth) / 2),
+            Math.Max(0, (screenSize.Height - dialogHeight) / 2),
+            dialogWidth,
+            dialogHeight);
     }
 
     private static int NormalizeBodyScroll(Rect bounds, int focusRow, int bodyScrollTop)

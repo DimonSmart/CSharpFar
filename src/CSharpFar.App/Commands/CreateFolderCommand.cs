@@ -19,7 +19,7 @@ internal sealed class CreateFolderCommand : IApplicationCommand
             return ApplicationCommandResult.Rendered();
         }
 
-        var dialog = new CreateFolderDialog(context.Screen);
+        var dialog = new CreateFolderDialog(context.ModalDialogs);
         string? name = dialog.Show(validate: attempt =>
         {
             if (attempt.IndexOfAny(Path.GetInvalidPathChars()) >= 0)
