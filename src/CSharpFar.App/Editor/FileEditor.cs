@@ -19,6 +19,7 @@ internal sealed class FileEditor
     private const int CustomCursorInputPollMs = 25;
 
     private readonly ScreenRenderer _screen;
+    private readonly UiCompositionHost _composition;
     private readonly ModalDialogHost _modalDialogs;
     private readonly ConsolePalette _palette;
     private readonly AppSettings.EditorSettings _settings;
@@ -80,6 +81,7 @@ internal sealed class FileEditor
     {
         _screen = screen;
         _modalDialogs = modalDialogs ?? throw new ArgumentNullException(nameof(modalDialogs));
+        _composition = _modalDialogs.Composition;
         _palette = palette ?? PaletteRegistry.Default;
         _settings = settings ?? new AppSettings.EditorSettings();
         _fileService = new EditorFileService(_settings);
@@ -115,8 +117,6 @@ internal sealed class FileEditor
             return;
         }
 
-        var size = _screen.GetSize();
-        var saved = _screen.Capture(new Rect(0, 0, size.Width, size.Height));
         try
         {
             session.RaiseOpened();
@@ -125,26 +125,32 @@ internal sealed class FileEditor
         finally
         {
             session.RaiseClosed();
-            _screen.Restore(saved);
         }
     }
 
     private void RunLoop(EditorSession session)
     {
         var functionKeyModifiers = default(ConsoleModifiers);
+        EditorLayout? layout = null;
         _scrollbarDrag = null;
         _mouseSelectionAnchor = null;
+        using var surface = _composition.OpenSurface(context =>
+        {
+            int contentHeight = Math.Max(1, context.Size.Height - 3);
+            int contentWidth = Math.Max(1, context.Size.Width - 1);
+            EnsureCursorVisible(session, contentHeight, contentWidth);
+            Draw(session, contentHeight, context.Size, functionKeyModifiers);
+            layout = new EditorLayout(context.Size, contentHeight, contentWidth);
+        });
         while (true)
         {
-            var size = _screen.GetSize();
-            int contentHeight = Math.Max(1, size.Height - 3);
-            int contentWidth = Math.Max(1, size.Width - 1);
-
-            EnsureCursorVisible(session, contentHeight, contentWidth);
             _customCursorVisible = true;
-            Draw(session, contentHeight, size, functionKeyModifiers);
+            surface.Render();
 
-            var input = ReadInput(session, contentHeight, size, functionKeyModifiers);
+            var input = ReadInput(session, surface);
+            var currentLayout = layout ?? throw new InvalidOperationException("Editor layout is unavailable.");
+            int contentHeight = currentLayout.ContentHeight;
+            var size = currentLayout.Size;
             if (input is ModifierKeyConsoleInputEvent modifierEvent)
             {
                 functionKeyModifiers = modifierEvent.Modifiers;
@@ -347,29 +353,25 @@ internal sealed class FileEditor
         return true;
     }
 
-    private ConsoleInputEvent ReadInput(
-        EditorSession session,
-        int contentHeight,
-        ConsoleSize size,
-        ConsoleModifiers functionKeyModifiers)
+    private ConsoleInputEvent ReadInput(EditorSession session, UiCompositionHost.UiSurfaceSession surface)
     {
         if (!UsesCustomCursor(session))
-            return _screen.ReadInput();
+            return surface.ReadInput();
 
         long nextBlink = Environment.TickCount64 + CustomCursorBlinkIntervalMs;
         while (true)
         {
-            if (_screen.TryReadInput(out var input))
+            if (surface.TryReadInput(out var input) && input is { } semanticInput)
             {
                 _customCursorVisible = true;
-                return input;
+                return semanticInput;
             }
 
             long now = Environment.TickCount64;
             if (now >= nextBlink)
             {
                 _customCursorVisible = !_customCursorVisible;
-                Draw(session, contentHeight, size, functionKeyModifiers);
+                surface.Render();
                 nextBlink = now + CustomCursorBlinkIntervalMs;
             }
 
@@ -834,7 +836,6 @@ internal sealed class FileEditor
         ConsoleSize size,
         ConsoleModifiers functionKeyModifiers)
     {
-        using var frame = _screen.BeginFrame();
         DrawHeader(session, size);
         EditorSyntaxHighlightResult syntaxResult = ResolveSyntaxHighlighting(session, contentHeight);
         DrawContent(session, contentHeight, size, syntaxResult);
@@ -1247,4 +1248,6 @@ internal sealed class FileEditor
             return string.Empty;
         return text.Length <= width ? text.PadRight(width) : text[..width];
     }
+
+    private sealed record EditorLayout(ConsoleSize Size, int ContentHeight, int ContentWidth);
 }

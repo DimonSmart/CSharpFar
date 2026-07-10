@@ -14,6 +14,8 @@ public sealed class ModalDialogHost
 
     public ScreenRenderer Screen => _composition.Screen;
 
+    public UiCompositionHost Composition => _composition;
+
     public ModalDialogSession Open(Action<UiRenderContext> render) =>
         new(_composition, _composition.PushOverlay(render));
 }
