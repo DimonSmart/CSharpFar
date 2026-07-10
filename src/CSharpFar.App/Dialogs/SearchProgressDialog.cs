@@ -39,11 +39,6 @@ internal sealed class SearchProgressDialog
 
     public SearchRunResult Show(SearchRequest request)
     {
-        var size = _screen.GetSize();
-        var saved = _screen.Capture(new Rect(0, 0, size.Width, size.Height));
-        _screen.SetCursorVisible(false);
-
-        try
         {
             using var cts = new CancellationTokenSource();
             var syncRoot = new object();
@@ -182,11 +177,6 @@ internal sealed class SearchProgressDialog
                     discardResults);
             }
         }
-        finally
-        {
-            _screen.Restore(saved);
-            _screen.SetCursorVisible(false);
-        }
     }
 
     private bool ConfirmStopSearch() =>
@@ -266,8 +256,6 @@ internal sealed class SearchProgressDialog
         DialogButtonBar buttonBar,
         int focusedButton)
     {
-        using var frame = _screen.BeginFrame();
-
         var outerBounds = _modalRenderer.CenteredOuterBounds(
             _screen,
             DialogWidth,
@@ -400,6 +388,7 @@ internal sealed class SearchProgressDialog
         ref int scrollOffset,
         ref ScrollBarDragState? dragState)
     {
+        using var frame = _screen.BeginFrame();
         if (resultCount <= listHeight)
             return false;
 
