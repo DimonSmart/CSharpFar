@@ -36,7 +36,7 @@ internal sealed class FileOperationUiRunner
     {
         _screen.SetCursorVisible(false);
         var progressDialog = new ProgressDialog(_screen, request.Destination ?? string.Empty);
-        var conflictDialog = new ConflictDialog(_screen, _modalDialogs, _palette());
+        var conflictDialog = new ConflictDialog(_modalDialogs, _palette());
         var cancelDialog = new OperationCancelDialog(_modalDialogs);
         var resolver = new DialogConflictResolver(conflictDialog);
         var pauseController = new FileOperationPauseController();

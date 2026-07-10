@@ -13,33 +13,21 @@ internal sealed class FileAttributesDialog : IFileAttributesDialog
     private const int DialogHeight = 25;
     private const string DateTimeFormat = "dd.MM.yyyy HH:mm:ss";
 
-    private readonly ScreenRenderer _screen;
+    private readonly ModalDialogHost _modalDialogs;
     private readonly IClock _clock;
     private readonly bool _canOpenSystemProperties;
     private readonly ModalDialogRenderer _modalRenderer = new();
 
-    public FileAttributesDialog(ScreenRenderer screen, IClock? clock = null, bool canOpenSystemProperties = false)
+    public FileAttributesDialog(ModalDialogHost modalDialogs, IClock? clock = null, bool canOpenSystemProperties = false)
     {
-        _screen = screen;
+        _modalDialogs = modalDialogs;
         _clock = clock ?? new SystemClock();
         _canOpenSystemProperties = canOpenSystemProperties;
     }
 
     public FileAttributesDialogResult? Show(FileMetadataSnapshot snapshot)
     {
-        var size = _screen.GetSize();
-        var saved = _screen.Capture(new Rect(0, 0, size.Width, size.Height));
-        _screen.SetCursorVisible(false);
-
-        try
-        {
-            return RunLoop(size, snapshot);
-        }
-        finally
-        {
-            _screen.Restore(saved);
-            _screen.SetCursorVisible(false);
-        }
+        return RunLoop(snapshot);
     }
 
     internal static FileMetadataChangeSet CreateChangeSet(
@@ -102,7 +90,7 @@ internal sealed class FileAttributesDialog : IFileAttributesDialog
     internal static string FormatTime(DateTime? value) =>
         value is null ? string.Empty : value.Value.ToString(DateTimeFormat, CultureInfo.InvariantCulture);
 
-    private FileAttributesDialogResult? RunLoop(ConsoleSize size, FileMetadataSnapshot snapshot)
+    private FileAttributesDialogResult? RunLoop(FileMetadataSnapshot snapshot)
     {
         var attributeRows = snapshot.AttributesDescriptors
             .Select(descriptor => new AttributeDialogRow(
@@ -137,12 +125,13 @@ internal sealed class FileAttributesDialog : IFileAttributesDialog
         var form = new ScrollableFormDialog();
         string? error = null;
 
+        using var modal = _modalDialogs.Open(context => Draw(context, form, error));
         while (true)
         {
             form.SetRows(BuildRows(snapshot, attributeRows, unixMatrixRows, unixSpecialRows, creation, write, access));
-            Draw(size, form, error);
+            modal.Render();
 
-            var input = _screen.ReadInput();
+            var input = modal.ReadInput();
             FormInputResult result = input switch
             {
                 KeyConsoleInputEvent { Key: var key } => HandleKey(form, key),
@@ -276,12 +265,11 @@ internal sealed class FileAttributesDialog : IFileAttributesDialog
         return form.HandleKey(key);
     }
 
-    private void Draw(ConsoleSize size, ScrollableFormDialog form, string? error)
+    private void Draw(UiRenderContext context, ScrollableFormDialog form, string? error)
     {
-        using var frame = _screen.BeginFrame();
-        Rect outerBounds = OuterBounds(size);
+        Rect outerBounds = OuterBounds(context.Size);
 
-        _modalRenderer.Render(_screen, outerBounds, "Attributes", true, FarDialogStyles.OuterOptions, FarDialogStyles.FrameOptions, (_, layout) =>
+        _modalRenderer.Render(context.Screen, outerBounds, "Attributes", true, FarDialogStyles.OuterOptions, FarDialogStyles.FrameOptions, (_, layout) =>
         {
             Rect bounds = layout.FrameBounds;
             int contentX = bounds.X + 2;
@@ -291,12 +279,12 @@ internal sealed class FileAttributesDialog : IFileAttributesDialog
             int bodyHeight = Math.Max(1, errorY - bodyTop);
 
             form.Render(new FormRenderContext(
-                _screen,
+                context.Screen,
                 new Rect(contentX, bodyTop, contentWidth, bodyHeight),
                 FarDialogStyles.Border));
 
             string errorText = error is null ? string.Empty : Truncate(error, contentWidth);
-            _screen.Write(contentX, errorY, errorText.PadRight(contentWidth), FarDialogStyles.Error);
+            context.Screen.Write(contentX, errorY, errorText.PadRight(contentWidth), FarDialogStyles.Error);
         });
     }
 

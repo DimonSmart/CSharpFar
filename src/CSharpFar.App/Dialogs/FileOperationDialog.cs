@@ -48,12 +48,12 @@ internal sealed class FileOperationDialog
     ];
 
     private static readonly SingleLineTextHistoryRegistry HistoryRegistry = new();
-    private readonly ScreenRenderer _screen;
+    private readonly ModalDialogHost _modalDialogs;
     private readonly ModalDialogRenderer _modalRenderer = new();
 
-    public FileOperationDialog(ScreenRenderer screen)
+    public FileOperationDialog(ModalDialogHost modalDialogs)
     {
-        _screen = screen;
+        _modalDialogs = modalDialogs;
     }
 
     public FileOperationDialogResult? ShowCopy(
@@ -100,23 +100,10 @@ internal sealed class FileOperationDialog
         IReadOnlyList<CopyMode>? copyModes,
         bool showOperationOptions)
     {
-        var size = _screen.GetSize();
-        var saved = _screen.Capture(new Rect(0, 0, size.Width, size.Height));
-        _screen.SetCursorVisible(false);
-
-        try
-        {
-            return RunLoop(size, title, prompt, actionLabel, initialDestination, initialOptions, conflictModes, copyModes, showOperationOptions);
-        }
-        finally
-        {
-            _screen.Restore(saved);
-            _screen.SetCursorVisible(false);
-        }
+        return RunLoop(title, prompt, actionLabel, initialDestination, initialOptions, conflictModes, copyModes, showOperationOptions);
     }
 
     private FileOperationDialogResult? RunLoop(
-        ConsoleSize size,
         string title,
         string prompt,
         string actionLabel,
@@ -198,6 +185,7 @@ internal sealed class FileOperationDialog
         var form = new ScrollableFormDialog();
         string? error = null;
 
+        using var modal = _modalDialogs.Open(context => Draw(context, title, form, error));
         while (true)
         {
             form.SetRows(BuildRows(
@@ -217,9 +205,9 @@ internal sealed class FileOperationDialog
                 useFilter,
                 showOperationOptions),
                 footerRows: [buttons]);
-            Draw(size, title, form, error);
+            modal.Render();
 
-            var input = _screen.ReadInput();
+            var input = modal.ReadInput();
             FormInputResult result = input switch
             {
                 KeyConsoleInputEvent { Key: var key } => HandleOperationKey(form, key),
@@ -382,12 +370,11 @@ internal sealed class FileOperationDialog
             });
     }
 
-    private void Draw(ConsoleSize size, string title, ScrollableFormDialog form, string? error)
+    private void Draw(UiRenderContext context, string title, ScrollableFormDialog form, string? error)
     {
-        using var frame = _screen.BeginFrame();
-        Rect outerBounds = OuterBounds(size);
+        Rect outerBounds = OuterBounds(context.Size);
 
-        _modalRenderer.Render(_screen, outerBounds, title, true, FarDialogStyles.OuterOptions, FarDialogStyles.FrameOptions, (_, layout) =>
+        _modalRenderer.Render(context.Screen, outerBounds, title, true, FarDialogStyles.OuterOptions, FarDialogStyles.FrameOptions, (_, layout) =>
         {
             Rect bounds = layout.FrameBounds;
             int contentX = bounds.X + 2;
@@ -398,13 +385,13 @@ internal sealed class FileOperationDialog
             int bodyHeight = Math.Max(1, errorY - bodyTop);
 
             form.Render(new FormRenderContext(
-                _screen,
+                context.Screen,
                 new Rect(contentX, bodyTop, contentWidth, bodyHeight),
                 FarDialogStyles.Border,
                 new Rect(contentX, buttonY, contentWidth, 1)));
 
             string errorText = error is null ? string.Empty : Truncate(error, contentWidth);
-            _screen.Write(contentX, errorY, errorText.PadRight(contentWidth), FarDialogStyles.Error);
+            context.Screen.Write(contentX, errorY, errorText.PadRight(contentWidth), FarDialogStyles.Error);
         });
     }
 

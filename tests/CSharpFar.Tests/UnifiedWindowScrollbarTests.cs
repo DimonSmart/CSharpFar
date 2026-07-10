@@ -332,7 +332,7 @@ public sealed class UnifiedWindowScrollbarTests
 
         var operationDriver = new FakeConsoleDriver(width: 80, height: 11);
         operationDriver.EnqueueKey(Key(ConsoleKey.F10));
-        var operationResult = new FileOperationDialog(new ScreenRenderer(operationDriver)).ShowCopy(
+        var operationResult = new FileOperationDialog(ModalTestHost.Create(new ScreenRenderer(operationDriver))).ShowCopy(
             [@"C:\root\file.txt"],
             @"C:\target",
             new FileOperationOptions());

@@ -40,7 +40,7 @@ internal sealed class MoveCommand : IApplicationCommand
             return ApplicationCommandResult.Rendered();
         }
 
-        var dialogResult = new FileOperationDialog(context.Screen).ShowMove(
+        var dialogResult = new FileOperationDialog(context.ModalDialogs).ShowMove(
             sources,
             targetState.CurrentDirectory,
             context.BuildFileOperationOptions());

@@ -34,7 +34,7 @@ internal sealed class CopyCommand : IApplicationCommand
         if (sources.Count == 0)
             return ApplicationCommandResult.Rendered();
 
-        var dialogResult = new FileOperationDialog(context.Screen).ShowCopy(
+        var dialogResult = new FileOperationDialog(context.ModalDialogs).ShowCopy(
             sources,
             targetState.CurrentDirectory,
             context.BuildFileOperationOptions());

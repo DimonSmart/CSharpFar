@@ -24,7 +24,7 @@ internal sealed class RenameCommand : IApplicationCommand
             return ApplicationCommandResult.Rendered();
 
         string initialName = item.Name;
-        var dialogResult = new FileOperationDialog(context.Screen).ShowRename(
+        var dialogResult = new FileOperationDialog(context.ModalDialogs).ShowRename(
             item.FullPath,
             initialName,
             context.BuildFileOperationOptions());
