@@ -11,16 +11,19 @@ public enum SaveChangesChoice { Save, Discard, Cancel }
 /// </summary>
 internal sealed class SaveChangesDialog
 {
-    private readonly ScreenRenderer _screen;
+    private readonly ModalDialogHost _modalDialogs;
 
-    public SaveChangesDialog(ScreenRenderer screen)
+    public SaveChangesDialog(ModalDialogHost modalDialogs)
     {
-        _screen = screen;
+        _modalDialogs = modalDialogs;
     }
+
+    [Obsolete("Use the ModalDialogHost constructor.")]
+    public SaveChangesDialog(ScreenRenderer screen) : this(ModalDialogHost.For(screen)) { }
 
     public SaveChangesChoice Show(string fileName)
     {
-        var result = new ChoiceDialog(_screen).Show(new ChoiceDialogOptions
+        var result = new ChoiceDialog(_modalDialogs).Show(new ChoiceDialogOptions
         {
             Title = "Save Changes?",
             Lines = [Truncate($"\"{fileName}\" has been modified.", 48)],

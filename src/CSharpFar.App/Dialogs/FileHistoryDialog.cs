@@ -10,12 +10,15 @@ namespace CSharpFar.App.Dialogs;
 /// </summary>
 internal sealed class FileHistoryDialog
 {
-    private readonly ScreenRenderer _screen;
+    private readonly ModalDialogHost _modalDialogs;
 
-    public FileHistoryDialog(ScreenRenderer screen)
+    public FileHistoryDialog(ModalDialogHost modalDialogs)
     {
-        _screen = screen;
+        _modalDialogs = modalDialogs;
     }
+
+    [Obsolete("Use the ModalDialogHost constructor.")]
+    public FileHistoryDialog(ScreenRenderer screen) : this(ModalDialogHost.For(screen)) { }
 
     public string? Show(IReadOnlyList<FileHistoryItem> history)
     {
@@ -28,7 +31,7 @@ internal sealed class FileHistoryDialog
             MaxWidth = 60,
             MaxVisibleRows = 15,
         };
-        var result = dialog.Show(_screen);
+        var result = dialog.Show(_modalDialogs);
         return result.IsConfirmed ? result.SelectedItem : null;
     }
 }

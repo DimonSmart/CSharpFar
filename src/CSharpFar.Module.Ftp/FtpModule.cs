@@ -47,7 +47,7 @@ public sealed class FtpModule
         while (true)
         {
             var connections = ConnectionStore.Load();
-            var result = new FtpConnectionManagerDialog(StartupInfo.Ui.Screen).Show(connections);
+            var result = new FtpConnectionManagerDialog(StartupInfo.Ui.ModalDialogs).Show(connections);
             if (result is null)
                 return ModuleActionResult.Completed();
 

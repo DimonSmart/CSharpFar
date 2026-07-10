@@ -19,7 +19,7 @@ internal sealed class UserMenuCommand : IApplicationCommand
             return ApplicationCommandResult.Rendered();
         }
 
-        string? command = new UserMenuDialog(context.Screen).Show(context.UserMenu.Items);
+        string? command = new UserMenuDialog(context.ModalDialogs).Show(context.UserMenu.Items);
         if (command is null)
             return ApplicationCommandResult.Rendered();
 

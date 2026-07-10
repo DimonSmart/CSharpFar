@@ -14,6 +14,9 @@ public sealed class ModalDialogHost
 
     public ScreenRenderer Screen => _composition.Screen;
 
+    [Obsolete("Pass the shared ModalDialogHost through dependencies.")]
+    public static ModalDialogHost For(ScreenRenderer screen) => new(UiCompositionHost.For(screen));
+
     public ModalDialogSession Open(Action<UiRenderContext> render) =>
         new(_composition, _composition.PushOverlay(render));
 }

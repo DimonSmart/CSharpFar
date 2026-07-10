@@ -9,12 +9,15 @@ namespace CSharpFar.App.Dialogs;
 /// </summary>
 internal sealed class InputDialog
 {
-    private readonly ScreenRenderer _screen;
+    private readonly ModalDialogHost _modalDialogs;
 
-    public InputDialog(ScreenRenderer screen)
+    public InputDialog(ModalDialogHost modalDialogs)
     {
-        _screen = screen;
+        _modalDialogs = modalDialogs;
     }
+
+    [Obsolete("Use the ModalDialogHost constructor.")]
+    public InputDialog(ScreenRenderer screen) : this(ModalDialogHost.For(screen)) { }
 
     /// <summary>
     /// Shows the dialog and returns the entered text, or <c>null</c> if the user pressed Esc.
@@ -33,7 +36,7 @@ internal sealed class InputDialog
         bool allowEmpty = false,
         bool maskInput = false)
     {
-        var result = new SingleLineInputDialog(_screen).Show(new SingleLineInputDialogOptions
+        var result = new SingleLineInputDialog(_modalDialogs).Show(new SingleLineInputDialogOptions
         {
             Title = title,
             Prompt = prompt,

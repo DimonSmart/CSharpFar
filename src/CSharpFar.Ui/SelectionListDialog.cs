@@ -60,52 +60,6 @@ public sealed class SelectionListDialog<T>
         set => _list.SelectionChanged = value;
     }
 
-    public SelectionListDialogResult<T> Show(ScreenRenderer screen)
-    {
-        ArgumentNullException.ThrowIfNull(screen);
-
-        var size = screen.GetSize();
-        var saved = screen.Capture(new Rect(0, 0, size.Width, size.Height));
-        ScrollBarDragState? scrollbarDrag = null;
-        bool initialSelectionNotified = false;
-
-        try
-        {
-            while (true)
-            {
-                var layout = CalculateLayout(size);
-                _list.Normalize(layout.VisibleRows);
-                if (_list.HasItems && !initialSelectionNotified)
-                {
-                    SelectionChanged?.Invoke(_list.Items[SelectedIndex], SelectedIndex);
-                    initialSelectionNotified = true;
-                }
-
-                Draw(screen, layout);
-                var input = screen.ReadInput();
-
-                if (input is MouseConsoleInputEvent mouse &&
-                    HandleMouse(mouse, layout, ref scrollbarDrag, out bool confirmed))
-                {
-                    if (confirmed)
-                        return Confirmed();
-                    continue;
-                }
-
-                if (input is not KeyConsoleInputEvent { Key: var key })
-                    continue;
-
-                if (HandleKey(key, layout.VisibleRows, out bool isConfirmed))
-                    return isConfirmed && _list.HasItems ? Confirmed() : Cancelled();
-            }
-        }
-        finally
-        {
-            screen.Restore(saved);
-            screen.SetCursorVisible(false);
-        }
-    }
-
     public SelectionListDialogResult<T> Show(ModalDialogHost modalDialogs)
     {
         ArgumentNullException.ThrowIfNull(modalDialogs);
@@ -142,6 +96,9 @@ public sealed class SelectionListDialog<T>
                 return isConfirmed && _list.HasItems ? Confirmed() : Cancelled();
         }
     }
+
+    [Obsolete("Use the ModalDialogHost overload.")]
+    public SelectionListDialogResult<T> Show(ScreenRenderer screen) => Show(ModalDialogHost.For(screen));
 
     private SelectionListDialogResult<T> Confirmed() =>
         new(true, _list.Items[SelectedIndex], SelectedIndex);
@@ -185,12 +142,6 @@ public sealed class SelectionListDialog<T>
             confirmOnDoubleClick: true);
         confirmed = result.Kind == ScrollableListInputResultKind.Confirmed;
         return result.IsHandled;
-    }
-
-    private void Draw(ScreenRenderer screen, SelectionListLayout layout)
-    {
-        using var frame = screen.BeginFrame();
-        RenderLayer(screen, layout);
     }
 
     private void RenderLayer(ScreenRenderer screen, SelectionListLayout layout)

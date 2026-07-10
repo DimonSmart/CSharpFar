@@ -17,12 +17,15 @@ internal sealed record SftpConnectionManagerResult(
 
 internal sealed class SftpConnectionManagerDialog
 {
-    private readonly ScreenRenderer _screen;
+    private readonly ModalDialogHost _modalDialogs;
 
-    public SftpConnectionManagerDialog(ScreenRenderer screen)
+    public SftpConnectionManagerDialog(ModalDialogHost modalDialogs)
     {
-        _screen = screen;
+        _modalDialogs = modalDialogs;
     }
+
+    [Obsolete("Use the ModalDialogHost constructor.")]
+    public SftpConnectionManagerDialog(ScreenRenderer screen) : this(ModalDialogHost.For(screen)) { }
 
     public SftpConnectionManagerResult? Show(IReadOnlyList<SftpConnectionInfo> connections)
     {
@@ -41,7 +44,7 @@ internal sealed class SftpConnectionManagerDialog
             DeleteActionId = "delete",
         };
 
-        var result = dialog.Show(_screen);
+        var result = dialog.Show(_modalDialogs);
         return result is null ? null : ToManagerResult(result);
     }
 

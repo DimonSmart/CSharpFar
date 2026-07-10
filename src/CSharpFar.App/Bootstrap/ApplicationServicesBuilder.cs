@@ -82,7 +82,13 @@ internal static class ApplicationServicesBuilder
         var effectiveUserMenu = core.UserMenu;
         var effectiveFileMetadata = fileMetadata ?? new FileMetadataService();
         var menuProvider = core.MenuProvider;
-        var callbacks = new ApplicationServiceCallbacks();
+        var callbacks = new ApplicationServiceCallbacks
+        {
+            // Services can render a modal before the Application facade binds its
+            // command callbacks (for example, focused command tests).
+            PanelOptions = () => effectiveSettings.Panels.Options,
+            CanExecuteFunctionKeyCommand = _ => false,
+        };
         var keyboardInputContext = new KeyboardInputContext
         {
             MenuState = session.Menu.State,

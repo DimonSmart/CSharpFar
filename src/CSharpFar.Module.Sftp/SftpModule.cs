@@ -47,7 +47,7 @@ public sealed class SftpModule
         while (true)
         {
             var connections = ConnectionStore.Load();
-            var result = new SftpConnectionManagerDialog(StartupInfo.Ui.Screen).Show(connections);
+            var result = new SftpConnectionManagerDialog(StartupInfo.Ui.ModalDialogs).Show(connections);
             if (result is null)
                 return ModuleActionResult.Completed();
 

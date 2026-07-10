@@ -1,18 +1,17 @@
-using CSharpFar.Console;
 namespace CSharpFar.Ui;
 
 public sealed class ModuleInputDialog
 {
-    private readonly ScreenRenderer _screen;
+    private readonly ModalDialogHost _modalDialogs;
 
-    public ModuleInputDialog(ScreenRenderer screen)
+    public ModuleInputDialog(ModalDialogHost modalDialogs)
     {
-        _screen = screen;
+        _modalDialogs = modalDialogs ?? throw new ArgumentNullException(nameof(modalDialogs));
     }
 
     public string? Show(string title, string prompt, string? initialText)
     {
-        var result = new SingleLineInputDialog(_screen).Show(new SingleLineInputDialogOptions
+        var result = new SingleLineInputDialog(_modalDialogs).Show(new SingleLineInputDialogOptions
         {
             Title = title,
             Prompt = prompt,

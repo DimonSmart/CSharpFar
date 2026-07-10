@@ -17,13 +17,10 @@ internal static class ApplicationRuntimeBuilder
             new ApplicationRuntimeContext
             {
                 IsRunning = () => callbacks.IsRunning(),
-                HasVisiblePanels = () => callbacks.HasVisiblePanels(),
                 WaitToken = () => autoRefresh.WaitToken,
                 CaptureUnderlay = () => callbacks.CaptureUnderlay(),
                 StartWatchingInitialPanels = () => callbacks.StartWatchingInitialPanels(),
-                RenderUntilStable = () => callbacks.RenderUntilStable(),
-                RenderCommandLineOnlyUntilStable = restoreHiddenScreenBeforeEachAttempt =>
-                    callbacks.RenderCommandLineOnlyUntilStable(restoreHiddenScreenBeforeEachAttempt),
+                RenderUi = isResizeRecovery => callbacks.RenderUi(isResizeRecovery),
                 RestoreTerminal = () => callbacks.RestoreTerminal(),
                 ResetWaitToken = autoRefresh.ResetWaitToken,
                 ProcessPendingRefreshes = autoRefresh.ProcessPendingRefreshes,

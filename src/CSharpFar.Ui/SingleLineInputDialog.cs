@@ -25,6 +25,7 @@ public sealed class SingleLineInputDialog
 
     private static readonly SingleLineTextHistoryRegistry HistoryRegistry = new();
 
+    private readonly ModalDialogHost _modalDialogs;
     private readonly ScreenRenderer _screen;
     private readonly DialogButtonBar _buttonBar = new(
     [
@@ -32,31 +33,23 @@ public sealed class SingleLineInputDialog
         new DialogButton("cancel", "Cancel", 'C'),
     ]);
 
-    public SingleLineInputDialog(ScreenRenderer screen)
+    public SingleLineInputDialog(ModalDialogHost modalDialogs)
     {
-        _screen = screen;
+        _modalDialogs = modalDialogs ?? throw new ArgumentNullException(nameof(modalDialogs));
+        _screen = modalDialogs.Screen;
     }
+
+    [Obsolete("Use the ModalDialogHost constructor.")]
+    public SingleLineInputDialog(ScreenRenderer screen) : this(ModalDialogHost.For(screen)) { }
 
     public SingleLineInputDialogResult Show(SingleLineInputDialogOptions options)
     {
         ArgumentNullException.ThrowIfNull(options);
 
-        var size = _screen.GetSize();
-        var saved = _screen.Capture(new Rect(0, 0, size.Width, size.Height));
-        _screen.SetCursorVisible(false);
-
-        try
-        {
-            return RunLoop(options, size);
-        }
-        finally
-        {
-            _screen.Restore(saved);
-            _screen.SetCursorVisible(false);
-        }
+        return RunLoop(options);
     }
 
-    private SingleLineInputDialogResult RunLoop(SingleLineInputDialogOptions options, ConsoleSize size)
+    private SingleLineInputDialogResult RunLoop(SingleLineInputDialogOptions options)
     {
         var buffer = new CommandLineState();
         if (options.InitialText.Length > 0)
@@ -69,14 +62,20 @@ public sealed class SingleLineInputDialog
         string? error = null;
         int focusedButton = 0;
         bool buttonsFocused = false;
-        var layout = CreateLayout(size);
+        SingleLineInputLayout layout = default;
+        ConsoleSize size = default;
+        using var session = _modalDialogs.Open(context =>
+        {
+            size = context.Size;
+            layout = CreateLayout(size);
+            Draw(options, layout, buffer, error, history, focusedButton, buttonsFocused);
+        });
 
         while (true)
         {
-            Draw(options, layout, buffer, error, history, focusedButton, buttonsFocused);
-
+            session.Render();
             int availableRows = SingleLineTextInput.AvailableDropdownContentRows(layout.InputY, size.Height);
-            var input = _screen.ReadInput();
+            var input = session.ReadInput();
             if (input is MouseConsoleInputEvent mouse && history is not null)
             {
                 if (SingleLineTextInput.TryHandleHistoryDropdownMouse(
@@ -182,7 +181,6 @@ public sealed class SingleLineInputDialog
         bool buttonsFocused)
     {
         var palette = UiTheme.Current;
-        using var frame = _screen.BeginFrame();
         new DialogFrameRenderer().RenderFrame(
             _screen,
             layout.Bounds,

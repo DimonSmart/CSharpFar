@@ -17,12 +17,15 @@ internal sealed record FtpConnectionManagerResult(
 
 internal sealed class FtpConnectionManagerDialog
 {
-    private readonly ScreenRenderer _screen;
+    private readonly ModalDialogHost _modalDialogs;
 
-    public FtpConnectionManagerDialog(ScreenRenderer screen)
+    public FtpConnectionManagerDialog(ModalDialogHost modalDialogs)
     {
-        _screen = screen;
+        _modalDialogs = modalDialogs;
     }
+
+    [Obsolete("Use the ModalDialogHost constructor.")]
+    public FtpConnectionManagerDialog(ScreenRenderer screen) : this(ModalDialogHost.For(screen)) { }
 
     public FtpConnectionManagerResult? Show(IReadOnlyList<FtpConnectionInfo> connections)
     {
@@ -41,7 +44,7 @@ internal sealed class FtpConnectionManagerDialog
             DeleteActionId = "delete",
         };
 
-        var result = dialog.Show(_screen);
+        var result = dialog.Show(_modalDialogs);
         return result is null ? null : ToManagerResult(result);
     }
 

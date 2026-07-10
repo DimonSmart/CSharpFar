@@ -29,13 +29,13 @@ public sealed class ModuleUiServices
         new MessageDialog(ModalDialogs).ShowButtons(title, message, buttons);
 
     public string? Input(string title, string prompt, string? initialText = null) =>
-        new ModuleInputDialog(Screen).Show(title, prompt, initialText);
+        new ModuleInputDialog(ModalDialogs).Show(title, prompt, initialText);
 
     public int? ShowMenu(string title, IReadOnlyList<string> items, int selected) =>
         new ModuleMenuDialog(ModalDialogs).Show(title, items, selected);
 
     public void ShowHelp(string title, IReadOnlyList<string> lines) =>
-        new ModuleHelpDialog(Screen).Show(title, lines);
+        new ModuleHelpDialog(ModalDialogs).Show(title, lines);
 
     public bool Confirm(string title, string question, string itemName) =>
         new ConfirmDialog(ModalDialogs).Show(title, question, itemName);

@@ -7,49 +7,46 @@ namespace CSharpFar.Ui;
 
 public sealed class ModuleHelpDialog
 {
+    private readonly ModalDialogHost _modalDialogs;
     private readonly ScreenRenderer _screen;
 
-    public ModuleHelpDialog(ScreenRenderer screen)
+    public ModuleHelpDialog(ModalDialogHost modalDialogs)
     {
-        _screen = screen;
+        _modalDialogs = modalDialogs ?? throw new ArgumentNullException(nameof(modalDialogs));
+        _screen = modalDialogs.Screen;
     }
 
     public void Show(string title, IReadOnlyList<string> lines)
     {
         ArgumentNullException.ThrowIfNull(lines);
 
-        var size = _screen.GetSize();
-        var saved = _screen.Capture(new Rect(0, 0, size.Width, size.Height));
-        try
+        int scrollTop = 0;
+        ScrollBarDragState? scrollbarDrag = null;
+        ConsoleSize size = default;
+        int contentHeight = 0;
+        using var session = _modalDialogs.Open(context =>
         {
-            int scrollTop = 0;
-            ScrollBarDragState? scrollbarDrag = null;
+            size = context.Size;
+            contentHeight = Math.Max(1, size.Height - 2);
+            scrollTop = ScrollStateCalculator.ClampFirstVisibleIndex(scrollTop, lines.Count, contentHeight);
+            Draw(title, lines, scrollTop, size, contentHeight);
             _screen.SetCursorVisible(false);
+        });
 
-            while (true)
+        while (true)
+        {
+            session.Render();
+            var input = session.ReadInput();
+            switch (input)
             {
-                size = _screen.GetSize();
-                int contentHeight = Math.Max(1, size.Height - 2);
-                scrollTop = ScrollStateCalculator.ClampFirstVisibleIndex(scrollTop, lines.Count, contentHeight);
-                Draw(title, lines, scrollTop, size, contentHeight);
-
-                var input = _screen.ReadInput();
-                switch (input)
-                {
-                    case KeyConsoleInputEvent key:
-                        if (HandleKey(key.Key, lines.Count, contentHeight, ref scrollTop))
-                            return;
-                        break;
-                    case MouseConsoleInputEvent mouse:
-                        HandleMouse(mouse, lines.Count, contentHeight, size, ref scrollTop, ref scrollbarDrag);
-                        break;
-                }
+                case KeyConsoleInputEvent key:
+                    if (HandleKey(key.Key, lines.Count, contentHeight, ref scrollTop))
+                        return;
+                    break;
+                case MouseConsoleInputEvent mouse:
+                    HandleMouse(mouse, lines.Count, contentHeight, size, ref scrollTop, ref scrollbarDrag);
+                    break;
             }
-        }
-        finally
-        {
-            _screen.Restore(saved);
-            _screen.SetCursorVisible(false);
         }
     }
 

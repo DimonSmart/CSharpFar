@@ -11,7 +11,7 @@ public sealed class ConfirmDialog
     private const int DialogHeight = 7;
 
     private readonly ScreenRenderer _screen;
-    private readonly ModalDialogHost? _modalDialogs;
+    private readonly ModalDialogHost _modalDialogs;
     private readonly ModalDialogRenderer _modalRenderer = new();
     private readonly DialogButtonBar _buttonBar = new(
     [
@@ -21,37 +21,25 @@ public sealed class ConfirmDialog
 
     public ConfirmDialog(ModalDialogHost modalDialogs)
     {
-        _modalDialogs = modalDialogs;
+        _modalDialogs = modalDialogs ?? throw new ArgumentNullException(nameof(modalDialogs));
         _screen = modalDialogs.Screen;
     }
 
     [Obsolete("Use the ModalDialogHost constructor.")]
-    public ConfirmDialog(ScreenRenderer screen) => _screen = screen;
+    public ConfirmDialog(ScreenRenderer screen) : this(ModalDialogHost.For(screen)) { }
 
     /// <summary>
     /// Draws the dialog and waits for input. Returns true if confirmed.
     /// </summary>
     public bool Show(string title, string question, string itemName)
     {
-        if (_modalDialogs is not null)
-            return ShowComposed(title, question, itemName);
-        int focused = 0;
-        while (true)
-        {
-            using (var frame = _screen.BeginFrame())
-                RenderLayer(_screen, title, question, itemName, _screen.GetSize(), focused);
-            var input = _screen.ReadInput();
-            if (_buttonBar.TryHandleInput(input, ref focused, out var id) && id is not null)
-                return id == "ok";
-            if (input is KeyConsoleInputEvent { Key.Key: ConsoleKey.Escape }) return false;
-            if (input is KeyConsoleInputEvent { Key.Key: ConsoleKey.Enter }) return focused == 0;
-        }
+        return ShowComposed(title, question, itemName);
     }
 
     private bool ShowComposed(string title, string question, string itemName)
     {
         int focusedButton = 0;
-        using var session = _modalDialogs!.Open(context =>
+        using var session = _modalDialogs.Open(context =>
             RenderLayer(context.Screen, title, question, itemName, context.Size, focusedButton));
 
         while (true)

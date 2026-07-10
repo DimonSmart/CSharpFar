@@ -13,7 +13,7 @@ internal sealed class DirectoryHistoryCommand : IApplicationCommand
     {
         try
         {
-            string? path = new DirectoryHistoryDialog(context.Screen)
+            string? path = new DirectoryHistoryDialog(context.ModalDialogs)
                 .Show(context.History.GetDirectoryHistory());
             if (path is null)
                 return ApplicationCommandResult.Rendered();

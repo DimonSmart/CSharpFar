@@ -11,16 +11,16 @@ public enum OpenFileChoice { View, Edit, Cancel }
 /// </summary>
 internal sealed class OpenFileDialog
 {
-    private readonly ScreenRenderer _screen;
+    private readonly ModalDialogHost _modalDialogs;
 
-    public OpenFileDialog(ScreenRenderer screen)
+    public OpenFileDialog(ModalDialogHost modalDialogs)
     {
-        _screen = screen;
+        _modalDialogs = modalDialogs;
     }
 
     public OpenFileChoice Show(string fileName)
     {
-        var result = new ChoiceDialog(_screen).Show(new ChoiceDialogOptions
+        var result = new ChoiceDialog(_modalDialogs).Show(new ChoiceDialogOptions
         {
             Title = "Open File",
             Lines = [Truncate($"Open \"{fileName}\" as:", 48)],

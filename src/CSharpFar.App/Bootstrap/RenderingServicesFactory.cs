@@ -10,6 +10,7 @@ using CSharpFar.Console;
 using CSharpFar.Console.Models;
 using CSharpFar.Core.Controllers;
 using CSharpFar.Core.Highlighting;
+using CSharpFar.Core.Menu;
 using CSharpFar.Ui;
 using AppSettingsAlias = CSharpFar.Core.Models.AppSettings;
 
@@ -55,7 +56,7 @@ internal static class RenderingServicesFactory
             terminalScreenMode,
             shellUnderlay,
             session.Ui,
-            () => callbacks.HasVisiblePanels());
+            () => panelWorkspace.HasVisiblePanels);
         var quickViewDirectorySize = new QuickViewDirectorySizeController(autoRefresh.WakeInputLoop);
         var renderContext = new ApplicationRenderContext
         {
@@ -80,6 +81,7 @@ internal static class RenderingServicesFactory
             IsPanelVisible = panelWorkspace.IsPanelVisible,
             DirectoryShortcuts = () => settings.DirectoryShortcuts,
             QuickViewDirectorySize = quickViewDirectorySize,
+            BuildMenuDefinition = () => new MenuBarDefinition { Items = [] },
         };
         var renderCoordinator = new ApplicationRenderCoordinator(
             renderContext,

@@ -263,8 +263,7 @@ public sealed class Application
         callbacks.IsRunning = () => _state.Running;
         callbacks.CaptureUnderlay = _terminalSurface.CaptureUnderlay;
         callbacks.StartWatchingInitialPanels = StartWatchingInitialPanels;
-        callbacks.RenderUntilStable = () => _composition.Render();
-        callbacks.RenderCommandLineOnlyUntilStable = isResize => _composition.Render(isResize);
+        callbacks.RenderUi = isResize => _composition.Render(isResize);
         callbacks.RestoreTerminal = _terminalSurface.RestoreTerminal;
         callbacks.HandleResizeInput = HandleRuntimeResizeInput;
         callbacks.CheckViewportAfterInput = CheckRuntimeViewportAfterInput;

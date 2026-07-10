@@ -65,34 +65,27 @@ public sealed class SearchOptionsDialog
 
     private static readonly SingleLineTextHistoryRegistry HistoryRegistry = new();
 
+    private readonly ModalDialogHost _modalDialogs;
     private readonly ScreenRenderer _screen;
     private readonly ModalDialogRenderer _modalRenderer = new();
 
-    public SearchOptionsDialog(ScreenRenderer screen)
+    public SearchOptionsDialog(ModalDialogHost modalDialogs)
     {
-        _screen = screen;
+        _modalDialogs = modalDialogs ?? throw new ArgumentNullException(nameof(modalDialogs));
+        _screen = modalDialogs.Screen;
     }
+
+    [Obsolete("Use the ModalDialogHost constructor.")]
+    public SearchOptionsDialog(ScreenRenderer screen) : this(ModalDialogHost.For(screen)) { }
 
     public SearchOptionsDialogResult? Show(SearchOptionsDialogOptions options)
     {
         ArgumentNullException.ThrowIfNull(options);
 
-        var size = _screen.GetSize();
-        var saved = _screen.Capture(new Rect(0, 0, size.Width, size.Height));
-        _screen.SetCursorVisible(false);
-
-        try
-        {
-            return RunLoop(size, options);
-        }
-        finally
-        {
-            _screen.Restore(saved);
-            _screen.SetCursorVisible(false);
-        }
+        return RunLoop(options);
     }
 
-    private SearchOptionsDialogResult? RunLoop(ConsoleSize size, SearchOptionsDialogOptions options)
+    private SearchOptionsDialogResult? RunLoop(SearchOptionsDialogOptions options)
     {
         var pattern = new CommandLineState();
         if (options.InitialPattern.Length > 0)
@@ -113,12 +106,17 @@ public sealed class SearchOptionsDialog
             FarDialogStyles.FocusedInput);
         var form = new ScrollableFormDialog(BuildRows(options, pattern, patternHistory, patternRowState, checkboxes, buttons));
         string? error = null;
-        var layout = SearchOptionsDialogLayout.Create(size, options.Width, options.Options.Count);
+        SearchOptionsDialogLayout layout = default;
+        using var session = _modalDialogs.Open(context =>
+        {
+            layout = SearchOptionsDialogLayout.Create(context.Size, options.Width, options.Options.Count);
+            Draw(options, layout, form, error);
+        });
 
         while (true)
         {
-            Draw(options, layout, form, error);
-            var input = _screen.ReadInput();
+            session.Render();
+            var input = session.ReadInput();
             FormInputResult result = input switch
             {
                 KeyConsoleInputEvent { Key: var key } => HandleKey(form, patternHistory, key),
@@ -252,8 +250,6 @@ public sealed class SearchOptionsDialog
         string? error)
     {
         var palette = UiTheme.Current;
-        using var frame = _screen.BeginFrame();
-
         _modalRenderer.Render(
             _screen,
             layout.Bounds,

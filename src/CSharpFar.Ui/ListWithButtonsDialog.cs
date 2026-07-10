@@ -59,56 +59,49 @@ public sealed class ListWithButtonsDialog<T>
         set => _list.ScrollTop = value;
     }
 
-    public ListWithButtonsDialogResult<T>? Show(ScreenRenderer screen)
+    public ListWithButtonsDialogResult<T>? Show(ModalDialogHost modalDialogs)
     {
-        ArgumentNullException.ThrowIfNull(screen);
-
-        var size = screen.GetSize();
-        var saved = screen.Capture(new Rect(0, 0, size.Width, size.Height));
+        ArgumentNullException.ThrowIfNull(modalDialogs);
         int focusedButton = 0;
         bool focusButtons = !_list.HasItems;
         ScrollBarDragState? scrollbarDrag = null;
-        screen.SetCursorVisible(false);
-
-        try
+        ListWithButtonsLayout layout = default;
+        using var session = modalDialogs.Open(context =>
         {
-            while (true)
+            layout = CalculateLayout(context.Size);
+            _list.Normalize(layout.ListBounds.Height);
+            focusedButton = Math.Clamp(focusedButton, 0, _buttonBar.Count - 1);
+            RenderLayer(context.Screen, layout, focusButtons, focusedButton);
+        });
+        while (true)
+        {
+            session.Render();
+            var input = session.ReadInput();
+            if (input is MouseConsoleInputEvent mouse &&
+                HandleMouse(mouse, layout, ref focusedButton, ref focusButtons, ref scrollbarDrag, out var mouseResult))
             {
-                var layout = CalculateLayout(size);
-                _list.Normalize(layout.ListBounds.Height);
-                focusedButton = Math.Clamp(focusedButton, 0, _buttonBar.Count - 1);
-                Draw(screen, layout, focusButtons, focusedButton);
-
-                var input = screen.ReadInput();
-                if (input is MouseConsoleInputEvent mouse &&
-                    HandleMouse(mouse, layout, ref focusedButton, ref focusButtons, ref scrollbarDrag, out var mouseResult))
-                {
-                    if (mouseResult is not null)
-                        return mouseResult.ActionId == CancelActionId ? null : mouseResult;
-                    continue;
-                }
-
-                if (input is not KeyConsoleInputEvent { Key: var key })
-                    continue;
-
-                if (focusButtons &&
-                    _buttonBar.TryHandleInput(input, ref focusedButton, out string? buttonId))
-                {
-                    if (buttonId is not null)
-                        return buttonId == CancelActionId ? null : CreateResult(buttonId);
-                    continue;
-                }
-
-                if (HandleKey(key, layout.ListBounds.Height, ref focusButtons, out var keyResult))
-                    return keyResult?.ActionId == CancelActionId ? null : keyResult;
+                if (mouseResult is not null)
+                    return mouseResult.ActionId == CancelActionId ? null : mouseResult;
+                continue;
             }
-        }
-        finally
-        {
-            screen.Restore(saved);
-            screen.SetCursorVisible(false);
+
+            if (input is not KeyConsoleInputEvent { Key: var key })
+                continue;
+
+            if (focusButtons && _buttonBar.TryHandleInput(input, ref focusedButton, out string? buttonId))
+            {
+                if (buttonId is not null)
+                    return buttonId == CancelActionId ? null : CreateResult(buttonId);
+                continue;
+            }
+
+            if (HandleKey(key, layout.ListBounds.Height, ref focusButtons, out var keyResult))
+                return keyResult?.ActionId == CancelActionId ? null : keyResult;
         }
     }
+
+    [Obsolete("Use the ModalDialogHost overload.")]
+    public ListWithButtonsDialogResult<T>? Show(ScreenRenderer screen) => Show(ModalDialogHost.For(screen));
 
     private bool HandleKey(
         ConsoleKeyInfo key,
@@ -203,7 +196,7 @@ public sealed class ListWithButtonsDialog<T>
         return new ListWithButtonsDialogResult<T>(actionId, _list.Items[SelectedIndex], SelectedIndex);
     }
 
-    private void Draw(ScreenRenderer screen, ListWithButtonsLayout layout, bool focusButtons, int focusedButton)
+    private void RenderLayer(ScreenRenderer screen, ListWithButtonsLayout layout, bool focusButtons, int focusedButton)
     {
         var fill = FarDialogStyles.Fill;
         var border = FarDialogStyles.Border;
@@ -215,7 +208,6 @@ public sealed class ListWithButtonsDialog<T>
         _list.EmptyStyle = fill;
         var scrollState = _list.GetScrollState(layout.ListBounds.Height);
 
-        using var frame = screen.BeginFrame();
         _modalRenderer.Render(screen, layout.Bounds, Title, true, outerOptions, frameOptions, (_, modalLayout) =>
         {
             if (scrollState is not null)

@@ -10,12 +10,15 @@ namespace CSharpFar.App.Dialogs;
 /// </summary>
 internal sealed class UserMenuDialog
 {
-    private readonly ScreenRenderer _screen;
+    private readonly ModalDialogHost _modalDialogs;
 
-    public UserMenuDialog(ScreenRenderer screen)
+    public UserMenuDialog(ModalDialogHost modalDialogs)
     {
-        _screen = screen;
+        _modalDialogs = modalDialogs;
     }
+
+    [Obsolete("Use the ModalDialogHost constructor.")]
+    public UserMenuDialog(ScreenRenderer screen) : this(ModalDialogHost.For(screen)) { }
 
     public string? Show(IReadOnlyList<UserMenuItem> items)
     {
@@ -27,7 +30,7 @@ internal sealed class UserMenuDialog
             MaxWidth = 60,
             MaxVisibleRows = 15,
         };
-        var result = dialog.Show(_screen);
+        var result = dialog.Show(_modalDialogs);
         return result.IsConfirmed ? result.SelectedItem?.Command : null;
     }
 }

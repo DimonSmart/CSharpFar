@@ -20,7 +20,7 @@ internal sealed class ApplicationRuntime
         {
             _context.CaptureUnderlay();
             _context.StartWatchingInitialPanels();
-            _context.RenderUntilStable();
+            _context.RenderUi(false);
 
             while (_context.IsRunning())
             {
@@ -33,8 +33,8 @@ internal sealed class ApplicationRuntime
                 {
                     _context.ResetWaitToken();
                     _context.ProcessPendingRefreshes();
-                    if (_context.IsRunning() && _context.HasVisiblePanels())
-                        _context.RenderUntilStable();
+                    if (_context.IsRunning())
+                        _context.RenderUi(false);
                     continue;
                 }
 
@@ -45,14 +45,7 @@ internal sealed class ApplicationRuntime
                 if (!_context.IsRunning() || !renderRequest.ShouldRender)
                     continue;
 
-                if (_context.HasVisiblePanels())
-                {
-                    _context.RenderUntilStable();
-                }
-                else
-                {
-                    _context.RenderCommandLineOnlyUntilStable(renderRequest.IsResize);
-                }
+                _context.RenderUi(renderRequest.IsResize);
             }
 
             _screen.ClearScreen();
@@ -79,12 +72,10 @@ internal sealed class ApplicationRuntime
 internal sealed class ApplicationRuntimeContext
 {
     public required Func<bool> IsRunning { get; init; }
-    public required Func<bool> HasVisiblePanels { get; init; }
     public required Func<CancellationToken> WaitToken { get; init; }
     public required Action CaptureUnderlay { get; init; }
     public required Action StartWatchingInitialPanels { get; init; }
-    public required Action RenderUntilStable { get; init; }
-    public required Action<bool> RenderCommandLineOnlyUntilStable { get; init; }
+    public required Action<bool> RenderUi { get; init; }
     public required Action RestoreTerminal { get; init; }
     public required Action ResetWaitToken { get; init; }
     public required Action ProcessPendingRefreshes { get; init; }
