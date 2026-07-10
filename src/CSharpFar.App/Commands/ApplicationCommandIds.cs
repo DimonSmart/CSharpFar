@@ -6,4 +6,6 @@ internal static class ApplicationCommandIds
     public const string NavigateToRoot = "application.navigateToRoot";
     public const string TogglePanels = "application.togglePanels";
     public const string SwapPanels = "application.swapPanels";
+    public const string CompareFolders = "application.compareFolders";
+    public const string CompareFileSets = "application.compareFileSets";
 }

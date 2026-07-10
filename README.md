@@ -84,6 +84,19 @@ instead of being sent to the console as controls.
 Quick View (`Ctrl+Q`) is still a bounded preview. It does not try to stream or scroll large
 files.
 
+## Compare folders
+
+The Commands menu includes `Compare folders` and `Compare file sets`.
+
+`Compare folders` compares the active panel directory with the passive panel
+directory by relative path. `Compare file sets` ignores folder structure and
+matches files by file name, file name plus size, or file name plus content hash.
+
+Fast comparison uses size and modified time. Content comparison reads files byte
+by byte in chunks. File-set content-hash matching uses streaming SHA-256.
+Duplicate file-set matches are shown as ambiguous instead of being silently
+paired.
+
 ## File operations
 
 ### Reliable copy

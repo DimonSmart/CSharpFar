@@ -8,6 +8,7 @@ public sealed class AppSettings
     public ShellSettings   Shell   { get; set; } = new();
     public PanelsSettings  Panels  { get; set; } = new();
     public FileOperationSettings FileOperations { get; set; } = new();
+    public CompareSettings Compare { get; set; } = new();
     public HistorySettings History { get; set; } = new();
     public EditorSettings  Editor  { get; set; } = new();
     public DirectoryShortcutSettings DirectoryShortcuts { get; set; } = new();
@@ -75,6 +76,21 @@ public sealed class AppSettings
         public bool UseRecycleBinForDelete { get; set; } = true;
         public string CopyMode { get; set; } = "Normal";
         public string ConflictDecision { get; set; } = "Ask";
+    }
+
+    public sealed class CompareSettings
+    {
+        public string Mode { get; set; } = "FolderStructure";
+        public bool IncludeSubfolders { get; set; } = true;
+        public string Depth { get; set; } = "All";
+        public int CustomDepth { get; set; } = 3;
+        public string IncludeMasks { get; set; } = "*";
+        public string ExcludeMasks { get; set; } = "";
+        public string Method { get; set; } = "Fast";
+        public string TimestampTolerance { get; set; } = "Exact";
+        public string NameComparison { get; set; } = "SystemDefault";
+        public string FileSetMatchMode { get; set; } = "FileName";
+        public bool SelectedItemsOnly { get; set; }
     }
 
     public sealed class HistorySettings

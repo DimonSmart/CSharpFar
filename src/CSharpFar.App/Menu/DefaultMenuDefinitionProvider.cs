@@ -54,6 +54,17 @@ public sealed class DefaultMenuDefinitionProvider
                     "Swap panels",
                     'S',
                     ApplicationCommandIds.SwapPanels),
+                Separator("Commands.sep.compare"),
+                Command(
+                    "Commands.compareFolders",
+                    "Compare folders",
+                    'F',
+                    ApplicationCommandIds.CompareFolders),
+                Command(
+                    "Commands.compareFileSets",
+                    "Compare file sets",
+                    'E',
+                    ApplicationCommandIds.CompareFileSets),
             ],
         };
 

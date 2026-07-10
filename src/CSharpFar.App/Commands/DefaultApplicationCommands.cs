@@ -20,6 +20,8 @@ internal static class DefaultApplicationCommands
         new SelectLeftDriveCommand(),
         new SelectRightDriveCommand(),
         new SearchFilesCommand(),
+        new CompareCommand(CompareCommandKind.Folders),
+        new CompareCommand(CompareCommandKind.FileSets),
         new CommandHistoryCommand(),
         new FileHistoryCommand(),
         new DirectoryHistoryCommand(),
