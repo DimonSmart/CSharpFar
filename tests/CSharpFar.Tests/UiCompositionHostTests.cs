@@ -1,5 +1,6 @@
 using CSharpFar.Console;
 using CSharpFar.Console.Input;
+using CSharpFar.Console.Models;
 using CSharpFar.Tests.Fakes;
 using CSharpFar.Ui;
 
@@ -156,5 +157,82 @@ public sealed class UiCompositionHostTests
 
         surface.Dispose();
         surface.Dispose();
+    }
+
+    [Fact]
+    public void TryReadInput_RedrawsViewportChangeWhenInputQueueIsEmpty()
+    {
+        var driver = new FakeConsoleDriver(80, 25);
+        var screen = new ScreenRenderer(driver);
+        var host = new UiCompositionHost(screen);
+        host.SetRootSurface(new ScreenRendererSurface(screen, context => Fill(context, 'R')));
+        var modals = new ModalDialogHost(host);
+        using var modal = modals.Open(context => CenterMark(context, 'M'));
+
+        modal.Render();
+        driver.SetSize(100, 35);
+
+        bool hasInput = modal.TryReadInput(out var input);
+
+        Assert.False(hasInput);
+        Assert.Null(input);
+        Assert.Equal(driver.GetViewport(), host.LastStableViewport);
+        Assert.Equal('R', driver.GetCell(99, 34).Character);
+        Assert.Equal('M', driver.GetCell(50, 17).Character);
+    }
+
+    [Fact]
+    public void TryReadInput_ConsumesResizeEventsAndPreservesOrdinaryInput()
+    {
+        var driver = new FakeConsoleDriver(80, 25);
+        var host = new UiCompositionHost(new ScreenRenderer(driver));
+        int renders = 0;
+        host.SetRootSurface(new ScreenRendererSurface(host.Screen, _ => { }));
+        using var surface = host.OpenSurface(_ => renders++);
+        driver.EnqueueInput(new ConsoleResizeInputEvent());
+        driver.EnqueueInput(new ConsoleResizeInputEvent());
+        driver.EnqueueKey(new ConsoleKeyInfo('x', ConsoleKey.X, shift: false, alt: false, control: false));
+
+        bool hasInput = surface.TryReadInput(out var input);
+
+        Assert.True(hasInput);
+        var keyInput = Assert.IsType<KeyConsoleInputEvent>(input);
+        Assert.Equal(ConsoleKey.X, keyInput.Key.Key);
+        Assert.Equal(driver.GetViewport(), host.LastStableViewport);
+        Assert.Equal(1, renders);
+    }
+
+    [Fact]
+    public void PollingResizeRecovery_DoesNotRenderRepeatedlyWhenStable()
+    {
+        var driver = new FakeConsoleDriver(80, 25);
+        var host = new UiCompositionHost(new ScreenRenderer(driver));
+        int renders = 0;
+        host.SetRootSurface(new ScreenRendererSurface(host.Screen, _ => { }));
+        using var surface = host.OpenSurface(_ => renders++);
+        surface.Render();
+        driver.SetSize(100, 35);
+
+        Assert.False(surface.TryReadInput(out _));
+        Assert.Equal(2, renders);
+
+        Assert.False(surface.TryReadInput(out _));
+        Assert.False(surface.TryReadInput(out _));
+        Assert.Equal(2, renders);
+    }
+
+    private static void Fill(UiRenderContext context, char value)
+    {
+        var style = new CellStyle(ConsoleColor.Gray, ConsoleColor.Black);
+        string row = new(value, context.Size.Width);
+        for (int y = 0; y < context.Size.Height; y++)
+            context.Screen.Write(0, y, row, style);
+    }
+
+    private static void CenterMark(UiRenderContext context, char value)
+    {
+        var style = new CellStyle(ConsoleColor.White, ConsoleColor.Blue);
+        context.Screen.Write(context.Size.Width / 2, context.Size.Height / 2, value.ToString(), style);
+        context.Screen.SetCursorVisible(false);
     }
 }

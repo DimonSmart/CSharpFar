@@ -100,9 +100,6 @@ public sealed class ListWithButtonsDialog<T>
         }
     }
 
-    [Obsolete("Use the ModalDialogHost overload.")]
-    public ListWithButtonsDialogResult<T>? Show(ScreenRenderer screen) => Show(ModalDialogHost.For(screen));
-
     private bool HandleKey(
         ConsoleKeyInfo key,
         int visibleRows,

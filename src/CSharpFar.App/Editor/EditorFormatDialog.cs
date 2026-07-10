@@ -13,12 +13,14 @@ internal sealed class EditorFormatDialog
     private const int DialogHeight = 9;
 
     private readonly ScreenRenderer _screen;
+    private readonly ModalDialogHost _modalDialogs;
     private readonly ConsolePalette _palette;
     private readonly ModalDialogRenderer _modalRenderer = new();
 
-    public EditorFormatDialog(ScreenRenderer screen, ConsolePalette palette)
+    public EditorFormatDialog(ScreenRenderer screen, ModalDialogHost modalDialogs, ConsolePalette palette)
     {
         _screen = screen;
+        _modalDialogs = modalDialogs;
         _palette = palette;
     }
 

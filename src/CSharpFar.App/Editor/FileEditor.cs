@@ -19,6 +19,7 @@ internal sealed class FileEditor
     private const int CustomCursorInputPollMs = 25;
 
     private readonly ScreenRenderer _screen;
+    private readonly ModalDialogHost _modalDialogs;
     private readonly ConsolePalette _palette;
     private readonly AppSettings.EditorSettings _settings;
     private readonly EditorFileService _fileService;
@@ -32,41 +33,45 @@ internal sealed class FileEditor
     private bool _persistentSelection;
     private bool _customCursorVisible = true;
 
-    public FileEditor(ScreenRenderer screen)
-        : this(screen, null, null) { }
+    public FileEditor(ScreenRenderer screen, ModalDialogHost modalDialogs)
+        : this(screen, modalDialogs, null, null) { }
 
-    public FileEditor(ScreenRenderer screen, ConsolePalette? palette)
-        : this(screen, palette, null) { }
+    public FileEditor(ScreenRenderer screen, ModalDialogHost modalDialogs, ConsolePalette? palette)
+        : this(screen, modalDialogs, palette, null) { }
 
     public FileEditor(
         ScreenRenderer screen,
+        ModalDialogHost modalDialogs,
         ConsolePalette? palette,
         AppSettings.EditorSettings? settings)
-        : this(screen, palette, settings, null)
+        : this(screen, modalDialogs, palette, settings, null)
     {
     }
 
     internal FileEditor(
         ScreenRenderer screen,
+        ModalDialogHost modalDialogs,
         ConsolePalette? palette,
         AppSettings.EditorSettings? settings,
         ITextClipboard? clipboard)
-        : this(screen, palette, settings, clipboard, null)
+        : this(screen, modalDialogs, palette, settings, clipboard, null)
     {
     }
 
     internal FileEditor(
         ScreenRenderer screen,
+        ModalDialogHost modalDialogs,
         ConsolePalette? palette,
         AppSettings.EditorSettings? settings,
         ITextClipboard? clipboard,
         EditorFileNameInsertionContext? fileNameInsertionContext)
-        : this(screen, palette, settings, clipboard, fileNameInsertionContext, null)
+        : this(screen, modalDialogs, palette, settings, clipboard, fileNameInsertionContext, null)
     {
     }
 
     internal FileEditor(
         ScreenRenderer screen,
+        ModalDialogHost modalDialogs,
         ConsolePalette? palette,
         AppSettings.EditorSettings? settings,
         ITextClipboard? clipboard,
@@ -74,6 +79,7 @@ internal sealed class FileEditor
         IEditorSyntaxHighlighter? syntaxHighlighter)
     {
         _screen = screen;
+        _modalDialogs = modalDialogs ?? throw new ArgumentNullException(nameof(modalDialogs));
         _palette = palette ?? PaletteRegistry.Default;
         _settings = settings ?? new AppSettings.EditorSettings();
         _fileService = new EditorFileService(_settings);
@@ -90,7 +96,7 @@ internal sealed class FileEditor
     private void Show(string filePath, EditorDocumentFormat? newFileFormat)
     {
         if (_fileService.RequiresSizeWarning(filePath) &&
-            !new ConfirmDialog(_screen).Show(
+            !new ConfirmDialog(_modalDialogs).Show(
                 "Editor",
                 $"File is larger than the editor warning limit ({_settings.FileSizeLimitBytes / 1024 / 1024} MB).",
                 "Open anyway?"))
@@ -105,7 +111,7 @@ internal sealed class FileEditor
         }
         catch (Exception ex)
         {
-            new MessageDialog(_screen).Show("Editor", ex.Message);
+            new MessageDialog(_modalDialogs).Show("Editor", ex.Message);
             return;
         }
 
@@ -506,13 +512,13 @@ internal sealed class FileEditor
                 return true;
             case ConsoleKey.P when control:
                 if (!session.CopySelectionToCursor())
-                    new MessageDialog(_screen).Show("Editor", "Select text to copy block.");
+                    new MessageDialog(_modalDialogs).Show("Editor", "Select text to copy block.");
                 _markMode = false;
                 _persistentSelection = false;
                 return true;
             case ConsoleKey.M when control:
                 if (!session.MoveSelectionToCursor())
-                    new MessageDialog(_screen).Show("Editor", "Select text outside the cursor to move block.");
+                    new MessageDialog(_modalDialogs).Show("Editor", "Select text outside the cursor to move block.");
                 _markMode = false;
                 _persistentSelection = false;
                 return true;
@@ -690,7 +696,7 @@ internal sealed class FileEditor
         if (!session.Document.IsDirty)
             return true;
 
-        var choice = new SaveChangesDialog(_screen).Show(Path.GetFileName(session.FilePath));
+        var choice = new SaveChangesDialog(_modalDialogs).Show(Path.GetFileName(session.FilePath));
         return choice switch
         {
             SaveChangesChoice.Save => SaveFile(session),
@@ -708,14 +714,14 @@ internal sealed class FileEditor
         }
         catch (Exception ex)
         {
-            new MessageDialog(_screen).Show("Save Error", ex.Message);
+            new MessageDialog(_modalDialogs).Show("Save Error", ex.Message);
             return false;
         }
     }
 
     private void ShowFormatDialog(EditorSession session)
     {
-        var selected = new EditorFormatDialog(_screen, _palette).Show(
+        var selected = new EditorFormatDialog(_screen, _modalDialogs, _palette).Show(
             session.Document.Format,
             () => Draw(session, Math.Max(1, _screen.GetSize().Height - 3), _screen.GetSize(), default));
         if (selected is not null)
@@ -724,7 +730,7 @@ internal sealed class FileEditor
 
     private void ShowFindDialog(EditorSession session)
     {
-        var result = new EditorFindDialog(_screen, _palette).Show(_lastFind);
+        var result = new EditorFindDialog(_modalDialogs, _palette).Show(_lastFind);
         if (result is null)
             return;
 
@@ -757,7 +763,7 @@ internal sealed class FileEditor
             UseRegex: false));
         if (match is null)
         {
-            new MessageDialog(_screen).Show("Find", "Text not found.");
+            new MessageDialog(_modalDialogs).Show("Find", "Text not found.");
             return;
         }
 
@@ -779,11 +785,11 @@ internal sealed class FileEditor
 
     private void ShowReplaceDialog(EditorSession session)
     {
-        string? pattern = new InputDialog(_screen).Show("Replace", "Find", allowEmpty: false);
+        string? pattern = new InputDialog(_modalDialogs).Show("Replace", "Find", allowEmpty: false);
         if (pattern is null)
             return;
 
-        string? replacement = new InputDialog(_screen).Show("Replace", "With", allowEmpty: true);
+        string? replacement = new InputDialog(_modalDialogs).Show("Replace", "With", allowEmpty: true);
         if (replacement is null)
             return;
 
@@ -794,17 +800,17 @@ internal sealed class FileEditor
         }
         catch (ArgumentException ex)
         {
-            new MessageDialog(_screen).Show("Replace", ex.Message);
+            new MessageDialog(_modalDialogs).Show("Replace", ex.Message);
             return;
         }
 
         if (count == 0)
-            new MessageDialog(_screen).Show("Replace", "Text not found.");
+            new MessageDialog(_modalDialogs).Show("Replace", "Text not found.");
     }
 
     private void ShowSyntaxLanguageDialog(EditorSession session)
     {
-        string? language = new InputDialog(_screen).Show(
+        string? language = new InputDialog(_modalDialogs).Show(
             "Syntax",
             "Language",
             allowEmpty: false,
@@ -815,7 +821,7 @@ internal sealed class FileEditor
 
     private void ShowSyntaxThemeDialog(EditorSession session)
     {
-        string? theme = new InputDialog(_screen).Show(
+        string? theme = new InputDialog(_modalDialogs).Show(
             "Syntax",
             "Theme",
             allowEmpty: false,

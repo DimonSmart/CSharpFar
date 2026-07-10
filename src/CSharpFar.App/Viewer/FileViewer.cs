@@ -10,11 +10,13 @@ namespace CSharpFar.App.Viewer;
 internal sealed class FileViewer
 {
     private readonly ScreenRenderer _screen;
+    private readonly ModalDialogHost _modalDialogs;
     private readonly ConsolePalette _palette;
 
-    public FileViewer(ScreenRenderer screen, ConsolePalette? palette = null)
+    public FileViewer(ScreenRenderer screen, ModalDialogHost modalDialogs, ConsolePalette? palette = null)
     {
         _screen = screen;
+        _modalDialogs = modalDialogs;
         _palette = palette ?? PaletteRegistry.Default;
     }
 
@@ -22,21 +24,21 @@ internal sealed class FileViewer
     {
         if (!File.Exists(filePath))
         {
-            new MessageDialog(_screen).Show("Viewer", "File not found.");
+            new MessageDialog(_modalDialogs).Show("Viewer", "File not found.");
             return;
         }
 
-        new LargeFileViewer(_screen, _palette).Show(filePath);
+        new LargeFileViewer(_screen, _modalDialogs, _palette).Show(filePath);
     }
 
     internal void Show(string filePath, LargeFileViewerOptions options)
     {
         if (!File.Exists(filePath))
         {
-            new MessageDialog(_screen).Show("Viewer", "File not found.");
+            new MessageDialog(_modalDialogs).Show("Viewer", "File not found.");
             return;
         }
 
-        new LargeFileViewer(_screen, _palette).Show(filePath, options);
+        new LargeFileViewer(_screen, _modalDialogs, _palette).Show(filePath, options);
     }
 }

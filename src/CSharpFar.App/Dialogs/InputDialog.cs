@@ -16,9 +16,6 @@ internal sealed class InputDialog
         _modalDialogs = modalDialogs;
     }
 
-    [Obsolete("Use the ModalDialogHost constructor.")]
-    public InputDialog(ScreenRenderer screen) : this(ModalDialogHost.For(screen)) { }
-
     /// <summary>
     /// Shows the dialog and returns the entered text, or <c>null</c> if the user pressed Esc.
     /// </summary>

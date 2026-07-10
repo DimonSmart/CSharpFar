@@ -4,6 +4,7 @@ using CSharpFar.Console;
 using CSharpFar.Console.Input;
 using CSharpFar.Console.Models;
 using CSharpFar.Core.Models;
+using CSharpFar.Ui;
 
 namespace CSharpFar.App.Dialogs;
 
@@ -19,6 +20,7 @@ internal sealed class OpenCreateFileDialog
 
     private static readonly SingleLineTextHistoryRegistry HistoryRegistry = new();
 
+    private readonly ModalDialogHost _modalDialogs;
     private readonly ScreenRenderer _screen;
     private readonly ModalDialogRenderer _modalRenderer = new();
     private readonly IReadOnlyList<EditorNewFileEncodingOption> _codePages;
@@ -28,16 +30,17 @@ internal sealed class OpenCreateFileDialog
         new DialogButton("cancel", "Cancel", 'C'),
     ]);
 
-    public OpenCreateFileDialog(ScreenRenderer screen)
-        : this(screen, EditorNewFileEncodingOption.CreateCatalog())
+    public OpenCreateFileDialog(ModalDialogHost modalDialogs)
+        : this(modalDialogs, EditorNewFileEncodingOption.CreateCatalog())
     {
     }
 
     internal OpenCreateFileDialog(
-        ScreenRenderer screen,
+        ModalDialogHost modalDialogs,
         IReadOnlyList<EditorNewFileEncodingOption> codePages)
     {
-        _screen = screen;
+        _modalDialogs = modalDialogs;
+        _screen = modalDialogs.Screen;
         _codePages = codePages.Count == 0
             ? [new EditorNewFileEncodingOption("Default", null, EmitByteOrderMark: false)]
             : codePages;
@@ -47,23 +50,12 @@ internal sealed class OpenCreateFileDialog
         string? initialPath = null,
         Func<string, string?>? validate = null)
     {
-        var size = _screen.GetSize();
-        var saved = _screen.Capture(new Rect(0, 0, size.Width, size.Height));
         _screen.SetCursorVisible(false);
 
-        try
-        {
-            return RunLoop(size, initialPath, validate);
-        }
-        finally
-        {
-            _screen.Restore(saved);
-            _screen.SetCursorVisible(false);
-        }
+        return RunLoop(initialPath, validate);
     }
 
     private OpenCreateFileDialogResult? RunLoop(
-        ConsoleSize size,
         string? initialPath,
         Func<string, string?>? validate)
     {
@@ -77,12 +69,18 @@ internal sealed class OpenCreateFileDialog
         int focusedButton = 0;
         string? error = null;
         ScrollBarDragState? historyScrollbarDrag = null;
+        ConsoleSize size = default;
 
-        Draw(size, filePath, history, codePageDropdown, focusRow, focusedButton, error);
+        using var modal = _modalDialogs.Open(context =>
+        {
+            size = context.Size;
+            Draw(context.Screen, size, filePath, history, codePageDropdown, focusRow, focusedButton, error);
+        });
+        modal.Render();
 
         while (true)
         {
-            var input = _screen.ReadInput();
+            var input = modal.ReadInput();
 
             if (focusRow == 2 &&
                 _buttonBar.TryHandleInput(input, ref focusedButton, out string? buttonId))
@@ -96,7 +94,7 @@ internal sealed class OpenCreateFileDialog
                         return result;
                 }
 
-                Draw(size, filePath, history, codePageDropdown, focusRow, focusedButton, error);
+                modal.Render();
                 continue;
             }
 
@@ -104,43 +102,43 @@ internal sealed class OpenCreateFileDialog
                 TryHandleHistoryDropdownMouse(dropdownMouse, size, filePath, history, ref historyScrollbarDrag))
             {
                 focusRow = 0;
-                codePageDropdown.Close(_screen);
-                Draw(size, filePath, history, codePageDropdown, focusRow, focusedButton, error);
+                codePageDropdown.Close();
+                modal.Render();
                 continue;
             }
 
             if (input is MouseConsoleInputEvent mouse)
             {
-                if (codePageDropdown.TryHandlePopupMouse(mouse, _screen, size, CodePageFieldBounds(size), out _))
+                if (codePageDropdown.TryHandlePopupMouse(mouse, size, CodePageFieldBounds(size), out _))
                 {
                     focusRow = 1;
                     error = null;
-                    Draw(size, filePath, history, codePageDropdown, focusRow, focusedButton, error);
+                    modal.Render();
                     continue;
                 }
 
                 if (TryHandleHistoryArrow(mouse, size, history))
                 {
                     focusRow = 0;
-                    codePageDropdown.Close(_screen);
-                    Draw(size, filePath, history, codePageDropdown, focusRow, focusedButton, error);
+                    codePageDropdown.Close();
+                    modal.Render();
                     continue;
                 }
 
                 if (TryHandlePathFieldMouse(mouse, size, filePath))
                 {
                     focusRow = 0;
-                    codePageDropdown.Close(_screen);
+                    codePageDropdown.Close();
                     error = null;
-                    Draw(size, filePath, history, codePageDropdown, focusRow, focusedButton, error);
+                    modal.Render();
                     continue;
                 }
 
-                if (codePageDropdown.TryHandleFieldMouse(mouse, _screen, size, CodePageFieldBounds(size)))
+                if (codePageDropdown.TryHandleFieldMouse(mouse, size, CodePageFieldBounds(size)))
                 {
                     focusRow = 1;
                     error = null;
-                    Draw(size, filePath, history, codePageDropdown, focusRow, focusedButton, error);
+                    modal.Render();
                     continue;
                 }
 
@@ -148,7 +146,7 @@ internal sealed class OpenCreateFileDialog
                     buttonId is not null)
                 {
                     focusRow = 2;
-                    codePageDropdown.Close(_screen);
+                    codePageDropdown.Close();
                     if (buttonId == "cancel")
                         return null;
 
@@ -156,21 +154,21 @@ internal sealed class OpenCreateFileDialog
                     if (result is not null)
                         return result;
 
-                    Draw(size, filePath, history, codePageDropdown, focusRow, focusedButton, error);
+                    modal.Render();
                     continue;
                 }
 
                 if (codePageDropdown.IsOpen)
                 {
-                    codePageDropdown.Close(_screen);
-                    Draw(size, filePath, history, codePageDropdown, focusRow, focusedButton, error);
+                    codePageDropdown.Close();
+                    modal.Render();
                     continue;
                 }
             }
 
             if (input is not KeyConsoleInputEvent { Key: var key })
             {
-                Draw(size, filePath, history, codePageDropdown, focusRow, focusedButton, error);
+                modal.Render();
                 continue;
             }
 
@@ -180,7 +178,7 @@ internal sealed class OpenCreateFileDialog
                 key.Key is ConsoleKey.UpArrow or ConsoleKey.DownArrow or ConsoleKey.Enter or ConsoleKey.Escape)
             {
                 SingleLineTextInput.HandleKey(filePath, key, ref error, history, availableRows);
-                Draw(size, filePath, history, codePageDropdown, focusRow, focusedButton, error);
+                modal.Render();
                 continue;
             }
 
@@ -188,15 +186,15 @@ internal sealed class OpenCreateFileDialog
             {
                 if (key.Key == ConsoleKey.Tab)
                 {
-                    codePageDropdown.Close(_screen);
+                    codePageDropdown.Close();
                     focusRow = 2;
                 }
                 else
                 {
-                    codePageDropdown.TryHandleKey(key, size, CodePageFieldBounds(size), _screen, out _);
+                    codePageDropdown.TryHandleKey(key, size, CodePageFieldBounds(size), out _);
                 }
 
-                Draw(size, filePath, history, codePageDropdown, focusRow, focusedButton, error);
+                modal.Render();
                 continue;
             }
 
@@ -218,12 +216,12 @@ internal sealed class OpenCreateFileDialog
                     }
 
                 case ConsoleKey.Tab:
-                    codePageDropdown.Close(_screen);
+                    codePageDropdown.Close();
                     focusRow = (focusRow + 1) % 3;
                     break;
 
                 case ConsoleKey.UpArrow:
-                    codePageDropdown.Close(_screen);
+                    codePageDropdown.Close();
                     focusRow = Math.Max(0, focusRow - 1);
                     break;
 
@@ -234,7 +232,7 @@ internal sealed class OpenCreateFileDialog
                     }
                     else
                     {
-                        codePageDropdown.Close(_screen);
+                        codePageDropdown.Close();
                         focusRow = Math.Min(2, focusRow + 1);
                     }
                     break;
@@ -283,7 +281,7 @@ internal sealed class OpenCreateFileDialog
                     break;
             }
 
-            Draw(size, filePath, history, codePageDropdown, focusRow, focusedButton, error);
+            modal.Render();
         }
     }
 
@@ -320,6 +318,7 @@ internal sealed class OpenCreateFileDialog
     }
 
     private void Draw(
+        ScreenRenderer screen,
         ConsoleSize size,
         CommandLineState filePath,
         SingleLineTextHistoryState history,
@@ -328,8 +327,6 @@ internal sealed class OpenCreateFileDialog
         int focusedButton,
         string? error)
     {
-        using var frame = _screen.BeginFrame();
-
         int dialogWidth = Math.Min(DialogWidth, Math.Max(44, size.Width - 2));
         int dialogHeight = Math.Min(DialogHeight, Math.Max(8, size.Height - 2));
         int dialogX = Math.Max(0, (size.Width - dialogWidth) / 2);
@@ -337,7 +334,7 @@ internal sealed class OpenCreateFileDialog
         var outerBounds = new Rect(dialogX, dialogY, dialogWidth, dialogHeight);
 
         _modalRenderer.Render(
-            _screen,
+            screen,
             outerBounds,
             Title,
             doubleBorder: true,
@@ -349,20 +346,20 @@ internal sealed class OpenCreateFileDialog
                 int contentX = bounds.X + 1;
                 int contentWidth = Math.Max(1, bounds.Width - 2);
 
-                _screen.Write(contentX, bounds.Y, "Open/create file:".PadRight(contentWidth), FarDialogStyles.Fill);
+                screen.Write(contentX, bounds.Y, "Open/create file:".PadRight(contentWidth), FarDialogStyles.Fill);
                 DrawPathInput(contentX, bounds.Y + 1, contentWidth, filePath, history, focusRow == 0);
 
-                _screen.Write(contentX, bounds.Y + 3, "Code page:".PadRight(contentWidth), FarDialogStyles.Fill);
+                screen.Write(contentX, bounds.Y + 3, "Code page:".PadRight(contentWidth), FarDialogStyles.Fill);
                 codePageDropdown.RenderField(
-                    _screen,
+                    screen,
                     new Rect(contentX, bounds.Y + 4, contentWidth, 1),
                     focusRow == 1 ? FarDialogStyles.FocusedInput : FarDialogStyles.Input);
 
                 string errorText = error is null ? string.Empty : Truncate(error, contentWidth);
-                _screen.Write(contentX, bounds.Y + 5, errorText.PadRight(contentWidth), FarDialogStyles.Error);
+                screen.Write(contentX, bounds.Y + 5, errorText.PadRight(contentWidth), FarDialogStyles.Error);
 
                 _buttonBar.Render(
-                    _screen,
+                    screen,
                     contentX,
                     layout.FrameBounds.Bottom - 2,
                     contentWidth,
@@ -372,14 +369,14 @@ internal sealed class OpenCreateFileDialog
             });
 
         if (focusRow == 0)
-            SingleLineTextInput.RenderHistoryDropdown(_screen, InputX(size), InputY(size), InputWidth(size), history);
+            SingleLineTextInput.RenderHistoryDropdown(screen, InputX(size), InputY(size), InputWidth(size), history);
         else
-            codePageDropdown.RenderPopup(_screen, size, CodePageFieldBounds(size));
+            codePageDropdown.RenderPopup(screen, size, CodePageFieldBounds(size));
 
         if (focusRow == 0)
             SetInputCursor(InputX(size), InputY(size), InputWidth(size), filePath);
         else
-            _screen.SetCursorVisible(false);
+            screen.SetCursorVisible(false);
     }
 
     private void DrawPathInput(

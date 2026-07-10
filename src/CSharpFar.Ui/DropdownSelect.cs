@@ -8,7 +8,6 @@ namespace CSharpFar.Ui;
 public sealed class DropdownSelect<T>
 {
     private readonly ScrollableList<T> _list;
-    private ScreenSnapshot? _underlay;
     private ScrollBarDragState? _scrollbarDrag;
     private int _selectedIndexBeforeOpen;
 
@@ -48,25 +47,19 @@ public sealed class DropdownSelect<T>
         _list.Normalize(ContentRows(size, fieldBounds));
     }
 
-    public void Close(ScreenRenderer screen, bool commit = false)
+    public void Close(bool commit = false)
     {
         if (IsOpen && !commit)
             SelectedIndex = Math.Clamp(_selectedIndexBeforeOpen, 0, _list.Count - 1);
-
-        if (_underlay is not null)
-        {
-            screen.Restore(_underlay);
-            _underlay = null;
-        }
 
         IsOpen = false;
         _scrollbarDrag = null;
     }
 
-    public void Toggle(ScreenRenderer screen, ConsoleSize size, Rect fieldBounds)
+    public void Toggle(ConsoleSize size, Rect fieldBounds)
     {
         if (IsOpen)
-            Close(screen, commit: false);
+            Close(commit: false);
         else
             Open(size, fieldBounds);
     }
@@ -89,18 +82,10 @@ public sealed class DropdownSelect<T>
         Rect fieldBounds)
     {
         if (!IsOpen)
-        {
-            if (_underlay is not null)
-            {
-                screen.Restore(_underlay);
-                _underlay = null;
-            }
             return;
-        }
 
         Rect bounds = PopupBounds(size, fieldBounds);
         Rect contentBounds = PopupRenderer.GetContentBounds(bounds, drawBorder: true);
-        _underlay ??= screen.Capture(bounds);
         int contentRows = contentBounds.Height;
         _list.Normalize(contentRows);
         var palette = UiTheme.Current;
@@ -125,7 +110,6 @@ public sealed class DropdownSelect<T>
 
     public bool TryHandleFieldMouse(
         MouseConsoleInputEvent mouse,
-        ScreenRenderer screen,
         ConsoleSize size,
         Rect fieldBounds)
     {
@@ -138,13 +122,12 @@ public sealed class DropdownSelect<T>
             return false;
         }
 
-        Toggle(screen, size, fieldBounds);
+        Toggle(size, fieldBounds);
         return true;
     }
 
     public bool TryHandlePopupMouse(
         MouseConsoleInputEvent mouse,
-        ScreenRenderer screen,
         ConsoleSize size,
         Rect fieldBounds,
         out bool selected)
@@ -160,7 +143,7 @@ public sealed class DropdownSelect<T>
         if (mouse.Kind == MouseEventKind.Down && mouse.Button == MouseButton.Left &&
             (mouse.X < bounds.X || mouse.X >= bounds.Right || mouse.Y < bounds.Y || mouse.Y >= bounds.Bottom))
         {
-            Close(screen);
+            Close();
             return true;
         }
 
@@ -180,12 +163,12 @@ public sealed class DropdownSelect<T>
         if (listInput.Kind == ScrollableListInputResultKind.Confirmed)
         {
             selected = true;
-            Close(screen, commit: true);
+            Close(commit: true);
         }
         return true;
     }
 
-    public bool TryHandleKey(ConsoleKeyInfo key, ConsoleSize size, Rect fieldBounds, ScreenRenderer screen, out bool selected)
+    public bool TryHandleKey(ConsoleKeyInfo key, ConsoleSize size, Rect fieldBounds, out bool selected)
     {
         selected = false;
         if (!IsOpen)
@@ -203,12 +186,12 @@ public sealed class DropdownSelect<T>
         switch (key.Key)
         {
             case ConsoleKey.Escape:
-                Close(screen);
+                Close();
                 return true;
             case ConsoleKey.Enter:
             case ConsoleKey.Spacebar:
                 selected = true;
-                Close(screen, commit: true);
+                Close(commit: true);
                 return true;
         }
 

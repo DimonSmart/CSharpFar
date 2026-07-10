@@ -27,9 +27,6 @@ public sealed class ChoiceDialog
         _modalDialogs = modalDialogs ?? throw new ArgumentNullException(nameof(modalDialogs));
     }
 
-    [Obsolete("Use the ModalDialogHost constructor.")]
-    public ChoiceDialog(ScreenRenderer screen) : this(ModalDialogHost.For(screen)) { }
-
     public ChoiceDialogResult Show(ChoiceDialogOptions options)
     {
         ArgumentNullException.ThrowIfNull(options);

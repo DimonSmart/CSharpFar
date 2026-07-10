@@ -251,21 +251,21 @@ public sealed class UnifiedWindowScrollbarTests
     {
         var historyDriver = new FakeConsoleDriver(width: 80, height: 25);
         historyDriver.EnqueueKey(Key(ConsoleKey.Escape));
-        _ = new HistoryDialog(new ScreenRenderer(historyDriver)).Show(
+        _ = new HistoryDialog(ModalTestHost.Create(historyDriver)).Show(
             Enumerable.Range(0, 20)
                 .Select(i => new CommandHistoryItem { Command = $"cmd-{i}", WorkingDirectory = @"C:\" })
                 .ToArray());
 
         var directoryDriver = new FakeConsoleDriver(width: 80, height: 25);
         directoryDriver.EnqueueKey(Key(ConsoleKey.Escape));
-        _ = new DirectoryHistoryDialog(new ScreenRenderer(directoryDriver)).Show(
+        _ = new DirectoryHistoryDialog(ModalTestHost.Create(directoryDriver)).Show(
             Enumerable.Range(0, 20)
                 .Select(i => new DirectoryHistoryItem { Path = $@"C:\dir-{i}" })
                 .ToArray());
 
         var fileDriver = new FakeConsoleDriver(width: 80, height: 25);
         fileDriver.EnqueueKey(Key(ConsoleKey.Escape));
-        _ = new FileHistoryDialog(new ScreenRenderer(fileDriver)).Show(
+        _ = new FileHistoryDialog(ModalTestHost.Create(fileDriver)).Show(
             Enumerable.Range(0, 20)
                 .Select(i => new FileHistoryItem { Path = $@"C:\file-{i}.txt" })
                 .ToArray());
@@ -280,7 +280,8 @@ public sealed class UnifiedWindowScrollbarTests
     {
         var driveDriver = new FakeConsoleDriver(width: 80, height: 10);
         driveDriver.EnqueueKey(Key(ConsoleKey.Escape));
-        _ = new DriveDialog(new ScreenRenderer(driveDriver)).Show(
+        var driveScreen = new ScreenRenderer(driveDriver);
+        _ = new DriveDialog(driveScreen, ModalTestHost.Create(driveScreen)).Show(
             Enumerable.Range(0, 20)
                 .Select(i => new VolumeSelectionItem
                 {
@@ -292,7 +293,7 @@ public sealed class UnifiedWindowScrollbarTests
 
         var userMenuDriver = new FakeConsoleDriver(width: 80, height: 25);
         userMenuDriver.EnqueueKey(Key(ConsoleKey.Escape));
-        _ = new UserMenuDialog(new ScreenRenderer(userMenuDriver)).Show(
+        _ = new UserMenuDialog(ModalTestHost.Create(userMenuDriver)).Show(
             Enumerable.Range(0, 20)
                 .Select(i => new UserMenuItem { Title = $"Item {i}", Command = $"command-{i}" })
                 .ToArray());

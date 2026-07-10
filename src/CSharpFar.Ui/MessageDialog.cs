@@ -20,9 +20,6 @@ public sealed class MessageDialog
         _screen = modalDialogs.Screen;
     }
 
-    [Obsolete("Use the ModalDialogHost constructor.")]
-    public MessageDialog(ScreenRenderer screen) : this(ModalDialogHost.For(screen)) { }
-
     public void Show(string title, string message)
     {
         int firstVisibleLine = 0;

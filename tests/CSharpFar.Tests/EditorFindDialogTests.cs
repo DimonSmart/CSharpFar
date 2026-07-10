@@ -18,7 +18,7 @@ public sealed class EditorFindDialogTests
         firstDriver.EnqueueKey(new ConsoleKeyInfo('\0', ConsoleKey.Enter, shift: false, alt: false, control: false));
         firstDriver.EnqueueKey(new ConsoleKeyInfo('\0', ConsoleKey.Enter, shift: false, alt: false, control: false));
 
-        var first = new EditorFindDialog(new ScreenRenderer(firstDriver), PaletteRegistry.Default).Show(null);
+        var first = new EditorFindDialog(ModalTestHost.Create(firstDriver), PaletteRegistry.Default).Show(null);
         Assert.Equal("abc", first?.Pattern);
 
         var secondDriver = new FakeConsoleDriver(80, 25);
@@ -27,7 +27,7 @@ public sealed class EditorFindDialogTests
         secondDriver.EnqueueKey(new ConsoleKeyInfo('\0', ConsoleKey.Enter, shift: false, alt: false, control: false));
         secondDriver.EnqueueKey(new ConsoleKeyInfo('\0', ConsoleKey.Enter, shift: false, alt: false, control: false));
 
-        var second = new EditorFindDialog(new ScreenRenderer(secondDriver), PaletteRegistry.Default).Show(null);
+        var second = new EditorFindDialog(ModalTestHost.Create(secondDriver), PaletteRegistry.Default).Show(null);
 
         Assert.Equal("abc", second?.Pattern);
     }
@@ -43,7 +43,7 @@ public sealed class EditorFindDialogTests
             Assert.Equal(' ', currentDriver.GetCell(currentDriver.CursorX, currentDriver.CursorY).Character);
         };
 
-        var result = new EditorFindDialog(new ScreenRenderer(driver), PaletteRegistry.Default)
+        var result = new EditorFindDialog(ModalTestHost.Create(driver), PaletteRegistry.Default)
             .Show(new EditorFindDialogResult(
                 "abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrsj",
                 CaseSensitive: false,
@@ -60,7 +60,7 @@ public sealed class EditorFindDialogTests
         driver.EnqueueInput(new MouseConsoleInputEvent(35, 14, MouseButton.Left, MouseEventKind.Down, MouseKeyModifiers.None));
         driver.EnqueueKey(new ConsoleKeyInfo('\0', ConsoleKey.Escape, shift: false, alt: false, control: false));
 
-        var result = new EditorFindDialog(new ScreenRenderer(driver), PaletteRegistry.Default)
+        var result = new EditorFindDialog(ModalTestHost.Create(driver), PaletteRegistry.Default)
             .Show(new EditorFindDialogResult("abc", CaseSensitive: false, WholeWords: false));
 
         Assert.NotNull(result);

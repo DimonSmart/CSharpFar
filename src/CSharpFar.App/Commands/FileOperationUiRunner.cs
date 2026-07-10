@@ -3,12 +3,14 @@ using CSharpFar.App.Rendering;
 using CSharpFar.Console;
 using CSharpFar.Core.Abstractions;
 using CSharpFar.Core.Models;
+using CSharpFar.Ui;
 
 namespace CSharpFar.App.Commands;
 
 internal sealed class FileOperationUiRunner
 {
     private readonly ScreenRenderer _screen;
+    private readonly ModalDialogHost _modalDialogs;
     private readonly Func<ConsolePalette> _palette;
     private readonly IFileOperationService _fileOperations;
     private readonly Func<bool> _showTotalProgress;
@@ -16,12 +18,14 @@ internal sealed class FileOperationUiRunner
 
     public FileOperationUiRunner(
         ScreenRenderer screen,
+        ModalDialogHost modalDialogs,
         Func<ConsolePalette> palette,
         IFileOperationService fileOperations,
         Func<bool> showTotalProgress,
         Func<ConsoleKeyInfo?> tryReadConsoleKey)
     {
         _screen = screen;
+        _modalDialogs = modalDialogs;
         _palette = palette;
         _fileOperations = fileOperations;
         _showTotalProgress = showTotalProgress;
@@ -32,7 +36,7 @@ internal sealed class FileOperationUiRunner
     {
         _screen.SetCursorVisible(false);
         var progressDialog = new ProgressDialog(_screen, request.Destination ?? string.Empty);
-        var conflictDialog = new ConflictDialog(_screen, _palette());
+        var conflictDialog = new ConflictDialog(_screen, _modalDialogs, _palette());
         var cancelDialog = new OperationCancelDialog(_screen);
         var resolver = new DialogConflictResolver(conflictDialog);
         var pauseController = new FileOperationPauseController();
@@ -124,7 +128,7 @@ internal sealed class FileOperationUiRunner
             if (result.Cancelled)
                 throw new OperationCanceledException();
             if (result.Errors.Count > 0)
-                new MessageDialog(_screen).Show(
+                new MessageDialog(_modalDialogs).Show(
                     "File Operation",
                     $"{result.FailedCount} item(s) failed. First: {result.Errors[0].Message}");
 

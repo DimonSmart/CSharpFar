@@ -97,9 +97,6 @@ public sealed class SelectionListDialog<T>
         }
     }
 
-    [Obsolete("Use the ModalDialogHost overload.")]
-    public SelectionListDialogResult<T> Show(ScreenRenderer screen) => Show(ModalDialogHost.For(screen));
-
     private SelectionListDialogResult<T> Confirmed() =>
         new(true, _list.Items[SelectedIndex], SelectedIndex);
 

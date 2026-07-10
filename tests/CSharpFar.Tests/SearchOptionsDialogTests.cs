@@ -155,8 +155,12 @@ public sealed class SearchOptionsDialogTests
         Assert.True(result.GetOption("case-sensitive"));
     }
 
-    private static SearchOptionsDialogResult? ShowDialog(FakeConsoleDriver driver, string initialPattern) =>
-        new SearchOptionsDialog(new ScreenRenderer(driver)).Show(new SearchOptionsDialogOptions
+    private static SearchOptionsDialogResult? ShowDialog(FakeConsoleDriver driver, string initialPattern)
+    {
+        var screen = new ScreenRenderer(driver);
+        var composition = new UiCompositionHost(screen);
+        composition.SetRootSurface(new ScreenRendererSurface(screen, _ => { }));
+        return new SearchOptionsDialog(new ModalDialogHost(composition)).Show(new SearchOptionsDialogOptions
         {
             InitialPattern = initialPattern,
             HistoryKey = $"SearchOptionsDialogTests:{Guid.NewGuid()}",
@@ -167,6 +171,7 @@ public sealed class SearchOptionsDialogTests
                 new SearchOptionLine("whole-words", "Whole words", false),
             ],
         });
+    }
 
     private static IReadOnlyList<IFormRow> BuildRows(SingleLineTextHistoryState? history = null)
     {

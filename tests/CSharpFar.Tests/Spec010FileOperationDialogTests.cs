@@ -443,6 +443,7 @@ public sealed class Spec010FileOperationDialogTests
         var screen = new ScreenRenderer(driver);
         var runner = new FileOperationUiRunner(
             screen,
+            ModalTestHost.Create(screen),
             () => PaletteRegistry.Default,
             new NoOpFileOperationService(),
             () => true,
@@ -567,7 +568,7 @@ public sealed class Spec010FileOperationDialogTests
         var screen = new ScreenRenderer(driver);
         driver.EnqueueKey(new ConsoleKeyInfo('O', ConsoleKey.O, shift: true, alt: false, control: false));
 
-        var decision = new ConflictDialog(screen).Show(
+        var decision = new ConflictDialog(screen, ModalTestHost.Create(screen)).Show(
             new FileOperationConflict
             {
                 SourcePath = @"C:\src\a.txt",
@@ -589,7 +590,7 @@ public sealed class Spec010FileOperationDialogTests
         driver.EnqueueKey(Key(ConsoleKey.Tab));
         driver.EnqueueKey(Key(ConsoleKey.Enter));
 
-        var decision = new ConflictDialog(screen).Show(
+        var decision = new ConflictDialog(screen, ModalTestHost.Create(screen)).Show(
             new FileOperationConflict
             {
                 SourcePath = @"C:\src\a.txt",
@@ -608,7 +609,7 @@ public sealed class Spec010FileOperationDialogTests
         var screen = new ScreenRenderer(driver);
         driver.EnqueueKey(Key(ConsoleKey.Escape));
 
-        var decision = new ConflictDialog(screen).Show(
+        var decision = new ConflictDialog(screen, ModalTestHost.Create(screen)).Show(
             new FileOperationConflict
             {
                 SourcePath = @"C:\src\a.txt",

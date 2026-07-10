@@ -17,9 +17,6 @@ internal sealed class HistoryDialog
         _modalDialogs = modalDialogs;
     }
 
-    [Obsolete("Use the ModalDialogHost constructor.")]
-    public HistoryDialog(ScreenRenderer screen) : this(ModalDialogHost.For(screen)) { }
-
     public string? Show(IReadOnlyList<CommandHistoryItem> history)
     {
         if (history.Count == 0)

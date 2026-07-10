@@ -5,10 +5,12 @@ using CSharpFar.App.Editor;
 using CSharpFar.App.FunctionKeys;
 using CSharpFar.Console;
 using CSharpFar.Console.Input;
+using CSharpFar.Console.Models;
 using CSharpFar.Core.Abstractions;
 using CSharpFar.Core.History;
 using CSharpFar.Core.Models;
 using CSharpFar.Tests.Fakes;
+using CSharpFar.Ui;
 
 namespace CSharpFar.Tests;
 
@@ -41,7 +43,7 @@ public sealed class Spec048CreateNewFileDialogTests : IDisposable
         driver.EnqueueKey(Key(ConsoleKey.Enter));
         driver.EnqueueKey(Key(ConsoleKey.F10));
 
-        var result = new OpenCreateFileDialog(screen).Show();
+        var result = new OpenCreateFileDialog(ModalTestHost.Create(screen)).Show();
 
         Assert.NotNull(result);
         Assert.Equal("new.txt", result.FilePath);
@@ -63,7 +65,7 @@ public sealed class Spec048CreateNewFileDialogTests : IDisposable
         driver.EnqueueInput(new MouseConsoleInputEvent(18, 19, MouseButton.Left, MouseEventKind.Down, MouseKeyModifiers.None));
         driver.EnqueueKey(Key(ConsoleKey.F10));
 
-        var result = new OpenCreateFileDialog(screen).Show();
+        var result = new OpenCreateFileDialog(ModalTestHost.Create(screen)).Show();
 
         Assert.NotNull(result);
         Assert.Equal("mouse.txt", result.FilePath);
@@ -78,30 +80,16 @@ public sealed class Spec048CreateNewFileDialogTests : IDisposable
     public void OpenCreateFileDialog_ClosingCodePageDropdownRestoresPanelUnderlay()
     {
         var driver = new FakeConsoleDriver(width: 100, height: 30);
-        driver.WriteAt(18, 22, "UNDERLAY", ConsoleColor.White, ConsoleColor.DarkRed);
         var screen = new ScreenRenderer(driver);
         driver.EnqueueInput(new MouseConsoleInputEvent(18, 15, MouseButton.Left, MouseEventKind.Down, MouseKeyModifiers.None));
         driver.EnqueueKey(Key(ConsoleKey.Escape));
         driver.EnqueueKey(Key(ConsoleKey.Escape));
 
-        string? rowAfterDropdownClose = null;
-        int readCount = 0;
-        driver.BeforeReadInput = ObserveBeforeRead;
+        _ = new OpenCreateFileDialog(CreateUnderlayModalHost(screen)).Show();
 
-        _ = new OpenCreateFileDialog(screen).Show();
-
-        Assert.NotNull(rowAfterDropdownClose);
-        Assert.Contains("UNDERLAY", rowAfterDropdownClose, StringComparison.Ordinal);
-        Assert.DoesNotContain("Windows-1251", rowAfterDropdownClose, StringComparison.Ordinal);
-
-        void ObserveBeforeRead(FakeConsoleDriver currentDriver)
-        {
-            readCount++;
-            if (readCount == 3)
-                rowAfterDropdownClose = currentDriver.GetRow(22);
-
-            currentDriver.BeforeReadInput = ObserveBeforeRead;
-        }
+        string finalRow = driver.GetRow(22);
+        Assert.Contains("UNDERLAY", finalRow, StringComparison.Ordinal);
+        Assert.DoesNotContain("Windows-1251", finalRow, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -113,7 +101,7 @@ public sealed class Spec048CreateNewFileDialogTests : IDisposable
         driver.EnqueueKey(new ConsoleKeyInfo('X', ConsoleKey.X, shift: true, alt: false, control: false));
         driver.EnqueueKey(Key(ConsoleKey.F10));
 
-        var result = new OpenCreateFileDialog(screen).Show("abcdef");
+        var result = new OpenCreateFileDialog(ModalTestHost.Create(screen)).Show("abcdef");
 
         Assert.NotNull(result);
         Assert.Equal("abXcdef", result.FilePath);
@@ -128,7 +116,7 @@ public sealed class Spec048CreateNewFileDialogTests : IDisposable
         EnqueueText(driver, "after-error.txt");
         driver.EnqueueKey(Key(ConsoleKey.F10));
 
-        var result = new OpenCreateFileDialog(screen).Show();
+        var result = new OpenCreateFileDialog(ModalTestHost.Create(screen)).Show();
 
         Assert.NotNull(result);
         Assert.Equal("after-error.txt", result.FilePath);
@@ -141,7 +129,7 @@ public sealed class Spec048CreateNewFileDialogTests : IDisposable
         var screen = new ScreenRenderer(driver);
         driver.EnqueueKey(Key(ConsoleKey.Escape));
 
-        _ = new OpenCreateFileDialog(screen).Show();
+        _ = new OpenCreateFileDialog(ModalTestHost.Create(screen)).Show();
 
         int codePageValueRow = driver.WriteRecords
             .Where(record => record.Text.Contains("Default", StringComparison.Ordinal))
@@ -264,4 +252,14 @@ public sealed class Spec048CreateNewFileDialogTests : IDisposable
 
     private static ConsoleKeyInfo Key(ConsoleKey key) =>
         new('\0', key, shift: false, alt: false, control: false);
+
+    private static ModalDialogHost CreateUnderlayModalHost(ScreenRenderer screen)
+    {
+        var composition = new UiCompositionHost(screen);
+        composition.SetRootSurface(new ScreenRendererSurface(screen, context =>
+        {
+            context.Screen.Write(18, 22, "UNDERLAY", new CellStyle(ConsoleColor.White, ConsoleColor.DarkRed));
+        }));
+        return new ModalDialogHost(composition);
+    }
 }

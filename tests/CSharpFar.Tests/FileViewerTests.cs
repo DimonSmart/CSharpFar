@@ -104,7 +104,7 @@ public class FileViewerTests : IDisposable
         driver.EnqueueKey(Key(ConsoleKey.F10));
         var screen = new ScreenRenderer(driver);
 
-        new FileViewer(screen).Show(path);
+        new FileViewer(screen, ModalTestHost.Create(screen)).Show(path);
 
         string writes = WrittenText(driver);
         Assert.Contains("TEXT", writes);
@@ -122,7 +122,7 @@ public class FileViewerTests : IDisposable
         driver.EnqueueKey(Key(ConsoleKey.F10));
         var screen = new ScreenRenderer(driver);
 
-        new FileViewer(screen).Show(path);
+        new FileViewer(screen, ModalTestHost.Create(screen)).Show(path);
 
         string writes = WrittenText(driver);
         Assert.DoesNotContain("File too large", writes);
@@ -141,7 +141,7 @@ public class FileViewerTests : IDisposable
         driver.EnqueueKey(Key(ConsoleKey.F10));
         var screen = new ScreenRenderer(driver);
 
-        new FileViewer(screen).Show(path);
+        new FileViewer(screen, ModalTestHost.Create(screen)).Show(path);
 
         Assert.Contains("tail-large-file", WrittenText(driver));
     }
@@ -155,7 +155,7 @@ public class FileViewerTests : IDisposable
         driver.EnqueueKey(Key(ConsoleKey.F10));
         var screen = new ScreenRenderer(driver);
 
-        new FileViewer(screen).Show(path);
+        new FileViewer(screen, ModalTestHost.Create(screen)).Show(path);
 
         string writes = WrittenText(driver);
         Assert.Contains("HEX", writes);
@@ -173,7 +173,7 @@ public class FileViewerTests : IDisposable
         driver.EnqueueKey(Key(ConsoleKey.F10));
         var screen = new ScreenRenderer(driver);
 
-        new FileViewer(screen).Show(path);
+        new FileViewer(screen, ModalTestHost.Create(screen)).Show(path);
 
         string writes = WrittenText(driver);
         Assert.Contains("HEX", writes);
@@ -188,7 +188,7 @@ public class FileViewerTests : IDisposable
         driver.EnqueueKey(Key(ConsoleKey.F3));
         var screen = new ScreenRenderer(driver);
 
-        new FileViewer(screen).Show(path);
+        new FileViewer(screen, ModalTestHost.Create(screen)).Show(path);
 
         Assert.Contains("closed by f3", WrittenText(driver));
     }
@@ -201,7 +201,7 @@ public class FileViewerTests : IDisposable
         driver.EnqueueKey(Key(ConsoleKey.F10));
         var screen = new ScreenRenderer(driver);
 
-        new FileViewer(screen).Show(path);
+        new FileViewer(screen, ModalTestHost.Create(screen)).Show(path);
 
         string row = ComposeRow(driver, y: 9, width: 120);
         Assert.Contains("1Help", row);
@@ -222,7 +222,7 @@ public class FileViewerTests : IDisposable
         driver.EnqueueKey(Key(ConsoleKey.F10));
         var screen = new ScreenRenderer(driver);
 
-        new FileViewer(screen).Show(path);
+        new FileViewer(screen, ModalTestHost.Create(screen)).Show(path);
 
         Assert.Contains("HEX", WrittenText(driver));
     }
@@ -235,7 +235,7 @@ public class FileViewerTests : IDisposable
         driver.EnqueueInput(LeftMouse(x: 90, y: 9));
         var screen = new ScreenRenderer(driver);
 
-        new FileViewer(screen).Show(path);
+        new FileViewer(screen, ModalTestHost.Create(screen)).Show(path);
 
         Assert.Contains("10Close", ComposeRow(driver, y: 9, width: 120));
     }
@@ -249,7 +249,7 @@ public class FileViewerTests : IDisposable
         driver.EnqueueKey(Key(ConsoleKey.F10));
         var screen = new ScreenRenderer(driver);
 
-        new FileViewer(screen).Show(path);
+        new FileViewer(screen, ModalTestHost.Create(screen)).Show(path);
 
         Assert.Contains("line4", WrittenText(driver));
     }
@@ -272,7 +272,7 @@ public class FileViewerTests : IDisposable
         driver.EnqueueKey(Key(ConsoleKey.F10));
         var screen = new ScreenRenderer(driver);
 
-        new FileViewer(screen).Show(path);
+        new FileViewer(screen, ModalTestHost.Create(screen)).Show(path);
 
         Assert.DoesNotContain(wheelRedrawWrites, record => record.Y == 7);
     }
@@ -287,7 +287,7 @@ public class FileViewerTests : IDisposable
         driver.EnqueueKey(Key(ConsoleKey.F10));
         var screen = new ScreenRenderer(driver);
 
-        new FileViewer(screen).Show(path);
+        new FileViewer(screen, ModalTestHost.Create(screen)).Show(path);
 
         string writes = WrittenText(driver);
         Assert.Contains("TEXT", writes);
@@ -314,7 +314,7 @@ public class FileViewerTests : IDisposable
         driver.EnqueueKey(Key(ConsoleKey.F10));
         var screen = new ScreenRenderer(driver);
 
-        new FileViewer(screen).Show(path);
+        new FileViewer(screen, ModalTestHost.Create(screen)).Show(path);
 
         Assert.Contains(" F ", WrittenText(driver));
     }
@@ -328,7 +328,7 @@ public class FileViewerTests : IDisposable
         driver.EnqueueKey(Key(ConsoleKey.F10));
         var screen = new ScreenRenderer(driver);
 
-        new FileViewer(screen).Show(path);
+        new FileViewer(screen, ModalTestHost.Create(screen)).Show(path);
 
         Assert.Contains("WRAP-W", WrittenText(driver));
     }
@@ -399,7 +399,7 @@ public class FileViewerTests : IDisposable
         driver.EnqueueKey(Key(ConsoleKey.F10));
         var screen = new ScreenRenderer(driver);
 
-        new FileViewer(screen).Show(path);
+        new FileViewer(screen, ModalTestHost.Create(screen)).Show(path);
 
         string writes = WrittenText(driver);
         Assert.Contains("TEXT Windows-1251", writes);
@@ -421,7 +421,7 @@ public class FileViewerTests : IDisposable
         driver.EnqueueKey(Key(ConsoleKey.F10));
         var screen = new ScreenRenderer(driver);
 
-        new FileViewer(screen).Show(path);
+        new FileViewer(screen, ModalTestHost.Create(screen)).Show(path);
 
         string writes = WrittenText(driver);
         Assert.Contains("TEXT CP866", writes);
@@ -441,7 +441,7 @@ public class FileViewerTests : IDisposable
         driver.EnqueueKey(Key(ConsoleKey.F10));
         var screen = new ScreenRenderer(driver);
 
-        new FileViewer(screen).Show(path);
+        new FileViewer(screen, ModalTestHost.Create(screen)).Show(path);
 
         string writes = WrittenText(driver);
         Assert.Contains("TEXT CP866", writes);
@@ -457,7 +457,7 @@ public class FileViewerTests : IDisposable
         driver.EnqueueKey(Key(ConsoleKey.F10));
         var screen = new ScreenRenderer(driver);
 
-        new FileViewer(screen).Show(path);
+        new FileViewer(screen, ModalTestHost.Create(screen)).Show(path);
 
         Assert.Contains("TEXT UTF-8", WrittenText(driver));
     }
@@ -473,7 +473,7 @@ public class FileViewerTests : IDisposable
         driver.EnqueueKey(Key(ConsoleKey.F10));
         var screen = new ScreenRenderer(driver);
 
-        new FileViewer(screen).Show(path);
+        new FileViewer(screen, ModalTestHost.Create(screen)).Show(path);
 
         Assert.Contains("second", WrittenText(driver));
     }
@@ -489,7 +489,7 @@ public class FileViewerTests : IDisposable
         driver.EnqueueKey(Key(ConsoleKey.F10));
         var screen = new ScreenRenderer(driver);
 
-        new FileViewer(screen).Show(path);
+        new FileViewer(screen, ModalTestHost.Create(screen)).Show(path);
 
         string writes = WrittenText(driver);
         Assert.Contains("targetf7", writes);
@@ -528,7 +528,7 @@ public class FileViewerTests : IDisposable
         var clipboard = new FakeTextClipboard();
         var screen = new ScreenRenderer(driver);
 
-        new FileViewer(screen).Show(path, new LargeFileViewerOptions { Clipboard = clipboard });
+        new FileViewer(screen, ModalTestHost.Create(screen)).Show(path, new LargeFileViewerOptions { Clipboard = clipboard });
 
         Assert.Equal("copytoken", clipboard.Text);
     }
@@ -545,7 +545,7 @@ public class FileViewerTests : IDisposable
         driver.EnqueueKey(Key(ConsoleKey.F10));
         var screen = new ScreenRenderer(driver);
 
-        new FileViewer(screen).Show(path);
+        new FileViewer(screen, ModalTestHost.Create(screen)).Show(path);
 
         string writes = WrittenText(driver);
         Assert.Contains("FIND", writes);
@@ -563,7 +563,7 @@ public class FileViewerTests : IDisposable
         string? changedPath = null;
         var screen = new ScreenRenderer(driver);
 
-        new FileViewer(screen).Show(first, new LargeFileViewerOptions
+        new FileViewer(screen, ModalTestHost.Create(screen)).Show(first, new LargeFileViewerOptions
         {
             FilePaths = [first, second],
             CurrentFileIndex = 0,
@@ -584,7 +584,7 @@ public class FileViewerTests : IDisposable
         string? editedPath = null;
         var screen = new ScreenRenderer(driver);
 
-        new FileViewer(screen).Show(path, new LargeFileViewerOptions
+        new FileViewer(screen, ModalTestHost.Create(screen)).Show(path, new LargeFileViewerOptions
         {
             EditFile = value => editedPath = value,
         });

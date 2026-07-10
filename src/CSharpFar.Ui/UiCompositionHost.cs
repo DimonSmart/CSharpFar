@@ -47,28 +47,15 @@ public sealed class ScreenRendererSurface : IUiSurface
 
 public sealed class UiCompositionHost
 {
-    private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<ScreenRenderer, UiCompositionHost> Hosts = new();
     private readonly List<UiLayerEntry> _layers = [];
     private bool _isRendering;
 
     public UiCompositionHost(ScreenRenderer screen)
     {
         Screen = screen;
-        Hosts.Add(screen, this);
     }
 
     public ScreenRenderer Screen { get; }
-
-    internal static UiCompositionHost For(ScreenRenderer screen)
-    {
-        ArgumentNullException.ThrowIfNull(screen);
-        if (Hosts.TryGetValue(screen, out var host))
-            return host;
-
-        host = new UiCompositionHost(screen);
-        host.SetRootSurface(new ScreenRendererSurface(screen, _ => { }));
-        return host;
-    }
 
     public ConsoleViewport? LastStableViewport { get; private set; }
 
@@ -229,31 +216,54 @@ public sealed class UiCompositionHost
     {
         while (true)
         {
+            RecoverChangedViewport();
             var input = Screen.ReadInput(cancellationToken);
-            if (input is ConsoleResizeInputEvent || HasViewportChanged())
+            if (input is ConsoleResizeInputEvent)
             {
                 Render(isResizeRecovery: true);
-                if (input is ConsoleResizeInputEvent)
-                    continue;
+                continue;
             }
+
+            if (HasViewportChanged())
+            {
+                Render(isResizeRecovery: true);
+                continue;
+            }
+
             return input;
         }
     }
 
     internal bool TryReadCompositionInput(out ConsoleInputEvent? input)
     {
+        RecoverChangedViewport();
+
         while (Screen.TryReadInput(out input))
         {
-            if (input is ConsoleResizeInputEvent || HasViewportChanged())
+            if (input is ConsoleResizeInputEvent)
             {
                 Render(isResizeRecovery: true);
-                if (input is ConsoleResizeInputEvent)
-                    continue;
+                continue;
             }
+
+            if (HasViewportChanged())
+            {
+                Render(isResizeRecovery: true);
+                continue;
+            }
+
             return true;
         }
+
+        RecoverChangedViewport();
         input = null;
         return false;
+    }
+
+    private void RecoverChangedViewport()
+    {
+        if (HasViewportChanged())
+            Render(isResizeRecovery: true);
     }
 
     internal sealed class UiLayerScope : IDisposable

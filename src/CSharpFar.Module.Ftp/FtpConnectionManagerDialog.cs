@@ -24,9 +24,6 @@ internal sealed class FtpConnectionManagerDialog
         _modalDialogs = modalDialogs;
     }
 
-    [Obsolete("Use the ModalDialogHost constructor.")]
-    public FtpConnectionManagerDialog(ScreenRenderer screen) : this(ModalDialogHost.For(screen)) { }
-
     public FtpConnectionManagerResult? Show(IReadOnlyList<FtpConnectionInfo> connections)
     {
         var dialog = new ListWithButtonsDialog<FtpConnectionInfo>(

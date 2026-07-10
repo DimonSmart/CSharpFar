@@ -22,7 +22,7 @@ internal sealed class OpenCreateFileCommand : IApplicationCommand
             return ApplicationCommandResult.Rendered();
         }
 
-        var dialog = new OpenCreateFileDialog(context.Screen);
+        var dialog = new OpenCreateFileDialog(context.ModalDialogs);
         var result = dialog.Show(
             InitialPath(context),
             attempt => ValidateLocalPath(context.ActiveState.SourcePath, attempt));
@@ -45,6 +45,7 @@ internal sealed class OpenCreateFileCommand : IApplicationCommand
         EditorDocumentFormat newFileFormat = result.CodePage.CreateDocumentFormat(context.Settings.Editor);
         new FileEditor(
             context.Screen,
+            context.ModalDialogs,
             context.Palette,
             context.Settings.Editor,
             context.TextClipboard,

@@ -25,9 +25,6 @@ public sealed class ConfirmDialog
         _screen = modalDialogs.Screen;
     }
 
-    [Obsolete("Use the ModalDialogHost constructor.")]
-    public ConfirmDialog(ScreenRenderer screen) : this(ModalDialogHost.For(screen)) { }
-
     /// <summary>
     /// Draws the dialog and waits for input. Returns true if confirmed.
     /// </summary>

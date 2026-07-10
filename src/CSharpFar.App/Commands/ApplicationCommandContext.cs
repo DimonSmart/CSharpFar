@@ -383,6 +383,7 @@ internal sealed class ApplicationCommandContext
     public FileOperationResult ExecuteFileOperation(FileOperationRequest request) =>
         new FileOperationUiRunner(
             Screen,
+            ModalDialogs,
             () => Palette,
             FileOperations,
             () => Settings.FileOperations.ShowTotalProgress,

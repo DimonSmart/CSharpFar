@@ -75,9 +75,6 @@ public sealed class SearchOptionsDialog
         _screen = modalDialogs.Screen;
     }
 
-    [Obsolete("Use the ModalDialogHost constructor.")]
-    public SearchOptionsDialog(ScreenRenderer screen) : this(ModalDialogHost.For(screen)) { }
-
     public SearchOptionsDialogResult? Show(SearchOptionsDialogOptions options)
     {
         ArgumentNullException.ThrowIfNull(options);

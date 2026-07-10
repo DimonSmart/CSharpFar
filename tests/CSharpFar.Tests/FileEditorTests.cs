@@ -926,8 +926,11 @@ public sealed class FileEditorTests : IDisposable
         EditorFileNameInsertionContext? fileNameInsertionContext = null,
         IEditorSyntaxHighlighter? syntaxHighlighter = null)
     {
+        var composition = new UiCompositionHost(renderer);
+        composition.SetRootSurface(new ScreenRendererSurface(renderer, _ => { }));
         var editor = new FileEditor(
             renderer,
+            new ModalDialogHost(composition),
             null,
             settings,
             clipboard,

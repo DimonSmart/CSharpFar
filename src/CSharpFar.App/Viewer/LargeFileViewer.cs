@@ -17,12 +17,14 @@ internal sealed class LargeFileViewer
     private const int FastPageMultiplier = 5;
 
     private readonly ScreenRenderer _screen;
+    private readonly ModalDialogHost _modalDialogs;
     private readonly ConsolePalette _palette;
     private string? _renderedFooterSignature;
 
-    public LargeFileViewer(ScreenRenderer screen, ConsolePalette? palette = null)
+    public LargeFileViewer(ScreenRenderer screen, ModalDialogHost modalDialogs, ConsolePalette? palette = null)
     {
         _screen = screen;
+        _modalDialogs = modalDialogs;
         _palette = palette ?? PaletteRegistry.Default;
     }
 
@@ -74,7 +76,7 @@ internal sealed class LargeFileViewer
                 saved = null;
             }
 
-            new MessageDialog(_screen).Show("Viewer", ex.Message);
+            new MessageDialog(_modalDialogs).Show("Viewer", ex.Message);
         }
         finally
         {
@@ -827,7 +829,7 @@ internal sealed class LargeFileViewer
 
     private void JumpToPosition(IFileByteReader reader, LargeFileViewerState state, int contentHeight)
     {
-        string? input = new InputDialog(_screen).Show(
+        string? input = new InputDialog(_modalDialogs).Show(
             "Viewer",
             state.IsHexMode ? "Percent or byte offset:" : "Line number or percent:",
             validate: text => ValidateJump(text, state.IsHexMode));
@@ -886,7 +888,7 @@ internal sealed class LargeFileViewer
 
     private void ShowFindDialog(IFileByteReader reader, LargeFileViewerState state, int width)
     {
-        var selected = new ViewerFindDialog(_screen, _palette).Show(state.LastSearch, state.IsHexMode);
+        var selected = new ViewerFindDialog(_modalDialogs, _palette).Show(state.LastSearch, state.IsHexMode);
         if (selected is null)
             return;
 
@@ -923,13 +925,13 @@ internal sealed class LargeFileViewer
         }
         catch (ArgumentException ex)
         {
-            new MessageDialog(_screen).Show("Find", ex.Message);
+            new MessageDialog(_modalDialogs).Show("Find", ex.Message);
             return;
         }
 
         if (match is null)
         {
-            new MessageDialog(_screen).Show("Find", "Text not found.");
+            new MessageDialog(_modalDialogs).Show("Find", "Text not found.");
             return;
         }
 
@@ -954,7 +956,7 @@ internal sealed class LargeFileViewer
     {
         if (state.SearchMatch is null)
         {
-            new MessageDialog(_screen).Show("Viewer", "No active search match.");
+            new MessageDialog(_modalDialogs).Show("Viewer", "No active search match.");
             return;
         }
 
@@ -965,7 +967,7 @@ internal sealed class LargeFileViewer
         }
 
         if (!options.Clipboard.TrySetText(state.SearchMatch.MatchedText))
-            new MessageDialog(_screen).Show("Viewer", "Could not copy text to clipboard.");
+            new MessageDialog(_modalDialogs).Show("Viewer", "Could not copy text to clipboard.");
     }
 
     private void EditCurrentFile(
@@ -1014,7 +1016,7 @@ internal sealed class LargeFileViewer
         int originalHorizontalOffset = state.HorizontalOffset;
         bool originalFollowMode = state.FollowMode;
 
-        var selected = new EncodingSelectionDialog(_screen).Show(
+        var selected = new EncodingSelectionDialog(_modalDialogs).Show(
             items,
             state.EncodingSelection,
             previewSelection: item => ApplyEncodingSelection(
@@ -1109,7 +1111,7 @@ internal sealed class LargeFileViewer
     }
 
     private void ShowUnsupported(string command) =>
-        new MessageDialog(_screen).Show("Viewer", $"{command} is not supported yet.");
+        new MessageDialog(_modalDialogs).Show("Viewer", $"{command} is not supported yet.");
 
     private static string? ValidateJump(string text, bool binary)
     {

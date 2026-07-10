@@ -6,11 +6,11 @@ namespace CSharpFar.App.Dialogs;
 
 internal sealed class EncodingSelectionDialog
 {
-    private readonly ScreenRenderer _screen;
+    private readonly ModalDialogHost _modalDialogs;
 
-    public EncodingSelectionDialog(ScreenRenderer screen)
+    public EncodingSelectionDialog(ModalDialogHost modalDialogs)
     {
-        _screen = screen;
+        _modalDialogs = modalDialogs;
     }
 
     public TextEncodingCatalogItem? Show(
@@ -35,7 +35,7 @@ internal sealed class EncodingSelectionDialog
             },
         };
 
-        var result = dialog.Show(_screen);
+        var result = dialog.Show(_modalDialogs);
         return result.IsConfirmed ? result.SelectedItem : null;
     }
 

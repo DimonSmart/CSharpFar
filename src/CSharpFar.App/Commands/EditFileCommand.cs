@@ -30,6 +30,7 @@ internal sealed class EditFileCommand : IApplicationCommand
         context.History.AddFile(new FileHistoryItem { Path = item.FullPath });
         new FileEditor(
             context.Screen,
+            context.ModalDialogs,
             context.Palette,
             context.Settings.Editor,
             context.TextClipboard,

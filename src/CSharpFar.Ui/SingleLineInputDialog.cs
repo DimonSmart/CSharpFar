@@ -39,9 +39,6 @@ public sealed class SingleLineInputDialog
         _screen = modalDialogs.Screen;
     }
 
-    [Obsolete("Use the ModalDialogHost constructor.")]
-    public SingleLineInputDialog(ScreenRenderer screen) : this(ModalDialogHost.For(screen)) { }
-
     public SingleLineInputDialogResult Show(SingleLineInputDialogOptions options)
     {
         ArgumentNullException.ThrowIfNull(options);

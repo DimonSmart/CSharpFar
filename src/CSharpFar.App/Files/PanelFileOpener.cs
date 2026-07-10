@@ -1,6 +1,7 @@
 using CSharpFar.Console;
 using CSharpFar.Core.Abstractions;
 using CSharpFar.Core.Models;
+using CSharpFar.Ui;
 
 namespace CSharpFar.App.Files;
 
@@ -8,6 +9,7 @@ internal sealed class PanelFileOpener
 {
     private readonly IFileLauncher _fileLauncher;
     private readonly ScreenRenderer _screen;
+    private readonly ModalDialogHost _modalDialogs;
     private readonly Func<ConsolePalette> _palette;
     private readonly Action<FilePanelState, FilePanelItem> _viewPanelFile;
     private readonly Action<string, string, Action> _executeInCurrentConsole;
@@ -15,12 +17,14 @@ internal sealed class PanelFileOpener
     public PanelFileOpener(
         IFileLauncher fileLauncher,
         ScreenRenderer screen,
+        ModalDialogHost modalDialogs,
         Func<ConsolePalette> palette,
         Action<FilePanelState, FilePanelItem> viewPanelFile,
         Action<string, string, Action> executeInCurrentConsole)
     {
         _fileLauncher = fileLauncher;
         _screen = screen;
+        _modalDialogs = modalDialogs;
         _palette = palette;
         _viewPanelFile = viewPanelFile;
         _executeInCurrentConsole = executeInCurrentConsole;
@@ -57,7 +61,7 @@ internal sealed class PanelFileOpener
                   InvalidOperationException or
                   System.ComponentModel.Win32Exception)
         {
-            new MessageDialog(_screen).Show("Open file", ex.Message);
+            new MessageDialog(_modalDialogs).Show("Open file", ex.Message);
         }
     }
 

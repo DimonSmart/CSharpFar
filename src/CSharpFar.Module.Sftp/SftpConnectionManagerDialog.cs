@@ -24,9 +24,6 @@ internal sealed class SftpConnectionManagerDialog
         _modalDialogs = modalDialogs;
     }
 
-    [Obsolete("Use the ModalDialogHost constructor.")]
-    public SftpConnectionManagerDialog(ScreenRenderer screen) : this(ModalDialogHost.For(screen)) { }
-
     public SftpConnectionManagerResult? Show(IReadOnlyList<SftpConnectionInfo> connections)
     {
         var dialog = new ListWithButtonsDialog<SftpConnectionInfo>(

@@ -11,11 +11,11 @@ internal sealed class ViewerFindDialog
     private const string UseRegexOption = "use-regex";
     private const string SearchHexOption = "search-hex";
 
-    private readonly ScreenRenderer _screen;
+    private readonly ModalDialogHost _modalDialogs;
 
-    public ViewerFindDialog(ScreenRenderer screen, ConsolePalette palette)
+    public ViewerFindDialog(ModalDialogHost modalDialogs, ConsolePalette palette)
     {
-        _screen = screen;
+        _modalDialogs = modalDialogs;
         _ = palette;
     }
 
@@ -26,7 +26,7 @@ internal sealed class ViewerFindDialog
         if (searchHex)
             useRegex = false;
 
-        var result = new SearchOptionsDialog(_screen).Show(new SearchOptionsDialogOptions
+        var result = new SearchOptionsDialog(_modalDialogs).Show(new SearchOptionsDialogOptions
         {
             Title = "Find",
             InitialPattern = previous?.Pattern ?? string.Empty,

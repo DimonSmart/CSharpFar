@@ -8,17 +8,17 @@ internal sealed class EditorFindDialog
     private const string CaseSensitiveOption = "case-sensitive";
     private const string WholeWordsOption = "whole-words";
 
-    private readonly ScreenRenderer _screen;
+    private readonly ModalDialogHost _modalDialogs;
 
-    public EditorFindDialog(ScreenRenderer screen, ConsolePalette palette)
+    public EditorFindDialog(ModalDialogHost modalDialogs, ConsolePalette palette)
     {
-        _screen = screen;
+        _modalDialogs = modalDialogs;
         _ = palette;
     }
 
     public EditorFindDialogResult? Show(EditorFindDialogResult? previous)
     {
-        var result = new SearchOptionsDialog(_screen).Show(new SearchOptionsDialogOptions
+        var result = new SearchOptionsDialog(_modalDialogs).Show(new SearchOptionsDialogOptions
         {
             Title = "Find",
             InitialPattern = previous?.Pattern ?? string.Empty,

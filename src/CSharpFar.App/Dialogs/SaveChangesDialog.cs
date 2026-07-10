@@ -18,9 +18,6 @@ internal sealed class SaveChangesDialog
         _modalDialogs = modalDialogs;
     }
 
-    [Obsolete("Use the ModalDialogHost constructor.")]
-    public SaveChangesDialog(ScreenRenderer screen) : this(ModalDialogHost.For(screen)) { }
-
     public SaveChangesChoice Show(string fileName)
     {
         var result = new ChoiceDialog(_modalDialogs).Show(new ChoiceDialogOptions

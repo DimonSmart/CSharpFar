@@ -27,7 +27,7 @@ internal sealed class NavigateToDirectoryShortcutCommand : IApplicationCommand
 
         if (!Directory.Exists(item.Path))
         {
-            new MessageDialog(context.Screen)
+            new MessageDialog(context.ModalDialogs)
                 .Show("Directory Shortcut", $"Directory not found: {item.Path}");
             return ApplicationCommandResult.Rendered();
         }

@@ -4,6 +4,7 @@ using CSharpFar.Core.Abstractions;
 using CSharpFar.Core.Controllers;
 using CSharpFar.Core.History;
 using CSharpFar.Core.Models;
+using CSharpFar.Ui;
 using AppSettingsAlias = CSharpFar.Core.Models.AppSettings;
 
 namespace CSharpFar.App.Panels;
@@ -11,6 +12,7 @@ namespace CSharpFar.App.Panels;
 internal sealed class PanelSearchResultsService
 {
     private readonly ScreenRenderer _screen;
+    private readonly ModalDialogHost _modalDialogs;
     private readonly ISearchService _searchService;
     private readonly Func<ConsolePalette> _palette;
     private readonly PanelController _controller;
@@ -25,6 +27,7 @@ internal sealed class PanelSearchResultsService
 
     public PanelSearchResultsService(
         ScreenRenderer screen,
+        ModalDialogHost modalDialogs,
         ISearchService searchService,
         Func<ConsolePalette> palette,
         PanelController controller,
@@ -38,6 +41,7 @@ internal sealed class PanelSearchResultsService
         Action<FilePanelState, string?, int> sortVirtualPanel)
     {
         _screen = screen;
+        _modalDialogs = modalDialogs;
         _searchService = searchService;
         _palette = palette;
         _controller = controller;
@@ -165,7 +169,7 @@ internal sealed class PanelSearchResultsService
 
         if (string.IsNullOrWhiteSpace(directoryPath))
         {
-            new MessageDialog(_screen).Show("Search", $"Cannot open search result: {fullPath}");
+            new MessageDialog(_modalDialogs).Show("Search", $"Cannot open search result: {fullPath}");
             return;
         }
 
@@ -182,7 +186,7 @@ internal sealed class PanelSearchResultsService
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or DirectoryNotFoundException)
         {
-            new MessageDialog(_screen).Show("Search", ex.Message);
+            new MessageDialog(_modalDialogs).Show("Search", ex.Message);
         }
     }
 

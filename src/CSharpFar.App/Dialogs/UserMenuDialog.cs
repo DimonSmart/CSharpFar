@@ -17,9 +17,6 @@ internal sealed class UserMenuDialog
         _modalDialogs = modalDialogs;
     }
 
-    [Obsolete("Use the ModalDialogHost constructor.")]
-    public UserMenuDialog(ScreenRenderer screen) : this(ModalDialogHost.For(screen)) { }
-
     public string? Show(IReadOnlyList<UserMenuItem> items)
     {
         if (items.Count == 0)

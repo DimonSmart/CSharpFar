@@ -159,25 +159,6 @@ internal static class ApplicationServicesBuilder
             side => callbacks.VisibleRowsForSide(side),
             side => callbacks.ClosePanelQuickSearchForPanel(side),
             (state, side) => callbacks.StartWatching(state, side));
-        var searchResults = new PanelSearchResultsService(
-            screen,
-            effectiveSearchService,
-            () => session.App.Palette,
-            controller,
-            effectiveHistory,
-            () => callbacks.PanelOptions(),
-            state => callbacks.PanelSideForState(state),
-            side => callbacks.VisibleRowsForSide(side),
-            state => callbacks.ClosePanelQuickSearchForState(state),
-            side => callbacks.ClosePanelQuickSearchForPanel(side),
-            (state, side) => callbacks.StartWatching(state, side),
-            panelSort.SortVirtualPanel);
-        var panelRefresh = new PanelRefreshService(
-            controller,
-            () => callbacks.PanelOptions(),
-            side => callbacks.VisibleRowsForSide(side),
-            state => callbacks.ClosePanelQuickSearchForState(state),
-            searchResults.RefreshPanel);
         var panelQuickSearch = new PanelQuickSearchController(
             controller,
             () => callbacks.GetActiveSide(),
@@ -224,23 +205,6 @@ internal static class ApplicationServicesBuilder
             VisibleRowsForSide = side => callbacks.VisibleRowsForSide(side),
         };
         var mouseInputRouter = new MouseInputRouter(mouseInputContext);
-        var panelFileViewer = new PanelFileViewerService(
-            screen,
-            () => session.App.Palette,
-            effectiveSourceRegistry,
-            effectiveHistory,
-            effectiveClipboard,
-            effectiveSettings,
-            controller,
-            state => callbacks.PanelSideForState(state),
-            side => callbacks.VisibleRowsForSide(side),
-            (state, rows) => callbacks.SafeRefresh(state, rows));
-        var panelFileOpener = new PanelFileOpener(
-            effectiveFileLauncher,
-            screen,
-            () => session.App.Palette,
-            (state, item) => callbacks.ViewPanelFile(state, item),
-            (workDir, displayCommand, execute) => callbacks.ExecuteInCurrentConsole(workDir, displayCommand, execute));
         var rendering = RenderingServicesFactory.Create(
             screen,
             terminalScreenMode,
@@ -260,6 +224,45 @@ internal static class ApplicationServicesBuilder
         var composition = rendering.Composition;
         var modalDialogs = rendering.ModalDialogs;
         var quickViewDirectorySize = rendering.QuickViewDirectorySize;
+        var searchResults = new PanelSearchResultsService(
+            screen,
+            modalDialogs,
+            effectiveSearchService,
+            () => session.App.Palette,
+            controller,
+            effectiveHistory,
+            () => callbacks.PanelOptions(),
+            state => callbacks.PanelSideForState(state),
+            side => callbacks.VisibleRowsForSide(side),
+            state => callbacks.ClosePanelQuickSearchForState(state),
+            side => callbacks.ClosePanelQuickSearchForPanel(side),
+            (state, side) => callbacks.StartWatching(state, side),
+            panelSort.SortVirtualPanel);
+        var panelRefresh = new PanelRefreshService(
+            controller,
+            () => callbacks.PanelOptions(),
+            side => callbacks.VisibleRowsForSide(side),
+            state => callbacks.ClosePanelQuickSearchForState(state),
+            searchResults.RefreshPanel);
+        var panelFileViewer = new PanelFileViewerService(
+            screen,
+            modalDialogs,
+            () => session.App.Palette,
+            effectiveSourceRegistry,
+            effectiveHistory,
+            effectiveClipboard,
+            effectiveSettings,
+            controller,
+            state => callbacks.PanelSideForState(state),
+            side => callbacks.VisibleRowsForSide(side),
+            (state, rows) => callbacks.SafeRefresh(state, rows));
+        var panelFileOpener = new PanelFileOpener(
+            effectiveFileLauncher,
+            screen,
+            modalDialogs,
+            () => session.App.Palette,
+            (state, item) => callbacks.ViewPanelFile(state, item),
+            (workDir, displayCommand, execute) => callbacks.ExecuteInCurrentConsole(workDir, displayCommand, execute));
         var moduleUiServices = new ModuleUiServices
         {
             Screen = screen,
@@ -281,6 +284,7 @@ internal static class ApplicationServicesBuilder
             effectiveSourceRegistry,
             controller,
             screen,
+            modalDialogs,
             () => session.App.Palette,
             () => callbacks.PanelOptions(),
             side => callbacks.GetPanelState(side),

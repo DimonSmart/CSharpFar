@@ -4,6 +4,7 @@ using CSharpFar.Core.Controllers;
 using CSharpFar.Core.Models;
 using CSharpFar.Core.Services;
 using CSharpFar.Module.Abstractions;
+using CSharpFar.Ui;
 using AppSettingsAlias = CSharpFar.Core.Models.AppSettings;
 
 namespace CSharpFar.App.Modules;
@@ -14,6 +15,7 @@ internal sealed class ModulePanelOpener
     private readonly FilePanelSourceRegistry _sourceRegistry;
     private readonly PanelController _controller;
     private readonly ScreenRenderer _screen;
+    private readonly ModalDialogHost _modalDialogs;
     private readonly Func<ConsolePalette> _palette;
     private readonly Func<AppSettingsAlias.PanelOptionsSettings> _panelOptions;
     private readonly Func<PanelSide, FilePanelState> _getPanelState;
@@ -25,6 +27,7 @@ internal sealed class ModulePanelOpener
         FilePanelSourceRegistry sourceRegistry,
         PanelController controller,
         ScreenRenderer screen,
+        ModalDialogHost modalDialogs,
         Func<ConsolePalette> palette,
         Func<AppSettingsAlias.PanelOptionsSettings> panelOptions,
         Func<PanelSide, FilePanelState> getPanelState,
@@ -35,6 +38,7 @@ internal sealed class ModulePanelOpener
         _sourceRegistry = sourceRegistry;
         _controller = controller;
         _screen = screen;
+        _modalDialogs = modalDialogs;
         _palette = palette;
         _panelOptions = panelOptions;
         _getPanelState = getPanelState;
@@ -88,7 +92,7 @@ internal sealed class ModulePanelOpener
                 OpenPanel(defaultPanelSide, result.Panel!);
                 return ApplicationCommandResult.Rendered();
             case ModuleActionResultKind.Failed:
-                new MessageDialog(_screen).Show("Module", result.Message ?? "Module operation failed.");
+                new MessageDialog(_modalDialogs).Show("Module", result.Message ?? "Module operation failed.");
                 return ApplicationCommandResult.Rendered();
             default:
                 return ApplicationCommandResult.Rendered();

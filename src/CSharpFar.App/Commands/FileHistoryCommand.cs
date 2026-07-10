@@ -32,12 +32,13 @@ internal sealed class FileHistoryCommand : IApplicationCommand
             {
                 case OpenFileChoice.View:
                     context.History.AddFile(new FileHistoryItem { Path = path });
-                    new FileViewer(context.Screen, context.Palette).Show(path);
+                    new FileViewer(context.Screen, context.ModalDialogs, context.Palette).Show(path);
                     break;
                 case OpenFileChoice.Edit:
                     context.History.AddFile(new FileHistoryItem { Path = path });
                     new FileEditor(
                         context.Screen,
+                        context.ModalDialogs,
                         context.Palette,
                         context.Settings.Editor,
                         context.TextClipboard,
