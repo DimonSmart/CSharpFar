@@ -15,9 +15,8 @@ public sealed class ModalDialogRenderer
         Rect FrameBounds,
         Rect ContentBounds);
 
-    public Rect CenteredOuterBounds(ScreenRenderer screen, int outerWidth, int outerHeight, int minWidth = 20, int minHeight = 8)
+    public Rect CenteredOuterBounds(ConsoleSize size, int outerWidth, int outerHeight, int minWidth = 20, int minHeight = 8)
     {
-        var size = screen.GetSize();
         int width = Math.Min(outerWidth, Math.Max(minWidth, size.Width - 2));
         int height = Math.Min(outerHeight, Math.Max(minHeight, size.Height - 2));
         return new Rect(
@@ -26,6 +25,10 @@ public sealed class ModalDialogRenderer
             width,
             height);
     }
+
+    [Obsolete("Use the ConsoleSize overload from an active composition frame.")]
+    public Rect CenteredOuterBounds(ScreenRenderer screen, int outerWidth, int outerHeight, int minWidth = 20, int minHeight = 8) =>
+        CenteredOuterBounds(screen.GetSize(), outerWidth, outerHeight, minWidth, minHeight);
 
     public void Render(
         ScreenRenderer screen,

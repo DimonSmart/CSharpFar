@@ -18,6 +18,7 @@ using CSharpFar.Core.Highlighting;
 using CSharpFar.Core.Menu;
 using CSharpFar.Core.Models;
 using AppSettingsAlias = CSharpFar.Core.Models.AppSettings;
+using CSharpFar.Ui;
 
 namespace CSharpFar.App.Commands;
 
@@ -51,6 +52,8 @@ internal sealed class ApplicationCommandContext
 
     public ApplicationCommandContext(
         ScreenRenderer screen,
+        UiCompositionHost composition,
+        ModalDialogHost modalDialogs,
         PanelController controller,
         IFileLauncher fileLauncher,
         IFileOperationService fileOperations,
@@ -86,6 +89,8 @@ internal sealed class ApplicationCommandContext
         IFileHighlightService? highlightService)
     {
         Screen = screen;
+        Composition = composition;
+        ModalDialogs = modalDialogs;
         Controller = controller;
         FileLauncher = fileLauncher;
         FileOperations = fileOperations;
@@ -122,6 +127,10 @@ internal sealed class ApplicationCommandContext
     }
 
     public ScreenRenderer Screen { get; }
+
+    public UiCompositionHost Composition { get; }
+
+    public ModalDialogHost ModalDialogs { get; }
 
     public ConsolePalette Palette => _session.App.Palette;
 
@@ -351,10 +360,19 @@ internal sealed class ApplicationCommandContext
 
     public void ShowReadOnlyPanelMessage(string action)
     {
-        new MessageDialog(Screen).Show(
+        ShowMessage(
             action,
             "The current panel source does not support this operation.");
     }
+
+    public void ShowMessage(string title, string message) =>
+        new MessageDialog(ModalDialogs).Show(title, message);
+
+    public int ShowMessage(string title, string message, IReadOnlyList<string> buttons) =>
+        new MessageDialog(ModalDialogs).ShowButtons(title, message, buttons);
+
+    public bool Confirm(string title, string question, string itemName) =>
+        new ConfirmDialog(ModalDialogs).Show(title, question, itemName);
 
     public bool HasCapability(FilePanelState state, PanelProviderCapabilities capability) =>
         (state.ProviderCapabilities & capability) == capability;

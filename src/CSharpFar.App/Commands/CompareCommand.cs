@@ -33,19 +33,19 @@ internal sealed class CompareCommand : IApplicationCommand
         string title = _kind == CompareCommandKind.FileSets ? "Compare file sets" : "Compare folders";
         if (!CanExecute(context, args))
         {
-            new MessageDialog(context.Screen).Show(title, "Comparison is only supported for local panels.");
+            context.ShowMessage(title, "Comparison is only supported for local panels.");
             return ApplicationCommandResult.Rendered();
         }
 
         if (!Directory.Exists(context.ActiveState.CurrentDirectory) ||
             !Directory.Exists(context.PassiveState.CurrentDirectory))
         {
-            new MessageDialog(context.Screen).Show(title, "Both panels must point to existing directories.");
+            context.ShowMessage(title, "Both panels must point to existing directories.");
             return ApplicationCommandResult.Rendered();
         }
 
         CompareMode mode = _kind == CompareCommandKind.FileSets ? CompareMode.FileSet : CompareMode.FolderStructure;
-        var options = new CompareOptionsDialog(context.Screen).Show(
+        var options = new CompareOptionsDialog(context.ModalDialogs).Show(
             mode,
             context.Settings.Compare,
             context.LeftPanel,
@@ -65,11 +65,11 @@ internal sealed class CompareCommand : IApplicationCommand
                 : new FolderStructureCompareEngine().Compare(left, right, options);
 
             ComparisonSelectionApplier.Apply(result, context.LeftPanel, context.RightPanel);
-            CompareSummaryDialog.Show(context.Screen, result);
+            new CompareSummaryDialog(context.ModalDialogs).Show(result);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or DirectoryNotFoundException or ArgumentException)
         {
-            new MessageDialog(context.Screen).Show(title, ex.Message);
+            context.ShowMessage(title, ex.Message);
         }
         finally
         {

@@ -16,6 +16,7 @@ using CSharpFar.Core.Controllers;
 using CSharpFar.Core.Highlighting;
 using CSharpFar.Core.Models;
 using CSharpFar.Shell;
+using CSharpFar.Ui;
 using AppSettingsAlias = CSharpFar.Core.Models.AppSettings;
 
 namespace CSharpFar.App.Bootstrap;
@@ -29,6 +30,8 @@ internal static class CommandServicesFactory
 
     public static CommandServices Create(
         ScreenRenderer screen,
+        UiCompositionHost composition,
+        ModalDialogHost modalDialogs,
         IShellService shell,
         IFileOperationService fileOperations,
         IFileLauncher fileLauncher,
@@ -92,6 +95,8 @@ internal static class CommandServicesFactory
         var commandRegistry = ApplicationCommandRegistry.CreateDefault();
         var commandContext = new ApplicationCommandContext(
             screen,
+            composition,
+            modalDialogs,
             panelController,
             fileLauncher,
             fileOperations,

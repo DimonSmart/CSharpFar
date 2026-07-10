@@ -291,6 +291,8 @@ internal static class ApplicationServicesBuilder
             composition);
         var commandServices = CommandServicesFactory.Create(
             screen,
+            composition,
+            modalDialogs,
             shell,
             fileOps,
             effectiveFileLauncher,

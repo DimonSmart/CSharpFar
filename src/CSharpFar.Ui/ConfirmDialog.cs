@@ -19,16 +19,14 @@ public sealed class ConfirmDialog
         new DialogButton("cancel", "Cancel", 'C'),
     ]);
 
-    public ConfirmDialog(ScreenRenderer screen)
-    {
-        _screen = screen;
-    }
-
     public ConfirmDialog(ModalDialogHost modalDialogs)
     {
         _modalDialogs = modalDialogs;
         _screen = modalDialogs.Screen;
     }
+
+    [Obsolete("Use the ModalDialogHost constructor.")]
+    public ConfirmDialog(ScreenRenderer screen) => _screen = screen;
 
     /// <summary>
     /// Draws the dialog and waits for input. Returns true if confirmed.
@@ -37,19 +35,17 @@ public sealed class ConfirmDialog
     {
         if (_modalDialogs is not null)
             return ShowComposed(title, question, itemName);
-
-        var size  = _screen.GetSize();
-        var saved = _screen.Capture(new Rect(0, 0, size.Width, size.Height));
-        _screen.SetCursorVisible(false);
-
-        try
+        int focused = 0;
+        while (true)
         {
-            return RunLoop(title, question, itemName, size);
-        }
-        finally
-        {
-            _screen.Restore(saved);
-            _screen.SetCursorVisible(false);
+            var size = _screen.GetSize();
+            using (var frame = _screen.BeginFrame())
+                RenderLayer(_screen, title, question, itemName, size, focused);
+            var input = _screen.ReadInput();
+            if (_buttonBar.TryHandleInput(input, ref focused, out var id) && id is not null)
+                return id == "ok";
+            if (input is KeyConsoleInputEvent { Key.Key: ConsoleKey.Escape }) return false;
+            if (input is KeyConsoleInputEvent { Key.Key: ConsoleKey.Enter }) return focused == 0;
         }
     }
 
@@ -76,45 +72,6 @@ public sealed class ConfirmDialog
                 if (key.Key == ConsoleKey.Enter) return focusedButton == 0;
             }
         }
-    }
-
-    private bool RunLoop(string title, string question, string itemName, ConsoleSize size)
-    {
-        int focusedButton = 0;
-        Draw(title, question, itemName, size, focusedButton);
-
-        while (true)
-        {
-            var input = _screen.ReadInput();
-
-            if (_buttonBar.TryHandleInput(input, ref focusedButton, out string? buttonId))
-            {
-                if (buttonId == "cancel") return false;
-                if (buttonId == "ok")     return true;
-                Draw(title, question, itemName, size, focusedButton);
-                continue;
-            }
-
-            if (input is not KeyConsoleInputEvent { Key: var key })
-            {
-                Draw(title, question, itemName, size, focusedButton);
-                continue;
-            }
-
-            switch (key.Key)
-            {
-                case ConsoleKey.Escape: return false;
-                case ConsoleKey.Enter:  return focusedButton == 0;
-            }
-
-            Draw(title, question, itemName, size, focusedButton);
-        }
-    }
-
-    private void Draw(string title, string question, string itemName, ConsoleSize size, int focusedButton)
-    {
-        using var frame = _screen.BeginFrame();
-        RenderLayer(_screen, title, question, itemName, size, focusedButton);
     }
 
     private void RenderLayer(ScreenRenderer screen, string title, string question, string itemName, ConsoleSize size, int focusedButton)

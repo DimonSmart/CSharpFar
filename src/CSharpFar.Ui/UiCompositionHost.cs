@@ -1,4 +1,5 @@
 using CSharpFar.Console;
+using CSharpFar.Console.Input;
 using CSharpFar.Console.Models;
 
 namespace CSharpFar.Ui;
@@ -48,6 +49,7 @@ public sealed class UiCompositionHost
 {
     private readonly List<IUiSurface> _surfaces = [];
     private readonly List<Action<UiRenderContext>> _overlays = [];
+    private bool _isRendering;
 
     public UiCompositionHost(ScreenRenderer screen)
     {
@@ -60,6 +62,7 @@ public sealed class UiCompositionHost
 
     public void SetRootSurface(IUiSurface surface)
     {
+        EnsureNotRendering();
         ArgumentNullException.ThrowIfNull(surface);
         if (_surfaces.Count > 1)
             throw new InvalidOperationException("Cannot replace the root surface while a temporary surface is active.");
@@ -75,6 +78,7 @@ public sealed class UiCompositionHost
 
     public UiSurfaceSession OpenSurface(IUiSurface surface)
     {
+        EnsureNotRendering();
         ArgumentNullException.ThrowIfNull(surface);
         EnsureRootSurface();
         _surfaces.Add(surface);
@@ -83,6 +87,7 @@ public sealed class UiCompositionHost
 
     internal UiLayerScope PushOverlay(Action<UiRenderContext> render)
     {
+        EnsureNotRendering();
         ArgumentNullException.ThrowIfNull(render);
         EnsureRootSurface();
         _overlays.Add(render);
@@ -95,39 +100,50 @@ public sealed class UiCompositionHost
     public void Render(bool isResizeRecovery = false)
     {
         EnsureRootSurface();
-        while (true)
+        if (_isRendering)
+            throw new InvalidOperationException("UI composition cannot be rendered recursively.");
+
+        _isRendering = true;
+        try
         {
-            var request = new UiRenderRequest(isResizeRecovery);
-            var surface = _surfaces[^1];
-            var overlays = _overlays.ToArray();
-            ConsoleViewport viewport;
-
-            using (surface.BeginFrame(request))
+            while (true)
             {
-                viewport = Screen.FrameViewport;
-                var context = new UiRenderContext(Screen, viewport);
-                surface.Render(context);
-                foreach (var overlay in overlays)
-                    overlay(context);
-            }
+                var request = new UiRenderRequest(isResizeRecovery);
+                var surface = _surfaces[^1];
+                var overlays = _overlays.ToArray();
+                ConsoleViewport viewport;
 
-            var interrupted = Screen.FrameWasInterrupted;
-            surface.CompleteFrame(new UiFrameCompletion(request, viewport, interrupted));
-            if (interrupted)
-            {
-                isResizeRecovery = true;
-                continue;
-            }
+                using (surface.BeginFrame(request))
+                {
+                    viewport = Screen.FrameViewport;
+                    var context = new UiRenderContext(Screen, viewport);
+                    surface.Render(context);
+                    foreach (var overlay in overlays)
+                        overlay(context);
+                }
 
-            Screen.DrainResizeEvents();
-            if (Screen.GetViewport() != viewport)
-            {
-                isResizeRecovery = true;
-                continue;
-            }
+                var interrupted = Screen.FrameWasInterrupted;
+                surface.CompleteFrame(new UiFrameCompletion(request, viewport, interrupted));
+                if (interrupted)
+                {
+                    isResizeRecovery = true;
+                    continue;
+                }
 
-            LastStableViewport = viewport;
-            return;
+                Screen.DrainResizeEvents();
+                if (Screen.GetViewport() != viewport)
+                {
+                    isResizeRecovery = true;
+                    continue;
+                }
+
+                LastStableViewport = viewport;
+                return;
+            }
+        }
+        finally
+        {
+            _isRendering = false;
         }
     }
 
@@ -151,6 +167,12 @@ public sealed class UiCompositionHost
             throw new InvalidOperationException("A root UI surface must be set before composition rendering.");
     }
 
+    private void EnsureNotRendering()
+    {
+        if (_isRendering)
+            throw new InvalidOperationException("UI layers cannot be changed while composition is rendering.");
+    }
+
     public sealed class UiSurfaceSession : IDisposable
     {
         private UiCompositionHost? _host;
@@ -158,11 +180,53 @@ public sealed class UiCompositionHost
 
         internal UiSurfaceSession(UiCompositionHost host, IUiSurface surface) => (_host, _surface) = (host, surface);
 
+        public void Render() => (_host ?? throw new ObjectDisposedException(nameof(UiSurfaceSession))).Render();
+
+        public ConsoleInputEvent ReadInput(CancellationToken cancellationToken = default) =>
+            (_host ?? throw new ObjectDisposedException(nameof(UiSurfaceSession))).ReadSurfaceInput(cancellationToken);
+
+        public bool TryReadInput(out ConsoleInputEvent? input) =>
+            (_host ?? throw new ObjectDisposedException(nameof(UiSurfaceSession))).TryReadSurfaceInput(out input);
+
         public void Dispose()
         {
             var host = Interlocked.Exchange(ref _host, null);
-            host?.CloseSurface(_surface);
+            if (host is null)
+                return;
+            host.CloseSurface(_surface);
+            host.Render();
         }
+    }
+
+    private ConsoleInputEvent ReadSurfaceInput(CancellationToken cancellationToken)
+    {
+        while (true)
+        {
+            var input = Screen.ReadInput(cancellationToken);
+            if (input is ConsoleResizeInputEvent || HasViewportChanged())
+            {
+                Render(isResizeRecovery: true);
+                if (input is ConsoleResizeInputEvent)
+                    continue;
+            }
+            return input;
+        }
+    }
+
+    private bool TryReadSurfaceInput(out ConsoleInputEvent? input)
+    {
+        while (Screen.TryReadInput(out input))
+        {
+            if (input is ConsoleResizeInputEvent || HasViewportChanged())
+            {
+                Render(isResizeRecovery: true);
+                if (input is ConsoleResizeInputEvent)
+                    continue;
+            }
+            return true;
+        }
+        input = null;
+        return false;
     }
 
     internal sealed class UiLayerScope : IDisposable

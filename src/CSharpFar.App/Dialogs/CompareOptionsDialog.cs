@@ -14,12 +14,14 @@ internal sealed class CompareOptionsDialog
     private const int DialogHeight = 26;
 
     private static readonly SingleLineTextHistoryRegistry HistoryRegistry = new();
+    private readonly ModalDialogHost _modalDialogs;
     private readonly ScreenRenderer _screen;
     private readonly ModalDialogRenderer _modalRenderer = new();
 
-    public CompareOptionsDialog(ScreenRenderer screen)
+    public CompareOptionsDialog(ModalDialogHost modalDialogs)
     {
-        _screen = screen;
+        _modalDialogs = modalDialogs;
+        _screen = modalDialogs.Screen;
     }
 
     public ComparisonOptions? Show(
@@ -28,23 +30,10 @@ internal sealed class CompareOptionsDialog
         FilePanelState leftPanel,
         FilePanelState rightPanel)
     {
-        var size = _screen.GetSize();
-        var saved = _screen.Capture(new Rect(0, 0, size.Width, size.Height));
-        _screen.SetCursorVisible(false);
-
-        try
-        {
-            return RunLoop(size, mode, settings, leftPanel, rightPanel);
-        }
-        finally
-        {
-            _screen.Restore(saved);
-            _screen.SetCursorVisible(false);
-        }
+        return RunLoop(mode, settings, leftPanel, rightPanel);
     }
 
     private ComparisonOptions? RunLoop(
-        ConsoleSize size,
         CompareMode mode,
         AppSettings.CompareSettings settings,
         FilePanelState leftPanel,
@@ -89,6 +78,8 @@ internal sealed class CompareOptionsDialog
             FarDialogStyles.FocusedInput);
         var form = new ScrollableFormDialog();
         string? error = null;
+        using var modal = _modalDialogs.Open(context =>
+            RenderLayer(context, mode == CompareMode.FileSet ? "Compare file sets" : "Compare folders", form, error));
 
         while (true)
         {
@@ -113,9 +104,9 @@ internal sealed class CompareOptionsDialog
                 nameComparison,
                 fileSetMatch,
                 buttons));
-            Draw(size, mode == CompareMode.FileSet ? "Compare file sets" : "Compare folders", form, error);
+            modal.Render();
 
-            var input = _screen.ReadInput();
+            var input = modal.ReadInput();
             FormInputResult result = input switch
             {
                 KeyConsoleInputEvent { Key: var key } => HandleKey(form, key),
@@ -296,18 +287,17 @@ internal sealed class CompareOptionsDialog
         return value;
     }
 
-    private void Draw(ConsoleSize size, string title, ScrollableFormDialog form, string? error)
+    private void RenderLayer(UiRenderContext context, string title, ScrollableFormDialog form, string? error)
     {
-        using var frame = _screen.BeginFrame();
-        Rect outerBounds = _modalRenderer.CenteredOuterBounds(_screen, DialogWidth, DialogHeight, minWidth: 52, minHeight: 12);
-        _modalRenderer.Render(_screen, outerBounds, title, true, FarDialogStyles.OuterOptions, FarDialogStyles.FrameOptions, (_, layout) =>
+        Rect outerBounds = _modalRenderer.CenteredOuterBounds(context.Size, DialogWidth, DialogHeight, minWidth: 52, minHeight: 12);
+        _modalRenderer.Render(context.Screen, outerBounds, title, true, FarDialogStyles.OuterOptions, FarDialogStyles.FrameOptions, (_, layout) =>
         {
             Rect bounds = layout.FrameBounds;
             int contentX = bounds.X + 2;
             int contentWidth = Math.Max(1, bounds.Width - 4);
             int errorY = bounds.Y + bounds.Height - 2;
-            form.Render(new FormRenderContext(_screen, new Rect(contentX, bounds.Y + 1, contentWidth, Math.Max(1, errorY - bounds.Y - 1)), FarDialogStyles.Border));
-            _screen.Write(contentX, errorY, (error ?? "").PadRight(contentWidth), FarDialogStyles.Error);
+            form.Render(new FormRenderContext(context.Screen, new Rect(contentX, bounds.Y + 1, contentWidth, Math.Max(1, errorY - bounds.Y - 1)), FarDialogStyles.Border));
+            context.Screen.Write(contentX, errorY, (error ?? "").PadRight(contentWidth), FarDialogStyles.Error);
         });
     }
 

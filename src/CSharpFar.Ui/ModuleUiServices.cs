@@ -23,10 +23,10 @@ public sealed class ModuleUiServices
         Screen.Restore(snapshot);
 
     public void ShowMessage(string title, string message) =>
-        new MessageDialog(Screen).Show(title, message);
+        new MessageDialog(ModalDialogs).Show(title, message);
 
     public int ShowMessage(string title, string message, IReadOnlyList<string> buttons) =>
-        new MessageDialog(Screen).ShowButtons(title, message, buttons);
+        new MessageDialog(ModalDialogs).ShowButtons(title, message, buttons);
 
     public string? Input(string title, string prompt, string? initialText = null) =>
         new ModuleInputDialog(Screen).Show(title, prompt, initialText);

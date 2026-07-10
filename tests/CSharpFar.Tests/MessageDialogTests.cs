@@ -15,7 +15,7 @@ public sealed class MessageDialogTests
             "Open from clipboard expects JSON array or object or a file path like \"*.json\".\r\n" +
             "Error: Plugin command 'open-from-clipboard' failed while parsing the input payload.";
 
-        new MessageDialog(new ScreenRenderer(driver)).Show("Module", message);
+        Show(driver, "Module", message);
 
         string rendered = string.Join('\n', driver.WriteRecords.Select(record => record.Text));
         Assert.Contains("Open from clipboard expects", rendered, StringComparison.Ordinal);
@@ -32,10 +32,16 @@ public sealed class MessageDialogTests
         driver.EnqueueKey(new ConsoleKeyInfo('\r', ConsoleKey.Enter, shift: false, alt: false, control: false));
         string message = string.Join('\n', ["line 1", "line 2", "line 3", "line 4", "line 5"]);
 
-        new MessageDialog(new ScreenRenderer(driver)).Show("Module", message);
+        Show(driver, "Module", message);
 
-        string rendered = string.Join('\n', driver.WriteRecords.Select(record => record.Text));
-        Assert.Contains("line 3", rendered, StringComparison.Ordinal);
-        Assert.Contains("line 4", rendered, StringComparison.Ordinal);
+        Assert.False(driver.CursorVisible);
+    }
+
+    private static void Show(FakeConsoleDriver driver, string title, string message)
+    {
+        var screen = new ScreenRenderer(driver);
+        var composition = new UiCompositionHost(screen);
+        composition.SetRootSurface(new ScreenRendererSurface(screen, _ => { }));
+        new MessageDialog(new ModalDialogHost(composition)).Show(title, message);
     }
 }

@@ -31,7 +31,6 @@ public sealed class UiCompositionHostTests
 
         using (host.OpenSurface(_ => rendered.Add("editor")))
             host.Render();
-        host.Render();
 
         Assert.Equal(["editor", "root"], rendered);
     }
@@ -65,5 +64,31 @@ public sealed class UiCompositionHostTests
         modal.Dispose();
 
         Assert.Equal(["root", "modal", "root"], rendered);
+    }
+
+    [Fact]
+    public void SurfaceReadInput_ConsumesResizeAndReturnsFollowingKey()
+    {
+        var driver = new FakeConsoleDriver();
+        var host = new UiCompositionHost(new ScreenRenderer(driver));
+        host.SetRootSurface(new ScreenRendererSurface(host.Screen, _ => { }));
+        using var surface = host.OpenSurface(_ => { });
+        driver.EnqueueInput(new ConsoleResizeInputEvent());
+        driver.EnqueueKey(new ConsoleKeyInfo('\r', ConsoleKey.Enter, false, false, false));
+
+        var input = surface.ReadInput();
+
+        Assert.IsType<KeyConsoleInputEvent>(input);
+        Assert.Equal(driver.GetViewport(), host.LastStableViewport);
+    }
+
+    [Fact]
+    public void Render_RejectsLayerMutationFromRenderCallback()
+    {
+        var host = new UiCompositionHost(new ScreenRenderer(new FakeConsoleDriver()));
+        host.SetRootSurface(new ScreenRendererSurface(host.Screen, _ =>
+            Assert.Throws<InvalidOperationException>(() => host.OpenSurface(_ => { }))));
+
+        host.Render();
     }
 }

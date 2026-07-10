@@ -1,18 +1,21 @@
 using CSharpFar.App.Rendering;
-using CSharpFar.Console;
 using CSharpFar.Core.Comparison;
 using CSharpFar.Ui;
 
 namespace CSharpFar.App.Dialogs;
 
-internal static class CompareSummaryDialog
+internal sealed class CompareSummaryDialog
 {
-    public static void Show(ScreenRenderer screen, CompareResult result)
+    private readonly ModalDialogHost _modalDialogs;
+
+    public CompareSummaryDialog(ModalDialogHost modalDialogs) => _modalDialogs = modalDialogs;
+
+    public void Show(CompareResult result)
     {
         CompareSummary summary = result.Summary;
         if (summary.DifferentCount + summary.LeftOnlyCount + summary.RightOnlyCount + summary.AmbiguousCount + summary.ErrorCount == 0)
         {
-            new MessageDialog(screen).Show("Compare", "No differences found.");
+            new MessageDialog(_modalDialogs).Show("Compare", "No differences found.");
             return;
         }
 
@@ -32,7 +35,7 @@ internal static class CompareSummaryDialog
         if (summary.ErrorCount > 0)
             lines.Add($"Errors: {summary.ErrorCount}");
 
-        new MessageDialog(screen).Show("Compare", string.Join(Environment.NewLine, lines));
+        new MessageDialog(_modalDialogs).Show("Compare", string.Join(Environment.NewLine, lines));
     }
 
     private static long Size(IEnumerable<CompareResultRow> rows, CompareStatus status, bool left) =>

@@ -11,8 +11,16 @@ public sealed class MessageDialog
     private const int MinDialogWidth = 52;
     private const int MaxDialogWidth = 96;
 
+    private readonly ModalDialogHost? _modalDialogs;
     private readonly ScreenRenderer _screen;
 
+    public MessageDialog(ModalDialogHost modalDialogs)
+    {
+        _modalDialogs = modalDialogs;
+        _screen = modalDialogs.Screen;
+    }
+
+    [Obsolete("Use the ModalDialogHost constructor.")]
     public MessageDialog(ScreenRenderer screen)
     {
         _screen = screen;
@@ -20,29 +28,26 @@ public sealed class MessageDialog
 
     public void Show(string title, string message)
     {
-        var size  = _screen.GetSize();
-        var saved = _screen.Capture(new Rect(0, 0, size.Width, size.Height));
-
-        try
+        if (_modalDialogs is null)
         {
-            var layout = CreateLayout(title, message, size, buttons: null);
-            int firstVisibleLine = 0;
-            Draw(title, layout, firstVisibleLine, buttonBar: null, focusedButton: 0);
-            _screen.SetCursorVisible(false);
-
-            while (true)
-            {
-                var input = _screen.ReadInput();
-                if (input is KeyConsoleInputEvent { Key.Key: ConsoleKey.Enter or ConsoleKey.Escape })
-                    break;
-
-                if (TryScroll(input, layout, ref firstVisibleLine))
-                    Draw(title, layout, firstVisibleLine, buttonBar: null, focusedButton: 0);
-            }
+            ShowLegacy(title, message);
+            return;
         }
-        finally
+        int firstVisibleLine = 0;
+        using var session = _modalDialogs.Open(context =>
         {
-            _screen.Restore(saved);
+            var layout = CreateLayout(title, message, context.Size, buttons: null);
+            Draw(title, layout, firstVisibleLine, buttonBar: null, focusedButton: 0);
+            context.Screen.SetCursorVisible(false);
+        });
+        while (true)
+        {
+            session.Render();
+            var layout = CreateLayout(title, message, _modalDialogs.Screen.FrameViewport.Size, buttons: null);
+            var input = session.ReadInput();
+            if (input is KeyConsoleInputEvent { Key.Key: ConsoleKey.Enter or ConsoleKey.Escape })
+                return;
+            TryScroll(input, layout, ref firstVisibleLine);
         }
     }
 
@@ -51,51 +56,88 @@ public sealed class MessageDialog
         ArgumentNullException.ThrowIfNull(buttons);
         if (buttons.Count == 0)
             throw new ArgumentException("At least one button is required.", nameof(buttons));
+        if (_modalDialogs is null)
+            return ShowButtonsLegacy(title, message, buttons);
 
         var dialogButtons = buttons
             .Select((text, index) => new DialogButton(index.ToString(), text, HotKeyFrom(text), index == 0))
             .ToArray();
         var buttonBar = new DialogButtonBar(dialogButtons);
-        var size = _screen.GetSize();
-        var saved = _screen.Capture(new Rect(0, 0, size.Width, size.Height));
-
-        try
+        int focusedButton = 0;
+        int firstVisibleLine = 0;
+        using var session = _modalDialogs.Open(context =>
         {
-            var layout = CreateLayout(title, message, size, dialogButtons);
-            int focusedButton = 0;
-            int firstVisibleLine = 0;
+            var layout = CreateLayout(title, message, context.Size, dialogButtons);
             Draw(title, layout, firstVisibleLine, buttonBar, focusedButton);
-            _screen.SetCursorVisible(false);
+            context.Screen.SetCursorVisible(false);
+        });
 
-            while (true)
-            {
-                var input = _screen.ReadInput();
-                if (TryScroll(input, layout, ref firstVisibleLine))
-                {
-                    Draw(title, layout, firstVisibleLine, buttonBar, focusedButton);
-                    continue;
-                }
-
-                if (buttonBar.TryHandleInput(input, ref focusedButton, out string? buttonId))
-                {
-                    if (buttonId is not null && int.TryParse(buttonId, out int selected))
-                        return selected;
-
-                    Draw(title, layout, firstVisibleLine, buttonBar, focusedButton);
-                    continue;
-                }
-
-                if (input is KeyConsoleInputEvent { Key.Key: ConsoleKey.Escape })
-                    return -1;
-
-                Draw(title, layout, firstVisibleLine, buttonBar, focusedButton);
-            }
-        }
-        finally
+        while (true)
         {
-            _screen.Restore(saved);
-            _screen.SetCursorVisible(false);
+            session.Render();
+            var layout = CreateLayout(title, message, _modalDialogs.Screen.FrameViewport.Size, dialogButtons);
+            var input = session.ReadInput();
+            if (TryScroll(input, layout, ref firstVisibleLine))
+                continue;
+
+            if (_buttonBarTryHandle(buttonBar, input, ref focusedButton, out var selected))
+            {
+                if (selected.HasValue)
+                    return selected.Value;
+                continue;
+            }
+            if (input is KeyConsoleInputEvent { Key.Key: ConsoleKey.Escape })
+                return -1;
         }
+    }
+
+    private void ShowLegacy(string title, string message)
+    {
+        int firstVisibleLine = 0;
+        while (true)
+        {
+            var size = _screen.GetSize();
+            var layout = CreateLayout(title, message, size, null);
+            using (var frame = _screen.BeginFrame())
+            {
+                Draw(title, layout, firstVisibleLine, null, 0);
+                _screen.SetCursorVisible(false);
+            }
+            var input = _screen.ReadInput();
+            if (input is KeyConsoleInputEvent { Key.Key: ConsoleKey.Enter or ConsoleKey.Escape }) return;
+            TryScroll(input, layout, ref firstVisibleLine);
+        }
+    }
+
+    private int ShowButtonsLegacy(string title, string message, IReadOnlyList<string> buttons)
+    {
+        var dialogButtons = buttons.Select((text, index) => new DialogButton(index.ToString(), text, HotKeyFrom(text), index == 0)).ToArray();
+        var bar = new DialogButtonBar(dialogButtons);
+        int focused = 0;
+        int firstVisible = 0;
+        while (true)
+        {
+            var layout = CreateLayout(title, message, _screen.GetSize(), dialogButtons);
+            using (var frame = _screen.BeginFrame())
+            {
+                Draw(title, layout, firstVisible, bar, focused);
+                _screen.SetCursorVisible(false);
+            }
+            var input = _screen.ReadInput();
+            if (TryScroll(input, layout, ref firstVisible)) continue;
+            if (_buttonBarTryHandle(bar, input, ref focused, out var selected) && selected.HasValue) return selected.Value;
+            if (input is KeyConsoleInputEvent { Key.Key: ConsoleKey.Escape }) return -1;
+        }
+    }
+
+    private static bool _buttonBarTryHandle(DialogButtonBar buttonBar, ConsoleInputEvent input, ref int focusedButton, out int? selected)
+    {
+        selected = null;
+        if (!buttonBar.TryHandleInput(input, ref focusedButton, out string? buttonId))
+            return false;
+        if (buttonId is not null && int.TryParse(buttonId, out int value))
+            selected = value;
+        return true;
     }
 
     private void Draw(
