@@ -54,6 +54,7 @@ internal sealed class SearchProgressDialog
             int scrollOffset = 0;
             ScrollBarDragState? resultScrollbarDrag = null;
             int focusedButton = 0;
+            SearchProgressLayout? layout = null;
             var buttonBar = new DialogButtonBar(
             [
                 new DialogButton(GoToButton, "Go to", 'G', IsDefault: true),
@@ -61,14 +62,16 @@ internal sealed class SearchProgressDialog
             ]);
             SearchProgress renderProgress = latestProgress;
             SearchResultItem[] renderResults = [];
-            using var modal = _modalDialogs.Open(_ => Draw(
+            using var modal = _modalDialogs.Open(context => Draw(
+                context,
                 request,
                 renderProgress,
                 renderResults,
                 selectedIndex,
                 scrollOffset,
                 buttonBar,
-                focusedButton));
+                focusedButton,
+                value => layout = value));
 
             var progress = new Progress<SearchProgress>(p =>
             {
@@ -108,7 +111,7 @@ internal sealed class SearchProgressDialog
                 renderProgress = progressSnapshot;
                 renderResults = resultSnapshot;
 
-                int listHeight = VisibleResultRows();
+                int listHeight = layout?.VisibleResultRows ?? 1;
                 NormalizeSelection(resultSnapshot.Length, listHeight, ref selectedIndex, ref scrollOffset);
                 modal.Render();
 
@@ -121,18 +124,18 @@ internal sealed class SearchProgressDialog
                 SearchResultItem[] inputResults;
                 lock (syncRoot)
                     inputResults = [.. results];
-                NormalizeSelection(inputResults.Length, listHeight, ref selectedIndex, ref scrollOffset);
-
                 if (task.IsCompleted)
                     break;
 
-                if (modal.TryReadInput(out var input))
+                if (modal.TryReadInput(out var input) && input is { } semanticInput)
                 {
-                    if (input is MouseConsoleInputEvent mouse &&
+                    listHeight = layout?.VisibleResultRows ?? 1;
+                    NormalizeSelection(inputResults.Length, listHeight, ref selectedIndex, ref scrollOffset);
+                    if (semanticInput is MouseConsoleInputEvent mouse &&
                         TryHandleResultScrollbarMouse(
                             mouse,
                             inputResults.Length,
-                            listHeight,
+                            layout,
                             ref selectedIndex,
                             ref scrollOffset,
                             ref resultScrollbarDrag))
@@ -141,7 +144,7 @@ internal sealed class SearchProgressDialog
                     }
 
                     SearchResultItem? selected = HandleInput(
-                        input,
+                        semanticInput,
                         inputResults,
                         listHeight,
                         ref selectedIndex,
@@ -264,16 +267,18 @@ internal sealed class SearchProgressDialog
     }
 
     private void Draw(
+        UiRenderContext context,
         SearchRequest request,
         SearchProgress progress,
         IReadOnlyList<SearchResultItem> results,
         int selectedIndex,
         int scrollOffset,
         DialogButtonBar buttonBar,
-        int focusedButton)
+        int focusedButton,
+        Action<SearchProgressLayout> setLayout)
     {
         var outerBounds = _modalRenderer.CenteredOuterBounds(
-            _screen,
+            context.Size,
             DialogWidth,
             DialogHeight,
             minWidth: 50,
@@ -301,7 +306,8 @@ internal sealed class SearchProgressDialog
                 _screen.Write(contentX, bounds.Y + 3, errorText.PadRight(contentWidth), FarDialogStyles.Error);
 
                 DrawSeparator(bounds, bounds.Y + 4);
-                DrawResults(bounds, contentX, contentWidth, results, selectedIndex, scrollOffset);
+                var resultLayout = DrawResults(bounds, contentX, contentWidth, results, selectedIndex, scrollOffset);
+                setLayout(resultLayout);
 
                 buttonBar.Render(
                     _screen,
@@ -314,7 +320,7 @@ internal sealed class SearchProgressDialog
             });
     }
 
-    private void DrawResults(
+    private SearchProgressLayout DrawResults(
         Rect frameBounds,
         int contentX,
         int contentWidth,
@@ -330,7 +336,7 @@ internal sealed class SearchProgressDialog
             _screen.Write(contentX, listY, "No files found yet".PadRight(contentWidth), FarDialogStyles.Fill);
             for (int row = 1; row < listHeight; row++)
                 _screen.Write(contentX, listY + row, new string(' ', contentWidth), FarDialogStyles.Fill);
-            return;
+            return new SearchProgressLayout(frameBounds, new Rect(frameBounds.Right - 1, listY, 1, listHeight), listHeight);
         }
 
         for (int row = 0; row < listHeight; row++)
@@ -343,11 +349,12 @@ internal sealed class SearchProgressDialog
             _screen.Write(contentX, listY + row, text.PadRight(contentWidth), style);
         }
 
+        var scrollbarBounds = new Rect(frameBounds.Right - 1, listY, 1, listHeight);
         if (results.Count > listHeight)
         {
             new ScrollBarRenderer().RenderVerticalScrollbar(
                 _screen,
-                new Rect(frameBounds.Right - 1, listY, 1, listHeight),
+                scrollbarBounds,
                 new ScrollState
                 {
                     TotalItems = results.Count,
@@ -361,6 +368,8 @@ internal sealed class SearchProgressDialog
                 },
                 FarDialogStyles.Border);
         }
+
+        return new SearchProgressLayout(frameBounds, scrollbarBounds, listHeight);
     }
 
     private void DrawSeparator(Rect bounds, int y)
@@ -373,22 +382,6 @@ internal sealed class SearchProgressDialog
         _screen.WriteChar(bounds.Right - 1, y, '╢', FarDialogStyles.Border);
     }
 
-    private int VisibleResultRows()
-    {
-        var outerBounds = _modalRenderer.CenteredOuterBounds(
-            _screen,
-            DialogWidth,
-            DialogHeight,
-            minWidth: 50,
-            minHeight: 14);
-        var frameBounds = new Rect(
-            outerBounds.X + 1,
-            outerBounds.Y + 1,
-            Math.Max(1, outerBounds.Width - 2),
-            Math.Max(1, outerBounds.Height - 2));
-        return VisibleResultRows(frameBounds);
-    }
-
     private static int VisibleResultRows(Rect frameBounds)
     {
         int listY = frameBounds.Y + 5;
@@ -399,32 +392,19 @@ internal sealed class SearchProgressDialog
     private bool TryHandleResultScrollbarMouse(
         MouseConsoleInputEvent mouse,
         int resultCount,
-        int listHeight,
+        SearchProgressLayout? layout,
         ref int selectedIndex,
         ref int scrollOffset,
         ref ScrollBarDragState? dragState)
     {
-        if (resultCount <= listHeight)
+        if (layout is null || resultCount <= layout.VisibleResultRows)
             return false;
-
-        var outerBounds = _modalRenderer.CenteredOuterBounds(
-            _screen,
-            DialogWidth,
-            DialogHeight,
-            minWidth: 50,
-            minHeight: 14);
-        var frameBounds = new Rect(
-            outerBounds.X + 1,
-            outerBounds.Y + 1,
-            Math.Max(1, outerBounds.Width - 2),
-            Math.Max(1, outerBounds.Height - 2));
-        var scrollbarBounds = new Rect(frameBounds.Right - 1, frameBounds.Y + 5, 1, listHeight);
 
         return ScrollableListMouseHandler.TryHandleScrollbarMouse(
             mouse,
-            scrollbarBounds,
+            layout.ScrollbarBounds,
             resultCount,
-            listHeight,
+            layout.VisibleResultRows,
             ref selectedIndex,
             ref scrollOffset,
             ref dragState);
@@ -490,4 +470,6 @@ internal sealed class SearchProgressDialog
         int right = maxLength - left - 1;
         return value[..left] + "~" + value[^right..];
     }
+
+    private sealed record SearchProgressLayout(Rect FrameBounds, Rect ScrollbarBounds, int VisibleResultRows);
 }

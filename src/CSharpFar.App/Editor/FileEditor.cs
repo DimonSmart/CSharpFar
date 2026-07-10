@@ -721,9 +721,7 @@ internal sealed class FileEditor
 
     private void ShowFormatDialog(EditorSession session)
     {
-        var selected = new EditorFormatDialog(_screen, _modalDialogs, _palette).Show(
-            session.Document.Format,
-            () => Draw(session, Math.Max(1, _screen.GetSize().Height - 3), _screen.GetSize(), default));
+        var selected = new EditorFormatDialog(_screen, _modalDialogs, _palette).Show(session.Document.Format);
         if (selected is not null)
             session.Document.SetFormat(selected);
     }

@@ -2,6 +2,7 @@ using CSharpFar.App.Rendering;
 using CSharpFar.Console;
 using CSharpFar.Console.Models;
 using CSharpFar.Core.Models;
+using CSharpFar.Ui;
 
 namespace CSharpFar.App.Dialogs;
 
@@ -25,21 +26,19 @@ internal sealed class ProgressDialog
         _destination = destination;
     }
 
-    public void Update(FileOperationProgress progress, bool showTotalProgress)
+    public void Render(UiRenderContext context, FileOperationProgress progress, bool showTotalProgress)
     {
-        using var frame = _screen.BeginFrame();
-
         if (progress.Phase == FileOperationPhase.Scanning)
-            RenderScanning(progress);
+            RenderScanning(context, progress);
         else if (progress.Kind == FileOperationKind.Delete || progress.Phase == FileOperationPhase.Deleting)
-            RenderDeleting(progress);
+            RenderDeleting(context, progress);
         else
-            RenderCopying(progress, showTotalProgress);
+            RenderCopying(context, progress, showTotalProgress);
     }
 
-    private void RenderScanning(FileOperationProgress progress)
+    private void RenderScanning(UiRenderContext context, FileOperationProgress progress)
     {
-        var outer = _modalRenderer.CenteredOuterBounds(_screen, ScanOuterWidth, ScanOuterHeight);
+        var outer = _modalRenderer.CenteredOuterBounds(context.Size, ScanOuterWidth, ScanOuterHeight);
         RenderOuter(outer, "Copy", true, (frameBounds, contentX, contentWidth) =>
         {
             _screen.Write(contentX, frameBounds.Y + 1, "Scanning the folder".PadRight(contentWidth), FillStyle);
@@ -53,9 +52,9 @@ internal sealed class ProgressDialog
         });
     }
 
-    private void RenderCopying(FileOperationProgress progress, bool showTotalProgress)
+    private void RenderCopying(UiRenderContext context, FileOperationProgress progress, bool showTotalProgress)
     {
-        var outer = _modalRenderer.CenteredOuterBounds(_screen, CopyOuterWidth, CopyOuterHeight);
+        var outer = _modalRenderer.CenteredOuterBounds(context.Size, CopyOuterWidth, CopyOuterHeight);
         RenderOuter(outer, "Copy", true, (frameBounds, contentX, contentWidth) =>
         {
             string status = progress.Phase == FileOperationPhase.Validating
@@ -81,9 +80,9 @@ internal sealed class ProgressDialog
         });
     }
 
-    private void RenderDeleting(FileOperationProgress progress)
+    private void RenderDeleting(UiRenderContext context, FileOperationProgress progress)
     {
-        var outer = _modalRenderer.CenteredOuterBounds(_screen, DeleteOuterWidth, DeleteOuterHeight);
+        var outer = _modalRenderer.CenteredOuterBounds(context.Size, DeleteOuterWidth, DeleteOuterHeight);
         RenderOuter(outer, "Delete", true, (frameBounds, contentX, contentWidth) =>
         {
             string status = progress.StatusMessage ?? "Deleting the file";

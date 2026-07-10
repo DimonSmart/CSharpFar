@@ -413,7 +413,7 @@ public sealed class Spec010FileOperationDialogTests
         var driver = new FakeConsoleDriver(width: 100, height: 30);
         var screen = new ScreenRenderer(driver);
 
-        new ProgressDialog(screen, @"C:\dst").Update(
+        RenderProgress(screen, new ProgressDialog(screen, @"C:\dst"),
             new FileOperationProgress
             {
                 Kind = FileOperationKind.Copy,
@@ -446,8 +446,7 @@ public sealed class Spec010FileOperationDialogTests
             ModalTestHost.Create(screen),
             () => PaletteRegistry.Default,
             new NoOpFileOperationService(),
-            () => true,
-            () => null);
+            () => true);
 
         runner.Execute(new FileOperationRequest
         {
@@ -467,7 +466,7 @@ public sealed class Spec010FileOperationDialogTests
         var driver = new FakeConsoleDriver(width: 100, height: 30);
         var screen = new ScreenRenderer(driver);
 
-        new ProgressDialog(screen, @"C:\dst").Update(
+        RenderProgress(screen, new ProgressDialog(screen, @"C:\dst"),
             new FileOperationProgress
             {
                 Kind = FileOperationKind.Copy,
@@ -499,7 +498,7 @@ public sealed class Spec010FileOperationDialogTests
         var driver = new FakeConsoleDriver(width: 100, height: 30);
         var screen = new ScreenRenderer(driver);
 
-        new ProgressDialog(screen, @"C:\dst").Update(
+        RenderProgress(screen, new ProgressDialog(screen, @"C:\dst"),
             new FileOperationProgress
             {
                 Kind = FileOperationKind.Delete,
@@ -536,7 +535,7 @@ public sealed class Spec010FileOperationDialogTests
         var driver = new FakeConsoleDriver(width: 100, height: 30);
         var screen = new ScreenRenderer(driver);
 
-        new ProgressDialog(screen, @"C:\dst").Update(
+        RenderProgress(screen, new ProgressDialog(screen, @"C:\dst"),
             new FileOperationProgress
             {
                 Kind = FileOperationKind.Copy,
@@ -687,6 +686,19 @@ public sealed class Spec010FileOperationDialogTests
                 new CheckBoxRow(new CheckBoxLine("Use filter", value: true)),
                 true,
             ])!;
+    }
+
+    private static void RenderProgress(
+        ScreenRenderer screen,
+        ProgressDialog dialog,
+        FileOperationProgress progress,
+        bool showTotalProgress)
+    {
+        var composition = new UiCompositionHost(screen);
+        composition.SetRootSurface(new ScreenRendererSurface(screen, _ => { }));
+        using var overlay = new ModalDialogHost(composition).Open(context =>
+            dialog.Render(context, progress, showTotalProgress));
+        overlay.Render();
     }
 
     private static ConsoleKeyInfo Key(ConsoleKey key) =>

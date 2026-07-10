@@ -24,58 +24,43 @@ internal sealed class EditorFormatDialog
         _palette = palette;
     }
 
-    public EditorDocumentFormat? Show(EditorDocumentFormat current, Action? renderUnderlay)
+    public EditorDocumentFormat? Show(EditorDocumentFormat current)
     {
-        var size = _screen.GetSize();
-        var saved = _screen.Capture(new Rect(0, 0, size.Width, size.Height));
-        try
+        int encodingIndex = EncodingIndex(current.Encoding.CodePage);
+        int lineEndingIndex = LineEndingIndex(current.LineEnding);
+        bool emitBom = current.EmitByteOrderMark;
+        int row = 0;
+        using var modal = _modalDialogs.Open(context =>
         {
-            int encodingIndex = EncodingIndex(current.Encoding.CodePage);
-            int lineEndingIndex = LineEndingIndex(current.LineEnding);
-            bool emitBom = current.EmitByteOrderMark;
-            int row = 0;
+            var format = CreateFormat(encodingIndex, emitBom, lineEndingIndex);
+            Draw(context, format, row);
+        });
 
-            while (true)
-            {
-                var format = CreateFormat(encodingIndex, emitBom, lineEndingIndex);
-                Draw(format, row, renderUnderlay);
-                var key = _screen.ReadKey();
-                switch (key.Key)
-                {
-                    case ConsoleKey.UpArrow:
-                        row = Math.Max(0, row - 1);
-                        break;
-                    case ConsoleKey.DownArrow:
-                        row = Math.Min(2, row + 1);
-                        break;
-                    case ConsoleKey.LeftArrow:
-                        Change(row, -1, ref encodingIndex, ref emitBom, ref lineEndingIndex);
-                        break;
-                    case ConsoleKey.RightArrow:
-                        Change(row, 1, ref encodingIndex, ref emitBom, ref lineEndingIndex);
-                        break;
-                    case ConsoleKey.Spacebar:
-                        Change(row, 1, ref encodingIndex, ref emitBom, ref lineEndingIndex);
-                        break;
-                    case ConsoleKey.Enter:
-                        return format;
-                    case ConsoleKey.Escape:
-                    case ConsoleKey.F10:
-                        return null;
-                }
-            }
-        }
-        finally
+        while (true)
         {
-            _screen.Restore(saved);
+            modal.Render();
+            var input = modal.ReadInput();
+            if (input is not CSharpFar.Console.Input.KeyConsoleInputEvent { Key: var key })
+                continue;
+
+            var format = CreateFormat(encodingIndex, emitBom, lineEndingIndex);
+            switch (key.Key)
+            {
+                case ConsoleKey.UpArrow: row = Math.Max(0, row - 1); break;
+                case ConsoleKey.DownArrow: row = Math.Min(2, row + 1); break;
+                case ConsoleKey.LeftArrow: Change(row, -1, ref encodingIndex, ref emitBom, ref lineEndingIndex); break;
+                case ConsoleKey.RightArrow:
+                case ConsoleKey.Spacebar: Change(row, 1, ref encodingIndex, ref emitBom, ref lineEndingIndex); break;
+                case ConsoleKey.Enter: return format;
+                case ConsoleKey.Escape:
+                case ConsoleKey.F10: return null;
+            }
         }
     }
 
-    private void Draw(EditorDocumentFormat format, int cursorRow, Action? renderUnderlay)
+    private void Draw(UiRenderContext context, EditorDocumentFormat format, int cursorRow)
     {
-        using var frame = _screen.BeginFrame();
-        renderUnderlay?.Invoke();
-        Rect bounds = _modalRenderer.CenteredOuterBounds(_screen, DialogWidth, DialogHeight, minHeight: DialogHeight);
+        Rect bounds = _modalRenderer.CenteredOuterBounds(context.Size, DialogWidth, DialogHeight, minHeight: DialogHeight);
         _modalRenderer.Render(
             _screen,
             bounds,

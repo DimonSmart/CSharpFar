@@ -41,8 +41,6 @@ internal sealed class CopyCommand : IApplicationCommand
         if (dialogResult is null)
             return ApplicationCommandResult.Rendered();
 
-        var saved = FileOperationCommandHelpers.CaptureScreen(context);
-
         try
         {
             context.ExecuteFileOperation(new FileOperationRequest
@@ -63,12 +61,7 @@ internal sealed class CopyCommand : IApplicationCommand
         catch (OperationCanceledException) { }
         catch (Exception ex)
         {
-            context.Screen.Restore(saved);
             new MessageDialog(context.ModalDialogs).Show("Copy Error", ex.Message);
-        }
-        finally
-        {
-            context.Screen.Restore(saved);
         }
 
         context.RefreshPanelsAfterFileOperation();

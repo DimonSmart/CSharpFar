@@ -40,8 +40,6 @@ internal sealed class DeleteCommand : IApplicationCommand
             return ApplicationCommandResult.Rendered();
         }
 
-        var saved = FileOperationCommandHelpers.CaptureScreen(context);
-
         try
         {
             context.ExecuteFileOperation(new FileOperationRequest
@@ -60,12 +58,7 @@ internal sealed class DeleteCommand : IApplicationCommand
         catch (OperationCanceledException) { }
         catch (Exception ex)
         {
-            context.Screen.Restore(saved);
             new MessageDialog(context.ModalDialogs).Show("Delete Error", ex.Message);
-        }
-        finally
-        {
-            context.Screen.Restore(saved);
         }
 
         context.RefreshPanels();

@@ -34,8 +34,6 @@ internal sealed class RenameCommand : IApplicationCommand
         if (string.Equals(dialogResult.Destination, initialName, StringComparison.Ordinal))
             return ApplicationCommandResult.Rendered();
 
-        var saved = FileOperationCommandHelpers.CaptureScreen(context);
-
         try
         {
             context.ExecuteFileOperation(new FileOperationRequest
@@ -54,12 +52,7 @@ internal sealed class RenameCommand : IApplicationCommand
         catch (OperationCanceledException) { }
         catch (Exception ex)
         {
-            context.Screen.Restore(saved);
             new MessageDialog(context.ModalDialogs).Show("Rename Error", ex.Message);
-        }
-        finally
-        {
-            context.Screen.Restore(saved);
         }
 
         context.RefreshPanels();

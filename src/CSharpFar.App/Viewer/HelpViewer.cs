@@ -198,4 +198,3 @@ internal sealed class HelpViewer
         _screen.Write(x, row, visible, style);
     }
 }
-

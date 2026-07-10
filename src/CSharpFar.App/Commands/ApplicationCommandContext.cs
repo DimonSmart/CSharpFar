@@ -386,8 +386,7 @@ internal sealed class ApplicationCommandContext
             ModalDialogs,
             () => Palette,
             FileOperations,
-            () => Settings.FileOperations.ShowTotalProgress,
-            TryReadConsoleKeyForCommand).Execute(request);
+            () => Settings.FileOperations.ShowTotalProgress).Execute(request);
 
     public IFileHighlightService? CreateHighlightService() =>
         FileHighlightServiceFactory.Create(Settings);
@@ -405,24 +404,4 @@ internal sealed class ApplicationCommandContext
             ModuleMenuItems = _moduleCatalog.MenuItems,
         });
 
-    private static ConsoleKeyInfo? TryReadConsoleKeyForCommand() =>
-        TryReadConsoleKey(out var key) ? key : null;
-
-    private static bool TryReadConsoleKey(out ConsoleKeyInfo key)
-    {
-        try
-        {
-            if (global::System.Console.KeyAvailable)
-            {
-                key = global::System.Console.ReadKey(intercept: true);
-                return true;
-            }
-        }
-        catch (InvalidOperationException)
-        {
-        }
-
-        key = default;
-        return false;
-    }
 }

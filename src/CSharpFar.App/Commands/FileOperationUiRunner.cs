@@ -14,22 +14,19 @@ internal sealed class FileOperationUiRunner
     private readonly Func<ConsolePalette> _palette;
     private readonly IFileOperationService _fileOperations;
     private readonly Func<bool> _showTotalProgress;
-    private readonly Func<ConsoleKeyInfo?> _tryReadConsoleKey;
 
     public FileOperationUiRunner(
         ScreenRenderer screen,
         ModalDialogHost modalDialogs,
         Func<ConsolePalette> palette,
         IFileOperationService fileOperations,
-        Func<bool> showTotalProgress,
-        Func<ConsoleKeyInfo?> tryReadConsoleKey)
+        Func<bool> showTotalProgress)
     {
         _screen = screen;
         _modalDialogs = modalDialogs;
         _palette = palette;
         _fileOperations = fileOperations;
         _showTotalProgress = showTotalProgress;
-        _tryReadConsoleKey = tryReadConsoleKey;
     }
 
     public FileOperationResult Execute(FileOperationRequest request)
@@ -64,6 +61,12 @@ internal sealed class FileOperationUiRunner
             }
         }, cts.Token);
 
+        using var progressOverlay = _modalDialogs.Open(context =>
+        {
+            if (latestProgress is { } progressSnapshot)
+                progressDialog.Render(context, progressSnapshot, _showTotalProgress());
+        });
+
         FileOperationProgress? renderedProgress = null;
         var lastRender = DateTime.MinValue;
 
@@ -80,13 +83,13 @@ internal sealed class FileOperationUiRunner
                 !ReferenceEquals(latestProgress, renderedProgress) &&
                 DateTime.UtcNow - lastRender >= TimeSpan.FromMilliseconds(120))
             {
-                progressDialog.Update(latestProgress, _showTotalProgress());
+                progressOverlay.Render();
                 renderedProgress = latestProgress;
                 lastRender = DateTime.UtcNow;
             }
 
-            var key = _tryReadConsoleKey();
-            if (key?.Key == ConsoleKey.Escape)
+            if (latestProgress is not null && progressOverlay.TryReadInput(out var input) &&
+                input is CSharpFar.Console.Input.KeyConsoleInputEvent { Key.Key: ConsoleKey.Escape })
             {
                 if (latestProgress?.Phase == FileOperationPhase.Scanning)
                 {
@@ -116,7 +119,7 @@ internal sealed class FileOperationUiRunner
         try
         {
             if (latestProgress is not null && !ReferenceEquals(latestProgress, renderedProgress))
-                progressDialog.Update(latestProgress, _showTotalProgress());
+                progressOverlay.Render();
 
             if (task.IsCanceled)
                 throw new OperationCanceledException();

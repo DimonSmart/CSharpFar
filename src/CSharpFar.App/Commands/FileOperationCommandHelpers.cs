@@ -1,4 +1,3 @@
-using CSharpFar.Console.Models;
 using CSharpFar.Core.Models;
 
 namespace CSharpFar.App.Commands;
@@ -43,9 +42,4 @@ internal static class FileOperationCommandHelpers
         return [item.Location];
     }
 
-    public static ScreenSnapshot CaptureScreen(ApplicationCommandContext context)
-    {
-        var size = context.Screen.GetSize();
-        return context.Screen.Capture(new Rect(0, 0, size.Width, size.Height));
-    }
 }
