@@ -130,7 +130,11 @@ public sealed class UiCompositionHost
                     continue;
                 }
 
-                Screen.DrainResizeEvents();
+                // Draining is needed only after a resize recovery. On an ordinary
+                // render, leave semantic input in the driver queue so the active
+                // session observes it as its next input.
+                if (isResizeRecovery)
+                    Screen.DrainResizeEvents();
                 if (Screen.GetViewport() != viewport)
                 {
                     isResizeRecovery = true;
