@@ -20,7 +20,6 @@ internal sealed class LargeFileViewer
     private readonly ScreenRenderer _screen;
     private readonly ModalDialogHost _modalDialogs;
     private readonly ConsolePalette _palette;
-    private string? _renderedFooterSignature;
 
     public LargeFileViewer(UiCompositionHost composition, ModalDialogHost modalDialogs, ConsolePalette? palette = null)
     {
@@ -35,7 +34,6 @@ internal sealed class LargeFileViewer
     internal void Show(string filePath, LargeFileViewerOptions? options)
     {
         options ??= new LargeFileViewerOptions();
-        _renderedFooterSignature = null;
         RandomAccessFileByteReader? reader = null;
 
         try
@@ -44,18 +42,19 @@ internal sealed class LargeFileViewer
             reader = opened.Reader;
             var state = opened.State;
 
-            LargeFileViewerLayout? layout = null;
+            var committedLayout = new UiCommittedState<LargeFileViewerLayout>();
             using var surface = _composition.OpenSurface(context =>
             {
                 int contentHeight = Math.Max(0, context.Size.Height - 2);
                 var view = Draw(filePath, reader!, state, contentHeight, context.Size);
-                layout = new LargeFileViewerLayout(
+                var frame = new LargeFileViewerLayout(
                     context.Size, contentHeight, view, ViewerFunctionKeyBarActions(state));
+                committedLayout.Stage(context, frame);
             });
 
             while (true)
             {
-                var action = RunLoop(filePath, reader, state, options, surface, () => layout);
+                var action = RunLoop(filePath, reader, state, options, surface, () => committedLayout.Value);
                 if (action == ViewerLoopAction.Close)
                     return;
 
@@ -107,12 +106,12 @@ internal sealed class LargeFileViewer
         LargeFileViewerState state,
         LargeFileViewerOptions options,
         UiCompositionHost.UiSurfaceSession surface,
-        Func<LargeFileViewerLayout?> getLayout)
+        Func<LargeFileViewerLayout> getLayout)
     {
         while (true)
         {
             surface.Render();
-            var layout = getLayout() ?? throw new InvalidOperationException("Viewer layout is unavailable.");
+            var layout = getLayout();
             var size = layout.Size;
             int contentHeight = layout.ContentHeight;
             var view = layout.View;
@@ -471,7 +470,7 @@ internal sealed class LargeFileViewer
             ? DrawBinaryContent(reader, state, contentHeight, size.Width)
             : DrawTextContent(reader, state, contentHeight, size.Width);
 
-        DrawFooter(size, state, force: false);
+        DrawFooter(size, state);
         return view;
     }
 
@@ -674,22 +673,14 @@ internal sealed class LargeFileViewer
             _screen.Write(x, y, visible.Substring(x, Math.Min(length, visible.Length - x)), PaletteStyles.InputHighlight(_palette));
     }
 
-    private void DrawFooter(ConsoleSize size, LargeFileViewerState state, bool force)
+    private void DrawFooter(ConsoleSize size, LargeFileViewerState state)
     {
-        string signature = FooterSignature(size, state);
-        if (!force && signature == _renderedFooterSignature)
-            return;
-
         new FunctionKeyBarController<ConsoleKeyInfo>().Render(
             _screen,
             size.Height - 1,
             size.Width,
             ViewerFunctionKeyBarActions(state));
-        _renderedFooterSignature = signature;
     }
-
-    private static string FooterSignature(ConsoleSize size, LargeFileViewerState state) =>
-        $"{size.Width}x{size.Height}:{string.Join('|', ViewerFunctionKeyBarActions(state).Select(item => $"{item.KeyNumber}:{item.Label}"))}";
 
     private static FunctionKeyBarAction<ConsoleKeyInfo>[] ViewerFunctionKeyBarActions(LargeFileViewerState state) =>
     [
@@ -1033,7 +1024,6 @@ internal sealed class LargeFileViewer
                 originalViewMode),
             previewRedraw: () =>
             {
-                _renderedFooterSignature = null;
                 surface.Render();
             });
 
