@@ -46,23 +46,22 @@ internal sealed class DirectoryShortcutEditDialog
         int focusedButton = 0;
         string? error = null;
 
-        ModalDialogRenderer.Layout layout = default;
         using var modal = _modalDialogs.Open(context =>
         {
-            layout = Draw(context.Size, number, name, path, focusRow, focusedButton);
+            return Draw(context.Size, number, name, path, focusRow, focusedButton);
         });
         modal.Render();
         while (true)
         {
-            var input = modal.ReadInput();
+            var input = modal.ReadInput(out var frame);
             if (input is MouseConsoleInputEvent mouse &&
-                TryFocusField(mouse, layout.ContentBounds, ref focusRow))
+                TryFocusField(mouse, frame.Layout.ContentBounds, ref focusRow))
             {
                 modal.Render();
                 continue;
             }
 
-            if (_buttonBar.TryHandleInput(input, ref focusedButton, out string? buttonId) &&
+            if (_buttonBar.TryHandleInput(input, frame.Buttons, ref focusedButton, out string? buttonId) &&
                 (focusRow == 2 || input is MouseConsoleInputEvent))
             {
                 focusRow = 2;
@@ -104,7 +103,7 @@ internal sealed class DirectoryShortcutEditDialog
         }
     }
 
-    private ModalDialogRenderer.Layout Draw(
+    private DirectoryShortcutEditFrame Draw(
         ConsoleSize size,
         int number,
         CommandLineState name,
@@ -114,6 +113,7 @@ internal sealed class DirectoryShortcutEditDialog
     {
         Rect outerBounds = _modalRenderer.CenteredOuterBounds(size, DialogWidth, DialogHeight);
         ModalDialogRenderer.Layout layout = default;
+        DialogButtonBarLayout buttons = null!;
         _modalRenderer.Render(
             _screen,
             outerBounds,
@@ -127,7 +127,7 @@ internal sealed class DirectoryShortcutEditDialog
                 Rect content = currentLayout.ContentBounds;
                 DrawField(content, content.Y, "Name", name, focusRow == 0);
                 DrawField(content, content.Y + 2, "Path", path, focusRow == 1);
-                _buttonBar.Render(
+                buttons = _buttonBar.Render(
                     _screen,
                     content.X,
                     content.Y + 5,
@@ -149,7 +149,7 @@ internal sealed class DirectoryShortcutEditDialog
                     _screen.SetCursorVisible(false);
                 }
             });
-        return layout;
+        return new DirectoryShortcutEditFrame(layout, buttons);
     }
 
     private void DrawField(Rect content, int y, string label, CommandLineState buffer, bool focused)
@@ -209,4 +209,8 @@ internal sealed class DirectoryShortcutEditDialog
         buffer.SetText(text);
         return buffer;
     }
+
+    private readonly record struct DirectoryShortcutEditFrame(
+        ModalDialogRenderer.Layout Layout,
+        DialogButtonBarLayout Buttons);
 }

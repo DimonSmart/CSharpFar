@@ -42,10 +42,10 @@ internal sealed class ConflictDialog
         {
             rememberChoiceLine.Value = rememberChoice;
             modal.Render();
-            var input = modal.ReadInput();
+            var input = modal.ReadInput(out var frame);
 
             if ((focusSection == 1 || input is MouseConsoleInputEvent) &&
-                _buttonBar.TryHandleInput(input, ref focusedButton, out string? buttonId))
+                _buttonBar.TryHandleInput(input, frame.Buttons, ref focusedButton, out string? buttonId))
             {
                 focusSection = 1;
                 if (buttonId is not null)
@@ -74,7 +74,7 @@ internal sealed class ConflictDialog
 
                     break;
                 case MouseConsoleInputEvent mouse:
-                    if (rememberChoiceLine.TryHandleMouse(mouse))
+                    if (rememberChoiceLine.TryHandleMouse(mouse, frame.RememberChoiceBounds))
                     {
                         focusSection = 0;
                         rememberChoice = rememberChoiceLine.Value;
@@ -85,13 +85,15 @@ internal sealed class ConflictDialog
         }
     }
 
-    private void Draw(
+    private ConflictDialogFrame Draw(
         FileOperationConflict conflict,
         UiRenderContext context,
         CheckBoxLine rememberChoiceLine,
         int focusSection,
         int focusedButton)
     {
+        Rect rememberChoiceBounds = default;
+        DialogButtonBarLayout buttons = null!;
         int dlgX = Math.Max(0, (context.Size.Width - DialogWidth) / 2);
         int dlgY = Math.Max(0, (context.Size.Height - DialogHeight) / 2);
         var bounds = new Rect(dlgX, dlgY, DialogWidth, DialogHeight);
@@ -108,17 +110,18 @@ internal sealed class ConflictDialog
             context.Screen.Write(contentX, frameBounds.Y + 4, BuildInfoLine("New", conflict.SourceSize, conflict.SourceLastWriteTime, contentWidth), WarningDialogStyles.Fill);
             context.Screen.Write(contentX, frameBounds.Y + 5, BuildInfoLine("Existing", conflict.DestinationSize, conflict.DestinationLastWriteTime, contentWidth), WarningDialogStyles.Fill);
 
+            rememberChoiceBounds = new Rect(contentX, frameBounds.Y + 7, contentWidth, 1);
             rememberChoiceLine.Render(
                 context.Screen,
-                contentX,
-                frameBounds.Y + 7,
-                contentWidth,
+                rememberChoiceBounds.X,
+                rememberChoiceBounds.Y,
+                rememberChoiceBounds.Width,
                 focusSection == 0,
                 WarningDialogStyles.Fill,
                 WarningDialogStyles.ButtonFocus);
 
             DrawSeparator(context.Screen, frameBounds, frameBounds.Y + 8);
-            _buttonBar.Render(
+            buttons = _buttonBar.Render(
                 context.Screen,
                 contentX,
                 frameBounds.Y + 9,
@@ -128,6 +131,7 @@ internal sealed class ConflictDialog
                 focusSection == 1 ? WarningDialogStyles.ButtonFocus : WarningDialogStyles.Fill);
         });
         context.Screen.SetCursorVisible(false);
+        return new ConflictDialogFrame(rememberChoiceBounds, buttons);
     }
 
     private FileOperationConflictDecision BuildDecision(string buttonId, bool rememberChoice, FileOperationConflict conflict)
@@ -226,4 +230,7 @@ internal sealed class ConflictDialog
         screen.WriteChar(frameBounds.Right - 1, y, '╢', WarningDialogStyles.Border);
     }
 
+    private readonly record struct ConflictDialogFrame(
+        Rect RememberChoiceBounds,
+        DialogButtonBarLayout Buttons);
 }

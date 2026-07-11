@@ -26,7 +26,6 @@ public sealed class SingleLineInputDialog
     private static readonly SingleLineTextHistoryRegistry HistoryRegistry = new();
 
     private readonly ModalDialogHost _modalDialogs;
-    private readonly ScreenRenderer _screen;
     private readonly DialogButtonBar _buttonBar = new(
     [
         new DialogButton("ok", "OK", 'O', IsDefault: true),
@@ -36,7 +35,6 @@ public sealed class SingleLineInputDialog
     public SingleLineInputDialog(ModalDialogHost modalDialogs)
     {
         _modalDialogs = modalDialogs ?? throw new ArgumentNullException(nameof(modalDialogs));
-        _screen = modalDialogs.Screen;
     }
 
     public SingleLineInputDialogResult Show(SingleLineInputDialogOptions options)
@@ -59,20 +57,15 @@ public sealed class SingleLineInputDialog
         string? error = null;
         int focusedButton = 0;
         bool buttonsFocused = false;
-        SingleLineInputLayout layout = default;
-        ConsoleSize size = default;
         using var session = _modalDialogs.Open(context =>
-        {
-            size = context.Size;
-            layout = CreateLayout(size);
-            Draw(options, layout, buffer, error, history, focusedButton, buttonsFocused);
-        });
+            Draw(context, options, buffer, error, history, focusedButton, buttonsFocused));
 
         while (true)
         {
             session.Render();
-            int availableRows = SingleLineTextInput.AvailableDropdownContentRows(layout.InputY, size.Height);
-            var input = session.ReadInput();
+            var input = session.ReadInput(out var frame);
+            var layout = frame.Layout;
+            int availableRows = SingleLineTextInput.AvailableDropdownContentRows(layout.InputY, frame.Viewport.Height);
             if (input is MouseConsoleInputEvent mouse && history is not null)
             {
                 if (SingleLineTextInput.TryHandleHistoryDropdownMouse(
@@ -82,10 +75,10 @@ public sealed class SingleLineInputDialog
                         layout.InputX,
                         layout.InputY,
                         layout.InputWidth,
-                        size.Height,
+                        frame.Viewport.Height,
                         ref historyScrollbarDrag) ||
                     (SingleLineTextInput.IsHistoryArrowHit(layout.InputX, layout.InputWidth, layout.InputY, mouse.X, mouse.Y) &&
-                     SingleLineTextInput.TryOpenHistoryDropdown(history, layout.InputY, size.Height)))
+                     SingleLineTextInput.TryOpenHistoryDropdown(history, layout.InputY, frame.Viewport.Height)))
                 {
                     buttonsFocused = false;
                     continue;
@@ -93,7 +86,7 @@ public sealed class SingleLineInputDialog
             }
 
             if (input is MouseConsoleInputEvent &&
-                _buttonBar.TryHandleInput(input, ref focusedButton, out string? buttonId))
+                _buttonBar.TryHandleInput(input, frame.Buttons, ref focusedButton, out string? buttonId))
             {
                 buttonsFocused = true;
                 if (buttonId == "cancel")
@@ -125,7 +118,7 @@ public sealed class SingleLineInputDialog
 
             if (buttonsFocused)
             {
-                if (_buttonBar.TryHandleInput(input, ref focusedButton, out string? focusedButtonId))
+                if (_buttonBar.TryHandleInput(input, frame.Buttons, ref focusedButton, out string? focusedButtonId))
                 {
                     if (focusedButtonId == "cancel")
                         return new SingleLineInputDialogResult(false, string.Empty);
@@ -168,32 +161,38 @@ public sealed class SingleLineInputDialog
         return true;
     }
 
-    private void Draw(
+    private SingleLineInputFrame Draw(
+        UiRenderContext context,
         SingleLineInputDialogOptions options,
-        SingleLineInputLayout layout,
         CommandLineState buffer,
         string? error,
         SingleLineTextHistoryState? history,
         int focusedButton,
         bool buttonsFocused)
     {
+        var screen = context.Screen;
+        var layout = CreateLayout(context.Size);
+        DialogButtonBarLayout buttons = _buttonBar.CalculateLayout(
+            layout.InputX,
+            layout.Bounds.Y + layout.Bounds.Height - 2,
+            layout.InputWidth);
         var palette = UiTheme.Current;
         new DialogFrameRenderer().RenderFrame(
-            _screen,
+            screen,
             layout.Bounds,
             options.Title,
             false,
             PaletteStyles.DialogPopupOptions(palette),
             (_, _) =>
             {
-                _screen.Write(
+                screen.Write(
                     layout.InputX,
                     layout.Bounds.Y + 1,
                     Truncate(options.Prompt, layout.InputWidth).PadRight(layout.InputWidth),
                     PaletteStyles.DialogFill(palette));
 
                 SingleLineTextInput.Render(
-                    _screen,
+                    screen,
                     layout.InputX,
                     layout.InputY,
                     layout.InputWidth,
@@ -206,13 +205,11 @@ public sealed class SingleLineInputDialog
                 string errorText = error is not null
                     ? Truncate(error, layout.InputWidth).PadRight(layout.InputWidth)
                     : new string(' ', layout.InputWidth);
-                _screen.Write(layout.InputX, layout.Bounds.Y + 3, errorText, PaletteStyles.DialogError(palette));
+                screen.Write(layout.InputX, layout.Bounds.Y + 3, errorText, PaletteStyles.DialogError(palette));
 
                 _buttonBar.Render(
-                    _screen,
-                    layout.InputX,
-                    layout.Bounds.Y + layout.Bounds.Height - 2,
-                    layout.InputWidth,
+                    screen,
+                    buttons,
                     buttonsFocused ? focusedButton : -1,
                     PaletteStyles.DialogFill(palette),
                     PaletteStyles.InputField(palette));
@@ -221,14 +218,15 @@ public sealed class SingleLineInputDialog
                 {
                     int textWidth = history is null ? layout.InputWidth : Math.Max(1, layout.InputWidth - 1);
                     int cursorX = Math.Min(layout.InputX + textWidth - 1, SingleLineTextInput.GetCursorX(layout.InputX, textWidth, buffer));
-                    _screen.SetCursorPosition(cursorX, layout.InputY);
-                    _screen.SetCursorVisible(true);
+                    screen.SetCursorPosition(cursorX, layout.InputY);
+                    screen.SetCursorVisible(true);
                 }
                 else
                 {
-                    _screen.SetCursorVisible(false);
+                    screen.SetCursorVisible(false);
                 }
             });
+        return new SingleLineInputFrame(context.Viewport, layout, buttons);
     }
 
     private static SingleLineInputLayout CreateLayout(ConsoleSize size)
@@ -245,4 +243,9 @@ public sealed class SingleLineInputDialog
         text.Length <= maxLen ? text : text[..Math.Max(0, maxLen - 1)] + "\u2026";
 
     private readonly record struct SingleLineInputLayout(Rect Bounds, int InputX, int InputY, int InputWidth);
+
+    private readonly record struct SingleLineInputFrame(
+        ConsoleViewport Viewport,
+        SingleLineInputLayout Layout,
+        DialogButtonBarLayout Buttons);
 }

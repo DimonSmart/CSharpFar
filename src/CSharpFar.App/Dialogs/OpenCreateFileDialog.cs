@@ -69,21 +69,19 @@ internal sealed class OpenCreateFileDialog
         int focusedButton = 0;
         string? error = null;
         ScrollBarDragState? historyScrollbarDrag = null;
-        ConsoleSize size = default;
-
         using var modal = _modalDialogs.Open(context =>
         {
-            size = context.Size;
-            Draw(context.Screen, size, filePath, history, codePageDropdown, focusRow, focusedButton, error);
+            return Draw(context.Screen, context.Size, filePath, history, codePageDropdown, focusRow, focusedButton, error);
         });
         modal.Render();
 
         while (true)
         {
-            var input = modal.ReadInput();
+            var input = modal.ReadInput(out var frame);
+            var size = frame.Size;
 
             if (focusRow == 2 &&
-                _buttonBar.TryHandleInput(input, ref focusedButton, out string? buttonId))
+                _buttonBar.TryHandleInput(input, frame.Buttons, ref focusedButton, out string? buttonId))
             {
                 if (buttonId == "cancel")
                     return null;
@@ -142,7 +140,7 @@ internal sealed class OpenCreateFileDialog
                     continue;
                 }
 
-                if (_buttonBar.TryHandleInput(input, ref focusedButton, out buttonId) &&
+                if (_buttonBar.TryHandleInput(input, frame.Buttons, ref focusedButton, out buttonId) &&
                     buttonId is not null)
                 {
                     focusRow = 2;
@@ -241,7 +239,7 @@ internal sealed class OpenCreateFileDialog
                     if (focusRow == 1)
                         codePageDropdown.Open(size, CodePageFieldBounds(size));
                     else if (focusRow == 2)
-                        _buttonBar.TryHandleInput(input, ref focusedButton, out _);
+                        _buttonBar.TryHandleKey(key, ref focusedButton, out _);
                     else
                         EditText(filePath, key, history, availableRows, ref error);
                     break;
@@ -250,7 +248,7 @@ internal sealed class OpenCreateFileDialog
                     if (focusRow == 1)
                         codePageDropdown.Open(size, CodePageFieldBounds(size));
                     else if (focusRow == 2)
-                        _buttonBar.TryHandleInput(input, ref focusedButton, out _);
+                        _buttonBar.TryHandleKey(key, ref focusedButton, out _);
                     else
                         EditText(filePath, key, history, availableRows, ref error);
                     break;
@@ -317,7 +315,7 @@ internal sealed class OpenCreateFileDialog
         SingleLineTextInput.HandleKey(buffer, key, ref error, history, availableRows);
     }
 
-    private void Draw(
+    private OpenCreateFileFrame Draw(
         ScreenRenderer screen,
         ConsoleSize size,
         CommandLineState filePath,
@@ -327,6 +325,7 @@ internal sealed class OpenCreateFileDialog
         int focusedButton,
         string? error)
     {
+        DialogButtonBarLayout buttons = null!;
         int dialogWidth = Math.Min(DialogWidth, Math.Max(44, size.Width - 2));
         int dialogHeight = Math.Min(DialogHeight, Math.Max(8, size.Height - 2));
         int dialogX = Math.Max(0, (size.Width - dialogWidth) / 2);
@@ -358,7 +357,7 @@ internal sealed class OpenCreateFileDialog
                 string errorText = error is null ? string.Empty : Truncate(error, contentWidth);
                 screen.Write(contentX, bounds.Y + 5, errorText.PadRight(contentWidth), FarDialogStyles.Error);
 
-                _buttonBar.Render(
+                buttons = _buttonBar.Render(
                     screen,
                     contentX,
                     layout.FrameBounds.Bottom - 2,
@@ -377,6 +376,7 @@ internal sealed class OpenCreateFileDialog
             SetInputCursor(InputX(size), InputY(size), InputWidth(size), filePath);
         else
             screen.SetCursorVisible(false);
+        return new OpenCreateFileFrame(size, buttons);
     }
 
     private void DrawPathInput(
@@ -492,4 +492,8 @@ internal sealed class OpenCreateFileDialog
             return string.Empty;
         return value.Length <= maxLength ? value : value[..Math.Max(0, maxLength - 1)] + "\u2026";
     }
+
+    private readonly record struct OpenCreateFileFrame(
+        ConsoleSize Size,
+        DialogButtonBarLayout Buttons);
 }

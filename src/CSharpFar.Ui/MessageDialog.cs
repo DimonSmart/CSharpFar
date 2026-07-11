@@ -12,32 +12,30 @@ public sealed class MessageDialog
     private const int MaxDialogWidth = 96;
 
     private readonly ModalDialogHost _modalDialogs;
-    private readonly ScreenRenderer _screen;
 
     public MessageDialog(ModalDialogHost modalDialogs)
     {
         _modalDialogs = modalDialogs ?? throw new ArgumentNullException(nameof(modalDialogs));
-        _screen = modalDialogs.Screen;
     }
 
     public void Show(string title, string message)
     {
         int firstVisibleLine = 0;
-        MessageDialogLayout layout = default!;
         using var session = _modalDialogs.Open(context =>
         {
-            layout = CreateLayout(title, message, context.Size, buttons: null);
+            var layout = CreateLayout(title, message, context.Size, buttons: null);
             NormalizeScroll(layout, ref firstVisibleLine);
-            Draw(title, layout, firstVisibleLine, buttonBar: null, focusedButton: 0);
+            Draw(context.Screen, title, layout, firstVisibleLine, buttonBar: null, focusedButton: 0);
             context.Screen.SetCursorVisible(false);
+            return new MessageDialogFrame(layout, Buttons: null);
         });
         while (true)
         {
             session.Render();
-            var input = session.ReadInput();
+            var input = session.ReadInput(out var frame);
             if (input is KeyConsoleInputEvent { Key.Key: ConsoleKey.Enter or ConsoleKey.Escape })
                 return;
-            TryScroll(input, layout, ref firstVisibleLine);
+            TryScroll(input, frame.Layout, ref firstVisibleLine);
         }
     }
 
@@ -52,23 +50,24 @@ public sealed class MessageDialog
         var buttonBar = new DialogButtonBar(dialogButtons);
         int focusedButton = 0;
         int firstVisibleLine = 0;
-        MessageDialogLayout layout = default!;
         using var session = _modalDialogs.Open(context =>
         {
-            layout = CreateLayout(title, message, context.Size, dialogButtons);
+            var layout = CreateLayout(title, message, context.Size, dialogButtons);
             NormalizeScroll(layout, ref firstVisibleLine);
-            Draw(title, layout, firstVisibleLine, buttonBar, focusedButton);
+            var buttonsLayout = Draw(context.Screen, title, layout, firstVisibleLine, buttonBar, focusedButton);
             context.Screen.SetCursorVisible(false);
+            return new MessageDialogFrame(layout, buttonsLayout);
         });
 
         while (true)
         {
             session.Render();
-            var input = session.ReadInput();
-            if (TryScroll(input, layout, ref firstVisibleLine))
+            var input = session.ReadInput(out var frame);
+            if (TryScroll(input, frame.Layout, ref firstVisibleLine))
                 continue;
 
-            if (_buttonBarTryHandle(buttonBar, input, ref focusedButton, out var selected))
+            if (frame.Buttons is { } buttonsLayout &&
+                _buttonBarTryHandle(buttonBar, input, buttonsLayout, ref focusedButton, out var selected))
             {
                 if (selected.HasValue)
                     return selected.Value;
@@ -82,23 +81,25 @@ public sealed class MessageDialog
     private static void NormalizeScroll(MessageDialogLayout layout, ref int firstVisibleLine) =>
         firstVisibleLine = Math.Clamp(firstVisibleLine, 0, Math.Max(0, layout.MessageLines.Count - layout.ContentHeight));
 
-    private static bool _buttonBarTryHandle(DialogButtonBar buttonBar, ConsoleInputEvent input, ref int focusedButton, out int? selected)
+    private static bool _buttonBarTryHandle(DialogButtonBar buttonBar, ConsoleInputEvent input, DialogButtonBarLayout layout, ref int focusedButton, out int? selected)
     {
         selected = null;
-        if (!buttonBar.TryHandleInput(input, ref focusedButton, out string? buttonId))
+        if (!buttonBar.TryHandleInput(input, layout, ref focusedButton, out string? buttonId))
             return false;
         if (buttonId is not null && int.TryParse(buttonId, out int value))
             selected = value;
         return true;
     }
 
-    private void Draw(
+    private DialogButtonBarLayout? Draw(
+        ScreenRenderer screen,
         string title,
         MessageDialogLayout layout,
         int firstVisibleLine,
         DialogButtonBar? buttonBar,
         int focusedButton)
     {
+        DialogButtonBarLayout? buttonsLayout = null;
         var scrollState = layout.MessageLines.Count > layout.ContentHeight
             ? new ScrollState
             {
@@ -109,7 +110,7 @@ public sealed class MessageDialog
             : null;
 
         var palette = UiTheme.Current;
-        new DialogFrameRenderer().RenderFrame(_screen, layout.Bounds, title, false, PaletteStyles.DialogPopupOptions(palette), scrollState, (_, contentBounds) =>
+        new DialogFrameRenderer().RenderFrame(screen, layout.Bounds, title, false, PaletteStyles.DialogPopupOptions(palette), scrollState, (_, contentBounds) =>
         {
             int textX = contentBounds.X + 1;
             int textWidth = Math.Max(1, contentBounds.Width - 2);
@@ -119,7 +120,7 @@ public sealed class MessageDialog
                 string text = lineIndex < layout.MessageLines.Count
                     ? layout.MessageLines[lineIndex]
                     : string.Empty;
-                _screen.Write(
+                screen.Write(
                     textX,
                     contentBounds.Y + row,
                     Fit(text, textWidth),
@@ -129,7 +130,7 @@ public sealed class MessageDialog
             if (buttonBar is null)
             {
                 const string hint = "[ Press Enter ]";
-                _screen.Write(
+                screen.Write(
                     layout.Bounds.X + Math.Max(0, (layout.Bounds.Width - hint.Length) / 2),
                     layout.ActionRow,
                     hint,
@@ -137,8 +138,8 @@ public sealed class MessageDialog
                 return;
             }
 
-            buttonBar.Render(
-                _screen,
+            buttonsLayout = buttonBar.Render(
+                screen,
                 textX,
                 layout.ActionRow,
                 textWidth,
@@ -146,6 +147,7 @@ public sealed class MessageDialog
                 PaletteStyles.DialogFill(palette),
                 PaletteStyles.InputField(palette));
         });
+        return buttonsLayout;
     }
 
     private static MessageDialogLayout CreateLayout(
@@ -287,4 +289,8 @@ public sealed class MessageDialog
         List<string> MessageLines,
         int ContentHeight,
         int ActionRow);
+
+    private readonly record struct MessageDialogFrame(
+        MessageDialogLayout Layout,
+        DialogButtonBarLayout? Buttons);
 }

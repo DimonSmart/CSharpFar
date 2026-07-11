@@ -239,7 +239,7 @@ public sealed class ButtonRow : FormRow
     public override FormInputResult HandleKey(ConsoleKeyInfo key, FormRowInputContext context)
     {
         int focusedButton = FocusedButtonIndex;
-        if (!_buttonBar.TryHandleInput(new KeyConsoleInputEvent(key), ref focusedButton, out string? buttonId))
+        if (!_buttonBar.TryHandleKey(key, ref focusedButton, out string? buttonId))
             return FormInputResult.NotHandled;
 
         FocusedButtonIndex = focusedButton;
@@ -249,7 +249,8 @@ public sealed class ButtonRow : FormRow
     public override FormInputResult HandleMouse(MouseConsoleInputEvent mouse, FormRowMouseContext context)
     {
         int focusedButton = FocusedButtonIndex;
-        if (!_buttonBar.TryHandleInput(mouse, ref focusedButton, out string? buttonId))
+        var layout = _buttonBar.CalculateLayout(context.Bounds.X, context.Bounds.Y, context.Bounds.Width);
+        if (!_buttonBar.TryHandleMouse(mouse, layout, ref focusedButton, out string? buttonId))
             return FormInputResult.NotHandled;
 
         FocusedButtonIndex = focusedButton;
@@ -398,8 +399,6 @@ public sealed class TextInputWithButtonsRow : FormRow, IFormOverlayRow, IFormCur
     private readonly int _inputWidth;
     private readonly int _buttonAreaWidth;
     private readonly string _commandPrefix;
-    private Rect _inputBounds;
-    private Rect _buttonBounds;
 
     public TextInputWithButtonsRow(
         string label,
@@ -424,38 +423,30 @@ public sealed class TextInputWithButtonsRow : FormRow, IFormOverlayRow, IFormCur
 
     public override void Render(FormRowRenderContext context)
     {
-        int labelWidth = Math.Min(_label.Length + 1, Math.Max(0, context.Bounds.Width));
+        var layout = CalculateLayout(context.Bounds);
+        int labelWidth = layout.InputBounds.X - context.Bounds.X;
         context.Screen.Write(
             context.Bounds.X,
             context.Bounds.Y,
             ScrollableFormDialog.Fit(_label.PadRight(labelWidth), labelWidth),
             FarDialogStyles.Fill);
 
-        int inputX = context.Bounds.X + labelWidth;
-        int remainingAfterLabel = Math.Max(0, context.Bounds.Width - labelWidth);
-        int inputWidth = Math.Min(_inputWidth, remainingAfterLabel);
-        _inputBounds = new Rect(inputX, context.Bounds.Y, inputWidth, 1);
         SingleLineTextInput.Render(
             context.Screen,
-            _inputBounds.X,
-            _inputBounds.Y,
-            _inputBounds.Width,
+            layout.InputBounds.X,
+            layout.InputBounds.Y,
+            layout.InputBounds.Width,
             _buffer,
             context.Focused ? FarDialogStyles.FocusedInput : FarDialogStyles.Input,
             FarDialogStyles.Input,
             history: null,
             renderDropdown: false);
 
-        int buttonX = _inputBounds.Right + 1;
-        int buttonWidth = Math.Min(_buttonAreaWidth, Math.Max(0, context.Bounds.Right - buttonX));
-        _buttonBounds = new Rect(buttonX, context.Bounds.Y, buttonWidth, 1);
-        if (buttonWidth > 0)
+        if (layout.ButtonAreaBounds.Width > 0)
         {
             _buttonBar.Render(
                 context.Screen,
-                _buttonBounds.X,
-                _buttonBounds.Y,
-                _buttonBounds.Width,
+                layout.ButtonLayout,
                 focusedIndex: 0,
                 FarDialogStyles.Fill,
                 context.Focused ? FarDialogStyles.FocusedInput : FarDialogStyles.Fill);
@@ -468,11 +459,12 @@ public sealed class TextInputWithButtonsRow : FormRow, IFormOverlayRow, IFormCur
 
     public bool TryGetCursor(FormRowRenderContext context, out FormCursorPlacement cursor)
     {
+        var layout = CalculateLayout(context.Bounds);
         int cursorX = Math.Min(
-            _inputBounds.Right - 1,
-            SingleLineTextInput.GetCursorX(_inputBounds.X, _inputBounds.Width, _buffer));
-        cursor = new FormCursorPlacement(cursorX, _inputBounds.Y);
-        return context.Focused && _inputBounds.Width > 0;
+            layout.InputBounds.Right - 1,
+            SingleLineTextInput.GetCursorX(layout.InputBounds.X, layout.InputBounds.Width, _buffer));
+        cursor = new FormCursorPlacement(cursorX, layout.InputBounds.Y);
+        return context.Focused && layout.InputBounds.Width > 0;
     }
 
     public override FormInputResult HandleKey(ConsoleKeyInfo key, FormRowInputContext context)
@@ -497,25 +489,47 @@ public sealed class TextInputWithButtonsRow : FormRow, IFormOverlayRow, IFormCur
 
     public override FormInputResult HandleMouse(MouseConsoleInputEvent mouse, FormRowMouseContext context)
     {
+        var layout = CalculateLayout(context.Bounds);
         int focusedButton = 0;
-        if (_buttonBar.TryHandleInput(mouse, ref focusedButton, out string? buttonId))
+        if (_buttonBar.TryHandleMouse(mouse, layout.ButtonLayout, ref focusedButton, out string? buttonId))
             return buttonId is null
                 ? FormInputResult.Handled
                 : FormInputResult.Submit(_commandPrefix + buttonId);
 
         if (mouse.Button != MouseButton.Left ||
             mouse.Kind is not (MouseEventKind.Down or MouseEventKind.Click) ||
-            mouse.Y != _inputBounds.Y ||
-            mouse.X < _inputBounds.X ||
-            mouse.X >= _inputBounds.Right)
+            mouse.Y != layout.InputBounds.Y ||
+            mouse.X < layout.InputBounds.X ||
+            mouse.X >= layout.InputBounds.Right)
         {
             return FormInputResult.NotHandled;
         }
 
-        int target = Math.Clamp(mouse.X - _inputBounds.X, 0, Math.Min(_buffer.Text.Length, _inputBounds.Width));
+        int target = Math.Clamp(mouse.X - layout.InputBounds.X, 0, Math.Min(_buffer.Text.Length, layout.InputBounds.Width));
         _buffer.MoveCursor(target - _buffer.CursorPosition);
         return FormInputResult.Handled;
     }
+
+    private TextInputWithButtonsLayout CalculateLayout(Rect rowBounds)
+    {
+        int labelWidth = Math.Min(_label.Length + 1, Math.Max(0, rowBounds.Width));
+        int inputX = rowBounds.X + labelWidth;
+        int remainingAfterLabel = Math.Max(0, rowBounds.Width - labelWidth);
+        int inputWidth = Math.Min(_inputWidth, remainingAfterLabel);
+        var inputBounds = new Rect(inputX, rowBounds.Y, inputWidth, 1);
+        int buttonX = inputBounds.Right + 1;
+        int buttonWidth = Math.Min(_buttonAreaWidth, Math.Max(0, rowBounds.Right - buttonX));
+        var buttonBounds = new Rect(buttonX, rowBounds.Y, buttonWidth, 1);
+        return new TextInputWithButtonsLayout(
+            inputBounds,
+            buttonBounds,
+            _buttonBar.CalculateLayout(buttonBounds.X, buttonBounds.Y, buttonBounds.Width));
+    }
+
+    private readonly record struct TextInputWithButtonsLayout(
+        Rect InputBounds,
+        Rect ButtonAreaBounds,
+        DialogButtonBarLayout ButtonLayout);
 }
 
 public sealed class CheckBoxRow : FormRow, IFormCursorProvider
@@ -556,7 +570,7 @@ public sealed class CheckBoxRow : FormRow, IFormCursorProvider
     public override FormInputResult HandleMouse(MouseConsoleInputEvent mouse, FormRowMouseContext context)
     {
         bool before = _checkBox.Value;
-        if (!_checkBox.TryHandleMouse(mouse))
+        if (!_checkBox.TryHandleMouse(mouse, context.Bounds))
             return FormInputResult.NotHandled;
 
         return _checkBox.Value != before ? FormInputResult.ValueChanged : FormInputResult.Handled;
@@ -607,7 +621,7 @@ public sealed class TriStateCheckBoxRow : FormRow, IFormCursorProvider
     public override FormInputResult HandleMouse(MouseConsoleInputEvent mouse, FormRowMouseContext context)
     {
         AttributeEditState before = _checkBox.Value;
-        if (!_checkBox.TryHandleMouse(mouse))
+        if (!_checkBox.TryHandleMouse(mouse, context.Bounds))
             return FormInputResult.NotHandled;
 
         return _checkBox.Value != before ? FormInputResult.ValueChanged : FormInputResult.Handled;
@@ -637,7 +651,9 @@ public sealed class ChoiceFormRow<T> : FormRow, IFormCursorProvider
     public ChoiceRow<T> Choice => _choice;
     public T Value => _choice.Value;
 
-    public override void Render(FormRowRenderContext context) =>
+    public override void Render(FormRowRenderContext context)
+    {
+        var layout = CalculateLayout(context.Bounds);
         _choice.RenderSegmented(
             context.Screen,
             context.Bounds.X,
@@ -649,10 +665,12 @@ public sealed class ChoiceFormRow<T> : FormRow, IFormCursorProvider
             FarDialogStyles.FocusedInput,
             _startIndex,
             _endIndex);
+    }
 
     public bool TryGetCursor(FormRowRenderContext context, out FormCursorPlacement cursor)
     {
-        if (context.Focused && _choice.TryGetSelectedMarkerBounds(out Rect bounds))
+        var layout = CalculateLayout(context.Bounds);
+        if (context.Focused && _choice.TryGetSelectedMarkerBounds(layout, out Rect bounds))
         {
             cursor = new FormCursorPlacement(bounds.X + 1, bounds.Y);
             return true;
@@ -674,11 +692,15 @@ public sealed class ChoiceFormRow<T> : FormRow, IFormCursorProvider
     public override FormInputResult HandleMouse(MouseConsoleInputEvent mouse, FormRowMouseContext context)
     {
         int before = _choice.SelectedIndex;
-        if (!_choice.TryHandleMouse(mouse))
+        var layout = CalculateLayout(context.Bounds);
+        if (!_choice.TryHandleMouse(mouse, layout))
             return FormInputResult.NotHandled;
 
         return _choice.SelectedIndex != before ? FormInputResult.ValueChanged : FormInputResult.Handled;
     }
+
+    private ChoiceRowLayout CalculateLayout(Rect bounds) =>
+        _choice.CalculateSegmentedLayout(bounds.X, bounds.Y, bounds.Width, _label, _startIndex, _endIndex);
 }
 
 public sealed class MultiLineChoiceFormRow<T> : FormRow, IFormCursorProvider
@@ -738,7 +760,8 @@ public sealed class MultiLineChoiceFormRow<T> : FormRow, IFormCursorProvider
 
     public bool TryGetCursor(FormRowRenderContext context, out FormCursorPlacement cursor)
     {
-        if (context.Focused && _choice.TryGetSelectedMarkerBounds(out Rect bounds))
+        var layout = CalculateLayout(context.Bounds);
+        if (context.Focused && _choice.TryGetSelectedMarkerBounds(layout, out Rect bounds))
         {
             cursor = new FormCursorPlacement(bounds.X + 1, bounds.Y);
             return true;
@@ -760,10 +783,34 @@ public sealed class MultiLineChoiceFormRow<T> : FormRow, IFormCursorProvider
     public override FormInputResult HandleMouse(MouseConsoleInputEvent mouse, FormRowMouseContext context)
     {
         int before = _choice.SelectedIndex;
-        if (!_choice.TryHandleMouse(mouse))
+        var layout = CalculateLayout(context.Bounds);
+        if (!_choice.TryHandleMouse(mouse, layout))
             return FormInputResult.NotHandled;
 
         return _choice.SelectedIndex != before ? FormInputResult.ValueChanged : FormInputResult.Handled;
+    }
+
+    private ChoiceRowLayout CalculateLayout(Rect bounds)
+    {
+        var rowBounds = new List<Rect>();
+        var choices = new List<ChoiceHitTarget>();
+        int startIndex = 0;
+        for (int line = 0; line < _segmentEndIndices.Count; line++)
+        {
+            int endIndex = _segmentEndIndices[line];
+            var lineLayout = _choice.CalculateSegmentedLayout(
+                bounds.X,
+                bounds.Y + line,
+                bounds.Width,
+                line == 0 ? _label : string.Empty,
+                startIndex,
+                endIndex);
+            rowBounds.AddRange(lineLayout.RowBounds);
+            choices.AddRange(lineLayout.Choices);
+            startIndex = endIndex;
+        }
+
+        return new ChoiceRowLayout(rowBounds, choices);
     }
 }
 

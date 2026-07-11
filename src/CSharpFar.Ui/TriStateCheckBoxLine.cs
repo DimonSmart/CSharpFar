@@ -7,9 +7,6 @@ namespace CSharpFar.Ui;
 
 public sealed class TriStateCheckBoxLine
 {
-    private Rect _lastBounds;
-    private bool _hasRendered;
-
     public TriStateCheckBoxLine(string label, AttributeEditState value = AttributeEditState.Unchecked, bool enabled = true)
     {
         Label = label;
@@ -36,8 +33,6 @@ public sealed class TriStateCheckBoxLine
             ? FarDialogStyles.FocusedInput
             : FarDialogStyles.Fill;
         screen.Write(x, y, Fit(text, width), style);
-        _lastBounds = new Rect(x, y, Math.Max(0, width), 1);
-        _hasRendered = true;
     }
 
     public bool TryHandleKey(ConsoleKeyInfo key)
@@ -49,13 +44,12 @@ public sealed class TriStateCheckBoxLine
         return true;
     }
 
-    public bool TryHandleMouse(MouseConsoleInputEvent mouse)
+    public bool TryHandleMouse(MouseConsoleInputEvent mouse, Rect bounds)
     {
         if (!Enabled ||
-            !_hasRendered ||
             mouse.Button != MouseButton.Left ||
             mouse.Kind is not (MouseEventKind.Down or MouseEventKind.Click) ||
-            !Contains(_lastBounds, mouse.X, mouse.Y))
+            !Contains(bounds, mouse.X, mouse.Y))
         {
             return false;
         }

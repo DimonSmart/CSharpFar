@@ -4,11 +4,13 @@ using CSharpFar.Console.Models;
 
 namespace CSharpFar.Ui;
 
+public sealed record DialogButtonBarLayout(
+    Rect AreaBounds,
+    IReadOnlyList<Rect> ButtonBounds);
+
 public sealed class DialogButtonBar
 {
     private readonly IReadOnlyList<DialogButton> _buttons;
-    private Rect[] _lastBounds;
-    private bool _hasRendered;
 
     public DialogButtonBar(IReadOnlyList<DialogButton> buttons)
     {
@@ -16,12 +18,26 @@ public sealed class DialogButtonBar
             throw new ArgumentException("At least one button is required.", nameof(buttons));
 
         _buttons = buttons;
-        _lastBounds = new Rect[buttons.Count];
     }
 
     public int Count => _buttons.Count;
 
-    public void Render(
+    public DialogButtonBarLayout CalculateLayout(int x, int y, int width)
+    {
+        string[] labels = _buttons.Select(FormatButton).ToArray();
+        int totalWidth = labels.Sum(label => label.Length) + Math.Max(0, labels.Length - 1);
+        int cursorX = x + Math.Max(0, (width - totalWidth) / 2);
+        var bounds = new Rect[labels.Length];
+        for (int i = 0; i < labels.Length; i++)
+        {
+            bounds[i] = new Rect(cursorX, y, labels[i].Length, 1);
+            cursorX += labels[i].Length + 1;
+        }
+
+        return new DialogButtonBarLayout(new Rect(x, y, Math.Max(0, width), 1), bounds);
+    }
+
+    public DialogButtonBarLayout Render(
         ScreenRenderer screen,
         int x,
         int y,
@@ -30,40 +46,52 @@ public sealed class DialogButtonBar
         CellStyle normalStyle,
         CellStyle focusedStyle)
     {
-        string[] labels = _buttons.Select(FormatButton).ToArray();
-        int totalWidth = labels.Sum(label => label.Length) + Math.Max(0, labels.Length - 1);
-        int cursorX = x + Math.Max(0, (width - totalWidth) / 2);
-
-        screen.Write(x, y, new string(' ', Math.Max(0, width)), normalStyle);
-
-        for (int i = 0; i < labels.Length; i++)
-        {
-            string label = labels[i];
-            var style = i == focusedIndex ? focusedStyle : normalStyle;
-            screen.Write(cursorX, y, label, style);
-            _lastBounds[i] = new Rect(cursorX, y, label.Length, 1);
-            cursorX += label.Length + 1;
-        }
-
-        _hasRendered = true;
+        var layout = CalculateLayout(x, y, width);
+        Render(screen, layout, focusedIndex, normalStyle, focusedStyle);
+        return layout;
     }
 
-    public bool TryHandleInput(ConsoleInputEvent input, ref int focusedIndex, out string? buttonId)
+    public void Render(
+        ScreenRenderer screen,
+        DialogButtonBarLayout layout,
+        int focusedIndex,
+        CellStyle normalStyle,
+        CellStyle focusedStyle)
+    {
+        screen.Write(
+            layout.AreaBounds.X,
+            layout.AreaBounds.Y,
+            new string(' ', layout.AreaBounds.Width),
+            normalStyle);
+
+        for (int i = 0; i < _buttons.Count; i++)
+        {
+            string label = FormatButton(_buttons[i]);
+            var style = i == focusedIndex ? focusedStyle : normalStyle;
+            Rect bounds = layout.ButtonBounds[i];
+            screen.Write(bounds.X, bounds.Y, label, style);
+        }
+    }
+
+    public bool TryHandleInput(ConsoleInputEvent input, DialogButtonBarLayout layout, ref int focusedIndex, out string? buttonId)
     {
         buttonId = null;
 
         switch (input)
         {
             case KeyConsoleInputEvent { Key: var key }:
-                return TryHandleKey(key, ref focusedIndex, out buttonId);
+                return HandleKey(key, ref focusedIndex, out buttonId);
             case MouseConsoleInputEvent mouse:
-                return TryHandleMouse(mouse, ref focusedIndex, out buttonId);
+                return TryHandleMouse(mouse, layout, ref focusedIndex, out buttonId);
             default:
                 return false;
         }
     }
 
-    private bool TryHandleKey(ConsoleKeyInfo key, ref int focusedIndex, out string? buttonId)
+    public bool TryHandleKey(ConsoleKeyInfo key, ref int focusedIndex, out string? buttonId) =>
+        HandleKey(key, ref focusedIndex, out buttonId);
+
+    private bool HandleKey(ConsoleKeyInfo key, ref int focusedIndex, out string? buttonId)
     {
         buttonId = null;
 
@@ -101,19 +129,16 @@ public sealed class DialogButtonBar
         return false;
     }
 
-    private bool TryHandleMouse(MouseConsoleInputEvent mouse, ref int focusedIndex, out string? buttonId)
+    public bool TryHandleMouse(MouseConsoleInputEvent mouse, DialogButtonBarLayout layout, ref int focusedIndex, out string? buttonId)
     {
         buttonId = null;
-
-        if (!_hasRendered)
-            return false;
 
         if (mouse.Button != MouseButton.Left || mouse.Kind is not (MouseEventKind.Down or MouseEventKind.Click))
             return false;
 
-        for (int i = 0; i < _lastBounds.Length; i++)
+        for (int i = 0; i < layout.ButtonBounds.Count; i++)
         {
-            if (!Contains(_lastBounds[i], mouse.X, mouse.Y))
+            if (!Contains(layout.ButtonBounds[i], mouse.X, mouse.Y))
                 continue;
 
             focusedIndex = i;

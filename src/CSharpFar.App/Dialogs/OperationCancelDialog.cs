@@ -36,8 +36,8 @@ internal sealed class OperationCancelDialog
         {
             modal.Render();
 
-            var input = modal.ReadInput();
-            if (_buttons.TryHandleInput(input, ref focusedButton, out string? buttonId) && buttonId is not null)
+            var input = modal.ReadInput(out var frame);
+            if (_buttons.TryHandleInput(input, frame.Buttons, ref focusedButton, out string? buttonId) && buttonId is not null)
                 return buttonId == YesButton;
 
             if (input is KeyConsoleInputEvent { Key: var key })
@@ -50,12 +50,13 @@ internal sealed class OperationCancelDialog
         }
     }
 
-    private void Draw(
+    private OperationCancelFrame Draw(
         UiRenderContext context,
         int focusedButton,
         string interruptedMessage,
         string confirmationMessage)
     {
+        DialogButtonBarLayout buttons = null!;
         int x = Math.Max(0, (context.Size.Width - DialogWidth) / 2);
         int y = Math.Max(0, (context.Size.Height - DialogHeight) / 2);
         var bounds = new Rect(x, y, DialogWidth, DialogHeight);
@@ -69,7 +70,7 @@ internal sealed class OperationCancelDialog
             context.Screen.Write(contentX, contentBounds.Y, Center(interruptedMessage, contentWidth), WarningDialogStyles.Fill);
             context.Screen.Write(contentX, contentBounds.Y + 1, Center(confirmationMessage, contentWidth), WarningDialogStyles.Fill);
 
-            _buttons.Render(
+            buttons = _buttons.Render(
                 context.Screen,
                 contentX,
                 contentBounds.Bottom - 1,
@@ -80,6 +81,7 @@ internal sealed class OperationCancelDialog
         });
 
         context.Screen.SetCursorVisible(false);
+        return new OperationCancelFrame(buttons);
     }
 
     private static string Center(string text, int width)
@@ -91,4 +93,5 @@ internal sealed class OperationCancelDialog
         return new string(' ', left) + text + new string(' ', width - left - text.Length);
     }
 
+    private readonly record struct OperationCancelFrame(DialogButtonBarLayout Buttons);
 }

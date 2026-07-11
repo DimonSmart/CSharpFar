@@ -115,7 +115,7 @@ public sealed class UiCompositionHostTests
         host.SetRootSurface(new ScreenRendererSurface(host.Screen, _ => { }));
         var modals = new ModalDialogHost(host);
         ModalDialogSession? overlay = null;
-        overlay = modals.Open(_ => Assert.Throws<InvalidOperationException>(() => overlay!.Dispose()));
+        overlay = modals.Open((Action<UiRenderContext>)(_ => Assert.Throws<InvalidOperationException>(() => overlay!.Dispose())));
 
         overlay.Render();
         overlay.Dispose();
@@ -363,6 +363,61 @@ public sealed class UiCompositionHostTests
         Assert.Equal(new ConsoleViewport(0, 0, 100, 35), state.Value);
     }
 
+    [Fact]
+    public void GenericModalRender_ReturnsOnlyCommittedFrameAfterRejectedAttempt()
+    {
+        var driver = new FakeConsoleDriver(80, 25)
+        {
+            ResizeAfterWriteCount = 1,
+            ResizeAfterWrite = d => d.SetSize(100, 35),
+        };
+        var screen = new ScreenRenderer(driver);
+        var host = new UiCompositionHost(screen);
+        host.SetRootSurface(new ScreenRendererSurface(screen, FillRoot));
+        var modals = new ModalDialogHost(host);
+        var attempted = new List<ConsoleViewport>();
+
+        using var session = modals.Open(context =>
+        {
+            attempted.Add(context.Viewport);
+            context.Screen.Write(0, 0, "M", new CellStyle(ConsoleColor.Gray, ConsoleColor.Black));
+            return context.Viewport;
+        });
+
+        var frame = session.Render();
+
+        Assert.Equal(
+            [new ConsoleViewport(0, 0, 80, 25), new ConsoleViewport(0, 0, 100, 35)],
+            attempted);
+        Assert.Equal(new ConsoleViewport(0, 0, 100, 35), frame);
+    }
+
+    [Fact]
+    public void GenericModalReadInput_ReturnsFrameAfterResizeRecovery()
+    {
+        var driver = new FakeConsoleDriver(80, 25);
+        var screen = new ScreenRenderer(driver);
+        var host = new UiCompositionHost(screen);
+        host.SetRootSurface(new ScreenRendererSurface(screen, FillRoot));
+        var modals = new ModalDialogHost(host);
+        int renderCount = 0;
+        using var session = modals.Open(context =>
+        {
+            renderCount++;
+            context.Screen.Write(0, 0, "M", new CellStyle(ConsoleColor.Gray, ConsoleColor.Black));
+            return context.Viewport;
+        });
+        session.Render();
+        driver.SetSize(100, 35);
+        driver.EnqueueInput(new MouseConsoleInputEvent(2, 3, MouseButton.Left, MouseEventKind.Click, MouseKeyModifiers.None));
+
+        var input = session.ReadInput(out var frame);
+
+        Assert.IsType<MouseConsoleInputEvent>(input);
+        Assert.Equal(new ConsoleViewport(0, 0, 100, 35), frame);
+        Assert.Equal(2, renderCount);
+    }
+
     private static void Fill(UiRenderContext context, char value)
     {
         var style = new CellStyle(ConsoleColor.Gray, ConsoleColor.Black);
@@ -370,6 +425,8 @@ public sealed class UiCompositionHostTests
         for (int y = 0; y < context.Size.Height; y++)
             context.Screen.Write(0, y, row, style);
     }
+
+    private static void FillRoot(UiRenderContext context) => Fill(context, 'R');
 
     private static void CenterMark(UiRenderContext context, char value)
     {

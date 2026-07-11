@@ -108,13 +108,13 @@ internal sealed class SftpConnectionDialog
         ConsoleSize size = default;
         using var modal = _modalDialogs.Open(context =>
         {
-            size = context.Size;
-            Draw(
-                size,
+            var buttons = Draw(
+                context.Size,
                 connection is null ? "SFTP connection" : "Edit SFTP connection",
                 focusRow, bodyScrollTop, buttonBar, focusedButton, connectionName, host, port,
                 userName, password, remoteRoot, histories, saveConnection, savePassword, showInDrive,
                 hostKeyFingerprint, trustHostKey, request.AllowTemporaryConnection, error);
+            return new SftpConnectionFrame(context.Size, buttons);
         });
 
         while (true)
@@ -128,7 +128,8 @@ internal sealed class SftpConnectionDialog
             ensureFocusVisible = true;
 
             modal.Render();
-            var input = modal.ReadInput();
+            var input = modal.ReadInput(out var frame);
+            size = frame.Size;
             if (input is MouseConsoleInputEvent historyMouse &&
                 TryHandleHistoryDropdownMouse(
                     historyMouse,
@@ -160,7 +161,7 @@ internal sealed class SftpConnectionDialog
             }
 
             if ((focusRow == RowButtons || input is MouseConsoleInputEvent) &&
-                buttonBar.TryHandleInput(input, ref focusedButton, out string? buttonId))
+                buttonBar.TryHandleInput(input, frame.Buttons, ref focusedButton, out string? buttonId))
             {
                 focusRow = RowButtons;
                 if (buttonId == "cancel")
@@ -259,7 +260,7 @@ internal sealed class SftpConnectionDialog
                 case ConsoleKey.LeftArrow:
                 case ConsoleKey.RightArrow:
                     if (focusRow == RowButtons)
-                        buttonBar.TryHandleInput(input, ref focusedButton, out _);
+                        buttonBar.TryHandleKey(key, ref focusedButton, out _);
                     else
                         ClearHostKeyWhenEndpointChanges(
                             focusRow,
@@ -681,7 +682,7 @@ internal sealed class SftpConnectionDialog
         buffer.MoveCursor(position);
     }
 
-    private void Draw(
+    private DialogButtonBarLayout Draw(
         ConsoleSize size,
         string title,
         int focusRow,
@@ -703,6 +704,7 @@ internal sealed class SftpConnectionDialog
         bool allowTemporaryConnection,
         string? error)
     {
+        DialogButtonBarLayout buttons = null!;
         var geometry = GetDialogGeometry(size);
         var bounds = geometry.Bounds;
         var fill = FarDialogStyles.Fill;
@@ -759,7 +761,7 @@ internal sealed class SftpConnectionDialog
             int errorY = buttonY - 1;
             string errorText = error is null ? string.Empty : Truncate(error, rowWidth);
             _screen.Write(labelX, errorY, errorText.PadRight(rowWidth), FarDialogStyles.Error);
-            buttonBar.Render(
+            buttons = buttonBar.Render(
                 _screen,
                 labelX,
                 buttonY,
@@ -799,6 +801,7 @@ internal sealed class SftpConnectionDialog
             histories,
             allowTemporaryConnection,
             bodyScrollTop);
+        return buttons;
     }
 
     private static DialogGeometry GetDialogGeometry(ConsoleSize size)
@@ -951,6 +954,10 @@ internal sealed class SftpConnectionDialog
         int LabelX,
         int FieldX,
         int FieldWidth);
+
+    private readonly record struct SftpConnectionFrame(
+        ConsoleSize Size,
+        DialogButtonBarLayout Buttons);
 
     private sealed class TextFieldHistories
     {

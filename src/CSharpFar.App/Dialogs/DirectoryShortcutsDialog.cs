@@ -42,18 +42,17 @@ internal sealed class DirectoryShortcutsDialog
         var initialItems = CloneItems(items);
         int cursor = 0;
         int focusedButton = 0;
-        ModalDialogRenderer.Layout layout = default;
 
         using var modal = _modalDialogs.Open(context =>
         {
-            layout = Draw(context.Size, items, cursor, focusedButton);
+            return Draw(context.Size, items, cursor, focusedButton);
         });
         modal.Render();
         while (true)
         {
-            var input = modal.ReadInput();
+            var input = modal.ReadInput(out var frame);
             if (input is MouseConsoleInputEvent mouse &&
-                TrySelectRow(mouse, layout.ContentBounds, ref cursor))
+                TrySelectRow(mouse, frame.Layout.ContentBounds, ref cursor))
             {
                 if (mouse.Kind == MouseEventKind.DoubleClick)
                     EditSelected(items, cursor, activePanelPath);
@@ -61,7 +60,7 @@ internal sealed class DirectoryShortcutsDialog
                 continue;
             }
 
-            if (_buttonBar.TryHandleInput(input, ref focusedButton, out string? buttonId))
+            if (_buttonBar.TryHandleInput(input, frame.Buttons, ref focusedButton, out string? buttonId))
             {
                 if (buttonId == "close")
                     return Result(initialItems, items);
@@ -99,7 +98,7 @@ internal sealed class DirectoryShortcutsDialog
         }
     }
 
-    private ModalDialogRenderer.Layout Draw(
+    private DirectoryShortcutsFrame Draw(
         ConsoleSize size,
         IReadOnlyDictionary<int, AppSettings.DirectoryShortcutItem> items,
         int cursor,
@@ -107,6 +106,7 @@ internal sealed class DirectoryShortcutsDialog
     {
         Rect outerBounds = _modalRenderer.CenteredOuterBounds(size, DialogWidth, DialogHeight);
         ModalDialogRenderer.Layout layout = default;
+        DialogButtonBarLayout buttons = null!;
         _modalRenderer.Render(
             _screen,
             outerBounds,
@@ -130,7 +130,7 @@ internal sealed class DirectoryShortcutsDialog
                         row == cursor ? PaletteStyles.InputField(_palette) : PaletteStyles.DialogFill(_palette));
                 }
 
-                _buttonBar.Render(
+                buttons = _buttonBar.Render(
                     _screen,
                     content.X,
                     content.Y + 11,
@@ -140,7 +140,7 @@ internal sealed class DirectoryShortcutsDialog
                     PaletteStyles.InputField(_palette));
             });
         _screen.SetCursorVisible(false);
-        return layout;
+        return new DirectoryShortcutsFrame(layout, buttons);
     }
 
     private void EditSelected(
@@ -208,4 +208,8 @@ internal sealed class DirectoryShortcutsDialog
 
     private static string Fit(string text, int width) =>
         text.Length <= width ? text.PadRight(width) : text[..width];
+
+    private readonly record struct DirectoryShortcutsFrame(
+        ModalDialogRenderer.Layout Layout,
+        DialogButtonBarLayout Buttons);
 }

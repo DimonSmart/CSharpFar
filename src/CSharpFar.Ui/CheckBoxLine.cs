@@ -6,9 +6,6 @@ namespace CSharpFar.Ui;
 
 public sealed class CheckBoxLine
 {
-    private Rect _lastBounds;
-    private bool _hasRendered;
-
     public CheckBoxLine(string label, bool value = false)
     {
         Label = label;
@@ -48,8 +45,6 @@ public sealed class CheckBoxLine
             y,
             Fit(text, width),
             focused ? focusedStyle : fillStyle);
-        _lastBounds = new Rect(x, y, Math.Max(0, width), 1);
-        _hasRendered = true;
     }
 
     public bool TryHandleKey(ConsoleKeyInfo key)
@@ -61,12 +56,11 @@ public sealed class CheckBoxLine
         return true;
     }
 
-    public bool TryHandleMouse(MouseConsoleInputEvent mouse)
+    public bool TryHandleMouse(MouseConsoleInputEvent mouse, Rect bounds)
     {
-        if (!_hasRendered ||
-            mouse.Button != MouseButton.Left ||
+        if (mouse.Button != MouseButton.Left ||
             mouse.Kind is not (MouseEventKind.Down or MouseEventKind.Click) ||
-            !Contains(_lastBounds, mouse.X, mouse.Y))
+            !Contains(bounds, mouse.X, mouse.Y))
         {
             return false;
         }

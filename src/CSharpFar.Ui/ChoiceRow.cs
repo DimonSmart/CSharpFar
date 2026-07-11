@@ -4,15 +4,16 @@ using CSharpFar.Console.Models;
 
 namespace CSharpFar.Ui;
 
+public readonly record struct ChoiceHitTarget(int Index, Rect Bounds);
+
+public sealed record ChoiceRowLayout(
+    IReadOnlyList<Rect> RowBounds,
+    IReadOnlyList<ChoiceHitTarget> Choices);
+
 public sealed class ChoiceRow<T>
 {
     private readonly IReadOnlyList<T> _choices;
     private readonly Func<T, string> _format;
-    private readonly List<(int Index, Rect Bounds)> _choiceBounds = [];
-    private readonly List<Rect> _rowBounds = [];
-    private int _lastRenderY;
-    private bool _hasRendered;
-    private bool _hasChoiceBounds;
 
     public ChoiceRow(IReadOnlyList<T> choices, Func<T, string> format, int selectedIndex = 0)
     {
@@ -40,14 +41,14 @@ public sealed class ChoiceRow<T>
     public int SelectedIndex { get; private set; }
     public int Count => _choices.Count;
 
-    public bool TryGetSelectedMarkerBounds(out Rect bounds)
+    public bool TryGetSelectedMarkerBounds(ChoiceRowLayout layout, out Rect bounds)
     {
-        foreach (var (index, choiceBounds) in _choiceBounds)
+        foreach (var target in layout.Choices)
         {
-            if (index != SelectedIndex)
+            if (target.Index != SelectedIndex)
                 continue;
 
-            bounds = choiceBounds;
+            bounds = target.Bounds;
             return true;
         }
 
@@ -55,7 +56,7 @@ public sealed class ChoiceRow<T>
         return false;
     }
 
-    public void Render(ScreenRenderer screen, int x, int y, int width, string label, bool focused)
+    public ChoiceRowLayout Render(ScreenRenderer screen, int x, int y, int width, string label, bool focused)
     {
         ArgumentNullException.ThrowIfNull(screen);
 
@@ -66,15 +67,33 @@ public sealed class ChoiceRow<T>
             y,
             Fit(text, width),
             focused ? PaletteStyles.InputField(palette) : PaletteStyles.DialogFill(palette));
-        _rowBounds.Clear();
-        _rowBounds.Add(new Rect(x, y, Math.Max(0, width), 1));
-        _lastRenderY = y;
-        _hasRendered = true;
-        _hasChoiceBounds = false;
-        _choiceBounds.Clear();
+        return new ChoiceRowLayout([new Rect(x, y, Math.Max(0, width), 1)], []);
     }
 
-    public void RenderSegmented(
+    public ChoiceRowLayout CalculateSegmentedLayout(
+        int x,
+        int y,
+        int width,
+        string label,
+        int startIndex = 0,
+        int? endIndex = null)
+    {
+        startIndex = Math.Clamp(startIndex, 0, _choices.Count);
+        int exclusiveEnd = Math.Clamp(endIndex ?? _choices.Count, startIndex, _choices.Count);
+        string prefix = string.IsNullOrEmpty(label) ? string.Empty : label + " ";
+        var choices = new List<ChoiceHitTarget>();
+        int column = prefix.Length;
+        for (int i = startIndex; i < exclusiveEnd; i++)
+        {
+            string optionText = $"{(i == SelectedIndex ? "(x)" : "( )")} {_format(_choices[i])}";
+            choices.Add(new ChoiceHitTarget(i, new Rect(x + column, y, optionText.Length, 1)));
+            column += optionText.Length + 1;
+        }
+
+        return new ChoiceRowLayout([new Rect(x, y, Math.Max(0, width), 1)], choices);
+    }
+
+    public ChoiceRowLayout RenderSegmented(
         ScreenRenderer screen,
         int x,
         int y,
@@ -88,32 +107,22 @@ public sealed class ChoiceRow<T>
     {
         ArgumentNullException.ThrowIfNull(screen);
 
+        var layout = CalculateSegmentedLayout(x, y, width, label, startIndex, endIndex);
         startIndex = Math.Clamp(startIndex, 0, _choices.Count);
         int exclusiveEnd = Math.Clamp(endIndex ?? _choices.Count, startIndex, _choices.Count);
         var style = focused ? focusedStyle : fillStyle;
         string prefix = string.IsNullOrEmpty(label) ? string.Empty : label + " ";
         var parts = new List<string>();
-        if (!_hasRendered || y <= _lastRenderY)
-        {
-            _rowBounds.Clear();
-            _choiceBounds.Clear();
-        }
 
-        int column = prefix.Length;
         for (int i = startIndex; i < exclusiveEnd; i++)
         {
             string optionText = $"{(i == SelectedIndex ? "(x)" : "( )")} {_format(_choices[i])}";
             parts.Add(optionText);
-            _choiceBounds.Add((i, new Rect(x + column, y, optionText.Length, 1)));
-            column += optionText.Length + 1;
         }
 
         string text = prefix + string.Join(' ', parts);
         screen.Write(x, y, Fit(text, width), style);
-        _rowBounds.Add(new Rect(x, y, Math.Max(0, width), 1));
-        _lastRenderY = y;
-        _hasRendered = true;
-        _hasChoiceBounds = true;
+        return layout;
     }
 
     public bool TryHandleKey(ConsoleKeyInfo key)
@@ -131,30 +140,29 @@ public sealed class ChoiceRow<T>
         return SelectedIndex != previous;
     }
 
-    public bool TryHandleMouse(MouseConsoleInputEvent mouse)
+    public bool TryHandleMouse(MouseConsoleInputEvent mouse, ChoiceRowLayout layout)
     {
         if (_choices.Count == 0)
             return false;
 
-        if (!_hasRendered ||
-            mouse.Button != MouseButton.Left ||
+        if (mouse.Button != MouseButton.Left ||
             mouse.Kind is not (MouseEventKind.Down or MouseEventKind.Click) ||
-            !_rowBounds.Any(bounds => Contains(bounds, mouse.X, mouse.Y)))
+            !layout.RowBounds.Any(bounds => Contains(bounds, mouse.X, mouse.Y)))
         {
             return false;
         }
 
-        if (_hasChoiceBounds)
+        if (layout.Choices.Count > 0)
         {
-            foreach (var (index, bounds) in _choiceBounds)
+            foreach (var target in layout.Choices)
             {
-                if (!Contains(bounds, mouse.X, mouse.Y))
+                if (!Contains(target.Bounds, mouse.X, mouse.Y))
                     continue;
 
-                if (SelectedIndex == index)
+                if (SelectedIndex == target.Index)
                     return true;
 
-                SelectedIndex = index;
+                SelectedIndex = target.Index;
                 return true;
             }
 

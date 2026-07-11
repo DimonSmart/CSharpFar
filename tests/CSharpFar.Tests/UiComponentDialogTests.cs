@@ -297,13 +297,15 @@ public sealed class UiComponentDialogTests
     }
 
     [Fact]
-    public void DialogButtonBar_MouseBeforeRenderDoesNotActivateButton()
+    public void DialogButtonBar_MouseOutsideExplicitLayoutDoesNotActivateButton()
     {
         var buttonBar = new DialogButtonBar([new DialogButton("ok", "OK", 'O')]);
         int focused = 0;
+        var layout = buttonBar.CalculateLayout(10, 2, 20);
 
         bool handled = buttonBar.TryHandleInput(
             new MouseConsoleInputEvent(0, 0, MouseButton.Left, MouseEventKind.Click, MouseKeyModifiers.None),
+            layout,
             ref focused,
             out string? buttonId);
 
@@ -318,9 +320,9 @@ public sealed class UiComponentDialogTests
         var screen = new ScreenRenderer(driver);
         var buttonBar = new DialogButtonBar([new DialogButton("delete", "Delete", 'D', IsEnabled: false)]);
         int focused = 0;
-        buttonBar.Render(screen, 0, 0, 20, focused, new CellStyle(ConsoleColor.White, ConsoleColor.Black), new CellStyle(ConsoleColor.Black, ConsoleColor.White));
+        var layout = buttonBar.Render(screen, 0, 0, 20, focused, new CellStyle(ConsoleColor.White, ConsoleColor.Black), new CellStyle(ConsoleColor.Black, ConsoleColor.White));
 
-        bool handled = buttonBar.TryHandleInput(new KeyConsoleInputEvent(Key(ConsoleKey.Enter)), ref focused, out string? buttonId);
+        bool handled = buttonBar.TryHandleInput(new KeyConsoleInputEvent(Key(ConsoleKey.Enter)), layout, ref focused, out string? buttonId);
 
         Assert.True(handled);
         Assert.Null(buttonId);
@@ -427,7 +429,9 @@ public sealed class UiComponentDialogTests
         var checkBox = new CheckBoxLine("Option");
         checkBox.Render(screen, 2, 2, 20, focused: false);
 
-        bool handled = checkBox.TryHandleMouse(new MouseConsoleInputEvent(3, 2, MouseButton.Left, MouseEventKind.Down, MouseKeyModifiers.None));
+        bool handled = checkBox.TryHandleMouse(
+            new MouseConsoleInputEvent(3, 2, MouseButton.Left, MouseEventKind.Down, MouseKeyModifiers.None),
+            new Rect(2, 2, 20, 1));
 
         Assert.True(handled);
         Assert.True(checkBox.Value);
@@ -450,7 +454,7 @@ public sealed class UiComponentDialogTests
         var driver = new FakeConsoleDriver(80, 5);
         var screen = new ScreenRenderer(driver);
         var row = new ChoiceRow<string>(["Default", "Copy", "Inherit"], static value => value);
-        row.RenderSegmented(
+        var layout = row.RenderSegmented(
             screen,
             x: 2,
             y: 2,
@@ -462,7 +466,8 @@ public sealed class UiComponentDialogTests
 
         int inheritX = driver.GetRow(2).IndexOf("Inherit", StringComparison.Ordinal);
         bool handled = row.TryHandleMouse(
-            new MouseConsoleInputEvent(inheritX, 2, MouseButton.Left, MouseEventKind.Down, MouseKeyModifiers.None));
+            new MouseConsoleInputEvent(inheritX, 2, MouseButton.Left, MouseEventKind.Down, MouseKeyModifiers.None),
+            layout);
 
         Assert.True(handled);
         Assert.Equal("Inherit", row.Value);
@@ -474,7 +479,7 @@ public sealed class UiComponentDialogTests
         var driver = new FakeConsoleDriver(80, 5);
         var screen = new ScreenRenderer(driver);
         var row = new ChoiceRow<string>(["Default", "Copy", "Inherit"], static value => value);
-        row.RenderSegmented(
+        var layout = row.RenderSegmented(
             screen,
             x: 2,
             y: 2,
@@ -485,7 +490,8 @@ public sealed class UiComponentDialogTests
             focusedStyle: new CellStyle(ConsoleColor.Black, ConsoleColor.Gray));
 
         bool handled = row.TryHandleMouse(
-            new MouseConsoleInputEvent(3, 2, MouseButton.Left, MouseEventKind.Down, MouseKeyModifiers.None));
+            new MouseConsoleInputEvent(3, 2, MouseButton.Left, MouseEventKind.Down, MouseKeyModifiers.None),
+            layout);
 
         Assert.False(handled);
         Assert.Equal("Default", row.Value);

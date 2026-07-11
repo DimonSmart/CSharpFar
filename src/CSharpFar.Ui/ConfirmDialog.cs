@@ -42,8 +42,8 @@ public sealed class ConfirmDialog
         while (true)
         {
             session.Render();
-            var input = session.ReadInput();
-            if (_buttonBar.TryHandleInput(input, ref focusedButton, out string? buttonId))
+            var input = session.ReadInput(out var frame);
+            if (_buttonBar.TryHandleInput(input, frame.Buttons, ref focusedButton, out string? buttonId))
             {
                 if (buttonId == "cancel") return false;
                 if (buttonId == "ok") return true;
@@ -58,9 +58,9 @@ public sealed class ConfirmDialog
         }
     }
 
-    private void RenderLayer(ScreenRenderer screen, string title, string question, string itemName, ConsoleSize size, int focusedButton)
+    private ConfirmDialogFrame RenderLayer(ScreenRenderer screen, string title, string question, string itemName, ConsoleSize size, int focusedButton)
     {
-
+        DialogButtonBarLayout buttons = null!;
         var outerBounds = _modalRenderer.CenteredOuterBounds(size, DialogWidth, DialogHeight, minWidth: 20, minHeight: 5);
 
         _modalRenderer.Render(screen, outerBounds, title, true, FarDialogStyles.OuterOptions, FarDialogStyles.FrameOptions, (_, layout) =>
@@ -76,7 +76,7 @@ public sealed class ConfirmDialog
             screen.Write(contentX, bounds.Y + 2, new string(' ', contentWidth), FarDialogStyles.Fill);
             screen.Write(nameX, bounds.Y + 2, truncatedName, FarDialogStyles.Fill);
 
-            _buttonBar.Render(
+            buttons = _buttonBar.Render(
                 screen,
                 contentX,
                 bounds.Y + bounds.Height - 2,
@@ -85,8 +85,11 @@ public sealed class ConfirmDialog
                 FarDialogStyles.Fill,
                 FarDialogStyles.FocusedInput);
         });
+        return new ConfirmDialogFrame(buttons);
     }
 
     private static string Truncate(string s, int maxLen) =>
         s.Length <= maxLen ? s : "\u2026" + s[^(maxLen - 1)..];
+
+    private readonly record struct ConfirmDialogFrame(DialogButtonBarLayout Buttons);
 }

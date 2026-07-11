@@ -523,7 +523,10 @@ internal sealed class FileAttributesDialog : IFileAttributesDialog
         {
             for (int index = 0; index < _columns.Length; index++)
             {
-                if (!_columns[index].TryHandleMouse(mouse))
+                int x = context.Bounds.X + LabelWidth + index * ColumnWidth;
+                int width = Math.Min(ColumnWidth, context.Bounds.Right - x);
+                if (width <= 0 ||
+                    !_columns[index].TryHandleMouse(mouse, new Rect(x, context.Bounds.Y, width, 1)))
                     continue;
                 _focusedColumn = index;
                 return FormInputResult.Handled;

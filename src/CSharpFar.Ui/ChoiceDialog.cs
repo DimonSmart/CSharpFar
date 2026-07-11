@@ -36,18 +36,18 @@ public sealed class ChoiceDialog
         var buttonBar = new DialogButtonBar(options.Buttons);
         int focusedButton = ClampButtonIndex(options.DefaultButtonIndex, options.Buttons);
         int cancelButton = ClampButtonIndex(options.CancelButtonIndex, options.Buttons);
-        ChoiceDialogLayout layout = default;
         using var session = _modalDialogs.Open(context =>
         {
-            layout = CreateLayout(options, context.Size);
-            RenderLayer(context.Screen, options, layout, buttonBar, focusedButton);
+            var layout = CreateLayout(options, context.Size);
+            var buttons = RenderLayer(context.Screen, options, layout, buttonBar, focusedButton);
+            return new ChoiceDialogFrame(layout, buttons);
         });
 
         while (true)
         {
             session.Render();
-            var input = session.ReadInput();
-            if (buttonBar.TryHandleInput(input, ref focusedButton, out string? buttonId))
+            var input = session.ReadInput(out var frame);
+            if (buttonBar.TryHandleInput(input, frame.Buttons, ref focusedButton, out string? buttonId))
             {
                 if (buttonId is not null)
                     return ResultForButtonId(options.Buttons, buttonId);
@@ -59,13 +59,14 @@ public sealed class ChoiceDialog
         }
     }
 
-    private static void RenderLayer(
+    private static DialogButtonBarLayout RenderLayer(
         ScreenRenderer screen,
         ChoiceDialogOptions options,
         ChoiceDialogLayout layout,
         DialogButtonBar buttonBar,
         int focusedButton)
     {
+        DialogButtonBarLayout buttons = null!;
         var palette = UiTheme.Current;
         new DialogFrameRenderer().RenderFrame(
             screen,
@@ -87,7 +88,7 @@ public sealed class ChoiceDialog
                         PaletteStyles.DialogFill(palette));
                 }
 
-                buttonBar.Render(
+                buttons = buttonBar.Render(
                     screen,
                     textX,
                     layout.ButtonY,
@@ -97,6 +98,7 @@ public sealed class ChoiceDialog
                     PaletteStyles.InputField(palette));
             });
         screen.SetCursorVisible(false);
+        return buttons;
     }
 
     private static ChoiceDialogLayout CreateLayout(ChoiceDialogOptions options, ConsoleSize size)
@@ -145,4 +147,6 @@ public sealed class ChoiceDialog
     }
 
     private readonly record struct ChoiceDialogLayout(Rect Bounds, int LineRows, int ButtonY);
+
+    private readonly record struct ChoiceDialogFrame(ChoiceDialogLayout Layout, DialogButtonBarLayout Buttons);
 }

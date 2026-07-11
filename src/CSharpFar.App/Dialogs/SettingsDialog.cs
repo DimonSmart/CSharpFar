@@ -31,7 +31,6 @@ internal sealed class SettingsDialog
 
     private readonly ModalDialogHost _modalDialogs;
     private readonly ScreenRenderer _screen;
-    private Rect? _lastBounds;
 
     public SettingsDialog(ModalDialogHost modalDialogs)
     {
@@ -75,18 +74,17 @@ internal sealed class SettingsDialog
         using var modal = _modalDialogs.Open(context =>
         {
             var bounds = BuildBounds(context.Size);
-            _lastBounds = bounds;
             bodyScrollTop = NormalizeBodyScroll(bounds, focusRow, bodyScrollTop);
             Draw(context, bounds, bodyScrollTop, focusRow, leftIdx, rightIdx, palIdx, hlEnabled, syntaxEnabled);
+            return new SettingsDialogFrame(bounds);
         });
         modal.Render();
 
         while (true)
         {
-            var input = modal.ReadInput();
+            var input = modal.ReadInput(out var frame);
             if (input is MouseConsoleInputEvent mouse &&
-                _lastBounds is { } bounds &&
-                TryHandleBodyScrollbarMouse(mouse, bounds, ref bodyScrollTop, ref bodyScrollbarDrag))
+                TryHandleBodyScrollbarMouse(mouse, frame.Bounds, ref bodyScrollTop, ref bodyScrollbarDrag))
             {
                 modal.Render();
                 continue;
@@ -309,4 +307,6 @@ internal sealed class SettingsDialog
     private static int FindPaletteIndex(string paletteName) =>
         Array.FindIndex(PaletteNames,
             name => string.Equals(name, paletteName, StringComparison.OrdinalIgnoreCase));
+
+    private readonly record struct SettingsDialogFrame(Rect Bounds);
 }

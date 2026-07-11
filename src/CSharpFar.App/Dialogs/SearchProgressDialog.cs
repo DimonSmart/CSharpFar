@@ -72,7 +72,7 @@ internal sealed class SearchProgressDialog
                     Math.Max(1, context.Size.Height - 10),
                     ref frameSelectedIndex,
                     ref frameScrollOffset);
-                var frameLayout = Draw(
+                var drawResult = Draw(
                     context,
                     request,
                     renderProgress,
@@ -81,6 +81,7 @@ internal sealed class SearchProgressDialog
                     frameScrollOffset,
                     buttonBar,
                     focusedButton);
+                var frameLayout = drawResult.Layout;
                 NormalizeSelection(
                     renderResults.Length,
                     frameLayout.VisibleResultRows,
@@ -88,7 +89,7 @@ internal sealed class SearchProgressDialog
                     ref frameScrollOffset);
                 committed.Stage(
                     context,
-                    new SearchProgressFrame(frameLayout, frameSelectedIndex, frameScrollOffset));
+                    new SearchProgressFrame(frameLayout, frameSelectedIndex, frameScrollOffset, drawResult.Buttons));
             });
 
             var progress = new Progress<SearchProgress>(p =>
@@ -168,6 +169,7 @@ internal sealed class SearchProgressDialog
                         semanticInput,
                         inputResults,
                         listHeight,
+                        committed.Value.Buttons,
                         ref selectedIndex,
                         ref scrollOffset,
                         buttonBar,
@@ -228,13 +230,14 @@ internal sealed class SearchProgressDialog
         ConsoleInputEvent input,
         IReadOnlyList<SearchResultItem> results,
         int listHeight,
+        DialogButtonBarLayout buttons,
         ref int selectedIndex,
         ref int scrollOffset,
         DialogButtonBar buttonBar,
         ref int focusedButton,
         ref bool stopRequested)
     {
-        if (buttonBar.TryHandleInput(input, ref focusedButton, out string? buttonId))
+        if (buttonBar.TryHandleInput(input, buttons, ref focusedButton, out string? buttonId))
         {
             if (buttonId == StopButton)
             {
@@ -287,7 +290,7 @@ internal sealed class SearchProgressDialog
         return null;
     }
 
-    private SearchProgressLayout Draw(
+    private SearchProgressDrawResult Draw(
         UiRenderContext context,
         SearchRequest request,
         SearchProgress progress,
@@ -298,6 +301,7 @@ internal sealed class SearchProgressDialog
         int focusedButton)
     {
         SearchProgressLayout? resultLayout = null;
+        DialogButtonBarLayout? buttons = null;
         var outerBounds = _modalRenderer.CenteredOuterBounds(
             context.Size,
             DialogWidth,
@@ -329,7 +333,7 @@ internal sealed class SearchProgressDialog
                 DrawSeparator(bounds, bounds.Y + 4);
                 resultLayout = DrawResults(bounds, contentX, contentWidth, results, selectedIndex, scrollOffset);
 
-                buttonBar.Render(
+                buttons = buttonBar.Render(
                     _screen,
                     contentX,
                     bounds.Y + bounds.Height - 2,
@@ -338,7 +342,9 @@ internal sealed class SearchProgressDialog
                     FarDialogStyles.Fill,
                     FarDialogStyles.FocusedInput);
             });
-        return resultLayout ?? throw new InvalidOperationException("Search progress layout was not rendered.");
+        return new SearchProgressDrawResult(
+            resultLayout ?? throw new InvalidOperationException("Search progress layout was not rendered."),
+            buttons ?? throw new InvalidOperationException("Search progress buttons were not rendered."));
     }
 
     private SearchProgressLayout DrawResults(
@@ -494,8 +500,13 @@ internal sealed class SearchProgressDialog
 
     private sealed record SearchProgressLayout(Rect FrameBounds, Rect ScrollbarBounds, int VisibleResultRows);
 
+    private sealed record SearchProgressDrawResult(
+        SearchProgressLayout Layout,
+        DialogButtonBarLayout Buttons);
+
     private sealed record SearchProgressFrame(
         SearchProgressLayout Layout,
         int SelectedIndex,
-        int ScrollOffset);
+        int ScrollOffset,
+        DialogButtonBarLayout Buttons);
 }
