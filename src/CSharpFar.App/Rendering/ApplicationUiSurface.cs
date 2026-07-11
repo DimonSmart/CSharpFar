@@ -50,7 +50,7 @@ internal sealed class ApplicationUiSurface : IUiSurface
 
     public void CompleteFrame(UiFrameCompletion completion)
     {
-        if (_hidden && !completion.WasInterrupted)
+        if (_hidden && completion.WasCommitted)
             _context.TerminalSurface.MarkHiddenCommandLineRenderCompleted();
     }
 }

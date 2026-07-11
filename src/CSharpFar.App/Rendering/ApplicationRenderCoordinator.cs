@@ -35,7 +35,6 @@ internal sealed class ApplicationRenderCoordinator
         UpdateQuickViewDirSize();
         _context.Screen.SetCursorVisible(false);
         var size = context.Size;
-        _context.Ui.LastRenderViewport = context.Viewport;
         var panelBounds = _panelWorkspaceRenderer.Render(
             size,
             _context.LeftPanel(),
@@ -47,8 +46,14 @@ internal sealed class ApplicationRenderCoordinator
             _context.QuickViewDirectorySize.CurrentState,
             _context.IsPanelVisible);
         int panelHeight = panelBounds.PanelHeight;
-        _context.Ui.LeftBounds = panelBounds.Left;
-        _context.Ui.RightBounds = panelBounds.Right;
+        context.PublishOnStable(
+            new ApplicationLayoutSnapshot(context.Viewport, panelBounds.Left, panelBounds.Right),
+            snapshot =>
+            {
+                _context.Ui.LastRenderViewport = snapshot.Viewport;
+                _context.Ui.LeftBounds = snapshot.LeftBounds;
+                _context.Ui.RightBounds = snapshot.RightBounds;
+            });
 
         if (_context.HasVisiblePanels())
             new DirectoryShortcutBarRenderer(_context.Screen, _context.App.Palette)
@@ -74,8 +79,8 @@ internal sealed class ApplicationRenderCoordinator
             {
                 if (!_overlayRenderer.RenderPanelQuickSearch(
                         _context.PanelQuickSearch.State,
-                        _context.Ui.LeftBounds,
-                        _context.Ui.RightBounds,
+                        panelBounds.Left,
+                        panelBounds.Right,
                         _context.IsPanelVisible))
                 {
                     _context.Screen.SetCursorVisible(false);
@@ -99,7 +104,7 @@ internal sealed class ApplicationRenderCoordinator
         var viewport = context.Viewport;
         var size = context.Size;
         int row = ApplicationLayoutService.CommandLineRow(size);
-        _context.Ui.LastRenderViewport = viewport;
+        context.PublishOnStable(viewport, value => _context.Ui.LastRenderViewport = value);
         _commandLineRenderer.Render(row, size, _context.ActiveState().CurrentDirectory, _context.CommandLine);
         _commandLineRenderer.PositionCursor(row, size, _context.ActiveState().CurrentDirectory, _context.CommandLine);
     }
@@ -111,4 +116,6 @@ internal sealed class ApplicationRenderCoordinator
             : _context.PanelController.CurrentItem(_context.RightPanel());
         _context.QuickViewDirectorySize.Update(_context.App.QuickView, item);
     }
+
+    private readonly record struct ApplicationLayoutSnapshot(ConsoleViewport Viewport, Rect LeftBounds, Rect RightBounds);
 }

@@ -68,17 +68,35 @@ public sealed class FormRenderContext
         Rect bodyBounds,
         CellStyle? scrollbarStyle = null,
         Rect? footerBounds = null)
+        : this(screen, screen.GetViewport(), bodyBounds, scrollbarStyle, footerBounds)
+    {
+    }
+
+    public FormRenderContext(
+        ScreenRenderer screen,
+        ConsoleViewport viewport,
+        Rect bodyBounds,
+        CellStyle? scrollbarStyle = null,
+        Rect? footerBounds = null,
+        Action<Action>? publishOnStable = null)
     {
         Screen = screen;
+        Viewport = viewport;
         BodyBounds = bodyBounds;
         ScrollbarStyle = scrollbarStyle ?? FarDialogStyles.Border;
         FooterBounds = footerBounds;
+        _publishOnStable = publishOnStable;
     }
 
     public ScreenRenderer Screen { get; }
+    public ConsoleViewport Viewport { get; }
     public Rect BodyBounds { get; }
     public CellStyle ScrollbarStyle { get; }
     public Rect? FooterBounds { get; }
+
+    private readonly Action<Action>? _publishOnStable;
+
+    public void PublishOnStable(Action commit) => (_publishOnStable ?? (static action => action()))(commit);
 }
 
 public sealed class FormRowRenderContext
@@ -762,10 +780,8 @@ public sealed class ScrollableFormDialog
 {
     private IReadOnlyList<IFormRow> _bodyRows = [];
     private IReadOnlyList<IFormRow> _footerRows = [];
-    private Rect _lastBodyBounds;
-    private Rect? _lastFooterBounds;
-    private int _lastViewportRows = 1;
-    private int _lastScreenHeight = 1;
+    private FormLayoutSnapshot? _stableLayout;
+    private FormLayoutSnapshot StableLayout => _stableLayout ?? new(default, default, null, 1, 1, ScrollTop);
 
     public ScrollableFormDialog()
     {
@@ -799,7 +815,7 @@ public sealed class ScrollableFormDialog
         FocusIndex = ClampFocusIndex(FocusIndex);
         if (TotalFocusableCount > 0 && !IsFocusableAtFocusIndex(FocusIndex))
             FocusIndex = NextFocusableIndex(FocusIndex, 1);
-        ScrollTop = ScrollStateCalculator.ClampFirstVisibleIndex(ScrollTop, BodyRowCount, _lastViewportRows);
+        ScrollTop = ScrollStateCalculator.ClampFirstVisibleIndex(ScrollTop, BodyRowCount, StableLayout.ViewportRows);
     }
 
     public bool IsFocused(string rowId) =>
@@ -812,7 +828,7 @@ public sealed class ScrollableFormDialog
             return false;
 
         FocusIndex = focusIndex.Value;
-        EnsureFocusVisible(_lastViewportRows);
+        EnsureFocusVisible(StableLayout.ViewportRows);
         return true;
     }
 
@@ -844,11 +860,8 @@ public sealed class ScrollableFormDialog
             throw new InvalidOperationException("Footer rows do not fit within the footer bounds.");
 
         context.Screen.SetCursorVisible(false);
-        _lastBodyBounds = context.BodyBounds;
-        _lastFooterBounds = context.FooterBounds;
-        _lastViewportRows = Math.Max(1, context.BodyBounds.Height);
-        _lastScreenHeight = context.Screen.GetSize().Height;
-        EnsureFocusVisible(_lastViewportRows);
+        int viewportRows = Math.Max(1, context.BodyBounds.Height);
+        int effectiveScrollTop = CalculateEffectiveScrollTop(ScrollTop, viewportRows);
 
         context.Screen.FillRegion(context.BodyBounds, FarDialogStyles.Fill);
         int virtualTop = 0;
@@ -857,10 +870,10 @@ public sealed class ScrollableFormDialog
         {
             IFormRow row = _bodyRows[rowIndex];
             int rowHeight = Math.Max(1, row.Height);
-            bool visible = virtualTop + rowHeight > ScrollTop && virtualTop < ScrollTop + _lastViewportRows;
+            bool visible = virtualTop + rowHeight > effectiveScrollTop && virtualTop < effectiveScrollTop + viewportRows;
             if (visible)
             {
-                int y = context.BodyBounds.Y + virtualTop - ScrollTop;
+                int y = context.BodyBounds.Y + virtualTop - effectiveScrollTop;
                 var rowBounds = new Rect(context.BodyBounds.X, y, context.BodyBounds.Width, rowHeight);
                 bool focused = row.IsFocusable && focusIndex == FocusIndex;
                 var rowContext = new FormRowRenderContext(context.Screen, rowBounds, focused);
@@ -872,16 +885,16 @@ public sealed class ScrollableFormDialog
             virtualTop += rowHeight;
         }
 
-        if (BodyRowCount > _lastViewportRows)
+        if (BodyRowCount > viewportRows)
         {
             new ScrollBarRenderer().RenderVerticalScrollbar(
                 context.Screen,
-                new Rect(context.BodyBounds.Right - 1, context.BodyBounds.Y, 1, _lastViewportRows),
+                new Rect(context.BodyBounds.Right - 1, context.BodyBounds.Y, 1, viewportRows),
                 new ScrollState
                 {
                     TotalItems = BodyRowCount,
-                    ViewportItems = _lastViewportRows,
-                    FirstVisibleIndex = ScrollTop,
+                    ViewportItems = viewportRows,
+                    FirstVisibleIndex = effectiveScrollTop,
                 },
                 new ScrollBarOptions
                 {
@@ -912,11 +925,11 @@ public sealed class ScrollableFormDialog
             }
         }
 
-        RenderFocusedOverlay(context.Screen);
+        RenderFocusedOverlay(context.Screen, context.BodyBounds, context.FooterBounds, effectiveScrollTop);
 
         IFormRow? focusedRow = FocusedRow();
         if (focusedRow is IFormCursorProvider cursorProvider &&
-            TryGetFocusedRowBounds(out Rect focusedBounds) &&
+            TryGetFocusedRowBounds(context.BodyBounds, context.FooterBounds, effectiveScrollTop, out Rect focusedBounds) &&
             cursorProvider.TryGetCursor(
                 new FormRowRenderContext(context.Screen, focusedBounds, focused: true),
                 out FormCursorPlacement cursor) &&
@@ -930,6 +943,19 @@ public sealed class ScrollableFormDialog
         {
             context.Screen.SetCursorVisible(false);
         }
+
+        var snapshot = new FormLayoutSnapshot(
+            context.Viewport,
+            context.BodyBounds,
+            context.FooterBounds,
+            viewportRows,
+            context.Viewport.Height,
+            effectiveScrollTop);
+        context.PublishOnStable(() =>
+        {
+            _stableLayout = snapshot;
+            ScrollTop = snapshot.EffectiveScrollTop;
+        });
     }
 
     public FormInputResult HandleKey(ConsoleKeyInfo key)
@@ -938,7 +964,7 @@ public sealed class ScrollableFormDialog
             return FormInputResult.NotHandled;
 
         int availableDropdownRows = TryGetFocusedRowBounds(out Rect focusedBounds)
-            ? SingleLineTextInput.AvailableDropdownContentRows(focusedBounds.Y, _lastScreenHeight)
+            ? SingleLineTextInput.AvailableDropdownContentRows(focusedBounds.Y, StableLayout.ScreenHeight)
             : 0;
         IFormRow? focusedRow = FocusedRow();
         FormInputResult rowResult = focusedRow?.HandleKey(
@@ -979,26 +1005,26 @@ public sealed class ScrollableFormDialog
                     focusedBounds,
                     FocusIndex,
                     focused: true,
-                    _lastScreenHeight,
+                    StableLayout.ScreenHeight,
                     focusedRow.Id,
                     focusedRow.Role));
             if (focusedResult.IsHandled)
                 return ApplyResult(focusedResult);
         }
 
-        if (TryHandleWheel(mouse, _lastViewportRows))
+        if (TryHandleWheel(mouse, StableLayout.ViewportRows))
             return FormInputResult.Handled;
 
-        if (BodyRowCount > _lastViewportRows &&
+        if (BodyRowCount > StableLayout.ViewportRows &&
             TryHandleScrollbarMouse(
                 mouse,
-                new Rect(_lastBodyBounds.Right - 1, _lastBodyBounds.Y, 1, _lastViewportRows),
-                _lastViewportRows))
+                new Rect(StableLayout.BodyBounds.Right - 1, StableLayout.BodyBounds.Y, 1, StableLayout.ViewportRows),
+                StableLayout.ViewportRows))
         {
             return FormInputResult.Handled;
         }
 
-        if (_lastFooterBounds is Rect footerBounds &&
+        if (StableLayout.FooterBounds is Rect footerBounds &&
             TryHitTestRow(
                 _footerRows,
                 footerBounds,
@@ -1016,9 +1042,9 @@ public sealed class ScrollableFormDialog
 
         if (!TryHitTestRow(
                 _bodyRows,
-                _lastBodyBounds,
+                StableLayout.BodyBounds,
                 ScrollTop,
-                _lastViewportRows,
+                StableLayout.ViewportRows,
                 focusIndexOffset: 0,
                 mouse.X,
                 mouse.Y,
@@ -1041,24 +1067,24 @@ public sealed class ScrollableFormDialog
         {
             FormInputResult nonFocusableResult = row.HandleMouse(
                 mouse,
-                new FormRowMouseContext(rowBounds, rowIndex, focused: false, _lastScreenHeight, row.Id, row.Role));
+                new FormRowMouseContext(rowBounds, rowIndex, focused: false, StableLayout.ScreenHeight, row.Id, row.Role));
             return nonFocusableResult.IsHandled ? ApplyResult(nonFocusableResult) : FormInputResult.NotHandled;
         }
 
         FocusIndex = focusIndex;
-        EnsureFocusVisible(_lastViewportRows);
+        EnsureFocusVisible(StableLayout.ViewportRows);
         FormInputResult result = row.HandleMouse(
             mouse,
-            new FormRowMouseContext(rowBounds, FocusIndex, focused: true, _lastScreenHeight, row.Id, row.Role));
+            new FormRowMouseContext(rowBounds, FocusIndex, focused: true, StableLayout.ScreenHeight, row.Id, row.Role));
         return result.IsHandled ? ApplyResult(result) : FormInputResult.Handled;
     }
 
-    private void RenderFocusedOverlay(ScreenRenderer screen)
+    private void RenderFocusedOverlay(ScreenRenderer screen, Rect bodyBounds, Rect? footerBounds, int scrollTop)
     {
         if (FocusedRow() is not IFormOverlayRow overlayRow)
             return;
 
-        if (!TryGetFocusedRowBounds(out Rect bounds))
+        if (!TryGetFocusedRowBounds(bodyBounds, footerBounds, scrollTop, out Rect bounds))
             return;
 
         overlayRow.RenderOverlay(new FormRowRenderContext(screen, bounds, focused: true));
@@ -1075,19 +1101,24 @@ public sealed class ScrollableFormDialog
 
     private void EnsureFocusVisible(int viewportRows)
     {
+        ScrollTop = CalculateEffectiveScrollTop(ScrollTop, viewportRows);
+    }
+
+    private int CalculateEffectiveScrollTop(int scrollTop, int viewportRows)
+    {
         int clampedViewportRows = Math.Max(1, viewportRows);
-        ScrollTop = ScrollStateCalculator.ClampFirstVisibleIndex(ScrollTop, BodyRowCount, clampedViewportRows);
+        int effectiveScrollTop = ScrollStateCalculator.ClampFirstVisibleIndex(scrollTop, BodyRowCount, clampedViewportRows);
 
         int focusVirtualRow = FocusIndexToBodyVirtualRow(FocusIndex);
         if (focusVirtualRow >= 0)
         {
-            ScrollTop = ScrollStateCalculator.EnsureIndexVisible(focusVirtualRow, ScrollTop, clampedViewportRows);
+            effectiveScrollTop = ScrollStateCalculator.EnsureIndexVisible(focusVirtualRow, effectiveScrollTop, clampedViewportRows);
             int focusHeight = Math.Max(1, FocusedRow()?.Height ?? 1);
-            if (focusHeight <= clampedViewportRows && focusVirtualRow + focusHeight > ScrollTop + clampedViewportRows)
-                ScrollTop = focusVirtualRow + focusHeight - clampedViewportRows;
+            if (focusHeight <= clampedViewportRows && focusVirtualRow + focusHeight > effectiveScrollTop + clampedViewportRows)
+                effectiveScrollTop = focusVirtualRow + focusHeight - clampedViewportRows;
         }
 
-        ScrollTop = ScrollStateCalculator.ClampFirstVisibleIndex(ScrollTop, BodyRowCount, clampedViewportRows);
+        return ScrollStateCalculator.ClampFirstVisibleIndex(effectiveScrollTop, BodyRowCount, clampedViewportRows);
     }
 
     private bool TryHandleWheel(MouseConsoleInputEvent mouse, int viewportRows, int wheelRows = 3)
@@ -1143,7 +1174,7 @@ public sealed class ScrollableFormDialog
 
     private FormInputResult MoveFocusResult(int delta)
     {
-        MoveFocus(delta, _lastViewportRows);
+        MoveFocus(delta, StableLayout.ViewportRows);
         return FormInputResult.Handled;
     }
 
@@ -1156,16 +1187,16 @@ public sealed class ScrollableFormDialog
             return FormInputResult.Handled;
         }
 
-        int targetVirtual = Math.Clamp(FocusIndexToBodyVirtualRow(FocusIndex) + delta * _lastViewportRows, 0, Math.Max(0, BodyRowCount - 1));
+        int targetVirtual = Math.Clamp(FocusIndexToBodyVirtualRow(FocusIndex) + delta * StableLayout.ViewportRows, 0, Math.Max(0, BodyRowCount - 1));
         FocusIndex = NearestFocusableIndexAtOrAfterVirtualRow(targetVirtual, delta);
-        EnsureFocusVisible(_lastViewportRows);
+        EnsureFocusVisible(StableLayout.ViewportRows);
         return FormInputResult.Handled;
     }
 
     private FormInputResult SetFocusResult(int focusIndex)
     {
         FocusIndex = ClampFocusIndex(focusIndex);
-        EnsureFocusVisible(_lastViewportRows);
+        EnsureFocusVisible(StableLayout.ViewportRows);
         return FormInputResult.Handled;
     }
 
@@ -1206,7 +1237,10 @@ public sealed class ScrollableFormDialog
         }
     }
 
-    private bool TryGetFocusedRowBounds(out Rect bounds)
+    private bool TryGetFocusedRowBounds(out Rect bounds) =>
+        TryGetFocusedRowBounds(StableLayout.BodyBounds, StableLayout.FooterBounds, ScrollTop, out bounds);
+
+    private bool TryGetFocusedRowBounds(Rect bodyBounds, Rect? footerBounds, int scrollTop, out Rect bounds)
     {
         bounds = default;
         int currentFocusIndex = 0;
@@ -1218,7 +1252,7 @@ public sealed class ScrollableFormDialog
             {
                 if (currentFocusIndex == FocusIndex)
                 {
-                    bounds = new Rect(_lastBodyBounds.X, _lastBodyBounds.Y + currentVirtual - ScrollTop, _lastBodyBounds.Width, height);
+                    bounds = new Rect(bodyBounds.X, bodyBounds.Y + currentVirtual - scrollTop, bodyBounds.Width, height);
                     return true;
                 }
 
@@ -1228,7 +1262,7 @@ public sealed class ScrollableFormDialog
             currentVirtual += height;
         }
 
-        if (_lastFooterBounds is not Rect footerBounds)
+        if (footerBounds is not Rect fixedFooterBounds)
             return false;
 
         currentVirtual = 0;
@@ -1239,7 +1273,7 @@ public sealed class ScrollableFormDialog
             {
                 if (currentFocusIndex == FocusIndex)
                 {
-                    bounds = new Rect(footerBounds.X, footerBounds.Y + currentVirtual, footerBounds.Width, height);
+                    bounds = new Rect(fixedFooterBounds.X, fixedFooterBounds.Y + currentVirtual, fixedFooterBounds.Width, height);
                     return true;
                 }
 
@@ -1386,6 +1420,14 @@ public sealed class ScrollableFormDialog
         virtualRow = bodyScrollTop + y - contentBounds.Y;
         return virtualRow >= 0 && virtualRow < bodyRowCount;
     }
+
+    private sealed record FormLayoutSnapshot(
+        ConsoleViewport Viewport,
+        Rect BodyBounds,
+        Rect? FooterBounds,
+        int ViewportRows,
+        int ScreenHeight,
+        int EffectiveScrollTop);
 
     internal static string Fit(string text, int width)
     {

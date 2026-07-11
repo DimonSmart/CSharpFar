@@ -51,6 +51,9 @@ public sealed class FakeConsoleDriver : IConsoleDriver, IConsoleOutputModeDriver
     public int RestoreTerminalCallCount { get; private set; }
     public Action<FakeConsoleDriver>? BeforeReadInput { get; set; }
     public Action<FakeConsoleDriver>? BeforeTryReadInput { get; set; }
+    public Action<FakeConsoleDriver>? BeforeViewportWrite { get; set; }
+    public int? ResizeAfterWriteCount { get; set; }
+    public Action<FakeConsoleDriver>? ResizeAfterWrite { get; set; }
     public IReadOnlyList<WriteRecord> WriteRecords => _writeRecords;
     public IReadOnlyList<string> OperationLog => _operationLog;
     public event Action<WriteRecord>? Wrote;
@@ -198,7 +201,16 @@ public sealed class FakeConsoleDriver : IConsoleDriver, IConsoleOutputModeDriver
         if (viewport != GetViewport())
             return false;
 
+        BeforeViewportWrite?.Invoke(this);
+        if (viewport != GetViewport())
+            return false;
+
         WriteAt(x, y, text, foreground, background, attributes);
+        if (ResizeAfterWriteCount is int count && WriteAtCallCount >= count)
+        {
+            ResizeAfterWriteCount = null;
+            ResizeAfterWrite?.Invoke(this);
+        }
         return true;
     }
 

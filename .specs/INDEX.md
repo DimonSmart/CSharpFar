@@ -52,3 +52,4 @@
 | 0065 | Spec | Debian/Ubuntu APT distribution and installation | CSharpFar publishes Debian packages through a signed GitHub Pages APT repository and provides a one-command Debian/Ubuntu installer with manual APT fallback. |
 | 0066 | Spec | Folder and file-set comparison | Add read-only comparison commands for local panel folders: folder structure mode matches by relative path, while file-set mode ignores folder structure and handles duplicates explicitly. |
 | 0067 | Spec | UI layer composition and modal resize | Compose the active full-screen surface and modal overlays through one shared host so resize redraws current state rather than restoring snapshots. |
+| 0071 | Spec | Transactional UI frame commit and resize regression coverage | Console UI layout and input geometry become visible only after a fully flushed, viewport-stable composition frame commits. |

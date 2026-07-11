@@ -306,6 +306,35 @@ public sealed class UiCompositionHostTests
         Assert.Equal('V', driver.GetCell(99, 34).Character);
     }
 
+    [Fact]
+    public void InterruptedFlush_DiscardsPendingLayoutAndPublishesOnlyNewViewport()
+    {
+        var driver = new FakeConsoleDriver(80, 25)
+        {
+            ResizeAfterWriteCount = 5,
+            ResizeAfterWrite = d => d.SetSize(100, 35),
+        };
+        var screen = new ScreenRenderer(driver);
+        var host = new UiCompositionHost(screen);
+        var published = new List<ConsoleViewport>();
+        var completions = new List<UiFrameCompletion>();
+        host.SetRootSurface(new RecordingSurface(screen, context =>
+        {
+            Fill(context, 'R');
+            context.PublishOnStable(context.Viewport, published.Add);
+        }, completions));
+
+        host.Render();
+
+        Assert.Equal([new ConsoleViewport(0, 0, 100, 35)], published);
+        Assert.Equal(2, completions.Count);
+        Assert.False(completions[0].WasCommitted);
+        Assert.True(completions[0].WasInterrupted);
+        Assert.True(completions[1].WasCommitted);
+        Assert.Equal(driver.GetViewport(), host.LastStableViewport);
+        Assert.Equal('R', driver.GetCell(99, 34).Character);
+    }
+
     private static void Fill(UiRenderContext context, char value)
     {
         var style = new CellStyle(ConsoleColor.Gray, ConsoleColor.Black);
@@ -319,5 +348,19 @@ public sealed class UiCompositionHostTests
         var style = new CellStyle(ConsoleColor.White, ConsoleColor.Blue);
         context.Screen.Write(context.Size.Width / 2, context.Size.Height / 2, value.ToString(), style);
         context.Screen.SetCursorVisible(false);
+    }
+
+    private sealed class RecordingSurface : IUiSurface
+    {
+        private readonly ScreenRenderer _screen;
+        private readonly Action<UiRenderContext> _render;
+        private readonly List<UiFrameCompletion> _completions;
+
+        public RecordingSurface(ScreenRenderer screen, Action<UiRenderContext> render, List<UiFrameCompletion> completions) =>
+            (_screen, _render, _completions) = (screen, render, completions);
+
+        public IDisposable BeginFrame(UiRenderRequest request) => _screen.BeginFrame();
+        public void Render(UiRenderContext context) => _render(context);
+        public void CompleteFrame(UiFrameCompletion completion) => _completions.Add(completion);
     }
 }

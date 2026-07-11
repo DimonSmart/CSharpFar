@@ -6,15 +6,29 @@ namespace CSharpFar.Ui;
 
 public readonly record struct UiRenderRequest(bool IsResizeRecovery);
 
-public readonly record struct UiRenderContext(ScreenRenderer Screen, ConsoleViewport Viewport)
+public sealed class UiRenderContext
 {
+    private readonly UiCompositionHost.UiRenderAttempt _attempt;
+
+    internal UiRenderContext(ScreenRenderer screen, ConsoleViewport viewport, UiCompositionHost.UiRenderAttempt attempt) =>
+        (Screen, Viewport, _attempt) = (screen, viewport, attempt);
+
+    public ScreenRenderer Screen { get; }
+    public ConsoleViewport Viewport { get; }
     public ConsoleSize Size => Viewport.Size;
+
+    public void PublishOnStable<T>(T value, Action<T> publish)
+    {
+        ArgumentNullException.ThrowIfNull(publish);
+        _attempt.Register(() => publish(value));
+    }
 }
 
 public readonly record struct UiFrameCompletion(
     UiRenderRequest Request,
     ConsoleViewport Viewport,
-    bool WasInterrupted);
+    bool WasInterrupted,
+    bool WasCommitted);
 
 public interface IUiSurface
 {
@@ -111,37 +125,37 @@ public sealed class UiCompositionHost
             {
                 var request = new UiRenderRequest(isResizeRecovery);
                 var composition = CaptureActiveComposition();
+                var attempt = new UiRenderAttempt();
                 ConsoleViewport viewport;
 
                 using (composition.Surface.BeginFrame(request))
                 {
                     viewport = Screen.FrameViewport;
-                    var context = new UiRenderContext(Screen, viewport);
+                    var context = new UiRenderContext(Screen, viewport, attempt);
                     composition.Surface.Render(context);
                     foreach (var overlay in composition.Overlays)
                         overlay(context);
                 }
 
-                var interrupted = Screen.FrameWasInterrupted;
-                composition.Surface.CompleteFrame(new UiFrameCompletion(request, viewport, interrupted));
-                if (interrupted)
-                {
-                    isResizeRecovery = true;
-                    continue;
-                }
-
+                bool interrupted = Screen.FrameWasInterrupted;
                 // Draining is needed only after a resize recovery. On an ordinary
                 // render, leave semantic input in the driver queue so the active
                 // session observes it as its next input.
-                if (isResizeRecovery)
+                if (!interrupted && isResizeRecovery)
                     Screen.DrainResizeEvents();
-                if (Screen.GetViewport() != viewport)
+
+                bool rejected = interrupted || Screen.GetViewport() != viewport;
+                if (rejected)
                 {
+                    attempt.Discard();
+                    composition.Surface.CompleteFrame(new UiFrameCompletion(request, viewport, interrupted, WasCommitted: false));
                     isResizeRecovery = true;
                     continue;
                 }
 
+                attempt.Commit();
                 LastStableViewport = viewport;
+                composition.Surface.CompleteFrame(new UiFrameCompletion(request, viewport, WasInterrupted: false, WasCommitted: true));
                 return;
             }
         }
@@ -308,4 +322,31 @@ public sealed class UiCompositionHost
     }
 
     private sealed record ActiveComposition(IUiSurface Surface, Action<UiRenderContext>[] Overlays);
+
+    internal sealed class UiRenderAttempt
+    {
+        private List<Action>? _commits = [];
+
+        public void Register(Action commit)
+        {
+            if (_commits is null)
+                throw new InvalidOperationException("Stable state cannot be registered after a render attempt has finished.");
+            _commits.Add(commit);
+        }
+
+        public void Commit()
+        {
+            var commits = _commits ?? throw new InvalidOperationException("Render attempt has already finished.");
+            _commits = null;
+            foreach (var commit in commits)
+                commit();
+        }
+
+        public void Discard()
+        {
+            if (_commits is null)
+                throw new InvalidOperationException("Render attempt has already finished.");
+            _commits = null;
+        }
+    }
 }

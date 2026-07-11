@@ -296,7 +296,12 @@ internal sealed class CompareOptionsDialog
             int contentX = bounds.X + 2;
             int contentWidth = Math.Max(1, bounds.Width - 4);
             int errorY = bounds.Y + bounds.Height - 2;
-            form.Render(new FormRenderContext(context.Screen, new Rect(contentX, bounds.Y + 1, contentWidth, Math.Max(1, errorY - bounds.Y - 1)), FarDialogStyles.Border));
+            form.Render(new FormRenderContext(
+                context.Screen,
+                context.Viewport,
+                new Rect(contentX, bounds.Y + 1, contentWidth, Math.Max(1, errorY - bounds.Y - 1)),
+                FarDialogStyles.Border,
+                publishOnStable: action => context.PublishOnStable(action, static commit => commit())));
             context.Screen.Write(contentX, errorY, (error ?? "").PadRight(contentWidth), FarDialogStyles.Error);
         });
     }
