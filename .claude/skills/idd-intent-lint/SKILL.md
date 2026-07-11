@@ -85,7 +85,7 @@ Check that:
 - `INDEX.md` models ordinary specs as `Current`, `Completed`, `Superseded`, or
   another lifecycle status;
 - a normative spec section contains a fenced shell block with a build or test
-  command such as `dotnet build`, `dotnet test`, `npm test`, `mvn test`,
+  command such as `dotnet build`, `dotnet test`, `cargo test`, `mvn test`,
   `gradle test`, `cargo test`, or `pytest`;
 - a normative spec contains an explicit task/progress section, implementation
   checklist, or migration status.
