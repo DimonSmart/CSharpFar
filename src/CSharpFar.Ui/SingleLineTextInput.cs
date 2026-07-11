@@ -328,12 +328,13 @@ public static class SingleLineTextInput
         int fieldX,
         int fieldY,
         int fieldWidth,
-        SingleLineTextHistoryState history)
+        SingleLineTextHistoryState history,
+        int? screenHeight = null)
     {
         if (!history.IsDropdownOpen || history.Matches.Count == 0)
             return;
 
-        int availableContentRows = AvailableDropdownContentRows(fieldY, screen.GetSize().Height);
+        int availableContentRows = AvailableDropdownContentRows(fieldY, screenHeight ?? screen.FrameViewport.Height);
         int visibleRows = history.VisibleRows(availableContentRows);
         if (visibleRows <= 0)
             return;

@@ -101,16 +101,18 @@ public sealed class FormRenderContext
 
 public sealed class FormRowRenderContext
 {
-    public FormRowRenderContext(ScreenRenderer screen, Rect bounds, bool focused)
+    public FormRowRenderContext(ScreenRenderer screen, Rect bounds, bool focused, int? screenHeight = null)
     {
         Screen = screen;
         Bounds = bounds;
         Focused = focused;
+        ScreenHeight = screenHeight ?? screen.FrameViewport.Height;
     }
 
     public ScreenRenderer Screen { get; }
     public Rect Bounds { get; }
     public bool Focused { get; }
+    public int ScreenHeight { get; }
 }
 
 public sealed class FormRowInputContext
@@ -327,7 +329,7 @@ public sealed class TextInputRow : FormRow, IFormOverlayRow, IFormCursorProvider
             return;
 
         int width = Math.Min(context.Bounds.Width, _width ?? context.Bounds.Width);
-        SingleLineTextInput.RenderHistoryDropdown(context.Screen, context.Bounds.X, context.Bounds.Y, width, _history);
+        SingleLineTextInput.RenderHistoryDropdown(context.Screen, context.Bounds.X, context.Bounds.Y, width, _history, context.ScreenHeight);
     }
 
     public override FormInputResult HandleKey(ConsoleKeyInfo key, FormRowInputContext context)
@@ -876,7 +878,7 @@ public sealed class ScrollableFormDialog
                 int y = context.BodyBounds.Y + virtualTop - effectiveScrollTop;
                 var rowBounds = new Rect(context.BodyBounds.X, y, context.BodyBounds.Width, rowHeight);
                 bool focused = row.IsFocusable && focusIndex == FocusIndex;
-                var rowContext = new FormRowRenderContext(context.Screen, rowBounds, focused);
+                var rowContext = new FormRowRenderContext(context.Screen, rowBounds, focused, context.Viewport.Height);
                 row.Render(rowContext);
             }
 
@@ -918,20 +920,20 @@ public sealed class ScrollableFormDialog
                     fixedFooterBounds.Width,
                     rowHeight);
                 bool focused = row.IsFocusable && footerFocusIndex == FocusIndex;
-                row.Render(new FormRowRenderContext(context.Screen, rowBounds, focused));
+                row.Render(new FormRowRenderContext(context.Screen, rowBounds, focused, context.Viewport.Height));
                 if (row.IsFocusable)
                     footerFocusIndex++;
                 footerTop += rowHeight;
             }
         }
 
-        RenderFocusedOverlay(context.Screen, context.BodyBounds, context.FooterBounds, effectiveScrollTop);
+        RenderFocusedOverlay(context.Screen, context.BodyBounds, context.FooterBounds, effectiveScrollTop, context.Viewport.Height);
 
         IFormRow? focusedRow = FocusedRow();
         if (focusedRow is IFormCursorProvider cursorProvider &&
             TryGetFocusedRowBounds(context.BodyBounds, context.FooterBounds, effectiveScrollTop, out Rect focusedBounds) &&
             cursorProvider.TryGetCursor(
-                new FormRowRenderContext(context.Screen, focusedBounds, focused: true),
+                new FormRowRenderContext(context.Screen, focusedBounds, focused: true, screenHeight: context.Viewport.Height),
                 out FormCursorPlacement cursor) &&
             cursor.X >= focusedBounds.X && cursor.X < focusedBounds.Right &&
             cursor.Y >= focusedBounds.Y && cursor.Y < focusedBounds.Bottom)
@@ -1079,7 +1081,7 @@ public sealed class ScrollableFormDialog
         return result.IsHandled ? ApplyResult(result) : FormInputResult.Handled;
     }
 
-    private void RenderFocusedOverlay(ScreenRenderer screen, Rect bodyBounds, Rect? footerBounds, int scrollTop)
+    private void RenderFocusedOverlay(ScreenRenderer screen, Rect bodyBounds, Rect? footerBounds, int scrollTop, int screenHeight)
     {
         if (FocusedRow() is not IFormOverlayRow overlayRow)
             return;
@@ -1087,7 +1089,7 @@ public sealed class ScrollableFormDialog
         if (!TryGetFocusedRowBounds(bodyBounds, footerBounds, scrollTop, out Rect bounds))
             return;
 
-        overlayRow.RenderOverlay(new FormRowRenderContext(screen, bounds, focused: true));
+        overlayRow.RenderOverlay(new FormRowRenderContext(screen, bounds, focused: true, screenHeight: screenHeight));
     }
 
     private void MoveFocus(int delta, int viewportRows)
