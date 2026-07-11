@@ -297,7 +297,7 @@ public sealed class Application
         bool scrolledHiddenViewport = _terminalSurface.ScrollHiddenViewportToBottomForInput();
         bool functionKeyLayerChanged = SetFunctionKeyLayer(key.Modifiers);
         bool shouldRender = _keyboardInputRouter.Handle(key) || scrolledHiddenViewport || functionKeyLayerChanged;
-        return new ApplicationRuntimeRenderRequest(shouldRender, IsResize: false);
+        return new ApplicationRuntimeRenderRequest(shouldRender);
     }
 
     private ApplicationRuntimeRenderRequest HandleRuntimeModifierInput(ConsoleModifiers modifiers)
@@ -305,14 +305,14 @@ public sealed class Application
         if (!_panelWorkspace.HasVisiblePanels)
             return ApplicationRuntimeRenderRequest.None;
 
-        return new(SetFunctionKeyLayer(modifiers), IsResize: false);
+        return new(SetFunctionKeyLayer(modifiers));
     }
 
     private ApplicationRuntimeRenderRequest HandleRuntimeMouseInput(MouseConsoleInputEvent mouseEvt)
     {
         bool scrolledHiddenViewport = _terminalSurface.ScrollHiddenViewportToBottomForInput();
         bool shouldRender = _mouseInputRouter.Handle(mouseEvt) || scrolledHiddenViewport;
-        return new ApplicationRuntimeRenderRequest(shouldRender, IsResize: false);
+        return new ApplicationRuntimeRenderRequest(shouldRender);
     }
 
     private void Render() => _composition.Render();

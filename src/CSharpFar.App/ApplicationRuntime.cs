@@ -81,7 +81,7 @@ internal sealed class ApplicationRuntimeContext
     public required Func<MouseConsoleInputEvent, ApplicationRuntimeRenderRequest> HandleMouseInput { get; init; }
 }
 
-internal readonly record struct ApplicationRuntimeRenderRequest(bool ShouldRender, bool IsResize)
+internal readonly record struct ApplicationRuntimeRenderRequest(bool ShouldRender)
 {
-    public static ApplicationRuntimeRenderRequest None { get; } = new(false, false);
+    public static ApplicationRuntimeRenderRequest None { get; } = new(false);
 }
