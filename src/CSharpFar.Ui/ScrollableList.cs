@@ -23,6 +23,11 @@ public readonly record struct ScrollableListInputResult(ScrollableListInputResul
     public bool IsHandled => Kind != ScrollableListInputResultKind.NotHandled;
 }
 
+public readonly record struct ScrollableListFrameState(int SelectedIndex, int ScrollTop)
+{
+    public static ScrollableListFrameState Empty => new(-1, 0);
+}
+
 public sealed class ScrollableList<T>
 {
     public ScrollableList(IReadOnlyList<T> items, Func<T, string> itemText)
@@ -69,6 +74,20 @@ public sealed class ScrollableList<T>
         EnsureSelectedVisible(viewportRows);
     }
 
+    /// <summary>Calculates normalized list state without changing input state.</summary>
+    public ScrollableListFrameState CalculateFrameState(int viewportRows)
+    {
+        if (!HasItems)
+            return ScrollableListFrameState.Empty;
+
+        int selectedIndex = Math.Clamp(SelectedIndex, 0, Count - 1);
+        int rows = Math.Max(1, viewportRows);
+        int scrollTop = ScrollStateCalculator.ClampFirstVisibleIndex(ScrollTop, Count, rows);
+        scrollTop = ScrollStateCalculator.EnsureIndexVisible(selectedIndex, scrollTop, rows);
+        scrollTop = ScrollStateCalculator.ClampFirstVisibleIndex(scrollTop, Count, rows);
+        return new ScrollableListFrameState(selectedIndex, scrollTop);
+    }
+
     public void EnsureSelectedVisible(int viewportRows)
     {
         if (!HasItems)
@@ -86,6 +105,9 @@ public sealed class ScrollableList<T>
     }
 
     public void Render(ScreenRenderer screen, Rect bounds)
+        => Render(screen, bounds, new ScrollableListFrameState(SelectedIndex, ScrollTop));
+
+    public void Render(ScreenRenderer screen, Rect bounds, ScrollableListFrameState frameState)
     {
         ArgumentNullException.ThrowIfNull(screen);
 
@@ -101,7 +123,7 @@ public sealed class ScrollableList<T>
 
         for (int row = 0; row < bounds.Height; row++)
         {
-            int index = ScrollTop + row;
+            int index = frameState.ScrollTop + row;
             if (index >= Count)
                 break;
 
@@ -109,11 +131,14 @@ public sealed class ScrollableList<T>
                 bounds.X,
                 bounds.Y + row,
                 Fit(ItemText(Items[index]), bounds.Width),
-                index == SelectedIndex ? SelectedStyle : NormalStyle);
+                index == frameState.SelectedIndex ? SelectedStyle : NormalStyle);
         }
     }
 
     public ScrollState? GetScrollState(int viewportRows)
+        => GetScrollState(viewportRows, ScrollTop);
+
+    public ScrollState? GetScrollState(int viewportRows, int scrollTop)
     {
         int rows = Math.Max(1, viewportRows);
         return Count > rows
@@ -121,7 +146,7 @@ public sealed class ScrollableList<T>
             {
                 TotalItems = Count,
                 ViewportItems = rows,
-                FirstVisibleIndex = ScrollStateCalculator.ClampFirstVisibleIndex(ScrollTop, Count, rows),
+                FirstVisibleIndex = ScrollStateCalculator.ClampFirstVisibleIndex(scrollTop, Count, rows),
             }
             : null;
     }

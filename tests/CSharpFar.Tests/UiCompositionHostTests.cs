@@ -335,6 +335,34 @@ public sealed class UiCompositionHostTests
         Assert.Equal('R', driver.GetCell(99, 34).Character);
     }
 
+    [Fact]
+    public void CommittedState_RejectedAttemptDoesNotBecomeVisible()
+    {
+        var driver = new FakeConsoleDriver(80, 25)
+        {
+            ResizeAfterWriteCount = 1,
+            ResizeAfterWrite = d => d.SetSize(100, 35),
+        };
+        var screen = new ScreenRenderer(driver);
+        var host = new UiCompositionHost(screen);
+        var state = new UiCommittedState<ConsoleViewport>();
+        var observedBeforeCommit = new List<bool>();
+        var publications = new List<string>();
+        host.SetRootSurface(new ScreenRendererSurface(screen, context =>
+        {
+            observedBeforeCommit.Add(state.HasValue);
+            state.Stage(context, context.Viewport);
+            context.PublishOnStable(() => publications.Add("committed"));
+            Fill(context, 'S');
+        }));
+
+        host.Render();
+
+        Assert.Equal([false, false], observedBeforeCommit);
+        Assert.Equal(["committed"], publications);
+        Assert.Equal(new ConsoleViewport(0, 0, 100, 35), state.Value);
+    }
+
     private static void Fill(UiRenderContext context, char value)
     {
         var style = new CellStyle(ConsoleColor.Gray, ConsoleColor.Black);

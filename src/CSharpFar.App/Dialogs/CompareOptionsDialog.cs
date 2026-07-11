@@ -301,7 +301,7 @@ internal sealed class CompareOptionsDialog
                 context.Viewport,
                 new Rect(contentX, bounds.Y + 1, contentWidth, Math.Max(1, errorY - bounds.Y - 1)),
                 FarDialogStyles.Border,
-                publishOnStable: action => context.PublishOnStable(action, static commit => commit())));
+                publishOnStable: context.PublishOnStable));
             context.Screen.Write(contentX, errorY, (error ?? "").PadRight(contentWidth), FarDialogStyles.Error);
         });
     }

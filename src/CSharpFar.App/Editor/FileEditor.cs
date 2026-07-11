@@ -138,9 +138,22 @@ internal sealed class FileEditor
         {
             int contentHeight = Math.Max(1, context.Size.Height - 3);
             int contentWidth = Math.Max(1, context.Size.Width - 1);
-            EnsureCursorVisible(session, contentHeight, contentWidth);
-            Draw(session, contentHeight, context.Size, functionKeyModifiers);
-            layout = new EditorLayout(context.Size, contentHeight, contentWidth);
+            var effective = CalculateEffectiveViewport(session, contentHeight, contentWidth);
+            var frameLayout = new EditorLayout(context.Size, contentHeight, contentWidth);
+            var syntaxResult = Draw(session, contentHeight, context.Size, functionKeyModifiers, effective);
+            context.PublishOnStable(
+                new EditorFrameState(frameLayout, effective.TopLine, effective.LeftColumn),
+                frame =>
+                {
+                    session.Viewport.TopLine = frame.TopLine;
+                    session.Viewport.LeftColumn = frame.LeftColumn;
+                    layout = frame.Layout;
+                });
+            context.PublishOnStable(() =>
+            {
+                session.SetSyntaxDiagnostics(syntaxResult.Diagnostics);
+                session.RaiseRedraw(effective.TopLine, contentHeight);
+            });
         });
         while (true)
         {
@@ -830,19 +843,20 @@ internal sealed class FileEditor
             session.SetSyntaxTheme(theme);
     }
 
-    private void Draw(
+    private EditorSyntaxHighlightResult Draw(
         EditorSession session,
         int contentHeight,
         ConsoleSize size,
-        ConsoleModifiers functionKeyModifiers)
+        ConsoleModifiers functionKeyModifiers,
+        EditorViewport viewport)
     {
         DrawHeader(session, size);
-        EditorSyntaxHighlightResult syntaxResult = ResolveSyntaxHighlighting(session, contentHeight);
-        DrawContent(session, contentHeight, size, syntaxResult);
+        EditorSyntaxHighlightResult syntaxResult = ResolveSyntaxHighlighting(session, contentHeight, viewport.TopLine);
+        DrawContent(session, contentHeight, size, syntaxResult, viewport);
         DrawStatus(session, contentHeight + 1, size);
         DrawKeyBar(size, functionKeyModifiers);
-        DrawCursor(session, contentHeight, size);
-        session.RaiseRedraw(session.Viewport.TopLine, contentHeight);
+        DrawCursor(session, contentHeight, size, viewport);
+        return syntaxResult;
     }
 
     private void DrawHeader(EditorSession session, ConsoleSize size)
@@ -855,7 +869,7 @@ internal sealed class FileEditor
         _screen.Write(0, 0, Fit(left, leftWidth) + right, PaletteStyles.PathHeaderActive(_palette));
     }
 
-    private EditorSyntaxHighlightResult ResolveSyntaxHighlighting(EditorSession session, int contentHeight)
+    private EditorSyntaxHighlightResult ResolveSyntaxHighlighting(EditorSession session, int contentHeight, int topLine)
     {
         try
         {
@@ -864,7 +878,7 @@ internal sealed class FileEditor
                 FilePath = session.FilePath,
                 Buffer = session.Document.Buffer,
                 DocumentRevision = session.Document.Revision,
-                FirstLineIndex = session.Viewport.TopLine,
+                FirstLineIndex = topLine,
                 LineCount = contentHeight,
                 Settings = _settings,
                 Cache = session.SyntaxHighlightCache,
@@ -874,13 +888,11 @@ internal sealed class FileEditor
                 SessionLanguage = session.SyntaxLanguage,
                 SessionTheme = session.SyntaxTheme,
             });
-            session.SetSyntaxDiagnostics(result.Diagnostics);
             return result;
         }
         catch (Exception ex)
         {
             var result = EditorSyntaxHighlightResult.Disabled($"Syn:error {ex.Message}");
-            session.SetSyntaxDiagnostics(result.Diagnostics);
             return result;
         }
     }
@@ -889,7 +901,8 @@ internal sealed class FileEditor
         EditorSession session,
         int contentHeight,
         ConsoleSize size,
-        EditorSyntaxHighlightResult syntaxResult)
+        EditorSyntaxHighlightResult syntaxResult,
+        EditorViewport viewport)
     {
         int textWidth = Math.Max(1, size.Width - 1);
         var syntaxSpansByLine = syntaxResult.Spans
@@ -898,11 +911,11 @@ internal sealed class FileEditor
 
         for (int row = 0; row < contentHeight; row++)
         {
-            int lineIndex = session.Viewport.TopLine + row;
+            int lineIndex = viewport.TopLine + row;
             if (lineIndex < session.Document.Buffer.LineCount)
             {
                 syntaxSpansByLine.TryGetValue(lineIndex, out var lineSpans);
-                DrawTextLine(session, lineIndex, row + 1, textWidth, lineSpans ?? []);
+                DrawTextLine(session, lineIndex, row + 1, textWidth, lineSpans ?? [], viewport.LeftColumn);
             }
             else
             {
@@ -917,7 +930,7 @@ internal sealed class FileEditor
             {
                 TotalItems = session.Document.Buffer.LineCount,
                 ViewportItems = contentHeight,
-                FirstVisibleIndex = session.Viewport.TopLine,
+                FirstVisibleIndex = viewport.TopLine,
             },
             new ScrollBarOptions { Enabled = true, DrawWhenNotScrollable = false },
             PaletteStyles.DialogBorder(_palette));
@@ -979,12 +992,13 @@ internal sealed class FileEditor
         int lineIndex,
         int screenY,
         int width,
-        IReadOnlyList<EditorColorSpan> syntaxSpans)
+        IReadOnlyList<EditorColorSpan> syntaxSpans,
+        int leftColumn)
     {
         string line = session.Document.Buffer.GetLine(lineIndex);
         for (int screenX = 0; screenX < width; screenX++)
         {
-            int visualColumn = session.Viewport.LeftColumn + screenX;
+            int visualColumn = leftColumn + screenX;
             int logicalColumn = LogicalColumnFromVisualColumn(line, visualColumn);
             char ch = CharacterAtVisualColumn(line, visualColumn);
             bool selected = IsSelected(session.Selection, lineIndex, logicalColumn);
@@ -1019,7 +1033,7 @@ internal sealed class FileEditor
     private CellStyle EditorTextStyle() =>
         new(_palette.CommandLineFg, _palette.PanelBackground);
 
-    private void DrawCursor(EditorSession session, int contentHeight, ConsoleSize size)
+    private void DrawCursor(EditorSession session, int contentHeight, ConsoleSize size, EditorViewport viewport)
     {
         string line = session.Document.Buffer.GetLine(session.Cursor.Line);
         if (session.Cursor.Column < line.Length &&
@@ -1029,9 +1043,9 @@ internal sealed class FileEditor
             return;
         }
 
-        int screenRow = 1 + (session.Cursor.Line - session.Viewport.TopLine);
+        int screenRow = 1 + (session.Cursor.Line - viewport.TopLine);
         int screenCol = VisualColumn(line, session.Cursor.Column)
-            - session.Viewport.LeftColumn;
+            - viewport.LeftColumn;
         if (screenRow >= 1 && screenRow <= contentHeight && screenCol >= 0 && screenCol < size.Width - 1)
         {
             _screen.SetCursorPosition(screenCol, screenRow);
@@ -1068,19 +1082,25 @@ internal sealed class FileEditor
             EditorUnicode.DisplayCellWidthAt(line, session.Cursor.Column) > 1;
     }
 
-    private void EnsureCursorVisible(EditorSession session, int contentHeight, int contentWidth)
+    private EditorViewport CalculateEffectiveViewport(EditorSession session, int contentHeight, int contentWidth)
     {
-        if (session.Cursor.Line < session.Viewport.TopLine)
-            session.Viewport.TopLine = session.Cursor.Line;
-        else if (session.Cursor.Line >= session.Viewport.TopLine + contentHeight)
-            session.Viewport.TopLine = session.Cursor.Line - contentHeight + 1;
+        int topLine = session.Viewport.TopLine;
+        if (session.Cursor.Line < topLine)
+            topLine = session.Cursor.Line;
+        else if (session.Cursor.Line >= topLine + contentHeight)
+            topLine = session.Cursor.Line - contentHeight + 1;
 
         int visualColumn = VisualColumn(session.Document.Buffer.GetLine(session.Cursor.Line), session.Cursor.Column);
-        if (visualColumn < session.Viewport.LeftColumn)
-            session.Viewport.LeftColumn = visualColumn;
-        else if (visualColumn >= session.Viewport.LeftColumn + contentWidth)
-            session.Viewport.LeftColumn = visualColumn - contentWidth + 1;
+        int leftColumn = session.Viewport.LeftColumn;
+        if (visualColumn < leftColumn)
+            leftColumn = visualColumn;
+        else if (visualColumn >= leftColumn + contentWidth)
+            leftColumn = visualColumn - contentWidth + 1;
+
+        return new EditorViewport { TopLine = topLine, LeftColumn = leftColumn };
     }
+
+    private readonly record struct EditorFrameState(EditorLayout Layout, int TopLine, int LeftColumn);
 
     private string FormatLine(string line, int scrollLeft, int width)
     {

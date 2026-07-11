@@ -30,22 +30,32 @@ internal sealed class HelpViewer
         var lines = HelpContent.Lines;
         int scrollTop = 0;
         int scrollLeft = 0;
-        HelpViewerLayout? layout = null;
+        var committed = new UiCommittedState<HelpViewerFrame>();
 
         using var surface = _composition.OpenSurface(context =>
         {
             int contentHeight = Math.Max(0, context.Size.Height - 2);
             int maxScrollTop = Math.Max(0, lines.Length - contentHeight);
-            scrollTop = Math.Clamp(scrollTop, 0, maxScrollTop);
-            scrollLeft = Math.Max(0, scrollLeft);
-            layout = new HelpViewerLayout(context.Size, contentHeight, maxScrollTop);
-            Draw(context.Screen, lines, scrollTop, scrollLeft, layout);
+            int effectiveScrollTop = Math.Clamp(scrollTop, 0, maxScrollTop);
+            int effectiveScrollLeft = Math.Max(0, scrollLeft);
+            var frame = new HelpViewerFrame(
+                new HelpViewerLayout(context.Size, contentHeight, maxScrollTop),
+                effectiveScrollTop,
+                effectiveScrollLeft);
+            Draw(context.Screen, lines, frame.ScrollTop, frame.ScrollLeft, frame.Layout);
+            committed.Stage(context, frame);
+            context.PublishOnStable(() =>
+            {
+                scrollTop = frame.ScrollTop;
+                scrollLeft = frame.ScrollLeft;
+            });
         });
 
         while (true)
         {
             surface.Render();
-            var currentLayout = layout ?? throw new InvalidOperationException("Help viewer layout is unavailable.");
+            var currentFrame = committed.Value;
+            var currentLayout = currentFrame.Layout;
             if (surface.ReadInput() is not KeyConsoleInputEvent keyEvent)
                 continue;
 
@@ -203,4 +213,9 @@ internal sealed class HelpViewer
     }
 
     private sealed record HelpViewerLayout(ConsoleSize Size, int ContentHeight, int MaxScrollTop);
+
+    private sealed record HelpViewerFrame(
+        HelpViewerLayout Layout,
+        int ScrollTop,
+        int ScrollLeft);
 }

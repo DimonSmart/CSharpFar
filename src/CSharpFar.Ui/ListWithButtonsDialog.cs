@@ -66,17 +66,37 @@ public sealed class ListWithButtonsDialog<T>
         bool focusButtons = !_list.HasItems;
         ScrollBarDragState? scrollbarDrag = null;
         ListWithButtonsLayout layout = default;
+        var committed = new UiCommittedState<ListWithButtonsFrame>();
         using var session = modalDialogs.Open(context =>
         {
-            layout = CalculateLayout(context.Size);
-            _list.Normalize(layout.ListBounds.Height);
-            focusedButton = Math.Clamp(focusedButton, 0, _buttonBar.Count - 1);
-            RenderLayer(context.Screen, layout, focusButtons, focusedButton);
+            var frameLayout = CalculateLayout(context.Size);
+            var listState = _list.CalculateFrameState(frameLayout.ListBounds.Height);
+            bool frameFocusButtons = focusButtons || !_list.HasItems;
+            int frameFocusedButton = Math.Clamp(focusedButton, 0, _buttonBar.Count - 1);
+            var frame = new ListWithButtonsFrame(
+                frameLayout,
+                listState,
+                frameFocusButtons,
+                frameFocusedButton);
+            RenderLayer(context.Screen, frameLayout, listState, frameFocusButtons, frameFocusedButton);
+            committed.Stage(context, frame);
+            context.PublishOnStable(() =>
+            {
+                _list.SelectedIndex = frame.ListState.SelectedIndex;
+                _list.ScrollTop = frame.ListState.ScrollTop;
+                layout = frame.Layout;
+                focusButtons = frame.FocusButtons;
+                focusedButton = frame.FocusedButton;
+            });
         });
         while (true)
         {
             session.Render();
             var input = session.ReadInput();
+            var committedFrame = committed.Value;
+            layout = committedFrame.Layout;
+            focusButtons = committedFrame.FocusButtons;
+            focusedButton = committedFrame.FocusedButton;
             if (input is MouseConsoleInputEvent mouse &&
                 HandleMouse(mouse, layout, ref focusedButton, ref focusButtons, ref scrollbarDrag, out var mouseResult))
             {
@@ -193,7 +213,12 @@ public sealed class ListWithButtonsDialog<T>
         return new ListWithButtonsDialogResult<T>(actionId, _list.Items[SelectedIndex], SelectedIndex);
     }
 
-    private void RenderLayer(ScreenRenderer screen, ListWithButtonsLayout layout, bool focusButtons, int focusedButton)
+    private void RenderLayer(
+        ScreenRenderer screen,
+        ListWithButtonsLayout layout,
+        ScrollableListFrameState listState,
+        bool focusButtons,
+        int focusedButton)
     {
         var fill = FarDialogStyles.Fill;
         var border = FarDialogStyles.Border;
@@ -203,7 +228,7 @@ public sealed class ListWithButtonsDialog<T>
         _list.NormalStyle = fill;
         _list.SelectedStyle = selected;
         _list.EmptyStyle = fill;
-        var scrollState = _list.GetScrollState(layout.ListBounds.Height);
+        var scrollState = _list.GetScrollState(layout.ListBounds.Height, listState.ScrollTop);
 
         _modalRenderer.Render(screen, layout.Bounds, Title, true, outerOptions, frameOptions, (_, modalLayout) =>
         {
@@ -217,7 +242,7 @@ public sealed class ListWithButtonsDialog<T>
                     border);
             }
 
-            _list.Render(screen, layout.ListBounds);
+            _list.Render(screen, layout.ListBounds, listState);
 
             _buttonBar.Render(
                 screen,
@@ -252,4 +277,10 @@ public sealed class ListWithButtonsDialog<T>
         Rect FrameBounds,
         Rect ListBounds,
         int ButtonY);
+
+    private readonly record struct ListWithButtonsFrame(
+        ListWithButtonsLayout Layout,
+        ScrollableListFrameState ListState,
+        bool FocusButtons,
+        int FocusedButton);
 }

@@ -65,24 +65,34 @@ public sealed class SelectionListDialog<T>
         ArgumentNullException.ThrowIfNull(modalDialogs);
         ScrollBarDragState? scrollbarDrag = null;
         SelectionListLayout layout = default;
+        var committed = new UiCommittedState<SelectionListFrame>();
         bool initialSelectionNotified = false;
 
         using var session = modalDialogs.Open(context =>
         {
-            layout = CalculateLayout(context.Size);
-            _list.Normalize(layout.VisibleRows);
-            if (_list.HasItems && !initialSelectionNotified)
+            var frameLayout = CalculateLayout(context.Size);
+            var listState = _list.CalculateFrameState(frameLayout.VisibleRows);
+            var frame = new SelectionListFrame(frameLayout, listState);
+            RenderLayer(context.Screen, frameLayout, listState);
+            committed.Stage(context, frame);
+            context.PublishOnStable(() =>
             {
-                SelectionChanged?.Invoke(_list.Items[SelectedIndex], SelectedIndex);
-                initialSelectionNotified = true;
-            }
-            RenderLayer(context.Screen, layout);
+                _list.SelectedIndex = frame.ListState.SelectedIndex;
+                _list.ScrollTop = frame.ListState.ScrollTop;
+                layout = frame.Layout;
+                if (_list.HasItems && !initialSelectionNotified)
+                {
+                    SelectionChanged?.Invoke(_list.Items[_list.SelectedIndex], _list.SelectedIndex);
+                    initialSelectionNotified = true;
+                }
+            });
         });
 
         while (true)
         {
             session.Render();
             var input = session.ReadInput();
+            layout = committed.Value.Layout;
             if (input is MouseConsoleInputEvent mouse &&
                 HandleMouse(mouse, layout, ref scrollbarDrag, out bool confirmed))
             {
@@ -141,14 +151,14 @@ public sealed class SelectionListDialog<T>
         return result.IsHandled;
     }
 
-    private void RenderLayer(ScreenRenderer screen, SelectionListLayout layout)
+    private void RenderLayer(ScreenRenderer screen, SelectionListLayout layout, ScrollableListFrameState listState)
     {
         var palette = UiTheme.Current;
 
         _list.NormalStyle = PaletteStyles.DialogFill(palette);
         _list.SelectedStyle = PaletteStyles.InputField(palette);
         _list.EmptyStyle = PaletteStyles.DialogFill(palette);
-        var scrollState = _list.GetScrollState(layout.VisibleRows);
+        var scrollState = _list.GetScrollState(layout.VisibleRows, listState.ScrollTop);
 
         _frameRenderer.RenderFrame(
             screen,
@@ -157,7 +167,7 @@ public sealed class SelectionListDialog<T>
             DoubleBorder,
             PaletteStyles.DialogPopupOptions(palette),
             scrollState,
-            (_, _) => _list.Render(screen, layout.ContentBounds));
+            (_, _) => _list.Render(screen, layout.ContentBounds, listState));
 
         screen.SetCursorVisible(false);
     }
@@ -189,4 +199,8 @@ public sealed class SelectionListDialog<T>
         Rect ContentBounds,
         Rect ScrollbarBounds,
         int VisibleRows);
+
+    private readonly record struct SelectionListFrame(
+        SelectionListLayout Layout,
+        ScrollableListFrameState ListState);
 }

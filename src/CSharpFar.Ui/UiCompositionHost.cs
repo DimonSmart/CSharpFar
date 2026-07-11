@@ -17,10 +17,59 @@ public sealed class UiRenderContext
     public ConsoleViewport Viewport { get; }
     public ConsoleSize Size => Viewport.Size;
 
+    /// <summary>
+    /// Defers an observable UI state change until this render attempt commits.
+    /// A render callback may be invoked more than once before a frame is stable.
+    /// </summary>
+    public void PublishOnStable(Action publish)
+    {
+        ArgumentNullException.ThrowIfNull(publish);
+        _attempt.Register(publish);
+    }
+
     public void PublishOnStable<T>(T value, Action<T> publish)
     {
         ArgumentNullException.ThrowIfNull(publish);
         _attempt.Register(() => publish(value));
+    }
+}
+
+/// <summary>
+/// Holds frame-dependent state visible to input handling only after a stable
+/// composition frame has committed it.
+/// </summary>
+public sealed class UiCommittedState<T>
+{
+    private T? _value;
+
+    public bool HasValue { get; private set; }
+
+    public T Value => HasValue
+        ? _value!
+        : throw new InvalidOperationException("No committed UI state is available.");
+
+    public bool TryGet(out T value)
+    {
+        if (!HasValue)
+        {
+            value = default!;
+            return false;
+        }
+
+        value = _value!;
+        return true;
+    }
+
+    public void Stage(UiRenderContext context, T value)
+    {
+        ArgumentNullException.ThrowIfNull(context);
+        context.PublishOnStable(value, Commit);
+    }
+
+    private void Commit(T value)
+    {
+        _value = value;
+        HasValue = true;
     }
 }
 
@@ -34,6 +83,11 @@ public interface IUiSurface
 {
     IDisposable BeginFrame(UiRenderRequest request);
 
+    /// <summary>
+    /// Builds one attempt-local frame. This callback may run repeatedly before
+    /// one attempt commits and must publish observable state through the
+    /// render context rather than changing it immediately.
+    /// </summary>
     void Render(UiRenderContext context);
 
     void CompleteFrame(UiFrameCompletion completion);
@@ -86,6 +140,7 @@ public sealed class UiCompositionHost
             _layers[0] = UiLayerEntry.ForSurface(surface);
     }
 
+    /// <summary>Opens a surface whose render callback participates in stable-frame commit.</summary>
     public UiSurfaceSession OpenSurface(Action<UiRenderContext> render) =>
         OpenSurface(new ScreenRendererSurface(Screen, render));
 
@@ -99,6 +154,7 @@ public sealed class UiCompositionHost
         return new UiSurfaceSession(this, entry);
     }
 
+    /// <summary>Opens an overlay whose render callback participates in stable-frame commit.</summary>
     internal UiLayerScope PushOverlay(Action<UiRenderContext> render)
     {
         EnsureNotRendering();
