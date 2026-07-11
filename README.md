@@ -31,13 +31,13 @@ CSharpFar is expected to grow around a few core ideas:
 - mouse support where it helps, without turning the app into a GUI clone;
 - configurable visual modes and palettes.
 
-## LLM-assisted development
+## Intent-Driven Development
 
-This repository uses a worklog-driven development process.
-
-The `.worklog` directory is used to keep task notes, decisions, experiments and implementation history. This gives LLM coding tools enough project context to continue work without treating every request as a fresh one.
-
-The methodology will be described in a separate article later. After publication, the link should be added here.
+This repository uses Intent-Driven Development. Current product intent lives in
+the intent documents; tasks, plans, implementation notes, and execution history
+are not intent. Git stores the history of changes. Before changing behavior,
+update the existing owning specification, or create a new one only for a new
+long-term product area.
 
 ## Viewer
 
@@ -184,7 +184,7 @@ This is an experimental project, so the best contributions are practical and spe
 - small focused pull requests;
 - ideas that preserve the keyboard-first workflow.
 
-Before large changes, create or update a worklog entry so the decision history stays readable.
+Before changing product behavior, update the owning intent document.
 
 ## License
 
