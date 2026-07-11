@@ -16,14 +16,16 @@ internal sealed class LargeFileViewer
     private const int FastHorizontalTextScrollChars = 20;
     private const int FastPageMultiplier = 5;
 
+    private readonly UiCompositionHost _composition;
     private readonly ScreenRenderer _screen;
     private readonly ModalDialogHost _modalDialogs;
     private readonly ConsolePalette _palette;
     private string? _renderedFooterSignature;
 
-    public LargeFileViewer(ScreenRenderer screen, ModalDialogHost modalDialogs, ConsolePalette? palette = null)
+    public LargeFileViewer(UiCompositionHost composition, ModalDialogHost modalDialogs, ConsolePalette? palette = null)
     {
-        _screen = screen;
+        _composition = composition;
+        _screen = composition.Screen;
         _modalDialogs = modalDialogs;
         _palette = palette ?? PaletteRegistry.Default;
     }
@@ -34,7 +36,6 @@ internal sealed class LargeFileViewer
     {
         options ??= new LargeFileViewerOptions();
         _renderedFooterSignature = null;
-        ScreenSnapshot? saved = null;
         RandomAccessFileByteReader? reader = null;
 
         try
@@ -43,12 +44,18 @@ internal sealed class LargeFileViewer
             reader = opened.Reader;
             var state = opened.State;
 
-            var size = _screen.GetSize();
-            saved = _screen.Capture(new Rect(0, 0, size.Width, size.Height));
+            LargeFileViewerLayout? layout = null;
+            using var surface = _composition.OpenSurface(context =>
+            {
+                int contentHeight = Math.Max(0, context.Size.Height - 2);
+                var view = Draw(filePath, reader!, state, contentHeight, context.Size);
+                layout = new LargeFileViewerLayout(
+                    context.Size, contentHeight, view, ViewerFunctionKeyBarActions(state));
+            });
 
             while (true)
             {
-                var action = RunLoop(filePath, reader, state, options);
+                var action = RunLoop(filePath, reader, state, options, surface, () => layout);
                 if (action == ViewerLoopAction.Close)
                     return;
 
@@ -70,19 +77,11 @@ internal sealed class LargeFileViewer
         }
         catch (Exception ex)
         {
-            if (saved is not null)
-            {
-                _screen.Restore(saved);
-                saved = null;
-            }
-
             new MessageDialog(_modalDialogs).Show("Viewer", ex.Message);
         }
         finally
         {
             reader?.Dispose();
-            if (saved is not null)
-                _screen.Restore(saved);
         }
     }
 
@@ -106,16 +105,20 @@ internal sealed class LargeFileViewer
         string filePath,
         IFileByteReader reader,
         LargeFileViewerState state,
-        LargeFileViewerOptions options)
+        LargeFileViewerOptions options,
+        UiCompositionHost.UiSurfaceSession surface,
+        Func<LargeFileViewerLayout?> getLayout)
     {
         while (true)
         {
-            var size = _screen.GetSize();
-            int contentHeight = Math.Max(0, size.Height - 2);
-            var view = Draw(filePath, reader, state, contentHeight, size);
-            var functionKeyBarActions = ViewerFunctionKeyBarActions(state);
+            surface.Render();
+            var layout = getLayout() ?? throw new InvalidOperationException("Viewer layout is unavailable.");
+            var size = layout.Size;
+            int contentHeight = layout.ContentHeight;
+            var view = layout.View;
+            var functionKeyBarActions = layout.FunctionKeyActions;
 
-            var input = ReadViewerInput(reader, state, contentHeight);
+            var input = ReadViewerInput(surface, reader, state, contentHeight);
             if (TryHandleMouseWheel(input, reader, state, view))
                 continue;
 
@@ -200,7 +203,7 @@ internal sealed class LargeFileViewer
                     break;
 
                 case ConsoleKey.F1:
-                    new HelpViewer(_modalDialogs.Composition, _palette).Show();
+                    new HelpViewer(_composition, _palette).Show();
                     break;
 
                 case ConsoleKey.F2 when shift && !alt && !control:
@@ -260,7 +263,7 @@ internal sealed class LargeFileViewer
                     break;
 
                 case ConsoleKey.F8 when shift:
-                    ChangeEncoding(filePath, reader, state, contentHeight, size);
+                    ChangeEncoding(filePath, reader, state, contentHeight, size, surface);
                     break;
 
                 case ConsoleKey.F8 when !shift && !alt && !control:
@@ -376,24 +379,26 @@ internal sealed class LargeFileViewer
     }
 
     private ConsoleInputEvent ReadViewerInput(
+        UiCompositionHost.UiSurfaceSession surface,
         IFileByteReader reader,
         LargeFileViewerState state,
         int contentHeight)
     {
         if (!state.FollowMode)
-            return _screen.ReadInput();
+            return surface.ReadInput();
 
         long knownLength = reader.Length;
         while (true)
         {
-            if (_screen.TryReadInput(out var inputEvent))
+            if (surface.TryReadInput(out var inputEvent))
                 return inputEvent;
 
             long currentLength = reader.Length;
             if (currentLength != knownLength)
             {
                 MoveToEnd(reader, state, contentHeight);
-                return new KeyConsoleInputEvent(new ConsoleKeyInfo('\0', ConsoleKey.NoName, false, false, false));
+                surface.Render();
+                continue;
             }
 
             Thread.Sleep(FollowPollMs);
@@ -1007,7 +1012,8 @@ internal sealed class LargeFileViewer
         IFileByteReader reader,
         LargeFileViewerState state,
         int contentHeight,
-        ConsoleSize size)
+        ConsoleSize size,
+        UiCompositionHost.UiSurfaceSession surface)
     {
         var items = TextEncodingCatalog.CreateViewerCatalog(state.LineScanner.Detection);
         long anchorByteOffset = state.TopByteOffset;
@@ -1028,7 +1034,7 @@ internal sealed class LargeFileViewer
             previewRedraw: () =>
             {
                 _renderedFooterSignature = null;
-                Draw(filePath, reader, state, contentHeight, size);
+                surface.Render();
             });
 
         if (selected is null)
@@ -1041,6 +1047,12 @@ internal sealed class LargeFileViewer
 
         ApplyEncodingSelection(reader, state, selected.Selection, anchorByteOffset, originalViewMode);
     }
+
+    private sealed record LargeFileViewerLayout(
+        ConsoleSize Size,
+        int ContentHeight,
+        LargeFileRenderView View,
+        IReadOnlyList<FunctionKeyBarAction<ConsoleKeyInfo>> FunctionKeyActions);
 
     private static void CycleCommonEncoding(IFileByteReader reader, LargeFileViewerState state)
     {

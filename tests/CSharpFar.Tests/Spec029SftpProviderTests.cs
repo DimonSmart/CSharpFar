@@ -153,7 +153,7 @@ public sealed class Spec029SftpProviderTests : IDisposable
         };
         driver.EnqueueKey(Key(ConsoleKey.Escape));
 
-        var result = new SftpConnectionDialog(screen).Show(
+        var result = new SftpConnectionDialog(ModalTestHost.Create(screen)).Show(
             new SftpConnectionDialogRequest(
                 Connection: null,
                 SavedPassword: null,
@@ -194,7 +194,7 @@ public sealed class Spec029SftpProviderTests : IDisposable
         driver.EnqueueInput(LeftMouse(40, 9));
         driver.EnqueueKey(Key(ConsoleKey.Escape));
 
-        var result = new SftpConnectionDialog(screen).Show(
+        var result = new SftpConnectionDialog(ModalTestHost.Create(screen)).Show(
             new SftpConnectionDialogRequest(
                 TestConnection(),
                 SavedPassword: "secret-password",
@@ -214,7 +214,7 @@ public sealed class Spec029SftpProviderTests : IDisposable
         driver.EnqueueInput(LeftMouse(17, 16));
         driver.EnqueueKey(Key(ConsoleKey.F10));
 
-        var result = new SftpConnectionDialog(screen).Show(
+        var result = new SftpConnectionDialog(ModalTestHost.Create(screen)).Show(
             new SftpConnectionDialogRequest(
                 TestConnection(),
                 SavedPassword: "secret-password",
@@ -234,7 +234,7 @@ public sealed class Spec029SftpProviderTests : IDisposable
         driver.EnqueueKey(ShiftTab());
         driver.EnqueueKey(Key(ConsoleKey.Enter));
 
-        var result = new SftpConnectionDialog(screen).Show(
+        var result = new SftpConnectionDialog(ModalTestHost.Create(screen)).Show(
             new SftpConnectionDialogRequest(
                 TestConnection(),
                 SavedPassword: "secret-password",
@@ -253,7 +253,7 @@ public sealed class Spec029SftpProviderTests : IDisposable
         var screen = new ScreenRenderer(driver);
         driver.EnqueueKey(Key(ConsoleKey.Escape));
 
-        var result = new SftpConnectionDialog(screen).Show(
+        var result = new SftpConnectionDialog(ModalTestHost.Create(screen)).Show(
             new SftpConnectionDialogRequest(
                 TestConnection(),
                 SavedPassword: "secret-password",

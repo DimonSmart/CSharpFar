@@ -115,7 +115,7 @@ public sealed class SftpModule
             ? CredentialStore.TryReadPassword(connection.CredentialId)
             : null;
 
-        return new SftpConnectionDialog(StartupInfo.Ui.Screen).Show(
+        return new SftpConnectionDialog(StartupInfo.Ui.ModalDialogs).Show(
             new SftpConnectionDialogRequest(
                 connection,
                 savedPassword,

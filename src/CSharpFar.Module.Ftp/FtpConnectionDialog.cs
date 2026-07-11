@@ -58,13 +58,14 @@ internal sealed class FtpConnectionDialog
     private const int RowButtons = 15;
     private const int FocusRowCount = 16;
 
-    private readonly ScreenRenderer _screen;
+    private readonly ModalDialogHost _modalDialogs;
+    private ScreenRenderer _screen => _modalDialogs.Screen;
     private static readonly SingleLineTextHistoryRegistry HistoryRegistry = new();
     private readonly ModalDialogRenderer _modalRenderer = new();
 
-    public FtpConnectionDialog(ScreenRenderer screen)
+    public FtpConnectionDialog(ModalDialogHost modalDialogs)
     {
-        _screen = screen;
+        _modalDialogs = modalDialogs;
     }
 
     public FtpConnectionDialogResult? Show(
@@ -74,25 +75,12 @@ internal sealed class FtpConnectionDialog
         ArgumentNullException.ThrowIfNull(request);
         ArgumentNullException.ThrowIfNull(validate);
 
-        var size = _screen.GetSize();
-        var saved = _screen.Capture(new Rect(0, 0, size.Width, size.Height));
-        _screen.SetCursorVisible(false);
-
-        try
-        {
-            return RunLoop(request, validate, size);
-        }
-        finally
-        {
-            _screen.Restore(saved);
-            _screen.SetCursorVisible(false);
-        }
+        return RunLoop(request, validate);
     }
 
     private FtpConnectionDialogResult? RunLoop(
         FtpConnectionDialogRequest request,
-        Func<FtpConnectionDialogResult, FtpConnectionDialogValidationResult> validate,
-        ConsoleSize size)
+        Func<FtpConnectionDialogResult, FtpConnectionDialogValidationResult> validate)
     {
         var connection = request.Connection;
         var connectionName = TextBuffer(connection?.DisplayName ?? string.Empty);
@@ -127,6 +115,18 @@ internal sealed class FtpConnectionDialog
             new DialogButton("submit", submitLabel, submitLabel[0], IsDefault: true),
             new DialogButton("cancel", "Cancel", 'C'),
         ]);
+        ConsoleSize size = default;
+        using var modal = _modalDialogs.Open(context =>
+        {
+            size = context.Size;
+            Draw(
+                size,
+                connection is null ? "FTP/FTPS connection" : "Edit FTP/FTPS connection",
+                focusRow, bodyScrollTop, buttonBar, focusedButton, connectionName, host, port,
+                userName, password, remoteRoot, activePorts, histories, saveConnection, savePassword,
+                showInDrive, securityMode, dataMode, useDataTls, certificateFingerprint,
+                trustCertificate, request.AllowTemporaryConnection, error);
+        });
 
         while (true)
         {
@@ -138,33 +138,8 @@ internal sealed class FtpConnectionDialog
                     BodyViewportRows(size));
             ensureFocusVisible = true;
 
-            Draw(
-                size,
-                connection is null ? "FTP/FTPS connection" : "Edit FTP/FTPS connection",
-                focusRow,
-                bodyScrollTop,
-                buttonBar,
-                focusedButton,
-                connectionName,
-                host,
-                port,
-                userName,
-                password,
-                remoteRoot,
-                activePorts,
-                histories,
-                saveConnection,
-                savePassword,
-                showInDrive,
-                securityMode,
-                dataMode,
-                useDataTls,
-                certificateFingerprint,
-                trustCertificate,
-                request.AllowTemporaryConnection,
-                error);
-
-            var input = _screen.ReadInput();
+            modal.Render();
+            var input = modal.ReadInput();
             if (input is MouseConsoleInputEvent historyMouse &&
                 TryHandleHistoryDropdownMouse(
                     historyMouse,
@@ -864,8 +839,6 @@ internal sealed class FtpConnectionDialog
         bool allowTemporaryConnection,
         string? error)
     {
-        using var frame = _screen.BeginFrame();
-
         var geometry = GetDialogGeometry(size);
         var bounds = geometry.Bounds;
         var fill = FarDialogStyles.Fill;

@@ -162,7 +162,7 @@ public sealed class Spec035FtpProviderTests : IDisposable
         };
         driver.EnqueueKey(Key(ConsoleKey.Escape));
 
-        var result = new FtpConnectionDialog(screen).Show(
+        var result = new FtpConnectionDialog(ModalTestHost.Create(screen)).Show(
             new FtpConnectionDialogRequest(
                 Connection: null,
                 SavedPassword: null,
@@ -202,7 +202,7 @@ public sealed class Spec035FtpProviderTests : IDisposable
         driver.EnqueueInput(LeftMouse(40, 7));
         driver.EnqueueKey(Key(ConsoleKey.Escape));
 
-        var result = new FtpConnectionDialog(screen).Show(
+        var result = new FtpConnectionDialog(ModalTestHost.Create(screen)).Show(
             new FtpConnectionDialogRequest(
                 TestConnection(),
                 SavedPassword: "secret-password",
@@ -222,7 +222,7 @@ public sealed class Spec035FtpProviderTests : IDisposable
         driver.EnqueueInput(LeftMouse(14, 14));
         driver.EnqueueKey(Key(ConsoleKey.F10));
 
-        var result = new FtpConnectionDialog(screen).Show(
+        var result = new FtpConnectionDialog(ModalTestHost.Create(screen)).Show(
             new FtpConnectionDialogRequest(
                 TestConnection(),
                 SavedPassword: "secret-password",
@@ -242,7 +242,7 @@ public sealed class Spec035FtpProviderTests : IDisposable
         driver.EnqueueKey(ShiftTab());
         driver.EnqueueKey(Key(ConsoleKey.Enter));
 
-        var result = new FtpConnectionDialog(screen).Show(
+        var result = new FtpConnectionDialog(ModalTestHost.Create(screen)).Show(
             new FtpConnectionDialogRequest(
                 TestConnection(),
                 SavedPassword: "secret-password",
@@ -261,7 +261,7 @@ public sealed class Spec035FtpProviderTests : IDisposable
         var screen = new ScreenRenderer(driver);
         driver.EnqueueKey(Key(ConsoleKey.Escape));
 
-        var result = new FtpConnectionDialog(screen).Show(
+        var result = new FtpConnectionDialog(ModalTestHost.Create(screen)).Show(
             new FtpConnectionDialogRequest(
                 TestConnection(),
                 SavedPassword: "secret-password",

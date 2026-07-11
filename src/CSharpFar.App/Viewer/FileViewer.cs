@@ -28,7 +28,7 @@ internal sealed class FileViewer
             return;
         }
 
-        new LargeFileViewer(_screen, _modalDialogs, _palette).Show(filePath);
+        new LargeFileViewer(_modalDialogs.Composition, _modalDialogs, _palette).Show(filePath);
     }
 
     internal void Show(string filePath, LargeFileViewerOptions options)
@@ -39,6 +39,6 @@ internal sealed class FileViewer
             return;
         }
 
-        new LargeFileViewer(_screen, _modalDialogs, _palette).Show(filePath, options);
+        new LargeFileViewer(_modalDialogs.Composition, _modalDialogs, _palette).Show(filePath, options);
     }
 }

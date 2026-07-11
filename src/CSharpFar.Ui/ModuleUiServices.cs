@@ -13,12 +13,21 @@ public sealed class ModuleUiServices
 
     public ConsolePalette CurrentPalette => Palette();
 
+    /// <summary>
+    /// Captures the console only for legacy external-module compatibility.
+    /// Application-owned interactive UI must use <see cref="ModalDialogs"/>;
+    /// a snapshot is not a resize-safe window lifecycle.
+    /// </summary>
     public ScreenSnapshot SaveScreen()
     {
         var size = Screen.GetSize();
         return Screen.Capture(new Rect(0, 0, size.Width, size.Height));
     }
 
+    /// <summary>
+    /// Restores a legacy compatibility snapshot. Do not use this for
+    /// application-owned modal or interactive UI because it is not resize-safe.
+    /// </summary>
     public void RestoreScreen(ScreenSnapshot snapshot) =>
         Screen.Restore(snapshot);
 
