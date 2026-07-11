@@ -385,7 +385,7 @@ internal sealed class FileOperationDialog
             int bodyHeight = Math.Max(1, errorY - bodyTop);
 
             form.Render(new FormRenderContext(
-                context.Screen,
+                context,
                 new Rect(contentX, bodyTop, contentWidth, bodyHeight),
                 FarDialogStyles.Border,
                 new Rect(contentX, buttonY, contentWidth, 1)));

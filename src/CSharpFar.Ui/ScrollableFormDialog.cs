@@ -63,40 +63,29 @@ public interface IFormCursorProvider
 
 public sealed class FormRenderContext
 {
+    private readonly UiRenderContext _renderContext;
+
     public FormRenderContext(
-        ScreenRenderer screen,
+        UiRenderContext renderContext,
         Rect bodyBounds,
         CellStyle? scrollbarStyle = null,
         Rect? footerBounds = null)
-        : this(screen, screen.GetViewport(), bodyBounds, scrollbarStyle, footerBounds)
     {
-    }
+        ArgumentNullException.ThrowIfNull(renderContext);
 
-    public FormRenderContext(
-        ScreenRenderer screen,
-        ConsoleViewport viewport,
-        Rect bodyBounds,
-        CellStyle? scrollbarStyle = null,
-        Rect? footerBounds = null,
-        Action<Action>? publishOnStable = null)
-    {
-        Screen = screen;
-        Viewport = viewport;
+        _renderContext = renderContext;
         BodyBounds = bodyBounds;
         ScrollbarStyle = scrollbarStyle ?? FarDialogStyles.Border;
         FooterBounds = footerBounds;
-        _publishOnStable = publishOnStable;
     }
 
-    public ScreenRenderer Screen { get; }
-    public ConsoleViewport Viewport { get; }
+    public ScreenRenderer Screen => _renderContext.Screen;
+    public ConsoleViewport Viewport => _renderContext.Viewport;
     public Rect BodyBounds { get; }
     public CellStyle ScrollbarStyle { get; }
     public Rect? FooterBounds { get; }
 
-    private readonly Action<Action>? _publishOnStable;
-
-    public void PublishOnStable(Action commit) => (_publishOnStable ?? (static action => action()))(commit);
+    public void PublishOnStable(Action commit) => _renderContext.PublishOnStable(commit);
 }
 
 public sealed class FormRowRenderContext

@@ -262,6 +262,35 @@ public sealed class ScrollableFormDialogTests
     }
 
     [Fact]
+    public void Render_InterruptedAttemptPublishesOnlyFinalFormLayout()
+    {
+        var driver = new FakeConsoleDriver(20, 5)
+        {
+            ResizeAfterWriteCount = 1,
+            ResizeAfterWrite = static currentDriver => currentDriver.SetSize(20, 8),
+        };
+        var checkbox = new CheckBoxRow(new CheckBoxLine("one"));
+        var form = new ScrollableFormDialog([checkbox]);
+        int renderAttempts = 0;
+        var host = UiTestHost.Create(driver, context =>
+        {
+            renderAttempts++;
+            int y = context.Size.Height - 1;
+            var bounds = new Rect(0, y, context.Size.Width, 1);
+            form.Render(new FormRenderContext(context, bounds));
+        });
+
+        host.Composition.Render();
+
+        Assert.Equal(2, renderAttempts);
+        Assert.Equal(8, host.Composition.LastStableViewport?.Height);
+        Assert.Equal(FormInputResultKind.NotHandled, form.HandleMouse(Mouse(2, 4)).Kind);
+        Assert.False(checkbox.Value);
+        Assert.Equal(FormInputResultKind.ValueChanged, form.HandleMouse(Mouse(2, 7)).Kind);
+        Assert.True(checkbox.Value);
+    }
+
+    [Fact]
     public void ClickChoiceSegment_SelectsItem()
     {
         var choice = new ChoiceFormRow<string>(new ChoiceRow<string>(["one", "two"], static value => value), string.Empty);
@@ -674,10 +703,12 @@ public sealed class ScrollableFormDialogTests
     private static void Render(ScrollableFormDialog form, FakeConsoleDriver driver, int visibleRows)
     {
         var screen = new ScreenRenderer(driver);
-        form.Render(new FormRenderContext(
-            screen,
-            new Rect(0, 0, 20, visibleRows),
-            FarDialogStyles.Border));
+        var host = UiTestHost.Create(screen, context =>
+            form.Render(new FormRenderContext(
+                context,
+                new Rect(0, 0, 20, visibleRows),
+                FarDialogStyles.Border)));
+        host.Composition.Render();
     }
 
     private static FakeConsoleDriver RenderWithFooter(ScrollableFormDialog form, int bodyRows, int footerY)
@@ -690,11 +721,13 @@ public sealed class ScrollableFormDialogTests
     private static void RenderWithFooter(ScrollableFormDialog form, FakeConsoleDriver driver, int bodyRows, int footerY)
     {
         var screen = new ScreenRenderer(driver);
-        form.Render(new FormRenderContext(
-            screen,
-            new Rect(0, 0, 20, bodyRows),
-            FarDialogStyles.Border,
-            new Rect(0, footerY, 20, 1)));
+        var host = UiTestHost.Create(screen, context =>
+            form.Render(new FormRenderContext(
+                context,
+                new Rect(0, 0, 20, bodyRows),
+                FarDialogStyles.Border,
+                new Rect(0, footerY, 20, 1))));
+        host.Composition.Render();
     }
 
     private static ConsoleKeyInfo Key(ConsoleKey key) =>

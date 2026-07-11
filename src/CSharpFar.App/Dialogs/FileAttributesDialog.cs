@@ -279,7 +279,7 @@ internal sealed class FileAttributesDialog : IFileAttributesDialog
             int bodyHeight = Math.Max(1, errorY - bodyTop);
 
             form.Render(new FormRenderContext(
-                context.Screen,
+                context,
                 new Rect(contentX, bodyTop, contentWidth, bodyHeight),
                 FarDialogStyles.Border));
 

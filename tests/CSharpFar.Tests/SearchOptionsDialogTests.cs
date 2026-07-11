@@ -157,10 +157,8 @@ public sealed class SearchOptionsDialogTests
 
     private static SearchOptionsDialogResult? ShowDialog(FakeConsoleDriver driver, string initialPattern)
     {
-        var screen = new ScreenRenderer(driver);
-        var composition = new UiCompositionHost(screen);
-        composition.SetRootSurface(new ScreenRendererSurface(screen, _ => { }));
-        return new SearchOptionsDialog(new ModalDialogHost(composition)).Show(new SearchOptionsDialogOptions
+        var modalDialogs = ModalTestHost.Create(driver);
+        return new SearchOptionsDialog(modalDialogs).Show(new SearchOptionsDialogOptions
         {
             InitialPattern = initialPattern,
             HistoryKey = $"SearchOptionsDialogTests:{Guid.NewGuid()}",

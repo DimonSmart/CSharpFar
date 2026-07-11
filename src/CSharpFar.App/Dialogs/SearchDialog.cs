@@ -1,5 +1,4 @@
 using CSharpFar.App.Rendering;
-using CSharpFar.Console;
 using CSharpFar.Console.Input;
 using CSharpFar.Console.Models;
 using CSharpFar.Core.Models;
@@ -14,13 +13,11 @@ internal sealed class SearchDialog
 
     private static readonly SingleLineTextHistoryRegistry HistoryRegistry = new();
     private readonly ModalDialogHost _modalDialogs;
-    private readonly ScreenRenderer _screen;
     private readonly ModalDialogRenderer _modalRenderer = new();
 
     public SearchDialog(ModalDialogHost modalDialogs)
     {
         _modalDialogs = modalDialogs;
-        _screen = modalDialogs.Screen;
     }
 
     public SearchRequest? Show(string rootPath)
@@ -108,7 +105,8 @@ internal sealed class SearchDialog
         var form = new ScrollableFormDialog();
         string? error = null;
 
-        using var modal = _modalDialogs.Open(context =>
+        using var modal = _modalDialogs.Open(context => Draw(context, form, error));
+        while (true)
         {
             bool hasText = text.Text.Length > 0;
             form.SetRows(BuildRows(
@@ -129,12 +127,8 @@ internal sealed class SearchDialog
                 scopeRow,
                 buttons,
                 hasText));
-            Draw(context.Size, form, error);
-        });
-        modal.Render();
+            modal.Render();
 
-        while (true)
-        {
             var input = modal.ReadInput();
             FormInputResult result = input switch
             {
@@ -267,11 +261,11 @@ internal sealed class SearchDialog
         return request;
     }
 
-    private void Draw(ConsoleSize size, ScrollableFormDialog form, string? error)
+    private void Draw(UiRenderContext context, ScrollableFormDialog form, string? error)
     {
-        Rect outerBounds = OuterBounds(size);
+        Rect outerBounds = OuterBounds(context.Size);
 
-        _modalRenderer.Render(_screen, outerBounds, "Find file", true, FarDialogStyles.OuterOptions, FarDialogStyles.FrameOptions, (_, layout) =>
+        _modalRenderer.Render(context.Screen, outerBounds, "Find file", true, FarDialogStyles.OuterOptions, FarDialogStyles.FrameOptions, (_, layout) =>
         {
             Rect bounds = layout.FrameBounds;
             int contentX = bounds.X + 2;
@@ -281,12 +275,12 @@ internal sealed class SearchDialog
             int bodyHeight = Math.Max(1, errorY - bodyTop);
 
             form.Render(new FormRenderContext(
-                _screen,
+                context,
                 new Rect(contentX, bodyTop, contentWidth, bodyHeight),
                 FarDialogStyles.Border));
 
             string errorText = error is null ? string.Empty : Truncate(error, contentWidth);
-            _screen.Write(contentX, errorY, errorText.PadRight(contentWidth), FarDialogStyles.Error);
+            context.Screen.Write(contentX, errorY, errorText.PadRight(contentWidth), FarDialogStyles.Error);
         });
     }
 

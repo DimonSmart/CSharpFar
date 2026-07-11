@@ -66,13 +66,11 @@ public sealed class SearchOptionsDialog
     private static readonly SingleLineTextHistoryRegistry HistoryRegistry = new();
 
     private readonly ModalDialogHost _modalDialogs;
-    private readonly ScreenRenderer _screen;
     private readonly ModalDialogRenderer _modalRenderer = new();
 
     public SearchOptionsDialog(ModalDialogHost modalDialogs)
     {
         _modalDialogs = modalDialogs ?? throw new ArgumentNullException(nameof(modalDialogs));
-        _screen = modalDialogs.Screen;
     }
 
     public SearchOptionsDialogResult? Show(SearchOptionsDialogOptions options)
@@ -103,11 +101,10 @@ public sealed class SearchOptionsDialog
             FarDialogStyles.FocusedInput);
         var form = new ScrollableFormDialog(BuildRows(options, pattern, patternHistory, patternRowState, checkboxes, buttons));
         string? error = null;
-        SearchOptionsDialogLayout layout = default;
         using var session = _modalDialogs.Open(context =>
         {
-            layout = SearchOptionsDialogLayout.Create(context.Size, options.Width, options.Options.Count);
-            Draw(options, layout, form, error);
+            var layout = SearchOptionsDialogLayout.Create(context.Size, options.Width, options.Options.Count);
+            Draw(context, options, layout, form, error);
         });
 
         while (true)
@@ -241,6 +238,7 @@ public sealed class SearchOptionsDialog
         new(state.Pattern, new Dictionary<string, bool>(state.Options));
 
     private void Draw(
+        UiRenderContext context,
         SearchOptionsDialogOptions options,
         SearchOptionsDialogLayout layout,
         ScrollableFormDialog form,
@@ -248,7 +246,7 @@ public sealed class SearchOptionsDialog
     {
         var palette = UiTheme.Current;
         _modalRenderer.Render(
-            _screen,
+            context.Screen,
             layout.Bounds,
             options.Title,
             doubleBorder: true,
@@ -258,12 +256,12 @@ public sealed class SearchOptionsDialog
             {
                 Rect content = modalLayout.ContentBounds;
                 form.Render(new FormRenderContext(
-                    _screen,
+                    context,
                     new Rect(content.X, content.Y, content.Width, layout.BodyHeight),
                     FarDialogStyles.Border));
 
                 string errorText = error is null ? string.Empty : error;
-                _screen.Write(content.X, layout.ErrorY, ScrollableFormDialog.Fit(errorText, content.Width), PaletteStyles.DialogError(palette));
+                context.Screen.Write(content.X, layout.ErrorY, ScrollableFormDialog.Fit(errorText, content.Width), PaletteStyles.DialogError(palette));
             });
     }
 

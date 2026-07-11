@@ -15,13 +15,11 @@ internal sealed class CompareOptionsDialog
 
     private static readonly SingleLineTextHistoryRegistry HistoryRegistry = new();
     private readonly ModalDialogHost _modalDialogs;
-    private readonly ScreenRenderer _screen;
     private readonly ModalDialogRenderer _modalRenderer = new();
 
     public CompareOptionsDialog(ModalDialogHost modalDialogs)
     {
         _modalDialogs = modalDialogs;
-        _screen = modalDialogs.Screen;
     }
 
     public ComparisonOptions? Show(
@@ -297,11 +295,9 @@ internal sealed class CompareOptionsDialog
             int contentWidth = Math.Max(1, bounds.Width - 4);
             int errorY = bounds.Y + bounds.Height - 2;
             form.Render(new FormRenderContext(
-                context.Screen,
-                context.Viewport,
+                context,
                 new Rect(contentX, bounds.Y + 1, contentWidth, Math.Max(1, errorY - bounds.Y - 1)),
-                FarDialogStyles.Border,
-                publishOnStable: context.PublishOnStable));
+                FarDialogStyles.Border));
             context.Screen.Write(contentX, errorY, (error ?? "").PadRight(contentWidth), FarDialogStyles.Error);
         });
     }
