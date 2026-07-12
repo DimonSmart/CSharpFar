@@ -137,10 +137,15 @@ public sealed class ModalDialogSession : IDisposable
     internal ModalDialogSession(ModalDialogLayerScope scope, ModalDialogLayer<Unit> layer) =>
         (_scope, _layer) = (scope, layer);
 
-    public void Render() => _scope.Composition.Render();
+    public void Render()
+    {
+        _scope.EnsureActive();
+        _scope.Composition.Render();
+    }
 
     public ConsoleInputEvent ReadInput(CancellationToken cancellationToken = default)
     {
+        _scope.EnsureActive();
         if (_layer.TryTakeInput(out var pending))
             return pending.Input;
 
@@ -158,6 +163,7 @@ public sealed class ModalDialogSession : IDisposable
 
     public bool TryReadInput(out ConsoleInputEvent? input)
     {
+        _scope.EnsureActive();
         if (_layer.TryTakeInput(out var pending))
         {
             input = pending.Input;
@@ -184,7 +190,11 @@ public sealed class ModalDialogSession : IDisposable
         return false;
     }
 
-    public void Dispose() => _scope.Dispose();
+    public void Dispose()
+    {
+        _scope.Dispose();
+        _layer.ClearPendingInput();
+    }
 }
 
 public sealed class ModalDialogSession<TFrame> : IDisposable
@@ -197,12 +207,14 @@ public sealed class ModalDialogSession<TFrame> : IDisposable
 
     public TFrame Render()
     {
+        _scope.EnsureActive();
         _scope.Composition.Render();
         return _layer.CommittedFrame;
     }
 
     public ConsoleInputEvent ReadInput(out TFrame frame, CancellationToken cancellationToken = default)
     {
+        _scope.EnsureActive();
         if (_layer.TryTakeInput(out var pending))
         {
             frame = pending.Frame;
@@ -226,6 +238,7 @@ public sealed class ModalDialogSession<TFrame> : IDisposable
 
     public bool TryReadInput(out ConsoleInputEvent? input, out TFrame frame)
     {
+        _scope.EnsureActive();
         if (_layer.TryTakeInput(out var pending))
         {
             input = pending.Input;
@@ -255,7 +268,11 @@ public sealed class ModalDialogSession<TFrame> : IDisposable
         return false;
     }
 
-    public void Dispose() => _scope.Dispose();
+    public void Dispose()
+    {
+        _scope.Dispose();
+        _layer.ClearPendingInput();
+    }
 }
 
 internal sealed class ModalDialogLayerScope : IDisposable
@@ -266,7 +283,15 @@ internal sealed class ModalDialogLayerScope : IDisposable
     internal ModalDialogLayerScope(UiCompositionHost composition, IDisposable overlay) =>
         (_composition, _overlay) = (composition, overlay);
 
+    public bool IsDisposed => _composition is null || _overlay is null;
+
     public UiCompositionHost Composition => _composition ?? throw new ObjectDisposedException(nameof(ModalDialogSession));
+
+    public void EnsureActive()
+    {
+        if (IsDisposed)
+            throw new ObjectDisposedException(nameof(ModalDialogSession));
+    }
 
     public void Dispose()
     {
@@ -319,6 +344,8 @@ internal sealed class ModalDialogLayer<TFrame> : UiLayer<TFrame>
         _pendingInput = null;
         return true;
     }
+
+    internal void ClearPendingInput() => _pendingInput = null;
 }
 
 internal sealed record ModalDialogRoutedInput<TFrame>(

@@ -378,6 +378,7 @@ internal static class ApplicationServicesBuilder
             CommandRegistry = commandServices.CommandRegistry,
             RenderContext = rendering.RenderContext,
             RenderCoordinator = renderCoordinator,
+            ApplicationSurface = applicationSurface,
             Composition = composition,
             ModalDialogs = modalDialogs,
             TerminalSurface = terminalSurface,
