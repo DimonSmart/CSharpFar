@@ -11,7 +11,14 @@ public sealed class UiInteractionFrame
     {
         ArgumentNullException.ThrowIfNull(hitRegions);
 
-        HitRegions = Array.AsReadOnly(hitRegions.ToArray());
+        var snapshot = hitRegions.ToArray();
+        foreach (UiHitRegion? region in snapshot)
+        {
+            if (region is null)
+                throw new ArgumentException("Interaction frame hit regions cannot contain null.", nameof(hitRegions));
+        }
+
+        HitRegions = Array.AsReadOnly(snapshot);
         Focus = focus ?? UiFocusFrame.Empty;
     }
 

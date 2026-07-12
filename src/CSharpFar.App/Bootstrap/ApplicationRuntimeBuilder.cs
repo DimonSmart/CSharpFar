@@ -1,4 +1,5 @@
 using CSharpFar.App.AutoRefresh;
+using CSharpFar.App.Rendering;
 using CSharpFar.App.Viewer;
 using CSharpFar.Console;
 using CSharpFar.Ui;
@@ -9,12 +10,14 @@ internal static class ApplicationRuntimeBuilder
 {
     public static ApplicationRuntime Create(
         UiCompositionHost composition,
+        ApplicationUiSurface applicationSurface,
         ApplicationServiceCallbacks callbacks,
         PanelAutoRefreshService autoRefresh,
         QuickViewDirectorySizeController quickViewDirectorySize)
     {
         return new ApplicationRuntime(
             composition,
+            applicationSurface,
             new ApplicationRuntimeContext
             {
                 IsRunning = () => callbacks.IsRunning(),

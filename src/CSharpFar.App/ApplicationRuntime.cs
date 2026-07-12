@@ -1,5 +1,6 @@
 using CSharpFar.Console;
 using CSharpFar.Console.Input;
+using CSharpFar.App.Rendering;
 using CSharpFar.Ui;
 
 namespace CSharpFar.App;
@@ -7,11 +8,16 @@ namespace CSharpFar.App;
 internal sealed class ApplicationRuntime
 {
     private readonly UiCompositionHost _composition;
+    private readonly ApplicationUiSurface _applicationSurface;
     private readonly ApplicationRuntimeContext _context;
 
-    public ApplicationRuntime(UiCompositionHost composition, ApplicationRuntimeContext context)
+    public ApplicationRuntime(
+        UiCompositionHost composition,
+        ApplicationUiSurface applicationSurface,
+        ApplicationRuntimeContext context)
     {
         _composition = composition;
+        _applicationSurface = applicationSurface;
         _context = context;
     }
 
@@ -39,8 +45,14 @@ internal sealed class ApplicationRuntime
                     continue;
                 }
 
-                var renderRequest = DispatchInput(evt);
-                if (!_context.IsRunning() || !renderRequest.ShouldRender)
+                UiInputResult routed = _composition.DispatchInput(evt);
+                ApplicationRuntimeRenderRequest applicationRequest = ApplicationRuntimeRenderRequest.None;
+
+                if (_applicationSurface.TryTakeInput(out var applicationInput))
+                    applicationRequest = DispatchApplicationInput(applicationInput.Input);
+
+                bool shouldRender = routed.Invalidate || applicationRequest.ShouldRender;
+                if (!_context.IsRunning() || !shouldRender)
                     continue;
 
                 _composition.Render();
@@ -56,8 +68,8 @@ internal sealed class ApplicationRuntime
         }
     }
 
-    private ApplicationRuntimeRenderRequest DispatchInput(ConsoleInputEvent evt) =>
-        evt switch
+    private ApplicationRuntimeRenderRequest DispatchApplicationInput(ConsoleInputEvent input) =>
+        input switch
         {
             KeyConsoleInputEvent { Key: var key } => _context.HandleKeyInput(key),
             ModifierKeyConsoleInputEvent { Modifiers: var modifiers } => _context.HandleModifierInput(modifiers),

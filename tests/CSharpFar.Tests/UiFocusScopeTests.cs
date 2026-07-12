@@ -65,6 +65,19 @@ public sealed class UiFocusScopeTests
     }
 
     [Fact]
+    public void Frame_RejectsNullEntry()
+    {
+        var entries = new UiFocusEntry?[]
+        {
+            new(new UiTargetId("a"), 0),
+            null,
+        };
+
+        var exception = Assert.Throws<ArgumentException>(() => new UiFocusFrame(entries!));
+        Assert.Equal("entries", exception.ParamName);
+    }
+
+    [Fact]
     public void Commit_PreservesCurrentTargetWhenStillEnabled()
     {
         var scope = new UiFocusScope();

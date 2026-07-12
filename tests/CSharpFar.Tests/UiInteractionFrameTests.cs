@@ -61,6 +61,19 @@ public sealed class UiInteractionFrameTests
     }
 
     [Fact]
+    public void Frame_RejectsNullRegion()
+    {
+        var regions = new UiHitRegion?[]
+        {
+            new(new UiTargetId("a"), new Rect(0, 0, 1, 1)),
+            null,
+        };
+
+        var exception = Assert.Throws<ArgumentException>(() => new UiInteractionFrame(regions!));
+        Assert.Equal("hitRegions", exception.ParamName);
+    }
+
+    [Fact]
     public void OneTargetCanHaveMultipleRegions()
     {
         var target = new UiTargetId("a");

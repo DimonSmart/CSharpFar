@@ -222,6 +222,7 @@ internal static class ApplicationServicesBuilder
         var commandLineRenderer = rendering.CommandLineRenderer;
         var renderCoordinator = rendering.RenderCoordinator;
         var composition = rendering.Composition;
+        var applicationSurface = rendering.ApplicationSurface;
         var modalDialogs = rendering.ModalDialogs;
         var quickViewDirectorySize = rendering.QuickViewDirectorySize;
         var searchResults = new PanelSearchResultsService(
@@ -342,6 +343,7 @@ internal static class ApplicationServicesBuilder
             highlightService);
         var runtime = ApplicationRuntimeBuilder.Create(
             composition,
+            applicationSurface,
             callbacks,
             autoRefresh,
             quickViewDirectorySize);

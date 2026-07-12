@@ -141,6 +141,9 @@ public sealed class ModalDialogSession : IDisposable
 
     public ConsoleInputEvent ReadInput(CancellationToken cancellationToken = default)
     {
+        if (_layer.TryTakeInput(out var pending))
+            return pending.Input;
+
         while (true)
         {
             ConsoleInputEvent semanticInput = _scope.Composition.ReadCompositionInput(cancellationToken);
@@ -155,6 +158,12 @@ public sealed class ModalDialogSession : IDisposable
 
     public bool TryReadInput(out ConsoleInputEvent? input)
     {
+        if (_layer.TryTakeInput(out var pending))
+        {
+            input = pending.Input;
+            return true;
+        }
+
         while (_scope.Composition.TryReadCompositionInput(out ConsoleInputEvent? semanticInput))
         {
             if (semanticInput is null)
@@ -194,6 +203,12 @@ public sealed class ModalDialogSession<TFrame> : IDisposable
 
     public ConsoleInputEvent ReadInput(out TFrame frame, CancellationToken cancellationToken = default)
     {
+        if (_layer.TryTakeInput(out var pending))
+        {
+            frame = pending.Frame;
+            return pending.Input;
+        }
+
         while (true)
         {
             ConsoleInputEvent semanticInput = _scope.Composition.ReadCompositionInput(cancellationToken);
@@ -211,6 +226,13 @@ public sealed class ModalDialogSession<TFrame> : IDisposable
 
     public bool TryReadInput(out ConsoleInputEvent? input, out TFrame frame)
     {
+        if (_layer.TryTakeInput(out var pending))
+        {
+            input = pending.Input;
+            frame = pending.Frame;
+            return true;
+        }
+
         while (_scope.Composition.TryReadCompositionInput(out ConsoleInputEvent? semanticInput))
         {
             if (semanticInput is null)
@@ -263,7 +285,7 @@ internal sealed class ModalDialogLayerScope : IDisposable
 internal sealed class ModalDialogLayer<TFrame> : UiLayer<TFrame>
 {
     private readonly Func<UiRenderContext, TFrame> _render;
-    private readonly Queue<ModalDialogRoutedInput<TFrame>> _pendingInput = [];
+    private ModalDialogRoutedInput<TFrame>? _pendingInput;
 
     public ModalDialogLayer(Func<UiRenderContext, TFrame> render) =>
         _render = render;
@@ -278,23 +300,27 @@ internal sealed class ModalDialogLayer<TFrame> : UiLayer<TFrame>
         TFrame frame,
         UiInputRouteContext context)
     {
-        _pendingInput.Enqueue(new ModalDialogRoutedInput<TFrame>(input, frame));
-        return UiInputResult.NotHandled;
+        if (_pendingInput is not null)
+            throw new InvalidOperationException("Modal input was dispatched before the previous input was consumed.");
+
+        _pendingInput = new ModalDialogRoutedInput<TFrame>(input, frame);
+        return UiInputResult.HandledResult;
     }
 
     public bool TryTakeInput(out ModalDialogRoutedInput<TFrame> routed)
     {
-        if (_pendingInput.Count == 0)
+        if (_pendingInput is null)
         {
-            routed = default!;
+            routed = null!;
             return false;
         }
 
-        routed = _pendingInput.Dequeue();
+        routed = _pendingInput;
+        _pendingInput = null;
         return true;
     }
 }
 
-internal readonly record struct ModalDialogRoutedInput<TFrame>(
+internal sealed record ModalDialogRoutedInput<TFrame>(
     ConsoleInputEvent Input,
     TFrame Frame);

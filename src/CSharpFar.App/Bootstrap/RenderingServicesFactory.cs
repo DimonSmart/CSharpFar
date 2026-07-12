@@ -91,7 +91,8 @@ internal static class RenderingServicesFactory
             overlayRenderer,
             commandLineRenderer);
         var composition = new UiCompositionHost(screen);
-        composition.SetRootSurface(new ApplicationUiSurface(renderContext, renderCoordinator));
+        var applicationSurface = new ApplicationUiSurface(renderContext, renderCoordinator);
+        composition.SetRootSurface(applicationSurface);
         var modalDialogs = new ModalDialogHost(composition);
 
         return new RenderingServices(
@@ -100,6 +101,7 @@ internal static class RenderingServicesFactory
             quickViewDirectorySize,
             renderContext,
             renderCoordinator,
+            applicationSurface,
             composition,
             modalDialogs);
     }
@@ -111,5 +113,6 @@ internal sealed record RenderingServices(
     QuickViewDirectorySizeController QuickViewDirectorySize,
     ApplicationRenderContext RenderContext,
     ApplicationRenderCoordinator RenderCoordinator,
+    ApplicationUiSurface ApplicationSurface,
     UiCompositionHost Composition,
     ModalDialogHost ModalDialogs);

@@ -12,8 +12,11 @@ public sealed class UiFocusFrame
 
         var snapshot = entries.ToArray();
         var targets = new HashSet<UiTargetId>();
-        foreach (UiFocusEntry entry in snapshot)
+        foreach (UiFocusEntry? entry in snapshot)
         {
+            if (entry is null)
+                throw new ArgumentException("Focus frame entries cannot contain null.", nameof(entries));
+
             if (!targets.Add(entry.Target))
                 throw new ArgumentException($"Duplicate UI focus target '{entry.Target}'.", nameof(entries));
         }
