@@ -6,10 +6,12 @@ public sealed class UiFocusScope
 
     public UiFocusFrame CurrentFrame { get; private set; } = UiFocusFrame.Empty;
 
-    public bool HasFocus => FocusedTarget.HasValue;
+    public bool HasFocus => FocusedTarget is not null;
 
     public bool TryFocus(UiTargetId target)
     {
+        ArgumentNullException.ThrowIfNull(target);
+
         if (FindEntry(target) is not { IsEnabled: true })
             return false;
 

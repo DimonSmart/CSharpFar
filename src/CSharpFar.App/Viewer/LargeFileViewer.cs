@@ -484,7 +484,7 @@ internal sealed class LargeFileViewer
         string wrap = !state.IsHexMode && state.WrapLines
             ? state.WordWrap ? " WRAP-W" : " WRAP-C"
             : string.Empty;
-        string follow = state.FollowMode ? " F" : string.Empty;
+        string follow = state.FollowMode ? " F " : string.Empty;
         string found = state.SearchMatch is not null ? " FIND" : string.Empty;
         string posSection = reader.Length == 0
             ? $" 0%{mode}{wrap}{follow}{found} "
@@ -494,7 +494,7 @@ internal sealed class LargeFileViewer
         string nameSection = FormatHeaderPath(filePath, nameWidth);
 
         string header = nameSection.PadRight(nameWidth) + posSection;
-        _screen.Write(0, 0, header, PaletteStyles.PathHeaderActive(_palette));
+        _screen.WriteForced(0, 0, header, PaletteStyles.PathHeaderActive(_palette));
     }
 
     private static string FormatHeaderPath(string filePath, int width)
@@ -543,7 +543,7 @@ internal sealed class LargeFileViewer
             }
             else
             {
-                _screen.Write(0, row + 1, new string(' ', width), PaletteStyles.CommandLine(_palette));
+                _screen.WriteForced(0, row + 1, new string(' ', width), PaletteStyles.CommandLine(_palette));
             }
         }
 
@@ -592,7 +592,7 @@ internal sealed class LargeFileViewer
 
         while (row < contentHeight)
         {
-            _screen.Write(0, row + 1, new string(' ', width), PaletteStyles.CommandLine(_palette));
+            _screen.WriteForced(0, row + 1, new string(' ', width), PaletteStyles.CommandLine(_palette));
             row++;
         }
 
@@ -620,7 +620,7 @@ internal sealed class LargeFileViewer
             var style = IsHexMatchOnRow(state.SearchMatch, rowOffset)
                 ? PaletteStyles.InputHighlight(_palette)
                 : PaletteStyles.CommandLine(_palette);
-            _screen.Write(0, row + 1, FormatLine(text, state.HorizontalOffset, width), style);
+            _screen.WriteForced(0, row + 1, FormatLine(text, state.HorizontalOffset, width), style);
         }
 
         return new LargeFileRenderView(rows, nextOffset);
@@ -646,7 +646,7 @@ internal sealed class LargeFileViewer
         string sanitized = SanitizeTextForConsole(line);
         if (scrollLeft >= sanitized.Length)
         {
-            _screen.Write(0, y, new string(' ', width), PaletteStyles.CommandLine(_palette));
+            _screen.WriteForced(0, y, new string(' ', width), PaletteStyles.CommandLine(_palette));
             return;
         }
 
@@ -654,7 +654,7 @@ internal sealed class LargeFileViewer
         if (visible.Length > width)
             visible = visible[..width];
 
-        _screen.Write(0, y, visible.PadRight(width), PaletteStyles.CommandLine(_palette));
+        _screen.WriteForced(0, y, visible.PadRight(width), PaletteStyles.CommandLine(_palette));
         if (match is not { IsHex: false } || match.LineStartOffset != lineStartOffset)
             return;
 

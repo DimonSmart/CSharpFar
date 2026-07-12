@@ -42,7 +42,7 @@ internal sealed class PanelVisibilityController
     {
         ResetTransientNavigationUi();
 
-        if (_session.App.HiddenPanels == HiddenPanels.Both)
+        if (_session.App.HiddenPanels != HiddenPanels.None)
         {
             _session.App.HiddenPanels = HiddenPanels.None;
             _terminalSurface.ScrollToBottomAndSyncViewport();

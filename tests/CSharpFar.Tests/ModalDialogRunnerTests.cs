@@ -286,6 +286,30 @@ public sealed class ModalDialogRunnerTests
         Assert.True(parentRenders >= 2);
     }
 
+    [Fact]
+    public void SessionReadInput_RoutesToModalLayerAndBlocksLowerSurface()
+    {
+        var driver = new FakeConsoleDriver();
+        driver.EnqueueKey(Key(ConsoleKey.Enter));
+        var screen = new ScreenRenderer(driver);
+        var lower = new LowerInputSurface(screen);
+        var composition = new UiCompositionHost(screen);
+        composition.SetRootSurface(lower);
+        var modals = new ModalDialogHost(composition);
+        using var session = modals.Open(context =>
+        {
+            context.Screen.Write(0, 0, "M", Style);
+            return context.Viewport;
+        });
+        session.Render();
+
+        var input = session.ReadInput(out var frame);
+
+        Assert.IsType<KeyConsoleInputEvent>(input);
+        Assert.Equal(driver.GetViewport(), frame);
+        Assert.Equal(0, lower.RouteCount);
+    }
+
     private static ModalDialogHost CreateHost(FakeConsoleDriver driver, out UiCompositionHost composition)
     {
         var screen = new ScreenRenderer(driver);
@@ -298,4 +322,20 @@ public sealed class ModalDialogRunnerTests
         new('\0', key, shift: false, alt: false, control: false);
 
     private static CellStyle Style => new(ConsoleColor.Gray, ConsoleColor.Black);
+
+    private sealed class LowerInputSurface(ScreenRenderer screen) : IUiSurface, IUiLayer
+    {
+        public int RouteCount { get; private set; }
+        public UiLayerInputPolicy InputPolicy => UiLayerInputPolicy.Bubble;
+        public UiFocusScope FocusScope { get; } = new();
+        public IDisposable BeginFrame(UiRenderRequest request) => screen.BeginFrame();
+        public void Render(UiRenderContext context) { }
+        public void CompleteFrame(UiFrameCompletion completion) { }
+
+        public UiInputResult RouteInput(ConsoleInputEvent input, UiInputRouteContext context)
+        {
+            RouteCount++;
+            return UiInputResult.NotHandled;
+        }
+    }
 }

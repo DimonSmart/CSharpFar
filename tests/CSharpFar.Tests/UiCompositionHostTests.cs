@@ -25,6 +25,33 @@ public sealed class UiCompositionHostTests
     }
 
     [Fact]
+    public void Render_InteractiveSurfaceUsesLayerRenderNotSurfaceRender()
+    {
+        var host = new UiCompositionHost(new ScreenRenderer(new FakeConsoleDriver()));
+        var surface = new SplitSurface(host.Screen);
+        host.SetRootSurface(surface);
+
+        host.Render();
+
+        Assert.Equal(1, surface.BeginCount);
+        Assert.Equal(1, surface.LayerRenderCount);
+        Assert.Equal(0, surface.SurfaceRenderCount);
+        Assert.Equal(1, surface.CompleteCount);
+    }
+
+    [Fact]
+    public void InteractiveLayer_CannotBeRegisteredTwice()
+    {
+        var host = new UiCompositionHost(new ScreenRenderer(new FakeConsoleDriver()));
+        host.SetRootSurface(new ScreenRendererSurface(host.Screen, _ => { }));
+        var layer = new TestInteractiveLayer(UiLayerInputPolicy.Bubble);
+
+        using var scope = host.PushOverlay(layer);
+
+        Assert.Throws<InvalidOperationException>(() => host.PushOverlay(layer));
+    }
+
+    [Fact]
     public void TemporarySurface_HidesRootAndDisposalRestoresIt()
     {
         var host = new UiCompositionHost(new ScreenRenderer(new FakeConsoleDriver()));
@@ -447,5 +474,40 @@ public sealed class UiCompositionHostTests
         public IDisposable BeginFrame(UiRenderRequest request) => _screen.BeginFrame();
         public void Render(UiRenderContext context) => _render(context);
         public void CompleteFrame(UiFrameCompletion completion) => _completions.Add(completion);
+    }
+
+    private sealed class SplitSurface(ScreenRenderer screen) : IUiSurface, IUiLayer
+    {
+        public int BeginCount { get; private set; }
+        public int SurfaceRenderCount { get; private set; }
+        public int LayerRenderCount { get; private set; }
+        public int CompleteCount { get; private set; }
+
+        public UiLayerInputPolicy InputPolicy => UiLayerInputPolicy.Bubble;
+        public UiFocusScope FocusScope { get; } = new();
+
+        public IDisposable BeginFrame(UiRenderRequest request)
+        {
+            BeginCount++;
+            return screen.BeginFrame();
+        }
+
+        void IUiSurface.Render(UiRenderContext context) => SurfaceRenderCount++;
+
+        void IUiLayer.Render(UiRenderContext context) => LayerRenderCount++;
+
+        public void CompleteFrame(UiFrameCompletion completion) => CompleteCount++;
+
+        public UiInputResult RouteInput(ConsoleInputEvent input, UiInputRouteContext context) =>
+            UiInputResult.NotHandled;
+    }
+
+    private sealed class TestInteractiveLayer(UiLayerInputPolicy policy) : IUiLayer
+    {
+        public UiLayerInputPolicy InputPolicy => policy;
+        public UiFocusScope FocusScope { get; } = new();
+        public void Render(UiRenderContext context) { }
+        public UiInputResult RouteInput(ConsoleInputEvent input, UiInputRouteContext context) =>
+            UiInputResult.NotHandled;
     }
 }

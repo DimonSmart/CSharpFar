@@ -5,6 +5,25 @@ namespace CSharpFar.Tests;
 public sealed class UiFocusScopeTests
 {
     [Fact]
+    public void TargetId_ValidatesAndPreservesValueSemantics()
+    {
+        Assert.Throws<ArgumentException>(() => new UiTargetId(null!));
+        Assert.Throws<ArgumentException>(() => new UiTargetId(string.Empty));
+        Assert.Throws<ArgumentException>(() => new UiTargetId("   "));
+
+        Assert.Equal(new UiTargetId("target"), new UiTargetId("target"));
+        Assert.NotEqual(new UiTargetId("target"), new UiTargetId("TARGET"));
+        Assert.Equal("target", new UiTargetId("target").ToString());
+    }
+
+    [Fact]
+    public void Entries_RejectNullTargets()
+    {
+        Assert.Throws<ArgumentNullException>(() => new UiFocusEntry(null!, 0));
+        Assert.Throws<ArgumentNullException>(() => new UiHitRegion(null!, new CSharpFar.Console.Models.Rect(0, 0, 1, 1)));
+    }
+
+    [Fact]
     public void Commit_SelectsDefaultTarget()
     {
         var scope = new UiFocusScope();

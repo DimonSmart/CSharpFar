@@ -16,21 +16,27 @@ public sealed class ModalDialogHost
 
     public UiCompositionHost Composition => _composition;
 
-    public ModalDialogSession Open(Action<UiRenderContext> render) =>
-        new(new ModalDialogLayerScope(_composition, _composition.PushOverlay(render)));
+    public ModalDialogSession Open(Action<UiRenderContext> render)
+    {
+        ArgumentNullException.ThrowIfNull(render);
+
+        var layer = new ModalDialogLayer<Unit>(context =>
+        {
+            render(context);
+            return default;
+        });
+        var overlay = _composition.PushOverlay(layer);
+        return new ModalDialogSession(new ModalDialogLayerScope(_composition, overlay), layer);
+    }
 
     public ModalDialogSession<TFrame> Open<TFrame>(Func<UiRenderContext, TFrame> render)
     {
         ArgumentNullException.ThrowIfNull(render);
 
-        var committed = new UiCommittedState<TFrame>();
-        var overlay = _composition.PushOverlay(context =>
-        {
-            TFrame frame = render(context);
-            committed.Stage(context, frame);
-        });
+        var layer = new ModalDialogLayer<TFrame>(render);
+        var overlay = _composition.PushOverlay(layer);
 
-        return new ModalDialogSession<TFrame>(new ModalDialogLayerScope(_composition, overlay), committed);
+        return new ModalDialogSession<TFrame>(new ModalDialogLayerScope(_composition, overlay), layer);
     }
 
     public TResult Run<TFrame, TResult>(
@@ -126,16 +132,48 @@ internal readonly struct Unit;
 public sealed class ModalDialogSession : IDisposable
 {
     private readonly ModalDialogLayerScope _scope;
+    private readonly ModalDialogLayer<Unit> _layer;
 
-    internal ModalDialogSession(ModalDialogLayerScope scope) => _scope = scope;
+    internal ModalDialogSession(ModalDialogLayerScope scope, ModalDialogLayer<Unit> layer) =>
+        (_scope, _layer) = (scope, layer);
 
     public void Render() => _scope.Composition.Render();
 
     public ConsoleInputEvent ReadInput(CancellationToken cancellationToken = default)
-        => _scope.Composition.ReadCompositionInput(cancellationToken);
+    {
+        while (true)
+        {
+            ConsoleInputEvent semanticInput = _scope.Composition.ReadCompositionInput(cancellationToken);
+            UiInputResult dispatch = _scope.Composition.DispatchInput(semanticInput);
+            if (dispatch.Invalidate)
+                _scope.Composition.Render();
+
+            if (_layer.TryTakeInput(out var routed))
+                return routed.Input;
+        }
+    }
 
     public bool TryReadInput(out ConsoleInputEvent? input)
-        => _scope.Composition.TryReadCompositionInput(out input);
+    {
+        while (_scope.Composition.TryReadCompositionInput(out ConsoleInputEvent? semanticInput))
+        {
+            if (semanticInput is null)
+                continue;
+
+            UiInputResult dispatch = _scope.Composition.DispatchInput(semanticInput);
+            if (dispatch.Invalidate)
+                _scope.Composition.Render();
+
+            if (_layer.TryTakeInput(out var routed))
+            {
+                input = routed.Input;
+                return true;
+            }
+        }
+
+        input = null;
+        return false;
+    }
 
     public void Dispose() => _scope.Dispose();
 }
@@ -143,29 +181,56 @@ public sealed class ModalDialogSession : IDisposable
 public sealed class ModalDialogSession<TFrame> : IDisposable
 {
     private readonly ModalDialogLayerScope _scope;
-    private readonly UiCommittedState<TFrame> _committed;
+    private readonly ModalDialogLayer<TFrame> _layer;
 
-    internal ModalDialogSession(ModalDialogLayerScope scope, UiCommittedState<TFrame> committed) =>
-        (_scope, _committed) = (scope, committed);
+    internal ModalDialogSession(ModalDialogLayerScope scope, ModalDialogLayer<TFrame> layer) =>
+        (_scope, _layer) = (scope, layer);
 
     public TFrame Render()
     {
         _scope.Composition.Render();
-        return _committed.Value;
+        return _layer.CommittedFrame;
     }
 
     public ConsoleInputEvent ReadInput(out TFrame frame, CancellationToken cancellationToken = default)
     {
-        var input = _scope.Composition.ReadCompositionInput(cancellationToken);
-        frame = _committed.Value;
-        return input;
+        while (true)
+        {
+            ConsoleInputEvent semanticInput = _scope.Composition.ReadCompositionInput(cancellationToken);
+            UiInputResult dispatch = _scope.Composition.DispatchInput(semanticInput);
+            if (dispatch.Invalidate)
+                _scope.Composition.Render();
+
+            if (!_layer.TryTakeInput(out var routed))
+                continue;
+
+            frame = routed.Frame;
+            return routed.Input;
+        }
     }
 
     public bool TryReadInput(out ConsoleInputEvent? input, out TFrame frame)
     {
-        bool result = _scope.Composition.TryReadCompositionInput(out input);
-        frame = _committed.Value;
-        return result;
+        while (_scope.Composition.TryReadCompositionInput(out ConsoleInputEvent? semanticInput))
+        {
+            if (semanticInput is null)
+                continue;
+
+            UiInputResult dispatch = _scope.Composition.DispatchInput(semanticInput);
+            if (dispatch.Invalidate)
+                _scope.Composition.Render();
+
+            if (!_layer.TryTakeInput(out var routed))
+                continue;
+
+            input = routed.Input;
+            frame = routed.Frame;
+            return true;
+        }
+
+        input = null;
+        frame = _layer.CommittedFrame;
+        return false;
     }
 
     public void Dispose() => _scope.Dispose();
@@ -194,3 +259,42 @@ internal sealed class ModalDialogLayerScope : IDisposable
         composition.Render();
     }
 }
+
+internal sealed class ModalDialogLayer<TFrame> : UiLayer<TFrame>
+{
+    private readonly Func<UiRenderContext, TFrame> _render;
+    private readonly Queue<ModalDialogRoutedInput<TFrame>> _pendingInput = [];
+
+    public ModalDialogLayer(Func<UiRenderContext, TFrame> render) =>
+        _render = render;
+
+    public override UiLayerInputPolicy InputPolicy => UiLayerInputPolicy.Modal;
+
+    protected override TFrame RenderFrame(UiRenderContext context) =>
+        _render(context);
+
+    protected override UiInputResult RouteInput(
+        ConsoleInputEvent input,
+        TFrame frame,
+        UiInputRouteContext context)
+    {
+        _pendingInput.Enqueue(new ModalDialogRoutedInput<TFrame>(input, frame));
+        return UiInputResult.NotHandled;
+    }
+
+    public bool TryTakeInput(out ModalDialogRoutedInput<TFrame> routed)
+    {
+        if (_pendingInput.Count == 0)
+        {
+            routed = default!;
+            return false;
+        }
+
+        routed = _pendingInput.Dequeue();
+        return true;
+    }
+}
+
+internal readonly record struct ModalDialogRoutedInput<TFrame>(
+    ConsoleInputEvent Input,
+    TFrame Frame);

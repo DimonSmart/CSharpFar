@@ -6,6 +6,14 @@ namespace CSharpFar.Tests;
 public sealed class UiInteractionFrameTests
 {
     [Fact]
+    public void Empty_HasNoHitRegionsAndUsesEmptyFocus()
+    {
+        Assert.Empty(UiInteractionFrame.Empty.HitRegions);
+        Assert.Same(UiFocusFrame.Empty, UiInteractionFrame.Empty.Focus);
+        Assert.False(UiInteractionFrame.Empty.TryHitTest(0, 0, out _));
+    }
+
+    [Fact]
     public void TryHitTest_FindsRegionAndUsesHalfOpenBounds()
     {
         var region = new UiHitRegion(new UiTargetId("a"), new Rect(1, 2, 3, 4));

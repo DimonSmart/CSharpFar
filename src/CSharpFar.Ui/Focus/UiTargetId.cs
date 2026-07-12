@@ -1,6 +1,6 @@
 namespace CSharpFar.Ui;
 
-public readonly record struct UiTargetId
+public sealed record UiTargetId
 {
     public UiTargetId(string value)
     {

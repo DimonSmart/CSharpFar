@@ -2,6 +2,9 @@ namespace CSharpFar.Ui;
 
 public sealed class UiInteractionFrame
 {
+    public static UiInteractionFrame Empty { get; } =
+        new([], UiFocusFrame.Empty);
+
     public UiInteractionFrame(
         IReadOnlyList<UiHitRegion> hitRegions,
         UiFocusFrame? focus = null)

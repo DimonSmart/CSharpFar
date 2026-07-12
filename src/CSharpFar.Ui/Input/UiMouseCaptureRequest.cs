@@ -45,8 +45,11 @@ public readonly record struct UiMouseCaptureRequest
 
     public static UiMouseCaptureRequest Release { get; } = new(UiMouseCaptureRequestKind.Release, null, null);
 
-    public static UiMouseCaptureRequest Capture(UiTargetId target, MouseButton button) =>
-        new(UiMouseCaptureRequestKind.Capture, target, button);
+    public static UiMouseCaptureRequest Capture(UiTargetId target, MouseButton button)
+    {
+        ArgumentNullException.ThrowIfNull(target);
+        return new(UiMouseCaptureRequestKind.Capture, target, button);
+    }
 
     internal static bool IsCapturable(MouseButton button) =>
         button is MouseButton.Left or MouseButton.Right or MouseButton.Middle;

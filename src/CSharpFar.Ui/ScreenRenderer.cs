@@ -129,7 +129,7 @@ public sealed class ScreenRenderer
         CopySnapshotToBuffer(_frontBuffer!, snapshot);
         _frontBufferKnown = true;
         _frontBufferViewport = viewport;
-        _forceFullFrame = false;
+        _forceFullFrame = true;
 
         return BeginFrame(viewport);
     }
@@ -157,6 +157,41 @@ public sealed class ScreenRenderer
 
     public void Write(int x, int y, string text, CellStyle style) =>
         Write(x, y, text.AsSpan(), style);
+
+    public void WriteForced(int x, int y, string text, CellStyle style) =>
+        WriteForced(x, y, text.AsSpan(), style);
+
+    public void WriteForced(int x, int y, ReadOnlySpan<char> text, CellStyle style)
+    {
+        if (text.IsEmpty || x < 0 || y < 0)
+            return;
+
+        var size = _frameActive ? _frameSize : _driver.GetSize();
+        if (y >= size.Height || x >= size.Width)
+            return;
+
+        int len = Math.Min(text.Length, size.Width - x);
+        var clipped = text[..len];
+
+        if (!_frameActive)
+        {
+            Write(x, y, clipped, style);
+            return;
+        }
+
+        EnsureBuffers(size);
+        WriteToBuffer(_backBuffer!, x, y, clipped, style);
+        for (int i = 0; i < clipped.Length; i++)
+        {
+            _frontBuffer![y, x + i] = new SnapshotCell
+            {
+                Character = '\0',
+                Foreground = style.Foreground,
+                Background = style.Background,
+                Attributes = style.Attributes,
+            };
+        }
+    }
 
     public void Write(int x, int y, ReadOnlySpan<char> text, CellStyle style)
     {

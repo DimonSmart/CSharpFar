@@ -39,5 +39,9 @@ public readonly record struct UiFocusRequest
 
     public static UiFocusRequest MovePrevious { get; } = new(UiFocusRequestKind.MovePrevious, null);
 
-    public static UiFocusRequest Set(UiTargetId target) => new(UiFocusRequestKind.Set, target);
+    public static UiFocusRequest Set(UiTargetId target)
+    {
+        ArgumentNullException.ThrowIfNull(target);
+        return new(UiFocusRequestKind.Set, target);
+    }
 }
