@@ -76,11 +76,8 @@ internal sealed class CompareOptionsDialog
             FarDialogStyles.FocusedInput);
         var form = new ScrollableFormDialog();
         string? error = null;
-        using var modal = _modalDialogs.Open(context =>
-            RenderLayer(context, mode == CompareMode.FileSet ? "Compare file sets" : "Compare folders", form, error));
 
-        while (true)
-        {
+        void PrepareRows() =>
             form.SetRows(BuildRows(
                 mode,
                 leftPanel,
@@ -102,9 +99,11 @@ internal sealed class CompareOptionsDialog
                 nameComparison,
                 fileSetMatch,
                 buttons));
-            modal.Render();
 
-            var input = modal.ReadInput();
+        return _modalDialogs.Run(
+            context => RenderLayer(context, mode == CompareMode.FileSet ? "Compare file sets" : "Compare folders", form, error),
+            input =>
+            {
             FormInputResult result = input switch
             {
                 KeyConsoleInputEvent { Key: var key } => HandleKey(form, key),
@@ -113,7 +112,7 @@ internal sealed class CompareOptionsDialog
             };
 
             if (result.Kind == FormInputResultKind.Cancel)
-                return null;
+                return ModalDialogLoopResult<ComparisonOptions?>.Complete(null);
 
             if (result.Kind == FormInputResultKind.Submit ||
                 input is KeyConsoleInputEvent { Key.Key: ConsoleKey.F10 })
@@ -135,9 +134,12 @@ internal sealed class CompareOptionsDialog
                     depthHistory,
                     ref error);
                 if (options is not null)
-                    return options;
+                    return ModalDialogLoopResult<ComparisonOptions?>.Complete(options);
             }
-        }
+
+            return ModalDialogLoopResult<ComparisonOptions?>.Continue;
+            },
+            prepareRender: PrepareRows);
     }
 
     private static IReadOnlyList<IFormRow> BuildRows(

@@ -57,13 +57,10 @@ public sealed class SingleLineInputDialog
         string? error = null;
         int focusedButton = 0;
         bool buttonsFocused = false;
-        using var session = _modalDialogs.Open(context =>
-            Draw(context, options, buffer, error, history, focusedButton, buttonsFocused));
-
-        while (true)
-        {
-            session.Render();
-            var input = session.ReadInput(out var frame);
+        return _modalDialogs.Run(
+            context => Draw(context, options, buffer, error, history, focusedButton, buttonsFocused),
+            (input, frame) =>
+            {
             var layout = frame.Layout;
             int availableRows = SingleLineTextInput.AvailableDropdownContentRows(layout.InputY, frame.Viewport.Height);
             if (input is MouseConsoleInputEvent mouse && history is not null)
@@ -81,7 +78,7 @@ public sealed class SingleLineInputDialog
                      SingleLineTextInput.TryOpenHistoryDropdown(history, layout.InputY, frame.Viewport.Height)))
                 {
                     buttonsFocused = false;
-                    continue;
+                    return ModalDialogLoopResult<SingleLineInputDialogResult>.Continue;
                 }
             }
 
@@ -90,30 +87,30 @@ public sealed class SingleLineInputDialog
             {
                 buttonsFocused = true;
                 if (buttonId == "cancel")
-                    return new SingleLineInputDialogResult(false, string.Empty);
+                    return ModalDialogLoopResult<SingleLineInputDialogResult>.Complete(new SingleLineInputDialogResult(false, string.Empty));
                 if (buttonId == "ok" && TryAccept(options, buffer, history, ref error, out var result))
-                    return result;
-                continue;
+                    return ModalDialogLoopResult<SingleLineInputDialogResult>.Complete(result);
+                return ModalDialogLoopResult<SingleLineInputDialogResult>.Continue;
             }
 
             if (input is not KeyConsoleInputEvent { Key: var key })
-                continue;
+                return ModalDialogLoopResult<SingleLineInputDialogResult>.Continue;
 
             if (history?.IsDropdownOpen == true &&
                 key.Key is ConsoleKey.UpArrow or ConsoleKey.DownArrow or ConsoleKey.Enter or ConsoleKey.Escape)
             {
                 SingleLineTextInput.HandleKey(buffer, key, ref error, history, availableRows);
                 buttonsFocused = false;
-                continue;
+                return ModalDialogLoopResult<SingleLineInputDialogResult>.Continue;
             }
 
             if (key.Key == ConsoleKey.Escape)
-                return new SingleLineInputDialogResult(false, string.Empty);
+                return ModalDialogLoopResult<SingleLineInputDialogResult>.Complete(new SingleLineInputDialogResult(false, string.Empty));
 
             if (key.Key == ConsoleKey.Tab)
             {
                 buttonsFocused = !buttonsFocused;
-                continue;
+                return ModalDialogLoopResult<SingleLineInputDialogResult>.Continue;
             }
 
             if (buttonsFocused)
@@ -121,23 +118,24 @@ public sealed class SingleLineInputDialog
                 if (_buttonBar.TryHandleInput(input, frame.Buttons, ref focusedButton, out string? focusedButtonId))
                 {
                     if (focusedButtonId == "cancel")
-                        return new SingleLineInputDialogResult(false, string.Empty);
+                        return ModalDialogLoopResult<SingleLineInputDialogResult>.Complete(new SingleLineInputDialogResult(false, string.Empty));
                     if (focusedButtonId == "ok" && TryAccept(options, buffer, history, ref error, out var result))
-                        return result;
+                        return ModalDialogLoopResult<SingleLineInputDialogResult>.Complete(result);
                 }
 
-                continue;
+                return ModalDialogLoopResult<SingleLineInputDialogResult>.Continue;
             }
 
             if (key.Key == ConsoleKey.Enter)
             {
                 if (TryAccept(options, buffer, history, ref error, out var result))
-                    return result;
-                continue;
+                    return ModalDialogLoopResult<SingleLineInputDialogResult>.Complete(result);
+                return ModalDialogLoopResult<SingleLineInputDialogResult>.Continue;
             }
 
             SingleLineTextInput.HandleKey(buffer, key, ref error, history, availableRows);
-        }
+            return ModalDialogLoopResult<SingleLineInputDialogResult>.Continue;
+            });
     }
 
     private static bool TryAccept(

@@ -105,8 +105,7 @@ internal sealed class SearchDialog
         var form = new ScrollableFormDialog();
         string? error = null;
 
-        using var modal = _modalDialogs.Open(context => Draw(context, form, error));
-        while (true)
+        void PrepareRows()
         {
             bool hasText = text.Text.Length > 0;
             form.SetRows(BuildRows(
@@ -127,9 +126,12 @@ internal sealed class SearchDialog
                 scopeRow,
                 buttons,
                 hasText));
-            modal.Render();
+        }
 
-            var input = modal.ReadInput();
+        return _modalDialogs.Run(
+            context => Draw(context, form, error),
+            input =>
+            {
             FormInputResult result = input switch
             {
                 KeyConsoleInputEvent { Key: var key } => HandleSearchKey(form, key),
@@ -138,7 +140,7 @@ internal sealed class SearchDialog
             };
 
             if (result.Kind == FormInputResultKind.Cancel)
-                return null;
+                return ModalDialogLoopResult<SearchRequest?>.Complete(null);
 
             if (result.Kind == FormInputResultKind.Submit ||
                 input is KeyConsoleInputEvent { Key.Key: ConsoleKey.F10 })
@@ -159,9 +161,12 @@ internal sealed class SearchDialog
                     parallelismHistory,
                     ref error);
                 if (request is not null)
-                    return request;
+                    return ModalDialogLoopResult<SearchRequest?>.Complete(request);
             }
-        }
+
+            return ModalDialogLoopResult<SearchRequest?>.Continue;
+            },
+            prepareRender: PrepareRows);
     }
 
     private static IReadOnlyList<IFormRow> BuildRows(

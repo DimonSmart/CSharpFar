@@ -105,29 +105,23 @@ internal sealed class SftpConnectionDialog
             new DialogButton("submit", submitLabel, submitLabel[0], IsDefault: true),
             new DialogButton("cancel", "Cancel", 'C'),
         ]);
-        using var modal = _modalDialogs.Open(context =>
-        {
-            var geometry = GetDialogGeometry(context.Size);
-            int effectiveBodyScrollTop = ensureFocusVisible
-                ? NormalizeBodyScroll(geometry, focusRow, bodyScrollTop, request.AllowTemporaryConnection)
-                : ClampBodyScroll(geometry, bodyScrollTop, request.AllowTemporaryConnection);
-            var buttons = Draw(
-                geometry,
-                connection is null ? "SFTP connection" : "Edit SFTP connection",
-                focusRow, effectiveBodyScrollTop, buttonBar, focusedButton, connectionName, host, port,
-                userName, password, remoteRoot, histories, saveConnection, savePassword, showInDrive,
-                hostKeyFingerprint, trustHostKey, request.AllowTemporaryConnection, error);
-            return new SftpConnectionFrame(context.Size, geometry, effectiveBodyScrollTop, buttons);
-        });
-
-        while (true)
-        {
-            var frame = modal.Render();
-            bodyScrollTop = frame.BodyScrollTop;
-            ensureFocusVisible = true;
-
-            var input = modal.ReadInput(out frame);
-            bodyScrollTop = frame.BodyScrollTop;
+        return _modalDialogs.Run(
+            context =>
+            {
+                var geometry = GetDialogGeometry(context.Size);
+                int effectiveBodyScrollTop = ensureFocusVisible
+                    ? NormalizeBodyScroll(geometry, focusRow, bodyScrollTop, request.AllowTemporaryConnection)
+                    : ClampBodyScroll(geometry, bodyScrollTop, request.AllowTemporaryConnection);
+                var buttons = Draw(
+                    geometry,
+                    connection is null ? "SFTP connection" : "Edit SFTP connection",
+                    focusRow, effectiveBodyScrollTop, buttonBar, focusedButton, connectionName, host, port,
+                    userName, password, remoteRoot, histories, saveConnection, savePassword, showInDrive,
+                    hostKeyFingerprint, trustHostKey, request.AllowTemporaryConnection, error);
+                return new SftpConnectionFrame(context.Size, geometry, effectiveBodyScrollTop, buttons);
+            },
+            (input, frame) =>
+            {
             if (input is MouseConsoleInputEvent historyMouse &&
                 TryHandleHistoryDropdownMouse(
                     historyMouse,
@@ -142,7 +136,7 @@ internal sealed class SftpConnectionDialog
                     ref historyScrollbarDrag))
             {
                 ensureFocusVisible = false;
-                continue;
+                return ModalDialogLoopResult<SftpConnectionDialogResult?>.Continue;
             }
 
             if (input is MouseConsoleInputEvent scrollbarMouse &&
@@ -154,7 +148,7 @@ internal sealed class SftpConnectionDialog
                     ref bodyScrollbarDrag))
             {
                 ensureFocusVisible = false;
-                continue;
+                return ModalDialogLoopResult<SftpConnectionDialogResult?>.Continue;
             }
 
             if ((focusRow == RowButtons || input is MouseConsoleInputEvent) &&
@@ -162,10 +156,10 @@ internal sealed class SftpConnectionDialog
             {
                 focusRow = RowButtons;
                 if (buttonId == "cancel")
-                    return null;
+                    return ModalDialogLoopResult<SftpConnectionDialogResult?>.Complete(null);
                 if (buttonId == "submit" && TrySubmit(out var submitResult))
-                    return submitResult;
-                continue;
+                    return ModalDialogLoopResult<SftpConnectionDialogResult?>.Complete(submitResult);
+                return ModalDialogLoopResult<SftpConnectionDialogResult?>.Continue;
             }
 
             if (input is MouseConsoleInputEvent mouse)
@@ -188,11 +182,11 @@ internal sealed class SftpConnectionDialog
                     ref trustHostKey,
                     ref error,
                     hostKeyFingerprint);
-                continue;
+                return ModalDialogLoopResult<SftpConnectionDialogResult?>.Continue;
             }
 
             if (input is not KeyConsoleInputEvent { Key: var key })
-                continue;
+                return ModalDialogLoopResult<SftpConnectionDialogResult?>.Continue;
 
             if (histories.ForRow(focusRow)?.IsDropdownOpen == true &&
                 key.Key is ConsoleKey.UpArrow or ConsoleKey.DownArrow or ConsoleKey.Enter or ConsoleKey.Escape)
@@ -211,27 +205,27 @@ internal sealed class SftpConnectionDialog
                         histories,
                         frame,
                         request.AllowTemporaryConnection,
-                        ref error),
+                    ref error),
                     ref hostKeyFingerprint,
                     ref trustHostKey);
-                continue;
+                return ModalDialogLoopResult<SftpConnectionDialogResult?>.Continue;
             }
 
             switch (key.Key)
             {
                 case ConsoleKey.Escape:
-                    return null;
+                    return ModalDialogLoopResult<SftpConnectionDialogResult?>.Complete(null);
                 case ConsoleKey.F10:
                     if (TrySubmit(out var f10Result))
-                        return f10Result;
+                        return ModalDialogLoopResult<SftpConnectionDialogResult?>.Complete(f10Result);
                     break;
                 case ConsoleKey.Enter:
                     if (focusRow == RowButtons)
                     {
                         if (focusedButton == 1)
-                            return null;
+                            return ModalDialogLoopResult<SftpConnectionDialogResult?>.Complete(null);
                         if (TrySubmit(out var enterResult))
-                            return enterResult;
+                            return ModalDialogLoopResult<SftpConnectionDialogResult?>.Complete(enterResult);
                     }
                     else if (TryToggle(focusRow, request.AllowTemporaryConnection, hostKeyFingerprint, ref saveConnection, ref savePassword, ref showInDrive, ref trustHostKey))
                     {
@@ -267,9 +261,9 @@ internal sealed class SftpConnectionDialog
                     if (focusRow == RowButtons)
                     {
                         if (focusedButton == 1)
-                            return null;
+                            return ModalDialogLoopResult<SftpConnectionDialogResult?>.Complete(null);
                         if (TrySubmit(out var spaceResult))
-                            return spaceResult;
+                            return ModalDialogLoopResult<SftpConnectionDialogResult?>.Complete(spaceResult);
                     }
                     else if (TryToggle(focusRow, request.AllowTemporaryConnection, hostKeyFingerprint, ref saveConnection, ref savePassword, ref showInDrive, ref trustHostKey))
                     {
@@ -292,7 +286,14 @@ internal sealed class SftpConnectionDialog
                         ref trustHostKey);
                     break;
             }
-        }
+
+            return ModalDialogLoopResult<SftpConnectionDialogResult?>.Continue;
+            },
+            applyCommittedFrame: frame =>
+            {
+                bodyScrollTop = frame.BodyScrollTop;
+                ensureFocusVisible = true;
+            });
 
         bool TrySubmit(out SftpConnectionDialogResult? result)
         {

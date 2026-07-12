@@ -46,19 +46,14 @@ internal sealed class DirectoryShortcutEditDialog
         int focusedButton = 0;
         string? error = null;
 
-        using var modal = _modalDialogs.Open(context =>
-        {
-            return Draw(context.Size, number, name, path, focusRow, focusedButton);
-        });
-        modal.Render();
-        while (true)
-        {
-            var input = modal.ReadInput(out var frame);
+        return _modalDialogs.Run(
+            context => Draw(context.Size, number, name, path, focusRow, focusedButton),
+            (input, frame) =>
+            {
             if (input is MouseConsoleInputEvent mouse &&
                 TryFocusField(mouse, frame.Layout.ContentBounds, ref focusRow))
             {
-                modal.Render();
-                continue;
+                return ModalDialogLoopResult<DirectoryShortcutEditResult>.Continue;
             }
 
             if (_buttonBar.TryHandleInput(input, frame.Buttons, ref focusedButton, out string? buttonId) &&
@@ -66,18 +61,17 @@ internal sealed class DirectoryShortcutEditDialog
             {
                 focusRow = 2;
                 if (buttonId == "cancel")
-                    return new DirectoryShortcutEditResult(false, currentItem);
+                    return ModalDialogLoopResult<DirectoryShortcutEditResult>.Complete(new DirectoryShortcutEditResult(false, currentItem));
                 if (buttonId == "ok")
-                    return Accepted(number, name.Text, path.Text);
-                modal.Render();
-                continue;
+                    return ModalDialogLoopResult<DirectoryShortcutEditResult>.Complete(Accepted(number, name.Text, path.Text));
+                return ModalDialogLoopResult<DirectoryShortcutEditResult>.Continue;
             }
 
             if (input is not KeyConsoleInputEvent { Key: var key })
-                continue;
+                return ModalDialogLoopResult<DirectoryShortcutEditResult>.Continue;
 
             if (key.Key == ConsoleKey.Escape)
-                return new DirectoryShortcutEditResult(false, currentItem);
+                return ModalDialogLoopResult<DirectoryShortcutEditResult>.Complete(new DirectoryShortcutEditResult(false, currentItem));
 
             if (key.Key is ConsoleKey.Tab or ConsoleKey.DownArrow)
                 focusRow = Math.Min(2, focusRow + 1);
@@ -90,7 +84,7 @@ internal sealed class DirectoryShortcutEditDialog
                 if (focusRow < 2)
                     focusRow++;
                 else
-                    return Accepted(number, name.Text, path.Text);
+                    return ModalDialogLoopResult<DirectoryShortcutEditResult>.Complete(Accepted(number, name.Text, path.Text));
             }
 
             else
@@ -99,8 +93,9 @@ internal sealed class DirectoryShortcutEditDialog
                 if (buffer is not null)
                     SingleLineTextInput.HandleKey(buffer, key, ref error);
             }
-            modal.Render();
-        }
+
+            return ModalDialogLoopResult<DirectoryShortcutEditResult>.Continue;
+            });
     }
 
     private DirectoryShortcutEditFrame Draw(

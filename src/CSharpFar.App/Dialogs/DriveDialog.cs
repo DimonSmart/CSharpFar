@@ -49,24 +49,19 @@ internal sealed class DriveDialog
         // Track last cycle shortcut for multi-match cycling
         string? lastShortcut = null;
 
-        using var modal = _modalDialogs.Open(context =>
-        {
-            var frame = CalculateFrame(context.Size, items.Count, cursor, scrollTop);
-            RenderFrame(context, items, frame);
-            return frame;
-        });
-        while (true)
-        {
-            var frame = modal.Render();
-            cursor = frame.Cursor;
-            scrollTop = frame.ScrollTop;
-            var input = modal.ReadInput(out frame);
-            cursor = frame.Cursor;
-            scrollTop = frame.ScrollTop;
+        return _modalDialogs.Run(
+            context =>
+            {
+                var frame = CalculateFrame(context.Size, items.Count, cursor, scrollTop);
+                RenderFrame(context, items, frame);
+                return frame;
+            },
+            (input, frame) =>
+            {
             if (input is MouseConsoleInputEvent mouse &&
                 TryHandleScrollbarMouse(mouse, items.Count, frame.VisibleRows, frame.ScrollbarBounds, frame.ScrollTop, ref cursor, ref scrollTop, ref scrollbarDrag))
             {
-                continue;
+                return ModalDialogLoopResult<VolumeSelectionItem?>.Continue;
             }
 
             if (input is MouseConsoleInputEvent listMouse &&
@@ -90,20 +85,20 @@ internal sealed class DriveDialog
                     }
                     else
                     {
-                        return clicked;
+                        return ModalDialogLoopResult<VolumeSelectionItem?>.Complete(clicked);
                     }
                 }
-                continue;
+                return ModalDialogLoopResult<VolumeSelectionItem?>.Continue;
             }
 
             if (input is not KeyConsoleInputEvent { Key: var key })
-                continue;
+                return ModalDialogLoopResult<VolumeSelectionItem?>.Continue;
 
             switch (key.Key)
             {
                 case ConsoleKey.Escape:
                 case ConsoleKey.F10:
-                    return null;
+                    return ModalDialogLoopResult<VolumeSelectionItem?>.Complete(null);
 
                 case ConsoleKey.UpArrow:
                     if (cursor > 0)
@@ -160,9 +155,9 @@ internal sealed class DriveDialog
                         new MessageDialog(_modalDialogs).Show(
                             "Change drive",
                             $"{vol.DisplayName}: volume is {statusText}.");
-                        break; // stay in loop
+                        break;
                     }
-                    return selected;
+                    return ModalDialogLoopResult<VolumeSelectionItem?>.Complete(selected);
 
                 default:
                     // Letter / digit shortcut
@@ -173,11 +168,18 @@ internal sealed class DriveDialog
                         var immediate = HandleShortcut(
                             items, sc, ref cursor, ref scrollTop, frame.VisibleRows, ref lastShortcut);
                         if (immediate is not null)
-                            return immediate;
+                            return ModalDialogLoopResult<VolumeSelectionItem?>.Complete(immediate);
                     }
                     break;
             }
-        }
+
+            return ModalDialogLoopResult<VolumeSelectionItem?>.Continue;
+            },
+            applyCommittedFrame: frame =>
+            {
+                cursor = frame.Cursor;
+                scrollTop = frame.ScrollTop;
+            });
     }
 
     /// <summary>

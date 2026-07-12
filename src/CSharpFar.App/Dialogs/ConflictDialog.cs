@@ -37,39 +37,37 @@ internal sealed class ConflictDialog
         int focusSection = 1;
         int focusedButton = 0;
 
-        using var modal = _modalDialogs.Open(context => Draw(conflict, context, rememberChoiceLine, focusSection, focusedButton));
-        while (true)
-        {
-            rememberChoiceLine.Value = rememberChoice;
-            modal.Render();
-            var input = modal.ReadInput(out var frame);
-
+        return _modalDialogs.Run(
+            context => Draw(conflict, context, rememberChoiceLine, focusSection, focusedButton),
+            (input, frame) =>
+            {
             if ((focusSection == 1 || input is MouseConsoleInputEvent) &&
                 _buttonBar.TryHandleInput(input, frame.Buttons, ref focusedButton, out string? buttonId))
             {
                 focusSection = 1;
                 if (buttonId is not null)
-                    return BuildDecision(buttonId, rememberChoice, conflict);
-                continue;
+                    return ModalDialogLoopResult<FileOperationConflictDecision>.Complete(BuildDecision(buttonId, rememberChoice, conflict));
+                return ModalDialogLoopResult<FileOperationConflictDecision>.Continue;
             }
 
             switch (input)
             {
                 case KeyConsoleInputEvent { Key: var key }:
                     if (key.Key == ConsoleKey.Escape)
-                        return FileOperationConflictDecision.FromMode(ConflictDecisionMode.Cancel);
+                        return ModalDialogLoopResult<FileOperationConflictDecision>.Complete(
+                            FileOperationConflictDecision.FromMode(ConflictDecisionMode.Cancel));
 
                         if (key.Key is ConsoleKey.UpArrow or ConsoleKey.DownArrow or ConsoleKey.Tab)
                         {
                             focusSection = focusSection == 0 ? 1 : 0;
-                            continue;
+                            return ModalDialogLoopResult<FileOperationConflictDecision>.Continue;
                         }
 
                         if (focusSection == 0 && key.Key is (ConsoleKey.Spacebar or ConsoleKey.Enter))
                         {
                             rememberChoiceLine.TryHandleKey(key);
                             rememberChoice = rememberChoiceLine.Value;
-                            continue;
+                            return ModalDialogLoopResult<FileOperationConflictDecision>.Continue;
                         }
 
                     break;
@@ -82,7 +80,10 @@ internal sealed class ConflictDialog
 
                     break;
             }
-        }
+
+            return ModalDialogLoopResult<FileOperationConflictDecision>.Continue;
+            },
+            prepareRender: () => rememberChoiceLine.Value = rememberChoice);
     }
 
     private ConflictDialogFrame Draw(

@@ -85,7 +85,7 @@ internal sealed class SearchProgressDialog
                     frameLayout.VisibleResultRows,
                     ref frameSelectedIndex,
                     ref frameScrollOffset);
-                return new SearchProgressFrame(frameLayout, frameSelectedIndex, frameScrollOffset, drawResult.Buttons);
+                return new SearchProgressFrame(frameLayout, frameSelectedIndex, frameScrollOffset, drawResult.Buttons, renderResults);
             });
 
             var progress = new Progress<SearchProgress>(p =>
@@ -134,9 +134,6 @@ internal sealed class SearchProgressDialog
                 if (task.Wait(RedrawDelayMilliseconds))
                     break;
 
-                SearchResultItem[] inputResults;
-                lock (syncRoot)
-                    inputResults = [.. results];
                 if (task.IsCompleted)
                     break;
 
@@ -147,7 +144,6 @@ internal sealed class SearchProgressDialog
                     if (semanticInput is MouseConsoleInputEvent mouse &&
                         TryHandleResultScrollbarMouse(
                             mouse,
-                            inputResults.Length,
                             frame,
                             ref selectedIndex,
                             ref scrollOffset,
@@ -158,7 +154,6 @@ internal sealed class SearchProgressDialog
 
                     SearchResultItem? selected = HandleInput(
                         semanticInput,
-                        inputResults,
                         frame,
                         ref selectedIndex,
                         ref scrollOffset,
@@ -224,7 +219,6 @@ internal sealed class SearchProgressDialog
 
     private SearchResultItem? HandleInput(
         ConsoleInputEvent input,
-        IReadOnlyList<SearchResultItem> results,
         SearchProgressFrame frame,
         ref int selectedIndex,
         ref int scrollOffset,
@@ -233,6 +227,7 @@ internal sealed class SearchProgressDialog
         ref bool stopRequested)
     {
         int listHeight = frame.Layout.VisibleResultRows;
+        SearchResultItem[] results = frame.Results;
         if (buttonBar.TryHandleInput(input, frame.Buttons, ref focusedButton, out string? buttonId))
         {
             if (buttonId == StopButton)
@@ -241,8 +236,12 @@ internal sealed class SearchProgressDialog
                 return null;
             }
 
-            if (buttonId == GoToButton && results.Count > 0)
+            if (buttonId == GoToButton &&
+                selectedIndex >= 0 &&
+                selectedIndex < results.Length)
+            {
                 return results[selectedIndex];
+            }
 
             return null;
         }
@@ -256,28 +255,28 @@ internal sealed class SearchProgressDialog
                 stopRequested = true;
                 break;
             case ConsoleKey.UpArrow:
-                MoveSelection(-1, results.Count, listHeight, ref selectedIndex, ref scrollOffset);
+                MoveSelection(-1, results.Length, listHeight, ref selectedIndex, ref scrollOffset);
                 break;
             case ConsoleKey.DownArrow:
-                MoveSelection(+1, results.Count, listHeight, ref selectedIndex, ref scrollOffset);
+                MoveSelection(+1, results.Length, listHeight, ref selectedIndex, ref scrollOffset);
                 break;
             case ConsoleKey.PageUp:
-                MoveSelection(-listHeight, results.Count, listHeight, ref selectedIndex, ref scrollOffset);
+                MoveSelection(-listHeight, results.Length, listHeight, ref selectedIndex, ref scrollOffset);
                 break;
             case ConsoleKey.PageDown:
-                MoveSelection(+listHeight, results.Count, listHeight, ref selectedIndex, ref scrollOffset);
+                MoveSelection(+listHeight, results.Length, listHeight, ref selectedIndex, ref scrollOffset);
                 break;
             case ConsoleKey.Home:
-                if (results.Count > 0)
+                if (results.Length > 0)
                 {
                     selectedIndex = 0;
                     scrollOffset = 0;
                 }
                 break;
             case ConsoleKey.End:
-                if (results.Count > 0)
+                if (results.Length > 0)
                 {
-                    selectedIndex = results.Count - 1;
+                    selectedIndex = results.Length - 1;
                     EnsureSelectedVisible(listHeight, ref selectedIndex, ref scrollOffset);
                 }
                 break;
@@ -414,13 +413,13 @@ internal sealed class SearchProgressDialog
 
     private bool TryHandleResultScrollbarMouse(
         MouseConsoleInputEvent mouse,
-        int resultCount,
         SearchProgressFrame frame,
         ref int selectedIndex,
         ref int scrollOffset,
         ref ScrollBarDragState? dragState)
     {
         var layout = frame.Layout;
+        int resultCount = frame.Results.Length;
         if (layout is null || resultCount <= layout.VisibleResultRows)
             return false;
 
@@ -507,5 +506,6 @@ internal sealed class SearchProgressDialog
         SearchProgressLayout Layout,
         int SelectedIndex,
         int ScrollOffset,
-        DialogButtonBarLayout Buttons);
+        DialogButtonBarLayout Buttons,
+        SearchResultItem[] Results);
 }

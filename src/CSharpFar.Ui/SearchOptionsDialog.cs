@@ -101,16 +101,14 @@ public sealed class SearchOptionsDialog
             FarDialogStyles.FocusedInput);
         var form = new ScrollableFormDialog(BuildRows(options, pattern, patternHistory, patternRowState, checkboxes, buttons));
         string? error = null;
-        using var session = _modalDialogs.Open(context =>
-        {
-            var layout = SearchOptionsDialogLayout.Create(context.Size, options.Width, options.Options.Count);
-            Draw(context, options, layout, form, error);
-        });
-
-        while (true)
-        {
-            session.Render();
-            var input = session.ReadInput();
+        return _modalDialogs.Run(
+            context =>
+            {
+                var layout = SearchOptionsDialogLayout.Create(context.Size, options.Width, options.Options.Count);
+                Draw(context, options, layout, form, error);
+            },
+            input =>
+            {
             FormInputResult result = input switch
             {
                 KeyConsoleInputEvent { Key: var key } => HandleKey(form, patternHistory, key),
@@ -122,15 +120,20 @@ public sealed class SearchOptionsDialog
                 SynchronizeOptions(options, state, checkboxes);
 
             if (result.Kind == FormInputResultKind.Cancel)
-                return null;
+                return ModalDialogLoopResult<SearchOptionsDialogResult?>.Complete(null);
 
             if (result.Kind == FormInputResultKind.Submit)
             {
                 var accepted = HandleButton(result.Command, options, state, pattern, patternHistory, ref error);
                 if (accepted.HasValue)
-                    return accepted.Value ? CreateResult(state) : null;
+                {
+                    return ModalDialogLoopResult<SearchOptionsDialogResult?>.Complete(
+                        accepted.Value ? CreateResult(state) : null);
+                }
             }
-        }
+
+            return ModalDialogLoopResult<SearchOptionsDialogResult?>.Continue;
+            });
     }
 
     internal static IReadOnlyList<IFormRow> BuildRows(

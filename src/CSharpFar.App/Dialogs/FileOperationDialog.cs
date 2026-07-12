@@ -185,9 +185,7 @@ internal sealed class FileOperationDialog
         var form = new ScrollableFormDialog();
         string? error = null;
 
-        using var modal = _modalDialogs.Open(context => Draw(context, title, form, error));
-        while (true)
-        {
+        void PrepareRows() =>
             form.SetRows(BuildRows(
                 prompt,
                 destination,
@@ -205,9 +203,11 @@ internal sealed class FileOperationDialog
                 useFilter,
                 showOperationOptions),
                 footerRows: [buttons]);
-            modal.Render();
 
-            var input = modal.ReadInput();
+        return _modalDialogs.Run(
+            context => Draw(context, title, form, error),
+            input =>
+            {
             FormInputResult result = input switch
             {
                 KeyConsoleInputEvent { Key: var key } => HandleOperationKey(form, key),
@@ -216,7 +216,7 @@ internal sealed class FileOperationDialog
             };
 
             if (result.Kind == FormInputResultKind.Cancel)
-                return null;
+                return ModalDialogLoopResult<FileOperationDialogResult?>.Complete(null);
 
             if (result.Kind == FormInputResultKind.Submit ||
                 input is KeyConsoleInputEvent { Key.Key: ConsoleKey.F10 })
@@ -236,9 +236,12 @@ internal sealed class FileOperationDialog
                     filterHistory,
                     ref error);
                 if (dialogResult is not null)
-                    return dialogResult;
+                    return ModalDialogLoopResult<FileOperationDialogResult?>.Complete(dialogResult);
             }
-        }
+
+            return ModalDialogLoopResult<FileOperationDialogResult?>.Continue;
+            },
+            prepareRender: PrepareRows);
     }
 
     private static IReadOnlyList<IFormRow> BuildRows(

@@ -38,7 +38,7 @@ public sealed class DropdownSelect<T>
 
     public T SelectedItem => _list.Items[Math.Clamp(SelectedIndex, 0, _list.Count - 1)];
 
-    public void Open(ConsoleSize size, Rect fieldBounds)
+    public void Open()
     {
         if (!IsOpen)
             _selectedIndexBeforeOpen = SelectedIndex;
@@ -55,12 +55,12 @@ public sealed class DropdownSelect<T>
         _scrollbarDrag = null;
     }
 
-    public void Toggle(ConsoleSize size, Rect fieldBounds)
+    public void Toggle()
     {
         if (IsOpen)
             Close(commit: false);
         else
-            Open(size, fieldBounds);
+            Open();
     }
 
     public void RenderField(
@@ -73,14 +73,6 @@ public sealed class DropdownSelect<T>
             ? Fit(label, fieldBounds.Width - 1) + "\u2193"
             : "\u2193";
         screen.Write(fieldBounds.X, fieldBounds.Y, text, style);
-    }
-
-    public void RenderPopup(
-        ScreenRenderer screen,
-        ConsoleSize size,
-        Rect fieldBounds)
-    {
-        RenderPopup(screen, CalculateFrame(size, fieldBounds));
     }
 
     public DropdownSelectFrame CalculateFrame(
@@ -135,12 +127,6 @@ public sealed class DropdownSelect<T>
 
     public bool TryHandleFieldMouse(
         MouseConsoleInputEvent mouse,
-        ConsoleSize size,
-        Rect fieldBounds)
-        => TryHandleFieldMouse(mouse, CalculateFrame(size, fieldBounds));
-
-    public bool TryHandleFieldMouse(
-        MouseConsoleInputEvent mouse,
         DropdownSelectFrame frame)
     {
         if (mouse.Button != MouseButton.Left ||
@@ -152,16 +138,9 @@ public sealed class DropdownSelect<T>
             return false;
         }
 
-        Toggle(frame.Size, frame.FieldBounds);
+        Toggle();
         return true;
     }
-
-    public bool TryHandlePopupMouse(
-        MouseConsoleInputEvent mouse,
-        ConsoleSize size,
-        Rect fieldBounds,
-        out bool selected)
-        => TryHandlePopupMouse(mouse, CalculateFrame(size, fieldBounds), out selected);
 
     public bool TryHandlePopupMouse(
         MouseConsoleInputEvent mouse,
@@ -204,9 +183,6 @@ public sealed class DropdownSelect<T>
         return true;
     }
 
-    public bool TryHandleKey(ConsoleKeyInfo key, ConsoleSize size, Rect fieldBounds, out bool selected)
-        => TryHandleKey(key, CalculateFrame(size, fieldBounds), out selected);
-
     public bool TryHandleKey(ConsoleKeyInfo key, DropdownSelectFrame frame, out bool selected)
     {
         selected = false;
@@ -214,7 +190,7 @@ public sealed class DropdownSelect<T>
         {
             if (key.Key is ConsoleKey.DownArrow or ConsoleKey.LeftArrow or ConsoleKey.RightArrow or ConsoleKey.Spacebar)
             {
-                Open(frame.Size, frame.FieldBounds);
+                Open();
                 return true;
             }
 

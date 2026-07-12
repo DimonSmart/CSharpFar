@@ -31,23 +31,23 @@ internal sealed class OperationCancelDialog
         string confirmationMessage = "Do you really want to cancel it?")
     {
         int focusedButton = 0;
-        using var modal = _modalDialogs.Open(context => Draw(context, focusedButton, interruptedMessage, confirmationMessage));
-        while (true)
-        {
-            modal.Render();
-
-            var input = modal.ReadInput(out var frame);
+        return _modalDialogs.Run(
+            context => Draw(context, focusedButton, interruptedMessage, confirmationMessage),
+            (input, frame) =>
+            {
             if (_buttons.TryHandleInput(input, frame.Buttons, ref focusedButton, out string? buttonId) && buttonId is not null)
-                return buttonId == YesButton;
+                return ModalDialogLoopResult<bool>.Complete(buttonId == YesButton);
 
             if (input is KeyConsoleInputEvent { Key: var key })
             {
                 if (key.Key == ConsoleKey.Escape)
-                    return false;
+                    return ModalDialogLoopResult<bool>.Complete(false);
                 if (key.Key == ConsoleKey.Tab)
                     focusedButton = (focusedButton + 1) % _buttons.Count;
             }
-        }
+
+            return ModalDialogLoopResult<bool>.Continue;
+            });
     }
 
     private OperationCancelFrame Draw(

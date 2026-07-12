@@ -47,46 +47,38 @@ internal sealed class CreateFolderDialog
         int focusedButton = 0;
         ScrollBarDragState? historyScrollbarDrag = null;
 
-        using var modal = _modalDialogs.Open(context =>
-        {
-            return Draw(context.Size, folderName, history, error, focusRow, focusedButton);
-        });
-        modal.Render();
-
-        while (true)
-        {
-            var input = modal.ReadInput(out var frame);
+        return _modalDialogs.Run(
+            context => Draw(context.Size, folderName, history, error, focusRow, focusedButton),
+            (input, frame) =>
+            {
 
             if (focusRow == 1 &&
                 _buttonBar.TryHandleInput(input, frame.Buttons, ref focusedButton, out string? buttonId))
             {
                 if (buttonId == "cancel")
-                    return null;
+                    return ModalDialogLoopResult<string?>.Complete(null);
                 if (buttonId == "ok")
                 {
                     string? result = TrySubmit(folderName, history, validate, ref error);
                     if (result is not null)
-                        return result;
+                        return ModalDialogLoopResult<string?>.Complete(result);
                 }
 
-                modal.Render();
-                continue;
+                return ModalDialogLoopResult<string?>.Continue;
             }
 
             if (input is MouseConsoleInputEvent dropdownMouse &&
                 TryHandleHistoryDropdownMouse(dropdownMouse, frame, folderName, history, ref historyScrollbarDrag))
             {
                 focusRow = 0;
-                modal.Render();
-                continue;
+                return ModalDialogLoopResult<string?>.Continue;
             }
 
             if (input is MouseConsoleInputEvent mouse &&
                 TryHandleHistoryArrow(mouse, frame, history))
             {
                 focusRow = 0;
-                modal.Render();
-                continue;
+                return ModalDialogLoopResult<string?>.Continue;
             }
 
             if (input is MouseConsoleInputEvent &&
@@ -95,21 +87,17 @@ internal sealed class CreateFolderDialog
             {
                 focusRow = 1;
                 if (buttonId == "cancel")
-                    return null;
+                    return ModalDialogLoopResult<string?>.Complete(null);
 
                 string? result = TrySubmit(folderName, history, validate, ref error);
                 if (result is not null)
-                    return result;
+                    return ModalDialogLoopResult<string?>.Complete(result);
 
-                modal.Render();
-                continue;
+                return ModalDialogLoopResult<string?>.Continue;
             }
 
             if (input is not KeyConsoleInputEvent { Key: var key })
-            {
-                modal.Render();
-                continue;
-            }
+                return ModalDialogLoopResult<string?>.Continue;
 
             int availableRows = SingleLineTextInput.AvailableDropdownContentRows(frame.InputBounds.Y, frame.Size.Height);
             if (focusRow == 0 &&
@@ -117,29 +105,28 @@ internal sealed class CreateFolderDialog
                 key.Key is ConsoleKey.UpArrow or ConsoleKey.DownArrow or ConsoleKey.Enter or ConsoleKey.Escape)
             {
                 SingleLineTextInput.HandleKey(folderName, key, ref error, history, availableRows);
-                modal.Render();
-                continue;
+                return ModalDialogLoopResult<string?>.Continue;
             }
 
             switch (key.Key)
             {
                 case ConsoleKey.Escape:
-                    return null;
+                    return ModalDialogLoopResult<string?>.Complete(null);
                 case ConsoleKey.F10:
                     {
                         string? result = TrySubmit(folderName, history, validate, ref error);
                         if (result is not null)
-                            return result;
+                            return ModalDialogLoopResult<string?>.Complete(result);
                         break;
                     }
                 case ConsoleKey.Enter:
                     if (focusRow == 1 && focusedButton == 1)
-                        return null;
+                        return ModalDialogLoopResult<string?>.Complete(null);
 
                     {
                         string? result = TrySubmit(folderName, history, validate, ref error);
                         if (result is not null)
-                            return result;
+                            return ModalDialogLoopResult<string?>.Complete(result);
                         break;
                     }
                 case ConsoleKey.Tab:
@@ -162,11 +149,11 @@ internal sealed class CreateFolderDialog
                     if (focusRow == 1)
                     {
                         if (focusedButton == 1)
-                            return null;
+                            return ModalDialogLoopResult<string?>.Complete(null);
 
                         string? result = TrySubmit(folderName, history, validate, ref error);
                         if (result is not null)
-                            return result;
+                            return ModalDialogLoopResult<string?>.Complete(result);
                     }
                     else
                     {
@@ -179,8 +166,8 @@ internal sealed class CreateFolderDialog
                     break;
             }
 
-            modal.Render();
-        }
+            return ModalDialogLoopResult<string?>.Continue;
+            });
     }
 
     private static string? TrySubmit(

@@ -131,15 +131,18 @@ public sealed class UiComponentDialogTests
     public void DropdownSelect_KeyboardSelectionAndCancelKeepsPreviousValue()
     {
         var driver = new FakeConsoleDriver(40, 12);
-        var screen = new ScreenRenderer(driver);
         var dropdown = new DropdownSelect<string>(["utf-8", "utf-16", "ascii"], static item => item);
         var field = new Rect(5, 4, 12, 1);
 
-        dropdown.Open(driver.GetSize(), field);
+        dropdown.Open();
+        var frame = dropdown.CalculateFrame(driver.GetSize(), field);
+        dropdown.ApplyCommittedFrame(frame);
         Assert.True(dropdown.IsOpen);
-        Assert.True(dropdown.TryHandleKey(Key(ConsoleKey.DownArrow), driver.GetSize(), field, out _));
+        Assert.True(dropdown.TryHandleKey(Key(ConsoleKey.DownArrow), frame, out _));
         Assert.Equal(1, dropdown.SelectedIndex);
-        Assert.True(dropdown.TryHandleKey(Key(ConsoleKey.Escape), driver.GetSize(), field, out _));
+        frame = dropdown.CalculateFrame(driver.GetSize(), field);
+        dropdown.ApplyCommittedFrame(frame);
+        Assert.True(dropdown.TryHandleKey(Key(ConsoleKey.Escape), frame, out _));
 
         Assert.False(dropdown.IsOpen);
         Assert.Equal("utf-8", dropdown.SelectedItem);
@@ -149,24 +152,26 @@ public sealed class UiComponentDialogTests
     public void DropdownSelect_MouseSelectionAndScroll()
     {
         var driver = new FakeConsoleDriver(40, 12);
-        var screen = new ScreenRenderer(driver);
         var dropdown = new DropdownSelect<int>(Enumerable.Range(0, 10).ToArray(), static item => item.ToString())
         {
             MaxVisibleRows = 3,
         };
         var field = new Rect(5, 4, 12, 1);
-        dropdown.Open(driver.GetSize(), field);
+        dropdown.Open();
 
-        dropdown.TryHandleKey(Key(ConsoleKey.DownArrow), driver.GetSize(), field, out _);
-        dropdown.TryHandleKey(Key(ConsoleKey.DownArrow), driver.GetSize(), field, out _);
-        dropdown.TryHandleKey(Key(ConsoleKey.DownArrow), driver.GetSize(), field, out _);
-        dropdown.TryHandleKey(Key(ConsoleKey.DownArrow), driver.GetSize(), field, out _);
+        for (int i = 0; i < 4; i++)
+        {
+            var frame = dropdown.CalculateFrame(driver.GetSize(), field);
+            dropdown.ApplyCommittedFrame(frame);
+            dropdown.TryHandleKey(Key(ConsoleKey.DownArrow), frame, out _);
+        }
         Assert.True(dropdown.ScrollTop > 0);
 
+        var mouseFrame = dropdown.CalculateFrame(driver.GetSize(), field);
+        dropdown.ApplyCommittedFrame(mouseFrame);
         Assert.True(dropdown.TryHandlePopupMouse(
             new MouseConsoleInputEvent(6, 7, MouseButton.Left, MouseEventKind.Down, MouseKeyModifiers.None),
-            driver.GetSize(),
-            field,
+            mouseFrame,
             out bool selected));
         Assert.True(selected);
         Assert.False(dropdown.IsOpen);
@@ -179,14 +184,15 @@ public sealed class UiComponentDialogTests
         var screen = new ScreenRenderer(driver);
         var dropdown = new DropdownSelect<string>(["one", "two", "three"], static item => item);
         var field = new Rect(5, 4, 12, 1);
-        dropdown.Open(driver.GetSize(), field);
-        dropdown.RenderPopup(screen, driver.GetSize(), field);
-        Rect popupBounds = dropdown.PopupBounds(driver.GetSize(), field);
+        dropdown.Open();
+        var frame = dropdown.CalculateFrame(driver.GetSize(), field);
+        dropdown.ApplyCommittedFrame(frame);
+        dropdown.RenderPopup(screen, frame);
+        Rect popupBounds = frame.PopupBounds!.Value;
 
         bool handled = dropdown.TryHandlePopupMouse(
             new MouseConsoleInputEvent(popupBounds.X, popupBounds.Y + 1, MouseButton.Left, MouseEventKind.Down, MouseKeyModifiers.None),
-            driver.GetSize(),
-            field,
+            frame,
             out bool selected);
 
         Assert.True(handled);
@@ -203,14 +209,15 @@ public sealed class UiComponentDialogTests
         var screen = new ScreenRenderer(driver);
         var dropdown = new DropdownSelect<string>(["one", "two", "three"], static item => item);
         var field = new Rect(5, 4, 12, 1);
-        dropdown.Open(driver.GetSize(), field);
-        dropdown.RenderPopup(screen, driver.GetSize(), field);
-        Rect popupBounds = dropdown.PopupBounds(driver.GetSize(), field);
+        dropdown.Open();
+        var frame = dropdown.CalculateFrame(driver.GetSize(), field);
+        dropdown.ApplyCommittedFrame(frame);
+        dropdown.RenderPopup(screen, frame);
+        Rect popupBounds = frame.PopupBounds!.Value;
 
         bool handled = dropdown.TryHandlePopupMouse(
             new MouseConsoleInputEvent(popupBounds.X + 1, popupBounds.Y + 2, MouseButton.Left, MouseEventKind.Down, MouseKeyModifiers.None),
-            driver.GetSize(),
-            field,
+            frame,
             out bool selected);
 
         Assert.True(handled);
@@ -224,13 +231,14 @@ public sealed class UiComponentDialogTests
     public void DropdownSelect_ToggleCloseRestoresPreviousSelection()
     {
         var driver = new FakeConsoleDriver(40, 12);
-        var screen = new ScreenRenderer(driver);
         var dropdown = new DropdownSelect<string>(["utf-8", "utf-16", "ascii"], static item => item);
         var field = new Rect(5, 4, 12, 1);
 
-        dropdown.Toggle(driver.GetSize(), field);
-        dropdown.TryHandleKey(Key(ConsoleKey.DownArrow), driver.GetSize(), field, out _);
-        dropdown.Toggle(driver.GetSize(), field);
+        dropdown.Toggle();
+        var frame = dropdown.CalculateFrame(driver.GetSize(), field);
+        dropdown.ApplyCommittedFrame(frame);
+        dropdown.TryHandleKey(Key(ConsoleKey.DownArrow), frame, out _);
+        dropdown.Toggle();
 
         Assert.False(dropdown.IsOpen);
         Assert.Equal(0, dropdown.SelectedIndex);
@@ -256,7 +264,7 @@ public sealed class UiComponentDialogTests
             ScrollTop = 8,
         };
         var field = new Rect(1, 1, 8, 1);
-        dropdown.Open(new ConsoleSize(12, 3), field);
+        dropdown.Open();
 
         var rejectedFrame = dropdown.CalculateFrame(new ConsoleSize(12, 3), field);
 

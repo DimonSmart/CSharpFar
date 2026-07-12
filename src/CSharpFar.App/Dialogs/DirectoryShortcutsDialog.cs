@@ -43,35 +43,29 @@ internal sealed class DirectoryShortcutsDialog
         int cursor = 0;
         int focusedButton = 0;
 
-        using var modal = _modalDialogs.Open(context =>
-        {
-            return Draw(context.Size, items, cursor, focusedButton);
-        });
-        modal.Render();
-        while (true)
-        {
-            var input = modal.ReadInput(out var frame);
+        return _modalDialogs.Run(
+            context => Draw(context.Size, items, cursor, focusedButton),
+            (input, frame) =>
+            {
             if (input is MouseConsoleInputEvent mouse &&
                 TrySelectRow(mouse, frame.Layout.ContentBounds, ref cursor))
             {
                 if (mouse.Kind == MouseEventKind.DoubleClick)
                     EditSelected(items, cursor, activePanelPath);
-                modal.Render();
-                continue;
+                return ModalDialogLoopResult<DirectoryShortcutsDialogResult>.Continue;
             }
 
             if (_buttonBar.TryHandleInput(input, frame.Buttons, ref focusedButton, out string? buttonId))
             {
                 if (buttonId == "close")
-                    return Result(initialItems, items);
+                    return ModalDialogLoopResult<DirectoryShortcutsDialogResult>.Complete(Result(initialItems, items));
                 if (buttonId == "edit")
                     EditSelected(items, cursor, activePanelPath);
-                modal.Render();
-                continue;
+                return ModalDialogLoopResult<DirectoryShortcutsDialogResult>.Continue;
             }
 
             if (input is not KeyConsoleInputEvent { Key: var key })
-                continue;
+                return ModalDialogLoopResult<DirectoryShortcutsDialogResult>.Continue;
 
             switch (key.Key)
             {
@@ -92,10 +86,11 @@ internal sealed class DirectoryShortcutsDialog
                     break;
                 case ConsoleKey.Escape:
                 case ConsoleKey.F10:
-                    return Result(initialItems, items);
+                    return ModalDialogLoopResult<DirectoryShortcutsDialogResult>.Complete(Result(initialItems, items));
             }
-            modal.Render();
-        }
+
+            return ModalDialogLoopResult<DirectoryShortcutsDialogResult>.Continue;
+            });
     }
 
     private DirectoryShortcutsFrame Draw(

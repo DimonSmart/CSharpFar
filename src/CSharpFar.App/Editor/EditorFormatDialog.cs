@@ -30,18 +30,16 @@ internal sealed class EditorFormatDialog
         int lineEndingIndex = LineEndingIndex(current.LineEnding);
         bool emitBom = current.EmitByteOrderMark;
         int row = 0;
-        using var modal = _modalDialogs.Open(context =>
-        {
-            var format = CreateFormat(encodingIndex, emitBom, lineEndingIndex);
-            Draw(context, format, row);
-        });
-
-        while (true)
-        {
-            modal.Render();
-            var input = modal.ReadInput();
+        return _modalDialogs.Run(
+            context =>
+            {
+                var format = CreateFormat(encodingIndex, emitBom, lineEndingIndex);
+                Draw(context, format, row);
+            },
+            input =>
+            {
             if (input is not CSharpFar.Console.Input.KeyConsoleInputEvent { Key: var key })
-                continue;
+                return ModalDialogLoopResult<EditorDocumentFormat?>.Continue;
 
             var format = CreateFormat(encodingIndex, emitBom, lineEndingIndex);
             switch (key.Key)
@@ -51,11 +49,13 @@ internal sealed class EditorFormatDialog
                 case ConsoleKey.LeftArrow: Change(row, -1, ref encodingIndex, ref emitBom, ref lineEndingIndex); break;
                 case ConsoleKey.RightArrow:
                 case ConsoleKey.Spacebar: Change(row, 1, ref encodingIndex, ref emitBom, ref lineEndingIndex); break;
-                case ConsoleKey.Enter: return format;
+                case ConsoleKey.Enter: return ModalDialogLoopResult<EditorDocumentFormat?>.Complete(format);
                 case ConsoleKey.Escape:
-                case ConsoleKey.F10: return null;
+                case ConsoleKey.F10: return ModalDialogLoopResult<EditorDocumentFormat?>.Complete(null);
             }
-        }
+
+            return ModalDialogLoopResult<EditorDocumentFormat?>.Continue;
+            });
     }
 
     private void Draw(UiRenderContext context, EditorDocumentFormat format, int cursorRow)

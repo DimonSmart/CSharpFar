@@ -810,7 +810,7 @@ public sealed class MultiLineChoiceFormRow<T> : FormRow, IFormCursorProvider
             startIndex = endIndex;
         }
 
-        return new ChoiceRowLayout(rowBounds, choices);
+        return new ChoiceRowLayout(ChoiceRowLayoutKind.Segmented, rowBounds, choices);
     }
 }
 

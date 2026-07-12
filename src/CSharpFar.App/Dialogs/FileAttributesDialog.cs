@@ -125,13 +125,13 @@ internal sealed class FileAttributesDialog : IFileAttributesDialog
         var form = new ScrollableFormDialog();
         string? error = null;
 
-        using var modal = _modalDialogs.Open(context => Draw(context, form, error));
-        while (true)
-        {
+        void PrepareRows() =>
             form.SetRows(BuildRows(snapshot, attributeRows, unixMatrixRows, unixSpecialRows, creation, write, access));
-            modal.Render();
 
-            var input = modal.ReadInput();
+        return _modalDialogs.Run(
+            context => Draw(context, form, error),
+            input =>
+            {
             FormInputResult result = input switch
             {
                 KeyConsoleInputEvent { Key: var key } => HandleKey(form, key),
@@ -140,31 +140,38 @@ internal sealed class FileAttributesDialog : IFileAttributesDialog
             };
 
             if (result.Kind == FormInputResultKind.Cancel)
-                return null;
+                return ModalDialogLoopResult<FileAttributesDialogResult?>.Complete(null);
 
             if (result.Kind == FormInputResultKind.Submit)
             {
                 if (IsTimeCommand(result.Command))
                 {
                     ApplyTimeCommand(result.Command, snapshot, creation, write, access);
-                    continue;
+                    return ModalDialogLoopResult<FileAttributesDialogResult?>.Continue;
                 }
 
                 switch (result.Command)
                 {
                     case "properties":
-                        return new FileAttributesDialogResult(EmptyChangeSet(), OpenSystemProperties: true);
+                        return ModalDialogLoopResult<FileAttributesDialogResult?>.Complete(
+                            new FileAttributesDialogResult(EmptyChangeSet(), OpenSystemProperties: true));
                     case "set":
                     case null:
                         var states = attributeRows.ToDictionary(row => row.Descriptor.Id, row => row.Row.Value);
                         var unixStates = permissionLines.ToDictionary(static pair => pair.Key, static pair => pair.Value.Value);
                         var changeSet = CreateChangeSet(snapshot, states, unixStates, creation.Text, write.Text, access.Text, out error);
                         if (error is null)
-                            return new FileAttributesDialogResult(changeSet, OpenSystemProperties: false);
-                        continue;
+                        {
+                            return ModalDialogLoopResult<FileAttributesDialogResult?>.Complete(
+                                new FileAttributesDialogResult(changeSet, OpenSystemProperties: false));
+                        }
+                        return ModalDialogLoopResult<FileAttributesDialogResult?>.Continue;
                 }
             }
-        }
+
+            return ModalDialogLoopResult<FileAttributesDialogResult?>.Continue;
+            },
+            prepareRender: PrepareRows);
     }
 
     private IReadOnlyList<IFormRow> BuildRows(

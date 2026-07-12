@@ -145,6 +145,7 @@ public sealed class ChoiceRowTests
 
         int renameX = driver.GetRow(1).IndexOf("Rename", StringComparison.Ordinal);
         var layout = new ChoiceRowLayout(
+            ChoiceRowLayoutKind.Segmented,
             firstLayout.RowBounds.Concat(secondLayout.RowBounds).ToArray(),
             firstLayout.Choices.Concat(secondLayout.Choices).ToArray());
         Assert.True(row.TryHandleMouse(Mouse(renameX, 1), layout));
@@ -171,6 +172,53 @@ public sealed class ChoiceRowTests
         Assert.False(row.TryHandleMouse(Mouse(3, 1), layout));
 
         Assert.Equal("Default", row.Value);
+    }
+
+    [Fact]
+    public void SegmentedLayout_WithAllChoicesClipped_ClickOnRowDoesNotCycle()
+    {
+        var row = new ChoiceRow<string>(["one", "two"], static value => value);
+        var layout = row.CalculateSegmentedLayout(2, 1, 4, "Mode");
+
+        Assert.Equal(ChoiceRowLayoutKind.Segmented, layout.Kind);
+        Assert.Empty(layout.Choices);
+        Assert.False(row.TryHandleMouse(Mouse(3, 1), layout));
+        Assert.Equal(0, row.SelectedIndex);
+    }
+
+    [Fact]
+    public void SegmentedLayout_ClickOnLabelDoesNotChangeSelection()
+    {
+        var row = new ChoiceRow<string>(["one", "two"], static value => value);
+        var layout = row.CalculateSegmentedLayout(2, 1, 40, "Mode");
+
+        Assert.False(row.TryHandleMouse(Mouse(3, 1), layout));
+
+        Assert.Equal(0, row.SelectedIndex);
+    }
+
+    [Fact]
+    public void SegmentedLayout_PartiallyClippedMarkerDoesNotReturnInvalidCursorBounds()
+    {
+        var row = new ChoiceRow<string>(["one"], static value => value);
+        var layout = row.CalculateSegmentedLayout(1, 1, 2, string.Empty);
+
+        Assert.True(row.TryGetSelectedMarkerBounds(layout, out Rect bounds));
+        Assert.Equal(new Rect(1, 1, 2, 1), bounds);
+    }
+
+    [Fact]
+    public void SimpleLayout_ClickStillCyclesSelection()
+    {
+        var driver = new FakeConsoleDriver(40, 4);
+        var screen = new ScreenRenderer(driver);
+        var row = new ChoiceRow<string>(["one", "two"], static value => value);
+        var layout = row.Render(screen, 2, 1, 20, "Mode", focused: false);
+
+        Assert.Equal(ChoiceRowLayoutKind.Simple, layout.Kind);
+        Assert.True(row.TryHandleMouse(Mouse(3, 1), layout));
+
+        Assert.Equal("two", row.Value);
     }
 
     [Fact]

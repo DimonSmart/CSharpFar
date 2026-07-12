@@ -21,23 +21,23 @@ public sealed class MessageDialog
     public void Show(string title, string message)
     {
         int firstVisibleLine = 0;
-        using var session = _modalDialogs.Open(context =>
-        {
-            var layout = CreateLayout(title, message, context.Size, buttons: null);
-            int effectiveFirstVisibleLine = NormalizeScroll(layout, firstVisibleLine);
-            Draw(context.Screen, title, layout, effectiveFirstVisibleLine, buttonBar: null, focusedButton: 0);
-            context.Screen.SetCursorVisible(false);
-            return new MessageDialogFrame(layout, effectiveFirstVisibleLine, Buttons: null);
-        });
-        while (true)
-        {
-            firstVisibleLine = session.Render().FirstVisibleLine;
-            var input = session.ReadInput(out var frame);
-            firstVisibleLine = frame.FirstVisibleLine;
-            if (input is KeyConsoleInputEvent { Key.Key: ConsoleKey.Enter or ConsoleKey.Escape })
-                return;
-            TryScroll(input, frame, ref firstVisibleLine);
-        }
+        _modalDialogs.Run(
+            context =>
+            {
+                var layout = CreateLayout(title, message, context.Size, buttons: null);
+                int effectiveFirstVisibleLine = NormalizeScroll(layout, firstVisibleLine);
+                Draw(context.Screen, title, layout, effectiveFirstVisibleLine, buttonBar: null, focusedButton: 0);
+                context.Screen.SetCursorVisible(false);
+                return new MessageDialogFrame(layout, effectiveFirstVisibleLine, Buttons: null);
+            },
+            (input, frame) =>
+            {
+                if (input is KeyConsoleInputEvent { Key.Key: ConsoleKey.Enter or ConsoleKey.Escape })
+                    return ModalDialogLoopAction.Close;
+                TryScroll(input, frame, ref firstVisibleLine);
+                return ModalDialogLoopAction.Continue;
+            },
+            applyCommittedFrame: frame => firstVisibleLine = frame.FirstVisibleLine);
     }
 
     public int ShowButtons(string title, string message, IReadOnlyList<string> buttons)
@@ -51,33 +51,33 @@ public sealed class MessageDialog
         var buttonBar = new DialogButtonBar(dialogButtons);
         int focusedButton = 0;
         int firstVisibleLine = 0;
-        using var session = _modalDialogs.Open(context =>
-        {
-            var layout = CreateLayout(title, message, context.Size, dialogButtons);
-            int effectiveFirstVisibleLine = NormalizeScroll(layout, firstVisibleLine);
-            var buttonsLayout = Draw(context.Screen, title, layout, effectiveFirstVisibleLine, buttonBar, focusedButton);
-            context.Screen.SetCursorVisible(false);
-            return new MessageDialogFrame(layout, effectiveFirstVisibleLine, buttonsLayout);
-        });
-
-        while (true)
-        {
-            firstVisibleLine = session.Render().FirstVisibleLine;
-            var input = session.ReadInput(out var frame);
-            firstVisibleLine = frame.FirstVisibleLine;
+        return _modalDialogs.Run(
+            context =>
+            {
+                var layout = CreateLayout(title, message, context.Size, dialogButtons);
+                int effectiveFirstVisibleLine = NormalizeScroll(layout, firstVisibleLine);
+                var buttonsLayout = Draw(context.Screen, title, layout, effectiveFirstVisibleLine, buttonBar, focusedButton);
+                context.Screen.SetCursorVisible(false);
+                return new MessageDialogFrame(layout, effectiveFirstVisibleLine, buttonsLayout);
+            },
+            (input, frame) =>
+            {
             if (TryScroll(input, frame, ref firstVisibleLine))
-                continue;
+                return ModalDialogLoopResult<int>.Continue;
 
             if (frame.Buttons is { } buttonsLayout &&
                 _buttonBarTryHandle(buttonBar, input, buttonsLayout, ref focusedButton, out var selected))
             {
                 if (selected.HasValue)
-                    return selected.Value;
-                continue;
+                    return ModalDialogLoopResult<int>.Complete(selected.Value);
+                return ModalDialogLoopResult<int>.Continue;
             }
             if (input is KeyConsoleInputEvent { Key.Key: ConsoleKey.Escape })
-                return -1;
-        }
+                return ModalDialogLoopResult<int>.Complete(-1);
+
+            return ModalDialogLoopResult<int>.Continue;
+            },
+            applyCommittedFrame: frame => firstVisibleLine = frame.FirstVisibleLine);
     }
 
     private static int NormalizeScroll(MessageDialogLayout layout, int firstVisibleLine) =>

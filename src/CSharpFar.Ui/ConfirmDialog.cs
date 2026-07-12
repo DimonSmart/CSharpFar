@@ -36,26 +36,25 @@ public sealed class ConfirmDialog
     private bool ShowComposed(string title, string question, string itemName)
     {
         int focusedButton = 0;
-        using var session = _modalDialogs.Open(context =>
-            RenderLayer(context.Screen, title, question, itemName, context.Size, focusedButton));
-
-        while (true)
-        {
-            session.Render();
-            var input = session.ReadInput(out var frame);
+        return _modalDialogs.Run(
+            context => RenderLayer(context.Screen, title, question, itemName, context.Size, focusedButton),
+            (input, frame) =>
+            {
             if (_buttonBar.TryHandleInput(input, frame.Buttons, ref focusedButton, out string? buttonId))
             {
-                if (buttonId == "cancel") return false;
-                if (buttonId == "ok") return true;
-                continue;
+                if (buttonId == "cancel") return ModalDialogLoopResult<bool>.Complete(false);
+                if (buttonId == "ok") return ModalDialogLoopResult<bool>.Complete(true);
+                return ModalDialogLoopResult<bool>.Continue;
             }
 
             if (input is KeyConsoleInputEvent { Key: var key })
             {
-                if (key.Key == ConsoleKey.Escape) return false;
-                if (key.Key == ConsoleKey.Enter) return focusedButton == 0;
+                if (key.Key == ConsoleKey.Escape) return ModalDialogLoopResult<bool>.Complete(false);
+                if (key.Key == ConsoleKey.Enter) return ModalDialogLoopResult<bool>.Complete(focusedButton == 0);
             }
-        }
+
+            return ModalDialogLoopResult<bool>.Continue;
+            });
     }
 
     private ConfirmDialogFrame RenderLayer(ScreenRenderer screen, string title, string question, string itemName, ConsoleSize size, int focusedButton)

@@ -4,9 +4,16 @@ using CSharpFar.Console.Models;
 
 namespace CSharpFar.Ui;
 
-public readonly record struct ChoiceHitTarget(int Index, Rect Bounds);
+public enum ChoiceRowLayoutKind
+{
+    Simple,
+    Segmented,
+}
+
+public readonly record struct ChoiceHitTarget(int Index, Rect Bounds, Rect MarkerBounds);
 
 public sealed record ChoiceRowLayout(
+    ChoiceRowLayoutKind Kind,
     IReadOnlyList<Rect> RowBounds,
     IReadOnlyList<ChoiceHitTarget> Choices);
 
@@ -48,7 +55,10 @@ public sealed class ChoiceRow<T>
             if (target.Index != SelectedIndex)
                 continue;
 
-            bounds = target.Bounds;
+            if (target.MarkerBounds.Width <= 0)
+                break;
+
+            bounds = target.MarkerBounds;
             return true;
         }
 
@@ -68,6 +78,7 @@ public sealed class ChoiceRow<T>
             Fit(text, width),
             focused ? PaletteStyles.InputField(palette) : PaletteStyles.DialogFill(palette));
         return new ChoiceRowLayout(
+            ChoiceRowLayoutKind.Simple,
             Array.AsReadOnly(new[] { new Rect(x, y, Math.Max(0, width), 1) }),
             Array.AsReadOnly(Array.Empty<ChoiceHitTarget>()));
     }
@@ -89,13 +100,18 @@ public sealed class ChoiceRow<T>
         for (int i = startIndex; i < exclusiveEnd; i++)
         {
             string optionText = $"{(i == SelectedIndex ? "(x)" : "( )")} {_format(_choices[i])}";
-            var visibleBounds = Intersect(new Rect(x + column, y, optionText.Length, 1), areaBounds);
+            var optionBounds = new Rect(x + column, y, optionText.Length, 1);
+            var visibleBounds = Intersect(optionBounds, areaBounds);
             if (visibleBounds.Width > 0)
-                choices.Add(new ChoiceHitTarget(i, visibleBounds));
+            {
+                var markerBounds = Intersect(new Rect(optionBounds.X, y, 3, 1), areaBounds);
+                choices.Add(new ChoiceHitTarget(i, visibleBounds, markerBounds));
+            }
             column += optionText.Length + 1;
         }
 
         return new ChoiceRowLayout(
+            ChoiceRowLayoutKind.Segmented,
             Array.AsReadOnly(new[] { areaBounds }),
             choices.AsReadOnly());
     }
@@ -159,7 +175,7 @@ public sealed class ChoiceRow<T>
             return false;
         }
 
-        if (layout.Choices.Count > 0)
+        if (layout.Kind == ChoiceRowLayoutKind.Segmented)
         {
             foreach (var target in layout.Choices)
             {
@@ -175,6 +191,9 @@ public sealed class ChoiceRow<T>
 
             return false;
         }
+
+        if (layout.Kind != ChoiceRowLayoutKind.Simple)
+            return false;
 
         SelectedIndex = (SelectedIndex + 1) % _choices.Count;
         return true;

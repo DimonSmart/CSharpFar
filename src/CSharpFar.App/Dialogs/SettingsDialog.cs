@@ -71,59 +71,55 @@ internal sealed class SettingsDialog
         int bodyScrollTop = 0;
         ScrollBarDragState? bodyScrollbarDrag = null;
 
-        using var modal = _modalDialogs.Open(context =>
-        {
-            var bounds = BuildBounds(context.Size);
-            int effectiveScrollTop = NormalizeBodyScroll(bounds, focusRow, bodyScrollTop);
-            Draw(context, bounds, effectiveScrollTop, focusRow, leftIdx, rightIdx, palIdx, hlEnabled, syntaxEnabled);
-            return new SettingsDialogFrame(bounds, effectiveScrollTop);
-        });
-        bodyScrollTop = modal.Render().BodyScrollTop;
-
-        while (true)
-        {
-            var input = modal.ReadInput(out var frame);
-            bodyScrollTop = frame.BodyScrollTop;
+        return _modalDialogs.Run(
+            context =>
+            {
+                var bounds = BuildBounds(context.Size);
+                int effectiveScrollTop = NormalizeBodyScroll(bounds, focusRow, bodyScrollTop);
+                Draw(context, bounds, effectiveScrollTop, focusRow, leftIdx, rightIdx, palIdx, hlEnabled, syntaxEnabled);
+                return new SettingsDialogFrame(bounds, effectiveScrollTop);
+            },
+            (input, frame) =>
+            {
             if (input is MouseConsoleInputEvent mouse &&
                 TryHandleBodyScrollbarMouse(mouse, frame.Bounds, frame.BodyScrollTop, ref bodyScrollTop, ref bodyScrollbarDrag))
             {
-                bodyScrollTop = modal.Render().BodyScrollTop;
-                continue;
+                return ModalDialogLoopResult<SettingsDialogResult?>.Continue;
             }
 
             if (input is not KeyConsoleInputEvent { Key: var key })
-                continue;
+                return ModalDialogLoopResult<SettingsDialogResult?>.Continue;
 
             switch (key.Key)
             {
                 case ConsoleKey.Escape:
-                    return null;
+                    return ModalDialogLoopResult<SettingsDialogResult?>.Complete(null);
 
                 case ConsoleKey.F10:
-                    return new SettingsDialogResult(
+                    return ModalDialogLoopResult<SettingsDialogResult?>.Complete(new SettingsDialogResult(
                         ViewModes[leftIdx],
                         ViewModes[rightIdx],
                         PaletteNames[palIdx],
                         hlEnabled,
-                        syntaxEnabled);
+                        syntaxEnabled));
 
                 case ConsoleKey.UpArrow:
                     focusRow = (focusRow + 4) % 5;
-                    bodyScrollTop = modal.Render().BodyScrollTop;
                     break;
 
                 case ConsoleKey.DownArrow:
                     focusRow = (focusRow + 1) % 5;
-                    bodyScrollTop = modal.Render().BodyScrollTop;
                     break;
 
                 case ConsoleKey.Enter:
                 case ConsoleKey.Spacebar:
                     Cycle(focusRow, ref leftIdx, ref rightIdx, ref palIdx, ref hlEnabled, ref syntaxEnabled);
-                    bodyScrollTop = modal.Render().BodyScrollTop;
                     break;
             }
-        }
+
+            return ModalDialogLoopResult<SettingsDialogResult?>.Continue;
+            },
+            applyCommittedFrame: frame => bodyScrollTop = frame.BodyScrollTop);
     }
 
     private static void Cycle(

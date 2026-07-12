@@ -36,27 +36,27 @@ public sealed class ChoiceDialog
         var buttonBar = new DialogButtonBar(options.Buttons);
         int focusedButton = ClampButtonIndex(options.DefaultButtonIndex, options.Buttons);
         int cancelButton = ClampButtonIndex(options.CancelButtonIndex, options.Buttons);
-        using var session = _modalDialogs.Open(context =>
-        {
-            var layout = CreateLayout(options, context.Size);
-            var buttons = RenderLayer(context.Screen, options, layout, buttonBar, focusedButton);
-            return new ChoiceDialogFrame(layout, buttons);
-        });
-
-        while (true)
-        {
-            session.Render();
-            var input = session.ReadInput(out var frame);
+        return _modalDialogs.Run(
+            context =>
+            {
+                var layout = CreateLayout(options, context.Size);
+                var buttons = RenderLayer(context.Screen, options, layout, buttonBar, focusedButton);
+                return new ChoiceDialogFrame(layout, buttons);
+            },
+            (input, frame) =>
+            {
             if (buttonBar.TryHandleInput(input, frame.Buttons, ref focusedButton, out string? buttonId))
             {
                 if (buttonId is not null)
-                    return ResultForButtonId(options.Buttons, buttonId);
-                continue;
+                    return ModalDialogLoopResult<ChoiceDialogResult>.Complete(ResultForButtonId(options.Buttons, buttonId));
+                return ModalDialogLoopResult<ChoiceDialogResult>.Continue;
             }
 
             if (input is KeyConsoleInputEvent { Key.Key: ConsoleKey.Escape })
-                return ResultForIndex(options.Buttons, cancelButton);
-        }
+                return ModalDialogLoopResult<ChoiceDialogResult>.Complete(ResultForIndex(options.Buttons, cancelButton));
+
+            return ModalDialogLoopResult<ChoiceDialogResult>.Continue;
+            });
     }
 
     private static DialogButtonBarLayout RenderLayer(

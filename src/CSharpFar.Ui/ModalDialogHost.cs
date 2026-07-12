@@ -32,7 +32,96 @@ public sealed class ModalDialogHost
 
         return new ModalDialogSession<TFrame>(new ModalDialogLayerScope(_composition, overlay), committed);
     }
+
+    public TResult Run<TFrame, TResult>(
+        Func<UiRenderContext, TFrame> render,
+        Func<ConsoleInputEvent, TFrame, ModalDialogLoopResult<TResult>> handleInput,
+        Action? prepareRender = null,
+        Action<TFrame>? applyCommittedFrame = null,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(render);
+        ArgumentNullException.ThrowIfNull(handleInput);
+
+        prepareRender?.Invoke();
+        using var session = Open(render);
+        TFrame frame = session.Render();
+        applyCommittedFrame?.Invoke(frame);
+
+        while (true)
+        {
+            ConsoleInputEvent input = session.ReadInput(out frame, cancellationToken);
+            applyCommittedFrame?.Invoke(frame);
+
+            ModalDialogLoopResult<TResult> step = handleInput(input, frame);
+            if (step.IsCompleted)
+                return step.Result;
+
+            prepareRender?.Invoke();
+            frame = session.Render();
+            applyCommittedFrame?.Invoke(frame);
+        }
+    }
+
+    public void Run<TFrame>(
+        Func<UiRenderContext, TFrame> render,
+        Func<ConsoleInputEvent, TFrame, ModalDialogLoopAction> handleInput,
+        Action? prepareRender = null,
+        Action<TFrame>? applyCommittedFrame = null,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(handleInput);
+
+        Run(
+            render,
+            (input, frame) => handleInput(input, frame) == ModalDialogLoopAction.Close
+                ? ModalDialogLoopResult<Unit>.Complete(default)
+                : ModalDialogLoopResult<Unit>.Continue,
+            prepareRender,
+            applyCommittedFrame,
+            cancellationToken);
+    }
+
+    public TResult Run<TResult>(
+        Action<UiRenderContext> render,
+        Func<ConsoleInputEvent, ModalDialogLoopResult<TResult>> handleInput,
+        Action? prepareRender = null,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(render);
+        ArgumentNullException.ThrowIfNull(handleInput);
+
+        return Run(
+            context =>
+            {
+                render(context);
+                return default(Unit);
+            },
+            (input, _) => handleInput(input),
+            prepareRender,
+            applyCommittedFrame: null,
+            cancellationToken);
+    }
+
+    public void Run(
+        Action<UiRenderContext> render,
+        Func<ConsoleInputEvent, ModalDialogLoopAction> handleInput,
+        Action? prepareRender = null,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(handleInput);
+
+        Run(
+            render,
+            input => handleInput(input) == ModalDialogLoopAction.Close
+                ? ModalDialogLoopResult<Unit>.Complete(default)
+                : ModalDialogLoopResult<Unit>.Continue,
+            prepareRender,
+            cancellationToken);
+    }
 }
+
+internal readonly struct Unit;
 
 public sealed class ModalDialogSession : IDisposable
 {

@@ -69,31 +69,24 @@ internal sealed class OpenCreateFileDialog
         int focusedButton = 0;
         string? error = null;
         ScrollBarDragState? historyScrollbarDrag = null;
-        using var modal = _modalDialogs.Open(context =>
-        {
-            return Draw(context.Screen, context.Size, filePath, history, codePageDropdown, focusRow, focusedButton, error);
-        });
-        RenderAndApply();
-
-        while (true)
-        {
-            var input = modal.ReadInput(out var frame);
-            codePageDropdown.ApplyCommittedFrame(frame.CodePageDropdown);
+        return _modalDialogs.Run(
+            context => Draw(context.Screen, context.Size, filePath, history, codePageDropdown, focusRow, focusedButton, error),
+            (input, frame) =>
+            {
 
             if (focusRow == 2 &&
                 _buttonBar.TryHandleInput(input, frame.Buttons, ref focusedButton, out string? buttonId))
             {
                 if (buttonId == "cancel")
-                    return null;
+                    return ModalDialogLoopResult<OpenCreateFileDialogResult?>.Complete(null);
                 if (buttonId == "ok")
                 {
                     var result = TrySubmit(filePath, history, codePageDropdown.SelectedIndex, validate, ref error);
                     if (result is not null)
-                        return result;
+                        return ModalDialogLoopResult<OpenCreateFileDialogResult?>.Complete(result);
                 }
 
-                RenderAndApply();
-                continue;
+                return ModalDialogLoopResult<OpenCreateFileDialogResult?>.Continue;
             }
 
             if (input is MouseConsoleInputEvent dropdownMouse &&
@@ -102,8 +95,7 @@ internal sealed class OpenCreateFileDialog
             {
                 focusRow = 0;
                 codePageDropdown.Close();
-                RenderAndApply();
-                continue;
+                return ModalDialogLoopResult<OpenCreateFileDialogResult?>.Continue;
             }
 
             if (input is MouseConsoleInputEvent mouse)
@@ -112,16 +104,14 @@ internal sealed class OpenCreateFileDialog
                 {
                     focusRow = 1;
                     error = null;
-                    RenderAndApply();
-                    continue;
+                    return ModalDialogLoopResult<OpenCreateFileDialogResult?>.Continue;
                 }
 
                 if (TryHandleHistoryArrow(mouse, frame, history))
                 {
                     focusRow = 0;
                     codePageDropdown.Close();
-                    RenderAndApply();
-                    continue;
+                    return ModalDialogLoopResult<OpenCreateFileDialogResult?>.Continue;
                 }
 
                 if (TryHandlePathFieldMouse(mouse, frame.PathFieldBounds, filePath))
@@ -129,16 +119,14 @@ internal sealed class OpenCreateFileDialog
                     focusRow = 0;
                     codePageDropdown.Close();
                     error = null;
-                    RenderAndApply();
-                    continue;
+                    return ModalDialogLoopResult<OpenCreateFileDialogResult?>.Continue;
                 }
 
                 if (codePageDropdown.TryHandleFieldMouse(mouse, frame.CodePageDropdown))
                 {
                     focusRow = 1;
                     error = null;
-                    RenderAndApply();
-                    continue;
+                    return ModalDialogLoopResult<OpenCreateFileDialogResult?>.Continue;
                 }
 
                 if (_buttonBar.TryHandleInput(input, frame.Buttons, ref focusedButton, out buttonId) &&
@@ -147,29 +135,24 @@ internal sealed class OpenCreateFileDialog
                     focusRow = 2;
                     codePageDropdown.Close();
                     if (buttonId == "cancel")
-                        return null;
+                        return ModalDialogLoopResult<OpenCreateFileDialogResult?>.Complete(null);
 
                         var result = TrySubmit(filePath, history, codePageDropdown.SelectedIndex, validate, ref error);
                     if (result is not null)
-                        return result;
+                        return ModalDialogLoopResult<OpenCreateFileDialogResult?>.Complete(result);
 
-                    RenderAndApply();
-                    continue;
+                    return ModalDialogLoopResult<OpenCreateFileDialogResult?>.Continue;
                 }
 
                 if (codePageDropdown.IsOpen)
                 {
                     codePageDropdown.Close();
-                    RenderAndApply();
-                    continue;
+                    return ModalDialogLoopResult<OpenCreateFileDialogResult?>.Continue;
                 }
             }
 
             if (input is not KeyConsoleInputEvent { Key: var key })
-            {
-                RenderAndApply();
-                continue;
-            }
+                return ModalDialogLoopResult<OpenCreateFileDialogResult?>.Continue;
 
             int availableRows = SingleLineTextInput.AvailableDropdownContentRows(frame.PathFieldBounds.Y, frame.Size.Height);
             if (focusRow == 0 &&
@@ -177,8 +160,7 @@ internal sealed class OpenCreateFileDialog
                 key.Key is ConsoleKey.UpArrow or ConsoleKey.DownArrow or ConsoleKey.Enter or ConsoleKey.Escape)
             {
                 SingleLineTextInput.HandleKey(filePath, key, ref error, history, availableRows);
-                RenderAndApply();
-                continue;
+                return ModalDialogLoopResult<OpenCreateFileDialogResult?>.Continue;
             }
 
             if (focusRow == 1 && codePageDropdown.IsOpen)
@@ -193,24 +175,23 @@ internal sealed class OpenCreateFileDialog
                     codePageDropdown.TryHandleKey(key, frame.CodePageDropdown, out _);
                 }
 
-                RenderAndApply();
-                continue;
+                return ModalDialogLoopResult<OpenCreateFileDialogResult?>.Continue;
             }
 
             switch (key.Key)
             {
                 case ConsoleKey.Escape:
-                    return null;
+                    return ModalDialogLoopResult<OpenCreateFileDialogResult?>.Complete(null);
 
                 case ConsoleKey.F10:
                 case ConsoleKey.Enter:
                     if (focusRow == 2 && focusedButton == 1)
-                        return null;
+                        return ModalDialogLoopResult<OpenCreateFileDialogResult?>.Complete(null);
 
                     {
                     var result = TrySubmit(filePath, history, codePageDropdown.SelectedIndex, validate, ref error);
                         if (result is not null)
-                            return result;
+                            return ModalDialogLoopResult<OpenCreateFileDialogResult?>.Complete(result);
                         break;
                     }
 
@@ -227,7 +208,7 @@ internal sealed class OpenCreateFileDialog
                 case ConsoleKey.DownArrow:
                     if (focusRow == 1)
                     {
-                        codePageDropdown.Open(frame.Size, frame.CodePageDropdown.FieldBounds);
+                        codePageDropdown.Open();
                     }
                     else
                     {
@@ -238,7 +219,7 @@ internal sealed class OpenCreateFileDialog
 
                 case ConsoleKey.LeftArrow:
                     if (focusRow == 1)
-                        codePageDropdown.Open(frame.Size, frame.CodePageDropdown.FieldBounds);
+                        codePageDropdown.Open();
                     else if (focusRow == 2)
                         _buttonBar.TryHandleKey(key, ref focusedButton, out _);
                     else
@@ -247,7 +228,7 @@ internal sealed class OpenCreateFileDialog
 
                 case ConsoleKey.RightArrow:
                     if (focusRow == 1)
-                        codePageDropdown.Open(frame.Size, frame.CodePageDropdown.FieldBounds);
+                        codePageDropdown.Open();
                     else if (focusRow == 2)
                         _buttonBar.TryHandleKey(key, ref focusedButton, out _);
                     else
@@ -257,16 +238,16 @@ internal sealed class OpenCreateFileDialog
                 case ConsoleKey.Spacebar:
                     if (focusRow == 1)
                     {
-                        codePageDropdown.Open(frame.Size, frame.CodePageDropdown.FieldBounds);
+                        codePageDropdown.Open();
                     }
                     else if (focusRow == 2)
                     {
                         if (focusedButton == 1)
-                            return null;
+                            return ModalDialogLoopResult<OpenCreateFileDialogResult?>.Complete(null);
 
                         var result = TrySubmit(filePath, history, codePageDropdown.SelectedIndex, validate, ref error);
                         if (result is not null)
-                            return result;
+                            return ModalDialogLoopResult<OpenCreateFileDialogResult?>.Complete(result);
                     }
                     else
                     {
@@ -280,15 +261,9 @@ internal sealed class OpenCreateFileDialog
                     break;
             }
 
-            RenderAndApply();
-        }
-
-        OpenCreateFileFrame RenderAndApply()
-        {
-            var frame = modal.Render();
-            codePageDropdown.ApplyCommittedFrame(frame.CodePageDropdown);
-            return frame;
-        }
+            return ModalDialogLoopResult<OpenCreateFileDialogResult?>.Continue;
+            },
+            applyCommittedFrame: frame => codePageDropdown.ApplyCommittedFrame(frame.CodePageDropdown));
     }
 
     private OpenCreateFileDialogResult? TrySubmit(

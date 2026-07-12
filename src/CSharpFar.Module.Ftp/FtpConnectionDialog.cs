@@ -115,30 +115,24 @@ internal sealed class FtpConnectionDialog
             new DialogButton("submit", submitLabel, submitLabel[0], IsDefault: true),
             new DialogButton("cancel", "Cancel", 'C'),
         ]);
-        using var modal = _modalDialogs.Open(context =>
-        {
-            var geometry = GetDialogGeometry(context.Size);
-            int effectiveBodyScrollTop = ensureFocusVisible
-                ? NormalizeBodyScroll(geometry, focusRow, bodyScrollTop, request.AllowTemporaryConnection, dataMode)
-                : ClampBodyScroll(geometry, bodyScrollTop, request.AllowTemporaryConnection, dataMode);
-            var buttons = Draw(
-                geometry,
-                connection is null ? "FTP/FTPS connection" : "Edit FTP/FTPS connection",
-                focusRow, effectiveBodyScrollTop, buttonBar, focusedButton, connectionName, host, port,
-                userName, password, remoteRoot, activePorts, histories, saveConnection, savePassword,
-                showInDrive, securityMode, dataMode, useDataTls, certificateFingerprint,
-                trustCertificate, request.AllowTemporaryConnection, error);
-            return new FtpConnectionFrame(context.Size, geometry, effectiveBodyScrollTop, buttons);
-        });
-
-        while (true)
-        {
-            var frame = modal.Render();
-            bodyScrollTop = frame.BodyScrollTop;
-            ensureFocusVisible = true;
-
-            var input = modal.ReadInput(out frame);
-            bodyScrollTop = frame.BodyScrollTop;
+        return _modalDialogs.Run(
+            context =>
+            {
+                var geometry = GetDialogGeometry(context.Size);
+                int effectiveBodyScrollTop = ensureFocusVisible
+                    ? NormalizeBodyScroll(geometry, focusRow, bodyScrollTop, request.AllowTemporaryConnection, dataMode)
+                    : ClampBodyScroll(geometry, bodyScrollTop, request.AllowTemporaryConnection, dataMode);
+                var buttons = Draw(
+                    geometry,
+                    connection is null ? "FTP/FTPS connection" : "Edit FTP/FTPS connection",
+                    focusRow, effectiveBodyScrollTop, buttonBar, focusedButton, connectionName, host, port,
+                    userName, password, remoteRoot, activePorts, histories, saveConnection, savePassword,
+                    showInDrive, securityMode, dataMode, useDataTls, certificateFingerprint,
+                    trustCertificate, request.AllowTemporaryConnection, error);
+                return new FtpConnectionFrame(context.Size, geometry, effectiveBodyScrollTop, buttons);
+            },
+            (input, frame) =>
+            {
             if (input is MouseConsoleInputEvent historyMouse &&
                 TryHandleHistoryDropdownMouse(
                     historyMouse,
@@ -155,7 +149,7 @@ internal sealed class FtpConnectionDialog
                     ref historyScrollbarDrag))
             {
                 ensureFocusVisible = false;
-                continue;
+                return ModalDialogLoopResult<FtpConnectionDialogResult?>.Continue;
             }
 
             if (input is MouseConsoleInputEvent scrollbarMouse &&
@@ -168,7 +162,7 @@ internal sealed class FtpConnectionDialog
                     ref bodyScrollbarDrag))
             {
                 ensureFocusVisible = false;
-                continue;
+                return ModalDialogLoopResult<FtpConnectionDialogResult?>.Continue;
             }
 
             if ((focusRow == RowButtons || input is MouseConsoleInputEvent) &&
@@ -176,10 +170,10 @@ internal sealed class FtpConnectionDialog
             {
                 focusRow = RowButtons;
                 if (buttonId == "cancel")
-                    return null;
+                    return ModalDialogLoopResult<FtpConnectionDialogResult?>.Complete(null);
                 if (buttonId == "submit" && TrySubmit(out var submitResult))
-                    return submitResult;
-                continue;
+                    return ModalDialogLoopResult<FtpConnectionDialogResult?>.Complete(submitResult);
+                return ModalDialogLoopResult<FtpConnectionDialogResult?>.Continue;
             }
 
             if (input is MouseConsoleInputEvent mouse)
@@ -206,11 +200,11 @@ internal sealed class FtpConnectionDialog
                     ref certificateFingerprint,
                     ref trustCertificate,
                     ref error);
-                continue;
+                return ModalDialogLoopResult<FtpConnectionDialogResult?>.Continue;
             }
 
             if (input is not KeyConsoleInputEvent { Key: var key })
-                continue;
+                return ModalDialogLoopResult<FtpConnectionDialogResult?>.Continue;
 
             if (histories.ForRow(focusRow)?.IsDropdownOpen == true &&
                 key.Key is ConsoleKey.UpArrow or ConsoleKey.DownArrow or ConsoleKey.Enter or ConsoleKey.Escape)
@@ -231,27 +225,27 @@ internal sealed class FtpConnectionDialog
                         frame,
                         request.AllowTemporaryConnection,
                         dataMode,
-                        ref error),
+                    ref error),
                     ref certificateFingerprint,
                     ref trustCertificate);
-                continue;
+                return ModalDialogLoopResult<FtpConnectionDialogResult?>.Continue;
             }
 
             switch (key.Key)
             {
                 case ConsoleKey.Escape:
-                    return null;
+                    return ModalDialogLoopResult<FtpConnectionDialogResult?>.Complete(null);
                 case ConsoleKey.F10:
                     if (TrySubmit(out var f10Result))
-                        return f10Result;
+                        return ModalDialogLoopResult<FtpConnectionDialogResult?>.Complete(f10Result);
                     break;
                 case ConsoleKey.Enter:
                     if (focusRow == RowButtons)
                     {
                         if (focusedButton == 1)
-                            return null;
+                            return ModalDialogLoopResult<FtpConnectionDialogResult?>.Complete(null);
                         if (TrySubmit(out var enterResult))
-                            return enterResult;
+                            return ModalDialogLoopResult<FtpConnectionDialogResult?>.Complete(enterResult);
                     }
                     else if (TryToggle(
                         focusRow,
@@ -299,9 +293,9 @@ internal sealed class FtpConnectionDialog
                     if (focusRow == RowButtons)
                     {
                         if (focusedButton == 1)
-                            return null;
+                            return ModalDialogLoopResult<FtpConnectionDialogResult?>.Complete(null);
                         if (TrySubmit(out var spaceResult))
-                            return spaceResult;
+                            return ModalDialogLoopResult<FtpConnectionDialogResult?>.Complete(spaceResult);
                     }
                     else if (TryToggle(
                         focusRow,
@@ -336,7 +330,14 @@ internal sealed class FtpConnectionDialog
                         ref trustCertificate);
                     break;
             }
-        }
+
+            return ModalDialogLoopResult<FtpConnectionDialogResult?>.Continue;
+            },
+            applyCommittedFrame: frame =>
+            {
+                bodyScrollTop = frame.BodyScrollTop;
+                ensureFocusVisible = true;
+            });
 
         bool TrySubmit(out FtpConnectionDialogResult? result)
         {
