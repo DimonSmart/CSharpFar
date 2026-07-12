@@ -1,0 +1,36 @@
+namespace CSharpFar.Ui;
+
+public sealed class UiInteractionFrame
+{
+    public UiInteractionFrame(
+        IReadOnlyList<UiHitRegion> hitRegions,
+        UiFocusFrame? focus = null)
+    {
+        ArgumentNullException.ThrowIfNull(hitRegions);
+
+        HitRegions = Array.AsReadOnly(hitRegions.ToArray());
+        Focus = focus ?? UiFocusFrame.Empty;
+    }
+
+    public IReadOnlyList<UiHitRegion> HitRegions { get; }
+
+    public UiFocusFrame Focus { get; }
+
+    public bool TryHitTest(int x, int y, out UiHitRegion region)
+    {
+        for (int i = HitRegions.Count - 1; i >= 0; i--)
+        {
+            UiHitRegion candidate = HitRegions[i];
+            if (candidate.Bounds.Width > 0 &&
+                candidate.Bounds.Height > 0 &&
+                candidate.Bounds.Contains(x, y))
+            {
+                region = candidate;
+                return true;
+            }
+        }
+
+        region = null!;
+        return false;
+    }
+}

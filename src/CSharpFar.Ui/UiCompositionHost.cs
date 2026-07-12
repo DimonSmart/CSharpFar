@@ -117,6 +117,8 @@ public sealed class UiCompositionHost
 {
     private readonly List<UiLayerEntry> _layers = [];
     private bool _isRendering;
+    private bool _isDispatching;
+    private UiMouseCaptureState? _mouseCapture;
 
     public UiCompositionHost(ScreenRenderer screen)
     {
@@ -129,10 +131,13 @@ public sealed class UiCompositionHost
 
     public void SetRootSurface(IUiSurface surface)
     {
-        EnsureNotRendering();
+        EnsureCanChangeLayers();
         ArgumentNullException.ThrowIfNull(surface);
         if (_layers.Skip(1).Any(entry => entry.Kind == UiLayerKind.Surface))
             throw new InvalidOperationException("Cannot replace the root surface while a temporary surface is active.");
+
+        if (_layers.Count > 0)
+            ClearCaptureIfOwnedBy(_layers[0]);
 
         if (_layers.Count == 0)
             _layers.Add(UiLayerEntry.ForSurface(surface));
@@ -146,7 +151,7 @@ public sealed class UiCompositionHost
 
     public UiSurfaceSession OpenSurface(IUiSurface surface)
     {
-        EnsureNotRendering();
+        EnsureCanChangeLayers();
         ArgumentNullException.ThrowIfNull(surface);
         EnsureRootSurface();
         var entry = UiLayerEntry.ForSurface(surface);
@@ -157,10 +162,20 @@ public sealed class UiCompositionHost
     /// <summary>Opens an overlay whose render callback participates in stable-frame commit.</summary>
     internal UiLayerScope PushOverlay(Action<UiRenderContext> render)
     {
-        EnsureNotRendering();
+        EnsureCanChangeLayers();
         ArgumentNullException.ThrowIfNull(render);
         EnsureRootSurface();
         var entry = UiLayerEntry.ForOverlay(render);
+        _layers.Add(entry);
+        return new UiLayerScope(this, entry);
+    }
+
+    internal UiLayerScope PushOverlay(IUiLayer layer)
+    {
+        EnsureCanChangeLayers();
+        ArgumentNullException.ThrowIfNull(layer);
+        EnsureRootSurface();
+        var entry = UiLayerEntry.ForOverlay(layer);
         _layers.Add(entry);
         return new UiLayerScope(this, entry);
     }
@@ -184,13 +199,13 @@ public sealed class UiCompositionHost
                 var attempt = new UiRenderAttempt();
                 ConsoleViewport viewport;
 
-                using (composition.Surface.BeginFrame(request))
+                using (composition.Surface.SurfaceLifecycle!.BeginFrame(request))
                 {
                     viewport = Screen.FrameViewport;
                     var context = new UiRenderContext(Screen, viewport, attempt);
-                    composition.Surface.Render(context);
+                    composition.Surface.SurfaceLifecycle!.Render(context);
                     foreach (var overlay in composition.Overlays)
-                        overlay(context);
+                        overlay.Layer.Render(context);
                 }
 
                 bool interrupted = Screen.FrameWasInterrupted;
@@ -204,14 +219,14 @@ public sealed class UiCompositionHost
                 if (rejected)
                 {
                     attempt.Discard();
-                    composition.Surface.CompleteFrame(new UiFrameCompletion(request, viewport, interrupted, WasCommitted: false));
+                    composition.Surface.SurfaceLifecycle!.CompleteFrame(new UiFrameCompletion(request, viewport, interrupted, WasCommitted: false));
                     isResizeRecovery = true;
                     continue;
                 }
 
                 attempt.Commit();
                 LastStableViewport = viewport;
-                composition.Surface.CompleteFrame(new UiFrameCompletion(request, viewport, WasInterrupted: false, WasCommitted: true));
+                composition.Surface.SurfaceLifecycle!.CompleteFrame(new UiFrameCompletion(request, viewport, WasInterrupted: false, WasCommitted: true));
                 return;
             }
         }
@@ -227,6 +242,63 @@ public sealed class UiCompositionHost
     public bool TryReadInput(out ConsoleInputEvent? input) =>
         TryReadCompositionInput(out input);
 
+    /// <summary>
+    /// Routes an already-read semantic input event through the active layer
+    /// composition. Returned focus and capture requests are normalized after
+    /// host-side application and must not be replayed by callers.
+    /// </summary>
+    public UiInputResult DispatchInput(ConsoleInputEvent input)
+    {
+        ArgumentNullException.ThrowIfNull(input);
+        if (_isRendering)
+            throw new InvalidOperationException("UI input cannot be dispatched while composition is rendering.");
+        if (_isDispatching)
+            throw new InvalidOperationException("UI input cannot be dispatched recursively.");
+
+        if (input is ConsoleResizeInputEvent)
+            return UiInputResult.NotHandled;
+
+        EnsureRootSurface();
+        _isDispatching = true;
+        try
+        {
+            var composition = CaptureActiveComposition();
+            if (input is MouseConsoleInputEvent mouse && _mouseCapture is { } capture)
+            {
+                if (composition.Contains(capture.Owner))
+                    return DispatchCapturedMouse(input, mouse, capture);
+
+                _mouseCapture = null;
+            }
+
+            bool handled = false;
+            bool invalidate = false;
+            foreach (UiLayerEntry entry in composition.RoutingOrder())
+            {
+                if (entry.Layer.InputPolicy == UiLayerInputPolicy.None)
+                    continue;
+
+                UiInputResult result = entry.Layer.RouteInput(
+                    input,
+                    new UiInputRouteContext(entry.Layer.FocusScope, capturedTarget: null, isCapturedRoute: false));
+                ApplyFocusRequest(entry.Layer.FocusScope, result.FocusRequest);
+                ApplyMouseCaptureRequest(entry, input, result.MouseCaptureRequest);
+
+                handled |= result.Handled;
+                invalidate |= result.Invalidate;
+
+                if (entry.Layer.InputPolicy == UiLayerInputPolicy.Modal || result.Handled)
+                    break;
+            }
+
+            return NormalizeResult(handled, invalidate);
+        }
+        finally
+        {
+            _isDispatching = false;
+        }
+    }
+
     private ActiveComposition CaptureActiveComposition()
     {
         int surfaceIndex = _layers.FindLastIndex(entry => entry.Kind == UiLayerKind.Surface);
@@ -234,23 +306,25 @@ public sealed class UiCompositionHost
             throw new InvalidOperationException("A root UI surface must be set before composition rendering.");
 
         return new ActiveComposition(
-            _layers[surfaceIndex].SurfaceRenderer!,
-            _layers.Skip(surfaceIndex + 1).Select(entry => entry.OverlayRenderer!).ToArray());
+            _layers[surfaceIndex],
+            _layers.Skip(surfaceIndex + 1).ToArray());
     }
 
     private void CloseSurface(UiLayerEntry entry)
     {
-        EnsureNotRendering();
+        EnsureCanChangeLayers();
         if (_layers.Count <= 1 || !ReferenceEquals(_layers[^1], entry) || entry.Kind != UiLayerKind.Surface)
             throw new InvalidOperationException("Temporary surfaces must be disposed in LIFO order.");
+        ClearCaptureIfOwnedBy(entry);
         _layers.RemoveAt(_layers.Count - 1);
     }
 
     private void CloseOverlay(UiLayerEntry entry)
     {
-        EnsureNotRendering();
+        EnsureCanChangeLayers();
         if (_layers.Count == 0 || !ReferenceEquals(_layers[^1], entry) || entry.Kind != UiLayerKind.Overlay)
             throw new InvalidOperationException("Overlays must be disposed in LIFO order.");
+        ClearCaptureIfOwnedBy(entry);
         _layers.RemoveAt(_layers.Count - 1);
     }
 
@@ -264,6 +338,13 @@ public sealed class UiCompositionHost
     {
         if (_isRendering)
             throw new InvalidOperationException("UI layers cannot be changed while composition is rendering.");
+    }
+
+    private void EnsureCanChangeLayers()
+    {
+        EnsureNotRendering();
+        if (_isDispatching)
+            throw new InvalidOperationException("UI layers cannot be changed while input is dispatching.");
     }
 
     public sealed class UiSurfaceSession : IDisposable
@@ -366,18 +447,126 @@ public sealed class UiCompositionHost
 
     internal sealed class UiLayerEntry
     {
-        private UiLayerEntry(UiLayerKind kind, IUiSurface? surface, Action<UiRenderContext>? overlay) =>
-            (Kind, SurfaceRenderer, OverlayRenderer) = (kind, surface, overlay);
+        private UiLayerEntry(UiLayerKind kind, IUiLayer layer, IUiSurface? surfaceLifecycle) =>
+            (Kind, Layer, SurfaceLifecycle) = (kind, layer, surfaceLifecycle);
 
         public UiLayerKind Kind { get; }
-        public IUiSurface? SurfaceRenderer { get; }
-        public Action<UiRenderContext>? OverlayRenderer { get; }
+        public IUiLayer Layer { get; }
+        public IUiSurface? SurfaceLifecycle { get; }
 
-        public static UiLayerEntry ForSurface(IUiSurface surface) => new(UiLayerKind.Surface, surface, null);
-        public static UiLayerEntry ForOverlay(Action<UiRenderContext> overlay) => new(UiLayerKind.Overlay, null, overlay);
+        public static UiLayerEntry ForSurface(IUiSurface surface) =>
+            new(UiLayerKind.Surface, surface as IUiLayer ?? new RenderOnlySurfaceLayer(surface), surface);
+
+        public static UiLayerEntry ForOverlay(Action<UiRenderContext> overlay) =>
+            new(UiLayerKind.Overlay, new RenderOnlyOverlayLayer(overlay), null);
+
+        public static UiLayerEntry ForOverlay(IUiLayer layer) =>
+            new(UiLayerKind.Overlay, layer, null);
     }
 
-    private sealed record ActiveComposition(IUiSurface Surface, Action<UiRenderContext>[] Overlays);
+    private sealed record ActiveComposition(UiLayerEntry Surface, UiLayerEntry[] Overlays)
+    {
+        public bool Contains(UiLayerEntry entry) =>
+            ReferenceEquals(Surface, entry) || Overlays.Any(value => ReferenceEquals(value, entry));
+
+        public IEnumerable<UiLayerEntry> RoutingOrder()
+        {
+            for (int i = Overlays.Length - 1; i >= 0; i--)
+                yield return Overlays[i];
+
+            yield return Surface;
+        }
+    }
+
+    private UiInputResult DispatchCapturedMouse(
+        ConsoleInputEvent input,
+        MouseConsoleInputEvent mouse,
+        UiMouseCaptureState capture)
+    {
+        UiLayerEntry entry = capture.Owner;
+        UiInputResult result = entry.Layer.RouteInput(
+            input,
+            new UiInputRouteContext(entry.Layer.FocusScope, capture.Target, isCapturedRoute: true));
+
+        ApplyFocusRequest(entry.Layer.FocusScope, result.FocusRequest);
+        UiMouseCaptureState? oldCapture = _mouseCapture;
+        bool explicitCapture = result.MouseCaptureRequest.Kind == UiMouseCaptureRequestKind.Capture;
+        ApplyMouseCaptureRequest(entry, input, result.MouseCaptureRequest);
+        if (!explicitCapture &&
+            oldCapture is not null &&
+            ReferenceEquals(oldCapture, capture) &&
+            mouse.Kind == MouseEventKind.Up &&
+            mouse.Button == capture.Button)
+        {
+            _mouseCapture = null;
+        }
+
+        return NormalizeResult(result.Handled, result.Invalidate);
+    }
+
+    private void ApplyFocusRequest(UiFocusScope focusScope, UiFocusRequest request)
+    {
+        switch (request.Kind)
+        {
+            case UiFocusRequestKind.None:
+                break;
+            case UiFocusRequestKind.Set:
+                focusScope.TryFocus(request.Target!.Value);
+                break;
+            case UiFocusRequestKind.Clear:
+                focusScope.ClearFocus();
+                break;
+            case UiFocusRequestKind.MoveNext:
+                focusScope.MoveNext();
+                break;
+            case UiFocusRequestKind.MovePrevious:
+                focusScope.MovePrevious();
+                break;
+            default:
+                throw new InvalidOperationException($"Unknown focus request '{request.Kind}'.");
+        }
+    }
+
+    private void ApplyMouseCaptureRequest(
+        UiLayerEntry entry,
+        ConsoleInputEvent input,
+        UiMouseCaptureRequest request)
+    {
+        switch (request.Kind)
+        {
+            case UiMouseCaptureRequestKind.None:
+                break;
+            case UiMouseCaptureRequestKind.Release:
+                _mouseCapture = null;
+                break;
+            case UiMouseCaptureRequestKind.Capture:
+                if (input is not MouseConsoleInputEvent mouse)
+                    throw new InvalidOperationException("Mouse capture can only be requested for mouse input.");
+                if (mouse.Button != request.Button)
+                    throw new InvalidOperationException("Mouse capture button must match the current mouse input.");
+                if (!UiMouseCaptureRequest.IsCapturable(mouse.Button))
+                    throw new InvalidOperationException("Mouse capture supports only left, right, and middle buttons.");
+
+                _mouseCapture = new UiMouseCaptureState(entry, request.Target!.Value, request.Button.Value);
+                break;
+            default:
+                throw new InvalidOperationException($"Unknown mouse capture request '{request.Kind}'.");
+        }
+    }
+
+    private void ClearCaptureIfOwnedBy(UiLayerEntry entry)
+    {
+        if (_mouseCapture is { } capture && ReferenceEquals(capture.Owner, entry))
+            _mouseCapture = null;
+    }
+
+    private static UiInputResult NormalizeResult(bool handled, bool invalidate) =>
+        new(handled, invalidate, UiFocusRequest.None, UiMouseCaptureRequest.None);
+
+    internal sealed record UiMouseCaptureState(
+        UiLayerEntry Owner,
+        UiTargetId Target,
+        MouseButton Button);
 
     internal sealed class UiRenderAttempt
     {
