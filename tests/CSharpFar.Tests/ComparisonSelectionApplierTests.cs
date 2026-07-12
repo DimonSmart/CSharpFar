@@ -9,17 +9,25 @@ public sealed class ComparisonSelectionApplierTests
     [Fact]
     public void Apply_ReplacesSelectionAndMarksDirectAndNestedDifferences()
     {
-        var left = Panel("C:\\left", Item("C:\\left\\top.txt"), Item("C:\\left\\src", directory: true));
-        var right = Panel("C:\\right", Item("C:\\right\\top.txt"), Item("C:\\right\\src", directory: true));
-        left.SelectedPaths.Add("C:\\left\\top.txt");
-        right.SelectedPaths.Add("C:\\right\\top.txt");
+        string leftRoot = P("left");
+        string rightRoot = P("right");
+        string leftTop = P(leftRoot, "top.txt");
+        string rightTop = P(rightRoot, "top.txt");
+        string leftSrc = P(leftRoot, "src");
+        string rightSrc = P(rightRoot, "src");
+        string leftNested = P(leftSrc, "nested.txt");
+
+        var left = Panel(leftRoot, Item(leftTop), Item(leftSrc, directory: true));
+        var right = Panel(rightRoot, Item(rightTop), Item(rightSrc, directory: true));
+        left.SelectedPaths.Add(leftTop);
+        right.SelectedPaths.Add(rightTop);
 
         ComparisonSelectionApplier.Apply(Result(
-            Row(CompareStatus.Different, "C:\\left\\top.txt", "C:\\right\\top.txt"),
-            Row(CompareStatus.LeftOnly, "C:\\left\\src\\nested.txt", null)), left, right);
+            Row(CompareStatus.Different, leftTop, rightTop),
+            Row(CompareStatus.LeftOnly, leftNested, null)), left, right);
 
-        Assert.Equal(["C:\\left\\src", "C:\\left\\top.txt"], left.SelectedPaths.Order());
-        Assert.Equal(["C:\\right\\top.txt"], right.SelectedPaths);
+        Assert.Equal([leftSrc, leftTop], left.SelectedPaths.Order());
+        Assert.Equal([rightTop], right.SelectedPaths);
         Assert.Equal(left.SelectedPaths.Count, left.SelectedLocations.Count);
         Assert.Equal(2, left.Summary!.SelectedCount);
         Assert.Equal(0, left.CursorIndex);
@@ -29,14 +37,21 @@ public sealed class ComparisonSelectionApplierTests
     [Fact]
     public void Apply_LeavesEqualItemsAndParentDirectoryUnselected()
     {
-        var left = Panel("C:\\left", Parent("C:\\left\\.."), Item("C:\\left\\same.txt"));
-        var right = Panel("C:\\right", Parent("C:\\right\\.."), Item("C:\\right\\same.txt"));
+        string leftRoot = P("left");
+        string rightRoot = P("right");
+        string leftSame = P(leftRoot, "same.txt");
+        string rightSame = P(rightRoot, "same.txt");
 
-        ComparisonSelectionApplier.Apply(Result(Row(CompareStatus.Equal, "C:\\left\\same.txt", "C:\\right\\same.txt")), left, right);
+        var left = Panel(leftRoot, Parent(P(leftRoot, "..")), Item(leftSame));
+        var right = Panel(rightRoot, Parent(P(rightRoot, "..")), Item(rightSame));
+
+        ComparisonSelectionApplier.Apply(Result(Row(CompareStatus.Equal, leftSame, rightSame)), left, right);
 
         Assert.Empty(left.SelectedPaths);
         Assert.Empty(right.SelectedPaths);
     }
+
+    private static string P(params string[] parts) => Path.Combine(parts);
 
     private static FilePanelState Panel(string path, params FilePanelItem[] items)
     {
