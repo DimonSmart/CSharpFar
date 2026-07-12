@@ -27,14 +27,16 @@ public sealed class DialogButtonBar
         string[] labels = _buttons.Select(FormatButton).ToArray();
         int totalWidth = labels.Sum(label => label.Length) + Math.Max(0, labels.Length - 1);
         int cursorX = x + Math.Max(0, (width - totalWidth) / 2);
-        var bounds = new Rect[labels.Length];
+        var areaBounds = new Rect(x, y, Math.Max(0, width), 1);
+        var bounds = new List<Rect>(labels.Length);
         for (int i = 0; i < labels.Length; i++)
         {
-            bounds[i] = new Rect(cursorX, y, labels[i].Length, 1);
+            var visibleBounds = Intersect(new Rect(cursorX, y, labels[i].Length, 1), areaBounds);
+            bounds.Add(visibleBounds.Width > 0 ? visibleBounds : new Rect(cursorX, y, 0, 1));
             cursorX += labels[i].Length + 1;
         }
 
-        return new DialogButtonBarLayout(new Rect(x, y, Math.Max(0, width), 1), bounds);
+        return new DialogButtonBarLayout(areaBounds, bounds.AsReadOnly());
     }
 
     public DialogButtonBarLayout Render(
@@ -69,7 +71,8 @@ public sealed class DialogButtonBar
             string label = FormatButton(_buttons[i]);
             var style = i == focusedIndex ? focusedStyle : normalStyle;
             Rect bounds = layout.ButtonBounds[i];
-            screen.Write(bounds.X, bounds.Y, label, style);
+            if (bounds.Width > 0)
+                screen.Write(bounds.X, bounds.Y, FitVisibleLabel(label, bounds.Width), style);
         }
     }
 
@@ -155,4 +158,16 @@ public sealed class DialogButtonBar
 
     private static bool Contains(Rect rect, int x, int y) =>
         x >= rect.X && x < rect.Right && y >= rect.Y && y < rect.Bottom;
+
+    private static Rect Intersect(Rect value, Rect bounds)
+    {
+        int x = Math.Max(value.X, bounds.X);
+        int y = Math.Max(value.Y, bounds.Y);
+        int right = Math.Min(value.Right, bounds.Right);
+        int bottom = Math.Min(value.Bottom, bounds.Bottom);
+        return new Rect(x, y, Math.Max(0, right - x), Math.Max(0, bottom - y));
+    }
+
+    private static string FitVisibleLabel(string label, int width) =>
+        label.Length <= width ? label : label[..width];
 }

@@ -54,8 +54,6 @@ internal sealed class SearchProgressDialog
             int scrollOffset = 0;
             ScrollBarDragState? resultScrollbarDrag = null;
             int focusedButton = 0;
-            SearchProgressLayout? layout = null;
-            var committed = new UiCommittedState<SearchProgressFrame>();
             var buttonBar = new DialogButtonBar(
             [
                 new DialogButton(GoToButton, "Go to", 'G', IsDefault: true),
@@ -87,9 +85,7 @@ internal sealed class SearchProgressDialog
                     frameLayout.VisibleResultRows,
                     ref frameSelectedIndex,
                     ref frameScrollOffset);
-                committed.Stage(
-                    context,
-                    new SearchProgressFrame(frameLayout, frameSelectedIndex, frameScrollOffset, drawResult.Buttons));
+                return new SearchProgressFrame(frameLayout, frameSelectedIndex, frameScrollOffset, drawResult.Buttons);
             });
 
             var progress = new Progress<SearchProgress>(p =>
@@ -130,13 +126,8 @@ internal sealed class SearchProgressDialog
                 renderProgress = progressSnapshot;
                 renderResults = resultSnapshot;
 
-                modal.Render();
-                var frame = committed.Value;
-                layout = frame.Layout;
-                selectedIndex = frame.SelectedIndex;
-                scrollOffset = frame.ScrollOffset;
-                int listHeight = layout.VisibleResultRows;
-                NormalizeSelection(resultSnapshot.Length, listHeight, ref selectedIndex, ref scrollOffset);
+                var frame = modal.Render();
+                ApplyFrame(frame);
                 if (task.IsCompleted)
                     break;
 
@@ -149,15 +140,15 @@ internal sealed class SearchProgressDialog
                 if (task.IsCompleted)
                     break;
 
-                if (modal.TryReadInput(out var input) && input is { } semanticInput)
+                bool hasInput = modal.TryReadInput(out var input, out frame);
+                ApplyFrame(frame);
+                if (hasInput && input is { } semanticInput)
                 {
-                    listHeight = layout?.VisibleResultRows ?? 1;
-                    NormalizeSelection(inputResults.Length, listHeight, ref selectedIndex, ref scrollOffset);
                     if (semanticInput is MouseConsoleInputEvent mouse &&
                         TryHandleResultScrollbarMouse(
                             mouse,
                             inputResults.Length,
-                            layout,
+                            frame,
                             ref selectedIndex,
                             ref scrollOffset,
                             ref resultScrollbarDrag))
@@ -168,8 +159,7 @@ internal sealed class SearchProgressDialog
                     SearchResultItem? selected = HandleInput(
                         semanticInput,
                         inputResults,
-                        listHeight,
-                        committed.Value.Buttons,
+                        frame,
                         ref selectedIndex,
                         ref scrollOffset,
                         buttonBar,
@@ -198,6 +188,12 @@ internal sealed class SearchProgressDialog
                         stopRequested = false;
                 }
 
+            }
+
+            void ApplyFrame(SearchProgressFrame frame)
+            {
+                selectedIndex = frame.SelectedIndex;
+                scrollOffset = frame.ScrollOffset;
             }
 
             try { task.Wait(2000); }
@@ -229,15 +225,15 @@ internal sealed class SearchProgressDialog
     private SearchResultItem? HandleInput(
         ConsoleInputEvent input,
         IReadOnlyList<SearchResultItem> results,
-        int listHeight,
-        DialogButtonBarLayout buttons,
+        SearchProgressFrame frame,
         ref int selectedIndex,
         ref int scrollOffset,
         DialogButtonBar buttonBar,
         ref int focusedButton,
         ref bool stopRequested)
     {
-        if (buttonBar.TryHandleInput(input, buttons, ref focusedButton, out string? buttonId))
+        int listHeight = frame.Layout.VisibleResultRows;
+        if (buttonBar.TryHandleInput(input, frame.Buttons, ref focusedButton, out string? buttonId))
         {
             if (buttonId == StopButton)
             {
@@ -419,14 +415,17 @@ internal sealed class SearchProgressDialog
     private bool TryHandleResultScrollbarMouse(
         MouseConsoleInputEvent mouse,
         int resultCount,
-        SearchProgressLayout? layout,
+        SearchProgressFrame frame,
         ref int selectedIndex,
         ref int scrollOffset,
         ref ScrollBarDragState? dragState)
     {
+        var layout = frame.Layout;
         if (layout is null || resultCount <= layout.VisibleResultRows)
             return false;
 
+        selectedIndex = frame.SelectedIndex;
+        scrollOffset = frame.ScrollOffset;
         return ScrollableListMouseHandler.TryHandleScrollbarMouse(
             mouse,
             layout.ScrollbarBounds,

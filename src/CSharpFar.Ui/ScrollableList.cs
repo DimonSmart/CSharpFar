@@ -108,16 +108,25 @@ public sealed class ScrollableList<T>
         => Render(screen, bounds, new ScrollableListFrameState(SelectedIndex, ScrollTop));
 
     public void Render(ScreenRenderer screen, Rect bounds, ScrollableListFrameState frameState)
+        => Render(screen, bounds, frameState, NormalStyle, SelectedStyle, EmptyStyle);
+
+    public void Render(
+        ScreenRenderer screen,
+        Rect bounds,
+        ScrollableListFrameState frameState,
+        CellStyle normalStyle,
+        CellStyle selectedStyle,
+        CellStyle emptyStyle)
     {
         ArgumentNullException.ThrowIfNull(screen);
 
-        screen.FillRegion(bounds, NormalStyle);
+        screen.FillRegion(bounds, normalStyle);
         if (bounds.Width <= 0 || bounds.Height <= 0)
             return;
 
         if (!HasItems)
         {
-            screen.Write(bounds.X, bounds.Y, Fit(EmptyText ?? string.Empty, bounds.Width), EmptyStyle);
+            screen.Write(bounds.X, bounds.Y, Fit(EmptyText ?? string.Empty, bounds.Width), emptyStyle);
             return;
         }
 
@@ -131,7 +140,7 @@ public sealed class ScrollableList<T>
                 bounds.X,
                 bounds.Y + row,
                 Fit(ItemText(Items[index]), bounds.Width),
-                index == frameState.SelectedIndex ? SelectedStyle : NormalStyle);
+                index == frameState.SelectedIndex ? selectedStyle : normalStyle);
         }
     }
 

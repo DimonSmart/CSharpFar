@@ -44,7 +44,6 @@ public sealed class DropdownSelect<T>
             _selectedIndexBeforeOpen = SelectedIndex;
 
         IsOpen = true;
-        _list.Normalize(ContentRows(size, fieldBounds));
     }
 
     public void Close(bool commit = false)
@@ -81,16 +80,45 @@ public sealed class DropdownSelect<T>
         ConsoleSize size,
         Rect fieldBounds)
     {
+        RenderPopup(screen, CalculateFrame(size, fieldBounds));
+    }
+
+    public DropdownSelectFrame CalculateFrame(
+        ConsoleSize size,
+        Rect fieldBounds)
+    {
         if (!IsOpen)
-            return;
+            return new DropdownSelectFrame(size, fieldBounds, null, null, null, 0, _list.CalculateFrameState(1));
 
         Rect bounds = PopupBounds(size, fieldBounds);
         Rect contentBounds = PopupRenderer.GetContentBounds(bounds, drawBorder: true);
         int contentRows = contentBounds.Height;
-        _list.Normalize(contentRows);
+        Rect? scrollbarBounds = contentRows > 0 && _list.Count > Math.Max(1, contentRows)
+            ? new Rect(bounds.Right - 1, contentBounds.Y, 1, contentRows)
+            : null;
+        return new DropdownSelectFrame(
+            size,
+            fieldBounds,
+            bounds,
+            contentBounds,
+            scrollbarBounds,
+            contentRows,
+            _list.CalculateFrameState(contentRows));
+    }
+
+    public void RenderPopup(
+        ScreenRenderer screen,
+        DropdownSelectFrame frame)
+    {
+        if (!IsOpen)
+            return;
+
+        if (frame.PopupBounds is not { } bounds || frame.ContentBounds is not { } contentBounds)
+            return;
+
         var palette = UiTheme.Current;
 
-        var scrollState = contentRows > 0 ? _list.GetScrollState(contentRows) : null;
+        var scrollState = frame.ContentRows > 0 ? _list.GetScrollState(frame.ContentRows, frame.ListState.ScrollTop) : null;
         var options = PaletteStyles.DialogPopupOptions(palette) with
         {
             DrawDoubleBorder = false,
@@ -98,13 +126,10 @@ public sealed class DropdownSelect<T>
         };
         var normalStyle = PaletteStyles.DialogFill(palette);
         var selectedStyle = PaletteStyles.InputHighlight(palette);
-        _list.NormalStyle = normalStyle;
-        _list.SelectedStyle = selectedStyle;
-        _list.EmptyStyle = normalStyle;
 
         new PopupRenderer().RenderPopup(screen, bounds, options, (_, renderedContentBounds) =>
         {
-            _list.Render(screen, renderedContentBounds);
+            _list.Render(screen, renderedContentBounds, frame.ListState, normalStyle, selectedStyle, normalStyle);
         });
     }
 
@@ -112,17 +137,22 @@ public sealed class DropdownSelect<T>
         MouseConsoleInputEvent mouse,
         ConsoleSize size,
         Rect fieldBounds)
+        => TryHandleFieldMouse(mouse, CalculateFrame(size, fieldBounds));
+
+    public bool TryHandleFieldMouse(
+        MouseConsoleInputEvent mouse,
+        DropdownSelectFrame frame)
     {
         if (mouse.Button != MouseButton.Left ||
             mouse.Kind != MouseEventKind.Down ||
-            mouse.Y != fieldBounds.Y ||
-            mouse.X < fieldBounds.X ||
-            mouse.X >= fieldBounds.Right)
+            mouse.Y != frame.FieldBounds.Y ||
+            mouse.X < frame.FieldBounds.X ||
+            mouse.X >= frame.FieldBounds.Right)
         {
             return false;
         }
 
-        Toggle(size, fieldBounds);
+        Toggle(frame.Size, frame.FieldBounds);
         return true;
     }
 
@@ -131,14 +161,20 @@ public sealed class DropdownSelect<T>
         ConsoleSize size,
         Rect fieldBounds,
         out bool selected)
+        => TryHandlePopupMouse(mouse, CalculateFrame(size, fieldBounds), out selected);
+
+    public bool TryHandlePopupMouse(
+        MouseConsoleInputEvent mouse,
+        DropdownSelectFrame frame,
+        out bool selected)
     {
         selected = false;
         if (!IsOpen)
             return false;
 
-        Rect bounds = PopupBounds(size, fieldBounds);
-        Rect contentBounds = PopupRenderer.GetContentBounds(bounds, drawBorder: true);
-        int contentRows = contentBounds.Height;
+        if (frame.PopupBounds is not { } bounds || frame.ContentBounds is not { } contentBounds)
+            return false;
+        ApplyCommittedFrame(frame);
 
         if (mouse.Kind == MouseEventKind.Down && mouse.Button == MouseButton.Left &&
             (mouse.X < bounds.X || mouse.X >= bounds.Right || mouse.Y < bounds.Y || mouse.Y >= bounds.Bottom))
@@ -150,8 +186,8 @@ public sealed class DropdownSelect<T>
         var listInput = _list.HandleMouse(
             mouse,
             contentBounds,
-            contentRows > 0 ? new Rect(bounds.Right - 1, contentBounds.Y, 1, contentRows) : null,
-            contentRows,
+            frame.ScrollbarBounds,
+            frame.ContentRows,
             ref _scrollbarDrag,
             confirmOnMouseDown: true,
             confirmOnClick: true,
@@ -169,20 +205,24 @@ public sealed class DropdownSelect<T>
     }
 
     public bool TryHandleKey(ConsoleKeyInfo key, ConsoleSize size, Rect fieldBounds, out bool selected)
+        => TryHandleKey(key, CalculateFrame(size, fieldBounds), out selected);
+
+    public bool TryHandleKey(ConsoleKeyInfo key, DropdownSelectFrame frame, out bool selected)
     {
         selected = false;
         if (!IsOpen)
         {
             if (key.Key is ConsoleKey.DownArrow or ConsoleKey.LeftArrow or ConsoleKey.RightArrow or ConsoleKey.Spacebar)
             {
-                Open(size, fieldBounds);
+                Open(frame.Size, frame.FieldBounds);
                 return true;
             }
 
             return false;
         }
 
-        int contentRows = ContentRows(size, fieldBounds);
+        ApplyCommittedFrame(frame);
+        int contentRows = frame.ContentRows;
         switch (key.Key)
         {
             case ConsoleKey.Escape:
@@ -196,6 +236,15 @@ public sealed class DropdownSelect<T>
         }
 
         return _list.HandleKey(key, contentRows).IsHandled;
+    }
+
+    public void ApplyCommittedFrame(DropdownSelectFrame frame)
+    {
+        if (!IsOpen)
+            return;
+
+        SelectedIndex = frame.ListState.SelectedIndex;
+        ScrollTop = frame.ListState.ScrollTop;
     }
 
     public Rect PopupBounds(ConsoleSize size, Rect fieldBounds)
@@ -225,3 +274,12 @@ public sealed class DropdownSelect<T>
         return text.Length <= width ? text.PadRight(width) : text[..width];
     }
 }
+
+public readonly record struct DropdownSelectFrame(
+    ConsoleSize Size,
+    Rect FieldBounds,
+    Rect? PopupBounds,
+    Rect? ContentBounds,
+    Rect? ScrollbarBounds,
+    int ContentRows,
+    ScrollableListFrameState ListState);

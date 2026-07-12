@@ -13,6 +13,14 @@ public enum TextInputKeyResult
     TextChanged,
 }
 
+public readonly record struct SingleLineTextHistoryFrame(
+    Rect PopupBounds,
+    Rect ContentBounds,
+    Rect? ScrollbarBounds,
+    int VisibleRows,
+    int FirstVisibleIndex,
+    int SelectedIndex);
+
 public static class SingleLineTextInput
 {
     public const char HistoryDropdownArrow = '▼';
@@ -239,46 +247,43 @@ public static class SingleLineTextInput
         int screenHeight,
         ref ScrollBarDragState? scrollbarDrag)
     {
-        if (!history.IsDropdownOpen || history.Matches.Count == 0 || fieldWidth <= 0)
+        var frame = CalculateHistoryDropdownFrame(fieldX, fieldY, fieldWidth, screenHeight, history);
+        return frame is { } value &&
+            TryHandleHistoryDropdownMouse(history, buffer, mouse, value, ref scrollbarDrag);
+    }
+
+    public static bool TryHandleHistoryDropdownMouse(
+        SingleLineTextHistoryState history,
+        CommandLineState buffer,
+        MouseConsoleInputEvent mouse,
+        SingleLineTextHistoryFrame frame,
+        ref ScrollBarDragState? scrollbarDrag)
+    {
+        if (!history.IsDropdownOpen || history.Matches.Count == 0)
             return false;
 
-        int availableRows = AvailableDropdownContentRows(fieldY, screenHeight);
-        int visibleRows = history.VisibleRows(availableRows);
-        if (visibleRows <= 0)
-        {
-            history.Close();
-            return false;
-        }
-
-        var bounds = new Rect(fieldX, fieldY + 1, fieldWidth, visibleRows + 2);
-        var contentBounds = new Rect(
-            bounds.X + 1,
-            bounds.Y + 1,
-            Math.Max(0, bounds.Width - 2),
-            Math.Max(0, bounds.Height - 2));
-
-        int firstVisibleIndex = history.FirstVisibleIndex;
+        int firstVisibleIndex = frame.FirstVisibleIndex;
         if (ScrollBarMouseHandler.TryHandleMouse(
             mouse,
-            new Rect(bounds.Right - 1, contentBounds.Y, 1, contentBounds.Height),
+            frame.ScrollbarBounds ?? new Rect(frame.PopupBounds.Right - 1, frame.ContentBounds.Y, 1, frame.ContentBounds.Height),
             history.Matches.Count,
-            visibleRows,
+            frame.VisibleRows,
             ref firstVisibleIndex,
             ref scrollbarDrag))
         {
-            history.SetFirstVisibleIndex(firstVisibleIndex, availableRows);
+            history.SetFirstVisibleIndex(firstVisibleIndex, frame.VisibleRows);
             return true;
         }
 
         if (mouse.Button == MouseButton.Left &&
             mouse.Kind is MouseEventKind.Down or MouseEventKind.Click or MouseEventKind.DoubleClick &&
-            mouse.X >= contentBounds.X &&
-            mouse.X < contentBounds.Right &&
-            mouse.Y >= contentBounds.Y &&
-            mouse.Y < contentBounds.Bottom)
+            mouse.X >= frame.ContentBounds.X &&
+            mouse.X < frame.ContentBounds.Right &&
+            mouse.Y >= frame.ContentBounds.Y &&
+            mouse.Y < frame.ContentBounds.Bottom)
         {
-            int itemIndex = history.FirstVisibleIndex + mouse.Y - contentBounds.Y;
-            if (!history.Select(itemIndex, availableRows))
+            int itemIndex = frame.FirstVisibleIndex + mouse.Y - frame.ContentBounds.Y;
+            if (!history.Select(itemIndex, frame.VisibleRows))
                 return false;
 
             history.AcceptSelected(buffer);
@@ -288,7 +293,7 @@ public static class SingleLineTextInput
 
         if (mouse.Button == MouseButton.Left &&
             mouse.Kind is MouseEventKind.Down or MouseEventKind.Click &&
-            (mouse.X < bounds.X || mouse.X >= bounds.Right || mouse.Y < bounds.Y || mouse.Y >= bounds.Bottom))
+            (mouse.X < frame.PopupBounds.X || mouse.X >= frame.PopupBounds.Right || mouse.Y < frame.PopupBounds.Y || mouse.Y >= frame.PopupBounds.Bottom))
         {
             history.Close();
             scrollbarDrag = null;
@@ -331,40 +336,75 @@ public static class SingleLineTextInput
         SingleLineTextHistoryState history,
         int? screenHeight = null)
     {
-        if (!history.IsDropdownOpen || history.Matches.Count == 0)
+        int effectiveScreenHeight = screenHeight
+            ?? (screen.FrameViewport.Height > 0 ? screen.FrameViewport.Height : screen.GetSize().Height);
+        var frame = CalculateHistoryDropdownFrame(fieldX, fieldY, fieldWidth, effectiveScreenHeight, history);
+        if (frame is not { } value)
             return;
 
-        int availableContentRows = AvailableDropdownContentRows(fieldY, screenHeight ?? screen.FrameViewport.Height);
+        RenderHistoryDropdown(screen, history, value);
+    }
+
+    public static SingleLineTextHistoryFrame? CalculateHistoryDropdownFrame(
+        int fieldX,
+        int fieldY,
+        int fieldWidth,
+        int screenHeight,
+        SingleLineTextHistoryState history)
+    {
+        if (!history.IsDropdownOpen || history.Matches.Count == 0 || fieldWidth <= 0)
+            return null;
+
+        int availableContentRows = AvailableDropdownContentRows(fieldY, screenHeight);
         int visibleRows = history.VisibleRows(availableContentRows);
         if (visibleRows <= 0)
-            return;
+            return null;
 
-        var palette = UiTheme.Current;
-        int scrollTop = ScrollStateCalculator.ClampFirstVisibleIndex(
+        int firstVisibleIndex = ScrollStateCalculator.ClampFirstVisibleIndex(
             history.FirstVisibleIndex,
             history.Matches.Count,
             visibleRows);
+        int selectedIndex = Math.Clamp(history.SelectedIndex, 0, history.Matches.Count - 1);
+        firstVisibleIndex = ScrollStateCalculator.EnsureIndexVisible(selectedIndex, firstVisibleIndex, visibleRows);
+        firstVisibleIndex = ScrollStateCalculator.ClampFirstVisibleIndex(firstVisibleIndex, history.Matches.Count, visibleRows);
         var bounds = new Rect(fieldX, fieldY + 1, fieldWidth, visibleRows + 2);
+        var contentBounds = new Rect(
+            bounds.X + 1,
+            bounds.Y + 1,
+            Math.Max(0, bounds.Width - 2),
+            Math.Max(0, bounds.Height - 2));
+        Rect? scrollbarBounds = history.Matches.Count > visibleRows
+            ? new Rect(bounds.Right - 1, contentBounds.Y, 1, contentBounds.Height)
+            : null;
+        return new SingleLineTextHistoryFrame(bounds, contentBounds, scrollbarBounds, visibleRows, firstVisibleIndex, selectedIndex);
+    }
+
+    public static void RenderHistoryDropdown(
+        ScreenRenderer screen,
+        SingleLineTextHistoryState history,
+        SingleLineTextHistoryFrame frame)
+    {
+        var palette = UiTheme.Current;
         var popupOptions = PaletteStyles.DialogPopupOptions(palette) with
         {
             DrawShadow = false,
             VerticalScrollState = new ScrollState
             {
                 TotalItems = history.Matches.Count,
-                ViewportItems = visibleRows,
-                FirstVisibleIndex = scrollTop,
+                ViewportItems = frame.VisibleRows,
+                FirstVisibleIndex = frame.FirstVisibleIndex,
             },
         };
         var normalStyle = PaletteStyles.DialogFill(palette);
         var selectedStyle = PaletteStyles.InputField(palette);
 
-        new PopupRenderer().RenderPopup(screen, bounds, popupOptions, (_, contentBounds) =>
+        new PopupRenderer().RenderPopup(screen, frame.PopupBounds, popupOptions, (_, contentBounds) =>
         {
-            for (int row = 0; row < visibleRows; row++)
+            for (int row = 0; row < frame.VisibleRows; row++)
             {
-                int itemIndex = scrollTop + row;
+                int itemIndex = frame.FirstVisibleIndex + row;
                 string text = Fit(history.Matches[itemIndex], contentBounds.Width);
-                CellStyle style = itemIndex == history.SelectedIndex ? selectedStyle : normalStyle;
+                CellStyle style = itemIndex == frame.SelectedIndex ? selectedStyle : normalStyle;
                 screen.Write(contentBounds.X, contentBounds.Y + row, text, style);
             }
         });

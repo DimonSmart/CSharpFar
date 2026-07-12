@@ -24,18 +24,19 @@ public sealed class MessageDialog
         using var session = _modalDialogs.Open(context =>
         {
             var layout = CreateLayout(title, message, context.Size, buttons: null);
-            NormalizeScroll(layout, ref firstVisibleLine);
-            Draw(context.Screen, title, layout, firstVisibleLine, buttonBar: null, focusedButton: 0);
+            int effectiveFirstVisibleLine = NormalizeScroll(layout, firstVisibleLine);
+            Draw(context.Screen, title, layout, effectiveFirstVisibleLine, buttonBar: null, focusedButton: 0);
             context.Screen.SetCursorVisible(false);
-            return new MessageDialogFrame(layout, Buttons: null);
+            return new MessageDialogFrame(layout, effectiveFirstVisibleLine, Buttons: null);
         });
         while (true)
         {
-            session.Render();
+            firstVisibleLine = session.Render().FirstVisibleLine;
             var input = session.ReadInput(out var frame);
+            firstVisibleLine = frame.FirstVisibleLine;
             if (input is KeyConsoleInputEvent { Key.Key: ConsoleKey.Enter or ConsoleKey.Escape })
                 return;
-            TryScroll(input, frame.Layout, ref firstVisibleLine);
+            TryScroll(input, frame, ref firstVisibleLine);
         }
     }
 
@@ -53,17 +54,18 @@ public sealed class MessageDialog
         using var session = _modalDialogs.Open(context =>
         {
             var layout = CreateLayout(title, message, context.Size, dialogButtons);
-            NormalizeScroll(layout, ref firstVisibleLine);
-            var buttonsLayout = Draw(context.Screen, title, layout, firstVisibleLine, buttonBar, focusedButton);
+            int effectiveFirstVisibleLine = NormalizeScroll(layout, firstVisibleLine);
+            var buttonsLayout = Draw(context.Screen, title, layout, effectiveFirstVisibleLine, buttonBar, focusedButton);
             context.Screen.SetCursorVisible(false);
-            return new MessageDialogFrame(layout, buttonsLayout);
+            return new MessageDialogFrame(layout, effectiveFirstVisibleLine, buttonsLayout);
         });
 
         while (true)
         {
-            session.Render();
+            firstVisibleLine = session.Render().FirstVisibleLine;
             var input = session.ReadInput(out var frame);
-            if (TryScroll(input, frame.Layout, ref firstVisibleLine))
+            firstVisibleLine = frame.FirstVisibleLine;
+            if (TryScroll(input, frame, ref firstVisibleLine))
                 continue;
 
             if (frame.Buttons is { } buttonsLayout &&
@@ -78,8 +80,8 @@ public sealed class MessageDialog
         }
     }
 
-    private static void NormalizeScroll(MessageDialogLayout layout, ref int firstVisibleLine) =>
-        firstVisibleLine = Math.Clamp(firstVisibleLine, 0, Math.Max(0, layout.MessageLines.Count - layout.ContentHeight));
+    private static int NormalizeScroll(MessageDialogLayout layout, int firstVisibleLine) =>
+        Math.Clamp(firstVisibleLine, 0, Math.Max(0, layout.MessageLines.Count - layout.ContentHeight));
 
     private static bool _buttonBarTryHandle(DialogButtonBar buttonBar, ConsoleInputEvent input, DialogButtonBarLayout layout, ref int focusedButton, out int? selected)
     {
@@ -163,7 +165,7 @@ public sealed class MessageDialog
         int desiredWidth = Math.Max(MinDialogWidth, Math.Max(Math.Max(rawTextWidth, buttonWidth), titleWidth) + 4);
         int width = Math.Min(Math.Min(MaxDialogWidth, desiredWidth), availableWidth);
         int textWidth = Math.Max(1, width - 4);
-        List<string> messageLines = WrapMessage(message, textWidth);
+        var messageLines = Array.AsReadOnly(WrapMessage(message, textWidth).ToArray());
 
         int availableHeight = Math.Max(1, size.Height - 2);
         int maxContentHeight = Math.Max(1, availableHeight - 4);
@@ -194,9 +196,10 @@ public sealed class MessageDialog
 
     private static bool TryScroll(
         ConsoleInputEvent input,
-        MessageDialogLayout layout,
+        MessageDialogFrame frame,
         ref int firstVisibleLine)
     {
+        var layout = frame.Layout;
         if (layout.MessageLines.Count <= layout.ContentHeight)
             return false;
 
@@ -207,13 +210,13 @@ public sealed class MessageDialog
         int maxFirstVisible = Math.Max(0, layout.MessageLines.Count - layout.ContentHeight);
         firstVisibleLine = key.Key switch
         {
-            ConsoleKey.UpArrow => Math.Max(0, firstVisibleLine - 1),
-            ConsoleKey.DownArrow => Math.Min(maxFirstVisible, firstVisibleLine + 1),
-            ConsoleKey.PageUp => Math.Max(0, firstVisibleLine - layout.ContentHeight),
-            ConsoleKey.PageDown => Math.Min(maxFirstVisible, firstVisibleLine + layout.ContentHeight),
+            ConsoleKey.UpArrow => Math.Max(0, frame.FirstVisibleLine - 1),
+            ConsoleKey.DownArrow => Math.Min(maxFirstVisible, frame.FirstVisibleLine + 1),
+            ConsoleKey.PageUp => Math.Max(0, frame.FirstVisibleLine - layout.ContentHeight),
+            ConsoleKey.PageDown => Math.Min(maxFirstVisible, frame.FirstVisibleLine + layout.ContentHeight),
             ConsoleKey.Home => 0,
             ConsoleKey.End => maxFirstVisible,
-            _ => firstVisibleLine,
+            _ => frame.FirstVisibleLine,
         };
 
         return firstVisibleLine != previous;
@@ -286,11 +289,12 @@ public sealed class MessageDialog
 
     private sealed record MessageDialogLayout(
         Rect Bounds,
-        List<string> MessageLines,
+        IReadOnlyList<string> MessageLines,
         int ContentHeight,
         int ActionRow);
 
     private readonly record struct MessageDialogFrame(
         MessageDialogLayout Layout,
+        int FirstVisibleLine,
         DialogButtonBarLayout? Buttons);
 }

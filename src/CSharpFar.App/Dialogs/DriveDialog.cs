@@ -44,7 +44,6 @@ internal sealed class DriveDialog
     {
         int cursor    = initialCursor;
         int scrollTop = 0;
-        DriveDialogLayout? lastLayout = null;
         ScrollBarDragState? scrollbarDrag = null;
 
         // Track last cycle shortcut for multi-match cycling
@@ -52,22 +51,26 @@ internal sealed class DriveDialog
 
         using var modal = _modalDialogs.Open(context =>
         {
-            lastLayout = Draw(context, items, cursor, scrollTop);
+            var frame = CalculateFrame(context.Size, items.Count, cursor, scrollTop);
+            RenderFrame(context, items, frame);
+            return frame;
         });
         while (true)
         {
-            modal.Render();
-            var input = modal.ReadInput();
+            var frame = modal.Render();
+            cursor = frame.Cursor;
+            scrollTop = frame.ScrollTop;
+            var input = modal.ReadInput(out frame);
+            cursor = frame.Cursor;
+            scrollTop = frame.ScrollTop;
             if (input is MouseConsoleInputEvent mouse &&
-                lastLayout is { } layout &&
-                TryHandleScrollbarMouse(mouse, items.Count, layout.Visible, layout.Bounds, ref cursor, ref scrollTop, ref scrollbarDrag))
+                TryHandleScrollbarMouse(mouse, items.Count, frame.VisibleRows, frame.ScrollbarBounds, frame.ScrollTop, ref cursor, ref scrollTop, ref scrollbarDrag))
             {
                 continue;
             }
 
             if (input is MouseConsoleInputEvent listMouse &&
-                lastLayout is { } listLayout &&
-                TryHandleListMouse(listMouse, listLayout.Bounds, items.Count, scrollTop, listLayout.Visible, ref cursor, out bool select))
+                TryHandleListMouse(listMouse, frame.ListBounds, items.Count, frame.ScrollTop, ref cursor, out bool select))
             {
                 lastShortcut = null;
                 if (select)
@@ -115,20 +118,20 @@ internal sealed class DriveDialog
                     if (cursor < items.Count - 1)
                     {
                         cursor++;
-                        if (cursor >= scrollTop + (lastLayout?.Visible ?? 1)) scrollTop = cursor - (lastLayout?.Visible ?? 1) + 1;
+                        if (cursor >= scrollTop + frame.VisibleRows) scrollTop = cursor - frame.VisibleRows + 1;
                     }
                     lastShortcut = null;
                     break;
 
                 case ConsoleKey.PageUp:
-                    cursor    = Math.Max(0, cursor - (lastLayout?.Visible ?? 1));
+                    cursor    = Math.Max(0, cursor - frame.VisibleRows);
                     scrollTop = Math.Max(0, cursor);
                     lastShortcut = null;
                     break;
 
                 case ConsoleKey.PageDown:
-                    cursor    = Math.Min(items.Count - 1, cursor + (lastLayout?.Visible ?? 1));
-                    scrollTop = Math.Max(0, cursor - (lastLayout?.Visible ?? 1) + 1);
+                    cursor    = Math.Min(items.Count - 1, cursor + frame.VisibleRows);
+                    scrollTop = Math.Max(0, cursor - frame.VisibleRows + 1);
                     lastShortcut = null;
                     break;
 
@@ -140,7 +143,7 @@ internal sealed class DriveDialog
 
                 case ConsoleKey.End:
                     cursor    = items.Count - 1;
-                    scrollTop = Math.Max(0, cursor - (lastLayout?.Visible ?? 1) + 1);
+                    scrollTop = Math.Max(0, cursor - frame.VisibleRows + 1);
                     lastShortcut = null;
                     break;
 
@@ -168,7 +171,7 @@ internal sealed class DriveDialog
                     {
                         string sc = key.KeyChar.ToString().ToUpperInvariant();
                         var immediate = HandleShortcut(
-                            items, sc, ref cursor, ref scrollTop, lastLayout?.Visible ?? 1, ref lastShortcut);
+                            items, sc, ref cursor, ref scrollTop, frame.VisibleRows, ref lastShortcut);
                         if (immediate is not null)
                             return immediate;
                     }
@@ -226,21 +229,42 @@ internal sealed class DriveDialog
 
     // ── drawing ───────────────────────────────────────────────────────────────
 
-    private DriveDialogLayout Draw(
-        UiRenderContext context,
-        IReadOnlyList<VolumeSelectionItem> items,
-        int cursor,
-        int scrollTop)
+    private static DriveDialogFrame CalculateFrame(
+        ConsoleSize size,
+        int itemCount,
+        int requestedCursor,
+        int requestedScrollTop)
     {
-        int visible = Math.Min(items.Count, Math.Max(1, context.Size.Height - 6));
-        cursor = Math.Clamp(cursor, 0, items.Count - 1);
-        scrollTop = Math.Clamp(scrollTop, 0, Math.Max(0, items.Count - visible));
+        int visible = Math.Min(itemCount, Math.Max(1, size.Height - 6));
+        int cursor = Math.Clamp(requestedCursor, 0, itemCount - 1);
+        int scrollTop = Math.Clamp(requestedScrollTop, 0, Math.Max(0, itemCount - visible));
         if (cursor < scrollTop) scrollTop = cursor;
         if (cursor >= scrollTop + visible) scrollTop = cursor - visible + 1;
         int height = visible + 6;
-        var bounds = new Rect(Math.Max(0, (context.Size.Width - DialogWidth) / 2), Math.Max(0, (context.Size.Height - height) / 2), Math.Min(DialogWidth, context.Size.Width), height);
+        var bounds = new Rect(Math.Max(0, (size.Width - DialogWidth) / 2), Math.Max(0, (size.Height - height) / 2), Math.Min(DialogWidth, size.Width), height);
+        var frameBounds = new Rect(
+            bounds.X + 1,
+            bounds.Y + 1,
+            Math.Max(1, bounds.Width - 2),
+            Math.Max(1, bounds.Height - 2));
+        var contentBounds = new Rect(
+            frameBounds.X + 1,
+            frameBounds.Y + 1,
+            Math.Max(0, frameBounds.Width - 2),
+            Math.Max(0, frameBounds.Height - 2));
+        var listBounds = new Rect(contentBounds.X, contentBounds.Y + 2, contentBounds.Width, visible);
+        Rect? scrollbarBounds = itemCount > visible
+            ? new Rect(frameBounds.Right - 1, contentBounds.Y + 2, 1, visible)
+            : null;
+        return new DriveDialogFrame(bounds, listBounds, scrollbarBounds, visible, cursor, scrollTop);
+    }
 
-        _modalRenderer.Render(context.Screen, bounds, "Change drive", true, DriveOuterOptions, DriveFrameOptions, (_, layout) =>
+    private void RenderFrame(
+        UiRenderContext context,
+        IReadOnlyList<VolumeSelectionItem> items,
+        DriveDialogFrame frame)
+    {
+        _modalRenderer.Render(context.Screen, frame.Bounds, "Change drive", true, DriveOuterOptions, DriveFrameOptions, (_, layout) =>
         {
             Rect frameBounds = layout.FrameBounds;
             Rect contentBounds = layout.ContentBounds;
@@ -251,9 +275,9 @@ internal sealed class DriveDialog
             WriteHeader(contentBounds.X, contentBounds.Y, contentBounds.Width);
             WriteTableSeparator(contentBounds.X, contentBounds.Y + 1, contentBounds.Width);
 
-            for (int i = 0; i < visible; i++)
+            for (int i = 0; i < frame.VisibleRows; i++)
             {
-                int idx = scrollTop + i;
+                int idx = frame.ScrollTop + i;
                 if (idx >= items.Count) break;
 
                 WriteRow(
@@ -261,19 +285,19 @@ internal sealed class DriveDialog
                     contentBounds.X,
                     contentBounds.Y + 2 + i,
                     contentBounds.Width,
-                    idx == cursor);
+                    idx == frame.Cursor);
             }
 
-            if (items.Count > visible)
+            if (frame.ScrollbarBounds is { } scrollbarBounds)
             {
                 new ScrollBarRenderer().RenderVerticalScrollbar(
                     context.Screen,
-                    new Rect(frameBounds.Right - 1, contentBounds.Y + 2, 1, visible),
+                    scrollbarBounds,
                     new ScrollState
                     {
                         TotalItems = items.Count,
-                        ViewportItems = visible,
-                        FirstVisibleIndex = scrollTop,
+                        ViewportItems = frame.VisibleRows,
+                        FirstVisibleIndex = frame.ScrollTop,
                     },
                     new ScrollBarOptions
                     {
@@ -285,17 +309,21 @@ internal sealed class DriveDialog
         });
 
         context.Screen.SetCursorVisible(false);
-        return new DriveDialogLayout(bounds, visible);
     }
 
-    private sealed record DriveDialogLayout(Rect Bounds, int Visible);
+    private readonly record struct DriveDialogFrame(
+        Rect Bounds,
+        Rect ListBounds,
+        Rect? ScrollbarBounds,
+        int VisibleRows,
+        int Cursor,
+        int ScrollTop);
 
     private static bool TryHandleListMouse(
         MouseConsoleInputEvent mouse,
-        Rect outerBounds,
+        Rect listBounds,
         int itemCount,
         int scrollTop,
-        int visible,
         ref int cursor,
         out bool select)
     {
@@ -307,19 +335,12 @@ internal sealed class DriveDialog
             return false;
         }
 
-        // Content area: outer + outer border (1) + inner border (1) = +2
-        int listX = outerBounds.X + 2;
-        int listY = outerBounds.Y + 2 + 2; // +2 for header + separator
-        int listRight = outerBounds.X + outerBounds.Width - 2;
-        int listBottom = listY + visible;
-
-        if (mouse.X < listX || mouse.X >= listRight ||
-            mouse.Y < listY || mouse.Y >= listBottom)
+        if (!listBounds.Contains(mouse.X, mouse.Y))
         {
             return false;
         }
 
-        int index = scrollTop + mouse.Y - listY;
+        int index = scrollTop + mouse.Y - listBounds.Y;
         if (index < 0 || index >= itemCount)
             return false;
 
@@ -332,29 +353,19 @@ internal sealed class DriveDialog
         MouseConsoleInputEvent mouse,
         int itemCount,
         int visible,
-        Rect outerBounds,
+        Rect? scrollbarBounds,
+        int committedScrollTop,
         ref int cursor,
         ref int scrollTop,
         ref ScrollBarDragState? scrollbarDrag)
     {
-        if (itemCount <= visible)
+        if (itemCount <= visible || scrollbarBounds is not { } bounds)
             return false;
 
-        var frameBounds = new Rect(
-            outerBounds.X + 1,
-            outerBounds.Y + 1,
-            Math.Max(1, outerBounds.Width - 2),
-            Math.Max(1, outerBounds.Height - 2));
-        var contentBounds = new Rect(
-            frameBounds.X + 1,
-            frameBounds.Y + 1,
-            Math.Max(0, frameBounds.Width - 2),
-            Math.Max(0, frameBounds.Height - 2));
-        var scrollbarBounds = new Rect(frameBounds.Right - 1, contentBounds.Y + 2, 1, visible);
-
+        scrollTop = committedScrollTop;
         return ScrollableListMouseHandler.TryHandleScrollbarMouse(
             mouse,
-            scrollbarBounds,
+            bounds,
             itemCount,
             visible,
             ref cursor,

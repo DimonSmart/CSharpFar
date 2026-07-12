@@ -115,37 +115,34 @@ internal sealed class FtpConnectionDialog
             new DialogButton("submit", submitLabel, submitLabel[0], IsDefault: true),
             new DialogButton("cancel", "Cancel", 'C'),
         ]);
-        ConsoleSize size = default;
         using var modal = _modalDialogs.Open(context =>
         {
+            var geometry = GetDialogGeometry(context.Size);
+            int effectiveBodyScrollTop = ensureFocusVisible
+                ? NormalizeBodyScroll(geometry, focusRow, bodyScrollTop, request.AllowTemporaryConnection, dataMode)
+                : ClampBodyScroll(geometry, bodyScrollTop, request.AllowTemporaryConnection, dataMode);
             var buttons = Draw(
-                context.Size,
+                geometry,
                 connection is null ? "FTP/FTPS connection" : "Edit FTP/FTPS connection",
-                focusRow, bodyScrollTop, buttonBar, focusedButton, connectionName, host, port,
+                focusRow, effectiveBodyScrollTop, buttonBar, focusedButton, connectionName, host, port,
                 userName, password, remoteRoot, activePorts, histories, saveConnection, savePassword,
                 showInDrive, securityMode, dataMode, useDataTls, certificateFingerprint,
                 trustCertificate, request.AllowTemporaryConnection, error);
-            return new FtpConnectionFrame(context.Size, buttons);
+            return new FtpConnectionFrame(context.Size, geometry, effectiveBodyScrollTop, buttons);
         });
 
         while (true)
         {
-            bodyScrollTop = ensureFocusVisible
-                ? NormalizeBodyScroll(size, focusRow, bodyScrollTop, request.AllowTemporaryConnection, dataMode)
-                : ScrollStateCalculator.ClampFirstVisibleIndex(
-                    bodyScrollTop,
-                    BodyRowCount(request.AllowTemporaryConnection, dataMode),
-                    BodyViewportRows(size));
+            var frame = modal.Render();
+            bodyScrollTop = frame.BodyScrollTop;
             ensureFocusVisible = true;
 
-            modal.Render();
-            var input = modal.ReadInput(out var frame);
-            size = frame.Size;
+            var input = modal.ReadInput(out frame);
+            bodyScrollTop = frame.BodyScrollTop;
             if (input is MouseConsoleInputEvent historyMouse &&
                 TryHandleHistoryDropdownMouse(
                     historyMouse,
-                    size,
-                    bodyScrollTop,
+                    frame,
                     connectionName,
                     host,
                     port,
@@ -164,7 +161,7 @@ internal sealed class FtpConnectionDialog
             if (input is MouseConsoleInputEvent scrollbarMouse &&
                 TryHandleBodyScrollbarMouse(
                     scrollbarMouse,
-                    size,
+                    frame,
                     request.AllowTemporaryConnection,
                     dataMode,
                     ref bodyScrollTop,
@@ -189,7 +186,7 @@ internal sealed class FtpConnectionDialog
             {
                 TryHandleMouse(
                     mouse,
-                    size,
+                    frame,
                     request.AllowTemporaryConnection,
                     connectionName,
                     host,
@@ -199,7 +196,6 @@ internal sealed class FtpConnectionDialog
                     remoteRoot,
                     activePorts,
                     histories,
-                    bodyScrollTop,
                     ref focusRow,
                     ref saveConnection,
                     ref savePassword,
@@ -232,8 +228,7 @@ internal sealed class FtpConnectionDialog
                         remoteRoot,
                         activePorts,
                         histories,
-                        size,
-                        bodyScrollTop,
+                        frame,
                         request.AllowTemporaryConnection,
                         dataMode,
                         ref error),
@@ -296,7 +291,7 @@ internal sealed class FtpConnectionDialog
                     else
                         ClearCertificateWhenEndpointChanges(
                             focusRow,
-                            EditFocusedText(focusRow, key, connectionName, host, port, userName, password, remoteRoot, activePorts, histories, size, bodyScrollTop, request.AllowTemporaryConnection, dataMode, ref error),
+                            EditFocusedText(focusRow, key, connectionName, host, port, userName, password, remoteRoot, activePorts, histories, frame, request.AllowTemporaryConnection, dataMode, ref error),
                             ref certificateFingerprint,
                             ref trustCertificate);
                     break;
@@ -328,7 +323,7 @@ internal sealed class FtpConnectionDialog
                     {
                         ClearCertificateWhenEndpointChanges(
                             focusRow,
-                            EditFocusedText(focusRow, key, connectionName, host, port, userName, password, remoteRoot, activePorts, histories, size, bodyScrollTop, request.AllowTemporaryConnection, dataMode, ref error),
+                            EditFocusedText(focusRow, key, connectionName, host, port, userName, password, remoteRoot, activePorts, histories, frame, request.AllowTemporaryConnection, dataMode, ref error),
                             ref certificateFingerprint,
                             ref trustCertificate);
                     }
@@ -336,7 +331,7 @@ internal sealed class FtpConnectionDialog
                 default:
                     ClearCertificateWhenEndpointChanges(
                         focusRow,
-                        EditFocusedText(focusRow, key, connectionName, host, port, userName, password, remoteRoot, activePorts, histories, size, bodyScrollTop, request.AllowTemporaryConnection, dataMode, ref error),
+                        EditFocusedText(focusRow, key, connectionName, host, port, userName, password, remoteRoot, activePorts, histories, frame, request.AllowTemporaryConnection, dataMode, ref error),
                         ref certificateFingerprint,
                         ref trustCertificate);
                     break;
@@ -586,8 +581,7 @@ internal sealed class FtpConnectionDialog
         CommandLineState remoteRoot,
         CommandLineState activePorts,
         TextFieldHistories histories,
-        ConsoleSize size,
-        int bodyScrollTop,
+        FtpConnectionFrame frame,
         bool allowTemporaryConnection,
         FtpDataConnectionMode dataMode,
         ref string? error)
@@ -607,7 +601,7 @@ internal sealed class FtpConnectionDialog
             return false;
 
         var history = histories.ForRow(focusRow);
-        int availableRows = DropdownRows(size, focusRow, bodyScrollTop, allowTemporaryConnection, dataMode);
+        int availableRows = DropdownRows(frame, focusRow, allowTemporaryConnection, dataMode);
         return SingleLineTextInput.HandleKey(buffer, key, ref error, history, availableRows) == TextInputKeyResult.TextChanged;
     }
 
@@ -626,17 +620,18 @@ internal sealed class FtpConnectionDialog
 
     private static bool TryHandleBodyScrollbarMouse(
         MouseConsoleInputEvent mouse,
-        ConsoleSize size,
+        FtpConnectionFrame frame,
         bool allowTemporaryConnection,
         FtpDataConnectionMode dataMode,
         ref int bodyScrollTop,
         ref ScrollBarDragState? bodyScrollbarDrag)
     {
-        var geometry = GetDialogGeometry(size);
+        var geometry = frame.Geometry;
         int bodyRowCount = BodyRowCount(allowTemporaryConnection, dataMode);
         if (bodyRowCount <= geometry.BodyBounds.Height)
             return false;
 
+        bodyScrollTop = frame.BodyScrollTop;
         return ScrollBarMouseHandler.TryHandleMouse(
             mouse,
             new Rect(geometry.FrameBounds.Right - 1, geometry.BodyBounds.Y, 1, geometry.BodyBounds.Height),
@@ -648,7 +643,7 @@ internal sealed class FtpConnectionDialog
 
     private static bool TryHandleMouse(
         MouseConsoleInputEvent mouse,
-        ConsoleSize size,
+        FtpConnectionFrame frame,
         bool allowTemporaryConnection,
         CommandLineState connectionName,
         CommandLineState host,
@@ -658,7 +653,6 @@ internal sealed class FtpConnectionDialog
         CommandLineState remoteRoot,
         CommandLineState activePorts,
         TextFieldHistories histories,
-        int bodyScrollTop,
         ref int focusRow,
         ref bool saveConnection,
         ref bool savePassword,
@@ -676,7 +670,7 @@ internal sealed class FtpConnectionDialog
             return false;
         }
 
-        var geometry = GetDialogGeometry(size);
+        var geometry = frame.Geometry;
         for (int row = 0; row < FocusRowCount; row++)
         {
             if (row == RowButtons)
@@ -684,7 +678,7 @@ internal sealed class FtpConnectionDialog
             if (!IsFocusableRow(row, allowTemporaryConnection, dataMode))
                 continue;
 
-            if (BodyY(geometry, row, allowTemporaryConnection, dataMode, bodyScrollTop) is not { } rowY ||
+            if (BodyY(geometry, row, allowTemporaryConnection, dataMode, frame.BodyScrollTop) is not { } rowY ||
                 mouse.Y != rowY ||
                 mouse.X < geometry.LabelX ||
                 mouse.X >= geometry.ContentBounds.Right - 2)
@@ -700,7 +694,7 @@ internal sealed class FtpConnectionDialog
                     SingleLineTextInput.IsHistoryArrowHit(geometry.FieldX, geometry.FieldWidth, rowY, mouse.X, mouse.Y) &&
                     histories.ForRow(row) is { } history)
                 {
-                    SingleLineTextInput.TryOpenHistoryDropdown(history, rowY, size.Height);
+                    SingleLineTextInput.TryOpenHistoryDropdown(history, rowY, frame.Size.Height);
                     return true;
                 }
 
@@ -730,8 +724,7 @@ internal sealed class FtpConnectionDialog
 
     private static bool TryHandleHistoryDropdownMouse(
         MouseConsoleInputEvent mouse,
-        ConsoleSize size,
-        int bodyScrollTop,
+        FtpConnectionFrame frame,
         CommandLineState connectionName,
         CommandLineState host,
         CommandLineState port,
@@ -743,28 +736,26 @@ internal sealed class FtpConnectionDialog
         FtpDataConnectionMode dataMode,
         ref ScrollBarDragState? historyScrollbarDrag)
     {
-        var geometry = GetDialogGeometry(size);
-        return TryHandleHistoryDropdownRow(mouse, size, bodyScrollTop, allowTemporaryConnection, dataMode, geometry, histories, RowConnectionName, connectionName, ref historyScrollbarDrag) ||
-            TryHandleHistoryDropdownRow(mouse, size, bodyScrollTop, allowTemporaryConnection, dataMode, geometry, histories, RowHost, host, ref historyScrollbarDrag) ||
-            TryHandleHistoryDropdownRow(mouse, size, bodyScrollTop, allowTemporaryConnection, dataMode, geometry, histories, RowPort, port, ref historyScrollbarDrag) ||
-            TryHandleHistoryDropdownRow(mouse, size, bodyScrollTop, allowTemporaryConnection, dataMode, geometry, histories, RowUserName, userName, ref historyScrollbarDrag) ||
-            TryHandleHistoryDropdownRow(mouse, size, bodyScrollTop, allowTemporaryConnection, dataMode, geometry, histories, RowRemoteRoot, remoteRoot, ref historyScrollbarDrag) ||
-            TryHandleHistoryDropdownRow(mouse, size, bodyScrollTop, allowTemporaryConnection, dataMode, geometry, histories, RowActivePorts, activePorts, ref historyScrollbarDrag);
+        return TryHandleHistoryDropdownRow(mouse, frame, allowTemporaryConnection, dataMode, histories, RowConnectionName, connectionName, ref historyScrollbarDrag) ||
+            TryHandleHistoryDropdownRow(mouse, frame, allowTemporaryConnection, dataMode, histories, RowHost, host, ref historyScrollbarDrag) ||
+            TryHandleHistoryDropdownRow(mouse, frame, allowTemporaryConnection, dataMode, histories, RowPort, port, ref historyScrollbarDrag) ||
+            TryHandleHistoryDropdownRow(mouse, frame, allowTemporaryConnection, dataMode, histories, RowUserName, userName, ref historyScrollbarDrag) ||
+            TryHandleHistoryDropdownRow(mouse, frame, allowTemporaryConnection, dataMode, histories, RowRemoteRoot, remoteRoot, ref historyScrollbarDrag) ||
+            TryHandleHistoryDropdownRow(mouse, frame, allowTemporaryConnection, dataMode, histories, RowActivePorts, activePorts, ref historyScrollbarDrag);
     }
 
     private static bool TryHandleHistoryDropdownRow(
         MouseConsoleInputEvent mouse,
-        ConsoleSize size,
-        int bodyScrollTop,
+        FtpConnectionFrame frame,
         bool allowTemporaryConnection,
         FtpDataConnectionMode dataMode,
-        DialogGeometry geometry,
         TextFieldHistories histories,
         int row,
         CommandLineState buffer,
         ref ScrollBarDragState? historyScrollbarDrag)
     {
-        if (BodyY(geometry, row, allowTemporaryConnection, dataMode, bodyScrollTop) is not { } fieldY ||
+        var geometry = frame.Geometry;
+        if (BodyY(geometry, row, allowTemporaryConnection, dataMode, frame.BodyScrollTop) is not { } fieldY ||
             histories.ForRow(row) is not { } history)
         {
             return false;
@@ -777,7 +768,7 @@ internal sealed class FtpConnectionDialog
             geometry.FieldX,
             fieldY,
             geometry.FieldWidth,
-            size.Height,
+            frame.Size.Height,
             ref historyScrollbarDrag);
     }
 
@@ -815,7 +806,7 @@ internal sealed class FtpConnectionDialog
     }
 
     private DialogButtonBarLayout Draw(
-        ConsoleSize size,
+        DialogGeometry geometry,
         string title,
         int focusRow,
         int bodyScrollTop,
@@ -841,7 +832,6 @@ internal sealed class FtpConnectionDialog
         string? error)
     {
         DialogButtonBarLayout buttons = null!;
-        var geometry = GetDialogGeometry(size);
         var bounds = geometry.Bounds;
         var fill = FarDialogStyles.Fill;
         var focused = FarDialogStyles.FocusedInput;
@@ -996,18 +986,15 @@ internal sealed class FtpConnectionDialog
     private static int BodyRowCount(bool allowTemporaryConnection, FtpDataConnectionMode dataMode) =>
         DisplayRow(RowTrustCertificate, allowTemporaryConnection, dataMode) + 1;
 
-    private static int BodyViewportRows(ConsoleSize size) =>
-        GetDialogGeometry(size).BodyBounds.Height;
-
     private static int NormalizeBodyScroll(
-        ConsoleSize size,
+        DialogGeometry geometry,
         int focusRow,
         int bodyScrollTop,
         bool allowTemporaryConnection,
         FtpDataConnectionMode dataMode)
     {
         int bodyRowCount = BodyRowCount(allowTemporaryConnection, dataMode);
-        int viewportRows = BodyViewportRows(size);
+        int viewportRows = geometry.BodyBounds.Height;
         bodyScrollTop = ScrollStateCalculator.ClampFirstVisibleIndex(bodyScrollTop, bodyRowCount, viewportRows);
         if (focusRow != RowButtons)
         {
@@ -1019,6 +1006,16 @@ internal sealed class FtpConnectionDialog
 
         return ScrollStateCalculator.ClampFirstVisibleIndex(bodyScrollTop, bodyRowCount, viewportRows);
     }
+
+    private static int ClampBodyScroll(
+        DialogGeometry geometry,
+        int bodyScrollTop,
+        bool allowTemporaryConnection,
+        FtpDataConnectionMode dataMode) =>
+        ScrollStateCalculator.ClampFirstVisibleIndex(
+            bodyScrollTop,
+            BodyRowCount(allowTemporaryConnection, dataMode),
+            geometry.BodyBounds.Height);
 
     private static int? BodyY(
         DialogGeometry geometry,
@@ -1034,17 +1031,15 @@ internal sealed class FtpConnectionDialog
     }
 
     private static int DropdownRows(
-        ConsoleSize size,
+        FtpConnectionFrame frame,
         int focusRow,
-        int bodyScrollTop,
         bool allowTemporaryConnection,
         FtpDataConnectionMode dataMode)
     {
-        var geometry = GetDialogGeometry(size);
-        int? fieldY = BodyY(geometry, focusRow, allowTemporaryConnection, dataMode, bodyScrollTop);
+        int? fieldY = BodyY(frame.Geometry, focusRow, allowTemporaryConnection, dataMode, frame.BodyScrollTop);
         return fieldY is null
             ? 0
-            : SingleLineTextInput.AvailableDropdownContentRows(fieldY.Value, size.Height);
+            : SingleLineTextInput.AvailableDropdownContentRows(fieldY.Value, frame.Size.Height);
     }
 
     private void SetFocusedTextCursor(
@@ -1114,6 +1109,8 @@ internal sealed class FtpConnectionDialog
 
     private readonly record struct FtpConnectionFrame(
         ConsoleSize Size,
+        DialogGeometry Geometry,
+        int BodyScrollTop,
         DialogButtonBarLayout Buttons);
 
     private sealed class TextFieldHistories

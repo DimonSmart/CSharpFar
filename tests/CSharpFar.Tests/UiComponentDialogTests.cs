@@ -247,6 +247,31 @@ public sealed class UiComponentDialogTests
     }
 
     [Fact]
+    public void DropdownSelect_CalculateFrame_DoesNotMutateUntilApplied()
+    {
+        var dropdown = new DropdownSelect<int>(Enumerable.Range(0, 10).ToArray(), static item => item.ToString())
+        {
+            MaxVisibleRows = 3,
+            SelectedIndex = 8,
+            ScrollTop = 8,
+        };
+        var field = new Rect(1, 1, 8, 1);
+        dropdown.Open(new ConsoleSize(12, 3), field);
+
+        var rejectedFrame = dropdown.CalculateFrame(new ConsoleSize(12, 3), field);
+
+        Assert.Equal(8, dropdown.SelectedIndex);
+        Assert.Equal(8, dropdown.ScrollTop);
+
+        var committedFrame = dropdown.CalculateFrame(new ConsoleSize(40, 12), field);
+        dropdown.ApplyCommittedFrame(committedFrame);
+
+        Assert.Equal(committedFrame.ListState.SelectedIndex, dropdown.SelectedIndex);
+        Assert.Equal(committedFrame.ListState.ScrollTop, dropdown.ScrollTop);
+        Assert.NotEqual(rejectedFrame.ContentRows, committedFrame.ContentRows);
+    }
+
+    [Fact]
     public void ListWithButtonsDialog_ReturnsListDefaultAndButtonActions()
     {
         var listDriver = new FakeConsoleDriver(80, 20);
@@ -325,6 +350,25 @@ public sealed class UiComponentDialogTests
         bool handled = buttonBar.TryHandleInput(new KeyConsoleInputEvent(Key(ConsoleKey.Enter)), layout, ref focused, out string? buttonId);
 
         Assert.True(handled);
+        Assert.Null(buttonId);
+    }
+
+    [Fact]
+    public void DialogButtonBar_ClipsMouseTargetsToVisibleArea()
+    {
+        var buttonBar = new DialogButtonBar([new DialogButton("ok", "VeryLongButton", 'V')]);
+        var layout = buttonBar.CalculateLayout(2, 1, 6);
+        int focused = 0;
+
+        Assert.Equal(new Rect(2, 1, 6, 1), layout.ButtonBounds[0]);
+
+        bool handled = buttonBar.TryHandleInput(
+            new MouseConsoleInputEvent(9, 1, MouseButton.Left, MouseEventKind.Click, MouseKeyModifiers.None),
+            layout,
+            ref focused,
+            out string? buttonId);
+
+        Assert.False(handled);
         Assert.Null(buttonId);
     }
 
@@ -495,6 +539,20 @@ public sealed class UiComponentDialogTests
 
         Assert.False(handled);
         Assert.Equal("Default", row.Value);
+    }
+
+    [Fact]
+    public void ChoiceRow_SegmentedLayout_ClipsHitTargetsToVisibleArea()
+    {
+        var row = new ChoiceRow<string>(["VeryLongChoice"], static value => value);
+
+        var layout = row.CalculateSegmentedLayout(2, 1, 8, string.Empty);
+
+        Assert.Single(layout.Choices);
+        Assert.Equal(new Rect(2, 1, 8, 1), layout.Choices[0].Bounds);
+        Assert.False(row.TryHandleMouse(
+            new MouseConsoleInputEvent(11, 1, MouseButton.Left, MouseEventKind.Down, MouseKeyModifiers.None),
+            layout));
     }
 
     private static ListWithButtonsDialog<string> CreateListWithButtons(IReadOnlyList<string> items) =>

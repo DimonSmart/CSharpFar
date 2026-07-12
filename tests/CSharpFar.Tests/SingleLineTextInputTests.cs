@@ -392,6 +392,40 @@ public class SingleLineTextInputTests
         Assert.False(history.IsDropdownOpen);
     }
 
+    [Fact]
+    public void HistoryDropdownFrame_MouseUsesNormalizedFirstVisibleIndex()
+    {
+        var buffer = new CommandLineState();
+        var history = new SingleLineTextHistoryState();
+        for (int i = 0; i < 12; i++)
+            history.Add("item-" + i);
+        Assert.True(history.OpenAll(availableContentRows: 10));
+        history.SetFirstVisibleIndex(8, availableContentRows: 10);
+
+        var frame = SingleLineTextInput.CalculateHistoryDropdownFrame(
+            fieldX: 1,
+            fieldY: 0,
+            fieldWidth: 12,
+            screenHeight: 4,
+            history);
+
+        Assert.NotNull(frame);
+        Assert.Equal(1, frame.Value.VisibleRows);
+        Assert.Equal(frame.Value.FirstVisibleIndex, frame.Value.SelectedIndex);
+        ScrollBarDragState? drag = null;
+        string expected = history.Matches[frame.Value.FirstVisibleIndex];
+
+        bool handled = SingleLineTextInput.TryHandleHistoryDropdownMouse(
+            history,
+            buffer,
+            LeftMouse(frame.Value.ContentBounds.X, frame.Value.ContentBounds.Y),
+            frame.Value,
+            ref drag);
+
+        Assert.True(handled);
+        Assert.Equal(expected, buffer.Text);
+    }
+
     private static MouseConsoleInputEvent LeftMouse(int x, int y) =>
         new(x, y, MouseButton.Left, MouseEventKind.Down, MouseKeyModifiers.None);
 

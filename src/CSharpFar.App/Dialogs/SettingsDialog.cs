@@ -74,19 +74,20 @@ internal sealed class SettingsDialog
         using var modal = _modalDialogs.Open(context =>
         {
             var bounds = BuildBounds(context.Size);
-            bodyScrollTop = NormalizeBodyScroll(bounds, focusRow, bodyScrollTop);
-            Draw(context, bounds, bodyScrollTop, focusRow, leftIdx, rightIdx, palIdx, hlEnabled, syntaxEnabled);
-            return new SettingsDialogFrame(bounds);
+            int effectiveScrollTop = NormalizeBodyScroll(bounds, focusRow, bodyScrollTop);
+            Draw(context, bounds, effectiveScrollTop, focusRow, leftIdx, rightIdx, palIdx, hlEnabled, syntaxEnabled);
+            return new SettingsDialogFrame(bounds, effectiveScrollTop);
         });
-        modal.Render();
+        bodyScrollTop = modal.Render().BodyScrollTop;
 
         while (true)
         {
             var input = modal.ReadInput(out var frame);
+            bodyScrollTop = frame.BodyScrollTop;
             if (input is MouseConsoleInputEvent mouse &&
-                TryHandleBodyScrollbarMouse(mouse, frame.Bounds, ref bodyScrollTop, ref bodyScrollbarDrag))
+                TryHandleBodyScrollbarMouse(mouse, frame.Bounds, frame.BodyScrollTop, ref bodyScrollTop, ref bodyScrollbarDrag))
             {
-                modal.Render();
+                bodyScrollTop = modal.Render().BodyScrollTop;
                 continue;
             }
 
@@ -108,18 +109,18 @@ internal sealed class SettingsDialog
 
                 case ConsoleKey.UpArrow:
                     focusRow = (focusRow + 4) % 5;
-                    modal.Render();
+                    bodyScrollTop = modal.Render().BodyScrollTop;
                     break;
 
                 case ConsoleKey.DownArrow:
                     focusRow = (focusRow + 1) % 5;
-                    modal.Render();
+                    bodyScrollTop = modal.Render().BodyScrollTop;
                     break;
 
                 case ConsoleKey.Enter:
                 case ConsoleKey.Spacebar:
                     Cycle(focusRow, ref leftIdx, ref rightIdx, ref palIdx, ref hlEnabled, ref syntaxEnabled);
-                    modal.Render();
+                    bodyScrollTop = modal.Render().BodyScrollTop;
                     break;
             }
         }
@@ -262,6 +263,7 @@ internal sealed class SettingsDialog
     private static bool TryHandleBodyScrollbarMouse(
         MouseConsoleInputEvent mouse,
         Rect bounds,
+        int committedScrollTop,
         ref int bodyScrollTop,
         ref ScrollBarDragState? bodyScrollbarDrag)
     {
@@ -270,6 +272,7 @@ internal sealed class SettingsDialog
             return false;
 
         var scrollbarBounds = new Rect(bounds.Right - 1, bounds.Y + 1, 1, viewportRows);
+        bodyScrollTop = committedScrollTop;
         return ScrollBarMouseHandler.TryHandleMouse(
             mouse,
             scrollbarBounds,
@@ -308,5 +311,5 @@ internal sealed class SettingsDialog
         Array.FindIndex(PaletteNames,
             name => string.Equals(name, paletteName, StringComparison.OrdinalIgnoreCase));
 
-    private readonly record struct SettingsDialogFrame(Rect Bounds);
+    private readonly record struct SettingsDialogFrame(Rect Bounds, int BodyScrollTop);
 }

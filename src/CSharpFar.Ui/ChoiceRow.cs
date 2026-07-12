@@ -67,7 +67,9 @@ public sealed class ChoiceRow<T>
             y,
             Fit(text, width),
             focused ? PaletteStyles.InputField(palette) : PaletteStyles.DialogFill(palette));
-        return new ChoiceRowLayout([new Rect(x, y, Math.Max(0, width), 1)], []);
+        return new ChoiceRowLayout(
+            Array.AsReadOnly(new[] { new Rect(x, y, Math.Max(0, width), 1) }),
+            Array.AsReadOnly(Array.Empty<ChoiceHitTarget>()));
     }
 
     public ChoiceRowLayout CalculateSegmentedLayout(
@@ -82,15 +84,20 @@ public sealed class ChoiceRow<T>
         int exclusiveEnd = Math.Clamp(endIndex ?? _choices.Count, startIndex, _choices.Count);
         string prefix = string.IsNullOrEmpty(label) ? string.Empty : label + " ";
         var choices = new List<ChoiceHitTarget>();
+        var areaBounds = new Rect(x, y, Math.Max(0, width), 1);
         int column = prefix.Length;
         for (int i = startIndex; i < exclusiveEnd; i++)
         {
             string optionText = $"{(i == SelectedIndex ? "(x)" : "( )")} {_format(_choices[i])}";
-            choices.Add(new ChoiceHitTarget(i, new Rect(x + column, y, optionText.Length, 1)));
+            var visibleBounds = Intersect(new Rect(x + column, y, optionText.Length, 1), areaBounds);
+            if (visibleBounds.Width > 0)
+                choices.Add(new ChoiceHitTarget(i, visibleBounds));
             column += optionText.Length + 1;
         }
 
-        return new ChoiceRowLayout([new Rect(x, y, Math.Max(0, width), 1)], choices);
+        return new ChoiceRowLayout(
+            Array.AsReadOnly(new[] { areaBounds }),
+            choices.AsReadOnly());
     }
 
     public ChoiceRowLayout RenderSegmented(
@@ -175,6 +182,15 @@ public sealed class ChoiceRow<T>
 
     private static bool Contains(Rect bounds, int x, int y) =>
         x >= bounds.X && x < bounds.Right && y >= bounds.Y && y < bounds.Bottom;
+
+    private static Rect Intersect(Rect value, Rect bounds)
+    {
+        int x = Math.Max(value.X, bounds.X);
+        int y = Math.Max(value.Y, bounds.Y);
+        int right = Math.Min(value.Right, bounds.Right);
+        int bottom = Math.Min(value.Bottom, bounds.Bottom);
+        return new Rect(x, y, Math.Max(0, right - x), Math.Max(0, bottom - y));
+    }
 
     private static string Fit(string text, int width)
     {
