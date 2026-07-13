@@ -93,6 +93,19 @@ public sealed class MouseInputNormalizerTests
     }
 
     [Fact]
+    public void Reset_MatchingDownWithinInterval_RemainsDown()
+    {
+        var normalizer = Create();
+        normalizer.Normalize(Mouse(MouseButton.Left, MouseEventKind.Down));
+        normalizer.Reset();
+        _timestamp += 100;
+
+        var result = normalizer.Normalize(Mouse(MouseButton.Left, MouseEventKind.Down));
+
+        Assert.Equal(MouseEventKind.Down, result.Kind);
+    }
+
+    [Fact]
     public void NegativeTimestampDifference_DoesNotDoubleClick()
     {
         var normalizer = Create();

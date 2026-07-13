@@ -118,7 +118,10 @@ public sealed class SystemConsoleDriver : IConsoleDriver, IConsoleOutputModeDriv
     public void RestoreApplicationInputMode()
     {
         if (OperatingSystem.IsWindows() && _restoreInputMode)
+        {
             TryConfigureInputMode(_inputHandle, out _);
+            ResetMouseInputState();
+        }
     }
 
     public IDisposable EnterChildProcessConsoleMode()
@@ -126,6 +129,7 @@ public sealed class SystemConsoleDriver : IConsoleDriver, IConsoleOutputModeDriv
         if (!OperatingSystem.IsWindows() || !_restoreInputMode)
             return EmptyDisposable.Instance;
 
+        ResetMouseInputState();
         Win32ConsoleApi.TrySetConsoleMode(_inputHandle, GetChildProcessInputMode(_originalInputMode));
         return new ChildProcessConsoleModeScope(this);
     }
@@ -197,6 +201,12 @@ public sealed class SystemConsoleDriver : IConsoleDriver, IConsoleOutputModeDriv
     {
         global::System.Console.Out.Write(sequence);
         global::System.Console.Out.Flush();
+    }
+
+    private void ResetMouseInputState()
+    {
+        _win32MouseParser?.Reset();
+        _mouseInputNormalizer.Reset();
     }
 
     public ConsoleViewport GetViewport()

@@ -62,6 +62,44 @@ public sealed class Win32MouseInputParserTests
     }
 
     [Fact]
+    public void WheelWithHeldButton_PreservesStateForFollowingRelease()
+    {
+        var parser = new Win32MouseInputParser();
+
+        var down = parser.Parse(Record(Left), 0, 0);
+        var wheel = parser.Parse(Record(Left | (120u << 16), MouseWheeled), 0, 0);
+        var up = parser.Parse(Record(0), 0, 0);
+
+        AssertMouse(down, MouseButton.Left, MouseEventKind.Down);
+        AssertMouse(wheel, MouseButton.WheelUp, MouseEventKind.Wheel);
+        AssertMouse(up, MouseButton.Left, MouseEventKind.Up);
+    }
+
+    [Fact]
+    public void WheelThatClearsButtonState_AllowsNextDown()
+    {
+        var parser = new Win32MouseInputParser();
+        parser.Parse(Record(Left), 0, 0);
+        parser.Parse(Record(120u << 16, MouseWheeled), 0, 0);
+
+        var down = parser.Parse(Record(Left), 0, 0);
+
+        AssertMouse(down, MouseButton.Left, MouseEventKind.Down);
+    }
+
+    [Fact]
+    public void Reset_AllowsNextDown()
+    {
+        var parser = new Win32MouseInputParser();
+        parser.Parse(Record(Left), 0, 0);
+        parser.Reset();
+
+        var down = parser.Parse(Record(Left), 0, 0);
+
+        AssertMouse(down, MouseButton.Left, MouseEventKind.Down);
+    }
+
+    [Fact]
     public void CoordinatesAreViewportRelativeAndModifiersPreserved()
     {
         var parser = new Win32MouseInputParser();

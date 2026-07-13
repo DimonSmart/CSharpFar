@@ -154,6 +154,24 @@ public sealed class AnsiInputParserTests
             (doubleClick.X, doubleClick.Y, doubleClick.Button));
     }
 
+    [Fact]
+    public void ProductionParser_ResetMouseState_PreventsDoubleClick()
+    {
+        using var input = new MemoryStream(Encoding.ASCII.GetBytes(
+            "\u001b[<0;42;10M\u001b[<0;42;10M"));
+        long timestamp = 1_000;
+        var parser = new AnsiConsoleInputParser(50, () => timestamp);
+        var reader = new StreamAnsiInputByteReader(input, null);
+
+        Assert.True(parser.TryRead(reader, out var firstPress));
+        parser.ResetMouseState();
+        timestamp += 100;
+        Assert.True(parser.TryRead(reader, out var secondPress));
+
+        Assert.Equal(MouseEventKind.Down, Assert.IsType<MouseConsoleInputEvent>(firstPress).Kind);
+        Assert.Equal(MouseEventKind.Down, Assert.IsType<MouseConsoleInputEvent>(secondPress).Kind);
+    }
+
     [Theory]
     [InlineData("\u001b[<0;43;10M", 300)]
     [InlineData("\u001b[<0;42;10M", 501)]

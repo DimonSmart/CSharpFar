@@ -37,6 +37,35 @@ public sealed class UiLayerTests
     }
 
     [Fact]
+    public void StableRender_DefaultInteractionFrameIsEmpty()
+    {
+        var layer = new DefaultInteractionLayer();
+        var host = new UiCompositionHost(new ScreenRenderer(new FakeConsoleDriver()));
+        host.SetRootSurface(new SurfaceLayer(host.Screen, layer));
+
+        host.Render();
+
+        Assert.Same(UiInteractionFrame.Empty, layer.CommittedInteractionFrame);
+    }
+
+    [Fact]
+    public void StableRender_PublishesCursorThroughCommittedFocus()
+    {
+        var cursor = new UiCursorPlacement(12, 7, Visible: true);
+        var layer = new TestLayer(UiLayerInputPolicy.Bubble)
+        {
+            RenderCore = _ => new TestFrame(1, new UiFocusFrame([
+                new(new UiTargetId("target"), 0, Cursor: cursor),
+            ])),
+        };
+        var host = Host(layer);
+
+        host.Render();
+
+        Assert.Equal(cursor, Assert.Single(layer.CommittedInteractionFrame.Focus.Entries).Cursor);
+    }
+
+    [Fact]
     public void OnFrameCommitted_SeesCommittedFrameInteractionAndFocus()
     {
         var layer = new TestLayer(UiLayerInputPolicy.Bubble)
@@ -119,6 +148,36 @@ public sealed class UiLayerTests
         Assert.Equal([80], layer.CommittedValues);
     }
 
+    [Fact]
+    public void RejectedResizeAttempt_DoesNotPublishCursorMetadata()
+    {
+        var driver = new FakeConsoleDriver(80, 25);
+        int attempt = 0;
+        var layer = new TestLayer(UiLayerInputPolicy.Bubble)
+        {
+            RenderCore = context =>
+            {
+                int value = ++attempt;
+                context.Screen.Write(0, 0, value.ToString(), new CellStyle(ConsoleColor.Gray, ConsoleColor.Black));
+                return new TestFrame(value, new UiFocusFrame([
+                    new(new UiTargetId($"target-{value}"), 0, Cursor: new UiCursorPlacement(value, 0)),
+                ]));
+            },
+        };
+        var host = new UiCompositionHost(new ScreenRenderer(driver));
+        host.SetRootSurface(new SurfaceLayer(host.Screen, layer));
+        host.Render();
+        driver.ResizeAfterWriteCount = driver.WriteAtCallCount + 1;
+        driver.ResizeAfterWrite = d => d.SetSize(100, 35);
+
+        host.Render();
+
+        Assert.Equal([1, 3], layer.CommittedValues);
+        Assert.Equal(new UiCursorPlacement(3, 0),
+            Assert.Single(layer.CommittedInteractionFrame.Focus.Entries).Cursor);
+        Assert.DoesNotContain(2, layer.CommittedValues);
+    }
+
     private static UiCompositionHost Host(TestLayer layer)
     {
         var host = new UiCompositionHost(new ScreenRenderer(new FakeConsoleDriver()));
@@ -181,12 +240,25 @@ public sealed class UiLayerTests
             (_, _, _) => UiInputResult.NotHandled;
     }
 
+    private sealed class DefaultInteractionLayer : UiLayer<TestFrame>
+    {
+        public override UiLayerInputPolicy InputPolicy => UiLayerInputPolicy.Bubble;
+
+        protected override TestFrame RenderFrame(UiRenderContext context) =>
+            new(context.Viewport.Width, UiFocusFrame.Empty);
+
+        protected override UiInputResult RouteInput(
+            ConsoleInputEvent input,
+            TestFrame frame,
+            UiInputRouteContext context) => UiInputResult.NotHandled;
+    }
+
     private sealed class SurfaceLayer : IUiSurface, IUiLayer
     {
         private readonly ScreenRenderer _screen;
-        private readonly TestLayer _layer;
+        private readonly UiLayer<TestFrame> _layer;
 
-        public SurfaceLayer(ScreenRenderer screen, TestLayer layer) =>
+        public SurfaceLayer(ScreenRenderer screen, UiLayer<TestFrame> layer) =>
             (_screen, _layer) = (screen, layer);
 
         public UiLayerInputPolicy InputPolicy => _layer.InputPolicy;
@@ -197,6 +269,6 @@ public sealed class UiLayerTests
         public void CompleteFrame(UiFrameCompletion completion) { }
 
         public UiInputResult RouteInput(ConsoleInputEvent input, UiInputRouteContext context) =>
-            _layer.RouteCore(input, _layer.CommittedFrame, context);
+            _layer.RouteInput(input, context);
     }
 }

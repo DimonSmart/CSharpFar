@@ -214,11 +214,14 @@ internal static class Win32ConsoleApi
         IntPtr inputHandle,
         bool intercept,
         CancellationToken cancellationToken,
-        Win32ModifierKeyTracker? modifierKeyTracker = null,
-        Win32MouseInputParser? mouseParser = null,
-        MouseInputNormalizer? mouseNormalizer = null,
+        Win32ModifierKeyTracker? modifierKeyTracker,
+        Win32MouseInputParser mouseParser,
+        MouseInputNormalizer mouseNormalizer,
         Func<bool>? hasVisibleViewportChanged = null)
     {
+        ArgumentNullException.ThrowIfNull(mouseParser);
+        ArgumentNullException.ThrowIfNull(mouseNormalizer);
+
         while (true)
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -266,10 +269,13 @@ internal static class Win32ConsoleApi
         IntPtr inputHandle,
         bool intercept,
         [NotNullWhen(true)] out ConsoleInputEvent? inputEvent,
-        Win32ModifierKeyTracker? modifierKeyTracker = null,
-        Win32MouseInputParser? mouseParser = null,
-        MouseInputNormalizer? mouseNormalizer = null)
+        Win32ModifierKeyTracker? modifierKeyTracker,
+        Win32MouseInputParser mouseParser,
+        MouseInputNormalizer mouseNormalizer)
     {
+        ArgumentNullException.ThrowIfNull(mouseParser);
+        ArgumentNullException.ThrowIfNull(mouseNormalizer);
+
         while (TryReadNextRecordWithTimeout(inputHandle, 0, out var record))
         {
             inputEvent = ParseInputRecord(inputHandle, intercept, record, mouseParser, mouseNormalizer, parseVirtualTerminal: false);
@@ -288,8 +294,8 @@ internal static class Win32ConsoleApi
         IntPtr inputHandle,
         bool intercept,
         Win32ModifierKeyTracker? modifierKeyTracker,
-        Win32MouseInputParser? mouseParser,
-        MouseInputNormalizer? mouseNormalizer)
+        Win32MouseInputParser mouseParser,
+        MouseInputNormalizer mouseNormalizer)
     {
         if (!TryReadNextRecord(inputHandle, out var record))
             return null;
@@ -304,8 +310,8 @@ internal static class Win32ConsoleApi
         IntPtr inputHandle,
         bool intercept,
         InputRecord record,
-        Win32MouseInputParser? mouseParser = null,
-        MouseInputNormalizer? mouseNormalizer = null,
+        Win32MouseInputParser mouseParser,
+        MouseInputNormalizer mouseNormalizer,
         bool parseVirtualTerminal = true)
     {
         if (record.EventType == WINDOW_BUFFER_SIZE_EVENT)
@@ -313,8 +319,6 @@ internal static class Win32ConsoleApi
 
         if (record.EventType == MOUSE_EVENT)
         {
-            mouseParser ??= new Win32MouseInputParser();
-            mouseNormalizer ??= new MouseInputNormalizer();
             var mouse = mouseParser.Parse(
                 record.MouseEvent,
                 global::System.Console.WindowLeft,

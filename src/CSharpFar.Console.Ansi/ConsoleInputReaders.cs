@@ -161,6 +161,7 @@ internal sealed class UnixRawTerminalInputReader : ConsoleInputReaderBase
 
         try
         {
+            _parser.ResetMouseState();
             _modifierKeyTracker?.Suspend();
             _writeControl(DisableMouseTracking);
         }
@@ -219,6 +220,7 @@ internal sealed class UnixRawTerminalInputReader : ConsoleInputReaderBase
         _terminalMode.EnableRawMode();
         try
         {
+            _parser.ResetMouseState();
             _writeControl(EnableMouseTracking);
             _modifierKeyTracker?.Resume();
             _active = true;

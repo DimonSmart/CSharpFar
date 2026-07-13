@@ -27,16 +27,16 @@ internal sealed class Win32MouseInputParser
         int x = record.MousePositionX - windowLeft;
         int y = record.MousePositionY - windowTop;
 
+        uint current = GetSupportedButtonState(record.ButtonState);
+        uint previous = _pressedButtons;
+        _pressedButtons = current;
+
         if ((record.EventFlags & MouseWheeled) != 0)
         {
             short delta = (short)(record.ButtonState >> 16);
             var button = delta > 0 ? MouseButton.WheelUp : MouseButton.WheelDown;
             return new MouseConsoleInputEvent(x, y, button, MouseEventKind.Wheel, mods);
         }
-
-        uint current = GetSupportedButtonState(record.ButtonState);
-        uint previous = _pressedButtons;
-        _pressedButtons = current;
 
         uint pressed = current & ~previous;
         if (pressed != 0)

@@ -43,6 +43,12 @@ internal sealed class AnsiConsoleInputParser
         return true;
     }
 
+    public void ResetMouseState()
+    {
+        _lastPressedButton = MouseButton.Left;
+        _mouseNormalizer.Reset();
+    }
+
     private static bool LooksLikeSgrMouse(IReadOnlyList<byte> bytes) =>
         bytes.Count >= 3 && bytes[0] == 0x1b && bytes[1] == '[' && bytes[2] == '<';
 }
