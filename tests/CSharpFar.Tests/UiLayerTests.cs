@@ -87,7 +87,7 @@ public sealed class UiLayerTests
         var layer = new TestLayer(UiLayerInputPolicy.Bubble);
 
         Assert.Throws<InvalidOperationException>(() =>
-            layer.RouteInput(Key(ConsoleKey.A), new UiInputRouteContext(layer.FocusScope, null, false)));
+            layer.RouteInput(Key(ConsoleKey.A), UiInputRouteContext.Layer(layer.FocusScope)));
     }
 
     [Fact]
@@ -178,6 +178,90 @@ public sealed class UiLayerTests
         Assert.DoesNotContain(2, layer.CommittedValues);
     }
 
+    [Fact]
+    public void RouteInput_UsesCommittedFocusedTargetForKeyboard()
+    {
+        var first = new UiTargetId("first");
+        var second = new UiTargetId("second");
+        var layer = new TestLayer(UiLayerInputPolicy.Bubble)
+        {
+            RenderCore = _ => new TestFrame(1, new UiFocusFrame([new(first, 0), new(second, 1)], first)),
+        };
+        var host = Host(layer);
+        host.Render();
+
+        host.DispatchInput(Key(ConsoleKey.A));
+
+        Assert.Equal(first, layer.LastRoute!.Target);
+        Assert.Equal(UiInputRouteKind.FocusedTarget, layer.LastRoute.RouteKind);
+    }
+
+    [Fact]
+    public void RouteInput_UsesTopmostCommittedHitTargetForMouse()
+    {
+        var layer = new TestLayer(UiLayerInputPolicy.Bubble)
+        {
+            RenderCore = _ => new TestFrame(1, UiFocusFrame.Empty),
+            HitRegions = [
+                new(new UiTargetId("bottom"), new Rect(0, 0, 4, 4)),
+                new(new UiTargetId("top"), new Rect(0, 0, 4, 4)),
+            ],
+        };
+        var host = Host(layer);
+        host.Render();
+
+        host.DispatchInput(new MouseConsoleInputEvent(1, 1, MouseButton.Left, MouseEventKind.Down, MouseKeyModifiers.None));
+
+        Assert.Equal(new UiTargetId("top"), layer.LastRoute!.Target);
+        Assert.Equal(UiInputRouteKind.HitTarget, layer.LastRoute.RouteKind);
+    }
+
+    [Fact]
+    public void FocusRequest_AffectsOnlyTheNextRoute()
+    {
+        var first = new UiTargetId("first");
+        var second = new UiTargetId("second");
+        var layer = new TestLayer(UiLayerInputPolicy.Bubble)
+        {
+            RenderCore = _ => new TestFrame(1, new UiFocusFrame([new(first, 0), new(second, 1)], first)),
+            RouteCore = (_, _, context) => context.Target == first
+                ? UiInputResult.RequestFocus(second)
+                : UiInputResult.NotHandled,
+        };
+        var host = Host(layer);
+        host.Render();
+
+        host.DispatchInput(Key(ConsoleKey.A));
+        Assert.Equal(first, layer.LastRoute!.Target);
+        host.DispatchInput(Key(ConsoleKey.B));
+
+        Assert.Equal(second, layer.LastRoute!.Target);
+    }
+
+    [Fact]
+    public void RemovedCommittedTarget_ClearsCaptureAndRoutesCurrentMouseNormally()
+    {
+        var target = new UiTargetId("thumb");
+        var layer = new TestLayer(UiLayerInputPolicy.Bubble)
+        {
+            RenderCore = _ => new TestFrame(1, UiFocusFrame.Empty),
+            HitRegions = [new(target, new Rect(0, 0, 2, 2))],
+            RouteCore = (input, _, _) => input is MouseConsoleInputEvent { Kind: MouseEventKind.Down }
+                ? UiInputResult.CaptureMouse(target, MouseButton.Left)
+                : UiInputResult.NotHandled,
+        };
+        var host = Host(layer);
+        host.Render();
+        host.DispatchInput(new MouseConsoleInputEvent(1, 1, MouseButton.Left, MouseEventKind.Down, MouseKeyModifiers.None));
+
+        layer.HitRegions = [];
+        host.Render();
+        host.DispatchInput(new MouseConsoleInputEvent(10, 10, MouseButton.Left, MouseEventKind.Move, MouseKeyModifiers.None));
+
+        Assert.Equal(UiInputRouteKind.Layer, layer.LastRoute!.RouteKind);
+        Assert.Null(layer.LastRoute.Target);
+    }
+
     private static UiCompositionHost Host(TestLayer layer)
     {
         var host = new UiCompositionHost(new ScreenRenderer(new FakeConsoleDriver()));
@@ -197,6 +281,8 @@ public sealed class UiLayerTests
 
         public List<int> CommittedValues { get; } = [];
         public List<(int FrameValue, bool InteractionCommitted, UiTargetId? FocusedTarget)> CommitSnapshots { get; } = [];
+        public UiInputRouteContext? LastRoute { get; private set; }
+        public IReadOnlyList<UiHitRegion> HitRegions { get; set; } = [];
 
         public override UiLayerInputPolicy InputPolicy => policy;
 
@@ -206,11 +292,14 @@ public sealed class UiLayerTests
         protected override UiInputResult RouteInput(
             ConsoleInputEvent input,
             TestFrame frame,
-            UiInputRouteContext context) =>
-            RouteCore(input, frame, context);
+            UiInputRouteContext context)
+        {
+            LastRoute = context;
+            return RouteCore(input, frame, context);
+        }
 
         protected override UiInteractionFrame BuildInteractionFrame(TestFrame frame) =>
-            new([], frame.Focus);
+            new(HitRegions, frame.Focus);
 
         protected override void OnFrameCommitted(TestFrame frame) =>
             Commit(frame);
@@ -232,7 +321,7 @@ public sealed class UiLayerTests
                 value = frame.Value;
                 return UiInputResult.NotHandled;
             };
-            RouteInput(input, new UiInputRouteContext(FocusScope, null, false));
+            RouteInput(input, UiInputRouteContext.Layer(FocusScope));
             return value;
         }
 

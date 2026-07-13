@@ -85,4 +85,18 @@ public sealed class UiInteractionFrameTests
         Assert.True(frame.TryHitTest(2, 0, out var hit));
         Assert.Equal(target, hit.Target);
     }
+
+    [Fact]
+    public void ContainsTarget_FindsHitOnlyAndFocusOnlyTargets()
+    {
+        var hitOnly = new UiTargetId("hit");
+        var focusOnly = new UiTargetId("focus");
+        var frame = new UiInteractionFrame(
+            [new(hitOnly, new Rect(0, 0, 1, 1))],
+            new UiFocusFrame([new(focusOnly, 0)]));
+
+        Assert.True(frame.ContainsTarget(hitOnly));
+        Assert.True(frame.ContainsTarget(focusOnly));
+        Assert.False(frame.ContainsTarget(new UiTargetId("missing")));
+    }
 }

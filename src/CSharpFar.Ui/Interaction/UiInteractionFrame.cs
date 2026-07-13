@@ -26,6 +26,13 @@ public sealed class UiInteractionFrame
 
     public UiFocusFrame Focus { get; }
 
+    public bool ContainsTarget(UiTargetId target)
+    {
+        ArgumentNullException.ThrowIfNull(target);
+        return HitRegions.Any(region => region.Target == target) ||
+            Focus.Entries.Any(entry => entry.Target == target);
+    }
+
     public bool TryHitTest(int x, int y, out UiHitRegion region)
     {
         for (int i = HitRegions.Count - 1; i >= 0; i--)

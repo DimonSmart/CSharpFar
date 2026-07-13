@@ -250,6 +250,7 @@ public sealed class UiCompositionHost
 
                 attempt.Commit();
                 LastStableViewport = viewport;
+                RevalidateMouseCapture();
                 composition.Surface.SurfaceLifecycle!.CompleteFrame(new UiFrameCompletion(request, viewport, WasInterrupted: false, WasCommitted: true));
                 return;
             }
@@ -289,7 +290,7 @@ public sealed class UiCompositionHost
             var composition = CaptureActiveComposition();
             if (input is MouseConsoleInputEvent mouse && _mouseCapture is { } capture)
             {
-                if (CanRouteCapturedInput(composition, capture.Owner))
+                if (CanRouteCapturedInput(composition, capture))
                     return DispatchCapturedMouse(input, mouse, capture);
 
                 _mouseCapture = null;
@@ -304,7 +305,7 @@ public sealed class UiCompositionHost
 
                 UiInputResult result = entry.Layer.RouteInput(
                     input,
-                    new UiInputRouteContext(entry.Layer.FocusScope, capturedTarget: null, isCapturedRoute: false));
+                    UiInputRouteContext.Layer(entry.Layer.FocusScope));
                 ValidateInputResult(entry, input, result);
                 ApplyFocusRequest(entry.Layer.FocusScope, result.FocusRequest);
                 ApplyMouseCaptureRequest(entry, input, result.MouseCaptureRequest);
@@ -537,7 +538,7 @@ public sealed class UiCompositionHost
         UiLayerEntry entry = capture.Owner;
         UiInputResult result = entry.Layer.RouteInput(
             input,
-            new UiInputRouteContext(entry.Layer.FocusScope, capture.Target, isCapturedRoute: true));
+            UiInputRouteContext.CapturedTarget(entry.Layer.FocusScope, capture.Target));
 
         ValidateInputResult(entry, input, result);
         ApplyFocusRequest(entry.Layer.FocusScope, result.FocusRequest);
@@ -563,7 +564,8 @@ public sealed class UiCompositionHost
             case UiFocusRequestKind.None:
                 break;
             case UiFocusRequestKind.Set:
-                focusScope.TryFocus(request.Target!);
+                if (!focusScope.TryFocus(request.Target!))
+                    throw new InvalidOperationException("Focus target must exist in the committed focus frame and be enabled.");
                 break;
             case UiFocusRequestKind.Clear:
                 focusScope.ClearFocus();
@@ -612,12 +614,13 @@ public sealed class UiCompositionHost
             _mouseCapture = null;
     }
 
-    private bool CanRouteCapturedInput(ActiveComposition composition, UiLayerEntry owner)
+    private bool CanRouteCapturedInput(ActiveComposition composition, UiMouseCaptureState capture)
     {
         foreach (UiLayerEntry entry in composition.RoutingOrder())
         {
-            if (ReferenceEquals(entry, owner))
-                return entry.Layer.InputPolicy != UiLayerInputPolicy.None;
+            if (ReferenceEquals(entry, capture.Owner))
+                return entry.Layer.InputPolicy != UiLayerInputPolicy.None &&
+                    entry.Layer.CommittedInteractionFrame.ContainsTarget(capture.Target);
 
             if (entry.Layer.InputPolicy == UiLayerInputPolicy.Modal)
                 return false;
@@ -632,7 +635,7 @@ public sealed class UiCompositionHost
             return;
 
         ActiveComposition composition = CaptureActiveComposition();
-        if (!CanRouteCapturedInput(composition, _mouseCapture.Owner))
+        if (!CanRouteCapturedInput(composition, _mouseCapture))
             _mouseCapture = null;
     }
 
@@ -660,6 +663,8 @@ public sealed class UiCompositionHost
             throw new InvalidOperationException("Mouse capture requires a target.");
         if (entry.Layer.InputPolicy == UiLayerInputPolicy.None)
             throw new InvalidOperationException("Mouse capture cannot be requested by a layer with no input policy.");
+        if (!entry.Layer.CommittedInteractionFrame.ContainsTarget(result.MouseCaptureRequest.Target))
+            throw new InvalidOperationException("Mouse capture target must exist in the layer's committed interaction frame.");
     }
 
     private static UiInputResult NormalizeResult(bool handled, bool invalidate) =>

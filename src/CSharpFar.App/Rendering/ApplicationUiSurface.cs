@@ -15,16 +15,12 @@ internal sealed record ApplicationUiFrame(
     ConsoleViewport Viewport,
     ApplicationSurfaceMode Mode);
 
-internal sealed record ApplicationRoutedInput(
-    ConsoleInputEvent Input,
-    ApplicationUiFrame Frame);
-
 internal sealed class ApplicationUiSurface : UiLayer<ApplicationUiFrame>, IUiSurface
 {
     private readonly ApplicationRenderContext _context;
     private readonly ApplicationRenderCoordinator _coordinator;
     private bool _hidden;
-    private ApplicationRoutedInput? _pendingInput;
+    private UiRoutedInput<ApplicationUiFrame>? _pendingInput;
 
     public ApplicationUiSurface(ApplicationRenderContext context, ApplicationRenderCoordinator coordinator)
     {
@@ -95,11 +91,11 @@ internal sealed class ApplicationUiSurface : UiLayer<ApplicationUiFrame>, IUiSur
         if (_pendingInput is not null)
             throw new InvalidOperationException("Application input was dispatched before the previous input was processed.");
 
-        _pendingInput = new ApplicationRoutedInput(input, frame);
+        _pendingInput = new UiRoutedInput<ApplicationUiFrame>(input, frame, context.Target, context.RouteKind);
         return UiInputResult.HandledResult;
     }
 
-    internal bool TryTakeInput(out ApplicationRoutedInput routed)
+    internal bool TryTakeInput(out UiRoutedInput<ApplicationUiFrame> routed)
     {
         if (_pendingInput is null)
         {

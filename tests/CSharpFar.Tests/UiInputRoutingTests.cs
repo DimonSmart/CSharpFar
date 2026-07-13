@@ -159,7 +159,9 @@ public sealed class UiInputRoutingTests
     {
         public UiLayerInputPolicy InputPolicy => policy;
         public UiFocusScope FocusScope { get; } = new();
-        public UiInteractionFrame CommittedInteractionFrame => UiInteractionFrame.Empty;
+        public UiInteractionFrame CommittedInteractionFrame { get; } = new([
+            new(new UiTargetId("thumb"), new CSharpFar.Console.Models.Rect(0, 0, 1, 1)),
+        ]);
         public List<string> Calls { get; } = [];
         public List<UiInputRouteContext> Contexts { get; } = [];
         public UiInputResult Result { get; set; } = UiInputResult.NotHandled;

@@ -28,10 +28,45 @@ public abstract class UiLayer<TFrame> : IUiLayer
         context.PublishOnStable(frame, OnFrameCommitted);
     }
 
-    public UiInputResult RouteInput(
+    public UiInputResult RouteInput(ConsoleInputEvent input, UiInputRouteContext hostContext)
+    {
+        ArgumentNullException.ThrowIfNull(input);
+        ArgumentNullException.ThrowIfNull(hostContext);
+
+        TFrame frame = _committedFrame.Value;
+        UiInteractionFrame interactionFrame = _committedInteractionFrame.Value;
+        UiInputRouteContext route = ResolveRoute(input, interactionFrame, hostContext);
+        return RouteInput(input, frame, route);
+    }
+
+    private UiInputRouteContext ResolveRoute(
         ConsoleInputEvent input,
-        UiInputRouteContext context) =>
-        RouteInput(input, _committedFrame.Value, context);
+        UiInteractionFrame interactionFrame,
+        UiInputRouteContext hostContext)
+    {
+        if (!ReferenceEquals(hostContext.FocusScope, FocusScope))
+            throw new InvalidOperationException("Input route context belongs to another UI layer.");
+
+        if (hostContext.RouteKind == UiInputRouteKind.CapturedTarget)
+        {
+            if (input is not MouseConsoleInputEvent || hostContext.Target is null)
+                throw new InvalidOperationException("Captured target routes require mouse input and a target.");
+            return UiInputRouteContext.CapturedTarget(FocusScope, hostContext.Target);
+        }
+
+        if (hostContext.RouteKind != UiInputRouteKind.Layer || hostContext.Target is not null)
+            throw new InvalidOperationException("Only a layer route can be supplied for ordinary input dispatch.");
+
+        return input switch
+        {
+            MouseConsoleInputEvent mouse when interactionFrame.TryHitTest(mouse.X, mouse.Y, out UiHitRegion region) =>
+                UiInputRouteContext.HitTarget(FocusScope, region.Target),
+            MouseConsoleInputEvent => UiInputRouteContext.Layer(FocusScope),
+            KeyConsoleInputEvent or ModifierKeyConsoleInputEvent when FocusScope.FocusedTarget is UiTargetId target =>
+                UiInputRouteContext.FocusedTarget(FocusScope, target),
+            _ => UiInputRouteContext.Layer(FocusScope),
+        };
+    }
 
     protected abstract TFrame RenderFrame(UiRenderContext context);
 

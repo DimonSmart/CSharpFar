@@ -25,7 +25,7 @@ public sealed class UiMouseCaptureTests
         top.Result = UiInputResult.HandledResult;
         host.DispatchInput(Mouse(MouseEventKind.Move, MouseButton.Left));
 
-        Assert.Contains(owner.Contexts, context => context.IsCapturedRoute && context.CapturedTarget == new UiTargetId("thumb"));
+        Assert.Contains(owner.Contexts, context => context.IsCapturedRoute && context.Target == new UiTargetId("thumb"));
         Assert.Equal(2, owner.Calls.Count);
         Assert.Single(top.Calls);
         Assert.Empty(surface.Calls);
@@ -78,7 +78,7 @@ public sealed class UiMouseCaptureTests
         host.DispatchInput(Mouse(MouseEventKind.Move, MouseButton.Right));
 
         Assert.Equal(["second"], calls);
-        Assert.Contains(second.Contexts, context => context is { IsCapturedRoute: true, CapturedTarget.Value: "second" });
+        Assert.Contains(second.Contexts, context => context is { IsCapturedRoute: true, Target.Value: "second" });
     }
 
     [Fact]
@@ -299,7 +299,12 @@ public sealed class UiMouseCaptureTests
         public UiLayerInputPolicy Policy { get; set; } = policy;
         public UiLayerInputPolicy InputPolicy => Policy;
         public UiFocusScope FocusScope { get; } = new();
-        public UiInteractionFrame CommittedInteractionFrame => UiInteractionFrame.Empty;
+        public UiInteractionFrame CommittedInteractionFrame { get; } = new([
+            new(new UiTargetId("thumb"), new CSharpFar.Console.Models.Rect(0, 0, 1, 1)),
+            new(new UiTargetId("first"), new CSharpFar.Console.Models.Rect(0, 0, 1, 1)),
+            new(new UiTargetId("second"), new CSharpFar.Console.Models.Rect(0, 0, 1, 1)),
+            new(new UiTargetId("root"), new CSharpFar.Console.Models.Rect(0, 0, 1, 1)),
+        ]);
         public List<string> Calls { get; } = [];
         public List<UiInputRouteContext> Contexts { get; } = [];
         public UiInputResult Result { get; set; } = UiInputResult.NotHandled;
