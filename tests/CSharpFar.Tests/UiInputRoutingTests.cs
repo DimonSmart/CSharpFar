@@ -159,6 +159,7 @@ public sealed class UiInputRoutingTests
     {
         public UiLayerInputPolicy InputPolicy => policy;
         public UiFocusScope FocusScope { get; } = new();
+        public UiInteractionFrame CommittedInteractionFrame => UiInteractionFrame.Empty;
         public List<string> Calls { get; } = [];
         public List<UiInputRouteContext> Contexts { get; } = [];
         public UiInputResult Result { get; set; } = UiInputResult.NotHandled;
@@ -177,6 +178,7 @@ public sealed class UiInputRoutingTests
     {
         public UiLayerInputPolicy InputPolicy => layer.InputPolicy;
         public UiFocusScope FocusScope => layer.FocusScope;
+        public UiInteractionFrame CommittedInteractionFrame => layer.CommittedInteractionFrame;
         public IDisposable BeginFrame(UiRenderRequest request) => screen.BeginFrame();
         public void Render(UiRenderContext context) => layer.Render(context);
         public void CompleteFrame(UiFrameCompletion completion) { }

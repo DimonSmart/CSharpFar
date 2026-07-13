@@ -159,7 +159,7 @@ internal sealed class DirectoryShortcutsDialog
     private static bool TrySelectRow(MouseConsoleInputEvent mouse, Rect contentBounds, ref int cursor)
     {
         if (mouse.Button != MouseButton.Left ||
-            mouse.Kind is not (MouseEventKind.Down or MouseEventKind.Click or MouseEventKind.DoubleClick) ||
+            mouse.Kind is not (MouseEventKind.Down or MouseEventKind.DoubleClick) ||
             mouse.X < contentBounds.X ||
             mouse.X >= contentBounds.Right ||
             mouse.Y < contentBounds.Y ||

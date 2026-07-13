@@ -42,6 +42,16 @@ public sealed class UiCommittedState<T>
 {
     private T? _value;
 
+    public UiCommittedState()
+    {
+    }
+
+    public UiCommittedState(T initialValue)
+    {
+        _value = initialValue;
+        HasValue = true;
+    }
+
     public bool HasValue { get; private set; }
 
     public T Value => HasValue

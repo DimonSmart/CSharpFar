@@ -191,7 +191,6 @@ public sealed class ScrollableList<T>
         int viewportRows,
         ref ScrollBarDragState? scrollbarDrag,
         bool confirmOnMouseDown = false,
-        bool confirmOnClick = false,
         bool confirmOnDoubleClick = true)
     {
         if (mouse.Kind == MouseEventKind.Wheel)
@@ -232,7 +231,7 @@ public sealed class ScrollableList<T>
         }
 
         if (mouse.Button != MouseButton.Left ||
-            mouse.Kind is not (MouseEventKind.Down or MouseEventKind.Click or MouseEventKind.DoubleClick) ||
+            mouse.Kind is not (MouseEventKind.Down or MouseEventKind.DoubleClick) ||
             mouse.X < contentBounds.X ||
             mouse.X >= contentBounds.Right ||
             mouse.Y < contentBounds.Y ||
@@ -256,7 +255,6 @@ public sealed class ScrollableList<T>
         bool confirmed = mouse.Kind switch
         {
             MouseEventKind.Down => confirmOnMouseDown,
-            MouseEventKind.Click => confirmOnClick,
             MouseEventKind.DoubleClick => confirmOnDoubleClick,
             _ => false,
         };

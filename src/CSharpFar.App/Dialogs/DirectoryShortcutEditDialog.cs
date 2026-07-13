@@ -178,7 +178,7 @@ internal sealed class DirectoryShortcutEditDialog
     private static bool TryFocusField(MouseConsoleInputEvent mouse, Rect content, ref int focusRow)
     {
         if (mouse.Button != MouseButton.Left ||
-            mouse.Kind is not (MouseEventKind.Down or MouseEventKind.Click))
+            mouse.Kind != MouseEventKind.Down)
         {
             return false;
         }

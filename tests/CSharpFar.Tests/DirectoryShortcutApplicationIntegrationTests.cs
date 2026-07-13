@@ -65,7 +65,7 @@ public sealed class DirectoryShortcutApplicationIntegrationTests : IDisposable
                 2,
                 driver.GetSize().Height - 3,
                 MouseButton.Left,
-                MouseEventKind.Click,
+                MouseEventKind.Down,
                 MouseKeyModifiers.None));
 
         Assert.True(handled);
@@ -98,7 +98,7 @@ public sealed class DirectoryShortcutApplicationIntegrationTests : IDisposable
             39,
             14,
             MouseButton.Left,
-            MouseEventKind.Click,
+            MouseEventKind.Down,
             MouseKeyModifiers.None));
         var currentItem = new AppSettings.DirectoryShortcutItem
         {
@@ -123,7 +123,7 @@ public sealed class DirectoryShortcutApplicationIntegrationTests : IDisposable
             32,
             14,
             MouseButton.Left,
-            MouseEventKind.Click,
+            MouseEventKind.Down,
             MouseKeyModifiers.None));
 
         var screen = new ScreenRenderer(driver);

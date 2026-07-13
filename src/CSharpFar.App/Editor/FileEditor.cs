@@ -276,16 +276,6 @@ internal sealed class FileEditor
                 _persistentSelection = false;
                 return true;
 
-            case MouseEventKind.Click:
-                if (!TryGetTextMousePosition(mouse, session, contentHeight, size, clampToContent: false, out var singleClickPosition))
-                    return false;
-
-                session.MoveTo(singleClickPosition);
-                _mouseSelectionAnchor = null;
-                _markMode = false;
-                _persistentSelection = false;
-                return true;
-
             case MouseEventKind.Move when _mouseSelectionAnchor is not null:
                 if (!TryGetTextMousePosition(mouse, session, contentHeight, size, clampToContent: true, out var movePosition))
                     return false;

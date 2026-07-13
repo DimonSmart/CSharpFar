@@ -182,7 +182,6 @@ public sealed class ListWithButtonsDialog<T>
             scrollbarBounds,
             layout.ListBounds.Height,
             ref scrollbarDrag,
-            confirmOnClick: false,
             confirmOnDoubleClick: true);
         if (listInput.IsHandled)
         {

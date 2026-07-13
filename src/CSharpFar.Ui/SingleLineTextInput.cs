@@ -276,7 +276,7 @@ public static class SingleLineTextInput
         }
 
         if (mouse.Button == MouseButton.Left &&
-            mouse.Kind is MouseEventKind.Down or MouseEventKind.Click or MouseEventKind.DoubleClick &&
+            mouse.Kind is MouseEventKind.Down or MouseEventKind.DoubleClick &&
             mouse.X >= frame.ContentBounds.X &&
             mouse.X < frame.ContentBounds.Right &&
             mouse.Y >= frame.ContentBounds.Y &&
@@ -292,7 +292,7 @@ public static class SingleLineTextInput
         }
 
         if (mouse.Button == MouseButton.Left &&
-            mouse.Kind is MouseEventKind.Down or MouseEventKind.Click &&
+            mouse.Kind == MouseEventKind.Down &&
             (mouse.X < frame.PopupBounds.X || mouse.X >= frame.PopupBounds.Right || mouse.Y < frame.PopupBounds.Y || mouse.Y >= frame.PopupBounds.Bottom))
         {
             history.Close();

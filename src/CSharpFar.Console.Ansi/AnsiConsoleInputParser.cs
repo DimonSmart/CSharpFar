@@ -5,12 +5,9 @@ namespace CSharpFar.Console.Ansi;
 
 internal sealed class AnsiConsoleInputParser
 {
-    private const long DoubleClickIntervalMilliseconds = 500;
-
     private readonly AnsiInputParser _keyParser;
-    private readonly Func<long> _getTimestampMilliseconds;
+    private readonly MouseInputNormalizer _mouseNormalizer;
     private MouseButton _lastPressedButton = MouseButton.Left;
-    private MouseClick? _lastClick;
 
     public AnsiConsoleInputParser(int escapeTimeoutMilliseconds = 50)
         : this(escapeTimeoutMilliseconds, () => Environment.TickCount64)
@@ -22,8 +19,7 @@ internal sealed class AnsiConsoleInputParser
         Func<long> getTimestampMilliseconds)
     {
         _keyParser = new AnsiInputParser(escapeTimeoutMilliseconds);
-        _getTimestampMilliseconds = getTimestampMilliseconds ??
-            throw new ArgumentNullException(nameof(getTimestampMilliseconds));
+        _mouseNormalizer = new MouseInputNormalizer(getTimestampMilliseconds);
     }
 
     public bool TryRead(
@@ -33,7 +29,7 @@ internal sealed class AnsiConsoleInputParser
         AnsiInputReadResult parsed = _keyParser.Read(input);
         if (SgrMouseInputParser.TryParse(parsed.Bytes, ref _lastPressedButton, out var mouse, out _))
         {
-            inputEvent = DetectDoubleClick(mouse.Mouse);
+            inputEvent = _mouseNormalizer.Normalize(mouse.Mouse);
             return true;
         }
 
@@ -47,45 +43,6 @@ internal sealed class AnsiConsoleInputParser
         return true;
     }
 
-    private MouseConsoleInputEvent DetectDoubleClick(MouseConsoleInputEvent mouse)
-    {
-        if (mouse.Kind is MouseEventKind.Move or MouseEventKind.Wheel)
-        {
-            _lastClick = null;
-            return mouse;
-        }
-
-        if (mouse.Kind != MouseEventKind.Down)
-            return mouse;
-
-        long timestamp = _getTimestampMilliseconds();
-        if (_lastClick is { } previous &&
-            previous.Button == mouse.Button &&
-            previous.X == mouse.X &&
-            previous.Y == mouse.Y &&
-            previous.Modifiers == mouse.Modifiers &&
-            timestamp - previous.TimestampMilliseconds is >= 0 and <= DoubleClickIntervalMilliseconds)
-        {
-            _lastClick = null;
-            return mouse with { Kind = MouseEventKind.DoubleClick };
-        }
-
-        _lastClick = new MouseClick(
-            mouse.Button,
-            mouse.X,
-            mouse.Y,
-            mouse.Modifiers,
-            timestamp);
-        return mouse;
-    }
-
     private static bool LooksLikeSgrMouse(IReadOnlyList<byte> bytes) =>
         bytes.Count >= 3 && bytes[0] == 0x1b && bytes[1] == '[' && bytes[2] == '<';
-
-    private sealed record MouseClick(
-        MouseButton Button,
-        int X,
-        int Y,
-        MouseKeyModifiers Modifiers,
-        long TimestampMilliseconds);
 }

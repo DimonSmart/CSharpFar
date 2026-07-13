@@ -13,6 +13,8 @@ internal sealed class RenderOnlySurfaceLayer : IUiLayer
 
     public UiFocusScope FocusScope { get; } = new();
 
+    public UiInteractionFrame CommittedInteractionFrame => UiInteractionFrame.Empty;
+
     public void Render(UiRenderContext context) =>
         _surface.Render(context);
 

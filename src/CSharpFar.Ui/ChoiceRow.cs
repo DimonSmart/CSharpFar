@@ -169,7 +169,7 @@ public sealed class ChoiceRow<T>
             return false;
 
         if (mouse.Button != MouseButton.Left ||
-            mouse.Kind is not (MouseEventKind.Down or MouseEventKind.Click) ||
+            mouse.Kind != MouseEventKind.Down ||
             !layout.RowBounds.Any(bounds => Contains(bounds, mouse.X, mouse.Y)))
         {
             return false;

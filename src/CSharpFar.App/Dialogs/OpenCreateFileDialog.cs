@@ -414,7 +414,7 @@ internal sealed class OpenCreateFileDialog
         CommandLineState filePath)
     {
         if (mouse.Button != MouseButton.Left ||
-            mouse.Kind is not (MouseEventKind.Down or MouseEventKind.Click) ||
+            mouse.Kind != MouseEventKind.Down ||
             mouse.Y != bounds.Y ||
             mouse.X < bounds.X ||
             mouse.X >= bounds.Right)

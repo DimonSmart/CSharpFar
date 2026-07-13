@@ -390,5 +390,5 @@ public sealed class TopMenuController
 
     private static bool IsMenuMousePress(MouseConsoleInputEvent mouse) =>
         mouse.Button == MouseButton.Left &&
-        (mouse.Kind == MouseEventKind.Down || mouse.Kind == MouseEventKind.Click);
+        mouse.Kind == MouseEventKind.Down;
 }

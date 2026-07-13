@@ -143,7 +143,6 @@ public sealed class SelectionListDialog<T>
             layout.ScrollbarBounds,
             layout.VisibleRows,
             ref scrollbarDrag,
-            confirmOnClick: true,
             confirmOnDoubleClick: true);
         confirmed = result.Kind == ScrollableListInputResultKind.Confirmed;
         return result.IsHandled;

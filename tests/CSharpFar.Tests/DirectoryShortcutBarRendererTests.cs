@@ -73,7 +73,7 @@ public sealed class DirectoryShortcutBarRendererTests
             11,
             7,
             CSharpFar.Console.Input.MouseButton.Left,
-            CSharpFar.Console.Input.MouseEventKind.Click,
+            CSharpFar.Console.Input.MouseEventKind.Down,
             CSharpFar.Console.Input.MouseKeyModifiers.None);
 
         bool hit = DirectoryShortcutBarRenderer.TryGetShortcutNumberAt(

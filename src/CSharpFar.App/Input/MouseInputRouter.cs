@@ -87,7 +87,7 @@ internal sealed class MouseInputRouter
             return true;
 
         if (evt.Button == MouseButton.Left &&
-            (evt.Kind == MouseEventKind.Down || evt.Kind == MouseEventKind.Click) &&
+            evt.Kind == MouseEventKind.Down &&
             PanelErrorRenderer.HitTestRetry(evt.X, evt.Y, bounds, state, mode, _context.PanelOptions()))
         {
             _context.SetActiveSide(side);
@@ -142,7 +142,7 @@ internal sealed class MouseInputRouter
         }
 
         if (evt.Button == MouseButton.Left &&
-            (evt.Kind == MouseEventKind.Down || evt.Kind == MouseEventKind.Click))
+            evt.Kind == MouseEventKind.Down)
         {
             _context.SetActiveSide(side);
             int? itemIndex = HitTestPanelItemForMouse(evt, side, bounds, state, mode);
@@ -219,7 +219,7 @@ internal sealed class MouseInputRouter
             return false;
 
         if (evt.Button == MouseButton.Left &&
-            evt.Kind is MouseEventKind.Down or MouseEventKind.Click)
+            evt.Kind == MouseEventKind.Down)
         {
             _context.CommandLine.MoveCursorTo(CommandLineTextPositionFromMouseX(size, evt.X));
             _context.Mouse.IsCommandLineSelecting = evt.Kind == MouseEventKind.Down;
@@ -249,7 +249,7 @@ internal sealed class MouseInputRouter
         }
 
         if (evt.Button == MouseButton.Right &&
-            evt.Kind is MouseEventKind.Down or MouseEventKind.Click)
+            evt.Kind == MouseEventKind.Down)
         {
             _context.PasteTextIntoCommandLine();
             return true;
@@ -328,7 +328,7 @@ internal sealed class MouseInputRouter
 
     private void ClearPanelItemClickOnMousePress(MouseConsoleInputEvent evt)
     {
-        if (evt.Kind is MouseEventKind.Down or MouseEventKind.Click or MouseEventKind.DoubleClick)
+        if (evt.Kind is MouseEventKind.Down or MouseEventKind.DoubleClick)
             _context.Mouse.LastLeftPanelItemClick = null;
     }
 
@@ -454,7 +454,7 @@ internal sealed class MouseInputRouter
         if (!commandCompletion.Visible ||
             commandCompletion.Matches.Count == 0 ||
             evt.Button != MouseButton.Left ||
-            evt.Kind is not (MouseEventKind.Down or MouseEventKind.Click or MouseEventKind.DoubleClick))
+            evt.Kind is not (MouseEventKind.Down or MouseEventKind.DoubleClick))
         {
             return false;
         }
@@ -507,5 +507,5 @@ internal sealed class MouseInputRouter
     private static bool IsTopMenuActivationMouse(MouseConsoleInputEvent evt) =>
         evt.Y == 0 &&
         evt.Button == MouseButton.Left &&
-        (evt.Kind == MouseEventKind.Down || evt.Kind == MouseEventKind.Click);
+        evt.Kind == MouseEventKind.Down;
 }

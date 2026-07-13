@@ -47,7 +47,7 @@ internal sealed class DirectoryShortcutBarRenderer
     {
         number = 0;
         if (mouse.Button != MouseButton.Left ||
-            mouse.Kind is not (MouseEventKind.Down or MouseEventKind.Click) ||
+            mouse.Kind != MouseEventKind.Down ||
             mouse.Y != barY)
         {
             return false;

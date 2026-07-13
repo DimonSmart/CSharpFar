@@ -169,7 +169,6 @@ public sealed class DropdownSelect<T>
             frame.ContentRows,
             ref _scrollbarDrag,
             confirmOnMouseDown: true,
-            confirmOnClick: true,
             confirmOnDoubleClick: true);
         if (!listInput.IsHandled)
             return mouse.Kind == MouseEventKind.Down && mouse.Button == MouseButton.Left &&

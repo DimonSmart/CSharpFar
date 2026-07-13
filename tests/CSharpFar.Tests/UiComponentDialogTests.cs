@@ -321,7 +321,7 @@ public sealed class UiComponentDialogTests
         var driver = new FakeConsoleDriver(80, 20);
         for (int y = 10; y <= 15; y++)
             for (int x = 35; x <= 50; x++)
-                driver.EnqueueInput(new MouseConsoleInputEvent(x, y, MouseButton.Left, MouseEventKind.Click, MouseKeyModifiers.None));
+                driver.EnqueueInput(new MouseConsoleInputEvent(x, y, MouseButton.Left, MouseEventKind.Down, MouseKeyModifiers.None));
 
         var result = CreateListWithButtons(["alpha"]).Show(CreateModalHost(driver));
 
@@ -337,7 +337,7 @@ public sealed class UiComponentDialogTests
         var layout = buttonBar.CalculateLayout(10, 2, 20);
 
         bool handled = buttonBar.TryHandleInput(
-            new MouseConsoleInputEvent(0, 0, MouseButton.Left, MouseEventKind.Click, MouseKeyModifiers.None),
+            new MouseConsoleInputEvent(0, 0, MouseButton.Left, MouseEventKind.Down, MouseKeyModifiers.None),
             layout,
             ref focused,
             out string? buttonId);
@@ -371,7 +371,7 @@ public sealed class UiComponentDialogTests
         Assert.Equal(new Rect(2, 1, 6, 1), layout.ButtonBounds[0]);
 
         bool handled = buttonBar.TryHandleInput(
-            new MouseConsoleInputEvent(9, 1, MouseButton.Left, MouseEventKind.Click, MouseKeyModifiers.None),
+            new MouseConsoleInputEvent(9, 1, MouseButton.Left, MouseEventKind.Down, MouseKeyModifiers.None),
             layout,
             ref focused,
             out string? buttonId);
@@ -408,7 +408,7 @@ public sealed class UiComponentDialogTests
     public void ChoiceDialog_MouseClickActivatesButton()
     {
         var driver = new FakeConsoleDriver(80, 20);
-        driver.EnqueueInput(new MouseConsoleInputEvent(42, 10, MouseButton.Left, MouseEventKind.Click, MouseKeyModifiers.None));
+        driver.EnqueueInput(new MouseConsoleInputEvent(42, 10, MouseButton.Left, MouseEventKind.Down, MouseKeyModifiers.None));
         driver.EnqueueKey(Key(ConsoleKey.Escape));
 
         var result = new ChoiceDialog(CreateModalHost(driver)).Show(CreateChoiceOptions());

@@ -38,13 +38,6 @@ internal static class Win32ConsoleApi
     private const ushort VK_LMENU         = 0xA4;
     private const ushort VK_RMENU         = 0xA5;
 
-    private const uint FROM_LEFT_1ST_BUTTON_PRESSED = 0x0001;
-    private const uint RIGHTMOST_BUTTON_PRESSED     = 0x0002;
-    private const uint FROM_LEFT_2ND_BUTTON_PRESSED = 0x0004;
-    private const uint MOUSE_MOVED   = 0x0001;
-    private const uint DOUBLE_CLICK  = 0x0002;
-    private const uint MOUSE_WHEELED = 0x0004;
-
     private const uint WAIT_TIMEOUT   = 0x00000102;
     private const uint WAIT_OBJECT_0  = 0x00000000;
 
@@ -222,6 +215,8 @@ internal static class Win32ConsoleApi
         bool intercept,
         CancellationToken cancellationToken,
         Win32ModifierKeyTracker? modifierKeyTracker = null,
+        Win32MouseInputParser? mouseParser = null,
+        MouseInputNormalizer? mouseNormalizer = null,
         Func<bool>? hasVisibleViewportChanged = null)
     {
         while (true)
@@ -233,7 +228,7 @@ internal static class Win32ConsoleApi
 
             if (HasPendingRecord())
             {
-                var pendingEvt = TryReadInputRecord(inputHandle, intercept, modifierKeyTracker);
+                var pendingEvt = TryReadInputRecord(inputHandle, intercept, modifierKeyTracker, mouseParser, mouseNormalizer);
                 if (pendingEvt != null)
                     return pendingEvt;
                 if (hasVisibleViewportChanged?.Invoke() == true)
@@ -256,7 +251,7 @@ internal static class Win32ConsoleApi
             }
 
             // Input event available
-            var evt = TryReadInputRecord(inputHandle, intercept, modifierKeyTracker);
+            var evt = TryReadInputRecord(inputHandle, intercept, modifierKeyTracker, mouseParser, mouseNormalizer);
             if (evt != null)
                 return evt;
             if (TryCreateModifierInputEvent(modifierKeyTracker, out modifierEvent))
@@ -271,11 +266,13 @@ internal static class Win32ConsoleApi
         IntPtr inputHandle,
         bool intercept,
         [NotNullWhen(true)] out ConsoleInputEvent? inputEvent,
-        Win32ModifierKeyTracker? modifierKeyTracker = null)
+        Win32ModifierKeyTracker? modifierKeyTracker = null,
+        Win32MouseInputParser? mouseParser = null,
+        MouseInputNormalizer? mouseNormalizer = null)
     {
         while (TryReadNextRecordWithTimeout(inputHandle, 0, out var record))
         {
-            inputEvent = ParseInputRecord(inputHandle, intercept, record, parseVirtualTerminal: false);
+            inputEvent = ParseInputRecord(inputHandle, intercept, record, mouseParser, mouseNormalizer, parseVirtualTerminal: false);
             if (inputEvent is not null)
             {
                 modifierKeyTracker?.ObserveConsoleInput(inputEvent);
@@ -290,12 +287,14 @@ internal static class Win32ConsoleApi
     private static ConsoleInputEvent? TryReadInputRecord(
         IntPtr inputHandle,
         bool intercept,
-        Win32ModifierKeyTracker? modifierKeyTracker)
+        Win32ModifierKeyTracker? modifierKeyTracker,
+        Win32MouseInputParser? mouseParser,
+        MouseInputNormalizer? mouseNormalizer)
     {
         if (!TryReadNextRecord(inputHandle, out var record))
             return null;
 
-        var inputEvent = ParseInputRecord(inputHandle, intercept, record);
+        var inputEvent = ParseInputRecord(inputHandle, intercept, record, mouseParser, mouseNormalizer);
         if (inputEvent is not null)
             modifierKeyTracker?.ObserveConsoleInput(inputEvent);
         return inputEvent;
@@ -305,13 +304,23 @@ internal static class Win32ConsoleApi
         IntPtr inputHandle,
         bool intercept,
         InputRecord record,
+        Win32MouseInputParser? mouseParser = null,
+        MouseInputNormalizer? mouseNormalizer = null,
         bool parseVirtualTerminal = true)
     {
         if (record.EventType == WINDOW_BUFFER_SIZE_EVENT)
             return new ConsoleResizeInputEvent();
 
         if (record.EventType == MOUSE_EVENT)
-            return ParseMouseEvent(record.MouseEvent);
+        {
+            mouseParser ??= new Win32MouseInputParser();
+            mouseNormalizer ??= new MouseInputNormalizer();
+            var mouse = mouseParser.Parse(
+                record.MouseEvent,
+                global::System.Console.WindowLeft,
+                global::System.Console.WindowTop);
+            return mouse is null ? null : mouseNormalizer.Normalize(mouse);
+        }
 
         if (record.EventType == KEY_EVENT && IsModifierKey(record.KeyEvent.VirtualKeyCode))
             return new ModifierKeyConsoleInputEvent(GetKeyEventModifiers(record.KeyEvent));
@@ -362,53 +371,6 @@ internal static class Win32ConsoleApi
             VK_RCONTROL or
             VK_LMENU or
             VK_RMENU;
-
-    private static ConsoleInputEvent? ParseMouseEvent(MouseEventRecord rec)
-    {
-        var mods = MouseKeyModifiers.None;
-        if ((rec.ControlKeyState & SHIFT_PRESSED) != 0) mods |= MouseKeyModifiers.Shift;
-        if ((rec.ControlKeyState & (LEFT_ALT_PRESSED | RIGHT_ALT_PRESSED)) != 0) mods |= MouseKeyModifiers.Alt;
-        if ((rec.ControlKeyState & (LEFT_CTRL_PRESSED | RIGHT_CTRL_PRESSED)) != 0) mods |= MouseKeyModifiers.Control;
-
-        // Normalize to visible window coordinates
-        int x = rec.MousePositionX - global::System.Console.WindowLeft;
-        int y = rec.MousePositionY - global::System.Console.WindowTop;
-
-        if ((rec.EventFlags & MOUSE_WHEELED) != 0)
-        {
-            short delta = (short)(rec.ButtonState >> 16);
-            var btn = delta > 0 ? MouseButton.WheelUp : MouseButton.WheelDown;
-            return new MouseConsoleInputEvent(x, y, btn, MouseEventKind.Wheel, mods);
-        }
-
-        if ((rec.EventFlags & DOUBLE_CLICK) != 0)
-        {
-            var btn = GetMouseButton(rec.ButtonState);
-            return btn.HasValue
-                ? new MouseConsoleInputEvent(x, y, btn.Value, MouseEventKind.DoubleClick, mods)
-                : null;
-        }
-
-        if ((rec.EventFlags & MOUSE_MOVED) != 0)
-        {
-            var moveButton = GetMouseButton(rec.ButtonState);
-            return moveButton.HasValue
-                ? new MouseConsoleInputEvent(x, y, moveButton.Value, MouseEventKind.Move, mods)
-                : null;
-        }
-
-        // Button down/up
-        var button = GetMouseButton(rec.ButtonState);
-        return button.HasValue
-            ? new MouseConsoleInputEvent(x, y, button.Value, MouseEventKind.Down, mods)
-            : null;
-    }
-
-    private static MouseButton? GetMouseButton(uint buttonState) =>
-        (buttonState & FROM_LEFT_1ST_BUTTON_PRESSED) != 0 ? MouseButton.Left  :
-        (buttonState & RIGHTMOST_BUTTON_PRESSED)     != 0 ? MouseButton.Right :
-        (buttonState & FROM_LEFT_2ND_BUTTON_PRESSED) != 0 ? MouseButton.Middle :
-        null;
 
     public static bool TryReadKey(IntPtr inputHandle, bool intercept, out ConsoleKeyInfo keyInfo)
     {

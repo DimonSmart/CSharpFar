@@ -272,7 +272,7 @@ public sealed class UiCompositionHostTests
         host.SetRootSurface(new ScreenRendererSurface(host.Screen, _ => { }));
         host.Render();
         driver.SetSize(100, 35);
-        driver.EnqueueInput(new MouseConsoleInputEvent(2, 3, MouseButton.Left, MouseEventKind.Click, MouseKeyModifiers.None));
+        driver.EnqueueInput(new MouseConsoleInputEvent(2, 3, MouseButton.Left, MouseEventKind.Down, MouseKeyModifiers.None));
 
         var input = host.ReadInput();
 
@@ -436,7 +436,7 @@ public sealed class UiCompositionHostTests
         });
         session.Render();
         driver.SetSize(100, 35);
-        driver.EnqueueInput(new MouseConsoleInputEvent(2, 3, MouseButton.Left, MouseEventKind.Click, MouseKeyModifiers.None));
+        driver.EnqueueInput(new MouseConsoleInputEvent(2, 3, MouseButton.Left, MouseEventKind.Down, MouseKeyModifiers.None));
 
         var input = session.ReadInput(out var frame);
 
@@ -485,6 +485,7 @@ public sealed class UiCompositionHostTests
 
         public UiLayerInputPolicy InputPolicy => UiLayerInputPolicy.Bubble;
         public UiFocusScope FocusScope { get; } = new();
+        public UiInteractionFrame CommittedInteractionFrame => UiInteractionFrame.Empty;
 
         public IDisposable BeginFrame(UiRenderRequest request)
         {
@@ -506,6 +507,7 @@ public sealed class UiCompositionHostTests
     {
         public UiLayerInputPolicy InputPolicy => policy;
         public UiFocusScope FocusScope { get; } = new();
+        public UiInteractionFrame CommittedInteractionFrame => UiInteractionFrame.Empty;
         public void Render(UiRenderContext context) { }
         public UiInputResult RouteInput(ConsoleInputEvent input, UiInputRouteContext context) =>
             UiInputResult.NotHandled;

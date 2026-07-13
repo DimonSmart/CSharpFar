@@ -59,7 +59,7 @@ public sealed class CheckBoxLine
     public bool TryHandleMouse(MouseConsoleInputEvent mouse, Rect bounds)
     {
         if (mouse.Button != MouseButton.Left ||
-            mouse.Kind is not (MouseEventKind.Down or MouseEventKind.Click) ||
+            mouse.Kind != MouseEventKind.Down ||
             !Contains(bounds, mouse.X, mouse.Y))
         {
             return false;

@@ -136,7 +136,7 @@ public sealed class DialogButtonBar
     {
         buttonId = null;
 
-        if (mouse.Button != MouseButton.Left || mouse.Kind is not (MouseEventKind.Down or MouseEventKind.Click))
+        if (mouse.Button != MouseButton.Left || mouse.Kind != MouseEventKind.Down)
             return false;
 
         for (int i = 0; i < layout.ButtonBounds.Count; i++)

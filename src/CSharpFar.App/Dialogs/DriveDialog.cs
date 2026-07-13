@@ -332,7 +332,7 @@ internal sealed class DriveDialog
         select = false;
         if (itemCount == 0 ||
             mouse.Button != MouseButton.Left ||
-            mouse.Kind is not (MouseEventKind.Down or MouseEventKind.Click or MouseEventKind.DoubleClick))
+            mouse.Kind is not (MouseEventKind.Down or MouseEventKind.DoubleClick))
         {
             return false;
         }

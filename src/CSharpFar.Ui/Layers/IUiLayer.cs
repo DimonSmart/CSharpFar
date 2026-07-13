@@ -8,6 +8,8 @@ public interface IUiLayer
 
     UiFocusScope FocusScope { get; }
 
+    UiInteractionFrame CommittedInteractionFrame { get; }
+
     void Render(UiRenderContext context);
 
     UiInputResult RouteInput(

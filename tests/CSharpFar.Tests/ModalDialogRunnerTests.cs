@@ -439,6 +439,7 @@ public sealed class ModalDialogRunnerTests
         public int RouteCount { get; private set; }
         public UiLayerInputPolicy InputPolicy => UiLayerInputPolicy.Bubble;
         public UiFocusScope FocusScope { get; } = new();
+        public UiInteractionFrame CommittedInteractionFrame => UiInteractionFrame.Empty;
         public IDisposable BeginFrame(UiRenderRequest request) => screen.BeginFrame();
         public void Render(UiRenderContext context) { }
         public void CompleteFrame(UiFrameCompletion completion) { }

@@ -32,6 +32,8 @@ public sealed class SystemConsoleDriver : IConsoleDriver, IConsoleOutputModeDriv
     private readonly bool _restoreConsolePalette;
     private readonly bool _restoreScreenBufferSize;
     private readonly Win32ModifierKeyTracker? _modifierKeyTracker;
+    private readonly Win32MouseInputParser? _win32MouseParser;
+    private readonly MouseInputNormalizer _mouseInputNormalizer = new();
     private ConsoleViewport _lastInputViewport;
     private bool _renderingOutputMode;
     private bool _consoleScrollbackEnabled = true;
@@ -58,6 +60,7 @@ public sealed class SystemConsoleDriver : IConsoleDriver, IConsoleOutputModeDriv
                 _originalScreenBufferSize = sbi.dwSize;
             _restoreConsolePalette = TryApplyApplicationConsolePalette(_consoleHandle, out _originalScreenBufferInfoEx);
             _modifierKeyTracker = new Win32ModifierKeyTracker();
+            _win32MouseParser = new Win32MouseInputParser();
         }
 
         global::System.Console.OutputEncoding = System.Text.Encoding.UTF8;
@@ -281,6 +284,8 @@ public sealed class SystemConsoleDriver : IConsoleDriver, IConsoleOutputModeDriv
                 intercept,
                 cancellationToken,
                 _modifierKeyTracker,
+                _win32MouseParser!,
+                _mouseInputNormalizer,
                 HasVisibleViewportChanged);
 
             if (inputEvent is ConsoleResizeInputEvent)
@@ -303,7 +308,9 @@ public sealed class SystemConsoleDriver : IConsoleDriver, IConsoleOutputModeDriv
                 _inputHandle,
                 intercept,
                 out inputEvent,
-                _modifierKeyTracker);
+                _modifierKeyTracker,
+                _win32MouseParser!,
+                _mouseInputNormalizer);
 
             if (hasInput && inputEvent is ConsoleResizeInputEvent)
                 _lastInputViewport = GetViewport();

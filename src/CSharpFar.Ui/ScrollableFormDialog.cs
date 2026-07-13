@@ -360,7 +360,7 @@ public sealed class TextInputRow : FormRow, IFormOverlayRow, IFormCursorProvider
         }
 
         if (mouse.Button != MouseButton.Left ||
-            mouse.Kind is not (MouseEventKind.Down or MouseEventKind.Click) ||
+            mouse.Kind != MouseEventKind.Down ||
             mouse.Y != context.Bounds.Y ||
             mouse.X < context.Bounds.X ||
             mouse.X >= context.Bounds.X + width)
@@ -497,7 +497,7 @@ public sealed class TextInputWithButtonsRow : FormRow, IFormOverlayRow, IFormCur
                 : FormInputResult.Submit(_commandPrefix + buttonId);
 
         if (mouse.Button != MouseButton.Left ||
-            mouse.Kind is not (MouseEventKind.Down or MouseEventKind.Click) ||
+            mouse.Kind != MouseEventKind.Down ||
             mouse.Y != layout.InputBounds.Y ||
             mouse.X < layout.InputBounds.X ||
             mouse.X >= layout.InputBounds.Right)

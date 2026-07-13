@@ -5,6 +5,7 @@ namespace CSharpFar.Ui;
 public abstract class UiLayer<TFrame> : IUiLayer
 {
     private readonly UiCommittedState<TFrame> _committedFrame = new();
+    private readonly UiCommittedState<UiInteractionFrame> _committedInteractionFrame = new(UiInteractionFrame.Empty);
 
     public abstract UiLayerInputPolicy InputPolicy { get; }
 
@@ -14,12 +15,16 @@ public abstract class UiLayer<TFrame> : IUiLayer
 
     public TFrame CommittedFrame => _committedFrame.Value;
 
+    public UiInteractionFrame CommittedInteractionFrame => _committedInteractionFrame.Value;
+
     public void Render(UiRenderContext context)
     {
         TFrame frame = RenderFrame(context);
+        UiInteractionFrame interactionFrame = BuildInteractionFrame(frame) ??
+            throw new InvalidOperationException("A UI layer cannot publish a null interaction frame.");
         _committedFrame.Stage(context, frame);
-        UiFocusFrame focusFrame = BuildFocusFrame(frame);
-        context.PublishOnStable(focusFrame, FocusScope.Commit);
+        _committedInteractionFrame.Stage(context, interactionFrame);
+        context.PublishOnStable(interactionFrame.Focus, FocusScope.Commit);
         context.PublishOnStable(frame, OnFrameCommitted);
     }
 
@@ -35,8 +40,8 @@ public abstract class UiLayer<TFrame> : IUiLayer
         TFrame frame,
         UiInputRouteContext context);
 
-    protected virtual UiFocusFrame BuildFocusFrame(TFrame frame) =>
-        UiFocusFrame.Empty;
+    protected virtual UiInteractionFrame BuildInteractionFrame(TFrame frame) =>
+        UiInteractionFrame.Empty;
 
     protected virtual void OnFrameCommitted(TFrame frame)
     {

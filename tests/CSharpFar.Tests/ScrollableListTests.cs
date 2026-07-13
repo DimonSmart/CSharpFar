@@ -178,7 +178,7 @@ public sealed class ScrollableListTests
         var list = Create(["a"]);
         ScrollBarDragState? drag = null;
 
-        var result = list.HandleMouse(Mouse(MouseButton.Left, MouseEventKind.Click), new Rect(0, 0, 5, 1), null, 1, ref drag, confirmOnClick: true);
+        var result = list.HandleMouse(Mouse(MouseButton.Left, MouseEventKind.Down), new Rect(0, 0, 5, 1), null, 1, ref drag, confirmOnMouseDown: true);
 
         Assert.Equal(ScrollableListInputResultKind.Confirmed, result.Kind);
     }
@@ -200,7 +200,7 @@ public sealed class ScrollableListTests
         var list = Create(["a"]);
         ScrollBarDragState? drag = null;
 
-        var result = list.HandleMouse(Mouse(MouseButton.Left, MouseEventKind.Click, 8, 8), new Rect(0, 0, 5, 1), null, 1, ref drag);
+        var result = list.HandleMouse(Mouse(MouseButton.Left, MouseEventKind.Down, 8, 8), new Rect(0, 0, 5, 1), null, 1, ref drag);
 
         Assert.Equal(ScrollableListInputResultKind.NotHandled, result.Kind);
     }

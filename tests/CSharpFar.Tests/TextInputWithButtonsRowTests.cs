@@ -30,7 +30,7 @@ public sealed class TextInputWithButtonsRowTests
 
         row.Render(new FormRowRenderContext(screen, new Rect(0, 0, 80, 1), focused: true));
         FormInputResult result = row.HandleMouse(
-            new MouseConsoleInputEvent(45, 0, MouseButton.Left, MouseEventKind.Click, MouseKeyModifiers.None),
+            new MouseConsoleInputEvent(45, 0, MouseButton.Left, MouseEventKind.Down, MouseKeyModifiers.None),
             new FormRowMouseContext(new Rect(0, 0, 80, 1), rowIndex: 0, focused: true, screenHeight: 5));
 
         Assert.Equal(FormInputResultKind.Submit, result.Kind);

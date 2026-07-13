@@ -30,7 +30,6 @@ public enum MouseEventKind
 {
     Down,
     Up,
-    Click,
     DoubleClick,
     Move,
     Wheel,

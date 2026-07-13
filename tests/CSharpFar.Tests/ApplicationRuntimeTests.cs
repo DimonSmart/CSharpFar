@@ -247,7 +247,7 @@ public sealed class ApplicationRuntimeTests
         new(new ConsoleKeyInfo('\0', key, shift: false, alt: false, control: false));
 
     private static MouseConsoleInputEvent Mouse() =>
-        new(1, 1, MouseButton.Left, MouseEventKind.Click, MouseKeyModifiers.None);
+        new(1, 1, MouseButton.Left, MouseEventKind.Down, MouseKeyModifiers.None);
 
     private sealed record UnknownConsoleInputEvent : ConsoleInputEvent;
 
@@ -372,6 +372,7 @@ public sealed class ApplicationRuntimeTests
     {
         public UiLayerInputPolicy InputPolicy => policy;
         public UiFocusScope FocusScope { get; } = new();
+        public UiInteractionFrame CommittedInteractionFrame => UiInteractionFrame.Empty;
         public void Render(UiRenderContext context) => render?.Invoke(context);
         public UiInputResult RouteInput(ConsoleInputEvent input, UiInputRouteContext context) => result;
     }

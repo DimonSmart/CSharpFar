@@ -181,7 +181,6 @@ public class FunctionKeyBarTests
 
     [Theory]
     [InlineData(MouseEventKind.Down)]
-    [InlineData(MouseEventKind.Click)]
     public void Controller_ReturnsEnabledActionForActivationMouseEvents(MouseEventKind kind)
     {
         var controller = new FunctionKeyBarController<string>();

@@ -666,7 +666,7 @@ internal sealed class FtpConnectionDialog
         ref string? error)
     {
         if (mouse.Button != MouseButton.Left ||
-            mouse.Kind is not (MouseEventKind.Down or MouseEventKind.Click))
+            mouse.Kind != MouseEventKind.Down)
         {
             return false;
         }
