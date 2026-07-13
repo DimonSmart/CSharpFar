@@ -58,6 +58,20 @@ public sealed class TerminalInputLabParserTests
     }
 
     [Fact]
+    public void Parse_ButtonlessMotion_MapsDiagnosticMoveNoButton()
+    {
+        byte[] raw = Encoding.ASCII.GetBytes("\x1b[<35;42;10M");
+
+        var result = new TerminalInputLabParser().Parse(raw);
+
+        Assert.Equal("Mouse", result.Kind);
+        Assert.True(result.IsKnown);
+        Assert.Equal("MoveNoButton", result.MouseEvent);
+        Assert.Equal(MouseButton.Left, result.MouseButton);
+        Assert.Equal(raw, result.RawBytes);
+    }
+
+    [Fact]
     public void Parse_MalformedMouse_ReturnsMalformedWithRawSequence()
     {
         byte[] raw = Encoding.ASCII.GetBytes("\x1b[<x;y;zM");

@@ -68,7 +68,7 @@ internal sealed class UnixRawTerminalInputReader : ConsoleInputReaderBase
     private const int CancellationPollMilliseconds = 50;
 
     private readonly IAnsiInputByteReader _input;
-    private readonly AnsiConsoleInputParser _parser = new();
+    private readonly AnsiConsoleInputParser _parser;
     private readonly ITerminalInputMode _terminalMode;
     private readonly IModifierKeyTracker? _modifierKeyTracker;
     private readonly Action<string> _writeControl;
@@ -81,11 +81,13 @@ internal sealed class UnixRawTerminalInputReader : ConsoleInputReaderBase
         Action resetCachedOutputState,
         Action<string> writeControl,
         ITerminalInputMode? terminalMode = null,
-        IModifierKeyTracker? modifierKeyTracker = null)
+        IModifierKeyTracker? modifierKeyTracker = null,
+        AnsiConsoleInputParser? parser = null)
         : base(getSize, resetCachedOutputState)
     {
         _input = input;
         _writeControl = writeControl;
+        _parser = parser ?? new AnsiConsoleInputParser();
         _terminalMode = terminalMode ?? new UnixTerminalMode();
         _modifierKeyTracker = modifierKeyTracker ?? ModifierKeyTrackerFactory.TryCreateForCurrentPlatform();
         try

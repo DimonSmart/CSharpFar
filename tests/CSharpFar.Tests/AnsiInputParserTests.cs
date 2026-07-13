@@ -204,6 +204,16 @@ public sealed class AnsiInputParserTests
     }
 
     [Fact]
+    public void ProductionParser_IgnoresButtonlessMotion()
+    {
+        using var input = new MemoryStream(Encoding.ASCII.GetBytes("\u001b[<35;42;10M"));
+        var parser = new AnsiConsoleInputParser();
+
+        Assert.False(parser.TryRead(new StreamAnsiInputByteReader(input, null), out var inputEvent));
+        Assert.Null(inputEvent);
+    }
+
+    [Fact]
     public void ProductionParser_MapsUnknownKeyboardSequenceToEscape()
     {
         using var input = new MemoryStream(Encoding.ASCII.GetBytes("\u001b[999~"));
@@ -251,6 +261,32 @@ public sealed class AnsiInputParserTests
         Assert.True(terminalMode.Disposed);
         Assert.Equal(1, terminalMode.DisposeCount);
         Assert.Equal("\u001b[?1000l\u001b[?1002l\u001b[?1003l\u001b[?1006l", controls[^1]);
+    }
+
+    [Fact]
+    public void UnixRawTerminalInputReader_SuspendRestore_ResetsMouseSemanticState()
+    {
+        using var input = new MemoryStream(Encoding.ASCII.GetBytes(
+            "\u001b[<0;42;10M\u001b[<0;42;10M"));
+        long timestamp = 1_000;
+        var reader = new UnixRawTerminalInputReader(
+            new StreamAnsiInputByteReader(input, null),
+            () => new CSharpFar.Console.Models.ConsoleSize(80, 25),
+            () => { },
+            _ => { },
+            new FakeTerminalInputMode(),
+            parser: new AnsiConsoleInputParser(50, () => timestamp));
+
+        Assert.True(reader.TryReadInput(intercept: true, out var firstPress));
+        reader.SuspendInputMode();
+        timestamp += 100;
+        reader.RestoreInputMode();
+        Assert.True(reader.TryReadInput(intercept: true, out var secondPress));
+
+        Assert.Equal(MouseEventKind.Down, Assert.IsType<MouseConsoleInputEvent>(firstPress).Kind);
+        Assert.Equal(MouseEventKind.Down, Assert.IsType<MouseConsoleInputEvent>(secondPress).Kind);
+
+        reader.Dispose();
     }
 
     [Fact]
@@ -485,7 +521,9 @@ public sealed class AnsiInputParserTests
     [InlineData("\u001b[<0;10;5M", MouseButton.Left, MouseEventKind.Down, 9, 4)]
     [InlineData("\u001b[<0;10;5m", MouseButton.Left, MouseEventKind.Up, 9, 4)]
     [InlineData("\u001b[<1;10;5M", MouseButton.Middle, MouseEventKind.Down, 9, 4)]
+    [InlineData("\u001b[<1;10;5m", MouseButton.Middle, MouseEventKind.Up, 9, 4)]
     [InlineData("\u001b[<2;10;5M", MouseButton.Right, MouseEventKind.Down, 9, 4)]
+    [InlineData("\u001b[<2;10;5m", MouseButton.Right, MouseEventKind.Up, 9, 4)]
     [InlineData("\u001b[<32;10;5M", MouseButton.Left, MouseEventKind.Move, 9, 4)]
     [InlineData("\u001b[<64;10;5M", MouseButton.WheelUp, MouseEventKind.Wheel, 9, 4)]
     [InlineData("\u001b[<65;10;5M", MouseButton.WheelDown, MouseEventKind.Wheel, 9, 4)]
@@ -532,8 +570,24 @@ public sealed class AnsiInputParserTests
         Assert.Equal(expectedModifiers, result.Mouse.Modifiers);
     }
 
+    [Theory]
+    [InlineData("\u001b[<2;10;5m", MouseButton.Right)]
+    [InlineData("\u001b[<1;10;5m", MouseButton.Middle)]
+    public void ProductionParser_ReleaseAfterReset_UsesEncodedButton(string sequence, MouseButton expectedButton)
+    {
+        using var input = new MemoryStream(Encoding.ASCII.GetBytes(sequence));
+        var parser = new AnsiConsoleInputParser();
+
+        parser.ResetMouseState();
+
+        Assert.True(parser.TryRead(new StreamAnsiInputByteReader(input, null), out var inputEvent));
+        var mouse = Assert.IsType<MouseConsoleInputEvent>(inputEvent);
+        Assert.Equal(expectedButton, mouse.Button);
+        Assert.Equal(MouseEventKind.Up, mouse.Kind);
+    }
+
     [Fact]
-    public void SgrMouseInputParser_UsesLastPressedButtonForRelease()
+    public void SgrMouseInputParser_UsesEncodedButtonForRelease()
     {
         var lastPressedButton = MouseButton.Left;
         Assert.True(SgrMouseInputParser.TryParse(
@@ -549,10 +603,58 @@ public sealed class AnsiInputParserTests
             out var error), error);
 
         Assert.NotNull(release);
-        Assert.Equal(MouseButton.Right, release.Mouse.Button);
+        Assert.Equal(MouseButton.Left, release.Mouse.Button);
         Assert.Equal(MouseEventKind.Up, release.Mouse.Kind);
         Assert.Equal(0, release.EncodedButton);
         Assert.Equal('m', release.Final);
+    }
+
+    [Fact]
+    public void SgrMouseInputParser_UsesLastPressedButtonOnlyForCode3Release()
+    {
+        var lastPressedButton = MouseButton.Right;
+
+        Assert.True(SgrMouseInputParser.TryParse(
+            Encoding.ASCII.GetBytes("\u001b[<3;10;5m"),
+            ref lastPressedButton,
+            out var release,
+            out var error), error);
+
+        Assert.NotNull(release);
+        Assert.Equal(MouseButton.Right, release.Mouse.Button);
+        Assert.Equal(MouseEventKind.Up, release.Mouse.Kind);
+    }
+
+    [Fact]
+    public void SgrMouseInputParser_ReleaseDoesNotDependOnLastDown()
+    {
+        var lastPressedButton = MouseButton.Left;
+        var events = new List<MouseConsoleInputEvent>();
+
+        foreach (string sequence in new[]
+        {
+            "\u001b[<0;10;5M",
+            "\u001b[<2;10;5M",
+            "\u001b[<0;10;5m",
+            "\u001b[<2;10;5m",
+        })
+        {
+            Assert.True(SgrMouseInputParser.TryParse(
+                Encoding.ASCII.GetBytes(sequence),
+                ref lastPressedButton,
+                out var result,
+                out var error), error);
+            events.Add(result.Mouse);
+        }
+
+        Assert.Equal(
+            [
+                (MouseButton.Left, MouseEventKind.Down),
+                (MouseButton.Right, MouseEventKind.Down),
+                (MouseButton.Left, MouseEventKind.Up),
+                (MouseButton.Right, MouseEventKind.Up),
+            ],
+            events.Select(e => (e.Button, e.Kind)));
     }
 
     [Theory]

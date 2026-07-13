@@ -12,46 +12,62 @@ public sealed class MouseBackendParityTests
     private const uint Middle = 0x0004;
     private const uint MouseMoved = 0x0001;
     private const uint MouseWheeled = 0x0004;
+    private const uint RightAltPressed = 0x0001;
+    private const uint LeftCtrlPressed = 0x0008;
+    private const uint ShiftPressed = 0x0010;
 
     [Fact]
     public void EquivalentPhysicalInput_ProducesEquivalentSemanticStreams()
     {
-        foreach (var (ansiRecords, win32Records) in Sequences())
+        foreach (var sequence in Sequences())
         {
             long timestamp = 1_000;
             var ansi = new AnsiConsoleInputParser(50, () => timestamp);
-            var ansiEvents = ParseAnsi(ansi, ansiRecords, ref timestamp);
+            var ansiEvents = ParseAnsi(ansi, sequence.AnsiRecords, sequence.TimeStepMilliseconds, ref timestamp);
             timestamp = 1_000;
             var win32 = new Win32MouseInputParser();
             var normalizer = new MouseInputNormalizer(() => timestamp);
-            var win32Events = win32Records
-                .Select(record => win32.Parse(record, windowLeft: 11, windowTop: 26))
-                .Where(mouse => mouse is not null)
-                .Select(mouse => normalizer.Normalize(mouse!))
-                .ToArray();
+            var win32Events = new List<MouseConsoleInputEvent>();
+
+            foreach (var record in sequence.Win32Records)
+            {
+                var physical = win32.Parse(record, windowLeft: 11, windowTop: 26);
+                if (physical is not null)
+                    win32Events.Add(normalizer.Normalize(physical));
+
+                timestamp += sequence.TimeStepMilliseconds;
+            }
 
             Assert.Equal(ansiEvents.Select(Fields), win32Events.Select(Fields));
         }
     }
 
-    private static IEnumerable<(string[] AnsiRecords, MouseEventRecord[] Win32Records)> Sequences()
+    private static IEnumerable<MouseParitySequence> Sequences()
     {
-        yield return (["\u001b[<0;10;5M", "\u001b[<0;10;5m"], [Record(Left), Record(0)]);
-        yield return (["\u001b[<2;10;5M", "\u001b[<0;10;5m"], [Record(Right), Record(0)]);
-        yield return (["\u001b[<1;10;5M", "\u001b[<0;10;5m"], [Record(Middle), Record(0)]);
-        yield return (
+        yield return new(["\u001b[<0;10;5M", "\u001b[<0;10;5m"], [Record(Left), Record(0)]);
+        yield return new(["\u001b[<2;10;5M", "\u001b[<2;10;5m"], [Record(Right), Record(0)]);
+        yield return new(["\u001b[<1;10;5M", "\u001b[<1;10;5m"], [Record(Middle), Record(0)]);
+        yield return new(
             ["\u001b[<0;10;5M", "\u001b[<0;10;5m", "\u001b[<0;10;5M", "\u001b[<0;10;5m"],
             [Record(Left), Record(0), Record(Left), Record(0)]);
-        yield return (
+        yield return new(
+            ["\u001b[<0;10;5M", "\u001b[<0;10;5m", "\u001b[<0;10;5M", "\u001b[<0;10;5m"],
+            [Record(Left), Record(0), Record(Left), Record(0)],
+            TimeStepMilliseconds: 600);
+        yield return new(
             ["\u001b[<0;10;5M", "\u001b[<32;11;5M", "\u001b[<32;12;5M", "\u001b[<0;12;5m"],
             [Record(Left), Record(Left, MouseMoved, 21), Record(Left, MouseMoved, 22), Record(0, x: 22)]);
-        yield return (["\u001b[<64;10;5M", "\u001b[<65;10;5M"], [Record(120u << 16, MouseWheeled), Record(0xFF88u << 16, MouseWheeled)]);
-        yield return (["\u001b[<20;10;5M", "\u001b[<20;10;5m"], [Record(Left, controlKeyState: 0x0014), Record(0, controlKeyState: 0x0014)]);
+        yield return new(["\u001b[<64;10;5M", "\u001b[<65;10;5M"], [Record(120u << 16, MouseWheeled), Record(0xFF88u << 16, MouseWheeled)]);
+        yield return new(["\u001b[<6;10;5M", "\u001b[<6;10;5m"], [Record(Right, controlKeyState: ShiftPressed), Record(0, controlKeyState: ShiftPressed)]);
+        yield return new(["\u001b[<10;10;5M", "\u001b[<10;10;5m"], [Record(Right, controlKeyState: RightAltPressed), Record(0, controlKeyState: RightAltPressed)]);
+        yield return new(["\u001b[<18;10;5M", "\u001b[<18;10;5m"], [Record(Right, controlKeyState: LeftCtrlPressed), Record(0, controlKeyState: LeftCtrlPressed)]);
+        yield return new(["\u001b[<22;10;5M", "\u001b[<22;10;5m"], [Record(Right, controlKeyState: ShiftPressed | LeftCtrlPressed), Record(0, controlKeyState: ShiftPressed | LeftCtrlPressed)]);
     }
 
     private static MouseConsoleInputEvent[] ParseAnsi(
         AnsiConsoleInputParser parser,
         IEnumerable<string> records,
+        int timeStepMilliseconds,
         ref long timestamp)
     {
         using var input = new MemoryStream(Encoding.ASCII.GetBytes(string.Concat(records)));
@@ -61,7 +77,7 @@ public sealed class MouseBackendParityTests
         {
             Assert.True(parser.TryRead(reader, out var inputEvent));
             result.Add(Assert.IsType<MouseConsoleInputEvent>(inputEvent));
-            timestamp += 100;
+            timestamp += timeStepMilliseconds;
         }
 
         return [.. result];
@@ -85,4 +101,9 @@ public sealed class MouseBackendParityTests
     private static (int X, int Y, MouseButton Button, MouseEventKind Kind, MouseKeyModifiers Modifiers) Fields(
         MouseConsoleInputEvent input) =>
         (input.X, input.Y, input.Button, input.Kind, input.Modifiers);
+
+    private sealed record MouseParitySequence(
+        string[] AnsiRecords,
+        MouseEventRecord[] Win32Records,
+        int TimeStepMilliseconds = 100);
 }

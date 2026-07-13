@@ -29,6 +29,12 @@ internal sealed class AnsiConsoleInputParser
         AnsiInputReadResult parsed = _keyParser.Read(input);
         if (SgrMouseInputParser.TryParse(parsed.Bytes, ref _lastPressedButton, out var mouse, out _))
         {
+            if (mouse.Mouse.Kind == MouseEventKind.Move && (mouse.EncodedButton & 3) == 3)
+            {
+                inputEvent = null;
+                return false;
+            }
+
             inputEvent = _mouseNormalizer.Normalize(mouse.Mouse);
             return true;
         }
