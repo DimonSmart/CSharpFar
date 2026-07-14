@@ -375,6 +375,42 @@ public sealed class ModalDialogRunnerTests
     }
 
     [Fact]
+    public void ReadRoutedInput_ReturnsInputFrameAndLayerMetadata()
+    {
+        var driver = new FakeConsoleDriver();
+        driver.EnqueueKey(Key(ConsoleKey.Enter));
+        var modals = CreateHost(driver, out _);
+        using var session = modals.Open(context => context.Viewport);
+        var frame = session.Render();
+
+        var routed = session.ReadRoutedInput();
+
+        Assert.IsType<KeyConsoleInputEvent>(routed.Input);
+        Assert.Equal(frame, routed.Frame);
+        Assert.Null(routed.Target);
+        Assert.Equal(UiInputRouteKind.Layer, routed.RouteKind);
+    }
+
+    [Fact]
+    public void RoutedPacket_KeepsDispatchSnapshotAfterAdditionalRender()
+    {
+        var modals = CreateHost(new FakeConsoleDriver(), out var composition);
+        int render = 0;
+        using var session = modals.Open(_ => ++render);
+        int initial = session.Render();
+        composition.DispatchInput(new KeyConsoleInputEvent(Key(ConsoleKey.Enter)));
+        int later = session.Render();
+
+        var routed = session.ReadRoutedInput();
+
+        Assert.Equal(1, initial);
+        Assert.Equal(2, later);
+        Assert.Equal(initial, routed.Frame);
+        Assert.Null(routed.Target);
+        Assert.Equal(UiInputRouteKind.Layer, routed.RouteKind);
+    }
+
+    [Fact]
     public void RunRouted_ContinuesWithOneRenderAndPassesRouteMetadata()
     {
         var driver = new FakeConsoleDriver();
@@ -396,6 +432,54 @@ public sealed class ModalDialogRunnerTests
 
         Assert.Equal(2, renders);
         Assert.Equal([UiInputRouteKind.Layer, UiInputRouteKind.Layer], kinds);
+    }
+
+    [Fact]
+    public void RunRouted_CompleteDoesNotRenderAgain()
+    {
+        var driver = new FakeConsoleDriver();
+        driver.EnqueueKey(Key(ConsoleKey.Enter));
+        var modals = CreateHost(driver, out _);
+        int renders = 0;
+
+        modals.RunRouted(
+            _ => ++renders,
+            _ => ModalDialogLoopResult<int>.Complete(0));
+
+        Assert.Equal(1, renders);
+    }
+
+    [Fact]
+    public void RunRouted_HandlerExceptionDisposesOverlayAndRestoresSurface()
+    {
+        var driver = new FakeConsoleDriver();
+        driver.EnqueueKey(Key(ConsoleKey.Enter));
+        var modals = CreateHost(driver, out var composition);
+        int rootRenders = 0;
+        composition.SetRootSurface(new ScreenRendererSurface(composition.Screen, _ => rootRenders++));
+
+        Assert.Throws<InvalidOperationException>(() => modals.RunRouted<int, int>(
+            _ => 1,
+            _ => throw new InvalidOperationException("handler")));
+
+        Assert.True(rootRenders >= 1);
+    }
+
+    [Fact]
+    public void RunRouted_CancellationDisposesOverlayAndRestoresSurface()
+    {
+        var modals = CreateHost(new FakeConsoleDriver(), out var composition);
+        int rootRenders = 0;
+        composition.SetRootSurface(new ScreenRendererSurface(composition.Screen, _ => rootRenders++));
+        using var cancellation = new CancellationTokenSource();
+        cancellation.Cancel();
+
+        Assert.Throws<OperationCanceledException>(() => modals.RunRouted<int, int>(
+            _ => 1,
+            _ => ModalDialogLoopResult<int>.Complete(0),
+            cancellationToken: cancellation.Token));
+
+        Assert.True(rootRenders >= 1);
     }
 
     [Fact]

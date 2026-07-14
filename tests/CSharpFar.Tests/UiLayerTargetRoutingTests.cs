@@ -110,6 +110,20 @@ public sealed class UiLayerTargetRoutingTests
     }
 
     [Fact]
+    public void FocusRequest_ForDisabledTargetIsRejected()
+    {
+        var enabled = new UiTargetId("enabled");
+        var disabled = new UiTargetId("disabled");
+        var layer = Layer(new UiFocusFrame([new(enabled, 0), new(disabled, 1, IsEnabled: false)], enabled));
+        layer.Result = (_, _) => UiInputResult.RequestFocus(disabled);
+        var host = Host(layer);
+        host.Render();
+
+        Assert.Throws<InvalidOperationException>(() => host.DispatchInput(Key(ConsoleKey.A)));
+        Assert.Equal(enabled, layer.FocusScope.FocusedTarget);
+    }
+
+    [Fact]
     public void BubbleLayers_ResolveIndependentLocalTargets_AndModalBlocksOnMiss()
     {
         var lowerTarget = new UiTargetId("lower");
@@ -136,6 +150,25 @@ public sealed class UiLayerTargetRoutingTests
     }
 
     [Fact]
+    public void HandledHitTargetOverlay_BlocksLowerLayer()
+    {
+        var lower = Layer(regions: [new(new UiTargetId("lower"), new Rect(0, 0, 3, 3))]);
+        var upperTarget = new UiTargetId("upper");
+        var upper = Layer(regions: [new(upperTarget, new Rect(0, 0, 3, 3))]);
+        upper.Result = (_, _) => UiInputResult.HandledResult;
+        var host = Host(lower);
+        host.Render();
+        using var scope = host.PushOverlay(upper);
+        host.Render();
+
+        host.DispatchInput(Mouse(1, 1, MouseEventKind.Down));
+
+        Assert.Equal(1, upper.CallCount);
+        AssertRoute(upper, upperTarget, UiInputRouteKind.HitTarget);
+        Assert.Equal(0, lower.CallCount);
+    }
+
+    [Fact]
     public void Capture_HasPriority_ReleasesOnlyMatchingButton_AndUsesNormalRoutingAfterRelease()
     {
         var captured = new UiTargetId("captured");
@@ -158,7 +191,25 @@ public sealed class UiLayerTargetRoutingTests
     }
 
     [Fact]
-    public void Capture_IsPreservedWhenBoundsChange_AndCanTargetFocusOnlyEntry()
+    public void Capture_IsPreservedWhenCapturedTargetBoundsChange()
+    {
+        var target = new UiTargetId("target");
+        var layer = Layer(regions: [new(target, new Rect(0, 0, 2, 2))]);
+        layer.Result = (input, _) => input is MouseConsoleInputEvent { Kind: MouseEventKind.Down }
+            ? UiInputResult.CaptureMouse(target, MouseButton.Left) : UiInputResult.NotHandled;
+        var host = Host(layer);
+        host.Render();
+        host.DispatchInput(Mouse(1, 1, MouseEventKind.Down));
+        layer.Regions = [new(target, new Rect(5, 5, 2, 2))];
+        host.Render();
+
+        host.DispatchInput(Mouse(9, 9, MouseEventKind.Move));
+
+        AssertRoute(layer, target, UiInputRouteKind.CapturedTarget);
+    }
+
+    [Fact]
+    public void Capture_IsAllowedForFocusOnlyTarget()
     {
         var target = new UiTargetId("focus-only");
         var layer = Layer(Focus(target));
@@ -167,10 +218,9 @@ public sealed class UiLayerTargetRoutingTests
         var host = Host(layer);
         host.Render();
         host.DispatchInput(Mouse(9, 9, MouseEventKind.Down));
-        layer.Regions = [new(new UiTargetId("other"), new Rect(5, 5, 2, 2))];
         host.Render();
 
-        host.DispatchInput(Mouse(6, 6, MouseEventKind.Move));
+        host.DispatchInput(Mouse(9, 9, MouseEventKind.Move));
 
         AssertRoute(layer, target, UiInputRouteKind.CapturedTarget);
     }

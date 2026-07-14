@@ -165,6 +165,43 @@ public sealed class UiMouseCaptureTests
     }
 
     [Fact]
+    public void CaptureRequest_ForUnknownCommittedTargetThrows()
+    {
+        var (host, surface) = Host();
+        surface.Result = UiInputResult.CaptureMouse(new UiTargetId("missing"), MouseButton.Left);
+
+        Assert.Throws<InvalidOperationException>(() => host.DispatchInput(Mouse(MouseEventKind.Down, MouseButton.Left)));
+    }
+
+    [Fact]
+    public void NonePolicyLayer_IsSkippedAndCannotEstablishCapture()
+    {
+        var (host, surface) = Host();
+        var none = new CaptureLayer("none", policy: UiLayerInputPolicy.None)
+        {
+            Result = UiInputResult.CaptureMouse(new UiTargetId("thumb"), MouseButton.Left),
+        };
+        using var scope = host.PushOverlay(none);
+
+        host.DispatchInput(Mouse(MouseEventKind.Down, MouseButton.Left));
+        host.DispatchInput(Mouse(MouseEventKind.Move, MouseButton.Left));
+
+        Assert.Empty(none.Calls);
+        Assert.Equal(2, surface.Calls.Count);
+        Assert.DoesNotContain(surface.Contexts, context => context.IsCapturedRoute);
+    }
+
+    [Fact]
+    public void LayerChangingToNonePolicyBeforeCaptureValidationIsRejected()
+    {
+        var (host, surface) = Host();
+        surface.Result = UiInputResult.CaptureMouse(new UiTargetId("thumb"), MouseButton.Left);
+        surface.OnRoute = () => surface.Policy = UiLayerInputPolicy.None;
+
+        Assert.Throws<InvalidOperationException>(() => host.DispatchInput(Mouse(MouseEventKind.Down, MouseButton.Left)));
+    }
+
+    [Fact]
     public void ModalOverlayAboveOwner_PreemptsCaptureAndBlocksCapturedOwner()
     {
         var calls = new List<string>();
@@ -308,6 +345,7 @@ public sealed class UiMouseCaptureTests
         public List<string> Calls { get; } = [];
         public List<UiInputRouteContext> Contexts { get; } = [];
         public UiInputResult Result { get; set; } = UiInputResult.NotHandled;
+        public Action? OnRoute { get; set; }
         public void Render(UiRenderContext context) { }
 
         public UiInputResult RouteInput(ConsoleInputEvent input, UiInputRouteContext context)
@@ -315,6 +353,7 @@ public sealed class UiMouseCaptureTests
             Calls.Add(name);
             sharedCalls?.Add(name);
             Contexts.Add(context);
+            OnRoute?.Invoke();
             return Result;
         }
     }
