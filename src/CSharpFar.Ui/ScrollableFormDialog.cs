@@ -419,6 +419,7 @@ public sealed class TextInputRow : FormRow, IFormOverlayRow, IFormCursorProvider
     public override FormInputResult HandleMouse(MouseConsoleInputEvent mouse, FormRowMouseContext context)
     {
         int width = Math.Min(context.Bounds.Width, _width ?? context.Bounds.Width);
+        string before = _buffer.Text;
         if (_history is not null &&
             SingleLineTextInput.TryHandleHistoryDropdownMouse(
                 _history,
@@ -430,7 +431,9 @@ public sealed class TextInputRow : FormRow, IFormOverlayRow, IFormCursorProvider
                 context.ScreenHeight,
                 ref _state.HistoryScrollbarDrag))
         {
-            return FormInputResult.ValueChanged;
+            return _buffer.Text != before
+                ? FormInputResult.ValueChanged
+                : FormInputResult.Handled;
         }
 
         if (mouse.Button != MouseButton.Left ||

@@ -825,6 +825,187 @@ public sealed class ScrollableFormDialogTests
     }
 
     [Fact]
+    public void RoutedWheelInsideHistoryPopup_MovesHistoryWithoutScrollingBodyOrChangingValue()
+    {
+        var text = new CommandLineState();
+        var history = HistoryWithItems(12);
+        var form = new ScrollableFormDialog([
+            new TextInputRow(text, history) { Id = "pattern" },
+            new CheckBoxRow(new CheckBoxLine("two")),
+            new CheckBoxRow(new CheckBoxLine("three")),
+            new CheckBoxRow(new CheckBoxLine("four")),
+            new CheckBoxRow(new CheckBoxLine("five")),
+        ]);
+        var driver = new FakeConsoleDriver(20, 10);
+        var screen = new ScreenRenderer(driver);
+        var layer = new TestFormLayer(screen, form, context => new FormRenderContext(context, new Rect(0, 0, 20, 4), FarDialogStyles.Border));
+        var host = UiTestHost.Create(screen, layer);
+        host.Composition.Render();
+        FormTargetFrame popup = Assert.Single(layer.CommittedFrame.Targets, target => target.Kind == FormTargetKind.HistoryDropdown);
+
+        UiInputResult down = host.Composition.DispatchInput(Mouse(popup.Bounds.X + 1, popup.Bounds.Y + 1, MouseButton.WheelDown, MouseEventKind.Wheel));
+        host.Composition.Render();
+
+        Assert.True(down.Handled);
+        Assert.True(down.Invalidate);
+        Assert.Equal(FormInputResultKind.Handled, layer.LastRouteResult!.Value.FormResult.Kind);
+        Assert.Equal(1, history.SelectedIndex);
+        Assert.Equal(0, form.ScrollTop);
+        Assert.Equal(string.Empty, text.Text);
+        Assert.True(history.IsDropdownOpen);
+        Assert.Equal("pattern", form.FocusedRowId);
+
+        UiInputResult up = host.Composition.DispatchInput(Mouse(popup.Bounds.X, popup.Bounds.Y, MouseButton.WheelUp, MouseEventKind.Wheel));
+
+        Assert.True(up.Handled);
+        Assert.Equal(0, history.SelectedIndex);
+        Assert.Equal(0, form.ScrollTop);
+
+        UiInputResult topBoundary = host.Composition.DispatchInput(Mouse(popup.Bounds.X, popup.Bounds.Y, MouseButton.WheelUp, MouseEventKind.Wheel));
+        Assert.True(topBoundary.Handled);
+        Assert.Equal(0, history.SelectedIndex);
+    }
+
+    [Fact]
+    public void RoutedWheelOnHistoryScrollbarAndAtBoundaries_BelongsToHistory()
+    {
+        var history = HistoryWithItems(12);
+        var form = new ScrollableFormDialog([
+            new TextInputRow(new CommandLineState(), history) { Id = "pattern" },
+            new CheckBoxRow(new CheckBoxLine("two")),
+            new CheckBoxRow(new CheckBoxLine("three")),
+            new CheckBoxRow(new CheckBoxLine("four")),
+            new CheckBoxRow(new CheckBoxLine("five")),
+        ]);
+        var driver = new FakeConsoleDriver(20, 10);
+        var screen = new ScreenRenderer(driver);
+        var layer = new TestFormLayer(screen, form, context => new FormRenderContext(context, new Rect(0, 0, 20, 3), FarDialogStyles.Border));
+        var host = UiTestHost.Create(screen, layer);
+        host.Composition.Render();
+        FormTargetFrame scrollbar = Assert.Single(layer.CommittedFrame.Targets, target => target.Kind == FormTargetKind.HistoryScrollbar);
+
+        UiInputResult onScrollbar = host.Composition.DispatchInput(Mouse(scrollbar.Bounds.X, scrollbar.Bounds.Y, MouseButton.WheelDown, MouseEventKind.Wheel));
+        Assert.True(onScrollbar.Handled);
+        Assert.Equal(1, history.SelectedIndex);
+        Assert.Equal(0, form.ScrollTop);
+
+        host.Composition.DispatchInput(Mouse(scrollbar.Bounds.X, scrollbar.Bounds.Y, MouseButton.WheelUp, MouseEventKind.Wheel));
+        Assert.Equal(0, history.SelectedIndex);
+        Assert.Equal(0, form.ScrollTop);
+
+        for (int i = 0; i < history.Matches.Count; i++)
+            host.Composition.DispatchInput(Mouse(scrollbar.Bounds.X, scrollbar.Bounds.Y, MouseButton.WheelDown, MouseEventKind.Wheel));
+        int last = history.SelectedIndex;
+        UiInputResult boundary = host.Composition.DispatchInput(Mouse(scrollbar.Bounds.X, scrollbar.Bounds.Y, MouseButton.WheelDown, MouseEventKind.Wheel));
+
+        Assert.True(boundary.Handled);
+        Assert.Equal(last, history.SelectedIndex);
+        Assert.Equal(0, form.ScrollTop);
+        Assert.True(history.IsDropdownOpen);
+    }
+
+    [Fact]
+    public void RoutedWheelOutsideHistoryPopup_ScrollsBodyWithoutChangingHistorySelection()
+    {
+        var history = HistoryWithItems(12);
+        var form = new ScrollableFormDialog([
+            new TextInputRow(new CommandLineState(), history) { Id = "pattern" },
+            new CheckBoxRow(new CheckBoxLine("two")),
+            new CheckBoxRow(new CheckBoxLine("three")),
+            new CheckBoxRow(new CheckBoxLine("four")),
+            new CheckBoxRow(new CheckBoxLine("five")),
+            new CheckBoxRow(new CheckBoxLine("six")),
+        ]);
+        var driver = new FakeConsoleDriver(20, 10);
+        var host = CreateRoutedFormHost(form, driver, visibleRows: 3);
+        host.Composition.Render();
+
+        host.Composition.DispatchInput(Mouse(2, 0, MouseButton.WheelDown, MouseEventKind.Wheel));
+
+        Assert.True(form.ScrollTop > 0);
+        Assert.Equal(0, history.SelectedIndex);
+    }
+
+    [Fact]
+    public void RoutedHistoryMouseResults_OnlyChangedBufferReportsValueChanged()
+    {
+        var history = HistoryWithItems(12);
+        var text = new CommandLineState();
+        text.SetText(history.Matches[0]);
+        var form = new ScrollableFormDialog([
+            new TextInputRow(text, history) { Id = "pattern" },
+            new LabelRow("outside", FarDialogStyles.Fill),
+        ]);
+        var driver = new FakeConsoleDriver(20, 10);
+        var screen = new ScreenRenderer(driver);
+        var layer = new TestFormLayer(screen, form, context => new FormRenderContext(context, new Rect(0, 0, 20, 2), FarDialogStyles.Border));
+        var host = UiTestHost.Create(screen, layer);
+        host.Composition.Render();
+        FormTargetFrame popup = Assert.Single(layer.CommittedFrame.Targets, target => target.Kind == FormTargetKind.HistoryDropdown);
+
+        host.Composition.DispatchInput(Mouse(popup.Bounds.X + 1, popup.Bounds.Y + 1));
+        Assert.Equal(FormInputResultKind.Handled, layer.LastRouteResult!.Value.FormResult.Kind);
+
+        Assert.True(history.OpenAll(availableContentRows: 8));
+        host.Composition.Render();
+        popup = Assert.Single(layer.CommittedFrame.Targets, target => target.Kind == FormTargetKind.HistoryDropdown);
+        host.Composition.DispatchInput(Mouse(popup.Bounds.X + 1, popup.Bounds.Y + 2));
+        Assert.Equal(FormInputResultKind.ValueChanged, layer.LastRouteResult!.Value.FormResult.Kind);
+
+        Assert.True(history.OpenAll(availableContentRows: 8));
+        host.Composition.Render();
+        FormTargetFrame scrollbar = Assert.Single(layer.CommittedFrame.Targets, target => target.Kind == FormTargetKind.HistoryScrollbar);
+        host.Composition.DispatchInput(Mouse(scrollbar.Bounds.X, scrollbar.Bounds.Bottom - 2));
+        Assert.Equal(FormInputResultKind.Handled, layer.LastRouteResult!.Value.FormResult.Kind);
+    }
+
+    [Fact]
+    public void RoutedScrollbarCapture_ContinuesOutsideBoundsAndReleasesAfterUp()
+    {
+        var form = LongForm();
+        var driver = new FakeConsoleDriver(20, 8);
+        var screen = new ScreenRenderer(driver);
+        var layer = new TestFormLayer(screen, form, context => new FormRenderContext(context, new Rect(0, 0, 20, 4), FarDialogStyles.Border));
+        var host = UiTestHost.Create(screen, layer);
+        host.Composition.Render();
+        FormTargetFrame scrollbar = Assert.Single(layer.CommittedFrame.Targets, target => target.Kind == FormTargetKind.BodyScrollbar);
+
+        host.Composition.DispatchInput(Mouse(scrollbar.Bounds.X, scrollbar.Bounds.Y + 1, MouseButton.Left, MouseEventKind.Down));
+        host.Composition.DispatchInput(Mouse(0, 7, MouseButton.Left, MouseEventKind.Move));
+        host.Composition.DispatchInput(Mouse(0, 7, MouseButton.Left, MouseEventKind.Up));
+        int afterDrag = form.ScrollTop;
+        UiInputResult next = host.Composition.DispatchInput(Mouse(2, 1, MouseButton.WheelDown, MouseEventKind.Wheel));
+
+        Assert.True(afterDrag > 0);
+        Assert.True(next.Handled);
+        Assert.True(form.ScrollTop >= afterDrag);
+    }
+
+    [Fact]
+    public void RoutedHistoryScrollbarCapture_ContinuesOutsideBoundsAndReleasesAfterUp()
+    {
+        var history = HistoryWithItems(20);
+        var state = new TextInputRowState();
+        var form = new ScrollableFormDialog([new TextInputRow(new CommandLineState(), history, state) { Id = "pattern" }]);
+        var driver = new FakeConsoleDriver(20, 10);
+        var screen = new ScreenRenderer(driver);
+        var layer = new TestFormLayer(screen, form, context => new FormRenderContext(context, new Rect(0, 0, 20, 1), FarDialogStyles.Border));
+        var host = UiTestHost.Create(screen, layer);
+        host.Composition.Render();
+        FormTargetFrame scrollbar = Assert.Single(layer.CommittedFrame.Targets, target => target.Kind == FormTargetKind.HistoryScrollbar);
+
+        host.Composition.DispatchInput(Mouse(scrollbar.Bounds.X, scrollbar.Bounds.Y + 1, MouseButton.Left, MouseEventKind.Down));
+        host.Composition.DispatchInput(Mouse(0, 9, MouseButton.Left, MouseEventKind.Move));
+        host.Composition.DispatchInput(Mouse(0, 9, MouseButton.Left, MouseEventKind.Up));
+        int afterDrag = history.FirstVisibleIndex;
+        UiInputResult next = host.Composition.DispatchInput(Mouse(2, 2));
+
+        Assert.True(afterDrag > 0);
+        Assert.Null(state.HistoryScrollbarDrag);
+        Assert.True(next.Handled);
+    }
+
+    [Fact]
     public void RoutedMouseFocus_NotHandledRowInvalidatesFrame()
     {
         var row = new NotHandledFocusableRow("target");
@@ -917,6 +1098,15 @@ public sealed class ScrollableFormDialogTests
             new CheckBoxRow(new CheckBoxLine("six")),
         ]);
 
+    private static SingleLineTextHistoryState HistoryWithItems(int count)
+    {
+        var history = new SingleLineTextHistoryState();
+        for (int i = 0; i < count; i++)
+            history.Add($"item-{i:D2}");
+        Assert.True(history.OpenAll(availableContentRows: 8));
+        return history;
+    }
+
     private static FakeConsoleDriver Render(ScrollableFormDialog form, int visibleRows, int? screenHeight = null)
     {
         var driver = new FakeConsoleDriver(20, screenHeight ?? Math.Max(5, visibleRows + 2));
@@ -993,6 +1183,8 @@ public sealed class ScrollableFormDialogTests
         UiLayer<ScrollableFormFrame>,
         IUiSurface
     {
+        public FormRouteResult? LastRouteResult { get; private set; }
+
         public override UiLayerInputPolicy InputPolicy => UiLayerInputPolicy.Bubble;
 
         public IDisposable BeginFrame(UiRenderRequest request) =>
@@ -1011,8 +1203,11 @@ public sealed class ScrollableFormDialogTests
         protected override UiInputResult RouteInput(
             ConsoleInputEvent input,
             ScrollableFormFrame frame,
-            UiInputRouteContext context) =>
-            form.RouteInput(input, frame, context).UiResult;
+            UiInputRouteContext context)
+        {
+            LastRouteResult = form.RouteInput(input, frame, context);
+            return LastRouteResult.Value.UiResult;
+        }
     }
 
     private static ConsoleKeyInfo Key(ConsoleKey key) =>

@@ -262,6 +262,21 @@ public static class SingleLineTextInput
         if (!history.IsDropdownOpen || history.Matches.Count == 0)
             return false;
 
+        if (mouse.Kind == MouseEventKind.Wheel && frame.PopupBounds.Contains(mouse.X, mouse.Y))
+        {
+            int delta = mouse.Button switch
+            {
+                MouseButton.WheelUp => -1,
+                MouseButton.WheelDown => 1,
+                _ => 0,
+            };
+            if (delta == 0)
+                return false;
+
+            history.MoveSelection(delta, frame.VisibleRows);
+            return true;
+        }
+
         int firstVisibleIndex = frame.FirstVisibleIndex;
         if (ScrollBarMouseHandler.TryHandleMouse(
             mouse,
