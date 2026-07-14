@@ -168,24 +168,6 @@ public sealed class SearchOptionsDialog
         return rows;
     }
 
-    internal static FormInputResult HandleKey(
-        ScrollableFormDialog form,
-        SingleLineTextHistoryState patternHistory,
-        ConsoleKeyInfo key)
-    {
-        if (key.Key == ConsoleKey.F10)
-            return FormInputResult.Submit("find");
-
-        if (key.Key == ConsoleKey.Enter &&
-            form.IsFocusedOnSubmitRow &&
-            !patternHistory.IsDropdownOpen)
-        {
-            return FormInputResult.Submit("find");
-        }
-
-        return form.HandleKey(key);
-    }
-
     private static void SynchronizeOptions(
         SearchOptionsDialogOptions options,
         SearchOptionsDialogState state,

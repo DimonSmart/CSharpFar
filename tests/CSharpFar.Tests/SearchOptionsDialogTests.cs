@@ -25,7 +25,7 @@ public sealed class SearchOptionsDialogTests
         var history = new SingleLineTextHistoryState();
         var form = new ScrollableFormDialog(BuildRows(history));
 
-        FormInputResult result = SearchOptionsDialog.HandleKey(form, history, Key(ConsoleKey.Enter));
+        FormInputResult result = HandleKey(form, history, Key(ConsoleKey.Enter));
 
         Assert.Equal(FormInputResultKind.Submit, result.Kind);
         Assert.Equal("find", result.Command);
@@ -39,7 +39,7 @@ public sealed class SearchOptionsDialogTests
         Assert.True(history.OpenAll(availableContentRows: 1));
         var form = new ScrollableFormDialog(BuildRows(history));
 
-        FormInputResult result = SearchOptionsDialog.HandleKey(form, history, Key(ConsoleKey.Enter));
+        FormInputResult result = HandleKey(form, history, Key(ConsoleKey.Enter));
 
         Assert.Equal(FormInputResultKind.ValueChanged, result.Kind);
         Assert.Null(result.Command);
@@ -53,7 +53,7 @@ public sealed class SearchOptionsDialogTests
         var form = new ScrollableFormDialog(BuildRows(history));
         Assert.True(form.TryFocus("option"));
 
-        FormInputResult result = SearchOptionsDialog.HandleKey(form, history, Key(ConsoleKey.Enter));
+        FormInputResult result = HandleKey(form, history, Key(ConsoleKey.Enter));
 
         Assert.Equal(FormInputResultKind.ValueChanged, result.Kind);
         Assert.Null(result.Command);
@@ -72,7 +72,7 @@ public sealed class SearchOptionsDialogTests
         Assert.True(form.TryFocus("pattern"));
         Assert.NotEqual(0, form.FocusIndex);
 
-        FormInputResult result = SearchOptionsDialog.HandleKey(form, history, Key(ConsoleKey.Enter));
+        FormInputResult result = HandleKey(form, history, Key(ConsoleKey.Enter));
 
         Assert.Equal(FormInputResultKind.Submit, result.Kind);
         Assert.Equal("find", result.Command);
@@ -184,6 +184,20 @@ public sealed class SearchOptionsDialogTests
                 [new DialogButton("find", "Find", 'F', IsDefault: true)],
                 FarDialogStyles.Fill,
                 FarDialogStyles.FocusedInput));
+    }
+
+    private static FormInputResult HandleKey(
+        ScrollableFormDialog form,
+        SingleLineTextHistoryState history,
+        ConsoleKeyInfo key)
+    {
+        if (key.Key == ConsoleKey.F10 ||
+            key.Key == ConsoleKey.Enter && form.IsFocusedOnSubmitRow && !history.IsDropdownOpen)
+        {
+            return FormInputResult.Submit("find");
+        }
+
+        return form.HandleKey(key);
     }
 
     private static ConsoleKeyInfo Key(ConsoleKey key) =>

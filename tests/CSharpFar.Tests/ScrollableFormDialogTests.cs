@@ -42,6 +42,62 @@ public sealed class ScrollableFormDialogTests
     }
 
     [Fact]
+    public void TryFocusBeforeFirstRender_MakesInitialTargetVisible()
+    {
+        var form = new ScrollableFormDialog([
+            new CheckBoxRow(new CheckBoxLine("one")) { Id = "one" },
+            new CheckBoxRow(new CheckBoxLine("two")) { Id = "two" },
+            new CheckBoxRow(new CheckBoxLine("three")) { Id = "three" },
+            new CheckBoxRow(new CheckBoxLine("four")) { Id = "four" },
+            new TextInputRow(new CommandLineState()) { Id = "last" },
+        ]);
+        Assert.True(form.TryFocus("last"));
+
+        var driver = new FakeConsoleDriver(20, 6);
+        var screen = new ScreenRenderer(driver);
+        var layer = new TestFormLayer(
+            screen,
+            form,
+            context => new FormRenderContext(context, new Rect(0, 0, 20, 2), FarDialogStyles.Border));
+        UiTestHost.Create(screen, layer).Composition.Render();
+
+        FormTargetFrame target = Assert.Single(layer.CommittedFrame.Targets, target => target.Target == FormTargetIds.ForExplicitRow("last"));
+        Assert.Equal("last", form.FocusedRowId);
+        Assert.Equal(3, form.ScrollTop);
+        Assert.NotNull(target.HitBounds);
+        Assert.True(driver.CursorVisible);
+    }
+
+    [Fact]
+    public void TryFocusBeforeFirstRender_SurvivesRejectedRenderAttempt()
+    {
+        var form = new ScrollableFormDialog([
+            new CheckBoxRow(new CheckBoxLine("one")) { Id = "one" },
+            new CheckBoxRow(new CheckBoxLine("two")) { Id = "two" },
+            new CheckBoxRow(new CheckBoxLine("three")) { Id = "three" },
+            new CheckBoxRow(new CheckBoxLine("four")) { Id = "four" },
+            new TextInputRow(new CommandLineState()) { Id = "last" },
+        ]);
+        Assert.True(form.TryFocus("last"));
+        var driver = new FakeConsoleDriver(20, 6)
+        {
+            ResizeAfterWriteCount = 1,
+            ResizeAfterWrite = current => current.SetSize(21, 6),
+        };
+        var screen = new ScreenRenderer(driver);
+        var layer = new TestFormLayer(
+            screen,
+            form,
+            context => new FormRenderContext(context, new Rect(0, 0, 20, 2), FarDialogStyles.Border));
+
+        UiTestHost.Create(screen, layer).Composition.Render();
+
+        Assert.Equal("last", form.FocusedRowId);
+        Assert.Equal(3, form.ScrollTop);
+        Assert.NotNull(Assert.Single(layer.CommittedFrame.Targets, target => target.Target == FormTargetIds.ForExplicitRow("last")).HitBounds);
+    }
+
+    [Fact]
     public void TryFocus_ReturnsFalseForMissingId()
     {
         var form = new ScrollableFormDialog([
@@ -679,6 +735,47 @@ public sealed class ScrollableFormDialogTests
         Assert.Equal(2, form.ScrollTop);
         Assert.Equal("first", form.FocusedRowId);
         Assert.False(driver.CursorVisible);
+    }
+
+    [Fact]
+    public void RoutedWheelScroll_HidesOffscreenHistoryOverlayUntilFocusedRowReceivesKey()
+    {
+        var history = new SingleLineTextHistoryState();
+        history.Add("alpha");
+        Assert.True(history.OpenAll(availableContentRows: 3));
+        var form = new ScrollableFormDialog([
+            new TextInputRow(new CommandLineState(), history) { Id = "pattern" },
+            new LabelRow("two", FarDialogStyles.Fill),
+            new LabelRow("three", FarDialogStyles.Fill),
+            new LabelRow("four", FarDialogStyles.Fill),
+            new LabelRow("five", FarDialogStyles.Fill),
+        ]);
+        var driver = new FakeConsoleDriver(20, 8);
+        var screen = new ScreenRenderer(driver);
+        var layer = new TestFormLayer(
+            screen,
+            form,
+            context => new FormRenderContext(context, new Rect(0, 0, 20, 2), FarDialogStyles.Border));
+        var host = UiTestHost.Create(screen, layer);
+        host.Composition.Render();
+
+        host.Composition.DispatchInput(Mouse(2, 0, MouseButton.WheelDown, MouseEventKind.Wheel));
+        host.Composition.Render();
+
+        Assert.Equal("pattern", form.FocusedRowId);
+        Assert.Equal(3, form.ScrollTop);
+        Assert.False(driver.CursorVisible);
+        Assert.DoesNotContain(layer.CommittedFrame.Targets, target => target.Kind is FormTargetKind.HistoryDropdown or FormTargetKind.HistoryScrollbar);
+        Assert.DoesNotContain("alpha", driver.GetRow(0), StringComparison.Ordinal);
+        Assert.DoesNotContain("alpha", driver.GetRow(1), StringComparison.Ordinal);
+
+        host.Composition.DispatchInput(new KeyConsoleInputEvent(new ConsoleKeyInfo('a', ConsoleKey.A, false, false, false)));
+        host.Composition.Render();
+
+        Assert.Equal(0, form.ScrollTop);
+        Assert.True(driver.CursorVisible);
+        Assert.Contains(layer.CommittedFrame.Targets, target => target.Kind == FormTargetKind.HistoryDropdown);
+        Assert.Contains("alpha", string.Concat(Enumerable.Range(0, 8).Select(driver.GetRow)), StringComparison.Ordinal);
     }
 
     [Fact]

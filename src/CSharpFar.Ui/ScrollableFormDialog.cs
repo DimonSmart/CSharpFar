@@ -973,6 +973,7 @@ public sealed class ScrollableFormDialog
         {
             _requestedInitialTarget = target;
             _compatFocusScope.TryFocus(target);
+            RequestEnsureFocusVisible();
             return true;
         }
 
@@ -1083,7 +1084,7 @@ public sealed class ScrollableFormDialog
         return null;
     }
 
-    public ScrollableFormFrame Render(FormRenderContext context) =>
+    internal ScrollableFormFrame Render(FormRenderContext context) =>
         Render(context, _compatFocusScope);
 
     public ScrollableFormFrame Render(FormRenderContext context, UiFocusScope focusScope)
@@ -1617,7 +1618,8 @@ public sealed class ScrollableFormDialog
     private static FormTargetFrame? FindPrimaryRowFrame(ScrollableFormFrame frame, IFormRow row) =>
         frame.Targets.FirstOrDefault(value => ReferenceEquals(value.Row, row) && value.Kind == FormTargetKind.Row);
 
-    public FormInputResult HandleKey(ConsoleKeyInfo key)
+    // Transitional compatibility adapter for tests that do not use a composition host.
+    internal FormInputResult HandleKey(ConsoleKeyInfo key)
     {
         ScrollableFormFrame frame = _committedFrame ?? BuildCompatibilityFrame();
 
@@ -1630,7 +1632,8 @@ public sealed class ScrollableFormDialog
         return result.FormResult;
     }
 
-    public FormInputResult HandleMouse(MouseConsoleInputEvent mouse)
+    // Transitional compatibility adapter for tests that do not use a composition host.
+    internal FormInputResult HandleMouse(MouseConsoleInputEvent mouse)
     {
         ScrollableFormFrame frame = _committedFrame ?? BuildCompatibilityFrame();
 
@@ -1748,6 +1751,12 @@ public sealed class ScrollableFormDialog
 
         FormTargetFrame? targetFrame = FindRowTarget(frame, focusedTarget);
         if (targetFrame?.Row is not IFormOverlayRow overlayRow)
+            return;
+
+        bool overlayPublished = frame.Targets.Any(target =>
+            ReferenceEquals(target.Row, targetFrame.Row) &&
+            target.Kind == FormTargetKind.HistoryDropdown);
+        if (!overlayPublished)
             return;
 
         overlayRow.RenderOverlay(new FormRowRenderContext(screen, targetFrame.Bounds, focused: true, screenHeight: frame.ScreenHeight));

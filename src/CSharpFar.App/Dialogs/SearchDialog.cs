@@ -214,16 +214,6 @@ internal sealed class SearchDialog
         ];
     }
 
-    private static FormInputResult HandleSearchKey(ScrollableFormDialog form, ConsoleKeyInfo key)
-    {
-        if (key.Key == ConsoleKey.F10)
-            return FormInputResult.Submit("find");
-        if (key.Key == ConsoleKey.Enter && form.IsFocusedOnSubmitRow)
-            return FormInputResult.Submit("find");
-
-        return form.HandleKey(key);
-    }
-
     private SearchRequest? BuildRequest(
         string rootPath,
         CommandLineState mask,
