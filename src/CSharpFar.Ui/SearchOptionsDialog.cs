@@ -123,9 +123,7 @@ public sealed class SearchOptionsDialog
 
             if (result.Kind == FormInputResultKind.Submit ||
                 routed.Input is KeyConsoleInputEvent { Key.Key: ConsoleKey.F10 } ||
-                routed.Input is KeyConsoleInputEvent { Key.Key: ConsoleKey.Enter } &&
-                form.IsFocusedOnSubmitRow &&
-                !patternHistory.IsDropdownOpen)
+                FormDialogInput.ShouldImplicitlySubmit(routed, result, form))
             {
                 string? command = result.Command;
                 if (command is null &&

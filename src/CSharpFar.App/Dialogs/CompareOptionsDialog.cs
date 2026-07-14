@@ -115,7 +115,7 @@ internal sealed class CompareOptionsDialog
 
             if (result.Kind == FormInputResultKind.Submit ||
                 routed.Input is KeyConsoleInputEvent { Key.Key: ConsoleKey.F10 } ||
-                routed.Input is KeyConsoleInputEvent { Key.Key: ConsoleKey.Enter } && form.IsFocusedOnSubmitRow)
+                FormDialogInput.ShouldImplicitlySubmit(routed, result, form))
             {
                 var options = BuildOptions(
                     mode,

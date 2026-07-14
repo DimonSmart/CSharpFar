@@ -143,7 +143,7 @@ internal sealed class SearchDialog
 
             if (result.Kind == FormInputResultKind.Submit ||
                 routed.Input is KeyConsoleInputEvent { Key.Key: ConsoleKey.F10 } ||
-                routed.Input is KeyConsoleInputEvent { Key.Key: ConsoleKey.Enter } && form.IsFocusedOnSubmitRow)
+                FormDialogInput.ShouldImplicitlySubmit(routed, result, form))
             {
                 var request = BuildRequest(
                     rootPath,

@@ -110,11 +110,11 @@ public sealed class ScrollableFormDialogTests
         ScrollableFormFrame frame = RenderFrame(form, visibleRows: 2);
         UiInteractionFrame interaction = form.BuildInteractionFrame(frame);
 
-        Assert.Contains(frame.Targets, target => target.Target.Value == "form.row:first" && target.IsFocusable);
-        Assert.Contains(frame.Targets, target => target.Target.Value == "form.row:label" && !target.IsFocusable);
-        Assert.Contains(frame.Targets, target => target is { Kind: FormTargetKind.BodyScrollbar, Target.Value: "form.body-scrollbar" });
+        Assert.Contains(frame.Targets, target => target.Target == FormTargetIds.ForExplicitRow("first") && target.IsFocusable);
+        Assert.Contains(frame.Targets, target => target.Target == FormTargetIds.ForExplicitRow("label") && !target.IsFocusable);
+        Assert.Contains(frame.Targets, target => target is { Kind: FormTargetKind.BodyScrollbar, Target: var id } && id == FormTargetIds.BodyScrollbar);
         Assert.Equal(3, interaction.Focus.Entries.Count);
-        Assert.Contains(interaction.HitRegions, region => region.Target.Value == "form.body-scrollbar");
+        Assert.Contains(interaction.HitRegions, region => region.Target == FormTargetIds.BodyScrollbar);
     }
 
     [Fact]
@@ -130,7 +130,7 @@ public sealed class ScrollableFormDialogTests
 
         ScrollableFormFrame frame = RenderFrame(form, visibleRows: 1, screenHeight: 8);
 
-        Assert.Contains(frame.Targets, target => target is { Kind: FormTargetKind.HistoryDropdown, Target.Value: "form.row:pattern" });
+        Assert.Contains(frame.Targets, target => target is { Kind: FormTargetKind.HistoryDropdown, Target: var id } && id == FormTargetIds.ForHistoryDropdown(FormTargetIds.ForExplicitRow("pattern")));
     }
 
     [Fact]

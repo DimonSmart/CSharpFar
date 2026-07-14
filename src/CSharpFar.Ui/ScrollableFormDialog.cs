@@ -2,6 +2,7 @@ using CSharpFar.Console;
 using CSharpFar.Console.Input;
 using CSharpFar.Console.Models;
 using CSharpFar.Core.Models;
+using System.Runtime.CompilerServices;
 
 namespace CSharpFar.Ui;
 
@@ -69,6 +70,23 @@ public enum FormTargetKind
     HistoryScrollbar,
 }
 
+internal static class FormTargetIds
+{
+    public static UiTargetId BodyScrollbar { get; } = new("form.body-scrollbar");
+
+    public static UiTargetId ForExplicitRow(string id) =>
+        new($"form.row.id:{Uri.EscapeDataString(id)}");
+
+    public static UiTargetId ForAnonymousRow(long token) =>
+        new($"form.row.instance:{token}");
+
+    public static UiTargetId ForHistoryDropdown(UiTargetId rowTarget) =>
+        new($"{rowTarget.Value}:history-dropdown");
+
+    public static UiTargetId ForHistoryScrollbar(UiTargetId rowTarget) =>
+        new($"{rowTarget.Value}:history-scrollbar");
+}
+
 public sealed record ScrollableFormFrame(
     ConsoleViewport Viewport,
     Rect BodyBounds,
@@ -94,6 +112,17 @@ public sealed record FormTargetFrame(
 public readonly record struct FormRouteResult(
     FormInputResult FormResult,
     UiInputResult UiResult);
+
+public static class FormDialogInput
+{
+    public static bool ShouldImplicitlySubmit(
+        UiRoutedInput<ScrollableFormFrame> routed,
+        FormInputResult result,
+        ScrollableFormDialog form) =>
+        result.Kind == FormInputResultKind.NotHandled &&
+        routed.Input is KeyConsoleInputEvent { Key.Key: ConsoleKey.Enter } &&
+        form.IsFocusedOnSubmitRow;
+}
 
 public sealed class FormRenderContext
 {
@@ -852,18 +881,22 @@ public sealed class MultiLineChoiceFormRow<T> : FormRow, IFormCursorProvider
 
 public sealed class ScrollableFormDialog
 {
-    private const string BodyScrollbarTargetName = "form.body-scrollbar";
-
     private IReadOnlyList<IFormRow> _bodyRows = [];
     private IReadOnlyList<IFormRow> _footerRows = [];
     private Dictionary<IFormRow, UiTargetId> _targets = new(ReferenceEqualityComparer.Instance);
-    private readonly Dictionary<IFormRow, long> _anonymousRowTokens = new(ReferenceEqualityComparer.Instance);
+    private readonly ConditionalWeakTable<IFormRow, AnonymousRowTokenBox> _anonymousRowTokens = new();
     private readonly UiFocusScope _compatFocusScope = new();
     private UiFocusScope? _activeFocusScope;
     private UiTargetId? _requestedInitialTarget;
     private ScrollableFormFrame? _committedFrame;
     private FormLayoutSnapshot? _stableLayout;
     private long _nextAnonymousRowToken;
+
+    private sealed class AnonymousRowTokenBox
+    {
+        public AnonymousRowTokenBox(long value) => Value = value;
+        public long Value { get; }
+    }
     private FormLayoutSnapshot StableLayout => _stableLayout ?? new(default, default, null, 1, 1, ScrollTop);
 
     public ScrollableFormDialog()
@@ -919,9 +952,10 @@ public sealed class ScrollableFormDialog
             return false;
 
         UiTargetId target = RowTarget(row);
-        if (ActiveFocusScope.CurrentFrame.Entries.Count == 0)
+        if (_activeFocusScope is null || ActiveFocusScope.CurrentFrame.Entries.Count == 0)
         {
             _requestedInitialTarget = target;
+            _compatFocusScope.TryFocus(target);
             return true;
         }
 
@@ -963,10 +997,9 @@ public sealed class ScrollableFormDialog
         var targets = new Dictionary<IFormRow, UiTargetId>(ReferenceEqualityComparer.Instance);
         foreach (IFormRow row in bodyRows.Concat(footerRows))
         {
-            string targetName = string.IsNullOrEmpty(row.Id)
-                ? $"form.row.instance:{AnonymousRowToken(row)}"
-                : $"form.row.id:{Uri.EscapeDataString(row.Id)}";
-            targets[row] = new UiTargetId(targetName);
+            targets[row] = string.IsNullOrEmpty(row.Id)
+                ? FormTargetIds.ForAnonymousRow(AnonymousRowToken(row))
+                : FormTargetIds.ForExplicitRow(row.Id);
         }
 
         return targets;
@@ -974,12 +1007,7 @@ public sealed class ScrollableFormDialog
 
     private long AnonymousRowToken(IFormRow row)
     {
-        if (_anonymousRowTokens.TryGetValue(row, out long token))
-            return token;
-
-        token = ++_nextAnonymousRowToken;
-        _anonymousRowTokens[row] = token;
-        return token;
+        return _anonymousRowTokens.GetValue(row, _ => new AnonymousRowTokenBox(++_nextAnonymousRowToken)).Value;
     }
 
     private int? FocusIndexFromScope(UiTargetId? target)
@@ -1055,9 +1083,10 @@ public sealed class ScrollableFormDialog
 
         int viewportRows = Math.Max(1, context.BodyBounds.Height);
         int effectiveScrollTop = CalculateEffectiveScrollTop(ScrollTop, viewportRows);
-        ScrollableFormFrame frame = BuildFrame(context, effectiveScrollTop, focusScope);
+        ScrollableFormFrame provisionalFrame = BuildFrame(context, effectiveScrollTop);
+        UiTargetId? effectiveFocusedTarget = focusScope.ResolveFocusedTarget(BuildInteractionFrame(provisionalFrame).Focus);
+        ScrollableFormFrame frame = BuildFrame(context, effectiveScrollTop, effectiveFocusedTarget);
         UiInteractionFrame interactionFrame = BuildInteractionFrame(frame);
-        UiTargetId? effectiveFocusedTarget = focusScope.ResolveFocusedTarget(interactionFrame.Focus);
 
         context.Screen.FillRegion(context.BodyBounds, FarDialogStyles.Fill);
         foreach (FormTargetFrame targetFrame in frame.Targets.Where(target => target.Kind == FormTargetKind.Row && !target.IsFooter && IsVisibleInBody(target.Bounds, context.BodyBounds)))
@@ -1130,7 +1159,10 @@ public sealed class ScrollableFormDialog
         return new UiInteractionFrame(hitRegions, new UiFocusFrame(focusEntries, frame.DefaultTarget));
     }
 
-    private ScrollableFormFrame BuildFrame(FormRenderContext context, int effectiveScrollTop, UiFocusScope focusScope)
+    private ScrollableFormFrame BuildFrame(
+        FormRenderContext context,
+        int effectiveScrollTop,
+        UiTargetId? overlayTarget = null)
     {
         var targets = new List<FormTargetFrame>();
         int focusIndex = 0;
@@ -1145,8 +1177,7 @@ public sealed class ScrollableFormDialog
                 ? new Rect(context.BodyBounds.X, context.BodyBounds.Y + virtualTop - effectiveScrollTop, context.BodyBounds.Width, rowHeight)
                 : new Rect(context.BodyBounds.X, context.BodyBounds.Y - rowHeight - 1, context.BodyBounds.Width, rowHeight);
             int? rowFocusIndex = row.IsFocusable ? focusIndex : null;
-            targets.Add(CreateRowTargetFrame(context.Screen, row, rowIndex, rowFocusIndex, rowBounds, isFooter: false, context.Viewport.Height));
-            AddRowOverlayTargets(targets, row, rowIndex, rowBounds, isFooter: false, rowFocusIndex, context.Viewport.Height);
+            targets.Add(CreateRowTargetFrame(context.Screen, row, rowIndex, rowFocusIndex, rowBounds, isFooter: false, context.Viewport.Height, context.BodyBounds));
             if (row.IsFocusable)
                 focusIndex++;
             virtualTop += rowHeight;
@@ -1155,13 +1186,15 @@ public sealed class ScrollableFormDialog
         if (BodyRowCount > Math.Max(1, context.BodyBounds.Height))
         {
             targets.Add(new FormTargetFrame(
-                new UiTargetId(BodyScrollbarTargetName),
+                FormTargetIds.BodyScrollbar,
                 FormTargetKind.BodyScrollbar,
                 Row: null,
                 RowIndex: -1,
                 FocusIndex: null,
                 new Rect(context.BodyBounds.Right - 1, context.BodyBounds.Y, 1, Math.Max(1, context.BodyBounds.Height)),
-                new Rect(context.BodyBounds.Right - 1, context.BodyBounds.Y, 1, Math.Max(1, context.BodyBounds.Height)),
+                Intersect(
+                    new Rect(context.BodyBounds.Right - 1, context.BodyBounds.Y, 1, Math.Max(1, context.BodyBounds.Height)),
+                    context.BodyBounds),
                 IsFocusable: false,
                 IsFooter: false));
         }
@@ -1175,12 +1208,18 @@ public sealed class ScrollableFormDialog
                 int rowHeight = Math.Max(1, row.Height);
                 Rect rowBounds = new(footerBounds.X, footerBounds.Y + footerTop, footerBounds.Width, rowHeight);
                 int? rowFocusIndex = row.IsFocusable ? focusIndex : null;
-                targets.Add(CreateRowTargetFrame(context.Screen, row, rowIndex, rowFocusIndex, rowBounds, isFooter: true, context.Viewport.Height));
-                AddRowOverlayTargets(targets, row, rowIndex, rowBounds, isFooter: true, rowFocusIndex, context.Viewport.Height);
+                targets.Add(CreateRowTargetFrame(context.Screen, row, rowIndex, rowFocusIndex, rowBounds, isFooter: true, context.Viewport.Height, footerBounds));
                 if (row.IsFocusable)
                     focusIndex++;
                 footerTop += rowHeight;
             }
+        }
+
+        if (overlayTarget is UiTargetId focusedTarget &&
+            targets.FirstOrDefault(target => target.Kind == FormTargetKind.Row && target.Target == focusedTarget) is { Row: { } focusedRow } focusedFrame)
+        {
+            AddRowOverlayTargets(targets, focusedRow, focusedFrame.RowIndex, focusedFrame.Bounds,
+                focusedFrame.IsFooter, focusedFrame.FocusIndex, context.Viewport.Height, focusedTarget);
         }
 
         UiTargetId? defaultTarget = _requestedInitialTarget;
@@ -1205,7 +1244,8 @@ public sealed class ScrollableFormDialog
         int? focusIndex,
         Rect bounds,
         bool isFooter,
-        int screenHeight)
+        int screenHeight,
+        Rect activeBounds)
     {
         UiCursorPlacement? cursor = null;
         if (row is IFormCursorProvider cursorProvider &&
@@ -1225,7 +1265,7 @@ public sealed class ScrollableFormDialog
             rowIndex,
             focusIndex,
             bounds,
-            bounds,
+            Intersect(bounds, activeBounds),
             row.IsFocusable,
             isFooter,
             cursor);
@@ -1234,6 +1274,15 @@ public sealed class ScrollableFormDialog
     private static bool IsVisibleInBody(Rect bounds, Rect bodyBounds) =>
         bounds.Bottom > bodyBounds.Y && bounds.Y < bodyBounds.Bottom;
 
+    private static Rect? Intersect(Rect first, Rect second)
+    {
+        int left = Math.Max(first.X, second.X);
+        int top = Math.Max(first.Y, second.Y);
+        int right = Math.Min(first.Right, second.Right);
+        int bottom = Math.Min(first.Bottom, second.Bottom);
+        return right > left && bottom > top ? new Rect(left, top, right - left, bottom - top) : null;
+    }
+
     private static void AddRowOverlayTargets(
         List<FormTargetFrame> targets,
         IFormRow row,
@@ -1241,7 +1290,8 @@ public sealed class ScrollableFormDialog
         Rect rowBounds,
         bool isFooter,
         int? focusIndex,
-        int screenHeight)
+        int screenHeight,
+        UiTargetId rowTarget)
     {
         if (row is not TextInputRow textInput || textInput.History is null)
             return;
@@ -1256,9 +1306,8 @@ public sealed class ScrollableFormDialog
         if (historyFrame is not { } frame)
             return;
 
-        UiTargetId rowTarget = targets.Last(target => target.Kind == FormTargetKind.Row).Target;
         targets.Add(new FormTargetFrame(
-            rowTarget,
+            FormTargetIds.ForHistoryDropdown(rowTarget),
             FormTargetKind.HistoryDropdown,
             row,
             rowIndex,
@@ -1270,7 +1319,7 @@ public sealed class ScrollableFormDialog
         if (frame.ScrollbarBounds is Rect scrollbarBounds)
         {
             targets.Add(new FormTargetFrame(
-                new UiTargetId($"{rowTarget.Value}:history-scrollbar"),
+                FormTargetIds.ForHistoryScrollbar(rowTarget),
                 FormTargetKind.HistoryScrollbar,
                 row,
                 rowIndex,
@@ -1339,11 +1388,14 @@ public sealed class ScrollableFormDialog
 
     private FormRouteResult RouteMouse(MouseConsoleInputEvent mouse, ScrollableFormFrame frame, UiInputRouteContext route)
     {
+        bool closedOverlay = CloseFocusedHistoryOnOutsideClick(mouse, frame, route);
         if (route.RouteKind == UiInputRouteKind.Layer)
         {
             if (TryHandleWheel(mouse, frame.ViewportRows))
                 return FormResult(FormInputResult.Handled, UiInputResult.HandledAndInvalidate);
-            return FormResult(FormInputResult.NotHandled, UiInputResult.NotHandled);
+            return closedOverlay
+                ? FormResult(FormInputResult.Handled, UiInputResult.HandledAndInvalidate)
+                : FormResult(FormInputResult.NotHandled, UiInputResult.NotHandled);
         }
 
         if (route.Target is not UiTargetId target)
@@ -1356,6 +1408,8 @@ public sealed class ScrollableFormDialog
         if (targetFrame.Kind == FormTargetKind.BodyScrollbar)
         {
             bool handled = TryHandleScrollbarMouse(mouse, targetFrame.Bounds, frame.ViewportRows);
+            if (!handled && TryHandleWheel(mouse, frame.ViewportRows))
+                return FormResult(FormInputResult.Handled, UiInputResult.HandledAndInvalidate);
             if (!handled)
                 return FormResult(FormInputResult.NotHandled, UiInputResult.NotHandled);
 
@@ -1381,7 +1435,7 @@ public sealed class ScrollableFormDialog
             new FormRowMouseContext(
                 rowFrame.Bounds,
                 rowFrame.FocusIndex ?? rowFrame.RowIndex,
-                focused: rowFrame.IsFocusable,
+                focused: rowFrame.Target == route.FocusScope.FocusedTarget || requestFocus,
                 frame.ScreenHeight,
                 targetFrame.Row.Id,
                 targetFrame.Row.Role));
@@ -1412,6 +1466,30 @@ public sealed class ScrollableFormDialog
         return FormResult(rowResult, uiResult);
     }
 
+    private static bool CloseFocusedHistoryOnOutsideClick(
+        MouseConsoleInputEvent mouse,
+        ScrollableFormFrame frame,
+        UiInputRouteContext route)
+    {
+        if (mouse is not { Kind: MouseEventKind.Down, Button: MouseButton.Left } ||
+            route.FocusScope.FocusedTarget is not UiTargetId focusedTarget ||
+            FindRowTarget(frame, focusedTarget)?.Row is not TextInputRow { History: { IsDropdownOpen: true } history } row)
+        {
+            return false;
+        }
+
+        bool insidePopup = frame.Targets.Any(target =>
+            ReferenceEquals(target.Row, row) &&
+            target.Kind is FormTargetKind.HistoryDropdown or FormTargetKind.HistoryScrollbar &&
+            target.HitBounds is Rect bounds && bounds.Contains(mouse.X, mouse.Y));
+        if (insidePopup)
+            return false;
+
+        history.Close();
+        row.State.HistoryScrollbarDrag = null;
+        return true;
+    }
+
     private static FormRouteResult FormResult(FormInputResult formResult, UiInputResult uiResult) =>
         new(formResult, uiResult);
 
@@ -1422,7 +1500,7 @@ public sealed class ScrollableFormDialog
             FormInputResultKind.NotHandled => UiInputResult.NotHandled,
             FormInputResultKind.MoveFocusNext => UiInputResultWithFocus(UiFocusRequest.MoveNext),
             FormInputResultKind.MoveFocusPrevious => UiInputResultWithFocus(UiFocusRequest.MovePrevious),
-            FormInputResultKind.Handled => UiInputResult.HandledResult,
+            FormInputResultKind.Handled => UiInputResult.HandledAndInvalidate,
             _ => UiInputResult.HandledAndInvalidate,
         };
     }
@@ -1486,7 +1564,7 @@ public sealed class ScrollableFormDialog
         UiInputRouteContext route;
         if (ScrollbarDrag is not null)
         {
-            route = UiInputRouteContext.CapturedTarget(ActiveFocusScope, new UiTargetId(BodyScrollbarTargetName));
+            route = UiInputRouteContext.CapturedTarget(ActiveFocusScope, FormTargetIds.BodyScrollbar);
         }
         else if (BuildInteractionFrame(frame).TryHitTest(mouse.X, mouse.Y, out UiHitRegion region))
         {
