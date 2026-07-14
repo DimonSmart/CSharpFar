@@ -354,6 +354,51 @@ public sealed class ModalDialogRunnerTests
     }
 
     [Fact]
+    public void RoutedSession_ReturnsPendingPacketWithLayerMetadata()
+    {
+        var driver = new FakeConsoleDriver
+        {
+            BeforeReadInput = _ => throw new InvalidOperationException("driver should not be read"),
+        };
+        var modals = CreateHost(driver, out var composition);
+        using var session = modals.Open(context => context.Viewport);
+        var frame = session.Render();
+        var input = new KeyConsoleInputEvent(Key(ConsoleKey.Enter));
+        composition.DispatchInput(input);
+
+        Assert.True(session.TryReadRoutedInput(out var routed));
+        Assert.Same(input, routed.Input);
+        Assert.Equal(frame, routed.Frame);
+        Assert.Null(routed.Target);
+        Assert.Equal(UiInputRouteKind.Layer, routed.RouteKind);
+        Assert.False(session.TryReadRoutedInput(out _));
+    }
+
+    [Fact]
+    public void RunRouted_ContinuesWithOneRenderAndPassesRouteMetadata()
+    {
+        var driver = new FakeConsoleDriver();
+        driver.EnqueueKey(Key(ConsoleKey.Spacebar));
+        driver.EnqueueKey(Key(ConsoleKey.Enter));
+        var modals = CreateHost(driver, out _);
+        int renders = 0;
+        var kinds = new List<UiInputRouteKind>();
+
+        modals.RunRouted(
+            context => { renders++; return context.Viewport; },
+            routed =>
+            {
+                kinds.Add(routed.RouteKind);
+                return routed.Input is KeyConsoleInputEvent { Key.Key: ConsoleKey.Enter }
+                    ? ModalDialogLoopResult<int>.Complete(0)
+                    : ModalDialogLoopResult<int>.Continue;
+            });
+
+        Assert.Equal(2, renders);
+        Assert.Equal([UiInputRouteKind.Layer, UiInputRouteKind.Layer], kinds);
+    }
+
+    [Fact]
     public void Session_ReturnsAlreadyDispatchedInputWithoutReadingConsole()
     {
         var driver = new FakeConsoleDriver

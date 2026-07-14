@@ -77,6 +77,8 @@ public sealed class ApplicationUiSurfaceTests
 
         Assert.True(services.ApplicationSurface.TryTakeInput(out var routed));
         Assert.Equal(new ConsoleViewport(0, 0, 80, 25), routed.Frame.Viewport);
+        Assert.Null(routed.Target);
+        Assert.Equal(UiInputRouteKind.Layer, routed.RouteKind);
     }
 
     [Theory]
@@ -91,6 +93,8 @@ public sealed class ApplicationUiSurfaceTests
         Assert.True(result.Handled);
         Assert.True(services.ApplicationSurface.TryTakeInput(out var routed));
         Assert.IsType(expectedType, routed.Input);
+        Assert.Null(routed.Target);
+        Assert.Equal(UiInputRouteKind.Layer, routed.RouteKind);
         Assert.False(services.ApplicationSurface.TryTakeInput(out _));
 
         services.Composition.DispatchInput(Key(ConsoleKey.B));
@@ -158,6 +162,8 @@ public sealed class ApplicationUiSurfaceTests
         services.Composition.DispatchInput(Key(ConsoleKey.C));
         Assert.True(services.ApplicationSurface.TryTakeInput(out var routed));
         Assert.Equal(ConsoleKey.C, Assert.IsType<KeyConsoleInputEvent>(routed.Input).Key.Key);
+        Assert.Null(routed.Target);
+        Assert.Equal(UiInputRouteKind.Layer, routed.RouteKind);
     }
 
     [Fact]
