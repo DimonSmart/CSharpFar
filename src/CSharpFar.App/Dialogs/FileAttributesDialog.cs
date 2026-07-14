@@ -128,21 +128,21 @@ internal sealed class FileAttributesDialog : IFileAttributesDialog
         void PrepareRows() =>
             form.SetRows(BuildRows(snapshot, attributeRows, unixMatrixRows, unixSpecialRows, creation, write, access));
 
-        return _modalDialogs.Run(
-            context => Draw(context, form, error),
-            input =>
+        return _modalDialogs.RunInteractive<ScrollableFormFrame, FormInputResult, FileAttributesDialogResult?>(
+            (context, focusScope) => Draw(context, focusScope, form, error),
+            form.BuildInteractionFrame,
+            (input, frame, route) =>
             {
-            FormInputResult result = input switch
+                FormRouteResult result = form.RouteInput(input, frame, route);
+                return (result.FormResult, result.UiResult);
+            },
+            (routed, result) =>
             {
-                KeyConsoleInputEvent { Key: var key } => HandleKey(form, key),
-                MouseConsoleInputEvent mouse => form.HandleMouse(mouse),
-                _ => FormInputResult.NotHandled,
-            };
-
             if (result.Kind == FormInputResultKind.Cancel)
                 return ModalDialogLoopResult<FileAttributesDialogResult?>.Complete(null);
 
-            if (result.Kind == FormInputResultKind.Submit)
+            if (result.Kind == FormInputResultKind.Submit ||
+                routed.Input is KeyConsoleInputEvent { Key.Key: ConsoleKey.F10 })
             {
                 if (IsTimeCommand(result.Command))
                 {
@@ -265,16 +265,10 @@ internal sealed class FileAttributesDialog : IFileAttributesDialog
             buttonAreaWidth: 36));
     }
 
-    private static FormInputResult HandleKey(ScrollableFormDialog form, ConsoleKeyInfo key)
-    {
-        if (key.Key == ConsoleKey.F10)
-            return FormInputResult.Submit("set");
-        return form.HandleKey(key);
-    }
-
-    private void Draw(UiRenderContext context, ScrollableFormDialog form, string? error)
+    private ScrollableFormFrame Draw(UiRenderContext context, UiFocusScope focusScope, ScrollableFormDialog form, string? error)
     {
         Rect outerBounds = OuterBounds(context.Size);
+        ScrollableFormFrame? frame = null;
 
         _modalRenderer.Render(context.Screen, outerBounds, "Attributes", true, FarDialogStyles.OuterOptions, FarDialogStyles.FrameOptions, (_, layout) =>
         {
@@ -285,14 +279,16 @@ internal sealed class FileAttributesDialog : IFileAttributesDialog
             int bodyTop = bounds.Y + 1;
             int bodyHeight = Math.Max(1, errorY - bodyTop);
 
-            form.Render(new FormRenderContext(
+            frame = form.Render(new FormRenderContext(
                 context,
                 new Rect(contentX, bodyTop, contentWidth, bodyHeight),
-                FarDialogStyles.Border));
+                FarDialogStyles.Border),
+                focusScope);
 
             string errorText = error is null ? string.Empty : Truncate(error, contentWidth);
             context.Screen.Write(contentX, errorY, errorText.PadRight(contentWidth), FarDialogStyles.Error);
         });
+        return frame ?? throw new InvalidOperationException("File attributes dialog did not render a form frame.");
     }
 
     private static DateTime? ParseChangedTime(

@@ -101,30 +101,40 @@ public sealed class SearchOptionsDialog
             FarDialogStyles.FocusedInput);
         var form = new ScrollableFormDialog(BuildRows(options, pattern, patternHistory, patternRowState, checkboxes, buttons));
         string? error = null;
-        return _modalDialogs.Run(
-            context =>
+        return _modalDialogs.RunInteractive<ScrollableFormFrame, FormInputResult, SearchOptionsDialogResult?>(
+            (context, focusScope) =>
             {
                 var layout = SearchOptionsDialogLayout.Create(context.Size, options.Width, options.Options.Count);
-                Draw(context, options, layout, form, error);
+                return Draw(context, focusScope, options, layout, form, error);
             },
-            input =>
+            form.BuildInteractionFrame,
+            (input, frame, route) =>
             {
-            FormInputResult result = input switch
+                FormRouteResult result = form.RouteInput(input, frame, route);
+                return (result.FormResult, result.UiResult);
+            },
+            (routed, result) =>
             {
-                KeyConsoleInputEvent { Key: var key } => HandleKey(form, patternHistory, key),
-                MouseConsoleInputEvent mouse => form.HandleMouse(mouse),
-                _ => FormInputResult.NotHandled,
-            };
-
             if (result.Kind == FormInputResultKind.ValueChanged)
                 SynchronizeOptions(options, state, checkboxes);
 
             if (result.Kind == FormInputResultKind.Cancel)
                 return ModalDialogLoopResult<SearchOptionsDialogResult?>.Complete(null);
 
-            if (result.Kind == FormInputResultKind.Submit)
+            if (result.Kind == FormInputResultKind.Submit ||
+                routed.Input is KeyConsoleInputEvent { Key.Key: ConsoleKey.F10 } ||
+                routed.Input is KeyConsoleInputEvent { Key.Key: ConsoleKey.Enter } &&
+                form.IsFocusedOnSubmitRow &&
+                !patternHistory.IsDropdownOpen)
             {
-                var accepted = HandleButton(result.Command, options, state, pattern, patternHistory, ref error);
+                string? command = result.Command;
+                if (command is null &&
+                    routed.Input is KeyConsoleInputEvent { Key.Key: ConsoleKey.F10 or ConsoleKey.Enter })
+                {
+                    command = "find";
+                }
+
+                var accepted = HandleButton(command, options, state, pattern, patternHistory, ref error);
                 if (accepted.HasValue)
                 {
                     return ModalDialogLoopResult<SearchOptionsDialogResult?>.Complete(
@@ -240,14 +250,16 @@ public sealed class SearchOptionsDialog
     private static SearchOptionsDialogResult CreateResult(SearchOptionsDialogState state) =>
         new(state.Pattern, new Dictionary<string, bool>(state.Options));
 
-    private void Draw(
+    private ScrollableFormFrame Draw(
         UiRenderContext context,
+        UiFocusScope focusScope,
         SearchOptionsDialogOptions options,
         SearchOptionsDialogLayout layout,
         ScrollableFormDialog form,
         string? error)
     {
         var palette = UiTheme.Current;
+        ScrollableFormFrame? frame = null;
         _modalRenderer.Render(
             context.Screen,
             layout.Bounds,
@@ -258,14 +270,16 @@ public sealed class SearchOptionsDialog
             (_, modalLayout) =>
             {
                 Rect content = modalLayout.ContentBounds;
-                form.Render(new FormRenderContext(
+                frame = form.Render(new FormRenderContext(
                     context,
                     new Rect(content.X, content.Y, content.Width, layout.BodyHeight),
-                    FarDialogStyles.Border));
+                    FarDialogStyles.Border),
+                    focusScope);
 
                 string errorText = error is null ? string.Empty : error;
                 context.Screen.Write(content.X, layout.ErrorY, ScrollableFormDialog.Fit(errorText, content.Width), PaletteStyles.DialogError(palette));
             });
+        return frame ?? throw new InvalidOperationException("Search options dialog did not render a form frame.");
     }
 
     private readonly record struct SearchOptionsDialogLayout(

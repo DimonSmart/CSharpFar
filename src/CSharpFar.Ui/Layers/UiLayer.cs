@@ -22,6 +22,7 @@ public abstract class UiLayer<TFrame> : IUiLayer
         TFrame frame = RenderFrame(context);
         UiInteractionFrame interactionFrame = BuildInteractionFrame(frame) ??
             throw new InvalidOperationException("A UI layer cannot publish a null interaction frame.");
+        ApplyCursor(context, interactionFrame);
         _committedFrame.Stage(context, frame);
         _committedInteractionFrame.Stage(context, interactionFrame);
         context.PublishOnStable(interactionFrame.Focus, FocusScope.Commit);
@@ -80,5 +81,26 @@ public abstract class UiLayer<TFrame> : IUiLayer
 
     protected virtual void OnFrameCommitted(TFrame frame)
     {
+    }
+
+    private void ApplyCursor(UiRenderContext context, UiInteractionFrame interactionFrame)
+    {
+        if (interactionFrame.Focus.Entries.Count == 0)
+            return;
+
+        UiTargetId? focusedTarget = FocusScope.ResolveFocusedTarget(interactionFrame.Focus);
+        UiFocusEntry? focusedEntry = focusedTarget is null
+            ? null
+            : interactionFrame.Focus.Entries.FirstOrDefault(entry => entry.Target == focusedTarget);
+        UiCursorPlacement? cursor = focusedEntry?.Cursor;
+        if (cursor is not { Visible: true } placement ||
+            !context.Viewport.ContainsAbsolute(placement.X, placement.Y))
+        {
+            context.Screen.SetCursorVisible(false);
+            return;
+        }
+
+        context.Screen.SetCursorPosition(placement.X, placement.Y);
+        context.Screen.SetCursorVisible(true);
     }
 }

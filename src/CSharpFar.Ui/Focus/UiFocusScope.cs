@@ -47,17 +47,24 @@ public sealed class UiFocusScope
         ArgumentNullException.ThrowIfNull(frame);
 
         CurrentFrame = frame;
-        if (FocusedTarget is UiTargetId current && FindEntry(current) is { IsEnabled: true })
-            return;
+        FocusedTarget = ResolveFocusedTarget(frame);
+    }
 
-        if (frame.DefaultTarget is UiTargetId defaultTarget && FindEntry(defaultTarget) is { IsEnabled: true })
+    internal UiTargetId? ResolveFocusedTarget(UiFocusFrame frame)
+    {
+        ArgumentNullException.ThrowIfNull(frame);
+
+        if (FocusedTarget is UiTargetId current &&
+            frame.Entries.FirstOrDefault(entry => entry.Target == current) is { IsEnabled: true })
         {
-            FocusedTarget = defaultTarget;
-            return;
+            return current;
         }
 
-        var firstEnabled = OrderedEnabledEntries().FirstOrDefault();
-        FocusedTarget = firstEnabled.Entry?.Target;
+        if (frame.DefaultTarget is UiTargetId defaultTarget &&
+            frame.Entries.FirstOrDefault(entry => entry.Target == defaultTarget) is { IsEnabled: true })
+            return defaultTarget;
+
+        return OrderedEnabledEntries(frame).FirstOrDefault().Entry?.Target;
     }
 
     private bool Move(bool forward)
@@ -93,7 +100,10 @@ public sealed class UiFocusScope
         CurrentFrame.Entries.FirstOrDefault(entry => entry.Target == target);
 
     private IEnumerable<(UiFocusEntry Entry, int Index)> OrderedEnabledEntries() =>
-        CurrentFrame.Entries
+        OrderedEnabledEntries(CurrentFrame);
+
+    private static IEnumerable<(UiFocusEntry Entry, int Index)> OrderedEnabledEntries(UiFocusFrame frame) =>
+        frame.Entries
             .Select((entry, index) => (entry, index))
             .Where(value => value.entry.IsEnabled)
             .OrderBy(value => value.entry.TabOrder)

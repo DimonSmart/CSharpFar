@@ -98,6 +98,42 @@ public sealed class ScrollableFormDialogTests
     }
 
     [Fact]
+    public void RenderFrame_PublishesFocusEntriesHitRegionsAndScrollbarTarget()
+    {
+        var form = new ScrollableFormDialog([
+            new LabelRow("label", FarDialogStyles.Fill) { Id = "label" },
+            new TextInputRow(new CommandLineState()) { Id = "first" },
+            new CheckBoxRow(new CheckBoxLine("second")) { Id = "second" },
+            new CheckBoxRow(new CheckBoxLine("third")) { Id = "third" },
+        ]);
+
+        ScrollableFormFrame frame = RenderFrame(form, visibleRows: 2);
+        UiInteractionFrame interaction = form.BuildInteractionFrame(frame);
+
+        Assert.Contains(frame.Targets, target => target.Target.Value == "form.row:first" && target.IsFocusable);
+        Assert.Contains(frame.Targets, target => target.Target.Value == "form.row:label" && !target.IsFocusable);
+        Assert.Contains(frame.Targets, target => target is { Kind: FormTargetKind.BodyScrollbar, Target.Value: "form.body-scrollbar" });
+        Assert.Equal(3, interaction.Focus.Entries.Count);
+        Assert.Contains(interaction.HitRegions, region => region.Target.Value == "form.body-scrollbar");
+    }
+
+    [Fact]
+    public void RenderFrame_PublishesHistoryDropdownTargetsForFocusedRow()
+    {
+        var history = new SingleLineTextHistoryState();
+        history.Add("alpha");
+        history.Add("beta");
+        var form = new ScrollableFormDialog([
+            new TextInputRow(new CommandLineState(), history) { Id = "pattern" },
+        ]);
+        Assert.True(SingleLineTextInput.TryOpenHistoryDropdown(history, fieldY: 0, screenHeight: 8));
+
+        ScrollableFormFrame frame = RenderFrame(form, visibleRows: 1, screenHeight: 8);
+
+        Assert.Contains(frame.Targets, target => target is { Kind: FormTargetKind.HistoryDropdown, Target.Value: "form.row:pattern" });
+    }
+
+    [Fact]
     public void Navigation_SkipsNonFocusableRows()
     {
         var form = new ScrollableFormDialog([
@@ -700,11 +736,29 @@ public sealed class ScrollableFormDialogTests
         return driver;
     }
 
+    private static ScrollableFormFrame RenderFrame(ScrollableFormDialog form, int visibleRows, int? screenHeight = null)
+    {
+        var driver = new FakeConsoleDriver(20, screenHeight ?? Math.Max(5, visibleRows + 2));
+        var screen = new ScreenRenderer(driver);
+        var layer = new TestFormLayer(
+            screen,
+            form,
+            context => new FormRenderContext(
+                context,
+                new Rect(0, 0, 20, visibleRows),
+                FarDialogStyles.Border));
+        var host = UiTestHost.Create(screen, layer);
+        host.Composition.Render();
+        return layer.CommittedFrame;
+    }
+
     private static void Render(ScrollableFormDialog form, FakeConsoleDriver driver, int visibleRows)
     {
         var screen = new ScreenRenderer(driver);
-        var host = UiTestHost.Create(screen, context =>
-            form.Render(new FormRenderContext(
+        var host = UiTestHost.Create(screen, new TestFormLayer(
+            screen,
+            form,
+            context => new FormRenderContext(
                 context,
                 new Rect(0, 0, 20, visibleRows),
                 FarDialogStyles.Border)));
@@ -721,13 +775,44 @@ public sealed class ScrollableFormDialogTests
     private static void RenderWithFooter(ScrollableFormDialog form, FakeConsoleDriver driver, int bodyRows, int footerY)
     {
         var screen = new ScreenRenderer(driver);
-        var host = UiTestHost.Create(screen, context =>
-            form.Render(new FormRenderContext(
+        var host = UiTestHost.Create(screen, new TestFormLayer(
+            screen,
+            form,
+            context => new FormRenderContext(
                 context,
                 new Rect(0, 0, 20, bodyRows),
                 FarDialogStyles.Border,
                 new Rect(0, footerY, 20, 1))));
         host.Composition.Render();
+    }
+
+    private sealed class TestFormLayer(
+        ScreenRenderer screen,
+        ScrollableFormDialog form,
+        Func<UiRenderContext, FormRenderContext> createContext) :
+        UiLayer<ScrollableFormFrame>,
+        IUiSurface
+    {
+        public override UiLayerInputPolicy InputPolicy => UiLayerInputPolicy.Bubble;
+
+        public IDisposable BeginFrame(UiRenderRequest request) =>
+            screen.BeginFrame();
+
+        public void CompleteFrame(UiFrameCompletion completion)
+        {
+        }
+
+        protected override ScrollableFormFrame RenderFrame(UiRenderContext context) =>
+            form.Render(createContext(context), FocusScope);
+
+        protected override UiInteractionFrame BuildInteractionFrame(ScrollableFormFrame frame) =>
+            form.BuildInteractionFrame(frame);
+
+        protected override UiInputResult RouteInput(
+            ConsoleInputEvent input,
+            ScrollableFormFrame frame,
+            UiInputRouteContext context) =>
+            form.RouteInput(input, frame, context).UiResult;
     }
 
     private static ConsoleKeyInfo Key(ConsoleKey key) =>

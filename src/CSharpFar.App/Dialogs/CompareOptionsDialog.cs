@@ -100,22 +100,22 @@ internal sealed class CompareOptionsDialog
                 fileSetMatch,
                 buttons));
 
-        return _modalDialogs.Run(
-            context => RenderLayer(context, mode == CompareMode.FileSet ? "Compare file sets" : "Compare folders", form, error),
-            input =>
+        return _modalDialogs.RunInteractive<ScrollableFormFrame, FormInputResult, ComparisonOptions?>(
+            (context, focusScope) => RenderLayer(context, focusScope, mode == CompareMode.FileSet ? "Compare file sets" : "Compare folders", form, error),
+            form.BuildInteractionFrame,
+            (input, frame, route) =>
             {
-            FormInputResult result = input switch
+                FormRouteResult result = form.RouteInput(input, frame, route);
+                return (result.FormResult, result.UiResult);
+            },
+            (routed, result) =>
             {
-                KeyConsoleInputEvent { Key: var key } => HandleKey(form, key),
-                MouseConsoleInputEvent mouse => form.HandleMouse(mouse),
-                _ => FormInputResult.NotHandled,
-            };
-
             if (result.Kind == FormInputResultKind.Cancel)
                 return ModalDialogLoopResult<ComparisonOptions?>.Complete(null);
 
             if (result.Kind == FormInputResultKind.Submit ||
-                input is KeyConsoleInputEvent { Key.Key: ConsoleKey.F10 })
+                routed.Input is KeyConsoleInputEvent { Key.Key: ConsoleKey.F10 } ||
+                routed.Input is KeyConsoleInputEvent { Key.Key: ConsoleKey.Enter } && form.IsFocusedOnSubmitRow)
             {
                 var options = BuildOptions(
                     mode,
@@ -210,15 +210,6 @@ internal sealed class CompareOptionsDialog
             : new LabelRow($"Selected: left {leftCount}, right {rightCount}", FarDialogStyles.Fill);
     }
 
-    private static FormInputResult HandleKey(ScrollableFormDialog form, ConsoleKeyInfo key)
-    {
-        if (key.Key == ConsoleKey.F10)
-            return FormInputResult.Submit("compare");
-        if (key.Key == ConsoleKey.Enter && form.IsFocusedOnSubmitRow)
-            return FormInputResult.Submit("compare");
-        return form.HandleKey(key);
-    }
-
     private static ComparisonOptions? BuildOptions(
         CompareMode mode,
         bool recursive,
@@ -287,21 +278,24 @@ internal sealed class CompareOptionsDialog
         return value;
     }
 
-    private void RenderLayer(UiRenderContext context, string title, ScrollableFormDialog form, string? error)
+    private ScrollableFormFrame RenderLayer(UiRenderContext context, UiFocusScope focusScope, string title, ScrollableFormDialog form, string? error)
     {
         Rect outerBounds = _modalRenderer.CenteredOuterBounds(context.Size, DialogWidth, DialogHeight, minWidth: 52, minHeight: 12);
+        ScrollableFormFrame? frame = null;
         _modalRenderer.Render(context.Screen, outerBounds, title, true, FarDialogStyles.OuterOptions, FarDialogStyles.FrameOptions, (_, layout) =>
         {
             Rect bounds = layout.FrameBounds;
             int contentX = bounds.X + 2;
             int contentWidth = Math.Max(1, bounds.Width - 4);
             int errorY = bounds.Y + bounds.Height - 2;
-            form.Render(new FormRenderContext(
+            frame = form.Render(new FormRenderContext(
                 context,
                 new Rect(contentX, bounds.Y + 1, contentWidth, Math.Max(1, errorY - bounds.Y - 1)),
-                FarDialogStyles.Border));
+                FarDialogStyles.Border),
+                focusScope);
             context.Screen.Write(contentX, errorY, (error ?? "").PadRight(contentWidth), FarDialogStyles.Error);
         });
+        return frame ?? throw new InvalidOperationException("Compare options dialog did not render a form frame.");
     }
 
     private static int DepthIndex(string value) => value switch

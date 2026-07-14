@@ -97,6 +97,39 @@ public sealed class ModalDialogHost
         }
     }
 
+    public TResult RunInteractive<TFrame, TSemantic, TResult>(
+        Func<UiRenderContext, UiFocusScope, TFrame> render,
+        Func<TFrame, UiInteractionFrame> buildInteractionFrame,
+        Func<ConsoleInputEvent, TFrame, UiInputRouteContext, (TSemantic Semantic, UiInputResult UiResult)> routeInput,
+        Func<UiRoutedInput<TFrame>, TSemantic, ModalDialogLoopResult<TResult>> handleInput,
+        Action? prepareRender = null,
+        Action<TFrame>? applyCommittedFrame = null,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(render);
+        ArgumentNullException.ThrowIfNull(buildInteractionFrame);
+        ArgumentNullException.ThrowIfNull(routeInput);
+        ArgumentNullException.ThrowIfNull(handleInput);
+
+        prepareRender?.Invoke();
+        var layer = new InteractiveModalDialogLayer<TFrame, TSemantic>(render, buildInteractionFrame, routeInput);
+        using var session = OpenInteractive(layer);
+        TFrame frame = session.Render();
+        applyCommittedFrame?.Invoke(frame);
+        while (true)
+        {
+            InteractiveModalInput<TFrame, TSemantic> packet = session.ReadInteractiveInput(cancellationToken);
+            applyCommittedFrame?.Invoke(packet.Routed.Frame);
+            ModalDialogLoopResult<TResult> step = handleInput(packet.Routed, packet.Semantic);
+            if (step.IsCompleted)
+                return step.Result;
+
+            prepareRender?.Invoke();
+            frame = session.Render();
+            applyCommittedFrame?.Invoke(frame);
+        }
+    }
+
     public void Run<TFrame>(
         Func<UiRenderContext, TFrame> render,
         Func<ConsoleInputEvent, TFrame, ModalDialogLoopAction> handleInput,
@@ -152,6 +185,15 @@ public sealed class ModalDialogHost
                 : ModalDialogLoopResult<Unit>.Continue,
             prepareRender,
             cancellationToken);
+    }
+
+    private InteractiveModalDialogSession<TFrame, TSemantic> OpenInteractive<TFrame, TSemantic>(
+        InteractiveModalDialogLayer<TFrame, TSemantic> layer)
+    {
+        var overlay = _composition.PushOverlay(layer);
+        return new InteractiveModalDialogSession<TFrame, TSemantic>(
+            new ModalDialogLayerScope(_composition, overlay),
+            layer);
     }
 }
 
@@ -317,6 +359,52 @@ public sealed class ModalDialogSession<TFrame> : IDisposable
     }
 }
 
+internal sealed class InteractiveModalDialogSession<TFrame, TSemantic> : IDisposable
+{
+    private readonly ModalDialogLayerScope _scope;
+    private readonly InteractiveModalDialogLayer<TFrame, TSemantic> _layer;
+
+    internal InteractiveModalDialogSession(
+        ModalDialogLayerScope scope,
+        InteractiveModalDialogLayer<TFrame, TSemantic> layer) =>
+        (_scope, _layer) = (scope, layer);
+
+    public TFrame Render()
+    {
+        _scope.EnsureActive();
+        _scope.Composition.Render();
+        return _layer.CommittedFrame;
+    }
+
+    public InteractiveModalInput<TFrame, TSemantic> ReadInteractiveInput(CancellationToken cancellationToken = default)
+    {
+        _scope.EnsureActive();
+        if (_layer.TryTakeInput(out var pending))
+            return pending;
+
+        while (true)
+        {
+            ConsoleInputEvent semanticInput = _scope.Composition.ReadCompositionInput(cancellationToken);
+            UiInputResult dispatch = _scope.Composition.DispatchInput(semanticInput);
+            if (dispatch.Invalidate)
+                _scope.Composition.Render();
+
+            if (_layer.TryTakeInput(out var routed))
+                return routed;
+        }
+    }
+
+    public void Dispose()
+    {
+        _scope.Dispose();
+        _layer.ClearPendingInput();
+    }
+}
+
+internal sealed record InteractiveModalInput<TFrame, TSemantic>(
+    UiRoutedInput<TFrame> Routed,
+    TSemantic Semantic);
+
 internal sealed class ModalDialogLayerScope : IDisposable
 {
     private UiCompositionHost? _composition;
@@ -375,6 +463,61 @@ internal sealed class ModalDialogLayer<TFrame> : UiLayer<TFrame>
     }
 
     public bool TryTakeInput(out UiRoutedInput<TFrame> routed)
+    {
+        if (_pendingInput is null)
+        {
+            routed = null!;
+            return false;
+        }
+
+        routed = _pendingInput;
+        _pendingInput = null;
+        return true;
+    }
+
+    internal void ClearPendingInput() => _pendingInput = null;
+}
+
+internal sealed class InteractiveModalDialogLayer<TFrame, TSemantic> : UiLayer<TFrame>
+{
+    private readonly Func<UiRenderContext, UiFocusScope, TFrame> _render;
+    private readonly Func<TFrame, UiInteractionFrame> _buildInteractionFrame;
+    private readonly Func<ConsoleInputEvent, TFrame, UiInputRouteContext, (TSemantic Semantic, UiInputResult UiResult)> _routeInput;
+    private InteractiveModalInput<TFrame, TSemantic>? _pendingInput;
+
+    public InteractiveModalDialogLayer(
+        Func<UiRenderContext, UiFocusScope, TFrame> render,
+        Func<TFrame, UiInteractionFrame> buildInteractionFrame,
+        Func<ConsoleInputEvent, TFrame, UiInputRouteContext, (TSemantic Semantic, UiInputResult UiResult)> routeInput) =>
+        (_render, _buildInteractionFrame, _routeInput) = (render, buildInteractionFrame, routeInput);
+
+    public override UiLayerInputPolicy InputPolicy => UiLayerInputPolicy.Modal;
+
+    protected override TFrame RenderFrame(UiRenderContext context) =>
+        _render(context, FocusScope);
+
+    protected override UiInteractionFrame BuildInteractionFrame(TFrame frame) =>
+        _buildInteractionFrame(frame);
+
+    protected override UiInputResult RouteInput(
+        ConsoleInputEvent input,
+        TFrame frame,
+        UiInputRouteContext context)
+    {
+        if (_pendingInput is not null)
+            throw new InvalidOperationException("Modal input was dispatched before the previous input was consumed.");
+
+        var routed = _routeInput(input, frame, context);
+        _pendingInput = new InteractiveModalInput<TFrame, TSemantic>(
+            new UiRoutedInput<TFrame>(input, frame, context.Target, context.RouteKind),
+            routed.Semantic);
+        UiInputResult result = routed.UiResult;
+        return result.Handled
+            ? result
+            : new UiInputResult(true, result.Invalidate, result.FocusRequest, result.MouseCaptureRequest);
+    }
+
+    public bool TryTakeInput(out InteractiveModalInput<TFrame, TSemantic> routed)
     {
         if (_pendingInput is null)
         {

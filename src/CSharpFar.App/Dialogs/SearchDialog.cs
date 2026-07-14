@@ -128,22 +128,22 @@ internal sealed class SearchDialog
                 hasText));
         }
 
-        return _modalDialogs.Run(
-            context => Draw(context, form, error),
-            input =>
+        return _modalDialogs.RunInteractive<ScrollableFormFrame, FormInputResult, SearchRequest?>(
+            (context, focusScope) => Draw(context, focusScope, form, error),
+            form.BuildInteractionFrame,
+            (input, frame, route) =>
             {
-            FormInputResult result = input switch
+                FormRouteResult result = form.RouteInput(input, frame, route);
+                return (result.FormResult, result.UiResult);
+            },
+            (routed, result) =>
             {
-                KeyConsoleInputEvent { Key: var key } => HandleSearchKey(form, key),
-                MouseConsoleInputEvent mouse => form.HandleMouse(mouse),
-                _ => FormInputResult.NotHandled,
-            };
-
             if (result.Kind == FormInputResultKind.Cancel)
                 return ModalDialogLoopResult<SearchRequest?>.Complete(null);
 
             if (result.Kind == FormInputResultKind.Submit ||
-                input is KeyConsoleInputEvent { Key.Key: ConsoleKey.F10 })
+                routed.Input is KeyConsoleInputEvent { Key.Key: ConsoleKey.F10 } ||
+                routed.Input is KeyConsoleInputEvent { Key.Key: ConsoleKey.Enter } && form.IsFocusedOnSubmitRow)
             {
                 var request = BuildRequest(
                     rootPath,
@@ -266,9 +266,10 @@ internal sealed class SearchDialog
         return request;
     }
 
-    private void Draw(UiRenderContext context, ScrollableFormDialog form, string? error)
+    private ScrollableFormFrame Draw(UiRenderContext context, UiFocusScope focusScope, ScrollableFormDialog form, string? error)
     {
         Rect outerBounds = OuterBounds(context.Size);
+        ScrollableFormFrame? frame = null;
 
         _modalRenderer.Render(context.Screen, outerBounds, "Find file", true, FarDialogStyles.OuterOptions, FarDialogStyles.FrameOptions, (_, layout) =>
         {
@@ -279,14 +280,16 @@ internal sealed class SearchDialog
             int bodyTop = bounds.Y + 1;
             int bodyHeight = Math.Max(1, errorY - bodyTop);
 
-            form.Render(new FormRenderContext(
+            frame = form.Render(new FormRenderContext(
                 context,
                 new Rect(contentX, bodyTop, contentWidth, bodyHeight),
-                FarDialogStyles.Border));
+                FarDialogStyles.Border),
+                focusScope);
 
             string errorText = error is null ? string.Empty : Truncate(error, contentWidth);
             context.Screen.Write(contentX, errorY, errorText.PadRight(contentWidth), FarDialogStyles.Error);
         });
+        return frame ?? throw new InvalidOperationException("Search dialog did not render a form frame.");
     }
 
     private static Rect OuterBounds(ConsoleSize size)

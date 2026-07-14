@@ -204,22 +204,22 @@ internal sealed class FileOperationDialog
                 showOperationOptions),
                 footerRows: [buttons]);
 
-        return _modalDialogs.Run(
-            context => Draw(context, title, form, error),
-            input =>
+        return _modalDialogs.RunInteractive<ScrollableFormFrame, FormInputResult, FileOperationDialogResult?>(
+            (context, focusScope) => Draw(context, focusScope, title, form, error),
+            form.BuildInteractionFrame,
+            (input, frame, route) =>
             {
-            FormInputResult result = input switch
+                FormRouteResult result = form.RouteInput(input, frame, route);
+                return (result.FormResult, result.UiResult);
+            },
+            (routed, result) =>
             {
-                KeyConsoleInputEvent { Key: var key } => HandleOperationKey(form, key),
-                MouseConsoleInputEvent mouse => form.HandleMouse(mouse),
-                _ => FormInputResult.NotHandled,
-            };
-
             if (result.Kind == FormInputResultKind.Cancel)
                 return ModalDialogLoopResult<FileOperationDialogResult?>.Complete(null);
 
             if (result.Kind == FormInputResultKind.Submit ||
-                input is KeyConsoleInputEvent { Key.Key: ConsoleKey.F10 })
+                routed.Input is KeyConsoleInputEvent { Key.Key: ConsoleKey.F10 } ||
+                routed.Input is KeyConsoleInputEvent { Key.Key: ConsoleKey.Enter } && form.IsFocusedOnSubmitRow)
             {
                 var dialogResult = BuildResult(
                     destination,
@@ -310,22 +310,6 @@ internal sealed class FileOperationDialog
         return rows;
     }
 
-    private static FormInputResult HandleOperationKey(
-        ScrollableFormDialog form,
-        ConsoleKeyInfo key)
-    {
-        if (key.Key == ConsoleKey.F10)
-            return FormInputResult.Submit("submit");
-
-        FormInputResult formResult = form.HandleKey(key);
-        if (formResult.IsHandled)
-            return formResult;
-
-        return key.Key == ConsoleKey.Enter && form.IsFocusedOnSubmitRow
-            ? FormInputResult.Submit("submit")
-            : FormInputResult.NotHandled;
-    }
-
     private static FileOperationDialogResult? BuildResult(
         CommandLineState destination,
         CommandLineState filter,
@@ -373,9 +357,10 @@ internal sealed class FileOperationDialog
             });
     }
 
-    private void Draw(UiRenderContext context, string title, ScrollableFormDialog form, string? error)
+    private ScrollableFormFrame Draw(UiRenderContext context, UiFocusScope focusScope, string title, ScrollableFormDialog form, string? error)
     {
         Rect outerBounds = OuterBounds(context.Size);
+        ScrollableFormFrame? frame = null;
 
         _modalRenderer.Render(context.Screen, outerBounds, title, true, FarDialogStyles.OuterOptions, FarDialogStyles.FrameOptions, (_, layout) =>
         {
@@ -387,15 +372,17 @@ internal sealed class FileOperationDialog
             int bodyTop = bounds.Y + 1;
             int bodyHeight = Math.Max(1, errorY - bodyTop);
 
-            form.Render(new FormRenderContext(
+            frame = form.Render(new FormRenderContext(
                 context,
                 new Rect(contentX, bodyTop, contentWidth, bodyHeight),
                 FarDialogStyles.Border,
-                new Rect(contentX, buttonY, contentWidth, 1)));
+                new Rect(contentX, buttonY, contentWidth, 1)),
+                focusScope);
 
             string errorText = error is null ? string.Empty : Truncate(error, contentWidth);
             context.Screen.Write(contentX, errorY, errorText.PadRight(contentWidth), FarDialogStyles.Error);
         });
+        return frame ?? throw new InvalidOperationException("File operation dialog did not render a form frame.");
     }
 
     private static Rect OuterBounds(ConsoleSize size)
