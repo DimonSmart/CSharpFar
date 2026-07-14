@@ -43,10 +43,6 @@ internal static class RenderingServicesFactory
             screen,
             functionKeyBindingProvider.GetBindings(),
             commandId => callbacks.CanExecuteFunctionKeyCommand(commandId));
-        var overlayRenderer = new ApplicationOverlayRenderer(
-            screen,
-            () => session.App.Palette,
-            menuLayoutService);
         var commandLineRenderer = new ApplicationCommandLineRenderer(
             screen,
             () => session.App.Palette);
@@ -88,7 +84,6 @@ internal static class RenderingServicesFactory
             panelWorkspaceRenderer,
             clockRenderer,
             functionKeyBarRenderer,
-            overlayRenderer,
             commandLineRenderer);
         var composition = new UiCompositionHost(screen);
         var applicationSurface = new ApplicationUiSurface(renderContext, renderCoordinator);

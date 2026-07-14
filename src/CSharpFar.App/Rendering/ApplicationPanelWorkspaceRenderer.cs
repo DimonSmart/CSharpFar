@@ -41,11 +41,10 @@ internal sealed class ApplicationPanelWorkspaceRenderer
         DirectorySizeState? quickViewDirState,
         Func<PanelSide, bool> isPanelVisible)
     {
-        int panelHeight = ApplicationLayoutService.PanelHeight(size);
-        int leftWidth = size.Width / 2;
-        int rightWidth = size.Width - leftWidth;
-        var leftBounds = new Rect(0, 0, leftWidth, panelHeight);
-        var rightBounds = new Rect(leftWidth, 0, rightWidth, panelHeight);
+        var bounds = ApplicationLayoutService.CalculatePanelWorkspaceBounds(size);
+        int panelHeight = bounds.PanelHeight;
+        var leftBounds = bounds.Left;
+        var rightBounds = bounds.Right;
 
         var palette = _palette();
         var panelRenderer = new PanelRenderer(_screen, palette, _highlightService(), _panelOptions());
@@ -74,7 +73,7 @@ internal sealed class ApplicationPanelWorkspaceRenderer
                 panelRenderer.Render(rightBounds, right, activeSide == PanelSide.Right, rightViewMode);
         }
 
-        return new PanelWorkspaceRenderBounds(leftBounds, rightBounds, panelHeight);
+        return bounds;
     }
 
     private void RenderQuickView(

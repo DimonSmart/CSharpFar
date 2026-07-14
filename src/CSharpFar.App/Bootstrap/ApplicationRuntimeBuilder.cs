@@ -1,4 +1,5 @@
 using CSharpFar.App.AutoRefresh;
+using CSharpFar.App.Menu;
 using CSharpFar.App.Rendering;
 using CSharpFar.App.Viewer;
 using CSharpFar.Console;
@@ -11,6 +12,8 @@ internal static class ApplicationRuntimeBuilder
     public static ApplicationRuntime Create(
         UiCompositionHost composition,
         ApplicationUiSurface applicationSurface,
+        ApplicationUiLayerScope applicationUiLayers,
+        PendingMenuCommandQueue pendingMenuCommands,
         ApplicationServiceCallbacks callbacks,
         PanelAutoRefreshService autoRefresh,
         QuickViewDirectorySizeController quickViewDirectorySize)
@@ -18,6 +21,7 @@ internal static class ApplicationRuntimeBuilder
         return new ApplicationRuntime(
             composition,
             applicationSurface,
+            applicationUiLayers,
             new ApplicationRuntimeContext
             {
                 IsRunning = () => callbacks.IsRunning(),
@@ -31,6 +35,12 @@ internal static class ApplicationRuntimeBuilder
                 HandleKeyInput = key => callbacks.HandleKeyInput(key),
                 HandleModifierInput = modifiers => callbacks.HandleModifierInput(modifiers),
                 HandleMouseInput = mouse => callbacks.HandleMouseInput(mouse),
+                TryTakeMenuCommand = pendingMenuCommands.TryTake,
+                ExecuteMenuCommand = request =>
+                {
+                    callbacks.ExecuteMenuCommand(request);
+                    return false;
+                },
             });
     }
 }

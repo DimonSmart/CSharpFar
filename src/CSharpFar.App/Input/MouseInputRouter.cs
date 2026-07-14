@@ -15,8 +15,6 @@ namespace CSharpFar.App.Input;
 
 internal sealed class MouseInputRouter
 {
-    private const int MaxCommandCompletionRows = CommandHistoryCompletionRenderer.MaxVisibleRows;
-
     private readonly MouseInputContext _context;
 
     public MouseInputRouter(MouseInputContext context)
@@ -26,9 +24,6 @@ internal sealed class MouseInputRouter
 
     public bool Handle(MouseConsoleInputEvent evt)
     {
-        if (_context.PanelQuickSearch.State is not null)
-            _context.PanelQuickSearch.Close();
-
         if (TryHandleFunctionKeyBarMouse(evt))
             return true;
 
@@ -39,23 +34,6 @@ internal sealed class MouseInputRouter
             return false;
 
         if (TryHandleDirectoryShortcutBarMouse(evt))
-            return true;
-
-        if (_context.MenuState.OpenState != MenuOpenState.Closed || IsTopMenuActivationMouse(evt))
-        {
-            var definition = _context.BuildMenuDefinition();
-            var size = _context.CurrentScreenSize();
-            var layout = _context.MenuLayoutService.CalculateLayout(
-                new Rect(0, 0, size.Width, size.Height),
-                definition,
-                _context.MenuState);
-            return _context.MenuController.HandleMouse(evt, definition, layout, _context.ActiveSide());
-        }
-
-        if (TryHandleCommandCompletionScrollbarMouse(evt))
-            return true;
-
-        if (TryHandleCommandCompletionItemMouse(evt))
             return true;
 
         if (TryHandlePanelScrollbarDrag(evt))
@@ -412,100 +390,4 @@ internal sealed class MouseInputRouter
         return visibleRows > 0;
     }
 
-    private bool TryHandleCommandCompletionScrollbarMouse(MouseConsoleInputEvent evt)
-    {
-        var commandCompletion = _context.CommandCompletion;
-        if (!commandCompletion.Visible && !commandCompletion.ScrollbarDrag.HasValue)
-            return false;
-
-        var size = _context.LastRenderSizeOrCurrent();
-        int visibleRows = CommandCompletionVisibleRows(size);
-        if (visibleRows <= 0 || commandCompletion.Matches.Count <= visibleRows)
-            return false;
-
-        int height = visibleRows + 2;
-        int commandLineRow = ApplicationLayoutService.CommandLineRow(size);
-        var scrollbarBounds = new Rect(size.Width - 1, commandLineRow - height + 1, 1, visibleRows);
-        int firstVisibleIndex = commandCompletion.FirstVisibleIndex;
-        var dragState = commandCompletion.ScrollbarDrag;
-        if (!ScrollBarMouseHandler.TryHandleMouse(
-                evt,
-                scrollbarBounds,
-                commandCompletion.Matches.Count,
-                visibleRows,
-                ref firstVisibleIndex,
-                ref dragState))
-        {
-            return false;
-        }
-
-        commandCompletion.ScrollbarDrag = dragState;
-        commandCompletion.FirstVisibleIndex = ScrollStateCalculator.ClampFirstVisibleIndex(
-            firstVisibleIndex,
-            commandCompletion.Matches.Count,
-            visibleRows);
-        _context.CommandCompletionController.ClampSelectionToViewport(visibleRows);
-        return true;
-    }
-
-    private bool TryHandleCommandCompletionItemMouse(MouseConsoleInputEvent evt)
-    {
-        var commandCompletion = _context.CommandCompletion;
-        if (!commandCompletion.Visible ||
-            commandCompletion.Matches.Count == 0 ||
-            evt.Button != MouseButton.Left ||
-            evt.Kind is not (MouseEventKind.Down or MouseEventKind.DoubleClick))
-        {
-            return false;
-        }
-
-        var size = _context.LastRenderSizeOrCurrent();
-        int visibleRows = CommandCompletionVisibleRows(size);
-        if (visibleRows <= 0)
-            return false;
-
-        int rowCount = Math.Min(visibleRows, commandCompletion.Matches.Count);
-        int height = rowCount + 2;
-        int commandLineRow = ApplicationLayoutService.CommandLineRow(size);
-        var contentBounds = new Rect(
-            1,
-            commandLineRow - height + 1,
-            Math.Max(0, size.Width - 2),
-            rowCount);
-
-        if (evt.X < contentBounds.X ||
-            evt.X >= contentBounds.Right ||
-            evt.Y < contentBounds.Y ||
-            evt.Y >= contentBounds.Bottom)
-        {
-            return false;
-        }
-
-        int itemIndex = commandCompletion.FirstVisibleIndex + evt.Y - contentBounds.Y;
-        if (itemIndex < 0 || itemIndex >= commandCompletion.Matches.Count)
-            return false;
-
-        commandCompletion.SelectedIndex = itemIndex;
-        if (_context.CommandCompletionController.IsNeutralSelected)
-        {
-            _context.HideCommandCompletion(false);
-            return true;
-        }
-
-        _context.CommandLine.SetText(commandCompletion.Matches[commandCompletion.SelectedIndex]);
-        _context.HideCommandCompletion(false);
-        _context.ResetCommandHistoryNavigation();
-        return true;
-    }
-
-    private static int CommandCompletionVisibleRows(ConsoleSize size)
-    {
-        int rowsAboveCommandLine = ApplicationLayoutService.CommandLineRow(size) - 2;
-        return Math.Max(0, Math.Min(MaxCommandCompletionRows, rowsAboveCommandLine));
-    }
-
-    private static bool IsTopMenuActivationMouse(MouseConsoleInputEvent evt) =>
-        evt.Y == 0 &&
-        evt.Button == MouseButton.Left &&
-        evt.Kind == MouseEventKind.Down;
 }

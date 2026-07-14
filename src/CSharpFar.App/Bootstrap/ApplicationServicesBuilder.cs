@@ -138,9 +138,10 @@ internal static class ApplicationServicesBuilder
         var commandNavigation = CommandServicesFactory.CreateNavigation(effectiveHistory, session);
         var commandCompletionController = commandNavigation.CommandCompletionController;
         var commandHistoryNavigator = commandNavigation.CommandHistoryNavigator;
+        var pendingMenuCommands = new PendingMenuCommandQueue();
         var menuController = new TopMenuController(
             session.Menu.State,
-            request => callbacks.ExecuteMenuCommand(request));
+            pendingMenuCommands.Enqueue);
         var autoRefresh = new PanelAutoRefreshService(
             changeWatcher,
             locationService,
@@ -224,6 +225,24 @@ internal static class ApplicationServicesBuilder
         var composition = rendering.Composition;
         var applicationSurface = rendering.ApplicationSurface;
         var modalDialogs = rendering.ModalDialogs;
+        var commandCompletionLayer = new CommandCompletionLayer(
+            rendering.RenderContext,
+            commandCompletionController,
+            temporarily => commandCompletionController.Hide(temporarily),
+            commandHistoryNavigator.Reset);
+        var panelQuickSearchLayer = new PanelQuickSearchLayer(
+            rendering.RenderContext,
+            temporarily => commandCompletionController.Hide(temporarily),
+            commandHistoryNavigator.Reset);
+        var topMenuLayer = new TopMenuLayer(
+            rendering.RenderContext,
+            menuController,
+            menuLayoutService);
+        var applicationUiLayers = new ApplicationUiLayerScope(
+            composition,
+            commandCompletionLayer,
+            panelQuickSearchLayer,
+            topMenuLayer);
         var quickViewDirectorySize = rendering.QuickViewDirectorySize;
         var searchResults = new PanelSearchResultsService(
             screen,
@@ -344,6 +363,8 @@ internal static class ApplicationServicesBuilder
         var runtime = ApplicationRuntimeBuilder.Create(
             composition,
             applicationSurface,
+            applicationUiLayers,
+            pendingMenuCommands,
             callbacks,
             autoRefresh,
             quickViewDirectorySize);

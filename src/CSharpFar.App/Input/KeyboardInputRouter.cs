@@ -19,20 +19,6 @@ internal sealed class KeyboardInputRouter
 
     public bool Handle(ConsoleKeyInfo key)
     {
-        if (_context.MenuState.OpenState != MenuOpenState.Closed)
-        {
-            if (!_context.HasVisiblePanels())
-            {
-                _context.MenuController.Close();
-                return true;
-            }
-
-            return _context.MenuController.HandleKey(
-                key,
-                _context.BuildMenuDefinition(),
-                _context.ActiveSide());
-        }
-
         var quickSearchResult = _context.PanelQuickSearch.HandleKey(key);
         if (quickSearchResult == PanelQuickSearchKeyResult.Handled)
             return true;
@@ -167,9 +153,6 @@ internal sealed class KeyboardInputRouter
                 return true;
 
             case ConsoleKey.Delete:
-                if (_context.TryRemoveSelectedCommandCompletion())
-                    return true;
-
                 _context.CommandLine.DeleteForward();
                 _context.OnVisibleCommandLineTextEdited();
                 return true;
@@ -189,9 +172,6 @@ internal sealed class KeyboardInputRouter
                 return true;
 
             case ConsoleKey.Escape:
-                if (_context.TryHideCommandCompletionTemporarily())
-                    return true;
-
                 if (_context.ActiveState().SearchRequest is not null)
                 {
                     _context.CloseSearchResultsPanel(_context.ActiveState(), _context.ActiveSide());
@@ -203,9 +183,6 @@ internal sealed class KeyboardInputRouter
                 return true;
 
             case ConsoleKey.Enter:
-                if (_context.TryAcceptCommandCompletion())
-                    return true;
-
                 if (_context.CommandLine.HasText)
                     _context.ExecuteCommand(_context.CommandLine.Text);
                 else
@@ -225,16 +202,10 @@ internal sealed class KeyboardInputRouter
                 return true;
 
             case ConsoleKey.UpArrow:
-                if (_context.TryMoveCommandCompletionSelection(-1))
-                    return true;
-
                 _context.PanelController.MoveCursor(_context.ActiveState(), -1, vr);
                 return true;
 
             case ConsoleKey.DownArrow:
-                if (_context.TryMoveCommandCompletionSelection(+1))
-                    return true;
-
                 _context.PanelController.MoveCursor(_context.ActiveState(), +1, vr);
                 return true;
 

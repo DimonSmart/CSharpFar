@@ -13,12 +13,12 @@ public sealed class PanelQuickSearchRendererTests
         var driver = new FakeConsoleDriver(width: 20, height: 8);
         var renderer = new PanelQuickSearchRenderer(new ScreenRenderer(driver));
 
-        bool rendered = renderer.Render(new Rect(0, 0, 16, 8), "abcdefghij");
+        var layout = renderer.Render(new Rect(0, 0, 16, 8), "abcdefghij");
 
-        Assert.True(rendered);
+        Assert.NotNull(layout);
         Assert.Equal("bcdefghij ", driver.GetRegionText(new Rect(3, 5, 10, 1)));
-        Assert.Equal(12, driver.CursorX);
-        Assert.Equal(5, driver.CursorY);
+        Assert.Equal(12, layout.Cursor.X);
+        Assert.Equal(5, layout.Cursor.Y);
         Assert.Equal('j', driver.GetCell(11, 5).Character);
         Assert.Equal(' ', driver.GetCell(12, 5).Character);
     }

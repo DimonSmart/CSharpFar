@@ -52,6 +52,18 @@ public sealed class UiCompositionHostTests
     }
 
     [Fact]
+    public void InteractiveLayer_CannotBeRegisteredTwiceWhenInputPolicyIsNone()
+    {
+        var host = new UiCompositionHost(new ScreenRenderer(new FakeConsoleDriver()));
+        host.SetRootSurface(new ScreenRendererSurface(host.Screen, _ => { }));
+        var layer = new TestInteractiveLayer(UiLayerInputPolicy.None);
+
+        using var scope = host.RegisterOverlay(layer);
+
+        Assert.Throws<InvalidOperationException>(() => host.RegisterOverlay(layer));
+    }
+
+    [Fact]
     public void TemporarySurface_HidesRootAndDisposalRestoresIt()
     {
         var host = new UiCompositionHost(new ScreenRenderer(new FakeConsoleDriver()));

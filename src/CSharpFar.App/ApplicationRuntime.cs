@@ -1,6 +1,7 @@
 using CSharpFar.Console;
 using CSharpFar.Console.Input;
 using CSharpFar.App.Rendering;
+using CSharpFar.Core.Menu;
 using CSharpFar.Ui;
 
 namespace CSharpFar.App;
@@ -9,15 +10,26 @@ internal sealed class ApplicationRuntime
 {
     private readonly UiCompositionHost _composition;
     private readonly ApplicationUiSurface _applicationSurface;
+    private readonly IDisposable _applicationUiLayers;
     private readonly ApplicationRuntimeContext _context;
 
     public ApplicationRuntime(
         UiCompositionHost composition,
         ApplicationUiSurface applicationSurface,
         ApplicationRuntimeContext context)
+        : this(composition, applicationSurface, NullDisposable.Instance, context)
+    {
+    }
+
+    public ApplicationRuntime(
+        UiCompositionHost composition,
+        ApplicationUiSurface applicationSurface,
+        IDisposable applicationUiLayers,
+        ApplicationRuntimeContext context)
     {
         _composition = composition;
         _applicationSurface = applicationSurface;
+        _applicationUiLayers = applicationUiLayers;
         _context = context;
     }
 
@@ -46,12 +58,16 @@ internal sealed class ApplicationRuntime
                 }
 
                 UiInputResult routed = _composition.DispatchInput(evt);
+                bool menuCommandRequest = false;
+                if (_context.TryTakeMenuCommand(out var menuCommand))
+                    menuCommandRequest = _context.ExecuteMenuCommand(menuCommand);
+
                 ApplicationRuntimeRenderRequest applicationRequest = ApplicationRuntimeRenderRequest.None;
 
                 if (_applicationSurface.TryTakeInput(out var applicationInput))
                     applicationRequest = DispatchApplicationInput(applicationInput.Input);
 
-                bool shouldRender = routed.Invalidate || applicationRequest.ShouldRender;
+                bool shouldRender = routed.Invalidate || menuCommandRequest || applicationRequest.ShouldRender;
                 if (!_context.IsRunning() || !shouldRender)
                     continue;
 
@@ -63,6 +79,7 @@ internal sealed class ApplicationRuntime
         finally
         {
             _context.DisposeRuntimeState();
+            _applicationUiLayers.Dispose();
             _context.RestoreTerminal();
             _composition.Screen.SetCursorVisible(true);
         }
@@ -91,6 +108,28 @@ internal sealed class ApplicationRuntimeContext
     public required Func<ConsoleKeyInfo, ApplicationRuntimeRenderRequest> HandleKeyInput { get; init; }
     public required Func<ConsoleModifiers, ApplicationRuntimeRenderRequest> HandleModifierInput { get; init; }
     public required Func<MouseConsoleInputEvent, ApplicationRuntimeRenderRequest> HandleMouseInput { get; init; }
+    public TryTakeMenuCommand TryTakeMenuCommand { get; init; } = static (out MenuCommandRequest request) =>
+    {
+        request = null!;
+        return false;
+    };
+
+    public Func<MenuCommandRequest, bool> ExecuteMenuCommand { get; init; } = _ => false;
+}
+
+internal delegate bool TryTakeMenuCommand(out MenuCommandRequest request);
+
+internal sealed class NullDisposable : IDisposable
+{
+    public static NullDisposable Instance { get; } = new();
+
+    private NullDisposable()
+    {
+    }
+
+    public void Dispose()
+    {
+    }
 }
 
 internal readonly record struct ApplicationRuntimeRenderRequest(bool ShouldRender)

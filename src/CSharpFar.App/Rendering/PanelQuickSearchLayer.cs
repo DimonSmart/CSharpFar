@@ -1,0 +1,125 @@
+using CSharpFar.App.Panels;
+using CSharpFar.Console.Input;
+using CSharpFar.Console.Models;
+using CSharpFar.Core.Models;
+using CSharpFar.Ui;
+
+namespace CSharpFar.App.Rendering;
+
+internal sealed record PanelQuickSearchFrame(
+    bool Visible,
+    ConsoleViewport Viewport,
+    PanelSide? PanelSide,
+    Rect PopupBounds,
+    Rect InputBounds,
+    UiCursorPlacement? Cursor,
+    string SearchText);
+
+internal sealed class PanelQuickSearchLayer : UiLayer<PanelQuickSearchFrame>
+{
+    private static readonly UiTargetId InputTarget = new("application.panel-quick-search.input");
+
+    private readonly ApplicationRenderContext _context;
+    private readonly Action<bool> _hideCompletion;
+    private readonly Action _resetHistoryNavigation;
+
+    public PanelQuickSearchLayer(
+        ApplicationRenderContext context,
+        Action<bool> hideCompletion,
+        Action resetHistoryNavigation)
+    {
+        _context = context;
+        _hideCompletion = hideCompletion;
+        _resetHistoryNavigation = resetHistoryNavigation;
+    }
+
+    public override UiLayerInputPolicy InputPolicy => UiLayerInputPolicy.Bubble;
+
+    protected override PanelQuickSearchFrame RenderFrame(UiRenderContext context)
+    {
+        if (_context.PanelQuickSearch.State is not { } quickSearch ||
+            !_context.IsPanelVisible(quickSearch.PanelSide))
+        {
+            return Hidden(context.Viewport);
+        }
+
+        var workspace = ApplicationLayoutService.CalculatePanelWorkspaceBounds(context.Size);
+        var panelBounds = quickSearch.PanelSide == PanelSide.Left
+            ? workspace.Left
+            : workspace.Right;
+        var layout = new PanelQuickSearchRenderer(context.Screen, _context.App.Palette)
+            .Render(panelBounds, quickSearch.SearchText);
+        if (layout is null)
+            return Hidden(context.Viewport);
+
+        return new PanelQuickSearchFrame(
+            true,
+            context.Viewport,
+            quickSearch.PanelSide,
+            layout.PopupBounds,
+            layout.InputBounds,
+            layout.Cursor,
+            quickSearch.SearchText);
+    }
+
+    protected override UiInteractionFrame BuildInteractionFrame(PanelQuickSearchFrame frame) =>
+        frame.Visible && frame.Cursor is { } cursor
+            ? new UiInteractionFrame(
+                [new UiHitRegion(InputTarget, frame.InputBounds)],
+                new UiFocusFrame(
+                    [new UiFocusEntry(InputTarget, 0, IsEnabled: true, cursor)],
+                    InputTarget))
+            : UiInteractionFrame.Empty;
+
+    protected override UiInputResult RouteInput(
+        ConsoleInputEvent input,
+        PanelQuickSearchFrame frame,
+        UiInputRouteContext context)
+    {
+        return input switch
+        {
+            KeyConsoleInputEvent { Key: var key } => RouteKey(key, frame),
+            MouseConsoleInputEvent => RouteMouse(frame),
+            _ => UiInputResult.NotHandled,
+        };
+    }
+
+    private UiInputResult RouteKey(ConsoleKeyInfo key, PanelQuickSearchFrame frame)
+    {
+        if (!frame.Visible)
+        {
+            if ((key.Modifiers & ConsoleModifiers.Alt) == 0 ||
+                (key.Modifiers & ConsoleModifiers.Control) != 0)
+            {
+                return UiInputResult.NotHandled;
+            }
+
+            if (!_context.PanelQuickSearch.TryStart(key))
+                return UiInputResult.NotHandled;
+
+            _hideCompletion(false);
+            _resetHistoryNavigation();
+            return UiInputResult.HandledAndInvalidate;
+        }
+
+        var result = _context.PanelQuickSearch.HandleKey(key);
+        return result switch
+        {
+            PanelQuickSearchKeyResult.Handled => UiInputResult.HandledAndInvalidate,
+            PanelQuickSearchKeyResult.CloseAndContinue => UiInputResult.InvalidateOnly(),
+            _ => UiInputResult.NotHandled,
+        };
+    }
+
+    private UiInputResult RouteMouse(PanelQuickSearchFrame frame)
+    {
+        if (!frame.Visible)
+            return UiInputResult.NotHandled;
+
+        _context.PanelQuickSearch.Close();
+        return UiInputResult.InvalidateOnly();
+    }
+
+    private static PanelQuickSearchFrame Hidden(ConsoleViewport viewport) =>
+        new(false, viewport, null, default, default, null, string.Empty);
+}

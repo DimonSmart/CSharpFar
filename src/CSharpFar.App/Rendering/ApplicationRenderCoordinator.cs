@@ -1,6 +1,5 @@
 using CSharpFar.Console.Models;
 using CSharpFar.Ui;
-using CSharpFar.Core.Menu;
 using CSharpFar.Core.Models;
 
 namespace CSharpFar.App.Rendering;
@@ -11,7 +10,6 @@ internal sealed class ApplicationRenderCoordinator
     private readonly ApplicationPanelWorkspaceRenderer _panelWorkspaceRenderer;
     private readonly ClockRenderer _clockRenderer;
     private readonly ApplicationFunctionKeyBarRenderer _functionKeyBarRenderer;
-    private readonly ApplicationOverlayRenderer _overlayRenderer;
     private readonly ApplicationCommandLineRenderer _commandLineRenderer;
 
     public ApplicationRenderCoordinator(
@@ -19,14 +17,12 @@ internal sealed class ApplicationRenderCoordinator
         ApplicationPanelWorkspaceRenderer panelWorkspaceRenderer,
         ClockRenderer clockRenderer,
         ApplicationFunctionKeyBarRenderer functionKeyBarRenderer,
-        ApplicationOverlayRenderer overlayRenderer,
         ApplicationCommandLineRenderer commandLineRenderer)
     {
         _context = context;
         _panelWorkspaceRenderer = panelWorkspaceRenderer;
         _clockRenderer = clockRenderer;
         _functionKeyBarRenderer = functionKeyBarRenderer;
-        _overlayRenderer = overlayRenderer;
         _commandLineRenderer = commandLineRenderer;
     }
 
@@ -67,36 +63,14 @@ internal sealed class ApplicationRenderCoordinator
             size,
             _context.ActiveState().CurrentDirectory,
             _context.CommandLine);
-        _overlayRenderer.RenderCommandCompletion(size, panelHeight, _context.CommandCompletion);
 
         _functionKeyBarRenderer.Render(size, _context.FunctionKeyLayer());
 
-        _overlayRenderer.RenderMenuOverlay(size, _context.BuildMenuDefinition(), _context.MenuState);
-
-        if (_context.MenuState.OpenState == MenuOpenState.Closed)
-        {
-            if (_context.PanelQuickSearch.State is not null)
-            {
-                if (!_overlayRenderer.RenderPanelQuickSearch(
-                        _context.PanelQuickSearch.State,
-                        panelBounds.Left,
-                        panelBounds.Right,
-                        _context.IsPanelVisible))
-                {
-                    _context.Screen.SetCursorVisible(false);
-                }
-            }
-            else
-            {
-                _commandLineRenderer.PositionCursor(
-                    panelHeight,
-                    size,
-                    _context.ActiveState().CurrentDirectory,
-                    _context.CommandLine);
-            }
-        }
-        else
-            _context.Screen.SetCursorVisible(false);
+        _commandLineRenderer.PositionCursor(
+            panelHeight,
+            size,
+            _context.ActiveState().CurrentDirectory,
+            _context.CommandLine);
     }
 
     public void RenderHiddenCommandLineContent(UiRenderContext context)

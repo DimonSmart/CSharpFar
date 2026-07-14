@@ -1,5 +1,6 @@
 using CSharpFar.Console;
 using CSharpFar.Console.Models;
+using CSharpFar.Ui;
 
 namespace CSharpFar.App.Rendering;
 
@@ -19,11 +20,11 @@ internal sealed class PanelQuickSearchRenderer
         _palette = palette ?? PaletteRegistry.Default;
     }
 
-    public bool Render(Rect panelBounds, string searchText)
+    public PanelQuickSearchRenderLayout? Render(Rect panelBounds, string searchText)
     {
         int maxWidth = Math.Max(0, panelBounds.Width - 4);
         if (maxWidth < MinimumWidth || panelBounds.Height < OverlayHeight + 1)
-            return false;
+            return null;
 
         int width = Math.Min(PreferredWidth, maxWidth);
         int x = panelBounds.X + Math.Max(1, (panelBounds.Width - width) / 2);
@@ -50,9 +51,10 @@ internal sealed class PanelQuickSearchRenderer
             cursorY = contentBounds.Y;
         });
 
-        _screen.SetCursorPosition(cursorX, cursorY);
-        _screen.SetCursorVisible(true);
-        return true;
+        return new PanelQuickSearchRenderLayout(
+            bounds,
+            new Rect(bounds.X + 1, bounds.Y + 1, Math.Max(0, bounds.Width - 2), 1),
+            new UiCursorPlacement(cursorX, cursorY));
     }
 
     private static int VisibleStart(string text, int width) =>
@@ -66,4 +68,12 @@ internal sealed class PanelQuickSearchRenderer
         string visible = text.Length > visibleStart ? text[visibleStart..] : string.Empty;
         return visible.Length > width ? visible[..width] : visible;
     }
+}
+
+internal sealed record PanelQuickSearchRenderLayout(
+    Rect PopupBounds,
+    Rect InputBounds,
+    UiCursorPlacement Cursor)
+{
+    public static implicit operator bool(PanelQuickSearchRenderLayout? layout) => layout is not null;
 }

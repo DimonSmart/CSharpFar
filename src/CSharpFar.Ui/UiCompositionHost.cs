@@ -202,6 +202,8 @@ public sealed class UiCompositionHost
         return new UiLayerScope(this, entry);
     }
 
+    public IDisposable RegisterOverlay(IUiLayer layer) => PushOverlay(layer);
+
     public bool HasViewportChanged() =>
         LastStableViewport is { } viewport && Screen.GetViewport() != viewport;
 
@@ -383,9 +385,6 @@ public sealed class UiCompositionHost
 
     private void EnsureLayerNotRegistered(IUiLayer layer, UiLayerEntry? allowedExistingEntry = null)
     {
-        if (layer.InputPolicy == UiLayerInputPolicy.None)
-            return;
-
         foreach (UiLayerEntry entry in _layers)
         {
             if (ReferenceEquals(entry, allowedExistingEntry))
