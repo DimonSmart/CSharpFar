@@ -11,4 +11,10 @@ public readonly record struct ConsoleViewport(int Left, int Top, int Width, int 
         x <= Right &&
         y >= Top &&
         y <= Bottom;
+
+    public bool ContainsRelative(int x, int y) =>
+        x >= 0 &&
+        x < Width &&
+        y >= 0 &&
+        y < Height;
 }

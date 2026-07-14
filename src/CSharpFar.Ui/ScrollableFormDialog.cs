@@ -86,6 +86,7 @@ public sealed record FormTargetFrame(
     int RowIndex,
     int? FocusIndex,
     Rect Bounds,
+    Rect? HitBounds,
     bool IsFocusable,
     bool IsFooter,
     UiCursorPlacement? Cursor = null);
@@ -856,11 +857,13 @@ public sealed class ScrollableFormDialog
     private IReadOnlyList<IFormRow> _bodyRows = [];
     private IReadOnlyList<IFormRow> _footerRows = [];
     private Dictionary<IFormRow, UiTargetId> _targets = new(ReferenceEqualityComparer.Instance);
+    private readonly Dictionary<IFormRow, long> _anonymousRowTokens = new(ReferenceEqualityComparer.Instance);
     private readonly UiFocusScope _compatFocusScope = new();
     private UiFocusScope? _activeFocusScope;
     private UiTargetId? _requestedInitialTarget;
     private ScrollableFormFrame? _committedFrame;
     private FormLayoutSnapshot? _stableLayout;
+    private long _nextAnonymousRowToken;
     private FormLayoutSnapshot StableLayout => _stableLayout ?? new(default, default, null, 1, 1, ScrollTop);
 
     public ScrollableFormDialog()
@@ -953,21 +956,30 @@ public sealed class ScrollableFormDialog
             ? target
             : throw new InvalidOperationException("Form row is not installed in this dialog.");
 
-    private static Dictionary<IFormRow, UiTargetId> CreateTargetMap(
+    private Dictionary<IFormRow, UiTargetId> CreateTargetMap(
         IReadOnlyList<IFormRow> bodyRows,
         IReadOnlyList<IFormRow> footerRows)
     {
         var targets = new Dictionary<IFormRow, UiTargetId>(ReferenceEqualityComparer.Instance);
-        int anonymousIndex = 0;
         foreach (IFormRow row in bodyRows.Concat(footerRows))
         {
             string targetName = string.IsNullOrEmpty(row.Id)
-                ? $"form.row:@{anonymousIndex++}"
-                : $"form.row:{row.Id}";
+                ? $"form.row.instance:{AnonymousRowToken(row)}"
+                : $"form.row.id:{Uri.EscapeDataString(row.Id)}";
             targets[row] = new UiTargetId(targetName);
         }
 
         return targets;
+    }
+
+    private long AnonymousRowToken(IFormRow row)
+    {
+        if (_anonymousRowTokens.TryGetValue(row, out long token))
+            return token;
+
+        token = ++_nextAnonymousRowToken;
+        _anonymousRowTokens[row] = token;
+        return token;
     }
 
     private int? FocusIndexFromScope(UiTargetId? target)
@@ -1015,7 +1027,7 @@ public sealed class ScrollableFormDialog
                 continue;
 
             if (RowTarget(row) == focused)
-                return new FormTargetFrame(focused, FormTargetKind.Row, row, -1, focusIndex, default, true, false);
+                return new FormTargetFrame(focused, FormTargetKind.Row, row, -1, focusIndex, default, null, true, false);
 
             focusIndex++;
         }
@@ -1112,8 +1124,8 @@ public sealed class ScrollableFormDialog
             .Select(target => new UiFocusEntry(target.Target, target.FocusIndex!.Value, IsEnabled: true, target.Cursor))
             .ToArray();
         var hitRegions = frame.Targets
-            .Where(target => target.Bounds.Width > 0 && target.Bounds.Height > 0)
-            .Select(target => new UiHitRegion(target.Target, target.Bounds))
+            .Where(target => target.HitBounds is { Width: > 0, Height: > 0 })
+            .Select(target => new UiHitRegion(target.Target, target.HitBounds!.Value))
             .ToArray();
         return new UiInteractionFrame(hitRegions, new UiFocusFrame(focusEntries, frame.DefaultTarget));
     }
@@ -1148,6 +1160,7 @@ public sealed class ScrollableFormDialog
                 Row: null,
                 RowIndex: -1,
                 FocusIndex: null,
+                new Rect(context.BodyBounds.Right - 1, context.BodyBounds.Y, 1, Math.Max(1, context.BodyBounds.Height)),
                 new Rect(context.BodyBounds.Right - 1, context.BodyBounds.Y, 1, Math.Max(1, context.BodyBounds.Height)),
                 IsFocusable: false,
                 IsFooter: false));
@@ -1212,6 +1225,7 @@ public sealed class ScrollableFormDialog
             rowIndex,
             focusIndex,
             bounds,
+            bounds,
             row.IsFocusable,
             isFooter,
             cursor);
@@ -1250,8 +1264,9 @@ public sealed class ScrollableFormDialog
             rowIndex,
             focusIndex,
             frame.PopupBounds,
+            frame.PopupBounds,
             IsFocusable: false,
-            isFooter));
+            IsFooter: isFooter));
         if (frame.ScrollbarBounds is Rect scrollbarBounds)
         {
             targets.Add(new FormTargetFrame(
@@ -1261,8 +1276,9 @@ public sealed class ScrollableFormDialog
                 rowIndex,
                 focusIndex,
                 scrollbarBounds,
+                scrollbarBounds,
                 IsFocusable: false,
-                isFooter));
+                IsFooter: isFooter));
         }
     }
 
@@ -1503,6 +1519,7 @@ public sealed class ScrollableFormDialog
                 rowIndex,
                 rowFocusIndex,
                 new Rect(StableLayout.BodyBounds.X, y, StableLayout.BodyBounds.Width, rowHeight),
+                new Rect(StableLayout.BodyBounds.X, y, StableLayout.BodyBounds.Width, rowHeight),
                 row.IsFocusable,
                 IsFooter: false));
             if (row.IsFocusable)
@@ -1528,6 +1545,7 @@ public sealed class ScrollableFormDialog
                     row,
                     rowIndex,
                     rowFocusIndex,
+                    new Rect(footerBounds.X, y, footerBounds.Width, rowHeight),
                     new Rect(footerBounds.X, y, footerBounds.Width, rowHeight),
                     row.IsFocusable,
                     IsFooter: true));

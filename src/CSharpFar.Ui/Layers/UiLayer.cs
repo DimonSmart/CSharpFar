@@ -94,7 +94,7 @@ public abstract class UiLayer<TFrame> : IUiLayer
             : interactionFrame.Focus.Entries.FirstOrDefault(entry => entry.Target == focusedTarget);
         UiCursorPlacement? cursor = focusedEntry?.Cursor;
         if (cursor is not { Visible: true } placement ||
-            !context.Viewport.ContainsAbsolute(placement.X, placement.Y))
+            !context.Viewport.ContainsRelative(placement.X, placement.Y))
         {
             context.Screen.SetCursorVisible(false);
             return;
