@@ -387,6 +387,15 @@ public sealed class TextInputRow : FormRow, IFormOverlayRow, IFormCursorProvider
         SingleLineTextInput.RenderHistoryDropdown(context.Screen, context.Bounds.X, context.Bounds.Y, width, _history, context.ScreenHeight);
     }
 
+    internal bool IsHistoryArrow(MouseConsoleInputEvent mouse, FormRowMouseContext context)
+    {
+        if (_history is null)
+            return false;
+
+        int width = Math.Min(context.Bounds.Width, _width ?? context.Bounds.Width);
+        return SingleLineTextInput.IsHistoryArrowHit(context.Bounds.X, width, context.Bounds.Y, mouse.X, mouse.Y);
+    }
+
     public override FormInputResult HandleKey(ConsoleKeyInfo key, FormRowInputContext context)
     {
         string? error = null;
@@ -436,6 +445,13 @@ public sealed class TextInputRow : FormRow, IFormOverlayRow, IFormCursorProvider
         if (_history is not null &&
             SingleLineTextInput.IsHistoryArrowHit(context.Bounds.X, width, context.Bounds.Y, mouse.X, mouse.Y))
         {
+            if (_history.IsDropdownOpen)
+            {
+                _history.Close();
+                _state.HistoryScrollbarDrag = null;
+                return FormInputResult.Handled;
+            }
+
             return SingleLineTextInput.TryOpenHistoryDropdown(_history, context.Bounds.Y, context.ScreenHeight)
                 ? FormInputResult.Handled
                 : FormInputResult.NotHandled;
@@ -890,6 +906,7 @@ public sealed class ScrollableFormDialog
     private UiTargetId? _requestedInitialTarget;
     private ScrollableFormFrame? _committedFrame;
     private FormLayoutSnapshot? _stableLayout;
+    private bool _ensureFocusedTargetVisibleOnNextRender;
     private long _nextAnonymousRowToken;
 
     private sealed class AnonymousRowTokenBox
@@ -961,7 +978,10 @@ public sealed class ScrollableFormDialog
 
         bool focused = ActiveFocusScope.TryFocus(target);
         if (focused)
-            EnsureFocusVisible(StableLayout.ViewportRows);
+        {
+            RequestEnsureFocusVisible();
+            EnsureFocusVisibleNow(StableLayout.ViewportRows);
+        }
         return focused;
     }
 
@@ -1082,9 +1102,11 @@ public sealed class ScrollableFormDialog
             throw new InvalidOperationException("Footer rows do not fit within the footer bounds.");
 
         int viewportRows = Math.Max(1, context.BodyBounds.Height);
-        int effectiveScrollTop = CalculateEffectiveScrollTop(ScrollTop, viewportRows);
+        int effectiveScrollTop = ClampScrollTop(ScrollTop, viewportRows);
         ScrollableFormFrame provisionalFrame = BuildFrame(context, effectiveScrollTop);
         UiTargetId? effectiveFocusedTarget = focusScope.ResolveFocusedTarget(BuildInteractionFrame(provisionalFrame).Focus);
+        if (_ensureFocusedTargetVisibleOnNextRender)
+            effectiveScrollTop = EnsureFocusedTargetVisible(effectiveScrollTop, viewportRows, effectiveFocusedTarget);
         ScrollableFormFrame frame = BuildFrame(context, effectiveScrollTop, effectiveFocusedTarget);
         UiInteractionFrame interactionFrame = BuildInteractionFrame(frame);
 
@@ -1138,6 +1160,7 @@ public sealed class ScrollableFormDialog
             _stableLayout = snapshot;
             _committedFrame = frame;
             ScrollTop = snapshot.EffectiveScrollTop;
+            _ensureFocusedTargetVisibleOnNextRender = false;
         });
         context.PublishOnStable(interactionFrame.Focus, focusScope.Commit);
         return frame;
@@ -1218,8 +1241,12 @@ public sealed class ScrollableFormDialog
         if (overlayTarget is UiTargetId focusedTarget &&
             targets.FirstOrDefault(target => target.Kind == FormTargetKind.Row && target.Target == focusedTarget) is { Row: { } focusedRow } focusedFrame)
         {
-            AddRowOverlayTargets(targets, focusedRow, focusedFrame.RowIndex, focusedFrame.Bounds,
-                focusedFrame.IsFooter, focusedFrame.FocusIndex, context.Viewport.Height, focusedTarget);
+            Rect? activeBounds = focusedFrame.HitBounds;
+            if (activeBounds is not null)
+            {
+                AddRowOverlayTargets(targets, focusedRow, focusedFrame.RowIndex, focusedFrame.Bounds,
+                    focusedFrame.IsFooter, focusedFrame.FocusIndex, context.Viewport.Height, focusedTarget);
+            }
         }
 
         UiTargetId? defaultTarget = _requestedInitialTarget;
@@ -1253,7 +1280,8 @@ public sealed class ScrollableFormDialog
             placement.X >= bounds.X &&
             placement.X < bounds.Right &&
             placement.Y >= bounds.Y &&
-            placement.Y < bounds.Bottom)
+            placement.Y < bounds.Bottom &&
+            activeBounds.Contains(placement.X, placement.Y))
         {
             cursor = new UiCursorPlacement(placement.X, placement.Y);
         }
@@ -1352,10 +1380,12 @@ public sealed class ScrollableFormDialog
 
     private FormRouteResult RouteKey(ConsoleKeyInfo key, ScrollableFormFrame frame, UiInputRouteContext route)
     {
+        bool ensureFocusedTargetVisible = false;
         if (route.RouteKind == UiInputRouteKind.FocusedTarget &&
             route.Target is UiTargetId target &&
             FindRowTarget(frame, target) is { Row: { } row } targetFrame)
         {
+            ensureFocusedTargetVisible = IsOffscreenBodyTarget(targetFrame, frame.BodyBounds);
             int availableDropdownRows = SingleLineTextInput.AvailableDropdownContentRows(
                 targetFrame.Bounds.Y,
                 frame.ScreenHeight);
@@ -1368,7 +1398,7 @@ public sealed class ScrollableFormDialog
                     row.Id,
                     row.Role));
             if (rowResult.IsHandled)
-                return FormResult(rowResult, FormResultToUi(rowResult, targetFrame.Target));
+                return FormResult(rowResult, WithEnsureFocusVisible(FormResultToUi(rowResult, targetFrame.Target), ensureFocusedTargetVisible));
         }
 
         return key.Key switch
@@ -1392,37 +1422,36 @@ public sealed class ScrollableFormDialog
         if (route.RouteKind == UiInputRouteKind.Layer)
         {
             if (TryHandleWheel(mouse, frame.ViewportRows))
-                return FormResult(FormInputResult.Handled, UiInputResult.HandledAndInvalidate);
-            return closedOverlay
-                ? FormResult(FormInputResult.Handled, UiInputResult.HandledAndInvalidate)
-                : FormResult(FormInputResult.NotHandled, UiInputResult.NotHandled);
+                return MergeTransientOverlayChange(FormInputResult.Handled, UiInputResult.HandledAndInvalidate, closedOverlay);
+            return MergeTransientOverlayChange(FormInputResult.NotHandled, UiInputResult.NotHandled, closedOverlay);
         }
 
         if (route.Target is not UiTargetId target)
-            return FormResult(FormInputResult.NotHandled, UiInputResult.NotHandled);
+            return MergeTransientOverlayChange(FormInputResult.NotHandled, UiInputResult.NotHandled, closedOverlay);
 
         FormTargetFrame? targetFrame = FindTarget(frame, target);
         if (targetFrame is null)
-            return FormResult(FormInputResult.NotHandled, UiInputResult.NotHandled);
+            return MergeTransientOverlayChange(FormInputResult.NotHandled, UiInputResult.NotHandled, closedOverlay);
 
         if (targetFrame.Kind == FormTargetKind.BodyScrollbar)
         {
             bool handled = TryHandleScrollbarMouse(mouse, targetFrame.Bounds, frame.ViewportRows);
             if (!handled && TryHandleWheel(mouse, frame.ViewportRows))
-                return FormResult(FormInputResult.Handled, UiInputResult.HandledAndInvalidate);
+                return MergeTransientOverlayChange(FormInputResult.Handled, UiInputResult.HandledAndInvalidate, closedOverlay);
             if (!handled)
-                return FormResult(FormInputResult.NotHandled, UiInputResult.NotHandled);
+                return MergeTransientOverlayChange(FormInputResult.NotHandled, UiInputResult.NotHandled, closedOverlay);
 
             UiMouseCaptureRequest capture = mouse is { Kind: MouseEventKind.Down, Button: MouseButton.Left }
                 ? UiMouseCaptureRequest.Capture(targetFrame.Target, MouseButton.Left)
                 : UiMouseCaptureRequest.None;
-            return FormResult(
+            return MergeTransientOverlayChange(
                 FormInputResult.Handled,
-                new UiInputResult(true, true, UiFocusRequest.None, capture));
+                new UiInputResult(true, true, UiFocusRequest.None, capture),
+                closedOverlay);
         }
 
         if (targetFrame.Row is null)
-            return FormResult(FormInputResult.NotHandled, UiInputResult.NotHandled);
+            return MergeTransientOverlayChange(FormInputResult.NotHandled, UiInputResult.NotHandled, closedOverlay);
 
         FormTargetFrame rowFrame = targetFrame.Kind == FormTargetKind.Row
             ? targetFrame
@@ -1440,14 +1469,15 @@ public sealed class ScrollableFormDialog
                 targetFrame.Row.Id,
                 targetFrame.Row.Role));
         if (!rowResult.IsHandled && TryHandleWheel(mouse, frame.ViewportRows))
-            return FormResult(FormInputResult.Handled, UiInputResult.HandledAndInvalidate);
+            return MergeTransientOverlayChange(FormInputResult.Handled, UiInputResult.HandledAndInvalidate, closedOverlay);
 
         UiInputResult uiResult = FormResultToUi(rowResult, rowFrame.Target);
         if (requestFocus)
         {
+            RequestEnsureFocusVisible();
             uiResult = new UiInputResult(
                 true,
-                uiResult.Invalidate || rowResult.IsHandled,
+                true,
                 UiFocusRequest.Set(rowFrame.Target),
                 uiResult.MouseCaptureRequest);
         }
@@ -1463,7 +1493,7 @@ public sealed class ScrollableFormDialog
                 UiMouseCaptureRequest.Capture(targetFrame.Target, MouseButton.Left));
         }
 
-        return FormResult(rowResult, uiResult);
+        return MergeTransientOverlayChange(rowResult, uiResult, closedOverlay);
     }
 
     private static bool CloseFocusedHistoryOnOutsideClick(
@@ -1485,9 +1515,40 @@ public sealed class ScrollableFormDialog
         if (insidePopup)
             return false;
 
+        bool onHistoryArrow = frame.Targets.Any(target =>
+            ReferenceEquals(target.Row, row) &&
+            target.Kind == FormTargetKind.Row &&
+            target.HitBounds is Rect bounds &&
+            bounds.Contains(mouse.X, mouse.Y) &&
+            row.IsHistoryArrow(mouse, new FormRowMouseContext(
+                target.Bounds,
+                target.FocusIndex ?? target.RowIndex,
+                focused: true,
+                frame.ScreenHeight,
+                row.Id,
+                row.Role)));
+        if (onHistoryArrow)
+            return false;
+
         history.Close();
         row.State.HistoryScrollbarDrag = null;
         return true;
+    }
+
+    private static FormRouteResult MergeTransientOverlayChange(
+        FormInputResult formResult,
+        UiInputResult uiResult,
+        bool overlayClosed)
+    {
+        if (!overlayClosed)
+            return FormResult(formResult, uiResult);
+
+        FormInputResult mergedFormResult = formResult.Kind == FormInputResultKind.NotHandled
+            ? FormInputResult.Handled
+            : formResult;
+        return FormResult(
+            mergedFormResult,
+            new UiInputResult(true, true, uiResult.FocusRequest, uiResult.MouseCaptureRequest));
     }
 
     private static FormRouteResult FormResult(FormInputResult formResult, UiInputResult uiResult) =>
@@ -1505,8 +1566,18 @@ public sealed class ScrollableFormDialog
         };
     }
 
-    private static UiInputResult UiInputResultWithFocus(UiFocusRequest request) =>
-        new(true, true, request, UiMouseCaptureRequest.None);
+    private UiInputResult UiInputResultWithFocus(UiFocusRequest request)
+    {
+        RequestEnsureFocusVisible();
+        return new UiInputResult(true, true, request, UiMouseCaptureRequest.None);
+    }
+
+    private UiInputResult WithEnsureFocusVisible(UiInputResult result, bool ensure)
+    {
+        if (ensure)
+            RequestEnsureFocusVisible();
+        return result;
+    }
 
     private FormRouteResult MoveFocusPage(ScrollableFormFrame frame, int delta)
     {
@@ -1530,6 +1601,8 @@ public sealed class ScrollableFormDialog
         FormTargetFrame? target = frame.Targets.FirstOrDefault(value =>
             value is { Kind: FormTargetKind.Row, IsFocusable: true } &&
             value.FocusIndex == ClampFocusIndex(focusIndex));
+        if (target is not null)
+            RequestEnsureFocusVisible();
         return target is null
             ? FormResult(FormInputResult.NotHandled, UiInputResult.NotHandled)
             : FormResult(FormInputResult.Handled, UiInputResult.RequestFocus(target.Target));
@@ -1651,44 +1724,21 @@ public sealed class ScrollableFormDialog
         {
             case UiFocusRequestKind.Set:
                 ActiveFocusScope.TryFocus(result.FocusRequest.Target!);
-                EnsureFocusVisible(StableLayout.ViewportRows);
+                EnsureFocusVisibleNow(StableLayout.ViewportRows);
                 break;
             case UiFocusRequestKind.MoveNext:
                 ActiveFocusScope.MoveNext();
-                EnsureFocusVisible(StableLayout.ViewportRows);
+                EnsureFocusVisibleNow(StableLayout.ViewportRows);
                 break;
             case UiFocusRequestKind.MovePrevious:
                 ActiveFocusScope.MovePrevious();
-                EnsureFocusVisible(StableLayout.ViewportRows);
+                EnsureFocusVisibleNow(StableLayout.ViewportRows);
                 break;
             case UiFocusRequestKind.Clear:
                 ActiveFocusScope.ClearFocus();
-                EnsureFocusVisible(StableLayout.ViewportRows);
+                EnsureFocusVisibleNow(StableLayout.ViewportRows);
                 break;
         }
-    }
-
-    private FormInputResult HandleRowMouse(
-        IFormRow row,
-        int rowIndex,
-        Rect rowBounds,
-        int focusIndex,
-        MouseConsoleInputEvent mouse)
-    {
-        if (!row.IsFocusable)
-        {
-            FormInputResult nonFocusableResult = row.HandleMouse(
-                mouse,
-                new FormRowMouseContext(rowBounds, rowIndex, focused: false, StableLayout.ScreenHeight, row.Id, row.Role));
-            return nonFocusableResult.IsHandled ? ApplyResult(nonFocusableResult) : FormInputResult.NotHandled;
-        }
-
-        ActiveFocusScope.TryFocus(RowTarget(row));
-        EnsureFocusVisible(StableLayout.ViewportRows);
-        FormInputResult result = row.HandleMouse(
-            mouse,
-            new FormRowMouseContext(rowBounds, FocusIndex, focused: true, StableLayout.ScreenHeight, row.Id, row.Role));
-        return result.IsHandled ? ApplyResult(result) : FormInputResult.Handled;
     }
 
     private static void RenderFocusedOverlay(ScreenRenderer screen, ScrollableFormFrame frame, UiTargetId? focusedTarget)
@@ -1703,39 +1753,44 @@ public sealed class ScrollableFormDialog
         overlayRow.RenderOverlay(new FormRowRenderContext(screen, targetFrame.Bounds, focused: true, screenHeight: frame.ScreenHeight));
     }
 
-    private void MoveFocus(int delta, int viewportRows)
-    {
-        if (delta == 0)
-            return;
+    private void RequestEnsureFocusVisible() => _ensureFocusedTargetVisibleOnNextRender = true;
 
-        if (delta < 0)
-            ActiveFocusScope.MovePrevious();
-        else
-            ActiveFocusScope.MoveNext();
-        EnsureFocusVisible(viewportRows);
+    private void EnsureFocusVisibleNow(int viewportRows)
+    {
+        ScrollTop = EnsureFocusedTargetVisible(ScrollTop, viewportRows, ActiveFocusScope.FocusedTarget);
     }
 
-    private void EnsureFocusVisible(int viewportRows)
-    {
-        ScrollTop = CalculateEffectiveScrollTop(ScrollTop, viewportRows);
-    }
-
-    private int CalculateEffectiveScrollTop(int scrollTop, int viewportRows)
+    private int ClampScrollTop(int scrollTop, int viewportRows)
     {
         int clampedViewportRows = Math.Max(1, viewportRows);
-        int effectiveScrollTop = ScrollStateCalculator.ClampFirstVisibleIndex(scrollTop, BodyRowCount, clampedViewportRows);
+        return ScrollStateCalculator.ClampFirstVisibleIndex(scrollTop, BodyRowCount, clampedViewportRows);
+    }
 
-        int focusVirtualRow = FocusIndexToBodyVirtualRow(FocusIndex);
+    private int EnsureFocusedTargetVisible(int scrollTop, int viewportRows, UiTargetId? focusedTarget)
+    {
+        int clampedViewportRows = Math.Max(1, viewportRows);
+        int effectiveScrollTop = ClampScrollTop(scrollTop, clampedViewportRows);
+        int? focusIndex = FocusIndexFromScope(focusedTarget);
+        if (focusIndex is null)
+            return effectiveScrollTop;
+
+        int focusVirtualRow = FocusIndexToBodyVirtualRow(focusIndex.Value);
         if (focusVirtualRow >= 0)
         {
             effectiveScrollTop = ScrollStateCalculator.EnsureIndexVisible(focusVirtualRow, effectiveScrollTop, clampedViewportRows);
-            int focusHeight = Math.Max(1, FocusedRow()?.Height ?? 1);
+            int focusHeight = Math.Max(1, FocusedRow(focusIndex.Value)?.Height ?? 1);
             if (focusHeight <= clampedViewportRows && focusVirtualRow + focusHeight > effectiveScrollTop + clampedViewportRows)
                 effectiveScrollTop = focusVirtualRow + focusHeight - clampedViewportRows;
         }
 
         return ScrollStateCalculator.ClampFirstVisibleIndex(effectiveScrollTop, BodyRowCount, clampedViewportRows);
     }
+
+    private static bool IsOffscreenBodyTarget(FormTargetFrame target, Rect bodyBounds) =>
+        !target.IsFooter &&
+        (target.HitBounds is null ||
+            target.Bounds.Bottom <= bodyBounds.Y ||
+            target.Bounds.Y >= bodyBounds.Bottom);
 
     private bool TryHandleWheel(MouseConsoleInputEvent mouse, int viewportRows, int wheelRows = 3)
     {
@@ -1775,74 +1830,18 @@ public sealed class ScrollableFormDialog
         return true;
     }
 
-    private FormInputResult ApplyResult(FormInputResult result)
+    private IFormRow? FocusedRow(int focusIndex)
     {
-        switch (result.Kind)
-        {
-            case FormInputResultKind.MoveFocusNext:
-                return MoveFocusResult(1);
-            case FormInputResultKind.MoveFocusPrevious:
-                return MoveFocusResult(-1);
-            default:
-                return result;
-        }
-    }
-
-    private FormInputResult MoveFocusResult(int delta)
-    {
-        MoveFocus(delta, StableLayout.ViewportRows);
-        return FormInputResult.Handled;
-    }
-
-    private FormInputResult MoveFocusPage(int delta)
-    {
-        if (FocusIndex >= BodyFocusableCount)
-        {
-            if (delta < 0 && BodyFocusableCount > 0)
-                FocusTargetByIndex(BodyFocusableCount - 1);
-            return FormInputResult.Handled;
-        }
-
-        int targetVirtual = Math.Clamp(FocusIndexToBodyVirtualRow(FocusIndex) + delta * StableLayout.ViewportRows, 0, Math.Max(0, BodyRowCount - 1));
-        FocusTargetByIndex(NearestFocusableIndexAtOrAfterVirtualRow(targetVirtual, delta));
-        EnsureFocusVisible(StableLayout.ViewportRows);
-        return FormInputResult.Handled;
-    }
-
-    private FormInputResult SetFocusResult(int focusIndex)
-    {
-        FocusTargetByIndex(ClampFocusIndex(focusIndex));
-        EnsureFocusVisible(StableLayout.ViewportRows);
-        return FormInputResult.Handled;
-    }
-
-    private bool FocusTargetByIndex(int focusIndex)
-    {
-        int current = 0;
-        foreach (IFormRow row in AllRows())
-        {
-            if (!row.IsFocusable)
-                continue;
-            if (current == focusIndex)
-                return ActiveFocusScope.TryFocus(RowTarget(row));
-            current++;
-        }
-
-        return false;
-    }
-
-    private IFormRow? FocusedRow()
-    {
-        int focusIndex = 0;
+        int currentFocusIndex = 0;
         foreach (IFormRow row in AllRows())
         {
             if (!row.IsFocusable)
                 continue;
 
-            if (focusIndex == FocusIndex)
+            if (currentFocusIndex == focusIndex)
                 return row;
 
-            focusIndex++;
+            currentFocusIndex++;
         }
 
         return null;
@@ -1868,126 +1867,10 @@ public sealed class ScrollableFormDialog
         }
     }
 
-    private bool TryGetFocusedRowBounds(out Rect bounds) =>
-        TryGetFocusedRowBounds(StableLayout.BodyBounds, StableLayout.FooterBounds, ScrollTop, out bounds);
-
-    private bool TryGetFocusedRowBounds(Rect bodyBounds, Rect? footerBounds, int scrollTop, out Rect bounds)
-    {
-        bounds = default;
-        int currentFocusIndex = 0;
-        int currentVirtual = 0;
-        foreach (IFormRow row in _bodyRows)
-        {
-            int height = Math.Max(1, row.Height);
-            if (row.IsFocusable)
-            {
-                if (currentFocusIndex == FocusIndex)
-                {
-                    bounds = new Rect(bodyBounds.X, bodyBounds.Y + currentVirtual - scrollTop, bodyBounds.Width, height);
-                    return true;
-                }
-
-                currentFocusIndex++;
-            }
-
-            currentVirtual += height;
-        }
-
-        if (footerBounds is not Rect fixedFooterBounds)
-            return false;
-
-        currentVirtual = 0;
-        foreach (IFormRow row in _footerRows)
-        {
-            int height = Math.Max(1, row.Height);
-            if (row.IsFocusable)
-            {
-                if (currentFocusIndex == FocusIndex)
-                {
-                    bounds = new Rect(fixedFooterBounds.X, fixedFooterBounds.Y + currentVirtual, fixedFooterBounds.Width, height);
-                    return true;
-                }
-
-                currentFocusIndex++;
-            }
-
-            currentVirtual += height;
-        }
-
-        return false;
-    }
-
-    private static bool TryHitTestRow(
-        IReadOnlyList<IFormRow> rows,
-        Rect contentBounds,
-        int scrollTop,
-        int viewportRows,
-        int focusIndexOffset,
-        int x,
-        int y,
-        out int rowIndex,
-        out Rect rowBounds,
-        out int focusIndex)
-    {
-        rowIndex = -1;
-        rowBounds = default;
-        focusIndex = -1;
-        int rowCount = rows.Sum(static row => Math.Max(1, row.Height));
-        if (!TryHitTestBodyRow(contentBounds, scrollTop, rowCount, viewportRows, x, y, out int virtualRow))
-            return false;
-
-        int currentVirtualRow = 0;
-        int currentFocusIndex = focusIndexOffset;
-        for (int i = 0; i < rows.Count; i++)
-        {
-            IFormRow row = rows[i];
-            int height = Math.Max(1, row.Height);
-            if (virtualRow >= currentVirtualRow && virtualRow < currentVirtualRow + height)
-            {
-                rowIndex = i;
-                rowBounds = new Rect(contentBounds.X, contentBounds.Y + currentVirtualRow - scrollTop, contentBounds.Width, height);
-                focusIndex = row.IsFocusable ? currentFocusIndex : -1;
-                return true;
-            }
-
-            if (row.IsFocusable)
-                currentFocusIndex++;
-            currentVirtualRow += height;
-        }
-
-        return false;
-    }
-
-    private int NextFocusableIndex(int start, int delta)
-    {
-        int count = TotalFocusableCount;
-        if (count <= 0)
-            return 0;
-
-        int step = delta < 0 ? -1 : 1;
-        int row = ClampFocusIndex(start);
-        for (int i = 0; i < count; i++)
-        {
-            row = (row + step + count) % count;
-            if (IsFocusableAtFocusIndex(row))
-                return row;
-        }
-
-        return ClampFocusIndex(start);
-    }
-
-    private int FirstFocusableIndex() => 0;
-    private int LastFocusableIndex() => Math.Max(0, TotalFocusableCount - 1);
-
     private int ClampFocusIndex(int focusRow)
     {
         int count = TotalFocusableCount;
         return count <= 0 ? 0 : Math.Clamp(focusRow, 0, count - 1);
-    }
-
-    private bool IsFocusableAtFocusIndex(int focusRow)
-    {
-        return focusRow >= 0 && focusRow < TotalFocusableCount;
     }
 
     private int FocusIndexToBodyVirtualRow(int focusIndex)
@@ -2030,26 +1913,6 @@ public sealed class ScrollableFormDialog
         }
 
         return direction > 0 ? Math.Max(0, BodyFocusableCount - 1) : bestBefore;
-    }
-
-    private static bool TryHitTestBodyRow(
-        Rect contentBounds,
-        int bodyScrollTop,
-        int bodyRowCount,
-        int viewportRows,
-        int x,
-        int y,
-        out int virtualRow)
-    {
-        virtualRow = -1;
-        if (x < contentBounds.X || x >= contentBounds.Right ||
-            y < contentBounds.Y || y >= contentBounds.Y + Math.Max(1, viewportRows))
-        {
-            return false;
-        }
-
-        virtualRow = bodyScrollTop + y - contentBounds.Y;
-        return virtualRow >= 0 && virtualRow < bodyRowCount;
     }
 
     private sealed record FormLayoutSnapshot(

@@ -450,6 +450,43 @@ public sealed class ModalDialogRunnerTests
     }
 
     [Fact]
+    public void RunInteractive_HandlesDomainBeforeInvalidationRender()
+    {
+        var driver = new FakeConsoleDriver();
+        driver.EnqueueKey(Key(ConsoleKey.Spacebar));
+        driver.EnqueueKey(Key(ConsoleKey.Enter));
+        var modals = CreateHost(driver, out _);
+        var events = new List<string>();
+
+        int result = modals.RunInteractive<int, string, int>(
+            (context, _) =>
+            {
+                events.Add("render");
+                context.Screen.Write(0, 0, "M", Style);
+                return 1;
+            },
+            _ => UiInteractionFrame.Empty,
+            (input, _, _) =>
+            {
+                events.Add("route");
+                return input is KeyConsoleInputEvent { Key.Key: ConsoleKey.Spacebar }
+                    ? ("continue", UiInputResult.HandledAndInvalidate)
+                    : ("complete", UiInputResult.HandledAndInvalidate);
+            },
+            (_, semantic) =>
+            {
+                events.Add("domain");
+                return semantic == "complete"
+                    ? ModalDialogLoopResult<int>.Complete(42)
+                    : ModalDialogLoopResult<int>.Continue;
+            },
+            prepareRender: () => events.Add("prepare"));
+
+        Assert.Equal(42, result);
+        Assert.Equal(["prepare", "render", "route", "domain", "prepare", "render", "route", "domain"], events);
+    }
+
+    [Fact]
     public void RunRouted_HandlerExceptionDisposesOverlayAndRestoresSurface()
     {
         var driver = new FakeConsoleDriver();

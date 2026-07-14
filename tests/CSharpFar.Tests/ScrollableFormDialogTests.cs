@@ -658,6 +658,97 @@ public sealed class ScrollableFormDialogTests
     }
 
     [Fact]
+    public void RoutedWheelScroll_PersistsAfterRenderWithoutMovingFocus()
+    {
+        var text = new CommandLineState();
+        var form = new ScrollableFormDialog([
+            new TextInputRow(text) { Id = "first" },
+            new CheckBoxRow(new CheckBoxLine("two")) { Id = "two" },
+            new CheckBoxRow(new CheckBoxLine("three")) { Id = "three" },
+            new CheckBoxRow(new CheckBoxLine("four")) { Id = "four" },
+            new CheckBoxRow(new CheckBoxLine("five")) { Id = "five" },
+        ]);
+        var driver = new FakeConsoleDriver(20, 6);
+        var host = CreateRoutedFormHost(form, driver, visibleRows: 3);
+        host.Composition.Render();
+
+        UiInputResult result = host.Composition.DispatchInput(Mouse(2, 1, MouseButton.WheelDown, MouseEventKind.Wheel));
+        host.Composition.Render();
+
+        Assert.True(result.Invalidate);
+        Assert.Equal(2, form.ScrollTop);
+        Assert.Equal("first", form.FocusedRowId);
+        Assert.False(driver.CursorVisible);
+    }
+
+    [Fact]
+    public void RoutedHistoryArrow_TogglesOpenDropdownClosed()
+    {
+        var history = new SingleLineTextHistoryState();
+        history.Add("alpha");
+        var form = new ScrollableFormDialog([
+            new TextInputRow(new CommandLineState(), history) { Id = "pattern" },
+        ]);
+        var driver = new FakeConsoleDriver(20, 8);
+        var host = CreateRoutedFormHost(form, driver, visibleRows: 1);
+        host.Composition.Render();
+
+        UiInputResult open = host.Composition.DispatchInput(Mouse(19, 0));
+        host.Composition.Render();
+        UiInputResult close = host.Composition.DispatchInput(Mouse(19, 0));
+
+        Assert.True(open.Invalidate);
+        Assert.True(close.Invalidate);
+        Assert.False(history.IsDropdownOpen);
+    }
+
+    [Fact]
+    public void RoutedHistoryCloseOnLabelClick_InvalidatesFrame()
+    {
+        var history = new SingleLineTextHistoryState();
+        history.Add("alpha");
+        Assert.True(SingleLineTextInput.TryOpenHistoryDropdown(history, fieldY: 0, screenHeight: 8));
+        var form = new ScrollableFormDialog([
+            new TextInputRow(new CommandLineState(), history) { Id = "pattern" },
+            new LabelRow("covered", FarDialogStyles.Fill) { Id = "covered" },
+            new LabelRow("covered", FarDialogStyles.Fill),
+            new LabelRow("covered", FarDialogStyles.Fill),
+            new LabelRow("covered", FarDialogStyles.Fill),
+            new LabelRow("label", FarDialogStyles.Fill) { Id = "label" },
+        ]);
+        var driver = new FakeConsoleDriver(20, 12);
+        var host = CreateRoutedFormHost(form, driver, visibleRows: 6);
+        host.Composition.Render();
+
+        UiInputResult result = host.Composition.DispatchInput(Mouse(2, 5));
+
+        Assert.True(result.Handled);
+        Assert.True(result.Invalidate);
+        Assert.False(history.IsDropdownOpen);
+    }
+
+    [Fact]
+    public void RoutedMouseFocus_NotHandledRowInvalidatesFrame()
+    {
+        var row = new NotHandledFocusableRow("target");
+        var form = new ScrollableFormDialog([
+            new TextInputRow(new CommandLineState()) { Id = "first" },
+            row,
+        ]);
+        var driver = new FakeConsoleDriver(20, 5);
+        var host = CreateRoutedFormHost(form, driver, visibleRows: 2);
+        host.Composition.Render();
+
+        UiInputResult result = host.Composition.DispatchInput(Mouse(2, 1));
+        host.Composition.Render();
+
+        Assert.True(result.Handled);
+        Assert.True(result.Invalidate);
+        Assert.Equal("target", form.FocusedRowId);
+        Assert.True(row.RenderedFocused);
+    }
+
+    [Fact]
     public void TryFocus_FindsFooterRow()
     {
         ScrollableFormDialog form = FooterForm();
@@ -786,6 +877,18 @@ public sealed class ScrollableFormDialogTests
         host.Composition.Render();
     }
 
+    private static UiTestHost CreateRoutedFormHost(ScrollableFormDialog form, FakeConsoleDriver driver, int visibleRows)
+    {
+        var screen = new ScreenRenderer(driver);
+        return UiTestHost.Create(screen, new TestFormLayer(
+            screen,
+            form,
+            context => new FormRenderContext(
+                context,
+                new Rect(0, 0, 20, visibleRows),
+                FarDialogStyles.Border)));
+    }
+
     private sealed class TestFormLayer(
         ScreenRenderer screen,
         ScrollableFormDialog form,
@@ -824,4 +927,19 @@ public sealed class ScrollableFormDialogTests
         MouseButton button = MouseButton.Left,
         MouseEventKind kind = MouseEventKind.Down) =>
         new(x, y, button, kind, MouseKeyModifiers.None);
+
+    private sealed class NotHandledFocusableRow(string id) : FormRow
+    {
+        public override string? Id { get; init; } = id;
+        public bool RenderedFocused { get; private set; }
+
+        public override void Render(FormRowRenderContext context)
+        {
+            RenderedFocused = context.Focused;
+            context.Screen.Write(context.Bounds.X, context.Bounds.Y, "row", FarDialogStyles.Fill);
+        }
+
+        public override FormInputResult HandleMouse(MouseConsoleInputEvent mouse, FormRowMouseContext context) =>
+            FormInputResult.NotHandled;
+    }
 }

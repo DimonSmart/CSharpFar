@@ -383,9 +383,7 @@ internal sealed class InteractiveModalDialogSession<TFrame, TSemantic> : IDispos
         while (true)
         {
             ConsoleInputEvent semanticInput = _scope.Composition.ReadCompositionInput(cancellationToken);
-            UiInputResult dispatch = _scope.Composition.DispatchInput(semanticInput);
-            if (dispatch.Invalidate)
-                _scope.Composition.Render();
+            _scope.Composition.DispatchInput(semanticInput);
 
             if (_layer.TryTakeInput(out var routed))
                 return routed;
@@ -401,8 +399,7 @@ internal sealed class InteractiveModalDialogSession<TFrame, TSemantic> : IDispos
 
 internal sealed record InteractiveModalInput<TFrame, TSemantic>(
     UiRoutedInput<TFrame> Routed,
-    TSemantic Semantic,
-    bool Invalidate);
+    TSemantic Semantic);
 
 internal sealed class ModalDialogLayerScope : IDisposable
 {
@@ -509,8 +506,7 @@ internal sealed class InteractiveModalDialogLayer<TFrame, TSemantic> : UiLayer<T
         var routed = _routeInput(input, frame, context);
         _pendingInput = new InteractiveModalInput<TFrame, TSemantic>(
             new UiRoutedInput<TFrame>(input, frame, context.Target, context.RouteKind),
-            routed.Semantic,
-            routed.UiResult.Invalidate);
+            routed.Semantic);
         UiInputResult result = routed.UiResult;
         return result.Handled
             ? result
