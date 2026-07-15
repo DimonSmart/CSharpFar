@@ -83,6 +83,31 @@ public sealed class ApplicationOverlayLayerTests
     }
 
     [Fact]
+    public void CommandCompletion_NonInteractiveScrollbarClearsDragAndCapture()
+    {
+        var services = Services();
+        var completion = services.Session.CommandLine.Completion;
+        completion.Visible = true;
+        completion.Matches.AddRange(Enumerable.Range(0, 12).Select(i => $"item-{i}"));
+
+        services.Composition.Render();
+        Assert.True(services.Composition.DispatchInput(Mouse(79, 15)).Handled);
+        Assert.NotNull(completion.ScrollbarDrag);
+
+        services.Driver.SetSize(80, 6);
+        services.Composition.Render();
+
+        Assert.Null(completion.ScrollbarDrag);
+        UiInputResult move = services.Composition.DispatchInput(Mouse(0, 0, MouseEventKind.Move));
+        Assert.True(move.Handled);
+        Assert.True(services.ApplicationSurface.TryTakeInput(out var packet));
+        Assert.IsType<MouseConsoleInputEvent>(packet.Input);
+
+        services.Composition.DispatchInput(Mouse(79, 1));
+        Assert.Null(completion.ScrollbarDrag);
+    }
+
+    [Fact]
     public void CommandCompletion_RejectedRenderAttemptPreservesScrollbarDragUntilCommit()
     {
         var services = Services();

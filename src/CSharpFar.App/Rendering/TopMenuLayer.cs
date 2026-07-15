@@ -236,12 +236,18 @@ internal sealed class TopMenuLayer : UiLayer<TopMenuFrame>
         }
 
         int visibleRows = Math.Max(0, dropdown.Height - 2);
-        if (visibleRows <= 0)
+        int childCount = definition.Items[activeTopMenuIndex].Children.Count;
+        var bounds = new Rect(dropdown.Right - 1, dropdown.Y + 1, 1, visibleRows);
+        var state = new ScrollState
+        {
+            TotalItems = childCount,
+            ViewportItems = visibleRows,
+            FirstVisibleIndex = layout.DropdownFirstVisibleItemIndex,
+        };
+        if (!ScrollBarInteraction.IsInteractive(bounds, state))
             return null;
 
-        return definition.Items[activeTopMenuIndex].Children.Count > visibleRows
-            ? new Rect(dropdown.Right - 1, dropdown.Y + 1, 1, visibleRows)
-            : null;
+        return bounds;
     }
 
     private static UiTargetId ActiveTarget(TopMenuFrame frame)

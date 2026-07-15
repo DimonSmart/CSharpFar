@@ -185,12 +185,17 @@ public sealed class TopMenuController
 
         var children = definition.Items[_state.ActiveTopMenuIndex].Children;
         int visibleRows = Math.Max(0, dropdown.Height - 2);
-        if (children.Count <= visibleRows || visibleRows <= 0)
-            return false;
-
         int selectedIndex = _state.ActiveDropdownItemIndex;
         int firstVisibleIndex = layout.DropdownFirstVisibleItemIndex;
         var scrollbarBounds = new Rect(dropdown.Right - 1, dropdown.Y + 1, 1, visibleRows);
+        var scrollbarState = new ScrollState
+        {
+            TotalItems = children.Count,
+            ViewportItems = visibleRows,
+            FirstVisibleIndex = firstVisibleIndex,
+        };
+        if (!ScrollBarInteraction.IsInteractive(scrollbarBounds, scrollbarState))
+            return false;
 
         if (!ScrollableListMouseHandler.TryHandleScrollbarMouse(
                 mouse,

@@ -77,9 +77,17 @@ internal sealed class CommandCompletionLayer : UiLayer<CommandCompletionFrame>
         int commandLineRow = ApplicationLayoutService.CommandLineRow(context.Size);
         var popupBounds = new Rect(0, commandLineRow - height, context.Size.Width, height);
         var contentBounds = new Rect(1, popupBounds.Y + 1, Math.Max(0, popupBounds.Width - 2), rowCount);
-        Rect? scrollbarBounds = completion.Matches.Count > rowCount
-            ? new Rect(popupBounds.Right - 1, popupBounds.Y + 1, 1, rowCount)
-            : null;
+        Rect candidateScrollbarBounds = new(popupBounds.Right - 1, popupBounds.Y + 1, 1, rowCount);
+        var scrollbarState = new ScrollState
+        {
+            TotalItems = completion.Matches.Count,
+            ViewportItems = rowCount,
+            FirstVisibleIndex = first,
+        };
+        Rect? scrollbarBounds = completion.Matches.Count > rowCount &&
+            ScrollBarInteraction.IsInteractive(candidateScrollbarBounds, scrollbarState)
+                ? candidateScrollbarBounds
+                : null;
 
         new CommandHistoryCompletionRenderer(context.Screen, _context.App.Palette).Render(
             commandLineRow,
