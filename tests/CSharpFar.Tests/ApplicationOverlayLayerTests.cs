@@ -225,6 +225,45 @@ public sealed class ApplicationOverlayLayerTests
     }
 
     [Fact]
+    public void PanelQuickSearch_CloseAndContinueKeyboard_ForwardsSameInputToApplicationSurface()
+    {
+        var services = Services();
+        services.Session.Panels.Left.Items.Add(Item("gemini.md"));
+        services.Composition.Render();
+        services.Composition.DispatchInput(Key(ConsoleKey.G, alt: true));
+        services.Composition.Render();
+        var input = Key(ConsoleKey.Enter);
+
+        UiInputResult result = services.Composition.DispatchInput(input);
+
+        Assert.True(result.Handled);
+        Assert.True(result.Invalidate);
+        Assert.Null(services.PanelQuickSearch.State);
+        Assert.True(services.ApplicationSurface.TryTakeInput(out var packet));
+        Assert.Same(input, packet.Input);
+    }
+
+    [Fact]
+    public void PanelQuickSearch_MouseContinuation_ForwardsSameInputOnce()
+    {
+        var services = Services();
+        services.Session.Panels.Left.Items.Add(Item("gemini.md"));
+        services.Composition.Render();
+        services.Composition.DispatchInput(Key(ConsoleKey.G, alt: true));
+        services.Composition.Render();
+        var input = Mouse(20, 4);
+
+        UiInputResult result = services.Composition.DispatchInput(input);
+
+        Assert.True(result.Handled);
+        Assert.True(result.Invalidate);
+        Assert.Null(services.PanelQuickSearch.State);
+        Assert.True(services.ApplicationSurface.TryTakeInput(out var packet));
+        Assert.Same(input, packet.Input);
+        Assert.False(services.ApplicationSurface.TryTakeInput(out _));
+    }
+
+    [Fact]
     public void TopMenu_HiddenPanelsDoesNotInterceptF9OrTopRowMouse()
     {
         var services = Services();

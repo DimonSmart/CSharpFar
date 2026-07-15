@@ -59,6 +59,44 @@ public sealed class TopMenuLayerTests
         Assert.False(fixture.Services.ApplicationSurface.TryTakeInput(out _));
     }
 
+    [Fact]
+    public void KeyboardNavigation_UpdatesSelectionAndCommittedFocus()
+    {
+        var fixture = Fixture.Create();
+        fixture.Services.Composition.Render();
+
+        fixture.Services.Composition.DispatchInput(Key(ConsoleKey.F9));
+        Assert.Equal(MenuOpenState.DropdownOpen, fixture.Services.Session.Menu.State.OpenState);
+        fixture.Services.Composition.Render();
+
+        fixture.Services.Composition.DispatchInput(Key(ConsoleKey.LeftArrow));
+        Assert.Equal(1, fixture.Services.Session.Menu.State.ActiveTopMenuIndex);
+        Assert.Equal(0, fixture.Services.Session.Menu.State.ActiveDropdownItemIndex);
+
+        fixture.Services.Composition.DispatchInput(Key(ConsoleKey.DownArrow));
+        Assert.Equal(1, fixture.Services.Session.Menu.State.ActiveDropdownItemIndex);
+
+        fixture.Services.Composition.DispatchInput(Key(ConsoleKey.DownArrow));
+        Assert.Equal(3, fixture.Services.Session.Menu.State.ActiveDropdownItemIndex);
+
+        fixture.Services.Composition.DispatchInput(Key(ConsoleKey.Home));
+        Assert.Equal(0, fixture.Services.Session.Menu.State.ActiveDropdownItemIndex);
+
+        fixture.Services.Composition.DispatchInput(Key(ConsoleKey.End));
+        Assert.Equal(4, fixture.Services.Session.Menu.State.ActiveDropdownItemIndex);
+
+        fixture.Services.Composition.DispatchInput(Key(ConsoleKey.LeftArrow));
+        Assert.Equal(0, fixture.Services.Session.Menu.State.ActiveTopMenuIndex);
+        Assert.Equal(0, fixture.Services.Session.Menu.State.ActiveDropdownItemIndex);
+
+        fixture.Services.Composition.Render();
+
+        UiFocusFrame focus = fixture.Services.TopMenuLayer.CommittedInteractionFrame.Focus;
+        var entry = Assert.Single(focus.Entries);
+        Assert.Contains("application.top-menu.dropdown:File:0", entry.Target.Value, StringComparison.Ordinal);
+        Assert.Null(entry.Cursor);
+    }
+
     private static KeyConsoleInputEvent Key(ConsoleKey key, char keyChar = '\0') =>
         new(new ConsoleKeyInfo(keyChar, key, false, false, false));
 

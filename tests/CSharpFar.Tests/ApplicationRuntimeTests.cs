@@ -1,6 +1,7 @@
 using CSharpFar.App;
 using CSharpFar.App.Bootstrap;
 using CSharpFar.App.Rendering;
+using CSharpFar.App.State;
 using CSharpFar.Console;
 using CSharpFar.Console.Input;
 using CSharpFar.Core.History;
@@ -279,6 +280,24 @@ public sealed class ApplicationRuntimeTests
     }
 
     [Fact]
+    public void RealTogglePanelsMenuWorkflow_UsesCommandInternalRenderWithoutDuplicateInvalidateRender()
+    {
+        var driver = new FakeConsoleDriver(80, 25);
+        var services = RuntimeFixture.CreateServices(driver);
+        _ = new Application(services);
+        driver.EnqueueKey(KeyInfo(ConsoleKey.F9));
+        driver.EnqueueKey(KeyInfo(ConsoleKey.C, 'c'));
+        driver.EnqueueKey(KeyInfo(ConsoleKey.Enter));
+        driver.EnqueueKey(KeyInfo(ConsoleKey.F10));
+
+        services.Runtime.Run();
+
+        Assert.Equal(HiddenPanels.Both, services.Session.App.HiddenPanels);
+        Assert.Equal(4, services.Composition.StableRenderVersion);
+        Assert.Equal(MenuOpenState.Closed, services.Session.Menu.State.OpenState);
+    }
+
+    [Fact]
     public void CancellationRefresh_RendersOnlyWhileRunning()
     {
         var fixture = RuntimeFixture.Create();
@@ -326,6 +345,9 @@ public sealed class ApplicationRuntimeTests
     private static KeyConsoleInputEvent Key(ConsoleKey key) =>
         new(new ConsoleKeyInfo('\0', key, shift: false, alt: false, control: false));
 
+    private static ConsoleKeyInfo KeyInfo(ConsoleKey key, char keyChar = '\0') =>
+        new(keyChar, key, shift: false, alt: false, control: false);
+
     private static MouseConsoleInputEvent Mouse() =>
         new(1, 1, MouseButton.Left, MouseEventKind.Down, MouseKeyModifiers.None);
 
@@ -370,7 +392,7 @@ public sealed class ApplicationRuntimeTests
 
         public void CountRender(UiRenderContext context) => RenderCount++;
 
-        private static ApplicationServices CreateServices(FakeConsoleDriver driver)
+        public static ApplicationServices CreateServices(FakeConsoleDriver driver)
         {
             var fs = new FakeFileSystemService();
             const string root = @"C:\Root";
