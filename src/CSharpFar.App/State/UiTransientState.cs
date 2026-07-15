@@ -8,10 +8,6 @@ internal sealed class UiTransientState
 {
     public ConsoleViewport? LastRenderViewport { get; set; }
 
-    public Rect LeftBounds { get; set; }
-
-    public Rect RightBounds { get; set; }
-
     public PanelScrollbarDrag? PanelScrollbarDrag { get; set; }
 }
 

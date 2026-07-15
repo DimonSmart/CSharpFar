@@ -1,8 +1,10 @@
 using CSharpFar.App.Menu;
+using CSharpFar.App.Rendering;
 using CSharpFar.Console.Input;
 using CSharpFar.Core.Menu;
 using CSharpFar.Core.Models;
 using CSharpFar.Core.Services;
+using CSharpFar.Ui;
 using AppSettingsAlias = CSharpFar.Core.Models.AppSettings;
 
 namespace CSharpFar.App.Bootstrap;
@@ -48,6 +50,8 @@ internal sealed class ApplicationServiceCallbacks
     public Func<ConsoleModifiers, ApplicationRuntimeRenderRequest> HandleModifierInput { get; set; } =
         _ => throw Missing();
     public Func<MouseConsoleInputEvent, ApplicationRuntimeRenderRequest> HandleMouseInput { get; set; } =
+        _ => throw Missing();
+    public Func<UiRoutedInput<ApplicationUiFrame>, ApplicationRuntimeRenderRequest> HandleApplicationInput { get; set; } =
         _ => throw Missing();
     public Action RefreshPanels { get; set; } = () => throw Missing();
     public Action<PanelSide, CSharpFar.Module.Abstractions.IModulePanel> OpenModulePanel { get; set; } =

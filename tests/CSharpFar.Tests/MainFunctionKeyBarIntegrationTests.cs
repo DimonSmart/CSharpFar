@@ -1,12 +1,14 @@
 using CSharpFar.App.FunctionKeys;
 using CSharpFar.App.Input;
 using CSharpFar.App.Panels;
+using CSharpFar.App.Rendering;
 using CSharpFar.App.State;
 using CSharpFar.Console.Input;
 using CSharpFar.Console.Models;
 using CSharpFar.Core.Controllers;
 using CSharpFar.Core.Models;
 using CSharpFar.Tests.Fakes;
+using CSharpFar.Ui;
 
 namespace CSharpFar.Tests;
 
@@ -25,7 +27,7 @@ public sealed class MainFunctionKeyBarIntegrationTests
                 return true;
             });
 
-        bool handled = router.Handle(Mouse(x: 40, y: 24, MouseButton.Left, MouseEventKind.Down));
+        bool handled = router.Handle(Mouse(x: 40, y: 24, MouseButton.Left, MouseEventKind.Down), Frame());
 
         Assert.True(handled);
         Assert.Equal(1, executions);
@@ -41,7 +43,7 @@ public sealed class MainFunctionKeyBarIntegrationTests
             return true;
         });
 
-        bool handled = router.Handle(Mouse(x: 90, y: 24, MouseButton.Left, MouseEventKind.Down));
+        bool handled = router.Handle(Mouse(x: 90, y: 24, MouseButton.Left, MouseEventKind.Down), Frame());
 
         Assert.False(handled);
         Assert.Equal(0, executions);
@@ -57,7 +59,7 @@ public sealed class MainFunctionKeyBarIntegrationTests
             return true;
         });
 
-        bool handled = router.Handle(Mouse(x: 40, y: 24, MouseButton.Left, MouseEventKind.Down));
+        bool handled = router.Handle(Mouse(x: 40, y: 24, MouseButton.Left, MouseEventKind.Down), Frame());
 
         Assert.False(handled);
         Assert.Equal(0, executions);
@@ -73,7 +75,7 @@ public sealed class MainFunctionKeyBarIntegrationTests
             return true;
         });
 
-        bool handled = router.Handle(Mouse(x: 40, y: 22, MouseButton.Left, MouseEventKind.Down));
+        bool handled = router.Handle(Mouse(x: 40, y: 22, MouseButton.Left, MouseEventKind.Down), Frame());
 
         Assert.False(handled);
         Assert.Equal(0, executions);
@@ -89,7 +91,7 @@ public sealed class MainFunctionKeyBarIntegrationTests
             return true;
         });
 
-        bool handled = router.Handle(Mouse(x: 40, y: 24, MouseButton.Right, MouseEventKind.Down));
+        bool handled = router.Handle(Mouse(x: 40, y: 24, MouseButton.Right, MouseEventKind.Down), Frame());
 
         Assert.False(handled);
         Assert.Equal(0, executions);
@@ -105,7 +107,7 @@ public sealed class MainFunctionKeyBarIntegrationTests
             return true;
         });
 
-        bool handled = router.Handle(Mouse(x: 40, y: 24, MouseButton.Left, MouseEventKind.Up));
+        bool handled = router.Handle(Mouse(x: 40, y: 24, MouseButton.Left, MouseEventKind.Up), Frame());
 
         Assert.False(handled);
         Assert.Equal(0, executions);
@@ -130,7 +132,6 @@ public sealed class MainFunctionKeyBarIntegrationTests
             FunctionKeyLayer = () => FunctionKeyLayer.Plain,
             DirectoryShortcuts = () => new AppSettings.DirectoryShortcutSettings(),
             PanelOptions = () => new AppSettings.PanelOptionsSettings(),
-            LastRenderSizeOrCurrent = () => new ConsoleSize(120, 25),
             ActiveSide = () => PanelSide.Left,
             SetActiveSide = _ => { },
             ActiveState = () => panelState,
@@ -154,4 +155,12 @@ public sealed class MainFunctionKeyBarIntegrationTests
 
     private static MouseConsoleInputEvent Mouse(int x, int y, MouseButton button, MouseEventKind kind) =>
         new(x, y, button, kind, MouseKeyModifiers.None);
+
+    private static ApplicationUiFrame Frame() =>
+        new(
+            new ConsoleViewport(0, 0, 120, 25),
+            ApplicationSurfaceMode.Panels,
+            new ApplicationCommandLineFrame(new Rect(0, 23, 120, 1), 8, 0, 0, new UiCursorPlacement(8, 23)),
+            null,
+            null);
 }

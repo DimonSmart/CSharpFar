@@ -45,10 +45,12 @@ public sealed class Application
     private readonly PanelAutoRefreshService _autoRefresh;
     private readonly ApplicationRenderContext _renderContext;
     private readonly ApplicationRenderCoordinator _renderCoordinator;
+    private readonly ApplicationUiSurface _applicationSurface;
     private readonly UiCompositionHost _composition;
     private readonly KeyboardInputContext _keyboardInputContext;
     private readonly KeyboardInputRouter _keyboardInputRouter;
     private readonly MouseInputRouter _mouseInputRouter;
+    private readonly ApplicationInputDispatcher _applicationInputDispatcher;
     private readonly TerminalSurfaceController _terminalSurface;
     private readonly PanelRefreshService _panelRefresh;
     private readonly PanelSearchResultsService _searchResults;
@@ -173,6 +175,7 @@ public sealed class Application
         _autoRefresh = services.AutoRefresh;
         _renderContext = services.RenderContext;
         _renderCoordinator = services.RenderCoordinator;
+        _applicationSurface = services.ApplicationSurface;
         _composition = services.Composition;
         _panelSort = services.PanelSort;
         _panelNavigation = services.PanelNavigation;
@@ -190,6 +193,7 @@ public sealed class Application
         _keyboardInputContext = services.KeyboardInputContext;
         _keyboardInputRouter = services.KeyboardInputRouter;
         _mouseInputRouter = services.MouseInputRouter;
+        _applicationInputDispatcher = services.ApplicationInputDispatcher;
         _terminalSurface = services.TerminalSurface;
         BindCallbacks(services.Callbacks);
         BindKeyboardInputContext(_keyboardInputContext);
@@ -261,6 +265,7 @@ public sealed class Application
         callbacks.HandleKeyInput = HandleRuntimeKeyInput;
         callbacks.HandleModifierInput = HandleRuntimeModifierInput;
         callbacks.HandleMouseInput = HandleRuntimeMouseInput;
+        callbacks.HandleApplicationInput = HandleRuntimeApplicationInput;
         callbacks.RefreshPanels = RefreshPanels;
         callbacks.OpenModulePanel = OpenModulePanel;
     }
@@ -305,8 +310,17 @@ public sealed class Application
     private ApplicationRuntimeRenderRequest HandleRuntimeMouseInput(MouseConsoleInputEvent mouseEvt)
     {
         bool scrolledHiddenViewport = _terminalSurface.ScrollHiddenViewportToBottomForInput();
-        bool shouldRender = _mouseInputRouter.Handle(mouseEvt) || scrolledHiddenViewport;
+        bool handled = _applicationSurface.HasCommittedFrame &&
+            _mouseInputRouter.Handle(mouseEvt, _applicationSurface.CommittedFrame);
+        bool shouldRender = handled || scrolledHiddenViewport;
         return new ApplicationRuntimeRenderRequest(shouldRender);
+    }
+
+    private ApplicationRuntimeRenderRequest HandleRuntimeApplicationInput(UiRoutedInput<ApplicationUiFrame> routed)
+    {
+        bool scrolledHiddenViewport = _terminalSurface.ScrollHiddenViewportToBottomForInput();
+        ApplicationRuntimeRenderRequest request = _applicationInputDispatcher.Handle(routed);
+        return new ApplicationRuntimeRenderRequest(request.ShouldRender || scrolledHiddenViewport);
     }
 
     private void Render() => _composition.Render();

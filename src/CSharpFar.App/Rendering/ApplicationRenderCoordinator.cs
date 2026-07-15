@@ -26,7 +26,7 @@ internal sealed class ApplicationRenderCoordinator
         _commandLineRenderer = commandLineRenderer;
     }
 
-    public void RenderMainContent(UiRenderContext context)
+    public ApplicationUiFrame RenderMainContent(UiRenderContext context)
     {
         UpdateQuickViewDirSize();
         _context.Screen.SetCursorVisible(false);
@@ -42,14 +42,7 @@ internal sealed class ApplicationRenderCoordinator
             _context.QuickViewDirectorySize.CurrentState,
             _context.IsPanelVisible);
         int panelHeight = panelBounds.PanelHeight;
-        context.PublishOnStable(
-            new ApplicationLayoutSnapshot(context.Viewport, panelBounds.Left, panelBounds.Right),
-            snapshot =>
-            {
-                _context.Ui.LastRenderViewport = snapshot.Viewport;
-                _context.Ui.LeftBounds = snapshot.LeftBounds;
-                _context.Ui.RightBounds = snapshot.RightBounds;
-            });
+        context.PublishOnStable(context.Viewport, value => _context.Ui.LastRenderViewport = value);
 
         if (_context.HasVisiblePanels())
             new DirectoryShortcutBarRenderer(_context.Screen, _context.App.Palette)
@@ -58,7 +51,7 @@ internal sealed class ApplicationRenderCoordinator
         if (_context.IsPanelVisible(PanelSide.Right))
             _clockRenderer.Render(size);
 
-        _commandLineRenderer.Render(
+        ApplicationCommandLineFrame commandLine = _commandLineRenderer.Render(
             panelHeight,
             size,
             _context.ActiveState().CurrentDirectory,
@@ -66,21 +59,32 @@ internal sealed class ApplicationRenderCoordinator
 
         _functionKeyBarRenderer.Render(size, _context.FunctionKeyLayer());
 
-        _commandLineRenderer.PositionCursor(
-            panelHeight,
-            size,
-            _context.ActiveState().CurrentDirectory,
-            _context.CommandLine);
+        return new ApplicationUiFrame(
+            context.Viewport,
+            ApplicationSurfaceMode.Panels,
+            commandLine,
+            panelBounds.Left,
+            panelBounds.Right);
     }
 
-    public void RenderHiddenCommandLineContent(UiRenderContext context)
+    public ApplicationUiFrame RenderHiddenCommandLineContent(UiRenderContext context)
     {
         var viewport = context.Viewport;
         var size = context.Size;
         int row = ApplicationLayoutService.CommandLineRow(size);
         context.PublishOnStable(viewport, value => _context.Ui.LastRenderViewport = value);
-        _commandLineRenderer.Render(row, size, _context.ActiveState().CurrentDirectory, _context.CommandLine);
-        _commandLineRenderer.PositionCursor(row, size, _context.ActiveState().CurrentDirectory, _context.CommandLine);
+        ApplicationCommandLineFrame commandLine = _commandLineRenderer.Render(
+            row,
+            size,
+            _context.ActiveState().CurrentDirectory,
+            _context.CommandLine);
+
+        return new ApplicationUiFrame(
+            context.Viewport,
+            ApplicationSurfaceMode.HiddenCommandLine,
+            commandLine,
+            null,
+            null);
     }
 
     private void UpdateQuickViewDirSize()
@@ -90,6 +94,4 @@ internal sealed class ApplicationRenderCoordinator
             : _context.PanelController.CurrentItem(_context.RightPanel());
         _context.QuickViewDirectorySize.Update(_context.App.QuickView, item);
     }
-
-    private readonly record struct ApplicationLayoutSnapshot(ConsoleViewport Viewport, Rect LeftBounds, Rect RightBounds);
 }

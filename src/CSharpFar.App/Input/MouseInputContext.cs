@@ -2,7 +2,6 @@ using CSharpFar.App.CommandLine;
 using CSharpFar.App.FunctionKeys;
 using CSharpFar.App.Panels;
 using CSharpFar.App.State;
-using CSharpFar.Console.Models;
 using CSharpFar.Core.Controllers;
 using CSharpFar.Core.Models;
 using AppSettingsAlias = CSharpFar.Core.Models.AppSettings;
@@ -19,7 +18,6 @@ internal sealed class MouseInputContext
     public required Func<FunctionKeyLayer> FunctionKeyLayer { get; init; }
     public required Func<AppSettingsAlias.DirectoryShortcutSettings> DirectoryShortcuts { get; init; }
     public required Func<AppSettingsAlias.PanelOptionsSettings> PanelOptions { get; init; }
-    public required Func<ConsoleSize> LastRenderSizeOrCurrent { get; init; }
     public required Func<PanelSide> ActiveSide { get; init; }
     public required Action<PanelSide> SetActiveSide { get; init; }
     public required Func<FilePanelState> ActiveState { get; init; }

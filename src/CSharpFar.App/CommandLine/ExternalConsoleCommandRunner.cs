@@ -114,7 +114,6 @@ internal sealed class ExternalConsoleCommandRunner
 
         int row = ApplicationLayoutService.CommandLineRow(size);
         _commandLineRenderer.Render(row, size, workDir, _commandLine);
-        _commandLineRenderer.PositionCursor(row, size, workDir, _commandLine);
     }
 
     private void ClearShellPromptArea(ConsoleSize size)

@@ -175,7 +175,6 @@ internal static class ApplicationServicesBuilder
             FunctionKeyLayer = () => session.FunctionKeyLayer,
             DirectoryShortcuts = () => effectiveSettings.DirectoryShortcuts,
             PanelOptions = () => callbacks.PanelOptions(),
-            LastRenderSizeOrCurrent = () => session.Ui.LastRenderViewport?.Size ?? screen.GetSize(),
             ActiveSide = () => callbacks.GetActiveSide(),
             SetActiveSide = side => callbacks.SetActiveSide(side),
             ActiveState = () => callbacks.ActiveState(),
@@ -189,6 +188,12 @@ internal static class ApplicationServicesBuilder
             VisibleRowsForSide = side => callbacks.VisibleRowsForSide(side),
         };
         var mouseInputRouter = new MouseInputRouter(mouseInputContext);
+        var commandLineInputHandler = new ApplicationCommandLineInputHandler(mouseInputContext);
+        var applicationInputDispatcher = new ApplicationInputDispatcher(
+            key => callbacks.HandleKeyInput(key),
+            modifiers => callbacks.HandleModifierInput(modifiers),
+            mouseInputRouter,
+            commandLineInputHandler);
         var rendering = RenderingServicesFactory.Create(
             screen,
             terminalScreenMode,
@@ -393,6 +398,7 @@ internal static class ApplicationServicesBuilder
             Runtime = runtime,
             KeyboardInputContext = keyboardInputContext,
             KeyboardInputRouter = keyboardInputRouter,
+            ApplicationInputDispatcher = applicationInputDispatcher,
             MouseInputContext = mouseInputContext,
             MouseInputRouter = mouseInputRouter,
             SaveSettings = saveSettings,

@@ -32,9 +32,7 @@ internal static class ApplicationRuntimeBuilder
                 ResetWaitToken = autoRefresh.ResetWaitToken,
                 ProcessPendingRefreshes = autoRefresh.ProcessPendingRefreshes,
                 DisposeRuntimeState = quickViewDirectorySize.Dispose,
-                HandleKeyInput = key => callbacks.HandleKeyInput(key),
-                HandleModifierInput = modifiers => callbacks.HandleModifierInput(modifiers),
-                HandleMouseInput = mouse => callbacks.HandleMouseInput(mouse),
+                HandleApplicationInput = routed => callbacks.HandleApplicationInput(routed),
                 TryTakeMenuCommand = pendingMenuCommands.TryTake,
                 ExecuteMenuCommand = request => callbacks.ExecuteMenuCommand(request),
             });

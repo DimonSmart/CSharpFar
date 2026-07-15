@@ -40,6 +40,8 @@ public sealed class ApplicationUiSurfaceTests
         Assert.True(services.ApplicationSurface.TryTakeInput(out var visible));
         Assert.Equal(new ConsoleViewport(0, 0, 80, 25), visible.Frame.Viewport);
         Assert.Equal(ApplicationSurfaceMode.Panels, visible.Frame.Mode);
+        Assert.Equal(new Rect(0, 23, 80, 1), visible.Frame.CommandLine.Bounds);
+        Assert.NotNull(visible.Frame.CommandLine.Cursor);
 
         services.Session.App.HiddenPanels = HiddenPanels.Both;
         services.Composition.Render();
@@ -47,6 +49,7 @@ public sealed class ApplicationUiSurfaceTests
         Assert.True(services.ApplicationSurface.TryTakeInput(out var hidden));
 
         Assert.Equal(ApplicationSurfaceMode.HiddenCommandLine, hidden.Frame.Mode);
+        Assert.Equal(new Rect(0, 23, 80, 1), hidden.Frame.CommandLine.Bounds);
     }
 
     [Fact]
@@ -77,8 +80,45 @@ public sealed class ApplicationUiSurfaceTests
 
         Assert.True(services.ApplicationSurface.TryTakeInput(out var routed));
         Assert.Equal(new ConsoleViewport(0, 0, 80, 25), routed.Frame.Viewport);
-        Assert.Null(routed.Target);
-        Assert.Equal(UiInputRouteKind.Layer, routed.RouteKind);
+        Assert.Equal(ApplicationTargetIds.CommandLine, routed.Target);
+        Assert.Equal(UiInputRouteKind.FocusedTarget, routed.RouteKind);
+    }
+
+    [Fact]
+    public void CommandLineHit_CreatesTargetRouteAndCaptureRequest()
+    {
+        var services = Services();
+        services.Composition.Render();
+
+        UiInputResult result = services.Composition.DispatchInput(
+            new MouseConsoleInputEvent(10, 23, MouseButton.Left, MouseEventKind.Down, MouseKeyModifiers.None));
+
+        Assert.True(result.Handled);
+        Assert.True(services.ApplicationSurface.TryTakeInput(out var routed));
+        Assert.Equal(ApplicationTargetIds.CommandLine, routed.Target);
+        Assert.Equal(UiInputRouteKind.HitTarget, routed.RouteKind);
+        Assert.Equal(new ConsoleViewport(0, 0, 80, 25), routed.Frame.Viewport);
+
+        services.Composition.DispatchInput(
+            new MouseConsoleInputEvent(79, 10, MouseButton.Left, MouseEventKind.Move, MouseKeyModifiers.None));
+
+        Assert.True(services.ApplicationSurface.TryTakeInput(out var captured));
+        Assert.Equal(ApplicationTargetIds.CommandLine, captured.Target);
+        Assert.Equal(UiInputRouteKind.CapturedTarget, captured.RouteKind);
+    }
+
+    [Fact]
+    public void CommandLineCursorMetadata_ComesFromCommittedFrame()
+    {
+        var services = Services();
+
+        services.Composition.Render();
+
+        UiFocusEntry focus = Assert.Single(services.ApplicationSurface.CommittedInteractionFrame.Focus.Entries);
+        Assert.Equal(ApplicationTargetIds.CommandLine, focus.Target);
+        Assert.Equal(services.ApplicationSurface.CommittedFrame.CommandLine.Cursor, focus.Cursor);
+        Assert.Equal(ApplicationTargetIds.CommandLine, services.ApplicationSurface.CommittedInteractionFrame.Focus.DefaultTarget);
+        Assert.Single(services.ApplicationSurface.CommittedInteractionFrame.HitRegions);
     }
 
     [Theory]
@@ -93,8 +133,16 @@ public sealed class ApplicationUiSurfaceTests
         Assert.True(result.Handled);
         Assert.True(services.ApplicationSurface.TryTakeInput(out var routed));
         Assert.IsType(expectedType, routed.Input);
-        Assert.Null(routed.Target);
-        Assert.Equal(UiInputRouteKind.Layer, routed.RouteKind);
+        if (input is KeyConsoleInputEvent or ModifierKeyConsoleInputEvent)
+        {
+            Assert.Equal(ApplicationTargetIds.CommandLine, routed.Target);
+            Assert.Equal(UiInputRouteKind.FocusedTarget, routed.RouteKind);
+        }
+        else
+        {
+            Assert.Null(routed.Target);
+            Assert.Equal(UiInputRouteKind.Layer, routed.RouteKind);
+        }
         Assert.False(services.ApplicationSurface.TryTakeInput(out _));
 
         services.Composition.DispatchInput(Key(ConsoleKey.B));
@@ -162,8 +210,8 @@ public sealed class ApplicationUiSurfaceTests
         services.Composition.DispatchInput(Key(ConsoleKey.C));
         Assert.True(services.ApplicationSurface.TryTakeInput(out var routed));
         Assert.Equal(ConsoleKey.C, Assert.IsType<KeyConsoleInputEvent>(routed.Input).Key.Key);
-        Assert.Null(routed.Target);
-        Assert.Equal(UiInputRouteKind.Layer, routed.RouteKind);
+        Assert.Equal(ApplicationTargetIds.CommandLine, routed.Target);
+        Assert.Equal(UiInputRouteKind.FocusedTarget, routed.RouteKind);
     }
 
     [Fact]

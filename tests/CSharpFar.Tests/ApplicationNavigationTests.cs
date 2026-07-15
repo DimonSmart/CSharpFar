@@ -1410,7 +1410,14 @@ public sealed class ApplicationNavigationTests : IDisposable
         var method = router.GetType().GetMethod("Handle")
             ?? throw new InvalidOperationException("MouseInputRouter.Handle method not found.");
 
-        return (bool)method.Invoke(router, [mouse])!;
+        var surface = typeof(Application).GetField(
+            "_applicationSurface",
+            BindingFlags.Instance | BindingFlags.NonPublic)
+            ?.GetValue(app)
+            ?? throw new InvalidOperationException("Application surface not found.");
+        var frame = surface.GetType().GetProperty("CommittedFrame")!.GetValue(surface);
+
+        return (bool)method.Invoke(router, [mouse, frame])!;
     }
 
     private static void Render(Application app)

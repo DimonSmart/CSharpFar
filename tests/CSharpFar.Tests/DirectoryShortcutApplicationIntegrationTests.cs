@@ -58,6 +58,9 @@ public sealed class DirectoryShortcutApplicationIntegrationTests : IDisposable
     public void HandleMouse_ClickOnShortcutBar_NavigatesToShortcut()
     {
         var app = CreateApp(out var driver, out _);
+        typeof(Application)
+            .GetMethod("Render", BindingFlags.Instance | BindingFlags.NonPublic)!
+            .Invoke(app, null);
 
         bool handled = InvokeHandleMouse(
             app,
@@ -177,10 +180,15 @@ public sealed class DirectoryShortcutApplicationIntegrationTests : IDisposable
             .GetField("_mouseInputRouter", BindingFlags.Instance | BindingFlags.NonPublic)!
             .GetValue(app)!;
 
+        var surface = typeof(Application)
+            .GetField("_applicationSurface", BindingFlags.Instance | BindingFlags.NonPublic)!
+            .GetValue(app)!;
+        var frame = surface.GetType().GetProperty("CommittedFrame")!.GetValue(surface);
+
         return (bool)router
             .GetType()
             .GetMethod("Handle")!
-            .Invoke(router, [mouse])!;
+            .Invoke(router, [mouse, frame])!;
     }
 
     private static ConsoleKeyInfo Key(ConsoleKey key) =>

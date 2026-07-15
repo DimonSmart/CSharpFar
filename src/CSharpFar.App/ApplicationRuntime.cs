@@ -66,7 +66,7 @@ internal sealed class ApplicationRuntime
                 ApplicationRuntimeRenderRequest applicationRequest = ApplicationRuntimeRenderRequest.None;
 
                 if (_applicationSurface.TryTakeInput(out var applicationInput))
-                    applicationRequest = DispatchApplicationInput(applicationInput.Input);
+                    applicationRequest = _context.HandleApplicationInput(applicationInput);
 
                 bool shouldRender =
                     menuCommandRequest.ShouldRender ||
@@ -89,14 +89,6 @@ internal sealed class ApplicationRuntime
         }
     }
 
-    private ApplicationRuntimeRenderRequest DispatchApplicationInput(ConsoleInputEvent input) =>
-        input switch
-        {
-            KeyConsoleInputEvent { Key: var key } => _context.HandleKeyInput(key),
-            ModifierKeyConsoleInputEvent { Modifiers: var modifiers } => _context.HandleModifierInput(modifiers),
-            MouseConsoleInputEvent mouseEvt => _context.HandleMouseInput(mouseEvt),
-            _ => ApplicationRuntimeRenderRequest.None,
-        };
 }
 
 internal sealed class ApplicationRuntimeContext
@@ -109,9 +101,7 @@ internal sealed class ApplicationRuntimeContext
     public required Action ResetWaitToken { get; init; }
     public required Action ProcessPendingRefreshes { get; init; }
     public required Action DisposeRuntimeState { get; init; }
-    public required Func<ConsoleKeyInfo, ApplicationRuntimeRenderRequest> HandleKeyInput { get; init; }
-    public required Func<ConsoleModifiers, ApplicationRuntimeRenderRequest> HandleModifierInput { get; init; }
-    public required Func<MouseConsoleInputEvent, ApplicationRuntimeRenderRequest> HandleMouseInput { get; init; }
+    public required Func<UiRoutedInput<ApplicationUiFrame>, ApplicationRuntimeRenderRequest> HandleApplicationInput { get; init; }
     public TryTakeMenuCommand TryTakeMenuCommand { get; init; } = static (out MenuCommandRequest request) =>
     {
         request = null!;

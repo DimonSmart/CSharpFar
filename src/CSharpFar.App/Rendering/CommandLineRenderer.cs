@@ -20,23 +20,29 @@ internal sealed class CommandLineRenderer
 
     public void Render(int y, int totalWidth, string currentDirectory, CommandLineState state)
     {
-        if (totalWidth <= 0)
+        CommandLineLayout layout = CommandLineLayoutCalculator.Calculate(y, totalWidth, currentDirectory, state);
+        Render(layout, currentDirectory, state);
+    }
+
+    public void Render(CommandLineLayout layout, string currentDirectory, CommandLineState state)
+    {
+        if (layout.Bounds.Width <= 0)
             return;
 
-        _screen.FillRegion(new Rect(0, y, totalWidth, 1), _style);
+        _screen.FillRegion(layout.Bounds, _style);
 
         string prompt = currentDirectory + ">";
         string full   = prompt + state.Text;
-        int offset    = GetDisplayOffset(totalWidth, prompt.Length, full.Length, state.CursorPosition);
+        int offset    = layout.DisplayOffset;
 
         string display = full.Length > offset ? full[offset..] : string.Empty;
-        if (display.Length > totalWidth)
-            display = display[..totalWidth];
-        display = display.PadRight(totalWidth);
+        if (display.Length > layout.Bounds.Width)
+            display = display[..layout.Bounds.Width];
+        display = display.PadRight(layout.Bounds.Width);
 
         if (!state.HasSelection)
         {
-            _screen.Write(0, y, display, _style);
+            _screen.Write(layout.Bounds.X, layout.Bounds.Y, display, _style);
             return;
         }
 
@@ -46,7 +52,7 @@ internal sealed class CommandLineRenderer
         for (int i = 0; i < display.Length; i++)
         {
             bool isSelected = i >= selectionStartX && i < selectionEndX;
-            _screen.WriteChar(i, y, display[i], isSelected ? _selectionStyle : _style);
+            _screen.WriteChar(layout.Bounds.X + i, layout.Bounds.Y, display[i], isSelected ? _selectionStyle : _style);
         }
     }
 
@@ -56,29 +62,7 @@ internal sealed class CommandLineRenderer
     /// </summary>
     public int GetCursorX(int totalWidth, string currentDirectory, CommandLineState state)
     {
-        if (totalWidth <= 0)
-            return -1;
-
-        string prompt = currentDirectory + ">";
-        string full   = prompt + state.Text;
-        int rawX      = prompt.Length + state.CursorPosition;
-        int offset    = GetDisplayOffset(totalWidth, prompt.Length, full.Length, state.CursorPosition);
-
-        int adjusted = rawX - offset;
-        return adjusted < 0 || adjusted >= totalWidth ? -1 : adjusted;
-    }
-
-    private static int GetDisplayOffset(
-        int totalWidth,
-        int promptLength,
-        int fullLength,
-        int cursorPosition)
-    {
-        if (fullLength < totalWidth)
-            return 0;
-
-        int rawCursorX = promptLength + cursorPosition;
-        int maxOffset = Math.Max(0, fullLength - totalWidth + 1);
-        return Math.Clamp(rawCursorX - totalWidth + 1, 0, maxOffset);
+        var layout = CommandLineLayoutCalculator.Calculate(0, totalWidth, currentDirectory, state);
+        return layout.Cursor is null ? -1 : layout.CursorX;
     }
 }

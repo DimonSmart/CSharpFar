@@ -4,6 +4,7 @@ using CSharpFar.App.Rendering;
 using CSharpFar.App.State;
 using CSharpFar.Console;
 using CSharpFar.Console.Input;
+using CSharpFar.Console.Models;
 using CSharpFar.Core.History;
 using CSharpFar.Core.Menu;
 using CSharpFar.Core.Models;
@@ -51,6 +52,24 @@ public sealed class ApplicationRuntimeTests
         Assert.Equal(0, fixture.KeyCount);
         Assert.Equal(1, fixture.ModifierCount);
         Assert.Equal(1, fixture.MouseCount);
+    }
+
+    [Fact]
+    public void ApplicationPacket_PreservesTargetRouteKindAndDispatchFrame()
+    {
+        var fixture = RuntimeFixture.Create();
+        fixture.Driver.EnqueueInput(Key(ConsoleKey.A));
+        fixture.Context.HandleApplicationInputOverride = routed =>
+        {
+            fixture.Services.Composition.Render();
+            fixture.Running = false;
+            Assert.Equal(ApplicationTargetIds.CommandLine, routed.Target);
+            Assert.Equal(UiInputRouteKind.FocusedTarget, routed.RouteKind);
+            Assert.Equal(new ConsoleViewport(0, 0, 80, 25), routed.Frame.Viewport);
+            return ApplicationRuntimeRenderRequest.None;
+        };
+
+        fixture.Run();
     }
 
     [Fact]
@@ -442,6 +461,15 @@ public sealed class ApplicationRuntimeTests
                 fixture.Running = false;
             return ApplicationRuntimeRenderRequest.None;
         };
+        public Func<UiRoutedInput<ApplicationUiFrame>, ApplicationRuntimeRenderRequest>? HandleApplicationInputOverride { get; set; }
+        public Func<UiRoutedInput<ApplicationUiFrame>, ApplicationRuntimeRenderRequest> HandleApplicationInput => routed =>
+            HandleApplicationInputOverride?.Invoke(routed) ?? (routed.Input switch
+            {
+                KeyConsoleInputEvent { Key: var key } => HandleKeyInput(key),
+                ModifierKeyConsoleInputEvent { Modifiers: var modifiers } => HandleModifierInput(modifiers),
+                MouseConsoleInputEvent mouse => HandleMouseInput(mouse),
+                _ => ApplicationRuntimeRenderRequest.None,
+            });
         public TryTakeMenuCommand TryTakeMenuCommand { get; set; } = static (out MenuCommandRequest request) =>
         {
             request = null!;
@@ -460,9 +488,7 @@ public sealed class ApplicationRuntimeTests
             ResetWaitToken = ResetWaitToken,
             ProcessPendingRefreshes = ProcessPendingRefreshes,
             DisposeRuntimeState = DisposeRuntimeState,
-            HandleKeyInput = HandleKeyInput,
-            HandleModifierInput = HandleModifierInput,
-            HandleMouseInput = HandleMouseInput,
+            HandleApplicationInput = HandleApplicationInput,
             TryTakeMenuCommand = TryTakeMenuCommand,
             ExecuteMenuCommand = ExecuteMenuCommand,
         };

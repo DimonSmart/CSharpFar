@@ -15,17 +15,20 @@ internal sealed class ApplicationCommandLineRenderer
         _palette = palette;
     }
 
-    public void Render(int row, ConsoleSize size, string currentDirectory, CommandLineState commandLine) =>
-        CreateRenderer().Render(row, size.Width, currentDirectory, commandLine);
-
-    public void PositionCursor(int row, ConsoleSize size, string currentDirectory, CommandLineState commandLine)
+    public ApplicationCommandLineFrame Render(
+        int row,
+        ConsoleSize size,
+        string currentDirectory,
+        CommandLineState commandLine)
     {
-        int cursorX = CreateRenderer().GetCursorX(size.Width, currentDirectory, commandLine);
-        if (cursorX >= 0 && cursorX < size.Width)
-        {
-            _screen.SetCursorPosition(cursorX, row);
-            _screen.SetCursorVisible(true);
-        }
+        CommandLineLayout layout = CommandLineLayoutCalculator.Calculate(row, size.Width, currentDirectory, commandLine);
+        CreateRenderer().Render(layout, currentDirectory, commandLine);
+        return new ApplicationCommandLineFrame(
+            layout.Bounds,
+            layout.PromptLength,
+            layout.DisplayOffset,
+            layout.TextLength,
+            layout.Cursor);
     }
 
     private CommandLineRenderer CreateRenderer() =>
