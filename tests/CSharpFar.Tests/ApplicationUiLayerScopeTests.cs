@@ -16,7 +16,7 @@ public sealed class ApplicationUiLayerScopeTests
     [Fact]
     public void Scope_RegistersApplicationLayersAboveRootAndRoutesTopmostFirst()
     {
-        var fixture = Fixture.Create();
+        using var fixture = Fixture.Create();
         fixture.Services.Session.CommandLine.Completion.Visible = true;
         fixture.Services.Session.CommandLine.Completion.Matches.AddRange(["", "alpha"]);
         fixture.Services.Session.CommandLine.Completion.SelectedIndex = 1;
@@ -41,7 +41,7 @@ public sealed class ApplicationUiLayerScopeTests
     [Fact]
     public void Scope_RendersRootBeforeApplicationLayersAndModalAboveApplicationLayers()
     {
-        var fixture = Fixture.Create();
+        using var fixture = Fixture.Create();
         fixture.Services.Session.CommandLine.Completion.Visible = true;
         fixture.Services.Session.CommandLine.Completion.Matches.AddRange(["", "alpha"]);
         fixture.Host.Render();
@@ -66,7 +66,7 @@ public sealed class ApplicationUiLayerScopeTests
     [Fact]
     public void Dispose_RemovesApplicationOverlaysInLifoOrderAndLeavesRootSurfaceRoutable()
     {
-        var fixture = Fixture.Create();
+        using var fixture = Fixture.Create();
         fixture.Services.Session.CommandLine.Completion.Visible = true;
         fixture.Services.Session.CommandLine.Completion.Matches.AddRange(["", "alpha"]);
         fixture.Host.Render();
@@ -142,10 +142,78 @@ public sealed class ApplicationUiLayerScopeTests
             fixture.TopMenuLayer);
     }
 
-    private static KeyConsoleInputEvent Key(ConsoleKey key, char keyChar = '\0') =>
-        new(new ConsoleKeyInfo(keyChar, key, shift: false, alt: false, control: false));
+    [Fact]
+    public void Rollback_DisposesAllRegistrationsInReverseAndPreservesEveryFailure()
+    {
+        var calls = new List<string>();
+        var firstRollbackError = new InvalidOperationException("first rollback failure");
+        var secondRollbackError = new InvalidOperationException("second rollback failure");
+        var registrationError = new InvalidOperationException("registration failure");
+        IReadOnlyList<IDisposable> registrations =
+        [
+            new RecordingDisposable("completion", calls, firstRollbackError),
+            new RecordingDisposable("quick search", calls),
+            new RecordingDisposable("top menu", calls, secondRollbackError),
+        ];
 
-    private sealed class Fixture
+        var thrown = Assert.Throws<InvalidOperationException>(() =>
+            ApplicationUiLayerScope.RethrowRegistrationErrorAfterRollback(
+                registrationError,
+                registrations));
+
+        Assert.Same(registrationError, thrown);
+        Assert.Equal(["top menu", "quick search", "completion"], calls);
+        Exception[] rollbackErrors = Assert.IsType<Exception[]>(
+            thrown.Data["ApplicationUiLayerScope.RollbackErrors"]);
+        Assert.Equal([secondRollbackError, firstRollbackError], rollbackErrors);
+    }
+
+    [Fact]
+    public void Scope_RoutesMenuThenQuickSearchThenCompletionThenRoot()
+    {
+        using var fixture = Fixture.Create();
+        fixture.Services.Session.Panels.Left.Items.Add(Item("gamma.txt"));
+        fixture.Host.Render();
+
+        fixture.Host.DispatchInput(Key(ConsoleKey.G, 'g', alt: true));
+        fixture.Services.Session.CommandLine.Completion.Visible = true;
+        fixture.Services.Session.CommandLine.Completion.Matches.AddRange(["", "completion"]);
+        fixture.Services.Session.CommandLine.Completion.SelectedIndex = 1;
+        fixture.Host.Render();
+
+        var quickSearchInput = Key(ConsoleKey.A, 'a');
+        Assert.True(fixture.Host.DispatchInput(quickSearchInput).Handled);
+        Assert.Equal("ga", fixture.Services.PanelQuickSearch.State?.SearchText);
+        Assert.False(fixture.Root.TryTakeInput(out _));
+
+        var continueInput = Key(ConsoleKey.Enter);
+        Assert.True(fixture.Host.DispatchInput(continueInput).Handled);
+        Assert.Null(fixture.Services.PanelQuickSearch.State);
+        Assert.Equal("completion", fixture.Services.Session.CommandLine.State.Text);
+        Assert.False(fixture.Root.TryTakeInput(out _));
+
+        fixture.Root.Clear();
+        fixture.Host.DispatchInput(Key(ConsoleKey.F9));
+        Assert.Equal(UiLayerInputPolicy.Modal, fixture.TopMenuLayer.InputPolicy);
+        fixture.Host.Render();
+        Assert.True(fixture.Host.DispatchInput(Key(ConsoleKey.B, 'b')).Handled);
+        Assert.False(fixture.Root.TryTakeInput(out _));
+    }
+
+    private static KeyConsoleInputEvent Key(ConsoleKey key, char keyChar = '\0', bool alt = false) =>
+        new(new ConsoleKeyInfo(keyChar, key, shift: false, alt, control: false));
+
+    private static FilePanelItem Item(string name) => new()
+    {
+        Name = name,
+        FullPath = Path.Combine(@"C:\Root", name),
+        IsDirectory = false,
+        Size = 1,
+        LastWriteTime = new DateTime(2026, 1, 1),
+        Attributes = FileAttributes.Archive,
+    };
+
+    private sealed class Fixture : IDisposable
     {
         private Fixture(
             FakeConsoleDriver driver,
@@ -236,6 +304,8 @@ public sealed class ApplicationUiLayerScopeTests
                 TopMenuLayer,
                 scope);
 
+        public void Dispose() => Scope?.Dispose();
+
         private static ApplicationServices CreateServices(FakeConsoleDriver driver)
         {
             var fileSystem = new FakeFileSystemService();
@@ -288,5 +358,15 @@ public sealed class ApplicationUiLayerScopeTests
             _inputs.TryDequeue(out packet!);
 
         public void Clear() => _inputs.Clear();
+    }
+
+    private sealed class RecordingDisposable(string name, List<string> calls, Exception? exception = null) : IDisposable
+    {
+        public void Dispose()
+        {
+            calls.Add(name);
+            if (exception is not null)
+                throw exception;
+        }
     }
 }
