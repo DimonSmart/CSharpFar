@@ -116,7 +116,17 @@ internal sealed class CommandCompletionLayer : UiLayer<CommandCompletionFrame>
     protected override void OnFrameCommitted(CommandCompletionFrame frame)
     {
         if (!frame.Visible || frame.ScrollbarBounds is null)
+        {
             _context.CommandCompletion.ScrollbarDrag = null;
+        }
+        else if (_context.CommandCompletion.ScrollbarDrag is { } drag)
+        {
+            _context.CommandCompletion.ScrollbarDrag = ScrollBarInteraction.RebaseDrag(
+                drag,
+                frame.ScrollbarBounds.Value,
+                frame.MatchCount,
+                frame.VisibleRows);
+        }
 
         if (!frame.Visible)
             return;

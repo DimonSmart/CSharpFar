@@ -133,6 +133,24 @@ public sealed class TopMenuController
 
     public void CancelDropdownScrollbarDrag() => _dropdownScrollbarDrag = null;
 
+    public void CommitDropdownScrollbar(Rect? bounds, int totalItems, int viewportItems)
+    {
+        if (bounds is null)
+        {
+            _dropdownScrollbarDrag = null;
+            return;
+        }
+
+        if (_dropdownScrollbarDrag is { } drag)
+        {
+            _dropdownScrollbarDrag = ScrollBarInteraction.RebaseDrag(
+                drag,
+                bounds.Value,
+                totalItems,
+                viewportItems);
+        }
+    }
+
     private void OpenForPanel(MenuBarDefinition definition, PanelSide panelSide)
     {
         OpenDropdown(definition, TopIndexForPanel(definition, panelSide));

@@ -83,7 +83,7 @@ public sealed class ApplicationOverlayLayerTests
     }
 
     [Fact]
-    public void CommandCompletion_RejectedFrameWithScrollbarPreservesScrollbarDrag()
+    public void CommandCompletion_RejectedRenderAttemptPreservesScrollbarDragUntilCommit()
     {
         var services = Services();
         var completion = services.Session.CommandLine.Completion;
@@ -91,14 +91,57 @@ public sealed class ApplicationOverlayLayerTests
         completion.Matches.AddRange(Enumerable.Range(0, 12).Select(i => $"item-{i}"));
         services.Composition.Render();
         services.Composition.DispatchInput(Mouse(79, 15));
-        Assert.NotNull(completion.ScrollbarDrag);
+        ScrollBarDragState dragBeforeRetry = Assert.IsType<ScrollBarDragState>(completion.ScrollbarDrag);
+        bool observedRejectedAttempt = false;
 
-        services.Driver.ResizeAfterWriteCount = 1;
+        completion.SelectedIndex = 1;
+        services.Driver.ResizeAfterWriteCount = services.Driver.WriteAtCallCount + 1;
         services.Driver.ResizeAfterWrite = driver => driver.SetSize(100, 35);
+        services.Driver.BeforeViewportWrite = _ =>
+        {
+            observedRejectedAttempt = true;
+            Assert.Equal(dragBeforeRetry, completion.ScrollbarDrag);
+            services.Driver.BeforeViewportWrite = null;
+        };
 
         services.Composition.Render();
 
-        Assert.Null(completion.ScrollbarDrag);
+        Assert.True(observedRejectedAttempt);
+    }
+
+    [Fact]
+    public void CommandCompletion_CommittedResizeRebasesScrollbarDrag()
+    {
+        var services = Services();
+        var completion = services.Session.CommandLine.Completion;
+        completion.Visible = true;
+        completion.Matches.AddRange(Enumerable.Range(0, 12).Select(i => $"item-{i}"));
+        services.Composition.Render();
+        services.Composition.DispatchInput(Mouse(79, 15));
+
+        completion.SelectedIndex = 1;
+        services.Driver.ResizeAfterWriteCount = services.Driver.WriteAtCallCount + 1;
+        services.Driver.ResizeAfterWrite = driver => driver.SetSize(100, 35);
+        services.Composition.Render();
+
+        ScrollBarDragState drag = Assert.IsType<ScrollBarDragState>(completion.ScrollbarDrag);
+        Assert.Equal(new Rect(99, 24, 1, 8), drag.Bounds);
+        Assert.Equal(12, drag.TotalItems);
+        Assert.Equal(8, drag.ViewportItems);
+        int thumbHeight = ScrollBarInteraction.CalculateThumb(
+            drag.Bounds,
+            new ScrollState
+            {
+                TotalItems = drag.TotalItems,
+                ViewportItems = drag.ViewportItems,
+                FirstVisibleIndex = 0,
+            }).ThumbHeight;
+        Assert.InRange(drag.PointerOffsetInThumb, 0, thumbHeight - 1);
+
+        UiInputResult move = services.Composition.DispatchInput(Mouse(0, drag.Bounds.Bottom - 2, MouseEventKind.Move));
+
+        Assert.True(move.Handled);
+        Assert.Equal(4, completion.FirstVisibleIndex);
     }
 
     [Fact]
@@ -164,8 +207,8 @@ public sealed class ApplicationOverlayLayerTests
         bool control = false) =>
         new(new ConsoleKeyInfo(keyChar, key, shift: false, alt, control));
 
-    private static MouseConsoleInputEvent Mouse(int x, int y) =>
-        new(x, y, MouseButton.Left, MouseEventKind.Down, MouseKeyModifiers.None);
+    private static MouseConsoleInputEvent Mouse(int x, int y, MouseEventKind kind = MouseEventKind.Down) =>
+        new(x, y, MouseButton.Left, kind, MouseKeyModifiers.None);
 
     private static FilePanelItem Item(string name) => new()
     {

@@ -30,6 +30,29 @@ public readonly record struct ScrollBarThumb(
 
 public static class ScrollBarInteraction
 {
+    public static ScrollBarDragState? RebaseDrag(
+        ScrollBarDragState drag,
+        Rect bounds,
+        int totalItems,
+        int viewportItems)
+    {
+        var state = new ScrollState
+        {
+            TotalItems = totalItems,
+            ViewportItems = viewportItems,
+            FirstVisibleIndex = 0,
+        };
+        if (!IsInteractive(bounds, state))
+            return null;
+
+        var thumb = CalculateThumb(bounds, state);
+        return new ScrollBarDragState(
+            bounds,
+            totalItems,
+            viewportItems,
+            Math.Clamp(drag.PointerOffsetInThumb, 0, thumb.ThumbHeight - 1));
+    }
+
     public static ScrollBarHitTestResult HitTest(Rect bounds, ScrollState state, int x, int y)
     {
         if (!IsInteractive(bounds, state) || x != bounds.X || y < bounds.Y || y >= bounds.Bottom)

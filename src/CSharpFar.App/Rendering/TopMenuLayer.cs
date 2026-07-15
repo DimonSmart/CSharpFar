@@ -143,8 +143,16 @@ internal sealed class TopMenuLayer : UiLayer<TopMenuFrame>
 
     protected override void OnFrameCommitted(TopMenuFrame frame)
     {
-        if (!frame.Available || !frame.Open || frame.ScrollbarBounds is null)
-            _controller.CancelDropdownScrollbarDrag();
+        int childCount = frame.Available &&
+            frame.Open &&
+            frame.ActiveTopMenuIndex >= 0 &&
+            frame.ActiveTopMenuIndex < frame.Definition.Items.Count
+            ? frame.Definition.Items[frame.ActiveTopMenuIndex].Children.Count
+            : 0;
+        int visibleRows = frame.Layout.DropdownBounds is { } dropdown
+            ? Math.Max(0, dropdown.Height - 2)
+            : 0;
+        _controller.CommitDropdownScrollbar(frame.ScrollbarBounds, childCount, visibleRows);
     }
 
     protected override UiInputResult RouteInput(
