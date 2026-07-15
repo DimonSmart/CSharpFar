@@ -139,6 +139,11 @@ public sealed class UiCompositionHost
 
     public ConsoleViewport? LastStableViewport { get; private set; }
 
+    /// <summary>
+    /// Monotonically increasing version of successfully committed composition frames.
+    /// </summary>
+    public long StableRenderVersion { get; private set; }
+
     public void SetRootSurface(IUiSurface surface)
     {
         EnsureCanChangeLayers();
@@ -251,6 +256,7 @@ public sealed class UiCompositionHost
                 }
 
                 attempt.Commit();
+                StableRenderVersion++;
                 LastStableViewport = viewport;
                 RevalidateMouseCapture();
                 composition.Surface.SurfaceLifecycle!.CompleteFrame(new UiFrameCompletion(request, viewport, WasInterrupted: false, WasCommitted: true));

@@ -372,6 +372,25 @@ public sealed class UiCompositionHostTests
         Assert.True(completions[1].WasCommitted);
         Assert.Equal(driver.GetViewport(), host.LastStableViewport);
         Assert.Equal('R', driver.GetCell(99, 34).Character);
+        Assert.Equal(1, host.StableRenderVersion);
+    }
+
+    [Fact]
+    public void StableRenderVersion_IncrementsOnlyForCommittedFrames()
+    {
+        var driver = new FakeConsoleDriver(80, 25)
+        {
+            ResizeAfterWriteCount = 1,
+            ResizeAfterWrite = d => d.SetSize(100, 35),
+        };
+        var host = new UiCompositionHost(new ScreenRenderer(driver));
+        host.SetRootSurface(new ScreenRendererSurface(host.Screen, context => Fill(context, 'R')));
+
+        host.Render();
+        Assert.Equal(1, host.StableRenderVersion);
+
+        host.Render();
+        Assert.Equal(2, host.StableRenderVersion);
     }
 
     [Fact]

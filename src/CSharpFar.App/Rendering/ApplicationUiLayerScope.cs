@@ -13,12 +13,21 @@ internal sealed class ApplicationUiLayerScope : IDisposable
         PanelQuickSearchLayer panelQuickSearch,
         TopMenuLayer topMenu)
     {
-        _registrations =
-        [
-            composition.RegisterOverlay(commandCompletion),
-            composition.RegisterOverlay(panelQuickSearch),
-            composition.RegisterOverlay(topMenu),
-        ];
+        var registrations = new List<IDisposable>(3);
+        try
+        {
+            registrations.Add(composition.RegisterOverlay(commandCompletion));
+            registrations.Add(composition.RegisterOverlay(panelQuickSearch));
+            registrations.Add(composition.RegisterOverlay(topMenu));
+            _registrations = [.. registrations];
+        }
+        catch
+        {
+            for (int i = registrations.Count - 1; i >= 0; i--)
+                registrations[i].Dispose();
+
+            throw;
+        }
     }
 
     public void Dispose()

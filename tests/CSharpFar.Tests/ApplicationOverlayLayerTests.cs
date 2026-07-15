@@ -64,6 +64,44 @@ public sealed class ApplicationOverlayLayerTests
     }
 
     [Fact]
+    public void CommandCompletion_CommittedFrameWithoutScrollbarCancelsScrollbarDrag()
+    {
+        var services = Services();
+        var completion = services.Session.CommandLine.Completion;
+        completion.Visible = true;
+        completion.Matches.AddRange(Enumerable.Range(0, 12).Select(i => $"item-{i}"));
+
+        services.Composition.Render();
+        UiInputResult down = services.Composition.DispatchInput(Mouse(79, 15));
+        Assert.True(down.Handled);
+        Assert.NotNull(completion.ScrollbarDrag);
+
+        completion.Matches.RemoveRange(1, completion.Matches.Count - 1);
+        services.Composition.Render();
+
+        Assert.Null(completion.ScrollbarDrag);
+    }
+
+    [Fact]
+    public void CommandCompletion_RejectedFrameWithScrollbarPreservesScrollbarDrag()
+    {
+        var services = Services();
+        var completion = services.Session.CommandLine.Completion;
+        completion.Visible = true;
+        completion.Matches.AddRange(Enumerable.Range(0, 12).Select(i => $"item-{i}"));
+        services.Composition.Render();
+        services.Composition.DispatchInput(Mouse(79, 15));
+        Assert.NotNull(completion.ScrollbarDrag);
+
+        services.Driver.ResizeAfterWriteCount = 1;
+        services.Driver.ResizeAfterWrite = driver => driver.SetSize(100, 35);
+
+        services.Composition.Render();
+
+        Assert.Null(completion.ScrollbarDrag);
+    }
+
+    [Fact]
     public void PanelQuickSearch_ActiveTinyViewportKeepsHandlingKeyboardWithoutPopup()
     {
         var services = Services(new FakeConsoleDriver(80, 3));

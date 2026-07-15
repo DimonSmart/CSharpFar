@@ -115,6 +115,9 @@ internal sealed class CommandCompletionLayer : UiLayer<CommandCompletionFrame>
 
     protected override void OnFrameCommitted(CommandCompletionFrame frame)
     {
+        if (!frame.Visible || frame.ScrollbarBounds is null)
+            _context.CommandCompletion.ScrollbarDrag = null;
+
         if (!frame.Visible)
             return;
 

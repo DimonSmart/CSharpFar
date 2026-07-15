@@ -141,6 +141,12 @@ internal sealed class TopMenuLayer : UiLayer<TopMenuFrame>
                 focusTarget));
     }
 
+    protected override void OnFrameCommitted(TopMenuFrame frame)
+    {
+        if (!frame.Available || !frame.Open || frame.ScrollbarBounds is null)
+            _controller.CancelDropdownScrollbarDrag();
+    }
+
     protected override UiInputResult RouteInput(
         ConsoleInputEvent input,
         TopMenuFrame frame,

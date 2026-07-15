@@ -228,6 +228,32 @@ public sealed class ApplicationRuntimeTests
         Assert.Equal(0, fixture.KeyCount);
     }
 
+    [Theory]
+    [InlineData(false, 2)]
+    [InlineData(true, 3)]
+    public void InvalidateOnly_DoesNotRepeatRenderCommittedDuringPostDispatchHandling(
+        bool explicitRenderRequest,
+        int expectedRenderCount)
+    {
+        var fixture = RuntimeFixture.Create();
+        fixture.RenderCount = 0;
+        using var overlay = fixture.Services.Composition.PushOverlay(new TestLayer(
+            UiLayerInputPolicy.Bubble,
+            UiInputResult.InvalidateOnly(),
+            fixture.CountRender));
+        fixture.Context.HandleKeyInput = _ =>
+        {
+            fixture.Services.Composition.Render();
+            return new ApplicationRuntimeRenderRequest(explicitRenderRequest);
+        };
+        fixture.Driver.EnqueueInput(Key(ConsoleKey.A));
+        fixture.IsRunningOverride = new SequenceRunning(true, true, false).Next;
+
+        fixture.Run();
+
+        Assert.Equal(expectedRenderCount, fixture.RenderCount);
+    }
+
     [Fact]
     public void PendingMenuCommand_CanOpenModalAfterDispatchWithoutPreRender()
     {

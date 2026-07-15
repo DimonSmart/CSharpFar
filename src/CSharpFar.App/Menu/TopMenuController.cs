@@ -131,6 +131,8 @@ public sealed class TopMenuController
         _dropdownScrollbarDrag = null;
     }
 
+    public void CancelDropdownScrollbarDrag() => _dropdownScrollbarDrag = null;
+
     private void OpenForPanel(MenuBarDefinition definition, PanelSide panelSide)
     {
         OpenDropdown(definition, TopIndexForPanel(definition, panelSide));

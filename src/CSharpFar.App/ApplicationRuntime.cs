@@ -58,6 +58,7 @@ internal sealed class ApplicationRuntime
                 }
 
                 UiInputResult routed = _composition.DispatchInput(evt);
+                long renderVersionBeforeHandling = _composition.StableRenderVersion;
                 ApplicationRuntimeRenderRequest menuCommandRequest = ApplicationRuntimeRenderRequest.None;
                 if (_context.TryTakeMenuCommand(out var menuCommand))
                     menuCommandRequest = _context.ExecuteMenuCommand(menuCommand);
@@ -68,9 +69,9 @@ internal sealed class ApplicationRuntime
                     applicationRequest = DispatchApplicationInput(applicationInput.Input);
 
                 bool shouldRender =
-                    routed.Invalidate ||
                     menuCommandRequest.ShouldRender ||
-                    applicationRequest.ShouldRender;
+                    applicationRequest.ShouldRender ||
+                    (routed.Invalidate && _composition.StableRenderVersion == renderVersionBeforeHandling);
                 if (!_context.IsRunning() || !shouldRender)
                     continue;
 
