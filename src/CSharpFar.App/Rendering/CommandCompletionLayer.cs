@@ -48,7 +48,9 @@ internal sealed class CommandCompletionLayer : UiLayer<CommandCompletionFrame>
     }
 
     public override UiLayerInputPolicy InputPolicy =>
-        _context.CommandCompletion.Visible ? UiLayerInputPolicy.Bubble : UiLayerInputPolicy.None;
+        HasCommittedFrame && CommittedFrame.Visible
+            ? UiLayerInputPolicy.Bubble
+            : UiLayerInputPolicy.None;
 
     protected override CommandCompletionFrame RenderFrame(UiRenderContext context)
     {

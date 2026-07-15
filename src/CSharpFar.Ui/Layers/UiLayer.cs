@@ -1,4 +1,6 @@
+using CSharpFar.Console;
 using CSharpFar.Console.Input;
+using CSharpFar.Console.Models;
 
 namespace CSharpFar.Ui;
 
@@ -22,11 +24,11 @@ public abstract class UiLayer<TFrame> : IUiLayer
         TFrame frame = RenderFrame(context);
         UiInteractionFrame interactionFrame = BuildInteractionFrame(frame) ??
             throw new InvalidOperationException("A UI layer cannot publish a null interaction frame.");
-        ApplyCursor(context, interactionFrame);
         _committedFrame.Stage(context, frame);
         _committedInteractionFrame.Stage(context, interactionFrame);
         context.PublishOnStable(interactionFrame.Focus, FocusScope.Commit);
         context.PublishOnStable(frame, OnFrameCommitted);
+        context.PublishOnStable(() => ApplyCursor(context.Screen, context.Viewport, interactionFrame));
     }
 
     public UiInputResult RouteInput(ConsoleInputEvent input, UiInputRouteContext hostContext)
@@ -83,7 +85,10 @@ public abstract class UiLayer<TFrame> : IUiLayer
     {
     }
 
-    private void ApplyCursor(UiRenderContext context, UiInteractionFrame interactionFrame)
+    private void ApplyCursor(
+        ScreenRenderer screen,
+        ConsoleViewport viewport,
+        UiInteractionFrame interactionFrame)
     {
         if (interactionFrame.Focus.Entries.Count == 0)
             return;
@@ -94,13 +99,13 @@ public abstract class UiLayer<TFrame> : IUiLayer
             : interactionFrame.Focus.Entries.FirstOrDefault(entry => entry.Target == focusedTarget);
         UiCursorPlacement? cursor = focusedEntry?.Cursor;
         if (cursor is not { Visible: true } placement ||
-            !context.Viewport.ContainsRelative(placement.X, placement.Y))
+            !viewport.ContainsRelative(placement.X, placement.Y))
         {
-            context.Screen.SetCursorVisible(false);
+            screen.SetCursorVisible(false);
             return;
         }
 
-        context.Screen.SetCursorPosition(placement.X, placement.Y);
-        context.Screen.SetCursorVisible(true);
+        screen.SetCursorPosition(placement.X, placement.Y);
+        screen.SetCursorVisible(true);
     }
 }

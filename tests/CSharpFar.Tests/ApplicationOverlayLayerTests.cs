@@ -33,6 +33,87 @@ public sealed class ApplicationOverlayLayerTests
     }
 
     [Fact]
+    public void CommandCompletion_TinyViewportUsesCommittedInvisibleFrameAndBubblesInput()
+    {
+        var services = Services(new FakeConsoleDriver(80, 3));
+        var completion = services.Session.CommandLine.Completion;
+        completion.Visible = true;
+        completion.Matches.AddRange(["", "alpha"]);
+
+        services.Composition.Render();
+
+        Assert.False(services.Inner.CommandCompletionLayer.CommittedFrame.Visible);
+        Assert.Equal(UiLayerInputPolicy.None, services.Inner.CommandCompletionLayer.InputPolicy);
+        Assert.Same(UiInteractionFrame.Empty, services.Inner.CommandCompletionLayer.CommittedInteractionFrame);
+        Assert.True(completion.Visible);
+        Assert.Equal(["", "alpha"], completion.Matches);
+
+        var input = Key(ConsoleKey.A, keyChar: 'a');
+        Assert.True(services.Composition.DispatchInput(input).Handled);
+        Assert.True(services.ApplicationSurface.TryTakeInput(out var packet));
+        Assert.Same(input, packet.Input);
+    }
+
+    [Fact]
+    public void CommandCompletion_ResizeRestoresCommittedVisibilityAndInputPolicy()
+    {
+        var services = Services(new FakeConsoleDriver(80, 3));
+        var completion = services.Session.CommandLine.Completion;
+        completion.Visible = true;
+        completion.Matches.AddRange(["", "alpha"]);
+        services.Composition.Render();
+
+        services.Driver.SetSize(80, 25);
+        services.Composition.Render();
+
+        Assert.True(services.Inner.CommandCompletionLayer.CommittedFrame.Visible);
+        Assert.Equal(UiLayerInputPolicy.Bubble, services.Inner.CommandCompletionLayer.InputPolicy);
+        Assert.NotEmpty(services.Inner.CommandCompletionLayer.CommittedInteractionFrame.HitRegions);
+    }
+
+    [Fact]
+    public void CommandCompletion_EmptyMatchesHasNoCommittedInputPolicy()
+    {
+        var services = Services();
+        services.Session.CommandLine.Completion.Visible = true;
+
+        services.Composition.Render();
+
+        Assert.False(services.Inner.CommandCompletionLayer.CommittedFrame.Visible);
+        Assert.Equal(UiLayerInputPolicy.None, services.Inner.CommandCompletionLayer.InputPolicy);
+    }
+
+    [Fact]
+    public void CommandCompletion_RejectedRenderPreservesCommittedInputPolicyUntilCommit()
+    {
+        var services = Services();
+        var completion = services.Session.CommandLine.Completion;
+        completion.Visible = true;
+        completion.Matches.AddRange(["", "alpha"]);
+        services.Composition.Render();
+        var interaction = services.Inner.CommandCompletionLayer.CommittedInteractionFrame;
+        bool observedRejectedAttempt = false;
+        completion.SelectedIndex = 1;
+
+        services.Driver.ResizeAfterWriteCount = services.Driver.WriteAtCallCount + 1;
+        services.Driver.ResizeAfterWrite = driver => driver.SetSize(80, 3);
+        services.Driver.BeforeViewportWrite = _ =>
+        {
+            observedRejectedAttempt = true;
+            Assert.True(services.Inner.CommandCompletionLayer.CommittedFrame.Visible);
+            Assert.Equal(UiLayerInputPolicy.Bubble, services.Inner.CommandCompletionLayer.InputPolicy);
+            Assert.Same(interaction, services.Inner.CommandCompletionLayer.CommittedInteractionFrame);
+            services.Driver.BeforeViewportWrite = null;
+        };
+
+        services.Composition.Render();
+
+        Assert.True(observedRejectedAttempt);
+        Assert.False(services.Inner.CommandCompletionLayer.CommittedFrame.Visible);
+        Assert.Equal(UiLayerInputPolicy.None, services.Inner.CommandCompletionLayer.InputPolicy);
+    }
+
+    [Fact]
     public void CommandCompletion_NeutralEnterClosesAndContinuesTheSameInput()
     {
         var services = Services();
@@ -222,6 +303,94 @@ public sealed class ApplicationOverlayLayerTests
         Assert.True(refine.Handled);
         Assert.False(services.ApplicationSurface.TryTakeInput(out _));
         Assert.Equal("ge", services.PanelQuickSearch.State?.SearchText);
+    }
+
+    [Fact]
+    public void PanelQuickSearch_TinyViewportPublishesCursorlessFocusAndHidesCursor()
+    {
+        var services = Services(new FakeConsoleDriver(80, 3));
+        services.Session.Panels.Left.Items.Add(Item("gemini.md"));
+        services.Composition.Render();
+        services.Composition.DispatchInput(Key(ConsoleKey.G, alt: true));
+        services.Composition.Render();
+
+        var layer = services.Inner.PanelQuickSearchLayer;
+        UiFocusEntry entry = Assert.Single(layer.CommittedInteractionFrame.Focus.Entries);
+        Assert.True(layer.CommittedFrame.Active);
+        Assert.False(layer.CommittedFrame.PopupVisible);
+        Assert.Empty(layer.CommittedInteractionFrame.HitRegions);
+        Assert.Equal(new UiTargetId("application.panel-quick-search.input"), entry.Target);
+        Assert.True(entry.IsEnabled);
+        Assert.Null(entry.Cursor);
+        Assert.Equal(entry.Target, layer.FocusScope.FocusedTarget);
+        Assert.False(services.Driver.CursorVisible);
+    }
+
+    [Fact]
+    public void PanelQuickSearch_ResizeRestoresAndRemovesPopupCursorWithoutLosingFocus()
+    {
+        var services = Services(new FakeConsoleDriver(80, 3));
+        services.Session.Panels.Left.Items.Add(Item("gemini.md"));
+        services.Composition.Render();
+        services.Composition.DispatchInput(Key(ConsoleKey.G, alt: true));
+        services.Composition.Render();
+        var layer = services.Inner.PanelQuickSearchLayer;
+        UiTargetId target = Assert.Single(layer.CommittedInteractionFrame.Focus.Entries).Target;
+
+        services.Driver.SetSize(80, 25);
+        services.Composition.Render();
+
+        UiFocusEntry visible = Assert.Single(layer.CommittedInteractionFrame.Focus.Entries);
+        Assert.True(layer.CommittedFrame.Active);
+        Assert.True(layer.CommittedFrame.PopupVisible);
+        Assert.Equal(target, visible.Target);
+        Assert.NotNull(visible.Cursor);
+        Assert.Single(layer.CommittedInteractionFrame.HitRegions);
+        Assert.True(services.Driver.CursorVisible);
+        Assert.True(layer.CommittedFrame.InputBounds.Contains(services.Driver.CursorX, services.Driver.CursorY));
+
+        services.Driver.SetSize(80, 3);
+        services.Composition.Render();
+
+        Assert.True(layer.CommittedFrame.Active);
+        Assert.False(layer.CommittedFrame.PopupVisible);
+        Assert.Equal(target, Assert.Single(layer.CommittedInteractionFrame.Focus.Entries).Target);
+        Assert.Empty(layer.CommittedInteractionFrame.HitRegions);
+        Assert.False(services.Driver.CursorVisible);
+    }
+
+    [Fact]
+    public void PanelQuickSearch_RejectedRenderPreservesCommittedFocusAndCursor()
+    {
+        var services = Services();
+        services.Session.Panels.Left.Items.Add(Item("gemini.md"));
+        services.Composition.Render();
+        services.Composition.DispatchInput(Key(ConsoleKey.G, alt: true));
+        services.Composition.Render();
+        var layer = services.Inner.PanelQuickSearchLayer;
+        var interaction = layer.CommittedInteractionFrame;
+        var cursor = (services.Driver.CursorVisible, services.Driver.CursorX, services.Driver.CursorY);
+        bool observedRejectedAttempt = false;
+        services.Composition.DispatchInput(Key(ConsoleKey.E, keyChar: 'e'));
+
+        services.Driver.ResizeAfterWriteCount = services.Driver.WriteAtCallCount + 1;
+        services.Driver.ResizeAfterWrite = driver => driver.SetSize(80, 3);
+        services.Driver.BeforeViewportWrite = _ =>
+        {
+            observedRejectedAttempt = true;
+            Assert.True(layer.CommittedFrame.Active);
+            Assert.True(layer.CommittedFrame.PopupVisible);
+            Assert.Same(interaction, layer.CommittedInteractionFrame);
+            Assert.Equal(cursor, (services.Driver.CursorVisible, services.Driver.CursorX, services.Driver.CursorY));
+            services.Driver.BeforeViewportWrite = null;
+        };
+
+        services.Composition.Render();
+
+        Assert.True(observedRejectedAttempt);
+        Assert.True(layer.CommittedFrame.Active);
+        Assert.False(layer.CommittedFrame.PopupVisible);
+        Assert.False(services.Driver.CursorVisible);
     }
 
     [Fact]

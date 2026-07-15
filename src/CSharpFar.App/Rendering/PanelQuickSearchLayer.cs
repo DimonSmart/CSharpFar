@@ -72,14 +72,18 @@ internal sealed class PanelQuickSearchLayer : UiLayer<PanelQuickSearchFrame>
             quickSearch.SearchText);
     }
 
-    protected override UiInteractionFrame BuildInteractionFrame(PanelQuickSearchFrame frame) =>
-        frame.PopupVisible && frame.Cursor is { } cursor
-            ? new UiInteractionFrame(
-                [new UiHitRegion(InputTarget, frame.InputBounds)],
-                new UiFocusFrame(
-                    [new UiFocusEntry(InputTarget, 0, IsEnabled: true, cursor)],
-                    InputTarget))
-            : UiInteractionFrame.Empty;
+    protected override UiInteractionFrame BuildInteractionFrame(PanelQuickSearchFrame frame)
+    {
+        if (!frame.Active)
+            return UiInteractionFrame.Empty;
+
+        var focus = new UiFocusFrame(
+            [new UiFocusEntry(InputTarget, 0, IsEnabled: true, frame.Cursor)],
+            InputTarget);
+        return frame.PopupVisible
+            ? new UiInteractionFrame([new UiHitRegion(InputTarget, frame.InputBounds)], focus)
+            : new UiInteractionFrame([], focus);
+    }
 
     protected override UiInputResult RouteInput(
         ConsoleInputEvent input,
