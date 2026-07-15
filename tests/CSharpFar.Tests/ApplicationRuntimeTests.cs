@@ -4,6 +4,7 @@ using CSharpFar.App.Rendering;
 using CSharpFar.Console;
 using CSharpFar.Console.Input;
 using CSharpFar.Core.History;
+using CSharpFar.Core.Menu;
 using CSharpFar.Core.Models;
 using CSharpFar.Tests.Fakes;
 using CSharpFar.Ui;
@@ -199,6 +200,59 @@ public sealed class ApplicationRuntimeTests
     }
 
     [Fact]
+    public void PendingMenuCommand_RenderRequestAggregatesIntoOneFinalRender()
+    {
+        var fixture = RuntimeFixture.Create();
+        fixture.RenderCount = 0;
+        bool commandExecuted = false;
+        var request = new MenuCommandRequest { CommandId = "copy" };
+        fixture.Context.TryTakeMenuCommand = new SingleMenuCommand(request).TryTake;
+        fixture.Context.ExecuteMenuCommand = command =>
+        {
+            commandExecuted = true;
+            Assert.Same(request, command);
+            Assert.Equal(1, fixture.RenderCount);
+            return new ApplicationRuntimeRenderRequest(true);
+        };
+        using var overlay = fixture.Services.Composition.PushOverlay(new TestLayer(
+            UiLayerInputPolicy.Bubble,
+            UiInputResult.HandledResult,
+            fixture.CountRender));
+        fixture.Driver.EnqueueInput(Key(ConsoleKey.Enter));
+        fixture.IsRunningOverride = new SequenceRunning(true, true, false).Next;
+
+        fixture.Run();
+
+        Assert.True(commandExecuted);
+        Assert.Equal(2, fixture.RenderCount);
+        Assert.Equal(0, fixture.KeyCount);
+    }
+
+    [Fact]
+    public void PendingMenuCommand_CanOpenModalAfterDispatchWithoutPreRender()
+    {
+        var fixture = RuntimeFixture.Create();
+        fixture.RenderCount = 0;
+        fixture.Context.TryTakeMenuCommand = new SingleMenuCommand(new MenuCommandRequest { CommandId = "dialog" }).TryTake;
+        fixture.Context.ExecuteMenuCommand = _ =>
+        {
+            Assert.Equal(1, fixture.RenderCount);
+            using var modal = fixture.Services.ModalDialogs.Open(_ => { });
+            return ApplicationRuntimeRenderRequest.None;
+        };
+        using var overlay = fixture.Services.Composition.PushOverlay(new TestLayer(
+            UiLayerInputPolicy.Bubble,
+            UiInputResult.HandledResult,
+            fixture.CountRender));
+        fixture.Driver.EnqueueInput(Key(ConsoleKey.Enter));
+        fixture.IsRunningOverride = new SequenceRunning(true, true, false).Next;
+
+        fixture.Run();
+
+        Assert.Equal(2, fixture.RenderCount);
+    }
+
+    [Fact]
     public void CancellationRefresh_RendersOnlyWhileRunning()
     {
         var fixture = RuntimeFixture.Create();
@@ -340,6 +394,13 @@ public sealed class ApplicationRuntimeTests
                 fixture.Running = false;
             return ApplicationRuntimeRenderRequest.None;
         };
+        public TryTakeMenuCommand TryTakeMenuCommand { get; set; } = static (out MenuCommandRequest request) =>
+        {
+            request = null!;
+            return false;
+        };
+        public Func<MenuCommandRequest, ApplicationRuntimeRenderRequest> ExecuteMenuCommand { get; set; } =
+            _ => ApplicationRuntimeRenderRequest.None;
 
         public ApplicationRuntimeContext ToRuntimeContext() => new()
         {
@@ -354,6 +415,8 @@ public sealed class ApplicationRuntimeTests
             HandleKeyInput = HandleKeyInput,
             HandleModifierInput = HandleModifierInput,
             HandleMouseInput = HandleMouseInput,
+            TryTakeMenuCommand = TryTakeMenuCommand,
+            ExecuteMenuCommand = ExecuteMenuCommand,
         };
     }
 
@@ -375,5 +438,23 @@ public sealed class ApplicationRuntimeTests
         public UiInteractionFrame CommittedInteractionFrame => UiInteractionFrame.Empty;
         public void Render(UiRenderContext context) => render?.Invoke(context);
         public UiInputResult RouteInput(ConsoleInputEvent input, UiInputRouteContext context) => result;
+    }
+
+    private sealed class SingleMenuCommand(MenuCommandRequest request)
+    {
+        private bool _taken;
+
+        public bool TryTake(out MenuCommandRequest pending)
+        {
+            if (_taken)
+            {
+                pending = null!;
+                return false;
+            }
+
+            _taken = true;
+            pending = request;
+            return true;
+        }
     }
 }

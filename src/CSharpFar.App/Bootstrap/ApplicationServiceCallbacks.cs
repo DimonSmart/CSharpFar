@@ -37,7 +37,7 @@ internal sealed class ApplicationServiceCallbacks
         (_, _, _) => throw Missing();
     public Func<string, bool> CanExecuteFunctionKeyCommand { get; set; } =
         _ => throw Missing();
-    public Func<MenuCommandRequest, MenuCommandResult> ExecuteMenuCommand { get; set; } =
+    public Func<MenuCommandRequest, ApplicationRuntimeRenderRequest> ExecuteMenuCommand { get; set; } =
         _ => throw Missing();
     public Func<bool> IsRunning { get; set; } = () => throw Missing();
     public Action CaptureUnderlay { get; set; } = () => throw Missing();

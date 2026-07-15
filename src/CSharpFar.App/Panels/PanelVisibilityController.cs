@@ -15,6 +15,7 @@ internal sealed class PanelVisibilityController
     private readonly PanelQuickSearchController _panelQuickSearch;
     private readonly CommandCompletionController _commandCompletionController;
     private readonly CommandHistoryNavigator _commandHistoryNavigator;
+    private readonly Action _closeTopMenu;
     private readonly TerminalSurfaceController _terminalSurface;
     private readonly UiCompositionHost _composition;
 
@@ -25,6 +26,7 @@ internal sealed class PanelVisibilityController
         PanelQuickSearchController panelQuickSearch,
         CommandCompletionController commandCompletionController,
         CommandHistoryNavigator commandHistoryNavigator,
+        Action closeTopMenu,
         TerminalSurfaceController terminalSurface,
         UiCompositionHost composition)
     {
@@ -34,6 +36,7 @@ internal sealed class PanelVisibilityController
         _panelQuickSearch = panelQuickSearch;
         _commandCompletionController = commandCompletionController;
         _commandHistoryNavigator = commandHistoryNavigator;
+        _closeTopMenu = closeTopMenu;
         _terminalSurface = terminalSurface;
         _composition = composition;
     }
@@ -92,6 +95,7 @@ internal sealed class PanelVisibilityController
     {
         _panelQuickSearch.Close();
         _commandCompletionController.Hide(temporarily: false);
+        _closeTopMenu();
         _commandHistoryNavigator.Reset();
         _session.Ui.PanelScrollbarDrag = null;
     }

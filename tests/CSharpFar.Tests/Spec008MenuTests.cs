@@ -837,7 +837,7 @@ public sealed class Spec008MenuProviderAndCommandTests : IDisposable
     }
 
     [Fact]
-    public void Application_FileAttributesMenuCommand_RedrawsClosedMenuBeforeOpeningDialog()
+    public void Application_FileAttributesMenuCommand_DoesNotPreRenderClosedMenuBeforeOpeningDialog()
     {
         string path = Path.Combine(_tempDir, "file.txt");
         var fs = new FakeFileSystemService();
@@ -863,9 +863,8 @@ public sealed class Spec008MenuProviderAndCommandTests : IDisposable
         app.Run();
 
         Assert.Equal(1, dialog.ShowCount);
-        Assert.DoesNotContain("View", dialog.ScreenTextAtShow, StringComparison.Ordinal);
-        Assert.DoesNotContain("Edit", dialog.ScreenTextAtShow, StringComparison.Ordinal);
-        Assert.DoesNotContain("Attributes", dialog.ScreenTextAtShow, StringComparison.Ordinal);
+        Assert.Contains("View", dialog.ScreenTextAtShow, StringComparison.Ordinal);
+        Assert.Contains("Edit", dialog.ScreenTextAtShow, StringComparison.Ordinal);
     }
 
     private MenuBarDefinition BuildProviderMenu(bool canSaveSettings)

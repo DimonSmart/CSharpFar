@@ -8,6 +8,7 @@ using CSharpFar.Ui;
 namespace CSharpFar.App.Rendering;
 
 internal sealed record TopMenuFrame(
+    bool Available,
     bool Open,
     ConsoleViewport Viewport,
     MenuBarDefinition Definition,
@@ -38,12 +39,34 @@ internal sealed class TopMenuLayer : UiLayer<TopMenuFrame>
     }
 
     public override UiLayerInputPolicy InputPolicy =>
-        _context.MenuState.OpenState == MenuOpenState.Closed
+        !_context.HasVisiblePanels()
+            ? UiLayerInputPolicy.None
+            : _context.MenuState.OpenState == MenuOpenState.Closed
             ? UiLayerInputPolicy.Bubble
             : UiLayerInputPolicy.Modal;
 
     protected override TopMenuFrame RenderFrame(UiRenderContext context)
     {
+        if (!_context.HasVisiblePanels())
+        {
+            return new TopMenuFrame(
+                false,
+                false,
+                context.Viewport,
+                new MenuBarDefinition { Items = [] },
+                new MenuLayout
+                {
+                    TopItemBounds = [],
+                    DropdownBounds = null,
+                    DropdownFirstVisibleItemIndex = -1,
+                },
+                _context.ActiveSide(),
+                _context.MenuState.ActiveTopMenuIndex,
+                _context.MenuState.ActiveDropdownItemIndex,
+                default,
+                null);
+        }
+
         var definition = _context.BuildMenuDefinition();
         var bounds = new Rect(0, 0, context.Size.Width, context.Size.Height);
         var layout = _layoutService.CalculateLayout(bounds, definition, _context.MenuState);
@@ -61,6 +84,7 @@ internal sealed class TopMenuLayer : UiLayer<TopMenuFrame>
         }
 
         return new TopMenuFrame(
+            true,
             open,
             context.Viewport,
             definition,
@@ -74,6 +98,9 @@ internal sealed class TopMenuLayer : UiLayer<TopMenuFrame>
 
     protected override UiInteractionFrame BuildInteractionFrame(TopMenuFrame frame)
     {
+        if (!frame.Available)
+            return UiInteractionFrame.Empty;
+
         var hitRegions = new List<UiHitRegion>();
         if (!frame.Open)
         {
@@ -132,6 +159,9 @@ internal sealed class TopMenuLayer : UiLayer<TopMenuFrame>
         if (!frame.Open && !IsPlainKey(key, ConsoleKey.F9))
             return UiInputResult.NotHandled;
 
+        if (!frame.Available)
+            return UiInputResult.NotHandled;
+
         if (!frame.Open)
             _context.PanelQuickSearch.Close();
 
@@ -146,6 +176,9 @@ internal sealed class TopMenuLayer : UiLayer<TopMenuFrame>
     {
         if ((route.Target == ScrollbarTarget || route.IsCapturedRoute) && frame.Open)
             return RouteScrollbar(mouse, frame, route.IsCapturedRoute);
+
+        if (!frame.Available)
+            return UiInputResult.NotHandled;
 
         if (!frame.Open)
         {

@@ -36,11 +36,7 @@ internal static class ApplicationRuntimeBuilder
                 HandleModifierInput = modifiers => callbacks.HandleModifierInput(modifiers),
                 HandleMouseInput = mouse => callbacks.HandleMouseInput(mouse),
                 TryTakeMenuCommand = pendingMenuCommands.TryTake,
-                ExecuteMenuCommand = request =>
-                {
-                    callbacks.ExecuteMenuCommand(request);
-                    return false;
-                },
+                ExecuteMenuCommand = request => callbacks.ExecuteMenuCommand(request),
             });
     }
 }

@@ -201,20 +201,15 @@ public sealed class Application
 
     private void BindKeyboardInputContext(KeyboardInputContext context)
     {
-        context.BuildMenuDefinition = BuildMenuDefinition;
         context.ExecuteRegisteredCommand = ExecuteRegisteredCommand;
         context.SelectAllCommandLineTextOrPanelItems = SelectAllCommandLineTextOrPanelItems;
         context.CopyCommandLineSelection = CopyCommandLineSelection;
         context.PasteTextIntoCommandLine = PasteTextIntoCommandLine;
         context.MovePanelColumn = MovePanelColumn;
         context.OnVisibleCommandLineTextEdited = OnVisibleCommandLineTextEdited;
-        context.TryHideCommandCompletionTemporarily = TryHideCommandCompletionTemporarily;
         context.CloseSearchResultsPanel = CloseSearchResultsPanel;
-        context.TryAcceptCommandCompletion = TryAcceptCommandCompletion;
-        context.TryRemoveSelectedCommandCompletion = TryRemoveSelectedCommandCompletion;
         context.ExecuteCommand = ExecuteCommand;
         context.EnsureActivePanelVisible = _panelWorkspace.EnsureActivePanelVisible;
-        context.TryMoveCommandCompletionSelection = TryMoveCommandCompletionSelection;
         context.BrowseCommandHistory = BrowseCommandHistory;
         context.HideCommandCompletion = HideCommandCompletion;
         context.ResetCommandHistoryNavigation = ResetCommandHistoryNavigation;
@@ -224,7 +219,6 @@ public sealed class Application
 
     private void BindMouseInputContext(MouseInputContext context)
     {
-        context.BuildMenuDefinition = BuildMenuDefinition;
         context.ExecuteRegisteredCommand = ExecuteRegisteredCommand;
         context.CanExecuteFunctionKeyCommand = CanExecuteFunctionKeyCommand;
         context.PasteTextIntoCommandLine = PasteTextIntoCommandLine;
@@ -444,54 +438,6 @@ public sealed class Application
         return Math.Max(0, Math.Min(MaxCommandCompletionRows, rowsAboveCommandLine));
     }
 
-    private bool TryMoveCommandCompletionSelection(int delta)
-    {
-        return _commandCompletionController.TryMoveSelection(
-            delta,
-            CommandCompletionVisibleRows(LastRenderSizeOrCurrent()));
-    }
-
-    private bool TryAcceptCommandCompletion()
-    {
-        if (!_commandCompletion.Visible || _commandCompletion.Matches.Count == 0 || !HasCommandCompletionRows())
-            return false;
-
-        if (IsCommandCompletionNeutralSelected())
-        {
-            HideCommandCompletion(temporarily: false);
-            ResetCommandHistoryNavigation();
-            return false;
-        }
-
-        _cmdLine.SetText(_commandCompletion.Matches[_commandCompletion.SelectedIndex]);
-        HideCommandCompletion(temporarily: false);
-        ResetCommandHistoryNavigation();
-        return true;
-    }
-
-    private bool TryRemoveSelectedCommandCompletion()
-    {
-        bool removed = _commandCompletionController.TryRemoveSelectedCommand(
-            _cmdLine,
-            CommandCompletionVisibleRows(LastRenderSizeOrCurrent()));
-        if (removed)
-            ResetCommandHistoryNavigation();
-
-        return removed;
-    }
-
-    private bool IsCommandCompletionNeutralSelected() =>
-        _commandCompletionController.IsNeutralSelected;
-
-    private bool TryHideCommandCompletionTemporarily()
-    {
-        if (!_commandCompletion.Visible)
-            return false;
-
-        HideCommandCompletion(temporarily: true);
-        return true;
-    }
-
     internal void HideCommandCompletion(bool temporarily)
     {
         _commandCompletionController.Hide(temporarily);
@@ -565,12 +511,10 @@ public sealed class Application
 
     // ── F5 — copy ─────────────────────────────────────────────────────────────
 
-    private MenuCommandResult ExecuteMenuCommand(MenuCommandRequest request)
+    private ApplicationRuntimeRenderRequest ExecuteMenuCommand(MenuCommandRequest request)
     {
-        _composition.Render();
-        return _commandRegistry
-            .Execute(request.CommandId, _commandContext, request.Args)
-            .ToMenuCommandResult();
+        var result = _commandRegistry.Execute(request.CommandId, _commandContext, request.Args);
+        return new ApplicationRuntimeRenderRequest(result.ShouldRender);
     }
 
     internal FilePanelState GetPanelState(PanelSide side) =>

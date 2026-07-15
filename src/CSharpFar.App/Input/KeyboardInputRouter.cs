@@ -19,10 +19,6 @@ internal sealed class KeyboardInputRouter
 
     public bool Handle(ConsoleKeyInfo key)
     {
-        var quickSearchResult = _context.PanelQuickSearch.HandleKey(key);
-        if (quickSearchResult == PanelQuickSearchKeyResult.Handled)
-            return true;
-
         if (KeyboardShortcutClassifier.IsPlainControlKey(key, ConsoleKey.O, '\u000f'))
             return _context.ExecuteRegisteredCommand(ApplicationCommandIds.TogglePanels, null);
 
@@ -106,13 +102,6 @@ internal sealed class KeyboardInputRouter
 
         if (TryHandleFunctionKey(key, out bool functionKeyShouldRender))
             return functionKeyShouldRender;
-
-        if (_context.PanelQuickSearch.TryStart(key))
-        {
-            _context.HideCommandCompletion(false);
-            _context.ResetCommandHistoryNavigation();
-            return true;
-        }
 
         int vr = _context.VisibleRows();
 

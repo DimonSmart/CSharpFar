@@ -1,14 +1,10 @@
-using CSharpFar.App.CommandLine;
 using CSharpFar.App.FunctionKeys;
 using CSharpFar.App.Input;
-using CSharpFar.App.Menu;
 using CSharpFar.App.Panels;
 using CSharpFar.App.State;
 using CSharpFar.Console.Input;
 using CSharpFar.Console.Models;
 using CSharpFar.Core.Controllers;
-using CSharpFar.Core.History;
-using CSharpFar.Core.Menu;
 using CSharpFar.Core.Models;
 using CSharpFar.Tests.Fakes;
 
@@ -121,24 +117,10 @@ public sealed class MainFunctionKeyBarIntegrationTests
     {
         var panelState = new FilePanelState { CurrentDirectory = @"C:\work" };
         var panelController = new PanelController(new FakePanelViewBuilder(new FakeFileSystemService()));
-        var menuState = new MenuState();
-        var commandCompletion = new CommandCompletionState();
         var context = new MouseInputContext
         {
-            MenuState = menuState,
-            MenuController = new TopMenuController(menuState, _ => new MenuCommandResult { Success = true }),
-            MenuLayoutService = new MenuLayoutService(),
-            PanelQuickSearch = new PanelQuickSearchController(
-                panelController,
-                () => PanelSide.Left,
-                () => false,
-                _ => false,
-                _ => panelState,
-                _ => 10),
             PanelController = panelController,
             CommandLine = new CommandLineState(),
-            CommandCompletion = commandCompletion,
-            CommandCompletionController = new CommandCompletionController(new InMemoryHistoryStore(), commandCompletion),
             Ui = new UiTransientState(),
             Mouse = new MouseSessionState(),
             FunctionKeyBindings =
@@ -148,7 +130,6 @@ public sealed class MainFunctionKeyBarIntegrationTests
             FunctionKeyLayer = () => FunctionKeyLayer.Plain,
             DirectoryShortcuts = () => new AppSettings.DirectoryShortcutSettings(),
             PanelOptions = () => new AppSettings.PanelOptionsSettings(),
-            CurrentScreenSize = () => new ConsoleSize(120, 25),
             LastRenderSizeOrCurrent = () => new ConsoleSize(120, 25),
             ActiveSide = () => PanelSide.Left,
             SetActiveSide = _ => { },
@@ -159,7 +140,6 @@ public sealed class MainFunctionKeyBarIntegrationTests
             HasVisiblePanels = () => false,
             QuickView = () => false,
             VisibleRowsForSide = _ => 10,
-            BuildMenuDefinition = () => new MenuBarDefinition { Items = [] },
             ExecuteRegisteredCommand = execute,
             CanExecuteFunctionKeyCommand = canExecute,
             PasteTextIntoCommandLine = () => false,

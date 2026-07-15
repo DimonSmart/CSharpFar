@@ -7,7 +7,8 @@ using CSharpFar.Ui;
 namespace CSharpFar.App.Rendering;
 
 internal sealed record PanelQuickSearchFrame(
-    bool Visible,
+    bool Active,
+    bool PopupVisible,
     ConsoleViewport Viewport,
     PanelSide? PanelSide,
     Rect PopupBounds,
@@ -50,9 +51,18 @@ internal sealed class PanelQuickSearchLayer : UiLayer<PanelQuickSearchFrame>
         var layout = new PanelQuickSearchRenderer(context.Screen, _context.App.Palette)
             .Render(panelBounds, quickSearch.SearchText);
         if (layout is null)
-            return Hidden(context.Viewport);
+            return new PanelQuickSearchFrame(
+                true,
+                false,
+                context.Viewport,
+                quickSearch.PanelSide,
+                default,
+                default,
+                null,
+                quickSearch.SearchText);
 
         return new PanelQuickSearchFrame(
+            true,
             true,
             context.Viewport,
             quickSearch.PanelSide,
@@ -63,7 +73,7 @@ internal sealed class PanelQuickSearchLayer : UiLayer<PanelQuickSearchFrame>
     }
 
     protected override UiInteractionFrame BuildInteractionFrame(PanelQuickSearchFrame frame) =>
-        frame.Visible && frame.Cursor is { } cursor
+        frame.PopupVisible && frame.Cursor is { } cursor
             ? new UiInteractionFrame(
                 [new UiHitRegion(InputTarget, frame.InputBounds)],
                 new UiFocusFrame(
@@ -86,7 +96,7 @@ internal sealed class PanelQuickSearchLayer : UiLayer<PanelQuickSearchFrame>
 
     private UiInputResult RouteKey(ConsoleKeyInfo key, PanelQuickSearchFrame frame)
     {
-        if (!frame.Visible)
+        if (!frame.Active)
         {
             if ((key.Modifiers & ConsoleModifiers.Alt) == 0 ||
                 (key.Modifiers & ConsoleModifiers.Control) != 0)
@@ -113,7 +123,7 @@ internal sealed class PanelQuickSearchLayer : UiLayer<PanelQuickSearchFrame>
 
     private UiInputResult RouteMouse(PanelQuickSearchFrame frame)
     {
-        if (!frame.Visible)
+        if (!frame.Active)
             return UiInputResult.NotHandled;
 
         _context.PanelQuickSearch.Close();
@@ -121,5 +131,5 @@ internal sealed class PanelQuickSearchLayer : UiLayer<PanelQuickSearchFrame>
     }
 
     private static PanelQuickSearchFrame Hidden(ConsoleViewport viewport) =>
-        new(false, viewport, null, default, default, null, string.Empty);
+        new(false, false, viewport, null, default, default, null, string.Empty);
 }

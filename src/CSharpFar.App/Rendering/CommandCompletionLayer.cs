@@ -1,4 +1,5 @@
 using CSharpFar.App.CommandLine;
+using CSharpFar.App.Input;
 using CSharpFar.Console.Input;
 using CSharpFar.Console.Models;
 using CSharpFar.Core.Models;
@@ -8,6 +9,7 @@ namespace CSharpFar.App.Rendering;
 
 internal sealed record CommandCompletionItemFrame(
     int AbsoluteIndex,
+    string Text,
     Rect Bounds,
     UiTargetId Target);
 
@@ -79,8 +81,6 @@ internal sealed class CommandCompletionLayer : UiLayer<CommandCompletionFrame>
             ? new Rect(popupBounds.Right - 1, popupBounds.Y + 1, 1, rowCount)
             : null;
 
-        completion.FirstVisibleIndex = first;
-        completion.SelectedIndex = selected;
         new CommandHistoryCompletionRenderer(context.Screen, _context.App.Palette).Render(
             commandLineRow,
             context.Size.Width,
@@ -94,6 +94,7 @@ internal sealed class CommandCompletionLayer : UiLayer<CommandCompletionFrame>
                 int absoluteIndex = first + row;
                 return new CommandCompletionItemFrame(
                     absoluteIndex,
+                    completion.Matches[absoluteIndex],
                     new Rect(contentBounds.X, contentBounds.Y + row, contentBounds.Width, 1),
                     ItemTarget(absoluteIndex));
             })
@@ -110,6 +111,22 @@ internal sealed class CommandCompletionLayer : UiLayer<CommandCompletionFrame>
             first,
             selected,
             completion.Matches.Count);
+    }
+
+    protected override void OnFrameCommitted(CommandCompletionFrame frame)
+    {
+        if (!frame.Visible)
+            return;
+
+        var completion = _context.CommandCompletion;
+        if (!completion.Visible || completion.Matches.Count != frame.MatchCount)
+            return;
+
+        completion.SelectedIndex = Math.Clamp(frame.SelectedIndex, 0, completion.Matches.Count - 1);
+        completion.FirstVisibleIndex = ScrollStateCalculator.ClampFirstVisibleIndex(
+            frame.FirstVisibleIndex,
+            completion.Matches.Count,
+            frame.VisibleRows);
     }
 
     protected override UiInteractionFrame BuildInteractionFrame(CommandCompletionFrame frame)
@@ -151,6 +168,8 @@ internal sealed class CommandCompletionLayer : UiLayer<CommandCompletionFrame>
             case ConsoleKey.DownArrow:
                 return Move(+1, frame);
             case ConsoleKey.Enter:
+                if (KeyboardShortcutClassifier.IsPlainControlEnter(key))
+                    return UiInputResult.NotHandled;
                 return Accept(frame);
             case ConsoleKey.Escape:
                 _hideCompletion(true);
@@ -176,14 +195,21 @@ internal sealed class CommandCompletionLayer : UiLayer<CommandCompletionFrame>
         if (!completion.Visible || completion.Matches.Count == 0 || frame.VisibleRows <= 0)
             return UiInputResult.NotHandled;
 
-        if (_controller.IsNeutralSelected)
+        if (frame.SelectedIndex == 0)
         {
             _hideCompletion(false);
             _resetHistoryNavigation();
             return UiInputResult.NotHandled;
         }
 
-        _context.CommandLine.SetText(completion.Matches[completion.SelectedIndex]);
+        if (!TryGetCommittedItem(frame.SelectedIndex, frame, out var item) ||
+            item.AbsoluteIndex >= completion.Matches.Count ||
+            !string.Equals(completion.Matches[item.AbsoluteIndex], item.Text, StringComparison.Ordinal))
+        {
+            return UiInputResult.NotHandled;
+        }
+
+        _context.CommandLine.SetText(item.Text);
         _hideCompletion(false);
         _resetHistoryNavigation();
         return UiInputResult.HandledAndInvalidate;
@@ -202,29 +228,52 @@ internal sealed class CommandCompletionLayer : UiLayer<CommandCompletionFrame>
             mouse.Kind is MouseEventKind.Down or MouseEventKind.DoubleClick &&
             TryItemIndex(route.Target, out int itemIndex))
         {
-            return AcceptItem(itemIndex);
+            return AcceptItem(itemIndex, frame);
         }
 
         return UiInputResult.NotHandled;
     }
 
-    private UiInputResult AcceptItem(int itemIndex)
+    private UiInputResult AcceptItem(int itemIndex, CommandCompletionFrame frame)
     {
         var completion = _context.CommandCompletion;
-        if (itemIndex < 0 || itemIndex >= completion.Matches.Count)
+        if (!TryGetCommittedItem(itemIndex, frame, out var item) ||
+            itemIndex < 0 ||
+            itemIndex >= completion.Matches.Count ||
+            !string.Equals(completion.Matches[itemIndex], item.Text, StringComparison.Ordinal))
+        {
             return UiInputResult.NotHandled;
+        }
 
         completion.SelectedIndex = itemIndex;
-        if (_controller.IsNeutralSelected)
+        if (itemIndex == 0)
         {
             _hideCompletion(false);
             return UiInputResult.HandledAndInvalidate;
         }
 
-        _context.CommandLine.SetText(completion.Matches[itemIndex]);
+        _context.CommandLine.SetText(item.Text);
         _hideCompletion(false);
         _resetHistoryNavigation();
         return UiInputResult.HandledAndInvalidate;
+    }
+
+    private static bool TryGetCommittedItem(
+        int absoluteIndex,
+        CommandCompletionFrame frame,
+        out CommandCompletionItemFrame item)
+    {
+        foreach (var candidate in frame.Items)
+        {
+            if (candidate.AbsoluteIndex == absoluteIndex)
+            {
+                item = candidate;
+                return true;
+            }
+        }
+
+        item = null!;
+        return false;
     }
 
     private UiInputResult RouteScrollbarMouse(

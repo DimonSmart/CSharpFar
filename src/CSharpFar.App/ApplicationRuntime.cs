@@ -58,7 +58,7 @@ internal sealed class ApplicationRuntime
                 }
 
                 UiInputResult routed = _composition.DispatchInput(evt);
-                bool menuCommandRequest = false;
+                ApplicationRuntimeRenderRequest menuCommandRequest = ApplicationRuntimeRenderRequest.None;
                 if (_context.TryTakeMenuCommand(out var menuCommand))
                     menuCommandRequest = _context.ExecuteMenuCommand(menuCommand);
 
@@ -67,7 +67,10 @@ internal sealed class ApplicationRuntime
                 if (_applicationSurface.TryTakeInput(out var applicationInput))
                     applicationRequest = DispatchApplicationInput(applicationInput.Input);
 
-                bool shouldRender = routed.Invalidate || menuCommandRequest || applicationRequest.ShouldRender;
+                bool shouldRender =
+                    routed.Invalidate ||
+                    menuCommandRequest.ShouldRender ||
+                    applicationRequest.ShouldRender;
                 if (!_context.IsRunning() || !shouldRender)
                     continue;
 
@@ -114,7 +117,8 @@ internal sealed class ApplicationRuntimeContext
         return false;
     };
 
-    public Func<MenuCommandRequest, bool> ExecuteMenuCommand { get; init; } = _ => false;
+    public Func<MenuCommandRequest, ApplicationRuntimeRenderRequest> ExecuteMenuCommand { get; init; } =
+        _ => ApplicationRuntimeRenderRequest.None;
 }
 
 internal delegate bool TryTakeMenuCommand(out MenuCommandRequest request);

@@ -1,11 +1,14 @@
 using System.Reflection;
 using CSharpFar.App;
+using CSharpFar.App.Rendering;
 using CSharpFar.App.Panels;
 using CSharpFar.Console;
+using CSharpFar.Console.Input;
 using CSharpFar.Core.Abstractions;
 using CSharpFar.Core.History;
 using CSharpFar.Core.Models;
 using CSharpFar.Tests.Fakes;
+using CSharpFar.Ui;
 
 namespace CSharpFar.Tests;
 
@@ -210,6 +213,28 @@ public sealed class Spec034PanelQuickSearchTests : IDisposable
 
     private static void HandleKeyAndRender(Application app, ConsoleKeyInfo key)
     {
+        Render(app);
+        var composition = (UiCompositionHost)(typeof(Application).GetField(
+            "_composition",
+            BindingFlags.Instance | BindingFlags.NonPublic)
+            ?.GetValue(app)
+            ?? throw new InvalidOperationException("Application composition host not found."));
+        var surface = GetApplicationSurface(app);
+
+        UiInputResult routed = composition.DispatchInput(new KeyConsoleInputEvent(key));
+        bool shouldRender = routed.Invalidate;
+        if (surface.TryTakeInput(out var packet) &&
+            packet.Input is KeyConsoleInputEvent keyPacket)
+        {
+            key = keyPacket.Key;
+        }
+        else
+        {
+            if (shouldRender)
+                Render(app);
+            return;
+        }
+
         var router = typeof(Application).GetField(
             "_keyboardInputRouter",
             BindingFlags.Instance | BindingFlags.NonPublic)
@@ -218,9 +243,23 @@ public sealed class Spec034PanelQuickSearchTests : IDisposable
 
         var method = router.GetType().GetMethod("Handle")
             ?? throw new InvalidOperationException("KeyboardInputRouter.Handle method not found.");
-        bool shouldRender = (bool)method.Invoke(router, [key])!;
+        shouldRender |= (bool)method.Invoke(router, [key])!;
         if (shouldRender)
             Render(app);
+    }
+
+    private static ApplicationUiSurface GetApplicationSurface(Application app)
+    {
+        var runtimeField = typeof(Application).GetField(
+            "_runtime",
+            BindingFlags.Instance | BindingFlags.NonPublic)
+            ?? throw new InvalidOperationException("Application runtime field not found.");
+        var runtime = runtimeField.GetValue(app)!;
+        return (ApplicationUiSurface)(runtime.GetType().GetField(
+            "_applicationSurface",
+            BindingFlags.Instance | BindingFlags.NonPublic)
+            ?.GetValue(runtime)
+            ?? throw new InvalidOperationException("Application surface not found."));
     }
 
     private static void Render(Application app)

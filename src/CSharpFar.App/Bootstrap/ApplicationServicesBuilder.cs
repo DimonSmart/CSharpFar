@@ -91,13 +91,9 @@ internal static class ApplicationServicesBuilder
         };
         var keyboardInputContext = new KeyboardInputContext
         {
-            MenuState = session.Menu.State,
-            MenuController = null!,
-            PanelQuickSearch = null!,
             PanelController = controller,
             CommandLine = session.CommandLine.State,
             FunctionKeyBindings = functionKeyBindingProvider.GetBindings(),
-            BuildMenuDefinition = () => throw new InvalidOperationException("Keyboard input context is not assigned."),
             ActiveSide = () => callbacks.GetActiveSide(),
             SetActiveSide = side => callbacks.SetActiveSide(side),
             ActiveState = () => callbacks.ActiveState(),
@@ -117,13 +113,9 @@ internal static class ApplicationServicesBuilder
             PasteTextIntoCommandLine = () => throw new InvalidOperationException("Keyboard input context is not assigned."),
             MovePanelColumn = _ => throw new InvalidOperationException("Keyboard input context is not assigned."),
             OnVisibleCommandLineTextEdited = () => throw new InvalidOperationException("Keyboard input context is not assigned."),
-            TryHideCommandCompletionTemporarily = () => throw new InvalidOperationException("Keyboard input context is not assigned."),
             CloseSearchResultsPanel = (_, _) => throw new InvalidOperationException("Keyboard input context is not assigned."),
-            TryAcceptCommandCompletion = () => throw new InvalidOperationException("Keyboard input context is not assigned."),
-            TryRemoveSelectedCommandCompletion = () => throw new InvalidOperationException("Keyboard input context is not assigned."),
             ExecuteCommand = _ => throw new InvalidOperationException("Keyboard input context is not assigned."),
             EnsureActivePanelVisible = () => throw new InvalidOperationException("Keyboard input context is not assigned."),
-            TryMoveCommandCompletionSelection = _ => throw new InvalidOperationException("Keyboard input context is not assigned."),
             BrowseCommandHistory = (_, _) => throw new InvalidOperationException("Keyboard input context is not assigned."),
             HideCommandCompletion = _ => throw new InvalidOperationException("Keyboard input context is not assigned."),
             ResetCommandHistoryNavigation = () => throw new InvalidOperationException("Keyboard input context is not assigned."),
@@ -172,26 +164,17 @@ internal static class ApplicationServicesBuilder
             session,
             panelQuickSearch,
             () => callbacks.PanelOptions());
-        keyboardInputContext.MenuController = menuController;
-        keyboardInputContext.PanelQuickSearch = panelQuickSearch;
         var keyboardInputRouter = new KeyboardInputRouter(keyboardInputContext);
         var mouseInputContext = new MouseInputContext
         {
-            MenuState = session.Menu.State,
-            MenuController = menuController,
-            MenuLayoutService = menuLayoutService,
-            PanelQuickSearch = panelQuickSearch,
             PanelController = controller,
             CommandLine = session.CommandLine.State,
-            CommandCompletion = session.CommandLine.Completion,
-            CommandCompletionController = commandCompletionController,
             Ui = session.Ui,
             Mouse = session.Mouse,
             FunctionKeyBindings = functionKeyBindingProvider.GetBindings(),
             FunctionKeyLayer = () => session.FunctionKeyLayer,
             DirectoryShortcuts = () => effectiveSettings.DirectoryShortcuts,
             PanelOptions = () => callbacks.PanelOptions(),
-            CurrentScreenSize = screen.GetSize,
             LastRenderSizeOrCurrent = () => session.Ui.LastRenderViewport?.Size ?? screen.GetSize(),
             ActiveSide = () => callbacks.GetActiveSide(),
             SetActiveSide = side => callbacks.SetActiveSide(side),
@@ -317,6 +300,7 @@ internal static class ApplicationServicesBuilder
             panelQuickSearch,
             commandCompletionController,
             commandHistoryNavigator,
+            menuController.Close,
             terminalSurface,
             composition);
         var commandServices = CommandServicesFactory.Create(
