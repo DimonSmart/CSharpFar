@@ -383,7 +383,6 @@ internal static class ApplicationServicesBuilder
             CommandRegistry = commandServices.CommandRegistry,
             RenderContext = rendering.RenderContext,
             RenderCoordinator = renderCoordinator,
-            ApplicationUiLayers = applicationUiLayers,
             CommandCompletionLayer = commandCompletionLayer,
             PanelQuickSearchLayer = panelQuickSearchLayer,
             TopMenuLayer = topMenuLayer,
