@@ -53,14 +53,33 @@ internal static class PanelErrorRenderer
         PanelViewMode mode,
         AppSettings.PanelOptionsSettings? options)
     {
+        return TryGetRetryBounds(bounds, state, mode, options, out var retryButton) &&
+            retryButton.Contains(x, y);
+    }
+
+    public static bool TryGetRetryBounds(
+        Rect bounds,
+        FilePanelState state,
+        PanelViewMode mode,
+        AppSettings.PanelOptionsSettings? options,
+        out Rect retryBounds)
+    {
         if (state.LoadError is null ||
             !TryGetContentRect(bounds, mode, options, out var content))
         {
+            retryBounds = default;
             return false;
         }
 
         var layout = BuildLayout(content, state.LoadError.Message);
-        return layout.RetryButton is { } retryButton && retryButton.Contains(x, y);
+        if (layout.RetryButton is not { } retryButton)
+        {
+            retryBounds = default;
+            return false;
+        }
+
+        retryBounds = retryButton;
+        return true;
     }
 
     private static void FillContent(ScreenRenderer screen, Rect content, CellStyle style)

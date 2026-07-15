@@ -19,3 +19,8 @@ internal static class ApplicationLayoutService
             panelHeight);
     }
 }
+
+internal readonly record struct PanelWorkspaceRenderBounds(
+    Rect Left,
+    Rect Right,
+    int PanelHeight);

@@ -31,7 +31,7 @@ internal sealed class ApplicationRenderCoordinator
         UpdateQuickViewDirSize();
         _context.Screen.SetCursorVisible(false);
         var size = context.Size;
-        var panelBounds = _panelWorkspaceRenderer.Render(
+        var workspace = _panelWorkspaceRenderer.Render(
             size,
             _context.LeftPanel(),
             _context.RightPanel(),
@@ -41,11 +41,12 @@ internal sealed class ApplicationRenderCoordinator
             _context.App.QuickView,
             _context.QuickViewDirectorySize.CurrentState,
             _context.IsPanelVisible);
-        int panelHeight = panelBounds.PanelHeight;
+        int panelHeight = workspace.PanelHeight;
         context.PublishOnStable(context.Viewport, value => _context.Ui.LastRenderViewport = value);
 
+        ApplicationDirectoryShortcutBarFrame? directoryShortcutBar = null;
         if (_context.HasVisiblePanels())
-            new DirectoryShortcutBarRenderer(_context.Screen, _context.App.Palette)
+            directoryShortcutBar = new DirectoryShortcutBarRenderer(_context.Screen, _context.App.Palette)
                 .Render(panelHeight - 1, size.Width, _context.DirectoryShortcuts());
 
         if (_context.IsPanelVisible(PanelSide.Right))
@@ -57,14 +58,17 @@ internal sealed class ApplicationRenderCoordinator
             _context.ActiveState().CurrentDirectory,
             _context.CommandLine);
 
-        _functionKeyBarRenderer.Render(size, _context.FunctionKeyLayer());
+        ApplicationFunctionKeyBarFrame? functionKeyBar =
+            _functionKeyBarRenderer.Render(size, _context.FunctionKeyLayer());
 
         return new ApplicationUiFrame(
             context.Viewport,
             ApplicationSurfaceMode.Panels,
             commandLine,
-            panelBounds.Left,
-            panelBounds.Right);
+            workspace.LeftPanel,
+            workspace.RightPanel,
+            functionKeyBar,
+            directoryShortcutBar);
     }
 
     public ApplicationUiFrame RenderHiddenCommandLineContent(UiRenderContext context)
@@ -83,6 +87,8 @@ internal sealed class ApplicationRenderCoordinator
             context.Viewport,
             ApplicationSurfaceMode.HiddenCommandLine,
             commandLine,
+            null,
+            null,
             null,
             null);
     }

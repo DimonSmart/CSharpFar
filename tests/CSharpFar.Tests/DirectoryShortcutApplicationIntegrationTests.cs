@@ -9,6 +9,7 @@ using CSharpFar.Core.Abstractions;
 using CSharpFar.Core.History;
 using CSharpFar.Core.Models;
 using CSharpFar.Tests.Fakes;
+using CSharpFar.Ui;
 
 namespace CSharpFar.Tests;
 
@@ -188,11 +189,16 @@ public sealed class DirectoryShortcutApplicationIntegrationTests : IDisposable
             .GetField("_applicationSurface", BindingFlags.Instance | BindingFlags.NonPublic)!
             .GetValue(runtime)!;
 
+        UiTargetId? target = surface.CommittedInteractionFrame.TryHitTest(mouse.X, mouse.Y, out var region)
+            ? region.Target
+            : null;
+        var routeKind = target is null ? UiInputRouteKind.Layer : UiInputRouteKind.HitTarget;
+
         return dispatcher.Handle(new UiRoutedInput<ApplicationUiFrame>(
             mouse,
             surface.CommittedFrame,
-            null,
-            UiInputRouteKind.Layer)).ShouldRender;
+            target,
+            routeKind)).ShouldRender;
     }
 
     private static ConsoleKeyInfo Key(ConsoleKey key) =>

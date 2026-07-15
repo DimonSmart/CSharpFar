@@ -1419,11 +1419,16 @@ public sealed class ApplicationNavigationTests : IDisposable
             ?.GetValue(runtime)
             ?? throw new InvalidOperationException("Application surface not found."));
 
+        UiTargetId? target = surface.CommittedInteractionFrame.TryHitTest(mouse.X, mouse.Y, out var region)
+            ? region.Target
+            : null;
+        var routeKind = target is null ? UiInputRouteKind.Layer : UiInputRouteKind.HitTarget;
+
         return dispatcher.Handle(new UiRoutedInput<ApplicationUiFrame>(
             mouse,
             surface.CommittedFrame,
-            null,
-            UiInputRouteKind.Layer)).ShouldRender;
+            target,
+            routeKind)).ShouldRender;
     }
 
     private static void Render(Application app)

@@ -1,6 +1,8 @@
 using CSharpFar.Console;
 using CSharpFar.Console.Input;
 using CSharpFar.Console.Models;
+using CSharpFar.Core.Models;
+using CSharpFar.App.State;
 using CSharpFar.Ui;
 
 namespace CSharpFar.App.Rendering;
@@ -15,8 +17,10 @@ internal sealed record ApplicationUiFrame(
     ConsoleViewport Viewport,
     ApplicationSurfaceMode Mode,
     ApplicationCommandLineFrame CommandLine,
-    Rect? LeftPanelBounds,
-    Rect? RightPanelBounds);
+    ApplicationPanelFrame? LeftPanel,
+    ApplicationPanelFrame? RightPanel,
+    ApplicationFunctionKeyBarFrame? FunctionKeyBar,
+    ApplicationDirectoryShortcutBarFrame? DirectoryShortcutBar);
 
 internal sealed record ApplicationCommandLineFrame(
     Rect Bounds,
@@ -38,7 +42,60 @@ internal sealed record ApplicationCommandLineFrame(
 internal static class ApplicationTargetIds
 {
     public static UiTargetId CommandLine { get; } = new("application.command-line");
+    public static UiTargetId LeftPanel { get; } = new("application.left-panel");
+    public static UiTargetId LeftPanelScrollbar { get; } = new("application.left-panel.scrollbar");
+    public static UiTargetId RightPanel { get; } = new("application.right-panel");
+    public static UiTargetId RightPanelScrollbar { get; } = new("application.right-panel.scrollbar");
+    public static UiTargetId FunctionKeyBar { get; } = new("application.function-key-bar");
+    public static UiTargetId DirectoryShortcutBar { get; } = new("application.directory-shortcut-bar");
+
+    public static UiTargetId Panel(PanelSide side) =>
+        side == PanelSide.Left ? LeftPanel : RightPanel;
+
+    public static UiTargetId PanelScrollbar(PanelSide side) =>
+        side == PanelSide.Left ? LeftPanelScrollbar : RightPanelScrollbar;
 }
+
+internal sealed record ApplicationPanelFrame(
+    PanelSide Side,
+    Rect Bounds,
+    int VisibleRows,
+    IReadOnlyList<ApplicationPanelItemHit> VisibleItems,
+    Rect? RetryBounds,
+    ApplicationScrollBarFrame? ScrollBar);
+
+internal sealed record ApplicationPanelItemHit(
+    Rect Bounds,
+    int ItemIndex,
+    string ItemIdentity);
+
+internal sealed record ApplicationScrollBarFrame(
+    Rect Bounds,
+    int TotalItems,
+    int ViewportItems,
+    int FirstVisibleIndex)
+{
+    public ScrollState ToScrollState() => new()
+    {
+        TotalItems = TotalItems,
+        ViewportItems = ViewportItems,
+        FirstVisibleIndex = FirstVisibleIndex,
+    };
+}
+
+internal sealed record ApplicationFunctionKeyBarFrame(
+    IReadOnlyList<ApplicationFunctionKeyHit> Actions);
+
+internal sealed record ApplicationFunctionKeyHit(
+    Rect Bounds,
+    string CommandId);
+
+internal sealed record ApplicationDirectoryShortcutBarFrame(
+    IReadOnlyList<ApplicationDirectoryShortcutHit> Shortcuts);
+
+internal sealed record ApplicationDirectoryShortcutHit(
+    Rect Bounds,
+    int ShortcutNumber);
 
 internal sealed class ApplicationUiSurface : UiLayer<ApplicationUiFrame>, IUiSurface
 {
@@ -111,6 +168,21 @@ internal sealed class ApplicationUiSurface : UiLayer<ApplicationUiFrame>, IUiSur
             throw new InvalidOperationException("Application input was dispatched before the previous input was processed.");
 
         _pendingInput = new UiRoutedInput<ApplicationUiFrame>(input, frame, context.Target, context.RouteKind);
+        if (input is MouseConsoleInputEvent { Button: MouseButton.Left, Kind: MouseEventKind.Down } down &&
+            context.RouteKind == UiInputRouteKind.HitTarget &&
+            TryGetScrollbarFrame(frame, context.Target, out var scrollbar) &&
+            ScrollBarInteraction.HitTest(scrollbar.Bounds, scrollbar.ToScrollState(), down.X, down.Y).Part == ScrollBarHitPart.Thumb)
+        {
+            return UiInputResult.CaptureMouse(context.Target!, MouseButton.Left);
+        }
+
+        if (input is MouseConsoleInputEvent { Button: MouseButton.Left, Kind: MouseEventKind.Up } &&
+            context.RouteKind == UiInputRouteKind.CapturedTarget &&
+            IsScrollbarTarget(context.Target))
+        {
+            return UiInputResult.ReleaseMouse();
+        }
+
         if (context.Target == ApplicationTargetIds.CommandLine &&
             input is MouseConsoleInputEvent { Button: MouseButton.Left, Kind: MouseEventKind.Down } &&
             context.RouteKind == UiInputRouteKind.HitTarget)
@@ -134,18 +206,104 @@ internal sealed class ApplicationUiSurface : UiLayer<ApplicationUiFrame>, IUiSur
             [new UiFocusEntry(ApplicationTargetIds.CommandLine, 0, IsEnabled: true, frame.CommandLine.Cursor)],
             ApplicationTargetIds.CommandLine);
 
-        if (frame.CommandLine.Bounds.Width <= 0 ||
-            frame.CommandLine.Bounds.Height <= 0 ||
-            frame.CommandLine.Bounds.Y < 0 ||
-            frame.CommandLine.Bounds.Y >= frame.Viewport.Height)
+        var hitRegions = new List<UiHitRegion>();
+        if (IsVisible(frame.CommandLine.Bounds, frame.Viewport))
+            hitRegions.Add(new UiHitRegion(ApplicationTargetIds.CommandLine, frame.CommandLine.Bounds));
+
+        if (frame.Mode == ApplicationSurfaceMode.Panels)
         {
-            return new UiInteractionFrame([], focus);
+            AddPanelRegions(hitRegions, frame.LeftPanel);
+            AddPanelRegions(hitRegions, frame.RightPanel);
+
+            if (frame.FunctionKeyBar is { } functionKeyBar)
+            {
+                foreach (var action in functionKeyBar.Actions)
+                    hitRegions.Add(new UiHitRegion(ApplicationTargetIds.FunctionKeyBar, action.Bounds));
+            }
+
+            if (frame.DirectoryShortcutBar is { } shortcutBar)
+            {
+                foreach (var shortcut in shortcutBar.Shortcuts)
+                    hitRegions.Add(new UiHitRegion(ApplicationTargetIds.DirectoryShortcutBar, shortcut.Bounds));
+            }
         }
 
-        return new UiInteractionFrame(
-            [new UiHitRegion(ApplicationTargetIds.CommandLine, frame.CommandLine.Bounds)],
-            focus);
+        return new UiInteractionFrame(hitRegions, focus);
     }
+
+    protected override void OnFrameCommitted(ApplicationUiFrame frame)
+    {
+        RebaseScrollbarDrag(frame);
+    }
+
+    private void RebaseScrollbarDrag(ApplicationUiFrame frame)
+    {
+        if (_context.Ui.PanelScrollbarDrag is not { } drag)
+            return;
+
+        var scrollbar = drag.Side == PanelSide.Left
+            ? frame.LeftPanel?.ScrollBar
+            : frame.RightPanel?.ScrollBar;
+        if (scrollbar is null ||
+            !ScrollBarInteraction.IsInteractive(scrollbar.Bounds, scrollbar.ToScrollState()))
+        {
+            _context.Ui.PanelScrollbarDrag = null;
+            return;
+        }
+
+        var rebased = ScrollBarInteraction.RebaseDrag(
+            drag.DragState,
+            scrollbar.Bounds,
+            scrollbar.TotalItems,
+            scrollbar.ViewportItems);
+        _context.Ui.PanelScrollbarDrag = rebased.HasValue
+            ? new PanelScrollbarDrag(drag.Side, rebased.Value)
+            : null;
+    }
+
+    private static void AddPanelRegions(List<UiHitRegion> hitRegions, ApplicationPanelFrame? panel)
+    {
+        if (panel is null)
+            return;
+
+        hitRegions.Add(new UiHitRegion(ApplicationTargetIds.Panel(panel.Side), panel.Bounds));
+        if (panel.ScrollBar is { } scrollbar &&
+            ScrollBarInteraction.IsInteractive(scrollbar.Bounds, scrollbar.ToScrollState()))
+        {
+            hitRegions.Add(new UiHitRegion(ApplicationTargetIds.PanelScrollbar(panel.Side), scrollbar.Bounds));
+        }
+    }
+
+    private static bool IsVisible(Rect bounds, ConsoleViewport viewport) =>
+        bounds.Width > 0 &&
+        bounds.Height > 0 &&
+        bounds.Y >= 0 &&
+        bounds.Y < viewport.Height;
+
+    private static bool TryGetScrollbarFrame(
+        ApplicationUiFrame frame,
+        UiTargetId? target,
+        out ApplicationScrollBarFrame scrollbar)
+    {
+        if (target == ApplicationTargetIds.LeftPanelScrollbar && frame.LeftPanel?.ScrollBar is { } left)
+        {
+            scrollbar = left;
+            return true;
+        }
+
+        if (target == ApplicationTargetIds.RightPanelScrollbar && frame.RightPanel?.ScrollBar is { } right)
+        {
+            scrollbar = right;
+            return true;
+        }
+
+        scrollbar = null!;
+        return false;
+    }
+
+    private static bool IsScrollbarTarget(UiTargetId? target) =>
+        target == ApplicationTargetIds.LeftPanelScrollbar ||
+        target == ApplicationTargetIds.RightPanelScrollbar;
 
     internal bool TryTakeInput(out UiRoutedInput<ApplicationUiFrame> routed)
     {

@@ -34,12 +34,17 @@ public sealed class ApplicationInputDispatcherTests
         var dispatcher = new ApplicationInputDispatcher(
             _ => ApplicationRuntimeRenderRequest.None,
             _ => ApplicationRuntimeRenderRequest.None,
-            new MouseInputRouter(context),
-            new ApplicationCommandLineInputHandler(context));
+            new ApplicationCommandLineInputHandler(context),
+            new ApplicationPanelInputHandler(context),
+            new ApplicationPanelScrollbarInputHandler(context),
+            new ApplicationFunctionKeyBarInputHandler(context),
+            new ApplicationDirectoryShortcutBarInputHandler(context));
         var frame = new ApplicationUiFrame(
             new ConsoleViewport(0, 0, 120, 25),
             ApplicationSurfaceMode.Panels,
             new ApplicationCommandLineFrame(new Rect(0, 24, 120, 1), 8, 0, commandLine.Text.Length, new UiCursorPlacement(8, 24)),
+            null,
+            null,
             null,
             null);
 
@@ -239,27 +244,12 @@ public sealed class ApplicationInputDispatcherTests
             CommandLine = commandLine,
             Ui = new UiTransientState(),
             Mouse = new MouseSessionState(),
-            FunctionKeyBindings =
-            [
-                new FunctionKeyBinding("copy", FunctionKeyLayer.Plain, ConsoleKey.F5, "Copy"),
-            ],
-            FunctionKeyLayer = () => FunctionKeyLayer.Plain,
-            DirectoryShortcuts = () => new AppSettings.DirectoryShortcutSettings(),
             PanelOptions = () => new AppSettings.PanelOptionsSettings(),
-            ActiveSide = () => PanelSide.Left,
             SetActiveSide = _ => { },
-            ActiveState = () => panelState,
             GetPanelState = _ => panelState,
-            ViewModeForSide = _ => PanelViewMode.Full,
-            IsPanelVisible = _ => false,
-            HasVisiblePanels = () => false,
-            QuickView = () => false,
-            VisibleRowsForSide = _ => 10,
             ExecuteRegisteredCommand = execute ?? ((_, _) => false),
-            CanExecuteFunctionKeyCommand = _ => true,
             PasteTextIntoCommandLine = paste ?? (() => true),
             ResetCommandHistoryNavigation = resetHistory ?? (() => { }),
-            HideCommandCompletion = _ => { },
             SafeRefresh = (_, _) => { },
             OpenPanelItem = (_, _, _) => { },
         };
@@ -269,8 +259,11 @@ public sealed class ApplicationInputDispatcherTests
         new(
             _ => ApplicationRuntimeRenderRequest.None,
             _ => ApplicationRuntimeRenderRequest.None,
-            new MouseInputRouter(context),
-            new ApplicationCommandLineInputHandler(context));
+            new ApplicationCommandLineInputHandler(context),
+            new ApplicationPanelInputHandler(context),
+            new ApplicationPanelScrollbarInputHandler(context),
+            new ApplicationFunctionKeyBarInputHandler(context),
+            new ApplicationDirectoryShortcutBarInputHandler(context));
 
     private static ApplicationUiFrame Frame(CommandLineState commandLine) =>
         new(
@@ -282,6 +275,8 @@ public sealed class ApplicationInputDispatcherTests
                 DisplayOffset: 0,
                 TextLength: commandLine.Text.Length,
                 Cursor: new UiCursorPlacement(8, 24)),
+            null,
+            null,
             null,
             null);
 }

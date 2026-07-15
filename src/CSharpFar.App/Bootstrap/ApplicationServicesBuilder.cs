@@ -171,29 +171,23 @@ internal static class ApplicationServicesBuilder
             CommandLine = session.CommandLine.State,
             Ui = session.Ui,
             Mouse = session.Mouse,
-            FunctionKeyBindings = functionKeyBindingProvider.GetBindings(),
-            FunctionKeyLayer = () => session.FunctionKeyLayer,
-            DirectoryShortcuts = () => effectiveSettings.DirectoryShortcuts,
             PanelOptions = () => callbacks.PanelOptions(),
-            ActiveSide = () => callbacks.GetActiveSide(),
             SetActiveSide = side => callbacks.SetActiveSide(side),
-            ActiveState = () => callbacks.ActiveState(),
             GetPanelState = side => callbacks.GetPanelState(side),
-            ViewModeForSide = side => side == CSharpFar.Core.Models.PanelSide.Left
-                ? session.Panels.LeftViewMode
-                : session.Panels.RightViewMode,
-            IsPanelVisible = side => callbacks.IsPanelVisible(side),
-            HasVisiblePanels = () => callbacks.HasVisiblePanels(),
-            QuickView = () => session.App.QuickView,
-            VisibleRowsForSide = side => callbacks.VisibleRowsForSide(side),
         };
-        var mouseInputRouter = new MouseInputRouter(mouseInputContext);
         var commandLineInputHandler = new ApplicationCommandLineInputHandler(mouseInputContext);
+        var panelInputHandler = new ApplicationPanelInputHandler(mouseInputContext);
+        var panelScrollbarInputHandler = new ApplicationPanelScrollbarInputHandler(mouseInputContext);
+        var functionKeyBarInputHandler = new ApplicationFunctionKeyBarInputHandler(mouseInputContext);
+        var directoryShortcutBarInputHandler = new ApplicationDirectoryShortcutBarInputHandler(mouseInputContext);
         var applicationInputDispatcher = new ApplicationInputDispatcher(
             key => callbacks.HandleKeyInput(key),
             modifiers => callbacks.HandleModifierInput(modifiers),
-            mouseInputRouter,
-            commandLineInputHandler);
+            commandLineInputHandler,
+            panelInputHandler,
+            panelScrollbarInputHandler,
+            functionKeyBarInputHandler,
+            directoryShortcutBarInputHandler);
         var rendering = RenderingServicesFactory.Create(
             screen,
             terminalScreenMode,
@@ -400,7 +394,6 @@ internal static class ApplicationServicesBuilder
             KeyboardInputRouter = keyboardInputRouter,
             ApplicationInputDispatcher = applicationInputDispatcher,
             MouseInputContext = mouseInputContext,
-            MouseInputRouter = mouseInputRouter,
             SaveSettings = saveSettings,
         };
     }

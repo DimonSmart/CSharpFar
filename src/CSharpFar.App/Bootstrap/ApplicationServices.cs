@@ -66,6 +66,5 @@ internal sealed class ApplicationServices
     public required KeyboardInputRouter KeyboardInputRouter { get; init; }
     public required ApplicationInputDispatcher ApplicationInputDispatcher { get; init; }
     public required MouseInputContext MouseInputContext { get; init; }
-    public required MouseInputRouter MouseInputRouter { get; init; }
     public Action? SaveSettings { get; init; }
 }

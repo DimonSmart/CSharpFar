@@ -132,8 +132,8 @@ public sealed class ApplicationUiSurfaceTests
 
         Assert.True(nextResult.Handled);
         Assert.True(services.ApplicationSurface.TryTakeInput(out var next));
-        Assert.Null(next.Target);
-        Assert.Equal(UiInputRouteKind.Layer, next.RouteKind);
+        Assert.Equal(ApplicationTargetIds.RightPanel, next.Target);
+        Assert.Equal(UiInputRouteKind.HitTarget, next.RouteKind);
         services.Inner.ApplicationInputDispatcher.Handle(next);
         Assert.False(services.ApplicationSurface.TryTakeInput(out _));
     }
@@ -255,8 +255,8 @@ public sealed class ApplicationUiSurfaceTests
             new MouseConsoleInputEvent(0, 10, MouseButton.Left, MouseEventKind.Move, MouseKeyModifiers.None));
 
         Assert.True(services.ApplicationSurface.TryTakeInput(out var next));
-        Assert.Null(next.Target);
-        Assert.Equal(UiInputRouteKind.Layer, next.RouteKind);
+        Assert.Equal(ApplicationTargetIds.LeftPanel, next.Target);
+        Assert.Equal(UiInputRouteKind.HitTarget, next.RouteKind);
     }
 
     [Fact]
@@ -365,7 +365,122 @@ public sealed class ApplicationUiSurfaceTests
         Assert.Equal(ApplicationTargetIds.CommandLine, focus.Target);
         Assert.Equal(services.ApplicationSurface.CommittedFrame.CommandLine.Cursor, focus.Cursor);
         Assert.Equal(ApplicationTargetIds.CommandLine, services.ApplicationSurface.CommittedInteractionFrame.Focus.DefaultTarget);
-        Assert.Single(services.ApplicationSurface.CommittedInteractionFrame.HitRegions);
+        Assert.Contains(
+            services.ApplicationSurface.CommittedInteractionFrame.HitRegions,
+            region => region.Target == ApplicationTargetIds.CommandLine);
+    }
+
+    [Fact]
+    public void HiddenCommandLineMode_PublishesOnlyCommandLineHitTarget()
+    {
+        var services = Services();
+        services.Session.App.HiddenPanels = HiddenPanels.Both;
+
+        services.Composition.Render();
+
+        var regions = services.ApplicationSurface.CommittedInteractionFrame.HitRegions;
+        var region = Assert.Single(regions);
+        Assert.Equal(ApplicationTargetIds.CommandLine, region.Target);
+        Assert.Null(services.ApplicationSurface.CommittedFrame.LeftPanel);
+        Assert.Null(services.ApplicationSurface.CommittedFrame.RightPanel);
+        Assert.Null(services.ApplicationSurface.CommittedFrame.FunctionKeyBar);
+        Assert.Null(services.ApplicationSurface.CommittedFrame.DirectoryShortcutBar);
+    }
+
+    [Fact]
+    public void QuickViewPassiveSide_DoesNotPublishFilePanelTarget()
+    {
+        var services = Services();
+        services.Session.App.QuickView = true;
+
+        services.Composition.Render();
+
+        Assert.NotNull(services.ApplicationSurface.CommittedFrame.LeftPanel);
+        Assert.Null(services.ApplicationSurface.CommittedFrame.RightPanel);
+        Assert.Contains(
+            services.ApplicationSurface.CommittedInteractionFrame.HitRegions,
+            region => region.Target == ApplicationTargetIds.LeftPanel);
+        Assert.DoesNotContain(
+            services.ApplicationSurface.CommittedInteractionFrame.HitRegions,
+            region => region.Target == ApplicationTargetIds.RightPanel);
+    }
+
+    [Fact]
+    public void PanelScrollbarHit_WinsOverPanelAndThumbDownRequestsCapture()
+    {
+        var services = Services();
+        AddScrollableItems(services.Session.Panels.Left, 40);
+
+        services.Composition.Render();
+
+        var scrollbar = services.ApplicationSurface.CommittedFrame.LeftPanel?.ScrollBar;
+        Assert.NotNull(scrollbar);
+        Assert.True(ScrollBarInteraction.IsInteractive(scrollbar.Bounds, scrollbar.ToScrollState()));
+
+        var regions = services.ApplicationSurface.CommittedInteractionFrame.HitRegions;
+        int panelIndex = regions.ToList().FindIndex(region => region.Target == ApplicationTargetIds.LeftPanel);
+        int scrollbarIndex = regions.ToList().FindIndex(region => region.Target == ApplicationTargetIds.LeftPanelScrollbar);
+        Assert.True(panelIndex >= 0);
+        Assert.True(scrollbarIndex > panelIndex);
+
+        var thumb = ScrollBarInteraction.CalculateThumb(scrollbar.Bounds, scrollbar.ToScrollState());
+        Assert.True(services.ApplicationSurface.CommittedInteractionFrame.TryHitTest(
+            scrollbar.Bounds.X,
+            thumb.ThumbY,
+            out var hit));
+        Assert.Equal(ApplicationTargetIds.LeftPanelScrollbar, hit.Target);
+
+        UiInputResult result = services.Composition.DispatchInput(new MouseConsoleInputEvent(
+            scrollbar.Bounds.X,
+            thumb.ThumbY,
+            MouseButton.Left,
+            MouseEventKind.Down,
+            MouseKeyModifiers.None));
+
+        Assert.True(result.Handled);
+        Assert.True(services.ApplicationSurface.TryTakeInput(out var routed));
+        Assert.Equal(ApplicationTargetIds.LeftPanelScrollbar, routed.Target);
+        Assert.Equal(UiInputRouteKind.HitTarget, routed.RouteKind);
+
+        services.Composition.DispatchInput(new MouseConsoleInputEvent(
+            79,
+            22,
+            MouseButton.Left,
+            MouseEventKind.Move,
+            MouseKeyModifiers.None));
+
+        Assert.True(services.ApplicationSurface.TryTakeInput(out var captured));
+        Assert.Equal(ApplicationTargetIds.LeftPanelScrollbar, captured.Target);
+        Assert.Equal(UiInputRouteKind.CapturedTarget, captured.RouteKind);
+    }
+
+    [Fact]
+    public void FunctionKeyAndShortcutTargets_UseOnlyRenderedSlots()
+    {
+        var services = Services();
+        services.Inner.Settings.DirectoryShortcuts.Items.Add(new AppSettings.DirectoryShortcutItem
+        {
+            Number = 1,
+            Name = "Root",
+            Path = @"C:\Root",
+        });
+
+        services.Composition.Render();
+
+        Assert.NotNull(services.ApplicationSurface.CommittedFrame.FunctionKeyBar);
+        Assert.NotNull(services.ApplicationSurface.CommittedFrame.DirectoryShortcutBar);
+        Assert.All(
+            services.ApplicationSurface.CommittedInteractionFrame.HitRegions
+                .Where(region => region.Target == ApplicationTargetIds.FunctionKeyBar),
+            region => Assert.Contains(
+                services.ApplicationSurface.CommittedFrame.FunctionKeyBar!.Actions,
+                action => action.Bounds.Equals(region.Bounds)));
+        Assert.All(
+            services.ApplicationSurface.CommittedInteractionFrame.HitRegions
+                .Where(region => region.Target == ApplicationTargetIds.DirectoryShortcutBar),
+            region => Assert.Contains(
+                services.ApplicationSurface.CommittedFrame.DirectoryShortcutBar!.Shortcuts,
+                shortcut => shortcut.Bounds.Equals(region.Bounds)));
     }
 
     [Theory]
@@ -387,8 +502,8 @@ public sealed class ApplicationUiSurfaceTests
         }
         else
         {
-            Assert.Null(routed.Target);
-            Assert.Equal(UiInputRouteKind.Layer, routed.RouteKind);
+            Assert.Equal(ApplicationTargetIds.LeftPanel, routed.Target);
+            Assert.Equal(UiInputRouteKind.HitTarget, routed.RouteKind);
         }
         Assert.False(services.ApplicationSurface.TryTakeInput(out _));
 
@@ -511,6 +626,20 @@ public sealed class ApplicationUiSurfaceTests
 
     private static MouseConsoleInputEvent Mouse() =>
         new(1, 1, MouseButton.Left, MouseEventKind.Down, MouseKeyModifiers.None);
+
+    private static void AddScrollableItems(FilePanelState state, int count)
+    {
+        state.Items.Clear();
+        for (int i = 0; i < count; i++)
+        {
+            state.Items.Add(new FilePanelItem
+            {
+                Name = $"item-{i}.txt",
+                FullPath = $@"C:\Root\item-{i}.txt",
+                IsDirectory = false,
+            });
+        }
+    }
 
     private static void DispatchTakeAndHandle(
         TestServices services,

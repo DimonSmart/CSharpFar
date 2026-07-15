@@ -18,8 +18,7 @@ public sealed class MainFunctionKeyBarIntegrationTests
     public void MouseClickOnActiveSlot_ExecutesRegisteredCommand()
     {
         int executions = 0;
-        var router = CreateRouter(
-            canExecute: _ => true,
+        var handler = CreateHandler(
             execute: (commandId, _) =>
             {
                 if (commandId == "copy")
@@ -27,9 +26,12 @@ public sealed class MainFunctionKeyBarIntegrationTests
                 return true;
             });
 
-        bool handled = router.Handle(Mouse(x: 40, y: 24, MouseButton.Left, MouseEventKind.Down), Frame());
+        var result = handler.Handle(
+            Mouse(x: 40, y: 24, MouseButton.Left, MouseEventKind.Down),
+            Frame(canExecute: true).FunctionKeyBar,
+            UiInputRouteKind.HitTarget);
 
-        Assert.True(handled);
+        Assert.True(result.Handled);
         Assert.Equal(1, executions);
     }
 
@@ -37,15 +39,18 @@ public sealed class MainFunctionKeyBarIntegrationTests
     public void MouseClickOnEmptySlot_DoesNothing()
     {
         int executions = 0;
-        var router = CreateRouter(canExecute: _ => true, execute: (_, _) =>
+        var handler = CreateHandler(execute: (_, _) =>
         {
             executions++;
             return true;
         });
 
-        bool handled = router.Handle(Mouse(x: 90, y: 24, MouseButton.Left, MouseEventKind.Down), Frame());
+        var result = handler.Handle(
+            Mouse(x: 90, y: 24, MouseButton.Left, MouseEventKind.Down),
+            Frame(canExecute: true).FunctionKeyBar,
+            UiInputRouteKind.HitTarget);
 
-        Assert.False(handled);
+        Assert.False(result.Handled);
         Assert.Equal(0, executions);
     }
 
@@ -53,15 +58,18 @@ public sealed class MainFunctionKeyBarIntegrationTests
     public void MouseClickOnDisabledCommand_DoesNothing()
     {
         int executions = 0;
-        var router = CreateRouter(canExecute: _ => false, execute: (_, _) =>
+        var handler = CreateHandler(execute: (_, _) =>
         {
             executions++;
             return true;
         });
 
-        bool handled = router.Handle(Mouse(x: 40, y: 24, MouseButton.Left, MouseEventKind.Down), Frame());
+        var result = handler.Handle(
+            Mouse(x: 40, y: 24, MouseButton.Left, MouseEventKind.Down),
+            Frame(canExecute: false).FunctionKeyBar,
+            UiInputRouteKind.HitTarget);
 
-        Assert.False(handled);
+        Assert.False(result.Handled);
         Assert.Equal(0, executions);
     }
 
@@ -69,15 +77,18 @@ public sealed class MainFunctionKeyBarIntegrationTests
     public void MouseClickOutsideBottomRow_IsNotHandledByFunctionKeyBar()
     {
         int executions = 0;
-        var router = CreateRouter(canExecute: _ => true, execute: (_, _) =>
+        var handler = CreateHandler(execute: (_, _) =>
         {
             executions++;
             return true;
         });
 
-        bool handled = router.Handle(Mouse(x: 40, y: 22, MouseButton.Left, MouseEventKind.Down), Frame());
+        var result = handler.Handle(
+            Mouse(x: 40, y: 22, MouseButton.Left, MouseEventKind.Down),
+            Frame(canExecute: true).FunctionKeyBar,
+            UiInputRouteKind.HitTarget);
 
-        Assert.False(handled);
+        Assert.False(result.Handled);
         Assert.Equal(0, executions);
     }
 
@@ -85,15 +96,18 @@ public sealed class MainFunctionKeyBarIntegrationTests
     public void RightClick_IsNotHandledByFunctionKeyBar()
     {
         int executions = 0;
-        var router = CreateRouter(canExecute: _ => true, execute: (_, _) =>
+        var handler = CreateHandler(execute: (_, _) =>
         {
             executions++;
             return true;
         });
 
-        bool handled = router.Handle(Mouse(x: 40, y: 24, MouseButton.Right, MouseEventKind.Down), Frame());
+        var result = handler.Handle(
+            Mouse(x: 40, y: 24, MouseButton.Right, MouseEventKind.Down),
+            Frame(canExecute: true).FunctionKeyBar,
+            UiInputRouteKind.HitTarget);
 
-        Assert.False(handled);
+        Assert.False(result.Handled);
         Assert.Equal(0, executions);
     }
 
@@ -101,20 +115,22 @@ public sealed class MainFunctionKeyBarIntegrationTests
     public void NonClickMouseEvent_DoesNotExecuteCommand()
     {
         int executions = 0;
-        var router = CreateRouter(canExecute: _ => true, execute: (_, _) =>
+        var handler = CreateHandler(execute: (_, _) =>
         {
             executions++;
             return true;
         });
 
-        bool handled = router.Handle(Mouse(x: 40, y: 24, MouseButton.Left, MouseEventKind.Up), Frame());
+        var result = handler.Handle(
+            Mouse(x: 40, y: 24, MouseButton.Left, MouseEventKind.Up),
+            Frame(canExecute: true).FunctionKeyBar,
+            UiInputRouteKind.HitTarget);
 
-        Assert.False(handled);
+        Assert.False(result.Handled);
         Assert.Equal(0, executions);
     }
 
-    private static MouseInputRouter CreateRouter(
-        Func<string, bool> canExecute,
+    private static ApplicationFunctionKeyBarInputHandler CreateHandler(
         Func<string, object?, bool> execute)
     {
         var panelState = new FilePanelState { CurrentDirectory = @"C:\work" };
@@ -125,42 +141,32 @@ public sealed class MainFunctionKeyBarIntegrationTests
             CommandLine = new CommandLineState(),
             Ui = new UiTransientState(),
             Mouse = new MouseSessionState(),
-            FunctionKeyBindings =
-            [
-                new FunctionKeyBinding("copy", FunctionKeyLayer.Plain, ConsoleKey.F5, "Copy"),
-            ],
-            FunctionKeyLayer = () => FunctionKeyLayer.Plain,
-            DirectoryShortcuts = () => new AppSettings.DirectoryShortcutSettings(),
             PanelOptions = () => new AppSettings.PanelOptionsSettings(),
-            ActiveSide = () => PanelSide.Left,
             SetActiveSide = _ => { },
-            ActiveState = () => panelState,
             GetPanelState = _ => panelState,
-            ViewModeForSide = _ => PanelViewMode.Full,
-            IsPanelVisible = _ => false,
-            HasVisiblePanels = () => false,
-            QuickView = () => false,
-            VisibleRowsForSide = _ => 10,
             ExecuteRegisteredCommand = execute,
-            CanExecuteFunctionKeyCommand = canExecute,
             PasteTextIntoCommandLine = () => false,
             ResetCommandHistoryNavigation = () => { },
-            HideCommandCompletion = _ => { },
             SafeRefresh = (_, _) => { },
             OpenPanelItem = (_, _, _) => { },
         };
 
-        return new MouseInputRouter(context);
+        return new ApplicationFunctionKeyBarInputHandler(context);
     }
 
     private static MouseConsoleInputEvent Mouse(int x, int y, MouseButton button, MouseEventKind kind) =>
         new(x, y, button, kind, MouseKeyModifiers.None);
 
-    private static ApplicationUiFrame Frame() =>
+    private static ApplicationUiFrame Frame(bool canExecute) =>
         new(
             new ConsoleViewport(0, 0, 120, 25),
             ApplicationSurfaceMode.Panels,
             new ApplicationCommandLineFrame(new Rect(0, 23, 120, 1), 8, 0, 0, new UiCursorPlacement(8, 23)),
             null,
+            null,
+            canExecute
+                ? new ApplicationFunctionKeyBarFrame(
+                    [new ApplicationFunctionKeyHit(new Rect(40, 24, 10, 1), "copy")])
+                : null,
             null);
 }

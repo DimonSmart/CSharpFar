@@ -29,22 +29,32 @@ internal sealed class PanelRenderer
     public static int VisibleRows(Rect bounds, AppSettings.PanelOptionsSettings? options = null) =>
         Math.Max(0, bounds.Height - 2 - PanelStatusRenderer.GetStatusRowCount(options));
 
-    public void Render(Rect bounds, FilePanelState state, bool isActive,
-                       PanelViewMode mode = PanelViewMode.Full)
+    public ApplicationPanelFrame Render(
+        Rect bounds,
+        FilePanelState state,
+        bool isActive,
+        PanelSide side,
+        PanelViewMode mode = PanelViewMode.Full)
     {
         if (mode == PanelViewMode.BriefTwoColumns)
         {
-            new BriefTwoColumnsPanelRenderer(_screen, _palette, _highlight, _options)
-                .Render(bounds, state, isActive);
-            return;
+            return new BriefTwoColumnsPanelRenderer(_screen, _palette, _highlight, _options)
+                .Render(bounds, state, isActive, side);
         }
 
-        RenderFull(bounds, state, isActive);
+        return RenderFull(bounds, state, isActive, side);
     }
+
+    public void Render(
+        Rect bounds,
+        FilePanelState state,
+        bool isActive,
+        PanelViewMode mode = PanelViewMode.Full) =>
+        _ = Render(bounds, state, isActive, PanelSide.Left, mode);
 
     // ── Full mode ─────────────────────────────────────────────────────────────
 
-    private void RenderFull(Rect bounds, FilePanelState state, bool isActive)
+    private ApplicationPanelFrame RenderFull(Rect bounds, FilePanelState state, bool isActive, PanelSide side)
     {
         var p = _palette;
 
@@ -71,7 +81,7 @@ internal sealed class PanelRenderer
         {
             PanelErrorRenderer.Render(_screen, bounds, state, PanelViewMode.Full, p, _options);
             new PanelStatusRenderer(_screen).Render(bounds, state, footer, border, _options);
-            return;
+            return BuildErrorFrame(bounds, state, side, PanelViewMode.Full);
         }
 
         // File list
@@ -82,6 +92,7 @@ internal sealed class PanelRenderer
         int sizeCol    = Math.Min(8, listWidth / 3);
         int nameCol    = Math.Max(0, listWidth - sizeCol - (sizeCol > 0 ? 1 : 0));
 
+        var hits = new List<ApplicationPanelItemHit>();
         for (int row = 0; row < visRows; row++)
         {
             int itemIdx = state.ScrollOffset + row;
@@ -94,6 +105,10 @@ internal sealed class PanelRenderer
             }
 
             var  item       = state.Items[itemIdx];
+            hits.Add(new ApplicationPanelItemHit(
+                new Rect(bounds.X + 1, y, listWidth, 1),
+                itemIdx,
+                item.FullPath));
             bool isCursor   = isActive && itemIdx == state.CursorIndex;
             bool isSelected = !item.IsParentDirectory &&
                               state.SelectedPaths.Contains(item.FullPath);
@@ -118,11 +133,13 @@ internal sealed class PanelRenderer
                 _screen.Write(bounds.X + 1 + nameCol, y, sizePart, style);
         }
 
+        ApplicationScrollBarFrame? scrollBar = null;
         if (visRows > 0 && state.Items.Count > visRows)
         {
+            var scrollbarBounds = new Rect(bounds.Right - 1, listTop, 1, visRows);
             new ScrollBarRenderer().RenderVerticalScrollbar(
                 _screen,
-                new Rect(bounds.Right - 1, listTop, 1, visRows),
+                scrollbarBounds,
                 new ScrollState
                 {
                     TotalItems = state.Items.Count,
@@ -135,9 +152,30 @@ internal sealed class PanelRenderer
                     DrawWhenNotScrollable = false,
                 },
                 border);
+            scrollBar = new ApplicationScrollBarFrame(
+                scrollbarBounds,
+                state.Items.Count,
+                visRows,
+                state.ScrollOffset);
         }
 
         new PanelStatusRenderer(_screen).Render(bounds, state, footer, border, _options);
+        return new ApplicationPanelFrame(side, bounds, visRows, hits, null, scrollBar);
+    }
+
+    private ApplicationPanelFrame BuildErrorFrame(
+        Rect bounds,
+        FilePanelState state,
+        PanelSide side,
+        PanelViewMode mode)
+    {
+        Rect? retry = PanelErrorRenderer.TryGetRetryBounds(bounds, state, mode, _options, out var retryBounds)
+            ? retryBounds
+            : null;
+        int visibleRows = mode == PanelViewMode.BriefTwoColumns
+            ? BriefTwoColumnsPanelRenderer.VisibleRows(bounds, _options)
+            : VisibleRows(bounds, _options);
+        return new ApplicationPanelFrame(side, bounds, visibleRows, [], retry, null);
     }
 
     // ── static helpers ────────────────────────────────────────────────────────

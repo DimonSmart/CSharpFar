@@ -220,10 +220,8 @@ public sealed class Application
     private void BindMouseInputContext(MouseInputContext context)
     {
         context.ExecuteRegisteredCommand = ExecuteRegisteredCommand;
-        context.CanExecuteFunctionKeyCommand = CanExecuteFunctionKeyCommand;
         context.PasteTextIntoCommandLine = PasteTextIntoCommandLine;
         context.ResetCommandHistoryNavigation = ResetCommandHistoryNavigation;
-        context.HideCommandCompletion = HideCommandCompletion;
         context.SafeRefresh = SafeRefresh;
         context.OpenPanelItem = OpenPanelItem;
     }

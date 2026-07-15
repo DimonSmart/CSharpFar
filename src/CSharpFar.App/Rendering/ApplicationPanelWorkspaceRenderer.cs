@@ -30,7 +30,7 @@ internal sealed class ApplicationPanelWorkspaceRenderer
         _panelOptions = panelOptions;
     }
 
-    public PanelWorkspaceRenderBounds Render(
+    public ApplicationPanelWorkspaceFrame Render(
         ConsoleSize size,
         FilePanelState left,
         FilePanelState right,
@@ -49,10 +49,12 @@ internal sealed class ApplicationPanelWorkspaceRenderer
         var palette = _palette();
         var panelRenderer = new PanelRenderer(_screen, palette, _highlightService(), _panelOptions());
         var quickViewRenderer = new QuickViewRenderer(_screen, palette);
+        ApplicationPanelFrame? leftFrame = null;
+        ApplicationPanelFrame? rightFrame = null;
 
         if (quickView)
         {
-            RenderQuickView(
+            (leftFrame, rightFrame) = RenderQuickView(
                 panelRenderer,
                 quickViewRenderer,
                 leftBounds,
@@ -68,15 +70,15 @@ internal sealed class ApplicationPanelWorkspaceRenderer
         else
         {
             if (isPanelVisible(PanelSide.Left))
-                panelRenderer.Render(leftBounds, left, activeSide == PanelSide.Left, leftViewMode);
+                leftFrame = panelRenderer.Render(leftBounds, left, activeSide == PanelSide.Left, PanelSide.Left, leftViewMode);
             if (isPanelVisible(PanelSide.Right))
-                panelRenderer.Render(rightBounds, right, activeSide == PanelSide.Right, rightViewMode);
+                rightFrame = panelRenderer.Render(rightBounds, right, activeSide == PanelSide.Right, PanelSide.Right, rightViewMode);
         }
 
-        return bounds;
+        return new ApplicationPanelWorkspaceFrame(leftBounds, rightBounds, panelHeight, leftFrame, rightFrame);
     }
 
-    private void RenderQuickView(
+    private (ApplicationPanelFrame? Left, ApplicationPanelFrame? Right) RenderQuickView(
         PanelRenderer panelRenderer,
         QuickViewRenderer quickViewRenderer,
         Rect leftBounds,
@@ -89,11 +91,13 @@ internal sealed class ApplicationPanelWorkspaceRenderer
         DirectorySizeState? quickViewDirState,
         Func<PanelSide, bool> isPanelVisible)
     {
+        ApplicationPanelFrame? leftFrame = null;
+        ApplicationPanelFrame? rightFrame = null;
         if (activeSide == PanelSide.Left)
         {
             var item = _controller.CurrentItem(left);
             if (isPanelVisible(PanelSide.Left))
-                panelRenderer.Render(leftBounds, left, true, leftViewMode);
+                leftFrame = panelRenderer.Render(leftBounds, left, true, PanelSide.Left, leftViewMode);
             if (isPanelVisible(PanelSide.Right))
                 quickViewRenderer.Render(
                     rightBounds,
@@ -109,12 +113,16 @@ internal sealed class ApplicationPanelWorkspaceRenderer
                     item,
                     item is { IsDirectory: true } ? quickViewDirState : null);
             if (isPanelVisible(PanelSide.Right))
-                panelRenderer.Render(rightBounds, right, true, rightViewMode);
+                rightFrame = panelRenderer.Render(rightBounds, right, true, PanelSide.Right, rightViewMode);
         }
+
+        return (leftFrame, rightFrame);
     }
 }
 
-internal readonly record struct PanelWorkspaceRenderBounds(
+internal readonly record struct ApplicationPanelWorkspaceFrame(
     Rect Left,
     Rect Right,
-    int PanelHeight);
+    int PanelHeight,
+    ApplicationPanelFrame? LeftPanel,
+    ApplicationPanelFrame? RightPanel);

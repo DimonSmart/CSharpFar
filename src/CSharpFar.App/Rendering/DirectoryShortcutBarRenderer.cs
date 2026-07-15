@@ -20,14 +20,15 @@ internal sealed class DirectoryShortcutBarRenderer
         _nameStyle = PaletteStyles.DirectoryShortcutBarLabel(palette);
     }
 
-    public void Render(
+    public ApplicationDirectoryShortcutBarFrame? Render(
         int y,
         int totalWidth,
         AppSettings.DirectoryShortcutSettings? settings)
     {
         if (y < 0 || totalWidth <= 2)
-            return;
+            return null;
 
+        var hits = new List<ApplicationDirectoryShortcutHit>();
         foreach (var slot in GetVisibleSlots(totalWidth, settings))
         {
             _screen.Write(slot.X, y, slot.NumberText, _numberStyle);
@@ -35,7 +36,13 @@ internal sealed class DirectoryShortcutBarRenderer
             {
                 _screen.Write(slot.X + slot.NumberText.Length, y, slot.Name, _nameStyle);
             }
+
+            hits.Add(new ApplicationDirectoryShortcutHit(
+                new Rect(slot.X, y, slot.Width, 1),
+                slot.Number));
         }
+
+        return hits.Count > 0 ? new ApplicationDirectoryShortcutBarFrame(hits) : null;
     }
 
     public static bool TryGetShortcutNumberAt(

@@ -1,5 +1,6 @@
 using CSharpFar.App.Rendering;
 using CSharpFar.Console.Input;
+using CSharpFar.Core.Models;
 using CSharpFar.Ui;
 
 namespace CSharpFar.App.Input;
@@ -8,19 +9,28 @@ internal sealed class ApplicationInputDispatcher
 {
     private readonly Func<ConsoleKeyInfo, ApplicationRuntimeRenderRequest> _handleKeyInput;
     private readonly Func<ConsoleModifiers, ApplicationRuntimeRenderRequest> _handleModifierInput;
-    private readonly MouseInputRouter _mouseInputRouter;
     private readonly ApplicationCommandLineInputHandler _commandLineInputHandler;
+    private readonly ApplicationPanelInputHandler _panelInputHandler;
+    private readonly ApplicationPanelScrollbarInputHandler _panelScrollbarInputHandler;
+    private readonly ApplicationFunctionKeyBarInputHandler _functionKeyBarInputHandler;
+    private readonly ApplicationDirectoryShortcutBarInputHandler _directoryShortcutBarInputHandler;
 
     public ApplicationInputDispatcher(
         Func<ConsoleKeyInfo, ApplicationRuntimeRenderRequest> handleKeyInput,
         Func<ConsoleModifiers, ApplicationRuntimeRenderRequest> handleModifierInput,
-        MouseInputRouter mouseInputRouter,
-        ApplicationCommandLineInputHandler commandLineInputHandler)
+        ApplicationCommandLineInputHandler commandLineInputHandler,
+        ApplicationPanelInputHandler panelInputHandler,
+        ApplicationPanelScrollbarInputHandler panelScrollbarInputHandler,
+        ApplicationFunctionKeyBarInputHandler functionKeyBarInputHandler,
+        ApplicationDirectoryShortcutBarInputHandler directoryShortcutBarInputHandler)
     {
         _handleKeyInput = handleKeyInput;
         _handleModifierInput = handleModifierInput;
-        _mouseInputRouter = mouseInputRouter;
         _commandLineInputHandler = commandLineInputHandler;
+        _panelInputHandler = panelInputHandler;
+        _panelScrollbarInputHandler = panelScrollbarInputHandler;
+        _functionKeyBarInputHandler = functionKeyBarInputHandler;
+        _directoryShortcutBarInputHandler = directoryShortcutBarInputHandler;
     }
 
     public ApplicationRuntimeRenderRequest Handle(UiRoutedInput<ApplicationUiFrame> routed) =>
@@ -36,18 +46,43 @@ internal sealed class ApplicationInputDispatcher
         UiRoutedInput<ApplicationUiFrame> routed,
         MouseConsoleInputEvent mouse)
     {
-        if (routed.Target == ApplicationTargetIds.CommandLine)
+        ApplicationInputHandlingResult result = routed.Target switch
         {
-            ApplicationInputHandlingResult result = _commandLineInputHandler.Handle(
+            var target when target == ApplicationTargetIds.CommandLine => _commandLineInputHandler.Handle(
                 mouse,
                 routed.Frame.CommandLine,
-                routed.RouteKind);
+                routed.RouteKind),
+            var target when target == ApplicationTargetIds.LeftPanel => _panelInputHandler.Handle(
+                mouse,
+                routed.Frame.LeftPanel,
+                routed.RouteKind),
+            var target when target == ApplicationTargetIds.RightPanel => _panelInputHandler.Handle(
+                mouse,
+                routed.Frame.RightPanel,
+                routed.RouteKind),
+            var target when target == ApplicationTargetIds.LeftPanelScrollbar => _panelScrollbarInputHandler.Handle(
+                mouse,
+                PanelSide.Left,
+                routed.Frame.LeftPanel?.ScrollBar,
+                routed.RouteKind),
+            var target when target == ApplicationTargetIds.RightPanelScrollbar => _panelScrollbarInputHandler.Handle(
+                mouse,
+                PanelSide.Right,
+                routed.Frame.RightPanel?.ScrollBar,
+                routed.RouteKind),
+            var target when target == ApplicationTargetIds.FunctionKeyBar => _functionKeyBarInputHandler.Handle(
+                mouse,
+                routed.Frame.FunctionKeyBar,
+                routed.RouteKind),
+            var target when target == ApplicationTargetIds.DirectoryShortcutBar => _directoryShortcutBarInputHandler.Handle(
+                mouse,
+                routed.Frame.DirectoryShortcutBar,
+                routed.RouteKind),
+            _ => ApplicationInputHandlingResult.NotHandled,
+        };
 
-            if (result.Handled)
-                return new ApplicationRuntimeRenderRequest(result.ShouldRender);
-        }
-
-        bool handled = _mouseInputRouter.Handle(mouse, routed.Frame);
-        return new ApplicationRuntimeRenderRequest(handled);
+        return result.Handled
+            ? new ApplicationRuntimeRenderRequest(result.ShouldRender)
+            : ApplicationRuntimeRenderRequest.None;
     }
 }

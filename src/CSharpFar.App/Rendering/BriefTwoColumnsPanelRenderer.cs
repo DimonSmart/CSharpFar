@@ -41,7 +41,7 @@ public sealed class BriefTwoColumnsPanelRenderer
     public static int RowsPerColumn(Rect bounds, AppSettings.PanelOptionsSettings? options = null) =>
         Math.Max(0, bounds.Height - 3 - PanelStatusRenderer.GetStatusRowCount(options));
 
-    public void Render(Rect bounds, FilePanelState state, bool isActive)
+    internal ApplicationPanelFrame Render(Rect bounds, FilePanelState state, bool isActive, PanelSide side)
     {
         var p = _palette;
 
@@ -65,7 +65,21 @@ public sealed class BriefTwoColumnsPanelRenderer
             PanelErrorRenderer.Render(_screen, bounds, state, PanelViewMode.BriefTwoColumns, p, _options);
             new PanelStatusRenderer(_screen).Render(bounds, state, footer, border, _options);
             RenderStatusSeparatorJoin(bounds, Math.Max(0, (bounds.Width - 2) / 2), border);
-            return;
+            Rect? retry = PanelErrorRenderer.TryGetRetryBounds(
+                    bounds,
+                    state,
+                    PanelViewMode.BriefTwoColumns,
+                    _options,
+                    out var retryBounds)
+                ? retryBounds
+                : null;
+            return new ApplicationPanelFrame(
+                side,
+                bounds,
+                VisibleRows(bounds, _options),
+                [],
+                retry,
+                null);
         }
 
         int innerWidth  = Math.Max(0, bounds.Width - 2);
@@ -89,6 +103,7 @@ public sealed class BriefTwoColumnsPanelRenderer
         int rowsPerCol = RowsPerColumn(bounds, _options);
         int col1X      = bounds.X + 1;
         int col2X      = bounds.X + 1 + sepOffset + 1;
+        var hits = new List<ApplicationPanelItemHit>();
 
         for (int row = 0; row < rowsPerCol; row++)
         {
@@ -96,18 +111,22 @@ public sealed class BriefTwoColumnsPanelRenderer
 
             RenderCell(state.ScrollOffset + row,              col1X, y, col1Width,
                        state, isActive, cursor, fileStyle, dirStyle, selStyle, fill);
+            AddHit(hits, state, state.ScrollOffset + row, col1X, y, col1Width);
             if (innerWidth > 0)
                 _screen.WriteChar(bounds.X + 1 + sepOffset, y, '│', border);
             RenderCell(state.ScrollOffset + rowsPerCol + row, col2X, y, col2Width,
                        state, isActive, cursor, fileStyle, dirStyle, selStyle, fill);
+            AddHit(hits, state, state.ScrollOffset + rowsPerCol + row, col2X, y, col2Width);
         }
 
         int visibleItems = VisibleRows(bounds, _options);
+        ApplicationScrollBarFrame? scrollBar = null;
         if (rowsPerCol > 0 && state.Items.Count > visibleItems)
         {
+            var scrollbarBounds = new Rect(bounds.Right - 1, contentTop, 1, rowsPerCol);
             new ScrollBarRenderer().RenderVerticalScrollbar(
                 _screen,
-                new Rect(bounds.Right - 1, contentTop, 1, rowsPerCol),
+                scrollbarBounds,
                 new ScrollState
                 {
                     TotalItems = state.Items.Count,
@@ -120,11 +139,20 @@ public sealed class BriefTwoColumnsPanelRenderer
                     DrawWhenNotScrollable = false,
                 },
                 border);
+            scrollBar = new ApplicationScrollBarFrame(
+                scrollbarBounds,
+                state.Items.Count,
+                visibleItems,
+                state.ScrollOffset);
         }
 
         new PanelStatusRenderer(_screen).Render(bounds, state, footer, border, _options);
         RenderStatusSeparatorJoin(bounds, sepOffset, border);
+        return new ApplicationPanelFrame(side, bounds, visibleItems, hits, null, scrollBar);
     }
+
+    public void Render(Rect bounds, FilePanelState state, bool isActive) =>
+        _ = Render(bounds, state, isActive, PanelSide.Left);
 
     // ── helpers ───────────────────────────────────────────────────────────────
 
@@ -160,6 +188,23 @@ public sealed class BriefTwoColumnsPanelRenderer
         string name = Fit(item.Name, width);
         CellStyle nameStyle = ApplyHighlight(style, item, rowState);
         _screen.Write(x, y, name, nameStyle);
+    }
+
+    private static void AddHit(
+        List<ApplicationPanelItemHit> hits,
+        FilePanelState state,
+        int itemIdx,
+        int x,
+        int y,
+        int width)
+    {
+        if (width <= 0 || itemIdx < 0 || itemIdx >= state.Items.Count)
+            return;
+
+        hits.Add(new ApplicationPanelItemHit(
+            new Rect(x, y, width, 1),
+            itemIdx,
+            state.Items[itemIdx].FullPath));
     }
 
     private CellStyle ApplyHighlight(CellStyle baseStyle, FilePanelItem item, FileRowState rowState)
