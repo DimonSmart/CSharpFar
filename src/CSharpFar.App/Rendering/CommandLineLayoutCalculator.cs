@@ -6,7 +6,7 @@ namespace CSharpFar.App.Rendering;
 
 internal static class CommandLineLayoutCalculator
 {
-    public static CommandLineLayout Calculate(
+    public static ApplicationCommandLineFrame Calculate(
         int row,
         int width,
         string currentDirectory,
@@ -25,12 +25,11 @@ internal static class CommandLineLayoutCalculator
             ? new UiCursorPlacement(cursorX, row)
             : null;
 
-        return new CommandLineLayout(
+        return new ApplicationCommandLineFrame(
             new Rect(0, row, safeWidth, safeWidth > 0 ? 1 : 0),
             promptLength,
             displayOffset,
             state.Text.Length,
-            cursorX,
             cursor);
     }
 
@@ -46,23 +45,5 @@ internal static class CommandLineLayoutCalculator
         int rawCursorX = promptLength + cursorPosition;
         int maxOffset = Math.Max(0, fullLength - totalWidth + 1);
         return Math.Clamp(rawCursorX - totalWidth + 1, 0, maxOffset);
-    }
-}
-
-internal readonly record struct CommandLineLayout(
-    Rect Bounds,
-    int PromptLength,
-    int DisplayOffset,
-    int TextLength,
-    int CursorX,
-    UiCursorPlacement? Cursor)
-{
-    public int TextPositionFromX(int x)
-    {
-        if (Bounds.Width <= 0)
-            return 0;
-
-        int clampedX = Math.Clamp(x, Bounds.X, Bounds.Right - 1);
-        return Math.Clamp(clampedX + DisplayOffset - PromptLength, 0, TextLength);
     }
 }

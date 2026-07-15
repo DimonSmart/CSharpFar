@@ -45,7 +45,6 @@ public sealed class Application
     private readonly PanelAutoRefreshService _autoRefresh;
     private readonly ApplicationRenderContext _renderContext;
     private readonly ApplicationRenderCoordinator _renderCoordinator;
-    private readonly ApplicationUiSurface _applicationSurface;
     private readonly UiCompositionHost _composition;
     private readonly KeyboardInputContext _keyboardInputContext;
     private readonly KeyboardInputRouter _keyboardInputRouter;
@@ -175,7 +174,6 @@ public sealed class Application
         _autoRefresh = services.AutoRefresh;
         _renderContext = services.RenderContext;
         _renderCoordinator = services.RenderCoordinator;
-        _applicationSurface = services.ApplicationSurface;
         _composition = services.Composition;
         _panelSort = services.PanelSort;
         _panelNavigation = services.PanelNavigation;
@@ -264,7 +262,6 @@ public sealed class Application
         callbacks.RestoreTerminal = _terminalSurface.RestoreTerminal;
         callbacks.HandleKeyInput = HandleRuntimeKeyInput;
         callbacks.HandleModifierInput = HandleRuntimeModifierInput;
-        callbacks.HandleMouseInput = HandleRuntimeMouseInput;
         callbacks.HandleApplicationInput = HandleRuntimeApplicationInput;
         callbacks.RefreshPanels = RefreshPanels;
         callbacks.OpenModulePanel = OpenModulePanel;
@@ -305,15 +302,6 @@ public sealed class Application
             return ApplicationRuntimeRenderRequest.None;
 
         return new(SetFunctionKeyLayer(modifiers));
-    }
-
-    private ApplicationRuntimeRenderRequest HandleRuntimeMouseInput(MouseConsoleInputEvent mouseEvt)
-    {
-        bool scrolledHiddenViewport = _terminalSurface.ScrollHiddenViewportToBottomForInput();
-        bool handled = _applicationSurface.HasCommittedFrame &&
-            _mouseInputRouter.Handle(mouseEvt, _applicationSurface.CommittedFrame);
-        bool shouldRender = handled || scrolledHiddenViewport;
-        return new ApplicationRuntimeRenderRequest(shouldRender);
     }
 
     private ApplicationRuntimeRenderRequest HandleRuntimeApplicationInput(UiRoutedInput<ApplicationUiFrame> routed)

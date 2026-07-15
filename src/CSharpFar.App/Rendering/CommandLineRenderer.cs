@@ -20,29 +20,29 @@ internal sealed class CommandLineRenderer
 
     public void Render(int y, int totalWidth, string currentDirectory, CommandLineState state)
     {
-        CommandLineLayout layout = CommandLineLayoutCalculator.Calculate(y, totalWidth, currentDirectory, state);
-        Render(layout, currentDirectory, state);
+        ApplicationCommandLineFrame frame = CommandLineLayoutCalculator.Calculate(y, totalWidth, currentDirectory, state);
+        Render(frame, currentDirectory, state);
     }
 
-    public void Render(CommandLineLayout layout, string currentDirectory, CommandLineState state)
+    public void Render(ApplicationCommandLineFrame frame, string currentDirectory, CommandLineState state)
     {
-        if (layout.Bounds.Width <= 0)
+        if (frame.Bounds.Width <= 0)
             return;
 
-        _screen.FillRegion(layout.Bounds, _style);
+        _screen.FillRegion(frame.Bounds, _style);
 
         string prompt = currentDirectory + ">";
         string full   = prompt + state.Text;
-        int offset    = layout.DisplayOffset;
+        int offset    = frame.DisplayOffset;
 
         string display = full.Length > offset ? full[offset..] : string.Empty;
-        if (display.Length > layout.Bounds.Width)
-            display = display[..layout.Bounds.Width];
-        display = display.PadRight(layout.Bounds.Width);
+        if (display.Length > frame.Bounds.Width)
+            display = display[..frame.Bounds.Width];
+        display = display.PadRight(frame.Bounds.Width);
 
         if (!state.HasSelection)
         {
-            _screen.Write(layout.Bounds.X, layout.Bounds.Y, display, _style);
+            _screen.Write(frame.Bounds.X, frame.Bounds.Y, display, _style);
             return;
         }
 
@@ -52,7 +52,7 @@ internal sealed class CommandLineRenderer
         for (int i = 0; i < display.Length; i++)
         {
             bool isSelected = i >= selectionStartX && i < selectionEndX;
-            _screen.WriteChar(layout.Bounds.X + i, layout.Bounds.Y, display[i], isSelected ? _selectionStyle : _style);
+            _screen.WriteChar(frame.Bounds.X + i, frame.Bounds.Y, display[i], isSelected ? _selectionStyle : _style);
         }
     }
 
@@ -62,7 +62,7 @@ internal sealed class CommandLineRenderer
     /// </summary>
     public int GetCursorX(int totalWidth, string currentDirectory, CommandLineState state)
     {
-        var layout = CommandLineLayoutCalculator.Calculate(0, totalWidth, currentDirectory, state);
-        return layout.Cursor is null ? -1 : layout.CursorX;
+        var frame = CommandLineLayoutCalculator.Calculate(0, totalWidth, currentDirectory, state);
+        return frame.Cursor?.X ?? -1;
     }
 }

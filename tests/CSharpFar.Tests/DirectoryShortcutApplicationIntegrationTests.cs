@@ -180,9 +180,12 @@ public sealed class DirectoryShortcutApplicationIntegrationTests : IDisposable
             .GetField("_mouseInputRouter", BindingFlags.Instance | BindingFlags.NonPublic)!
             .GetValue(app)!;
 
-        var surface = typeof(Application)
-            .GetField("_applicationSurface", BindingFlags.Instance | BindingFlags.NonPublic)!
+        var runtime = typeof(Application)
+            .GetField("_runtime", BindingFlags.Instance | BindingFlags.NonPublic)!
             .GetValue(app)!;
+        var surface = runtime.GetType()
+            .GetField("_applicationSurface", BindingFlags.Instance | BindingFlags.NonPublic)!
+            .GetValue(runtime)!;
         var frame = surface.GetType().GetProperty("CommittedFrame")!.GetValue(surface);
 
         return (bool)router

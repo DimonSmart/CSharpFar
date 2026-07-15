@@ -21,14 +21,9 @@ internal sealed class ApplicationCommandLineRenderer
         string currentDirectory,
         CommandLineState commandLine)
     {
-        CommandLineLayout layout = CommandLineLayoutCalculator.Calculate(row, size.Width, currentDirectory, commandLine);
-        CreateRenderer().Render(layout, currentDirectory, commandLine);
-        return new ApplicationCommandLineFrame(
-            layout.Bounds,
-            layout.PromptLength,
-            layout.DisplayOffset,
-            layout.TextLength,
-            layout.Cursor);
+        ApplicationCommandLineFrame frame = CommandLineLayoutCalculator.Calculate(row, size.Width, currentDirectory, commandLine);
+        CreateRenderer().Render(frame, currentDirectory, commandLine);
+        return frame;
     }
 
     private CommandLineRenderer CreateRenderer() =>

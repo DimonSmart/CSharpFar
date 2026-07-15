@@ -49,8 +49,6 @@ internal sealed class ApplicationServiceCallbacks
         _ => throw Missing();
     public Func<ConsoleModifiers, ApplicationRuntimeRenderRequest> HandleModifierInput { get; set; } =
         _ => throw Missing();
-    public Func<MouseConsoleInputEvent, ApplicationRuntimeRenderRequest> HandleMouseInput { get; set; } =
-        _ => throw Missing();
     public Func<UiRoutedInput<ApplicationUiFrame>, ApplicationRuntimeRenderRequest> HandleApplicationInput { get; set; } =
         _ => throw Missing();
     public Action RefreshPanels { get; set; } = () => throw Missing();

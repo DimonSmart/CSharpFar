@@ -454,22 +454,23 @@ public sealed class ApplicationRuntimeTests
                 fixture.Running = false;
             return ApplicationRuntimeRenderRequest.None;
         };
-        public Func<MouseConsoleInputEvent, ApplicationRuntimeRenderRequest> HandleMouseInput { get; set; } = _ =>
-        {
-            fixture.MouseCount++;
-            if (fixture.KeyCount + fixture.ModifierCount + fixture.MouseCount >= fixture.StopAfterHandledInputs)
-                fixture.Running = false;
-            return ApplicationRuntimeRenderRequest.None;
-        };
         public Func<UiRoutedInput<ApplicationUiFrame>, ApplicationRuntimeRenderRequest>? HandleApplicationInputOverride { get; set; }
         public Func<UiRoutedInput<ApplicationUiFrame>, ApplicationRuntimeRenderRequest> HandleApplicationInput => routed =>
             HandleApplicationInputOverride?.Invoke(routed) ?? (routed.Input switch
             {
                 KeyConsoleInputEvent { Key: var key } => HandleKeyInput(key),
                 ModifierKeyConsoleInputEvent { Modifiers: var modifiers } => HandleModifierInput(modifiers),
-                MouseConsoleInputEvent mouse => HandleMouseInput(mouse),
+                MouseConsoleInputEvent => CountMouseInput(),
                 _ => ApplicationRuntimeRenderRequest.None,
             });
+
+        private ApplicationRuntimeRenderRequest CountMouseInput()
+        {
+            fixture.MouseCount++;
+            if (fixture.KeyCount + fixture.ModifierCount + fixture.MouseCount >= fixture.StopAfterHandledInputs)
+                fixture.Running = false;
+            return ApplicationRuntimeRenderRequest.None;
+        }
         public TryTakeMenuCommand TryTakeMenuCommand { get; set; } = static (out MenuCommandRequest request) =>
         {
             request = null!;
