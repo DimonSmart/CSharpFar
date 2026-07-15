@@ -36,7 +36,9 @@ public sealed class FakeConsoleDriver : IConsoleDriver, IConsoleOutputModeDriver
     public int ClearRegionCallCount { get; private set; }
     public int RestoreCallCount { get; private set; }
     public int SetCursorVisibleCallCount { get; private set; }
+    public int SetCursorPositionCallCount { get; private set; }
     public int TrySetCursorPositionInViewportCallCount { get; private set; }
+    public Action<FakeConsoleDriver>? BeforeTrySetCursorPositionInViewport { get; set; }
     public int TryScrollViewportToBottomCallCount { get; private set; }
     public bool RenderingOutputMode { get; private set; }
     public bool ConsoleScrollbackEnabled { get; private set; } = true;
@@ -222,10 +224,19 @@ public sealed class FakeConsoleDriver : IConsoleDriver, IConsoleOutputModeDriver
                 _buffer[y, x] = new SnapshotCell { Character = ' ', Foreground = ConsoleColor.Gray, Background = ConsoleColor.Black };
     }
 
-    public void SetCursorPosition(int x, int y) { CursorX = x; CursorY = y; }
+    public void SetCursorPosition(int x, int y)
+    {
+        SetCursorPositionCallCount++;
+        CursorX = x;
+        CursorY = y;
+    }
     public bool TrySetCursorPositionInViewport(ConsoleViewport viewport, int x, int y)
     {
         TrySetCursorPositionInViewportCallCount++;
+        if (viewport != GetViewport())
+            return false;
+
+        BeforeTrySetCursorPositionInViewport?.Invoke(this);
         if (viewport != GetViewport())
             return false;
 
@@ -354,6 +365,7 @@ public sealed class FakeConsoleDriver : IConsoleDriver, IConsoleOutputModeDriver
         ClearRegionCallCount = 0;
         RestoreCallCount = 0;
         SetCursorVisibleCallCount = 0;
+        SetCursorPositionCallCount = 0;
         TrySetCursorPositionInViewportCallCount = 0;
         TryScrollViewportToBottomCallCount = 0;
         SetConsoleScrollbackEnabledCallCount = 0;

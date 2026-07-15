@@ -66,6 +66,134 @@ public sealed class UiLayerTests
     }
 
     [Fact]
+    public void StableRender_AppliesCursorInsideViewportProtectedFrame()
+    {
+        var driver = new FakeConsoleDriver(80, 25);
+        var layer = new TestLayer(UiLayerInputPolicy.Bubble)
+        {
+            RenderCore = _ => new TestFrame(1, new UiFocusFrame([
+                new(new UiTargetId("target"), 0, Cursor: new UiCursorPlacement(12, 7)),
+            ])),
+        };
+        var host = new UiCompositionHost(new ScreenRenderer(driver));
+        host.SetRootSurface(new SurfaceLayer(host.Screen, layer));
+
+        host.Render();
+
+        Assert.Equal(1, driver.TrySetCursorPositionInViewportCallCount);
+        Assert.Equal(0, driver.SetCursorPositionCallCount);
+        Assert.Equal((12, 7), (driver.CursorX, driver.CursorY));
+        Assert.True(driver.CursorVisible);
+    }
+
+    [Fact]
+    public void StableRender_TopmostCursorlessFocusHidesLowerLayerCursor()
+    {
+        var driver = new FakeConsoleDriver(80, 25);
+        var root = CursorLayer("root", new UiCursorPlacement(1, 1));
+        var middle = CursorLayer("middle", new UiCursorPlacement(2, 2));
+        var top = CursorLayer("top", null);
+        var host = new UiCompositionHost(new ScreenRenderer(driver));
+        host.SetRootSurface(new SurfaceLayer(host.Screen, root));
+        using var middleScope = host.RegisterOverlay(middle);
+        using var topScope = host.RegisterOverlay(top);
+
+        host.Render();
+
+        Assert.False(driver.CursorVisible);
+    }
+
+    [Fact]
+    public void StableRender_TopmostVisibleFocusOwnsCursorPosition()
+    {
+        var driver = new FakeConsoleDriver(80, 25);
+        var root = CursorLayer("root", new UiCursorPlacement(1, 1));
+        var top = CursorLayer("top", new UiCursorPlacement(3, 4));
+        var host = new UiCompositionHost(new ScreenRenderer(driver));
+        host.SetRootSurface(new SurfaceLayer(host.Screen, root));
+        using var topScope = host.RegisterOverlay(top);
+
+        host.Render();
+
+        Assert.True(driver.CursorVisible);
+        Assert.Equal((3, 4), (driver.CursorX, driver.CursorY));
+    }
+
+    [Fact]
+    public void ResizeDuringCursorPosition_RejectsAttemptBeforeCommittingAndRetries()
+    {
+        var driver = new FakeConsoleDriver(80, 25);
+        var layer = new TestLayer(UiLayerInputPolicy.Bubble)
+        {
+            RenderCore = context => new TestFrame(context.Viewport.Width, new UiFocusFrame([
+                new(new UiTargetId($"target-{context.Viewport.Width}"), 0,
+                    Cursor: new UiCursorPlacement(context.Viewport.Width - 1, 0)),
+            ])),
+        };
+        var host = new UiCompositionHost(new ScreenRenderer(driver));
+        host.SetRootSurface(new SurfaceLayer(host.Screen, layer));
+        host.Render();
+        var cursor = (driver.CursorVisible, driver.CursorX, driver.CursorY);
+        long stableVersion = host.StableRenderVersion;
+        bool observedRejectedAttempt = false;
+        driver.BeforeTrySetCursorPositionInViewport = current =>
+        {
+            observedRejectedAttempt = true;
+            Assert.Equal(80, layer.CommittedFrame.Value);
+            Assert.Equal(cursor, (current.CursorVisible, current.CursorX, current.CursorY));
+            current.SetSize(100, 35);
+            current.BeforeTrySetCursorPositionInViewport = null;
+        };
+
+        host.Render();
+
+        Assert.True(observedRejectedAttempt);
+        Assert.Equal(stableVersion + 1, host.StableRenderVersion);
+        Assert.Equal(100, layer.CommittedFrame.Value);
+        Assert.Equal((99, 0), (driver.CursorX, driver.CursorY));
+        Assert.True(driver.CursorVisible);
+    }
+
+    [Fact]
+    public void RejectedRender_DoesNotApplyCursorlessFocusUntilRetryCommits()
+    {
+        var driver = new FakeConsoleDriver(80, 25);
+        bool cursorless = false;
+        var root = CursorLayer("root", new UiCursorPlacement(1, 1));
+        var top = new TestLayer(UiLayerInputPolicy.Bubble)
+        {
+            RenderCore = context =>
+            {
+                context.Screen.Write(0, 0, cursorless ? "B" : "A", CellStyle.Default);
+                return new TestFrame(1, cursorless
+                    ? new UiFocusFrame([new(new UiTargetId("top"), 0)])
+                    : UiFocusFrame.Empty);
+            },
+        };
+        var host = new UiCompositionHost(new ScreenRenderer(driver));
+        host.SetRootSurface(new SurfaceLayer(host.Screen, root));
+        using var topScope = host.RegisterOverlay(top);
+        host.Render();
+        var cursor = (driver.CursorVisible, driver.CursorX, driver.CursorY);
+        cursorless = true;
+        bool observedRejectedAttempt = false;
+        driver.ResizeAfterWriteCount = driver.WriteAtCallCount + 1;
+        driver.ResizeAfterWrite = current => current.SetSize(100, 35);
+        driver.BeforeViewportWrite = current =>
+        {
+            observedRejectedAttempt = true;
+            Assert.Equal(cursor, (current.CursorVisible, current.CursorX, current.CursorY));
+            Assert.Empty(top.CommittedInteractionFrame.Focus.Entries);
+            current.BeforeViewportWrite = null;
+        };
+
+        host.Render();
+
+        Assert.True(observedRejectedAttempt);
+        Assert.False(driver.CursorVisible);
+    }
+
+    [Fact]
     public void OnFrameCommitted_SeesCommittedFrameInteractionAndFocus()
     {
         var layer = new TestLayer(UiLayerInputPolicy.Bubble)
@@ -268,6 +396,14 @@ public sealed class UiLayerTests
         host.SetRootSurface(new SurfaceLayer(host.Screen, layer));
         return host;
     }
+
+    private static TestLayer CursorLayer(string target, UiCursorPlacement? cursor) =>
+        new(UiLayerInputPolicy.Bubble)
+        {
+            RenderCore = _ => new TestFrame(1, new UiFocusFrame([
+                new(new UiTargetId(target), 0, Cursor: cursor),
+            ])),
+        };
 
     private static KeyConsoleInputEvent Key(ConsoleKey key) =>
         new(new ConsoleKeyInfo('\0', key, shift: false, alt: false, control: false));

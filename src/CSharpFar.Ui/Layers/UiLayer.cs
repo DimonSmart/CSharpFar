@@ -24,11 +24,11 @@ public abstract class UiLayer<TFrame> : IUiLayer
         TFrame frame = RenderFrame(context);
         UiInteractionFrame interactionFrame = BuildInteractionFrame(frame) ??
             throw new InvalidOperationException("A UI layer cannot publish a null interaction frame.");
+        ApplyCursor(context.Screen, context.Viewport, interactionFrame);
         _committedFrame.Stage(context, frame);
         _committedInteractionFrame.Stage(context, interactionFrame);
         context.PublishOnStable(interactionFrame.Focus, FocusScope.Commit);
         context.PublishOnStable(frame, OnFrameCommitted);
-        context.PublishOnStable(() => ApplyCursor(context.Screen, context.Viewport, interactionFrame));
     }
 
     public UiInputResult RouteInput(ConsoleInputEvent input, UiInputRouteContext hostContext)
