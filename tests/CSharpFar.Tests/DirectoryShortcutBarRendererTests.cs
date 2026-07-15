@@ -38,6 +38,39 @@ public sealed class DirectoryShortcutBarRendererTests
     }
 
     [Fact]
+    public void Render_FrameHitCarriesRenderedShortcutPath()
+    {
+        var driver = new FakeConsoleDriver(80, 2);
+        var settings = new AppSettings.DirectoryShortcutSettings
+        {
+            Items = [Item(1, "Projects", @"C:\Projects")],
+        };
+
+        var frame = new DirectoryShortcutBarRenderer(new ScreenRenderer(driver)).Render(0, 80, settings);
+
+        var hit = Assert.Single(frame!.Shortcuts);
+        Assert.Equal(1, hit.ShortcutNumber);
+        Assert.Equal(@"C:\Projects", hit.Path);
+    }
+
+    [Fact]
+    public void FrameSnapshotsShortcutList()
+    {
+        var hits = new List<ApplicationDirectoryShortcutHit>
+        {
+            new(new CSharpFar.Console.Models.Rect(1, 0, 9, 1), 1, @"C:\A"),
+        };
+        var frame = new ApplicationDirectoryShortcutBarFrame(hits);
+
+        hits[0] = new ApplicationDirectoryShortcutHit(
+            new CSharpFar.Console.Models.Rect(10, 0, 9, 1),
+            2,
+            @"C:\B");
+
+        Assert.Equal(@"C:\A", Assert.Single(frame.Shortcuts).Path);
+    }
+
+    [Fact]
     public void Render_UsesDedicatedShortcutBarStylesOverPanelBorder()
     {
         var driver = new FakeConsoleDriver(80, 2);
@@ -56,35 +89,6 @@ public sealed class DirectoryShortcutBarRendererTests
         Assert.Equal(ConsoleColor.White, label.Foreground);
         Assert.Equal(ConsoleColor.Blue, label.Background);
         Assert.Equal("1Projects", driver.GetRow(0).Substring(1, 9));
-    }
-
-    [Fact]
-    public void TryGetShortcutNumberAt_ReturnsConfiguredSlotNumber()
-    {
-        var settings = new AppSettings.DirectoryShortcutSettings
-        {
-            Items =
-            [
-                Item(1, "Projects", @"C:\Projects"),
-                Item(3, "", @"C:\Three"),
-            ],
-        };
-        var mouse = new CSharpFar.Console.Input.MouseConsoleInputEvent(
-            11,
-            7,
-            CSharpFar.Console.Input.MouseButton.Left,
-            CSharpFar.Console.Input.MouseEventKind.Down,
-            CSharpFar.Console.Input.MouseKeyModifiers.None);
-
-        bool hit = DirectoryShortcutBarRenderer.TryGetShortcutNumberAt(
-            mouse,
-            barY: 7,
-            totalWidth: 80,
-            settings,
-            out int number);
-
-        Assert.True(hit);
-        Assert.Equal(3, number);
     }
 
     private static AppSettings.DirectoryShortcutItem Item(int number, string name, string path) =>

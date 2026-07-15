@@ -14,12 +14,15 @@ public sealed class NavigateToDirectoryShortcutCommandTests : IDisposable
 {
     private readonly string _root;
     private readonly string _target;
+    private readonly string _otherTarget;
 
     public NavigateToDirectoryShortcutCommandTests()
     {
         _root = Path.Combine(Path.GetTempPath(), $"CSharpFarShortcutRoot_{Guid.NewGuid():N}");
         _target = Path.Combine(_root, "target");
+        _otherTarget = Path.Combine(_root, "other");
         Directory.CreateDirectory(_target);
+        Directory.CreateDirectory(_otherTarget);
     }
 
     public void Dispose()
@@ -69,6 +72,41 @@ public sealed class NavigateToDirectoryShortcutCommandTests : IDisposable
         Assert.Single(context.Settings.DirectoryShortcuts.Items);
     }
 
+    [Fact]
+    public void Execute_CommittedPath_NavigatesRenderedPathWhenSettingsChanged()
+    {
+        var context = CreateContext(out _, out _);
+        context.Settings.DirectoryShortcuts.Items.Add(Item(1, _otherTarget));
+
+        new NavigateToDirectoryShortcutCommand()
+            .Execute(context, new NavigateToDirectoryShortcutArgs(1, _target));
+
+        Assert.Equal(_target, context.ActiveState.CurrentDirectory);
+    }
+
+    [Fact]
+    public void Execute_CommittedPath_NavigatesRenderedPathWhenShortcutWasDeleted()
+    {
+        var context = CreateContext(out _, out _);
+
+        new NavigateToDirectoryShortcutCommand()
+            .Execute(context, new NavigateToDirectoryShortcutArgs(1, _target));
+
+        Assert.Equal(_target, context.ActiveState.CurrentDirectory);
+    }
+
+    [Fact]
+    public void Execute_CurrentSettingsPath_NavigatesLatestPathWhenCommittedPathAbsent()
+    {
+        var context = CreateContext(out _, out _);
+        context.Settings.DirectoryShortcuts.Items.Add(Item(1, _otherTarget));
+
+        new NavigateToDirectoryShortcutCommand()
+            .Execute(context, new NavigateToDirectoryShortcutArgs(1));
+
+        Assert.Equal(_otherTarget, context.ActiveState.CurrentDirectory);
+    }
+
     private ApplicationCommandContext CreateContext(
         out FakeConsoleDriver driver,
         out AppSettings settings)
@@ -80,6 +118,7 @@ public sealed class NavigateToDirectoryShortcutCommandTests : IDisposable
         var fs = new FakeFileSystemService();
         fs.AddDirectory(_root);
         fs.AddDirectory(_target);
+        fs.AddDirectory(_otherTarget);
         var services = ApplicationServicesBuilder.Create(
             new ScreenRenderer(driver),
             fs,

@@ -56,13 +56,33 @@ internal static class ApplicationTargetIds
         side == PanelSide.Left ? LeftPanelScrollbar : RightPanelScrollbar;
 }
 
-internal sealed record ApplicationPanelFrame(
-    PanelSide Side,
-    Rect Bounds,
-    int VisibleRows,
-    IReadOnlyList<ApplicationPanelItemHit> VisibleItems,
-    Rect? RetryBounds,
-    ApplicationScrollBarFrame? ScrollBar);
+internal sealed record ApplicationPanelFrame
+{
+    public ApplicationPanelFrame(
+        PanelSide side,
+        Rect bounds,
+        int visibleRows,
+        IReadOnlyList<ApplicationPanelItemHit> visibleItems,
+        Rect? retryBounds,
+        ApplicationScrollBarFrame? scrollBar)
+    {
+        ArgumentNullException.ThrowIfNull(visibleItems);
+
+        Side = side;
+        Bounds = bounds;
+        VisibleRows = visibleRows;
+        VisibleItems = Array.AsReadOnly(visibleItems.ToArray());
+        RetryBounds = retryBounds;
+        ScrollBar = scrollBar;
+    }
+
+    public PanelSide Side { get; }
+    public Rect Bounds { get; }
+    public int VisibleRows { get; }
+    public IReadOnlyList<ApplicationPanelItemHit> VisibleItems { get; }
+    public Rect? RetryBounds { get; }
+    public ApplicationScrollBarFrame? ScrollBar { get; }
+}
 
 internal sealed record ApplicationPanelItemHit(
     Rect Bounds,
@@ -83,19 +103,36 @@ internal sealed record ApplicationScrollBarFrame(
     };
 }
 
-internal sealed record ApplicationFunctionKeyBarFrame(
-    IReadOnlyList<ApplicationFunctionKeyHit> Actions);
+internal sealed record ApplicationFunctionKeyBarFrame
+{
+    public ApplicationFunctionKeyBarFrame(IReadOnlyList<ApplicationFunctionKeyHit> actions)
+    {
+        ArgumentNullException.ThrowIfNull(actions);
+        Actions = Array.AsReadOnly(actions.ToArray());
+    }
+
+    public IReadOnlyList<ApplicationFunctionKeyHit> Actions { get; }
+}
 
 internal sealed record ApplicationFunctionKeyHit(
     Rect Bounds,
     string CommandId);
 
-internal sealed record ApplicationDirectoryShortcutBarFrame(
-    IReadOnlyList<ApplicationDirectoryShortcutHit> Shortcuts);
+internal sealed record ApplicationDirectoryShortcutBarFrame
+{
+    public ApplicationDirectoryShortcutBarFrame(IReadOnlyList<ApplicationDirectoryShortcutHit> shortcuts)
+    {
+        ArgumentNullException.ThrowIfNull(shortcuts);
+        Shortcuts = Array.AsReadOnly(shortcuts.ToArray());
+    }
+
+    public IReadOnlyList<ApplicationDirectoryShortcutHit> Shortcuts { get; }
+}
 
 internal sealed record ApplicationDirectoryShortcutHit(
     Rect Bounds,
-    int ShortcutNumber);
+    int ShortcutNumber,
+    string Path);
 
 internal sealed class ApplicationUiSurface : UiLayer<ApplicationUiFrame>, IUiSurface
 {
@@ -212,8 +249,8 @@ internal sealed class ApplicationUiSurface : UiLayer<ApplicationUiFrame>, IUiSur
 
         if (frame.Mode == ApplicationSurfaceMode.Panels)
         {
-            AddPanelRegions(hitRegions, frame.LeftPanel);
-            AddPanelRegions(hitRegions, frame.RightPanel);
+            AddPanelRegions(hitRegions, frame.LeftPanel, frame.Viewport);
+            AddPanelRegions(hitRegions, frame.RightPanel, frame.Viewport);
 
             if (frame.FunctionKeyBar is { } functionKeyBar)
             {
@@ -261,13 +298,18 @@ internal sealed class ApplicationUiSurface : UiLayer<ApplicationUiFrame>, IUiSur
             : null;
     }
 
-    private static void AddPanelRegions(List<UiHitRegion> hitRegions, ApplicationPanelFrame? panel)
+    private static void AddPanelRegions(
+        List<UiHitRegion> hitRegions,
+        ApplicationPanelFrame? panel,
+        ConsoleViewport viewport)
     {
         if (panel is null)
             return;
 
-        hitRegions.Add(new UiHitRegion(ApplicationTargetIds.Panel(panel.Side), panel.Bounds));
+        if (IsVisible(panel.Bounds, viewport))
+            hitRegions.Add(new UiHitRegion(ApplicationTargetIds.Panel(panel.Side), panel.Bounds));
         if (panel.ScrollBar is { } scrollbar &&
+            IsVisible(scrollbar.Bounds, viewport) &&
             ScrollBarInteraction.IsInteractive(scrollbar.Bounds, scrollbar.ToScrollState()))
         {
             hitRegions.Add(new UiHitRegion(ApplicationTargetIds.PanelScrollbar(panel.Side), scrollbar.Bounds));
@@ -277,7 +319,9 @@ internal sealed class ApplicationUiSurface : UiLayer<ApplicationUiFrame>, IUiSur
     private static bool IsVisible(Rect bounds, ConsoleViewport viewport) =>
         bounds.Width > 0 &&
         bounds.Height > 0 &&
-        bounds.Y >= 0 &&
+        bounds.Right > 0 &&
+        bounds.Bottom > 0 &&
+        bounds.X < viewport.Width &&
         bounds.Y < viewport.Height;
 
     private static bool TryGetScrollbarFrame(

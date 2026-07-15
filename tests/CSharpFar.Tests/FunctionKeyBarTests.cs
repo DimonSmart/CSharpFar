@@ -94,6 +94,32 @@ public class FunctionKeyBarTests
         Assert.Equal(new string(' ', width), driver.GetRow(0));
     }
 
+    [Theory]
+    [InlineData(120)]
+    [InlineData(122)]
+    [InlineData(11)]
+    public void BuildSlots_DefinesRenderedAndHitTestGeometry(int width)
+    {
+        var slots = FunctionKeyBar.BuildSlots(y: 3, totalWidth: width);
+
+        if (width < 12)
+        {
+            Assert.Empty(slots);
+            return;
+        }
+
+        Assert.Equal(12, slots.Count);
+        Assert.Equal(new Rect(0, 3, width / 12, 1), slots[0].Bounds);
+        Assert.Equal(width, slots[^1].Bounds.Right);
+        Assert.Equal(width - (width / 12 * 11), slots[^1].Bounds.Width);
+
+        foreach (var slot in slots)
+        {
+            Assert.True(FunctionKeyBar.TryGetKeyNumberAtX(slot.Bounds.X, width, out int keyNumber));
+            Assert.Equal(slot.KeyNumber, keyNumber);
+        }
+    }
+
     [Fact]
     public void Render_SupportsAltFunctionKeysBeyondF10()
     {

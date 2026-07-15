@@ -3,6 +3,7 @@ using CSharpFar.App.Input;
 using CSharpFar.App.Panels;
 using CSharpFar.App.Rendering;
 using CSharpFar.App.State;
+using CSharpFar.Console;
 using CSharpFar.Console.Input;
 using CSharpFar.Console.Models;
 using CSharpFar.Core.Controllers;
@@ -14,6 +15,45 @@ namespace CSharpFar.Tests;
 
 public sealed class MainFunctionKeyBarIntegrationTests
 {
+    [Fact]
+    public void Renderer_PublishesActionBoundsFromSharedLayoutOnlyForExecutableActions()
+    {
+        var driver = new FakeConsoleDriver(122, 25);
+        FunctionKeyBinding[] bindings =
+        [
+            new("copy", FunctionKeyLayer.Plain, ConsoleKey.F5, "Copy"),
+            new("quit", FunctionKeyLayer.Plain, ConsoleKey.F10, "Quit"),
+        ];
+        var renderer = new ApplicationFunctionKeyBarRenderer(
+            new ScreenRenderer(driver),
+            bindings,
+            commandId => commandId == "copy");
+
+        var frame = renderer.Render(new ConsoleSize(122, 25), FunctionKeyLayer.Plain);
+
+        var hit = Assert.Single(frame!.Actions);
+        Assert.Equal("copy", hit.CommandId);
+        Assert.Equal(
+            FunctionKeyBar.BuildSlots(y: 24, totalWidth: 122)
+                .Single(slot => slot.KeyNumber == 5)
+                .Bounds,
+            hit.Bounds);
+    }
+
+    [Fact]
+    public void FrameSnapshotsActionList()
+    {
+        var actions = new List<ApplicationFunctionKeyHit>
+        {
+            new(new Rect(0, 24, 10, 1), "copy"),
+        };
+        var frame = new ApplicationFunctionKeyBarFrame(actions);
+
+        actions[0] = new ApplicationFunctionKeyHit(new Rect(10, 24, 10, 1), "quit");
+
+        Assert.Equal("copy", Assert.Single(frame.Actions).CommandId);
+    }
+
     [Fact]
     public void MouseClickOnActiveSlot_ExecutesRegisteredCommand()
     {

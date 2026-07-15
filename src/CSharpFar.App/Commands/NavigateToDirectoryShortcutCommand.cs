@@ -3,7 +3,7 @@ using CSharpFar.App.DirectoryShortcuts;
 
 namespace CSharpFar.App.Commands;
 
-internal sealed record NavigateToDirectoryShortcutArgs(int Number);
+internal sealed record NavigateToDirectoryShortcutArgs(int Number, string? CommittedPath = null);
 
 internal sealed class NavigateToDirectoryShortcutCommand : IApplicationCommand
 {
@@ -19,23 +19,29 @@ internal sealed class NavigateToDirectoryShortcutCommand : IApplicationCommand
         if (!CanExecute(context, args))
             return ApplicationCommandResult.Rendered();
 
-        int number = ((NavigateToDirectoryShortcutArgs)args!).Number;
-        var item = DirectoryShortcutNormalizer.Normalize(context.Settings.DirectoryShortcuts)
-            .SingleOrDefault(candidate => candidate.Number == number);
-        if (item is null)
+        var shortcutArgs = (NavigateToDirectoryShortcutArgs)args!;
+        string? path = shortcutArgs.CommittedPath;
+        if (path is null)
+        {
+            var item = DirectoryShortcutNormalizer.Normalize(context.Settings.DirectoryShortcuts)
+                .SingleOrDefault(candidate => candidate.Number == shortcutArgs.Number);
+            path = item?.Path;
+        }
+
+        if (path is null)
             return ApplicationCommandResult.Rendered();
 
-        if (!Directory.Exists(item.Path))
+        if (!Directory.Exists(path))
         {
             new MessageDialog(context.ModalDialogs)
-                .Show("Directory Shortcut", $"Directory not found: {item.Path}");
+                .Show("Directory Shortcut", $"Directory not found: {path}");
             return ApplicationCommandResult.Rendered();
         }
 
         try
         {
             context.ResetTransientNavigationUi();
-            context.Controller.LoadDirectory(context.ActiveState, item.Path, context.PanelOptions);
+            context.Controller.LoadDirectory(context.ActiveState, path, context.PanelOptions);
             context.StartWatching(context.ActiveState, context.ActiveSide);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)

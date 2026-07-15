@@ -6,6 +6,8 @@ namespace CSharpFar.Ui;
 
 public readonly record struct FunctionKeyBarItem(int KeyNumber, string Label);
 
+public readonly record struct FunctionKeyBarSlot(int KeyNumber, Rect Bounds);
+
 public readonly record struct FunctionKeyBarMouseHit(int KeyNumber, ConsoleKey Key);
 
 public sealed class FunctionKeyBar
@@ -31,34 +33,25 @@ public sealed class FunctionKeyBar
         var gapStyle = PaletteStyles.CommandLine(palette);
 
         screen.FillRegion(new Rect(0, y, totalWidth, 1), gapStyle);
-        int slotWidth = totalWidth / FunctionKeyCount;
-        if (slotWidth <= 0)
-            return;
-
         var labelsByKey = items
             .Where(item => item.KeyNumber is >= 1 and <= FunctionKeyCount)
             .ToDictionary(item => item.KeyNumber, item => item.Label);
 
-        for (int keyNumber = 1; keyNumber <= FunctionKeyCount; keyNumber++)
+        foreach (var slot in BuildSlots(y, totalWidth))
         {
-            int x = (keyNumber - 1) * slotWidth;
-            if (x >= totalWidth)
-                break;
-
-            string keyText = keyNumber.ToString(System.Globalization.CultureInfo.InvariantCulture);
-            int keyWidth = Math.Min(keyText.Length, slotWidth);
+            string keyText = slot.KeyNumber.ToString(System.Globalization.CultureInfo.InvariantCulture);
+            int keyWidth = Math.Min(keyText.Length, slot.Bounds.Width);
             if (keyWidth > 0)
-                screen.Write(x, y, keyText.AsSpan(0, keyWidth), numStyle);
+                screen.Write(slot.Bounds.X, y, keyText.AsSpan(0, keyWidth), numStyle);
 
-            int slotEnd = keyNumber < FunctionKeyCount ? x + slotWidth : totalWidth;
-            int labelWidth = slotEnd - x - keyWidth;
+            int labelWidth = slot.Bounds.Width - keyWidth;
             if (labelWidth <= 0)
                 continue;
 
-            labelsByKey.TryGetValue(keyNumber, out string? label);
+            labelsByKey.TryGetValue(slot.KeyNumber, out string? label);
             string fittedLabel = FitLabel(label ?? string.Empty, labelWidth);
             if (fittedLabel.Length > 0)
-                screen.Write(x + keyWidth, y, fittedLabel, labelStyle);
+                screen.Write(slot.Bounds.X + keyWidth, y, fittedLabel, labelStyle);
         }
     }
 
@@ -84,15 +77,16 @@ public sealed class FunctionKeyBar
     {
         keyNumber = 0;
 
-        if (x < 0 || x >= totalWidth)
-            return false;
+        foreach (var slot in BuildSlots(0, totalWidth))
+        {
+            if (slot.Bounds.Contains(x, 0))
+            {
+                keyNumber = slot.KeyNumber;
+                return true;
+            }
+        }
 
-        int slotWidth = totalWidth / FunctionKeyCount;
-        if (slotWidth <= 0)
-            return false;
-
-        keyNumber = Math.Min(x / slotWidth + 1, FunctionKeyCount);
-        return true;
+        return false;
     }
 
     public static bool TryGetKeyNumberAt(
@@ -132,6 +126,31 @@ public sealed class FunctionKeyBar
             _ => default,
         };
         return keyNumber is >= 1 and <= FunctionKeyCount;
+    }
+
+    public static IReadOnlyList<FunctionKeyBarSlot> BuildSlots(int y, int totalWidth)
+    {
+        if (totalWidth <= 0)
+            return Array.Empty<FunctionKeyBarSlot>();
+
+        int slotWidth = totalWidth / FunctionKeyCount;
+        if (slotWidth <= 0)
+            return Array.Empty<FunctionKeyBarSlot>();
+
+        var slots = new List<FunctionKeyBarSlot>(FunctionKeyCount);
+        for (int keyNumber = 1; keyNumber <= FunctionKeyCount; keyNumber++)
+        {
+            int x = (keyNumber - 1) * slotWidth;
+            if (x >= totalWidth)
+                break;
+
+            int slotEnd = keyNumber < FunctionKeyCount ? x + slotWidth : totalWidth;
+            int width = Math.Max(0, slotEnd - x);
+            if (width > 0)
+                slots.Add(new FunctionKeyBarSlot(keyNumber, new Rect(x, y, width, 1)));
+        }
+
+        return Array.AsReadOnly(slots.ToArray());
     }
 
     private static string FitLabel(string label, int width)

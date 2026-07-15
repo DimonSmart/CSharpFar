@@ -1,6 +1,5 @@
 using CSharpFar.App.DirectoryShortcuts;
 using CSharpFar.Console;
-using CSharpFar.Console.Input;
 using CSharpFar.Console.Models;
 using CSharpFar.Core.Models;
 
@@ -39,37 +38,11 @@ internal sealed class DirectoryShortcutBarRenderer
 
             hits.Add(new ApplicationDirectoryShortcutHit(
                 new Rect(slot.X, y, slot.Width, 1),
-                slot.Number));
+                slot.Number,
+                slot.Path));
         }
 
         return hits.Count > 0 ? new ApplicationDirectoryShortcutBarFrame(hits) : null;
-    }
-
-    public static bool TryGetShortcutNumberAt(
-        MouseConsoleInputEvent mouse,
-        int barY,
-        int totalWidth,
-        AppSettings.DirectoryShortcutSettings? settings,
-        out int number)
-    {
-        number = 0;
-        if (mouse.Button != MouseButton.Left ||
-            mouse.Kind != MouseEventKind.Down ||
-            mouse.Y != barY)
-        {
-            return false;
-        }
-
-        foreach (var slot in GetVisibleSlots(totalWidth, settings))
-        {
-            if (mouse.X >= slot.X && mouse.X < slot.X + slot.Width)
-            {
-                number = slot.Number;
-                return true;
-            }
-        }
-
-        return false;
     }
 
     private static IEnumerable<VisibleSlot> GetVisibleSlots(
@@ -84,7 +57,7 @@ internal sealed class DirectoryShortcutBarRenderer
             if (x + width > totalWidth)
                 yield break;
 
-            yield return new VisibleSlot(x, width, item.Number, numberText, item.Name);
+            yield return new VisibleSlot(x, width, item.Number, numberText, item.Name, item.Path);
             x += width;
         }
     }
@@ -94,5 +67,6 @@ internal sealed class DirectoryShortcutBarRenderer
         int Width,
         int Number,
         string NumberText,
-        string Name);
+        string Name,
+        string Path);
 }

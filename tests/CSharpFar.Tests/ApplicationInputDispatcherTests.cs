@@ -1,4 +1,6 @@
 using CSharpFar.App;
+using CSharpFar.App.Commands;
+using CSharpFar.App.DirectoryShortcuts;
 using CSharpFar.App.FunctionKeys;
 using CSharpFar.App.Input;
 using CSharpFar.App.Panels;
@@ -231,13 +233,129 @@ public sealed class ApplicationInputDispatcherTests
         Assert.Equal(0, fallbackExecutions);
     }
 
+    [Fact]
+    public void DirectoryShortcutTarget_ExecutesOnlyShortcutHandlerWithCommittedPath()
+    {
+        (string CommandId, object? Args)? executed = null;
+        var commandLine = new CommandLineState();
+        var context = Context(commandLine, execute: (commandId, args) =>
+        {
+            executed = (commandId, args);
+            return true;
+        });
+        var dispatcher = Dispatcher(context);
+        var frame = Frame(commandLine) with
+        {
+            DirectoryShortcutBar = new ApplicationDirectoryShortcutBarFrame(
+                [new ApplicationDirectoryShortcutHit(new Rect(1, 22, 9, 1), 1, @"C:\Rendered")]),
+        };
+
+        var request = dispatcher.Handle(new UiRoutedInput<ApplicationUiFrame>(
+            new MouseConsoleInputEvent(2, 22, MouseButton.Left, MouseEventKind.Down, MouseKeyModifiers.None),
+            frame,
+            ApplicationTargetIds.DirectoryShortcutBar,
+            UiInputRouteKind.HitTarget));
+
+        Assert.True(request.ShouldRender);
+        Assert.NotNull(executed);
+        Assert.Equal(DirectoryShortcutCommandIds.Navigate, executed.Value.CommandId);
+        var args = Assert.IsType<NavigateToDirectoryShortcutArgs>(executed.Value.Args);
+        Assert.Equal(1, args.Number);
+        Assert.Equal(@"C:\Rendered", args.CommittedPath);
+    }
+
+    [Theory]
+    [InlineData(null, UiInputRouteKind.Layer)]
+    [InlineData(null, UiInputRouteKind.HitTarget)]
+    public void MouseWithoutApplicationTarget_DoesNotInvokeFallback(
+        UiTargetId? target,
+        UiInputRouteKind routeKind)
+    {
+        int executions = 0;
+        var commandLine = new CommandLineState();
+        var context = Context(commandLine, execute: (_, _) =>
+        {
+            executions++;
+            return true;
+        });
+        var dispatcher = Dispatcher(context);
+
+        var request = dispatcher.Handle(new UiRoutedInput<ApplicationUiFrame>(
+            new MouseConsoleInputEvent(5, 5, MouseButton.Left, MouseEventKind.Down, MouseKeyModifiers.None),
+            Frame(commandLine),
+            target,
+            routeKind));
+
+        Assert.False(request.ShouldRender);
+        Assert.Equal(0, executions);
+    }
+
+    [Fact]
+    public void PanelLeftDown_UsesCommittedItemHitSnapshotAfterSourceListMutates()
+    {
+        var state = PanelStateWithItems();
+        var context = Context(new CommandLineState(), panelState: state);
+        var handler = new ApplicationPanelInputHandler(context);
+        var hits = new List<ApplicationPanelItemHit>
+        {
+            new(new Rect(1, 1, 10, 1), 0, @"C:\work\a.txt"),
+        };
+        var frame = new ApplicationPanelFrame(
+            PanelSide.Left,
+            new Rect(0, 0, 40, 10),
+            8,
+            hits,
+            null,
+            null);
+        hits[0] = new ApplicationPanelItemHit(new Rect(1, 1, 10, 1), 1, @"C:\work\b.txt");
+
+        var result = handler.Handle(
+            new MouseConsoleInputEvent(1, 1, MouseButton.Left, MouseEventKind.Down, MouseKeyModifiers.None),
+            frame,
+            UiInputRouteKind.HitTarget);
+
+        Assert.True(result.Handled);
+        Assert.Equal(0, state.CursorIndex);
+        Assert.Equal(new PanelItemClick(PanelSide.Left, 0, @"C:\work\a.txt"), context.Mouse.LastLeftPanelItemClick);
+    }
+
+    [Fact]
+    public void PanelDoubleClick_DoesNotOpenDifferentItemAfterReorder()
+    {
+        var state = PanelStateWithItems();
+        (PanelSide Side, FilePanelItem Item)? opened = null;
+        var context = Context(
+            new CommandLineState(),
+            panelState: state,
+            openPanelItem: (_, side, item) => opened = (side, item));
+        context.Mouse.LastLeftPanelItemClick = new PanelItemClick(PanelSide.Left, 0, @"C:\work\a.txt");
+        var frame = new ApplicationPanelFrame(
+            PanelSide.Left,
+            new Rect(0, 0, 40, 10),
+            8,
+            [new ApplicationPanelItemHit(new Rect(1, 1, 10, 1), 0, @"C:\work\a.txt")],
+            null,
+            null);
+        (state.Items[0], state.Items[1]) = (state.Items[1], state.Items[0]);
+
+        var result = new ApplicationPanelInputHandler(context).Handle(
+            new MouseConsoleInputEvent(1, 1, MouseButton.Left, MouseEventKind.DoubleClick, MouseKeyModifiers.None),
+            frame,
+            UiInputRouteKind.HitTarget);
+
+        Assert.True(result.Handled);
+        Assert.Null(opened);
+    }
+
     private static MouseInputContext Context(
         CommandLineState commandLine,
         Func<string, object?, bool>? execute = null,
         Func<bool>? paste = null,
-        Action? resetHistory = null)
+        Action? resetHistory = null,
+        FilePanelState? panelState = null,
+        Action<FilePanelState, PanelSide, FilePanelItem>? openPanelItem = null)
     {
-        var panelState = new FilePanelState { CurrentDirectory = @"C:\work" };
+        panelState ??= new FilePanelState { CurrentDirectory = @"C:\work" };
         return new MouseInputContext
         {
             PanelController = new PanelController(new FakePanelViewBuilder(new FakeFileSystemService())),
@@ -251,8 +369,26 @@ public sealed class ApplicationInputDispatcherTests
             PasteTextIntoCommandLine = paste ?? (() => true),
             ResetCommandHistoryNavigation = resetHistory ?? (() => { }),
             SafeRefresh = (_, _) => { },
-            OpenPanelItem = (_, _, _) => { },
+            OpenPanelItem = openPanelItem ?? ((_, _, _) => { }),
         };
+    }
+
+    private static FilePanelState PanelStateWithItems()
+    {
+        var state = new FilePanelState { CurrentDirectory = @"C:\work" };
+        state.Items.Add(new FilePanelItem
+        {
+            Name = "a.txt",
+            FullPath = @"C:\work\a.txt",
+            IsDirectory = false,
+        });
+        state.Items.Add(new FilePanelItem
+        {
+            Name = "b.txt",
+            FullPath = @"C:\work\b.txt",
+            IsDirectory = false,
+        });
+        return state;
     }
 
     private static ApplicationInputDispatcher Dispatcher(MouseInputContext context) =>

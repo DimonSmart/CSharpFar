@@ -406,6 +406,22 @@ public sealed class ApplicationUiSurfaceTests
     }
 
     [Fact]
+    public void NarrowViewport_DoesNotPublishEmptyPanelTargets()
+    {
+        var services = Services(new FakeConsoleDriver(1, 1));
+
+        services.Composition.Render();
+
+        Assert.DoesNotContain(
+            services.ApplicationSurface.CommittedInteractionFrame.HitRegions,
+            region =>
+                region.Target == ApplicationTargetIds.LeftPanel ||
+                region.Target == ApplicationTargetIds.RightPanel ||
+                region.Target == ApplicationTargetIds.LeftPanelScrollbar ||
+                region.Target == ApplicationTargetIds.RightPanelScrollbar);
+    }
+
+    [Fact]
     public void PanelScrollbarHit_WinsOverPanelAndThumbDownRequestsCapture()
     {
         var services = Services();
@@ -452,6 +468,87 @@ public sealed class ApplicationUiSurfaceTests
         Assert.True(services.ApplicationSurface.TryTakeInput(out var captured));
         Assert.Equal(ApplicationTargetIds.LeftPanelScrollbar, captured.Target);
         Assert.Equal(UiInputRouteKind.CapturedTarget, captured.RouteKind);
+    }
+
+    [Fact]
+    public void PanelScrollbarDrag_RoutesThroughSurfaceAndHandlerUntilMatchingLeftUp()
+    {
+        var services = Services();
+        AddScrollableItems(services.Session.Panels.Left, 80);
+        services.Composition.Render();
+
+        var scrollbar = services.ApplicationSurface.CommittedFrame.LeftPanel!.ScrollBar!;
+        var thumb = ScrollBarInteraction.CalculateThumb(scrollbar.Bounds, scrollbar.ToScrollState());
+
+        UiInputResult downResult = services.Composition.DispatchInput(new MouseConsoleInputEvent(
+            scrollbar.Bounds.X,
+            thumb.ThumbY,
+            MouseButton.Left,
+            MouseEventKind.Down,
+            MouseKeyModifiers.None));
+        Assert.True(downResult.Handled);
+        Assert.True(services.ApplicationSurface.TryTakeInput(out var down));
+        Assert.Equal(ApplicationTargetIds.LeftPanelScrollbar, down.Target);
+        Assert.Equal(UiInputRouteKind.HitTarget, down.RouteKind);
+
+        services.Inner.ApplicationInputDispatcher.Handle(down);
+        Assert.NotNull(services.Session.Ui.PanelScrollbarDrag);
+
+        services.Composition.DispatchInput(new MouseConsoleInputEvent(
+            79,
+            scrollbar.Bounds.Bottom - 1,
+            MouseButton.Left,
+            MouseEventKind.Move,
+            MouseKeyModifiers.None));
+        Assert.True(services.ApplicationSurface.TryTakeInput(out var move));
+        Assert.Equal(ApplicationTargetIds.LeftPanelScrollbar, move.Target);
+        Assert.Equal(UiInputRouteKind.CapturedTarget, move.RouteKind);
+        services.Inner.ApplicationInputDispatcher.Handle(move);
+        Assert.True(services.Session.Panels.Left.ScrollOffset > 0);
+
+        services.Composition.DispatchInput(new MouseConsoleInputEvent(
+            79,
+            scrollbar.Bounds.Bottom - 1,
+            MouseButton.Right,
+            MouseEventKind.Up,
+            MouseKeyModifiers.None));
+        Assert.True(services.ApplicationSurface.TryTakeInput(out var nonMatchingUp));
+        Assert.Equal(ApplicationTargetIds.LeftPanelScrollbar, nonMatchingUp.Target);
+        Assert.Equal(UiInputRouteKind.CapturedTarget, nonMatchingUp.RouteKind);
+        services.Inner.ApplicationInputDispatcher.Handle(nonMatchingUp);
+        Assert.NotNull(services.Session.Ui.PanelScrollbarDrag);
+
+        services.Composition.DispatchInput(new MouseConsoleInputEvent(
+            0,
+            0,
+            MouseButton.Left,
+            MouseEventKind.Move,
+            MouseKeyModifiers.None));
+        Assert.True(services.ApplicationSurface.TryTakeInput(out var stillCaptured));
+        Assert.Equal(ApplicationTargetIds.LeftPanelScrollbar, stillCaptured.Target);
+        Assert.Equal(UiInputRouteKind.CapturedTarget, stillCaptured.RouteKind);
+        services.Inner.ApplicationInputDispatcher.Handle(stillCaptured);
+
+        services.Composition.DispatchInput(new MouseConsoleInputEvent(
+            0,
+            0,
+            MouseButton.Left,
+            MouseEventKind.Up,
+            MouseKeyModifiers.None));
+        Assert.True(services.ApplicationSurface.TryTakeInput(out var leftUp));
+        Assert.Equal(ApplicationTargetIds.LeftPanelScrollbar, leftUp.Target);
+        Assert.Equal(UiInputRouteKind.CapturedTarget, leftUp.RouteKind);
+        services.Inner.ApplicationInputDispatcher.Handle(leftUp);
+        Assert.Null(services.Session.Ui.PanelScrollbarDrag);
+
+        services.Composition.DispatchInput(new MouseConsoleInputEvent(
+            0,
+            0,
+            MouseButton.Left,
+            MouseEventKind.Move,
+            MouseKeyModifiers.None));
+        Assert.True(services.ApplicationSurface.TryTakeInput(out var afterRelease));
+        Assert.NotEqual(UiInputRouteKind.CapturedTarget, afterRelease.RouteKind);
     }
 
     [Fact]
