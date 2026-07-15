@@ -15,6 +15,42 @@ namespace CSharpFar.Tests;
 public sealed class ApplicationOverlayLayerTests
 {
     [Fact]
+    public void CommandCompletion_InputPolicyAndInteractionMetadataFollowVisibility()
+    {
+        var services = Services();
+
+        services.Composition.Render();
+        Assert.Equal(UiLayerInputPolicy.None, services.Inner.CommandCompletionLayer.InputPolicy);
+        Assert.Empty(services.Inner.CommandCompletionLayer.CommittedInteractionFrame.Focus.Entries);
+        Assert.Empty(services.Inner.CommandCompletionLayer.CommittedInteractionFrame.HitRegions);
+
+        services.Session.CommandLine.Completion.Visible = true;
+        services.Session.CommandLine.Completion.Matches.AddRange(["", "alpha"]);
+        services.Composition.Render();
+
+        Assert.Equal(UiLayerInputPolicy.Bubble, services.Inner.CommandCompletionLayer.InputPolicy);
+        Assert.Empty(services.Inner.CommandCompletionLayer.CommittedInteractionFrame.Focus.Entries);
+    }
+
+    [Fact]
+    public void CommandCompletion_NeutralEnterClosesAndContinuesTheSameInput()
+    {
+        var services = Services();
+        var completion = services.Session.CommandLine.Completion;
+        completion.Visible = true;
+        completion.Matches.AddRange(["", "alpha"]);
+        services.Composition.Render();
+        var input = Key(ConsoleKey.Enter);
+
+        UiInputResult result = services.Composition.DispatchInput(input);
+
+        Assert.True(result.Handled);
+        Assert.False(completion.Visible);
+        Assert.True(services.ApplicationSurface.TryTakeInput(out var packet));
+        Assert.Same(input, packet.Input);
+    }
+
+    [Fact]
     public void CommandCompletion_RejectedRenderAttemptDoesNotMutateSelectionBeforeStableCommit()
     {
         var services = Services();

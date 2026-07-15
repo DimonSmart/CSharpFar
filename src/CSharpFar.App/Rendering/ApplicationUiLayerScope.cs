@@ -24,7 +24,16 @@ internal sealed class ApplicationUiLayerScope : IDisposable
         catch
         {
             for (int i = registrations.Count - 1; i >= 0; i--)
-                registrations[i].Dispose();
+            {
+                try
+                {
+                    registrations[i].Dispose();
+                }
+                catch
+                {
+                    // Preserve the registration failure that caused rollback.
+                }
+            }
 
             throw;
         }

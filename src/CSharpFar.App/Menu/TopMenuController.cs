@@ -131,8 +131,6 @@ public sealed class TopMenuController
         _dropdownScrollbarDrag = null;
     }
 
-    public void CancelDropdownScrollbarDrag() => _dropdownScrollbarDrag = null;
-
     public void CommitDropdownScrollbar(Rect? bounds, int totalItems, int viewportItems)
     {
         if (bounds is null)

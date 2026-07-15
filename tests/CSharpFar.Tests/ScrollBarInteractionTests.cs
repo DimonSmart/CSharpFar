@@ -7,6 +7,18 @@ namespace CSharpFar.Tests;
 public sealed class ScrollBarInteractionTests
 {
     [Fact]
+    public void RebaseDrag_WithUnchangedGeometryReturnsEquivalentState()
+    {
+        var drag = new ScrollBarDragState(new Rect(4, 2, 1, 8), 20, 6, 1);
+
+        Assert.Equal(drag, ScrollBarInteraction.RebaseDrag(
+            drag,
+            drag.Bounds,
+            drag.TotalItems,
+            drag.ViewportItems));
+    }
+
+    [Fact]
     public void RebaseDrag_UpdatesGeometryDimensionsAndClampsPointerOffset()
     {
         var drag = new ScrollBarDragState(new Rect(4, 2, 1, 8), 20, 6, 9);
@@ -22,6 +34,17 @@ public sealed class ScrollBarInteractionTests
             bounds,
             new ScrollState { TotalItems = 12, ViewportItems = 4, FirstVisibleIndex = 0 }).ThumbHeight;
         Assert.Equal(thumbHeight - 1, rebased.PointerOffsetInThumb);
+    }
+
+    [Fact]
+    public void RebaseDrag_ClampsNegativePointerOffsetToZero()
+    {
+        var drag = new ScrollBarDragState(new Rect(0, 0, 1, 8), 20, 6, -4);
+
+        ScrollBarDragState rebased = Assert.IsType<ScrollBarDragState>(
+            ScrollBarInteraction.RebaseDrag(drag, new Rect(3, 2, 1, 8), 20, 6));
+
+        Assert.Equal(0, rebased.PointerOffsetInThumb);
     }
 
     [Theory]

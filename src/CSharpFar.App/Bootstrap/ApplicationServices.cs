@@ -54,6 +54,10 @@ internal sealed class ApplicationServices
     public required ApplicationCommandRegistry CommandRegistry { get; init; }
     public required ApplicationRenderContext RenderContext { get; init; }
     public required ApplicationRenderCoordinator RenderCoordinator { get; init; }
+    public required ApplicationUiLayerScope ApplicationUiLayers { get; init; }
+    public required CommandCompletionLayer CommandCompletionLayer { get; init; }
+    public required PanelQuickSearchLayer PanelQuickSearchLayer { get; init; }
+    public required TopMenuLayer TopMenuLayer { get; init; }
     public required ApplicationUiSurface ApplicationSurface { get; init; }
     public required UiCompositionHost Composition { get; init; }
     public required ModalDialogHost ModalDialogs { get; init; }
