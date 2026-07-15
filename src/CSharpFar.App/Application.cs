@@ -48,7 +48,6 @@ public sealed class Application
     private readonly UiCompositionHost _composition;
     private readonly KeyboardInputContext _keyboardInputContext;
     private readonly KeyboardInputRouter _keyboardInputRouter;
-    private readonly MouseInputRouter _mouseInputRouter;
     private readonly ApplicationInputDispatcher _applicationInputDispatcher;
     private readonly TerminalSurfaceController _terminalSurface;
     private readonly PanelRefreshService _panelRefresh;
@@ -190,7 +189,6 @@ public sealed class Application
         _commandContext = services.CommandContext;
         _keyboardInputContext = services.KeyboardInputContext;
         _keyboardInputRouter = services.KeyboardInputRouter;
-        _mouseInputRouter = services.MouseInputRouter;
         _applicationInputDispatcher = services.ApplicationInputDispatcher;
         _terminalSurface = services.TerminalSurface;
         BindCallbacks(services.Callbacks);

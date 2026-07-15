@@ -1,5 +1,6 @@
 using System.Reflection;
 using CSharpFar.App;
+using CSharpFar.App.Input;
 using CSharpFar.App.Rendering;
 using CSharpFar.Console;
 using CSharpFar.Console.Input;
@@ -1401,28 +1402,28 @@ public sealed class ApplicationNavigationTests : IDisposable
 
     private static bool HandleMouse(Application app, MouseConsoleInputEvent mouse)
     {
-        var router = typeof(Application).GetField(
-            "_mouseInputRouter",
+        var dispatcher = (ApplicationInputDispatcher)(typeof(Application).GetField(
+            "_applicationInputDispatcher",
             BindingFlags.Instance | BindingFlags.NonPublic)
             ?.GetValue(app)
-            ?? throw new InvalidOperationException("Application mouse input router not found.");
-
-        var method = router.GetType().GetMethod("Handle")
-            ?? throw new InvalidOperationException("MouseInputRouter.Handle method not found.");
+            ?? throw new InvalidOperationException("Application input dispatcher not found."));
 
         var runtime = typeof(Application).GetField(
             "_runtime",
             BindingFlags.Instance | BindingFlags.NonPublic)
             ?.GetValue(app)
             ?? throw new InvalidOperationException("Application runtime not found.");
-        var surface = runtime.GetType().GetField(
+        var surface = (ApplicationUiSurface)(runtime.GetType().GetField(
             "_applicationSurface",
             BindingFlags.Instance | BindingFlags.NonPublic)
             ?.GetValue(runtime)
-            ?? throw new InvalidOperationException("Application surface not found.");
-        var frame = surface.GetType().GetProperty("CommittedFrame")!.GetValue(surface);
+            ?? throw new InvalidOperationException("Application surface not found."));
 
-        return (bool)method.Invoke(router, [mouse, frame])!;
+        return dispatcher.Handle(new UiRoutedInput<ApplicationUiFrame>(
+            mouse,
+            surface.CommittedFrame,
+            null,
+            UiInputRouteKind.Layer)).ShouldRender;
     }
 
     private static void Render(Application app)

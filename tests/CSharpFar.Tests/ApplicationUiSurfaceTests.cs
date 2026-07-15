@@ -193,6 +193,73 @@ public sealed class ApplicationUiSurfaceTests
     }
 
     [Fact]
+    public void CommandLineCapture_RejectedRenderAttemptKeepsCommittedFrameUntilRetry()
+    {
+        var services = Services();
+        services.Session.CommandLine.State.SetText(new string('x', 120));
+        services.Composition.Render();
+
+        DispatchTakeAndHandle(
+            services,
+            new MouseConsoleInputEvent(79, 23, MouseButton.Left, MouseEventKind.Down, MouseKeyModifiers.None),
+            UiInputRouteKind.HitTarget);
+
+        ApplicationUiFrame committedFrame = services.ApplicationSurface.CommittedFrame;
+        ApplicationCommandLineFrame committedCommandLine = committedFrame.CommandLine;
+        var selectionAndCursor = (
+            services.Session.CommandLine.State.CursorPosition,
+            services.Session.CommandLine.State.SelectionStart,
+            services.Session.CommandLine.State.SelectionLength);
+        bool observedRejectedAttempt = false;
+
+        services.Driver.BeforeTrySetCursorPositionInViewport = driver =>
+        {
+            observedRejectedAttempt = true;
+            Assert.Same(committedFrame, services.ApplicationSurface.CommittedFrame);
+            Assert.Same(committedCommandLine, services.ApplicationSurface.CommittedFrame.CommandLine);
+            Assert.Equal(selectionAndCursor, (
+                services.Session.CommandLine.State.CursorPosition,
+                services.Session.CommandLine.State.SelectionStart,
+                services.Session.CommandLine.State.SelectionLength));
+            driver.SetSize(100, 35);
+            driver.BeforeTrySetCursorPositionInViewport = null;
+        };
+
+        services.Composition.Render();
+
+        Assert.True(observedRejectedAttempt);
+        ApplicationUiFrame retriedFrame = services.ApplicationSurface.CommittedFrame;
+        Assert.Equal(new ConsoleViewport(0, 0, 100, 35), retriedFrame.Viewport);
+        Assert.Equal(new Rect(0, 33, 100, 1), retriedFrame.CommandLine.Bounds);
+
+        int oldPosition = committedCommandLine.TextPositionFromX(0);
+        int expectedPosition = retriedFrame.CommandLine.TextPositionFromX(0);
+        Assert.NotEqual(oldPosition, expectedPosition);
+
+        services.Composition.DispatchInput(
+            new MouseConsoleInputEvent(0, 10, MouseButton.Left, MouseEventKind.Move, MouseKeyModifiers.None));
+
+        Assert.True(services.ApplicationSurface.TryTakeInput(out var move));
+        Assert.Equal(ApplicationTargetIds.CommandLine, move.Target);
+        Assert.Equal(UiInputRouteKind.CapturedTarget, move.RouteKind);
+        Assert.Same(retriedFrame, move.Frame);
+        services.Inner.ApplicationInputDispatcher.Handle(move);
+        Assert.Equal(expectedPosition, services.Session.CommandLine.State.CursorPosition);
+
+        DispatchTakeAndHandle(
+            services,
+            new MouseConsoleInputEvent(0, 33, MouseButton.Left, MouseEventKind.Up, MouseKeyModifiers.None),
+            UiInputRouteKind.CapturedTarget);
+
+        services.Composition.DispatchInput(
+            new MouseConsoleInputEvent(0, 10, MouseButton.Left, MouseEventKind.Move, MouseKeyModifiers.None));
+
+        Assert.True(services.ApplicationSurface.TryTakeInput(out var next));
+        Assert.Null(next.Target);
+        Assert.Equal(UiInputRouteKind.Layer, next.RouteKind);
+    }
+
+    [Fact]
     public void CommandLineCursor_PhysicalCursorMatchesCommittedBaseFrame()
     {
         var services = Services();

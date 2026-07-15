@@ -1,6 +1,7 @@
 using System.Reflection;
 using CSharpFar.App;
 using CSharpFar.App.Dialogs;
+using CSharpFar.App.Input;
 using CSharpFar.App.Rendering;
 using CSharpFar.Console;
 using CSharpFar.Console.Input;
@@ -176,22 +177,22 @@ public sealed class DirectoryShortcutApplicationIntegrationTests : IDisposable
 
     private static bool InvokeHandleMouse(Application app, MouseConsoleInputEvent mouse)
     {
-        var router = typeof(Application)
-            .GetField("_mouseInputRouter", BindingFlags.Instance | BindingFlags.NonPublic)!
+        var dispatcher = (ApplicationInputDispatcher)typeof(Application)
+            .GetField("_applicationInputDispatcher", BindingFlags.Instance | BindingFlags.NonPublic)!
             .GetValue(app)!;
 
         var runtime = typeof(Application)
             .GetField("_runtime", BindingFlags.Instance | BindingFlags.NonPublic)!
             .GetValue(app)!;
-        var surface = runtime.GetType()
+        var surface = (ApplicationUiSurface)runtime.GetType()
             .GetField("_applicationSurface", BindingFlags.Instance | BindingFlags.NonPublic)!
             .GetValue(runtime)!;
-        var frame = surface.GetType().GetProperty("CommittedFrame")!.GetValue(surface);
 
-        return (bool)router
-            .GetType()
-            .GetMethod("Handle")!
-            .Invoke(router, [mouse, frame])!;
+        return dispatcher.Handle(new UiRoutedInput<ApplicationUiFrame>(
+            mouse,
+            surface.CommittedFrame,
+            null,
+            UiInputRouteKind.Layer)).ShouldRender;
     }
 
     private static ConsoleKeyInfo Key(ConsoleKey key) =>
