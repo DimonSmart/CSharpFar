@@ -275,6 +275,46 @@ public sealed class Spec035FtpProviderTests : IDisposable
     }
 
     [Fact]
+    public void FtpConnectionDialog_SavePasswordChangeEnablesConnectionOnly()
+    {
+        var driver = new FakeConsoleDriver(width: 100, height: 30);
+        var screen = new ScreenRenderer(driver);
+        for (int i = 0; i < 6; i++)
+            driver.EnqueueKey(Key(ConsoleKey.Tab));
+        driver.EnqueueKey(Key(ConsoleKey.Spacebar)); // save connection off
+        driver.EnqueueKey(Key(ConsoleKey.Tab));
+        driver.EnqueueKey(Key(ConsoleKey.Spacebar)); // save password on
+        driver.EnqueueKey(Key(ConsoleKey.F10));
+
+        var result = new FtpConnectionDialog(ModalTestHost.Create(screen)).Show(
+            new FtpConnectionDialogRequest(TestConnection(), "secret-password", true, true),
+            _ => FtpConnectionDialogValidationResult.Accepted());
+
+        Assert.NotNull(result);
+        Assert.True(result.SaveConnection);
+        Assert.True(result.SavePassword);
+    }
+
+    [Fact]
+    public void FtpConnectionDialog_SecurityChangeUpdatesDefaultPort()
+    {
+        var driver = new FakeConsoleDriver(width: 100, height: 30);
+        var screen = new ScreenRenderer(driver);
+        for (int i = 0; i < 9; i++)
+            driver.EnqueueKey(Key(ConsoleKey.Tab));
+        driver.EnqueueKey(Key(ConsoleKey.RightArrow));
+        driver.EnqueueKey(Key(ConsoleKey.F10));
+
+        var result = new FtpConnectionDialog(ModalTestHost.Create(screen)).Show(
+            new FtpConnectionDialogRequest(TestConnection(), "secret-password", true, true),
+            _ => FtpConnectionDialogValidationResult.Accepted());
+
+        Assert.NotNull(result);
+        Assert.Equal(FtpConnectionSecurityMode.ImplicitFtps, result.Connection.SecurityMode);
+        Assert.Equal(990, result.Connection.Port);
+    }
+
+    [Fact]
     public void FtpConnectionManagerDialog_NewButtonSupportsMouseClick()
     {
         var driver = new FakeConsoleDriver(width: 100, height: 30);
