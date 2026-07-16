@@ -31,12 +31,15 @@ internal sealed record FtpConnectionDialogValidationResult(
 
 internal enum FtpSaveOptionChange { None, SaveConnection, SavePassword }
 
+internal readonly record struct FtpSecurityModeChange(
+    FtpConnectionSecurityMode Previous,
+    FtpConnectionSecurityMode Current);
+
 internal readonly record struct FtpConnectionFormInputResult(
     FormInputResult FormResult,
     bool EndpointChanged,
     FtpSaveOptionChange SaveOptionChange,
-    bool SecurityModeChanged,
-    bool DataModeChanged);
+    FtpSecurityModeChange? SecurityModeChange);
 
 internal sealed class FtpConnectionDialog
 {
@@ -79,18 +82,19 @@ internal sealed class FtpConnectionDialog
         var dataTls = new CheckBoxRow(new CheckBoxLine("Use TLS for data connection")) { Id = "data-tls" };
         var trust = new CheckBoxRow(new CheckBoxLine("Trust certificate")) { Id = "trust-certificate" };
         var security = new CompactChoiceFormRow<FtpConnectionSecurityMode>(
-            new ChoiceRow<FtpConnectionSecurityMode>(Enum.GetValues<FtpConnectionSecurityMode>(), SecurityLabel, SecurityIndex(connection?.SecurityMode ?? FtpConnectionSecurityMode.ExplicitFtps)), "Security:") { Id = "security" };
+            new ChoiceRow<FtpConnectionSecurityMode>(Enum.GetValues<FtpConnectionSecurityMode>(), SecurityLabel, SecurityIndex(connection?.SecurityMode ?? FtpConnectionSecurityMode.ExplicitFtps)), "Security") { Id = "security" };
         var dataMode = new CompactChoiceFormRow<FtpDataConnectionMode>(
-            new ChoiceRow<FtpDataConnectionMode>(Enum.GetValues<FtpDataConnectionMode>(), DataModeLabel, DataModeIndex(connection?.DataConnectionMode ?? FtpDataConnectionMode.AutoPassive)), "Data mode:") { Id = "data-mode" };
+            new ChoiceRow<FtpDataConnectionMode>(Enum.GetValues<FtpDataConnectionMode>(), DataModeLabel, DataModeIndex(connection?.DataConnectionMode ?? FtpDataConnectionMode.AutoPassive)), "Data mode") { Id = "data-mode" };
         var activePortsRow = new LabeledTextInputRow("Active ports:", activePorts, histories.ActivePorts, activePortsState, inputWidth: FieldWidth) { Id = "active-ports", SubmitOnEnter = true };
         string? fingerprint = connection?.ExpectedTlsCertificateFingerprint;
         string? error = null;
 
         dataTls.Value = security.Value != FtpConnectionSecurityMode.PlainFtp && (connection?.UseDataConnectionTls ?? true);
         trust.Value = !string.IsNullOrWhiteSpace(fingerprint);
+        string submitLabel = request.AllowTemporaryConnection ? "Connect" : "Save";
         var actions = new ButtonRow(
         [
-            new DialogButton("submit", request.AllowTemporaryConnection ? "Connect" : "Save", 'C', IsDefault: true),
+            new DialogButton("submit", submitLabel, request.AllowTemporaryConnection ? 'O' : 'S', IsDefault: true),
             new DialogButton("cancel", "Cancel", 'C'),
         ], FarDialogStyles.Fill, FarDialogStyles.FocusedInput) { Id = "actions" };
         var form = new ScrollableFormDialog();
@@ -121,7 +125,6 @@ internal sealed class FtpConnectionDialog
                 string oldHost = host.Text, oldPort = port.Text;
                 bool oldSaveConnection = saveConnection.Value, oldSavePassword = savePassword.Value;
                 var oldSecurity = security.Value;
-                var oldDataMode = dataMode.Value;
                 FormRouteResult routed = form.RouteInput(input, frame, route);
                 var result = new FtpConnectionFormInputResult(
                     routed.FormResult,
@@ -133,8 +136,7 @@ internal sealed class FtpConnectionDialog
                         (false, true) => FtpSaveOptionChange.SavePassword,
                         _ => throw new InvalidOperationException("One routed input event cannot change both FTP save options."),
                     },
-                    oldSecurity != security.Value,
-                    oldDataMode != dataMode.Value);
+                    oldSecurity == security.Value ? null : new FtpSecurityModeChange(oldSecurity, security.Value));
                 return (result, routed.UiResult);
             },
             (routed, result) =>
@@ -145,17 +147,17 @@ internal sealed class FtpConnectionDialog
                     fingerprint = null;
                     trust.Value = false;
                 }
-                if (result.SecurityModeChanged)
+                if (result.SecurityModeChange is { } securityChange)
                 {
-                    if (port.Text == DefaultPort(PreviousSecurity(security.Value)).ToString())
-                        port.SetText(DefaultPort(security.Value).ToString());
-                    if (security.Value == FtpConnectionSecurityMode.PlainFtp)
+                    if (port.Text == DefaultPort(securityChange.Previous).ToString())
+                        port.SetText(DefaultPort(securityChange.Current).ToString());
+                    if (securityChange.Current == FtpConnectionSecurityMode.PlainFtp)
                     {
                         dataTls.Value = false;
                         fingerprint = null;
                         trust.Value = false;
                     }
-                    else if (PreviousSecurity(security.Value) == FtpConnectionSecurityMode.PlainFtp)
+                    else if (securityChange.Previous == FtpConnectionSecurityMode.PlainFtp)
                         dataTls.Value = true;
                     else { fingerprint = null; trust.Value = false; }
                 }
@@ -259,7 +261,6 @@ internal sealed class FtpConnectionDialog
     private static Rect OuterBounds(ConsoleSize size) { int width = Math.Min(DialogWidth, Math.Max(48, size.Width - 2)); int height = Math.Min(DialogHeight, Math.Max(8, size.Height - 2)); return new Rect(Math.Max(0, (size.Width - width) / 2), Math.Max(0, (size.Height - height) / 2), width, height); }
     private static int SecurityIndex(FtpConnectionSecurityMode mode) => Array.IndexOf(Enum.GetValues<FtpConnectionSecurityMode>(), mode);
     private static int DataModeIndex(FtpDataConnectionMode mode) => Array.IndexOf(Enum.GetValues<FtpDataConnectionMode>(), mode);
-    private static FtpConnectionSecurityMode PreviousSecurity(FtpConnectionSecurityMode mode) => mode switch { FtpConnectionSecurityMode.PlainFtp => FtpConnectionSecurityMode.Auto, FtpConnectionSecurityMode.ExplicitFtps => FtpConnectionSecurityMode.PlainFtp, _ => (FtpConnectionSecurityMode)((int)mode - 1) };
     private static int DefaultPort(FtpConnectionSecurityMode mode) => mode == FtpConnectionSecurityMode.ImplicitFtps ? 990 : 21;
     private static string SecurityLabel(FtpConnectionSecurityMode mode) => mode switch { FtpConnectionSecurityMode.PlainFtp => "Plain FTP - no TLS", FtpConnectionSecurityMode.ExplicitFtps => "Explicit FTPS", FtpConnectionSecurityMode.ImplicitFtps => "Implicit FTPS", FtpConnectionSecurityMode.Auto => "Auto FTP/FTPS", _ => mode.ToString() };
     private static string DataModeLabel(FtpDataConnectionMode mode) => mode switch { FtpDataConnectionMode.AutoPassive => "Auto passive", FtpDataConnectionMode.Passive => "Passive", FtpDataConnectionMode.Active => "Active", _ => mode.ToString() };

@@ -24,15 +24,18 @@ public sealed class CompactChoiceFormRow<T> : FormRow, IFormCursorProvider
 
     public bool TryGetCursor(FormRowRenderContext context, out FormCursorPlacement cursor)
     {
-        cursor = new FormCursorPlacement(context.Bounds.X + Math.Min(context.Bounds.Width - 1, _label.Length + 2), context.Bounds.Y);
+        int valueOffset = _label.Length + 2;
+        cursor = new FormCursorPlacement(context.Bounds.X + Math.Min(context.Bounds.Width - 1, valueOffset), context.Bounds.Y);
         return context.Focused && context.Bounds.Width > 0;
     }
 
     public override FormInputResult HandleKey(ConsoleKeyInfo key, FormRowInputContext context)
     {
         int before = _choice.SelectedIndex;
-        if (!_choice.TryHandleKey(key))
+        bool isChoiceKey = key.Key is ConsoleKey.LeftArrow or ConsoleKey.RightArrow or ConsoleKey.Spacebar or ConsoleKey.Enter;
+        if (!isChoiceKey)
             return FormInputResult.NotHandled;
+        _choice.TryHandleKey(key);
         return _choice.SelectedIndex == before ? FormInputResult.Handled : FormInputResult.ValueChanged;
     }
 
