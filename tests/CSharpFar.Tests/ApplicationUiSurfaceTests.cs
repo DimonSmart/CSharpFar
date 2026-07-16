@@ -552,6 +552,106 @@ public sealed class ApplicationUiSurfaceTests
     }
 
     [Fact]
+    public void PanelScrollbarDrag_CommittedResizeRebasesCaptureAndUsesNewGeometry()
+    {
+        var services = Services();
+        AddScrollableItems(services.Session.Panels.Left, 80);
+        services.Composition.Render();
+        StartLeftScrollbarDrag(services);
+
+        ApplicationScrollBarFrame before = services.ApplicationSurface.CommittedFrame.LeftPanel!.ScrollBar!;
+        services.Driver.SetSize(100, 35);
+        services.Composition.Render();
+
+        ApplicationScrollBarFrame after = services.ApplicationSurface.CommittedFrame.LeftPanel!.ScrollBar!;
+        PanelScrollbarDrag drag = Assert.IsType<PanelScrollbarDrag>(services.Session.Ui.PanelScrollbarDrag);
+        Assert.NotEqual(before.Bounds, after.Bounds);
+        Assert.Equal(after.Bounds, drag.DragState.Bounds);
+        Assert.Equal(after.TotalItems, drag.DragState.TotalItems);
+        Assert.Equal(after.ViewportItems, drag.DragState.ViewportItems);
+
+        int expectedOffset = ScrollBarInteraction.FirstVisibleIndexForThumbY(
+            after.Bounds,
+            after.ToScrollState(),
+            after.Bounds.Bottom - 1,
+            drag.DragState.PointerOffsetInThumb);
+        services.Composition.DispatchInput(new MouseConsoleInputEvent(
+            0, after.Bounds.Bottom - 1, MouseButton.Left, MouseEventKind.Move, MouseKeyModifiers.None));
+        Assert.True(services.ApplicationSurface.TryTakeInput(out var move));
+        Assert.Equal(ApplicationTargetIds.LeftPanelScrollbar, move.Target);
+        Assert.Equal(UiInputRouteKind.CapturedTarget, move.RouteKind);
+        services.Inner.ApplicationInputDispatcher.Handle(move);
+        Assert.Equal(expectedOffset, services.Session.Panels.Left.ScrollOffset);
+    }
+
+    [Theory]
+    [InlineData(ScrollbarTargetRemoval.Hidden)]
+    [InlineData(ScrollbarTargetRemoval.NotScrollable)]
+    [InlineData(ScrollbarTargetRemoval.QuickViewPassiveSide)]
+    public void PanelScrollbarDrag_CommittedTargetRemovalClearsCaptureAndDrag(ScrollbarTargetRemoval removal)
+    {
+        var services = Services();
+        PanelSide side = removal == ScrollbarTargetRemoval.QuickViewPassiveSide ? PanelSide.Right : PanelSide.Left;
+        AddScrollableItems(side == PanelSide.Left ? services.Session.Panels.Left : services.Session.Panels.Right, 80);
+        services.Composition.Render();
+        StartScrollbarDrag(services, side);
+
+        switch (removal)
+        {
+            case ScrollbarTargetRemoval.Hidden:
+                services.Session.App.HiddenPanels = HiddenPanels.Left;
+                break;
+            case ScrollbarTargetRemoval.NotScrollable:
+                AddScrollableItems(services.Session.Panels.Left, 1);
+                break;
+            case ScrollbarTargetRemoval.QuickViewPassiveSide:
+                services.Session.Panels.ActiveSide = PanelSide.Left;
+                services.Session.App.QuickView = true;
+                break;
+        }
+
+        services.Composition.Render();
+
+        UiTargetId target = ApplicationTargetIds.PanelScrollbar(side);
+        Assert.DoesNotContain(services.ApplicationSurface.CommittedInteractionFrame.HitRegions, region => region.Target == target);
+        Assert.Null(services.Session.Ui.PanelScrollbarDrag);
+        services.Composition.DispatchInput(new MouseConsoleInputEvent(0, 0, MouseButton.Left, MouseEventKind.Move, MouseKeyModifiers.None));
+        Assert.True(services.ApplicationSurface.TryTakeInput(out var move));
+        Assert.NotEqual(UiInputRouteKind.CapturedTarget, move.RouteKind);
+        Assert.NotEqual(target, move.Target);
+        services.Inner.ApplicationInputDispatcher.Handle(move);
+    }
+
+    [Fact]
+    public void PanelScrollbarDrag_RejectedRenderKeepsCommittedGeometryUntilRetry()
+    {
+        var services = Services();
+        AddScrollableItems(services.Session.Panels.Left, 80);
+        services.Composition.Render();
+        StartLeftScrollbarDrag(services);
+
+        ApplicationUiFrame committedFrame = services.ApplicationSurface.CommittedFrame;
+        PanelScrollbarDrag committedDrag = Assert.IsType<PanelScrollbarDrag>(services.Session.Ui.PanelScrollbarDrag);
+        bool observedRejectedAttempt = false;
+        services.Driver.BeforeTrySetCursorPositionInViewport = driver =>
+        {
+            observedRejectedAttempt = true;
+            Assert.Same(committedFrame, services.ApplicationSurface.CommittedFrame);
+            Assert.Equal(committedDrag, services.Session.Ui.PanelScrollbarDrag);
+            driver.SetSize(100, 35);
+            driver.BeforeTrySetCursorPositionInViewport = null;
+        };
+
+        services.Composition.Render();
+
+        Assert.True(observedRejectedAttempt);
+        ApplicationScrollBarFrame retried = services.ApplicationSurface.CommittedFrame.LeftPanel!.ScrollBar!;
+        PanelScrollbarDrag drag = Assert.IsType<PanelScrollbarDrag>(services.Session.Ui.PanelScrollbarDrag);
+        Assert.Equal(retried.Bounds, drag.DragState.Bounds);
+        Assert.NotEqual(committedDrag.DragState.Bounds, drag.DragState.Bounds);
+    }
+
+    [Fact]
     public void FunctionKeyAndShortcutTargets_UseOnlyRenderedSlots()
     {
         var services = Services();
@@ -736,6 +836,30 @@ public sealed class ApplicationUiSurfaceTests
                 IsDirectory = false,
             });
         }
+    }
+
+    private static void StartLeftScrollbarDrag(TestServices services) =>
+        StartScrollbarDrag(services, PanelSide.Left);
+
+    private static void StartScrollbarDrag(TestServices services, PanelSide side)
+    {
+        ApplicationScrollBarFrame scrollbar = (side == PanelSide.Left
+            ? services.ApplicationSurface.CommittedFrame.LeftPanel
+            : services.ApplicationSurface.CommittedFrame.RightPanel)!.ScrollBar!;
+        var thumb = ScrollBarInteraction.CalculateThumb(scrollbar.Bounds, scrollbar.ToScrollState());
+        services.Composition.DispatchInput(new MouseConsoleInputEvent(
+            scrollbar.Bounds.X, thumb.ThumbY, MouseButton.Left, MouseEventKind.Down, MouseKeyModifiers.None));
+        Assert.True(services.ApplicationSurface.TryTakeInput(out var down));
+        Assert.Equal(ApplicationTargetIds.PanelScrollbar(side), down.Target);
+        services.Inner.ApplicationInputDispatcher.Handle(down);
+        Assert.NotNull(services.Session.Ui.PanelScrollbarDrag);
+    }
+
+    public enum ScrollbarTargetRemoval
+    {
+        Hidden,
+        NotScrollable,
+        QuickViewPassiveSide,
     }
 
     private static void DispatchTakeAndHandle(
