@@ -467,6 +467,149 @@ public sealed class Spec035FtpProviderTests : IDisposable
     }
 
     [Fact]
+    public void FtpConnectionDialog_CertificateReviewPreservesStateAndTrustsOnNextSubmit()
+    {
+        var driver = new FakeConsoleDriver(width: 100, height: 30);
+        var screen = new ScreenRenderer(driver);
+        driver.EnqueueKey(Key(ConsoleKey.F10));
+        driver.EnqueueKey(Key(ConsoleKey.Spacebar));
+        driver.EnqueueKey(Key(ConsoleKey.F10));
+
+        var candidates = new List<FtpConnectionDialogResult>();
+        var result = new FtpConnectionDialog(ModalTestHost.Create(screen)).Show(
+            new FtpConnectionDialogRequest(TestConnection() with
+            {
+                DisplayName = "certificate-review",
+                CredentialId = "ftp-review-credential",
+                Host = "ftp.example.test",
+                Port = 2121,
+                Username = "review-user",
+                RemoteRootPath = "/remote/root",
+                DataConnectionMode = FtpDataConnectionMode.Active,
+                UseDataConnectionTls = true,
+                ActiveModeLocalPortFrom = 50000,
+                ActiveModeLocalPortTo = 50010,
+            }, "review-password", true, true),
+            candidate =>
+            {
+                candidates.Add(candidate);
+                return candidates.Count == 1
+                    ? FtpConnectionDialogValidationResult.RequireCertificateTrust("AA:BB:CC")
+                    : FtpConnectionDialogValidationResult.Accepted();
+            });
+
+        Assert.NotNull(result);
+        Assert.Equal(2, candidates.Count);
+        Assert.Equal("certificate-review", result.Connection.DisplayName);
+        Assert.Equal("ftp.example.test", result.Connection.Host);
+        Assert.Equal(2121, result.Connection.Port);
+        Assert.Equal("review-user", result.Connection.Username);
+        Assert.Equal("review-password", result.Password);
+        Assert.Equal("/remote/root", result.Connection.RemoteRootPath);
+        Assert.Equal(FtpConnectionSecurityMode.ExplicitFtps, result.Connection.SecurityMode);
+        Assert.Equal(FtpDataConnectionMode.Active, result.Connection.DataConnectionMode);
+        Assert.True(result.Connection.UseDataConnectionTls);
+        Assert.Equal("AA:BB:CC", result.Connection.ExpectedTlsCertificateFingerprint);
+        Assert.Equal(50000, result.Connection.ActiveModeLocalPortFrom);
+        Assert.Equal(50010, result.Connection.ActiveModeLocalPortTo);
+        Assert.True(result.SaveConnection);
+        Assert.True(result.SavePassword);
+    }
+
+    [Fact]
+    public void FtpConnectionDialog_EndpointChangeClearsCertificateTrust()
+    {
+        var driver = new FakeConsoleDriver(width: 100, height: 30);
+        var screen = new ScreenRenderer(driver);
+        driver.EnqueueKey(Key(ConsoleKey.F10));
+        driver.EnqueueKey(Key(ConsoleKey.Spacebar));
+        for (int i = 0; i < 11; i++) driver.EnqueueKey(ShiftTab());
+        driver.EnqueueKey(ControlA());
+        EnqueueText(driver, "changed.example.test");
+        driver.EnqueueKey(Key(ConsoleKey.F10));
+
+        var candidates = new List<FtpConnectionDialogResult>();
+        var result = new FtpConnectionDialog(ModalTestHost.Create(screen)).Show(
+            new FtpConnectionDialogRequest(TestConnection() with { ExpectedTlsCertificateFingerprint = null }, "secret-password", true, true),
+            candidate =>
+            {
+                candidates.Add(candidate);
+                return candidates.Count == 1
+                    ? FtpConnectionDialogValidationResult.RequireCertificateTrust("AA:BB:CC")
+                    : FtpConnectionDialogValidationResult.Accepted();
+            });
+
+        Assert.NotNull(result);
+        Assert.Equal(2, candidates.Count);
+        Assert.Equal("changed.example.test", candidates[1].Connection.Host);
+        Assert.Null(candidates[1].Connection.ExpectedTlsCertificateFingerprint);
+        Assert.Null(result.Connection.ExpectedTlsCertificateFingerprint);
+    }
+
+    [Theory]
+    [InlineData("not-a-range")]
+    [InlineData("0-10")]
+    [InlineData("10-65536")]
+    [InlineData("20-10")]
+    public void FtpConnectionDialog_InvalidActivePortRangeKeepsDialogOpen(string invalidRange)
+    {
+        var driver = new FakeConsoleDriver(width: 100, height: 30);
+        var screen = new ScreenRenderer(driver);
+        for (int i = 0; i < 10; i++) driver.EnqueueKey(Key(ConsoleKey.Tab));
+        driver.EnqueueKey(Key(ConsoleKey.RightArrow));
+        driver.EnqueueKey(Key(ConsoleKey.RightArrow));
+        driver.EnqueueKey(Key(ConsoleKey.Tab));
+        driver.EnqueueKey(Key(ConsoleKey.Tab));
+        driver.EnqueueKey(ControlA());
+        EnqueueText(driver, invalidRange);
+        driver.EnqueueKey(Key(ConsoleKey.F10));
+        driver.EnqueueKey(Key(ConsoleKey.Escape));
+
+        int validationCalls = 0;
+        var result = new FtpConnectionDialog(ModalTestHost.Create(screen)).Show(
+            new FtpConnectionDialogRequest(TestConnection(), "secret-password", true, true),
+            _ =>
+            {
+                validationCalls++;
+                return FtpConnectionDialogValidationResult.Accepted();
+            });
+
+        Assert.Null(result);
+        Assert.Equal(0, validationCalls);
+    }
+
+    [Fact]
+    public void FtpConnectionDialog_MandatorySaveAlwaysReturnsSaveConnection()
+    {
+        var driver = new FakeConsoleDriver(width: 100, height: 30);
+        var screen = new ScreenRenderer(driver);
+        driver.EnqueueKey(Key(ConsoleKey.F10));
+
+        var result = new FtpConnectionDialog(ModalTestHost.Create(screen)).Show(
+            new FtpConnectionDialogRequest(TestConnection(), "secret-password", false, false),
+            _ => FtpConnectionDialogValidationResult.Accepted());
+
+        Assert.NotNull(result);
+        Assert.True(result.SaveConnection);
+        Assert.Equal("secret-password", result.Password);
+    }
+
+    [Fact]
+    public void FtpConnectionDialog_PasswordIsMaskedAndNeverAddedToHistory()
+    {
+        var driver = new FakeConsoleDriver(width: 100, height: 30);
+        var screen = new ScreenRenderer(driver);
+        driver.EnqueueKey(Key(ConsoleKey.Escape));
+
+        _ = new FtpConnectionDialog(ModalTestHost.Create(screen)).Show(
+            new FtpConnectionDialogRequest(TestConnection(), "unique-secret-password", true, true),
+            _ => FtpConnectionDialogValidationResult.Accepted());
+
+        Assert.DoesNotContain(driver.WriteRecords, r => r.Text.Contains("unique-secret-password", StringComparison.Ordinal));
+        Assert.DoesNotContain(driver.WriteRecords, r => r.Text.Contains("secret-password", StringComparison.Ordinal));
+    }
+
+    [Fact]
     public void CompactChoiceFormRow_PreservesChoiceKeyboardMouseAndCursorContract()
     {
         var choice = new ChoiceRow<string>(["Explicit FTPS", "Implicit FTPS"], static value => value, selectedIndex: 1);
@@ -631,6 +774,15 @@ public sealed class Spec035FtpProviderTests : IDisposable
 
     private static ConsoleKeyInfo Key(ConsoleKey key) =>
         new('\0', key, shift: false, alt: false, control: false);
+
+    private static ConsoleKeyInfo ControlA() =>
+        new('\u0001', ConsoleKey.A, shift: false, alt: false, control: true);
+
+    private static void EnqueueText(FakeConsoleDriver driver, string text)
+    {
+        foreach (char character in text)
+            driver.EnqueueKey(new ConsoleKeyInfo(character, ConsoleKey.NoName, false, false, false));
+    }
 
     private static ConsoleKeyInfo ShiftTab() =>
         new('\0', ConsoleKey.Tab, shift: true, alt: false, control: false);
