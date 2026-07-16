@@ -301,6 +301,81 @@ public sealed class Spec029SftpProviderTests : IDisposable
     }
 
     [Fact]
+    public void SftpConnectionDialog_ValidationErrorKeepsDialogOpenAndPreservesInput()
+    {
+        var driver = new FakeConsoleDriver(width: 100, height: 30);
+        var screen = new ScreenRenderer(driver);
+        driver.EnqueueKey(Key(ConsoleKey.Tab));
+        driver.EnqueueKey(new ConsoleKeyInfo('x', ConsoleKey.X, false, false, false));
+        driver.EnqueueKey(Key(ConsoleKey.F10));
+        driver.EnqueueKey(Key(ConsoleKey.F10));
+        var candidates = new List<SftpConnectionDialogResult>();
+
+        SftpConnectionDialogResult? result = new SftpConnectionDialog(ModalTestHost.Create(screen)).Show(
+            new SftpConnectionDialogRequest(TestConnection(), "secret-password", true, true),
+            candidate =>
+            {
+                candidates.Add(candidate);
+                return candidates.Count == 1 ? SftpConnectionDialogValidationResult.Error("invalid") : SftpConnectionDialogValidationResult.Accepted();
+            });
+
+        Assert.Equal(2, candidates.Count);
+        Assert.Equal("example.testx", candidates[0].Connection.Host);
+        Assert.Equal(candidates[0].Connection.Host, candidates[1].Connection.Host);
+        Assert.Equal("example.testx", result!.Connection.Host);
+    }
+
+    [Fact]
+    public void SftpConnectionDialog_HostKeyReviewRebuildPreservesTextState()
+    {
+        var driver = new FakeConsoleDriver(width: 100, height: 30);
+        var screen = new ScreenRenderer(driver);
+        driver.EnqueueKey(Key(ConsoleKey.Tab));
+        driver.EnqueueKey(new ConsoleKeyInfo('x', ConsoleKey.X, false, false, false));
+        driver.EnqueueKey(Key(ConsoleKey.F10));
+        driver.EnqueueKey(Key(ConsoleKey.Spacebar));
+        driver.EnqueueKey(Key(ConsoleKey.F10));
+
+        SftpConnectionDialogResult? result = new SftpConnectionDialog(ModalTestHost.Create(screen)).Show(
+            new SftpConnectionDialogRequest(TestConnection() with { ExpectedHostKeyFingerprint = null }, "secret-password", true, true),
+            candidate => candidate.Connection.ExpectedHostKeyFingerprint is null
+                ? SftpConnectionDialogValidationResult.RequireHostKeyTrust("AA:BB")
+                : SftpConnectionDialogValidationResult.Accepted());
+
+        Assert.NotNull(result);
+        Assert.Equal("example.testx", result.Connection.Host);
+        Assert.Equal("AA:BB", result.Connection.ExpectedHostKeyFingerprint);
+    }
+
+    [Fact]
+    public void SftpConnectionDialog_EndpointChangeDuringHostKeyReviewClearsFingerprintAndTrust()
+    {
+        var driver = new FakeConsoleDriver(width: 100, height: 30);
+        var screen = new ScreenRenderer(driver);
+        driver.EnqueueKey(Key(ConsoleKey.F10));
+        driver.EnqueueKey(Key(ConsoleKey.Spacebar));
+        driver.EnqueueKey(Key(ConsoleKey.Home));
+        driver.EnqueueKey(Key(ConsoleKey.Tab));
+        driver.EnqueueKey(new ConsoleKeyInfo('x', ConsoleKey.X, false, false, false));
+        driver.EnqueueKey(Key(ConsoleKey.F10));
+        var candidates = new List<SftpConnectionDialogResult>();
+
+        _ = new SftpConnectionDialog(ModalTestHost.Create(screen)).Show(
+            new SftpConnectionDialogRequest(TestConnection() with { ExpectedHostKeyFingerprint = null }, "secret-password", true, true),
+            candidate =>
+            {
+                candidates.Add(candidate);
+                return candidates.Count == 1
+                    ? SftpConnectionDialogValidationResult.RequireHostKeyTrust("AA:BB")
+                    : SftpConnectionDialogValidationResult.Accepted();
+            });
+
+        Assert.Equal(2, candidates.Count);
+        Assert.Null(candidates[0].Connection.ExpectedHostKeyFingerprint);
+        Assert.Null(candidates[1].Connection.ExpectedHostKeyFingerprint);
+    }
+
+    [Fact]
     public void SftpConnectionDialog_MouseClickFocusesTextField()
     {
         var driver = new FakeConsoleDriver(width: 100, height: 30);

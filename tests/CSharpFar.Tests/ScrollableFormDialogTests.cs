@@ -499,6 +499,40 @@ public sealed class ScrollableFormDialogTests
     }
 
     [Fact]
+    public void LabeledTextInputRow_MaskedInputHidesRenderedValueButPreservesBuffer()
+    {
+        var text = new CommandLineState();
+        text.SetText("secret");
+        var form = new ScrollableFormDialog([new LabeledTextInputRow("Password:", text, labelWidth: 0, inputWidth: 10, maskInput: true)]);
+        var driver = Render(form, visibleRows: 1);
+
+        Assert.DoesNotContain(driver.WriteRecords, record => record.Text.Contains("secret", StringComparison.Ordinal));
+        Assert.Contains(driver.WriteRecords, record => record.Text.Contains("******", StringComparison.Ordinal));
+        Assert.Equal(FormInputResultKind.ValueChanged, form.HandleKey(new ConsoleKeyInfo('x', ConsoleKey.X, false, false, false)).Kind);
+        Assert.Equal("secretx", text.Text);
+    }
+
+    [Fact]
+    public void LabeledTextInputRow_StatePreservesHistoryScrollbarDragAcrossRecreation()
+    {
+        var text = new CommandLineState();
+        var history = new SingleLineTextHistoryState();
+        for (int i = 0; i < 20; i++) history.Add("item-" + i);
+        Assert.True(history.OpenAll(5));
+        var state = new TextInputRowState();
+        var form = new ScrollableFormDialog([new LabeledTextInputRow("Value:", text, history, state, labelWidth: 0, inputWidth: 14)]);
+        Render(form, visibleRows: 1, screenHeight: 8);
+
+        form.HandleMouse(Mouse(13, 3, MouseButton.Left, MouseEventKind.Down));
+        Assert.NotNull(state.HistoryScrollbarDrag);
+        form.SetRows([new LabeledTextInputRow("Value:", text, history, state, labelWidth: 0, inputWidth: 14)]);
+        form.HandleMouse(Mouse(13, 5, MouseButton.Left, MouseEventKind.Move));
+        form.HandleMouse(Mouse(13, 5, MouseButton.Left, MouseEventKind.Up));
+
+        Assert.Null(state.HistoryScrollbarDrag);
+    }
+
+    [Fact]
     public void LabeledValueRow_IsReadOnlyDiagnosticTarget()
     {
         var row = new LabeledValueRow("Value:", () => "very-long-value") { Id = "value" };
