@@ -498,6 +498,108 @@ public sealed class ScrollableFormDialogTests
         Assert.Equal("a", text.Text);
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void TextRows_HaveCompactKeyboardParity(bool labeled)
+    {
+        var text = new CommandLineState();
+        var form = new ScrollableFormDialog([CreateTextRow(labeled, text)]);
+        Render(form, visibleRows: 1);
+
+        FormInputResult printable = form.HandleKey(new ConsoleKeyInfo('a', ConsoleKey.A, shift: false, alt: false, control: false));
+        int afterPrintableCursor = text.CursorPosition;
+        FormInputResult left = form.HandleKey(Key(ConsoleKey.LeftArrow));
+        string afterLeftText = text.Text;
+        form.HandleKey(Key(ConsoleKey.RightArrow));
+        FormInputResult backspace = form.HandleKey(Key(ConsoleKey.Backspace));
+        form.HandleKey(new ConsoleKeyInfo('b', ConsoleKey.B, shift: false, alt: false, control: false));
+        form.HandleKey(new ConsoleKeyInfo('c', ConsoleKey.C, shift: false, alt: false, control: false));
+        form.HandleKey(new ConsoleKeyInfo('\u0001', ConsoleKey.A, shift: false, alt: false, control: true));
+        FormInputResult replace = form.HandleKey(new ConsoleKeyInfo('z', ConsoleKey.Z, shift: false, alt: false, control: false));
+
+        Assert.Equal(FormInputResultKind.ValueChanged, printable.Kind);
+        Assert.Equal(1, afterPrintableCursor);
+        Assert.Equal(FormInputResultKind.Handled, left.Kind);
+        Assert.Equal("a", afterLeftText);
+        Assert.Equal(FormInputResultKind.ValueChanged, backspace.Kind);
+        Assert.Equal(FormInputResultKind.ValueChanged, replace.Kind);
+        Assert.Equal("z", text.Text);
+        Assert.Equal(1, text.CursorPosition);
+    }
+
+    [Theory]
+    [InlineData(false, ConsoleKey.DownArrow)]
+    [InlineData(true, ConsoleKey.DownArrow)]
+    [InlineData(false, ConsoleKey.UpArrow)]
+    [InlineData(true, ConsoleKey.UpArrow)]
+    public void TextRows_HistoryEnterHasPriorityOverSubmitOnEnter(bool labeled, ConsoleKey selectionKey)
+    {
+        var history = HistoryWithItems(3);
+        var text = new CommandLineState();
+        var row = CreateTextRow(labeled, text, history, submitOnEnter: true);
+        var form = new ScrollableFormDialog([row]);
+        var driver = new FakeConsoleDriver(20, 8);
+        var (host, layer) = CreateRoutedFormHostWithLayer(form, driver, visibleRows: 1);
+        host.Composition.Render();
+        int expectedIndex = selectionKey == ConsoleKey.DownArrow ? 1 : history.Matches.Count - 1;
+
+        host.Composition.DispatchInput(new KeyConsoleInputEvent(Key(selectionKey)));
+        UiInputResult enter = host.Composition.DispatchInput(new KeyConsoleInputEvent(Key(ConsoleKey.Enter)));
+
+        Assert.True(enter.Handled);
+        Assert.Equal(FormInputResultKind.ValueChanged, layer.LastRouteResult!.Value.FormResult.Kind);
+        Assert.Equal($"item-{expectedIndex:D2}", text.Text);
+        Assert.False(history.IsDropdownOpen);
+        Assert.False(FormDialogInput.ShouldImplicitlySubmit(
+            new UiRoutedInput<ScrollableFormFrame>(
+                new KeyConsoleInputEvent(Key(ConsoleKey.Enter)),
+                layer.CommittedFrame,
+                FormTargetIds.ForExplicitRow("pattern"),
+                UiInputRouteKind.FocusedTarget),
+            layer.LastRouteResult.Value.FormResult,
+            form));
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void TextRows_HistoryEscapeHasPriorityOverFormCancel(bool labeled)
+    {
+        var history = HistoryWithItems(3);
+        var row = CreateTextRow(labeled, new CommandLineState(), history, submitOnEnter: true);
+        var form = new ScrollableFormDialog([row]);
+        var driver = new FakeConsoleDriver(20, 8);
+        var (host, layer) = CreateRoutedFormHostWithLayer(form, driver, visibleRows: 1);
+        host.Composition.Render();
+
+        UiInputResult escape = host.Composition.DispatchInput(new KeyConsoleInputEvent(Key(ConsoleKey.Escape)));
+
+        Assert.True(escape.Handled);
+        Assert.False(history.IsDropdownOpen);
+        Assert.Equal(FormInputResultKind.Handled, layer.LastRouteResult!.Value.FormResult.Kind);
+        Assert.NotEqual(FormInputResultKind.Cancel, layer.LastRouteResult.Value.FormResult.Kind);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void TextRows_MouseClickUsesHorizontalViewportForCursorPosition(bool labeled)
+    {
+        var text = new CommandLineState();
+        text.SetText("abcdefghijklmnopqrstuvwxyz");
+        var row = CreateTextRow(labeled, text, width: 8);
+        var form = new ScrollableFormDialog([row]);
+        var driver = new FakeConsoleDriver(20, 5);
+        var (host, layer) = CreateRoutedFormHostWithLayer(form, driver, visibleRows: 1);
+        host.Composition.Render();
+        FormTargetFrame target = Assert.Single(layer.CommittedFrame.Targets, target => target.Kind == FormTargetKind.Row);
+
+        host.Composition.DispatchInput(Mouse(target.Bounds.X + 2, target.Bounds.Y));
+
+        Assert.Equal(21, text.CursorPosition);
+    }
+
     [Fact]
     public void LabeledTextInputRow_MaskedInputHidesRenderedValueButPreservesBuffer()
     {
@@ -548,18 +650,110 @@ public sealed class ScrollableFormDialogTests
     }
 
     [Fact]
+    public void LabeledValueRow_RendersLabelValueEmptyAndNullWithinBounds()
+    {
+        var longValue = new LabeledValueRow("Label:", () => "very-long-value", labelWidth: 7) { Id = "long" };
+        var emptyValue = new LabeledValueRow("Empty:", () => string.Empty, labelWidth: 7) { Id = "empty" };
+        var nullValue = new LabeledValueRow("Null:", () => null!, labelWidth: 7) { Id = "null" };
+        var form = new ScrollableFormDialog([longValue, emptyValue, nullValue]);
+        var driver = Render(form, visibleRows: 3);
+
+        Assert.Equal("Label: very-long-val", driver.GetRow(0));
+        Assert.Equal("Empty:              ", driver.GetRow(1));
+        Assert.Equal("Null:               ", driver.GetRow(2));
+        Assert.DoesNotContain(driver.WriteRecords, record => record.X + record.Text.Length > 20);
+    }
+
+    [Fact]
+    public void RoutedLabeledValueRow_ClickDoesNotStealFocusOrToggleNeighbor()
+    {
+        var value = new LabeledValueRow("Value:", () => "read-only") { Id = "value" };
+        var checkbox = new CheckBoxRow(new CheckBoxLine("check")) { Id = "check" };
+        var form = new ScrollableFormDialog([checkbox, value]);
+        var driver = new FakeConsoleDriver(20, 5);
+        var (host, layer) = CreateRoutedFormHostWithLayer(form, driver, visibleRows: 2);
+        host.Composition.Render();
+        Assert.True(form.TryFocus("check"));
+        host.Composition.Render();
+        (int cursorX, int cursorY) = (driver.CursorX, driver.CursorY);
+
+        UiInputResult click = host.Composition.DispatchInput(Mouse(2, 1));
+        host.Composition.Render();
+
+        Assert.False(click.Handled);
+        Assert.Equal("check", form.FocusedRowId);
+        Assert.NotEqual(FormTargetIds.ForExplicitRow("value"), layer.FocusScope.FocusedTarget);
+        Assert.False(checkbox.Value);
+        Assert.True(driver.CursorVisible);
+        Assert.Equal((cursorX, cursorY), (driver.CursorX, driver.CursorY));
+    }
+
+    [Fact]
     public void DisabledCheckBox_IsExcludedFromFocusHitAndInput()
     {
         var disabled = new CheckBoxRow(new CheckBoxLine("disabled")) { Id = "disabled", Enabled = false };
         var form = new ScrollableFormDialog([disabled, new CheckBoxRow(new CheckBoxLine("enabled")) { Id = "enabled" }]);
-        ScrollableFormFrame frame = RenderFrame(form, visibleRows: 2);
+        var driver = new FakeConsoleDriver(20, 5);
+        var screen = new ScreenRenderer(driver);
+        var layer = new TestFormLayer(screen, form, context => new FormRenderContext(context, new Rect(0, 0, 20, 2), FarDialogStyles.Border));
+        var host = UiTestHost.Create(screen, layer);
+        host.Composition.Render();
+        ScrollableFormFrame frame = layer.CommittedFrame;
         UiInteractionFrame interaction = form.BuildInteractionFrame(frame);
 
         Assert.Equal("enabled", form.FocusedRowId);
         Assert.DoesNotContain(interaction.Focus.Entries, entry => entry.Target == FormTargetIds.ForExplicitRow("disabled"));
         Assert.DoesNotContain(interaction.HitRegions, region => region.Target == FormTargetIds.ForExplicitRow("disabled"));
+        Assert.DoesNotContain(frame.Targets, target => target.Target == FormTargetIds.ForExplicitRow("disabled") && target.Cursor is not null);
         Assert.Equal(FormInputResultKind.NotHandled, disabled.HandleKey(Key(ConsoleKey.Spacebar), new FormRowInputContext(0, false)).Kind);
+        Assert.Equal(FormInputResultKind.NotHandled, disabled.HandleKey(Key(ConsoleKey.Enter), new FormRowInputContext(0, false)).Kind);
+        host.Composition.DispatchInput(Mouse(2, 0));
         Assert.False(disabled.Value);
+    }
+
+    [Fact]
+    public void ScrollableFormDialog_DisablingFocusedRowMovesFocusToEnabledTarget()
+    {
+        var first = new CheckBoxRow(new CheckBoxLine("first")) { Id = "first" };
+        var second = new CheckBoxRow(new CheckBoxLine("second")) { Id = "second" };
+        var form = new ScrollableFormDialog([first, second]);
+        var driver = new FakeConsoleDriver(20, 5);
+        var host = CreateRoutedFormHost(form, driver, visibleRows: 2);
+        host.Composition.Render();
+
+        Assert.True(form.TryFocus("first"));
+        first.Enabled = false;
+        host.Composition.Render();
+        host.Composition.DispatchInput(new KeyConsoleInputEvent(Key(ConsoleKey.Spacebar)));
+
+        Assert.NotEqual("first", form.FocusedRowId);
+        Assert.Equal("second", form.FocusedRowId);
+        Assert.True(second.Value);
+    }
+
+    [Fact]
+    public void ScrollableFormDialog_ReenabledRowReturnsToInteractionFrame()
+    {
+        var row = new CheckBoxRow(new CheckBoxLine("target")) { Id = "target", Enabled = false };
+        var other = new CheckBoxRow(new CheckBoxLine("other")) { Id = "other" };
+        var form = new ScrollableFormDialog([row, other]);
+        var driver = new FakeConsoleDriver(20, 5);
+        var (host, layer) = CreateRoutedFormHostWithLayer(form, driver, visibleRows: 2);
+        host.Composition.Render();
+
+        row.Enabled = true;
+        host.Composition.Render();
+        UiTargetId target = FormTargetIds.ForExplicitRow("target");
+
+        Assert.Contains(layer.CommittedInteractionFrame.Focus.Entries, entry => entry.Target == target);
+        Assert.Contains(layer.CommittedInteractionFrame.HitRegions, region => region.Target == target);
+        Assert.True(form.TryFocus("target"));
+        host.Composition.Render();
+        Assert.Contains(layer.CommittedFrame.Targets, frame => frame.Target == target && frame.Cursor is not null);
+        host.Composition.DispatchInput(new KeyConsoleInputEvent(Key(ConsoleKey.Spacebar)));
+        Assert.True(row.Value);
+        host.Composition.DispatchInput(Mouse(2, 0));
+        Assert.False(row.Value);
     }
 
     [Fact]
@@ -1096,11 +1290,17 @@ public sealed class ScrollableFormDialogTests
         FormTargetFrame scrollbar = Assert.Single(layer.CommittedFrame.Targets, target => target.Kind == FormTargetKind.HistoryScrollbar);
 
         host.Composition.DispatchInput(Mouse(scrollbar.Bounds.X, scrollbar.Bounds.Y + 1, MouseButton.Left, MouseEventKind.Down));
+        UiInputResult mouseDown = layer.LastRouteResult!.Value.UiResult;
         host.Composition.DispatchInput(Mouse(0, 9, MouseButton.Left, MouseEventKind.Move));
         host.Composition.DispatchInput(Mouse(0, 9, MouseButton.Left, MouseEventKind.Up));
+        int afterDrag = history.FirstVisibleIndex;
+        host.Composition.DispatchInput(Mouse(2, 2, MouseButton.Left, MouseEventKind.Move));
 
-        Assert.True(history.FirstVisibleIndex > 0);
+        Assert.Equal(UiMouseCaptureRequestKind.Capture, mouseDown.MouseCaptureRequest.Kind);
+        Assert.Equal(scrollbar.Target, mouseDown.MouseCaptureRequest.Target);
+        Assert.True(afterDrag > 0);
         Assert.Null(state.HistoryScrollbarDrag);
+        Assert.Equal(afterDrag, history.FirstVisibleIndex);
     }
 
     [Fact]
@@ -1264,15 +1464,31 @@ public sealed class ScrollableFormDialogTests
 
     private static UiTestHost CreateRoutedFormHost(ScrollableFormDialog form, FakeConsoleDriver driver, int visibleRows)
     {
+        return CreateRoutedFormHostWithLayer(form, driver, visibleRows).Host;
+    }
+
+    private static (UiTestHost Host, TestFormLayer Layer) CreateRoutedFormHostWithLayer(ScrollableFormDialog form, FakeConsoleDriver driver, int visibleRows)
+    {
         var screen = new ScreenRenderer(driver);
-        return UiTestHost.Create(screen, new TestFormLayer(
+        var layer = new TestFormLayer(
             screen,
             form,
             context => new FormRenderContext(
                 context,
                 new Rect(0, 0, 20, visibleRows),
-                FarDialogStyles.Border)));
+                FarDialogStyles.Border));
+        return (UiTestHost.Create(screen, layer), layer);
     }
+
+    private static IFormRow CreateTextRow(
+        bool labeled,
+        CommandLineState text,
+        SingleLineTextHistoryState? history = null,
+        int? width = null,
+        bool submitOnEnter = false) =>
+        labeled
+            ? new LabeledTextInputRow("Value:", text, history, labelWidth: 0, inputWidth: width) { Id = "pattern", SubmitOnEnter = submitOnEnter }
+            : new TextInputRow(text, history, width: width) { Id = "pattern", SubmitOnEnter = submitOnEnter };
 
     private sealed class TestFormLayer(
         ScreenRenderer screen,

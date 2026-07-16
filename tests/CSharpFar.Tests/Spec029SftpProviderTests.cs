@@ -501,6 +501,58 @@ public sealed class Spec029SftpProviderTests : IDisposable
     }
 
     [Fact]
+    public void SftpConnectionDialog_ResizePreservesInputAndContinuesInteraction()
+    {
+        var driver = new FakeConsoleDriver(width: 100, height: 30);
+        var screen = new ScreenRenderer(driver);
+        int readCount = 0;
+        bool cursorWasInHostInputAfterResize = false;
+        string cursorDiagnostic = string.Empty;
+        ConsoleInputEvent[] inputs =
+        [
+            new KeyConsoleInputEvent(Key(ConsoleKey.Tab)),
+            new KeyConsoleInputEvent(new ConsoleKeyInfo('\u0001', ConsoleKey.A, shift: false, alt: false, control: true)),
+            new KeyConsoleInputEvent(Printable('n')),
+            new KeyConsoleInputEvent(Printable('e')),
+            new KeyConsoleInputEvent(Printable('w')),
+            new ConsoleResizeInputEvent(),
+            new KeyConsoleInputEvent(Printable('-')),
+            new KeyConsoleInputEvent(Printable('h')),
+            new KeyConsoleInputEvent(Printable('o')),
+            new KeyConsoleInputEvent(Printable('s')),
+            new KeyConsoleInputEvent(Printable('t')),
+            new KeyConsoleInputEvent(Key(ConsoleKey.F10)),
+        ];
+        Action<FakeConsoleDriver>? beforeRead = null;
+        beforeRead = currentDriver =>
+        {
+            if (readCount == 5)
+                currentDriver.SetSize(80, 24);
+            if (readCount == 6)
+                cursorWasInHostInputAfterResize = IsCursorInsideInputForLabel(currentDriver, "Host:", out cursorDiagnostic);
+            currentDriver.EnqueueInput(inputs[readCount]);
+            readCount++;
+            if (readCount < inputs.Length)
+                currentDriver.BeforeReadInput = beforeRead;
+        };
+        driver.BeforeReadInput = beforeRead;
+        var candidates = new List<SftpConnectionDialogResult>();
+
+        SftpConnectionDialogResult? result = new SftpConnectionDialog(ModalTestHost.Create(screen)).Show(
+            new SftpConnectionDialogRequest(TestConnection(), "secret-password", SaveConnectionByDefault: true, AllowTemporaryConnection: true),
+            candidate =>
+            {
+                candidates.Add(candidate);
+                return SftpConnectionDialogValidationResult.Accepted();
+            });
+
+        Assert.NotNull(result);
+        Assert.Equal("new-host", result.Connection.Host);
+        Assert.Equal("new-host", Assert.Single(candidates).Connection.Host);
+        Assert.True(cursorWasInHostInputAfterResize, cursorDiagnostic);
+    }
+
+    [Fact]
     public void SftpConnectionManagerDialog_NewButtonSupportsMouseClick()
     {
         var driver = new FakeConsoleDriver(width: 100, height: 30);
@@ -606,8 +658,23 @@ public sealed class Spec029SftpProviderTests : IDisposable
     private static ConsoleKeyInfo ShiftTab() =>
         new('\0', ConsoleKey.Tab, shift: true, alt: false, control: false);
 
+    private static ConsoleKeyInfo Printable(char ch) =>
+        new(ch, ConsoleKey.NoName, shift: false, alt: false, control: false);
+
     private static MouseConsoleInputEvent LeftMouse(int x, int y) =>
         new(x, y, MouseButton.Left, MouseEventKind.Down, MouseKeyModifiers.None);
+
+    private static bool IsCursorInsideInputForLabel(FakeConsoleDriver driver, string label, out string diagnostic)
+    {
+        FakeConsoleDriver.WriteRecord labelRecord = driver.WriteRecords.Last(record =>
+            record.Text.Contains(label, StringComparison.Ordinal));
+        int inputX = labelRecord.X + 22;
+        diagnostic = $"cursor=({driver.CursorX},{driver.CursorY}) visible={driver.CursorVisible}; label=({labelRecord.X},{labelRecord.Y}) input=[{inputX},{inputX + 42})";
+        return driver.CursorVisible &&
+            driver.CursorY == labelRecord.Y &&
+            driver.CursorX >= inputX &&
+            driver.CursorX < inputX + 42;
+    }
 
     private sealed class MemoryPanelSource : IFilePanelSource
     {
