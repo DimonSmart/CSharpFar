@@ -623,6 +623,43 @@ public sealed class ApplicationUiSurfaceTests
     }
 
     [Fact]
+    public void CtrlO_DuringPanelScrollbarDrag_ClearsCaptureAndDrag()
+    {
+        var services = Services();
+        AddScrollableItems(services.Session.Panels.Left, 80);
+        services.Composition.Render();
+        StartLeftScrollbarDrag(services);
+
+        ApplicationScrollBarFrame scrollbar = services.ApplicationSurface.CommittedFrame.LeftPanel!.ScrollBar!;
+        services.Composition.DispatchInput(new MouseConsoleInputEvent(
+            scrollbar.Bounds.X,
+            scrollbar.Bounds.Bottom - 1,
+            MouseButton.Left,
+            MouseEventKind.Move,
+            MouseKeyModifiers.None));
+        Assert.True(services.ApplicationSurface.TryTakeInput(out var captured));
+        Assert.Equal(UiInputRouteKind.CapturedTarget, captured.RouteKind);
+        Assert.Equal(ApplicationTargetIds.LeftPanelScrollbar, captured.Target);
+
+        bool shouldRender = services.Inner.KeyboardInputRouter.Handle(
+            new ConsoleKeyInfo('\u000f', ConsoleKey.O, shift: false, alt: false, control: true));
+        if (shouldRender)
+            services.Composition.Render();
+
+        Assert.Equal(ApplicationWorkspaceMode.HiddenCommandLine, services.Session.App.WorkspaceMode);
+        Assert.DoesNotContain(
+            services.ApplicationSurface.CommittedInteractionFrame.HitRegions,
+            region => region.Target == ApplicationTargetIds.LeftPanelScrollbar);
+        Assert.Null(services.Session.Ui.PanelScrollbarDrag);
+
+        services.Composition.DispatchInput(new MouseConsoleInputEvent(
+            0, 0, MouseButton.Left, MouseEventKind.Move, MouseKeyModifiers.None));
+        Assert.True(services.ApplicationSurface.TryTakeInput(out var move));
+        Assert.NotEqual(UiInputRouteKind.CapturedTarget, move.RouteKind);
+        Assert.NotEqual(ApplicationTargetIds.LeftPanelScrollbar, move.Target);
+    }
+
+    [Fact]
     public void PanelScrollbarDrag_RejectedRenderKeepsCommittedGeometryUntilRetry()
     {
         var services = Services();

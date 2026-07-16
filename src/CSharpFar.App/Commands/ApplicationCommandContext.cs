@@ -32,7 +32,7 @@ internal sealed class ApplicationCommandContext
     private readonly PanelNavigationService _panelNavigation;
     private readonly PanelSearchResultsService _searchResults;
     private readonly PanelQuickSearchController _panelQuickSearch;
-    private readonly ApplicationWorkspaceModeController _panelVisibility;
+    private readonly ApplicationWorkspaceModeController _workspaceModeController;
     private readonly PanelFileViewerService _panelFileViewer;
     private readonly PanelFileOpener _panelFileOpener;
     private readonly NativeModuleCatalog _moduleCatalog;
@@ -71,7 +71,7 @@ internal sealed class ApplicationCommandContext
         PanelNavigationService panelNavigation,
         PanelSearchResultsService searchResults,
         PanelQuickSearchController panelQuickSearch,
-        ApplicationWorkspaceModeController panelVisibility,
+        ApplicationWorkspaceModeController workspaceModeController,
         PanelFileViewerService panelFileViewer,
         PanelFileOpener panelFileOpener,
         NativeModuleCatalog moduleCatalog,
@@ -108,7 +108,7 @@ internal sealed class ApplicationCommandContext
         _panelNavigation = panelNavigation;
         _searchResults = searchResults;
         _panelQuickSearch = panelQuickSearch;
-        _panelVisibility = panelVisibility;
+        _workspaceModeController = workspaceModeController;
         _panelFileViewer = panelFileViewer;
         _panelFileOpener = panelFileOpener;
         _moduleCatalog = moduleCatalog;
@@ -331,7 +331,7 @@ internal sealed class ApplicationCommandContext
     }
 
     public bool TogglePanels() =>
-        _panelVisibility.TogglePanels();
+        _workspaceModeController.TogglePanels();
 
     public void SwapPanels()
     {

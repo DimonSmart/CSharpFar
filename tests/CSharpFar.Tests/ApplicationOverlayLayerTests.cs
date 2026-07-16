@@ -55,6 +55,32 @@ public sealed class ApplicationOverlayLayerTests
     }
 
     [Fact]
+    public void CommandCompletion_HiddenCommandLine_DoesNotRenderOrPublishInput()
+    {
+        var services = Services();
+        var completion = services.Session.CommandLine.Completion;
+        completion.Visible = true;
+        completion.Matches.AddRange(["", "git status"]);
+        services.Session.App.WorkspaceMode = ApplicationWorkspaceMode.HiddenCommandLine;
+
+        services.Composition.Render();
+
+        var layer = services.Inner.CommandCompletionLayer;
+        Assert.False(layer.CommittedFrame.Visible);
+        Assert.Equal(UiLayerInputPolicy.None, layer.InputPolicy);
+        Assert.Same(UiInteractionFrame.Empty, layer.CommittedInteractionFrame);
+        Assert.Empty(layer.CommittedFrame.Items);
+        Assert.Null(layer.CommittedFrame.ScrollbarBounds);
+        Assert.True(completion.Visible);
+        Assert.Equal(["", "git status"], completion.Matches);
+
+        var input = Key(ConsoleKey.DownArrow);
+        Assert.True(services.Composition.DispatchInput(input).Handled);
+        Assert.True(services.ApplicationSurface.TryTakeInput(out var packet));
+        Assert.Same(input, packet.Input);
+    }
+
+    [Fact]
     public void CommandCompletion_ResizeRestoresCommittedVisibilityAndInputPolicy()
     {
         var services = Services(new FakeConsoleDriver(80, 3));

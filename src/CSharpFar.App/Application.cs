@@ -55,7 +55,7 @@ public sealed class Application
     private readonly PanelSortServiceFacade _panelSort;
     private readonly PanelNavigationService _panelNavigation;
     private readonly PanelWorkspaceController _panelWorkspace;
-    private readonly ApplicationWorkspaceModeController _panelVisibility;
+    private readonly ApplicationWorkspaceModeController _workspaceModeController;
     private readonly NativeModuleCatalog _moduleCatalog;
     private readonly ModulePanelOpener _modulePanelOpener;
     private readonly CommandHistoryNavigator _commandHistoryNavigator;
@@ -180,7 +180,7 @@ public sealed class Application
         _panelRefresh = services.PanelRefresh;
         _panelQuickSearch = services.PanelQuickSearch;
         _panelWorkspace = services.PanelWorkspace;
-        _panelVisibility = services.PanelVisibility;
+        _workspaceModeController = services.WorkspaceModeController;
         _panelFileViewer = services.PanelFileViewer;
         _panelFileOpener = services.PanelFileOpener;
         _moduleCatalog = services.ModuleCatalog;
@@ -348,7 +348,7 @@ public sealed class Application
     // ── Ctrl+O ────────────────────────────────────────────────────────────────
 
     private bool TogglePanels() =>
-        _panelVisibility.TogglePanels();
+        _workspaceModeController.TogglePanels();
 
     // ── key handling ──────────────────────────────────────────────────────────
 

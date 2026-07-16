@@ -24,12 +24,12 @@ internal sealed class ShellUnderlayService
         _underlay = _screen.Capture(new Rect(0, 0, viewport.Width, viewport.Height));
     }
 
-    public void ApplyLegacyConsoleScrollbackMode(bool hasVisiblePanels) =>
-        _screen.SetConsoleScrollbackEnabled(!hasVisiblePanels);
+    public void ApplyLegacyConsoleScrollbackMode(bool isPanelsMode) =>
+        _screen.SetConsoleScrollbackEnabled(!isPanelsMode);
 
-    public void RestoreForHiddenScreen(bool hasVisiblePanels)
+    public void RestoreForHiddenScreen(bool isPanelsMode)
     {
-        ApplyLegacyConsoleScrollbackMode(hasVisiblePanels);
+        ApplyLegacyConsoleScrollbackMode(isPanelsMode);
         _screen.SetRenderingOutputMode(false);
         RemoveHiddenCommandLineOverlay();
         RestoreOrClearVisibleArea();

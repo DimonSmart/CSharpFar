@@ -15,7 +15,7 @@ namespace CSharpFar.Tests;
 public sealed class TopMenuLayerTests
 {
     [Fact]
-    public void InputPolicy_TracksPanelVisibilityAndOpenMenuState()
+    public void InputPolicy_TracksWorkspaceModeAndOpenMenuState()
     {
         var fixture = Fixture.Create();
 

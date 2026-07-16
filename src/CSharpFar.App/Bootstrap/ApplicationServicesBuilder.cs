@@ -289,7 +289,7 @@ internal static class ApplicationServicesBuilder
             side => callbacks.GetPanelState(side),
             side => callbacks.SetActiveSide(side),
             quickView => callbacks.SetQuickView(quickView));
-        var panelVisibility = new ApplicationWorkspaceModeController(
+        var workspaceModeController = new ApplicationWorkspaceModeController(
             screen,
             session,
             panelQuickSearch,
@@ -321,7 +321,7 @@ internal static class ApplicationServicesBuilder
             searchResults,
             panelQuickSearch,
             panelWorkspace,
-            panelVisibility,
+            workspaceModeController,
             panelFileViewer,
             panelFileOpener,
             moduleCatalog,
@@ -370,7 +370,7 @@ internal static class ApplicationServicesBuilder
             PanelRefresh = panelRefresh,
             PanelQuickSearch = panelQuickSearch,
             PanelWorkspace = panelWorkspace,
-            PanelVisibility = panelVisibility,
+            WorkspaceModeController = workspaceModeController,
             PanelFileViewer = panelFileViewer,
             PanelFileOpener = panelFileOpener,
             ModuleCatalog = moduleCatalog,

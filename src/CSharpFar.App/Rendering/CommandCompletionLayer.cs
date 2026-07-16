@@ -3,6 +3,7 @@ using CSharpFar.App.Input;
 using CSharpFar.Console.Input;
 using CSharpFar.Console.Models;
 using CSharpFar.Core.Models;
+using CSharpFar.App.State;
 using CSharpFar.Ui;
 
 namespace CSharpFar.App.Rendering;
@@ -66,6 +67,9 @@ internal sealed class CommandCompletionLayer : UiLayer<CommandCompletionFrame>
             completion.FirstVisibleIndex,
             completion.SelectedIndex,
             completion.Matches.Count);
+
+        if (_context.App.WorkspaceMode != ApplicationWorkspaceMode.Panels)
+            return empty;
 
         int visibleRows = VisibleRows(context.Size);
         if (!completion.Visible || completion.Matches.Count == 0 || visibleRows <= 0)

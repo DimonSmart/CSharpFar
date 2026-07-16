@@ -2,6 +2,7 @@ using System.Reflection;
 using CSharpFar.App;
 using CSharpFar.App.Input;
 using CSharpFar.App.Rendering;
+using CSharpFar.App.State;
 using CSharpFar.Console;
 using CSharpFar.Console.Input;
 using CSharpFar.Console.Models;
@@ -821,7 +822,7 @@ public sealed class ApplicationNavigationTests : IDisposable
 
         Render(app);
         foreach (string key in keys.Split(' ', StringSplitOptions.RemoveEmptyEntries))
-            HandleKeyAndRender(app, PanelVisibilityKey(key));
+            HandleKeyAndRender(app, WorkspaceModeKey(key));
 
         AssertVisiblePanels(driver, expectedPanels);
     }
@@ -851,6 +852,24 @@ public sealed class ApplicationNavigationTests : IDisposable
 
         HandleKeyAndRender(app, Key(ConsoleKey.Tab));
 
+        Assert.Equal(PanelSide.Right, GetActiveSide(app));
+    }
+
+    [Fact]
+    public void HandleKey_CtrlOHideShow_PreservesActiveSide()
+    {
+        var fs = new FakeFileSystemService();
+        fs.AddDirectory(_tempDir);
+        var app = CreateApp(fs, new FakeConsoleDriver(width: 80, height: 12), _tempDir);
+
+        HandleKeyAndRender(app, Key(ConsoleKey.Tab));
+        HandleKeyAndRender(app, Key(ConsoleKey.O, keyChar: '\u000f', control: true));
+
+        Assert.Equal(ApplicationWorkspaceMode.HiddenCommandLine, app.Session.App.WorkspaceMode);
+
+        HandleKeyAndRender(app, Key(ConsoleKey.O, keyChar: '\u000f', control: true));
+
+        Assert.Equal(ApplicationWorkspaceMode.Panels, app.Session.App.WorkspaceMode);
         Assert.Equal(PanelSide.Right, GetActiveSide(app));
     }
 
@@ -1354,12 +1373,12 @@ public sealed class ApplicationNavigationTests : IDisposable
         bool shift = false) =>
         new(keyChar, consoleKey, shift, alt: false, control);
 
-    private static ConsoleKeyInfo PanelVisibilityKey(string key) => key switch
+    private static ConsoleKeyInfo WorkspaceModeKey(string key) => key switch
     {
         "CtrlF1" => Key(ConsoleKey.F1, control: true),
         "CtrlF2" => Key(ConsoleKey.F2, control: true),
         "CtrlO" => Key(ConsoleKey.O, keyChar: '\u000f', control: true),
-        _ => throw new ArgumentOutOfRangeException(nameof(key), key, "Unknown panel visibility key."),
+        _ => throw new ArgumentOutOfRangeException(nameof(key), key, "Unknown workspace mode key."),
     };
 
     private static FilePanelState GetLeftPanel(Application app)
