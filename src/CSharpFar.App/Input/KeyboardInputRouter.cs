@@ -25,7 +25,7 @@ internal sealed class KeyboardInputRouter
         if (TryHandleFarCommandLineShortcut(key))
             return true;
 
-        if (!_context.HasVisiblePanels())
+        if (!_context.IsPanelsMode())
             return HandleHiddenCommandLineKey(key);
 
         if (TryHandleDirectoryShortcut(key))
@@ -183,11 +183,7 @@ internal sealed class KeyboardInputRouter
                 return true;
 
             case ConsoleKey.Tab:
-                var otherSide = OtherPanelSide(_context.ActiveSide());
-                if (_context.IsPanelVisible(otherSide))
-                    _context.SetActiveSide(otherSide);
-                else
-                    _context.EnsureActivePanelVisible();
+                _context.SetActiveSide(OtherPanelSide(_context.ActiveSide()));
                 return true;
 
             case ConsoleKey.UpArrow:
@@ -336,19 +332,6 @@ internal sealed class KeyboardInputRouter
         return true;
     }
 
-    private bool TryHandlePanelVisibilityFunctionKey(ConsoleKeyInfo key, out bool shouldRender)
-    {
-        shouldRender = false;
-
-        if (!KeyboardShortcutClassifier.HasOnlyControlModifier(key) ||
-            key.Key is not (ConsoleKey.F1 or ConsoleKey.F2))
-        {
-            return false;
-        }
-
-        return TryHandleFunctionKey(key, out shouldRender);
-    }
-
     private bool TryHandleFarCommandLineShortcut(ConsoleKeyInfo key)
     {
         if (KeyboardShortcutClassifier.IsPlainControlKey(key, ConsoleKey.E, '\u0005'))
@@ -405,7 +388,7 @@ internal sealed class KeyboardInputRouter
     {
         _context.CommandLine.InsertText(QuoteCommandLineInsertion(text));
 
-        if (_context.HasVisiblePanels())
+        if (_context.IsPanelsMode())
             _context.OnVisibleCommandLineTextEdited();
         else
             _context.ResetCommandHistoryNavigation();
@@ -413,9 +396,6 @@ internal sealed class KeyboardInputRouter
 
     private bool HandleHiddenCommandLineKey(ConsoleKeyInfo key)
     {
-        if (TryHandlePanelVisibilityFunctionKey(key, out bool shouldRender))
-            return shouldRender;
-
         if (KeyboardShortcutClassifier.IsPlainControlKey(key, ConsoleKey.A, '\u0001'))
         {
             _context.CommandLine.SelectAll();

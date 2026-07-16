@@ -433,10 +433,10 @@ public sealed class ApplicationOverlayLayerTests
     }
 
     [Fact]
-    public void TopMenu_HiddenPanelsDoesNotInterceptF9OrTopRowMouse()
+    public void TopMenu_HiddenCommandLineDoesNotInterceptF9OrTopRowMouse()
     {
         var services = Services();
-        services.Session.App.HiddenPanels = HiddenPanels.Both;
+        services.Session.App.WorkspaceMode = ApplicationWorkspaceMode.HiddenCommandLine;
         services.Composition.Render();
 
         services.Composition.DispatchInput(Key(ConsoleKey.F9));

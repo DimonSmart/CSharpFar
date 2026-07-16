@@ -55,7 +55,7 @@ public sealed class Application
     private readonly PanelSortServiceFacade _panelSort;
     private readonly PanelNavigationService _panelNavigation;
     private readonly PanelWorkspaceController _panelWorkspace;
-    private readonly PanelVisibilityController _panelVisibility;
+    private readonly ApplicationWorkspaceModeController _panelVisibility;
     private readonly NativeModuleCatalog _moduleCatalog;
     private readonly ModulePanelOpener _modulePanelOpener;
     private readonly CommandHistoryNavigator _commandHistoryNavigator;
@@ -209,7 +209,6 @@ public sealed class Application
         context.OnVisibleCommandLineTextEdited = OnVisibleCommandLineTextEdited;
         context.CloseSearchResultsPanel = CloseSearchResultsPanel;
         context.ExecuteCommand = ExecuteCommand;
-        context.EnsureActivePanelVisible = _panelWorkspace.EnsureActivePanelVisible;
         context.BrowseCommandHistory = BrowseCommandHistory;
         context.HideCommandCompletion = HideCommandCompletion;
         context.ResetCommandHistoryNavigation = ResetCommandHistoryNavigation;
@@ -246,8 +245,7 @@ public sealed class Application
         callbacks.SafeRefresh = SafeRefresh;
         callbacks.ClosePanelQuickSearchForState = ClosePanelQuickSearchForState;
         callbacks.ClosePanelQuickSearchForPanel = ClosePanelQuickSearchForPanel;
-        callbacks.HasVisiblePanels = () => _panelWorkspace.HasVisiblePanels;
-        callbacks.IsPanelVisible = _panelWorkspace.IsPanelVisible;
+        callbacks.IsPanelsMode = () => _panelWorkspace.IsPanelsMode;
         callbacks.ViewPanelFile = ViewPanelFile;
         callbacks.ExecuteInCurrentConsole = _externalConsoleCommandRunner.Execute;
         callbacks.CanExecuteFunctionKeyCommand = CanExecuteFunctionKeyCommand;
@@ -294,7 +292,7 @@ public sealed class Application
 
     private ApplicationRuntimeRenderRequest HandleRuntimeModifierInput(ConsoleModifiers modifiers)
     {
-        if (!_panelWorkspace.HasVisiblePanels)
+        if (!_panelWorkspace.IsPanelsMode)
             return ApplicationRuntimeRenderRequest.None;
 
         return new(SetFunctionKeyLayer(modifiers));
@@ -352,9 +350,6 @@ public sealed class Application
     private bool TogglePanels() =>
         _panelVisibility.TogglePanels();
 
-    internal bool TogglePanelVisibility(PanelSide side) =>
-        _panelVisibility.TogglePanel(side);
-
     // ── key handling ──────────────────────────────────────────────────────────
 
     internal FilePanelState ActiveState => _panelWorkspace.ActiveState;
@@ -384,7 +379,7 @@ public sealed class Application
             return true;
 
         _cmdLine.InsertText(singleLine);
-        if (_panelWorkspace.HasVisiblePanels)
+        if (_panelWorkspace.IsPanelsMode)
             OnVisibleCommandLineTextEdited();
         else
             ResetCommandHistoryNavigation();
@@ -417,7 +412,7 @@ public sealed class Application
     {
         _commandCompletionController.Refresh(
             _cmdLine,
-            _panelWorkspace.HasVisiblePanels,
+            _panelWorkspace.IsPanelsMode,
             HasCommandCompletionRows());
     }
 

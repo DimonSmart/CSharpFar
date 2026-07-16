@@ -31,7 +31,7 @@ Git history is the source for deleted or previous document versions.
 | 0021.spec-scrollbar-mouse-interaction.md | spec | Scrollbar mouse interaction |  |  |
 | 0022.spec-hidden-console-history-scroll.md | spec | Hidden console history scroll |  |  |
 | 0027.spec-far-command-line-shortcuts.md | spec | Far command-line shortcuts |  |  |
-| 0028.spec-panel-visibility-modes.md | spec | Panel visibility modes |  |  |
+| 0028.spec-panel-visibility-modes.md | spec | Panel and hidden command-line workspace modes |  |  |
 | 0029.spec-sftp-file-system-provider.md | spec | SFTP file system provider |  |  |
 | 0030.spec-panel-source-error-retry.md | spec | Panel source error retry |  |  |
 | 0032.spec-unified-file-viewer.md | spec | Unified File Viewer |  |  |

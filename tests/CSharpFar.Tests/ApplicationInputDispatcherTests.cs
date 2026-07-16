@@ -44,7 +44,7 @@ public sealed class ApplicationInputDispatcherTests
             new ApplicationDirectoryShortcutBarInputHandler(context));
         var frame = new ApplicationUiFrame(
             new ConsoleViewport(0, 0, 120, 25),
-            ApplicationSurfaceMode.Panels,
+            ApplicationWorkspaceMode.Panels,
             new ApplicationCommandLineFrame(new Rect(0, 24, 120, 1), 8, 0, commandLine.Text.Length, new UiCursorPlacement(8, 24)),
             null,
             null,
@@ -560,7 +560,7 @@ public sealed class ApplicationInputDispatcherTests
     private static ApplicationUiFrame Frame(CommandLineState commandLine) =>
         new(
             new ConsoleViewport(0, 0, 120, 25),
-            ApplicationSurfaceMode.Panels,
+            ApplicationWorkspaceMode.Panels,
             new ApplicationCommandLineFrame(
                 new Rect(0, 24, 120, 1),
                 PromptLength: 8,

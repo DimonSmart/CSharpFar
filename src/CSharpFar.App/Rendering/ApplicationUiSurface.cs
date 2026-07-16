@@ -7,15 +7,9 @@ using CSharpFar.Ui;
 
 namespace CSharpFar.App.Rendering;
 
-internal enum ApplicationSurfaceMode
-{
-    Panels,
-    HiddenCommandLine,
-}
-
 internal sealed record ApplicationUiFrame(
     ConsoleViewport Viewport,
-    ApplicationSurfaceMode Mode,
+    ApplicationWorkspaceMode Mode,
     ApplicationCommandLineFrame CommandLine,
     ApplicationPanelFrame? LeftPanel,
     ApplicationPanelFrame? RightPanel,
@@ -151,7 +145,7 @@ internal sealed class ApplicationUiSurface : UiLayer<ApplicationUiFrame>, IUiSur
 
     public IDisposable BeginFrame(UiRenderRequest request)
     {
-        _hidden = !_context.HasVisiblePanels();
+        _hidden = _context.App.WorkspaceMode == ApplicationWorkspaceMode.HiddenCommandLine;
         _context.TerminalSurface.ApplyMode();
         _context.Screen.SetRenderingOutputMode(true);
 
@@ -247,7 +241,7 @@ internal sealed class ApplicationUiSurface : UiLayer<ApplicationUiFrame>, IUiSur
         if (IsVisible(frame.CommandLine.Bounds, frame.Viewport))
             hitRegions.Add(new UiHitRegion(ApplicationTargetIds.CommandLine, frame.CommandLine.Bounds));
 
-        if (frame.Mode == ApplicationSurfaceMode.Panels)
+        if (frame.Mode == ApplicationWorkspaceMode.Panels)
         {
             AddPanelRegions(hitRegions, frame.LeftPanel, frame.Viewport);
             AddPanelRegions(hitRegions, frame.RightPanel, frame.Viewport);

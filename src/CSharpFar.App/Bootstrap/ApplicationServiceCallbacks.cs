@@ -31,8 +31,7 @@ internal sealed class ApplicationServiceCallbacks
         _ => throw Missing();
     public Action<PanelSide> ClosePanelQuickSearchForPanel { get; set; } =
         _ => throw Missing();
-    public Func<bool> HasVisiblePanels { get; set; } = () => throw Missing();
-    public Func<PanelSide, bool> IsPanelVisible { get; set; } = _ => throw Missing();
+    public Func<bool> IsPanelsMode { get; set; } = () => throw Missing();
     public Action<FilePanelState, FilePanelItem> ViewPanelFile { get; set; } =
         (_, _) => throw Missing();
     public Action<string, string, Action> ExecuteInCurrentConsole { get; set; } =

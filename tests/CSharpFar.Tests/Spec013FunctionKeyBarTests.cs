@@ -53,7 +53,7 @@ public sealed class Spec013FunctionKeyBarTests : IDisposable
     }
 
     [Fact]
-    public void Render_ControlLayerShowsPanelVisibilityCommands()
+    public void Render_ControlLayerStartsWithSortCommands()
     {
         var fs = CreateFileSystem();
         var driver = new FakeConsoleDriver(width: 100, height: 14);
@@ -63,8 +63,10 @@ public sealed class Spec013FunctionKeyBarTests : IDisposable
         Render(app);
 
         string row = driver.GetRow(13);
-        Assert.Contains("1LeftPn", row);
-        Assert.Contains("2RightPn", row);
+        Assert.DoesNotContain("LeftPn", row);
+        Assert.DoesNotContain("RightPn", row);
+        Assert.Contains("3SortNm", row);
+        Assert.Contains("4SortExt", row);
     }
 
     [Fact]

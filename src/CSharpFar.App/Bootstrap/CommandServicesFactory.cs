@@ -51,7 +51,7 @@ internal static class CommandServicesFactory
         PanelSearchResultsService searchResults,
         PanelQuickSearchController panelQuickSearch,
         PanelWorkspaceController panelWorkspace,
-        PanelVisibilityController panelVisibility,
+        ApplicationWorkspaceModeController panelVisibility,
         PanelFileViewerService panelFileViewer,
         PanelFileOpener panelFileOpener,
         NativeModuleCatalog moduleCatalog,

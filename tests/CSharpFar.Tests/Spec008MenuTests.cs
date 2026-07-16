@@ -683,7 +683,7 @@ public sealed class Spec008MenuProviderAndCommandTests : IDisposable
 
         Assert.Equal("Alt+F7", provider.GetPrimaryShortcutText(FunctionKeyCommandIds.Search));
         Assert.Equal("F3", provider.GetPrimaryShortcutText(FunctionKeyCommandIds.View));
-        Assert.Equal("Ctrl+F1", provider.GetPrimaryShortcutText(FunctionKeyCommandIds.ToggleLeftPanel));
+        Assert.Equal("Ctrl+F3", provider.GetPrimaryShortcutText(FunctionKeyCommandIds.SortByName));
     }
 
     [Fact]

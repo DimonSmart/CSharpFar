@@ -32,7 +32,7 @@ internal sealed class ApplicationCommandContext
     private readonly PanelNavigationService _panelNavigation;
     private readonly PanelSearchResultsService _searchResults;
     private readonly PanelQuickSearchController _panelQuickSearch;
-    private readonly PanelVisibilityController _panelVisibility;
+    private readonly ApplicationWorkspaceModeController _panelVisibility;
     private readonly PanelFileViewerService _panelFileViewer;
     private readonly PanelFileOpener _panelFileOpener;
     private readonly NativeModuleCatalog _moduleCatalog;
@@ -71,7 +71,7 @@ internal sealed class ApplicationCommandContext
         PanelNavigationService panelNavigation,
         PanelSearchResultsService searchResults,
         PanelQuickSearchController panelQuickSearch,
-        PanelVisibilityController panelVisibility,
+        ApplicationWorkspaceModeController panelVisibility,
         PanelFileViewerService panelFileViewer,
         PanelFileOpener panelFileOpener,
         NativeModuleCatalog moduleCatalog,
@@ -213,7 +213,7 @@ internal sealed class ApplicationCommandContext
 
     public bool CanSaveSettings => _saveSettings is not null;
 
-    public bool HasVisiblePanels => _panelWorkspace.HasVisiblePanels;
+    public bool IsPanelsMode => _panelWorkspace.IsPanelsMode;
 
     public TerminalSurfaceDiagnostics GetTerminalDiagnostics() =>
         _terminalSurface.GetDiagnostics();
@@ -329,9 +329,6 @@ internal sealed class ApplicationCommandContext
         HideCommandCompletion(temporarily: false);
         ResetCommandHistoryNavigation();
     }
-
-    public bool TogglePanelVisibility(PanelSide side) =>
-        _panelVisibility.TogglePanel(side);
 
     public bool TogglePanels() =>
         _panelVisibility.TogglePanels();

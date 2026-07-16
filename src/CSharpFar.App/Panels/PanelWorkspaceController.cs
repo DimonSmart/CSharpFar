@@ -38,14 +38,8 @@ internal sealed class PanelWorkspaceController
     public FilePanelState PassiveState =>
         ActiveSide == PanelSide.Left ? _session.Panels.Right : _session.Panels.Left;
 
-    public bool HasHiddenPanels =>
-        _session.App.HiddenPanels != HiddenPanels.None;
-
-    public bool HasVisiblePanels =>
-        _session.App.HiddenPanels != HiddenPanels.Both;
-
-    public bool IsPanelVisible(PanelSide side) =>
-        (_session.App.HiddenPanels & HiddenPanelFlag(side)) == 0;
+    public bool IsPanelsMode =>
+        _session.App.WorkspaceMode == ApplicationWorkspaceMode.Panels;
 
     public FilePanelState GetPanelState(PanelSide side) =>
         side == PanelSide.Left ? _session.Panels.Left : _session.Panels.Right;
@@ -78,16 +72,6 @@ internal sealed class PanelWorkspaceController
         return (rowsPerColumn, 2, visibleRows);
     }
 
-    public void EnsureActivePanelVisible()
-    {
-        if (IsPanelVisible(ActiveSide))
-            return;
-
-        var otherSide = OtherPanelSide(ActiveSide);
-        if (IsPanelVisible(otherSide))
-            SetActiveSide(otherSide);
-    }
-
     public void SetActiveSide(PanelSide side)
     {
         if (_session.Panels.ActiveSide == side)
@@ -96,9 +80,6 @@ internal sealed class PanelWorkspaceController
         _panelQuickSearch.Close();
         _session.Panels.ActiveSide = side;
     }
-
-    public static HiddenPanels HiddenPanelFlag(PanelSide side) =>
-        side == PanelSide.Left ? HiddenPanels.Left : HiddenPanels.Right;
 
     private PanelViewMode ActiveViewMode =>
         ActiveSide == PanelSide.Left
@@ -114,7 +95,4 @@ internal sealed class PanelWorkspaceController
             ? BriefTwoColumnsPanelRenderer.VisibleRows(bounds, _panelOptions())
             : PanelRenderer.VisibleRows(bounds, _panelOptions());
     }
-
-    private static PanelSide OtherPanelSide(PanelSide side) =>
-        side == PanelSide.Left ? PanelSide.Right : PanelSide.Left;
 }

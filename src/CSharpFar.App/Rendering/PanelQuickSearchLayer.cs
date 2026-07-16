@@ -1,4 +1,5 @@
 using CSharpFar.App.Panels;
+using CSharpFar.App.State;
 using CSharpFar.Console.Input;
 using CSharpFar.Console.Models;
 using CSharpFar.Core.Models;
@@ -39,7 +40,7 @@ internal sealed class PanelQuickSearchLayer : UiLayer<PanelQuickSearchFrame>
     protected override PanelQuickSearchFrame RenderFrame(UiRenderContext context)
     {
         if (_context.PanelQuickSearch.State is not { } quickSearch ||
-            !_context.IsPanelVisible(quickSearch.PanelSide))
+            _context.App.WorkspaceMode != ApplicationWorkspaceMode.Panels)
         {
             return Hidden(context.Viewport);
         }

@@ -10,7 +10,7 @@ internal sealed class NavigateToDirectoryShortcutCommand : IApplicationCommand
     public string CommandId => DirectoryShortcutCommandIds.Navigate;
 
     public bool CanExecute(ApplicationCommandContext context, object? args = null) =>
-        context.HasVisiblePanels &&
+        context.IsPanelsMode &&
         args is NavigateToDirectoryShortcutArgs shortcutArgs &&
         DirectoryShortcutNormalizer.IsValidNumber(shortcutArgs.Number);
 

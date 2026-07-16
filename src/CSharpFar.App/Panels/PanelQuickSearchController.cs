@@ -7,23 +7,20 @@ internal sealed class PanelQuickSearchController
 {
     private readonly PanelController _panelController;
     private readonly Func<PanelSide> _activeSide;
-    private readonly Func<bool> _hasVisiblePanels;
-    private readonly Func<PanelSide, bool> _isPanelVisible;
+    private readonly Func<bool> _isPanelsMode;
     private readonly Func<PanelSide, FilePanelState> _getPanelState;
     private readonly Func<PanelSide, int> _visibleRows;
 
     public PanelQuickSearchController(
         PanelController panelController,
         Func<PanelSide> activeSide,
-        Func<bool> hasVisiblePanels,
-        Func<PanelSide, bool> isPanelVisible,
+        Func<bool> isPanelsMode,
         Func<PanelSide, FilePanelState> getPanelState,
         Func<PanelSide, int> visibleRows)
     {
         _panelController = panelController;
         _activeSide = activeSide;
-        _hasVisiblePanels = hasVisiblePanels;
-        _isPanelVisible = isPanelVisible;
+        _isPanelsMode = isPanelsMode;
         _getPanelState = getPanelState;
         _visibleRows = visibleRows;
     }
@@ -46,8 +43,7 @@ internal sealed class PanelQuickSearchController
         if (State is not { } quickSearch)
             return PanelQuickSearchKeyResult.NotHandled;
 
-        if (!_hasVisiblePanels() ||
-            !_isPanelVisible(quickSearch.PanelSide) ||
+        if (!_isPanelsMode() ||
             quickSearch.PanelSide != _activeSide())
         {
             Close();
@@ -96,8 +92,7 @@ internal sealed class PanelQuickSearchController
     {
         ch = default;
         var activeSide = _activeSide();
-        if (!_hasVisiblePanels() ||
-            !_isPanelVisible(activeSide) ||
+        if (!_isPanelsMode() ||
             (key.Modifiers & ConsoleModifiers.Alt) == 0 ||
             (key.Modifiers & ConsoleModifiers.Control) != 0)
         {

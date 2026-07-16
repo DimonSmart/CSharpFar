@@ -32,7 +32,7 @@ public sealed class ApplicationUiSurfaceTests
     }
 
     [Fact]
-    public void Render_CommitsApplicationFrameForVisibleAndHiddenPanels()
+    public void Render_CommitsApplicationFrameForVisibleAndHiddenCommandLine()
     {
         var services = Services();
 
@@ -40,16 +40,16 @@ public sealed class ApplicationUiSurfaceTests
         services.Composition.DispatchInput(Key(ConsoleKey.A));
         Assert.True(services.ApplicationSurface.TryTakeInput(out var visible));
         Assert.Equal(new ConsoleViewport(0, 0, 80, 25), visible.Frame.Viewport);
-        Assert.Equal(ApplicationSurfaceMode.Panels, visible.Frame.Mode);
+        Assert.Equal(ApplicationWorkspaceMode.Panels, visible.Frame.Mode);
         Assert.Equal(new Rect(0, 23, 80, 1), visible.Frame.CommandLine.Bounds);
         Assert.NotNull(visible.Frame.CommandLine.Cursor);
 
-        services.Session.App.HiddenPanels = HiddenPanels.Both;
+        services.Session.App.WorkspaceMode = ApplicationWorkspaceMode.HiddenCommandLine;
         services.Composition.Render();
         services.Composition.DispatchInput(Key(ConsoleKey.B));
         Assert.True(services.ApplicationSurface.TryTakeInput(out var hidden));
 
-        Assert.Equal(ApplicationSurfaceMode.HiddenCommandLine, hidden.Frame.Mode);
+        Assert.Equal(ApplicationWorkspaceMode.HiddenCommandLine, hidden.Frame.Mode);
         Assert.Equal(new Rect(0, 23, 80, 1), hidden.Frame.CommandLine.Bounds);
     }
 
@@ -273,16 +273,16 @@ public sealed class ApplicationUiSurfaceTests
     }
 
     [Fact]
-    public void CommandLineCursor_HiddenPanelsUsesCommittedCommandLineRow()
+    public void CommandLineCursor_HiddenCommandLineUsesCommittedCommandLineRow()
     {
         var services = Services();
-        services.Session.App.HiddenPanels = HiddenPanels.Both;
+        services.Session.App.WorkspaceMode = ApplicationWorkspaceMode.HiddenCommandLine;
 
         services.Composition.Render();
 
         UiCursorPlacement cursor = services.ApplicationSurface.CommittedFrame.CommandLine.Cursor!.Value;
         Assert.True(services.Driver.CursorVisible);
-        Assert.Equal(ApplicationSurfaceMode.HiddenCommandLine, services.ApplicationSurface.CommittedFrame.Mode);
+        Assert.Equal(ApplicationWorkspaceMode.HiddenCommandLine, services.ApplicationSurface.CommittedFrame.Mode);
         Assert.Equal(cursor.X, services.Driver.CursorX);
         Assert.Equal(cursor.Y, services.Driver.CursorY);
     }
@@ -374,7 +374,7 @@ public sealed class ApplicationUiSurfaceTests
     public void HiddenCommandLineMode_PublishesOnlyCommandLineHitTarget()
     {
         var services = Services();
-        services.Session.App.HiddenPanels = HiddenPanels.Both;
+        services.Session.App.WorkspaceMode = ApplicationWorkspaceMode.HiddenCommandLine;
 
         services.Composition.Render();
 
@@ -585,7 +585,7 @@ public sealed class ApplicationUiSurfaceTests
     }
 
     [Theory]
-    [InlineData(ScrollbarTargetRemoval.Hidden)]
+    [InlineData(ScrollbarTargetRemoval.HiddenCommandLine)]
     [InlineData(ScrollbarTargetRemoval.NotScrollable)]
     [InlineData(ScrollbarTargetRemoval.QuickViewPassiveSide)]
     public void PanelScrollbarDrag_CommittedTargetRemovalClearsCaptureAndDrag(ScrollbarTargetRemoval removal)
@@ -598,8 +598,8 @@ public sealed class ApplicationUiSurfaceTests
 
         switch (removal)
         {
-            case ScrollbarTargetRemoval.Hidden:
-                services.Session.App.HiddenPanels = HiddenPanels.Left;
+            case ScrollbarTargetRemoval.HiddenCommandLine:
+                services.Session.App.WorkspaceMode = ApplicationWorkspaceMode.HiddenCommandLine;
                 break;
             case ScrollbarTargetRemoval.NotScrollable:
                 AddScrollableItems(services.Session.Panels.Left, 1);
@@ -857,7 +857,7 @@ public sealed class ApplicationUiSurfaceTests
 
     public enum ScrollbarTargetRemoval
     {
-        Hidden,
+        HiddenCommandLine,
         NotScrollable,
         QuickViewPassiveSide,
     }

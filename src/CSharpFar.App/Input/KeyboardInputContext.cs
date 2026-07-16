@@ -17,8 +17,7 @@ internal sealed class KeyboardInputContext
     public required Func<FilePanelState> ActiveState { get; init; }
     public required Func<FilePanelState> LeftPanel { get; init; }
     public required Func<FilePanelState> RightPanel { get; init; }
-    public required Func<bool> HasVisiblePanels { get; init; }
-    public required Func<PanelSide, bool> IsPanelVisible { get; init; }
+    public required Func<bool> IsPanelsMode { get; init; }
     public required Func<AppSettingsAlias.PanelOptionsSettings> PanelOptions { get; init; }
     public required Func<int> VisibleRows { get; init; }
     public required Func<PanelSide, int> VisibleRowsForSide { get; init; }
@@ -34,7 +33,6 @@ internal sealed class KeyboardInputContext
     public Action<FilePanelState, PanelSide> CloseSearchResultsPanel { get; set; } =
         (_, _) => throw Missing();
     public Action<string> ExecuteCommand { get; set; } = _ => throw Missing();
-    public Action EnsureActivePanelVisible { get; set; } = () => throw Missing();
     public Func<int, CommandHistoryNavigationStart, bool> BrowseCommandHistory { get; set; } =
         (_, _) => throw Missing();
     public Action<bool> HideCommandCompletion { get; set; } = _ => throw Missing();

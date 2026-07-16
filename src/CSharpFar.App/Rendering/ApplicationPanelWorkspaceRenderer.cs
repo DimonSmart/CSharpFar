@@ -38,8 +38,7 @@ internal sealed class ApplicationPanelWorkspaceRenderer
         PanelViewMode leftViewMode,
         PanelViewMode rightViewMode,
         bool quickView,
-        DirectorySizeState? quickViewDirState,
-        Func<PanelSide, bool> isPanelVisible)
+        DirectorySizeState? quickViewDirState)
     {
         var bounds = ApplicationLayoutService.CalculatePanelWorkspaceBounds(size);
         int panelHeight = bounds.PanelHeight;
@@ -64,15 +63,12 @@ internal sealed class ApplicationPanelWorkspaceRenderer
                 activeSide,
                 leftViewMode,
                 rightViewMode,
-                quickViewDirState,
-                isPanelVisible);
+                quickViewDirState);
         }
         else
         {
-            if (isPanelVisible(PanelSide.Left))
-                leftFrame = panelRenderer.Render(leftBounds, left, activeSide == PanelSide.Left, PanelSide.Left, leftViewMode);
-            if (isPanelVisible(PanelSide.Right))
-                rightFrame = panelRenderer.Render(rightBounds, right, activeSide == PanelSide.Right, PanelSide.Right, rightViewMode);
+            leftFrame = panelRenderer.Render(leftBounds, left, activeSide == PanelSide.Left, PanelSide.Left, leftViewMode);
+            rightFrame = panelRenderer.Render(rightBounds, right, activeSide == PanelSide.Right, PanelSide.Right, rightViewMode);
         }
 
         return new ApplicationPanelWorkspaceFrame(leftBounds, rightBounds, panelHeight, leftFrame, rightFrame);
@@ -88,32 +84,27 @@ internal sealed class ApplicationPanelWorkspaceRenderer
         PanelSide activeSide,
         PanelViewMode leftViewMode,
         PanelViewMode rightViewMode,
-        DirectorySizeState? quickViewDirState,
-        Func<PanelSide, bool> isPanelVisible)
+        DirectorySizeState? quickViewDirState)
     {
         ApplicationPanelFrame? leftFrame = null;
         ApplicationPanelFrame? rightFrame = null;
         if (activeSide == PanelSide.Left)
         {
             var item = _controller.CurrentItem(left);
-            if (isPanelVisible(PanelSide.Left))
-                leftFrame = panelRenderer.Render(leftBounds, left, true, PanelSide.Left, leftViewMode);
-            if (isPanelVisible(PanelSide.Right))
-                quickViewRenderer.Render(
-                    rightBounds,
-                    item,
-                    item is { IsDirectory: true } ? quickViewDirState : null);
+            leftFrame = panelRenderer.Render(leftBounds, left, true, PanelSide.Left, leftViewMode);
+            quickViewRenderer.Render(
+                rightBounds,
+                item,
+                item is { IsDirectory: true } ? quickViewDirState : null);
         }
         else
         {
             var item = _controller.CurrentItem(right);
-            if (isPanelVisible(PanelSide.Left))
-                quickViewRenderer.Render(
-                    leftBounds,
-                    item,
-                    item is { IsDirectory: true } ? quickViewDirState : null);
-            if (isPanelVisible(PanelSide.Right))
-                rightFrame = panelRenderer.Render(rightBounds, right, true, PanelSide.Right, rightViewMode);
+            quickViewRenderer.Render(
+                leftBounds,
+                item,
+                item is { IsDirectory: true } ? quickViewDirState : null);
+            rightFrame = panelRenderer.Render(rightBounds, right, true, PanelSide.Right, rightViewMode);
         }
 
         return (leftFrame, rightFrame);

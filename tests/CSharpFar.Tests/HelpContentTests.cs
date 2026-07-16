@@ -16,8 +16,6 @@ public class HelpContentTests
     [InlineData("F8")]
     [InlineData("F10")]
     [InlineData("Ctrl+O")]
-    [InlineData("Ctrl+F1")]
-    [InlineData("Ctrl+F2")]
     [InlineData("Ctrl+Q")]
     [InlineData("Alt+F7")]
     [InlineData("Alt+F8")]
@@ -26,6 +24,16 @@ public class HelpContentTests
     public void Lines_ContainsKeyBinding(string keyText)
     {
         Assert.Contains(HelpContent.Lines, l => l.FullText.Contains(keyText, StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Theory]
+    [InlineData("Ctrl+F1")]
+    [InlineData("Ctrl+F2")]
+    [InlineData("Toggle left panel")]
+    [InlineData("Toggle right panel")]
+    public void Lines_DoesNotContainIndependentPanelVisibilityCommands(string text)
+    {
+        Assert.DoesNotContain(HelpContent.Lines, l => l.FullText.Contains(text, StringComparison.OrdinalIgnoreCase));
     }
 
 }

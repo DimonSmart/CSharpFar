@@ -23,8 +23,6 @@ internal static class FunctionKeyCommandIds
     public const string FileHistory = "functionKey.alt.fileHistory";
     public const string DirectoryHistory = "functionKey.alt.directoryHistory";
 
-    public const string ToggleLeftPanel = "functionKey.control.toggleLeftPanel";
-    public const string ToggleRightPanel = "functionKey.control.toggleRightPanel";
     public const string SortByName = "functionKey.control.sortByName";
     public const string SortByExtension = "functionKey.control.sortByExtension";
     public const string SortByLastWriteTime = "functionKey.control.sortByLastWriteTime";

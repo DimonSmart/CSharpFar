@@ -169,7 +169,7 @@ public sealed class ApplicationNavigationTests : IDisposable
     }
 
     [Fact]
-    public void Run_HiddenPanelsOriginOnlyViewportChange_DoesNotRepaint()
+    public void Run_HiddenCommandLineOriginOnlyViewportChange_DoesNotRepaint()
     {
         var fs = new FakeFileSystemService();
         fs.AddDirectory(_tempDir);
@@ -200,7 +200,7 @@ public sealed class ApplicationNavigationTests : IDisposable
     }
 
     [Fact]
-    public void Run_HiddenPanelsSizeChange_RedrawsCommandLine()
+    public void Run_HiddenCommandLineSizeChange_RedrawsCommandLine()
     {
         var fs = new FakeFileSystemService();
         fs.AddDirectory(_tempDir);
@@ -394,7 +394,7 @@ public sealed class ApplicationNavigationTests : IDisposable
     }
 
     [Fact]
-    public void Run_HiddenPanelsInterruptedResize_RestoresUnderlayBeforeEveryAttempt()
+    public void Run_HiddenCommandLineInterruptedResize_RestoresUnderlayBeforeEveryAttempt()
     {
         var fs = new FakeFileSystemService();
         fs.AddDirectory(_tempDir);
@@ -436,7 +436,7 @@ public sealed class ApplicationNavigationTests : IDisposable
     }
 
     [Fact]
-    public void Run_VtSupportedHiddenPanelsInterruptedResize_PreservesCommandOutput()
+    public void Run_VtSupportedHiddenCommandLineInterruptedResize_PreservesCommandOutput()
     {
         var fs = new FakeFileSystemService();
         fs.AddDirectory(_tempDir);
@@ -626,7 +626,7 @@ public sealed class ApplicationNavigationTests : IDisposable
     }
 
     [Fact]
-    public void Run_HiddenPanelsRepeatedVerticalResize_LeavesOnlyFinalCommandLine()
+    public void Run_HiddenCommandLineRepeatedVerticalResize_LeavesOnlyFinalCommandLine()
     {
         var fs = new FakeFileSystemService();
         fs.AddDirectory(_tempDir);
@@ -655,7 +655,7 @@ public sealed class ApplicationNavigationTests : IDisposable
     }
 
     [Fact]
-    public void Run_HiddenPanelsInputAfterScroll_ReturnsViewportToBottom()
+    public void Run_HiddenCommandLineInputAfterScroll_ReturnsViewportToBottom()
     {
         var fs = new FakeFileSystemService();
         fs.AddDirectory(_tempDir);
@@ -693,7 +693,7 @@ public sealed class ApplicationNavigationTests : IDisposable
     }
 
     [Fact]
-    public void Run_VtSupportedHiddenPanelsPureModifierAfterScroll_DoesNotScrollOrRender()
+    public void Run_VtSupportedHiddenCommandLinePureModifierAfterScroll_DoesNotScrollOrRender()
     {
         var fs = new FakeFileSystemService();
         fs.AddDirectory(_tempDir);
@@ -726,7 +726,7 @@ public sealed class ApplicationNavigationTests : IDisposable
     }
 
     [Fact]
-    public void Run_VtSupportedHiddenPanelsInputAfterScroll_CapturesBeforeCommandLineRender()
+    public void Run_VtSupportedHiddenCommandLineInputAfterScroll_CapturesBeforeCommandLineRender()
     {
         var fs = new FakeFileSystemService();
         fs.AddDirectory(_tempDir);
@@ -770,7 +770,7 @@ public sealed class ApplicationNavigationTests : IDisposable
     }
 
     [Fact]
-    public void Run_CtrlOFromScrolledHiddenPanels_ReturnsViewportToBottomAndRendersPanels()
+    public void Run_CtrlOFromScrolledHiddenCommandLine_ReturnsViewportToBottomAndRendersPanels()
     {
         var fs = new FakeFileSystemService();
         fs.AddDirectory(_tempDir);
@@ -806,12 +806,12 @@ public sealed class ApplicationNavigationTests : IDisposable
     }
 
     [Theory]
-    [InlineData("CtrlF1", "right")]
-    [InlineData("CtrlF2", "left")]
-    [InlineData("CtrlF1 CtrlF2", "none")]
-    [InlineData("CtrlO CtrlF1", "left")]
-    [InlineData("CtrlO CtrlF2", "right")]
-    public void HandleKey_PanelVisibilityKeys_RenderExpectedPanels(string keys, string expectedPanels)
+    [InlineData("CtrlF1", "both")]
+    [InlineData("CtrlF2", "both")]
+    [InlineData("CtrlF1 CtrlF2", "both")]
+    [InlineData("CtrlO CtrlF1", "none")]
+    [InlineData("CtrlO CtrlF2", "none")]
+    public void HandleKey_ControlF1AndF2DoNotChangeWorkspaceMode(string keys, string expectedPanels)
     {
         var fs = new FakeFileSystemService();
         fs.AddDirectory(_tempDir);
@@ -819,6 +819,7 @@ public sealed class ApplicationNavigationTests : IDisposable
         var driver = new FakeConsoleDriver(width: 80, height: 12);
         var app = CreateApp(fs, driver, _tempDir);
 
+        Render(app);
         foreach (string key in keys.Split(' ', StringSplitOptions.RemoveEmptyEntries))
             HandleKeyAndRender(app, PanelVisibilityKey(key));
 
@@ -826,7 +827,7 @@ public sealed class ApplicationNavigationTests : IDisposable
     }
 
     [Fact]
-    public void HandleKey_HidingActivePanel_ActivatesVisiblePanel()
+    public void HandleKey_ControlF1DoesNotChangeActiveSide()
     {
         var fs = new FakeFileSystemService();
         fs.AddDirectory(_tempDir);
@@ -836,11 +837,11 @@ public sealed class ApplicationNavigationTests : IDisposable
 
         HandleKeyAndRender(app, Key(ConsoleKey.F1, control: true));
 
-        Assert.Equal(PanelSide.Right, GetActiveSide(app));
+        Assert.Equal(PanelSide.Left, GetActiveSide(app));
     }
 
     [Fact]
-    public void HandleKey_Tab_DoesNotActivateHiddenPanel()
+    public void HandleKey_TabAlwaysSwitchesActiveSideInPanels()
     {
         var fs = new FakeFileSystemService();
         fs.AddDirectory(_tempDir);
@@ -848,7 +849,6 @@ public sealed class ApplicationNavigationTests : IDisposable
         var driver = new FakeConsoleDriver(width: 80, height: 12);
         var app = CreateApp(fs, driver, _tempDir);
 
-        HandleKeyAndRender(app, Key(ConsoleKey.F1, control: true));
         HandleKeyAndRender(app, Key(ConsoleKey.Tab));
 
         Assert.Equal(PanelSide.Right, GetActiveSide(app));
@@ -857,13 +857,12 @@ public sealed class ApplicationNavigationTests : IDisposable
     [Theory]
     [InlineData(41, 2, false, false, true, PanelSide.Right, 0, 1)]
     [InlineData(40, 2, false, false, true, PanelSide.Right, 0, 1)]
-    [InlineData(41, 2, true,  false, true, PanelSide.Right, 0, 1)]
     [InlineData(1,  2, false, true,  true, PanelSide.Left,  1, 0)]
     [InlineData(41, 2, false, true,  false, PanelSide.Left,  0, 0)]
     public void HandleMouse_ClickPanelArea_UpdatesPanelSelection(
         int x,
         int y,
-        bool hideLeftPanel,
+        bool hiddenCommandLine,
         bool quickView,
         bool expectedHandled,
         PanelSide expectedActiveSide,
@@ -878,8 +877,8 @@ public sealed class ApplicationNavigationTests : IDisposable
         var driver = new FakeConsoleDriver(width: 80, height: 12);
         var app = CreateApp(fs, driver, _tempDir);
         app.QuickView = quickView;
-        if (hideLeftPanel)
-            HandleKeyAndRender(app, Key(ConsoleKey.F1, control: true));
+        if (hiddenCommandLine)
+            HandleKeyAndRender(app, Key(ConsoleKey.O, keyChar: '\u000f', control: true));
         Render(app);
 
         bool handled = HandleMouse(app, LeftMouse(x, y, MouseEventKind.Down));
@@ -891,14 +890,13 @@ public sealed class ApplicationNavigationTests : IDisposable
     }
 
     [Fact]
-    public void Run_PanelVisibilityControlsConsoleScrollback()
+    public void Run_WorkspaceModeControlsConsoleScrollback()
     {
         var fs = new FakeFileSystemService();
         fs.AddDirectory(_tempDir);
 
         var driver = new FakeConsoleDriver(width: 80, height: 12);
         driver.EnqueueKey(Key(ConsoleKey.O, keyChar: '\u000f', control: true));
-        driver.EnqueueKey(Key(ConsoleKey.F1, control: true));
         driver.EnqueueKey(Key(ConsoleKey.O, keyChar: '\u000f', control: true));
         driver.EnqueueKey(Key(ConsoleKey.F10));
         driver.BeforeReadInput = beforeHide =>
@@ -907,12 +905,8 @@ public sealed class ApplicationNavigationTests : IDisposable
             beforeHide.BeforeReadInput = afterHide =>
             {
                 Assert.True(afterHide.ConsoleScrollbackEnabled);
-                afterHide.BeforeReadInput = afterPartialHide =>
-                {
-                    Assert.False(afterPartialHide.ConsoleScrollbackEnabled);
-                    afterPartialHide.BeforeReadInput = afterShow =>
-                        Assert.False(afterShow.ConsoleScrollbackEnabled);
-                };
+                afterHide.BeforeReadInput = afterShow =>
+                    Assert.False(afterShow.ConsoleScrollbackEnabled);
             };
         };
 
@@ -1008,7 +1002,7 @@ public sealed class ApplicationNavigationTests : IDisposable
     }
 
     [Fact]
-    public void Run_VtSupportedPartiallyHiddenPanels_RemainsInApplicationScreen()
+    public void Run_VtSupportedControlF1AndF2RemainInApplicationScreen()
     {
         var fs = new FakeFileSystemService();
         fs.AddDirectory(_tempDir);
@@ -1018,28 +1012,21 @@ public sealed class ApplicationNavigationTests : IDisposable
         driver.EnqueueKey(Key(ConsoleKey.F1, control: true));
         driver.EnqueueKey(Key(ConsoleKey.F2, control: true));
         driver.EnqueueKey(Key(ConsoleKey.F10));
-        driver.BeforeReadInput = beforeHide =>
+        driver.BeforeReadInput = beforeControlF1 =>
         {
-            Assert.True(beforeHide.IsApplicationScreenActive);
-            beforeHide.BeforeReadInput = afterPartialHide =>
+            Assert.True(beforeControlF1.IsApplicationScreenActive);
+            beforeControlF1.BeforeReadInput = afterControlF1 =>
             {
-                Assert.True(afterPartialHide.IsApplicationScreenActive);
-                Assert.Equal(1, afterPartialHide.EnterApplicationScreenCallCount);
-                Assert.Equal(0, afterPartialHide.SetConsoleScrollbackEnabledCallCount);
-                Assert.Equal(0, afterPartialHide.TryScrollViewportToBottomCallCount);
-                afterPartialHide.ClearRecordedOperations();
-                afterPartialHide.BeforeReadInput = afterBothHidden =>
+                Assert.True(afterControlF1.IsApplicationScreenActive);
+                Assert.Equal(1, afterControlF1.EnterApplicationScreenCallCount);
+                Assert.Equal(0, afterControlF1.SetConsoleScrollbackEnabledCallCount);
+                Assert.Equal(0, afterControlF1.TryScrollViewportToBottomCallCount);
+                afterControlF1.ClearRecordedOperations();
+                afterControlF1.BeforeReadInput = afterControlF2 =>
                 {
-                    Assert.False(afterBothHidden.IsApplicationScreenActive);
-                    Assert.Equal(1, afterBothHidden.TryScrollViewportToBottomCallCount);
-                    Assert.Equal(18, afterBothHidden.GetViewport().Top);
-                    AssertOperationOrder(
-                        afterBothHidden,
-                        "LeaveApplicationScreen",
-                        "TryScrollViewportToBottom",
-                        "Capture",
-                        "WriteAt");
-                    Assert.Equal(0, afterBothHidden.ClearRegionCallCount);
+                    Assert.True(afterControlF2.IsApplicationScreenActive);
+                    Assert.Equal(0, afterControlF2.TryScrollViewportToBottomCallCount);
+                    Assert.Equal(0, afterControlF2.ClearRegionCallCount);
                 };
             };
         };
@@ -1049,7 +1036,7 @@ public sealed class ApplicationNavigationTests : IDisposable
     }
 
     [Fact]
-    public void RenderCommandLineOnly_VtSupportedHiddenPanels_DoesNotAutoScroll()
+    public void RenderCommandLineOnly_VtSupportedHiddenCommandLine_DoesNotAutoScroll()
     {
         var fs = new FakeFileSystemService();
         fs.AddDirectory(_tempDir);
@@ -1136,7 +1123,7 @@ public sealed class ApplicationNavigationTests : IDisposable
     }
 
     [Fact]
-    public void ExecuteCommand_VtSupportedHiddenPanels_StaysInMainScreenAfterShell()
+    public void ExecuteCommand_VtSupportedHiddenCommandLine_StaysInMainScreenAfterShell()
     {
         var fs = new FakeFileSystemService();
         fs.AddDirectory(_tempDir);
@@ -1526,10 +1513,20 @@ public sealed class ApplicationNavigationTests : IDisposable
         Assert.Equal(' ', driver.GetCell(40, 0).Character);
     }
 
+    private static void AssertBothPanels(FakeConsoleDriver driver)
+    {
+        Assert.Equal('╔', driver.GetCell(0, 0).Character);
+        Assert.Equal('╗', driver.GetCell(39, 0).Character);
+        Assert.Equal('╔', driver.GetCell(40, 0).Character);
+    }
+
     private static void AssertVisiblePanels(FakeConsoleDriver driver, string expectedPanels)
     {
         switch (expectedPanels)
         {
+            case "both":
+                AssertBothPanels(driver);
+                break;
             case "left":
                 AssertLeftPanelOnly(driver);
                 break;

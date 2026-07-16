@@ -1,4 +1,5 @@
 using CSharpFar.App.Menu;
+using CSharpFar.App.State;
 using CSharpFar.Console.Input;
 using CSharpFar.Console.Models;
 using CSharpFar.Core.Menu;
@@ -39,7 +40,7 @@ internal sealed class TopMenuLayer : UiLayer<TopMenuFrame>
     }
 
     public override UiLayerInputPolicy InputPolicy =>
-        !_context.HasVisiblePanels()
+        _context.App.WorkspaceMode != ApplicationWorkspaceMode.Panels
             ? UiLayerInputPolicy.None
             : _context.MenuState.OpenState == MenuOpenState.Closed
             ? UiLayerInputPolicy.Bubble
@@ -47,7 +48,7 @@ internal sealed class TopMenuLayer : UiLayer<TopMenuFrame>
 
     protected override TopMenuFrame RenderFrame(UiRenderContext context)
     {
-        if (!_context.HasVisiblePanels())
+        if (_context.App.WorkspaceMode != ApplicationWorkspaceMode.Panels)
         {
             return new TopMenuFrame(
                 false,

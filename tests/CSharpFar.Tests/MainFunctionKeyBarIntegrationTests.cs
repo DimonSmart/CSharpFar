@@ -200,7 +200,7 @@ public sealed class MainFunctionKeyBarIntegrationTests
     private static ApplicationUiFrame Frame(bool canExecute) =>
         new(
             new ConsoleViewport(0, 0, 120, 25),
-            ApplicationSurfaceMode.Panels,
+            ApplicationWorkspaceMode.Panels,
             new ApplicationCommandLineFrame(new Rect(0, 23, 120, 1), 8, 0, 0, new UiCursorPlacement(8, 23)),
             null,
             null,

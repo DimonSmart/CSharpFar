@@ -26,7 +26,7 @@ public sealed class Spec018CommandHistoryCompletionTests : IDisposable
     }
 
     [Fact]
-    public void Run_HiddenPanels_UpDownBrowseCommandHistory()
+    public void Run_HiddenCommandLine_UpDownBrowseCommandHistory()
     {
         var history = CreateHistory("first", "second");
         var driver = new FakeConsoleDriver(width: 100, height: 12);
@@ -43,7 +43,7 @@ public sealed class Spec018CommandHistoryCompletionTests : IDisposable
     }
 
     [Fact]
-    public void Run_HiddenPanels_UpStopsAtOldestCommand()
+    public void Run_HiddenCommandLine_UpStopsAtOldestCommand()
     {
         var history = CreateHistory("first", "second");
         var driver = new FakeConsoleDriver(width: 100, height: 12);
@@ -60,7 +60,7 @@ public sealed class Spec018CommandHistoryCompletionTests : IDisposable
     }
 
     [Fact]
-    public void Run_HiddenPanels_DownStopsAtNewestCommand()
+    public void Run_HiddenCommandLine_DownStopsAtNewestCommand()
     {
         var history = CreateHistory("first", "second");
         var driver = new FakeConsoleDriver(width: 100, height: 12);

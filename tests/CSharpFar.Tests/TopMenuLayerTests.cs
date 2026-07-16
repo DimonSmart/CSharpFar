@@ -24,7 +24,7 @@ public sealed class TopMenuLayerTests
         fixture.Services.Composition.DispatchInput(Key(ConsoleKey.F9));
         Assert.Equal(UiLayerInputPolicy.Modal, fixture.Services.TopMenuLayer.InputPolicy);
 
-        fixture.Services.Session.App.HiddenPanels = HiddenPanels.Both;
+        fixture.Services.Session.App.WorkspaceMode = ApplicationWorkspaceMode.HiddenCommandLine;
         Assert.Equal(UiLayerInputPolicy.None, fixture.Services.TopMenuLayer.InputPolicy);
     }
 

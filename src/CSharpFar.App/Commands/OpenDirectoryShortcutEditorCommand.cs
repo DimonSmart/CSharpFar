@@ -9,7 +9,7 @@ internal sealed class OpenDirectoryShortcutEditorCommand : IApplicationCommand
     public string CommandId => MenuCommandIds.SettingsOpenDirectoryShortcuts;
 
     public bool CanExecute(ApplicationCommandContext context, object? args = null) =>
-        context.HasVisiblePanels;
+        context.IsPanelsMode;
 
     public ApplicationCommandResult Execute(ApplicationCommandContext context, object? args = null)
     {

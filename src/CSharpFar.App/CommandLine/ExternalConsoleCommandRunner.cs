@@ -33,7 +33,7 @@ internal sealed class ExternalConsoleCommandRunner
 
     public void Execute(string workDir, string displayCommand, Action execute)
     {
-        HiddenPanels hiddenPanelsAfterCommand = _state.HiddenPanels;
+        ApplicationWorkspaceMode workspaceModeAfterCommand = _state.WorkspaceMode;
 
         ShowShellUnderlayForCommand();
         PrintExecutedCommandPrompt(workDir, displayCommand);
@@ -52,7 +52,7 @@ internal sealed class ExternalConsoleCommandRunner
             _terminalSurface.CaptureUnderlay();
 
             _refreshPanels();
-            _state.HiddenPanels = hiddenPanelsAfterCommand;
+            _state.WorkspaceMode = workspaceModeAfterCommand;
             _terminalSurface.ApplyMode();
         }
     }

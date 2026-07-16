@@ -17,16 +17,14 @@ public sealed class FunctionKeyBindingProviderTests
             FunctionKeyLayer.Alt, ConsoleKey.F7, "Search");
         AssertBinding(bindings, FunctionKeyCommandIds.CommandHistory,
             FunctionKeyLayer.Alt, ConsoleKey.F8, "History");
-        AssertBinding(bindings, FunctionKeyCommandIds.ToggleLeftPanel,
-            FunctionKeyLayer.Control, ConsoleKey.F1, "LeftPn");
-        AssertBinding(bindings, FunctionKeyCommandIds.ToggleRightPanel,
-            FunctionKeyLayer.Control, ConsoleKey.F2, "RightPn");
         AssertBinding(bindings, FunctionKeyCommandIds.SortByName,
             FunctionKeyLayer.Control, ConsoleKey.F3, "SortNm");
         AssertBinding(bindings, FunctionKeyCommandIds.SortBySize,
             FunctionKeyLayer.Control, ConsoleKey.F6, "SortSz");
         AssertBinding(bindings, FunctionKeyCommandIds.Rename,
             FunctionKeyLayer.Shift, ConsoleKey.F6, "Rename", runsWhenUnavailable: true);
+        Assert.DoesNotContain(bindings, binding => binding.Layer == FunctionKeyLayer.Control && binding.Key == ConsoleKey.F1);
+        Assert.DoesNotContain(bindings, binding => binding.Layer == FunctionKeyLayer.Control && binding.Key == ConsoleKey.F2);
     }
 
     [Fact]

@@ -1,4 +1,5 @@
 using System.Runtime.InteropServices;
+using CSharpFar.App.State;
 using CSharpFar.Console.Input;
 using CSharpFar.App.Rendering;
 using CSharpFar.Core.Menu;
@@ -19,7 +20,9 @@ internal sealed class PrintTerminalDiagnosticsCommand : IApplicationCommand
         var terminal = context.GetTerminalDiagnostics();
         string activeDirectory = context.ActiveState.CurrentDirectory;
         string processCurrentDirectory = Environment.CurrentDirectory;
-        bool hasVisiblePanels = context.HasVisiblePanels;
+        var workspaceMode = context.IsPanelsMode
+            ? ApplicationWorkspaceMode.Panels
+            : ApplicationWorkspaceMode.HiddenCommandLine;
         var activeSide = context.ActiveSide;
 
         context.ExecuteInCurrentConsole(activeDirectory, "diagnostics", () =>
@@ -44,7 +47,7 @@ internal sealed class PrintTerminalDiagnosticsCommand : IApplicationCommand
             global::System.Console.WriteLine(
                 $"  Buffer: Width={ConsoleValue(() => global::System.Console.BufferWidth)}, Height={ConsoleValue(() => global::System.Console.BufferHeight)}");
             global::System.Console.WriteLine("CSharpFar:");
-            global::System.Console.WriteLine($"  Has visible panels: {hasVisiblePanels}");
+            global::System.Console.WriteLine($"  Workspace mode: {workspaceMode}");
             global::System.Console.WriteLine($"  Active side: {activeSide}");
             global::System.Console.WriteLine($"  Command line row: {ApplicationLayoutService.CommandLineRow(size)}");
             global::System.Console.WriteLine($"  Panel height: {ApplicationLayoutService.PanelHeight(size)}");

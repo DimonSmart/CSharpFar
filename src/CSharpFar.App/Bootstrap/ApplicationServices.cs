@@ -46,7 +46,7 @@ internal sealed class ApplicationServices
     public required PanelRefreshService PanelRefresh { get; init; }
     public required PanelQuickSearchController PanelQuickSearch { get; init; }
     public required PanelWorkspaceController PanelWorkspace { get; init; }
-    public required PanelVisibilityController PanelVisibility { get; init; }
+    public required ApplicationWorkspaceModeController PanelVisibility { get; init; }
     public required PanelFileViewerService PanelFileViewer { get; init; }
     public required PanelFileOpener PanelFileOpener { get; init; }
     public required NativeModuleCatalog ModuleCatalog { get; init; }

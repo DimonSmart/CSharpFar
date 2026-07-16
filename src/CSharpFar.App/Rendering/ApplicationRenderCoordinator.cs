@@ -1,3 +1,4 @@
+using CSharpFar.App.State;
 using CSharpFar.Console.Models;
 using CSharpFar.Ui;
 using CSharpFar.Core.Models;
@@ -39,18 +40,15 @@ internal sealed class ApplicationRenderCoordinator
             _context.LeftViewMode(),
             _context.RightViewMode(),
             _context.App.QuickView,
-            _context.QuickViewDirectorySize.CurrentState,
-            _context.IsPanelVisible);
+            _context.QuickViewDirectorySize.CurrentState);
         int panelHeight = workspace.PanelHeight;
         context.PublishOnStable(context.Viewport, value => _context.Ui.LastRenderViewport = value);
 
-        ApplicationDirectoryShortcutBarFrame? directoryShortcutBar = null;
-        if (_context.HasVisiblePanels())
-            directoryShortcutBar = new DirectoryShortcutBarRenderer(_context.Screen, _context.App.Palette)
+        ApplicationDirectoryShortcutBarFrame? directoryShortcutBar =
+            new DirectoryShortcutBarRenderer(_context.Screen, _context.App.Palette)
                 .Render(panelHeight - 1, size.Width, _context.DirectoryShortcuts());
 
-        if (_context.IsPanelVisible(PanelSide.Right))
-            _clockRenderer.Render(size);
+        _clockRenderer.Render(size);
 
         ApplicationCommandLineFrame commandLine = _commandLineRenderer.Render(
             panelHeight,
@@ -63,7 +61,7 @@ internal sealed class ApplicationRenderCoordinator
 
         return new ApplicationUiFrame(
             context.Viewport,
-            ApplicationSurfaceMode.Panels,
+            ApplicationWorkspaceMode.Panels,
             commandLine,
             workspace.LeftPanel,
             workspace.RightPanel,
@@ -85,7 +83,7 @@ internal sealed class ApplicationRenderCoordinator
 
         return new ApplicationUiFrame(
             context.Viewport,
-            ApplicationSurfaceMode.HiddenCommandLine,
+            ApplicationWorkspaceMode.HiddenCommandLine,
             commandLine,
             null,
             null,

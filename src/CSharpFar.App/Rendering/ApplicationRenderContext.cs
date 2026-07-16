@@ -30,9 +30,6 @@ internal sealed class ApplicationRenderContext
     public required Func<PanelViewMode> LeftViewMode { get; init; }
     public required Func<PanelViewMode> RightViewMode { get; init; }
     public required Func<FunctionKeyLayer> FunctionKeyLayer { get; init; }
-    public required Func<bool> HasHiddenPanels { get; init; }
-    public required Func<bool> HasVisiblePanels { get; init; }
-    public required Func<PanelSide, bool> IsPanelVisible { get; init; }
     public required Func<AppSettingsAlias.DirectoryShortcutSettings> DirectoryShortcuts { get; init; }
     public required QuickViewDirectorySizeController QuickViewDirectorySize { get; init; }
     public Func<MenuBarDefinition> BuildMenuDefinition { get; set; } = () => throw Missing();

@@ -52,7 +52,7 @@ internal static class RenderingServicesFactory
             terminalScreenMode,
             shellUnderlay,
             session.Ui,
-            () => panelWorkspace.HasVisiblePanels);
+            () => session.App.WorkspaceMode);
         var quickViewDirectorySize = new QuickViewDirectorySizeController(autoRefresh.WakeInputLoop);
         var renderContext = new ApplicationRenderContext
         {
@@ -72,9 +72,6 @@ internal static class RenderingServicesFactory
             LeftViewMode = () => session.Panels.LeftViewMode,
             RightViewMode = () => session.Panels.RightViewMode,
             FunctionKeyLayer = () => session.FunctionKeyLayer,
-            HasHiddenPanels = () => panelWorkspace.HasHiddenPanels,
-            HasVisiblePanels = () => panelWorkspace.HasVisiblePanels,
-            IsPanelVisible = panelWorkspace.IsPanelVisible,
             DirectoryShortcuts = () => settings.DirectoryShortcuts,
             QuickViewDirectorySize = quickViewDirectorySize,
             BuildMenuDefinition = () => new MenuBarDefinition { Items = [] },

@@ -6,18 +6,16 @@ internal sealed class ApplicationState(ConsolePalette palette)
 {
     public bool Running { get; set; } = true;
 
-    public HiddenPanels HiddenPanels { get; set; }
+    public ApplicationWorkspaceMode WorkspaceMode { get; set; } =
+        ApplicationWorkspaceMode.Panels;
 
     public bool QuickView { get; set; }
 
     public ConsolePalette Palette { get; set; } = palette;
 }
 
-[Flags]
-internal enum HiddenPanels
+internal enum ApplicationWorkspaceMode
 {
-    None = 0,
-    Left = 1,
-    Right = 2,
-    Both = Left | Right,
+    Panels,
+    HiddenCommandLine,
 }

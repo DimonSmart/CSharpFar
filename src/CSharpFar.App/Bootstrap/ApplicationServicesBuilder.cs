@@ -99,8 +99,7 @@ internal static class ApplicationServicesBuilder
             ActiveState = () => callbacks.ActiveState(),
             LeftPanel = () => session.Panels.Left,
             RightPanel = () => session.Panels.Right,
-            HasVisiblePanels = () => callbacks.HasVisiblePanels(),
-            IsPanelVisible = side => callbacks.IsPanelVisible(side),
+            IsPanelsMode = () => callbacks.IsPanelsMode(),
             PanelOptions = () => callbacks.PanelOptions(),
             VisibleRows = () => callbacks.VisibleRows(),
             VisibleRowsForSide = side => callbacks.VisibleRowsForSide(side),
@@ -115,7 +114,6 @@ internal static class ApplicationServicesBuilder
             OnVisibleCommandLineTextEdited = () => throw new InvalidOperationException("Keyboard input context is not assigned."),
             CloseSearchResultsPanel = (_, _) => throw new InvalidOperationException("Keyboard input context is not assigned."),
             ExecuteCommand = _ => throw new InvalidOperationException("Keyboard input context is not assigned."),
-            EnsureActivePanelVisible = () => throw new InvalidOperationException("Keyboard input context is not assigned."),
             BrowseCommandHistory = (_, _) => throw new InvalidOperationException("Keyboard input context is not assigned."),
             HideCommandCompletion = _ => throw new InvalidOperationException("Keyboard input context is not assigned."),
             ResetCommandHistoryNavigation = () => throw new InvalidOperationException("Keyboard input context is not assigned."),
@@ -155,8 +153,7 @@ internal static class ApplicationServicesBuilder
         var panelQuickSearch = new PanelQuickSearchController(
             controller,
             () => callbacks.GetActiveSide(),
-            () => callbacks.HasVisiblePanels(),
-            side => callbacks.IsPanelVisible(side),
+            () => callbacks.IsPanelsMode(),
             side => callbacks.GetPanelState(side),
             side => callbacks.VisibleRowsForSide(side));
         var panelWorkspace = new PanelWorkspaceController(
@@ -292,10 +289,9 @@ internal static class ApplicationServicesBuilder
             side => callbacks.GetPanelState(side),
             side => callbacks.SetActiveSide(side),
             quickView => callbacks.SetQuickView(quickView));
-        var panelVisibility = new PanelVisibilityController(
+        var panelVisibility = new ApplicationWorkspaceModeController(
             screen,
             session,
-            panelWorkspace,
             panelQuickSearch,
             commandCompletionController,
             commandHistoryNavigator,

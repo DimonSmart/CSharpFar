@@ -311,7 +311,7 @@ public sealed class ApplicationRuntimeTests
 
         services.Runtime.Run();
 
-        Assert.Equal(HiddenPanels.Both, services.Session.App.HiddenPanels);
+        Assert.Equal(ApplicationWorkspaceMode.HiddenCommandLine, services.Session.App.WorkspaceMode);
         Assert.Equal(4, services.Composition.StableRenderVersion);
         Assert.Equal(MenuOpenState.Closed, services.Session.Menu.State.OpenState);
     }
