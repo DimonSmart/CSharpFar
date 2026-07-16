@@ -373,6 +373,7 @@ public sealed class Spec029SftpProviderTests : IDisposable
         Assert.Equal(2, candidates.Count);
         Assert.Null(candidates[0].Connection.ExpectedHostKeyFingerprint);
         Assert.Null(candidates[1].Connection.ExpectedHostKeyFingerprint);
+        Assert.Equal("example.testx", candidates[1].Connection.Host);
     }
 
     [Fact]

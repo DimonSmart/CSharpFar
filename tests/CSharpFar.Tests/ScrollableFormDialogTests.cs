@@ -1083,6 +1083,27 @@ public sealed class ScrollableFormDialogTests
     }
 
     [Fact]
+    public void RoutedLabeledHistoryScrollbarCapture_ContinuesOutsideBoundsAndReleasesAfterUp()
+    {
+        var history = HistoryWithItems(20);
+        var state = new TextInputRowState();
+        var form = new ScrollableFormDialog([new LabeledTextInputRow("Value:", new CommandLineState(), history, state, labelWidth: 0, inputWidth: 20) { Id = "pattern" }]);
+        var driver = new FakeConsoleDriver(20, 10);
+        var screen = new ScreenRenderer(driver);
+        var layer = new TestFormLayer(screen, form, context => new FormRenderContext(context, new Rect(0, 0, 20, 1), FarDialogStyles.Border));
+        var host = UiTestHost.Create(screen, layer);
+        host.Composition.Render();
+        FormTargetFrame scrollbar = Assert.Single(layer.CommittedFrame.Targets, target => target.Kind == FormTargetKind.HistoryScrollbar);
+
+        host.Composition.DispatchInput(Mouse(scrollbar.Bounds.X, scrollbar.Bounds.Y + 1, MouseButton.Left, MouseEventKind.Down));
+        host.Composition.DispatchInput(Mouse(0, 9, MouseButton.Left, MouseEventKind.Move));
+        host.Composition.DispatchInput(Mouse(0, 9, MouseButton.Left, MouseEventKind.Up));
+
+        Assert.True(history.FirstVisibleIndex > 0);
+        Assert.Null(state.HistoryScrollbarDrag);
+    }
+
+    [Fact]
     public void RoutedMouseFocus_NotHandledRowInvalidatesFrame()
     {
         var row = new NotHandledFocusableRow("target");
