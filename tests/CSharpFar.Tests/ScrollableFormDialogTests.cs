@@ -579,6 +579,12 @@ public sealed class ScrollableFormDialogTests
         Assert.False(history.IsDropdownOpen);
         Assert.Equal(FormInputResultKind.Handled, layer.LastRouteResult!.Value.FormResult.Kind);
         Assert.NotEqual(FormInputResultKind.Cancel, layer.LastRouteResult.Value.FormResult.Kind);
+        Assert.Equal("pattern", form.FocusedRowId);
+
+        UiInputResult secondEscape = host.Composition.DispatchInput(new KeyConsoleInputEvent(Key(ConsoleKey.Escape)));
+
+        Assert.True(secondEscape.Handled);
+        Assert.Equal(FormInputResultKind.Cancel, layer.LastRouteResult!.Value.FormResult.Kind);
     }
 
     [Theory]

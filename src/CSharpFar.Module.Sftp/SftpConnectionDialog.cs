@@ -152,7 +152,7 @@ internal sealed class SftpConnectionDialog
                     savePasswordRow.Value = false;
                 }
 
-                if (formResult.Kind == FormInputResultKind.Cancel || routed.Input is KeyConsoleInputEvent { Key.Key: ConsoleKey.Escape })
+                if (formResult.Kind == FormInputResultKind.Cancel)
                     return ModalDialogLoopResult<SftpConnectionDialogResult?>.Complete(null);
 
                 if (formResult.Kind == FormInputResultKind.Submit ||

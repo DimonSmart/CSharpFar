@@ -169,6 +169,54 @@ public sealed class Spec029SftpProviderTests : IDisposable
     }
 
     [Fact]
+    public void SftpConnectionDialog_HistoryEscapeClosesDropdownBeforeCancellingDialog()
+    {
+        string connectionName = "escape-history-" + Guid.NewGuid().ToString("N");
+        var seedDriver = new FakeConsoleDriver(width: 100, height: 30);
+        seedDriver.EnqueueKey(Key(ConsoleKey.F10));
+        var seedScreen = new ScreenRenderer(seedDriver);
+        _ = new SftpConnectionDialog(ModalTestHost.Create(seedScreen)).Show(
+            new SftpConnectionDialogRequest(
+                TestConnection() with { DisplayName = connectionName },
+                SavedPassword: "secret-password",
+                SaveConnectionByDefault: true,
+                AllowTemporaryConnection: true),
+            _ => SftpConnectionDialogValidationResult.Accepted());
+
+        var driver = new FakeConsoleDriver(width: 100, height: 30);
+        var screen = new ScreenRenderer(driver);
+        int inputReads = 0;
+        Action<FakeConsoleDriver>? beforeRead = null;
+        beforeRead = currentDriver =>
+        {
+            inputReads++;
+            currentDriver.BeforeReadInput = beforeRead;
+        };
+        driver.BeforeReadInput = beforeRead;
+        driver.EnqueueKey(new ConsoleKeyInfo('e', ConsoleKey.E, shift: false, alt: false, control: false));
+        driver.EnqueueKey(Key(ConsoleKey.DownArrow));
+        driver.EnqueueKey(Key(ConsoleKey.Escape));
+        driver.EnqueueKey(Key(ConsoleKey.Escape));
+        int validationCalls = 0;
+
+        SftpConnectionDialogResult? result = new SftpConnectionDialog(ModalTestHost.Create(screen)).Show(
+            new SftpConnectionDialogRequest(
+                Connection: null,
+                SavedPassword: null,
+                SaveConnectionByDefault: false,
+                AllowTemporaryConnection: true),
+            _ =>
+            {
+                validationCalls++;
+                return SftpConnectionDialogValidationResult.Accepted();
+            });
+
+        Assert.Null(result);
+        Assert.Equal(4, inputReads);
+        Assert.Equal(0, validationCalls);
+    }
+
+    [Fact]
     public void SftpConnectionDialog_EnterInTextInput_SubmitsForm()
     {
         var driver = new FakeConsoleDriver(width: 100, height: 30);
