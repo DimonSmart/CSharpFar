@@ -267,6 +267,32 @@ public sealed class Spec029SftpProviderTests : IDisposable
     }
 
     [Fact]
+    public void SftpConnectionDialog_RebuildsHostKeyRowsAndFocusesTrustAfterValidation()
+    {
+        var driver = new FakeConsoleDriver(width: 100, height: 30);
+        var screen = new ScreenRenderer(driver);
+        driver.EnqueueKey(Key(ConsoleKey.F10));
+        driver.EnqueueKey(Key(ConsoleKey.Spacebar));
+        driver.EnqueueKey(Key(ConsoleKey.F10));
+        int validationCalls = 0;
+        var connection = TestConnection() with { ExpectedHostKeyFingerprint = null };
+
+        SftpConnectionDialogResult? result = new SftpConnectionDialog(ModalTestHost.Create(screen)).Show(
+            new SftpConnectionDialogRequest(connection, "secret-password", SaveConnectionByDefault: true, AllowTemporaryConnection: true),
+            candidate =>
+            {
+                validationCalls++;
+                return candidate.Connection.ExpectedHostKeyFingerprint is null
+                    ? SftpConnectionDialogValidationResult.RequireHostKeyTrust("AA:BB")
+                    : SftpConnectionDialogValidationResult.Accepted();
+            });
+
+        Assert.Equal(2, validationCalls);
+        Assert.NotNull(result);
+        Assert.Equal("AA:BB", result.Connection.ExpectedHostKeyFingerprint);
+    }
+
+    [Fact]
     public void SftpConnectionManagerDialog_NewButtonSupportsMouseClick()
     {
         var driver = new FakeConsoleDriver(width: 100, height: 30);

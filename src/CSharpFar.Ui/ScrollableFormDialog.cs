@@ -55,6 +55,14 @@ public interface IFormOverlayRow
     void RenderOverlay(FormRowRenderContext context);
 }
 
+public interface IFormHistoryRow : IFormRow
+{
+    SingleLineTextHistoryState? History { get; }
+    TextInputRowState State { get; }
+    Rect GetInputBounds(Rect rowBounds);
+    bool IsHistoryArrow(MouseConsoleInputEvent mouse, FormRowMouseContext context);
+}
+
 public readonly record struct FormCursorPlacement(int X, int Y);
 
 public interface IFormCursorProvider
@@ -330,7 +338,7 @@ public sealed class ButtonRow : FormRow
         };
 }
 
-public sealed class TextInputRow : FormRow, IFormOverlayRow, IFormCursorProvider
+public sealed class TextInputRow : FormRow, IFormOverlayRow, IFormCursorProvider, IFormHistoryRow
 {
     private readonly CommandLineState _buffer;
     private readonly SingleLineTextHistoryState? _history;
@@ -350,6 +358,9 @@ public sealed class TextInputRow : FormRow, IFormOverlayRow, IFormCursorProvider
     public SingleLineTextHistoryState? History => _history;
     public TextInputRowState State => _state;
     public int? Width => _width;
+
+    public Rect GetInputBounds(Rect rowBounds) =>
+        new(rowBounds.X, rowBounds.Y, Math.Min(rowBounds.Width, _width ?? rowBounds.Width), rowBounds.Height);
 
     public override void Render(FormRowRenderContext context)
     {
@@ -387,7 +398,7 @@ public sealed class TextInputRow : FormRow, IFormOverlayRow, IFormCursorProvider
         SingleLineTextInput.RenderHistoryDropdown(context.Screen, context.Bounds.X, context.Bounds.Y, width, _history, context.ScreenHeight);
     }
 
-    internal bool IsHistoryArrow(MouseConsoleInputEvent mouse, FormRowMouseContext context)
+    public bool IsHistoryArrow(MouseConsoleInputEvent mouse, FormRowMouseContext context)
     {
         if (_history is null)
             return false;
@@ -972,10 +983,13 @@ public sealed class ScrollableFormDialog
             return false;
 
         UiTargetId target = RowTarget(row);
-        if (_activeFocusScope is null || ActiveFocusScope.CurrentFrame.Entries.Count == 0)
+        if (_activeFocusScope is null ||
+            ActiveFocusScope.CurrentFrame.Entries.Count == 0 ||
+            !ActiveFocusScope.CurrentFrame.Entries.Any(entry => entry.Target == target))
         {
             _requestedInitialTarget = target;
             _compatFocusScope.TryFocus(target);
+            _activeFocusScope?.ClearFocus();
             RequestEnsureFocusVisible();
             return true;
         }
@@ -1325,14 +1339,14 @@ public sealed class ScrollableFormDialog
         int screenHeight,
         UiTargetId rowTarget)
     {
-        if (row is not TextInputRow textInput || textInput.History is null)
+        if (row is not IFormHistoryRow textInput || textInput.History is null)
             return;
 
-        int width = Math.Min(rowBounds.Width, textInput.Width ?? rowBounds.Width);
+        Rect inputBounds = textInput.GetInputBounds(rowBounds);
         SingleLineTextHistoryFrame? historyFrame = SingleLineTextInput.CalculateHistoryDropdownFrame(
-            rowBounds.X,
-            rowBounds.Y,
-            width,
+            inputBounds.X,
+            inputBounds.Y,
+            inputBounds.Width,
             screenHeight,
             textInput.History);
         if (historyFrame is not { } frame)
@@ -1507,7 +1521,7 @@ public sealed class ScrollableFormDialog
     {
         if (mouse is not { Kind: MouseEventKind.Down, Button: MouseButton.Left } ||
             route.FocusScope.FocusedTarget is not UiTargetId focusedTarget ||
-            FindRowTarget(frame, focusedTarget)?.Row is not TextInputRow { History: { IsDropdownOpen: true } history } row)
+            FindRowTarget(frame, focusedTarget)?.Row is not IFormHistoryRow { History: { IsDropdownOpen: true } history } row)
         {
             return false;
         }

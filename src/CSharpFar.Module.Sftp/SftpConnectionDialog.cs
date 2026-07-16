@@ -1,8 +1,7 @@
-using CSharpFar.Ui;
-using CSharpFar.Console;
 using CSharpFar.Console.Input;
 using CSharpFar.Console.Models;
 using CSharpFar.Core.Models;
+using CSharpFar.Ui;
 
 namespace CSharpFar.Module.Sftp;
 
@@ -24,12 +23,8 @@ internal sealed record SftpConnectionDialogValidationResult(
     string? ErrorMessage,
     string? HostKeyFingerprint)
 {
-    public static SftpConnectionDialogValidationResult Accepted() =>
-        new(true, null, null);
-
-    public static SftpConnectionDialogValidationResult Error(string message) =>
-        new(false, message, null);
-
+    public static SftpConnectionDialogValidationResult Accepted() => new(true, null, null);
+    public static SftpConnectionDialogValidationResult Error(string message) => new(false, message, null);
     public static SftpConnectionDialogValidationResult RequireHostKeyTrust(string fingerprint) =>
         new(false, "Review the host key fingerprint and check Trust host key.", fingerprint);
 }
@@ -40,29 +35,11 @@ internal sealed class SftpConnectionDialog
     private const int DialogHeight = 18;
     private const int FieldWidth = 42;
 
-    private const int RowConnectionName = 0;
-    private const int RowHost = 1;
-    private const int RowPort = 2;
-    private const int RowUserName = 3;
-    private const int RowPassword = 4;
-    private const int RowRemoteRoot = 5;
-    private const int RowSaveConnection = 6;
-    private const int RowSavePassword = 7;
-    private const int RowShowInDrive = 8;
-    private const int RowFingerprint = 9;
-    private const int RowTrustHostKey = 10;
-    private const int RowButtons = 11;
-    private const int FocusRowCount = 12;
-
-    private readonly ModalDialogHost _modalDialogs;
-    private ScreenRenderer _screen => _modalDialogs.Screen;
     private static readonly SingleLineTextHistoryRegistry HistoryRegistry = new();
+    private readonly ModalDialogHost _modalDialogs;
     private readonly ModalDialogRenderer _modalRenderer = new();
 
-    public SftpConnectionDialog(ModalDialogHost modalDialogs)
-    {
-        _modalDialogs = modalDialogs;
-    }
+    public SftpConnectionDialog(ModalDialogHost modalDialogs) => _modalDialogs = modalDialogs;
 
     public SftpConnectionDialogResult? Show(
         SftpConnectionDialogRequest request,
@@ -71,14 +48,14 @@ internal sealed class SftpConnectionDialog
         ArgumentNullException.ThrowIfNull(request);
         ArgumentNullException.ThrowIfNull(validate);
 
-        return RunLoop(request, validate);
+        return Run(request, validate);
     }
 
-    private SftpConnectionDialogResult? RunLoop(
+    private SftpConnectionDialogResult? Run(
         SftpConnectionDialogRequest request,
         Func<SftpConnectionDialogResult, SftpConnectionDialogValidationResult> validate)
     {
-        var connection = request.Connection;
+        SftpConnectionInfo? connection = request.Connection;
         var connectionName = TextBuffer(connection?.DisplayName ?? string.Empty);
         var host = TextBuffer(connection?.Host ?? string.Empty);
         var port = TextBuffer((connection?.Port ?? 22).ToString());
@@ -86,288 +63,186 @@ internal sealed class SftpConnectionDialog
         var password = TextBuffer(request.SavedPassword ?? string.Empty);
         var remoteRoot = TextBuffer(connection?.RemoteRootPath ?? "/");
         var histories = new TextFieldHistories();
+        var connectionNameState = new TextInputRowState();
+        var hostState = new TextInputRowState();
+        var portState = new TextInputRowState();
+        var userNameState = new TextInputRowState();
+        var passwordState = new TextInputRowState();
+        var remoteRootState = new TextInputRowState();
 
-        bool saveConnection = request.SaveConnectionByDefault;
-        bool savePassword = connection?.CredentialId is not null && request.SavedPassword is not null;
-        bool showInDrive = connection?.ShowInDriveSelection ?? true;
+        var saveConnectionRow = new CheckBoxRow(new CheckBoxLine("Save connection")) { Id = "save-connection" };
+        var savePasswordRow = new CheckBoxRow(new CheckBoxLine("Save password")) { Id = "save-password" };
+        var showInDriveRow = new CheckBoxRow(new CheckBoxLine("Show in drive menu")) { Id = "show-in-drive" };
+        var trustHostKeyRow = new CheckBoxRow(new CheckBoxLine("Trust host key")) { Id = "trust-host-key" };
+        saveConnectionRow.Value = request.SaveConnectionByDefault;
+        savePasswordRow.Value = connection?.CredentialId is not null && request.SavedPassword is not null;
+        showInDriveRow.Value = connection?.ShowInDriveSelection ?? true;
+
         string? hostKeyFingerprint = connection?.ExpectedHostKeyFingerprint;
-        bool trustHostKey = !string.IsNullOrWhiteSpace(hostKeyFingerprint);
+        trustHostKeyRow.Value = !string.IsNullOrWhiteSpace(hostKeyFingerprint);
         string? error = null;
-        int focusRow = RowConnectionName;
-        int bodyScrollTop = 0;
-        int focusedButton = 0;
-        bool ensureFocusVisible = true;
-        ScrollBarDragState? bodyScrollbarDrag = null;
-        ScrollBarDragState? historyScrollbarDrag = null;
         string submitLabel = request.AllowTemporaryConnection ? "Connect" : "Save";
-        var buttonBar = new DialogButtonBar(
+        var actions = new ButtonRow(
         [
             new DialogButton("submit", submitLabel, submitLabel[0], IsDefault: true),
             new DialogButton("cancel", "Cancel", 'C'),
-        ]);
-        return _modalDialogs.Run(
-            context =>
+        ],
+        FarDialogStyles.Fill,
+        FarDialogStyles.FocusedInput) { Id = "actions" };
+        var form = new ScrollableFormDialog();
+
+        void PrepareRows() => form.SetRows(
+            BuildRows(
+                request.AllowTemporaryConnection,
+                connectionName, host, port, userName, password, remoteRoot,
+                histories, connectionNameState, hostState, portState, userNameState, passwordState, remoteRootState,
+                saveConnectionRow, savePasswordRow, showInDriveRow, trustHostKeyRow, hostKeyFingerprint),
+            [actions]);
+
+        return _modalDialogs.RunInteractive<ScrollableFormFrame, FormInputResult, SftpConnectionDialogResult?>(
+            (context, focusScope) => Draw(context, focusScope, form, connection is null ? "SFTP connection" : "Edit SFTP connection", error),
+            form.BuildInteractionFrame,
+            (input, frame, route) =>
             {
-                var geometry = GetDialogGeometry(context.Size);
-                int effectiveBodyScrollTop = ensureFocusVisible
-                    ? NormalizeBodyScroll(geometry, focusRow, bodyScrollTop, request.AllowTemporaryConnection)
-                    : ClampBodyScroll(geometry, bodyScrollTop, request.AllowTemporaryConnection);
-                var buttons = Draw(
-                    geometry,
-                    connection is null ? "SFTP connection" : "Edit SFTP connection",
-                    focusRow, effectiveBodyScrollTop, buttonBar, focusedButton, connectionName, host, port,
-                    userName, password, remoteRoot, histories, saveConnection, savePassword, showInDrive,
-                    hostKeyFingerprint, trustHostKey, request.AllowTemporaryConnection, error);
-                return new SftpConnectionFrame(context.Size, geometry, effectiveBodyScrollTop, buttons);
+                string previousHost = host.Text;
+                string previousPort = port.Text;
+                FormRouteResult result = form.RouteInput(input, frame, route);
+                if (result.FormResult.IsHandled)
+                {
+                    error = null;
+                    if (!string.Equals(previousHost, host.Text, StringComparison.Ordinal) || !string.Equals(previousPort, port.Text, StringComparison.Ordinal))
+                    {
+                        hostKeyFingerprint = null;
+                        trustHostKeyRow.Value = false;
+                    }
+
+                    if (savePasswordRow.Value)
+                        saveConnectionRow.Value = true;
+                    if (!saveConnectionRow.Value)
+                        savePasswordRow.Value = false;
+                }
+
+                return (result.FormResult, result.UiResult);
             },
-            (input, frame) =>
+            (routed, result) =>
             {
-            if (input is MouseConsoleInputEvent historyMouse &&
-                TryHandleHistoryDropdownMouse(
-                    historyMouse,
-                    frame,
-                    connectionName,
-                    host,
-                    port,
-                    userName,
-                    remoteRoot,
-                    histories,
-                    request.AllowTemporaryConnection,
-                    ref historyScrollbarDrag))
-            {
-                ensureFocusVisible = false;
-                return ModalDialogLoopResult<SftpConnectionDialogResult?>.Continue;
-            }
-
-            if (input is MouseConsoleInputEvent scrollbarMouse &&
-                TryHandleBodyScrollbarMouse(
-                    scrollbarMouse,
-                    frame,
-                    request.AllowTemporaryConnection,
-                    ref bodyScrollTop,
-                    ref bodyScrollbarDrag))
-            {
-                ensureFocusVisible = false;
-                return ModalDialogLoopResult<SftpConnectionDialogResult?>.Continue;
-            }
-
-            if ((focusRow == RowButtons || input is MouseConsoleInputEvent) &&
-                buttonBar.TryHandleInput(input, frame.Buttons, ref focusedButton, out string? buttonId))
-            {
-                focusRow = RowButtons;
-                if (buttonId == "cancel")
+                if (result.Kind == FormInputResultKind.Cancel || routed.Input is KeyConsoleInputEvent { Key.Key: ConsoleKey.Escape })
                     return ModalDialogLoopResult<SftpConnectionDialogResult?>.Complete(null);
-                if (buttonId == "submit" && TrySubmit(out var submitResult))
-                    return ModalDialogLoopResult<SftpConnectionDialogResult?>.Complete(submitResult);
+
+                if (result.Kind == FormInputResultKind.Submit ||
+                    routed.Input is KeyConsoleInputEvent { Key.Key: ConsoleKey.F10 } ||
+                    FormDialogInput.ShouldImplicitlySubmit(routed, result, form))
+                {
+                    SftpConnectionDialogResult? candidate = BuildResult(
+                        request,
+                        connectionName.Text.Trim(), host.Text.Trim(), port.Text.Trim(), userName.Text.Trim(), password.Text,
+                        remoteRoot.Text.Trim(), saveConnectionRow.Value, savePasswordRow.Value, showInDriveRow.Value,
+                        trustHostKeyRow.Value ? hostKeyFingerprint : null);
+                    if (candidate is null)
+                    {
+                        error = "Host, user name, password, and remote root are required.";
+                        return ModalDialogLoopResult<SftpConnectionDialogResult?>.Continue;
+                    }
+
+                    SftpConnectionDialogValidationResult validation = validate(candidate);
+                    if (validation.IsAccepted)
+                    {
+                        histories.Add(connectionName, host, port, userName, remoteRoot);
+                        return ModalDialogLoopResult<SftpConnectionDialogResult?>.Complete(candidate);
+                    }
+
+                    if (validation.HostKeyFingerprint is not null)
+                    {
+                        hostKeyFingerprint = validation.HostKeyFingerprint;
+                        trustHostKeyRow.Value = false;
+                        PrepareRows();
+                        form.TryFocus("trust-host-key");
+                    }
+
+                    error = validation.ErrorMessage;
+                }
+
                 return ModalDialogLoopResult<SftpConnectionDialogResult?>.Continue;
-            }
-
-            if (input is MouseConsoleInputEvent mouse)
-            {
-                TryHandleMouse(
-                    mouse,
-                    frame,
-                    request.AllowTemporaryConnection,
-                    connectionName,
-                    host,
-                    port,
-                    userName,
-                    password,
-                    remoteRoot,
-                    histories,
-                    ref focusRow,
-                    ref saveConnection,
-                    ref savePassword,
-                    ref showInDrive,
-                    ref trustHostKey,
-                    ref error,
-                    hostKeyFingerprint);
-                return ModalDialogLoopResult<SftpConnectionDialogResult?>.Continue;
-            }
-
-            if (input is not KeyConsoleInputEvent { Key: var key })
-                return ModalDialogLoopResult<SftpConnectionDialogResult?>.Continue;
-
-            if (histories.ForRow(focusRow)?.IsDropdownOpen == true &&
-                key.Key is ConsoleKey.UpArrow or ConsoleKey.DownArrow or ConsoleKey.Enter or ConsoleKey.Escape)
-            {
-                ClearHostKeyWhenEndpointChanges(
-                    focusRow,
-                    EditFocusedText(
-                        focusRow,
-                        key,
-                        connectionName,
-                        host,
-                        port,
-                        userName,
-                        password,
-                        remoteRoot,
-                        histories,
-                        frame,
-                        request.AllowTemporaryConnection,
-                    ref error),
-                    ref hostKeyFingerprint,
-                    ref trustHostKey);
-                return ModalDialogLoopResult<SftpConnectionDialogResult?>.Continue;
-            }
-
-            switch (key.Key)
-            {
-                case ConsoleKey.Escape:
-                    return ModalDialogLoopResult<SftpConnectionDialogResult?>.Complete(null);
-                case ConsoleKey.F10:
-                    if (TrySubmit(out var f10Result))
-                        return ModalDialogLoopResult<SftpConnectionDialogResult?>.Complete(f10Result);
-                    break;
-                case ConsoleKey.Enter:
-                    if (focusRow == RowButtons)
-                    {
-                        if (focusedButton == 1)
-                            return ModalDialogLoopResult<SftpConnectionDialogResult?>.Complete(null);
-                        if (TrySubmit(out var enterResult))
-                            return ModalDialogLoopResult<SftpConnectionDialogResult?>.Complete(enterResult);
-                    }
-                    else if (TryToggle(focusRow, request.AllowTemporaryConnection, hostKeyFingerprint, ref saveConnection, ref savePassword, ref showInDrive, ref trustHostKey))
-                    {
-                        error = null;
-                    }
-                    break;
-                case ConsoleKey.UpArrow:
-                    focusRow = PreviousRow(focusRow, request.AllowTemporaryConnection);
-                    error = null;
-                    break;
-                case ConsoleKey.DownArrow:
-                    focusRow = NextRow(focusRow, request.AllowTemporaryConnection);
-                    error = null;
-                    break;
-                case ConsoleKey.Tab:
-                    focusRow = IsShiftTab(key)
-                        ? PreviousRow(focusRow, request.AllowTemporaryConnection)
-                        : NextRow(focusRow, request.AllowTemporaryConnection);
-                    error = null;
-                    break;
-                case ConsoleKey.LeftArrow:
-                case ConsoleKey.RightArrow:
-                    if (focusRow == RowButtons)
-                        buttonBar.TryHandleKey(key, ref focusedButton, out _);
-                    else
-                        ClearHostKeyWhenEndpointChanges(
-                            focusRow,
-                            EditFocusedText(focusRow, key, connectionName, host, port, userName, password, remoteRoot, histories, frame, request.AllowTemporaryConnection, ref error),
-                            ref hostKeyFingerprint,
-                            ref trustHostKey);
-                    break;
-                case ConsoleKey.Spacebar:
-                    if (focusRow == RowButtons)
-                    {
-                        if (focusedButton == 1)
-                            return ModalDialogLoopResult<SftpConnectionDialogResult?>.Complete(null);
-                        if (TrySubmit(out var spaceResult))
-                            return ModalDialogLoopResult<SftpConnectionDialogResult?>.Complete(spaceResult);
-                    }
-                    else if (TryToggle(focusRow, request.AllowTemporaryConnection, hostKeyFingerprint, ref saveConnection, ref savePassword, ref showInDrive, ref trustHostKey))
-                    {
-                        error = null;
-                    }
-                    else
-                    {
-                        ClearHostKeyWhenEndpointChanges(
-                            focusRow,
-                            EditFocusedText(focusRow, key, connectionName, host, port, userName, password, remoteRoot, histories, frame, request.AllowTemporaryConnection, ref error),
-                            ref hostKeyFingerprint,
-                            ref trustHostKey);
-                    }
-                    break;
-                default:
-                    ClearHostKeyWhenEndpointChanges(
-                        focusRow,
-                        EditFocusedText(focusRow, key, connectionName, host, port, userName, password, remoteRoot, histories, frame, request.AllowTemporaryConnection, ref error),
-                        ref hostKeyFingerprint,
-                        ref trustHostKey);
-                    break;
-            }
-
-            return ModalDialogLoopResult<SftpConnectionDialogResult?>.Continue;
             },
-            applyCommittedFrame: frame =>
-            {
-                bodyScrollTop = frame.BodyScrollTop;
-                ensureFocusVisible = true;
-            });
-
-        bool TrySubmit(out SftpConnectionDialogResult? result)
-        {
-            result = BuildResult(
-                request,
-                connectionName.Text.Trim(),
-                host.Text.Trim(),
-                port.Text.Trim(),
-                userName.Text.Trim(),
-                password.Text,
-                remoteRoot.Text.Trim(),
-                saveConnection,
-                savePassword,
-                showInDrive,
-                trustHostKey ? hostKeyFingerprint : null);
-            if (result is null)
-            {
-                error = "Host, user name, password, and remote root are required.";
-                return false;
-            }
-
-            var validation = validate(result);
-            if (validation.HostKeyFingerprint is not null)
-            {
-                hostKeyFingerprint = validation.HostKeyFingerprint;
-                trustHostKey = false;
-                focusRow = RowTrustHostKey;
-            }
-
-            if (validation.IsAccepted)
-            {
-                histories.Add(connectionName, host, port, userName, remoteRoot);
-                return true;
-            }
-
-            error = validation.ErrorMessage;
-            result = null;
-            return false;
-        }
+            prepareRender: PrepareRows);
     }
 
-    private static CommandLineState TextBuffer(string value)
-    {
-        var buffer = new CommandLineState();
-        buffer.SetText(value);
-        return buffer;
-    }
-
-    private static bool IsShiftTab(ConsoleKeyInfo key) =>
-        key.Key == ConsoleKey.Tab &&
-        (key.Modifiers & ConsoleModifiers.Shift) != 0;
-
-    private static SftpConnectionDialogResult? BuildResult(
-        SftpConnectionDialogRequest request,
-        string connectionName,
-        string host,
-        string portText,
-        string userName,
-        string password,
-        string remoteRoot,
-        bool saveConnection,
-        bool savePassword,
-        bool showInDrive,
+    private static IReadOnlyList<IFormRow> BuildRows(
+        bool allowTemporaryConnection,
+        CommandLineState connectionName,
+        CommandLineState host,
+        CommandLineState port,
+        CommandLineState userName,
+        CommandLineState password,
+        CommandLineState remoteRoot,
+        TextFieldHistories histories,
+        TextInputRowState connectionNameState,
+        TextInputRowState hostState,
+        TextInputRowState portState,
+        TextInputRowState userNameState,
+        TextInputRowState passwordState,
+        TextInputRowState remoteRootState,
+        CheckBoxRow saveConnectionRow,
+        CheckBoxRow savePasswordRow,
+        CheckBoxRow showInDriveRow,
+        CheckBoxRow trustHostKeyRow,
         string? hostKeyFingerprint)
     {
-        if (string.IsNullOrWhiteSpace(host) ||
-            string.IsNullOrWhiteSpace(userName) ||
-            string.IsNullOrEmpty(password) ||
-            string.IsNullOrWhiteSpace(remoteRoot) ||
-            !int.TryParse(portText, out int port) ||
-            port is <= 0 or > 65535)
+        var rows = new List<IFormRow>
         {
-            return null;
+            new LabeledTextInputRow("Connection name:", connectionName, histories.ConnectionName, connectionNameState, inputWidth: FieldWidth) { Id = "connection-name", SubmitOnEnter = true },
+            new LabeledTextInputRow("Host:", host, histories.Host, hostState, inputWidth: FieldWidth) { Id = "host", SubmitOnEnter = true },
+            new LabeledTextInputRow("Port:", port, histories.Port, portState, inputWidth: FieldWidth) { Id = "port", SubmitOnEnter = true },
+            new LabeledTextInputRow("User name:", userName, histories.UserName, userNameState, inputWidth: FieldWidth) { Id = "username", SubmitOnEnter = true },
+            new LabeledTextInputRow("Password:", password, state: passwordState, inputWidth: FieldWidth, maskInput: true) { Id = "password", SubmitOnEnter = true },
+            new LabeledTextInputRow("Remote root:", remoteRoot, histories.RemoteRoot, remoteRootState, inputWidth: FieldWidth) { Id = "remote-root", SubmitOnEnter = true },
+        };
+        if (allowTemporaryConnection)
+            rows.Add(saveConnectionRow);
+        rows.Add(savePasswordRow);
+        rows.Add(showInDriveRow);
+        if (!string.IsNullOrWhiteSpace(hostKeyFingerprint))
+        {
+            rows.Add(new LabeledValueRow("Host key:", () => hostKeyFingerprint, 22) { Id = "host-key-fingerprint" });
+            rows.Add(trustHostKeyRow);
         }
+        return rows;
+    }
+
+    private ScrollableFormFrame Draw(UiRenderContext context, UiFocusScope focusScope, ScrollableFormDialog form, string title, string? error)
+    {
+        ScrollableFormFrame? frame = null;
+        _modalRenderer.Render(context.Screen, OuterBounds(context.Size), title, true, FarDialogStyles.OuterOptions, FarDialogStyles.FrameOptions, (_, layout) =>
+        {
+            Rect bounds = layout.FrameBounds;
+            int contentX = bounds.X + 2;
+            int contentWidth = Math.Max(1, bounds.Width - 4);
+            int buttonY = bounds.Bottom - 2;
+            int errorY = buttonY - 1;
+            frame = form.Render(new FormRenderContext(
+                context,
+                new Rect(contentX, bounds.Y + 1, contentWidth, Math.Max(1, errorY - bounds.Y - 1)),
+                FarDialogStyles.Border,
+                new Rect(contentX, buttonY, contentWidth, 1)), focusScope);
+            context.Screen.Write(contentX, errorY, Fit(error ?? string.Empty, contentWidth).PadRight(contentWidth), FarDialogStyles.Error);
+        });
+        return frame ?? throw new InvalidOperationException("SFTP connection dialog did not render a form frame.");
+    }
+
+    private static Rect OuterBounds(ConsoleSize size)
+    {
+        int width = Math.Min(DialogWidth, Math.Max(42, size.Width - 2));
+        int height = Math.Min(DialogHeight, Math.Max(8, size.Height - 2));
+        return new Rect(Math.Max(0, (size.Width - width) / 2), Math.Max(0, (size.Height - height) / 2), width, height);
+    }
+
+    private static SftpConnectionDialogResult? BuildResult(
+        SftpConnectionDialogRequest request, string connectionName, string host, string portText, string userName, string password,
+        string remoteRoot, bool saveConnection, bool savePassword, bool showInDrive, string? hostKeyFingerprint)
+    {
+        if (string.IsNullOrWhiteSpace(host) || string.IsNullOrWhiteSpace(userName) || string.IsNullOrEmpty(password) ||
+            string.IsNullOrWhiteSpace(remoteRoot) || !int.TryParse(portText, out int port) || port is <= 0 or > 65535)
+            return null;
 
         if (!request.AllowTemporaryConnection)
             saveConnection = true;
@@ -375,11 +250,8 @@ internal sealed class SftpConnectionDialog
             savePassword = false;
 
         string connectionId = request.Connection?.Id ?? Guid.NewGuid().ToString("N");
-        string? credentialId = savePassword
-            ? request.Connection?.CredentialId ?? connectionId
-            : null;
-
-        var connection = new SftpConnectionInfo
+        string? credentialId = savePassword ? request.Connection?.CredentialId ?? connectionId : null;
+        return new SftpConnectionDialogResult(new SftpConnectionInfo
         {
             Id = connectionId,
             DisplayName = string.IsNullOrWhiteSpace(connectionName) ? host : connectionName,
@@ -390,668 +262,34 @@ internal sealed class SftpConnectionDialog
             CredentialId = credentialId,
             ExpectedHostKeyFingerprint = hostKeyFingerprint,
             ShowInDriveSelection = showInDrive,
-        };
-
-        return new SftpConnectionDialogResult(
-            connection,
-            password,
-            saveConnection,
-            savePassword,
-            request.Connection?.CredentialId);
+        }, password, saveConnection, savePassword, request.Connection?.CredentialId);
     }
 
-    private static int NextRow(int focusRow, bool allowTemporaryConnection)
+    private static CommandLineState TextBuffer(string value)
     {
-        do
-        {
-            focusRow = (focusRow + 1) % FocusRowCount;
-        } while (!IsFocusableRow(focusRow, allowTemporaryConnection));
-
-        return focusRow;
+        var buffer = new CommandLineState();
+        buffer.SetText(value);
+        return buffer;
     }
 
-    private static int PreviousRow(int focusRow, bool allowTemporaryConnection)
-    {
-        do
-        {
-            focusRow = focusRow == 0 ? FocusRowCount - 1 : focusRow - 1;
-        } while (!IsFocusableRow(focusRow, allowTemporaryConnection));
-
-        return focusRow;
-    }
-
-    private static bool IsFocusableRow(int focusRow, bool allowTemporaryConnection) =>
-        focusRow != RowSaveConnection || allowTemporaryConnection;
-
-    private static bool TryToggle(
-        int focusRow,
-        bool allowTemporaryConnection,
-        string? hostKeyFingerprint,
-        ref bool saveConnection,
-        ref bool savePassword,
-        ref bool showInDrive,
-        ref bool trustHostKey)
-    {
-        switch (focusRow)
-        {
-            case RowSaveConnection:
-                if (!allowTemporaryConnection)
-                    return true;
-                saveConnection = !saveConnection;
-                if (!saveConnection)
-                    savePassword = false;
-                return true;
-            case RowSavePassword:
-                savePassword = !savePassword;
-                if (savePassword)
-                    saveConnection = true;
-                return true;
-            case RowShowInDrive:
-                showInDrive = !showInDrive;
-                return true;
-            case RowTrustHostKey:
-                if (!string.IsNullOrWhiteSpace(hostKeyFingerprint))
-                    trustHostKey = !trustHostKey;
-                return true;
-            default:
-                return false;
-        }
-    }
-
-    private static bool EditFocusedText(
-        int focusRow,
-        ConsoleKeyInfo key,
-        CommandLineState connectionName,
-        CommandLineState host,
-        CommandLineState port,
-        CommandLineState userName,
-        CommandLineState password,
-        CommandLineState remoteRoot,
-        TextFieldHistories histories,
-        SftpConnectionFrame frame,
-        bool allowTemporaryConnection,
-        ref string? error)
-    {
-        CommandLineState? buffer = focusRow switch
-        {
-            RowConnectionName => connectionName,
-            RowHost => host,
-            RowPort => port,
-            RowUserName => userName,
-            RowPassword => password,
-            RowRemoteRoot => remoteRoot,
-            _ => null,
-        };
-        if (buffer is null)
-            return false;
-
-        var history = histories.ForRow(focusRow);
-        int availableRows = DropdownRows(frame, focusRow, allowTemporaryConnection);
-        return SingleLineTextInput.HandleKey(buffer, key, ref error, history, availableRows) == TextInputKeyResult.TextChanged;
-    }
-
-    private static void ClearHostKeyWhenEndpointChanges(
-        int focusRow,
-        bool changed,
-        ref string? hostKeyFingerprint,
-        ref bool trustHostKey)
-    {
-        if (!changed || focusRow is not (RowHost or RowPort))
-            return;
-
-        hostKeyFingerprint = null;
-        trustHostKey = false;
-    }
-
-    private static bool TryHandleBodyScrollbarMouse(
-        MouseConsoleInputEvent mouse,
-        SftpConnectionFrame frame,
-        bool allowTemporaryConnection,
-        ref int bodyScrollTop,
-        ref ScrollBarDragState? bodyScrollbarDrag)
-    {
-        var geometry = frame.Geometry;
-        int bodyRowCount = BodyRowCount(allowTemporaryConnection);
-        if (bodyRowCount <= geometry.BodyBounds.Height)
-            return false;
-
-        bodyScrollTop = frame.BodyScrollTop;
-        return ScrollBarMouseHandler.TryHandleMouse(
-            mouse,
-            new Rect(geometry.FrameBounds.Right - 1, geometry.BodyBounds.Y, 1, geometry.BodyBounds.Height),
-            bodyRowCount,
-            geometry.BodyBounds.Height,
-            ref bodyScrollTop,
-            ref bodyScrollbarDrag);
-    }
-
-    private static bool TryHandleMouse(
-        MouseConsoleInputEvent mouse,
-        SftpConnectionFrame frame,
-        bool allowTemporaryConnection,
-        CommandLineState connectionName,
-        CommandLineState host,
-        CommandLineState port,
-        CommandLineState userName,
-        CommandLineState password,
-        CommandLineState remoteRoot,
-        TextFieldHistories histories,
-        ref int focusRow,
-        ref bool saveConnection,
-        ref bool savePassword,
-        ref bool showInDrive,
-        ref bool trustHostKey,
-        ref string? error,
-        string? hostKeyFingerprint)
-    {
-        if (mouse.Button != MouseButton.Left ||
-            mouse.Kind != MouseEventKind.Down)
-        {
-            return false;
-        }
-
-        var geometry = frame.Geometry;
-        for (int row = 0; row < FocusRowCount; row++)
-        {
-            if (row == RowButtons)
-                continue;
-            if (!IsFocusableRow(row, allowTemporaryConnection))
-                continue;
-
-            if (BodyY(geometry, row, allowTemporaryConnection, frame.BodyScrollTop) is not { } rowY ||
-                mouse.Y != rowY ||
-                mouse.X < geometry.LabelX ||
-                mouse.X >= geometry.ContentBounds.Right - 2)
-            {
-                continue;
-            }
-
-            focusRow = row;
-            error = null;
-            if (TryGetTextBuffer(row, connectionName, host, port, userName, password, remoteRoot) is { } buffer)
-            {
-                if (row != RowPassword &&
-                    SingleLineTextInput.IsHistoryArrowHit(geometry.FieldX, geometry.FieldWidth, rowY, mouse.X, mouse.Y) &&
-                    histories.ForRow(row) is { } history)
-                {
-                    SingleLineTextInput.TryOpenHistoryDropdown(history, rowY, frame.Size.Height);
-                    return true;
-                }
-
-                if (mouse.X >= geometry.FieldX && mouse.X < geometry.FieldX + geometry.FieldWidth)
-                    SetTextCursorFromMouse(buffer, mouse.X, geometry.FieldX, geometry.FieldWidth);
-                return true;
-            }
-
-            TryToggle(
-                row,
-                allowTemporaryConnection,
-                hostKeyFingerprint,
-                ref saveConnection,
-                ref savePassword,
-                ref showInDrive,
-                ref trustHostKey);
-            return true;
-        }
-
-        return false;
-    }
-
-    private static bool TryHandleHistoryDropdownMouse(
-        MouseConsoleInputEvent mouse,
-        SftpConnectionFrame frame,
-        CommandLineState connectionName,
-        CommandLineState host,
-        CommandLineState port,
-        CommandLineState userName,
-        CommandLineState remoteRoot,
-        TextFieldHistories histories,
-        bool allowTemporaryConnection,
-        ref ScrollBarDragState? historyScrollbarDrag)
-    {
-        return TryHandleHistoryDropdownRow(mouse, frame, allowTemporaryConnection, histories, RowConnectionName, connectionName, ref historyScrollbarDrag) ||
-            TryHandleHistoryDropdownRow(mouse, frame, allowTemporaryConnection, histories, RowHost, host, ref historyScrollbarDrag) ||
-            TryHandleHistoryDropdownRow(mouse, frame, allowTemporaryConnection, histories, RowPort, port, ref historyScrollbarDrag) ||
-            TryHandleHistoryDropdownRow(mouse, frame, allowTemporaryConnection, histories, RowUserName, userName, ref historyScrollbarDrag) ||
-            TryHandleHistoryDropdownRow(mouse, frame, allowTemporaryConnection, histories, RowRemoteRoot, remoteRoot, ref historyScrollbarDrag);
-    }
-
-    private static bool TryHandleHistoryDropdownRow(
-        MouseConsoleInputEvent mouse,
-        SftpConnectionFrame frame,
-        bool allowTemporaryConnection,
-        TextFieldHistories histories,
-        int row,
-        CommandLineState buffer,
-        ref ScrollBarDragState? historyScrollbarDrag)
-    {
-        var geometry = frame.Geometry;
-        if (BodyY(geometry, row, allowTemporaryConnection, frame.BodyScrollTop) is not { } fieldY ||
-            histories.ForRow(row) is not { } history)
-        {
-            return false;
-        }
-
-        return SingleLineTextInput.TryHandleHistoryDropdownMouse(
-            history,
-            buffer,
-            mouse,
-            geometry.FieldX,
-            fieldY,
-            geometry.FieldWidth,
-            frame.Size.Height,
-            ref historyScrollbarDrag);
-    }
-
-    private static CommandLineState? TryGetTextBuffer(
-        int focusRow,
-        CommandLineState connectionName,
-        CommandLineState host,
-        CommandLineState port,
-        CommandLineState userName,
-        CommandLineState password,
-        CommandLineState remoteRoot) =>
-        focusRow switch
-        {
-            RowConnectionName => connectionName,
-            RowHost => host,
-            RowPort => port,
-            RowUserName => userName,
-            RowPassword => password,
-            RowRemoteRoot => remoteRoot,
-            _ => null,
-        };
-
-    private static void SetTextCursorFromMouse(
-        CommandLineState buffer,
-        int mouseX,
-        int fieldX,
-        int fieldWidth)
-    {
-        int visibleStart = Math.Max(0, buffer.CursorPosition - Math.Max(0, fieldWidth - 1));
-        int position = Math.Clamp(visibleStart + mouseX - fieldX, 0, buffer.Text.Length);
-        buffer.MoveToStart();
-        buffer.MoveCursor(position);
-    }
-
-    private DialogButtonBarLayout Draw(
-        DialogGeometry geometry,
-        string title,
-        int focusRow,
-        int bodyScrollTop,
-        DialogButtonBar buttonBar,
-        int focusedButton,
-        CommandLineState connectionName,
-        CommandLineState host,
-        CommandLineState port,
-        CommandLineState userName,
-        CommandLineState password,
-        CommandLineState remoteRoot,
-        TextFieldHistories histories,
-        bool saveConnection,
-        bool savePassword,
-        bool showInDrive,
-        string? hostKeyFingerprint,
-        bool trustHostKey,
-        bool allowTemporaryConnection,
-        string? error)
-    {
-        DialogButtonBarLayout buttons = null!;
-        var bounds = geometry.Bounds;
-        var fill = FarDialogStyles.Fill;
-        var focused = FarDialogStyles.FocusedInput;
-
-        _modalRenderer.Render(_screen, bounds, title, true, FarDialogStyles.OuterOptions, FarDialogStyles.FrameOptions, (_, layout) =>
-        {
-            Rect contentBounds = layout.ContentBounds;
-            int labelX = geometry.LabelX;
-            int fieldX = geometry.FieldX;
-            int fieldWidth = geometry.FieldWidth;
-            int rowWidth = Math.Max(0, contentBounds.Width - 4);
-            _screen.FillRegion(geometry.BodyBounds, fill);
-
-            DrawVisibleTextField(RowConnectionName, "Connection name:", connectionName, mask: false);
-            DrawVisibleTextField(RowHost, "Host:", host, mask: false);
-            DrawVisibleTextField(RowPort, "Port:", port, mask: false);
-            DrawVisibleTextField(RowUserName, "User name:", userName, mask: false);
-            DrawVisibleTextField(RowPassword, "Password:", password, mask: true);
-            DrawVisibleTextField(RowRemoteRoot, "Remote root:", remoteRoot, mask: false);
-
-            if (allowTemporaryConnection)
-                DrawVisibleCheckBox(RowSaveConnection, "Save connection", saveConnection, enabled: true);
-            DrawVisibleCheckBox(RowSavePassword, "Save password", savePassword, enabled: true);
-            DrawVisibleCheckBox(RowShowInDrive, "Show in drive menu", showInDrive, enabled: true);
-
-            string fingerprintText = string.IsNullOrWhiteSpace(hostKeyFingerprint)
-                ? "(press F10 to read host key)"
-                : hostKeyFingerprint;
-            DrawVisibleReadOnly(RowFingerprint, "Host key:", fingerprintText);
-            DrawVisibleCheckBox(RowTrustHostKey, "Trust host key", trustHostKey, enabled: !string.IsNullOrWhiteSpace(hostKeyFingerprint));
-
-            int bodyRowCount = BodyRowCount(allowTemporaryConnection);
-            if (bodyRowCount > geometry.BodyBounds.Height)
-            {
-                new ScrollBarRenderer().RenderVerticalScrollbar(
-                    _screen,
-                    new Rect(layout.FrameBounds.Right - 1, geometry.BodyBounds.Y, 1, geometry.BodyBounds.Height),
-                    new ScrollState
-                    {
-                        TotalItems = bodyRowCount,
-                        ViewportItems = geometry.BodyBounds.Height,
-                        FirstVisibleIndex = bodyScrollTop,
-                    },
-                    new ScrollBarOptions
-                    {
-                        Enabled = true,
-                        DrawWhenNotScrollable = false,
-                    },
-                    FarDialogStyles.Border);
-            }
-
-            int buttonY = contentBounds.Bottom - 1;
-            int errorY = buttonY - 1;
-            string errorText = error is null ? string.Empty : Truncate(error, rowWidth);
-            _screen.Write(labelX, errorY, errorText.PadRight(rowWidth), FarDialogStyles.Error);
-            buttons = buttonBar.Render(
-                _screen,
-                labelX,
-                buttonY,
-                rowWidth,
-                focusedButton,
-                fill,
-                focusRow == RowButtons ? focused : fill);
-
-            void DrawVisibleTextField(int row, string label, CommandLineState buffer, bool mask)
-            {
-                if (BodyY(geometry, row, allowTemporaryConnection, bodyScrollTop) is { } y)
-                    DrawTextField(labelX, fieldX, y, fieldWidth, label, buffer, histories.ForRow(row), focusRow == row, mask);
-            }
-
-            void DrawVisibleReadOnly(int row, string label, string value)
-            {
-                if (BodyY(geometry, row, allowTemporaryConnection, bodyScrollTop) is { } y)
-                    DrawReadOnly(labelX, fieldX, y, fieldWidth, label, value, focusRow == row);
-            }
-
-            void DrawVisibleCheckBox(int row, string label, bool isChecked, bool enabled)
-            {
-                if (BodyY(geometry, row, allowTemporaryConnection, bodyScrollTop) is { } y)
-                    DrawCheckBox(labelX, y, rowWidth, label, isChecked, focusRow == row, enabled);
-            }
-        });
-
-        SetFocusedTextCursor(
-            geometry,
-            focusRow,
-            connectionName,
-            host,
-            port,
-            userName,
-            password,
-            remoteRoot,
-            histories,
-            allowTemporaryConnection,
-            bodyScrollTop);
-        return buttons;
-    }
-
-    private static DialogGeometry GetDialogGeometry(ConsoleSize size)
-    {
-        int width = Math.Min(DialogWidth, Math.Max(42, size.Width - 2));
-        int height = Math.Min(DialogHeight, Math.Max(8, size.Height - 2));
-        int x = Math.Max(0, (size.Width - width) / 2);
-        int y = Math.Max(0, (size.Height - height) / 2);
-        var bounds = new Rect(x, y, width, height);
-        var frameBounds = new Rect(
-            bounds.X + 1,
-            bounds.Y + 1,
-            Math.Max(1, bounds.Width - 2),
-            Math.Max(1, bounds.Height - 2));
-        var contentBounds = new Rect(
-            bounds.X + 2,
-            bounds.Y + 2,
-            Math.Max(0, bounds.Width - 4),
-            Math.Max(0, bounds.Height - 4));
-        int buttonY = contentBounds.Bottom - 1;
-        int errorY = buttonY - 1;
-        var bodyBounds = new Rect(
-            contentBounds.X,
-            contentBounds.Y,
-            contentBounds.Width,
-            Math.Max(1, errorY - contentBounds.Y));
-        int labelX = contentBounds.X + 2;
-        int fieldX = Math.Min(contentBounds.Right - 1, labelX + 22);
-        int fieldWidth = Math.Min(FieldWidth, Math.Max(1, contentBounds.Right - fieldX - 1));
-        return new DialogGeometry(bounds, frameBounds, contentBounds, bodyBounds, labelX, fieldX, fieldWidth);
-    }
-
-    private static int DisplayRow(int row, bool allowTemporaryConnection)
-    {
-        int offset = row;
-        if (!allowTemporaryConnection && row > RowSaveConnection)
-            offset--;
-        return offset;
-    }
-
-    private static int BodyRowCount(bool allowTemporaryConnection) =>
-        DisplayRow(RowTrustHostKey, allowTemporaryConnection) + 1;
-
-    private static int NormalizeBodyScroll(
-        DialogGeometry geometry,
-        int focusRow,
-        int bodyScrollTop,
-        bool allowTemporaryConnection)
-    {
-        int bodyRowCount = BodyRowCount(allowTemporaryConnection);
-        int viewportRows = geometry.BodyBounds.Height;
-        bodyScrollTop = ScrollStateCalculator.ClampFirstVisibleIndex(bodyScrollTop, bodyRowCount, viewportRows);
-        if (focusRow != RowButtons)
-        {
-            bodyScrollTop = ScrollStateCalculator.EnsureIndexVisible(
-                DisplayRow(focusRow, allowTemporaryConnection),
-                bodyScrollTop,
-                viewportRows);
-        }
-
-        return ScrollStateCalculator.ClampFirstVisibleIndex(bodyScrollTop, bodyRowCount, viewportRows);
-    }
-
-    private static int ClampBodyScroll(
-        DialogGeometry geometry,
-        int bodyScrollTop,
-        bool allowTemporaryConnection) =>
-        ScrollStateCalculator.ClampFirstVisibleIndex(
-            bodyScrollTop,
-            BodyRowCount(allowTemporaryConnection),
-            geometry.BodyBounds.Height);
-
-    private static int? BodyY(
-        DialogGeometry geometry,
-        int row,
-        bool allowTemporaryConnection,
-        int bodyScrollTop)
-    {
-        int visibleRow = DisplayRow(row, allowTemporaryConnection) - bodyScrollTop;
-        return visibleRow >= 0 && visibleRow < geometry.BodyBounds.Height
-            ? geometry.BodyBounds.Y + visibleRow
-            : null;
-    }
-
-    private static int DropdownRows(
-        SftpConnectionFrame frame,
-        int focusRow,
-        bool allowTemporaryConnection)
-    {
-        int? fieldY = BodyY(frame.Geometry, focusRow, allowTemporaryConnection, frame.BodyScrollTop);
-        return fieldY is null
-            ? 0
-            : SingleLineTextInput.AvailableDropdownContentRows(fieldY.Value, frame.Size.Height);
-    }
-
-    private void SetFocusedTextCursor(
-        DialogGeometry geometry,
-        int focusRow,
-        CommandLineState connectionName,
-        CommandLineState host,
-        CommandLineState port,
-        CommandLineState userName,
-        CommandLineState password,
-        CommandLineState remoteRoot,
-        TextFieldHistories histories,
-        bool allowTemporaryConnection,
-        int bodyScrollTop)
-    {
-        CommandLineState? buffer = focusRow switch
-        {
-            RowConnectionName => connectionName,
-            RowHost => host,
-            RowPort => port,
-            RowUserName => userName,
-            RowPassword => password,
-            RowRemoteRoot => remoteRoot,
-            _ => null,
-        };
-        if (buffer is null)
-        {
-            _screen.SetCursorVisible(false);
-            return;
-        }
-
-        int fieldX = geometry.FieldX;
-        int fieldWidth = geometry.FieldWidth;
-        if (BodyY(geometry, focusRow, allowTemporaryConnection, bodyScrollTop) is not { } cursorY)
-        {
-            _screen.SetCursorVisible(false);
-            return;
-        }
-
-        var history = histories.ForRow(focusRow);
-        if (history is not null)
-            SingleLineTextInput.RenderHistoryDropdown(_screen, fieldX, cursorY, fieldWidth, history);
-
-        int textWidth = history is null ? fieldWidth : Math.Max(1, fieldWidth - 1);
-        int cursorX = SingleLineTextInput.GetCursorX(fieldX, textWidth, buffer);
-        if (cursorX >= fieldX + textWidth)
-        {
-            _screen.SetCursorVisible(false);
-            return;
-        }
-
-        _screen.SetCursorPosition(cursorX, cursorY);
-        _screen.SetCursorVisible(true);
-    }
-
-    private readonly record struct DialogGeometry(
-        Rect Bounds,
-        Rect FrameBounds,
-        Rect ContentBounds,
-        Rect BodyBounds,
-        int LabelX,
-        int FieldX,
-        int FieldWidth);
-
-    private readonly record struct SftpConnectionFrame(
-        ConsoleSize Size,
-        DialogGeometry Geometry,
-        int BodyScrollTop,
-        DialogButtonBarLayout Buttons);
+    private static string Fit(string text, int width) =>
+        width <= 0 ? string.Empty : text.Length <= width ? text : text[..Math.Max(0, width - 1)] + "~";
 
     private sealed class TextFieldHistories
     {
-        private readonly SingleLineTextHistoryState _connectionName = HistoryRegistry.GetOrCreate("SftpConnectionDialog.ConnectionName");
-        private readonly SingleLineTextHistoryState _host = HistoryRegistry.GetOrCreate("SftpConnectionDialog.Host");
-        private readonly SingleLineTextHistoryState _port = HistoryRegistry.GetOrCreate("SftpConnectionDialog.Port");
-        private readonly SingleLineTextHistoryState _userName = HistoryRegistry.GetOrCreate("SftpConnectionDialog.UserName");
-        private readonly SingleLineTextHistoryState _remoteRoot = HistoryRegistry.GetOrCreate("SftpConnectionDialog.RemoteRoot");
+        public SingleLineTextHistoryState ConnectionName { get; } = HistoryRegistry.GetOrCreate("SftpConnectionDialog.ConnectionName");
+        public SingleLineTextHistoryState Host { get; } = HistoryRegistry.GetOrCreate("SftpConnectionDialog.Host");
+        public SingleLineTextHistoryState Port { get; } = HistoryRegistry.GetOrCreate("SftpConnectionDialog.Port");
+        public SingleLineTextHistoryState UserName { get; } = HistoryRegistry.GetOrCreate("SftpConnectionDialog.UserName");
+        public SingleLineTextHistoryState RemoteRoot { get; } = HistoryRegistry.GetOrCreate("SftpConnectionDialog.RemoteRoot");
 
-        public SingleLineTextHistoryState? ForRow(int row) => row switch
+        public void Add(CommandLineState connectionName, CommandLineState host, CommandLineState port, CommandLineState userName, CommandLineState remoteRoot)
         {
-            RowConnectionName => _connectionName,
-            RowHost => _host,
-            RowPort => _port,
-            RowUserName => _userName,
-            RowRemoteRoot => _remoteRoot,
-            _ => null,
-        };
-
-        public void Add(
-            CommandLineState connectionName,
-            CommandLineState host,
-            CommandLineState port,
-            CommandLineState userName,
-            CommandLineState remoteRoot)
-        {
-            _connectionName.Add(connectionName.Text.Trim());
-            _host.Add(host.Text.Trim());
-            _port.Add(port.Text.Trim());
-            _userName.Add(userName.Text.Trim());
-            _remoteRoot.Add(remoteRoot.Text.Trim());
+            ConnectionName.Add(connectionName.Text.Trim());
+            Host.Add(host.Text.Trim());
+            Port.Add(port.Text.Trim());
+            UserName.Add(userName.Text.Trim());
+            RemoteRoot.Add(remoteRoot.Text.Trim());
         }
-    }
-
-    private void DrawTextField(
-        int labelX,
-        int fieldX,
-        int y,
-        int fieldWidth,
-        string label,
-        CommandLineState buffer,
-        SingleLineTextHistoryState? history,
-        bool focused,
-        bool mask)
-    {
-        var labelStyle = focused ? FarDialogStyles.FocusedInput : FarDialogStyles.Fill;
-        _screen.Write(labelX, y, label.PadRight(Math.Max(0, fieldX - labelX - 1)), labelStyle);
-
-        var fieldStyle = focused ? FarDialogStyles.FocusedInput : FarDialogStyles.Input;
-        SingleLineTextInput.Render(
-            _screen,
-            fieldX,
-            y,
-            fieldWidth,
-            buffer,
-            fieldStyle,
-            FarDialogStyles.Input,
-            history,
-            maskInput: mask,
-            renderDropdown: false);
-    }
-
-    private void DrawReadOnly(
-        int labelX,
-        int fieldX,
-        int y,
-        int fieldWidth,
-        string label,
-        string value,
-        bool focused)
-    {
-        var style = focused ? FarDialogStyles.FocusedInput : FarDialogStyles.Fill;
-        _screen.Write(labelX, y, label.PadRight(Math.Max(0, fieldX - labelX - 1)), style);
-        _screen.Write(fieldX, y, Truncate(value, fieldWidth).PadRight(fieldWidth), style);
-    }
-
-    private void DrawCheckBox(
-        int x,
-        int y,
-        int width,
-        string label,
-        bool isChecked,
-        bool focused,
-        bool enabled)
-    {
-        var style = focused ? FarDialogStyles.FocusedInput : FarDialogStyles.Fill;
-        if (!enabled)
-            style = FarDialogStyles.Fill;
-
-        string text = $"[{(isChecked ? 'x' : ' ')}] {label}";
-        _screen.Write(x, y, Truncate(text, width).PadRight(width), style);
-    }
-
-    private static string Truncate(string text, int maxLen)
-    {
-        if (maxLen <= 0)
-            return string.Empty;
-        return text.Length <= maxLen ? text : text[..maxLen];
     }
 }
