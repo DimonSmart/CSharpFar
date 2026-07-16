@@ -169,6 +169,62 @@ public sealed class Spec029SftpProviderTests : IDisposable
     }
 
     [Fact]
+    public void SftpConnectionDialog_EnterInTextInput_SubmitsForm()
+    {
+        var driver = new FakeConsoleDriver(width: 100, height: 30);
+        var screen = new ScreenRenderer(driver);
+        driver.EnqueueKey(Key(ConsoleKey.Enter));
+        int validationCalls = 0;
+
+        SftpConnectionDialogResult? result = new SftpConnectionDialog(ModalTestHost.Create(screen)).Show(
+            new SftpConnectionDialogRequest(TestConnection(), "secret-password", SaveConnectionByDefault: true, AllowTemporaryConnection: true),
+            _ =>
+            {
+                validationCalls++;
+                return SftpConnectionDialogValidationResult.Accepted();
+            });
+
+        Assert.NotNull(result);
+        Assert.Equal(1, validationCalls);
+    }
+
+    [Fact]
+    public void SftpConnectionDialog_ChangingHostClearsHostKeyFingerprint()
+    {
+        var driver = new FakeConsoleDriver(width: 100, height: 30);
+        var screen = new ScreenRenderer(driver);
+        driver.EnqueueKey(Key(ConsoleKey.Tab));
+        driver.EnqueueKey(new ConsoleKeyInfo('x', ConsoleKey.X, shift: false, alt: false, control: false));
+        driver.EnqueueKey(Key(ConsoleKey.F10));
+
+        SftpConnectionDialogResult? result = new SftpConnectionDialog(ModalTestHost.Create(screen)).Show(
+            new SftpConnectionDialogRequest(TestConnection() with { ExpectedHostKeyFingerprint = "AA:BB" }, "secret-password", SaveConnectionByDefault: true, AllowTemporaryConnection: true),
+            _ => SftpConnectionDialogValidationResult.Accepted());
+
+        Assert.NotNull(result);
+        Assert.Null(result.Connection.ExpectedHostKeyFingerprint);
+    }
+
+    [Fact]
+    public void SftpConnectionDialog_SavePasswordEnablesSaveConnection()
+    {
+        var driver = new FakeConsoleDriver(width: 100, height: 30);
+        var screen = new ScreenRenderer(driver);
+        for (int i = 0; i < 7; i++)
+            driver.EnqueueKey(Key(ConsoleKey.Tab));
+        driver.EnqueueKey(Key(ConsoleKey.Spacebar));
+        driver.EnqueueKey(Key(ConsoleKey.F10));
+
+        SftpConnectionDialogResult? result = new SftpConnectionDialog(ModalTestHost.Create(screen)).Show(
+            new SftpConnectionDialogRequest(TestConnection(), "secret-password", SaveConnectionByDefault: false, AllowTemporaryConnection: true),
+            _ => SftpConnectionDialogValidationResult.Accepted());
+
+        Assert.NotNull(result);
+        Assert.True(result.SaveConnection);
+        Assert.True(result.SavePassword);
+    }
+
+    [Fact]
     public void SftpConnectionDialog_MouseClickFocusesTextField()
     {
         var driver = new FakeConsoleDriver(width: 100, height: 30);

@@ -43,6 +43,7 @@ public interface IFormRow
     string? Id { get; }
     FormRowRole Role { get; }
     bool SubmitOnEnter { get; }
+    bool IsEnabled { get; }
     bool IsFocusable { get; }
     int Height { get; }
     void Render(FormRowRenderContext context);
@@ -230,7 +231,8 @@ public abstract class FormRow : IFormRow
     public virtual string? Id { get; init; }
     public virtual FormRowRole Role { get; init; } = FormRowRole.Normal;
     public virtual bool SubmitOnEnter { get; init; }
-    public virtual bool IsFocusable => true;
+    public virtual bool IsEnabled => true;
+    public virtual bool IsFocusable => IsEnabled;
     public virtual int Height => 1;
     public abstract void Render(FormRowRenderContext context);
     public virtual FormInputResult HandleKey(ConsoleKeyInfo key, FormRowInputContext context) => FormInputResult.NotHandled;
@@ -340,23 +342,19 @@ public sealed class ButtonRow : FormRow
 
 public sealed class TextInputRow : FormRow, IFormOverlayRow, IFormCursorProvider, IFormHistoryRow
 {
-    private readonly CommandLineState _buffer;
-    private readonly SingleLineTextHistoryState? _history;
-    private readonly TextInputRowState _state;
+    private readonly FormTextInputField _field;
     private readonly int? _width;
 
     public TextInputRow(CommandLineState buffer, SingleLineTextHistoryState? history = null, TextInputRowState? state = null, int? width = null)
     {
-        _buffer = buffer;
-        _history = history;
-        _state = state ?? new TextInputRowState();
+        _field = new FormTextInputField(buffer, history, state ?? new TextInputRowState());
         _width = width;
     }
 
-    public CommandLineState Buffer => _buffer;
+    public CommandLineState Buffer => _field.Buffer;
     public override FormRowRole Role { get; init; } = FormRowRole.TextInput;
-    public SingleLineTextHistoryState? History => _history;
-    public TextInputRowState State => _state;
+    public SingleLineTextHistoryState? History => _field.History;
+    public TextInputRowState State => _field.State;
     public int? Width => _width;
 
     public Rect GetInputBounds(Rect rowBounds) =>
@@ -364,117 +362,32 @@ public sealed class TextInputRow : FormRow, IFormOverlayRow, IFormCursorProvider
 
     public override void Render(FormRowRenderContext context)
     {
-        int width = Math.Min(context.Bounds.Width, _width ?? context.Bounds.Width);
-        SingleLineTextInput.Render(
-            context.Screen,
-            context.Bounds.X,
-            context.Bounds.Y,
-            width,
-            _buffer,
-            context.Focused ? FarDialogStyles.FocusedInput : FarDialogStyles.Input,
-            FarDialogStyles.Input,
-            _history,
-            renderDropdown: false);
-
+        _field.Render(context, GetInputBounds(context.Bounds));
     }
 
     public bool TryGetCursor(FormRowRenderContext context, out FormCursorPlacement cursor)
     {
-        int width = Math.Min(context.Bounds.Width, _width ?? context.Bounds.Width);
-        int textWidth = _history is null ? width : Math.Max(1, width - 1);
-        int cursorX = Math.Min(
-            context.Bounds.X + textWidth - 1,
-            SingleLineTextInput.GetCursorX(context.Bounds.X, textWidth, _buffer));
-        cursor = new FormCursorPlacement(cursorX, context.Bounds.Y);
-        return context.Focused && width > 0;
+        return _field.TryGetCursor(context, GetInputBounds(context.Bounds), out cursor);
     }
 
     public void RenderOverlay(FormRowRenderContext context)
     {
-        if (_history is null || !context.Focused)
-            return;
-
-        int width = Math.Min(context.Bounds.Width, _width ?? context.Bounds.Width);
-        SingleLineTextInput.RenderHistoryDropdown(context.Screen, context.Bounds.X, context.Bounds.Y, width, _history, context.ScreenHeight);
+        _field.RenderOverlay(context, GetInputBounds(context.Bounds));
     }
 
     public bool IsHistoryArrow(MouseConsoleInputEvent mouse, FormRowMouseContext context)
     {
-        if (_history is null)
-            return false;
-
-        int width = Math.Min(context.Bounds.Width, _width ?? context.Bounds.Width);
-        return SingleLineTextInput.IsHistoryArrowHit(context.Bounds.X, width, context.Bounds.Y, mouse.X, mouse.Y);
+        return _field.IsHistoryArrow(mouse, GetInputBounds(context.Bounds));
     }
 
     public override FormInputResult HandleKey(ConsoleKeyInfo key, FormRowInputContext context)
     {
-        string? error = null;
-        string before = _buffer.Text;
-        TextInputKeyResult result = SingleLineTextInput.HandleKey(
-            _buffer,
-            key,
-            ref error,
-            _history,
-            context.AvailableDropdownContentRows);
-
-        return result switch
-        {
-            TextInputKeyResult.TextChanged when _buffer.Text != before => FormInputResult.ValueChanged,
-            TextInputKeyResult.TextChanged => FormInputResult.Handled,
-            TextInputKeyResult.Handled => FormInputResult.Handled,
-            _ => FormInputResult.NotHandled,
-        };
+        return _field.HandleKey(key, context);
     }
 
     public override FormInputResult HandleMouse(MouseConsoleInputEvent mouse, FormRowMouseContext context)
     {
-        int width = Math.Min(context.Bounds.Width, _width ?? context.Bounds.Width);
-        string before = _buffer.Text;
-        if (_history is not null &&
-            SingleLineTextInput.TryHandleHistoryDropdownMouse(
-                _history,
-                _buffer,
-                mouse,
-                context.Bounds.X,
-                context.Bounds.Y,
-                width,
-                context.ScreenHeight,
-                ref _state.HistoryScrollbarDrag))
-        {
-            return _buffer.Text != before
-                ? FormInputResult.ValueChanged
-                : FormInputResult.Handled;
-        }
-
-        if (mouse.Button != MouseButton.Left ||
-            mouse.Kind != MouseEventKind.Down ||
-            mouse.Y != context.Bounds.Y ||
-            mouse.X < context.Bounds.X ||
-            mouse.X >= context.Bounds.X + width)
-        {
-            return FormInputResult.NotHandled;
-        }
-
-        if (_history is not null &&
-            SingleLineTextInput.IsHistoryArrowHit(context.Bounds.X, width, context.Bounds.Y, mouse.X, mouse.Y))
-        {
-            if (_history.IsDropdownOpen)
-            {
-                _history.Close();
-                _state.HistoryScrollbarDrag = null;
-                return FormInputResult.Handled;
-            }
-
-            return SingleLineTextInput.TryOpenHistoryDropdown(_history, context.Bounds.Y, context.ScreenHeight)
-                ? FormInputResult.Handled
-                : FormInputResult.NotHandled;
-        }
-
-        int textWidth = _history is null ? width : Math.Max(1, width - 1);
-        int target = Math.Clamp(mouse.X - context.Bounds.X, 0, Math.Min(_buffer.Text.Length, textWidth));
-        _buffer.MoveCursor(target - _buffer.CursorPosition);
-        return FormInputResult.Handled;
+        return _field.HandleMouse(mouse, context, GetInputBounds(context.Bounds));
     }
 }
 
@@ -644,8 +557,11 @@ public sealed class CheckBoxRow : FormRow, IFormCursorProvider
         set => _checkBox.Value = value;
     }
 
+    public bool Enabled { get; set; } = true;
+    public override bool IsEnabled => Enabled;
+
     public override void Render(FormRowRenderContext context) =>
-        _checkBox.Render(context.Screen, context.Bounds.X, context.Bounds.Y, context.Bounds.Width, context.Focused);
+        _checkBox.Render(context.Screen, context.Bounds.X, context.Bounds.Y, context.Bounds.Width, context.Focused && Enabled);
 
     public bool TryGetCursor(FormRowRenderContext context, out FormCursorPlacement cursor)
     {
@@ -655,6 +571,8 @@ public sealed class CheckBoxRow : FormRow, IFormCursorProvider
 
     public override FormInputResult HandleKey(ConsoleKeyInfo key, FormRowInputContext context)
     {
+        if (!Enabled)
+            return FormInputResult.NotHandled;
         bool before = _checkBox.Value;
         if (!_checkBox.TryHandleKey(key))
             return FormInputResult.NotHandled;
@@ -664,6 +582,8 @@ public sealed class CheckBoxRow : FormRow, IFormCursorProvider
 
     public override FormInputResult HandleMouse(MouseConsoleInputEvent mouse, FormRowMouseContext context)
     {
+        if (!Enabled)
+            return FormInputResult.NotHandled;
         bool before = _checkBox.Value;
         if (!_checkBox.TryHandleMouse(mouse, context.Bounds))
             return FormInputResult.NotHandled;
@@ -694,6 +614,8 @@ public sealed class TriStateCheckBoxRow : FormRow, IFormCursorProvider
         get => _checkBox.Enabled;
         set => _checkBox.Enabled = value;
     }
+
+    public override bool IsEnabled => Enabled;
 
     public override void Render(FormRowRenderContext context) =>
         _checkBox.Render(context.Screen, context.Bounds.X, context.Bounds.Y, context.Bounds.Width, context.Focused);
@@ -1194,7 +1116,7 @@ public sealed class ScrollableFormDialog
             .Select(target => new UiFocusEntry(target.Target, target.FocusIndex!.Value, IsEnabled: true, target.Cursor))
             .ToArray();
         var hitRegions = frame.Targets
-            .Where(target => target.HitBounds is { Width: > 0, Height: > 0 })
+            .Where(target => target.HitBounds is { Width: > 0, Height: > 0 } && (target.Row is null || target.Row.IsEnabled))
             .Select(target => new UiHitRegion(target.Target, target.HitBounds!.Value))
             .ToArray();
         return new UiInteractionFrame(hitRegions, new UiFocusFrame(focusEntries, frame.DefaultTarget));
@@ -1293,7 +1215,7 @@ public sealed class ScrollableFormDialog
         Rect activeBounds)
     {
         UiCursorPlacement? cursor = null;
-        if (row is IFormCursorProvider cursorProvider &&
+        if (row.IsEnabled && row is IFormCursorProvider cursorProvider &&
             cursorProvider.TryGetCursor(new FormRowRenderContext(screen, bounds, focused: true, screenHeight), out FormCursorPlacement placement) &&
             placement.X >= bounds.X &&
             placement.X < bounds.Right &&

@@ -29,6 +29,11 @@ internal sealed record SftpConnectionDialogValidationResult(
         new(false, "Review the host key fingerprint and check Trust host key.", fingerprint);
 }
 
+internal readonly record struct SftpConnectionFormInputResult(
+    FormInputResult FormResult,
+    bool EndpointChanged,
+    bool SaveOptionsChanged);
+
 internal sealed class SftpConnectionDialog
 {
     private const int DialogWidth = 74;
@@ -99,39 +104,45 @@ internal sealed class SftpConnectionDialog
                 saveConnectionRow, savePasswordRow, showInDriveRow, trustHostKeyRow, hostKeyFingerprint),
             [actions]);
 
-        return _modalDialogs.RunInteractive<ScrollableFormFrame, FormInputResult, SftpConnectionDialogResult?>(
+        return _modalDialogs.RunInteractive<ScrollableFormFrame, SftpConnectionFormInputResult, SftpConnectionDialogResult?>(
             (context, focusScope) => Draw(context, focusScope, form, connection is null ? "SFTP connection" : "Edit SFTP connection", error),
             form.BuildInteractionFrame,
             (input, frame, route) =>
             {
                 string previousHost = host.Text;
                 string previousPort = port.Text;
+                bool previousSaveConnection = saveConnectionRow.Value;
+                bool previousSavePassword = savePasswordRow.Value;
                 FormRouteResult result = form.RouteInput(input, frame, route);
-                if (result.FormResult.IsHandled)
-                {
+                return (new SftpConnectionFormInputResult(
+                    result.FormResult,
+                    !string.Equals(previousHost, host.Text, StringComparison.Ordinal) || !string.Equals(previousPort, port.Text, StringComparison.Ordinal),
+                    previousSaveConnection != saveConnectionRow.Value || previousSavePassword != savePasswordRow.Value), result.UiResult);
+            },
+            (routed, result) =>
+            {
+                FormInputResult formResult = result.FormResult;
+                if (formResult.IsHandled)
                     error = null;
-                    if (!string.Equals(previousHost, host.Text, StringComparison.Ordinal) || !string.Equals(previousPort, port.Text, StringComparison.Ordinal))
-                    {
-                        hostKeyFingerprint = null;
-                        trustHostKeyRow.Value = false;
-                    }
-
+                if (result.EndpointChanged)
+                {
+                    hostKeyFingerprint = null;
+                    trustHostKeyRow.Value = false;
+                }
+                if (result.SaveOptionsChanged)
+                {
                     if (savePasswordRow.Value)
                         saveConnectionRow.Value = true;
                     if (!saveConnectionRow.Value)
                         savePasswordRow.Value = false;
                 }
 
-                return (result.FormResult, result.UiResult);
-            },
-            (routed, result) =>
-            {
-                if (result.Kind == FormInputResultKind.Cancel || routed.Input is KeyConsoleInputEvent { Key.Key: ConsoleKey.Escape })
+                if (formResult.Kind == FormInputResultKind.Cancel || routed.Input is KeyConsoleInputEvent { Key.Key: ConsoleKey.Escape })
                     return ModalDialogLoopResult<SftpConnectionDialogResult?>.Complete(null);
 
-                if (result.Kind == FormInputResultKind.Submit ||
+                if (formResult.Kind == FormInputResultKind.Submit ||
                     routed.Input is KeyConsoleInputEvent { Key.Key: ConsoleKey.F10 } ||
-                    FormDialogInput.ShouldImplicitlySubmit(routed, result, form))
+                    FormDialogInput.ShouldImplicitlySubmit(routed, formResult, form))
                 {
                     SftpConnectionDialogResult? candidate = BuildResult(
                         request,
