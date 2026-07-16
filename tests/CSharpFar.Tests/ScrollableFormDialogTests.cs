@@ -486,6 +486,49 @@ public sealed class ScrollableFormDialogTests
     }
 
     [Fact]
+    public void LabeledTextInput_EditKeyChangesValueWithSameResult()
+    {
+        var text = new CommandLineState();
+        var form = new ScrollableFormDialog([new LabeledTextInputRow("Value:", text)]);
+        Render(form, visibleRows: 1);
+
+        var result = form.HandleKey(new ConsoleKeyInfo('a', ConsoleKey.A, shift: false, alt: false, control: false));
+
+        Assert.Equal(FormInputResultKind.ValueChanged, result.Kind);
+        Assert.Equal("a", text.Text);
+    }
+
+    [Fact]
+    public void LabeledValueRow_IsReadOnlyDiagnosticTarget()
+    {
+        var row = new LabeledValueRow("Value:", () => "very-long-value") { Id = "value" };
+        var form = new ScrollableFormDialog([row, new CheckBoxRow(new CheckBoxLine("next")) { Id = "next" }]);
+        ScrollableFormFrame frame = RenderFrame(form, visibleRows: 2);
+        UiInteractionFrame interaction = form.BuildInteractionFrame(frame);
+
+        Assert.False(row.IsFocusable);
+        Assert.DoesNotContain(interaction.Focus.Entries, entry => entry.Target == FormTargetIds.ForExplicitRow("value"));
+        Assert.Contains(frame.Targets, target => target.Target == FormTargetIds.ForExplicitRow("value"));
+        Assert.Equal(FormInputResultKind.NotHandled, row.HandleKey(Key(ConsoleKey.Spacebar), new FormRowInputContext(0, false)).Kind);
+        Assert.Equal(FormInputResultKind.NotHandled, row.HandleMouse(Mouse(0, 0, MouseButton.Left, MouseEventKind.Down), new FormRowMouseContext(new Rect(0, 0, 5, 1), 0, false, 5)).Kind);
+    }
+
+    [Fact]
+    public void DisabledCheckBox_IsExcludedFromFocusHitAndInput()
+    {
+        var disabled = new CheckBoxRow(new CheckBoxLine("disabled")) { Id = "disabled", Enabled = false };
+        var form = new ScrollableFormDialog([disabled, new CheckBoxRow(new CheckBoxLine("enabled")) { Id = "enabled" }]);
+        ScrollableFormFrame frame = RenderFrame(form, visibleRows: 2);
+        UiInteractionFrame interaction = form.BuildInteractionFrame(frame);
+
+        Assert.Equal("enabled", form.FocusedRowId);
+        Assert.DoesNotContain(interaction.Focus.Entries, entry => entry.Target == FormTargetIds.ForExplicitRow("disabled"));
+        Assert.DoesNotContain(interaction.HitRegions, region => region.Target == FormTargetIds.ForExplicitRow("disabled"));
+        Assert.Equal(FormInputResultKind.NotHandled, disabled.HandleKey(Key(ConsoleKey.Spacebar), new FormRowInputContext(0, false)).Kind);
+        Assert.False(disabled.Value);
+    }
+
+    [Fact]
     public void CursorPlacement_FollowsFocusedTextCheckboxAndChoiceRows()
     {
         var text = new CommandLineState();

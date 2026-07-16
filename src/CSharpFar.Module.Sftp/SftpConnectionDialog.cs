@@ -29,10 +29,17 @@ internal sealed record SftpConnectionDialogValidationResult(
         new(false, "Review the host key fingerprint and check Trust host key.", fingerprint);
 }
 
+internal enum SftpSaveOptionChange
+{
+    None,
+    SaveConnection,
+    SavePassword,
+}
+
 internal readonly record struct SftpConnectionFormInputResult(
     FormInputResult FormResult,
     bool EndpointChanged,
-    bool SaveOptionsChanged);
+    SftpSaveOptionChange SaveOptionChange);
 
 internal sealed class SftpConnectionDialog
 {
@@ -114,10 +121,17 @@ internal sealed class SftpConnectionDialog
                 bool previousSaveConnection = saveConnectionRow.Value;
                 bool previousSavePassword = savePasswordRow.Value;
                 FormRouteResult result = form.RouteInput(input, frame, route);
+                SftpSaveOptionChange saveOptionChange = (previousSaveConnection != saveConnectionRow.Value, previousSavePassword != savePasswordRow.Value) switch
+                {
+                    (false, false) => SftpSaveOptionChange.None,
+                    (true, false) => SftpSaveOptionChange.SaveConnection,
+                    (false, true) => SftpSaveOptionChange.SavePassword,
+                    _ => throw new InvalidOperationException("One routed input event cannot change both SFTP save options."),
+                };
                 return (new SftpConnectionFormInputResult(
                     result.FormResult,
                     !string.Equals(previousHost, host.Text, StringComparison.Ordinal) || !string.Equals(previousPort, port.Text, StringComparison.Ordinal),
-                    previousSaveConnection != saveConnectionRow.Value || previousSavePassword != savePasswordRow.Value), result.UiResult);
+                    saveOptionChange), result.UiResult);
             },
             (routed, result) =>
             {
@@ -129,12 +143,13 @@ internal sealed class SftpConnectionDialog
                     hostKeyFingerprint = null;
                     trustHostKeyRow.Value = false;
                 }
-                if (result.SaveOptionsChanged)
+                if (result.SaveOptionChange == SftpSaveOptionChange.SavePassword && savePasswordRow.Value)
                 {
-                    if (savePasswordRow.Value)
-                        saveConnectionRow.Value = true;
-                    if (!saveConnectionRow.Value)
-                        savePasswordRow.Value = false;
+                    saveConnectionRow.Value = true;
+                }
+                else if (result.SaveOptionChange == SftpSaveOptionChange.SaveConnection && !saveConnectionRow.Value)
+                {
+                    savePasswordRow.Value = false;
                 }
 
                 if (formResult.Kind == FormInputResultKind.Cancel || routed.Input is KeyConsoleInputEvent { Key.Key: ConsoleKey.Escape })
