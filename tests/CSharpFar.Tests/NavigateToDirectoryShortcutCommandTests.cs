@@ -96,6 +96,35 @@ public sealed class NavigateToDirectoryShortcutCommandTests : IDisposable
     }
 
     [Fact]
+    public void Execute_CommittedInvocationIgnoresHiddenWorkspaceMode()
+    {
+        var context = CreateContext(out _, out _);
+        string passiveDirectory = context.PassiveState.CurrentDirectory;
+        context.TogglePanels();
+
+        new NavigateToDirectoryShortcutCommand()
+            .Execute(context, new NavigateToCommittedDirectoryShortcutArgs(1, _target, PanelSide.Left));
+
+        Assert.Equal(_target, context.LeftPanel.CurrentDirectory);
+        Assert.Equal(passiveDirectory, context.RightPanel.CurrentDirectory);
+    }
+
+    [Fact]
+    public void Execute_CommittedInvocationUsesCommittedSideWhenLiveSideChanged()
+    {
+        var context = CreateContext(out _, out _);
+        string rightDirectory = context.RightPanel.CurrentDirectory;
+        context.ActiveSide = PanelSide.Right;
+
+        new NavigateToDirectoryShortcutCommand()
+            .Execute(context, new NavigateToCommittedDirectoryShortcutArgs(1, _target, PanelSide.Left));
+
+        Assert.Equal(_target, context.LeftPanel.CurrentDirectory);
+        Assert.Equal(rightDirectory, context.RightPanel.CurrentDirectory);
+        Assert.Equal(PanelSide.Right, context.ActiveSide);
+    }
+
+    [Fact]
     public void Execute_CurrentSettingsPath_NavigatesLatestPathWhenCommittedPathAbsent()
     {
         var context = CreateContext(out _, out _);

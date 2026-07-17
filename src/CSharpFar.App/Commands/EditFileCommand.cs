@@ -48,10 +48,6 @@ internal sealed class EditFileCommand : IApplicationCommand
     {
         FilePanelItem? passiveItem = ApplicationCommandContext.TryResolveCommittedCurrentItem(
             target.PassiveState, target.PassiveCommitted, context.Controller, out var resolvedItem) ? resolvedItem : null;
-        return new EditorFileNameInsertionContext(
-            activeItem.Name,
-            activeItem.FullPath,
-            passiveItem is { IsParentDirectory: false } ? passiveItem.Name : null,
-            passiveItem is { IsParentDirectory: false } ? passiveItem.FullPath : null);
+        return PanelCommandEditorContextFactory.Create(activeItem, passiveItem);
     }
 }

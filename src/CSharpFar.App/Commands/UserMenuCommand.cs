@@ -30,22 +30,7 @@ internal sealed class UserMenuCommand : IApplicationCommand
         if (command is null)
             return ApplicationCommandResult.Rendered();
 
-        FilePanelItem? item = ApplicationCommandContext.TryResolveCommittedCurrentItem(
-            target.State, target.ActiveCommitted, context.Controller, out var resolvedItem) ? resolvedItem : null;
-        string currentFile = item is { IsParentDirectory: false } ? item.FullPath : string.Empty;
-
-        IReadOnlyList<string> selected = target.State.SelectedPaths.Count > 0
-            ? [.. target.State.SelectedPaths]
-            : [];
-
-        string currentDirectory = target.ActiveCommitted?.CurrentDirectory ?? target.State.CurrentDirectory;
-        string otherDirectory = target.PassiveCommitted?.CurrentDirectory ?? target.PassiveState.CurrentDirectory;
-        string expanded = PlaceholderExpander.Expand(
-            command,
-            currentFile,
-            selected,
-            currentDirectory,
-            otherDirectory);
+        string expanded = PanelCommandUserMenuOperands.Expand(command, target, context);
 
         context.ExecuteCommand(expanded);
         return ApplicationCommandResult.Rendered();

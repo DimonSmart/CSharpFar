@@ -74,11 +74,7 @@ internal sealed class OpenCreateFileCommand : IApplicationCommand
             target.State, target.ActiveCommitted, context.Controller, out var resolvedActive) ? resolvedActive : null;
         FilePanelItem? passiveItem = ApplicationCommandContext.TryResolveCommittedCurrentItem(
             target.PassiveState, target.PassiveCommitted, context.Controller, out var resolvedPassive) ? resolvedPassive : null;
-        return new EditorFileNameInsertionContext(
-            activeItem is { IsParentDirectory: false } ? activeItem.Name : null,
-            activeItem is { IsParentDirectory: false } ? activeItem.FullPath : null,
-            passiveItem is { IsParentDirectory: false } ? passiveItem.Name : null,
-            passiveItem is { IsParentDirectory: false } ? passiveItem.FullPath : null);
+        return PanelCommandEditorContextFactory.Create(activeItem, passiveItem);
     }
 
     private static string? InitialPath(ApplicationCommandContext context, ResolvedPanelCommandTarget target)
