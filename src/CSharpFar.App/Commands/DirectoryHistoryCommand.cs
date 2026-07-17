@@ -11,6 +11,13 @@ internal sealed class DirectoryHistoryCommand : IApplicationCommand
 
     public ApplicationCommandResult Execute(ApplicationCommandContext context, object? args = null)
     {
+        var target = context.ResolvePanelTarget(args);
+        if (target.Committed is not null &&
+            !string.Equals(target.State.CurrentDirectory, target.Committed.CurrentDirectory, StringComparison.OrdinalIgnoreCase))
+        {
+            return ApplicationCommandResult.Rendered();
+        }
+
         try
         {
             string? path = new DirectoryHistoryDialog(context.ModalDialogs)
@@ -26,8 +33,8 @@ internal sealed class DirectoryHistoryCommand : IApplicationCommand
 
             try
             {
-                context.Controller.LoadDirectory(context.ActiveState, path, context.PanelOptions);
-                context.StartWatching(context.ActiveState, context.ActiveSide);
+                context.Controller.LoadDirectory(target.State, path, context.PanelOptions);
+                context.StartWatching(target.State, target.Side);
             }
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
             {

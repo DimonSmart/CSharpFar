@@ -9,10 +9,11 @@ internal sealed class SearchFilesCommand : IApplicationCommand
     public string CommandId => FunctionKeyCommandIds.Search;
 
     public bool CanExecute(ApplicationCommandContext context, object? args = null) =>
-        context.ActiveState.SourceId == PanelSourceId.Local;
+        context.ResolvePanelTarget(args).State.SourceId == PanelSourceId.Local;
 
     public ApplicationCommandResult Execute(ApplicationCommandContext context, object? args = null)
     {
+        var target = context.ResolvePanelTarget(args);
         if (!CanExecute(context, args))
         {
             new MessageDialog(context.ModalDialogs).Show(
@@ -21,9 +22,15 @@ internal sealed class SearchFilesCommand : IApplicationCommand
             return ApplicationCommandResult.Rendered();
         }
 
+        if (target.Committed is not null &&
+            !string.Equals(target.State.CurrentDirectory, target.Committed.CurrentDirectory, StringComparison.OrdinalIgnoreCase))
+        {
+            return ApplicationCommandResult.Rendered();
+        }
+
         try
         {
-            var request = new SearchDialog(context.ModalDialogs).Show(context.ActiveState.CurrentDirectory);
+            var request = new SearchDialog(context.ModalDialogs).Show(target.State.CurrentDirectory);
             if (request is null)
                 return ApplicationCommandResult.Rendered();
 
@@ -40,7 +47,7 @@ internal sealed class SearchFilesCommand : IApplicationCommand
 
             if (result.GoToResult is not null)
             {
-                context.GoToSearchResult(context.ActiveState, context.ActiveSide, result.GoToResult);
+                context.GoToSearchResult(target.State, target.Side, result.GoToResult);
                 return ApplicationCommandResult.Rendered();
             }
 
@@ -54,7 +61,7 @@ internal sealed class SearchFilesCommand : IApplicationCommand
                 return ApplicationCommandResult.Rendered();
             }
 
-            context.OpenSearchResultsPanel(context.ActiveState, request, result.Results, result.Cancelled);
+            context.OpenSearchResultsPanel(target.State, request, result.Results, result.Cancelled);
             return ApplicationCommandResult.Rendered();
         }
         finally

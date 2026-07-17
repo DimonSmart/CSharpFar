@@ -85,7 +85,7 @@ internal sealed class ApplicationPanelKeyboardHandler
                 return ApplicationInputHandlingResult.FromHandled(true);
 
             case ConsoleKey.Enter:
-                if (TryResolveCommittedCurrentItem(state, frame.Keyboard, out var item))
+                if (ApplicationCommandContext.TryResolveCommittedCurrentItem(state, frame.Keyboard, out var item))
                     _context.OpenPanelItem(state, side, item);
                 return ApplicationInputHandlingResult.FromHandled(true);
 
@@ -123,24 +123,4 @@ internal sealed class ApplicationPanelKeyboardHandler
     private FilePanelState StateForSide(PanelSide side) =>
         side == PanelSide.Left ? _context.LeftPanel() : _context.RightPanel();
 
-    private static bool TryResolveCommittedCurrentItem(
-        FilePanelState state,
-        ApplicationPanelKeyboardFrame committed,
-        out FilePanelItem item)
-    {
-        item = null!;
-        if (committed.CurrentItemIndex is not { } index ||
-            index < 0 ||
-            index >= state.Items.Count)
-        {
-            return false;
-        }
-
-        FilePanelItem candidate = state.Items[index];
-        if (!string.Equals(candidate.FullPath, committed.CurrentItemIdentity, StringComparison.Ordinal))
-            return false;
-
-        item = candidate;
-        return true;
-    }
 }

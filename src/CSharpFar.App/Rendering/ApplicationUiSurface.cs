@@ -21,7 +21,18 @@ internal sealed record ApplicationKeyboardFrame(
     PanelSide ActiveSide,
     bool CommandLineHasText,
     bool CommandLineHasSelection,
-    bool ActivePanelHasSearchRequest);
+    ApplicationPanelKeyboardFrame LeftPanel,
+    ApplicationPanelKeyboardFrame RightPanel)
+{
+    public ApplicationPanelKeyboardFrame ActivePanel =>
+        Panel(ActiveSide);
+
+    public bool ActivePanelHasSearchRequest =>
+        ActivePanel.HasSearchRequest;
+
+    public ApplicationPanelKeyboardFrame Panel(PanelSide side) =>
+        side == PanelSide.Left ? LeftPanel : RightPanel;
+}
 
 internal sealed record ApplicationPanelKeyboardFrame(
     string CurrentDirectory,

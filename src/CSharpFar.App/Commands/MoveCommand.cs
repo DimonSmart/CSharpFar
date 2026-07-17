@@ -9,30 +9,30 @@ internal sealed class MoveCommand : IApplicationCommand
     public string CommandId => FunctionKeyCommandIds.RenameOrMove;
 
     public bool CanExecute(ApplicationCommandContext context, object? args = null) =>
-        context.HasCapability(context.ActiveState, PanelProviderCapabilities.MoveFrom) &&
-        context.HasCapability(context.PassiveState, PanelProviderCapabilities.MoveTo);
+        context.HasCapability(context.ResolvePanelTarget(args).State, PanelProviderCapabilities.MoveFrom) &&
+        context.HasCapability(context.ResolvePanelTarget(args).PassiveState, PanelProviderCapabilities.MoveTo);
 
     public ApplicationCommandResult Execute(ApplicationCommandContext context, object? args = null)
     {
-        if (!context.HasCapability(context.ActiveState, PanelProviderCapabilities.MoveFrom))
+        var target = context.ResolvePanelTarget(args);
+        if (!context.HasCapability(target.State, PanelProviderCapabilities.MoveFrom))
         {
             context.ShowReadOnlyPanelMessage("Move");
             return ApplicationCommandResult.Rendered();
         }
 
-        var targetState = context.PassiveState;
-        if (!context.HasCapability(targetState, PanelProviderCapabilities.MoveTo))
+        if (!context.HasCapability(target.PassiveState, PanelProviderCapabilities.MoveTo))
         {
             context.ShowReadOnlyPanelMessage("Move");
             return ApplicationCommandResult.Rendered();
         }
 
-        var sources = FileOperationCommandHelpers.GetOperationSources(context);
-        var sourceLocations = FileOperationCommandHelpers.GetOperationSourceLocations(context);
+        var sources = FileOperationCommandHelpers.GetOperationSources(context, target.State, target.Committed);
+        var sourceLocations = FileOperationCommandHelpers.GetOperationSourceLocations(context, target.State, target.Committed);
         if (sources.Count == 0)
             return ApplicationCommandResult.Rendered();
 
-        if (context.ActiveState.SourceId != context.PassiveState.SourceId && sources.Count > 0)
+        if (target.State.SourceId != target.PassiveState.SourceId && sources.Count > 0)
         {
             new MessageDialog(context.ModalDialogs).Show(
                 "Move",
@@ -42,7 +42,7 @@ internal sealed class MoveCommand : IApplicationCommand
 
         var dialogResult = new FileOperationDialog(context.ModalDialogs).ShowMove(
             sources,
-            targetState.CurrentDirectory,
+            target.PassiveState.CurrentDirectory,
             context.BuildFileOperationOptions());
         if (dialogResult is null)
             return ApplicationCommandResult.Rendered();
@@ -55,12 +55,12 @@ internal sealed class MoveCommand : IApplicationCommand
                 Sources = sources,
                 SourceLocations = sourceLocations,
                 Destination = dialogResult.Destination,
-                DestinationLocation = BuildDestinationLocation(context, dialogResult.Destination, sources.Count),
+                DestinationLocation = BuildDestinationLocation(context, target.State, dialogResult.Destination, sources.Count),
                 Options = dialogResult.Options,
             });
 
-            context.ActiveState.SelectedPaths.Clear();
-            context.ActiveState.SelectedLocations.Clear();
+            target.State.SelectedPaths.Clear();
+            target.State.SelectedLocations.Clear();
         }
         catch (OperationCanceledException) { }
         catch (Exception ex)
@@ -74,15 +74,16 @@ internal sealed class MoveCommand : IApplicationCommand
 
     private static PanelLocation BuildDestinationLocation(
         ApplicationCommandContext context,
+        FilePanelState sourceState,
         string destination,
         int sourceCount)
     {
-        if (context.ActiveState.SourceId == PanelSourceId.Local)
+        if (sourceState.SourceId == PanelSourceId.Local)
             return PanelLocation.Local(destination);
 
         string path = sourceCount == 1 && !destination.Contains('/')
-            ? context.CombinePanelPath(context.ActiveState, destination)
+            ? context.CombinePanelPath(sourceState, destination)
             : destination;
-        return new PanelLocation(context.ActiveState.SourceId, path);
+        return new PanelLocation(sourceState.SourceId, path);
     }
 }

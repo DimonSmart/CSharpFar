@@ -14,8 +14,8 @@ internal sealed class NavigateToDirectoryShortcutCommand : IApplicationCommand
     public string CommandId => DirectoryShortcutCommandIds.Navigate;
 
     public bool CanExecute(ApplicationCommandContext context, object? args = null) =>
-        context.IsPanelsMode &&
         args is NavigateToDirectoryShortcutArgs shortcutArgs &&
+        (IsCommittedInvocation(shortcutArgs) || context.IsPanelsMode) &&
         DirectoryShortcutNormalizer.IsValidNumber(shortcutArgs.Number);
 
     public ApplicationCommandResult Execute(ApplicationCommandContext context, object? args = null)
@@ -32,7 +32,7 @@ internal sealed class NavigateToDirectoryShortcutCommand : IApplicationCommand
             path = item?.Path;
         }
 
-        if (path is null)
+        if (path is null || (IsCommittedInvocation(shortcutArgs) && shortcutArgs.Side is null))
             return ApplicationCommandResult.Rendered();
 
         if (!Directory.Exists(path))
@@ -57,4 +57,7 @@ internal sealed class NavigateToDirectoryShortcutCommand : IApplicationCommand
 
         return ApplicationCommandResult.Rendered();
     }
+
+    private static bool IsCommittedInvocation(NavigateToDirectoryShortcutArgs args) =>
+        args.CommittedPath is not null || args.Side is not null;
 }

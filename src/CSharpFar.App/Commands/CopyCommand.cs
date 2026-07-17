@@ -9,19 +9,19 @@ internal sealed class CopyCommand : IApplicationCommand
     public string CommandId => FunctionKeyCommandIds.Copy;
 
     public bool CanExecute(ApplicationCommandContext context, object? args = null) =>
-        context.HasCapability(context.ActiveState, PanelProviderCapabilities.CopyFrom) &&
-        context.HasCapability(context.PassiveState, PanelProviderCapabilities.CopyTo);
+        context.HasCapability(context.ResolvePanelTarget(args).State, PanelProviderCapabilities.CopyFrom) &&
+        context.HasCapability(context.ResolvePanelTarget(args).PassiveState, PanelProviderCapabilities.CopyTo);
 
     public ApplicationCommandResult Execute(ApplicationCommandContext context, object? args = null)
     {
-        if (!context.HasCapability(context.ActiveState, PanelProviderCapabilities.CopyFrom))
+        var target = context.ResolvePanelTarget(args);
+        if (!context.HasCapability(target.State, PanelProviderCapabilities.CopyFrom))
         {
             context.ShowReadOnlyPanelMessage("Copy");
             return ApplicationCommandResult.Rendered();
         }
 
-        var targetState = context.PassiveState;
-        if (!context.HasCapability(targetState, PanelProviderCapabilities.CopyTo))
+        if (!context.HasCapability(target.PassiveState, PanelProviderCapabilities.CopyTo))
         {
             new MessageDialog(context.ModalDialogs).Show(
                 "Copy",
@@ -29,14 +29,14 @@ internal sealed class CopyCommand : IApplicationCommand
             return ApplicationCommandResult.Rendered();
         }
 
-        var sources = FileOperationCommandHelpers.GetOperationSources(context);
-        var sourceLocations = FileOperationCommandHelpers.GetOperationSourceLocations(context);
+        var sources = FileOperationCommandHelpers.GetOperationSources(context, target.State, target.Committed);
+        var sourceLocations = FileOperationCommandHelpers.GetOperationSourceLocations(context, target.State, target.Committed);
         if (sources.Count == 0)
             return ApplicationCommandResult.Rendered();
 
         var dialogResult = new FileOperationDialog(context.ModalDialogs).ShowCopy(
             sources,
-            targetState.CurrentDirectory,
+            target.PassiveState.CurrentDirectory,
             context.BuildFileOperationOptions());
         if (dialogResult is null)
             return ApplicationCommandResult.Rendered();
@@ -49,14 +49,14 @@ internal sealed class CopyCommand : IApplicationCommand
                 Sources = sources,
                 SourceLocations = sourceLocations,
                 Destination = dialogResult.Destination,
-                DestinationLocation = targetState.SourceId == PanelSourceId.Local
+                DestinationLocation = target.PassiveState.SourceId == PanelSourceId.Local
                     ? PanelLocation.Local(dialogResult.Destination)
-                    : new PanelLocation(targetState.SourceId, dialogResult.Destination),
+                    : new PanelLocation(target.PassiveState.SourceId, dialogResult.Destination),
                 Options = dialogResult.Options,
             });
 
-            context.ActiveState.SelectedPaths.Clear();
-            context.ActiveState.SelectedLocations.Clear();
+            target.State.SelectedPaths.Clear();
+            target.State.SelectedLocations.Clear();
         }
         catch (OperationCanceledException) { }
         catch (Exception ex)

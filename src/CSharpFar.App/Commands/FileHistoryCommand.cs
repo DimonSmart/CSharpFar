@@ -15,6 +15,7 @@ internal sealed class FileHistoryCommand : IApplicationCommand
 
     public ApplicationCommandResult Execute(ApplicationCommandContext context, object? args = null)
     {
+        var target = context.ResolvePanelTarget(args);
         try
         {
             string? path = new FileHistoryDialog(context.ModalDialogs).Show(context.History.GetFileHistory());
@@ -42,8 +43,8 @@ internal sealed class FileHistoryCommand : IApplicationCommand
                         context.Palette,
                         context.Settings.Editor,
                         context.TextClipboard,
-                        BuildFileNameInsertionContext(context)).Show(path);
-                    context.SafeRefresh(context.ActiveState, context.VisibleRows());
+                        BuildFileNameInsertionContext(context, target)).Show(path);
+                    context.SafeRefresh(target.State, target.VisibleRows);
                     break;
             }
 
@@ -55,10 +56,16 @@ internal sealed class FileHistoryCommand : IApplicationCommand
         }
     }
 
-    private static EditorFileNameInsertionContext BuildFileNameInsertionContext(ApplicationCommandContext context)
+    private static EditorFileNameInsertionContext BuildFileNameInsertionContext(
+        ApplicationCommandContext context,
+        ResolvedPanelCommandTarget target)
     {
-        var activeItem = context.Controller.CurrentItem(context.ActiveState);
-        var passiveItem = context.Controller.CurrentItem(context.PassiveState);
+        FilePanelItem? activeItem = target.Committed is { } committed
+            ? ApplicationCommandContext.TryResolveCommittedCurrentItem(target.State, committed, out var committedItem)
+                ? committedItem
+                : null
+            : context.Controller.CurrentItem(target.State);
+        var passiveItem = context.Controller.CurrentItem(target.PassiveState);
         return new EditorFileNameInsertionContext(
             activeItem is { IsParentDirectory: false } ? activeItem.Name : null,
             activeItem is { IsParentDirectory: false } ? activeItem.FullPath : null,

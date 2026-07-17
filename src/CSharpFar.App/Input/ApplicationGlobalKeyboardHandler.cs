@@ -32,13 +32,9 @@ internal sealed class ApplicationGlobalKeyboardHandler
 
         if (KeyboardShortcutClassifier.IsPlainControlBackslash(key))
         {
-            ApplicationPanelFrame? panel = input.ActivePanelFrame;
-            if (panel is null)
-                return ApplicationInputHandlingResult.NotHandled;
-
             return Handled(_context.ExecuteRegisteredCommand(
                 ApplicationCommandIds.NavigateToRoot,
-                new NavigateToRootArgs(input.ActiveSide, panel.Keyboard.CurrentDirectory)));
+                new NavigateToRootArgs(input.ActiveSide, input.ActivePanel.CurrentDirectory)));
         }
 
         if ((key.Modifiers & ConsoleModifiers.Alt) != 0 &&

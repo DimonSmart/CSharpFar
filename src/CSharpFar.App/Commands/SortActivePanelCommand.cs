@@ -16,19 +16,12 @@ internal abstract class SortActivePanelCommand : IApplicationCommand
     protected SortMode SortMode { get; }
 
     public bool CanExecute(ApplicationCommandContext context, object? args = null) =>
-        context.HasCapability(State(context, args), PanelProviderCapabilities.Enumerate);
+        context.HasCapability(context.ResolvePanelTarget(args).State, PanelProviderCapabilities.Enumerate);
 
     public ApplicationCommandResult Execute(ApplicationCommandContext context, object? args = null)
     {
-        PanelSide side = args is PanelCommandArgs panelArgs
-            ? panelArgs.PanelSide
-            : context.ActiveSide;
-        context.SetPanelSortMode(context.GetPanelState(side), SortMode, context.VisibleRows(side));
+        var target = context.ResolvePanelTarget(args);
+        context.SetPanelSortMode(target.State, SortMode, target.VisibleRows);
         return ApplicationCommandResult.Rendered();
     }
-
-    private static FilePanelState State(ApplicationCommandContext context, object? args) =>
-        args is PanelCommandArgs panelArgs
-            ? context.GetPanelState(panelArgs.PanelSide)
-            : context.ActiveState;
 }

@@ -19,4 +19,10 @@ internal sealed record ApplicationKeyboardInput(
 
     public ApplicationPanelFrame? PanelFrame(PanelSide side) =>
         side == PanelSide.Left ? Frame.LeftPanel : Frame.RightPanel;
+
+    public ApplicationPanelKeyboardFrame ActivePanel =>
+        Frame.Keyboard.ActivePanel;
+
+    public ApplicationPanelKeyboardFrame Panel(PanelSide side) =>
+        Frame.Keyboard.Panel(side);
 }

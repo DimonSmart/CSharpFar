@@ -102,9 +102,9 @@ internal static class ApplicationServicesBuilder
             SetRunning = running => session.App.Running = running,
             SetFunctionKeyLayer = _ => throw new InvalidOperationException("Keyboard input context is not assigned."),
             ExecuteRegisteredCommand = (_, _) => throw new InvalidOperationException("Keyboard input context is not assigned."),
-            SelectAllCommandLineTextOrPanelItems = _ => throw new InvalidOperationException("Keyboard input context is not assigned."),
+            ToggleSelectAllPanelItems = _ => throw new InvalidOperationException("Keyboard input context is not assigned."),
             CopyCommandLineSelection = () => throw new InvalidOperationException("Keyboard input context is not assigned."),
-            PasteTextIntoCommandLine = () => throw new InvalidOperationException("Keyboard input context is not assigned."),
+            PasteTextIntoCommandLine = _ => throw new InvalidOperationException("Keyboard input context is not assigned."),
             OnVisibleCommandLineTextEdited = () => throw new InvalidOperationException("Keyboard input context is not assigned."),
             CloseSearchResultsPanel = (_, _) => throw new InvalidOperationException("Keyboard input context is not assigned."),
             ExecuteCommand = _ => throw new InvalidOperationException("Keyboard input context is not assigned."),
@@ -112,9 +112,7 @@ internal static class ApplicationServicesBuilder
             HideCommandCompletion = _ => throw new InvalidOperationException("Keyboard input context is not assigned."),
             ResetCommandHistoryNavigation = () => throw new InvalidOperationException("Keyboard input context is not assigned."),
             TryGoUp = (_, _) => throw new InvalidOperationException("Keyboard input context is not assigned."),
-            OpenCurrentItem = (_, _) => throw new InvalidOperationException("Keyboard input context is not assigned."),
             OpenPanelItem = (_, _, _) => throw new InvalidOperationException("Keyboard input context is not assigned."),
-            CanExecuteFunctionKeyCommand = _ => throw new InvalidOperationException("Keyboard input context is not assigned."),
         };
         var shortcutTextProvider = new CommandShortcutTextProvider(
             new DefaultKeyboardShortcutBindingProvider().GetBindings(),

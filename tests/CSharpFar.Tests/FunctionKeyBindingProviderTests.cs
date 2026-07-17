@@ -4,6 +4,14 @@ namespace CSharpFar.Tests;
 
 public sealed class FunctionKeyBindingProviderTests
 {
+    private enum FunctionKeyCommandCategory
+    {
+        Global,
+        FixedSide,
+        PanelScoped,
+        CommandLineHistory,
+    }
+
     [Fact]
     public void GetBindings_ReturnsExpectedCoreBindings()
     {
@@ -58,6 +66,67 @@ public sealed class FunctionKeyBindingProviderTests
             .ToArray();
 
         Assert.Empty(duplicateChords);
+    }
+
+    [Fact]
+    public void GetBindings_EveryCommandHasExplicitExecutionCategory()
+    {
+        var bindings = new DefaultFunctionKeyBindingProvider().GetBindings();
+        var categories = new Dictionary<string, FunctionKeyCommandCategory>
+        {
+            [FunctionKeyCommandIds.Help] = FunctionKeyCommandCategory.Global,
+            [FunctionKeyCommandIds.UserMenu] = FunctionKeyCommandCategory.PanelScoped,
+            [FunctionKeyCommandIds.View] = FunctionKeyCommandCategory.PanelScoped,
+            [FunctionKeyCommandIds.Edit] = FunctionKeyCommandCategory.PanelScoped,
+            [FunctionKeyCommandIds.OpenCreateFile] = FunctionKeyCommandCategory.PanelScoped,
+            [FunctionKeyCommandIds.Copy] = FunctionKeyCommandCategory.PanelScoped,
+            [FunctionKeyCommandIds.RenameOrMove] = FunctionKeyCommandCategory.PanelScoped,
+            [FunctionKeyCommandIds.Rename] = FunctionKeyCommandCategory.PanelScoped,
+            [FunctionKeyCommandIds.CreateFolder] = FunctionKeyCommandCategory.PanelScoped,
+            [FunctionKeyCommandIds.Delete] = FunctionKeyCommandCategory.PanelScoped,
+            [FunctionKeyCommandIds.TopMenu] = FunctionKeyCommandCategory.PanelScoped,
+            [FunctionKeyCommandIds.Quit] = FunctionKeyCommandCategory.Global,
+            [FunctionKeyCommandIds.LeftVolume] = FunctionKeyCommandCategory.FixedSide,
+            [FunctionKeyCommandIds.RightVolume] = FunctionKeyCommandCategory.FixedSide,
+            [FunctionKeyCommandIds.Search] = FunctionKeyCommandCategory.PanelScoped,
+            [FunctionKeyCommandIds.CommandHistory] = FunctionKeyCommandCategory.CommandLineHistory,
+            [FunctionKeyCommandIds.FileHistory] = FunctionKeyCommandCategory.PanelScoped,
+            [FunctionKeyCommandIds.DirectoryHistory] = FunctionKeyCommandCategory.PanelScoped,
+            [FunctionKeyCommandIds.SortByName] = FunctionKeyCommandCategory.PanelScoped,
+            [FunctionKeyCommandIds.SortByExtension] = FunctionKeyCommandCategory.PanelScoped,
+            [FunctionKeyCommandIds.SortByLastWriteTime] = FunctionKeyCommandCategory.PanelScoped,
+            [FunctionKeyCommandIds.SortBySize] = FunctionKeyCommandCategory.PanelScoped,
+            [FunctionKeyCommandIds.Attributes] = FunctionKeyCommandCategory.PanelScoped,
+        };
+
+        Assert.All(bindings, binding => Assert.True(
+            categories.ContainsKey(binding.CommandId),
+            $"Missing function-key execution category for {binding.CommandId}."));
+        Assert.Empty(categories.Keys.Except(bindings.Select(binding => binding.CommandId)));
+
+        string[] panelScoped =
+        [
+            FunctionKeyCommandIds.UserMenu,
+            FunctionKeyCommandIds.View,
+            FunctionKeyCommandIds.Edit,
+            FunctionKeyCommandIds.OpenCreateFile,
+            FunctionKeyCommandIds.Copy,
+            FunctionKeyCommandIds.RenameOrMove,
+            FunctionKeyCommandIds.Rename,
+            FunctionKeyCommandIds.CreateFolder,
+            FunctionKeyCommandIds.Delete,
+            FunctionKeyCommandIds.TopMenu,
+            FunctionKeyCommandIds.Search,
+            FunctionKeyCommandIds.FileHistory,
+            FunctionKeyCommandIds.DirectoryHistory,
+            FunctionKeyCommandIds.SortByName,
+            FunctionKeyCommandIds.SortByExtension,
+            FunctionKeyCommandIds.SortByLastWriteTime,
+            FunctionKeyCommandIds.SortBySize,
+            FunctionKeyCommandIds.Attributes,
+        ];
+        Assert.All(panelScoped, commandId =>
+            Assert.Equal(FunctionKeyCommandCategory.PanelScoped, categories[commandId]));
     }
 
     private static void AssertBinding(

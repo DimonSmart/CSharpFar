@@ -9,15 +9,19 @@ internal sealed class CreateFolderCommand : IApplicationCommand
     public string CommandId => FunctionKeyCommandIds.CreateFolder;
 
     public bool CanExecute(ApplicationCommandContext context, object? args = null) =>
-        context.HasCapability(context.ActiveState, PanelProviderCapabilities.CreateDirectory);
+        context.HasCapability(context.ResolvePanelTarget(args).State, PanelProviderCapabilities.CreateDirectory);
 
     public ApplicationCommandResult Execute(ApplicationCommandContext context, object? args = null)
     {
+        var target = context.ResolvePanelTarget(args);
         if (!CanExecute(context, args))
         {
             context.ShowReadOnlyPanelMessage("Create folder");
             return ApplicationCommandResult.Rendered();
         }
+
+        if (!CommittedDirectoryMatches(target))
+            return ApplicationCommandResult.Rendered();
 
         var dialog = new CreateFolderDialog(context.ModalDialogs);
         string? name = dialog.Show(validate: attempt =>
@@ -25,7 +29,7 @@ internal sealed class CreateFolderCommand : IApplicationCommand
             if (attempt.IndexOfAny(Path.GetInvalidPathChars()) >= 0)
                 return "Invalid characters in folder path.";
 
-            string newPath = context.CombinePanelPath(context.ActiveState, attempt);
+            string newPath = context.CombinePanelPath(target.State, attempt);
             try
             {
                 context.ExecuteFileOperation(new FileOperationRequest
@@ -33,7 +37,7 @@ internal sealed class CreateFolderCommand : IApplicationCommand
                     Kind = FileOperationKind.CreateDirectory,
                     Sources = [],
                     Destination = newPath,
-                    DestinationLocation = new PanelLocation(context.ActiveState.SourceId, newPath),
+                    DestinationLocation = new PanelLocation(target.State.SourceId, newPath),
                     Options = context.BuildFileOperationOptions(),
                 });
                 return null;
@@ -46,11 +50,14 @@ internal sealed class CreateFolderCommand : IApplicationCommand
         if (name is null)
             return ApplicationCommandResult.Rendered();
 
-        int visibleRows = context.VisibleRows();
-        context.SafeRefresh(context.ActiveState, visibleRows);
-        context.Controller.SetCursorByName(context.ActiveState, FirstCreatedDirectoryName(name), visibleRows);
+        context.SafeRefresh(target.State, target.VisibleRows);
+        context.Controller.SetCursorByName(target.State, FirstCreatedDirectoryName(name), target.VisibleRows);
         return ApplicationCommandResult.Rendered();
     }
+
+    private static bool CommittedDirectoryMatches(ResolvedPanelCommandTarget target) =>
+        target.Committed is null ||
+        string.Equals(target.State.CurrentDirectory, target.Committed.CurrentDirectory, StringComparison.OrdinalIgnoreCase);
 
     private static string FirstCreatedDirectoryName(string path)
     {

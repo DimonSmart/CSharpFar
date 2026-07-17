@@ -9,7 +9,7 @@ internal sealed class OpenTopMenuCommand : IApplicationCommand
     public bool CanExecute(ApplicationCommandContext context, object? args = null) => true;
 
     public ApplicationCommandResult Execute(ApplicationCommandContext context, object? args = null) =>
-        context.OpenTopMenu()
+        context.OpenTopMenu(context.ResolvePanelTarget(args).Side)
             ? ApplicationCommandResult.Rendered()
             : ApplicationCommandResult.NotRendered();
 }

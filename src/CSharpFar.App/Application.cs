@@ -200,7 +200,7 @@ public sealed class Application
     private void BindKeyboardInputContext(KeyboardInputContext context)
     {
         context.ExecuteRegisteredCommand = ExecuteRegisteredCommand;
-        context.SelectAllCommandLineTextOrPanelItems = SelectAllCommandLineTextOrPanelItems;
+        context.ToggleSelectAllPanelItems = ToggleSelectAllPanelItems;
         context.CopyCommandLineSelection = CopyCommandLineSelection;
         context.PasteTextIntoCommandLine = PasteTextIntoCommandLine;
         context.SetFunctionKeyLayer = SetFunctionKeyLayer;
@@ -211,9 +211,7 @@ public sealed class Application
         context.HideCommandCompletion = HideCommandCompletion;
         context.ResetCommandHistoryNavigation = ResetCommandHistoryNavigation;
         context.TryGoUp = TryGoUp;
-        context.OpenCurrentItem = OpenCurrentItem;
         context.OpenPanelItem = OpenPanelItem;
-        context.CanExecuteFunctionKeyCommand = CanExecuteFunctionKeyCommand;
     }
 
     private void BindMouseInputContext(MouseInputContext context)
@@ -352,6 +350,11 @@ public sealed class Application
     }
 
     private bool PasteTextIntoCommandLine()
+        => PasteTextIntoCommandLine(_panelWorkspace.IsPanelsMode
+            ? ApplicationWorkspaceMode.Panels
+            : ApplicationWorkspaceMode.HiddenCommandLine);
+
+    private bool PasteTextIntoCommandLine(ApplicationWorkspaceMode mode)
     {
         if (!_clipboard.TryGetText(out string text) || string.IsNullOrEmpty(text))
             return true;
@@ -361,7 +364,7 @@ public sealed class Application
             return true;
 
         _cmdLine.InsertText(singleLine);
-        if (_panelWorkspace.IsPanelsMode)
+        if (mode == ApplicationWorkspaceMode.Panels)
             OnVisibleCommandLineTextEdited();
         else
             ResetCommandHistoryNavigation();
@@ -375,13 +378,8 @@ public sealed class Application
     private bool ExecuteRegisteredCommand(string commandId, object? args = null) =>
         _commandRegistry.Execute(commandId, _commandContext, args).ShouldRender;
 
-    private void SelectAllCommandLineTextOrPanelItems(PanelSide side)
-    {
-        if (_cmdLine.HasText)
-            _cmdLine.SelectAll();
-        else
-            _ctrl.ToggleSelectAll(GetPanelState(side), PanelOptions);
-    }
+    private void ToggleSelectAllPanelItems(PanelSide side) =>
+        _ctrl.ToggleSelectAll(GetPanelState(side), PanelOptions);
 
     private void OnVisibleCommandLineTextEdited()
     {
@@ -437,13 +435,15 @@ public sealed class Application
         ResetCommandHistoryNavigation();
     }
 
-    internal bool OpenTopMenu()
+    internal bool OpenTopMenu() => OpenTopMenu(_active);
+
+    internal bool OpenTopMenu(PanelSide side)
     {
         ClosePanelQuickSearch();
         _menuController.HandleKey(
             new ConsoleKeyInfo('\0', ConsoleKey.F9, shift: false, alt: false, control: false),
             BuildMenuDefinition(),
-            _active);
+            side);
         return true;
     }
 
@@ -521,7 +521,7 @@ public sealed class Application
             return;
         }
 
-        OpenFileItem(item);
+        OpenFileItem(state, item);
     }
 
     private void OpenDirectoryItem(FilePanelState state, PanelSide side, FilePanelItem item)
@@ -529,9 +529,9 @@ public sealed class Application
         _panelNavigation.OpenDirectoryItem(state, side, item);
     }
 
-    private void OpenFileItem(FilePanelItem item)
+    private void OpenFileItem(FilePanelState state, FilePanelItem item)
     {
-        _panelFileOpener.OpenFileItem(ActiveState, item);
+        _panelFileOpener.OpenFileItem(state, item);
     }
 
     private void TryGoUp(FilePanelState state, PanelSide side)

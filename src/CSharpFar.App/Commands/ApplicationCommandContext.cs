@@ -22,6 +22,20 @@ using CSharpFar.Ui;
 
 namespace CSharpFar.App.Commands;
 
+internal sealed record ApplicationPanelCommandInvocation(
+    PanelSide Side,
+    int VisibleRows,
+    ApplicationPanelKeyboardFrame ActivePanel,
+    ApplicationPanelKeyboardFrame PassivePanel);
+
+internal readonly record struct ResolvedPanelCommandTarget(
+    PanelSide Side,
+    FilePanelState State,
+    PanelSide PassiveSide,
+    FilePanelState PassiveState,
+    int VisibleRows,
+    ApplicationPanelKeyboardFrame? Committed);
+
 internal sealed class ApplicationCommandContext
 {
     private readonly ApplicationSession _session;
@@ -229,6 +243,62 @@ internal sealed class ApplicationCommandContext
     public FilePanelState GetPanelState(PanelSide side) =>
         _panelWorkspace.GetPanelState(side);
 
+    public ResolvedPanelCommandTarget ResolvePanelTarget(object? args)
+    {
+        if (args is ApplicationPanelCommandInvocation invocation)
+        {
+            PanelSide passiveSide = OtherPanelSide(invocation.Side);
+            return new ResolvedPanelCommandTarget(
+                invocation.Side,
+                GetPanelState(invocation.Side),
+                passiveSide,
+                GetPanelState(passiveSide),
+                invocation.VisibleRows,
+                invocation.ActivePanel);
+        }
+
+        if (args is PanelCommandArgs panelArgs)
+        {
+            PanelSide passiveSide = OtherPanelSide(panelArgs.PanelSide);
+            return new ResolvedPanelCommandTarget(
+                panelArgs.PanelSide,
+                GetPanelState(panelArgs.PanelSide),
+                passiveSide,
+                GetPanelState(passiveSide),
+                VisibleRows(panelArgs.PanelSide),
+                null);
+        }
+
+        return new ResolvedPanelCommandTarget(
+            ActiveSide,
+            ActiveState,
+            OtherPanelSide(ActiveSide),
+            PassiveState,
+            VisibleRows(),
+            null);
+    }
+
+    public static bool TryResolveCommittedCurrentItem(
+        FilePanelState state,
+        ApplicationPanelKeyboardFrame committed,
+        out FilePanelItem item)
+    {
+        item = null!;
+        if (committed.CurrentItemIndex is not { } index ||
+            index < 0 ||
+            index >= state.Items.Count)
+        {
+            return false;
+        }
+
+        FilePanelItem candidate = state.Items[index];
+        if (!string.Equals(candidate.FullPath, committed.CurrentItemIdentity, StringComparison.Ordinal))
+            return false;
+
+        item = candidate;
+        return true;
+    }
+
     public void RefreshPanels() => _panelRefresh.RefreshPanels(LeftPanel, RightPanel);
 
     public void RefreshPanelsAfterFileOperation() =>
@@ -282,7 +352,7 @@ internal sealed class ApplicationCommandContext
             return;
         }
 
-        _panelFileOpener.OpenFileItem(ActiveState, item);
+        _panelFileOpener.OpenFileItem(state, item);
     }
 
     public ApplicationCommandResult OpenModuleMenuItem(Guid actionId) =>
@@ -345,13 +415,15 @@ internal sealed class ApplicationCommandContext
         StartWatching(RightPanel, PanelSide.Right);
     }
 
-    public bool OpenTopMenu()
+    public bool OpenTopMenu() => OpenTopMenu(ActiveSide);
+
+    public bool OpenTopMenu(PanelSide side)
     {
         _panelQuickSearch.Close();
         _menuController.HandleKey(
             new ConsoleKeyInfo('\0', ConsoleKey.F9, shift: false, alt: false, control: false),
-            BuildMenuDefinition(),
-            ActiveSide);
+            BuildMenuDefinition(side),
+            side);
         return true;
     }
 
@@ -389,9 +461,12 @@ internal sealed class ApplicationCommandContext
         FileHighlightServiceFactory.Create(Settings);
 
     private MenuBarDefinition BuildMenuDefinition() =>
+        BuildMenuDefinition(ActiveSide);
+
+    private MenuBarDefinition BuildMenuDefinition(PanelSide activeSide) =>
         _menuProvider.BuildMenu(new MenuBuildContext
         {
-            ActivePanelSide = ActiveSide,
+            ActivePanelSide = activeSide,
             LeftPanel = LeftPanel,
             RightPanel = RightPanel,
             LeftViewMode = LeftViewMode,
@@ -401,4 +476,6 @@ internal sealed class ApplicationCommandContext
             ModuleMenuItems = _moduleCatalog.MenuItems,
         });
 
+    private static PanelSide OtherPanelSide(PanelSide side) =>
+        side == PanelSide.Left ? PanelSide.Right : PanelSide.Left;
 }

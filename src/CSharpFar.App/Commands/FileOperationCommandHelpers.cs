@@ -1,41 +1,56 @@
 using CSharpFar.Core.Models;
+using CSharpFar.App.Rendering;
 
 namespace CSharpFar.App.Commands;
 
 internal static class FileOperationCommandHelpers
 {
-    public static IReadOnlyList<string> GetOperationSources(ApplicationCommandContext context)
+    public static IReadOnlyList<string> GetOperationSources(
+        ApplicationCommandContext context,
+        FilePanelState state,
+        ApplicationPanelKeyboardFrame? committed)
     {
-        if (context.ActiveState.SelectedPaths.Count > 0)
-            return [.. context.ActiveState.SelectedPaths];
+        if (state.SelectedPaths.Count > 0)
+            return [.. state.SelectedPaths];
 
-        var item = context.Controller.CurrentItem(context.ActiveState);
+        FilePanelItem? item = committed is null
+            ? context.Controller.CurrentItem(state)
+            : ApplicationCommandContext.TryResolveCommittedCurrentItem(state, committed, out var committedItem)
+                ? committedItem
+                : null;
         if (item is null || item.IsParentDirectory)
             return [];
 
         return [item.FullPath];
     }
 
-    public static IReadOnlyList<PanelLocation> GetOperationSourceLocations(ApplicationCommandContext context)
+    public static IReadOnlyList<PanelLocation> GetOperationSourceLocations(
+        ApplicationCommandContext context,
+        FilePanelState state,
+        ApplicationPanelKeyboardFrame? committed)
     {
-        if (context.ActiveState.SearchRequest is not null)
+        if (state.SearchRequest is not null)
         {
-            var paths = GetOperationSources(context);
+            var paths = GetOperationSources(context, state, committed);
             return paths.Select(PanelLocation.Local).ToList();
         }
 
-        if (context.ActiveState.SelectedLocations.Count > 0)
-            return [.. context.ActiveState.SelectedLocations];
+        if (state.SelectedLocations.Count > 0)
+            return [.. state.SelectedLocations];
 
-        if (context.ActiveState.SelectedPaths.Count > 0)
+        if (state.SelectedPaths.Count > 0)
         {
-            return context.ActiveState.Items
-                .Where(item => context.ActiveState.SelectedPaths.Contains(item.FullPath))
+            return state.Items
+                .Where(item => state.SelectedPaths.Contains(item.FullPath))
                 .Select(item => item.Location)
                 .ToList();
         }
 
-        var item = context.Controller.CurrentItem(context.ActiveState);
+        FilePanelItem? item = committed is null
+            ? context.Controller.CurrentItem(state)
+            : ApplicationCommandContext.TryResolveCommittedCurrentItem(state, committed, out var committedItem)
+                ? committedItem
+                : null;
         if (item is null || item.IsParentDirectory)
             return [];
 

@@ -11,21 +11,25 @@ internal sealed class OpenCreateFileCommand : IApplicationCommand
     public string CommandId => FunctionKeyCommandIds.OpenCreateFile;
 
     public bool CanExecute(ApplicationCommandContext context, object? args = null) =>
-        context.ActiveState.SourceId == PanelSourceId.Local &&
-        context.HasCapability(context.ActiveState, PanelProviderCapabilities.CreateFile);
+        context.ResolvePanelTarget(args).State.SourceId == PanelSourceId.Local &&
+        context.HasCapability(context.ResolvePanelTarget(args).State, PanelProviderCapabilities.CreateFile);
 
     public ApplicationCommandResult Execute(ApplicationCommandContext context, object? args = null)
     {
+        var target = context.ResolvePanelTarget(args);
         if (!CanExecute(context, args))
         {
             context.ShowReadOnlyPanelMessage("Create file");
             return ApplicationCommandResult.Rendered();
         }
 
+        if (!CommittedDirectoryMatches(target))
+            return ApplicationCommandResult.Rendered();
+
         var dialog = new OpenCreateFileDialog(context.ModalDialogs);
         var result = dialog.Show(
-            InitialPath(context),
-            attempt => ValidateLocalPath(context.ActiveState.SourcePath, attempt));
+            InitialPath(context, target),
+            attempt => ValidateLocalPath(target.State.SourcePath, attempt));
 
         if (result is null)
             return ApplicationCommandResult.Rendered();
@@ -33,7 +37,7 @@ internal sealed class OpenCreateFileCommand : IApplicationCommand
         string filePath;
         try
         {
-            filePath = ResolveLocalPath(context.ActiveState.SourcePath, result.FilePath);
+            filePath = ResolveLocalPath(target.State.SourcePath, result.FilePath);
         }
         catch (Exception ex) when (ex is ArgumentException or NotSupportedException or PathTooLongException)
         {
@@ -49,24 +53,29 @@ internal sealed class OpenCreateFileCommand : IApplicationCommand
             context.Palette,
             context.Settings.Editor,
             context.TextClipboard,
-            BuildFileNameInsertionContext(context))
+            BuildFileNameInsertionContext(context, target))
             .ShowWithNewFileFormat(filePath, newFileFormat);
 
         if (File.Exists(filePath))
             context.History.AddFile(new FileHistoryItem { Path = filePath });
 
-        int visibleRows = context.VisibleRows();
-        context.SafeRefresh(context.ActiveState, visibleRows);
-        if (!existedBefore && IsInCurrentLocalDirectory(context.ActiveState.SourcePath, filePath))
-            context.Controller.SetCursorByName(context.ActiveState, Path.GetFileName(filePath), visibleRows);
+        context.SafeRefresh(target.State, target.VisibleRows);
+        if (!existedBefore && IsInCurrentLocalDirectory(target.State.SourcePath, filePath))
+            context.Controller.SetCursorByName(target.State, Path.GetFileName(filePath), target.VisibleRows);
 
         return ApplicationCommandResult.Rendered();
     }
 
-    private static EditorFileNameInsertionContext BuildFileNameInsertionContext(ApplicationCommandContext context)
+    private static EditorFileNameInsertionContext BuildFileNameInsertionContext(
+        ApplicationCommandContext context,
+        ResolvedPanelCommandTarget target)
     {
-        var activeItem = context.Controller.CurrentItem(context.ActiveState);
-        var passiveItem = context.Controller.CurrentItem(context.PassiveState);
+        FilePanelItem? activeItem = target.Committed is { } committed
+            ? ApplicationCommandContext.TryResolveCommittedCurrentItem(target.State, committed, out var committedItem)
+                ? committedItem
+                : null
+            : context.Controller.CurrentItem(target.State);
+        var passiveItem = context.Controller.CurrentItem(target.PassiveState);
         return new EditorFileNameInsertionContext(
             activeItem is { IsParentDirectory: false } ? activeItem.Name : null,
             activeItem is { IsParentDirectory: false } ? activeItem.FullPath : null,
@@ -74,13 +83,21 @@ internal sealed class OpenCreateFileCommand : IApplicationCommand
             passiveItem is { IsParentDirectory: false } ? passiveItem.FullPath : null);
     }
 
-    private static string? InitialPath(ApplicationCommandContext context)
+    private static string? InitialPath(ApplicationCommandContext context, ResolvedPanelCommandTarget target)
     {
-        var item = context.Controller.CurrentItem(context.ActiveState);
+        FilePanelItem? item = target.Committed is { } committed
+            ? ApplicationCommandContext.TryResolveCommittedCurrentItem(target.State, committed, out var committedItem)
+                ? committedItem
+                : null
+            : context.Controller.CurrentItem(target.State);
         return item is { IsDirectory: false, IsParentDirectory: false }
             ? item.Name
             : null;
     }
+
+    private static bool CommittedDirectoryMatches(ResolvedPanelCommandTarget target) =>
+        target.Committed is null ||
+        string.Equals(target.State.CurrentDirectory, target.Committed.CurrentDirectory, StringComparison.OrdinalIgnoreCase);
 
     private static string? ValidateLocalPath(string currentDirectory, string attempt)
     {

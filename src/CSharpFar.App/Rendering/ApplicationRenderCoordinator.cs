@@ -36,6 +36,8 @@ internal sealed class ApplicationRenderCoordinator
         FilePanelState activeState = activeSide == PanelSide.Left
             ? _context.LeftPanel()
             : _context.RightPanel();
+        ApplicationPanelKeyboardFrame leftKeyboard = PanelRenderer.BuildKeyboardFrame(_context.LeftPanel());
+        ApplicationPanelKeyboardFrame rightKeyboard = PanelRenderer.BuildKeyboardFrame(_context.RightPanel());
         var workspace = _panelWorkspaceRenderer.Render(
             size,
             _context.LeftPanel(),
@@ -66,10 +68,10 @@ internal sealed class ApplicationRenderCoordinator
         return new ApplicationUiFrame(
             context.Viewport,
             ApplicationWorkspaceMode.Panels,
-            BuildKeyboardFrame(activeSide, activeState),
+            BuildKeyboardFrame(activeSide, leftKeyboard, rightKeyboard),
             commandLine,
-            workspace.LeftPanel,
-            workspace.RightPanel,
+            WithKeyboard(workspace.LeftPanel, leftKeyboard),
+            WithKeyboard(workspace.RightPanel, rightKeyboard),
             functionKeyBar,
             directoryShortcutBar);
     }
@@ -83,6 +85,8 @@ internal sealed class ApplicationRenderCoordinator
         FilePanelState activeState = activeSide == PanelSide.Left
             ? _context.LeftPanel()
             : _context.RightPanel();
+        ApplicationPanelKeyboardFrame leftKeyboard = PanelRenderer.BuildKeyboardFrame(_context.LeftPanel());
+        ApplicationPanelKeyboardFrame rightKeyboard = PanelRenderer.BuildKeyboardFrame(_context.RightPanel());
         context.PublishOnStable(viewport, value => _context.Ui.LastRenderViewport = value);
         ApplicationCommandLineFrame commandLine = _commandLineRenderer.Render(
             row,
@@ -93,7 +97,7 @@ internal sealed class ApplicationRenderCoordinator
         return new ApplicationUiFrame(
             context.Viewport,
             ApplicationWorkspaceMode.HiddenCommandLine,
-            BuildKeyboardFrame(activeSide, activeState),
+            BuildKeyboardFrame(activeSide, leftKeyboard, rightKeyboard),
             commandLine,
             null,
             null,
@@ -109,10 +113,30 @@ internal sealed class ApplicationRenderCoordinator
         _context.QuickViewDirectorySize.Update(_context.App.QuickView, item);
     }
 
-    private ApplicationKeyboardFrame BuildKeyboardFrame(PanelSide activeSide, FilePanelState activeState) =>
+    private ApplicationKeyboardFrame BuildKeyboardFrame(
+        PanelSide activeSide,
+        ApplicationPanelKeyboardFrame leftKeyboard,
+        ApplicationPanelKeyboardFrame rightKeyboard) =>
         new(
             activeSide,
             _context.CommandLine.HasText,
             _context.CommandLine.HasSelection,
-            activeState.SearchRequest is not null);
+            leftKeyboard,
+            rightKeyboard);
+
+    private static ApplicationPanelFrame? WithKeyboard(
+        ApplicationPanelFrame? frame,
+        ApplicationPanelKeyboardFrame keyboard) =>
+        frame is null
+            ? null
+            : new ApplicationPanelFrame(
+                frame.Side,
+                frame.Bounds,
+                frame.VisibleRows,
+                frame.VisibleItems,
+                frame.RetryBounds,
+                frame.ScrollBar,
+                keyboard,
+                frame.RowsPerColumn,
+                frame.ColumnCount);
 }

@@ -9,17 +9,22 @@ internal sealed class RenameCommand : IApplicationCommand
     public string CommandId => FunctionKeyCommandIds.Rename;
 
     public bool CanExecute(ApplicationCommandContext context, object? args = null) =>
-        context.HasCapability(context.ActiveState, PanelProviderCapabilities.Rename);
+        context.HasCapability(context.ResolvePanelTarget(args).State, PanelProviderCapabilities.Rename);
 
     public ApplicationCommandResult Execute(ApplicationCommandContext context, object? args = null)
     {
-        if (!context.HasCapability(context.ActiveState, PanelProviderCapabilities.Rename))
+        var target = context.ResolvePanelTarget(args);
+        if (!context.HasCapability(target.State, PanelProviderCapabilities.Rename))
         {
             context.ShowReadOnlyPanelMessage("Rename");
             return ApplicationCommandResult.Rendered();
         }
 
-        var item = context.Controller.CurrentItem(context.ActiveState);
+        FilePanelItem? item = target.Committed is { } committed
+            ? ApplicationCommandContext.TryResolveCommittedCurrentItem(target.State, committed, out var committedItem)
+                ? committedItem
+                : null
+            : context.Controller.CurrentItem(target.State);
         if (item is null || item.IsParentDirectory)
             return ApplicationCommandResult.Rendered();
 
@@ -42,12 +47,12 @@ internal sealed class RenameCommand : IApplicationCommand
                 Sources = [item.FullPath],
                 SourceLocations = [item.Location],
                 Destination = dialogResult.Destination,
-                DestinationLocation = BuildDestinationLocation(context, dialogResult.Destination),
+                DestinationLocation = BuildDestinationLocation(context, target.State, dialogResult.Destination),
                 Options = dialogResult.Options,
             });
 
-            context.ActiveState.SelectedPaths.Clear();
-            context.ActiveState.SelectedLocations.Clear();
+            target.State.SelectedPaths.Clear();
+            target.State.SelectedLocations.Clear();
         }
         catch (OperationCanceledException) { }
         catch (Exception ex)
@@ -61,14 +66,15 @@ internal sealed class RenameCommand : IApplicationCommand
 
     private static PanelLocation BuildDestinationLocation(
         ApplicationCommandContext context,
+        FilePanelState state,
         string destination)
     {
-        if (context.ActiveState.SourceId == PanelSourceId.Local)
+        if (state.SourceId == PanelSourceId.Local)
             return PanelLocation.Local(destination);
 
         string path = destination.Contains('/')
             ? destination
-            : context.CombinePanelPath(context.ActiveState, destination);
-        return new PanelLocation(context.ActiveState.SourceId, path);
+            : context.CombinePanelPath(state, destination);
+        return new PanelLocation(state.SourceId, path);
     }
 }

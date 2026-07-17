@@ -9,18 +9,19 @@ internal sealed class DeleteCommand : IApplicationCommand
     public string CommandId => FunctionKeyCommandIds.Delete;
 
     public bool CanExecute(ApplicationCommandContext context, object? args = null) =>
-        context.HasCapability(context.ActiveState, PanelProviderCapabilities.Delete);
+        context.HasCapability(context.ResolvePanelTarget(args).State, PanelProviderCapabilities.Delete);
 
     public ApplicationCommandResult Execute(ApplicationCommandContext context, object? args = null)
     {
+        var target = context.ResolvePanelTarget(args);
         if (!CanExecute(context, args))
         {
             context.ShowReadOnlyPanelMessage("Delete");
             return ApplicationCommandResult.Rendered();
         }
 
-        var sources = FileOperationCommandHelpers.GetOperationSources(context);
-        var sourceLocations = FileOperationCommandHelpers.GetOperationSourceLocations(context);
+        var sources = FileOperationCommandHelpers.GetOperationSources(context, target.State, target.Committed);
+        var sourceLocations = FileOperationCommandHelpers.GetOperationSourceLocations(context, target.State, target.Committed);
         if (sources.Count == 0)
             return ApplicationCommandResult.Rendered();
 
@@ -28,7 +29,7 @@ internal sealed class DeleteCommand : IApplicationCommand
             ? Path.GetFileName(sources[0]) ?? sources[0]
             : $"{sources.Count} items";
 
-        bool useRecycleBin = context.ActiveState.SourceId == PanelSourceId.Local &&
+        bool useRecycleBin = target.State.SourceId == PanelSourceId.Local &&
                              context.Settings.FileOperations.UseRecycleBinForDelete &&
                              context.FileOperations.SupportsRecycleBin;
         string confirmation = useRecycleBin
@@ -52,8 +53,8 @@ internal sealed class DeleteCommand : IApplicationCommand
                     UseRecycleBinForDelete = useRecycleBin,
                 },
             });
-            context.ActiveState.SelectedPaths.Clear();
-            context.ActiveState.SelectedLocations.Clear();
+            target.State.SelectedPaths.Clear();
+            target.State.SelectedLocations.Clear();
         }
         catch (OperationCanceledException) { }
         catch (Exception ex)

@@ -1,4 +1,5 @@
 using CSharpFar.App.CommandLine;
+using CSharpFar.App.Commands;
 using CSharpFar.App.Rendering;
 using CSharpFar.App.State;
 using CSharpFar.Core.Models;
@@ -27,7 +28,7 @@ internal sealed class ApplicationCommandLineKeyboardHandler
             if (frame.Mode == ApplicationWorkspaceMode.HiddenCommandLine || frame.Keyboard.CommandLineHasText)
                 _context.CommandLine.SelectAll();
             else
-                _context.SelectAllCommandLineTextOrPanelItems(frame.Keyboard.ActiveSide);
+                _context.ToggleSelectAllPanelItems(frame.Keyboard.ActiveSide);
             return ApplicationInputHandlingResult.FromHandled(true);
         }
 
@@ -35,7 +36,7 @@ internal sealed class ApplicationCommandLineKeyboardHandler
             return ApplicationInputHandlingResult.FromHandled(_context.CopyCommandLineSelection());
 
         if (KeyboardShortcutClassifier.IsPlainControlKey(key, ConsoleKey.V, '\u0016'))
-            return ApplicationInputHandlingResult.FromHandled(_context.PasteTextIntoCommandLine());
+            return ApplicationInputHandlingResult.FromHandled(_context.PasteTextIntoCommandLine(frame.Mode));
 
         if (TryHandleNavigationKey(
             key,
@@ -175,41 +176,38 @@ internal sealed class ApplicationCommandLineKeyboardHandler
             return InsertCurrentItemNameIntoCommandLine(input);
 
         if (KeyboardShortcutClassifier.IsPlainControlOpenBracket(key))
-            return InsertPanelCurrentDirectoryIntoCommandLine(input.Frame.RightPanel?.Keyboard);
+            return InsertPanelCurrentDirectoryIntoCommandLine(input.Panel(PanelSide.Right), input.Frame.Mode);
 
         if (KeyboardShortcutClassifier.IsPlainControlCloseBracket(key))
-            return InsertPanelCurrentDirectoryIntoCommandLine(input.Frame.LeftPanel?.Keyboard);
+            return InsertPanelCurrentDirectoryIntoCommandLine(input.Panel(PanelSide.Left), input.Frame.Mode);
 
         return false;
     }
 
     private bool InsertCurrentItemNameIntoCommandLine(ApplicationKeyboardInput input)
     {
-        if (!TryResolveCommittedCurrentItem(input.ActiveSide, input.ActivePanelFrame?.Keyboard, out _, out var item))
+        if (!ApplicationCommandContext.TryResolveCommittedCurrentItem(StateForSide(input.ActiveSide), input.ActivePanel, out _))
             return true;
 
-        InsertTextIntoCommandLine(item.Name, input.Frame.Mode);
+        InsertTextIntoCommandLine(input.ActivePanel.CurrentItemName!, input.Frame.Mode);
         return true;
     }
 
     private bool InsertCurrentItemFullPathIntoCommandLine(ApplicationKeyboardInput input)
     {
-        if (!TryResolveCommittedCurrentItem(input.ActiveSide, input.ActivePanelFrame?.Keyboard, out _, out var item))
+        if (!ApplicationCommandContext.TryResolveCommittedCurrentItem(StateForSide(input.ActiveSide), input.ActivePanel, out _))
             return true;
 
-        InsertTextIntoCommandLine(item.FullPath, input.Frame.Mode);
+        InsertTextIntoCommandLine(input.ActivePanel.CurrentItemFullPath!, input.Frame.Mode);
         return true;
     }
 
-    private bool InsertPanelCurrentDirectoryIntoCommandLine(ApplicationPanelKeyboardFrame? frame)
+    private bool InsertPanelCurrentDirectoryIntoCommandLine(ApplicationPanelKeyboardFrame frame, ApplicationWorkspaceMode mode)
     {
-        if (frame is null)
-            return true;
-
         string path = frame.CurrentDirectory;
         if (!path.EndsWith(Path.DirectorySeparatorChar.ToString()))
             path += Path.DirectorySeparatorChar;
-        InsertTextIntoCommandLine(path, ApplicationWorkspaceMode.Panels);
+        InsertTextIntoCommandLine(path, mode);
         return true;
     }
 
@@ -238,27 +236,6 @@ internal sealed class ApplicationCommandLineKeyboardHandler
     private static string QuoteCommandLineInsertion(string text) =>
         text.Contains(' ') ? $"\"{text}\"" : text;
 
-    private bool TryResolveCommittedCurrentItem(
-        PanelSide side,
-        ApplicationPanelKeyboardFrame? committed,
-        out FilePanelState state,
-        out FilePanelItem item)
-    {
-        state = side == PanelSide.Left ? _context.LeftPanel() : _context.RightPanel();
-        item = null!;
-
-        if (committed?.CurrentItemIndex is not { } index ||
-            index < 0 ||
-            index >= state.Items.Count)
-        {
-            return false;
-        }
-
-        FilePanelItem candidate = state.Items[index];
-        if (!string.Equals(candidate.FullPath, committed.CurrentItemIdentity, StringComparison.Ordinal))
-            return false;
-
-        item = candidate;
-        return true;
-    }
+    private FilePanelState StateForSide(PanelSide side) =>
+        side == PanelSide.Left ? _context.LeftPanel() : _context.RightPanel();
 }

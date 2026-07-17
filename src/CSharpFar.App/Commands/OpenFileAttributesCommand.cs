@@ -15,13 +15,14 @@ internal sealed class OpenFileAttributesCommand : IApplicationCommand
 
     public ApplicationCommandResult Execute(ApplicationCommandContext context, object? args = null)
     {
-        if (context.ActiveState.SourceId != PanelSourceId.Local)
+        var target = context.ResolvePanelTarget(args);
+        if (target.State.SourceId != PanelSourceId.Local)
         {
             new MessageDialog(context.ModalDialogs).Show("Attributes", "File attributes are supported only for local files.");
             return ApplicationCommandResult.Rendered();
         }
 
-        var targets = GetTargetItems(context);
+        var targets = GetTargetItems(context, target);
         if (targets.Count == 0)
             return ApplicationCommandResult.Rendered();
 
@@ -61,16 +62,22 @@ internal sealed class OpenFileAttributesCommand : IApplicationCommand
         return ApplicationCommandResult.Rendered();
     }
 
-    private static IReadOnlyList<FilePanelItem> GetTargetItems(ApplicationCommandContext context)
+    private static IReadOnlyList<FilePanelItem> GetTargetItems(
+        ApplicationCommandContext context,
+        ResolvedPanelCommandTarget target)
     {
-        if (context.ActiveState.SelectedPaths.Count > 0)
+        if (target.State.SelectedPaths.Count > 0)
         {
-            return context.ActiveState.Items
-                .Where(item => !item.IsParentDirectory && context.ActiveState.SelectedPaths.Contains(item.FullPath))
+            return target.State.Items
+                .Where(item => !item.IsParentDirectory && target.State.SelectedPaths.Contains(item.FullPath))
                 .ToList();
         }
 
-        var item = context.Controller.CurrentItem(context.ActiveState);
+        FilePanelItem? item = target.Committed is { } committed
+            ? ApplicationCommandContext.TryResolveCommittedCurrentItem(target.State, committed, out var committedItem)
+                ? committedItem
+                : null
+            : context.Controller.CurrentItem(target.State);
         return item is null || item.IsParentDirectory ? [] : [item];
     }
 
