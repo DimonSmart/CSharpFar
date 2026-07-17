@@ -26,7 +26,7 @@ internal sealed class KeyboardInputContext
     public required Action<bool> SetRunning { get; init; }
     public Func<ConsoleModifiers, bool> SetFunctionKeyLayer { get; set; } = _ => throw Missing();
     public Func<string, object?, bool> ExecuteRegisteredCommand { get; set; } = (_, _) => throw Missing();
-    public Action SelectAllCommandLineTextOrPanelItems { get; set; } = () => throw Missing();
+    public Action<PanelSide> SelectAllCommandLineTextOrPanelItems { get; set; } = _ => throw Missing();
     public Func<bool> CopyCommandLineSelection { get; set; } = () => throw Missing();
     public Func<bool> PasteTextIntoCommandLine { get; set; } = () => throw Missing();
     public Action OnVisibleCommandLineTextEdited { get; set; } = () => throw Missing();
@@ -37,7 +37,8 @@ internal sealed class KeyboardInputContext
         (_, _) => throw Missing();
     public Action<bool> HideCommandCompletion { get; set; } = _ => throw Missing();
     public Action ResetCommandHistoryNavigation { get; set; } = () => throw Missing();
-    public Action TryGoUp { get; set; } = () => throw Missing();
+    public Action<FilePanelState, PanelSide> TryGoUp { get; set; } = (_, _) => throw Missing();
+    public Action<FilePanelState, PanelSide> OpenCurrentItem { get; set; } = (_, _) => throw Missing();
     public Func<string, bool> CanExecuteFunctionKeyCommand { get; set; } = _ => throw Missing();
 
     private static InvalidOperationException Missing() =>

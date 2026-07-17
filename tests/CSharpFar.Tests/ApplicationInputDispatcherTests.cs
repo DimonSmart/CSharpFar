@@ -44,6 +44,7 @@ public sealed class ApplicationInputDispatcherTests
         var frame = new ApplicationUiFrame(
             new ConsoleViewport(0, 0, 120, 25),
             ApplicationWorkspaceMode.Panels,
+            new ApplicationKeyboardFrame(PanelSide.Left, commandLine.HasText, commandLine.HasSelection, false),
             new ApplicationCommandLineFrame(new Rect(0, 24, 120, 1), 8, 0, commandLine.Text.Length, new UiCursorPlacement(8, 24)),
             null,
             null,
@@ -288,6 +289,64 @@ public sealed class ApplicationInputDispatcherTests
 
         Assert.False(request.ShouldRender);
         Assert.Equal(0, executions);
+    }
+
+    [Fact]
+    public void KeyWithoutWorkspaceKeyboardRoute_DoesNotInvokeKeyboardHandlers()
+    {
+        var commandLine = new CommandLineState();
+        var dispatcher = Dispatcher(Context(commandLine));
+
+        var request = dispatcher.Handle(new UiRoutedInput<ApplicationUiFrame>(
+            new KeyConsoleInputEvent(new ConsoleKeyInfo('a', ConsoleKey.A, false, false, false)),
+            Frame(commandLine),
+            ApplicationTargetIds.CommandLine,
+            UiInputRouteKind.FocusedTarget));
+
+        Assert.False(request.ShouldRender);
+        Assert.Equal(string.Empty, commandLine.Text);
+    }
+
+    [Fact]
+    public void WorkspaceKeyboard_UsesCommittedActiveSideAfterLiveActiveSideChanges()
+    {
+        var left = PanelStateWithItems();
+        var right = PanelStateWithItems();
+        PanelSide? openedSide = null;
+        FilePanelState? openedState = null;
+        var commandLine = new CommandLineState();
+        var dispatcher = new ApplicationInputDispatcher(
+            KeyboardRouter(
+                commandLine,
+                activeSide: () => PanelSide.Right,
+                leftPanel: () => left,
+                rightPanel: () => right,
+                openCurrentItem: (state, side) =>
+                {
+                    openedState = state;
+                    openedSide = side;
+                }),
+            new ApplicationCommandLineInputHandler(Context(commandLine)),
+            new ApplicationPanelInputHandler(Context(commandLine)),
+            new ApplicationPanelScrollbarInputHandler(Context(commandLine)),
+            new ApplicationFunctionKeyBarInputHandler(Context(commandLine)),
+            new ApplicationDirectoryShortcutBarInputHandler(Context(commandLine)));
+        var frame = Frame(commandLine) with
+        {
+            Keyboard = new ApplicationKeyboardFrame(PanelSide.Left, false, false, false),
+            LeftPanel = new ApplicationPanelFrame(PanelSide.Left, new Rect(0, 0, 40, 10), 8, [], null, null),
+            RightPanel = new ApplicationPanelFrame(PanelSide.Right, new Rect(40, 0, 40, 10), 8, [], null, null),
+        };
+
+        var request = dispatcher.Handle(new UiRoutedInput<ApplicationUiFrame>(
+            new KeyConsoleInputEvent(new ConsoleKeyInfo('\r', ConsoleKey.Enter, false, false, false)),
+            frame,
+            ApplicationTargetIds.WorkspaceKeyboard,
+            UiInputRouteKind.KeyboardTarget));
+
+        Assert.True(request.ShouldRender);
+        Assert.Same(left, openedState);
+        Assert.Equal(PanelSide.Left, openedSide);
     }
 
     [Fact]
@@ -555,19 +614,26 @@ public sealed class ApplicationInputDispatcherTests
             new ApplicationFunctionKeyBarInputHandler(context),
             new ApplicationDirectoryShortcutBarInputHandler(context));
 
-    private static KeyboardInputRouter KeyboardRouter(CommandLineState commandLine)
+    private static KeyboardInputRouter KeyboardRouter(
+        CommandLineState commandLine,
+        Func<PanelSide>? activeSide = null,
+        Func<FilePanelState>? leftPanel = null,
+        Func<FilePanelState>? rightPanel = null,
+        Action<FilePanelState, PanelSide>? openCurrentItem = null)
     {
         var panel = new FilePanelState { CurrentDirectory = @"C:\work" };
+        leftPanel ??= () => panel;
+        rightPanel ??= () => panel;
         return new KeyboardInputRouter(new KeyboardInputContext
         {
             PanelController = new PanelController(new FakePanelViewBuilder(new FakeFileSystemService())),
             CommandLine = commandLine,
             FunctionKeyBindings = [],
-            ActiveSide = () => PanelSide.Left,
+            ActiveSide = activeSide ?? (() => PanelSide.Left),
             SetActiveSide = _ => { },
             ActiveState = () => panel,
-            LeftPanel = () => panel,
-            RightPanel = () => panel,
+            LeftPanel = leftPanel,
+            RightPanel = rightPanel,
             IsPanelsMode = () => true,
             PanelOptions = () => new AppSettings.PanelOptionsSettings(),
             VisibleRows = () => 1,
@@ -577,7 +643,7 @@ public sealed class ApplicationInputDispatcherTests
             SetRunning = _ => { },
             SetFunctionKeyLayer = _ => false,
             ExecuteRegisteredCommand = (_, _) => false,
-            SelectAllCommandLineTextOrPanelItems = () => { },
+            SelectAllCommandLineTextOrPanelItems = _ => { },
             CopyCommandLineSelection = () => false,
             PasteTextIntoCommandLine = () => false,
             OnVisibleCommandLineTextEdited = () => { },
@@ -586,7 +652,8 @@ public sealed class ApplicationInputDispatcherTests
             BrowseCommandHistory = (_, _) => false,
             HideCommandCompletion = _ => { },
             ResetCommandHistoryNavigation = () => { },
-            TryGoUp = () => { },
+            TryGoUp = (_, _) => { },
+            OpenCurrentItem = openCurrentItem ?? ((_, _) => { }),
             CanExecuteFunctionKeyCommand = _ => false,
         });
     }
@@ -595,6 +662,7 @@ public sealed class ApplicationInputDispatcherTests
         new(
             new ConsoleViewport(0, 0, 120, 25),
             ApplicationWorkspaceMode.Panels,
+            new ApplicationKeyboardFrame(PanelSide.Left, commandLine.HasText, commandLine.HasSelection, false),
             new ApplicationCommandLineFrame(
                 new Rect(0, 24, 120, 1),
                 PromptLength: 8,

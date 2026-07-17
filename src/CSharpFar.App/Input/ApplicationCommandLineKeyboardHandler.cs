@@ -16,7 +16,7 @@ internal sealed class ApplicationCommandLineKeyboardHandler
 
     public ApplicationInputHandlingResult Handle(ConsoleKeyInfo key, ApplicationUiFrame frame)
     {
-        if (TryHandleFarCommandLineShortcut(key))
+        if (TryHandleFarCommandLineShortcut(key, frame))
             return ApplicationInputHandlingResult.FromHandled(true);
 
         if (KeyboardShortcutClassifier.IsPlainControlKey(key, ConsoleKey.A, '\u0001'))
@@ -24,7 +24,7 @@ internal sealed class ApplicationCommandLineKeyboardHandler
             if (frame.Mode == ApplicationWorkspaceMode.HiddenCommandLine || _context.CommandLine.HasText)
                 _context.CommandLine.SelectAll();
             else
-                _context.SelectAllCommandLineTextOrPanelItems();
+                _context.SelectAllCommandLineTextOrPanelItems(frame.Keyboard.ActiveSide);
             return ApplicationInputHandlingResult.FromHandled(true);
         }
 
@@ -148,7 +148,7 @@ internal sealed class ApplicationCommandLineKeyboardHandler
         }
     }
 
-    private bool TryHandleFarCommandLineShortcut(ConsoleKeyInfo key)
+    private bool TryHandleFarCommandLineShortcut(ConsoleKeyInfo key, ApplicationUiFrame frame)
     {
         if (KeyboardShortcutClassifier.IsPlainControlKey(key, ConsoleKey.E, '\u0005'))
             return _context.BrowseCommandHistory(-1, CommandHistoryNavigationStart.Newest);
@@ -157,10 +157,10 @@ internal sealed class ApplicationCommandLineKeyboardHandler
             return _context.BrowseCommandHistory(+1, CommandHistoryNavigationStart.Newest);
 
         if (KeyboardShortcutClassifier.IsPlainControlKey(key, ConsoleKey.F, '\u0006'))
-            return InsertCurrentItemFullPathIntoCommandLine();
+            return InsertCurrentItemFullPathIntoCommandLine(frame.Keyboard.ActiveSide);
 
         if (KeyboardShortcutClassifier.IsPlainControlEnter(key))
-            return InsertCurrentItemNameIntoCommandLine();
+            return InsertCurrentItemNameIntoCommandLine(frame.Keyboard.ActiveSide);
 
         if (KeyboardShortcutClassifier.IsPlainControlOpenBracket(key))
             return InsertPanelCurrentDirectoryIntoCommandLine(_context.LeftPanel());
@@ -171,9 +171,9 @@ internal sealed class ApplicationCommandLineKeyboardHandler
         return false;
     }
 
-    private bool InsertCurrentItemNameIntoCommandLine()
+    private bool InsertCurrentItemNameIntoCommandLine(PanelSide side)
     {
-        var item = _context.PanelController.CurrentItem(_context.ActiveState());
+        var item = _context.PanelController.CurrentItem(StateForSide(side));
         if (item is null)
             return true;
 
@@ -181,9 +181,9 @@ internal sealed class ApplicationCommandLineKeyboardHandler
         return true;
     }
 
-    private bool InsertCurrentItemFullPathIntoCommandLine()
+    private bool InsertCurrentItemFullPathIntoCommandLine(PanelSide side)
     {
-        var item = _context.PanelController.CurrentItem(_context.ActiveState());
+        var item = _context.PanelController.CurrentItem(StateForSide(side));
         if (item is null)
             return true;
 
@@ -224,4 +224,7 @@ internal sealed class ApplicationCommandLineKeyboardHandler
 
     private static string QuoteCommandLineInsertion(string text) =>
         text.Contains(' ') ? $"\"{text}\"" : text;
+
+    private FilePanelState StateForSide(PanelSide side) =>
+        side == PanelSide.Left ? _context.LeftPanel() : _context.RightPanel();
 }

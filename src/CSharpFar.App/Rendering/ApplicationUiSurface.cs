@@ -10,11 +10,18 @@ namespace CSharpFar.App.Rendering;
 internal sealed record ApplicationUiFrame(
     ConsoleViewport Viewport,
     ApplicationWorkspaceMode Mode,
+    ApplicationKeyboardFrame Keyboard,
     ApplicationCommandLineFrame CommandLine,
     ApplicationPanelFrame? LeftPanel,
     ApplicationPanelFrame? RightPanel,
     ApplicationFunctionKeyBarFrame? FunctionKeyBar,
     ApplicationDirectoryShortcutBarFrame? DirectoryShortcutBar);
+
+internal sealed record ApplicationKeyboardFrame(
+    PanelSide ActiveSide,
+    bool CommandLineHasText,
+    bool CommandLineHasSelection,
+    bool ActivePanelHasSearchRequest);
 
 internal sealed record ApplicationCommandLineFrame(
     Rect Bounds,
@@ -35,6 +42,7 @@ internal sealed record ApplicationCommandLineFrame(
 
 internal static class ApplicationTargetIds
 {
+    public static UiTargetId WorkspaceKeyboard { get; } = new("application.workspace-keyboard");
     public static UiTargetId CommandLine { get; } = new("application.command-line");
     public static UiTargetId LeftPanel { get; } = new("application.left-panel");
     public static UiTargetId LeftPanelScrollbar { get; } = new("application.left-panel.scrollbar");
@@ -275,7 +283,7 @@ internal sealed class ApplicationUiSurface : UiLayer<ApplicationUiFrame>, IUiSur
             }
         }
 
-        return new UiInteractionFrame(hitRegions, focus);
+        return new UiInteractionFrame(hitRegions, focus, ApplicationTargetIds.WorkspaceKeyboard);
     }
 
     protected override void OnFrameCommitted(ApplicationUiFrame frame)

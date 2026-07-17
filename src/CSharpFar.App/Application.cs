@@ -211,6 +211,7 @@ public sealed class Application
         context.HideCommandCompletion = HideCommandCompletion;
         context.ResetCommandHistoryNavigation = ResetCommandHistoryNavigation;
         context.TryGoUp = TryGoUp;
+        context.OpenCurrentItem = OpenCurrentItem;
         context.CanExecuteFunctionKeyCommand = CanExecuteFunctionKeyCommand;
     }
 
@@ -373,12 +374,12 @@ public sealed class Application
     private bool ExecuteRegisteredCommand(string commandId, object? args = null) =>
         _commandRegistry.Execute(commandId, _commandContext, args).ShouldRender;
 
-    private void SelectAllCommandLineTextOrPanelItems()
+    private void SelectAllCommandLineTextOrPanelItems(PanelSide side)
     {
         if (_cmdLine.HasText)
             _cmdLine.SelectAll();
         else
-            _ctrl.ToggleSelectAll(ActiveState, PanelOptions);
+            _ctrl.ToggleSelectAll(GetPanelState(side), PanelOptions);
     }
 
     private void OnVisibleCommandLineTextEdited()
@@ -532,9 +533,16 @@ public sealed class Application
         _panelFileOpener.OpenFileItem(ActiveState, item);
     }
 
-    private void TryGoUp()
+    private void TryGoUp(FilePanelState state, PanelSide side)
     {
-        _panelNavigation.TryGoUp(ActiveState, _active);
+        _panelNavigation.TryGoUp(state, side);
+    }
+
+    private void OpenCurrentItem(FilePanelState state, PanelSide side)
+    {
+        var item = _ctrl.CurrentItem(state);
+        if (item is not null)
+            OpenPanelItem(state, side, item);
     }
 
     internal void RefreshPanels()

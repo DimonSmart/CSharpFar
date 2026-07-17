@@ -32,6 +32,9 @@ public sealed class UiInputRouteContext
     internal static UiInputRouteContext FocusedTarget(UiFocusScope focusScope, UiTargetId target) =>
         new(focusScope, target, UiInputRouteKind.FocusedTarget);
 
+    internal static UiInputRouteContext KeyboardTarget(UiFocusScope focusScope, UiTargetId target) =>
+        new(focusScope, target, UiInputRouteKind.KeyboardTarget);
+
     internal static UiInputRouteContext HitTarget(UiFocusScope focusScope, UiTargetId target) =>
         new(focusScope, target, UiInputRouteKind.HitTarget);
 

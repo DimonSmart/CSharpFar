@@ -2,6 +2,8 @@ using CSharpFar.App.Commands;
 using CSharpFar.App.DirectoryShortcuts;
 using CSharpFar.App.FunctionKeys;
 using CSharpFar.App.Panels;
+using CSharpFar.App.Rendering;
+using CSharpFar.App.State;
 using CSharpFar.Core.Menu;
 using CSharpFar.Core.Models;
 
@@ -16,12 +18,12 @@ internal sealed class ApplicationGlobalKeyboardHandler
         _context = context;
     }
 
-    public ApplicationInputHandlingResult Handle(ConsoleKeyInfo key)
+    public ApplicationInputHandlingResult Handle(ConsoleKeyInfo key, ApplicationUiFrame frame)
     {
         if (KeyboardShortcutClassifier.IsPlainControlKey(key, ConsoleKey.O, '\u000f'))
             return Handled(_context.ExecuteRegisteredCommand(ApplicationCommandIds.TogglePanels, null));
 
-        if (!_context.IsPanelsMode())
+        if (frame.Mode != ApplicationWorkspaceMode.Panels)
             return ApplicationInputHandlingResult.NotHandled;
 
         if (TryHandleDirectoryShortcut(key))
@@ -42,7 +44,7 @@ internal sealed class ApplicationGlobalKeyboardHandler
                     MenuCommandIds.PanelSetViewMode,
                     new SetPanelViewModeArgs
                     {
-                        PanelSide = _context.ActiveSide(),
+                        PanelSide = frame.Keyboard.ActiveSide,
                         ViewMode = PanelViewMode.Full,
                     }));
             }
@@ -53,7 +55,7 @@ internal sealed class ApplicationGlobalKeyboardHandler
                     MenuCommandIds.PanelSetViewMode,
                     new SetPanelViewModeArgs
                     {
-                        PanelSide = _context.ActiveSide(),
+                        PanelSide = frame.Keyboard.ActiveSide,
                         ViewMode = PanelViewMode.BriefTwoColumns,
                     }));
             }

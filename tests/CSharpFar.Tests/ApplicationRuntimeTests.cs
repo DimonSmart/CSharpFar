@@ -64,8 +64,8 @@ public sealed class ApplicationRuntimeTests
         {
             fixture.Services.Composition.Render();
             fixture.Running = false;
-            Assert.Equal(ApplicationTargetIds.CommandLine, routed.Target);
-            Assert.Equal(UiInputRouteKind.FocusedTarget, routed.RouteKind);
+            Assert.Equal(ApplicationTargetIds.WorkspaceKeyboard, routed.Target);
+            Assert.Equal(UiInputRouteKind.KeyboardTarget, routed.RouteKind);
             Assert.Equal(new ConsoleViewport(0, 0, 80, 25), routed.Frame.Viewport);
             return ApplicationRuntimeRenderRequest.None;
         };

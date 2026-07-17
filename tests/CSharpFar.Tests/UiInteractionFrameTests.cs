@@ -87,16 +87,19 @@ public sealed class UiInteractionFrameTests
     }
 
     [Fact]
-    public void ContainsTarget_FindsHitOnlyAndFocusOnlyTargets()
+    public void ContainsTarget_FindsHitOnlyFocusOnlyAndKeyboardOnlyTargets()
     {
         var hitOnly = new UiTargetId("hit");
         var focusOnly = new UiTargetId("focus");
+        var keyboardOnly = new UiTargetId("keyboard");
         var frame = new UiInteractionFrame(
             [new(hitOnly, new Rect(0, 0, 1, 1))],
-            new UiFocusFrame([new(focusOnly, 0)]));
+            new UiFocusFrame([new(focusOnly, 0)]),
+            keyboardOnly);
 
         Assert.True(frame.ContainsTarget(hitOnly));
         Assert.True(frame.ContainsTarget(focusOnly));
+        Assert.True(frame.ContainsTarget(keyboardOnly));
         Assert.False(frame.ContainsTarget(new UiTargetId("missing")));
     }
 }

@@ -2,37 +2,33 @@ using CSharpFar.App.CommandLine;
 using CSharpFar.App.Rendering;
 using CSharpFar.App.State;
 using CSharpFar.Core.Models;
-using CSharpFar.Ui;
 
 namespace CSharpFar.App.Input;
 
 internal sealed class ApplicationKeyboardTargetResolver
 {
-    private readonly KeyboardInputContext _context;
-
-    public ApplicationKeyboardTargetResolver(KeyboardInputContext context)
-    {
-        _context = context;
-    }
-
-    public UiTargetId? Resolve(ConsoleKeyInfo key, ApplicationUiFrame frame)
+    public ApplicationKeyboardOwner Resolve(ConsoleKeyInfo key, ApplicationUiFrame frame)
     {
         if (frame.Mode == ApplicationWorkspaceMode.HiddenCommandLine)
-            return ApplicationTargetIds.CommandLine;
+            return ApplicationKeyboardOwner.CommandLine;
 
         if (frame.Mode != ApplicationWorkspaceMode.Panels)
-            return null;
+            return ApplicationKeyboardOwner.None;
 
-        if (CommandLineOwns(key))
-            return ApplicationTargetIds.CommandLine;
+        if (CommandLineOwns(key, frame.Keyboard))
+            return ApplicationKeyboardOwner.CommandLine;
 
-        if (PanelOwns(key))
-            return ApplicationTargetIds.Panel(_context.ActiveSide());
+        if (PanelOwns(key, frame))
+        {
+            return frame.Keyboard.ActiveSide == PanelSide.Left
+                ? ApplicationKeyboardOwner.LeftPanel
+                : ApplicationKeyboardOwner.RightPanel;
+        }
 
-        return null;
+        return ApplicationKeyboardOwner.None;
     }
 
-    private bool CommandLineOwns(ConsoleKeyInfo key)
+    private static bool CommandLineOwns(ConsoleKeyInfo key, ApplicationKeyboardFrame keyboard)
     {
         if (IsPrintable(key))
             return true;
@@ -53,23 +49,26 @@ internal sealed class ApplicationKeyboardTargetResolver
         bool hasAlt = (key.Modifiers & ConsoleModifiers.Alt) != 0;
         bool hasControl = (key.Modifiers & ConsoleModifiers.Control) != 0;
         bool hasShift = (key.Modifiers & ConsoleModifiers.Shift) != 0;
-        bool hasTextOrSelection = _context.CommandLine.HasText || _context.CommandLine.HasSelection;
+        bool hasTextOrSelection = keyboard.CommandLineHasText || keyboard.CommandLineHasSelection;
 
         return key.Key switch
         {
             ConsoleKey.LeftArrow or ConsoleKey.RightArrow or ConsoleKey.Home or ConsoleKey.End
                 when !hasAlt && (hasTextOrSelection || hasControl || hasShift) => true,
             ConsoleKey.Delete => true,
-            ConsoleKey.Backspace when _context.CommandLine.HasText => true,
-            ConsoleKey.Escape when _context.ActiveState().SearchRequest is null => true,
-            ConsoleKey.Enter when _context.CommandLine.HasText => true,
+            ConsoleKey.Backspace when keyboard.CommandLineHasText => true,
+            ConsoleKey.Escape when !keyboard.ActivePanelHasSearchRequest => true,
+            ConsoleKey.Enter when keyboard.CommandLineHasText => true,
             _ => false,
         };
     }
 
-    private bool PanelOwns(ConsoleKeyInfo key)
+    private static bool PanelOwns(ConsoleKeyInfo key, ApplicationUiFrame frame)
     {
-        if (!_context.IsPanelsMode())
+        ApplicationPanelFrame? panel = frame.Keyboard.ActiveSide == PanelSide.Left
+            ? frame.LeftPanel
+            : frame.RightPanel;
+        if (panel is null)
             return false;
 
         if (key.Modifiers == 0)
@@ -115,4 +114,12 @@ internal sealed class ApplicationKeyboardTargetResolver
             ConsoleKey.Backspace or
             ConsoleKey.Escape) &&
         key.Key is < ConsoleKey.F1 or > ConsoleKey.F24;
+}
+
+internal enum ApplicationKeyboardOwner
+{
+    None,
+    CommandLine,
+    LeftPanel,
+    RightPanel,
 }

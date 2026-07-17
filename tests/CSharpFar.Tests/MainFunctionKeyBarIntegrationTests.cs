@@ -201,6 +201,7 @@ public sealed class MainFunctionKeyBarIntegrationTests
         new(
             new ConsoleViewport(0, 0, 120, 25),
             ApplicationWorkspaceMode.Panels,
+            new ApplicationKeyboardFrame(PanelSide.Left, false, false, false),
             new ApplicationCommandLineFrame(new Rect(0, 23, 120, 1), 8, 0, 0, new UiCursorPlacement(8, 23)),
             null,
             null,

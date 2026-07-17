@@ -32,11 +32,15 @@ internal sealed class ApplicationRenderCoordinator
         UpdateQuickViewDirSize();
         _context.Screen.SetCursorVisible(false);
         var size = context.Size;
+        PanelSide activeSide = _context.ActiveSide();
+        FilePanelState activeState = activeSide == PanelSide.Left
+            ? _context.LeftPanel()
+            : _context.RightPanel();
         var workspace = _panelWorkspaceRenderer.Render(
             size,
             _context.LeftPanel(),
             _context.RightPanel(),
-            _context.ActiveSide(),
+            activeSide,
             _context.LeftViewMode(),
             _context.RightViewMode(),
             _context.App.QuickView,
@@ -53,7 +57,7 @@ internal sealed class ApplicationRenderCoordinator
         ApplicationCommandLineFrame commandLine = _commandLineRenderer.Render(
             panelHeight,
             size,
-            _context.ActiveState().CurrentDirectory,
+            activeState.CurrentDirectory,
             _context.CommandLine);
 
         ApplicationFunctionKeyBarFrame? functionKeyBar =
@@ -62,6 +66,7 @@ internal sealed class ApplicationRenderCoordinator
         return new ApplicationUiFrame(
             context.Viewport,
             ApplicationWorkspaceMode.Panels,
+            BuildKeyboardFrame(activeSide, activeState),
             commandLine,
             workspace.LeftPanel,
             workspace.RightPanel,
@@ -74,16 +79,21 @@ internal sealed class ApplicationRenderCoordinator
         var viewport = context.Viewport;
         var size = context.Size;
         int row = ApplicationLayoutService.CommandLineRow(size);
+        PanelSide activeSide = _context.ActiveSide();
+        FilePanelState activeState = activeSide == PanelSide.Left
+            ? _context.LeftPanel()
+            : _context.RightPanel();
         context.PublishOnStable(viewport, value => _context.Ui.LastRenderViewport = value);
         ApplicationCommandLineFrame commandLine = _commandLineRenderer.Render(
             row,
             size,
-            _context.ActiveState().CurrentDirectory,
+            activeState.CurrentDirectory,
             _context.CommandLine);
 
         return new ApplicationUiFrame(
             context.Viewport,
             ApplicationWorkspaceMode.HiddenCommandLine,
+            BuildKeyboardFrame(activeSide, activeState),
             commandLine,
             null,
             null,
@@ -98,4 +108,11 @@ internal sealed class ApplicationRenderCoordinator
             : _context.PanelController.CurrentItem(_context.RightPanel());
         _context.QuickViewDirectorySize.Update(_context.App.QuickView, item);
     }
+
+    private ApplicationKeyboardFrame BuildKeyboardFrame(PanelSide activeSide, FilePanelState activeState) =>
+        new(
+            activeSide,
+            _context.CommandLine.HasText,
+            _context.CommandLine.HasSelection,
+            activeState.SearchRequest is not null);
 }

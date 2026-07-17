@@ -13,12 +13,12 @@ internal sealed class ApplicationPanelKeyboardHandler
         _context = context;
     }
 
-    public ApplicationInputHandlingResult Handle(ConsoleKeyInfo key, ApplicationPanelFrame? frame)
+    public ApplicationInputHandlingResult Handle(ConsoleKeyInfo key, PanelSide side, ApplicationPanelFrame? frame)
     {
-        if (frame is null)
+        if (frame is null || frame.Side != side)
             return ApplicationInputHandlingResult.NotHandled;
 
-        FilePanelState state = _context.ActiveState();
+        FilePanelState state = StateForSide(side);
         int visibleRows = frame.VisibleRows;
 
         bool isControlShortcut =
@@ -70,12 +70,12 @@ internal sealed class ApplicationPanelKeyboardHandler
 
             case ConsoleKey.Backspace:
                 _context.HideCommandCompletion(false);
-                _context.TryGoUp();
+                _context.TryGoUp(state, side);
                 return ApplicationInputHandlingResult.FromHandled(true);
 
             case ConsoleKey.Escape:
                 if (state.SearchRequest is not null)
-                    _context.CloseSearchResultsPanel(state, _context.ActiveSide());
+                    _context.CloseSearchResultsPanel(state, side);
                 else
                 {
                     _context.CommandLine.Clear();
@@ -84,7 +84,7 @@ internal sealed class ApplicationPanelKeyboardHandler
                 return ApplicationInputHandlingResult.FromHandled(true);
 
             case ConsoleKey.Enter:
-                _context.ExecuteRegisteredCommand(ApplicationCommandIds.OpenCurrentItem, null);
+                _context.OpenCurrentItem(state, side);
                 return ApplicationInputHandlingResult.FromHandled(true);
 
             case ConsoleKey.Insert:
@@ -92,7 +92,7 @@ internal sealed class ApplicationPanelKeyboardHandler
                 return ApplicationInputHandlingResult.FromHandled(true);
 
             case ConsoleKey.Tab:
-                _context.SetActiveSide(OtherPanelSide(_context.ActiveSide()));
+                _context.SetActiveSide(OtherPanelSide(side));
                 return ApplicationInputHandlingResult.FromHandled(true);
 
             case ConsoleKey.UpArrow:
@@ -117,4 +117,7 @@ internal sealed class ApplicationPanelKeyboardHandler
 
     private static PanelSide OtherPanelSide(PanelSide side) =>
         side == PanelSide.Left ? PanelSide.Right : PanelSide.Left;
+
+    private FilePanelState StateForSide(PanelSide side) =>
+        side == PanelSide.Left ? _context.LeftPanel() : _context.RightPanel();
 }

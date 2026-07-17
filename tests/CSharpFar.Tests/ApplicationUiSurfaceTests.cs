@@ -81,8 +81,8 @@ public sealed class ApplicationUiSurfaceTests
 
         Assert.True(services.ApplicationSurface.TryTakeInput(out var routed));
         Assert.Equal(new ConsoleViewport(0, 0, 80, 25), routed.Frame.Viewport);
-        Assert.Equal(ApplicationTargetIds.CommandLine, routed.Target);
-        Assert.Equal(UiInputRouteKind.FocusedTarget, routed.RouteKind);
+        Assert.Equal(ApplicationTargetIds.WorkspaceKeyboard, routed.Target);
+        Assert.Equal(UiInputRouteKind.KeyboardTarget, routed.RouteKind);
     }
 
     [Fact]
@@ -742,8 +742,8 @@ public sealed class ApplicationUiSurfaceTests
         Assert.IsType(expectedType, routed.Input);
         if (input is KeyConsoleInputEvent or ModifierKeyConsoleInputEvent)
         {
-            Assert.Equal(ApplicationTargetIds.CommandLine, routed.Target);
-            Assert.Equal(UiInputRouteKind.FocusedTarget, routed.RouteKind);
+            Assert.Equal(ApplicationTargetIds.WorkspaceKeyboard, routed.Target);
+            Assert.Equal(UiInputRouteKind.KeyboardTarget, routed.RouteKind);
         }
         else
         {
@@ -817,8 +817,8 @@ public sealed class ApplicationUiSurfaceTests
         services.Composition.DispatchInput(Key(ConsoleKey.C));
         Assert.True(services.ApplicationSurface.TryTakeInput(out var routed));
         Assert.Equal(ConsoleKey.C, Assert.IsType<KeyConsoleInputEvent>(routed.Input).Key.Key);
-        Assert.Equal(ApplicationTargetIds.CommandLine, routed.Target);
-        Assert.Equal(UiInputRouteKind.FocusedTarget, routed.RouteKind);
+        Assert.Equal(ApplicationTargetIds.WorkspaceKeyboard, routed.Target);
+        Assert.Equal(UiInputRouteKind.KeyboardTarget, routed.RouteKind);
     }
 
     [Fact]

@@ -1,4 +1,7 @@
 using CSharpFar.App.Rendering;
+using CSharpFar.App.State;
+using CSharpFar.Console.Input;
+using CSharpFar.Core.Models;
 using CSharpFar.Ui;
 
 namespace CSharpFar.App.Input;
@@ -15,28 +18,48 @@ internal sealed class KeyboardInputRouter
     {
         _context = context;
         _globalHandler = new ApplicationGlobalKeyboardHandler(context);
-        _targetResolver = new ApplicationKeyboardTargetResolver(context);
+        _targetResolver = new ApplicationKeyboardTargetResolver();
         _commandLineHandler = new ApplicationCommandLineKeyboardHandler(context);
         _panelHandler = new ApplicationPanelKeyboardHandler(context);
     }
 
-    public ApplicationInputHandlingResult Handle(UiRoutedInput<ApplicationUiFrame> routed, ConsoleKeyInfo key)
+    public ApplicationInputHandlingResult Handle(UiRoutedInput<ApplicationUiFrame> routed)
     {
+        if (routed.Input is ModifierKeyConsoleInputEvent { Modifiers: var modifiers })
+        {
+            if (routed.Target != ApplicationTargetIds.WorkspaceKeyboard ||
+                routed.RouteKind != UiInputRouteKind.KeyboardTarget)
+            {
+                return ApplicationInputHandlingResult.NotHandled;
+            }
+
+            return HandleWorkspaceModifier(modifiers, routed.Frame);
+        }
+
+        if (routed.Input is not KeyConsoleInputEvent { Key: var key })
+            return ApplicationInputHandlingResult.NotHandled;
+
+        if (routed.Target != ApplicationTargetIds.WorkspaceKeyboard ||
+            routed.RouteKind != UiInputRouteKind.KeyboardTarget)
+        {
+            return ApplicationInputHandlingResult.NotHandled;
+        }
+
         bool functionKeyLayerChanged = _context.SetFunctionKeyLayer(key.Modifiers);
 
-        ApplicationInputHandlingResult global = _globalHandler.Handle(key);
+        ApplicationInputHandlingResult global = _globalHandler.Handle(key, routed.Frame);
         if (global.Handled)
             return new ApplicationInputHandlingResult(true, global.ShouldRender || functionKeyLayerChanged);
 
-        UiTargetId? owner = _targetResolver.Resolve(key, routed.Frame);
+        ApplicationKeyboardOwner owner = _targetResolver.Resolve(key, routed.Frame);
         ApplicationInputHandlingResult owned = owner switch
         {
-            var target when target == ApplicationTargetIds.CommandLine =>
+            ApplicationKeyboardOwner.CommandLine =>
                 _commandLineHandler.Handle(key, routed.Frame),
-            var target when target == ApplicationTargetIds.LeftPanel =>
-                _panelHandler.Handle(key, routed.Frame.LeftPanel),
-            var target when target == ApplicationTargetIds.RightPanel =>
-                _panelHandler.Handle(key, routed.Frame.RightPanel),
+            ApplicationKeyboardOwner.LeftPanel =>
+                _panelHandler.Handle(key, PanelSide.Left, routed.Frame.LeftPanel),
+            ApplicationKeyboardOwner.RightPanel =>
+                _panelHandler.Handle(key, PanelSide.Right, routed.Frame.RightPanel),
             _ => ApplicationInputHandlingResult.NotHandled,
         };
 
@@ -50,8 +73,18 @@ internal sealed class KeyboardInputRouter
 
     public ApplicationInputHandlingResult HandleModifier(ConsoleModifiers modifiers)
     {
-        if (!_context.IsPanelsMode())
+        return HandleWorkspaceModifier(modifiers, null);
+    }
+
+    private ApplicationInputHandlingResult HandleWorkspaceModifier(
+        ConsoleModifiers modifiers,
+        ApplicationUiFrame? frame)
+    {
+        if (frame?.Mode == ApplicationWorkspaceMode.HiddenCommandLine ||
+            (frame is null && !_context.IsPanelsMode()))
+        {
             return ApplicationInputHandlingResult.NotHandled;
+        }
 
         return _context.SetFunctionKeyLayer(modifiers)
             ? ApplicationInputHandlingResult.FromHandled(true)

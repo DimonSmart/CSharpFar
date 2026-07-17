@@ -33,8 +33,8 @@ internal sealed class ApplicationInputDispatcher
     public ApplicationRuntimeRenderRequest Handle(UiRoutedInput<ApplicationUiFrame> routed) =>
         routed.Input switch
         {
-            KeyConsoleInputEvent { Key: var key } => ToRuntimeRequest(_keyboardInputRouter.Handle(routed, key)),
-            ModifierKeyConsoleInputEvent { Modifiers: var modifiers } => ToRuntimeRequest(_keyboardInputRouter.HandleModifier(modifiers)),
+            KeyConsoleInputEvent => ToRuntimeRequest(_keyboardInputRouter.Handle(routed)),
+            ModifierKeyConsoleInputEvent => ToRuntimeRequest(_keyboardInputRouter.Handle(routed)),
             MouseConsoleInputEvent mouse => HandleMouse(routed, mouse),
             _ => ApplicationRuntimeRenderRequest.None,
         };

@@ -25,6 +25,38 @@ public sealed class UiLayerTargetRoutingTests
     }
 
     [Fact]
+    public void KeyboardAndModifier_UseExplicitKeyboardTargetBeforeFocusedTarget()
+    {
+        var focused = new UiTargetId("focused");
+        var keyboard = new UiTargetId("keyboard");
+        var layer = Layer(focus: Focus(focused), keyboardTarget: keyboard);
+        var host = Host(layer);
+        host.Render();
+
+        host.DispatchInput(Key(ConsoleKey.A));
+        AssertRoute(layer, keyboard, UiInputRouteKind.KeyboardTarget);
+        host.DispatchInput(new ModifierKeyConsoleInputEvent(ConsoleModifiers.Control));
+        AssertRoute(layer, keyboard, UiInputRouteKind.KeyboardTarget);
+        Assert.Equal(focused, layer.FocusScope.FocusedTarget);
+    }
+
+    [Fact]
+    public void MouseRouting_IgnoresExplicitKeyboardTarget()
+    {
+        var keyboard = new UiTargetId("keyboard");
+        var hit = new UiTargetId("hit");
+        var layer = Layer(
+            regions: [new UiHitRegion(hit, new Rect(0, 0, 4, 4))],
+            keyboardTarget: keyboard);
+        var host = Host(layer);
+        host.Render();
+
+        host.DispatchInput(Mouse(1, 1, MouseEventKind.Down));
+
+        AssertRoute(layer, hit, UiInputRouteKind.HitTarget);
+    }
+
+    [Fact]
     public void KeyboardWithoutEnabledFocus_UsesLayerRoute()
     {
         var disabled = new UiTargetId("disabled");
@@ -294,8 +326,17 @@ public sealed class UiLayerTargetRoutingTests
         Assert.Throws<InvalidOperationException>(() => layer.RouteInput(Key(ConsoleKey.A), UiInputRouteContext.HitTarget(layer.FocusScope, new UiTargetId("x"))));
     }
 
-    private static TestLayer Layer(UiFocusFrame? focus = null, IReadOnlyList<UiHitRegion>? regions = null, UiLayerInputPolicy policy = UiLayerInputPolicy.Bubble) =>
-        new(policy) { Focus = focus ?? UiFocusFrame.Empty, Regions = regions ?? [] };
+    private static TestLayer Layer(
+        UiFocusFrame? focus = null,
+        IReadOnlyList<UiHitRegion>? regions = null,
+        UiLayerInputPolicy policy = UiLayerInputPolicy.Bubble,
+        UiTargetId? keyboardTarget = null) =>
+        new(policy)
+        {
+            Focus = focus ?? UiFocusFrame.Empty,
+            Regions = regions ?? [],
+            KeyboardTarget = keyboardTarget,
+        };
 
     private static UiFocusFrame Focus(params UiTargetId[] targets) =>
         new(targets.Select((target, index) => new UiFocusEntry(target, index)).ToArray(), targets.FirstOrDefault());
@@ -323,13 +364,14 @@ public sealed class UiLayerTargetRoutingTests
     {
         public UiFocusFrame Focus { get; set; } = UiFocusFrame.Empty;
         public IReadOnlyList<UiHitRegion> Regions { get; set; } = [];
+        public UiTargetId? KeyboardTarget { get; set; }
         public bool ThrowOnRender { get; set; }
         public int CallCount { get; private set; }
         public UiInputRouteContext? LastRoute { get; private set; }
         public Func<ConsoleInputEvent, UiInputRouteContext, UiInputResult> Result { get; set; } = (_, _) => UiInputResult.NotHandled;
         public override UiLayerInputPolicy InputPolicy => policy;
         protected override Frame RenderFrame(UiRenderContext context) => ThrowOnRender ? throw new InvalidOperationException("render") : new(Focus);
-        protected override UiInteractionFrame BuildInteractionFrame(Frame frame) => new(Regions, frame.Focus);
+        protected override UiInteractionFrame BuildInteractionFrame(Frame frame) => new(Regions, frame.Focus, KeyboardTarget);
         protected override UiInputResult RouteInput(ConsoleInputEvent input, Frame frame, UiInputRouteContext context)
         {
             CallCount++;

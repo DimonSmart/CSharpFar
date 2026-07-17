@@ -7,7 +7,8 @@ public sealed class UiInteractionFrame
 
     public UiInteractionFrame(
         IReadOnlyList<UiHitRegion> hitRegions,
-        UiFocusFrame? focus = null)
+        UiFocusFrame? focus = null,
+        UiTargetId? keyboardTarget = null)
     {
         ArgumentNullException.ThrowIfNull(hitRegions);
 
@@ -20,17 +21,21 @@ public sealed class UiInteractionFrame
 
         HitRegions = Array.AsReadOnly(snapshot);
         Focus = focus ?? UiFocusFrame.Empty;
+        KeyboardTarget = keyboardTarget;
     }
 
     public IReadOnlyList<UiHitRegion> HitRegions { get; }
 
     public UiFocusFrame Focus { get; }
 
+    public UiTargetId? KeyboardTarget { get; }
+
     public bool ContainsTarget(UiTargetId target)
     {
         ArgumentNullException.ThrowIfNull(target);
         return HitRegions.Any(region => region.Target == target) ||
-            Focus.Entries.Any(entry => entry.Target == target);
+            Focus.Entries.Any(entry => entry.Target == target) ||
+            KeyboardTarget == target;
     }
 
     public bool TryHitTest(int x, int y, out UiHitRegion region)

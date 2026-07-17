@@ -65,6 +65,8 @@ public abstract class UiLayer<TFrame> : IUiLayer
             MouseConsoleInputEvent mouse when interactionFrame.TryHitTest(mouse.X, mouse.Y, out UiHitRegion region) =>
                 UiInputRouteContext.HitTarget(FocusScope, region.Target),
             MouseConsoleInputEvent => UiInputRouteContext.Layer(FocusScope),
+            KeyConsoleInputEvent or ModifierKeyConsoleInputEvent when interactionFrame.KeyboardTarget is UiTargetId target =>
+                UiInputRouteContext.KeyboardTarget(FocusScope, target),
             KeyConsoleInputEvent or ModifierKeyConsoleInputEvent when FocusScope.FocusedTarget is UiTargetId target =>
                 UiInputRouteContext.FocusedTarget(FocusScope, target),
             _ => UiInputRouteContext.Layer(FocusScope),
