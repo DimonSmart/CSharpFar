@@ -11,16 +11,10 @@ internal sealed class KeyboardInputContext
 {
     public required PanelController PanelController { get; init; }
     public required CommandLineState CommandLine { get; init; }
-    public required IReadOnlyList<FunctionKeyBinding> FunctionKeyBindings { get; init; }
-    public required Func<PanelSide> ActiveSide { get; init; }
     public required Action<PanelSide> SetActiveSide { get; init; }
-    public required Func<FilePanelState> ActiveState { get; init; }
     public required Func<FilePanelState> LeftPanel { get; init; }
     public required Func<FilePanelState> RightPanel { get; init; }
-    public required Func<bool> IsPanelsMode { get; init; }
     public required Func<AppSettingsAlias.PanelOptionsSettings> PanelOptions { get; init; }
-    public required Func<int> VisibleRows { get; init; }
-    public required Func<PanelSide, int> VisibleRowsForSide { get; init; }
     public required Func<bool> QuickView { get; init; }
     public required Action<bool> SetQuickView { get; init; }
     public required Action<bool> SetRunning { get; init; }
@@ -39,6 +33,7 @@ internal sealed class KeyboardInputContext
     public Action ResetCommandHistoryNavigation { get; set; } = () => throw Missing();
     public Action<FilePanelState, PanelSide> TryGoUp { get; set; } = (_, _) => throw Missing();
     public Action<FilePanelState, PanelSide> OpenCurrentItem { get; set; } = (_, _) => throw Missing();
+    public Action<FilePanelState, PanelSide, FilePanelItem> OpenPanelItem { get; set; } = (_, _, _) => throw Missing();
     public Func<string, bool> CanExecuteFunctionKeyCommand { get; set; } = _ => throw Missing();
 
     private static InvalidOperationException Missing() =>

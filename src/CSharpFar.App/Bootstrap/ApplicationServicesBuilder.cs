@@ -93,16 +93,10 @@ internal static class ApplicationServicesBuilder
         {
             PanelController = controller,
             CommandLine = session.CommandLine.State,
-            FunctionKeyBindings = functionKeyBindingProvider.GetBindings(),
-            ActiveSide = () => callbacks.GetActiveSide(),
             SetActiveSide = side => callbacks.SetActiveSide(side),
-            ActiveState = () => callbacks.ActiveState(),
             LeftPanel = () => session.Panels.Left,
             RightPanel = () => session.Panels.Right,
-            IsPanelsMode = () => callbacks.IsPanelsMode(),
             PanelOptions = () => callbacks.PanelOptions(),
-            VisibleRows = () => callbacks.VisibleRows(),
-            VisibleRowsForSide = side => callbacks.VisibleRowsForSide(side),
             QuickView = () => session.App.QuickView,
             SetQuickView = quickView => session.App.QuickView = quickView,
             SetRunning = running => session.App.Running = running,
@@ -119,6 +113,7 @@ internal static class ApplicationServicesBuilder
             ResetCommandHistoryNavigation = () => throw new InvalidOperationException("Keyboard input context is not assigned."),
             TryGoUp = (_, _) => throw new InvalidOperationException("Keyboard input context is not assigned."),
             OpenCurrentItem = (_, _) => throw new InvalidOperationException("Keyboard input context is not assigned."),
+            OpenPanelItem = (_, _, _) => throw new InvalidOperationException("Keyboard input context is not assigned."),
             CanExecuteFunctionKeyCommand = _ => throw new InvalidOperationException("Keyboard input context is not assigned."),
         };
         var shortcutTextProvider = new CommandShortcutTextProvider(

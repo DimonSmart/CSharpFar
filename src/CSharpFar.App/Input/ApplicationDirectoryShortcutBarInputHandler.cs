@@ -2,6 +2,7 @@ using CSharpFar.App.Commands;
 using CSharpFar.App.DirectoryShortcuts;
 using CSharpFar.App.Rendering;
 using CSharpFar.Console.Input;
+using CSharpFar.Core.Models;
 using CSharpFar.Ui;
 
 namespace CSharpFar.App.Input;
@@ -18,6 +19,7 @@ internal sealed class ApplicationDirectoryShortcutBarInputHandler
     public ApplicationInputHandlingResult Handle(
         MouseConsoleInputEvent input,
         ApplicationDirectoryShortcutBarFrame? frame,
+        PanelSide side,
         UiInputRouteKind routeKind)
     {
         if (routeKind != UiInputRouteKind.HitTarget ||
@@ -35,6 +37,6 @@ internal sealed class ApplicationDirectoryShortcutBarInputHandler
         return ApplicationInputHandlingResult.FromHandled(
             _context.ExecuteRegisteredCommand(
                 DirectoryShortcutCommandIds.Navigate,
-                new NavigateToDirectoryShortcutArgs(hit.ShortcutNumber, hit.Path)));
+                new NavigateToDirectoryShortcutArgs(hit.ShortcutNumber, hit.Path, side)));
     }
 }

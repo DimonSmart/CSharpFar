@@ -80,6 +80,7 @@ public sealed class BriefTwoColumnsPanelRenderer
                 [],
                 retry,
                 null,
+                PanelRenderer.BuildKeyboardFrame(state),
                 RowsPerColumn(bounds, _options),
                 2);
         }
@@ -150,7 +151,16 @@ public sealed class BriefTwoColumnsPanelRenderer
 
         new PanelStatusRenderer(_screen).Render(bounds, state, footer, border, _options);
         RenderStatusSeparatorJoin(bounds, sepOffset, border);
-        return new ApplicationPanelFrame(side, bounds, visibleItems, hits, null, scrollBar, rowsPerCol, 2);
+        return new ApplicationPanelFrame(
+            side,
+            bounds,
+            visibleItems,
+            hits,
+            null,
+            scrollBar,
+            PanelRenderer.BuildKeyboardFrame(state),
+            rowsPerCol,
+            2);
     }
 
     public void Render(Rect bounds, FilePanelState state, bool isActive) =>

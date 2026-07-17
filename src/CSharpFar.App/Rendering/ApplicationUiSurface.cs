@@ -23,6 +23,14 @@ internal sealed record ApplicationKeyboardFrame(
     bool CommandLineHasSelection,
     bool ActivePanelHasSearchRequest);
 
+internal sealed record ApplicationPanelKeyboardFrame(
+    string CurrentDirectory,
+    bool HasSearchRequest,
+    int? CurrentItemIndex,
+    string? CurrentItemIdentity,
+    string? CurrentItemName,
+    string? CurrentItemFullPath);
+
 internal sealed record ApplicationCommandLineFrame(
     Rect Bounds,
     int PromptLength,
@@ -67,6 +75,7 @@ internal sealed record ApplicationPanelFrame
         IReadOnlyList<ApplicationPanelItemHit> visibleItems,
         Rect? retryBounds,
         ApplicationScrollBarFrame? scrollBar,
+        ApplicationPanelKeyboardFrame? keyboard = null,
         int rowsPerColumn = 0,
         int columnCount = 1)
     {
@@ -78,6 +87,7 @@ internal sealed record ApplicationPanelFrame
         VisibleItems = Array.AsReadOnly(visibleItems.ToArray());
         RetryBounds = retryBounds;
         ScrollBar = scrollBar;
+        Keyboard = keyboard ?? new ApplicationPanelKeyboardFrame(string.Empty, false, null, null, null, null);
         RowsPerColumn = rowsPerColumn > 0 ? rowsPerColumn : Math.Max(1, visibleRows);
         ColumnCount = Math.Max(1, columnCount);
     }
@@ -88,6 +98,7 @@ internal sealed record ApplicationPanelFrame
     public IReadOnlyList<ApplicationPanelItemHit> VisibleItems { get; }
     public Rect? RetryBounds { get; }
     public ApplicationScrollBarFrame? ScrollBar { get; }
+    public ApplicationPanelKeyboardFrame Keyboard { get; }
     public int RowsPerColumn { get; }
     public int ColumnCount { get; }
 }
@@ -124,7 +135,10 @@ internal sealed record ApplicationFunctionKeyBarFrame
 
 internal sealed record ApplicationFunctionKeyHit(
     Rect Bounds,
-    string CommandId);
+    string CommandId,
+    FunctionKeys.FunctionKeyLayer Layer = FunctionKeys.FunctionKeyLayer.Plain,
+    ConsoleKey Key = ConsoleKey.NoName,
+    bool RunsWhenUnavailable = false);
 
 internal sealed record ApplicationDirectoryShortcutBarFrame
 {

@@ -1,6 +1,4 @@
 using CSharpFar.App.Commands;
-using CSharpFar.App.DirectoryShortcuts;
-using CSharpFar.App.FunctionKeys;
 using CSharpFar.App.Panels;
 using CSharpFar.App.Rendering;
 using CSharpFar.App.State;
@@ -18,22 +16,30 @@ internal sealed class ApplicationGlobalKeyboardHandler
         _context = context;
     }
 
-    public ApplicationInputHandlingResult Handle(ConsoleKeyInfo key, ApplicationUiFrame frame)
+    public ApplicationInputHandlingResult Handle(ApplicationKeyboardInput input)
     {
+        ConsoleKeyInfo key = input.Key;
+        ApplicationUiFrame frame = input.Frame;
+
         if (KeyboardShortcutClassifier.IsPlainControlKey(key, ConsoleKey.O, '\u000f'))
             return Handled(_context.ExecuteRegisteredCommand(ApplicationCommandIds.TogglePanels, null));
 
         if (frame.Mode != ApplicationWorkspaceMode.Panels)
             return ApplicationInputHandlingResult.NotHandled;
 
-        if (TryHandleDirectoryShortcut(key))
-            return ApplicationInputHandlingResult.FromHandled(true);
-
         if (KeyboardShortcutClassifier.IsPlainControlKey(key, ConsoleKey.S, '\u0013'))
             return Handled(_context.ExecuteRegisteredCommand(MenuCommandIds.SettingsOpenPanelSettings, null));
 
         if (KeyboardShortcutClassifier.IsPlainControlBackslash(key))
-            return Handled(_context.ExecuteRegisteredCommand(ApplicationCommandIds.NavigateToRoot, null));
+        {
+            ApplicationPanelFrame? panel = input.ActivePanelFrame;
+            if (panel is null)
+                return ApplicationInputHandlingResult.NotHandled;
+
+            return Handled(_context.ExecuteRegisteredCommand(
+                ApplicationCommandIds.NavigateToRoot,
+                new NavigateToRootArgs(input.ActiveSide, panel.Keyboard.CurrentDirectory)));
+        }
 
         if ((key.Modifiers & ConsoleModifiers.Alt) != 0 &&
             (key.Modifiers & (ConsoleModifiers.Control | ConsoleModifiers.Shift)) == 0)
@@ -67,66 +73,7 @@ internal sealed class ApplicationGlobalKeyboardHandler
             return ApplicationInputHandlingResult.FromHandled(true);
         }
 
-        if (TryHandleFunctionKey(key, out bool functionKeyShouldRender))
-            return ApplicationInputHandlingResult.FromHandled(functionKeyShouldRender);
-
         return ApplicationInputHandlingResult.NotHandled;
-    }
-
-    private bool TryHandleDirectoryShortcut(ConsoleKeyInfo key)
-    {
-        if ((key.Modifiers & ConsoleModifiers.Control) == 0 ||
-            (key.Modifiers & (ConsoleModifiers.Alt | ConsoleModifiers.Shift)) != 0)
-        {
-            return false;
-        }
-
-        int? number = key.Key switch
-        {
-            ConsoleKey.D0 or ConsoleKey.NumPad0 => 0,
-            ConsoleKey.D1 or ConsoleKey.NumPad1 => 1,
-            ConsoleKey.D2 or ConsoleKey.NumPad2 => 2,
-            ConsoleKey.D3 or ConsoleKey.NumPad3 => 3,
-            ConsoleKey.D4 or ConsoleKey.NumPad4 => 4,
-            ConsoleKey.D5 or ConsoleKey.NumPad5 => 5,
-            ConsoleKey.D6 or ConsoleKey.NumPad6 => 6,
-            ConsoleKey.D7 or ConsoleKey.NumPad7 => 7,
-            ConsoleKey.D8 or ConsoleKey.NumPad8 => 8,
-            ConsoleKey.D9 or ConsoleKey.NumPad9 => 9,
-            _ => null,
-        };
-
-        return number is not null &&
-            _context.ExecuteRegisteredCommand(
-                DirectoryShortcutCommandIds.Navigate,
-                new NavigateToDirectoryShortcutArgs(number.Value));
-    }
-
-    private bool TryHandleFunctionKey(ConsoleKeyInfo key, out bool shouldRender)
-    {
-        shouldRender = false;
-
-        if (key.Key is < ConsoleKey.F1 or > ConsoleKey.F12)
-            return false;
-
-        if (!FunctionKeyLayerResolver.TryResolveChordLayer(key.Modifiers, out var layer))
-            return false;
-
-        var binding = _context.FunctionKeyBindings.FirstOrDefault(candidate =>
-            candidate.Layer == layer &&
-            candidate.Key == key.Key);
-
-        if (binding is null)
-            return false;
-
-        if (!_context.CanExecuteFunctionKeyCommand(binding.CommandId) && !binding.RunsWhenUnavailable)
-        {
-            shouldRender = true;
-            return true;
-        }
-
-        shouldRender = _context.ExecuteRegisteredCommand(binding.CommandId, null);
-        return true;
     }
 
     private static ApplicationInputHandlingResult Handled(bool shouldRender) =>

@@ -10,6 +10,8 @@ internal sealed class KeyboardInputRouter
 {
     private readonly KeyboardInputContext _context;
     private readonly ApplicationGlobalKeyboardHandler _globalHandler;
+    private readonly ApplicationDirectoryShortcutKeyboardHandler _directoryShortcutHandler;
+    private readonly ApplicationFunctionKeyKeyboardHandler _functionKeyHandler;
     private readonly ApplicationKeyboardTargetResolver _targetResolver;
     private readonly ApplicationCommandLineKeyboardHandler _commandLineHandler;
     private readonly ApplicationPanelKeyboardHandler _panelHandler;
@@ -18,6 +20,8 @@ internal sealed class KeyboardInputRouter
     {
         _context = context;
         _globalHandler = new ApplicationGlobalKeyboardHandler(context);
+        _directoryShortcutHandler = new ApplicationDirectoryShortcutKeyboardHandler(context);
+        _functionKeyHandler = new ApplicationFunctionKeyKeyboardHandler(context);
         _targetResolver = new ApplicationKeyboardTargetResolver();
         _commandLineHandler = new ApplicationCommandLineKeyboardHandler(context);
         _panelHandler = new ApplicationPanelKeyboardHandler(context);
@@ -46,20 +50,29 @@ internal sealed class KeyboardInputRouter
         }
 
         bool functionKeyLayerChanged = _context.SetFunctionKeyLayer(key.Modifiers);
+        ApplicationKeyboardOwner owner = _targetResolver.Resolve(key, routed.Frame);
+        var input = new ApplicationKeyboardInput(routed, key, owner);
 
-        ApplicationInputHandlingResult global = _globalHandler.Handle(key, routed.Frame);
+        ApplicationInputHandlingResult global = _globalHandler.Handle(input);
         if (global.Handled)
             return new ApplicationInputHandlingResult(true, global.ShouldRender || functionKeyLayerChanged);
 
-        ApplicationKeyboardOwner owner = _targetResolver.Resolve(key, routed.Frame);
+        ApplicationInputHandlingResult directoryShortcut = _directoryShortcutHandler.Handle(input);
+        if (directoryShortcut.Handled)
+            return new ApplicationInputHandlingResult(true, directoryShortcut.ShouldRender || functionKeyLayerChanged);
+
+        ApplicationInputHandlingResult functionKey = _functionKeyHandler.Handle(input);
+        if (functionKey.Handled)
+            return new ApplicationInputHandlingResult(true, functionKey.ShouldRender || functionKeyLayerChanged);
+
         ApplicationInputHandlingResult owned = owner switch
         {
             ApplicationKeyboardOwner.CommandLine =>
-                _commandLineHandler.Handle(key, routed.Frame),
+                _commandLineHandler.Handle(input),
             ApplicationKeyboardOwner.LeftPanel =>
-                _panelHandler.Handle(key, PanelSide.Left, routed.Frame.LeftPanel),
+                _panelHandler.Handle(input, PanelSide.Left, routed.Frame.LeftPanel),
             ApplicationKeyboardOwner.RightPanel =>
-                _panelHandler.Handle(key, PanelSide.Right, routed.Frame.RightPanel),
+                _panelHandler.Handle(input, PanelSide.Right, routed.Frame.RightPanel),
             _ => ApplicationInputHandlingResult.NotHandled,
         };
 
@@ -71,17 +84,11 @@ internal sealed class KeyboardInputRouter
             : ApplicationInputHandlingResult.NotHandled;
     }
 
-    public ApplicationInputHandlingResult HandleModifier(ConsoleModifiers modifiers)
-    {
-        return HandleWorkspaceModifier(modifiers, null);
-    }
-
     private ApplicationInputHandlingResult HandleWorkspaceModifier(
         ConsoleModifiers modifiers,
         ApplicationUiFrame? frame)
     {
-        if (frame?.Mode == ApplicationWorkspaceMode.HiddenCommandLine ||
-            (frame is null && !_context.IsPanelsMode()))
+        if (frame?.Mode == ApplicationWorkspaceMode.HiddenCommandLine)
         {
             return ApplicationInputHandlingResult.NotHandled;
         }

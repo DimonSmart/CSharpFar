@@ -79,6 +79,7 @@ internal sealed class ApplicationInputDispatcher
             var target when target == ApplicationTargetIds.DirectoryShortcutBar => _directoryShortcutBarInputHandler.Handle(
                 mouse,
                 routed.Frame.DirectoryShortcutBar,
+                routed.Frame.Keyboard.ActiveSide,
                 routed.RouteKind),
             _ => ApplicationInputHandlingResult.NotHandled,
         };

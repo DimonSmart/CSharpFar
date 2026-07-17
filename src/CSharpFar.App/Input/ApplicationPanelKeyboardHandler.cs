@@ -13,8 +13,9 @@ internal sealed class ApplicationPanelKeyboardHandler
         _context = context;
     }
 
-    public ApplicationInputHandlingResult Handle(ConsoleKeyInfo key, PanelSide side, ApplicationPanelFrame? frame)
+    public ApplicationInputHandlingResult Handle(ApplicationKeyboardInput input, PanelSide side, ApplicationPanelFrame? frame)
     {
+        ConsoleKeyInfo key = input.Key;
         if (frame is null || frame.Side != side)
             return ApplicationInputHandlingResult.NotHandled;
 
@@ -74,7 +75,7 @@ internal sealed class ApplicationPanelKeyboardHandler
                 return ApplicationInputHandlingResult.FromHandled(true);
 
             case ConsoleKey.Escape:
-                if (state.SearchRequest is not null)
+                if (frame.Keyboard.HasSearchRequest)
                     _context.CloseSearchResultsPanel(state, side);
                 else
                 {
@@ -84,7 +85,8 @@ internal sealed class ApplicationPanelKeyboardHandler
                 return ApplicationInputHandlingResult.FromHandled(true);
 
             case ConsoleKey.Enter:
-                _context.OpenCurrentItem(state, side);
+                if (TryResolveCommittedCurrentItem(state, frame.Keyboard, out var item))
+                    _context.OpenPanelItem(state, side, item);
                 return ApplicationInputHandlingResult.FromHandled(true);
 
             case ConsoleKey.Insert:
@@ -120,4 +122,25 @@ internal sealed class ApplicationPanelKeyboardHandler
 
     private FilePanelState StateForSide(PanelSide side) =>
         side == PanelSide.Left ? _context.LeftPanel() : _context.RightPanel();
+
+    private static bool TryResolveCommittedCurrentItem(
+        FilePanelState state,
+        ApplicationPanelKeyboardFrame committed,
+        out FilePanelItem item)
+    {
+        item = null!;
+        if (committed.CurrentItemIndex is not { } index ||
+            index < 0 ||
+            index >= state.Items.Count)
+        {
+            return false;
+        }
+
+        FilePanelItem candidate = state.Items[index];
+        if (!string.Equals(candidate.FullPath, committed.CurrentItemIdentity, StringComparison.Ordinal))
+            return false;
+
+        item = candidate;
+        return true;
+    }
 }

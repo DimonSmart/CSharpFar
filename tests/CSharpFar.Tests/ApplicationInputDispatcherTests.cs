@@ -334,7 +334,20 @@ public sealed class ApplicationInputDispatcherTests
         var frame = Frame(commandLine) with
         {
             Keyboard = new ApplicationKeyboardFrame(PanelSide.Left, false, false, false),
-            LeftPanel = new ApplicationPanelFrame(PanelSide.Left, new Rect(0, 0, 40, 10), 8, [], null, null),
+            LeftPanel = new ApplicationPanelFrame(
+                PanelSide.Left,
+                new Rect(0, 0, 40, 10),
+                8,
+                [],
+                null,
+                null,
+                new ApplicationPanelKeyboardFrame(
+                    @"C:\work",
+                    false,
+                    0,
+                    @"C:\work\a.txt",
+                    "a.txt",
+                    @"C:\work\a.txt")),
             RightPanel = new ApplicationPanelFrame(PanelSide.Right, new Rect(40, 0, 40, 10), 8, [], null, null),
         };
 
@@ -347,6 +360,184 @@ public sealed class ApplicationInputDispatcherTests
         Assert.True(request.ShouldRender);
         Assert.Same(left, openedState);
         Assert.Equal(PanelSide.Left, openedSide);
+    }
+
+    [Fact]
+    public void WorkspaceKeyboard_EnterWithStaleCommittedItemIsHandledAndDoesNotOpenDifferentItem()
+    {
+        var left = PanelStateWithItems();
+        FilePanelItem? opened = null;
+        var commandLine = new CommandLineState();
+        var dispatcher = new ApplicationInputDispatcher(
+            KeyboardRouter(
+                commandLine,
+                leftPanel: () => left,
+                openPanelItem: (_, _, item) => opened = item),
+            new ApplicationCommandLineInputHandler(Context(commandLine)),
+            new ApplicationPanelInputHandler(Context(commandLine)),
+            new ApplicationPanelScrollbarInputHandler(Context(commandLine)),
+            new ApplicationFunctionKeyBarInputHandler(Context(commandLine)),
+            new ApplicationDirectoryShortcutBarInputHandler(Context(commandLine)));
+        var frame = Frame(commandLine) with
+        {
+            Keyboard = new ApplicationKeyboardFrame(PanelSide.Left, false, false, false),
+            LeftPanel = new ApplicationPanelFrame(
+                PanelSide.Left,
+                new Rect(0, 0, 40, 10),
+                8,
+                [],
+                null,
+                null,
+                new ApplicationPanelKeyboardFrame(
+                    @"C:\work",
+                    false,
+                    0,
+                    @"C:\work\a.txt",
+                    "a.txt",
+                    @"C:\work\a.txt")),
+        };
+        left.Items[0] = left.Items[1];
+
+        var request = dispatcher.Handle(new UiRoutedInput<ApplicationUiFrame>(
+            new KeyConsoleInputEvent(new ConsoleKeyInfo('\r', ConsoleKey.Enter, false, false, false)),
+            frame,
+            ApplicationTargetIds.WorkspaceKeyboard,
+            UiInputRouteKind.KeyboardTarget));
+
+        Assert.True(request.ShouldRender);
+        Assert.Null(opened);
+    }
+
+    [Fact]
+    public void WorkspaceKeyboard_CtrlFWithStaleCommittedItemDoesNotInsertDifferentPath()
+    {
+        var left = PanelStateWithItems();
+        var commandLine = new CommandLineState();
+        var dispatcher = new ApplicationInputDispatcher(
+            KeyboardRouter(commandLine, leftPanel: () => left),
+            new ApplicationCommandLineInputHandler(Context(commandLine)),
+            new ApplicationPanelInputHandler(Context(commandLine)),
+            new ApplicationPanelScrollbarInputHandler(Context(commandLine)),
+            new ApplicationFunctionKeyBarInputHandler(Context(commandLine)),
+            new ApplicationDirectoryShortcutBarInputHandler(Context(commandLine)));
+        var frame = Frame(commandLine) with
+        {
+            Keyboard = new ApplicationKeyboardFrame(PanelSide.Left, false, false, false),
+            LeftPanel = new ApplicationPanelFrame(
+                PanelSide.Left,
+                new Rect(0, 0, 40, 10),
+                8,
+                [],
+                null,
+                null,
+                new ApplicationPanelKeyboardFrame(
+                    @"C:\work",
+                    false,
+                    0,
+                    @"C:\work\a.txt",
+                    "a.txt",
+                    @"C:\work\a.txt")),
+        };
+        left.Items[0] = left.Items[1];
+
+        var request = dispatcher.Handle(new UiRoutedInput<ApplicationUiFrame>(
+            new KeyConsoleInputEvent(new ConsoleKeyInfo('\u0006', ConsoleKey.F, false, false, true)),
+            frame,
+            ApplicationTargetIds.WorkspaceKeyboard,
+            UiInputRouteKind.KeyboardTarget));
+
+        Assert.True(request.ShouldRender);
+        Assert.Equal(string.Empty, commandLine.Text);
+    }
+
+    [Fact]
+    public void WorkspaceKeyboard_DirectoryShortcutUsesCommittedPathAndSide()
+    {
+        (string CommandId, object? Args)? executed = null;
+        var commandLine = new CommandLineState();
+        var dispatcher = new ApplicationInputDispatcher(
+            KeyboardRouter(
+                commandLine,
+                rightPanel: () => new FilePanelState { CurrentDirectory = @"C:\live" },
+                execute: (commandId, args) =>
+                {
+                    executed = (commandId, args);
+                    return true;
+                }),
+            new ApplicationCommandLineInputHandler(Context(commandLine)),
+            new ApplicationPanelInputHandler(Context(commandLine)),
+            new ApplicationPanelScrollbarInputHandler(Context(commandLine)),
+            new ApplicationFunctionKeyBarInputHandler(Context(commandLine)),
+            new ApplicationDirectoryShortcutBarInputHandler(Context(commandLine)));
+        var frame = Frame(commandLine) with
+        {
+            Keyboard = new ApplicationKeyboardFrame(PanelSide.Right, false, false, false),
+            DirectoryShortcutBar = new ApplicationDirectoryShortcutBarFrame(
+                [new ApplicationDirectoryShortcutHit(new Rect(0, 22, 8, 1), 2, @"C:\committed")]),
+        };
+
+        var request = dispatcher.Handle(new UiRoutedInput<ApplicationUiFrame>(
+            new KeyConsoleInputEvent(new ConsoleKeyInfo('\0', ConsoleKey.D2, false, false, true)),
+            frame,
+            ApplicationTargetIds.WorkspaceKeyboard,
+            UiInputRouteKind.KeyboardTarget));
+
+        Assert.True(request.ShouldRender);
+        Assert.NotNull(executed);
+        var args = Assert.IsType<NavigateToDirectoryShortcutArgs>(executed.Value.Args);
+        Assert.Equal(2, args.Number);
+        Assert.Equal(@"C:\committed", args.CommittedPath);
+        Assert.Equal(PanelSide.Right, args.Side);
+    }
+
+    [Fact]
+    public void WorkspaceKeyboard_FunctionKeyUsesCommittedCommandAndSide()
+    {
+        (string CommandId, object? Args)? executed = null;
+        var commandLine = new CommandLineState();
+        var dispatcher = new ApplicationInputDispatcher(
+            KeyboardRouter(commandLine, execute: (commandId, args) =>
+            {
+                executed = (commandId, args);
+                return true;
+            }),
+            new ApplicationCommandLineInputHandler(Context(commandLine)),
+            new ApplicationPanelInputHandler(Context(commandLine)),
+            new ApplicationPanelScrollbarInputHandler(Context(commandLine)),
+            new ApplicationFunctionKeyBarInputHandler(Context(commandLine)),
+            new ApplicationDirectoryShortcutBarInputHandler(Context(commandLine)));
+        var frame = Frame(commandLine) with
+        {
+            Keyboard = new ApplicationKeyboardFrame(PanelSide.Right, false, false, false),
+            FunctionKeyBar = new ApplicationFunctionKeyBarFrame(
+                [new ApplicationFunctionKeyHit(
+                    new Rect(0, 24, 8, 1),
+                    FunctionKeyCommandIds.Search,
+                    FunctionKeyLayer.Alt,
+                    ConsoleKey.F7)]),
+        };
+
+        var request = dispatcher.Handle(new UiRoutedInput<ApplicationUiFrame>(
+            new KeyConsoleInputEvent(new ConsoleKeyInfo('\0', ConsoleKey.F7, false, true, false)),
+            frame,
+            ApplicationTargetIds.WorkspaceKeyboard,
+            UiInputRouteKind.KeyboardTarget));
+
+        Assert.True(request.ShouldRender);
+        Assert.NotNull(executed);
+        Assert.Equal(FunctionKeyCommandIds.Search, executed.Value.CommandId);
+        var args = Assert.IsType<CSharpFar.Core.Menu.PanelCommandArgs>(executed.Value.Args);
+        Assert.Equal(PanelSide.Right, args.PanelSide);
+    }
+
+    [Fact]
+    public void KeyboardRouting_RemovesCompatibilityAndLiveRoutingApis()
+    {
+        Assert.Null(typeof(KeyboardInputRouter).GetMethod("HandleModifier"));
+        Assert.Null(typeof(KeyboardInputContext).GetProperty("IsPanelsMode"));
+        Assert.Null(typeof(KeyboardInputContext).GetProperty("ActiveState"));
+        Assert.Null(typeof(KeyboardInputContext).GetProperty("VisibleRows"));
+        Assert.Null(typeof(KeyboardInputContext).GetProperty("VisibleRowsForSide"));
     }
 
     [Fact]
@@ -619,7 +810,9 @@ public sealed class ApplicationInputDispatcherTests
         Func<PanelSide>? activeSide = null,
         Func<FilePanelState>? leftPanel = null,
         Func<FilePanelState>? rightPanel = null,
-        Action<FilePanelState, PanelSide>? openCurrentItem = null)
+        Action<FilePanelState, PanelSide>? openCurrentItem = null,
+        Action<FilePanelState, PanelSide, FilePanelItem>? openPanelItem = null,
+        Func<string, object?, bool>? execute = null)
     {
         var panel = new FilePanelState { CurrentDirectory = @"C:\work" };
         leftPanel ??= () => panel;
@@ -628,21 +821,15 @@ public sealed class ApplicationInputDispatcherTests
         {
             PanelController = new PanelController(new FakePanelViewBuilder(new FakeFileSystemService())),
             CommandLine = commandLine,
-            FunctionKeyBindings = [],
-            ActiveSide = activeSide ?? (() => PanelSide.Left),
             SetActiveSide = _ => { },
-            ActiveState = () => panel,
             LeftPanel = leftPanel,
             RightPanel = rightPanel,
-            IsPanelsMode = () => true,
             PanelOptions = () => new AppSettings.PanelOptionsSettings(),
-            VisibleRows = () => 1,
-            VisibleRowsForSide = _ => 1,
             QuickView = () => false,
             SetQuickView = _ => { },
             SetRunning = _ => { },
             SetFunctionKeyLayer = _ => false,
-            ExecuteRegisteredCommand = (_, _) => false,
+            ExecuteRegisteredCommand = execute ?? ((_, _) => false),
             SelectAllCommandLineTextOrPanelItems = _ => { },
             CopyCommandLineSelection = () => false,
             PasteTextIntoCommandLine = () => false,
@@ -654,6 +841,7 @@ public sealed class ApplicationInputDispatcherTests
             ResetCommandHistoryNavigation = () => { },
             TryGoUp = (_, _) => { },
             OpenCurrentItem = openCurrentItem ?? ((_, _) => { }),
+            OpenPanelItem = openPanelItem ?? ((state, side, _) => openCurrentItem?.Invoke(state, side)),
             CanExecuteFunctionKeyCommand = _ => false,
         });
     }

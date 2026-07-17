@@ -23,10 +23,12 @@ internal sealed class ApplicationFunctionKeyBarRenderer
 
     public ApplicationFunctionKeyBarFrame? Render(ConsoleSize size, FunctionKeyLayer layer)
     {
-        var actions = _bindings
+        var visibleBindings = _bindings
             .Where(binding =>
                 binding.Layer == layer &&
                 _canExecuteCommand(binding.CommandId))
+            .ToArray();
+        var actions = visibleBindings
             .Select(binding => new FunctionKeyBarAction<string>(
                 binding.KeyNumber,
                 binding.Label,
@@ -34,16 +36,27 @@ internal sealed class ApplicationFunctionKeyBarRenderer
             .ToArray();
 
         new FunctionKeyBarController<string>().Render(_screen, size.Height - 1, size.Width, actions);
-        if (size.Height <= 0 || size.Width <= 0 || actions.Length == 0)
-            return null;
 
         var hits = new List<ApplicationFunctionKeyHit>();
-        var slotsByKey = FunctionKeyBar.BuildSlots(size.Height - 1, size.Width)
-            .ToDictionary(slot => slot.KeyNumber, slot => slot.Bounds);
-        foreach (var action in actions)
+        Dictionary<int, Rect> slotsByKey = size.Height <= 0 || size.Width <= 0
+            ? []
+            : FunctionKeyBar.BuildSlots(size.Height - 1, size.Width)
+                .ToDictionary(slot => slot.KeyNumber, slot => slot.Bounds);
+        foreach (var binding in _bindings)
         {
-            if (slotsByKey.TryGetValue(action.KeyNumber, out var bounds))
-                hits.Add(new ApplicationFunctionKeyHit(bounds, action.Action));
+            bool available = _canExecuteCommand(binding.CommandId) || binding.RunsWhenUnavailable;
+            if (!available)
+                continue;
+
+            Rect bounds = binding.Layer == layer && slotsByKey.TryGetValue(binding.KeyNumber, out var slotBounds)
+                ? slotBounds
+                : new Rect(0, 0, 0, 0);
+            hits.Add(new ApplicationFunctionKeyHit(
+                bounds,
+                binding.CommandId,
+                binding.Layer,
+                binding.Key,
+                binding.RunsWhenUnavailable));
         }
 
         return hits.Count > 0 ? new ApplicationFunctionKeyBarFrame(hits) : null;

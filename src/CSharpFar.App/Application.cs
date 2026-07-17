@@ -212,6 +212,7 @@ public sealed class Application
         context.ResetCommandHistoryNavigation = ResetCommandHistoryNavigation;
         context.TryGoUp = TryGoUp;
         context.OpenCurrentItem = OpenCurrentItem;
+        context.OpenPanelItem = OpenPanelItem;
         context.CanExecuteFunctionKeyCommand = CanExecuteFunctionKeyCommand;
     }
 

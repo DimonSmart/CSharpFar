@@ -1,9 +1,13 @@
 using CSharpFar.App.Dialogs;
 using CSharpFar.App.DirectoryShortcuts;
+using CSharpFar.Core.Models;
 
 namespace CSharpFar.App.Commands;
 
-internal sealed record NavigateToDirectoryShortcutArgs(int Number, string? CommittedPath = null);
+internal sealed record NavigateToDirectoryShortcutArgs(
+    int Number,
+    string? CommittedPath = null,
+    PanelSide? Side = null);
 
 internal sealed class NavigateToDirectoryShortcutCommand : IApplicationCommand
 {
@@ -40,9 +44,11 @@ internal sealed class NavigateToDirectoryShortcutCommand : IApplicationCommand
 
         try
         {
+            PanelSide side = shortcutArgs.Side ?? context.ActiveSide;
+            FilePanelState state = context.GetPanelState(side);
             context.ResetTransientNavigationUi();
-            context.Controller.LoadDirectory(context.ActiveState, path, context.PanelOptions);
-            context.StartWatching(context.ActiveState, context.ActiveSide);
+            context.Controller.LoadDirectory(state, path, context.PanelOptions);
+            context.StartWatching(state, side);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
