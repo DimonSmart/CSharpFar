@@ -29,14 +29,18 @@ internal sealed class CopyCommand : IApplicationCommand
             return ApplicationCommandResult.Rendered();
         }
 
-        var sources = FileOperationCommandHelpers.GetOperationSources(context, target.State, target.Committed);
-        var sourceLocations = FileOperationCommandHelpers.GetOperationSourceLocations(context, target.State, target.Committed);
+        if (!ApplicationCommandContext.CommittedDirectoryMatches(target.State, target.ActiveCommitted) ||
+            !ApplicationCommandContext.CommittedDirectoryMatches(target.PassiveState, target.PassiveCommitted))
+            return ApplicationCommandResult.Rendered();
+
+        var sources = FileOperationCommandHelpers.GetOperationSources(context, target.State, target.ActiveCommitted);
+        var sourceLocations = FileOperationCommandHelpers.GetOperationSourceLocations(context, target.State, target.ActiveCommitted);
         if (sources.Count == 0)
             return ApplicationCommandResult.Rendered();
 
         var dialogResult = new FileOperationDialog(context.ModalDialogs).ShowCopy(
             sources,
-            target.PassiveState.CurrentDirectory,
+            target.PassiveCommitted?.CurrentDirectory ?? target.PassiveState.CurrentDirectory,
             context.BuildFileOperationOptions());
         if (dialogResult is null)
             return ApplicationCommandResult.Rendered();

@@ -22,8 +22,7 @@ internal sealed class SearchFilesCommand : IApplicationCommand
             return ApplicationCommandResult.Rendered();
         }
 
-        if (target.Committed is not null &&
-            !string.Equals(target.State.CurrentDirectory, target.Committed.CurrentDirectory, StringComparison.OrdinalIgnoreCase))
+        if (!ApplicationCommandContext.CommittedDirectoryMatches(target.State, target.ActiveCommitted))
         {
             return ApplicationCommandResult.Rendered();
         }

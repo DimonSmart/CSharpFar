@@ -23,7 +23,7 @@ internal sealed class OpenCreateFileCommand : IApplicationCommand
             return ApplicationCommandResult.Rendered();
         }
 
-        if (!CommittedDirectoryMatches(target))
+        if (!ApplicationCommandContext.CommittedDirectoryMatches(target.State, target.ActiveCommitted))
             return ApplicationCommandResult.Rendered();
 
         var dialog = new OpenCreateFileDialog(context.ModalDialogs);
@@ -70,12 +70,10 @@ internal sealed class OpenCreateFileCommand : IApplicationCommand
         ApplicationCommandContext context,
         ResolvedPanelCommandTarget target)
     {
-        FilePanelItem? activeItem = target.Committed is { } committed
-            ? ApplicationCommandContext.TryResolveCommittedCurrentItem(target.State, committed, out var committedItem)
-                ? committedItem
-                : null
-            : context.Controller.CurrentItem(target.State);
-        var passiveItem = context.Controller.CurrentItem(target.PassiveState);
+        FilePanelItem? activeItem = ApplicationCommandContext.TryResolveCommittedCurrentItem(
+            target.State, target.ActiveCommitted, context.Controller, out var resolvedActive) ? resolvedActive : null;
+        FilePanelItem? passiveItem = ApplicationCommandContext.TryResolveCommittedCurrentItem(
+            target.PassiveState, target.PassiveCommitted, context.Controller, out var resolvedPassive) ? resolvedPassive : null;
         return new EditorFileNameInsertionContext(
             activeItem is { IsParentDirectory: false } ? activeItem.Name : null,
             activeItem is { IsParentDirectory: false } ? activeItem.FullPath : null,
@@ -85,19 +83,13 @@ internal sealed class OpenCreateFileCommand : IApplicationCommand
 
     private static string? InitialPath(ApplicationCommandContext context, ResolvedPanelCommandTarget target)
     {
-        FilePanelItem? item = target.Committed is { } committed
-            ? ApplicationCommandContext.TryResolveCommittedCurrentItem(target.State, committed, out var committedItem)
-                ? committedItem
-                : null
-            : context.Controller.CurrentItem(target.State);
+        FilePanelItem? item = ApplicationCommandContext.TryResolveCommittedCurrentItem(
+            target.State, target.ActiveCommitted, context.Controller, out var resolvedItem) ? resolvedItem : null;
         return item is { IsDirectory: false, IsParentDirectory: false }
             ? item.Name
             : null;
     }
 
-    private static bool CommittedDirectoryMatches(ResolvedPanelCommandTarget target) =>
-        target.Committed is null ||
-        string.Equals(target.State.CurrentDirectory, target.Committed.CurrentDirectory, StringComparison.OrdinalIgnoreCase);
 
     private static string? ValidateLocalPath(string currentDirectory, string attempt)
     {

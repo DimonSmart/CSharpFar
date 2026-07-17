@@ -260,9 +260,9 @@ public sealed class ApplicationInputDispatcherTests
         Assert.True(request.ShouldRender);
         Assert.NotNull(executed);
         Assert.Equal(DirectoryShortcutCommandIds.Navigate, executed.Value.CommandId);
-        var args = Assert.IsType<NavigateToDirectoryShortcutArgs>(executed.Value.Args);
+        var args = Assert.IsType<NavigateToCommittedDirectoryShortcutArgs>(executed.Value.Args);
         Assert.Equal(1, args.Number);
-        Assert.Equal(@"C:\Rendered", args.CommittedPath);
+        Assert.Equal(@"C:\Rendered", args.Path);
     }
 
     [Theory]
@@ -346,14 +346,7 @@ public sealed class ApplicationInputDispatcherTests
                 8,
                 [],
                 null,
-                null,
-                new ApplicationPanelKeyboardFrame(
-                    @"C:\work",
-                    false,
-                    0,
-                    @"C:\work\a.txt",
-                    "a.txt",
-                    @"C:\work\a.txt")),
+                null),
             RightPanel = new ApplicationPanelFrame(PanelSide.Right, new Rect(40, 0, 40, 10), 8, [], null, null),
         };
 
@@ -393,14 +386,7 @@ public sealed class ApplicationInputDispatcherTests
                 8,
                 [],
                 null,
-                null,
-                new ApplicationPanelKeyboardFrame(
-                    @"C:\work",
-                    false,
-                    0,
-                    @"C:\work\a.txt",
-                    "a.txt",
-                    @"C:\work\a.txt")),
+                null),
         };
         left.Items[0] = left.Items[1];
 
@@ -435,14 +421,7 @@ public sealed class ApplicationInputDispatcherTests
                 8,
                 [],
                 null,
-                null,
-                new ApplicationPanelKeyboardFrame(
-                    @"C:\work",
-                    false,
-                    0,
-                    @"C:\work\a.txt",
-                    "a.txt",
-                    @"C:\work\a.txt")),
+                null),
         };
         left.Items[0] = left.Items[1];
 
@@ -633,28 +612,14 @@ public sealed class ApplicationInputDispatcherTests
                 8,
                 [],
                 null,
-                null,
-                new ApplicationPanelKeyboardFrame(
-                    @"C:\committed-left",
-                    false,
-                    null,
-                    null,
-                    null,
-                    null)),
+                null),
             RightPanel = new ApplicationPanelFrame(
                 PanelSide.Right,
                 new Rect(40, 0, 40, 10),
                 8,
                 [],
                 null,
-                null,
-                new ApplicationPanelKeyboardFrame(
-                    @"C:\committed-right",
-                    false,
-                    null,
-                    null,
-                    null,
-                    null)),
+                null),
         };
 
         var request = dispatcher.Handle(new UiRoutedInput<ApplicationUiFrame>(
@@ -701,9 +666,9 @@ public sealed class ApplicationInputDispatcherTests
 
         Assert.True(request.ShouldRender);
         Assert.NotNull(executed);
-        var args = Assert.IsType<NavigateToDirectoryShortcutArgs>(executed.Value.Args);
+        var args = Assert.IsType<NavigateToCommittedDirectoryShortcutArgs>(executed.Value.Args);
         Assert.Equal(2, args.Number);
-        Assert.Equal(@"C:\committed", args.CommittedPath);
+        Assert.Equal(@"C:\committed", args.Path);
         Assert.Equal(PanelSide.Right, args.Side);
     }
 

@@ -73,11 +73,8 @@ internal sealed class OpenFileAttributesCommand : IApplicationCommand
                 .ToList();
         }
 
-        FilePanelItem? item = target.Committed is { } committed
-            ? ApplicationCommandContext.TryResolveCommittedCurrentItem(target.State, committed, out var committedItem)
-                ? committedItem
-                : null
-            : context.Controller.CurrentItem(target.State);
+        FilePanelItem? item = ApplicationCommandContext.TryResolveCommittedCurrentItem(
+            target.State, target.ActiveCommitted, context.Controller, out var resolvedItem) ? resolvedItem : null;
         return item is null || item.IsParentDirectory ? [] : [item];
     }
 

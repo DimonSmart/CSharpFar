@@ -34,7 +34,8 @@ internal readonly record struct ResolvedPanelCommandTarget(
     PanelSide PassiveSide,
     FilePanelState PassiveState,
     int VisibleRows,
-    ApplicationPanelKeyboardFrame? Committed);
+    ApplicationPanelKeyboardFrame? ActiveCommitted,
+    ApplicationPanelKeyboardFrame? PassiveCommitted);
 
 internal sealed class ApplicationCommandContext
 {
@@ -254,7 +255,8 @@ internal sealed class ApplicationCommandContext
                 passiveSide,
                 GetPanelState(passiveSide),
                 invocation.VisibleRows,
-                invocation.ActivePanel);
+                invocation.ActivePanel,
+                invocation.PassivePanel);
         }
 
         if (args is PanelCommandArgs panelArgs)
@@ -266,6 +268,7 @@ internal sealed class ApplicationCommandContext
                 passiveSide,
                 GetPanelState(passiveSide),
                 VisibleRows(panelArgs.PanelSide),
+                null,
                 null);
         }
 
@@ -275,14 +278,22 @@ internal sealed class ApplicationCommandContext
             OtherPanelSide(ActiveSide),
             PassiveState,
             VisibleRows(),
+            null,
             null);
     }
 
     public static bool TryResolveCommittedCurrentItem(
         FilePanelState state,
-        ApplicationPanelKeyboardFrame committed,
+        ApplicationPanelKeyboardFrame? committed,
+        PanelController controller,
         out FilePanelItem item)
     {
+        if (committed is null)
+        {
+            item = controller.CurrentItem(state)!;
+            return item is not null;
+        }
+
         item = null!;
         if (committed.CurrentItemIndex is not { } index ||
             index < 0 ||
@@ -298,6 +309,12 @@ internal sealed class ApplicationCommandContext
         item = candidate;
         return true;
     }
+
+    public static bool CommittedDirectoryMatches(
+        FilePanelState state,
+        ApplicationPanelKeyboardFrame? committed) =>
+        committed is null ||
+        string.Equals(state.CurrentDirectory, committed.CurrentDirectory, StringComparison.OrdinalIgnoreCase);
 
     public void RefreshPanels() => _panelRefresh.RefreshPanels(LeftPanel, RightPanel);
 

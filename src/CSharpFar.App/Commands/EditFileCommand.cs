@@ -21,11 +21,8 @@ internal sealed class EditFileCommand : IApplicationCommand
             return ApplicationCommandResult.Rendered();
         }
 
-        FilePanelItem? item = target.Committed is { } committed
-            ? ApplicationCommandContext.TryResolveCommittedCurrentItem(target.State, committed, out var committedItem)
-                ? committedItem
-                : null
-            : context.Controller.CurrentItem(target.State);
+        FilePanelItem? item = ApplicationCommandContext.TryResolveCommittedCurrentItem(
+            target.State, target.ActiveCommitted, context.Controller, out var resolvedItem) ? resolvedItem : null;
         if (item is null || item.IsParentDirectory)
             return ApplicationCommandResult.Rendered();
 
@@ -49,9 +46,8 @@ internal sealed class EditFileCommand : IApplicationCommand
         ResolvedPanelCommandTarget target,
         FilePanelItem activeItem)
     {
-        FilePanelItem? passiveItem = null;
-        if (target.PassiveState == context.LeftPanel || target.PassiveState == context.RightPanel)
-            passiveItem = context.Controller.CurrentItem(target.PassiveState);
+        FilePanelItem? passiveItem = ApplicationCommandContext.TryResolveCommittedCurrentItem(
+            target.PassiveState, target.PassiveCommitted, context.Controller, out var resolvedItem) ? resolvedItem : null;
         return new EditorFileNameInsertionContext(
             activeItem.Name,
             activeItem.FullPath,

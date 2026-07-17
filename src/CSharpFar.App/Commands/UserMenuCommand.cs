@@ -14,6 +14,11 @@ internal sealed class UserMenuCommand : IApplicationCommand
     public ApplicationCommandResult Execute(ApplicationCommandContext context, object? args = null)
     {
         var target = context.ResolvePanelTarget(args);
+        if (!ApplicationCommandContext.CommittedDirectoryMatches(target.State, target.ActiveCommitted) ||
+            !ApplicationCommandContext.CommittedDirectoryMatches(target.PassiveState, target.PassiveCommitted))
+        {
+            return ApplicationCommandResult.Rendered();
+        }
         if (context.UserMenu.Items.Count == 0)
         {
             new MessageDialog(context.ModalDialogs).Show(
@@ -25,23 +30,21 @@ internal sealed class UserMenuCommand : IApplicationCommand
         if (command is null)
             return ApplicationCommandResult.Rendered();
 
-        FilePanelItem? item = target.Committed is { } committed
-            ? ApplicationCommandContext.TryResolveCommittedCurrentItem(target.State, committed, out var committedItem)
-                ? committedItem
-                : null
-            : context.Controller.CurrentItem(target.State);
+        FilePanelItem? item = ApplicationCommandContext.TryResolveCommittedCurrentItem(
+            target.State, target.ActiveCommitted, context.Controller, out var resolvedItem) ? resolvedItem : null;
         string currentFile = item is { IsParentDirectory: false } ? item.FullPath : string.Empty;
 
         IReadOnlyList<string> selected = target.State.SelectedPaths.Count > 0
             ? [.. target.State.SelectedPaths]
             : [];
 
-        string otherDirectory = target.PassiveState.CurrentDirectory;
+        string currentDirectory = target.ActiveCommitted?.CurrentDirectory ?? target.State.CurrentDirectory;
+        string otherDirectory = target.PassiveCommitted?.CurrentDirectory ?? target.PassiveState.CurrentDirectory;
         string expanded = PlaceholderExpander.Expand(
             command,
             currentFile,
             selected,
-            target.State.CurrentDirectory,
+            currentDirectory,
             otherDirectory);
 
         context.ExecuteCommand(expanded);

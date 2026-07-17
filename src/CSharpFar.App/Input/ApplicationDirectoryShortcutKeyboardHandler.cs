@@ -47,6 +47,6 @@ internal sealed class ApplicationDirectoryShortcutKeyboardHandler
         return ApplicationInputHandlingResult.FromHandled(
             _context.ExecuteRegisteredCommand(
                 DirectoryShortcutCommandIds.Navigate,
-                new NavigateToDirectoryShortcutArgs(number.Value, hit.Path, input.ActiveSide)));
+                new NavigateToCommittedDirectoryShortcutArgs(number.Value, hit.Path, input.ActiveSide)));
     }
 }

@@ -42,6 +42,23 @@ internal sealed record ApplicationPanelKeyboardFrame(
     string? CurrentItemName,
     string? CurrentItemFullPath);
 
+internal static class ApplicationPanelKeyboardSnapshot
+{
+    public static ApplicationPanelKeyboardFrame Capture(FilePanelState state)
+    {
+        FilePanelItem? current = state.CursorIndex >= 0 && state.CursorIndex < state.Items.Count
+            ? state.Items[state.CursorIndex]
+            : null;
+        return new ApplicationPanelKeyboardFrame(
+            state.CurrentDirectory,
+            state.SearchRequest is not null,
+            current is null ? null : state.CursorIndex,
+            current?.FullPath,
+            current?.Name,
+            current?.FullPath);
+    }
+}
+
 internal sealed record ApplicationCommandLineFrame(
     Rect Bounds,
     int PromptLength,
@@ -86,7 +103,6 @@ internal sealed record ApplicationPanelFrame
         IReadOnlyList<ApplicationPanelItemHit> visibleItems,
         Rect? retryBounds,
         ApplicationScrollBarFrame? scrollBar,
-        ApplicationPanelKeyboardFrame? keyboard = null,
         int rowsPerColumn = 0,
         int columnCount = 1)
     {
@@ -98,7 +114,6 @@ internal sealed record ApplicationPanelFrame
         VisibleItems = Array.AsReadOnly(visibleItems.ToArray());
         RetryBounds = retryBounds;
         ScrollBar = scrollBar;
-        Keyboard = keyboard ?? new ApplicationPanelKeyboardFrame(string.Empty, false, null, null, null, null);
         RowsPerColumn = rowsPerColumn > 0 ? rowsPerColumn : Math.Max(1, visibleRows);
         ColumnCount = Math.Max(1, columnCount);
     }
@@ -109,7 +124,6 @@ internal sealed record ApplicationPanelFrame
     public IReadOnlyList<ApplicationPanelItemHit> VisibleItems { get; }
     public Rect? RetryBounds { get; }
     public ApplicationScrollBarFrame? ScrollBar { get; }
-    public ApplicationPanelKeyboardFrame Keyboard { get; }
     public int RowsPerColumn { get; }
     public int ColumnCount { get; }
 }

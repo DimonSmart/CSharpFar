@@ -74,7 +74,7 @@ internal sealed class ApplicationInputDispatcher
                 routed.RouteKind),
             var target when target == ApplicationTargetIds.FunctionKeyBar => _functionKeyBarInputHandler.Handle(
                 mouse,
-                routed.Frame.FunctionKeyBar,
+                routed.Frame,
                 routed.RouteKind),
             var target when target == ApplicationTargetIds.DirectoryShortcutBar => _directoryShortcutBarInputHandler.Handle(
                 mouse,

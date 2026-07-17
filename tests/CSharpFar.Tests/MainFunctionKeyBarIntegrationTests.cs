@@ -1,4 +1,5 @@
 using CSharpFar.App.FunctionKeys;
+using CSharpFar.App.Commands;
 using CSharpFar.App.Input;
 using CSharpFar.App.Panels;
 using CSharpFar.App.Rendering;
@@ -68,11 +69,32 @@ public sealed class MainFunctionKeyBarIntegrationTests
 
         var result = handler.Handle(
             Mouse(x: 40, y: 24, MouseButton.Left, MouseEventKind.Down),
-            Frame(canExecute: true).FunctionKeyBar,
+            Frame(canExecute: true),
             UiInputRouteKind.HitTarget);
 
         Assert.True(result.Handled);
         Assert.Equal(1, executions);
+    }
+
+    [Fact]
+    public void MouseClickOnActiveSlot_UsesCommittedPanelInvocation()
+    {
+        object? receivedArgs = null;
+        var handler = CreateHandler((_, args) =>
+        {
+            receivedArgs = args;
+            return true;
+        });
+
+        handler.Handle(
+            Mouse(x: 40, y: 24, MouseButton.Left, MouseEventKind.Down),
+            Frame(canExecute: true),
+            UiInputRouteKind.HitTarget);
+
+        var invocation = Assert.IsType<ApplicationPanelCommandInvocation>(receivedArgs);
+        Assert.Equal(PanelSide.Left, invocation.Side);
+        Assert.Equal(@"C:\left", invocation.ActivePanel.CurrentDirectory);
+        Assert.Equal(@"C:\right", invocation.PassivePanel.CurrentDirectory);
     }
 
     [Fact]
@@ -87,7 +109,7 @@ public sealed class MainFunctionKeyBarIntegrationTests
 
         var result = handler.Handle(
             Mouse(x: 90, y: 24, MouseButton.Left, MouseEventKind.Down),
-            Frame(canExecute: true).FunctionKeyBar,
+            Frame(canExecute: true),
             UiInputRouteKind.HitTarget);
 
         Assert.False(result.Handled);
@@ -106,7 +128,7 @@ public sealed class MainFunctionKeyBarIntegrationTests
 
         var result = handler.Handle(
             Mouse(x: 40, y: 24, MouseButton.Left, MouseEventKind.Down),
-            Frame(canExecute: false).FunctionKeyBar,
+            Frame(canExecute: false),
             UiInputRouteKind.HitTarget);
 
         Assert.False(result.Handled);
@@ -125,7 +147,7 @@ public sealed class MainFunctionKeyBarIntegrationTests
 
         var result = handler.Handle(
             Mouse(x: 40, y: 22, MouseButton.Left, MouseEventKind.Down),
-            Frame(canExecute: true).FunctionKeyBar,
+            Frame(canExecute: true),
             UiInputRouteKind.HitTarget);
 
         Assert.False(result.Handled);
@@ -144,7 +166,7 @@ public sealed class MainFunctionKeyBarIntegrationTests
 
         var result = handler.Handle(
             Mouse(x: 40, y: 24, MouseButton.Right, MouseEventKind.Down),
-            Frame(canExecute: true).FunctionKeyBar,
+            Frame(canExecute: true),
             UiInputRouteKind.HitTarget);
 
         Assert.False(result.Handled);
@@ -163,7 +185,7 @@ public sealed class MainFunctionKeyBarIntegrationTests
 
         var result = handler.Handle(
             Mouse(x: 40, y: 24, MouseButton.Left, MouseEventKind.Up),
-            Frame(canExecute: true).FunctionKeyBar,
+            Frame(canExecute: true),
             UiInputRouteKind.HitTarget);
 
         Assert.False(result.Handled);

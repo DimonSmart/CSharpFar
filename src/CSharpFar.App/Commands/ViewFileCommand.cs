@@ -16,11 +16,8 @@ internal sealed class ViewFileCommand : IApplicationCommand
         if (!CanExecute(context, args))
             return ApplicationCommandResult.Rendered();
 
-        FilePanelItem? item = target.Committed is { } committed
-            ? ApplicationCommandContext.TryResolveCommittedCurrentItem(target.State, committed, out var committedItem)
-                ? committedItem
-                : null
-            : context.Controller.CurrentItem(target.State);
+        FilePanelItem? item = ApplicationCommandContext.TryResolveCommittedCurrentItem(
+            target.State, target.ActiveCommitted, context.Controller, out var resolvedItem) ? resolvedItem : null;
         if (item is null || item.IsParentDirectory || item.IsDirectory)
             return ApplicationCommandResult.Rendered();
 

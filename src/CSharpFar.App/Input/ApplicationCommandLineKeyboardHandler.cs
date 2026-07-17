@@ -186,7 +186,7 @@ internal sealed class ApplicationCommandLineKeyboardHandler
 
     private bool InsertCurrentItemNameIntoCommandLine(ApplicationKeyboardInput input)
     {
-        if (!ApplicationCommandContext.TryResolveCommittedCurrentItem(StateForSide(input.ActiveSide), input.ActivePanel, out _))
+        if (!ApplicationCommandContext.TryResolveCommittedCurrentItem(StateForSide(input.ActiveSide), input.ActivePanel, _context.PanelController, out _))
             return true;
 
         InsertTextIntoCommandLine(input.ActivePanel.CurrentItemName!, input.Frame.Mode);
@@ -195,7 +195,7 @@ internal sealed class ApplicationCommandLineKeyboardHandler
 
     private bool InsertCurrentItemFullPathIntoCommandLine(ApplicationKeyboardInput input)
     {
-        if (!ApplicationCommandContext.TryResolveCommittedCurrentItem(StateForSide(input.ActiveSide), input.ActivePanel, out _))
+        if (!ApplicationCommandContext.TryResolveCommittedCurrentItem(StateForSide(input.ActiveSide), input.ActivePanel, _context.PanelController, out _))
             return true;
 
         InsertTextIntoCommandLine(input.ActivePanel.CurrentItemFullPath!, input.Frame.Mode);

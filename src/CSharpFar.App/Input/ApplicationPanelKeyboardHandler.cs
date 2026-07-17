@@ -20,6 +20,7 @@ internal sealed class ApplicationPanelKeyboardHandler
             return ApplicationInputHandlingResult.NotHandled;
 
         FilePanelState state = StateForSide(side);
+        ApplicationPanelKeyboardFrame keyboard = input.Panel(side);
         int visibleRows = frame.VisibleRows;
 
         bool isControlShortcut =
@@ -75,7 +76,7 @@ internal sealed class ApplicationPanelKeyboardHandler
                 return ApplicationInputHandlingResult.FromHandled(true);
 
             case ConsoleKey.Escape:
-                if (frame.Keyboard.HasSearchRequest)
+                if (keyboard.HasSearchRequest)
                     _context.CloseSearchResultsPanel(state, side);
                 else
                 {
@@ -85,7 +86,7 @@ internal sealed class ApplicationPanelKeyboardHandler
                 return ApplicationInputHandlingResult.FromHandled(true);
 
             case ConsoleKey.Enter:
-                if (ApplicationCommandContext.TryResolveCommittedCurrentItem(state, frame.Keyboard, out var item))
+                if (ApplicationCommandContext.TryResolveCommittedCurrentItem(state, keyboard, _context.PanelController, out var item))
                     _context.OpenPanelItem(state, side, item);
                 return ApplicationInputHandlingResult.FromHandled(true);
 

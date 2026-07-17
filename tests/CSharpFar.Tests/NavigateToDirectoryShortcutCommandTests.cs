@@ -79,7 +79,7 @@ public sealed class NavigateToDirectoryShortcutCommandTests : IDisposable
         context.Settings.DirectoryShortcuts.Items.Add(Item(1, _otherTarget));
 
         new NavigateToDirectoryShortcutCommand()
-            .Execute(context, new NavigateToDirectoryShortcutArgs(1, _target, PanelSide.Left));
+            .Execute(context, new NavigateToCommittedDirectoryShortcutArgs(1, _target, PanelSide.Left));
 
         Assert.Equal(_target, context.ActiveState.CurrentDirectory);
     }
@@ -90,7 +90,7 @@ public sealed class NavigateToDirectoryShortcutCommandTests : IDisposable
         var context = CreateContext(out _, out _);
 
         new NavigateToDirectoryShortcutCommand()
-            .Execute(context, new NavigateToDirectoryShortcutArgs(1, _target, PanelSide.Left));
+            .Execute(context, new NavigateToCommittedDirectoryShortcutArgs(1, _target, PanelSide.Left));
 
         Assert.Equal(_target, context.ActiveState.CurrentDirectory);
     }

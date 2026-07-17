@@ -37,6 +37,6 @@ internal sealed class ApplicationDirectoryShortcutBarInputHandler
         return ApplicationInputHandlingResult.FromHandled(
             _context.ExecuteRegisteredCommand(
                 DirectoryShortcutCommandIds.Navigate,
-                new NavigateToDirectoryShortcutArgs(hit.ShortcutNumber, hit.Path, side)));
+                new NavigateToCommittedDirectoryShortcutArgs(hit.ShortcutNumber, hit.Path, side)));
     }
 }

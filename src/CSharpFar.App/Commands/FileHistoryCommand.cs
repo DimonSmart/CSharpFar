@@ -60,12 +60,10 @@ internal sealed class FileHistoryCommand : IApplicationCommand
         ApplicationCommandContext context,
         ResolvedPanelCommandTarget target)
     {
-        FilePanelItem? activeItem = target.Committed is { } committed
-            ? ApplicationCommandContext.TryResolveCommittedCurrentItem(target.State, committed, out var committedItem)
-                ? committedItem
-                : null
-            : context.Controller.CurrentItem(target.State);
-        var passiveItem = context.Controller.CurrentItem(target.PassiveState);
+        FilePanelItem? activeItem = ApplicationCommandContext.TryResolveCommittedCurrentItem(
+            target.State, target.ActiveCommitted, context.Controller, out var resolvedActive) ? resolvedActive : null;
+        FilePanelItem? passiveItem = ApplicationCommandContext.TryResolveCommittedCurrentItem(
+            target.PassiveState, target.PassiveCommitted, context.Controller, out var resolvedPassive) ? resolvedPassive : null;
         return new EditorFileNameInsertionContext(
             activeItem is { IsParentDirectory: false } ? activeItem.Name : null,
             activeItem is { IsParentDirectory: false } ? activeItem.FullPath : null,

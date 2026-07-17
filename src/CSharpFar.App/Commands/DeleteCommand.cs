@@ -20,8 +20,8 @@ internal sealed class DeleteCommand : IApplicationCommand
             return ApplicationCommandResult.Rendered();
         }
 
-        var sources = FileOperationCommandHelpers.GetOperationSources(context, target.State, target.Committed);
-        var sourceLocations = FileOperationCommandHelpers.GetOperationSourceLocations(context, target.State, target.Committed);
+        var sources = FileOperationCommandHelpers.GetOperationSources(context, target.State, target.ActiveCommitted);
+        var sourceLocations = FileOperationCommandHelpers.GetOperationSourceLocations(context, target.State, target.ActiveCommitted);
         if (sources.Count == 0)
             return ApplicationCommandResult.Rendered();
 

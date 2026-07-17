@@ -80,7 +80,6 @@ public sealed class BriefTwoColumnsPanelRenderer
                 [],
                 retry,
                 null,
-                PanelRenderer.BuildKeyboardFrame(state),
                 RowsPerColumn(bounds, _options),
                 2);
         }
@@ -158,7 +157,6 @@ public sealed class BriefTwoColumnsPanelRenderer
             hits,
             null,
             scrollBar,
-            PanelRenderer.BuildKeyboardFrame(state),
             rowsPerCol,
             2);
     }

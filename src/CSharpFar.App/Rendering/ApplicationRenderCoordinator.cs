@@ -33,15 +33,15 @@ internal sealed class ApplicationRenderCoordinator
         _context.Screen.SetCursorVisible(false);
         var size = context.Size;
         PanelSide activeSide = _context.ActiveSide();
-        FilePanelState activeState = activeSide == PanelSide.Left
-            ? _context.LeftPanel()
-            : _context.RightPanel();
-        ApplicationPanelKeyboardFrame leftKeyboard = PanelRenderer.BuildKeyboardFrame(_context.LeftPanel());
-        ApplicationPanelKeyboardFrame rightKeyboard = PanelRenderer.BuildKeyboardFrame(_context.RightPanel());
+        FilePanelState leftState = _context.LeftPanel();
+        FilePanelState rightState = _context.RightPanel();
+        FilePanelState activeState = activeSide == PanelSide.Left ? leftState : rightState;
+        ApplicationPanelKeyboardFrame leftKeyboard = ApplicationPanelKeyboardSnapshot.Capture(leftState);
+        ApplicationPanelKeyboardFrame rightKeyboard = ApplicationPanelKeyboardSnapshot.Capture(rightState);
         var workspace = _panelWorkspaceRenderer.Render(
             size,
-            _context.LeftPanel(),
-            _context.RightPanel(),
+            leftState,
+            rightState,
             activeSide,
             _context.LeftViewMode(),
             _context.RightViewMode(),
@@ -70,8 +70,8 @@ internal sealed class ApplicationRenderCoordinator
             ApplicationWorkspaceMode.Panels,
             BuildKeyboardFrame(activeSide, leftKeyboard, rightKeyboard),
             commandLine,
-            WithKeyboard(workspace.LeftPanel, leftKeyboard),
-            WithKeyboard(workspace.RightPanel, rightKeyboard),
+            workspace.LeftPanel,
+            workspace.RightPanel,
             functionKeyBar,
             directoryShortcutBar);
     }
@@ -82,11 +82,11 @@ internal sealed class ApplicationRenderCoordinator
         var size = context.Size;
         int row = ApplicationLayoutService.CommandLineRow(size);
         PanelSide activeSide = _context.ActiveSide();
-        FilePanelState activeState = activeSide == PanelSide.Left
-            ? _context.LeftPanel()
-            : _context.RightPanel();
-        ApplicationPanelKeyboardFrame leftKeyboard = PanelRenderer.BuildKeyboardFrame(_context.LeftPanel());
-        ApplicationPanelKeyboardFrame rightKeyboard = PanelRenderer.BuildKeyboardFrame(_context.RightPanel());
+        FilePanelState leftState = _context.LeftPanel();
+        FilePanelState rightState = _context.RightPanel();
+        FilePanelState activeState = activeSide == PanelSide.Left ? leftState : rightState;
+        ApplicationPanelKeyboardFrame leftKeyboard = ApplicationPanelKeyboardSnapshot.Capture(leftState);
+        ApplicationPanelKeyboardFrame rightKeyboard = ApplicationPanelKeyboardSnapshot.Capture(rightState);
         context.PublishOnStable(viewport, value => _context.Ui.LastRenderViewport = value);
         ApplicationCommandLineFrame commandLine = _commandLineRenderer.Render(
             row,
@@ -124,19 +124,4 @@ internal sealed class ApplicationRenderCoordinator
             leftKeyboard,
             rightKeyboard);
 
-    private static ApplicationPanelFrame? WithKeyboard(
-        ApplicationPanelFrame? frame,
-        ApplicationPanelKeyboardFrame keyboard) =>
-        frame is null
-            ? null
-            : new ApplicationPanelFrame(
-                frame.Side,
-                frame.Bounds,
-                frame.VisibleRows,
-                frame.VisibleItems,
-                frame.RetryBounds,
-                frame.ScrollBar,
-                keyboard,
-                frame.RowsPerColumn,
-                frame.ColumnCount);
 }

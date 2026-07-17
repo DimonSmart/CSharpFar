@@ -30,14 +30,8 @@ internal sealed class ApplicationFunctionKeyKeyboardHandler
 
         bool shouldRender = _context.ExecuteRegisteredCommand(
             hit.CommandId,
-            new ApplicationPanelCommandInvocation(
-                input.ActiveSide,
-                input.ActivePanelFrame?.VisibleRows ?? 0,
-                input.ActivePanel,
-                input.Panel(OtherPanelSide(input.ActiveSide))));
+            ApplicationPanelCommandInvocationFactory.Create(input.Frame));
         return ApplicationInputHandlingResult.FromHandled(shouldRender);
     }
 
-    private static PanelSide OtherPanelSide(PanelSide side) =>
-        side == PanelSide.Left ? PanelSide.Right : PanelSide.Left;
 }

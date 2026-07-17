@@ -13,11 +13,8 @@ internal static class FileOperationCommandHelpers
         if (state.SelectedPaths.Count > 0)
             return [.. state.SelectedPaths];
 
-        FilePanelItem? item = committed is null
-            ? context.Controller.CurrentItem(state)
-            : ApplicationCommandContext.TryResolveCommittedCurrentItem(state, committed, out var committedItem)
-                ? committedItem
-                : null;
+        FilePanelItem? item = ApplicationCommandContext.TryResolveCommittedCurrentItem(
+            state, committed, context.Controller, out var resolvedItem) ? resolvedItem : null;
         if (item is null || item.IsParentDirectory)
             return [];
 
@@ -46,11 +43,8 @@ internal static class FileOperationCommandHelpers
                 .ToList();
         }
 
-        FilePanelItem? item = committed is null
-            ? context.Controller.CurrentItem(state)
-            : ApplicationCommandContext.TryResolveCommittedCurrentItem(state, committed, out var committedItem)
-                ? committedItem
-                : null;
+        FilePanelItem? item = ApplicationCommandContext.TryResolveCommittedCurrentItem(
+            state, committed, context.Controller, out var resolvedItem) ? resolvedItem : null;
         if (item is null || item.IsParentDirectory)
             return [];
 

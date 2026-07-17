@@ -56,8 +56,7 @@ internal sealed class CreateFolderCommand : IApplicationCommand
     }
 
     private static bool CommittedDirectoryMatches(ResolvedPanelCommandTarget target) =>
-        target.Committed is null ||
-        string.Equals(target.State.CurrentDirectory, target.Committed.CurrentDirectory, StringComparison.OrdinalIgnoreCase);
+        ApplicationCommandContext.CommittedDirectoryMatches(target.State, target.ActiveCommitted);
 
     private static string FirstCreatedDirectoryName(string path)
     {

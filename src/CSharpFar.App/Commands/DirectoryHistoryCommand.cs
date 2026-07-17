@@ -12,8 +12,7 @@ internal sealed class DirectoryHistoryCommand : IApplicationCommand
     public ApplicationCommandResult Execute(ApplicationCommandContext context, object? args = null)
     {
         var target = context.ResolvePanelTarget(args);
-        if (target.Committed is not null &&
-            !string.Equals(target.State.CurrentDirectory, target.Committed.CurrentDirectory, StringComparison.OrdinalIgnoreCase))
+        if (!ApplicationCommandContext.CommittedDirectoryMatches(target.State, target.ActiveCommitted))
         {
             return ApplicationCommandResult.Rendered();
         }
