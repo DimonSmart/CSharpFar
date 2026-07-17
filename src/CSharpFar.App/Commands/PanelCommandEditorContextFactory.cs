@@ -5,7 +5,25 @@ namespace CSharpFar.App.Commands;
 
 internal static class PanelCommandEditorContextFactory
 {
-    public static EditorFileNameInsertionContext Create(
+    internal static EditorFileNameInsertionContext Create(
+        ApplicationCommandContext context,
+        ResolvedPanelCommandTarget target,
+        FilePanelItem? resolvedActiveItem = null)
+    {
+        FilePanelItem? activeItem = resolvedActiveItem ??
+            (ApplicationCommandContext.TryResolveCommittedCurrentItem(
+                target.State, target.ActiveCommitted, context.Controller, out var resolvedActive)
+                ? resolvedActive
+                : null);
+        FilePanelItem? passiveItem = ApplicationCommandContext.TryResolveCommittedCurrentItem(
+            target.PassiveState, target.PassiveCommitted, context.Controller, out var resolvedPassive)
+            ? resolvedPassive
+            : null;
+
+        return Create(activeItem, passiveItem);
+    }
+
+    private static EditorFileNameInsertionContext Create(
         FilePanelItem? activeItem,
         FilePanelItem? passiveItem) =>
         new(

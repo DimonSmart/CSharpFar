@@ -43,7 +43,7 @@ internal sealed class FileHistoryCommand : IApplicationCommand
                         context.Palette,
                         context.Settings.Editor,
                         context.TextClipboard,
-                        BuildFileNameInsertionContext(context, target)).Show(path);
+                        PanelCommandEditorContextFactory.Create(context, target)).Show(path);
                     context.SafeRefresh(target.State, target.VisibleRows);
                     break;
             }
@@ -56,14 +56,4 @@ internal sealed class FileHistoryCommand : IApplicationCommand
         }
     }
 
-    private static EditorFileNameInsertionContext BuildFileNameInsertionContext(
-        ApplicationCommandContext context,
-        ResolvedPanelCommandTarget target)
-    {
-        FilePanelItem? activeItem = ApplicationCommandContext.TryResolveCommittedCurrentItem(
-            target.State, target.ActiveCommitted, context.Controller, out var resolvedActive) ? resolvedActive : null;
-        FilePanelItem? passiveItem = ApplicationCommandContext.TryResolveCommittedCurrentItem(
-            target.PassiveState, target.PassiveCommitted, context.Controller, out var resolvedPassive) ? resolvedPassive : null;
-        return PanelCommandEditorContextFactory.Create(activeItem, passiveItem);
-    }
 }

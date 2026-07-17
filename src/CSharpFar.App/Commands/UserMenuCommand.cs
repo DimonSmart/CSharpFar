@@ -14,11 +14,9 @@ internal sealed class UserMenuCommand : IApplicationCommand
     public ApplicationCommandResult Execute(ApplicationCommandContext context, object? args = null)
     {
         var target = context.ResolvePanelTarget(args);
-        if (!ApplicationCommandContext.CommittedLocationMatches(target.State, target.ActiveCommitted) ||
-            !ApplicationCommandContext.CommittedLocationMatches(target.PassiveState, target.PassiveCommitted))
-        {
+        if (!PanelCommandUserMenuOperands.TryCreate(target, context, out var operands))
             return ApplicationCommandResult.Rendered();
-        }
+
         if (context.UserMenu.Items.Count == 0)
         {
             new MessageDialog(context.ModalDialogs).Show(
@@ -30,7 +28,7 @@ internal sealed class UserMenuCommand : IApplicationCommand
         if (command is null)
             return ApplicationCommandResult.Rendered();
 
-        string expanded = PanelCommandUserMenuOperands.Expand(command, target, context);
+        string expanded = operands.Expand(command);
 
         context.ExecuteCommand(expanded);
         return ApplicationCommandResult.Rendered();

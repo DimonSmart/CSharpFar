@@ -53,7 +53,7 @@ internal sealed class OpenCreateFileCommand : IApplicationCommand
             context.Palette,
             context.Settings.Editor,
             context.TextClipboard,
-            BuildFileNameInsertionContext(context, target))
+            PanelCommandEditorContextFactory.Create(context, target))
             .ShowWithNewFileFormat(filePath, newFileFormat);
 
         if (File.Exists(filePath))
@@ -64,17 +64,6 @@ internal sealed class OpenCreateFileCommand : IApplicationCommand
             context.Controller.SetCursorByName(target.State, Path.GetFileName(filePath), target.VisibleRows);
 
         return ApplicationCommandResult.Rendered();
-    }
-
-    private static EditorFileNameInsertionContext BuildFileNameInsertionContext(
-        ApplicationCommandContext context,
-        ResolvedPanelCommandTarget target)
-    {
-        FilePanelItem? activeItem = ApplicationCommandContext.TryResolveCommittedCurrentItem(
-            target.State, target.ActiveCommitted, context.Controller, out var resolvedActive) ? resolvedActive : null;
-        FilePanelItem? passiveItem = ApplicationCommandContext.TryResolveCommittedCurrentItem(
-            target.PassiveState, target.PassiveCommitted, context.Controller, out var resolvedPassive) ? resolvedPassive : null;
-        return PanelCommandEditorContextFactory.Create(activeItem, passiveItem);
     }
 
     private static string? InitialPath(ApplicationCommandContext context, ResolvedPanelCommandTarget target)

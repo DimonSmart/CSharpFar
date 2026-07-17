@@ -93,7 +93,8 @@ public sealed class ApplicationCommandRegistryTests : IDisposable
         var services = CreateServices(seedPanelFiles: true);
         var left = services.CommandContext.LeftPanel;
         var right = services.CommandContext.RightPanel;
-        left.SortMode = SortMode.Extension;
+        PrepareDistinctPanelSortState(left, right);
+        SortMode originalRightSortMode = right.SortMode;
         services.CommandContext.ActiveSide = PanelSide.Left;
         var invocation = new ApplicationPanelCommandInvocation(
             PanelSide.Left,
@@ -106,8 +107,10 @@ public sealed class ApplicationCommandRegistryTests : IDisposable
             FunctionKeyCommandIds.SortByName, services.CommandContext, invocation);
 
         Assert.True(result.ShouldRender);
-        Assert.Equal(["..", "a.txt", "z.txt"], left.Items.Select(item => item.Name));
-        Assert.Equal(["..", "a.txt", "z.txt"], right.Items.Select(item => item.Name));
+        Assert.Equal(SortMode.Name, left.SortMode);
+        Assert.Equal(originalRightSortMode, right.SortMode);
+        Assert.Equal(["..", "a.txt", "z.txt"], PanelItemNames(left));
+        Assert.Equal(["..", "right-z.bin", "right-a.txt"], PanelItemNames(right));
         Assert.Equal(PanelSide.Right, services.CommandContext.ActiveSide);
     }
 
@@ -133,28 +136,41 @@ public sealed class ApplicationCommandRegistryTests : IDisposable
         Assert.Equal(PanelSide.Left, target.Side);
     }
 
-    [Fact]
-    public void Execute_StaleCommittedCurrentItemIsConsumedByViewCommand()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Execute_StaleCommittedCurrentItemIsNotConsumedByDeleteCommand(bool samePathDifferentProvider)
     {
-        var services = CreateServices();
+        var operations = new RecordingFileOperationService();
+        var services = CreateServices(fileOperations: operations);
+        services.CommandContext.Settings.Ui.ConfirmDelete = false;
         var left = services.CommandContext.LeftPanel;
         var right = services.CommandContext.RightPanel;
+        AddItem(left, "committed.txt");
+        left.CursorIndex = left.Items.Count - 1;
         var invocation = new ApplicationPanelCommandInvocation(
             PanelSide.Left,
             10,
             ApplicationPanelKeyboardSnapshot.Capture(left),
             ApplicationPanelKeyboardSnapshot.Capture(right));
-        left.Items[0] = new FilePanelItem
+        int committedIndex = left.CursorIndex;
+        FilePanelItem committedItem = left.Items[committedIndex];
+        left.Items[committedIndex] = new FilePanelItem
         {
             Name = "new.txt",
-            FullPath = Path.Combine(_tempDir, "new.txt"),
+            FullPath = samePathDifferentProvider
+                ? committedItem.FullPath
+                : Path.Combine(_tempDir, "new.txt"),
+            SourceId = samePathDifferentProvider
+                ? new PanelSourceId("changed-provider")
+                : PanelSourceId.Local,
             IsDirectory = false,
         };
 
-        var result = services.CommandRegistry.Execute(FunctionKeyCommandIds.View, services.CommandContext, invocation);
+        var result = services.CommandRegistry.Execute(FunctionKeyCommandIds.Delete, services.CommandContext, invocation);
 
+        Assert.Empty(operations.Requests);
         Assert.True(result.ShouldRender);
-        Assert.Equal("new.txt", left.Items[0].Name);
     }
 
     [Fact]
@@ -173,34 +189,60 @@ public sealed class ApplicationCommandRegistryTests : IDisposable
             FunctionKeyCommandIds.SortByExtension, FunctionKeyCommandIds.SortByLastWriteTime,
             FunctionKeyCommandIds.SortBySize, FunctionKeyCommandIds.Attributes,
         ];
-        var invocation = new ApplicationPanelCommandInvocation(
-            PanelSide.Left, 10,
-            ApplicationPanelKeyboardSnapshot.Capture(services.CommandContext.LeftPanel),
-            ApplicationPanelKeyboardSnapshot.Capture(services.CommandContext.RightPanel));
-
         Assert.All(panelScoped, commandId =>
         {
             Assert.True(services.CommandRegistry.TryGetCommand(commandId, out _), commandId);
-            Assert.Equal(PanelSide.Left, services.CommandContext.ResolvePanelTarget(invocation).Side);
         });
     }
 
     [Fact]
     public void EditorContextFactory_UsesCommittedPassiveItemOnly()
     {
-        var active = new FilePanelItem { Name = "active.txt", FullPath = @"C:\active.txt", IsDirectory = false };
-        var committedPassive = new FilePanelItem { Name = "committed.txt", FullPath = @"C:\committed.txt", IsDirectory = false };
-        var livePassive = new FilePanelItem { Name = "live.txt", FullPath = @"C:\live.txt", IsDirectory = false };
-
-        var context = PanelCommandEditorContextFactory.Create(active, committedPassive);
-
-        Assert.Equal("committed.txt", context.PassivePanelItemName);
-        Assert.Equal(@"C:\committed.txt", context.PassivePanelItemPath);
-        Assert.NotEqual(livePassive.FullPath, context.PassivePanelItemPath);
+        AssertEditorContextFactoryDoesNotUseLivePassiveItem(samePathDifferentProvider: false);
     }
 
     [Fact]
-    public void UserMenuOperands_UseCommittedDirectoriesAndCurrentItem()
+    public void EditorContextFactory_RejectsPassiveProviderMismatchWithSamePath()
+    {
+        AssertEditorContextFactoryDoesNotUseLivePassiveItem(samePathDifferentProvider: true);
+    }
+
+    private void AssertEditorContextFactoryDoesNotUseLivePassiveItem(bool samePathDifferentProvider)
+    {
+        var services = CreateServices();
+        var left = services.CommandContext.LeftPanel;
+        var right = services.CommandContext.RightPanel;
+        AddItem(left, "active.txt");
+        AddItem(right, "committed.txt");
+        left.CursorIndex = left.Items.Count - 1;
+        right.CursorIndex = right.Items.Count - 1;
+        var invocation = new ApplicationPanelCommandInvocation(
+            PanelSide.Left,
+            10,
+            ApplicationPanelKeyboardSnapshot.Capture(left),
+            ApplicationPanelKeyboardSnapshot.Capture(right));
+        FilePanelItem committedPassive = right.Items[right.CursorIndex];
+        right.Items[right.CursorIndex] = new FilePanelItem
+        {
+            Name = "live.txt",
+            FullPath = samePathDifferentProvider
+                ? committedPassive.FullPath
+                : Path.Combine(_tempDir, "live.txt"),
+            SourceId = samePathDifferentProvider
+                ? new PanelSourceId("changed-provider")
+                : PanelSourceId.Local,
+            IsDirectory = false,
+        };
+        var target = services.CommandContext.ResolvePanelTarget(invocation);
+
+        var context = PanelCommandEditorContextFactory.Create(services.CommandContext, target);
+
+        Assert.Null(context.PassivePanelItemName);
+        Assert.Null(context.PassivePanelItemPath);
+    }
+
+    [Fact]
+    public void UserMenuOperands_CurrentLocationsUnchanged_CreatesOperands()
     {
         var services = CreateServices();
         var left = services.CommandContext.LeftPanel;
@@ -215,13 +257,68 @@ public sealed class ApplicationCommandRegistryTests : IDisposable
             PanelSide.Left, 10,
             new ApplicationPanelKeyboardFrame(left.CurrentLocation, false, 1, left.Items[1].Location, left.Items[1].Name),
             new ApplicationPanelKeyboardFrame(right.CurrentLocation, false, 1, right.Items[1].Location, right.Items[1].Name));
-        right.CurrentLocation = PanelLocation.Local(Path.Combine(_tempDir, "live-right"));
         var target = services.CommandContext.ResolvePanelTarget(invocation);
 
-        string expanded = PanelCommandUserMenuOperands.Expand(
-            "{current}|{panelDir}|{otherPanelDir}", target, services.CommandContext);
+        bool created = PanelCommandUserMenuOperands.TryCreate(target, services.CommandContext, out var operands);
+        string expanded = operands.Expand("{current}|{panelDir}|{otherPanelDir}");
 
+        Assert.True(created);
         Assert.Equal($"{Path.Combine(_tempDir, "committed.txt")}|{_tempDir}|{_tempDir}", expanded);
+    }
+
+    [Theory]
+    [InlineData(CommittedLocationMutation.ActivePath)]
+    [InlineData(CommittedLocationMutation.PassivePath)]
+    [InlineData(CommittedLocationMutation.ActiveProvider)]
+    [InlineData(CommittedLocationMutation.PassiveProvider)]
+    public void UserMenuOperands_LocationChanged_DoesNotCreateOperands(CommittedLocationMutation mutation)
+    {
+        var services = CreateServices();
+        var left = services.CommandContext.LeftPanel;
+        var right = services.CommandContext.RightPanel;
+        AddItem(left, "committed.txt");
+        AddItem(right, "passive.txt");
+        left.CursorIndex = left.Items.Count - 1;
+        right.CursorIndex = right.Items.Count - 1;
+        var invocation = new ApplicationPanelCommandInvocation(
+            PanelSide.Left,
+            10,
+            ApplicationPanelKeyboardSnapshot.Capture(left),
+            ApplicationPanelKeyboardSnapshot.Capture(right));
+        MutateCommittedLocation(left, right, mutation);
+        var target = services.CommandContext.ResolvePanelTarget(invocation);
+
+        bool created = PanelCommandUserMenuOperands.TryCreate(target, services.CommandContext, out _);
+
+        Assert.False(created);
+    }
+
+    [Fact]
+    public void UserMenuOperands_StaleCurrentItemIsNotReplacedWithLiveItem()
+    {
+        var services = CreateServices();
+        var left = services.CommandContext.LeftPanel;
+        var right = services.CommandContext.RightPanel;
+        AddItem(left, "committed.txt");
+        left.CursorIndex = left.Items.Count - 1;
+        var invocation = new ApplicationPanelCommandInvocation(
+            PanelSide.Left,
+            10,
+            ApplicationPanelKeyboardSnapshot.Capture(left),
+            ApplicationPanelKeyboardSnapshot.Capture(right));
+        left.Items[left.CursorIndex] = new FilePanelItem
+        {
+            Name = "live.txt",
+            FullPath = Path.Combine(_tempDir, "live.txt"),
+            IsDirectory = false,
+        };
+        var target = services.CommandContext.ResolvePanelTarget(invocation);
+
+        bool created = PanelCommandUserMenuOperands.TryCreate(target, services.CommandContext, out var operands);
+        string expanded = operands.Expand("{current}");
+
+        Assert.True(created);
+        Assert.Equal(string.Empty, expanded);
     }
 
     [Fact]
@@ -229,7 +326,7 @@ public sealed class ApplicationCommandRegistryTests : IDisposable
     {
         var services = CreateServices(seedPanelFiles: true);
         WireRegistry(services);
-        services.CommandContext.LeftPanel.SortMode = SortMode.Extension;
+        PrepareDistinctPanelSortState(services.CommandContext.LeftPanel, services.CommandContext.RightPanel);
         var frame = Frame(PanelSide.Left, FunctionKeyCommandIds.SortByName, ConsoleKey.F3,
             services.CommandContext.LeftPanel, services.CommandContext.RightPanel);
         services.CommandContext.ActiveSide = PanelSide.Right;
@@ -239,8 +336,9 @@ public sealed class ApplicationCommandRegistryTests : IDisposable
             frame, ApplicationTargetIds.WorkspaceKeyboard, UiInputRouteKind.KeyboardTarget));
 
         Assert.True(request.ShouldRender);
-        Assert.Equal(["..", "a.txt", "z.txt"], services.CommandContext.LeftPanel.Items.Select(item => item.Name));
-        Assert.Equal(["..", "a.txt", "z.txt"], services.CommandContext.RightPanel.Items.Select(item => item.Name));
+        Assert.Equal(SortMode.Name, services.CommandContext.LeftPanel.SortMode);
+        Assert.Equal(SortMode.Size, services.CommandContext.RightPanel.SortMode);
+        Assert.Equal(PanelSide.Right, services.CommandContext.ActiveSide);
     }
 
     [Fact]
@@ -248,7 +346,7 @@ public sealed class ApplicationCommandRegistryTests : IDisposable
     {
         var services = CreateServices(seedPanelFiles: true);
         WireRegistry(services);
-        services.CommandContext.LeftPanel.SortMode = SortMode.Extension;
+        PrepareDistinctPanelSortState(services.CommandContext.LeftPanel, services.CommandContext.RightPanel);
         var frame = Frame(PanelSide.Left, FunctionKeyCommandIds.SortByName, ConsoleKey.F3,
             services.CommandContext.LeftPanel, services.CommandContext.RightPanel);
         services.CommandContext.ActiveSide = PanelSide.Right;
@@ -258,31 +356,41 @@ public sealed class ApplicationCommandRegistryTests : IDisposable
             frame, ApplicationTargetIds.FunctionKeyBar, UiInputRouteKind.HitTarget));
 
         Assert.True(request.ShouldRender);
-        Assert.Equal(["..", "a.txt", "z.txt"], services.CommandContext.LeftPanel.Items.Select(item => item.Name));
-        Assert.Equal(["..", "a.txt", "z.txt"], services.CommandContext.RightPanel.Items.Select(item => item.Name));
+        Assert.Equal(SortMode.Name, services.CommandContext.LeftPanel.SortMode);
+        Assert.Equal(SortMode.Size, services.CommandContext.RightPanel.SortMode);
+        Assert.Equal(PanelSide.Right, services.CommandContext.ActiveSide);
     }
 
     [Theory]
-    [InlineData(FunctionKeyCommandIds.Copy)]
-    [InlineData(FunctionKeyCommandIds.RenameOrMove)]
-    public void FileOperation_CommittedPassiveLocationChanged_DoesNotOpenDialogOrExecute(string commandId)
+    [InlineData(FunctionKeyCommandIds.Copy, CommittedLocationMutation.PassivePath)]
+    [InlineData(FunctionKeyCommandIds.Copy, CommittedLocationMutation.ActivePath)]
+    [InlineData(FunctionKeyCommandIds.Copy, CommittedLocationMutation.PassiveProvider)]
+    [InlineData(FunctionKeyCommandIds.Copy, CommittedLocationMutation.ActiveProvider)]
+    [InlineData(FunctionKeyCommandIds.RenameOrMove, CommittedLocationMutation.PassivePath)]
+    [InlineData(FunctionKeyCommandIds.RenameOrMove, CommittedLocationMutation.ActivePath)]
+    [InlineData(FunctionKeyCommandIds.RenameOrMove, CommittedLocationMutation.PassiveProvider)]
+    [InlineData(FunctionKeyCommandIds.RenameOrMove, CommittedLocationMutation.ActiveProvider)]
+    public void FileOperation_CommittedLocationChanged_DoesNotOpenDialogOrExecute(
+        string commandId,
+        CommittedLocationMutation mutation)
     {
         var operations = new RecordingFileOperationService();
         var services = CreateServices(fileOperations: operations);
         var left = services.CommandContext.LeftPanel;
         var right = services.CommandContext.RightPanel;
-        left.SelectedPaths.Add(Path.Combine(_tempDir, "source.txt"));
+        string sourcePath = Path.Combine(_tempDir, "source.txt");
+        left.SelectedPaths.Add(sourcePath);
         var invocation = new ApplicationPanelCommandInvocation(
             PanelSide.Left, 10,
             ApplicationPanelKeyboardSnapshot.Capture(left),
             ApplicationPanelKeyboardSnapshot.Capture(right));
-        right.CurrentLocation = PanelLocation.Local(Path.Combine(_tempDir, "changed"));
+        MutateCommittedLocation(left, right, mutation);
 
         var result = services.CommandRegistry.Execute(commandId, services.CommandContext, invocation);
 
         Assert.True(result.ShouldRender);
         Assert.Empty(operations.Requests);
-        Assert.Contains(Path.Combine(_tempDir, "source.txt"), left.SelectedPaths);
+        Assert.Contains(sourcePath, left.SelectedPaths);
     }
 
     private ApplicationCommandContext CreateContext()
@@ -344,6 +452,52 @@ public sealed class ApplicationCommandRegistryTests : IDisposable
         IsDirectory = false,
     });
 
+    private static void PrepareDistinctPanelSortState(FilePanelState left, FilePanelState right)
+    {
+        left.SortMode = SortMode.Extension;
+        right.SortMode = SortMode.Size;
+        ReplacePanelItems(left,
+            new FilePanelItem { Name = "z.txt", FullPath = Path.Combine(left.SourcePath, "z.txt"), IsDirectory = false, Size = 1 },
+            new FilePanelItem { Name = "a.txt", FullPath = Path.Combine(left.SourcePath, "a.txt"), IsDirectory = false, Size = 2 });
+        ReplacePanelItems(right,
+            new FilePanelItem { Name = "right-z.bin", FullPath = Path.Combine(right.SourcePath, "right-z.bin"), IsDirectory = false, Size = 1 },
+            new FilePanelItem { Name = "right-a.txt", FullPath = Path.Combine(right.SourcePath, "right-a.txt"), IsDirectory = false, Size = 2 });
+    }
+
+    private static void ReplacePanelItems(FilePanelState state, params FilePanelItem[] items)
+    {
+        FilePanelItem? parent = state.Items.FirstOrDefault(static item => item.IsParentDirectory);
+        state.Items.Clear();
+        if (parent is not null)
+            state.Items.Add(parent);
+        state.Items.AddRange(items);
+    }
+
+    private static string[] PanelItemNames(FilePanelState state) =>
+        [.. state.Items.Select(static item => item.Name)];
+
+    private static void MutateCommittedLocation(
+        FilePanelState left,
+        FilePanelState right,
+        CommittedLocationMutation mutation)
+    {
+        switch (mutation)
+        {
+            case CommittedLocationMutation.ActivePath:
+                left.CurrentLocation = PanelLocation.Local(Path.Combine(left.SourcePath, "changed-active"));
+                break;
+            case CommittedLocationMutation.PassivePath:
+                right.CurrentLocation = PanelLocation.Local(Path.Combine(right.SourcePath, "changed-passive"));
+                break;
+            case CommittedLocationMutation.ActiveProvider:
+                left.CurrentLocation = new PanelLocation(new PanelSourceId("changed-provider"), left.SourcePath);
+                break;
+            case CommittedLocationMutation.PassiveProvider:
+                right.CurrentLocation = new PanelLocation(new PanelSourceId("changed-provider"), right.SourcePath);
+                break;
+        }
+    }
+
     private sealed class RecordingFileOperationService : IFileOperationService
     {
         public bool SupportsRecycleBin => true;
@@ -381,4 +535,12 @@ public sealed class ApplicationCommandRegistryTests : IDisposable
         type.GetFields(BindingFlags.Public | BindingFlags.Static | BindingFlags.FlattenHierarchy)
             .Where(field => field.IsLiteral && !field.IsInitOnly && field.FieldType == typeof(string))
             .Select(field => (string)field.GetRawConstantValue()!);
+
+    public enum CommittedLocationMutation
+    {
+        ActivePath,
+        PassivePath,
+        ActiveProvider,
+        PassiveProvider,
+    }
 }

@@ -36,18 +36,8 @@ internal sealed class EditFileCommand : IApplicationCommand
             context.Palette,
             context.Settings.Editor,
             context.TextClipboard,
-            BuildFileNameInsertionContext(context, target, item)).Show(item.FullPath);
+            PanelCommandEditorContextFactory.Create(context, target, item)).Show(item.FullPath);
         context.SafeRefresh(target.State, target.VisibleRows);
         return ApplicationCommandResult.Rendered();
-    }
-
-    private static EditorFileNameInsertionContext BuildFileNameInsertionContext(
-        ApplicationCommandContext context,
-        ResolvedPanelCommandTarget target,
-        FilePanelItem activeItem)
-    {
-        FilePanelItem? passiveItem = ApplicationCommandContext.TryResolveCommittedCurrentItem(
-            target.PassiveState, target.PassiveCommitted, context.Controller, out var resolvedItem) ? resolvedItem : null;
-        return PanelCommandEditorContextFactory.Create(activeItem, passiveItem);
     }
 }
