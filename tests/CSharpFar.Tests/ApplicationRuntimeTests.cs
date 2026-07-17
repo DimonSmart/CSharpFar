@@ -21,8 +21,9 @@ public sealed class ApplicationRuntimeTests
         var fixture = RuntimeFixture.Create();
         bool modalOpened = false;
         fixture.Driver.EnqueueInput(Key(ConsoleKey.A));
-        fixture.Context.HandleKeyInput = _ =>
+        fixture.Context.HandleApplicationInputOverride = routed =>
         {
+            Assert.IsType<KeyConsoleInputEvent>(routed.Input);
             fixture.KeyCount++;
             Assert.False(fixture.Services.ApplicationSurface.TryTakeInput(out var ignoredPacket));
             using var modal = fixture.Services.ModalDialogs.Open(_ => { });
@@ -73,7 +74,7 @@ public sealed class ApplicationRuntimeTests
     }
 
     [Fact]
-    public void UnknownSemanticEvent_DoesNotCallLegacyHandlers()
+    public void UnknownSemanticEvent_DoesNotCallApplicationHandlers()
     {
         var fixture = RuntimeFixture.Create();
         fixture.Driver.EnqueueInput(new UnknownConsoleInputEvent());
@@ -120,7 +121,7 @@ public sealed class ApplicationRuntimeTests
     }
 
     [Fact]
-    public void RuntimeDoesNotFallbackToLegacyWhenRoutedHandledIsFalse()
+    public void RuntimeDoesNotFallbackToApplicationWhenRoutedHandledIsFalse()
     {
         var fixture = RuntimeFixture.Create();
         using var modal = fixture.Services.Composition.PushOverlay(new TestLayer(UiLayerInputPolicy.Modal, UiInputResult.NotHandled));
@@ -158,7 +159,7 @@ public sealed class ApplicationRuntimeTests
     [InlineData(false, true, 2)]
     [InlineData(true, true, 2)]
     [InlineData(false, false, 1)]
-    public void RenderRequests_AggregateToAtMostOneRender(bool routedInvalidate, bool legacyRender, int expectedRenderCount)
+    public void RenderRequests_AggregateToAtMostOneRender(bool routedInvalidate, bool applicationRender, int expectedRenderCount)
     {
         var fixture = RuntimeFixture.Create();
         fixture.RenderCount = 0;
@@ -166,10 +167,11 @@ public sealed class ApplicationRuntimeTests
             UiLayerInputPolicy.Bubble,
             routedInvalidate ? UiInputResult.InvalidateOnly() : UiInputResult.NotHandled,
             fixture.CountRender));
-        fixture.Context.HandleKeyInput = _ =>
+        fixture.Context.HandleApplicationInputOverride = routed =>
         {
+            Assert.IsType<KeyConsoleInputEvent>(routed.Input);
             fixture.KeyCount++;
-            return new ApplicationRuntimeRenderRequest(legacyRender);
+            return new ApplicationRuntimeRenderRequest(applicationRender);
         };
         fixture.Driver.EnqueueInput(Key(ConsoleKey.A));
         fixture.IsRunningOverride = new SequenceRunning(true, true, false).Next;
@@ -188,8 +190,9 @@ public sealed class ApplicationRuntimeTests
             UiLayerInputPolicy.Bubble,
             UiInputResult.NotHandled,
             fixture.CountRender));
-        fixture.Context.HandleKeyInput = _ =>
+        fixture.Context.HandleApplicationInputOverride = routed =>
         {
+            Assert.IsType<KeyConsoleInputEvent>(routed.Input);
             fixture.KeyCount++;
             fixture.Running = false;
             return new ApplicationRuntimeRenderRequest(true);
@@ -261,8 +264,9 @@ public sealed class ApplicationRuntimeTests
             UiLayerInputPolicy.Bubble,
             UiInputResult.InvalidateOnly(),
             fixture.CountRender));
-        fixture.Context.HandleKeyInput = _ =>
+        fixture.Context.HandleApplicationInputOverride = routed =>
         {
+            Assert.IsType<KeyConsoleInputEvent>(routed.Input);
             fixture.Services.Composition.Render();
             return new ApplicationRuntimeRenderRequest(explicitRenderRequest);
         };
@@ -440,29 +444,31 @@ public sealed class ApplicationRuntimeTests
         public Action ResetWaitToken { get; set; } = () => fixture.ResetCount++;
         public Action ProcessPendingRefreshes { get; set; } = () => fixture.ProcessRefreshCount++;
         public Action DisposeRuntimeState { get; set; } = () => fixture.DisposeCount++;
-        public Func<ConsoleKeyInfo, ApplicationRuntimeRenderRequest> HandleKeyInput { get; set; } = _ =>
+        public Func<UiRoutedInput<ApplicationUiFrame>, ApplicationRuntimeRenderRequest>? HandleApplicationInputOverride { get; set; }
+        public Func<UiRoutedInput<ApplicationUiFrame>, ApplicationRuntimeRenderRequest> HandleApplicationInput => routed =>
+            HandleApplicationInputOverride?.Invoke(routed) ?? (routed.Input switch
+            {
+                KeyConsoleInputEvent => CountKeyInput(),
+                ModifierKeyConsoleInputEvent => CountModifierInput(),
+                MouseConsoleInputEvent => CountMouseInput(),
+                _ => ApplicationRuntimeRenderRequest.None,
+            });
+
+        private ApplicationRuntimeRenderRequest CountKeyInput()
         {
             fixture.KeyCount++;
             if (fixture.KeyCount + fixture.ModifierCount + fixture.MouseCount >= fixture.StopAfterHandledInputs)
                 fixture.Running = false;
             return ApplicationRuntimeRenderRequest.None;
-        };
-        public Func<ConsoleModifiers, ApplicationRuntimeRenderRequest> HandleModifierInput { get; set; } = _ =>
+        }
+
+        private ApplicationRuntimeRenderRequest CountModifierInput()
         {
             fixture.ModifierCount++;
             if (fixture.KeyCount + fixture.ModifierCount + fixture.MouseCount >= fixture.StopAfterHandledInputs)
                 fixture.Running = false;
             return ApplicationRuntimeRenderRequest.None;
-        };
-        public Func<UiRoutedInput<ApplicationUiFrame>, ApplicationRuntimeRenderRequest>? HandleApplicationInputOverride { get; set; }
-        public Func<UiRoutedInput<ApplicationUiFrame>, ApplicationRuntimeRenderRequest> HandleApplicationInput => routed =>
-            HandleApplicationInputOverride?.Invoke(routed) ?? (routed.Input switch
-            {
-                KeyConsoleInputEvent { Key: var key } => HandleKeyInput(key),
-                ModifierKeyConsoleInputEvent { Modifiers: var modifiers } => HandleModifierInput(modifiers),
-                MouseConsoleInputEvent => CountMouseInput(),
-                _ => ApplicationRuntimeRenderRequest.None,
-            });
+        }
 
         private ApplicationRuntimeRenderRequest CountMouseInput()
         {

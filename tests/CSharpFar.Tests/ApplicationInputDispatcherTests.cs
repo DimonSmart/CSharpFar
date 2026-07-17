@@ -35,8 +35,7 @@ public sealed class ApplicationInputDispatcherTests
             },
             resetHistory: () => historyResets++);
         var dispatcher = new ApplicationInputDispatcher(
-            _ => ApplicationRuntimeRenderRequest.None,
-            _ => ApplicationRuntimeRenderRequest.None,
+            KeyboardRouter(commandLine),
             new ApplicationCommandLineInputHandler(context),
             new ApplicationPanelInputHandler(context),
             new ApplicationPanelScrollbarInputHandler(context),
@@ -549,13 +548,48 @@ public sealed class ApplicationInputDispatcherTests
 
     private static ApplicationInputDispatcher Dispatcher(MouseInputContext context) =>
         new(
-            _ => ApplicationRuntimeRenderRequest.None,
-            _ => ApplicationRuntimeRenderRequest.None,
+            KeyboardRouter(context.CommandLine),
             new ApplicationCommandLineInputHandler(context),
             new ApplicationPanelInputHandler(context),
             new ApplicationPanelScrollbarInputHandler(context),
             new ApplicationFunctionKeyBarInputHandler(context),
             new ApplicationDirectoryShortcutBarInputHandler(context));
+
+    private static KeyboardInputRouter KeyboardRouter(CommandLineState commandLine)
+    {
+        var panel = new FilePanelState { CurrentDirectory = @"C:\work" };
+        return new KeyboardInputRouter(new KeyboardInputContext
+        {
+            PanelController = new PanelController(new FakePanelViewBuilder(new FakeFileSystemService())),
+            CommandLine = commandLine,
+            FunctionKeyBindings = [],
+            ActiveSide = () => PanelSide.Left,
+            SetActiveSide = _ => { },
+            ActiveState = () => panel,
+            LeftPanel = () => panel,
+            RightPanel = () => panel,
+            IsPanelsMode = () => true,
+            PanelOptions = () => new AppSettings.PanelOptionsSettings(),
+            VisibleRows = () => 1,
+            VisibleRowsForSide = _ => 1,
+            QuickView = () => false,
+            SetQuickView = _ => { },
+            SetRunning = _ => { },
+            SetFunctionKeyLayer = _ => false,
+            ExecuteRegisteredCommand = (_, _) => false,
+            SelectAllCommandLineTextOrPanelItems = () => { },
+            CopyCommandLineSelection = () => false,
+            PasteTextIntoCommandLine = () => false,
+            OnVisibleCommandLineTextEdited = () => { },
+            CloseSearchResultsPanel = (_, _) => { },
+            ExecuteCommand = _ => { },
+            BrowseCommandHistory = (_, _) => false,
+            HideCommandCompletion = _ => { },
+            ResetCommandHistoryNavigation = () => { },
+            TryGoUp = () => { },
+            CanExecuteFunctionKeyCommand = _ => false,
+        });
+    }
 
     private static ApplicationUiFrame Frame(CommandLineState commandLine) =>
         new(

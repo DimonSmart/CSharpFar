@@ -106,11 +106,11 @@ internal static class ApplicationServicesBuilder
             QuickView = () => session.App.QuickView,
             SetQuickView = quickView => session.App.QuickView = quickView,
             SetRunning = running => session.App.Running = running,
+            SetFunctionKeyLayer = _ => throw new InvalidOperationException("Keyboard input context is not assigned."),
             ExecuteRegisteredCommand = (_, _) => throw new InvalidOperationException("Keyboard input context is not assigned."),
             SelectAllCommandLineTextOrPanelItems = () => throw new InvalidOperationException("Keyboard input context is not assigned."),
             CopyCommandLineSelection = () => throw new InvalidOperationException("Keyboard input context is not assigned."),
             PasteTextIntoCommandLine = () => throw new InvalidOperationException("Keyboard input context is not assigned."),
-            MovePanelColumn = _ => throw new InvalidOperationException("Keyboard input context is not assigned."),
             OnVisibleCommandLineTextEdited = () => throw new InvalidOperationException("Keyboard input context is not assigned."),
             CloseSearchResultsPanel = (_, _) => throw new InvalidOperationException("Keyboard input context is not assigned."),
             ExecuteCommand = _ => throw new InvalidOperationException("Keyboard input context is not assigned."),
@@ -178,8 +178,7 @@ internal static class ApplicationServicesBuilder
         var functionKeyBarInputHandler = new ApplicationFunctionKeyBarInputHandler(mouseInputContext);
         var directoryShortcutBarInputHandler = new ApplicationDirectoryShortcutBarInputHandler(mouseInputContext);
         var applicationInputDispatcher = new ApplicationInputDispatcher(
-            key => callbacks.HandleKeyInput(key),
-            modifiers => callbacks.HandleModifierInput(modifiers),
+            keyboardInputRouter,
             commandLineInputHandler,
             panelInputHandler,
             panelScrollbarInputHandler,

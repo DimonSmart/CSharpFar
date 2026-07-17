@@ -58,7 +58,9 @@ internal sealed record ApplicationPanelFrame
         int visibleRows,
         IReadOnlyList<ApplicationPanelItemHit> visibleItems,
         Rect? retryBounds,
-        ApplicationScrollBarFrame? scrollBar)
+        ApplicationScrollBarFrame? scrollBar,
+        int rowsPerColumn = 0,
+        int columnCount = 1)
     {
         ArgumentNullException.ThrowIfNull(visibleItems);
 
@@ -68,6 +70,8 @@ internal sealed record ApplicationPanelFrame
         VisibleItems = Array.AsReadOnly(visibleItems.ToArray());
         RetryBounds = retryBounds;
         ScrollBar = scrollBar;
+        RowsPerColumn = rowsPerColumn > 0 ? rowsPerColumn : Math.Max(1, visibleRows);
+        ColumnCount = Math.Max(1, columnCount);
     }
 
     public PanelSide Side { get; }
@@ -76,6 +80,8 @@ internal sealed record ApplicationPanelFrame
     public IReadOnlyList<ApplicationPanelItemHit> VisibleItems { get; }
     public Rect? RetryBounds { get; }
     public ApplicationScrollBarFrame? ScrollBar { get; }
+    public int RowsPerColumn { get; }
+    public int ColumnCount { get; }
 }
 
 internal sealed record ApplicationPanelItemHit(
@@ -233,9 +239,19 @@ internal sealed class ApplicationUiSurface : UiLayer<ApplicationUiFrame>, IUiSur
 
     protected override UiInteractionFrame BuildInteractionFrame(ApplicationUiFrame frame)
     {
-        var focus = new UiFocusFrame(
-            [new UiFocusEntry(ApplicationTargetIds.CommandLine, 0, IsEnabled: true, frame.CommandLine.Cursor)],
-            ApplicationTargetIds.CommandLine);
+        var focusEntries = new List<UiFocusEntry>
+        {
+            new(ApplicationTargetIds.CommandLine, 0, IsEnabled: true, frame.CommandLine.Cursor),
+        };
+        if (frame.Mode == ApplicationWorkspaceMode.Panels)
+        {
+            if (frame.LeftPanel is not null)
+                focusEntries.Add(new UiFocusEntry(ApplicationTargetIds.LeftPanel, 1));
+            if (frame.RightPanel is not null)
+                focusEntries.Add(new UiFocusEntry(ApplicationTargetIds.RightPanel, 2));
+        }
+
+        var focus = new UiFocusFrame(focusEntries, ApplicationTargetIds.CommandLine);
 
         var hitRegions = new List<UiHitRegion>();
         if (IsVisible(frame.CommandLine.Bounds, frame.Viewport))

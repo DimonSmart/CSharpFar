@@ -7,8 +7,7 @@ namespace CSharpFar.App.Input;
 
 internal sealed class ApplicationInputDispatcher
 {
-    private readonly Func<ConsoleKeyInfo, ApplicationRuntimeRenderRequest> _handleKeyInput;
-    private readonly Func<ConsoleModifiers, ApplicationRuntimeRenderRequest> _handleModifierInput;
+    private readonly KeyboardInputRouter _keyboardInputRouter;
     private readonly ApplicationCommandLineInputHandler _commandLineInputHandler;
     private readonly ApplicationPanelInputHandler _panelInputHandler;
     private readonly ApplicationPanelScrollbarInputHandler _panelScrollbarInputHandler;
@@ -16,16 +15,14 @@ internal sealed class ApplicationInputDispatcher
     private readonly ApplicationDirectoryShortcutBarInputHandler _directoryShortcutBarInputHandler;
 
     public ApplicationInputDispatcher(
-        Func<ConsoleKeyInfo, ApplicationRuntimeRenderRequest> handleKeyInput,
-        Func<ConsoleModifiers, ApplicationRuntimeRenderRequest> handleModifierInput,
+        KeyboardInputRouter keyboardInputRouter,
         ApplicationCommandLineInputHandler commandLineInputHandler,
         ApplicationPanelInputHandler panelInputHandler,
         ApplicationPanelScrollbarInputHandler panelScrollbarInputHandler,
         ApplicationFunctionKeyBarInputHandler functionKeyBarInputHandler,
         ApplicationDirectoryShortcutBarInputHandler directoryShortcutBarInputHandler)
     {
-        _handleKeyInput = handleKeyInput;
-        _handleModifierInput = handleModifierInput;
+        _keyboardInputRouter = keyboardInputRouter;
         _commandLineInputHandler = commandLineInputHandler;
         _panelInputHandler = panelInputHandler;
         _panelScrollbarInputHandler = panelScrollbarInputHandler;
@@ -36,11 +33,16 @@ internal sealed class ApplicationInputDispatcher
     public ApplicationRuntimeRenderRequest Handle(UiRoutedInput<ApplicationUiFrame> routed) =>
         routed.Input switch
         {
-            KeyConsoleInputEvent { Key: var key } => _handleKeyInput(key),
-            ModifierKeyConsoleInputEvent { Modifiers: var modifiers } => _handleModifierInput(modifiers),
+            KeyConsoleInputEvent { Key: var key } => ToRuntimeRequest(_keyboardInputRouter.Handle(routed, key)),
+            ModifierKeyConsoleInputEvent { Modifiers: var modifiers } => ToRuntimeRequest(_keyboardInputRouter.HandleModifier(modifiers)),
             MouseConsoleInputEvent mouse => HandleMouse(routed, mouse),
             _ => ApplicationRuntimeRenderRequest.None,
         };
+
+    private static ApplicationRuntimeRenderRequest ToRuntimeRequest(ApplicationInputHandlingResult result) =>
+        result.Handled
+            ? new ApplicationRuntimeRenderRequest(result.ShouldRender)
+            : ApplicationRuntimeRenderRequest.None;
 
     private ApplicationRuntimeRenderRequest HandleMouse(
         UiRoutedInput<ApplicationUiFrame> routed,

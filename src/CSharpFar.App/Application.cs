@@ -47,7 +47,6 @@ public sealed class Application
     private readonly ApplicationRenderCoordinator _renderCoordinator;
     private readonly UiCompositionHost _composition;
     private readonly KeyboardInputContext _keyboardInputContext;
-    private readonly KeyboardInputRouter _keyboardInputRouter;
     private readonly ApplicationInputDispatcher _applicationInputDispatcher;
     private readonly TerminalSurfaceController _terminalSurface;
     private readonly PanelRefreshService _panelRefresh;
@@ -188,7 +187,6 @@ public sealed class Application
         _commandRegistry = services.CommandRegistry;
         _commandContext = services.CommandContext;
         _keyboardInputContext = services.KeyboardInputContext;
-        _keyboardInputRouter = services.KeyboardInputRouter;
         _applicationInputDispatcher = services.ApplicationInputDispatcher;
         _terminalSurface = services.TerminalSurface;
         BindCallbacks(services.Callbacks);
@@ -205,7 +203,7 @@ public sealed class Application
         context.SelectAllCommandLineTextOrPanelItems = SelectAllCommandLineTextOrPanelItems;
         context.CopyCommandLineSelection = CopyCommandLineSelection;
         context.PasteTextIntoCommandLine = PasteTextIntoCommandLine;
-        context.MovePanelColumn = MovePanelColumn;
+        context.SetFunctionKeyLayer = SetFunctionKeyLayer;
         context.OnVisibleCommandLineTextEdited = OnVisibleCommandLineTextEdited;
         context.CloseSearchResultsPanel = CloseSearchResultsPanel;
         context.ExecuteCommand = ExecuteCommand;
@@ -254,8 +252,6 @@ public sealed class Application
         callbacks.CaptureUnderlay = _terminalSurface.CaptureUnderlay;
         callbacks.StartWatchingInitialPanels = StartWatchingInitialPanels;
         callbacks.RestoreTerminal = _terminalSurface.RestoreTerminal;
-        callbacks.HandleKeyInput = HandleRuntimeKeyInput;
-        callbacks.HandleModifierInput = HandleRuntimeModifierInput;
         callbacks.HandleApplicationInput = HandleRuntimeApplicationInput;
         callbacks.RefreshPanels = RefreshPanels;
         callbacks.OpenModulePanel = OpenModulePanel;
@@ -280,22 +276,6 @@ public sealed class Application
     {
         StartWatching(_left, PanelSide.Left);
         StartWatching(_right, PanelSide.Right);
-    }
-
-    private ApplicationRuntimeRenderRequest HandleRuntimeKeyInput(ConsoleKeyInfo key)
-    {
-        bool scrolledHiddenViewport = _terminalSurface.ScrollHiddenViewportToBottomForInput();
-        bool functionKeyLayerChanged = SetFunctionKeyLayer(key.Modifiers);
-        bool shouldRender = _keyboardInputRouter.Handle(key) || scrolledHiddenViewport || functionKeyLayerChanged;
-        return new ApplicationRuntimeRenderRequest(shouldRender);
-    }
-
-    private ApplicationRuntimeRenderRequest HandleRuntimeModifierInput(ConsoleModifiers modifiers)
-    {
-        if (!_panelWorkspace.IsPanelsMode)
-            return ApplicationRuntimeRenderRequest.None;
-
-        return new(SetFunctionKeyLayer(modifiers));
     }
 
     private ApplicationRuntimeRenderRequest HandleRuntimeApplicationInput(UiRoutedInput<ApplicationUiFrame> routed)
@@ -453,17 +433,6 @@ public sealed class Application
         ClosePanelQuickSearch();
         HideCommandCompletion(temporarily: false);
         ResetCommandHistoryNavigation();
-    }
-
-    private void MovePanelColumn(int direction)
-    {
-        var geometry = _panelWorkspace.ActiveColumnGeometry();
-        _ctrl.MoveCursorByColumn(
-            ActiveState,
-            direction,
-            geometry.RowsPerColumn,
-            geometry.ColumnCount,
-            geometry.VisibleRows);
     }
 
     internal bool OpenTopMenu()

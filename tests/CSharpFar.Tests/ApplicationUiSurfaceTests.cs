@@ -361,10 +361,18 @@ public sealed class ApplicationUiSurfaceTests
 
         services.Composition.Render();
 
-        UiFocusEntry focus = Assert.Single(services.ApplicationSurface.CommittedInteractionFrame.Focus.Entries);
+        UiFocusEntry focus = Assert.Single(
+            services.ApplicationSurface.CommittedInteractionFrame.Focus.Entries,
+            entry => entry.Target == ApplicationTargetIds.CommandLine);
         Assert.Equal(ApplicationTargetIds.CommandLine, focus.Target);
         Assert.Equal(services.ApplicationSurface.CommittedFrame.CommandLine.Cursor, focus.Cursor);
         Assert.Equal(ApplicationTargetIds.CommandLine, services.ApplicationSurface.CommittedInteractionFrame.Focus.DefaultTarget);
+        Assert.Contains(
+            services.ApplicationSurface.CommittedInteractionFrame.Focus.Entries,
+            entry => entry.Target == ApplicationTargetIds.LeftPanel);
+        Assert.Contains(
+            services.ApplicationSurface.CommittedInteractionFrame.Focus.Entries,
+            entry => entry.Target == ApplicationTargetIds.RightPanel);
         Assert.Contains(
             services.ApplicationSurface.CommittedInteractionFrame.HitRegions,
             region => region.Target == ApplicationTargetIds.CommandLine);
@@ -640,10 +648,13 @@ public sealed class ApplicationUiSurfaceTests
         Assert.True(services.ApplicationSurface.TryTakeInput(out var captured));
         Assert.Equal(UiInputRouteKind.CapturedTarget, captured.RouteKind);
         Assert.Equal(ApplicationTargetIds.LeftPanelScrollbar, captured.Target);
+        services.Inner.ApplicationInputDispatcher.Handle(captured);
 
-        bool shouldRender = services.Inner.KeyboardInputRouter.Handle(
-            new ConsoleKeyInfo('\u000f', ConsoleKey.O, shift: false, alt: false, control: true));
-        if (shouldRender)
+        var key = new KeyConsoleInputEvent(new ConsoleKeyInfo('\u000f', ConsoleKey.O, shift: false, alt: false, control: true));
+        services.Composition.DispatchInput(key);
+        Assert.True(services.ApplicationSurface.TryTakeInput(out var keyPacket));
+        ApplicationRuntimeRenderRequest request = services.Inner.ApplicationInputDispatcher.Handle(keyPacket);
+        if (request.ShouldRender)
             services.Composition.Render();
 
         Assert.Equal(ApplicationWorkspaceMode.HiddenCommandLine, services.Session.App.WorkspaceMode);

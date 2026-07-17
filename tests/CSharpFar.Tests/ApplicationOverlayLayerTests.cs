@@ -200,9 +200,9 @@ public sealed class ApplicationOverlayLayerTests
         Assert.True(services.ApplicationSurface.TryTakeInput(out var packet));
         Assert.Same(input, packet.Input);
 
-        bool shouldRender = services.KeyboardInputRouter.Handle(input.Key);
+        ApplicationRuntimeRenderRequest request = services.Inner.ApplicationInputDispatcher.Handle(packet);
 
-        Assert.True(shouldRender);
+        Assert.True(request.ShouldRender);
         Assert.Equal("current.txt", services.Session.CommandLine.State.Text);
     }
 

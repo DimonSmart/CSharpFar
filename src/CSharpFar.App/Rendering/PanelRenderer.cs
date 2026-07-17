@@ -160,7 +160,7 @@ internal sealed class PanelRenderer
         }
 
         new PanelStatusRenderer(_screen).Render(bounds, state, footer, border, _options);
-        return new ApplicationPanelFrame(side, bounds, visRows, hits, null, scrollBar);
+        return new ApplicationPanelFrame(side, bounds, visRows, hits, null, scrollBar, visRows, 1);
     }
 
     private ApplicationPanelFrame BuildErrorFrame(
@@ -175,7 +175,7 @@ internal sealed class PanelRenderer
         int visibleRows = mode == PanelViewMode.BriefTwoColumns
             ? BriefTwoColumnsPanelRenderer.VisibleRows(bounds, _options)
             : VisibleRows(bounds, _options);
-        return new ApplicationPanelFrame(side, bounds, visibleRows, [], retry, null);
+        return new ApplicationPanelFrame(side, bounds, visibleRows, [], retry, null, visibleRows, 1);
     }
 
     // ── static helpers ────────────────────────────────────────────────────────

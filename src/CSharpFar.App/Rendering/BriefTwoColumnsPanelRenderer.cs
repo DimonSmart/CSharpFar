@@ -79,7 +79,9 @@ public sealed class BriefTwoColumnsPanelRenderer
                 VisibleRows(bounds, _options),
                 [],
                 retry,
-                null);
+                null,
+                RowsPerColumn(bounds, _options),
+                2);
         }
 
         int innerWidth  = Math.Max(0, bounds.Width - 2);
@@ -148,7 +150,7 @@ public sealed class BriefTwoColumnsPanelRenderer
 
         new PanelStatusRenderer(_screen).Render(bounds, state, footer, border, _options);
         RenderStatusSeparatorJoin(bounds, sepOffset, border);
-        return new ApplicationPanelFrame(side, bounds, visibleItems, hits, null, scrollBar);
+        return new ApplicationPanelFrame(side, bounds, visibleItems, hits, null, scrollBar, rowsPerCol, 2);
     }
 
     public void Render(Rect bounds, FilePanelState state, bool isActive) =>

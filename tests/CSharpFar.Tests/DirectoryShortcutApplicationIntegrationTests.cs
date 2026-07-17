@@ -166,14 +166,21 @@ public sealed class DirectoryShortcutApplicationIntegrationTests : IDisposable
 
     private static bool InvokeHandleKey(Application app, ConsoleKeyInfo key)
     {
-        var router = typeof(Application)
-            .GetField("_keyboardInputRouter", BindingFlags.Instance | BindingFlags.NonPublic)!
+        var composition = (UiCompositionHost)typeof(Application)
+            .GetField("_composition", BindingFlags.Instance | BindingFlags.NonPublic)!
             .GetValue(app)!;
+        var dispatcher = (ApplicationInputDispatcher)typeof(Application)
+            .GetField("_applicationInputDispatcher", BindingFlags.Instance | BindingFlags.NonPublic)!
+            .GetValue(app)!;
+        var surface = GetApplicationSurface(app);
+        if (!surface.HasCommittedFrame)
+            InvokeRender(app);
 
-        return (bool)router
-            .GetType()
-            .GetMethod("Handle")!
-            .Invoke(router, [key])!;
+        UiInputResult routed = composition.DispatchInput(new KeyConsoleInputEvent(key));
+        bool shouldRender = routed.Invalidate;
+        if (surface.TryTakeInput(out var packet))
+            shouldRender |= dispatcher.Handle(packet).ShouldRender;
+        return shouldRender;
     }
 
     private static bool InvokeHandleMouse(Application app, MouseConsoleInputEvent mouse)
@@ -182,12 +189,7 @@ public sealed class DirectoryShortcutApplicationIntegrationTests : IDisposable
             .GetField("_applicationInputDispatcher", BindingFlags.Instance | BindingFlags.NonPublic)!
             .GetValue(app)!;
 
-        var runtime = typeof(Application)
-            .GetField("_runtime", BindingFlags.Instance | BindingFlags.NonPublic)!
-            .GetValue(app)!;
-        var surface = (ApplicationUiSurface)runtime.GetType()
-            .GetField("_applicationSurface", BindingFlags.Instance | BindingFlags.NonPublic)!
-            .GetValue(runtime)!;
+        var surface = GetApplicationSurface(app);
 
         UiTargetId? target = surface.CommittedInteractionFrame.TryHitTest(mouse.X, mouse.Y, out var region)
             ? region.Target
@@ -201,6 +203,23 @@ public sealed class DirectoryShortcutApplicationIntegrationTests : IDisposable
             routeKind)).ShouldRender;
     }
 
+    private static ApplicationUiSurface GetApplicationSurface(Application app)
+    {
+        var runtime = typeof(Application)
+            .GetField("_runtime", BindingFlags.Instance | BindingFlags.NonPublic)!
+            .GetValue(app)!;
+        return (ApplicationUiSurface)runtime.GetType()
+            .GetField("_applicationSurface", BindingFlags.Instance | BindingFlags.NonPublic)!
+            .GetValue(runtime)!;
+    }
+
     private static ConsoleKeyInfo Key(ConsoleKey key) =>
         new('\0', key, shift: false, alt: false, control: false);
+
+    private static void InvokeRender(Application app)
+    {
+        typeof(Application)
+            .GetMethod("Render", BindingFlags.Instance | BindingFlags.NonPublic)!
+            .Invoke(app, []);
+    }
 }

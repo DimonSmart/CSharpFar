@@ -1,5 +1,6 @@
 using System.Reflection;
 using CSharpFar.App;
+using CSharpFar.App.Input;
 using CSharpFar.App.Rendering;
 using CSharpFar.App.Panels;
 using CSharpFar.Console;
@@ -235,15 +236,13 @@ public sealed class Spec034PanelQuickSearchTests : IDisposable
             return;
         }
 
-        var router = typeof(Application).GetField(
-            "_keyboardInputRouter",
+        var dispatcher = (ApplicationInputDispatcher)(typeof(Application).GetField(
+            "_applicationInputDispatcher",
             BindingFlags.Instance | BindingFlags.NonPublic)
             ?.GetValue(app)
-            ?? throw new InvalidOperationException("Application keyboard input router not found.");
+            ?? throw new InvalidOperationException("Application input dispatcher not found."));
 
-        var method = router.GetType().GetMethod("Handle")
-            ?? throw new InvalidOperationException("KeyboardInputRouter.Handle method not found.");
-        shouldRender |= (bool)method.Invoke(router, [key])!;
+        shouldRender |= dispatcher.Handle(packet).ShouldRender;
         if (shouldRender)
             Render(app);
     }
