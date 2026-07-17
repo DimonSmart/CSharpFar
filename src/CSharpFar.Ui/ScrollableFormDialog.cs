@@ -68,7 +68,11 @@ public interface IFormDropdownRow : IFormRow
 {
     bool IsDropdownOpen { get; }
     Rect GetFieldBounds(Rect rowBounds);
-    DropdownSelectFrame GetDropdownFrame(Rect rowBounds, int screenHeight);
+    DropdownSelectFrame BuildDropdownFrame(Rect rowBounds, ConsoleViewport viewport);
+    void RenderDropdownOverlay(FormRowRenderContext context, DropdownSelectFrame frame);
+    FormInputResult HandleDropdownKey(ConsoleKeyInfo key, FormRowInputContext context, DropdownSelectFrame frame);
+    FormInputResult HandleDropdownMouse(MouseConsoleInputEvent mouse, FormRowMouseContext context, DropdownSelectFrame frame);
+    void CommitDropdownFrame(DropdownSelectFrame frame);
     void CloseDropdown();
 }
 
@@ -132,7 +136,8 @@ public sealed record FormTargetFrame(
     Rect? HitBounds,
     bool IsFocusable,
     bool IsFooter,
-    UiCursorPlacement? Cursor = null);
+    UiCursorPlacement? Cursor = null,
+    DropdownSelectFrame? DropdownFrame = null);
 
 public readonly record struct FormRouteResult(
     FormInputResult FormResult,
@@ -418,7 +423,7 @@ public sealed class TextInputRowState
     public ScrollBarDragState? HistoryScrollbarDrag;
 }
 
-public sealed class DropdownSelectFormRow<T> : FormRow, IFormOverlayRow, IFormCursorProvider, IFormDropdownRow
+public sealed class DropdownSelectFormRow<T> : FormRow, IFormCursorProvider, IFormDropdownRow
 {
     private readonly string _label;
     private readonly DropdownSelect<T> _dropdown;
@@ -448,8 +453,8 @@ public sealed class DropdownSelectFormRow<T> : FormRow, IFormOverlayRow, IFormCu
             context.Focused ? FarDialogStyles.FocusedInput : FarDialogStyles.Input);
     }
 
-    public void RenderOverlay(FormRowRenderContext context) =>
-        _dropdown.RenderPopup(context.Screen, GetDropdownFrame(context.Bounds, context.ScreenHeight));
+    public void RenderDropdownOverlay(FormRowRenderContext context, DropdownSelectFrame frame) =>
+        _dropdown.RenderPopup(context.Screen, frame);
 
     public bool TryGetCursor(FormRowRenderContext context, out FormCursorPlacement cursor)
     {
@@ -460,30 +465,39 @@ public sealed class DropdownSelectFormRow<T> : FormRow, IFormOverlayRow, IFormCu
 
     public Rect GetFieldBounds(Rect rowBounds) => CalculateLayout(rowBounds).FieldBounds;
 
-    public DropdownSelectFrame GetDropdownFrame(Rect rowBounds, int screenHeight) =>
-        _dropdown.CalculateFrame(new ConsoleSize(Math.Max(0, rowBounds.Right), screenHeight), GetFieldBounds(rowBounds));
+    public DropdownSelectFrame BuildDropdownFrame(Rect rowBounds, ConsoleViewport viewport) =>
+        _dropdown.CalculateFrame(viewport.Size, GetFieldBounds(rowBounds));
+
+    public void CommitDropdownFrame(DropdownSelectFrame frame) =>
+        _dropdown.ApplyCommittedFrame(frame);
 
     public void CloseDropdown() => _dropdown.Close();
 
-    public override FormInputResult HandleKey(ConsoleKeyInfo key, FormRowInputContext context)
+    public override FormInputResult HandleKey(ConsoleKeyInfo key, FormRowInputContext context) =>
+        FormInputResult.NotHandled;
+
+    public FormInputResult HandleDropdownKey(ConsoleKeyInfo key, FormRowInputContext context, DropdownSelectFrame frame)
     {
-        Rect rowBounds = context.Bounds ?? new Rect(0, 0, Math.Max(1, _label.Length + 20), 1);
-        int screenHeight = context.ScreenHeight > 0 ? context.ScreenHeight : rowBounds.Bottom + context.AvailableDropdownContentRows + 2;
-        var frame = GetDropdownFrame(rowBounds, screenHeight);
         bool wasOpen = _dropdown.IsOpen;
-        if (_dropdown.TryHandleKey(key, frame, out _))
-            return _dropdown.IsOpen != wasOpen ? FormInputResult.ValueChanged : FormInputResult.Handled;
+        if (_dropdown.TryHandleKey(key, frame, out _, out bool valueChanged))
+        {
+            if (valueChanged)
+                return FormInputResult.ValueChanged;
+            return FormInputResult.Handled;
+        }
 
         return FormInputResult.NotHandled;
     }
 
-    public override FormInputResult HandleMouse(MouseConsoleInputEvent mouse, FormRowMouseContext context)
+    public override FormInputResult HandleMouse(MouseConsoleInputEvent mouse, FormRowMouseContext context) =>
+        FormInputResult.NotHandled;
+
+    public FormInputResult HandleDropdownMouse(MouseConsoleInputEvent mouse, FormRowMouseContext context, DropdownSelectFrame frame)
     {
-        DropdownSelectFrame frame = GetDropdownFrame(context.Bounds, context.ScreenHeight);
-        if (_dropdown.TryHandlePopupMouse(mouse, frame, out _))
-            return FormInputResult.ValueChanged;
+        if (_dropdown.TryHandlePopupMouse(mouse, frame, out _, out bool valueChanged))
+            return valueChanged ? FormInputResult.ValueChanged : FormInputResult.Handled;
         if (_dropdown.TryHandleFieldMouse(mouse, frame))
-            return FormInputResult.ValueChanged;
+            return FormInputResult.Handled;
         return FormInputResult.NotHandled;
     }
 
@@ -1204,6 +1218,10 @@ public sealed class ScrollableFormDialog
             _committedFrame = frame;
             ScrollTop = snapshot.EffectiveScrollTop;
             _ensureFocusedTargetVisibleOnNextRender = false;
+            foreach (FormTargetFrame target in frame.Targets.Where(target => target.Kind == FormTargetKind.Row && target.Row is IFormDropdownRow && target.DropdownFrame is not null))
+            {
+                ((IFormDropdownRow)target.Row!).CommitDropdownFrame(target.DropdownFrame!.Value);
+            }
         });
         context.PublishOnStable(interactionFrame.Focus, focusScope.Commit);
         return frame;
@@ -1243,7 +1261,7 @@ public sealed class ScrollableFormDialog
                 ? new Rect(context.BodyBounds.X, context.BodyBounds.Y + virtualTop - effectiveScrollTop, context.BodyBounds.Width, rowHeight)
                 : new Rect(context.BodyBounds.X, context.BodyBounds.Y - rowHeight - 1, context.BodyBounds.Width, rowHeight);
             int? rowFocusIndex = row.IsFocusable ? focusIndex : null;
-            targets.Add(CreateRowTargetFrame(context.Screen, row, rowIndex, rowFocusIndex, rowBounds, isFooter: false, context.Viewport.Height, context.BodyBounds));
+            targets.Add(CreateRowTargetFrame(context.Screen, row, rowIndex, rowFocusIndex, rowBounds, isFooter: false, context.Viewport, context.BodyBounds));
             if (row.IsFocusable)
                 focusIndex++;
             virtualTop += rowHeight;
@@ -1274,7 +1292,7 @@ public sealed class ScrollableFormDialog
                 int rowHeight = Math.Max(1, row.Height);
                 Rect rowBounds = new(footerBounds.X, footerBounds.Y + footerTop, footerBounds.Width, rowHeight);
                 int? rowFocusIndex = row.IsFocusable ? focusIndex : null;
-                targets.Add(CreateRowTargetFrame(context.Screen, row, rowIndex, rowFocusIndex, rowBounds, isFooter: true, context.Viewport.Height, footerBounds));
+                targets.Add(CreateRowTargetFrame(context.Screen, row, rowIndex, rowFocusIndex, rowBounds, isFooter: true, context.Viewport, footerBounds));
                 if (row.IsFocusable)
                     focusIndex++;
                 footerTop += rowHeight;
@@ -1289,8 +1307,7 @@ public sealed class ScrollableFormDialog
             {
                 AddRowOverlayTargets(targets, focusedRow, focusedFrame.RowIndex, focusedFrame.Bounds,
                     focusedFrame.IsFooter, focusedFrame.FocusIndex, context.Viewport.Height, focusedTarget);
-                AddDropdownOverlayTargets(targets, focusedRow, focusedFrame.RowIndex, focusedFrame.Bounds,
-                    focusedFrame.IsFooter, focusedFrame.FocusIndex, context.Viewport.Height, focusedTarget);
+                AddDropdownOverlayTargets(targets, focusedFrame, focusedTarget);
             }
         }
 
@@ -1316,12 +1333,15 @@ public sealed class ScrollableFormDialog
         int? focusIndex,
         Rect bounds,
         bool isFooter,
-        int screenHeight,
+        ConsoleViewport viewport,
         Rect activeBounds)
     {
+        DropdownSelectFrame? dropdownFrame = row is IFormDropdownRow dropdown
+            ? dropdown.BuildDropdownFrame(bounds, viewport)
+            : null;
         UiCursorPlacement? cursor = null;
         if (row.IsEnabled && row is IFormCursorProvider cursorProvider &&
-            cursorProvider.TryGetCursor(new FormRowRenderContext(screen, bounds, focused: true, screenHeight), out FormCursorPlacement placement) &&
+            cursorProvider.TryGetCursor(new FormRowRenderContext(screen, bounds, focused: true, viewport.Height), out FormCursorPlacement placement) &&
             placement.X >= bounds.X &&
             placement.X < bounds.Right &&
             placement.Y >= bounds.Y &&
@@ -1341,7 +1361,8 @@ public sealed class ScrollableFormDialog
             Intersect(bounds, activeBounds),
             row.IsFocusable,
             isFooter,
-            cursor);
+            cursor,
+            dropdownFrame);
     }
 
     private static bool IsVisibleInBody(Rect bounds, Rect bodyBounds) =>
@@ -1434,16 +1455,24 @@ public sealed class ScrollableFormDialog
             int availableDropdownRows = SingleLineTextInput.AvailableDropdownContentRows(
                 targetFrame.Bounds.Y,
                 frame.ScreenHeight);
-            FormInputResult rowResult = row.HandleKey(
-                key,
-                new FormRowInputContext(
+            var inputContext = new FormRowInputContext(
                     targetFrame.FocusIndex ?? -1,
                     focused: true,
                     availableDropdownRows,
                     row.Id,
                     row.Role,
                     targetFrame.Bounds,
-                    frame.ScreenHeight));
+                    frame.ScreenHeight);
+            FormInputResult rowResult;
+            if (row is IFormDropdownRow dropdown && targetFrame.DropdownFrame is { } dropdownFrame)
+            {
+                dropdown.CommitDropdownFrame(dropdownFrame);
+                rowResult = dropdown.HandleDropdownKey(key, inputContext, dropdownFrame);
+            }
+            else
+            {
+                rowResult = row.HandleKey(key, inputContext);
+            }
             if (rowResult.IsHandled)
                 return FormResult(rowResult, WithEnsureFocusVisible(FormResultToUi(rowResult, targetFrame.Target), ensureFocusedTargetVisible));
         }
@@ -1507,15 +1536,24 @@ public sealed class ScrollableFormDialog
         bool requestFocus = rowFrame.IsFocusable &&
             route.RouteKind == UiInputRouteKind.HitTarget &&
             mouse is { Button: MouseButton.Left, Kind: MouseEventKind.Down };
-        FormInputResult rowResult = targetFrame.Row.HandleMouse(
-            mouse,
-            new FormRowMouseContext(
+        var mouseContext = new FormRowMouseContext(
                 rowFrame.Bounds,
                 rowFrame.FocusIndex ?? rowFrame.RowIndex,
                 focused: rowFrame.Target == route.FocusScope.FocusedTarget || requestFocus,
                 frame.ScreenHeight,
                 targetFrame.Row.Id,
-                targetFrame.Row.Role));
+                targetFrame.Row.Role);
+        FormInputResult rowResult;
+        if (targetFrame.Row is IFormDropdownRow dropdown &&
+            (targetFrame.DropdownFrame ?? rowFrame.DropdownFrame) is { } dropdownFrame)
+        {
+            dropdown.CommitDropdownFrame(dropdownFrame);
+            rowResult = dropdown.HandleDropdownMouse(mouse, mouseContext, dropdownFrame);
+        }
+        else
+        {
+            rowResult = targetFrame.Row.HandleMouse(mouse, mouseContext);
+        }
         if (!rowResult.IsHandled && TryHandleWheel(mouse, frame.ViewportRows))
             return MergeTransientOverlayChange(FormInputResult.Handled, UiInputResult.HandledAndInvalidate, closedOverlay);
 
@@ -1608,7 +1646,8 @@ public sealed class ScrollableFormDialog
             target.Kind == FormTargetKind.Row &&
             target.HitBounds is Rect bounds &&
             bounds.Contains(mouse.X, mouse.Y) &&
-            dropdown.GetFieldBounds(target.Bounds).Contains(mouse.X, mouse.Y));
+            target.DropdownFrame is { } dropdownFrame &&
+            dropdownFrame.FieldBounds.Contains(mouse.X, mouse.Y));
         if (onField)
             return false;
 
@@ -1746,16 +1785,21 @@ public sealed class ScrollableFormDialog
             IFormRow row = _bodyRows[rowIndex];
             int rowHeight = Math.Max(1, row.Height);
             int? rowFocusIndex = row.IsFocusable ? focusIndex : null;
+            Rect bounds = new(StableLayout.BodyBounds.X, y, StableLayout.BodyBounds.Width, rowHeight);
+            DropdownSelectFrame? dropdownFrame = row is IFormDropdownRow dropdown
+                ? dropdown.BuildDropdownFrame(bounds, StableLayout.Viewport)
+                : null;
             targets.Add(new FormTargetFrame(
                 RowTarget(row),
                 FormTargetKind.Row,
                 row,
                 rowIndex,
                 rowFocusIndex,
-                new Rect(StableLayout.BodyBounds.X, y, StableLayout.BodyBounds.Width, rowHeight),
-                new Rect(StableLayout.BodyBounds.X, y, StableLayout.BodyBounds.Width, rowHeight),
+                bounds,
+                bounds,
                 row.IsFocusable,
-                IsFooter: false));
+                IsFooter: false,
+                DropdownFrame: dropdownFrame));
             if (row.IsFocusable)
                 focusIndex++;
             y += rowHeight;
@@ -1773,16 +1817,21 @@ public sealed class ScrollableFormDialog
                 IFormRow row = _footerRows[rowIndex];
                 int rowHeight = Math.Max(1, row.Height);
                 int? rowFocusIndex = row.IsFocusable ? focusIndex : null;
+                Rect bounds = new(footerBounds.X, y, footerBounds.Width, rowHeight);
+                DropdownSelectFrame? dropdownFrame = row is IFormDropdownRow dropdown
+                    ? dropdown.BuildDropdownFrame(bounds, StableLayout.Viewport)
+                    : null;
                 targets.Add(new FormTargetFrame(
                     RowTarget(row),
                     FormTargetKind.Row,
                     row,
                     rowIndex,
                     rowFocusIndex,
-                    new Rect(footerBounds.X, y, footerBounds.Width, rowHeight),
-                    new Rect(footerBounds.X, y, footerBounds.Width, rowHeight),
+                    bounds,
+                    bounds,
                     row.IsFocusable,
-                    IsFooter: true));
+                    IsFooter: true,
+                    DropdownFrame: dropdownFrame));
                 if (row.IsFocusable)
                     focusIndex++;
                 y += rowHeight;
@@ -1830,16 +1879,24 @@ public sealed class ScrollableFormDialog
             return;
 
         FormTargetFrame? targetFrame = FindRowTarget(frame, focusedTarget);
-        if (targetFrame?.Row is not IFormOverlayRow overlayRow)
+        if (targetFrame?.Row is not { } row)
             return;
 
         bool overlayPublished = frame.Targets.Any(target =>
-            ReferenceEquals(target.Row, targetFrame.Row) &&
+            ReferenceEquals(target.Row, row) &&
             target.Kind is FormTargetKind.HistoryDropdown or FormTargetKind.DropdownPopup);
         if (!overlayPublished)
             return;
 
-        overlayRow.RenderOverlay(new FormRowRenderContext(screen, targetFrame.Bounds, focused: true, screenHeight: frame.ScreenHeight));
+        var context = new FormRowRenderContext(screen, targetFrame.Bounds, focused: true, screenHeight: frame.ScreenHeight);
+        if (row is IFormDropdownRow dropdown && targetFrame.DropdownFrame is { } dropdownFrame)
+        {
+            dropdown.RenderDropdownOverlay(context, dropdownFrame);
+            return;
+        }
+
+        if (row is IFormOverlayRow overlayRow)
+            overlayRow.RenderOverlay(context);
     }
 
     private void RequestEnsureFocusVisible() => _ensureFocusedTargetVisibleOnNextRender = true;
@@ -1958,44 +2015,41 @@ public sealed class ScrollableFormDialog
 
     private static void AddDropdownOverlayTargets(
         List<FormTargetFrame> targets,
-        IFormRow row,
-        int rowIndex,
-        Rect rowBounds,
-        bool isFooter,
-        int? focusIndex,
-        int screenHeight,
+        FormTargetFrame rowFrame,
         UiTargetId rowTarget)
     {
-        if (row is not IFormDropdownRow { IsDropdownOpen: true } dropdown)
+        if (rowFrame.Row is not IFormDropdownRow { IsDropdownOpen: true } ||
+            rowFrame.DropdownFrame is not { } frame)
             return;
 
-        DropdownSelectFrame frame = dropdown.GetDropdownFrame(rowBounds, screenHeight);
         if (frame.PopupBounds is not Rect popupBounds)
             return;
 
         targets.Add(new FormTargetFrame(
             FormTargetIds.ForDropdownPopup(rowTarget),
             FormTargetKind.DropdownPopup,
-            row,
-            rowIndex,
-            focusIndex,
+            rowFrame.Row,
+            rowFrame.RowIndex,
+            rowFrame.FocusIndex,
             popupBounds,
             popupBounds,
             IsFocusable: false,
-            IsFooter: isFooter));
+            IsFooter: rowFrame.IsFooter,
+            DropdownFrame: frame));
 
         if (frame.ScrollbarBounds is Rect scrollbarBounds)
         {
             targets.Add(new FormTargetFrame(
                 FormTargetIds.ForDropdownScrollbar(rowTarget),
                 FormTargetKind.DropdownScrollbar,
-                row,
-                rowIndex,
-                focusIndex,
+                rowFrame.Row,
+                rowFrame.RowIndex,
+                rowFrame.FocusIndex,
                 scrollbarBounds,
                 scrollbarBounds,
                 IsFocusable: false,
-                IsFooter: isFooter));
+                IsFooter: rowFrame.IsFooter,
+                DropdownFrame: frame));
         }
     }
 

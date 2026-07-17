@@ -138,11 +138,11 @@ public sealed class UiComponentDialogTests
         var frame = dropdown.CalculateFrame(driver.GetSize(), field);
         dropdown.ApplyCommittedFrame(frame);
         Assert.True(dropdown.IsOpen);
-        Assert.True(dropdown.TryHandleKey(Key(ConsoleKey.DownArrow), frame, out _));
+        Assert.True(dropdown.TryHandleKey(Key(ConsoleKey.DownArrow), frame, out _, out _));
         Assert.Equal(1, dropdown.SelectedIndex);
         frame = dropdown.CalculateFrame(driver.GetSize(), field);
         dropdown.ApplyCommittedFrame(frame);
-        Assert.True(dropdown.TryHandleKey(Key(ConsoleKey.Escape), frame, out _));
+        Assert.True(dropdown.TryHandleKey(Key(ConsoleKey.Escape), frame, out _, out _));
 
         Assert.False(dropdown.IsOpen);
         Assert.Equal("utf-8", dropdown.SelectedItem);
@@ -163,7 +163,7 @@ public sealed class UiComponentDialogTests
         {
             var frame = dropdown.CalculateFrame(driver.GetSize(), field);
             dropdown.ApplyCommittedFrame(frame);
-            dropdown.TryHandleKey(Key(ConsoleKey.DownArrow), frame, out _);
+            dropdown.TryHandleKey(Key(ConsoleKey.DownArrow), frame, out _, out _);
         }
         Assert.True(dropdown.ScrollTop > 0);
 
@@ -172,7 +172,8 @@ public sealed class UiComponentDialogTests
         Assert.True(dropdown.TryHandlePopupMouse(
             new MouseConsoleInputEvent(6, 7, MouseButton.Left, MouseEventKind.Down, MouseKeyModifiers.None),
             mouseFrame,
-            out bool selected));
+            out bool selected,
+            out _));
         Assert.True(selected);
         Assert.False(dropdown.IsOpen);
     }
@@ -193,7 +194,8 @@ public sealed class UiComponentDialogTests
         bool handled = dropdown.TryHandlePopupMouse(
             new MouseConsoleInputEvent(popupBounds.X, popupBounds.Y + 1, MouseButton.Left, MouseEventKind.Down, MouseKeyModifiers.None),
             frame,
-            out bool selected);
+            out bool selected,
+            out _);
 
         Assert.True(handled);
         Assert.False(selected);
@@ -218,7 +220,8 @@ public sealed class UiComponentDialogTests
         bool handled = dropdown.TryHandlePopupMouse(
             new MouseConsoleInputEvent(popupBounds.X + 1, popupBounds.Y + 2, MouseButton.Left, MouseEventKind.Down, MouseKeyModifiers.None),
             frame,
-            out bool selected);
+            out bool selected,
+            out _);
 
         Assert.True(handled);
         Assert.True(selected);
@@ -237,7 +240,7 @@ public sealed class UiComponentDialogTests
         dropdown.Toggle();
         var frame = dropdown.CalculateFrame(driver.GetSize(), field);
         dropdown.ApplyCommittedFrame(frame);
-        dropdown.TryHandleKey(Key(ConsoleKey.DownArrow), frame, out _);
+        dropdown.TryHandleKey(Key(ConsoleKey.DownArrow), frame, out _, out _);
         dropdown.Toggle();
 
         Assert.False(dropdown.IsOpen);

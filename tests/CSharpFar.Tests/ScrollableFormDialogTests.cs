@@ -1237,6 +1237,235 @@ public sealed class ScrollableFormDialogTests
     }
 
     [Fact]
+    public void DropdownFrame_IsPublishedOnPrimaryRowEvenWhenClosed()
+    {
+        var dropdown = new DropdownSelect<string>(["one", "two", "three"], static item => item);
+        var row = new DropdownSelectFormRow<string>("Value:", dropdown) { Id = "choice" };
+        var form = new ScrollableFormDialog([row]);
+
+        ScrollableFormFrame frame = RenderFrame(form, visibleRows: 1, screenHeight: 8);
+
+        FormTargetFrame target = Assert.Single(frame.Targets, target => target.Kind == FormTargetKind.Row);
+        DropdownSelectFrame dropdownFrame = Assert.IsType<DropdownSelectFrame>(target.DropdownFrame);
+        Assert.Equal(row.GetFieldBounds(target.Bounds), dropdownFrame.FieldBounds);
+        Assert.Null(dropdownFrame.PopupBounds);
+    }
+
+    [Fact]
+    public void DropdownKeyboard_UsesCommittedListState()
+    {
+        var dropdown = new DropdownSelect<int>(Enumerable.Range(0, 8).ToArray(), static item => item.ToString())
+        {
+            MaxVisibleRows = 3,
+        };
+        dropdown.Open();
+        var form = new ScrollableFormDialog([new DropdownSelectFormRow<int>("Value:", dropdown) { Id = "choice" }]);
+        var driver = new FakeConsoleDriver(24, 10);
+        var (host, layer) = CreateRoutedFormHostWithLayer(form, driver, visibleRows: 1);
+        host.Composition.Render();
+        DropdownSelectFrame committed = Assert.IsType<DropdownSelectFrame>(
+            Assert.Single(layer.CommittedFrame.Targets, target => target.Kind == FormTargetKind.Row).DropdownFrame);
+        Assert.Equal(0, committed.ListState.SelectedIndex);
+
+        dropdown.SelectedIndex = 6;
+        dropdown.ScrollTop = 6;
+        UiInputResult result = host.Composition.DispatchInput(new KeyConsoleInputEvent(Key(ConsoleKey.DownArrow)));
+
+        Assert.True(result.Handled);
+        Assert.Equal(FormInputResultKind.Handled, layer.LastRouteResult!.Value.FormResult.Kind);
+        Assert.Equal(1, dropdown.SelectedIndex);
+        Assert.Equal(0, dropdown.ScrollTop);
+    }
+
+    [Fact]
+    public void ClosedDropdownOpening_UsesCommittedListState()
+    {
+        var dropdown = new DropdownSelect<int>(Enumerable.Range(0, 8).ToArray(), static item => item.ToString());
+        var form = new ScrollableFormDialog([new DropdownSelectFormRow<int>("Value:", dropdown) { Id = "choice" }]);
+        var driver = new FakeConsoleDriver(24, 10);
+        var (host, layer) = CreateRoutedFormHostWithLayer(form, driver, visibleRows: 1);
+        host.Composition.Render();
+
+        dropdown.SelectedIndex = 6;
+        dropdown.ScrollTop = 6;
+        host.Composition.DispatchInput(new KeyConsoleInputEvent(Key(ConsoleKey.Spacebar)));
+
+        Assert.True(dropdown.IsOpen);
+        Assert.Equal(0, dropdown.SelectedIndex);
+        Assert.Equal(0, dropdown.ScrollTop);
+        Assert.Equal(FormInputResultKind.Handled, layer.LastRouteResult!.Value.FormResult.Kind);
+    }
+
+    [Fact]
+    public void DropdownMouse_UsesCommittedPopupGeometry()
+    {
+        var dropdown = new DropdownSelect<int>(Enumerable.Range(0, 8).ToArray(), static item => item.ToString())
+        {
+            MaxVisibleRows = 3,
+        };
+        dropdown.Open();
+        var form = new ScrollableFormDialog([new DropdownSelectFormRow<int>("Value:", dropdown) { Id = "choice" }]);
+        var driver = new FakeConsoleDriver(24, 10);
+        var (host, layer) = CreateRoutedFormHostWithLayer(form, driver, visibleRows: 1);
+        host.Composition.Render();
+        FormTargetFrame popup = Assert.Single(layer.CommittedFrame.Targets, target => target.Kind == FormTargetKind.DropdownPopup);
+        driver.SetSize(24, 4);
+
+        UiInputResult result = host.Composition.DispatchInput(Mouse(popup.Bounds.X + 1, popup.Bounds.Y + 2));
+
+        Assert.True(result.Handled);
+        Assert.Equal(FormInputResultKind.ValueChanged, layer.LastRouteResult!.Value.FormResult.Kind);
+        Assert.False(dropdown.IsOpen);
+        Assert.Equal(1, dropdown.SelectedIndex);
+    }
+
+    [Fact]
+    public void DropdownMouse_AfterFailedRenderUsesPreviousCommittedGeometry()
+    {
+        var dropdown = new DropdownSelect<int>(Enumerable.Range(0, 8).ToArray(), static item => item.ToString())
+        {
+            MaxVisibleRows = 3,
+        };
+        dropdown.Open();
+        var form = new ScrollableFormDialog([new DropdownSelectFormRow<int>("Value:", dropdown) { Id = "choice" }]);
+        var driver = new FakeConsoleDriver(24, 10);
+        var (host, layer) = CreateRoutedFormHostWithLayer(form, driver, visibleRows: 1);
+        host.Composition.Render();
+        FormTargetFrame popup = Assert.Single(layer.CommittedFrame.Targets, target => target.Kind == FormTargetKind.DropdownPopup);
+        layer.ThrowOnRender = true;
+
+        Assert.Throws<InvalidOperationException>(() => host.Composition.Render());
+        UiInputResult result = host.Composition.DispatchInput(Mouse(popup.Bounds.X + 1, popup.Bounds.Y + 2));
+
+        Assert.True(result.Handled);
+        Assert.Equal(FormInputResultKind.ValueChanged, layer.LastRouteResult!.Value.FormResult.Kind);
+        Assert.Equal(1, dropdown.SelectedIndex);
+    }
+
+    [Fact]
+    public void DropdownTargets_UsePopupBeforeUnderlyingRows()
+    {
+        var dropdown = new DropdownSelect<int>(Enumerable.Range(0, 8).ToArray(), static item => item.ToString())
+        {
+            MaxVisibleRows = 3,
+        };
+        dropdown.Open();
+        var form = new ScrollableFormDialog([
+            new DropdownSelectFormRow<int>("Value:", dropdown) { Id = "choice" },
+            new CheckBoxRow(new CheckBoxLine("covered")) { Id = "covered" },
+        ]);
+        var driver = new FakeConsoleDriver(24, 10);
+        var (host, layer) = CreateRoutedFormHostWithLayer(form, driver, visibleRows: 2);
+        host.Composition.Render();
+        FormTargetFrame popup = Assert.Single(layer.CommittedFrame.Targets, target => target.Kind == FormTargetKind.DropdownPopup);
+        UiInteractionFrame interaction = form.BuildInteractionFrame(layer.CommittedFrame);
+
+        Assert.True(interaction.TryHitTest(popup.Bounds.X + 1, popup.Bounds.Y + 1, out UiHitRegion hit));
+        Assert.Equal(FormTargetIds.ForDropdownPopup(FormTargetIds.ForExplicitRow("choice")), hit.Target);
+    }
+
+    [Fact]
+    public void DropdownMouseResults_OnlyConfirmedChangedValueReportsValueChanged()
+    {
+        var dropdown = new DropdownSelect<int>(Enumerable.Range(0, 8).ToArray(), static item => item.ToString())
+        {
+            MaxVisibleRows = 3,
+        };
+        var form = new ScrollableFormDialog([new DropdownSelectFormRow<int>("Value:", dropdown) { Id = "choice" }]);
+        var driver = new FakeConsoleDriver(24, 10);
+        var (host, layer) = CreateRoutedFormHostWithLayer(form, driver, visibleRows: 1);
+        host.Composition.Render();
+        FormTargetFrame row = Assert.Single(layer.CommittedFrame.Targets, target => target.Kind == FormTargetKind.Row);
+
+        host.Composition.DispatchInput(Mouse(row.DropdownFrame!.Value.FieldBounds.X, row.DropdownFrame.Value.FieldBounds.Y));
+        Assert.Equal(FormInputResultKind.Handled, layer.LastRouteResult!.Value.FormResult.Kind);
+
+        host.Composition.Render();
+        FormTargetFrame scrollbar = Assert.Single(layer.CommittedFrame.Targets, target => target.Kind == FormTargetKind.DropdownScrollbar);
+        host.Composition.DispatchInput(Mouse(scrollbar.Bounds.X, scrollbar.Bounds.Bottom - 2));
+        Assert.Equal(FormInputResultKind.Handled, layer.LastRouteResult!.Value.FormResult.Kind);
+
+        host.Composition.Render();
+        FormTargetFrame popup = Assert.Single(layer.CommittedFrame.Targets, target => target.Kind == FormTargetKind.DropdownPopup);
+        host.Composition.DispatchInput(Mouse(popup.Bounds.X + 1, popup.Bounds.Y + 2));
+        Assert.Equal(FormInputResultKind.ValueChanged, layer.LastRouteResult!.Value.FormResult.Kind);
+    }
+
+    [Fact]
+    public void DropdownScrollbarCapture_ContinuesOutsideBoundsAndReleasesAfterUp()
+    {
+        var dropdown = new DropdownSelect<int>(Enumerable.Range(0, 20).ToArray(), static item => item.ToString())
+        {
+            MaxVisibleRows = 4,
+        };
+        dropdown.Open();
+        var form = new ScrollableFormDialog([new DropdownSelectFormRow<int>("Value:", dropdown) { Id = "choice" }]);
+        var driver = new FakeConsoleDriver(24, 12);
+        var (host, layer) = CreateRoutedFormHostWithLayer(form, driver, visibleRows: 1);
+        host.Composition.Render();
+        FormTargetFrame scrollbar = Assert.Single(layer.CommittedFrame.Targets, target => target.Kind == FormTargetKind.DropdownScrollbar);
+
+        host.Composition.DispatchInput(Mouse(scrollbar.Bounds.X, scrollbar.Bounds.Y + 1, MouseButton.Left, MouseEventKind.Down));
+        host.Composition.DispatchInput(Mouse(0, 11, MouseButton.Left, MouseEventKind.Move));
+
+        Assert.Equal(UiInputRouteKind.CapturedTarget, layer.LastRouteKind);
+        Assert.Equal(scrollbar.Target, layer.LastRouteTarget);
+
+        host.Composition.DispatchInput(Mouse(0, 11, MouseButton.Left, MouseEventKind.Up));
+        host.Composition.DispatchInput(Mouse(0, 11, MouseButton.Left, MouseEventKind.Move));
+
+        Assert.NotEqual(UiInputRouteKind.CapturedTarget, layer.LastRouteKind);
+    }
+
+    [Fact]
+    public void DropdownScrollbarCapture_DisappearingTargetClearsCapture()
+    {
+        var dropdown = new DropdownSelect<int>(Enumerable.Range(0, 8).ToArray(), static item => item.ToString())
+        {
+            MaxVisibleRows = 3,
+        };
+        dropdown.Open();
+        var form = new ScrollableFormDialog([new DropdownSelectFormRow<int>("Value:", dropdown) { Id = "choice" }]);
+        var driver = new FakeConsoleDriver(24, 12);
+        var (host, layer) = CreateRoutedFormHostWithLayer(form, driver, visibleRows: 1);
+        host.Composition.Render();
+        FormTargetFrame scrollbar = Assert.Single(layer.CommittedFrame.Targets, target => target.Kind == FormTargetKind.DropdownScrollbar);
+        host.Composition.DispatchInput(Mouse(scrollbar.Bounds.X, scrollbar.Bounds.Y + 1, MouseButton.Left, MouseEventKind.Down));
+
+        dropdown.MaxVisibleRows = 8;
+        host.Composition.Render();
+        host.Composition.DispatchInput(Mouse(0, 11, MouseButton.Left, MouseEventKind.Move));
+
+        Assert.DoesNotContain(layer.CommittedFrame.Targets, target => target.Kind == FormTargetKind.DropdownScrollbar);
+        Assert.NotEqual(UiInputRouteKind.CapturedTarget, layer.LastRouteKind);
+    }
+
+    [Fact]
+    public void DropdownScrollbarDrag_CommittedResizeKeepsCaptureWithNewScrollbarTarget()
+    {
+        var dropdown = new DropdownSelect<int>(Enumerable.Range(0, 20).ToArray(), static item => item.ToString())
+        {
+            MaxVisibleRows = 4,
+        };
+        dropdown.Open();
+        var form = new ScrollableFormDialog([new DropdownSelectFormRow<int>("Value:", dropdown) { Id = "choice" }]);
+        var driver = new FakeConsoleDriver(24, 12);
+        var (host, layer) = CreateRoutedFormHostWithLayer(form, driver, visibleRows: 1);
+        host.Composition.Render();
+        FormTargetFrame oldScrollbar = Assert.Single(layer.CommittedFrame.Targets, target => target.Kind == FormTargetKind.DropdownScrollbar);
+        host.Composition.DispatchInput(Mouse(oldScrollbar.Bounds.X, oldScrollbar.Bounds.Y + 1, MouseButton.Left, MouseEventKind.Down));
+
+        dropdown.MaxVisibleRows = 5;
+        host.Composition.Render();
+        FormTargetFrame newScrollbar = Assert.Single(layer.CommittedFrame.Targets, target => target.Kind == FormTargetKind.DropdownScrollbar);
+        host.Composition.DispatchInput(Mouse(0, 8, MouseButton.Left, MouseEventKind.Move));
+
+        Assert.NotEqual(oldScrollbar.Bounds, newScrollbar.Bounds);
+        Assert.Equal(UiInputRouteKind.CapturedTarget, layer.LastRouteKind);
+        Assert.Equal(newScrollbar.Target, layer.LastRouteTarget);
+    }
+
+    [Fact]
     public void RoutedScrollbarCapture_ContinuesOutsideBoundsAndReleasesAfterUp()
     {
         var form = LongForm();
@@ -1504,6 +1733,9 @@ public sealed class ScrollableFormDialogTests
         IUiSurface
     {
         public FormRouteResult? LastRouteResult { get; private set; }
+        public UiInputRouteKind? LastRouteKind { get; private set; }
+        public UiTargetId? LastRouteTarget { get; private set; }
+        public bool ThrowOnRender { get; set; }
 
         public override UiLayerInputPolicy InputPolicy => UiLayerInputPolicy.Bubble;
 
@@ -1514,8 +1746,13 @@ public sealed class ScrollableFormDialogTests
         {
         }
 
-        protected override ScrollableFormFrame RenderFrame(UiRenderContext context) =>
-            form.Render(createContext(context), FocusScope);
+        protected override ScrollableFormFrame RenderFrame(UiRenderContext context)
+        {
+            if (ThrowOnRender)
+                throw new InvalidOperationException("render failed");
+
+            return form.Render(createContext(context), FocusScope);
+        }
 
         protected override UiInteractionFrame BuildInteractionFrame(ScrollableFormFrame frame) =>
             form.BuildInteractionFrame(frame);
@@ -1525,6 +1762,8 @@ public sealed class ScrollableFormDialogTests
             ScrollableFormFrame frame,
             UiInputRouteContext context)
         {
+            LastRouteKind = context.RouteKind;
+            LastRouteTarget = context.Target;
             LastRouteResult = form.RouteInput(input, frame, context);
             return LastRouteResult.Value.UiResult;
         }

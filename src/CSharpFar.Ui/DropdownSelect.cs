@@ -145,9 +145,11 @@ public sealed class DropdownSelect<T>
     public bool TryHandlePopupMouse(
         MouseConsoleInputEvent mouse,
         DropdownSelectFrame frame,
-        out bool selected)
+        out bool selected,
+        out bool valueChanged)
     {
         selected = false;
+        valueChanged = false;
         if (!IsOpen)
             return false;
 
@@ -177,14 +179,20 @@ public sealed class DropdownSelect<T>
         if (listInput.Kind == ScrollableListInputResultKind.Confirmed)
         {
             selected = true;
+            valueChanged = SelectedIndex != _selectedIndexBeforeOpen;
             Close(commit: true);
         }
         return true;
     }
 
-    public bool TryHandleKey(ConsoleKeyInfo key, DropdownSelectFrame frame, out bool selected)
+    public bool TryHandleKey(
+        ConsoleKeyInfo key,
+        DropdownSelectFrame frame,
+        out bool selected,
+        out bool valueChanged)
     {
         selected = false;
+        valueChanged = false;
         if (!IsOpen)
         {
             if (key.Key is ConsoleKey.DownArrow or ConsoleKey.LeftArrow or ConsoleKey.RightArrow or ConsoleKey.Spacebar)
@@ -206,6 +214,7 @@ public sealed class DropdownSelect<T>
             case ConsoleKey.Enter:
             case ConsoleKey.Spacebar:
                 selected = true;
+                valueChanged = SelectedIndex != _selectedIndexBeforeOpen;
                 Close(commit: true);
                 return true;
         }
@@ -215,11 +224,14 @@ public sealed class DropdownSelect<T>
 
     public void ApplyCommittedFrame(DropdownSelectFrame frame)
     {
-        if (!IsOpen)
-            return;
-
         SelectedIndex = frame.ListState.SelectedIndex;
         ScrollTop = frame.ListState.ScrollTop;
+        if (!IsOpen || _scrollbarDrag is not { } drag)
+            return;
+
+        _scrollbarDrag = frame.ScrollbarBounds is Rect scrollbarBounds
+            ? ScrollBarInteraction.RebaseDrag(drag, scrollbarBounds, _list.Count, Math.Max(1, frame.ContentRows))
+            : null;
     }
 
     public Rect PopupBounds(ConsoleSize size, Rect fieldBounds)
