@@ -24,9 +24,15 @@ public sealed class CompactChoiceFormRow<T> : FormRow, IFormCursorProvider
 
     public bool TryGetCursor(FormRowRenderContext context, out FormCursorPlacement cursor)
     {
+        if (!context.Focused || context.Bounds.Width <= 0)
+        {
+            cursor = default;
+            return false;
+        }
+
         int valueOffset = _label.Length + 2;
         cursor = new FormCursorPlacement(context.Bounds.X + Math.Min(context.Bounds.Width - 1, valueOffset), context.Bounds.Y);
-        return context.Focused && context.Bounds.Width > 0;
+        return true;
     }
 
     public override FormInputResult HandleKey(ConsoleKeyInfo key, FormRowInputContext context)
