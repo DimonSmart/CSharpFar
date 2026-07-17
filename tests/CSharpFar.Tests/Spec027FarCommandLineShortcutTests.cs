@@ -91,7 +91,7 @@ public sealed class Spec027FarCommandLineShortcutTests : IDisposable
         var rightApp = CreateApp(fs, rightDriver, new InMemoryHistoryStore());
         rightApp.Run();
 
-        Assert.Equal(_leftRoot + Path.DirectorySeparatorChar, GetCommandLine(rightApp).Text);
+        Assert.Equal($"\"{_rightRoot + Path.DirectorySeparatorChar}\"", GetCommandLine(rightApp).Text);
 
         var leftDriver = new FakeConsoleDriver(width: 100, height: 12);
         leftDriver.EnqueueKey(Key(ConsoleKey.Oem6, keyChar: '\u001d', control: true));
@@ -100,7 +100,7 @@ public sealed class Spec027FarCommandLineShortcutTests : IDisposable
         var leftApp = CreateApp(fs, leftDriver, new InMemoryHistoryStore());
         leftApp.Run();
 
-        Assert.Equal($"\"{_rightRoot + Path.DirectorySeparatorChar}\"", GetCommandLine(leftApp).Text);
+        Assert.Equal(_leftRoot + Path.DirectorySeparatorChar, GetCommandLine(leftApp).Text);
     }
 
     [Fact]

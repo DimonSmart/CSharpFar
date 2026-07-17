@@ -450,6 +450,67 @@ public sealed class ApplicationInputDispatcherTests
         Assert.Equal(string.Empty, commandLine.Text);
     }
 
+    [Theory]
+    [InlineData('[', ConsoleKey.Oem4, @"C:\committed-right\")]
+    [InlineData(']', ConsoleKey.Oem6, @"C:\committed-left\")]
+    public void WorkspaceKeyboard_CtrlBracketInsertsCommittedOppositePanelDirectory(
+        char keyChar,
+        ConsoleKey key,
+        string expectedText)
+    {
+        var commandLine = new CommandLineState();
+        var dispatcher = new ApplicationInputDispatcher(
+            KeyboardRouter(
+                commandLine,
+                leftPanel: () => new FilePanelState { CurrentDirectory = @"C:\live-left" },
+                rightPanel: () => new FilePanelState { CurrentDirectory = @"C:\live-right" }),
+            new ApplicationCommandLineInputHandler(Context(commandLine)),
+            new ApplicationPanelInputHandler(Context(commandLine)),
+            new ApplicationPanelScrollbarInputHandler(Context(commandLine)),
+            new ApplicationFunctionKeyBarInputHandler(Context(commandLine)),
+            new ApplicationDirectoryShortcutBarInputHandler(Context(commandLine)));
+        var frame = Frame(commandLine) with
+        {
+            LeftPanel = new ApplicationPanelFrame(
+                PanelSide.Left,
+                new Rect(0, 0, 40, 10),
+                8,
+                [],
+                null,
+                null,
+                new ApplicationPanelKeyboardFrame(
+                    @"C:\committed-left",
+                    false,
+                    null,
+                    null,
+                    null,
+                    null)),
+            RightPanel = new ApplicationPanelFrame(
+                PanelSide.Right,
+                new Rect(40, 0, 40, 10),
+                8,
+                [],
+                null,
+                null,
+                new ApplicationPanelKeyboardFrame(
+                    @"C:\committed-right",
+                    false,
+                    null,
+                    null,
+                    null,
+                    null)),
+        };
+
+        var request = dispatcher.Handle(new UiRoutedInput<ApplicationUiFrame>(
+            new KeyConsoleInputEvent(new ConsoleKeyInfo(keyChar, key, false, false, true)),
+            frame,
+            ApplicationTargetIds.WorkspaceKeyboard,
+            UiInputRouteKind.KeyboardTarget));
+
+        Assert.True(request.ShouldRender);
+        Assert.Equal(expectedText, commandLine.Text);
+    }
+
     [Fact]
     public void WorkspaceKeyboard_DirectoryShortcutUsesCommittedPathAndSide()
     {
