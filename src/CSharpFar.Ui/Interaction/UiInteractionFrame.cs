@@ -38,6 +38,12 @@ public sealed class UiInteractionFrame
             KeyboardTarget == target;
     }
 
+    public bool ContainsMouseTarget(UiTargetId target)
+    {
+        ArgumentNullException.ThrowIfNull(target);
+        return HitRegions.Any(region => region.Target == target);
+    }
+
     public bool TryHitTest(int x, int y, out UiHitRegion region)
     {
         for (int i = HitRegions.Count - 1; i >= 0; i--)

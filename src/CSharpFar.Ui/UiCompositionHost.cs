@@ -625,7 +625,7 @@ public sealed class UiCompositionHost
         {
             if (ReferenceEquals(entry, capture.Owner))
                 return entry.Layer.InputPolicy != UiLayerInputPolicy.None &&
-                    entry.Layer.CommittedInteractionFrame.ContainsTarget(capture.Target);
+                    entry.Layer.CommittedInteractionFrame.ContainsMouseTarget(capture.Target);
 
             if (entry.Layer.InputPolicy == UiLayerInputPolicy.Modal)
                 return false;
@@ -668,8 +668,8 @@ public sealed class UiCompositionHost
             throw new InvalidOperationException("Mouse capture requires a target.");
         if (entry.Layer.InputPolicy == UiLayerInputPolicy.None)
             throw new InvalidOperationException("Mouse capture cannot be requested by a layer with no input policy.");
-        if (!entry.Layer.CommittedInteractionFrame.ContainsTarget(result.MouseCaptureRequest.Target))
-            throw new InvalidOperationException("Mouse capture target must exist in the layer's committed interaction frame.");
+        if (!entry.Layer.CommittedInteractionFrame.ContainsMouseTarget(result.MouseCaptureRequest.Target))
+            throw new InvalidOperationException("Mouse capture target must exist in the layer's committed hit regions.");
     }
 
     private static UiInputResult NormalizeResult(bool handled, bool invalidate) =>

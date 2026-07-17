@@ -241,7 +241,7 @@ public sealed class UiLayerTargetRoutingTests
     }
 
     [Fact]
-    public void Capture_IsAllowedForFocusOnlyTarget()
+    public void Capture_IsRejectedForFocusOnlyTarget()
     {
         var target = new UiTargetId("focus-only");
         var layer = Layer(Focus(target));
@@ -249,12 +249,9 @@ public sealed class UiLayerTargetRoutingTests
             ? UiInputResult.CaptureMouse(target, MouseButton.Left) : UiInputResult.NotHandled;
         var host = Host(layer);
         host.Render();
-        host.DispatchInput(Mouse(9, 9, MouseEventKind.Down));
-        host.Render();
 
-        host.DispatchInput(Mouse(9, 9, MouseEventKind.Move));
-
-        AssertRoute(layer, target, UiInputRouteKind.CapturedTarget);
+        var error = Assert.Throws<InvalidOperationException>(() => host.DispatchInput(Mouse(9, 9, MouseEventKind.Down)));
+        Assert.Contains("committed hit regions", error.Message, StringComparison.Ordinal);
     }
 
     [Fact]
