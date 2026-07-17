@@ -214,7 +214,7 @@ public sealed class BriefTwoColumnsPanelRenderer
         hits.Add(new ApplicationPanelItemHit(
             new Rect(x, y, width, 1),
             itemIdx,
-            state.Items[itemIdx].FullPath));
+            state.Items[itemIdx].Location));
     }
 
     private CellStyle ApplyHighlight(CellStyle baseStyle, FilePanelItem item, FileRowState rowState)

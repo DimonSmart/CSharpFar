@@ -29,8 +29,8 @@ internal sealed class CopyCommand : IApplicationCommand
             return ApplicationCommandResult.Rendered();
         }
 
-        if (!ApplicationCommandContext.CommittedDirectoryMatches(target.State, target.ActiveCommitted) ||
-            !ApplicationCommandContext.CommittedDirectoryMatches(target.PassiveState, target.PassiveCommitted))
+        if (!ApplicationCommandContext.CommittedLocationMatches(target.State, target.ActiveCommitted) ||
+            !ApplicationCommandContext.CommittedLocationMatches(target.PassiveState, target.PassiveCommitted))
             return ApplicationCommandResult.Rendered();
 
         var sources = FileOperationCommandHelpers.GetOperationSources(context, target.State, target.ActiveCommitted);

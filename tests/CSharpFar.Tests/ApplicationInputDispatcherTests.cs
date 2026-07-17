@@ -337,9 +337,8 @@ public sealed class ApplicationInputDispatcherTests
                 leftPanel: PanelKeyboard(
                     @"C:\work",
                     0,
-                    @"C:\work\a.txt",
-                    "a.txt",
-                    @"C:\work\a.txt")),
+                    PanelLocation.Local(@"C:\work\a.txt"),
+                    "a.txt")),
             LeftPanel = new ApplicationPanelFrame(
                 PanelSide.Left,
                 new Rect(0, 0, 40, 10),
@@ -389,6 +388,49 @@ public sealed class ApplicationInputDispatcherTests
                 null),
         };
         left.Items[0] = left.Items[1];
+
+        var request = dispatcher.Handle(new UiRoutedInput<ApplicationUiFrame>(
+            new KeyConsoleInputEvent(new ConsoleKeyInfo('\r', ConsoleKey.Enter, false, false, false)),
+            frame,
+            ApplicationTargetIds.WorkspaceKeyboard,
+            UiInputRouteKind.KeyboardTarget));
+
+        Assert.True(request.ShouldRender);
+        Assert.Null(opened);
+    }
+
+    [Fact]
+    public void WorkspaceKeyboard_EnterWithChangedProviderDoesNotOpenSamePathItem()
+    {
+        var left = PanelStateWithItems();
+        left.CurrentLocation = new PanelLocation(new PanelSourceId("provider-b"), @"C:\work");
+        left.Items[0] = new FilePanelItem
+        {
+            Name = "a.txt",
+            FullPath = @"C:\work\a.txt",
+            SourceId = new PanelSourceId("provider-b"),
+            IsDirectory = false,
+        };
+        FilePanelItem? opened = null;
+        var commandLine = new CommandLineState();
+        var dispatcher = new ApplicationInputDispatcher(
+            KeyboardRouter(commandLine, leftPanel: () => left, openPanelItem: (_, _, item) => opened = item),
+            new ApplicationCommandLineInputHandler(Context(commandLine)),
+            new ApplicationPanelInputHandler(Context(commandLine)),
+            new ApplicationPanelScrollbarInputHandler(Context(commandLine)),
+            new ApplicationFunctionKeyBarInputHandler(Context(commandLine)),
+            new ApplicationDirectoryShortcutBarInputHandler(Context(commandLine)));
+        var frame = Frame(commandLine) with
+        {
+            Keyboard = KeyboardFrame(
+                PanelSide.Left,
+                leftPanel: PanelKeyboard(
+                    @"C:\work",
+                    0,
+                    new PanelLocation(new PanelSourceId("provider-a"), @"C:\work\a.txt"),
+                    "a.txt")),
+            LeftPanel = new ApplicationPanelFrame(PanelSide.Left, new Rect(0, 0, 40, 10), 8, [], null, null),
+        };
 
         var request = dispatcher.Handle(new UiRoutedInput<ApplicationUiFrame>(
             new KeyConsoleInputEvent(new ConsoleKeyInfo('\r', ConsoleKey.Enter, false, false, false)),
@@ -552,9 +594,8 @@ public sealed class ApplicationInputDispatcherTests
                 leftPanel: PanelKeyboard(
                     @"C:\work",
                     0,
-                    @"C:\work\a.txt",
-                    "a.txt",
-                    @"C:\work\a.txt")),
+                    PanelLocation.Local(@"C:\work\a.txt"),
+                    "a.txt")),
             LeftPanel = null,
             RightPanel = null,
         };
@@ -593,16 +634,14 @@ public sealed class ApplicationInputDispatcherTests
             Keyboard = KeyboardFrame(
                 PanelSide.Left,
                 leftPanel: new ApplicationPanelKeyboardFrame(
-                    @"C:\committed-left",
+                    PanelLocation.Local(@"C:\committed-left"),
                     false,
-                    null,
                     null,
                     null,
                     null),
                 rightPanel: new ApplicationPanelKeyboardFrame(
-                    @"C:\committed-right",
+                    PanelLocation.Local(@"C:\committed-right"),
                     false,
-                    null,
                     null,
                     null,
                     null)),
@@ -732,7 +771,7 @@ public sealed class ApplicationInputDispatcherTests
         var frame = Frame(commandLine) with
         {
             LeftPanel = new ApplicationPanelFrame(PanelSide.Left, new Rect(0, 0, 40, 10), 8,
-                [new ApplicationPanelItemHit(new Rect(1, 1, 10, 1), 1, @"C:\work\b.txt")], null, null),
+                [new ApplicationPanelItemHit(new Rect(1, 1, 10, 1), 1, PanelLocation.Local(@"C:\work\b.txt"))], null, null),
         };
 
         Assert.False(dispatcher.Handle(new UiRoutedInput<ApplicationUiFrame>(
@@ -753,7 +792,7 @@ public sealed class ApplicationInputDispatcherTests
         var handler = new ApplicationPanelInputHandler(context);
         var hits = new List<ApplicationPanelItemHit>
         {
-            new(new Rect(1, 1, 10, 1), 0, @"C:\work\a.txt"),
+            new(new Rect(1, 1, 10, 1), 0, PanelLocation.Local(@"C:\work\a.txt")),
         };
         var frame = new ApplicationPanelFrame(
             PanelSide.Left,
@@ -762,7 +801,7 @@ public sealed class ApplicationInputDispatcherTests
             hits,
             null,
             null);
-        hits[0] = new ApplicationPanelItemHit(new Rect(1, 1, 10, 1), 1, @"C:\work\b.txt");
+        hits[0] = new ApplicationPanelItemHit(new Rect(1, 1, 10, 1), 1, PanelLocation.Local(@"C:\work\b.txt"));
 
         var result = handler.Handle(
             new MouseConsoleInputEvent(1, 1, MouseButton.Left, MouseEventKind.Down, MouseKeyModifiers.None),
@@ -771,7 +810,7 @@ public sealed class ApplicationInputDispatcherTests
 
         Assert.True(result.Handled);
         Assert.Equal(0, state.CursorIndex);
-        Assert.Equal(new PanelItemClick(PanelSide.Left, 0, @"C:\work\a.txt"), context.Mouse.LastLeftPanelItemClick);
+        Assert.Equal(new PanelItemClick(PanelSide.Left, 0, PanelLocation.Local(@"C:\work\a.txt")), context.Mouse.LastLeftPanelItemClick);
     }
 
     [Fact]
@@ -783,15 +822,53 @@ public sealed class ApplicationInputDispatcherTests
             new CommandLineState(),
             panelState: state,
             openPanelItem: (_, side, item) => opened = (side, item));
-        context.Mouse.LastLeftPanelItemClick = new PanelItemClick(PanelSide.Left, 0, @"C:\work\a.txt");
+        context.Mouse.LastLeftPanelItemClick = new PanelItemClick(PanelSide.Left, 0, PanelLocation.Local(@"C:\work\a.txt"));
         var frame = new ApplicationPanelFrame(
             PanelSide.Left,
             new Rect(0, 0, 40, 10),
             8,
-            [new ApplicationPanelItemHit(new Rect(1, 1, 10, 1), 0, @"C:\work\a.txt")],
+            [new ApplicationPanelItemHit(new Rect(1, 1, 10, 1), 0, PanelLocation.Local(@"C:\work\a.txt"))],
             null,
             null);
         (state.Items[0], state.Items[1]) = (state.Items[1], state.Items[0]);
+
+        var result = new ApplicationPanelInputHandler(context).Handle(
+            new MouseConsoleInputEvent(1, 1, MouseButton.Left, MouseEventKind.DoubleClick, MouseKeyModifiers.None),
+            frame,
+            UiInputRouteKind.HitTarget);
+
+        Assert.True(result.Handled);
+        Assert.Null(opened);
+    }
+
+    [Fact]
+    public void PanelDoubleClick_DoesNotOpenSamePathFromDifferentProvider()
+    {
+        var state = PanelStateWithItems();
+        state.Items[0] = new FilePanelItem
+        {
+            Name = "a.txt",
+            FullPath = @"C:\work\a.txt",
+            SourceId = new PanelSourceId("provider-b"),
+            IsDirectory = false,
+        };
+        (PanelSide Side, FilePanelItem Item)? opened = null;
+        var context = Context(new CommandLineState(), panelState: state,
+            openPanelItem: (_, side, item) => opened = (side, item));
+        context.Mouse.LastLeftPanelItemClick = new PanelItemClick(
+            PanelSide.Left,
+            0,
+            new PanelLocation(new PanelSourceId("provider-a"), @"C:\work\a.txt"));
+        var frame = new ApplicationPanelFrame(
+            PanelSide.Left,
+            new Rect(0, 0, 40, 10),
+            8,
+            [new ApplicationPanelItemHit(
+                new Rect(1, 1, 10, 1),
+                0,
+                new PanelLocation(new PanelSourceId("provider-b"), @"C:\work\a.txt"))],
+            null,
+            null);
 
         var result = new ApplicationPanelInputHandler(context).Handle(
             new MouseConsoleInputEvent(1, 1, MouseButton.Left, MouseEventKind.DoubleClick, MouseKeyModifiers.None),
@@ -813,7 +890,7 @@ public sealed class ApplicationInputDispatcherTests
         state.ScrollOffset = 30;
         PanelSide? activeSide = null;
         var context = Context(new CommandLineState(), panelState: state, setActiveSide: side => activeSide = side);
-        context.Mouse.LastLeftPanelItemClick = new PanelItemClick(PanelSide.Right, 4, "old");
+        context.Mouse.LastLeftPanelItemClick = new PanelItemClick(PanelSide.Right, 4, PanelLocation.Local("old"));
         var frame = new ApplicationScrollBarFrame(new Rect(10, 10, 1, 20), 100, 10, 30);
         var hit = ScrollBarInteraction.CalculateThumb(frame.Bounds, frame.ToScrollState());
         int y = part switch
@@ -849,7 +926,7 @@ public sealed class ApplicationInputDispatcherTests
         var options = new AppSettings.PanelOptionsSettings { RightClickSelectsFiles = selectsFiles };
         var context = Context(new CommandLineState(), panelState: state, options: options, setActiveSide: side => activeSide = side);
         var frame = new ApplicationPanelFrame(PanelSide.Right, new Rect(40, 0, 40, 10), 1,
-            [new ApplicationPanelItemHit(new Rect(41, 2, 10, 1), 1, @"C:\work\b.txt")], null, null);
+            [new ApplicationPanelItemHit(new Rect(41, 2, 10, 1), 1, PanelLocation.Local(@"C:\work\b.txt"))], null, null);
 
         var result = new ApplicationPanelInputHandler(context).Handle(
             new MouseConsoleInputEvent(41, 2, MouseButton.Right, MouseEventKind.Down, MouseKeyModifiers.None), frame, UiInputRouteKind.HitTarget);
@@ -867,7 +944,7 @@ public sealed class ApplicationInputDispatcherTests
         state.CursorIndex = 0;
         var context = Context(new CommandLineState(), panelState: state);
         var frame = new ApplicationPanelFrame(PanelSide.Left, new Rect(0, 0, 40, 10), 8,
-            [new ApplicationPanelItemHit(new Rect(1, 2, 10, 1), 0, @"C:\work\a.txt")], null, null);
+            [new ApplicationPanelItemHit(new Rect(1, 2, 10, 1), 0, PanelLocation.Local(@"C:\work\a.txt"))], null, null);
         state.Items[0] = state.Items[1];
 
         var result = new ApplicationPanelInputHandler(context).Handle(
@@ -1058,14 +1135,12 @@ public sealed class ApplicationInputDispatcherTests
     private static ApplicationPanelKeyboardFrame PanelKeyboard(
         string currentDirectory,
         int? currentItemIndex = null,
-        string? currentItemIdentity = null,
-        string? currentItemName = null,
-        string? currentItemFullPath = null) =>
+        PanelLocation? currentItemLocation = null,
+        string? currentItemName = null) =>
         new(
-            currentDirectory,
+            PanelLocation.Local(currentDirectory),
             false,
             currentItemIndex,
-            currentItemIdentity,
-            currentItemName,
-            currentItemFullPath);
+            currentItemLocation,
+            currentItemName);
 }

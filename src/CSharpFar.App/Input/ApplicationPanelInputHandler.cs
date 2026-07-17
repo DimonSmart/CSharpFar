@@ -68,7 +68,7 @@ internal sealed class ApplicationPanelInputHandler
             if (TryGetCurrentItem(input, frame, state, out var hit, out var item))
             {
                 _context.PanelController.SetCursorTo(state, hit.ItemIndex, frame.VisibleRows);
-                var currentClick = new PanelItemClick(frame.Side, hit.ItemIndex, hit.ItemIdentity);
+                var currentClick = new PanelItemClick(frame.Side, hit.ItemIndex, hit.ItemLocation);
                 if (_context.Mouse.LastLeftPanelItemClick == currentClick)
                     _context.OpenPanelItem(state, frame.Side, item);
             }
@@ -84,7 +84,7 @@ internal sealed class ApplicationPanelInputHandler
             {
                 _context.PanelController.SetCursorTo(state, hit.ItemIndex, frame.VisibleRows);
                 _context.Mouse.LastLeftPanelItemClick =
-                    new PanelItemClick(frame.Side, hit.ItemIndex, hit.ItemIdentity);
+                    new PanelItemClick(frame.Side, hit.ItemIndex, hit.ItemLocation);
             }
             else
             {
@@ -117,6 +117,6 @@ internal sealed class ApplicationPanelInputHandler
         }
 
         item = state.Items[hit.ItemIndex];
-        return item.FullPath == hit.ItemIdentity;
+        return item.Location == hit.ItemLocation;
     }
 }

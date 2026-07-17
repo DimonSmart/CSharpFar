@@ -22,7 +22,7 @@ internal sealed class SearchFilesCommand : IApplicationCommand
             return ApplicationCommandResult.Rendered();
         }
 
-        if (!ApplicationCommandContext.CommittedDirectoryMatches(target.State, target.ActiveCommitted))
+        if (!ApplicationCommandContext.CommittedLocationMatches(target.State, target.ActiveCommitted))
         {
             return ApplicationCommandResult.Rendered();
         }

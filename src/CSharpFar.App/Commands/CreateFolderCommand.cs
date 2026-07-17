@@ -20,7 +20,7 @@ internal sealed class CreateFolderCommand : IApplicationCommand
             return ApplicationCommandResult.Rendered();
         }
 
-        if (!CommittedDirectoryMatches(target))
+        if (!CommittedLocationMatches(target))
             return ApplicationCommandResult.Rendered();
 
         var dialog = new CreateFolderDialog(context.ModalDialogs);
@@ -55,8 +55,8 @@ internal sealed class CreateFolderCommand : IApplicationCommand
         return ApplicationCommandResult.Rendered();
     }
 
-    private static bool CommittedDirectoryMatches(ResolvedPanelCommandTarget target) =>
-        ApplicationCommandContext.CommittedDirectoryMatches(target.State, target.ActiveCommitted);
+    private static bool CommittedLocationMatches(ResolvedPanelCommandTarget target) =>
+        ApplicationCommandContext.CommittedLocationMatches(target.State, target.ActiveCommitted);
 
     private static string FirstCreatedDirectoryName(string path)
     {

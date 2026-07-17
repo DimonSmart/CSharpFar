@@ -35,12 +35,15 @@ internal sealed record ApplicationKeyboardFrame(
 }
 
 internal sealed record ApplicationPanelKeyboardFrame(
-    string CurrentDirectory,
+    PanelLocation CurrentLocation,
     bool HasSearchRequest,
     int? CurrentItemIndex,
-    string? CurrentItemIdentity,
-    string? CurrentItemName,
-    string? CurrentItemFullPath);
+    PanelLocation? CurrentItemLocation,
+    string? CurrentItemName)
+{
+    public string CurrentDirectory => CurrentLocation.SourcePath;
+    public string? CurrentItemFullPath => CurrentItemLocation?.SourcePath;
+}
 
 internal static class ApplicationPanelKeyboardSnapshot
 {
@@ -50,12 +53,11 @@ internal static class ApplicationPanelKeyboardSnapshot
             ? state.Items[state.CursorIndex]
             : null;
         return new ApplicationPanelKeyboardFrame(
-            state.CurrentDirectory,
+            state.CurrentLocation,
             state.SearchRequest is not null,
             current is null ? null : state.CursorIndex,
-            current?.FullPath,
-            current?.Name,
-            current?.FullPath);
+            current?.Location,
+            current?.Name);
     }
 }
 
@@ -131,7 +133,7 @@ internal sealed record ApplicationPanelFrame
 internal sealed record ApplicationPanelItemHit(
     Rect Bounds,
     int ItemIndex,
-    string ItemIdentity);
+    PanelLocation ItemLocation);
 
 internal sealed record ApplicationScrollBarFrame(
     Rect Bounds,

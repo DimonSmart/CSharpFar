@@ -14,8 +14,8 @@ internal sealed class UserMenuCommand : IApplicationCommand
     public ApplicationCommandResult Execute(ApplicationCommandContext context, object? args = null)
     {
         var target = context.ResolvePanelTarget(args);
-        if (!ApplicationCommandContext.CommittedDirectoryMatches(target.State, target.ActiveCommitted) ||
-            !ApplicationCommandContext.CommittedDirectoryMatches(target.PassiveState, target.PassiveCommitted))
+        if (!ApplicationCommandContext.CommittedLocationMatches(target.State, target.ActiveCommitted) ||
+            !ApplicationCommandContext.CommittedLocationMatches(target.PassiveState, target.PassiveCommitted))
         {
             return ApplicationCommandResult.Rendered();
         }

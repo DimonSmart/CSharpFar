@@ -303,18 +303,18 @@ internal sealed class ApplicationCommandContext
         }
 
         FilePanelItem candidate = state.Items[index];
-        if (!string.Equals(candidate.FullPath, committed.CurrentItemIdentity, StringComparison.Ordinal))
+        if (candidate.Location != committed.CurrentItemLocation)
             return false;
 
         item = candidate;
         return true;
     }
 
-    public static bool CommittedDirectoryMatches(
+    public static bool CommittedLocationMatches(
         FilePanelState state,
         ApplicationPanelKeyboardFrame? committed) =>
         committed is null ||
-        string.Equals(state.CurrentDirectory, committed.CurrentDirectory, StringComparison.OrdinalIgnoreCase);
+        state.CurrentLocation == committed.CurrentLocation;
 
     public void RefreshPanels() => _panelRefresh.RefreshPanels(LeftPanel, RightPanel);
 

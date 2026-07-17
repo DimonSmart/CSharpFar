@@ -23,7 +23,7 @@ internal sealed class OpenCreateFileCommand : IApplicationCommand
             return ApplicationCommandResult.Rendered();
         }
 
-        if (!ApplicationCommandContext.CommittedDirectoryMatches(target.State, target.ActiveCommitted))
+        if (!ApplicationCommandContext.CommittedLocationMatches(target.State, target.ActiveCommitted))
             return ApplicationCommandResult.Rendered();
 
         var dialog = new OpenCreateFileDialog(context.ModalDialogs);

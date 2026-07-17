@@ -108,7 +108,7 @@ internal sealed class PanelRenderer
             hits.Add(new ApplicationPanelItemHit(
                 new Rect(bounds.X + 1, y, listWidth, 1),
                 itemIdx,
-                item.FullPath));
+                item.Location));
             bool isCursor   = isActive && itemIdx == state.CursorIndex;
             bool isSelected = !item.IsParentDirectory &&
                               state.SelectedPaths.Contains(item.FullPath);

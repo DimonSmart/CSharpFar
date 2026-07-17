@@ -10,4 +10,4 @@ internal sealed class MouseSessionState
 internal readonly record struct PanelItemClick(
     PanelSide Side,
     int Index,
-    string FullPath);
+    PanelLocation Location);
