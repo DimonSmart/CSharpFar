@@ -83,6 +83,32 @@ public sealed class SettingsDialogTests
     }
 
     [Fact]
+    public void Show_ResizePreservesChangedValueAndLogicalFocusTarget()
+    {
+        var driver = Driver(
+            Key(ConsoleKey.Enter),
+            Key(ConsoleKey.DownArrow),
+            new ConsoleResizeInputEvent(),
+            Key(ConsoleKey.Enter),
+            Key(ConsoleKey.F10));
+        ResizeBeforeRead(driver, readNumber: 3, width: 100, height: 30);
+
+        SettingsDialogResult? result = new SettingsDialog(ModalTestHost.Create(driver)).Show(
+            PanelViewMode.Full,
+            PanelViewMode.Full,
+            "Default",
+            fileHighlightingEnabled: true,
+            editorSyntaxHighlightingEnabled: true);
+
+        Assert.NotNull(result);
+        Assert.Equal(PanelViewMode.BriefTwoColumns, result.LeftViewMode);
+        Assert.Equal(PanelViewMode.BriefTwoColumns, result.RightViewMode);
+        Assert.Equal("Default", result.PaletteName);
+        Assert.True(result.FileHighlightingEnabled);
+        Assert.True(result.EditorSyntaxHighlightingEnabled);
+    }
+
+    [Fact]
     public void TemporaryThemeScope_RestoresThemeAfterException()
     {
         UiTheme.ResetForTests();
@@ -118,4 +144,19 @@ public sealed class SettingsDialogTests
 
     private static KeyConsoleInputEvent Key(ConsoleKey key) =>
         new(new ConsoleKeyInfo('\0', key, shift: false, alt: false, control: false));
+
+    private static void ResizeBeforeRead(FakeConsoleDriver driver, int readNumber, int width, int height)
+    {
+        int reads = 0;
+        driver.BeforeReadInput = OnBeforeRead;
+
+        void OnBeforeRead(FakeConsoleDriver current)
+        {
+            reads++;
+            if (reads == readNumber)
+                current.SetSize(width, height);
+            else
+                current.BeforeReadInput = OnBeforeRead;
+        }
+    }
 }

@@ -112,7 +112,8 @@ public sealed class DialogArchitectureTests
         Assert.True(
             editor.IndexOf("FormInputResult.Submit()", StringComparison.Ordinal) <
             editor.IndexOf("form.RouteInput(input, frame, route)", StringComparison.Ordinal));
-        Assert.Contains("applyCommittedFrame: frame => list.ApplyCommittedFrame(frame.ListState)", drive, StringComparison.Ordinal);
+        Assert.Contains("list.ApplyCommittedFrame(frame.ListState)", drive, StringComparison.Ordinal);
+        Assert.Contains("logicalSelectedIndex", drive, StringComparison.Ordinal);
         Assert.DoesNotContain("UiTheme.Initialize(PaletteRegistry.Resolve", settings, StringComparison.Ordinal);
         Assert.Contains("UiTheme.UseTemporary(PaletteRegistry.Resolve", settings, StringComparison.Ordinal);
     }

@@ -2,6 +2,7 @@ using System.Reflection;
 using CSharpFar.App;
 using CSharpFar.App.Dialogs;
 using CSharpFar.Console;
+using CSharpFar.Console.Input;
 using CSharpFar.Core.Abstractions;
 using CSharpFar.Core.History;
 using CSharpFar.Core.Models;
@@ -470,6 +471,147 @@ public sealed class ApplicationVolumeTests : IDisposable
     }
 
     [Fact]
+    public void DriveDialog_DuplicateShortcutCyclesBetweenMatches()
+    {
+        var driver = DialogDriver(KeyInput('d', ConsoleKey.D), KeyInput('d', ConsoleKey.D), KeyInput(ConsoleKey.Enter));
+
+        VolumeSelectionItem? result = new DriveDialog(ModalTestHost.Create(driver)).Show(DuplicateShortcutItems());
+
+        Assert.NotNull(result);
+        Assert.Equal("D: second", result.Label);
+    }
+
+    [Fact]
+    public void DriveDialog_MouseClickBreaksDuplicateShortcutCycle()
+    {
+        var driver = DialogDriver(
+            KeyInput('d', ConsoleKey.D),
+            KeyInput('d', ConsoleKey.D),
+            MouseOnDialogRow(row: 1),
+            KeyInput('d', ConsoleKey.D),
+            KeyInput(ConsoleKey.Enter));
+
+        VolumeSelectionItem? result = new DriveDialog(ModalTestHost.Create(driver)).Show(DuplicateShortcutItems());
+
+        Assert.NotNull(result);
+        Assert.Equal("D: first", result.Label);
+    }
+
+    [Theory]
+    [InlineData(ConsoleKey.DownArrow)]
+    [InlineData(ConsoleKey.PageDown)]
+    public void DriveDialog_KeyboardNavigationBreaksDuplicateShortcutCycle(ConsoleKey navigationKey)
+    {
+        var driver = DialogDriver(
+            KeyInput('d', ConsoleKey.D),
+            KeyInput(navigationKey),
+            KeyInput('d', ConsoleKey.D),
+            KeyInput(ConsoleKey.Enter));
+        driver.SetSize(80, 10);
+
+        VolumeSelectionItem? result = new DriveDialog(ModalTestHost.Create(driver)).Show(DuplicateShortcutItems());
+
+        Assert.NotNull(result);
+        Assert.Equal("D: first", result.Label);
+    }
+
+    [Fact]
+    public void DriveDialog_WheelBreaksDuplicateShortcutCycle()
+    {
+        var driver = DialogDriver(
+            KeyInput('d', ConsoleKey.D),
+            MouseWheelDownOnDialogList(),
+            KeyInput('d', ConsoleKey.D),
+            KeyInput(ConsoleKey.Enter));
+
+        VolumeSelectionItem? result = new DriveDialog(ModalTestHost.Create(driver)).Show(DuplicateShortcutItems());
+
+        Assert.NotNull(result);
+        Assert.Equal("D: first", result.Label);
+    }
+
+    [Fact]
+    public void DriveDialog_ScrollbarNavigationBreaksDuplicateShortcutCycle()
+    {
+        var driver = DialogDriver(
+            KeyInput('d', ConsoleKey.D),
+            MouseOnDialogScrollbarBottomArrow(),
+            KeyInput('d', ConsoleKey.D),
+            KeyInput(ConsoleKey.Enter));
+        driver.SetSize(80, 10);
+
+        VolumeSelectionItem? result = new DriveDialog(ModalTestHost.Create(driver)).Show(DuplicateShortcutItems());
+
+        Assert.NotNull(result);
+        Assert.Equal("D: first", result.Label);
+    }
+
+    [Fact]
+    public void DriveDialog_UniqueShortcutCompletesImmediately()
+    {
+        var driver = DialogDriver(KeyInput('u', ConsoleKey.U));
+
+        VolumeSelectionItem? result = new DriveDialog(ModalTestHost.Create(driver)).Show(DuplicateShortcutItems());
+
+        Assert.NotNull(result);
+        Assert.Equal("U:", result.Label);
+    }
+
+    [Fact]
+    public void DriveDialog_UnavailableShortcutDoesNotComplete()
+    {
+        var driver = DialogDriver(KeyInput('y', ConsoleKey.Y), KeyInput(ConsoleKey.Escape));
+
+        VolumeSelectionItem? result = new DriveDialog(ModalTestHost.Create(driver)).Show(DuplicateShortcutItems());
+
+        Assert.Null(result);
+    }
+
+    [Fact]
+    public void DriveDialog_DoubleClickAvailableVolumeCompletes()
+    {
+        var driver = DialogDriver(MouseOnDialogRow(row: 0, MouseEventKind.DoubleClick));
+
+        VolumeSelectionItem? result = new DriveDialog(ModalTestHost.Create(driver)).Show(DuplicateShortcutItems());
+
+        Assert.NotNull(result);
+        Assert.Equal("D: first", result.Label);
+    }
+
+    [Fact]
+    public void DriveDialog_DoubleClickUnavailableVolumeShowsMessageAndKeepsDialogOpen()
+    {
+        var driver = DialogDriver();
+        EnqueueMouseOnRenderedText(
+            driver,
+            "Y:",
+            MouseEventKind.DoubleClick,
+            KeyInput(ConsoleKey.Enter),
+            KeyInput(ConsoleKey.Escape));
+
+        VolumeSelectionItem? result = new DriveDialog(ModalTestHost.Create(driver)).Show(DoubleClickItems());
+
+        Assert.Null(result);
+        Assert.Contains(driver.WriteRecords, record => record.Text.Contains("volume is disconnected", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void DriveDialog_ResizePreservesSelectionAndKeepsItVisible()
+    {
+        var driver = DialogDriver(
+            KeyInput(ConsoleKey.PageDown),
+            KeyInput(ConsoleKey.Enter));
+        driver.SetSize(80, 10);
+        ResizeDuringNextRenderAfterFirstRead(driver, width: 80, height: 14);
+
+        VolumeSelectionItem? result = new DriveDialog(ModalTestHost.Create(driver)).Show(DuplicateShortcutItems());
+
+        Assert.NotNull(result);
+        Assert.Equal("C:", result.Label);
+        Assert.Contains(driver.WriteRecords, record => record.Text.Contains("C:", StringComparison.Ordinal));
+    }
+
+    [Fact]
     public void DriveDialog_RendersVolumeRowsWithFarLikeMenuColors()
     {
         var driver = new FakeConsoleDriver(width: 64, height: 18);
@@ -584,6 +726,95 @@ public sealed class ApplicationVolumeTests : IDisposable
     }
 
     // ── helpers ───────────────────────────────────────────────────────────────
+
+    private static FakeConsoleDriver DialogDriver(params ConsoleInputEvent[] inputs)
+    {
+        var driver = new FakeConsoleDriver(width: 80, height: 25);
+        foreach (ConsoleInputEvent input in inputs)
+            driver.EnqueueInput(input);
+        return driver;
+    }
+
+    private static KeyConsoleInputEvent KeyInput(ConsoleKey key) =>
+        new(new ConsoleKeyInfo('\0', key, shift: false, alt: false, control: false));
+
+    private static KeyConsoleInputEvent KeyInput(char keyChar, ConsoleKey key) =>
+        new(new ConsoleKeyInfo(keyChar, key, shift: false, alt: false, control: false));
+
+    private static MouseConsoleInputEvent MouseOnDialogRow(int row, MouseEventKind kind = MouseEventKind.Down) =>
+        new(18, 9 + row, MouseButton.Left, kind, MouseKeyModifiers.None);
+
+    private static MouseConsoleInputEvent MouseWheelDownOnDialogList() =>
+        new(18, 9, MouseButton.WheelDown, MouseEventKind.Wheel, MouseKeyModifiers.None);
+
+    private static MouseConsoleInputEvent MouseOnDialogScrollbarBottomArrow() =>
+        new(62, 7, MouseButton.Left, MouseEventKind.Down, MouseKeyModifiers.None);
+
+    private static void EnqueueMouseOnRenderedText(
+        FakeConsoleDriver driver,
+        string text,
+        MouseEventKind kind,
+        params ConsoleInputEvent[] afterMouse)
+    {
+        driver.BeforeReadInput = current =>
+        {
+            FakeConsoleDriver.WriteRecord record = current.WriteRecords.First(r => r.Text.Contains(text, StringComparison.Ordinal));
+            current.EnqueueInput(new MouseConsoleInputEvent(record.X, record.Y, MouseButton.Left, kind, MouseKeyModifiers.None));
+            foreach (ConsoleInputEvent input in afterMouse)
+                current.EnqueueInput(input);
+        };
+    }
+
+    private static void ResizeDuringNextRenderAfterFirstRead(FakeConsoleDriver driver, int width, int height)
+    {
+        driver.BeforeReadInput = current =>
+        {
+            current.ResizeAfterWriteCount = current.WriteAtCallCount + 1;
+            current.ResizeAfterWrite = d => d.SetSize(width, height);
+        };
+    }
+
+    private static VolumeSelectionItem[] DuplicateShortcutItems() =>
+    [
+        ReadyItem("D: first", "D"),
+        ReadyItem("X:", "X"),
+        ReadyItem("A:", "A"),
+        ReadyItem("B:", "B"),
+        ReadyItem("C:", "C"),
+        ReadyItem("E:", "E"),
+        ReadyItem("D: second", "D"),
+        UnavailableItem("Y:", "Y"),
+        ReadyItem("U:", "U"),
+    ];
+
+    private static VolumeSelectionItem[] DoubleClickItems() =>
+    [
+        ReadyItem("D: first", "D"),
+        UnavailableItem("Y:", "Y"),
+    ];
+
+    private static VolumeSelectionItem ReadyItem(string label, string shortcut) =>
+        Item(label, shortcut, VolumeStatus.Ready);
+
+    private static VolumeSelectionItem UnavailableItem(string label, string shortcut) =>
+        Item(label, shortcut, VolumeStatus.Disconnected);
+
+    private static VolumeSelectionItem Item(string label, string shortcut, VolumeStatus status) =>
+        new()
+        {
+            Label = label,
+            Shortcut = shortcut,
+            Action = VolumeSelectionAction.OpenVolume,
+            Volume = new FileSystemVolume
+            {
+                Id = label,
+                DisplayName = label,
+                RootPath = label,
+                Kind = VolumeKind.Fixed,
+                Status = status,
+                Shortcut = shortcut,
+            },
+        };
 
     private Application CreateApp(
         FakeConsoleDriver driver,

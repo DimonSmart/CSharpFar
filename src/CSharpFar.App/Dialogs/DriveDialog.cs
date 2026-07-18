@@ -48,17 +48,20 @@ internal sealed class DriveDialog
             SelectedIndex = initialCursor,
             EmptyText = "No volumes found.",
         };
+        int logicalSelectedIndex = initialCursor;
+        list.SelectionChanged = (_, index) => logicalSelectedIndex = index;
         string? lastShortcut = null;
 
         return _modalDialogs.RunInteractive<DriveDialogFrame, ScrollableListInputResult, VolumeSelectionItem?>(
             (context, _) =>
             {
+                list.SelectedIndex = logicalSelectedIndex;
                 DriveDialogFrame frame = BuildFrame(context.Size, items, list);
                 RenderFrame(context, items, frame);
                 return frame;
             },
             BuildInteractionFrame,
-            (input, frame, route) => RouteInput(input, frame, route, list),
+            (input, frame, route) => RouteInput(input, frame, route, list, logicalSelectedIndex),
             (routed, result) =>
             {
                 if (routed.Input is KeyConsoleInputEvent { Key: var key })
@@ -66,19 +69,23 @@ internal sealed class DriveDialog
                     if (key.Key is ConsoleKey.Escape or ConsoleKey.F10)
                         return ModalDialogLoopResult<VolumeSelectionItem?>.Complete(null);
 
-                    if (IsListNavigationKey(key.Key))
-                        lastShortcut = null;
-
                     if (result.Kind == ScrollableListInputResultKind.NotHandled &&
                         key.KeyChar > ' ' &&
                         (key.Modifiers & (ConsoleModifiers.Control | ConsoleModifiers.Alt)) == 0)
                     {
                         string shortcut = key.KeyChar.ToString().ToUpperInvariant();
                         VolumeSelectionItem? immediate = HandleShortcut(list, shortcut, routed.Frame.ListState.ViewportRows, ref lastShortcut);
+                        logicalSelectedIndex = list.SelectedIndex;
                         if (immediate is not null)
                             return ModalDialogLoopResult<VolumeSelectionItem?>.Complete(immediate);
                     }
                 }
+
+                if (result.IsHandled)
+                    logicalSelectedIndex = list.SelectedIndex;
+
+                if (BreaksShortcutCycle(routed.Input, result))
+                    lastShortcut = null;
 
                 if (result.Kind == ScrollableListInputResultKind.Confirmed &&
                     list.SelectedItemOrDefault is { } selected)
@@ -88,16 +95,23 @@ internal sealed class DriveDialog
 
                 return ModalDialogLoopResult<VolumeSelectionItem?>.Continue;
             },
-            applyCommittedFrame: frame => list.ApplyCommittedFrame(frame.ListState));
+            applyCommittedFrame: frame =>
+            {
+                list.ApplyCommittedFrame(frame.ListState);
+                list.SelectedIndex = logicalSelectedIndex;
+                list.EnsureSelectedVisible(frame.ListState.ViewportRows);
+            });
     }
 
     private static (ScrollableListInputResult Semantic, UiInputResult UiResult) RouteInput(
         ConsoleInputEvent input,
         DriveDialogFrame frame,
         UiInputRouteContext route,
-        ScrollableList<VolumeSelectionItem> list)
+        ScrollableList<VolumeSelectionItem> list,
+        int logicalSelectedIndex)
     {
         list.ApplyCommittedFrame(frame.ListState);
+        list.SelectedIndex = logicalSelectedIndex;
 
         if (input is KeyConsoleInputEvent { Key: var key })
         {
@@ -184,8 +198,19 @@ internal sealed class DriveDialog
         return null;
     }
 
-    private static bool IsListNavigationKey(ConsoleKey key) =>
-        key is ConsoleKey.UpArrow or ConsoleKey.DownArrow or ConsoleKey.PageUp or ConsoleKey.PageDown or ConsoleKey.Home or ConsoleKey.End;
+    private static bool BreaksShortcutCycle(ConsoleInputEvent input, ScrollableListInputResult result)
+    {
+        if (!result.IsHandled)
+            return false;
+
+        if (input is KeyConsoleInputEvent { Key.Key: ConsoleKey.UpArrow or ConsoleKey.DownArrow or ConsoleKey.PageUp or ConsoleKey.PageDown or ConsoleKey.Home or ConsoleKey.End })
+            return true;
+
+        return input is MouseConsoleInputEvent
+        {
+            Kind: MouseEventKind.Down or MouseEventKind.DoubleClick or MouseEventKind.Wheel or MouseEventKind.Move or MouseEventKind.Up,
+        };
+    }
 
     private static DriveDialogFrame BuildFrame(
         ConsoleSize size,

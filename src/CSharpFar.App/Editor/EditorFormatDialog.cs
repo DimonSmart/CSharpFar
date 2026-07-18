@@ -32,10 +32,11 @@ internal sealed class EditorFormatDialog
             Id = EncodingRowId,
             ShowCursor = false,
         };
-        var bom = new CheckBoxRow(new CheckBoxLine("BOM"))
+        var bom = new CompactChoiceFormRow<bool>(
+            new ChoiceRow<bool>(BomChoices, static value => value ? "Yes" : "No", current.EmitByteOrderMark ? 1 : 0),
+            "BOM")
         {
             Id = BomRowId,
-            Value = current.EmitByteOrderMark,
             ShowCursor = false,
         };
         var lineEnding = new CompactChoiceFormRow<LineEndingSpec>(
@@ -170,6 +171,8 @@ internal sealed class EditorFormatDialog
         new(EditorLineEnding.Cr),
         new(EditorLineEnding.Mixed),
     ];
+
+    private static readonly bool[] BomChoices = [false, true];
 }
 
 file static class EditorLineEndingDisplay
