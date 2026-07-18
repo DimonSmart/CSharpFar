@@ -612,6 +612,58 @@ public sealed class ApplicationVolumeTests : IDisposable
     }
 
     [Fact]
+    public void DriveDialog_ScrollbarThumbDragMovesViewportAndSelection()
+    {
+        var driver = DialogDriver(
+            MouseOnDialogScrollbarThumb(),
+            MouseOnDialogScrollbar(6, MouseEventKind.Move),
+            MouseOnDialogScrollbar(6, MouseEventKind.Up),
+            MouseOutsideDialog(MouseEventKind.Move),
+            KeyInput(ConsoleKey.Enter));
+        driver.SetSize(80, 10);
+
+        VolumeSelectionItem? result = new DriveDialog(ModalTestHost.Create(driver)).Show(LargeDriveItems());
+
+        Assert.NotNull(result);
+        Assert.NotEqual("Drive 00", result.Label);
+        Assert.Equal("Drive 26", result.Label);
+    }
+
+    [Fact]
+    public void DriveDialog_ScrollbarDragContinuesOutsideScrollbarBounds()
+    {
+        var driver = DialogDriver(
+            MouseOnDialogScrollbarThumb(),
+            MouseOutsideDialog(MouseEventKind.Move, y: 6),
+            MouseOutsideDialog(MouseEventKind.Up, y: 6),
+            KeyInput(ConsoleKey.Enter));
+        driver.SetSize(80, 10);
+
+        VolumeSelectionItem? result = new DriveDialog(ModalTestHost.Create(driver)).Show(LargeDriveItems());
+
+        Assert.NotNull(result);
+        Assert.Equal("Drive 26", result.Label);
+    }
+
+    [Fact]
+    public void DriveDialog_ResizeDuringScrollbarDragRebasesDragState()
+    {
+        var driver = DialogDriver(
+            MouseOnDialogScrollbarThumb(),
+            new ConsoleResizeInputEvent(),
+            MouseOnDialogScrollbar(8, MouseEventKind.Move),
+            MouseOnDialogScrollbar(8, MouseEventKind.Up),
+            KeyInput(ConsoleKey.Enter));
+        driver.SetSize(80, 10);
+        ResizeBeforeSecondRead(driver, width: 80, height: 12);
+
+        VolumeSelectionItem? result = new DriveDialog(ModalTestHost.Create(driver)).Show(LargeDriveItems());
+
+        Assert.NotNull(result);
+        Assert.Equal("Drive 24", result.Label);
+    }
+
+    [Fact]
     public void DriveDialog_RendersVolumeRowsWithFarLikeMenuColors()
     {
         var driver = new FakeConsoleDriver(width: 64, height: 18);
@@ -750,6 +802,15 @@ public sealed class ApplicationVolumeTests : IDisposable
     private static MouseConsoleInputEvent MouseOnDialogScrollbarBottomArrow() =>
         new(62, 7, MouseButton.Left, MouseEventKind.Down, MouseKeyModifiers.None);
 
+    private static MouseConsoleInputEvent MouseOnDialogScrollbarThumb() =>
+        MouseOnDialogScrollbar(5, MouseEventKind.Down);
+
+    private static MouseConsoleInputEvent MouseOnDialogScrollbar(int y, MouseEventKind kind) =>
+        new(62, y, MouseButton.Left, kind, MouseKeyModifiers.None);
+
+    private static MouseConsoleInputEvent MouseOutsideDialog(MouseEventKind kind, int y = 6) =>
+        new(10, y, MouseButton.Left, kind, MouseKeyModifiers.None);
+
     private static void EnqueueMouseOnRenderedText(
         FakeConsoleDriver driver,
         string text,
@@ -774,6 +835,14 @@ public sealed class ApplicationVolumeTests : IDisposable
         };
     }
 
+    private static void ResizeBeforeSecondRead(FakeConsoleDriver driver, int width, int height)
+    {
+        driver.BeforeReadInput = current =>
+        {
+            current.BeforeReadInput = secondRead => secondRead.SetSize(width, height);
+        };
+    }
+
     private static VolumeSelectionItem[] DuplicateShortcutItems() =>
     [
         ReadyItem("D: first", "D"),
@@ -792,6 +861,13 @@ public sealed class ApplicationVolumeTests : IDisposable
         ReadyItem("D: first", "D"),
         UnavailableItem("Y:", "Y"),
     ];
+
+    private static VolumeSelectionItem[] LargeDriveItems() =>
+        Enumerable.Range(0, 30)
+            .Select(i => ReadyItem(
+                $"Drive {i:D2}",
+                (i % 10).ToString(System.Globalization.CultureInfo.InvariantCulture)))
+            .ToArray();
 
     private static VolumeSelectionItem ReadyItem(string label, string shortcut) =>
         Item(label, shortcut, VolumeStatus.Ready);

@@ -48,20 +48,17 @@ internal sealed class DriveDialog
             SelectedIndex = initialCursor,
             EmptyText = "No volumes found.",
         };
-        int logicalSelectedIndex = initialCursor;
-        list.SelectionChanged = (_, index) => logicalSelectedIndex = index;
         string? lastShortcut = null;
 
         return _modalDialogs.RunInteractive<DriveDialogFrame, ScrollableListInputResult, VolumeSelectionItem?>(
             (context, _) =>
             {
-                list.SelectedIndex = logicalSelectedIndex;
                 DriveDialogFrame frame = BuildFrame(context.Size, items, list);
                 RenderFrame(context, items, frame);
                 return frame;
             },
             BuildInteractionFrame,
-            (input, frame, route) => RouteInput(input, frame, route, list, logicalSelectedIndex),
+            (input, frame, route) => RouteInput(input, frame, route, list),
             (routed, result) =>
             {
                 if (routed.Input is KeyConsoleInputEvent { Key: var key })
@@ -75,14 +72,10 @@ internal sealed class DriveDialog
                     {
                         string shortcut = key.KeyChar.ToString().ToUpperInvariant();
                         VolumeSelectionItem? immediate = HandleShortcut(list, shortcut, routed.Frame.ListState.ViewportRows, ref lastShortcut);
-                        logicalSelectedIndex = list.SelectedIndex;
                         if (immediate is not null)
                             return ModalDialogLoopResult<VolumeSelectionItem?>.Complete(immediate);
                     }
                 }
-
-                if (result.IsHandled)
-                    logicalSelectedIndex = list.SelectedIndex;
 
                 if (BreaksShortcutCycle(routed.Input, result))
                     lastShortcut = null;
@@ -94,12 +87,6 @@ internal sealed class DriveDialog
                 }
 
                 return ModalDialogLoopResult<VolumeSelectionItem?>.Continue;
-            },
-            applyCommittedFrame: frame =>
-            {
-                list.ApplyCommittedFrame(frame.ListState);
-                list.SelectedIndex = logicalSelectedIndex;
-                list.EnsureSelectedVisible(frame.ListState.ViewportRows);
             });
     }
 
@@ -107,11 +94,9 @@ internal sealed class DriveDialog
         ConsoleInputEvent input,
         DriveDialogFrame frame,
         UiInputRouteContext route,
-        ScrollableList<VolumeSelectionItem> list,
-        int logicalSelectedIndex)
+        ScrollableList<VolumeSelectionItem> list)
     {
         list.ApplyCommittedFrame(frame.ListState);
-        list.SelectedIndex = logicalSelectedIndex;
 
         if (input is KeyConsoleInputEvent { Key: var key })
         {
