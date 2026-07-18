@@ -51,6 +51,24 @@ public sealed class DialogArchitectureTests
             keyBody.IndexOf("if (!frame.IsOpen)", StringComparison.Ordinal));
     }
 
+    [Fact]
+    public void ScrollableFormRouteInput_RestoresCommittedDropdownStateBeforeRouteBranching()
+    {
+        string root = FindRepositoryRoot();
+        string source = File.ReadAllText(Path.Combine(root, "src", "CSharpFar.Ui", "ScrollableFormDialog.cs"));
+        string routeInputBody = MethodBody(source, "RouteInput");
+        string outsideClickBody = MethodBody(source, "private static bool CloseFocusedDropdownOnOutsideClick");
+
+        Assert.True(
+            routeInputBody.IndexOf("RestoreCommittedComponentState(frame);", StringComparison.Ordinal) <
+            routeInputBody.IndexOf("RouteKey(key, frame, route)", StringComparison.Ordinal));
+        Assert.True(
+            routeInputBody.IndexOf("RestoreCommittedComponentState(frame);", StringComparison.Ordinal) <
+            routeInputBody.IndexOf("RouteMouse(mouse, frame, route)", StringComparison.Ordinal));
+        Assert.DoesNotContain("IsDropdownOpen", outsideClickBody, StringComparison.Ordinal);
+        Assert.Contains("DropdownFrame: { IsOpen: true }", outsideClickBody, StringComparison.Ordinal);
+    }
+
     private static string FindRepositoryRoot()
     {
         DirectoryInfo? current = new(AppContext.BaseDirectory);

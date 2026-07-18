@@ -1043,6 +1043,9 @@ public sealed class ScrollableFormDialog
         if (row is null)
             return false;
 
+        if (_committedFrame is not null)
+            RestoreCommittedComponentState(_committedFrame);
+
         UiTargetId target = RowTarget(row);
         if (_activeFocusScope is null ||
             ActiveFocusScope.CurrentFrame.Entries.Count == 0 ||
@@ -1458,6 +1461,7 @@ public sealed class ScrollableFormDialog
         ArgumentNullException.ThrowIfNull(frame);
         ArgumentNullException.ThrowIfNull(route);
         _activeFocusScope = route.FocusScope;
+        RestoreCommittedComponentState(frame);
 
         if (input is KeyConsoleInputEvent { Key: var key })
             return RouteKey(key, frame, route);
@@ -1490,7 +1494,6 @@ public sealed class ScrollableFormDialog
             FormInputResult rowResult;
             if (row is IFormDropdownRow dropdown && targetFrame.DropdownFrame is { } dropdownFrame)
             {
-                dropdown.CommitDropdownFrame(dropdownFrame);
                 rowResult = dropdown.HandleDropdownKey(key, inputContext, dropdownFrame);
             }
             else
@@ -1571,7 +1574,6 @@ public sealed class ScrollableFormDialog
         if (targetFrame.Row is IFormDropdownRow dropdown &&
             (targetFrame.DropdownFrame ?? rowFrame.DropdownFrame) is { } dropdownFrame)
         {
-            dropdown.CommitDropdownFrame(dropdownFrame);
             rowResult = dropdown.HandleDropdownMouse(mouse, mouseContext, dropdownFrame);
         }
         else
@@ -1653,7 +1655,7 @@ public sealed class ScrollableFormDialog
     {
         if (mouse is not { Kind: MouseEventKind.Down, Button: MouseButton.Left } ||
             route.FocusScope.FocusedTarget is not UiTargetId focusedTarget ||
-            FindRowTarget(frame, focusedTarget)?.Row is not IFormDropdownRow { IsDropdownOpen: true } dropdown)
+            FindRowTarget(frame, focusedTarget) is not { Row: IFormDropdownRow dropdown, DropdownFrame: { IsOpen: true } dropdownFrame })
         {
             return false;
         }
@@ -1671,7 +1673,6 @@ public sealed class ScrollableFormDialog
             target.Kind == FormTargetKind.Row &&
             target.HitBounds is Rect bounds &&
             bounds.Contains(mouse.X, mouse.Y) &&
-            target.DropdownFrame is { } dropdownFrame &&
             dropdownFrame.FieldBounds.Contains(mouse.X, mouse.Y));
         if (onField)
             return false;
@@ -1923,6 +1924,21 @@ public sealed class ScrollableFormDialog
                 CancelTransientOverlayExcept(null),
             _ => false,
         };
+    }
+
+    private static void RestoreCommittedComponentState(ScrollableFormFrame frame)
+    {
+        foreach (FormTargetFrame target in frame.Targets)
+        {
+            if (target.Kind != FormTargetKind.Row ||
+                target.Row is not IFormDropdownRow dropdown ||
+                target.DropdownFrame is not { } dropdownFrame)
+            {
+                continue;
+            }
+
+            dropdown.CommitDropdownFrame(dropdownFrame);
+        }
     }
 
     private bool CancelTransientOverlayExcept(UiTargetId? retainedTarget)

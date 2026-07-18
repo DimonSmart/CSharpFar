@@ -1530,6 +1530,189 @@ public sealed class ScrollableFormDialogTests
     }
 
     [Fact]
+    public void DropdownConfirmedSelectionRejectedRender_OutsideClickRestoresCommittedValueAndClosesOverlay()
+    {
+        var dropdown = OpenDropdown();
+        var row = new DropdownSelectFormRow<int>("Value:", dropdown) { Id = "choice" };
+        var form = new ScrollableFormDialog([row]);
+        var driver = new FakeConsoleDriver(24, 10);
+        var (host, layer) = CreateRoutedFormHostWithLayer(form, driver, visibleRows: 1);
+        host.Composition.Render();
+        FormTargetFrame popup = Assert.Single(layer.CommittedFrame.Targets, target => target.Kind == FormTargetKind.DropdownPopup);
+
+        host.Composition.DispatchInput(Mouse(popup.Bounds.X + 1, popup.Bounds.Y + 2));
+        layer.ThrowOnRender = true;
+        Assert.Throws<InvalidOperationException>(() => host.Composition.Render());
+
+        host.Composition.DispatchInput(Mouse(23, 9));
+
+        Assert.Equal(FormInputResultKind.OverlayChanged, layer.LastRouteResult!.Value.FormResult.Kind);
+        Assert.False(dropdown.IsOpen);
+        Assert.Equal(0, dropdown.SelectedIndex);
+        Assert.Equal(0, row.Value);
+
+        layer.ThrowOnRender = false;
+        host.Composition.Render();
+        Assert.DoesNotContain(layer.CommittedFrame.Targets, target =>
+            target.Kind is FormTargetKind.DropdownPopup or FormTargetKind.DropdownScrollbar);
+        Assert.Equal(0, Assert.Single(layer.CommittedFrame.Targets, target => target.Kind == FormTargetKind.Row).DropdownFrame!.Value.ListState.SelectedIndex);
+    }
+
+    [Fact]
+    public void DropdownConfirmedSelectionRejectedRender_ClickOtherRowDoesNotPublishRejectedSelection()
+    {
+        var dropdown = OpenDropdown();
+        var row = new DropdownSelectFormRow<int>("Value:", dropdown) { Id = "choice" };
+        var form = new ScrollableFormDialog([
+            new CheckBoxRow(new CheckBoxLine("next")) { Id = "next" },
+            row,
+        ]);
+        Assert.True(form.TryFocus("choice"));
+        var driver = new FakeConsoleDriver(24, 10);
+        var (host, layer) = CreateRoutedFormHostWithLayer(form, driver, visibleRows: 2);
+        host.Composition.Render();
+        FormTargetFrame popup = Assert.Single(layer.CommittedFrame.Targets, target => target.Kind == FormTargetKind.DropdownPopup);
+        FormTargetFrame next = Assert.Single(layer.CommittedFrame.Targets, target => target.Kind == FormTargetKind.Row && target.Row?.Id == "next");
+
+        host.Composition.DispatchInput(Mouse(popup.Bounds.X + 1, popup.Bounds.Y + 2));
+        layer.ThrowOnRender = true;
+        Assert.Throws<InvalidOperationException>(() => host.Composition.Render());
+        host.Composition.DispatchInput(Mouse(next.Bounds.X, next.Bounds.Y));
+
+        Assert.Equal("next", form.FocusedRowId);
+        Assert.False(dropdown.IsOpen);
+        Assert.Equal(0, dropdown.SelectedIndex);
+        Assert.Equal(0, row.Value);
+
+        layer.ThrowOnRender = false;
+        host.Composition.Render();
+        Assert.DoesNotContain(layer.CommittedFrame.Targets, target =>
+            target.Kind is FormTargetKind.DropdownPopup or FormTargetKind.DropdownScrollbar);
+    }
+
+    [Fact]
+    public void DropdownConfirmedSelectionRejectedRender_FooterSubmitUsesCommittedValue()
+    {
+        var dropdown = OpenDropdown();
+        var row = new DropdownSelectFormRow<int>("Value:", dropdown) { Id = "choice" };
+        var form = new ScrollableFormDialog();
+        form.SetRows([row], [FooterButtons()]);
+        var driver = new FakeConsoleDriver(24, 10);
+        var (host, layer) = CreateRoutedFooterFormHostWithLayer(form, driver, bodyRows: 1, footerY: 5);
+        host.Composition.Render();
+        FormTargetFrame popup = Assert.Single(layer.CommittedFrame.Targets, target => target.Kind == FormTargetKind.DropdownPopup);
+        FormTargetFrame footer = Assert.Single(layer.CommittedFrame.Targets, target => target.Kind == FormTargetKind.Row && target.IsFooter);
+
+        host.Composition.DispatchInput(Mouse(popup.Bounds.X + 1, popup.Bounds.Y + 2));
+        layer.ThrowOnRender = true;
+        Assert.Throws<InvalidOperationException>(() => host.Composition.Render());
+        host.Composition.DispatchInput(Mouse(footer.Bounds.X + 2, footer.Bounds.Y));
+
+        Assert.Equal(FormInputResultKind.Submit, layer.LastRouteResult!.Value.FormResult.Kind);
+        Assert.Equal(0, dropdown.SelectedIndex);
+        Assert.Equal(0, row.Value);
+    }
+
+    [Fact]
+    public void DropdownConfirmedSelectionRejectedRender_TryFocusRestoresCommittedValueBeforeClosingOverlay()
+    {
+        var dropdown = OpenDropdown();
+        var row = new DropdownSelectFormRow<int>("Value:", dropdown) { Id = "choice" };
+        var form = new ScrollableFormDialog([
+            row,
+            new CheckBoxRow(new CheckBoxLine("next")) { Id = "next" },
+        ]);
+        var driver = new FakeConsoleDriver(24, 10);
+        var (host, layer) = CreateRoutedFormHostWithLayer(form, driver, visibleRows: 2);
+        host.Composition.Render();
+        FormTargetFrame popup = Assert.Single(layer.CommittedFrame.Targets, target => target.Kind == FormTargetKind.DropdownPopup);
+
+        host.Composition.DispatchInput(Mouse(popup.Bounds.X + 1, popup.Bounds.Y + 2));
+        layer.ThrowOnRender = true;
+        Assert.Throws<InvalidOperationException>(() => host.Composition.Render());
+
+        Assert.True(form.TryFocus("next"));
+
+        Assert.Equal("next", form.FocusedRowId);
+        Assert.False(dropdown.IsOpen);
+        Assert.False(dropdown.HasScrollbarDrag);
+        Assert.Equal(0, dropdown.SelectedIndex);
+        Assert.Equal(0, row.Value);
+    }
+
+    [Fact]
+    public void DropdownClosedRejectedRender_OutsideClickRestoresCommittedOpenLifecycleThenCancels()
+    {
+        var dropdown = OpenDropdown();
+        var form = new ScrollableFormDialog([new DropdownSelectFormRow<int>("Value:", dropdown) { Id = "choice" }]);
+        var driver = new FakeConsoleDriver(24, 10);
+        var (host, layer) = CreateRoutedFormHostWithLayer(form, driver, visibleRows: 1);
+        host.Composition.Render();
+        FormTargetFrame popup = Assert.Single(layer.CommittedFrame.Targets, target => target.Kind == FormTargetKind.DropdownPopup);
+
+        host.Composition.DispatchInput(Mouse(popup.Bounds.X + 1, popup.Bounds.Y + 2));
+        layer.ThrowOnRender = true;
+        Assert.Throws<InvalidOperationException>(() => host.Composition.Render());
+        host.Composition.DispatchInput(Mouse(23, 9));
+
+        Assert.Equal(FormInputResultKind.OverlayChanged, layer.LastRouteResult!.Value.FormResult.Kind);
+        Assert.False(dropdown.IsOpen);
+        Assert.Equal(0, dropdown.SelectedIndex);
+    }
+
+    [Fact]
+    public void DropdownOpenRejectedRender_ClickOtherRowIgnoresRejectedPopup()
+    {
+        var dropdown = new DropdownSelect<int>(Enumerable.Range(0, 8).ToArray(), static item => item.ToString());
+        var row = new DropdownSelectFormRow<int>("Value:", dropdown) { Id = "choice" };
+        var form = new ScrollableFormDialog([
+            new CheckBoxRow(new CheckBoxLine("next")) { Id = "next" },
+            row,
+        ]);
+        Assert.True(form.TryFocus("choice"));
+        var driver = new FakeConsoleDriver(24, 10);
+        var (host, layer) = CreateRoutedFormHostWithLayer(form, driver, visibleRows: 2);
+        host.Composition.Render();
+        FormTargetFrame next = Assert.Single(layer.CommittedFrame.Targets, target => target.Kind == FormTargetKind.Row && target.Row?.Id == "next");
+
+        host.Composition.DispatchInput(new KeyConsoleInputEvent(Key(ConsoleKey.Spacebar)));
+        Assert.True(dropdown.IsOpen);
+        layer.ThrowOnRender = true;
+        Assert.Throws<InvalidOperationException>(() => host.Composition.Render());
+        host.Composition.DispatchInput(Mouse(next.Bounds.X, next.Bounds.Y));
+
+        Assert.Equal("next", form.FocusedRowId);
+        Assert.False(dropdown.IsOpen);
+        Assert.Equal(0, dropdown.SelectedIndex);
+    }
+
+    [Fact]
+    public void DropdownRejectedDragState_DoesNotSurviveProgrammaticFocusTransition()
+    {
+        var dropdown = OpenDropdown(itemCount: 20, maxVisibleRows: 4);
+        var form = new ScrollableFormDialog([
+            new DropdownSelectFormRow<int>("Value:", dropdown) { Id = "choice" },
+            new CheckBoxRow(new CheckBoxLine("next")) { Id = "next" },
+        ]);
+        var driver = new FakeConsoleDriver(24, 12);
+        var (host, layer) = CreateRoutedFormHostWithLayer(form, driver, visibleRows: 2);
+        host.Composition.Render();
+        FormTargetFrame scrollbar = Assert.Single(layer.CommittedFrame.Targets, target => target.Kind == FormTargetKind.DropdownScrollbar);
+
+        host.Composition.DispatchInput(Mouse(scrollbar.Bounds.X, scrollbar.Bounds.Y + 1, MouseButton.Left, MouseEventKind.Down));
+        Assert.True(dropdown.HasScrollbarDrag);
+        layer.ThrowOnRender = true;
+        Assert.Throws<InvalidOperationException>(() => host.Composition.Render());
+
+        Assert.True(form.TryFocus("next"));
+
+        Assert.Equal("next", form.FocusedRowId);
+        Assert.False(dropdown.IsOpen);
+        Assert.False(dropdown.HasScrollbarDrag);
+        Assert.Equal(0, dropdown.SelectedIndex);
+    }
+
+    [Fact]
     public void DropdownScrollbarCapture_ContinuesOutsideBoundsAndReleasesAfterUp()
     {
         var dropdown = new DropdownSelect<int>(Enumerable.Range(0, 20).ToArray(), static item => item.ToString())
@@ -1769,6 +1952,16 @@ public sealed class ScrollableFormDialogTests
             new CheckBoxRow(new CheckBoxLine("six")),
         ]);
 
+    private static DropdownSelect<int> OpenDropdown(int itemCount = 8, int maxVisibleRows = 3)
+    {
+        var dropdown = new DropdownSelect<int>(Enumerable.Range(0, itemCount).ToArray(), static item => item.ToString())
+        {
+            MaxVisibleRows = maxVisibleRows,
+        };
+        dropdown.Open();
+        return dropdown;
+    }
+
     private static SingleLineTextHistoryState HistoryWithItems(int count)
     {
         var history = new SingleLineTextHistoryState();
@@ -1850,6 +2043,24 @@ public sealed class ScrollableFormDialogTests
                 context,
                 new Rect(0, 0, 20, visibleRows),
                 FarDialogStyles.Border));
+        return (UiTestHost.Create(screen, layer), layer);
+    }
+
+    private static (UiTestHost Host, TestFormLayer Layer) CreateRoutedFooterFormHostWithLayer(
+        ScrollableFormDialog form,
+        FakeConsoleDriver driver,
+        int bodyRows,
+        int footerY)
+    {
+        var screen = new ScreenRenderer(driver);
+        var layer = new TestFormLayer(
+            screen,
+            form,
+            context => new FormRenderContext(
+                context,
+                new Rect(0, 0, 24, bodyRows),
+                FarDialogStyles.Border,
+                new Rect(0, footerY, 24, 1)));
         return (UiTestHost.Create(screen, layer), layer);
     }
 
