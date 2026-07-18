@@ -143,9 +143,16 @@ public sealed class FakeConsoleDriver : IConsoleDriver, IConsoleOutputModeDriver
     {
         cancellationToken.ThrowIfCancellationRequested();
         InvokeBeforeReadInput();
-        return _inputQueue.TryDequeue(out var inputEvent)
-            ? inputEvent
-            : throw new InvalidOperationException("No input events queued in FakeConsoleDriver.");
+        if (_inputQueue.TryDequeue(out var inputEvent))
+            return inputEvent;
+
+        if (cancellationToken.CanBeCanceled)
+        {
+            cancellationToken.WaitHandle.WaitOne();
+            cancellationToken.ThrowIfCancellationRequested();
+        }
+
+        throw new InvalidOperationException("No input events queued in FakeConsoleDriver.");
     }
 
     public bool TryReadInput(bool intercept, [NotNullWhen(true)] out ConsoleInputEvent? inputEvent)

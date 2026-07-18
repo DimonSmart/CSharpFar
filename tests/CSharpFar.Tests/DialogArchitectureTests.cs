@@ -162,6 +162,27 @@ public sealed class DialogArchitectureTests
     }
 
     [Fact]
+    public void LargeFileViewer_UsesInteractiveSurfaceLifecycleOnly()
+    {
+        string root = FindRepositoryRoot();
+        string source = File.ReadAllText(Path.Combine(root, "src", "CSharpFar.App", "Viewer", "LargeFileViewer.cs"));
+
+        Assert.Contains("LargeFileViewerLayer : InteractiveSurfaceLayer", source, StringComparison.Ordinal);
+        Assert.Contains("new(\"viewer.keyboard\")", source, StringComparison.Ordinal);
+        Assert.Contains("new(\"viewer.content\")", source, StringComparison.Ordinal);
+        Assert.Contains("new(\"viewer.function-key-bar\")", source, StringComparison.Ordinal);
+        Assert.Contains("InteractiveSurfaceWakeResult", source, StringComparison.Ordinal);
+
+        Assert.DoesNotContain(".OpenSurface(", source, StringComparison.Ordinal);
+        Assert.DoesNotContain(".ReadInput(", source, StringComparison.Ordinal);
+        Assert.DoesNotContain(".TryReadInput(", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("Thread.Sleep", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("SetCursorVisible", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("RunLoop", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("UiCommittedState<LargeFileViewer", source, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void InteractiveSurfaceWrapper_DoesNotHideRegisteredLayerIdentity()
     {
         string root = FindRepositoryRoot();

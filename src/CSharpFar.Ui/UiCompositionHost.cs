@@ -464,6 +464,34 @@ public sealed class UiCompositionHost
         }
     }
 
+    internal CompositionInputReadResult ReadCompositionInputUntil(
+        DateTimeOffset? wakeUtc,
+        CancellationToken cancellationToken)
+    {
+        EnsureNotDispatchingInputPump();
+
+        if (TryReadCompositionInput(out ConsoleInputEvent? pending) && pending is not null)
+            return CompositionInputReadResult.ForInput(pending);
+
+        if (wakeUtc is not { } deadline)
+            return CompositionInputReadResult.ForInput(ReadCompositionInput(cancellationToken));
+
+        TimeSpan delay = deadline - DateTimeOffset.UtcNow;
+        if (delay <= TimeSpan.Zero)
+            return CompositionInputReadResult.Wake();
+
+        using var timeout = new CancellationTokenSource(delay);
+        using var linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, timeout.Token);
+        try
+        {
+            return CompositionInputReadResult.ForInput(ReadCompositionInput(linked.Token));
+        }
+        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested && timeout.IsCancellationRequested)
+        {
+            return CompositionInputReadResult.Wake();
+        }
+    }
+
     internal bool TryReadCompositionInput(out ConsoleInputEvent? input)
     {
         EnsureNotDispatchingInputPump();
@@ -723,4 +751,15 @@ public sealed class UiCompositionHost
             _commits = null;
         }
     }
+}
+
+internal readonly record struct CompositionInputReadResult(ConsoleInputEvent? RawInput, bool IsWake)
+{
+    public ConsoleInputEvent Input => !IsWake && RawInput is { } input
+        ? input
+        : throw new InvalidOperationException("The composition input result does not contain input.");
+
+    public static CompositionInputReadResult ForInput(ConsoleInputEvent input) => new(input, IsWake: false);
+
+    public static CompositionInputReadResult Wake() => new(null, IsWake: true);
 }

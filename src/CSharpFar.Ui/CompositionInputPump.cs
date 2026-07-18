@@ -4,6 +4,17 @@ namespace CSharpFar.Ui;
 
 internal delegate bool TryTakeCompositionPacket<TPacket>(out TPacket packet);
 
+internal readonly record struct CompositionInputPumpResult<TPacket>(TPacket? Packet, bool IsWake)
+{
+    public TPacket RequiredPacket => !IsWake && Packet is { } packet
+        ? packet
+        : throw new InvalidOperationException("The composition pump result does not contain an input packet.");
+
+    public static CompositionInputPumpResult<TPacket> Input(TPacket packet) => new(packet, IsWake: false);
+
+    public static CompositionInputPumpResult<TPacket> Wake() => new(default, IsWake: true);
+}
+
 internal sealed class CompositionInputPump<TPacket>
 {
     private readonly UiCompositionHost _composition;
@@ -33,6 +44,32 @@ internal sealed class CompositionInputPump<TPacket>
             UiInputResult dispatch = _composition.DispatchInput(semanticInput);
             if (_tryTakePacket(out var packet))
                 return packet;
+
+            if (dispatch.Invalidate)
+                _composition.Render();
+        }
+    }
+
+    public CompositionInputPumpResult<TPacket> ReadOrWake(
+        Func<DateTimeOffset?> getNextWakeUtc,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(getNextWakeUtc);
+
+        _ensureActive();
+        if (_tryTakePacket(out var pending))
+            return CompositionInputPumpResult<TPacket>.Input(pending);
+
+        while (true)
+        {
+            _ensureActive();
+            var read = _composition.ReadCompositionInputUntil(getNextWakeUtc(), cancellationToken);
+            if (read.IsWake)
+                return CompositionInputPumpResult<TPacket>.Wake();
+
+            UiInputResult dispatch = _composition.DispatchInput(read.Input);
+            if (_tryTakePacket(out var packet))
+                return CompositionInputPumpResult<TPacket>.Input(packet);
 
             if (dispatch.Invalidate)
                 _composition.Render();

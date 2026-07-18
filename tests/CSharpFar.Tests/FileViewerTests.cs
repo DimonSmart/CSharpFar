@@ -255,6 +255,22 @@ public class FileViewerTests : IDisposable
     }
 
     [Fact]
+    public void Show_MouseWheelOutsideContentDoesNotScroll()
+    {
+        string path = Write("viewer-wheel-outside.txt", string.Join('\n', Enumerable.Range(1, 12).Select(i => $"line{i}")), new UTF8Encoding(false));
+        var driver = new FakeConsoleDriver(width: 80, height: 8);
+        driver.EnqueueInput(new MouseConsoleInputEvent(0, 7, MouseButton.WheelDown, MouseEventKind.Wheel, MouseKeyModifiers.None));
+        driver.EnqueueKey(Key(ConsoleKey.F10));
+        var screen = new ScreenRenderer(driver);
+
+        new FileViewer(screen, ModalTestHost.Create(screen)).Show(path);
+
+        string content = driver.GetRegionText(new CSharpFar.Console.Models.Rect(0, 1, 80, 6));
+        Assert.Contains("line1", content);
+        Assert.DoesNotContain("line7", content);
+    }
+
+    [Fact]
     public void Show_MouseWheelRedrawDoesNotRewriteFunctionKeyBar()
     {
         string path = Write("viewer-wheel-keybar.txt", string.Join('\n', Enumerable.Range(1, 12).Select(i => $"line{i}")), new UTF8Encoding(false));

@@ -23,10 +23,14 @@ public sealed class InteractiveSurfaceHost
         InteractiveSurfaceLayer<TFrame, TSemantic> layer,
         Func<UiRoutedInput<TFrame>, TSemantic, ModalDialogLoopResult<TResult>> handleInput,
         Action? prepareRender = null,
+        Func<DateTimeOffset?>? getNextWakeUtc = null,
+        Func<TFrame, InteractiveSurfaceWakeResult>? handleWake = null,
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(layer);
         ArgumentNullException.ThrowIfNull(handleInput);
+        if ((getNextWakeUtc is null) != (handleWake is null))
+            throw new ArgumentException("Timed interactive surfaces require both wake scheduling and wake handling.");
 
         prepareRender?.Invoke();
         using var surface = _composition.OpenSurface(new InteractiveSurface(_composition.Screen), layer);
@@ -34,11 +38,26 @@ public sealed class InteractiveSurfaceHost
 
         while (true)
         {
-            InteractiveSurfaceInput<TFrame, TSemantic> packet =
-                new CompositionInputPump<InteractiveSurfaceInput<TFrame, TSemantic>>(
-                    _composition,
-                    layer.TryTakeInput)
-                .Read(cancellationToken);
+            var pump = new CompositionInputPump<InteractiveSurfaceInput<TFrame, TSemantic>>(
+                _composition,
+                layer.TryTakeInput);
+            CompositionInputPumpResult<InteractiveSurfaceInput<TFrame, TSemantic>> read =
+                getNextWakeUtc is null
+                    ? CompositionInputPumpResult<InteractiveSurfaceInput<TFrame, TSemantic>>.Input(pump.Read(cancellationToken))
+                    : pump.ReadOrWake(getNextWakeUtc, cancellationToken);
+            if (read.IsWake)
+            {
+                InteractiveSurfaceWakeResult wake = handleWake!(layer.CommittedFrame);
+                if (wake.Invalidate)
+                {
+                    prepareRender?.Invoke();
+                    _composition.Render();
+                }
+
+                continue;
+            }
+
+            InteractiveSurfaceInput<TFrame, TSemantic> packet = read.RequiredPacket;
             ModalDialogLoopResult<TResult> step = handleInput(packet.Routed, packet.Semantic);
             if (step.IsCompleted)
                 return step.Result;
@@ -47,6 +66,13 @@ public sealed class InteractiveSurfaceHost
             _composition.Render();
         }
     }
+}
+
+public readonly record struct InteractiveSurfaceWakeResult(bool Invalidate)
+{
+    public static InteractiveSurfaceWakeResult NoChange => new(Invalidate: false);
+
+    public static InteractiveSurfaceWakeResult Changed => new(Invalidate: true);
 }
 
 internal sealed class InteractiveSurface : IUiSurface

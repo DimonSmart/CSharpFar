@@ -20,6 +20,7 @@ internal sealed class LargeFileViewer
     private readonly ScreenRenderer _screen;
     private readonly ModalDialogHost _modalDialogs;
     private readonly ConsolePalette _palette;
+    private readonly InteractiveSurfaceHost _surfaces;
 
     public LargeFileViewer(UiCompositionHost composition, ModalDialogHost modalDialogs, ConsolePalette? palette = null)
     {
@@ -27,6 +28,7 @@ internal sealed class LargeFileViewer
         _screen = composition.Screen;
         _modalDialogs = modalDialogs;
         _palette = palette ?? PaletteRegistry.Default;
+        _surfaces = new InteractiveSurfaceHost(composition);
     }
 
     public void Show(string filePath) => Show(filePath, null);
@@ -42,19 +44,24 @@ internal sealed class LargeFileViewer
             reader = opened.Reader;
             var state = opened.State;
 
-            var committedLayout = new UiCommittedState<LargeFileViewerLayout>();
-            using var surface = _composition.OpenSurface(context =>
-            {
-                int contentHeight = Math.Max(0, context.Size.Height - 2);
-                var view = Draw(filePath, reader!, state, contentHeight, context.Size);
-                var frame = new LargeFileViewerLayout(
-                    context.Size, contentHeight, view, ViewerFunctionKeyBarActions(state));
-                committedLayout.Stage(context, frame);
-            });
-
             while (true)
             {
-                var action = RunLoop(filePath, reader, state, options, surface, () => committedLayout.Value);
+                var layer = new LargeFileViewerLayer(this, filePath, reader, state);
+                long knownFollowLength = reader.Length;
+                var action = _surfaces.Run(
+                    layer,
+                    (routed, input) => HandleViewerInput(filePath, reader, state, options, routed.Frame, input),
+                    getNextWakeUtc: () => state.FollowMode ? DateTimeOffset.UtcNow.AddMilliseconds(FollowPollMs) : null,
+                    handleWake: frame =>
+                    {
+                        long currentLength = reader.Length;
+                        if (currentLength == knownFollowLength)
+                            return InteractiveSurfaceWakeResult.NoChange;
+
+                        knownFollowLength = currentLength;
+                        MoveToEnd(reader, state, frame.ContentHeight);
+                        return InteractiveSurfaceWakeResult.Changed;
+                    });
                 if (action == ViewerLoopAction.Close)
                     return;
 
@@ -100,248 +107,243 @@ internal sealed class LargeFileViewer
         }
     }
 
-    private ViewerLoopAction RunLoop(
+    private ModalDialogLoopResult<ViewerLoopAction> HandleViewerInput(
         string filePath,
         IFileByteReader reader,
         LargeFileViewerState state,
         LargeFileViewerOptions options,
-        UiCompositionHost.UiSurfaceSession surface,
-        Func<LargeFileViewerLayout> getLayout)
+        LargeFileViewerFrame frame,
+        ViewerInput input)
     {
-        while (true)
+        var size = frame.Size;
+        int contentHeight = frame.ContentHeight;
+        var view = frame.View;
+
+        if (input.ScrollLines is { } lines)
         {
-            surface.Render();
-            var layout = getLayout();
-            var size = layout.Size;
-            int contentHeight = layout.ContentHeight;
-            var view = layout.View;
-            var functionKeyBarActions = layout.FunctionKeyActions;
-
-            var input = ReadViewerInput(surface, reader, state, contentHeight);
-            if (TryHandleMouseWheel(input, reader, state, view))
-                continue;
-
-            if (!TryGetViewerKey(input, size, functionKeyBarActions, out var key))
-                continue;
-
-            if (key.Key == ConsoleKey.NoName)
-                continue;
-
-            bool shift = (key.Modifiers & ConsoleModifiers.Shift) != 0;
-            bool alt = (key.Modifiers & ConsoleModifiers.Alt) != 0;
-            bool control = (key.Modifiers & ConsoleModifiers.Control) != 0;
-
-            if (TryHandleUnsupportedNumberedBookmark(key, control, shift, alt))
-                continue;
-
-            switch (key.Key)
-            {
-                case ConsoleKey.UpArrow:
-                    MoveUp(state);
-                    break;
-
-                case ConsoleKey.DownArrow:
-                    MoveDown(reader, state, view);
-                    break;
-
-                case ConsoleKey.LeftArrow when control && shift:
-                    state.HorizontalOffset = 0;
-                    break;
-
-                case ConsoleKey.RightArrow when control && shift:
-                    MoveHorizontalToCurrentLineEnd(state, view, size.Width);
-                    break;
-
-                case ConsoleKey.LeftArrow when control:
-                    MoveHorizontal(state, -(state.IsHexMode ? 1 : FastHorizontalTextScrollChars));
-                    break;
-
-                case ConsoleKey.RightArrow when control:
-                    MoveHorizontal(state, state.IsHexMode ? 1 : FastHorizontalTextScrollChars);
-                    break;
-
-                case ConsoleKey.LeftArrow when shift:
-                case ConsoleKey.RightArrow when shift:
-                    ShowUnsupported("Viewer text selection");
-                    break;
-
-                case ConsoleKey.LeftArrow:
-                    MoveHorizontal(state, -1);
-                    break;
-
-                case ConsoleKey.RightArrow:
-                    MoveHorizontal(state, 1);
-                    break;
-
-                case ConsoleKey.PageUp when alt:
-                    MovePageUp(state, contentHeight, FastPageMultiplier);
-                    break;
-
-                case ConsoleKey.PageDown when alt:
-                    MovePageDown(reader, state, contentHeight, FastPageMultiplier);
-                    break;
-
-                case ConsoleKey.PageUp:
-                    MovePageUp(state, contentHeight, pages: 1);
-                    break;
-
-                case ConsoleKey.PageDown:
-                    MovePageDown(reader, state, view, contentHeight);
-                    break;
-
-                case ConsoleKey.Home:
-                    state.TopByteOffset = state.LineScanner.ContentStartOffset;
-                    state.HorizontalOffset = 0;
-                    state.FollowMode = false;
-                    break;
-
-                case ConsoleKey.End:
-                    MoveToEnd(reader, state, contentHeight);
-                    state.HorizontalOffset = 0;
-                    state.FollowMode = true;
-                    break;
-
-                case ConsoleKey.F1:
-                    new HelpViewer(_composition, _palette).Show();
-                    break;
-
-                case ConsoleKey.F2 when shift && !alt && !control:
-                    state.WordWrap = !state.WordWrap;
-                    state.WrapLines = true;
-                    state.HorizontalOffset = 0;
-                    break;
-
-                case ConsoleKey.F2 when !shift && !alt && !control:
-                    state.WrapLines = !state.WrapLines;
-                    if (state.WrapLines)
-                        state.HorizontalOffset = 0;
-                    break;
-
-                case ConsoleKey.F3 when !shift && !alt && !control:
-                case ConsoleKey.NumPad5 when !shift && !alt && !control:
-                    return ViewerLoopAction.Close;
-
-                case ConsoleKey.F4 when !shift && !alt && !control:
-                    ToggleViewMode(state);
-                    break;
-
-                case ConsoleKey.F5 when alt:
-                    ShowUnsupported("Print");
-                    break;
-
-                case ConsoleKey.F5:
-                    ShowUnsupported("Raw/processed viewer mode");
-                    break;
-
-                case ConsoleKey.F6 when !shift && !alt && !control:
-                    EditCurrentFile(filePath, reader, state, options);
-                    break;
-
-                case ConsoleKey.F7 when control:
-                    ShowUnsupported("Viewer grep filter");
-                    break;
-
-                case ConsoleKey.F7 when alt:
-                    RepeatSearch(reader, state, searchBackward: true, size.Width);
-                    break;
-
-                case ConsoleKey.F7 when shift && !alt:
-                    RepeatSearch(reader, state, searchBackward: false, size.Width);
-                    break;
-
-                case ConsoleKey.F7 when !shift && !alt && !control:
-                    ShowFindDialog(reader, state, size.Width);
-                    break;
-
-                case ConsoleKey.F8 when alt:
-                    JumpToPosition(reader, state, contentHeight);
-                    break;
-
-                case ConsoleKey.F8 when control:
-                    ShowUnsupported("Ctrl+F8");
-                    break;
-
-                case ConsoleKey.F8 when shift:
-                    ChangeEncoding(filePath, reader, state, contentHeight, size, surface);
-                    break;
-
-                case ConsoleKey.F8 when !shift && !alt && !control:
-                    CycleCommonEncoding(reader, state);
-                    break;
-
-                case ConsoleKey.F9:
-                    ShowUnsupported("Viewer settings");
-                    break;
-
-                case ConsoleKey.F10 when control:
-                    ShowUnsupported("Show current file in panel");
-                    break;
-
-                case ConsoleKey.F10 when !shift && !alt && !control:
-                case ConsoleKey.Escape:
-                    return ViewerLoopAction.Close;
-
-                case ConsoleKey.F11 when alt:
-                    ShowUnsupported("Viewer history");
-                    break;
-
-                case ConsoleKey.F11:
-                    ShowUnsupported("Plugin menu");
-                    break;
-
-                case ConsoleKey.F when !shift && !alt && !control:
-                    state.FollowMode = !state.FollowMode;
-                    if (state.FollowMode)
-                        MoveToEnd(reader, state, contentHeight);
-                    break;
-
-                case ConsoleKey.G when !shift && !alt && !control:
-                    JumpToPosition(reader, state, contentHeight);
-                    break;
-
-                case ConsoleKey.H when !shift && !alt && !control:
-                    ToggleViewMode(state);
-                    break;
-
-                case ConsoleKey.Spacebar when !shift && !alt && !control:
-                    RepeatSearch(reader, state, searchBackward: false, size.Width);
-                    break;
-
-                case ConsoleKey.U when control:
-                    state.SearchMatch = null;
-                    break;
-
-                case ConsoleKey.C when control:
-                case ConsoleKey.Insert when control:
-                    CopySearchMatch(state, options);
-                    break;
-
-                case ConsoleKey.O when control:
-                    ShowUnsupported("Show work screen");
-                    break;
-
-                case ConsoleKey.B when control:
-                    ShowUnsupported(shift ? "Status line toggle" : "Function key bar toggle");
-                    break;
-
-                case ConsoleKey.S when control:
-                    ShowUnsupported("Scrollbar toggle");
-                    break;
-
-                case ConsoleKey.Z when control:
-                case ConsoleKey.Backspace when alt:
-                    ShowUnsupported("Undo viewer position");
-                    break;
-
-                case ConsoleKey.Add when !shift && !alt && !control:
-                case ConsoleKey.OemPlus when !shift && !alt && !control:
-                    return ViewerLoopAction.NextFile;
-
-                case ConsoleKey.Subtract when !shift && !alt && !control:
-                case ConsoleKey.OemMinus when !shift && !alt && !control:
-                    return ViewerLoopAction.PreviousFile;
-            }
+            ApplyScrollLines(reader, state, view, lines);
+            return ModalDialogLoopResult<ViewerLoopAction>.Continue;
         }
+
+        if (input.Key is not { } key || key.Key == ConsoleKey.NoName)
+            return ModalDialogLoopResult<ViewerLoopAction>.Continue;
+
+        bool shift = (key.Modifiers & ConsoleModifiers.Shift) != 0;
+        bool alt = (key.Modifiers & ConsoleModifiers.Alt) != 0;
+        bool control = (key.Modifiers & ConsoleModifiers.Control) != 0;
+
+        if (TryHandleUnsupportedNumberedBookmark(key, control, shift, alt))
+            return ModalDialogLoopResult<ViewerLoopAction>.Continue;
+
+        switch (key.Key)
+        {
+            case ConsoleKey.UpArrow:
+                MoveUp(state);
+                break;
+
+            case ConsoleKey.DownArrow:
+                MoveDown(reader, state, view);
+                break;
+
+            case ConsoleKey.LeftArrow when control && shift:
+                state.HorizontalOffset = 0;
+                break;
+
+            case ConsoleKey.RightArrow when control && shift:
+                MoveHorizontalToCurrentLineEnd(state, view, size.Width);
+                break;
+
+            case ConsoleKey.LeftArrow when control:
+                MoveHorizontal(state, -(state.IsHexMode ? 1 : FastHorizontalTextScrollChars));
+                break;
+
+            case ConsoleKey.RightArrow when control:
+                MoveHorizontal(state, state.IsHexMode ? 1 : FastHorizontalTextScrollChars);
+                break;
+
+            case ConsoleKey.LeftArrow when shift:
+            case ConsoleKey.RightArrow when shift:
+                ShowUnsupported("Viewer text selection");
+                break;
+
+            case ConsoleKey.LeftArrow:
+                MoveHorizontal(state, -1);
+                break;
+
+            case ConsoleKey.RightArrow:
+                MoveHorizontal(state, 1);
+                break;
+
+            case ConsoleKey.PageUp when alt:
+                MovePageUp(state, contentHeight, FastPageMultiplier);
+                break;
+
+            case ConsoleKey.PageDown when alt:
+                MovePageDown(reader, state, contentHeight, FastPageMultiplier);
+                break;
+
+            case ConsoleKey.PageUp:
+                MovePageUp(state, contentHeight, pages: 1);
+                break;
+
+            case ConsoleKey.PageDown:
+                MovePageDown(reader, state, view, contentHeight);
+                break;
+
+            case ConsoleKey.Home:
+                state.TopByteOffset = state.LineScanner.ContentStartOffset;
+                state.HorizontalOffset = 0;
+                state.FollowMode = false;
+                break;
+
+            case ConsoleKey.End:
+                MoveToEnd(reader, state, contentHeight);
+                state.HorizontalOffset = 0;
+                state.FollowMode = true;
+                break;
+
+            case ConsoleKey.F1:
+                new HelpViewer(_composition, _palette).Show();
+                break;
+
+            case ConsoleKey.F2 when shift && !alt && !control:
+                state.WordWrap = !state.WordWrap;
+                state.WrapLines = true;
+                state.HorizontalOffset = 0;
+                break;
+
+            case ConsoleKey.F2 when !shift && !alt && !control:
+                state.WrapLines = !state.WrapLines;
+                if (state.WrapLines)
+                    state.HorizontalOffset = 0;
+                break;
+
+            case ConsoleKey.F3 when !shift && !alt && !control:
+            case ConsoleKey.NumPad5 when !shift && !alt && !control:
+                return ModalDialogLoopResult<ViewerLoopAction>.Complete(ViewerLoopAction.Close);
+
+            case ConsoleKey.F4 when !shift && !alt && !control:
+                ToggleViewMode(state);
+                break;
+
+            case ConsoleKey.F5 when alt:
+                ShowUnsupported("Print");
+                break;
+
+            case ConsoleKey.F5:
+                ShowUnsupported("Raw/processed viewer mode");
+                break;
+
+            case ConsoleKey.F6 when !shift && !alt && !control:
+                EditCurrentFile(filePath, reader, state, options);
+                break;
+
+            case ConsoleKey.F7 when control:
+                ShowUnsupported("Viewer grep filter");
+                break;
+
+            case ConsoleKey.F7 when alt:
+                RepeatSearch(reader, state, searchBackward: true, size.Width);
+                break;
+
+            case ConsoleKey.F7 when shift && !alt:
+                RepeatSearch(reader, state, searchBackward: false, size.Width);
+                break;
+
+            case ConsoleKey.F7 when !shift && !alt && !control:
+                ShowFindDialog(reader, state, size.Width);
+                break;
+
+            case ConsoleKey.F8 when alt:
+                JumpToPosition(reader, state, contentHeight);
+                break;
+
+            case ConsoleKey.F8 when control:
+                ShowUnsupported("Ctrl+F8");
+                break;
+
+            case ConsoleKey.F8 when shift:
+                ChangeEncoding(filePath, reader, state, contentHeight, size);
+                break;
+
+            case ConsoleKey.F8 when !shift && !alt && !control:
+                CycleCommonEncoding(reader, state);
+                break;
+
+            case ConsoleKey.F9:
+                ShowUnsupported("Viewer settings");
+                break;
+
+            case ConsoleKey.F10 when control:
+                ShowUnsupported("Show current file in panel");
+                break;
+
+            case ConsoleKey.F10 when !shift && !alt && !control:
+            case ConsoleKey.Escape:
+                return ModalDialogLoopResult<ViewerLoopAction>.Complete(ViewerLoopAction.Close);
+
+            case ConsoleKey.F11 when alt:
+                ShowUnsupported("Viewer history");
+                break;
+
+            case ConsoleKey.F11:
+                ShowUnsupported("Plugin menu");
+                break;
+
+            case ConsoleKey.F when !shift && !alt && !control:
+                state.FollowMode = !state.FollowMode;
+                if (state.FollowMode)
+                    MoveToEnd(reader, state, contentHeight);
+                break;
+
+            case ConsoleKey.G when !shift && !alt && !control:
+                JumpToPosition(reader, state, contentHeight);
+                break;
+
+            case ConsoleKey.H when !shift && !alt && !control:
+                ToggleViewMode(state);
+                break;
+
+            case ConsoleKey.Spacebar when !shift && !alt && !control:
+                RepeatSearch(reader, state, searchBackward: false, size.Width);
+                break;
+
+            case ConsoleKey.U when control:
+                state.SearchMatch = null;
+                break;
+
+            case ConsoleKey.C when control:
+            case ConsoleKey.Insert when control:
+                CopySearchMatch(state, options);
+                break;
+
+            case ConsoleKey.O when control:
+                ShowUnsupported("Show work screen");
+                break;
+
+            case ConsoleKey.B when control:
+                ShowUnsupported(shift ? "Status line toggle" : "Function key bar toggle");
+                break;
+
+            case ConsoleKey.S when control:
+                ShowUnsupported("Scrollbar toggle");
+                break;
+
+            case ConsoleKey.Z when control:
+            case ConsoleKey.Backspace when alt:
+                ShowUnsupported("Undo viewer position");
+                break;
+
+            case ConsoleKey.Add when !shift && !alt && !control:
+            case ConsoleKey.OemPlus when !shift && !alt && !control:
+                return ModalDialogLoopResult<ViewerLoopAction>.Complete(ViewerLoopAction.NextFile);
+
+            case ConsoleKey.Subtract when !shift && !alt && !control:
+            case ConsoleKey.OemMinus when !shift && !alt && !control:
+                return ModalDialogLoopResult<ViewerLoopAction>.Complete(ViewerLoopAction.PreviousFile);
+        }
+
+        return ModalDialogLoopResult<ViewerLoopAction>.Continue;
     }
 
     private bool TryHandleUnsupportedNumberedBookmark(
@@ -377,83 +379,21 @@ internal sealed class LargeFileViewer
         return number >= 0;
     }
 
-    private ConsoleInputEvent ReadViewerInput(
-        UiCompositionHost.UiSurfaceSession surface,
+    private void ApplyScrollLines(
         IFileByteReader reader,
         LargeFileViewerState state,
-        int contentHeight)
+        LargeFileRenderView view,
+        int lines)
     {
-        if (!state.FollowMode)
-            return surface.ReadInput();
-
-        long knownLength = reader.Length;
-        while (true)
+        if (lines < 0)
         {
-            if (surface.TryReadInput(out var inputEvent))
-                return inputEvent;
-
-            long currentLength = reader.Length;
-            if (currentLength != knownLength)
-            {
-                MoveToEnd(reader, state, contentHeight);
-                surface.Render();
-                continue;
-            }
-
-            Thread.Sleep(FollowPollMs);
-        }
-    }
-
-    private static bool TryGetViewerKey(
-        ConsoleInputEvent input,
-        ConsoleSize size,
-        IReadOnlyList<FunctionKeyBarAction<ConsoleKeyInfo>> functionKeyBarActions,
-        out ConsoleKeyInfo key)
-    {
-        key = default;
-
-        if (input is KeyConsoleInputEvent keyEvent)
-        {
-            key = keyEvent.Key;
-            return true;
-        }
-
-        if (input is not MouseConsoleInputEvent mouse)
-            return false;
-
-        return new FunctionKeyBarController<ConsoleKeyInfo>().TryGetAction(
-            mouse,
-            size.Height - 1,
-            size.Width,
-            functionKeyBarActions,
-            out key);
-    }
-
-    private bool TryHandleMouseWheel(
-        ConsoleInputEvent input,
-        IFileByteReader reader,
-        LargeFileViewerState state,
-        LargeFileRenderView view)
-    {
-        if (input is not MouseConsoleInputEvent { Kind: MouseEventKind.Wheel } mouse)
-            return false;
-
-        const int wheelLines = 3;
-        if (mouse.Button == MouseButton.WheelUp)
-        {
-            for (int i = 0; i < wheelLines; i++)
+            for (int i = 0; i < -lines; i++)
                 MoveUp(state);
-            return true;
+            return;
         }
 
-        if (mouse.Button == MouseButton.WheelDown)
-        {
-            for (int i = 0; i < wheelLines; i++)
-                MoveDown(reader, state, view);
-            return true;
-        }
-
-        return false;
+        for (int i = 0; i < lines; i++)
+            MoveDown(reader, state, view);
     }
 
     private LargeFileRenderView Draw(
@@ -463,7 +403,6 @@ internal sealed class LargeFileViewer
         int contentHeight,
         ConsoleSize size)
     {
-        _screen.SetCursorVisible(false);
         DrawHeader(filePath, reader, state, size);
 
         var view = state.IsHexMode
@@ -1003,8 +942,7 @@ internal sealed class LargeFileViewer
         IFileByteReader reader,
         LargeFileViewerState state,
         int contentHeight,
-        ConsoleSize size,
-        UiCompositionHost.UiSurfaceSession surface)
+        ConsoleSize size)
     {
         var items = TextEncodingCatalog.CreateViewerCatalog(state.LineScanner.Detection);
         long anchorByteOffset = state.TopByteOffset;
@@ -1022,10 +960,7 @@ internal sealed class LargeFileViewer
                 item.Selection,
                 anchorByteOffset,
                 originalViewMode),
-            previewRedraw: () =>
-            {
-                surface.Render();
-            });
+            previewRedraw: () => _composition.Render());
 
         if (selected is null)
         {
@@ -1037,12 +972,6 @@ internal sealed class LargeFileViewer
 
         ApplyEncodingSelection(reader, state, selected.Selection, anchorByteOffset, originalViewMode);
     }
-
-    private sealed record LargeFileViewerLayout(
-        ConsoleSize Size,
-        int ContentHeight,
-        LargeFileRenderView View,
-        IReadOnlyList<FunctionKeyBarAction<ConsoleKeyInfo>> FunctionKeyActions);
 
     private static void CycleCommonEncoding(IFileByteReader reader, LargeFileViewerState state)
     {
@@ -1201,6 +1130,137 @@ internal sealed class LargeFileViewer
             return 0;
 
         return Math.Clamp(offset * 100 / length, 0, 100);
+    }
+
+    private sealed class LargeFileViewerLayer : InteractiveSurfaceLayer<LargeFileViewerFrame, ViewerInput>
+    {
+        internal static readonly UiTargetId Keyboard = new("viewer.keyboard");
+        internal static readonly UiTargetId Content = new("viewer.content");
+        internal static readonly UiTargetId FunctionKeys = new("viewer.function-key-bar");
+
+        private readonly LargeFileViewer _viewer;
+        private readonly string _filePath;
+        private readonly IFileByteReader _reader;
+        private readonly LargeFileViewerState _state;
+
+        public LargeFileViewerLayer(
+            LargeFileViewer viewer,
+            string filePath,
+            IFileByteReader reader,
+            LargeFileViewerState state)
+            : base(
+                (_, _) => throw new InvalidOperationException("LargeFileViewerLayer uses overridden rendering."),
+                _ => UiInteractionFrame.Empty,
+                (_, _, _) => new InteractiveSurfaceRouteResult<ViewerInput>(ViewerInput.None))
+        {
+            _viewer = viewer;
+            _filePath = filePath;
+            _reader = reader;
+            _state = state;
+        }
+
+        protected override LargeFileViewerFrame RenderFrameCore(UiRenderContext context)
+        {
+            int contentHeight = Math.Max(0, context.Size.Height - 2);
+            LargeFileRenderView view = _viewer.Draw(_filePath, _reader, _state, contentHeight, context.Size);
+            IReadOnlyList<FunctionKeyHit> functionKeyHits = BuildFunctionKeyHits(
+                context.Size.Height > 0 ? context.Size.Height - 1 : 0,
+                context.Size.Width,
+                ViewerFunctionKeyBarActions(_state));
+
+            return new LargeFileViewerFrame(
+                context.Viewport,
+                context.Size,
+                context.Size.Height > 0 ? new Rect(0, 0, context.Size.Width, 1) : new Rect(0, 0, 0, 0),
+                contentHeight > 0 ? new Rect(0, 1, context.Size.Width, contentHeight) : new Rect(0, 0, 0, 0),
+                context.Size.Height > 0 ? new Rect(0, context.Size.Height - 1, context.Size.Width, 1) : new Rect(0, 0, 0, 0),
+                contentHeight,
+                view,
+                functionKeyHits);
+        }
+
+        protected override UiInteractionFrame BuildInteractionFrameCore(LargeFileViewerFrame frame)
+        {
+            var regions = new List<UiHitRegion>();
+            if (frame.ContentBounds.Width > 0 && frame.ContentBounds.Height > 0)
+                regions.Add(new UiHitRegion(Content, frame.ContentBounds));
+            foreach (FunctionKeyHit hit in frame.FunctionKeyHits)
+                regions.Add(new UiHitRegion(FunctionKeys, hit.Bounds));
+
+            return new UiInteractionFrame(
+                regions,
+                new UiFocusFrame([new UiFocusEntry(Keyboard, 0, Cursor: new UiCursorPlacement(0, 0, false))], Keyboard),
+                Keyboard);
+        }
+
+        protected override InteractiveSurfaceRouteResult<ViewerInput> RouteSemanticInput(
+            ConsoleInputEvent input,
+            LargeFileViewerFrame frame,
+            UiInputRouteContext context)
+        {
+            if (input is KeyConsoleInputEvent key &&
+                context is { RouteKind: UiInputRouteKind.KeyboardTarget, Target: not null } &&
+                context.Target == Keyboard)
+            {
+                return new InteractiveSurfaceRouteResult<ViewerInput>(ViewerInput.FromKey(key.Key));
+            }
+
+            if (input is not MouseConsoleInputEvent mouse)
+                return new InteractiveSurfaceRouteResult<ViewerInput>(ViewerInput.None);
+
+            if (context.Target == Content && mouse.Kind == MouseEventKind.Wheel)
+            {
+                const int wheelLines = 3;
+                return mouse.Button switch
+                {
+                    MouseButton.WheelUp => new InteractiveSurfaceRouteResult<ViewerInput>(ViewerInput.FromScroll(-wheelLines)),
+                    MouseButton.WheelDown => new InteractiveSurfaceRouteResult<ViewerInput>(ViewerInput.FromScroll(wheelLines)),
+                    _ => new InteractiveSurfaceRouteResult<ViewerInput>(ViewerInput.None),
+                };
+            }
+
+            if (context.Target == FunctionKeys && mouse is { Button: MouseButton.Left, Kind: MouseEventKind.Down })
+            {
+                FunctionKeyHit? hit = frame.FunctionKeyHits.FirstOrDefault(value => value.Bounds.Contains(mouse.X, mouse.Y));
+                return new InteractiveSurfaceRouteResult<ViewerInput>(
+                    hit is { } value ? ViewerInput.FromKey(value.Key) : ViewerInput.None);
+            }
+
+            return new InteractiveSurfaceRouteResult<ViewerInput>(ViewerInput.None);
+        }
+
+        private static IReadOnlyList<FunctionKeyHit> BuildFunctionKeyHits(
+            int y,
+            int totalWidth,
+            IReadOnlyList<FunctionKeyBarAction<ConsoleKeyInfo>> actions)
+        {
+            var enabled = actions.Where(action => action.Enabled).ToDictionary(action => action.KeyNumber, action => action.Action);
+            return FunctionKeyBar.BuildSlots(y, totalWidth)
+                .Where(slot => enabled.ContainsKey(slot.KeyNumber))
+                .Select(slot => new FunctionKeyHit(slot.Bounds, enabled[slot.KeyNumber]))
+                .ToArray();
+        }
+    }
+
+    private sealed record LargeFileViewerFrame(
+        ConsoleViewport Viewport,
+        ConsoleSize Size,
+        Rect HeaderBounds,
+        Rect ContentBounds,
+        Rect FunctionKeyBarBounds,
+        int ContentHeight,
+        LargeFileRenderView View,
+        IReadOnlyList<FunctionKeyHit> FunctionKeyHits);
+
+    private sealed record FunctionKeyHit(Rect Bounds, ConsoleKeyInfo Key);
+
+    private readonly record struct ViewerInput(ConsoleKeyInfo? Key, int? ScrollLines)
+    {
+        public static ViewerInput None => new(null, null);
+
+        public static ViewerInput FromKey(ConsoleKeyInfo key) => new(key, null);
+
+        public static ViewerInput FromScroll(int lines) => new(null, lines);
     }
 
     private sealed record LargeFileRenderView(IReadOnlyList<ScannedLine> Lines, long NextOffset);

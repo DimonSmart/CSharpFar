@@ -72,6 +72,121 @@ public sealed class InteractiveSurfaceHostTests
     }
 
     [Fact]
+    public void Run_TimedWakeWithoutInvalidationDoesNotRender()
+    {
+        var driver = new FakeConsoleDriver();
+        var screen = new ScreenRenderer(driver);
+        var composition = new UiCompositionHost(screen);
+        composition.SetRootSurface(new ScreenRendererSurface(screen, _ => { }));
+        int renders = 0;
+        int wakes = 0;
+        var layer = new InteractiveSurfaceLayer<int, ConsoleKey>(
+            (context, _) => { context.Screen.Write(0, 0, "S", new CellStyle(ConsoleColor.Gray, ConsoleColor.Black)); return ++renders; },
+            _ => new UiInteractionFrame([], keyboardTarget: new UiTargetId("surface.keyboard")),
+            (input, _, _) => new InteractiveSurfaceRouteResult<ConsoleKey>(((KeyConsoleInputEvent)input).Key.Key));
+
+        new InteractiveSurfaceHost(composition).Run(
+            layer,
+            (_, _) => ModalDialogLoopResult<bool>.Complete(true),
+            getNextWakeUtc: () => wakes == 0 ? DateTimeOffset.UtcNow.AddMilliseconds(1) : null,
+            handleWake: _ =>
+            {
+                wakes++;
+                driver.EnqueueKey(Key(ConsoleKey.Enter));
+                return InteractiveSurfaceWakeResult.NoChange;
+            });
+
+        Assert.Equal(1, wakes);
+        Assert.Equal(1, renders);
+    }
+
+    [Fact]
+    public void Run_TimedWakeWithInvalidationRendersOnce()
+    {
+        var driver = new FakeConsoleDriver();
+        var screen = new ScreenRenderer(driver);
+        var composition = new UiCompositionHost(screen);
+        composition.SetRootSurface(new ScreenRendererSurface(screen, _ => { }));
+        int renders = 0;
+        int wakes = 0;
+        var layer = new InteractiveSurfaceLayer<int, ConsoleKey>(
+            (context, _) => { context.Screen.Write(0, 0, "S", new CellStyle(ConsoleColor.Gray, ConsoleColor.Black)); return ++renders; },
+            _ => new UiInteractionFrame([], keyboardTarget: new UiTargetId("surface.keyboard")),
+            (input, _, _) => new InteractiveSurfaceRouteResult<ConsoleKey>(((KeyConsoleInputEvent)input).Key.Key));
+
+        new InteractiveSurfaceHost(composition).Run(
+            layer,
+            (_, _) => ModalDialogLoopResult<bool>.Complete(true),
+            getNextWakeUtc: () => wakes == 0 ? DateTimeOffset.UtcNow.AddMilliseconds(1) : null,
+            handleWake: _ =>
+            {
+                wakes++;
+                driver.EnqueueKey(Key(ConsoleKey.Enter));
+                return InteractiveSurfaceWakeResult.Changed;
+            });
+
+        Assert.Equal(1, wakes);
+        Assert.Equal(2, renders);
+    }
+
+    [Fact]
+    public void Run_PendingInputHasPriorityOverDueWake()
+    {
+        var driver = new FakeConsoleDriver();
+        driver.EnqueueKey(Key(ConsoleKey.Enter));
+        var screen = new ScreenRenderer(driver);
+        var composition = new UiCompositionHost(screen);
+        composition.SetRootSurface(new ScreenRendererSurface(screen, _ => { }));
+        int wakes = 0;
+        var layer = new InteractiveSurfaceLayer<int, ConsoleKey>(
+            (context, _) => { context.Screen.Write(0, 0, "S", new CellStyle(ConsoleColor.Gray, ConsoleColor.Black)); return 1; },
+            _ => new UiInteractionFrame([], keyboardTarget: new UiTargetId("surface.keyboard")),
+            (input, _, _) => new InteractiveSurfaceRouteResult<ConsoleKey>(((KeyConsoleInputEvent)input).Key.Key));
+
+        new InteractiveSurfaceHost(composition).Run(
+            layer,
+            (_, key) => key == ConsoleKey.Enter
+                ? ModalDialogLoopResult<bool>.Complete(true)
+                : ModalDialogLoopResult<bool>.Continue,
+            getNextWakeUtc: () => DateTimeOffset.UtcNow.AddMilliseconds(-1),
+            handleWake: _ =>
+            {
+                wakes++;
+                return InteractiveSurfaceWakeResult.NoChange;
+            });
+
+        Assert.Equal(0, wakes);
+    }
+
+    [Fact]
+    public void Run_ExternalCancellationIsNotTimedWake()
+    {
+        var driver = new FakeConsoleDriver();
+        using var cts = new CancellationTokenSource();
+        cts.Cancel();
+        var screen = new ScreenRenderer(driver);
+        var composition = new UiCompositionHost(screen);
+        composition.SetRootSurface(new ScreenRendererSurface(screen, _ => { }));
+        int wakes = 0;
+        var layer = new InteractiveSurfaceLayer<int, ConsoleKey>(
+            (context, _) => { context.Screen.Write(0, 0, "S", new CellStyle(ConsoleColor.Gray, ConsoleColor.Black)); return 1; },
+            _ => new UiInteractionFrame([], keyboardTarget: new UiTargetId("surface.keyboard")),
+            (input, _, _) => new InteractiveSurfaceRouteResult<ConsoleKey>(((KeyConsoleInputEvent)input).Key.Key));
+
+        Assert.Throws<OperationCanceledException>(() => new InteractiveSurfaceHost(composition).Run<int, ConsoleKey, bool>(
+            layer,
+            (_, _) => ModalDialogLoopResult<bool>.Complete(true),
+            getNextWakeUtc: () => DateTimeOffset.UtcNow.AddSeconds(10),
+            handleWake: _ =>
+            {
+                wakes++;
+                return InteractiveSurfaceWakeResult.NoChange;
+            },
+            cancellationToken: cts.Token));
+        Assert.Equal(0, wakes);
+    }
+
+    [Fact]
     public void Run_RejectedPostInputRenderDoesNotPublishFrameOrMutableState()
     {
         var driver = new FakeConsoleDriver();
