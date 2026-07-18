@@ -13,7 +13,10 @@ public enum ScrollableListInputResultKind
     Confirmed,
 }
 
-public readonly record struct ScrollableListInputResult(ScrollableListInputResultKind Kind)
+public readonly record struct ScrollableListInputResult(
+    ScrollableListInputResultKind Kind,
+    bool DragStarted = false,
+    bool DragEnded = false)
 {
     public static ScrollableListInputResult NotHandled => new(ScrollableListInputResultKind.NotHandled);
     public static ScrollableListInputResult Handled => new(ScrollableListInputResultKind.Handled);
@@ -23,7 +26,12 @@ public readonly record struct ScrollableListInputResult(ScrollableListInputResul
     public bool IsHandled => Kind != ScrollableListInputResultKind.NotHandled;
 }
 
-public readonly record struct ScrollableListFrameState(int SelectedIndex, int ScrollTop)
+public readonly record struct ScrollableListFrameState(
+    int SelectedIndex,
+    int ScrollTop,
+    int ViewportRows = 1,
+    Rect? ScrollbarBounds = null,
+    ScrollBarDragState? ScrollbarDrag = null)
 {
     public static ScrollableListFrameState Empty => new(-1, 0);
 }
@@ -63,6 +71,8 @@ public sealed class ScrollableList<T>
     public T? SelectedItemOrDefault =>
         SelectedIndex >= 0 && SelectedIndex < Count ? Items[SelectedIndex] : default;
 
+    public ScrollBarDragState? ScrollbarDrag => _scrollbarDrag;
+
     public void Normalize(int viewportRows)
     {
         if (!HasItems)
@@ -78,16 +88,29 @@ public sealed class ScrollableList<T>
 
     /// <summary>Calculates normalized list state without changing input state.</summary>
     public ScrollableListFrameState CalculateFrameState(int viewportRows)
+        => CalculateFrameState(viewportRows, scrollbarBounds: null);
+
+    public ScrollableListFrameState CalculateFrameState(int viewportRows, Rect? scrollbarBounds)
     {
+        int rows = Math.Max(1, viewportRows);
         if (!HasItems)
-            return ScrollableListFrameState.Empty;
+            return new ScrollableListFrameState(-1, 0, rows, scrollbarBounds, null);
 
         int selectedIndex = Math.Clamp(SelectedIndex, 0, Count - 1);
-        int rows = Math.Max(1, viewportRows);
         int scrollTop = ScrollStateCalculator.ClampFirstVisibleIndex(ScrollTop, Count, rows);
         scrollTop = ScrollStateCalculator.EnsureIndexVisible(selectedIndex, scrollTop, rows);
         scrollTop = ScrollStateCalculator.ClampFirstVisibleIndex(scrollTop, Count, rows);
-        return new ScrollableListFrameState(selectedIndex, scrollTop);
+        ScrollBarDragState? drag = _scrollbarDrag is { } currentDrag && scrollbarBounds is { } bounds
+            ? ScrollBarInteraction.RebaseDrag(currentDrag, bounds, Count, rows)
+            : null;
+        return new ScrollableListFrameState(selectedIndex, scrollTop, rows, scrollbarBounds, drag);
+    }
+
+    public void ApplyCommittedFrame(ScrollableListFrameState frame)
+    {
+        SelectedIndex = frame.SelectedIndex;
+        ScrollTop = frame.ScrollTop;
+        _scrollbarDrag = frame.ScrollbarDrag;
     }
 
     public void EnsureSelectedVisible(int viewportRows)
@@ -214,6 +237,7 @@ public sealed class ScrollableList<T>
         {
             int selectedIndex = SelectedIndex;
             int scrollTop = ScrollTop;
+            bool wasDragging = scrollbarDrag.HasValue;
             if (ScrollableListMouseHandler.TryHandleScrollbarMouse(
                     mouse,
                     scrollbar,
@@ -228,7 +252,11 @@ public sealed class ScrollableList<T>
                 ScrollTop = scrollTop;
                 if (changed)
                     NotifySelectionChanged();
-                return changed ? ScrollableListInputResult.SelectionChanged : ScrollableListInputResult.Handled;
+                bool isDragging = scrollbarDrag.HasValue;
+                return new ScrollableListInputResult(
+                    changed ? ScrollableListInputResultKind.SelectionChanged : ScrollableListInputResultKind.Handled,
+                    DragStarted: !wasDragging && isDragging,
+                    DragEnded: wasDragging && !isDragging);
             }
         }
 

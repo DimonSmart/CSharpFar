@@ -30,17 +30,20 @@ internal sealed class EditorFormatDialog
             "Encoding")
         {
             Id = EncodingRowId,
+            ShowCursor = false,
         };
         var bom = new CheckBoxRow(new CheckBoxLine("BOM"))
         {
             Id = BomRowId,
             Value = current.EmitByteOrderMark,
+            ShowCursor = false,
         };
         var lineEnding = new CompactChoiceFormRow<LineEndingSpec>(
             new ChoiceRow<LineEndingSpec>(LineEndings, static value => value.Value.ToDisplayName(), LineEndingIndex(current.LineEnding)),
             "Line ends")
         {
             Id = LineEndingRowId,
+            ShowCursor = false,
         };
         var form = new ScrollableFormDialog();
 
@@ -59,6 +62,9 @@ internal sealed class EditorFormatDialog
             form.BuildInteractionFrame,
             (input, frame, route) =>
             {
+                if (input is KeyConsoleInputEvent { Key.Key: ConsoleKey.Enter })
+                    return (FormInputResult.Submit(), UiInputResult.HandledResult);
+
                 FormRouteResult result = form.RouteInput(input, frame, route);
                 return (result.FormResult, result.UiResult);
             },

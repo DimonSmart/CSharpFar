@@ -1,8 +1,8 @@
+using System.Runtime.CompilerServices;
 using CSharpFar.Console;
 using CSharpFar.Console.Input;
 using CSharpFar.Console.Models;
 using CSharpFar.Core.Models;
-using System.Runtime.CompilerServices;
 
 namespace CSharpFar.Ui;
 
@@ -698,6 +698,7 @@ public sealed class CheckBoxRow : FormRow, IFormCursorProvider
 
     public bool Enabled { get; set; } = true;
     public override bool IsEnabled => Enabled;
+    public bool ShowCursor { get; init; } = true;
 
     public override void Render(FormRowRenderContext context) =>
         _checkBox.Render(context.Screen, context.Bounds.X, context.Bounds.Y, context.Bounds.Width, context.Focused && Enabled);
@@ -705,7 +706,7 @@ public sealed class CheckBoxRow : FormRow, IFormCursorProvider
     public bool TryGetCursor(FormRowRenderContext context, out FormCursorPlacement cursor)
     {
         cursor = new FormCursorPlacement(context.Bounds.X + 1, context.Bounds.Y);
-        return context.Focused && context.Bounds.Width >= 3;
+        return ShowCursor && context.Focused && context.Bounds.Width >= 3;
     }
 
     public override FormInputResult HandleKey(ConsoleKeyInfo key, FormRowInputContext context)

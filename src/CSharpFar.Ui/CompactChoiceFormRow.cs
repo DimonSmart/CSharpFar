@@ -18,13 +18,14 @@ public sealed class CompactChoiceFormRow<T> : FormRow, IFormCursorProvider
     public override FormRowRole Role { get; init; } = FormRowRole.Option;
     public ChoiceRow<T> Choice => _choice;
     public T Value => _choice.Value;
+    public bool ShowCursor { get; init; } = true;
 
     public override void Render(FormRowRenderContext context) =>
         _choice.Render(context.Screen, context.Bounds.X, context.Bounds.Y, context.Bounds.Width, _label, context.Focused);
 
     public bool TryGetCursor(FormRowRenderContext context, out FormCursorPlacement cursor)
     {
-        if (!context.Focused || context.Bounds.Width <= 0)
+        if (!ShowCursor || !context.Focused || context.Bounds.Width <= 0)
         {
             cursor = default;
             return false;

@@ -15,7 +15,7 @@ public static class UiTheme
         s_current = palette;
     }
 
-    internal static IDisposable UseTemporary(ConsolePalette palette)
+    public static IDisposable UseTemporary(ConsolePalette palette)
     {
         ArgumentNullException.ThrowIfNull(palette);
         var previous = s_current;

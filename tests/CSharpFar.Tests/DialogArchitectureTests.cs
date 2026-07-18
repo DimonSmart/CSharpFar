@@ -101,6 +101,22 @@ public sealed class DialogArchitectureTests
         Assert.Contains("DropdownFrame: { IsOpen: true }", outsideClickBody, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void MigratedStageSixDialogs_KeepTransactionalFixesExplicit()
+    {
+        string root = FindRepositoryRoot();
+        string editor = File.ReadAllText(Path.Combine(root, "src", "CSharpFar.App", "Editor", "EditorFormatDialog.cs"));
+        string drive = File.ReadAllText(Path.Combine(root, "src", "CSharpFar.App", "Dialogs", "DriveDialog.cs"));
+        string settings = File.ReadAllText(Path.Combine(root, "src", "CSharpFar.App", "Dialogs", "SettingsDialog.cs"));
+
+        Assert.True(
+            editor.IndexOf("FormInputResult.Submit()", StringComparison.Ordinal) <
+            editor.IndexOf("form.RouteInput(input, frame, route)", StringComparison.Ordinal));
+        Assert.Contains("applyCommittedFrame: frame => list.ApplyCommittedFrame(frame.ListState)", drive, StringComparison.Ordinal);
+        Assert.DoesNotContain("UiTheme.Initialize(PaletteRegistry.Resolve", settings, StringComparison.Ordinal);
+        Assert.Contains("UiTheme.UseTemporary(PaletteRegistry.Resolve", settings, StringComparison.Ordinal);
+    }
+
     private static string FindRepositoryRoot()
     {
         DirectoryInfo? current = new(AppContext.BaseDirectory);

@@ -224,6 +224,110 @@ public sealed class ScrollableListTests
     }
 
     [Fact]
+    public void HandleMouse_ThumbDownCreatesDrag()
+    {
+        var list = Create(Enumerable.Range(0, 20).Select(i => i.ToString()).ToArray());
+
+        var result = list.HandleMouse(
+            Mouse(MouseButton.Left, MouseEventKind.Down, 9, 1),
+            new Rect(0, 0, 9, 6),
+            new Rect(9, 0, 1, 6),
+            6);
+
+        Assert.True(result.DragStarted);
+        Assert.NotNull(list.ScrollbarDrag);
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(5)]
+    [InlineData(4)]
+    public void HandleMouse_ScrollbarClickOutsideThumbDoesNotCreateDrag(int y)
+    {
+        var list = Create(Enumerable.Range(0, 20).Select(i => i.ToString()).ToArray());
+
+        var result = list.HandleMouse(
+            Mouse(MouseButton.Left, MouseEventKind.Down, 9, y),
+            new Rect(0, 0, 9, 6),
+            new Rect(9, 0, 1, 6),
+            6);
+
+        Assert.False(result.DragStarted);
+        Assert.Null(list.ScrollbarDrag);
+    }
+
+    [Fact]
+    public void CalculateFrameState_RebasesCommittedDragWithoutMutatingIt()
+    {
+        var list = Create(Enumerable.Range(0, 20).Select(i => i.ToString()).ToArray());
+        list.HandleMouse(
+            Mouse(MouseButton.Left, MouseEventKind.Down, 9, 1),
+            new Rect(0, 0, 9, 6),
+            new Rect(9, 0, 1, 6),
+            6);
+        ScrollBarDragState before = Assert.IsType<ScrollBarDragState>(list.ScrollbarDrag);
+
+        ScrollableListFrameState frame = list.CalculateFrameState(4, new Rect(9, 2, 1, 4));
+
+        Assert.Equal(before, list.ScrollbarDrag);
+        Assert.NotNull(frame.ScrollbarDrag);
+        Assert.Equal(new Rect(9, 2, 1, 4), frame.ScrollbarDrag!.Value.Bounds);
+        Assert.Equal(4, frame.ScrollbarDrag.Value.ViewportItems);
+    }
+
+    [Fact]
+    public void ApplyCommittedFrame_ReplacesCommittedDrag()
+    {
+        var list = Create(Enumerable.Range(0, 20).Select(i => i.ToString()).ToArray());
+        list.HandleMouse(
+            Mouse(MouseButton.Left, MouseEventKind.Down, 9, 1),
+            new Rect(0, 0, 9, 6),
+            new Rect(9, 0, 1, 6),
+            6);
+
+        ScrollableListFrameState frame = list.CalculateFrameState(4, new Rect(9, 2, 1, 4));
+        list.ApplyCommittedFrame(frame);
+
+        Assert.Equal(new Rect(9, 2, 1, 4), list.ScrollbarDrag!.Value.Bounds);
+        Assert.Equal(4, list.ScrollbarDrag.Value.ViewportItems);
+    }
+
+    [Fact]
+    public void ApplyCommittedFrame_ClearsDragWhenScrollbarDisappears()
+    {
+        var list = Create(Enumerable.Range(0, 5).Select(i => i.ToString()).ToArray());
+        list.HandleMouse(
+            Mouse(MouseButton.Left, MouseEventKind.Down, 9, 1),
+            new Rect(0, 0, 9, 3),
+            new Rect(9, 0, 1, 3),
+            3);
+
+        list.ApplyCommittedFrame(list.CalculateFrameState(5, scrollbarBounds: null));
+
+        Assert.Null(list.ScrollbarDrag);
+    }
+
+    [Fact]
+    public void HandleMouse_MouseUpEndsDrag()
+    {
+        var list = Create(Enumerable.Range(0, 20).Select(i => i.ToString()).ToArray());
+        list.HandleMouse(
+            Mouse(MouseButton.Left, MouseEventKind.Down, 9, 1),
+            new Rect(0, 0, 9, 6),
+            new Rect(9, 0, 1, 6),
+            6);
+
+        var result = list.HandleMouse(
+            Mouse(MouseButton.Left, MouseEventKind.Up, 9, 1),
+            new Rect(0, 0, 9, 6),
+            new Rect(9, 0, 1, 6),
+            6);
+
+        Assert.True(result.DragEnded);
+        Assert.Null(list.ScrollbarDrag);
+    }
+
+    [Fact]
     public void GetScrollState_ReturnsNullWhenListFitsViewport()
     {
         Assert.Null(Create(["a", "b"]).GetScrollState(2));

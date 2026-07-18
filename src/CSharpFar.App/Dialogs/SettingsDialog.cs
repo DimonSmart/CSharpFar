@@ -55,28 +55,33 @@ internal sealed class SettingsDialog
             "Left panel")
         {
             Id = LeftViewModeRowId,
+            ShowCursor = false,
         };
         var rightViewMode = new CompactChoiceFormRow<PanelViewMode>(
             new ChoiceRow<PanelViewMode>(ViewModes, ViewModeLabel, ViewModeIndex(rightMode)),
             "Right panel")
         {
             Id = RightViewModeRowId,
+            ShowCursor = false,
         };
         var palette = new CompactChoiceFormRow<string>(
             new ChoiceRow<string>(PaletteNames, static name => name, FindPaletteIndexOrDefault(paletteName)),
             "Palette")
         {
             Id = PaletteRowId,
+            ShowCursor = false,
         };
         var fileHighlighting = new CheckBoxRow(new CheckBoxLine("File highlighting"))
         {
             Id = FileHighlightingRowId,
             Value = fileHighlightingEnabled,
+            ShowCursor = false,
         };
         var syntaxHighlighting = new CheckBoxRow(new CheckBoxLine("Editor syntax highlighting"))
         {
             Id = EditorSyntaxHighlightingRowId,
             Value = editorSyntaxHighlightingEnabled,
+            ShowCursor = false,
         };
         var form = new ScrollableFormDialog();
 
@@ -97,7 +102,7 @@ internal sealed class SettingsDialog
                 ]);
 
         return _modalDialogs.RunInteractive<ScrollableFormFrame, FormInputResult, SettingsDialogResult?>(
-            (context, focusScope) => Draw(context, focusScope, form),
+            (context, focusScope) => Draw(context, focusScope, form, () => palette.Value),
             form.BuildInteractionFrame,
             (input, frame, route) =>
             {
@@ -124,24 +129,31 @@ internal sealed class SettingsDialog
             prepareRender: PrepareRows);
     }
 
-    private ScrollableFormFrame Draw(UiRenderContext context, UiFocusScope focusScope, ScrollableFormDialog form)
+    private ScrollableFormFrame Draw(
+        UiRenderContext context,
+        UiFocusScope focusScope,
+        ScrollableFormDialog form,
+        Func<string> paletteName)
     {
         ScrollableFormFrame? frame = null;
-        _modalRenderer.Render(
-            context.Screen,
-            OuterBounds(context.Size),
-            "Settings",
-            doubleBorder: true,
-            FarDialogStyles.OuterOptions,
-            FarDialogStyles.FrameOptions,
-            (_, layout) =>
-            {
-                Rect bounds = layout.FrameBounds;
-                int contentX = bounds.X + 2;
-                int contentWidth = Math.Max(1, bounds.Width - 4);
-                var bodyBounds = new Rect(contentX, bounds.Y + 1, contentWidth, Math.Max(1, bounds.Height - 2));
-                frame = form.Render(new FormRenderContext(context, bodyBounds, FarDialogStyles.Border), focusScope);
-            });
+        using (UiTheme.UseTemporary(PaletteRegistry.Resolve(paletteName())))
+        {
+            _modalRenderer.Render(
+                context.Screen,
+                OuterBounds(context.Size),
+                "Settings",
+                doubleBorder: true,
+                FarDialogStyles.OuterOptions,
+                FarDialogStyles.FrameOptions,
+                (_, layout) =>
+                {
+                    Rect bounds = layout.FrameBounds;
+                    int contentX = bounds.X + 2;
+                    int contentWidth = Math.Max(1, bounds.Width - 4);
+                    var bodyBounds = new Rect(contentX, bounds.Y + 1, contentWidth, Math.Max(1, bounds.Height - 2));
+                    frame = form.Render(new FormRenderContext(context, bodyBounds, FarDialogStyles.Border), focusScope);
+                });
+        }
 
         return frame ?? throw new InvalidOperationException("Settings dialog did not render a form frame.");
     }
