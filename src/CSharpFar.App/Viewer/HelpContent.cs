@@ -26,22 +26,22 @@ public sealed record HelpLine(HelpLineKind Kind, string Key = "", string Descrip
     /// <summary>Full rendered text (for scrolling width calculation).</summary>
     public string FullText => Kind switch
     {
-        HelpLineKind.KeyLine  => $"  {Key,-18}{Description}",
-        HelpLineKind.Plain    => Description,
-        HelpLineKind.Heading  => Description,
-        HelpLineKind.Title    => Description,
+        HelpLineKind.KeyLine => $"  {Key,-18}{Description}",
+        HelpLineKind.Plain => Description,
+        HelpLineKind.Heading => Description,
+        HelpLineKind.Title => Description,
         HelpLineKind.Separator => Description,
-        _                      => string.Empty,
+        _ => string.Empty,
     };
 }
 
 /// <summary>Built-in help content shown by the F1 help viewer.</summary>
 public static class HelpContent
 {
-    private static HelpLine H(string heading)  => new(HelpLineKind.Heading, Description: heading);
+    private static HelpLine H(string heading) => new(HelpLineKind.Heading, Description: heading);
     private static HelpLine K(string key, string desc) => new(HelpLineKind.KeyLine, Key: key, Description: desc);
-    private static HelpLine P(string text)     => new(HelpLineKind.Plain, Description: text);
-    private static HelpLine E()                => new(HelpLineKind.Empty);
+    private static HelpLine P(string text) => new(HelpLineKind.Plain, Description: text);
+    private static HelpLine E() => new(HelpLineKind.Empty);
 
     public static readonly HelpLine[] Lines =
     [

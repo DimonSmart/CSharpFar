@@ -100,7 +100,8 @@ internal sealed class SftpConnectionDialog
             new DialogButton("cancel", "Cancel", 'C'),
         ],
         FarDialogStyles.Fill,
-        FarDialogStyles.FocusedInput) { Id = "actions" };
+        FarDialogStyles.FocusedInput)
+        { Id = "actions" };
         var form = new ScrollableFormDialog();
 
         void PrepareRows() => form.SetRows(

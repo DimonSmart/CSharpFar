@@ -37,14 +37,14 @@ public class JsonHistoryStoreTests : IDisposable
     public void AddCommand_MultipleCommandsPersistInOrder()
     {
         var store = new JsonHistoryStore(_tempFile);
-        store.AddCommand(new CommandHistoryItem { Command = "dir",  WorkingDirectory = @"C:\" });
-        store.AddCommand(new CommandHistoryItem { Command = "cls",  WorkingDirectory = @"C:\" });
+        store.AddCommand(new CommandHistoryItem { Command = "dir", WorkingDirectory = @"C:\" });
+        store.AddCommand(new CommandHistoryItem { Command = "cls", WorkingDirectory = @"C:\" });
         store.AddCommand(new CommandHistoryItem { Command = "echo", WorkingDirectory = @"C:\" });
 
         var store2 = new JsonHistoryStore(_tempFile);
         var history = store2.GetCommandHistory();
         Assert.Equal(3, history.Count);
-        Assert.Equal("dir",  history[0].Command);
+        Assert.Equal("dir", history[0].Command);
         Assert.Equal("echo", history[2].Command);
     }
 

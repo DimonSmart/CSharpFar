@@ -36,9 +36,9 @@ public sealed class Spec007StatusLineTests
     {
         var opts = new AppSettings.PanelOptionsSettings
         {
-            ShowStatusLine          = true,
+            ShowStatusLine = true,
             ShowFilesTotalInformation = false,
-            ShowFreeSize              = false,
+            ShowFreeSize = false,
         };
         Assert.Equal(2, PanelStatusRenderer.GetStatusRowCount(opts));
     }
@@ -48,9 +48,9 @@ public sealed class Spec007StatusLineTests
     {
         var opts = new AppSettings.PanelOptionsSettings
         {
-            ShowStatusLine          = true,
+            ShowStatusLine = true,
             ShowFilesTotalInformation = false,
-            ShowFreeSize              = true,
+            ShowFreeSize = true,
         };
         Assert.Equal(3, PanelStatusRenderer.GetStatusRowCount(opts));
     }
@@ -60,9 +60,9 @@ public sealed class Spec007StatusLineTests
     {
         var opts = new AppSettings.PanelOptionsSettings
         {
-            ShowStatusLine          = true,
+            ShowStatusLine = true,
             ShowFilesTotalInformation = true,
-            ShowFreeSize              = false,
+            ShowFreeSize = false,
         };
         Assert.Equal(3, PanelStatusRenderer.GetStatusRowCount(opts));
     }
@@ -72,12 +72,12 @@ public sealed class Spec007StatusLineTests
     [Fact]
     public void VisibleRows_StatusHidden_MoreRows()
     {
-        var bounds     = new Rect(0, 0, 40, 20);
+        var bounds = new Rect(0, 0, 40, 20);
         var withStatus = new AppSettings.PanelOptionsSettings { ShowStatusLine = true };
-        var noStatus   = new AppSettings.PanelOptionsSettings { ShowStatusLine = false };
+        var noStatus = new AppSettings.PanelOptionsSettings { ShowStatusLine = false };
 
         int rowsWith = PanelRenderer.VisibleRows(bounds, withStatus);
-        int rowsNo   = PanelRenderer.VisibleRows(bounds, noStatus);
+        int rowsNo = PanelRenderer.VisibleRows(bounds, noStatus);
 
         Assert.True(rowsNo > rowsWith,
             $"Rows without status ({rowsNo}) should exceed rows with status ({rowsWith})");
@@ -88,7 +88,7 @@ public sealed class Spec007StatusLineTests
     {
         var bounds = new Rect(0, 0, 40, 20);
 
-        int rowsNull    = PanelRenderer.VisibleRows(bounds, null);
+        int rowsNull = PanelRenderer.VisibleRows(bounds, null);
         int rowsDefault = PanelRenderer.VisibleRows(bounds, new AppSettings.PanelOptionsSettings());
 
         Assert.Equal(rowsDefault, rowsNull);

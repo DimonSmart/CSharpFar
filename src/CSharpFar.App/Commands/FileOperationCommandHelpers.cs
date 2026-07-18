@@ -1,5 +1,5 @@
-using CSharpFar.Core.Models;
 using CSharpFar.App.Rendering;
+using CSharpFar.Core.Models;
 
 namespace CSharpFar.App.Commands;
 

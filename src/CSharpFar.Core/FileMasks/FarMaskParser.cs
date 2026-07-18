@@ -96,12 +96,12 @@ internal static class FarMaskParser
                 prev = c;
                 continue;
             }
-            if (c == '"')  { inQuote = true; prev = c; continue; }
-            if (c == '/')  { inRegex = true; prev = c; continue; }
+            if (c == '"') { inQuote = true; prev = c; continue; }
+            if (c == '/') { inRegex = true; prev = c; continue; }
             if (c == '|')
             {
                 string include = expression[..i].Trim();
-                string rest    = expression[(i + 1)..].Trim();
+                string rest = expression[(i + 1)..].Trim();
                 // Truncate at second | (tolerant parsing)
                 int second = FindPipeUnquoted(rest);
                 string exclude = second >= 0 ? rest[..second].Trim() : rest;
@@ -138,10 +138,10 @@ internal static class FarMaskParser
     public static IReadOnlyList<string> SplitTokens(string expression)
     {
         var tokens = new List<string>();
-        var sb     = new System.Text.StringBuilder();
+        var sb = new System.Text.StringBuilder();
         bool inQuote = false;
         bool inRegex = false;
-        char prev    = '\0';
+        char prev = '\0';
 
         for (int i = 0; i < expression.Length; i++)
         {

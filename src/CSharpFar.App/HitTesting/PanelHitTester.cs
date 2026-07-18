@@ -15,12 +15,12 @@ public static class PanelHitTester
     /// Returns the item index at (x, y) within the panel content area, or null if not hit.
     /// </summary>
     public static int? HitTestItem(
-        int                                x,
-        int                                y,
-        Rect                               bounds,
-        FilePanelState                     state,
-        PanelViewMode                      viewMode,
-        AppSettings.PanelOptionsSettings?  options = null)
+        int x,
+        int y,
+        Rect bounds,
+        FilePanelState state,
+        PanelViewMode viewMode,
+        AppSettings.PanelOptionsSettings? options = null)
     {
         // Must be inside inner content area (inside border)
         if (x <= bounds.X || x >= bounds.Right - 1) return null;
@@ -37,8 +37,8 @@ public static class PanelHitTester
         Rect bounds, FilePanelState state,
         AppSettings.PanelOptionsSettings? options)
     {
-        int listTop  = bounds.Y + 1;
-        int visRows  = PanelRenderer.VisibleRows(bounds, options);
+        int listTop = bounds.Y + 1;
+        int visRows = PanelRenderer.VisibleRows(bounds, options);
         int listBottom = listTop + visRows - 1;
 
         if (y < listTop || y > listBottom) return null;
@@ -53,16 +53,16 @@ public static class PanelHitTester
         Rect bounds, FilePanelState state,
         AppSettings.PanelOptionsSettings? options)
     {
-        int contentTop  = bounds.Y + 2;  // after header row
-        int rowsPerCol  = BriefTwoColumnsPanelRenderer.RowsPerColumn(bounds, options);
+        int contentTop = bounds.Y + 2;  // after header row
+        int rowsPerCol = BriefTwoColumnsPanelRenderer.RowsPerColumn(bounds, options);
         int contentBottom = contentTop + rowsPerCol - 1;
 
         if (y < contentTop || y > contentBottom) return null;
 
         int row = y - contentTop;
         int innerWidth = bounds.Width - 2;
-        int sepOffset  = innerWidth / 2;
-        int sep        = bounds.X + 1 + sepOffset;
+        int sepOffset = innerWidth / 2;
+        int sep = bounds.X + 1 + sepOffset;
 
         int idx;
         if (x < sep)

@@ -58,22 +58,22 @@ public sealed class VolumeMountPointService : IVolumeMountPointService
         return new VolumeMountPointInfo
         {
             IsVolumeMountPoint = true,
-            VolumeName         = volumeName,
-            VolumePath         = volumePath,
+            VolumeName = volumeName,
+            VolumePath = volumePath,
         };
     }
 
     [DllImport("kernel32.dll", CharSet = CharSet.Auto, SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
     private static extern bool GetVolumeNameForVolumeMountPoint(
-        string  lpszVolumeMountPoint,
+        string lpszVolumeMountPoint,
         System.Text.StringBuilder lpszVolumeName,
-        uint    cchBufferLength);
+        uint cchBufferLength);
 
     [DllImport("kernel32.dll", CharSet = CharSet.Auto, SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
     private static extern bool GetVolumePathName(
-        string  lpszFileName,
+        string lpszFileName,
         System.Text.StringBuilder lpszVolumePathName,
-        uint    cchBufferLength);
+        uint cchBufferLength);
 }

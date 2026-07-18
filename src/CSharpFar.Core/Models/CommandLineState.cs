@@ -28,15 +28,15 @@ public sealed class CommandLineState
             return;
         }
 
-        SelectionStart  = 0;
+        SelectionStart = 0;
         SelectionLength = _buffer.Count;
-        CursorPosition  = _buffer.Count;
+        CursorPosition = _buffer.Count;
     }
 
     /// <summary>Clears the selection without changing the cursor or buffer.</summary>
     public void ClearSelection()
     {
-        SelectionStart  = null;
+        SelectionStart = null;
         SelectionLength = 0;
     }
 
@@ -93,7 +93,7 @@ public sealed class CommandLineState
     public void MoveToPreviousWord() => MoveCursorTo(PreviousWordPosition(CursorPosition));
     public void MoveToNextWord() => MoveCursorTo(NextWordPosition(CursorPosition));
     public void MoveToStart() { ClearSelection(); CursorPosition = 0; }
-    public void MoveToEnd()   { ClearSelection(); CursorPosition = _buffer.Count; }
+    public void MoveToEnd() { ClearSelection(); CursorPosition = _buffer.Count; }
 
     public void MoveCursorTo(int position)
     {
@@ -116,7 +116,7 @@ public sealed class CommandLineState
             // Start a fresh selection anchored at the current cursor
             int anchor = CursorPosition;
             CursorPosition = newPosition;
-            SelectionStart  = Math.Min(anchor, newPosition);
+            SelectionStart = Math.Min(anchor, newPosition);
             SelectionLength = Math.Abs(newPosition - anchor);
         }
         else
@@ -126,8 +126,8 @@ public sealed class CommandLineState
                 ? SelectionStart.Value + SelectionLength   // cursor was at start → anchor is end
                 : SelectionStart.Value;                    // cursor was at end   → anchor is start
 
-            CursorPosition  = newPosition;
-            SelectionStart  = Math.Min(anchor, newPosition);
+            CursorPosition = newPosition;
+            SelectionStart = Math.Min(anchor, newPosition);
             SelectionLength = Math.Abs(newPosition - anchor);
         }
     }

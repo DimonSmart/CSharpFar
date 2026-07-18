@@ -21,10 +21,10 @@ public sealed class PanelSortService : IPanelSortService
 
         if (options.DirectoriesFirst)
         {
-            var dirs  = rest.Where(i => i.IsDirectory).ToList();
+            var dirs = rest.Where(i => i.IsDirectory).ToList();
             var files = rest.Where(i => !i.IsDirectory).ToList();
 
-            sorted = SortGroup(dirs,  sortMode, descending, options, isDirectoryGroup: true)
+            sorted = SortGroup(dirs, sortMode, descending, options, isDirectoryGroup: true)
                 .Concat(SortGroup(files, sortMode, descending, options, isDirectoryGroup: false));
         }
         else
@@ -47,9 +47,9 @@ public sealed class PanelSortService : IPanelSortService
         string secondary = item.Name;
         return new SortDebugInfo
         {
-            PrimaryKey        = primary,
-            SecondaryKey      = secondary,
-            IsDirectory       = item.IsDirectory,
+            PrimaryKey = primary,
+            SecondaryKey = secondary,
+            IsDirectory = item.IsDirectory,
             IsParentDirectory = item.IsParentDirectory,
         };
     }
@@ -121,13 +121,13 @@ public sealed class PanelSortService : IPanelSortService
         if (item.IsParentDirectory) return string.Empty;
         return sortMode switch
         {
-            SortMode.Name          => item.Name,
-            SortMode.Extension     => item.IsDirectory && !options.SortFoldersByExtension
+            SortMode.Name => item.Name,
+            SortMode.Extension => item.IsDirectory && !options.SortFoldersByExtension
                                       ? item.Name
                                       : Path.GetExtension(item.Name),
-            SortMode.Size          => (item.Size ?? 0).ToString(),
+            SortMode.Size => (item.Size ?? 0).ToString(),
             SortMode.LastWriteTime => item.LastWriteTime.ToString("O"),
-            _                      => item.Name,
+            _ => item.Name,
         };
     }
 }

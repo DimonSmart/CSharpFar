@@ -35,14 +35,19 @@ public sealed class ApplicationVolumeTests : IDisposable
 
         var volService = new FakeVolumeService(new FileSystemVolume
         {
-            Id = "C:\\", DisplayName = "C:", RootPath = volPath,
-            Kind = VolumeKind.Fixed, Status = VolumeStatus.Ready,
-            TotalBytes = 2_000_000_000L, FreeBytes = 700_000_000L, Shortcut = "C",
+            Id = "C:\\",
+            DisplayName = "C:",
+            RootPath = volPath,
+            Kind = VolumeKind.Fixed,
+            Status = VolumeStatus.Ready,
+            TotalBytes = 2_000_000_000L,
+            FreeBytes = 700_000_000L,
+            Shortcut = "C",
         });
 
         var driver = new FakeConsoleDriver();
         // Alt+F1 → Enter (select first) → F10 (quit)
-        driver.EnqueueKey(new ConsoleKeyInfo('\0', ConsoleKey.F1, shift: false, alt: true,  control: false));
+        driver.EnqueueKey(new ConsoleKeyInfo('\0', ConsoleKey.F1, shift: false, alt: true, control: false));
         driver.EnqueueKey(new ConsoleKeyInfo('\0', ConsoleKey.Enter, shift: false, alt: false, control: false));
         driver.EnqueueKey(new ConsoleKeyInfo('\0', ConsoleKey.F10, shift: false, alt: false, control: false));
 
@@ -60,8 +65,11 @@ public sealed class ApplicationVolumeTests : IDisposable
 
         var volService = new FakeVolumeService(new FileSystemVolume
         {
-            Id = "W:\\", DisplayName = "W:", RootPath = volPath,
-            Kind = VolumeKind.Fixed, Status = VolumeStatus.Ready,
+            Id = "W:\\",
+            DisplayName = "W:",
+            RootPath = volPath,
+            Kind = VolumeKind.Fixed,
+            Status = VolumeStatus.Ready,
             Shortcut = "W",
         });
 
@@ -90,12 +98,16 @@ public sealed class ApplicationVolumeTests : IDisposable
 
         var volService = new FakeVolumeService(new FileSystemVolume
         {
-            Id = "D:\\", DisplayName = "D:", RootPath = volPath,
-            Kind = VolumeKind.Fixed, Status = VolumeStatus.Ready, Shortcut = "D",
+            Id = "D:\\",
+            DisplayName = "D:",
+            RootPath = volPath,
+            Kind = VolumeKind.Fixed,
+            Status = VolumeStatus.Ready,
+            Shortcut = "D",
         });
 
         var driver = new FakeConsoleDriver();
-        driver.EnqueueKey(new ConsoleKeyInfo('\0', ConsoleKey.F2, shift: false, alt: true,  control: false));
+        driver.EnqueueKey(new ConsoleKeyInfo('\0', ConsoleKey.F2, shift: false, alt: true, control: false));
         driver.EnqueueKey(new ConsoleKeyInfo('\0', ConsoleKey.Enter, shift: false, alt: false, control: false));
         driver.EnqueueKey(new ConsoleKeyInfo('\0', ConsoleKey.F10, shift: false, alt: false, control: false));
 
@@ -114,8 +126,12 @@ public sealed class ApplicationVolumeTests : IDisposable
 
         var volService = new FakeVolumeService(new FileSystemVolume
         {
-            Id = "S:\\", DisplayName = "S:", RootPath = volPath,
-            Kind = VolumeKind.Fixed, Status = VolumeStatus.Ready, Shortcut = "S",
+            Id = "S:\\",
+            DisplayName = "S:",
+            RootPath = volPath,
+            Kind = VolumeKind.Fixed,
+            Status = VolumeStatus.Ready,
+            Shortcut = "S",
         });
         var fs = new FakeFileSystemService();
         fs.AddDirectory(_tempDir);
@@ -153,12 +169,16 @@ public sealed class ApplicationVolumeTests : IDisposable
 
         var volService = new FakeVolumeService(new FileSystemVolume
         {
-            Id = "C:\\", DisplayName = "C:", RootPath = volPath,
-            Kind = VolumeKind.Fixed, Status = VolumeStatus.Ready, Shortcut = "C",
+            Id = "C:\\",
+            DisplayName = "C:",
+            RootPath = volPath,
+            Kind = VolumeKind.Fixed,
+            Status = VolumeStatus.Ready,
+            Shortcut = "C",
         });
 
         var driver = new FakeConsoleDriver();
-        driver.EnqueueKey(new ConsoleKeyInfo('\0', ConsoleKey.F1, shift: false, alt: true,  control: false));
+        driver.EnqueueKey(new ConsoleKeyInfo('\0', ConsoleKey.F1, shift: false, alt: true, control: false));
         driver.EnqueueKey(new ConsoleKeyInfo('\0', ConsoleKey.Enter, shift: false, alt: false, control: false));
         driver.EnqueueKey(new ConsoleKeyInfo('\0', ConsoleKey.F10, shift: false, alt: false, control: false));
 
@@ -177,12 +197,16 @@ public sealed class ApplicationVolumeTests : IDisposable
 
         var volService = new FakeVolumeService(new FileSystemVolume
         {
-            Id = "C:\\", DisplayName = "C:", RootPath = @"C:\",
-            Kind = VolumeKind.Fixed, Status = VolumeStatus.Ready, Shortcut = "C",
+            Id = "C:\\",
+            DisplayName = "C:",
+            RootPath = @"C:\",
+            Kind = VolumeKind.Fixed,
+            Status = VolumeStatus.Ready,
+            Shortcut = "C",
         });
 
         var driver = new FakeConsoleDriver();
-        driver.EnqueueKey(new ConsoleKeyInfo('\0', ConsoleKey.F1, shift: false, alt: true,  control: false));
+        driver.EnqueueKey(new ConsoleKeyInfo('\0', ConsoleKey.F1, shift: false, alt: true, control: false));
         driver.EnqueueKey(new ConsoleKeyInfo('\0', ConsoleKey.Escape, shift: false, alt: false, control: false));
         driver.EnqueueKey(new ConsoleKeyInfo('\0', ConsoleKey.F10, shift: false, alt: false, control: false));
 
@@ -205,17 +229,25 @@ public sealed class ApplicationVolumeTests : IDisposable
         var volService = new FakeVolumeService(
             new FileSystemVolume
             {
-                Id = "C:\\", DisplayName = "C:", RootPath = volCPath,
-                Kind = VolumeKind.Fixed, Status = VolumeStatus.Ready, Shortcut = "C",
+                Id = "C:\\",
+                DisplayName = "C:",
+                RootPath = volCPath,
+                Kind = VolumeKind.Fixed,
+                Status = VolumeStatus.Ready,
+                Shortcut = "C",
             },
             new FileSystemVolume
             {
-                Id = "D:\\", DisplayName = "D:", RootPath = volDPath,
-                Kind = VolumeKind.Fixed, Status = VolumeStatus.Ready, Shortcut = "D",
+                Id = "D:\\",
+                DisplayName = "D:",
+                RootPath = volDPath,
+                Kind = VolumeKind.Fixed,
+                Status = VolumeStatus.Ready,
+                Shortcut = "D",
             });
 
         var driver = new FakeConsoleDriver();
-        driver.EnqueueKey(new ConsoleKeyInfo('\0', ConsoleKey.F1, shift: false, alt: true,  control: false));
+        driver.EnqueueKey(new ConsoleKeyInfo('\0', ConsoleKey.F1, shift: false, alt: true, control: false));
         // Press 'd' — should select volume D (unique shortcut)
         driver.EnqueueKey(new ConsoleKeyInfo('d', ConsoleKey.D, shift: false, alt: false, control: false));
         driver.EnqueueKey(new ConsoleKeyInfo('\0', ConsoleKey.F10, shift: false, alt: false, control: false));
@@ -233,12 +265,16 @@ public sealed class ApplicationVolumeTests : IDisposable
     {
         var volService = new FakeVolumeService(new FileSystemVolume
         {
-            Id = "Y:\\", DisplayName = "Y:", RootPath = @"Y:\",
-            Kind = VolumeKind.Network, Status = VolumeStatus.Disconnected, Shortcut = "Y",
+            Id = "Y:\\",
+            DisplayName = "Y:",
+            RootPath = @"Y:\",
+            Kind = VolumeKind.Network,
+            Status = VolumeStatus.Disconnected,
+            Shortcut = "Y",
         });
 
         var driver = new FakeConsoleDriver();
-        driver.EnqueueKey(new ConsoleKeyInfo('\0', ConsoleKey.F1, shift: false, alt: true,  control: false));
+        driver.EnqueueKey(new ConsoleKeyInfo('\0', ConsoleKey.F1, shift: false, alt: true, control: false));
         driver.EnqueueKey(new ConsoleKeyInfo('\0', ConsoleKey.Enter, shift: false, alt: false, control: false));
         // MessageDialog waits for Enter/Esc
         driver.EnqueueKey(new ConsoleKeyInfo('\0', ConsoleKey.Enter, shift: false, alt: false, control: false));
@@ -262,12 +298,16 @@ public sealed class ApplicationVolumeTests : IDisposable
 
         var volService = new FakeVolumeService(new FileSystemVolume
         {
-            Id = mountPath, DisplayName = "data", RootPath = mountPath,
-            Kind = VolumeKind.MountPoint, Status = VolumeStatus.Ready, Shortcut = null,
+            Id = mountPath,
+            DisplayName = "data",
+            RootPath = mountPath,
+            Kind = VolumeKind.MountPoint,
+            Status = VolumeStatus.Ready,
+            Shortcut = null,
         });
 
         var driver = new FakeConsoleDriver();
-        driver.EnqueueKey(new ConsoleKeyInfo('\0', ConsoleKey.F1, shift: false, alt: true,  control: false));
+        driver.EnqueueKey(new ConsoleKeyInfo('\0', ConsoleKey.F1, shift: false, alt: true, control: false));
         driver.EnqueueKey(new ConsoleKeyInfo('\0', ConsoleKey.Enter, shift: false, alt: false, control: false));
         driver.EnqueueKey(new ConsoleKeyInfo('\0', ConsoleKey.F10, shift: false, alt: false, control: false));
 
@@ -286,25 +326,33 @@ public sealed class ApplicationVolumeTests : IDisposable
         // Left panel is "on D:\" — so the cursor should start on D (index 1).
         string cPath = Path.Combine(_tempDir, "VolC_Init");
         string dPath = Path.Combine(_tempDir, "VolD_Init");
-        string dSub  = Path.Combine(dPath, "Projects");
+        string dSub = Path.Combine(dPath, "Projects");
         Directory.CreateDirectory(cPath);
         Directory.CreateDirectory(dSub);
 
         var volService = new FakeVolumeService(
             new FileSystemVolume
             {
-                Id = "C:\\", DisplayName = "C:", RootPath = cPath,
-                Kind = VolumeKind.Fixed, Status = VolumeStatus.Ready, Shortcut = "C",
+                Id = "C:\\",
+                DisplayName = "C:",
+                RootPath = cPath,
+                Kind = VolumeKind.Fixed,
+                Status = VolumeStatus.Ready,
+                Shortcut = "C",
             },
             new FileSystemVolume
             {
-                Id = "D:\\", DisplayName = "D:", RootPath = dPath,
-                Kind = VolumeKind.Fixed, Status = VolumeStatus.Ready, Shortcut = "D",
+                Id = "D:\\",
+                DisplayName = "D:",
+                RootPath = dPath,
+                Kind = VolumeKind.Fixed,
+                Status = VolumeStatus.Ready,
+                Shortcut = "D",
             });
 
         var driver = new FakeConsoleDriver();
         // Open dialog (cursor should be on D:), press Enter immediately.
-        driver.EnqueueKey(new ConsoleKeyInfo('\0', ConsoleKey.F1, shift: false, alt: true,  control: false));
+        driver.EnqueueKey(new ConsoleKeyInfo('\0', ConsoleKey.F1, shift: false, alt: true, control: false));
         driver.EnqueueKey(new ConsoleKeyInfo('\0', ConsoleKey.Enter, shift: false, alt: false, control: false));
         driver.EnqueueKey(new ConsoleKeyInfo('\0', ConsoleKey.F10, shift: false, alt: false, control: false));
 
@@ -314,7 +362,7 @@ public sealed class ApplicationVolumeTests : IDisposable
         fs.AddDirectory(cPath);
 
         var settings = new AppSettings();
-        settings.Panels.LeftStartDirectory  = dSub;  // left panel is inside D:
+        settings.Panels.LeftStartDirectory = dSub;  // left panel is inside D:
         settings.Panels.RightStartDirectory = _tempDir;
 
         var app = new Application(
@@ -341,12 +389,16 @@ public sealed class ApplicationVolumeTests : IDisposable
         // Volume whose RootPath does NOT match _tempDir (the panel's current dir)
         var volService = new FakeVolumeService(new FileSystemVolume
         {
-            Id = "X:\\", DisplayName = "X:", RootPath = volPath,
-            Kind = VolumeKind.Fixed, Status = VolumeStatus.Ready, Shortcut = "X",
+            Id = "X:\\",
+            DisplayName = "X:",
+            RootPath = volPath,
+            Kind = VolumeKind.Fixed,
+            Status = VolumeStatus.Ready,
+            Shortcut = "X",
         });
 
         var driver = new FakeConsoleDriver();
-        driver.EnqueueKey(new ConsoleKeyInfo('\0', ConsoleKey.F1, shift: false, alt: true,  control: false));
+        driver.EnqueueKey(new ConsoleKeyInfo('\0', ConsoleKey.F1, shift: false, alt: true, control: false));
         driver.EnqueueKey(new ConsoleKeyInfo('\0', ConsoleKey.Enter, shift: false, alt: false, control: false));
         driver.EnqueueKey(new ConsoleKeyInfo('\0', ConsoleKey.F10, shift: false, alt: false, control: false));
 
@@ -367,13 +419,18 @@ public sealed class ApplicationVolumeTests : IDisposable
 
         var volService = new FakeVolumeService(new FileSystemVolume
         {
-            Id = "P:\\", DisplayName = "P:", RootPath = netPath,
-            Kind = VolumeKind.Network, Status = VolumeStatus.Unchecked,
-            TotalBytes = null, FreeBytes = null, Shortcut = "P",
+            Id = "P:\\",
+            DisplayName = "P:",
+            RootPath = netPath,
+            Kind = VolumeKind.Network,
+            Status = VolumeStatus.Unchecked,
+            TotalBytes = null,
+            FreeBytes = null,
+            Shortcut = "P",
         });
 
         var driver = new FakeConsoleDriver();
-        driver.EnqueueKey(new ConsoleKeyInfo('\0', ConsoleKey.F1, shift: false, alt: true,  control: false));
+        driver.EnqueueKey(new ConsoleKeyInfo('\0', ConsoleKey.F1, shift: false, alt: true, control: false));
         driver.EnqueueKey(new ConsoleKeyInfo('\0', ConsoleKey.Enter, shift: false, alt: false, control: false));
         driver.EnqueueKey(new ConsoleKeyInfo('\0', ConsoleKey.F10, shift: false, alt: false, control: false));
 
@@ -391,14 +448,19 @@ public sealed class ApplicationVolumeTests : IDisposable
 
         var volService = new FakeVolumeService(new FileSystemVolume
         {
-            Id = "Z:\\", DisplayName = "Z:", RootPath = netPath,
-            Kind = VolumeKind.Network, Status = VolumeStatus.Unchecked,
-            TotalBytes = null, FreeBytes = null, Shortcut = "Z",
+            Id = "Z:\\",
+            DisplayName = "Z:",
+            RootPath = netPath,
+            Kind = VolumeKind.Network,
+            Status = VolumeStatus.Unchecked,
+            TotalBytes = null,
+            FreeBytes = null,
+            Shortcut = "Z",
         });
 
         var driver = new FakeConsoleDriver();
-        driver.EnqueueKey(new ConsoleKeyInfo('\0', ConsoleKey.F1, shift: false, alt: true,  control: false));
-        driver.EnqueueKey(new ConsoleKeyInfo('z', ConsoleKey.Z,  shift: false, alt: false, control: false));
+        driver.EnqueueKey(new ConsoleKeyInfo('\0', ConsoleKey.F1, shift: false, alt: true, control: false));
+        driver.EnqueueKey(new ConsoleKeyInfo('z', ConsoleKey.Z, shift: false, alt: false, control: false));
         driver.EnqueueKey(new ConsoleKeyInfo('\0', ConsoleKey.F10, shift: false, alt: false, control: false));
 
         var app = CreateApp(driver, volService);
@@ -478,12 +540,12 @@ public sealed class ApplicationVolumeTests : IDisposable
     // ── KindLabel for Unchecked shows kind, not error (spec test #10) ─────────
 
     [Theory]
-    [InlineData(VolumeKind.Network,    VolumeStatus.Unchecked, "network")]
-    [InlineData(VolumeKind.Fixed,      VolumeStatus.Ready,     "fixed")]
-    [InlineData(VolumeKind.Removable,  VolumeStatus.Ready,     "removable")]
-    [InlineData(VolumeKind.Network,    VolumeStatus.Disconnected, "disconnected")]
-    [InlineData(VolumeKind.Fixed,      VolumeStatus.NotReady,  "not ready")]
-    [InlineData(VolumeKind.Fixed,      VolumeStatus.Error,     "error")]
+    [InlineData(VolumeKind.Network, VolumeStatus.Unchecked, "network")]
+    [InlineData(VolumeKind.Fixed, VolumeStatus.Ready, "fixed")]
+    [InlineData(VolumeKind.Removable, VolumeStatus.Ready, "removable")]
+    [InlineData(VolumeKind.Network, VolumeStatus.Disconnected, "disconnected")]
+    [InlineData(VolumeKind.Fixed, VolumeStatus.NotReady, "not ready")]
+    [InlineData(VolumeKind.Fixed, VolumeStatus.Error, "error")]
     public void KindLabel_ReturnsExpectedText(VolumeKind kind, VolumeStatus status, string expected)
     {
         Assert.Equal(expected, DriveDialog.KindLabel(kind, status));
@@ -496,7 +558,7 @@ public sealed class ApplicationVolumeTests : IDisposable
     {
         // Ensures the service runs on the current system without exceptions.
         // Also validates that network drives (if any) have Unchecked status with null sizes.
-        var svc     = new CSharpFar.FileSystem.WindowsVolumeService();
+        var svc = new CSharpFar.FileSystem.WindowsVolumeService();
         var volumes = svc.GetVolumes(); // must return quickly
 
         Assert.NotNull(volumes);
@@ -511,11 +573,11 @@ public sealed class ApplicationVolumeTests : IDisposable
     // ── DriveDialog.FormatBytes ───────────────────────────────────────────────
 
     [Theory]
-    [InlineData(659L  * 1024 * 1024 * 1024, "659 G")]
-    [InlineData(21_474_836_480L,             "20,0 G")]   // 20 GB exactly
-    [InlineData(2_000_000_000_000L,          "1,82 T")]
-    [InlineData(1024L,                        "1,00 K")]
-    [InlineData(100L * 1024,                  "100 K")]
+    [InlineData(659L * 1024 * 1024 * 1024, "659 G")]
+    [InlineData(21_474_836_480L, "20,0 G")]   // 20 GB exactly
+    [InlineData(2_000_000_000_000L, "1,82 T")]
+    [InlineData(1024L, "1,00 K")]
+    [InlineData(100L * 1024, "100 K")]
     public void FormatBytes_ProducesExpectedOutput(long bytes, string expected)
     {
         Assert.Equal(expected, DriveDialog.FormatBytes(bytes));
@@ -533,7 +595,7 @@ public sealed class ApplicationVolumeTests : IDisposable
         fs.AddDirectory(_tempDir);
 
         var settings = new AppSettings();
-        settings.Panels.LeftStartDirectory  = _tempDir;
+        settings.Panels.LeftStartDirectory = _tempDir;
         settings.Panels.RightStartDirectory = _tempDir;
 
         return new Application(

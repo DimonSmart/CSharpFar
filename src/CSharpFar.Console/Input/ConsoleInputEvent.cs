@@ -7,10 +7,10 @@ public sealed record KeyConsoleInputEvent(ConsoleKeyInfo Key) : ConsoleInputEven
 public sealed record ModifierKeyConsoleInputEvent(ConsoleModifiers Modifiers) : ConsoleInputEvent;
 
 public sealed record MouseConsoleInputEvent(
-    int               X,
-    int               Y,
-    MouseButton       Button,
-    MouseEventKind    Kind,
+    int X,
+    int Y,
+    MouseButton Button,
+    MouseEventKind Kind,
     MouseKeyModifiers Modifiers) : ConsoleInputEvent;
 
 public sealed record ConsoleResizeInputEvent : ConsoleInputEvent;
@@ -38,8 +38,8 @@ public enum MouseEventKind
 [Flags]
 public enum MouseKeyModifiers
 {
-    None    = 0,
-    Shift   = 1,
-    Alt     = 2,
+    None = 0,
+    Shift = 1,
+    Alt = 2,
     Control = 4,
 }

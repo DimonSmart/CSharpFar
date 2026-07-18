@@ -35,8 +35,13 @@ public class HighlightRendererTests
         new() { Name = name, FullPath = @"C:\Test\" + name, IsDirectory = false, Attributes = attrs };
 
     private static FilePanelItem MakeDir(string name) =>
-        new() { Name = name, FullPath = @"C:\Test\" + name, IsDirectory = true,
-                Attributes = FileAttributes.Directory };
+        new()
+        {
+            Name = name,
+            FullPath = @"C:\Test\" + name,
+            IsDirectory = true,
+            Attributes = FileAttributes.Directory
+        };
 
     // ── Full mode ─────────────────────────────────────────────────────────────
 
@@ -44,7 +49,7 @@ public class HighlightRendererTests
     public void FullMode_Colors_Only_FileName_Not_SizeColumn()
     {
         var (screen, driver) = MakeScreen(60, 10);
-        var svc   = FarDefaultService();
+        var svc = FarDefaultService();
         var state = MakeState(MakeFile("app.exe"));
         state.CursorIndex = -1; // no cursor row → item uses fileStyle as base
         var bounds = new Rect(0, 0, 60, 10);
@@ -54,10 +59,10 @@ public class HighlightRendererTests
 
         // Compute column geometry
         int innerWidth = bounds.Width - 2; // 58
-        int sizeCol    = Math.Min(8, innerWidth / 3); // 8
-        int nameCol    = innerWidth - sizeCol - 1;    // 49
+        int sizeCol = Math.Min(8, innerWidth / 3); // 8
+        int nameCol = innerWidth - sizeCol - 1;    // 49
 
-        int fileRow    = bounds.Y + 1; // first content row
+        int fileRow = bounds.Y + 1; // first content row
 
         // Name cell (x=1..nameCol) must use highlight foreground (Green = 10)
         var nameCell = driver.GetCell(1, fileRow);
@@ -74,7 +79,7 @@ public class HighlightRendererTests
     {
         var (screen, driver) = MakeScreen(60, 10);
         // No highlight service
-        var state  = MakeState(MakeFile("app.exe"));
+        var state = MakeState(MakeFile("app.exe"));
         state.CursorIndex = -1; // no cursor row → item uses fileStyle (NormalFileFg)
         var bounds = new Rect(0, 0, 60, 10);
 
@@ -90,8 +95,8 @@ public class HighlightRendererTests
     public void FullMode_Directory_Highlighted_As_White()
     {
         var (screen, driver) = MakeScreen(60, 10);
-        var svc    = FarDefaultService();
-        var state  = MakeState(MakeDir("src"));
+        var svc = FarDefaultService();
+        var state = MakeState(MakeDir("src"));
         var bounds = new Rect(0, 0, 60, 10);
 
         var renderer = new PanelRenderer(screen, PaletteRegistry.Default, svc);
@@ -108,17 +113,17 @@ public class HighlightRendererTests
     public void BriefMode_Colors_Only_ItemCell_Not_Separator()
     {
         var (screen, driver) = MakeScreen(40, 12);
-        var svc    = FarDefaultService();
-        var state  = MakeState(MakeFile("app.exe"));
+        var svc = FarDefaultService();
+        var state = MakeState(MakeFile("app.exe"));
         var bounds = new Rect(0, 0, 40, 12);
 
         var renderer = new BriefTwoColumnsPanelRenderer(screen, PaletteRegistry.Default, svc);
         renderer.Render(bounds, state, isActive: true);
 
         int innerWidth = bounds.Width - 2; // 38
-        int sepOffset  = innerWidth / 2;   // 19
-        int col1X      = 1;
-        int sepX       = 1 + sepOffset;    // 20
+        int sepOffset = innerWidth / 2;   // 19
+        int col1X = 1;
+        int sepX = 1 + sepOffset;    // 20
         int contentRow = bounds.Y + 2;
 
         // Name cell: Green (fg 10)
@@ -134,7 +139,7 @@ public class HighlightRendererTests
     public void BriefMode_Disabled_Highlighting_Returns_Palette_Colors()
     {
         var (screen, driver) = MakeScreen(40, 12);
-        var state  = MakeState(MakeFile("app.exe"));
+        var state = MakeState(MakeFile("app.exe"));
         state.CursorIndex = -1; // no cursor row → item uses fileStyle (NormalFileFg)
         var bounds = new Rect(0, 0, 40, 12);
 
@@ -152,8 +157,8 @@ public class HighlightRendererTests
     public void FullMode_InactivePanel_HighlightInherits_PanelBackground()
     {
         var (screen, driver) = MakeScreen(60, 10);
-        var svc    = FarDefaultService();
-        var state  = MakeState(MakeFile("app.exe"));
+        var svc = FarDefaultService();
+        var state = MakeState(MakeFile("app.exe"));
         var bounds = new Rect(0, 0, 60, 10);
 
         var renderer = new PanelRenderer(screen, PaletteRegistry.Default, svc);
@@ -169,8 +174,8 @@ public class HighlightRendererTests
     public void BriefMode_InactivePanel_HighlightInherits_PanelBackground()
     {
         var (screen, driver) = MakeScreen(40, 12);
-        var svc    = FarDefaultService();
-        var state  = MakeState(MakeFile("app.exe"));
+        var svc = FarDefaultService();
+        var state = MakeState(MakeFile("app.exe"));
         var bounds = new Rect(0, 0, 40, 12);
         state.CursorIndex = 0;
 

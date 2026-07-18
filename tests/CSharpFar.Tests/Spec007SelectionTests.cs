@@ -16,10 +16,10 @@ public sealed class Spec007SelectionTests
     {
         var fs = new FakeFileSystemService();
         fs.AddDirectory(Root,
-            new FilePanelItem { Name = "SubDir",    FullPath = Root + @"\SubDir",     IsDirectory = true },
-            new FilePanelItem { Name = "file.txt",  FullPath = Root + @"\file.txt",   IsDirectory = false });
+            new FilePanelItem { Name = "SubDir", FullPath = Root + @"\SubDir", IsDirectory = true },
+            new FilePanelItem { Name = "file.txt", FullPath = Root + @"\file.txt", IsDirectory = false });
 
-        var ctrl  = new PanelController(new FakePanelViewBuilder(fs));
+        var ctrl = new PanelController(new FakePanelViewBuilder(fs));
         var state = new FilePanelState { CurrentDirectory = Root };
         ctrl.LoadDirectory(state, Root, opts);
         return (ctrl, state);
@@ -30,8 +30,13 @@ public sealed class Spec007SelectionTests
     [Fact]
     public void CanSelect_ParentDirectory_ReturnsFalse()
     {
-        var item = new FilePanelItem { Name = "..", IsDirectory = true, IsParentDirectory = true,
-                                       FullPath = @"C:\" };
+        var item = new FilePanelItem
+        {
+            Name = "..",
+            IsDirectory = true,
+            IsParentDirectory = true,
+            FullPath = @"C:\"
+        };
         var opts = new AppSettings.PanelOptionsSettings();
 
         Assert.False(PanelController.CanSelect(item, opts));

@@ -13,20 +13,20 @@ namespace CSharpFar.App.UserMenu;
 public static class PlaceholderExpander
 {
     public static string Expand(
-        string              command,
-        string              currentFile,
+        string command,
+        string currentFile,
         IReadOnlyList<string> selectedPaths,
-        string              panelDir,
-        string              otherPanelDir)
+        string panelDir,
+        string otherPanelDir)
     {
         string selected = selectedPaths.Count > 0
             ? string.Join(" ", selectedPaths.Select(p => $"\"{p}\""))
             : string.IsNullOrEmpty(currentFile) ? string.Empty : $"\"{currentFile}\"";
 
         return command
-            .Replace("{current}",       currentFile)
-            .Replace("{selected}",      selected)
-            .Replace("{panelDir}",      panelDir)
+            .Replace("{current}", currentFile)
+            .Replace("{selected}", selected)
+            .Replace("{panelDir}", panelDir)
             .Replace("{otherPanelDir}", otherPanelDir);
     }
 }

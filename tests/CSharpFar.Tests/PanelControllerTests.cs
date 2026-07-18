@@ -1,5 +1,5 @@
-﻿using CSharpFar.Core.Controllers;
 using CSharpFar.Core.Abstractions;
+using CSharpFar.Core.Controllers;
 using CSharpFar.Core.Models;
 using CSharpFar.Core.Services;
 using CSharpFar.Tests.Fakes;
@@ -25,7 +25,7 @@ public class PanelControllerTests
             .ToArray();
 
         fs.AddDirectory(Root, items);
-        var ctrl  = new PanelController(new FakePanelViewBuilder(fs));
+        var ctrl = new PanelController(new FakePanelViewBuilder(fs));
         var state = new FilePanelState { CurrentDirectory = Root };
         ctrl.LoadDirectory(state, Root);
         return (ctrl, state);
@@ -62,7 +62,7 @@ public class PanelControllerTests
     public void LoadDirectory_ResetsCursorAndScroll()
     {
         var (ctrl, state) = MakePanel(10);
-        state.CursorIndex  = 5;
+        state.CursorIndex = 5;
         state.ScrollOffset = 3;
 
         ctrl.LoadDirectory(state, Root);
@@ -267,7 +267,7 @@ public class PanelControllerTests
     {
         var (ctrl, state) = MakePanel(20);
         // Move down first
-        state.CursorIndex  = 15;
+        state.CursorIndex = 15;
         state.ScrollOffset = 12;
 
         ctrl.MoveCursor(state, -10, 5); // cursor = 5
@@ -320,7 +320,7 @@ public class PanelControllerTests
     public void MoveToFirst_SetsCursorToZero()
     {
         var (ctrl, state) = MakePanel(10);
-        state.CursorIndex  = 7;
+        state.CursorIndex = 7;
         state.ScrollOffset = 5;
 
         ctrl.MoveToFirst(state);
@@ -410,7 +410,7 @@ public class PanelControllerTests
     public void MoveCursor_PageUp_MovesFullPage()
     {
         var (ctrl, state) = MakePanel(20);
-        state.CursorIndex  = 10;
+        state.CursorIndex = 10;
         state.ScrollOffset = 6;
 
         ctrl.MoveCursor(state, -5, 5);
@@ -435,9 +435,9 @@ public class PanelControllerTests
     [Fact]
     public void CurrentItem_ReturnsNullForEmptyList()
     {
-        var fs    = new FakeFileSystemService();
+        var fs = new FakeFileSystemService();
         fs.AddDirectory(Root);
-        var ctrl  = new PanelController(new FakePanelViewBuilder(fs));
+        var ctrl = new PanelController(new FakePanelViewBuilder(fs));
         var state = new FilePanelState { CurrentDirectory = Root };
         ctrl.LoadDirectory(state, Root);
 
@@ -532,7 +532,7 @@ public class PanelControllerTests
         fs.AddDirectory(Root,
             new FilePanelItem { Name = "Sub1", FullPath = Sub1, IsDirectory = true });
 
-        var ctrl  = new PanelController(new FakePanelViewBuilder(fs), new WindowsPanelPathSemantics());
+        var ctrl = new PanelController(new FakePanelViewBuilder(fs), new WindowsPanelPathSemantics());
         var state = new FilePanelState { CurrentDirectory = Sub1 };
         ctrl.LoadDirectory(state, Sub1);
 
@@ -548,10 +548,10 @@ public class PanelControllerTests
         fs.AddDirectory(Sub1);
         fs.AddDirectory(Root,
             new FilePanelItem { Name = "OtherDir", FullPath = @"C:\Root\OtherDir", IsDirectory = true },
-            new FilePanelItem { Name = "Sub1",     FullPath = Sub1,                IsDirectory = true },
-            new FilePanelItem { Name = "ZDir",     FullPath = @"C:\Root\ZDir",     IsDirectory = true });
+            new FilePanelItem { Name = "Sub1", FullPath = Sub1, IsDirectory = true },
+            new FilePanelItem { Name = "ZDir", FullPath = @"C:\Root\ZDir", IsDirectory = true });
 
-        var ctrl  = new PanelController(new FakePanelViewBuilder(fs), new WindowsPanelPathSemantics());
+        var ctrl = new PanelController(new FakePanelViewBuilder(fs), new WindowsPanelPathSemantics());
         var state = new FilePanelState { CurrentDirectory = Sub1 };
         ctrl.LoadDirectory(state, Sub1);
 

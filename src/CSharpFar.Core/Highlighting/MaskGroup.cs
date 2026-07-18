@@ -7,7 +7,7 @@ namespace CSharpFar.Core.Highlighting;
 /// </summary>
 public sealed record MaskGroup
 {
-    public required string Name           { get; init; }
+    public required string Name { get; init; }
     public required string MaskExpression { get; init; }
-    public bool            IsBuiltIn      { get; init; }
+    public bool IsBuiltIn { get; init; }
 }

@@ -83,29 +83,29 @@ public sealed class ListWithButtonsDialog<T>
             },
             (input, committedFrame) =>
             {
-            var layout = committedFrame.Layout;
-            if (input is MouseConsoleInputEvent mouse &&
-                HandleMouse(mouse, committedFrame, ref focusedButton, ref focusButtons, ref scrollbarDrag, out var mouseResult))
-            {
-                if (mouseResult is not null)
-                    return ModalDialogLoopResult<ListWithButtonsDialogResult<T>?>.Complete(mouseResult.ActionId == CancelActionId ? null : mouseResult);
+                var layout = committedFrame.Layout;
+                if (input is MouseConsoleInputEvent mouse &&
+                    HandleMouse(mouse, committedFrame, ref focusedButton, ref focusButtons, ref scrollbarDrag, out var mouseResult))
+                {
+                    if (mouseResult is not null)
+                        return ModalDialogLoopResult<ListWithButtonsDialogResult<T>?>.Complete(mouseResult.ActionId == CancelActionId ? null : mouseResult);
+                    return ModalDialogLoopResult<ListWithButtonsDialogResult<T>?>.Continue;
+                }
+
+                if (input is not KeyConsoleInputEvent { Key: var key })
+                    return ModalDialogLoopResult<ListWithButtonsDialogResult<T>?>.Continue;
+
+                if (focusButtons && _buttonBar.TryHandleInput(input, committedFrame.Buttons, ref focusedButton, out string? buttonId))
+                {
+                    if (buttonId is not null)
+                        return ModalDialogLoopResult<ListWithButtonsDialogResult<T>?>.Complete(buttonId == CancelActionId ? null : CreateResult(buttonId));
+                    return ModalDialogLoopResult<ListWithButtonsDialogResult<T>?>.Continue;
+                }
+
+                if (HandleKey(key, layout.ListBounds.Height, ref focusButtons, out var keyResult))
+                    return ModalDialogLoopResult<ListWithButtonsDialogResult<T>?>.Complete(keyResult?.ActionId == CancelActionId ? null : keyResult);
+
                 return ModalDialogLoopResult<ListWithButtonsDialogResult<T>?>.Continue;
-            }
-
-            if (input is not KeyConsoleInputEvent { Key: var key })
-                return ModalDialogLoopResult<ListWithButtonsDialogResult<T>?>.Continue;
-
-            if (focusButtons && _buttonBar.TryHandleInput(input, committedFrame.Buttons, ref focusedButton, out string? buttonId))
-            {
-                if (buttonId is not null)
-                    return ModalDialogLoopResult<ListWithButtonsDialogResult<T>?>.Complete(buttonId == CancelActionId ? null : CreateResult(buttonId));
-                return ModalDialogLoopResult<ListWithButtonsDialogResult<T>?>.Continue;
-            }
-
-            if (HandleKey(key, layout.ListBounds.Height, ref focusButtons, out var keyResult))
-                return ModalDialogLoopResult<ListWithButtonsDialogResult<T>?>.Complete(keyResult?.ActionId == CancelActionId ? null : keyResult);
-
-            return ModalDialogLoopResult<ListWithButtonsDialogResult<T>?>.Continue;
             },
             applyCommittedFrame: frame =>
             {

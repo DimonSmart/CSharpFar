@@ -1,7 +1,7 @@
+using CSharpFar.App.Viewer;
 using CSharpFar.Console;
 using CSharpFar.Console.Input;
 using CSharpFar.Console.Models;
-using CSharpFar.App.Viewer;
 using CSharpFar.Tests.Fakes;
 using CSharpFar.Ui;
 

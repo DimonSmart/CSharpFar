@@ -115,32 +115,32 @@ public sealed class SearchOptionsDialog
             },
             (routed, result) =>
             {
-            if (result.Kind == FormInputResultKind.ValueChanged)
-                SynchronizeOptions(options, state, checkboxes);
+                if (result.Kind == FormInputResultKind.ValueChanged)
+                    SynchronizeOptions(options, state, checkboxes);
 
-            if (result.Kind == FormInputResultKind.Cancel)
-                return ModalDialogLoopResult<SearchOptionsDialogResult?>.Complete(null);
+                if (result.Kind == FormInputResultKind.Cancel)
+                    return ModalDialogLoopResult<SearchOptionsDialogResult?>.Complete(null);
 
-            if (result.Kind == FormInputResultKind.Submit ||
-                routed.Input is KeyConsoleInputEvent { Key.Key: ConsoleKey.F10 } ||
-                FormDialogInput.ShouldImplicitlySubmit(routed, result, form))
-            {
-                string? command = result.Command;
-                if (command is null &&
-                    routed.Input is KeyConsoleInputEvent { Key.Key: ConsoleKey.F10 or ConsoleKey.Enter })
+                if (result.Kind == FormInputResultKind.Submit ||
+                    routed.Input is KeyConsoleInputEvent { Key.Key: ConsoleKey.F10 } ||
+                    FormDialogInput.ShouldImplicitlySubmit(routed, result, form))
                 {
-                    command = "find";
+                    string? command = result.Command;
+                    if (command is null &&
+                        routed.Input is KeyConsoleInputEvent { Key.Key: ConsoleKey.F10 or ConsoleKey.Enter })
+                    {
+                        command = "find";
+                    }
+
+                    var accepted = HandleButton(command, options, state, pattern, patternHistory, ref error);
+                    if (accepted.HasValue)
+                    {
+                        return ModalDialogLoopResult<SearchOptionsDialogResult?>.Complete(
+                            accepted.Value ? CreateResult(state) : null);
+                    }
                 }
 
-                var accepted = HandleButton(command, options, state, pattern, patternHistory, ref error);
-                if (accepted.HasValue)
-                {
-                    return ModalDialogLoopResult<SearchOptionsDialogResult?>.Complete(
-                        accepted.Value ? CreateResult(state) : null);
-                }
-            }
-
-            return ModalDialogLoopResult<SearchOptionsDialogResult?>.Continue;
+                return ModalDialogLoopResult<SearchOptionsDialogResult?>.Continue;
             });
     }
 

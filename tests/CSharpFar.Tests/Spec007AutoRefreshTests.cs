@@ -29,28 +29,28 @@ public sealed class Spec007AutoRefreshTests : IDisposable
                                             bool networkRefresh = false) =>
         new()
         {
-            PanelSide      = PanelSide.Left,
-            DirectoryPath  = _tempDir,
-            ObjectCount    = objectCount,
+            PanelSide = PanelSide.Left,
+            DirectoryPath = _tempDir,
+            ObjectCount = objectCount,
             IsNetworkDrive = false,
-            Options        = new AppSettings.PanelAutoRefreshSettings
+            Options = new AppSettings.PanelAutoRefreshSettings
             {
                 DisableIfObjectCountExceeds = threshold,
-                NetworkDrivesAutoRefresh    = networkRefresh,
+                NetworkDrivesAutoRefresh = networkRefresh,
             },
         };
 
     private PanelWatchRequest NetworkRequest(int threshold = 0, bool networkRefresh = false) =>
         new()
         {
-            PanelSide      = PanelSide.Left,
-            DirectoryPath  = _tempDir,
-            ObjectCount    = 10,
+            PanelSide = PanelSide.Left,
+            DirectoryPath = _tempDir,
+            ObjectCount = 10,
             IsNetworkDrive = true,
-            Options        = new AppSettings.PanelAutoRefreshSettings
+            Options = new AppSettings.PanelAutoRefreshSettings
             {
                 DisableIfObjectCountExceeds = threshold,
-                NetworkDrivesAutoRefresh    = networkRefresh,
+                NetworkDrivesAutoRefresh = networkRefresh,
             },
         };
 

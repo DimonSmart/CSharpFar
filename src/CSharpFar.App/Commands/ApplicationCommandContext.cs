@@ -17,8 +17,8 @@ using CSharpFar.Core.Controllers;
 using CSharpFar.Core.Highlighting;
 using CSharpFar.Core.Menu;
 using CSharpFar.Core.Models;
-using AppSettingsAlias = CSharpFar.Core.Models.AppSettings;
 using CSharpFar.Ui;
+using AppSettingsAlias = CSharpFar.Core.Models.AppSettings;
 
 namespace CSharpFar.App.Commands;
 

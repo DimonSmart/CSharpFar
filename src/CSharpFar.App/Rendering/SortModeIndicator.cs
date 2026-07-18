@@ -8,11 +8,11 @@ internal static class SortModeIndicator
     {
         char indicator = state.SortMode switch
         {
-            SortMode.Name          => 'n',
-            SortMode.Extension     => 'e',
+            SortMode.Name => 'n',
+            SortMode.Extension => 'e',
             SortMode.LastWriteTime => 'w',
-            SortMode.Size          => 's',
-            _                      => 'n',
+            SortMode.Size => 's',
+            _ => 'n',
         };
 
         return state.SortDescending ? char.ToUpperInvariant(indicator) : indicator;

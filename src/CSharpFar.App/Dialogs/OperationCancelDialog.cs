@@ -35,18 +35,18 @@ internal sealed class OperationCancelDialog
             context => Draw(context, focusedButton, interruptedMessage, confirmationMessage),
             (input, frame) =>
             {
-            if (_buttons.TryHandleInput(input, frame.Buttons, ref focusedButton, out string? buttonId) && buttonId is not null)
-                return ModalDialogLoopResult<bool>.Complete(buttonId == YesButton);
+                if (_buttons.TryHandleInput(input, frame.Buttons, ref focusedButton, out string? buttonId) && buttonId is not null)
+                    return ModalDialogLoopResult<bool>.Complete(buttonId == YesButton);
 
-            if (input is KeyConsoleInputEvent { Key: var key })
-            {
-                if (key.Key == ConsoleKey.Escape)
-                    return ModalDialogLoopResult<bool>.Complete(false);
-                if (key.Key == ConsoleKey.Tab)
-                    focusedButton = (focusedButton + 1) % _buttons.Count;
-            }
+                if (input is KeyConsoleInputEvent { Key: var key })
+                {
+                    if (key.Key == ConsoleKey.Escape)
+                        return ModalDialogLoopResult<bool>.Complete(false);
+                    if (key.Key == ConsoleKey.Tab)
+                        focusedButton = (focusedButton + 1) % _buttons.Count;
+                }
 
-            return ModalDialogLoopResult<bool>.Continue;
+                return ModalDialogLoopResult<bool>.Continue;
             });
     }
 

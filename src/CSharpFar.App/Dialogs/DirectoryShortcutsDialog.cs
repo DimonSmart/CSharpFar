@@ -47,49 +47,49 @@ internal sealed class DirectoryShortcutsDialog
             context => Draw(context.Size, items, cursor, focusedButton),
             (input, frame) =>
             {
-            if (input is MouseConsoleInputEvent mouse &&
-                TrySelectRow(mouse, frame.Layout.ContentBounds, ref cursor))
-            {
-                if (mouse.Kind == MouseEventKind.DoubleClick)
-                    EditSelected(items, cursor, activePanelPath);
+                if (input is MouseConsoleInputEvent mouse &&
+                    TrySelectRow(mouse, frame.Layout.ContentBounds, ref cursor))
+                {
+                    if (mouse.Kind == MouseEventKind.DoubleClick)
+                        EditSelected(items, cursor, activePanelPath);
+                    return ModalDialogLoopResult<DirectoryShortcutsDialogResult>.Continue;
+                }
+
+                if (_buttonBar.TryHandleInput(input, frame.Buttons, ref focusedButton, out string? buttonId))
+                {
+                    if (buttonId == "close")
+                        return ModalDialogLoopResult<DirectoryShortcutsDialogResult>.Complete(Result(initialItems, items));
+                    if (buttonId == "edit")
+                        EditSelected(items, cursor, activePanelPath);
+                    return ModalDialogLoopResult<DirectoryShortcutsDialogResult>.Continue;
+                }
+
+                if (input is not KeyConsoleInputEvent { Key: var key })
+                    return ModalDialogLoopResult<DirectoryShortcutsDialogResult>.Continue;
+
+                switch (key.Key)
+                {
+                    case ConsoleKey.UpArrow:
+                        cursor = Math.Max(0, cursor - 1);
+                        break;
+                    case ConsoleKey.DownArrow:
+                        cursor = Math.Min(DirectoryShortcutNormalizer.DisplayOrder.Count - 1, cursor + 1);
+                        break;
+                    case ConsoleKey.Home:
+                        cursor = 0;
+                        break;
+                    case ConsoleKey.End:
+                        cursor = DirectoryShortcutNormalizer.DisplayOrder.Count - 1;
+                        break;
+                    case ConsoleKey.Enter:
+                        EditSelected(items, cursor, activePanelPath);
+                        break;
+                    case ConsoleKey.Escape:
+                    case ConsoleKey.F10:
+                        return ModalDialogLoopResult<DirectoryShortcutsDialogResult>.Complete(Result(initialItems, items));
+                }
+
                 return ModalDialogLoopResult<DirectoryShortcutsDialogResult>.Continue;
-            }
-
-            if (_buttonBar.TryHandleInput(input, frame.Buttons, ref focusedButton, out string? buttonId))
-            {
-                if (buttonId == "close")
-                    return ModalDialogLoopResult<DirectoryShortcutsDialogResult>.Complete(Result(initialItems, items));
-                if (buttonId == "edit")
-                    EditSelected(items, cursor, activePanelPath);
-                return ModalDialogLoopResult<DirectoryShortcutsDialogResult>.Continue;
-            }
-
-            if (input is not KeyConsoleInputEvent { Key: var key })
-                return ModalDialogLoopResult<DirectoryShortcutsDialogResult>.Continue;
-
-            switch (key.Key)
-            {
-                case ConsoleKey.UpArrow:
-                    cursor = Math.Max(0, cursor - 1);
-                    break;
-                case ConsoleKey.DownArrow:
-                    cursor = Math.Min(DirectoryShortcutNormalizer.DisplayOrder.Count - 1, cursor + 1);
-                    break;
-                case ConsoleKey.Home:
-                    cursor = 0;
-                    break;
-                case ConsoleKey.End:
-                    cursor = DirectoryShortcutNormalizer.DisplayOrder.Count - 1;
-                    break;
-                case ConsoleKey.Enter:
-                    EditSelected(items, cursor, activePanelPath);
-                    break;
-                case ConsoleKey.Escape:
-                case ConsoleKey.F10:
-                    return ModalDialogLoopResult<DirectoryShortcutsDialogResult>.Complete(Result(initialItems, items));
-            }
-
-            return ModalDialogLoopResult<DirectoryShortcutsDialogResult>.Continue;
             });
     }
 

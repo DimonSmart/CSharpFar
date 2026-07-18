@@ -1,7 +1,7 @@
 using System.Text;
+using CSharpFar.App.Viewer;
 using CSharpFar.Console;
 using CSharpFar.Console.Input;
-using CSharpFar.App.Viewer;
 using CSharpFar.Core.Text;
 using CSharpFar.Tests.Fakes;
 

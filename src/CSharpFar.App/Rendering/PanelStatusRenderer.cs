@@ -22,17 +22,17 @@ internal sealed class PanelStatusRenderer
         int rows = 2; // separator + current item row
 
         bool showTotal = options == null || options.ShowFilesTotalInformation;
-        bool showFree  = options?.ShowFreeSize == true;
+        bool showFree = options?.ShowFreeSize == true;
         if (showTotal || showFree) rows++;
 
         return rows;
     }
 
     public void Render(
-        Rect                            bounds,
-        FilePanelState                  state,
-        CellStyle                       style,
-        CellStyle                       separatorStyle,
+        Rect bounds,
+        FilePanelState state,
+        CellStyle style,
+        CellStyle separatorStyle,
         AppSettings.PanelOptionsSettings? options = null)
     {
         int statusRowCount = GetStatusRowCount(options);
@@ -40,13 +40,13 @@ internal sealed class PanelStatusRenderer
         if (bounds.Width < 2 || bounds.Height < statusRowCount + 2) return;
 
         int innerWidth = bounds.Width - 2;
-        int x          = bounds.X + 1;
+        int x = bounds.X + 1;
         int separatorY = bounds.Bottom - 1 - statusRowCount;
-        int itemY      = separatorY + 1;
+        int itemY = separatorY + 1;
 
-        _screen.WriteChar(bounds.X,          separatorY, '╟', separatorStyle);
-        _screen.Write(x,                     separatorY, new string('─', innerWidth), separatorStyle);
-        _screen.WriteChar(bounds.Right - 1,  separatorY, '╢', separatorStyle);
+        _screen.WriteChar(bounds.X, separatorY, '╟', separatorStyle);
+        _screen.Write(x, separatorY, new string('─', innerWidth), separatorStyle);
+        _screen.WriteChar(bounds.Right - 1, separatorY, '╢', separatorStyle);
         WriteRow(x, itemY, innerWidth, FormatCurrentItem(state, innerWidth), style);
 
         if (statusRowCount >= 3)
@@ -73,15 +73,15 @@ internal sealed class PanelStatusRenderer
 
         var item = state.Items[state.CursorIndex];
         string kind = item.IsParentDirectory ? "Up"
-                    : item.IsDirectory       ? "<DIR>"
+                    : item.IsDirectory ? "<DIR>"
                     : FormatSize(item.Size ?? 0);
         string stamp = FormatTimestamp(item.LastWriteTime);
 
-        int kindWidth  = Math.Max(5, kind.Length);
+        int kindWidth = Math.Max(5, kind.Length);
         int stampWidth = stamp.Length;
-        int nameWidth  = Math.Max(0, width - kindWidth - stampWidth - 2);
+        int nameWidth = Math.Max(0, width - kindWidth - stampWidth - 2);
         string itemName = state.ShowCurrentItemFullPath ? item.FullPath : item.Name;
-        string name    = Truncate(itemName, nameWidth).PadRight(nameWidth);
+        string name = Truncate(itemName, nameWidth).PadRight(nameWidth);
 
         return $"{name} {kind.PadLeft(kindWidth)} {stamp}";
     }
@@ -89,7 +89,7 @@ internal sealed class PanelStatusRenderer
     private static string FormatStatsRow(FilePanelState state, AppSettings.PanelOptionsSettings? options)
     {
         bool showTotal = options == null || options.ShowFilesTotalInformation;
-        bool showFree  = options?.ShowFreeSize == true;
+        bool showFree = options?.ShowFreeSize == true;
 
         var sb = new System.Text.StringBuilder();
 
@@ -123,9 +123,9 @@ internal sealed class PanelStatusRenderer
 
     internal static string FormatDirectoryStats(FilePanelState state)
     {
-        long bytes   = 0;
-        int  files   = 0;
-        int  folders = 0;
+        long bytes = 0;
+        int files = 0;
+        int folders = 0;
 
         foreach (var item in state.Items)
         {
@@ -145,10 +145,10 @@ internal sealed class PanelStatusRenderer
 
         return bytes switch
         {
-            < 1_000L         => bytes.ToString(),
-            < 1_000_000L     => FormatScaled(bytes / kb, "K"),
+            < 1_000L => bytes.ToString(),
+            < 1_000_000L => FormatScaled(bytes / kb, "K"),
             < 1_000_000_000L => FormatScaled(bytes / mb, "M"),
-            _                => FormatScaled(bytes / gb, "G"),
+            _ => FormatScaled(bytes / gb, "G"),
         };
     }
 

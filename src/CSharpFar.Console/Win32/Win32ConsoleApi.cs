@@ -8,38 +8,38 @@ namespace CSharpFar.Console.Win32;
 [SupportedOSPlatform("windows")]
 internal static class Win32ConsoleApi
 {
-    public const uint ENABLE_PROCESSED_INPUT  = 0x0001;
-    public const uint ENABLE_LINE_INPUT       = 0x0002;
-    public const uint ENABLE_ECHO_INPUT       = 0x0004;
-    public const uint ENABLE_WINDOW_INPUT     = 0x0008;
-    public const uint ENABLE_MOUSE_INPUT        = 0x0010;
-    public const uint ENABLE_INSERT_MODE        = 0x0020;
-    public const uint ENABLE_QUICK_EDIT_MODE    = 0x0040;
-    public const uint ENABLE_EXTENDED_FLAGS     = 0x0080;
+    public const uint ENABLE_PROCESSED_INPUT = 0x0001;
+    public const uint ENABLE_LINE_INPUT = 0x0002;
+    public const uint ENABLE_ECHO_INPUT = 0x0004;
+    public const uint ENABLE_WINDOW_INPUT = 0x0008;
+    public const uint ENABLE_MOUSE_INPUT = 0x0010;
+    public const uint ENABLE_INSERT_MODE = 0x0020;
+    public const uint ENABLE_QUICK_EDIT_MODE = 0x0040;
+    public const uint ENABLE_EXTENDED_FLAGS = 0x0080;
     public const uint ENABLE_VIRTUAL_TERMINAL_INPUT = 0x0200;
     public const uint ENABLE_WRAP_AT_EOL_OUTPUT = 0x0002;
     public const uint ENABLE_VIRTUAL_TERMINAL_PROCESSING = 0x0004;
 
-    private const ushort KEY_EVENT               = 0x0001;
-    private const ushort MOUSE_EVENT             = 0x0002;
+    private const ushort KEY_EVENT = 0x0001;
+    private const ushort MOUSE_EVENT = 0x0002;
     private const ushort WINDOW_BUFFER_SIZE_EVENT = 0x0004;
-    private const uint RIGHT_ALT_PRESSED  = 0x0001;
-    private const uint LEFT_ALT_PRESSED   = 0x0002;
+    private const uint RIGHT_ALT_PRESSED = 0x0001;
+    private const uint LEFT_ALT_PRESSED = 0x0002;
     private const uint RIGHT_CTRL_PRESSED = 0x0004;
-    private const uint LEFT_CTRL_PRESSED  = 0x0008;
-    private const uint SHIFT_PRESSED      = 0x0010;
-    private const ushort VK_SHIFT         = 0x10;
-    private const ushort VK_CONTROL       = 0x11;
-    private const ushort VK_MENU          = 0x12;
-    private const ushort VK_LSHIFT        = 0xA0;
-    private const ushort VK_RSHIFT        = 0xA1;
-    private const ushort VK_LCONTROL      = 0xA2;
-    private const ushort VK_RCONTROL      = 0xA3;
-    private const ushort VK_LMENU         = 0xA4;
-    private const ushort VK_RMENU         = 0xA5;
+    private const uint LEFT_CTRL_PRESSED = 0x0008;
+    private const uint SHIFT_PRESSED = 0x0010;
+    private const ushort VK_SHIFT = 0x10;
+    private const ushort VK_CONTROL = 0x11;
+    private const ushort VK_MENU = 0x12;
+    private const ushort VK_LSHIFT = 0xA0;
+    private const ushort VK_RSHIFT = 0xA1;
+    private const ushort VK_LCONTROL = 0xA2;
+    private const ushort VK_RCONTROL = 0xA3;
+    private const ushort VK_LMENU = 0xA4;
+    private const ushort VK_RMENU = 0xA5;
 
-    private const uint WAIT_TIMEOUT   = 0x00000102;
-    private const uint WAIT_OBJECT_0  = 0x00000000;
+    private const uint WAIT_TIMEOUT = 0x00000102;
+    private const uint WAIT_OBJECT_0 = 0x00000000;
 
     private const int STD_INPUT_HANDLE = -10;
     private const int STD_OUTPUT_HANDLE = -11;
@@ -104,27 +104,27 @@ internal static class Win32ConsoleApi
     [StructLayout(LayoutKind.Sequential)]
     internal struct ConsoleScreenBufferInfo
     {
-        public Coord     dwSize;
-        public Coord     dwCursorPosition;
-        public short     wAttributes;
+        public Coord dwSize;
+        public Coord dwCursorPosition;
+        public short wAttributes;
         public SmallRect srWindow;
-        public Coord     dwMaximumWindowSize;
+        public Coord dwMaximumWindowSize;
     }
 
     [StructLayout(LayoutKind.Sequential)]
     internal struct ConsoleScreenBufferInfoEx
     {
-        public int       cbSize;
-        public Coord     dwSize;
-        public Coord     dwCursorPosition;
-        public short     wAttributes;
+        public int cbSize;
+        public Coord dwSize;
+        public Coord dwCursorPosition;
+        public short wAttributes;
         public SmallRect srWindow;
-        public Coord     dwMaximumWindowSize;
-        public short     wPopupAttributes;
-        public bool      bFullscreenSupported;
+        public Coord dwMaximumWindowSize;
+        public short wPopupAttributes;
+        public bool bFullscreenSupported;
 
         [MarshalAs(UnmanagedType.ByValArray, SizeConst = 16)]
-        public int[]     ColorTable;
+        public int[] ColorTable;
     }
 
     [DllImport("kernel32.dll", SetLastError = true)]
@@ -351,8 +351,8 @@ internal static class Win32ConsoleApi
             var keyInfo = new ConsoleKeyInfo(
                 keyChar,
                 key,
-                (modifiers & ConsoleModifiers.Shift)   != 0,
-                (modifiers & ConsoleModifiers.Alt)     != 0,
+                (modifiers & ConsoleModifiers.Shift) != 0,
+                (modifiers & ConsoleModifiers.Alt) != 0,
                 (modifiers & ConsoleModifiers.Control) != 0);
 
             if (!intercept && keyChar != '\0')
@@ -735,7 +735,7 @@ internal struct CharInfo
 internal struct InputRecord
 {
     [FieldOffset(0)] public ushort EventType;
-    [FieldOffset(4)] public KeyEventRecord  KeyEvent;
+    [FieldOffset(4)] public KeyEventRecord KeyEvent;
     [FieldOffset(4)] public MouseEventRecord MouseEvent;
 }
 
@@ -744,9 +744,9 @@ internal struct MouseEventRecord
 {
     public short MousePositionX;
     public short MousePositionY;
-    public uint  ButtonState;
-    public uint  ControlKeyState;
-    public uint  EventFlags;
+    public uint ButtonState;
+    public uint ControlKeyState;
+    public uint EventFlags;
 }
 
 [StructLayout(LayoutKind.Sequential)]

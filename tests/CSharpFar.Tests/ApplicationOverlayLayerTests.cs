@@ -1,5 +1,5 @@
-using CSharpFar.App.Bootstrap;
 using CSharpFar.App;
+using CSharpFar.App.Bootstrap;
 using CSharpFar.App.Rendering;
 using CSharpFar.App.State;
 using CSharpFar.Console;

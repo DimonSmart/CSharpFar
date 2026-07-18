@@ -1,5 +1,5 @@
-using CSharpFar.FileSystem;
 using CSharpFar.Core.Models;
+using CSharpFar.FileSystem;
 
 namespace CSharpFar.Tests;
 

@@ -28,8 +28,8 @@ public sealed class Spec007MountPointTests
                 return new VolumeMountPointInfo
                 {
                     IsVolumeMountPoint = true,
-                    VolumeName         = @"\\?\Volume{fake}",
-                    VolumePath         = directoryPath,
+                    VolumeName = @"\\?\Volume{fake}",
+                    VolumePath = directoryPath,
                 };
             return new VolumeMountPointInfo { IsVolumeMountPoint = false };
         }
@@ -38,14 +38,14 @@ public sealed class Spec007MountPointTests
     private static PanelViewRequest Request(string path, bool detectMount) =>
         new()
         {
-            DirectoryPath  = path,
-            Options        = new AppSettings.PanelOptionsSettings
+            DirectoryPath = path,
+            Options = new AppSettings.PanelOptionsSettings
             {
                 DetectVolumeMountPoints = detectMount,
             },
-            SortMode       = SortMode.Name,
+            SortMode = SortMode.Name,
             SortDescending = false,
-            SelectedPaths  = new HashSet<string>(StringComparer.OrdinalIgnoreCase),
+            SelectedPaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase),
         };
 
     // ── Detection enabled ─────────────────────────────────────────────────────
@@ -54,7 +54,7 @@ public sealed class Spec007MountPointTests
     public void DetectEnabled_MountPoint_IsFilled()
     {
         var mountPath = Dir + @"\Data";
-        var fakeSvc   = new FakeVolumeMountPointService();
+        var fakeSvc = new FakeVolumeMountPointService();
         fakeSvc.RegisterMountPoint(mountPath);
 
         var fs = new FakeFileSystemService();
@@ -62,7 +62,7 @@ public sealed class Spec007MountPointTests
             new FilePanelItem { Name = "Data", FullPath = mountPath, IsDirectory = true });
 
         var builder = new PanelViewBuilder(fs, new PanelSortService(), mountPoints: fakeSvc);
-        var view    = builder.Build(Request(Dir, detectMount: true));
+        var view = builder.Build(Request(Dir, detectMount: true));
 
         var item = view.Items.First(i => i.Name == "Data");
         Assert.True(item.IsVolumeMountPoint);
@@ -80,7 +80,7 @@ public sealed class Spec007MountPointTests
             new FilePanelItem { Name = "Docs", FullPath = dirPath, IsDirectory = true });
 
         var builder = new PanelViewBuilder(fs, new PanelSortService(), mountPoints: fakeSvc);
-        var view    = builder.Build(Request(Dir, detectMount: true));
+        var view = builder.Build(Request(Dir, detectMount: true));
 
         var item = view.Items.First(i => i.Name == "Docs");
         Assert.False(item.IsVolumeMountPoint);
@@ -93,7 +93,7 @@ public sealed class Spec007MountPointTests
     public void DetectDisabled_ServiceNotCalled()
     {
         var mountPath = Dir + @"\Data";
-        var fakeSvc   = new FakeVolumeMountPointService();
+        var fakeSvc = new FakeVolumeMountPointService();
         fakeSvc.RegisterMountPoint(mountPath);
 
         var fs = new FakeFileSystemService();
@@ -101,7 +101,7 @@ public sealed class Spec007MountPointTests
             new FilePanelItem { Name = "Data", FullPath = mountPath, IsDirectory = true });
 
         var builder = new PanelViewBuilder(fs, new PanelSortService(), mountPoints: fakeSvc);
-        var view    = builder.Build(Request(Dir, detectMount: false));
+        var view = builder.Build(Request(Dir, detectMount: false));
 
         Assert.Equal(0, fakeSvc.CallCount);
 
@@ -115,7 +115,7 @@ public sealed class Spec007MountPointTests
     public void MountPoint_CountedAsDirectory_InSummary()
     {
         var mountPath = Dir + @"\Storage";
-        var fakeSvc   = new FakeVolumeMountPointService();
+        var fakeSvc = new FakeVolumeMountPointService();
         fakeSvc.RegisterMountPoint(mountPath);
 
         var fs = new FakeFileSystemService();
@@ -123,7 +123,7 @@ public sealed class Spec007MountPointTests
             new FilePanelItem { Name = "Storage", FullPath = mountPath, IsDirectory = true });
 
         var builder = new PanelViewBuilder(fs, new PanelSortService(), mountPoints: fakeSvc);
-        var view    = builder.Build(Request(Dir, detectMount: true));
+        var view = builder.Build(Request(Dir, detectMount: true));
 
         Assert.Equal(1, view.Summary.DirectoryCount);
         Assert.Equal(0, view.Summary.FileCount);
@@ -140,7 +140,7 @@ public sealed class Spec007MountPointTests
 
         // null mount point service
         var builder = new PanelViewBuilder(fs, new PanelSortService(), mountPoints: null);
-        var view    = builder.Build(Request(Dir, detectMount: true));
+        var view = builder.Build(Request(Dir, detectMount: true));
 
         var item = view.Items.First(i => i.Name == "Dir");
         Assert.False(item.IsVolumeMountPoint);

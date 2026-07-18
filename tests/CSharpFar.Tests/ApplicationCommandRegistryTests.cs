@@ -1,21 +1,21 @@
 using System.Reflection;
 using CSharpFar.App.Bootstrap;
 using CSharpFar.App.Commands;
-using CSharpFar.App.FunctionKeys;
 using CSharpFar.App.DirectoryShortcuts;
-using CSharpFar.App.Rendering;
+using CSharpFar.App.FunctionKeys;
 using CSharpFar.App.Input;
+using CSharpFar.App.Rendering;
+using CSharpFar.App.State;
 using CSharpFar.App.UserMenu;
 using CSharpFar.Console;
 using CSharpFar.Console.Input;
 using CSharpFar.Console.Models;
-using CSharpFar.App.State;
-using CSharpFar.Ui;
 using CSharpFar.Core.Abstractions;
 using CSharpFar.Core.History;
 using CSharpFar.Core.Menu;
 using CSharpFar.Core.Models;
 using CSharpFar.Tests.Fakes;
+using CSharpFar.Ui;
 
 namespace CSharpFar.Tests;
 

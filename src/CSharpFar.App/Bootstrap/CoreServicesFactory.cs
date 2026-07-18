@@ -1,15 +1,15 @@
-using CSharpFar.App.FunctionKeys;
 using CSharpFar.App.Files;
+using CSharpFar.App.FunctionKeys;
+using CSharpFar.App.Menu;
 using CSharpFar.App.Panels;
 using CSharpFar.App.State;
 using CSharpFar.App.UserMenu;
 using CSharpFar.Core.Abstractions;
 using CSharpFar.Core.Controllers;
 using CSharpFar.Core.History;
+using CSharpFar.Core.Models;
 using CSharpFar.Core.Services;
 using CSharpFar.FileSystem;
-using CSharpFar.App.Menu;
-using CSharpFar.Core.Models;
 using AppSettingsAlias = CSharpFar.Core.Models.AppSettings;
 
 namespace CSharpFar.App.Bootstrap;

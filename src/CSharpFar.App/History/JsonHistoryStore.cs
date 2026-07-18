@@ -17,20 +17,20 @@ public sealed class JsonHistoryStore : IHistoryStore
     private static readonly JsonSerializerOptions JsonOptions = new() { WriteIndented = true };
 
     private readonly string _filePath;
-    private readonly List<CommandHistoryItem>   _commands    = new();
+    private readonly List<CommandHistoryItem> _commands = new();
     private readonly List<DirectoryHistoryItem> _directories = new();
-    private readonly List<FileHistoryItem>      _files       = new();
+    private readonly List<FileHistoryItem> _files = new();
 
     public JsonHistoryStore(
-        string? filePath        = null,
-        int     maxCommands     = 1000,
-        int     maxDirectories  = 500,
-        int     maxFiles        = 200)
+        string? filePath = null,
+        int maxCommands = 1000,
+        int maxDirectories = 500,
+        int maxFiles = 200)
     {
-        _filePath       = filePath ?? DefaultPath();
-        _maxCommands    = maxCommands;
+        _filePath = filePath ?? DefaultPath();
+        _maxCommands = maxCommands;
         _maxDirectories = maxDirectories;
-        _maxFiles       = maxFiles;
+        _maxFiles = maxFiles;
         Load();
     }
 
@@ -102,9 +102,9 @@ public sealed class JsonHistoryStore : IHistoryStore
             if (data is null)
                 throw new InvalidDataException("History file does not contain a JSON object: " + _filePath);
 
-            if (data.Commands    is not null) _commands.AddRange(data.Commands);
+            if (data.Commands is not null) _commands.AddRange(data.Commands);
             if (data.Directories is not null) _directories.AddRange(data.Directories);
-            if (data.Files       is not null) _files.AddRange(data.Files);
+            if (data.Files is not null) _files.AddRange(data.Files);
             NormalizeCommandHistory();
         }
         catch (Exception ex) when (ex is JsonException or NotSupportedException)
@@ -159,8 +159,8 @@ public sealed class JsonHistoryStore : IHistoryStore
 
     private sealed class HistoryData
     {
-        public List<CommandHistoryItem>?   Commands    { get; set; }
+        public List<CommandHistoryItem>? Commands { get; set; }
         public List<DirectoryHistoryItem>? Directories { get; set; }
-        public List<FileHistoryItem>?      Files       { get; set; }
+        public List<FileHistoryItem>? Files { get; set; }
     }
 }

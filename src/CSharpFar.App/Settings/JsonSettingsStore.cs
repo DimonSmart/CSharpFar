@@ -14,14 +14,14 @@ public sealed class JsonSettingsStore
 {
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
-        WriteIndented        = true,
+        WriteIndented = true,
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
     };
 
     private readonly string _filePath;
 
-    public string      ConfigDirectory { get; }
-    public AppSettings Settings        { get; }
+    public string ConfigDirectory { get; }
+    public AppSettings Settings { get; }
     private readonly Func<AppSettings> _createDefaultSettings;
 
     public JsonSettingsStore(string configDirectory, Func<AppSettings>? createDefaultSettings = null)
@@ -29,7 +29,7 @@ public sealed class JsonSettingsStore
         ConfigDirectory = configDirectory;
         _filePath = Path.Combine(configDirectory, "settings.json");
         _createDefaultSettings = createDefaultSettings ?? (() => new AppSettings());
-        Settings  = Load();
+        Settings = Load();
     }
 
     /// <summary>

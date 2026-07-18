@@ -14,7 +14,7 @@ public class UnderlaySnapshotTests
 {
     private static (ScreenRenderer renderer, FakeConsoleDriver driver) Create(int w = 80, int h = 24)
     {
-        var driver   = new FakeConsoleDriver(w, h);
+        var driver = new FakeConsoleDriver(w, h);
         var renderer = new ScreenRenderer(driver);
         return (renderer, driver);
     }
@@ -83,7 +83,7 @@ public class UnderlaySnapshotTests
         // We verify that the FilePanelState cursor is unchanged after Ctrl+O.
         var state = new CSharpFar.Core.Models.FilePanelState { CurrentDirectory = @"C:\" };
         state.Items.Add(new CSharpFar.Core.Models.FilePanelItem
-            { Name = "file.txt", FullPath = @"C:\file.txt", IsDirectory = false });
+        { Name = "file.txt", FullPath = @"C:\file.txt", IsDirectory = false });
         state.CursorIndex = 0;
 
         // Simulate: panels go hidden (state is not touched, only rendering is suppressed)
@@ -92,7 +92,7 @@ public class UnderlaySnapshotTests
 
         // Nothing changes in state when panels toggle
         Assert.Equal(cursorBefore, state.CursorIndex);
-        Assert.Equal(dirBefore,    state.CurrentDirectory);
+        Assert.Equal(dirBefore, state.CurrentDirectory);
     }
 
     [Fact]
@@ -110,9 +110,9 @@ public class UnderlaySnapshotTests
 
         renderer.Restore(snapshot);
 
-        Assert.Equal('C',                  driver.GetCell(0, 0).Character);
-        Assert.Equal(ConsoleColor.Yellow,   driver.GetCell(0, 0).Foreground);
-        Assert.Equal(ConsoleColor.DarkRed,  driver.GetCell(0, 0).Background);
+        Assert.Equal('C', driver.GetCell(0, 0).Character);
+        Assert.Equal(ConsoleColor.Yellow, driver.GetCell(0, 0).Foreground);
+        Assert.Equal(ConsoleColor.DarkRed, driver.GetCell(0, 0).Background);
     }
 
     [Fact]

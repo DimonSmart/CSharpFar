@@ -138,38 +138,38 @@ internal sealed class FileAttributesDialog : IFileAttributesDialog
             },
             (routed, result) =>
             {
-            if (result.Kind == FormInputResultKind.Cancel)
-                return ModalDialogLoopResult<FileAttributesDialogResult?>.Complete(null);
+                if (result.Kind == FormInputResultKind.Cancel)
+                    return ModalDialogLoopResult<FileAttributesDialogResult?>.Complete(null);
 
-            if (result.Kind == FormInputResultKind.Submit ||
-                routed.Input is KeyConsoleInputEvent { Key.Key: ConsoleKey.F10 })
-            {
-                if (IsTimeCommand(result.Command))
+                if (result.Kind == FormInputResultKind.Submit ||
+                    routed.Input is KeyConsoleInputEvent { Key.Key: ConsoleKey.F10 })
                 {
-                    ApplyTimeCommand(result.Command, snapshot, creation, write, access);
-                    return ModalDialogLoopResult<FileAttributesDialogResult?>.Continue;
-                }
-
-                switch (result.Command)
-                {
-                    case "properties":
-                        return ModalDialogLoopResult<FileAttributesDialogResult?>.Complete(
-                            new FileAttributesDialogResult(EmptyChangeSet(), OpenSystemProperties: true));
-                    case "set":
-                    case null:
-                        var states = attributeRows.ToDictionary(row => row.Descriptor.Id, row => row.Row.Value);
-                        var unixStates = permissionLines.ToDictionary(static pair => pair.Key, static pair => pair.Value.Value);
-                        var changeSet = CreateChangeSet(snapshot, states, unixStates, creation.Text, write.Text, access.Text, out error);
-                        if (error is null)
-                        {
-                            return ModalDialogLoopResult<FileAttributesDialogResult?>.Complete(
-                                new FileAttributesDialogResult(changeSet, OpenSystemProperties: false));
-                        }
+                    if (IsTimeCommand(result.Command))
+                    {
+                        ApplyTimeCommand(result.Command, snapshot, creation, write, access);
                         return ModalDialogLoopResult<FileAttributesDialogResult?>.Continue;
-                }
-            }
+                    }
 
-            return ModalDialogLoopResult<FileAttributesDialogResult?>.Continue;
+                    switch (result.Command)
+                    {
+                        case "properties":
+                            return ModalDialogLoopResult<FileAttributesDialogResult?>.Complete(
+                                new FileAttributesDialogResult(EmptyChangeSet(), OpenSystemProperties: true));
+                        case "set":
+                        case null:
+                            var states = attributeRows.ToDictionary(row => row.Descriptor.Id, row => row.Row.Value);
+                            var unixStates = permissionLines.ToDictionary(static pair => pair.Key, static pair => pair.Value.Value);
+                            var changeSet = CreateChangeSet(snapshot, states, unixStates, creation.Text, write.Text, access.Text, out error);
+                            if (error is null)
+                            {
+                                return ModalDialogLoopResult<FileAttributesDialogResult?>.Complete(
+                                    new FileAttributesDialogResult(changeSet, OpenSystemProperties: false));
+                            }
+                            return ModalDialogLoopResult<FileAttributesDialogResult?>.Continue;
+                    }
+                }
+
+                return ModalDialogLoopResult<FileAttributesDialogResult?>.Continue;
             },
             prepareRender: PrepareRows);
     }

@@ -138,33 +138,33 @@ internal sealed class SearchDialog
             },
             (routed, result) =>
             {
-            if (result.Kind == FormInputResultKind.Cancel)
-                return ModalDialogLoopResult<SearchRequest?>.Complete(null);
+                if (result.Kind == FormInputResultKind.Cancel)
+                    return ModalDialogLoopResult<SearchRequest?>.Complete(null);
 
-            if (result.Kind == FormInputResultKind.Submit ||
-                routed.Input is KeyConsoleInputEvent { Key.Key: ConsoleKey.F10 } ||
-                FormDialogInput.ShouldImplicitlySubmit(routed, result, form))
-            {
-                var request = BuildRequest(
-                    rootPath,
-                    mask,
-                    text,
-                    caseSensitiveRow.Value,
-                    wholeWordsRow.Value,
-                    notContainingRow.Value,
-                    includeDirectoriesRow.Value,
-                    searchLinksRow.Value,
-                    scopeRow.Value,
-                    parallelism,
-                    maskHistory,
-                    textHistory,
-                    parallelismHistory,
-                    ref error);
-                if (request is not null)
-                    return ModalDialogLoopResult<SearchRequest?>.Complete(request);
-            }
+                if (result.Kind == FormInputResultKind.Submit ||
+                    routed.Input is KeyConsoleInputEvent { Key.Key: ConsoleKey.F10 } ||
+                    FormDialogInput.ShouldImplicitlySubmit(routed, result, form))
+                {
+                    var request = BuildRequest(
+                        rootPath,
+                        mask,
+                        text,
+                        caseSensitiveRow.Value,
+                        wholeWordsRow.Value,
+                        notContainingRow.Value,
+                        includeDirectoriesRow.Value,
+                        searchLinksRow.Value,
+                        scopeRow.Value,
+                        parallelism,
+                        maskHistory,
+                        textHistory,
+                        parallelismHistory,
+                        ref error);
+                    if (request is not null)
+                        return ModalDialogLoopResult<SearchRequest?>.Complete(request);
+                }
 
-            return ModalDialogLoopResult<SearchRequest?>.Continue;
+                return ModalDialogLoopResult<SearchRequest?>.Continue;
             },
             prepareRender: PrepareRows);
     }

@@ -25,13 +25,13 @@ public sealed class Spec007SortingTests
     public void ExtensionSort_Folders_SortedByExtension_WhenEnabled()
     {
         var items = new[] { Dir("src.git"), Dir("docs"), Dir("backup.zip") };
-        var opts  = new PanelSortOptions { SortFoldersByExtension = true, DirectoriesFirst = true };
+        var opts = new PanelSortOptions { SortFoldersByExtension = true, DirectoriesFirst = true };
 
         var result = Sort.Sort(items, SortMode.Extension, false, opts);
 
         // No ext: docs  < .git: src.git  < .zip: backup.zip
-        Assert.Equal("docs",       result[0].Name);
-        Assert.Equal("src.git",    result[1].Name);
+        Assert.Equal("docs", result[0].Name);
+        Assert.Equal("src.git", result[1].Name);
         Assert.Equal("backup.zip", result[2].Name);
     }
 
@@ -39,26 +39,26 @@ public sealed class Spec007SortingTests
     public void ExtensionSort_Folders_SortedByName_WhenDisabled()
     {
         var items = new[] { Dir("src.git"), Dir("docs"), Dir("backup.zip") };
-        var opts  = new PanelSortOptions { SortFoldersByExtension = false, DirectoriesFirst = true };
+        var opts = new PanelSortOptions { SortFoldersByExtension = false, DirectoriesFirst = true };
 
         var result = Sort.Sort(items, SortMode.Extension, false, opts);
 
         // Dirs sorted by name alphabetically
         Assert.Equal("backup.zip", result[0].Name);
-        Assert.Equal("docs",       result[1].Name);
-        Assert.Equal("src.git",    result[2].Name);
+        Assert.Equal("docs", result[1].Name);
+        Assert.Equal("src.git", result[2].Name);
     }
 
     [Fact]
     public void ExtensionSort_Files_AlwaysByExtension()
     {
         var items = new[] { File("readme.md"), File("image.png"), File("notes.md") };
-        var opts  = new PanelSortOptions { SortFoldersByExtension = false, DirectoriesFirst = false };
+        var opts = new PanelSortOptions { SortFoldersByExtension = false, DirectoriesFirst = false };
 
         var result = Sort.Sort(items, SortMode.Extension, false, opts);
 
         // .md < .png; within .md: notes < readme
-        Assert.Equal("notes.md",  result[0].Name);
+        Assert.Equal("notes.md", result[0].Name);
         Assert.Equal("readme.md", result[1].Name);
         Assert.Equal("image.png", result[2].Name);
     }
@@ -69,7 +69,7 @@ public sealed class Spec007SortingTests
     public void Sort_ParentDirectory_StaysFirst()
     {
         var items = new FilePanelItem[] { Parent(), Dir("Zebra"), Dir("Apple"), File("a.txt") };
-        var opts  = new PanelSortOptions { KeepParentDirectoryFirst = true, DirectoriesFirst = true };
+        var opts = new PanelSortOptions { KeepParentDirectoryFirst = true, DirectoriesFirst = true };
 
         var result = Sort.Sort(items, SortMode.Name, descending: true, opts);
 
@@ -83,12 +83,12 @@ public sealed class Spec007SortingTests
     {
         // Two files with the same size; secondary (name) should be ascending
         var items = new[] { File("beta.txt", 100), File("alpha.txt", 100) };
-        var opts  = new PanelSortOptions { DirectoriesFirst = false };
+        var opts = new PanelSortOptions { DirectoriesFirst = false };
 
         var result = Sort.Sort(items, SortMode.Size, descending: true, opts);
 
         Assert.Equal("alpha.txt", result[0].Name);
-        Assert.Equal("beta.txt",  result[1].Name);
+        Assert.Equal("beta.txt", result[1].Name);
     }
 
     // ── SortDebugInfo ─────────────────────────────────────────────────────────

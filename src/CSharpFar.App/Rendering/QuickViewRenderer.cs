@@ -14,20 +14,20 @@ namespace CSharpFar.App.Rendering;
 internal sealed class QuickViewRenderer
 {
     private readonly ScreenRenderer _screen;
-    private readonly CellStyle      _fillStyle;
-    private readonly CellStyle      _borderStyle;
-    private readonly CellStyle      _titleStyle;
-    private readonly CellStyle      _errorStyle;
+    private readonly CellStyle _fillStyle;
+    private readonly CellStyle _borderStyle;
+    private readonly CellStyle _titleStyle;
+    private readonly CellStyle _errorStyle;
 
     public QuickViewRenderer(ScreenRenderer screen, ConsolePalette? palette = null)
     {
         _screen = screen;
         palette ??= PaletteRegistry.Default;
 
-        _fillStyle   = new CellStyle(palette.NormalFileFg,        palette.PanelBackground);
+        _fillStyle = new CellStyle(palette.NormalFileFg, palette.PanelBackground);
         _borderStyle = new CellStyle(palette.PanelBorderActiveFg, palette.PanelBackground);
-        _titleStyle  = new CellStyle(palette.PanelTitleFocusedFg,  palette.PanelBackground);
-        _errorStyle  = new CellStyle(ConsoleColor.DarkYellow,     palette.PanelBackground);
+        _titleStyle = new CellStyle(palette.PanelTitleFocusedFg, palette.PanelBackground);
+        _errorStyle = new CellStyle(ConsoleColor.DarkYellow, palette.PanelBackground);
     }
 
     public void Render(Rect bounds, FilePanelItem? item, DirectorySizeState? dirSizeState = null)
@@ -40,7 +40,7 @@ internal sealed class QuickViewRenderer
 
         int innerWidth = bounds.Width - 2;
         int contentTop = bounds.Y + 1;
-        int visRows    = Math.Max(0, bounds.Height - 2);
+        int visRows = Math.Max(0, bounds.Height - 2);
 
         if (item is null || item.IsParentDirectory)
         {
@@ -92,7 +92,7 @@ internal sealed class QuickViewRenderer
             try
             {
                 files = Directory.GetFiles(item.FullPath).Length;
-                dirs  = Directory.GetDirectories(item.FullPath).Length;
+                dirs = Directory.GetDirectories(item.FullPath).Length;
             }
             catch { }
 
@@ -152,10 +152,10 @@ internal sealed class QuickViewRenderer
     private static string FormatAttributes(FileAttributes attrs)
     {
         var parts = new List<string>();
-        if ((attrs & FileAttributes.ReadOnly) != 0)  parts.Add("ReadOnly");
-        if ((attrs & FileAttributes.Hidden) != 0)    parts.Add("Hidden");
-        if ((attrs & FileAttributes.System) != 0)    parts.Add("System");
-        if ((attrs & FileAttributes.Archive) != 0)   parts.Add("Archive");
+        if ((attrs & FileAttributes.ReadOnly) != 0) parts.Add("ReadOnly");
+        if ((attrs & FileAttributes.Hidden) != 0) parts.Add("Hidden");
+        if ((attrs & FileAttributes.System) != 0) parts.Add("System");
+        if ((attrs & FileAttributes.Archive) != 0) parts.Add("Archive");
         if ((attrs & FileAttributes.Compressed) != 0) parts.Add("Compressed");
         if ((attrs & FileAttributes.Encrypted) != 0) parts.Add("Encrypted");
         return string.Join(", ", parts);
@@ -166,7 +166,7 @@ internal sealed class QuickViewRenderer
     private void RenderFile(FilePanelItem item, int x, int y, int w, int visRows)
     {
         long size;
-        try   { size = new FileInfo(item.FullPath).Length; }
+        try { size = new FileInfo(item.FullPath).Length; }
         catch { size = 0; }
 
         bool isText = TextFileInfo.IsTextFile(item.FullPath);
@@ -182,7 +182,7 @@ internal sealed class QuickViewRenderer
         else
         {
             string[] lines;
-            try   { lines = TextFileReader.ReadLines(item.FullPath); }
+            try { lines = TextFileReader.ReadLines(item.FullPath); }
             catch { lines = ["Cannot read file"]; }
 
             for (int i = 0; i < textRows; i++)
@@ -195,7 +195,7 @@ internal sealed class QuickViewRenderer
         if (!isText || visRows <= infoRows + 1) return;
 
         TextFileInfo info;
-        try   { info = TextFileInfo.Read(item.FullPath); }
+        try { info = TextFileInfo.Read(item.FullPath); }
         catch { return; }
 
         // Separator with associated app name centred on it
@@ -204,8 +204,8 @@ internal sealed class QuickViewRenderer
 
         // Info rows below the separator
         int infoY = sepY + 1;
-        string bomText   = $"BOM: {(info.BomName is not null ? info.BomName : "No")}";
-        string leText    = info.LineEnding.Length > 0 ? $"  EOL: {info.LineEnding}" : string.Empty;
+        string bomText = $"BOM: {(info.BomName is not null ? info.BomName : "No")}";
+        string leText = info.LineEnding.Length > 0 ? $"  EOL: {info.LineEnding}" : string.Empty;
         WriteRow(x, infoY, (bomText + leText).PadRight(w), w);
 
         // Second info row — fill empty to clear
@@ -221,8 +221,8 @@ internal sealed class QuickViewRenderer
         {
             string tag = $"[ {label} ]";
             int lineLen = Math.Max(0, totalWidth - 2 - tag.Length);
-            int left    = lineLen / 2;
-            int right   = lineLen - left;
+            int left = lineLen / 2;
+            int right = lineLen - left;
             inner = new string('─', left) + tag + new string('─', right);
         }
         else

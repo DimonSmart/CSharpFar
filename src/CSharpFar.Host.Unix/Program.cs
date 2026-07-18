@@ -1,8 +1,8 @@
+using System.Reflection;
 using CSharpFar.App.Bootstrap;
 using CSharpFar.App.Settings;
 using CSharpFar.Console.Ansi;
 using CSharpFar.Platform.Unix;
-using System.Reflection;
 
 var settingsStore = JsonSettingsStore.Create(
     createDefaultSettings: UnixPlatformServices.CreateDefaultSettings);

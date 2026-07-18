@@ -1,5 +1,5 @@
-using CSharpFar.App.FunctionKeys;
 using CSharpFar.App.Commands;
+using CSharpFar.App.FunctionKeys;
 using CSharpFar.App.Input;
 using CSharpFar.App.Panels;
 using CSharpFar.App.Rendering;

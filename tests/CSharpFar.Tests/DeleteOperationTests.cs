@@ -15,7 +15,7 @@ public class DeleteOperationTests : IDisposable
     public DeleteOperationTests()
     {
         _tempRoot = Path.Combine(Path.GetTempPath(), $"CSharpFarDeleteTest_{Guid.NewGuid():N}");
-        _src      = Path.Combine(_tempRoot, "src");
+        _src = Path.Combine(_tempRoot, "src");
         Directory.CreateDirectory(_src);
     }
 

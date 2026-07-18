@@ -14,21 +14,21 @@ namespace CSharpFar.App.Rendering;
 /// </summary>
 public sealed class BriefTwoColumnsPanelRenderer
 {
-    private readonly ScreenRenderer                     _screen;
-    private readonly ConsolePalette                     _palette;
-    private readonly IFileHighlightService?             _highlight;
-    private readonly AppSettings.PanelOptionsSettings?  _options;
+    private readonly ScreenRenderer _screen;
+    private readonly ConsolePalette _palette;
+    private readonly IFileHighlightService? _highlight;
+    private readonly AppSettings.PanelOptionsSettings? _options;
 
     public BriefTwoColumnsPanelRenderer(
-        ScreenRenderer                     screen,
-        ConsolePalette                     palette,
-        IFileHighlightService?             highlight = null,
-        AppSettings.PanelOptionsSettings?  options   = null)
+        ScreenRenderer screen,
+        ConsolePalette palette,
+        IFileHighlightService? highlight = null,
+        AppSettings.PanelOptionsSettings? options = null)
     {
-        _screen    = screen;
-        _palette   = palette;
+        _screen = screen;
+        _palette = palette;
         _highlight = highlight;
-        _options   = options;
+        _options = options;
     }
 
     /// <summary>
@@ -45,14 +45,14 @@ public sealed class BriefTwoColumnsPanelRenderer
     {
         var p = _palette;
 
-        var fill      = new CellStyle(p.NormalFileFg, p.PanelBackground);
-        var border    = new CellStyle(p.PanelBorderActiveFg, p.PanelBackground);
-        var footer    = new CellStyle(p.FooterActiveFg, p.PanelBackground);
-        var colHdr    = new CellStyle(p.ColumnHeaderFg, p.PanelBackground);
-        var cursor    = new CellStyle(p.CursorActiveFg, p.CursorActiveBg);
+        var fill = new CellStyle(p.NormalFileFg, p.PanelBackground);
+        var border = new CellStyle(p.PanelBorderActiveFg, p.PanelBackground);
+        var footer = new CellStyle(p.FooterActiveFg, p.PanelBackground);
+        var colHdr = new CellStyle(p.ColumnHeaderFg, p.PanelBackground);
+        var cursor = new CellStyle(p.CursorActiveFg, p.CursorActiveBg);
         var fileStyle = fill;
-        var dirStyle  = new CellStyle(p.DirectoryFg, p.PanelBackground);
-        var selStyle  = new CellStyle(p.SelectedFg, p.SelectedBg);
+        var dirStyle = new CellStyle(p.DirectoryFg, p.PanelBackground);
+        var selStyle = new CellStyle(p.SelectedFg, p.SelectedBg);
 
         // Fill + border
         _screen.FillRegion(bounds, fill);
@@ -84,34 +84,34 @@ public sealed class BriefTwoColumnsPanelRenderer
                 2);
         }
 
-        int innerWidth  = Math.Max(0, bounds.Width - 2);
-        int sepOffset   = innerWidth / 2;
-        int col1Width   = sepOffset;
-        int col2Width   = innerWidth - sepOffset - 1; // -1 for │
+        int innerWidth = Math.Max(0, bounds.Width - 2);
+        int sepOffset = innerWidth / 2;
+        int col1Width = sepOffset;
+        int col2Width = innerWidth - sepOffset - 1; // -1 for │
 
         // ── Column header row (Y+1) ───────────────────────────────────────────
         bool showSortLetter = _options == null || _options.ShowSortModeLetter;
         char? indicator = showSortLetter ? SortModeIndicator.For(state) : null;
 
-        int    headerY = bounds.Y + 1;
-        string h1      = FormatNameHeader(col1Width, indicator);
-        string h2      = FormatNameHeader(col2Width, null);
-        _screen.Write(bounds.X + 1,                  headerY, h1, colHdr);
-        _screen.WriteChar(bounds.X + 1 + sepOffset,  headerY, '│', colHdr);
-        _screen.Write(bounds.X + 1 + sepOffset + 1,  headerY, h2, colHdr);
+        int headerY = bounds.Y + 1;
+        string h1 = FormatNameHeader(col1Width, indicator);
+        string h2 = FormatNameHeader(col2Width, null);
+        _screen.Write(bounds.X + 1, headerY, h1, colHdr);
+        _screen.WriteChar(bounds.X + 1 + sepOffset, headerY, '│', colHdr);
+        _screen.Write(bounds.X + 1 + sepOffset + 1, headerY, h2, colHdr);
 
         // ── Content rows ──────────────────────────────────────────────────────
         int contentTop = bounds.Y + 2;
         int rowsPerCol = RowsPerColumn(bounds, _options);
-        int col1X      = bounds.X + 1;
-        int col2X      = bounds.X + 1 + sepOffset + 1;
+        int col1X = bounds.X + 1;
+        int col2X = bounds.X + 1 + sepOffset + 1;
         var hits = new List<ApplicationPanelItemHit>();
 
         for (int row = 0; row < rowsPerCol; row++)
         {
             int y = contentTop + row;
 
-            RenderCell(state.ScrollOffset + row,              col1X, y, col1Width,
+            RenderCell(state.ScrollOffset + row, col1X, y, col1Width,
                        state, isActive, cursor, fileStyle, dirStyle, selStyle, fill);
             AddHit(hits, state, state.ScrollOffset + row, col1X, y, col1Width);
             if (innerWidth > 0)
@@ -181,19 +181,19 @@ public sealed class BriefTwoColumnsPanelRenderer
             return;
         }
 
-        var  item       = state.Items[itemIdx];
-        bool isCursor   = isActive && itemIdx == state.CursorIndex;
+        var item = state.Items[itemIdx];
+        bool isCursor = isActive && itemIdx == state.CursorIndex;
         bool isSelected = !item.IsParentDirectory && state.SelectedPaths.Contains(item.FullPath);
 
-        CellStyle style = isCursor         ? cursor
-                        : isSelected       ? selStyle
+        CellStyle style = isCursor ? cursor
+                        : isSelected ? selStyle
                         : item.IsDirectory ? dirStyle
-                        :                    fileStyle;
+                        : fileStyle;
 
         var rowState = isCursor && isSelected ? FileRowState.SelectedCursor
-                     : isCursor               ? FileRowState.Cursor
-                     : isSelected             ? FileRowState.Selected
-                     :                          FileRowState.Normal;
+                     : isCursor ? FileRowState.Cursor
+                     : isSelected ? FileRowState.Selected
+                     : FileRowState.Normal;
 
         string name = Fit(item.Name, width);
         CellStyle nameStyle = ApplyHighlight(style, item, rowState);

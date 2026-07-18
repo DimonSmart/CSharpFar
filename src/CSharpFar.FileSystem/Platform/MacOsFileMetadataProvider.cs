@@ -1,5 +1,5 @@
-using CSharpFar.Core.Models;
 using System.Runtime.Versioning;
+using CSharpFar.Core.Models;
 
 namespace CSharpFar.FileSystem.Platform;
 

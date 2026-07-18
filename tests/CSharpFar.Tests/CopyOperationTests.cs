@@ -15,8 +15,8 @@ public class CopyOperationTests : IDisposable
     public CopyOperationTests()
     {
         _tempRoot = Path.Combine(Path.GetTempPath(), $"CSharpFarCopyTest_{Guid.NewGuid():N}");
-        _src      = Path.Combine(_tempRoot, "src");
-        _dst      = Path.Combine(_tempRoot, "dst");
+        _src = Path.Combine(_tempRoot, "src");
+        _dst = Path.Combine(_tempRoot, "dst");
         Directory.CreateDirectory(_src);
         Directory.CreateDirectory(_dst);
     }
@@ -72,7 +72,7 @@ public class CopyOperationTests : IDisposable
         string sub = Path.Combine(_src, "sub");
         Directory.CreateDirectory(sub);
         Write(_src, "root.txt", "r");
-        Write(sub,  "nested.txt", "n");
+        Write(sub, "nested.txt", "n");
 
         await Svc().CopyAsync([_src], _dst);
 
@@ -182,7 +182,7 @@ public class CopyOperationTests : IDisposable
     [Fact]
     public async Task CopyAsync_StopsAtCancelEvenWithMoreSources()
     {
-        string f1 = Write(_src, "dup.txt",  "new");
+        string f1 = Write(_src, "dup.txt", "new");
         string f2 = Write(_src, "other.txt", "other");
         Write(_dst, "dup.txt", "old");
 

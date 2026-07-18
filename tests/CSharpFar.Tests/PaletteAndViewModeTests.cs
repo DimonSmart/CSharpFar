@@ -140,7 +140,9 @@ public class BriefTwoColumnsPanelRendererTests
         {
             state.Items.Add(new FilePanelItem
             {
-                Name = n, FullPath = @"C:\Test\" + n, IsDirectory = false,
+                Name = n,
+                FullPath = @"C:\Test\" + n,
+                IsDirectory = false,
             });
         }
         return state;
@@ -149,8 +151,8 @@ public class BriefTwoColumnsPanelRendererTests
     // bounds.Height - 5 rows per column × 2 columns
     [Theory]
     [InlineData(12, 12)]   // 12 - 6 = 6 per col × 2 = 12
-    [InlineData(7,   2)]   // 7  - 6 = 1 per col × 2 = 2
-    [InlineData(5,   0)]   // 5  - 6 <= 0
+    [InlineData(7, 2)]   // 7  - 6 = 1 per col × 2 = 2
+    [InlineData(5, 0)]   // 5  - 6 <= 0
     public void VisibleRows_ReturnsDoubleRowsMinusBorders(int height, int expected)
     {
         int result = BriefTwoColumnsPanelRenderer.VisibleRows(new Rect(0, 0, 40, height));
@@ -247,7 +249,7 @@ public class BriefTwoColumnsPanelRendererTests
     [Fact]
     public void Render_SecondColumnStartsAtRowsPerColOffset()
     {
-        int height     = 12;
+        int height = 12;
         int rowsPerCol = BriefTwoColumnsPanelRenderer.VisibleRows(new Rect(0, 0, 40, height)) / 2;
         var (screen, driver) = CreateScreen(40, height);
 
@@ -283,7 +285,7 @@ public class BriefTwoColumnsPanelRendererTests
     [Fact]
     public void Render_CursorInSecondColumn_OnlySecondColumnHighlighted()
     {
-        int height     = 12;
+        int height = 12;
         int rowsPerCol = BriefTwoColumnsPanelRenderer.VisibleRows(new Rect(0, 0, 40, height)) / 2;
         var names = Enumerable.Range(0, rowsPerCol + 1)
             .Select(i => $"f{i:D2}.txt")
@@ -298,8 +300,8 @@ public class BriefTwoColumnsPanelRendererTests
         // Row 2 (content row 0), second column: cursor background
         // The separator is at innerWidth/2 = (40-2)/2 = 19, so col2 starts at x=1+19+1=21
         int innerWidth = 40 - 2;
-        int sepOffset  = innerWidth / 2;
-        int col2X      = 1 + sepOffset + 1;
+        int sepOffset = innerWidth / 2;
+        int col2X = 1 + sepOffset + 1;
         var cellCol2 = driver.GetCell(col2X, 2);
         Assert.Equal(PaletteRegistry.Default.CursorActiveBg, cellCol2.Background);
 
@@ -320,8 +322,8 @@ public class BriefTwoColumnsPanelRendererTests
 
         // No cell should contain 'A' beyond column boundary; brief mode truncates without '~'.
         int innerWidth = 20 - 2;
-        int sepOffset  = innerWidth / 2;  // = 9
-        int col1Width  = sepOffset;       // = 9
+        int sepOffset = innerWidth / 2;  // = 9
+        int col1Width = sepOffset;       // = 9
         // col1 occupies x = 1..9, so cell at x=9 (0-indexed from col start = 1+8=9) is last char
         var lastCell = driver.GetCell(1 + col1Width - 1, 2);
         Assert.Equal('A', lastCell.Character);
@@ -412,12 +414,12 @@ public class PaletteSettingsPersistenceTests : IDisposable
     public void JsonSettingsStore_SavesAndLoadsViewModes()
     {
         var store = new JsonSettingsStore(_tempDir);
-        store.Settings.Panels.LeftViewMode  = "BriefTwoColumns";
+        store.Settings.Panels.LeftViewMode = "BriefTwoColumns";
         store.Settings.Panels.RightViewMode = "Full";
         store.Save();
 
         var store2 = new JsonSettingsStore(_tempDir);
         Assert.Equal("BriefTwoColumns", store2.Settings.Panels.LeftViewMode);
-        Assert.Equal("Full",            store2.Settings.Panels.RightViewMode);
+        Assert.Equal("Full", store2.Settings.Panels.RightViewMode);
     }
 }

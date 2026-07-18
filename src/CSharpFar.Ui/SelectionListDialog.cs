@@ -76,22 +76,22 @@ public sealed class SelectionListDialog<T>
             },
             (input, frame) =>
             {
-            if (input is MouseConsoleInputEvent mouse &&
-                HandleMouse(mouse, frame.Layout, ref scrollbarDrag, out bool confirmed))
-            {
-                if (confirmed)
-                    return ModalDialogLoopResult<SelectionListDialogResult<T>>.Complete(Confirmed());
+                if (input is MouseConsoleInputEvent mouse &&
+                    HandleMouse(mouse, frame.Layout, ref scrollbarDrag, out bool confirmed))
+                {
+                    if (confirmed)
+                        return ModalDialogLoopResult<SelectionListDialogResult<T>>.Complete(Confirmed());
+                    return ModalDialogLoopResult<SelectionListDialogResult<T>>.Continue;
+                }
+
+                if (input is KeyConsoleInputEvent { Key: var key } &&
+                    HandleKey(key, frame.Layout.VisibleRows, out bool isConfirmed))
+                {
+                    return ModalDialogLoopResult<SelectionListDialogResult<T>>.Complete(
+                        isConfirmed && _list.HasItems ? Confirmed() : Cancelled());
+                }
+
                 return ModalDialogLoopResult<SelectionListDialogResult<T>>.Continue;
-            }
-
-            if (input is KeyConsoleInputEvent { Key: var key } &&
-                HandleKey(key, frame.Layout.VisibleRows, out bool isConfirmed))
-            {
-                return ModalDialogLoopResult<SelectionListDialogResult<T>>.Complete(
-                    isConfirmed && _list.HasItems ? Confirmed() : Cancelled());
-            }
-
-            return ModalDialogLoopResult<SelectionListDialogResult<T>>.Continue;
             },
             applyCommittedFrame: frame =>
             {

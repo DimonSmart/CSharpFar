@@ -8,21 +8,21 @@ namespace CSharpFar.App.Rendering;
 
 internal sealed class PanelRenderer
 {
-    private readonly ScreenRenderer                      _screen;
-    private readonly ConsolePalette                      _palette;
-    private readonly IFileHighlightService?              _highlight;
-    private readonly AppSettings.PanelOptionsSettings?   _options;
+    private readonly ScreenRenderer _screen;
+    private readonly ConsolePalette _palette;
+    private readonly IFileHighlightService? _highlight;
+    private readonly AppSettings.PanelOptionsSettings? _options;
 
     public PanelRenderer(
-        ScreenRenderer                     screen,
-        ConsolePalette?                    palette   = null,
-        IFileHighlightService?             highlight = null,
-        AppSettings.PanelOptionsSettings?  options   = null)
+        ScreenRenderer screen,
+        ConsolePalette? palette = null,
+        IFileHighlightService? highlight = null,
+        AppSettings.PanelOptionsSettings? options = null)
     {
-        _screen    = screen;
-        _palette   = palette ?? PaletteRegistry.Default;
+        _screen = screen;
+        _palette = palette ?? PaletteRegistry.Default;
         _highlight = highlight;
-        _options   = options;
+        _options = options;
     }
 
     /// <summary>Number of file list rows visible inside the given bounds (Full mode).</summary>
@@ -58,13 +58,13 @@ internal sealed class PanelRenderer
     {
         var p = _palette;
 
-        var border    = new CellStyle(p.PanelBorderActiveFg, p.PanelBackground);
-        var fill      = new CellStyle(p.NormalFileFg, p.PanelBackground);
+        var border = new CellStyle(p.PanelBorderActiveFg, p.PanelBackground);
+        var fill = new CellStyle(p.NormalFileFg, p.PanelBackground);
         var fileStyle = fill;
-        var dirStyle  = new CellStyle(p.DirectoryFg, p.PanelBackground);
-        var cursor    = new CellStyle(p.CursorActiveFg, p.CursorActiveBg);
-        var footer    = new CellStyle(p.FooterActiveFg, p.PanelBackground);
-        var selStyle  = new CellStyle(p.SelectedFg, p.SelectedBg);
+        var dirStyle = new CellStyle(p.DirectoryFg, p.PanelBackground);
+        var cursor = new CellStyle(p.CursorActiveFg, p.CursorActiveBg);
+        var footer = new CellStyle(p.FooterActiveFg, p.PanelBackground);
+        var selStyle = new CellStyle(p.SelectedFg, p.SelectedBg);
 
         // Fill background + draw border
         _screen.FillRegion(bounds, fill);
@@ -86,17 +86,17 @@ internal sealed class PanelRenderer
 
         // File list
         int innerWidth = bounds.Width - 2;
-        int listTop    = bounds.Y + 1;
-        int visRows    = VisibleRows(bounds, _options);
+        int listTop = bounds.Y + 1;
+        int visRows = VisibleRows(bounds, _options);
         int listWidth = Math.Max(0, innerWidth);
-        int sizeCol    = Math.Min(8, listWidth / 3);
-        int nameCol    = Math.Max(0, listWidth - sizeCol - (sizeCol > 0 ? 1 : 0));
+        int sizeCol = Math.Min(8, listWidth / 3);
+        int nameCol = Math.Max(0, listWidth - sizeCol - (sizeCol > 0 ? 1 : 0));
 
         var hits = new List<ApplicationPanelItemHit>();
         for (int row = 0; row < visRows; row++)
         {
             int itemIdx = state.ScrollOffset + row;
-            int y       = listTop + row;
+            int y = listTop + row;
 
             if (itemIdx >= state.Items.Count)
             {
@@ -104,31 +104,31 @@ internal sealed class PanelRenderer
                 continue;
             }
 
-            var  item       = state.Items[itemIdx];
+            var item = state.Items[itemIdx];
             hits.Add(new ApplicationPanelItemHit(
                 new Rect(bounds.X + 1, y, listWidth, 1),
                 itemIdx,
                 item.Location));
-            bool isCursor   = isActive && itemIdx == state.CursorIndex;
+            bool isCursor = isActive && itemIdx == state.CursorIndex;
             bool isSelected = !item.IsParentDirectory &&
                               state.SelectedPaths.Contains(item.FullPath);
 
-            CellStyle style = isCursor   ? cursor
+            CellStyle style = isCursor ? cursor
                             : isSelected ? selStyle
                             : item.IsDirectory ? dirStyle
-                            :                    fileStyle;
+                            : fileStyle;
 
             var rowState = isCursor && isSelected ? FileRowState.SelectedCursor
-                         : isCursor               ? FileRowState.Cursor
-                         : isSelected             ? FileRowState.Selected
-                         :                          FileRowState.Normal;
+                         : isCursor ? FileRowState.Cursor
+                         : isSelected ? FileRowState.Selected
+                         : FileRowState.Normal;
 
             string namePart = FormatName(item, nameCol);
             string sizePart = sizeCol > 0 ? " " + FormatSizePart(item, sizeCol) : string.Empty;
 
             CellStyle nameStyle = ApplyHighlight(style, item, rowState);
 
-            _screen.Write(bounds.X + 1,           y, namePart, nameStyle);
+            _screen.Write(bounds.X + 1, y, namePart, nameStyle);
             if (sizePart.Length > 0)
                 _screen.Write(bounds.X + 1 + nameCol, y, sizePart, style);
         }
@@ -202,15 +202,15 @@ internal sealed class PanelRenderer
     private static string FormatSizePart(FilePanelItem item, int sizeWidth)
     {
         if (item.IsParentDirectory) return new string(' ', sizeWidth);
-        if (item.IsDirectory)       return "<DIR>".PadLeft(sizeWidth);
+        if (item.IsDirectory) return "<DIR>".PadLeft(sizeWidth);
         return FormatSize(item.Size ?? 0).PadLeft(sizeWidth);
     }
 
     private static string FormatSize(long bytes) => bytes switch
     {
-        < 1_000L         => bytes.ToString(),
-        < 1_000_000L     => $"{bytes / 1_000}K",
+        < 1_000L => bytes.ToString(),
+        < 1_000_000L => $"{bytes / 1_000}K",
         < 1_000_000_000L => $"{bytes / 1_000_000}M",
-        _                => $"{bytes / 1_000_000_000}G",
+        _ => $"{bytes / 1_000_000_000}G",
     };
 }

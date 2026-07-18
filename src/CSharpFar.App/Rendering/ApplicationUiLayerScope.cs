@@ -1,5 +1,5 @@
-using CSharpFar.Ui;
 using System.Runtime.ExceptionServices;
+using CSharpFar.Ui;
 
 namespace CSharpFar.App.Rendering;
 

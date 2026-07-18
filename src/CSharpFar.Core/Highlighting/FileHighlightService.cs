@@ -9,25 +9,25 @@ namespace CSharpFar.Core.Highlighting;
 /// </summary>
 public sealed class FileHighlightService : IFileHighlightService
 {
-    private readonly IReadOnlyList<FileHighlightRule>          _rules;
-    private readonly IReadOnlyDictionary<string, MaskGroup>   _groups;
-    private readonly FarMaskMatcher                           _matcher;
+    private readonly IReadOnlyList<FileHighlightRule> _rules;
+    private readonly IReadOnlyDictionary<string, MaskGroup> _groups;
+    private readonly FarMaskMatcher _matcher;
 
     public FileHighlightService(
-        IReadOnlyList<FileHighlightRule>        rules,
-        IReadOnlyDictionary<string, MaskGroup>  groups,
+        IReadOnlyList<FileHighlightRule> rules,
+        IReadOnlyDictionary<string, MaskGroup> groups,
         string? pathExt = null)
     {
-        _rules   = [.. rules.OrderBy(r => r.Order).ThenBy(r => r.Id)];
-        _groups  = groups;
+        _rules = [.. rules.OrderBy(r => r.Order).ThenBy(r => r.Id)];
+        _groups = groups;
         _matcher = new FarMaskMatcher(pathExt);
     }
 
     public HighlightResult GetHighlight(FilePanelItem item, FileRowState state)
     {
         FileHighlightColor? colorOverride = null;
-        string?             markText      = null;
-        List<string>?       matchedIds    = null;
+        string? markText = null;
+        List<string>? matchedIds = null;
 
         foreach (var rule in _rules)
         {
@@ -41,7 +41,7 @@ public sealed class FileHighlightService : IFileHighlightService
 
             // Rule matched
             var stateColor = rule.Colors.GetColor(state);
-            colorOverride  = MergeColor(colorOverride, stateColor);
+            colorOverride = MergeColor(colorOverride, stateColor);
 
             if (rule.MarkText != null)
                 markText = rule.MarkText;
@@ -56,9 +56,9 @@ public sealed class FileHighlightService : IFileHighlightService
 
         return new HighlightResult
         {
-            ColorOverride  = colorOverride,
+            ColorOverride = colorOverride,
             MatchedRuleIds = matchedIds,
-            MarkText       = markText,
+            MarkText = markText,
         };
     }
 
@@ -66,8 +66,8 @@ public sealed class FileHighlightService : IFileHighlightService
 
     private static FileHighlightColor? MergeColor(FileHighlightColor? existing, FileHighlightColor? @new)
     {
-        if (@new == null)      return existing;
-        if (existing == null)  return @new;
+        if (@new == null) return existing;
+        if (existing == null) return @new;
         return new FileHighlightColor(
             @new.Foreground ?? existing.Foreground,
             @new.Background ?? existing.Background);

@@ -62,20 +62,20 @@ public sealed class MessageDialog
             },
             (input, frame) =>
             {
-            if (TryScroll(input, frame, ref firstVisibleLine))
-                return ModalDialogLoopResult<int>.Continue;
+                if (TryScroll(input, frame, ref firstVisibleLine))
+                    return ModalDialogLoopResult<int>.Continue;
 
-            if (frame.Buttons is { } buttonsLayout &&
-                _buttonBarTryHandle(buttonBar, input, buttonsLayout, ref focusedButton, out var selected))
-            {
-                if (selected.HasValue)
-                    return ModalDialogLoopResult<int>.Complete(selected.Value);
-                return ModalDialogLoopResult<int>.Continue;
-            }
-            if (input is KeyConsoleInputEvent { Key.Key: ConsoleKey.Escape })
-                return ModalDialogLoopResult<int>.Complete(-1);
+                if (frame.Buttons is { } buttonsLayout &&
+                    _buttonBarTryHandle(buttonBar, input, buttonsLayout, ref focusedButton, out var selected))
+                {
+                    if (selected.HasValue)
+                        return ModalDialogLoopResult<int>.Complete(selected.Value);
+                    return ModalDialogLoopResult<int>.Continue;
+                }
+                if (input is KeyConsoleInputEvent { Key.Key: ConsoleKey.Escape })
+                    return ModalDialogLoopResult<int>.Complete(-1);
 
-            return ModalDialogLoopResult<int>.Continue;
+                return ModalDialogLoopResult<int>.Continue;
             },
             applyCommittedFrame: frame => firstVisibleLine = frame.FirstVisibleLine);
     }

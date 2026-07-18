@@ -11,7 +11,7 @@ public sealed class UserMenuStore
 {
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
-        WriteIndented        = true,
+        WriteIndented = true,
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
     };
 
@@ -22,7 +22,7 @@ public sealed class UserMenuStore
     public UserMenuStore(string configDirectory)
     {
         _filePath = Path.Combine(configDirectory, "user-menu.json");
-        Items     = Load();
+        Items = Load();
     }
 
     // ── private ───────────────────────────────────────────────────────────────

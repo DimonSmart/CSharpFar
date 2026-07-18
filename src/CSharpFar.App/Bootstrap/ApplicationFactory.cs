@@ -1,5 +1,5 @@
-using CSharpFar.App.UserMenu;
 using CSharpFar.App.Dialogs;
+using CSharpFar.App.UserMenu;
 using CSharpFar.Console;
 using CSharpFar.Core.Abstractions;
 using CSharpFar.Core.Services;

@@ -45,7 +45,7 @@ internal sealed class DirectorySizeCalculator : IDisposable
         {
             long total = 0;
             var errors = new List<string>();
-            var stack  = new Stack<string>();
+            var stack = new Stack<string>();
             stack.Push(path);
 
             long lastProgressTick = Environment.TickCount64;
@@ -68,7 +68,7 @@ internal sealed class DirectorySizeCalculator : IDisposable
                         stack.Push(sub);
                 }
                 catch (UnauthorizedAccessException ex) { errors.Add($"{dir}: {ex.Message}"); }
-                catch (IOException ex)               { errors.Add($"{dir}: {ex.Message}"); }
+                catch (IOException ex) { errors.Add($"{dir}: {ex.Message}"); }
 
                 // Throttled progress
                 long now = Environment.TickCount64;

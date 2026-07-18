@@ -7,11 +7,11 @@ namespace CSharpFar.Ui;
 public sealed class ScrollBarRenderer
 {
     public void RenderVerticalScrollbar(
-        ScreenRenderer      screen,
-        Rect                bounds,
-        ScrollState         state,
-        ScrollBarOptions    options,
-        CellStyle           style)
+        ScreenRenderer screen,
+        Rect bounds,
+        ScrollState state,
+        ScrollBarOptions options,
+        CellStyle style)
     {
         if (!options.Enabled) return;
         if (bounds.Height < 3) return;
@@ -21,7 +21,7 @@ public sealed class ScrollBarRenderer
 
         var thumb = ScrollBarInteraction.CalculateThumb(bounds, state);
 
-        screen.WriteChar(bounds.X, bounds.Y,          '▲', style);
+        screen.WriteChar(bounds.X, bounds.Y, '▲', style);
         screen.WriteChar(bounds.X, bounds.Bottom - 1, '▼', style);
 
         for (int i = 0; i < thumb.TrackHeight; i++)

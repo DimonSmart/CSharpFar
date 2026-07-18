@@ -20,10 +20,10 @@ public sealed class VolumeInfoService : IVolumeInfoService
 
             return new VolumeSpaceInfo
             {
-                Path               = path,
+                Path = path,
                 FreeBytesAvailable = (long)freeBytesAvailable,
-                TotalBytes         = (long)totalBytes,
-                VolumeLabel        = TryGetVolumeLabel(path),
+                TotalBytes = (long)totalBytes,
+                VolumeLabel = TryGetVolumeLabel(path),
             };
         }
 
@@ -32,10 +32,10 @@ public sealed class VolumeInfoService : IVolumeInfoService
         var drive = new DriveInfo(root);
         return new VolumeSpaceInfo
         {
-            Path               = path,
+            Path = path,
             FreeBytesAvailable = drive.AvailableFreeSpace,
-            TotalBytes         = drive.TotalSize,
-            VolumeLabel        = drive.VolumeLabel,
+            TotalBytes = drive.TotalSize,
+            VolumeLabel = drive.VolumeLabel,
         };
     }
 
@@ -54,8 +54,8 @@ public sealed class VolumeInfoService : IVolumeInfoService
     [DllImport("kernel32.dll", CharSet = CharSet.Auto, SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
     private static extern bool GetDiskFreeSpaceEx(
-        string      lpDirectoryName,
-        out ulong   lpFreeBytesAvailable,
-        out ulong   lpTotalNumberOfBytes,
-        out ulong   lpTotalNumberOfFreeBytes);
+        string lpDirectoryName,
+        out ulong lpFreeBytesAvailable,
+        out ulong lpTotalNumberOfBytes,
+        out ulong lpTotalNumberOfFreeBytes);
 }

@@ -7,14 +7,14 @@ namespace CSharpFar.App.Rendering;
 internal sealed class CommandLineRenderer
 {
     private readonly ScreenRenderer _screen;
-    private readonly CellStyle      _style;
-    private readonly CellStyle      _selectionStyle;
+    private readonly CellStyle _style;
+    private readonly CellStyle _selectionStyle;
 
     public CommandLineRenderer(ScreenRenderer screen, ConsolePalette? palette = null)
     {
-        _screen         = screen;
-        palette        ??= PaletteRegistry.Default;
-        _style          = PaletteStyles.CommandLine(palette);
+        _screen = screen;
+        palette ??= PaletteRegistry.Default;
+        _style = PaletteStyles.CommandLine(palette);
         _selectionStyle = new CellStyle(_style.Background, _style.Foreground);
     }
 
@@ -32,8 +32,8 @@ internal sealed class CommandLineRenderer
         _screen.FillRegion(frame.Bounds, _style);
 
         string prompt = currentDirectory + ">";
-        string full   = prompt + state.Text;
-        int offset    = frame.DisplayOffset;
+        string full = prompt + state.Text;
+        int offset = frame.DisplayOffset;
 
         string display = full.Length > offset ? full[offset..] : string.Empty;
         if (display.Length > frame.Bounds.Width)

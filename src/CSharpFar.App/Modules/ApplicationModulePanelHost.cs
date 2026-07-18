@@ -1,5 +1,5 @@
-using CSharpFar.Core.Models;
 using CSharpFar.App.Bootstrap;
+using CSharpFar.Core.Models;
 using CSharpFar.Module.Abstractions;
 
 namespace CSharpFar.App.Modules;

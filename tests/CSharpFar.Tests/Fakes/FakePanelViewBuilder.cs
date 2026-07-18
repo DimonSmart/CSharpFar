@@ -13,11 +13,11 @@ namespace CSharpFar.Tests.Fakes;
 public sealed class FakePanelViewBuilder : IPanelViewBuilder
 {
     private readonly IFileSystemService _fs;
-    private readonly IPanelSortService  _sort;
+    private readonly IPanelSortService _sort;
 
     public FakePanelViewBuilder(IFileSystemService fs)
     {
-        _fs   = fs;
+        _fs = fs;
         _sort = new PanelSortService();
     }
 
@@ -28,18 +28,18 @@ public sealed class FakePanelViewBuilder : IPanelViewBuilder
 
         var sortOptions = new PanelSortOptions
         {
-            SortFoldersByExtension   = request.Options.SortFoldersByExtension,
+            SortFoldersByExtension = request.Options.SortFoldersByExtension,
             KeepParentDirectoryFirst = true,
-            DirectoriesFirst         = true,
+            DirectoriesFirst = true,
         };
         var sorted = _sort.Sort(items, request.SortMode, request.SortDescending, sortOptions);
 
         return new PanelView
         {
-            Items            = sorted,
-            Summary          = new PanelSummary(),
+            Items = sorted,
+            Summary = new PanelSummary(),
             AutoRefreshState = new PanelAutoRefreshState(),
-            IsRootDirectory  = false,
+            IsRootDirectory = false,
         };
     }
 }

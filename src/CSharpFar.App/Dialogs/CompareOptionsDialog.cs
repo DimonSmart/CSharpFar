@@ -110,34 +110,34 @@ internal sealed class CompareOptionsDialog
             },
             (routed, result) =>
             {
-            if (result.Kind == FormInputResultKind.Cancel)
-                return ModalDialogLoopResult<ComparisonOptions?>.Complete(null);
+                if (result.Kind == FormInputResultKind.Cancel)
+                    return ModalDialogLoopResult<ComparisonOptions?>.Complete(null);
 
-            if (result.Kind == FormInputResultKind.Submit ||
-                routed.Input is KeyConsoleInputEvent { Key.Key: ConsoleKey.F10 } ||
-                FormDialogInput.ShouldImplicitlySubmit(routed, result, form))
-            {
-                var options = BuildOptions(
-                    mode,
-                    recursive.Value,
-                    selectedOnly.Value,
-                    depth.Value,
-                    customDepth.Text,
-                    include.Text,
-                    exclude.Text,
-                    method.Value,
-                    tolerance.Value,
-                    nameComparison.Value,
-                    fileSetMatch.Value,
-                    includeHistory,
-                    excludeHistory,
-                    depthHistory,
-                    ref error);
-                if (options is not null)
-                    return ModalDialogLoopResult<ComparisonOptions?>.Complete(options);
-            }
+                if (result.Kind == FormInputResultKind.Submit ||
+                    routed.Input is KeyConsoleInputEvent { Key.Key: ConsoleKey.F10 } ||
+                    FormDialogInput.ShouldImplicitlySubmit(routed, result, form))
+                {
+                    var options = BuildOptions(
+                        mode,
+                        recursive.Value,
+                        selectedOnly.Value,
+                        depth.Value,
+                        customDepth.Text,
+                        include.Text,
+                        exclude.Text,
+                        method.Value,
+                        tolerance.Value,
+                        nameComparison.Value,
+                        fileSetMatch.Value,
+                        includeHistory,
+                        excludeHistory,
+                        depthHistory,
+                        ref error);
+                    if (options is not null)
+                        return ModalDialogLoopResult<ComparisonOptions?>.Complete(options);
+                }
 
-            return ModalDialogLoopResult<ComparisonOptions?>.Continue;
+                return ModalDialogLoopResult<ComparisonOptions?>.Continue;
             },
             prepareRender: PrepareRows);
     }

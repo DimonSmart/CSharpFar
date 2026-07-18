@@ -87,12 +87,12 @@ internal sealed class HelpViewer
                     break;
 
                 case ConsoleKey.Home:
-                    scrollTop  = 0;
+                    scrollTop = 0;
                     scrollLeft = 0;
                     break;
 
                 case ConsoleKey.End:
-                    scrollTop  = currentLayout.MaxScrollTop;
+                    scrollTop = currentLayout.MaxScrollTop;
                     scrollLeft = 0;
                     break;
 
@@ -114,10 +114,10 @@ internal sealed class HelpViewer
         screen.SetCursorVisible(false);
 
         // Header
-        const string title    = " CSharpFar Help ";
-        string       posStr   = lines.Length == 0 ? " 0/0 " : $" {scrollTop + 1}/{lines.Length} ";
-        int          nameWidth = Math.Max(0, size.Width - posStr.Length);
-        string       header    = title.PadRight(nameWidth)[..nameWidth] + posStr;
+        const string title = " CSharpFar Help ";
+        string posStr = lines.Length == 0 ? " 0/0 " : $" {scrollTop + 1}/{lines.Length} ";
+        int nameWidth = Math.Max(0, size.Width - posStr.Length);
+        string header = title.PadRight(nameWidth)[..nameWidth] + posStr;
         screen.Write(0, 0, header, PaletteStyles.PathHeaderActive(_palette));
 
         // Content
@@ -125,7 +125,7 @@ internal sealed class HelpViewer
         for (int i = 0; i < layout.ContentHeight; i++)
         {
             int lineIdx = scrollTop + i;
-            int row     = i + 1;
+            int row = i + 1;
 
             if (lineIdx >= lines.Length)
             {
@@ -170,32 +170,32 @@ internal sealed class HelpViewer
                 break;
 
             case HelpLineKind.KeyLine:
-            {
-                // "  KEY               Description"
-                // Key column: 2 spaces indent + key text, padded to KeyColumnWidth
-                string keyPart  = $"  {line.Key}";
-                string descPart = line.Description;
-
-                int keyDisplayWidth = KeyColumnWidth + 2; // "  " + key padded
-
-                // Write key part (cyan)
-                string keyPadded = keyPart.PadRight(keyDisplayWidth);
-                WriteClipped(screen, 0, row, keyPadded, scrollLeft, width,
-                    PaletteStyles.HelpKey(_palette));
-
-                // Write description part (white) right after key column
-                int descX = Math.Max(0, keyDisplayWidth - scrollLeft);
-                if (descX < width && descPart.Length > 0)
                 {
-                    int descScrollLeft = Math.Max(0, scrollLeft - keyDisplayWidth);
-                    string descVisible = descScrollLeft < descPart.Length
-                        ? descPart[descScrollLeft..]
-                        : string.Empty;
-                    if (descVisible.Length > 0)
-                        WriteClipped(screen, descX, row, descVisible, 0, width - descX, bodyStyle);
+                    // "  KEY               Description"
+                    // Key column: 2 spaces indent + key text, padded to KeyColumnWidth
+                    string keyPart = $"  {line.Key}";
+                    string descPart = line.Description;
+
+                    int keyDisplayWidth = KeyColumnWidth + 2; // "  " + key padded
+
+                    // Write key part (cyan)
+                    string keyPadded = keyPart.PadRight(keyDisplayWidth);
+                    WriteClipped(screen, 0, row, keyPadded, scrollLeft, width,
+                        PaletteStyles.HelpKey(_palette));
+
+                    // Write description part (white) right after key column
+                    int descX = Math.Max(0, keyDisplayWidth - scrollLeft);
+                    if (descX < width && descPart.Length > 0)
+                    {
+                        int descScrollLeft = Math.Max(0, scrollLeft - keyDisplayWidth);
+                        string descVisible = descScrollLeft < descPart.Length
+                            ? descPart[descScrollLeft..]
+                            : string.Empty;
+                        if (descVisible.Length > 0)
+                            WriteClipped(screen, descX, row, descVisible, 0, width - descX, bodyStyle);
+                    }
+                    break;
                 }
-                break;
-            }
 
             case HelpLineKind.Plain:
                 WriteClipped(screen, 0, row, line.Description, scrollLeft, width, bodyStyle);

@@ -1,9 +1,9 @@
-using Renci.SshNet;
-using Renci.SshNet.Common;
 using System.Net.Sockets;
 using CSharpFar.Core.Abstractions;
 using CSharpFar.Core.Models;
 using CSharpFar.Module.Abstractions;
+using Renci.SshNet;
+using Renci.SshNet.Common;
 
 namespace CSharpFar.Module.Sftp;
 

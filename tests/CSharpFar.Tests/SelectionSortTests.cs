@@ -1,4 +1,4 @@
-﻿using CSharpFar.Core.Controllers;
+using CSharpFar.Core.Controllers;
 using CSharpFar.Core.Models;
 using CSharpFar.Tests.Fakes;
 
@@ -25,13 +25,13 @@ public class SelectionSortTests
     {
         var fs = new FakeFileSystemService();
         fs.AddDirectory(Root,
-            new FilePanelItem { Name = "Assets",    FullPath = Root + @"\Assets",    IsDirectory = true,  LastWriteTime = new DateTime(2024,3,1) },
-            new FilePanelItem { Name = "Docs",      FullPath = Root + @"\Docs",      IsDirectory = true,  LastWriteTime = new DateTime(2024,1,1) },
-            new FilePanelItem { Name = "a_file.txt", FullPath = Root + @"\a_file.txt", IsDirectory = false, Size = 50,  LastWriteTime = new DateTime(2024,1,15) },
-            new FilePanelItem { Name = "b_file.csv", FullPath = Root + @"\b_file.csv", IsDirectory = false, Size = 200, LastWriteTime = new DateTime(2024,4,1)  },
-            new FilePanelItem { Name = "c_file.txt", FullPath = Root + @"\c_file.txt", IsDirectory = false, Size = 100, LastWriteTime = new DateTime(2024,2,1)  });
+            new FilePanelItem { Name = "Assets", FullPath = Root + @"\Assets", IsDirectory = true, LastWriteTime = new DateTime(2024, 3, 1) },
+            new FilePanelItem { Name = "Docs", FullPath = Root + @"\Docs", IsDirectory = true, LastWriteTime = new DateTime(2024, 1, 1) },
+            new FilePanelItem { Name = "a_file.txt", FullPath = Root + @"\a_file.txt", IsDirectory = false, Size = 50, LastWriteTime = new DateTime(2024, 1, 15) },
+            new FilePanelItem { Name = "b_file.csv", FullPath = Root + @"\b_file.csv", IsDirectory = false, Size = 200, LastWriteTime = new DateTime(2024, 4, 1) },
+            new FilePanelItem { Name = "c_file.txt", FullPath = Root + @"\c_file.txt", IsDirectory = false, Size = 100, LastWriteTime = new DateTime(2024, 2, 1) });
 
-        var ctrl  = new PanelController(new FakePanelViewBuilder(fs));
+        var ctrl = new PanelController(new FakePanelViewBuilder(fs));
         var state = new FilePanelState { CurrentDirectory = Root };
         ctrl.LoadDirectory(state, Root);
         return (ctrl, state);
@@ -55,8 +55,8 @@ public class SelectionSortTests
         var (_, state) = MakePanel();
 
         // Dirs ascending: Assets, Docs
-        Assert.Equal("Assets",    state.Items[0].Name);
-        Assert.Equal("Docs",      state.Items[1].Name);
+        Assert.Equal("Assets", state.Items[0].Name);
+        Assert.Equal("Docs", state.Items[1].Name);
         // Files ascending: a_file.txt, b_file.csv, c_file.txt
         Assert.Equal("a_file.txt", state.Items[2].Name);
         Assert.Equal("b_file.csv", state.Items[3].Name);
@@ -105,10 +105,10 @@ public class SelectionSortTests
     {
         var fs = new FakeFileSystemService();
         fs.AddDirectory(Root,
-            new FilePanelItem { Name = "..",       FullPath = @"C:\",          IsDirectory = true,  IsParentDirectory = true },
+            new FilePanelItem { Name = "..", FullPath = @"C:\", IsDirectory = true, IsParentDirectory = true },
             new FilePanelItem { Name = "file.txt", FullPath = Root + @"\file.txt", IsDirectory = false });
 
-        var ctrl  = new PanelController(new FakePanelViewBuilder(fs));
+        var ctrl = new PanelController(new FakePanelViewBuilder(fs));
         var state = new FilePanelState { CurrentDirectory = Root };
         ctrl.LoadDirectory(state, Root);  // [0]=.. [1]=file.txt
 
@@ -183,10 +183,10 @@ public class SelectionSortTests
     {
         var fs = new FakeFileSystemService();
         fs.AddDirectory(Root,
-            new FilePanelItem { Name = "..",       FullPath = @"C:\",              IsDirectory = true,  IsParentDirectory = true },
+            new FilePanelItem { Name = "..", FullPath = @"C:\", IsDirectory = true, IsParentDirectory = true },
             new FilePanelItem { Name = "file.txt", FullPath = Root + @"\file.txt", IsDirectory = false });
 
-        var ctrl  = new PanelController(new FakePanelViewBuilder(fs));
+        var ctrl = new PanelController(new FakePanelViewBuilder(fs));
         var state = new FilePanelState { CurrentDirectory = Root };
         ctrl.LoadDirectory(state, Root);
 
@@ -220,8 +220,8 @@ public class SelectionSortTests
         ctrl.SetSortMode(state, SortMode.Extension, 10);
 
         // Dirs (no ext): Assets, Docs (alphabetical by name within same empty ext)
-        Assert.Equal("Assets",    state.Items[0].Name);
-        Assert.Equal("Docs",      state.Items[1].Name);
+        Assert.Equal("Assets", state.Items[0].Name);
+        Assert.Equal("Docs", state.Items[1].Name);
         // Files: .csv < .txt; within .txt: a_file < c_file
         Assert.Equal("b_file.csv", state.Items[2].Name);
         Assert.Equal("a_file.txt", state.Items[3].Name);
@@ -249,7 +249,7 @@ public class SelectionSortTests
         ctrl.SetSortMode(state, SortMode.LastWriteTime, 10);
 
         // Dirs by date asc: Docs(Jan 1), Assets(Mar 1)
-        Assert.Equal("Docs",   state.Items[0].Name);
+        Assert.Equal("Docs", state.Items[0].Name);
         Assert.Equal("Assets", state.Items[1].Name);
         // Files by date asc: a(Jan 15), c(Feb 1), b(Apr 1)
         Assert.Equal("a_file.txt", state.Items[2].Name);
@@ -265,7 +265,7 @@ public class SelectionSortTests
         ctrl.SetSortMode(state, SortMode.Name, 10); // same mode → descending
 
         // Dirs desc: Docs, Assets
-        Assert.Equal("Docs",   state.Items[0].Name);
+        Assert.Equal("Docs", state.Items[0].Name);
         Assert.Equal("Assets", state.Items[1].Name);
         // Files desc: c_file.txt, b_file.csv, a_file.txt
         Assert.Equal("c_file.txt", state.Items[2].Name);

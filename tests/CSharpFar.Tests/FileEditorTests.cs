@@ -5,8 +5,8 @@ using CSharpFar.Console.Input;
 using CSharpFar.Console.Models;
 using CSharpFar.Core.Abstractions;
 using CSharpFar.Core.Models;
-using CSharpFar.Ui;
 using CSharpFar.Tests.Fakes;
+using CSharpFar.Ui;
 
 namespace CSharpFar.Tests;
 

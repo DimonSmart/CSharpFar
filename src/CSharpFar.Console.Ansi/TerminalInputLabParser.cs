@@ -1,5 +1,5 @@
-using CSharpFar.Console.Input;
 using System.Text;
+using CSharpFar.Console.Input;
 
 namespace CSharpFar.Console.Ansi;
 

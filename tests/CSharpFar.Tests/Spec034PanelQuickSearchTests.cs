@@ -1,8 +1,8 @@
 using System.Reflection;
 using CSharpFar.App;
 using CSharpFar.App.Input;
-using CSharpFar.App.Rendering;
 using CSharpFar.App.Panels;
+using CSharpFar.App.Rendering;
 using CSharpFar.Console;
 using CSharpFar.Console.Input;
 using CSharpFar.Core.Abstractions;

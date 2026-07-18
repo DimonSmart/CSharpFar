@@ -468,7 +468,7 @@ public sealed class ScreenRenderer
 
         bool forceFull = !_frontBufferKnown || _forceFullFrame;
         int height = _bufferSize.Height;
-        int width  = _bufferSize.Width;
+        int width = _bufferSize.Width;
 
         for (int y = 0; y < height; y++)
         {

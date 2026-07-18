@@ -27,13 +27,13 @@ public class FileMaskMatcherTests
 
     // ── Basic wildcard ────────────────────────────────────────────────────────
 
-    [Fact] public void Star_Cs_Matches_Program_cs()        => Assert.True(Match("*.cs", "Program.cs"));
-    [Fact] public void Star_Cs_Matches_PROGRAM_CS()        => Assert.True(Match("*.cs", "PROGRAM.CS"));
-    [Fact] public void Star_Cs_NoMatch_Program_txt()       => Assert.False(Match("*.cs", "Program.txt"));
-    [Fact] public void Question_Matches_Single_Char()      => Assert.True(Match("file?.txt", "file1.txt"));
-    [Fact] public void Question_NoMatch_Empty()            => Assert.False(Match("file?.txt", "file.txt"));
-    [Fact] public void Range_c_f_Matches_d()               => Assert.True(Match("[c-f]*.txt", "demo.txt"));
-    [Fact] public void Range_c_f_NoMatch_a()               => Assert.False(Match("[c-f]*.txt", "alpha.txt"));
+    [Fact] public void Star_Cs_Matches_Program_cs() => Assert.True(Match("*.cs", "Program.cs"));
+    [Fact] public void Star_Cs_Matches_PROGRAM_CS() => Assert.True(Match("*.cs", "PROGRAM.CS"));
+    [Fact] public void Star_Cs_NoMatch_Program_txt() => Assert.False(Match("*.cs", "Program.txt"));
+    [Fact] public void Question_Matches_Single_Char() => Assert.True(Match("file?.txt", "file1.txt"));
+    [Fact] public void Question_NoMatch_Empty() => Assert.False(Match("file?.txt", "file.txt"));
+    [Fact] public void Range_c_f_Matches_d() => Assert.True(Match("[c-f]*.txt", "demo.txt"));
+    [Fact] public void Range_c_f_NoMatch_a() => Assert.False(Match("[c-f]*.txt", "alpha.txt"));
 
     [Fact]
     public void CaseSensitiveWildcard_DoesNotMatchDifferentCase()
@@ -46,7 +46,7 @@ public class FileMaskMatcherTests
     // ── *.* normalization ─────────────────────────────────────────────────────
 
     [Fact] public void StarDotStar_Matches_File_Without_Extension() => Assert.True(Match("*.*", "README"));
-    [Fact] public void StarDotStar_Matches_File_With_Extension()    => Assert.True(Match("*.*", "readme.md"));
+    [Fact] public void StarDotStar_Matches_File_With_Extension() => Assert.True(Match("*.*", "readme.md"));
 
     // ── Exclude (|) ───────────────────────────────────────────────────────────
 
@@ -102,10 +102,10 @@ public class FileMaskMatcherTests
         var groups = new Dictionary<string, MaskGroup>(StringComparer.OrdinalIgnoreCase)
         {
             ["archives"] = new MaskGroup { Name = "archives", MaskExpression = "*.7z,<arc>" },
-            ["arc"]      = new MaskGroup { Name = "arc",      MaskExpression = "*.zip,*.rar" },
+            ["arc"] = new MaskGroup { Name = "arc", MaskExpression = "*.zip,*.rar" },
         };
         Assert.True(Match("<archives>", "file.zip", groups));
-        Assert.True(Match("<archives>", "file.7z",  groups));
+        Assert.True(Match("<archives>", "file.7z", groups));
         Assert.True(Match("<archives>", "file.rar", groups));
     }
 

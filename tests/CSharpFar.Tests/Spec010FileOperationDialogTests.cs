@@ -1,5 +1,5 @@
-using CSharpFar.App.Dialogs;
 using CSharpFar.App.Commands;
+using CSharpFar.App.Dialogs;
 using CSharpFar.Console;
 using CSharpFar.Console.Input;
 using CSharpFar.Console.Models;

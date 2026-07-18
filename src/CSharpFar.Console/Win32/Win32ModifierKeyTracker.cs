@@ -10,21 +10,21 @@ namespace CSharpFar.Console.Win32;
 internal sealed class Win32ModifierKeyTracker : IModifierKeyTracker
 {
     private const int WH_KEYBOARD_LL = 13;
-    private const int WM_KEYDOWN     = 0x0100;
-    private const int WM_KEYUP       = 0x0101;
-    private const int WM_SYSKEYDOWN  = 0x0104;
-    private const int WM_SYSKEYUP    = 0x0105;
-    private const int WM_QUIT        = 0x0012;
+    private const int WM_KEYDOWN = 0x0100;
+    private const int WM_KEYUP = 0x0101;
+    private const int WM_SYSKEYDOWN = 0x0104;
+    private const int WM_SYSKEYUP = 0x0105;
+    private const int WM_QUIT = 0x0012;
 
-    private const int VK_SHIFT    = 0x10;
-    private const int VK_CONTROL  = 0x11;
-    private const int VK_MENU     = 0x12;
-    private const int VK_LSHIFT   = 0xA0;
-    private const int VK_RSHIFT   = 0xA1;
+    private const int VK_SHIFT = 0x10;
+    private const int VK_CONTROL = 0x11;
+    private const int VK_MENU = 0x12;
+    private const int VK_LSHIFT = 0xA0;
+    private const int VK_RSHIFT = 0xA1;
     private const int VK_LCONTROL = 0xA2;
     private const int VK_RCONTROL = 0xA3;
-    private const int VK_LMENU    = 0xA4;
-    private const int VK_RMENU    = 0xA5;
+    private const int VK_LMENU = 0xA4;
+    private const int VK_RMENU = 0xA5;
 
     private readonly LowLevelKeyboardProc _hookProc;
     private readonly ManualResetEventSlim _started = new();

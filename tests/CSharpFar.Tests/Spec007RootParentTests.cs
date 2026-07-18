@@ -25,14 +25,14 @@ public sealed class Spec007RootParentTests
     private static PanelViewRequest Request(string path, bool showParentInRoot) =>
         new()
         {
-            DirectoryPath  = path,
-            Options        = new AppSettings.PanelOptionsSettings
+            DirectoryPath = path,
+            Options = new AppSettings.PanelOptionsSettings
             {
                 ShowParentDirectoryInRootFolders = showParentInRoot,
             },
-            SortMode       = SortMode.Name,
+            SortMode = SortMode.Name,
             SortDescending = false,
-            SelectedPaths  = new HashSet<string>(StringComparer.OrdinalIgnoreCase),
+            SelectedPaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase),
         };
 
     // ── Non-root always shows ".." ─────────────────────────────────────────────
@@ -41,15 +41,15 @@ public sealed class Spec007RootParentTests
     public void WindowsNonRoot_ShowsParent_Regardless_OfOption()
     {
         var path = @"C:\Users\Test";
-        var fs   = new FakeFileSystemService();
+        var fs = new FakeFileSystemService();
         fs.AddDirectory(path);
         var builder = MakeWindowsBuilder(fs);
 
         var viewFalse = builder.Build(Request(path, showParentInRoot: false));
-        var viewTrue  = builder.Build(Request(path, showParentInRoot: true));
+        var viewTrue = builder.Build(Request(path, showParentInRoot: true));
 
         Assert.Contains(viewFalse.Items, i => i.IsParentDirectory);
-        Assert.Contains(viewTrue.Items,  i => i.IsParentDirectory);
+        Assert.Contains(viewTrue.Items, i => i.IsParentDirectory);
     }
 
     // ── Windows drive root ─────────────────────────────────────────────────────
@@ -58,7 +58,7 @@ public sealed class Spec007RootParentTests
     public void WindowsDriveRoot_HidesParent_WhenShowParentInRoot_False()
     {
         var path = @"C:\";
-        var fs   = new FakeFileSystemService();
+        var fs = new FakeFileSystemService();
         fs.AddDirectory(path);
         var builder = MakeWindowsBuilder(fs);
 
@@ -71,7 +71,7 @@ public sealed class Spec007RootParentTests
     public void WindowsDriveRoot_ShowsParent_WhenShowParentInRoot_True()
     {
         var path = @"C:\";
-        var fs   = new FakeFileSystemService();
+        var fs = new FakeFileSystemService();
         fs.AddDirectory(path);
         var builder = MakeWindowsBuilder(fs);
 
@@ -84,7 +84,7 @@ public sealed class Spec007RootParentTests
     public void WindowsDriveRoot_IsRootDirectory_True()
     {
         var path = @"C:\";
-        var fs   = new FakeFileSystemService();
+        var fs = new FakeFileSystemService();
         fs.AddDirectory(path);
         var builder = MakeWindowsBuilder(fs);
 
@@ -97,7 +97,7 @@ public sealed class Spec007RootParentTests
     public void WindowsNonRoot_IsRootDirectory_False()
     {
         var path = @"C:\Windows";
-        var fs   = new FakeFileSystemService();
+        var fs = new FakeFileSystemService();
         fs.AddDirectory(path);
         var builder = MakeWindowsBuilder(fs);
 
@@ -112,7 +112,7 @@ public sealed class Spec007RootParentTests
     public void WindowsUncShareRoot_HidesParent_WhenShowParentInRoot_False()
     {
         var path = @"\\server\share";
-        var fs   = new FakeFileSystemService();
+        var fs = new FakeFileSystemService();
         fs.AddDirectory(path);
         var builder = MakeWindowsBuilder(fs);
 
@@ -125,7 +125,7 @@ public sealed class Spec007RootParentTests
     public void WindowsUncShareRoot_ShowsParent_WhenShowParentInRoot_True()
     {
         var path = @"\\server\share";
-        var fs   = new FakeFileSystemService();
+        var fs = new FakeFileSystemService();
         fs.AddDirectory(path);
         var builder = MakeWindowsBuilder(fs);
 
@@ -140,7 +140,7 @@ public sealed class Spec007RootParentTests
     public void WindowsDriveRoot_ParentItem_FullPath_EqualsCurrentDirectory()
     {
         var path = @"C:\";
-        var fs   = new FakeFileSystemService();
+        var fs = new FakeFileSystemService();
         fs.AddDirectory(path);
         var builder = MakeWindowsBuilder(fs);
 

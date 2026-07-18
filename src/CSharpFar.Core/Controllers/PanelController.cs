@@ -1,4 +1,4 @@
-﻿using CSharpFar.Core.Abstractions;
+using CSharpFar.Core.Abstractions;
 using CSharpFar.Core.Models;
 
 using CSharpFar.Core.Services;
@@ -72,7 +72,7 @@ public sealed class PanelController
         state.CurrentLocation = location;
         state.Items.Clear();
         state.Items.AddRange(view.Items);
-        state.Summary          = view.Summary;
+        state.Summary = view.Summary;
         state.AutoRefreshState = view.AutoRefreshState;
         state.ProviderCapabilities = view.ProviderCapabilities;
         state.LoadError = null;
@@ -82,7 +82,7 @@ public sealed class PanelController
         state.SearchWasCancelled = false;
         state.SelectedPaths.Clear();
         state.SelectedLocations.Clear();
-        state.CursorIndex  = 0;
+        state.CursorIndex = 0;
         state.ScrollOffset = 0;
     }
 
@@ -94,12 +94,12 @@ public sealed class PanelController
     {
         return _viewBuilder.Build(new PanelViewRequest
         {
-            DirectoryPath  = location.SourcePath,
-            Location       = location,
-            Options        = options,
-            SortMode       = state.SortMode,
+            DirectoryPath = location.SourcePath,
+            Location = location,
+            Options = options,
+            SortMode = state.SortMode,
             SortDescending = state.SortDescending,
-            SelectedPaths  = selectedPaths,
+            SelectedPaths = selectedPaths,
         });
     }
 
@@ -236,7 +236,7 @@ public sealed class PanelController
 
     public void MoveToFirst(FilePanelState state)
     {
-        state.CursorIndex  = 0;
+        state.CursorIndex = 0;
         state.ScrollOffset = 0;
     }
 
@@ -258,14 +258,14 @@ public sealed class PanelController
         if (rowsPerColumn <= 0 || columnCount <= 1)
         {
             if (direction < 0) MoveToFirst(state);
-            else               MoveToLast(state, visibleRows);
+            else MoveToLast(state, visibleRows);
             return;
         }
 
         EnsureVisible(state, visibleRows);
 
-        int relative  = state.CursorIndex - state.ScrollOffset;
-        int column    = Math.Clamp(relative / rowsPerColumn, 0, columnCount - 1);
+        int relative = state.CursorIndex - state.ScrollOffset;
+        int column = Math.Clamp(relative / rowsPerColumn, 0, columnCount - 1);
         int lastIndex = state.Items.Count - 1;
 
         int targetIndex;
@@ -290,21 +290,21 @@ public sealed class PanelController
         PanelLocation? previousLocation = previousItem?.Location;
         string? previousFullPath = previousItem?.FullPath;
         string? previousName = previousItem?.Name;
-        var     selectedPaths = state.SelectedPaths.ToList();
+        var selectedPaths = state.SelectedPaths.ToList();
 
         options ??= new AppSettings.PanelOptionsSettings();
         var view = _viewBuilder.Build(new PanelViewRequest
         {
-            DirectoryPath  = state.SourcePath,
-            Location       = state.CurrentLocation,
-            Options        = options,
-            SortMode       = state.SortMode,
+            DirectoryPath = state.SourcePath,
+            Location = state.CurrentLocation,
+            Options = options,
+            SortMode = state.SortMode,
             SortDescending = state.SortDescending,
-            SelectedPaths  = selectedPaths.ToHashSet(StringComparer.OrdinalIgnoreCase),
+            SelectedPaths = selectedPaths.ToHashSet(StringComparer.OrdinalIgnoreCase),
         });
         state.Items.Clear();
         state.Items.AddRange(view.Items);
-        state.Summary          = view.Summary;
+        state.Summary = view.Summary;
         state.AutoRefreshState = view.AutoRefreshState;
         state.ProviderCapabilities = view.ProviderCapabilities;
         state.LoadError = null;
@@ -427,7 +427,7 @@ public sealed class PanelController
         AppSettings.PanelOptionsSettings? options = null)
     {
         options ??= new AppSettings.PanelOptionsSettings();
-        var selectable   = state.Items.Where(i => CanSelect(i, options)).ToList();
+        var selectable = state.Items.Where(i => CanSelect(i, options)).ToList();
         bool allSelected = selectable.Count > 0 &&
                            selectable.All(i => state.SelectedPaths.Contains(i.FullPath));
 
@@ -469,7 +469,7 @@ public sealed class PanelController
             state.SortDescending = !state.SortDescending;
         else
         {
-            state.SortMode       = mode;
+            state.SortMode = mode;
             state.SortDescending = false;
         }
 
@@ -482,12 +482,12 @@ public sealed class PanelController
         options ??= new AppSettings.PanelOptionsSettings();
         var view = _viewBuilder.Build(new PanelViewRequest
         {
-            DirectoryPath  = state.SourcePath,
-            Location       = state.CurrentLocation,
-            Options        = options,
-            SortMode       = state.SortMode,
+            DirectoryPath = state.SourcePath,
+            Location = state.CurrentLocation,
+            Options = options,
+            SortMode = state.SortMode,
             SortDescending = state.SortDescending,
-            SelectedPaths  = state.SelectedPaths,
+            SelectedPaths = state.SelectedPaths,
         });
         state.Items.Clear();
         state.Items.AddRange(view.Items);
@@ -506,7 +506,7 @@ public sealed class PanelController
 
     public static bool CanSelect(FilePanelItem item, AppSettings.PanelOptionsSettings options)
     {
-        if (item.IsParentDirectory)                    return false;
+        if (item.IsParentDirectory) return false;
         if (item.IsDirectory && !options.SelectFolders) return false;
         return true;
     }

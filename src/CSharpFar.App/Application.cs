@@ -1,8 +1,9 @@
-using CSharpFar.App.Dialogs;
 using CSharpFar.App.AutoRefresh;
 using CSharpFar.App.Bootstrap;
-using CSharpFar.App.Commands;
 using CSharpFar.App.CommandLine;
+using CSharpFar.App.Commands;
+using CSharpFar.App.Dialogs;
+using CSharpFar.App.Editor;
 using CSharpFar.App.Files;
 using CSharpFar.App.FunctionKeys;
 using CSharpFar.App.Highlighting;
@@ -12,7 +13,6 @@ using CSharpFar.App.Modules;
 using CSharpFar.App.Panels;
 using CSharpFar.App.Rendering;
 using CSharpFar.App.State;
-using CSharpFar.App.Editor;
 using CSharpFar.App.UserMenu;
 using CSharpFar.App.Viewer;
 using CSharpFar.Console;
@@ -93,7 +93,7 @@ public sealed class Application
     private readonly DefaultMenuDefinitionProvider _menuProvider;
     private readonly ApplicationCommandRegistry _commandRegistry;
     private readonly ApplicationCommandContext _commandContext;
-    private readonly TopMenuController      _menuController;
+    private readonly TopMenuController _menuController;
     private FunctionKeyLayer _functionKeyLayer
     {
         get => _session.FunctionKeyLayer;
@@ -101,30 +101,30 @@ public sealed class Application
     }
 
     public Application(
-        ScreenRenderer         screen,
-        IFileSystemService     fs,
-        IShellService          shell,
-        IFileOperationService  fileOps,
-        IHistoryStore?         history          = null,
-        AppSettingsAlias?      settings         = null,
-        UserMenuStore?         userMenu         = null,
-        Action?                saveSettings     = null,
-        IVolumeService?              volumeService     = null,
-        IVolumeInfoService?          volumeInfoService  = null,
-        IFileSystemChangeWatcher?    changeWatcher     = null,
-        IFileSystemLocationService?  locationService   = null,
-        IVolumeMountPointService?    mountPointService = null,
-        IFileLauncher?               fileLauncher      = null,
-        ISearchService?              searchService     = null,
-        FilePanelSourceRegistry?     sourceRegistry    = null,
-        ICredentialStore?            credentialStore   = null,
-        SftpModule?                  sftpModule        = null,
-        FtpModule?                   ftpModule         = null,
-        bool                         enableBuiltInNetworkModules = true,
-        string?                      configDirectory   = null,
-        ITextClipboard?              clipboard         = null,
-        ITerminalScreenMode?         terminalScreenMode = null,
-        IFileMetadataService?        fileMetadata = null,
+        ScreenRenderer screen,
+        IFileSystemService fs,
+        IShellService shell,
+        IFileOperationService fileOps,
+        IHistoryStore? history = null,
+        AppSettingsAlias? settings = null,
+        UserMenuStore? userMenu = null,
+        Action? saveSettings = null,
+        IVolumeService? volumeService = null,
+        IVolumeInfoService? volumeInfoService = null,
+        IFileSystemChangeWatcher? changeWatcher = null,
+        IFileSystemLocationService? locationService = null,
+        IVolumeMountPointService? mountPointService = null,
+        IFileLauncher? fileLauncher = null,
+        ISearchService? searchService = null,
+        FilePanelSourceRegistry? sourceRegistry = null,
+        ICredentialStore? credentialStore = null,
+        SftpModule? sftpModule = null,
+        FtpModule? ftpModule = null,
+        bool enableBuiltInNetworkModules = true,
+        string? configDirectory = null,
+        ITextClipboard? clipboard = null,
+        ITerminalScreenMode? terminalScreenMode = null,
+        IFileMetadataService? fileMetadata = null,
         Func<IFileAttributesDialog>? fileAttributesDialogFactory = null)
         : this(ApplicationServicesBuilder.Create(
             screen,

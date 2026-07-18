@@ -214,32 +214,32 @@ internal sealed class FileOperationDialog
             },
             (routed, result) =>
             {
-            if (result.Kind == FormInputResultKind.Cancel)
-                return ModalDialogLoopResult<FileOperationDialogResult?>.Complete(null);
+                if (result.Kind == FormInputResultKind.Cancel)
+                    return ModalDialogLoopResult<FileOperationDialogResult?>.Complete(null);
 
-            if (result.Kind == FormInputResultKind.Submit ||
-                routed.Input is KeyConsoleInputEvent { Key.Key: ConsoleKey.F10 } ||
-                FormDialogInput.ShouldImplicitlySubmit(routed, result, form))
-            {
-                var dialogResult = BuildResult(
-                    destination,
-                    filter,
-                    initialOptions,
-                    conflictChoice.Value,
-                    copyModeChoice?.Value ?? CopyMode.Normal,
-                    securityChoice.Value,
-                    preserveTimestamps.Value,
-                    preserveAttributes.Value,
-                    copySymlinkContents.Value,
-                    useFilter.Value,
-                    destinationHistory,
-                    filterHistory,
-                    ref error);
-                if (dialogResult is not null)
-                    return ModalDialogLoopResult<FileOperationDialogResult?>.Complete(dialogResult);
-            }
+                if (result.Kind == FormInputResultKind.Submit ||
+                    routed.Input is KeyConsoleInputEvent { Key.Key: ConsoleKey.F10 } ||
+                    FormDialogInput.ShouldImplicitlySubmit(routed, result, form))
+                {
+                    var dialogResult = BuildResult(
+                        destination,
+                        filter,
+                        initialOptions,
+                        conflictChoice.Value,
+                        copyModeChoice?.Value ?? CopyMode.Normal,
+                        securityChoice.Value,
+                        preserveTimestamps.Value,
+                        preserveAttributes.Value,
+                        copySymlinkContents.Value,
+                        useFilter.Value,
+                        destinationHistory,
+                        filterHistory,
+                        ref error);
+                    if (dialogResult is not null)
+                        return ModalDialogLoopResult<FileOperationDialogResult?>.Complete(dialogResult);
+                }
 
-            return ModalDialogLoopResult<FileOperationDialogResult?>.Continue;
+                return ModalDialogLoopResult<FileOperationDialogResult?>.Continue;
             },
             prepareRender: PrepareRows);
     }

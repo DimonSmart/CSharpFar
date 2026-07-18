@@ -14,8 +14,8 @@ public sealed class Spec007VisibilityTests
 
     private static (PanelViewBuilder builder, FakeFileSystemService fs) MakeBuilder()
     {
-        var fs      = new FakeFileSystemService();
-        var sort    = new PanelSortService();
+        var fs = new FakeFileSystemService();
+        var sort = new PanelSortService();
         var builder = new PanelViewBuilder(fs, sort);
         return (builder, fs);
     }
@@ -23,11 +23,11 @@ public sealed class Spec007VisibilityTests
     private static PanelViewRequest MakeRequest(string path, bool showHidden) =>
         new()
         {
-            DirectoryPath  = path,
-            Options        = new AppSettings.PanelOptionsSettings { ShowHiddenAndSystemFiles = showHidden },
-            SortMode       = SortMode.Name,
+            DirectoryPath = path,
+            Options = new AppSettings.PanelOptionsSettings { ShowHiddenAndSystemFiles = showHidden },
+            SortMode = SortMode.Name,
             SortDescending = false,
-            SelectedPaths  = new HashSet<string>(StringComparer.OrdinalIgnoreCase),
+            SelectedPaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase),
         };
 
     [Fact]
@@ -35,8 +35,13 @@ public sealed class Spec007VisibilityTests
     {
         var (builder, fs) = MakeBuilder();
         fs.AddDirectory(Dir,
-            new FilePanelItem { Name = "hidden.txt", FullPath = Dir + @"\hidden.txt", IsDirectory = false,
-                                Attributes = FileAttributes.Hidden });
+            new FilePanelItem
+            {
+                Name = "hidden.txt",
+                FullPath = Dir + @"\hidden.txt",
+                IsDirectory = false,
+                Attributes = FileAttributes.Hidden
+            });
 
         var view = builder.Build(MakeRequest(Dir, showHidden: true));
 
@@ -48,8 +53,13 @@ public sealed class Spec007VisibilityTests
     {
         var (builder, fs) = MakeBuilder();
         fs.AddDirectory(Dir,
-            new FilePanelItem { Name = "hidden.txt", FullPath = Dir + @"\hidden.txt", IsDirectory = false,
-                                Attributes = FileAttributes.Hidden });
+            new FilePanelItem
+            {
+                Name = "hidden.txt",
+                FullPath = Dir + @"\hidden.txt",
+                IsDirectory = false,
+                Attributes = FileAttributes.Hidden
+            });
 
         var view = builder.Build(MakeRequest(Dir, showHidden: false));
 
@@ -61,8 +71,13 @@ public sealed class Spec007VisibilityTests
     {
         var (builder, fs) = MakeBuilder();
         fs.AddDirectory(Dir,
-            new FilePanelItem { Name = "sys", FullPath = Dir + @"\sys", IsDirectory = true,
-                                Attributes = FileAttributes.Directory | FileAttributes.System });
+            new FilePanelItem
+            {
+                Name = "sys",
+                FullPath = Dir + @"\sys",
+                IsDirectory = true,
+                Attributes = FileAttributes.Directory | FileAttributes.System
+            });
 
         var view = builder.Build(MakeRequest(Dir, showHidden: false));
 
@@ -74,8 +89,13 @@ public sealed class Spec007VisibilityTests
     {
         var (builder, fs) = MakeBuilder();
         fs.AddDirectory(Dir,
-            new FilePanelItem { Name = "normal.txt", FullPath = Dir + @"\normal.txt", IsDirectory = false,
-                                Attributes = FileAttributes.Normal });
+            new FilePanelItem
+            {
+                Name = "normal.txt",
+                FullPath = Dir + @"\normal.txt",
+                IsDirectory = false,
+                Attributes = FileAttributes.Normal
+            });
 
         var view = builder.Build(MakeRequest(Dir, showHidden: false));
 
@@ -99,10 +119,22 @@ public sealed class Spec007VisibilityTests
     {
         var (builder, fs) = MakeBuilder();
         fs.AddDirectory(Dir,
-            new FilePanelItem { Name = "visible.txt", FullPath = Dir + @"\visible.txt",
-                                IsDirectory = false, Attributes = FileAttributes.Normal, Size = 100 },
-            new FilePanelItem { Name = "hidden.txt",  FullPath = Dir + @"\hidden.txt",
-                                IsDirectory = false, Attributes = FileAttributes.Hidden, Size = 500 });
+            new FilePanelItem
+            {
+                Name = "visible.txt",
+                FullPath = Dir + @"\visible.txt",
+                IsDirectory = false,
+                Attributes = FileAttributes.Normal,
+                Size = 100
+            },
+            new FilePanelItem
+            {
+                Name = "hidden.txt",
+                FullPath = Dir + @"\hidden.txt",
+                IsDirectory = false,
+                Attributes = FileAttributes.Hidden,
+                Size = 500
+            });
 
         var view = builder.Build(MakeRequest(Dir, showHidden: false));
 
@@ -116,10 +148,22 @@ public sealed class Spec007VisibilityTests
     {
         var (builder, fs) = MakeBuilder();
         fs.AddDirectory(Dir,
-            new FilePanelItem { Name = "visible.txt", FullPath = Dir + @"\visible.txt",
-                                IsDirectory = false, Attributes = FileAttributes.Normal, Size = 100 },
-            new FilePanelItem { Name = "hidden.txt",  FullPath = Dir + @"\hidden.txt",
-                                IsDirectory = false, Attributes = FileAttributes.Hidden, Size = 500 });
+            new FilePanelItem
+            {
+                Name = "visible.txt",
+                FullPath = Dir + @"\visible.txt",
+                IsDirectory = false,
+                Attributes = FileAttributes.Normal,
+                Size = 100
+            },
+            new FilePanelItem
+            {
+                Name = "hidden.txt",
+                FullPath = Dir + @"\hidden.txt",
+                IsDirectory = false,
+                Attributes = FileAttributes.Hidden,
+                Size = 500
+            });
 
         var view = builder.Build(MakeRequest(Dir, showHidden: true));
 

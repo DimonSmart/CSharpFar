@@ -1,7 +1,7 @@
 using CSharpFar.App.State;
 using CSharpFar.Console.Models;
-using CSharpFar.Ui;
 using CSharpFar.Core.Models;
+using CSharpFar.Ui;
 
 namespace CSharpFar.App.Rendering;
 

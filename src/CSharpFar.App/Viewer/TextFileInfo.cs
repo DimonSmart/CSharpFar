@@ -1,5 +1,5 @@
-using System.Text;
 using System.Runtime.Versioning;
+using System.Text;
 using CSharpFar.Core.Text;
 
 namespace CSharpFar.App.Viewer;
@@ -9,9 +9,9 @@ namespace CSharpFar.App.Viewer;
 /// </summary>
 internal sealed class TextFileInfo
 {
-    public string? BomName    { get; private init; }
-    public string  LineEnding { get; private init; } = string.Empty;
-    public string? AppName    { get; private init; }
+    public string? BomName { get; private init; }
+    public string LineEnding { get; private init; } = string.Empty;
+    public string? AppName { get; private init; }
 
     // ── text extensions ───────────────────────────────────────────────────────
 
@@ -42,9 +42,9 @@ internal sealed class TextFileInfo
 
     public static TextFileInfo Read(string path)
     {
-        string? bomName    = null;
-        string  lineEnding = string.Empty;
-        string? appName    = null;
+        string? bomName = null;
+        string lineEnding = string.Empty;
+        string? appName = null;
 
         try
         {

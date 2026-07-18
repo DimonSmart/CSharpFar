@@ -5,26 +5,26 @@ namespace CSharpFar.Core.Services;
 
 public sealed class PanelViewBuilder : IPanelViewBuilder
 {
-    private readonly IFileSystemService     _fs;
-    private readonly IPanelSortService      _sort;
-    private readonly IVolumeInfoService?    _volumeInfo;
+    private readonly IFileSystemService _fs;
+    private readonly IPanelSortService _sort;
+    private readonly IVolumeInfoService? _volumeInfo;
     private readonly IVolumeMountPointService? _mountPoints;
     private readonly IFilePanelSourceRegistry? _sources;
     private readonly IPanelPathSemantics _pathSemantics;
 
     public PanelViewBuilder(
-        IFileSystemService        fs,
-        IPanelSortService         sort,
-        IVolumeInfoService?       volumeInfo   = null,
-        IVolumeMountPointService? mountPoints  = null,
-        IFilePanelSourceRegistry? sources      = null,
-        IPanelPathSemantics?      pathSemantics = null)
+        IFileSystemService fs,
+        IPanelSortService sort,
+        IVolumeInfoService? volumeInfo = null,
+        IVolumeMountPointService? mountPoints = null,
+        IFilePanelSourceRegistry? sources = null,
+        IPanelPathSemantics? pathSemantics = null)
     {
-        _fs          = fs;
-        _sort        = sort;
-        _volumeInfo  = volumeInfo;
+        _fs = fs;
+        _sort = sort;
+        _volumeInfo = volumeInfo;
         _mountPoints = mountPoints;
-        _sources     = sources;
+        _sources = sources;
         _pathSemantics = pathSemantics ?? PanelPathSemantics.Current;
     }
 
@@ -55,17 +55,17 @@ public sealed class PanelViewBuilder : IPanelViewBuilder
                 {
                     items.Add(new FilePanelItem
                     {
-                        Name               = item.Name,
-                        FullPath           = item.FullPath,
-                        SourceId           = location.SourceId,
-                        IsDirectory        = item.IsDirectory,
-                        Size               = item.Size,
-                        LastWriteTime      = item.LastWriteTime,
-                        Attributes         = item.Attributes,
-                        IsParentDirectory  = item.IsParentDirectory,
+                        Name = item.Name,
+                        FullPath = item.FullPath,
+                        SourceId = location.SourceId,
+                        IsDirectory = item.IsDirectory,
+                        Size = item.Size,
+                        LastWriteTime = item.LastWriteTime,
+                        Attributes = item.Attributes,
+                        IsParentDirectory = item.IsParentDirectory,
                         IsVolumeMountPoint = true,
-                        MountedVolumeName  = mp.VolumeName,
-                        MountedVolumePath  = mp.VolumePath,
+                        MountedVolumeName = mp.VolumeName,
+                        MountedVolumePath = mp.VolumePath,
                     });
                     continue;
                 }
@@ -100,35 +100,35 @@ public sealed class PanelViewBuilder : IPanelViewBuilder
 
             items.Insert(0, new FilePanelItem
             {
-                Name              = "..",
-                FullPath          = parentPath,
-                SourceId          = location.SourceId,
-                IsDirectory       = true,
+                Name = "..",
+                FullPath = parentPath,
+                SourceId = location.SourceId,
+                IsDirectory = true,
                 IsParentDirectory = true,
-                Attributes        = FileAttributes.Directory,
+                Attributes = FileAttributes.Directory,
             });
         }
 
         // 5. Sort
         var sortOptions = new PanelSortOptions
         {
-            SortFoldersByExtension   = opts.SortFoldersByExtension,
+            SortFoldersByExtension = opts.SortFoldersByExtension,
             KeepParentDirectoryFirst = true,
-            DirectoriesFirst         = true,
+            DirectoriesFirst = true,
         };
         var sorted = _sort.Sort(items, request.SortMode, request.SortDescending, sortOptions);
 
         // 6. Calculate summary
         long totalBytes = 0;
-        int  fileCount  = 0;
-        int  dirCount   = 0;
-        int  selCount   = 0;
-        long selBytes   = 0;
+        int fileCount = 0;
+        int dirCount = 0;
+        int selCount = 0;
+        long selBytes = 0;
 
         foreach (var item in sorted)
         {
             if (item.IsParentDirectory) continue;
-            if (item.IsDirectory)       dirCount++;
+            if (item.IsDirectory) dirCount++;
             else { fileCount++; totalBytes += item.Size ?? 0; }
             if (request.SelectedPaths.Contains(item.FullPath))
             {
@@ -137,8 +137,8 @@ public sealed class PanelViewBuilder : IPanelViewBuilder
             }
         }
 
-        VolumeSpaceInfo? vsInfo  = null;
-        bool             vsUnavail = false;
+        VolumeSpaceInfo? vsInfo = null;
+        bool vsUnavail = false;
         if (opts.ShowFreeSize && _volumeInfo is not null)
         {
             try { vsInfo = isLocal ? _volumeInfo.GetSpaceInfo(sourcePath) : null; }
@@ -147,22 +147,22 @@ public sealed class PanelViewBuilder : IPanelViewBuilder
 
         var summary = new PanelSummary
         {
-            VisibleItemCount      = fileCount + dirCount,
-            FileCount             = fileCount,
-            DirectoryCount        = dirCount,
-            TotalFileSize         = totalBytes,
-            SelectedCount         = selCount,
-            SelectedFileSize      = selBytes,
-            VolumeSpace           = vsInfo,
+            VisibleItemCount = fileCount + dirCount,
+            FileCount = fileCount,
+            DirectoryCount = dirCount,
+            TotalFileSize = totalBytes,
+            SelectedCount = selCount,
+            SelectedFileSize = selBytes,
+            VolumeSpace = vsInfo,
             VolumeSpaceUnavailable = vsUnavail,
         };
 
         return new PanelView
         {
-            Items            = sorted,
-            Summary          = summary,
+            Items = sorted,
+            Summary = summary,
             AutoRefreshState = new PanelAutoRefreshState(),
-            IsRootDirectory  = isRoot,
+            IsRootDirectory = isRoot,
             ProviderCapabilities = source?.Capabilities ?? PanelProviderCapabilities.LocalFileSystem,
         };
     }

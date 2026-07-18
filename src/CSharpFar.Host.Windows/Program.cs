@@ -1,7 +1,7 @@
+using System.Reflection;
 using CSharpFar.App.Bootstrap;
 using CSharpFar.App.Settings;
 using CSharpFar.Platform.Windows;
-using System.Reflection;
 
 var settingsStore = JsonSettingsStore.Create(
     createDefaultSettings: WindowsPlatformServices.CreateDefaultSettings);

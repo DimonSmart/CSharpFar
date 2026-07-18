@@ -45,17 +45,17 @@ public sealed class ChoiceDialog
             },
             (input, frame) =>
             {
-            if (buttonBar.TryHandleInput(input, frame.Buttons, ref focusedButton, out string? buttonId))
-            {
-                if (buttonId is not null)
-                    return ModalDialogLoopResult<ChoiceDialogResult>.Complete(ResultForButtonId(options.Buttons, buttonId));
+                if (buttonBar.TryHandleInput(input, frame.Buttons, ref focusedButton, out string? buttonId))
+                {
+                    if (buttonId is not null)
+                        return ModalDialogLoopResult<ChoiceDialogResult>.Complete(ResultForButtonId(options.Buttons, buttonId));
+                    return ModalDialogLoopResult<ChoiceDialogResult>.Continue;
+                }
+
+                if (input is KeyConsoleInputEvent { Key.Key: ConsoleKey.Escape })
+                    return ModalDialogLoopResult<ChoiceDialogResult>.Complete(ResultForIndex(options.Buttons, cancelButton));
+
                 return ModalDialogLoopResult<ChoiceDialogResult>.Continue;
-            }
-
-            if (input is KeyConsoleInputEvent { Key.Key: ConsoleKey.Escape })
-                return ModalDialogLoopResult<ChoiceDialogResult>.Complete(ResultForIndex(options.Buttons, cancelButton));
-
-            return ModalDialogLoopResult<ChoiceDialogResult>.Continue;
             });
     }
 

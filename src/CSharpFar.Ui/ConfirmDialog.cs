@@ -7,7 +7,7 @@ namespace CSharpFar.Ui;
 /// <summary>Asks the user to confirm a destructive action. Returns true if confirmed.</summary>
 public sealed class ConfirmDialog
 {
-    private const int DialogWidth  = 52;
+    private const int DialogWidth = 52;
     private const int DialogHeight = 7;
 
     private readonly ScreenRenderer _screen;
@@ -40,20 +40,20 @@ public sealed class ConfirmDialog
             context => RenderLayer(context.Screen, title, question, itemName, context.Size, focusedButton),
             (input, frame) =>
             {
-            if (_buttonBar.TryHandleInput(input, frame.Buttons, ref focusedButton, out string? buttonId))
-            {
-                if (buttonId == "cancel") return ModalDialogLoopResult<bool>.Complete(false);
-                if (buttonId == "ok") return ModalDialogLoopResult<bool>.Complete(true);
+                if (_buttonBar.TryHandleInput(input, frame.Buttons, ref focusedButton, out string? buttonId))
+                {
+                    if (buttonId == "cancel") return ModalDialogLoopResult<bool>.Complete(false);
+                    if (buttonId == "ok") return ModalDialogLoopResult<bool>.Complete(true);
+                    return ModalDialogLoopResult<bool>.Continue;
+                }
+
+                if (input is KeyConsoleInputEvent { Key: var key })
+                {
+                    if (key.Key == ConsoleKey.Escape) return ModalDialogLoopResult<bool>.Complete(false);
+                    if (key.Key == ConsoleKey.Enter) return ModalDialogLoopResult<bool>.Complete(focusedButton == 0);
+                }
+
                 return ModalDialogLoopResult<bool>.Continue;
-            }
-
-            if (input is KeyConsoleInputEvent { Key: var key })
-            {
-                if (key.Key == ConsoleKey.Escape) return ModalDialogLoopResult<bool>.Complete(false);
-                if (key.Key == ConsoleKey.Enter) return ModalDialogLoopResult<bool>.Complete(focusedButton == 0);
-            }
-
-            return ModalDialogLoopResult<bool>.Continue;
             });
     }
 

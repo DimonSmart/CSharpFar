@@ -4,9 +4,9 @@ namespace CSharpFar.App.HitTesting;
 
 public sealed record HitTestResult(
     UiElementKind ElementKind,
-    object?       Target,
-    int           LocalX,
-    int           LocalY);
+    object? Target,
+    int LocalX,
+    int LocalY);
 
 public enum UiElementKind
 {
@@ -22,7 +22,7 @@ public enum UiElementKind
 }
 
 public sealed record PanelItemHitTarget(
-    PanelSide      PanelSide,
-    int            VisibleRowIndex,
-    int            ItemIndex,
-    FilePanelItem  Item);
+    PanelSide PanelSide,
+    int VisibleRowIndex,
+    int ItemIndex,
+    FilePanelItem Item);

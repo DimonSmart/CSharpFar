@@ -214,8 +214,8 @@ public sealed class SystemConsoleDriver : IConsoleDriver, IConsoleOutputModeDriv
         if (OperatingSystem.IsWindows() &&
             Win32ConsoleApi.TryGetConsoleScreenBufferInfo(_consoleHandle, out var sbi))
         {
-            int w = sbi.srWindow.Right  - sbi.srWindow.Left + 1;
-            int h = sbi.srWindow.Bottom - sbi.srWindow.Top  + 1;
+            int w = sbi.srWindow.Right - sbi.srWindow.Left + 1;
+            int h = sbi.srWindow.Bottom - sbi.srWindow.Top + 1;
             return new ConsoleViewport(sbi.srWindow.Left, sbi.srWindow.Top, w, h);
         }
 
@@ -373,7 +373,7 @@ public sealed class SystemConsoleDriver : IConsoleDriver, IConsoleOutputModeDriv
             return;
         }
 
-        int width  = global::System.Console.WindowWidth;
+        int width = global::System.Console.WindowWidth;
         int height = global::System.Console.WindowHeight;
 
         if (y >= height || x >= width)
@@ -484,7 +484,7 @@ public sealed class SystemConsoleDriver : IConsoleDriver, IConsoleOutputModeDriv
                 return false;
 
             int absX = viewport.Left + x;
-            int absY = viewport.Top  + y;
+            int absY = viewport.Top + y;
             if (!viewport.ContainsAbsolute(absX, absY))
                 return false;
 
@@ -711,7 +711,7 @@ public sealed class SystemConsoleDriver : IConsoleDriver, IConsoleOutputModeDriv
             return true;
 
         int absLeft = viewport.Left + x;
-        int absTop  = viewport.Top  + y;
+        int absTop = viewport.Top + y;
 
         if (!viewport.ContainsAbsolute(absLeft, absTop))
             return false;
@@ -729,9 +729,9 @@ public sealed class SystemConsoleDriver : IConsoleDriver, IConsoleOutputModeDriv
 
         var sr = new SmallRect
         {
-            Left   = (short)absLeft,
-            Top    = (short)absTop,
-            Right  = (short)(absLeft + w - 1),
+            Left = (short)absLeft,
+            Top = (short)absTop,
+            Right = (short)(absLeft + w - 1),
             Bottom = (short)absTop,
         };
 
@@ -758,10 +758,10 @@ public sealed class SystemConsoleDriver : IConsoleDriver, IConsoleOutputModeDriv
 
         var sr = new SmallRect
         {
-            Left   = (short)(viewport.Left + region.X),
-            Top    = (short)(viewport.Top  + region.Y),
-            Right  = (short)(viewport.Left + region.Right  - 1),
-            Bottom = (short)(viewport.Top  + region.Bottom - 1),
+            Left = (short)(viewport.Left + region.X),
+            Top = (short)(viewport.Top + region.Y),
+            Right = (short)(viewport.Left + region.Right - 1),
+            Bottom = (short)(viewport.Top + region.Bottom - 1),
         };
 
         var raw = Win32ConsoleApi.ReadRegion(_consoleHandle, sr);
@@ -822,10 +822,10 @@ public sealed class SystemConsoleDriver : IConsoleDriver, IConsoleOutputModeDriv
 
         var sr = new SmallRect
         {
-            Left   = (short)(sbi.srWindow.Left + snapshot.Region.X),
-            Top    = (short)(sbi.srWindow.Top  + snapshot.Region.Y),
-            Right  = (short)(sbi.srWindow.Left + snapshot.Region.Right  - 1),
-            Bottom = (short)(sbi.srWindow.Top  + snapshot.Region.Bottom - 1),
+            Left = (short)(sbi.srWindow.Left + snapshot.Region.X),
+            Top = (short)(sbi.srWindow.Top + snapshot.Region.Y),
+            Right = (short)(sbi.srWindow.Left + snapshot.Region.Right - 1),
+            Bottom = (short)(sbi.srWindow.Top + snapshot.Region.Bottom - 1),
         };
 
         Win32ConsoleApi.WriteRegion(_consoleHandle, raw, sr);

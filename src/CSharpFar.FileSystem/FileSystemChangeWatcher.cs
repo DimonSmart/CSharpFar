@@ -13,17 +13,17 @@ public sealed class FileSystemChangeWatcher : IFileSystemChangeWatcher
     private sealed class PanelWatch : IDisposable
     {
         public readonly FileSystemWatcher Watcher;
-        public readonly PanelSide         Side;
-        public readonly string            DirectoryPath;
-        private readonly object           _lock = new();
-        private CancellationTokenSource?  _debounceCts;
+        public readonly PanelSide Side;
+        public readonly string DirectoryPath;
+        private readonly object _lock = new();
+        private CancellationTokenSource? _debounceCts;
 
         public event EventHandler<FileSystemPanelChanged>? Changed;
 
         public PanelWatch(FileSystemWatcher watcher, PanelSide side, string path)
         {
-            Watcher       = watcher;
-            Side          = side;
+            Watcher = watcher;
+            Side = side;
             DirectoryPath = path;
         }
 
@@ -83,7 +83,7 @@ public sealed class FileSystemChangeWatcher : IFileSystemChangeWatcher
             var fw = new FileSystemWatcher(request.DirectoryPath)
             {
                 IncludeSubdirectories = false,
-                EnableRaisingEvents   = false,
+                EnableRaisingEvents = false,
             };
 
             var pw = new PanelWatch(fw, request.PanelSide, request.DirectoryPath);
@@ -93,12 +93,12 @@ public sealed class FileSystemChangeWatcher : IFileSystemChangeWatcher
             fw.Deleted += (_, e) => pw.OnEvent(MapKind(e.ChangeType));
             fw.Changed += (_, e) => pw.OnEvent(MapKind(e.ChangeType));
             fw.Renamed += (_, _) => pw.OnEvent(FileSystemChangeKind.Renamed);
-            fw.Error   += (_, _) => pw.OnEvent(FileSystemChangeKind.Overflow);
+            fw.Error += (_, _) => pw.OnEvent(FileSystemChangeKind.Overflow);
 
             lock (_lock)
             {
-                if (request.PanelSide == PanelSide.Left) _left  = pw;
-                else                                     _right = pw;
+                if (request.PanelSide == PanelSide.Left) _left = pw;
+                else _right = pw;
             }
 
             fw.EnableRaisingEvents = true;
@@ -115,8 +115,8 @@ public sealed class FileSystemChangeWatcher : IFileSystemChangeWatcher
         PanelWatch? pw;
         lock (_lock)
         {
-            if (panelSide == PanelSide.Left) { pw = _left;  _left  = null; }
-            else                             { pw = _right; _right = null; }
+            if (panelSide == PanelSide.Left) { pw = _left; _left = null; }
+            else { pw = _right; _right = null; }
         }
         pw?.Dispose();
     }
@@ -133,6 +133,6 @@ public sealed class FileSystemChangeWatcher : IFileSystemChangeWatcher
         WatcherChangeTypes.Deleted => FileSystemChangeKind.Deleted,
         WatcherChangeTypes.Changed => FileSystemChangeKind.Changed,
         WatcherChangeTypes.Renamed => FileSystemChangeKind.Renamed,
-        _                          => FileSystemChangeKind.Unknown,
+        _ => FileSystemChangeKind.Unknown,
     };
 }

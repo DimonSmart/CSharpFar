@@ -1,6 +1,6 @@
+using CSharpFar.App.Viewer;
 using CSharpFar.Console;
 using CSharpFar.Console.Models;
-using CSharpFar.App.Viewer;
 using CSharpFar.Core.Controllers;
 using CSharpFar.Core.Highlighting;
 using CSharpFar.Core.Models;

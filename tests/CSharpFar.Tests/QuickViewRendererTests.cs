@@ -20,10 +20,10 @@ public class QuickViewRendererTests : IDisposable
 
     public QuickViewRendererTests()
     {
-        _tempDir  = Path.Combine(Path.GetTempPath(), $"CSharpFarQVTest_{Guid.NewGuid():N}");
+        _tempDir = Path.Combine(Path.GetTempPath(), $"CSharpFarQVTest_{Guid.NewGuid():N}");
         Directory.CreateDirectory(_tempDir);
-        _driver   = new FakeConsoleDriver(80, 25);
-        _screen   = new ScreenRenderer(_driver);
+        _driver = new FakeConsoleDriver(80, 25);
+        _screen = new ScreenRenderer(_driver);
         _renderer = new QuickViewRenderer(_screen);
     }
 
@@ -73,8 +73,8 @@ public class QuickViewRendererTests : IDisposable
         var item = new FilePanelItem { Name = "preview.txt", FullPath = filePath, IsDirectory = false };
         _renderer.Render(_bounds, item);
 
-        Assert.Contains("line one",   ContentRow(0));
-        Assert.Contains("line two",   ContentRow(1));
+        Assert.Contains("line one", ContentRow(0));
+        Assert.Contains("line two", ContentRow(1));
         Assert.Contains("line three", ContentRow(2));
     }
 

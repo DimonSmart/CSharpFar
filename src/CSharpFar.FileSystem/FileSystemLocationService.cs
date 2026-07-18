@@ -18,15 +18,15 @@ public sealed class FileSystemLocationService : IFileSystemLocationService
 
             // UNC path → always network
             if (path.StartsWith(@"\\", StringComparison.Ordinal) ||
-                path.StartsWith("//",  StringComparison.Ordinal))
+                path.StartsWith("//", StringComparison.Ordinal))
             {
                 return new FileSystemLocationInfo
                 {
-                    Path              = path,
-                    IsNetworkDrive    = true,
-                    IsRemovableDrive  = false,
-                    IsFixedDrive      = false,
-                    RootPath          = root,
+                    Path = path,
+                    IsNetworkDrive = true,
+                    IsRemovableDrive = false,
+                    IsFixedDrive = false,
+                    RootPath = root,
                 };
             }
 
@@ -37,11 +37,11 @@ public sealed class FileSystemLocationService : IFileSystemLocationService
 
             return new FileSystemLocationInfo
             {
-                Path             = path,
-                IsNetworkDrive   = drive.DriveType == DriveType.Network,
+                Path = path,
+                IsNetworkDrive = drive.DriveType == DriveType.Network,
                 IsRemovableDrive = drive.DriveType == DriveType.Removable,
-                IsFixedDrive     = drive.DriveType == DriveType.Fixed,
-                RootPath         = root,
+                IsFixedDrive = drive.DriveType == DriveType.Fixed,
+                RootPath = root,
             };
         }
         catch (Exception ex) when (ex is ArgumentException or IOException or UnauthorizedAccessException)
@@ -53,10 +53,10 @@ public sealed class FileSystemLocationService : IFileSystemLocationService
     private static FileSystemLocationInfo MakeUnknown(string path) =>
         new()
         {
-            Path             = path,
-            IsNetworkDrive   = false,
+            Path = path,
+            IsNetworkDrive = false,
             IsRemovableDrive = false,
-            IsFixedDrive     = false,
-            RootPath         = Path.GetPathRoot(path),
+            IsFixedDrive = false,
+            RootPath = Path.GetPathRoot(path),
         };
 }

@@ -70,20 +70,20 @@ internal sealed class CompiledMaskExpression
                     sb.Append('.');
                     break;
                 case '[':
-                {
-                    // Pass character class through as-is
-                    int j = pattern.IndexOf(']', i + 1);
-                    if (j > i)
                     {
-                        sb.Append(pattern[i..(j + 1)]);
-                        i = j;
+                        // Pass character class through as-is
+                        int j = pattern.IndexOf(']', i + 1);
+                        if (j > i)
+                        {
+                            sb.Append(pattern[i..(j + 1)]);
+                            i = j;
+                        }
+                        else
+                        {
+                            sb.Append("\\[");
+                        }
+                        break;
                     }
-                    else
-                    {
-                        sb.Append("\\[");
-                    }
-                    break;
-                }
                 default:
                     sb.Append(Regex.Escape(c.ToString()));
                     break;
@@ -109,12 +109,12 @@ internal sealed class CompiledMaskExpression
         }
 
         string pattern = token[1..close];
-        string flags   = close < token.Length ? token[(close + 1)..] : string.Empty;
+        string flags = close < token.Length ? token[(close + 1)..] : string.Empty;
 
         var opts = RegexOptions.CultureInvariant;
         if (!caseSensitive || flags.Contains('i')) opts |= RegexOptions.IgnoreCase;
 
-        try   { return new Regex(pattern, opts); }
+        try { return new Regex(pattern, opts); }
         catch { return new Regex("(?!)", opts); } // never matches on invalid regex
     }
 }

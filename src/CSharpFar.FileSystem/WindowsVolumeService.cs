@@ -27,12 +27,12 @@ public sealed class WindowsVolumeService : IVolumeService
                 // Do not let one drive break the whole list.
                 result.Add(new FileSystemVolume
                 {
-                    Id          = drive.Name,
+                    Id = drive.Name,
                     DisplayName = MakeDisplayName(drive.Name),
-                    RootPath    = drive.RootDirectory.FullName,
-                    Kind        = VolumeKind.Unknown,
-                    Status      = VolumeStatus.Error,
-                    Shortcut    = MakeShortcut(drive.Name),
+                    RootPath = drive.RootDirectory.FullName,
+                    Kind = VolumeKind.Unknown,
+                    Status = VolumeStatus.Error,
+                    Shortcut = MakeShortcut(drive.Name),
                 });
             }
         }
@@ -50,28 +50,28 @@ public sealed class WindowsVolumeService : IVolumeService
         {
             return new FileSystemVolume
             {
-                Id          = drive.Name,
+                Id = drive.Name,
                 DisplayName = MakeDisplayName(drive.Name),
-                RootPath    = drive.RootDirectory.FullName,
-                Kind        = VolumeKind.Network,
-                Status      = VolumeStatus.Unchecked,
-                TotalBytes  = null,
-                FreeBytes   = null,
-                Shortcut    = MakeShortcut(drive.Name),
+                RootPath = drive.RootDirectory.FullName,
+                Kind = VolumeKind.Network,
+                Status = VolumeStatus.Unchecked,
+                TotalBytes = null,
+                FreeBytes = null,
+                Shortcut = MakeShortcut(drive.Name),
             };
         }
 
         var status = drive.IsReady ? VolumeStatus.Ready : VolumeStatus.NotReady;
 
         long? total = null;
-        long? free  = null;
+        long? free = null;
 
         if (drive.IsReady)
         {
             try
             {
                 total = drive.TotalSize;
-                free  = drive.AvailableFreeSpace;
+                free = drive.AvailableFreeSpace;
             }
             catch
             {
@@ -81,25 +81,25 @@ public sealed class WindowsVolumeService : IVolumeService
 
         return new FileSystemVolume
         {
-            Id          = drive.Name,
+            Id = drive.Name,
             DisplayName = MakeDisplayName(drive.Name),
-            RootPath    = drive.RootDirectory.FullName,
-            Kind        = kind,
-            Status      = status,
-            TotalBytes  = total,
-            FreeBytes   = free,
-            Shortcut    = MakeShortcut(drive.Name),
+            RootPath = drive.RootDirectory.FullName,
+            Kind = kind,
+            Status = status,
+            TotalBytes = total,
+            FreeBytes = free,
+            Shortcut = MakeShortcut(drive.Name),
         };
     }
 
     private static VolumeKind MapKind(DriveType dt) => dt switch
     {
-        DriveType.Fixed     => VolumeKind.Fixed,
+        DriveType.Fixed => VolumeKind.Fixed,
         DriveType.Removable => VolumeKind.Removable,
-        DriveType.Network   => VolumeKind.Network,
-        DriveType.CDRom     => VolumeKind.CdRom,
-        DriveType.Ram       => VolumeKind.Ram,
-        _                   => VolumeKind.Unknown,
+        DriveType.Network => VolumeKind.Network,
+        DriveType.CDRom => VolumeKind.CdRom,
+        DriveType.Ram => VolumeKind.Ram,
+        _ => VolumeKind.Unknown,
     };
 
     /// <summary>Converts "C:\" to "C:".</summary>

@@ -1,6 +1,6 @@
-using CSharpFar.Console.Ansi;
 using System.Runtime.InteropServices;
 using System.Text.Json;
+using CSharpFar.Console.Ansi;
 
 internal sealed record TerminalInputLabOptions(
     bool Manual = true,
@@ -377,8 +377,13 @@ internal static class TerminalInputLab
 
     private static string FormatText(IEnumerable<byte> bytes) => string.Join(' ', bytes.Select(static b => b switch
     {
-        0x1b => "ESC", 0x09 => "TAB", 0x0d => "CR", 0x0a => "LF", 0x7f => "DEL",
-        >= 0x20 and <= 0x7e => ((char)b).ToString(), _ => $"0x{b:X2}",
+        0x1b => "ESC",
+        0x09 => "TAB",
+        0x0d => "CR",
+        0x0a => "LF",
+        0x7f => "DEL",
+        >= 0x20 and <= 0x7e => ((char)b).ToString(),
+        _ => $"0x{b:X2}",
     }));
 
     private static string GetEnvironmentName() =>

@@ -1,7 +1,7 @@
 using System.Runtime.InteropServices;
+using CSharpFar.App.Rendering;
 using CSharpFar.App.State;
 using CSharpFar.Console.Input;
-using CSharpFar.App.Rendering;
 using CSharpFar.Core.Menu;
 using CSharpFar.Core.Models;
 

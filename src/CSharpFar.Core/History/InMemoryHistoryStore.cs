@@ -9,15 +9,15 @@ public sealed class InMemoryHistoryStore : IHistoryStore
     private readonly int _maxDirectories;
     private readonly int _maxFiles;
 
-    private readonly List<CommandHistoryItem>   _commands    = new();
+    private readonly List<CommandHistoryItem> _commands = new();
     private readonly List<DirectoryHistoryItem> _directories = new();
-    private readonly List<FileHistoryItem>      _files       = new();
+    private readonly List<FileHistoryItem> _files = new();
 
     public InMemoryHistoryStore(int maxCommands = 1000, int maxDirectories = 500, int maxFiles = 200)
     {
-        _maxCommands    = maxCommands;
+        _maxCommands = maxCommands;
         _maxDirectories = maxDirectories;
-        _maxFiles       = maxFiles;
+        _maxFiles = maxFiles;
     }
 
     public IReadOnlyList<CommandHistoryItem> GetCommandHistory() => _commands;

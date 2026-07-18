@@ -1,5 +1,5 @@
-using CSharpFar.Console.Input;
 using System.Diagnostics.CodeAnalysis;
+using CSharpFar.Console.Input;
 
 namespace CSharpFar.Console.Ansi;
 

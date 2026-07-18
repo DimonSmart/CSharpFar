@@ -876,8 +876,8 @@ public sealed class ApplicationNavigationTests : IDisposable
     [Theory]
     [InlineData(41, 2, false, false, true, PanelSide.Right, 0, 1)]
     [InlineData(40, 2, false, false, true, PanelSide.Right, 0, 1)]
-    [InlineData(1,  2, false, true,  true, PanelSide.Left,  1, 0)]
-    [InlineData(41, 2, false, true,  false, PanelSide.Left,  0, 0)]
+    [InlineData(1, 2, false, true, true, PanelSide.Left, 1, 0)]
+    [InlineData(41, 2, false, true, false, PanelSide.Left, 0, 0)]
     public void HandleMouse_ClickPanelArea_UpdatesPanelSelection(
         int x,
         int y,

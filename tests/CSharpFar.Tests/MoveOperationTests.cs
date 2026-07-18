@@ -15,8 +15,8 @@ public class MoveOperationTests : IDisposable
     public MoveOperationTests()
     {
         _tempRoot = Path.Combine(Path.GetTempPath(), $"CSharpFarMoveTest_{Guid.NewGuid():N}");
-        _src      = Path.Combine(_tempRoot, "src");
-        _dst      = Path.Combine(_tempRoot, "dst");
+        _src = Path.Combine(_tempRoot, "src");
+        _dst = Path.Combine(_tempRoot, "dst");
         Directory.CreateDirectory(_src);
         Directory.CreateDirectory(_dst);
     }
@@ -127,8 +127,8 @@ public class MoveOperationTests : IDisposable
     public async Task MoveAsync_MultipleSourcesWithPlainNameIsMoveNotRename()
     {
         // "name" has no path separators, but with 2 sources it's a directory destination
-        string f1  = Write(_src, "a.txt", "A");
-        string f2  = Write(_src, "b.txt", "B");
+        string f1 = Write(_src, "a.txt", "A");
+        string f2 = Write(_src, "b.txt", "B");
         string dir = Path.Combine(_src, "name");
         Directory.CreateDirectory(dir);
 
@@ -235,8 +235,8 @@ public class MoveOperationTests : IDisposable
     [Fact]
     public async Task MoveAsync_RespectsExternalCancellation()
     {
-        string f1  = Write(_src, "a.txt", "");
-        string f2  = Write(_src, "b.txt", "");
+        string f1 = Write(_src, "a.txt", "");
+        string f2 = Write(_src, "b.txt", "");
         var cts = new CancellationTokenSource();
         cts.Cancel();
 

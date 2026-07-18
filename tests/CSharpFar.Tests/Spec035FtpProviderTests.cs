@@ -1,3 +1,5 @@
+using System.Security.Cryptography;
+using System.Security.Cryptography.X509Certificates;
 using CSharpFar.App.Dialogs;
 using CSharpFar.Console;
 using CSharpFar.Console.Input;
@@ -7,8 +9,6 @@ using CSharpFar.Core.Services;
 using CSharpFar.FileSystem;
 using CSharpFar.Tests.Fakes;
 using FluentFTP;
-using System.Security.Cryptography;
-using System.Security.Cryptography.X509Certificates;
 
 namespace CSharpFar.Tests;
 
