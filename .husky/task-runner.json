@@ -1,0 +1,15 @@
+{
+  "$schema": "https://alirezanet.github.io/Husky.Net/schema.json",
+  "tasks": [
+    {
+      "name": "format-staged",
+      "group": "pre-commit",
+      "command": "bash",
+      "args": [ "scripts/format-staged.sh" ],
+      "windows": {
+        "command": "pwsh",
+        "args": [ "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", "scripts/format-staged.ps1" ]
+      }
+    }
+  ]
+}
