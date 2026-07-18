@@ -223,46 +223,23 @@ public sealed class ModalDialogSession : IDisposable
     public ConsoleInputEvent ReadInput(CancellationToken cancellationToken = default)
     {
         _scope.EnsureActive();
-        if (_layer.TryTakeInput(out var pending))
-            return pending.Input;
-
-        while (true)
-        {
-            ConsoleInputEvent semanticInput = _scope.Composition.ReadCompositionInput(cancellationToken);
-            _scope.Composition.DispatchInput(semanticInput);
-
-            if (_layer.TryTakeInput(out var routed))
-                return routed.Input;
-        }
+        return new CompositionInputPump<UiRoutedInput<Unit>>(
+            _scope.Composition,
+            _layer.TryTakeInput,
+            _scope.EnsureActive)
+            .Read(cancellationToken)
+            .Input;
     }
 
     public bool TryReadInput(out ConsoleInputEvent? input)
     {
-        _scope.EnsureActive();
-        if (_layer.TryTakeInput(out var pending))
-        {
-            input = pending.Input;
-            return true;
-        }
-
-        while (_scope.Composition.TryReadCompositionInput(out ConsoleInputEvent? semanticInput))
-        {
-            if (semanticInput is null)
-                continue;
-
-            UiInputResult dispatch = _scope.Composition.DispatchInput(semanticInput);
-            if (dispatch.Invalidate)
-                _scope.Composition.Render();
-
-            if (_layer.TryTakeInput(out var routed))
-            {
-                input = routed.Input;
-                return true;
-            }
-        }
-
-        input = null;
-        return false;
+        bool hasPacket = new CompositionInputPump<UiRoutedInput<Unit>>(
+            _scope.Composition,
+            _layer.TryTakeInput,
+            _scope.EnsureActive)
+            .TryRead(out var routed);
+        input = hasPacket ? routed.Input : null;
+        return hasPacket;
     }
 
     public void Dispose()
@@ -296,22 +273,11 @@ public sealed class ModalDialogSession<TFrame> : IDisposable
 
     public UiRoutedInput<TFrame> ReadRoutedInput(CancellationToken cancellationToken = default)
     {
-        _scope.EnsureActive();
-        if (_layer.TryTakeInput(out var pending))
-            return pending;
-
-        while (true)
-        {
-            ConsoleInputEvent semanticInput = _scope.Composition.ReadCompositionInput(cancellationToken);
-            UiInputResult dispatch = _scope.Composition.DispatchInput(semanticInput);
-            if (dispatch.Invalidate)
-                _scope.Composition.Render();
-
-            if (!_layer.TryTakeInput(out var routed))
-                continue;
-
-            return routed;
-        }
+        return new CompositionInputPump<UiRoutedInput<TFrame>>(
+            _scope.Composition,
+            _layer.TryTakeInput,
+            _scope.EnsureActive)
+            .Read(cancellationToken);
     }
 
     public bool TryReadInput(out ConsoleInputEvent? input, out TFrame frame)
@@ -330,31 +296,11 @@ public sealed class ModalDialogSession<TFrame> : IDisposable
 
     public bool TryReadRoutedInput(out UiRoutedInput<TFrame> routed)
     {
-        _scope.EnsureActive();
-        if (_layer.TryTakeInput(out var pending))
-        {
-            routed = pending;
-            return true;
-        }
-
-        while (_scope.Composition.TryReadCompositionInput(out ConsoleInputEvent? semanticInput))
-        {
-            if (semanticInput is null)
-                continue;
-
-            UiInputResult dispatch = _scope.Composition.DispatchInput(semanticInput);
-            if (dispatch.Invalidate)
-                _scope.Composition.Render();
-
-            if (!_layer.TryTakeInput(out var pendingRouted))
-                continue;
-
-            routed = pendingRouted;
-            return true;
-        }
-
-        routed = null!;
-        return false;
+        return new CompositionInputPump<UiRoutedInput<TFrame>>(
+            _scope.Composition,
+            _layer.TryTakeInput,
+            _scope.EnsureActive)
+            .TryRead(out routed);
     }
 
     public void Dispose()
@@ -383,18 +329,11 @@ internal sealed class InteractiveModalDialogSession<TFrame, TSemantic> : IDispos
 
     public InteractiveModalInput<TFrame, TSemantic> ReadInteractiveInput(CancellationToken cancellationToken = default)
     {
-        _scope.EnsureActive();
-        if (_layer.TryTakeInput(out var pending))
-            return pending;
-
-        while (true)
-        {
-            ConsoleInputEvent semanticInput = _scope.Composition.ReadCompositionInput(cancellationToken);
-            _scope.Composition.DispatchInput(semanticInput);
-
-            if (_layer.TryTakeInput(out var routed))
-                return routed;
-        }
+        return new CompositionInputPump<InteractiveModalInput<TFrame, TSemantic>>(
+            _scope.Composition,
+            _layer.TryTakeInput,
+            _scope.EnsureActive)
+            .Read(cancellationToken);
     }
 
     public void Dispose()

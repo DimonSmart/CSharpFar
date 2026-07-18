@@ -174,10 +174,24 @@ public sealed class UiCompositionHost
         EnsureCanChangeLayers();
         ArgumentNullException.ThrowIfNull(surface);
         EnsureRootSurface();
-        if (surface is IUiLayer layer)
-            EnsureLayerNotRegistered(layer);
+        IUiLayer layer = surface as IUiLayer ?? new RenderOnlySurfaceLayer(surface);
+        EnsureLayerNotRegistered(layer);
 
-        var entry = UiLayerEntry.ForSurface(surface);
+        var entry = UiLayerEntry.ForSurface(surface, layer);
+        _layers.Add(entry);
+        RevalidateMouseCapture();
+        return new UiSurfaceSession(this, entry);
+    }
+
+    internal UiSurfaceSession OpenSurface(IUiSurface surfaceLifecycle, IUiLayer layer)
+    {
+        EnsureCanChangeLayers();
+        ArgumentNullException.ThrowIfNull(surfaceLifecycle);
+        ArgumentNullException.ThrowIfNull(layer);
+        EnsureRootSurface();
+        EnsureLayerNotRegistered(layer);
+
+        var entry = UiLayerEntry.ForSurface(surfaceLifecycle, layer);
         _layers.Add(entry);
         RevalidateMouseCapture();
         return new UiSurfaceSession(this, entry);
@@ -513,6 +527,9 @@ public sealed class UiCompositionHost
 
         public static UiLayerEntry ForSurface(IUiSurface surface) =>
             new(UiLayerKind.Surface, surface as IUiLayer ?? new RenderOnlySurfaceLayer(surface), surface);
+
+        public static UiLayerEntry ForSurface(IUiSurface surfaceLifecycle, IUiLayer layer) =>
+            new(UiLayerKind.Surface, layer, surfaceLifecycle);
 
         public static UiLayerEntry ForOverlay(Action<UiRenderContext> overlay) =>
             new(UiLayerKind.Overlay, new RenderOnlyOverlayLayer(overlay), null);
