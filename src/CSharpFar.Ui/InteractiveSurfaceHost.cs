@@ -11,11 +11,18 @@ public sealed class InteractiveSurfaceHost
     public InteractiveSurfaceHost(UiCompositionHost composition) =>
         _composition = composition ?? throw new ArgumentNullException(nameof(composition));
 
+    /// <summary>
+    /// Runs an interactive temporary surface until the domain handler completes it.
+    /// Frame-dependent surface state is synchronized only through
+    /// <see cref="UiLayer{TFrame}.OnFrameCommitted(TFrame)"/>. The runner does
+    /// not provide a second committed-frame callback: rejected render attempts
+    /// do not publish committed state, and automatic resize recovery uses the
+    /// same stable-frame commit lifecycle as ordinary renders.
+    /// </summary>
     public TResult Run<TFrame, TSemantic, TResult>(
         InteractiveSurfaceLayer<TFrame, TSemantic> layer,
         Func<UiRoutedInput<TFrame>, TSemantic, ModalDialogLoopResult<TResult>> handleInput,
         Action? prepareRender = null,
-        Action<TFrame>? applyCommittedFrame = null,
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(layer);
@@ -24,7 +31,6 @@ public sealed class InteractiveSurfaceHost
         prepareRender?.Invoke();
         using var surface = _composition.OpenSurface(new InteractiveSurface(_composition.Screen), layer);
         _composition.Render();
-        applyCommittedFrame?.Invoke(layer.CommittedFrame);
 
         while (true)
         {
@@ -39,7 +45,6 @@ public sealed class InteractiveSurfaceHost
 
             prepareRender?.Invoke();
             _composition.Render();
-            applyCommittedFrame?.Invoke(layer.CommittedFrame);
         }
     }
 }
