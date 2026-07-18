@@ -1,7 +1,7 @@
 using System.Globalization;
 using System.Text;
-using CSharpFar.App.Rendering;
 using CSharpFar.Console;
+using CSharpFar.Console.Input;
 using CSharpFar.Console.Models;
 using CSharpFar.Ui;
 
@@ -11,108 +11,114 @@ internal sealed class EditorFormatDialog
 {
     private const int DialogWidth = 52;
     private const int DialogHeight = 9;
+    private const string EncodingRowId = "editor-format.encoding";
+    private const string BomRowId = "editor-format.bom";
+    private const string LineEndingRowId = "editor-format.line-ending";
 
-    private readonly ScreenRenderer _screen;
     private readonly ModalDialogHost _modalDialogs;
-    private readonly ConsolePalette _palette;
     private readonly ModalDialogRenderer _modalRenderer = new();
 
-    public EditorFormatDialog(ScreenRenderer screen, ModalDialogHost modalDialogs, ConsolePalette palette)
+    public EditorFormatDialog(ModalDialogHost modalDialogs)
     {
-        _screen = screen;
         _modalDialogs = modalDialogs;
-        _palette = palette;
     }
 
     public EditorDocumentFormat? Show(EditorDocumentFormat current)
     {
-        int encodingIndex = EncodingIndex(current.Encoding.CodePage);
-        int lineEndingIndex = LineEndingIndex(current.LineEnding);
-        bool emitBom = current.EmitByteOrderMark;
-        int row = 0;
-        return _modalDialogs.Run(
-            context =>
+        var encoding = new CompactChoiceFormRow<EncodingSpec>(
+            new ChoiceRow<EncodingSpec>(Encodings, static value => value.Label, EncodingIndex(current.Encoding.CodePage)),
+            "Encoding")
+        {
+            Id = EncodingRowId,
+        };
+        var bom = new CheckBoxRow(new CheckBoxLine("BOM"))
+        {
+            Id = BomRowId,
+            Value = current.EmitByteOrderMark,
+        };
+        var lineEnding = new CompactChoiceFormRow<LineEndingSpec>(
+            new ChoiceRow<LineEndingSpec>(LineEndings, static value => value.Value.ToDisplayName(), LineEndingIndex(current.LineEnding)),
+            "Line ends")
+        {
+            Id = LineEndingRowId,
+        };
+        var form = new ScrollableFormDialog();
+
+        void PrepareRows() =>
+            form.SetRows(
+                [
+                    encoding,
+                    bom,
+                    lineEnding,
+                    new SeparatorRow(FarDialogStyles.Border, drawLine: false),
+                    new LabelRow("Enter apply  Esc/F10 cancel  Left/Right change", FarDialogStyles.Fill),
+                ]);
+
+        return _modalDialogs.RunInteractive<ScrollableFormFrame, FormInputResult, EditorDocumentFormat?>(
+            (context, focusScope) => Draw(context, focusScope, form),
+            form.BuildInteractionFrame,
+            (input, frame, route) =>
             {
-                var format = CreateFormat(encodingIndex, emitBom, lineEndingIndex);
-                Draw(context, format, row);
+                FormRouteResult result = form.RouteInput(input, frame, route);
+                return (result.FormResult, result.UiResult);
             },
-            input =>
+            (routed, result) =>
             {
-            if (input is not CSharpFar.Console.Input.KeyConsoleInputEvent { Key: var key })
+                if (result.Kind == FormInputResultKind.Cancel ||
+                    routed.Input is KeyConsoleInputEvent { Key.Key: ConsoleKey.F10 })
+                {
+                    return ModalDialogLoopResult<EditorDocumentFormat?>.Complete(null);
+                }
+
+                if (result.Kind == FormInputResultKind.Submit ||
+                    FormDialogInput.ShouldImplicitlySubmit(routed, result, form))
+                {
+                    return ModalDialogLoopResult<EditorDocumentFormat?>.Complete(
+                        CreateFormat(encoding.Value, bom.Value, lineEnding.Value.Value));
+                }
+
                 return ModalDialogLoopResult<EditorDocumentFormat?>.Continue;
-
-            var format = CreateFormat(encodingIndex, emitBom, lineEndingIndex);
-            switch (key.Key)
-            {
-                case ConsoleKey.UpArrow: row = Math.Max(0, row - 1); break;
-                case ConsoleKey.DownArrow: row = Math.Min(2, row + 1); break;
-                case ConsoleKey.LeftArrow: Change(row, -1, ref encodingIndex, ref emitBom, ref lineEndingIndex); break;
-                case ConsoleKey.RightArrow:
-                case ConsoleKey.Spacebar: Change(row, 1, ref encodingIndex, ref emitBom, ref lineEndingIndex); break;
-                case ConsoleKey.Enter: return ModalDialogLoopResult<EditorDocumentFormat?>.Complete(format);
-                case ConsoleKey.Escape:
-                case ConsoleKey.F10: return ModalDialogLoopResult<EditorDocumentFormat?>.Complete(null);
-            }
-
-            return ModalDialogLoopResult<EditorDocumentFormat?>.Continue;
-            });
+            },
+            prepareRender: PrepareRows);
     }
 
-    private void Draw(UiRenderContext context, EditorDocumentFormat format, int cursorRow)
+    private ScrollableFormFrame Draw(UiRenderContext context, UiFocusScope focusScope, ScrollableFormDialog form)
     {
-        Rect bounds = _modalRenderer.CenteredOuterBounds(context.Size, DialogWidth, DialogHeight, minHeight: DialogHeight);
+        ScrollableFormFrame? frame = null;
         _modalRenderer.Render(
-            _screen,
-            bounds,
+            context.Screen,
+            OuterBounds(context.Size),
             "Editor format",
             doubleBorder: true,
-            PaletteStyles.DialogPopupOptions(_palette) with { DrawBorder = false },
-            PaletteStyles.DialogPopupOptions(_palette) with { DrawShadow = false },
+            FarDialogStyles.OuterOptions,
+            FarDialogStyles.FrameOptions,
             (_, layout) =>
             {
-                DrawRow(layout.ContentBounds, 0, "Encoding", format.EncodingDisplayName, cursorRow == 0);
-                DrawRow(layout.ContentBounds, 1, "BOM", format.BomDisplayName, cursorRow == 1);
-                DrawRow(layout.ContentBounds, 2, "Line ends", format.LineEndingDisplayName, cursorRow == 2);
-                const string hint = " Enter apply  Esc cancel  Left/Right change ";
-                _screen.Write(
-                    layout.ContentBounds.X,
-                    layout.ContentBounds.Y + 4,
-                    Fit(hint, layout.ContentBounds.Width),
-                    PaletteStyles.DialogFill(_palette));
+                Rect bounds = layout.FrameBounds;
+                int contentX = bounds.X + 2;
+                int contentWidth = Math.Max(1, bounds.Width - 4);
+                var bodyBounds = new Rect(contentX, bounds.Y + 1, contentWidth, Math.Max(1, bounds.Height - 2));
+                frame = form.Render(new FormRenderContext(context, bodyBounds, FarDialogStyles.Border), focusScope);
             });
-        _screen.SetCursorVisible(false);
+
+        return frame ?? throw new InvalidOperationException("Editor format dialog did not render a form frame.");
     }
 
-    private void DrawRow(Rect content, int row, string label, string value, bool selected)
+    private static Rect OuterBounds(ConsoleSize size)
     {
-        string text = $"{label,-11} {value}";
-        _screen.Write(
-            content.X,
-            content.Y + row,
-            Fit(text, content.Width),
-            selected ? PaletteStyles.InputField(_palette) : PaletteStyles.DialogFill(_palette));
+        int dialogWidth = Math.Min(DialogWidth, Math.Max(32, size.Width - 2));
+        int dialogHeight = Math.Min(DialogHeight, Math.Max(6, size.Height - 2));
+        return new Rect(
+            Math.Max(0, (size.Width - dialogWidth) / 2),
+            Math.Max(0, (size.Height - dialogHeight) / 2),
+            dialogWidth,
+            dialogHeight);
     }
 
-    private static void Change(
-        int row,
-        int delta,
-        ref int encodingIndex,
-        ref bool emitBom,
-        ref int lineEndingIndex)
+    private static EditorDocumentFormat CreateFormat(EncodingSpec encodingSpec, bool emitBom, EditorLineEnding lineEnding)
     {
-        if (row == 0)
-            encodingIndex = Mod(encodingIndex + delta, Encodings.Length);
-        else if (row == 1)
-            emitBom = !emitBom;
-        else
-            lineEndingIndex = Mod(lineEndingIndex + delta, LineEndings.Length);
-    }
-
-    private static EditorDocumentFormat CreateFormat(int encodingIndex, bool emitBom, int lineEndingIndex)
-    {
-        var spec = Encodings[encodingIndex];
-        Encoding encoding = Encoding.GetEncoding(spec.CodePage);
-        return new EditorDocumentFormat(encoding, emitBom, LineEndings[lineEndingIndex].Value, spec.Label);
+        Encoding encoding = Encoding.GetEncoding(encodingSpec.CodePage);
+        return new EditorDocumentFormat(encoding, emitBom, lineEnding, encodingSpec.Label);
     }
 
     private static int EncodingIndex(int codePage)
@@ -137,11 +143,6 @@ internal sealed class EditorFormatDialog
         return 0;
     }
 
-    private static int Mod(int value, int size) => ((value % size) + size) % size;
-
-    private static string Fit(string text, int width) =>
-        text.Length <= width ? text.PadRight(width) : text[..width];
-
     private readonly record struct EncodingSpec(int CodePage, string Label);
     private readonly record struct LineEndingSpec(EditorLineEnding Value);
 
@@ -163,4 +164,16 @@ internal sealed class EditorFormatDialog
         new(EditorLineEnding.Cr),
         new(EditorLineEnding.Mixed),
     ];
+}
+
+file static class EditorLineEndingDisplay
+{
+    public static string ToDisplayName(this EditorLineEnding value) => value switch
+    {
+        EditorLineEnding.CrLf => "CRLF",
+        EditorLineEnding.Lf => "LF",
+        EditorLineEnding.Cr => "CR",
+        EditorLineEnding.Mixed => "Mixed",
+        _ => value.ToString(),
+    };
 }

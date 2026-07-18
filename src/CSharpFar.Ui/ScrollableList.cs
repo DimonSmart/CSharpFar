@@ -54,6 +54,8 @@ public sealed class ScrollableList<T>
 
     public Action<T, int>? SelectionChanged { get; set; }
 
+    private ScrollBarDragState? _scrollbarDrag;
+
     public int Count => Items.Count;
 
     public bool HasItems => Count > 0;
@@ -262,6 +264,22 @@ public sealed class ScrollableList<T>
             return ScrollableListInputResult.Confirmed;
         return changedByClick ? ScrollableListInputResult.SelectionChanged : ScrollableListInputResult.Handled;
     }
+
+    public ScrollableListInputResult HandleMouse(
+        MouseConsoleInputEvent mouse,
+        Rect contentBounds,
+        Rect? scrollbarBounds,
+        int viewportRows,
+        bool confirmOnMouseDown = false,
+        bool confirmOnDoubleClick = true) =>
+        HandleMouse(
+            mouse,
+            contentBounds,
+            scrollbarBounds,
+            viewportRows,
+            ref _scrollbarDrag,
+            confirmOnMouseDown,
+            confirmOnDoubleClick);
 
     private ScrollableListInputResult ChangeSelection(int target, int viewportRows)
     {

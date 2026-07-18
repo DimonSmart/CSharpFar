@@ -1,8 +1,8 @@
-using CSharpFar.App.Rendering;
 using CSharpFar.Console;
 using CSharpFar.Console.Input;
 using CSharpFar.Console.Models;
 using CSharpFar.Core.Models;
+using CSharpFar.Ui;
 
 namespace CSharpFar.App.Dialogs;
 
@@ -13,237 +13,193 @@ namespace CSharpFar.App.Dialogs;
 internal sealed class DriveDialog
 {
     private const int DialogWidth = 48;
-
     private const int DiskColW = 18;
     private const int SizeColW = 10;
 
+    private static readonly UiTargetId VolumesTarget = new("drive.volumes");
+    private static readonly UiTargetId VolumesScrollbarTarget = new("drive.volumes.scrollbar");
+
     private readonly ModalDialogHost _modalDialogs;
-    private readonly ScreenRenderer _screen;
     private readonly ConsolePalette _palette;
     private readonly ModalDialogRenderer _modalRenderer = new();
 
     public DriveDialog(ModalDialogHost modalDialogs, ConsolePalette? palette = null)
     {
         _modalDialogs = modalDialogs;
-        _screen = modalDialogs.Screen;
         _palette = palette ?? PaletteRegistry.Default;
     }
 
     public VolumeSelectionItem? Show(IReadOnlyList<VolumeSelectionItem> items, int initialCursor = 0)
     {
-        if (items.Count == 0)
+        VolumeSelectionItem[] snapshot = items.ToArray();
+        if (snapshot.Length == 0)
         {
             new MessageDialog(_modalDialogs).Show("Change drive", "No volumes found.");
             return null;
         }
 
-        return RunLoop(items, Math.Clamp(initialCursor, 0, items.Count - 1));
+        return RunLoop(snapshot, Math.Clamp(initialCursor, 0, snapshot.Length - 1));
     }
 
-    private VolumeSelectionItem? RunLoop(IReadOnlyList<VolumeSelectionItem> items, int initialCursor)
+    private VolumeSelectionItem? RunLoop(VolumeSelectionItem[] items, int initialCursor)
     {
-        int cursor    = initialCursor;
-        int scrollTop = 0;
-        ScrollBarDragState? scrollbarDrag = null;
-
-        // Track last cycle shortcut for multi-match cycling
+        var list = new ScrollableList<VolumeSelectionItem>(items, ItemText)
+        {
+            SelectedIndex = initialCursor,
+            EmptyText = "No volumes found.",
+        };
         string? lastShortcut = null;
 
-        return _modalDialogs.Run(
-            context =>
+        return _modalDialogs.RunInteractive<DriveDialogFrame, ScrollableListInputResult, VolumeSelectionItem?>(
+            (context, _) =>
             {
-                var frame = CalculateFrame(context.Size, items.Count, cursor, scrollTop);
+                DriveDialogFrame frame = BuildFrame(context.Size, items, list);
                 RenderFrame(context, items, frame);
                 return frame;
             },
-            (input, frame) =>
+            BuildInteractionFrame,
+            (input, frame, route) => RouteInput(input, frame, route, list),
+            (routed, result) =>
             {
-            if (input is MouseConsoleInputEvent mouse &&
-                TryHandleScrollbarMouse(mouse, items.Count, frame.VisibleRows, frame.ScrollbarBounds, frame.ScrollTop, ref cursor, ref scrollTop, ref scrollbarDrag))
-            {
-                return ModalDialogLoopResult<VolumeSelectionItem?>.Continue;
-            }
-
-            if (input is MouseConsoleInputEvent listMouse &&
-                TryHandleListMouse(listMouse, frame.ListBounds, items.Count, frame.ScrollTop, ref cursor, out bool select))
-            {
-                lastShortcut = null;
-                if (select)
+                if (routed.Input is KeyConsoleInputEvent { Key: var key })
                 {
-                    var clicked = items[cursor];
-                    if (clicked.Volume is { } clickedVol && !IsSelectable(clickedVol.Status))
-                    {
-                        string statusText = clickedVol.Status switch
-                        {
-                            VolumeStatus.NotReady     => "not ready",
-                            VolumeStatus.Disconnected => "disconnected",
-                            _                         => "error",
-                        };
-                        new MessageDialog(_modalDialogs).Show(
-                            "Change drive",
-                            $"{clickedVol.DisplayName}: volume is {statusText}.");
-                    }
-                    else
-                    {
-                        return ModalDialogLoopResult<VolumeSelectionItem?>.Complete(clicked);
-                    }
-                }
-                return ModalDialogLoopResult<VolumeSelectionItem?>.Continue;
-            }
+                    if (key.Key is ConsoleKey.Escape or ConsoleKey.F10)
+                        return ModalDialogLoopResult<VolumeSelectionItem?>.Complete(null);
 
-            if (input is not KeyConsoleInputEvent { Key: var key })
-                return ModalDialogLoopResult<VolumeSelectionItem?>.Continue;
+                    if (IsListNavigationKey(key.Key))
+                        lastShortcut = null;
 
-            switch (key.Key)
-            {
-                case ConsoleKey.Escape:
-                case ConsoleKey.F10:
-                    return ModalDialogLoopResult<VolumeSelectionItem?>.Complete(null);
-
-                case ConsoleKey.UpArrow:
-                    if (cursor > 0)
-                    {
-                        cursor--;
-                        if (cursor < scrollTop) scrollTop = cursor;
-                    }
-                    lastShortcut = null;
-                    break;
-
-                case ConsoleKey.DownArrow:
-                    if (cursor < items.Count - 1)
-                    {
-                        cursor++;
-                        if (cursor >= scrollTop + frame.VisibleRows) scrollTop = cursor - frame.VisibleRows + 1;
-                    }
-                    lastShortcut = null;
-                    break;
-
-                case ConsoleKey.PageUp:
-                    cursor    = Math.Max(0, cursor - frame.VisibleRows);
-                    scrollTop = Math.Max(0, cursor);
-                    lastShortcut = null;
-                    break;
-
-                case ConsoleKey.PageDown:
-                    cursor    = Math.Min(items.Count - 1, cursor + frame.VisibleRows);
-                    scrollTop = Math.Max(0, cursor - frame.VisibleRows + 1);
-                    lastShortcut = null;
-                    break;
-
-                case ConsoleKey.Home:
-                    cursor    = 0;
-                    scrollTop = 0;
-                    lastShortcut = null;
-                    break;
-
-                case ConsoleKey.End:
-                    cursor    = items.Count - 1;
-                    scrollTop = Math.Max(0, cursor - frame.VisibleRows + 1);
-                    lastShortcut = null;
-                    break;
-
-                case ConsoleKey.Enter:
-                    var selected = items[cursor];
-                    if (selected.Volume is { } vol && !IsSelectable(vol.Status))
-                    {
-                        string statusText = vol.Status switch
-                        {
-                            VolumeStatus.NotReady    => "not ready",
-                            VolumeStatus.Disconnected => "disconnected",
-                            _                        => "error",
-                        };
-                        new MessageDialog(_modalDialogs).Show(
-                            "Change drive",
-                            $"{vol.DisplayName}: volume is {statusText}.");
-                        break;
-                    }
-                    return ModalDialogLoopResult<VolumeSelectionItem?>.Complete(selected);
-
-                default:
-                    // Letter / digit shortcut
-                    if (key.KeyChar > ' ' &&
+                    if (result.Kind == ScrollableListInputResultKind.NotHandled &&
+                        key.KeyChar > ' ' &&
                         (key.Modifiers & (ConsoleModifiers.Control | ConsoleModifiers.Alt)) == 0)
                     {
-                        string sc = key.KeyChar.ToString().ToUpperInvariant();
-                        var immediate = HandleShortcut(
-                            items, sc, ref cursor, ref scrollTop, frame.VisibleRows, ref lastShortcut);
+                        string shortcut = key.KeyChar.ToString().ToUpperInvariant();
+                        VolumeSelectionItem? immediate = HandleShortcut(list, shortcut, routed.Frame.ListState.VisibleRows, ref lastShortcut);
                         if (immediate is not null)
                             return ModalDialogLoopResult<VolumeSelectionItem?>.Complete(immediate);
                     }
-                    break;
-            }
+                }
 
-            return ModalDialogLoopResult<VolumeSelectionItem?>.Continue;
-            },
-            applyCommittedFrame: frame =>
-            {
-                cursor = frame.Cursor;
-                scrollTop = frame.ScrollTop;
+                if (result.Kind == ScrollableListInputResultKind.Confirmed &&
+                    list.SelectedItemOrDefault is { } selected)
+                {
+                    return TryCompleteSelection(selected);
+                }
+
+                return ModalDialogLoopResult<VolumeSelectionItem?>.Continue;
             });
     }
 
-    /// <summary>
-    /// Handles a shortcut key press. Returns the item to select immediately when
-    /// the shortcut is unique and the volume is available; otherwise moves the
-    /// cursor and returns null.
-    /// </summary>
+    private static (ScrollableListInputResult Semantic, UiInputResult UiResult) RouteInput(
+        ConsoleInputEvent input,
+        DriveDialogFrame frame,
+        UiInputRouteContext route,
+        ScrollableList<VolumeSelectionItem> list)
+    {
+        list.SelectedIndex = frame.ListState.SelectedIndex;
+        list.ScrollTop = frame.ListState.FirstVisibleIndex;
+
+        if (input is KeyConsoleInputEvent { Key: var key })
+        {
+            if (key.Key is ConsoleKey.Escape or ConsoleKey.F10)
+                return (ScrollableListInputResult.Handled, UiInputResult.HandledResult);
+
+            ScrollableListInputResult result = list.HandleKey(key, frame.ListState.VisibleRows);
+            return (result, result.IsHandled ? UiInputResult.HandledAndInvalidate : UiInputResult.NotHandled);
+        }
+
+        if (input is MouseConsoleInputEvent mouse &&
+            route.Target is UiTargetId target &&
+            (target == VolumesTarget || target == VolumesScrollbarTarget))
+        {
+            ScrollableListInputResult result = list.HandleMouse(
+                mouse,
+                frame.ListBounds,
+                frame.ScrollbarBounds,
+                frame.ListState.VisibleRows);
+            if (!result.IsHandled)
+                return (result, UiInputResult.NotHandled);
+
+            UiMouseCaptureRequest capture = target == VolumesScrollbarTarget && mouse is { Kind: MouseEventKind.Down, Button: MouseButton.Left }
+                ? UiMouseCaptureRequest.Capture(VolumesScrollbarTarget, MouseButton.Left)
+                : mouse.Kind == MouseEventKind.Up ? UiMouseCaptureRequest.Release : UiMouseCaptureRequest.None;
+            return (result, new UiInputResult(true, true, UiFocusRequest.None, capture));
+        }
+
+        return (ScrollableListInputResult.NotHandled, UiInputResult.NotHandled);
+    }
+
+    private ModalDialogLoopResult<VolumeSelectionItem?> TryCompleteSelection(VolumeSelectionItem selected)
+    {
+        if (selected.Volume is { } volume && !IsSelectable(volume.Status))
+        {
+            string statusText = volume.Status switch
+            {
+                VolumeStatus.NotReady => "not ready",
+                VolumeStatus.Disconnected => "disconnected",
+                _ => "error",
+            };
+            new MessageDialog(_modalDialogs).Show(
+                "Change drive",
+                $"{volume.DisplayName}: volume is {statusText}.");
+            return ModalDialogLoopResult<VolumeSelectionItem?>.Continue;
+        }
+
+        return ModalDialogLoopResult<VolumeSelectionItem?>.Complete(selected);
+    }
+
     private static VolumeSelectionItem? HandleShortcut(
-        IReadOnlyList<VolumeSelectionItem> items,
-        string sc,
-        ref int cursor,
-        ref int scrollTop,
-        int visible,
+        ScrollableList<VolumeSelectionItem> list,
+        string shortcut,
+        int visibleRows,
         ref string? lastShortcut)
     {
         var matches = new List<int>();
-        for (int i = 0; i < items.Count; i++)
+        for (int index = 0; index < list.Count; index++)
         {
-            if (string.Equals(items[i].Shortcut, sc, StringComparison.OrdinalIgnoreCase))
-                matches.Add(i);
+            if (string.Equals(list.Items[index].Shortcut, shortcut, StringComparison.OrdinalIgnoreCase))
+                matches.Add(index);
         }
 
-        if (matches.Count == 0) return null;
+        if (matches.Count == 0)
+            return null;
 
         if (matches.Count == 1)
         {
-            cursor    = matches[0];
-            scrollTop = Math.Max(0, cursor - visible + 1);
-            lastShortcut = sc;
+            list.SelectedIndex = matches[0];
+            list.EnsureSelectedVisible(visibleRows);
+            lastShortcut = shortcut;
 
-            // Immediately select if volume is available or unchecked
-            var item = items[cursor];
-            if (item.Volume is null || IsSelectable(item.Volume.Status))
-                return item;
-            return null;
+            VolumeSelectionItem item = list.Items[list.SelectedIndex];
+            return item.Volume is null || IsSelectable(item.Volume.Status) ? item : null;
         }
 
-        // Multiple matches: cycle to next
-        int startSearch = string.Equals(lastShortcut, sc, StringComparison.OrdinalIgnoreCase)
-            ? cursor + 1
+        int startSearch = string.Equals(lastShortcut, shortcut, StringComparison.OrdinalIgnoreCase)
+            ? list.SelectedIndex + 1
             : 0;
-
-        int next = matches.FirstOrDefault(i => i >= startSearch, matches[0]);
-        cursor       = next;
-        scrollTop    = Math.Max(0, cursor - visible + 1);
-        lastShortcut = sc;
+        int next = matches.FirstOrDefault(index => index >= startSearch, matches[0]);
+        list.SelectedIndex = next;
+        list.EnsureSelectedVisible(visibleRows);
+        lastShortcut = shortcut;
         return null;
     }
 
-    // ── drawing ───────────────────────────────────────────────────────────────
+    private static bool IsListNavigationKey(ConsoleKey key) =>
+        key is ConsoleKey.UpArrow or ConsoleKey.DownArrow or ConsoleKey.PageUp or ConsoleKey.PageDown or ConsoleKey.Home or ConsoleKey.End;
 
-    private static DriveDialogFrame CalculateFrame(
+    private static DriveDialogFrame BuildFrame(
         ConsoleSize size,
-        int itemCount,
-        int requestedCursor,
-        int requestedScrollTop)
+        VolumeSelectionItem[] items,
+        ScrollableList<VolumeSelectionItem> list)
     {
-        int visible = Math.Min(itemCount, Math.Max(1, size.Height - 6));
-        int cursor = Math.Clamp(requestedCursor, 0, itemCount - 1);
-        int scrollTop = Math.Clamp(requestedScrollTop, 0, Math.Max(0, itemCount - visible));
-        if (cursor < scrollTop) scrollTop = cursor;
-        if (cursor >= scrollTop + visible) scrollTop = cursor - visible + 1;
-        int height = visible + 6;
-        var bounds = new Rect(Math.Max(0, (size.Width - DialogWidth) / 2), Math.Max(0, (size.Height - height) / 2), Math.Min(DialogWidth, size.Width), height);
+        int visibleRows = Math.Min(items.Length, Math.Max(1, size.Height - 6));
+        ScrollableListFrameState state = list.CalculateFrameState(visibleRows);
+        int height = visibleRows + 6;
+        var bounds = new Rect(
+            Math.Max(0, (size.Width - DialogWidth) / 2),
+            Math.Max(0, (size.Height - height) / 2),
+            Math.Min(DialogWidth, size.Width),
+            Math.Min(height, size.Height));
         var frameBounds = new Rect(
             bounds.X + 1,
             bounds.Y + 1,
@@ -254,11 +210,29 @@ internal sealed class DriveDialog
             frameBounds.Y + 1,
             Math.Max(0, frameBounds.Width - 2),
             Math.Max(0, frameBounds.Height - 2));
-        var listBounds = new Rect(contentBounds.X, contentBounds.Y + 2, contentBounds.Width, visible);
-        Rect? scrollbarBounds = itemCount > visible
-            ? new Rect(frameBounds.Right - 1, contentBounds.Y + 2, 1, visible)
+        var listBounds = new Rect(contentBounds.X, contentBounds.Y + 2, contentBounds.Width, visibleRows);
+        Rect? scrollbarBounds = items.Length > visibleRows
+            ? new Rect(frameBounds.Right - 1, contentBounds.Y + 2, 1, visibleRows)
             : null;
-        return new DriveDialogFrame(bounds, listBounds, scrollbarBounds, visible, cursor, scrollTop);
+        return new DriveDialogFrame(
+            items,
+            bounds,
+            listBounds,
+            scrollbarBounds,
+            new DriveListFrameState(state.SelectedIndex, state.ScrollTop, visibleRows));
+    }
+
+    private static UiInteractionFrame BuildInteractionFrame(DriveDialogFrame frame)
+    {
+        var hitRegions = new List<UiHitRegion>
+        {
+            new(VolumesTarget, frame.ListBounds),
+        };
+        if (frame.ScrollbarBounds is { } scrollbar)
+            hitRegions.Add(new UiHitRegion(VolumesScrollbarTarget, scrollbar));
+
+        var focus = new UiFocusFrame([new UiFocusEntry(VolumesTarget, 0)], VolumesTarget);
+        return new UiInteractionFrame(hitRegions, focus, VolumesTarget);
     }
 
     private void RenderFrame(
@@ -277,17 +251,18 @@ internal sealed class DriveDialog
             WriteHeader(contentBounds.X, contentBounds.Y, contentBounds.Width);
             WriteTableSeparator(contentBounds.X, contentBounds.Y + 1, contentBounds.Width);
 
-            for (int i = 0; i < frame.VisibleRows; i++)
+            for (int line = 0; line < frame.ListState.VisibleRows; line++)
             {
-                int idx = frame.ScrollTop + i;
-                if (idx >= items.Count) break;
+                int itemIndex = frame.ListState.FirstVisibleIndex + line;
+                if (itemIndex >= items.Count)
+                    break;
 
                 WriteRow(
-                    items[idx],
+                    items[itemIndex],
                     contentBounds.X,
-                    contentBounds.Y + 2 + i,
+                    contentBounds.Y + 2 + line,
                     contentBounds.Width,
-                    idx == frame.Cursor);
+                    itemIndex == frame.ListState.SelectedIndex);
             }
 
             if (frame.ScrollbarBounds is { } scrollbarBounds)
@@ -298,8 +273,8 @@ internal sealed class DriveDialog
                     new ScrollState
                     {
                         TotalItems = items.Count,
-                        ViewportItems = frame.VisibleRows,
-                        FirstVisibleIndex = frame.ScrollTop,
+                        ViewportItems = frame.ListState.VisibleRows,
+                        FirstVisibleIndex = frame.ListState.FirstVisibleIndex,
                     },
                     new ScrollBarOptions
                     {
@@ -309,71 +284,16 @@ internal sealed class DriveDialog
                     PaletteStyles.DialogBorder(_palette));
             }
         });
-
-        context.Screen.SetCursorVisible(false);
     }
 
+    private readonly record struct DriveListFrameState(int SelectedIndex, int FirstVisibleIndex, int VisibleRows);
+
     private readonly record struct DriveDialogFrame(
+        IReadOnlyList<VolumeSelectionItem> Items,
         Rect Bounds,
         Rect ListBounds,
         Rect? ScrollbarBounds,
-        int VisibleRows,
-        int Cursor,
-        int ScrollTop);
-
-    private static bool TryHandleListMouse(
-        MouseConsoleInputEvent mouse,
-        Rect listBounds,
-        int itemCount,
-        int scrollTop,
-        ref int cursor,
-        out bool select)
-    {
-        select = false;
-        if (itemCount == 0 ||
-            mouse.Button != MouseButton.Left ||
-            mouse.Kind is not (MouseEventKind.Down or MouseEventKind.DoubleClick))
-        {
-            return false;
-        }
-
-        if (!listBounds.Contains(mouse.X, mouse.Y))
-        {
-            return false;
-        }
-
-        int index = scrollTop + mouse.Y - listBounds.Y;
-        if (index < 0 || index >= itemCount)
-            return false;
-
-        cursor = index;
-        select = mouse.Kind == MouseEventKind.DoubleClick;
-        return true;
-    }
-
-    private static bool TryHandleScrollbarMouse(
-        MouseConsoleInputEvent mouse,
-        int itemCount,
-        int visible,
-        Rect? scrollbarBounds,
-        int committedScrollTop,
-        ref int cursor,
-        ref int scrollTop,
-        ref ScrollBarDragState? scrollbarDrag)
-    {
-        if (itemCount <= visible || scrollbarBounds is not { } bounds)
-            return false;
-
-        scrollTop = committedScrollTop;
-        return ScrollableListMouseHandler.TryHandleScrollbarMouse(
-            mouse,
-            bounds,
-            itemCount,
-            visible,
-            ref cursor,
-            ref scrollTop,
-            ref scrollbarDrag);
-    }
+        DriveListFrameState ListState);
 
     private void WriteHeader(int x, int y, int width)
     {
@@ -383,7 +303,7 @@ internal sealed class DriveDialog
             Fit("Free", SizeColW) +
             " │ " +
             Fit("Total", SizeColW);
-            _modalDialogs.Screen.Write(x, y, TruncateToWidth(header, width).PadRight(width), PaletteStyles.DialogTitle(_palette));
+        _modalDialogs.Screen.Write(x, y, TruncateToWidth(header, width).PadRight(width), PaletteStyles.DialogTitle(_palette));
     }
 
     private void WriteTableSeparator(int x, int y, int width)
@@ -397,13 +317,13 @@ internal sealed class DriveDialog
         _modalDialogs.Screen.Write(x, y, TruncateToWidth(separator, width).PadRight(width), PaletteStyles.DialogBorder(_palette));
     }
 
-    private void WriteRow(VolumeSelectionItem item, int x, int y, int innerWidth, bool isCursor)
+    private void WriteRow(VolumeSelectionItem item, int x, int y, int innerWidth, bool selected)
     {
         if (innerWidth <= 0)
             return;
 
-        var normalStyle = isCursor ? PaletteStyles.InputField(_palette) : PaletteStyles.DialogFill(_palette);
-        var highlightStyle = isCursor ? PaletteStyles.InputHighlight(_palette) : PaletteStyles.DialogHighlight(_palette);
+        var normalStyle = selected ? PaletteStyles.InputField(_palette) : PaletteStyles.DialogFill(_palette);
+        var highlightStyle = selected ? PaletteStyles.InputHighlight(_palette) : PaletteStyles.DialogHighlight(_palette);
 
         string displayName = item.Volume?.DisplayName ?? item.Label;
         string kindStr = item.Volume != null
@@ -434,6 +354,13 @@ internal sealed class DriveDialog
         remainingWidth -= visible.Length;
     }
 
+    private static string ItemText(VolumeSelectionItem item)
+    {
+        string displayName = item.Volume?.DisplayName ?? item.Label;
+        string kind = item.Volume is null ? string.Empty : KindLabel(item.Volume.Kind, item.Volume.Status);
+        return $"{displayName} {kind}".Trim();
+    }
+
     private static (string Free, string Total) BuildSizeCols(FileSystemVolume? vol)
     {
         if (vol?.Status == VolumeStatus.Ready && vol.TotalBytes.HasValue && vol.FreeBytes.HasValue)
@@ -449,19 +376,19 @@ internal sealed class DriveDialog
     internal static string KindLabel(VolumeKind kind, VolumeStatus status) =>
         status switch
         {
-            VolumeStatus.NotReady    => "not ready",
+            VolumeStatus.NotReady => "not ready",
             VolumeStatus.Disconnected => "disconnected",
-            VolumeStatus.Error       => "error",
+            VolumeStatus.Error => "error",
             _ => kind switch
             {
-                VolumeKind.Fixed      => "fixed",
-                VolumeKind.Removable  => "removable",
-                VolumeKind.Network    => "network",
-                VolumeKind.CdRom      => "cdrom",
-                VolumeKind.Ram        => "ram",
+                VolumeKind.Fixed => "fixed",
+                VolumeKind.Removable => "removable",
+                VolumeKind.Network => "network",
+                VolumeKind.CdRom => "cdrom",
+                VolumeKind.Ram => "ram",
                 VolumeKind.MountPoint => "mount",
-                VolumeKind.Pseudo     => "pseudo",
-                _                    => "unknown",
+                VolumeKind.Pseudo => "pseudo",
+                _ => "unknown",
             }
         };
 
@@ -494,11 +421,11 @@ internal sealed class DriveDialog
             : bytes >= GB ? ((double)bytes / GB, "G")
             : bytes >= MB ? ((double)bytes / MB, "M")
             : bytes >= KB ? ((double)bytes / KB, "K")
-            : (bytes,                            "B");
+            : (bytes, "B");
 
         string num = value >= 100 ? $"{value:F0}"
-                   : value >= 10  ? $"{value:F1}"
-                   :                $"{value:F2}";
+                   : value >= 10 ? $"{value:F1}"
+                   : $"{value:F2}";
 
         num = num.Replace('.', ',');
         return $"{num} {unit}";

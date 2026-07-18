@@ -11,6 +11,8 @@ public sealed class DialogArchitectureTests
             Path.Combine(root, "src", "CSharpFar.App", "Dialogs", "CreateFolderDialog.cs"),
             Path.Combine(root, "src", "CSharpFar.App", "Dialogs", "DirectoryShortcutEditDialog.cs"),
             Path.Combine(root, "src", "CSharpFar.App", "Dialogs", "OpenCreateFileDialog.cs"),
+            Path.Combine(root, "src", "CSharpFar.App", "Dialogs", "SettingsDialog.cs"),
+            Path.Combine(root, "src", "CSharpFar.App", "Editor", "EditorFormatDialog.cs"),
         ];
         string[] forbidden =
         [
@@ -20,6 +22,36 @@ public sealed class DialogArchitectureTests
             "DialogButtonBar",
             "SetCursorPosition",
             "SetCursorVisible",
+        ];
+
+        foreach (string file in files)
+        {
+            string source = File.ReadAllText(file);
+            foreach (string token in forbidden)
+                Assert.DoesNotContain(token, source, StringComparison.Ordinal);
+        }
+    }
+
+    [Fact]
+    public void MigratedStandardDialogs_DoNotUseLegacyLocalInputEngines()
+    {
+        string root = FindRepositoryRoot();
+        string[] files =
+        [
+            Path.Combine(root, "src", "CSharpFar.App", "Dialogs", "SettingsDialog.cs"),
+            Path.Combine(root, "src", "CSharpFar.App", "Dialogs", "DriveDialog.cs"),
+            Path.Combine(root, "src", "CSharpFar.App", "Editor", "EditorFormatDialog.cs"),
+        ];
+        string[] forbidden =
+        [
+            "focusRow",
+            "focusedButton",
+            "bodyScrollTop",
+            "ScrollBarDragState",
+            "SetCursorVisible",
+            "SetCursorPosition",
+            "TryHandleScrollbarMouse",
+            "TryHandleListMouse",
         ];
 
         foreach (string file in files)

@@ -1,4 +1,3 @@
-using CSharpFar.App.Rendering;
 using CSharpFar.Console;
 using CSharpFar.Console.Input;
 using CSharpFar.Console.Models;
@@ -11,9 +10,9 @@ namespace CSharpFar.App.Dialogs;
 public sealed record SettingsDialogResult(
     PanelViewMode LeftViewMode,
     PanelViewMode RightViewMode,
-    string        PaletteName,
-    bool          FileHighlightingEnabled,
-    bool          EditorSyntaxHighlightingEnabled);
+    string PaletteName,
+    bool FileHighlightingEnabled,
+    bool EditorSyntaxHighlightingEnabled);
 
 /// <summary>
 /// Modal settings window.
@@ -22,20 +21,23 @@ public sealed record SettingsDialogResult(
 /// </summary>
 internal sealed class SettingsDialog
 {
-    private const int DialogWidth  = 44;
+    private const int DialogWidth = 44;
     private const int DialogHeight = 15;
-    private const int BodyRowCount = 10;
+    private const string LeftViewModeRowId = "settings.left-view-mode";
+    private const string RightViewModeRowId = "settings.right-view-mode";
+    private const string PaletteRowId = "settings.palette";
+    private const string FileHighlightingRowId = "settings.file-highlighting";
+    private const string EditorSyntaxHighlightingRowId = "settings.editor-syntax-highlighting";
 
-    private static readonly PanelViewMode[] ViewModes    = [PanelViewMode.Full, PanelViewMode.BriefTwoColumns];
-    private static readonly string[]        PaletteNames = [.. PaletteRegistry.Names];
+    private static readonly PanelViewMode[] ViewModes = [PanelViewMode.Full, PanelViewMode.BriefTwoColumns];
+    private static readonly string[] PaletteNames = [.. PaletteRegistry.Names];
 
     private readonly ModalDialogHost _modalDialogs;
-    private readonly ScreenRenderer _screen;
+    private readonly ModalDialogRenderer _modalRenderer = new();
 
     public SettingsDialog(ModalDialogHost modalDialogs)
     {
         _modalDialogs = modalDialogs;
-        _screen = modalDialogs.Screen;
     }
 
     /// <summary>
@@ -44,268 +46,133 @@ internal sealed class SettingsDialog
     public SettingsDialogResult? Show(
         PanelViewMode leftMode,
         PanelViewMode rightMode,
-        string        paletteName,
-        bool          fileHighlightingEnabled,
-        bool          editorSyntaxHighlightingEnabled)
+        string paletteName,
+        bool fileHighlightingEnabled,
+        bool editorSyntaxHighlightingEnabled)
     {
-        return RunLoop(leftMode, rightMode, paletteName, fileHighlightingEnabled, editorSyntaxHighlightingEnabled);
-    }
+        var leftViewMode = new CompactChoiceFormRow<PanelViewMode>(
+            new ChoiceRow<PanelViewMode>(ViewModes, ViewModeLabel, ViewModeIndex(leftMode)),
+            "Left panel")
+        {
+            Id = LeftViewModeRowId,
+        };
+        var rightViewMode = new CompactChoiceFormRow<PanelViewMode>(
+            new ChoiceRow<PanelViewMode>(ViewModes, ViewModeLabel, ViewModeIndex(rightMode)),
+            "Right panel")
+        {
+            Id = RightViewModeRowId,
+        };
+        var palette = new CompactChoiceFormRow<string>(
+            new ChoiceRow<string>(PaletteNames, static name => name, FindPaletteIndexOrDefault(paletteName)),
+            "Palette")
+        {
+            Id = PaletteRowId,
+        };
+        var fileHighlighting = new CheckBoxRow(new CheckBoxLine("File highlighting"))
+        {
+            Id = FileHighlightingRowId,
+            Value = fileHighlightingEnabled,
+        };
+        var syntaxHighlighting = new CheckBoxRow(new CheckBoxLine("Editor syntax highlighting"))
+        {
+            Id = EditorSyntaxHighlightingRowId,
+            Value = editorSyntaxHighlightingEnabled,
+        };
+        var form = new ScrollableFormDialog();
 
-    // ── dialog loop ───────────────────────────────────────────────────────────
+        void PrepareRows() =>
+            form.SetRows(
+                [
+                    leftViewMode,
+                    rightViewMode,
+                    palette,
+                    fileHighlighting,
+                    syntaxHighlighting,
+                    new SeparatorRow(FarDialogStyles.Border, drawLine: false),
+                    new LabelRow("Enter/Space  change value", FarDialogStyles.Fill),
+                    new LabelRow("Up/Down      select item", FarDialogStyles.Fill),
+                    new LabelRow("F10          save & close", FarDialogStyles.Fill),
+                    new LabelRow("Esc          close", FarDialogStyles.Fill),
+                    new SeparatorRow(FarDialogStyles.Border, drawLine: false),
+                ]);
 
-    private SettingsDialogResult? RunLoop(
-        PanelViewMode leftMode,
-        PanelViewMode rightMode,
-        string        paletteName,
-        bool          hlEnabled,
-        bool          syntaxEnabled)
-    {
-        int leftIdx  = Array.IndexOf(ViewModes,    leftMode);
-        int rightIdx = Array.IndexOf(ViewModes,    rightMode);
-        int palIdx   = FindPaletteIndex(paletteName);
-        if (leftIdx  < 0) leftIdx  = 0;
-        if (rightIdx < 0) rightIdx = 0;
-        if (palIdx   < 0) palIdx   = 0;
-
-        int focusRow = 0; // 0=left, 1=right, 2=palette, 3=file highlighting, 4=editor syntax
-        int bodyScrollTop = 0;
-        ScrollBarDragState? bodyScrollbarDrag = null;
-
-        return _modalDialogs.Run(
-            context =>
+        return _modalDialogs.RunInteractive<ScrollableFormFrame, FormInputResult, SettingsDialogResult?>(
+            (context, focusScope) => Draw(context, focusScope, form),
+            form.BuildInteractionFrame,
+            (input, frame, route) =>
             {
-                var bounds = BuildBounds(context.Size);
-                int effectiveScrollTop = NormalizeBodyScroll(bounds, focusRow, bodyScrollTop);
-                Draw(context, bounds, effectiveScrollTop, focusRow, leftIdx, rightIdx, palIdx, hlEnabled, syntaxEnabled);
-                return new SettingsDialogFrame(bounds, effectiveScrollTop);
+                FormRouteResult result = form.RouteInput(input, frame, route);
+                return (result.FormResult, result.UiResult);
             },
-            (input, frame) =>
+            (routed, result) =>
             {
-            if (input is MouseConsoleInputEvent mouse &&
-                TryHandleBodyScrollbarMouse(mouse, frame.Bounds, frame.BodyScrollTop, ref bodyScrollTop, ref bodyScrollbarDrag))
-            {
-                return ModalDialogLoopResult<SettingsDialogResult?>.Continue;
-            }
-
-            if (input is not KeyConsoleInputEvent { Key: var key })
-                return ModalDialogLoopResult<SettingsDialogResult?>.Continue;
-
-            switch (key.Key)
-            {
-                case ConsoleKey.Escape:
+                if (result.Kind == FormInputResultKind.Cancel)
                     return ModalDialogLoopResult<SettingsDialogResult?>.Complete(null);
 
-                case ConsoleKey.F10:
+                if (routed.Input is KeyConsoleInputEvent { Key.Key: ConsoleKey.F10 })
+                {
                     return ModalDialogLoopResult<SettingsDialogResult?>.Complete(new SettingsDialogResult(
-                        ViewModes[leftIdx],
-                        ViewModes[rightIdx],
-                        PaletteNames[palIdx],
-                        hlEnabled,
-                        syntaxEnabled));
+                        leftViewMode.Value,
+                        rightViewMode.Value,
+                        palette.Value,
+                        fileHighlighting.Value,
+                        syntaxHighlighting.Value));
+                }
 
-                case ConsoleKey.UpArrow:
-                    focusRow = (focusRow + 4) % 5;
-                    break;
-
-                case ConsoleKey.DownArrow:
-                    focusRow = (focusRow + 1) % 5;
-                    break;
-
-                case ConsoleKey.Enter:
-                case ConsoleKey.Spacebar:
-                    Cycle(focusRow, ref leftIdx, ref rightIdx, ref palIdx, ref hlEnabled, ref syntaxEnabled);
-                    break;
-            }
-
-            return ModalDialogLoopResult<SettingsDialogResult?>.Continue;
+                return ModalDialogLoopResult<SettingsDialogResult?>.Continue;
             },
-            applyCommittedFrame: frame => bodyScrollTop = frame.BodyScrollTop);
+            prepareRender: PrepareRows);
     }
 
-    private static void Cycle(
-        int focusRow,
-        ref int leftIdx,
-        ref int rightIdx,
-        ref int palIdx,
-        ref bool hlEnabled,
-        ref bool syntaxEnabled)
+    private ScrollableFormFrame Draw(UiRenderContext context, UiFocusScope focusScope, ScrollableFormDialog form)
     {
-        switch (focusRow)
-        {
-            case 0: leftIdx  = (leftIdx  + 1) % ViewModes.Length;    break;
-            case 1: rightIdx = (rightIdx + 1) % ViewModes.Length;    break;
-            case 2: palIdx   = (palIdx   + 1) % PaletteNames.Length; break;
-            case 3: hlEnabled = !hlEnabled;                           break;
-            case 4: syntaxEnabled = !syntaxEnabled;                    break;
-        }
+        ScrollableFormFrame? frame = null;
+        _modalRenderer.Render(
+            context.Screen,
+            OuterBounds(context.Size),
+            "Settings",
+            doubleBorder: true,
+            FarDialogStyles.OuterOptions,
+            FarDialogStyles.FrameOptions,
+            (_, layout) =>
+            {
+                Rect bounds = layout.FrameBounds;
+                int contentX = bounds.X + 2;
+                int contentWidth = Math.Max(1, bounds.Width - 4);
+                var bodyBounds = new Rect(contentX, bounds.Y + 1, contentWidth, Math.Max(1, bounds.Height - 2));
+                frame = form.Render(new FormRenderContext(context, bodyBounds, FarDialogStyles.Border), focusScope);
+            });
+
+        return frame ?? throw new InvalidOperationException("Settings dialog did not render a form frame.");
     }
 
-    // ── drawing ───────────────────────────────────────────────────────────────
-
-    private void Draw(
-        UiRenderContext context,
-        Rect bounds,
-        int    bodyScrollTop,
-        int    focusRow,
-        int    leftIdx,
-        int    rightIdx,
-        int    palIdx,
-        bool   hlEnabled,
-        bool   syntaxEnabled)
+    private static Rect OuterBounds(ConsoleSize size)
     {
-        var palette = PaletteRegistry.Resolve(PaletteNames[palIdx]);
-        var fill    = new CellStyle(palette.MenuNormalFg, palette.MenuNormalBg);
-        var border  = new CellStyle(palette.MenuBorderFg, palette.MenuBorderBg);
-        var title   = new CellStyle(palette.MenuNormalFg, palette.MenuNormalBg);
-        var focused = new CellStyle(palette.MenuActiveFg, palette.MenuActiveBg);
-
-        var popupOptions = new PopupRenderOptions
-        {
-            BorderStyle = border,
-            BackgroundStyle = fill,
-            ShadowStyle = new CellStyle(palette.MenuShadowFg, palette.MenuShadowBg),
-            TitleStyle = title,
-        };
-
-        int viewportRows = Math.Max(0, bounds.Height - 2);
-        var scrollState = BodyRowCount > viewportRows
-            ? new ScrollState
-            {
-                TotalItems = BodyRowCount,
-                ViewportItems = viewportRows,
-                FirstVisibleIndex = bodyScrollTop,
-            }
-            : null;
-
-        new DialogFrameRenderer().RenderFrame(_screen, bounds, "Settings", true, popupOptions, scrollState, (_, contentBounds) =>
-        {
-            int contentX = contentBounds.X + 2;
-            int valueX   = Math.Min(contentBounds.Right, contentX + 15);
-            int valueW   = Math.Max(0, contentBounds.Right - valueX);
-
-            DrawBodySettingRow(0,
-                "Left panel:", ViewModeLabel(ViewModes[leftIdx]),
-                focusRow == 0, fill, focused);
-
-            DrawBodySettingRow(1,
-                "Right panel:", ViewModeLabel(ViewModes[rightIdx]),
-                focusRow == 1, fill, focused);
-
-            DrawBodySettingRow(2,
-                "Palette:", PaletteNames[palIdx],
-                focusRow == 2, fill, focused);
-
-            DrawBodySettingRow(3,
-                "File highlight:", hlEnabled ? "Enabled" : "Disabled",
-                focusRow == 3, fill, focused);
-
-            DrawBodySettingRow(4,
-                "Editor syntax:", syntaxEnabled ? "Enabled" : "Disabled",
-                focusRow == 4, fill, focused);
-
-            DrawBodyText(6, "Enter/Space  change value", fill);
-            DrawBodyText(7, "Up/Down      select item", fill);
-            DrawBodyText(8, "F10          save & close", fill);
-            DrawBodyText(9, "Esc          close", fill);
-
-            int? BodyY(int virtualRow)
-            {
-                int row = virtualRow - bodyScrollTop;
-                return row >= 0 && row < contentBounds.Height ? contentBounds.Y + row : null;
-            }
-
-            void DrawBodySettingRow(
-                int virtualRow,
-                string label,
-                string value,
-                bool isFocused,
-                CellStyle normalStyle,
-                CellStyle focusedStyle)
-            {
-                if (BodyY(virtualRow) is { } y)
-                    DrawSettingRow(contentX, valueX, y, valueW, label, value, isFocused, normalStyle, focusedStyle);
-            }
-
-            void DrawBodyText(int virtualRow, string text, CellStyle style)
-            {
-                if (BodyY(virtualRow) is not { } y)
-                    return;
-
-                int width = Math.Max(0, contentBounds.Right - contentX);
-                _screen.Write(contentX, y, Truncate(text, width).PadRight(width), style);
-            }
-        });
-    }
-
-    private static Rect BuildBounds(ConsoleSize screenSize)
-    {
-        int dialogWidth = Math.Min(DialogWidth, Math.Max(20, screenSize.Width - 2));
-        int dialogHeight = Math.Min(DialogHeight, Math.Max(6, screenSize.Height - 2));
+        int dialogWidth = Math.Min(DialogWidth, Math.Max(28, size.Width - 2));
+        int dialogHeight = Math.Min(DialogHeight, Math.Max(6, size.Height));
         return new Rect(
-            Math.Max(0, (screenSize.Width - dialogWidth) / 2),
-            Math.Max(0, (screenSize.Height - dialogHeight) / 2),
+            Math.Max(0, (size.Width - dialogWidth) / 2),
+            Math.Max(0, (size.Height - dialogHeight) / 2),
             dialogWidth,
             dialogHeight);
-    }
-
-    private static int NormalizeBodyScroll(Rect bounds, int focusRow, int bodyScrollTop)
-    {
-        int viewportRows = Math.Max(1, bounds.Height - 2);
-        bodyScrollTop = ScrollStateCalculator.ClampFirstVisibleIndex(bodyScrollTop, BodyRowCount, viewportRows);
-        bodyScrollTop = ScrollStateCalculator.EnsureIndexVisible(focusRow, bodyScrollTop, viewportRows);
-        return ScrollStateCalculator.ClampFirstVisibleIndex(bodyScrollTop, BodyRowCount, viewportRows);
-    }
-
-    private static bool TryHandleBodyScrollbarMouse(
-        MouseConsoleInputEvent mouse,
-        Rect bounds,
-        int committedScrollTop,
-        ref int bodyScrollTop,
-        ref ScrollBarDragState? bodyScrollbarDrag)
-    {
-        int viewportRows = Math.Max(1, bounds.Height - 2);
-        if (BodyRowCount <= viewportRows)
-            return false;
-
-        var scrollbarBounds = new Rect(bounds.Right - 1, bounds.Y + 1, 1, viewportRows);
-        bodyScrollTop = committedScrollTop;
-        return ScrollBarMouseHandler.TryHandleMouse(
-            mouse,
-            scrollbarBounds,
-            BodyRowCount,
-            viewportRows,
-            ref bodyScrollTop,
-            ref bodyScrollbarDrag);
-    }
-
-    private void DrawSettingRow(
-        int labelX, int valueX, int y, int valueW,
-        string label, string value,
-        bool isFocused, CellStyle normalStyle, CellStyle focusedStyle)
-    {
-        var style = isFocused ? focusedStyle : normalStyle;
-        int labelW = Math.Max(0, valueX - labelX);
-        _screen.Write(labelX, y, label.PadRight(labelW), style);
-        string val = value.Length > valueW ? value[..valueW] : value.PadRight(valueW);
-        _screen.Write(valueX, y, val, style);
-    }
-
-    private static string Truncate(string value, int maxLength)
-    {
-        if (maxLength <= 0)
-            return string.Empty;
-        return value.Length <= maxLength ? value : value[..Math.Max(0, maxLength - 1)] + "~";
     }
 
     private static string ViewModeLabel(PanelViewMode mode) => mode switch
     {
         PanelViewMode.BriefTwoColumns => "Brief two columns",
-        _                             => "Full",
+        _ => "Full",
     };
 
-    private static int FindPaletteIndex(string paletteName) =>
-        Array.FindIndex(PaletteNames,
-            name => string.Equals(name, paletteName, StringComparison.OrdinalIgnoreCase));
+    private static int ViewModeIndex(PanelViewMode mode)
+    {
+        int index = Array.IndexOf(ViewModes, mode);
+        return index < 0 ? 0 : index;
+    }
 
-    private readonly record struct SettingsDialogFrame(Rect Bounds, int BodyScrollTop);
+    private static int FindPaletteIndexOrDefault(string paletteName)
+    {
+        int index = Array.FindIndex(PaletteNames,
+            name => string.Equals(name, paletteName, StringComparison.OrdinalIgnoreCase));
+        return index < 0 ? 0 : index;
+    }
 }
