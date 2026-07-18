@@ -147,10 +147,10 @@ internal sealed class SettingsDialog
                 FarDialogStyles.FrameOptions,
                 (_, layout) =>
                 {
-                    Rect bounds = layout.FrameBounds;
-                    int contentX = bounds.X + 2;
-                    int contentWidth = Math.Max(1, bounds.Width - 4);
-                    var bodyBounds = new Rect(contentX, bounds.Y + 1, contentWidth, Math.Max(1, bounds.Height - 2));
+                    Rect contentBounds = layout.ContentBounds;
+                    var bodyBounds = contentBounds.Width >= 2
+                        ? new Rect(contentBounds.X + 1, contentBounds.Y, contentBounds.Width - 2, contentBounds.Height)
+                        : new Rect(contentBounds.X, contentBounds.Y, 0, 0);
                     frame = form.Render(new FormRenderContext(context, bodyBounds, FarDialogStyles.Border), focusScope);
                 });
         }
@@ -160,13 +160,7 @@ internal sealed class SettingsDialog
 
     private static Rect OuterBounds(ConsoleSize size)
     {
-        int dialogWidth = Math.Min(DialogWidth, Math.Max(28, size.Width - 2));
-        int dialogHeight = Math.Min(DialogHeight, Math.Max(6, size.Height));
-        return new Rect(
-            Math.Max(0, (size.Width - dialogWidth) / 2),
-            Math.Max(0, (size.Height - dialogHeight) / 2),
-            dialogWidth,
-            dialogHeight);
+        return new ModalDialogRenderer().CenteredOuterBounds(size, DialogWidth, DialogHeight);
     }
 
     private static string ViewModeLabel(PanelViewMode mode) => mode switch

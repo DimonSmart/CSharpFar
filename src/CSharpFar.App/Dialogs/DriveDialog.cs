@@ -202,26 +202,12 @@ internal sealed class DriveDialog
         VolumeSelectionItem[] items,
         ScrollableList<VolumeSelectionItem> list)
     {
-        int visibleRows = Math.Min(items.Length, Math.Max(1, size.Height - 6));
-        int height = visibleRows + 6;
-        var bounds = new Rect(
-            Math.Max(0, (size.Width - DialogWidth) / 2),
-            Math.Max(0, (size.Height - height) / 2),
-            Math.Min(DialogWidth, size.Width),
-            Math.Min(height, size.Height));
-        var frameBounds = new Rect(
-            bounds.X + 1,
-            bounds.Y + 1,
-            Math.Max(1, bounds.Width - 2),
-            Math.Max(1, bounds.Height - 2));
-        var contentBounds = new Rect(
-            frameBounds.X + 1,
-            frameBounds.Y + 1,
-            Math.Max(0, frameBounds.Width - 2),
-            Math.Max(0, frameBounds.Height - 2));
-        var listBounds = new Rect(contentBounds.X, contentBounds.Y + 2, contentBounds.Width, visibleRows);
-        Rect? scrollbarBoundsCandidate = items.Length > visibleRows
-            ? new Rect(frameBounds.Right - 1, contentBounds.Y + 2, 1, visibleRows)
+        int requestedRows = Math.Min(items.Length, Math.Max(0, size.Height - 6));
+        Rect bounds = new ModalDialogRenderer().CenteredOuterBounds(size, DialogWidth, requestedRows + 6);
+        DriveDialogLayout layout = CalculateLayout(bounds, items.Length);
+        int visibleRows = layout.ListBounds.Height;
+        Rect? scrollbarBoundsCandidate = visibleRows > 0 && items.Length > visibleRows
+            ? new Rect(layout.FrameBounds.Right - 1, layout.ListBounds.Y, 1, visibleRows)
             : null;
         Rect? scrollbarBounds = scrollbarBoundsCandidate is { } candidate &&
             ScrollBarInteraction.IsInteractive(
@@ -234,26 +220,47 @@ internal sealed class DriveDialog
                 })
             ? candidate
             : null;
-        ScrollableListFrameState state = list.CalculateFrameState(visibleRows, scrollbarBounds);
+        ScrollableListFrameState state = visibleRows > 0
+            ? list.CalculateFrameState(visibleRows, scrollbarBounds)
+            : new ScrollableListFrameState(list.SelectedIndex, list.ScrollTop, 0, null, null);
         return new DriveDialogFrame(
             items,
             bounds,
-            listBounds,
+            layout.ListBounds,
             scrollbarBounds,
             state);
     }
 
+    private static DriveDialogLayout CalculateLayout(Rect bounds, int itemCount)
+    {
+        if (bounds.Width < 3 || bounds.Height < 3)
+            return new DriveDialogLayout(new Rect(bounds.X, bounds.Y, 0, 0), new Rect(bounds.X, bounds.Y, 0, 0));
+
+        var frameBounds = new Rect(bounds.X + 1, bounds.Y + 1, bounds.Width - 2, bounds.Height - 2);
+        var contentBounds = new Rect(
+            frameBounds.X + 1,
+            frameBounds.Y + 1,
+            Math.Max(0, frameBounds.Width - 2),
+            Math.Max(0, frameBounds.Height - 2));
+        int visibleRows = Math.Min(itemCount, Math.Max(0, contentBounds.Height - 2));
+        Rect listBounds = visibleRows > 0 && contentBounds.Width > 0
+            ? new Rect(contentBounds.X, contentBounds.Y + 2, contentBounds.Width, visibleRows)
+            : new Rect(contentBounds.X, contentBounds.Y, 0, 0);
+        return new DriveDialogLayout(frameBounds, listBounds);
+    }
+
     private static UiInteractionFrame BuildInteractionFrame(DriveDialogFrame frame)
     {
-        var hitRegions = new List<UiHitRegion>
-        {
-            new(VolumesTarget, frame.ListBounds),
-        };
+        var hitRegions = new List<UiHitRegion>();
+        if (frame.ListBounds.Width > 0 && frame.ListBounds.Height > 0)
+            hitRegions.Add(new UiHitRegion(VolumesTarget, frame.ListBounds));
         if (frame.ScrollbarBounds is { } scrollbar)
             hitRegions.Add(new UiHitRegion(VolumesScrollbarTarget, scrollbar));
 
-        var focus = new UiFocusFrame([new UiFocusEntry(VolumesTarget, 0)], VolumesTarget);
-        return new UiInteractionFrame(hitRegions, focus, VolumesTarget);
+        UiFocusFrame focus = hitRegions.Count > 0
+            ? new UiFocusFrame([new UiFocusEntry(VolumesTarget, 0)], VolumesTarget)
+            : UiFocusFrame.Empty;
+        return new UiInteractionFrame(hitRegions, focus, hitRegions.Count > 0 ? VolumesTarget : null);
     }
 
     private void RenderFrame(
@@ -313,6 +320,8 @@ internal sealed class DriveDialog
         Rect ListBounds,
         Rect? ScrollbarBounds,
         ScrollableListFrameState ListState);
+
+    private readonly record struct DriveDialogLayout(Rect FrameBounds, Rect ListBounds);
 
     private void WriteHeader(int x, int y, int width)
     {

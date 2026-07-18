@@ -97,6 +97,14 @@ public sealed class ModalDialogHost
         }
     }
 
+    /// <summary>
+    /// Runs an interactive modal dialog. <paramref name="routeInput"/> receives the
+    /// committed frame and restores any frame-dependent component state before it
+    /// changes that state. Those changes are pending for the semantic handler;
+    /// <paramref name="applyCommittedFrame"/> is called only for frames accepted by
+    /// a successful render, never between routing and semantic handling or for a
+    /// rejected render attempt.
+    /// </summary>
     public TResult RunInteractive<TFrame, TSemantic, TResult>(
         Func<UiRenderContext, UiFocusScope, TFrame> render,
         Func<TFrame, UiInteractionFrame> buildInteractionFrame,
@@ -119,7 +127,6 @@ public sealed class ModalDialogHost
         while (true)
         {
             InteractiveModalInput<TFrame, TSemantic> packet = session.ReadInteractiveInput(cancellationToken);
-            applyCommittedFrame?.Invoke(packet.Routed.Frame);
             ModalDialogLoopResult<TResult> step = handleInput(packet.Routed, packet.Semantic);
             if (step.IsCompleted)
                 return step.Result;

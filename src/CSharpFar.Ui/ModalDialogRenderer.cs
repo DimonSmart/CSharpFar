@@ -17,8 +17,8 @@ public sealed class ModalDialogRenderer
 
     public Rect CenteredOuterBounds(ConsoleSize size, int outerWidth, int outerHeight, int minWidth = 20, int minHeight = 8)
     {
-        int width = Math.Min(Math.Max(minWidth, outerWidth), Math.Max(1, size.Width - 2));
-        int height = Math.Min(Math.Max(minHeight, outerHeight), Math.Max(1, size.Height - 2));
+        int width = Math.Clamp(Math.Max(minWidth, outerWidth), 0, Math.Max(0, size.Width));
+        int height = Math.Clamp(Math.Max(minHeight, outerHeight), 0, Math.Max(0, size.Height));
         return new Rect(
             Math.Max(0, (size.Width - width) / 2),
             Math.Max(0, (size.Height - height) / 2),
@@ -39,6 +39,13 @@ public sealed class ModalDialogRenderer
         PopupRenderOptions frameOptions,
         Action<ScreenRenderer, Layout> renderContent)
     {
+        if (outerBounds.Width < 3 || outerBounds.Height < 3)
+        {
+            screen.FillRegion(outerBounds, outerOptions.BackgroundStyle);
+            renderContent(screen, new Layout(outerBounds, outerBounds, new Rect(outerBounds.X, outerBounds.Y, 0, 0)));
+            return;
+        }
+
         new PopupRenderer().RenderPopup(
             screen,
             outerBounds,
@@ -48,8 +55,8 @@ public sealed class ModalDialogRenderer
                 var frameBounds = new Rect(
                     outerBounds.X + OuterPaddingX,
                     outerBounds.Y + OuterPaddingY,
-                    Math.Max(1, outerBounds.Width - OuterPaddingX * 2),
-                    Math.Max(1, outerBounds.Height - OuterPaddingY * 2));
+                    outerBounds.Width - OuterPaddingX * 2,
+                    outerBounds.Height - OuterPaddingY * 2);
 
                 _frameRenderer.RenderFrame(
                     screen,

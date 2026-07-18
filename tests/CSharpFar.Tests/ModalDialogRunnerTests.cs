@@ -487,6 +487,51 @@ public sealed class ModalDialogRunnerTests
     }
 
     [Fact]
+    public void RunInteractive_DoesNotRestoreCommittedFrameBetweenRouteAndDomainHandler()
+    {
+        var driver = new FakeConsoleDriver();
+        driver.EnqueueKey(Key(ConsoleKey.Spacebar));
+        driver.EnqueueKey(Key(ConsoleKey.Enter));
+        var modals = CreateHost(driver, out _);
+        var events = new List<string>();
+        int state = 0;
+
+        int result = modals.RunInteractive<int, bool, int>(
+            (_, _) =>
+            {
+                events.Add($"render:{state}");
+                return state;
+            },
+            _ => UiInteractionFrame.Empty,
+            (input, _, _) =>
+            {
+                events.Add("route");
+                if (input is KeyConsoleInputEvent { Key.Key: ConsoleKey.Spacebar })
+                {
+                    state = 1;
+                    return (false, UiInputResult.HandledAndInvalidate);
+                }
+
+                return (true, UiInputResult.HandledResult);
+            },
+            (_, complete) =>
+            {
+                events.Add($"domain:{state}");
+                return complete ? ModalDialogLoopResult<int>.Complete(state) : ModalDialogLoopResult<int>.Continue;
+            },
+            applyCommittedFrame: frame =>
+            {
+                events.Add($"apply:{frame}");
+                state = frame;
+            });
+
+        Assert.Equal(1, result);
+        Assert.Equal(
+            ["render:0", "apply:0", "route", "domain:1", "render:1", "apply:1", "route", "domain:1"],
+            events);
+    }
+
+    [Fact]
     public void RunRouted_HandlerExceptionDisposesOverlayAndRestoresSurface()
     {
         var driver = new FakeConsoleDriver();
