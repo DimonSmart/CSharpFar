@@ -36,7 +36,7 @@ public sealed class Spec048CreateNewFileDialogTests : IDisposable
         var driver = new FakeConsoleDriver(width: 100, height: 30);
         var screen = new ScreenRenderer(driver);
         EnqueueText(driver, "new.txt");
-        driver.EnqueueKey(Key(ConsoleKey.DownArrow));
+        driver.EnqueueKey(Key(ConsoleKey.Tab));
         driver.EnqueueKey(Key(ConsoleKey.Spacebar));
         driver.EnqueueKey(Key(ConsoleKey.DownArrow));
         driver.EnqueueKey(Key(ConsoleKey.DownArrow));
@@ -120,6 +120,61 @@ public sealed class Spec048CreateNewFileDialogTests : IDisposable
 
         Assert.NotNull(result);
         Assert.Equal("after-error.txt", result.FilePath);
+    }
+
+    [Fact]
+    public void OpenCreateFileDialog_F10FromOpenCodePageDropdownUsesPreviousConfirmedCodePage()
+    {
+        var driver = new FakeConsoleDriver(width: 100, height: 30);
+        var screen = new ScreenRenderer(driver);
+        EnqueueText(driver, "new.txt");
+        driver.EnqueueKey(Key(ConsoleKey.Tab));
+        driver.EnqueueKey(Key(ConsoleKey.Spacebar));
+        driver.EnqueueKey(Key(ConsoleKey.DownArrow));
+        driver.EnqueueKey(Key(ConsoleKey.DownArrow));
+        driver.EnqueueKey(Key(ConsoleKey.F10));
+
+        var result = new OpenCreateFileDialog(ModalTestHost.Create(screen)).Show();
+
+        Assert.NotNull(result);
+        Assert.Equal("new.txt", result.FilePath);
+        Assert.Equal("Default", result.CodePage.Label);
+    }
+
+    [Fact]
+    public void OpenCreateFileDialog_EscapeClosesCodePageDropdownBeforeDialog()
+    {
+        var driver = new FakeConsoleDriver(width: 100, height: 30);
+        var screen = new ScreenRenderer(driver);
+        EnqueueText(driver, "new.txt");
+        driver.EnqueueKey(Key(ConsoleKey.Tab));
+        driver.EnqueueKey(Key(ConsoleKey.Spacebar));
+        driver.EnqueueKey(Key(ConsoleKey.DownArrow));
+        driver.EnqueueKey(Key(ConsoleKey.Escape));
+        driver.EnqueueKey(Key(ConsoleKey.F10));
+
+        var result = new OpenCreateFileDialog(ModalTestHost.Create(screen)).Show();
+
+        Assert.NotNull(result);
+        Assert.Equal("Default", result.CodePage.Label);
+    }
+
+    [Fact]
+    public void OpenCreateFileDialog_TabFromOpenCodePageDropdownCancelsTemporarySelection()
+    {
+        var driver = new FakeConsoleDriver(width: 100, height: 30);
+        var screen = new ScreenRenderer(driver);
+        EnqueueText(driver, "new.txt");
+        driver.EnqueueKey(Key(ConsoleKey.Tab));
+        driver.EnqueueKey(Key(ConsoleKey.Spacebar));
+        driver.EnqueueKey(Key(ConsoleKey.DownArrow));
+        driver.EnqueueKey(Key(ConsoleKey.Tab));
+        driver.EnqueueKey(Key(ConsoleKey.F10));
+
+        var result = new OpenCreateFileDialog(ModalTestHost.Create(screen)).Show();
+
+        Assert.NotNull(result);
+        Assert.Equal("Default", result.CodePage.Label);
     }
 
     [Fact]

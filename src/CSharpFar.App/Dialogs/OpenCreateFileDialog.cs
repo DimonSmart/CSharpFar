@@ -99,11 +99,14 @@ internal sealed class OpenCreateFileDialog
 
                 if (result.Kind == FormInputResultKind.ValueChanged)
                 {
-                    error = null;
                     if (form.FocusedRowId == "file-path")
+                    {
+                        error = null;
                         codePageRow.CloseDropdown();
+                    }
                     else if (form.FocusedRowId == "code-page")
                     {
+                        error = null;
                         history.Close();
                         pathState.HistoryScrollbarDrag = null;
                     }
@@ -113,7 +116,9 @@ internal sealed class OpenCreateFileDialog
                     routed.Input is KeyConsoleInputEvent { Key.Key: ConsoleKey.F10 } ||
                     FormDialogInput.ShouldImplicitlySubmit(routed, result, form))
                 {
-                    var accepted = TrySubmit(filePath, history, codePageRow.SelectedIndex, validate, ref error);
+                    int confirmedCodePageIndex = codePageRow.ConfirmedSelectedIndex;
+                    codePageRow.CancelOverlay();
+                    var accepted = TrySubmit(filePath, history, confirmedCodePageIndex, validate, ref error);
                     if (accepted is not null)
                         return ModalDialogLoopResult<OpenCreateFileDialogResult?>.Complete(accepted);
                 }

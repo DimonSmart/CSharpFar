@@ -5,7 +5,7 @@ using CSharpFar.Core.Models;
 namespace CSharpFar.Ui;
 
 /// <summary>Reusable one-line form input with an inline label.</summary>
-public sealed class LabeledTextInputRow : FormRow, IFormOverlayRow, IFormCursorProvider, IFormHistoryRow
+public sealed class LabeledTextInputRow : FormRow, IFormOverlayRow, IFormCursorProvider, IFormHistoryRow, IFormTransientOverlayRow
 {
     private readonly string _label;
     private readonly int _labelWidth;
@@ -25,6 +25,7 @@ public sealed class LabeledTextInputRow : FormRow, IFormOverlayRow, IFormCursorP
     public CommandLineState Buffer => _field.Buffer;
     public SingleLineTextHistoryState? History => _field.History;
     public TextInputRowState State => _field.State;
+    public bool IsOverlayOpen => History?.IsDropdownOpen == true;
     public Rect GetInputBounds(Rect rowBounds) => Layout(rowBounds).InputBounds;
 
     public override void Render(FormRowRenderContext context)
@@ -39,6 +40,11 @@ public sealed class LabeledTextInputRow : FormRow, IFormOverlayRow, IFormCursorP
     public override FormInputResult HandleKey(ConsoleKeyInfo key, FormRowInputContext context) => _field.HandleKey(key, context);
     public override FormInputResult HandleMouse(MouseConsoleInputEvent mouse, FormRowMouseContext context) => _field.HandleMouse(mouse, context, GetInputBounds(context.Bounds));
     public bool IsHistoryArrow(MouseConsoleInputEvent mouse, FormRowMouseContext context) => _field.IsHistoryArrow(mouse, GetInputBounds(context.Bounds));
+    public void CancelOverlay()
+    {
+        History?.Close();
+        State.HistoryScrollbarDrag = null;
+    }
 
     private (Rect LabelBounds, Rect InputBounds) Layout(Rect bounds)
     {

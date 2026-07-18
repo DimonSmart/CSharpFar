@@ -34,6 +34,10 @@ public sealed class DropdownSelect<T>
 
     public bool IsOpen { get; private set; }
 
+    public int SelectionBeforeOpen => _selectedIndexBeforeOpen;
+
+    internal bool HasScrollbarDrag => _scrollbarDrag is not null;
+
     public int MaxVisibleRows { get; set; } = 6;
 
     public T SelectedItem => _list.Items[Math.Clamp(SelectedIndex, 0, _list.Count - 1)];
@@ -80,7 +84,16 @@ public sealed class DropdownSelect<T>
         Rect fieldBounds)
     {
         if (!IsOpen)
-            return new DropdownSelectFrame(size, fieldBounds, null, null, null, 0, _list.CalculateFrameState(1));
+            return new DropdownSelectFrame(
+                size,
+                fieldBounds,
+                null,
+                null,
+                null,
+                0,
+                _list.CalculateFrameState(1),
+                IsOpen: false,
+                _selectedIndexBeforeOpen);
 
         Rect bounds = PopupBounds(size, fieldBounds);
         Rect contentBounds = PopupRenderer.GetContentBounds(bounds, drawBorder: true);
@@ -95,14 +108,16 @@ public sealed class DropdownSelect<T>
             contentBounds,
             scrollbarBounds,
             contentRows,
-            _list.CalculateFrameState(contentRows));
+            _list.CalculateFrameState(contentRows),
+            IsOpen: true,
+            _selectedIndexBeforeOpen);
     }
 
     public void RenderPopup(
         ScreenRenderer screen,
         DropdownSelectFrame frame)
     {
-        if (!IsOpen)
+        if (!frame.IsOpen)
             return;
 
         if (frame.PopupBounds is not { } bounds || frame.ContentBounds is not { } contentBounds)
@@ -138,6 +153,7 @@ public sealed class DropdownSelect<T>
             return false;
         }
 
+        RestoreCommittedFrame(frame);
         Toggle();
         return true;
     }
@@ -150,12 +166,11 @@ public sealed class DropdownSelect<T>
     {
         selected = false;
         valueChanged = false;
-        if (!IsOpen)
+        RestoreCommittedFrame(frame);
+        if (!frame.IsOpen)
             return false;
-
         if (frame.PopupBounds is not { } bounds || frame.ContentBounds is not { } contentBounds)
             return false;
-        ApplyCommittedFrame(frame);
 
         if (mouse.Kind == MouseEventKind.Down && mouse.Button == MouseButton.Left &&
             (mouse.X < bounds.X || mouse.X >= bounds.Right || mouse.Y < bounds.Y || mouse.Y >= bounds.Bottom))
@@ -193,7 +208,8 @@ public sealed class DropdownSelect<T>
     {
         selected = false;
         valueChanged = false;
-        if (!IsOpen)
+        RestoreCommittedFrame(frame);
+        if (!frame.IsOpen)
         {
             if (key.Key is ConsoleKey.DownArrow or ConsoleKey.LeftArrow or ConsoleKey.RightArrow or ConsoleKey.Spacebar)
             {
@@ -204,7 +220,6 @@ public sealed class DropdownSelect<T>
             return false;
         }
 
-        ApplyCommittedFrame(frame);
         int contentRows = frame.ContentRows;
         switch (key.Key)
         {
@@ -224,11 +239,24 @@ public sealed class DropdownSelect<T>
 
     public void ApplyCommittedFrame(DropdownSelectFrame frame)
     {
+        RestoreCommittedFrame(frame);
+    }
+
+    internal void RestoreCommittedFrame(DropdownSelectFrame frame)
+    {
         SelectedIndex = frame.ListState.SelectedIndex;
         ScrollTop = frame.ListState.ScrollTop;
-        if (!IsOpen || _scrollbarDrag is not { } drag)
+        _selectedIndexBeforeOpen = Math.Clamp(frame.SelectionBeforeOpen, 0, _list.Count - 1);
+        if (!frame.IsOpen)
+        {
+            IsOpen = false;
+            _scrollbarDrag = null;
             return;
+        }
 
+        IsOpen = true;
+        if (_scrollbarDrag is not { } drag)
+            return;
         _scrollbarDrag = frame.ScrollbarBounds is Rect scrollbarBounds
             ? ScrollBarInteraction.RebaseDrag(drag, scrollbarBounds, _list.Count, Math.Max(1, frame.ContentRows))
             : null;
@@ -269,4 +297,6 @@ public readonly record struct DropdownSelectFrame(
     Rect? ContentBounds,
     Rect? ScrollbarBounds,
     int ContentRows,
-    ScrollableListFrameState ListState);
+    ScrollableListFrameState ListState,
+    bool IsOpen,
+    int SelectionBeforeOpen);

@@ -10,6 +10,7 @@ public enum FormInputResultKind
 {
     NotHandled,
     Handled,
+    OverlayChanged,
     ValueChanged,
     MoveFocusNext,
     MoveFocusPrevious,
@@ -21,6 +22,7 @@ public readonly record struct FormInputResult(FormInputResultKind Kind, string? 
 {
     public static FormInputResult NotHandled => new(FormInputResultKind.NotHandled);
     public static FormInputResult Handled => new(FormInputResultKind.Handled);
+    public static FormInputResult OverlayChanged => new(FormInputResultKind.OverlayChanged);
     public static FormInputResult ValueChanged => new(FormInputResultKind.ValueChanged);
     public static FormInputResult MoveFocusNext => new(FormInputResultKind.MoveFocusNext);
     public static FormInputResult MoveFocusPrevious => new(FormInputResultKind.MoveFocusPrevious);
@@ -54,6 +56,12 @@ public interface IFormRow
 public interface IFormOverlayRow
 {
     void RenderOverlay(FormRowRenderContext context);
+}
+
+public interface IFormTransientOverlayRow : IFormRow
+{
+    bool IsOverlayOpen { get; }
+    void CancelOverlay();
 }
 
 public interface IFormHistoryRow : IFormRow
@@ -367,7 +375,7 @@ public sealed class ButtonRow : FormRow
         };
 }
 
-public sealed class TextInputRow : FormRow, IFormOverlayRow, IFormCursorProvider, IFormHistoryRow
+public sealed class TextInputRow : FormRow, IFormOverlayRow, IFormCursorProvider, IFormHistoryRow, IFormTransientOverlayRow
 {
     private readonly FormTextInputField _field;
     private readonly int? _width;
@@ -383,6 +391,7 @@ public sealed class TextInputRow : FormRow, IFormOverlayRow, IFormCursorProvider
     public SingleLineTextHistoryState? History => _field.History;
     public TextInputRowState State => _field.State;
     public int? Width => _width;
+    public bool IsOverlayOpen => History?.IsDropdownOpen == true;
 
     public Rect GetInputBounds(Rect rowBounds) =>
         new(rowBounds.X, rowBounds.Y, Math.Min(rowBounds.Width, _width ?? rowBounds.Width), rowBounds.Height);
@@ -407,6 +416,12 @@ public sealed class TextInputRow : FormRow, IFormOverlayRow, IFormCursorProvider
         return _field.IsHistoryArrow(mouse, GetInputBounds(context.Bounds));
     }
 
+    public void CancelOverlay()
+    {
+        History?.Close();
+        State.HistoryScrollbarDrag = null;
+    }
+
     public override FormInputResult HandleKey(ConsoleKeyInfo key, FormRowInputContext context)
     {
         return _field.HandleKey(key, context);
@@ -423,7 +438,7 @@ public sealed class TextInputRowState
     public ScrollBarDragState? HistoryScrollbarDrag;
 }
 
-public sealed class DropdownSelectFormRow<T> : FormRow, IFormCursorProvider, IFormDropdownRow
+public sealed class DropdownSelectFormRow<T> : FormRow, IFormCursorProvider, IFormDropdownRow, IFormTransientOverlayRow
 {
     private readonly string _label;
     private readonly DropdownSelect<T> _dropdown;
@@ -436,8 +451,12 @@ public sealed class DropdownSelectFormRow<T> : FormRow, IFormCursorProvider, IFo
 
     public override FormRowRole Role { get; init; } = FormRowRole.Option;
     public bool IsDropdownOpen => _dropdown.IsOpen;
+    public bool IsOverlayOpen => _dropdown.IsOpen;
     public T Value => _dropdown.SelectedItem;
     public int SelectedIndex => _dropdown.SelectedIndex;
+    public int ConfirmedSelectedIndex => _dropdown.IsOpen
+        ? _dropdown.SelectionBeforeOpen
+        : _dropdown.SelectedIndex;
 
     public override void Render(FormRowRenderContext context)
     {
@@ -473,17 +492,18 @@ public sealed class DropdownSelectFormRow<T> : FormRow, IFormCursorProvider, IFo
 
     public void CloseDropdown() => _dropdown.Close();
 
+    public void CancelOverlay() => _dropdown.Close(commit: false);
+
     public override FormInputResult HandleKey(ConsoleKeyInfo key, FormRowInputContext context) =>
         FormInputResult.NotHandled;
 
     public FormInputResult HandleDropdownKey(ConsoleKeyInfo key, FormRowInputContext context, DropdownSelectFrame frame)
     {
-        bool wasOpen = _dropdown.IsOpen;
         if (_dropdown.TryHandleKey(key, frame, out _, out bool valueChanged))
         {
             if (valueChanged)
                 return FormInputResult.ValueChanged;
-            return FormInputResult.Handled;
+            return frame.IsOpen == _dropdown.IsOpen ? FormInputResult.Handled : FormInputResult.OverlayChanged;
         }
 
         return FormInputResult.NotHandled;
@@ -495,9 +515,11 @@ public sealed class DropdownSelectFormRow<T> : FormRow, IFormCursorProvider, IFo
     public FormInputResult HandleDropdownMouse(MouseConsoleInputEvent mouse, FormRowMouseContext context, DropdownSelectFrame frame)
     {
         if (_dropdown.TryHandlePopupMouse(mouse, frame, out _, out bool valueChanged))
-            return valueChanged ? FormInputResult.ValueChanged : FormInputResult.Handled;
+            return valueChanged
+                ? FormInputResult.ValueChanged
+                : frame.IsOpen == _dropdown.IsOpen ? FormInputResult.Handled : FormInputResult.OverlayChanged;
         if (_dropdown.TryHandleFieldMouse(mouse, frame))
-            return FormInputResult.Handled;
+            return frame.IsOpen == _dropdown.IsOpen ? FormInputResult.Handled : FormInputResult.OverlayChanged;
         return FormInputResult.NotHandled;
     }
 
@@ -1026,6 +1048,7 @@ public sealed class ScrollableFormDialog
             ActiveFocusScope.CurrentFrame.Entries.Count == 0 ||
             !ActiveFocusScope.CurrentFrame.Entries.Any(entry => entry.Target == target))
         {
+            CancelTransientOverlayExcept(target);
             _requestedInitialTarget = target;
             _compatFocusScope.TryFocus(target);
             _activeFocusScope?.ClearFocus();
@@ -1036,6 +1059,7 @@ public sealed class ScrollableFormDialog
         bool focused = ActiveFocusScope.TryFocus(target);
         if (focused)
         {
+            CancelTransientOverlayExcept(null);
             RequestEnsureFocusVisible();
             EnsureFocusVisibleNow(StableLayout.ViewportRows);
         }
@@ -1561,11 +1585,12 @@ public sealed class ScrollableFormDialog
         if (requestFocus)
         {
             RequestEnsureFocusVisible();
+            bool canceledOverlay = CancelTransientOverlayExcept(rowFrame.Target);
             uiResult = new UiInputResult(
                 true,
                 true,
                 UiFocusRequest.Set(rowFrame.Target),
-                uiResult.MouseCaptureRequest);
+                canceledOverlay ? UiMouseCaptureRequest.Release : uiResult.MouseCaptureRequest);
         }
 
         if (targetFrame.Kind is FormTargetKind.HistoryScrollbar or FormTargetKind.DropdownScrollbar &&
@@ -1664,11 +1689,17 @@ public sealed class ScrollableFormDialog
             return FormResult(formResult, uiResult);
 
         FormInputResult mergedFormResult = formResult.Kind == FormInputResultKind.NotHandled
-            ? FormInputResult.Handled
+            ? FormInputResult.OverlayChanged
             : formResult;
         return FormResult(
             mergedFormResult,
-            new UiInputResult(true, true, uiResult.FocusRequest, uiResult.MouseCaptureRequest));
+            new UiInputResult(
+                true,
+                true,
+                uiResult.FocusRequest,
+                uiResult.MouseCaptureRequest.Kind == UiMouseCaptureRequestKind.None
+                    ? UiMouseCaptureRequest.Release
+                    : uiResult.MouseCaptureRequest));
     }
 
     private static FormRouteResult FormResult(FormInputResult formResult, UiInputResult uiResult) =>
@@ -1682,14 +1713,20 @@ public sealed class ScrollableFormDialog
             FormInputResultKind.MoveFocusNext => UiInputResultWithFocus(UiFocusRequest.MoveNext),
             FormInputResultKind.MoveFocusPrevious => UiInputResultWithFocus(UiFocusRequest.MovePrevious),
             FormInputResultKind.Handled => UiInputResult.HandledAndInvalidate,
+            FormInputResultKind.OverlayChanged => UiInputResult.HandledAndInvalidate,
             _ => UiInputResult.HandledAndInvalidate,
         };
     }
 
     private UiInputResult UiInputResultWithFocus(UiFocusRequest request)
     {
+        bool canceledOverlay = CancelTransientOverlayForFocusRequest(request);
         RequestEnsureFocusVisible();
-        return new UiInputResult(true, true, request, UiMouseCaptureRequest.None);
+        return new UiInputResult(
+            true,
+            true,
+            request,
+            canceledOverlay ? UiMouseCaptureRequest.Release : UiMouseCaptureRequest.None);
     }
 
     private UiInputResult WithEnsureFocusVisible(UiInputResult result, bool ensure)
@@ -1855,22 +1892,55 @@ public sealed class ScrollableFormDialog
         switch (result.FocusRequest.Kind)
         {
             case UiFocusRequestKind.Set:
+                CancelTransientOverlayExcept(result.FocusRequest.Target);
                 ActiveFocusScope.TryFocus(result.FocusRequest.Target!);
                 EnsureFocusVisibleNow(StableLayout.ViewportRows);
                 break;
             case UiFocusRequestKind.MoveNext:
+                CancelTransientOverlayExcept(null);
                 ActiveFocusScope.MoveNext();
                 EnsureFocusVisibleNow(StableLayout.ViewportRows);
                 break;
             case UiFocusRequestKind.MovePrevious:
+                CancelTransientOverlayExcept(null);
                 ActiveFocusScope.MovePrevious();
                 EnsureFocusVisibleNow(StableLayout.ViewportRows);
                 break;
             case UiFocusRequestKind.Clear:
+                CancelTransientOverlayExcept(null);
                 ActiveFocusScope.ClearFocus();
                 EnsureFocusVisibleNow(StableLayout.ViewportRows);
                 break;
         }
+    }
+
+    private bool CancelTransientOverlayForFocusRequest(UiFocusRequest request)
+    {
+        return request.Kind switch
+        {
+            UiFocusRequestKind.Set => CancelTransientOverlayExcept(request.Target),
+            UiFocusRequestKind.MoveNext or UiFocusRequestKind.MovePrevious or UiFocusRequestKind.Clear =>
+                CancelTransientOverlayExcept(null),
+            _ => false,
+        };
+    }
+
+    private bool CancelTransientOverlayExcept(UiTargetId? retainedTarget)
+    {
+        bool canceled = false;
+        foreach (IFormRow row in AllRows())
+        {
+            if (row is not IFormTransientOverlayRow overlay || !overlay.IsOverlayOpen)
+                continue;
+
+            if (retainedTarget is not null && RowTarget(row) == retainedTarget)
+                continue;
+
+            overlay.CancelOverlay();
+            canceled = true;
+        }
+
+        return canceled;
     }
 
     private static void RenderFocusedOverlay(ScreenRenderer screen, ScrollableFormFrame frame, UiTargetId? focusedTarget)
@@ -2018,8 +2088,8 @@ public sealed class ScrollableFormDialog
         FormTargetFrame rowFrame,
         UiTargetId rowTarget)
     {
-        if (rowFrame.Row is not IFormDropdownRow { IsDropdownOpen: true } ||
-            rowFrame.DropdownFrame is not { } frame)
+        if (rowFrame.Row is not IFormDropdownRow ||
+            rowFrame.DropdownFrame is not { IsOpen: true } frame)
             return;
 
         if (frame.PopupBounds is not Rect popupBounds)
