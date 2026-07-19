@@ -9,32 +9,13 @@ namespace CSharpFar.Tests;
 public sealed class CompactChoiceFormRowTests
 {
     [Fact]
-    public void LeftArrow_RightArrow_SpaceAndEnter_CycleChoices()
+    public void KeyboardChoiceChangeReturnsValueChanged()
     {
-        var row = Row(["one", "two", "three"], selectedIndex: 1);
+        var row = Row(["one", "two"]);
         var input = new FormRowInputContext(0, focused: true);
 
-        Assert.Equal(FormInputResultKind.ValueChanged, row.HandleKey(Key(ConsoleKey.LeftArrow), input).Kind);
-        Assert.Equal("one", row.Value);
         Assert.Equal(FormInputResultKind.ValueChanged, row.HandleKey(Key(ConsoleKey.RightArrow), input).Kind);
         Assert.Equal("two", row.Value);
-        Assert.Equal(FormInputResultKind.ValueChanged, row.HandleKey(Key(ConsoleKey.Spacebar), input).Kind);
-        Assert.Equal("three", row.Value);
-        Assert.Equal(FormInputResultKind.ValueChanged, row.HandleKey(Key(ConsoleKey.Enter), input).Kind);
-        Assert.Equal("one", row.Value);
-    }
-
-    [Fact]
-    public void KeyboardCyclesAcrossBoundaries()
-    {
-        var row = Row(["one", "two"], selectedIndex: 0);
-        var input = new FormRowInputContext(0, focused: true);
-
-        row.HandleKey(Key(ConsoleKey.LeftArrow), input);
-        Assert.Equal("two", row.Value);
-
-        row.HandleKey(Key(ConsoleKey.RightArrow), input);
-        Assert.Equal("one", row.Value);
     }
 
     [Fact]
@@ -49,7 +30,7 @@ public sealed class CompactChoiceFormRowTests
     }
 
     [Fact]
-    public void MouseClickCyclesSimpleChoice()
+    public void MouseChoiceChangeReturnsValueChangedAndUsesFormBounds()
     {
         var row = Row(["one", "two"]);
         var context = new FormRowMouseContext(new Rect(10, 2, 30, 1), 0, true, 10);

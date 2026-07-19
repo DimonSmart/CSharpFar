@@ -41,6 +41,11 @@ correctness.
 
 State what must be verified, not the local command used to run verification.
 
+Prefer important user scenarios, critical invariants, meaningful boundary
+cases, and justified manual checks. Do not create a catalog of test methods,
+internal classes, private implementation shape, or one automated test per
+specification sentence.
+
 Do not include build commands, test-runner commands, CI commands, test class
 names, temporary source scans, or step-by-step execution instructions.
 

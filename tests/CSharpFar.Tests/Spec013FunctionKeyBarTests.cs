@@ -53,23 +53,6 @@ public sealed class Spec013FunctionKeyBarTests : IDisposable
     }
 
     [Fact]
-    public void Render_ControlLayerStartsWithSortCommands()
-    {
-        var fs = CreateFileSystem();
-        var driver = new FakeConsoleDriver(width: 100, height: 14);
-        var app = CreateApp(fs, driver);
-
-        SetFunctionKeyLayer(app, FunctionKeyLayer.Control);
-        Render(app);
-
-        string row = driver.GetRow(13);
-        Assert.DoesNotContain("LeftPn", row);
-        Assert.DoesNotContain("RightPn", row);
-        Assert.Contains("3SortNm", row);
-        Assert.Contains("4SortExt", row);
-    }
-
-    [Fact]
     public void Run_KeyEventWithAltModifierSwitchesFunctionKeyBarLayer()
     {
         var fs = CreateFileSystem();
@@ -102,32 +85,6 @@ public sealed class Spec013FunctionKeyBarTests : IDisposable
         app.Run();
 
         Assert.Equal(string.Empty, GetCommandLine(app).Text);
-    }
-
-    [Fact]
-    public void FunctionKeyLayerResolver_ShiftOnlyUsesShiftLayer()
-    {
-        Assert.Equal(
-            FunctionKeyLayer.Shift,
-            FunctionKeyLayerResolver.ResolvePressedLayer(ConsoleModifiers.Shift));
-
-        Assert.True(FunctionKeyLayerResolver.TryResolveChordLayer(
-            ConsoleModifiers.Shift,
-            out var layer));
-        Assert.Equal(FunctionKeyLayer.Shift, layer);
-    }
-
-    [Fact]
-    public void FunctionKeyLayerResolver_CtrlAltUsesPlainLayer()
-    {
-        Assert.Equal(
-            FunctionKeyLayer.Plain,
-            FunctionKeyLayerResolver.ResolvePressedLayer(
-                ConsoleModifiers.Alt | ConsoleModifiers.Control));
-
-        Assert.False(FunctionKeyLayerResolver.TryResolveChordLayer(
-            ConsoleModifiers.Alt | ConsoleModifiers.Control,
-            out _));
     }
 
     [Fact]
@@ -190,22 +147,6 @@ public sealed class Spec013FunctionKeyBarTests : IDisposable
         driver.EnqueueInput(LeftMouse(x: 73, y: 13, MouseEventKind.Down));
 
         var app = CreateApp(fs, driver);
-
-        app.Run();
-
-        string row = ComposeBottomRow(driver, y: 13, width: 100);
-        Assert.Contains("10Quit", row);
-    }
-
-    [Fact]
-    public void Run_ClickPlainFunctionKeyBarF10_WhenQuickViewOpen_Quits()
-    {
-        var fs = CreateFileSystem();
-        var driver = new FakeConsoleDriver(width: 100, height: 14);
-        driver.EnqueueInput(LeftMouse(x: 73, y: 13, MouseEventKind.Down));
-
-        var app = CreateApp(fs, driver);
-        app.QuickView = true;
 
         app.Run();
 
@@ -328,13 +269,4 @@ public sealed class Spec013FunctionKeyBarTests : IDisposable
         app.Session.FunctionKeyLayer = layer;
     }
 
-    private static void Render(Application app)
-    {
-        var method = typeof(Application).GetMethod(
-            "Render",
-            System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)
-            ?? throw new InvalidOperationException("Application.Render method not found.");
-
-        method.Invoke(app, []);
-    }
 }

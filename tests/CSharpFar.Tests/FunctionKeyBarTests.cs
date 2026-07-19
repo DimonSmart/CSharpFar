@@ -165,26 +165,25 @@ public class FunctionKeyBarTests
         Assert.False(FunctionKeyBar.TryGetKeyNumberAtX(x, totalWidth: 100, out _));
     }
 
-    [Fact]
-    public void HitTest_MouseRequiresBarRowAndActivationClick()
-    {
-        var mouse = new MouseConsoleInputEvent(90, 24, MouseButton.Left, MouseEventKind.Down, MouseKeyModifiers.None);
-
-        Assert.True(FunctionKeyBar.TryGetKeyNumberAt(mouse, y: 24, totalWidth: 120, out int keyNumber));
-        Assert.Equal(10, keyNumber);
-        Assert.False(FunctionKeyBar.TryGetKeyNumberAt(mouse, y: 23, totalWidth: 120, out _));
-    }
-
     [Theory]
-    [InlineData(MouseButton.Right, MouseEventKind.Down)]
-    [InlineData(MouseButton.Middle, MouseEventKind.Down)]
-    [InlineData(MouseButton.WheelDown, MouseEventKind.Wheel)]
-    [InlineData(MouseButton.Left, MouseEventKind.Up)]
-    public void HitTest_RejectsNonActivationMouseEvents(MouseButton button, MouseEventKind kind)
+    [InlineData(90, 24, MouseButton.Left, MouseEventKind.Down, true, 10)]
+    [InlineData(90, 23, MouseButton.Left, MouseEventKind.Down, false, 0)]
+    [InlineData(10, 24, MouseButton.Right, MouseEventKind.Down, false, 0)]
+    [InlineData(10, 24, MouseButton.Middle, MouseEventKind.Down, false, 0)]
+    [InlineData(10, 24, MouseButton.WheelDown, MouseEventKind.Wheel, false, 0)]
+    [InlineData(10, 24, MouseButton.Left, MouseEventKind.Up, false, 0)]
+    public void HitTest_RequiresBarRowAndActivationMouseEvent(
+        int x,
+        int y,
+        MouseButton button,
+        MouseEventKind kind,
+        bool expectedResult,
+        int expectedKeyNumber)
     {
-        var mouse = new MouseConsoleInputEvent(10, 24, button, kind, MouseKeyModifiers.None);
+        var mouse = new MouseConsoleInputEvent(x, y, button, kind, MouseKeyModifiers.None);
 
-        Assert.False(new FunctionKeyBar().TryHitTest(mouse, y: 24, totalWidth: 120, out _));
+        Assert.Equal(expectedResult, FunctionKeyBar.TryGetKeyNumberAt(mouse, y: 24, totalWidth: 120, out int keyNumber));
+        Assert.Equal(expectedKeyNumber, keyNumber);
     }
 
     [Theory]

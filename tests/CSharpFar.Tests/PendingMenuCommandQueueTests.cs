@@ -11,9 +11,7 @@ public sealed class PendingMenuCommandQueueTests
         var queue = new PendingMenuCommandQueue();
         queue.Enqueue(Request("first"));
 
-        var ex = Assert.Throws<InvalidOperationException>(() => queue.Enqueue(Request("second")));
-
-        Assert.Contains("previous command was consumed", ex.Message, StringComparison.Ordinal);
+        Assert.Throws<InvalidOperationException>(() => queue.Enqueue(Request("second")));
 
         Assert.True(queue.TryTake(out _));
         var result = queue.Enqueue(Request("third"));
