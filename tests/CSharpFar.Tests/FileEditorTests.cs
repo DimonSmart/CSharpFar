@@ -195,6 +195,43 @@ public sealed class FileEditorTests : IDisposable
     }
 
     [Fact]
+    public void Show_TextMouseDragContinuesOutsideContentThroughCapture()
+    {
+        string filePath = Path.Combine(_tempDir, "editor-mouse-captured-drag.txt");
+        File.WriteAllText(filePath, "abcdef");
+
+        var driver = new FakeConsoleDriver(width: 8, height: 6);
+        driver.EnqueueInput(LeftMouse(x: 1, y: 1));
+        driver.EnqueueInput(MouseMove(x: 40, y: 1));
+        driver.EnqueueInput(MouseUp(x: 40, y: 1));
+        driver.EnqueueKey(new ConsoleKeyInfo('X', ConsoleKey.X, shift: false, alt: false, control: false));
+        driver.EnqueueKey(new ConsoleKeyInfo('\0', ConsoleKey.F2, shift: false, alt: false, control: false));
+        driver.EnqueueKey(new ConsoleKeyInfo('\0', ConsoleKey.F10, shift: false, alt: false, control: false));
+
+        ShowFileEditor(new ScreenRenderer(driver), filePath);
+
+        Assert.Equal("aX", File.ReadAllText(filePath));
+    }
+
+    [Fact]
+    public void Show_ResizeBeforeMouseInputUsesCommittedNewContentGeometry()
+    {
+        string filePath = Path.Combine(_tempDir, "editor-resize-mouse.txt");
+        File.WriteAllText(filePath, "one\ntwo\nthree\nfour\nfive");
+
+        var driver = new FakeConsoleDriver(width: 80, height: 5);
+        driver.BeforeTryReadInput = current => current.SetSize(80, 8);
+        driver.EnqueueInput(LeftMouse(x: 0, y: 4));
+        driver.EnqueueKey(new ConsoleKeyInfo('X', ConsoleKey.X, shift: false, alt: false, control: false));
+        driver.EnqueueKey(new ConsoleKeyInfo('\0', ConsoleKey.F2, shift: false, alt: false, control: false));
+        driver.EnqueueKey(new ConsoleKeyInfo('\0', ConsoleKey.F10, shift: false, alt: false, control: false));
+
+        ShowFileEditor(new ScreenRenderer(driver), filePath);
+
+        Assert.Equal("one\ntwo\nthree\nXfour\nfive", File.ReadAllText(filePath).ReplaceLineEndings("\n"));
+    }
+
+    [Fact]
     public void Show_ScrollbarIncreaseButtonScrollsTextDown()
     {
         string filePath = Path.Combine(_tempDir, "editor-scrollbar-increase.txt");
@@ -832,17 +869,13 @@ public sealed class FileEditorTests : IDisposable
         int cursorXAfterEnter = -1;
         int cursorYAfterEnter = -1;
         var driver = new FakeConsoleDriver(80, 25);
-        driver.BeforeReadInput = currentDriver =>
-        {
-            currentDriver.BeforeReadInput = afterEnd =>
-            {
-                afterEnd.BeforeReadInput = afterEnter =>
+        driver.BeforeTryReadInput = currentDriver =>
+            currentDriver.BeforeTryReadInput = afterEnd =>
+                afterEnd.BeforeTryReadInput = afterEnter =>
                 {
                     cursorXAfterEnter = afterEnter.CursorX;
                     cursorYAfterEnter = afterEnter.CursorY;
                 };
-            };
-        };
         driver.EnqueueKey(new ConsoleKeyInfo('\0', ConsoleKey.End, shift: false, alt: false, control: false));
         driver.EnqueueKey(new ConsoleKeyInfo('\0', ConsoleKey.Enter, shift: false, alt: false, control: false));
         driver.EnqueueKey(new ConsoleKeyInfo('X', ConsoleKey.X, shift: false, alt: false, control: false));

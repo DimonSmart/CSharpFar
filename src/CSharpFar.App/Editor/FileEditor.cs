@@ -13,14 +13,14 @@ namespace CSharpFar.App.Editor;
 /// <summary>
 /// Full-screen text file editor backed by an editor session and document model.
 /// </summary>
-internal sealed class FileEditor
+internal sealed partial class FileEditor
 {
     private const int CustomCursorBlinkIntervalMs = 500;
-    private const int CustomCursorInputPollMs = 25;
 
     private readonly ScreenRenderer _screen;
     private readonly UiCompositionHost _composition;
     private readonly ModalDialogHost _modalDialogs;
+    private readonly InteractiveSurfaceHost _surfaces;
     private readonly ConsolePalette _palette;
     private readonly AppSettings.EditorSettings _settings;
     private readonly EditorFileService _fileService;
@@ -28,11 +28,8 @@ internal sealed class FileEditor
     private readonly EditorFileNameInsertionContext? _fileNameInsertionContext;
     private readonly IEditorSyntaxHighlighter _syntaxHighlighter;
     private EditorFindDialogResult? _lastFind;
-    private ScrollBarDragState? _scrollbarDrag;
-    private EditorPosition? _mouseSelectionAnchor;
     private bool _markMode;
     private bool _persistentSelection;
-    private bool _customCursorVisible = true;
 
     public FileEditor(ScreenRenderer screen, ModalDialogHost modalDialogs)
         : this(screen, modalDialogs, null, null) { }
@@ -82,6 +79,7 @@ internal sealed class FileEditor
         _screen = screen;
         _modalDialogs = modalDialogs ?? throw new ArgumentNullException(nameof(modalDialogs));
         _composition = _modalDialogs.Composition;
+        _surfaces = new InteractiveSurfaceHost(_composition);
         _palette = palette ?? PaletteRegistry.Default;
         _settings = settings ?? new AppSettings.EditorSettings();
         _fileService = new EditorFileService(_settings);
@@ -130,255 +128,87 @@ internal sealed class FileEditor
 
     private void RunLoop(EditorSession session)
     {
-        var functionKeyModifiers = default(ConsoleModifiers);
-        EditorLayout? layout = null;
-        _scrollbarDrag = null;
-        _mouseSelectionAnchor = null;
-        using var surface = _composition.OpenSurface(context =>
+        var layer = new FileEditorLayer(this, session);
+        _surfaces.Run(
+            layer,
+            (packet, input) =>
+            {
+                layer.RestoreVisibleCursorPhase();
+                return HandleSurfaceInput(session, input, packet.Frame);
+            },
+            getNextWakeUtc: layer.GetNextWakeUtc,
+            handleWake: _ => layer.HandleWake());
+    }
+
+    private ModalDialogLoopResult<bool> HandleSurfaceInput(
+        EditorSession session,
+        FileEditorInput input,
+        FileEditorFrame frame)
+    {
+        switch (input.Kind)
         {
-            int contentHeight = Math.Max(1, context.Size.Height - 3);
-            int contentWidth = Math.Max(1, context.Size.Width - 1);
-            var effective = CalculateEffectiveViewport(session, contentHeight, contentWidth);
-            var frameLayout = new EditorLayout(context.Size, contentHeight, contentWidth);
-            var syntaxResult = Draw(session, contentHeight, context.Size, functionKeyModifiers, effective);
-            context.PublishOnStable(
-                new EditorFrameState(frameLayout, effective.TopLine, effective.LeftColumn),
-                frame =>
+            case FileEditorInputKind.None:
+            case FileEditorInputKind.ModifierChanged:
+                return ModalDialogLoopResult<bool>.Continue;
+            case FileEditorInputKind.MouseWheel:
+                if (input.ScrollLines < 0)
+                    session.MoveUp(-input.ScrollLines);
+                else if (input.ScrollLines > 0)
+                    session.MoveDown(input.ScrollLines);
+                return ModalDialogLoopResult<bool>.Continue;
+            case FileEditorInputKind.ScrollbarToLine:
+                MoveViewportTo(session, input.TopLine, frame.ContentHeight);
+                return ModalDialogLoopResult<bool>.Continue;
+            case FileEditorInputKind.TextMouseDown:
+                if (input.Position is { } downPosition)
+                    session.MoveTo(downPosition);
+                _markMode = false;
+                _persistentSelection = false;
+                return ModalDialogLoopResult<bool>.Continue;
+            case FileEditorInputKind.TextMouseDoubleClick:
+                if (input.Position is { } doubleClickPosition)
+                    session.SelectWordAt(doubleClickPosition);
+                _markMode = false;
+                _persistentSelection = false;
+                return ModalDialogLoopResult<bool>.Continue;
+            case FileEditorInputKind.TextMouseDrag:
+                if (input.Anchor is { } dragAnchor && input.Position is { } dragPosition)
+                    session.SelectRange(dragAnchor, dragPosition);
+                _markMode = false;
+                _persistentSelection = false;
+                return ModalDialogLoopResult<bool>.Continue;
+            case FileEditorInputKind.TextMouseUp:
+                if (input.Anchor is { } upAnchor && input.Position is { } upPosition)
+                    session.SelectRange(upAnchor, upPosition);
+                _markMode = false;
+                _persistentSelection = false;
+                return ModalDialogLoopResult<bool>.Continue;
+            case FileEditorInputKind.Keyboard:
+                if (input.Key is not { } key)
+                    return ModalDialogLoopResult<bool>.Continue;
+
+                session.RaiseInput(key);
+                bool printable = key.KeyChar >= ' ' &&
+                    (key.Modifiers & (ConsoleModifiers.Control | ConsoleModifiers.Alt)) == 0;
+                if (printable)
                 {
-                    session.Viewport.TopLine = frame.TopLine;
-                    session.Viewport.LeftColumn = frame.LeftColumn;
-                    layout = frame.Layout;
-                });
-            context.PublishOnStable(() =>
-            {
-                session.SetSyntaxDiagnostics(syntaxResult.Diagnostics);
-                session.RaiseRedraw(effective.TopLine, contentHeight);
-            });
-        });
-        while (true)
-        {
-            _customCursorVisible = true;
-            surface.Render();
+                    string text = key.KeyChar == '\t' && _settings.ExpandTabs
+                        ? new string(' ', EditorSettingsResolver.ResolveTabSize(_settings))
+                        : key.KeyChar.ToString();
+                    session.InsertText(text);
+                    _persistentSelection = false;
+                    return ModalDialogLoopResult<bool>.Continue;
+                }
 
-            var input = ReadInput(session, surface);
-            var currentLayout = layout ?? throw new InvalidOperationException("Editor layout is unavailable.");
-            int contentHeight = currentLayout.ContentHeight;
-            var size = currentLayout.Size;
-            if (input is ModifierKeyConsoleInputEvent modifierEvent)
-            {
-                functionKeyModifiers = modifierEvent.Modifiers;
-                continue;
-            }
+                if (HandleKey(session, key, frame.ContentHeight))
+                    return ModalDialogLoopResult<bool>.Continue;
 
-            if (TryHandleMouseWheel(input, session))
-                continue;
+                if (key.Key is ConsoleKey.Escape or ConsoleKey.F10 && TryExit(session))
+                    return ModalDialogLoopResult<bool>.Complete(true);
 
-            if (input is MouseConsoleInputEvent scrollbarMouse &&
-                TryHandleScrollbarMouse(scrollbarMouse, session, contentHeight, size))
-            {
-                continue;
-            }
-
-            if (input is MouseConsoleInputEvent mouse &&
-                TryGetFunctionKeyBarKey(mouse, size, functionKeyModifiers, out var mouseKey))
-            {
-                input = new KeyConsoleInputEvent(mouseKey);
-            }
-
-            if (input is MouseConsoleInputEvent textMouse &&
-                TryHandleTextMouse(textMouse, session, contentHeight, size))
-            {
-                continue;
-            }
-
-            if (input is not KeyConsoleInputEvent { Key: var key })
-                continue;
-
-            _mouseSelectionAnchor = null;
-            functionKeyModifiers = key.Modifiers;
-            session.RaiseInput(key);
-
-            bool printable = key.KeyChar >= ' ' &&
-                (key.Modifiers & (ConsoleModifiers.Control | ConsoleModifiers.Alt)) == 0;
-            if (printable)
-            {
-                string text = key.KeyChar == '\t' && _settings.ExpandTabs
-                    ? new string(' ', EditorSettingsResolver.ResolveTabSize(_settings))
-                    : key.KeyChar.ToString();
-                session.InsertText(text);
-                _persistentSelection = false;
-                continue;
-            }
-
-            if (HandleKey(session, key, contentHeight))
-                continue;
-
-            if (key.Key is ConsoleKey.Escape or ConsoleKey.F10)
-            {
-                if (TryExit(session))
-                    return;
-            }
-        }
-    }
-
-    private static bool TryHandleMouseWheel(ConsoleInputEvent input, EditorSession session)
-    {
-        if (input is not MouseConsoleInputEvent { Kind: MouseEventKind.Wheel } mouse)
-            return false;
-
-        const int wheelLines = 3;
-        if (mouse.Button == MouseButton.WheelUp)
-        {
-            session.MoveUp(wheelLines);
-            return true;
-        }
-
-        if (mouse.Button == MouseButton.WheelDown)
-        {
-            session.MoveDown(wheelLines);
-            return true;
-        }
-
-        return false;
-    }
-
-    private bool TryHandleTextMouse(
-        MouseConsoleInputEvent mouse,
-        EditorSession session,
-        int contentHeight,
-        ConsoleSize size)
-    {
-        if (mouse.Button != MouseButton.Left &&
-            _mouseSelectionAnchor is null)
-        {
-            return false;
-        }
-
-        switch (mouse.Kind)
-        {
-            case MouseEventKind.DoubleClick:
-                if (!TryGetTextMousePosition(mouse, session, contentHeight, size, clampToContent: false, out var doubleClickPosition))
-                    return false;
-
-                session.SelectWordAt(doubleClickPosition);
-                _mouseSelectionAnchor = null;
-                _markMode = false;
-                _persistentSelection = false;
-                return true;
-
-            case MouseEventKind.Down:
-                if (!TryGetTextMousePosition(mouse, session, contentHeight, size, clampToContent: false, out var clickPosition))
-                    return false;
-
-                session.MoveTo(clickPosition);
-                _mouseSelectionAnchor = clickPosition;
-                _markMode = false;
-                _persistentSelection = false;
-                return true;
-
-            case MouseEventKind.Move when _mouseSelectionAnchor is not null:
-                if (!TryGetTextMousePosition(mouse, session, contentHeight, size, clampToContent: true, out var movePosition))
-                    return false;
-
-                session.SelectRange(_mouseSelectionAnchor.Value, movePosition);
-                _markMode = false;
-                _persistentSelection = false;
-                return true;
-
-            case MouseEventKind.Up when _mouseSelectionAnchor is not null:
-                if (TryGetTextMousePosition(mouse, session, contentHeight, size, clampToContent: true, out var upPosition))
-                    session.SelectRange(_mouseSelectionAnchor.Value, upPosition);
-
-                _mouseSelectionAnchor = null;
-                _markMode = false;
-                _persistentSelection = false;
-                return true;
-        }
-
-        return false;
-    }
-
-    private bool TryGetTextMousePosition(
-        MouseConsoleInputEvent mouse,
-        EditorSession session,
-        int contentHeight,
-        ConsoleSize size,
-        bool clampToContent,
-        out EditorPosition position)
-    {
-        position = default;
-
-        int contentWidth = Math.Max(1, size.Width - 1);
-        int minY = 1;
-        int maxY = contentHeight;
-        int textX = mouse.X;
-        int textY = mouse.Y;
-
-        if (clampToContent)
-        {
-            textX = Math.Clamp(textX, 0, contentWidth - 1);
-            textY = Math.Clamp(textY, minY, maxY);
-        }
-        else if (textX < 0 || textX >= contentWidth || textY < minY || textY > maxY)
-        {
-            return false;
-        }
-
-        int lineIndex = Math.Clamp(
-            session.Viewport.TopLine + textY - 1,
-            0,
-            session.Document.Buffer.LineCount - 1);
-        string line = session.Document.Buffer.GetLine(lineIndex);
-        int visualColumn = session.Viewport.LeftColumn + textX;
-        position = new EditorPosition(lineIndex, LogicalColumnFromVisualColumn(line, visualColumn));
-        return true;
-    }
-
-    private bool TryHandleScrollbarMouse(
-        MouseConsoleInputEvent mouse,
-        EditorSession session,
-        int contentHeight,
-        ConsoleSize size)
-    {
-        int topLine = session.Viewport.TopLine;
-        if (!ScrollBarMouseHandler.TryHandleMouse(
-                mouse,
-                new Rect(size.Width - 1, 1, 1, contentHeight),
-                session.Document.Buffer.LineCount,
-                contentHeight,
-                ref topLine,
-                ref _scrollbarDrag))
-        {
-            return false;
-        }
-
-        MoveViewportTo(session, topLine, contentHeight);
-        return true;
-    }
-
-    private ConsoleInputEvent ReadInput(EditorSession session, UiCompositionHost.UiSurfaceSession surface)
-    {
-        if (!UsesCustomCursor(session))
-            return surface.ReadInput();
-
-        long nextBlink = Environment.TickCount64 + CustomCursorBlinkIntervalMs;
-        while (true)
-        {
-            if (surface.TryReadInput(out var input) && input is { } semanticInput)
-            {
-                _customCursorVisible = true;
-                return semanticInput;
-            }
-
-            long now = Environment.TickCount64;
-            if (now >= nextBlink)
-            {
-                _customCursorVisible = !_customCursorVisible;
-                surface.Render();
-                nextBlink = now + CustomCursorBlinkIntervalMs;
-            }
-
-            Thread.Sleep(CustomCursorInputPollMs);
+                return ModalDialogLoopResult<bool>.Continue;
+            default:
+                throw new ArgumentOutOfRangeException(nameof(input));
         }
     }
 
@@ -833,20 +663,77 @@ internal sealed class FileEditor
             session.SetSyntaxTheme(theme);
     }
 
-    private EditorSyntaxHighlightResult Draw(
+    private FileEditorFrame RenderFrame(
         EditorSession session,
-        int contentHeight,
-        ConsoleSize size,
         ConsoleModifiers functionKeyModifiers,
-        EditorViewport viewport)
+        UiRenderContext context,
+        bool customCursorVisible)
     {
-        DrawHeader(session, size);
+        int contentHeight = Math.Max(1, context.Size.Height - 3);
+        int contentWidth = Math.Max(1, context.Size.Width - 1);
+        EditorViewport viewport = CalculateEffectiveViewport(session, contentHeight, contentWidth);
+        Rect headerBounds = context.Size.Height > 0
+            ? new Rect(0, 0, context.Size.Width, 1)
+            : new Rect(0, 0, 0, 0);
+        Rect contentBounds = contentHeight > 0
+            ? new Rect(0, 1, contentWidth, contentHeight)
+            : new Rect(0, 0, 0, 0);
+        Rect statusBounds = context.Size.Height > 1
+            ? new Rect(0, contentHeight + 1, context.Size.Width, 1)
+            : new Rect(0, 0, 0, 0);
+        Rect functionKeyBarBounds = context.Size.Height > 0
+            ? new Rect(0, context.Size.Height - 1, context.Size.Width, 1)
+            : new Rect(0, 0, 0, 0);
         EditorSyntaxHighlightResult syntaxResult = ResolveSyntaxHighlighting(session, contentHeight, viewport.TopLine);
-        DrawContent(session, contentHeight, size, syntaxResult, viewport);
-        DrawStatus(session, contentHeight + 1, size);
-        DrawKeyBar(size, functionKeyModifiers);
-        DrawCursor(session, contentHeight, size, viewport);
-        return syntaxResult;
+        IReadOnlyList<FunctionKeyHit> functionKeyHits = BuildFunctionKeyHits(
+            functionKeyBarBounds.Y,
+            context.Size.Width,
+            CreateEditorFunctionKeyBarActions(functionKeyModifiers));
+        Rect? scrollbarBounds = contentHeight > 0 && context.Size.Width > 0
+            ? new Rect(context.Size.Width - 1, 1, 1, contentHeight)
+            : null;
+        ScrollState? scrollState = scrollbarBounds is not null
+            ? new ScrollState
+            {
+                TotalItems = session.Document.Buffer.LineCount,
+                ViewportItems = contentHeight,
+                FirstVisibleIndex = viewport.TopLine,
+            }
+            : null;
+        UiCursorPlacement cursor = BuildCursorPlacement(session, contentHeight, context.Size, viewport);
+        bool usesCustomCursor = UsesCustomCursor(session);
+        var frame = new FileEditorFrame(
+            session,
+            context.Viewport,
+            context.Size,
+            headerBounds,
+            contentBounds,
+            statusBounds,
+            functionKeyBarBounds,
+            contentHeight,
+            contentWidth,
+            viewport.TopLine,
+            viewport.LeftColumn,
+            Math.Min(session.Document.Buffer.LineCount, viewport.TopLine + contentHeight),
+            scrollbarBounds,
+            scrollState,
+            functionKeyHits,
+            cursor,
+            usesCustomCursor,
+            customCursorVisible,
+            syntaxResult.Diagnostics,
+            syntaxResult);
+
+        Draw(frame, functionKeyModifiers);
+        return frame;
+    }
+
+    private void Draw(FileEditorFrame frame, ConsoleModifiers functionKeyModifiers)
+    {
+        DrawHeader(frame.Session, frame.Size);
+        DrawContent(frame);
+        DrawStatus(frame.Session, frame.StatusBarBounds.Y, frame.Size);
+        DrawKeyBar(frame.Size, functionKeyModifiers);
     }
 
     private void DrawHeader(EditorSession session, ConsoleSize size)
@@ -887,43 +774,37 @@ internal sealed class FileEditor
         }
     }
 
-    private void DrawContent(
-        EditorSession session,
-        int contentHeight,
-        ConsoleSize size,
-        EditorSyntaxHighlightResult syntaxResult,
-        EditorViewport viewport)
+    private void DrawContent(FileEditorFrame frame)
     {
-        int textWidth = Math.Max(1, size.Width - 1);
-        var syntaxSpansByLine = syntaxResult.Spans
+        EditorSession session = frame.Session;
+        int textWidth = frame.ContentBounds.Width;
+        var syntaxSpansByLine = frame.SyntaxResult.Spans
             .GroupBy(span => span.LineIndex)
             .ToDictionary(group => group.Key, group => (IReadOnlyList<EditorColorSpan>)group.ToArray());
 
-        for (int row = 0; row < contentHeight; row++)
+        for (int row = 0; row < frame.ContentHeight; row++)
         {
-            int lineIndex = viewport.TopLine + row;
+            int lineIndex = frame.TopLine + row;
             if (lineIndex < session.Document.Buffer.LineCount)
             {
                 syntaxSpansByLine.TryGetValue(lineIndex, out var lineSpans);
-                DrawTextLine(session, lineIndex, row + 1, textWidth, lineSpans ?? [], viewport.LeftColumn);
+                DrawTextLine(frame, lineIndex, frame.ContentBounds.Y + row, textWidth, lineSpans ?? []);
             }
             else
             {
-                _screen.Write(0, row + 1, new string(' ', textWidth), EditorTextStyle());
+                _screen.Write(frame.ContentBounds.X, frame.ContentBounds.Y + row, new string(' ', textWidth), EditorTextStyle());
             }
         }
 
-        new ScrollBarRenderer().RenderVerticalScrollbar(
-            _screen,
-            new Rect(size.Width - 1, 1, 1, contentHeight),
-            new ScrollState
-            {
-                TotalItems = session.Document.Buffer.LineCount,
-                ViewportItems = contentHeight,
-                FirstVisibleIndex = viewport.TopLine,
-            },
-            new ScrollBarOptions { Enabled = true, DrawWhenNotScrollable = false },
-            PaletteStyles.DialogBorder(_palette));
+        if (frame.ScrollBarBounds is { } bounds && frame.VerticalScrollState is { } scrollState)
+        {
+            new ScrollBarRenderer().RenderVerticalScrollbar(
+                _screen,
+                bounds,
+                scrollState,
+                new ScrollBarOptions { Enabled = true, DrawWhenNotScrollable = false },
+                PaletteStyles.DialogBorder(_palette));
+        }
     }
 
     private void DrawStatus(EditorSession session, int y, ConsoleSize size)
@@ -940,24 +821,6 @@ internal sealed class FileEditor
     {
         var actions = CreateEditorFunctionKeyBarActions(modifiers);
         new FunctionKeyBarController<ConsoleKeyInfo>().Render(_screen, size.Height - 1, size.Width, actions);
-    }
-
-    private static bool TryGetFunctionKeyBarKey(
-        MouseConsoleInputEvent mouse,
-        ConsoleSize size,
-        ConsoleModifiers modifiers,
-        out ConsoleKeyInfo key)
-    {
-        key = default;
-
-        var actions = CreateEditorFunctionKeyBarActions(modifiers);
-
-        return new FunctionKeyBarController<ConsoleKeyInfo>().TryGetAction(
-            mouse,
-            size.Height - 1,
-            size.Width,
-            actions,
-            out key);
     }
 
     private static IReadOnlyList<FunctionKeyBarAction<ConsoleKeyInfo>> CreateEditorFunctionKeyBarActions(
@@ -977,26 +840,38 @@ internal sealed class FileEditor
             alt: (binding.Modifiers & ConsoleModifiers.Alt) != 0,
             control: (binding.Modifiers & ConsoleModifiers.Control) != 0);
 
+    private static IReadOnlyList<FunctionKeyHit> BuildFunctionKeyHits(
+        int y,
+        int totalWidth,
+        IReadOnlyList<FunctionKeyBarAction<ConsoleKeyInfo>> actions)
+    {
+        var enabled = actions.Where(action => action.Enabled).ToDictionary(action => action.KeyNumber, action => action.Action);
+        return FunctionKeyBar.BuildSlots(y, totalWidth)
+            .Where(slot => enabled.ContainsKey(slot.KeyNumber))
+            .Select(slot => new FunctionKeyHit(slot.Bounds, enabled[slot.KeyNumber]))
+            .ToArray();
+    }
+
     private void DrawTextLine(
-        EditorSession session,
+        FileEditorFrame frame,
         int lineIndex,
         int screenY,
         int width,
-        IReadOnlyList<EditorColorSpan> syntaxSpans,
-        int leftColumn)
+        IReadOnlyList<EditorColorSpan> syntaxSpans)
     {
+        EditorSession session = frame.Session;
         string line = session.Document.Buffer.GetLine(lineIndex);
         for (int screenX = 0; screenX < width; screenX++)
         {
-            int visualColumn = leftColumn + screenX;
+            int visualColumn = frame.LeftColumn + screenX;
             int logicalColumn = LogicalColumnFromVisualColumn(line, visualColumn);
             char ch = CharacterAtVisualColumn(line, visualColumn);
             bool selected = IsSelected(session.Selection, lineIndex, logicalColumn);
-            bool cursorCell = IsCursorCell(session, lineIndex, line, logicalColumn);
+            bool cursorCell = IsCursorCell(frame, lineIndex, line, logicalColumn);
             CellStyle style = SyntaxStyleAt(syntaxSpans, lineIndex, logicalColumn)
                 ?? EditorTextStyle();
             _screen.WriteChar(
-                screenX,
+                frame.ContentBounds.X + screenX,
                 screenY,
                 ch,
                 cursorCell || selected ? EditorSelectionStyle() : style);
@@ -1023,38 +898,35 @@ internal sealed class FileEditor
     private CellStyle EditorTextStyle() =>
         new(_palette.CommandLineFg, _palette.PanelBackground);
 
-    private void DrawCursor(EditorSession session, int contentHeight, ConsoleSize size, EditorViewport viewport)
+    private UiCursorPlacement BuildCursorPlacement(
+        EditorSession session,
+        int contentHeight,
+        ConsoleSize size,
+        EditorViewport viewport)
     {
         string line = session.Document.Buffer.GetLine(session.Cursor.Line);
         if (session.Cursor.Column < line.Length &&
             EditorUnicode.DisplayCellWidthAt(line, session.Cursor.Column) > 1)
         {
-            _screen.SetCursorVisible(false);
-            return;
+            return new UiCursorPlacement(0, 0, Visible: false);
         }
 
         int screenRow = 1 + (session.Cursor.Line - viewport.TopLine);
-        int screenCol = VisualColumn(line, session.Cursor.Column)
-            - viewport.LeftColumn;
-        if (screenRow >= 1 && screenRow <= contentHeight && screenCol >= 0 && screenCol < size.Width - 1)
-        {
-            _screen.SetCursorPosition(screenCol, screenRow);
-            _screen.SetCursorVisible(true);
-            return;
-        }
-
-        _screen.SetCursorVisible(false);
+        int screenCol = VisualColumn(line, session.Cursor.Column) - viewport.LeftColumn;
+        bool visible = screenRow >= 1 && screenRow <= contentHeight && screenCol >= 0 && screenCol < size.Width - 1;
+        return new UiCursorPlacement(Math.Max(0, screenCol), Math.Max(0, screenRow), visible);
     }
 
     private bool IsCursorCell(
-        EditorSession session,
+        FileEditorFrame frame,
         int lineIndex,
         string line,
         int logicalColumn)
     {
-        if (!_customCursorVisible)
+        if (!frame.CustomCursorVisible)
             return false;
 
+        EditorSession session = frame.Session;
         if (lineIndex != session.Cursor.Line ||
             session.Cursor.Column >= line.Length ||
             logicalColumn != session.Cursor.Column)
@@ -1089,8 +961,6 @@ internal sealed class FileEditor
 
         return new EditorViewport { TopLine = topLine, LeftColumn = leftColumn };
     }
-
-    private readonly record struct EditorFrameState(EditorLayout Layout, int TopLine, int LeftColumn);
 
     private string FormatLine(string line, int scrollLeft, int width)
     {
@@ -1259,5 +1129,38 @@ internal sealed class FileEditor
         return text.Length <= width ? text.PadRight(width) : text[..width];
     }
 
-    private sealed record EditorLayout(ConsoleSize Size, int ContentHeight, int ContentWidth);
+    private bool TryGetTextMousePosition(
+        MouseConsoleInputEvent mouse,
+        FileEditorFrame frame,
+        bool clampToContent,
+        out EditorPosition position)
+    {
+        position = default;
+
+        Rect content = frame.ContentBounds;
+        if (content.Width <= 0 || content.Height <= 0)
+            return false;
+
+        int textX = mouse.X;
+        int textY = mouse.Y;
+        if (clampToContent)
+        {
+            textX = Math.Clamp(textX, content.X, content.X + content.Width - 1);
+            textY = Math.Clamp(textY, content.Y, content.Y + content.Height - 1);
+        }
+        else if (!content.Contains(textX, textY))
+        {
+            return false;
+        }
+
+        int lineIndex = Math.Clamp(
+            frame.TopLine + textY - content.Y,
+            0,
+            frame.Session.Document.Buffer.LineCount - 1);
+        string line = frame.Session.Document.Buffer.GetLine(lineIndex);
+        int visualColumn = frame.LeftColumn + textX - content.X;
+        position = new EditorPosition(lineIndex, LogicalColumnFromVisualColumn(line, visualColumn));
+        return true;
+    }
+
 }
