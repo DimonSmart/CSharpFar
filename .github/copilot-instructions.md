@@ -3,23 +3,12 @@
 This project uses Intent-Driven Development.
 
 Current product intent lives in `.idd/intent/`.
+Required IDD plugins for Claude Code and Codex are declared in `.idd/plugins.json`.
 
 Use IDD only when working with durable product intent.
 
 Do not load the whole `.idd/intent/` directory by default. Read
 `.idd/intent/README.md`, `.idd/intent/INDEX.md`, then only relevant numbered specs.
-
-Use installed IDD skills for specific workflows:
-- `idd-code-check-implementation`
-- `idd-code-implement`
-- `idd-code-update-intent`
-- `idd-intent-audit`
-- `idd-intent-brainstorm`
-- `idd-intent-change`
-- `idd-intent-import`
-- `idd-intent-lint`
-- `idd-intent-new-document`
-- `idd-intent-normalize-current`
 
 ## IDD Workflow Routing
 
@@ -61,5 +50,5 @@ ADRs are decision records. Do not archive superseded ADRs. Mark them as
 Resolved spikes should be deleted after their outcome is captured in a spec or
 ADR, unless they remain useful as active research.
 
-This file and installed IDD skills are workflow guidance.
+This file is workflow guidance.
 They are not product specifications.

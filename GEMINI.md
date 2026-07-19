@@ -3,6 +3,7 @@
 This project uses Intent-Driven Development.
 
 Current product intent lives in `.idd/intent/`.
+Required IDD plugins are declared in `.idd/plugins.json`.
 
 Use IDD only when working with durable product intent.
 
