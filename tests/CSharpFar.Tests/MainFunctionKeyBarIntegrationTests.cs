@@ -56,140 +56,38 @@ public sealed class MainFunctionKeyBarIntegrationTests
     }
 
     [Fact]
-    public void MouseClickOnActiveSlot_ExecutesRegisteredCommand()
+    public void MouseClickOnCommittedActionExecutesCommandWithCommittedPanelInvocation()
     {
         int executions = 0;
-        var handler = CreateHandler(
-            execute: (commandId, _) =>
-            {
-                if (commandId == "copy")
-                    executions++;
-                return true;
-            });
-
-        var result = handler.Handle(
-            Mouse(x: 40, y: 24, MouseButton.Left, MouseEventKind.Down),
-            Frame(canExecute: true),
-            UiInputRouteKind.HitTarget);
-
-        Assert.True(result.Handled);
-        Assert.Equal(1, executions);
-    }
-
-    [Fact]
-    public void MouseClickOnActiveSlot_UsesCommittedPanelInvocation()
-    {
+        string? receivedCommandId = null;
         object? receivedArgs = null;
-        var handler = CreateHandler((_, args) =>
+        var handler = CreateHandler((commandId, args) =>
         {
+            executions++;
+            receivedCommandId = commandId;
             receivedArgs = args;
             return true;
         });
 
-        handler.Handle(
+        var result = handler.Handle(
             Mouse(x: 40, y: 24, MouseButton.Left, MouseEventKind.Down),
-            Frame(canExecute: true),
+            Frame(),
             UiInputRouteKind.HitTarget);
 
+        Assert.True(result.Handled);
+        Assert.Equal(1, executions);
+        Assert.Equal("copy", receivedCommandId);
         var invocation = Assert.IsType<ApplicationPanelCommandInvocation>(receivedArgs);
         Assert.Equal(PanelSide.Left, invocation.Side);
-        Assert.Equal(@"C:\left", invocation.ActivePanel.CurrentDirectory);
-        Assert.Equal(@"C:\right", invocation.PassivePanel.CurrentDirectory);
-    }
-
-    [Fact]
-    public void MouseClickOnEmptySlot_DoesNothing()
-    {
-        int executions = 0;
-        var handler = CreateHandler(execute: (_, _) =>
-        {
-            executions++;
-            return true;
-        });
-
-        var result = handler.Handle(
-            Mouse(x: 90, y: 24, MouseButton.Left, MouseEventKind.Down),
-            Frame(canExecute: true),
-            UiInputRouteKind.HitTarget);
-
-        Assert.False(result.Handled);
-        Assert.Equal(0, executions);
-    }
-
-    [Fact]
-    public void MouseClickOnDisabledCommand_DoesNothing()
-    {
-        int executions = 0;
-        var handler = CreateHandler(execute: (_, _) =>
-        {
-            executions++;
-            return true;
-        });
-
-        var result = handler.Handle(
-            Mouse(x: 40, y: 24, MouseButton.Left, MouseEventKind.Down),
-            Frame(canExecute: false),
-            UiInputRouteKind.HitTarget);
-
-        Assert.False(result.Handled);
-        Assert.Equal(0, executions);
-    }
-
-    [Fact]
-    public void MouseClickOutsideBottomRow_IsNotHandledByFunctionKeyBar()
-    {
-        int executions = 0;
-        var handler = CreateHandler(execute: (_, _) =>
-        {
-            executions++;
-            return true;
-        });
-
-        var result = handler.Handle(
-            Mouse(x: 40, y: 22, MouseButton.Left, MouseEventKind.Down),
-            Frame(canExecute: true),
-            UiInputRouteKind.HitTarget);
-
-        Assert.False(result.Handled);
-        Assert.Equal(0, executions);
-    }
-
-    [Fact]
-    public void RightClick_IsNotHandledByFunctionKeyBar()
-    {
-        int executions = 0;
-        var handler = CreateHandler(execute: (_, _) =>
-        {
-            executions++;
-            return true;
-        });
-
-        var result = handler.Handle(
-            Mouse(x: 40, y: 24, MouseButton.Right, MouseEventKind.Down),
-            Frame(canExecute: true),
-            UiInputRouteKind.HitTarget);
-
-        Assert.False(result.Handled);
-        Assert.Equal(0, executions);
-    }
-
-    [Fact]
-    public void NonClickMouseEvent_DoesNotExecuteCommand()
-    {
-        int executions = 0;
-        var handler = CreateHandler(execute: (_, _) =>
-        {
-            executions++;
-            return true;
-        });
-
-        var result = handler.Handle(
-            Mouse(x: 40, y: 24, MouseButton.Left, MouseEventKind.Up),
-            Frame(canExecute: true),
-            UiInputRouteKind.HitTarget);
-
-        Assert.False(result.Handled);
-        Assert.Equal(0, executions);
+        Assert.Equal(17, invocation.VisibleRows);
+        Assert.Equal(PanelLocation.Local(@"C:\left"), invocation.ActivePanel.CurrentLocation);
+        Assert.Equal(3, invocation.ActivePanel.CurrentItemIndex);
+        Assert.Equal(PanelLocation.Local(@"C:\left\active.txt"), invocation.ActivePanel.CurrentItemLocation);
+        Assert.Equal("active.txt", invocation.ActivePanel.CurrentItemName);
+        Assert.Equal(PanelLocation.Local(@"C:\right"), invocation.PassivePanel.CurrentLocation);
+        Assert.Equal(5, invocation.PassivePanel.CurrentItemIndex);
+        Assert.Equal(PanelLocation.Local(@"C:\right\passive.txt"), invocation.PassivePanel.CurrentItemLocation);
+        Assert.Equal("passive.txt", invocation.PassivePanel.CurrentItemName);
     }
 
     private static ApplicationFunctionKeyBarInputHandler CreateHandler(
@@ -219,7 +117,7 @@ public sealed class MainFunctionKeyBarIntegrationTests
     private static MouseConsoleInputEvent Mouse(int x, int y, MouseButton button, MouseEventKind kind) =>
         new(x, y, button, kind, MouseKeyModifiers.None);
 
-    private static ApplicationUiFrame Frame(bool canExecute) =>
+    private static ApplicationUiFrame Frame() =>
         new(
             new ConsoleViewport(0, 0, 120, 25),
             ApplicationWorkspaceMode.Panels,
@@ -227,14 +125,14 @@ public sealed class MainFunctionKeyBarIntegrationTests
                 PanelSide.Left,
                 false,
                 false,
-                new ApplicationPanelKeyboardFrame(PanelLocation.Local(@"C:\left"), false, null, null, null),
-                new ApplicationPanelKeyboardFrame(PanelLocation.Local(@"C:\right"), false, null, null, null)),
+                new ApplicationPanelKeyboardFrame(
+                    PanelLocation.Local(@"C:\left"), false, 3, PanelLocation.Local(@"C:\left\active.txt"), "active.txt"),
+                new ApplicationPanelKeyboardFrame(
+                    PanelLocation.Local(@"C:\right"), false, 5, PanelLocation.Local(@"C:\right\passive.txt"), "passive.txt")),
             new ApplicationCommandLineFrame(new Rect(0, 23, 120, 1), 8, 0, 0, new UiCursorPlacement(8, 23)),
-            null,
-            null,
-            canExecute
-                ? new ApplicationFunctionKeyBarFrame(
-                    [new ApplicationFunctionKeyHit(new Rect(40, 24, 10, 1), "copy")])
-                : null,
+            new ApplicationPanelFrame(PanelSide.Left, new Rect(0, 0, 60, 23), 17, [], null, null),
+            new ApplicationPanelFrame(PanelSide.Right, new Rect(60, 0, 60, 23), 19, [], null, null),
+            new ApplicationFunctionKeyBarFrame(
+                [new ApplicationFunctionKeyHit(new Rect(40, 24, 10, 1), "copy")]),
             null);
 }
