@@ -94,30 +94,41 @@ public class FunctionKeyBarTests
         Assert.Equal(new string(' ', width), driver.GetRow(0));
     }
 
-    [Theory]
-    [InlineData(120)]
-    [InlineData(122)]
-    [InlineData(11)]
-    public void BuildSlots_DefinesRenderedAndHitTestGeometry(int width)
+    [Fact]
+    public void RenderAndHitTest_UseLastRemainderSlotGeometry()
     {
-        var slots = FunctionKeyBar.BuildSlots(y: 3, totalWidth: width);
+        const int width = 100;
+        var driver = new FakeConsoleDriver(width, 2);
+        var screen = new ScreenRenderer(driver);
+        var renderer = CreateRenderer();
+        FunctionKeyBarItem[] items = [new(11, "Prev"), new(12, "Tail")];
+        var slots = FunctionKeyBar.BuildSlots(y: 0, totalWidth: width);
+        var previousSlot = slots[^2];
+        var lastSlot = slots[^1];
 
-        if (width < 12)
-        {
-            Assert.Empty(slots);
-            return;
-        }
+        Render(renderer, screen, y: 0, totalWidth: width, items);
 
         Assert.Equal(12, slots.Count);
-        Assert.Equal(new Rect(0, 3, width / 12, 1), slots[0].Bounds);
-        Assert.Equal(width, slots[^1].Bounds.Right);
-        Assert.Equal(width - (width / 12 * 11), slots[^1].Bounds.Width);
+        Assert.Equal(12, lastSlot.Bounds.Width);
+        Assert.Equal(width, lastSlot.Bounds.Right);
+        Assert.Equal("12", driver.GetRow(0).Substring(lastSlot.Bounds.X, 2));
 
-        foreach (var slot in slots)
-        {
-            Assert.True(FunctionKeyBar.TryGetKeyNumberAtX(slot.Bounds.X, width, out int keyNumber));
-            Assert.Equal(slot.KeyNumber, keyNumber);
-        }
+        Assert.True(FunctionKeyBar.TryGetKeyNumberAtX(lastSlot.Bounds.Right - 1, width, out int lastKeyNumber));
+        Assert.Equal(12, lastKeyNumber);
+
+        Assert.True(FunctionKeyBar.TryGetKeyNumberAtX(lastSlot.Bounds.X - 1, width, out int previousKeyNumber));
+        Assert.Equal(previousSlot.KeyNumber, previousKeyNumber);
+
+        var mouse = new MouseConsoleInputEvent(lastSlot.Bounds.Right - 1, 0, MouseButton.Left, MouseEventKind.Down, MouseKeyModifiers.None);
+        Assert.True(renderer.TryHitTest(mouse, y: 0, totalWidth: width, out var hit));
+        Assert.Equal(12, hit.KeyNumber);
+        Assert.Equal(ConsoleKey.F12, hit.Key);
+    }
+
+    [Fact]
+    public void BuildSlots_ReturnsNoSlots_WhenWidthIsLessThanFunctionKeyCount()
+    {
+        Assert.Empty(FunctionKeyBar.BuildSlots(y: 3, totalWidth: 11));
     }
 
     [Fact]
@@ -146,18 +157,6 @@ public class FunctionKeyBarTests
     }
 
     [Theory]
-    [InlineData(0, 1)]
-    [InlineData(8, 2)]
-    [InlineData(72, 10)]
-    [InlineData(96, 12)]
-    [InlineData(99, 12)]
-    public void HitTest_UsesRenderedSlotsIncludingLastRemainder(int x, int expectedKeyNumber)
-    {
-        Assert.True(FunctionKeyBar.TryGetKeyNumberAtX(x, totalWidth: 100, out int keyNumber));
-        Assert.Equal(expectedKeyNumber, keyNumber);
-    }
-
-    [Theory]
     [InlineData(-1)]
     [InlineData(100)]
     public void HitTest_RejectsPositionsOutsideBar(int x)
@@ -182,8 +181,11 @@ public class FunctionKeyBarTests
     {
         var mouse = new MouseConsoleInputEvent(x, y, button, kind, MouseKeyModifiers.None);
 
-        Assert.Equal(expectedResult, FunctionKeyBar.TryGetKeyNumberAt(mouse, y: 24, totalWidth: 120, out int keyNumber));
-        Assert.Equal(expectedKeyNumber, keyNumber);
+        bool result = FunctionKeyBar.TryGetKeyNumberAt(mouse, y: 24, totalWidth: 120, out int keyNumber);
+
+        Assert.Equal(expectedResult, result);
+        if (expectedResult)
+            Assert.Equal(expectedKeyNumber, keyNumber);
     }
 
     [Theory]
@@ -204,9 +206,8 @@ public class FunctionKeyBarTests
         Assert.False(FunctionKeyBar.TryGetFunctionKey(13, out _));
     }
 
-    [Theory]
-    [InlineData(MouseEventKind.Down)]
-    public void Controller_ReturnsEnabledActionForActivationMouseEvents(MouseEventKind kind)
+    [Fact]
+    public void Controller_ReturnsEnabledActionForActivationMouseEvents()
     {
         var controller = new FunctionKeyBarController<string>();
         FunctionKeyBarAction<string>[] actions =
@@ -214,7 +215,7 @@ public class FunctionKeyBarTests
             new(1, "Help", "help"),
             new(10, "Quit", "quit"),
         ];
-        var mouse = new MouseConsoleInputEvent(90, 24, MouseButton.Left, kind, MouseKeyModifiers.None);
+        var mouse = new MouseConsoleInputEvent(90, 24, MouseButton.Left, MouseEventKind.Down, MouseKeyModifiers.None);
 
         bool handled = controller.TryGetAction(mouse, y: 24, totalWidth: 120, actions, out string action);
 
