@@ -1,5 +1,3 @@
-using System.Reflection;
-using CSharpFar.App.Bootstrap;
 using CSharpFar.FileSystem;
 using CSharpFar.Platform.Unix;
 using CSharpFar.Platform.Windows;
@@ -10,22 +8,6 @@ namespace CSharpFar.Tests;
 
 public sealed class PlatformCompositionTests
 {
-    [Fact]
-    public void ApplicationBootstrap_DoesNotConstructPlatformSpecificServices()
-    {
-        var bootstrapAssembly = typeof(ApplicationBootstrap).Assembly;
-        var bootstrapTypes = bootstrapAssembly.GetTypes()
-            .Where(t => t.Namespace == "CSharpFar.App.Bootstrap")
-            .SelectMany(t => t.GetMethods(BindingFlags.Instance | BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.DeclaredOnly))
-            .SelectMany(m => m.GetMethodBody()?.LocalVariables.Select(v => v.LocalType) ?? [])
-            .Select(t => t.FullName)
-            .ToArray();
-
-        Assert.DoesNotContain(typeof(DpapiCredentialStore).FullName, bootstrapTypes);
-        Assert.DoesNotContain(typeof(WindowsShellFileLauncher).FullName, bootstrapTypes);
-        Assert.DoesNotContain(typeof(WindowsVolumeService).FullName, bootstrapTypes);
-    }
-
     [Fact]
     public void WindowsPlatformServices_UsesWindowsImplementations()
     {

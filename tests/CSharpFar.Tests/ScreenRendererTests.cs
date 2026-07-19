@@ -379,13 +379,4 @@ public class ScreenRendererTests
         Assert.Equal(ConsoleColor.Yellow, driver.GetCell(0, 0).Foreground);
     }
 
-    [Fact]
-    public void GetSize_ReturnsDriverSize()
-    {
-        var (renderer, _) = Create(132, 50);
-        var size = renderer.GetSize();
-
-        Assert.Equal(132, size.Width);
-        Assert.Equal(50, size.Height);
-    }
 }

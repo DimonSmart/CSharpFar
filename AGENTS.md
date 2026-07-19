@@ -21,6 +21,23 @@ Use installed IDD skills for specific workflows:
 - `idd-intent-new-document`
 - `idd-intent-normalize-current`
 
+## Testing Policy
+
+Tests are evidence for durable behavior, not a mirror of the implementation.
+Coverage percentage and test count are not goals by themselves.
+
+Add or keep the smallest set of tests that protects meaningful contracts,
+non-trivial logic, important boundary cases, confirmed regressions, platform or
+protocol behavior, and data integrity.
+
+Do not test trivial getters, setters, default initializers, absence of code,
+private implementation shape, or behavior already sufficiently proven by a more
+meaningful higher-level test.
+
+Prefer the highest stable level that proves the behavior clearly. Add a
+lower-level test only when it protects logic that is difficult to exercise or
+diagnose at that level.
+
 ## IDD Workflow Routing
 
 Use `idd-intent-brainstorm` when product intent is unclear.

@@ -1,4 +1,3 @@
-using System.Reflection;
 using CSharpFar.App.Rendering;
 using CSharpFar.App.Settings;
 using CSharpFar.Console;
@@ -382,21 +381,6 @@ public class PaletteSettingsPersistenceTests : IDisposable
     {
         if (Directory.Exists(_tempDir))
             Directory.Delete(_tempDir, recursive: true);
-    }
-
-    [Fact]
-    public void AppSettings_PaletteField_DefaultsToDefault()
-    {
-        var s = new CSharpFar.Core.Models.AppSettings();
-        Assert.Equal("Default", s.Ui.Palette);
-    }
-
-    [Fact]
-    public void AppSettings_ViewModeFields_DefaultToFull()
-    {
-        var s = new CSharpFar.Core.Models.AppSettings();
-        Assert.Equal("Full", s.Panels.LeftViewMode);
-        Assert.Equal("Full", s.Panels.RightViewMode);
     }
 
     [Fact]
