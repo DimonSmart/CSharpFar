@@ -66,6 +66,25 @@ public sealed class Spec012SearchProgressDialogTests
     }
 
     [Fact]
+    public void Show_StreamingResultsPreserveSelectedResultForGoTo()
+    {
+        var first = Result(@"C:\root\a.txt");
+        var selected = Result(@"C:\root\b.txt");
+        var later = Result(@"C:\root\c.txt");
+        var service = new StreamingSearchService(first, selected, later);
+        var driver = new FakeConsoleDriver(width: 100, height: 30);
+        var screen = new ScreenRenderer(driver);
+        EnqueueKeysWhenWriteContains(driver, "b.txt", Key(ConsoleKey.DownArrow));
+        EnqueueKeysWhenWriteContains(driver, "c.txt", Key(ConsoleKey.Enter));
+
+        var result = new SearchProgressDialog(ModalTestHost.Create(screen), service).Show(Request(@"C:\root", "*.txt"));
+
+        Assert.True(result.Cancelled);
+        Assert.Same(selected, result.GoToResult);
+        Assert.True(service.CancellationObserved);
+    }
+
+    [Fact]
     public void Show_StopConfirmationNoContinuesSearch()
     {
         var item = Result(@"C:\root\found.txt");
@@ -193,6 +212,47 @@ public sealed class Spec012SearchProgressDialogTests
             cancellationToken.ThrowIfCancellationRequested();
             onCompleting();
             yield break;
+        }
+    }
+
+    private sealed class StreamingSearchService(params SearchResultItem[] items) : ISearchService
+    {
+        public bool CancellationObserved { get; private set; }
+
+        public async IAsyncEnumerable<SearchResultItem> SearchAsync(
+            SearchRequest request,
+            IProgress<SearchProgress>? progress,
+            [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
+        {
+            for (int i = 0; i < items.Length; i++)
+            {
+                progress?.Report(new SearchProgress
+                {
+                    CurrentPath = items[i].FullPath,
+                    ScannedFiles = i + 1,
+                    MatchedItems = i + 1,
+                });
+                yield return items[i];
+                try
+                {
+                    await Task.Delay(80, cancellationToken);
+                }
+                catch (OperationCanceledException)
+                {
+                    CancellationObserved = true;
+                    throw;
+                }
+            }
+
+            try
+            {
+                await Task.Delay(TimeSpan.FromSeconds(30), cancellationToken);
+            }
+            catch (OperationCanceledException)
+            {
+                CancellationObserved = true;
+                throw;
+            }
         }
     }
 }

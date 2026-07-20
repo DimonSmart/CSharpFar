@@ -185,11 +185,6 @@ public sealed class UnifiedWindowScrollbarTests
     {
         var driver = new FakeConsoleDriver(width: 100, height: 30);
         var screen = new ScreenRenderer(driver);
-        EnqueueKeysWhenWriteContains(
-            driver,
-            "found09.txt",
-            KeyChar('S', ConsoleKey.S),
-            Key(ConsoleKey.Enter));
 
         _ = new SearchProgressDialog(ModalTestHost.Create(screen), new ManyResultsSearchService())
             .Show(new SearchRequest
@@ -450,8 +445,7 @@ public sealed class UnifiedWindowScrollbarTests
                     Attributes = FileAttributes.Archive,
                 };
             }
-
-            await Task.Delay(TimeSpan.FromSeconds(30), cancellationToken);
+            await Task.CompletedTask;
         }
     }
 

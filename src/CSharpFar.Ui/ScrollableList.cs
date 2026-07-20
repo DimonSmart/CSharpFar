@@ -44,7 +44,7 @@ public sealed class ScrollableList<T>
         ItemText = itemText ?? throw new ArgumentNullException(nameof(itemText));
     }
 
-    public IReadOnlyList<T> Items { get; }
+    public IReadOnlyList<T> Items { get; private set; }
 
     public Func<T, string> ItemText { get; }
 
@@ -84,6 +84,47 @@ public sealed class ScrollableList<T>
 
         SelectedIndex = Math.Clamp(SelectedIndex, 0, Count - 1);
         EnsureSelectedVisible(viewportRows);
+    }
+
+    public void ReplaceItems<TKey>(IReadOnlyList<T> items, Func<T, TKey> identityKey, int viewportRows)
+        where TKey : notnull
+    {
+        ArgumentNullException.ThrowIfNull(items);
+        ArgumentNullException.ThrowIfNull(identityKey);
+
+        TKey? selectedKey = HasItems && SelectedIndex >= 0 && SelectedIndex < Count
+            ? identityKey(Items[SelectedIndex])
+            : default;
+        bool hadSelectedKey = selectedKey is not null;
+        int previousSelectedIndex = SelectedIndex;
+
+        Items = items;
+        if (Items.Count == 0)
+        {
+            SelectedIndex = -1;
+            ScrollTop = 0;
+            _scrollbarDrag = null;
+            return;
+        }
+
+        int replacementIndex = -1;
+        if (hadSelectedKey)
+        {
+            var comparer = EqualityComparer<TKey>.Default;
+            for (int index = 0; index < Items.Count; index++)
+            {
+                if (comparer.Equals(identityKey(Items[index]), selectedKey))
+                {
+                    replacementIndex = index;
+                    break;
+                }
+            }
+        }
+
+        SelectedIndex = replacementIndex >= 0
+            ? replacementIndex
+            : Math.Clamp(previousSelectedIndex, 0, Items.Count - 1);
+        Normalize(viewportRows);
     }
 
     /// <summary>Calculates normalized list state without changing input state.</summary>

@@ -253,13 +253,18 @@ public sealed class Spec012SearchResultsPanelTests : IDisposable
         string subDirectory = Path.Combine(_root, "sub");
         string foundFile = Path.Combine(subDirectory, "found.txt");
         var fileOps = new RecordingFileOperationService();
-        var service = new BlockingSearchService(SearchResult(foundFile));
         var driver = new FakeConsoleDriver(width: 100, height: 30);
+        var service = new BlockingSearchService(
+            SearchResult(foundFile),
+            () => driver.BeforeReadInput = current => current.EnqueueKey(Key(ConsoleKey.F10)),
+            () => driver.BeforeReadInput = current => current.EnqueueKey(Key(ConsoleKey.F10)));
         driver.EnqueueKey(Key(ConsoleKey.F7, alt: true));
         driver.EnqueueKey(Key(ConsoleKey.F10));
-        driver.EnqueueKey(KeyChar('S', ConsoleKey.S));
-        driver.EnqueueKey(Key(ConsoleKey.Enter));
-        driver.EnqueueKey(Key(ConsoleKey.F10));
+        EnqueueMouseClickWhenWriteContains(
+            driver,
+            "[ Stop ]",
+            offsetX: 2,
+            KeyChar('Y', ConsoleKey.Y));
 
         var fs = CreateFileSystem(new FilePanelItem
         {
@@ -368,6 +373,34 @@ public sealed class Spec012SearchResultsPanelTests : IDisposable
         }
     }
 
+    private static void EnqueueMouseClickWhenWriteContains(
+        FakeConsoleDriver driver,
+        string text,
+        int offsetX,
+        params ConsoleKeyInfo[] followingKeys)
+    {
+        bool enqueued = false;
+        driver.Wrote += OnWrote;
+
+        void OnWrote(FakeConsoleDriver.WriteRecord record)
+        {
+            if (enqueued || !record.Text.Contains(text, StringComparison.Ordinal))
+                return;
+
+            enqueued = true;
+            driver.Wrote -= OnWrote;
+            int x = record.X + record.Text.IndexOf(text, StringComparison.Ordinal) + offsetX;
+            driver.EnqueueInput(new CSharpFar.Console.Input.MouseConsoleInputEvent(
+                x,
+                record.Y,
+                CSharpFar.Console.Input.MouseButton.Left,
+                CSharpFar.Console.Input.MouseEventKind.Down,
+                CSharpFar.Console.Input.MouseKeyModifiers.None));
+            foreach (var key in followingKeys)
+                driver.EnqueueKey(key);
+        }
+    }
+
     private static SearchResultItem SearchResult(string fullPath) =>
         new()
         {
@@ -441,8 +474,14 @@ public sealed class Spec012SearchResultsPanelTests : IDisposable
     private sealed class BlockingSearchService : ISearchService
     {
         private readonly SearchResultItem _item;
+        private readonly Action? _onCancellationObserved;
+        private readonly Action? _onCompleted;
 
-        public BlockingSearchService(SearchResultItem item) => _item = item;
+        public BlockingSearchService(
+            SearchResultItem item,
+            Action? onCancellationObserved = null,
+            Action? onCompleted = null) =>
+            (_item, _onCancellationObserved, _onCompleted) = (item, onCancellationObserved, onCompleted);
 
         public bool CancellationObserved { get; private set; }
 
@@ -462,12 +501,18 @@ public sealed class Spec012SearchResultsPanelTests : IDisposable
 
             try
             {
-                await Task.Delay(TimeSpan.FromSeconds(30), cancellationToken);
+                cancellationToken.ThrowIfCancellationRequested();
+                await Task.Delay(TimeSpan.FromSeconds(2), cancellationToken);
             }
             catch (OperationCanceledException)
             {
                 CancellationObserved = true;
+                _onCancellationObserved?.Invoke();
                 throw;
+            }
+            finally
+            {
+                _onCompleted?.Invoke();
             }
         }
     }

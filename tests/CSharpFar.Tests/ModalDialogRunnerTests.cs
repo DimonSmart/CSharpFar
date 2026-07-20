@@ -532,6 +532,48 @@ public sealed class ModalDialogRunnerTests
     }
 
     [Fact]
+    public void RunInteractiveTimed_WakeUsesCommittedFrameInvalidatesAndCompletes()
+    {
+        var driver = new FakeConsoleDriver(80, 25);
+        var modals = CreateHost(driver, out _);
+        var applied = new List<ConsoleSize>();
+        var wakeFrames = new List<ConsoleSize>();
+        int wakes = 0;
+        bool changed = false;
+
+        int result = modals.RunInteractiveTimed<ConsoleSize, string, int>(
+            (context, _) =>
+            {
+                context.Screen.Write(0, 0, changed ? "W" : "M", Style);
+                return context.Size;
+            },
+            _ => UiInteractionFrame.Empty,
+            (_, _, _) => ("input", UiInputResult.HandledResult),
+            (_, _) => ModalDialogLoopResult<int>.Complete(-1),
+            getNextWakeUtc: () => DateTimeOffset.UtcNow,
+            handleWake: frame =>
+            {
+                wakeFrames.Add(frame);
+                wakes++;
+                if (wakes == 1)
+                {
+                    changed = true;
+                    driver.ResizeAfterWriteCount = driver.WriteAtCallCount + 1;
+                    driver.ResizeAfterWrite = d => d.SetSize(100, 35);
+                    return ModalDialogWakeResult<int>.Changed;
+                }
+
+                return ModalDialogWakeResult<int>.Complete(42);
+            },
+            applyCommittedFrame: applied.Add);
+
+        Assert.Equal(42, result);
+        Assert.Equal([new ConsoleSize(80, 25), new ConsoleSize(100, 35)], wakeFrames);
+        Assert.Equal(new ConsoleSize(100, 35), applied[^1]);
+        Assert.DoesNotContain(new ConsoleSize(80, 25), applied.Skip(1));
+    }
+
+    [Fact]
     public void RunRouted_HandlerExceptionDisposesOverlayAndRestoresSurface()
     {
         var driver = new FakeConsoleDriver();

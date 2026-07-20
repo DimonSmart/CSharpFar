@@ -114,10 +114,61 @@ public sealed class ModalDialogHost
         Action<TFrame>? applyCommittedFrame = null,
         CancellationToken cancellationToken = default)
     {
+        return RunInteractiveCore(
+            render,
+            buildInteractionFrame,
+            routeInput,
+            handleInput,
+            prepareRender,
+            applyCommittedFrame,
+            getNextWakeUtc: null,
+            handleWake: null,
+            cancellationToken);
+    }
+
+    public TResult RunInteractiveTimed<TFrame, TSemantic, TResult>(
+        Func<UiRenderContext, UiFocusScope, TFrame> render,
+        Func<TFrame, UiInteractionFrame> buildInteractionFrame,
+        Func<ConsoleInputEvent, TFrame, UiInputRouteContext, (TSemantic Semantic, UiInputResult UiResult)> routeInput,
+        Func<UiRoutedInput<TFrame>, TSemantic, ModalDialogLoopResult<TResult>> handleInput,
+        Func<DateTimeOffset?> getNextWakeUtc,
+        Func<TFrame, ModalDialogWakeResult<TResult>> handleWake,
+        Action? prepareRender = null,
+        Action<TFrame>? applyCommittedFrame = null,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(getNextWakeUtc);
+        ArgumentNullException.ThrowIfNull(handleWake);
+
+        return RunInteractiveCore(
+            render,
+            buildInteractionFrame,
+            routeInput,
+            handleInput,
+            prepareRender,
+            applyCommittedFrame,
+            getNextWakeUtc,
+            handleWake,
+            cancellationToken);
+    }
+
+    private TResult RunInteractiveCore<TFrame, TSemantic, TResult>(
+        Func<UiRenderContext, UiFocusScope, TFrame> render,
+        Func<TFrame, UiInteractionFrame> buildInteractionFrame,
+        Func<ConsoleInputEvent, TFrame, UiInputRouteContext, (TSemantic Semantic, UiInputResult UiResult)> routeInput,
+        Func<UiRoutedInput<TFrame>, TSemantic, ModalDialogLoopResult<TResult>> handleInput,
+        Action? prepareRender,
+        Action<TFrame>? applyCommittedFrame,
+        Func<DateTimeOffset?>? getNextWakeUtc,
+        Func<TFrame, ModalDialogWakeResult<TResult>>? handleWake,
+        CancellationToken cancellationToken)
+    {
         ArgumentNullException.ThrowIfNull(render);
         ArgumentNullException.ThrowIfNull(buildInteractionFrame);
         ArgumentNullException.ThrowIfNull(routeInput);
         ArgumentNullException.ThrowIfNull(handleInput);
+        if ((getNextWakeUtc is null) != (handleWake is null))
+            throw new ArgumentException("Timed interactive modals require both wake scheduling and wake handling.");
 
         prepareRender?.Invoke();
         var layer = new InteractiveModalDialogLayer<TFrame, TSemantic>(render, buildInteractionFrame, routeInput);
@@ -126,7 +177,26 @@ public sealed class ModalDialogHost
         applyCommittedFrame?.Invoke(frame);
         while (true)
         {
-            InteractiveModalInput<TFrame, TSemantic> packet = session.ReadInteractiveInput(cancellationToken);
+            CompositionInputPumpResult<InteractiveModalInput<TFrame, TSemantic>> read = session.ReadInteractiveInputOrWake(
+                getNextWakeUtc,
+                cancellationToken);
+            if (read.IsWake)
+            {
+                ModalDialogWakeResult<TResult> wake = handleWake!(layer.CommittedFrame);
+                if (wake.Invalidate)
+                {
+                    prepareRender?.Invoke();
+                    frame = session.Render();
+                    applyCommittedFrame?.Invoke(frame);
+                }
+
+                if (wake.IsCompleted)
+                    return wake.Result;
+
+                continue;
+            }
+
+            InteractiveModalInput<TFrame, TSemantic> packet = read.RequiredPacket;
             ModalDialogLoopResult<TResult> step = handleInput(packet.Routed, packet.Semantic);
             if (step.IsCompleted)
                 return step.Result;
@@ -334,6 +404,19 @@ internal sealed class InteractiveModalDialogSession<TFrame, TSemantic> : IDispos
             _layer.TryTakeInput,
             _scope.EnsureActive)
             .Read(cancellationToken);
+    }
+
+    public CompositionInputPumpResult<InteractiveModalInput<TFrame, TSemantic>> ReadInteractiveInputOrWake(
+        Func<DateTimeOffset?>? getNextWakeUtc,
+        CancellationToken cancellationToken = default)
+    {
+        var pump = new CompositionInputPump<InteractiveModalInput<TFrame, TSemantic>>(
+            _scope.Composition,
+            _layer.TryTakeInput,
+            _scope.EnsureActive);
+        return getNextWakeUtc is null
+            ? CompositionInputPumpResult<InteractiveModalInput<TFrame, TSemantic>>.Input(pump.Read(cancellationToken))
+            : pump.ReadOrWake(getNextWakeUtc, cancellationToken);
     }
 
     public void Dispose()
