@@ -83,7 +83,7 @@ internal sealed class FileOperationUiRunner
                 (context, _) => RenderProgressFrame(context, progressDialog, visibleState),
                 BuildInteractionFrame,
                 RouteInput,
-                (_, input) => HandleInput(input),
+                (routed, input) => HandleInput(routed.Frame, input),
                 getNextWakeUtc: () => DateTimeOffset.UtcNow.AddMilliseconds(RedrawDelayMilliseconds),
                 handleWake: HandleWake,
                 prepareRender: () => SynchronizeVisibleState(ReadLatestProgress()),
@@ -93,8 +93,17 @@ internal sealed class FileOperationUiRunner
         {
             TryCancel(cts);
             resolver.CancelPending();
-            ObserveOperationTaskAfterUiException(operationTask);
             pauseController.Resume();
+
+            try
+            {
+                _ = operationTask.GetAwaiter().GetResult();
+            }
+            catch (Exception)
+            {
+                // The UI exception remains the failure reported by Execute.
+            }
+
             throw;
         }
 
@@ -132,36 +141,40 @@ internal sealed class FileOperationUiRunner
             return ModalDialogWakeResult<FileOperationBackgroundOutcome>.Complete(final, invalidate: changed);
         }
 
-        ModalDialogLoopResult<FileOperationBackgroundOutcome> HandleInput(FileOperationProgressInput input)
+        ModalDialogLoopResult<FileOperationBackgroundOutcome> HandleInput(
+            FileOperationProgressFrame frame,
+            FileOperationProgressInput input)
         {
             if (input != FileOperationProgressInput.CancelRequested || cancellationRequested)
                 return ModalDialogLoopResult<FileOperationBackgroundOutcome>.Continue;
 
-            FileOperationProgress? progressSnapshot = visibleState.Progress;
-            if (progressSnapshot is null || progressSnapshot.Phase == FileOperationPhase.Scanning)
-            {
-                cancellationRequested = true;
-                visibleState = visibleState with { Status = FileOperationUiStatus.Stopping };
-                TryCancel(cts);
-                resolver.CancelPending();
-                return ModalDialogLoopResult<FileOperationBackgroundOutcome>.Continue;
-            }
-
-            pauseController.Pause();
-            try
-            {
-                if (cancelDialog.Show())
+            HandleCancellation(
+                frame,
+                cancelImmediately: () =>
                 {
                     cancellationRequested = true;
                     visibleState = visibleState with { Status = FileOperationUiStatus.Stopping };
                     TryCancel(cts);
                     resolver.CancelPending();
-                }
-            }
-            finally
-            {
-                pauseController.Resume();
-            }
+                },
+                requestConfirmation: () =>
+                {
+                    pauseController.Pause();
+                    try
+                    {
+                        if (cancelDialog.Show())
+                        {
+                            cancellationRequested = true;
+                            visibleState = visibleState with { Status = FileOperationUiStatus.Stopping };
+                            TryCancel(cts);
+                            resolver.CancelPending();
+                        }
+                    }
+                    finally
+                    {
+                        pauseController.Resume();
+                    }
+                });
 
             return ModalDialogLoopResult<FileOperationBackgroundOutcome>.Continue;
         }
@@ -182,6 +195,23 @@ internal sealed class FileOperationUiRunner
             visibleState = next;
             return changed;
         }
+    }
+
+    internal static void HandleCancellation(
+        FileOperationProgressFrame frame,
+        Action cancelImmediately,
+        Action requestConfirmation)
+    {
+        if (frame.Status != FileOperationUiStatus.Running)
+            return;
+
+        if (frame.Progress is null || frame.Progress.Phase == FileOperationPhase.Scanning)
+        {
+            cancelImmediately();
+            return;
+        }
+
+        requestConfirmation();
     }
 
     private static FileOperationProgressFrame RenderProgressFrame(
@@ -209,15 +239,6 @@ internal sealed class FileOperationUiRunner
         return input is KeyConsoleInputEvent { Key.Key: ConsoleKey.Escape }
             ? (FileOperationProgressInput.CancelRequested, UiInputResult.HandledResult)
             : (FileOperationProgressInput.None, UiInputResult.NotHandled);
-    }
-
-    private static void ObserveOperationTaskAfterUiException(Task<FileOperationBackgroundOutcome> operationTask)
-    {
-        _ = operationTask.ContinueWith(
-            static task => _ = task.Exception,
-            CancellationToken.None,
-            TaskContinuationOptions.OnlyOnFaulted | TaskContinuationOptions.ExecuteSynchronously,
-            TaskScheduler.Default);
     }
 
     private static void TryCancel(CancellationTokenSource cancellation)
@@ -263,7 +284,7 @@ internal sealed class FileOperationUiRunner
                 Monitor.PulseAll(_gate);
             }
 
-            pendingConflict.SetDecision(decision);
+            pendingConflict.TrySetDecision(decision);
             return true;
         }
 
@@ -278,7 +299,7 @@ internal sealed class FileOperationUiRunner
                 Monitor.PulseAll(_gate);
             }
 
-            pendingConflict?.SetDecision(FileOperationConflictDecision.FromMode(ConflictDecisionMode.Cancel));
+            pendingConflict?.TrySetDecision(FileOperationConflictDecision.FromMode(ConflictDecisionMode.Cancel));
         }
 
         public FileOperationConflictDecision Resolve(FileOperationConflict conflict)
@@ -307,6 +328,7 @@ internal sealed class FileOperationUiRunner
         private sealed class PendingConflict
         {
             private readonly ManualResetEventSlim _decisionReady = new();
+            private readonly object _decisionGate = new();
             private FileOperationConflictDecision? _decision;
 
             public PendingConflict(FileOperationConflict conflict)
@@ -316,10 +338,17 @@ internal sealed class FileOperationUiRunner
 
             public FileOperationConflict Conflict { get; }
 
-            public void SetDecision(FileOperationConflictDecision decision)
+            public bool TrySetDecision(FileOperationConflictDecision decision)
             {
-                _decision = decision;
-                _decisionReady.Set();
+                lock (_decisionGate)
+                {
+                    if (_decision is not null)
+                        return false;
+
+                    _decision = decision;
+                    _decisionReady.Set();
+                    return true;
+                }
             }
 
             public FileOperationConflictDecision WaitForDecision()
@@ -345,12 +374,12 @@ internal sealed class FileOperationUiRunner
         bool ShowTotalProgress,
         FileOperationUiStatus Status);
 
-    private sealed record FileOperationProgressFrame(
+    internal sealed record FileOperationProgressFrame(
         FileOperationProgress? Progress,
         bool ShowTotalProgress,
         FileOperationUiStatus Status);
 
-    private enum FileOperationUiStatus
+    internal enum FileOperationUiStatus
     {
         Running,
         Stopping,
