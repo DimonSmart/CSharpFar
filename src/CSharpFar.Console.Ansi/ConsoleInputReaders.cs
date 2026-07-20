@@ -128,6 +128,8 @@ internal sealed class UnixRawTerminalInputReader : ConsoleInputReaderBase
                 continue;
             }
 
+            cancellationToken.ThrowIfCancellationRequested();
+
             if (TryReadParsedEvent(intercept, out var inputEvent))
                 return inputEvent;
         }

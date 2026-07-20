@@ -388,6 +388,30 @@ public sealed class AnsiInputParserTests
     }
 
     [Fact]
+    public void UnixRawTerminalInputReader_CancellationAfterWaitLeavesInputUnread()
+    {
+        var input = new WakeCancellingAnsiInputByteReader((byte)'a');
+        using var cancellation = new CancellationTokenSource();
+        using var reader = new UnixRawTerminalInputReader(
+            input,
+            () => new CSharpFar.Console.Models.ConsoleSize(80, 25),
+            () => { },
+            _ => { },
+            new FakeTerminalInputMode());
+        input.CancelOnNextBlockingWait(cancellation);
+
+        Assert.Throws<OperationCanceledException>(() =>
+            reader.ReadInput(intercept: true, cancellation.Token));
+
+        Assert.Equal(0, input.ReadCount);
+
+        var keyEvent = Assert.IsType<KeyConsoleInputEvent>(
+            reader.ReadInput(intercept: true, CancellationToken.None));
+        Assert.Equal('a', keyEvent.Key.KeyChar);
+        Assert.Equal(1, input.ReadCount);
+    }
+
+    [Fact]
     public void UnixRawTerminalInputReader_TryReadInput_ReturnsPendingModifierEvent()
     {
         using var tracker = new FakeModifierKeyTracker();
@@ -447,6 +471,49 @@ public sealed class AnsiInputParserTests
             _ => { },
             new FakeTerminalInputMode(),
             tracker);
+
+    private sealed class WakeCancellingAnsiInputByteReader : IAnsiInputByteReader
+    {
+        private readonly Queue<byte> _bytes = new();
+        private CancellationTokenSource? _cancelOnNextBlockingWait;
+
+        public WakeCancellingAnsiInputByteReader(byte value) => _bytes.Enqueue(value);
+
+        public int ReadCount { get; private set; }
+
+        public void CancelOnNextBlockingWait(CancellationTokenSource cancellation) =>
+            _cancelOnNextBlockingWait = cancellation;
+
+        public byte ReadByte()
+        {
+            ReadCount++;
+            return _bytes.Dequeue();
+        }
+
+        public bool TryReadByte(out byte value)
+        {
+            if (_bytes.Count == 0)
+            {
+                value = default;
+                return false;
+            }
+
+            ReadCount++;
+            value = _bytes.Dequeue();
+            return true;
+        }
+
+        public bool WaitForInput(int timeoutMilliseconds)
+        {
+            if (timeoutMilliseconds > 0 && _cancelOnNextBlockingWait is { } cancellation)
+            {
+                _cancelOnNextBlockingWait = null;
+                cancellation.Cancel();
+            }
+
+            return _bytes.Count > 0;
+        }
+    }
 
     private sealed class FakeModifierKeyTracker : IModifierKeyTracker
     {
