@@ -1,3 +1,4 @@
+using System.Runtime.ExceptionServices;
 using CSharpFar.App.Rendering;
 using CSharpFar.Console;
 using CSharpFar.Console.Input;
@@ -47,13 +48,7 @@ internal sealed class SearchProgressDialog
         var syncRoot = new object();
         var results = new List<SearchResultItem>();
         SearchProgress latestProgress = new() { CurrentPath = request.RootPath };
-        bool searchCompleted = false;
-        bool searchCancelled = false;
-        Exception? completedException = null;
-        bool userCancelled = false;
-        bool stopRequested = false;
-        bool discardResults = false;
-        SearchResultItem? goToResult = null;
+        SearchCompletionIntent completionIntent = new SearchCompletionIntent.None();
 
         var list = new ScrollableList<SearchResultItem>(Array.Empty<SearchResultItem>(), item => FormatResult(item, DialogWidth))
         {
@@ -74,7 +69,7 @@ internal sealed class SearchProgressDialog
             lock (syncRoot)
                 latestProgress = p;
         });
-        Task searchTask = Task.Run(async () =>
+        Task<SearchBackgroundOutcome> searchTask = Task.Run(async () =>
         {
             try
             {
@@ -84,79 +79,83 @@ internal sealed class SearchProgressDialog
                     lock (syncRoot)
                         results.Add(item);
                 }
+
+                return CreateBackgroundOutcome(cancelled: false, exception: null);
             }
             catch (OperationCanceledException)
             {
-                lock (syncRoot)
-                    searchCancelled = true;
+                return CreateBackgroundOutcome(cancelled: true, exception: null);
             }
             catch (Exception ex)
             {
-                lock (syncRoot)
-                    completedException = ex;
-            }
-            finally
-            {
-                lock (syncRoot)
-                    searchCompleted = true;
+                return CreateBackgroundOutcome(cancelled: false, exception: ex);
             }
         });
 
-        SearchDialogCompletion completion = _modalDialogs.RunInteractiveTimed<SearchProgressFrame, SearchProgressInput, SearchDialogCompletion>(
-            (context, focusScope) => Render(context, focusScope, request, state, list, focusedButton, CanGoTo(), CanRequestStop()),
-            BuildInteractionFrame,
-            (input, frame, route) => RouteInput(input, frame, route, list, ref focusedButton, CanRequestStop()),
-            (_, input) => HandleInput(input),
-            getNextWakeUtc: GetNextWakeUtc,
-            handleWake: HandleWake,
-            prepareRender: () => SynchronizeVisibleState(ReadSnapshot()),
-            applyCommittedFrame: frame =>
-            {
-                committedListRows = frame.ListState.ViewportRows;
-                list.ApplyCommittedFrame(frame.ListState);
-            });
+        SearchDialogCompletion completion;
+        try
+        {
+            completion = _modalDialogs.RunInteractiveTimed<SearchProgressFrame, SearchProgressInput, SearchDialogCompletion>(
+                (context, focusScope) => Render(context, focusScope, request, state, list, focusedButton, CanGoTo(), CanRequestStop()),
+                BuildInteractionFrame,
+                (input, frame, route) => RouteInput(input, frame, route, list, ref focusedButton),
+                (_, input) => HandleInput(input),
+                getNextWakeUtc: GetNextWakeUtc,
+                handleWake: HandleWake,
+                prepareRender: () => SynchronizeVisibleState(ReadStreamingSnapshot()),
+                applyCommittedFrame: frame =>
+                {
+                    committedListRows = frame.ListState.ViewportRows;
+                    list.ApplyCommittedFrame(frame.ListState);
+                });
+        }
+        catch (Exception uiException)
+        {
+            cts.Cancel();
+            ObserveSearchTaskAfterUiException(searchTask, uiException);
+            ExceptionDispatchInfo.Capture(uiException).Throw();
+            throw;
+        }
 
-        searchTask.GetAwaiter().GetResult();
         if (completion.Exception is not null)
             throw completion.Exception;
         return completion.Result ?? throw new InvalidOperationException("Search progress did not produce a result.");
 
-        bool CanGoTo() => list.SelectedItemOrDefault is not null;
+        bool CanGoTo() => completionIntent is SearchCompletionIntent.None && list.SelectedItemOrDefault is not null && !searchTask.IsCompleted;
 
         bool CanRequestStop()
-        {
-            lock (syncRoot)
-                return !stopRequested && !searchCompleted && goToResult is null;
-        }
+            => completionIntent is SearchCompletionIntent.None && !searchTask.IsCompleted;
 
         DateTimeOffset? GetNextWakeUtc()
-        {
-            SearchProgressSnapshot snapshot = ReadSnapshot();
-            return snapshot.Completed
+            => searchTask.IsCompleted
                 ? DateTimeOffset.UtcNow
                 : DateTimeOffset.UtcNow.AddMilliseconds(RedrawDelayMilliseconds);
-        }
 
         ModalDialogWakeResult<SearchDialogCompletion> HandleWake(SearchProgressFrame frame)
         {
-            SearchProgressSnapshot snapshot = ReadSnapshot();
-            bool changed = SynchronizeVisibleState(snapshot);
-            if (!snapshot.Completed)
-                return changed ? ModalDialogWakeResult<SearchDialogCompletion>.Changed : ModalDialogWakeResult<SearchDialogCompletion>.NoChange;
+            if (!searchTask.IsCompleted)
+            {
+                bool streamingChanged = SynchronizeVisibleState(ReadStreamingSnapshot());
+                return streamingChanged ? ModalDialogWakeResult<SearchDialogCompletion>.Changed : ModalDialogWakeResult<SearchDialogCompletion>.NoChange;
+            }
 
-            SearchDialogCompletion final = BuildCompletion(snapshot);
-            return ModalDialogWakeResult<SearchDialogCompletion>.Complete(final, invalidate: changed);
+            SearchBackgroundOutcome outcome = searchTask.GetAwaiter().GetResult();
+            bool finalChanged = SynchronizeVisibleStateFromOutcome(outcome);
+            SearchDialogCompletion final = BuildCompletion(outcome);
+            return ModalDialogWakeResult<SearchDialogCompletion>.Complete(final, invalidate: finalChanged);
         }
 
         ModalDialogLoopResult<SearchDialogCompletion> HandleInput(SearchProgressInput input)
         {
+            if (completionIntent is not SearchCompletionIntent.None)
+                return ModalDialogLoopResult<SearchDialogCompletion>.Continue;
+
             switch (input.Kind)
             {
                 case SearchProgressInputKind.GoTo:
                     if (input.Result is { } selected)
                     {
-                        goToResult = selected;
-                        userCancelled = true;
+                        completionIntent = new SearchCompletionIntent.GoTo(selected);
                         cts.Cancel();
                     }
                     return ModalDialogLoopResult<SearchDialogCompletion>.Continue;
@@ -166,9 +165,7 @@ internal sealed class SearchProgressDialog
 
                     if (ConfirmStopSearch())
                     {
-                        stopRequested = true;
-                        userCancelled = true;
-                        discardResults = true;
+                        completionIntent = new SearchCompletionIntent.StopAndDiscard();
                         cts.Cancel();
                     }
                     return ModalDialogLoopResult<SearchDialogCompletion>.Continue;
@@ -177,26 +174,38 @@ internal sealed class SearchProgressDialog
             }
         }
 
-        SearchDialogCompletion BuildCompletion(SearchProgressSnapshot snapshot)
+        SearchDialogCompletion BuildCompletion(SearchBackgroundOutcome outcome)
         {
-            if (snapshot.Exception is not null)
-                return new SearchDialogCompletion(null, snapshot.Exception);
+            if (outcome.Exception is not null)
+                return new SearchDialogCompletion(null, outcome.Exception);
 
-            IReadOnlyList<SearchResultItem> finalResults = discardResults ? [] : snapshot.Results;
-            return new SearchDialogCompletion(
-                new SearchRunResult(
-                    finalResults,
-                    snapshot.Cancelled || userCancelled || discardResults || goToResult is not null,
-                    goToResult,
-                    discardResults),
-                null);
+            SearchRunResult result = completionIntent switch
+            {
+                SearchCompletionIntent.StopAndDiscard => new SearchRunResult(
+                    [],
+                    Cancelled: true,
+                    GoToResult: null,
+                    DiscardResults: true),
+                SearchCompletionIntent.GoTo goTo => new SearchRunResult(
+                    outcome.Results,
+                    Cancelled: true,
+                    GoToResult: goTo.Result,
+                    DiscardResults: false),
+                SearchCompletionIntent.None => new SearchRunResult(
+                    outcome.Results,
+                    Cancelled: outcome.Cancelled,
+                    GoToResult: null,
+                    DiscardResults: false),
+                _ => throw new InvalidOperationException($"Unsupported search completion intent: {completionIntent.GetType().Name}."),
+            };
+            return new SearchDialogCompletion(result, null);
         }
 
         bool SynchronizeVisibleState(SearchProgressSnapshot snapshot)
         {
-            SearchProgressStatus status = snapshot.Completed
-                ? snapshot.Exception is null ? SearchProgressStatus.Completed : SearchProgressStatus.Failed
-                : stopRequested || goToResult is not null ? SearchProgressStatus.Stopping : SearchProgressStatus.Running;
+            SearchProgressStatus status = completionIntent is SearchCompletionIntent.None
+                ? SearchProgressStatus.Running
+                : SearchProgressStatus.Stopping;
             var next = new SearchProgressViewState(snapshot.Progress, snapshot.Results, status);
             bool changed = HasVisibleChanges(state, next);
             state = next;
@@ -204,17 +213,42 @@ internal sealed class SearchProgressDialog
             return changed;
         }
 
-        SearchProgressSnapshot ReadSnapshot()
+        bool SynchronizeVisibleStateFromOutcome(SearchBackgroundOutcome outcome)
+        {
+            SearchProgressStatus status = outcome.Exception is null ? SearchProgressStatus.Completed : SearchProgressStatus.Failed;
+            var next = new SearchProgressViewState(outcome.FinalProgress, outcome.Results, status);
+            bool changed = HasVisibleChanges(state, next);
+            state = next;
+            list.ReplaceItems(next.Results, static item => new SearchResultKey(item.FullPath, item.Kind), committedListRows);
+            return changed;
+        }
+
+        SearchProgressSnapshot ReadStreamingSnapshot()
         {
             lock (syncRoot)
             {
                 return new SearchProgressSnapshot(
                     latestProgress,
-                    [.. results],
-                    searchCompleted,
-                    searchCancelled,
-                    completedException);
+                    [.. results]);
             }
+        }
+
+        SearchBackgroundOutcome CreateBackgroundOutcome(bool cancelled, Exception? exception)
+        {
+            lock (syncRoot)
+                return new SearchBackgroundOutcome([.. results], latestProgress, cancelled, exception);
+        }
+    }
+
+    private static void ObserveSearchTaskAfterUiException(Task<SearchBackgroundOutcome> searchTask, Exception uiException)
+    {
+        try
+        {
+            _ = searchTask.GetAwaiter().GetResult();
+        }
+        catch (Exception cleanupException)
+        {
+            uiException.Data["SearchProgressDialog.CleanupException"] = cleanupException;
         }
     }
 
@@ -327,23 +361,27 @@ internal sealed class SearchProgressDialog
         SearchProgressFrame frame,
         UiInputRouteContext route,
         ScrollableList<SearchResultItem> list,
-        ref int focusedButton,
-        bool canStop)
+        ref int focusedButton)
     {
         list.ApplyCommittedFrame(frame.ListState);
         if (input is KeyConsoleInputEvent { Key.Key: ConsoleKey.Escape })
-            return (SearchProgressInput.Stop, UiInputResult.HandledResult);
+            return frame.CanStop
+                ? (SearchProgressInput.Stop, UiInputResult.HandledResult)
+                : (SearchProgressInput.None, UiInputResult.HandledResult);
 
         if (frame.ButtonBar.TryHandleInput(input, frame.Buttons, ref focusedButton, out string? buttonId))
         {
-            if (buttonId == StopButton && canStop)
+            if (buttonId == StopButton && frame.CanStop)
                 return (SearchProgressInput.Stop, UiInputResult.HandledAndInvalidate);
 
-            if (buttonId == GoToButton && frame.SelectedResult is { } selected)
+            if (buttonId == GoToButton && frame.CanGoTo && frame.SelectedResult is { } selected)
                 return (SearchProgressInput.GoTo(selected), UiInputResult.HandledAndInvalidate);
 
             return (SearchProgressInput.None, UiInputResult.HandledAndInvalidate);
         }
+
+        if (!frame.CanGoTo)
+            return (SearchProgressInput.None, UiInputResult.HandledAndInvalidate);
 
         ScrollableListInputResult listInput = input switch
         {
@@ -359,8 +397,14 @@ internal sealed class SearchProgressDialog
         if (!listInput.IsHandled)
             return (SearchProgressInput.None, UiInputResult.NotHandled);
 
-        if (listInput.Kind == ScrollableListInputResultKind.Confirmed && frame.SelectedResult is { } confirmed)
+        if (listInput.Kind == ScrollableListInputResultKind.Confirmed &&
+            frame.CanGoTo &&
+            list.SelectedIndex >= 0 &&
+            list.SelectedIndex < frame.Results.Length)
+        {
+            SearchResultItem confirmed = frame.Results[list.SelectedIndex];
             return (SearchProgressInput.GoTo(confirmed), UiInputResult.HandledAndInvalidate);
+        }
 
         if (listInput.DragStarted)
             return (SearchProgressInput.None, UiInputResult.CaptureMouse(ScrollbarTarget, MouseButton.Left, invalidate: true));
@@ -467,10 +511,22 @@ internal sealed class SearchProgressDialog
 
     private readonly record struct SearchProgressSnapshot(
         SearchProgress Progress,
+        SearchResultItem[] Results);
+
+    private sealed record SearchBackgroundOutcome(
         SearchResultItem[] Results,
-        bool Completed,
+        SearchProgress FinalProgress,
         bool Cancelled,
         Exception? Exception);
+
+    private abstract record SearchCompletionIntent
+    {
+        public sealed record None : SearchCompletionIntent;
+
+        public sealed record StopAndDiscard : SearchCompletionIntent;
+
+        public sealed record GoTo(SearchResultItem Result) : SearchCompletionIntent;
+    }
 
     private readonly record struct SearchProgressViewState(
         SearchProgress Progress,

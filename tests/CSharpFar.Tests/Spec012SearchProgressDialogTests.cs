@@ -106,6 +106,54 @@ public sealed class Spec012SearchProgressDialogTests
     }
 
     [Fact]
+    public void Show_ConfirmedStopCannotBeReplacedByGoToWhileStopping()
+    {
+        var item = Result(@"C:\root\found.txt");
+        var service = new DelayedCancellationSearchService(item);
+        var driver = new FakeConsoleDriver(width: 100, height: 30);
+        var screen = new ScreenRenderer(driver);
+        EnqueueKeysWhenWriteContains(
+            driver,
+            "found.txt",
+            KeyChar('S', ConsoleKey.S),
+            Key(ConsoleKey.Enter),
+            KeyChar('G', ConsoleKey.G),
+            Key(ConsoleKey.Enter));
+
+        var result = new SearchProgressDialog(ModalTestHost.Create(screen), service).Show(Request(@"C:\root", "*.txt"));
+
+        Assert.True(result.Cancelled);
+        Assert.True(result.DiscardResults);
+        Assert.Null(result.GoToResult);
+        Assert.Empty(result.Results);
+        Assert.True(service.CancellationObserved);
+    }
+
+    [Fact]
+    public void Show_FirstGoToCannotBeReplacedWhileStopping()
+    {
+        var first = Result(@"C:\root\a.txt");
+        var second = Result(@"C:\root\b.txt");
+        var service = new DelayedCancellationSearchService(first, second);
+        var driver = new FakeConsoleDriver(width: 100, height: 30);
+        var screen = new ScreenRenderer(driver);
+        EnqueueKeysWhenWriteContains(
+            driver,
+            "b.txt",
+            Key(ConsoleKey.DownArrow),
+            Key(ConsoleKey.Enter),
+            Key(ConsoleKey.UpArrow),
+            Key(ConsoleKey.Enter));
+
+        var result = new SearchProgressDialog(ModalTestHost.Create(screen), service).Show(Request(@"C:\root", "*.txt"));
+
+        Assert.True(result.Cancelled);
+        Assert.False(result.DiscardResults);
+        Assert.Same(second, result.GoToResult);
+        Assert.True(service.CancellationObserved);
+    }
+
+    [Fact]
     public void Show_DoesNotConsumeInputAfterSearchCompletes()
     {
         var driver = new FakeConsoleDriver(width: 100, height: 30);
@@ -251,6 +299,39 @@ public sealed class Spec012SearchProgressDialogTests
             catch (OperationCanceledException)
             {
                 CancellationObserved = true;
+                throw;
+            }
+        }
+    }
+
+    private sealed class DelayedCancellationSearchService(params SearchResultItem[] items) : ISearchService
+    {
+        public bool CancellationObserved { get; private set; }
+
+        public async IAsyncEnumerable<SearchResultItem> SearchAsync(
+            SearchRequest request,
+            IProgress<SearchProgress>? progress,
+            [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
+        {
+            for (int i = 0; i < items.Length; i++)
+            {
+                progress?.Report(new SearchProgress
+                {
+                    CurrentPath = items[i].FullPath,
+                    ScannedFiles = i + 1,
+                    MatchedItems = i + 1,
+                });
+                yield return items[i];
+            }
+
+            try
+            {
+                await Task.Delay(TimeSpan.FromSeconds(30), cancellationToken);
+            }
+            catch (OperationCanceledException)
+            {
+                CancellationObserved = true;
+                await Task.Delay(200);
                 throw;
             }
         }
