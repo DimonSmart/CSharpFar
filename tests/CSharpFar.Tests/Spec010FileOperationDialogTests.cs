@@ -3,6 +3,7 @@ using CSharpFar.App.Dialogs;
 using CSharpFar.Console;
 using CSharpFar.Console.Input;
 using CSharpFar.Console.Models;
+using CSharpFar.Core.Abstractions;
 using CSharpFar.Core.Models;
 using CSharpFar.Tests.Fakes;
 using CSharpFar.Ui;
@@ -461,6 +462,116 @@ public sealed class Spec010FileOperationDialogTests
     }
 
     [Fact]
+    public void FileOperationUiRunner_RendersProgressAndCompletesWithoutConsoleInput()
+    {
+        var driver = new FakeConsoleDriver(width: 100, height: 30);
+        var screen = new ScreenRenderer(driver);
+        var service = new DelayedProgressFileOperationService(
+            new FileOperationProgress
+            {
+                Kind = FileOperationKind.Copy,
+                Phase = FileOperationPhase.Copying,
+                CurrentPath = @"C:\source\a.txt",
+                CurrentDestinationPath = @"C:\destination\a.txt",
+                CurrentBytesDone = 5,
+                CurrentBytesTotal = 10,
+                TotalBytesDone = 5,
+                TotalBytesTotal = 10,
+                ItemsDone = 1,
+                ItemsTotal = 1,
+            });
+        var runner = CreateRunner(screen, service);
+
+        FileOperationResult result = runner.Execute(CopyRequest());
+
+        Assert.False(result.Cancelled);
+        string text = driver.GetRegionText(new Rect(0, 0, 100, 30));
+        Assert.Contains("Copying the file", text, StringComparison.Ordinal);
+        Assert.Contains(@"C:\source\a.txt", text, StringComparison.Ordinal);
+        Assert.False(driver.CursorVisible);
+    }
+
+    [Fact]
+    public void FileOperationUiRunner_EscapeDuringScanCancelsWithoutConfirmation()
+    {
+        var driver = new FakeConsoleDriver(width: 100, height: 30);
+        var screen = new ScreenRenderer(driver);
+        var service = new CancellableFileOperationService(FileOperationPhase.Scanning);
+        var runner = CreateRunner(screen, service);
+        driver.BeforeReadInput = currentDriver =>
+            currentDriver.BeforeReadInput = nextDriver =>
+                nextDriver.EnqueueKey(Key(ConsoleKey.Escape));
+
+        Assert.IsAssignableFrom<OperationCanceledException>(
+            Assert.ThrowsAny<OperationCanceledException>(() => runner.Execute(CopyRequest())));
+
+        Assert.True(service.CancellationObserved);
+        Assert.DoesNotContain(driver.WriteRecords, r => r.Text.Contains("Do you really want to cancel it?", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void FileOperationUiRunner_EscapeDuringOperationUsesPauseAndConfirmation()
+    {
+        var driver = new FakeConsoleDriver(width: 100, height: 30);
+        var screen = new ScreenRenderer(driver);
+        var service = new CancellableFileOperationService(FileOperationPhase.Copying);
+        var runner = CreateRunner(screen, service);
+        driver.BeforeReadInput = currentDriver =>
+            currentDriver.BeforeReadInput = nextDriver =>
+            {
+                nextDriver.EnqueueKey(Key(ConsoleKey.Escape));
+                nextDriver.BeforeReadInput = dialogDriver =>
+                {
+                    Assert.True(service.PauseReady.Wait(TimeSpan.FromSeconds(2)));
+                    dialogDriver.EnqueueKey(Key(ConsoleKey.Enter));
+                };
+            };
+
+        Assert.ThrowsAny<OperationCanceledException>(() => runner.Execute(CopyRequest()));
+
+        Assert.True(service.CancellationObserved);
+        Assert.True(service.PauseObserved);
+        Assert.Contains(driver.WriteRecords, r => r.Text.Contains("Do you really want to cancel it?", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void FileOperationUiRunner_PendingConflictShowsDialogAndContinuesAfterDecision()
+    {
+        var driver = new FakeConsoleDriver(width: 100, height: 30);
+        var screen = new ScreenRenderer(driver);
+        var service = new ConflictFileOperationService();
+        var runner = CreateRunner(screen, service);
+        driver.BeforeReadInput = currentDriver =>
+            currentDriver.BeforeReadInput = nextDriver =>
+                nextDriver.EnqueueKey(new ConsoleKeyInfo('O', ConsoleKey.O, shift: true, alt: false, control: false));
+
+        FileOperationResult result = runner.Execute(CopyRequest());
+
+        Assert.False(result.Cancelled);
+        Assert.Equal(ConflictDecisionMode.Overwrite, service.Decision?.Mode);
+        Assert.Contains(driver.WriteRecords, r => r.Text.Contains(@"C:\destination\a.txt", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void FileOperationUiRunner_UiFailureUnblocksPendingConflict()
+    {
+        var driver = new FakeConsoleDriver(width: 100, height: 30);
+        var screen = new ScreenRenderer(driver);
+        var service = new ConflictFileOperationService();
+        var runner = CreateRunner(screen, service);
+        driver.Wrote += record =>
+        {
+            if (record.Text.Contains(@"C:\destination\a.txt", StringComparison.Ordinal))
+                throw new InvalidOperationException("render failed");
+        };
+
+        Assert.Throws<InvalidOperationException>(() => runner.Execute(CopyRequest()));
+
+        Assert.True(service.DecisionReady.Wait(TimeSpan.FromSeconds(2)));
+        Assert.Equal(ConflictDecisionMode.Cancel, service.Decision?.Mode);
+    }
+
+    [Fact]
     public void ProgressDialog_RendersResumeValidationState()
     {
         var driver = new FakeConsoleDriver(width: 100, height: 30);
@@ -703,4 +814,147 @@ public sealed class Spec010FileOperationDialogTests
 
     private static ConsoleKeyInfo Key(ConsoleKey key) =>
         new('\0', key, shift: false, alt: false, control: false);
+
+    private static FileOperationUiRunner CreateRunner(ScreenRenderer screen, IFileOperationService service) =>
+        new(
+            screen,
+            ModalTestHost.Create(screen),
+            () => PaletteRegistry.Default,
+            service,
+            () => true);
+
+    private static FileOperationRequest CopyRequest() =>
+        new()
+        {
+            Kind = FileOperationKind.Copy,
+            Sources = [@"C:\source\a.txt"],
+            Destination = @"C:\destination",
+            Options = new FileOperationOptions(),
+        };
+
+    private sealed class DelayedProgressFileOperationService(FileOperationProgress progressSnapshot) : IFileOperationService
+    {
+        public bool SupportsRecycleBin => true;
+
+        public async Task<FileOperationResult> ExecuteAsync(
+            FileOperationRequest request,
+            IProgress<FileOperationProgress>? progress,
+            IFileOperationConflictResolver conflictResolver,
+            CancellationToken cancellationToken = default)
+        {
+            progress?.Report(progressSnapshot);
+            await Task.Delay(30, cancellationToken);
+            return new FileOperationResult { Kind = request.Kind, Errors = [] };
+        }
+    }
+
+    private sealed class CancellableFileOperationService(FileOperationPhase phase) : IFileOperationService
+    {
+        public bool SupportsRecycleBin => true;
+
+        public bool CancellationObserved { get; private set; }
+
+        public bool PauseObserved { get; private set; }
+
+        public ManualResetEventSlim PauseReady { get; } = new();
+
+        public async Task<FileOperationResult> ExecuteAsync(
+            FileOperationRequest request,
+            IProgress<FileOperationProgress>? progress,
+            IFileOperationConflictResolver conflictResolver,
+            CancellationToken cancellationToken = default)
+        {
+            progress?.Report(new FileOperationProgress
+            {
+                Kind = request.Kind,
+                Phase = phase,
+                CurrentPath = @"C:\source\a.txt",
+                CurrentDestinationPath = @"C:\destination\a.txt",
+                CurrentBytesDone = 1,
+                CurrentBytesTotal = 10,
+                TotalBytesDone = 1,
+                TotalBytesTotal = 10,
+                ItemsDone = 0,
+                ItemsTotal = 1,
+            });
+
+            while (true)
+            {
+                if (phase != FileOperationPhase.Scanning && !PauseObserved && IsPaused(request.PauseController))
+                {
+                    PauseObserved = true;
+                    PauseReady.Set();
+                }
+
+                try
+                {
+                    request.PauseController?.WaitIfPaused(cancellationToken);
+                }
+                catch (OperationCanceledException)
+                {
+                    CancellationObserved = true;
+                    throw;
+                }
+
+                try
+                {
+                    await Task.Delay(5, cancellationToken);
+                }
+                catch (OperationCanceledException)
+                {
+                    CancellationObserved = true;
+                    throw;
+                }
+            }
+        }
+
+        private static bool IsPaused(IFileOperationPauseController? pauseController)
+        {
+            if (pauseController is null)
+                return false;
+
+            using var probe = new CancellationTokenSource(TimeSpan.FromMilliseconds(1));
+            try
+            {
+                pauseController.WaitIfPaused(probe.Token);
+                return false;
+            }
+            catch (OperationCanceledException)
+            {
+                return true;
+            }
+        }
+    }
+
+    private sealed class ConflictFileOperationService : IFileOperationService
+    {
+        public bool SupportsRecycleBin => true;
+
+        public ManualResetEventSlim DecisionReady { get; } = new();
+
+        public FileOperationConflictDecision? Decision { get; private set; }
+
+        public Task<FileOperationResult> ExecuteAsync(
+            FileOperationRequest request,
+            IProgress<FileOperationProgress>? progress,
+            IFileOperationConflictResolver conflictResolver,
+            CancellationToken cancellationToken = default)
+        {
+            Decision = conflictResolver.Resolve(new FileOperationConflict
+            {
+                SourcePath = @"C:\source\a.txt",
+                DestinationPath = @"C:\destination\a.txt",
+                SourceSize = 3,
+                DestinationSize = 5,
+            });
+            DecisionReady.Set();
+
+            return Task.FromResult(new FileOperationResult
+            {
+                Kind = request.Kind,
+                Cancelled = Decision.Mode == ConflictDecisionMode.Cancel,
+                Errors = [],
+            });
+        }
+    }
 }
