@@ -574,6 +574,38 @@ public sealed class ModalDialogRunnerTests
     }
 
     [Fact]
+    public void RunInteractiveTimed_ExternalWakeLeavesUnreadInputForParentSurface()
+    {
+        var driver = new FakeConsoleDriver();
+        driver.EnqueueKey(Key(ConsoleKey.F10));
+        var modals = CreateHost(driver, out _);
+        using var wake = new CancellationTokenSource();
+        wake.Cancel();
+        int routed = 0;
+
+        int result = modals.RunInteractiveTimed<int, string, int>(
+            (context, _) =>
+            {
+                context.Screen.Write(0, 0, "M", Style);
+                return 1;
+            },
+            _ => UiInteractionFrame.Empty,
+            (_, _, _) =>
+            {
+                routed++;
+                return ("input", UiInputResult.HandledResult);
+            },
+            (_, _) => ModalDialogLoopResult<int>.Complete(-1),
+            getNextWakeUtc: () => DateTimeOffset.UtcNow.AddMinutes(1),
+            handleWake: _ => ModalDialogWakeResult<int>.Complete(42),
+            wakeSignal: wake.Token);
+
+        Assert.Equal(42, result);
+        Assert.Equal(0, routed);
+        Assert.Equal(ConsoleKey.F10, driver.ReadKey(intercept: true).Key);
+    }
+
+    [Fact]
     public void RunRouted_HandlerExceptionDisposesOverlayAndRestoresSurface()
     {
         var driver = new FakeConsoleDriver();

@@ -466,27 +466,32 @@ public sealed class UiCompositionHost
 
     internal CompositionInputReadResult ReadCompositionInputUntil(
         DateTimeOffset? wakeUtc,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        CancellationToken wakeSignal = default)
     {
         EnsureNotDispatchingInputPump();
+
+        if (wakeSignal.IsCancellationRequested)
+            return CompositionInputReadResult.Wake();
 
         if (TryReadCompositionInput(out ConsoleInputEvent? pending) && pending is not null)
             return CompositionInputReadResult.ForInput(pending);
 
-        if (wakeUtc is not { } deadline)
-            return CompositionInputReadResult.ForInput(ReadCompositionInput(cancellationToken));
-
-        TimeSpan delay = deadline - DateTimeOffset.UtcNow;
-        if (delay <= TimeSpan.Zero)
+        TimeSpan? delay = wakeUtc is { } deadline ? deadline - DateTimeOffset.UtcNow : null;
+        if (delay is { } remaining && remaining <= TimeSpan.Zero)
             return CompositionInputReadResult.Wake();
 
-        using var timeout = new CancellationTokenSource(delay);
-        using var linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, timeout.Token);
+        using var timeout = delay is { } value ? new CancellationTokenSource(value) : null;
+        using var linked = CancellationTokenSource.CreateLinkedTokenSource(
+            cancellationToken,
+            wakeSignal,
+            timeout?.Token ?? CancellationToken.None);
         try
         {
             return CompositionInputReadResult.ForInput(ReadCompositionInput(linked.Token));
         }
-        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested && timeout.IsCancellationRequested)
+        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested &&
+                                               (wakeSignal.IsCancellationRequested || timeout?.IsCancellationRequested == true))
         {
             return CompositionInputReadResult.Wake();
         }

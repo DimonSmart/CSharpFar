@@ -135,7 +135,8 @@ public sealed class ModalDialogHost
         Func<TFrame, ModalDialogWakeResult<TResult>> handleWake,
         Action? prepareRender = null,
         Action<TFrame>? applyCommittedFrame = null,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        CancellationToken wakeSignal = default)
     {
         ArgumentNullException.ThrowIfNull(getNextWakeUtc);
         ArgumentNullException.ThrowIfNull(handleWake);
@@ -149,7 +150,8 @@ public sealed class ModalDialogHost
             applyCommittedFrame,
             getNextWakeUtc,
             handleWake,
-            cancellationToken);
+            cancellationToken,
+            wakeSignal);
     }
 
     private TResult RunInteractiveCore<TFrame, TSemantic, TResult>(
@@ -161,7 +163,8 @@ public sealed class ModalDialogHost
         Action<TFrame>? applyCommittedFrame,
         Func<DateTimeOffset?>? getNextWakeUtc,
         Func<TFrame, ModalDialogWakeResult<TResult>>? handleWake,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        CancellationToken wakeSignal = default)
     {
         ArgumentNullException.ThrowIfNull(render);
         ArgumentNullException.ThrowIfNull(buildInteractionFrame);
@@ -179,7 +182,8 @@ public sealed class ModalDialogHost
         {
             CompositionInputPumpResult<InteractiveModalInput<TFrame, TSemantic>> read = session.ReadInteractiveInputOrWake(
                 getNextWakeUtc,
-                cancellationToken);
+                cancellationToken,
+                wakeSignal);
             if (read.IsWake)
             {
                 ModalDialogWakeResult<TResult> wake = handleWake!(layer.CommittedFrame);
@@ -408,7 +412,8 @@ internal sealed class InteractiveModalDialogSession<TFrame, TSemantic> : IDispos
 
     public CompositionInputPumpResult<InteractiveModalInput<TFrame, TSemantic>> ReadInteractiveInputOrWake(
         Func<DateTimeOffset?>? getNextWakeUtc,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        CancellationToken wakeSignal = default)
     {
         var pump = new CompositionInputPump<InteractiveModalInput<TFrame, TSemantic>>(
             _scope.Composition,
@@ -416,7 +421,7 @@ internal sealed class InteractiveModalDialogSession<TFrame, TSemantic> : IDispos
             _scope.EnsureActive);
         return getNextWakeUtc is null
             ? CompositionInputPumpResult<InteractiveModalInput<TFrame, TSemantic>>.Input(pump.Read(cancellationToken))
-            : pump.ReadOrWake(getNextWakeUtc, cancellationToken);
+            : pump.ReadOrWake(getNextWakeUtc, cancellationToken, wakeSignal);
     }
 
     public void Dispose()

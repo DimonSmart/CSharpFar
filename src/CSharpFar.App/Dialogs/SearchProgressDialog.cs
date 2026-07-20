@@ -1,4 +1,3 @@
-using System.Runtime.ExceptionServices;
 using CSharpFar.App.Rendering;
 using CSharpFar.Console;
 using CSharpFar.Console.Input;
@@ -91,6 +90,13 @@ internal sealed class SearchProgressDialog
                 return CreateBackgroundOutcome(cancelled: false, exception: ex);
             }
         });
+        var completionWake = new CancellationTokenSource();
+        _ = searchTask.ContinueWith(
+            static (_, state) => ((CancellationTokenSource)state!).Cancel(),
+            completionWake,
+            CancellationToken.None,
+            TaskContinuationOptions.ExecuteSynchronously,
+            TaskScheduler.Default);
 
         SearchDialogCompletion completion;
         try
@@ -107,13 +113,13 @@ internal sealed class SearchProgressDialog
                 {
                     committedListRows = frame.ListState.ViewportRows;
                     list.ApplyCommittedFrame(frame.ListState);
-                });
+                },
+                wakeSignal: completionWake.Token);
         }
         catch (Exception uiException)
         {
-            cts.Cancel();
-            ObserveSearchTaskAfterUiException(searchTask, uiException);
-            ExceptionDispatchInfo.Capture(uiException).Throw();
+            TryCancel(cts);
+            ObserveSearchTaskAfterUiException(searchTask);
             throw;
         }
 
@@ -126,10 +132,7 @@ internal sealed class SearchProgressDialog
         bool CanRequestStop()
             => completionIntent is SearchCompletionIntent.None && !searchTask.IsCompleted;
 
-        DateTimeOffset? GetNextWakeUtc()
-            => searchTask.IsCompleted
-                ? DateTimeOffset.UtcNow
-                : DateTimeOffset.UtcNow.AddMilliseconds(RedrawDelayMilliseconds);
+        DateTimeOffset? GetNextWakeUtc() => DateTimeOffset.UtcNow.AddMilliseconds(RedrawDelayMilliseconds);
 
         ModalDialogWakeResult<SearchDialogCompletion> HandleWake(SearchProgressFrame frame)
         {
@@ -153,7 +156,7 @@ internal sealed class SearchProgressDialog
             switch (input.Kind)
             {
                 case SearchProgressInputKind.GoTo:
-                    if (input.Result is { } selected)
+                    if (!searchTask.IsCompleted && input.Result is { } selected)
                     {
                         completionIntent = new SearchCompletionIntent.GoTo(selected);
                         cts.Cancel();
@@ -240,15 +243,23 @@ internal sealed class SearchProgressDialog
         }
     }
 
-    private static void ObserveSearchTaskAfterUiException(Task<SearchBackgroundOutcome> searchTask, Exception uiException)
+    private static void ObserveSearchTaskAfterUiException(Task<SearchBackgroundOutcome> searchTask)
+    {
+        _ = searchTask.ContinueWith(
+            static task => _ = task.Exception,
+            CancellationToken.None,
+            TaskContinuationOptions.OnlyOnFaulted | TaskContinuationOptions.ExecuteSynchronously,
+            TaskScheduler.Default);
+    }
+
+    private static void TryCancel(CancellationTokenSource cancellation)
     {
         try
         {
-            _ = searchTask.GetAwaiter().GetResult();
+            cancellation.Cancel();
         }
-        catch (Exception cleanupException)
+        catch (Exception)
         {
-            uiException.Data["SearchProgressDialog.CleanupException"] = cleanupException;
         }
     }
 

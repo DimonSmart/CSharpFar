@@ -161,11 +161,12 @@ public sealed class Spec012SearchProgressDialogTests
 
         var result = new SearchProgressDialog(
                 ModalTestHost.Create(screen),
-                new EmptySearchService(() => driver.EnqueueKey(Key(ConsoleKey.F10))))
+                new EmptySearchService())
             .Show(Request(@"C:\root", "*.txt"));
 
         Assert.False(result.Cancelled);
         Assert.Empty(result.Results);
+        driver.EnqueueKey(Key(ConsoleKey.F10));
         Assert.Equal(ConsoleKey.F10, screen.ReadKey().Key);
     }
 
@@ -249,7 +250,7 @@ public sealed class Spec012SearchProgressDialogTests
         }
     }
 
-    private sealed class EmptySearchService(Action onCompleting) : ISearchService
+    private sealed class EmptySearchService : ISearchService
     {
         public async IAsyncEnumerable<SearchResultItem> SearchAsync(
             SearchRequest request,
@@ -258,7 +259,6 @@ public sealed class Spec012SearchProgressDialogTests
         {
             await Task.Delay(10, cancellationToken);
             cancellationToken.ThrowIfCancellationRequested();
-            onCompleting();
             yield break;
         }
     }
