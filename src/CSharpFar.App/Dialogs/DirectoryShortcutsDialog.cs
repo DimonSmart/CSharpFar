@@ -14,6 +14,7 @@ internal sealed record DirectoryShortcutsDialogResult(
 
 internal sealed class DirectoryShortcutsDialog
 {
+    private static readonly UiTargetId ListTarget = new("directory-shortcuts.list");
     private const int DialogWidth = 68;
     private const int DialogHeight = 16;
 
@@ -21,12 +22,6 @@ internal sealed class DirectoryShortcutsDialog
     private readonly ScreenRenderer _screen;
     private readonly ConsolePalette _palette;
     private readonly ModalDialogRenderer _modalRenderer = new();
-    private readonly DialogButtonBar _buttonBar = new(
-    [
-        new DialogButton("edit", "Edit", 'E', IsDefault: true),
-        new DialogButton("close", "Close", 'C'),
-    ]);
-
     public DirectoryShortcutsDialog(ModalDialogHost modalDialogs, ConsolePalette? palette = null)
     {
         _modalDialogs = modalDialogs;
@@ -41,12 +36,28 @@ internal sealed class DirectoryShortcutsDialog
         var items = currentItems.ToDictionary(item => item.Number);
         var initialItems = CloneItems(items);
         int cursor = 0;
-        int focusedButton = 0;
+        var buttons = new ButtonRow([
+            new DialogButton("edit", "Edit", 'E', IsDefault: true),
+            new DialogButton("close", "Close", 'C'),
+        ], PaletteStyles.DialogFill(_palette), PaletteStyles.InputField(_palette))
+        { Id = "actions" };
+        var form = new ScrollableFormDialog([buttons]);
 
-        return _modalDialogs.Run(
-            context => Draw(context.Size, items, cursor, focusedButton),
-            (input, frame) =>
+        return _modalDialogs.RunInteractive<DirectoryShortcutsFrame, DirectoryShortcutsInput, DirectoryShortcutsDialogResult>(
+            (context, focusScope) => Draw(context, focusScope, form, items, cursor),
+            BuildInteractionFrame,
+            (input, frame, route) =>
             {
+                if (route.Target == ListTarget)
+                    return (new DirectoryShortcutsInput(input, FormInputResult.NotHandled), UiInputResult.HandledResult);
+
+                FormRouteResult result = form.RouteInput(input, frame.Buttons, route);
+                return (new DirectoryShortcutsInput(input, result.FormResult), result.UiResult);
+            },
+            (routed, semantic) =>
+            {
+                DirectoryShortcutsFrame frame = routed.Frame;
+                ConsoleInputEvent input = semantic.Input;
                 if (input is MouseConsoleInputEvent mouse &&
                     TrySelectRow(mouse, frame.Layout.ContentBounds, ref cursor))
                 {
@@ -55,7 +66,7 @@ internal sealed class DirectoryShortcutsDialog
                     return ModalDialogLoopResult<DirectoryShortcutsDialogResult>.Continue;
                 }
 
-                if (_buttonBar.TryHandleInput(input, frame.Buttons, ref focusedButton, out string? buttonId))
+                if (semantic.FormResult.Command is string buttonId)
                 {
                     if (buttonId == "close")
                         return ModalDialogLoopResult<DirectoryShortcutsDialogResult>.Complete(Result(initialItems, items));
@@ -93,15 +104,29 @@ internal sealed class DirectoryShortcutsDialog
             });
     }
 
-    private DirectoryShortcutsFrame Draw(
-        ConsoleSize size,
-        IReadOnlyDictionary<int, AppSettings.DirectoryShortcutItem> items,
-        int cursor,
-        int focusedButton)
+    private static UiInteractionFrame BuildInteractionFrame(DirectoryShortcutsFrame frame)
     {
-        Rect outerBounds = _modalRenderer.CenteredOuterBounds(size, DialogWidth, DialogHeight);
+        Rect listBounds = frame.Layout.ContentBounds with
+        {
+            Height = Math.Min(frame.Layout.ContentBounds.Height, DirectoryShortcutNormalizer.DisplayOrder.Count),
+        };
+        UiInteractionFrame buttons = frame.Form.BuildInteractionFrame(frame.Buttons);
+        return new UiInteractionFrame(
+            [new UiHitRegion(ListTarget, listBounds), .. buttons.HitRegions],
+            buttons.Focus,
+            buttons.KeyboardTarget);
+    }
+
+    private DirectoryShortcutsFrame Draw(
+        UiRenderContext context,
+        UiFocusScope focusScope,
+        ScrollableFormDialog form,
+        IReadOnlyDictionary<int, AppSettings.DirectoryShortcutItem> items,
+        int cursor)
+    {
+        Rect outerBounds = _modalRenderer.CenteredOuterBounds(context.Size, DialogWidth, DialogHeight);
         ModalDialogRenderer.Layout layout = default;
-        DialogButtonBarLayout buttons = null!;
+        ScrollableFormFrame buttons = null!;
         _modalRenderer.Render(
             _screen,
             outerBounds,
@@ -125,17 +150,14 @@ internal sealed class DirectoryShortcutsDialog
                         row == cursor ? PaletteStyles.InputField(_palette) : PaletteStyles.DialogFill(_palette));
                 }
 
-                buttons = _buttonBar.Render(
-                    _screen,
-                    content.X,
-                    content.Y + 11,
-                    content.Width,
-                    focusedButton,
-                    PaletteStyles.DialogFill(_palette),
-                    PaletteStyles.InputField(_palette));
+                buttons = form.Render(
+                    new FormRenderContext(
+                        context,
+                        new Rect(content.X, content.Y + 11, content.Width, 1),
+                        PaletteStyles.DialogBorder(_palette)),
+                    focusScope);
             });
-        _screen.SetCursorVisible(false);
-        return new DirectoryShortcutsFrame(layout, buttons);
+        return new DirectoryShortcutsFrame(layout, buttons, form);
     }
 
     private void EditSelected(
@@ -206,5 +228,10 @@ internal sealed class DirectoryShortcutsDialog
 
     private readonly record struct DirectoryShortcutsFrame(
         ModalDialogRenderer.Layout Layout,
-        DialogButtonBarLayout Buttons);
+        ScrollableFormFrame Buttons,
+        ScrollableFormDialog Form);
+
+    private readonly record struct DirectoryShortcutsInput(
+        ConsoleInputEvent Input,
+        FormInputResult FormResult);
 }

@@ -201,7 +201,9 @@ internal sealed class FtpConnectionDialog
                     trust.Value = false;
                     SyncEnabledRows();
                     PrepareRows();
-                    form.TryFocus("trust-certificate");
+                    error = validation.ErrorMessage;
+                    return ModalDialogLoopResult<FtpConnectionDialogResult?>.ContinueWithFocus(
+                        form.GetFocusTarget("trust-certificate"));
                 }
                 error = validation.ErrorMessage;
                 return ModalDialogLoopResult<FtpConnectionDialogResult?>.Continue;

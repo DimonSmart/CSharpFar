@@ -26,11 +26,7 @@ public sealed class SingleLineInputDialog
     private static readonly SingleLineTextHistoryRegistry HistoryRegistry = new();
 
     private readonly ModalDialogHost _modalDialogs;
-    private readonly DialogButtonBar _buttonBar = new(
-    [
-        new DialogButton("ok", "OK", 'O', IsDefault: true),
-        new DialogButton("cancel", "Cancel", 'C'),
-    ]);
+    private readonly ModalDialogRenderer _modalRenderer = new();
 
     public SingleLineInputDialog(ModalDialogHost modalDialogs)
     {
@@ -53,178 +49,49 @@ public sealed class SingleLineInputDialog
         SingleLineTextHistoryState? history = options is { MaskInput: false, HistoryKey: not null }
             ? HistoryRegistry.GetOrCreate(options.HistoryKey)
             : null;
-        ScrollBarDragState? historyScrollbarDrag = null;
         string? error = null;
-        int focusedButton = 0;
-        bool buttonsFocused = false;
-        return _modalDialogs.Run(
-            context => Draw(context, options, buffer, error, history, focusedButton, buttonsFocused),
-            (input, frame) =>
+        var form = new ScrollableFormDialog([
+            new LabelRow(options.Prompt, FarDialogStyles.Fill),
+            new TextInputRow(buffer, history, maskInput: options.MaskInput)
             {
-                var layout = frame.Layout;
-                int availableRows = SingleLineTextInput.AvailableDropdownContentRows(layout.InputY, frame.Viewport.Height);
-                if (input is MouseConsoleInputEvent mouse && history is not null)
-                {
-                    if (SingleLineTextInput.TryHandleHistoryDropdownMouse(
-                            history,
-                            buffer,
-                            mouse,
-                            layout.InputX,
-                            layout.InputY,
-                            layout.InputWidth,
-                            frame.Viewport.Height,
-                            ref historyScrollbarDrag) ||
-                        (SingleLineTextInput.IsHistoryArrowHit(layout.InputX, layout.InputWidth, layout.InputY, mouse.X, mouse.Y) &&
-                         SingleLineTextInput.TryOpenHistoryDropdown(history, layout.InputY, frame.Viewport.Height)))
-                    {
-                        buttonsFocused = false;
-                        return ModalDialogLoopResult<SingleLineInputDialogResult>.Continue;
-                    }
-                }
+                Id = "input",
+                SubmitOnEnter = true,
+            },
+            new SeparatorRow(FarDialogStyles.Fill, drawLine: false),
+            new ButtonRow([
+                new DialogButton("ok", "OK", 'O', IsDefault: true),
+                new DialogButton("cancel", "Cancel", 'C'),
+            ], FarDialogStyles.Fill, FarDialogStyles.FocusedInput) { Id = "actions" },
+        ]);
 
-                if (input is MouseConsoleInputEvent &&
-                    _buttonBar.TryHandleInput(input, frame.Buttons, ref focusedButton, out string? buttonId))
-                {
-                    buttonsFocused = true;
-                    if (buttonId == "cancel")
-                        return ModalDialogLoopResult<SingleLineInputDialogResult>.Complete(new SingleLineInputDialogResult(false, string.Empty));
-                    if (buttonId == "ok" && TryAccept(options, buffer, history, ref error, out var result))
-                        return ModalDialogLoopResult<SingleLineInputDialogResult>.Complete(result);
-                    return ModalDialogLoopResult<SingleLineInputDialogResult>.Continue;
-                }
-
-                if (input is not KeyConsoleInputEvent { Key: var key })
-                    return ModalDialogLoopResult<SingleLineInputDialogResult>.Continue;
-
-                if (history?.IsDropdownOpen == true &&
-                    key.Key is ConsoleKey.UpArrow or ConsoleKey.DownArrow or ConsoleKey.Enter or ConsoleKey.Escape)
-                {
-                    SingleLineTextInput.HandleKey(buffer, key, ref error, history, availableRows);
-                    buttonsFocused = false;
-                    return ModalDialogLoopResult<SingleLineInputDialogResult>.Continue;
-                }
-
-                if (key.Key == ConsoleKey.Escape)
-                    return ModalDialogLoopResult<SingleLineInputDialogResult>.Complete(new SingleLineInputDialogResult(false, string.Empty));
-
-                if (key.Key == ConsoleKey.Tab)
-                {
-                    buttonsFocused = !buttonsFocused;
-                    return ModalDialogLoopResult<SingleLineInputDialogResult>.Continue;
-                }
-
-                if (buttonsFocused)
-                {
-                    if (_buttonBar.TryHandleInput(input, frame.Buttons, ref focusedButton, out string? focusedButtonId))
-                    {
-                        if (focusedButtonId == "cancel")
-                            return ModalDialogLoopResult<SingleLineInputDialogResult>.Complete(new SingleLineInputDialogResult(false, string.Empty));
-                        if (focusedButtonId == "ok" && TryAccept(options, buffer, history, ref error, out var result))
-                            return ModalDialogLoopResult<SingleLineInputDialogResult>.Complete(result);
-                    }
-
-                    return ModalDialogLoopResult<SingleLineInputDialogResult>.Continue;
-                }
-
-                if (key.Key == ConsoleKey.Enter)
-                {
-                    if (TryAccept(options, buffer, history, ref error, out var result))
-                        return ModalDialogLoopResult<SingleLineInputDialogResult>.Complete(result);
-                    return ModalDialogLoopResult<SingleLineInputDialogResult>.Continue;
-                }
-
-                SingleLineTextInput.HandleKey(buffer, key, ref error, history, availableRows);
-                return ModalDialogLoopResult<SingleLineInputDialogResult>.Continue;
-            });
-    }
-
-    private static bool TryAccept(
-        SingleLineInputDialogOptions options,
-        CommandLineState buffer,
-        SingleLineTextHistoryState? history,
-        ref string? error,
-        out SingleLineInputDialogResult result)
-    {
-        result = default;
-        string text = buffer.Text.Trim();
-        if (text.Length == 0 && !options.AllowEmpty)
-            return false;
-
-        error = options.Validate?.Invoke(text);
-        if (error is not null)
-            return false;
-
-        history?.Add(text);
-        result = new SingleLineInputDialogResult(true, text);
-        return true;
-    }
-
-    private SingleLineInputFrame Draw(
-        UiRenderContext context,
-        SingleLineInputDialogOptions options,
-        CommandLineState buffer,
-        string? error,
-        SingleLineTextHistoryState? history,
-        int focusedButton,
-        bool buttonsFocused)
-    {
-        var screen = context.Screen;
-        var layout = CreateLayout(context.Size);
-        DialogButtonBarLayout buttons = _buttonBar.CalculateLayout(
-            layout.InputX,
-            layout.Bounds.Y + layout.Bounds.Height - 2,
-            layout.InputWidth);
-        var palette = UiTheme.Current;
-        new DialogFrameRenderer().RenderFrame(
-            screen,
-            layout.Bounds,
-            options.Title,
-            false,
-            PaletteStyles.DialogPopupOptions(palette),
-            (_, _) =>
+        return _modalDialogs.RunInteractive<ScrollableFormFrame, FormInputResult, SingleLineInputDialogResult>(
+            (context, focusScope) => Draw(context, focusScope, options.Title, form, error),
+            form.BuildInteractionFrame,
+            (input, frame, route) =>
             {
-                screen.Write(
-                    layout.InputX,
-                    layout.Bounds.Y + 1,
-                    Truncate(options.Prompt, layout.InputWidth).PadRight(layout.InputWidth),
-                    PaletteStyles.DialogFill(palette));
+                FormRouteResult routed = form.RouteInput(input, frame, route);
+                return (routed.FormResult, routed.UiResult);
+            },
+            (routed, result) =>
+            {
+                if (result.Kind == FormInputResultKind.Cancel || result.Command == "cancel")
+                    return ModalDialogLoopResult<SingleLineInputDialogResult>.Complete(new(false, string.Empty));
 
-                SingleLineTextInput.Render(
-                    screen,
-                    layout.InputX,
-                    layout.InputY,
-                    layout.InputWidth,
-                    buffer,
-                    PaletteStyles.InputField(palette),
-                    PaletteStyles.InputHighlight(palette),
-                    history,
-                    maskInput: options.MaskInput);
+                bool submit = result.Command == "ok" ||
+                    FormDialogInput.ShouldImplicitlySubmit(routed, result, form);
+                if (!submit)
+                    return ModalDialogLoopResult<SingleLineInputDialogResult>.Continue;
 
-                string errorText = error is not null
-                    ? Truncate(error, layout.InputWidth).PadRight(layout.InputWidth)
-                    : new string(' ', layout.InputWidth);
-                screen.Write(layout.InputX, layout.Bounds.Y + 3, errorText, PaletteStyles.DialogError(palette));
+                string text = buffer.Text.Trim();
+                error = text.Length == 0 && !options.AllowEmpty
+                    ? "A value is required."
+                    : options.Validate?.Invoke(text);
+                if (error is not null)
+                    return ModalDialogLoopResult<SingleLineInputDialogResult>.ContinueWithFocus(form.GetFocusTarget("input"));
 
-                _buttonBar.Render(
-                    screen,
-                    buttons,
-                    buttonsFocused ? focusedButton : -1,
-                    PaletteStyles.DialogFill(palette),
-                    PaletteStyles.InputField(palette));
-
-                if (!buttonsFocused)
-                {
-                    int textWidth = history is null ? layout.InputWidth : Math.Max(1, layout.InputWidth - 1);
-                    int cursorX = Math.Min(layout.InputX + textWidth - 1, SingleLineTextInput.GetCursorX(layout.InputX, textWidth, buffer));
-                    screen.SetCursorPosition(cursorX, layout.InputY);
-                    screen.SetCursorVisible(true);
-                }
-                else
-                {
-                    screen.SetCursorVisible(false);
-                }
+                history?.Add(text);
+                return ModalDialogLoopResult<SingleLineInputDialogResult>.Complete(new(true, text));
             });
-        return new SingleLineInputFrame(context.Viewport, layout, buttons);
     }
 
     private static SingleLineInputLayout CreateLayout(ConsoleSize size)
@@ -233,17 +100,36 @@ public sealed class SingleLineInputDialog
         int height = Math.Min(DialogHeight, Math.Max(5, size.Height));
         int x = Math.Max(0, (size.Width - width) / 2);
         int y = Math.Max(0, (size.Height - height) / 2);
-        int inputWidth = Math.Max(1, width - 4);
-        return new SingleLineInputLayout(new Rect(x, y, width, height), x + 2, y + 2, inputWidth);
+        return new SingleLineInputLayout(new Rect(x, y, width, height));
     }
 
-    private static string Truncate(string text, int maxLen) =>
-        text.Length <= maxLen ? text : text[..Math.Max(0, maxLen - 1)] + "\u2026";
+    private ScrollableFormFrame Draw(
+        UiRenderContext context,
+        UiFocusScope focusScope,
+        string title,
+        ScrollableFormDialog form,
+        string? error)
+    {
+        SingleLineInputLayout layout = CreateLayout(context.Size);
+        ScrollableFormFrame? frame = null;
+        var palette = UiTheme.Current;
+        _modalRenderer.Render(
+            context.Screen,
+            layout.Bounds,
+            title,
+            doubleBorder: false,
+            PaletteStyles.DialogPopupOptions(palette),
+            PaletteStyles.DialogPopupOptions(palette) with { DrawShadow = false },
+            (_, modalLayout) =>
+            {
+                Rect content = modalLayout.ContentBounds;
+                frame = form.Render(
+                    new FormRenderContext(context, new Rect(content.X, content.Y, content.Width, 4), FarDialogStyles.Border),
+                    focusScope);
+                context.Screen.Write(content.X, content.Y + 4, ScrollableFormDialog.Fit(error ?? string.Empty, content.Width), PaletteStyles.DialogError(palette));
+            });
+        return frame ?? throw new InvalidOperationException("Single-line input dialog did not render a form frame.");
+    }
 
-    private readonly record struct SingleLineInputLayout(Rect Bounds, int InputX, int InputY, int InputWidth);
-
-    private readonly record struct SingleLineInputFrame(
-        ConsoleViewport Viewport,
-        SingleLineInputLayout Layout,
-        DialogButtonBarLayout Buttons);
+    private readonly record struct SingleLineInputLayout(Rect Bounds);
 }

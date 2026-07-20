@@ -7,6 +7,7 @@ namespace CSharpFar.Ui;
 
 public sealed class ModuleHelpDialog
 {
+    private static readonly UiTargetId HelpTarget = new("module-help");
     private readonly ModalDialogHost _modalDialogs;
 
     public ModuleHelpDialog(ModalDialogHost modalDialogs)
@@ -20,28 +21,33 @@ public sealed class ModuleHelpDialog
 
         int scrollTop = 0;
         ScrollBarDragState? scrollbarDrag = null;
-        _modalDialogs.Run(
-            context =>
+        _modalDialogs.RunInteractive<ModuleHelpFrame, ConsoleInputEvent, Unit>(
+            (context, _) =>
             {
                 var frame = CalculateFrame(context.Size, lines.Count, scrollTop);
                 Draw(context.Screen, title, lines, frame);
-                context.Screen.SetCursorVisible(false);
                 return frame;
             },
-            (input, frame) =>
+            static _ => new UiInteractionFrame(
+                [],
+                new UiFocusFrame([new UiFocusEntry(HelpTarget, 0, Cursor: new UiCursorPlacement(0, 0, Visible: false))], HelpTarget),
+                HelpTarget),
+            static (input, _, _) => (input, UiInputResult.HandledResult),
+            (routed, input) =>
             {
+                ModuleHelpFrame frame = routed.Frame;
                 switch (input)
                 {
                     case KeyConsoleInputEvent key:
                         return HandleKey(key.Key, lines.Count, frame.ContentHeight, ref scrollTop)
-                            ? ModalDialogLoopAction.Close
-                            : ModalDialogLoopAction.Continue;
+                            ? ModalDialogLoopResult<Unit>.Complete(default)
+                            : ModalDialogLoopResult<Unit>.Continue;
                     case MouseConsoleInputEvent mouse:
                         HandleMouse(mouse, lines.Count, frame, ref scrollTop, ref scrollbarDrag);
                         break;
                 }
 
-                return ModalDialogLoopAction.Continue;
+                return ModalDialogLoopResult<Unit>.Continue;
             },
             applyCommittedFrame: frame => scrollTop = frame.ScrollTop);
     }

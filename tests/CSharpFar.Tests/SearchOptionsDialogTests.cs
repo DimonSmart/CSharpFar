@@ -1,5 +1,6 @@
 using CSharpFar.Console;
 using CSharpFar.Console.Input;
+using CSharpFar.Console.Models;
 using CSharpFar.Core.Models;
 using CSharpFar.Tests.Fakes;
 using CSharpFar.Ui;
@@ -51,7 +52,7 @@ public sealed class SearchOptionsDialogTests
     {
         var history = new SingleLineTextHistoryState();
         var form = new ScrollableFormDialog(BuildRows(history));
-        Assert.True(form.TryFocus("option"));
+        form.SetInitialFocus("option");
 
         FormInputResult result = HandleKey(form, history, Key(ConsoleKey.Enter));
 
@@ -69,7 +70,7 @@ public sealed class SearchOptionsDialogTests
         };
         rows.AddRange(BuildRows(history));
         var form = new ScrollableFormDialog(rows);
-        Assert.True(form.TryFocus("pattern"));
+        form.SetInitialFocus("pattern");
         Assert.NotEqual(0, form.FocusIndex);
 
         FormInputResult result = HandleKey(form, history, Key(ConsoleKey.Enter));
@@ -197,7 +198,45 @@ public sealed class SearchOptionsDialogTests
             return FormInputResult.Submit("find");
         }
 
-        return form.HandleKey(key);
+        var driver = new FakeConsoleDriver(80, 25);
+        var screen = new ScreenRenderer(driver);
+        var layer = new SearchOptionsFormLayer(screen, form);
+        var host = UiTestHost.Create(screen, layer);
+        host.Composition.Render();
+        host.Composition.DispatchInput(new KeyConsoleInputEvent(key));
+        return layer.LastResult?.FormResult ?? FormInputResult.NotHandled;
+    }
+
+    private sealed class SearchOptionsFormLayer(ScreenRenderer screen, ScrollableFormDialog form) :
+        UiLayer<ScrollableFormFrame>,
+        IUiSurface
+    {
+        public FormRouteResult? LastResult { get; private set; }
+
+        public override UiLayerInputPolicy InputPolicy => UiLayerInputPolicy.Bubble;
+
+        public IDisposable BeginFrame(UiRenderRequest request) => screen.BeginFrame();
+
+        public void CompleteFrame(UiFrameCompletion completion)
+        {
+        }
+
+        protected override ScrollableFormFrame RenderFrame(UiRenderContext context) =>
+            form.Render(
+                new FormRenderContext(context, new Rect(0, 0, 80, 10), FarDialogStyles.Border),
+                FocusScope);
+
+        protected override UiInteractionFrame BuildInteractionFrame(ScrollableFormFrame frame) =>
+            form.BuildInteractionFrame(frame);
+
+        protected override UiInputResult RouteInput(
+            ConsoleInputEvent input,
+            ScrollableFormFrame frame,
+            UiInputRouteContext context)
+        {
+            LastResult = form.RouteInput(input, frame, context);
+            return LastResult.Value.UiResult;
+        }
     }
 
     private static ConsoleKeyInfo Key(ConsoleKey key) =>

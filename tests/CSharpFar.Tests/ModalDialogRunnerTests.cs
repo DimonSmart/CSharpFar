@@ -532,6 +532,47 @@ public sealed class ModalDialogRunnerTests
     }
 
     [Fact]
+    public void RunInteractive_PostDispatchFocusRequestCommitsWithNextFrame()
+    {
+        var driver = new FakeConsoleDriver(20, 5);
+        driver.EnqueueKey(Key(ConsoleKey.Spacebar));
+        driver.EnqueueKey(Key(ConsoleKey.Enter));
+        var modals = CreateHost(driver, out _);
+        var first = new UiTargetId("first");
+        var requested = new UiTargetId("requested");
+        var routedTargets = new List<UiTargetId?>();
+        int renders = 0;
+
+        int result = modals.RunInteractive<int, bool, int>(
+            (context, focusScope) =>
+            {
+                renders++;
+                if (renders == 2)
+                {
+                    driver.ResizeAfterWriteCount = driver.WriteAtCallCount + 1;
+                    driver.ResizeAfterWrite = current => current.SetSize(21, 5);
+                }
+                context.Screen.Write(0, 0, "M", Style);
+                return renders;
+            },
+            _ => new UiInteractionFrame(
+                [],
+                new UiFocusFrame([new UiFocusEntry(first, 0), new UiFocusEntry(requested, 1)], first)),
+            (input, _, route) =>
+            {
+                routedTargets.Add(route.Target);
+                return (input is KeyConsoleInputEvent { Key.Key: ConsoleKey.Enter }, UiInputResult.HandledResult);
+            },
+            (_, complete) => complete
+                ? ModalDialogLoopResult<int>.Complete(42)
+                : ModalDialogLoopResult<int>.ContinueWithFocus(requested));
+
+        Assert.Equal(42, result);
+        Assert.Equal([first, requested], routedTargets);
+        Assert.True(renders >= 2);
+    }
+
+    [Fact]
     public void RunInteractiveTimed_WakeUsesCommittedFrameInvalidatesAndCompletes()
     {
         var driver = new FakeConsoleDriver(80, 25);

@@ -183,7 +183,9 @@ internal sealed class SftpConnectionDialog
                         hostKeyFingerprint = validation.HostKeyFingerprint;
                         trustHostKeyRow.Value = false;
                         PrepareRows();
-                        form.TryFocus("trust-host-key");
+                        error = validation.ErrorMessage;
+                        return ModalDialogLoopResult<SftpConnectionDialogResult?>.ContinueWithFocus(
+                            form.GetFocusTarget("trust-host-key"));
                     }
 
                     error = validation.ErrorMessage;

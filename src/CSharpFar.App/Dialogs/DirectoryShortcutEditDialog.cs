@@ -76,9 +76,11 @@ internal sealed class DirectoryShortcutEditDialog
                     routed.Input is KeyConsoleInputEvent { Key.Key: ConsoleKey.Enter })
                 {
                     if (form.FocusedRowId == "name")
-                        form.TryFocus("path");
+                        return ModalDialogLoopResult<DirectoryShortcutEditResult>.ContinueWithFocus(
+                            form.GetFocusTarget("path"));
                     else if (form.FocusedRowId == "path")
-                        form.TryFocus("actions");
+                        return ModalDialogLoopResult<DirectoryShortcutEditResult>.ContinueWithFocus(
+                            form.GetFocusTarget("actions"));
                     return ModalDialogLoopResult<DirectoryShortcutEditResult>.Continue;
                 }
 

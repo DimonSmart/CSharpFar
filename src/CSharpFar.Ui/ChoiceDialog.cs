@@ -33,40 +33,50 @@ public sealed class ChoiceDialog
         if (options.Buttons.Count == 0)
             throw new ArgumentException("At least one button is required.", nameof(options));
 
-        var buttonBar = new DialogButtonBar(options.Buttons);
-        int focusedButton = ClampButtonIndex(options.DefaultButtonIndex, options.Buttons);
         int cancelButton = ClampButtonIndex(options.CancelButtonIndex, options.Buttons);
-        return _modalDialogs.Run(
-            context =>
+        var palette = UiTheme.Current;
+        var actions = new ButtonRow(
+            options.Buttons,
+            PaletteStyles.DialogFill(palette),
+            PaletteStyles.InputField(palette),
+            ClampButtonIndex(options.DefaultButtonIndex, options.Buttons))
+        { Id = "actions" };
+        var form = new ScrollableFormDialog();
+        form.SetRows([], [actions]);
+        return _modalDialogs.RunInteractive<ScrollableFormFrame, FormInputResult, ChoiceDialogResult>(
+            (context, focusScope) =>
             {
                 var layout = CreateLayout(options, context.Size);
-                var buttons = RenderLayer(context.Screen, options, layout, buttonBar, focusedButton);
-                return new ChoiceDialogFrame(layout, buttons);
+                return RenderLayer(context, focusScope, form, options, layout);
             },
-            (input, frame) =>
+            form.BuildInteractionFrame,
+            (input, frame, route) =>
             {
-                if (buttonBar.TryHandleInput(input, frame.Buttons, ref focusedButton, out string? buttonId))
-                {
-                    if (buttonId is not null)
-                        return ModalDialogLoopResult<ChoiceDialogResult>.Complete(ResultForButtonId(options.Buttons, buttonId));
-                    return ModalDialogLoopResult<ChoiceDialogResult>.Continue;
-                }
-
-                if (input is KeyConsoleInputEvent { Key.Key: ConsoleKey.Escape })
-                    return ModalDialogLoopResult<ChoiceDialogResult>.Complete(ResultForIndex(options.Buttons, cancelButton));
-
+                FormRouteResult result = form.RouteInput(input, frame, route);
+                return (result.FormResult, result.UiResult);
+            },
+            (_, result) =>
+            {
+                if (result.Kind == FormInputResultKind.Cancel)
+                    return ModalDialogLoopResult<ChoiceDialogResult>.Complete(
+                        result.Command is string cancelId
+                            ? ResultForButtonId(options.Buttons, cancelId)
+                            : ResultForIndex(options.Buttons, cancelButton));
+                if (result.Kind == FormInputResultKind.Submit && result.Command is string buttonId)
+                    return ModalDialogLoopResult<ChoiceDialogResult>.Complete(ResultForButtonId(options.Buttons, buttonId));
                 return ModalDialogLoopResult<ChoiceDialogResult>.Continue;
             });
     }
 
-    private static DialogButtonBarLayout RenderLayer(
-        ScreenRenderer screen,
+    private static ScrollableFormFrame RenderLayer(
+        UiRenderContext context,
+        UiFocusScope focusScope,
+        ScrollableFormDialog form,
         ChoiceDialogOptions options,
-        ChoiceDialogLayout layout,
-        DialogButtonBar buttonBar,
-        int focusedButton)
+        ChoiceDialogLayout layout)
     {
-        DialogButtonBarLayout buttons = null!;
+        ScrollableFormFrame? frame = null;
+        ScreenRenderer screen = context.Screen;
         var palette = UiTheme.Current;
         new DialogFrameRenderer().RenderFrame(
             screen,
@@ -88,17 +98,15 @@ public sealed class ChoiceDialog
                         PaletteStyles.DialogFill(palette));
                 }
 
-                buttons = buttonBar.Render(
-                    screen,
-                    textX,
-                    layout.ButtonY,
-                    textWidth,
-                    focusedButton,
-                    PaletteStyles.DialogFill(palette),
-                    PaletteStyles.InputField(palette));
+                frame = form.Render(
+                    new FormRenderContext(
+                        context,
+                        new Rect(textX, Math.Max(contentBounds.Y, layout.ButtonY - 1), textWidth, 1),
+                        PaletteStyles.DialogBorder(palette),
+                        new Rect(textX, layout.ButtonY, textWidth, 1)),
+                    focusScope);
             });
-        screen.SetCursorVisible(false);
-        return buttons;
+        return frame ?? throw new InvalidOperationException("Choice dialog did not render its form frame.");
     }
 
     private static ChoiceDialogLayout CreateLayout(ChoiceDialogOptions options, ConsoleSize size)
@@ -147,6 +155,4 @@ public sealed class ChoiceDialog
     }
 
     private readonly record struct ChoiceDialogLayout(Rect Bounds, int LineRows, int ButtonY);
-
-    private readonly record struct ChoiceDialogFrame(ChoiceDialogLayout Layout, DialogButtonBarLayout Buttons);
 }

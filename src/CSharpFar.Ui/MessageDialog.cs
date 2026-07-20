@@ -8,6 +8,7 @@ namespace CSharpFar.Ui;
 /// <summary>Shows a message box and waits for Enter or Esc.</summary>
 public sealed class MessageDialog
 {
+    private static readonly UiTargetId DialogTarget = new("message-dialog");
     private const int MinDialogWidth = 52;
     private const int MaxDialogWidth = 96;
 
@@ -21,21 +22,22 @@ public sealed class MessageDialog
     public void Show(string title, string message)
     {
         int firstVisibleLine = 0;
-        _modalDialogs.Run(
-            context =>
+        _modalDialogs.RunInteractive<MessageDialogFrame, MessageDialogInput, Unit>(
+            (context, focusScope) =>
             {
                 var layout = CreateLayout(title, message, context.Size, buttons: null);
                 int effectiveFirstVisibleLine = NormalizeScroll(layout, firstVisibleLine);
-                Draw(context.Screen, title, layout, effectiveFirstVisibleLine, buttonBar: null, focusedButton: 0);
-                context.Screen.SetCursorVisible(false);
-                return new MessageDialogFrame(layout, effectiveFirstVisibleLine, Buttons: null);
+                return Draw(context, focusScope, title, layout, effectiveFirstVisibleLine, form: null);
             },
-            (input, frame) =>
+            BuildInteractionFrame,
+            static (input, _, _) => (new MessageDialogInput(input, FormInputResult.NotHandled), UiInputResult.HandledResult),
+            (routed, semantic) =>
             {
+                ConsoleInputEvent input = semantic.Input;
                 if (input is KeyConsoleInputEvent { Key.Key: ConsoleKey.Enter or ConsoleKey.Escape })
-                    return ModalDialogLoopAction.Close;
-                TryScroll(input, frame, ref firstVisibleLine);
-                return ModalDialogLoopAction.Continue;
+                    return ModalDialogLoopResult<Unit>.Complete(default);
+                TryScroll(input, routed.Frame, ref firstVisibleLine);
+                return ModalDialogLoopResult<Unit>.Continue;
             },
             applyCommittedFrame: frame => firstVisibleLine = frame.FirstVisibleLine);
     }
@@ -48,29 +50,32 @@ public sealed class MessageDialog
         var dialogButtons = buttons
             .Select((text, index) => new DialogButton(index.ToString(), text, HotKeyFrom(text), index == 0))
             .ToArray();
-        var buttonBar = new DialogButtonBar(dialogButtons);
-        int focusedButton = 0;
+        var form = new ScrollableFormDialog([
+            new ButtonRow(dialogButtons, FarDialogStyles.Fill, FarDialogStyles.FocusedInput) { Id = "actions" },
+        ]);
         int firstVisibleLine = 0;
-        return _modalDialogs.Run(
-            context =>
+        return _modalDialogs.RunInteractive<MessageDialogFrame, MessageDialogInput, int>(
+            (context, focusScope) =>
             {
                 var layout = CreateLayout(title, message, context.Size, dialogButtons);
                 int effectiveFirstVisibleLine = NormalizeScroll(layout, firstVisibleLine);
-                var buttonsLayout = Draw(context.Screen, title, layout, effectiveFirstVisibleLine, buttonBar, focusedButton);
-                context.Screen.SetCursorVisible(false);
-                return new MessageDialogFrame(layout, effectiveFirstVisibleLine, buttonsLayout);
+                return Draw(context, focusScope, title, layout, effectiveFirstVisibleLine, form);
             },
-            (input, frame) =>
+            BuildInteractionFrame,
+            (input, frame, route) =>
             {
-                if (TryScroll(input, frame, ref firstVisibleLine))
+                FormRouteResult result = form.RouteInput(input, frame.Buttons!, route);
+                return (new MessageDialogInput(input, result.FormResult), result.UiResult);
+            },
+            (routed, semantic) =>
+            {
+                ConsoleInputEvent input = semantic.Input;
+                if (TryScroll(input, routed.Frame, ref firstVisibleLine))
                     return ModalDialogLoopResult<int>.Continue;
 
-                if (frame.Buttons is { } buttonsLayout &&
-                    _buttonBarTryHandle(buttonBar, input, buttonsLayout, ref focusedButton, out var selected))
+                if (semantic.FormResult.Command is string buttonId && int.TryParse(buttonId, out int selected))
                 {
-                    if (selected.HasValue)
-                        return ModalDialogLoopResult<int>.Complete(selected.Value);
-                    return ModalDialogLoopResult<int>.Continue;
+                    return ModalDialogLoopResult<int>.Complete(selected);
                 }
                 if (input is KeyConsoleInputEvent { Key.Key: ConsoleKey.Escape })
                     return ModalDialogLoopResult<int>.Complete(-1);
@@ -80,28 +85,27 @@ public sealed class MessageDialog
             applyCommittedFrame: frame => firstVisibleLine = frame.FirstVisibleLine);
     }
 
+    private static UiInteractionFrame BuildInteractionFrame(MessageDialogFrame frame) =>
+        frame is { Form: not null, Buttons: not null }
+            ? frame.Form.BuildInteractionFrame(frame.Buttons)
+            : new UiInteractionFrame(
+                [],
+                new UiFocusFrame([new UiFocusEntry(DialogTarget, 0, Cursor: new UiCursorPlacement(0, 0, Visible: false))], DialogTarget),
+                DialogTarget);
+
     private static int NormalizeScroll(MessageDialogLayout layout, int firstVisibleLine) =>
         Math.Clamp(firstVisibleLine, 0, Math.Max(0, layout.MessageLines.Count - layout.ContentHeight));
 
-    private static bool _buttonBarTryHandle(DialogButtonBar buttonBar, ConsoleInputEvent input, DialogButtonBarLayout layout, ref int focusedButton, out int? selected)
-    {
-        selected = null;
-        if (!buttonBar.TryHandleInput(input, layout, ref focusedButton, out string? buttonId))
-            return false;
-        if (buttonId is not null && int.TryParse(buttonId, out int value))
-            selected = value;
-        return true;
-    }
-
-    private DialogButtonBarLayout? Draw(
-        ScreenRenderer screen,
+    private MessageDialogFrame Draw(
+        UiRenderContext context,
+        UiFocusScope focusScope,
         string title,
         MessageDialogLayout layout,
         int firstVisibleLine,
-        DialogButtonBar? buttonBar,
-        int focusedButton)
+        ScrollableFormDialog? form)
     {
-        DialogButtonBarLayout? buttonsLayout = null;
+        ScrollableFormFrame? buttons = null;
+        ScreenRenderer screen = context.Screen;
         var scrollState = layout.MessageLines.Count > layout.ContentHeight
             ? new ScrollState
             {
@@ -129,7 +133,7 @@ public sealed class MessageDialog
                     PaletteStyles.DialogError(palette));
             }
 
-            if (buttonBar is null)
+            if (form is null)
             {
                 const string hint = "[ Press Enter ]";
                 screen.Write(
@@ -140,16 +144,14 @@ public sealed class MessageDialog
                 return;
             }
 
-            buttonsLayout = buttonBar.Render(
-                screen,
-                textX,
-                layout.ActionRow,
-                textWidth,
-                focusedButton,
-                PaletteStyles.DialogFill(palette),
-                PaletteStyles.InputField(palette));
+            buttons = form.Render(
+                new FormRenderContext(
+                    context,
+                    new Rect(textX, layout.ActionRow, textWidth, 1),
+                    PaletteStyles.DialogBorder(palette)),
+                focusScope);
         });
-        return buttonsLayout;
+        return new MessageDialogFrame(layout, firstVisibleLine, buttons, form);
     }
 
     private static MessageDialogLayout CreateLayout(
@@ -296,5 +298,10 @@ public sealed class MessageDialog
     private readonly record struct MessageDialogFrame(
         MessageDialogLayout Layout,
         int FirstVisibleLine,
-        DialogButtonBarLayout? Buttons);
+        ScrollableFormFrame? Buttons,
+        ScrollableFormDialog? Form);
+
+    private readonly record struct MessageDialogInput(
+        ConsoleInputEvent Input,
+        FormInputResult FormResult);
 }

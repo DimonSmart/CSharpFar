@@ -1,4 +1,5 @@
 using CSharpFar.Console;
+using CSharpFar.Console.Input;
 using CSharpFar.Tests.Fakes;
 using CSharpFar.Ui;
 
@@ -37,11 +38,49 @@ public sealed class MessageDialogTests
         Assert.False(driver.CursorVisible);
     }
 
+    [Fact]
+    public void ShowButtons_RightThenEnterSelectsSecondButton()
+    {
+        var driver = new FakeConsoleDriver(width: 60, height: 10);
+        driver.EnqueueKey(new ConsoleKeyInfo('\0', ConsoleKey.RightArrow, shift: false, alt: false, control: false));
+        driver.EnqueueKey(new ConsoleKeyInfo('\r', ConsoleKey.Enter, shift: false, alt: false, control: false));
+
+        int result = CreateDialog(driver).ShowButtons("Question", "Choose", ["First", "Second"]);
+
+        Assert.Equal(1, result);
+        Assert.False(driver.CursorVisible);
+    }
+
+    [Fact]
+    public void ShowButtons_MouseSelectsButton()
+    {
+        var driver = new FakeConsoleDriver(width: 60, height: 10);
+        driver.BeforeReadInput = current =>
+        {
+            var record = current.WriteRecords.Last(value => value.Text.Contains("Second", StringComparison.Ordinal));
+            current.EnqueueInput(new MouseConsoleInputEvent(
+                record.X + record.Text.IndexOf("Second", StringComparison.Ordinal),
+                record.Y,
+                MouseButton.Left,
+                MouseEventKind.Down,
+                MouseKeyModifiers.None));
+        };
+
+        int result = CreateDialog(driver).ShowButtons("Question", "Choose", ["First", "Second"]);
+
+        Assert.Equal(1, result);
+    }
+
     private static void Show(FakeConsoleDriver driver, string title, string message)
+    {
+        CreateDialog(driver).Show(title, message);
+    }
+
+    private static MessageDialog CreateDialog(FakeConsoleDriver driver)
     {
         var screen = new ScreenRenderer(driver);
         var composition = new UiCompositionHost(screen);
         composition.SetRootSurface(new ScreenRendererSurface(screen, _ => { }));
-        new MessageDialog(new ModalDialogHost(composition)).Show(title, message);
+        return new MessageDialog(new ModalDialogHost(composition));
     }
 }

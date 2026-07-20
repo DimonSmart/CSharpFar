@@ -19,6 +19,9 @@ public abstract class UiLayer<TFrame> : IUiLayer
 
     public UiInteractionFrame CommittedInteractionFrame => _committedInteractionFrame.Value;
 
+    internal void RequestFocusOnNextCommit(UiFocusRequest request) =>
+        FocusScope.RequestOnNextCommit(request);
+
     public void Render(UiRenderContext context)
     {
         TFrame frame = RenderFrame(context);

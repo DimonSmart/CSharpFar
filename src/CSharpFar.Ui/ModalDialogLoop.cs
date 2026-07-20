@@ -4,21 +4,28 @@ public readonly struct ModalDialogLoopResult<TResult>
 {
     private readonly TResult? _result;
 
-    private ModalDialogLoopResult(bool isCompleted, TResult? result)
+    private ModalDialogLoopResult(bool isCompleted, TResult? result, UiFocusRequest focusRequest)
     {
         IsCompleted = isCompleted;
         _result = result;
+        FocusRequest = focusRequest;
     }
 
     public bool IsCompleted { get; }
+
+    public UiFocusRequest FocusRequest { get; }
 
     public TResult Result => IsCompleted
         ? _result!
         : throw new InvalidOperationException("A continuing modal loop has no result.");
 
-    public static ModalDialogLoopResult<TResult> Continue => new(false, default);
+    public static ModalDialogLoopResult<TResult> Continue => new(false, default, UiFocusRequest.None);
 
-    public static ModalDialogLoopResult<TResult> Complete(TResult result) => new(true, result);
+    public static ModalDialogLoopResult<TResult> ContinueWithFocus(UiTargetId target) =>
+        new(false, default, UiFocusRequest.Set(target));
+
+    public static ModalDialogLoopResult<TResult> Complete(TResult result) =>
+        new(true, result, UiFocusRequest.None);
 }
 
 public enum ModalDialogLoopAction

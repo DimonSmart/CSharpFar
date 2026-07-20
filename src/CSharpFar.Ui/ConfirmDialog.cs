@@ -10,19 +10,12 @@ public sealed class ConfirmDialog
     private const int DialogWidth = 52;
     private const int DialogHeight = 7;
 
-    private readonly ScreenRenderer _screen;
     private readonly ModalDialogHost _modalDialogs;
     private readonly ModalDialogRenderer _modalRenderer = new();
-    private readonly DialogButtonBar _buttonBar = new(
-    [
-        new DialogButton("ok",     "OK",     'O', IsDefault: true),
-        new DialogButton("cancel", "Cancel", 'C'),
-    ]);
 
     public ConfirmDialog(ModalDialogHost modalDialogs)
     {
         _modalDialogs = modalDialogs ?? throw new ArgumentNullException(nameof(modalDialogs));
-        _screen = modalDialogs.Screen;
     }
 
     /// <summary>
@@ -35,32 +28,37 @@ public sealed class ConfirmDialog
 
     private bool ShowComposed(string title, string question, string itemName)
     {
-        int focusedButton = 0;
-        return _modalDialogs.Run(
-            context => RenderLayer(context.Screen, title, question, itemName, context.Size, focusedButton),
-            (input, frame) =>
+        var actions = new ButtonRow(
+        [
+            new DialogButton("ok", "OK", 'O', IsDefault: true),
+            new DialogButton("cancel", "Cancel", 'C'),
+        ], FarDialogStyles.Fill, FarDialogStyles.FocusedInput)
+        { Id = "actions" };
+        var form = new ScrollableFormDialog();
+        form.SetRows([], [actions]);
+        return _modalDialogs.RunInteractive<ScrollableFormFrame, FormInputResult, bool>(
+            (context, focusScope) => RenderLayer(context, focusScope, form, title, question, itemName),
+            form.BuildInteractionFrame,
+            (input, frame, route) =>
             {
-                if (_buttonBar.TryHandleInput(input, frame.Buttons, ref focusedButton, out string? buttonId))
-                {
-                    if (buttonId == "cancel") return ModalDialogLoopResult<bool>.Complete(false);
-                    if (buttonId == "ok") return ModalDialogLoopResult<bool>.Complete(true);
-                    return ModalDialogLoopResult<bool>.Continue;
-                }
-
-                if (input is KeyConsoleInputEvent { Key: var key })
-                {
-                    if (key.Key == ConsoleKey.Escape) return ModalDialogLoopResult<bool>.Complete(false);
-                    if (key.Key == ConsoleKey.Enter) return ModalDialogLoopResult<bool>.Complete(focusedButton == 0);
-                }
-
+                FormRouteResult result = form.RouteInput(input, frame, route);
+                return (result.FormResult, result.UiResult);
+            },
+            (_, result) =>
+            {
+                if (result.Kind == FormInputResultKind.Cancel)
+                    return ModalDialogLoopResult<bool>.Complete(false);
+                if (result.Kind == FormInputResultKind.Submit)
+                    return ModalDialogLoopResult<bool>.Complete(result.Command == "ok");
                 return ModalDialogLoopResult<bool>.Continue;
             });
     }
 
-    private ConfirmDialogFrame RenderLayer(ScreenRenderer screen, string title, string question, string itemName, ConsoleSize size, int focusedButton)
+    private ScrollableFormFrame RenderLayer(UiRenderContext context, UiFocusScope focusScope, ScrollableFormDialog form, string title, string question, string itemName)
     {
-        DialogButtonBarLayout buttons = null!;
-        var outerBounds = _modalRenderer.CenteredOuterBounds(size, DialogWidth, DialogHeight, minWidth: 20, minHeight: 5);
+        ScrollableFormFrame? frame = null;
+        ScreenRenderer screen = context.Screen;
+        var outerBounds = _modalRenderer.CenteredOuterBounds(context.Size, DialogWidth, DialogHeight, minWidth: 20, minHeight: 5);
 
         _modalRenderer.Render(screen, outerBounds, title, true, FarDialogStyles.OuterOptions, FarDialogStyles.FrameOptions, (_, layout) =>
         {
@@ -75,20 +73,17 @@ public sealed class ConfirmDialog
             screen.Write(contentX, bounds.Y + 2, new string(' ', contentWidth), FarDialogStyles.Fill);
             screen.Write(nameX, bounds.Y + 2, truncatedName, FarDialogStyles.Fill);
 
-            buttons = _buttonBar.Render(
-                screen,
-                contentX,
-                bounds.Y + bounds.Height - 2,
-                contentWidth,
-                focusedButton,
-                FarDialogStyles.Fill,
-                FarDialogStyles.FocusedInput);
+            frame = form.Render(
+                new FormRenderContext(
+                    context,
+                    new Rect(contentX, bounds.Y + bounds.Height - 3, contentWidth, 1),
+                    FarDialogStyles.Border,
+                    new Rect(contentX, bounds.Y + bounds.Height - 2, contentWidth, 1)),
+                focusScope);
         });
-        return new ConfirmDialogFrame(buttons);
+        return frame ?? throw new InvalidOperationException("Confirm dialog did not render its form frame.");
     }
 
     private static string Truncate(string s, int maxLen) =>
         s.Length <= maxLen ? s : "\u2026" + s[^(maxLen - 1)..];
-
-    private readonly record struct ConfirmDialogFrame(DialogButtonBarLayout Buttons);
 }

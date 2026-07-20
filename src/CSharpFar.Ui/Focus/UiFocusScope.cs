@@ -2,6 +2,8 @@ namespace CSharpFar.Ui;
 
 public sealed class UiFocusScope
 {
+    private UiFocusRequest _nextCommitRequest = UiFocusRequest.None;
+
     public UiTargetId? FocusedTarget { get; private set; }
 
     public UiFocusFrame CurrentFrame { get; private set; } = UiFocusFrame.Empty;
@@ -42,17 +44,51 @@ public sealed class UiFocusScope
         return false;
     }
 
+    internal bool HasNextCommitRequest => _nextCommitRequest.Kind != UiFocusRequestKind.None;
+
+    internal void RequestOnNextCommit(UiFocusRequest request)
+    {
+        if (request.Kind == UiFocusRequestKind.None)
+            return;
+
+        _nextCommitRequest = request;
+    }
+
     internal void Commit(UiFocusFrame frame)
     {
         ArgumentNullException.ThrowIfNull(frame);
 
         CurrentFrame = frame;
-        FocusedTarget = ResolveFocusedTarget(frame);
+        FocusedTarget = ResolveFocusedTarget(frame, _nextCommitRequest);
+        _nextCommitRequest = UiFocusRequest.None;
     }
 
-    internal UiTargetId? ResolveFocusedTarget(UiFocusFrame frame)
+    internal UiTargetId? ResolveFocusedTarget(UiFocusFrame frame) =>
+        ResolveFocusedTarget(frame, _nextCommitRequest);
+
+    private UiTargetId? ResolveFocusedTarget(UiFocusFrame frame, UiFocusRequest request)
     {
         ArgumentNullException.ThrowIfNull(frame);
+
+        if (request.Kind == UiFocusRequestKind.Set &&
+            frame.Entries.FirstOrDefault(entry => entry.Target == request.Target) is { IsEnabled: true } requested)
+        {
+            return requested.Target;
+        }
+
+        if (request.Kind == UiFocusRequestKind.Clear)
+            return null;
+
+        if (request.Kind is UiFocusRequestKind.MoveNext or UiFocusRequestKind.MovePrevious)
+        {
+            var enabled = OrderedEnabledEntries(frame).Select(value => value.Entry.Target).ToArray();
+            if (enabled.Length == 0)
+                return null;
+            int currentIndex = FocusedTarget is UiTargetId focused ? Array.IndexOf(enabled, focused) : -1;
+            if (request.Kind == UiFocusRequestKind.MoveNext)
+                return enabled[(currentIndex + 1 + enabled.Length) % enabled.Length];
+            return enabled[(currentIndex <= 0 ? enabled.Length : currentIndex) - 1];
+        }
 
         if (FocusedTarget is UiTargetId current &&
             frame.Entries.FirstOrDefault(entry => entry.Target == current) is { IsEnabled: true })

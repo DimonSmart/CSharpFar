@@ -127,6 +127,27 @@ public sealed class UiFocusScopeTests
     }
 
     [Fact]
+    public void NextCommitRequest_IgnoresMissingAndDisabledTargets()
+    {
+        var scope = new UiFocusScope();
+        var first = new UiTargetId("first");
+        var disabled = new UiTargetId("disabled");
+        var frame = new UiFocusFrame([
+            new(first, 0),
+            new(disabled, 1, IsEnabled: false),
+        ]);
+        scope.Commit(frame);
+
+        scope.RequestOnNextCommit(UiFocusRequest.Set(new UiTargetId("missing")));
+        scope.Commit(frame);
+        Assert.Equal(first, scope.FocusedTarget);
+
+        scope.RequestOnNextCommit(UiFocusRequest.Set(disabled));
+        scope.Commit(frame);
+        Assert.Equal(first, scope.FocusedTarget);
+    }
+
+    [Fact]
     public void Traversal_UsesTabOrderOriginalOrderAndWrapAround()
     {
         var scope = new UiFocusScope();

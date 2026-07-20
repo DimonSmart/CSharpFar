@@ -15,11 +15,6 @@ internal sealed class OperationCancelDialog
 
     private readonly ModalDialogHost _modalDialogs;
     private readonly ModalDialogRenderer _modalRenderer = new();
-    private readonly DialogButtonBar _buttons = new(
-    [
-        new DialogButton(YesButton, "Yes", 'Y', IsDefault: true),
-        new DialogButton(NoButton, "No", 'N'),
-    ]);
 
     public OperationCancelDialog(ModalDialogHost modalDialogs)
     {
@@ -30,33 +25,43 @@ internal sealed class OperationCancelDialog
         string interruptedMessage = "Operation has been interrupted",
         string confirmationMessage = "Do you really want to cancel it?")
     {
-        int focusedButton = 0;
-        return _modalDialogs.Run(
-            context => Draw(context, focusedButton, interruptedMessage, confirmationMessage),
-            (input, frame) =>
+        var buttons = new ButtonRow(
+        [
+            new DialogButton(YesButton, "Yes", 'Y', IsDefault: true),
+            new DialogButton(NoButton, "No", 'N'),
+        ],
+        WarningDialogStyles.Fill,
+        WarningDialogStyles.ButtonFocus)
+        { Id = "actions" };
+        var form = new ScrollableFormDialog();
+        form.SetRows([], [buttons]);
+
+        return _modalDialogs.RunInteractive<ScrollableFormFrame, FormInputResult, bool>(
+            (context, focusScope) => Draw(context, focusScope, form, interruptedMessage, confirmationMessage),
+            form.BuildInteractionFrame,
+            (input, frame, route) =>
             {
-                if (_buttons.TryHandleInput(input, frame.Buttons, ref focusedButton, out string? buttonId) && buttonId is not null)
-                    return ModalDialogLoopResult<bool>.Complete(buttonId == YesButton);
-
-                if (input is KeyConsoleInputEvent { Key: var key })
-                {
-                    if (key.Key == ConsoleKey.Escape)
-                        return ModalDialogLoopResult<bool>.Complete(false);
-                    if (key.Key == ConsoleKey.Tab)
-                        focusedButton = (focusedButton + 1) % _buttons.Count;
-                }
-
+                FormRouteResult result = form.RouteInput(input, frame, route);
+                return (result.FormResult, result.UiResult);
+            },
+            (_, result) =>
+            {
+                if (result.Kind == FormInputResultKind.Cancel)
+                    return ModalDialogLoopResult<bool>.Complete(false);
+                if (result.Kind == FormInputResultKind.Submit)
+                    return ModalDialogLoopResult<bool>.Complete(result.Command == YesButton);
                 return ModalDialogLoopResult<bool>.Continue;
             });
     }
 
-    private OperationCancelFrame Draw(
+    private ScrollableFormFrame Draw(
         UiRenderContext context,
-        int focusedButton,
+        UiFocusScope focusScope,
+        ScrollableFormDialog form,
         string interruptedMessage,
         string confirmationMessage)
     {
-        DialogButtonBarLayout buttons = null!;
+        ScrollableFormFrame? frame = null;
         int x = Math.Max(0, (context.Size.Width - DialogWidth) / 2);
         int y = Math.Max(0, (context.Size.Height - DialogHeight) / 2);
         var bounds = new Rect(x, y, DialogWidth, DialogHeight);
@@ -70,18 +75,16 @@ internal sealed class OperationCancelDialog
             context.Screen.Write(contentX, contentBounds.Y, Center(interruptedMessage, contentWidth), WarningDialogStyles.Fill);
             context.Screen.Write(contentX, contentBounds.Y + 1, Center(confirmationMessage, contentWidth), WarningDialogStyles.Fill);
 
-            buttons = _buttons.Render(
-                context.Screen,
-                contentX,
-                contentBounds.Bottom - 1,
-                contentWidth,
-                focusedButton,
-                WarningDialogStyles.Fill,
-                WarningDialogStyles.ButtonFocus);
+            frame = form.Render(
+                new FormRenderContext(
+                    context,
+                    new Rect(contentX, contentBounds.Bottom - 2, contentWidth, 1),
+                    WarningDialogStyles.Border,
+                    new Rect(contentX, contentBounds.Bottom - 1, contentWidth, 1)),
+                focusScope);
         });
 
-        context.Screen.SetCursorVisible(false);
-        return new OperationCancelFrame(buttons);
+        return frame ?? throw new InvalidOperationException("Operation cancel dialog did not render its form frame.");
     }
 
     private static string Center(string text, int width)
@@ -92,6 +95,4 @@ internal sealed class OperationCancelDialog
         int left = (width - text.Length) / 2;
         return new string(' ', left) + text + new string(' ', width - left - text.Length);
     }
-
-    private readonly record struct OperationCancelFrame(DialogButtonBarLayout Buttons);
 }
