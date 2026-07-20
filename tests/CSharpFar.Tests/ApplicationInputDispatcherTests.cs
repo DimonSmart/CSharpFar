@@ -611,9 +611,9 @@ public sealed class ApplicationInputDispatcherTests
     }
 
     [Theory]
-    [InlineData('[', ConsoleKey.Oem4, @"C:\committed-right\")]
-    [InlineData(']', ConsoleKey.Oem6, @"C:\committed-left\")]
-    public void WorkspaceKeyboard_CtrlBracketInsertsCommittedOppositePanelDirectory(
+    [InlineData('[', ConsoleKey.Oem4, @"C:\committed-left\")]
+    [InlineData(']', ConsoleKey.Oem6, @"C:\committed-right\")]
+    public void WorkspaceKeyboard_CtrlBracketInsertsCommittedPanelDirectory(
         char keyChar,
         ConsoleKey key,
         string expectedText)

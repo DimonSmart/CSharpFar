@@ -176,10 +176,10 @@ internal sealed class ApplicationCommandLineKeyboardHandler
             return InsertCurrentItemNameIntoCommandLine(input);
 
         if (KeyboardShortcutClassifier.IsPlainControlOpenBracket(key))
-            return InsertPanelCurrentDirectoryIntoCommandLine(input.Panel(PanelSide.Right), input.Frame.Mode);
+            return InsertPanelCurrentDirectoryIntoCommandLine(input.Panel(PanelSide.Left), input.Frame.Mode);
 
         if (KeyboardShortcutClassifier.IsPlainControlCloseBracket(key))
-            return InsertPanelCurrentDirectoryIntoCommandLine(input.Panel(PanelSide.Left), input.Frame.Mode);
+            return InsertPanelCurrentDirectoryIntoCommandLine(input.Panel(PanelSide.Right), input.Frame.Mode);
 
         return false;
     }
