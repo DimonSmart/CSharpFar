@@ -92,8 +92,6 @@ public sealed class TopMenuController
             case TopMenuPointerActionKind.ActivateDropdownItem:
                 ExecuteDropdownItem(definition, action.ItemIndex);
                 return true;
-            case TopMenuPointerActionKind.ConsumeDropdownSurface:
-                return true;
             default:
                 return false;
         }
@@ -103,12 +101,31 @@ public sealed class TopMenuController
     {
         _state.OpenState = MenuOpenState.Closed;
         _state.ActiveDropdownItemIndex = 0;
+        _state.DropdownFirstVisibleItemIndex = 0;
         _dropdownScrollbarDrag = null;
     }
 
-    public void CommitDropdownScrollbar(Rect? bounds, int totalItems, int viewportItems)
+    internal void CommitDropdownViewport(
+        Rect? scrollbarBounds,
+        int totalItems,
+        int viewportItems,
+        int firstVisibleIndex)
     {
-        if (bounds is null)
+        if (_state.OpenState != MenuOpenState.DropdownOpen ||
+            totalItems <= viewportItems ||
+            viewportItems <= 0)
+        {
+            _state.DropdownFirstVisibleItemIndex = 0;
+            _dropdownScrollbarDrag = null;
+            return;
+        }
+
+        _state.DropdownFirstVisibleItemIndex = ScrollStateCalculator.ClampFirstVisibleIndex(
+            firstVisibleIndex,
+            totalItems,
+            viewportItems);
+
+        if (scrollbarBounds is null)
         {
             _dropdownScrollbarDrag = null;
             return;
@@ -118,7 +135,7 @@ public sealed class TopMenuController
         {
             _dropdownScrollbarDrag = ScrollBarInteraction.RebaseDrag(
                 drag,
-                bounds.Value,
+                scrollbarBounds.Value,
                 totalItems,
                 viewportItems);
         }
@@ -140,6 +157,7 @@ public sealed class TopMenuController
         _state.ActiveTopMenuIndex = Math.Clamp(topIndex, 0, definition.Items.Count - 1);
         _state.OpenState = MenuOpenState.DropdownOpen;
         _state.ActiveDropdownItemIndex = FirstSelectableIndex(CurrentChildren(definition));
+        _state.DropdownFirstVisibleItemIndex = 0;
         _dropdownScrollbarDrag = null;
     }
 
@@ -184,6 +202,7 @@ public sealed class TopMenuController
 
         int lastVisibleIndex = Math.Min(children.Count - 1, firstVisibleIndex + visibleRows - 1);
         _state.ActiveDropdownItemIndex = SelectableIndexInRange(children, selectedIndex, firstVisibleIndex, lastVisibleIndex);
+        _state.DropdownFirstVisibleItemIndex = firstVisibleIndex;
         return true;
     }
 

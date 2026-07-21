@@ -58,9 +58,13 @@ public sealed class MenuLayoutService
                 int contentRows = Math.Max(0, height - 2);
                 if (contentRows > 0)
                 {
+                    dropdownFirstVisibleItemIndex = ScrollStateCalculator.ClampFirstVisibleIndex(
+                        state.DropdownFirstVisibleItemIndex,
+                        topItem.Children.Count,
+                        contentRows);
                     dropdownFirstVisibleItemIndex = ScrollStateCalculator.EnsureIndexVisible(
                         state.ActiveDropdownItemIndex,
-                        0,
+                        dropdownFirstVisibleItemIndex,
                         contentRows);
                     dropdownFirstVisibleItemIndex = ScrollStateCalculator.ClampFirstVisibleIndex(
                         dropdownFirstVisibleItemIndex,

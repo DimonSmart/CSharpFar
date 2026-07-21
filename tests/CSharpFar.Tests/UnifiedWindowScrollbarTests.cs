@@ -318,6 +318,27 @@ public sealed class UnifiedWindowScrollbarTests
     }
 
     [Fact]
+    public void DropdownMenu_Overflow_RetainsCommittedViewportUntilSelectionNeedsVisibility()
+    {
+        var definition = LargeMenuDefinition();
+        var state = new MenuState
+        {
+            OpenState = MenuOpenState.DropdownOpen,
+            ActiveTopMenuIndex = 0,
+            ActiveDropdownItemIndex = 5,
+            DropdownFirstVisibleItemIndex = 5,
+        };
+
+        var retained = new MenuLayoutService().CalculateLayout(new Rect(0, 0, 40, 6), definition, state);
+        Assert.Equal(5, retained.DropdownFirstVisibleItemIndex);
+
+        state.ActiveDropdownItemIndex = 2;
+        var normalized = new MenuLayoutService().CalculateLayout(new Rect(0, 0, 40, 6), definition, state);
+        Assert.Equal(2, normalized.DropdownFirstVisibleItemIndex);
+        Assert.Equal(5, state.DropdownFirstVisibleItemIndex);
+    }
+
+    [Fact]
     public void ShortFormDialogs_DrawScrollbarAndReturn()
     {
         var searchDriver = new FakeConsoleDriver(width: 80, height: 11);

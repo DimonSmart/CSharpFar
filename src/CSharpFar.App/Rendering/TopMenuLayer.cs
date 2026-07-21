@@ -156,7 +156,11 @@ internal sealed class TopMenuLayer : UiLayer<TopMenuFrame>
         int visibleRows = frame.Layout.DropdownBounds is { } dropdown
             ? Math.Max(0, dropdown.Height - 2)
             : 0;
-        _controller.CommitDropdownScrollbar(frame.ScrollbarBounds, childCount, visibleRows);
+        _controller.CommitDropdownViewport(
+            frame.ScrollbarBounds,
+            childCount,
+            visibleRows,
+            frame.Layout.DropdownFirstVisibleItemIndex);
     }
 
     protected override UiInputResult RouteInput(
@@ -225,6 +229,9 @@ internal sealed class TopMenuLayer : UiLayer<TopMenuFrame>
             _controller.Close();
             return UiInputResult.HandledAndInvalidate;
         }
+
+        if (action.Value.Kind == TopMenuPointerActionKind.ConsumeDropdownSurface)
+            return UiInputResult.HandledResult;
 
         _controller.HandlePointerAction(action.Value, frame.Definition, frame.ActivePanelSide);
         return UiInputResult.HandledAndInvalidate;
