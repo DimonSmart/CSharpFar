@@ -93,6 +93,8 @@ internal sealed class InteractiveLayerRunner
         {
             clearPendingInput();
             registration.Dispose();
+            if (placement == InteractiveLayerPlacement.Overlay)
+                _composition.Render();
         }
     }
 

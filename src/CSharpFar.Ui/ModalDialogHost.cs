@@ -70,7 +70,11 @@ public sealed class ModalDialogHost
             (context, _) => render(context),
             static _ => UiInteractionFrame.Empty,
             static (_, _, _) => (default, UiInputResult.HandledResult),
-            (routed, _) => handleInput(routed),
+            (routed, _) =>
+            {
+                applyCommittedFrame?.Invoke(routed.Frame);
+                return handleInput(routed);
+            },
             prepareRender,
             applyCommittedFrame,
             getNextWakeUtc: null,
@@ -147,6 +151,11 @@ public sealed class ModalDialogHost
         CancellationToken cancellationToken,
         CancellationToken wakeSignal = default)
     {
+        ArgumentNullException.ThrowIfNull(render);
+        ArgumentNullException.ThrowIfNull(buildInteractionFrame);
+        ArgumentNullException.ThrowIfNull(routeInput);
+        ArgumentNullException.ThrowIfNull(handleInput);
+
         var layer = new InteractiveModalDialogLayer<TFrame, TSemantic>(render, buildInteractionFrame, routeInput);
         return new InteractiveLayerRunner(_composition).Run(
             layer,
@@ -162,7 +171,10 @@ public sealed class ModalDialogHost
             handleWake is null ? null : frame =>
             {
                 ModalDialogWakeResult<TResult> wake = handleWake(frame);
-                return new InteractiveLayerWakeResult<TResult>(wake.Invalidate, wake.IsCompleted, wake.Result);
+                return new InteractiveLayerWakeResult<TResult>(
+                    wake.Invalidate,
+                    wake.IsCompleted,
+                    wake.IsCompleted ? wake.Result : default!);
             },
             cancellationToken,
             wakeSignal);

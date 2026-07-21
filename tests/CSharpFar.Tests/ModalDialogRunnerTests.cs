@@ -76,6 +76,26 @@ public sealed class ModalDialogRunnerTests
     }
 
     [Fact]
+    public void Run_CompletionRestoresUnderlyingSurfaceImmediately()
+    {
+        var driver = new FakeConsoleDriver();
+        driver.EnqueueKey(Key(ConsoleKey.Enter));
+        var modals = CreateHost(driver, out var composition);
+        composition.SetRootSurface(new ScreenRendererSurface(composition.Screen, context =>
+            context.Screen.Write(0, 0, "R", Style)));
+
+        modals.Run(
+            context =>
+            {
+                context.Screen.Write(0, 0, "M", Style);
+                return 1;
+            },
+            (_, _) => ModalDialogLoopResult<int>.Complete(0));
+
+        Assert.Equal('R', driver.GetCell(0, 0).Character);
+    }
+
+    [Fact]
     public void Run_HandlerReceivesFrameFromSameReadInputCycle()
     {
         var driver = new FakeConsoleDriver(80, 25);
@@ -207,7 +227,11 @@ public sealed class ModalDialogRunnerTests
         driver.EnqueueKey(Key(ConsoleKey.Enter));
         var modals = CreateHost(driver, out var composition);
         int rootRenders = 0;
-        composition.SetRootSurface(new ScreenRendererSurface(composition.Screen, _ => rootRenders++));
+        composition.SetRootSurface(new ScreenRendererSurface(composition.Screen, context =>
+        {
+            rootRenders++;
+            context.Screen.Write(0, 0, "R", Style);
+        }));
 
         Assert.Throws<InvalidOperationException>(() => modals.Run(
             context =>
@@ -218,28 +242,40 @@ public sealed class ModalDialogRunnerTests
             (_, _) => throw new InvalidOperationException("handler")));
 
         Assert.True(rootRenders >= 1);
+        Assert.Equal('R', driver.GetCell(0, 0).Character);
     }
 
     [Fact]
     public void Run_RenderExceptionDisposesOverlay()
     {
-        var modals = CreateHost(new FakeConsoleDriver(), out var composition);
+        var driver = new FakeConsoleDriver();
+        var modals = CreateHost(driver, out var composition);
         int rootRenders = 0;
-        composition.SetRootSurface(new ScreenRendererSurface(composition.Screen, _ => rootRenders++));
+        composition.SetRootSurface(new ScreenRendererSurface(composition.Screen, context =>
+        {
+            rootRenders++;
+            context.Screen.Write(0, 0, "R", Style);
+        }));
 
         Assert.Throws<InvalidOperationException>(() => modals.Run<int, int>(
             _ => throw new InvalidOperationException("render"),
             (_, _) => ModalDialogLoopResult<int>.Complete(0)));
 
         Assert.True(rootRenders >= 1);
+        Assert.Equal('R', driver.GetCell(0, 0).Character);
     }
 
     [Fact]
     public void Run_CancellationDisposesOverlay()
     {
-        var modals = CreateHost(new FakeConsoleDriver(), out var composition);
+        var driver = new FakeConsoleDriver();
+        var modals = CreateHost(driver, out var composition);
         int rootRenders = 0;
-        composition.SetRootSurface(new ScreenRendererSurface(composition.Screen, _ => rootRenders++));
+        composition.SetRootSurface(new ScreenRendererSurface(composition.Screen, context =>
+        {
+            rootRenders++;
+            context.Screen.Write(0, 0, "R", Style);
+        }));
         using var cts = new CancellationTokenSource();
         cts.Cancel();
 
@@ -253,6 +289,7 @@ public sealed class ModalDialogRunnerTests
             cancellationToken: cts.Token));
 
         Assert.True(rootRenders >= 1);
+        Assert.Equal('R', driver.GetCell(0, 0).Character);
     }
 
     [Fact]
@@ -435,6 +472,36 @@ public sealed class ModalDialogRunnerTests
     }
 
     [Fact]
+    public void RunRouted_AppliesRoutedFrameImmediatelyBeforeHandler()
+    {
+        var driver = new FakeConsoleDriver();
+        driver.EnqueueKey(Key(ConsoleKey.Spacebar));
+        driver.EnqueueKey(Key(ConsoleKey.Enter));
+        var modals = CreateHost(driver, out _);
+        var events = new List<string>();
+        int frame = 0;
+
+        modals.RunRouted(
+            _ =>
+            {
+                events.Add("render");
+                return ++frame;
+            },
+            routed =>
+            {
+                events.Add($"handler:{routed.Frame}");
+                return routed.Input is KeyConsoleInputEvent { Key.Key: ConsoleKey.Enter }
+                    ? ModalDialogLoopResult<int>.Complete(0)
+                    : ModalDialogLoopResult<int>.Continue;
+            },
+            applyCommittedFrame: committed => events.Add($"apply:{committed}"));
+
+        Assert.Equal(
+            ["render", "apply:1", "apply:1", "handler:1", "render", "apply:2", "apply:2", "handler:2"],
+            events);
+    }
+
+    [Fact]
     public void RunRouted_CompleteDoesNotRenderAgain()
     {
         var driver = new FakeConsoleDriver();
@@ -576,7 +643,9 @@ public sealed class ModalDialogRunnerTests
     public void RunInteractiveTimed_WakeUsesCommittedFrameInvalidatesAndCompletes()
     {
         var driver = new FakeConsoleDriver(80, 25);
-        var modals = CreateHost(driver, out _);
+        var modals = CreateHost(driver, out var composition);
+        composition.SetRootSurface(new ScreenRendererSurface(composition.Screen, context =>
+            context.Screen.Write(0, 0, "R", Style)));
         var applied = new List<ConsoleSize>();
         var wakeFrames = new List<ConsoleSize>();
         int wakes = 0;
@@ -612,6 +681,7 @@ public sealed class ModalDialogRunnerTests
         Assert.Equal([new ConsoleSize(80, 25), new ConsoleSize(100, 35)], wakeFrames);
         Assert.Equal(new ConsoleSize(100, 35), applied[^1]);
         Assert.DoesNotContain(new ConsoleSize(80, 25), applied.Skip(1));
+        Assert.Equal('R', driver.GetCell(0, 0).Character);
     }
 
     [Fact]
@@ -653,21 +723,31 @@ public sealed class ModalDialogRunnerTests
         driver.EnqueueKey(Key(ConsoleKey.Enter));
         var modals = CreateHost(driver, out var composition);
         int rootRenders = 0;
-        composition.SetRootSurface(new ScreenRendererSurface(composition.Screen, _ => rootRenders++));
+        composition.SetRootSurface(new ScreenRendererSurface(composition.Screen, context =>
+        {
+            rootRenders++;
+            context.Screen.Write(0, 0, "R", Style);
+        }));
 
         Assert.Throws<InvalidOperationException>(() => modals.RunRouted<int, int>(
             _ => 1,
             _ => throw new InvalidOperationException("handler")));
 
         Assert.True(rootRenders >= 1);
+        Assert.Equal('R', driver.GetCell(0, 0).Character);
     }
 
     [Fact]
     public void RunRouted_CancellationDisposesOverlayAndRestoresSurface()
     {
-        var modals = CreateHost(new FakeConsoleDriver(), out var composition);
+        var driver = new FakeConsoleDriver();
+        var modals = CreateHost(driver, out var composition);
         int rootRenders = 0;
-        composition.SetRootSurface(new ScreenRendererSurface(composition.Screen, _ => rootRenders++));
+        composition.SetRootSurface(new ScreenRendererSurface(composition.Screen, context =>
+        {
+            rootRenders++;
+            context.Screen.Write(0, 0, "R", Style);
+        }));
         using var cancellation = new CancellationTokenSource();
         cancellation.Cancel();
 
@@ -677,6 +757,7 @@ public sealed class ModalDialogRunnerTests
             cancellationToken: cancellation.Token));
 
         Assert.True(rootRenders >= 1);
+        Assert.Equal('R', driver.GetCell(0, 0).Character);
     }
 
     [Fact]

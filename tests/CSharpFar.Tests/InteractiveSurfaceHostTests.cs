@@ -36,6 +36,36 @@ public sealed class InteractiveSurfaceHostTests
     }
 
     [Fact]
+    public void Run_CompletionRestoresTemporarySurfaceOnce()
+    {
+        var driver = new FakeConsoleDriver();
+        driver.EnqueueKey(Key(ConsoleKey.Enter));
+        var screen = new ScreenRenderer(driver);
+        var composition = new UiCompositionHost(screen);
+        int rootRenders = 0;
+        composition.SetRootSurface(new ScreenRendererSurface(screen, context =>
+        {
+            rootRenders++;
+            context.Screen.Write(0, 0, "R", new CellStyle(ConsoleColor.Gray, ConsoleColor.Black));
+        }));
+        var layer = new InteractiveSurfaceLayer<int, ConsoleKey>(
+            (context, _) =>
+            {
+                context.Screen.Write(0, 0, "S", new CellStyle(ConsoleColor.Gray, ConsoleColor.Black));
+                return 1;
+            },
+            _ => new UiInteractionFrame([], keyboardTarget: new UiTargetId("surface.keyboard")),
+            (input, _, _) => new InteractiveSurfaceRouteResult<ConsoleKey>(((KeyConsoleInputEvent)input).Key.Key));
+
+        new InteractiveSurfaceHost(composition).Run(
+            layer,
+            (_, _) => ModalDialogLoopResult<bool>.Complete(true));
+
+        Assert.Equal(1, rootRenders);
+        Assert.Equal('R', driver.GetCell(0, 0).Character);
+    }
+
+    [Fact]
     public void Run_ContinuedInputCreatesExactlyOneSubsequentCompositionRender()
     {
         var driver = new FakeConsoleDriver();
