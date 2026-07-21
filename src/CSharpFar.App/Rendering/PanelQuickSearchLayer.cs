@@ -94,7 +94,7 @@ internal sealed class PanelQuickSearchLayer : UiLayer<PanelQuickSearchFrame>
         return input switch
         {
             KeyConsoleInputEvent { Key: var key } => RouteKey(key, frame),
-            MouseConsoleInputEvent => RouteMouse(frame),
+            MouseConsoleInputEvent mouse => RouteMouse(mouse, frame, context),
             _ => UiInputResult.NotHandled,
         };
     }
@@ -126,12 +126,25 @@ internal sealed class PanelQuickSearchLayer : UiLayer<PanelQuickSearchFrame>
         };
     }
 
-    private UiInputResult RouteMouse(PanelQuickSearchFrame frame)
+    private UiInputResult RouteMouse(
+        MouseConsoleInputEvent mouse,
+        PanelQuickSearchFrame frame,
+        UiInputRouteContext route)
     {
         if (!frame.Active)
             return UiInputResult.NotHandled;
 
+        if (route.Target == InputTarget)
+            return UiInputResult.HandledResult;
+
+        if (mouse.Kind is MouseEventKind.Move or MouseEventKind.Up or MouseEventKind.Wheel)
+            return UiInputResult.NotHandled;
+
+        if (mouse is not { Button: MouseButton.Left, Kind: MouseEventKind.Down })
+            return UiInputResult.NotHandled;
+
         _context.PanelQuickSearch.Close();
+        // Closing the transient overlay redraws it away while leaving this click for the layer below.
         return UiInputResult.InvalidateOnly();
     }
 

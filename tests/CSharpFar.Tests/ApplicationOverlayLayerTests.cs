@@ -439,7 +439,7 @@ public sealed class ApplicationOverlayLayerTests
     }
 
     [Fact]
-    public void PanelQuickSearch_MouseContinuation_ForwardsSameInputOnce()
+    public void PanelQuickSearch_OutsideLeftMouseDownClosesAndForwardsSameInputOnce()
     {
         var services = Services();
         services.Session.Panels.Left.Items.Add(Item("gemini.md"));
@@ -455,6 +455,69 @@ public sealed class ApplicationOverlayLayerTests
         Assert.Null(services.PanelQuickSearch.State);
         Assert.True(services.ApplicationSurface.TryTakeInput(out var packet));
         Assert.Same(input, packet.Input);
+        Assert.False(services.ApplicationSurface.TryTakeInput(out _));
+    }
+
+    [Fact]
+    public void PanelQuickSearch_MouseDownInsideInputIsHandledWithoutClosing()
+    {
+        var services = Services();
+        services.Session.Panels.Left.Items.Add(Item("gemini.md"));
+        services.Composition.Render();
+        services.Composition.DispatchInput(Key(ConsoleKey.G, alt: true));
+        services.Composition.Render();
+        Rect inputBounds = services.Inner.PanelQuickSearchLayer.CommittedFrame.InputBounds;
+
+        UiInputResult result = services.Composition.DispatchInput(Mouse(inputBounds.X, inputBounds.Y));
+
+        Assert.True(result.Handled);
+        Assert.False(result.Invalidate);
+        Assert.NotNull(services.PanelQuickSearch.State);
+        Assert.False(services.ApplicationSurface.TryTakeInput(out _));
+    }
+
+    [Theory]
+    [InlineData(MouseEventKind.Move, MouseButton.Left)]
+    [InlineData(MouseEventKind.Up, MouseButton.Left)]
+    [InlineData(MouseEventKind.Wheel, MouseButton.WheelDown)]
+    [InlineData(MouseEventKind.Down, MouseButton.Right)]
+    [InlineData(MouseEventKind.Down, MouseButton.Middle)]
+    public void PanelQuickSearch_NonClosingMouseInputOutsidePopupBubblesWithoutClosing(
+        MouseEventKind kind,
+        MouseButton button)
+    {
+        var services = Services();
+        services.Session.Panels.Left.Items.Add(Item("gemini.md"));
+        services.Composition.Render();
+        services.Composition.DispatchInput(Key(ConsoleKey.G, alt: true));
+        services.Composition.Render();
+        var input = Mouse(20, 4, kind, button);
+
+        UiInputResult result = services.Composition.DispatchInput(input);
+
+        Assert.True(result.Handled);
+        Assert.False(result.Invalidate);
+        Assert.NotNull(services.PanelQuickSearch.State);
+        Assert.True(services.ApplicationSurface.TryTakeInput(out var packet));
+        Assert.Same(input, packet.Input);
+    }
+
+    [Fact]
+    public void PanelQuickSearch_WheelInsideInputIsHandledWithoutClosing()
+    {
+        var services = Services();
+        services.Session.Panels.Left.Items.Add(Item("gemini.md"));
+        services.Composition.Render();
+        services.Composition.DispatchInput(Key(ConsoleKey.G, alt: true));
+        services.Composition.Render();
+        Rect inputBounds = services.Inner.PanelQuickSearchLayer.CommittedFrame.InputBounds;
+
+        UiInputResult result = services.Composition.DispatchInput(
+            Mouse(inputBounds.X, inputBounds.Y, MouseEventKind.Wheel, MouseButton.WheelDown));
+
+        Assert.True(result.Handled);
+        Assert.False(result.Invalidate);
+        Assert.NotNull(services.PanelQuickSearch.State);
         Assert.False(services.ApplicationSurface.TryTakeInput(out _));
     }
 
@@ -502,8 +565,12 @@ public sealed class ApplicationOverlayLayerTests
         bool control = false) =>
         new(new ConsoleKeyInfo(keyChar, key, shift: false, alt, control));
 
-    private static MouseConsoleInputEvent Mouse(int x, int y, MouseEventKind kind = MouseEventKind.Down) =>
-        new(x, y, MouseButton.Left, kind, MouseKeyModifiers.None);
+    private static MouseConsoleInputEvent Mouse(
+        int x,
+        int y,
+        MouseEventKind kind = MouseEventKind.Down,
+        MouseButton button = MouseButton.Left) =>
+        new(x, y, button, kind, MouseKeyModifiers.None);
 
     private static FilePanelItem Item(string name) => new()
     {
