@@ -97,8 +97,69 @@ public sealed class TopMenuLayerTests
         Assert.Null(entry.Cursor);
     }
 
+    [Fact]
+    public void ClosedMenu_TopItemTargetOverridesActivationTargetAndOpensThatItem()
+    {
+        var fixture = Fixture.Create();
+        fixture.Services.Composition.Render();
+
+        TopMenuPointerTarget topTarget = fixture.Services.TopMenuLayer.CommittedFrame.PointerTargets.Single(
+            target => target.Action.Kind == TopMenuPointerActionKind.OpenTopItem && target.Action.ItemIndex == 1);
+
+        Assert.True(fixture.Services.TopMenuLayer.CommittedInteractionFrame.TryHitTest(
+            topTarget.Bounds.X,
+            topTarget.Bounds.Y,
+            out UiHitRegion hit));
+        Assert.Equal(topTarget.Target, hit.Target);
+
+        fixture.Services.Composition.DispatchInput(Mouse(topTarget.Bounds.X, topTarget.Bounds.Y));
+
+        Assert.Equal(MenuOpenState.DropdownOpen, fixture.Services.Session.Menu.State.OpenState);
+        Assert.Equal(1, fixture.Services.Session.Menu.State.ActiveTopMenuIndex);
+    }
+
+    [Fact]
+    public void ClosedMenu_ActivationTargetOpensMenuForActivePanel()
+    {
+        var fixture = Fixture.Create();
+        fixture.Services.Composition.Render();
+        TopMenuFrame frame = fixture.Services.TopMenuLayer.CommittedFrame;
+        int x = Enumerable.Range(frame.ActivationBounds.X, frame.ActivationBounds.Width)
+            .First(value => !frame.PointerTargets.Any(target =>
+                target.Action.Kind == TopMenuPointerActionKind.OpenTopItem &&
+                target.Bounds.Contains(value, frame.ActivationBounds.Y)));
+
+        fixture.Services.Composition.DispatchInput(Mouse(x, frame.ActivationBounds.Y));
+
+        Assert.Equal(MenuOpenState.DropdownOpen, fixture.Services.Session.Menu.State.OpenState);
+        string panelMenuId = frame.ActivePanelSide == PanelSide.Left ? "Left" : "Right";
+        Assert.Equal(
+            frame.Definition.Items.ToList().FindIndex(item => item.Id == panelMenuId),
+            fixture.Services.Session.Menu.State.ActiveTopMenuIndex);
+    }
+
+    [Fact]
+    public void OpenMenu_DropdownSurfaceConsumesClickAndOutsideLeftClickCloses()
+    {
+        var fixture = Fixture.Create();
+        fixture.Services.Composition.Render();
+        fixture.Services.Composition.DispatchInput(Key(ConsoleKey.F9));
+        fixture.Services.Composition.Render();
+
+        TopMenuPointerTarget surface = fixture.Services.TopMenuLayer.CommittedFrame.PointerTargets.Single(
+            target => target.Action.Kind == TopMenuPointerActionKind.ConsumeDropdownSurface);
+        fixture.Services.Composition.DispatchInput(Mouse(surface.Bounds.X, surface.Bounds.Y));
+        Assert.Equal(MenuOpenState.DropdownOpen, fixture.Services.Session.Menu.State.OpenState);
+
+        fixture.Services.Composition.DispatchInput(Mouse(79, 24));
+        Assert.Equal(MenuOpenState.Closed, fixture.Services.Session.Menu.State.OpenState);
+    }
+
     private static KeyConsoleInputEvent Key(ConsoleKey key, char keyChar = '\0') =>
         new(new ConsoleKeyInfo(keyChar, key, false, false, false));
+
+    private static MouseConsoleInputEvent Mouse(int x, int y) =>
+        new(x, y, MouseButton.Left, MouseEventKind.Down, MouseKeyModifiers.None);
 
     private sealed record Fixture(ApplicationServices Services)
     {

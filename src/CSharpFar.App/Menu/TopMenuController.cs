@@ -10,7 +10,6 @@ public sealed class TopMenuController
 {
     private readonly MenuState _state;
     private readonly Func<MenuCommandRequest, MenuCommandResult> _executeCommand;
-    private readonly MenuHitTester _hitTester = new();
     private ScrollBarDragState? _dropdownScrollbarDrag;
 
     public TopMenuController(
@@ -77,50 +76,26 @@ public sealed class TopMenuController
         return true;
     }
 
-    public bool HandleMouse(
-        MouseConsoleInputEvent mouse,
+    internal bool HandlePointerAction(
+        TopMenuPointerAction action,
         MenuBarDefinition definition,
-        MenuLayout layout,
         PanelSide activePanelSide)
     {
-        if (!IsMenuMousePress(mouse))
+        switch (action.Kind)
         {
-            return TryHandleDropdownScrollbarMouse(mouse, definition, layout) ||
-                   _state.OpenState != MenuOpenState.Closed;
-        }
-
-        if (TryHandleDropdownScrollbarMouse(mouse, definition, layout))
-            return true;
-
-        var hit = _hitTester.HitTest(mouse.X, mouse.Y, definition, _state, layout);
-
-        if (_state.OpenState == MenuOpenState.Closed)
-        {
-            if (mouse.Y != 0)
-                return false;
-
-            int topIndex = hit.Kind == MenuHitTestKind.TopMenuItem
-                ? hit.TopMenuIndex.GetValueOrDefault()
-                : TopIndexForPanel(definition, activePanelSide);
-            OpenDropdown(definition, topIndex);
-            return true;
-        }
-
-        switch (hit.Kind)
-        {
-            case MenuHitTestKind.TopMenuItem:
-                OpenDropdown(definition, hit.TopMenuIndex.GetValueOrDefault());
+            case TopMenuPointerActionKind.ActivateForPanel:
+                OpenForPanel(definition, activePanelSide);
                 return true;
-            case MenuHitTestKind.DropdownItem:
-                ExecuteDropdownItem(definition, hit.DropdownItemIndex.GetValueOrDefault());
+            case TopMenuPointerActionKind.OpenTopItem:
+                OpenDropdown(definition, action.ItemIndex);
                 return true;
-            case MenuHitTestKind.DropdownBorder:
+            case TopMenuPointerActionKind.ActivateDropdownItem:
+                ExecuteDropdownItem(definition, action.ItemIndex);
                 return true;
-            case MenuHitTestKind.Outside:
-                Close();
+            case TopMenuPointerActionKind.ConsumeDropdownSurface:
                 return true;
             default:
-                return true;
+                return false;
         }
     }
 
@@ -168,7 +143,7 @@ public sealed class TopMenuController
         _dropdownScrollbarDrag = null;
     }
 
-    private bool TryHandleDropdownScrollbarMouse(
+    internal bool HandleDropdownScrollbarMouse(
         MouseConsoleInputEvent mouse,
         MenuBarDefinition definition,
         MenuLayout layout)
@@ -411,7 +386,4 @@ public sealed class TopMenuController
     private static bool IsPlainKey(ConsoleKeyInfo key, ConsoleKey consoleKey) =>
         key.Key == consoleKey && key.Modifiers == 0;
 
-    private static bool IsMenuMousePress(MouseConsoleInputEvent mouse) =>
-        mouse.Button == MouseButton.Left &&
-        mouse.Kind == MouseEventKind.Down;
 }

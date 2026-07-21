@@ -162,61 +162,6 @@ public sealed class Spec008MenuControllerTests
         Assert.Equal(1, state.ActiveTopMenuIndex);
     }
 
-    [Fact]
-    public void MouseDown_OnTopItem_OpensThatDropdown()
-    {
-        var definition = Definition();
-        var state = new MenuState();
-        var controller = CreateController(state);
-        var layout = new MenuLayoutService().CalculateLayout(new Rect(0, 0, 80, 25), definition, state);
-
-        controller.HandleMouse(
-            new MouseConsoleInputEvent(layout.TopItemBounds[1].X + 1, 0, MouseButton.Left, MouseEventKind.Down, MouseKeyModifiers.None),
-            definition,
-            layout,
-            PanelSide.Left);
-
-        Assert.Equal(MenuOpenState.DropdownOpen, state.OpenState);
-        Assert.Equal(1, state.ActiveTopMenuIndex);
-    }
-
-    [Fact]
-    public void MouseDown_OnDropdownCommand_ExecutesCommand()
-    {
-        var definition = Definition();
-        var state = OpenState();
-        var executed = new List<string>();
-        var controller = CreateController(state, request => executed.Add(request.CommandId));
-        var layout = new MenuLayoutService().CalculateLayout(new Rect(0, 0, 80, 25), definition, state);
-        var dropdown = layout.DropdownBounds!.Value;
-
-        controller.HandleMouse(
-            new MouseConsoleInputEvent(dropdown.X + 1, dropdown.Y + 1, MouseButton.Left, MouseEventKind.Down, MouseKeyModifiers.None),
-            definition,
-            layout,
-            PanelSide.Left);
-
-        Assert.Equal(["left.full"], executed);
-        Assert.Equal(MenuOpenState.Closed, state.OpenState);
-    }
-
-    [Fact]
-    public void MouseDown_OutsideOpenMenu_ClosesMenu()
-    {
-        var definition = Definition();
-        var state = OpenState();
-        var controller = CreateController(state);
-        var layout = new MenuLayoutService().CalculateLayout(new Rect(0, 0, 80, 25), definition, state);
-
-        controller.HandleMouse(
-            new MouseConsoleInputEvent(79, 24, MouseButton.Left, MouseEventKind.Down, MouseKeyModifiers.None),
-            definition,
-            layout,
-            PanelSide.Left);
-
-        Assert.Equal(MenuOpenState.Closed, state.OpenState);
-    }
-
     private static TopMenuController CreateController(MenuState state, Action<MenuCommandRequest>? execute = null) =>
         new(state, request =>
         {
@@ -334,29 +279,6 @@ public sealed class Spec008MenuLayoutAndRenderingTests
         Assert.NotNull(layout.DropdownBounds);
         Assert.Equal(1, layout.DropdownBounds!.Value.Y);
         Assert.True(layout.DropdownBounds.Value.Right <= 24);
-    }
-
-    [Fact]
-    public void HitTest_DistinguishesTopDropdownBorderAndOutside()
-    {
-        var definition = ProviderMenu();
-        var state = new MenuState
-        {
-            OpenState = MenuOpenState.DropdownOpen,
-            ActiveTopMenuIndex = 0,
-        };
-        var layout = new MenuLayoutService().CalculateLayout(new Rect(0, 0, 80, 25), definition, state);
-        var tester = new MenuHitTester();
-        var dropdown = layout.DropdownBounds!.Value;
-
-        Assert.Equal(MenuHitTestKind.TopMenuItem,
-            tester.HitTest(1, 0, definition, state, layout).Kind);
-        Assert.Equal(MenuHitTestKind.DropdownBorder,
-            tester.HitTest(dropdown.X, dropdown.Y, definition, state, layout).Kind);
-        Assert.Equal(MenuHitTestKind.DropdownItem,
-            tester.HitTest(dropdown.X + 1, dropdown.Y + 1, definition, state, layout).Kind);
-        Assert.Equal(MenuHitTestKind.Outside,
-            tester.HitTest(79, 24, definition, state, layout).Kind);
     }
 
     [Fact]

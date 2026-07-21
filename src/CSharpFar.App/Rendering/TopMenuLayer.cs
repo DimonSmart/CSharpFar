@@ -18,7 +18,26 @@ internal sealed record TopMenuFrame(
     int ActiveTopMenuIndex,
     int ActiveDropdownItemIndex,
     Rect ActivationBounds,
-    Rect? ScrollbarBounds);
+    Rect? ScrollbarBounds,
+    IReadOnlyList<TopMenuPointerTarget> PointerTargets);
+
+internal enum TopMenuPointerActionKind
+{
+    ActivateForPanel,
+    OpenTopItem,
+    ActivateDropdownItem,
+    ConsumeDropdownSurface,
+    Scrollbar,
+}
+
+internal readonly record struct TopMenuPointerAction(
+    TopMenuPointerActionKind Kind,
+    int ItemIndex = -1);
+
+internal sealed record TopMenuPointerTarget(
+    UiTargetId Target,
+    Rect Bounds,
+    TopMenuPointerAction Action);
 
 internal sealed class TopMenuLayer : UiLayer<TopMenuFrame>
 {
@@ -65,7 +84,8 @@ internal sealed class TopMenuLayer : UiLayer<TopMenuFrame>
                 _context.MenuState.ActiveTopMenuIndex,
                 _context.MenuState.ActiveDropdownItemIndex,
                 default,
-                null);
+                null,
+                []);
         }
 
         var definition = _context.BuildMenuDefinition();
@@ -84,6 +104,8 @@ internal sealed class TopMenuLayer : UiLayer<TopMenuFrame>
                 options);
         }
 
+        Rect activationBounds = new(0, 0, context.Size.Width, context.Size.Height > 0 ? 1 : 0);
+        Rect? scrollbarBounds = ScrollbarBounds(definition, _context.MenuState.ActiveTopMenuIndex, layout);
         return new TopMenuFrame(
             true,
             open,
@@ -93,8 +115,15 @@ internal sealed class TopMenuLayer : UiLayer<TopMenuFrame>
             _context.ActiveSide(),
             _context.MenuState.ActiveTopMenuIndex,
             _context.MenuState.ActiveDropdownItemIndex,
-            new Rect(0, 0, context.Size.Width, context.Size.Height > 0 ? 1 : 0),
-            ScrollbarBounds(definition, _context.MenuState.ActiveTopMenuIndex, layout));
+            activationBounds,
+            scrollbarBounds,
+            BuildPointerTargets(
+                open,
+                definition,
+                layout,
+                _context.MenuState.ActiveTopMenuIndex,
+                activationBounds,
+                scrollbarBounds));
     }
 
     protected override UiInteractionFrame BuildInteractionFrame(TopMenuFrame frame)
@@ -103,35 +132,11 @@ internal sealed class TopMenuLayer : UiLayer<TopMenuFrame>
             return UiInteractionFrame.Empty;
 
         var builder = new UiInteractionFrameBuilder();
+        foreach (TopMenuPointerTarget target in frame.PointerTargets)
+            builder.AddHitRegion(target.Target, target.Bounds);
+
         if (!frame.Open)
-        {
-            return builder.AddHitRegion(ActivationTarget, frame.ActivationBounds).Build();
-        }
-
-        for (int i = 0; i < frame.Layout.TopItemBounds.Count; i++)
-            builder.AddHitRegion(TopTarget(frame.Definition.Items[i].Id), frame.Layout.TopItemBounds[i]);
-
-        if (frame.Layout.DropdownBounds is { } dropdown &&
-            frame.ActiveTopMenuIndex >= 0 &&
-            frame.ActiveTopMenuIndex < frame.Definition.Items.Count)
-        {
-            builder.AddHitRegion(new UiTargetId("application.top-menu.border"), dropdown);
-            var children = frame.Definition.Items[frame.ActiveTopMenuIndex].Children;
-            int visibleRows = Math.Max(0, dropdown.Height - 2);
-            for (int row = 0; row < visibleRows; row++)
-            {
-                int itemIndex = frame.Layout.DropdownFirstVisibleItemIndex + row;
-                if (itemIndex >= children.Count)
-                    break;
-
-                builder.AddHitRegion(new UiHitRegion(
-                    DropdownTarget(frame.Definition.Items[frame.ActiveTopMenuIndex].Id, itemIndex),
-                    new Rect(dropdown.X + 1, dropdown.Y + 1 + row, Math.Max(0, dropdown.Width - 2), 1)));
-            }
-        }
-
-        if (frame.ScrollbarBounds is { } scrollbar)
-            builder.AddHitRegion(ScrollbarTarget, scrollbar);
+            return builder.Build();
 
         UiTargetId focusTarget = ActiveTarget(frame);
         return builder
@@ -187,41 +192,55 @@ internal sealed class TopMenuLayer : UiLayer<TopMenuFrame>
         TopMenuFrame frame,
         UiInputRouteContext route)
     {
-        if ((route.Target == ScrollbarTarget || route.IsCapturedRoute) && frame.Open)
-            return RouteScrollbar(mouse, frame, route.IsCapturedRoute);
-
         if (!frame.Available)
             return UiInputResult.NotHandled;
 
-        if (!frame.Open)
+        TopMenuPointerAction? action = FindPointerAction(frame, route.Target);
+        if (route.IsCapturedRoute)
         {
-            if (mouse.Y != 0 ||
-                mouse.Button != MouseButton.Left ||
-                mouse.Kind != MouseEventKind.Down)
-            {
+            if (action is not { Kind: TopMenuPointerActionKind.Scrollbar })
                 return UiInputResult.NotHandled;
-            }
 
-            _context.PanelQuickSearch.Close();
+            return RouteScrollbar(mouse, frame, captured: true);
         }
 
-        bool handled = _controller.HandleMouse(mouse, frame.Definition, frame.Layout, frame.ActivePanelSide);
-        return handled ? UiInputResult.HandledAndInvalidate : UiInputResult.NotHandled;
+        if (action is { Kind: TopMenuPointerActionKind.Scrollbar })
+            return RouteScrollbar(mouse, frame, captured: false);
+
+        if (!frame.Open)
+        {
+            if (!IsLeftMouseDown(mouse) || action is null)
+                return UiInputResult.NotHandled;
+
+            _context.PanelQuickSearch.Close();
+            _controller.HandlePointerAction(action.Value, frame.Definition, frame.ActivePanelSide);
+            return UiInputResult.HandledAndInvalidate;
+        }
+
+        if (!IsLeftMouseDown(mouse))
+            return UiInputResult.HandledResult;
+
+        if (action is null)
+        {
+            _controller.Close();
+            return UiInputResult.HandledAndInvalidate;
+        }
+
+        _controller.HandlePointerAction(action.Value, frame.Definition, frame.ActivePanelSide);
+        return UiInputResult.HandledAndInvalidate;
     }
 
     private UiInputResult RouteScrollbar(MouseConsoleInputEvent mouse, TopMenuFrame frame, bool captured)
     {
-        bool handled = _controller.HandleMouse(mouse, frame.Definition, frame.Layout, frame.ActivePanelSide);
-        if (!handled)
-            return UiInputResult.NotHandled;
+        bool handled = _controller.HandleDropdownScrollbarMouse(mouse, frame.Definition, frame.Layout);
 
-        if (mouse.Button == MouseButton.Left && mouse.Kind == MouseEventKind.Down)
+        if (handled && mouse.Button == MouseButton.Left && mouse.Kind == MouseEventKind.Down)
             return UiInputResult.CaptureMouse(ScrollbarTarget, MouseButton.Left, invalidate: true);
 
         if (captured && mouse.Button == MouseButton.Left && mouse.Kind == MouseEventKind.Up)
             return UiInputResult.ReleaseMouse(invalidate: true);
 
-        return UiInputResult.HandledAndInvalidate;
+        return handled ? UiInputResult.HandledAndInvalidate : UiInputResult.NotHandled;
     }
 
     private static Rect? ScrollbarBounds(MenuBarDefinition definition, int activeTopMenuIndex, MenuLayout layout)
@@ -274,6 +293,65 @@ internal sealed class TopMenuLayer : UiLayer<TopMenuFrame>
 
     private static UiTargetId DropdownTarget(string topId, int itemIndex) =>
         new($"application.top-menu.dropdown:{topId}:{itemIndex}");
+
+    private static IReadOnlyList<TopMenuPointerTarget> BuildPointerTargets(
+        bool open,
+        MenuBarDefinition definition,
+        MenuLayout layout,
+        int activeTopMenuIndex,
+        Rect activationBounds,
+        Rect? scrollbarBounds)
+    {
+        var targets = new List<TopMenuPointerTarget>();
+        if (!open)
+        {
+            targets.Add(new(ActivationTarget, activationBounds, new(TopMenuPointerActionKind.ActivateForPanel)));
+            for (int i = 0; i < layout.TopItemBounds.Count && i < definition.Items.Count; i++)
+                targets.Add(new(TopTarget(definition.Items[i].Id), layout.TopItemBounds[i], new(TopMenuPointerActionKind.OpenTopItem, i)));
+            return targets;
+        }
+
+        for (int i = 0; i < layout.TopItemBounds.Count && i < definition.Items.Count; i++)
+            targets.Add(new(TopTarget(definition.Items[i].Id), layout.TopItemBounds[i], new(TopMenuPointerActionKind.OpenTopItem, i)));
+
+        if (layout.DropdownBounds is not { } dropdown || activeTopMenuIndex < 0 || activeTopMenuIndex >= definition.Items.Count)
+            return targets;
+
+        targets.Add(new(new UiTargetId("application.top-menu.border"), dropdown, new(TopMenuPointerActionKind.ConsumeDropdownSurface)));
+        var children = definition.Items[activeTopMenuIndex].Children;
+        int visibleRows = Math.Max(0, dropdown.Height - 2);
+        for (int row = 0; row < visibleRows; row++)
+        {
+            int itemIndex = layout.DropdownFirstVisibleItemIndex + row;
+            if (itemIndex < 0 || itemIndex >= children.Count)
+                break;
+
+            targets.Add(new(
+                DropdownTarget(definition.Items[activeTopMenuIndex].Id, itemIndex),
+                new Rect(dropdown.X + 1, dropdown.Y + 1 + row, Math.Max(0, dropdown.Width - 2), 1),
+                new(TopMenuPointerActionKind.ActivateDropdownItem, itemIndex)));
+        }
+
+        if (scrollbarBounds is { } scrollbar)
+            targets.Add(new(ScrollbarTarget, scrollbar, new(TopMenuPointerActionKind.Scrollbar)));
+
+        return targets;
+    }
+
+    private static TopMenuPointerAction? FindPointerAction(TopMenuFrame frame, UiTargetId? target)
+    {
+        if (target is null)
+            return null;
+
+        foreach (TopMenuPointerTarget pointerTarget in frame.PointerTargets)
+            if (pointerTarget.Target == target)
+                return pointerTarget.Action;
+
+        return null;
+    }
+
+    private static bool IsLeftMouseDown(MouseConsoleInputEvent mouse) =>
+        mouse.Button == MouseButton.Left && mouse.Kind == MouseEventKind.Down;
 
     private static bool IsPlainKey(ConsoleKeyInfo key, ConsoleKey consoleKey) =>
         key.Key == consoleKey && key.Modifiers == 0;
