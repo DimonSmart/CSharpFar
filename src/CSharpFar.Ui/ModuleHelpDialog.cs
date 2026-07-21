@@ -67,22 +67,16 @@ public sealed class ModuleHelpDialog
         ScrollableViewportInputResult result = input switch
         {
             KeyConsoleInputEvent key => viewport.HandleKey(key.Key, frame.Viewport),
-            MouseConsoleInputEvent mouse => viewport.HandleMouse(mouse, frame.Viewport),
+            MouseConsoleInputEvent mouse when IsViewportMouseRoute(route) => viewport.HandleMouse(mouse, frame.Viewport),
             _ => ScrollableViewportInputResult.NotHandled,
         };
-        return ToUiInputResult(result, ScrollbarTarget);
+        return ScrollableViewportRouting.ToUiInputResult(result, ScrollbarTarget);
     }
 
-    private static UiInputResult ToUiInputResult(ScrollableViewportInputResult result, UiTargetId scrollbarTarget)
-    {
-        if (!result.IsHandled)
-            return UiInputResult.NotHandled;
-        if (result.DragStarted)
-            return UiInputResult.CaptureMouse(scrollbarTarget, MouseButton.Left, result.PositionChanged);
-        if (result.DragEnded)
-            return UiInputResult.ReleaseMouse(result.PositionChanged);
-        return result.PositionChanged ? UiInputResult.HandledAndInvalidate : UiInputResult.HandledResult;
-    }
+    private static bool IsViewportMouseRoute(UiInputRouteContext route) =>
+        route.RouteKind == UiInputRouteKind.HitTarget &&
+        (route.Target == ContentTarget || route.Target == ScrollbarTarget) ||
+        route.RouteKind == UiInputRouteKind.CapturedTarget && route.Target == ScrollbarTarget;
 
     private static void Draw(ScreenRenderer screen, string title, IReadOnlyList<string> lines, ScrollableViewport viewport, ModuleHelpFrame frame)
     {

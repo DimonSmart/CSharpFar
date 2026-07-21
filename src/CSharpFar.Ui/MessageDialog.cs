@@ -63,11 +63,18 @@ public sealed class MessageDialog
             BuildInteractionFrame,
             (input, frame, route) =>
             {
+                if (input is KeyConsoleInputEvent { Key: var key } &&
+                    IsScrollable(frame.Viewport) &&
+                    IsViewportScrollKey(key))
+                {
+                    return (new MessageDialogInput(input, FormInputResult.NotHandled), RouteViewportKey(key, frame, viewport));
+                }
+
+                if (input is MouseConsoleInputEvent && IsViewportMouseRoute(route))
+                    return (new MessageDialogInput(input, FormInputResult.NotHandled), RouteViewportMouse((MouseConsoleInputEvent)input, frame, viewport));
+
                 FormRouteResult result = form.RouteInput(input, frame.Buttons!, route);
-                UiInputResult uiResult = result.FormResult.IsHandled
-                    ? result.UiResult
-                    : RouteViewportInput(input, frame, route, viewport);
-                return (new MessageDialogInput(input, result.FormResult), uiResult);
+                return (new MessageDialogInput(input, result.FormResult), result.UiResult);
             },
             (routed, semantic) =>
             {
@@ -203,22 +210,38 @@ public sealed class MessageDialog
         ConsoleInputEvent input,
         MessageDialogFrame frame,
         UiInputRouteContext route,
-        ScrollableViewport viewport)
-    {
-        ScrollableViewportInputResult result = input switch
+        ScrollableViewport viewport) => input switch
         {
-            KeyConsoleInputEvent key => viewport.HandleKey(key.Key, frame.Viewport),
-            MouseConsoleInputEvent mouse => viewport.HandleMouse(mouse, frame.Viewport),
-            _ => ScrollableViewportInputResult.NotHandled,
+            KeyConsoleInputEvent { Key: var key } => RouteViewportKey(key, frame, viewport),
+            MouseConsoleInputEvent mouse when IsViewportMouseRoute(route) => RouteViewportMouse(mouse, frame, viewport),
+            _ => UiInputResult.NotHandled,
         };
-        if (!result.IsHandled)
-            return UiInputResult.NotHandled;
-        if (result.DragStarted)
-            return UiInputResult.CaptureMouse(ScrollbarTarget, MouseButton.Left, result.PositionChanged);
-        if (result.DragEnded)
-            return UiInputResult.ReleaseMouse(result.PositionChanged);
-        return result.PositionChanged ? UiInputResult.HandledAndInvalidate : UiInputResult.HandledResult;
-    }
+
+    private static UiInputResult RouteViewportKey(
+        ConsoleKeyInfo key,
+        MessageDialogFrame frame,
+        ScrollableViewport viewport) =>
+        IsViewportScrollKey(key)
+            ? ScrollableViewportRouting.ToUiInputResult(viewport.HandleKey(key, frame.Viewport), ScrollbarTarget)
+            : UiInputResult.NotHandled;
+
+    private static UiInputResult RouteViewportMouse(
+        MouseConsoleInputEvent mouse,
+        MessageDialogFrame frame,
+        ScrollableViewport viewport) =>
+        ScrollableViewportRouting.ToUiInputResult(viewport.HandleMouse(mouse, frame.Viewport), ScrollbarTarget);
+
+    private static bool IsViewportScrollKey(ConsoleKeyInfo key) =>
+        key.Key is ConsoleKey.UpArrow or ConsoleKey.DownArrow or ConsoleKey.PageUp or
+            ConsoleKey.PageDown or ConsoleKey.Home or ConsoleKey.End;
+
+    private static bool IsScrollable(ScrollableViewportFrameState frame) =>
+        frame.TotalItems > frame.ViewportItems;
+
+    private static bool IsViewportMouseRoute(UiInputRouteContext route) =>
+        route.RouteKind == UiInputRouteKind.HitTarget &&
+        (route.Target == ContentTarget || route.Target == ScrollbarTarget) ||
+        route.RouteKind == UiInputRouteKind.CapturedTarget && route.Target == ScrollbarTarget;
 
     private static List<string> WrapMessage(string message, int width)
     {

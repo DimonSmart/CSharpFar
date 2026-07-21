@@ -35,7 +35,33 @@ public sealed class MessageDialogTests
 
         Show(driver, "Module", message);
 
+        string rendered = string.Join('\n', driver.WriteRecords.Select(record => record.Text));
+        Assert.Contains("line 4", rendered, StringComparison.Ordinal);
         Assert.False(driver.CursorVisible);
+    }
+
+    [Fact]
+    public void Show_WheelOverTextScrollsLongMessage()
+    {
+        var driver = new FakeConsoleDriver(width: 60, height: 8);
+        int inputCount = 0;
+        driver.BeforeReadInput = current =>
+        {
+            if (inputCount++ == 0)
+            {
+                var line = current.WriteRecords.Last(record => record.Text.Contains("line 1", StringComparison.Ordinal));
+                current.EnqueueInput(new MouseConsoleInputEvent(line.X, line.Y, MouseButton.WheelDown, MouseEventKind.Wheel, MouseKeyModifiers.None));
+            }
+            else
+            {
+                current.EnqueueKey(new ConsoleKeyInfo('\r', ConsoleKey.Enter, false, false, false));
+            }
+        };
+
+        Show(driver, "Module", string.Join('\n', ["line 1", "line 2", "line 3", "line 4", "line 5", "line 6"]));
+
+        string rendered = string.Join('\n', driver.WriteRecords.Select(record => record.Text));
+        Assert.Contains("line 4", rendered, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -49,6 +75,24 @@ public sealed class MessageDialogTests
 
         Assert.Equal(1, result);
         Assert.False(driver.CursorVisible);
+    }
+
+    [Fact]
+    public void ShowButtons_ScrollsMessageThenActivatesSelectedButton()
+    {
+        var driver = new FakeConsoleDriver(width: 60, height: 8);
+        driver.EnqueueKey(new ConsoleKeyInfo('\0', ConsoleKey.PageDown, false, false, false));
+        driver.EnqueueKey(new ConsoleKeyInfo('\0', ConsoleKey.RightArrow, false, false, false));
+        driver.EnqueueKey(new ConsoleKeyInfo('\r', ConsoleKey.Enter, false, false, false));
+
+        int result = CreateDialog(driver).ShowButtons(
+            "Question",
+            string.Join('\n', ["line 1", "line 2", "line 3", "line 4", "line 5", "line 6"]),
+            ["First", "Second"]);
+
+        string rendered = string.Join('\n', driver.WriteRecords.Select(record => record.Text));
+        Assert.Contains("line 4", rendered, StringComparison.Ordinal);
+        Assert.Equal(1, result);
     }
 
     [Fact]
