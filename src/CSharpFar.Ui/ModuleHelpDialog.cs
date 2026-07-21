@@ -8,177 +8,109 @@ namespace CSharpFar.Ui;
 public sealed class ModuleHelpDialog
 {
     private static readonly UiTargetId HelpTarget = new("module-help");
+    private static readonly UiTargetId ContentTarget = new("module-help-content");
+    private static readonly UiTargetId ScrollbarTarget = new("module-help-scrollbar");
     private readonly ModalDialogHost _modalDialogs;
 
-    public ModuleHelpDialog(ModalDialogHost modalDialogs)
-    {
+    public ModuleHelpDialog(ModalDialogHost modalDialogs) =>
         _modalDialogs = modalDialogs ?? throw new ArgumentNullException(nameof(modalDialogs));
-    }
 
     public void Show(string title, IReadOnlyList<string> lines)
     {
         ArgumentNullException.ThrowIfNull(lines);
-
-        int scrollTop = 0;
-        ScrollBarDragState? scrollbarDrag = null;
+        var viewport = new ScrollableViewport();
         _modalDialogs.RunInteractive<ModuleHelpFrame, ConsoleInputEvent, Unit>(
             (context, _) =>
             {
-                var frame = CalculateFrame(context.Size, lines.Count, scrollTop);
-                Draw(context.Screen, title, lines, frame);
+                ModuleHelpFrame frame = CalculateFrame(context.Size, lines.Count, viewport);
+                Draw(context.Screen, title, lines, viewport, frame);
                 return frame;
             },
-            static _ => new UiInteractionFrame(
-                [],
-                new UiFocusFrame([new UiFocusEntry(HelpTarget, 0, Cursor: new UiCursorPlacement(0, 0, Visible: false))], HelpTarget),
-                HelpTarget),
-            static (input, _, _) => (input, UiInputResult.HandledResult),
+            BuildInteractionFrame,
+            (input, frame, route) => (input, RouteInput(input, frame, route, viewport)),
             (routed, input) =>
             {
-                ModuleHelpFrame frame = routed.Frame;
-                switch (input)
-                {
-                    case KeyConsoleInputEvent key:
-                        return HandleKey(key.Key, lines.Count, frame.ContentHeight, ref scrollTop)
-                            ? ModalDialogLoopResult<Unit>.Complete(default)
-                            : ModalDialogLoopResult<Unit>.Continue;
-                    case MouseConsoleInputEvent mouse:
-                        HandleMouse(mouse, lines.Count, frame, ref scrollTop, ref scrollbarDrag);
-                        break;
-                }
-
+                if (input is KeyConsoleInputEvent { Key.Key: ConsoleKey.Escape or ConsoleKey.F1 or ConsoleKey.F10 })
+                    return ModalDialogLoopResult<Unit>.Complete(default);
                 return ModalDialogLoopResult<Unit>.Continue;
             },
-            applyCommittedFrame: frame => scrollTop = frame.ScrollTop);
+            applyCommittedFrame: frame => viewport.ApplyCommittedFrame(frame.Viewport));
     }
 
-    private static ModuleHelpFrame CalculateFrame(ConsoleSize size, int lineCount, int requestedScrollTop)
+    private static ModuleHelpFrame CalculateFrame(ConsoleSize size, int lineCount, ScrollableViewport viewport)
     {
         int contentHeight = Math.Max(1, size.Height - 2);
-        int scrollTop = ScrollStateCalculator.ClampFirstVisibleIndex(requestedScrollTop, lineCount, contentHeight);
+        var contentBounds = new Rect(0, 1, Math.Max(0, size.Width - 1), contentHeight);
         Rect? scrollbarBounds = lineCount > contentHeight
             ? new Rect(Math.Max(0, size.Width - 1), 1, 1, contentHeight)
             : null;
-        return new ModuleHelpFrame(size, contentHeight, scrollTop, scrollbarBounds);
+        return new ModuleHelpFrame(size, viewport.CalculateFrameState(lineCount, contentHeight, contentBounds, scrollbarBounds));
     }
 
-    private static void Draw(
-        ScreenRenderer screen,
-        string title,
-        IReadOnlyList<string> lines,
-        ModuleHelpFrame frame)
+    private static UiInteractionFrame BuildInteractionFrame(ModuleHelpFrame frame)
+    {
+        var hitRegions = new List<UiHitRegion> { new(ContentTarget, frame.Viewport.ContentBounds) };
+        if (frame.Viewport.ScrollbarBounds is Rect scrollbar)
+            hitRegions.Add(new UiHitRegion(ScrollbarTarget, scrollbar));
+        return new UiInteractionFrame(
+            hitRegions,
+            new UiFocusFrame([new UiFocusEntry(HelpTarget, 0, Cursor: new UiCursorPlacement(0, 0, Visible: false))], HelpTarget),
+            HelpTarget);
+    }
+
+    private static UiInputResult RouteInput(
+        ConsoleInputEvent input,
+        ModuleHelpFrame frame,
+        UiInputRouteContext route,
+        ScrollableViewport viewport)
+    {
+        ScrollableViewportInputResult result = input switch
+        {
+            KeyConsoleInputEvent key => viewport.HandleKey(key.Key, frame.Viewport),
+            MouseConsoleInputEvent mouse => viewport.HandleMouse(mouse, frame.Viewport),
+            _ => ScrollableViewportInputResult.NotHandled,
+        };
+        return ToUiInputResult(result, ScrollbarTarget);
+    }
+
+    private static UiInputResult ToUiInputResult(ScrollableViewportInputResult result, UiTargetId scrollbarTarget)
+    {
+        if (!result.IsHandled)
+            return UiInputResult.NotHandled;
+        if (result.DragStarted)
+            return UiInputResult.CaptureMouse(scrollbarTarget, MouseButton.Left, result.PositionChanged);
+        if (result.DragEnded)
+            return UiInputResult.ReleaseMouse(result.PositionChanged);
+        return result.PositionChanged ? UiInputResult.HandledAndInvalidate : UiInputResult.HandledResult;
+    }
+
+    private static void Draw(ScreenRenderer screen, string title, IReadOnlyList<string> lines, ScrollableViewport viewport, ModuleHelpFrame frame)
     {
         var palette = UiTheme.Current;
         var headerStyle = PaletteStyles.PathHeaderActive(palette);
-        string position = lines.Count == 0 ? " 0/0 " : $" {frame.ScrollTop + 1}/{lines.Count} ";
-        ConsoleSize size = frame.Size;
-        int titleWidth = Math.Max(0, size.Width - position.Length);
+        string position = lines.Count == 0 ? " 0/0 " : $" {frame.Viewport.FirstVisibleIndex + 1}/{lines.Count} ";
+        int titleWidth = Math.Max(0, frame.Size.Width - position.Length);
         screen.Write(0, 0, Truncate(" " + title + " ", titleWidth).PadRight(titleWidth) + position, headerStyle);
 
         var bodyStyle = PaletteStyles.HelpBody(palette);
-        int contentWidth = Math.Max(0, size.Width - 1);
-        for (int row = 0; row < frame.ContentHeight; row++)
+        for (int row = 0; row < frame.Viewport.ViewportItems; row++)
         {
-            int lineIndex = frame.ScrollTop + row;
+            int lineIndex = frame.Viewport.FirstVisibleIndex + row;
             string text = lineIndex < lines.Count ? lines[lineIndex] : string.Empty;
-            screen.Write(0, row + 1, Truncate(text, contentWidth).PadRight(contentWidth), bodyStyle);
+            screen.Write(0, row + 1, Truncate(text, frame.Viewport.ContentBounds.Width).PadRight(frame.Viewport.ContentBounds.Width), bodyStyle);
         }
 
-        if (frame.ScrollbarBounds is { } scrollbarBounds)
+        if (frame.Viewport.ScrollbarBounds is Rect scrollbarBounds && viewport.GetScrollState(frame.Viewport) is { } scrollState)
         {
-            new ScrollBarRenderer().RenderVerticalScrollbar(
-                screen,
-                scrollbarBounds,
-                new ScrollState
-                {
-                    TotalItems = lines.Count,
-                    ViewportItems = frame.ContentHeight,
-                    FirstVisibleIndex = frame.ScrollTop,
-                },
-                new ScrollBarOptions
-                {
-                    Enabled = true,
-                    DrawWhenNotScrollable = false,
-                },
-                PaletteStyles.DialogBorder(palette));
+            new ScrollBarRenderer().RenderVerticalScrollbar(screen, scrollbarBounds, scrollState,
+                new ScrollBarOptions { Enabled = true, DrawWhenNotScrollable = false }, PaletteStyles.DialogBorder(palette));
         }
 
-        string footer = "Esc/F10 Close";
-        screen.Write(0, size.Height - 1, footer.PadRight(size.Width), PaletteStyles.KeyBarLabel(palette));
+        screen.Write(0, frame.Size.Height - 1, "Esc/F10 Close".PadRight(frame.Size.Width), PaletteStyles.KeyBarLabel(palette));
     }
 
-    private static bool HandleKey(ConsoleKeyInfo key, int lineCount, int contentHeight, ref int scrollTop)
-    {
-        switch (key.Key)
-        {
-            case ConsoleKey.Escape:
-            case ConsoleKey.F1:
-            case ConsoleKey.F10:
-                return true;
-            case ConsoleKey.UpArrow:
-                scrollTop = Math.Max(0, scrollTop - 1);
-                return false;
-            case ConsoleKey.DownArrow:
-                scrollTop = Math.Min(Math.Max(0, lineCount - contentHeight), scrollTop + 1);
-                return false;
-            case ConsoleKey.PageUp:
-                scrollTop = Math.Max(0, scrollTop - contentHeight);
-                return false;
-            case ConsoleKey.PageDown:
-                scrollTop = Math.Min(Math.Max(0, lineCount - contentHeight), scrollTop + contentHeight);
-                return false;
-            case ConsoleKey.Home:
-                scrollTop = 0;
-                return false;
-            case ConsoleKey.End:
-                scrollTop = Math.Max(0, lineCount - contentHeight);
-                return false;
-            default:
-                return false;
-        }
-    }
+    private static string Truncate(string value, int width) =>
+        width <= 0 ? string.Empty : value.Length <= width ? value : value[..width];
 
-    private static bool HandleMouse(
-        MouseConsoleInputEvent mouse,
-        int lineCount,
-        ModuleHelpFrame frame,
-        ref int scrollTop,
-        ref ScrollBarDragState? scrollbarDrag)
-    {
-        int contentHeight = frame.ContentHeight;
-        if (mouse.Button == MouseButton.WheelUp && mouse.Kind == MouseEventKind.Wheel)
-        {
-            scrollTop = Math.Max(0, scrollTop - 3);
-            return true;
-        }
-
-        if (mouse.Button == MouseButton.WheelDown && mouse.Kind == MouseEventKind.Wheel)
-        {
-            scrollTop = Math.Min(Math.Max(0, lineCount - contentHeight), scrollTop + 3);
-            return true;
-        }
-
-        return frame.ScrollbarBounds is { } scrollbarBounds &&
-            ScrollBarMouseHandler.TryHandleMouse(
-            mouse,
-            scrollbarBounds,
-            lineCount,
-            contentHeight,
-            ref scrollTop,
-            ref scrollbarDrag);
-    }
-
-    private static string Truncate(string value, int width)
-    {
-        if (width <= 0)
-            return string.Empty;
-
-        return value.Length <= width ? value : value[..width];
-    }
-
-    private readonly record struct ModuleHelpFrame(
-        ConsoleSize Size,
-        int ContentHeight,
-        int ScrollTop,
-        Rect? ScrollbarBounds);
+    private readonly record struct ModuleHelpFrame(ConsoleSize Size, ScrollableViewportFrameState Viewport);
 }

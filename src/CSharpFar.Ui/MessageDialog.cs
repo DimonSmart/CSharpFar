@@ -9,6 +9,8 @@ namespace CSharpFar.Ui;
 public sealed class MessageDialog
 {
     private static readonly UiTargetId DialogTarget = new("message-dialog");
+    private static readonly UiTargetId ContentTarget = new("message-dialog-content");
+    private static readonly UiTargetId ScrollbarTarget = new("message-dialog-scrollbar");
     private const int MinDialogWidth = 52;
     private const int MaxDialogWidth = 96;
 
@@ -21,25 +23,23 @@ public sealed class MessageDialog
 
     public void Show(string title, string message)
     {
-        int firstVisibleLine = 0;
+        var viewport = new ScrollableViewport();
         _modalDialogs.RunInteractive<MessageDialogFrame, MessageDialogInput, Unit>(
             (context, focusScope) =>
             {
                 var layout = CreateLayout(title, message, context.Size, buttons: null);
-                int effectiveFirstVisibleLine = NormalizeScroll(layout, firstVisibleLine);
-                return Draw(context, focusScope, title, layout, effectiveFirstVisibleLine, form: null);
+                return Draw(context, focusScope, title, layout, viewport, form: null);
             },
             BuildInteractionFrame,
-            static (input, _, _) => (new MessageDialogInput(input, FormInputResult.NotHandled), UiInputResult.HandledResult),
+            (input, frame, route) => (new MessageDialogInput(input, FormInputResult.NotHandled), RouteViewportInput(input, frame, route, viewport)),
             (routed, semantic) =>
             {
                 ConsoleInputEvent input = semantic.Input;
                 if (input is KeyConsoleInputEvent { Key.Key: ConsoleKey.Enter or ConsoleKey.Escape })
                     return ModalDialogLoopResult<Unit>.Complete(default);
-                TryScroll(input, routed.Frame, ref firstVisibleLine);
                 return ModalDialogLoopResult<Unit>.Continue;
             },
-            applyCommittedFrame: frame => firstVisibleLine = frame.FirstVisibleLine);
+            applyCommittedFrame: frame => viewport.ApplyCommittedFrame(frame.Viewport));
     }
 
     public int ShowButtons(string title, string message, IReadOnlyList<string> buttons)
@@ -53,26 +53,25 @@ public sealed class MessageDialog
         var form = new ScrollableFormDialog([
             new ButtonRow(dialogButtons, FarDialogStyles.Fill, FarDialogStyles.FocusedInput) { Id = "actions" },
         ]);
-        int firstVisibleLine = 0;
+        var viewport = new ScrollableViewport();
         return _modalDialogs.RunInteractive<MessageDialogFrame, MessageDialogInput, int>(
             (context, focusScope) =>
             {
                 var layout = CreateLayout(title, message, context.Size, dialogButtons);
-                int effectiveFirstVisibleLine = NormalizeScroll(layout, firstVisibleLine);
-                return Draw(context, focusScope, title, layout, effectiveFirstVisibleLine, form);
+                return Draw(context, focusScope, title, layout, viewport, form);
             },
             BuildInteractionFrame,
             (input, frame, route) =>
             {
                 FormRouteResult result = form.RouteInput(input, frame.Buttons!, route);
-                return (new MessageDialogInput(input, result.FormResult), result.UiResult);
+                UiInputResult uiResult = result.FormResult.IsHandled
+                    ? result.UiResult
+                    : RouteViewportInput(input, frame, route, viewport);
+                return (new MessageDialogInput(input, result.FormResult), uiResult);
             },
             (routed, semantic) =>
             {
                 ConsoleInputEvent input = semantic.Input;
-                if (TryScroll(input, routed.Frame, ref firstVisibleLine))
-                    return ModalDialogLoopResult<int>.Continue;
-
                 if (semantic.FormResult.Command is string buttonId && int.TryParse(buttonId, out int selected))
                 {
                     return ModalDialogLoopResult<int>.Complete(selected);
@@ -82,47 +81,51 @@ public sealed class MessageDialog
 
                 return ModalDialogLoopResult<int>.Continue;
             },
-            applyCommittedFrame: frame => firstVisibleLine = frame.FirstVisibleLine);
+            applyCommittedFrame: frame => viewport.ApplyCommittedFrame(frame.Viewport));
     }
 
-    private static UiInteractionFrame BuildInteractionFrame(MessageDialogFrame frame) =>
-        frame is { Form: not null, Buttons: not null }
+    private static UiInteractionFrame BuildInteractionFrame(MessageDialogFrame frame)
+    {
+        UiInteractionFrame baseFrame = frame is { Form: not null, Buttons: not null }
             ? frame.Form.BuildInteractionFrame(frame.Buttons)
             : new UiInteractionFrame(
                 [],
                 new UiFocusFrame([new UiFocusEntry(DialogTarget, 0, Cursor: new UiCursorPlacement(0, 0, Visible: false))], DialogTarget),
                 DialogTarget);
-
-    private static int NormalizeScroll(MessageDialogLayout layout, int firstVisibleLine) =>
-        Math.Clamp(firstVisibleLine, 0, Math.Max(0, layout.MessageLines.Count - layout.ContentHeight));
+        var regions = new List<UiHitRegion> { new(ContentTarget, frame.Viewport.ContentBounds) };
+        if (frame.Viewport.ScrollbarBounds is Rect scrollbar)
+            regions.Add(new UiHitRegion(ScrollbarTarget, scrollbar));
+        regions.AddRange(baseFrame.HitRegions);
+        return new UiInteractionFrame(regions, baseFrame.Focus, baseFrame.KeyboardTarget);
+    }
 
     private MessageDialogFrame Draw(
         UiRenderContext context,
         UiFocusScope focusScope,
         string title,
         MessageDialogLayout layout,
-        int firstVisibleLine,
+        ScrollableViewport viewport,
         ScrollableFormDialog? form)
     {
         ScrollableFormFrame? buttons = null;
         ScreenRenderer screen = context.Screen;
-        var scrollState = layout.MessageLines.Count > layout.ContentHeight
-            ? new ScrollState
-            {
-                TotalItems = layout.MessageLines.Count,
-                ViewportItems = layout.ContentHeight,
-                FirstVisibleIndex = firstVisibleLine,
-            }
+        Rect contentBounds = PopupRenderer.GetContentBounds(layout.Bounds, drawBorder: true);
+        var textBounds = new Rect(contentBounds.X + 1, contentBounds.Y, Math.Max(1, contentBounds.Width - 2), layout.ContentHeight);
+        Rect? scrollbarBounds = layout.MessageLines.Count > layout.ContentHeight
+            ? new Rect(layout.Bounds.Right - 1, contentBounds.Y, 1, contentBounds.Height)
             : null;
+        ScrollableViewportFrameState viewportFrame = viewport.CalculateFrameState(
+            layout.MessageLines.Count, layout.ContentHeight, textBounds, scrollbarBounds);
+        ScrollState? scrollState = viewport.GetScrollState(viewportFrame);
 
         var palette = UiTheme.Current;
         new DialogFrameRenderer().RenderFrame(screen, layout.Bounds, title, false, PaletteStyles.DialogPopupOptions(palette), scrollState, (_, contentBounds) =>
         {
-            int textX = contentBounds.X + 1;
-            int textWidth = Math.Max(1, contentBounds.Width - 2);
+            int textX = viewportFrame.ContentBounds.X;
+            int textWidth = viewportFrame.ContentBounds.Width;
             for (int row = 0; row < layout.ContentHeight; row++)
             {
-                int lineIndex = firstVisibleLine + row;
+                int lineIndex = viewportFrame.FirstVisibleIndex + row;
                 string text = lineIndex < layout.MessageLines.Count
                     ? layout.MessageLines[lineIndex]
                     : string.Empty;
@@ -151,7 +154,7 @@ public sealed class MessageDialog
                     PaletteStyles.DialogBorder(palette)),
                 focusScope);
         });
-        return new MessageDialogFrame(layout, firstVisibleLine, buttons, form);
+        return new MessageDialogFrame(layout, viewportFrame, buttons, form);
     }
 
     private static MessageDialogLayout CreateLayout(
@@ -196,32 +199,25 @@ public sealed class MessageDialog
         return text.Length == 0 ? '\0' : text[0];
     }
 
-    private static bool TryScroll(
+    private static UiInputResult RouteViewportInput(
         ConsoleInputEvent input,
         MessageDialogFrame frame,
-        ref int firstVisibleLine)
+        UiInputRouteContext route,
+        ScrollableViewport viewport)
     {
-        var layout = frame.Layout;
-        if (layout.MessageLines.Count <= layout.ContentHeight)
-            return false;
-
-        if (input is not KeyConsoleInputEvent { Key: var key })
-            return false;
-
-        int previous = firstVisibleLine;
-        int maxFirstVisible = Math.Max(0, layout.MessageLines.Count - layout.ContentHeight);
-        firstVisibleLine = key.Key switch
+        ScrollableViewportInputResult result = input switch
         {
-            ConsoleKey.UpArrow => Math.Max(0, frame.FirstVisibleLine - 1),
-            ConsoleKey.DownArrow => Math.Min(maxFirstVisible, frame.FirstVisibleLine + 1),
-            ConsoleKey.PageUp => Math.Max(0, frame.FirstVisibleLine - layout.ContentHeight),
-            ConsoleKey.PageDown => Math.Min(maxFirstVisible, frame.FirstVisibleLine + layout.ContentHeight),
-            ConsoleKey.Home => 0,
-            ConsoleKey.End => maxFirstVisible,
-            _ => frame.FirstVisibleLine,
+            KeyConsoleInputEvent key => viewport.HandleKey(key.Key, frame.Viewport),
+            MouseConsoleInputEvent mouse => viewport.HandleMouse(mouse, frame.Viewport),
+            _ => ScrollableViewportInputResult.NotHandled,
         };
-
-        return firstVisibleLine != previous;
+        if (!result.IsHandled)
+            return UiInputResult.NotHandled;
+        if (result.DragStarted)
+            return UiInputResult.CaptureMouse(ScrollbarTarget, MouseButton.Left, result.PositionChanged);
+        if (result.DragEnded)
+            return UiInputResult.ReleaseMouse(result.PositionChanged);
+        return result.PositionChanged ? UiInputResult.HandledAndInvalidate : UiInputResult.HandledResult;
     }
 
     private static List<string> WrapMessage(string message, int width)
@@ -297,7 +293,7 @@ public sealed class MessageDialog
 
     private readonly record struct MessageDialogFrame(
         MessageDialogLayout Layout,
-        int FirstVisibleLine,
+        ScrollableViewportFrameState Viewport,
         ScrollableFormFrame? Buttons,
         ScrollableFormDialog? Form);
 
