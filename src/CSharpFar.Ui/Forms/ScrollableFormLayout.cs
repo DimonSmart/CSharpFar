@@ -96,16 +96,26 @@ public sealed partial class ScrollableFormDialog
     {
         ArgumentNullException.ThrowIfNull(frame);
 
-        var focusEntries = frame.Targets
+        return new UiInteractionFrameBuilder()
+            .AddFragment(BuildInteractionFragment(frame))
+            .SetDefaultFocusTarget(frame.DefaultTarget)
+            .Build();
+    }
+
+    public UiInteractionFragment BuildInteractionFragment(ScrollableFormFrame frame)
+    {
+        ArgumentNullException.ThrowIfNull(frame);
+
+        UiFocusEntry[] focusEntries = frame.Targets
             .Where(target => target is { Kind: FormTargetKind.Row, IsFocusable: true, FocusIndex: not null })
             .OrderBy(target => target.FocusIndex!.Value)
             .Select(target => new UiFocusEntry(target.Target, target.FocusIndex!.Value, IsEnabled: true, target.Cursor))
             .ToArray();
-        var hitRegions = frame.Targets
+        UiHitRegion[] hitRegions = frame.Targets
             .Where(target => target.HitBounds is { Width: > 0, Height: > 0 } && (target.Row is null || target.Row.IsEnabled))
             .Select(target => new UiHitRegion(target.Target, target.HitBounds!.Value))
             .ToArray();
-        return new UiInteractionFrame(hitRegions, new UiFocusFrame(focusEntries, frame.DefaultTarget));
+        return new UiInteractionFragment(hitRegions, focusEntries);
     }
 
     private ScrollableFormFrame BuildFrame(

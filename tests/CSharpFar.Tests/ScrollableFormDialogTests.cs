@@ -165,6 +165,7 @@ public sealed class ScrollableFormDialogTests
         ]);
 
         ScrollableFormFrame frame = RenderFrame(form, visibleRows: 2);
+        UiInteractionFragment fragment = form.BuildInteractionFragment(frame);
         UiInteractionFrame interaction = form.BuildInteractionFrame(frame);
 
         Assert.Contains(frame.Targets, target => target.Target == FormTargetIds.ForExplicitRow("first") && target.IsFocusable);
@@ -172,6 +173,9 @@ public sealed class ScrollableFormDialogTests
         Assert.Contains(frame.Targets, target => target is { Kind: FormTargetKind.BodyScrollbar, Target: var id } && id == FormTargetIds.BodyScrollbar);
         Assert.Equal(3, interaction.Focus.Entries.Count);
         Assert.Contains(interaction.HitRegions, region => region.Target == FormTargetIds.BodyScrollbar);
+        Assert.Equal(fragment.HitRegions, interaction.HitRegions);
+        Assert.Equal(fragment.FocusEntries, interaction.Focus.Entries);
+        Assert.Equal(frame.DefaultTarget, interaction.Focus.DefaultTarget);
     }
 
     [Fact]

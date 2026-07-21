@@ -93,17 +93,21 @@ public sealed class MessageDialog
 
     private static UiInteractionFrame BuildInteractionFrame(MessageDialogFrame frame)
     {
-        UiInteractionFrame baseFrame = frame is { Form: not null, Buttons: not null }
-            ? frame.Form.BuildInteractionFrame(frame.Buttons)
-            : new UiInteractionFrame(
-                [],
-                new UiFocusFrame([new UiFocusEntry(DialogTarget, 0, Cursor: new UiCursorPlacement(0, 0, Visible: false))], DialogTarget),
-                DialogTarget);
-        var regions = new List<UiHitRegion> { new(ContentTarget, frame.Viewport.ContentBounds) };
+        var builder = new UiInteractionFrameBuilder()
+            .AddHitRegion(ContentTarget, frame.Viewport.ContentBounds);
         if (frame.Viewport.ScrollbarBounds is Rect scrollbar)
-            regions.Add(new UiHitRegion(ScrollbarTarget, scrollbar));
-        regions.AddRange(baseFrame.HitRegions);
-        return new UiInteractionFrame(regions, baseFrame.Focus, baseFrame.KeyboardTarget);
+            builder.AddHitRegion(ScrollbarTarget, scrollbar);
+        if (frame is { Form: not null, Buttons: not null })
+            return builder
+                .AddFragment(frame.Form.BuildInteractionFragment(frame.Buttons))
+                .SetDefaultFocusTarget(frame.Buttons.DefaultTarget)
+                .Build();
+
+        return builder
+            .AddFocusEntry(DialogTarget, 0, cursor: new UiCursorPlacement(0, 0, Visible: false))
+            .SetDefaultFocusTarget(DialogTarget)
+            .SetKeyboardTarget(DialogTarget)
+            .Build();
     }
 
     private MessageDialogFrame Draw(

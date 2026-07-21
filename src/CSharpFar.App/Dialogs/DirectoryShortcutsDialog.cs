@@ -110,11 +110,11 @@ internal sealed class DirectoryShortcutsDialog
         {
             Height = Math.Min(frame.Layout.ContentBounds.Height, DirectoryShortcutNormalizer.DisplayOrder.Count),
         };
-        UiInteractionFrame buttons = frame.Form.BuildInteractionFrame(frame.Buttons);
-        return new UiInteractionFrame(
-            [new UiHitRegion(ListTarget, listBounds), .. buttons.HitRegions],
-            buttons.Focus,
-            buttons.KeyboardTarget);
+        return new UiInteractionFrameBuilder()
+            .AddHitRegion(ListTarget, listBounds)
+            .AddFragment(frame.Form.BuildInteractionFragment(frame.Buttons))
+            .SetDefaultFocusTarget(frame.Buttons.DefaultTarget)
+            .Build();
     }
 
     private DirectoryShortcutsFrame Draw(

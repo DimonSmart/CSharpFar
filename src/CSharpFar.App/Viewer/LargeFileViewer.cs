@@ -1181,16 +1181,16 @@ internal sealed class LargeFileViewer
 
         protected override UiInteractionFrame BuildInteractionFrameCore(LargeFileViewerFrame frame)
         {
-            var regions = new List<UiHitRegion>();
+            var builder = new UiInteractionFrameBuilder()
+                .AddFocusEntry(Keyboard, 0, cursor: new UiCursorPlacement(0, 0, false))
+                .SetDefaultFocusTarget(Keyboard)
+                .SetKeyboardTarget(Keyboard);
             if (frame.ContentBounds.Width > 0 && frame.ContentBounds.Height > 0)
-                regions.Add(new UiHitRegion(Content, frame.ContentBounds));
+                builder.AddHitRegion(Content, frame.ContentBounds);
             foreach (FunctionKeyHit hit in frame.FunctionKeyHits)
-                regions.Add(new UiHitRegion(FunctionKeys, hit.Bounds));
+                builder.AddHitRegion(FunctionKeys, hit.Bounds);
 
-            return new UiInteractionFrame(
-                regions,
-                new UiFocusFrame([new UiFocusEntry(Keyboard, 0, Cursor: new UiCursorPlacement(0, 0, false))], Keyboard),
-                Keyboard);
+            return builder.Build();
         }
 
         protected override InteractiveSurfaceRouteResult<ViewerInput> RouteSemanticInput(

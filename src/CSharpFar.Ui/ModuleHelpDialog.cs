@@ -49,13 +49,14 @@ public sealed class ModuleHelpDialog
 
     private static UiInteractionFrame BuildInteractionFrame(ModuleHelpFrame frame)
     {
-        var hitRegions = new List<UiHitRegion> { new(ContentTarget, frame.Viewport.ContentBounds) };
+        var builder = new UiInteractionFrameBuilder()
+            .AddHitRegion(ContentTarget, frame.Viewport.ContentBounds)
+            .AddFocusEntry(HelpTarget, 0, cursor: new UiCursorPlacement(0, 0, Visible: false))
+            .SetDefaultFocusTarget(HelpTarget)
+            .SetKeyboardTarget(HelpTarget);
         if (frame.Viewport.ScrollbarBounds is Rect scrollbar)
-            hitRegions.Add(new UiHitRegion(ScrollbarTarget, scrollbar));
-        return new UiInteractionFrame(
-            hitRegions,
-            new UiFocusFrame([new UiFocusEntry(HelpTarget, 0, Cursor: new UiCursorPlacement(0, 0, Visible: false))], HelpTarget),
-            HelpTarget);
+            builder.AddHitRegion(ScrollbarTarget, scrollbar);
+        return builder.Build();
     }
 
     private static UiInputResult RouteInput(

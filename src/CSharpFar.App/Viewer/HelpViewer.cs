@@ -199,22 +199,22 @@ internal sealed class HelpViewerLayer : InteractiveSurfaceLayer<HelpViewerFrame,
 
     private static UiInteractionFrame BuildInteraction(HelpViewerFrame frame)
     {
-        var regions = new List<UiHitRegion>();
+        var builder = new UiInteractionFrameBuilder()
+            .AddFocusEntry(Keyboard, 0, cursor: new UiCursorPlacement(0, 0, false))
+            .SetDefaultFocusTarget(Keyboard)
+            .SetKeyboardTarget(Keyboard);
         if (frame.ContentBounds.Width > 0 && frame.ContentBounds.Height > 0)
-            regions.Add(new(Content, frame.ContentBounds));
+            builder.AddHitRegion(Content, frame.ContentBounds);
         if (frame.ScrollBarBounds is { } bar &&
             frame.VerticalScrollState is { } scrollState &&
             ScrollBarInteraction.IsInteractive(bar, scrollState))
         {
-            regions.Add(new(Scrollbar, bar));
+            builder.AddHitRegion(Scrollbar, bar);
         }
         foreach (HelpFooterActionHit action in frame.FooterActionHits)
-            regions.Add(new(FunctionKeys, action.Bounds));
+            builder.AddHitRegion(FunctionKeys, action.Bounds);
 
-        return new UiInteractionFrame(
-            regions,
-            new UiFocusFrame([new UiFocusEntry(Keyboard, 0, Cursor: new UiCursorPlacement(0, 0, false))], Keyboard),
-            Keyboard);
+        return builder.Build();
     }
 
     private static void Draw(ScreenRenderer screen, HelpLine[] lines, HelpViewerFrame frame, ConsolePalette palette)

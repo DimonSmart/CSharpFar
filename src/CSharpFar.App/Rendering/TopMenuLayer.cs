@@ -102,21 +102,20 @@ internal sealed class TopMenuLayer : UiLayer<TopMenuFrame>
         if (!frame.Available)
             return UiInteractionFrame.Empty;
 
-        var hitRegions = new List<UiHitRegion>();
+        var builder = new UiInteractionFrameBuilder();
         if (!frame.Open)
         {
-            hitRegions.Add(new UiHitRegion(ActivationTarget, frame.ActivationBounds));
-            return new UiInteractionFrame(hitRegions);
+            return builder.AddHitRegion(ActivationTarget, frame.ActivationBounds).Build();
         }
 
         for (int i = 0; i < frame.Layout.TopItemBounds.Count; i++)
-            hitRegions.Add(new UiHitRegion(TopTarget(frame.Definition.Items[i].Id), frame.Layout.TopItemBounds[i]));
+            builder.AddHitRegion(TopTarget(frame.Definition.Items[i].Id), frame.Layout.TopItemBounds[i]);
 
         if (frame.Layout.DropdownBounds is { } dropdown &&
             frame.ActiveTopMenuIndex >= 0 &&
             frame.ActiveTopMenuIndex < frame.Definition.Items.Count)
         {
-            hitRegions.Add(new UiHitRegion(new UiTargetId("application.top-menu.border"), dropdown));
+            builder.AddHitRegion(new UiTargetId("application.top-menu.border"), dropdown);
             var children = frame.Definition.Items[frame.ActiveTopMenuIndex].Children;
             int visibleRows = Math.Max(0, dropdown.Height - 2);
             for (int row = 0; row < visibleRows; row++)
@@ -125,21 +124,20 @@ internal sealed class TopMenuLayer : UiLayer<TopMenuFrame>
                 if (itemIndex >= children.Count)
                     break;
 
-                hitRegions.Add(new UiHitRegion(
+                builder.AddHitRegion(new UiHitRegion(
                     DropdownTarget(frame.Definition.Items[frame.ActiveTopMenuIndex].Id, itemIndex),
                     new Rect(dropdown.X + 1, dropdown.Y + 1 + row, Math.Max(0, dropdown.Width - 2), 1)));
             }
         }
 
         if (frame.ScrollbarBounds is { } scrollbar)
-            hitRegions.Add(new UiHitRegion(ScrollbarTarget, scrollbar));
+            builder.AddHitRegion(ScrollbarTarget, scrollbar);
 
         UiTargetId focusTarget = ActiveTarget(frame);
-        return new UiInteractionFrame(
-            hitRegions,
-            new UiFocusFrame(
-                [new UiFocusEntry(focusTarget, 0, IsEnabled: true, Cursor: null)],
-                focusTarget));
+        return builder
+            .AddFocusEntry(focusTarget, 0)
+            .SetDefaultFocusTarget(focusTarget)
+            .Build();
     }
 
     protected override void OnFrameCommitted(TopMenuFrame frame)

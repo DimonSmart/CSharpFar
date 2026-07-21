@@ -161,13 +161,12 @@ internal sealed class CommandCompletionLayer : UiLayer<CommandCompletionFrame>
         if (!frame.Visible)
             return UiInteractionFrame.Empty;
 
-        var hitRegions = frame.Items
-            .Select(item => new UiHitRegion(item.Target, item.Bounds))
-            .ToList();
+        var builder = new UiInteractionFrameBuilder()
+            .AddHitRegions(frame.Items.Select(item => new UiHitRegion(item.Target, item.Bounds)));
         if (frame.ScrollbarBounds is { } scrollbar)
-            hitRegions.Add(new UiHitRegion(ScrollbarTarget, scrollbar));
+            builder.AddHitRegion(ScrollbarTarget, scrollbar);
 
-        return new UiInteractionFrame(hitRegions);
+        return builder.Build();
     }
 
     protected override UiInputResult RouteInput(

@@ -353,18 +353,19 @@ internal sealed class SearchProgressDialog
 
     private static UiInteractionFrame BuildInteractionFrame(SearchProgressFrame frame)
     {
-        var hits = new List<UiHitRegion> { new(ListTarget, frame.Layout.ListBounds) };
+        var builder = new UiInteractionFrameBuilder()
+            .AddHitRegion(ListTarget, frame.Layout.ListBounds)
+            .AddFocusEntry(ListTarget, 0)
+            .SetDefaultFocusTarget(ListTarget)
+            .SetKeyboardTarget(ListTarget);
         if (frame.ListState.ScrollbarBounds is { } scrollbar)
-            hits.Add(new UiHitRegion(ScrollbarTarget, scrollbar));
+            builder.AddHitRegion(ScrollbarTarget, scrollbar);
         if (frame.CanGoTo && frame.Buttons.ButtonBounds.Count > 0)
-            hits.Add(new UiHitRegion(GoToTarget, frame.Buttons.ButtonBounds[0]));
+            builder.AddHitRegion(GoToTarget, frame.Buttons.ButtonBounds[0]);
         if (frame.CanStop && frame.Buttons.ButtonBounds.Count > 1)
-            hits.Add(new UiHitRegion(StopTarget, frame.Buttons.ButtonBounds[1]));
+            builder.AddHitRegion(StopTarget, frame.Buttons.ButtonBounds[1]);
 
-        return new UiInteractionFrame(
-            hits,
-            new UiFocusFrame([new UiFocusEntry(ListTarget, 0)], ListTarget),
-            ListTarget);
+        return builder.Build();
     }
 
     private static (SearchProgressInput Semantic, UiInputResult UiResult) RouteInput(

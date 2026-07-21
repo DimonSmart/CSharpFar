@@ -288,43 +288,39 @@ internal sealed class ApplicationUiSurface : UiLayer<ApplicationUiFrame>, IUiSur
 
     protected override UiInteractionFrame BuildInteractionFrame(ApplicationUiFrame frame)
     {
-        var focusEntries = new List<UiFocusEntry>
-        {
-            new(ApplicationTargetIds.CommandLine, 0, IsEnabled: true, frame.CommandLine.Cursor),
-        };
+        var builder = new UiInteractionFrameBuilder()
+            .AddFocusEntry(ApplicationTargetIds.CommandLine, 0, cursor: frame.CommandLine.Cursor)
+            .SetDefaultFocusTarget(ApplicationTargetIds.CommandLine)
+            .SetKeyboardTarget(ApplicationTargetIds.WorkspaceKeyboard);
         if (frame.Mode == ApplicationWorkspaceMode.Panels)
         {
             if (frame.LeftPanel is not null)
-                focusEntries.Add(new UiFocusEntry(ApplicationTargetIds.LeftPanel, 1));
+                builder.AddFocusEntry(ApplicationTargetIds.LeftPanel, 1);
             if (frame.RightPanel is not null)
-                focusEntries.Add(new UiFocusEntry(ApplicationTargetIds.RightPanel, 2));
+                builder.AddFocusEntry(ApplicationTargetIds.RightPanel, 2);
         }
-
-        var focus = new UiFocusFrame(focusEntries, ApplicationTargetIds.CommandLine);
-
-        var hitRegions = new List<UiHitRegion>();
         if (IsVisible(frame.CommandLine.Bounds, frame.Viewport))
-            hitRegions.Add(new UiHitRegion(ApplicationTargetIds.CommandLine, frame.CommandLine.Bounds));
+            builder.AddHitRegion(ApplicationTargetIds.CommandLine, frame.CommandLine.Bounds);
 
         if (frame.Mode == ApplicationWorkspaceMode.Panels)
         {
-            AddPanelRegions(hitRegions, frame.LeftPanel, frame.Viewport);
-            AddPanelRegions(hitRegions, frame.RightPanel, frame.Viewport);
+            AddPanelRegions(builder, frame.LeftPanel, frame.Viewport);
+            AddPanelRegions(builder, frame.RightPanel, frame.Viewport);
 
             if (frame.FunctionKeyBar is { } functionKeyBar)
             {
                 foreach (var action in functionKeyBar.Actions)
-                    hitRegions.Add(new UiHitRegion(ApplicationTargetIds.FunctionKeyBar, action.Bounds));
+                    builder.AddHitRegion(ApplicationTargetIds.FunctionKeyBar, action.Bounds);
             }
 
             if (frame.DirectoryShortcutBar is { } shortcutBar)
             {
                 foreach (var shortcut in shortcutBar.Shortcuts)
-                    hitRegions.Add(new UiHitRegion(ApplicationTargetIds.DirectoryShortcutBar, shortcut.Bounds));
+                    builder.AddHitRegion(ApplicationTargetIds.DirectoryShortcutBar, shortcut.Bounds);
             }
         }
 
-        return new UiInteractionFrame(hitRegions, focus, ApplicationTargetIds.WorkspaceKeyboard);
+        return builder.Build();
     }
 
     protected override void OnFrameCommitted(ApplicationUiFrame frame)
@@ -358,7 +354,7 @@ internal sealed class ApplicationUiSurface : UiLayer<ApplicationUiFrame>, IUiSur
     }
 
     private static void AddPanelRegions(
-        List<UiHitRegion> hitRegions,
+        UiInteractionFrameBuilder builder,
         ApplicationPanelFrame? panel,
         ConsoleViewport viewport)
     {
@@ -366,12 +362,12 @@ internal sealed class ApplicationUiSurface : UiLayer<ApplicationUiFrame>, IUiSur
             return;
 
         if (IsVisible(panel.Bounds, viewport))
-            hitRegions.Add(new UiHitRegion(ApplicationTargetIds.Panel(panel.Side), panel.Bounds));
+            builder.AddHitRegion(ApplicationTargetIds.Panel(panel.Side), panel.Bounds);
         if (panel.ScrollBar is { } scrollbar &&
             IsVisible(scrollbar.Bounds, viewport) &&
             ScrollBarInteraction.IsInteractive(scrollbar.Bounds, scrollbar.ToScrollState()))
         {
-            hitRegions.Add(new UiHitRegion(ApplicationTargetIds.PanelScrollbar(panel.Side), scrollbar.Bounds));
+            builder.AddHitRegion(ApplicationTargetIds.PanelScrollbar(panel.Side), scrollbar.Bounds);
         }
     }
 

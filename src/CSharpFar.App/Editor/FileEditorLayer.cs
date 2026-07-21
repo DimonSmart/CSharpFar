@@ -42,22 +42,22 @@ internal sealed partial class FileEditor
 
         protected override UiInteractionFrame BuildInteractionFrameCore(FileEditorFrame frame)
         {
-            var regions = new List<UiHitRegion>();
+            var builder = new UiInteractionFrameBuilder()
+                .AddFocusEntry(Keyboard, 0, cursor: frame.CursorPlacement)
+                .SetDefaultFocusTarget(Keyboard)
+                .SetKeyboardTarget(Keyboard);
             if (frame.ContentBounds.Width > 0 && frame.ContentBounds.Height > 0)
-                regions.Add(new UiHitRegion(Content, frame.ContentBounds));
+                builder.AddHitRegion(Content, frame.ContentBounds);
             if (frame.ScrollBarBounds is { } bar &&
                 frame.VerticalScrollState is { } scrollState &&
                 ScrollBarInteraction.IsInteractive(bar, scrollState))
             {
-                regions.Add(new UiHitRegion(Scrollbar, bar));
+                builder.AddHitRegion(Scrollbar, bar);
             }
             foreach (FunctionKeyHit hit in frame.FunctionKeyHits)
-                regions.Add(new UiHitRegion(FunctionKeys, hit.Bounds));
+                builder.AddHitRegion(FunctionKeys, hit.Bounds);
 
-            return new UiInteractionFrame(
-                regions,
-                new UiFocusFrame([new UiFocusEntry(Keyboard, 0, Cursor: frame.CursorPlacement)], Keyboard),
-                Keyboard);
+            return builder.Build();
         }
 
         protected override void OnFrameCommitted(FileEditorFrame frame)

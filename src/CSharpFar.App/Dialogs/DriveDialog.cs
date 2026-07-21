@@ -251,16 +251,19 @@ internal sealed class DriveDialog
 
     private static UiInteractionFrame BuildInteractionFrame(DriveDialogFrame frame)
     {
-        var hitRegions = new List<UiHitRegion>();
+        var builder = new UiInteractionFrameBuilder();
         if (frame.ListBounds.Width > 0 && frame.ListBounds.Height > 0)
-            hitRegions.Add(new UiHitRegion(VolumesTarget, frame.ListBounds));
+            builder.AddHitRegion(VolumesTarget, frame.ListBounds);
         if (frame.ScrollbarBounds is { } scrollbar)
-            hitRegions.Add(new UiHitRegion(VolumesScrollbarTarget, scrollbar));
+            builder.AddHitRegion(VolumesScrollbarTarget, scrollbar);
 
-        UiFocusFrame focus = hitRegions.Count > 0
-            ? new UiFocusFrame([new UiFocusEntry(VolumesTarget, 0)], VolumesTarget)
-            : UiFocusFrame.Empty;
-        return new UiInteractionFrame(hitRegions, focus, hitRegions.Count > 0 ? VolumesTarget : null);
+        return frame.ListBounds.Width > 0 && frame.ListBounds.Height > 0
+            ? builder
+                .AddFocusEntry(VolumesTarget, 0)
+                .SetDefaultFocusTarget(VolumesTarget)
+                .SetKeyboardTarget(VolumesTarget)
+                .Build()
+            : builder.Build();
     }
 
     private void RenderFrame(
