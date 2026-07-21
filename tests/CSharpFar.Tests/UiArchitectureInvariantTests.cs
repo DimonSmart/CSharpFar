@@ -52,12 +52,17 @@ public sealed class UiArchitectureInvariantTests
     }
 
     [Fact]
-    public void ModalConvenienceApis_DelegateToOneRunnerLoop()
+    public void InteractiveHosts_DelegateToOneSharedRunnerLoop()
     {
-        string source = File.ReadAllText(SourcePath("src", "CSharpFar.Ui", "ModalDialogHost.cs"));
+        string modalHost = File.ReadAllText(SourcePath("src", "CSharpFar.Ui", "ModalDialogHost.cs"));
+        string surfaceHost = File.ReadAllText(SourcePath("src", "CSharpFar.Ui", "InteractiveSurfaceHost.cs"));
+        string runner = File.ReadAllText(SourcePath("src", "CSharpFar.Ui", "InteractiveLayerRunner.cs"));
 
-        Assert.Contains("RunInteractiveCore<TFrame, Unit, TResult>", source, StringComparison.Ordinal);
-        Assert.Equal(1, source.Split("while (true)", StringSplitOptions.None).Length - 1);
+        Assert.Contains("InteractiveLayerRunner", modalHost, StringComparison.Ordinal);
+        Assert.Contains("InteractiveLayerRunner", surfaceHost, StringComparison.Ordinal);
+        Assert.DoesNotContain("while (true)", modalHost, StringComparison.Ordinal);
+        Assert.DoesNotContain("while (true)", surfaceHost, StringComparison.Ordinal);
+        Assert.Equal(1, runner.Split("while (true)", StringSplitOptions.None).Length - 1);
     }
 
     [Fact]

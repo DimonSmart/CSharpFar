@@ -27,44 +27,53 @@ public sealed class InteractiveSurfaceHost
         Func<TFrame, InteractiveSurfaceWakeResult>? handleWake = null,
         CancellationToken cancellationToken = default)
     {
-        ArgumentNullException.ThrowIfNull(layer);
-        ArgumentNullException.ThrowIfNull(handleInput);
-        if ((getNextWakeUtc is null) != (handleWake is null))
-            throw new ArgumentException("Timed interactive surfaces require both wake scheduling and wake handling.");
+        return new InteractiveLayerRunner(_composition).Run(
+            layer,
+            InteractiveLayerPlacement.TemporarySurface,
+            () => layer.CommittedFrame,
+            layer.TryTakeInteractiveInput,
+            layer.RequestFocusOnNextCommit,
+            layer.ClearPendingInput,
+            handleInput,
+            prepareRender,
+            applyCommittedFrame: null,
+            getNextWakeUtc,
+            handleWake is null ? null : frame =>
+                new InteractiveLayerWakeResult<TResult>(handleWake(frame).Invalidate, false, default!),
+            cancellationToken);
+    }
 
-        prepareRender?.Invoke();
-        using var surface = _composition.OpenSurface(new InteractiveSurface(_composition.Screen), layer);
-        _composition.Render();
+    /// <summary>Runs a timed temporary surface whose wake handler may complete the session.</summary>
+    public TResult RunTimed<TFrame, TSemantic, TResult>(
+        InteractiveSurfaceLayer<TFrame, TSemantic> layer,
+        Func<UiRoutedInput<TFrame>, TSemantic, ModalDialogLoopResult<TResult>> handleInput,
+        Func<DateTimeOffset?> getNextWakeUtc,
+        Func<TFrame, InteractiveSurfaceWakeResult<TResult>> handleWake,
+        Action? prepareRender = null,
+        CancellationToken cancellationToken = default,
+        CancellationToken wakeSignal = default)
+    {
+        ArgumentNullException.ThrowIfNull(getNextWakeUtc);
+        ArgumentNullException.ThrowIfNull(handleWake);
 
-        while (true)
-        {
-            var pump = new CompositionInputPump<InteractiveSurfaceInput<TFrame, TSemantic>>(
-                _composition,
-                layer.TryTakeInput);
-            CompositionInputPumpResult<InteractiveSurfaceInput<TFrame, TSemantic>> read =
-                getNextWakeUtc is null
-                    ? CompositionInputPumpResult<InteractiveSurfaceInput<TFrame, TSemantic>>.Input(pump.Read(cancellationToken))
-                    : pump.ReadOrWake(getNextWakeUtc, cancellationToken);
-            if (read.IsWake)
+        return new InteractiveLayerRunner(_composition).Run(
+            layer,
+            InteractiveLayerPlacement.TemporarySurface,
+            () => layer.CommittedFrame,
+            layer.TryTakeInteractiveInput,
+            layer.RequestFocusOnNextCommit,
+            layer.ClearPendingInput,
+            handleInput,
+            prepareRender,
+            applyCommittedFrame: null,
+            getNextWakeUtc,
+            frame =>
             {
-                InteractiveSurfaceWakeResult wake = handleWake!(layer.CommittedFrame);
-                if (wake.Invalidate)
-                {
-                    prepareRender?.Invoke();
-                    _composition.Render();
-                }
-
-                continue;
-            }
-
-            InteractiveSurfaceInput<TFrame, TSemantic> packet = read.RequiredPacket;
-            ModalDialogLoopResult<TResult> step = handleInput(packet.Routed, packet.Semantic);
-            if (step.IsCompleted)
-                return step.Result;
-
-            prepareRender?.Invoke();
-            _composition.Render();
-        }
+                InteractiveSurfaceWakeResult<TResult> wake = handleWake(frame);
+                return new InteractiveLayerWakeResult<TResult>(wake.Invalidate, wake.IsCompleted, wake.Result);
+            },
+            cancellationToken,
+            wakeSignal);
     }
 }
 
@@ -100,7 +109,7 @@ public class InteractiveSurfaceLayer<TFrame, TSemantic> : UiLayer<TFrame>
     private readonly Func<UiRenderContext, UiFocusScope, TFrame> _render;
     private readonly Func<TFrame, UiInteractionFrame> _buildInteractionFrame;
     private readonly Func<ConsoleInputEvent, TFrame, UiInputRouteContext, InteractiveSurfaceRouteResult<TSemantic>> _routeInput;
-    private InteractiveSurfaceInput<TFrame, TSemantic>? _pendingInput;
+    private readonly PendingInputSlot<InteractiveLayerInput<TFrame, TSemantic>> _pendingInput = new();
 
     public InteractiveSurfaceLayer(
         Func<UiRenderContext, UiFocusScope, TFrame> render,
@@ -120,12 +129,9 @@ public class InteractiveSurfaceLayer<TFrame, TSemantic> : UiLayer<TFrame>
 
     protected override UiInputResult RouteInput(ConsoleInputEvent input, TFrame frame, UiInputRouteContext context)
     {
-        if (_pendingInput is not null)
-            throw new InvalidOperationException("Surface input was dispatched before the previous input was consumed.");
-
         var result = RouteSemanticInput(input, frame, context);
-        _pendingInput = new InteractiveSurfaceInput<TFrame, TSemantic>(
-            new UiRoutedInput<TFrame>(input, frame, context.Target, context.RouteKind), result.Semantic);
+        _pendingInput.Store(new InteractiveLayerInput<TFrame, TSemantic>(
+            new UiRoutedInput<TFrame>(input, frame, context.Target, context.RouteKind), result.Semantic));
         return result.ToUiInputResult();
     }
 
@@ -136,16 +142,33 @@ public class InteractiveSurfaceLayer<TFrame, TSemantic> : UiLayer<TFrame>
 
     public bool TryTakeInput(out InteractiveSurfaceInput<TFrame, TSemantic> input)
     {
-        if (_pendingInput is null)
+        if (!TryTakeInteractiveInput(out var packet))
         {
             input = null!;
             return false;
         }
 
-        input = _pendingInput;
-        _pendingInput = null;
+        input = new InteractiveSurfaceInput<TFrame, TSemantic>(packet.Routed, packet.Semantic);
         return true;
     }
+
+    internal bool TryTakeInteractiveInput(out InteractiveLayerInput<TFrame, TSemantic> input) =>
+        _pendingInput.TryTake(out input);
+
+    internal void ClearPendingInput() => _pendingInput.Clear();
+}
+
+public readonly record struct InteractiveSurfaceWakeResult<TResult>(
+    bool Invalidate,
+    bool IsCompleted,
+    TResult Result)
+{
+    public static InteractiveSurfaceWakeResult<TResult> NoChange => new(false, false, default!);
+
+    public static InteractiveSurfaceWakeResult<TResult> Changed => new(true, false, default!);
+
+    public static InteractiveSurfaceWakeResult<TResult> Complete(TResult result, bool invalidate = false) =>
+        new(invalidate, true, result);
 }
 
 public sealed record InteractiveSurfaceInput<TFrame, TSemantic>(UiRoutedInput<TFrame> Routed, TSemantic Semantic);

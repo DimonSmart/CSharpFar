@@ -73,7 +73,6 @@ public sealed class ModalDialogHost
             (routed, _) => handleInput(routed),
             prepareRender,
             applyCommittedFrame,
-            true,
             getNextWakeUtc: null,
             handleWake: null,
             cancellationToken);
@@ -103,7 +102,6 @@ public sealed class ModalDialogHost
             handleInput,
             prepareRender,
             applyCommittedFrame,
-            false,
             getNextWakeUtc: null,
             handleWake: null,
             cancellationToken);
@@ -131,7 +129,6 @@ public sealed class ModalDialogHost
             handleInput,
             prepareRender,
             applyCommittedFrame,
-            false,
             getNextWakeUtc,
             handleWake,
             cancellationToken,
@@ -145,59 +142,30 @@ public sealed class ModalDialogHost
         Func<UiRoutedInput<TFrame>, TSemantic, ModalDialogLoopResult<TResult>> handleInput,
         Action? prepareRender,
         Action<TFrame>? applyCommittedFrame,
-        bool applyCommittedFrameBeforeHandler,
         Func<DateTimeOffset?>? getNextWakeUtc,
         Func<TFrame, ModalDialogWakeResult<TResult>>? handleWake,
         CancellationToken cancellationToken,
         CancellationToken wakeSignal = default)
     {
-        ArgumentNullException.ThrowIfNull(render);
-        ArgumentNullException.ThrowIfNull(buildInteractionFrame);
-        ArgumentNullException.ThrowIfNull(routeInput);
-        ArgumentNullException.ThrowIfNull(handleInput);
-        if ((getNextWakeUtc is null) != (handleWake is null))
-            throw new ArgumentException("Timed interactive modals require both wake scheduling and wake handling.");
-
-        prepareRender?.Invoke();
         var layer = new InteractiveModalDialogLayer<TFrame, TSemantic>(render, buildInteractionFrame, routeInput);
-        using var session = OpenInteractive(layer);
-        TFrame frame = session.Render();
-        applyCommittedFrame?.Invoke(frame);
-        while (true)
-        {
-            CompositionInputPumpResult<InteractiveModalInput<TFrame, TSemantic>> read = session.ReadInteractiveInputOrWake(
-                getNextWakeUtc,
-                cancellationToken,
-                wakeSignal);
-            if (read.IsWake)
+        return new InteractiveLayerRunner(_composition).Run(
+            layer,
+            InteractiveLayerPlacement.Overlay,
+            () => layer.CommittedFrame,
+            layer.TryTakeInput,
+            layer.RequestFocusOnNextCommit,
+            layer.ClearPendingInput,
+            handleInput,
+            prepareRender,
+            applyCommittedFrame,
+            getNextWakeUtc,
+            handleWake is null ? null : frame =>
             {
-                ModalDialogWakeResult<TResult> wake = handleWake!(layer.CommittedFrame);
-                if (wake.Invalidate)
-                {
-                    prepareRender?.Invoke();
-                    frame = session.Render();
-                    applyCommittedFrame?.Invoke(frame);
-                }
-
-                if (wake.IsCompleted)
-                    return wake.Result;
-
-                continue;
-            }
-
-            InteractiveModalInput<TFrame, TSemantic> packet = read.RequiredPacket;
-            if (applyCommittedFrameBeforeHandler)
-                applyCommittedFrame?.Invoke(packet.Routed.Frame);
-            ModalDialogLoopResult<TResult> step = handleInput(packet.Routed, packet.Semantic);
-            if (step.IsCompleted)
-                return step.Result;
-
-            layer.RequestFocusOnNextCommit(step.FocusRequest);
-
-            prepareRender?.Invoke();
-            frame = session.Render();
-            applyCommittedFrame?.Invoke(frame);
-        }
+                ModalDialogWakeResult<TResult> wake = handleWake(frame);
+                return new InteractiveLayerWakeResult<TResult>(wake.Invalidate, wake.IsCompleted, wake.Result);
+            },
+            cancellationToken,
+            wakeSignal);
     }
 
     public void Run<TFrame>(
@@ -257,14 +225,6 @@ public sealed class ModalDialogHost
             cancellationToken);
     }
 
-    private InteractiveModalDialogSession<TFrame, TSemantic> OpenInteractive<TFrame, TSemantic>(
-        InteractiveModalDialogLayer<TFrame, TSemantic> layer)
-    {
-        var overlay = _composition.PushOverlay(layer);
-        return new InteractiveModalDialogSession<TFrame, TSemantic>(
-            new ModalDialogLayerScope(_composition, overlay),
-            layer);
-    }
 }
 
 internal readonly struct Unit;
@@ -370,56 +330,6 @@ public sealed class ModalDialogSession<TFrame> : IDisposable
     }
 }
 
-internal sealed class InteractiveModalDialogSession<TFrame, TSemantic> : IDisposable
-{
-    private readonly ModalDialogLayerScope _scope;
-    private readonly InteractiveModalDialogLayer<TFrame, TSemantic> _layer;
-    private readonly CompositionInputPump<InteractiveModalInput<TFrame, TSemantic>> _pump;
-
-    internal InteractiveModalDialogSession(
-        ModalDialogLayerScope scope,
-        InteractiveModalDialogLayer<TFrame, TSemantic> layer)
-    {
-        (_scope, _layer) = (scope, layer);
-        _pump = new CompositionInputPump<InteractiveModalInput<TFrame, TSemantic>>(
-            scope.Composition,
-            layer.TryTakeInput,
-            scope.EnsureActive);
-    }
-
-    public TFrame Render()
-    {
-        _scope.EnsureActive();
-        _scope.Composition.Render();
-        return _layer.CommittedFrame;
-    }
-
-    public InteractiveModalInput<TFrame, TSemantic> ReadInteractiveInput(CancellationToken cancellationToken = default)
-    {
-        return _pump.Read(cancellationToken);
-    }
-
-    public CompositionInputPumpResult<InteractiveModalInput<TFrame, TSemantic>> ReadInteractiveInputOrWake(
-        Func<DateTimeOffset?>? getNextWakeUtc,
-        CancellationToken cancellationToken = default,
-        CancellationToken wakeSignal = default)
-    {
-        return getNextWakeUtc is null
-            ? CompositionInputPumpResult<InteractiveModalInput<TFrame, TSemantic>>.Input(_pump.Read(cancellationToken))
-            : _pump.ReadOrWake(getNextWakeUtc, cancellationToken, wakeSignal);
-    }
-
-    public void Dispose()
-    {
-        _scope.Dispose();
-        _layer.ClearPendingInput();
-    }
-}
-
-internal sealed record InteractiveModalInput<TFrame, TSemantic>(
-    UiRoutedInput<TFrame> Routed,
-    TSemantic Semantic);
-
 internal sealed class ModalDialogLayerScope : IDisposable
 {
     private UiCompositionHost? _composition;
@@ -487,7 +397,7 @@ internal sealed class InteractiveModalDialogLayer<TFrame, TSemantic> : UiLayer<T
     private readonly Func<UiRenderContext, UiFocusScope, TFrame> _render;
     private readonly Func<TFrame, UiInteractionFrame> _buildInteractionFrame;
     private readonly Func<ConsoleInputEvent, TFrame, UiInputRouteContext, (TSemantic Semantic, UiInputResult UiResult)> _routeInput;
-    private readonly PendingInputSlot<InteractiveModalInput<TFrame, TSemantic>> _pendingInput = new();
+    private readonly PendingInputSlot<InteractiveLayerInput<TFrame, TSemantic>> _pendingInput = new();
 
     public InteractiveModalDialogLayer(
         Func<UiRenderContext, UiFocusScope, TFrame> render,
@@ -509,7 +419,7 @@ internal sealed class InteractiveModalDialogLayer<TFrame, TSemantic> : UiLayer<T
         UiInputRouteContext context)
     {
         var routed = _routeInput(input, frame, context);
-        _pendingInput.Store(new InteractiveModalInput<TFrame, TSemantic>(
+        _pendingInput.Store(new InteractiveLayerInput<TFrame, TSemantic>(
             new UiRoutedInput<TFrame>(input, frame, context.Target, context.RouteKind),
             routed.Semantic));
         UiInputResult result = routed.UiResult;
@@ -518,7 +428,7 @@ internal sealed class InteractiveModalDialogLayer<TFrame, TSemantic> : UiLayer<T
             : new UiInputResult(true, result.Invalidate, result.FocusRequest, result.MouseCaptureRequest);
     }
 
-    public bool TryTakeInput(out InteractiveModalInput<TFrame, TSemantic> routed)
+    public bool TryTakeInput(out InteractiveLayerInput<TFrame, TSemantic> routed)
     {
         return _pendingInput.TryTake(out routed);
     }
