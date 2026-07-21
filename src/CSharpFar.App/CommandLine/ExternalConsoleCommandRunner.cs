@@ -50,6 +50,7 @@ internal sealed class ExternalConsoleCommandRunner
             PrintInputPrompt(workDir);
 
             _terminalSurface.CaptureUnderlay();
+            _screen.InvalidatePhysicalOutput();
 
             _refreshPanels();
             _state.WorkspaceMode = workspaceModeAfterCommand;

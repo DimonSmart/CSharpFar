@@ -70,6 +70,19 @@ public sealed class ScreenRenderer
         _driver.TryIsViewportAtBottom(out isAtBottom);
 
     /// <summary>
+    /// Marks the physical output surface as unknown so the next frame is rendered in full.
+    /// </summary>
+    public void InvalidatePhysicalOutput()
+    {
+        if (_frameActive)
+            throw new InvalidOperationException("Cannot invalidate physical output during an active render frame.");
+
+        _frontBufferKnown = false;
+        _frontBufferViewport = null;
+        _forceFullFrame = true;
+    }
+
+    /// <summary>
     /// The size captured at <see cref="BeginFrame"/>. All rendering within a frame
     /// must use this value — not a second call to <see cref="GetSize"/> — to guarantee
     /// that layout and clip bounds are consistent with the back-buffer dimensions.

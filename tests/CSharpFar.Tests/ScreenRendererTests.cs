@@ -149,6 +149,25 @@ public class ScreenRendererTests
     }
 
     [Fact]
+    public void InvalidatePhysicalOutput_RedrawsCapturedContentAfterSurfaceChanges()
+    {
+        var (renderer, driver) = Create(10, 5);
+        var style = new CellStyle(ConsoleColor.Yellow, ConsoleColor.DarkBlue);
+        driver.WriteAt(0, 0, "PROMPT".AsSpan(), style.Foreground, style.Background);
+        renderer.Capture(new Rect(0, 0, 10, 5));
+
+        renderer.InvalidatePhysicalOutput();
+        driver.ClearRegion(new Rect(0, 0, 10, 5));
+        driver.ClearRecordedOperations();
+
+        using (renderer.BeginFrame())
+            renderer.Write(0, 0, "PROMPT", style);
+
+        Assert.StartsWith("PROMPT", driver.GetRow(0));
+        Assert.NotEqual(0, driver.WriteAtCallCount);
+    }
+
+    [Fact]
     public void Restore_SynchronizesBufferedState()
     {
         var (renderer, driver) = Create(10, 5);
