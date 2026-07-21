@@ -132,6 +132,21 @@ public sealed class Spec018CommandHistoryCompletionTests : IDisposable
     }
 
     [Fact]
+    public void ExecuteCommand_RemovesLeadingSpacesBeforeShellExecutionAndHistory()
+    {
+        var history = new InMemoryHistoryStore();
+        var shell = new RecordingShellService();
+        var driver = new FakeConsoleDriver(width: 100, height: 12);
+
+        var app = CreateApp(driver, history, shell);
+        app.ExecuteCommand("  long-running-command  ");
+
+        Assert.Equal(["long-running-command  "], shell.ExecutedCommands);
+        var item = Assert.Single(history.GetCommandHistory());
+        Assert.Equal("long-running-command  ", item.Command);
+    }
+
+    [Fact]
     public void Run_VisiblePanels_CompletionRendersSingleBorderedList()
     {
         var history = CreateHistory("git status", "git commit", "git branch");

@@ -47,6 +47,7 @@ internal sealed class CommandLineCommandExecutor
 
     public void Execute(string command)
     {
+        command = command.TrimStart(' ');
         string workDir = _activeState().CurrentDirectory;
         _closePanelQuickSearch();
         _commandLine.Clear();
