@@ -292,7 +292,7 @@ public sealed class ApplicationUiSurfaceTests
     {
         var services = Services();
         services.Session.CommandLine.Completion.Visible = true;
-        services.Session.CommandLine.Completion.Matches.AddRange(["", "alpha"]);
+        services.Session.CommandLine.Completion.List.ResetItems(["", "alpha"]);
 
         services.Composition.Render();
 

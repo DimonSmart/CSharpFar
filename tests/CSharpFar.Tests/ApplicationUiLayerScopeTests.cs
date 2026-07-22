@@ -18,8 +18,7 @@ public sealed class ApplicationUiLayerScopeTests
     {
         using var fixture = Fixture.Create();
         fixture.Services.Session.CommandLine.Completion.Visible = true;
-        fixture.Services.Session.CommandLine.Completion.Matches.AddRange(["", "alpha"]);
-        fixture.Services.Session.CommandLine.Completion.SelectedIndex = 1;
+        fixture.Services.Session.CommandLine.Completion.List.ResetItems(["", "alpha"], 1);
         fixture.Host.Render();
 
         var passthrough = Key(ConsoleKey.A, 'a');
@@ -43,7 +42,7 @@ public sealed class ApplicationUiLayerScopeTests
     {
         using var fixture = Fixture.Create();
         fixture.Services.Session.CommandLine.Completion.Visible = true;
-        fixture.Services.Session.CommandLine.Completion.Matches.AddRange(["", "alpha"]);
+        fixture.Services.Session.CommandLine.Completion.List.ResetItems(["", "alpha"]);
         fixture.Host.Render();
 
         Assert.Equal('R', fixture.Driver.GetCell(0, 0).Character);
@@ -68,7 +67,7 @@ public sealed class ApplicationUiLayerScopeTests
     {
         using var fixture = Fixture.Create();
         fixture.Services.Session.CommandLine.Completion.Visible = true;
-        fixture.Services.Session.CommandLine.Completion.Matches.AddRange(["", "alpha"]);
+        fixture.Services.Session.CommandLine.Completion.List.ResetItems(["", "alpha"]);
         fixture.Host.Render();
 
         fixture.Scope.Dispose();
@@ -177,8 +176,7 @@ public sealed class ApplicationUiLayerScopeTests
 
         fixture.Host.DispatchInput(Key(ConsoleKey.G, 'g', alt: true));
         fixture.Services.Session.CommandLine.Completion.Visible = true;
-        fixture.Services.Session.CommandLine.Completion.Matches.AddRange(["", "completion"]);
-        fixture.Services.Session.CommandLine.Completion.SelectedIndex = 1;
+        fixture.Services.Session.CommandLine.Completion.List.ResetItems(["", "completion"], 1);
         fixture.Host.Render();
 
         var quickSearchInput = Key(ConsoleKey.A, 'a');

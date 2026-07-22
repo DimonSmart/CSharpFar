@@ -16,7 +16,7 @@ internal sealed class CommandCompletionController
         _state = state;
     }
 
-    public bool IsNeutralSelected => _state.SelectedIndex == NeutralIndex;
+    public bool IsNeutralSelected => _state.List.SelectedIndex == NeutralIndex;
 
     public void Refresh(CommandLineState commandLine, bool isPanelsMode, bool hasRows)
     {
@@ -30,6 +30,7 @@ internal sealed class CommandCompletionController
             return;
         }
 
+        var items = new List<string> { string.Empty };
         var seen = new HashSet<string>(StringComparer.Ordinal);
         var history = _history.GetCommandHistory();
         for (int i = history.Count - 1; i >= 0; i--)
@@ -39,86 +40,39 @@ internal sealed class CommandCompletionController
                 continue;
 
             if (seen.Add(command))
-                _state.Matches.Add(command);
+                items.Add(command);
         }
 
-        if (_state.Matches.Count == 0)
+        if (items.Count == 1)
             return;
 
-        _state.Matches.Insert(NeutralIndex, string.Empty);
+        _state.List.ResetItems(items, selectedIndex: NeutralIndex);
         _state.Visible = true;
-        _state.FirstVisibleIndex = 0;
     }
 
-    public void ClampSelectionToViewport(int visibleRows)
-    {
-        if (_state.Matches.Count == 0)
-        {
-            _state.SelectedIndex = 0;
-            _state.FirstVisibleIndex = 0;
-            return;
-        }
-
-        int lastVisibleIndex = Math.Min(
-            _state.Matches.Count - 1,
-            _state.FirstVisibleIndex + visibleRows - 1);
-        _state.SelectedIndex = Math.Clamp(
-            _state.SelectedIndex,
-            _state.FirstVisibleIndex,
-            lastVisibleIndex);
-    }
-
-    public bool TryMoveSelection(int delta, int visibleRows)
-    {
-        if (!_state.Visible || _state.Matches.Count == 0 || visibleRows <= 0)
-            return false;
-
-        _state.SelectedIndex = Math.Clamp(
-            _state.SelectedIndex + delta,
-            0,
-            _state.Matches.Count - 1);
-        _state.FirstVisibleIndex = ScrollStateCalculator.EnsureIndexVisible(
-            _state.SelectedIndex,
-            _state.FirstVisibleIndex,
-            visibleRows);
-        _state.FirstVisibleIndex = ScrollStateCalculator.ClampFirstVisibleIndex(
-            _state.FirstVisibleIndex,
-            _state.Matches.Count,
-            visibleRows);
-        return true;
-    }
-
-    public bool TryRemoveSelectedCommand(CommandLineState commandLine, int visibleRows)
+    public bool TryRemoveSelectedCommand(CommandLineState commandLine)
     {
         if (!_state.Visible ||
-            _state.SelectedIndex == NeutralIndex ||
-            _state.SelectedIndex >= _state.Matches.Count ||
+            _state.List.SelectedIndex == NeutralIndex ||
+            _state.List.SelectedIndex >= _state.Matches.Count ||
             commandLine.HasSelection ||
             commandLine.CursorPosition != commandLine.Text.Length)
         {
             return false;
         }
 
-        string command = _state.Matches[_state.SelectedIndex];
+        string command = _state.Matches[_state.List.SelectedIndex];
         if (string.IsNullOrEmpty(command) || !_history.RemoveCommand(command))
             return false;
 
-        _state.Matches.RemoveAt(_state.SelectedIndex);
-        if (_state.Matches.Count <= 1)
+        var items = _state.Matches.Where((_, index) => index != _state.List.SelectedIndex).ToArray();
+        if (items.Length <= 1)
         {
             _state.ClearMatches();
             return true;
         }
 
-        _state.SelectedIndex = Math.Min(_state.SelectedIndex, _state.Matches.Count - 1);
-        _state.FirstVisibleIndex = ScrollStateCalculator.EnsureIndexVisible(
-            _state.SelectedIndex,
-            _state.FirstVisibleIndex,
-            visibleRows);
-        _state.FirstVisibleIndex = ScrollStateCalculator.ClampFirstVisibleIndex(
-            _state.FirstVisibleIndex,
-            _state.Matches.Count,
-            visibleRows);
+        _state.List.ResetItems(items, Math.Min(_state.List.SelectedIndex, items.Length - 1));
         return true;
     }
 

@@ -10,6 +10,24 @@ namespace CSharpFar.Tests;
 public sealed class ScrollableListTests
 {
     [Fact]
+    public void ResetItems_ReplacesItemsResetsViewportSelectionAndDrag()
+    {
+        var list = Create(Enumerable.Range(0, 20).Select(i => i.ToString()).ToArray());
+        list.SelectedIndex = 10;
+        list.ScrollTop = 8;
+        list.HandleMouse(Mouse(MouseButton.Left, MouseEventKind.Down, 9, 1), new Rect(0, 0, 9, 6), new Rect(9, 0, 1, 6), 6);
+
+        list.ResetItems(["a", "b"], 1);
+
+        Assert.Equal(["a", "b"], list.Items);
+        Assert.Equal(1, list.SelectedIndex);
+        Assert.Equal(0, list.ScrollTop);
+        Assert.Null(list.ScrollbarDrag);
+        list.ResetItems([]);
+        Assert.Equal(-1, list.SelectedIndex);
+    }
+
+    [Fact]
     public void Normalize_EmptyList_SetsSelectedIndexToMinusOneAndScrollTopToZero()
     {
         var list = Create([]);

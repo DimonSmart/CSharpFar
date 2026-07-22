@@ -73,6 +73,18 @@ public sealed class ScrollableList<T>
 
     public ScrollBarDragState? ScrollbarDrag => _scrollbarDrag;
 
+    public void ResetItems(IReadOnlyList<T> items, int selectedIndex = 0)
+    {
+        ArgumentNullException.ThrowIfNull(items);
+
+        Items = items;
+        _scrollbarDrag = null;
+        ScrollTop = 0;
+        SelectedIndex = Items.Count == 0 ? -1 : Math.Clamp(selectedIndex, 0, Items.Count - 1);
+    }
+
+    public void ClearScrollbarDrag() => _scrollbarDrag = null;
+
     public void Normalize(int viewportRows)
     {
         if (!HasItems)

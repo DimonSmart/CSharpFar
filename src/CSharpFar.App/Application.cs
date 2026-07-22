@@ -35,7 +35,6 @@ namespace CSharpFar.App;
 
 public sealed class Application
 {
-    private const int MaxCommandCompletionRows = CommandHistoryCompletionRenderer.MaxVisibleRows;
 
     private readonly ScreenRenderer _screen;
     private readonly ApplicationRuntime _runtime;
@@ -399,17 +398,11 @@ public sealed class Application
     private bool HasCommandCompletionRows()
     {
         var size = LastRenderSizeOrCurrent();
-        return CommandCompletionVisibleRows(size) > 0;
+        return CommandCompletionLayout.VisibleRows(size) > 0;
     }
 
     private ConsoleSize LastRenderSizeOrCurrent() =>
         _ui.LastRenderViewport?.Size ?? _screen.GetSize();
-
-    private static int CommandCompletionVisibleRows(ConsoleSize size)
-    {
-        int rowsAboveCommandLine = ApplicationLayoutService.CommandLineRow(size) - 2;
-        return Math.Max(0, Math.Min(MaxCommandCompletionRows, rowsAboveCommandLine));
-    }
 
     internal void HideCommandCompletion(bool temporarily)
     {

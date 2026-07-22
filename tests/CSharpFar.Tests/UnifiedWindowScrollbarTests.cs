@@ -164,23 +164,6 @@ public sealed class UnifiedWindowScrollbarTests
     }
 
     [Fact]
-    public void CommandCompletion_Overflow_DrawsScrollbarOnPopupBorder()
-    {
-        var driver = new FakeConsoleDriver(width: 40, height: 12);
-        var screen = new ScreenRenderer(driver);
-        var commands = Enumerable.Range(0, 10).Select(i => $"git command {i}").ToArray();
-
-        new CommandHistoryCompletionRenderer(screen).Render(
-            commandLineRow: 10,
-            totalWidth: 40,
-            commands,
-            selectedIndex: 0);
-
-        Assert.Equal('▲', driver.GetCell(39, 1).Character);
-        Assert.Equal('▼', driver.GetCell(39, 8).Character);
-    }
-
-    [Fact]
     public void SearchProgress_OverflowResults_DrawsScrollbar()
     {
         var driver = new FakeConsoleDriver(width: 100, height: 30);

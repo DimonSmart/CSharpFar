@@ -8,11 +8,7 @@ using CSharpFar.Ui;
 
 namespace CSharpFar.App.Rendering;
 
-internal sealed record CommandCompletionItemFrame(
-    int AbsoluteIndex,
-    string Text,
-    Rect Bounds,
-    UiTargetId Target);
+internal sealed record CommandCompletionItemFrame(int AbsoluteIndex, string Text, Rect Bounds, UiTargetId Target);
 
 internal sealed record CommandCompletionFrame(
     bool Visible,
@@ -24,23 +20,19 @@ internal sealed record CommandCompletionFrame(
     int VisibleRows,
     int FirstVisibleIndex,
     int SelectedIndex,
-    int MatchCount);
+    int MatchCount,
+    ScrollableListFrameState ListState);
 
 internal sealed class CommandCompletionLayer : UiLayer<CommandCompletionFrame>
 {
-    private const int MaxVisibleRows = CommandHistoryCompletionRenderer.MaxVisibleRows;
     private static readonly UiTargetId ScrollbarTarget = new("application.command-completion.scrollbar");
-
     private readonly ApplicationRenderContext _context;
     private readonly CommandCompletionController _controller;
     private readonly Action<bool> _hideCompletion;
     private readonly Action _resetHistoryNavigation;
+    private readonly PopupRenderer _popupRenderer = new();
 
-    public CommandCompletionLayer(
-        ApplicationRenderContext context,
-        CommandCompletionController controller,
-        Action<bool> hideCompletion,
-        Action resetHistoryNavigation)
+    public CommandCompletionLayer(ApplicationRenderContext context, CommandCompletionController controller, Action<bool> hideCompletion, Action resetHistoryNavigation)
     {
         _context = context;
         _controller = controller;
@@ -48,314 +40,148 @@ internal sealed class CommandCompletionLayer : UiLayer<CommandCompletionFrame>
         _resetHistoryNavigation = resetHistoryNavigation;
     }
 
-    public override UiLayerInputPolicy InputPolicy =>
-        HasCommittedFrame && CommittedFrame.Visible
-            ? UiLayerInputPolicy.Bubble
-            : UiLayerInputPolicy.None;
+    public override UiLayerInputPolicy InputPolicy => HasCommittedFrame && CommittedFrame.Visible ? UiLayerInputPolicy.Bubble : UiLayerInputPolicy.None;
 
     protected override CommandCompletionFrame RenderFrame(UiRenderContext context)
     {
         var completion = _context.CommandCompletion;
-        var empty = new CommandCompletionFrame(
-            false,
-            context.Viewport,
-            default,
-            default,
-            [],
-            null,
-            0,
-            completion.FirstVisibleIndex,
-            completion.SelectedIndex,
-            completion.Matches.Count);
-
+        var list = completion.List;
+        var empty = new CommandCompletionFrame(false, context.Viewport, default, default, [], null, 0, list.ScrollTop, list.SelectedIndex, list.Count, ScrollableListFrameState.Empty);
         if (_context.App.WorkspaceMode != ApplicationWorkspaceMode.Panels)
             return empty;
 
-        int visibleRows = VisibleRows(context.Size);
-        if (!completion.Visible || completion.Matches.Count == 0 || visibleRows <= 0)
+        int availableRows = CommandCompletionLayout.VisibleRows(context.Size);
+        if (!completion.Visible || !list.HasItems || availableRows <= 0)
             return empty;
 
-        int rowCount = Math.Min(visibleRows, completion.Matches.Count);
-        int selected = Math.Clamp(completion.SelectedIndex, 0, completion.Matches.Count - 1);
-        int first = ScrollStateCalculator.EnsureIndexVisible(selected, completion.FirstVisibleIndex, rowCount);
-        first = ScrollStateCalculator.ClampFirstVisibleIndex(first, completion.Matches.Count, rowCount);
+        int rowCount = Math.Min(availableRows, list.Count);
         int height = rowCount + 2;
         int commandLineRow = ApplicationLayoutService.CommandLineRow(context.Size);
         var popupBounds = new Rect(0, commandLineRow - height, context.Size.Width, height);
         var contentBounds = new Rect(1, popupBounds.Y + 1, Math.Max(0, popupBounds.Width - 2), rowCount);
-        Rect candidateScrollbarBounds = new(popupBounds.Right - 1, popupBounds.Y + 1, 1, rowCount);
-        var scrollbarState = new ScrollState
+        var candidateScrollbarBounds = new Rect(popupBounds.Right - 1, popupBounds.Y + 1, 1, rowCount);
+        ScrollableListFrameState candidateState = list.CalculateFrameState(rowCount, candidateScrollbarBounds);
+        ScrollState? scrollState = list.GetScrollState(rowCount, candidateState.ScrollTop);
+        Rect? scrollbarBounds = scrollState is not null && ScrollBarInteraction.IsInteractive(candidateScrollbarBounds, scrollState)
+            ? candidateScrollbarBounds
+            : null;
+        ScrollableListFrameState listState = list.CalculateFrameState(rowCount, scrollbarBounds);
+
+        var popupOptions = PaletteStyles.DialogPopupOptions(_context.App.Palette) with
         {
-            TotalItems = completion.Matches.Count,
-            ViewportItems = rowCount,
-            FirstVisibleIndex = first,
+            DrawShadow = false,
+            VerticalScrollState = list.GetScrollState(rowCount, listState.ScrollTop),
         };
-        Rect? scrollbarBounds = completion.Matches.Count > rowCount &&
-            ScrollBarInteraction.IsInteractive(candidateScrollbarBounds, scrollbarState)
-                ? candidateScrollbarBounds
-                : null;
+        _popupRenderer.RenderPopup(context.Screen, popupBounds, popupOptions, (screen, bounds) =>
+            list.Render(screen, bounds, listState, PaletteStyles.DialogFill(_context.App.Palette), PaletteStyles.InputField(_context.App.Palette), PaletteStyles.DialogFill(_context.App.Palette)));
 
-        new CommandHistoryCompletionRenderer(context.Screen, _context.App.Palette).Render(
-            commandLineRow,
-            context.Size.Width,
-            completion.Matches,
-            selected,
-            first);
-
-        var items = Enumerable.Range(0, rowCount)
-            .Select(row =>
-            {
-                int absoluteIndex = first + row;
-                return new CommandCompletionItemFrame(
-                    absoluteIndex,
-                    completion.Matches[absoluteIndex],
-                    new Rect(contentBounds.X, contentBounds.Y + row, contentBounds.Width, 1),
-                    ItemTarget(absoluteIndex));
-            })
-            .ToArray();
-
-        return new CommandCompletionFrame(
-            true,
-            context.Viewport,
-            popupBounds,
-            contentBounds,
-            items,
-            scrollbarBounds,
-            rowCount,
-            first,
-            selected,
-            completion.Matches.Count);
+        var items = Enumerable.Range(0, rowCount).Select(row =>
+        {
+            int index = listState.ScrollTop + row;
+            return new CommandCompletionItemFrame(index, list.Items[index], new Rect(contentBounds.X, contentBounds.Y + row, contentBounds.Width, 1), ItemTarget(index));
+        }).ToArray();
+        return new CommandCompletionFrame(true, context.Viewport, popupBounds, contentBounds, items, scrollbarBounds, rowCount, listState.ScrollTop, listState.SelectedIndex, list.Count, listState);
     }
 
     protected override void OnFrameCommitted(CommandCompletionFrame frame)
     {
-        if (!frame.Visible || frame.ScrollbarBounds is null)
-        {
-            _context.CommandCompletion.ScrollbarDrag = null;
-        }
-        else if (_context.CommandCompletion.ScrollbarDrag is { } drag)
-        {
-            _context.CommandCompletion.ScrollbarDrag = ScrollBarInteraction.RebaseDrag(
-                drag,
-                frame.ScrollbarBounds.Value,
-                frame.MatchCount,
-                frame.VisibleRows);
-        }
-
+        var list = _context.CommandCompletion.List;
         if (!frame.Visible)
+        {
+            list.ClearScrollbarDrag();
             return;
+        }
 
-        var completion = _context.CommandCompletion;
-        if (!completion.Visible || completion.Matches.Count != frame.MatchCount)
-            return;
-
-        completion.SelectedIndex = Math.Clamp(frame.SelectedIndex, 0, completion.Matches.Count - 1);
-        completion.FirstVisibleIndex = ScrollStateCalculator.ClampFirstVisibleIndex(
-            frame.FirstVisibleIndex,
-            completion.Matches.Count,
-            frame.VisibleRows);
+        if (_context.CommandCompletion.Visible && list.Count == frame.MatchCount)
+            list.ApplyCommittedFrame(frame.ListState);
     }
 
     protected override UiInteractionFrame BuildInteractionFrame(CommandCompletionFrame frame)
     {
         if (!frame.Visible)
             return UiInteractionFrame.Empty;
-
-        var builder = new UiInteractionFrameBuilder()
-            .AddHitRegions(frame.Items.Select(item => new UiHitRegion(item.Target, item.Bounds)));
+        var builder = new UiInteractionFrameBuilder().AddHitRegions(frame.Items.Select(item => new UiHitRegion(item.Target, item.Bounds)));
         if (frame.ScrollbarBounds is { } scrollbar)
             builder.AddHitRegion(ScrollbarTarget, scrollbar);
-
         return builder.Build();
     }
 
-    protected override UiInputResult RouteInput(
-        ConsoleInputEvent input,
-        CommandCompletionFrame frame,
-        UiInputRouteContext context)
-    {
-        if (!frame.Visible || frame.VisibleRows <= 0 || frame.MatchCount == 0)
-            return UiInputResult.NotHandled;
-
-        return input switch
+    protected override UiInputResult RouteInput(ConsoleInputEvent input, CommandCompletionFrame frame, UiInputRouteContext context) =>
+        !frame.Visible || frame.VisibleRows <= 0 || frame.MatchCount == 0 ? UiInputResult.NotHandled : input switch
         {
             KeyConsoleInputEvent { Key: var key } => RouteKey(key, frame),
             MouseConsoleInputEvent mouse => RouteMouse(mouse, frame, context),
             _ => UiInputResult.NotHandled,
         };
-    }
 
     private UiInputResult RouteKey(ConsoleKeyInfo key, CommandCompletionFrame frame)
     {
-        switch (key.Key)
+        if (key.Key is ConsoleKey.UpArrow or ConsoleKey.DownArrow)
+            return ToUiResult(_context.CommandCompletion.List.HandleKey(key, frame.VisibleRows));
+        if (key.Key == ConsoleKey.Enter)
+            return KeyboardShortcutClassifier.IsPlainControlEnter(key) ? UiInputResult.NotHandled : Accept(frame);
+        if (key.Key == ConsoleKey.Escape)
         {
-            case ConsoleKey.UpArrow:
-                return Move(-1, frame);
-            case ConsoleKey.DownArrow:
-                return Move(+1, frame);
-            case ConsoleKey.Enter:
-                if (KeyboardShortcutClassifier.IsPlainControlEnter(key))
-                    return UiInputResult.NotHandled;
-                return Accept(frame);
-            case ConsoleKey.Escape:
-                _hideCompletion(true);
-                return UiInputResult.HandledAndInvalidate;
-            case ConsoleKey.Delete:
-                if (!_controller.TryRemoveSelectedCommand(_context.CommandLine, frame.VisibleRows))
-                    return UiInputResult.NotHandled;
-                _resetHistoryNavigation();
-                return UiInputResult.HandledAndInvalidate;
-            default:
-                return UiInputResult.NotHandled;
+            _hideCompletion(true);
+            return UiInputResult.HandledAndInvalidate;
         }
+        if (key.Key == ConsoleKey.Delete && _controller.TryRemoveSelectedCommand(_context.CommandLine))
+        {
+            _resetHistoryNavigation();
+            return UiInputResult.HandledAndInvalidate;
+        }
+        return UiInputResult.NotHandled;
     }
 
-    private UiInputResult Move(int delta, CommandCompletionFrame frame) =>
-        _controller.TryMoveSelection(delta, frame.VisibleRows)
-            ? UiInputResult.HandledAndInvalidate
-            : UiInputResult.NotHandled;
-
-    private UiInputResult Accept(CommandCompletionFrame frame)
+    private UiInputResult RouteMouse(MouseConsoleInputEvent mouse, CommandCompletionFrame frame, UiInputRouteContext route)
     {
-        var completion = _context.CommandCompletion;
-        if (!completion.Visible || completion.Matches.Count == 0 || frame.VisibleRows <= 0)
+        bool relevant = route.IsCapturedRoute || route.Target == ScrollbarTarget || (route.Target is not null && TryItemIndex(route.Target, out _));
+        if (!relevant)
             return UiInputResult.NotHandled;
 
-        if (frame.SelectedIndex == 0)
+        ScrollableListInputResult result = _context.CommandCompletion.List.HandleMouse(mouse, frame.ContentBounds, frame.ScrollbarBounds, frame.VisibleRows, confirmOnMouseDown: true, confirmOnDoubleClick: true);
+        if (!result.IsHandled)
+            return UiInputResult.NotHandled;
+        if (result.Kind == ScrollableListInputResultKind.Confirmed && route.Target is { } target && TryItemIndex(target, out int itemIndex))
+            return AcceptItem(itemIndex, frame);
+        if (result.DragStarted)
+            return UiInputResult.CaptureMouse(ScrollbarTarget, MouseButton.Left, invalidate: true);
+        if (result.DragEnded)
+            return UiInputResult.ReleaseMouse(invalidate: true);
+        return UiInputResult.HandledAndInvalidate;
+    }
+
+    private UiInputResult Accept(CommandCompletionFrame frame) => AcceptItem(frame.SelectedIndex, frame);
+
+    private UiInputResult AcceptItem(int itemIndex, CommandCompletionFrame frame)
+    {
+        var completion = _context.CommandCompletion;
+        if (!TryGetCommittedItem(itemIndex, frame, out var item) || itemIndex >= completion.List.Count || !string.Equals(completion.List.Items[itemIndex], item.Text, StringComparison.Ordinal))
+            return UiInputResult.NotHandled;
+        if (itemIndex == 0)
         {
             _hideCompletion(false);
             _resetHistoryNavigation();
             return UiInputResult.NotHandled;
         }
-
-        if (!TryGetCommittedItem(frame.SelectedIndex, frame, out var item) ||
-            item.AbsoluteIndex >= completion.Matches.Count ||
-            !string.Equals(completion.Matches[item.AbsoluteIndex], item.Text, StringComparison.Ordinal))
-        {
-            return UiInputResult.NotHandled;
-        }
-
         _context.CommandLine.SetText(item.Text);
         _hideCompletion(false);
         _resetHistoryNavigation();
         return UiInputResult.HandledAndInvalidate;
     }
 
-    private UiInputResult RouteMouse(
-        MouseConsoleInputEvent mouse,
-        CommandCompletionFrame frame,
-        UiInputRouteContext route)
+    private static UiInputResult ToUiResult(ScrollableListInputResult result) => result.IsHandled ? UiInputResult.HandledAndInvalidate : UiInputResult.NotHandled;
+    private static bool TryGetCommittedItem(int index, CommandCompletionFrame frame, out CommandCompletionItemFrame item)
     {
-        if (route.Target == ScrollbarTarget || route.IsCapturedRoute)
-            return RouteScrollbarMouse(mouse, frame, route.IsCapturedRoute);
-
-        if (route.Target is not null &&
-            mouse.Button == MouseButton.Left &&
-            mouse.Kind is MouseEventKind.Down or MouseEventKind.DoubleClick &&
-            TryItemIndex(route.Target, out int itemIndex))
-        {
-            return AcceptItem(itemIndex, frame);
-        }
-
-        return UiInputResult.NotHandled;
+        item = frame.Items.FirstOrDefault(candidate => candidate.AbsoluteIndex == index)!;
+        return item is not null;
     }
-
-    private UiInputResult AcceptItem(int itemIndex, CommandCompletionFrame frame)
-    {
-        var completion = _context.CommandCompletion;
-        if (!TryGetCommittedItem(itemIndex, frame, out var item) ||
-            itemIndex < 0 ||
-            itemIndex >= completion.Matches.Count ||
-            !string.Equals(completion.Matches[itemIndex], item.Text, StringComparison.Ordinal))
-        {
-            return UiInputResult.NotHandled;
-        }
-
-        completion.SelectedIndex = itemIndex;
-        if (itemIndex == 0)
-        {
-            _hideCompletion(false);
-            return UiInputResult.HandledAndInvalidate;
-        }
-
-        _context.CommandLine.SetText(item.Text);
-        _hideCompletion(false);
-        _resetHistoryNavigation();
-        return UiInputResult.HandledAndInvalidate;
-    }
-
-    private static bool TryGetCommittedItem(
-        int absoluteIndex,
-        CommandCompletionFrame frame,
-        out CommandCompletionItemFrame item)
-    {
-        foreach (var candidate in frame.Items)
-        {
-            if (candidate.AbsoluteIndex == absoluteIndex)
-            {
-                item = candidate;
-                return true;
-            }
-        }
-
-        item = null!;
-        return false;
-    }
-
-    private UiInputResult RouteScrollbarMouse(
-        MouseConsoleInputEvent mouse,
-        CommandCompletionFrame frame,
-        bool captured)
-    {
-        if (frame.ScrollbarBounds is not { } scrollbar)
-            return captured ? UiInputResult.ReleaseMouse(invalidate: true) : UiInputResult.NotHandled;
-
-        int firstVisibleIndex = _context.CommandCompletion.FirstVisibleIndex;
-        ScrollBarDragState? dragState = _context.CommandCompletion.ScrollbarDrag;
-        if (!ScrollBarMouseHandler.TryHandleMouse(
-                mouse,
-                scrollbar,
-                frame.MatchCount,
-                frame.VisibleRows,
-                ref firstVisibleIndex,
-                ref dragState))
-        {
-            return UiInputResult.NotHandled;
-        }
-
-        _context.CommandCompletion.ScrollbarDrag = dragState;
-        _context.CommandCompletion.FirstVisibleIndex = ScrollStateCalculator.ClampFirstVisibleIndex(
-            firstVisibleIndex,
-            frame.MatchCount,
-            frame.VisibleRows);
-        _controller.ClampSelectionToViewport(frame.VisibleRows);
-
-        if (mouse.Button == MouseButton.Left && mouse.Kind == MouseEventKind.Down)
-            return UiInputResult.CaptureMouse(ScrollbarTarget, MouseButton.Left, invalidate: true);
-
-        if (captured && mouse.Button == MouseButton.Left && mouse.Kind == MouseEventKind.Up)
-            return UiInputResult.ReleaseMouse(invalidate: true);
-
-        return UiInputResult.HandledAndInvalidate;
-    }
-
-    private static int VisibleRows(ConsoleSize size)
-    {
-        int rowsAboveCommandLine = ApplicationLayoutService.CommandLineRow(size) - 2;
-        return Math.Max(0, Math.Min(MaxVisibleRows, rowsAboveCommandLine));
-    }
-
-    private static UiTargetId ItemTarget(int absoluteIndex) =>
-        new($"application.command-completion.item:{absoluteIndex}");
-
+    private static UiTargetId ItemTarget(int index) => new($"application.command-completion.item:{index}");
     private static bool TryItemIndex(UiTargetId target, out int index)
     {
         const string prefix = "application.command-completion.item:";
-        if (target.Value.StartsWith(prefix, StringComparison.Ordinal) &&
-            int.TryParse(target.Value[prefix.Length..], out index))
-        {
+        if (target.Value.StartsWith(prefix, StringComparison.Ordinal) && int.TryParse(target.Value[prefix.Length..], out index))
             return true;
-        }
 
         index = -1;
         return false;
