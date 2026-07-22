@@ -148,7 +148,7 @@ public sealed class UiLayerTargetRoutingTests
     }
 
     [Fact]
-    public void FocusRequest_ForDisabledTargetIsRejected()
+    public void FocusRequest_ForDisabledTargetIsIgnoredOnNextCommit()
     {
         var enabled = new UiTargetId("enabled");
         var disabled = new UiTargetId("disabled");
@@ -157,7 +157,10 @@ public sealed class UiLayerTargetRoutingTests
         var host = Host(layer);
         host.Render();
 
-        Assert.Throws<InvalidOperationException>(() => host.DispatchInput(Key(ConsoleKey.A)));
+        host.DispatchInput(Key(ConsoleKey.A));
+        Assert.Equal(enabled, layer.FocusState.FocusedTarget);
+
+        host.Render();
         Assert.Equal(enabled, layer.FocusState.FocusedTarget);
     }
 
