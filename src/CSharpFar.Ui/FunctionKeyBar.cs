@@ -16,7 +16,7 @@ public sealed class FunctionKeyBar
     private const string Ellipsis = "...";
 
     public void Render(
-        ScreenRenderer screen,
+        IUiCanvas screen,
         int y,
         int totalWidth,
         IReadOnlyList<FunctionKeyBarItem> items)

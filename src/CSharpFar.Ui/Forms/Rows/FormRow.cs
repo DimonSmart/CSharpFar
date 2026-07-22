@@ -32,7 +32,7 @@ public sealed class LabelRow : FormRow
     public override bool IsFocusable => false;
 
     public override void Render(FormRowRenderContext context) =>
-        context.Screen.Write(context.Bounds.X, context.Bounds.Y, ScrollableFormDialog.Fit(_text, context.Bounds.Width), _style);
+        context.Canvas.Write(context.Bounds.X, context.Bounds.Y, ScrollableFormDialog.Fit(_text, context.Bounds.Width), _style);
 }
 
 public sealed class SeparatorRow : FormRow
@@ -54,7 +54,7 @@ public sealed class SeparatorRow : FormRow
             return;
 
         string text = _drawLine ? new string('─', context.Bounds.Width) : string.Empty.PadRight(context.Bounds.Width);
-        context.Screen.Write(context.Bounds.X, context.Bounds.Y, text, _style);
+        context.Canvas.Write(context.Bounds.X, context.Bounds.Y, text, _style);
     }
 }
 

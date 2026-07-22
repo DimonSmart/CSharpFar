@@ -98,13 +98,13 @@ internal sealed class DirectoryShortcutEditDialog
 
     private ScrollableFormFrame Draw(
         UiRenderContext context,
-        UiFocusScope focusScope,
+        IUiFocusState focusScope,
         ScrollableFormDialog form,
         int number)
     {
         ScrollableFormFrame? frame = null;
         _modalRenderer.Render(
-            context.Screen,
+            context.Canvas,
             _modalRenderer.CenteredOuterBounds(context.Size, DialogWidth, DialogHeight),
             $"Directory shortcut {number}",
             doubleBorder: true,

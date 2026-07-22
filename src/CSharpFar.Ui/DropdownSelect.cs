@@ -68,7 +68,7 @@ public sealed class DropdownSelect<T>
     }
 
     public void RenderField(
-        ScreenRenderer screen,
+        IUiCanvas screen,
         Rect fieldBounds,
         CellStyle style)
     {
@@ -114,7 +114,7 @@ public sealed class DropdownSelect<T>
     }
 
     public void RenderPopup(
-        ScreenRenderer screen,
+        IUiCanvas screen,
         DropdownSelectFrame frame)
     {
         if (!frame.IsOpen)

@@ -696,7 +696,7 @@ public sealed class ScrollableFormDialogTests
 
         Assert.False(click.Handled);
         Assert.Equal("check", form.FocusedRowId);
-        Assert.NotEqual(FormTargetIds.ForExplicitRow("value"), layer.FocusScope.FocusedTarget);
+        Assert.NotEqual(FormTargetIds.ForExplicitRow("value"), layer.FocusState.FocusedTarget);
         Assert.False(checkbox.Value);
         Assert.True(driver.CursorVisible);
         Assert.Equal((cursorX, cursorY), (driver.CursorX, driver.CursorY));
@@ -2087,7 +2087,7 @@ public sealed class ScrollableFormDialogTests
             if (ThrowOnRender)
                 throw new InvalidOperationException("render failed");
 
-            return form.Render(createContext(context), FocusScope);
+            return form.Render(createContext(context), FocusState);
         }
 
         protected override UiInteractionFrame BuildInteractionFrame(ScrollableFormFrame frame) =>
@@ -2123,7 +2123,7 @@ public sealed class ScrollableFormDialogTests
         public override void Render(FormRowRenderContext context)
         {
             RenderedFocused = context.Focused;
-            context.Screen.Write(context.Bounds.X, context.Bounds.Y, "row", FarDialogStyles.Fill);
+            context.Canvas.Write(context.Bounds.X, context.Bounds.Y, "row", FarDialogStyles.Fill);
         }
 
         public override FormInputResult HandleMouse(MouseConsoleInputEvent mouse, FormRowMouseContext context) =>

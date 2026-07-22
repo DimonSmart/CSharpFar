@@ -7,11 +7,11 @@ namespace CSharpFar.App.Rendering;
 
 internal sealed class DirectoryShortcutBarRenderer
 {
-    private readonly ScreenRenderer _screen;
+    private readonly IUiCanvas _screen;
     private readonly CellStyle _numberStyle;
     private readonly CellStyle _nameStyle;
 
-    public DirectoryShortcutBarRenderer(ScreenRenderer screen, ConsolePalette? palette = null)
+    public DirectoryShortcutBarRenderer(IUiCanvas screen, ConsolePalette? palette = null)
     {
         _screen = screen;
         palette ??= PaletteRegistry.Default;

@@ -313,7 +313,7 @@ public sealed class Spec048CreateNewFileDialogTests : IDisposable
         var composition = new UiCompositionHost(screen);
         composition.SetRootSurface(new ScreenRendererSurface(screen, context =>
         {
-            context.Screen.Write(18, 22, "UNDERLAY", new CellStyle(ConsoleColor.White, ConsoleColor.DarkRed));
+            context.Canvas.Write(18, 22, "UNDERLAY", new CellStyle(ConsoleColor.White, ConsoleColor.DarkRed));
         }));
         return new ModalDialogHost(composition);
     }

@@ -17,7 +17,7 @@ internal sealed class LargeFileViewer
     private const int FastPageMultiplier = 5;
 
     private readonly UiCompositionHost _composition;
-    private readonly ScreenRenderer _screen;
+    private readonly IUiCanvas _screen;
     private readonly ModalDialogHost _modalDialogs;
     private readonly ConsolePalette _palette;
     private readonly InteractiveSurfaceHost _surfaces;

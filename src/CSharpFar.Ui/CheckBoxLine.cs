@@ -15,7 +15,7 @@ public sealed class CheckBoxLine
     public string Label { get; }
     public bool Value { get; set; }
 
-    public void Render(ScreenRenderer screen, int x, int y, int width, bool focused)
+    public void Render(IUiCanvas screen, int x, int y, int width, bool focused)
     {
         var palette = UiTheme.Current;
         Render(
@@ -29,7 +29,7 @@ public sealed class CheckBoxLine
     }
 
     public void Render(
-        ScreenRenderer screen,
+        IUiCanvas screen,
         int x,
         int y,
         int width,

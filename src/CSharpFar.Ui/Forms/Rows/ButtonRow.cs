@@ -33,7 +33,7 @@ public sealed class ButtonRow : FormRow
 
     public override void Render(FormRowRenderContext context) =>
         _buttonBar.Render(
-            context.Screen,
+            context.Canvas,
             context.Bounds.X,
             context.Bounds.Y,
             context.Bounds.Width,

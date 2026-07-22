@@ -14,13 +14,13 @@ namespace CSharpFar.App.Rendering;
 /// </summary>
 public sealed class BriefTwoColumnsPanelRenderer
 {
-    private readonly ScreenRenderer _screen;
+    private readonly IUiCanvas _screen;
     private readonly ConsolePalette _palette;
     private readonly IFileHighlightService? _highlight;
     private readonly AppSettings.PanelOptionsSettings? _options;
 
     public BriefTwoColumnsPanelRenderer(
-        ScreenRenderer screen,
+        IUiCanvas screen,
         ConsolePalette palette,
         IFileHighlightService? highlight = null,
         AppSettings.PanelOptionsSettings? options = null)

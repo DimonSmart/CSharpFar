@@ -119,7 +119,7 @@ internal sealed class DirectoryShortcutsDialog
 
     private DirectoryShortcutsFrame Draw(
         UiRenderContext context,
-        UiFocusScope focusScope,
+        IUiFocusState focusScope,
         ScrollableFormDialog form,
         IReadOnlyDictionary<int, AppSettings.DirectoryShortcutItem> items,
         int cursor)

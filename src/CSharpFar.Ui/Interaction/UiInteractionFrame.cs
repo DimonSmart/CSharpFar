@@ -5,7 +5,7 @@ public sealed class UiInteractionFrame
     public static UiInteractionFrame Empty { get; } =
         new([], UiFocusFrame.Empty);
 
-    public UiInteractionFrame(
+    internal UiInteractionFrame(
         IReadOnlyList<UiHitRegion> hitRegions,
         UiFocusFrame? focus = null,
         UiTargetId? keyboardTarget = null)

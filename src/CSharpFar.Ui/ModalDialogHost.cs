@@ -91,7 +91,7 @@ public sealed class ModalDialogHost
     /// rejected render attempt.
     /// </summary>
     public TResult RunInteractive<TFrame, TSemantic, TResult>(
-        Func<UiRenderContext, UiFocusScope, TFrame> render,
+        Func<UiRenderContext, IUiFocusState, TFrame> render,
         Func<TFrame, UiInteractionFrame> buildInteractionFrame,
         Func<ConsoleInputEvent, TFrame, UiInputRouteContext, (TSemantic Semantic, UiInputResult UiResult)> routeInput,
         Func<UiRoutedInput<TFrame>, TSemantic, ModalDialogLoopResult<TResult>> handleInput,
@@ -112,7 +112,7 @@ public sealed class ModalDialogHost
     }
 
     public TResult RunInteractiveTimed<TFrame, TSemantic, TResult>(
-        Func<UiRenderContext, UiFocusScope, TFrame> render,
+        Func<UiRenderContext, IUiFocusState, TFrame> render,
         Func<TFrame, UiInteractionFrame> buildInteractionFrame,
         Func<ConsoleInputEvent, TFrame, UiInputRouteContext, (TSemantic Semantic, UiInputResult UiResult)> routeInput,
         Func<UiRoutedInput<TFrame>, TSemantic, ModalDialogLoopResult<TResult>> handleInput,
@@ -140,7 +140,7 @@ public sealed class ModalDialogHost
     }
 
     private TResult RunInteractiveCore<TFrame, TSemantic, TResult>(
-        Func<UiRenderContext, UiFocusScope, TFrame> render,
+        Func<UiRenderContext, IUiFocusState, TFrame> render,
         Func<TFrame, UiInteractionFrame> buildInteractionFrame,
         Func<ConsoleInputEvent, TFrame, UiInputRouteContext, (TSemantic Semantic, UiInputResult UiResult)> routeInput,
         Func<UiRoutedInput<TFrame>, TSemantic, ModalDialogLoopResult<TResult>> handleInput,
@@ -406,13 +406,13 @@ internal sealed class ModalDialogLayer<TFrame> : UiLayer<TFrame>
 
 internal sealed class InteractiveModalDialogLayer<TFrame, TSemantic> : UiLayer<TFrame>
 {
-    private readonly Func<UiRenderContext, UiFocusScope, TFrame> _render;
+    private readonly Func<UiRenderContext, IUiFocusState, TFrame> _render;
     private readonly Func<TFrame, UiInteractionFrame> _buildInteractionFrame;
     private readonly Func<ConsoleInputEvent, TFrame, UiInputRouteContext, (TSemantic Semantic, UiInputResult UiResult)> _routeInput;
     private readonly PendingInputSlot<InteractiveLayerInput<TFrame, TSemantic>> _pendingInput = new();
 
     public InteractiveModalDialogLayer(
-        Func<UiRenderContext, UiFocusScope, TFrame> render,
+        Func<UiRenderContext, IUiFocusState, TFrame> render,
         Func<TFrame, UiInteractionFrame> buildInteractionFrame,
         Func<ConsoleInputEvent, TFrame, UiInputRouteContext, (TSemantic Semantic, UiInputResult UiResult)> routeInput) =>
         (_render, _buildInteractionFrame, _routeInput) = (render, buildInteractionFrame, routeInput);
@@ -420,7 +420,7 @@ internal sealed class InteractiveModalDialogLayer<TFrame, TSemantic> : UiLayer<T
     public override UiLayerInputPolicy InputPolicy => UiLayerInputPolicy.Modal;
 
     protected override TFrame RenderFrame(UiRenderContext context) =>
-        _render(context, FocusScope);
+        _render(context, FocusState);
 
     protected override UiInteractionFrame BuildInteractionFrame(TFrame frame) =>
         _buildInteractionFrame(frame);

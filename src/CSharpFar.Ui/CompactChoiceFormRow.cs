@@ -21,7 +21,7 @@ public sealed class CompactChoiceFormRow<T> : FormRow, IFormCursorProvider
     public bool ShowCursor { get; init; } = true;
 
     public override void Render(FormRowRenderContext context) =>
-        _choice.Render(context.Screen, context.Bounds.X, context.Bounds.Y, context.Bounds.Width, _label, context.Focused);
+        _choice.Render(context.Canvas, context.Bounds.X, context.Bounds.Y, context.Bounds.Width, _label, context.Focused);
 
     public bool TryGetCursor(FormRowRenderContext context, out FormCursorPlacement cursor)
     {

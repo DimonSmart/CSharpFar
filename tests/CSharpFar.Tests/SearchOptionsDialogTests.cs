@@ -224,7 +224,7 @@ public sealed class SearchOptionsDialogTests
         protected override ScrollableFormFrame RenderFrame(UiRenderContext context) =>
             form.Render(
                 new FormRenderContext(context, new Rect(0, 0, 80, 10), FarDialogStyles.Border),
-                FocusScope);
+                FocusState);
 
         protected override UiInteractionFrame BuildInteractionFrame(ScrollableFormFrame frame) =>
             form.BuildInteractionFrame(frame);

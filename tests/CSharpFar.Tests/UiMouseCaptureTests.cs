@@ -335,7 +335,7 @@ public sealed class UiMouseCaptureTests
     {
         public UiLayerInputPolicy Policy { get; set; } = policy;
         public UiLayerInputPolicy InputPolicy => Policy;
-        public UiFocusScope FocusScope { get; } = new();
+        public IUiFocusState FocusState { get; } = new();
         public UiInteractionFrame CommittedInteractionFrame { get; } = new([
             new(new UiTargetId("thumb"), new CSharpFar.Console.Models.Rect(0, 0, 1, 1)),
             new(new UiTargetId("first"), new CSharpFar.Console.Models.Rect(0, 0, 1, 1)),
@@ -361,7 +361,7 @@ public sealed class UiMouseCaptureTests
     private sealed class SurfaceLayer(ScreenRenderer screen, CaptureLayer layer) : IUiSurface, IUiLayer
     {
         public UiLayerInputPolicy InputPolicy => layer.InputPolicy;
-        public UiFocusScope FocusScope => layer.FocusScope;
+        public IUiFocusState FocusState => layer.FocusState;
         public UiInteractionFrame CommittedInteractionFrame => layer.CommittedInteractionFrame;
         public IDisposable BeginFrame(UiRenderRequest request) => screen.BeginFrame();
         public void Render(UiRenderContext context) => layer.Render(context);

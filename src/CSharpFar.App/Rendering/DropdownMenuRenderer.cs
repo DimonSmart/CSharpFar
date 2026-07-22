@@ -22,7 +22,7 @@ public sealed class DropdownMenuRenderer
     }
 
     public void Render(
-        ScreenRenderer screen,
+        IUiCanvas screen,
         MenuBarDefinition definition,
         MenuState state,
         MenuLayout layout,
@@ -66,7 +66,7 @@ public sealed class DropdownMenuRenderer
     }
 
     private void RenderItems(
-        ScreenRenderer screen,
+        IUiCanvas screen,
         Rect contentBounds,
         IReadOnlyList<MenuItemDefinition> items,
         int activeIndex,
@@ -139,7 +139,7 @@ public sealed class DropdownMenuRenderer
     }
 
     private static void WriteWithHotKey(
-        ScreenRenderer screen,
+        IUiCanvas screen,
         int x,
         int y,
         string text,

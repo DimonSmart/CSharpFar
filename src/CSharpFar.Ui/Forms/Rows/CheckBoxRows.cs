@@ -27,7 +27,7 @@ public sealed class CheckBoxRow : FormRow, IFormCursorProvider
     public bool ShowCursor { get; init; } = true;
 
     public override void Render(FormRowRenderContext context) =>
-        _checkBox.Render(context.Screen, context.Bounds.X, context.Bounds.Y, context.Bounds.Width, context.Focused && Enabled);
+        _checkBox.Render(context.Canvas, context.Bounds.X, context.Bounds.Y, context.Bounds.Width, context.Focused && Enabled);
 
     public bool TryGetCursor(FormRowRenderContext context, out FormCursorPlacement cursor)
     {
@@ -84,7 +84,7 @@ public sealed class TriStateCheckBoxRow : FormRow, IFormCursorProvider
     public override bool IsEnabled => Enabled;
 
     public override void Render(FormRowRenderContext context) =>
-        _checkBox.Render(context.Screen, context.Bounds.X, context.Bounds.Y, context.Bounds.Width, context.Focused);
+        _checkBox.Render(context.Canvas, context.Bounds.X, context.Bounds.Y, context.Bounds.Width, context.Focused);
 
     public bool TryGetCursor(FormRowRenderContext context, out FormCursorPlacement cursor)
     {

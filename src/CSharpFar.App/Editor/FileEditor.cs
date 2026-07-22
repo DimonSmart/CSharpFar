@@ -17,7 +17,7 @@ internal sealed partial class FileEditor
 {
     private const int CustomCursorBlinkIntervalMs = 500;
 
-    private readonly ScreenRenderer _screen;
+    private readonly IUiCanvas _screen;
     private readonly UiCompositionHost _composition;
     private readonly ModalDialogHost _modalDialogs;
     private readonly InteractiveSurfaceHost _surfaces;
@@ -31,14 +31,14 @@ internal sealed partial class FileEditor
     private bool _markMode;
     private bool _persistentSelection;
 
-    public FileEditor(ScreenRenderer screen, ModalDialogHost modalDialogs)
+    public FileEditor(IUiCanvas screen, ModalDialogHost modalDialogs)
         : this(screen, modalDialogs, null, null) { }
 
-    public FileEditor(ScreenRenderer screen, ModalDialogHost modalDialogs, ConsolePalette? palette)
+    public FileEditor(IUiCanvas screen, ModalDialogHost modalDialogs, ConsolePalette? palette)
         : this(screen, modalDialogs, palette, null) { }
 
     public FileEditor(
-        ScreenRenderer screen,
+        IUiCanvas screen,
         ModalDialogHost modalDialogs,
         ConsolePalette? palette,
         AppSettings.EditorSettings? settings)
@@ -47,7 +47,7 @@ internal sealed partial class FileEditor
     }
 
     internal FileEditor(
-        ScreenRenderer screen,
+        IUiCanvas screen,
         ModalDialogHost modalDialogs,
         ConsolePalette? palette,
         AppSettings.EditorSettings? settings,
@@ -57,7 +57,7 @@ internal sealed partial class FileEditor
     }
 
     internal FileEditor(
-        ScreenRenderer screen,
+        IUiCanvas screen,
         ModalDialogHost modalDialogs,
         ConsolePalette? palette,
         AppSettings.EditorSettings? settings,
@@ -68,7 +68,7 @@ internal sealed partial class FileEditor
     }
 
     internal FileEditor(
-        ScreenRenderer screen,
+        IUiCanvas screen,
         ModalDialogHost modalDialogs,
         ConsolePalette? palette,
         AppSettings.EditorSettings? settings,

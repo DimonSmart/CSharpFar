@@ -20,7 +20,7 @@ public sealed class ModalDialogRunnerTests
             context =>
             {
                 events.Add("render");
-                context.Screen.Write(0, 0, "M", Style);
+                context.Canvas.Write(0, 0, "M", Style);
                 return 1;
             },
             (_, _) =>
@@ -45,7 +45,7 @@ public sealed class ModalDialogRunnerTests
             context =>
             {
                 renders++;
-                context.Screen.Write(0, 0, "M", Style);
+                context.Canvas.Write(0, 0, "M", Style);
                 return renders;
             },
             (input, _) => input is KeyConsoleInputEvent { Key.Key: ConsoleKey.Enter }
@@ -67,7 +67,7 @@ public sealed class ModalDialogRunnerTests
             context =>
             {
                 renders++;
-                context.Screen.Write(0, 0, "M", Style);
+                context.Canvas.Write(0, 0, "M", Style);
                 return renders;
             },
             (_, _) => ModalDialogLoopResult<int>.Complete(0));
@@ -82,12 +82,12 @@ public sealed class ModalDialogRunnerTests
         driver.EnqueueKey(Key(ConsoleKey.Enter));
         var modals = CreateHost(driver, out var composition);
         composition.SetRootSurface(new ScreenRendererSurface(composition.Screen, context =>
-            context.Screen.Write(0, 0, "R", Style)));
+            context.Canvas.Write(0, 0, "R", Style)));
 
         modals.Run(
             context =>
             {
-                context.Screen.Write(0, 0, "M", Style);
+                context.Canvas.Write(0, 0, "M", Style);
                 return 1;
             },
             (_, _) => ModalDialogLoopResult<int>.Complete(0));
@@ -107,7 +107,7 @@ public sealed class ModalDialogRunnerTests
         modals.Run(
             context =>
             {
-                context.Screen.Write(0, 0, "M", Style);
+                context.Canvas.Write(0, 0, "M", Style);
                 return context.Size;
             },
             (_, frame) =>
@@ -132,7 +132,7 @@ public sealed class ModalDialogRunnerTests
         modals.Run(
             context =>
             {
-                context.Screen.Write(0, 0, "M", Style);
+                context.Canvas.Write(0, 0, "M", Style);
                 return context.Size;
             },
             (_, frame) =>
@@ -162,7 +162,7 @@ public sealed class ModalDialogRunnerTests
         modals.Run(
             context =>
             {
-                context.Screen.Write(0, 0, "M", Style);
+                context.Canvas.Write(0, 0, "M", Style);
                 return context.Size;
             },
             (_, frame) =>
@@ -186,7 +186,7 @@ public sealed class ModalDialogRunnerTests
         modals.Run(
             context =>
             {
-                context.Screen.Write(0, 0, "M", Style);
+                context.Canvas.Write(0, 0, "M", Style);
                 return 1;
             },
             (_, _) => ModalDialogLoopResult<int>.Complete(0),
@@ -211,7 +211,7 @@ public sealed class ModalDialogRunnerTests
         modals.Run(
             context =>
             {
-                context.Screen.Write(0, 0, "M", Style);
+                context.Canvas.Write(0, 0, "M", Style);
                 return context.Size;
             },
             (_, _) => ModalDialogLoopResult<int>.Complete(0),
@@ -230,13 +230,13 @@ public sealed class ModalDialogRunnerTests
         composition.SetRootSurface(new ScreenRendererSurface(composition.Screen, context =>
         {
             rootRenders++;
-            context.Screen.Write(0, 0, "R", Style);
+            context.Canvas.Write(0, 0, "R", Style);
         }));
 
         Assert.Throws<InvalidOperationException>(() => modals.Run(
             context =>
             {
-                context.Screen.Write(0, 0, "M", Style);
+                context.Canvas.Write(0, 0, "M", Style);
                 return 1;
             },
             (_, _) => throw new InvalidOperationException("handler")));
@@ -254,7 +254,7 @@ public sealed class ModalDialogRunnerTests
         composition.SetRootSurface(new ScreenRendererSurface(composition.Screen, context =>
         {
             rootRenders++;
-            context.Screen.Write(0, 0, "R", Style);
+            context.Canvas.Write(0, 0, "R", Style);
         }));
 
         Assert.Throws<InvalidOperationException>(() => modals.Run<int, int>(
@@ -274,7 +274,7 @@ public sealed class ModalDialogRunnerTests
         composition.SetRootSurface(new ScreenRendererSurface(composition.Screen, context =>
         {
             rootRenders++;
-            context.Screen.Write(0, 0, "R", Style);
+            context.Canvas.Write(0, 0, "R", Style);
         }));
         using var cts = new CancellationTokenSource();
         cts.Cancel();
@@ -282,7 +282,7 @@ public sealed class ModalDialogRunnerTests
         Assert.Throws<OperationCanceledException>(() => modals.Run(
             context =>
             {
-                context.Screen.Write(0, 0, "M", Style);
+                context.Canvas.Write(0, 0, "M", Style);
                 return 1;
             },
             (_, _) => ModalDialogLoopResult<int>.Complete(0),
@@ -306,7 +306,7 @@ public sealed class ModalDialogRunnerTests
             context =>
             {
                 parentRenders++;
-                context.Screen.Write(0, 0, "P", Style);
+                context.Canvas.Write(0, 0, "P", Style);
                 return 1;
             },
             (input, _) =>
@@ -335,7 +335,7 @@ public sealed class ModalDialogRunnerTests
         var modals = new ModalDialogHost(composition);
         using var session = modals.Open(context =>
         {
-            context.Screen.Write(0, 0, "M", Style);
+            context.Canvas.Write(0, 0, "M", Style);
             return context.Viewport;
         });
         session.Render();
@@ -358,7 +358,7 @@ public sealed class ModalDialogRunnerTests
         var modals = new ModalDialogHost(composition);
         using var session = modals.Open(context =>
         {
-            context.Screen.Write(0, 0, "M", Style);
+            context.Canvas.Write(0, 0, "M", Style);
             return context.Viewport;
         });
         session.Render();
@@ -378,7 +378,7 @@ public sealed class ModalDialogRunnerTests
         var modals = CreateHost(driver, out var composition);
         using var session = modals.Open(context =>
         {
-            context.Screen.Write(0, 0, "M", Style);
+            context.Canvas.Write(0, 0, "M", Style);
             return context.Viewport;
         });
         var rendered = session.Render();
@@ -529,7 +529,7 @@ public sealed class ModalDialogRunnerTests
             (context, _) =>
             {
                 events.Add("render");
-                context.Screen.Write(0, 0, "M", Style);
+                context.Canvas.Write(0, 0, "M", Style);
                 return 1;
             },
             _ => UiInteractionFrame.Empty,
@@ -619,7 +619,7 @@ public sealed class ModalDialogRunnerTests
                     driver.ResizeAfterWriteCount = driver.WriteAtCallCount + 1;
                     driver.ResizeAfterWrite = current => current.SetSize(21, 5);
                 }
-                context.Screen.Write(0, 0, "M", Style);
+                context.Canvas.Write(0, 0, "M", Style);
                 return renders;
             },
             _ => new UiInteractionFrame(
@@ -645,7 +645,7 @@ public sealed class ModalDialogRunnerTests
         var driver = new FakeConsoleDriver(80, 25);
         var modals = CreateHost(driver, out var composition);
         composition.SetRootSurface(new ScreenRendererSurface(composition.Screen, context =>
-            context.Screen.Write(0, 0, "R", Style)));
+            context.Canvas.Write(0, 0, "R", Style)));
         var applied = new List<ConsoleSize>();
         var wakeFrames = new List<ConsoleSize>();
         int wakes = 0;
@@ -654,7 +654,7 @@ public sealed class ModalDialogRunnerTests
         int result = modals.RunInteractiveTimed<ConsoleSize, string, int>(
             (context, _) =>
             {
-                context.Screen.Write(0, 0, changed ? "W" : "M", Style);
+                context.Canvas.Write(0, 0, changed ? "W" : "M", Style);
                 return context.Size;
             },
             _ => UiInteractionFrame.Empty,
@@ -697,7 +697,7 @@ public sealed class ModalDialogRunnerTests
         int result = modals.RunInteractiveTimed<int, string, int>(
             (context, _) =>
             {
-                context.Screen.Write(0, 0, "M", Style);
+                context.Canvas.Write(0, 0, "M", Style);
                 return 1;
             },
             _ => UiInteractionFrame.Empty,
@@ -726,7 +726,7 @@ public sealed class ModalDialogRunnerTests
         composition.SetRootSurface(new ScreenRendererSurface(composition.Screen, context =>
         {
             rootRenders++;
-            context.Screen.Write(0, 0, "R", Style);
+            context.Canvas.Write(0, 0, "R", Style);
         }));
 
         Assert.Throws<InvalidOperationException>(() => modals.RunRouted<int, int>(
@@ -746,7 +746,7 @@ public sealed class ModalDialogRunnerTests
         composition.SetRootSurface(new ScreenRendererSurface(composition.Screen, context =>
         {
             rootRenders++;
-            context.Screen.Write(0, 0, "R", Style);
+            context.Canvas.Write(0, 0, "R", Style);
         }));
         using var cancellation = new CancellationTokenSource();
         cancellation.Cancel();
@@ -768,7 +768,7 @@ public sealed class ModalDialogRunnerTests
             BeforeReadInput = _ => throw new InvalidOperationException("driver should not be read"),
         };
         var modals = CreateHost(driver, out var composition);
-        using var session = modals.Open(context => context.Screen.Write(0, 0, "M", Style));
+        using var session = modals.Open(context => context.Canvas.Write(0, 0, "M", Style));
         session.Render();
 
         composition.DispatchInput(new KeyConsoleInputEvent(Key(ConsoleKey.Enter)));
@@ -781,7 +781,7 @@ public sealed class ModalDialogRunnerTests
     public void SecondDispatchBeforeConsumeThrows()
     {
         var modals = CreateHost(new FakeConsoleDriver(), out var composition);
-        using var session = modals.Open(context => context.Screen.Write(0, 0, "M", Style));
+        using var session = modals.Open(context => context.Canvas.Write(0, 0, "M", Style));
         session.Render();
 
         composition.DispatchInput(new KeyConsoleInputEvent(Key(ConsoleKey.A)));
@@ -794,7 +794,7 @@ public sealed class ModalDialogRunnerTests
     public void ConsumedPacketAllowsNextDispatch()
     {
         var modals = CreateHost(new FakeConsoleDriver(), out var composition);
-        using var session = modals.Open(context => context.Screen.Write(0, 0, "M", Style));
+        using var session = modals.Open(context => context.Canvas.Write(0, 0, "M", Style));
         session.Render();
 
         composition.DispatchInput(new KeyConsoleInputEvent(Key(ConsoleKey.A)));
@@ -813,7 +813,7 @@ public sealed class ModalDialogRunnerTests
         using var session = modals.Open(context =>
         {
             render++;
-            context.Screen.Write(0, 0, "M", Style);
+            context.Canvas.Write(0, 0, "M", Style);
             return render;
         });
         int frameA = session.Render();
@@ -845,7 +845,7 @@ public sealed class ModalDialogRunnerTests
     {
         public int RouteCount { get; private set; }
         public UiLayerInputPolicy InputPolicy => UiLayerInputPolicy.Bubble;
-        public UiFocusScope FocusScope { get; } = new();
+        public IUiFocusState FocusState { get; } = new();
         public UiInteractionFrame CommittedInteractionFrame => UiInteractionFrame.Empty;
         public IDisposable BeginFrame(UiRenderRequest request) => screen.BeginFrame();
         public void Render(UiRenderContext context) { }

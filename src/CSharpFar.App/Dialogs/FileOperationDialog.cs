@@ -357,12 +357,12 @@ internal sealed class FileOperationDialog
             });
     }
 
-    private ScrollableFormFrame Draw(UiRenderContext context, UiFocusScope focusScope, string title, ScrollableFormDialog form, string? error)
+    private ScrollableFormFrame Draw(UiRenderContext context, IUiFocusState focusScope, string title, ScrollableFormDialog form, string? error)
     {
         Rect outerBounds = OuterBounds(context.Size);
         ScrollableFormFrame? frame = null;
 
-        _modalRenderer.Render(context.Screen, outerBounds, title, true, FarDialogStyles.OuterOptions, FarDialogStyles.FrameOptions, (_, layout) =>
+        _modalRenderer.Render(context.Canvas, outerBounds, title, true, FarDialogStyles.OuterOptions, FarDialogStyles.FrameOptions, (_, layout) =>
         {
             Rect bounds = layout.FrameBounds;
             int contentX = bounds.X + 2;
@@ -380,7 +380,7 @@ internal sealed class FileOperationDialog
                 focusScope);
 
             string errorText = error is null ? string.Empty : Truncate(error, contentWidth);
-            context.Screen.Write(contentX, errorY, errorText.PadRight(contentWidth), FarDialogStyles.Error);
+            context.Canvas.Write(contentX, errorY, errorText.PadRight(contentWidth), FarDialogStyles.Error);
         });
         return frame ?? throw new InvalidOperationException("File operation dialog did not render a form frame.");
     }

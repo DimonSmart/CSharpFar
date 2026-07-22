@@ -44,10 +44,10 @@ public sealed class ConfirmDialog
             });
     }
 
-    private ScrollableFormFrame RenderLayer(UiRenderContext context, UiFocusScope focusScope, DialogActionController actions, string title, string question, string itemName)
+    private ScrollableFormFrame RenderLayer(UiRenderContext context, IUiFocusState focusScope, DialogActionController actions, string title, string question, string itemName)
     {
         ScrollableFormFrame? frame = null;
-        ScreenRenderer screen = context.Screen;
+        IUiCanvas screen = context.Canvas;
         var outerBounds = _modalRenderer.CenteredOuterBounds(context.Size, DialogWidth, DialogHeight, minWidth: 20, minHeight: 5);
 
         _modalRenderer.Render(screen, outerBounds, title, true, FarDialogStyles.OuterOptions, FarDialogStyles.FrameOptions, (_, layout) =>

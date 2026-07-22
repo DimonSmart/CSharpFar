@@ -9,13 +9,13 @@ public sealed class DialogFrameRenderer
     private readonly PopupRenderer _popupRenderer = new();
 
     public void RenderFrame(
-        ScreenRenderer screen,
+        IUiCanvas screen,
         Rect bounds,
         string title,
         bool doubleBorder,
         PopupRenderOptions options,
         ScrollState? verticalScrollState,
-        Action<ScreenRenderer, Rect> renderContent)
+        Action<IUiCanvas, Rect> renderContent)
     {
         var popupOptions = options with
         {
@@ -40,11 +40,11 @@ public sealed class DialogFrameRenderer
     }
 
     public void RenderFrame(
-        ScreenRenderer screen,
+        IUiCanvas screen,
         Rect bounds,
         string title,
         bool doubleBorder,
         PopupRenderOptions options,
-        Action<ScreenRenderer, Rect> renderContent) =>
+        Action<IUiCanvas, Rect> renderContent) =>
         RenderFrame(screen, bounds, title, doubleBorder, options, null, renderContent);
 }

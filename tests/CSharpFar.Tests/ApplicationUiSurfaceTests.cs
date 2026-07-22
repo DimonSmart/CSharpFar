@@ -23,7 +23,7 @@ public sealed class ApplicationUiSurfaceTests
         Assert.IsAssignableFrom<IUiSurface>(surface);
         Assert.IsAssignableFrom<IUiLayer>(surface);
         Assert.Equal(UiLayerInputPolicy.Bubble, surface.InputPolicy);
-        Assert.NotSame(new UiFocusScope(), surface.FocusScope);
+        Assert.NotSame(new UiFocusController(), surface.FocusState);
 
         services.Composition.Render();
         services.Composition.DispatchInput(Key(ConsoleKey.A));
@@ -934,7 +934,7 @@ public sealed class ApplicationUiSurfaceTests
     private sealed class TestLayer(UiLayerInputPolicy policy) : IUiLayer
     {
         public UiLayerInputPolicy InputPolicy => policy;
-        public UiFocusScope FocusScope { get; } = new();
+        public IUiFocusState FocusState { get; } = new();
         public UiInteractionFrame CommittedInteractionFrame => UiInteractionFrame.Empty;
         public UiInputResult Result { get; set; } = UiInputResult.NotHandled;
         public void Render(UiRenderContext context) { }
@@ -944,7 +944,7 @@ public sealed class ApplicationUiSurfaceTests
     private sealed class TestSurface(ScreenRenderer screen, UiInputResult result) : IUiSurface, IUiLayer
     {
         public UiLayerInputPolicy InputPolicy => UiLayerInputPolicy.Bubble;
-        public UiFocusScope FocusScope { get; } = new();
+        public IUiFocusState FocusState { get; } = new();
         public UiInteractionFrame CommittedInteractionFrame => UiInteractionFrame.Empty;
         public IDisposable BeginFrame(UiRenderRequest request) => screen.BeginFrame();
         public void Render(UiRenderContext context) { }

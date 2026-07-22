@@ -48,7 +48,7 @@ internal sealed class OpenCreateFileCommand : IApplicationCommand
         bool existedBefore = File.Exists(filePath);
         EditorDocumentFormat newFileFormat = result.CodePage.CreateDocumentFormat(context.Settings.Editor);
         new FileEditor(
-            context.Screen,
+            context.Canvas,
             context.ModalDialogs,
             context.Palette,
             context.Settings.Editor,

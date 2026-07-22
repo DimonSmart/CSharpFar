@@ -6,7 +6,7 @@ public interface IUiLayer
 {
     UiLayerInputPolicy InputPolicy { get; }
 
-    UiFocusScope FocusScope { get; }
+    IUiFocusState FocusState { get; }
 
     UiInteractionFrame CommittedInteractionFrame { get; }
 
@@ -15,4 +15,9 @@ public interface IUiLayer
     UiInputResult RouteInput(
         ConsoleInputEvent input,
         UiInputRouteContext context);
+}
+
+internal interface IUiFocusRuntime
+{
+    void RequestFocusOnNextCommit(UiFocusRequest request);
 }

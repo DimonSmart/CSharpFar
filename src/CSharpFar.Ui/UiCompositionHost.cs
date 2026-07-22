@@ -11,9 +11,10 @@ public sealed class UiRenderContext
     private readonly UiCompositionHost.UiRenderAttempt _attempt;
 
     internal UiRenderContext(ScreenRenderer screen, ConsoleViewport viewport, UiCompositionHost.UiRenderAttempt attempt) =>
-        (Screen, Viewport, _attempt) = (screen, viewport, attempt);
+        (Canvas, RuntimeScreen, Viewport, _attempt) = (new ScreenRendererCanvas(screen), screen, viewport, attempt);
 
-    public ScreenRenderer Screen { get; }
+    public IUiCanvas Canvas { get; }
+    internal ScreenRenderer RuntimeScreen { get; }
     public ConsoleViewport Viewport { get; }
     public ConsoleSize Size => Viewport.Size;
 
@@ -327,9 +328,9 @@ public sealed class UiCompositionHost
 
                 UiInputResult result = entry.Layer.RouteInput(
                     input,
-                    UiInputRouteContext.Layer(entry.Layer.FocusScope));
+                    UiInputRouteContext.Layer(entry.Layer.FocusState));
                 ValidateInputResult(entry, input, result);
-                ApplyFocusRequest(entry.Layer.FocusScope, result.FocusRequest);
+                ApplyFocusRequest(entry.Layer, result.FocusRequest);
                 ApplyMouseCaptureRequest(entry, input, result.MouseCaptureRequest);
 
                 handled |= result.Handled;
@@ -593,10 +594,10 @@ public sealed class UiCompositionHost
         UiLayerEntry entry = capture.Owner;
         UiInputResult result = entry.Layer.RouteInput(
             input,
-            UiInputRouteContext.CapturedTarget(entry.Layer.FocusScope, capture.Target));
+            UiInputRouteContext.CapturedTarget(entry.Layer.FocusState, capture.Target));
 
         ValidateInputResult(entry, input, result);
-        ApplyFocusRequest(entry.Layer.FocusScope, result.FocusRequest);
+        ApplyFocusRequest(entry.Layer, result.FocusRequest);
         UiMouseCaptureState? oldCapture = _mouseCapture;
         bool explicitCapture = result.MouseCaptureRequest.Kind == UiMouseCaptureRequestKind.Capture;
         ApplyMouseCaptureRequest(entry, input, result.MouseCaptureRequest);
@@ -612,28 +613,15 @@ public sealed class UiCompositionHost
         return NormalizeResult(result.Handled, result.Invalidate);
     }
 
-    private void ApplyFocusRequest(UiFocusScope focusScope, UiFocusRequest request)
+    private static void ApplyFocusRequest(IUiLayer layer, UiFocusRequest request)
     {
-        switch (request.Kind)
-        {
-            case UiFocusRequestKind.None:
-                break;
-            case UiFocusRequestKind.Set:
-                if (!focusScope.TryFocus(request.Target!))
-                    throw new InvalidOperationException("Focus target must exist in the committed focus frame and be enabled.");
-                break;
-            case UiFocusRequestKind.Clear:
-                focusScope.ClearFocus();
-                break;
-            case UiFocusRequestKind.MoveNext:
-                focusScope.MoveNext();
-                break;
-            case UiFocusRequestKind.MovePrevious:
-                focusScope.MovePrevious();
-                break;
-            default:
-                throw new InvalidOperationException($"Unknown focus request '{request.Kind}'.");
-        }
+        if (request.Kind == UiFocusRequestKind.None)
+            return;
+
+        if (layer is not IUiFocusRuntime runtime)
+            throw new InvalidOperationException("Only an interactive runtime layer can accept a focus request.");
+
+        runtime.RequestFocusOnNextCommit(request);
     }
 
     private void ApplyMouseCaptureRequest(

@@ -16,11 +16,11 @@ internal sealed class ProgressDialog
     private const int DeleteOuterWidth = 68;
     private const int DeleteOuterHeight = 12;
 
-    private readonly ScreenRenderer _screen;
+    private readonly IUiCanvas _screen;
     private readonly ModalDialogRenderer _modalRenderer = new();
     private readonly string _destination;
 
-    public ProgressDialog(ScreenRenderer screen, string destination)
+    public ProgressDialog(IUiCanvas screen, string destination)
     {
         _screen = screen;
         _destination = destination;

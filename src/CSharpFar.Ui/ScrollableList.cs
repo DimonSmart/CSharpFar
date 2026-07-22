@@ -182,14 +182,14 @@ public sealed class ScrollableList<T>
         ScrollTop = ScrollStateCalculator.ClampFirstVisibleIndex(ScrollTop, Count, rows);
     }
 
-    public void Render(ScreenRenderer screen, Rect bounds)
+    public void Render(IUiCanvas screen, Rect bounds)
         => Render(screen, bounds, new ScrollableListFrameState(SelectedIndex, ScrollTop));
 
-    public void Render(ScreenRenderer screen, Rect bounds, ScrollableListFrameState frameState)
+    public void Render(IUiCanvas screen, Rect bounds, ScrollableListFrameState frameState)
         => Render(screen, bounds, frameState, NormalStyle, SelectedStyle, EmptyStyle);
 
     public void Render(
-        ScreenRenderer screen,
+        IUiCanvas screen,
         Rect bounds,
         ScrollableListFrameState frameState,
         CellStyle normalStyle,

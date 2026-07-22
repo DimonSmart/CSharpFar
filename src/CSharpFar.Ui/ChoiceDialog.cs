@@ -62,13 +62,13 @@ public sealed class ChoiceDialog
 
     private static ScrollableFormFrame RenderLayer(
         UiRenderContext context,
-        UiFocusScope focusScope,
+        IUiFocusState focusScope,
         DialogActionController actions,
         ChoiceDialogOptions options,
         ChoiceDialogLayout layout)
     {
         ScrollableFormFrame? frame = null;
-        ScreenRenderer screen = context.Screen;
+        IUiCanvas screen = context.Canvas;
         var palette = UiTheme.Current;
         new DialogFrameRenderer().RenderFrame(
             screen,

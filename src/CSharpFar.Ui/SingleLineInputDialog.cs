@@ -105,7 +105,7 @@ public sealed class SingleLineInputDialog
 
     private ScrollableFormFrame Draw(
         UiRenderContext context,
-        UiFocusScope focusScope,
+        IUiFocusState focusScope,
         string title,
         ScrollableFormDialog form,
         string? error)
@@ -114,7 +114,7 @@ public sealed class SingleLineInputDialog
         ScrollableFormFrame? frame = null;
         var palette = UiTheme.Current;
         _modalRenderer.Render(
-            context.Screen,
+            context.Canvas,
             layout.Bounds,
             title,
             doubleBorder: false,
@@ -126,7 +126,7 @@ public sealed class SingleLineInputDialog
                 frame = form.Render(
                     new FormRenderContext(context, new Rect(content.X, content.Y, content.Width, 4), FarDialogStyles.Border),
                     focusScope);
-                context.Screen.Write(content.X, content.Y + 4, ScrollableFormDialog.Fit(error ?? string.Empty, content.Width), PaletteStyles.DialogError(palette));
+                context.Canvas.Write(content.X, content.Y + 4, ScrollableFormDialog.Fit(error ?? string.Empty, content.Width), PaletteStyles.DialogError(palette));
             });
         return frame ?? throw new InvalidOperationException("Single-line input dialog did not render a form frame.");
     }

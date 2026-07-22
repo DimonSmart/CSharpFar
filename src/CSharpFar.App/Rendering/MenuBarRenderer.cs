@@ -8,7 +8,7 @@ namespace CSharpFar.App.Rendering;
 public sealed class MenuBarRenderer
 {
     public void Render(
-        ScreenRenderer screen,
+        IUiCanvas screen,
         Rect screenBounds,
         MenuBarDefinition definition,
         MenuState state,
@@ -36,7 +36,7 @@ public sealed class MenuBarRenderer
     }
 
     private static void WriteWithHotKey(
-        ScreenRenderer screen,
+        IUiCanvas screen,
         int x,
         int y,
         string text,

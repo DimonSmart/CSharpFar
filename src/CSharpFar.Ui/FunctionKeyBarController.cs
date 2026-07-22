@@ -14,7 +14,7 @@ public sealed class FunctionKeyBarController<TAction>
     private readonly FunctionKeyBar _bar = new();
 
     public void Render(
-        ScreenRenderer screen,
+        IUiCanvas screen,
         int y,
         int totalWidth,
         IReadOnlyList<FunctionKeyBarAction<TAction>> actions)

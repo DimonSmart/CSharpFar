@@ -13,13 +13,13 @@ namespace CSharpFar.App.Rendering;
 /// </summary>
 internal sealed class QuickViewRenderer
 {
-    private readonly ScreenRenderer _screen;
+    private readonly IUiCanvas _screen;
     private readonly CellStyle _fillStyle;
     private readonly CellStyle _borderStyle;
     private readonly CellStyle _titleStyle;
     private readonly CellStyle _errorStyle;
 
-    public QuickViewRenderer(ScreenRenderer screen, ConsolePalette? palette = null)
+    public QuickViewRenderer(IUiCanvas screen, ConsolePalette? palette = null)
     {
         _screen = screen;
         palette ??= PaletteRegistry.Default;

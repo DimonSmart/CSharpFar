@@ -54,7 +54,7 @@ internal sealed class HelpViewerLayer : InteractiveSurfaceLayer<HelpViewerFrame,
     protected override HelpViewerFrame RenderFrameCore(UiRenderContext context)
     {
         HelpViewerFrame frame = CreateFrame(context, _lines, _palette, _scrollTop, _scrollLeft);
-        Draw(context.Screen, _lines, frame, _palette);
+        Draw(context.Canvas, _lines, frame, _palette);
         return frame;
     }
 
@@ -217,7 +217,7 @@ internal sealed class HelpViewerLayer : InteractiveSurfaceLayer<HelpViewerFrame,
         return builder.Build();
     }
 
-    private static void Draw(ScreenRenderer screen, HelpLine[] lines, HelpViewerFrame frame, ConsolePalette palette)
+    private static void Draw(IUiCanvas screen, HelpLine[] lines, HelpViewerFrame frame, ConsolePalette palette)
     {
         int width = frame.Viewport.Size.Width;
         int height = frame.Viewport.Size.Height;
@@ -243,7 +243,7 @@ internal sealed class HelpViewerLayer : InteractiveSurfaceLayer<HelpViewerFrame,
         screen.Write(2, height - 1, "Close", PaletteStyles.KeyBarLabel(palette));
     }
 
-    private static void DrawLine(ScreenRenderer screen, HelpLine line, int y, int left, int width, ConsolePalette palette)
+    private static void DrawLine(IUiCanvas screen, HelpLine line, int y, int left, int width, ConsolePalette palette)
     {
         if (width <= 0)
             return;
@@ -265,7 +265,7 @@ internal sealed class HelpViewerLayer : InteractiveSurfaceLayer<HelpViewerFrame,
     }
 
     private static void WriteClipped(
-        ScreenRenderer screen,
+        IUiCanvas screen,
         int x,
         int y,
         string text,

@@ -4,14 +4,15 @@ using CSharpFar.Console.Models;
 
 namespace CSharpFar.Ui;
 
-public abstract class UiLayer<TFrame> : IUiLayer
+public abstract class UiLayer<TFrame> : IUiLayer, IUiFocusRuntime
 {
     private readonly UiCommittedState<TFrame> _committedFrame = new();
     private readonly UiCommittedState<UiInteractionFrame> _committedInteractionFrame = new(UiInteractionFrame.Empty);
+    private readonly UiFocusController _focusController = new();
 
     public abstract UiLayerInputPolicy InputPolicy { get; }
 
-    public UiFocusScope FocusScope { get; } = new();
+    public IUiFocusState FocusState => _focusController;
 
     public bool HasCommittedFrame => _committedFrame.HasValue;
 
@@ -19,18 +20,21 @@ public abstract class UiLayer<TFrame> : IUiLayer
 
     public UiInteractionFrame CommittedInteractionFrame => _committedInteractionFrame.Value;
 
+    void IUiFocusRuntime.RequestFocusOnNextCommit(UiFocusRequest request) =>
+        _focusController.RequestOnNextCommit(request);
+
     internal void RequestFocusOnNextCommit(UiFocusRequest request) =>
-        FocusScope.RequestOnNextCommit(request);
+        _focusController.RequestOnNextCommit(request);
 
     public void Render(UiRenderContext context)
     {
         TFrame frame = RenderFrame(context);
         UiInteractionFrame interactionFrame = BuildInteractionFrame(frame) ??
             throw new InvalidOperationException("A UI layer cannot publish a null interaction frame.");
-        ApplyCursor(context.Screen, context.Viewport, interactionFrame);
+        ApplyCursor(context.RuntimeScreen, context.Viewport, interactionFrame);
         _committedFrame.Stage(context, frame);
         _committedInteractionFrame.Stage(context, interactionFrame);
-        context.PublishOnStable(interactionFrame.Focus, FocusScope.Commit);
+        context.PublishOnStable(interactionFrame.Focus, _focusController.Commit);
         context.PublishOnStable(frame, OnFrameCommitted);
     }
 
@@ -50,14 +54,14 @@ public abstract class UiLayer<TFrame> : IUiLayer
         UiInteractionFrame interactionFrame,
         UiInputRouteContext hostContext)
     {
-        if (!ReferenceEquals(hostContext.FocusScope, FocusScope))
+        if (!ReferenceEquals(hostContext.FocusState, FocusState))
             throw new InvalidOperationException("Input route context belongs to another UI layer.");
 
         if (hostContext.RouteKind == UiInputRouteKind.CapturedTarget)
         {
             if (input is not MouseConsoleInputEvent || hostContext.Target is null)
                 throw new InvalidOperationException("Captured target routes require mouse input and a target.");
-            return UiInputRouteContext.CapturedTarget(FocusScope, hostContext.Target);
+            return UiInputRouteContext.CapturedTarget(FocusState, hostContext.Target);
         }
 
         if (hostContext.RouteKind != UiInputRouteKind.Layer || hostContext.Target is not null)
@@ -66,13 +70,13 @@ public abstract class UiLayer<TFrame> : IUiLayer
         return input switch
         {
             MouseConsoleInputEvent mouse when interactionFrame.TryHitTest(mouse.X, mouse.Y, out UiHitRegion region) =>
-                UiInputRouteContext.HitTarget(FocusScope, region.Target),
-            MouseConsoleInputEvent => UiInputRouteContext.Layer(FocusScope),
+                UiInputRouteContext.HitTarget(FocusState, region.Target),
+            MouseConsoleInputEvent => UiInputRouteContext.Layer(FocusState),
             KeyConsoleInputEvent or ModifierKeyConsoleInputEvent when interactionFrame.KeyboardTarget is UiTargetId target =>
-                UiInputRouteContext.KeyboardTarget(FocusScope, target),
-            KeyConsoleInputEvent or ModifierKeyConsoleInputEvent when FocusScope.FocusedTarget is UiTargetId target =>
-                UiInputRouteContext.FocusedTarget(FocusScope, target),
-            _ => UiInputRouteContext.Layer(FocusScope),
+                UiInputRouteContext.KeyboardTarget(FocusState, target),
+            KeyConsoleInputEvent or ModifierKeyConsoleInputEvent when FocusState.FocusedTarget is UiTargetId target =>
+                UiInputRouteContext.FocusedTarget(FocusState, target),
+            _ => UiInputRouteContext.Layer(FocusState),
         };
     }
 
@@ -98,7 +102,7 @@ public abstract class UiLayer<TFrame> : IUiLayer
         if (interactionFrame.Focus.Entries.Count == 0)
             return;
 
-        UiTargetId? focusedTarget = FocusScope.ResolveFocusedTarget(interactionFrame.Focus);
+        UiTargetId? focusedTarget = _focusController.ResolveFocusedTarget(interactionFrame.Focus);
         UiFocusEntry? focusedEntry = focusedTarget is null
             ? null
             : interactionFrame.Focus.Entries.FirstOrDefault(entry => entry.Target == focusedTarget);

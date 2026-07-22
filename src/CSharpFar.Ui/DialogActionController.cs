@@ -41,7 +41,7 @@ internal sealed class DialogActionController
         _form.SetRows([], [actions]);
     }
 
-    public ScrollableFormFrame Render(FormRenderContext context, UiFocusScope focusScope) =>
+    public ScrollableFormFrame Render(FormRenderContext context, IUiFocusState focusScope) =>
         _form.Render(context, focusScope);
 
     public UiInteractionFrame BuildInteractionFrame(ScrollableFormFrame frame) =>

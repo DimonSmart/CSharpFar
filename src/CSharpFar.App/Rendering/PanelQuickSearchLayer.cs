@@ -49,7 +49,7 @@ internal sealed class PanelQuickSearchLayer : UiLayer<PanelQuickSearchFrame>
         var panelBounds = quickSearch.PanelSide == PanelSide.Left
             ? workspace.Left
             : workspace.Right;
-        var layout = new PanelQuickSearchRenderer(context.Screen, _context.App.Palette)
+        var layout = new PanelQuickSearchRenderer(context.Canvas, _context.App.Palette)
             .Render(panelBounds, quickSearch.SearchText);
         if (layout is null)
             return new PanelQuickSearchFrame(
@@ -81,9 +81,14 @@ internal sealed class PanelQuickSearchLayer : UiLayer<PanelQuickSearchFrame>
         var focus = new UiFocusFrame(
             [new UiFocusEntry(InputTarget, 0, IsEnabled: true, frame.Cursor)],
             InputTarget);
-        return frame.PopupVisible
-            ? new UiInteractionFrame([new UiHitRegion(InputTarget, frame.InputBounds)], focus)
-            : new UiInteractionFrame([], focus);
+        var builder = new UiInteractionFrameBuilder()
+            .AddFocusEntries(focus.Entries)
+            .SetDefaultFocusTarget(focus.DefaultTarget);
+
+        if (frame.PopupVisible)
+            builder.AddHitRegion(InputTarget, frame.InputBounds);
+
+        return builder.Build();
     }
 
     protected override UiInputResult RouteInput(

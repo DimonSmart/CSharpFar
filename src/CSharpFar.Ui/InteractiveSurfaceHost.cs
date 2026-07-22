@@ -106,20 +106,20 @@ public readonly record struct InteractiveSurfaceRouteResult<TSemantic>(
 
 public class InteractiveSurfaceLayer<TFrame, TSemantic> : UiLayer<TFrame>
 {
-    private readonly Func<UiRenderContext, UiFocusScope, TFrame> _render;
+    private readonly Func<UiRenderContext, IUiFocusState, TFrame> _render;
     private readonly Func<TFrame, UiInteractionFrame> _buildInteractionFrame;
     private readonly Func<ConsoleInputEvent, TFrame, UiInputRouteContext, InteractiveSurfaceRouteResult<TSemantic>> _routeInput;
     private readonly PendingInputSlot<InteractiveLayerInput<TFrame, TSemantic>> _pendingInput = new();
 
     public InteractiveSurfaceLayer(
-        Func<UiRenderContext, UiFocusScope, TFrame> render,
+        Func<UiRenderContext, IUiFocusState, TFrame> render,
         Func<TFrame, UiInteractionFrame> buildInteractionFrame,
         Func<ConsoleInputEvent, TFrame, UiInputRouteContext, InteractiveSurfaceRouteResult<TSemantic>> routeInput) =>
         (_render, _buildInteractionFrame, _routeInput) = (render, buildInteractionFrame, routeInput);
 
     public override UiLayerInputPolicy InputPolicy => UiLayerInputPolicy.Modal;
 
-    protected virtual TFrame RenderFrameCore(UiRenderContext context) => _render(context, FocusScope);
+    protected virtual TFrame RenderFrameCore(UiRenderContext context) => _render(context, FocusState);
 
     protected override TFrame RenderFrame(UiRenderContext context) => RenderFrameCore(context);
 

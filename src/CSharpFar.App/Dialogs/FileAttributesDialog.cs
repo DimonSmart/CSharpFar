@@ -265,12 +265,12 @@ internal sealed class FileAttributesDialog : IFileAttributesDialog
             buttonAreaWidth: 36));
     }
 
-    private ScrollableFormFrame Draw(UiRenderContext context, UiFocusScope focusScope, ScrollableFormDialog form, string? error)
+    private ScrollableFormFrame Draw(UiRenderContext context, IUiFocusState focusScope, ScrollableFormDialog form, string? error)
     {
         Rect outerBounds = OuterBounds(context.Size);
         ScrollableFormFrame? frame = null;
 
-        _modalRenderer.Render(context.Screen, outerBounds, "Attributes", true, FarDialogStyles.OuterOptions, FarDialogStyles.FrameOptions, (_, layout) =>
+        _modalRenderer.Render(context.Canvas, outerBounds, "Attributes", true, FarDialogStyles.OuterOptions, FarDialogStyles.FrameOptions, (_, layout) =>
         {
             Rect bounds = layout.FrameBounds;
             int contentX = bounds.X + 2;
@@ -286,7 +286,7 @@ internal sealed class FileAttributesDialog : IFileAttributesDialog
                 focusScope);
 
             string errorText = error is null ? string.Empty : Truncate(error, contentWidth);
-            context.Screen.Write(contentX, errorY, errorText.PadRight(contentWidth), FarDialogStyles.Error);
+            context.Canvas.Write(contentX, errorY, errorText.PadRight(contentWidth), FarDialogStyles.Error);
         });
         return frame ?? throw new InvalidOperationException("File attributes dialog did not render a form frame.");
     }
@@ -492,7 +492,7 @@ internal sealed class FileAttributesDialog : IFileAttributesDialog
 
         public override void Render(FormRowRenderContext context)
         {
-            context.Screen.Write(
+            context.Canvas.Write(
                 context.Bounds.X,
                 context.Bounds.Y,
                 _label.PadRight(Math.Min(LabelWidth, context.Bounds.Width)),
@@ -502,7 +502,7 @@ internal sealed class FileAttributesDialog : IFileAttributesDialog
                 int x = context.Bounds.X + LabelWidth + index * ColumnWidth;
                 int width = Math.Min(ColumnWidth, context.Bounds.Right - x);
                 if (width > 0)
-                    _columns[index].Render(context.Screen, x, context.Bounds.Y, width, context.Focused && index == _focusedColumn);
+                    _columns[index].Render(context.Canvas, x, context.Bounds.Y, width, context.Focused && index == _focusedColumn);
             }
         }
 

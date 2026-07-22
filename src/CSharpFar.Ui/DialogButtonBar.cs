@@ -40,7 +40,7 @@ public sealed class DialogButtonBar
     }
 
     public DialogButtonBarLayout Render(
-        ScreenRenderer screen,
+        IUiCanvas screen,
         int x,
         int y,
         int width,
@@ -54,7 +54,7 @@ public sealed class DialogButtonBar
     }
 
     public void Render(
-        ScreenRenderer screen,
+        IUiCanvas screen,
         DialogButtonBarLayout layout,
         int focusedIndex,
         CellStyle normalStyle,

@@ -150,11 +150,11 @@ internal sealed class OpenCreateFileDialog
         return new OpenCreateFileDialogResult(path, _codePages[codePageIndex]);
     }
 
-    private ScrollableFormFrame Draw(UiRenderContext context, UiFocusScope focusScope, ScrollableFormDialog form)
+    private ScrollableFormFrame Draw(UiRenderContext context, IUiFocusState focusScope, ScrollableFormDialog form)
     {
         ScrollableFormFrame? frame = null;
         _modalRenderer.Render(
-            context.Screen,
+            context.Canvas,
             OuterBounds(context.Size),
             Title,
             doubleBorder: true,

@@ -26,7 +26,7 @@ internal sealed class SearchProgressDialog
     private static readonly UiTargetId GoToTarget = new("search-progress.goto");
     private static readonly UiTargetId StopTarget = new("search-progress.stop");
 
-    private readonly ScreenRenderer _screen;
+    private readonly IUiCanvas _screen;
     private readonly ModalDialogHost _modalDialogs;
     private readonly ISearchService _searchService;
     private readonly ModalDialogRenderer _modalRenderer = new();
@@ -270,7 +270,7 @@ internal sealed class SearchProgressDialog
 
     private SearchProgressFrame Render(
         UiRenderContext context,
-        UiFocusScope focusScope,
+        IUiFocusState focusScope,
         SearchRequest request,
         SearchProgressViewState state,
         ScrollableList<SearchResultItem> list,

@@ -7,7 +7,7 @@ namespace CSharpFar.Ui;
 public sealed class ScrollBarRenderer
 {
     public void RenderVerticalScrollbar(
-        ScreenRenderer screen,
+        IUiCanvas screen,
         Rect bounds,
         ScrollState state,
         ScrollBarOptions options,

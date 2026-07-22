@@ -12,7 +12,7 @@ public sealed partial class ScrollableFormDialog
     private IReadOnlyList<IFormRow> _footerRows = [];
     private Dictionary<IFormRow, UiTargetId> _targets = new(ReferenceEqualityComparer.Instance);
     private readonly ConditionalWeakTable<IFormRow, AnonymousRowTokenBox> _anonymousRowTokens = new();
-    private UiFocusScope? _activeFocusScope;
+    private IUiFocusState? _activeFocusState;
     private UiTargetId? _requestedInitialTarget;
     private ScrollableFormFrame? _committedFrame;
     private FormLayoutSnapshot? _stableLayout;
@@ -46,7 +46,7 @@ public sealed partial class ScrollableFormDialog
     {
         get
         {
-            if ((_requestedInitialTarget ?? _activeFocusScope?.FocusedTarget) is { } selected)
+            if ((_requestedInitialTarget ?? _activeFocusState?.FocusedTarget) is { } selected)
                 return selected;
 
             IFormRow? first = AllRows().FirstOrDefault(row => row.IsFocusable);
@@ -197,7 +197,7 @@ public sealed partial class ScrollableFormDialog
         return null;
     }
 
-    private static void RenderFocusedOverlay(ScreenRenderer screen, ScrollableFormFrame frame, UiTargetId? focusedTarget)
+    private static void RenderFocusedOverlay(IUiCanvas screen, ScrollableFormFrame frame, UiTargetId? focusedTarget)
     {
         if (focusedTarget is null)
             return;

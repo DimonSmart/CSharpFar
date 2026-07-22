@@ -232,7 +232,7 @@ public sealed class SearchOptionsDialog
 
     private ScrollableFormFrame Draw(
         UiRenderContext context,
-        UiFocusScope focusScope,
+        IUiFocusState focusScope,
         SearchOptionsDialogOptions options,
         SearchOptionsDialogLayout layout,
         ScrollableFormDialog form,
@@ -241,7 +241,7 @@ public sealed class SearchOptionsDialog
         var palette = UiTheme.Current;
         ScrollableFormFrame? frame = null;
         _modalRenderer.Render(
-            context.Screen,
+            context.Canvas,
             layout.Bounds,
             options.Title,
             doubleBorder: true,
@@ -257,7 +257,7 @@ public sealed class SearchOptionsDialog
                     focusScope);
 
                 string errorText = error is null ? string.Empty : error;
-                context.Screen.Write(content.X, layout.ErrorY, ScrollableFormDialog.Fit(errorText, content.Width), PaletteStyles.DialogError(palette));
+                context.Canvas.Write(content.X, layout.ErrorY, ScrollableFormDialog.Fit(errorText, content.Width), PaletteStyles.DialogError(palette));
             });
         return frame ?? throw new InvalidOperationException("Search options dialog did not render a form frame.");
     }

@@ -2,7 +2,7 @@ using CSharpFar.Ui;
 
 namespace CSharpFar.Tests;
 
-public sealed class UiFocusScopeTests
+public sealed class IUiFocusStateTests
 {
     [Fact]
     public void TargetId_ValidatesAndPreservesValueSemantics()
@@ -26,7 +26,7 @@ public sealed class UiFocusScopeTests
     [Fact]
     public void Commit_SelectsDefaultTarget()
     {
-        var scope = new UiFocusScope();
+        var scope = new UiFocusController();
 
         scope.Commit(Frame(["a", "b"], defaultTarget: "b"));
 
@@ -36,7 +36,7 @@ public sealed class UiFocusScopeTests
     [Fact]
     public void Commit_SelectsFirstEnabledWhenDefaultMissing()
     {
-        var scope = new UiFocusScope();
+        var scope = new UiFocusController();
 
         scope.Commit(new UiFocusFrame([
             new(new UiTargetId("a"), 2, IsEnabled: false),
@@ -80,7 +80,7 @@ public sealed class UiFocusScopeTests
     [Fact]
     public void Commit_PreservesCurrentTargetWhenStillEnabled()
     {
-        var scope = new UiFocusScope();
+        var scope = new UiFocusController();
         scope.Commit(Frame(["a", "b"], defaultTarget: "a"));
         scope.TryFocus(new UiTargetId("b"));
 
@@ -92,7 +92,7 @@ public sealed class UiFocusScopeTests
     [Fact]
     public void Commit_FallsBackWhenCurrentTargetDisappears()
     {
-        var scope = new UiFocusScope();
+        var scope = new UiFocusController();
         scope.Commit(Frame(["a", "b"], defaultTarget: "a"));
 
         scope.Commit(Frame(["b", "c"], defaultTarget: "c"));
@@ -103,7 +103,7 @@ public sealed class UiFocusScopeTests
     [Fact]
     public void Commit_ClearsFocusWhenNoEnabledTargets()
     {
-        var scope = new UiFocusScope();
+        var scope = new UiFocusController();
         scope.Commit(Frame(["a"]));
 
         scope.Commit(new UiFocusFrame([new(new UiTargetId("a"), 0, IsEnabled: false)]));
@@ -114,7 +114,7 @@ public sealed class UiFocusScopeTests
     [Fact]
     public void TryFocus_ChangesOnlyForKnownEnabledTarget()
     {
-        var scope = new UiFocusScope();
+        var scope = new UiFocusController();
         scope.Commit(new UiFocusFrame([
             new(new UiTargetId("a"), 0),
             new(new UiTargetId("b"), 1, IsEnabled: false),
@@ -129,7 +129,7 @@ public sealed class UiFocusScopeTests
     [Fact]
     public void NextCommitRequest_IgnoresMissingAndDisabledTargets()
     {
-        var scope = new UiFocusScope();
+        var scope = new UiFocusController();
         var first = new UiTargetId("first");
         var disabled = new UiTargetId("disabled");
         var frame = new UiFocusFrame([
@@ -150,7 +150,7 @@ public sealed class UiFocusScopeTests
     [Fact]
     public void Traversal_UsesTabOrderOriginalOrderAndWrapAround()
     {
-        var scope = new UiFocusScope();
+        var scope = new UiFocusController();
         scope.Commit(new UiFocusFrame([
             new(new UiTargetId("a"), 2),
             new(new UiTargetId("b"), 1),
@@ -171,7 +171,7 @@ public sealed class UiFocusScopeTests
     [Fact]
     public void FocusedEntry_UsesCurrentFrameCursorMetadata()
     {
-        var scope = new UiFocusScope();
+        var scope = new UiFocusController();
         var target = new UiTargetId("a");
         scope.Commit(new UiFocusFrame([new(target, 0, Cursor: new UiCursorPlacement(1, 2))]));
         scope.Commit(new UiFocusFrame([new(target, 0, Cursor: new UiCursorPlacement(3, 4, Visible: false))]));
@@ -183,7 +183,7 @@ public sealed class UiFocusScopeTests
     [Fact]
     public void EmptyFrame_ClearsFocus()
     {
-        var scope = new UiFocusScope();
+        var scope = new UiFocusController();
         scope.Commit(Frame(["a"]));
 
         scope.Commit(UiFocusFrame.Empty);

@@ -18,7 +18,7 @@ public sealed class TriStateCheckBoxLine
     public AttributeEditState Value { get; set; }
     public bool Enabled { get; set; }
 
-    public void Render(ScreenRenderer screen, int x, int y, int width, bool focused)
+    public void Render(IUiCanvas screen, int x, int y, int width, bool focused)
     {
         ArgumentNullException.ThrowIfNull(screen);
 

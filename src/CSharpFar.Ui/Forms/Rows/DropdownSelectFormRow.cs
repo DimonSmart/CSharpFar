@@ -28,19 +28,19 @@ public sealed class DropdownSelectFormRow<T> : FormRow, IFormCursorProvider, IFo
     public override void Render(FormRowRenderContext context)
     {
         var layout = CalculateLayout(context.Bounds);
-        context.Screen.Write(
+        context.Canvas.Write(
             context.Bounds.X,
             context.Bounds.Y,
             ScrollableFormDialog.Fit(_label.PadRight(layout.LabelWidth), layout.LabelWidth),
             FarDialogStyles.Fill);
         _dropdown.RenderField(
-            context.Screen,
+            context.Canvas,
             layout.FieldBounds,
             context.Focused ? FarDialogStyles.FocusedInput : FarDialogStyles.Input);
     }
 
     public void RenderDropdownOverlay(FormRowRenderContext context, DropdownSelectFrame frame) =>
-        _dropdown.RenderPopup(context.Screen, frame);
+        _dropdown.RenderPopup(context.Canvas, frame);
 
     public bool TryGetCursor(FormRowRenderContext context, out FormCursorPlacement cursor)
     {

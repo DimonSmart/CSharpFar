@@ -66,7 +66,7 @@ public sealed class ChoiceRow<T>
         return false;
     }
 
-    public ChoiceRowLayout Render(ScreenRenderer screen, int x, int y, int width, string label, bool focused)
+    public ChoiceRowLayout Render(IUiCanvas screen, int x, int y, int width, string label, bool focused)
     {
         ArgumentNullException.ThrowIfNull(screen);
 
@@ -117,7 +117,7 @@ public sealed class ChoiceRow<T>
     }
 
     public ChoiceRowLayout RenderSegmented(
-        ScreenRenderer screen,
+        IUiCanvas screen,
         int x,
         int y,
         int width,

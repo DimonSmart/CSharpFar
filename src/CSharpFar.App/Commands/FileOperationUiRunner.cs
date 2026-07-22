@@ -226,10 +226,11 @@ internal sealed class FileOperationUiRunner
     }
 
     private static UiInteractionFrame BuildInteractionFrame(FileOperationProgressFrame frame) =>
-        new(
-            [],
-            new UiFocusFrame([new UiFocusEntry(ProgressKeyboardTarget, 0)], ProgressKeyboardTarget),
-            ProgressKeyboardTarget);
+        new UiInteractionFrameBuilder()
+            .AddFocusEntry(ProgressKeyboardTarget, 0)
+            .SetDefaultFocusTarget(ProgressKeyboardTarget)
+            .SetKeyboardTarget(ProgressKeyboardTarget)
+            .Build();
 
     private static (FileOperationProgressInput Semantic, UiInputResult UiResult) RouteInput(
         ConsoleInputEvent input,

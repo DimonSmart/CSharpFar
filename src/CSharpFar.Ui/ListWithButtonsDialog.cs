@@ -78,7 +78,7 @@ public sealed class ListWithButtonsDialog<T>
                     frameFocusButtons,
                     frameFocusedButton,
                     _buttonBar.CalculateLayout(frameLayout.ListBounds.X, frameLayout.ButtonY, frameLayout.ListBounds.Width));
-                RenderLayer(context.Screen, frame);
+                RenderLayer(context.Canvas, frame);
                 return frame;
             },
             (input, committedFrame) =>
@@ -210,7 +210,7 @@ public sealed class ListWithButtonsDialog<T>
     }
 
     private void RenderLayer(
-        ScreenRenderer screen,
+        IUiCanvas screen,
         ListWithButtonsFrame frame)
     {
         var layout = frame.Layout;
@@ -243,7 +243,6 @@ public sealed class ListWithButtonsDialog<T>
                 frame.FocusButtons ? selected : fill);
         });
 
-        screen.SetCursorVisible(false);
     }
 
     private ListWithButtonsLayout CalculateLayout(ConsoleSize size)

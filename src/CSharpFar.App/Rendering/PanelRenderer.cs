@@ -8,13 +8,13 @@ namespace CSharpFar.App.Rendering;
 
 internal sealed class PanelRenderer
 {
-    private readonly ScreenRenderer _screen;
+    private readonly IUiCanvas _screen;
     private readonly ConsolePalette _palette;
     private readonly IFileHighlightService? _highlight;
     private readonly AppSettings.PanelOptionsSettings? _options;
 
     public PanelRenderer(
-        ScreenRenderer screen,
+        IUiCanvas screen,
         ConsolePalette? palette = null,
         IFileHighlightService? highlight = null,
         AppSettings.PanelOptionsSettings? options = null)

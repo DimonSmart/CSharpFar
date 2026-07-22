@@ -11,7 +11,7 @@ internal static class PanelErrorRenderer
     private const string RetryText = "[ Retry ]";
 
     public static void Render(
-        ScreenRenderer screen,
+        IUiCanvas screen,
         Rect bounds,
         FilePanelState state,
         PanelViewMode mode,
@@ -82,7 +82,7 @@ internal static class PanelErrorRenderer
         return true;
     }
 
-    private static void FillContent(ScreenRenderer screen, Rect content, CellStyle style)
+    private static void FillContent(IUiCanvas screen, Rect content, CellStyle style)
     {
         string blank = new(' ', content.Width);
         for (int y = content.Y; y < content.Bottom; y++)
@@ -190,7 +190,7 @@ internal static class PanelErrorRenderer
     }
 
     private static void WriteCentered(
-        ScreenRenderer screen,
+        IUiCanvas screen,
         Rect content,
         int y,
         string text,

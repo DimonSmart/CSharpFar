@@ -5,10 +5,10 @@ namespace CSharpFar.App.Rendering;
 
 internal sealed class ClockRenderer
 {
-    private readonly ScreenRenderer _screen;
+    private readonly IUiCanvas _screen;
     private readonly Func<ConsolePalette> _palette;
 
-    public ClockRenderer(ScreenRenderer screen, Func<ConsolePalette> palette)
+    public ClockRenderer(IUiCanvas screen, Func<ConsolePalette> palette)
     {
         _screen = screen;
         _palette = palette;

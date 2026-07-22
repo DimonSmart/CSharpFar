@@ -19,7 +19,7 @@ public sealed class InteractiveSurfaceHostTests
         composition.SetRootSurface(new ScreenRendererSurface(screen, _ => { }));
         int renders = 0;
         var layer = new InteractiveSurfaceLayer<int, string>(
-            (context, _) => { context.Screen.Write(0, 0, "S", new CellStyle(ConsoleColor.Gray, ConsoleColor.Black)); return ++renders; },
+            (context, _) => { context.Canvas.Write(0, 0, "S", new CellStyle(ConsoleColor.Gray, ConsoleColor.Black)); return ++renders; },
             _ => new UiInteractionFrame([], keyboardTarget: new UiTargetId("surface.keyboard")),
             (_, frame, _) => new InteractiveSurfaceRouteResult<string>($"frame:{frame}"));
 
@@ -46,12 +46,12 @@ public sealed class InteractiveSurfaceHostTests
         composition.SetRootSurface(new ScreenRendererSurface(screen, context =>
         {
             rootRenders++;
-            context.Screen.Write(0, 0, "R", new CellStyle(ConsoleColor.Gray, ConsoleColor.Black));
+            context.Canvas.Write(0, 0, "R", new CellStyle(ConsoleColor.Gray, ConsoleColor.Black));
         }));
         var layer = new InteractiveSurfaceLayer<int, ConsoleKey>(
             (context, _) =>
             {
-                context.Screen.Write(0, 0, "S", new CellStyle(ConsoleColor.Gray, ConsoleColor.Black));
+                context.Canvas.Write(0, 0, "S", new CellStyle(ConsoleColor.Gray, ConsoleColor.Black));
                 return 1;
             },
             _ => new UiInteractionFrame([], keyboardTarget: new UiTargetId("surface.keyboard")),
@@ -78,7 +78,7 @@ public sealed class InteractiveSurfaceHostTests
         var layer = new InteractiveSurfaceLayer<int, ConsoleKey>(
             (context, _) =>
             {
-                context.Screen.Write(0, 0, "S", new CellStyle(ConsoleColor.Gray, ConsoleColor.Black));
+                context.Canvas.Write(0, 0, "S", new CellStyle(ConsoleColor.Gray, ConsoleColor.Black));
                 return ++renders;
             },
             _ => new UiInteractionFrame([], keyboardTarget: new UiTargetId("surface.keyboard")),
@@ -111,7 +111,7 @@ public sealed class InteractiveSurfaceHostTests
         int renders = 0;
         int wakes = 0;
         var layer = new InteractiveSurfaceLayer<int, ConsoleKey>(
-            (context, _) => { context.Screen.Write(0, 0, "S", new CellStyle(ConsoleColor.Gray, ConsoleColor.Black)); return ++renders; },
+            (context, _) => { context.Canvas.Write(0, 0, "S", new CellStyle(ConsoleColor.Gray, ConsoleColor.Black)); return ++renders; },
             _ => new UiInteractionFrame([], keyboardTarget: new UiTargetId("surface.keyboard")),
             (input, _, _) => new InteractiveSurfaceRouteResult<ConsoleKey>(((KeyConsoleInputEvent)input).Key.Key));
 
@@ -140,7 +140,7 @@ public sealed class InteractiveSurfaceHostTests
         int renders = 0;
         int wakes = 0;
         var layer = new InteractiveSurfaceLayer<int, ConsoleKey>(
-            (context, _) => { context.Screen.Write(0, 0, "S", new CellStyle(ConsoleColor.Gray, ConsoleColor.Black)); return ++renders; },
+            (context, _) => { context.Canvas.Write(0, 0, "S", new CellStyle(ConsoleColor.Gray, ConsoleColor.Black)); return ++renders; },
             _ => new UiInteractionFrame([], keyboardTarget: new UiTargetId("surface.keyboard")),
             (input, _, _) => new InteractiveSurfaceRouteResult<ConsoleKey>(((KeyConsoleInputEvent)input).Key.Key));
 
@@ -169,7 +169,7 @@ public sealed class InteractiveSurfaceHostTests
         composition.SetRootSurface(new ScreenRendererSurface(screen, _ => { }));
         int wakes = 0;
         var layer = new InteractiveSurfaceLayer<int, ConsoleKey>(
-            (context, _) => { context.Screen.Write(0, 0, "S", new CellStyle(ConsoleColor.Gray, ConsoleColor.Black)); return 1; },
+            (context, _) => { context.Canvas.Write(0, 0, "S", new CellStyle(ConsoleColor.Gray, ConsoleColor.Black)); return 1; },
             _ => new UiInteractionFrame([], keyboardTarget: new UiTargetId("surface.keyboard")),
             (input, _, _) => new InteractiveSurfaceRouteResult<ConsoleKey>(((KeyConsoleInputEvent)input).Key.Key));
 
@@ -199,7 +199,7 @@ public sealed class InteractiveSurfaceHostTests
         composition.SetRootSurface(new ScreenRendererSurface(screen, _ => { }));
         int wakes = 0;
         var layer = new InteractiveSurfaceLayer<int, ConsoleKey>(
-            (context, _) => { context.Screen.Write(0, 0, "S", new CellStyle(ConsoleColor.Gray, ConsoleColor.Black)); return 1; },
+            (context, _) => { context.Canvas.Write(0, 0, "S", new CellStyle(ConsoleColor.Gray, ConsoleColor.Black)); return 1; },
             _ => new UiInteractionFrame([], keyboardTarget: new UiTargetId("surface.keyboard")),
             (input, _, _) => new InteractiveSurfaceRouteResult<ConsoleKey>(((KeyConsoleInputEvent)input).Key.Key));
 
@@ -336,7 +336,7 @@ public sealed class InteractiveSurfaceHostTests
         composition.SetRootSurface(new ScreenRendererSurface(screen, context =>
         {
             rootRenders++;
-            context.Screen.Write(0, 0, "R", new CellStyle(ConsoleColor.Gray, ConsoleColor.Black));
+            context.Canvas.Write(0, 0, "R", new CellStyle(ConsoleColor.Gray, ConsoleColor.Black));
         }));
         var layer = new TrackingSurfaceLayer();
 
@@ -423,7 +423,7 @@ public sealed class InteractiveSurfaceHostTests
         var layer = new InteractiveSurfaceLayer<int, ConsoleKey>(
             (context, _) =>
             {
-                context.Screen.Write(0, 0, "S", new CellStyle(ConsoleColor.Gray, ConsoleColor.Black));
+                context.Canvas.Write(0, 0, "S", new CellStyle(ConsoleColor.Gray, ConsoleColor.Black));
                 return 1;
             },
             _ => new UiInteractionFrame([], keyboardTarget: new UiTargetId("surface.keyboard")),
@@ -437,7 +437,7 @@ public sealed class InteractiveSurfaceHostTests
                 if (key == ConsoleKey.A)
                 {
                     modalHost.Run(
-                        context => context.Screen.Write(0, 1, "M", new CellStyle(ConsoleColor.Gray, ConsoleColor.Black)),
+                        context => context.Canvas.Write(0, 1, "M", new CellStyle(ConsoleColor.Gray, ConsoleColor.Black)),
                         input =>
                         {
                             modalInputs++;
@@ -463,12 +463,12 @@ public sealed class InteractiveSurfaceHostTests
         composition.SetRootSurface(new ScreenRendererSurface(screen, context =>
         {
             rootRenders++;
-            context.Screen.Write(0, 0, "R", new CellStyle(ConsoleColor.Gray, ConsoleColor.Black));
+            context.Canvas.Write(0, 0, "R", new CellStyle(ConsoleColor.Gray, ConsoleColor.Black));
         }));
         var layer = new InteractiveSurfaceLayer<int, ConsoleKey>(
             (context, _) =>
             {
-                context.Screen.Write(0, 0, "S", new CellStyle(ConsoleColor.Gray, ConsoleColor.Black));
+                context.Canvas.Write(0, 0, "S", new CellStyle(ConsoleColor.Gray, ConsoleColor.Black));
                 return 1;
             },
             _ => new UiInteractionFrame([], keyboardTarget: new UiTargetId("surface.keyboard")),
@@ -496,7 +496,7 @@ public sealed class InteractiveSurfaceHostTests
         var layer = new InteractiveSurfaceLayer<int, ConsoleKey>(
             (context, _) =>
             {
-                context.Screen.Write(0, 0, "S", new CellStyle(ConsoleColor.Gray, ConsoleColor.Black));
+                context.Canvas.Write(0, 0, "S", new CellStyle(ConsoleColor.Gray, ConsoleColor.Black));
                 return 1;
             },
             _ => new UiInteractionFrame([], keyboardTarget: new UiTargetId("surface.keyboard")),
@@ -543,7 +543,7 @@ public sealed class InteractiveSurfaceHostTests
         private bool _handled;
 
         public UiLayerInputPolicy InputPolicy => _handled ? UiLayerInputPolicy.None : UiLayerInputPolicy.Bubble;
-        public UiFocusScope FocusScope { get; } = new();
+        public IUiFocusState FocusState { get; } = new();
         public UiInteractionFrame CommittedInteractionFrame => UiInteractionFrame.Empty;
         public void Render(UiRenderContext context) => onRender();
 
@@ -576,7 +576,7 @@ file sealed class TrackingSurfaceLayer : InteractiveSurfaceLayer<SurfaceFrame, C
 
     protected override SurfaceFrame RenderFrameCore(UiRenderContext context)
     {
-        context.Screen.Write(0, 0, "S", new CellStyle(ConsoleColor.Gray, ConsoleColor.Black));
+        context.Canvas.Write(0, 0, "S", new CellStyle(ConsoleColor.Gray, ConsoleColor.Black));
         var frame = new SurfaceFrame(++_sequence, context.Viewport);
         RenderedFrames.Add(frame);
         return frame;
@@ -615,7 +615,7 @@ file sealed class CapturingSurfaceLayer : InteractiveSurfaceLayer<SurfaceFrame, 
 
     protected override SurfaceFrame RenderFrameCore(UiRenderContext context)
     {
-        context.Screen.Write(0, 0, "C", new CellStyle(ConsoleColor.Gray, ConsoleColor.Black));
+        context.Canvas.Write(0, 0, "C", new CellStyle(ConsoleColor.Gray, ConsoleColor.Black));
         return new SurfaceFrame(++_sequence, context.Viewport);
     }
 

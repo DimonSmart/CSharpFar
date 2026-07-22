@@ -210,17 +210,17 @@ internal sealed class FtpConnectionDialog
             }, prepareRender: PrepareRows);
     }
 
-    private ScrollableFormFrame Draw(UiRenderContext context, UiFocusScope focusScope, ScrollableFormDialog form, string title, string? error)
+    private ScrollableFormFrame Draw(UiRenderContext context, IUiFocusState focusScope, ScrollableFormDialog form, string title, string? error)
     {
         ScrollableFormFrame? frame = null;
-        _modalRenderer.Render(context.Screen, OuterBounds(context.Size), title, true, FarDialogStyles.OuterOptions, FarDialogStyles.FrameOptions, (_, layout) =>
+        _modalRenderer.Render(context.Canvas, OuterBounds(context.Size), title, true, FarDialogStyles.OuterOptions, FarDialogStyles.FrameOptions, (_, layout) =>
         {
             int buttonY = layout.FrameBounds.Bottom - 2;
             int errorY = buttonY - 1;
             int contentX = layout.FrameBounds.X + 2;
             int contentWidth = Math.Max(1, layout.FrameBounds.Width - 4);
             frame = form.Render(new FormRenderContext(context, new Rect(contentX, layout.FrameBounds.Y + 1, contentWidth, Math.Max(1, errorY - layout.FrameBounds.Y - 1)), FarDialogStyles.Border, new Rect(contentX, buttonY, contentWidth, 1)), focusScope);
-            context.Screen.Write(contentX, errorY, Fit(error ?? string.Empty, contentWidth), FarDialogStyles.Error);
+            context.Canvas.Write(contentX, errorY, Fit(error ?? string.Empty, contentWidth), FarDialogStyles.Error);
         });
         return frame ?? throw new InvalidOperationException("FTP connection dialog did not render a form frame.");
     }

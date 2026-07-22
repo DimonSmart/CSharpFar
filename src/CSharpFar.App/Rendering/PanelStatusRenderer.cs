@@ -7,9 +7,9 @@ namespace CSharpFar.App.Rendering;
 
 internal sealed class PanelStatusRenderer
 {
-    private readonly ScreenRenderer _screen;
+    private readonly IUiCanvas _screen;
 
-    public PanelStatusRenderer(ScreenRenderer screen) => _screen = screen;
+    public PanelStatusRenderer(IUiCanvas screen) => _screen = screen;
 
     /// <summary>
     /// Number of status rows (separator + content) reserved at the bottom of the panel.

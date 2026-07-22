@@ -37,7 +37,7 @@ public sealed class UiLayerTargetRoutingTests
         AssertRoute(layer, keyboard, UiInputRouteKind.KeyboardTarget);
         host.DispatchInput(new ModifierKeyConsoleInputEvent(ConsoleModifiers.Control));
         AssertRoute(layer, keyboard, UiInputRouteKind.KeyboardTarget);
-        Assert.Equal(focused, layer.FocusScope.FocusedTarget);
+        Assert.Equal(focused, layer.FocusState.FocusedTarget);
     }
 
     [Fact]
@@ -67,7 +67,7 @@ public sealed class UiLayerTargetRoutingTests
         host.DispatchInput(Key(ConsoleKey.A));
 
         AssertRoute(layer, null, UiInputRouteKind.Layer);
-        Assert.Null(layer.FocusScope.FocusedTarget);
+        Assert.Null(layer.FocusState.FocusedTarget);
     }
 
     [Fact]
@@ -114,7 +114,7 @@ public sealed class UiLayerTargetRoutingTests
         host.DispatchInput(Mouse(1, 1, MouseEventKind.Down));
 
         AssertRoute(layer, hit, UiInputRouteKind.HitTarget);
-        Assert.Equal(focused, layer.FocusScope.FocusedTarget);
+        Assert.Equal(focused, layer.FocusState.FocusedTarget);
     }
 
     [Fact]
@@ -132,8 +132,8 @@ public sealed class UiLayerTargetRoutingTests
 
         host.DispatchInput(Key(ConsoleKey.A));
         AssertRoute(overlay, first, UiInputRouteKind.FocusedTarget);
-        Assert.Equal(second, overlay.FocusScope.FocusedTarget);
-        Assert.Equal(first, root.FocusScope.FocusedTarget);
+        Assert.Equal(second, overlay.FocusState.FocusedTarget);
+        Assert.Equal(first, root.FocusState.FocusedTarget);
         host.DispatchInput(Key(ConsoleKey.B));
         AssertRoute(overlay, second, UiInputRouteKind.FocusedTarget);
 
@@ -152,7 +152,7 @@ public sealed class UiLayerTargetRoutingTests
         host.Render();
 
         Assert.Throws<InvalidOperationException>(() => host.DispatchInput(Key(ConsoleKey.A)));
-        Assert.Equal(enabled, layer.FocusScope.FocusedTarget);
+        Assert.Equal(enabled, layer.FocusState.FocusedTarget);
     }
 
     [Fact]
@@ -318,9 +318,9 @@ public sealed class UiLayerTargetRoutingTests
         var layer = Layer();
         var host = Host(layer);
         host.Render();
-        Assert.Throws<InvalidOperationException>(() => layer.RouteInput(Key(ConsoleKey.A), UiInputRouteContext.CapturedTarget(layer.FocusScope, new UiTargetId("x"))));
-        Assert.Throws<InvalidOperationException>(() => layer.RouteInput(Key(ConsoleKey.A), UiInputRouteContext.Layer(new UiFocusScope())));
-        Assert.Throws<InvalidOperationException>(() => layer.RouteInput(Key(ConsoleKey.A), UiInputRouteContext.HitTarget(layer.FocusScope, new UiTargetId("x"))));
+        Assert.Throws<InvalidOperationException>(() => layer.RouteInput(Key(ConsoleKey.A), UiInputRouteContext.CapturedTarget(layer.FocusState, new UiTargetId("x"))));
+        Assert.Throws<InvalidOperationException>(() => layer.RouteInput(Key(ConsoleKey.A), UiInputRouteContext.Layer(new UiFocusController())));
+        Assert.Throws<InvalidOperationException>(() => layer.RouteInput(Key(ConsoleKey.A), UiInputRouteContext.HitTarget(layer.FocusState, new UiTargetId("x"))));
     }
 
     private static TestLayer Layer(
@@ -380,7 +380,7 @@ public sealed class UiLayerTargetRoutingTests
     private sealed class Surface(ScreenRenderer screen, TestLayer layer) : IUiSurface, IUiLayer
     {
         public UiLayerInputPolicy InputPolicy => layer.InputPolicy;
-        public UiFocusScope FocusScope => layer.FocusScope;
+        public IUiFocusState FocusState => layer.FocusState;
         public UiInteractionFrame CommittedInteractionFrame => layer.CommittedInteractionFrame;
         public IDisposable BeginFrame(UiRenderRequest request) => screen.BeginFrame();
         public void Render(UiRenderContext context) => layer.Render(context);

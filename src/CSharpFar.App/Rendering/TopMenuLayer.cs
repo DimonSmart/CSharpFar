@@ -95,9 +95,9 @@ internal sealed class TopMenuLayer : UiLayer<TopMenuFrame>
         if (open)
         {
             var options = MenuRenderOptionsFactory.Create(_context.App.Palette);
-            new MenuBarRenderer().Render(context.Screen, bounds, definition, _context.MenuState, layout, options);
+            new MenuBarRenderer().Render(context.Canvas, bounds, definition, _context.MenuState, layout, options);
             new DropdownMenuRenderer(_layoutService).Render(
-                context.Screen,
+                context.Canvas,
                 definition,
                 _context.MenuState,
                 layout,

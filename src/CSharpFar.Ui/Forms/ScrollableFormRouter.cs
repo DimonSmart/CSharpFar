@@ -15,7 +15,7 @@ public sealed partial class ScrollableFormDialog
         ArgumentNullException.ThrowIfNull(input);
         ArgumentNullException.ThrowIfNull(frame);
         ArgumentNullException.ThrowIfNull(route);
-        _activeFocusScope = route.FocusScope;
+        _activeFocusState = route.FocusState;
         RestoreCommittedComponentState(frame);
 
         if (input is KeyConsoleInputEvent { Key: var key })
@@ -121,7 +121,7 @@ public sealed partial class ScrollableFormDialog
         var mouseContext = new FormRowMouseContext(
                 rowFrame.Bounds,
                 rowFrame.FocusIndex ?? rowFrame.RowIndex,
-                focused: rowFrame.Target == route.FocusScope.FocusedTarget || requestFocus,
+                focused: rowFrame.Target == route.FocusState.FocusedTarget || requestFocus,
                 frame.ScreenHeight,
                 targetFrame.Row.Id,
                 targetFrame.Row.Role);
@@ -170,7 +170,7 @@ public sealed partial class ScrollableFormDialog
         UiInputRouteContext route)
     {
         if (mouse is not { Kind: MouseEventKind.Down, Button: MouseButton.Left } ||
-            route.FocusScope.FocusedTarget is not UiTargetId focusedTarget ||
+            route.FocusState.FocusedTarget is not UiTargetId focusedTarget ||
             FindRowTarget(frame, focusedTarget)?.Row is not IFormHistoryRow { History: { IsDropdownOpen: true } history } row)
         {
             return false;
@@ -209,7 +209,7 @@ public sealed partial class ScrollableFormDialog
         UiInputRouteContext route)
     {
         if (mouse is not { Kind: MouseEventKind.Down, Button: MouseButton.Left } ||
-            route.FocusScope.FocusedTarget is not UiTargetId focusedTarget ||
+            route.FocusState.FocusedTarget is not UiTargetId focusedTarget ||
             FindRowTarget(frame, focusedTarget) is not { Row: IFormDropdownRow dropdown, DropdownFrame: { IsOpen: true } dropdownFrame })
         {
             return false;

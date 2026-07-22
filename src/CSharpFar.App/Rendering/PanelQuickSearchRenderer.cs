@@ -10,11 +10,11 @@ internal sealed class PanelQuickSearchRenderer
     private const int MinimumWidth = 10;
     private const int OverlayHeight = 3;
 
-    private readonly ScreenRenderer _screen;
+    private readonly IUiCanvas _screen;
     private readonly ConsolePalette _palette;
     private readonly DialogFrameRenderer _frameRenderer = new();
 
-    public PanelQuickSearchRenderer(ScreenRenderer screen, ConsolePalette? palette = null)
+    public PanelQuickSearchRenderer(IUiCanvas screen, ConsolePalette? palette = null)
     {
         _screen = screen;
         _palette = palette ?? PaletteRegistry.Default;

@@ -256,12 +256,12 @@ internal sealed class SearchDialog
         return request;
     }
 
-    private ScrollableFormFrame Draw(UiRenderContext context, UiFocusScope focusScope, ScrollableFormDialog form, string? error)
+    private ScrollableFormFrame Draw(UiRenderContext context, IUiFocusState focusScope, ScrollableFormDialog form, string? error)
     {
         Rect outerBounds = OuterBounds(context.Size);
         ScrollableFormFrame? frame = null;
 
-        _modalRenderer.Render(context.Screen, outerBounds, "Find file", true, FarDialogStyles.OuterOptions, FarDialogStyles.FrameOptions, (_, layout) =>
+        _modalRenderer.Render(context.Canvas, outerBounds, "Find file", true, FarDialogStyles.OuterOptions, FarDialogStyles.FrameOptions, (_, layout) =>
         {
             Rect bounds = layout.FrameBounds;
             int contentX = bounds.X + 2;
@@ -277,7 +277,7 @@ internal sealed class SearchDialog
                 focusScope);
 
             string errorText = error is null ? string.Empty : Truncate(error, contentWidth);
-            context.Screen.Write(contentX, errorY, errorText.PadRight(contentWidth), FarDialogStyles.Error);
+            context.Canvas.Write(contentX, errorY, errorText.PadRight(contentWidth), FarDialogStyles.Error);
         });
         return frame ?? throw new InvalidOperationException("Search dialog did not render a form frame.");
     }

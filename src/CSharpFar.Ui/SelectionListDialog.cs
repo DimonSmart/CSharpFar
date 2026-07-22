@@ -71,7 +71,7 @@ public sealed class SelectionListDialog<T>
                 var frameLayout = CalculateLayout(context.Size);
                 var listState = _list.CalculateFrameState(frameLayout.VisibleRows);
                 var frame = new SelectionListFrame(frameLayout, listState);
-                RenderLayer(context.Screen, frame);
+                RenderLayer(context.Canvas, frame);
                 return frame;
             },
             (input, frame) =>
@@ -148,7 +148,7 @@ public sealed class SelectionListDialog<T>
         return result.IsHandled;
     }
 
-    private void RenderLayer(ScreenRenderer screen, SelectionListFrame frame)
+    private void RenderLayer(IUiCanvas screen, SelectionListFrame frame)
     {
         var palette = UiTheme.Current;
         var layout = frame.Layout;
@@ -167,7 +167,6 @@ public sealed class SelectionListDialog<T>
             scrollState,
             (_, _) => _list.Render(screen, layout.ContentBounds, frame.ListState, normalStyle, selectedStyle, emptyStyle));
 
-        screen.SetCursorVisible(false);
     }
 
     private SelectionListLayout CalculateLayout(ConsoleSize size)

@@ -11,7 +11,7 @@ internal sealed class RenderOnlyOverlayLayer : IUiLayer
 
     public UiLayerInputPolicy InputPolicy => UiLayerInputPolicy.None;
 
-    public UiFocusScope FocusScope { get; } = new();
+    public IUiFocusState FocusState { get; } = new UiFocusController();
 
     public UiInteractionFrame CommittedInteractionFrame => UiInteractionFrame.Empty;
 

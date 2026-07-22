@@ -3,7 +3,7 @@ namespace CSharpFar.Ui;
 public sealed class UiInputRouteContext
 {
     private UiInputRouteContext(
-        UiFocusScope focusScope,
+        IUiFocusState focusScope,
         UiTargetId? target,
         UiInputRouteKind routeKind)
     {
@@ -11,12 +11,12 @@ public sealed class UiInputRouteContext
         if ((routeKind == UiInputRouteKind.Layer) != (target is null))
             throw new ArgumentException("Layer routes require no target and target routes require a target.", nameof(target));
 
-        FocusScope = focusScope;
+        FocusState = focusScope;
         Target = target;
         RouteKind = routeKind;
     }
 
-    public UiFocusScope FocusScope { get; }
+    public IUiFocusState FocusState { get; }
 
     public UiTargetId? Target { get; }
 
@@ -26,18 +26,18 @@ public sealed class UiInputRouteContext
 
     public bool IsCapturedRoute => RouteKind == UiInputRouteKind.CapturedTarget;
 
-    internal static UiInputRouteContext Layer(UiFocusScope focusScope) =>
+    internal static UiInputRouteContext Layer(IUiFocusState focusScope) =>
         new(focusScope, null, UiInputRouteKind.Layer);
 
-    internal static UiInputRouteContext FocusedTarget(UiFocusScope focusScope, UiTargetId target) =>
+    internal static UiInputRouteContext FocusedTarget(IUiFocusState focusScope, UiTargetId target) =>
         new(focusScope, target, UiInputRouteKind.FocusedTarget);
 
-    internal static UiInputRouteContext KeyboardTarget(UiFocusScope focusScope, UiTargetId target) =>
+    internal static UiInputRouteContext KeyboardTarget(IUiFocusState focusScope, UiTargetId target) =>
         new(focusScope, target, UiInputRouteKind.KeyboardTarget);
 
-    internal static UiInputRouteContext HitTarget(UiFocusScope focusScope, UiTargetId target) =>
+    internal static UiInputRouteContext HitTarget(IUiFocusState focusScope, UiTargetId target) =>
         new(focusScope, target, UiInputRouteKind.HitTarget);
 
-    internal static UiInputRouteContext CapturedTarget(UiFocusScope focusScope, UiTargetId target) =>
+    internal static UiInputRouteContext CapturedTarget(IUiFocusState focusScope, UiTargetId target) =>
         new(focusScope, target, UiInputRouteKind.CapturedTarget);
 }

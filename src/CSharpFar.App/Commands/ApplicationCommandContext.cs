@@ -142,6 +142,7 @@ internal sealed class ApplicationCommandContext
     }
 
     public ScreenRenderer Screen { get; }
+    public IUiCanvas Canvas => UiCanvas.From(Screen);
 
     public UiCompositionHost Composition { get; }
 

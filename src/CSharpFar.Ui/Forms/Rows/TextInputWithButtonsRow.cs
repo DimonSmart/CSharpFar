@@ -42,14 +42,14 @@ public sealed class TextInputWithButtonsRow : FormRow, IFormOverlayRow, IFormCur
     {
         var layout = CalculateLayout(context.Bounds);
         int labelWidth = layout.InputBounds.X - context.Bounds.X;
-        context.Screen.Write(
+        context.Canvas.Write(
             context.Bounds.X,
             context.Bounds.Y,
             ScrollableFormDialog.Fit(_label.PadRight(labelWidth), labelWidth),
             FarDialogStyles.Fill);
 
         SingleLineTextInput.Render(
-            context.Screen,
+            context.Canvas,
             layout.InputBounds.X,
             layout.InputBounds.Y,
             layout.InputBounds.Width,
@@ -62,7 +62,7 @@ public sealed class TextInputWithButtonsRow : FormRow, IFormOverlayRow, IFormCur
         if (layout.ButtonAreaBounds.Width > 0)
         {
             _buttonBar.Render(
-                context.Screen,
+                context.Canvas,
                 layout.ButtonLayout,
                 focusedIndex: 0,
                 FarDialogStyles.Fill,

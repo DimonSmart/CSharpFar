@@ -238,10 +238,10 @@ internal sealed class SftpConnectionDialog
         return rows;
     }
 
-    private ScrollableFormFrame Draw(UiRenderContext context, UiFocusScope focusScope, ScrollableFormDialog form, string title, string? error)
+    private ScrollableFormFrame Draw(UiRenderContext context, IUiFocusState focusScope, ScrollableFormDialog form, string title, string? error)
     {
         ScrollableFormFrame? frame = null;
-        _modalRenderer.Render(context.Screen, OuterBounds(context.Size), title, true, FarDialogStyles.OuterOptions, FarDialogStyles.FrameOptions, (_, layout) =>
+        _modalRenderer.Render(context.Canvas, OuterBounds(context.Size), title, true, FarDialogStyles.OuterOptions, FarDialogStyles.FrameOptions, (_, layout) =>
         {
             Rect bounds = layout.FrameBounds;
             int contentX = bounds.X + 2;
@@ -253,7 +253,7 @@ internal sealed class SftpConnectionDialog
                 new Rect(contentX, bounds.Y + 1, contentWidth, Math.Max(1, errorY - bounds.Y - 1)),
                 FarDialogStyles.Border,
                 new Rect(contentX, buttonY, contentWidth, 1)), focusScope);
-            context.Screen.Write(contentX, errorY, Fit(error ?? string.Empty, contentWidth).PadRight(contentWidth), FarDialogStyles.Error);
+            context.Canvas.Write(contentX, errorY, Fit(error ?? string.Empty, contentWidth).PadRight(contentWidth), FarDialogStyles.Error);
         });
         return frame ?? throw new InvalidOperationException("SFTP connection dialog did not render a form frame.");
     }

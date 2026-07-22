@@ -56,7 +56,7 @@ internal sealed class OperationCancelDialog
 
     private ScrollableFormFrame Draw(
         UiRenderContext context,
-        UiFocusScope focusScope,
+        IUiFocusState focusScope,
         ScrollableFormDialog form,
         string interruptedMessage,
         string confirmationMessage)
@@ -66,14 +66,14 @@ internal sealed class OperationCancelDialog
         int y = Math.Max(0, (context.Size.Height - DialogHeight) / 2);
         var bounds = new Rect(x, y, DialogWidth, DialogHeight);
 
-        _modalRenderer.Render(context.Screen, bounds, string.Empty, true, WarningDialogStyles.OuterOptions, WarningDialogStyles.FrameOptions, (_, layout) =>
+        _modalRenderer.Render(context.Canvas, bounds, string.Empty, true, WarningDialogStyles.OuterOptions, WarningDialogStyles.FrameOptions, (_, layout) =>
         {
             Rect contentBounds = layout.ContentBounds;
             int contentX = contentBounds.X + 1;
             int contentWidth = Math.Max(1, contentBounds.Width - 2);
 
-            context.Screen.Write(contentX, contentBounds.Y, Center(interruptedMessage, contentWidth), WarningDialogStyles.Fill);
-            context.Screen.Write(contentX, contentBounds.Y + 1, Center(confirmationMessage, contentWidth), WarningDialogStyles.Fill);
+            context.Canvas.Write(contentX, contentBounds.Y, Center(interruptedMessage, contentWidth), WarningDialogStyles.Fill);
+            context.Canvas.Write(contentX, contentBounds.Y + 1, Center(confirmationMessage, contentWidth), WarningDialogStyles.Fill);
 
             frame = form.Render(
                 new FormRenderContext(

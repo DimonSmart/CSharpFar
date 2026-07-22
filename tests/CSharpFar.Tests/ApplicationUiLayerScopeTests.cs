@@ -49,7 +49,7 @@ public sealed class ApplicationUiLayerScopeTests
         Assert.NotEqual('R', fixture.Driver.GetCell(1, 21).Character);
 
         using var modal = fixture.Modals.Open(context =>
-            context.Screen.Write(1, 21, "M", new CSharpFar.Console.Models.CellStyle(ConsoleColor.White, ConsoleColor.Black)));
+            context.Canvas.Write(1, 21, "M", new CSharpFar.Console.Models.CellStyle(ConsoleColor.White, ConsoleColor.Black)));
         fixture.Host.Render();
         var input = Key(ConsoleKey.A, 'a');
 
@@ -330,7 +330,7 @@ public sealed class ApplicationUiLayerScopeTests
         private readonly Queue<UiRoutedInput<Unit>> _inputs = [];
 
         public UiLayerInputPolicy InputPolicy => UiLayerInputPolicy.Bubble;
-        public UiFocusScope FocusScope { get; } = new();
+        public IUiFocusState FocusState { get; } = new();
         public UiInteractionFrame CommittedInteractionFrame => UiInteractionFrame.Empty;
         public IDisposable BeginFrame(UiRenderRequest request) => screen.BeginFrame();
 
@@ -339,7 +339,7 @@ public sealed class ApplicationUiLayerScopeTests
             var style = new CSharpFar.Console.Models.CellStyle(ConsoleColor.Gray, ConsoleColor.Black);
             string row = new('R', context.Size.Width);
             for (int y = 0; y < context.Size.Height; y++)
-                context.Screen.Write(0, y, row, style);
+                context.Canvas.Write(0, y, row, style);
         }
 
         public void CompleteFrame(UiFrameCompletion completion)

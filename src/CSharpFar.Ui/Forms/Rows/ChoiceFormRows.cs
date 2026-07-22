@@ -32,7 +32,7 @@ public sealed class ChoiceFormRow<T> : FormRow, IFormCursorProvider
     {
         var layout = CalculateLayout(context.Bounds);
         _choice.RenderSegmented(
-            context.Screen,
+            context.Canvas,
             context.Bounds.X,
             context.Bounds.Y,
             context.Bounds.Width,
@@ -121,7 +121,7 @@ public sealed class MultiLineChoiceFormRow<T> : FormRow, IFormCursorProvider
         {
             int endIndex = _segmentEndIndices[line];
             _choice.RenderSegmented(
-                context.Screen,
+                context.Canvas,
                 context.Bounds.X,
                 context.Bounds.Y + line,
                 context.Bounds.Width,

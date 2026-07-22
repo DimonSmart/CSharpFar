@@ -23,8 +23,8 @@ public sealed class UiLayerTests
 
         Assert.True(layer.HasCommittedFrame);
         Assert.Equal(80, layer.CommittedFrame.Value);
-        Assert.Same(layer.CommittedInteractionFrame.Focus, layer.FocusScope.CurrentFrame);
-        Assert.Equal(new UiTargetId("target"), layer.FocusScope.FocusedTarget);
+        Assert.Same(layer.CommittedInteractionFrame.Focus, layer.FocusState.CurrentFrame);
+        Assert.Equal(new UiTargetId("target"), layer.FocusState.FocusedTarget);
         Assert.Equal([80], layer.CommittedValues);
     }
 
@@ -164,7 +164,7 @@ public sealed class UiLayerTests
         {
             RenderCore = context =>
             {
-                context.Screen.Write(0, 0, cursorless ? "B" : "A", CellStyle.Default);
+                context.Canvas.Write(0, 0, cursorless ? "B" : "A", CellStyle.Default);
                 return new TestFrame(1, cursorless
                     ? new UiFocusFrame([new(new UiTargetId("top"), 0)])
                     : UiFocusFrame.Empty);
@@ -215,7 +215,7 @@ public sealed class UiLayerTests
         var layer = new TestLayer(UiLayerInputPolicy.Bubble);
 
         Assert.Throws<InvalidOperationException>(() =>
-            layer.RouteInput(Key(ConsoleKey.A), UiInputRouteContext.Layer(layer.FocusScope)));
+            layer.RouteInput(Key(ConsoleKey.A), UiInputRouteContext.Layer(layer.FocusState)));
     }
 
     [Fact]
@@ -231,7 +231,7 @@ public sealed class UiLayerTests
         {
             RenderCore = context =>
             {
-                context.Screen.Write(0, 0, (marker++).ToString(), new CellStyle(ConsoleColor.Gray, ConsoleColor.Black));
+                context.Canvas.Write(0, 0, (marker++).ToString(), new CellStyle(ConsoleColor.Gray, ConsoleColor.Black));
                 return new TestFrame(context.Viewport.Width, new UiFocusFrame([
                     new(new UiTargetId($"target-{context.Viewport.Width}"), 0),
                 ]));
@@ -243,8 +243,8 @@ public sealed class UiLayerTests
         host.Render();
 
         Assert.Equal(100, layer.CommittedFrame.Value);
-        Assert.Same(layer.CommittedInteractionFrame.Focus, layer.FocusScope.CurrentFrame);
-        Assert.Equal(new UiTargetId("target-100"), layer.FocusScope.FocusedTarget);
+        Assert.Same(layer.CommittedInteractionFrame.Focus, layer.FocusState.CurrentFrame);
+        Assert.Equal(new UiTargetId("target-100"), layer.FocusState.FocusedTarget);
         Assert.Equal([100], layer.CommittedValues);
         Assert.Equal(100, layer.LastInputFrameValue(Key(ConsoleKey.A)));
     }
@@ -272,7 +272,7 @@ public sealed class UiLayerTests
 
         Assert.Equal(80, layer.CommittedFrame.Value);
         Assert.Same(previousInteraction, layer.CommittedInteractionFrame);
-        Assert.Equal(new UiTargetId("target-80"), layer.FocusScope.FocusedTarget);
+        Assert.Equal(new UiTargetId("target-80"), layer.FocusState.FocusedTarget);
         Assert.Equal([80], layer.CommittedValues);
     }
 
@@ -286,7 +286,7 @@ public sealed class UiLayerTests
             RenderCore = context =>
             {
                 int value = ++attempt;
-                context.Screen.Write(0, 0, value.ToString(), new CellStyle(ConsoleColor.Gray, ConsoleColor.Black));
+                context.Canvas.Write(0, 0, value.ToString(), new CellStyle(ConsoleColor.Gray, ConsoleColor.Black));
                 return new TestFrame(value, new UiFocusFrame([
                     new(new UiTargetId($"target-{value}"), 0, Cursor: new UiCursorPlacement(value, 0)),
                 ]));
@@ -445,8 +445,8 @@ public sealed class UiLayerTests
             CommittedValues.Add(frame.Value);
             CommitSnapshots.Add((
                 CommittedFrame.Value,
-                ReferenceEquals(CommittedInteractionFrame.Focus, FocusScope.CurrentFrame),
-                FocusScope.FocusedTarget));
+                ReferenceEquals(CommittedInteractionFrame.Focus, FocusState.CurrentFrame),
+                FocusState.FocusedTarget));
         }
 
         public int LastInputFrameValue(ConsoleInputEvent input)
@@ -457,7 +457,7 @@ public sealed class UiLayerTests
                 value = frame.Value;
                 return UiInputResult.NotHandled;
             };
-            RouteInput(input, UiInputRouteContext.Layer(FocusScope));
+            RouteInput(input, UiInputRouteContext.Layer(FocusState));
             return value;
         }
 
@@ -487,7 +487,7 @@ public sealed class UiLayerTests
             (_screen, _layer) = (screen, layer);
 
         public UiLayerInputPolicy InputPolicy => _layer.InputPolicy;
-        public UiFocusScope FocusScope => _layer.FocusScope;
+        public IUiFocusState FocusState => _layer.FocusState;
         public UiInteractionFrame CommittedInteractionFrame => _layer.CommittedInteractionFrame;
         public IDisposable BeginFrame(UiRenderRequest request) => _screen.BeginFrame();
         public void Render(UiRenderContext context) => _layer.Render(context);

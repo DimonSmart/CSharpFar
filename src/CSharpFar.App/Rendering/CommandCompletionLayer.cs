@@ -70,7 +70,7 @@ internal sealed class CommandCompletionLayer : UiLayer<CommandCompletionFrame>
             DrawShadow = false,
             VerticalScrollState = list.GetScrollState(rowCount, listState.ScrollTop),
         };
-        _popupRenderer.RenderPopup(context.Screen, popupBounds, popupOptions, (screen, bounds) =>
+        _popupRenderer.RenderPopup(context.Canvas, popupBounds, popupOptions, (screen, bounds) =>
             list.Render(screen, bounds, listState, PaletteStyles.DialogFill(_context.App.Palette), PaletteStyles.InputField(_context.App.Palette), PaletteStyles.DialogFill(_context.App.Palette)));
 
         var items = Enumerable.Range(0, rowCount).Select(row =>

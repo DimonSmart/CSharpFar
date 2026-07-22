@@ -108,11 +108,11 @@ internal sealed class CreateFolderDialog
         return text;
     }
 
-    private ScrollableFormFrame Draw(UiRenderContext context, UiFocusScope focusScope, ScrollableFormDialog form)
+    private ScrollableFormFrame Draw(UiRenderContext context, IUiFocusState focusScope, ScrollableFormDialog form)
     {
         ScrollableFormFrame? frame = null;
         _modalRenderer.Render(
-            context.Screen,
+            context.Canvas,
             OuterBounds(context.Size),
             Title,
             doubleBorder: true,

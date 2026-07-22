@@ -131,7 +131,7 @@ internal sealed class SettingsDialog
 
     private ScrollableFormFrame Draw(
         UiRenderContext context,
-        UiFocusScope focusScope,
+        IUiFocusState focusScope,
         ScrollableFormDialog form,
         Func<string> paletteName)
     {
@@ -139,7 +139,7 @@ internal sealed class SettingsDialog
         using (UiTheme.UseTemporary(PaletteRegistry.Resolve(paletteName())))
         {
             _modalRenderer.Render(
-                context.Screen,
+                context.Canvas,
                 OuterBounds(context.Size),
                 "Settings",
                 doubleBorder: true,

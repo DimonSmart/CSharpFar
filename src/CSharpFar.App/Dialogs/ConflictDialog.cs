@@ -64,7 +64,7 @@ internal sealed class ConflictDialog
     private ScrollableFormFrame Draw(
         FileOperationConflict conflict,
         UiRenderContext context,
-        UiFocusScope focusScope,
+        IUiFocusState focusScope,
         ScrollableFormDialog form)
     {
         ScrollableFormFrame? frame = null;
@@ -72,19 +72,19 @@ internal sealed class ConflictDialog
         int dlgY = Math.Max(0, (context.Size.Height - DialogHeight) / 2);
         var bounds = new Rect(dlgX, dlgY, DialogWidth, DialogHeight);
 
-        _modalRenderer.Render(context.Screen, bounds, "Warning", true, WarningDialogStyles.OuterOptions, WarningDialogStyles.FrameOptions, (_, layout) =>
+        _modalRenderer.Render(context.Canvas, bounds, "Warning", true, WarningDialogStyles.OuterOptions, WarningDialogStyles.FrameOptions, (_, layout) =>
         {
             Rect frameBounds = layout.FrameBounds;
             int contentX = frameBounds.X + 2;
             int contentWidth = Math.Max(1, frameBounds.Width - 4);
 
-            context.Screen.Write(contentX, frameBounds.Y + 1, Center("File already exists", contentWidth), WarningDialogStyles.Fill);
-            context.Screen.Write(contentX, frameBounds.Y + 2, ShortenMiddle(conflict.DestinationPath, contentWidth).PadRight(contentWidth), WarningDialogStyles.Fill);
+            context.Canvas.Write(contentX, frameBounds.Y + 1, Center("File already exists", contentWidth), WarningDialogStyles.Fill);
+            context.Canvas.Write(contentX, frameBounds.Y + 2, ShortenMiddle(conflict.DestinationPath, contentWidth).PadRight(contentWidth), WarningDialogStyles.Fill);
 
-            context.Screen.Write(contentX, frameBounds.Y + 4, BuildInfoLine("New", conflict.SourceSize, conflict.SourceLastWriteTime, contentWidth), WarningDialogStyles.Fill);
-            context.Screen.Write(contentX, frameBounds.Y + 5, BuildInfoLine("Existing", conflict.DestinationSize, conflict.DestinationLastWriteTime, contentWidth), WarningDialogStyles.Fill);
+            context.Canvas.Write(contentX, frameBounds.Y + 4, BuildInfoLine("New", conflict.SourceSize, conflict.SourceLastWriteTime, contentWidth), WarningDialogStyles.Fill);
+            context.Canvas.Write(contentX, frameBounds.Y + 5, BuildInfoLine("Existing", conflict.DestinationSize, conflict.DestinationLastWriteTime, contentWidth), WarningDialogStyles.Fill);
 
-            DrawSeparator(context.Screen, frameBounds, frameBounds.Y + 8);
+            DrawSeparator(context.Canvas, frameBounds, frameBounds.Y + 8);
             frame = form.Render(
                 new FormRenderContext(
                     context,
@@ -185,7 +185,7 @@ internal sealed class ConflictDialog
         return value.Length <= maxLength ? value : "…" + value[^Math.Max(0, maxLength - 1)..];
     }
 
-    private static void DrawSeparator(ScreenRenderer screen, Rect frameBounds, int y)
+    private static void DrawSeparator(IUiCanvas screen, Rect frameBounds, int y)
     {
         screen.WriteChar(frameBounds.X, y, '╟', WarningDialogStyles.Border);
         screen.Write(frameBounds.X + 1, y, new string('─', Math.Max(0, frameBounds.Width - 2)), WarningDialogStyles.Border);

@@ -444,7 +444,7 @@ public sealed class ApplicationOverlayLayerTests
         Assert.Equal(new UiTargetId("application.panel-quick-search.input"), entry.Target);
         Assert.True(entry.IsEnabled);
         Assert.Null(entry.Cursor);
-        Assert.Equal(entry.Target, layer.FocusScope.FocusedTarget);
+        Assert.Equal(entry.Target, layer.FocusState.FocusedTarget);
         Assert.False(services.Driver.CursorVisible);
     }
 

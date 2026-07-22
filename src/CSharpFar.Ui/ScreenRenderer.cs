@@ -1,6 +1,7 @@
 using System.Diagnostics.CodeAnalysis;
 using CSharpFar.Console.Input;
 using CSharpFar.Console.Models;
+using CSharpFar.Ui;
 
 namespace CSharpFar.Console;
 
@@ -8,7 +9,7 @@ namespace CSharpFar.Console;
 /// Higher-level rendering surface built on top of <see cref="IConsoleDriver"/>.
 /// Provides convenience methods for drawing text, boxes, and regions.
 /// </summary>
-public sealed class ScreenRenderer
+public sealed class ScreenRenderer : IUiCanvas
 {
     private readonly IConsoleDriver _driver;
     private SnapshotCell[,]? _frontBuffer;
@@ -94,6 +95,8 @@ public sealed class ScreenRenderer
     /// The viewport captured at <see cref="BeginFrame"/>. Only valid while a frame is active.
     /// </summary>
     public ConsoleViewport FrameViewport => _frameViewport;
+
+    public ConsoleSize Size => _frameActive ? _frameSize : _driver.GetSize();
 
     public void SetRenderingOutputMode(bool enabled)
     {

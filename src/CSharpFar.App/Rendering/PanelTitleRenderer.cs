@@ -7,7 +7,7 @@ namespace CSharpFar.App.Rendering;
 internal static class PanelTitleRenderer
 {
     public static void Render(
-        ScreenRenderer screen,
+        IUiCanvas screen,
         Rect bounds,
         FilePanelState state,
         bool isActive,

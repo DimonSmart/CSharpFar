@@ -106,14 +106,14 @@ public sealed class MessageDialog
 
     private MessageDialogFrame Draw(
         UiRenderContext context,
-        UiFocusScope focusScope,
+        IUiFocusState focusScope,
         string title,
         MessageDialogLayout layout,
         ScrollableViewport viewport,
         DialogActionController? actions)
     {
         ScrollableFormFrame? buttons = null;
-        ScreenRenderer screen = context.Screen;
+        IUiCanvas screen = context.Canvas;
         Rect contentBounds = PopupRenderer.GetContentBounds(layout.Bounds, drawBorder: true);
         var textBounds = new Rect(contentBounds.X + 1, contentBounds.Y, Math.Max(1, contentBounds.Width - 2), layout.ContentHeight);
         Rect? scrollbarBounds = layout.MessageLines.Count > layout.ContentHeight

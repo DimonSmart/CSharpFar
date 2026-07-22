@@ -7,12 +7,12 @@ namespace CSharpFar.App.Rendering;
 
 internal sealed class ApplicationFunctionKeyBarRenderer
 {
-    private readonly ScreenRenderer _screen;
+    private readonly IUiCanvas _screen;
     private readonly IReadOnlyList<FunctionKeyBinding> _bindings;
     private readonly Func<string, bool> _canExecuteCommand;
 
     public ApplicationFunctionKeyBarRenderer(
-        ScreenRenderer screen,
+        IUiCanvas screen,
         IReadOnlyList<FunctionKeyBinding> bindings,
         Func<string, bool> canExecuteCommand)
     {

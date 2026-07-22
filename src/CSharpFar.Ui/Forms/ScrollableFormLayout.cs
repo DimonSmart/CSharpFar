@@ -7,17 +7,17 @@ namespace CSharpFar.Ui;
 
 public sealed partial class ScrollableFormDialog
 {
-    public ScrollableFormFrame Render(FormRenderContext context, UiFocusScope focusScope)
+    public ScrollableFormFrame Render(FormRenderContext context, IUiFocusState focusScope)
     {
         ArgumentNullException.ThrowIfNull(focusScope);
-        if (!ReferenceEquals(_activeFocusScope, focusScope) &&
+        if (!ReferenceEquals(_activeFocusState, focusScope) &&
             _requestedInitialTarget is null &&
             !focusScope.HasFocus &&
-            _activeFocusScope?.FocusedTarget is UiTargetId previousTarget)
+            _activeFocusState?.FocusedTarget is UiTargetId previousTarget)
         {
             _requestedInitialTarget = previousTarget;
         }
-        _activeFocusScope = focusScope;
+        _activeFocusState = focusScope;
         if (_footerRows.Count > 0 && context.FooterBounds is null)
             throw new InvalidOperationException("Footer bounds are required when footer rows are installed.");
         if (context.FooterBounds is Rect footerBounds && FooterRowCount > footerBounds.Height)
@@ -26,23 +26,23 @@ public sealed partial class ScrollableFormDialog
         int viewportRows = Math.Max(1, context.BodyBounds.Height);
         int effectiveScrollTop = ClampScrollTop(ScrollTop, viewportRows);
         ScrollableFormFrame provisionalFrame = BuildFrame(context, effectiveScrollTop);
-        UiTargetId? effectiveFocusedTarget = focusScope.ResolveFocusedTarget(BuildInteractionFrame(provisionalFrame).Focus);
-        if (_ensureFocusedTargetVisibleOnNextRender || focusScope.HasNextCommitRequest)
+        UiTargetId? effectiveFocusedTarget = focusScope.FocusedTarget;
+        if (_ensureFocusedTargetVisibleOnNextRender)
             effectiveScrollTop = EnsureFocusedTargetVisible(effectiveScrollTop, viewportRows, effectiveFocusedTarget);
         ScrollableFormFrame frame = BuildFrame(context, effectiveScrollTop, effectiveFocusedTarget);
         UiInteractionFrame interactionFrame = BuildInteractionFrame(frame);
 
-        context.Screen.FillRegion(context.BodyBounds, FarDialogStyles.Fill);
+        context.Canvas.FillRegion(context.BodyBounds, FarDialogStyles.Fill);
         foreach (FormTargetFrame targetFrame in frame.Targets.Where(target => target.Kind == FormTargetKind.Row && !target.IsFooter && IsVisibleInBody(target.Bounds, context.BodyBounds)))
         {
             bool focused = targetFrame.Target == effectiveFocusedTarget;
-            targetFrame.Row!.Render(new FormRowRenderContext(context.Screen, targetFrame.Bounds, focused, context.Viewport.Height));
+            targetFrame.Row!.Render(new FormRowRenderContext(context.Canvas, targetFrame.Bounds, focused, context.Viewport.Height));
         }
 
         if (BodyRowCount > viewportRows)
         {
             new ScrollBarRenderer().RenderVerticalScrollbar(
-                context.Screen,
+                context.Canvas,
                 new Rect(context.BodyBounds.Right - 1, context.BodyBounds.Y, 1, viewportRows),
                 new ScrollState
                 {
@@ -60,15 +60,15 @@ public sealed partial class ScrollableFormDialog
 
         if (context.FooterBounds is Rect fixedFooterBounds)
         {
-            context.Screen.FillRegion(fixedFooterBounds, FarDialogStyles.Fill);
+            context.Canvas.FillRegion(fixedFooterBounds, FarDialogStyles.Fill);
             foreach (FormTargetFrame targetFrame in frame.Targets.Where(target => target.Kind == FormTargetKind.Row && target.IsFooter))
             {
                 bool focused = targetFrame.Target == effectiveFocusedTarget;
-                targetFrame.Row!.Render(new FormRowRenderContext(context.Screen, targetFrame.Bounds, focused, context.Viewport.Height));
+                targetFrame.Row!.Render(new FormRowRenderContext(context.Canvas, targetFrame.Bounds, focused, context.Viewport.Height));
             }
         }
 
-        RenderFocusedOverlay(context.Screen, frame, effectiveFocusedTarget);
+        RenderFocusedOverlay(context.Canvas, frame, effectiveFocusedTarget);
 
         var snapshot = new FormLayoutSnapshot(
             context.Viewport,
@@ -136,7 +136,7 @@ public sealed partial class ScrollableFormDialog
                 ? new Rect(context.BodyBounds.X, context.BodyBounds.Y + virtualTop - effectiveScrollTop, context.BodyBounds.Width, rowHeight)
                 : new Rect(context.BodyBounds.X, context.BodyBounds.Y - rowHeight - 1, context.BodyBounds.Width, rowHeight);
             int? rowFocusIndex = row.IsFocusable ? focusIndex : null;
-            targets.Add(CreateRowTargetFrame(context.Screen, row, rowIndex, rowFocusIndex, rowBounds, isFooter: false, context.Viewport, context.BodyBounds));
+            targets.Add(CreateRowTargetFrame(context.Canvas, row, rowIndex, rowFocusIndex, rowBounds, isFooter: false, context.Viewport, context.BodyBounds));
             if (row.IsFocusable)
                 focusIndex++;
             virtualTop += rowHeight;
@@ -167,7 +167,7 @@ public sealed partial class ScrollableFormDialog
                 int rowHeight = Math.Max(1, row.Height);
                 Rect rowBounds = new(footerBounds.X, footerBounds.Y + footerTop, footerBounds.Width, rowHeight);
                 int? rowFocusIndex = row.IsFocusable ? focusIndex : null;
-                targets.Add(CreateRowTargetFrame(context.Screen, row, rowIndex, rowFocusIndex, rowBounds, isFooter: true, context.Viewport, footerBounds));
+                targets.Add(CreateRowTargetFrame(context.Canvas, row, rowIndex, rowFocusIndex, rowBounds, isFooter: true, context.Viewport, footerBounds));
                 if (row.IsFocusable)
                     focusIndex++;
                 footerTop += rowHeight;
@@ -202,7 +202,7 @@ public sealed partial class ScrollableFormDialog
     }
 
     private FormTargetFrame CreateRowTargetFrame(
-        ScreenRenderer screen,
+        IUiCanvas screen,
         IFormRow row,
         int rowIndex,
         int? focusIndex,

@@ -6,11 +6,11 @@ namespace CSharpFar.App.Rendering;
 
 internal sealed class CommandLineRenderer
 {
-    private readonly ScreenRenderer _screen;
+    private readonly IUiCanvas _screen;
     private readonly CellStyle _style;
     private readonly CellStyle _selectionStyle;
 
-    public CommandLineRenderer(ScreenRenderer screen, ConsolePalette? palette = null)
+    public CommandLineRenderer(IUiCanvas screen, ConsolePalette? palette = null)
     {
         _screen = screen;
         palette ??= PaletteRegistry.Default;

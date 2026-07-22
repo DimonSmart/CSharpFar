@@ -7,10 +7,10 @@ namespace CSharpFar.Ui;
 public sealed class PopupRenderer
 {
     public void RenderPopup(
-        ScreenRenderer screen,
+        IUiCanvas screen,
         Rect bounds,
         PopupRenderOptions options,
-        Action<ScreenRenderer, Rect> renderContent)
+        Action<IUiCanvas, Rect> renderContent)
     {
         if (bounds.Width <= 0 || bounds.Height <= 0)
             return;

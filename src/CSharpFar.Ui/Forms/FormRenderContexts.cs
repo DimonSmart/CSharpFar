@@ -23,7 +23,7 @@ public sealed class FormRenderContext
         FooterBounds = footerBounds;
     }
 
-    public ScreenRenderer Screen => _renderContext.Screen;
+    public IUiCanvas Canvas => _renderContext.Canvas;
     public ConsoleViewport Viewport => _renderContext.Viewport;
     public Rect BodyBounds { get; }
     public CellStyle ScrollbarStyle { get; }
@@ -35,18 +35,18 @@ public sealed class FormRenderContext
 
 public sealed class FormRowRenderContext
 {
-    public FormRowRenderContext(ScreenRenderer screen, Rect bounds, bool focused, int? screenHeight = null)
+    public FormRowRenderContext(IUiCanvas screen, Rect bounds, bool focused, int? screenHeight = null)
     {
-        Screen = screen;
+        Canvas = screen;
         Bounds = bounds;
         Focused = focused;
-        ScreenHeight = screenHeight ?? screen.FrameViewport.Height;
+        CanvasHeight = screenHeight ?? 0;
     }
 
-    public ScreenRenderer Screen { get; }
+    public IUiCanvas Canvas { get; }
     public Rect Bounds { get; }
     public bool Focused { get; }
-    public int ScreenHeight { get; }
+    public int CanvasHeight { get; }
 }
 
 public sealed class FormRowInputContext

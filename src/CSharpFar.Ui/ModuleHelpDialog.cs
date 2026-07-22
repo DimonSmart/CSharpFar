@@ -23,7 +23,7 @@ public sealed class ModuleHelpDialog
             (context, _) =>
             {
                 ModuleHelpFrame frame = CalculateFrame(context.Size, lines.Count, viewport);
-                Draw(context.Screen, title, lines, viewport, frame);
+                Draw(context.Canvas, title, lines, viewport, frame);
                 return frame;
             },
             BuildInteractionFrame,
@@ -79,7 +79,7 @@ public sealed class ModuleHelpDialog
         (route.Target == ContentTarget || route.Target == ScrollbarTarget) ||
         route.RouteKind == UiInputRouteKind.CapturedTarget && route.Target == ScrollbarTarget;
 
-    private static void Draw(ScreenRenderer screen, string title, IReadOnlyList<string> lines, ScrollableViewport viewport, ModuleHelpFrame frame)
+    private static void Draw(IUiCanvas screen, string title, IReadOnlyList<string> lines, ScrollableViewport viewport, ModuleHelpFrame frame)
     {
         var palette = UiTheme.Current;
         var headerStyle = PaletteStyles.PathHeaderActive(palette);

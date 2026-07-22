@@ -278,11 +278,11 @@ internal sealed class CompareOptionsDialog
         return value;
     }
 
-    private ScrollableFormFrame RenderLayer(UiRenderContext context, UiFocusScope focusScope, string title, ScrollableFormDialog form, string? error)
+    private ScrollableFormFrame RenderLayer(UiRenderContext context, IUiFocusState focusScope, string title, ScrollableFormDialog form, string? error)
     {
         Rect outerBounds = _modalRenderer.CenteredOuterBounds(context.Size, DialogWidth, DialogHeight, minWidth: 52, minHeight: 12);
         ScrollableFormFrame? frame = null;
-        _modalRenderer.Render(context.Screen, outerBounds, title, true, FarDialogStyles.OuterOptions, FarDialogStyles.FrameOptions, (_, layout) =>
+        _modalRenderer.Render(context.Canvas, outerBounds, title, true, FarDialogStyles.OuterOptions, FarDialogStyles.FrameOptions, (_, layout) =>
         {
             Rect bounds = layout.FrameBounds;
             int contentX = bounds.X + 2;
@@ -293,7 +293,7 @@ internal sealed class CompareOptionsDialog
                 new Rect(contentX, bounds.Y + 1, contentWidth, Math.Max(1, errorY - bounds.Y - 1)),
                 FarDialogStyles.Border),
                 focusScope);
-            context.Screen.Write(contentX, errorY, (error ?? "").PadRight(contentWidth), FarDialogStyles.Error);
+            context.Canvas.Write(contentX, errorY, (error ?? "").PadRight(contentWidth), FarDialogStyles.Error);
         });
         return frame ?? throw new InvalidOperationException("Compare options dialog did not render a form frame.");
     }

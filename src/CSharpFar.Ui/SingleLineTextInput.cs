@@ -156,7 +156,7 @@ public static class SingleLineTextInput
     }
 
     public static void Render(
-        ScreenRenderer screen,
+        IUiCanvas screen,
         int x,
         int y,
         int width,
@@ -191,7 +191,7 @@ public static class SingleLineTextInput
     }
 
     public static void Render(
-        ScreenRenderer screen,
+        IUiCanvas screen,
         int x,
         int y,
         int width,
@@ -344,7 +344,7 @@ public static class SingleLineTextInput
     }
 
     public static void RenderHistoryDropdown(
-        ScreenRenderer screen,
+        IUiCanvas screen,
         int fieldX,
         int fieldY,
         int fieldWidth,
@@ -352,7 +352,7 @@ public static class SingleLineTextInput
         int? screenHeight = null)
     {
         int effectiveScreenHeight = screenHeight
-            ?? (screen.FrameViewport.Height > 0 ? screen.FrameViewport.Height : screen.GetSize().Height);
+            ?? (screen.Size.Height > 0 ? screen.Size.Height : screen.Size.Height);
         var frame = CalculateHistoryDropdownFrame(fieldX, fieldY, fieldWidth, effectiveScreenHeight, history);
         if (frame is not { } value)
             return;
@@ -395,7 +395,7 @@ public static class SingleLineTextInput
     }
 
     public static void RenderHistoryDropdown(
-        ScreenRenderer screen,
+        IUiCanvas screen,
         SingleLineTextHistoryState history,
         SingleLineTextHistoryFrame frame)
     {

@@ -6,10 +6,10 @@ namespace CSharpFar.App.Rendering;
 
 internal sealed class ApplicationCommandLineRenderer
 {
-    private readonly ScreenRenderer _screen;
+    private readonly IUiCanvas _screen;
     private readonly Func<ConsolePalette> _palette;
 
-    public ApplicationCommandLineRenderer(ScreenRenderer screen, Func<ConsolePalette> palette)
+    public ApplicationCommandLineRenderer(IUiCanvas screen, Func<ConsolePalette> palette)
     {
         _screen = screen;
         _palette = palette;

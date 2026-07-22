@@ -438,7 +438,7 @@ public sealed class UiCompositionHostTests
         using var session = modals.Open(context =>
         {
             attempted.Add(context.Viewport);
-            context.Screen.Write(0, 0, "M", new CellStyle(ConsoleColor.Gray, ConsoleColor.Black));
+            context.Canvas.Write(0, 0, "M", new CellStyle(ConsoleColor.Gray, ConsoleColor.Black));
             return context.Viewport;
         });
 
@@ -462,7 +462,7 @@ public sealed class UiCompositionHostTests
         using var session = modals.Open(context =>
         {
             renderCount++;
-            context.Screen.Write(0, 0, "M", new CellStyle(ConsoleColor.Gray, ConsoleColor.Black));
+            context.Canvas.Write(0, 0, "M", new CellStyle(ConsoleColor.Gray, ConsoleColor.Black));
             return context.Viewport;
         });
         session.Render();
@@ -481,7 +481,7 @@ public sealed class UiCompositionHostTests
         var style = new CellStyle(ConsoleColor.Gray, ConsoleColor.Black);
         string row = new(value, context.Size.Width);
         for (int y = 0; y < context.Size.Height; y++)
-            context.Screen.Write(0, y, row, style);
+            context.Canvas.Write(0, y, row, style);
     }
 
     private static void FillRoot(UiRenderContext context) => Fill(context, 'R');
@@ -489,8 +489,8 @@ public sealed class UiCompositionHostTests
     private static void CenterMark(UiRenderContext context, char value)
     {
         var style = new CellStyle(ConsoleColor.White, ConsoleColor.Blue);
-        context.Screen.Write(context.Size.Width / 2, context.Size.Height / 2, value.ToString(), style);
-        context.Screen.SetCursorVisible(false);
+        context.Canvas.Write(context.Size.Width / 2, context.Size.Height / 2, value.ToString(), style);
+        context.Canvas.SetCursorVisible(false);
     }
 
     private sealed class RecordingSurface : IUiSurface
@@ -515,7 +515,7 @@ public sealed class UiCompositionHostTests
         public int CompleteCount { get; private set; }
 
         public UiLayerInputPolicy InputPolicy => UiLayerInputPolicy.Bubble;
-        public UiFocusScope FocusScope { get; } = new();
+        public IUiFocusState FocusState { get; } = new();
         public UiInteractionFrame CommittedInteractionFrame => UiInteractionFrame.Empty;
 
         public IDisposable BeginFrame(UiRenderRequest request)
@@ -537,7 +537,7 @@ public sealed class UiCompositionHostTests
     private sealed class TestInteractiveLayer(UiLayerInputPolicy policy) : IUiLayer
     {
         public UiLayerInputPolicy InputPolicy => policy;
-        public UiFocusScope FocusScope { get; } = new();
+        public IUiFocusState FocusState { get; } = new();
         public UiInteractionFrame CommittedInteractionFrame => UiInteractionFrame.Empty;
         public void Render(UiRenderContext context) { }
         public UiInputResult RouteInput(ConsoleInputEvent input, UiInputRouteContext context) =>

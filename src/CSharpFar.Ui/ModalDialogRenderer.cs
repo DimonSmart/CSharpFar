@@ -27,17 +27,17 @@ public sealed class ModalDialogRenderer
     }
 
     [Obsolete("Use the ConsoleSize overload from an active composition frame.")]
-    public Rect CenteredOuterBounds(ScreenRenderer screen, int outerWidth, int outerHeight, int minWidth = 20, int minHeight = 8) =>
-        CenteredOuterBounds(screen.GetSize(), outerWidth, outerHeight, minWidth, minHeight);
+    public Rect CenteredOuterBounds(IUiCanvas screen, int outerWidth, int outerHeight, int minWidth = 20, int minHeight = 8) =>
+        CenteredOuterBounds(screen.Size, outerWidth, outerHeight, minWidth, minHeight);
 
     public void Render(
-        ScreenRenderer screen,
+        IUiCanvas screen,
         Rect outerBounds,
         string title,
         bool doubleBorder,
         PopupRenderOptions outerOptions,
         PopupRenderOptions frameOptions,
-        Action<ScreenRenderer, Layout> renderContent)
+        Action<IUiCanvas, Layout> renderContent)
     {
         if (outerBounds.Width < 3 || outerBounds.Height < 3)
         {

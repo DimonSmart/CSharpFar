@@ -25,14 +25,14 @@ internal sealed class FormTextInputField
     public TextInputRowState State => _state;
 
     public void Render(FormRowRenderContext context, Rect bounds) =>
-        SingleLineTextInput.Render(context.Screen, bounds.X, bounds.Y, bounds.Width, _buffer,
+        SingleLineTextInput.Render(context.Canvas, bounds.X, bounds.Y, bounds.Width, _buffer,
             context.Focused ? FarDialogStyles.FocusedInput : FarDialogStyles.Input,
             FarDialogStyles.Input, _history, maskInput: _maskInput, renderDropdown: false);
 
     public void RenderOverlay(FormRowRenderContext context, Rect bounds)
     {
         if (_history is not null && context.Focused)
-            SingleLineTextInput.RenderHistoryDropdown(context.Screen, bounds.X, bounds.Y, bounds.Width, _history, context.ScreenHeight);
+            SingleLineTextInput.RenderHistoryDropdown(context.Canvas, bounds.X, bounds.Y, bounds.Width, _history, context.CanvasHeight);
     }
 
     public bool TryGetCursor(FormRowRenderContext context, Rect bounds, out FormCursorPlacement cursor)
