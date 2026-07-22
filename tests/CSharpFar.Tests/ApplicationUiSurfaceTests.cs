@@ -934,7 +934,7 @@ public sealed class ApplicationUiSurfaceTests
     private sealed class TestLayer(UiLayerInputPolicy policy) : IUiLayer
     {
         public UiLayerInputPolicy InputPolicy => policy;
-        public IUiFocusState FocusState { get; } = new();
+        public IUiFocusState FocusState { get; } = new UiFocusController();
         public UiInteractionFrame CommittedInteractionFrame => UiInteractionFrame.Empty;
         public UiInputResult Result { get; set; } = UiInputResult.NotHandled;
         public void Render(UiRenderContext context) { }
@@ -944,7 +944,7 @@ public sealed class ApplicationUiSurfaceTests
     private sealed class TestSurface(ScreenRenderer screen, UiInputResult result) : IUiSurface, IUiLayer
     {
         public UiLayerInputPolicy InputPolicy => UiLayerInputPolicy.Bubble;
-        public IUiFocusState FocusState { get; } = new();
+        public IUiFocusState FocusState { get; } = new UiFocusController();
         public UiInteractionFrame CommittedInteractionFrame => UiInteractionFrame.Empty;
         public IDisposable BeginFrame(UiRenderRequest request) => screen.BeginFrame();
         public void Render(UiRenderContext context) { }

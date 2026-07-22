@@ -478,7 +478,7 @@ public sealed class HelpViewerLayerTests
     private sealed class CursorRootSurface(ScreenRenderer screen) : IUiSurface, IUiLayer
     {
         public UiLayerInputPolicy InputPolicy => UiLayerInputPolicy.Bubble;
-        public IUiFocusState FocusState { get; } = new();
+        public IUiFocusState FocusState { get; } = new UiFocusController();
         public UiInteractionFrame CommittedInteractionFrame { get; private set; } = UiInteractionFrame.Empty;
         public IDisposable BeginFrame(UiRenderRequest request) => screen.BeginFrame();
 
@@ -488,8 +488,6 @@ public sealed class HelpViewerLayerTests
                 [new UiFocusEntry(new UiTargetId("root.cursor"), 0, Cursor: new UiCursorPlacement(2, 2, true))],
                 new UiTargetId("root.cursor"));
             CommittedInteractionFrame = new UiInteractionFrame([], focus, new UiTargetId("root.cursor"));
-            context.Canvas.SetCursorPosition(2, 2);
-            context.Canvas.SetCursorVisible(true);
         }
 
         public void CompleteFrame(UiFrameCompletion completion) { }

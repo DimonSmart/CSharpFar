@@ -130,7 +130,7 @@ public sealed class UiInputRoutingTests
     {
         var (host, surface) = Host([]);
         var target = new UiTargetId("target");
-        surface.FocusState.Commit(new UiFocusFrame([new(target, 0)]));
+        ((UiFocusController)surface.FocusState).Commit(new UiFocusFrame([new(target, 0)]));
         surface.Result = UiInputResult.RequestFocus(target);
 
         UiInputResult result = host.DispatchInput(Key(ConsoleKey.A));
@@ -158,7 +158,7 @@ public sealed class UiInputRoutingTests
     private sealed class RecordingLayer(UiLayerInputPolicy policy, string name, List<string> calls) : IUiLayer
     {
         public UiLayerInputPolicy InputPolicy => policy;
-        public IUiFocusState FocusState { get; } = new();
+        public IUiFocusState FocusState { get; } = new UiFocusController();
         public UiInteractionFrame CommittedInteractionFrame { get; } = new([
             new(new UiTargetId("thumb"), new CSharpFar.Console.Models.Rect(0, 0, 1, 1)),
         ]);

@@ -490,7 +490,6 @@ public sealed class UiCompositionHostTests
     {
         var style = new CellStyle(ConsoleColor.White, ConsoleColor.Blue);
         context.Canvas.Write(context.Size.Width / 2, context.Size.Height / 2, value.ToString(), style);
-        context.Canvas.SetCursorVisible(false);
     }
 
     private sealed class RecordingSurface : IUiSurface
@@ -515,7 +514,7 @@ public sealed class UiCompositionHostTests
         public int CompleteCount { get; private set; }
 
         public UiLayerInputPolicy InputPolicy => UiLayerInputPolicy.Bubble;
-        public IUiFocusState FocusState { get; } = new();
+        public IUiFocusState FocusState { get; } = new UiFocusController();
         public UiInteractionFrame CommittedInteractionFrame => UiInteractionFrame.Empty;
 
         public IDisposable BeginFrame(UiRenderRequest request)
@@ -537,7 +536,7 @@ public sealed class UiCompositionHostTests
     private sealed class TestInteractiveLayer(UiLayerInputPolicy policy) : IUiLayer
     {
         public UiLayerInputPolicy InputPolicy => policy;
-        public IUiFocusState FocusState { get; } = new();
+        public IUiFocusState FocusState { get; } = new UiFocusController();
         public UiInteractionFrame CommittedInteractionFrame => UiInteractionFrame.Empty;
         public void Render(UiRenderContext context) { }
         public UiInputResult RouteInput(ConsoleInputEvent input, UiInputRouteContext context) =>

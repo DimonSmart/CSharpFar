@@ -515,7 +515,7 @@ public sealed class ApplicationRuntimeTests
         Action<UiRenderContext>? render = null) : IUiLayer
     {
         public UiLayerInputPolicy InputPolicy => policy;
-        public IUiFocusState FocusState { get; } = new();
+        public IUiFocusState FocusState { get; } = new UiFocusController();
         public UiInteractionFrame CommittedInteractionFrame => UiInteractionFrame.Empty;
         public void Render(UiRenderContext context) => render?.Invoke(context);
         public UiInputResult RouteInput(ConsoleInputEvent input, UiInputRouteContext context) => result;

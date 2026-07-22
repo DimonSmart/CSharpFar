@@ -330,7 +330,7 @@ public sealed class ApplicationUiLayerScopeTests
         private readonly Queue<UiRoutedInput<Unit>> _inputs = [];
 
         public UiLayerInputPolicy InputPolicy => UiLayerInputPolicy.Bubble;
-        public IUiFocusState FocusState { get; } = new();
+        public IUiFocusState FocusState { get; } = new UiFocusController();
         public UiInteractionFrame CommittedInteractionFrame => UiInteractionFrame.Empty;
         public IDisposable BeginFrame(UiRenderRequest request) => screen.BeginFrame();
 

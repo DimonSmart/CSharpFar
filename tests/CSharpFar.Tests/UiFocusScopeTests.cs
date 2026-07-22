@@ -82,7 +82,8 @@ public sealed class IUiFocusStateTests
     {
         var scope = new UiFocusController();
         scope.Commit(Frame(["a", "b"], defaultTarget: "a"));
-        scope.TryFocus(new UiTargetId("b"));
+        scope.RequestOnNextCommit(UiFocusRequest.Set(new UiTargetId("b")));
+        scope.Commit(Frame(["a", "b"], defaultTarget: "a"));
 
         scope.Commit(Frame(["b", "c"], defaultTarget: "c"));
 
@@ -120,9 +121,16 @@ public sealed class IUiFocusStateTests
             new(new UiTargetId("b"), 1, IsEnabled: false),
         ]));
 
-        Assert.True(scope.TryFocus(new UiTargetId("a")));
-        Assert.False(scope.TryFocus(new UiTargetId("missing")));
-        Assert.False(scope.TryFocus(new UiTargetId("b")));
+        scope.RequestOnNextCommit(UiFocusRequest.Set(new UiTargetId("a")));
+        scope.Commit(scope.CurrentFrame);
+        Assert.Equal(new UiTargetId("a"), scope.FocusedTarget);
+
+        scope.RequestOnNextCommit(UiFocusRequest.Set(new UiTargetId("missing")));
+        scope.Commit(scope.CurrentFrame);
+        Assert.Equal(new UiTargetId("a"), scope.FocusedTarget);
+
+        scope.RequestOnNextCommit(UiFocusRequest.Set(new UiTargetId("b")));
+        scope.Commit(scope.CurrentFrame);
         Assert.Equal(new UiTargetId("a"), scope.FocusedTarget);
     }
 
@@ -158,13 +166,17 @@ public sealed class IUiFocusStateTests
         ]));
 
         Assert.Equal(new UiTargetId("b"), scope.FocusedTarget);
-        Assert.True(scope.MoveNext());
+        scope.RequestOnNextCommit(UiFocusRequest.MoveNext);
+        scope.Commit(scope.CurrentFrame);
         Assert.Equal(new UiTargetId("c"), scope.FocusedTarget);
-        Assert.True(scope.MoveNext());
+        scope.RequestOnNextCommit(UiFocusRequest.MoveNext);
+        scope.Commit(scope.CurrentFrame);
         Assert.Equal(new UiTargetId("a"), scope.FocusedTarget);
-        Assert.True(scope.MoveNext());
+        scope.RequestOnNextCommit(UiFocusRequest.MoveNext);
+        scope.Commit(scope.CurrentFrame);
         Assert.Equal(new UiTargetId("b"), scope.FocusedTarget);
-        Assert.True(scope.MovePrevious());
+        scope.RequestOnNextCommit(UiFocusRequest.MovePrevious);
+        scope.Commit(scope.CurrentFrame);
         Assert.Equal(new UiTargetId("a"), scope.FocusedTarget);
     }
 

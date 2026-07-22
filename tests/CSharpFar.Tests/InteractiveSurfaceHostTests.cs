@@ -543,7 +543,7 @@ public sealed class InteractiveSurfaceHostTests
         private bool _handled;
 
         public UiLayerInputPolicy InputPolicy => _handled ? UiLayerInputPolicy.None : UiLayerInputPolicy.Bubble;
-        public IUiFocusState FocusState { get; } = new();
+        public IUiFocusState FocusState { get; } = new UiFocusController();
         public UiInteractionFrame CommittedInteractionFrame => UiInteractionFrame.Empty;
         public void Render(UiRenderContext context) => onRender();
 

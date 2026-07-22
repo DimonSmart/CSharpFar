@@ -335,7 +335,7 @@ public sealed class UiMouseCaptureTests
     {
         public UiLayerInputPolicy Policy { get; set; } = policy;
         public UiLayerInputPolicy InputPolicy => Policy;
-        public IUiFocusState FocusState { get; } = new();
+        public IUiFocusState FocusState { get; } = new UiFocusController();
         public UiInteractionFrame CommittedInteractionFrame { get; } = new([
             new(new UiTargetId("thumb"), new CSharpFar.Console.Models.Rect(0, 0, 1, 1)),
             new(new UiTargetId("first"), new CSharpFar.Console.Models.Rect(0, 0, 1, 1)),
