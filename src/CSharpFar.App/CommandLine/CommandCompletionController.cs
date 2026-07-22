@@ -50,29 +50,30 @@ internal sealed class CommandCompletionController
         _state.Visible = true;
     }
 
-    public bool TryRemoveSelectedCommand(CommandLineState commandLine)
+    public bool TryRemoveSelectedCommand(CommandLineState commandLine, int viewportRows)
     {
+        int selectedIndex = _state.List.SelectedIndex;
         if (!_state.Visible ||
-            _state.List.SelectedIndex == NeutralIndex ||
-            _state.List.SelectedIndex >= _state.Matches.Count ||
+            selectedIndex <= NeutralIndex ||
+            selectedIndex >= _state.Matches.Count ||
             commandLine.HasSelection ||
             commandLine.CursorPosition != commandLine.Text.Length)
         {
             return false;
         }
 
-        string command = _state.Matches[_state.List.SelectedIndex];
+        string command = _state.Matches[selectedIndex];
         if (string.IsNullOrEmpty(command) || !_history.RemoveCommand(command))
             return false;
 
-        var items = _state.Matches.Where((_, index) => index != _state.List.SelectedIndex).ToArray();
+        var items = _state.Matches.Where((_, index) => index != selectedIndex).ToArray();
         if (items.Length <= 1)
         {
             _state.ClearMatches();
             return true;
         }
 
-        _state.List.ResetItems(items, Math.Min(_state.List.SelectedIndex, items.Length - 1));
+        _state.List.ReplaceItems(items, static item => item, viewportRows);
         return true;
     }
 

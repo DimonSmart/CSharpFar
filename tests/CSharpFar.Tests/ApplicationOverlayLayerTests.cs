@@ -158,6 +158,103 @@ public sealed class ApplicationOverlayLayerTests
     }
 
     [Fact]
+    public void CommandCompletion_NeutralMouseDownClosesAndConsumesInput()
+    {
+        var services = Services();
+        var completion = services.Session.CommandLine.Completion;
+        completion.Visible = true;
+        completion.List.ResetItems(["", "alpha"]);
+        services.Composition.Render();
+        Rect bounds = services.Inner.CommandCompletionLayer.CommittedFrame.Items[0].Bounds;
+
+        UiInputResult result = services.Composition.DispatchInput(Mouse(bounds.X, bounds.Y));
+
+        Assert.True(result.Handled);
+        Assert.True(result.Invalidate);
+        Assert.False(completion.Visible);
+        Assert.Equal(string.Empty, services.Session.CommandLine.State.Text);
+        Assert.False(services.ApplicationSurface.TryTakeInput(out _));
+    }
+
+    [Fact]
+    public void CommandCompletion_CommandMouseDownAcceptsWithoutBubbling()
+    {
+        var services = Services();
+        var completion = services.Session.CommandLine.Completion;
+        completion.Visible = true;
+        completion.List.ResetItems(["", "alpha"]);
+        services.Composition.Render();
+        Rect bounds = services.Inner.CommandCompletionLayer.CommittedFrame.Items[1].Bounds;
+
+        UiInputResult result = services.Composition.DispatchInput(Mouse(bounds.X, bounds.Y));
+
+        Assert.True(result.Handled);
+        Assert.True(result.Invalidate);
+        Assert.False(completion.Visible);
+        Assert.Equal("alpha", services.Session.CommandLine.State.Text);
+        Assert.False(services.ApplicationSurface.TryTakeInput(out _));
+    }
+
+    [Fact]
+    public void CommandCompletion_DeleteUsesCommittedSelection()
+    {
+        var services = Services();
+        services.History.AddCommand(new CommandHistoryItem { Command = "alpha", WorkingDirectory = @"C:\" });
+        services.History.AddCommand(new CommandHistoryItem { Command = "beta", WorkingDirectory = @"C:\" });
+        var completion = services.Session.CommandLine.Completion;
+        completion.Visible = true;
+        completion.List.ResetItems(["", "alpha", "beta"], 1);
+        services.Composition.Render();
+        completion.List.SelectedIndex = 2;
+
+        UiInputResult result = services.Composition.DispatchInput(Key(ConsoleKey.Delete));
+
+        Assert.True(result.Handled);
+        Assert.DoesNotContain(services.History.GetCommandHistory(), item => item.Command == "alpha");
+        Assert.Contains(services.History.GetCommandHistory(), item => item.Command == "beta");
+    }
+
+    [Fact]
+    public void CommandCompletion_DeletePreservesViewport()
+    {
+        var services = Services();
+        string[] commands = Enumerable.Range(1, 12).Select(index => $"command-{index}").ToArray();
+        foreach (string command in commands)
+            services.History.AddCommand(new CommandHistoryItem { Command = command, WorkingDirectory = @"C:\" });
+        var completion = services.Session.CommandLine.Completion;
+        completion.Visible = true;
+        completion.List.ResetItems(["", .. commands], 10);
+        completion.List.ScrollTop = 4;
+        services.Composition.Render();
+
+        Assert.True(services.Composition.DispatchInput(Key(ConsoleKey.Delete)).Handled);
+        services.Composition.Render();
+
+        var frame = services.Inner.CommandCompletionLayer.CommittedFrame;
+        Assert.True(completion.List.ScrollTop > 0);
+        Assert.InRange(completion.List.SelectedIndex, frame.ListState.ScrollTop, frame.ListState.ScrollTop + frame.VisibleRows - 1);
+    }
+
+    [Fact]
+    public void CommandCompletion_StaleFrameConsumesInputWithoutAcceptingCommand()
+    {
+        var services = Services();
+        var completion = services.Session.CommandLine.Completion;
+        completion.Visible = true;
+        completion.List.ResetItems(["", "old"]);
+        services.Composition.Render();
+        Rect oldBounds = services.Inner.CommandCompletionLayer.CommittedFrame.Items[1].Bounds;
+        completion.List.ResetItems(["", "new"]);
+
+        UiInputResult result = services.Composition.DispatchInput(Mouse(oldBounds.X, oldBounds.Y));
+
+        Assert.True(result.Handled);
+        Assert.True(result.Invalidate);
+        Assert.Equal(string.Empty, services.Session.CommandLine.State.Text);
+        Assert.False(services.ApplicationSurface.TryTakeInput(out _));
+    }
+
+    [Fact]
     public void CommandCompletion_RejectedRenderAttemptDoesNotMutateSelectionBeforeStableCommit()
     {
         var services = Services();
@@ -545,16 +642,17 @@ public sealed class ApplicationOverlayLayerTests
         var settings = new AppSettings();
         settings.Panels.LeftStartDirectory = root;
         settings.Panels.RightStartDirectory = root;
+        var history = new InMemoryHistoryStore();
         var services = ApplicationServicesBuilder.Create(
             new ScreenRenderer(driver),
             fs,
             new NoOpShellService(),
             new NoOpFileOperationService(),
-            new InMemoryHistoryStore(),
+            history,
             settings,
             enableBuiltInNetworkModules: false);
         _ = new Application(services);
-        return new TestServices(driver, services);
+        return new TestServices(driver, services, history);
     }
 
     private static KeyConsoleInputEvent Key(
@@ -581,7 +679,7 @@ public sealed class ApplicationOverlayLayerTests
         Attributes = FileAttributes.Archive,
     };
 
-    private sealed record TestServices(FakeConsoleDriver Driver, ApplicationServices Inner)
+    private sealed record TestServices(FakeConsoleDriver Driver, ApplicationServices Inner, InMemoryHistoryStore History)
     {
         public ApplicationSession Session => Inner.Session;
         public UiCompositionHost Composition => Inner.Composition;

@@ -18,8 +18,6 @@ internal sealed record CommandCompletionFrame(
     IReadOnlyList<CommandCompletionItemFrame> Items,
     Rect? ScrollbarBounds,
     int VisibleRows,
-    int FirstVisibleIndex,
-    int SelectedIndex,
     int MatchCount,
     ScrollableListFrameState ListState);
 
@@ -46,7 +44,7 @@ internal sealed class CommandCompletionLayer : UiLayer<CommandCompletionFrame>
     {
         var completion = _context.CommandCompletion;
         var list = completion.List;
-        var empty = new CommandCompletionFrame(false, context.Viewport, default, default, [], null, 0, list.ScrollTop, list.SelectedIndex, list.Count, ScrollableListFrameState.Empty);
+        var empty = new CommandCompletionFrame(false, context.Viewport, default, default, [], null, 0, list.Count, ScrollableListFrameState.Empty);
         if (_context.App.WorkspaceMode != ApplicationWorkspaceMode.Panels)
             return empty;
 
@@ -80,7 +78,7 @@ internal sealed class CommandCompletionLayer : UiLayer<CommandCompletionFrame>
             int index = listState.ScrollTop + row;
             return new CommandCompletionItemFrame(index, list.Items[index], new Rect(contentBounds.X, contentBounds.Y + row, contentBounds.Width, 1), ItemTarget(index));
         }).ToArray();
-        return new CommandCompletionFrame(true, context.Viewport, popupBounds, contentBounds, items, scrollbarBounds, rowCount, listState.ScrollTop, listState.SelectedIndex, list.Count, listState);
+        return new CommandCompletionFrame(true, context.Viewport, popupBounds, contentBounds, items, scrollbarBounds, rowCount, list.Count, listState);
     }
 
     protected override void OnFrameCommitted(CommandCompletionFrame frame)
@@ -116,16 +114,19 @@ internal sealed class CommandCompletionLayer : UiLayer<CommandCompletionFrame>
 
     private UiInputResult RouteKey(ConsoleKeyInfo key, CommandCompletionFrame frame)
     {
+        if (!TryRestoreCommittedList(frame))
+            return UiInputResult.HandledAndInvalidate;
+
         if (key.Key is ConsoleKey.UpArrow or ConsoleKey.DownArrow)
             return ToUiResult(_context.CommandCompletion.List.HandleKey(key, frame.VisibleRows));
         if (key.Key == ConsoleKey.Enter)
-            return KeyboardShortcutClassifier.IsPlainControlEnter(key) ? UiInputResult.NotHandled : Accept(frame);
+            return KeyboardShortcutClassifier.IsPlainControlEnter(key) ? UiInputResult.NotHandled : AcceptByKeyboard(frame);
         if (key.Key == ConsoleKey.Escape)
         {
             _hideCompletion(true);
             return UiInputResult.HandledAndInvalidate;
         }
-        if (key.Key == ConsoleKey.Delete && _controller.TryRemoveSelectedCommand(_context.CommandLine))
+        if (key.Key == ConsoleKey.Delete && _controller.TryRemoveSelectedCommand(_context.CommandLine, frame.VisibleRows))
         {
             _resetHistoryNavigation();
             return UiInputResult.HandledAndInvalidate;
@@ -135,6 +136,9 @@ internal sealed class CommandCompletionLayer : UiLayer<CommandCompletionFrame>
 
     private UiInputResult RouteMouse(MouseConsoleInputEvent mouse, CommandCompletionFrame frame, UiInputRouteContext route)
     {
+        if (!TryRestoreCommittedList(frame))
+            return UiInputResult.HandledAndInvalidate;
+
         bool relevant = route.IsCapturedRoute || route.Target == ScrollbarTarget || (route.Target is not null && TryItemIndex(route.Target, out _));
         if (!relevant)
             return UiInputResult.NotHandled;
@@ -143,7 +147,7 @@ internal sealed class CommandCompletionLayer : UiLayer<CommandCompletionFrame>
         if (!result.IsHandled)
             return UiInputResult.NotHandled;
         if (result.Kind == ScrollableListInputResultKind.Confirmed && route.Target is { } target && TryItemIndex(target, out int itemIndex))
-            return AcceptItem(itemIndex, frame);
+            return AcceptByMouse(itemIndex, frame);
         if (result.DragStarted)
             return UiInputResult.CaptureMouse(ScrollbarTarget, MouseButton.Left, invalidate: true);
         if (result.DragEnded)
@@ -151,9 +155,13 @@ internal sealed class CommandCompletionLayer : UiLayer<CommandCompletionFrame>
         return UiInputResult.HandledAndInvalidate;
     }
 
-    private UiInputResult Accept(CommandCompletionFrame frame) => AcceptItem(frame.SelectedIndex, frame);
+    private UiInputResult AcceptByKeyboard(CommandCompletionFrame frame) =>
+        AcceptItem(frame.ListState.SelectedIndex, frame, continueRoutingForNeutralItem: true);
 
-    private UiInputResult AcceptItem(int itemIndex, CommandCompletionFrame frame)
+    private UiInputResult AcceptByMouse(int itemIndex, CommandCompletionFrame frame) =>
+        AcceptItem(itemIndex, frame, continueRoutingForNeutralItem: false);
+
+    private UiInputResult AcceptItem(int itemIndex, CommandCompletionFrame frame, bool continueRoutingForNeutralItem)
     {
         var completion = _context.CommandCompletion;
         if (!TryGetCommittedItem(itemIndex, frame, out var item) || itemIndex >= completion.List.Count || !string.Equals(completion.List.Items[itemIndex], item.Text, StringComparison.Ordinal))
@@ -162,12 +170,24 @@ internal sealed class CommandCompletionLayer : UiLayer<CommandCompletionFrame>
         {
             _hideCompletion(false);
             _resetHistoryNavigation();
-            return UiInputResult.NotHandled;
+            return continueRoutingForNeutralItem ? UiInputResult.NotHandled : UiInputResult.HandledAndInvalidate;
         }
         _context.CommandLine.SetText(item.Text);
         _hideCompletion(false);
         _resetHistoryNavigation();
         return UiInputResult.HandledAndInvalidate;
+    }
+
+    private bool TryRestoreCommittedList(CommandCompletionFrame frame)
+    {
+        var completion = _context.CommandCompletion;
+        if (!completion.Visible ||
+            completion.List.Count != frame.MatchCount ||
+            frame.Items.Any(item => item.AbsoluteIndex >= completion.List.Count || !string.Equals(completion.List.Items[item.AbsoluteIndex], item.Text, StringComparison.Ordinal)))
+            return false;
+
+        completion.List.ApplyCommittedFrame(frame.ListState);
+        return true;
     }
 
     private static UiInputResult ToUiResult(ScrollableListInputResult result) => result.IsHandled ? UiInputResult.HandledAndInvalidate : UiInputResult.NotHandled;
