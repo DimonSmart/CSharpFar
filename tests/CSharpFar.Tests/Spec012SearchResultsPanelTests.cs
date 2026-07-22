@@ -73,14 +73,16 @@ public sealed class Spec012SearchResultsPanelTests : IDisposable
         var fileOps = new RecordingFileOperationService();
         var searchService = new CountingSearchService();
         var driver = new FakeConsoleDriver(width: 80, height: 14);
-        driver.EnqueueKey(Key(ConsoleKey.F5));
-        driver.EnqueueKey(Key(ConsoleKey.Enter));
-        driver.EnqueueKey(Key(ConsoleKey.F10));
 
         var app = CreateApp(CreateFileSystem(), driver, fileOps, searchService);
         SetSearchResultsPanel(GetLeftPanel(app), foundFile);
 
-        app.Run();
+        ApplicationTestRunBuilder
+            .For(app, driver)
+            .Press(ConsoleKey.F5)
+            .Press(ConsoleKey.Enter)
+            .ExitWhenApplicationReady()
+            .Run();
 
         var request = Assert.Single(fileOps.Requests);
         Assert.Equal(FileOperationKind.Copy, request.Kind);
@@ -208,13 +210,10 @@ public sealed class Spec012SearchResultsPanelTests : IDisposable
         string foundFile = Path.Combine(subDirectory, "found.txt");
         var fileOps = new RecordingFileOperationService();
         var driver = new FakeConsoleDriver(width: 100, height: 30);
-        driver.EnqueueKey(Key(ConsoleKey.F7, alt: true));
-        driver.EnqueueKey(Key(ConsoleKey.F10));
         EnqueueKeysWhenWriteContains(
             driver,
             "found.txt",
-            Key(ConsoleKey.Enter),
-            Key(ConsoleKey.F10));
+            Key(ConsoleKey.Enter));
 
         var fs = new FakeFileSystemService();
         fs.AddDirectory(
@@ -238,7 +237,12 @@ public sealed class Spec012SearchResultsPanelTests : IDisposable
 
         var app = CreateApp(fs, driver, fileOps, new BlockingSearchService(SearchResult(foundFile)));
 
-        app.Run();
+        ApplicationTestRunBuilder
+            .For(app, driver)
+            .Press(ConsoleKey.F7, alt: true)
+            .Press(ConsoleKey.F10)
+            .ExitWhenApplicationReady()
+            .Run();
 
         var left = GetLeftPanel(app);
         Assert.Equal(subDirectory, left.CurrentDirectory);
@@ -254,12 +258,7 @@ public sealed class Spec012SearchResultsPanelTests : IDisposable
         string foundFile = Path.Combine(subDirectory, "found.txt");
         var fileOps = new RecordingFileOperationService();
         var driver = new FakeConsoleDriver(width: 100, height: 30);
-        var service = new BlockingSearchService(
-            SearchResult(foundFile),
-            () => driver.BeforeReadInput = current => current.EnqueueKey(Key(ConsoleKey.F10)),
-            () => driver.BeforeReadInput = current => current.EnqueueKey(Key(ConsoleKey.F10)));
-        driver.EnqueueKey(Key(ConsoleKey.F7, alt: true));
-        driver.EnqueueKey(Key(ConsoleKey.F10));
+        var service = new BlockingSearchService(SearchResult(foundFile));
         EnqueueMouseClickWhenWriteContains(
             driver,
             "[ Stop ]",
@@ -277,7 +276,12 @@ public sealed class Spec012SearchResultsPanelTests : IDisposable
 
         var app = CreateApp(fs, driver, fileOps, service);
 
-        app.Run();
+        ApplicationTestRunBuilder
+            .For(app, driver)
+            .Press(ConsoleKey.F7, alt: true)
+            .Press(ConsoleKey.F10)
+            .ExitWhenApplicationReady()
+            .Run();
 
         var left = GetLeftPanel(app);
         Assert.Equal(_root, left.CurrentDirectory);

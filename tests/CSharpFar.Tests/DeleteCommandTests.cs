@@ -35,10 +35,6 @@ public sealed class DeleteCommandTests : IDisposable
         });
         var fileOperations = new RecordingFileOperationService(supportsRecycleBin);
         var driver = new FakeConsoleDriver(width: 100, height: 30);
-        driver.EnqueueKey(Key(ConsoleKey.F8));
-        driver.EnqueueKey(Key(ConsoleKey.Enter));
-        driver.EnqueueKey(Key(ConsoleKey.F10));
-        driver.EnqueueKey(Key(ConsoleKey.F10));
         var settings = new AppSettings();
         settings.Panels.LeftStartDirectory = _root;
         settings.Panels.RightStartDirectory = _root;
@@ -52,7 +48,12 @@ public sealed class DeleteCommandTests : IDisposable
             settings);
         app.Session.Panels.Left.CursorIndex = 1;
 
-        app.Run();
+        ApplicationTestRunBuilder
+            .For(app, driver)
+            .Press(ConsoleKey.F8)
+            .Press(ConsoleKey.Enter)
+            .ExitWhenApplicationReady()
+            .Run();
 
         FileOperationRequest request = Assert.Single(fileOperations.Requests);
         Assert.Equal(expectedUseRecycleBin, request.Options.UseRecycleBinForDelete);
@@ -66,9 +67,6 @@ public sealed class DeleteCommandTests : IDisposable
     }
 
     public void Dispose() => Directory.Delete(_root, recursive: true);
-
-    private static ConsoleKeyInfo Key(ConsoleKey key) =>
-        new('\0', key, shift: false, alt: false, control: false);
 
     private sealed class RecordingFileOperationService(bool supportsRecycleBin) : IFileOperationService
     {

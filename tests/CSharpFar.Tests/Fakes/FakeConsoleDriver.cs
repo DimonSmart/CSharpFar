@@ -56,6 +56,8 @@ public sealed class FakeConsoleDriver : IConsoleDriver, IConsoleOutputModeDriver
     public Action<FakeConsoleDriver>? BeforeViewportWrite { get; set; }
     public int? ResizeAfterWriteCount { get; set; }
     public Action<FakeConsoleDriver>? ResizeAfterWrite { get; set; }
+    public int PendingInputCount => _inputQueue.Count;
+    public ConsoleInputEvent? LastDequeuedInput { get; private set; }
     public IReadOnlyList<WriteRecord> WriteRecords => _writeRecords;
     public IReadOnlyList<string> OperationLog => _operationLog;
     public event Action<WriteRecord>? Wrote;
@@ -144,7 +146,10 @@ public sealed class FakeConsoleDriver : IConsoleDriver, IConsoleOutputModeDriver
         cancellationToken.ThrowIfCancellationRequested();
         InvokeBeforeReadInput();
         if (_inputQueue.TryDequeue(out var inputEvent))
+        {
+            LastDequeuedInput = inputEvent;
             return inputEvent;
+        }
 
         if (cancellationToken.CanBeCanceled)
         {
@@ -158,7 +163,11 @@ public sealed class FakeConsoleDriver : IConsoleDriver, IConsoleOutputModeDriver
     public bool TryReadInput(bool intercept, [NotNullWhen(true)] out ConsoleInputEvent? inputEvent)
     {
         InvokeBeforeTryReadInput();
-        return _inputQueue.TryDequeue(out inputEvent);
+        bool dequeued = _inputQueue.TryDequeue(out inputEvent);
+        if (dequeued)
+            LastDequeuedInput = inputEvent;
+
+        return dequeued;
     }
 
     public ConsoleKeyInfo ReadKey(bool intercept)
@@ -166,6 +175,7 @@ public sealed class FakeConsoleDriver : IConsoleDriver, IConsoleOutputModeDriver
         if (!_inputQueue.TryDequeue(out var inputEvent))
             throw new InvalidOperationException("No input events queued in FakeConsoleDriver.");
 
+        LastDequeuedInput = inputEvent;
         return inputEvent is KeyConsoleInputEvent keyEvent
             ? keyEvent.Key
             : throw new InvalidOperationException("Next queued input event is not a key.");

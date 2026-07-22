@@ -14,6 +14,8 @@ internal sealed class ApplicationRuntime
     private readonly IDisposable _applicationUiLayers;
     private readonly ApplicationRuntimeContext _context;
 
+    internal event Action? ApplicationInputRequested;
+
     public ApplicationRuntime(
         UiCompositionHost composition,
         ScreenRenderer screen,
@@ -47,6 +49,8 @@ internal sealed class ApplicationRuntime
 
             while (_context.IsRunning())
             {
+                ApplicationInputRequested?.Invoke();
+
                 ConsoleInputEvent evt;
                 try
                 {

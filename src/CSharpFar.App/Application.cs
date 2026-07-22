@@ -258,6 +258,12 @@ public sealed class Application
 
     internal ApplicationSession Session => _session;
 
+    internal event Action? ApplicationInputRequested
+    {
+        add => _runtime.ApplicationInputRequested += value;
+        remove => _runtime.ApplicationInputRequested -= value;
+    }
+
     internal bool QuickView
     {
         get => _state.QuickView;

@@ -61,3 +61,4 @@ Git history is the source for deleted or previous document versions.
 | 0066.spec-folder-and-file-set-comparison.md | spec | Folder and file-set comparison |  |  |
 | 0067.spec-ui-layer-composition-and-modal-resize.md | spec | UI layer composition and modal resize |  |  |
 | 0071.spec-transactional-ui-frame-commit.md | spec | Transactional UI frame commit and resize regression coverage |  |  |
+| 0072.spec-application-integration-test-input-lifecycle.md | spec | Application integration test input lifecycle |  |  |

@@ -16,6 +16,29 @@ namespace CSharpFar.Tests;
 public sealed class ApplicationRuntimeTests
 {
     [Fact]
+    public void ApplicationInputRequested_CanEnqueueTopLevelInputBeforeRead()
+    {
+        var fixture = RuntimeFixture.Create();
+        bool requested = false;
+        var runtime = new ApplicationRuntime(
+            fixture.Services.Composition,
+            fixture.Services.Screen,
+            fixture.Services.ApplicationSurface,
+            fixture.Context.ToRuntimeContext());
+        runtime.ApplicationInputRequested += () =>
+        {
+            requested = true;
+            Assert.Equal(0, fixture.Driver.PendingInputCount);
+            fixture.Driver.EnqueueInput(Key(ConsoleKey.F10));
+        };
+
+        runtime.Run();
+
+        Assert.True(requested);
+        Assert.Equal(1, fixture.KeyCount);
+    }
+
+    [Fact]
     public void KeyRoutedToApplicationSurface_CallsKeyHandlerOnceAfterDispatch()
     {
         var fixture = RuntimeFixture.Create();
