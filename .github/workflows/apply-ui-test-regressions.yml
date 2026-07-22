@@ -19,7 +19,7 @@ jobs:
           fetch-depth: 0
 
       - name: Apply targeted test updates
-        run: python scripts/apply-ui-test-regressions.py
+        run: python scripts/apply-disabled-focus-test-fix.py
 
       - name: Commit updates
         shell: bash
@@ -27,5 +27,5 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add tests/CSharpFar.Tests
-          git commit -m "Fix UI test regressions after focus and rendering refactor"
+          git commit -m "Align disabled focus request test with commit semantics"
           git push
