@@ -60,7 +60,7 @@ public sealed class UiLayerTargetRoutingTests
     public void KeyboardWithoutEnabledFocus_UsesLayerRoute()
     {
         var disabled = new UiTargetId("disabled");
-        var layer = Layer(focus: new UiFocusFrame([new UiFocusEntry(disabled, 0, IsEnabled: false)]));
+        var layer = Layer(focus: FocusFrame([new UiFocusEntry(disabled, 0, IsEnabled: false)]));
         var host = Host(layer);
         host.Render();
 
@@ -146,7 +146,7 @@ public sealed class UiLayerTargetRoutingTests
     {
         var enabled = new UiTargetId("enabled");
         var disabled = new UiTargetId("disabled");
-        var layer = Layer(new UiFocusFrame([new(enabled, 0), new(disabled, 1, IsEnabled: false)], enabled));
+        var layer = Layer(FocusFrame([new(enabled, 0), new(disabled, 1, IsEnabled: false)], enabled));
         layer.Result = (_, _) => UiInputResult.RequestFocus(disabled);
         var host = Host(layer);
         host.Render();

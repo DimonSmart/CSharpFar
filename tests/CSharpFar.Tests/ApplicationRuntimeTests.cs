@@ -26,7 +26,9 @@ public sealed class ApplicationRuntimeTests
             Assert.IsType<KeyConsoleInputEvent>(routed.Input);
             fixture.KeyCount++;
             Assert.False(fixture.Services.ApplicationSurface.TryTakeInput(out var ignoredPacket));
-            using var modal = fixture.Services.ModalDialogs.Open(_ => { });
+            using var modal = fixture.Services.Composition.PushOverlay(new TestLayer(
+                UiLayerInputPolicy.Modal,
+                UiInputResult.HandledResult));
             modalOpened = true;
             fixture.Running = false;
             return ApplicationRuntimeRenderRequest.None;
@@ -137,12 +139,15 @@ public sealed class ApplicationRuntimeTests
     public void ModalOwnedInput_IsNotProcessedByRuntimeAndNextApplicationInputWorks()
     {
         var fixture = RuntimeFixture.Create();
-        using var modal = fixture.Services.ModalDialogs.Open(_ => { });
+        ConsoleInputEvent? modalInput = null;
+        using var modal = fixture.Services.Composition.PushOverlay(new TestLayer(
+            UiLayerInputPolicy.Modal,
+            UiInputResult.HandledResult,
+            route: input => modalInput = input));
         fixture.Driver.EnqueueInput(Key(ConsoleKey.A));
         fixture.IsRunningOverride = new SequenceRunning(true, true, false).Next;
         fixture.Run();
 
-        Assert.True(modal.TryReadInput(out var modalInput));
         Assert.Equal(ConsoleKey.A, Assert.IsType<KeyConsoleInputEvent>(modalInput).Key.Key);
         Assert.Equal(0, fixture.KeyCount);
 
@@ -287,7 +292,9 @@ public sealed class ApplicationRuntimeTests
         fixture.Context.ExecuteMenuCommand = _ =>
         {
             Assert.Equal(1, fixture.RenderCount);
-            using var modal = fixture.Services.ModalDialogs.Open(_ => { });
+            using var modal = fixture.Services.Composition.PushOverlay(new TestLayer(
+                UiLayerInputPolicy.Modal,
+                UiInputResult.HandledResult));
             return ApplicationRuntimeRenderRequest.None;
         };
         using var overlay = fixture.Services.Composition.PushOverlay(new TestLayer(
@@ -299,7 +306,7 @@ public sealed class ApplicationRuntimeTests
 
         fixture.Run();
 
-        Assert.Equal(2, fixture.RenderCount);
+        Assert.Equal(1, fixture.RenderCount);
     }
 
     [Fact]
@@ -410,6 +417,7 @@ public sealed class ApplicationRuntimeTests
         public void Run() =>
             new ApplicationRuntime(
                 Services.Composition,
+                Services.Screen,
                 Services.ApplicationSurface,
                 Context.ToRuntimeContext()).Run();
 
@@ -512,13 +520,18 @@ public sealed class ApplicationRuntimeTests
     private sealed class TestLayer(
         UiLayerInputPolicy policy,
         UiInputResult result,
-        Action<UiRenderContext>? render = null) : IUiLayer
+        Action<UiRenderContext>? render = null,
+        Action<ConsoleInputEvent>? route = null) : IUiLayer
     {
         public UiLayerInputPolicy InputPolicy => policy;
         public IUiFocusState FocusState { get; } = new UiFocusController();
         public UiInteractionFrame CommittedInteractionFrame => UiInteractionFrame.Empty;
         public void Render(UiRenderContext context) => render?.Invoke(context);
-        public UiInputResult RouteInput(ConsoleInputEvent input, UiInputRouteContext context) => result;
+        public UiInputResult RouteInput(ConsoleInputEvent input, UiInputRouteContext context)
+        {
+            route?.Invoke(input);
+            return result;
+        }
     }
 
     private sealed class SingleMenuCommand(MenuCommandRequest request)

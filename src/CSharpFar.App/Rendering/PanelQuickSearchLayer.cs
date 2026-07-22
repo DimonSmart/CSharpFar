@@ -78,12 +78,9 @@ internal sealed class PanelQuickSearchLayer : UiLayer<PanelQuickSearchFrame>
         if (!frame.Active)
             return UiInteractionFrame.Empty;
 
-        var focus = new UiFocusFrame(
-            [new UiFocusEntry(InputTarget, 0, IsEnabled: true, frame.Cursor)],
-            InputTarget);
         var builder = new UiInteractionFrameBuilder()
-            .AddFocusEntries(focus.Entries)
-            .SetDefaultFocusTarget(focus.DefaultTarget);
+            .AddFocusEntry(InputTarget, 0, isEnabled: true, frame.Cursor)
+            .SetDefaultFocusTarget(InputTarget);
 
         if (frame.PopupVisible)
             builder.AddHitRegion(InputTarget, frame.InputBounds);

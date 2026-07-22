@@ -30,7 +30,8 @@ public sealed class ChoiceRowTests
         var driver = new FakeConsoleDriver(40, 4);
         var screen = new ScreenRenderer(driver);
         var row = new ChoiceRow<string>(["one", "two"], static value => value);
-        var layout = row.Render(Canvas(screen), 2, 1, 20, "Mode", focused: false);
+        var layout = UiTestRender.Render(screen, canvas =>
+            row.Render(canvas, 2, 1, 20, "Mode", focused: false));
 
         Assert.Equal(ChoiceRowLayoutKind.Simple, layout.Kind);
         Assert.True(row.TryHandleMouse(Mouse(3, 1), layout));
@@ -48,14 +49,15 @@ public sealed class ChoiceRowTests
         var screen = new ScreenRenderer(driver);
         var row = new ChoiceRow<string>(["Default", "Copy", "Inherit"], static value => value, selectedIndex);
 
-        var layout = row.RenderSegmented(Canvas(screen),
-            2,
-            1,
-            60,
-            "Access rights:",
-            focused: true,
-            fillStyle: new CellStyle(ConsoleColor.Gray, ConsoleColor.Black),
-            focusedStyle: new CellStyle(ConsoleColor.Black, ConsoleColor.Gray));
+        var layout = UiTestRender.Render(screen, canvas =>
+            row.RenderSegmented(canvas,
+                2,
+                1,
+                60,
+                "Access rights:",
+                focused: true,
+                fillStyle: new CellStyle(ConsoleColor.Gray, ConsoleColor.Black),
+                focusedStyle: new CellStyle(ConsoleColor.Black, ConsoleColor.Gray)));
 
         int targetX = driver.GetRow(1).IndexOf(targetText, StringComparison.Ordinal);
         Assert.True(row.TryHandleMouse(Mouse(targetX, 1), layout));
@@ -69,11 +71,13 @@ public sealed class ChoiceRowTests
         var driver = new FakeConsoleDriver(80, 4);
         var screen = new ScreenRenderer(driver);
         var row = new ChoiceRow<string>(["one", "two"], static value => value);
-        var firstLayout = row.RenderSegmented(Canvas(screen), 2, 1, 60, string.Empty, true, FarDialogStyles.Fill, FarDialogStyles.FocusedInput);
+        var firstLayout = UiTestRender.Render(screen, canvas =>
+            row.RenderSegmented(canvas, 2, 1, 60, string.Empty, true, FarDialogStyles.Fill, FarDialogStyles.FocusedInput));
         Assert.True(row.TryGetSelectedMarkerBounds(firstLayout, out Rect first));
 
         row.TryHandleKey(Key(ConsoleKey.RightArrow));
-        var secondLayout = row.RenderSegmented(Canvas(screen), 2, 1, 60, string.Empty, true, FarDialogStyles.Fill, FarDialogStyles.FocusedInput);
+        var secondLayout = UiTestRender.Render(screen, canvas =>
+            row.RenderSegmented(canvas, 2, 1, 60, string.Empty, true, FarDialogStyles.Fill, FarDialogStyles.FocusedInput));
         Assert.True(row.TryGetSelectedMarkerBounds(secondLayout, out Rect second));
 
         Assert.True(second.X > first.X);
@@ -86,26 +90,28 @@ public sealed class ChoiceRowTests
         var driver = new FakeConsoleDriver(80, 4);
         var screen = new ScreenRenderer(driver);
         var row = new ChoiceRow<string>(["Ask", "Overwrite", "Skip", "Rename", "Only newer", "Reliable"], static value => value);
-        var firstLayout = row.RenderSegmented(Canvas(screen),
-            2,
-            1,
-            60,
-            string.Empty,
-            focused: true,
-            fillStyle: new CellStyle(ConsoleColor.Gray, ConsoleColor.Black),
-            focusedStyle: new CellStyle(ConsoleColor.Black, ConsoleColor.Gray),
-            startIndex: 0,
-            endIndex: 4);
-        var secondLayout = row.RenderSegmented(Canvas(screen),
-            2,
-            2,
-            60,
-            string.Empty,
-            focused: false,
-            fillStyle: new CellStyle(ConsoleColor.Gray, ConsoleColor.Black),
-            focusedStyle: new CellStyle(ConsoleColor.Black, ConsoleColor.Gray),
-            startIndex: 4,
-            endIndex: 6);
+        var firstLayout = UiTestRender.Render(screen, canvas =>
+            row.RenderSegmented(canvas,
+                2,
+                1,
+                60,
+                string.Empty,
+                focused: true,
+                fillStyle: new CellStyle(ConsoleColor.Gray, ConsoleColor.Black),
+                focusedStyle: new CellStyle(ConsoleColor.Black, ConsoleColor.Gray),
+                startIndex: 0,
+                endIndex: 4));
+        var secondLayout = UiTestRender.Render(screen, canvas =>
+            row.RenderSegmented(canvas,
+                2,
+                2,
+                60,
+                string.Empty,
+                focused: false,
+                fillStyle: new CellStyle(ConsoleColor.Gray, ConsoleColor.Black),
+                focusedStyle: new CellStyle(ConsoleColor.Black, ConsoleColor.Gray),
+                startIndex: 4,
+                endIndex: 6));
 
         int renameX = driver.GetRow(1).IndexOf("Rename", StringComparison.Ordinal);
         var layout = new ChoiceRowLayout(
@@ -123,14 +129,15 @@ public sealed class ChoiceRowTests
         var driver = new FakeConsoleDriver(80, 4);
         var screen = new ScreenRenderer(driver);
         var row = new ChoiceRow<string>(["Default", "Copy", "Inherit"], static value => value);
-        var layout = row.RenderSegmented(Canvas(screen),
-            2,
-            1,
-            60,
-            "Access rights:",
-            focused: true,
-            fillStyle: new CellStyle(ConsoleColor.Gray, ConsoleColor.Black),
-            focusedStyle: new CellStyle(ConsoleColor.Black, ConsoleColor.Gray));
+        var layout = UiTestRender.Render(screen, canvas =>
+            row.RenderSegmented(canvas,
+                2,
+                1,
+                60,
+                "Access rights:",
+                focused: true,
+                fillStyle: new CellStyle(ConsoleColor.Gray, ConsoleColor.Black),
+                focusedStyle: new CellStyle(ConsoleColor.Black, ConsoleColor.Gray)));
 
         Assert.False(row.TryHandleMouse(Mouse(3, 1), layout));
 
@@ -176,7 +183,8 @@ public sealed class ChoiceRowTests
         var driver = new FakeConsoleDriver(40, 4);
         var screen = new ScreenRenderer(driver);
         var row = new ChoiceRow<string>(["one", "two"], static value => value);
-        var layout = row.Render(Canvas(screen), 2, 1, 20, "Mode", focused: false);
+        var layout = UiTestRender.Render(screen, canvas =>
+            row.Render(canvas, 2, 1, 20, "Mode", focused: false));
 
         Assert.False(row.TryHandleMouse(new MouseConsoleInputEvent(3, 1, MouseButton.Right, MouseEventKind.Down, MouseKeyModifiers.None), layout));
 
@@ -190,7 +198,8 @@ public sealed class ChoiceRowTests
         var screen = new ScreenRenderer(driver);
         var row = new ChoiceRow<string>([], static value => value);
 
-        var layout = row.Render(Canvas(screen), 2, 1, 20, "Mode", focused: false);
+        var layout = UiTestRender.Render(screen, canvas =>
+            row.Render(canvas, 2, 1, 20, "Mode", focused: false));
 
         Assert.Equal(-1, row.SelectedIndex);
         Assert.False(row.TryHandleKey(Key(ConsoleKey.RightArrow)));
@@ -203,7 +212,8 @@ public sealed class ChoiceRowTests
         var driver = new FakeConsoleDriver(40, 4);
         var screen = new ScreenRenderer(driver);
         var row = new ChoiceRow<string>(["only"], static value => value);
-        var layout = row.Render(Canvas(screen), 2, 1, 20, "Mode", focused: false);
+        var layout = UiTestRender.Render(screen, canvas =>
+            row.Render(canvas, 2, 1, 20, "Mode", focused: false));
 
         Assert.False(row.TryHandleKey(Key(ConsoleKey.RightArrow)));
         Assert.True(row.TryHandleMouse(Mouse(3, 1), layout));

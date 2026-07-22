@@ -528,7 +528,7 @@ public sealed class InteractiveSurfaceHostTests
         using var first = composition.OpenSurface(new InteractiveSurface(composition.Screen), layer);
 
         Assert.Throws<InvalidOperationException>(() => composition.OpenSurface(new InteractiveSurface(composition.Screen), layer));
-        Assert.Throws<InvalidOperationException>(() => composition.RegisterOverlay(layer));
+        Assert.Throws<InvalidOperationException>(() => composition.RegisterPersistentOverlay(layer));
     }
 
     private static ConsoleKeyInfo Key(ConsoleKey key) => new('\0', key, false, false, false);

@@ -959,11 +959,10 @@ public sealed class FileEditorTests : IDisposable
         EditorFileNameInsertionContext? fileNameInsertionContext = null,
         IEditorSyntaxHighlighter? syntaxHighlighter = null)
     {
-        var composition = new UiCompositionHost(renderer);
-        composition.SetRootSurface(new ScreenRendererSurface(renderer, _ => { }));
+        UiTestHost host = UiTestHost.Create(renderer);
         var editor = new FileEditor(
-            renderer,
-            new ModalDialogHost(composition),
+            host.Surfaces,
+            host.ModalDialogs,
             null,
             settings,
             clipboard,

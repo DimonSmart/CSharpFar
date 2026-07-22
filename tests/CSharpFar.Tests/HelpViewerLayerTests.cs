@@ -484,7 +484,7 @@ public sealed class HelpViewerLayerTests
 
         public void Render(UiRenderContext context)
         {
-            var focus = new UiFocusFrame(
+            var focus = FocusFrame(
                 [new UiFocusEntry(new UiTargetId("root.cursor"), 0, Cursor: new UiCursorPlacement(2, 2, true))],
                 new UiTargetId("root.cursor"));
             CommittedInteractionFrame = new UiInteractionFrame([], focus, new UiTargetId("root.cursor"));

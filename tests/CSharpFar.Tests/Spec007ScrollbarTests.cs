@@ -22,9 +22,9 @@ public sealed class Spec007ScrollbarTests
         var opts = new ScrollBarOptions { Enabled = false };
         var state = new ScrollState { TotalItems = 20, ViewportItems = 5, FirstVisibleIndex = 0 };
 
-        using (screen.BeginFrame())
-            renderer.RenderVerticalScrollbar(screen, new Rect(0, 0, 1, 7), state, opts,
-                new CellStyle(ConsoleColor.White, ConsoleColor.Black));
+        UiTestRender.Render(screen, canvas =>
+            renderer.RenderVerticalScrollbar(canvas, new Rect(0, 0, 1, 7), state, opts,
+                new CellStyle(ConsoleColor.White, ConsoleColor.Black)));
 
         // Nothing drawn; cells stay at initial ' ' (space)
         Assert.All(Enumerable.Range(0, 7),
@@ -44,8 +44,8 @@ public sealed class Spec007ScrollbarTests
         var opts = new ScrollBarOptions { Enabled = true, DrawWhenNotScrollable = false };
         var style = new CellStyle(ConsoleColor.White, ConsoleColor.DarkGray);
 
-        using (screen.BeginFrame())
-            renderer.RenderVerticalScrollbar(screen, bounds, state, opts, style);
+        UiTestRender.Render(screen, canvas =>
+            renderer.RenderVerticalScrollbar(canvas, bounds, state, opts, style));
 
         Assert.Equal('▲', driver.GetCell(0, 0).Character);
         Assert.Equal('▼', driver.GetCell(0, 6).Character);
@@ -62,8 +62,8 @@ public sealed class Spec007ScrollbarTests
         var opts = new ScrollBarOptions { Enabled = true };
         var style = new CellStyle(ConsoleColor.White, ConsoleColor.DarkGray);
 
-        using (screen.BeginFrame())
-            renderer.RenderVerticalScrollbar(screen, bounds, state, opts, style);
+        UiTestRender.Render(screen, canvas =>
+            renderer.RenderVerticalScrollbar(canvas, bounds, state, opts, style));
 
         // Track is rows 1-5; at least one row should be '█' (thumb)
         bool hasThumb = Enumerable.Range(1, 5).Any(y => driver.GetCell(0, y).Character == '█');
@@ -81,9 +81,9 @@ public sealed class Spec007ScrollbarTests
         var state = new ScrollState { TotalItems = 5, ViewportItems = 5, FirstVisibleIndex = 0 };
         var opts = new ScrollBarOptions { Enabled = true, DrawWhenNotScrollable = false };
 
-        using (screen.BeginFrame())
-            renderer.RenderVerticalScrollbar(screen, bounds, state, opts,
-                new CellStyle(ConsoleColor.White, ConsoleColor.Black));
+        UiTestRender.Render(screen, canvas =>
+            renderer.RenderVerticalScrollbar(canvas, bounds, state, opts,
+                new CellStyle(ConsoleColor.White, ConsoleColor.Black)));
 
         Assert.All(Enumerable.Range(0, 7),
             y => Assert.Equal(' ', driver.GetCell(0, y).Character));
@@ -103,15 +103,15 @@ public sealed class Spec007ScrollbarTests
         var opts = new ScrollBarOptions { Enabled = true };
         var style = new CellStyle(ConsoleColor.White, ConsoleColor.DarkGray);
 
-        using (screen1.BeginFrame())
-            renderer.RenderVerticalScrollbar(screen1, bounds,
+        UiTestRender.Render(screen1, canvas =>
+            renderer.RenderVerticalScrollbar(canvas, bounds,
                 new ScrollState { TotalItems = 40, ViewportItems = 10, FirstVisibleIndex = 0 },
-                opts, style);
+                opts, style));
 
-        using (screen2.BeginFrame())
-            renderer.RenderVerticalScrollbar(screen2, bounds,
+        UiTestRender.Render(screen2, canvas =>
+            renderer.RenderVerticalScrollbar(canvas, bounds,
                 new ScrollState { TotalItems = 40, ViewportItems = 10, FirstVisibleIndex = 30 },
-                opts, style);
+                opts, style));
 
         // Find first thumb row in each (track rows 1-10)
         int thumb1 = Enumerable.Range(1, 10).First(y => driver1.GetCell(0, y).Character == '█');
@@ -137,9 +137,11 @@ public sealed class Spec007ScrollbarTests
             });
         }
 
-        var renderer = new PanelRenderer(screen, PaletteRegistry.Default);
-
-        renderer.Render(new Rect(0, 0, 40, 12), state, isActive: true);
+        UiTestRender.Render(screen, canvas =>
+        {
+            var renderer = new PanelRenderer(canvas, PaletteRegistry.Default);
+            renderer.Render(new Rect(0, 0, 40, 12), state, isActive: true);
+        });
 
         Assert.Equal('▲', driver.GetCell(39, 1).Character);
     }
@@ -160,9 +162,11 @@ public sealed class Spec007ScrollbarTests
             });
         }
 
-        var renderer = new BriefTwoColumnsPanelRenderer(screen, PaletteRegistry.Default);
-
-        renderer.Render(new Rect(0, 0, 40, 12), state, isActive: true);
+        UiTestRender.Render(screen, canvas =>
+        {
+            var renderer = new BriefTwoColumnsPanelRenderer(canvas, PaletteRegistry.Default);
+            renderer.Render(new Rect(0, 0, 40, 12), state, isActive: true);
+        });
 
         Assert.Equal('▲', driver.GetCell(39, 2).Character);
     }
@@ -180,9 +184,11 @@ public sealed class Spec007ScrollbarTests
             IsDirectory = false,
         });
 
-        var renderer = new PanelRenderer(screen, PaletteRegistry.Default);
-
-        renderer.Render(new Rect(0, 0, 40, 12), state, isActive: true);
+        UiTestRender.Render(screen, canvas =>
+        {
+            var renderer = new PanelRenderer(canvas, PaletteRegistry.Default);
+            renderer.Render(new Rect(0, 0, 40, 12), state, isActive: true);
+        });
 
         Assert.Equal('║', driver.GetCell(39, 1).Character);
     }

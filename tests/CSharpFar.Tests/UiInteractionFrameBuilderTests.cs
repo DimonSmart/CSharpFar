@@ -11,8 +11,8 @@ public sealed class UiInteractionFrameBuilderTests
         var bottom = new UiTargetId("bottom");
         var top = new UiTargetId("top");
         var frame = new UiInteractionFrameBuilder()
-            .AddFragment(new UiInteractionFragment([new UiHitRegion(bottom, new Rect(0, 0, 4, 4))], []))
-            .AddFragment(new UiInteractionFragment([new UiHitRegion(top, new Rect(0, 0, 4, 4))], []))
+            .AddFragment(InteractionFragment([new UiHitRegion(bottom, new Rect(0, 0, 4, 4))], []))
+            .AddFragment(InteractionFragment([new UiHitRegion(top, new Rect(0, 0, 4, 4))], []))
             .Build();
 
         Assert.True(frame.TryHitTest(1, 1, out UiHitRegion hit));
@@ -27,7 +27,7 @@ public sealed class UiInteractionFrameBuilderTests
         var keyboard = new UiTargetId("keyboard");
         var cursor = new UiCursorPlacement(2, 3);
         var frame = new UiInteractionFrameBuilder()
-            .AddFragment(new UiInteractionFragment([], [
+            .AddFragment(InteractionFragment([], [
                 new UiFocusEntry(focus, 7, true, cursor),
                 new UiFocusEntry(disabled, 9, false),
             ]))
@@ -50,7 +50,7 @@ public sealed class UiInteractionFrameBuilderTests
         var target = new UiTargetId("target");
         var regions = new List<UiHitRegion> { new(target, new Rect(0, 0, 1, 1)) };
         var entries = new List<UiFocusEntry> { new(target, 0) };
-        var fragment = new UiInteractionFragment(regions, entries);
+        var fragment = InteractionFragment(regions, entries);
         var builder = new UiInteractionFrameBuilder().AddFragment(fragment).SetDefaultFocusTarget(target);
         UiInteractionFrame frame = builder.Build();
 

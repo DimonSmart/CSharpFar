@@ -17,9 +17,9 @@ internal sealed class ApplicationUiLayerScope : IDisposable
         var registrations = new List<IDisposable>(3);
         try
         {
-            registrations.Add(composition.RegisterOverlay(commandCompletion));
-            registrations.Add(composition.RegisterOverlay(panelQuickSearch));
-            registrations.Add(composition.RegisterOverlay(topMenu));
+            registrations.Add(composition.RegisterPersistentOverlay(commandCompletion));
+            registrations.Add(composition.RegisterPersistentOverlay(panelQuickSearch));
+            registrations.Add(composition.RegisterPersistentOverlay(topMenu));
             _registrations = [.. registrations];
         }
         catch (Exception registrationError)

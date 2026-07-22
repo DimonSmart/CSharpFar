@@ -188,7 +188,8 @@ public sealed class UiComponentDialogTests
         dropdown.Open();
         var frame = dropdown.CalculateFrame(driver.GetSize(), field);
         dropdown.ApplyCommittedFrame(frame);
-        dropdown.RenderPopup(screen, frame);
+        UiTestRender.Render(screen, canvas =>
+            dropdown.RenderPopup(canvas, frame));
         Rect popupBounds = frame.PopupBounds!.Value;
 
         bool handled = dropdown.TryHandlePopupMouse(
@@ -214,7 +215,8 @@ public sealed class UiComponentDialogTests
         dropdown.Open();
         var frame = dropdown.CalculateFrame(driver.GetSize(), field);
         dropdown.ApplyCommittedFrame(frame);
-        dropdown.RenderPopup(screen, frame);
+        UiTestRender.Render(screen, canvas =>
+            dropdown.RenderPopup(canvas, frame));
         Rect popupBounds = frame.PopupBounds!.Value;
 
         bool handled = dropdown.TryHandlePopupMouse(
@@ -356,7 +358,8 @@ public sealed class UiComponentDialogTests
         var screen = new ScreenRenderer(driver);
         var buttonBar = new DialogButtonBar([new DialogButton("delete", "Delete", 'D', IsEnabled: false)]);
         int focused = 0;
-        var layout = buttonBar.Render(screen, 0, 0, 20, focused, new CellStyle(ConsoleColor.White, ConsoleColor.Black), new CellStyle(ConsoleColor.Black, ConsoleColor.White));
+        var layout = UiTestRender.Render(screen, canvas =>
+            buttonBar.Render(canvas, 0, 0, 20, focused, new CellStyle(ConsoleColor.White, ConsoleColor.Black), new CellStyle(ConsoleColor.Black, ConsoleColor.White)));
 
         bool handled = buttonBar.TryHandleInput(new KeyConsoleInputEvent(Key(ConsoleKey.Enter)), layout, ref focused, out string? buttonId);
 
@@ -531,7 +534,8 @@ public sealed class UiComponentDialogTests
         var driver = new FakeConsoleDriver(30, 5);
         var screen = new ScreenRenderer(driver);
         var checkBox = new CheckBoxLine("Option");
-        checkBox.Render(screen, 2, 2, 20, focused: false);
+        UiTestRender.Render(screen, canvas =>
+            checkBox.Render(canvas, 2, 2, 20, focused: false));
 
         bool handled = checkBox.TryHandleMouse(
             new MouseConsoleInputEvent(3, 2, MouseButton.Left, MouseEventKind.Down, MouseKeyModifiers.None),
@@ -558,15 +562,16 @@ public sealed class UiComponentDialogTests
         var driver = new FakeConsoleDriver(80, 5);
         var screen = new ScreenRenderer(driver);
         var row = new ChoiceRow<string>(["Default", "Copy", "Inherit"], static value => value);
-        var layout = row.RenderSegmented(
-            screen,
-            x: 2,
-            y: 2,
-            width: 60,
-            label: "Access rights:",
-            focused: true,
-            fillStyle: new CellStyle(ConsoleColor.Gray, ConsoleColor.Black),
-            focusedStyle: new CellStyle(ConsoleColor.Black, ConsoleColor.Gray));
+        var layout = UiTestRender.Render(screen, canvas =>
+            row.RenderSegmented(
+                canvas,
+                x: 2,
+                y: 2,
+                width: 60,
+                label: "Access rights:",
+                focused: true,
+                fillStyle: new CellStyle(ConsoleColor.Gray, ConsoleColor.Black),
+                focusedStyle: new CellStyle(ConsoleColor.Black, ConsoleColor.Gray)));
 
         int inheritX = driver.GetRow(2).IndexOf("Inherit", StringComparison.Ordinal);
         bool handled = row.TryHandleMouse(
@@ -583,15 +588,16 @@ public sealed class UiComponentDialogTests
         var driver = new FakeConsoleDriver(80, 5);
         var screen = new ScreenRenderer(driver);
         var row = new ChoiceRow<string>(["Default", "Copy", "Inherit"], static value => value);
-        var layout = row.RenderSegmented(
-            screen,
-            x: 2,
-            y: 2,
-            width: 60,
-            label: "Access rights:",
-            focused: true,
-            fillStyle: new CellStyle(ConsoleColor.Gray, ConsoleColor.Black),
-            focusedStyle: new CellStyle(ConsoleColor.Black, ConsoleColor.Gray));
+        var layout = UiTestRender.Render(screen, canvas =>
+            row.RenderSegmented(
+                canvas,
+                x: 2,
+                y: 2,
+                width: 60,
+                label: "Access rights:",
+                focused: true,
+                fillStyle: new CellStyle(ConsoleColor.Gray, ConsoleColor.Black),
+                focusedStyle: new CellStyle(ConsoleColor.Black, ConsoleColor.Gray)));
 
         bool handled = row.TryHandleMouse(
             new MouseConsoleInputEvent(3, 2, MouseButton.Left, MouseEventKind.Down, MouseKeyModifiers.None),

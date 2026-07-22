@@ -414,7 +414,7 @@ public sealed class Spec010FileOperationDialogTests
         var driver = new FakeConsoleDriver(width: 100, height: 30);
         var screen = new ScreenRenderer(driver);
 
-        RenderProgress(screen, new ProgressDialog(screen, @"C:\dst"),
+        RenderProgress(screen, @"C:\dst",
             new FileOperationProgress
             {
                 Kind = FileOperationKind.Copy,
@@ -443,7 +443,6 @@ public sealed class Spec010FileOperationDialogTests
         var driver = new FakeConsoleDriver(width: 100, height: 30);
         var screen = new ScreenRenderer(driver);
         var runner = new FileOperationUiRunner(
-            screen,
             ModalTestHost.Create(screen),
             () => PaletteRegistry.Default,
             new NoOpFileOperationService(),
@@ -629,7 +628,7 @@ public sealed class Spec010FileOperationDialogTests
         var driver = new FakeConsoleDriver(width: 100, height: 30);
         var screen = new ScreenRenderer(driver);
 
-        RenderProgress(screen, new ProgressDialog(screen, @"C:\dst"),
+        RenderProgress(screen, @"C:\dst",
             new FileOperationProgress
             {
                 Kind = FileOperationKind.Copy,
@@ -661,7 +660,7 @@ public sealed class Spec010FileOperationDialogTests
         var driver = new FakeConsoleDriver(width: 100, height: 30);
         var screen = new ScreenRenderer(driver);
 
-        RenderProgress(screen, new ProgressDialog(screen, @"C:\dst"),
+        RenderProgress(screen, @"C:\dst",
             new FileOperationProgress
             {
                 Kind = FileOperationKind.Delete,
@@ -698,7 +697,7 @@ public sealed class Spec010FileOperationDialogTests
         var driver = new FakeConsoleDriver(width: 100, height: 30);
         var screen = new ScreenRenderer(driver);
 
-        RenderProgress(screen, new ProgressDialog(screen, @"C:\dst"),
+        RenderProgress(screen, @"C:\dst",
             new FileOperationProgress
             {
                 Kind = FileOperationKind.Copy,
@@ -853,15 +852,15 @@ public sealed class Spec010FileOperationDialogTests
 
     private static void RenderProgress(
         ScreenRenderer screen,
-        ProgressDialog dialog,
+        string destination,
         FileOperationProgress progress,
         bool showTotalProgress)
     {
         var composition = new UiCompositionHost(screen);
         composition.SetRootSurface(new ScreenRendererSurface(screen, _ => { }));
-        using var overlay = new ModalDialogHost(composition).Open(context =>
-            dialog.Render(context, progress, showTotalProgress));
-        overlay.Render();
+        using var overlay = composition.PushOverlay(context =>
+            new ProgressDialog(context.Canvas, destination).Render(context, progress, showTotalProgress));
+        composition.Render();
     }
 
     private static ConsoleKeyInfo Key(ConsoleKey key) =>
@@ -869,7 +868,6 @@ public sealed class Spec010FileOperationDialogTests
 
     private static FileOperationUiRunner CreateRunner(ScreenRenderer screen, IFileOperationService service) =>
         new(
-            screen,
             ModalTestHost.Create(screen),
             () => PaletteRegistry.Default,
             service,

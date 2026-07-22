@@ -109,23 +109,24 @@ public sealed class UnifiedWindowScrollbarTests
         var screen = new ScreenRenderer(driver);
         var style = new CellStyle(ConsoleColor.White, ConsoleColor.Blue);
 
-        new PopupRenderer().RenderPopup(
-            screen,
-            new Rect(2, 1, 8, 5),
-            new PopupRenderOptions
-            {
-                BorderStyle = style,
-                BackgroundStyle = style,
-                ShadowStyle = style,
-                DrawShadow = false,
-                VerticalScrollState = new ScrollState
+        UiTestRender.Render(screen, canvas =>
+            new PopupRenderer().RenderPopup(
+                canvas,
+                new Rect(2, 1, 8, 5),
+                new PopupRenderOptions
                 {
-                    TotalItems = 10,
-                    ViewportItems = 3,
-                    FirstVisibleIndex = 0,
+                    BorderStyle = style,
+                    BackgroundStyle = style,
+                    ShadowStyle = style,
+                    DrawShadow = false,
+                    VerticalScrollState = new ScrollState
+                    {
+                        TotalItems = 10,
+                        ViewportItems = 3,
+                        FirstVisibleIndex = 0,
+                    },
                 },
-            },
-            (_, _) => { });
+                (_, _) => { }));
 
         Assert.Equal('▲', driver.GetCell(9, 2).Character);
         Assert.Equal('▼', driver.GetCell(9, 4).Character);
@@ -145,19 +146,20 @@ public sealed class UnifiedWindowScrollbarTests
             DrawShadow = false,
         };
 
-        new DialogFrameRenderer().RenderFrame(
-            screen,
-            new Rect(2, 1, 8, 5),
-            "Test",
-            doubleBorder: true,
-            options,
-            new ScrollState
-            {
-                TotalItems = 10,
-                ViewportItems = 3,
-                FirstVisibleIndex = 0,
-            },
-            (_, _) => { });
+        UiTestRender.Render(screen, canvas =>
+            new DialogFrameRenderer().RenderFrame(
+                canvas,
+                new Rect(2, 1, 8, 5),
+                "Test",
+                doubleBorder: true,
+                options,
+                new ScrollState
+                {
+                    TotalItems = 10,
+                    ViewportItems = 3,
+                    FirstVisibleIndex = 0,
+                },
+                (_, _) => { }));
 
         Assert.Equal('▲', driver.GetCell(9, 2).Character);
         Assert.Equal('▼', driver.GetCell(9, 4).Character);
@@ -294,7 +296,8 @@ public sealed class UnifiedWindowScrollbarTests
         var driver = new FakeConsoleDriver(width: 40, height: 6);
         var screen = new ScreenRenderer(driver);
 
-        new DropdownMenuRenderer().Render(screen, definition, state, layout, MenuOptions());
+        UiTestRender.Render(screen, canvas =>
+            new DropdownMenuRenderer().Render(canvas, definition, state, layout, MenuOptions()));
 
         Assert.Equal('▲', driver.GetCell(layout.DropdownBounds!.Value.Right - 1, layout.DropdownBounds.Value.Y + 1).Character);
         Assert.Contains("Item 6", driver.GetRegionText(layout.DropdownBounds.Value), StringComparison.Ordinal);

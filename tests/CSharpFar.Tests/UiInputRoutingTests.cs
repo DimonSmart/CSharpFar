@@ -130,7 +130,7 @@ public sealed class UiInputRoutingTests
     {
         var (host, surface) = Host([]);
         var target = new UiTargetId("target");
-        ((UiFocusController)surface.FocusState).Commit(new UiFocusFrame([new(target, 0)]));
+        ((UiFocusController)surface.FocusState).Commit(FocusFrame([new(target, 0)]));
         surface.Result = UiInputResult.RequestFocus(target);
 
         UiInputResult result = host.DispatchInput(Key(ConsoleKey.A));

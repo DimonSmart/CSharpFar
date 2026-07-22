@@ -94,7 +94,7 @@ public sealed class UiInteractionFrameTests
         var keyboardOnly = new UiTargetId("keyboard");
         var frame = new UiInteractionFrame(
             [new(hitOnly, new Rect(0, 0, 1, 1))],
-            new UiFocusFrame([new(focusOnly, 0)]),
+            FocusFrame([new(focusOnly, 0)]),
             keyboardOnly);
 
         Assert.True(frame.ContainsTarget(hitOnly));
@@ -111,7 +111,7 @@ public sealed class UiInteractionFrameTests
         var keyboardOnly = new UiTargetId("keyboard");
         var frame = new UiInteractionFrame(
             [new(hitOnly, new Rect(0, 0, 1, 1))],
-            new UiFocusFrame([new(focusOnly, 0)]),
+            FocusFrame([new(focusOnly, 0)]),
             keyboardOnly);
 
         Assert.True(frame.ContainsMouseTarget(hitOnly));

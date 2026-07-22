@@ -289,17 +289,18 @@ public sealed class Spec008MenuLayoutAndRenderingTests
         var renderer = new PopupRenderer();
         var shadow = new CellStyle(ConsoleColor.Red, ConsoleColor.Yellow);
 
-        renderer.RenderPopup(
-            screen,
-            new Rect(2, 1, 2, 2),
-            new PopupRenderOptions
-            {
-                BorderStyle = new CellStyle(ConsoleColor.White, ConsoleColor.Blue),
-                BackgroundStyle = new CellStyle(ConsoleColor.White, ConsoleColor.Blue),
-                ShadowStyle = shadow,
-                DrawBorder = false,
-            },
-            (_, _) => { });
+        UiTestRender.Render(screen, canvas =>
+            renderer.RenderPopup(
+                canvas,
+                new Rect(2, 1, 2, 2),
+                new PopupRenderOptions
+                {
+                    BorderStyle = new CellStyle(ConsoleColor.White, ConsoleColor.Blue),
+                    BackgroundStyle = new CellStyle(ConsoleColor.White, ConsoleColor.Blue),
+                    ShadowStyle = shadow,
+                    DrawBorder = false,
+                },
+                (_, _) => { }));
 
         Assert.Equal(ConsoleColor.Yellow, driver.GetCell(4, 2).Background);
         Assert.Equal(ConsoleColor.Yellow, driver.GetCell(4, 3).Background);
@@ -320,7 +321,8 @@ public sealed class Spec008MenuLayoutAndRenderingTests
         var options = MenuOptions();
         var dropdown = layout.DropdownBounds!.Value;
 
-        new DropdownMenuRenderer().Render(screen, definition, state, layout, options);
+        UiTestRender.Render(screen, canvas =>
+            new DropdownMenuRenderer().Render(canvas, definition, state, layout, options));
 
         Assert.Equal(options.ShadowStyle.Background, driver.GetCell(dropdown.Right, dropdown.Y + 1).Background);
     }
@@ -356,7 +358,8 @@ public sealed class Spec008MenuLayoutAndRenderingTests
         var driver = new FakeConsoleDriver(width: 80, height: 25);
         var screen = new ScreenRenderer(driver);
 
-        new DropdownMenuRenderer(layoutService).Render(screen, definition, state, layout, MenuOptions());
+        UiTestRender.Render(screen, canvas =>
+            new DropdownMenuRenderer(layoutService).Render(canvas, definition, state, layout, MenuOptions()));
 
         var dropdown = layout.DropdownBounds!.Value;
         string content = driver.GetRow(dropdown.Y + 1)
@@ -380,7 +383,8 @@ public sealed class Spec008MenuLayoutAndRenderingTests
         var screen = new ScreenRenderer(driver);
         var options = MenuOptions();
 
-        new DropdownMenuRenderer(layoutService).Render(screen, definition, state, layout, options);
+        UiTestRender.Render(screen, canvas =>
+            new DropdownMenuRenderer(layoutService).Render(canvas, definition, state, layout, options));
 
         var dropdown = layout.DropdownBounds!.Value;
         int row = dropdown.Y + 1;
@@ -427,7 +431,8 @@ public sealed class Spec008MenuLayoutAndRenderingTests
         var driver = new FakeConsoleDriver(width: 80, height: 25);
         var screen = new ScreenRenderer(driver);
 
-        new DropdownMenuRenderer().Render(screen, definition, state, layout, MenuOptions());
+        UiTestRender.Render(screen, canvas =>
+            new DropdownMenuRenderer().Render(canvas, definition, state, layout, MenuOptions()));
 
         var dropdown = layout.DropdownBounds!.Value;
         string content = driver.GetRow(dropdown.Y + 1)
@@ -447,7 +452,8 @@ public sealed class Spec008MenuLayoutAndRenderingTests
             ShadowStyle = new CellStyle(ConsoleColor.Red, ConsoleColor.Yellow),
         };
 
-        new DialogFrameRenderer().RenderFrame(screen, new Rect(2, 1, 8, 4), "Title", false, options, (_, _) => { });
+        UiTestRender.Render(screen, canvas =>
+            new DialogFrameRenderer().RenderFrame(canvas, new Rect(2, 1, 8, 4), "Title", false, options, (_, _) => { }));
 
         Assert.Equal(ConsoleColor.Yellow, driver.GetCell(10, 2).Background);
     }

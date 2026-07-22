@@ -26,11 +26,11 @@ public sealed class MainFunctionKeyBarIntegrationTests
             new("quit", FunctionKeyLayer.Plain, ConsoleKey.F10, "Quit"),
         ];
         var renderer = new ApplicationFunctionKeyBarRenderer(
-            new ScreenRenderer(driver),
             bindings,
             commandId => commandId == "copy");
 
-        var frame = renderer.Render(new ConsoleSize(122, 25), FunctionKeyLayer.Plain);
+        var frame = UiTestRender.Render(new ScreenRenderer(driver), canvas =>
+            renderer.Render(canvas, new ConsoleSize(122, 25), FunctionKeyLayer.Plain));
 
         var hit = Assert.Single(frame!.Actions);
         Assert.Equal("copy", hit.CommandId);

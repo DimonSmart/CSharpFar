@@ -163,9 +163,7 @@ public class BriefTwoColumnsPanelRendererTests
     {
         var (screen, driver) = CreateScreen(40, 12);
         var state = MakeState("alpha.txt");
-        var renderer = new BriefTwoColumnsPanelRenderer(screen, PaletteRegistry.Default);
-
-        renderer.Render(new Rect(0, 0, 40, 12), state, isActive: true);
+        RenderBrief(screen, new Rect(0, 0, 40, 12), state, isActive: true);
 
         // Header is at row 1 (row 0 = top border)
         string headerRow = driver.GetRow(1);
@@ -180,9 +178,7 @@ public class BriefTwoColumnsPanelRendererTests
         var state = MakeState("alpha.txt");
         state.SortMode = SortMode.LastWriteTime;
         state.SortDescending = true;
-        var renderer = new BriefTwoColumnsPanelRenderer(screen, PaletteRegistry.Default);
-
-        renderer.Render(new Rect(0, 0, 40, 12), state, isActive: true);
+        RenderBrief(screen, new Rect(0, 0, 40, 12), state, isActive: true);
 
         Assert.Equal('W', driver.GetRow(1)[1]);
     }
@@ -193,9 +189,7 @@ public class BriefTwoColumnsPanelRendererTests
         var (screen, driver) = CreateScreen(40, 12);
         var state = MakeState("alpha.txt");
         state.CurrentDirectory = @"C:\Test";
-        var renderer = new BriefTwoColumnsPanelRenderer(screen, PaletteRegistry.Default);
-
-        renderer.Render(new Rect(0, 0, 40, 12), state, isActive: true);
+        RenderBrief(screen, new Rect(0, 0, 40, 12), state, isActive: true);
 
         int titleX = driver.GetRow(0).IndexOf(@" C:\Test ", StringComparison.Ordinal);
         Assert.True(titleX > 1);
@@ -209,10 +203,12 @@ public class BriefTwoColumnsPanelRendererTests
         var (screen, driver) = CreateScreen(80, 12);
         var activeState = MakeState("alpha.txt", "beta.txt");
         var inactiveState = MakeState("alpha.txt", "beta.txt");
-        var renderer = new BriefTwoColumnsPanelRenderer(screen, PaletteRegistry.Default);
-
-        renderer.Render(new Rect(0, 0, 40, 12), activeState, isActive: true);
-        renderer.Render(new Rect(40, 0, 40, 12), inactiveState, isActive: false);
+        UiTestRender.Render(screen, canvas =>
+        {
+            var renderer = new BriefTwoColumnsPanelRenderer(canvas, PaletteRegistry.Default);
+            renderer.Render(new Rect(0, 0, 40, 12), activeState, isActive: true);
+            renderer.Render(new Rect(40, 0, 40, 12), inactiveState, isActive: false);
+        });
 
         Assert.Equal(driver.GetCell(0, 0).Foreground, driver.GetCell(40, 0).Foreground);
         Assert.Equal(driver.GetCell(1, 3).Foreground, driver.GetCell(41, 3).Foreground);
@@ -224,9 +220,7 @@ public class BriefTwoColumnsPanelRendererTests
         var (screen, driver) = CreateScreen(40, 12);
         var state = MakeState("alpha.txt");
         state.CursorIndex = 0;
-        var renderer = new BriefTwoColumnsPanelRenderer(screen, PaletteRegistry.Default);
-
-        renderer.Render(new Rect(0, 0, 40, 12), state, isActive: false);
+        RenderBrief(screen, new Rect(0, 0, 40, 12), state, isActive: false);
 
         Assert.Equal(PaletteRegistry.Default.PanelBackground, driver.GetCell(1, 2).Background);
     }
@@ -236,9 +230,7 @@ public class BriefTwoColumnsPanelRendererTests
     {
         var (screen, driver) = CreateScreen(40, 12);
         var state = MakeState("alpha.txt", "beta.txt");
-        var renderer = new BriefTwoColumnsPanelRenderer(screen, PaletteRegistry.Default);
-
-        renderer.Render(new Rect(0, 0, 40, 12), state, isActive: true);
+        RenderBrief(screen, new Rect(0, 0, 40, 12), state, isActive: true);
 
         // Content starts at row 2; first item should be in row 2
         string row2 = driver.GetRow(2);
@@ -257,9 +249,7 @@ public class BriefTwoColumnsPanelRendererTests
             .Select(i => $"file{i:D2}.txt")
             .ToArray();
         var state = MakeState(names);
-        var renderer = new BriefTwoColumnsPanelRenderer(screen, PaletteRegistry.Default);
-
-        renderer.Render(new Rect(0, 0, 40, height), state, isActive: true);
+        RenderBrief(screen, new Rect(0, 0, 40, height), state, isActive: true);
 
         // Item at index rowsPerCol should appear in second column at row 2
         string row = driver.GetRow(2);
@@ -272,9 +262,7 @@ public class BriefTwoColumnsPanelRendererTests
         var (screen, driver) = CreateScreen(40, 12);
         var state = MakeState("alpha.txt", "beta.txt");
         state.CursorIndex = 0; // cursor on first item
-        var renderer = new BriefTwoColumnsPanelRenderer(screen, PaletteRegistry.Default);
-
-        renderer.Render(new Rect(0, 0, 40, 12), state, isActive: true);
+        RenderBrief(screen, new Rect(0, 0, 40, 12), state, isActive: true);
 
         // Cursor row (row 2, col1) should use cursor background
         var cell = driver.GetCell(1, 2);
@@ -292,9 +280,7 @@ public class BriefTwoColumnsPanelRendererTests
         var (screen, driver) = CreateScreen(40, height);
         var state = MakeState(names);
         state.CursorIndex = rowsPerCol; // first item of second column
-        var renderer = new BriefTwoColumnsPanelRenderer(screen, PaletteRegistry.Default);
-
-        renderer.Render(new Rect(0, 0, 40, height), state, isActive: true);
+        RenderBrief(screen, new Rect(0, 0, 40, height), state, isActive: true);
 
         // Row 2 (content row 0), second column: cursor background
         // The separator is at innerWidth/2 = (40-2)/2 = 19, so col2 starts at x=1+19+1=21
@@ -315,9 +301,7 @@ public class BriefTwoColumnsPanelRendererTests
         var (screen, driver) = CreateScreen(20, 8);
         var longName = new string('A', 50);
         var state = MakeState(longName);
-        var renderer = new BriefTwoColumnsPanelRenderer(screen, PaletteRegistry.Default);
-
-        renderer.Render(new Rect(0, 0, 20, 8), state, isActive: true);
+        RenderBrief(screen, new Rect(0, 0, 20, 8), state, isActive: true);
 
         // No cell should contain 'A' beyond column boundary; brief mode truncates without '~'.
         int innerWidth = 20 - 2;
@@ -348,9 +332,7 @@ public class BriefTwoColumnsPanelRendererTests
             FullPath = @"C:\Test\src",
             IsDirectory = true,
         });
-        var renderer = new BriefTwoColumnsPanelRenderer(screen, PaletteRegistry.Default);
-
-        renderer.Render(new Rect(0, 0, 44, 12), state, isActive: true);
+        RenderBrief(screen, new Rect(0, 0, 44, 12), state, isActive: true);
 
         Assert.Contains("────────", driver.GetRow(8));
         Assert.Equal('╟', driver.GetCell(0, 8).Character);
@@ -360,6 +342,15 @@ public class BriefTwoColumnsPanelRendererTests
         Assert.Contains("18,9 K", driver.GetRow(9));
         Assert.Contains("07.05.26 09:47", driver.GetRow(9));
         Assert.Contains("Bytes: 18,9 K, files: 1, folders: 1", driver.GetRow(10));
+    }
+
+    private static void RenderBrief(ScreenRenderer screen, Rect bounds, FilePanelState state, bool isActive)
+    {
+        UiTestRender.Render(screen, canvas =>
+        {
+            var renderer = new BriefTwoColumnsPanelRenderer(canvas, PaletteRegistry.Default);
+            renderer.Render(bounds, state, isActive);
+        });
     }
 }
 

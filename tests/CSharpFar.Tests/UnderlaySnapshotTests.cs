@@ -127,8 +127,9 @@ public class UnderlaySnapshotTests
         int row = ApplicationLayoutService.CommandLineRow(viewport.Size);
         underlay.PrepareHiddenCommandLineOverlay(viewport, row, viewport.Width);
 
-        new ApplicationCommandLineRenderer(renderer, () => PaletteRegistry.Default)
-            .Render(row, viewport.Size, @"C:\Work", new CommandLineState());
+        UiTestRender.Render(renderer, canvas =>
+            new ApplicationCommandLineRenderer(() => PaletteRegistry.Default)
+                .Render(canvas, row, viewport.Size, @"C:\Work", new CommandLineState()));
         Assert.Contains(">", driver.GetRow(row), StringComparison.Ordinal);
 
         underlay.RemoveHiddenCommandLineOverlay();
@@ -149,8 +150,9 @@ public class UnderlaySnapshotTests
         var viewport = renderer.GetViewport();
         underlay.PrepareHiddenCommandLineOverlay(viewport, row: 7, viewport.Width);
 
-        new ApplicationCommandLineRenderer(renderer, () => PaletteRegistry.Default)
-            .Render(7, viewport.Size, @"C:\Work", new CommandLineState());
+        UiTestRender.Render(renderer, canvas =>
+            new ApplicationCommandLineRenderer(() => PaletteRegistry.Default)
+                .Render(canvas, 7, viewport.Size, @"C:\Work", new CommandLineState()));
         Assert.Contains(">", driver.GetRow(7), StringComparison.Ordinal);
 
         driver.SetViewportOrigin(0, 5);
@@ -170,8 +172,9 @@ public class UnderlaySnapshotTests
         var viewport = renderer.GetViewport();
         underlay.PrepareHiddenCommandLineOverlay(viewport, row: 28, viewport.Width);
 
-        new ApplicationCommandLineRenderer(renderer, () => PaletteRegistry.Default)
-            .Render(28, viewport.Size, @"C:\Work", new CommandLineState());
+        UiTestRender.Render(renderer, canvas =>
+            new ApplicationCommandLineRenderer(() => PaletteRegistry.Default)
+                .Render(canvas, 28, viewport.Size, @"C:\Work", new CommandLineState()));
         Assert.Contains(">", driver.GetRow(28), StringComparison.Ordinal);
 
         driver.SetSize(40, 10);

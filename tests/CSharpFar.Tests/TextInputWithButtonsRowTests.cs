@@ -28,7 +28,8 @@ public sealed class TextInputWithButtonsRowTests
             inputWidth: 19,
             buttonAreaWidth: 36);
 
-        row.Render(new FormRowRenderContext(screen, new Rect(0, 0, 80, 1), focused: true));
+        UiTestRender.Render(screen, canvas =>
+            row.Render(new FormRowRenderContext(canvas, new Rect(0, 0, 80, 1), focused: true)));
         FormInputResult result = row.HandleMouse(
             new MouseConsoleInputEvent(45, 0, MouseButton.Left, MouseEventKind.Down, MouseKeyModifiers.None),
             new FormRowMouseContext(new Rect(0, 0, 80, 1), rowIndex: 0, focused: true, screenHeight: 5));

@@ -4,7 +4,7 @@ public sealed class UiInteractionFragment
 {
     public static UiInteractionFragment Empty { get; } = new([], []);
 
-    public UiInteractionFragment(
+    internal UiInteractionFragment(
         IReadOnlyList<UiHitRegion> hitRegions,
         IReadOnlyList<UiFocusEntry> focusEntries)
     {

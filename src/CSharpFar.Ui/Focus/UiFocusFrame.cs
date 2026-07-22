@@ -4,7 +4,7 @@ public sealed class UiFocusFrame
 {
     public static UiFocusFrame Empty { get; } = new([]);
 
-    public UiFocusFrame(
+    internal UiFocusFrame(
         IReadOnlyList<UiFocusEntry> entries,
         UiTargetId? defaultTarget = null)
     {

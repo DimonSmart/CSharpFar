@@ -11,6 +11,9 @@ public sealed class InteractiveSurfaceHost
     public InteractiveSurfaceHost(UiCompositionHost composition) =>
         _composition = composition ?? throw new ArgumentNullException(nameof(composition));
 
+    /// <summary>
+    /// Requests an immediate composition render for the currently active surface.
+    /// </summary>
     public void RequestRedraw() => _composition.Render();
 
     /// <summary>

@@ -11,6 +11,7 @@ internal static class ApplicationRuntimeBuilder
 {
     public static ApplicationRuntime Create(
         UiCompositionHost composition,
+        ScreenRenderer screen,
         ApplicationUiSurface applicationSurface,
         ApplicationUiLayerScope applicationUiLayers,
         PendingMenuCommandQueue pendingMenuCommands,
@@ -20,6 +21,7 @@ internal static class ApplicationRuntimeBuilder
     {
         return new ApplicationRuntime(
             composition,
+            screen,
             applicationSurface,
             applicationUiLayers,
             new ApplicationRuntimeContext

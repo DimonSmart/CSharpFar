@@ -368,7 +368,8 @@ public sealed class ScrollableListTests
         var list = Create([]);
         list.EmptyText = "Empty";
 
-        list.Render(new ScreenRenderer(driver), new Rect(0, 0, 10, 2));
+        UiTestRender.Render(new ScreenRenderer(driver), canvas =>
+            list.Render(canvas, new Rect(0, 0, 10, 2)));
 
         Assert.StartsWith("Empty", driver.GetRow(0), StringComparison.Ordinal);
     }
@@ -382,7 +383,8 @@ public sealed class ScrollableListTests
         list.NormalStyle = new CellStyle(ConsoleColor.Gray, ConsoleColor.Black);
         list.SelectedStyle = new CellStyle(ConsoleColor.Yellow, ConsoleColor.Blue);
 
-        list.Render(new ScreenRenderer(driver), new Rect(0, 0, 10, 2));
+        UiTestRender.Render(new ScreenRenderer(driver), canvas =>
+            list.Render(canvas, new Rect(0, 0, 10, 2)));
 
         Assert.Equal(ConsoleColor.Yellow, driver.GetCell(0, 1).Foreground);
         Assert.Equal(ConsoleColor.Blue, driver.GetCell(0, 1).Background);

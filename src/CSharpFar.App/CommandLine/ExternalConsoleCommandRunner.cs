@@ -10,6 +10,7 @@ internal sealed class ExternalConsoleCommandRunner
 {
     private readonly ScreenRenderer _screen;
     private readonly TerminalSurfaceController _terminalSurface;
+    private readonly ApplicationCommandLineRenderer _commandLineRenderer;
     private readonly ApplicationState _state;
     private readonly CommandLineState _commandLine;
     private readonly Action _refreshPanels;
@@ -24,6 +25,7 @@ internal sealed class ExternalConsoleCommandRunner
     {
         _screen = screen;
         _terminalSurface = terminalSurface;
+        _commandLineRenderer = commandLineRenderer;
         _state = state;
         _commandLine = commandLine;
         _refreshPanels = refreshPanels;
@@ -112,40 +114,11 @@ internal sealed class ExternalConsoleCommandRunner
         ClearShellPromptArea(size);
 
         int row = ApplicationLayoutService.CommandLineRow(size);
-        RenderPrompt(row, size.Width, workDir);
+        _commandLineRenderer.Render(new ImmediateScreenCanvas(_screen), row, size, workDir, _commandLine);
     }
 
-    private void RenderPrompt(int row, int totalWidth, string workDir)
-    {
-        ApplicationCommandLineFrame frame = CommandLineLayoutCalculator.Calculate(row, totalWidth, workDir, _commandLine);
-        if (frame.Bounds.Width <= 0)
-            return;
-
-        var style = PaletteStyles.CommandLine(PaletteRegistry.Default);
-        var selectionStyle = new CellStyle(style.Background, style.Foreground);
-        _screen.FillRegion(frame.Bounds, style);
-
-        string prompt = workDir + ">";
-        string full = prompt + _commandLine.Text;
-        string display = full.Length > frame.DisplayOffset ? full[frame.DisplayOffset..] : string.Empty;
-        if (display.Length > frame.Bounds.Width)
-            display = display[..frame.Bounds.Width];
-        display = display.PadRight(frame.Bounds.Width);
-
-        if (!_commandLine.HasSelection)
-        {
-            _screen.Write(frame.Bounds.X, frame.Bounds.Y, display, style);
-            return;
-        }
-
-        int selectionStartX = prompt.Length + _commandLine.SelectionStart!.Value - frame.DisplayOffset;
-        int selectionEndX = selectionStartX + _commandLine.SelectionLength;
-        for (int i = 0; i < display.Length; i++)
-        {
-            bool isSelected = i >= selectionStartX && i < selectionEndX;
-            _screen.WriteChar(frame.Bounds.X + i, frame.Bounds.Y, display[i], isSelected ? selectionStyle : style);
-        }
-    }
+    internal void RenderReturnPromptForShell(string workDir) =>
+        PrintInputPrompt(workDir);
 
     private void ClearShellPromptArea(ConsoleSize size)
     {

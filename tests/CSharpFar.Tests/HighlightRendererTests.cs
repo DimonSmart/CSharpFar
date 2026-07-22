@@ -54,8 +54,11 @@ public class HighlightRendererTests
         state.CursorIndex = -1; // no cursor row → item uses fileStyle as base
         var bounds = new Rect(0, 0, 60, 10);
 
-        var renderer = new PanelRenderer(screen, PaletteRegistry.Default, svc);
-        renderer.Render(bounds, state, isActive: true);
+        UiTestRender.Render(screen, canvas =>
+        {
+            var renderer = new PanelRenderer(canvas, PaletteRegistry.Default, svc);
+            renderer.Render(bounds, state, isActive: true);
+        });
 
         // Compute column geometry
         int innerWidth = bounds.Width - 2; // 58
@@ -83,8 +86,11 @@ public class HighlightRendererTests
         state.CursorIndex = -1; // no cursor row → item uses fileStyle (NormalFileFg)
         var bounds = new Rect(0, 0, 60, 10);
 
-        var renderer = new PanelRenderer(screen, PaletteRegistry.Default);
-        renderer.Render(bounds, state, isActive: true);
+        UiTestRender.Render(screen, canvas =>
+        {
+            var renderer = new PanelRenderer(canvas, PaletteRegistry.Default);
+            renderer.Render(bounds, state, isActive: true);
+        });
 
         // Without highlight, file name foreground is NormalFileFg
         var nameCell = driver.GetCell(1, bounds.Y + 1);
@@ -99,8 +105,11 @@ public class HighlightRendererTests
         var state = MakeState(MakeDir("src"));
         var bounds = new Rect(0, 0, 60, 10);
 
-        var renderer = new PanelRenderer(screen, PaletteRegistry.Default, svc);
-        renderer.Render(bounds, state, isActive: true);
+        UiTestRender.Render(screen, canvas =>
+        {
+            var renderer = new PanelRenderer(canvas, PaletteRegistry.Default, svc);
+            renderer.Render(bounds, state, isActive: true);
+        });
 
         // far.directory Normal = fg 15 = White
         var nameCell = driver.GetCell(1, bounds.Y + 1);
@@ -117,8 +126,11 @@ public class HighlightRendererTests
         var state = MakeState(MakeFile("app.exe"));
         var bounds = new Rect(0, 0, 40, 12);
 
-        var renderer = new BriefTwoColumnsPanelRenderer(screen, PaletteRegistry.Default, svc);
-        renderer.Render(bounds, state, isActive: true);
+        UiTestRender.Render(screen, canvas =>
+        {
+            var renderer = new BriefTwoColumnsPanelRenderer(canvas, PaletteRegistry.Default, svc);
+            renderer.Render(bounds, state, isActive: true);
+        });
 
         int innerWidth = bounds.Width - 2; // 38
         int sepOffset = innerWidth / 2;   // 19
@@ -144,8 +156,11 @@ public class HighlightRendererTests
         var bounds = new Rect(0, 0, 40, 12);
 
         // No highlight service
-        var renderer = new BriefTwoColumnsPanelRenderer(screen, PaletteRegistry.Default);
-        renderer.Render(bounds, state, isActive: true);
+        UiTestRender.Render(screen, canvas =>
+        {
+            var renderer = new BriefTwoColumnsPanelRenderer(canvas, PaletteRegistry.Default);
+            renderer.Render(bounds, state, isActive: true);
+        });
 
         var nameCell = driver.GetCell(1, bounds.Y + 2);
         Assert.Equal(PaletteRegistry.Default.NormalFileFg, nameCell.Foreground);
@@ -161,8 +176,11 @@ public class HighlightRendererTests
         var state = MakeState(MakeFile("app.exe"));
         var bounds = new Rect(0, 0, 60, 10);
 
-        var renderer = new PanelRenderer(screen, PaletteRegistry.Default, svc);
-        renderer.Render(bounds, state, isActive: false);
+        UiTestRender.Render(screen, canvas =>
+        {
+            var renderer = new PanelRenderer(canvas, PaletteRegistry.Default, svc);
+            renderer.Render(bounds, state, isActive: false);
+        });
 
         // Inactive panel, normal row: highlight fg=Green, bg inherited from fileStyle=PanelBackground
         var nameCell = driver.GetCell(1, bounds.Y + 1);
@@ -179,8 +197,11 @@ public class HighlightRendererTests
         var bounds = new Rect(0, 0, 40, 12);
         state.CursorIndex = 0;
 
-        var renderer = new BriefTwoColumnsPanelRenderer(screen, PaletteRegistry.Default, svc);
-        renderer.Render(bounds, state, isActive: false);
+        UiTestRender.Render(screen, canvas =>
+        {
+            var renderer = new BriefTwoColumnsPanelRenderer(canvas, PaletteRegistry.Default, svc);
+            renderer.Render(bounds, state, isActive: false);
+        });
 
         // Inactive panel cursor item: isCursor=false, uses fileStyle base
         // Highlight fg=Green, bg inherited from PanelBackground

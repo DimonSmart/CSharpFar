@@ -992,10 +992,13 @@ public sealed class ApplicationInputDispatcherTests
     {
         var state = PanelStateWithItems(20);
         var bounds = new Rect(0, 0, 40, 10);
-        var renderer = new BriefTwoColumnsPanelRenderer(
+        ApplicationPanelFrame frame = UiTestRender.Render(
             new ScreenRenderer(new FakeConsoleDriver(80, 25)),
-            PaletteRegistry.Default);
-        ApplicationPanelFrame frame = renderer.Render(bounds, state, isActive: true, PanelSide.Left);
+            canvas =>
+            {
+                var renderer = new BriefTwoColumnsPanelRenderer(canvas, PaletteRegistry.Default);
+                return renderer.Render(bounds, state, isActive: true, PanelSide.Left);
+            });
         Assert.NotEmpty(frame.VisibleItems);
 
         int separatorX = Enumerable.Range(bounds.X + 1, bounds.Width - 2)

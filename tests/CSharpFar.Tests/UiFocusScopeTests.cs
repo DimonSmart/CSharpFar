@@ -38,7 +38,7 @@ public sealed class IUiFocusStateTests
     {
         var scope = new UiFocusController();
 
-        scope.Commit(new UiFocusFrame([
+        scope.Commit(FocusFrame([
             new(new UiTargetId("a"), 2, IsEnabled: false),
             new(new UiTargetId("b"), 3),
             new(new UiTargetId("c"), 1),
@@ -50,7 +50,7 @@ public sealed class IUiFocusStateTests
     [Fact]
     public void Frame_RejectsDisabledDefault()
     {
-        Assert.Throws<ArgumentException>(() => new UiFocusFrame([
+        Assert.Throws<ArgumentException>(() => FocusFrame([
             new(new UiTargetId("a"), 0, IsEnabled: false),
         ], new UiTargetId("a")));
     }
@@ -58,7 +58,7 @@ public sealed class IUiFocusStateTests
     [Fact]
     public void Frame_RejectsDuplicateTargets()
     {
-        Assert.Throws<ArgumentException>(() => new UiFocusFrame([
+        Assert.Throws<ArgumentException>(() => FocusFrame([
             new(new UiTargetId("a"), 0),
             new(new UiTargetId("a"), 1),
         ]));
@@ -73,7 +73,7 @@ public sealed class IUiFocusStateTests
             null,
         };
 
-        var exception = Assert.Throws<ArgumentException>(() => new UiFocusFrame(entries!));
+        var exception = Assert.Throws<ArgumentException>(() => FocusFrame(entries!));
         Assert.Equal("entries", exception.ParamName);
     }
 
@@ -107,7 +107,7 @@ public sealed class IUiFocusStateTests
         var scope = new UiFocusController();
         scope.Commit(Frame(["a"]));
 
-        scope.Commit(new UiFocusFrame([new(new UiTargetId("a"), 0, IsEnabled: false)]));
+        scope.Commit(FocusFrame([new(new UiTargetId("a"), 0, IsEnabled: false)]));
 
         Assert.False(scope.HasFocus);
     }
@@ -116,7 +116,7 @@ public sealed class IUiFocusStateTests
     public void TryFocus_ChangesOnlyForKnownEnabledTarget()
     {
         var scope = new UiFocusController();
-        scope.Commit(new UiFocusFrame([
+        scope.Commit(FocusFrame([
             new(new UiTargetId("a"), 0),
             new(new UiTargetId("b"), 1, IsEnabled: false),
         ]));
@@ -140,7 +140,7 @@ public sealed class IUiFocusStateTests
         var scope = new UiFocusController();
         var first = new UiTargetId("first");
         var disabled = new UiTargetId("disabled");
-        var frame = new UiFocusFrame([
+        var frame = FocusFrame([
             new(first, 0),
             new(disabled, 1, IsEnabled: false),
         ]);
@@ -159,7 +159,7 @@ public sealed class IUiFocusStateTests
     public void Traversal_UsesTabOrderOriginalOrderAndWrapAround()
     {
         var scope = new UiFocusController();
-        scope.Commit(new UiFocusFrame([
+        scope.Commit(FocusFrame([
             new(new UiTargetId("a"), 2),
             new(new UiTargetId("b"), 1),
             new(new UiTargetId("c"), 1),
@@ -185,8 +185,8 @@ public sealed class IUiFocusStateTests
     {
         var scope = new UiFocusController();
         var target = new UiTargetId("a");
-        scope.Commit(new UiFocusFrame([new(target, 0, Cursor: new UiCursorPlacement(1, 2))]));
-        scope.Commit(new UiFocusFrame([new(target, 0, Cursor: new UiCursorPlacement(3, 4, Visible: false))]));
+        scope.Commit(FocusFrame([new(target, 0, Cursor: new UiCursorPlacement(1, 2))]));
+        scope.Commit(FocusFrame([new(target, 0, Cursor: new UiCursorPlacement(3, 4, Visible: false))]));
 
         Assert.True(scope.TryGetFocusedEntry(out var entry));
         Assert.Equal(new UiCursorPlacement(3, 4, Visible: false), entry.Cursor);

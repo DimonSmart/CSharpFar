@@ -15,7 +15,6 @@ public class QuickViewRendererTests : IDisposable
     private readonly string _tempDir;
     private readonly FakeConsoleDriver _driver;
     private readonly ScreenRenderer _screen;
-    private readonly QuickViewRenderer _renderer;
     private readonly Rect _bounds = new(0, 0, 40, 10);
 
     public QuickViewRendererTests()
@@ -24,7 +23,6 @@ public class QuickViewRendererTests : IDisposable
         Directory.CreateDirectory(_tempDir);
         _driver = new FakeConsoleDriver(80, 25);
         _screen = new ScreenRenderer(_driver);
-        _renderer = new QuickViewRenderer(_screen);
     }
 
     public void Dispose()
@@ -40,7 +38,7 @@ public class QuickViewRendererTests : IDisposable
     [MemberData(nameof(NoSelectionItems))]
     public void NoPreviewableItem_ShowsNoFileSelected(FilePanelItem? item)
     {
-        _renderer.Render(_bounds, item);
+        Render(item);
 
         Assert.Contains("No file selected", ContentRow(0));
     }
@@ -54,7 +52,7 @@ public class QuickViewRendererTests : IDisposable
         File.WriteAllText(Path.Combine(subDir, "b.txt"), "world");
 
         var item = new FilePanelItem { Name = "testDir", FullPath = subDir, IsDirectory = true };
-        _renderer.Render(_bounds, item);
+        Render(item);
 
         string row0 = ContentRow(0);
         Assert.Contains("testDir", row0);
@@ -71,7 +69,7 @@ public class QuickViewRendererTests : IDisposable
         File.WriteAllText(filePath, "line one\nline two\nline three");
 
         var item = new FilePanelItem { Name = "preview.txt", FullPath = filePath, IsDirectory = false };
-        _renderer.Render(_bounds, item);
+        Render(item);
 
         Assert.Contains("line one", ContentRow(0));
         Assert.Contains("line two", ContentRow(1));
@@ -91,9 +89,9 @@ public class QuickViewRendererTests : IDisposable
         var fileItem = new FilePanelItem { Name = "narrow.txt", FullPath = filePath, IsDirectory = false };
         var bounds = new Rect(0, 0, width, 5);
 
-        _renderer.Render(bounds, null);
-        _renderer.Render(bounds, directoryItem);
-        _renderer.Render(bounds, fileItem);
+        Render(null, bounds);
+        Render(directoryItem, bounds);
+        Render(fileItem, bounds);
     }
 
     public static TheoryData<FilePanelItem?> NoSelectionItems() => new()
@@ -101,4 +99,13 @@ public class QuickViewRendererTests : IDisposable
         null,
         new FilePanelItem { Name = "..", FullPath = @"C:\", IsDirectory = true, IsParentDirectory = true },
     };
+
+    private void Render(FilePanelItem? item, Rect? bounds = null)
+    {
+        UiTestRender.Render(_screen, canvas =>
+        {
+            var renderer = new QuickViewRenderer(canvas);
+            renderer.Render(bounds ?? _bounds, item);
+        });
+    }
 }

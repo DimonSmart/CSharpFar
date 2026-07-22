@@ -279,8 +279,8 @@ internal sealed class DriveDialog
             int hintX = frameBounds.X + (frameBounds.Width - hint.Length) / 2;
             context.Canvas.Write(hintX, frameBounds.Y + frameBounds.Height - 1, hint, PaletteStyles.DialogTitle(_palette));
 
-            WriteHeader(contentBounds.X, contentBounds.Y, contentBounds.Width);
-            WriteTableSeparator(contentBounds.X, contentBounds.Y + 1, contentBounds.Width);
+            WriteHeader(context.Canvas, contentBounds.X, contentBounds.Y, contentBounds.Width);
+            WriteTableSeparator(context.Canvas, contentBounds.X, contentBounds.Y + 1, contentBounds.Width);
 
             for (int line = 0; line < frame.ListState.ViewportRows; line++)
             {
@@ -289,6 +289,7 @@ internal sealed class DriveDialog
                     break;
 
                 WriteRow(
+                    context.Canvas,
                     items[itemIndex],
                     contentBounds.X,
                     contentBounds.Y + 2 + line,
@@ -326,7 +327,7 @@ internal sealed class DriveDialog
 
     private readonly record struct DriveDialogLayout(Rect FrameBounds, Rect ListBounds);
 
-    private void WriteHeader(int x, int y, int width)
+    private void WriteHeader(IUiCanvas canvas, int x, int y, int width)
     {
         string header =
             Fit("Disk", DiskColW) +
@@ -334,10 +335,10 @@ internal sealed class DriveDialog
             Fit("Free", SizeColW) +
             " │ " +
             Fit("Total", SizeColW);
-        _modalDialogs.Screen.Write(x, y, TruncateToWidth(header, width).PadRight(width), PaletteStyles.DialogTitle(_palette));
+        canvas.Write(x, y, TruncateToWidth(header, width).PadRight(width), PaletteStyles.DialogTitle(_palette));
     }
 
-    private void WriteTableSeparator(int x, int y, int width)
+    private void WriteTableSeparator(IUiCanvas canvas, int x, int y, int width)
     {
         string separator =
             new string('─', DiskColW) +
@@ -345,10 +346,10 @@ internal sealed class DriveDialog
             new string('─', SizeColW) +
             "─┼─" +
             new string('─', SizeColW);
-        _modalDialogs.Screen.Write(x, y, TruncateToWidth(separator, width).PadRight(width), PaletteStyles.DialogBorder(_palette));
+        canvas.Write(x, y, TruncateToWidth(separator, width).PadRight(width), PaletteStyles.DialogBorder(_palette));
     }
 
-    private void WriteRow(VolumeSelectionItem item, int x, int y, int innerWidth, bool selected)
+    private void WriteRow(IUiCanvas canvas, VolumeSelectionItem item, int x, int y, int innerWidth, bool selected)
     {
         if (innerWidth <= 0)
             return;
@@ -364,23 +365,23 @@ internal sealed class DriveDialog
         string diskCol = Fit($"{displayName} {kindStr}".Trim(), DiskColW);
         var (freeCol, totalCol) = BuildSizeCols(item.Volume);
 
-        WriteSegment(ref x, y, ref innerWidth, diskCol, highlightStyle);
-        WriteSegment(ref x, y, ref innerWidth, " │ ", normalStyle);
-        WriteSegment(ref x, y, ref innerWidth, freeCol, normalStyle);
-        WriteSegment(ref x, y, ref innerWidth, " │ ", normalStyle);
-        WriteSegment(ref x, y, ref innerWidth, totalCol, normalStyle);
+        WriteSegment(canvas, ref x, y, ref innerWidth, diskCol, highlightStyle);
+        WriteSegment(canvas, ref x, y, ref innerWidth, " │ ", normalStyle);
+        WriteSegment(canvas, ref x, y, ref innerWidth, freeCol, normalStyle);
+        WriteSegment(canvas, ref x, y, ref innerWidth, " │ ", normalStyle);
+        WriteSegment(canvas, ref x, y, ref innerWidth, totalCol, normalStyle);
 
         if (innerWidth > 0)
-            _modalDialogs.Screen.Write(x, y, new string(' ', innerWidth), normalStyle);
+            canvas.Write(x, y, new string(' ', innerWidth), normalStyle);
     }
 
-    private void WriteSegment(ref int x, int y, ref int remainingWidth, string text, CellStyle style)
+    private static void WriteSegment(IUiCanvas canvas, ref int x, int y, ref int remainingWidth, string text, CellStyle style)
     {
         if (remainingWidth <= 0)
             return;
 
         string visible = TruncateToWidth(text, remainingWidth);
-        _modalDialogs.Screen.Write(x, y, visible, style);
+        canvas.Write(x, y, visible, style);
         x += visible.Length;
         remainingWidth -= visible.Length;
     }

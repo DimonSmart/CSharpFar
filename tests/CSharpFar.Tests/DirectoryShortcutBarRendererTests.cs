@@ -12,8 +12,9 @@ public sealed class DirectoryShortcutBarRendererTests
     {
         var driver = new FakeConsoleDriver(80, 2);
 
-        new DirectoryShortcutBarRenderer(new ScreenRenderer(driver))
-            .Render(0, 80, new AppSettings.DirectoryShortcutSettings());
+        UiTestRender.Render(new ScreenRenderer(driver), canvas =>
+            new DirectoryShortcutBarRenderer(canvas)
+                .Render(0, 80, new AppSettings.DirectoryShortcutSettings()));
 
         Assert.Empty(driver.WriteRecords);
     }
@@ -32,7 +33,8 @@ public sealed class DirectoryShortcutBarRendererTests
             ],
         };
 
-        new DirectoryShortcutBarRenderer(new ScreenRenderer(driver)).Render(0, 80, settings);
+        UiTestRender.Render(new ScreenRenderer(driver), canvas =>
+            new DirectoryShortcutBarRenderer(canvas).Render(0, 80, settings));
 
         Assert.StartsWith(" 1Projects 3 0Temp ", driver.GetRow(0));
     }
@@ -46,7 +48,8 @@ public sealed class DirectoryShortcutBarRendererTests
             Items = [Item(1, "Projects", @"C:\Projects")],
         };
 
-        var frame = new DirectoryShortcutBarRenderer(new ScreenRenderer(driver)).Render(0, 80, settings);
+        var frame = UiTestRender.Render(new ScreenRenderer(driver), canvas =>
+            new DirectoryShortcutBarRenderer(canvas).Render(0, 80, settings));
 
         var hit = Assert.Single(frame!.Shortcuts);
         Assert.Equal(1, hit.ShortcutNumber);
@@ -79,7 +82,8 @@ public sealed class DirectoryShortcutBarRendererTests
             Items = [Item(1, "Projects", @"C:\Projects")],
         };
 
-        new DirectoryShortcutBarRenderer(new ScreenRenderer(driver)).Render(0, 80, settings);
+        UiTestRender.Render(new ScreenRenderer(driver), canvas =>
+            new DirectoryShortcutBarRenderer(canvas).Render(0, 80, settings));
 
         var number = driver.GetCell(1, 0);
         Assert.Equal(ConsoleColor.White, number.Foreground);

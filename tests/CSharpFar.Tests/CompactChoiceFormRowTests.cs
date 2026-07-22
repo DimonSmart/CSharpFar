@@ -57,14 +57,17 @@ public sealed class CompactChoiceFormRowTests
         var driver = new FakeConsoleDriver(width: 50, height: 10);
         var screen = new ScreenRenderer(driver);
         var bounds = new Rect(10, 2, 12, 1);
-        var context = new FormRowRenderContext(screen, bounds, focused: true);
+        UiTestRender.Render(screen, canvas =>
+        {
+            var context = new FormRowRenderContext(canvas, bounds, focused: true);
+            row.Render(context);
 
-        row.Render(context);
+            Assert.True(row.TryGetCursor(context, out FormCursorPlacement cursor));
+            Assert.InRange(cursor.X, bounds.X, bounds.Right - 1);
+            Assert.Equal(bounds.Y, cursor.Y);
+        });
 
         Assert.Contains(driver.WriteRecords, record => record.Text.Contains("Mode:", StringComparison.Ordinal));
-        Assert.True(row.TryGetCursor(context, out FormCursorPlacement cursor));
-        Assert.InRange(cursor.X, bounds.X, bounds.Right - 1);
-        Assert.Equal(bounds.Y, cursor.Y);
     }
 
     [Fact]
@@ -73,8 +76,12 @@ public sealed class CompactChoiceFormRowTests
         var row = Row(["one"]);
         var screen = new ScreenRenderer(new FakeConsoleDriver(width: 20, height: 4));
 
-        Assert.False(row.TryGetCursor(new FormRowRenderContext(screen, new Rect(2, 1, 10, 1), focused: false), out FormCursorPlacement cursor));
-        Assert.Equal(default, cursor);
+        UiTestRender.Render(screen, canvas =>
+        {
+            var context = new FormRowRenderContext(canvas, new Rect(2, 1, 10, 1), focused: false);
+            Assert.False(row.TryGetCursor(context, out FormCursorPlacement cursor));
+            Assert.Equal(default, cursor);
+        });
     }
 
     [Fact]
@@ -83,8 +90,12 @@ public sealed class CompactChoiceFormRowTests
         var row = Row(["one"]);
         var screen = new ScreenRenderer(new FakeConsoleDriver(width: 20, height: 4));
 
-        Assert.False(row.TryGetCursor(new FormRowRenderContext(screen, new Rect(2, 1, 0, 1), focused: true), out FormCursorPlacement cursor));
-        Assert.Equal(default, cursor);
+        UiTestRender.Render(screen, canvas =>
+        {
+            var context = new FormRowRenderContext(canvas, new Rect(2, 1, 0, 1), focused: true);
+            Assert.False(row.TryGetCursor(context, out FormCursorPlacement cursor));
+            Assert.Equal(default, cursor);
+        });
     }
 
     private static CompactChoiceFormRow<string> Row(IReadOnlyList<string> values, int selectedIndex = 0) =>

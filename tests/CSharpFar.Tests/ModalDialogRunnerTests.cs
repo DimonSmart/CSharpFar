@@ -324,130 +324,6 @@ public sealed class ModalDialogRunnerTests
     }
 
     [Fact]
-    public void SessionReadInput_RoutesToModalLayerAndBlocksLowerSurface()
-    {
-        var driver = new FakeConsoleDriver();
-        driver.EnqueueKey(Key(ConsoleKey.Enter));
-        var screen = new ScreenRenderer(driver);
-        var lower = new LowerInputSurface(screen);
-        var composition = new UiCompositionHost(screen);
-        composition.SetRootSurface(lower);
-        var modals = new ModalDialogHost(composition);
-        using var session = modals.Open(context =>
-        {
-            context.Canvas.Write(0, 0, "M", Style);
-            return context.Viewport;
-        });
-        session.Render();
-
-        var input = session.ReadInput(out var frame);
-
-        Assert.IsType<KeyConsoleInputEvent>(input);
-        Assert.Equal(driver.GetViewport(), frame);
-        Assert.Equal(0, lower.RouteCount);
-    }
-
-    [Fact]
-    public void ModalDialogLayer_RoutedInputIsHandled()
-    {
-        var driver = new FakeConsoleDriver();
-        var screen = new ScreenRenderer(driver);
-        var lower = new LowerInputSurface(screen);
-        var composition = new UiCompositionHost(screen);
-        composition.SetRootSurface(lower);
-        var modals = new ModalDialogHost(composition);
-        using var session = modals.Open(context =>
-        {
-            context.Canvas.Write(0, 0, "M", Style);
-            return context.Viewport;
-        });
-        session.Render();
-
-        UiInputResult result = composition.DispatchInput(new KeyConsoleInputEvent(Key(ConsoleKey.Enter)));
-
-        Assert.True(result.Handled);
-        Assert.Equal(0, lower.RouteCount);
-        Assert.True(session.TryReadInput(out var input, out _));
-        Assert.IsType<KeyConsoleInputEvent>(input);
-    }
-
-    [Fact]
-    public void GenericSession_ReturnsAlreadyDispatchedFrame()
-    {
-        var driver = new FakeConsoleDriver();
-        var modals = CreateHost(driver, out var composition);
-        using var session = modals.Open(context =>
-        {
-            context.Canvas.Write(0, 0, "M", Style);
-            return context.Viewport;
-        });
-        var rendered = session.Render();
-
-        composition.DispatchInput(new KeyConsoleInputEvent(Key(ConsoleKey.Enter)));
-
-        var input = session.ReadInput(out var frame);
-        Assert.IsType<KeyConsoleInputEvent>(input);
-        Assert.Equal(rendered, frame);
-    }
-
-    [Fact]
-    public void RoutedSession_ReturnsPendingPacketWithLayerMetadata()
-    {
-        var driver = new FakeConsoleDriver
-        {
-            BeforeReadInput = _ => throw new InvalidOperationException("driver should not be read"),
-        };
-        var modals = CreateHost(driver, out var composition);
-        using var session = modals.Open(context => context.Viewport);
-        var frame = session.Render();
-        var input = new KeyConsoleInputEvent(Key(ConsoleKey.Enter));
-        composition.DispatchInput(input);
-
-        Assert.True(session.TryReadRoutedInput(out var routed));
-        Assert.Same(input, routed.Input);
-        Assert.Equal(frame, routed.Frame);
-        Assert.Null(routed.Target);
-        Assert.Equal(UiInputRouteKind.Layer, routed.RouteKind);
-        Assert.False(session.TryReadRoutedInput(out _));
-    }
-
-    [Fact]
-    public void ReadRoutedInput_ReturnsInputFrameAndLayerMetadata()
-    {
-        var driver = new FakeConsoleDriver();
-        driver.EnqueueKey(Key(ConsoleKey.Enter));
-        var modals = CreateHost(driver, out _);
-        using var session = modals.Open(context => context.Viewport);
-        var frame = session.Render();
-
-        var routed = session.ReadRoutedInput();
-
-        Assert.IsType<KeyConsoleInputEvent>(routed.Input);
-        Assert.Equal(frame, routed.Frame);
-        Assert.Null(routed.Target);
-        Assert.Equal(UiInputRouteKind.Layer, routed.RouteKind);
-    }
-
-    [Fact]
-    public void RoutedPacket_KeepsDispatchSnapshotAfterAdditionalRender()
-    {
-        var modals = CreateHost(new FakeConsoleDriver(), out var composition);
-        int render = 0;
-        using var session = modals.Open(_ => ++render);
-        int initial = session.Render();
-        composition.DispatchInput(new KeyConsoleInputEvent(Key(ConsoleKey.Enter)));
-        int later = session.Render();
-
-        var routed = session.ReadRoutedInput();
-
-        Assert.Equal(1, initial);
-        Assert.Equal(2, later);
-        Assert.Equal(initial, routed.Frame);
-        Assert.Null(routed.Target);
-        Assert.Equal(UiInputRouteKind.Layer, routed.RouteKind);
-    }
-
-    [Fact]
     public void RunRouted_ContinuesWithOneRenderAndPassesRouteMetadata()
     {
         var driver = new FakeConsoleDriver();
@@ -624,7 +500,7 @@ public sealed class ModalDialogRunnerTests
             },
             _ => new UiInteractionFrame(
                 [],
-                new UiFocusFrame([new UiFocusEntry(first, 0), new UiFocusEntry(requested, 1)], first)),
+                FocusFrame([new UiFocusEntry(first, 0), new UiFocusEntry(requested, 1)], first)),
             (input, _, route) =>
             {
                 routedTargets.Add(route.Target);
@@ -758,74 +634,6 @@ public sealed class ModalDialogRunnerTests
 
         Assert.True(rootRenders >= 1);
         Assert.Equal('R', driver.GetCell(0, 0).Character);
-    }
-
-    [Fact]
-    public void Session_ReturnsAlreadyDispatchedInputWithoutReadingConsole()
-    {
-        var driver = new FakeConsoleDriver
-        {
-            BeforeReadInput = _ => throw new InvalidOperationException("driver should not be read"),
-        };
-        var modals = CreateHost(driver, out var composition);
-        using var session = modals.Open(context => context.Canvas.Write(0, 0, "M", Style));
-        session.Render();
-
-        composition.DispatchInput(new KeyConsoleInputEvent(Key(ConsoleKey.Enter)));
-
-        var input = session.ReadInput();
-        Assert.IsType<KeyConsoleInputEvent>(input);
-    }
-
-    [Fact]
-    public void SecondDispatchBeforeConsumeThrows()
-    {
-        var modals = CreateHost(new FakeConsoleDriver(), out var composition);
-        using var session = modals.Open(context => context.Canvas.Write(0, 0, "M", Style));
-        session.Render();
-
-        composition.DispatchInput(new KeyConsoleInputEvent(Key(ConsoleKey.A)));
-
-        Assert.Throws<InvalidOperationException>(() =>
-            composition.DispatchInput(new KeyConsoleInputEvent(Key(ConsoleKey.B))));
-    }
-
-    [Fact]
-    public void ConsumedPacketAllowsNextDispatch()
-    {
-        var modals = CreateHost(new FakeConsoleDriver(), out var composition);
-        using var session = modals.Open(context => context.Canvas.Write(0, 0, "M", Style));
-        session.Render();
-
-        composition.DispatchInput(new KeyConsoleInputEvent(Key(ConsoleKey.A)));
-        Assert.True(session.TryReadInput(out _));
-
-        composition.DispatchInput(new KeyConsoleInputEvent(Key(ConsoleKey.B)));
-        Assert.True(session.TryReadInput(out var input));
-        Assert.IsType<KeyConsoleInputEvent>(input);
-    }
-
-    [Fact]
-    public void InputFrameComesFromOriginalDispatchEvenAfterLaterRender()
-    {
-        var modals = CreateHost(new FakeConsoleDriver(), out var composition);
-        int render = 0;
-        using var session = modals.Open(context =>
-        {
-            render++;
-            context.Canvas.Write(0, 0, "M", Style);
-            return render;
-        });
-        int frameA = session.Render();
-
-        composition.DispatchInput(new KeyConsoleInputEvent(Key(ConsoleKey.Enter)));
-        int frameB = session.Render();
-        var input = session.ReadInput(out var inputFrame);
-
-        Assert.IsType<KeyConsoleInputEvent>(input);
-        Assert.Equal(1, frameA);
-        Assert.Equal(2, frameB);
-        Assert.Equal(frameA, inputFrame);
     }
 
     private static ModalDialogHost CreateHost(FakeConsoleDriver driver, out UiCompositionHost composition)

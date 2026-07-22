@@ -13,7 +13,7 @@ public sealed class UiLayerTests
     {
         var layer = new TestLayer(UiLayerInputPolicy.Bubble)
         {
-            RenderCore = context => new TestFrame(context.Viewport.Width, new UiFocusFrame([
+            RenderCore = context => new TestFrame(context.Viewport.Width, FocusFrame([
                 new(new UiTargetId("target"), 0),
             ])),
         };
@@ -54,7 +54,7 @@ public sealed class UiLayerTests
         var cursor = new UiCursorPlacement(12, 7, Visible: true);
         var layer = new TestLayer(UiLayerInputPolicy.Bubble)
         {
-            RenderCore = _ => new TestFrame(1, new UiFocusFrame([
+            RenderCore = _ => new TestFrame(1, FocusFrame([
                 new(new UiTargetId("target"), 0, Cursor: cursor),
             ])),
         };
@@ -71,7 +71,7 @@ public sealed class UiLayerTests
         var driver = new FakeConsoleDriver(80, 25);
         var layer = new TestLayer(UiLayerInputPolicy.Bubble)
         {
-            RenderCore = _ => new TestFrame(1, new UiFocusFrame([
+            RenderCore = _ => new TestFrame(1, FocusFrame([
                 new(new UiTargetId("target"), 0, Cursor: new UiCursorPlacement(12, 7)),
             ])),
         };
@@ -95,8 +95,8 @@ public sealed class UiLayerTests
         var top = CursorLayer("top", null);
         var host = new UiCompositionHost(new ScreenRenderer(driver));
         host.SetRootSurface(new SurfaceLayer(host.Screen, root));
-        using var middleScope = host.RegisterOverlay(middle);
-        using var topScope = host.RegisterOverlay(top);
+        using var middleScope = host.RegisterPersistentOverlay(middle);
+        using var topScope = host.RegisterPersistentOverlay(top);
 
         host.Render();
 
@@ -111,7 +111,7 @@ public sealed class UiLayerTests
         var top = CursorLayer("top", new UiCursorPlacement(3, 4));
         var host = new UiCompositionHost(new ScreenRenderer(driver));
         host.SetRootSurface(new SurfaceLayer(host.Screen, root));
-        using var topScope = host.RegisterOverlay(top);
+        using var topScope = host.RegisterPersistentOverlay(top);
 
         host.Render();
 
@@ -125,7 +125,7 @@ public sealed class UiLayerTests
         var driver = new FakeConsoleDriver(80, 25);
         var layer = new TestLayer(UiLayerInputPolicy.Bubble)
         {
-            RenderCore = context => new TestFrame(context.Viewport.Width, new UiFocusFrame([
+            RenderCore = context => new TestFrame(context.Viewport.Width, FocusFrame([
                 new(new UiTargetId($"target-{context.Viewport.Width}"), 0,
                     Cursor: new UiCursorPlacement(context.Viewport.Width - 1, 0)),
             ])),
@@ -166,13 +166,13 @@ public sealed class UiLayerTests
             {
                 context.Canvas.Write(0, 0, cursorless ? "B" : "A", CellStyle.Default);
                 return new TestFrame(1, cursorless
-                    ? new UiFocusFrame([new(new UiTargetId("top"), 0)])
+                    ? FocusFrame([new(new UiTargetId("top"), 0)])
                     : UiFocusFrame.Empty);
             },
         };
         var host = new UiCompositionHost(new ScreenRenderer(driver));
         host.SetRootSurface(new SurfaceLayer(host.Screen, root));
-        using var topScope = host.RegisterOverlay(top);
+        using var topScope = host.RegisterPersistentOverlay(top);
         host.Render();
         var cursor = (driver.CursorVisible, driver.CursorX, driver.CursorY);
         cursorless = true;
@@ -198,7 +198,7 @@ public sealed class UiLayerTests
     {
         var layer = new TestLayer(UiLayerInputPolicy.Bubble)
         {
-            RenderCore = context => new TestFrame(context.Viewport.Width, new UiFocusFrame([
+            RenderCore = context => new TestFrame(context.Viewport.Width, FocusFrame([
                 new(new UiTargetId("target"), 0),
             ])),
         };
@@ -232,7 +232,7 @@ public sealed class UiLayerTests
             RenderCore = context =>
             {
                 context.Canvas.Write(0, 0, (marker++).ToString(), new CellStyle(ConsoleColor.Gray, ConsoleColor.Black));
-                return new TestFrame(context.Viewport.Width, new UiFocusFrame([
+                return new TestFrame(context.Viewport.Width, FocusFrame([
                     new(new UiTargetId($"target-{context.Viewport.Width}"), 0),
                 ]));
             },
@@ -257,7 +257,7 @@ public sealed class UiLayerTests
         {
             RenderCore = context =>
             {
-                return new TestFrame(context.Viewport.Width, new UiFocusFrame([
+                return new TestFrame(context.Viewport.Width, FocusFrame([
                     new(new UiTargetId($"target-{context.Viewport.Width}"), 0),
                 ]));
             },
@@ -287,7 +287,7 @@ public sealed class UiLayerTests
             {
                 int value = ++attempt;
                 context.Canvas.Write(0, 0, value.ToString(), new CellStyle(ConsoleColor.Gray, ConsoleColor.Black));
-                return new TestFrame(value, new UiFocusFrame([
+                return new TestFrame(value, FocusFrame([
                     new(new UiTargetId($"target-{value}"), 0, Cursor: new UiCursorPlacement(value, 0)),
                 ]));
             },
@@ -313,7 +313,7 @@ public sealed class UiLayerTests
         var second = new UiTargetId("second");
         var layer = new TestLayer(UiLayerInputPolicy.Bubble)
         {
-            RenderCore = _ => new TestFrame(1, new UiFocusFrame([new(first, 0), new(second, 1)], first)),
+            RenderCore = _ => new TestFrame(1, FocusFrame([new(first, 0), new(second, 1)], first)),
         };
         var host = Host(layer);
         host.Render();
@@ -351,7 +351,7 @@ public sealed class UiLayerTests
         var second = new UiTargetId("second");
         var layer = new TestLayer(UiLayerInputPolicy.Bubble)
         {
-            RenderCore = _ => new TestFrame(1, new UiFocusFrame([new(first, 0), new(second, 1)], first)),
+            RenderCore = _ => new TestFrame(1, FocusFrame([new(first, 0), new(second, 1)], first)),
             RouteCore = (_, _, context) => context.Target == first
                 ? UiInputResult.RequestFocus(second)
                 : UiInputResult.NotHandled,
@@ -400,7 +400,7 @@ public sealed class UiLayerTests
     private static TestLayer CursorLayer(string target, UiCursorPlacement? cursor) =>
         new(UiLayerInputPolicy.Bubble)
         {
-            RenderCore = _ => new TestFrame(1, new UiFocusFrame([
+            RenderCore = _ => new TestFrame(1, FocusFrame([
                 new(new UiTargetId(target), 0, Cursor: cursor),
             ])),
         };

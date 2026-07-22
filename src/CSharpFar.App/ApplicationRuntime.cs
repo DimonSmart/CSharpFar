@@ -9,25 +9,29 @@ namespace CSharpFar.App;
 internal sealed class ApplicationRuntime
 {
     private readonly UiCompositionHost _composition;
+    private readonly ScreenRenderer _screen;
     private readonly ApplicationUiSurface _applicationSurface;
     private readonly IDisposable _applicationUiLayers;
     private readonly ApplicationRuntimeContext _context;
 
     public ApplicationRuntime(
         UiCompositionHost composition,
+        ScreenRenderer screen,
         ApplicationUiSurface applicationSurface,
         ApplicationRuntimeContext context)
-        : this(composition, applicationSurface, NullDisposable.Instance, context)
+        : this(composition, screen, applicationSurface, NullDisposable.Instance, context)
     {
     }
 
     public ApplicationRuntime(
         UiCompositionHost composition,
+        ScreenRenderer screen,
         ApplicationUiSurface applicationSurface,
         IDisposable applicationUiLayers,
         ApplicationRuntimeContext context)
     {
         _composition = composition;
+        _screen = screen;
         _applicationSurface = applicationSurface;
         _applicationUiLayers = applicationUiLayers;
         _context = context;
@@ -78,14 +82,14 @@ internal sealed class ApplicationRuntime
                 _composition.Render();
             }
 
-            _composition.Screen.ClearScreen();
+            _screen.ClearScreen();
         }
         finally
         {
             _context.DisposeRuntimeState();
             _applicationUiLayers.Dispose();
             _context.RestoreTerminal();
-            _composition.Screen.SetCursorVisible(true);
+            _screen.SetCursorVisible(true);
         }
     }
 

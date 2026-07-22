@@ -248,7 +248,8 @@ public class FunctionKeyBarTests
             new(10, "Quit", "quit"),
         ];
 
-        controller.Render(screen, y: 0, totalWidth: 120, actions);
+        UiTestRender.Render(screen, canvas =>
+            controller.Render(canvas, y: 0, totalWidth: 120, actions));
 
         string row = driver.GetRow(0);
         Assert.DoesNotContain("5Copy", row);
@@ -280,5 +281,6 @@ public class FunctionKeyBarTests
         int y,
         int totalWidth,
         IReadOnlyList<FunctionKeyBarItem> items) =>
-        renderer.Render(screen, y, totalWidth, items);
+        UiTestRender.Render(screen, canvas =>
+            renderer.Render(canvas, y, totalWidth, items));
 }

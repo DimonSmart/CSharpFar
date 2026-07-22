@@ -136,7 +136,7 @@ public sealed class UiCompositionHost
         Screen = screen;
     }
 
-    public ScreenRenderer Screen { get; }
+    internal ScreenRenderer Screen { get; }
 
     public ConsoleViewport? LastStableViewport { get; private set; }
 
@@ -167,10 +167,10 @@ public sealed class UiCompositionHost
     }
 
     /// <summary>Opens a surface whose render callback participates in stable-frame commit.</summary>
-    public UiSurfaceSession OpenSurface(Action<UiRenderContext> render) =>
+    internal UiSurfaceSession OpenSurface(Action<UiRenderContext> render) =>
         OpenSurface(new ScreenRendererSurface(Screen, render));
 
-    public UiSurfaceSession OpenSurface(IUiSurface surface)
+    internal UiSurfaceSession OpenSurface(IUiSurface surface)
     {
         EnsureCanChangeLayers();
         ArgumentNullException.ThrowIfNull(surface);
@@ -222,7 +222,13 @@ public sealed class UiCompositionHost
         return new UiLayerScope(this, entry);
     }
 
-    public IDisposable RegisterOverlay(IUiLayer layer) => PushOverlay(layer);
+    public IDisposable RegisterPersistentOverlay(IUiLayer layer)
+    {
+        if (StableRenderVersion > 0)
+            throw new InvalidOperationException("Persistent overlays can only be registered before the first committed render.");
+
+        return PushOverlay(layer);
+    }
 
     public bool HasViewportChanged() =>
         LastStableViewport is { } viewport && Screen.GetViewport() != viewport;

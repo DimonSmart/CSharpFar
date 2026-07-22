@@ -334,6 +334,7 @@ internal static class ApplicationServicesBuilder
             highlightService);
         var runtime = ApplicationRuntimeBuilder.Create(
             composition,
+            screen,
             applicationSurface,
             applicationUiLayers,
             pendingMenuCommands,

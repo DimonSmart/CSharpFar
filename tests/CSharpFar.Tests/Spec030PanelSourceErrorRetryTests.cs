@@ -141,8 +141,9 @@ public sealed class Spec030PanelSourceErrorRetryTests
             },
         };
 
-        new PanelRenderer(screen, PaletteRegistry.Default)
-            .Render(new Rect(0, 0, 60, 16), state, isActive: true);
+        UiTestRender.Render(screen, canvas =>
+            new PanelRenderer(canvas, PaletteRegistry.Default)
+                .Render(new Rect(0, 0, 60, 16), state, isActive: true));
 
         string panelText = driver.GetRegionText(new Rect(0, 0, 60, 16));
         Assert.Contains("Cannot read panel source", panelText, StringComparison.Ordinal);

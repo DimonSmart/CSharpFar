@@ -141,7 +141,8 @@ public class SingleLineTextInputTests
         var normal = new CellStyle(ConsoleColor.Gray, ConsoleColor.Black);
         var selected = new CellStyle(ConsoleColor.Yellow, ConsoleColor.Blue);
 
-        SingleLineTextInput.Render(screen, 1, 0, 7, buffer, normal, selected);
+        UiTestRender.Render(screen, canvas =>
+            SingleLineTextInput.Render(canvas, 1, 0, 7, buffer, normal, selected));
 
         Assert.Equal('a', driver.GetCell(1, 0).Character);
         Assert.Equal(ConsoleColor.Yellow, driver.GetCell(1, 0).Foreground);
@@ -161,7 +162,8 @@ public class SingleLineTextInputTests
         var normal = new CellStyle(ConsoleColor.Gray, ConsoleColor.Black);
         var selected = new CellStyle(ConsoleColor.Yellow, ConsoleColor.Blue);
 
-        SingleLineTextInput.Render(screen, 1, 0, 10, buffer, normal, selected);
+        UiTestRender.Render(screen, canvas =>
+            SingleLineTextInput.Render(canvas, 1, 0, 10, buffer, normal, selected));
 
         Assert.Equal("bcdefghij ", driver.GetRegionText(new Rect(1, 0, 10, 1)));
         Assert.Equal(10, SingleLineTextInput.GetCursorX(1, 10, buffer));
@@ -279,7 +281,8 @@ public class SingleLineTextInputTests
         var normal = new CellStyle(ConsoleColor.Gray, ConsoleColor.Black);
         var selected = new CellStyle(ConsoleColor.Yellow, ConsoleColor.Blue);
 
-        SingleLineTextInput.Render(screen, 1, 1, 12, buffer, normal, selected, history);
+        UiTestRender.Render(screen, canvas =>
+            SingleLineTextInput.Render(canvas, 1, 1, 12, buffer, normal, selected, history));
 
         Assert.Equal(SingleLineTextInput.HistoryDropdownArrow, driver.GetCell(12, 1).Character);
         Assert.Equal('┌', driver.GetCell(1, 2).Character);
@@ -313,7 +316,8 @@ public class SingleLineTextInputTests
         var normal = new CellStyle(ConsoleColor.Gray, ConsoleColor.Black);
         var selected = new CellStyle(ConsoleColor.Yellow, ConsoleColor.Blue);
 
-        SingleLineTextInput.Render(screen, 1, 1, 12, buffer, normal, selected, history);
+        UiTestRender.Render(screen, canvas =>
+            SingleLineTextInput.Render(canvas, 1, 1, 12, buffer, normal, selected, history));
 
         Assert.Equal('└', driver.GetCell(1, 13).Character);
         Assert.Equal(' ', driver.GetCell(1, 14).Character);

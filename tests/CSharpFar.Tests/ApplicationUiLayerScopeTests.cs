@@ -48,8 +48,10 @@ public sealed class ApplicationUiLayerScopeTests
         Assert.Equal('R', fixture.Driver.GetCell(0, 0).Character);
         Assert.NotEqual('R', fixture.Driver.GetCell(1, 21).Character);
 
-        using var modal = fixture.Modals.Open(context =>
-            context.Canvas.Write(1, 21, "M", new CSharpFar.Console.Models.CellStyle(ConsoleColor.White, ConsoleColor.Black)));
+        ConsoleInputEvent? modalInput = null;
+        using var modal = fixture.Host.PushOverlay(new RecordingModalLayer(
+            context => context.Canvas.Write(1, 21, "M", new CSharpFar.Console.Models.CellStyle(ConsoleColor.White, ConsoleColor.Black)),
+            input => modalInput = input));
         fixture.Host.Render();
         var input = Key(ConsoleKey.A, 'a');
 
@@ -58,7 +60,6 @@ public sealed class ApplicationUiLayerScopeTests
         Assert.True(result.Handled);
         Assert.Equal('M', fixture.Driver.GetCell(1, 21).Character);
         Assert.False(fixture.Root.TryTakeInput(out _));
-        Assert.True(modal.TryReadInput(out var modalInput));
         Assert.Same(input, modalInput);
     }
 
@@ -87,7 +88,7 @@ public sealed class ApplicationUiLayerScopeTests
     public void ConstructorRollback_SecondRegistrationConflictRemovesOnlyNewRegistrations()
     {
         var fixture = Fixture.CreateWithoutScope();
-        using var conflicting = fixture.Host.RegisterOverlay(fixture.PanelQuickSearchLayer);
+        using var conflicting = fixture.Host.RegisterPersistentOverlay(fixture.PanelQuickSearchLayer);
         var exception = Assert.Throws<InvalidOperationException>(() =>
             new ApplicationUiLayerScope(
                 fixture.Host,
@@ -105,18 +106,13 @@ public sealed class ApplicationUiLayerScopeTests
         Assert.Same(input, packet.Input);
 
         conflicting.Dispose();
-        using var replacement = new ApplicationUiLayerScope(
-            fixture.Host,
-            fixture.CommandCompletionLayer,
-            fixture.PanelQuickSearchLayer,
-            fixture.TopMenuLayer);
     }
 
     [Fact]
     public void ConstructorRollback_ThirdRegistrationConflictPreservesCompositionAndLifo()
     {
         var fixture = Fixture.CreateWithoutScope();
-        using var conflicting = fixture.Host.RegisterOverlay(fixture.TopMenuLayer);
+        using var conflicting = fixture.Host.RegisterPersistentOverlay(fixture.TopMenuLayer);
         var exception = Assert.Throws<InvalidOperationException>(() =>
             new ApplicationUiLayerScope(
                 fixture.Host,
@@ -134,11 +130,6 @@ public sealed class ApplicationUiLayerScopeTests
         Assert.False(fixture.Root.TryTakeInput(out _));
 
         conflicting.Dispose();
-        using var replacement = new ApplicationUiLayerScope(
-            fixture.Host,
-            fixture.CommandCompletionLayer,
-            fixture.PanelQuickSearchLayer,
-            fixture.TopMenuLayer);
     }
 
     [Fact]
@@ -365,6 +356,21 @@ public sealed class ApplicationUiLayerScopeTests
             calls.Add(name);
             if (exception is not null)
                 throw exception;
+        }
+    }
+
+    private sealed class RecordingModalLayer(
+        Action<UiRenderContext> render,
+        Action<ConsoleInputEvent> route) : IUiLayer
+    {
+        public UiLayerInputPolicy InputPolicy => UiLayerInputPolicy.Modal;
+        public IUiFocusState FocusState { get; } = new UiFocusController();
+        public UiInteractionFrame CommittedInteractionFrame => UiInteractionFrame.Empty;
+        public void Render(UiRenderContext context) => render(context);
+        public UiInputResult RouteInput(ConsoleInputEvent input, UiInputRouteContext context)
+        {
+            route(input);
+            return UiInputResult.HandledResult;
         }
     }
 }

@@ -11,9 +11,12 @@ public sealed class PanelQuickSearchRendererTests
     public void Render_LongSearchTextAtEnd_ShowsBlankCellAfterLastCharacter()
     {
         var driver = new FakeConsoleDriver(width: 20, height: 8);
-        var renderer = new PanelQuickSearchRenderer(new ScreenRenderer(driver));
 
-        var layout = renderer.Render(new Rect(0, 0, 16, 8), "abcdefghij");
+        var layout = UiTestRender.Render(new ScreenRenderer(driver), canvas =>
+        {
+            var renderer = new PanelQuickSearchRenderer(canvas);
+            return renderer.Render(new Rect(0, 0, 16, 8), "abcdefghij");
+        });
 
         Assert.NotNull(layout);
         Assert.Equal("bcdefghij ", driver.GetRegionText(new Rect(3, 5, 10, 1)));
