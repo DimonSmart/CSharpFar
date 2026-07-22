@@ -28,7 +28,7 @@ public sealed class MessageDialog
             (context, focusScope) =>
             {
                 var layout = CreateLayout(title, message, context.Size, buttons: null);
-                return Draw(context, focusScope, title, layout, viewport, form: null);
+                return Draw(context, focusScope, title, layout, viewport, actions: null);
             },
             BuildInteractionFrame,
             (input, frame, route) => (new MessageDialogInput(input, FormInputResult.NotHandled), RouteViewportInput(input, frame, route, viewport)),
@@ -50,15 +50,14 @@ public sealed class MessageDialog
         var dialogButtons = buttons
             .Select((text, index) => new DialogButton(index.ToString(), text, HotKeyFrom(text), index == 0))
             .ToArray();
-        var form = new ScrollableFormDialog([
-            new ButtonRow(dialogButtons, FarDialogStyles.Fill, FarDialogStyles.FocusedInput) { Id = "actions" },
-        ]);
+        var actions = new DialogActionController(
+            dialogButtons, 0, null, FarDialogStyles.Fill, FarDialogStyles.FocusedInput);
         var viewport = new ScrollableViewport();
         return _modalDialogs.RunInteractive<MessageDialogFrame, MessageDialogInput, int>(
             (context, focusScope) =>
             {
                 var layout = CreateLayout(title, message, context.Size, dialogButtons);
-                return Draw(context, focusScope, title, layout, viewport, form);
+                return Draw(context, focusScope, title, layout, viewport, actions);
             },
             BuildInteractionFrame,
             (input, frame, route) =>
@@ -73,18 +72,13 @@ public sealed class MessageDialog
                 if (input is MouseConsoleInputEvent && IsViewportMouseRoute(route))
                     return (new MessageDialogInput(input, FormInputResult.NotHandled), RouteViewportMouse((MouseConsoleInputEvent)input, frame, viewport));
 
-                FormRouteResult result = form.RouteInput(input, frame.Buttons!, route);
-                return (new MessageDialogInput(input, result.FormResult), result.UiResult);
+                FormRouteResult result = actions.RouteInput(input, frame.Buttons!, route);
+                return (new MessageDialogInput(input, result.FormResult, actions.Interpret(result.FormResult)), result.UiResult);
             },
             (routed, semantic) =>
             {
-                ConsoleInputEvent input = semantic.Input;
-                if (semantic.FormResult.Command is string buttonId && int.TryParse(buttonId, out int selected))
-                {
-                    return ModalDialogLoopResult<int>.Complete(selected);
-                }
-                if (input is KeyConsoleInputEvent { Key.Key: ConsoleKey.Escape })
-                    return ModalDialogLoopResult<int>.Complete(-1);
+                if (semantic.ActionOutcome is { } outcome)
+                    return ModalDialogLoopResult<int>.Complete(outcome.Kind == DialogActionOutcomeKind.Activated ? outcome.ButtonIndex : -1);
 
                 return ModalDialogLoopResult<int>.Continue;
             },
@@ -97,9 +91,9 @@ public sealed class MessageDialog
             .AddHitRegion(ContentTarget, frame.Viewport.ContentBounds);
         if (frame.Viewport.ScrollbarBounds is Rect scrollbar)
             builder.AddHitRegion(ScrollbarTarget, scrollbar);
-        if (frame is { Form: not null, Buttons: not null })
+        if (frame is { Actions: not null, Buttons: not null })
             return builder
-                .AddFragment(frame.Form.BuildInteractionFragment(frame.Buttons))
+                .AddFragment(frame.Actions.BuildInteractionFragment(frame.Buttons))
                 .SetDefaultFocusTarget(frame.Buttons.DefaultTarget)
                 .Build();
 
@@ -116,7 +110,7 @@ public sealed class MessageDialog
         string title,
         MessageDialogLayout layout,
         ScrollableViewport viewport,
-        ScrollableFormDialog? form)
+        DialogActionController? actions)
     {
         ScrollableFormFrame? buttons = null;
         ScreenRenderer screen = context.Screen;
@@ -147,7 +141,7 @@ public sealed class MessageDialog
                     PaletteStyles.DialogError(palette));
             }
 
-            if (form is null)
+            if (actions is null)
             {
                 const string hint = "[ Press Enter ]";
                 screen.Write(
@@ -158,14 +152,15 @@ public sealed class MessageDialog
                 return;
             }
 
-            buttons = form.Render(
+            buttons = actions.Render(
                 new FormRenderContext(
                     context,
                     new Rect(textX, layout.ActionRow, textWidth, 1),
-                    PaletteStyles.DialogBorder(palette)),
+                    PaletteStyles.DialogBorder(palette),
+                    new Rect(textX, layout.ActionRow, textWidth, 1)),
                 focusScope);
         });
-        return new MessageDialogFrame(layout, viewportFrame, buttons, form);
+        return new MessageDialogFrame(layout, viewportFrame, buttons, actions);
     }
 
     private static MessageDialogLayout CreateLayout(
@@ -322,9 +317,10 @@ public sealed class MessageDialog
         MessageDialogLayout Layout,
         ScrollableViewportFrameState Viewport,
         ScrollableFormFrame? Buttons,
-        ScrollableFormDialog? Form);
+        DialogActionController? Actions);
 
     private readonly record struct MessageDialogInput(
         ConsoleInputEvent Input,
-        FormInputResult FormResult);
+        FormInputResult FormResult,
+        DialogActionOutcome? ActionOutcome = null);
 }

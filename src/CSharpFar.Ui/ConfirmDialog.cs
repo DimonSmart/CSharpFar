@@ -23,38 +23,28 @@ public sealed class ConfirmDialog
     /// </summary>
     public bool Show(string title, string question, string itemName)
     {
-        return ShowComposed(title, question, itemName);
-    }
-
-    private bool ShowComposed(string title, string question, string itemName)
-    {
-        var actions = new ButtonRow(
+        var actions = new DialogActionController(
         [
             new DialogButton("ok", "OK", 'O', IsDefault: true),
             new DialogButton("cancel", "Cancel", 'C'),
-        ], FarDialogStyles.Fill, FarDialogStyles.FocusedInput)
-        { Id = "actions" };
-        var form = new ScrollableFormDialog();
-        form.SetRows([], [actions]);
-        return _modalDialogs.RunInteractive<ScrollableFormFrame, FormInputResult, bool>(
-            (context, focusScope) => RenderLayer(context, focusScope, form, title, question, itemName),
-            form.BuildInteractionFrame,
+        ], 0, 1, FarDialogStyles.Fill, FarDialogStyles.FocusedInput);
+        return _modalDialogs.RunInteractive<ScrollableFormFrame, DialogActionOutcome?, bool>(
+            (context, focusScope) => RenderLayer(context, focusScope, actions, title, question, itemName),
+            actions.BuildInteractionFrame,
             (input, frame, route) =>
             {
-                FormRouteResult result = form.RouteInput(input, frame, route);
-                return (result.FormResult, result.UiResult);
+                FormRouteResult result = actions.RouteInput(input, frame, route);
+                return (actions.Interpret(result.FormResult), result.UiResult);
             },
-            (_, result) =>
+            (_, outcome) =>
             {
-                if (result.Kind == FormInputResultKind.Cancel)
-                    return ModalDialogLoopResult<bool>.Complete(false);
-                if (result.Kind == FormInputResultKind.Submit)
-                    return ModalDialogLoopResult<bool>.Complete(result.Command == "ok");
+                if (outcome is { } action)
+                    return ModalDialogLoopResult<bool>.Complete(action.Kind == DialogActionOutcomeKind.Activated && action.ButtonId == "ok");
                 return ModalDialogLoopResult<bool>.Continue;
             });
     }
 
-    private ScrollableFormFrame RenderLayer(UiRenderContext context, UiFocusScope focusScope, ScrollableFormDialog form, string title, string question, string itemName)
+    private ScrollableFormFrame RenderLayer(UiRenderContext context, UiFocusScope focusScope, DialogActionController actions, string title, string question, string itemName)
     {
         ScrollableFormFrame? frame = null;
         ScreenRenderer screen = context.Screen;
@@ -73,7 +63,7 @@ public sealed class ConfirmDialog
             screen.Write(contentX, bounds.Y + 2, new string(' ', contentWidth), FarDialogStyles.Fill);
             screen.Write(nameX, bounds.Y + 2, truncatedName, FarDialogStyles.Fill);
 
-            frame = form.Render(
+            frame = actions.Render(
                 new FormRenderContext(
                     context,
                     new Rect(contentX, bounds.Y + bounds.Height - 3, contentWidth, 1),

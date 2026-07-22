@@ -420,6 +420,55 @@ public sealed class UiComponentDialogTests
     }
 
     [Fact]
+    public void ChoiceDialog_NormalizesDefaultAndCancelButtonIndexes()
+    {
+        var enterDriver = new FakeConsoleDriver(80, 20);
+        enterDriver.EnqueueKey(Key(ConsoleKey.Enter));
+        var escapeDriver = new FakeConsoleDriver(80, 20);
+        escapeDriver.EnqueueKey(Key(ConsoleKey.Escape));
+        var options = new ChoiceDialogOptions
+        {
+            Title = "Question",
+            Lines = ["Continue?"],
+            Buttons =
+            [
+                new DialogButton("yes", "Yes", 'Y', IsDefault: true),
+                new DialogButton("no", "No", 'N'),
+            ],
+            DefaultButtonIndex = 10,
+            CancelButtonIndex = -1,
+        };
+
+        ChoiceDialogResult entered = new ChoiceDialog(CreateModalHost(enterDriver)).Show(options);
+        ChoiceDialogResult cancelled = new ChoiceDialog(CreateModalHost(escapeDriver)).Show(options);
+
+        Assert.Equal("no", entered.ButtonId);
+        Assert.Equal("yes", cancelled.ButtonId);
+    }
+
+    [Fact]
+    public void ConfirmDialog_EnterConfirms()
+    {
+        var enterDriver = new FakeConsoleDriver(80, 20);
+        enterDriver.EnqueueKey(Key(ConsoleKey.Enter));
+
+        bool confirmed = new ConfirmDialog(CreateModalHost(enterDriver)).Show("Confirm", "Delete?", "file.txt");
+
+        Assert.True(confirmed);
+    }
+
+    [Fact]
+    public void ConfirmDialog_EscapeCancels()
+    {
+        var driver = new FakeConsoleDriver(80, 20);
+        driver.EnqueueKey(Key(ConsoleKey.Escape));
+
+        bool cancelled = new ConfirmDialog(CreateModalHost(driver)).Show("Confirm", "Delete?", "file.txt");
+
+        Assert.False(cancelled);
+    }
+
+    [Fact]
     public void SingleLineInputDialog_EnterConfirmsInitialText()
     {
         var driver = new FakeConsoleDriver(80, 20);

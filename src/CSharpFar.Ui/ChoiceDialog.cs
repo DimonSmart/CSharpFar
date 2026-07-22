@@ -33,37 +33,29 @@ public sealed class ChoiceDialog
         if (options.Buttons.Count == 0)
             throw new ArgumentException("At least one button is required.", nameof(options));
 
-        int cancelButton = ClampButtonIndex(options.CancelButtonIndex, options.Buttons);
         var palette = UiTheme.Current;
-        var actions = new ButtonRow(
+        var actions = new DialogActionController(
             options.Buttons,
+            options.DefaultButtonIndex,
+            options.CancelButtonIndex,
             PaletteStyles.DialogFill(palette),
-            PaletteStyles.InputField(palette),
-            ClampButtonIndex(options.DefaultButtonIndex, options.Buttons))
-        { Id = "actions" };
-        var form = new ScrollableFormDialog();
-        form.SetRows([], [actions]);
-        return _modalDialogs.RunInteractive<ScrollableFormFrame, FormInputResult, ChoiceDialogResult>(
+            PaletteStyles.InputField(palette));
+        return _modalDialogs.RunInteractive<ScrollableFormFrame, DialogActionOutcome?, ChoiceDialogResult>(
             (context, focusScope) =>
             {
                 var layout = CreateLayout(options, context.Size);
-                return RenderLayer(context, focusScope, form, options, layout);
+                return RenderLayer(context, focusScope, actions, options, layout);
             },
-            form.BuildInteractionFrame,
+            actions.BuildInteractionFrame,
             (input, frame, route) =>
             {
-                FormRouteResult result = form.RouteInput(input, frame, route);
-                return (result.FormResult, result.UiResult);
+                FormRouteResult result = actions.RouteInput(input, frame, route);
+                return (actions.Interpret(result.FormResult), result.UiResult);
             },
-            (_, result) =>
+            (_, outcome) =>
             {
-                if (result.Kind == FormInputResultKind.Cancel)
-                    return ModalDialogLoopResult<ChoiceDialogResult>.Complete(
-                        result.Command is string cancelId
-                            ? ResultForButtonId(options.Buttons, cancelId)
-                            : ResultForIndex(options.Buttons, cancelButton));
-                if (result.Kind == FormInputResultKind.Submit && result.Command is string buttonId)
-                    return ModalDialogLoopResult<ChoiceDialogResult>.Complete(ResultForButtonId(options.Buttons, buttonId));
+                if (outcome is { } action)
+                    return ModalDialogLoopResult<ChoiceDialogResult>.Complete(new ChoiceDialogResult(action.ButtonIndex, action.ButtonId!));
                 return ModalDialogLoopResult<ChoiceDialogResult>.Continue;
             });
     }
@@ -71,7 +63,7 @@ public sealed class ChoiceDialog
     private static ScrollableFormFrame RenderLayer(
         UiRenderContext context,
         UiFocusScope focusScope,
-        ScrollableFormDialog form,
+        DialogActionController actions,
         ChoiceDialogOptions options,
         ChoiceDialogLayout layout)
     {
@@ -98,7 +90,7 @@ public sealed class ChoiceDialog
                         PaletteStyles.DialogFill(palette));
                 }
 
-                frame = form.Render(
+                frame = actions.Render(
                     new FormRenderContext(
                         context,
                         new Rect(textX, Math.Max(contentBounds.Y, layout.ButtonY - 1), textWidth, 1),
@@ -126,23 +118,6 @@ public sealed class ChoiceDialog
         int y = Math.Max(0, (size.Height - height) / 2);
         return new ChoiceDialogLayout(new Rect(x, y, width, height), lineRows, y + height - 2);
     }
-
-    private static ChoiceDialogResult ResultForButtonId(IReadOnlyList<DialogButton> buttons, string buttonId)
-    {
-        for (int i = 0; i < buttons.Count; i++)
-        {
-            if (buttons[i].Id == buttonId)
-                return new ChoiceDialogResult(i, buttonId);
-        }
-
-        return new ChoiceDialogResult(-1, buttonId);
-    }
-
-    private static ChoiceDialogResult ResultForIndex(IReadOnlyList<DialogButton> buttons, int index) =>
-        new(index, buttons[index].Id);
-
-    private static int ClampButtonIndex(int index, IReadOnlyList<DialogButton> buttons) =>
-        Math.Clamp(index, 0, buttons.Count - 1);
 
     private static string Fit(string text, int width)
     {
