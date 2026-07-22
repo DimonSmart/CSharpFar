@@ -155,10 +155,12 @@ public sealed class UiInputRoutingTests
     private static MouseConsoleInputEvent Mouse(MouseEventKind kind, MouseButton button) =>
         new(1, 1, button, kind, MouseKeyModifiers.None);
 
-    private sealed class RecordingLayer(UiLayerInputPolicy policy, string name, List<string> calls) : IUiLayer
+    private sealed class RecordingLayer(UiLayerInputPolicy policy, string name, List<string> calls) : IUiLayer, IUiFocusRuntime
     {
+        private readonly UiFocusController _focus = new();
+
         public UiLayerInputPolicy InputPolicy => policy;
-        public IUiFocusState FocusState { get; } = new UiFocusController();
+        public IUiFocusState FocusState => _focus;
         public UiInteractionFrame CommittedInteractionFrame { get; } = new([
             new(new UiTargetId("thumb"), new CSharpFar.Console.Models.Rect(0, 0, 1, 1)),
         ]);
@@ -166,6 +168,9 @@ public sealed class UiInputRoutingTests
         public List<UiInputRouteContext> Contexts { get; } = [];
         public UiInputResult Result { get; set; } = UiInputResult.NotHandled;
         public void Render(UiRenderContext context) { }
+
+        void IUiFocusRuntime.RequestFocusOnNextCommit(UiFocusRequest request) =>
+            _focus.RequestOnNextCommit(request);
 
         public UiInputResult RouteInput(ConsoleInputEvent input, UiInputRouteContext context)
         {
@@ -176,7 +181,7 @@ public sealed class UiInputRoutingTests
         }
     }
 
-    private sealed class SurfaceLayer(ScreenRenderer screen, RecordingLayer layer) : IUiSurface, IUiLayer
+    private sealed class SurfaceLayer(ScreenRenderer screen, RecordingLayer layer) : IUiSurface, IUiLayer, IUiFocusRuntime
     {
         public UiLayerInputPolicy InputPolicy => layer.InputPolicy;
         public IUiFocusState FocusState => layer.FocusState;
@@ -185,5 +190,8 @@ public sealed class UiInputRoutingTests
         public void Render(UiRenderContext context) => layer.Render(context);
         public void CompleteFrame(UiFrameCompletion completion) { }
         public UiInputResult RouteInput(ConsoleInputEvent input, UiInputRouteContext context) => layer.RouteInput(input, context);
+
+        void IUiFocusRuntime.RequestFocusOnNextCommit(UiFocusRequest request) =>
+            ((IUiFocusRuntime)layer).RequestFocusOnNextCommit(request);
     }
 }

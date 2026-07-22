@@ -361,6 +361,10 @@ public sealed class UiLayerTests
 
         host.DispatchInput(Key(ConsoleKey.A));
         Assert.Equal(first, layer.LastRoute!.Target);
+        Assert.Equal(first, layer.FocusState.FocusedTarget);
+
+        host.Render();
+        Assert.Equal(second, layer.FocusState.FocusedTarget);
         host.DispatchInput(Key(ConsoleKey.B));
 
         Assert.Equal(second, layer.LastRoute!.Target);
@@ -478,7 +482,7 @@ public sealed class UiLayerTests
             UiInputRouteContext context) => UiInputResult.NotHandled;
     }
 
-    private sealed class SurfaceLayer : IUiSurface, IUiLayer
+    private sealed class SurfaceLayer : IUiSurface, IUiLayer, IUiFocusRuntime
     {
         private readonly ScreenRenderer _screen;
         private readonly UiLayer<TestFrame> _layer;
@@ -495,5 +499,8 @@ public sealed class UiLayerTests
 
         public UiInputResult RouteInput(ConsoleInputEvent input, UiInputRouteContext context) =>
             _layer.RouteInput(input, context);
+
+        void IUiFocusRuntime.RequestFocusOnNextCommit(UiFocusRequest request) =>
+            ((IUiFocusRuntime)_layer).RequestFocusOnNextCommit(request);
     }
 }

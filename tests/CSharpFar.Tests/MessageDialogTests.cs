@@ -31,12 +31,23 @@ public sealed class MessageDialogTests
         var driver = new FakeConsoleDriver(width: 60, height: 8);
         driver.EnqueueKey(new ConsoleKeyInfo('\0', ConsoleKey.PageDown, shift: false, alt: false, control: false));
         driver.EnqueueKey(new ConsoleKeyInfo('\r', ConsoleKey.Enter, shift: false, alt: false, control: false));
+        string? scrolledScreen = null;
+        int readCount = 0;
+        Action<FakeConsoleDriver>? observeRead = null;
+        observeRead = current =>
+        {
+            readCount++;
+            if (readCount == 2)
+                scrolledScreen = ScreenText(current);
+            else
+                current.BeforeReadInput = observeRead;
+        };
+        driver.BeforeReadInput = observeRead;
         string message = string.Join('\n', ["line 1", "line 2", "line 3", "line 4", "line 5"]);
 
         Show(driver, "Module", message);
 
-        string rendered = string.Join('\n', driver.WriteRecords.Select(record => record.Text));
-        Assert.Contains("line 4", rendered, StringComparison.Ordinal);
+        Assert.Contains("line 4", Assert.IsType<string>(scrolledScreen), StringComparison.Ordinal);
         Assert.False(driver.CursorVisible);
     }
 
@@ -44,24 +55,35 @@ public sealed class MessageDialogTests
     public void Show_WheelOverTextScrollsLongMessage()
     {
         var driver = new FakeConsoleDriver(width: 60, height: 8);
+        string? scrolledScreen = null;
         int inputCount = 0;
-        driver.BeforeReadInput = current =>
+        Action<FakeConsoleDriver>? provideInput = null;
+        provideInput = current =>
         {
             if (inputCount++ == 0)
             {
-                var line = current.WriteRecords.Last(record => record.Text.Contains("line 1", StringComparison.Ordinal));
-                current.EnqueueInput(new MouseConsoleInputEvent(line.X, line.Y, MouseButton.WheelDown, MouseEventKind.Wheel, MouseKeyModifiers.None));
+                var line = Enumerable.Range(0, current.GetSize().Height)
+                    .Select(y => (Y: y, Text: current.GetRow(y)))
+                    .Single(row => row.Text.Contains("line 1", StringComparison.Ordinal));
+                current.EnqueueInput(new MouseConsoleInputEvent(
+                    line.Text.IndexOf("line 1", StringComparison.Ordinal),
+                    line.Y,
+                    MouseButton.WheelDown,
+                    MouseEventKind.Wheel,
+                    MouseKeyModifiers.None));
+                current.BeforeReadInput = provideInput;
             }
             else
             {
+                scrolledScreen = ScreenText(current);
                 current.EnqueueKey(new ConsoleKeyInfo('\r', ConsoleKey.Enter, false, false, false));
             }
         };
+        driver.BeforeReadInput = provideInput;
 
         Show(driver, "Module", string.Join('\n', ["line 1", "line 2", "line 3", "line 4", "line 5", "line 6"]));
 
-        string rendered = string.Join('\n', driver.WriteRecords.Select(record => record.Text));
-        Assert.Contains("line 4", rendered, StringComparison.Ordinal);
+        Assert.Contains("line 4", Assert.IsType<string>(scrolledScreen), StringComparison.Ordinal);
     }
 
     [Fact]
@@ -84,14 +106,25 @@ public sealed class MessageDialogTests
         driver.EnqueueKey(new ConsoleKeyInfo('\0', ConsoleKey.PageDown, false, false, false));
         driver.EnqueueKey(new ConsoleKeyInfo('\0', ConsoleKey.RightArrow, false, false, false));
         driver.EnqueueKey(new ConsoleKeyInfo('\r', ConsoleKey.Enter, false, false, false));
+        string? scrolledScreen = null;
+        int readCount = 0;
+        Action<FakeConsoleDriver>? observeRead = null;
+        observeRead = current =>
+        {
+            readCount++;
+            if (readCount == 2)
+                scrolledScreen = ScreenText(current);
+            else
+                current.BeforeReadInput = observeRead;
+        };
+        driver.BeforeReadInput = observeRead;
 
         int result = CreateDialog(driver).ShowButtons(
             "Question",
             string.Join('\n', ["line 1", "line 2", "line 3", "line 4", "line 5", "line 6"]),
             ["First", "Second"]);
 
-        string rendered = string.Join('\n', driver.WriteRecords.Select(record => record.Text));
-        Assert.Contains("line 4", rendered, StringComparison.Ordinal);
+        Assert.Contains("line 4", Assert.IsType<string>(scrolledScreen), StringComparison.Ordinal);
         Assert.Equal(1, result);
     }
 
@@ -114,6 +147,9 @@ public sealed class MessageDialogTests
 
         Assert.Equal(1, result);
     }
+
+    private static string ScreenText(FakeConsoleDriver driver) =>
+        string.Join('\n', Enumerable.Range(0, driver.GetSize().Height).Select(driver.GetRow));
 
     private static void Show(FakeConsoleDriver driver, string title, string message)
     {

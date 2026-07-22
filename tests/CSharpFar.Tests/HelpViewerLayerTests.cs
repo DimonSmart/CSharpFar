@@ -475,23 +475,28 @@ public sealed class HelpViewerLayerTests
         return thumb.ThumbY;
     }
 
-    private sealed class CursorRootSurface(ScreenRenderer screen) : IUiSurface, IUiLayer
+    private sealed class CursorRootSurface(ScreenRenderer screen) : UiLayer<UiFocusFrame>, IUiSurface
     {
-        public UiLayerInputPolicy InputPolicy => UiLayerInputPolicy.Bubble;
-        public IUiFocusState FocusState { get; } = new UiFocusController();
-        public UiInteractionFrame CommittedInteractionFrame { get; private set; } = UiInteractionFrame.Empty;
+        private static readonly UiTargetId CursorTarget = new("root.cursor");
+
+        public override UiLayerInputPolicy InputPolicy => UiLayerInputPolicy.Bubble;
+
         public IDisposable BeginFrame(UiRenderRequest request) => screen.BeginFrame();
 
-        public void Render(UiRenderContext context)
-        {
-            var focus = FocusFrame(
-                [new UiFocusEntry(new UiTargetId("root.cursor"), 0, Cursor: new UiCursorPlacement(2, 2, true))],
-                new UiTargetId("root.cursor"));
-            CommittedInteractionFrame = new UiInteractionFrame([], focus, new UiTargetId("root.cursor"));
-        }
-
         public void CompleteFrame(UiFrameCompletion completion) { }
-        public UiInputResult RouteInput(ConsoleInputEvent input, UiInputRouteContext context) => UiInputResult.NotHandled;
+
+        protected override UiFocusFrame RenderFrame(UiRenderContext context) =>
+            FocusFrame(
+                [new UiFocusEntry(CursorTarget, 0, Cursor: new UiCursorPlacement(2, 2, true))],
+                CursorTarget);
+
+        protected override UiInteractionFrame BuildInteractionFrame(UiFocusFrame frame) =>
+            new([], frame, CursorTarget);
+
+        protected override UiInputResult RouteInput(
+            ConsoleInputEvent input,
+            UiFocusFrame frame,
+            UiInputRouteContext context) => UiInputResult.NotHandled;
     }
 }
 

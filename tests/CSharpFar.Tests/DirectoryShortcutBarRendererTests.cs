@@ -12,11 +12,12 @@ public sealed class DirectoryShortcutBarRendererTests
     {
         var driver = new FakeConsoleDriver(80, 2);
 
-        UiTestRender.Render(new ScreenRenderer(driver), canvas =>
+        ApplicationDirectoryShortcutBarFrame? frame = UiTestRender.Render(new ScreenRenderer(driver), canvas =>
             new DirectoryShortcutBarRenderer(canvas)
                 .Render(0, 80, new AppSettings.DirectoryShortcutSettings()));
 
-        Assert.Empty(driver.WriteRecords);
+        Assert.Null(frame);
+        Assert.Equal(new string(' ', 80), driver.GetRow(0));
     }
 
     [Fact]
