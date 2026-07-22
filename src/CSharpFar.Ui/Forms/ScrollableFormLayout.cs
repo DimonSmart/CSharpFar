@@ -26,8 +26,10 @@ public sealed partial class ScrollableFormDialog
         int viewportRows = Math.Max(1, context.BodyBounds.Height);
         int effectiveScrollTop = ClampScrollTop(ScrollTop, viewportRows);
         ScrollableFormFrame provisionalFrame = BuildFrame(context, effectiveScrollTop);
-        UiTargetId? effectiveFocusedTarget = focusScope.FocusedTarget;
-        if (_ensureFocusedTargetVisibleOnNextRender)
+        UiFocusFrame candidateFocusFrame = BuildInteractionFrame(provisionalFrame).Focus;
+        UiTargetId? effectiveFocusedTarget = focusScope.ResolveFocusedTarget(candidateFocusFrame);
+        bool focusChanges = effectiveFocusedTarget != focusScope.FocusedTarget;
+        if (_ensureFocusedTargetVisibleOnNextRender || focusChanges)
             effectiveScrollTop = EnsureFocusedTargetVisible(effectiveScrollTop, viewportRows, effectiveFocusedTarget);
         ScrollableFormFrame frame = BuildFrame(context, effectiveScrollTop, effectiveFocusedTarget);
         UiInteractionFrame interactionFrame = BuildInteractionFrame(frame);

@@ -46,8 +46,14 @@ public sealed partial class ScrollableFormDialog
     {
         get
         {
-            if ((_requestedInitialTarget ?? _activeFocusState?.FocusedTarget) is { } selected)
-                return selected;
+            if (_requestedInitialTarget is { } requestedInitialTarget)
+                return requestedInitialTarget;
+
+            if (_activeFocusState is { } focusState &&
+                focusState.ResolveFocusedTarget(BuildLogicalFocusFrame()) is { } resolvedTarget)
+            {
+                return resolvedTarget;
+            }
 
             IFormRow? first = AllRows().FirstOrDefault(row => row.IsFocusable);
             return first is null ? null : RowTarget(first);

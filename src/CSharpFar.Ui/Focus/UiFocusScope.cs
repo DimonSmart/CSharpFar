@@ -9,6 +9,8 @@ public interface IUiFocusState
     bool HasFocus { get; }
 
     bool TryGetFocusedEntry(out UiFocusEntry entry);
+
+    UiTargetId? ResolveFocusedTarget(UiFocusFrame candidateFrame);
 }
 
 internal sealed class UiFocusController : IUiFocusState
@@ -52,8 +54,8 @@ internal sealed class UiFocusController : IUiFocusState
         _nextCommitRequest = UiFocusRequest.None;
     }
 
-    internal UiTargetId? ResolveFocusedTarget(UiFocusFrame frame) =>
-        ResolveFocusedTarget(frame, _nextCommitRequest);
+    public UiTargetId? ResolveFocusedTarget(UiFocusFrame candidateFrame) =>
+        ResolveFocusedTarget(candidateFrame, _nextCommitRequest);
 
     private UiTargetId? ResolveFocusedTarget(UiFocusFrame frame, UiFocusRequest request)
     {
