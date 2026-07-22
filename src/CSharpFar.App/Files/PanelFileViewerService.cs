@@ -13,7 +13,7 @@ namespace CSharpFar.App.Files;
 
 internal sealed class PanelFileViewerService
 {
-    private readonly ScreenRenderer _screen;
+    private readonly InteractiveSurfaceHost _surfaces;
     private readonly ModalDialogHost _modalDialogs;
     private readonly Func<ConsolePalette> _palette;
     private readonly FilePanelSourceRegistry _sourceRegistry;
@@ -26,7 +26,7 @@ internal sealed class PanelFileViewerService
     private readonly Action<FilePanelState, int> _safeRefresh;
 
     public PanelFileViewerService(
-        ScreenRenderer screen,
+        InteractiveSurfaceHost surfaces,
         ModalDialogHost modalDialogs,
         Func<ConsolePalette> palette,
         FilePanelSourceRegistry sourceRegistry,
@@ -38,7 +38,7 @@ internal sealed class PanelFileViewerService
         Func<PanelSide, int> visibleRows,
         Action<FilePanelState, int> safeRefresh)
     {
-        _screen = screen;
+        _surfaces = surfaces;
         _modalDialogs = modalDialogs;
         _palette = palette;
         _sourceRegistry = sourceRegistry;
@@ -56,7 +56,7 @@ internal sealed class PanelFileViewerService
         if (state.SourceId == PanelSourceId.Local)
         {
             _history.AddFile(new FileHistoryItem { Path = item.FullPath });
-            new FileViewer(_screen, _modalDialogs, _palette()).Show(item.FullPath, BuildLocalViewerOptions(state, item));
+            new FileViewer(_surfaces, _modalDialogs, _palette()).Show(item.FullPath, BuildLocalViewerOptions(state, item));
             _safeRefresh(state, _visibleRows(_panelSideForState(state)));
             return;
         }
@@ -73,7 +73,7 @@ internal sealed class PanelFileViewerService
             }
 
             _history.AddFile(new FileHistoryItem { Path = $"{item.SourceId}:{item.SourcePath}" });
-            new FileViewer(_screen, _modalDialogs, _palette()).Show(tempPath);
+            new FileViewer(_surfaces, _modalDialogs, _palette()).Show(tempPath);
         }
         finally
         {
@@ -100,7 +100,7 @@ internal sealed class PanelFileViewerService
             EditFile = path =>
             {
                 _history.AddFile(new FileHistoryItem { Path = path });
-                new FileEditor(_screen, _modalDialogs, _palette(), _settings.Editor, _clipboard).Show(path);
+                new FileEditor(_surfaces, _modalDialogs, _palette(), _settings.Editor, _clipboard).Show(path);
             },
             CurrentFileChanged = path =>
             {

@@ -16,19 +16,15 @@ internal sealed class LargeFileViewer
     private const int FastHorizontalTextScrollChars = 20;
     private const int FastPageMultiplier = 5;
 
-    private readonly UiCompositionHost _composition;
-    private readonly IUiCanvas _screen;
     private readonly ModalDialogHost _modalDialogs;
     private readonly ConsolePalette _palette;
     private readonly InteractiveSurfaceHost _surfaces;
 
-    public LargeFileViewer(UiCompositionHost composition, ModalDialogHost modalDialogs, ConsolePalette? palette = null)
+    public LargeFileViewer(InteractiveSurfaceHost surfaces, ModalDialogHost modalDialogs, ConsolePalette? palette = null)
     {
-        _composition = composition;
-        _screen = composition.Screen;
+        _surfaces = surfaces ?? throw new ArgumentNullException(nameof(surfaces));
         _modalDialogs = modalDialogs;
         _palette = palette ?? PaletteRegistry.Default;
-        _surfaces = new InteractiveSurfaceHost(composition);
     }
 
     public void Show(string filePath) => Show(filePath, null);
@@ -203,7 +199,7 @@ internal sealed class LargeFileViewer
                 break;
 
             case ConsoleKey.F1:
-                new HelpViewer(_composition, _palette).Show();
+                new HelpViewer(_surfaces, _palette).Show();
                 break;
 
             case ConsoleKey.F2 when shift && !alt && !control:
@@ -397,23 +393,25 @@ internal sealed class LargeFileViewer
     }
 
     private LargeFileRenderView Draw(
+        IUiCanvas canvas,
         string filePath,
         IFileByteReader reader,
         LargeFileViewerState state,
         int contentHeight,
         ConsoleSize size)
     {
-        DrawHeader(filePath, reader, state, size);
+        DrawHeader(canvas, filePath, reader, state, size);
 
         var view = state.IsHexMode
-            ? DrawBinaryContent(reader, state, contentHeight, size.Width)
-            : DrawTextContent(reader, state, contentHeight, size.Width);
+            ? DrawBinaryContent(canvas, reader, state, contentHeight, size.Width)
+            : DrawTextContent(canvas, reader, state, contentHeight, size.Width);
 
-        DrawFooter(size, state);
+        DrawFooter(canvas, size, state);
         return view;
     }
 
     private void DrawHeader(
+        IUiCanvas canvas,
         string filePath,
         IFileByteReader reader,
         LargeFileViewerState state,
@@ -433,7 +431,7 @@ internal sealed class LargeFileViewer
         string nameSection = FormatHeaderPath(filePath, nameWidth);
 
         string header = nameSection.PadRight(nameWidth) + posSection;
-        _screen.WriteForced(0, 0, header, PaletteStyles.PathHeaderActive(_palette));
+        canvas.WriteForced(0, 0, header, PaletteStyles.PathHeaderActive(_palette));
     }
 
     private static string FormatHeaderPath(string filePath, int width)
@@ -452,17 +450,19 @@ internal sealed class LargeFileViewer
     }
 
     private LargeFileRenderView DrawTextContent(
+        IUiCanvas canvas,
         IFileByteReader reader,
         LargeFileViewerState state,
         int contentHeight,
         int width)
     {
         return state.WrapLines
-            ? DrawWrappedTextContent(reader, state, contentHeight, width)
-            : DrawUnwrappedTextContent(state, contentHeight, width);
+            ? DrawWrappedTextContent(canvas, reader, state, contentHeight, width)
+            : DrawUnwrappedTextContent(canvas, state, contentHeight, width);
     }
 
     private LargeFileRenderView DrawUnwrappedTextContent(
+        IUiCanvas canvas,
         LargeFileViewerState state,
         int contentHeight,
         int width)
@@ -478,11 +478,11 @@ internal sealed class LargeFileViewer
             if (row < scanned.Lines.Count)
             {
                 var line = scanned.Lines[row];
-                WriteTextLine(line.Text, row + 1, state.HorizontalOffset, width, state.SearchMatch, line.StartOffset, segmentStartIndex: 0);
+                WriteTextLine(canvas, line.Text, row + 1, state.HorizontalOffset, width, state.SearchMatch, line.StartOffset, segmentStartIndex: 0);
             }
             else
             {
-                _screen.WriteForced(0, row + 1, new string(' ', width), PaletteStyles.CommandLine(_palette));
+                canvas.WriteForced(0, row + 1, new string(' ', width), PaletteStyles.CommandLine(_palette));
             }
         }
 
@@ -490,6 +490,7 @@ internal sealed class LargeFileViewer
     }
 
     private LargeFileRenderView DrawWrappedTextContent(
+        IUiCanvas canvas,
         IFileByteReader reader,
         LargeFileViewerState state,
         int contentHeight,
@@ -519,7 +520,7 @@ internal sealed class LargeFileViewer
                 if (row >= contentHeight)
                     break;
 
-                WriteTextLine(segment.Text, row + 1, scrollLeft: 0, width, state.SearchMatch, line.StartOffset, segment.StartIndex);
+                WriteTextLine(canvas, segment.Text, row + 1, scrollLeft: 0, width, state.SearchMatch, line.StartOffset, segment.StartIndex);
                 row++;
             }
 
@@ -531,7 +532,7 @@ internal sealed class LargeFileViewer
 
         while (row < contentHeight)
         {
-            _screen.WriteForced(0, row + 1, new string(' ', width), PaletteStyles.CommandLine(_palette));
+            canvas.WriteForced(0, row + 1, new string(' ', width), PaletteStyles.CommandLine(_palette));
             row++;
         }
 
@@ -539,6 +540,7 @@ internal sealed class LargeFileViewer
     }
 
     private LargeFileRenderView DrawBinaryContent(
+        IUiCanvas canvas,
         IFileByteReader reader,
         LargeFileViewerState state,
         int contentHeight,
@@ -559,7 +561,7 @@ internal sealed class LargeFileViewer
             var style = IsHexMatchOnRow(state.SearchMatch, rowOffset)
                 ? PaletteStyles.InputHighlight(_palette)
                 : PaletteStyles.CommandLine(_palette);
-            _screen.WriteForced(0, row + 1, FormatLine(text, state.HorizontalOffset, width), style);
+            canvas.WriteForced(0, row + 1, FormatLine(text, state.HorizontalOffset, width), style);
         }
 
         return new LargeFileRenderView(rows, nextOffset);
@@ -571,6 +573,7 @@ internal sealed class LargeFileViewer
         match.ByteOffset + match.ByteLength > rowOffset;
 
     private void WriteTextLine(
+        IUiCanvas canvas,
         string line,
         int y,
         int scrollLeft,
@@ -585,7 +588,7 @@ internal sealed class LargeFileViewer
         string sanitized = SanitizeTextForConsole(line);
         if (scrollLeft >= sanitized.Length)
         {
-            _screen.WriteForced(0, y, new string(' ', width), PaletteStyles.CommandLine(_palette));
+            canvas.WriteForced(0, y, new string(' ', width), PaletteStyles.CommandLine(_palette));
             return;
         }
 
@@ -593,7 +596,7 @@ internal sealed class LargeFileViewer
         if (visible.Length > width)
             visible = visible[..width];
 
-        _screen.WriteForced(0, y, visible.PadRight(width), PaletteStyles.CommandLine(_palette));
+        canvas.WriteForced(0, y, visible.PadRight(width), PaletteStyles.CommandLine(_palette));
         if (match is not { IsHex: false } || match.LineStartOffset != lineStartOffset)
             return;
 
@@ -609,13 +612,13 @@ internal sealed class LargeFileViewer
         int x = highlightStart - visibleStart;
         int length = highlightEnd - highlightStart;
         if (x >= 0 && x < visible.Length)
-            _screen.Write(x, y, visible.Substring(x, Math.Min(length, visible.Length - x)), PaletteStyles.InputHighlight(_palette));
+            canvas.Write(x, y, visible.Substring(x, Math.Min(length, visible.Length - x)), PaletteStyles.InputHighlight(_palette));
     }
 
-    private void DrawFooter(ConsoleSize size, LargeFileViewerState state)
+    private void DrawFooter(IUiCanvas canvas, ConsoleSize size, LargeFileViewerState state)
     {
         new FunctionKeyBarController<ConsoleKeyInfo>().Render(
-            _screen,
+            canvas,
             size.Height - 1,
             size.Width,
             ViewerFunctionKeyBarActions(state));
@@ -960,7 +963,7 @@ internal sealed class LargeFileViewer
                 item.Selection,
                 anchorByteOffset,
                 originalViewMode),
-            previewRedraw: () => _composition.Render());
+            previewRedraw: _surfaces.RequestRedraw);
 
         if (selected is null)
         {
@@ -1162,7 +1165,7 @@ internal sealed class LargeFileViewer
         protected override LargeFileViewerFrame RenderFrameCore(UiRenderContext context)
         {
             int contentHeight = Math.Max(0, context.Size.Height - 2);
-            LargeFileRenderView view = _viewer.Draw(_filePath, _reader, _state, contentHeight, context.Size);
+            LargeFileRenderView view = _viewer.Draw(context.Canvas, _filePath, _reader, _state, contentHeight, context.Size);
             IReadOnlyList<FunctionKeyHit> functionKeyHits = BuildFunctionKeyHits(
                 context.Size.Height > 0 ? context.Size.Height - 1 : 0,
                 context.Size.Width,

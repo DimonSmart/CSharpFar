@@ -15,8 +15,9 @@ internal sealed class PrintTerminalDiagnosticsCommand : IApplicationCommand
 
     public ApplicationCommandResult Execute(ApplicationCommandContext context, object? args = null)
     {
-        var viewport = context.Screen.GetViewport();
-        var size = context.Screen.GetSize();
+        var snapshot = context.GetTerminalSnapshot();
+        var viewport = snapshot.Viewport;
+        var size = snapshot.Size;
         var terminal = context.GetTerminalDiagnostics();
         string activeDirectory = context.ActiveState.CurrentDirectory;
         string processCurrentDirectory = Environment.CurrentDirectory;

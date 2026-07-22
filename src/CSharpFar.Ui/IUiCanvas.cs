@@ -16,11 +16,6 @@ public interface IUiCanvas
     ConsoleSize Size { get; }
 }
 
-public static class UiCanvas
-{
-    public static IUiCanvas From(ScreenRenderer renderer) => new ScreenRendererCanvas(renderer);
-}
-
 internal sealed class ScreenRendererCanvas(ScreenRenderer renderer) : IUiCanvas
 {
     public void Write(int x, int y, string text, CellStyle style) => renderer.Write(x, y, text, style);

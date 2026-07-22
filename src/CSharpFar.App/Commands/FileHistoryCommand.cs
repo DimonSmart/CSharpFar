@@ -1,7 +1,5 @@
 using CSharpFar.App.Dialogs;
-using CSharpFar.App.Editor;
 using CSharpFar.App.FunctionKeys;
-using CSharpFar.App.Viewer;
 using CSharpFar.Core.History;
 using CSharpFar.Core.Models;
 
@@ -33,17 +31,11 @@ internal sealed class FileHistoryCommand : IApplicationCommand
             {
                 case OpenFileChoice.View:
                     context.History.AddFile(new FileHistoryItem { Path = path });
-                    new FileViewer(context.Screen, context.ModalDialogs, context.Palette).Show(path);
+                    context.ViewFile(path);
                     break;
                 case OpenFileChoice.Edit:
                     context.History.AddFile(new FileHistoryItem { Path = path });
-                    new FileEditor(
-                        context.Screen,
-                        context.ModalDialogs,
-                        context.Palette,
-                        context.Settings.Editor,
-                        context.TextClipboard,
-                        PanelCommandEditorContextFactory.Create(context, target)).Show(path);
+                    context.EditFile(path, PanelCommandEditorContextFactory.Create(context, target));
                     context.SafeRefresh(target.State, target.VisibleRows);
                     break;
             }

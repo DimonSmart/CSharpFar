@@ -21,6 +21,7 @@ internal sealed class UiTestHost
         Composition = new UiCompositionHost(screen);
         Composition.SetRootSurface(rootSurface);
         ModalDialogs = new ModalDialogHost(Composition);
+        Surfaces = new InteractiveSurfaceHost(Composition);
     }
 
     public ScreenRenderer Screen { get; }
@@ -28,6 +29,8 @@ internal sealed class UiTestHost
     public UiCompositionHost Composition { get; }
 
     public ModalDialogHost ModalDialogs { get; }
+
+    public InteractiveSurfaceHost Surfaces { get; }
 
     public static UiTestHost Create(
         FakeConsoleDriver driver,

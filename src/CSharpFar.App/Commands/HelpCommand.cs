@@ -1,6 +1,4 @@
 using CSharpFar.App.FunctionKeys;
-using CSharpFar.App.Viewer;
-
 namespace CSharpFar.App.Commands;
 
 internal sealed class HelpCommand : IApplicationCommand
@@ -11,7 +9,7 @@ internal sealed class HelpCommand : IApplicationCommand
 
     public ApplicationCommandResult Execute(ApplicationCommandContext context, object? args = null)
     {
-        new HelpViewer(context.Composition, context.Palette).Show();
+        context.ShowHelp();
         return ApplicationCommandResult.Rendered();
     }
 }

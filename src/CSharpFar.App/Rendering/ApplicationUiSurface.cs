@@ -187,11 +187,13 @@ internal sealed class ApplicationUiSurface : UiLayer<ApplicationUiFrame>, IUiSur
 {
     private readonly ApplicationRenderContext _context;
     private readonly ApplicationRenderCoordinator _coordinator;
+    private readonly ScreenRenderer _screen;
     private bool _hidden;
     private UiRoutedInput<ApplicationUiFrame>? _pendingInput;
 
-    public ApplicationUiSurface(ApplicationRenderContext context, ApplicationRenderCoordinator coordinator)
+    public ApplicationUiSurface(ScreenRenderer screen, ApplicationRenderContext context, ApplicationRenderCoordinator coordinator)
     {
+        _screen = screen;
         _context = context;
         _coordinator = coordinator;
     }
@@ -202,10 +204,10 @@ internal sealed class ApplicationUiSurface : UiLayer<ApplicationUiFrame>, IUiSur
     {
         _hidden = _context.App.WorkspaceMode == ApplicationWorkspaceMode.HiddenCommandLine;
         _context.TerminalSurface.ApplyMode();
-        _context.Screen.SetRenderingOutputMode(true);
+        _screen.SetRenderingOutputMode(true);
 
         if (!_hidden)
-            return _context.Screen.BeginFrame();
+            return _screen.BeginFrame();
 
         if (request.IsResizeRecovery)
         {
@@ -215,12 +217,12 @@ internal sealed class ApplicationUiSurface : UiLayer<ApplicationUiFrame>, IUiSur
                 _context.TerminalSurface.RestoreHiddenScreen();
         }
 
-        var viewport = _context.Screen.GetViewport();
+        var viewport = _screen.GetViewport();
         var row = ApplicationLayoutService.CommandLineRow(viewport.Size);
         _context.TerminalSurface.PrepareHiddenCommandLineOverlay(viewport, row, viewport.Width);
         return _context.TerminalSurface.UsesTerminalScreenMode
-            ? _context.Screen.BeginFrameFromCurrentViewportCapture()
-            : _context.Screen.BeginFrame();
+            ? _screen.BeginFrameFromCurrentViewportCapture()
+            : _screen.BeginFrame();
     }
 
     protected override ApplicationUiFrame RenderFrame(UiRenderContext context)

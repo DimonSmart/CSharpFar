@@ -9,7 +9,7 @@ namespace CSharpFar.Console;
 /// Higher-level rendering surface built on top of <see cref="IConsoleDriver"/>.
 /// Provides convenience methods for drawing text, boxes, and regions.
 /// </summary>
-public sealed class ScreenRenderer : IUiCanvas
+public sealed class ScreenRenderer
 {
     private readonly IConsoleDriver _driver;
     private SnapshotCell[,]? _frontBuffer;

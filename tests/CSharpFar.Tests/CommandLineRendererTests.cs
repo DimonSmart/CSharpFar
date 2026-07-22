@@ -11,7 +11,7 @@ public sealed class CommandLineRendererTests
     public void Render_LongCommandAtEnd_ShowsBlankCellAfterLastCharacter()
     {
         var driver = new FakeConsoleDriver(width: 10, height: 1);
-        var renderer = new CommandLineRenderer(new ScreenRenderer(driver));
+        var renderer = new CommandLineRenderer(Canvas(new ScreenRenderer(driver)));
         var state = new CommandLineState();
         state.SetText("abcdefghij");
 
@@ -27,7 +27,7 @@ public sealed class CommandLineRendererTests
     public void Render_LongCommandBeforeLastCharacter_DoesNotShowTrailingBlankCell()
     {
         var driver = new FakeConsoleDriver(width: 10, height: 1);
-        var renderer = new CommandLineRenderer(new ScreenRenderer(driver));
+        var renderer = new CommandLineRenderer(Canvas(new ScreenRenderer(driver)));
         var state = new CommandLineState();
         state.SetText("abcdefghij");
         state.MoveCursor(-1);
@@ -43,7 +43,7 @@ public sealed class CommandLineRendererTests
     public void Render_SelectionUsesInvertedCommandLineStyle()
     {
         var driver = new FakeConsoleDriver(width: 40, height: 3);
-        var renderer = new CommandLineRenderer(new ScreenRenderer(driver));
+        var renderer = new CommandLineRenderer(Canvas(new ScreenRenderer(driver)));
         var state = new CommandLineState();
         state.SetText("abc");
         state.SelectAll();

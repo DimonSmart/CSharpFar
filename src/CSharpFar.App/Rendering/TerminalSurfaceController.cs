@@ -53,6 +53,9 @@ internal sealed class TerminalSurfaceController
                 Devices: []));
     }
 
+    public TerminalSurfaceSnapshot GetSnapshot() =>
+        new(_screen.GetViewport(), _screen.GetSize());
+
     public void CaptureUnderlay() =>
         _shellUnderlay.Capture();
 

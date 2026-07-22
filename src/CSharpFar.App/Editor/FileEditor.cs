@@ -17,8 +17,6 @@ internal sealed partial class FileEditor
 {
     private const int CustomCursorBlinkIntervalMs = 500;
 
-    private readonly IUiCanvas _screen;
-    private readonly UiCompositionHost _composition;
     private readonly ModalDialogHost _modalDialogs;
     private readonly InteractiveSurfaceHost _surfaces;
     private readonly ConsolePalette _palette;
@@ -31,44 +29,44 @@ internal sealed partial class FileEditor
     private bool _markMode;
     private bool _persistentSelection;
 
-    public FileEditor(IUiCanvas screen, ModalDialogHost modalDialogs)
-        : this(screen, modalDialogs, null, null) { }
+    public FileEditor(InteractiveSurfaceHost surfaces, ModalDialogHost modalDialogs)
+        : this(surfaces, modalDialogs, null, null) { }
 
-    public FileEditor(IUiCanvas screen, ModalDialogHost modalDialogs, ConsolePalette? palette)
-        : this(screen, modalDialogs, palette, null) { }
+    public FileEditor(InteractiveSurfaceHost surfaces, ModalDialogHost modalDialogs, ConsolePalette? palette)
+        : this(surfaces, modalDialogs, palette, null) { }
 
     public FileEditor(
-        IUiCanvas screen,
+        InteractiveSurfaceHost surfaces,
         ModalDialogHost modalDialogs,
         ConsolePalette? palette,
         AppSettings.EditorSettings? settings)
-        : this(screen, modalDialogs, palette, settings, null)
+        : this(surfaces, modalDialogs, palette, settings, null)
     {
     }
 
     internal FileEditor(
-        IUiCanvas screen,
+        InteractiveSurfaceHost surfaces,
         ModalDialogHost modalDialogs,
         ConsolePalette? palette,
         AppSettings.EditorSettings? settings,
         ITextClipboard? clipboard)
-        : this(screen, modalDialogs, palette, settings, clipboard, null)
+        : this(surfaces, modalDialogs, palette, settings, clipboard, null)
     {
     }
 
     internal FileEditor(
-        IUiCanvas screen,
+        InteractiveSurfaceHost surfaces,
         ModalDialogHost modalDialogs,
         ConsolePalette? palette,
         AppSettings.EditorSettings? settings,
         ITextClipboard? clipboard,
         EditorFileNameInsertionContext? fileNameInsertionContext)
-        : this(screen, modalDialogs, palette, settings, clipboard, fileNameInsertionContext, null)
+        : this(surfaces, modalDialogs, palette, settings, clipboard, fileNameInsertionContext, null)
     {
     }
 
     internal FileEditor(
-        IUiCanvas screen,
+        InteractiveSurfaceHost surfaces,
         ModalDialogHost modalDialogs,
         ConsolePalette? palette,
         AppSettings.EditorSettings? settings,
@@ -76,10 +74,8 @@ internal sealed partial class FileEditor
         EditorFileNameInsertionContext? fileNameInsertionContext,
         IEditorSyntaxHighlighter? syntaxHighlighter)
     {
-        _screen = screen;
+        _surfaces = surfaces ?? throw new ArgumentNullException(nameof(surfaces));
         _modalDialogs = modalDialogs ?? throw new ArgumentNullException(nameof(modalDialogs));
-        _composition = _modalDialogs.Composition;
-        _surfaces = new InteractiveSurfaceHost(_composition);
         _palette = palette ?? PaletteRegistry.Default;
         _settings = settings ?? new AppSettings.EditorSettings();
         _fileService = new EditorFileService(_settings);
@@ -724,26 +720,26 @@ internal sealed partial class FileEditor
             syntaxResult.Diagnostics,
             syntaxResult);
 
-        Draw(frame, functionKeyModifiers);
+        Draw(context.Canvas, frame, functionKeyModifiers);
         return frame;
     }
 
-    private void Draw(FileEditorFrame frame, ConsoleModifiers functionKeyModifiers)
+    private void Draw(IUiCanvas canvas, FileEditorFrame frame, ConsoleModifiers functionKeyModifiers)
     {
-        DrawHeader(frame.Session, frame.Size);
-        DrawContent(frame);
-        DrawStatus(frame.Session, frame.StatusBarBounds.Y, frame.Size);
-        DrawKeyBar(frame.Size, functionKeyModifiers);
+        DrawHeader(canvas, frame.Session, frame.Size);
+        DrawContent(canvas, frame);
+        DrawStatus(canvas, frame.Session, frame.StatusBarBounds.Y, frame.Size);
+        DrawKeyBar(canvas, frame.Size, functionKeyModifiers);
     }
 
-    private void DrawHeader(EditorSession session, ConsoleSize size)
+    private void DrawHeader(IUiCanvas canvas, EditorSession session, ConsoleSize size)
     {
         string dirty = session.Document.IsDirty ? "*" : " ";
         string readOnly = session.ReadOnly ? " RO" : string.Empty;
         string left = $"{dirty} {session.FilePath}{readOnly}";
         string right = $" {session.Document.Format.EncodingDisplayName} {session.Document.Format.BomDisplayName} {session.Document.Format.LineEndingDisplayName} ";
         int leftWidth = Math.Max(0, size.Width - right.Length);
-        _screen.Write(0, 0, Fit(left, leftWidth) + right, PaletteStyles.PathHeaderActive(_palette));
+        canvas.Write(0, 0, Fit(left, leftWidth) + right, PaletteStyles.PathHeaderActive(_palette));
     }
 
     private EditorSyntaxHighlightResult ResolveSyntaxHighlighting(EditorSession session, int contentHeight, int topLine)
@@ -774,7 +770,7 @@ internal sealed partial class FileEditor
         }
     }
 
-    private void DrawContent(FileEditorFrame frame)
+    private void DrawContent(IUiCanvas canvas, FileEditorFrame frame)
     {
         EditorSession session = frame.Session;
         int textWidth = frame.ContentBounds.Width;
@@ -788,18 +784,18 @@ internal sealed partial class FileEditor
             if (lineIndex < session.Document.Buffer.LineCount)
             {
                 syntaxSpansByLine.TryGetValue(lineIndex, out var lineSpans);
-                DrawTextLine(frame, lineIndex, frame.ContentBounds.Y + row, textWidth, lineSpans ?? []);
+                DrawTextLine(canvas, frame, lineIndex, frame.ContentBounds.Y + row, textWidth, lineSpans ?? []);
             }
             else
             {
-                _screen.Write(frame.ContentBounds.X, frame.ContentBounds.Y + row, new string(' ', textWidth), EditorTextStyle());
+                canvas.Write(frame.ContentBounds.X, frame.ContentBounds.Y + row, new string(' ', textWidth), EditorTextStyle());
             }
         }
 
         if (frame.ScrollBarBounds is { } bounds && frame.VerticalScrollState is { } scrollState)
         {
             new ScrollBarRenderer().RenderVerticalScrollbar(
-                _screen,
+                canvas,
                 bounds,
                 scrollState,
                 new ScrollBarOptions { Enabled = true, DrawWhenNotScrollable = false },
@@ -807,20 +803,20 @@ internal sealed partial class FileEditor
         }
     }
 
-    private void DrawStatus(EditorSession session, int y, ConsoleSize size)
+    private void DrawStatus(IUiCanvas canvas, EditorSession session, int y, ConsoleSize size)
     {
         string code = CurrentCharacterStatus(session);
         string syntax = session.SyntaxDiagnostics.StatusText;
         int cursorColumn = CursorColumnStatus(session);
         string status =
             $" Ln {session.Cursor.Line + 1} Col {cursorColumn}  {code}  Undo:{(session.UndoHistory.CanUndo ? "Y" : "N")} Redo:{(session.UndoHistory.CanRedo ? "Y" : "N")}  {syntax}";
-        _screen.Write(0, y, Fit(status, size.Width), PaletteStyles.CommandLine(_palette));
+        canvas.Write(0, y, Fit(status, size.Width), PaletteStyles.CommandLine(_palette));
     }
 
-    private void DrawKeyBar(ConsoleSize size, ConsoleModifiers modifiers)
+    private void DrawKeyBar(IUiCanvas canvas, ConsoleSize size, ConsoleModifiers modifiers)
     {
         var actions = CreateEditorFunctionKeyBarActions(modifiers);
-        new FunctionKeyBarController<ConsoleKeyInfo>().Render(_screen, size.Height - 1, size.Width, actions);
+        new FunctionKeyBarController<ConsoleKeyInfo>().Render(canvas, size.Height - 1, size.Width, actions);
     }
 
     private static IReadOnlyList<FunctionKeyBarAction<ConsoleKeyInfo>> CreateEditorFunctionKeyBarActions(
@@ -853,6 +849,7 @@ internal sealed partial class FileEditor
     }
 
     private void DrawTextLine(
+        IUiCanvas canvas,
         FileEditorFrame frame,
         int lineIndex,
         int screenY,
@@ -870,7 +867,7 @@ internal sealed partial class FileEditor
             bool cursorCell = IsCursorCell(frame, lineIndex, line, logicalColumn);
             CellStyle style = SyntaxStyleAt(syntaxSpans, lineIndex, logicalColumn)
                 ?? EditorTextStyle();
-            _screen.WriteChar(
+            canvas.WriteChar(
                 frame.ContentBounds.X + screenX,
                 screenY,
                 ch,

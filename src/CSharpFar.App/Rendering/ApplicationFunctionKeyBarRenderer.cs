@@ -7,21 +7,18 @@ namespace CSharpFar.App.Rendering;
 
 internal sealed class ApplicationFunctionKeyBarRenderer
 {
-    private readonly IUiCanvas _screen;
     private readonly IReadOnlyList<FunctionKeyBinding> _bindings;
     private readonly Func<string, bool> _canExecuteCommand;
 
     public ApplicationFunctionKeyBarRenderer(
-        IUiCanvas screen,
         IReadOnlyList<FunctionKeyBinding> bindings,
         Func<string, bool> canExecuteCommand)
     {
-        _screen = screen;
         _bindings = bindings;
         _canExecuteCommand = canExecuteCommand;
     }
 
-    public ApplicationFunctionKeyBarFrame? Render(ConsoleSize size, FunctionKeyLayer layer)
+    public ApplicationFunctionKeyBarFrame? Render(IUiCanvas canvas, ConsoleSize size, FunctionKeyLayer layer)
     {
         var visibleBindings = _bindings
             .Where(binding =>
@@ -35,7 +32,7 @@ internal sealed class ApplicationFunctionKeyBarRenderer
                 binding.CommandId))
             .ToArray();
 
-        new FunctionKeyBarController<string>().Render(_screen, size.Height - 1, size.Width, actions);
+        new FunctionKeyBarController<string>().Render(canvas, size.Height - 1, size.Width, actions);
 
         var hits = new List<ApplicationFunctionKeyHit>();
         Dictionary<int, Rect> slotsByKey = size.Height <= 0 || size.Width <= 0

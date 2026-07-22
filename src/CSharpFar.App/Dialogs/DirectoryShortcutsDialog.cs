@@ -1,6 +1,5 @@
 using CSharpFar.App.DirectoryShortcuts;
 using CSharpFar.App.Rendering;
-using CSharpFar.Console;
 using CSharpFar.Console.Input;
 using CSharpFar.Console.Models;
 using CSharpFar.Core.Models;
@@ -19,13 +18,11 @@ internal sealed class DirectoryShortcutsDialog
     private const int DialogHeight = 16;
 
     private readonly ModalDialogHost _modalDialogs;
-    private readonly ScreenRenderer _screen;
     private readonly ConsolePalette _palette;
     private readonly ModalDialogRenderer _modalRenderer = new();
     public DirectoryShortcutsDialog(ModalDialogHost modalDialogs, ConsolePalette? palette = null)
     {
         _modalDialogs = modalDialogs;
-        _screen = modalDialogs.Screen;
         _palette = palette ?? PaletteRegistry.Default;
     }
 
@@ -128,7 +125,7 @@ internal sealed class DirectoryShortcutsDialog
         ModalDialogRenderer.Layout layout = default;
         ScrollableFormFrame buttons = null!;
         _modalRenderer.Render(
-            _screen,
+            context.Canvas,
             outerBounds,
             "Directory shortcuts",
             doubleBorder: true,
@@ -143,7 +140,7 @@ internal sealed class DirectoryShortcutsDialog
                     int number = DirectoryShortcutNormalizer.DisplayOrder[row];
                     items.TryGetValue(number, out var item);
                     string text = $"{number}  {item?.Name ?? string.Empty,-8}  {item?.Path ?? string.Empty}";
-                    _screen.Write(
+                    context.Canvas.Write(
                         content.X,
                         content.Y + row,
                         Fit(text, content.Width),

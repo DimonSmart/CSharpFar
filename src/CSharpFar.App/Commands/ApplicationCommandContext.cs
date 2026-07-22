@@ -1,6 +1,7 @@
 using CSharpFar.App.AutoRefresh;
 using CSharpFar.App.CommandLine;
 using CSharpFar.App.Dialogs;
+using CSharpFar.App.Editor;
 using CSharpFar.App.Files;
 using CSharpFar.App.FunctionKeys;
 using CSharpFar.App.Highlighting;
@@ -11,7 +12,6 @@ using CSharpFar.App.Rendering;
 using CSharpFar.App.State;
 using CSharpFar.App.UserMenu;
 using CSharpFar.App.Viewer;
-using CSharpFar.Console;
 using CSharpFar.Core.Abstractions;
 using CSharpFar.Core.Controllers;
 using CSharpFar.Core.Highlighting;
@@ -59,6 +59,7 @@ internal sealed class ApplicationCommandContext
     private readonly TopMenuController _menuController;
     private readonly DefaultMenuDefinitionProvider _menuProvider;
     private readonly TerminalSurfaceController _terminalSurface;
+    private readonly InteractiveSurfaceHost _interactiveSurfaces;
     private readonly Action? _saveSettings;
     private readonly IVolumeService? _volumeService;
     private readonly IFileMetadataService _fileMetadata;
@@ -66,8 +67,7 @@ internal sealed class ApplicationCommandContext
     private IFileHighlightService? _highlightService;
 
     public ApplicationCommandContext(
-        ScreenRenderer screen,
-        UiCompositionHost composition,
+        InteractiveSurfaceHost interactiveSurfaces,
         ModalDialogHost modalDialogs,
         PanelController controller,
         IFileLauncher fileLauncher,
@@ -103,8 +103,7 @@ internal sealed class ApplicationCommandContext
         Func<IFileAttributesDialog> fileAttributesDialogFactory,
         IFileHighlightService? highlightService)
     {
-        Screen = screen;
-        Composition = composition;
+        _interactiveSurfaces = interactiveSurfaces;
         ModalDialogs = modalDialogs;
         Controller = controller;
         FileLauncher = fileLauncher;
@@ -140,11 +139,6 @@ internal sealed class ApplicationCommandContext
         _fileAttributesDialogFactory = fileAttributesDialogFactory;
         _highlightService = highlightService;
     }
-
-    public ScreenRenderer Screen { get; }
-    public IUiCanvas Canvas => UiCanvas.From(Screen);
-
-    public UiCompositionHost Composition { get; }
 
     public ModalDialogHost ModalDialogs { get; }
 
@@ -233,6 +227,42 @@ internal sealed class ApplicationCommandContext
 
     public TerminalSurfaceDiagnostics GetTerminalDiagnostics() =>
         _terminalSurface.GetDiagnostics();
+
+    public TerminalSurfaceSnapshot GetTerminalSnapshot() =>
+        _terminalSurface.GetSnapshot();
+
+    public void ShowHelp() =>
+        new HelpViewer(_interactiveSurfaces, Palette).Show();
+
+    public void ViewFile(string path) =>
+        new FileViewer(_interactiveSurfaces, ModalDialogs, Palette).Show(path);
+
+    public void EditFile(
+        string path,
+        EditorFileNameInsertionContext? fileNameInsertionContext = null)
+    {
+        new FileEditor(
+            _interactiveSurfaces,
+            ModalDialogs,
+            Palette,
+            Settings.Editor,
+            TextClipboard,
+            fileNameInsertionContext).Show(path);
+    }
+
+    public void EditFileWithNewFileFormat(
+        string path,
+        EditorDocumentFormat newFileFormat,
+        EditorFileNameInsertionContext? fileNameInsertionContext = null)
+    {
+        new FileEditor(
+            _interactiveSurfaces,
+            ModalDialogs,
+            Palette,
+            Settings.Editor,
+            TextClipboard,
+            fileNameInsertionContext).ShowWithNewFileFormat(path, newFileFormat);
+    }
 
     public void SaveSettings() => _saveSettings?.Invoke();
 
@@ -469,7 +499,6 @@ internal sealed class ApplicationCommandContext
 
     public FileOperationResult ExecuteFileOperation(FileOperationRequest request) =>
         new FileOperationUiRunner(
-            Screen,
             ModalDialogs,
             () => Palette,
             FileOperations,

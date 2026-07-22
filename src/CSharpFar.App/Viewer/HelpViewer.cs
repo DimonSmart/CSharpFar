@@ -11,9 +11,9 @@ internal sealed class HelpViewer
     private readonly InteractiveSurfaceHost _surfaces;
     private readonly ConsolePalette _palette;
 
-    public HelpViewer(UiCompositionHost composition, ConsolePalette? palette = null)
+    public HelpViewer(InteractiveSurfaceHost surfaces, ConsolePalette? palette = null)
     {
-        _surfaces = new InteractiveSurfaceHost(composition);
+        _surfaces = surfaces ?? throw new ArgumentNullException(nameof(surfaces));
         _palette = palette ?? PaletteRegistry.Default;
     }
 

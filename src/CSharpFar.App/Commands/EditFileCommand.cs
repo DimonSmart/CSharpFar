@@ -1,4 +1,3 @@
-using CSharpFar.App.Editor;
 using CSharpFar.App.FunctionKeys;
 using CSharpFar.Core.History;
 using CSharpFar.Core.Models;
@@ -30,13 +29,9 @@ internal sealed class EditFileCommand : IApplicationCommand
             return ApplicationCommandResult.Rendered();
 
         context.History.AddFile(new FileHistoryItem { Path = item.FullPath });
-        new FileEditor(
-            context.Canvas,
-            context.ModalDialogs,
-            context.Palette,
-            context.Settings.Editor,
-            context.TextClipboard,
-            PanelCommandEditorContextFactory.Create(context, target, item)).Show(item.FullPath);
+        context.EditFile(
+            item.FullPath,
+            PanelCommandEditorContextFactory.Create(context, target, item));
         context.SafeRefresh(target.State, target.VisibleRows);
         return ApplicationCommandResult.Rendered();
     }

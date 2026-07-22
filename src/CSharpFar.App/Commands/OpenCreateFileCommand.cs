@@ -47,14 +47,10 @@ internal sealed class OpenCreateFileCommand : IApplicationCommand
 
         bool existedBefore = File.Exists(filePath);
         EditorDocumentFormat newFileFormat = result.CodePage.CreateDocumentFormat(context.Settings.Editor);
-        new FileEditor(
-            context.Canvas,
-            context.ModalDialogs,
-            context.Palette,
-            context.Settings.Editor,
-            context.TextClipboard,
-            PanelCommandEditorContextFactory.Create(context, target))
-            .ShowWithNewFileFormat(filePath, newFileFormat);
+        context.EditFileWithNewFileFormat(
+            filePath,
+            newFileFormat,
+            PanelCommandEditorContextFactory.Create(context, target));
 
         if (File.Exists(filePath))
             context.History.AddFile(new FileHistoryItem { Path = filePath });

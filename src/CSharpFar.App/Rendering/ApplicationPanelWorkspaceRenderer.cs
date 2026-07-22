@@ -10,20 +10,17 @@ namespace CSharpFar.App.Rendering;
 
 internal sealed class ApplicationPanelWorkspaceRenderer
 {
-    private readonly IUiCanvas _screen;
     private readonly Func<ConsolePalette> _palette;
     private readonly PanelController _controller;
     private readonly Func<IFileHighlightService?> _highlightService;
     private readonly Func<AppSettingsAlias.PanelOptionsSettings> _panelOptions;
 
     public ApplicationPanelWorkspaceRenderer(
-        IUiCanvas screen,
         Func<ConsolePalette> palette,
         PanelController controller,
         Func<IFileHighlightService?> highlightService,
         Func<AppSettingsAlias.PanelOptionsSettings> panelOptions)
     {
-        _screen = screen;
         _palette = palette;
         _controller = controller;
         _highlightService = highlightService;
@@ -31,6 +28,7 @@ internal sealed class ApplicationPanelWorkspaceRenderer
     }
 
     public ApplicationPanelWorkspaceFrame Render(
+        IUiCanvas canvas,
         ConsoleSize size,
         FilePanelState left,
         FilePanelState right,
@@ -46,8 +44,8 @@ internal sealed class ApplicationPanelWorkspaceRenderer
         var rightBounds = bounds.Right;
 
         var palette = _palette();
-        var panelRenderer = new PanelRenderer(_screen, palette, _highlightService(), _panelOptions());
-        var quickViewRenderer = new QuickViewRenderer(_screen, palette);
+        var panelRenderer = new PanelRenderer(canvas, palette, _highlightService(), _panelOptions());
+        var quickViewRenderer = new QuickViewRenderer(canvas, palette);
         ApplicationPanelFrame? leftFrame = null;
         ApplicationPanelFrame? rightFrame = null;
 

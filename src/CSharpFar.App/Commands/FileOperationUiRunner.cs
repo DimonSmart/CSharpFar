@@ -13,20 +13,17 @@ internal sealed class FileOperationUiRunner
     private const int RedrawDelayMilliseconds = 120;
     private static readonly UiTargetId ProgressKeyboardTarget = new("file-operation.progress");
 
-    private readonly ScreenRenderer _screen;
     private readonly ModalDialogHost _modalDialogs;
     private readonly Func<ConsolePalette> _palette;
     private readonly IFileOperationService _fileOperations;
     private readonly Func<bool> _showTotalProgress;
 
     public FileOperationUiRunner(
-        ScreenRenderer screen,
         ModalDialogHost modalDialogs,
         Func<ConsolePalette> palette,
         IFileOperationService fileOperations,
         Func<bool> showTotalProgress)
     {
-        _screen = screen;
         _modalDialogs = modalDialogs;
         _palette = palette;
         _fileOperations = fileOperations;
@@ -35,7 +32,6 @@ internal sealed class FileOperationUiRunner
 
     public FileOperationResult Execute(FileOperationRequest request)
     {
-        var progressDialog = new ProgressDialog(_screen, request.Destination ?? string.Empty);
         var conflictDialog = new ConflictDialog(_modalDialogs, _palette());
         var cancelDialog = new OperationCancelDialog(_modalDialogs);
         using var cts = new CancellationTokenSource();
@@ -80,7 +76,7 @@ internal sealed class FileOperationUiRunner
         try
         {
             outcome = _modalDialogs.RunInteractiveTimed<FileOperationProgressFrame, FileOperationProgressInput, FileOperationBackgroundOutcome>(
-                (context, _) => RenderProgressFrame(context, progressDialog, visibleState),
+                (context, _) => RenderProgressFrame(context, request.Destination ?? string.Empty, visibleState),
                 BuildInteractionFrame,
                 RouteInput,
                 (routed, input) => HandleInput(routed.Frame, input),
@@ -216,11 +212,11 @@ internal sealed class FileOperationUiRunner
 
     private static FileOperationProgressFrame RenderProgressFrame(
         UiRenderContext context,
-        ProgressDialog dialog,
+        string destination,
         FileOperationProgressViewState state)
     {
         if (state.Progress is { } progress)
-            dialog.Render(context, progress, state.ShowTotalProgress);
+            new ProgressDialog(context.Canvas, destination).Render(context, progress, state.ShowTotalProgress);
 
         return new FileOperationProgressFrame(state.Progress, state.ShowTotalProgress, state.Status);
     }

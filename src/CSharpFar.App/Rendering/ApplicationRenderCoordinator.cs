@@ -30,7 +30,6 @@ internal sealed class ApplicationRenderCoordinator
     public ApplicationUiFrame RenderMainContent(UiRenderContext context)
     {
         UpdateQuickViewDirSize();
-        _context.Screen.SetCursorVisible(false);
         var size = context.Size;
         PanelSide activeSide = _context.ActiveSide();
         FilePanelState leftState = _context.LeftPanel();
@@ -39,6 +38,7 @@ internal sealed class ApplicationRenderCoordinator
         ApplicationPanelKeyboardFrame leftKeyboard = ApplicationPanelKeyboardSnapshot.Capture(leftState);
         ApplicationPanelKeyboardFrame rightKeyboard = ApplicationPanelKeyboardSnapshot.Capture(rightState);
         var workspace = _panelWorkspaceRenderer.Render(
+            context.Canvas,
             size,
             leftState,
             rightState,
@@ -51,19 +51,20 @@ internal sealed class ApplicationRenderCoordinator
         context.PublishOnStable(context.Viewport, value => _context.Ui.LastRenderViewport = value);
 
         ApplicationDirectoryShortcutBarFrame? directoryShortcutBar =
-            new DirectoryShortcutBarRenderer(_context.Screen, _context.App.Palette)
+            new DirectoryShortcutBarRenderer(context.Canvas, _context.App.Palette)
                 .Render(panelHeight - 1, size.Width, _context.DirectoryShortcuts());
 
-        _clockRenderer.Render(size);
+        _clockRenderer.Render(context.Canvas, size);
 
         ApplicationCommandLineFrame commandLine = _commandLineRenderer.Render(
+            context.Canvas,
             panelHeight,
             size,
             activeState.CurrentDirectory,
             _context.CommandLine);
 
         ApplicationFunctionKeyBarFrame? functionKeyBar =
-            _functionKeyBarRenderer.Render(size, _context.FunctionKeyLayer());
+            _functionKeyBarRenderer.Render(context.Canvas, size, _context.FunctionKeyLayer());
 
         return new ApplicationUiFrame(
             context.Viewport,
@@ -89,6 +90,7 @@ internal sealed class ApplicationRenderCoordinator
         ApplicationPanelKeyboardFrame rightKeyboard = ApplicationPanelKeyboardSnapshot.Capture(rightState);
         context.PublishOnStable(viewport, value => _context.Ui.LastRenderViewport = value);
         ApplicationCommandLineFrame commandLine = _commandLineRenderer.Render(
+            context.Canvas,
             row,
             size,
             activeState.CurrentDirectory,

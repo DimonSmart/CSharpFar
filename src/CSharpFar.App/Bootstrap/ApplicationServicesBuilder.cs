@@ -197,6 +197,7 @@ internal static class ApplicationServicesBuilder
         var composition = rendering.Composition;
         var applicationSurface = rendering.ApplicationSurface;
         var modalDialogs = rendering.ModalDialogs;
+        var interactiveSurfaces = new InteractiveSurfaceHost(composition);
         var commandCompletionLayer = new CommandCompletionLayer(
             rendering.RenderContext,
             commandCompletionController,
@@ -237,7 +238,7 @@ internal static class ApplicationServicesBuilder
             state => callbacks.ClosePanelQuickSearchForState(state),
             searchResults.RefreshPanel);
         var panelFileViewer = new PanelFileViewerService(
-            screen,
+            interactiveSurfaces,
             modalDialogs,
             () => session.App.Palette,
             effectiveSourceRegistry,
@@ -250,7 +251,6 @@ internal static class ApplicationServicesBuilder
             (state, rows) => callbacks.SafeRefresh(state, rows));
         var panelFileOpener = new PanelFileOpener(
             effectiveFileLauncher,
-            screen,
             modalDialogs,
             () => session.App.Palette,
             (state, item) => callbacks.ViewPanelFile(state, item),
@@ -293,7 +293,7 @@ internal static class ApplicationServicesBuilder
             composition);
         var commandServices = CommandServicesFactory.Create(
             screen,
-            composition,
+            interactiveSurfaces,
             modalDialogs,
             shell,
             fileOps,

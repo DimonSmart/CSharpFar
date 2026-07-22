@@ -33,18 +33,15 @@ internal static class RenderingServicesFactory
         IFileHighlightService? highlightService)
     {
         var panelWorkspaceRenderer = new ApplicationPanelWorkspaceRenderer(
-            screen,
             () => session.App.Palette,
             controller,
             () => highlightService,
             () => callbacks.PanelOptions());
-        var clockRenderer = new ClockRenderer(screen, () => session.App.Palette);
+        var clockRenderer = new ClockRenderer(() => session.App.Palette);
         var functionKeyBarRenderer = new ApplicationFunctionKeyBarRenderer(
-            screen,
             functionKeyBindingProvider.GetBindings(),
             commandId => callbacks.CanExecuteFunctionKeyCommand(commandId));
         var commandLineRenderer = new ApplicationCommandLineRenderer(
-            screen,
             () => session.App.Palette);
         var shellUnderlay = new ShellUnderlayService(screen);
         var terminalSurface = new TerminalSurfaceController(
@@ -56,7 +53,6 @@ internal static class RenderingServicesFactory
         var quickViewDirectorySize = new QuickViewDirectorySizeController(autoRefresh.WakeInputLoop);
         var renderContext = new ApplicationRenderContext
         {
-            Screen = screen,
             TerminalSurface = terminalSurface,
             PanelController = controller,
             App = session.App,
@@ -83,7 +79,7 @@ internal static class RenderingServicesFactory
             functionKeyBarRenderer,
             commandLineRenderer);
         var composition = new UiCompositionHost(screen);
-        var applicationSurface = new ApplicationUiSurface(renderContext, renderCoordinator);
+        var applicationSurface = new ApplicationUiSurface(screen, renderContext, renderCoordinator);
         composition.SetRootSurface(applicationSurface);
         var modalDialogs = new ModalDialogHost(composition);
 

@@ -26,7 +26,6 @@ internal sealed class SearchProgressDialog
     private static readonly UiTargetId GoToTarget = new("search-progress.goto");
     private static readonly UiTargetId StopTarget = new("search-progress.stop");
 
-    private readonly IUiCanvas _screen;
     private readonly ModalDialogHost _modalDialogs;
     private readonly ISearchService _searchService;
     private readonly ModalDialogRenderer _modalRenderer = new();
@@ -37,7 +36,6 @@ internal sealed class SearchProgressDialog
         ConsolePalette? palette = null)
     {
         _modalDialogs = modalDialogs;
-        _screen = modalDialogs.Screen;
         _searchService = searchService;
     }
 
@@ -290,7 +288,7 @@ internal sealed class SearchProgressDialog
             minHeight: 14);
 
         _modalRenderer.Render(
-            _screen,
+            context.Canvas,
             outerBounds,
             $"Find file: {request.FileMaskExpression}",
             true,
@@ -302,26 +300,26 @@ internal sealed class SearchProgressDialog
                 int contentX = bounds.X + 2;
                 int contentWidth = Math.Max(1, bounds.Width - 4);
 
-                _screen.Write(contentX, bounds.Y + 1, ShortenMiddle(state.Progress.CurrentPath ?? request.RootPath, contentWidth).PadRight(contentWidth), FarDialogStyles.Fill);
-                _screen.Write(contentX, bounds.Y + 2, StatsLine(state.Progress, contentWidth).PadRight(contentWidth), FarDialogStyles.Fill);
+                context.Canvas.Write(contentX, bounds.Y + 1, ShortenMiddle(state.Progress.CurrentPath ?? request.RootPath, contentWidth).PadRight(contentWidth), FarDialogStyles.Fill);
+                context.Canvas.Write(contentX, bounds.Y + 2, StatsLine(state.Progress, contentWidth).PadRight(contentWidth), FarDialogStyles.Fill);
 
                 string errorText = state.Progress.LastErrorMessage is null
                     ? StatusText(state.Status)
                     : ShortenMiddle($"{state.Progress.LastErrorPath}: {state.Progress.LastErrorMessage}", contentWidth);
-                _screen.Write(contentX, bounds.Y + 3, errorText.PadRight(contentWidth), state.Status == SearchProgressStatus.Failed ? FarDialogStyles.Error : FarDialogStyles.Fill);
+                context.Canvas.Write(contentX, bounds.Y + 3, errorText.PadRight(contentWidth), state.Status == SearchProgressStatus.Failed ? FarDialogStyles.Error : FarDialogStyles.Fill);
 
-                DrawSeparator(bounds, bounds.Y + 4);
+                DrawSeparator(context.Canvas, bounds, bounds.Y + 4);
 
                 int listY = bounds.Y + 5;
                 int listHeight = VisibleResultRows(bounds);
                 Rect listBounds = new(contentX, listY, contentWidth, listHeight);
                 Rect scrollbarBounds = new(bounds.Right - 1, listY, 1, listHeight);
                 listState = list.CalculateFrameState(listHeight, list.Count > listHeight ? scrollbarBounds : null);
-                list.Render(_screen, listBounds, listState);
+                list.Render(context.Canvas, listBounds, listState);
                 if (list.GetScrollState(listHeight, listState.ScrollTop) is { } scrollState)
                 {
                     new ScrollBarRenderer().RenderVerticalScrollbar(
-                        _screen,
+                        context.Canvas,
                         scrollbarBounds,
                         scrollState,
                         new ScrollBarOptions { Enabled = true, DrawWhenNotScrollable = false },
@@ -331,7 +329,7 @@ internal sealed class SearchProgressDialog
                 buttonBar = CreateButtonBar(canGoTo, canStop);
                 focusedButton = Math.Clamp(focusedButton, 0, buttonBar.Count - 1);
                 buttonLayout = buttonBar.Render(
-                    _screen,
+                    context.Canvas,
                     contentX,
                     bounds.Y + bounds.Height - 2,
                     contentWidth,
@@ -457,14 +455,14 @@ internal sealed class SearchProgressDialog
         return false;
     }
 
-    private void DrawSeparator(Rect bounds, int y)
+    private static void DrawSeparator(IUiCanvas canvas, Rect bounds, int y)
     {
         if (y <= bounds.Y || y >= bounds.Bottom - 1)
             return;
 
-        _screen.WriteChar(bounds.X, y, '╟', FarDialogStyles.Border);
-        _screen.Write(bounds.X + 1, y, new string('─', Math.Max(0, bounds.Width - 2)), FarDialogStyles.Border);
-        _screen.WriteChar(bounds.Right - 1, y, '╢', FarDialogStyles.Border);
+        canvas.WriteChar(bounds.X, y, '╟', FarDialogStyles.Border);
+        canvas.Write(bounds.X + 1, y, new string('─', Math.Max(0, bounds.Width - 2)), FarDialogStyles.Border);
+        canvas.WriteChar(bounds.Right - 1, y, '╢', FarDialogStyles.Border);
     }
 
     private static int VisibleResultRows(Rect frameBounds)

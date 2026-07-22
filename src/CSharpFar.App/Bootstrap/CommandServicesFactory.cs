@@ -30,7 +30,7 @@ internal static class CommandServicesFactory
 
     public static CommandServices Create(
         ScreenRenderer screen,
-        UiCompositionHost composition,
+        InteractiveSurfaceHost interactiveSurfaces,
         ModalDialogHost modalDialogs,
         IShellService shell,
         IFileOperationService fileOperations,
@@ -94,8 +94,7 @@ internal static class CommandServicesFactory
             temporarily => commandCompletionController.Hide(temporarily));
         var commandRegistry = ApplicationCommandRegistry.CreateDefault();
         var commandContext = new ApplicationCommandContext(
-            screen,
-            composition,
+            interactiveSurfaces,
             modalDialogs,
             panelController,
             fileLauncher,

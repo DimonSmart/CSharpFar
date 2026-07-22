@@ -11,6 +11,8 @@ public sealed class InteractiveSurfaceHost
     public InteractiveSurfaceHost(UiCompositionHost composition) =>
         _composition = composition ?? throw new ArgumentNullException(nameof(composition));
 
+    public void RequestRedraw() => _composition.Render();
+
     /// <summary>
     /// Runs an interactive temporary surface until the domain handler completes it.
     /// Frame-dependent surface state is synchronized only through

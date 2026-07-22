@@ -4,7 +4,6 @@ using CSharpFar.App.Menu;
 using CSharpFar.App.Panels;
 using CSharpFar.App.State;
 using CSharpFar.App.Viewer;
-using CSharpFar.Console;
 using CSharpFar.Core.Controllers;
 using CSharpFar.Core.Menu;
 using CSharpFar.Core.Models;
@@ -14,8 +13,6 @@ namespace CSharpFar.App.Rendering;
 
 internal sealed class ApplicationRenderContext
 {
-    public required ScreenRenderer Screen { get; init; }
-    public IUiCanvas Canvas => UiCanvas.From(Screen);
     public required TerminalSurfaceController TerminalSurface { get; init; }
     public required PanelController PanelController { get; init; }
     public required ApplicationState App { get; init; }

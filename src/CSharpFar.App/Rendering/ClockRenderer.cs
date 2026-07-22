@@ -5,16 +5,14 @@ namespace CSharpFar.App.Rendering;
 
 internal sealed class ClockRenderer
 {
-    private readonly IUiCanvas _screen;
     private readonly Func<ConsolePalette> _palette;
 
-    public ClockRenderer(IUiCanvas screen, Func<ConsolePalette> palette)
+    public ClockRenderer(Func<ConsolePalette> palette)
     {
-        _screen = screen;
         _palette = palette;
     }
 
-    public void Render(ConsoleSize size)
+    public void Render(IUiCanvas canvas, ConsoleSize size)
     {
         string text = DateTime.Now.ToString("H:mm", System.Globalization.CultureInfo.InvariantCulture);
         if (text.Length > size.Width)
@@ -22,6 +20,6 @@ internal sealed class ClockRenderer
 
         var palette = _palette();
         var style = new CellStyle(palette.PanelPathActiveFg, palette.PanelPathActiveBg);
-        _screen.Write(size.Width - text.Length, 0, text, style);
+        canvas.Write(size.Width - text.Length, 0, text, style);
     }
 }

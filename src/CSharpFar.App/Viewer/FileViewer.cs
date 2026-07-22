@@ -1,6 +1,6 @@
 using CSharpFar.App.Dialogs;
 using CSharpFar.App.Rendering;
-using CSharpFar.Console;
+using CSharpFar.Ui;
 
 namespace CSharpFar.App.Viewer;
 
@@ -9,13 +9,13 @@ namespace CSharpFar.App.Viewer;
 /// </summary>
 internal sealed class FileViewer
 {
-    private readonly ScreenRenderer _screen;
+    private readonly InteractiveSurfaceHost _surfaces;
     private readonly ModalDialogHost _modalDialogs;
     private readonly ConsolePalette _palette;
 
-    public FileViewer(ScreenRenderer screen, ModalDialogHost modalDialogs, ConsolePalette? palette = null)
+    public FileViewer(InteractiveSurfaceHost surfaces, ModalDialogHost modalDialogs, ConsolePalette? palette = null)
     {
-        _screen = screen;
+        _surfaces = surfaces;
         _modalDialogs = modalDialogs;
         _palette = palette ?? PaletteRegistry.Default;
     }
@@ -28,7 +28,7 @@ internal sealed class FileViewer
             return;
         }
 
-        new LargeFileViewer(_modalDialogs.Composition, _modalDialogs, _palette).Show(filePath);
+        new LargeFileViewer(_surfaces, _modalDialogs, _palette).Show(filePath);
     }
 
     internal void Show(string filePath, LargeFileViewerOptions options)
@@ -39,6 +39,6 @@ internal sealed class FileViewer
             return;
         }
 
-        new LargeFileViewer(_modalDialogs.Composition, _modalDialogs, _palette).Show(filePath, options);
+        new LargeFileViewer(_surfaces, _modalDialogs, _palette).Show(filePath, options);
     }
 }
