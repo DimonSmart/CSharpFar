@@ -73,8 +73,8 @@ public sealed class IUiFocusStateTests
             null,
         };
 
-        var exception = Assert.Throws<ArgumentException>(() => FocusFrame(entries!));
-        Assert.Equal("entries", exception.ParamName);
+        var exception = Assert.Throws<ArgumentNullException>(() => FocusFrame(entries!));
+        Assert.Equal("entry", exception.ParamName);
     }
 
     [Fact]
