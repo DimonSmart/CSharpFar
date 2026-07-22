@@ -118,7 +118,7 @@ public sealed class UiLayerTargetRoutingTests
     }
 
     [Fact]
-    public void FocusRequest_IsValidatedAndAffectsOnlyNextRouteAndSourceLayer()
+    public void FocusRequest_AppliesOnNextCommitAndOnlyToSourceLayer()
     {
         var first = new UiTargetId("first");
         var second = new UiTargetId("second");
@@ -132,13 +132,19 @@ public sealed class UiLayerTargetRoutingTests
 
         host.DispatchInput(Key(ConsoleKey.A));
         AssertRoute(overlay, first, UiInputRouteKind.FocusedTarget);
+        Assert.Equal(first, overlay.FocusState.FocusedTarget);
+        Assert.Equal(first, root.FocusState.FocusedTarget);
+
+        host.Render();
         Assert.Equal(second, overlay.FocusState.FocusedTarget);
         Assert.Equal(first, root.FocusState.FocusedTarget);
         host.DispatchInput(Key(ConsoleKey.B));
         AssertRoute(overlay, second, UiInputRouteKind.FocusedTarget);
 
         overlay.Result = (_, _) => UiInputResult.RequestFocus(new UiTargetId("missing"));
-        Assert.Throws<InvalidOperationException>(() => host.DispatchInput(Key(ConsoleKey.C)));
+        host.DispatchInput(Key(ConsoleKey.C));
+        host.Render();
+        Assert.Equal(second, overlay.FocusState.FocusedTarget);
     }
 
     [Fact]
@@ -377,7 +383,7 @@ public sealed class UiLayerTargetRoutingTests
         }
     }
 
-    private sealed class Surface(ScreenRenderer screen, TestLayer layer) : IUiSurface, IUiLayer
+    private sealed class Surface(ScreenRenderer screen, TestLayer layer) : IUiSurface, IUiLayer, IUiFocusRuntime
     {
         public UiLayerInputPolicy InputPolicy => layer.InputPolicy;
         public IUiFocusState FocusState => layer.FocusState;
@@ -386,5 +392,8 @@ public sealed class UiLayerTargetRoutingTests
         public void Render(UiRenderContext context) => layer.Render(context);
         public void CompleteFrame(UiFrameCompletion completion) { }
         public UiInputResult RouteInput(ConsoleInputEvent input, UiInputRouteContext context) => layer.RouteInput(input, context);
+
+        void IUiFocusRuntime.RequestFocusOnNextCommit(UiFocusRequest request) =>
+            ((IUiFocusRuntime)layer).RequestFocusOnNextCommit(request);
     }
 }
