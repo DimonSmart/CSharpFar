@@ -25,6 +25,7 @@ internal sealed partial class FileEditor
     private readonly ITextClipboard _clipboard;
     private readonly EditorFileNameInsertionContext? _fileNameInsertionContext;
     private readonly IEditorSyntaxHighlighter _syntaxHighlighter;
+    private readonly FunctionKeyBarController<ConsoleKeyInfo> _functionKeyBar = new();
     private EditorFindDialogResult? _lastFind;
     private bool _markMode;
     private bool _persistentSelection;
@@ -681,10 +682,8 @@ internal sealed partial class FileEditor
             ? new Rect(0, context.Size.Height - 1, context.Size.Width, 1)
             : new Rect(0, 0, 0, 0);
         EditorSyntaxHighlightResult syntaxResult = ResolveSyntaxHighlighting(session, contentHeight, viewport.TopLine);
-        IReadOnlyList<FunctionKeyHit> functionKeyHits = BuildFunctionKeyHits(
-            functionKeyBarBounds.Y,
-            context.Size.Width,
-            CreateEditorFunctionKeyBarActions(functionKeyModifiers));
+        IReadOnlyList<FunctionKeyBarAction<ConsoleKeyInfo>> functionKeyActions =
+            CreateEditorFunctionKeyBarActions(functionKeyModifiers);
         Rect? scrollbarBounds = contentHeight > 0 && context.Size.Width > 0
             ? new Rect(context.Size.Width - 1, 1, 1, contentHeight)
             : null;
@@ -713,23 +712,23 @@ internal sealed partial class FileEditor
             Math.Min(session.Document.Buffer.LineCount, viewport.TopLine + contentHeight),
             scrollbarBounds,
             scrollState,
-            functionKeyHits,
+            functionKeyActions,
             cursor,
             usesCustomCursor,
             customCursorVisible,
             syntaxResult.Diagnostics,
             syntaxResult);
 
-        Draw(context.Canvas, frame, functionKeyModifiers);
+        Draw(context.Canvas, frame);
         return frame;
     }
 
-    private void Draw(IUiCanvas canvas, FileEditorFrame frame, ConsoleModifiers functionKeyModifiers)
+    private void Draw(IUiCanvas canvas, FileEditorFrame frame)
     {
         DrawHeader(canvas, frame.Session, frame.Size);
         DrawContent(canvas, frame);
         DrawStatus(canvas, frame.Session, frame.StatusBarBounds.Y, frame.Size);
-        DrawKeyBar(canvas, frame.Size, functionKeyModifiers);
+        DrawKeyBar(canvas, frame.FunctionKeyBarBounds, frame.FunctionKeyActions);
     }
 
     private void DrawHeader(IUiCanvas canvas, EditorSession session, ConsoleSize size)
@@ -813,10 +812,35 @@ internal sealed partial class FileEditor
         canvas.Write(0, y, Fit(status, size.Width), PaletteStyles.CommandLine(_palette));
     }
 
-    private void DrawKeyBar(IUiCanvas canvas, ConsoleSize size, ConsoleModifiers modifiers)
+    private void DrawKeyBar(
+        IUiCanvas canvas,
+        Rect bounds,
+        IReadOnlyList<FunctionKeyBarAction<ConsoleKeyInfo>> actions)
     {
-        var actions = CreateEditorFunctionKeyBarActions(modifiers);
-        new FunctionKeyBarController<ConsoleKeyInfo>().Render(canvas, size.Height - 1, size.Width, actions);
+        if (bounds.Width <= 0 || bounds.Height <= 0)
+            return;
+
+        _functionKeyBar.Render(canvas, bounds.Y, bounds.Width, actions);
+    }
+
+    private bool TryGetFunctionKeyAction(
+        MouseConsoleInputEvent mouse,
+        FileEditorFrame frame,
+        out ConsoleKeyInfo key)
+    {
+        Rect bounds = frame.FunctionKeyBarBounds;
+        if (bounds.Width <= 0 || bounds.Height <= 0)
+        {
+            key = default;
+            return false;
+        }
+
+        return _functionKeyBar.TryGetAction(
+            mouse,
+            bounds.Y,
+            bounds.Width,
+            frame.FunctionKeyActions,
+            out key);
     }
 
     private static IReadOnlyList<FunctionKeyBarAction<ConsoleKeyInfo>> CreateEditorFunctionKeyBarActions(
@@ -835,18 +859,6 @@ internal sealed partial class FileEditor
             shift: (binding.Modifiers & ConsoleModifiers.Shift) != 0,
             alt: (binding.Modifiers & ConsoleModifiers.Alt) != 0,
             control: (binding.Modifiers & ConsoleModifiers.Control) != 0);
-
-    private static IReadOnlyList<FunctionKeyHit> BuildFunctionKeyHits(
-        int y,
-        int totalWidth,
-        IReadOnlyList<FunctionKeyBarAction<ConsoleKeyInfo>> actions)
-    {
-        var enabled = actions.Where(action => action.Enabled).ToDictionary(action => action.KeyNumber, action => action.Action);
-        return FunctionKeyBar.BuildSlots(y, totalWidth)
-            .Where(slot => enabled.ContainsKey(slot.KeyNumber))
-            .Select(slot => new FunctionKeyHit(slot.Bounds, enabled[slot.KeyNumber]))
-            .ToArray();
-    }
 
     private void DrawTextLine(
         IUiCanvas canvas,

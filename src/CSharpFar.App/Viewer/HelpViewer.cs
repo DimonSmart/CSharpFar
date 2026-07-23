@@ -33,7 +33,17 @@ internal sealed class HelpViewerLayer : InteractiveSurfaceLayer<HelpViewerFrame,
     internal static readonly UiTargetId Keyboard = new("help.keyboard");
     internal static readonly UiTargetId Content = new("help.content");
     internal static readonly UiTargetId Scrollbar = new("help.vertical-scrollbar");
-    internal static readonly UiTargetId FunctionKeys = new("help.function-key-bar");
+
+    private static readonly FunctionKeyBarAction<HelpAction>[] FunctionKeyActions =
+    [
+        new(10, "Close", HelpAction.Close),
+    ];
+
+    private static readonly FunctionKeyBarController<HelpAction> FunctionKeysController =
+        new(new UiTargetId("help.function-key-bar"));
+
+    internal static UiTargetId FunctionKeys => FunctionKeysController.InteractionTarget;
+
     private const int KeyColumnWidth = 20;
     private readonly HelpLine[] _lines;
     private readonly ConsolePalette _palette;
@@ -69,9 +79,14 @@ internal sealed class HelpViewerLayer : InteractiveSurfaceLayer<HelpViewerFrame,
             : null;
     }
 
-    protected override InteractiveSurfaceRouteResult<HelpAction> RouteSemanticInput(ConsoleInputEvent input, HelpViewerFrame frame, UiInputRouteContext context)
+    protected override InteractiveSurfaceRouteResult<HelpAction> RouteSemanticInput(
+        ConsoleInputEvent input,
+        HelpViewerFrame frame,
+        UiInputRouteContext context)
     {
-        if (input is KeyConsoleInputEvent key && context.RouteKind == UiInputRouteKind.KeyboardTarget && context.Target == Keyboard)
+        if (input is KeyConsoleInputEvent key &&
+            context.RouteKind == UiInputRouteKind.KeyboardTarget &&
+            context.Target == Keyboard)
         {
             var (action, invalidate) = RouteKey(key.Key.Key, frame);
             return new InteractiveSurfaceRouteResult<HelpAction>(action, invalidate);
@@ -106,12 +121,20 @@ internal sealed class HelpViewerLayer : InteractiveSurfaceLayer<HelpViewerFrame,
         return (HelpAction.None, oldTop != _scrollTop || oldLeft != _scrollLeft);
     }
 
-    private InteractiveSurfaceRouteResult<HelpAction> RouteMouse(MouseConsoleInputEvent mouse, HelpViewerFrame frame, UiInputRouteContext context)
+    private InteractiveSurfaceRouteResult<HelpAction> RouteMouse(
+        MouseConsoleInputEvent mouse,
+        HelpViewerFrame frame,
+        UiInputRouteContext context)
     {
-        if (context.Target == FunctionKeys && mouse is { Button: MouseButton.Left, Kind: MouseEventKind.Down })
+        if (FunctionKeysController.TryGetAction(
+                mouse,
+                context,
+                frame.FunctionKeyBarBounds.Y,
+                frame.FunctionKeyBarBounds.Width,
+                FunctionKeyActions,
+                out HelpAction functionKeyAction))
         {
-            HelpFooterActionHit? hit = frame.FooterActionHits.FirstOrDefault(value => value.Bounds.Contains(mouse.X, mouse.Y));
-            return new InteractiveSurfaceRouteResult<HelpAction>(hit?.Action ?? HelpAction.None);
+            return new InteractiveSurfaceRouteResult<HelpAction>(functionKeyAction);
         }
 
         if (context.Target == Content && mouse.Kind == MouseEventKind.Wheel)
@@ -125,8 +148,12 @@ internal sealed class HelpViewerLayer : InteractiveSurfaceLayer<HelpViewerFrame,
             return new InteractiveSurfaceRouteResult<HelpAction>(HelpAction.None, oldTop != _scrollTop);
         }
 
-        if (frame.ScrollBarBounds is not { } bar || frame.VerticalScrollState is not { } state || context.Target != Scrollbar)
+        if (frame.ScrollBarBounds is not { } bar ||
+            frame.VerticalScrollState is not { } state ||
+            context.Target != Scrollbar)
+        {
             return new InteractiveSurfaceRouteResult<HelpAction>(HelpAction.None);
+        }
 
         if (mouse is { Button: MouseButton.Left, Kind: MouseEventKind.Up } && _drag is not null)
         {
@@ -139,7 +166,11 @@ internal sealed class HelpViewerLayer : InteractiveSurfaceLayer<HelpViewerFrame,
         if (mouse is { Button: MouseButton.Left, Kind: MouseEventKind.Move } && _drag is { } drag)
         {
             int oldTop = _scrollTop;
-            _scrollTop = ScrollBarInteraction.FirstVisibleIndexForThumbY(bar, state, mouse.Y, drag.PointerOffsetInThumb);
+            _scrollTop = ScrollBarInteraction.FirstVisibleIndexForThumbY(
+                bar,
+                state,
+                mouse.Y,
+                drag.PointerOffsetInThumb);
             return new InteractiveSurfaceRouteResult<HelpAction>(HelpAction.None, oldTop != _scrollTop);
         }
 
@@ -149,7 +180,11 @@ internal sealed class HelpViewerLayer : InteractiveSurfaceLayer<HelpViewerFrame,
         ScrollBarHitTestResult scrollbarHit = ScrollBarInteraction.HitTest(bar, state, mouse.X, mouse.Y);
         if (scrollbarHit.Part == ScrollBarHitPart.Thumb)
         {
-            _drag = new ScrollBarDragState(bar, state.TotalItems, state.ViewportItems, scrollbarHit.PointerOffsetInThumb);
+            _drag = new ScrollBarDragState(
+                bar,
+                state.TotalItems,
+                state.ViewportItems,
+                scrollbarHit.PointerOffsetInThumb);
             return new InteractiveSurfaceRouteResult<HelpAction>(
                 HelpAction.None,
                 MouseCaptureRequest: UiMouseCaptureRequest.Capture(Scrollbar, MouseButton.Left));
@@ -160,7 +195,12 @@ internal sealed class HelpViewerLayer : InteractiveSurfaceLayer<HelpViewerFrame,
         return new InteractiveSurfaceRouteResult<HelpAction>(HelpAction.None, previousTop != _scrollTop);
     }
 
-    private static HelpViewerFrame CreateFrame(UiRenderContext context, HelpLine[] lines, ConsolePalette palette, int scrollTop, int scrollLeft)
+    private static HelpViewerFrame CreateFrame(
+        UiRenderContext context,
+        HelpLine[] lines,
+        ConsolePalette palette,
+        int scrollTop,
+        int scrollLeft)
     {
         int width = context.Size.Width;
         int height = context.Size.Height;
@@ -175,14 +215,21 @@ internal sealed class HelpViewerLayer : InteractiveSurfaceLayer<HelpViewerFrame,
         ScrollState? scrollState = scrollbar is { } bar
             ? new ScrollState { TotalItems = lines.Length, ViewportItems = visibleRows, FirstVisibleIndex = top }
             : null;
-        Rect footer = height > 0 ? new Rect(0, height - 1, width, 1) : new Rect(0, 0, 0, 0);
-        IReadOnlyList<HelpFooterActionHit> footerHits = BuildFooterActionHits(footer);
+        Rect functionKeyBarBounds = height > 0
+            ? new Rect(0, height - 1, width, 1)
+            : new Rect(0, 0, 0, 0);
+        IReadOnlyList<FunctionKeyBarActionHit<HelpAction>> footerActionHits =
+            FunctionKeysController.BuildActionHits(
+                functionKeyBarBounds.Y,
+                functionKeyBarBounds.Width,
+                FunctionKeyActions);
 
         return new HelpViewerFrame(
             context.Viewport,
             new Rect(0, 0, width, Math.Min(1, height)),
             content,
-            footerHits,
+            footerActionHits,
+            functionKeyBarBounds,
             top,
             left,
             maxTop,
@@ -191,11 +238,6 @@ internal sealed class HelpViewerLayer : InteractiveSurfaceLayer<HelpViewerFrame,
             scrollbar,
             scrollState);
     }
-
-    private static IReadOnlyList<HelpFooterActionHit> BuildFooterActionHits(Rect footer) =>
-        footer.Width >= 7 && footer.Height > 0
-            ? Array.AsReadOnly([new HelpFooterActionHit(new Rect(footer.X, footer.Y, 7, 1), HelpAction.Close, "F10")])
-            : Array.Empty<HelpFooterActionHit>();
 
     private static UiInteractionFrame BuildInteraction(HelpViewerFrame frame)
     {
@@ -211,13 +253,16 @@ internal sealed class HelpViewerLayer : InteractiveSurfaceLayer<HelpViewerFrame,
         {
             builder.AddHitRegion(Scrollbar, bar);
         }
-        foreach (HelpFooterActionHit action in frame.FooterActionHits)
-            builder.AddHitRegion(FunctionKeys, action.Bounds);
 
+        builder.AddFragment(FunctionKeysController.BuildInteractionFragment(frame.FooterActionHits));
         return builder.Build();
     }
 
-    private static void Draw(IUiCanvas screen, HelpLine[] lines, HelpViewerFrame frame, ConsolePalette palette)
+    private static void Draw(
+        IUiCanvas screen,
+        HelpLine[] lines,
+        HelpViewerFrame frame,
+        ConsolePalette palette)
     {
         int width = frame.Viewport.Size.Width;
         int height = frame.Viewport.Size.Height;
@@ -226,7 +271,11 @@ internal sealed class HelpViewerLayer : InteractiveSurfaceLayer<HelpViewerFrame,
 
         string pos = lines.Length == 0 ? " 0/0 " : $" {frame.ScrollTop + 1}/{lines.Length} ";
         int nameWidth = Math.Max(0, width - pos.Length);
-        screen.Write(0, 0, (" CSharpFar Help ".PadRight(nameWidth)[..nameWidth] + pos)[..width], PaletteStyles.PathHeaderActive(palette));
+        screen.Write(
+            0,
+            0,
+            (" CSharpFar Help ".PadRight(nameWidth)[..nameWidth] + pos)[..width],
+            PaletteStyles.PathHeaderActive(palette));
         CellStyle body = PaletteStyles.HelpBody(palette);
         for (int row = 0; row < frame.VisibleRows; row++)
         {
@@ -237,21 +286,53 @@ internal sealed class HelpViewerLayer : InteractiveSurfaceLayer<HelpViewerFrame,
         }
 
         if (frame.ScrollBarBounds is { } scrollbar && frame.VerticalScrollState is { } scrollState)
-            new ScrollBarRenderer().RenderVerticalScrollbar(screen, scrollbar, scrollState, new ScrollBarOptions { Enabled = true }, body);
-        screen.FillRegion(new Rect(0, height - 1, width, 1), PaletteStyles.KeyBarLabel(palette));
-        screen.Write(0, height - 1, "10", PaletteStyles.KeyBarNum(palette));
-        screen.Write(2, height - 1, "Close", PaletteStyles.KeyBarLabel(palette));
+        {
+            new ScrollBarRenderer().RenderVerticalScrollbar(
+                screen,
+                scrollbar,
+                scrollState,
+                new ScrollBarOptions { Enabled = true },
+                body);
+        }
+
+        FunctionKeysController.Render(
+            screen,
+            frame.FunctionKeyBarBounds.Y,
+            frame.FunctionKeyBarBounds.Width,
+            FunctionKeyActions);
     }
 
-    private static void DrawLine(IUiCanvas screen, HelpLine line, int y, int left, int width, ConsolePalette palette)
+    private static void DrawLine(
+        IUiCanvas screen,
+        HelpLine line,
+        int y,
+        int left,
+        int width,
+        ConsolePalette palette)
     {
         if (width <= 0)
             return;
 
         if (line.Kind == HelpLineKind.KeyLine)
         {
-            WriteClipped(screen, 0, y, $"  {line.Key}".PadRight(KeyColumnWidth), 0, left, width, PaletteStyles.HelpKey(palette));
-            WriteClipped(screen, 0, y, line.Description, KeyColumnWidth, left, width, PaletteStyles.HelpBody(palette));
+            WriteClipped(
+                screen,
+                0,
+                y,
+                $"  {line.Key}".PadRight(KeyColumnWidth),
+                0,
+                left,
+                width,
+                PaletteStyles.HelpKey(palette));
+            WriteClipped(
+                screen,
+                0,
+                y,
+                line.Description,
+                KeyColumnWidth,
+                left,
+                width,
+                PaletteStyles.HelpBody(palette));
             return;
         }
 
@@ -293,13 +374,12 @@ internal sealed class HelpViewerLayer : InteractiveSurfaceLayer<HelpViewerFrame,
             : line.Description.Length;
 }
 
-internal sealed record HelpFooterActionHit(Rect Bounds, HelpAction Action, string Key);
-
 internal sealed record HelpViewerFrame(
     ConsoleViewport Viewport,
     Rect HeaderBounds,
     Rect ContentBounds,
-    IReadOnlyList<HelpFooterActionHit> FooterActionHits,
+    IReadOnlyList<FunctionKeyBarActionHit<HelpAction>> FooterActionHits,
+    Rect FunctionKeyBarBounds,
     int ScrollTop,
     int ScrollLeft,
     int MaxScrollTop,

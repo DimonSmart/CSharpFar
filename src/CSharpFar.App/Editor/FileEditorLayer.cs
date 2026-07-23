@@ -54,8 +54,8 @@ internal sealed partial class FileEditor
             {
                 builder.AddHitRegion(Scrollbar, bar);
             }
-            foreach (FunctionKeyHit hit in frame.FunctionKeyHits)
-                builder.AddHitRegion(FunctionKeys, hit.Bounds);
+            if (frame.FunctionKeyBarBounds.Width > 0 && frame.FunctionKeyBarBounds.Height > 0)
+                builder.AddHitRegion(FunctionKeys, frame.FunctionKeyBarBounds);
 
             return builder.Build();
         }
@@ -115,11 +115,10 @@ internal sealed partial class FileEditor
             FileEditorFrame frame,
             UiInputRouteContext context)
         {
-            if (context.Target == FunctionKeys && mouse is { Button: MouseButton.Left, Kind: MouseEventKind.Down })
+            if (context.Target == FunctionKeys &&
+                _editor.TryGetFunctionKeyAction(mouse, frame, out ConsoleKeyInfo key))
             {
-                FunctionKeyHit? hit = frame.FunctionKeyHits.FirstOrDefault(value => value.Bounds.Contains(mouse.X, mouse.Y));
-                return new InteractiveSurfaceRouteResult<FileEditorInput>(
-                    hit is { } value ? FileEditorInput.Keyboard(value.Key) : FileEditorInput.None);
+                return new InteractiveSurfaceRouteResult<FileEditorInput>(FileEditorInput.Keyboard(key));
             }
 
             if (context.Target == Content)
@@ -263,14 +262,12 @@ internal sealed partial class FileEditor
         int FirstLineAfterVisibleRange,
         Rect? ScrollBarBounds,
         ScrollState? VerticalScrollState,
-        IReadOnlyList<FunctionKeyHit> FunctionKeyHits,
+        IReadOnlyList<FunctionKeyBarAction<ConsoleKeyInfo>> FunctionKeyActions,
         UiCursorPlacement CursorPlacement,
         bool UsesCustomCursor,
         bool CustomCursorVisible,
         EditorSyntaxDiagnostics SyntaxDiagnostics,
         EditorSyntaxHighlightResult SyntaxResult);
-
-    private sealed record FunctionKeyHit(Rect Bounds, ConsoleKeyInfo Key);
 
     private readonly record struct FileEditorInput(
         FileEditorInputKind Kind,
