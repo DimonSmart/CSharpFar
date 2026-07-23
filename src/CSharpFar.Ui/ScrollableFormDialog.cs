@@ -290,7 +290,7 @@ public sealed partial class ScrollableFormDialog
     {
         int firstVisibleIndex = ScrollTop;
         var dragState = ScrollbarDrag;
-        if (!ScrollBarMouseHandler.TryHandleMouse(
+        if (!VerticalScrollbarMouseAdapter.TryHandleMouse(
                 mouse,
                 scrollbarBounds,
                 BodyRowCount,
