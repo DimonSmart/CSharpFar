@@ -28,7 +28,7 @@ internal sealed class SaveChangesDialog
             [
                 new DialogButton("save", "Save", 'S', IsDefault: true),
                 new DialogButton("discard", "Discard", 'D'),
-                new DialogButton("cancel", "Cancel", 'C'),
+                new DialogButton("cancel", "Cancel", 'C', Role: DialogButtonRole.Cancel),
             ],
             DefaultButtonIndex = 0,
             CancelButtonIndex = 2,

@@ -230,10 +230,10 @@ internal sealed class FileAttributesDialog : IFileAttributesDialog
             {
                 new DialogButton("set", "Set", 'S', IsDefault: true),
                 new DialogButton("properties", "System properties", 'P'),
-                new DialogButton("cancel", "Cancel", 'C'),
+                new DialogButton("cancel", "Cancel", 'C', Role: DialogButtonRole.Cancel),
             }
-            : [new DialogButton("set", "Set", 'S', IsDefault: true), new DialogButton("cancel", "Cancel", 'C')];
-        rows.Add(new ButtonRow(buttons, FarDialogStyles.Fill, FarDialogStyles.FocusedInput));
+            : [new DialogButton("set", "Set", 'S', IsDefault: true), new DialogButton("cancel", "Cancel", 'C', Role: DialogButtonRole.Cancel)];
+        rows.Add(new ButtonRow(buttons));
         return rows;
     }
 

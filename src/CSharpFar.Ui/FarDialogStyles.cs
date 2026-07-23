@@ -9,6 +9,8 @@ public static class FarDialogStyles
     public static CellStyle Title => new(UiTheme.Current.DialogTitle, UiTheme.Current.DialogBackground);
     public static CellStyle Input => new(UiTheme.Current.InputText, UiTheme.Current.InputBackground);
     public static CellStyle FocusedInput => new(UiTheme.Current.InputFocusedText, UiTheme.Current.InputFocusedBackground);
+    public static CellStyle PressedButton => new(UiTheme.Current.InputFocusedBackground, UiTheme.Current.InputFocusedText);
+    public static DialogButtonBarStyle ButtonBar => new(Fill, FocusedInput, PressedButton);
     public static CellStyle Error => new(UiTheme.Current.DialogError, UiTheme.Current.DialogBackground);
     public static CellStyle Shadow => new(UiTheme.Current.DialogShadowFg, UiTheme.Current.DialogShadowBg);
 

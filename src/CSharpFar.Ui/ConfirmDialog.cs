@@ -26,8 +26,8 @@ public sealed class ConfirmDialog
         var actions = new DialogActionController(
         [
             new DialogButton("ok", "OK", 'O', IsDefault: true),
-            new DialogButton("cancel", "Cancel", 'C'),
-        ], 0, 1, FarDialogStyles.Fill, FarDialogStyles.FocusedInput);
+            new DialogButton("cancel", "Cancel", 'C', Role: DialogButtonRole.Cancel),
+        ], 0, 1);
         return _modalDialogs.RunInteractive<ScrollableFormFrame, DialogActionOutcome?, bool>(
             (context, focusScope) => RenderLayer(context, focusScope, actions, title, question, itemName),
             actions.BuildInteractionFrame,

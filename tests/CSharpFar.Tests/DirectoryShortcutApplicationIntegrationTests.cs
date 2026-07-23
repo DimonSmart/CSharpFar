@@ -105,6 +105,12 @@ public sealed class DirectoryShortcutApplicationIntegrationTests : IDisposable
             MouseButton.Left,
             MouseEventKind.Down,
             MouseKeyModifiers.None));
+        driver.EnqueueInput(new MouseConsoleInputEvent(
+            39,
+            14,
+            MouseButton.Left,
+            MouseEventKind.Up,
+            MouseKeyModifiers.None));
         var currentItem = new AppSettings.DirectoryShortcutItem
         {
             Number = 1,
@@ -129,6 +135,12 @@ public sealed class DirectoryShortcutApplicationIntegrationTests : IDisposable
             14,
             MouseButton.Left,
             MouseEventKind.Down,
+            MouseKeyModifiers.None));
+        driver.EnqueueInput(new MouseConsoleInputEvent(
+            32,
+            14,
+            MouseButton.Left,
+            MouseEventKind.Up,
             MouseKeyModifiers.None));
 
         var screen = new ScreenRenderer(driver);

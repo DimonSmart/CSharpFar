@@ -13,6 +13,7 @@ public sealed class TextInputWithButtonsRow : FormRow, IFormOverlayRow, IFormCur
     private readonly CommandLineState _buffer;
     private readonly TextInputRowState _state;
     private readonly DialogButtonBar _buttonBar;
+    private DialogButtonBarState _buttonState;
     private readonly int _inputWidth;
     private readonly int _buttonAreaWidth;
     private readonly string _commandPrefix;
@@ -29,6 +30,7 @@ public sealed class TextInputWithButtonsRow : FormRow, IFormOverlayRow, IFormCur
         _label = label;
         _buffer = buffer;
         _buttonBar = new DialogButtonBar(buttons);
+        _buttonState = _buttonBar.CreateState();
         _commandPrefix = commandPrefix;
         _inputWidth = inputWidth;
         _buttonAreaWidth = buttonAreaWidth;
@@ -64,9 +66,8 @@ public sealed class TextInputWithButtonsRow : FormRow, IFormOverlayRow, IFormCur
             _buttonBar.Render(
                 context.Canvas,
                 layout.ButtonLayout,
-                focusedIndex: 0,
-                FarDialogStyles.Fill,
-                context.Focused ? FarDialogStyles.FocusedInput : FarDialogStyles.Fill);
+                _buttonState,
+                context.Focused);
         }
     }
 
@@ -107,11 +108,19 @@ public sealed class TextInputWithButtonsRow : FormRow, IFormOverlayRow, IFormCur
     public override FormInputResult HandleMouse(MouseConsoleInputEvent mouse, FormRowMouseContext context)
     {
         var layout = CalculateLayout(context.Bounds);
-        int focusedButton = 0;
-        if (_buttonBar.TryHandleMouse(mouse, layout.ButtonLayout, ref focusedButton, out string? buttonId))
-            return buttonId is null
-                ? FormInputResult.Handled
-                : FormInputResult.Submit(_commandPrefix + buttonId);
+        DialogButtonBarInputResult buttonResult = _buttonBar.HandleMouse(mouse, layout.ButtonLayout, _buttonState);
+        _buttonState = buttonResult.State;
+        if (buttonResult.IsHandled)
+        {
+            return buttonResult.ButtonId is null
+                ? new FormInputResult(FormInputResultKind.Handled, MouseCapture: buttonResult.MouseCapture)
+                : new FormInputResult(
+                    buttonResult.ButtonRole == DialogButtonRole.Cancel
+                        ? FormInputResultKind.Cancel
+                        : FormInputResultKind.Submit,
+                    _commandPrefix + buttonResult.ButtonId,
+                    buttonResult.MouseCapture);
+        }
 
         if (mouse.Button != MouseButton.Left ||
             mouse.Kind != MouseEventKind.Down ||

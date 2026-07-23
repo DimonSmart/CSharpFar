@@ -50,8 +50,7 @@ public sealed class MessageDialog
         var dialogButtons = buttons
             .Select((text, index) => new DialogButton(index.ToString(), text, HotKeyFrom(text), index == 0))
             .ToArray();
-        var actions = new DialogActionController(
-            dialogButtons, 0, null, FarDialogStyles.Fill, FarDialogStyles.FocusedInput);
+        var actions = new DialogActionController(dialogButtons, 0, null);
         var viewport = new ScrollableViewport();
         return _modalDialogs.RunInteractive<MessageDialogFrame, MessageDialogInput, int>(
             (context, focusScope) =>
@@ -171,7 +170,7 @@ public sealed class MessageDialog
     {
         int availableWidth = Math.Max(1, size.Width - 2);
         int rawTextWidth = LongestRawLine(message);
-        int buttonWidth = buttons is null ? "[ Press Enter ]".Length : ButtonRowWidth(buttons);
+        int buttonWidth = buttons is null ? "[ Press Enter ]".Length : DialogButtonBar.MeasureWidth(buttons);
         int titleWidth = string.IsNullOrEmpty(title) ? 0 : title.Length + 2;
         int desiredWidth = Math.Max(MinDialogWidth, Math.Max(Math.Max(rawTextWidth, buttonWidth), titleWidth) + 4);
         int width = Math.Min(Math.Min(MaxDialogWidth, desiredWidth), availableWidth);
@@ -290,12 +289,6 @@ public sealed class MessageDialog
             .Replace('\r', '\n');
         return normalized.Split('\n').DefaultIfEmpty(string.Empty).Max(line => line.Length);
     }
-
-    private static int ButtonRowWidth(IReadOnlyList<DialogButton> buttons) =>
-        buttons.Sum(button => FormatButtonLength(button.Text, button.IsDefault)) + Math.Max(0, buttons.Count - 1);
-
-    private static int FormatButtonLength(string text, bool isDefault) =>
-        text.Length + (isDefault ? 4 : 4);
 
     private static string Fit(string text, int width)
     {

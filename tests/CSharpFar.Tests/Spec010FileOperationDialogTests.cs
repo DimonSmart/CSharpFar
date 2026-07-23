@@ -348,6 +348,7 @@ public sealed class Spec010FileOperationDialogTests
                 record.Text.Contains("Cancel", StringComparison.Ordinal));
             int x = row.X + row.Text.IndexOf("Cancel", StringComparison.Ordinal);
             currentDriver.EnqueueInput(new MouseConsoleInputEvent(x, row.Y, MouseButton.Left, MouseEventKind.Down, MouseKeyModifiers.None));
+            currentDriver.EnqueueInput(new MouseConsoleInputEvent(x, row.Y, MouseButton.Left, MouseEventKind.Up, MouseKeyModifiers.None));
         };
 
         var result = new FileOperationDialog(ModalTestHost.Create(screen)).ShowCopy(
@@ -402,6 +403,7 @@ public sealed class Spec010FileOperationDialogTests
         var driver = new FakeConsoleDriver(width: 100, height: 30);
         var screen = new ScreenRenderer(driver);
         driver.EnqueueInput(new MouseConsoleInputEvent(50, 16, MouseButton.Left, MouseEventKind.Down, MouseKeyModifiers.None));
+        driver.EnqueueInput(new MouseConsoleInputEvent(50, 16, MouseButton.Left, MouseEventKind.Up, MouseKeyModifiers.None));
 
         string? result = new CreateFolderDialog(ModalTestHost.Create(screen)).Show();
 
@@ -789,12 +791,21 @@ public sealed class Spec010FileOperationDialogTests
         var driver = new FakeConsoleDriver(width: 100, height: 30);
         var screen = new ScreenRenderer(driver);
         driver.EnqueueInput(new MouseConsoleInputEvent(53, 16, MouseButton.Left, MouseEventKind.Down, MouseKeyModifiers.None));
+        driver.EnqueueInput(new MouseConsoleInputEvent(53, 16, MouseButton.Left, MouseEventKind.Up, MouseKeyModifiers.None));
 
         bool result = new OperationCancelDialog(ModalTestHost.Create(screen)).Show();
 
         Assert.False(result);
 
-        var buttonRecord = Assert.Single(driver.WriteRecords, r => r.Text.Contains("{ Yes }", StringComparison.Ordinal));
+        var buttonRecords = driver.WriteRecords
+            .Where(r => r.Text.Contains("{ Yes }", StringComparison.Ordinal))
+            .ToArray();
+        Assert.Equal(2, buttonRecords.Length);
+        Assert.Contains(driver.WriteRecords, r =>
+            r.Text.Contains("[ No ]", StringComparison.Ordinal) &&
+            r.Foreground == WarningDialogStyles.ButtonPressed.Foreground &&
+            r.Background == WarningDialogStyles.ButtonPressed.Background);
+        var buttonRecord = buttonRecords[^1];
         int bottomFrameRow = driver.WriteRecords
             .Where(r => r.Text.Contains('└') || r.Text.Contains('╚'))
             .Select(r => r.Y)

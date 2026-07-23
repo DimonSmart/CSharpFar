@@ -62,10 +62,8 @@ internal sealed class OpenCreateFileDialog
         var actions = new ButtonRow(
             [
                 new DialogButton("ok", "OK", 'O', IsDefault: true),
-                new DialogButton("cancel", "Cancel", 'C'),
-            ],
-            FarDialogStyles.Fill,
-            FarDialogStyles.FocusedInput)
+                new DialogButton("cancel", "Cancel", 'C', Role: DialogButtonRole.Cancel),
+            ])
         {
             Id = "actions",
         };

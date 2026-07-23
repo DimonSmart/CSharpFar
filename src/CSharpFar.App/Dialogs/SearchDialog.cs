@@ -98,10 +98,8 @@ internal sealed class SearchDialog
         var buttons = new ButtonRow(
             [
                 new DialogButton("find", "Find", 'F', IsDefault: true),
-                new DialogButton("cancel", "Cancel", 'C'),
-            ],
-            FarDialogStyles.Fill,
-            FarDialogStyles.FocusedInput);
+                new DialogButton("cancel", "Cancel", 'C', Role: DialogButtonRole.Cancel),
+            ]);
         var form = new ScrollableFormDialog();
         string? error = null;
 

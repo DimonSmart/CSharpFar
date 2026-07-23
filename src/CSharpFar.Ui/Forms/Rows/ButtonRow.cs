@@ -1,34 +1,25 @@
-using CSharpFar.Console;
 using CSharpFar.Console.Input;
-using CSharpFar.Console.Models;
-using CSharpFar.Core.Models;
 
 namespace CSharpFar.Ui;
 
 public sealed class ButtonRow : FormRow
 {
     private readonly DialogButtonBar _buttonBar;
-    private readonly CellStyle _normalStyle;
-    private readonly CellStyle _focusedStyle;
+    private readonly DialogButtonBarStyle? _style;
+    private DialogButtonBarState _state;
 
     public ButtonRow(
         IReadOnlyList<DialogButton> buttons,
-        CellStyle normalStyle,
-        CellStyle focusedStyle,
-        int focusedButtonIndex = 0)
-        : this(new DialogButtonBar(buttons), normalStyle, focusedStyle)
+        int focusedButtonIndex = 0,
+        DialogButtonBarStyle? style = null)
     {
-        FocusedButtonIndex = buttons.Count == 0 ? 0 : Math.Clamp(focusedButtonIndex, 0, buttons.Count - 1);
+        _buttonBar = new DialogButtonBar(buttons);
+        _state = _buttonBar.CreateState(focusedButtonIndex);
+        _style = style;
     }
 
-    public ButtonRow(DialogButtonBar buttonBar, CellStyle normalStyle, CellStyle focusedStyle)
-    {
-        _buttonBar = buttonBar;
-        _normalStyle = normalStyle;
-        _focusedStyle = focusedStyle;
-    }
-
-    public int FocusedButtonIndex { get; private set; }
+    public int FocusedButtonIndex => _state.FocusedIndex;
+    public int? PressedButtonIndex => _state.PressedButtonIndex;
     public override FormRowRole Role { get; init; } = FormRowRole.ButtonBar;
 
     public override void Render(FormRowRenderContext context) =>
@@ -37,36 +28,38 @@ public sealed class ButtonRow : FormRow
             context.Bounds.X,
             context.Bounds.Y,
             context.Bounds.Width,
-            FocusedButtonIndex,
-            _normalStyle,
-            context.Focused ? _focusedStyle : _normalStyle);
+            _state,
+            context.Focused,
+            _style);
 
     public override FormInputResult HandleKey(ConsoleKeyInfo key, FormRowInputContext context)
     {
-        int focusedButton = FocusedButtonIndex;
-        if (!_buttonBar.TryHandleKey(key, ref focusedButton, out string? buttonId))
+        DialogButtonBarInputResult result = _buttonBar.HandleKey(key, _state);
+        _state = result.State;
+        if (!result.IsHandled)
             return FormInputResult.NotHandled;
 
-        FocusedButtonIndex = focusedButton;
-        return ButtonResult(buttonId);
+        return ButtonResult(result);
     }
 
     public override FormInputResult HandleMouse(MouseConsoleInputEvent mouse, FormRowMouseContext context)
     {
-        int focusedButton = FocusedButtonIndex;
         var layout = _buttonBar.CalculateLayout(context.Bounds.X, context.Bounds.Y, context.Bounds.Width);
-        if (!_buttonBar.TryHandleMouse(mouse, layout, ref focusedButton, out string? buttonId))
+        DialogButtonBarInputResult result = _buttonBar.HandleMouse(mouse, layout, _state);
+        _state = result.State;
+        if (!result.IsHandled)
             return FormInputResult.NotHandled;
 
-        FocusedButtonIndex = focusedButton;
-        return ButtonResult(buttonId);
+        return ButtonResult(result);
     }
 
-    private static FormInputResult ButtonResult(string? buttonId) =>
-        buttonId switch
-        {
-            null => FormInputResult.Handled,
-            "cancel" => FormInputResult.Cancel(buttonId),
-            _ => FormInputResult.Submit(buttonId),
-        };
+    private static FormInputResult ButtonResult(DialogButtonBarInputResult result) =>
+        result.ButtonId is null
+            ? new FormInputResult(FormInputResultKind.Handled, MouseCapture: result.MouseCapture)
+            : new FormInputResult(
+                result.ButtonRole == DialogButtonRole.Cancel
+                    ? FormInputResultKind.Cancel
+                    : FormInputResultKind.Submit,
+                result.ButtonId,
+                result.MouseCapture);
 }

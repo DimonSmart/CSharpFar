@@ -201,9 +201,7 @@ public sealed class Spec012SearchDialogTests
                     new ChoiceRow<SearchScope>([SearchScope.CurrentDirectoryRecursive], static scope => scope.ToString()),
                     "Select search area:"),
                 new ButtonRow(
-                    [new DialogButton("find", "Find", 'F', IsDefault: true)],
-                    FarDialogStyles.Fill,
-                    FarDialogStyles.FocusedInput),
+                    [new DialogButton("find", "Find", 'F', IsDefault: true)]),
                 true,
             ])!;
     }

@@ -58,6 +58,7 @@ public sealed class EditorFindDialogTests
         var driver = new FakeConsoleDriver(80, 25);
         driver.EnqueueInput(new MouseConsoleInputEvent(15, 11, MouseButton.Left, MouseEventKind.Down, MouseKeyModifiers.None));
         driver.EnqueueInput(new MouseConsoleInputEvent(35, 14, MouseButton.Left, MouseEventKind.Down, MouseKeyModifiers.None));
+        driver.EnqueueInput(new MouseConsoleInputEvent(35, 14, MouseButton.Left, MouseEventKind.Up, MouseKeyModifiers.None));
         driver.EnqueueKey(new ConsoleKeyInfo('\0', ConsoleKey.Escape, shift: false, alt: false, control: false));
 
         var result = new EditorFindDialog(ModalTestHost.Create(driver), PaletteRegistry.Default)

@@ -33,13 +33,10 @@ public sealed class ChoiceDialog
         if (options.Buttons.Count == 0)
             throw new ArgumentException("At least one button is required.", nameof(options));
 
-        var palette = UiTheme.Current;
         var actions = new DialogActionController(
             options.Buttons,
             options.DefaultButtonIndex,
-            options.CancelButtonIndex,
-            PaletteStyles.DialogFill(palette),
-            PaletteStyles.InputField(palette));
+            options.CancelButtonIndex);
         return _modalDialogs.RunInteractive<ScrollableFormFrame, DialogActionOutcome?, ChoiceDialogResult>(
             (context, focusScope) =>
             {
@@ -104,7 +101,7 @@ public sealed class ChoiceDialog
     private static ChoiceDialogLayout CreateLayout(ChoiceDialogOptions options, ConsoleSize size)
     {
         int lineWidth = options.Lines.DefaultIfEmpty(string.Empty).Max(line => line.Length);
-        int buttonWidth = options.Buttons.Sum(button => button.Text.Length + 4) + Math.Max(0, options.Buttons.Count - 1);
+        int buttonWidth = DialogButtonBar.MeasureWidth(options.Buttons);
         int titleWidth = string.IsNullOrEmpty(options.Title) ? 0 : options.Title.Length + 2;
         int desiredWidth = Math.Max(MinDialogWidth, Math.Max(Math.Max(lineWidth, buttonWidth), titleWidth) + 4);
         int width = Math.Min(Math.Min(MaxDialogWidth, desiredWidth), Math.Max(1, size.Width));

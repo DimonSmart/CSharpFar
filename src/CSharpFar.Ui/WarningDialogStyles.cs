@@ -4,10 +4,12 @@ namespace CSharpFar.Ui;
 
 public static class WarningDialogStyles
 {
-    public static CellStyle Fill => new(ConsoleColor.White, ConsoleColor.DarkRed);
-    public static CellStyle Border => new(ConsoleColor.White, ConsoleColor.DarkRed);
-    public static CellStyle ButtonFocus => new(ConsoleColor.Black, ConsoleColor.Gray);
-    public static CellStyle Shadow => new(ConsoleColor.Black, ConsoleColor.Black);
+    public static CellStyle Fill => new(UiTheme.Current.WarningForeground, UiTheme.Current.WarningBackground);
+    public static CellStyle Border => Fill;
+    public static CellStyle ButtonFocus => new(UiTheme.Current.WarningButtonFocusedForeground, UiTheme.Current.WarningButtonFocusedBackground);
+    public static CellStyle ButtonPressed => new(UiTheme.Current.WarningButtonFocusedBackground, UiTheme.Current.WarningButtonFocusedForeground);
+    public static CellStyle Shadow => new(UiTheme.Current.DialogShadowFg, UiTheme.Current.DialogShadowBg);
+    public static DialogButtonBarStyle ButtonBar => new(Fill, ButtonFocus, ButtonPressed);
 
     public static PopupRenderOptions OuterOptions =>
         new()

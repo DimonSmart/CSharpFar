@@ -97,8 +97,8 @@ internal sealed class FtpConnectionDialog
         var actions = new ButtonRow(
         [
             new DialogButton("submit", submitLabel, request.AllowTemporaryConnection ? 'O' : 'S', IsDefault: true),
-            new DialogButton("cancel", "Cancel", 'C'),
-        ], FarDialogStyles.Fill, FarDialogStyles.FocusedInput)
+            new DialogButton("cancel", "Cancel", 'C', Role: DialogButtonRole.Cancel),
+        ])
         { Id = "actions" };
         var form = new ScrollableFormDialog();
 

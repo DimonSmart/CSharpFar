@@ -52,11 +52,11 @@ internal sealed class FtpConnectionManagerDialog
                 new DialogButton("create", "New", 'N'),
                 new DialogButton("edit", "Edit", 'E'),
                 new DialogButton("delete", "Delete", 'D'),
-                new DialogButton("cancel", "Cancel", 'C'),
+                new DialogButton("cancel", "Cancel", 'C', Role: DialogButtonRole.Cancel),
             ]
             : [
                 new DialogButton("create", "New", 'N', IsDefault: true),
-                new DialogButton("cancel", "Cancel", 'C'),
+                new DialogButton("cancel", "Cancel", 'C', Role: DialogButtonRole.Cancel),
             ];
 
     private static FtpConnectionManagerResult? ToManagerResult(ListWithButtonsDialogResult<FtpConnectionInfo> result) =>
