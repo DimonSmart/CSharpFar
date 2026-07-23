@@ -119,7 +119,7 @@ public sealed class ScrollableViewport
             return ScrollableViewportInputResult.NotHandled;
 
         int first = frame.FirstVisibleIndex;
-        ScrollBarDragState? drag = frame.ScrollbarDrag;
+        ScrollBarDragState? drag = _scrollbarDrag ?? frame.ScrollbarDrag;
         bool wasDragging = drag.HasValue;
         if (!ScrollBarMouseHandler.TryHandleMouse(
                 mouse, bounds, frame.TotalItems, frame.ViewportItems, ref first, ref drag))

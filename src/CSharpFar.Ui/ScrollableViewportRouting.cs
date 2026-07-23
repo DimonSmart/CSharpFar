@@ -2,7 +2,7 @@ using CSharpFar.Console.Input;
 
 namespace CSharpFar.Ui;
 
-internal static class ScrollableViewportRouting
+public static class ScrollableViewportRouting
 {
     public static UiInputResult ToUiInputResult(
         ScrollableViewportInputResult result,
