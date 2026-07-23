@@ -278,7 +278,7 @@ public static class SingleLineTextInput
         }
 
         int firstVisibleIndex = frame.FirstVisibleIndex;
-        if (ScrollBarMouseHandler.TryHandleMouse(
+        if (VerticalScrollbarMouseAdapter.TryHandleMouse(
             mouse,
             frame.ScrollbarBounds ?? new Rect(frame.PopupBounds.Right - 1, frame.ContentBounds.Y, 1, frame.ContentBounds.Height),
             history.Matches.Count,

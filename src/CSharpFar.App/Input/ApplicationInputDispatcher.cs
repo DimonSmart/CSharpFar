@@ -30,9 +30,6 @@ internal sealed class ApplicationInputDispatcher
         _directoryShortcutBarInputHandler = directoryShortcutBarInputHandler;
     }
 
-    public ApplicationRuntimeRenderRequest Handle(UiRoutedInput<ApplicationUiFrame> routed) =>
-        Handle(new ApplicationUiInputPacket(routed));
-
     public ApplicationRuntimeRenderRequest Handle(ApplicationUiInputPacket packet) =>
         packet.Input switch
         {
