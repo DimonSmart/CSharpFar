@@ -129,12 +129,23 @@ public sealed class ModalDialogHost
         ArgumentNullException.ThrowIfNull(routeInput);
         ArgumentNullException.ThrowIfNull(handleInput);
 
-        var layer = new InteractiveModalDialogLayer<TFrame, TSemantic>(render, buildInteractionFrame, routeInput);
+        var layer = new InteractiveSurfaceLayer<TFrame, TSemantic>(
+            render,
+            buildInteractionFrame,
+            (input, frame, context) =>
+            {
+                var routed = routeInput(input, frame, context);
+                return new InteractiveSurfaceRouteResult<TSemantic>(
+                    routed.Semantic,
+                    routed.UiResult.Invalidate,
+                    routed.UiResult.FocusRequest,
+                    routed.UiResult.MouseCaptureRequest);
+            });
         return new InteractiveLayerRunner(_composition).Run(
             layer,
             InteractiveLayerPlacement.Overlay,
             () => layer.CommittedFrame,
-            layer.TryTakeInput,
+            layer.TryTakeInteractiveInput,
             layer.RequestFocusOnNextCommit,
             layer.ClearPendingInput,
             handleInput,
@@ -209,51 +220,6 @@ public sealed class ModalDialogHost
             prepareRender,
             cancellationToken);
     }
-
 }
 
 internal readonly struct Unit;
-
-internal sealed class InteractiveModalDialogLayer<TFrame, TSemantic> : UiLayer<TFrame>
-{
-    private readonly Func<UiRenderContext, IUiFocusState, TFrame> _render;
-    private readonly Func<TFrame, UiInteractionFrame> _buildInteractionFrame;
-    private readonly Func<ConsoleInputEvent, TFrame, UiInputRouteContext, (TSemantic Semantic, UiInputResult UiResult)> _routeInput;
-    private readonly PendingInputSlot<InteractiveLayerInput<TFrame, TSemantic>> _pendingInput = new();
-
-    public InteractiveModalDialogLayer(
-        Func<UiRenderContext, IUiFocusState, TFrame> render,
-        Func<TFrame, UiInteractionFrame> buildInteractionFrame,
-        Func<ConsoleInputEvent, TFrame, UiInputRouteContext, (TSemantic Semantic, UiInputResult UiResult)> routeInput) =>
-        (_render, _buildInteractionFrame, _routeInput) = (render, buildInteractionFrame, routeInput);
-
-    public override UiLayerInputPolicy InputPolicy => UiLayerInputPolicy.Modal;
-
-    protected override TFrame RenderFrame(UiRenderContext context) =>
-        _render(context, FocusState);
-
-    protected override UiInteractionFrame BuildInteractionFrame(TFrame frame) =>
-        _buildInteractionFrame(frame);
-
-    protected override UiInputResult RouteInput(
-        ConsoleInputEvent input,
-        TFrame frame,
-        UiInputRouteContext context)
-    {
-        var routed = _routeInput(input, frame, context);
-        _pendingInput.Store(new InteractiveLayerInput<TFrame, TSemantic>(
-            new UiRoutedInput<TFrame>(input, frame, context.Target, context.RouteKind),
-            routed.Semantic));
-        UiInputResult result = routed.UiResult;
-        return result.Handled
-            ? result
-            : new UiInputResult(true, result.Invalidate, result.FocusRequest, result.MouseCaptureRequest);
-    }
-
-    public bool TryTakeInput(out InteractiveLayerInput<TFrame, TSemantic> routed)
-    {
-        return _pendingInput.TryTake(out routed);
-    }
-
-    internal void ClearPendingInput() => _pendingInput.Clear();
-}
