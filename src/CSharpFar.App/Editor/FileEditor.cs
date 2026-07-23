@@ -712,6 +712,7 @@ internal sealed partial class FileEditor
             Math.Min(session.Document.Buffer.LineCount, viewport.TopLine + contentHeight),
             scrollbarBounds,
             scrollState,
+            VerticalScrollbarFrame: null,
             functionKeyActions,
             cursor,
             usesCustomCursor,

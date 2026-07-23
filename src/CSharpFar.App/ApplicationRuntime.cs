@@ -109,7 +109,7 @@ internal sealed class ApplicationRuntimeContext
     public required Action ResetWaitToken { get; init; }
     public required Action ProcessPendingRefreshes { get; init; }
     public required Action DisposeRuntimeState { get; init; }
-    public required Func<UiRoutedInput<ApplicationUiFrame>, ApplicationRuntimeRenderRequest> HandleApplicationInput { get; init; }
+    public required Func<ApplicationUiInputPacket, ApplicationRuntimeRenderRequest> HandleApplicationInput { get; init; }
     public TryTakeMenuCommand TryTakeMenuCommand { get; init; } = static (out MenuCommandRequest request) =>
     {
         request = null!;

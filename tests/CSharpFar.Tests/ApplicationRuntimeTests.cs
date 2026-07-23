@@ -475,9 +475,9 @@ public sealed class ApplicationRuntimeTests
         public Action ResetWaitToken { get; set; } = () => fixture.ResetCount++;
         public Action ProcessPendingRefreshes { get; set; } = () => fixture.ProcessRefreshCount++;
         public Action DisposeRuntimeState { get; set; } = () => fixture.DisposeCount++;
-        public Func<UiRoutedInput<ApplicationUiFrame>, ApplicationRuntimeRenderRequest>? HandleApplicationInputOverride { get; set; }
-        public Func<UiRoutedInput<ApplicationUiFrame>, ApplicationRuntimeRenderRequest> HandleApplicationInput => routed =>
-            HandleApplicationInputOverride?.Invoke(routed) ?? (routed.Input switch
+        public Func<ApplicationUiInputPacket, ApplicationRuntimeRenderRequest>? HandleApplicationInputOverride { get; set; }
+        public Func<ApplicationUiInputPacket, ApplicationRuntimeRenderRequest> HandleApplicationInput => packet =>
+            HandleApplicationInputOverride?.Invoke(packet) ?? (packet.Input switch
             {
                 KeyConsoleInputEvent => CountKeyInput(),
                 ModifierKeyConsoleInputEvent => CountModifierInput(),

@@ -62,6 +62,5 @@ internal sealed class ApplicationWorkspaceModeController
         _commandCompletionController.Hide(temporarily: false);
         _closeTopMenu();
         _commandHistoryNavigator.Reset();
-        _session.Ui.PanelScrollbarDrag = null;
     }
 }

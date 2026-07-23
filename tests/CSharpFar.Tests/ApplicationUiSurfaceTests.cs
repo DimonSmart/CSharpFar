@@ -500,7 +500,7 @@ public sealed class ApplicationUiSurfaceTests
         Assert.Equal(UiInputRouteKind.HitTarget, down.RouteKind);
 
         services.Inner.ApplicationInputDispatcher.Handle(down);
-        Assert.NotNull(services.Session.Ui.PanelScrollbarDrag);
+        Assert.NotNull(down.ScrollbarInput);
 
         services.Composition.DispatchInput(new MouseConsoleInputEvent(
             79,
@@ -524,7 +524,7 @@ public sealed class ApplicationUiSurfaceTests
         Assert.Equal(ApplicationTargetIds.LeftPanelScrollbar, nonMatchingUp.Target);
         Assert.Equal(UiInputRouteKind.CapturedTarget, nonMatchingUp.RouteKind);
         services.Inner.ApplicationInputDispatcher.Handle(nonMatchingUp);
-        Assert.NotNull(services.Session.Ui.PanelScrollbarDrag);
+        Assert.Null(nonMatchingUp.ScrollbarInput);
 
         services.Composition.DispatchInput(new MouseConsoleInputEvent(
             0,
@@ -547,7 +547,7 @@ public sealed class ApplicationUiSurfaceTests
         Assert.Equal(ApplicationTargetIds.LeftPanelScrollbar, leftUp.Target);
         Assert.Equal(UiInputRouteKind.CapturedTarget, leftUp.RouteKind);
         services.Inner.ApplicationInputDispatcher.Handle(leftUp);
-        Assert.Null(services.Session.Ui.PanelScrollbarDrag);
+        Assert.True(leftUp.ScrollbarInput?.Result.DragEnded);
 
         services.Composition.DispatchInput(new MouseConsoleInputEvent(
             0,
@@ -572,17 +572,17 @@ public sealed class ApplicationUiSurfaceTests
         services.Composition.Render();
 
         ApplicationScrollBarFrame after = services.ApplicationSurface.CommittedFrame.LeftPanel!.ScrollBar!;
-        PanelScrollbarDrag drag = Assert.IsType<PanelScrollbarDrag>(services.Session.Ui.PanelScrollbarDrag);
+        ScrollBarDragState drag = Assert.IsType<ScrollBarDragState>(after.VerticalScrollbarFrame?.DragState);
         Assert.NotEqual(before.Bounds, after.Bounds);
-        Assert.Equal(after.Bounds, drag.DragState.Bounds);
-        Assert.Equal(after.TotalItems, drag.DragState.TotalItems);
-        Assert.Equal(after.ViewportItems, drag.DragState.ViewportItems);
+        Assert.Equal(after.Bounds, drag.Bounds);
+        Assert.Equal(after.TotalItems, drag.TotalItems);
+        Assert.Equal(after.ViewportItems, drag.ViewportItems);
 
         int expectedOffset = ScrollBarInteraction.FirstVisibleIndexForThumbY(
             after.Bounds,
             after.ToScrollState(),
             after.Bounds.Bottom - 1,
-            drag.DragState.PointerOffsetInThumb);
+            drag.PointerOffsetInThumb);
         services.Composition.DispatchInput(new MouseConsoleInputEvent(
             0, after.Bounds.Bottom - 1, MouseButton.Left, MouseEventKind.Move, MouseKeyModifiers.None));
         Assert.True(services.ApplicationSurface.TryTakeInput(out var move));
@@ -622,7 +622,6 @@ public sealed class ApplicationUiSurfaceTests
 
         UiTargetId target = ApplicationTargetIds.PanelScrollbar(side);
         Assert.DoesNotContain(services.ApplicationSurface.CommittedInteractionFrame.HitRegions, region => region.Target == target);
-        Assert.Null(services.Session.Ui.PanelScrollbarDrag);
         services.Composition.DispatchInput(new MouseConsoleInputEvent(0, 0, MouseButton.Left, MouseEventKind.Move, MouseKeyModifiers.None));
         Assert.True(services.ApplicationSurface.TryTakeInput(out var move));
         Assert.NotEqual(UiInputRouteKind.CapturedTarget, move.RouteKind);
@@ -661,7 +660,6 @@ public sealed class ApplicationUiSurfaceTests
         Assert.DoesNotContain(
             services.ApplicationSurface.CommittedInteractionFrame.HitRegions,
             region => region.Target == ApplicationTargetIds.LeftPanelScrollbar);
-        Assert.Null(services.Session.Ui.PanelScrollbarDrag);
 
         services.Composition.DispatchInput(new MouseConsoleInputEvent(
             0, 0, MouseButton.Left, MouseEventKind.Move, MouseKeyModifiers.None));
@@ -679,13 +677,13 @@ public sealed class ApplicationUiSurfaceTests
         StartLeftScrollbarDrag(services);
 
         ApplicationUiFrame committedFrame = services.ApplicationSurface.CommittedFrame;
-        PanelScrollbarDrag committedDrag = Assert.IsType<PanelScrollbarDrag>(services.Session.Ui.PanelScrollbarDrag);
+        Rect committedBounds = committedFrame.LeftPanel!.ScrollBar!.Bounds;
         bool observedRejectedAttempt = false;
         services.Driver.BeforeTrySetCursorPositionInViewport = driver =>
         {
             observedRejectedAttempt = true;
             Assert.Same(committedFrame, services.ApplicationSurface.CommittedFrame);
-            Assert.Equal(committedDrag, services.Session.Ui.PanelScrollbarDrag);
+            Assert.Equal(committedBounds, services.ApplicationSurface.CommittedFrame.LeftPanel!.ScrollBar!.Bounds);
             driver.SetSize(100, 35);
             driver.BeforeTrySetCursorPositionInViewport = null;
         };
@@ -694,9 +692,9 @@ public sealed class ApplicationUiSurfaceTests
 
         Assert.True(observedRejectedAttempt);
         ApplicationScrollBarFrame retried = services.ApplicationSurface.CommittedFrame.LeftPanel!.ScrollBar!;
-        PanelScrollbarDrag drag = Assert.IsType<PanelScrollbarDrag>(services.Session.Ui.PanelScrollbarDrag);
-        Assert.Equal(retried.Bounds, drag.DragState.Bounds);
-        Assert.NotEqual(committedDrag.DragState.Bounds, drag.DragState.Bounds);
+        ScrollBarDragState drag = Assert.IsType<ScrollBarDragState>(retried.VerticalScrollbarFrame?.DragState);
+        Assert.Equal(retried.Bounds, drag.Bounds);
+        Assert.NotEqual(committedBounds, drag.Bounds);
     }
 
     [Fact]
@@ -900,7 +898,7 @@ public sealed class ApplicationUiSurfaceTests
         Assert.True(services.ApplicationSurface.TryTakeInput(out var down));
         Assert.Equal(ApplicationTargetIds.PanelScrollbar(side), down.Target);
         services.Inner.ApplicationInputDispatcher.Handle(down);
-        Assert.NotNull(services.Session.Ui.PanelScrollbarDrag);
+        Assert.NotNull(down.ScrollbarInput);
     }
 
     public enum ScrollbarTargetRemoval

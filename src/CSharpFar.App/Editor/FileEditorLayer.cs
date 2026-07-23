@@ -17,8 +17,8 @@ internal sealed partial class FileEditor
 
         private readonly FileEditor _editor;
         private readonly EditorSession _session;
+        private readonly VerticalScrollbarController _verticalScrollbar = new();
         private ConsoleModifiers _functionKeyModifiers;
-        private ScrollBarDragState? _scrollbarDrag;
         private EditorPosition? _mouseSelectionAnchor;
         private bool _committedCustomCursorVisible = true;
         private bool? _pendingCustomCursorVisible;
@@ -37,7 +37,13 @@ internal sealed partial class FileEditor
         protected override FileEditorFrame RenderFrameCore(UiRenderContext context)
         {
             bool visible = _pendingCustomCursorVisible ?? _committedCustomCursorVisible;
-            return _editor.RenderFrame(_session, _functionKeyModifiers, context, visible);
+            FileEditorFrame frame = _editor.RenderFrame(_session, _functionKeyModifiers, context, visible);
+            return frame with
+            {
+                VerticalScrollbarFrame = _verticalScrollbar.CalculateFrame(
+                    frame.ScrollBarBounds,
+                    frame.VerticalScrollState),
+            };
         }
 
         protected override UiInteractionFrame BuildInteractionFrameCore(FileEditorFrame frame)
@@ -48,11 +54,9 @@ internal sealed partial class FileEditor
                 .SetKeyboardTarget(Keyboard);
             if (frame.ContentBounds.Width > 0 && frame.ContentBounds.Height > 0)
                 builder.AddHitRegion(Content, frame.ContentBounds);
-            if (frame.ScrollBarBounds is { } bar &&
-                frame.VerticalScrollState is { } scrollState &&
-                ScrollBarInteraction.IsInteractive(bar, scrollState))
+            if (frame.VerticalScrollbarFrame is { } scrollbar)
             {
-                builder.AddHitRegion(Scrollbar, bar);
+                builder.AddHitRegion(Scrollbar, scrollbar.Bounds);
             }
             if (frame.FunctionKeyBarBounds.Width > 0 && frame.FunctionKeyBarBounds.Height > 0)
                 builder.AddHitRegion(FunctionKeys, frame.FunctionKeyBarBounds);
@@ -71,11 +75,7 @@ internal sealed partial class FileEditor
             _nextWakeUtc = frame.UsesCustomCursor
                 ? DateTimeOffset.UtcNow.AddMilliseconds(CustomCursorBlinkIntervalMs)
                 : null;
-            _scrollbarDrag = frame.ScrollBarBounds is { } bar &&
-                frame.VerticalScrollState is { } state &&
-                _scrollbarDrag is { } drag
-                    ? ScrollBarInteraction.RebaseDrag(drag, bar, state.TotalItems, state.ViewportItems)
-                    : null;
+            _verticalScrollbar.ApplyCommittedFrame(frame.VerticalScrollbarFrame);
             if (frame.ContentBounds.Width <= 0 || frame.ContentBounds.Height <= 0)
                 _mouseSelectionAnchor = null;
         }
@@ -189,41 +189,22 @@ internal sealed partial class FileEditor
             MouseConsoleInputEvent mouse,
             FileEditorFrame frame)
         {
-            if (frame.ScrollBarBounds is not { } bar || frame.VerticalScrollState is not { } state)
+            if (frame.VerticalScrollbarFrame is not { } scrollbarFrame)
                 return new InteractiveSurfaceRouteResult<FileEditorInput>(FileEditorInput.None);
 
-            if (mouse is { Button: MouseButton.Left, Kind: MouseEventKind.Up } && _scrollbarDrag is not null)
-            {
-                _scrollbarDrag = null;
-                return new InteractiveSurfaceRouteResult<FileEditorInput>(
-                    FileEditorInput.None,
-                    MouseCaptureRequest: UiMouseCaptureRequest.Release);
-            }
-
-            if (mouse is { Button: MouseButton.Left, Kind: MouseEventKind.Move } && _scrollbarDrag is { } drag)
-            {
-                int topLine = ScrollBarInteraction.FirstVisibleIndexForThumbY(bar, state, mouse.Y, drag.PointerOffsetInThumb);
-                return new InteractiveSurfaceRouteResult<FileEditorInput>(
-                    FileEditorInput.ScrollbarToLine(topLine),
-                    Invalidate: topLine != frame.TopLine);
-            }
-
-            if (mouse is not { Button: MouseButton.Left, Kind: MouseEventKind.Down })
+            VerticalScrollbarInputResult result = _verticalScrollbar.HandleMouse(mouse, scrollbarFrame);
+            if (!result.IsHandled)
                 return new InteractiveSurfaceRouteResult<FileEditorInput>(FileEditorInput.None);
 
-            ScrollBarHitTestResult hit = ScrollBarInteraction.HitTest(bar, state, mouse.X, mouse.Y);
-            if (hit.Part == ScrollBarHitPart.Thumb)
-            {
-                _scrollbarDrag = new ScrollBarDragState(bar, state.TotalItems, state.ViewportItems, hit.PointerOffsetInThumb);
-                return new InteractiveSurfaceRouteResult<FileEditorInput>(
-                    FileEditorInput.None,
-                    MouseCaptureRequest: UiMouseCaptureRequest.Capture(Scrollbar, MouseButton.Left));
-            }
-
-            int clickedTopLine = ScrollBarInteraction.ApplyClick(state, hit.Part);
+            UiMouseCaptureRequest capture = result.DragStarted
+                ? UiMouseCaptureRequest.Capture(Scrollbar, MouseButton.Left)
+                : result.DragEnded ? UiMouseCaptureRequest.Release : UiMouseCaptureRequest.None;
             return new InteractiveSurfaceRouteResult<FileEditorInput>(
-                FileEditorInput.ScrollbarToLine(clickedTopLine),
-                Invalidate: clickedTopLine != frame.TopLine);
+                result.PositionChanged
+                    ? FileEditorInput.ScrollbarToLine(result.FirstVisibleIndex)
+                    : FileEditorInput.None,
+                Invalidate: result.PositionChanged,
+                MouseCaptureRequest: capture);
         }
 
         public DateTimeOffset? GetNextWakeUtc() => _nextWakeUtc;
@@ -262,6 +243,7 @@ internal sealed partial class FileEditor
         int FirstLineAfterVisibleRange,
         Rect? ScrollBarBounds,
         ScrollState? VerticalScrollState,
+        VerticalScrollbarFrame? VerticalScrollbarFrame,
         IReadOnlyList<FunctionKeyBarAction<ConsoleKeyInfo>> FunctionKeyActions,
         UiCursorPlacement CursorPlacement,
         bool UsesCustomCursor,

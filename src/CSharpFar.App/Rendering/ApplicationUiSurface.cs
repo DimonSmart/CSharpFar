@@ -139,7 +139,8 @@ internal sealed record ApplicationScrollBarFrame(
     Rect Bounds,
     int TotalItems,
     int ViewportItems,
-    int FirstVisibleIndex)
+    int FirstVisibleIndex,
+    VerticalScrollbarFrame? VerticalScrollbarFrame = null)
 {
     public ScrollState ToScrollState() => new()
     {
@@ -147,6 +148,21 @@ internal sealed record ApplicationScrollBarFrame(
         ViewportItems = ViewportItems,
         FirstVisibleIndex = FirstVisibleIndex,
     };
+}
+
+internal sealed record ApplicationScrollbarInput(
+    PanelSide Side,
+    int ViewportItems,
+    VerticalScrollbarInputResult Result);
+
+internal sealed record ApplicationUiInputPacket(
+    UiRoutedInput<ApplicationUiFrame> Routed,
+    ApplicationScrollbarInput? ScrollbarInput = null)
+{
+    public ConsoleInputEvent Input => Routed.Input;
+    public ApplicationUiFrame Frame => Routed.Frame;
+    public UiTargetId? Target => Routed.Target;
+    public UiInputRouteKind RouteKind => Routed.RouteKind;
 }
 
 internal sealed record ApplicationFunctionKeyBarFrame
@@ -188,8 +204,10 @@ internal sealed class ApplicationUiSurface : UiLayer<ApplicationUiFrame>, IUiSur
     private readonly ApplicationRenderContext _context;
     private readonly ApplicationRenderCoordinator _coordinator;
     private readonly ScreenRenderer _screen;
+    private readonly VerticalScrollbarController _leftScrollbar = new();
+    private readonly VerticalScrollbarController _rightScrollbar = new();
     private bool _hidden;
-    private UiRoutedInput<ApplicationUiFrame>? _pendingInput;
+    private ApplicationUiInputPacket? _pendingInput;
 
     public ApplicationUiSurface(ScreenRenderer screen, ApplicationRenderContext context, ApplicationRenderCoordinator coordinator)
     {
@@ -227,10 +245,10 @@ internal sealed class ApplicationUiSurface : UiLayer<ApplicationUiFrame>, IUiSur
 
     protected override ApplicationUiFrame RenderFrame(UiRenderContext context)
     {
-        if (_hidden)
-            return _coordinator.RenderHiddenCommandLineContent(context);
-        else
-            return _coordinator.RenderMainContent(context);
+        ApplicationUiFrame frame = _hidden
+            ? _coordinator.RenderHiddenCommandLineContent(context)
+            : _coordinator.RenderMainContent(context);
+        return AttachScrollbarFrames(frame);
     }
 
     public void CompleteFrame(UiFrameCompletion completion)
@@ -255,21 +273,15 @@ internal sealed class ApplicationUiSurface : UiLayer<ApplicationUiFrame>, IUiSur
         if (_pendingInput is not null)
             throw new InvalidOperationException("Application input was dispatched before the previous input was processed.");
 
-        _pendingInput = new UiRoutedInput<ApplicationUiFrame>(input, frame, context.Target, context.RouteKind);
-        if (input is MouseConsoleInputEvent { Button: MouseButton.Left, Kind: MouseEventKind.Down } down &&
-            context.RouteKind == UiInputRouteKind.HitTarget &&
-            TryGetScrollbarFrame(frame, context.Target, out var scrollbar) &&
-            ScrollBarInteraction.HitTest(scrollbar.Bounds, scrollbar.ToScrollState(), down.X, down.Y).Part == ScrollBarHitPart.Thumb)
+        var routed = new UiRoutedInput<ApplicationUiFrame>(input, frame, context.Target, context.RouteKind);
+        if (input is MouseConsoleInputEvent mouse &&
+            TryRouteScrollbarMouse(mouse, frame, context, out ApplicationScrollbarInput? scrollbarInput, out UiInputResult scrollbarResult))
         {
-            return UiInputResult.CaptureMouse(context.Target!, MouseButton.Left);
+            _pendingInput = new ApplicationUiInputPacket(routed, scrollbarInput);
+            return scrollbarResult;
         }
 
-        if (input is MouseConsoleInputEvent { Button: MouseButton.Left, Kind: MouseEventKind.Up } &&
-            context.RouteKind == UiInputRouteKind.CapturedTarget &&
-            IsScrollbarTarget(context.Target))
-        {
-            return UiInputResult.ReleaseMouse();
-        }
+        _pendingInput = new ApplicationUiInputPacket(routed);
 
         if (context.Target == ApplicationTargetIds.CommandLine &&
             input is MouseConsoleInputEvent { Button: MouseButton.Left, Kind: MouseEventKind.Down } &&
@@ -327,32 +339,37 @@ internal sealed class ApplicationUiSurface : UiLayer<ApplicationUiFrame>, IUiSur
 
     protected override void OnFrameCommitted(ApplicationUiFrame frame)
     {
-        RebaseScrollbarDrag(frame);
+        _leftScrollbar.ApplyCommittedFrame(frame.LeftPanel?.ScrollBar?.VerticalScrollbarFrame);
+        _rightScrollbar.ApplyCommittedFrame(frame.RightPanel?.ScrollBar?.VerticalScrollbarFrame);
     }
 
-    private void RebaseScrollbarDrag(ApplicationUiFrame frame)
-    {
-        if (_context.Ui.PanelScrollbarDrag is not { } drag)
-            return;
-
-        var scrollbar = drag.Side == PanelSide.Left
-            ? frame.LeftPanel?.ScrollBar
-            : frame.RightPanel?.ScrollBar;
-        if (scrollbar is null ||
-            !ScrollBarInteraction.IsInteractive(scrollbar.Bounds, scrollbar.ToScrollState()))
+    private ApplicationUiFrame AttachScrollbarFrames(ApplicationUiFrame frame) =>
+        frame with
         {
-            _context.Ui.PanelScrollbarDrag = null;
-            return;
-        }
+            LeftPanel = AttachScrollbarFrame(frame.LeftPanel, _leftScrollbar),
+            RightPanel = AttachScrollbarFrame(frame.RightPanel, _rightScrollbar),
+        };
 
-        var rebased = ScrollBarInteraction.RebaseDrag(
-            drag.DragState,
+    private static ApplicationPanelFrame? AttachScrollbarFrame(
+        ApplicationPanelFrame? panel,
+        VerticalScrollbarController controller)
+    {
+        if (panel?.ScrollBar is not { } scrollbar)
+            return panel;
+
+        VerticalScrollbarFrame? scrollbarFrame = controller.CalculateFrame(
             scrollbar.Bounds,
-            scrollbar.TotalItems,
-            scrollbar.ViewportItems);
-        _context.Ui.PanelScrollbarDrag = rebased.HasValue
-            ? new PanelScrollbarDrag(drag.Side, rebased.Value)
-            : null;
+            scrollbar.ToScrollState());
+        var updatedScrollbar = scrollbar with { VerticalScrollbarFrame = scrollbarFrame };
+        return new ApplicationPanelFrame(
+            panel.Side,
+            panel.Bounds,
+            panel.VisibleRows,
+            panel.VisibleItems,
+            panel.RetryBounds,
+            updatedScrollbar,
+            panel.RowsPerColumn,
+            panel.ColumnCount);
     }
 
     private static void AddPanelRegions(
@@ -367,7 +384,7 @@ internal sealed class ApplicationUiSurface : UiLayer<ApplicationUiFrame>, IUiSur
             builder.AddHitRegion(ApplicationTargetIds.Panel(panel.Side), panel.Bounds);
         if (panel.ScrollBar is { } scrollbar &&
             IsVisible(scrollbar.Bounds, viewport) &&
-            ScrollBarInteraction.IsInteractive(scrollbar.Bounds, scrollbar.ToScrollState()))
+            scrollbar.VerticalScrollbarFrame is not null)
         {
             builder.AddHitRegion(ApplicationTargetIds.PanelScrollbar(panel.Side), scrollbar.Bounds);
         }
@@ -381,40 +398,77 @@ internal sealed class ApplicationUiSurface : UiLayer<ApplicationUiFrame>, IUiSur
         bounds.X < viewport.Width &&
         bounds.Y < viewport.Height;
 
-    private static bool TryGetScrollbarFrame(
+    private bool TryRouteScrollbarMouse(
+        MouseConsoleInputEvent mouse,
         ApplicationUiFrame frame,
-        UiTargetId? target,
-        out ApplicationScrollBarFrame scrollbar)
+        UiInputRouteContext context,
+        out ApplicationScrollbarInput? scrollbarInput,
+        out UiInputResult uiResult)
     {
-        if (target == ApplicationTargetIds.LeftPanelScrollbar && frame.LeftPanel?.ScrollBar is { } left)
+        scrollbarInput = null;
+        uiResult = UiInputResult.NotHandled;
+        if (!TryGetScrollbarTarget(context.Target, out PanelSide side))
+            return false;
+        if (context.RouteKind is not (UiInputRouteKind.HitTarget or UiInputRouteKind.CapturedTarget))
+            return false;
+
+        ApplicationScrollBarFrame? scrollbar = side == PanelSide.Left
+            ? frame.LeftPanel?.ScrollBar
+            : frame.RightPanel?.ScrollBar;
+        if (scrollbar?.VerticalScrollbarFrame is not { } scrollbarFrame)
         {
-            scrollbar = left;
-            return true;
-        }
+            if (context.RouteKind == UiInputRouteKind.CapturedTarget &&
+                mouse.Kind == MouseEventKind.Up &&
+                mouse.Button == MouseButton.Left)
+            {
+                uiResult = UiInputResult.ReleaseMouse();
+                return true;
+            }
 
-        if (target == ApplicationTargetIds.RightPanelScrollbar && frame.RightPanel?.ScrollBar is { } right)
-        {
-            scrollbar = right;
-            return true;
-        }
-
-        scrollbar = null!;
-        return false;
-    }
-
-    private static bool IsScrollbarTarget(UiTargetId? target) =>
-        target == ApplicationTargetIds.LeftPanelScrollbar ||
-        target == ApplicationTargetIds.RightPanelScrollbar;
-
-    internal bool TryTakeInput(out UiRoutedInput<ApplicationUiFrame> routed)
-    {
-        if (_pendingInput is null)
-        {
-            routed = null!;
             return false;
         }
 
-        routed = _pendingInput;
+        VerticalScrollbarController controller = side == PanelSide.Left
+            ? _leftScrollbar
+            : _rightScrollbar;
+        VerticalScrollbarInputResult result = controller.HandleMouse(mouse, scrollbarFrame);
+        if (!result.IsHandled)
+            return false;
+
+        scrollbarInput = new ApplicationScrollbarInput(side, scrollbar.ViewportItems, result);
+        uiResult = VerticalScrollbarRouting.ToUiInputResult(
+            result,
+            ApplicationTargetIds.PanelScrollbar(side));
+        return true;
+    }
+
+    private static bool TryGetScrollbarTarget(UiTargetId? target, out PanelSide side)
+    {
+        if (target == ApplicationTargetIds.LeftPanelScrollbar)
+        {
+            side = PanelSide.Left;
+            return true;
+        }
+
+        if (target == ApplicationTargetIds.RightPanelScrollbar)
+        {
+            side = PanelSide.Right;
+            return true;
+        }
+
+        side = default;
+        return false;
+    }
+
+    internal bool TryTakeInput(out ApplicationUiInputPacket packet)
+    {
+        if (_pendingInput is null)
+        {
+            packet = null!;
+            return false;
+        }
+
+        packet = _pendingInput;
         _pendingInput = null;
         return true;
     }

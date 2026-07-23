@@ -34,7 +34,7 @@ internal static class ApplicationRuntimeBuilder
                 ResetWaitToken = autoRefresh.ResetWaitToken,
                 ProcessPendingRefreshes = autoRefresh.ProcessPendingRefreshes,
                 DisposeRuntimeState = quickViewDirectorySize.Dispose,
-                HandleApplicationInput = routed => callbacks.HandleApplicationInput(routed),
+                HandleApplicationInput = packet => callbacks.HandleApplicationInput(packet),
                 TryTakeMenuCommand = pendingMenuCommands.TryTake,
                 ExecuteMenuCommand = request => callbacks.ExecuteMenuCommand(request),
             });
