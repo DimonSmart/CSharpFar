@@ -902,18 +902,22 @@ public sealed class ApplicationInputDispatcherTests
             _ => throw new ArgumentOutOfRangeException(nameof(part)),
         };
 
+        int firstVisibleIndex = ScrollBarInteraction.ApplyClick(frame.ToScrollState(), part);
         var result = new ApplicationPanelScrollbarInputHandler(context).Handle(
-            new MouseConsoleInputEvent(frame.Bounds.X, y, MouseButton.Left, MouseEventKind.Down, MouseKeyModifiers.None),
-            PanelSide.Left,
-            frame,
+            new ApplicationScrollbarInput(
+                PanelSide.Left,
+                frame.ViewportItems,
+                new VerticalScrollbarInputResult(
+                    IsHandled: true,
+                    firstVisibleIndex,
+                    PositionChanged: firstVisibleIndex != frame.FirstVisibleIndex)),
             UiInputRouteKind.HitTarget);
 
         Assert.True(result.Handled);
         Assert.True(result.ShouldRender);
         Assert.Equal(PanelSide.Left, activeSide);
-        Assert.Equal(ScrollBarInteraction.ApplyClick(frame.ToScrollState(), part), state.ScrollOffset);
+        Assert.Equal(firstVisibleIndex, state.ScrollOffset);
         Assert.Null(context.Mouse.LastLeftPanelItemClick);
-        Assert.Null(context.Ui.PanelScrollbarDrag);
     }
 
     [Theory]

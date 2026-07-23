@@ -283,10 +283,10 @@ public sealed class Application
         StartWatching(_right, PanelSide.Right);
     }
 
-    private ApplicationRuntimeRenderRequest HandleRuntimeApplicationInput(UiRoutedInput<ApplicationUiFrame> routed)
+    private ApplicationRuntimeRenderRequest HandleRuntimeApplicationInput(ApplicationUiInputPacket packet)
     {
         bool scrolledHiddenViewport = _terminalSurface.ScrollHiddenViewportToBottomForInput();
-        ApplicationRuntimeRenderRequest request = _applicationInputDispatcher.Handle(routed);
+        ApplicationRuntimeRenderRequest request = _applicationInputDispatcher.Handle(packet);
         return new ApplicationRuntimeRenderRequest(request.ShouldRender || scrolledHiddenViewport);
     }
 

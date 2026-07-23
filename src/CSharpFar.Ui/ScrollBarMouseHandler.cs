@@ -4,7 +4,7 @@ using CSharpFar.Core.Models;
 
 namespace CSharpFar.Ui;
 
-public static class ScrollBarMouseHandler
+internal static class ScrollBarMouseHandler
 {
     public static bool TryHandleMouse(
         MouseConsoleInputEvent mouse,

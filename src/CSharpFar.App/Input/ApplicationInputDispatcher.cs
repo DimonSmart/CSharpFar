@@ -31,11 +31,14 @@ internal sealed class ApplicationInputDispatcher
     }
 
     public ApplicationRuntimeRenderRequest Handle(UiRoutedInput<ApplicationUiFrame> routed) =>
-        routed.Input switch
+        Handle(new ApplicationUiInputPacket(routed));
+
+    public ApplicationRuntimeRenderRequest Handle(ApplicationUiInputPacket packet) =>
+        packet.Input switch
         {
-            KeyConsoleInputEvent => ToRuntimeRequest(_keyboardInputRouter.Handle(routed)),
-            ModifierKeyConsoleInputEvent => ToRuntimeRequest(_keyboardInputRouter.Handle(routed)),
-            MouseConsoleInputEvent mouse => HandleMouse(routed, mouse),
+            KeyConsoleInputEvent => ToRuntimeRequest(_keyboardInputRouter.Handle(packet.Routed)),
+            ModifierKeyConsoleInputEvent => ToRuntimeRequest(_keyboardInputRouter.Handle(packet.Routed)),
+            MouseConsoleInputEvent mouse => HandleMouse(packet, mouse),
             _ => ApplicationRuntimeRenderRequest.None,
         };
 
@@ -45,42 +48,38 @@ internal sealed class ApplicationInputDispatcher
             : ApplicationRuntimeRenderRequest.None;
 
     private ApplicationRuntimeRenderRequest HandleMouse(
-        UiRoutedInput<ApplicationUiFrame> routed,
+        ApplicationUiInputPacket packet,
         MouseConsoleInputEvent mouse)
     {
-        ApplicationInputHandlingResult result = routed.Target switch
+        ApplicationInputHandlingResult result = packet.Target switch
         {
             var target when target == ApplicationTargetIds.CommandLine => _commandLineInputHandler.Handle(
                 mouse,
-                routed.Frame.CommandLine,
-                routed.RouteKind),
+                packet.Frame.CommandLine,
+                packet.RouteKind),
             var target when target == ApplicationTargetIds.LeftPanel => _panelInputHandler.Handle(
                 mouse,
-                routed.Frame.LeftPanel,
-                routed.RouteKind),
+                packet.Frame.LeftPanel,
+                packet.RouteKind),
             var target when target == ApplicationTargetIds.RightPanel => _panelInputHandler.Handle(
                 mouse,
-                routed.Frame.RightPanel,
-                routed.RouteKind),
+                packet.Frame.RightPanel,
+                packet.RouteKind),
             var target when target == ApplicationTargetIds.LeftPanelScrollbar => _panelScrollbarInputHandler.Handle(
-                mouse,
-                PanelSide.Left,
-                routed.Frame.LeftPanel?.ScrollBar,
-                routed.RouteKind),
+                packet.ScrollbarInput,
+                packet.RouteKind),
             var target when target == ApplicationTargetIds.RightPanelScrollbar => _panelScrollbarInputHandler.Handle(
-                mouse,
-                PanelSide.Right,
-                routed.Frame.RightPanel?.ScrollBar,
-                routed.RouteKind),
+                packet.ScrollbarInput,
+                packet.RouteKind),
             var target when target == ApplicationTargetIds.FunctionKeyBar => _functionKeyBarInputHandler.Handle(
                 mouse,
-                routed.Frame,
-                routed.RouteKind),
+                packet.Frame,
+                packet.RouteKind),
             var target when target == ApplicationTargetIds.DirectoryShortcutBar => _directoryShortcutBarInputHandler.Handle(
                 mouse,
-                routed.Frame.DirectoryShortcutBar,
-                routed.Frame.Keyboard.ActiveSide,
-                routed.RouteKind),
+                packet.Frame.DirectoryShortcutBar,
+                packet.Frame.Keyboard.ActiveSide,
+                packet.RouteKind),
             _ => ApplicationInputHandlingResult.NotHandled,
         };
 

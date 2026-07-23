@@ -28,17 +28,20 @@ public readonly record struct ScrollableViewportFrameState(
     int ViewportItems,
     int FirstVisibleIndex,
     Rect ContentBounds,
-    Rect? ScrollbarBounds = null,
-    ScrollBarDragState? ScrollbarDrag = null);
+    VerticalScrollbarFrame? ScrollbarFrame = null)
+{
+    public Rect? ScrollbarBounds => ScrollbarFrame?.Bounds;
+    public ScrollBarDragState? ScrollbarDrag => ScrollbarFrame?.DragState;
+}
 
 /// <summary>Owns standard vertical scrolling for content without selection.</summary>
 public sealed class ScrollableViewport
 {
-    private ScrollBarDragState? _scrollbarDrag;
+    private readonly VerticalScrollbarController _scrollbar = new();
 
     public int FirstVisibleIndex { get; set; }
 
-    public ScrollBarDragState? ScrollbarDrag => _scrollbarDrag;
+    public ScrollBarDragState? ScrollbarDrag => _scrollbar.DragState;
 
     public ScrollableViewportFrameState CalculateFrameState(
         int totalItems,
@@ -49,12 +52,18 @@ public sealed class ScrollableViewport
         int items = Math.Max(0, totalItems);
         int viewport = Math.Max(1, viewportItems);
         int first = ScrollStateCalculator.ClampFirstVisibleIndex(FirstVisibleIndex, items, viewport);
-        bool scrollable = items > viewport;
-        Rect? effectiveScrollbar = scrollable ? scrollbarBounds : null;
-        ScrollBarDragState? drag = _scrollbarDrag is { } current && effectiveScrollbar is { } bounds
-            ? ScrollBarInteraction.RebaseDrag(current, bounds, items, viewport)
-            : null;
-        return new ScrollableViewportFrameState(items, viewport, first, contentBounds, effectiveScrollbar, drag);
+        var state = new ScrollState
+        {
+            TotalItems = items,
+            ViewportItems = viewport,
+            FirstVisibleIndex = first,
+        };
+        return new ScrollableViewportFrameState(
+            items,
+            viewport,
+            first,
+            contentBounds,
+            _scrollbar.CalculateFrame(scrollbarBounds, state));
     }
 
     public void ApplyCommittedFrame(ScrollableViewportFrameState frame)
@@ -63,7 +72,7 @@ public sealed class ScrollableViewport
             frame.FirstVisibleIndex,
             Math.Max(0, frame.TotalItems),
             Math.Max(1, frame.ViewportItems));
-        _scrollbarDrag = frame.ScrollbarDrag;
+        _scrollbar.ApplyCommittedFrame(frame.ScrollbarFrame);
     }
 
     public ScrollState? GetScrollState(ScrollableViewportFrameState frame) =>
@@ -115,27 +124,20 @@ public sealed class ScrollableViewport
             };
         }
 
-        if (frame.ScrollbarBounds is not Rect bounds)
+        if (frame.ScrollbarFrame is not { } scrollbarFrame)
             return ScrollableViewportInputResult.NotHandled;
 
-        int first = frame.FirstVisibleIndex;
-        ScrollBarDragState? drag = _scrollbarDrag ?? frame.ScrollbarDrag;
-        bool wasDragging = drag.HasValue;
-        if (!ScrollBarMouseHandler.TryHandleMouse(
-                mouse, bounds, frame.TotalItems, frame.ViewportItems, ref first, ref drag))
-        {
+        VerticalScrollbarInputResult result = _scrollbar.HandleMouse(mouse, scrollbarFrame);
+        if (!result.IsHandled)
             return ScrollableViewportInputResult.NotHandled;
-        }
 
-        FirstVisibleIndex = ScrollStateCalculator.ClampFirstVisibleIndex(first, frame.TotalItems, frame.ViewportItems);
-        _scrollbarDrag = drag;
-        bool isDragging = drag.HasValue;
+        FirstVisibleIndex = result.FirstVisibleIndex;
         return new ScrollableViewportInputResult(
-            FirstVisibleIndex != frame.FirstVisibleIndex
+            result.PositionChanged
                 ? ScrollableViewportInputResultKind.PositionChanged
                 : ScrollableViewportInputResultKind.Handled,
-            DragStarted: !wasDragging && isDragging,
-            DragEnded: wasDragging && !isDragging);
+            result.DragStarted,
+            result.DragEnded);
     }
 
     private ScrollableViewportInputResult SetFirstVisibleIndex(int requested, ScrollableViewportFrameState frame)

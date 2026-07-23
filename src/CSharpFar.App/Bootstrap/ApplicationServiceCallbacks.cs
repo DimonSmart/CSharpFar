@@ -44,7 +44,7 @@ internal sealed class ApplicationServiceCallbacks
     public Action CaptureUnderlay { get; set; } = () => throw Missing();
     public Action StartWatchingInitialPanels { get; set; } = () => throw Missing();
     public Action RestoreTerminal { get; set; } = () => throw Missing();
-    public Func<UiRoutedInput<ApplicationUiFrame>, ApplicationRuntimeRenderRequest> HandleApplicationInput { get; set; } =
+    public Func<ApplicationUiInputPacket, ApplicationRuntimeRenderRequest> HandleApplicationInput { get; set; } =
         _ => throw Missing();
     public Action RefreshPanels { get; set; } = () => throw Missing();
     public Action<PanelSide, CSharpFar.Module.Abstractions.IModulePanel> OpenModulePanel { get; set; } =

@@ -7,13 +7,12 @@ public static class ScrollableViewportRouting
     public static UiInputResult ToUiInputResult(
         ScrollableViewportInputResult result,
         UiTargetId scrollbarTarget)
-    {
-        if (!result.IsHandled)
-            return UiInputResult.NotHandled;
-        if (result.DragStarted)
-            return UiInputResult.CaptureMouse(scrollbarTarget, MouseButton.Left, result.PositionChanged);
-        if (result.DragEnded)
-            return UiInputResult.ReleaseMouse(result.PositionChanged);
-        return result.PositionChanged ? UiInputResult.HandledAndInvalidate : UiInputResult.HandledResult;
-    }
+        => VerticalScrollbarRouting.ToUiInputResult(
+            new VerticalScrollbarInputResult(
+                result.IsHandled,
+                FirstVisibleIndex: 0,
+                result.PositionChanged,
+                result.DragStarted,
+                result.DragEnded),
+            scrollbarTarget);
 }
