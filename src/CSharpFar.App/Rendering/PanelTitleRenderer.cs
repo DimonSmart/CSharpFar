@@ -6,6 +6,8 @@ namespace CSharpFar.App.Rendering;
 
 internal static class PanelTitleRenderer
 {
+    private const int ClockWidth = 5;
+
     public static void Render(
         IUiCanvas screen,
         Rect bounds,
@@ -17,13 +19,15 @@ internal static class PanelTitleRenderer
         if (innerWidth <= 0)
             return;
 
-        int pathMaxLen = Math.Max(0, innerWidth - 2);
+        bool touchesRightScreenEdge = bounds.Right == screen.Size.Width;
+        int titleAreaWidth = Math.Max(0, innerWidth - (touchesRightScreenEdge ? ClockWidth : 0));
+        int pathMaxLen = Math.Max(0, titleAreaWidth - 2);
         string label = FormatPathLabel(state.DisplayTitle ?? state.CurrentDirectory, pathMaxLen);
         if (label.Length == 0)
             return;
 
         string text = $" {label} ";
-        int titleX = bounds.X + 1 + Math.Max(0, (innerWidth - text.Length) / 2);
+        int titleX = bounds.X + 1 + Math.Max(0, (titleAreaWidth - text.Length) / 2);
 
         var textStyle = new CellStyle(
             palette.PanelTitleFocusedFg,
