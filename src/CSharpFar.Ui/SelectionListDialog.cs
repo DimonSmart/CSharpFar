@@ -63,13 +63,12 @@ public sealed class SelectionListDialog<T>
     public SelectionListDialogResult<T> Show(ModalDialogHost modalDialogs)
     {
         ArgumentNullException.ThrowIfNull(modalDialogs);
-        ScrollBarDragState? scrollbarDrag = null;
         bool initialSelectionNotified = false;
         return modalDialogs.Run(
             context =>
             {
                 var frameLayout = CalculateLayout(context.Size);
-                var listState = _list.CalculateFrameState(frameLayout.VisibleRows);
+                var listState = _list.CalculateFrameState(frameLayout.VisibleRows, frameLayout.ScrollbarBounds);
                 var frame = new SelectionListFrame(frameLayout, listState);
                 RenderLayer(context.Canvas, frame);
                 return frame;
@@ -77,7 +76,7 @@ public sealed class SelectionListDialog<T>
             (input, frame) =>
             {
                 if (input is MouseConsoleInputEvent mouse &&
-                    HandleMouse(mouse, frame.Layout, ref scrollbarDrag, out bool confirmed))
+                    HandleMouse(mouse, frame, out bool confirmed))
                 {
                     if (confirmed)
                         return ModalDialogLoopResult<SelectionListDialogResult<T>>.Complete(Confirmed());
@@ -95,8 +94,7 @@ public sealed class SelectionListDialog<T>
             },
             applyCommittedFrame: frame =>
             {
-                _list.SelectedIndex = frame.ListState.SelectedIndex;
-                _list.ScrollTop = frame.ListState.ScrollTop;
+                _list.ApplyCommittedFrame(frame.ListState);
                 if (_list.HasItems && !initialSelectionNotified)
                 {
                     SelectionChanged?.Invoke(_list.Items[_list.SelectedIndex], _list.SelectedIndex);
@@ -133,16 +131,13 @@ public sealed class SelectionListDialog<T>
 
     private bool HandleMouse(
         MouseConsoleInputEvent mouse,
-        SelectionListLayout layout,
-        ref ScrollBarDragState? scrollbarDrag,
+        SelectionListFrame frame,
         out bool confirmed)
     {
         var result = _list.HandleMouse(
             mouse,
-            layout.ContentBounds,
-            layout.ScrollbarBounds,
-            layout.VisibleRows,
-            ref scrollbarDrag,
+            frame.Layout.ContentBounds,
+            frame.ListState,
             confirmOnDoubleClick: true);
         confirmed = result.Kind == ScrollableListInputResultKind.Confirmed;
         return result.IsHandled;

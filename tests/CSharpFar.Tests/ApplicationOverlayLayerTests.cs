@@ -313,12 +313,12 @@ public sealed class ApplicationOverlayLayerTests
         services.Composition.Render();
         UiInputResult down = services.Composition.DispatchInput(Mouse(79, 15));
         Assert.True(down.Handled);
-        Assert.NotNull(completion.List.ScrollbarDrag);
+        Assert.NotNull(completion.List.GetScrollbarDrag());
 
         completion.List.ResetItems(["item-0"]);
         services.Composition.Render();
 
-        Assert.Null(completion.List.ScrollbarDrag);
+        Assert.Null(completion.List.GetScrollbarDrag());
     }
 
     [Fact]
@@ -331,19 +331,19 @@ public sealed class ApplicationOverlayLayerTests
 
         services.Composition.Render();
         Assert.True(services.Composition.DispatchInput(Mouse(79, 15)).Handled);
-        Assert.NotNull(completion.List.ScrollbarDrag);
+        Assert.NotNull(completion.List.GetScrollbarDrag());
 
         services.Driver.SetSize(80, 6);
         services.Composition.Render();
 
-        Assert.Null(completion.List.ScrollbarDrag);
+        Assert.Null(completion.List.GetScrollbarDrag());
         UiInputResult move = services.Composition.DispatchInput(Mouse(0, 0, MouseEventKind.Move));
         Assert.True(move.Handled);
         Assert.True(services.ApplicationSurface.TryTakeInput(out var packet));
         Assert.IsType<MouseConsoleInputEvent>(packet.Input);
 
         services.Composition.DispatchInput(Mouse(79, 1));
-        Assert.Null(completion.List.ScrollbarDrag);
+        Assert.Null(completion.List.GetScrollbarDrag());
     }
 
     [Fact]
@@ -355,7 +355,7 @@ public sealed class ApplicationOverlayLayerTests
         completion.List.ResetItems(Enumerable.Range(0, 12).Select(i => $"item-{i}").ToArray());
         services.Composition.Render();
         services.Composition.DispatchInput(Mouse(79, 15));
-        ScrollBarDragState dragBeforeRetry = Assert.IsType<ScrollBarDragState>(completion.List.ScrollbarDrag);
+        ScrollBarDragState dragBeforeRetry = Assert.IsType<ScrollBarDragState>(completion.List.GetScrollbarDrag());
         bool observedRejectedAttempt = false;
 
         completion.List.SelectedIndex = 1;
@@ -364,7 +364,7 @@ public sealed class ApplicationOverlayLayerTests
         services.Driver.BeforeViewportWrite = _ =>
         {
             observedRejectedAttempt = true;
-            Assert.Equal(dragBeforeRetry, completion.List.ScrollbarDrag);
+            Assert.Equal(dragBeforeRetry, completion.List.GetScrollbarDrag());
             services.Driver.BeforeViewportWrite = null;
         };
 
@@ -388,7 +388,7 @@ public sealed class ApplicationOverlayLayerTests
         services.Driver.ResizeAfterWrite = driver => driver.SetSize(100, 35);
         services.Composition.Render();
 
-        ScrollBarDragState drag = Assert.IsType<ScrollBarDragState>(completion.List.ScrollbarDrag);
+        ScrollBarDragState drag = Assert.IsType<ScrollBarDragState>(completion.List.GetScrollbarDrag());
         Assert.Equal(new Rect(99, 24, 1, 8), drag.Bounds);
         Assert.Equal(12, drag.TotalItems);
         Assert.Equal(8, drag.ViewportItems);

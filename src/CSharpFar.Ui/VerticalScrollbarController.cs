@@ -68,8 +68,6 @@ public sealed class VerticalScrollbarController
         _dragState = frame?.DragState;
     }
 
-    public void ClearDrag() => _dragState = null;
-
     public VerticalScrollbarInputResult HandleMouse(
         MouseConsoleInputEvent input,
         VerticalScrollbarFrame frame)

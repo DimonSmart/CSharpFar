@@ -8,7 +8,6 @@ namespace CSharpFar.Ui;
 public sealed class DropdownSelect<T>
 {
     private readonly ScrollableList<T> _list;
-    private ScrollBarDragState? _scrollbarDrag;
     private int _selectedIndexBeforeOpen;
 
     public DropdownSelect(IReadOnlyList<T> items, Func<T, string> itemText)
@@ -36,7 +35,7 @@ public sealed class DropdownSelect<T>
 
     public int SelectionBeforeOpen => _selectedIndexBeforeOpen;
 
-    internal bool HasScrollbarDrag => _scrollbarDrag is not null;
+    internal bool HasScrollbarDrag => _list.CalculateFrameState(1).VerticalScrollbarFrame?.DragState is not null;
 
     public int MaxVisibleRows { get; set; } = 6;
 
@@ -56,7 +55,6 @@ public sealed class DropdownSelect<T>
             SelectedIndex = Math.Clamp(_selectedIndexBeforeOpen, 0, _list.Count - 1);
 
         IsOpen = false;
-        _scrollbarDrag = null;
     }
 
     public void Toggle()
@@ -108,7 +106,7 @@ public sealed class DropdownSelect<T>
             contentBounds,
             scrollbarBounds,
             contentRows,
-            _list.CalculateFrameState(contentRows),
+            _list.CalculateFrameState(contentRows, scrollbarBounds),
             IsOpen: true,
             _selectedIndexBeforeOpen);
     }
@@ -182,9 +180,7 @@ public sealed class DropdownSelect<T>
         var listInput = _list.HandleMouse(
             mouse,
             contentBounds,
-            frame.ScrollbarBounds,
-            frame.ContentRows,
-            ref _scrollbarDrag,
+            frame.ListState,
             confirmOnMouseDown: true,
             confirmOnDoubleClick: true);
         if (!listInput.IsHandled)
@@ -250,16 +246,11 @@ public sealed class DropdownSelect<T>
         if (!frame.IsOpen)
         {
             IsOpen = false;
-            _scrollbarDrag = null;
             return;
         }
 
         IsOpen = true;
-        if (_scrollbarDrag is not { } drag)
-            return;
-        _scrollbarDrag = frame.ScrollbarBounds is Rect scrollbarBounds
-            ? ScrollBarInteraction.RebaseDrag(drag, scrollbarBounds, _list.Count, Math.Max(1, frame.ContentRows))
-            : null;
+        _list.ApplyCommittedFrame(frame.ListState);
     }
 
     public Rect PopupBounds(ConsoleSize size, Rect fieldBounds)

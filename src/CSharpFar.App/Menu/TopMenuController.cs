@@ -103,7 +103,7 @@ public sealed class TopMenuController
         _state.OpenState = MenuOpenState.Closed;
         _state.ActiveDropdownItemIndex = 0;
         _state.DropdownFirstVisibleItemIndex = 0;
-        _dropdownScrollbar.ClearDrag();
+        _dropdownScrollbar.ApplyCommittedFrame(null);
     }
 
     internal void CommitDropdownViewport(
@@ -117,7 +117,7 @@ public sealed class TopMenuController
             viewportItems <= 0)
         {
             _state.DropdownFirstVisibleItemIndex = 0;
-            _dropdownScrollbar.ClearDrag();
+            _dropdownScrollbar.ApplyCommittedFrame(null);
             return;
         }
 
@@ -128,7 +128,7 @@ public sealed class TopMenuController
 
         if (scrollbarBounds is null)
         {
-            _dropdownScrollbar.ClearDrag();
+            _dropdownScrollbar.ApplyCommittedFrame(null);
             return;
         }
 
@@ -159,7 +159,7 @@ public sealed class TopMenuController
         _state.OpenState = MenuOpenState.DropdownOpen;
         _state.ActiveDropdownItemIndex = FirstSelectableIndex(CurrentChildren(definition));
         _state.DropdownFirstVisibleItemIndex = 0;
-        _dropdownScrollbar.ClearDrag();
+        _dropdownScrollbar.ApplyCommittedFrame(null);
     }
 
     internal bool HandleDropdownScrollbarMouse(

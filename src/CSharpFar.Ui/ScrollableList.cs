@@ -30,10 +30,9 @@ public readonly record struct ScrollableListFrameState(
     int SelectedIndex,
     int ScrollTop,
     int ViewportRows = 1,
-    Rect? ScrollbarBounds = null,
-    ScrollBarDragState? ScrollbarDrag = null,
     VerticalScrollbarFrame? VerticalScrollbarFrame = null)
 {
+    public Rect? ScrollbarBounds => VerticalScrollbarFrame?.Bounds;
     public static ScrollableListFrameState Empty => new(-1, 0);
 }
 
@@ -72,19 +71,14 @@ public sealed class ScrollableList<T>
     public T? SelectedItemOrDefault =>
         SelectedIndex >= 0 && SelectedIndex < Count ? Items[SelectedIndex] : default;
 
-    public ScrollBarDragState? ScrollbarDrag => _scrollbar.DragState;
-
     public void ResetItems(IReadOnlyList<T> items, int selectedIndex = 0)
     {
         ArgumentNullException.ThrowIfNull(items);
 
         Items = items;
-        _scrollbar.ClearDrag();
         ScrollTop = 0;
         SelectedIndex = Items.Count == 0 ? -1 : Math.Clamp(selectedIndex, 0, Items.Count - 1);
     }
-
-    public void ClearScrollbarDrag() => _scrollbar.ClearDrag();
 
     public void Normalize(int viewportRows)
     {
@@ -116,7 +110,6 @@ public sealed class ScrollableList<T>
         {
             SelectedIndex = -1;
             ScrollTop = 0;
-            _scrollbar.ClearDrag();
             return;
         }
 
@@ -148,7 +141,7 @@ public sealed class ScrollableList<T>
     {
         int rows = Math.Max(1, viewportRows);
         if (!HasItems)
-            return new ScrollableListFrameState(-1, 0, rows, scrollbarBounds, null);
+            return new ScrollableListFrameState(-1, 0, rows);
 
         int selectedIndex = Math.Clamp(SelectedIndex, 0, Count - 1);
         int scrollTop = ScrollStateCalculator.ClampFirstVisibleIndex(ScrollTop, Count, rows);
@@ -161,8 +154,6 @@ public sealed class ScrollableList<T>
             selectedIndex,
             scrollTop,
             rows,
-            scrollbarBounds,
-            scrollbarFrame?.DragState,
             scrollbarFrame);
     }
 
@@ -272,27 +263,12 @@ public sealed class ScrollableList<T>
     public ScrollableListInputResult HandleMouse(
         MouseConsoleInputEvent mouse,
         Rect contentBounds,
-        Rect? scrollbarBounds,
-        int viewportRows,
-        ref ScrollBarDragState? scrollbarDrag,
-        bool confirmOnMouseDown = false,
-        bool confirmOnDoubleClick = true) =>
-        HandleMouse(
-            mouse,
-            contentBounds,
-            scrollbarBounds,
-            viewportRows,
-            confirmOnMouseDown,
-            confirmOnDoubleClick);
-
-    public ScrollableListInputResult HandleMouse(
-        MouseConsoleInputEvent mouse,
-        Rect contentBounds,
-        Rect? scrollbarBounds,
-        int viewportRows,
+        ScrollableListFrameState frame,
         bool confirmOnMouseDown = false,
         bool confirmOnDoubleClick = true)
     {
+        int viewportRows = frame.ViewportRows;
+        Rect? scrollbarBounds = frame.ScrollbarBounds;
         if (mouse.Kind == MouseEventKind.Wheel)
         {
             bool insideContent = contentBounds.Contains(mouse.X, mouse.Y);
@@ -308,20 +284,18 @@ public sealed class ScrollableList<T>
             return ScrollableListInputResult.NotHandled;
         }
 
-        if (scrollbarBounds is Rect scrollbar && Count > Math.Max(1, viewportRows))
+        if (frame.VerticalScrollbarFrame is { } scrollbarFrame)
         {
             int selectedIndex = SelectedIndex;
             int rows = Math.Max(1, viewportRows);
-            VerticalScrollbarFrame? scrollbarFrame = _scrollbar.CalculateFrame(
-                scrollbar,
-                GetScrollState(rows, ScrollTop));
-            if (scrollbarFrame is { } frame)
             {
-                VerticalScrollbarInputResult scrollbarResult = _scrollbar.HandleMouse(mouse, frame);
+                VerticalScrollbarInputResult scrollbarResult = _scrollbar.HandleMouse(mouse, scrollbarFrame);
                 if (!scrollbarResult.IsHandled)
                     goto HandleContent;
 
                 int scrollTop = scrollbarResult.FirstVisibleIndex;
+                int visibleLast = Math.Min(Count - 1, scrollTop + rows - 1);
+                selectedIndex = HasItems ? Math.Clamp(selectedIndex, scrollTop, visibleLast) : -1;
                 bool changed = selectedIndex != SelectedIndex;
                 SelectedIndex = selectedIndex;
                 ScrollTop = scrollTop;

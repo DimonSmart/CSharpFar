@@ -54,7 +54,6 @@ public sealed class TextInputRow : FormRow, IFormOverlayRow, IFormCursorProvider
     public void CancelOverlay()
     {
         History?.Close();
-        State.HistoryScrollbarDrag = null;
     }
 
     public override FormInputResult HandleKey(ConsoleKeyInfo key, FormRowInputContext context)
@@ -68,7 +67,4 @@ public sealed class TextInputRow : FormRow, IFormOverlayRow, IFormCursorProvider
     }
 }
 
-public sealed class TextInputRowState
-{
-    public ScrollBarDragState? HistoryScrollbarDrag;
-}
+public sealed class TextInputRowState;

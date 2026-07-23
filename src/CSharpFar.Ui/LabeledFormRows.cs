@@ -43,7 +43,6 @@ public sealed class LabeledTextInputRow : FormRow, IFormOverlayRow, IFormCursorP
     public void CancelOverlay()
     {
         History?.Close();
-        State.HistoryScrollbarDrag = null;
     }
 
     private (Rect LabelBounds, Rect InputBounds) Layout(Rect bounds)

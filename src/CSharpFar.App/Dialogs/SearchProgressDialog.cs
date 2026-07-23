@@ -415,8 +415,7 @@ internal sealed class SearchProgressDialog
             MouseConsoleInputEvent mouse => list.HandleMouse(
                 mouse,
                 frame.Layout.ListBounds,
-                frame.ListState.ScrollbarBounds,
-                frame.ListState.ViewportRows),
+                frame.ListState),
             _ => ScrollableListInputResult.NotHandled,
         };
 

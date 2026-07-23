@@ -46,7 +46,8 @@ public sealed record ScrollableFormFrame(
     int ScreenHeight,
     int EffectiveScrollTop,
     IReadOnlyList<FormTargetFrame> Targets,
-    UiTargetId? DefaultTarget);
+    UiTargetId? DefaultTarget,
+    VerticalScrollbarFrame? VerticalScrollbarFrame = null);
 
 public sealed record FormTargetFrame(
     UiTargetId Target,

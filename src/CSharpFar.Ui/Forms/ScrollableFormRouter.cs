@@ -94,7 +94,7 @@ public sealed partial class ScrollableFormDialog
 
         if (targetFrame.Kind == FormTargetKind.BodyScrollbar)
         {
-            bool handled = TryHandleScrollbarMouse(mouse, targetFrame.Bounds, frame.ViewportRows);
+            bool handled = TryHandleScrollbarMouse(mouse, frame);
             if (!handled && TryHandleWheel(mouse, frame.ViewportRows))
                 return MergeTransientOverlayChange(FormInputResult.Handled, UiInputResult.HandledAndInvalidate, closedOverlay);
             if (!handled)
@@ -199,7 +199,6 @@ public sealed partial class ScrollableFormDialog
             return false;
 
         history.Close();
-        row.State.HistoryScrollbarDrag = null;
         return true;
     }
 

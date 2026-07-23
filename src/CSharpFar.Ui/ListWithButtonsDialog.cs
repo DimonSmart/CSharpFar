@@ -64,12 +64,12 @@ public sealed class ListWithButtonsDialog<T>
         ArgumentNullException.ThrowIfNull(modalDialogs);
         DialogButtonBarState buttonState = _buttonBar.CreateState();
         bool focusButtons = !_list.HasItems;
-        ScrollBarDragState? scrollbarDrag = null;
         return modalDialogs.Run(
             context =>
             {
                 var frameLayout = CalculateLayout(context.Size);
-                var listState = _list.CalculateFrameState(frameLayout.ListBounds.Height);
+                var scrollbarBounds = new Rect(frameLayout.FrameBounds.Right - 1, frameLayout.ListBounds.Y, 1, frameLayout.ListBounds.Height);
+                var listState = _list.CalculateFrameState(frameLayout.ListBounds.Height, scrollbarBounds);
                 bool frameFocusButtons = focusButtons || !_list.HasItems;
                 var frame = new ListWithButtonsFrame(
                     frameLayout,
@@ -84,7 +84,7 @@ public sealed class ListWithButtonsDialog<T>
             {
                 var layout = committedFrame.Layout;
                 if (input is MouseConsoleInputEvent mouse &&
-                    HandleMouse(mouse, committedFrame, ref buttonState, ref focusButtons, ref scrollbarDrag, out var mouseResult))
+                    HandleMouse(mouse, committedFrame, ref buttonState, ref focusButtons, out var mouseResult))
                 {
                     if (mouseResult is not null)
                         return ModalDialogLoopResult<ListWithButtonsDialogResult<T>?>.Complete(mouseResult.ActionId == CancelActionId ? null : mouseResult);
@@ -113,8 +113,7 @@ public sealed class ListWithButtonsDialog<T>
             },
             applyCommittedFrame: frame =>
             {
-                _list.SelectedIndex = frame.ListState.SelectedIndex;
-                _list.ScrollTop = frame.ListState.ScrollTop;
+                _list.ApplyCommittedFrame(frame.ListState);
                 focusButtons = frame.FocusButtons;
                 buttonState = frame.ButtonState;
             });
@@ -169,23 +168,15 @@ public sealed class ListWithButtonsDialog<T>
         ListWithButtonsFrame frame,
         ref DialogButtonBarState buttonState,
         ref bool focusButtons,
-        ref ScrollBarDragState? scrollbarDrag,
         out ListWithButtonsDialogResult<T>? result)
     {
         result = null;
         var layout = frame.Layout;
 
-        var scrollbarBounds = new Rect(
-            layout.FrameBounds.Right - 1,
-            layout.ListBounds.Y,
-            1,
-            layout.ListBounds.Height);
         var listInput = _list.HandleMouse(
             mouse,
             layout.ListBounds,
-            scrollbarBounds,
-            layout.ListBounds.Height,
-            ref scrollbarDrag,
+            frame.ListState,
             confirmOnDoubleClick: true);
         if (listInput.IsHandled)
         {

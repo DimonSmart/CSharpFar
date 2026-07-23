@@ -8,6 +8,7 @@ public sealed class SingleLineTextHistoryState
 
     private readonly List<string> _items = [];
     private readonly List<string> _matches = [];
+    internal VerticalScrollbarController Scrollbar { get; } = new();
 
     public IReadOnlyList<string> Items => _items;
     public IReadOnlyList<string> Matches => _matches;
@@ -45,6 +46,7 @@ public sealed class SingleLineTextHistoryState
         _matches.Clear();
         SelectedIndex = 0;
         FirstVisibleIndex = 0;
+        Scrollbar.ApplyCommittedFrame(null);
     }
 
     public bool MoveSelection(int delta, int availableContentRows)

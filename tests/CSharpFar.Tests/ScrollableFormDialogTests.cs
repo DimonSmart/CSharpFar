@@ -641,12 +641,12 @@ public sealed class ScrollableFormDialogTests
         Render(form, visibleRows: 1, screenHeight: 8);
 
         HandleMouse(form, Mouse(13, 3, MouseButton.Left, MouseEventKind.Down));
-        Assert.NotNull(state.HistoryScrollbarDrag);
+        Assert.True(history.IsDropdownOpen);
         form.SetRows([new LabeledTextInputRow("Value:", text, history, state, labelWidth: 0, inputWidth: 14)]);
         HandleMouse(form, Mouse(13, 5, MouseButton.Left, MouseEventKind.Move));
         HandleMouse(form, Mouse(13, 5, MouseButton.Left, MouseEventKind.Up));
 
-        Assert.Null(state.HistoryScrollbarDrag);
+        Assert.True(history.IsDropdownOpen);
     }
 
     [Fact]
@@ -851,13 +851,13 @@ public sealed class ScrollableFormDialogTests
         Render(form, visibleRows: 1, screenHeight: 8);
 
         HandleMouse(form, Mouse(19, 3, MouseButton.Left, MouseEventKind.Down));
-        Assert.NotNull(state.HistoryScrollbarDrag);
+        Assert.NotNull(history.Scrollbar.DragState);
 
         form.SetRows([new TextInputRow(text, history, state)]);
         HandleMouse(form, Mouse(19, 5, MouseButton.Left, MouseEventKind.Move));
         HandleMouse(form, Mouse(19, 5, MouseButton.Left, MouseEventKind.Up));
 
-        Assert.Null(state.HistoryScrollbarDrag);
+        Assert.Null(history.Scrollbar.DragState);
         Assert.True(history.FirstVisibleIndex > 0);
     }
 
@@ -1780,7 +1780,7 @@ public sealed class ScrollableFormDialogTests
         UiInputResult next = host.Composition.DispatchInput(Mouse(2, 2));
 
         Assert.True(afterDrag > 0);
-        Assert.Null(state.HistoryScrollbarDrag);
+        Assert.Null(history.Scrollbar.DragState);
         Assert.True(next.Handled);
     }
 
@@ -1807,7 +1807,7 @@ public sealed class ScrollableFormDialogTests
         Assert.Equal(UiMouseCaptureRequestKind.Capture, mouseDown.MouseCaptureRequest.Kind);
         Assert.Equal(scrollbar.Target, mouseDown.MouseCaptureRequest.Target);
         Assert.True(afterDrag > 0);
-        Assert.Null(state.HistoryScrollbarDrag);
+        Assert.Null(history.Scrollbar.DragState);
         Assert.Equal(afterDrag, history.FirstVisibleIndex);
     }
 

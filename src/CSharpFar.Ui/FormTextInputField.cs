@@ -58,7 +58,7 @@ internal sealed class FormTextInputField
     public FormInputResult HandleMouse(MouseConsoleInputEvent mouse, FormRowMouseContext context, Rect bounds)
     {
         string before = _buffer.Text;
-        if (_history is not null && SingleLineTextInput.TryHandleHistoryDropdownMouse(_history, _buffer, mouse, bounds.X, bounds.Y, bounds.Width, context.ScreenHeight, ref _state.HistoryScrollbarDrag))
+        if (_history is not null && SingleLineTextInput.TryHandleHistoryDropdownMouse(_history, _buffer, mouse, bounds.X, bounds.Y, bounds.Width, context.ScreenHeight))
             return _buffer.Text != before ? FormInputResult.ValueChanged : FormInputResult.Handled;
 
         if (mouse is not { Button: MouseButton.Left, Kind: MouseEventKind.Down } || !bounds.Contains(mouse.X, mouse.Y))
@@ -69,7 +69,6 @@ internal sealed class FormTextInputField
             if (_history.IsDropdownOpen)
             {
                 _history.Close();
-                _state.HistoryScrollbarDrag = null;
                 return FormInputResult.Handled;
             }
             return SingleLineTextInput.TryOpenHistoryDropdown(_history, bounds.Y, context.ScreenHeight) ? FormInputResult.Handled : FormInputResult.NotHandled;

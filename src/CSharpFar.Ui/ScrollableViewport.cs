@@ -31,7 +31,6 @@ public readonly record struct ScrollableViewportFrameState(
     VerticalScrollbarFrame? ScrollbarFrame = null)
 {
     public Rect? ScrollbarBounds => ScrollbarFrame?.Bounds;
-    public ScrollBarDragState? ScrollbarDrag => ScrollbarFrame?.DragState;
 }
 
 /// <summary>Owns standard vertical scrolling for content without selection.</summary>
@@ -40,8 +39,6 @@ public sealed class ScrollableViewport
     private readonly VerticalScrollbarController _scrollbar = new();
 
     public int FirstVisibleIndex { get; set; }
-
-    public ScrollBarDragState? ScrollbarDrag => _scrollbar.DragState;
 
     public ScrollableViewportFrameState CalculateFrameState(
         int totalItems,
