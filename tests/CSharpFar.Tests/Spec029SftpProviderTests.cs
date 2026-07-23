@@ -609,6 +609,7 @@ public sealed class Spec029SftpProviderTests : IDisposable
         {
             var button = currentDriver.WriteRecords.Last(r => r.Text.Contains("New", StringComparison.Ordinal));
             currentDriver.EnqueueInput(new MouseConsoleInputEvent(button.X + 1, button.Y, MouseButton.Left, MouseEventKind.Down, MouseKeyModifiers.None));
+            currentDriver.EnqueueInput(new MouseConsoleInputEvent(button.X + 1, button.Y, MouseButton.Left, MouseEventKind.Up, MouseKeyModifiers.None));
         };
 
         var result = new SftpConnectionManagerDialog(ModalTestHost.Create(screen)).Show([]);

@@ -263,7 +263,14 @@ public sealed partial class ScrollableFormDialog
 
     private UiInputResult FormResultToUi(FormInputResult result, UiTargetId sourceTarget)
     {
-        return result.Kind switch
+        UiMouseCaptureRequest mouseCapture = result.MouseCapture switch
+        {
+            UiMouseCaptureRequestKind.None => UiMouseCaptureRequest.None,
+            UiMouseCaptureRequestKind.Capture => UiMouseCaptureRequest.Capture(sourceTarget, MouseButton.Left),
+            UiMouseCaptureRequestKind.Release => UiMouseCaptureRequest.Release,
+            _ => throw new ArgumentOutOfRangeException(nameof(result), result.MouseCapture, "Unsupported mouse capture request."),
+        };
+        UiInputResult uiResult = result.Kind switch
         {
             FormInputResultKind.NotHandled => UiInputResult.NotHandled,
             FormInputResultKind.MoveFocusNext => UiInputResultWithFocus(UiFocusRequest.MoveNext),
@@ -272,6 +279,10 @@ public sealed partial class ScrollableFormDialog
             FormInputResultKind.OverlayChanged => UiInputResult.HandledAndInvalidate,
             _ => UiInputResult.HandledAndInvalidate,
         };
+
+        return mouseCapture.Kind == UiMouseCaptureRequestKind.None
+            ? uiResult
+            : new UiInputResult(uiResult.Handled, uiResult.Invalidate, uiResult.FocusRequest, mouseCapture);
     }
 
     private UiInputResult UiInputResultWithFocus(UiFocusRequest request)

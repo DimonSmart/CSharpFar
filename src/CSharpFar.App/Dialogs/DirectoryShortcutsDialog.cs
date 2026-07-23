@@ -36,7 +36,7 @@ internal sealed class DirectoryShortcutsDialog
         var buttons = new ButtonRow([
             new DialogButton("edit", "Edit", 'E', IsDefault: true),
             new DialogButton("close", "Close", 'C'),
-        ], PaletteStyles.DialogFill(_palette), PaletteStyles.InputField(_palette))
+        ])
         { Id = "actions" };
         var form = new ScrollableFormDialog([buttons]);
 

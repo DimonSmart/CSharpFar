@@ -34,8 +34,7 @@ internal sealed class ConflictDialog
         { Id = "remember-choice" };
         var actions = new ButtonRow(
             CreateButtons(),
-            WarningDialogStyles.Fill,
-            WarningDialogStyles.ButtonFocus)
+            style: WarningDialogStyles.ButtonBar)
         { Id = "actions" };
         var form = new ScrollableFormDialog();
         form.SetRows([rememberChoice], [actions]);
@@ -136,7 +135,7 @@ internal sealed class ConflictDialog
             new(RenameButton, "Rename", 'R'),
         };
 
-        buttons.Add(new DialogButton(CancelButton, "Cancel", 'C'));
+        buttons.Add(new DialogButton(CancelButton, "Cancel", 'C', Role: DialogButtonRole.Cancel));
         return buttons;
     }
 

@@ -29,9 +29,7 @@ internal sealed class OperationCancelDialog
         [
             new DialogButton(YesButton, "Yes", 'Y', IsDefault: true),
             new DialogButton(NoButton, "No", 'N'),
-        ],
-        WarningDialogStyles.Fill,
-        WarningDialogStyles.ButtonFocus)
+        ], style: WarningDialogStyles.ButtonBar)
         { Id = "actions" };
         var form = new ScrollableFormDialog();
         form.SetRows([], [buttons]);

@@ -70,10 +70,8 @@ internal sealed class CompareOptionsDialog
         var buttons = new ButtonRow(
             [
                 new DialogButton("compare", "Compare", 'C', IsDefault: true),
-                new DialogButton("cancel", "Cancel", 'A'),
-            ],
-            FarDialogStyles.Fill,
-            FarDialogStyles.FocusedInput);
+                new DialogButton("cancel", "Cancel", 'A', Role: DialogButtonRole.Cancel),
+            ]);
         var form = new ScrollableFormDialog();
         string? error = null;
 

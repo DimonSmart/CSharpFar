@@ -141,6 +141,12 @@ public sealed class MessageDialogTests
                 MouseButton.Left,
                 MouseEventKind.Down,
                 MouseKeyModifiers.None));
+            current.EnqueueInput(new MouseConsoleInputEvent(
+                record.X + record.Text.IndexOf("Second", StringComparison.Ordinal),
+                record.Y,
+                MouseButton.Left,
+                MouseEventKind.Up,
+                MouseKeyModifiers.None));
         };
 
         int result = CreateDialog(driver).ShowButtons("Question", "Choose", ["First", "Second"]);

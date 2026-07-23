@@ -326,7 +326,10 @@ public sealed class UiComponentDialogTests
         var driver = new FakeConsoleDriver(80, 20);
         for (int y = 10; y <= 15; y++)
             for (int x = 35; x <= 50; x++)
+            {
                 driver.EnqueueInput(new MouseConsoleInputEvent(x, y, MouseButton.Left, MouseEventKind.Down, MouseKeyModifiers.None));
+                driver.EnqueueInput(new MouseConsoleInputEvent(x, y, MouseButton.Left, MouseEventKind.Up, MouseKeyModifiers.None));
+            }
 
         var result = CreateListWithButtons(["alpha"]).Show(CreateModalHost(driver));
 
@@ -338,17 +341,16 @@ public sealed class UiComponentDialogTests
     public void DialogButtonBar_MouseOutsideExplicitLayoutDoesNotActivateButton()
     {
         var buttonBar = new DialogButtonBar([new DialogButton("ok", "OK", 'O')]);
-        int focused = 0;
+        DialogButtonBarState state = buttonBar.CreateState();
         var layout = buttonBar.CalculateLayout(10, 2, 20);
 
-        bool handled = buttonBar.TryHandleInput(
+        DialogButtonBarInputResult result = buttonBar.HandleInput(
             new MouseConsoleInputEvent(0, 0, MouseButton.Left, MouseEventKind.Down, MouseKeyModifiers.None),
             layout,
-            ref focused,
-            out string? buttonId);
+            state);
 
-        Assert.False(handled);
-        Assert.Null(buttonId);
+        Assert.False(result.IsHandled);
+        Assert.Null(result.ButtonId);
     }
 
     [Fact]
@@ -357,14 +359,17 @@ public sealed class UiComponentDialogTests
         var driver = new FakeConsoleDriver(40, 8);
         var screen = new ScreenRenderer(driver);
         var buttonBar = new DialogButtonBar([new DialogButton("delete", "Delete", 'D', IsEnabled: false)]);
-        int focused = 0;
+        DialogButtonBarState state = buttonBar.CreateState();
         var layout = UiTestRender.Render(screen, canvas =>
-            buttonBar.Render(canvas, 0, 0, 20, focused, new CellStyle(ConsoleColor.White, ConsoleColor.Black), new CellStyle(ConsoleColor.Black, ConsoleColor.White)));
+            buttonBar.Render(canvas, 0, 0, 20, state, isFocused: true));
 
-        bool handled = buttonBar.TryHandleInput(new KeyConsoleInputEvent(Key(ConsoleKey.Enter)), layout, ref focused, out string? buttonId);
+        DialogButtonBarInputResult result = buttonBar.HandleInput(
+            new KeyConsoleInputEvent(Key(ConsoleKey.Enter)),
+            layout,
+            state);
 
-        Assert.True(handled);
-        Assert.Null(buttonId);
+        Assert.True(result.IsHandled);
+        Assert.Null(result.ButtonId);
     }
 
     [Fact]
@@ -372,18 +377,50 @@ public sealed class UiComponentDialogTests
     {
         var buttonBar = new DialogButtonBar([new DialogButton("ok", "VeryLongButton", 'V')]);
         var layout = buttonBar.CalculateLayout(2, 1, 6);
-        int focused = 0;
+        DialogButtonBarState state = buttonBar.CreateState();
 
         Assert.Equal(new Rect(2, 1, 6, 1), layout.ButtonBounds[0]);
 
-        bool handled = buttonBar.TryHandleInput(
+        DialogButtonBarInputResult result = buttonBar.HandleInput(
             new MouseConsoleInputEvent(9, 1, MouseButton.Left, MouseEventKind.Down, MouseKeyModifiers.None),
             layout,
-            ref focused,
-            out string? buttonId);
+            state);
 
-        Assert.False(handled);
-        Assert.Null(buttonId);
+        Assert.False(result.IsHandled);
+        Assert.Null(result.ButtonId);
+    }
+
+    [Fact]
+    public void DialogButtonBar_MousePressIsVisibleAndActivatesOnMatchingRelease()
+    {
+        var driver = new FakeConsoleDriver(40, 8);
+        var screen = new ScreenRenderer(driver);
+        var buttonBar = new DialogButtonBar([new DialogButton("ok", "OK", 'O')]);
+        DialogButtonBarState state = buttonBar.CreateState();
+        DialogButtonBarLayout layout = buttonBar.CalculateLayout(0, 1, 20);
+        int x = layout.ButtonBounds[0].X;
+
+        DialogButtonBarInputResult down = buttonBar.HandleMouse(Mouse(x, 1, MouseEventKind.Down), layout, state);
+        Assert.True(down.IsHandled);
+        Assert.Equal(UiMouseCaptureRequestKind.Capture, down.MouseCapture);
+        Assert.Equal(0, down.State.PressedButtonIndex);
+        Assert.Null(down.ButtonId);
+
+        UiTestRender.Render(screen, canvas => buttonBar.Render(canvas, layout, down.State, isFocused: true));
+        Assert.Equal(FarDialogStyles.PressedButton.Foreground, driver.GetCell(x, 1).Foreground);
+        Assert.Equal(FarDialogStyles.PressedButton.Background, driver.GetCell(x, 1).Background);
+
+        DialogButtonBarInputResult moveOutside = buttonBar.HandleMouse(Mouse(39, 7, MouseEventKind.Move), layout, down.State);
+        Assert.Null(moveOutside.State.PressedButtonIndex);
+        DialogButtonBarInputResult cancelledUp = buttonBar.HandleMouse(Mouse(39, 7, MouseEventKind.Up), layout, moveOutside.State);
+        Assert.Equal(UiMouseCaptureRequestKind.Release, cancelledUp.MouseCapture);
+        Assert.Null(cancelledUp.ButtonId);
+
+        DialogButtonBarInputResult secondDown = buttonBar.HandleMouse(Mouse(x, 1, MouseEventKind.Down), layout, cancelledUp.State);
+        DialogButtonBarInputResult up = buttonBar.HandleMouse(Mouse(x, 1, MouseEventKind.Up), layout, secondDown.State);
+        Assert.Equal(UiMouseCaptureRequestKind.Release, up.MouseCapture);
+        Assert.Null(up.State.PressedButtonIndex);
+        Assert.Equal("ok", up.ButtonId);
     }
 
     [Fact]
@@ -415,7 +452,7 @@ public sealed class UiComponentDialogTests
     {
         var driver = new FakeConsoleDriver(80, 20);
         driver.EnqueueInput(new MouseConsoleInputEvent(42, 10, MouseButton.Left, MouseEventKind.Down, MouseKeyModifiers.None));
-        driver.EnqueueKey(Key(ConsoleKey.Escape));
+        driver.EnqueueInput(new MouseConsoleInputEvent(42, 10, MouseButton.Left, MouseEventKind.Up, MouseKeyModifiers.None));
 
         var result = new ChoiceDialog(CreateModalHost(driver)).Show(CreateChoiceOptions());
 
@@ -628,7 +665,7 @@ public sealed class UiComponentDialogTests
             [
                 new DialogButton("connect", "Connect", 'O', IsDefault: true),
                 new DialogButton("delete", "Delete", 'D'),
-                new DialogButton("cancel", "Cancel", 'C'),
+                new DialogButton("cancel", "Cancel", 'C', Role: DialogButtonRole.Cancel),
             ],
             "Items")
         {
@@ -653,6 +690,9 @@ public sealed class UiComponentDialogTests
         };
 
     private static ConsoleKeyInfo Key(ConsoleKey key) => new('\0', key, false, false, false);
+
+    private static MouseConsoleInputEvent Mouse(int x, int y, MouseEventKind kind) =>
+        new(x, y, MouseButton.Left, kind, MouseKeyModifiers.None);
 
     private static ModalDialogHost CreateModalHost(FakeConsoleDriver driver)
     {

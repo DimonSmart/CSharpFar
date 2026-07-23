@@ -175,10 +175,8 @@ internal sealed class FileOperationDialog
         var buttons = new ButtonRow(
             [
                 new DialogButton("submit", actionLabel, actionLabel[0], IsDefault: true),
-                new DialogButton("cancel", "Cancel", 'C'),
-            ],
-            FarDialogStyles.Fill,
-            FarDialogStyles.FocusedInput)
+                new DialogButton("cancel", "Cancel", 'C', Role: DialogButtonRole.Cancel),
+            ])
         {
             Id = "footerButtons",
         };

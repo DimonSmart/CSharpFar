@@ -111,6 +111,7 @@ public sealed class SearchOptionsDialogTests
             var row = currentDriver.WriteRecords.Last(record => record.Text.Contains("{ Find }", StringComparison.Ordinal));
             int x = row.X + row.Text.IndexOf("Find", StringComparison.Ordinal);
             currentDriver.EnqueueInput(new MouseConsoleInputEvent(x, row.Y, MouseButton.Left, MouseEventKind.Down, MouseKeyModifiers.None));
+            currentDriver.EnqueueInput(new MouseConsoleInputEvent(x, row.Y, MouseButton.Left, MouseEventKind.Up, MouseKeyModifiers.None));
         };
 
         var result = ShowDialog(driver, initialPattern: "abc");
@@ -182,9 +183,7 @@ public sealed class SearchOptionsDialogTests
             new TextInputRowState(),
             [new CheckBoxRow(new CheckBoxLine("Option")) { Id = "option" }],
             new ButtonRow(
-                [new DialogButton("find", "Find", 'F', IsDefault: true)],
-                FarDialogStyles.Fill,
-                FarDialogStyles.FocusedInput));
+                [new DialogButton("find", "Find", 'F', IsDefault: true)]));
     }
 
     private static FormInputResult HandleKey(

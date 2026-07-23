@@ -30,11 +30,17 @@ public sealed class TextInputWithButtonsRowTests
 
         UiTestRender.Render(screen, canvas =>
             row.Render(new FormRowRenderContext(canvas, new Rect(0, 0, 80, 1), focused: true)));
-        FormInputResult result = row.HandleMouse(
+        FormInputResult pressed = row.HandleMouse(
             new MouseConsoleInputEvent(45, 0, MouseButton.Left, MouseEventKind.Down, MouseKeyModifiers.None),
             new FormRowMouseContext(new Rect(0, 0, 80, 1), rowIndex: 0, focused: true, screenHeight: 5));
+        FormInputResult result = row.HandleMouse(
+            new MouseConsoleInputEvent(45, 0, MouseButton.Left, MouseEventKind.Up, MouseKeyModifiers.None),
+            new FormRowMouseContext(new Rect(0, 0, 80, 1), rowIndex: 0, focused: true, screenHeight: 5));
 
+        Assert.Equal(FormInputResultKind.Handled, pressed.Kind);
+        Assert.Equal(UiMouseCaptureRequestKind.Capture, pressed.MouseCapture);
         Assert.Equal(FormInputResultKind.Submit, result.Kind);
         Assert.Equal("write.current", result.Command);
+        Assert.Equal(UiMouseCaptureRequestKind.Release, result.MouseCapture);
     }
 }

@@ -802,7 +802,7 @@ public sealed class ScrollableFormDialogTests
     {
         var form = new ScrollableFormDialog([
             new TextInputRow(new CommandLineState()),
-            new ButtonRow([new DialogButton("ok", "OK", 'O')], FarDialogStyles.Fill, FarDialogStyles.FocusedInput),
+            new ButtonRow([new DialogButton("ok", "OK", 'O')]),
         ]);
         var driver = Render(form, visibleRows: 2);
         Assert.True(driver.CursorVisible);
@@ -868,10 +868,8 @@ public sealed class ScrollableFormDialogTests
             new ButtonRow(
                 [
                     new DialogButton("ok", "OK", 'O', IsDefault: true),
-                    new DialogButton("cancel", "Cancel", 'C'),
-                ],
-                FarDialogStyles.Fill,
-                FarDialogStyles.FocusedInput),
+                    new DialogButton("cancel", "Cancel", 'C', Role: DialogButtonRole.Cancel),
+                ]),
         ]);
         Render(form, visibleRows: 1);
 
@@ -879,6 +877,20 @@ public sealed class ScrollableFormDialogTests
 
         HandleKey(form, Key(ConsoleKey.RightArrow));
         Assert.Equal(FormInputResultKind.Cancel, HandleKey(form, Key(ConsoleKey.Enter)).Kind);
+    }
+
+    [Fact]
+    public void ButtonRow_DoesNotInferCancelRoleFromButtonId()
+    {
+        var form = new ScrollableFormDialog([
+            new ButtonRow([new DialogButton("cancel", "Keep working", 'K')]),
+        ]);
+        Render(form, visibleRows: 1);
+
+        FormInputResult result = HandleKey(form, Key(ConsoleKey.Enter));
+
+        Assert.Equal(FormInputResultKind.Submit, result.Kind);
+        Assert.Equal("cancel", result.Command);
     }
 
     [Fact]
@@ -962,7 +974,8 @@ public sealed class ScrollableFormDialogTests
         FakeConsoleDriver driver = RenderWithFooter(form, bodyRows: 2, footerY: 3);
         int submitX = driver.GetRow(3).IndexOf("Submit", StringComparison.Ordinal);
 
-        FormInputResult result = HandleMouse(form, Mouse(submitX, 3));
+        Assert.Equal(FormInputResultKind.Handled, HandleMouse(form, Mouse(submitX, 3)).Kind);
+        FormInputResult result = HandleMouse(form, Mouse(submitX, 3, kind: MouseEventKind.Up));
 
         Assert.Equal("footerButtons", form.FocusedRowId);
         Assert.Equal(FormInputResultKind.Submit, result.Kind);
@@ -1598,6 +1611,7 @@ public sealed class ScrollableFormDialogTests
         layer.ThrowOnRender = true;
         Assert.Throws<InvalidOperationException>(() => host.Composition.Render());
         host.Composition.DispatchInput(Mouse(footer.Bounds.X + 2, footer.Bounds.Y));
+        host.Composition.DispatchInput(Mouse(footer.Bounds.X + 2, footer.Bounds.Y, kind: MouseEventKind.Up));
 
         Assert.Equal(FormInputResultKind.Submit, layer.LastRouteResult!.Value.FormResult.Kind);
         Assert.Equal(0, dropdown.SelectedIndex);
@@ -1835,7 +1849,7 @@ public sealed class ScrollableFormDialogTests
 
         Assert.Throws<InvalidOperationException>(() => form.SetRows(
             [new CheckBoxRow(new CheckBoxLine("body")) { Id = "same" }],
-            [new ButtonRow([new DialogButton("ok", "OK", 'O')], FarDialogStyles.Fill, FarDialogStyles.FocusedInput) { Id = "same" }]));
+            [new ButtonRow([new DialogButton("ok", "OK", 'O')]) { Id = "same" }]));
     }
 
     [Fact]
@@ -1870,10 +1884,8 @@ public sealed class ScrollableFormDialogTests
         new(
             [
                 new DialogButton("submit", "Submit", 'S', IsDefault: true),
-                new DialogButton("cancel", "Cancel", 'C'),
-            ],
-            FarDialogStyles.Fill,
-            FarDialogStyles.FocusedInput)
+                new DialogButton("cancel", "Cancel", 'C', Role: DialogButtonRole.Cancel),
+            ])
         {
             Id = "footerButtons",
         };

@@ -1,6 +1,4 @@
-using CSharpFar.Console;
 using CSharpFar.Console.Input;
-using CSharpFar.Console.Models;
 
 namespace CSharpFar.Ui;
 
@@ -25,9 +23,7 @@ internal sealed class DialogActionController
     public DialogActionController(
         IReadOnlyList<DialogButton> buttons,
         int defaultButtonIndex,
-        int? cancelButtonIndex,
-        CellStyle normalStyle,
-        CellStyle focusedStyle)
+        int? cancelButtonIndex)
     {
         ArgumentNullException.ThrowIfNull(buttons);
         if (buttons.Count == 0)
@@ -36,7 +32,7 @@ internal sealed class DialogActionController
         _buttons = buttons.ToArray();
         int normalizedDefaultIndex = NormalizeIndex(defaultButtonIndex);
         _cancelButtonIndex = cancelButtonIndex is int index ? NormalizeIndex(index) : null;
-        var actions = new ButtonRow(_buttons, normalStyle, focusedStyle, normalizedDefaultIndex) { Id = "actions" };
+        var actions = new ButtonRow(_buttons, normalizedDefaultIndex) { Id = "actions" };
         _form = new ScrollableFormDialog();
         _form.SetRows([], [actions]);
     }
@@ -58,13 +54,9 @@ internal sealed class DialogActionController
 
     public DialogActionOutcome? Interpret(FormInputResult result)
     {
-        if (result.Kind == FormInputResultKind.Submit && TryGetButtonIndex(result.Command, out int submitIndex))
-            return Activated(submitIndex);
-
-        // ButtonRow reports an ID named "cancel" as Cancel. It is still a button
-        // activation when the command identifies one of this controller's buttons.
-        if (result.Kind == FormInputResultKind.Cancel && TryGetButtonIndex(result.Command, out int cancelCommandIndex))
-            return Activated(cancelCommandIndex);
+        if (result.Kind is FormInputResultKind.Submit or FormInputResultKind.Cancel &&
+            TryGetButtonIndex(result.Command, out int buttonIndex))
+            return Activated(buttonIndex);
 
         return result.Kind == FormInputResultKind.Cancel ? Cancelled() : null;
     }

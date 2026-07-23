@@ -39,10 +39,8 @@ internal sealed class DirectoryShortcutEditDialog
         var actions = new ButtonRow(
             [
                 new DialogButton("ok", "OK", 'O', IsDefault: true),
-                new DialogButton("cancel", "Cancel", 'C'),
-            ],
-            PaletteStyles.DialogFill(_palette),
-            PaletteStyles.InputField(_palette))
+                new DialogButton("cancel", "Cancel", 'C', Role: DialogButtonRole.Cancel),
+            ])
         {
             Id = "actions",
         };

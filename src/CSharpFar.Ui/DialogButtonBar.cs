@@ -8,25 +8,52 @@ public sealed record DialogButtonBarLayout(
     Rect AreaBounds,
     IReadOnlyList<Rect> ButtonBounds);
 
+public readonly record struct DialogButtonBarStyle(
+    CellStyle Normal,
+    CellStyle Focused,
+    CellStyle Pressed);
+
+public readonly record struct DialogButtonBarState(
+    int FocusedIndex,
+    int? ArmedButtonIndex = null,
+    bool IsPressed = false)
+{
+    public int? PressedButtonIndex => IsPressed ? ArmedButtonIndex : null;
+}
+
+public readonly record struct DialogButtonBarInputResult(
+    bool IsHandled,
+    DialogButtonBarState State,
+    string? ButtonId = null,
+    DialogButtonRole? ButtonRole = null,
+    UiMouseCaptureRequestKind MouseCapture = UiMouseCaptureRequestKind.None);
+
 public sealed class DialogButtonBar
 {
     private readonly IReadOnlyList<DialogButton> _buttons;
 
     public DialogButtonBar(IReadOnlyList<DialogButton> buttons)
     {
+        ArgumentNullException.ThrowIfNull(buttons);
         if (buttons.Count == 0)
             throw new ArgumentException("At least one button is required.", nameof(buttons));
 
-        _buttons = buttons;
+        _buttons = Array.AsReadOnly(buttons.ToArray());
     }
 
     public int Count => _buttons.Count;
+    public int DesiredWidth => _buttons.Sum(button => FormatButton(button).Length) + Math.Max(0, _buttons.Count - 1);
+
+    public static int MeasureWidth(IReadOnlyList<DialogButton> buttons) =>
+        new DialogButtonBar(buttons).DesiredWidth;
+
+    public DialogButtonBarState CreateState(int focusedIndex = 0) =>
+        new(NormalizeIndex(focusedIndex));
 
     public DialogButtonBarLayout CalculateLayout(int x, int y, int width)
     {
         string[] labels = _buttons.Select(FormatButton).ToArray();
-        int totalWidth = labels.Sum(label => label.Length) + Math.Max(0, labels.Length - 1);
-        int cursorX = x + Math.Max(0, (width - totalWidth) / 2);
+        int cursorX = x + Math.Max(0, (width - DesiredWidth) / 2);
         var areaBounds = new Rect(x, y, Math.Max(0, width), 1);
         var bounds = new List<Rect>(labels.Length);
         for (int i = 0; i < labels.Length; i++)
@@ -44,75 +71,73 @@ public sealed class DialogButtonBar
         int x,
         int y,
         int width,
-        int focusedIndex,
-        CellStyle normalStyle,
-        CellStyle focusedStyle)
+        DialogButtonBarState state,
+        bool isFocused,
+        DialogButtonBarStyle? style = null)
     {
         var layout = CalculateLayout(x, y, width);
-        Render(screen, layout, focusedIndex, normalStyle, focusedStyle);
+        Render(screen, layout, state, isFocused, style);
         return layout;
     }
 
     public void Render(
         IUiCanvas screen,
         DialogButtonBarLayout layout,
-        int focusedIndex,
-        CellStyle normalStyle,
-        CellStyle focusedStyle)
+        DialogButtonBarState state,
+        bool isFocused,
+        DialogButtonBarStyle? style = null)
     {
+        ArgumentNullException.ThrowIfNull(screen);
+        DialogButtonBarStyle buttonStyle = style ?? FarDialogStyles.ButtonBar;
         screen.Write(
             layout.AreaBounds.X,
             layout.AreaBounds.Y,
             new string(' ', layout.AreaBounds.Width),
-            normalStyle);
+            buttonStyle.Normal);
 
+        int focusedIndex = NormalizeIndex(state.FocusedIndex);
+        int? pressedIndex = NormalizeOptionalIndex(state.PressedButtonIndex);
         for (int i = 0; i < _buttons.Count; i++)
         {
             string label = FormatButton(_buttons[i]);
-            var style = i == focusedIndex ? focusedStyle : normalStyle;
+            CellStyle renderedStyle = i == pressedIndex
+                ? buttonStyle.Pressed
+                : isFocused && i == focusedIndex
+                    ? buttonStyle.Focused
+                    : buttonStyle.Normal;
             Rect bounds = layout.ButtonBounds[i];
             if (bounds.Width > 0)
-                screen.Write(bounds.X, bounds.Y, FitVisibleLabel(label, bounds.Width), style);
+                screen.Write(bounds.X, bounds.Y, FitVisibleLabel(label, bounds.Width), renderedStyle);
         }
     }
 
-    public bool TryHandleInput(ConsoleInputEvent input, DialogButtonBarLayout layout, ref int focusedIndex, out string? buttonId)
-    {
-        buttonId = null;
-
-        switch (input)
+    public DialogButtonBarInputResult HandleInput(
+        ConsoleInputEvent input,
+        DialogButtonBarLayout layout,
+        DialogButtonBarState state) =>
+        input switch
         {
-            case KeyConsoleInputEvent { Key: var key }:
-                return HandleKey(key, ref focusedIndex, out buttonId);
-            case MouseConsoleInputEvent mouse:
-                return TryHandleMouse(mouse, layout, ref focusedIndex, out buttonId);
-            default:
-                return false;
-        }
-    }
+            KeyConsoleInputEvent { Key: var key } => HandleKey(key, state),
+            MouseConsoleInputEvent mouse => HandleMouse(mouse, layout, state),
+            _ => new DialogButtonBarInputResult(false, NormalizeState(state)),
+        };
 
-    public bool TryHandleKey(ConsoleKeyInfo key, ref int focusedIndex, out string? buttonId) =>
-        HandleKey(key, ref focusedIndex, out buttonId);
-
-    private bool HandleKey(ConsoleKeyInfo key, ref int focusedIndex, out string? buttonId)
+    public DialogButtonBarInputResult HandleKey(ConsoleKeyInfo key, DialogButtonBarState state)
     {
-        buttonId = null;
+        state = NormalizeState(state) with { ArmedButtonIndex = null, IsPressed = false };
+        int focusedIndex = state.FocusedIndex;
 
         switch (key.Key)
         {
             case ConsoleKey.LeftArrow:
-                focusedIndex = focusedIndex <= 0 ? _buttons.Count - 1 : focusedIndex - 1;
-                return true;
+                return Handled(state with { FocusedIndex = focusedIndex <= 0 ? _buttons.Count - 1 : focusedIndex - 1 });
             case ConsoleKey.RightArrow:
-                focusedIndex = (focusedIndex + 1) % _buttons.Count;
-                return true;
+                return Handled(state with { FocusedIndex = (focusedIndex + 1) % _buttons.Count });
             case ConsoleKey.Enter:
             case ConsoleKey.Spacebar:
-                if (!_buttons[focusedIndex].IsEnabled)
-                    return true;
-
-                buttonId = _buttons[focusedIndex].Id;
-                return true;
+                return _buttons[focusedIndex].IsEnabled
+                    ? Activated(state, focusedIndex)
+                    : Handled(state);
         }
 
         if (key.KeyChar > ' ')
@@ -121,36 +146,97 @@ public sealed class DialogButtonBar
             {
                 if (!_buttons[i].IsEnabled ||
                     char.ToUpperInvariant(key.KeyChar) != char.ToUpperInvariant(_buttons[i].HotKey))
+                {
                     continue;
+                }
 
-                focusedIndex = i;
-                buttonId = _buttons[i].Id;
-                return true;
+                return Activated(state with { FocusedIndex = i }, i);
             }
         }
 
-        return false;
+        return new DialogButtonBarInputResult(false, state);
     }
 
-    public bool TryHandleMouse(MouseConsoleInputEvent mouse, DialogButtonBarLayout layout, ref int focusedIndex, out string? buttonId)
+    public DialogButtonBarInputResult HandleMouse(
+        MouseConsoleInputEvent mouse,
+        DialogButtonBarLayout layout,
+        DialogButtonBarState state)
     {
-        buttonId = null;
+        state = NormalizeState(state);
+        if (mouse.Button != MouseButton.Left)
+            return new DialogButtonBarInputResult(false, state);
 
-        if (mouse.Button != MouseButton.Left || mouse.Kind != MouseEventKind.Down)
-            return false;
-
-        for (int i = 0; i < layout.ButtonBounds.Count; i++)
+        if (mouse.Kind == MouseEventKind.Down)
         {
-            if (!Contains(layout.ButtonBounds[i], mouse.X, mouse.Y))
-                continue;
+            int? hitIndex = HitTest(layout, mouse.X, mouse.Y);
+            if (hitIndex is not int index)
+                return new DialogButtonBarInputResult(false, state);
 
-            focusedIndex = i;
-            if (_buttons[i].IsEnabled)
-                buttonId = _buttons[i].Id;
-            return true;
+            state = state with { FocusedIndex = index, ArmedButtonIndex = null, IsPressed = false };
+            if (!_buttons[index].IsEnabled)
+                return Handled(state);
+
+            return new DialogButtonBarInputResult(
+                true,
+                state with { ArmedButtonIndex = index, IsPressed = true },
+                MouseCapture: UiMouseCaptureRequestKind.Capture);
         }
 
-        return false;
+        if (state.ArmedButtonIndex is not int armedIndex)
+            return new DialogButtonBarInputResult(false, state);
+
+        bool isOverArmedButton = Contains(layout.ButtonBounds[armedIndex], mouse.X, mouse.Y);
+        if (mouse.Kind == MouseEventKind.Move)
+            return Handled(state with { IsPressed = isOverArmedButton });
+
+        if (mouse.Kind != MouseEventKind.Up)
+            return new DialogButtonBarInputResult(false, state);
+
+        var releasedState = state with { ArmedButtonIndex = null, IsPressed = false };
+        return isOverArmedButton && _buttons[armedIndex].IsEnabled
+            ? Activated(releasedState, armedIndex, UiMouseCaptureRequestKind.Release)
+            : new DialogButtonBarInputResult(
+                true,
+                releasedState,
+                MouseCapture: UiMouseCaptureRequestKind.Release);
+    }
+
+    private DialogButtonBarInputResult Activated(
+        DialogButtonBarState state,
+        int index,
+        UiMouseCaptureRequestKind mouseCapture = UiMouseCaptureRequestKind.None) =>
+        new(true, state, _buttons[index].Id, _buttons[index].Role, mouseCapture);
+
+    private static DialogButtonBarInputResult Handled(DialogButtonBarState state) =>
+        new(true, state);
+
+    private DialogButtonBarState NormalizeState(DialogButtonBarState state)
+    {
+        int? armedIndex = NormalizeOptionalIndex(state.ArmedButtonIndex) is int index && _buttons[index].IsEnabled
+            ? index
+            : null;
+        return state with
+        {
+            FocusedIndex = NormalizeIndex(state.FocusedIndex),
+            ArmedButtonIndex = armedIndex,
+            IsPressed = armedIndex is not null && state.IsPressed,
+        };
+    }
+
+    private int NormalizeIndex(int index) => Math.Clamp(index, 0, _buttons.Count - 1);
+
+    private int? NormalizeOptionalIndex(int? index) =>
+        index is >= 0 && index < _buttons.Count ? index : null;
+
+    private static int? HitTest(DialogButtonBarLayout layout, int x, int y)
+    {
+        for (int i = 0; i < layout.ButtonBounds.Count; i++)
+        {
+            if (Contains(layout.ButtonBounds[i], x, y))
+                return i;
+        }
+
+        return null;
     }
 
     private static string FormatButton(DialogButton button) =>

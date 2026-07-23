@@ -17,7 +17,10 @@ public enum FormInputResultKind
     Cancel,
 }
 
-public readonly record struct FormInputResult(FormInputResultKind Kind, string? Command = null)
+public readonly record struct FormInputResult(
+    FormInputResultKind Kind,
+    string? Command = null,
+    UiMouseCaptureRequestKind MouseCapture = UiMouseCaptureRequestKind.None)
 {
     public static FormInputResult NotHandled => new(FormInputResultKind.NotHandled);
     public static FormInputResult Handled => new(FormInputResultKind.Handled);

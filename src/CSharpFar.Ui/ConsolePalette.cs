@@ -88,6 +88,12 @@ public sealed class ConsolePalette
     public ConsoleColor InputFocusedText { get; init; } = ConsoleColor.White;
     public ConsoleColor InputFocusedBackground { get; init; } = ConsoleColor.DarkBlue;
 
+    // Warning dialogs
+    public ConsoleColor WarningForeground { get; init; } = ConsoleColor.White;
+    public ConsoleColor WarningBackground { get; init; } = ConsoleColor.DarkRed;
+    public ConsoleColor WarningButtonFocusedForeground { get; init; } = ConsoleColor.Black;
+    public ConsoleColor WarningButtonFocusedBackground { get; init; } = ConsoleColor.Gray;
+
     // ── Help viewer ───────────────────────────────────────────────────────────
     public ConsoleColor HelpBodyFg { get; init; } = ConsoleColor.White;
     public ConsoleColor HelpBodyBg { get; init; } = ConsoleColor.Black;

@@ -95,10 +95,8 @@ public sealed class SearchOptionsDialog
         var buttons = new ButtonRow(
             [
                 new DialogButton("find", "Find", 'F', IsDefault: true),
-                new DialogButton("cancel", "Cancel", 'C'),
-            ],
-            FarDialogStyles.Fill,
-            FarDialogStyles.FocusedInput);
+                new DialogButton("cancel", "Cancel", 'C', Role: DialogButtonRole.Cancel),
+            ]);
         var form = new ScrollableFormDialog(BuildRows(options, pattern, patternHistory, patternRowState, checkboxes, buttons));
         string? error = null;
         return _modalDialogs.RunInteractive<ScrollableFormFrame, FormInputResult, SearchOptionsDialogResult?>(

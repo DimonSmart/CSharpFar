@@ -400,6 +400,12 @@ public sealed class Spec012SearchResultsPanelTests : IDisposable
                 CSharpFar.Console.Input.MouseButton.Left,
                 CSharpFar.Console.Input.MouseEventKind.Down,
                 CSharpFar.Console.Input.MouseKeyModifiers.None));
+            driver.EnqueueInput(new CSharpFar.Console.Input.MouseConsoleInputEvent(
+                x,
+                record.Y,
+                CSharpFar.Console.Input.MouseButton.Left,
+                CSharpFar.Console.Input.MouseEventKind.Up,
+                CSharpFar.Console.Input.MouseKeyModifiers.None));
             foreach (var key in followingKeys)
                 driver.EnqueueKey(key);
         }

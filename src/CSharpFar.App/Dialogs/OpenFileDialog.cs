@@ -28,7 +28,7 @@ internal sealed class OpenFileDialog
             [
                 new DialogButton("view", "View", 'V'),
                 new DialogButton("edit", "Edit", 'E'),
-                new DialogButton("cancel", "Cancel", 'C'),
+                new DialogButton("cancel", "Cancel", 'C', Role: DialogButtonRole.Cancel),
             ],
             DefaultButtonIndex = 0,
             CancelButtonIndex = 2,

@@ -60,8 +60,8 @@ public sealed class SingleLineInputDialog
             new SeparatorRow(FarDialogStyles.Fill, drawLine: false),
             new ButtonRow([
                 new DialogButton("ok", "OK", 'O', IsDefault: true),
-                new DialogButton("cancel", "Cancel", 'C'),
-            ], FarDialogStyles.Fill, FarDialogStyles.FocusedInput) { Id = "actions" },
+                new DialogButton("cancel", "Cancel", 'C', Role: DialogButtonRole.Cancel),
+            ]) { Id = "actions" },
         ]);
 
         return _modalDialogs.RunInteractive<ScrollableFormFrame, FormInputResult, SingleLineInputDialogResult>(
