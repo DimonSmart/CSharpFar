@@ -69,11 +69,11 @@ public sealed class ScrollableViewportTests
         Assert.True(started.DragStarted);
         Assert.True(moved.IsHandled);
         Assert.True(ended.DragEnded);
-        Assert.Null(viewport.ScrollbarDrag);
+        Assert.Null(frame.ScrollbarFrame?.DragState);
 
         viewport.HandleMouse(Mouse(MouseButton.Left, MouseEventKind.Down, 9, 1), frame);
         viewport.ApplyCommittedFrame(viewport.CalculateFrameState(3, 3, new Rect(0, 0, 9, 3), scrollbarBounds: null));
-        Assert.Null(viewport.ScrollbarDrag);
+        Assert.Null(viewport.CalculateFrameState(3, 3, new Rect(0, 0, 9, 3), scrollbarBounds: null).ScrollbarFrame);
     }
 
     private static ScrollableViewportFrameState Frame(ScrollableViewport viewport) =>

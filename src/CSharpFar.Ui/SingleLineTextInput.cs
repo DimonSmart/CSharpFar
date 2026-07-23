@@ -19,7 +19,8 @@ public readonly record struct SingleLineTextHistoryFrame(
     Rect? ScrollbarBounds,
     int VisibleRows,
     int FirstVisibleIndex,
-    int SelectedIndex);
+    int SelectedIndex,
+    VerticalScrollbarFrame? VerticalScrollbarFrame = null);
 
 public static class SingleLineTextInput
 {
@@ -244,20 +245,18 @@ public static class SingleLineTextInput
         int fieldX,
         int fieldY,
         int fieldWidth,
-        int screenHeight,
-        ref ScrollBarDragState? scrollbarDrag)
+        int screenHeight)
     {
         var frame = CalculateHistoryDropdownFrame(fieldX, fieldY, fieldWidth, screenHeight, history);
         return frame is { } value &&
-            TryHandleHistoryDropdownMouse(history, buffer, mouse, value, ref scrollbarDrag);
+            TryHandleHistoryDropdownMouse(history, buffer, mouse, value);
     }
 
     public static bool TryHandleHistoryDropdownMouse(
         SingleLineTextHistoryState history,
         CommandLineState buffer,
         MouseConsoleInputEvent mouse,
-        SingleLineTextHistoryFrame frame,
-        ref ScrollBarDragState? scrollbarDrag)
+        SingleLineTextHistoryFrame frame)
     {
         if (!history.IsDropdownOpen || history.Matches.Count == 0)
             return false;
@@ -277,17 +276,14 @@ public static class SingleLineTextInput
             return true;
         }
 
-        int firstVisibleIndex = frame.FirstVisibleIndex;
-        if (VerticalScrollbarMouseAdapter.TryHandleMouse(
-            mouse,
-            frame.ScrollbarBounds ?? new Rect(frame.PopupBounds.Right - 1, frame.ContentBounds.Y, 1, frame.ContentBounds.Height),
-            history.Matches.Count,
-            frame.VisibleRows,
-            ref firstVisibleIndex,
-            ref scrollbarDrag))
+        if (frame.VerticalScrollbarFrame is { } scrollbarFrame)
         {
-            history.SetFirstVisibleIndex(firstVisibleIndex, frame.VisibleRows);
-            return true;
+            VerticalScrollbarInputResult result = history.Scrollbar.HandleMouse(mouse, scrollbarFrame);
+            if (result.IsHandled)
+            {
+                history.SetFirstVisibleIndex(result.FirstVisibleIndex, frame.VisibleRows);
+                return true;
+            }
         }
 
         if (mouse.Button == MouseButton.Left &&
@@ -302,7 +298,6 @@ public static class SingleLineTextInput
                 return false;
 
             history.AcceptSelected(buffer);
-            scrollbarDrag = null;
             return true;
         }
 
@@ -311,7 +306,6 @@ public static class SingleLineTextInput
             (mouse.X < frame.PopupBounds.X || mouse.X >= frame.PopupBounds.Right || mouse.Y < frame.PopupBounds.Y || mouse.Y >= frame.PopupBounds.Bottom))
         {
             history.Close();
-            scrollbarDrag = null;
             return true;
         }
 
@@ -391,7 +385,13 @@ public static class SingleLineTextInput
         Rect? scrollbarBounds = history.Matches.Count > visibleRows
             ? new Rect(bounds.Right - 1, contentBounds.Y, 1, contentBounds.Height)
             : null;
-        return new SingleLineTextHistoryFrame(bounds, contentBounds, scrollbarBounds, visibleRows, firstVisibleIndex, selectedIndex);
+        var scrollbarFrame = history.Scrollbar.CalculateFrame(scrollbarBounds, new ScrollState
+        {
+            TotalItems = history.Matches.Count,
+            ViewportItems = visibleRows,
+            FirstVisibleIndex = firstVisibleIndex,
+        });
+        return new SingleLineTextHistoryFrame(bounds, contentBounds, scrollbarBounds, visibleRows, firstVisibleIndex, selectedIndex, scrollbarFrame);
     }
 
     public static void RenderHistoryDropdown(

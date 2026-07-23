@@ -18,6 +18,7 @@ public sealed partial class ScrollableFormDialog
     private FormLayoutSnapshot? _stableLayout;
     private bool _ensureFocusedTargetVisibleOnNextRender;
     private long _nextAnonymousRowToken;
+    private readonly VerticalScrollbarController _scrollbar = new();
 
     private sealed class AnonymousRowTokenBox
     {
@@ -38,7 +39,6 @@ public sealed partial class ScrollableFormDialog
     public int FocusIndex => FocusIndexFromScope(CurrentFocusedTarget) ?? 0;
     public int FocusableCount => TotalFocusableCount;
     public int ScrollTop { get; private set; }
-    public ScrollBarDragState? ScrollbarDrag { get; private set; }
     public string? FocusedRowId => FocusedTargetFrame()?.Row?.Id;
     public FormRowRole FocusedRowRole => FocusedTargetFrame()?.Row?.Role ?? FormRowRole.Normal;
     public bool IsFocusedOnSubmitRow => FocusedTargetFrame()?.Row is { IsFocusable: true, SubmitOnEnter: true };
@@ -286,23 +286,16 @@ public sealed partial class ScrollableFormDialog
         return true;
     }
 
-    private bool TryHandleScrollbarMouse(MouseConsoleInputEvent mouse, Rect scrollbarBounds, int viewportRows)
+    private bool TryHandleScrollbarMouse(MouseConsoleInputEvent mouse, ScrollableFormFrame frame)
     {
-        int firstVisibleIndex = ScrollTop;
-        var dragState = ScrollbarDrag;
-        if (!VerticalScrollbarMouseAdapter.TryHandleMouse(
-                mouse,
-                scrollbarBounds,
-                BodyRowCount,
-                Math.Max(1, viewportRows),
-                ref firstVisibleIndex,
-                ref dragState))
+        if (frame.VerticalScrollbarFrame is not { } scrollbarFrame)
         {
             return false;
         }
-
-        ScrollTop = ScrollStateCalculator.ClampFirstVisibleIndex(firstVisibleIndex, BodyRowCount, Math.Max(1, viewportRows));
-        ScrollbarDrag = dragState;
+        VerticalScrollbarInputResult result = _scrollbar.HandleMouse(mouse, scrollbarFrame);
+        if (!result.IsHandled)
+            return false;
+        ScrollTop = ScrollStateCalculator.ClampFirstVisibleIndex(result.FirstVisibleIndex, BodyRowCount, frame.ViewportRows);
         return true;
     }
 

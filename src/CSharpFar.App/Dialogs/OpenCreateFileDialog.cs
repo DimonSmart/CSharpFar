@@ -106,7 +106,6 @@ internal sealed class OpenCreateFileDialog
                     {
                         error = null;
                         history.Close();
-                        pathState.HistoryScrollbarDrag = null;
                     }
                 }
 

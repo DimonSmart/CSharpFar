@@ -114,8 +114,7 @@ internal sealed class DriveDialog
             ScrollableListInputResult result = list.HandleMouse(
                 mouse,
                 frame.ListBounds,
-                frame.ScrollbarBounds,
-                frame.ListState.ViewportRows);
+                frame.ListState);
             if (!result.IsHandled)
                 return (result, UiInputResult.NotHandled);
 
@@ -222,7 +221,7 @@ internal sealed class DriveDialog
             : null;
         ScrollableListFrameState state = visibleRows > 0
             ? list.CalculateFrameState(visibleRows, scrollbarBounds)
-            : new ScrollableListFrameState(list.SelectedIndex, list.ScrollTop, 0, null, null);
+            : new ScrollableListFrameState(list.SelectedIndex, list.ScrollTop, 0);
         return new DriveDialogFrame(
             items,
             bounds,

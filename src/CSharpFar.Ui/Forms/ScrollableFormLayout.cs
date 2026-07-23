@@ -84,6 +84,7 @@ public sealed partial class ScrollableFormDialog
             _stableLayout = snapshot;
             _committedFrame = frame;
             ScrollTop = snapshot.EffectiveScrollTop;
+            _scrollbar.ApplyCommittedFrame(frame.VerticalScrollbarFrame);
             _ensureFocusedTargetVisibleOnNextRender = false;
             _requestedInitialTarget = null;
             foreach (FormTargetFrame target in frame.Targets.Where(target => target.Kind == FormTargetKind.Row && target.Row is IFormDropdownRow && target.DropdownFrame is not null))
@@ -192,6 +193,13 @@ public sealed partial class ScrollableFormDialog
         if (defaultTarget is null || !targets.Any(target => target.Target == defaultTarget && target.IsFocusable))
             defaultTarget = targets.FirstOrDefault(target => target is { Kind: FormTargetKind.Row, IsFocusable: true })?.Target;
 
+        Rect? scrollbarBounds = targets.FirstOrDefault(target => target.Kind == FormTargetKind.BodyScrollbar)?.Bounds;
+        var scrollbarFrame = _scrollbar.CalculateFrame(scrollbarBounds, new ScrollState
+        {
+            TotalItems = BodyRowCount,
+            ViewportItems = Math.Max(1, context.BodyBounds.Height),
+            FirstVisibleIndex = effectiveScrollTop,
+        });
         return new ScrollableFormFrame(
             context.Viewport,
             context.BodyBounds,
@@ -200,7 +208,8 @@ public sealed partial class ScrollableFormDialog
             context.Viewport.Height,
             effectiveScrollTop,
             targets,
-            defaultTarget);
+            defaultTarget,
+            scrollbarFrame);
     }
 
     private FormTargetFrame CreateRowTargetFrame(

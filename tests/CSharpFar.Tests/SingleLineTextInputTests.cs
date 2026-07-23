@@ -331,7 +331,6 @@ public class SingleLineTextInputTests
         history.Add("copy");
         history.Add("compare");
         Assert.True(history.OpenForPrefix("c", availableContentRows: 5));
-        ScrollBarDragState? drag = null;
 
         bool handled = SingleLineTextInput.TryHandleHistoryDropdownMouse(
             history,
@@ -340,8 +339,7 @@ public class SingleLineTextInputTests
             fieldX: 1,
             fieldY: 0,
             fieldWidth: 12,
-            screenHeight: 8,
-            ref drag);
+            screenHeight: 8);
 
         Assert.True(handled);
         Assert.Equal("compare", buffer.Text);
@@ -356,7 +354,6 @@ public class SingleLineTextInputTests
         for (int i = 0; i < 20; i++)
             history.Add("item-" + i);
         Assert.True(history.OpenAll(availableContentRows: 5));
-        ScrollBarDragState? drag = null;
 
         bool handled = SingleLineTextInput.TryHandleHistoryDropdownMouse(
             history,
@@ -365,8 +362,7 @@ public class SingleLineTextInputTests
             fieldX: 1,
             fieldY: 0,
             fieldWidth: 12,
-            screenHeight: 8,
-            ref drag);
+            screenHeight: 8);
 
         Assert.True(handled);
         Assert.True(history.FirstVisibleIndex > 0);
@@ -380,7 +376,6 @@ public class SingleLineTextInputTests
         var history = new SingleLineTextHistoryState();
         history.Add("copy");
         Assert.True(history.OpenForPrefix("c", availableContentRows: 5));
-        ScrollBarDragState? drag = null;
 
         bool handled = SingleLineTextInput.TryHandleHistoryDropdownMouse(
             history,
@@ -389,8 +384,7 @@ public class SingleLineTextInputTests
             fieldX: 1,
             fieldY: 0,
             fieldWidth: 12,
-            screenHeight: 8,
-            ref drag);
+            screenHeight: 8);
 
         Assert.True(handled);
         Assert.False(history.IsDropdownOpen);
@@ -416,15 +410,13 @@ public class SingleLineTextInputTests
         Assert.NotNull(frame);
         Assert.Equal(1, frame.Value.VisibleRows);
         Assert.Equal(frame.Value.FirstVisibleIndex, frame.Value.SelectedIndex);
-        ScrollBarDragState? drag = null;
         string expected = history.Matches[frame.Value.FirstVisibleIndex];
 
         bool handled = SingleLineTextInput.TryHandleHistoryDropdownMouse(
             history,
             buffer,
             LeftMouse(frame.Value.ContentBounds.X, frame.Value.ContentBounds.Y),
-            frame.Value,
-            ref drag);
+            frame.Value);
 
         Assert.True(handled);
         Assert.Equal(expected, buffer.Text);

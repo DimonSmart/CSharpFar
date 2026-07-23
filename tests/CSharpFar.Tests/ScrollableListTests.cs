@@ -22,7 +22,7 @@ public sealed class ScrollableListTests
         Assert.Equal(["a", "b"], list.Items);
         Assert.Equal(1, list.SelectedIndex);
         Assert.Equal(0, list.ScrollTop);
-        Assert.Null(list.ScrollbarDrag);
+        Assert.Null(list.GetScrollbarDrag());
         list.ResetItems([]);
         Assert.Equal(-1, list.SelectedIndex);
     }
@@ -253,7 +253,7 @@ public sealed class ScrollableListTests
             6);
 
         Assert.True(result.DragStarted);
-        Assert.NotNull(list.ScrollbarDrag);
+        Assert.NotNull(list.GetScrollbarDrag());
     }
 
     [Theory]
@@ -271,7 +271,7 @@ public sealed class ScrollableListTests
             6);
 
         Assert.False(result.DragStarted);
-        Assert.Null(list.ScrollbarDrag);
+        Assert.Null(list.GetScrollbarDrag());
     }
 
     [Fact]
@@ -283,14 +283,14 @@ public sealed class ScrollableListTests
             new Rect(0, 0, 9, 6),
             new Rect(9, 0, 1, 6),
             6);
-        ScrollBarDragState before = Assert.IsType<ScrollBarDragState>(list.ScrollbarDrag);
+        ScrollBarDragState before = Assert.IsType<ScrollBarDragState>(list.GetScrollbarDrag());
 
         ScrollableListFrameState frame = list.CalculateFrameState(4, new Rect(9, 2, 1, 4));
 
-        Assert.Equal(before, list.ScrollbarDrag);
-        Assert.NotNull(frame.ScrollbarDrag);
-        Assert.Equal(new Rect(9, 2, 1, 4), frame.ScrollbarDrag!.Value.Bounds);
-        Assert.Equal(4, frame.ScrollbarDrag.Value.ViewportItems);
+        Assert.Equal(before, list.GetScrollbarDrag());
+        Assert.NotNull(frame.VerticalScrollbarFrame?.DragState);
+        Assert.Equal(new Rect(9, 2, 1, 4), frame.VerticalScrollbarFrame?.DragState!.Value.Bounds);
+        Assert.Equal(4, frame.VerticalScrollbarFrame?.DragState.Value.ViewportItems);
     }
 
     [Fact]
@@ -306,8 +306,8 @@ public sealed class ScrollableListTests
         ScrollableListFrameState frame = list.CalculateFrameState(4, new Rect(9, 2, 1, 4));
         list.ApplyCommittedFrame(frame);
 
-        Assert.Equal(new Rect(9, 2, 1, 4), list.ScrollbarDrag!.Value.Bounds);
-        Assert.Equal(4, list.ScrollbarDrag.Value.ViewportItems);
+        Assert.Equal(new Rect(9, 2, 1, 4), list.GetScrollbarDrag()!.Value.Bounds);
+        Assert.Equal(4, Assert.IsType<ScrollBarDragState>(list.GetScrollbarDrag()).ViewportItems);
     }
 
     [Fact]
@@ -322,7 +322,7 @@ public sealed class ScrollableListTests
 
         list.ApplyCommittedFrame(list.CalculateFrameState(5, scrollbarBounds: null));
 
-        Assert.Null(list.ScrollbarDrag);
+        Assert.Null(list.GetScrollbarDrag());
     }
 
     [Fact]
@@ -342,7 +342,7 @@ public sealed class ScrollableListTests
             6);
 
         Assert.True(result.DragEnded);
-        Assert.Null(list.ScrollbarDrag);
+        Assert.Null(list.GetScrollbarDrag());
     }
 
     [Fact]

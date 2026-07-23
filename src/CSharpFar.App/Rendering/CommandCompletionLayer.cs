@@ -86,7 +86,7 @@ internal sealed class CommandCompletionLayer : UiLayer<CommandCompletionFrame>
         var list = _context.CommandCompletion.List;
         if (!frame.Visible)
         {
-            list.ClearScrollbarDrag();
+            list.ApplyCommittedFrame(ScrollableListFrameState.Empty);
             return;
         }
 
@@ -143,7 +143,7 @@ internal sealed class CommandCompletionLayer : UiLayer<CommandCompletionFrame>
         if (!relevant)
             return UiInputResult.NotHandled;
 
-        ScrollableListInputResult result = _context.CommandCompletion.List.HandleMouse(mouse, frame.ContentBounds, frame.ScrollbarBounds, frame.VisibleRows, confirmOnMouseDown: true, confirmOnDoubleClick: true);
+        ScrollableListInputResult result = _context.CommandCompletion.List.HandleMouse(mouse, frame.ContentBounds, frame.ListState, confirmOnMouseDown: true, confirmOnDoubleClick: true);
         if (!result.IsHandled)
             return UiInputResult.NotHandled;
         if (result.Kind == ScrollableListInputResultKind.Confirmed && route.Target is { } target && TryItemIndex(target, out int itemIndex))
