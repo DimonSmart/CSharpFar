@@ -16,6 +16,9 @@ internal sealed class LargeFileViewer
     private const int FastHorizontalTextScrollChars = 20;
     private const int FastPageMultiplier = 5;
 
+    private static readonly FunctionKeyBarController<ConsoleKeyInfo> FunctionKeysController =
+        new(new UiTargetId("viewer.function-key-bar"));
+
     private readonly ModalDialogHost _modalDialogs;
     private readonly ConsolePalette _palette;
     private readonly InteractiveSurfaceHost _surfaces;
@@ -617,7 +620,7 @@ internal sealed class LargeFileViewer
 
     private void DrawFooter(IUiCanvas canvas, ConsoleSize size, LargeFileViewerState state)
     {
-        new FunctionKeyBarController<ConsoleKeyInfo>().Render(
+        FunctionKeysController.Render(
             canvas,
             size.Height - 1,
             size.Width,
@@ -1139,7 +1142,7 @@ internal sealed class LargeFileViewer
     {
         internal static readonly UiTargetId Keyboard = new("viewer.keyboard");
         internal static readonly UiTargetId Content = new("viewer.content");
-        internal static readonly UiTargetId FunctionKeys = new("viewer.function-key-bar");
+        internal static UiTargetId FunctionKeys => FunctionKeysController.InteractionTarget;
 
         private readonly LargeFileViewer _viewer;
         private readonly string _filePath;
@@ -1166,20 +1169,26 @@ internal sealed class LargeFileViewer
         {
             int contentHeight = Math.Max(0, context.Size.Height - 2);
             LargeFileRenderView view = _viewer.Draw(context.Canvas, _filePath, _reader, _state, contentHeight, context.Size);
-            IReadOnlyList<FunctionKeyHit> functionKeyHits = BuildFunctionKeyHits(
-                context.Size.Height > 0 ? context.Size.Height - 1 : 0,
-                context.Size.Width,
-                ViewerFunctionKeyBarActions(_state));
+            var functionKeyActions = ViewerFunctionKeyBarActions(_state);
+            Rect functionKeyBarBounds = context.Size.Height > 0
+                ? new Rect(0, context.Size.Height - 1, context.Size.Width, 1)
+                : new Rect(0, 0, 0, 0);
+            IReadOnlyList<FunctionKeyBarActionHit<ConsoleKeyInfo>> functionKeyActionHits =
+                FunctionKeysController.BuildActionHits(
+                    functionKeyBarBounds.Y,
+                    functionKeyBarBounds.Width,
+                    functionKeyActions);
 
             return new LargeFileViewerFrame(
                 context.Viewport,
                 context.Size,
                 context.Size.Height > 0 ? new Rect(0, 0, context.Size.Width, 1) : new Rect(0, 0, 0, 0),
                 contentHeight > 0 ? new Rect(0, 1, context.Size.Width, contentHeight) : new Rect(0, 0, 0, 0),
-                context.Size.Height > 0 ? new Rect(0, context.Size.Height - 1, context.Size.Width, 1) : new Rect(0, 0, 0, 0),
+                functionKeyBarBounds,
                 contentHeight,
                 view,
-                functionKeyHits);
+                functionKeyActions,
+                functionKeyActionHits);
         }
 
         protected override UiInteractionFrame BuildInteractionFrameCore(LargeFileViewerFrame frame)
@@ -1190,9 +1199,8 @@ internal sealed class LargeFileViewer
                 .SetKeyboardTarget(Keyboard);
             if (frame.ContentBounds.Width > 0 && frame.ContentBounds.Height > 0)
                 builder.AddHitRegion(Content, frame.ContentBounds);
-            foreach (FunctionKeyHit hit in frame.FunctionKeyHits)
-                builder.AddHitRegion(FunctionKeys, hit.Bounds);
 
+            builder.AddFragment(FunctionKeysController.BuildInteractionFragment(frame.FunctionKeyActionHits));
             return builder.Build();
         }
 
@@ -1222,26 +1230,18 @@ internal sealed class LargeFileViewer
                 };
             }
 
-            if (context.Target == FunctionKeys && mouse is { Button: MouseButton.Left, Kind: MouseEventKind.Down })
+            if (FunctionKeysController.TryGetAction(
+                    mouse,
+                    context,
+                    frame.FunctionKeyBarBounds.Y,
+                    frame.FunctionKeyBarBounds.Width,
+                    frame.FunctionKeyActions,
+                    out ConsoleKeyInfo functionKey))
             {
-                FunctionKeyHit? hit = frame.FunctionKeyHits.FirstOrDefault(value => value.Bounds.Contains(mouse.X, mouse.Y));
-                return new InteractiveSurfaceRouteResult<ViewerInput>(
-                    hit is { } value ? ViewerInput.FromKey(value.Key) : ViewerInput.None);
+                return new InteractiveSurfaceRouteResult<ViewerInput>(ViewerInput.FromKey(functionKey));
             }
 
             return new InteractiveSurfaceRouteResult<ViewerInput>(ViewerInput.None);
-        }
-
-        private static IReadOnlyList<FunctionKeyHit> BuildFunctionKeyHits(
-            int y,
-            int totalWidth,
-            IReadOnlyList<FunctionKeyBarAction<ConsoleKeyInfo>> actions)
-        {
-            var enabled = actions.Where(action => action.Enabled).ToDictionary(action => action.KeyNumber, action => action.Action);
-            return FunctionKeyBar.BuildSlots(y, totalWidth)
-                .Where(slot => enabled.ContainsKey(slot.KeyNumber))
-                .Select(slot => new FunctionKeyHit(slot.Bounds, enabled[slot.KeyNumber]))
-                .ToArray();
         }
     }
 
@@ -1253,9 +1253,8 @@ internal sealed class LargeFileViewer
         Rect FunctionKeyBarBounds,
         int ContentHeight,
         LargeFileRenderView View,
-        IReadOnlyList<FunctionKeyHit> FunctionKeyHits);
-
-    private sealed record FunctionKeyHit(Rect Bounds, ConsoleKeyInfo Key);
+        IReadOnlyList<FunctionKeyBarAction<ConsoleKeyInfo>> FunctionKeyActions,
+        IReadOnlyList<FunctionKeyBarActionHit<ConsoleKeyInfo>> FunctionKeyActionHits);
 
     private readonly record struct ViewerInput(ConsoleKeyInfo? Key, int? ScrollLines)
     {
