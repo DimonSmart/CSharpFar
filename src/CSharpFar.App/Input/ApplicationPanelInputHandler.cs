@@ -16,20 +16,49 @@ internal sealed class ApplicationPanelInputHandler
         _context = context;
     }
 
+    // Direct-call adapter kept for focused handler tests. Production input always
+    // supplies the semantic target selected by the committed UiInteractionFrame.
     public ApplicationInputHandlingResult Handle(
         MouseConsoleInputEvent input,
-        ApplicationPanelFrame? frame,
+        ApplicationPanelFrame frame,
         UiInputRouteKind routeKind)
     {
-        if (routeKind != UiInputRouteKind.HitTarget || frame is null)
+        UiTargetId? target = ApplicationTargetIds.Panel(frame.Side);
+        if (routeKind == UiInputRouteKind.HitTarget)
+        {
+            var builder = new UiInteractionFrameBuilder()
+                .AddHitRegion(ApplicationTargetIds.Panel(frame.Side), frame.Bounds);
+            if (frame.RetryBounds is { } retryBounds)
+                builder.AddHitRegion(ApplicationTargetIds.PanelRetry(frame.Side), retryBounds);
+            foreach (ApplicationPanelItemHit item in frame.VisibleItems)
+            {
+                UiTargetId itemTarget = ApplicationTargetIds.PanelItem(frame.Side, item.ItemIndex);
+                builder.AddHitRegion(itemTarget, item.Bounds);
+                if (frame.Side == PanelSide.Right && item.Bounds.X == frame.Bounds.X + 1)
+                    builder.AddHitRegion(itemTarget, new Rect(frame.Bounds.X, item.Bounds.Y, 1, item.Bounds.Height));
+            }
+
+            if (builder.Build().TryHitTest(input.X, input.Y, out UiHitRegion hit))
+                target = hit.Target;
+        }
+
+        return Handle(input, frame, routeKind, target);
+    }
+
+    public ApplicationInputHandlingResult Handle(
+        MouseConsoleInputEvent input,
+        ApplicationPanelFrame frame,
+        UiInputRouteKind routeKind,
+        UiTargetId? target)
+    {
+        if (routeKind != UiInputRouteKind.HitTarget)
             return ApplicationInputHandlingResult.NotHandled;
 
         var state = _context.GetPanelState(frame.Side);
 
         if (input.Button == MouseButton.Left &&
             input.Kind == MouseEventKind.Down &&
-            frame.RetryBounds is { } retryBounds &&
-            retryBounds.Contains(input.X, input.Y))
+            frame.IsRetryTarget(target))
         {
             _context.SetActiveSide(frame.Side);
             _context.SafeRefresh(state, frame.VisibleRows);
@@ -45,11 +74,13 @@ internal sealed class ApplicationPanelInputHandler
             return ApplicationInputHandlingResult.FromHandled(shouldRender: true);
         }
 
+        bool hasItemTarget = frame.TryGetItemTarget(target, out ApplicationPanelItemHit hit);
+
         if (input.Button == MouseButton.Right && input.Kind == MouseEventKind.Down)
         {
             _context.Mouse.LastLeftPanelItemClick = null;
             _context.SetActiveSide(frame.Side);
-            if (TryGetCurrentItem(input, frame, state, out var hit, out var item))
+            if (hasItemTarget && TryGetCurrentItem(hit, state, out var item))
             {
                 _context.PanelController.SetCursorTo(state, hit.ItemIndex, frame.VisibleRows);
                 if (_context.PanelOptions().RightClickSelectsFiles &&
@@ -65,7 +96,7 @@ internal sealed class ApplicationPanelInputHandler
         if (input.Button == MouseButton.Left && input.Kind == MouseEventKind.DoubleClick)
         {
             _context.SetActiveSide(frame.Side);
-            if (TryGetCurrentItem(input, frame, state, out var hit, out var item))
+            if (hasItemTarget && TryGetCurrentItem(hit, state, out var item))
             {
                 _context.PanelController.SetCursorTo(state, hit.ItemIndex, frame.VisibleRows);
                 var currentClick = new PanelItemClick(frame.Side, hit.ItemIndex, hit.ItemLocation);
@@ -80,7 +111,7 @@ internal sealed class ApplicationPanelInputHandler
         if (input.Button == MouseButton.Left && input.Kind == MouseEventKind.Down)
         {
             _context.SetActiveSide(frame.Side);
-            if (TryGetCurrentItem(input, frame, state, out var hit, out _))
+            if (hasItemTarget && TryGetCurrentItem(hit, state, out _))
             {
                 _context.PanelController.SetCursorTo(state, hit.ItemIndex, frame.VisibleRows);
                 _context.Mouse.LastLeftPanelItemClick =
@@ -98,19 +129,11 @@ internal sealed class ApplicationPanelInputHandler
     }
 
     private static bool TryGetCurrentItem(
-        MouseConsoleInputEvent input,
-        ApplicationPanelFrame frame,
+        ApplicationPanelItemHit hit,
         FilePanelState state,
-        out ApplicationPanelItemHit hit,
         out FilePanelItem item)
     {
-        int x = frame.Side == PanelSide.Right && input.X == frame.Bounds.X
-            ? input.X + 1
-            : input.X;
-        hit = frame.VisibleItems.FirstOrDefault(candidate => candidate.Bounds.Contains(x, input.Y))!;
-        if (hit is null ||
-            hit.ItemIndex < 0 ||
-            hit.ItemIndex >= state.Items.Count)
+        if (hit.ItemIndex < 0 || hit.ItemIndex >= state.Items.Count)
         {
             item = null!;
             return false;

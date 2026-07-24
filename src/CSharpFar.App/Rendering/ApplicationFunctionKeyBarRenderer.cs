@@ -41,13 +41,16 @@ internal sealed class ApplicationFunctionKeyBarRenderer
                 .ToDictionary(slot => slot.KeyNumber, slot => slot.Bounds);
         foreach (var binding in _bindings)
         {
-            bool available = _canExecuteCommand(binding.CommandId) || binding.RunsWhenUnavailable;
+            bool canExecute = _canExecuteCommand(binding.CommandId);
+            bool available = canExecute || binding.RunsWhenUnavailable;
             if (!available)
                 continue;
 
-            Rect bounds = binding.Layer == layer && slotsByKey.TryGetValue(binding.KeyNumber, out var slotBounds)
-                ? slotBounds
-                : new Rect(0, 0, 0, 0);
+            Rect bounds = canExecute &&
+                binding.Layer == layer &&
+                slotsByKey.TryGetValue(binding.KeyNumber, out var slotBounds)
+                    ? slotBounds
+                    : new Rect(0, 0, 0, 0);
             hits.Add(new ApplicationFunctionKeyHit(
                 bounds,
                 binding.CommandId,
