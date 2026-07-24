@@ -64,6 +64,8 @@ public sealed class ScrollableList<T>
 
     private readonly VerticalScrollbarController _scrollbar = new();
 
+    internal ScrollBarDragState? ScrollbarDragState => _scrollbar.DragState;
+
     public int Count => Items.Count;
 
     public bool HasItems => Count > 0;

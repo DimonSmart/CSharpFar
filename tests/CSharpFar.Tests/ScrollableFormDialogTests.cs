@@ -1750,7 +1750,9 @@ public sealed class ScrollableFormDialogTests
         FormTargetFrame scrollbar = Assert.Single(layer.CommittedFrame.Targets, target => target.Kind == FormTargetKind.BodyScrollbar);
 
         host.Composition.DispatchInput(Mouse(scrollbar.Bounds.X, scrollbar.Bounds.Y + 1, MouseButton.Left, MouseEventKind.Down));
+        host.Composition.Render();
         host.Composition.DispatchInput(Mouse(0, 7, MouseButton.Left, MouseEventKind.Move));
+        host.Composition.Render();
         host.Composition.DispatchInput(Mouse(0, 7, MouseButton.Left, MouseEventKind.Up));
         int afterDrag = form.ScrollTop;
         UiInputResult next = host.Composition.DispatchInput(Mouse(2, 1, MouseButton.WheelDown, MouseEventKind.Wheel));
