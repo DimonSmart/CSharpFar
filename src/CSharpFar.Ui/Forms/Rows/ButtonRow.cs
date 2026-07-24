@@ -31,9 +31,16 @@ public sealed class ButtonRow : FormRow
         if (_buttons.SequenceEqual(updatedButtons))
             return;
 
+        int focusedIndex = Math.Clamp(_state.FocusedIndex, 0, Math.Max(0, updatedButtons.Length - 1));
+        int? armedIndex = _state.ArmedButtonIndex is int index &&
+            index >= 0 &&
+            index < updatedButtons.Length &&
+            updatedButtons[index].IsEnabled
+            ? index
+            : null;
         _buttons = updatedButtons;
         _buttonBar = new DialogButtonBar(_buttons);
-        _state = _buttonBar.CreateState(_state.FocusedIndex);
+        _state = new DialogButtonBarState(focusedIndex, armedIndex, armedIndex is not null && _state.IsPressed);
     }
 
     public override void Render(FormRowRenderContext context) =>
