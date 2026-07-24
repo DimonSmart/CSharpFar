@@ -68,10 +68,13 @@ public sealed class MainFunctionKeyBarIntegrationTests
             receivedArgs = args;
             return true;
         });
+        ApplicationUiFrame frame = Frame();
+        ApplicationFunctionKeyHit action = Assert.Single(frame.FunctionKeyBar!.Actions);
 
         var result = handler.Handle(
             Mouse(x: 40, y: 24, MouseButton.Left, MouseEventKind.Down),
-            Frame(),
+            frame,
+            action,
             UiInputRouteKind.HitTarget);
 
         Assert.True(result.Handled);
