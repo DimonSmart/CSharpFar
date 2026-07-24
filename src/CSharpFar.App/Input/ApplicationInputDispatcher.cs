@@ -48,37 +48,59 @@ internal sealed class ApplicationInputDispatcher
         ApplicationUiInputPacket packet,
         MouseConsoleInputEvent mouse)
     {
-        ApplicationInputHandlingResult result = packet.Target switch
+        ApplicationInputHandlingResult result;
+        if (packet.Target == ApplicationTargetIds.CommandLine)
         {
-            var target when target == ApplicationTargetIds.CommandLine => _commandLineInputHandler.Handle(
+            result = _commandLineInputHandler.Handle(
                 mouse,
                 packet.Frame.CommandLine,
-                packet.RouteKind),
-            var target when target == ApplicationTargetIds.LeftPanel => _panelInputHandler.Handle(
-                mouse,
-                packet.Frame.LeftPanel,
-                packet.RouteKind),
-            var target when target == ApplicationTargetIds.RightPanel => _panelInputHandler.Handle(
-                mouse,
-                packet.Frame.RightPanel,
-                packet.RouteKind),
-            var target when target == ApplicationTargetIds.LeftPanelScrollbar => _panelScrollbarInputHandler.Handle(
+                packet.RouteKind);
+        }
+        else if (packet.Target == ApplicationTargetIds.LeftPanelScrollbar ||
+                 packet.Target == ApplicationTargetIds.RightPanelScrollbar)
+        {
+            result = _panelScrollbarInputHandler.Handle(
                 packet.ScrollbarInput,
-                packet.RouteKind),
-            var target when target == ApplicationTargetIds.RightPanelScrollbar => _panelScrollbarInputHandler.Handle(
-                packet.ScrollbarInput,
-                packet.RouteKind),
-            var target when target == ApplicationTargetIds.FunctionKeyBar => _functionKeyBarInputHandler.Handle(
+                packet.RouteKind);
+        }
+        else if (packet.Frame.FunctionKeyBar is { } functionKeyBar &&
+                 functionKeyBar.TryGetPointerAction(packet.Target, out ApplicationFunctionKeyHit functionKey))
+        {
+            result = _functionKeyBarInputHandler.Handle(
                 mouse,
                 packet.Frame,
-                packet.RouteKind),
-            var target when target == ApplicationTargetIds.DirectoryShortcutBar => _directoryShortcutBarInputHandler.Handle(
+                functionKey,
+                packet.RouteKind);
+        }
+        else if (packet.Frame.DirectoryShortcutBar is { } shortcutBar &&
+                 shortcutBar.TryGetPointerShortcut(packet.Target, out ApplicationDirectoryShortcutHit shortcut))
+        {
+            result = _directoryShortcutBarInputHandler.Handle(
                 mouse,
-                packet.Frame.DirectoryShortcutBar,
+                shortcut,
                 packet.Frame.Keyboard.ActiveSide,
-                packet.RouteKind),
-            _ => ApplicationInputHandlingResult.NotHandled,
-        };
+                packet.RouteKind);
+        }
+        else if (packet.Frame.LeftPanel is { } leftPanel && leftPanel.OwnsPointerTarget(packet.Target))
+        {
+            result = _panelInputHandler.Handle(
+                mouse,
+                leftPanel,
+                packet.RouteKind,
+                packet.Target);
+        }
+        else if (packet.Frame.RightPanel is { } rightPanel && rightPanel.OwnsPointerTarget(packet.Target))
+        {
+            result = _panelInputHandler.Handle(
+                mouse,
+                rightPanel,
+                packet.RouteKind,
+                packet.Target);
+        }
+        else
+        {
+            result = ApplicationInputHandlingResult.NotHandled;
+        }
 
         return result.Handled
             ? new ApplicationRuntimeRenderRequest(result.ShouldRender)
