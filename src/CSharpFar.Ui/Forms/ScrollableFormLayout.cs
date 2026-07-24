@@ -7,7 +7,11 @@ namespace CSharpFar.Ui;
 
 public sealed partial class ScrollableFormDialog
 {
-    public ScrollableFormFrame Render(FormRenderContext context, IUiFocusState focusScope)
+    public ScrollableFormFrame Render(
+        FormRenderContext context,
+        IUiFocusState focusScope,
+        IReadOnlyList<UiFocusEntry>? surroundingFocusEntries = null,
+        UiTargetId? surroundingDefaultFocusTarget = null)
     {
         ArgumentNullException.ThrowIfNull(focusScope);
         if (!ReferenceEquals(_activeFocusState, focusScope) &&
@@ -26,7 +30,12 @@ public sealed partial class ScrollableFormDialog
         int viewportRows = Math.Max(1, context.BodyBounds.Height);
         int effectiveScrollTop = ClampScrollTop(ScrollTop, viewportRows);
         ScrollableFormFrame provisionalFrame = BuildFrame(context, effectiveScrollTop);
-        UiFocusFrame candidateFocusFrame = BuildInteractionFrame(provisionalFrame).Focus;
+        UiFocusFrame localFocusFrame = BuildInteractionFrame(provisionalFrame).Focus;
+        UiFocusFrame candidateFocusFrame = surroundingFocusEntries is null
+            ? localFocusFrame
+            : new UiFocusFrame(
+                surroundingFocusEntries.Concat(localFocusFrame.Entries).ToArray(),
+                surroundingDefaultFocusTarget ?? localFocusFrame.DefaultTarget);
         UiTargetId? effectiveFocusedTarget = focusScope.ResolveFocusedTarget(candidateFocusFrame);
         bool focusChanges = effectiveFocusedTarget != focusScope.FocusedTarget;
         if (_ensureFocusedTargetVisibleOnNextRender || focusChanges)
