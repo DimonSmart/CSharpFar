@@ -38,7 +38,20 @@ public sealed class PopupRenderer
 
         renderContent(screen, contentBounds);
 
-        if (options.DrawBorder && options.VerticalScrollState is { } scrollState)
+        if (options.DrawBorder && options.VerticalScrollbarFrame is { } scrollbarFrame)
+        {
+            new ScrollBarRenderer().RenderVerticalScrollbar(
+                screen,
+                scrollbarFrame.Bounds,
+                scrollbarFrame.ToScrollState(),
+                new ScrollBarOptions
+                {
+                    Enabled = true,
+                    DrawWhenNotScrollable = false,
+                },
+                options.BorderStyle);
+        }
+        else if (options.DrawBorder && options.VerticalScrollState is { } scrollState)
         {
             new ScrollBarRenderer().RenderVerticalScrollbar(
                 screen,

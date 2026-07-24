@@ -3,6 +3,7 @@ using CSharpFar.Console;
 using CSharpFar.Console.Models;
 using CSharpFar.Core.Menu;
 using CSharpFar.Core.Models;
+using CSharpFar.Ui;
 
 namespace CSharpFar.App.Rendering;
 
@@ -26,7 +27,8 @@ public sealed class DropdownMenuRenderer
         MenuBarDefinition definition,
         MenuState state,
         MenuLayout layout,
-        MenuRenderOptions options)
+        MenuRenderOptions options,
+        VerticalScrollbarFrame? scrollbarFrame = null)
     {
         if (state.OpenState != MenuOpenState.DropdownOpen ||
             layout.DropdownBounds is not { } bounds ||
@@ -45,7 +47,8 @@ public sealed class DropdownMenuRenderer
             ShadowStyle = options.ShadowStyle,
             DrawBorder = true,
             DrawShadow = true,
-            VerticalScrollState = children.Count > visibleRows
+            VerticalScrollbarFrame = scrollbarFrame,
+            VerticalScrollState = scrollbarFrame is null && children.Count > visibleRows
                 ? new ScrollState
                 {
                     TotalItems = children.Count,

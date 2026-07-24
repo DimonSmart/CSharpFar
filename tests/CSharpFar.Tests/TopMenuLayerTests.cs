@@ -155,17 +155,52 @@ public sealed class TopMenuLayerTests
         Assert.Equal(MenuOpenState.Closed, fixture.Services.Session.Menu.State.OpenState);
     }
 
+    [Fact]
+    public void DropdownScrollbar_UsesCommittedFrameAndDisappearsAfterCommittedResize()
+    {
+        var fixture = Fixture.Create(height: 6);
+        fixture.Services.Composition.Render();
+        TopMenuFrame closedFrame = fixture.Services.TopMenuLayer.CommittedFrame;
+        TopMenuPointerTarget topTarget = closedFrame.PointerTargets.First(value =>
+            value.Action.Kind == TopMenuPointerActionKind.OpenTopItem &&
+            closedFrame.Definition.Items[value.Action.ItemIndex].Children.Count > 3);
+        fixture.Services.Composition.DispatchInput(Mouse(topTarget.Bounds.X, topTarget.Bounds.Y));
+        fixture.Services.Composition.Render();
+
+        TopMenuFrame initialFrame = fixture.Services.TopMenuLayer.CommittedFrame;
+        VerticalScrollbarFrame scrollbar = Assert.IsType<VerticalScrollbarFrame>(initialFrame.DropdownScrollbar);
+        TopMenuPointerTarget target = Assert.Single(initialFrame.PointerTargets,
+            value => value.Action.Kind == TopMenuPointerActionKind.Scrollbar);
+        Assert.Equal(scrollbar.Bounds, target.Bounds);
+
+        fixture.Services.Composition.DispatchInput(Mouse(scrollbar.Bounds.X, scrollbar.Bounds.Bottom - 1));
+        Assert.True(fixture.Services.Session.Menu.State.DropdownFirstVisibleItemIndex > 0);
+
+        fixture.Services.Composition.Render();
+        Assert.Equal(
+            fixture.Services.Session.Menu.State.DropdownFirstVisibleItemIndex,
+            fixture.Services.TopMenuLayer.CommittedFrame.DropdownScrollbar?.FirstVisibleIndex);
+
+        fixture.Driver.SetSize(80, 25);
+        fixture.Services.Composition.Render();
+
+        TopMenuFrame resizedFrame = fixture.Services.TopMenuLayer.CommittedFrame;
+        Assert.Null(resizedFrame.DropdownScrollbar);
+        Assert.DoesNotContain(resizedFrame.PointerTargets,
+            value => value.Action.Kind == TopMenuPointerActionKind.Scrollbar);
+    }
+
     private static KeyConsoleInputEvent Key(ConsoleKey key, char keyChar = '\0') =>
         new(new ConsoleKeyInfo(keyChar, key, false, false, false));
 
     private static MouseConsoleInputEvent Mouse(int x, int y) =>
         new(x, y, MouseButton.Left, MouseEventKind.Down, MouseKeyModifiers.None);
 
-    private sealed record Fixture(ApplicationServices Services)
+    private sealed record Fixture(ApplicationServices Services, FakeConsoleDriver Driver)
     {
-        public static Fixture Create()
+        public static Fixture Create(int height = 25)
         {
-            var driver = new FakeConsoleDriver(80, 25);
+            var driver = new FakeConsoleDriver(80, height);
             var fileSystem = new FakeFileSystemService();
             const string root = @"C:\Root";
             fileSystem.AddDirectory(root);
@@ -177,7 +212,7 @@ public sealed class TopMenuLayerTests
                 new NoOpFileOperationService(), new InMemoryHistoryStore(), settings,
                 enableBuiltInNetworkModules: false);
             _ = new Application(services);
-            return new Fixture(services);
+            return new Fixture(services, driver);
         }
     }
 }
