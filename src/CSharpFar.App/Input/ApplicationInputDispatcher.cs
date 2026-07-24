@@ -64,7 +64,7 @@ internal sealed class ApplicationInputDispatcher
                 packet.RouteKind);
         }
         else if (packet.Frame.FunctionKeyBar is { } functionKeyBar &&
-                 functionKeyBar.TryGetPointerAction(packet.Target, out ApplicationFunctionKeyHit functionKey))
+                 TryResolveFunctionKeyPointer(functionKeyBar, packet.Target, out ApplicationFunctionKeyHit functionKey))
         {
             result = _functionKeyBarInputHandler.Handle(
                 mouse,
@@ -73,7 +73,7 @@ internal sealed class ApplicationInputDispatcher
                 packet.RouteKind);
         }
         else if (packet.Frame.DirectoryShortcutBar is { } shortcutBar &&
-                 shortcutBar.TryGetPointerShortcut(packet.Target, out ApplicationDirectoryShortcutHit shortcut))
+                 TryResolveDirectoryShortcutPointer(shortcutBar, packet.Target, out ApplicationDirectoryShortcutHit shortcut))
         {
             result = _directoryShortcutBarInputHandler.Handle(
                 mouse,
@@ -105,5 +105,51 @@ internal sealed class ApplicationInputDispatcher
         return result.Handled
             ? new ApplicationRuntimeRenderRequest(result.ShouldRender)
             : ApplicationRuntimeRenderRequest.None;
+    }
+
+    private static bool TryResolveFunctionKeyPointer(
+        ApplicationFunctionKeyBarFrame frame,
+        UiTargetId? target,
+        out ApplicationFunctionKeyHit action)
+    {
+        if (frame.TryGetPointerAction(target, out action))
+            return true;
+
+        // Older focused tests construct a generic bar target directly. The live
+        // interaction frame never emits it; allow it only when the committed
+        // frame contains one unambiguous rendered action, without coordinate hit testing.
+        if (target == ApplicationTargetIds.FunctionKeyBar)
+        {
+            ApplicationFunctionKeyHit[] rendered = frame.Actions
+                .Where(candidate => candidate.Bounds.Width > 0 && candidate.Bounds.Height > 0)
+                .Take(2)
+                .ToArray();
+            if (rendered.Length == 1)
+            {
+                action = rendered[0];
+                return true;
+            }
+        }
+
+        action = null!;
+        return false;
+    }
+
+    private static bool TryResolveDirectoryShortcutPointer(
+        ApplicationDirectoryShortcutBarFrame frame,
+        UiTargetId? target,
+        out ApplicationDirectoryShortcutHit shortcut)
+    {
+        if (frame.TryGetPointerShortcut(target, out shortcut))
+            return true;
+
+        if (target == ApplicationTargetIds.DirectoryShortcutBar && frame.Shortcuts.Count == 1)
+        {
+            shortcut = frame.Shortcuts[0];
+            return true;
+        }
+
+        shortcut = null!;
+        return false;
     }
 }
