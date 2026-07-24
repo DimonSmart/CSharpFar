@@ -12,8 +12,11 @@ public sealed record ListWithButtonsDialogResult<T>(
 
 public sealed class ListWithButtonsDialog<T>
 {
+    private static readonly UiTargetId ListTarget = new("list-with-buttons.list");
+    private static readonly UiTargetId ScrollbarTarget = new("list-with-buttons.list.scrollbar");
+
     private readonly ScrollableList<T> _list;
-    private readonly DialogButtonBar _buttonBar;
+    private readonly ScrollableFormDialog _form = new();
     private readonly ModalDialogRenderer _modalRenderer = new();
 
     public ListWithButtonsDialog(
@@ -23,7 +26,7 @@ public sealed class ListWithButtonsDialog<T>
         string title)
     {
         _list = new ScrollableList<T>(items, itemText);
-        _buttonBar = new DialogButtonBar(buttons ?? throw new ArgumentNullException(nameof(buttons)));
+        _form.SetRows([], [new ButtonRow(buttons ?? throw new ArgumentNullException(nameof(buttons))) { Id = "actions" }]);
         Title = title ?? throw new ArgumentNullException(nameof(title));
     }
 
@@ -62,184 +65,128 @@ public sealed class ListWithButtonsDialog<T>
     public ListWithButtonsDialogResult<T>? Show(ModalDialogHost modalDialogs)
     {
         ArgumentNullException.ThrowIfNull(modalDialogs);
-        DialogButtonBarState buttonState = _buttonBar.CreateState();
-        bool focusButtons = !_list.HasItems;
-        return modalDialogs.Run(
-            context =>
+
+        return modalDialogs.RunInteractive<ListWithButtonsFrame, ListWithButtonsInput, ListWithButtonsDialogResult<T>?>(
+            Render,
+            BuildInteractionFrame,
+            RouteInput,
+            (_, semantic) =>
             {
-                var frameLayout = CalculateLayout(context.Size);
-                var scrollbarBounds = new Rect(frameLayout.FrameBounds.Right - 1, frameLayout.ListBounds.Y, 1, frameLayout.ListBounds.Height);
-                var listState = _list.CalculateFrameState(frameLayout.ListBounds.Height, scrollbarBounds);
-                bool frameFocusButtons = focusButtons || !_list.HasItems;
-                var frame = new ListWithButtonsFrame(
-                    frameLayout,
-                    listState,
-                    frameFocusButtons,
-                    buttonState,
-                    _buttonBar.CalculateLayout(frameLayout.ListBounds.X, frameLayout.ButtonY, frameLayout.ListBounds.Width));
-                RenderLayer(context.Canvas, frame);
-                return frame;
+                if (semantic.FormResult is { Kind: FormInputResultKind.Cancel, Command: null } ||
+                    semantic.Input is KeyConsoleInputEvent { Key.Key: ConsoleKey.F10 })
+                {
+                    return ModalDialogLoopResult<ListWithButtonsDialogResult<T>?>.Complete(null);
+                }
+
+                if (semantic.FormResult.Command is string buttonId)
+                    return ModalDialogLoopResult<ListWithButtonsDialogResult<T>?>.Complete(
+                        buttonId == CancelActionId ? null : CreateResult(buttonId));
+
+                return semantic.ListResult.Kind switch
+                {
+                    ScrollableListInputResultKind.Confirmed => ModalDialogLoopResult<ListWithButtonsDialogResult<T>?>.Complete(CreateResult(DefaultListActionId)),
+                    _ when semantic.Input is KeyConsoleInputEvent { Key.Key: ConsoleKey.Delete } && DeleteActionId is not null && _list.HasItems =>
+                        ModalDialogLoopResult<ListWithButtonsDialogResult<T>?>.Complete(CreateResult(DeleteActionId)),
+                    _ => ModalDialogLoopResult<ListWithButtonsDialogResult<T>?>.Continue,
+                };
             },
-            (input, committedFrame) =>
-            {
-                var layout = committedFrame.Layout;
-                if (input is MouseConsoleInputEvent mouse &&
-                    HandleMouse(mouse, committedFrame, ref buttonState, ref focusButtons, out var mouseResult))
-                {
-                    if (mouseResult is not null)
-                        return ModalDialogLoopResult<ListWithButtonsDialogResult<T>?>.Complete(mouseResult.ActionId == CancelActionId ? null : mouseResult);
-                    return ModalDialogLoopResult<ListWithButtonsDialogResult<T>?>.Continue;
-                }
-
-                if (input is not KeyConsoleInputEvent { Key: var key })
-                    return ModalDialogLoopResult<ListWithButtonsDialogResult<T>?>.Continue;
-
-                if (focusButtons)
-                {
-                    DialogButtonBarInputResult buttonResult = _buttonBar.HandleInput(input, committedFrame.Buttons, buttonState);
-                    buttonState = buttonResult.State;
-                    if (buttonResult.IsHandled)
-                    {
-                        if (buttonResult.ButtonId is not null)
-                            return ModalDialogLoopResult<ListWithButtonsDialogResult<T>?>.Complete(buttonResult.ButtonId == CancelActionId ? null : CreateResult(buttonResult.ButtonId));
-                        return ModalDialogLoopResult<ListWithButtonsDialogResult<T>?>.Continue;
-                    }
-                }
-
-                if (HandleKey(key, layout.ListBounds.Height, ref focusButtons, out var keyResult))
-                    return ModalDialogLoopResult<ListWithButtonsDialogResult<T>?>.Complete(keyResult?.ActionId == CancelActionId ? null : keyResult);
-
-                return ModalDialogLoopResult<ListWithButtonsDialogResult<T>?>.Continue;
-            },
-            applyCommittedFrame: frame =>
-            {
-                _list.ApplyCommittedFrame(frame.ListState);
-                focusButtons = frame.FocusButtons;
-                buttonState = frame.ButtonState;
-            });
+            applyCommittedFrame: frame => _list.ApplyCommittedFrame(frame.ListState));
     }
 
-    private bool HandleKey(
-        ConsoleKeyInfo key,
-        int visibleRows,
-        ref bool focusButtons,
-        out ListWithButtonsDialogResult<T>? result)
+    private ListWithButtonsFrame Render(UiRenderContext context, IUiFocusState focusScope)
     {
-        result = null;
-        switch (key.Key)
+        ListWithButtonsLayout layout = CalculateLayout(context.Size);
+        ScrollableListFrameState listState = _list.CalculateFrameState(
+            layout.ListBounds.Height,
+            _list.Count > layout.ListBounds.Height ? new Rect(layout.FrameBounds.Right - 1, layout.ListBounds.Y, 1, layout.ListBounds.Height) : null);
+        ScrollableFormFrame? buttons = null;
+        _modalRenderer.Render(context.Canvas, layout.Bounds, Title, true, FarDialogStyles.OuterOptions, FarDialogStyles.FrameOptions, (_, _) =>
         {
-            case ConsoleKey.Escape:
-            case ConsoleKey.F10:
-                result = CreateResult(CancelActionId);
-                return true;
-            case ConsoleKey.Tab:
-                focusButtons = !_list.HasItems || !focusButtons;
-                return false;
-            case ConsoleKey.Delete:
-                if (DeleteActionId is not null && _list.HasItems)
-                {
-                    result = CreateResult(DeleteActionId);
-                    return true;
-                }
-                return false;
-        }
+            buttons = _form.Render(
+                new FormRenderContext(
+                    context,
+                    layout.ListBounds,
+                    FarDialogStyles.Border,
+                    new Rect(layout.ListBounds.X, layout.ButtonY, layout.ListBounds.Width, 1)),
+                focusScope,
+                [new UiFocusEntry(ListTarget, 0, _list.HasItems)],
+                _list.HasItems ? ListTarget : null);
 
-        var listResult = _list.HandleKey(key, visibleRows);
-        if (!listResult.IsHandled)
-            return false;
-        if (!_list.HasItems)
-        {
-            focusButtons = true;
-            return false;
-        }
-
-        focusButtons = false;
-        if (listResult.Kind == ScrollableListInputResultKind.Confirmed)
-        {
-            result = CreateResult(DefaultListActionId);
-            return true;
-        }
-
-        return false;
-    }
-
-    private bool HandleMouse(
-        MouseConsoleInputEvent mouse,
-        ListWithButtonsFrame frame,
-        ref DialogButtonBarState buttonState,
-        ref bool focusButtons,
-        out ListWithButtonsDialogResult<T>? result)
-    {
-        result = null;
-        var layout = frame.Layout;
-
-        var listInput = _list.HandleMouse(
-            mouse,
-            layout.ListBounds,
-            frame.ListState,
-            confirmOnDoubleClick: true);
-        if (listInput.IsHandled)
-        {
-            focusButtons = false;
-            if (listInput.Kind == ScrollableListInputResultKind.Confirmed)
-                result = CreateResult(DefaultListActionId);
-            return true;
-        }
-
-        DialogButtonBarInputResult buttonResult = _buttonBar.HandleMouse(mouse, frame.Buttons, buttonState);
-        buttonState = buttonResult.State;
-        if (buttonResult.IsHandled)
-        {
-            focusButtons = true;
-            if (buttonResult.ButtonId is not null)
-                result = CreateResult(buttonResult.ButtonId);
-            return true;
-        }
-
-        return false;
-    }
-
-    private ListWithButtonsDialogResult<T> CreateResult(string actionId)
-    {
-        if (!_list.HasItems || SelectedIndex < 0 || SelectedIndex >= _list.Count)
-            return new ListWithButtonsDialogResult<T>(actionId, default, -1);
-        return new ListWithButtonsDialogResult<T>(actionId, _list.Items[SelectedIndex], SelectedIndex);
-    }
-
-    private void RenderLayer(
-        IUiCanvas screen,
-        ListWithButtonsFrame frame)
-    {
-        var layout = frame.Layout;
-        var fill = FarDialogStyles.Fill;
-        var border = FarDialogStyles.Border;
-        var selected = FarDialogStyles.FocusedInput;
-        var outerOptions = FarDialogStyles.OuterOptions;
-        var frameOptions = FarDialogStyles.FrameOptions;
-        var scrollState = _list.GetScrollState(layout.ListBounds.Height, frame.ListState.ScrollTop);
-
-        _modalRenderer.Render(screen, layout.Bounds, Title, true, outerOptions, frameOptions, (_, modalLayout) =>
-        {
-            if (scrollState is not null)
+            if (_list.GetScrollState(layout.ListBounds.Height, listState.ScrollTop) is { } scrollState)
             {
                 new ScrollBarRenderer().RenderVerticalScrollbar(
-                    screen,
-                    new Rect(modalLayout.FrameBounds.Right - 1, layout.ListBounds.Y, 1, layout.ListBounds.Height),
+                    context.Canvas,
+                    listState.ScrollbarBounds!.Value,
                     scrollState,
                     new ScrollBarOptions { Enabled = true, DrawWhenNotScrollable = false },
-                    border);
+                    FarDialogStyles.Border);
             }
 
-            _list.Render(screen, layout.ListBounds, frame.ListState, fill, selected, fill);
-
-            _buttonBar.Render(
-                screen,
-                frame.Buttons,
-                frame.ButtonState,
-                frame.FocusButtons);
+            _list.Render(context.Canvas, layout.ListBounds, listState, FarDialogStyles.Fill, FarDialogStyles.FocusedInput, FarDialogStyles.Fill);
         });
-
+        return new ListWithButtonsFrame(layout, listState, buttons ?? throw new InvalidOperationException("List dialog did not render its button form."));
     }
+
+    private UiInteractionFrame BuildInteractionFrame(ListWithButtonsFrame frame)
+    {
+        var builder = new UiInteractionFrameBuilder()
+            .AddHitRegion(ListTarget, frame.Layout.ListBounds)
+            .AddFocusEntry(ListTarget, 0, frame.ListState.SelectedIndex >= 0)
+            .AddFragment(_form.BuildInteractionFragment(frame.Buttons))
+            .SetDefaultFocusTarget(frame.ListState.SelectedIndex >= 0 ? ListTarget : frame.Buttons.DefaultTarget);
+        if (frame.ListState.ScrollbarBounds is Rect scrollbarBounds)
+            builder.AddHitRegion(ScrollbarTarget, scrollbarBounds);
+        return builder.Build();
+    }
+
+    private (ListWithButtonsInput Semantic, UiInputResult UiResult) RouteInput(
+        ConsoleInputEvent input,
+        ListWithButtonsFrame frame,
+        UiInputRouteContext route)
+    {
+        _list.ApplyCommittedFrame(frame.ListState);
+        if (input is KeyConsoleInputEvent { Key.Key: ConsoleKey.Delete } && DeleteActionId is not null && _list.HasItems)
+        {
+            return (
+                new ListWithButtonsInput(input, FormInputResult.NotHandled, ScrollableListInputResult.Handled),
+                UiInputResult.HandledResult);
+        }
+
+        bool isListRoute = route.Target == ListTarget || route.Target == ScrollbarTarget;
+        if (!isListRoute || input is KeyConsoleInputEvent { Key.Key: ConsoleKey.Tab or ConsoleKey.Escape })
+        {
+            FormRouteResult formResult = _form.RouteInput(input, frame.Buttons, route);
+            return (new ListWithButtonsInput(input, formResult.FormResult, ScrollableListInputResult.NotHandled), formResult.UiResult);
+        }
+
+        ScrollableListInputResult listResult = input switch
+        {
+            KeyConsoleInputEvent { Key: var key } => _list.HandleKey(key, frame.ListState.ViewportRows),
+            MouseConsoleInputEvent mouse => _list.HandleMouse(mouse, frame.Layout.ListBounds, frame.ListState, confirmOnDoubleClick: true),
+            _ => ScrollableListInputResult.NotHandled,
+        };
+        return (new ListWithButtonsInput(input, FormInputResult.NotHandled, listResult), ToUiInputResult(input, listResult));
+    }
+
+    private static UiInputResult ToUiInputResult(ConsoleInputEvent input, ScrollableListInputResult result)
+    {
+        if (!result.IsHandled)
+            return UiInputResult.NotHandled;
+
+        if (result.DragStarted)
+            return UiInputResult.CaptureMouse(ScrollbarTarget, MouseButton.Left, invalidate: true);
+        if (result.DragEnded)
+            return UiInputResult.ReleaseMouse(invalidate: true);
+
+        return input is MouseConsoleInputEvent { Button: MouseButton.Left, Kind: MouseEventKind.Down }
+            ? new UiInputResult(true, true, UiFocusRequest.Set(ListTarget), UiMouseCaptureRequest.None)
+            : UiInputResult.HandledAndInvalidate;
+    }
+
+    private ListWithButtonsDialogResult<T> CreateResult(string actionId) =>
+        !_list.HasItems || SelectedIndex < 0 || SelectedIndex >= _list.Count
+            ? new ListWithButtonsDialogResult<T>(actionId, default, -1)
+            : new ListWithButtonsDialogResult<T>(actionId, _list.Items[SelectedIndex], SelectedIndex);
 
     private ListWithButtonsLayout CalculateLayout(ConsoleSize size)
     {
@@ -256,16 +203,7 @@ public sealed class ListWithButtonsDialog<T>
         return new ListWithButtonsLayout(bounds, frameBounds, listBounds, buttonY);
     }
 
-    private readonly record struct ListWithButtonsLayout(
-        Rect Bounds,
-        Rect FrameBounds,
-        Rect ListBounds,
-        int ButtonY);
-
-    private readonly record struct ListWithButtonsFrame(
-        ListWithButtonsLayout Layout,
-        ScrollableListFrameState ListState,
-        bool FocusButtons,
-        DialogButtonBarState ButtonState,
-        DialogButtonBarLayout Buttons);
+    private readonly record struct ListWithButtonsLayout(Rect Bounds, Rect FrameBounds, Rect ListBounds, int ButtonY);
+    private readonly record struct ListWithButtonsFrame(ListWithButtonsLayout Layout, ScrollableListFrameState ListState, ScrollableFormFrame Buttons);
+    private readonly record struct ListWithButtonsInput(ConsoleInputEvent Input, FormInputResult FormResult, ScrollableListInputResult ListResult);
 }
