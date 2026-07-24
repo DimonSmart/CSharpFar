@@ -100,7 +100,7 @@ internal sealed class OpenCreateFileDialog
                     if (form.FocusedRowId == "file-path")
                     {
                         error = null;
-                        codePageRow.CloseDropdown();
+                        codePageRow.CloseComposite();
                     }
                     else if (form.FocusedRowId == "code-page")
                     {
@@ -114,7 +114,7 @@ internal sealed class OpenCreateFileDialog
                     FormDialogInput.ShouldImplicitlySubmit(routed, result, form))
                 {
                     int confirmedCodePageIndex = codePageRow.ConfirmedSelectedIndex;
-                    codePageRow.CancelOverlay();
+                    codePageRow.CloseComposite();
                     var accepted = TrySubmit(filePath, history, confirmedCodePageIndex, validate, ref error);
                     if (accepted is not null)
                         return ModalDialogLoopResult<OpenCreateFileDialogResult?>.Complete(accepted);

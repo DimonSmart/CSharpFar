@@ -9,6 +9,7 @@ public enum FormTargetKind
 {
     Row,
     BodyScrollbar,
+    CompositeChild,
     HistoryDropdown,
     HistoryScrollbar,
     DropdownPopup,
@@ -25,17 +26,13 @@ internal static class FormTargetIds
     public static UiTargetId ForAnonymousRow(long token) =>
         new($"form.row.instance:{token}");
 
-    public static UiTargetId ForHistoryDropdown(UiTargetId rowTarget) =>
-        new($"{rowTarget.Value}:history-dropdown");
+    public static UiTargetId ForCompositeChild(UiTargetId rowTarget, string childId) =>
+        new($"{rowTarget.Value}:child:{Uri.EscapeDataString(childId)}");
 
-    public static UiTargetId ForHistoryScrollbar(UiTargetId rowTarget) =>
-        new($"{rowTarget.Value}:history-scrollbar");
-
-    public static UiTargetId ForDropdownPopup(UiTargetId rowTarget) =>
-        new($"{rowTarget.Value}:dropdown-popup");
-
-    public static UiTargetId ForDropdownScrollbar(UiTargetId rowTarget) =>
-        new($"{rowTarget.Value}:dropdown-scrollbar");
+    public static UiTargetId ForHistoryDropdown(UiTargetId rowTarget) => ForCompositeChild(rowTarget, "popup");
+    public static UiTargetId ForHistoryScrollbar(UiTargetId rowTarget) => ForCompositeChild(rowTarget, "scrollbar");
+    public static UiTargetId ForDropdownPopup(UiTargetId rowTarget) => ForCompositeChild(rowTarget, "popup");
+    public static UiTargetId ForDropdownScrollbar(UiTargetId rowTarget) => ForCompositeChild(rowTarget, "scrollbar");
 }
 
 public sealed record ScrollableFormFrame(
@@ -60,7 +57,13 @@ public sealed record FormTargetFrame(
     bool IsFocusable,
     bool IsFooter,
     UiCursorPlacement? Cursor = null,
-    DropdownSelectFrame? DropdownFrame = null);
+    FormCompositeFrame? CompositeFrame = null,
+    string? CompositeChildId = null,
+    bool CapturesMouse = false)
+{
+    // Kept as a frame-inspection convenience; routing never depends on this type.
+    public DropdownSelectFrame? DropdownFrame => CompositeFrame?.State is DropdownSelectFrame frame ? frame : null;
+}
 
 public readonly record struct FormRouteResult(
     FormInputResult FormResult,

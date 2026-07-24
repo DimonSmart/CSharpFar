@@ -5,7 +5,7 @@ using CSharpFar.Core.Models;
 
 namespace CSharpFar.Ui;
 
-public sealed class DropdownSelectFormRow<T> : FormRow, IFormCursorProvider, IFormDropdownRow, IFormTransientOverlayRow
+public sealed class DropdownSelectFormRow<T> : FormRow, IFormCursorProvider, IFormCompositeRow
 {
     private readonly string _label;
     private readonly DropdownSelect<T> _dropdown;
@@ -17,13 +17,13 @@ public sealed class DropdownSelectFormRow<T> : FormRow, IFormCursorProvider, IFo
     }
 
     public override FormRowRole Role { get; init; } = FormRowRole.Option;
-    public bool IsDropdownOpen => _dropdown.IsOpen;
-    public bool IsOverlayOpen => _dropdown.IsOpen;
+    public bool IsCompositeOpen => _dropdown.IsOpen;
     public T Value => _dropdown.SelectedItem;
     public int SelectedIndex => _dropdown.SelectedIndex;
     public int ConfirmedSelectedIndex => _dropdown.IsOpen
         ? _dropdown.SelectionBeforeOpen
         : _dropdown.SelectedIndex;
+    public Rect GetFieldBounds(Rect rowBounds) => CalculateLayout(rowBounds).FieldBounds;
 
     public override void Render(FormRowRenderContext context)
     {
@@ -39,38 +39,54 @@ public sealed class DropdownSelectFormRow<T> : FormRow, IFormCursorProvider, IFo
             context.Focused ? FarDialogStyles.FocusedInput : FarDialogStyles.Input);
     }
 
-    public void RenderDropdownOverlay(FormRowRenderContext context, DropdownSelectFrame frame) =>
-        _dropdown.RenderPopup(context.Canvas, frame);
-
     public bool TryGetCursor(FormRowRenderContext context, out FormCursorPlacement cursor)
     {
-        Rect field = GetFieldBounds(context.Bounds);
+        Rect field = CalculateLayout(context.Bounds).FieldBounds;
         cursor = new FormCursorPlacement(field.X, field.Y);
         return context.Focused && field.Width > 0;
     }
 
-    public Rect GetFieldBounds(Rect rowBounds) => CalculateLayout(rowBounds).FieldBounds;
+    public FormCompositeFrame BuildCompositeFrame(FormCompositeFrameContext context)
+    {
+        DropdownSelectFrame frame = _dropdown.CalculateFrame(context.Viewport.Size, CalculateLayout(context.RowBounds).FieldBounds);
+        if (!frame.IsOpen || frame.PopupBounds is not Rect popup)
+            return new FormCompositeFrame(false, frame, []);
 
-    public DropdownSelectFrame BuildDropdownFrame(Rect rowBounds, ConsoleViewport viewport) =>
-        _dropdown.CalculateFrame(viewport.Size, GetFieldBounds(rowBounds));
+        var children = new List<FormCompositeTarget> { new("popup", popup, Kind: FormTargetKind.DropdownPopup) };
+        if (frame.ScrollbarBounds is Rect scrollbar)
+            children.Add(new FormCompositeTarget("scrollbar", scrollbar, Kind: FormTargetKind.DropdownScrollbar, CapturesMouse: true));
+        return new FormCompositeFrame(true, frame, children);
+    }
 
-    public void CommitDropdownFrame(DropdownSelectFrame frame) =>
-        _dropdown.ApplyCommittedFrame(frame);
+    public void CommitCompositeFrame(FormCompositeFrame frame)
+    {
+        if (frame.State is DropdownSelectFrame dropdownFrame)
+            _dropdown.ApplyCommittedFrame(dropdownFrame);
+    }
 
-    public void CloseDropdown() => _dropdown.Close();
+    public void RenderCompositeOverlay(FormRowRenderContext context, FormCompositeFrame frame)
+    {
+        if (frame.State is DropdownSelectFrame dropdownFrame)
+            _dropdown.RenderPopup(context.Canvas, dropdownFrame);
+    }
 
-    public void CancelOverlay() => _dropdown.Close(commit: false);
+    public bool IsCompositeAnchorHit(MouseConsoleInputEvent mouse, FormRowMouseContext context, FormCompositeFrame frame) =>
+        frame.State is DropdownSelectFrame dropdownFrame && dropdownFrame.FieldBounds.Contains(mouse.X, mouse.Y);
+
+    public void CloseComposite() => _dropdown.Close(commit: false);
 
     public override FormInputResult HandleKey(ConsoleKeyInfo key, FormRowInputContext context) =>
         FormInputResult.NotHandled;
 
-    public FormInputResult HandleDropdownKey(ConsoleKeyInfo key, FormRowInputContext context, DropdownSelectFrame frame)
+    public FormInputResult HandleCompositeKey(ConsoleKeyInfo key, FormRowInputContext context, FormCompositeFrame frame)
     {
-        if (_dropdown.TryHandleKey(key, frame, out _, out bool valueChanged))
+        if (frame.State is not DropdownSelectFrame dropdownFrame)
+            return FormInputResult.NotHandled;
+        if (_dropdown.TryHandleKey(key, dropdownFrame, out _, out bool valueChanged))
         {
             if (valueChanged)
                 return FormInputResult.ValueChanged;
-            return frame.IsOpen == _dropdown.IsOpen ? FormInputResult.Handled : FormInputResult.OverlayChanged;
+            return dropdownFrame.IsOpen == _dropdown.IsOpen ? FormInputResult.Handled : FormInputResult.OverlayChanged;
         }
 
         return FormInputResult.NotHandled;
@@ -79,14 +95,16 @@ public sealed class DropdownSelectFormRow<T> : FormRow, IFormCursorProvider, IFo
     public override FormInputResult HandleMouse(MouseConsoleInputEvent mouse, FormRowMouseContext context) =>
         FormInputResult.NotHandled;
 
-    public FormInputResult HandleDropdownMouse(MouseConsoleInputEvent mouse, FormRowMouseContext context, DropdownSelectFrame frame)
+    public FormInputResult HandleCompositeMouse(MouseConsoleInputEvent mouse, FormRowMouseContext context, FormCompositeFrame frame, string? childTargetId)
     {
-        if (_dropdown.TryHandlePopupMouse(mouse, frame, out _, out bool valueChanged))
+        if (frame.State is not DropdownSelectFrame dropdownFrame)
+            return FormInputResult.NotHandled;
+        if (_dropdown.TryHandlePopupMouse(mouse, dropdownFrame, out _, out bool valueChanged))
             return valueChanged
                 ? FormInputResult.ValueChanged
-                : frame.IsOpen == _dropdown.IsOpen ? FormInputResult.Handled : FormInputResult.OverlayChanged;
-        if (_dropdown.TryHandleFieldMouse(mouse, frame))
-            return frame.IsOpen == _dropdown.IsOpen ? FormInputResult.Handled : FormInputResult.OverlayChanged;
+                : dropdownFrame.IsOpen == _dropdown.IsOpen ? FormInputResult.Handled : FormInputResult.OverlayChanged;
+        if (_dropdown.TryHandleFieldMouse(mouse, dropdownFrame))
+            return dropdownFrame.IsOpen == _dropdown.IsOpen ? FormInputResult.Handled : FormInputResult.OverlayChanged;
         return FormInputResult.NotHandled;
     }
 

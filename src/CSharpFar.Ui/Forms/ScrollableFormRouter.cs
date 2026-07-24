@@ -51,15 +51,9 @@ public sealed partial class ScrollableFormDialog
                     row.Role,
                     targetFrame.Bounds,
                     frame.ScreenHeight);
-            FormInputResult rowResult;
-            if (row is IFormDropdownRow dropdown && targetFrame.DropdownFrame is { } dropdownFrame)
-            {
-                rowResult = dropdown.HandleDropdownKey(key, inputContext, dropdownFrame);
-            }
-            else
-            {
-                rowResult = row.HandleKey(key, inputContext);
-            }
+            FormInputResult rowResult = row is IFormCompositeRow composite && targetFrame.CompositeFrame is { } compositeFrame
+                ? composite.HandleCompositeKey(key, inputContext, compositeFrame)
+                : row.HandleKey(key, inputContext);
             if (rowResult.IsHandled)
                 return FormResult(rowResult, WithEnsureFocusVisible(FormResultToUi(rowResult, targetFrame.Target), ensureFocusedTargetVisible));
         }
@@ -100,8 +94,7 @@ public sealed partial class ScrollableFormDialog
 
     private FormRouteResult RouteMouse(MouseConsoleInputEvent mouse, ScrollableFormFrame frame, UiInputRouteContext route)
     {
-        bool closedOverlay = CloseFocusedHistoryOnOutsideClick(mouse, frame, route) ||
-            CloseFocusedDropdownOnOutsideClick(mouse, frame, route);
+        bool closedOverlay = CloseFocusedCompositeOnOutsideClick(mouse, frame, route);
         if (route.RouteKind == UiInputRouteKind.Layer)
         {
             if (TryHandleWheel(mouse, frame.ViewportRows))
@@ -149,16 +142,10 @@ public sealed partial class ScrollableFormDialog
                 frame.ScreenHeight,
                 targetFrame.Row.Id,
                 targetFrame.Row.Role);
-        FormInputResult rowResult;
-        if (targetFrame.Row is IFormDropdownRow dropdown &&
-            (targetFrame.DropdownFrame ?? rowFrame.DropdownFrame) is { } dropdownFrame)
-        {
-            rowResult = dropdown.HandleDropdownMouse(mouse, mouseContext, dropdownFrame);
-        }
-        else
-        {
-            rowResult = targetFrame.Row.HandleMouse(mouse, mouseContext);
-        }
+        FormInputResult rowResult = targetFrame.Row is IFormCompositeRow composite &&
+            (targetFrame.CompositeFrame ?? rowFrame.CompositeFrame) is { } compositeFrame
+            ? composite.HandleCompositeMouse(mouse, mouseContext, compositeFrame, targetFrame.CompositeChildId)
+            : targetFrame.Row.HandleMouse(mouse, mouseContext);
         if (!rowResult.IsHandled && TryHandleWheel(mouse, frame.ViewportRows))
             return MergeTransientOverlayChange(FormInputResult.Handled, UiInputResult.HandledAndInvalidate, closedOverlay);
 
@@ -174,7 +161,7 @@ public sealed partial class ScrollableFormDialog
                 canceledOverlay ? UiMouseCaptureRequest.Release : uiResult.MouseCaptureRequest);
         }
 
-        if (targetFrame.Kind is FormTargetKind.HistoryScrollbar or FormTargetKind.DropdownScrollbar &&
+        if (targetFrame.CapturesMouse &&
             rowResult.IsHandled &&
             mouse is { Kind: MouseEventKind.Down, Button: MouseButton.Left })
         {
@@ -188,74 +175,31 @@ public sealed partial class ScrollableFormDialog
         return MergeTransientOverlayChange(rowResult, uiResult, closedOverlay);
     }
 
-    private static bool CloseFocusedHistoryOnOutsideClick(
+    private static bool CloseFocusedCompositeOnOutsideClick(
         MouseConsoleInputEvent mouse,
         ScrollableFormFrame frame,
         UiInputRouteContext route)
     {
         if (mouse is not { Kind: MouseEventKind.Down, Button: MouseButton.Left } ||
             route.FocusState.FocusedTarget is not UiTargetId focusedTarget ||
-            FindRowTarget(frame, focusedTarget)?.Row is not IFormHistoryRow { History: { IsDropdownOpen: true } history } row)
+            FindRowTarget(frame, focusedTarget) is not { Row: IFormCompositeRow row, CompositeFrame: { IsOpen: true } compositeFrame } rowFrame)
         {
             return false;
         }
 
-        bool insidePopup = frame.Targets.Any(target =>
+        bool insideChild = frame.Targets.Any(target =>
             ReferenceEquals(target.Row, row) &&
-            target.Kind is FormTargetKind.HistoryDropdown or FormTargetKind.HistoryScrollbar &&
+            target.CompositeChildId is not null &&
             target.HitBounds is Rect bounds && bounds.Contains(mouse.X, mouse.Y));
-        if (insidePopup)
+        if (insideChild)
             return false;
 
-        bool onHistoryArrow = frame.Targets.Any(target =>
-            ReferenceEquals(target.Row, row) &&
-            target.Kind == FormTargetKind.Row &&
-            target.HitBounds is Rect bounds &&
-            bounds.Contains(mouse.X, mouse.Y) &&
-            row.IsHistoryArrow(mouse, new FormRowMouseContext(
-                target.Bounds,
-                target.FocusIndex ?? target.RowIndex,
-                focused: true,
-                frame.ScreenHeight,
-                row.Id,
-                row.Role)));
-        if (onHistoryArrow)
+        var context = new FormRowMouseContext(rowFrame.Bounds, rowFrame.FocusIndex ?? rowFrame.RowIndex,
+            focused: true, frame.ScreenHeight, row.Id, row.Role);
+        if (row.IsCompositeAnchorHit(mouse, context, compositeFrame))
             return false;
 
-        history.Close();
-        return true;
-    }
-
-    private static bool CloseFocusedDropdownOnOutsideClick(
-        MouseConsoleInputEvent mouse,
-        ScrollableFormFrame frame,
-        UiInputRouteContext route)
-    {
-        if (mouse is not { Kind: MouseEventKind.Down, Button: MouseButton.Left } ||
-            route.FocusState.FocusedTarget is not UiTargetId focusedTarget ||
-            FindRowTarget(frame, focusedTarget) is not { Row: IFormDropdownRow dropdown, DropdownFrame: { IsOpen: true } dropdownFrame })
-        {
-            return false;
-        }
-
-        bool insideDropdown = frame.Targets.Any(target =>
-            ReferenceEquals(target.Row, dropdown) &&
-            target.Kind is FormTargetKind.DropdownPopup or FormTargetKind.DropdownScrollbar &&
-            target.HitBounds is Rect bounds &&
-            bounds.Contains(mouse.X, mouse.Y));
-        if (insideDropdown)
-            return false;
-
-        bool onField = frame.Targets.Any(target =>
-            ReferenceEquals(target.Row, dropdown) &&
-            target.Kind == FormTargetKind.Row &&
-            target.HitBounds is Rect bounds &&
-            bounds.Contains(mouse.X, mouse.Y) &&
-            dropdownFrame.FieldBounds.Contains(mouse.X, mouse.Y));
-        if (onField)
-            return false;
-
-        dropdown.CloseDropdown();
+        row.CloseComposite();
         return true;
     }
 
@@ -380,13 +324,13 @@ public sealed partial class ScrollableFormDialog
         foreach (FormTargetFrame target in frame.Targets)
         {
             if (target.Kind != FormTargetKind.Row ||
-                target.Row is not IFormDropdownRow dropdown ||
-                target.DropdownFrame is not { } dropdownFrame)
+                target.Row is not IFormCompositeRow composite ||
+                target.CompositeFrame is not { } compositeFrame)
             {
                 continue;
             }
 
-            dropdown.CommitDropdownFrame(dropdownFrame);
+            composite.CommitCompositeFrame(compositeFrame);
         }
     }
 
@@ -395,14 +339,17 @@ public sealed partial class ScrollableFormDialog
         bool canceled = false;
         foreach (IFormRow row in AllRows())
         {
-            if (row is not IFormTransientOverlayRow overlay || !overlay.IsOverlayOpen)
+            if (row is not IFormCompositeRow composite)
                 continue;
 
             if (retainedTarget is not null && RowTarget(row) == retainedTarget)
                 continue;
 
-            overlay.CancelOverlay();
-            canceled = true;
+            if (composite.IsCompositeOpen)
+            {
+                composite.CloseComposite();
+                canceled = true;
+            }
         }
 
         return canceled;
