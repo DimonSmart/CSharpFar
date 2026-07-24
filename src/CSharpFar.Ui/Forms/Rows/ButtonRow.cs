@@ -4,7 +4,8 @@ namespace CSharpFar.Ui;
 
 public sealed class ButtonRow : FormRow
 {
-    private readonly DialogButtonBar _buttonBar;
+    private DialogButtonBar _buttonBar;
+    private DialogButton[] _buttons;
     private readonly DialogButtonBarStyle? _style;
     private DialogButtonBarState _state;
 
@@ -13,7 +14,8 @@ public sealed class ButtonRow : FormRow
         int focusedButtonIndex = 0,
         DialogButtonBarStyle? style = null)
     {
-        _buttonBar = new DialogButtonBar(buttons);
+        _buttons = buttons.ToArray();
+        _buttonBar = new DialogButtonBar(_buttons);
         _state = _buttonBar.CreateState(focusedButtonIndex);
         _style = style;
     }
@@ -21,6 +23,18 @@ public sealed class ButtonRow : FormRow
     public int FocusedButtonIndex => _state.FocusedIndex;
     public int? PressedButtonIndex => _state.PressedButtonIndex;
     public override FormRowRole Role { get; init; } = FormRowRole.ButtonBar;
+
+    public void SetButtons(IReadOnlyList<DialogButton> buttons)
+    {
+        ArgumentNullException.ThrowIfNull(buttons);
+        DialogButton[] updatedButtons = buttons.ToArray();
+        if (_buttons.SequenceEqual(updatedButtons))
+            return;
+
+        _buttons = updatedButtons;
+        _buttonBar = new DialogButtonBar(_buttons);
+        _state = _buttonBar.CreateState(_state.FocusedIndex);
+    }
 
     public override void Render(FormRowRenderContext context) =>
         _buttonBar.Render(

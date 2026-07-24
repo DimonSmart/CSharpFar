@@ -10,7 +10,8 @@ public sealed partial class ScrollableFormDialog
     public FormRouteResult RouteInput(
         ConsoleInputEvent input,
         ScrollableFormFrame frame,
-        UiInputRouteContext route)
+        UiInputRouteContext route,
+        bool allowUnfocusedButtonHotkeys = false)
     {
         ArgumentNullException.ThrowIfNull(input);
         ArgumentNullException.ThrowIfNull(frame);
@@ -19,7 +20,7 @@ public sealed partial class ScrollableFormDialog
         RestoreCommittedComponentState(frame);
 
         if (input is KeyConsoleInputEvent { Key: var key })
-            return RouteKey(key, frame, route);
+            return RouteKey(key, frame, route, allowUnfocusedButtonHotkeys);
 
         if (input is MouseConsoleInputEvent mouse)
             return RouteMouse(mouse, frame, route);
@@ -27,7 +28,11 @@ public sealed partial class ScrollableFormDialog
         return new FormRouteResult(FormInputResult.NotHandled, UiInputResult.NotHandled);
     }
 
-    private FormRouteResult RouteKey(ConsoleKeyInfo key, ScrollableFormFrame frame, UiInputRouteContext route)
+    private FormRouteResult RouteKey(
+        ConsoleKeyInfo key,
+        ScrollableFormFrame frame,
+        UiInputRouteContext route,
+        bool allowUnfocusedButtonHotkeys)
     {
         bool ensureFocusedTargetVisible = false;
         if (route.RouteKind == UiInputRouteKind.FocusedTarget &&
@@ -57,6 +62,25 @@ public sealed partial class ScrollableFormDialog
             }
             if (rowResult.IsHandled)
                 return FormResult(rowResult, WithEnsureFocusVisible(FormResultToUi(rowResult, targetFrame.Target), ensureFocusedTargetVisible));
+        }
+
+        if (allowUnfocusedButtonHotkeys && key.KeyChar > ' ')
+        {
+            foreach (FormTargetFrame buttonFrame in frame.Targets.Where(target => target.Row is ButtonRow { IsEnabled: true }))
+            {
+                FormInputResult buttonResult = buttonFrame.Row!.HandleKey(
+                    key,
+                    new FormRowInputContext(
+                        buttonFrame.FocusIndex ?? -1,
+                        focused: false,
+                        SingleLineTextInput.AvailableDropdownContentRows(buttonFrame.Bounds.Y, frame.ScreenHeight),
+                        buttonFrame.Row.Id,
+                        buttonFrame.Row.Role,
+                        buttonFrame.Bounds,
+                        frame.ScreenHeight));
+                if (buttonResult.IsHandled)
+                    return FormResult(buttonResult, FormResultToUi(buttonResult, buttonFrame.Target));
+            }
         }
 
         return key.Key switch
