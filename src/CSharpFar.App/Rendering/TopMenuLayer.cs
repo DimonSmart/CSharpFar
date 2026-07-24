@@ -18,7 +18,7 @@ internal sealed record TopMenuFrame(
     int ActiveTopMenuIndex,
     int ActiveDropdownItemIndex,
     Rect ActivationBounds,
-    Rect? ScrollbarBounds,
+    VerticalScrollbarFrame? DropdownScrollbar,
     IReadOnlyList<TopMenuPointerTarget> PointerTargets);
 
 internal enum TopMenuPointerActionKind
@@ -92,6 +92,10 @@ internal sealed class TopMenuLayer : UiLayer<TopMenuFrame>
         var bounds = new Rect(0, 0, context.Size.Width, context.Size.Height);
         var layout = _layoutService.CalculateLayout(bounds, definition, _context.MenuState);
         bool open = _context.MenuState.OpenState != MenuOpenState.Closed;
+        VerticalScrollbarFrame? dropdownScrollbar = _controller.CalculateDropdownScrollbarFrame(
+            definition,
+            _context.MenuState.ActiveTopMenuIndex,
+            layout);
         if (open)
         {
             var options = MenuRenderOptionsFactory.Create(_context.App.Palette);
@@ -101,11 +105,11 @@ internal sealed class TopMenuLayer : UiLayer<TopMenuFrame>
                 definition,
                 _context.MenuState,
                 layout,
-                options);
+                options,
+                dropdownScrollbar);
         }
 
         Rect activationBounds = new(0, 0, context.Size.Width, context.Size.Height > 0 ? 1 : 0);
-        Rect? scrollbarBounds = ScrollbarBounds(definition, _context.MenuState.ActiveTopMenuIndex, layout);
         return new TopMenuFrame(
             true,
             open,
@@ -116,14 +120,14 @@ internal sealed class TopMenuLayer : UiLayer<TopMenuFrame>
             _context.MenuState.ActiveTopMenuIndex,
             _context.MenuState.ActiveDropdownItemIndex,
             activationBounds,
-            scrollbarBounds,
+            dropdownScrollbar,
             BuildPointerTargets(
                 open,
                 definition,
                 layout,
                 _context.MenuState.ActiveTopMenuIndex,
                 activationBounds,
-                scrollbarBounds));
+                dropdownScrollbar?.Bounds));
     }
 
     protected override UiInteractionFrame BuildInteractionFrame(TopMenuFrame frame)
@@ -147,19 +151,8 @@ internal sealed class TopMenuLayer : UiLayer<TopMenuFrame>
 
     protected override void OnFrameCommitted(TopMenuFrame frame)
     {
-        int childCount = frame.Available &&
-            frame.Open &&
-            frame.ActiveTopMenuIndex >= 0 &&
-            frame.ActiveTopMenuIndex < frame.Definition.Items.Count
-            ? frame.Definition.Items[frame.ActiveTopMenuIndex].Children.Count
-            : 0;
-        int visibleRows = frame.Layout.DropdownBounds is { } dropdown
-            ? Math.Max(0, dropdown.Height - 2)
-            : 0;
-        _controller.CommitDropdownViewport(
-            frame.ScrollbarBounds,
-            childCount,
-            visibleRows,
+        _controller.CommitDropdownFrame(
+            frame.DropdownScrollbar,
             frame.Layout.DropdownFirstVisibleItemIndex);
     }
 
@@ -239,7 +232,11 @@ internal sealed class TopMenuLayer : UiLayer<TopMenuFrame>
 
     private UiInputResult RouteScrollbar(MouseConsoleInputEvent mouse, TopMenuFrame frame, bool captured)
     {
-        bool handled = _controller.HandleDropdownScrollbarMouse(mouse, frame.Definition, frame.Layout);
+        IReadOnlyList<MenuItemDefinition> items = frame.ActiveTopMenuIndex >= 0 &&
+            frame.ActiveTopMenuIndex < frame.Definition.Items.Count
+            ? frame.Definition.Items[frame.ActiveTopMenuIndex].Children
+            : [];
+        bool handled = _controller.HandleDropdownScrollbarMouse(mouse, items, frame.DropdownScrollbar);
 
         if (handled && mouse.Button == MouseButton.Left && mouse.Kind == MouseEventKind.Down)
             return UiInputResult.CaptureMouse(ScrollbarTarget, MouseButton.Left, invalidate: true);
@@ -248,31 +245,6 @@ internal sealed class TopMenuLayer : UiLayer<TopMenuFrame>
             return UiInputResult.ReleaseMouse(invalidate: true);
 
         return handled ? UiInputResult.HandledAndInvalidate : UiInputResult.NotHandled;
-    }
-
-    private static Rect? ScrollbarBounds(MenuBarDefinition definition, int activeTopMenuIndex, MenuLayout layout)
-    {
-        if (layout.DropdownBounds is not { } dropdown ||
-            layout.DropdownFirstVisibleItemIndex < 0 ||
-            activeTopMenuIndex < 0 ||
-            activeTopMenuIndex >= definition.Items.Count)
-        {
-            return null;
-        }
-
-        int visibleRows = Math.Max(0, dropdown.Height - 2);
-        int childCount = definition.Items[activeTopMenuIndex].Children.Count;
-        var bounds = new Rect(dropdown.Right - 1, dropdown.Y + 1, 1, visibleRows);
-        var state = new ScrollState
-        {
-            TotalItems = childCount,
-            ViewportItems = visibleRows,
-            FirstVisibleIndex = layout.DropdownFirstVisibleItemIndex,
-        };
-        if (!ScrollBarInteraction.IsInteractive(bounds, state))
-            return null;
-
-        return bounds;
     }
 
     private static UiTargetId ActiveTarget(TopMenuFrame frame)
