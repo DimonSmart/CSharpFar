@@ -727,8 +727,8 @@ public sealed class ApplicationUiSurfaceTests
     }
 
     [Theory]
-    [MemberData(nameof(RoutedInputs))]
-    public void SupportedSemanticInput_CreatesOneApplicationPacket(ConsoleInputEvent input, Type expectedType)
+    [MemberData(nameof(KeyboardRoutedInputs))]
+    public void SupportedKeyboardInput_CreatesOneApplicationPacket(ConsoleInputEvent input, Type expectedType)
     {
         var services = Services();
         services.Composition.Render();
@@ -738,20 +738,48 @@ public sealed class ApplicationUiSurfaceTests
         Assert.True(result.Handled);
         Assert.True(services.ApplicationSurface.TryTakeInput(out var routed));
         Assert.IsType(expectedType, routed.Input);
-        if (input is KeyConsoleInputEvent or ModifierKeyConsoleInputEvent)
-        {
-            Assert.Equal(ApplicationTargetIds.WorkspaceKeyboard, routed.Target);
-            Assert.Equal(UiInputRouteKind.KeyboardTarget, routed.RouteKind);
-        }
-        else
-        {
-            Assert.Equal(ApplicationTargetIds.LeftPanel, routed.Target);
-            Assert.Equal(UiInputRouteKind.HitTarget, routed.RouteKind);
-        }
+        Assert.Equal(ApplicationTargetIds.WorkspaceKeyboard, routed.Target);
+        Assert.Equal(UiInputRouteKind.KeyboardTarget, routed.RouteKind);
         Assert.False(services.ApplicationSurface.TryTakeInput(out _));
 
         services.Composition.DispatchInput(Key(ConsoleKey.B));
         Assert.True(services.ApplicationSurface.TryTakeInput(out _));
+    }
+
+    [Fact]
+    public void PanelPointerInputs_CreateSemanticApplicationPackets()
+    {
+        var services = Services();
+        var input = Mouse();
+        services.Composition.Render();
+
+        UiInputResult result = services.Composition.DispatchInput(input);
+
+        Assert.True(result.Handled);
+        Assert.True(services.ApplicationSurface.TryTakeInput(out var routed));
+        Assert.IsType<MouseConsoleInputEvent>(routed.Input);
+        Assert.Equal(ApplicationTargetIds.PanelItem(PanelSide.Left, 0), routed.Target);
+        Assert.Equal(UiInputRouteKind.HitTarget, routed.RouteKind);
+        Assert.False(services.ApplicationSurface.TryTakeInput(out _));
+
+        services.Composition.DispatchInput(
+            new MouseConsoleInputEvent(1, 20, MouseButton.Left, MouseEventKind.Down, MouseKeyModifiers.None));
+        Assert.True(services.ApplicationSurface.TryTakeInput(out var background));
+        Assert.Equal(ApplicationTargetIds.Panel(PanelSide.Left), background.Target);
+        Assert.Equal(UiInputRouteKind.HitTarget, background.RouteKind);
+
+        services.Session.Panels.Left.LoadError = new PanelLoadError
+        {
+            Message = "Test error",
+            RetryLocation = services.Session.Panels.Left.CurrentLocation,
+        };
+        services.Composition.Render();
+        Rect retry = Assert.IsType<Rect>(services.ApplicationSurface.CommittedFrame.LeftPanel!.RetryBounds);
+        services.Composition.DispatchInput(
+            new MouseConsoleInputEvent(retry.X, retry.Y, MouseButton.Left, MouseEventKind.Down, MouseKeyModifiers.None));
+        Assert.True(services.ApplicationSurface.TryTakeInput(out var retryPacket));
+        Assert.Equal(ApplicationTargetIds.PanelRetry(PanelSide.Left), retryPacket.Target);
+        Assert.Equal(UiInputRouteKind.HitTarget, retryPacket.RouteKind);
     }
 
     [Fact]
@@ -831,11 +859,10 @@ public sealed class ApplicationUiSurfaceTests
         Assert.True(services.ApplicationSurface.TryTakeInput(out _));
     }
 
-    public static TheoryData<ConsoleInputEvent, Type> RoutedInputs() => new()
+    public static TheoryData<ConsoleInputEvent, Type> KeyboardRoutedInputs() => new()
     {
         { Key(ConsoleKey.A), typeof(KeyConsoleInputEvent) },
         { new ModifierKeyConsoleInputEvent(ConsoleModifiers.Control), typeof(ModifierKeyConsoleInputEvent) },
-        { Mouse(), typeof(MouseConsoleInputEvent) },
     };
 
     private static TestServices Services(FakeConsoleDriver? driver = null)
