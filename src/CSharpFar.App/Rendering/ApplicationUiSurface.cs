@@ -89,11 +89,26 @@ internal static class ApplicationTargetIds
     public static UiTargetId FunctionKeyBar { get; } = new("application.function-key-bar");
     public static UiTargetId DirectoryShortcutBar { get; } = new("application.directory-shortcut-bar");
 
+    private static UiTargetId LeftPanelRetry { get; } = new("application.left-panel.retry");
+    private static UiTargetId RightPanelRetry { get; } = new("application.right-panel.retry");
+
     public static UiTargetId Panel(PanelSide side) =>
         side == PanelSide.Left ? LeftPanel : RightPanel;
 
     public static UiTargetId PanelScrollbar(PanelSide side) =>
         side == PanelSide.Left ? LeftPanelScrollbar : RightPanelScrollbar;
+
+    public static UiTargetId PanelRetry(PanelSide side) =>
+        side == PanelSide.Left ? LeftPanelRetry : RightPanelRetry;
+
+    public static UiTargetId PanelItem(PanelSide side, int itemIndex) =>
+        new($"application.{(side == PanelSide.Left ? "left" : "right")}-panel.item:{itemIndex}");
+
+    public static UiTargetId FunctionKeyAction(FunctionKeys.FunctionKeyLayer layer, ConsoleKey key) =>
+        new($"application.function-key:{layer}:{key}");
+
+    public static UiTargetId DirectoryShortcut(int shortcutNumber) =>
+        new($"application.directory-shortcut:{shortcutNumber}");
 }
 
 internal sealed record ApplicationPanelFrame
@@ -128,6 +143,23 @@ internal sealed record ApplicationPanelFrame
     public ApplicationScrollBarFrame? ScrollBar { get; }
     public int RowsPerColumn { get; }
     public int ColumnCount { get; }
+
+    public bool OwnsPointerTarget(UiTargetId? target) =>
+        target == ApplicationTargetIds.Panel(Side) ||
+        target == ApplicationTargetIds.PanelRetry(Side) ||
+        VisibleItems.Any(item => ApplicationTargetIds.PanelItem(Side, item.ItemIndex) == target);
+
+    public bool IsRetryTarget(UiTargetId? target) =>
+        RetryBounds is not null && target == ApplicationTargetIds.PanelRetry(Side);
+
+    public bool TryGetItemTarget(UiTargetId? target, out ApplicationPanelItemHit hit)
+    {
+        ApplicationPanelItemHit? found = target is null
+            ? null
+            : VisibleItems.FirstOrDefault(item => ApplicationTargetIds.PanelItem(Side, item.ItemIndex) == target);
+        hit = found!;
+        return found is not null;
+    }
 }
 
 internal sealed record ApplicationPanelItemHit(
@@ -174,6 +206,18 @@ internal sealed record ApplicationFunctionKeyBarFrame
     }
 
     public IReadOnlyList<ApplicationFunctionKeyHit> Actions { get; }
+
+    public bool TryGetPointerAction(UiTargetId? target, out ApplicationFunctionKeyHit action)
+    {
+        ApplicationFunctionKeyHit? found = target is null
+            ? null
+            : Actions.FirstOrDefault(candidate =>
+                candidate.Bounds.Width > 0 &&
+                candidate.Bounds.Height > 0 &&
+                ApplicationTargetIds.FunctionKeyAction(candidate.Layer, candidate.Key) == target);
+        action = found!;
+        return found is not null;
+    }
 }
 
 internal sealed record ApplicationFunctionKeyHit(
@@ -192,6 +236,16 @@ internal sealed record ApplicationDirectoryShortcutBarFrame
     }
 
     public IReadOnlyList<ApplicationDirectoryShortcutHit> Shortcuts { get; }
+
+    public bool TryGetPointerShortcut(UiTargetId? target, out ApplicationDirectoryShortcutHit shortcut)
+    {
+        ApplicationDirectoryShortcutHit? found = target is null
+            ? null
+            : Shortcuts.FirstOrDefault(candidate =>
+                ApplicationTargetIds.DirectoryShortcut(candidate.ShortcutNumber) == target);
+        shortcut = found!;
+        return found is not null;
+    }
 }
 
 internal sealed record ApplicationDirectoryShortcutHit(
@@ -323,14 +377,28 @@ internal sealed class ApplicationUiSurface : UiLayer<ApplicationUiFrame>, IUiSur
 
             if (frame.FunctionKeyBar is { } functionKeyBar)
             {
-                foreach (var action in functionKeyBar.Actions)
-                    builder.AddHitRegion(ApplicationTargetIds.FunctionKeyBar, action.Bounds);
+                foreach (ApplicationFunctionKeyHit action in functionKeyBar.Actions)
+                {
+                    if (IsVisible(action.Bounds, frame.Viewport))
+                    {
+                        builder.AddHitRegion(
+                            ApplicationTargetIds.FunctionKeyAction(action.Layer, action.Key),
+                            action.Bounds);
+                    }
+                }
             }
 
             if (frame.DirectoryShortcutBar is { } shortcutBar)
             {
-                foreach (var shortcut in shortcutBar.Shortcuts)
-                    builder.AddHitRegion(ApplicationTargetIds.DirectoryShortcutBar, shortcut.Bounds);
+                foreach (ApplicationDirectoryShortcutHit shortcut in shortcutBar.Shortcuts)
+                {
+                    if (IsVisible(shortcut.Bounds, frame.Viewport))
+                    {
+                        builder.AddHitRegion(
+                            ApplicationTargetIds.DirectoryShortcut(shortcut.ShortcutNumber),
+                            shortcut.Bounds);
+                    }
+                }
             }
         }
 
@@ -382,6 +450,24 @@ internal sealed class ApplicationUiSurface : UiLayer<ApplicationUiFrame>, IUiSur
 
         if (IsVisible(panel.Bounds, viewport))
             builder.AddHitRegion(ApplicationTargetIds.Panel(panel.Side), panel.Bounds);
+
+        if (panel.RetryBounds is { } retryBounds && IsVisible(retryBounds, viewport))
+            builder.AddHitRegion(ApplicationTargetIds.PanelRetry(panel.Side), retryBounds);
+
+        foreach (ApplicationPanelItemHit item in panel.VisibleItems)
+        {
+            if (!IsVisible(item.Bounds, viewport))
+                continue;
+
+            UiTargetId target = ApplicationTargetIds.PanelItem(panel.Side, item.ItemIndex);
+            builder.AddHitRegion(target, item.Bounds);
+
+            // The left border of the right panel is the shared panel separator. Historically
+            // clicking it selected the first-column row immediately to its right.
+            if (panel.Side == PanelSide.Right && item.Bounds.X == panel.Bounds.X + 1)
+                builder.AddHitRegion(target, new Rect(panel.Bounds.X, item.Bounds.Y, 1, item.Bounds.Height));
+        }
+
         if (panel.ScrollBar is { } scrollbar &&
             IsVisible(scrollbar.Bounds, viewport) &&
             scrollbar.VerticalScrollbarFrame is not null)
