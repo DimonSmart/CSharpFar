@@ -235,7 +235,7 @@ public sealed class ApplicationInputDispatcherTests
     }
 
     [Fact]
-    public void DirectoryShortcutTarget_ExecutesOnlyShortcutHandlerWithCommittedPath()
+    public void FunctionKeyAndDirectoryShortcutTargets_ExecuteCommittedActions()
     {
         (string CommandId, object? Args)? executed = null;
         var commandLine = new CommandLineState();
@@ -247,17 +247,35 @@ public sealed class ApplicationInputDispatcherTests
         var dispatcher = Dispatcher(context);
         var frame = Frame(commandLine) with
         {
+            FunctionKeyBar = new ApplicationFunctionKeyBarFrame(
+                [new ApplicationFunctionKeyHit(
+                    new Rect(1, 24, 9, 1),
+                    FunctionKeyCommandIds.Search,
+                    FunctionKeyLayer.Alt,
+                    ConsoleKey.F7)]),
             DirectoryShortcutBar = new ApplicationDirectoryShortcutBarFrame(
                 [new ApplicationDirectoryShortcutHit(new Rect(1, 22, 9, 1), 1, @"C:\Rendered")]),
         };
 
-        var request = dispatcher.Handle(new UiRoutedInput<ApplicationUiFrame>(
+        var functionKeyRequest = dispatcher.Handle(new UiRoutedInput<ApplicationUiFrame>(
+            new MouseConsoleInputEvent(2, 24, MouseButton.Left, MouseEventKind.Down, MouseKeyModifiers.None),
+            frame,
+            ApplicationTargetIds.FunctionKeyAction(FunctionKeyLayer.Alt, ConsoleKey.F7),
+            UiInputRouteKind.HitTarget));
+
+        Assert.True(functionKeyRequest.ShouldRender);
+        Assert.NotNull(executed);
+        Assert.Equal(FunctionKeyCommandIds.Search, executed.Value.CommandId);
+        var invocation = Assert.IsType<ApplicationPanelCommandInvocation>(executed.Value.Args);
+        Assert.Equal(PanelSide.Left, invocation.Side);
+
+        var shortcutRequest = dispatcher.Handle(new UiRoutedInput<ApplicationUiFrame>(
             new MouseConsoleInputEvent(2, 22, MouseButton.Left, MouseEventKind.Down, MouseKeyModifiers.None),
             frame,
             ApplicationTargetIds.DirectoryShortcut(1),
             UiInputRouteKind.HitTarget));
 
-        Assert.True(request.ShouldRender);
+        Assert.True(shortcutRequest.ShouldRender);
         Assert.NotNull(executed);
         Assert.Equal(DirectoryShortcutCommandIds.Navigate, executed.Value.CommandId);
         var args = Assert.IsType<NavigateToCommittedDirectoryShortcutArgs>(executed.Value.Args);
@@ -806,7 +824,8 @@ public sealed class ApplicationInputDispatcherTests
         var result = handler.Handle(
             new MouseConsoleInputEvent(1, 1, MouseButton.Left, MouseEventKind.Down, MouseKeyModifiers.None),
             frame,
-            UiInputRouteKind.HitTarget);
+            UiInputRouteKind.HitTarget,
+            ApplicationTargetIds.PanelItem(PanelSide.Left, 0));
 
         Assert.True(result.Handled);
         Assert.Equal(0, state.CursorIndex);
@@ -835,7 +854,8 @@ public sealed class ApplicationInputDispatcherTests
         var result = new ApplicationPanelInputHandler(context).Handle(
             new MouseConsoleInputEvent(1, 1, MouseButton.Left, MouseEventKind.DoubleClick, MouseKeyModifiers.None),
             frame,
-            UiInputRouteKind.HitTarget);
+            UiInputRouteKind.HitTarget,
+            ApplicationTargetIds.PanelItem(PanelSide.Left, 0));
 
         Assert.True(result.Handled);
         Assert.Null(opened);
@@ -873,7 +893,8 @@ public sealed class ApplicationInputDispatcherTests
         var result = new ApplicationPanelInputHandler(context).Handle(
             new MouseConsoleInputEvent(1, 1, MouseButton.Left, MouseEventKind.DoubleClick, MouseKeyModifiers.None),
             frame,
-            UiInputRouteKind.HitTarget);
+            UiInputRouteKind.HitTarget,
+            ApplicationTargetIds.PanelItem(PanelSide.Left, 0));
 
         Assert.True(result.Handled);
         Assert.Null(opened);
@@ -933,7 +954,10 @@ public sealed class ApplicationInputDispatcherTests
             [new ApplicationPanelItemHit(new Rect(41, 2, 10, 1), 1, PanelLocation.Local(@"C:\work\b.txt"))], null, null);
 
         var result = new ApplicationPanelInputHandler(context).Handle(
-            new MouseConsoleInputEvent(41, 2, MouseButton.Right, MouseEventKind.Down, MouseKeyModifiers.None), frame, UiInputRouteKind.HitTarget);
+            new MouseConsoleInputEvent(41, 2, MouseButton.Right, MouseEventKind.Down, MouseKeyModifiers.None),
+            frame,
+            UiInputRouteKind.HitTarget,
+            ApplicationTargetIds.PanelItem(PanelSide.Right, 1));
 
         Assert.True(result.Handled);
         Assert.Equal(PanelSide.Right, activeSide);
@@ -952,7 +976,10 @@ public sealed class ApplicationInputDispatcherTests
         state.Items[0] = state.Items[1];
 
         var result = new ApplicationPanelInputHandler(context).Handle(
-            new MouseConsoleInputEvent(1, 2, MouseButton.Right, MouseEventKind.Down, MouseKeyModifiers.None), frame, UiInputRouteKind.HitTarget);
+            new MouseConsoleInputEvent(1, 2, MouseButton.Right, MouseEventKind.Down, MouseKeyModifiers.None),
+            frame,
+            UiInputRouteKind.HitTarget,
+            ApplicationTargetIds.PanelItem(PanelSide.Left, 0));
 
         Assert.True(result.Handled);
         Assert.Equal(0, state.CursorIndex);
@@ -969,7 +996,10 @@ public sealed class ApplicationInputDispatcherTests
         var frame = new ApplicationPanelFrame(PanelSide.Left, new Rect(0, 0, 40, 10), 3, [], null, null);
 
         var result = new ApplicationPanelInputHandler(context).Handle(
-            new MouseConsoleInputEvent(1, 1, MouseButton.WheelDown, MouseEventKind.Wheel, MouseKeyModifiers.None), frame, UiInputRouteKind.HitTarget);
+            new MouseConsoleInputEvent(1, 1, MouseButton.WheelDown, MouseEventKind.Wheel, MouseKeyModifiers.None),
+            frame,
+            UiInputRouteKind.HitTarget,
+            ApplicationTargetIds.Panel(PanelSide.Left));
 
         Assert.True(result.Handled);
         Assert.Equal(17, state.ScrollOffset);
@@ -985,8 +1015,16 @@ public sealed class ApplicationInputDispatcherTests
         var frame = new ApplicationPanelFrame(PanelSide.Left, new Rect(0, 0, 40, 10), 7, [], new Rect(2, 3, 5, 1), null);
         var handler = new ApplicationPanelInputHandler(context);
 
-        Assert.True(handler.Handle(new MouseConsoleInputEvent(3, 3, MouseButton.Left, MouseEventKind.Down, MouseKeyModifiers.None), frame, UiInputRouteKind.HitTarget).Handled);
-        Assert.True(handler.Handle(new MouseConsoleInputEvent(20, 3, MouseButton.Left, MouseEventKind.Down, MouseKeyModifiers.None), frame, UiInputRouteKind.HitTarget).Handled);
+        Assert.True(handler.Handle(
+            new MouseConsoleInputEvent(3, 3, MouseButton.Left, MouseEventKind.Down, MouseKeyModifiers.None),
+            frame,
+            UiInputRouteKind.HitTarget,
+            ApplicationTargetIds.PanelRetry(PanelSide.Left)).Handled);
+        Assert.True(handler.Handle(
+            new MouseConsoleInputEvent(20, 3, MouseButton.Left, MouseEventKind.Down, MouseKeyModifiers.None),
+            frame,
+            UiInputRouteKind.HitTarget,
+            ApplicationTargetIds.Panel(PanelSide.Left)).Handled);
         Assert.Equal(1, refreshCalls);
         Assert.Equal(7, visibleRows);
     }
@@ -1011,9 +1049,17 @@ public sealed class ApplicationInputDispatcherTests
             .First(hit => hit.Bounds.X > separatorX);
         var handler = new ApplicationPanelInputHandler(Context(new CommandLineState(), panelState: state));
 
-        handler.Handle(new MouseConsoleInputEvent(separatorX, secondColumnItem.Bounds.Y, MouseButton.Left, MouseEventKind.Down, MouseKeyModifiers.None), frame, UiInputRouteKind.HitTarget);
+        handler.Handle(
+            new MouseConsoleInputEvent(separatorX, secondColumnItem.Bounds.Y, MouseButton.Left, MouseEventKind.Down, MouseKeyModifiers.None),
+            frame,
+            UiInputRouteKind.HitTarget,
+            ApplicationTargetIds.Panel(PanelSide.Left));
         Assert.Equal(0, state.CursorIndex);
-        handler.Handle(new MouseConsoleInputEvent(secondColumnItem.Bounds.X, secondColumnItem.Bounds.Y, MouseButton.Left, MouseEventKind.Down, MouseKeyModifiers.None), frame, UiInputRouteKind.HitTarget);
+        handler.Handle(
+            new MouseConsoleInputEvent(secondColumnItem.Bounds.X, secondColumnItem.Bounds.Y, MouseButton.Left, MouseEventKind.Down, MouseKeyModifiers.None),
+            frame,
+            UiInputRouteKind.HitTarget,
+            ApplicationTargetIds.PanelItem(PanelSide.Left, secondColumnItem.ItemIndex));
         Assert.Equal(secondColumnItem.ItemIndex, state.CursorIndex);
     }
 
