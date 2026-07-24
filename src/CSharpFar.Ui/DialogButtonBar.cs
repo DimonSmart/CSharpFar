@@ -42,7 +42,7 @@ public sealed class DialogButtonBar
     }
 
     public int Count => _buttons.Count;
-    public int DesiredWidth => _buttons.Sum(button => FormatButton(button).Length) + Math.Max(0, _buttons.Count - 1);
+    public int DesiredWidth => _buttons.Sum(button => ConsoleTextMetrics.GetCellWidth(FormatButton(button))) + Math.Max(0, _buttons.Count - 1);
 
     public static int MeasureWidth(IReadOnlyList<DialogButton> buttons) =>
         new DialogButtonBar(buttons).DesiredWidth;
@@ -58,9 +58,10 @@ public sealed class DialogButtonBar
         var bounds = new List<Rect>(labels.Length);
         for (int i = 0; i < labels.Length; i++)
         {
-            var visibleBounds = Intersect(new Rect(cursorX, y, labels[i].Length, 1), areaBounds);
+            int labelWidth = ConsoleTextMetrics.GetCellWidth(labels[i]);
+            var visibleBounds = Intersect(new Rect(cursorX, y, labelWidth, 1), areaBounds);
             bounds.Add(visibleBounds.Width > 0 ? visibleBounds : new Rect(cursorX, y, 0, 1));
-            cursorX += labels[i].Length + 1;
+            cursorX += labelWidth + 1;
         }
 
         return new DialogButtonBarLayout(areaBounds, bounds.AsReadOnly());

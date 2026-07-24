@@ -166,8 +166,8 @@ public sealed class SelectionListDialog<T>
 
     private SelectionListLayout CalculateLayout(ConsoleSize size)
     {
-        int itemWidth = _list.Count == 0 ? EmptyText?.Length ?? 0 : _list.Items.Max(item => _list.ItemText(item).Length);
-        int contentWidth = Math.Max(DefaultMinWidth, Math.Max(itemWidth, _title.Length) + 2);
+        int itemWidth = _list.Count == 0 ? ConsoleTextMetrics.GetCellWidth(EmptyText ?? string.Empty) : _list.Items.Max(item => ConsoleTextMetrics.GetCellWidth(_list.ItemText(item)));
+        int contentWidth = Math.Max(DefaultMinWidth, Math.Max(itemWidth, ConsoleTextMetrics.GetCellWidth(_title)) + 2);
         int maxWidth = MaxWidth.HasValue ? Math.Min(MaxWidth.Value, size.Width) : size.Width - 2;
         contentWidth = Math.Min(contentWidth, Math.Max(DefaultMinWidth, maxWidth - 2));
 

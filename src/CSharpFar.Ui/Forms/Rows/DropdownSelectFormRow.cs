@@ -92,7 +92,7 @@ public sealed class DropdownSelectFormRow<T> : FormRow, IFormCursorProvider, IFo
 
     private DropdownSelectFormRowLayout CalculateLayout(Rect bounds)
     {
-        int labelWidth = Math.Min(bounds.Width, _label.Length == 0 ? 0 : _label.Length + 1);
+        int labelWidth = Math.Min(bounds.Width, _label.Length == 0 ? 0 : ConsoleTextMetrics.GetCellWidth(_label) + 1);
         int fieldX = bounds.X + labelWidth;
         return new DropdownSelectFormRowLayout(
             labelWidth,

@@ -168,6 +168,17 @@ public sealed class ChoiceRowTests
     }
 
     [Fact]
+    public void SegmentedLayout_UsesCellOffsetsForCombiningTextAndWideChoices()
+    {
+        var row = new ChoiceRow<string>(["e\u0301", "界"], static value => value);
+        var layout = row.CalculateSegmentedLayout(0, 1, 20, string.Empty);
+
+        Assert.Equal(new Rect(6, 1, 6, 1), layout.Choices[1].Bounds);
+        Assert.True(row.TryHandleMouse(Mouse(6, 1), layout));
+        Assert.Equal("界", row.Value);
+    }
+
+    [Fact]
     public void SegmentedLayout_PartiallyClippedMarkerDoesNotReturnInvalidCursorBounds()
     {
         var row = new ChoiceRow<string>(["one"], static value => value);

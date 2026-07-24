@@ -131,14 +131,14 @@ public sealed class TextInputWithButtonsRow : FormRow, IFormOverlayRow, IFormCur
             return FormInputResult.NotHandled;
         }
 
-        int target = Math.Clamp(mouse.X - layout.InputBounds.X, 0, Math.Min(_buffer.Text.Length, layout.InputBounds.Width));
+        int target = ConsoleTextMetrics.Utf16IndexFromCellOffset(_buffer.Text, mouse.X - layout.InputBounds.X);
         _buffer.MoveCursor(target - _buffer.CursorPosition);
         return FormInputResult.Handled;
     }
 
     private TextInputWithButtonsLayout CalculateLayout(Rect rowBounds)
     {
-        int labelWidth = Math.Min(_label.Length + 1, Math.Max(0, rowBounds.Width));
+        int labelWidth = Math.Min(ConsoleTextMetrics.GetCellWidth(_label) + 1, Math.Max(0, rowBounds.Width));
         int inputX = rowBounds.X + labelWidth;
         int remainingAfterLabel = Math.Max(0, rowBounds.Width - labelWidth);
         int inputWidth = Math.Min(_inputWidth, remainingAfterLabel);

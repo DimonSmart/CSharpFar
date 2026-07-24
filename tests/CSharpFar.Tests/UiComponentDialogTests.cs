@@ -405,6 +405,17 @@ public sealed class UiComponentDialogTests
     }
 
     [Fact]
+    public void DialogButtonBar_UsesCellWidthForCombiningButtonText()
+    {
+        var buttonBar = new DialogButtonBar([new DialogButton("ok", "e\u0301", 'E')]);
+
+        DialogButtonBarLayout layout = buttonBar.CalculateLayout(0, 0, 5);
+
+        Assert.Equal(5, buttonBar.DesiredWidth);
+        Assert.Equal(new Rect(0, 0, 5, 1), layout.ButtonBounds[0]);
+    }
+
+    [Fact]
     public void DialogButtonBar_MousePressIsVisibleAndActivatesOnMatchingRelease()
     {
         var driver = new FakeConsoleDriver(40, 8);

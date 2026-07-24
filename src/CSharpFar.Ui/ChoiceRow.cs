@@ -96,18 +96,19 @@ public sealed class ChoiceRow<T>
         string prefix = string.IsNullOrEmpty(label) ? string.Empty : label + " ";
         var choices = new List<ChoiceHitTarget>();
         var areaBounds = new Rect(x, y, Math.Max(0, width), 1);
-        int column = prefix.Length;
+        int column = ConsoleTextMetrics.GetCellWidth(prefix);
         for (int i = startIndex; i < exclusiveEnd; i++)
         {
             string optionText = $"{(i == SelectedIndex ? "(x)" : "( )")} {_format(_choices[i])}";
-            var optionBounds = new Rect(x + column, y, optionText.Length, 1);
+            int optionWidth = ConsoleTextMetrics.GetCellWidth(optionText);
+            var optionBounds = new Rect(x + column, y, optionWidth, 1);
             var visibleBounds = Intersect(optionBounds, areaBounds);
             if (visibleBounds.Width > 0)
             {
                 var markerBounds = Intersect(new Rect(optionBounds.X, y, 3, 1), areaBounds);
                 choices.Add(new ChoiceHitTarget(i, visibleBounds, markerBounds));
             }
-            column += optionText.Length + 1;
+            column += optionWidth + 1;
         }
 
         return new ChoiceRowLayout(
