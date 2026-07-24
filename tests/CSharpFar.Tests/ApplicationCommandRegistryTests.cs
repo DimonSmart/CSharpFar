@@ -353,7 +353,7 @@ public sealed class ApplicationCommandRegistryTests : IDisposable
 
         var request = services.ApplicationInputDispatcher.Handle(new UiRoutedInput<ApplicationUiFrame>(
             new MouseConsoleInputEvent(2, 24, MouseButton.Left, MouseEventKind.Down, MouseKeyModifiers.None),
-            frame, ApplicationTargetIds.FunctionKeyBar, UiInputRouteKind.HitTarget));
+            frame, ApplicationTargetIds.FunctionKeyAction(FunctionKeyLayer.Control, ConsoleKey.F3), UiInputRouteKind.HitTarget));
 
         Assert.True(request.ShouldRender);
         Assert.Equal(SortMode.Name, services.CommandContext.LeftPanel.SortMode);

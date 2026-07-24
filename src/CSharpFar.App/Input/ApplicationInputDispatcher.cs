@@ -112,27 +112,7 @@ internal sealed class ApplicationInputDispatcher
         UiTargetId? target,
         out ApplicationFunctionKeyHit action)
     {
-        if (frame.TryGetPointerAction(target, out action))
-            return true;
-
-        // Older focused tests construct a generic bar target directly. The live
-        // interaction frame never emits it; allow it only when the committed
-        // frame contains one unambiguous rendered action, without coordinate hit testing.
-        if (target == ApplicationTargetIds.FunctionKeyBar)
-        {
-            ApplicationFunctionKeyHit[] rendered = frame.Actions
-                .Where(candidate => candidate.Bounds.Width > 0 && candidate.Bounds.Height > 0)
-                .Take(2)
-                .ToArray();
-            if (rendered.Length == 1)
-            {
-                action = rendered[0];
-                return true;
-            }
-        }
-
-        action = null!;
-        return false;
+        return frame.TryGetPointerAction(target, out action);
     }
 
     private static bool TryResolveDirectoryShortcutPointer(
@@ -140,16 +120,6 @@ internal sealed class ApplicationInputDispatcher
         UiTargetId? target,
         out ApplicationDirectoryShortcutHit shortcut)
     {
-        if (frame.TryGetPointerShortcut(target, out shortcut))
-            return true;
-
-        if (target == ApplicationTargetIds.DirectoryShortcutBar && frame.Shortcuts.Count == 1)
-        {
-            shortcut = frame.Shortcuts[0];
-            return true;
-        }
-
-        shortcut = null!;
-        return false;
+        return frame.TryGetPointerShortcut(target, out shortcut);
     }
 }

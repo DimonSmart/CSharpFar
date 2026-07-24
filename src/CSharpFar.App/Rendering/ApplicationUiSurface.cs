@@ -86,9 +86,6 @@ internal static class ApplicationTargetIds
     public static UiTargetId LeftPanelScrollbar { get; } = new("application.left-panel.scrollbar");
     public static UiTargetId RightPanel { get; } = new("application.right-panel");
     public static UiTargetId RightPanelScrollbar { get; } = new("application.right-panel.scrollbar");
-    public static UiTargetId FunctionKeyBar { get; } = new("application.function-key-bar");
-    public static UiTargetId DirectoryShortcutBar { get; } = new("application.directory-shortcut-bar");
-
     private static UiTargetId LeftPanelRetry { get; } = new("application.left-panel.retry");
     private static UiTargetId RightPanelRetry { get; } = new("application.right-panel.retry");
 
