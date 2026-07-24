@@ -21,8 +21,6 @@ internal sealed class SearchProgressDialog
     private const int RedrawDelayMilliseconds = 60;
     private const string GoToButton = "goto";
     private const string StopButton = "stop";
-    private static readonly UiTargetId ListTarget = new("search-progress.results");
-    private static readonly UiTargetId ScrollbarTarget = new("search-progress.results.scrollbar");
 
     private readonly ModalDialogHost _modalDialogs;
     private readonly ISearchService _searchService;
@@ -52,6 +50,10 @@ internal sealed class SearchProgressDialog
             SelectedStyle = FarDialogStyles.Input,
             EmptyStyle = FarDialogStyles.Fill,
         };
+        var routedList = new RoutedScrollableList<SearchResultItem>(
+            list,
+            new UiTargetId("search-progress.results"),
+            new UiTargetId("search-progress.results.scrollbar"));
         var state = new SearchProgressViewState(
             latestProgress,
             Array.Empty<SearchResultItem>(),
@@ -100,9 +102,9 @@ internal sealed class SearchProgressDialog
         try
         {
             completion = _modalDialogs.RunInteractiveTimed<SearchProgressFrame, SearchProgressInput, SearchDialogCompletion>(
-                (context, focusScope) => Render(context, focusScope, request, state, list, form, CanGoTo(), CanRequestStop()),
-                BuildInteractionFrame,
-                (input, frame, route) => RouteInput(input, frame, route, list, form),
+                (context, focusScope) => Render(context, focusScope, request, state, routedList, form, CanGoTo(), CanRequestStop()),
+                frame => BuildInteractionFrame(frame, routedList),
+                (input, frame, route) => RouteInput(input, frame, route, routedList, form),
                 (_, input) => HandleInput(input),
                 getNextWakeUtc: GetNextWakeUtc,
                 handleWake: HandleWake,
@@ -114,7 +116,7 @@ internal sealed class SearchProgressDialog
                 applyCommittedFrame: frame =>
                 {
                     committedListRows = frame.ListState.ViewportRows;
-                    list.ApplyCommittedFrame(frame.ListState);
+                    routedList.ApplyCommittedFrame(frame.ListState);
                 },
                 wakeSignal: completionWake.Token);
         }
@@ -275,7 +277,7 @@ internal sealed class SearchProgressDialog
         IUiFocusState focusScope,
         SearchRequest request,
         SearchProgressViewState state,
-        ScrollableList<SearchResultItem> list,
+        RoutedScrollableList<SearchResultItem> list,
         ScrollableFormDialog form,
         bool canGoTo,
         bool canStop)
@@ -317,9 +319,9 @@ internal sealed class SearchProgressDialog
                 int listHeight = VisibleResultRows(bounds);
                 Rect listBounds = new(contentX, listY, contentWidth, listHeight);
                 Rect scrollbarBounds = new(bounds.Right - 1, listY, 1, listHeight);
-                listState = list.CalculateFrameState(listHeight, list.Count > listHeight ? scrollbarBounds : null);
+                listState = list.CalculateFrame(listHeight, list.List.Count > listHeight ? scrollbarBounds : null);
                 list.Render(context.Canvas, listBounds, listState);
-                if (list.GetScrollState(listHeight, listState.ScrollTop) is { } scrollState)
+                if (list.List.GetScrollState(listHeight, listState.ScrollTop) is { } scrollState)
                 {
                     new ScrollBarRenderer().RenderVerticalScrollbar(
                         context.Canvas,
@@ -336,8 +338,8 @@ internal sealed class SearchProgressDialog
                         FarDialogStyles.Border,
                         new Rect(contentX, bounds.Y + bounds.Height - 2, contentWidth, 1)),
                     focusScope,
-                    [new UiFocusEntry(ListTarget, 0)],
-                    ListTarget);
+                    [new UiFocusEntry(list.ListTarget, 0)],
+                    list.ListTarget);
                 resultLayout = new SearchProgressLayout(bounds, listBounds, scrollbarBounds, listHeight);
             });
 
@@ -351,15 +353,14 @@ internal sealed class SearchProgressDialog
             canStop);
     }
 
-    private static UiInteractionFrame BuildInteractionFrame(SearchProgressFrame frame)
+    private static UiInteractionFrame BuildInteractionFrame(
+        SearchProgressFrame frame,
+        RoutedScrollableList<SearchResultItem> list)
     {
         var builder = new UiInteractionFrameBuilder()
-            .AddHitRegion(ListTarget, frame.Layout.ListBounds)
-            .AddFocusEntry(ListTarget, 0)
-            .SetDefaultFocusTarget(ListTarget)
-            .SetKeyboardTarget(ListTarget);
-        if (frame.ListState.ScrollbarBounds is { } scrollbar)
-            builder.AddHitRegion(ScrollbarTarget, scrollbar);
+            .AddFragment(list.BuildInteractionFragment(frame.Layout.ListBounds, frame.ListState, 0))
+            .SetDefaultFocusTarget(list.ListTarget)
+            .SetKeyboardTarget(list.ListTarget);
         builder.AddFragment(frame.Form.BuildInteractionFragment(frame.Buttons));
 
         return builder.Build();
@@ -369,19 +370,18 @@ internal sealed class SearchProgressDialog
         ConsoleInputEvent input,
         SearchProgressFrame frame,
         UiInputRouteContext route,
-        ScrollableList<SearchResultItem> list,
+        RoutedScrollableList<SearchResultItem> list,
         ScrollableFormDialog form)
     {
-        list.ApplyCommittedFrame(frame.ListState);
         if (input is KeyConsoleInputEvent { Key.Key: ConsoleKey.Escape })
             return frame.CanStop
                 ? (SearchProgressInput.Stop, UiInputResult.HandledResult)
                 : (SearchProgressInput.None, UiInputResult.HandledResult);
 
-        if (input is KeyConsoleInputEvent { Key: var focusKey } && TryRouteFocusKey(focusKey, frame, route, out UiInputResult focusResult))
+        if (input is KeyConsoleInputEvent { Key: var focusKey } && TryRouteFocusKey(focusKey, frame, route, list.ListTarget, out UiInputResult focusResult))
             return (SearchProgressInput.None, focusResult);
 
-        bool isListRoute = route.Target == ListTarget || route.Target == ScrollbarTarget;
+        bool isListRoute = list.IsTargetRoute(route);
         if (!isListRoute)
         {
             FormRouteResult formResult = form.RouteInput(input, frame.Buttons, route, allowUnfocusedButtonHotkeys: true);
@@ -398,34 +398,22 @@ internal sealed class SearchProgressDialog
         if (!frame.CanGoTo)
             return (SearchProgressInput.None, UiInputResult.HandledAndInvalidate);
 
-        ScrollableListInputResult listInput = input switch
-        {
-            KeyConsoleInputEvent { Key: var key } => list.HandleKey(key, frame.ListState.ViewportRows),
-            MouseConsoleInputEvent mouse => list.HandleMouse(
-                mouse,
-                frame.Layout.ListBounds,
-                frame.ListState),
-            _ => ScrollableListInputResult.NotHandled,
-        };
+        RoutedScrollableListInputResult routedResult = list.RouteInput(input, frame.Layout.ListBounds, frame.ListState, route);
+        ScrollableListInputResult listInput = routedResult.ListResult;
 
         if (!listInput.IsHandled)
             return (SearchProgressInput.None, UiInputResult.NotHandled);
 
         if (listInput.Kind == ScrollableListInputResultKind.Confirmed &&
             frame.CanGoTo &&
-            list.SelectedIndex >= 0 &&
-            list.SelectedIndex < frame.Results.Length)
+            list.List.SelectedIndex >= 0 &&
+            list.List.SelectedIndex < frame.Results.Length)
         {
-            SearchResultItem confirmed = frame.Results[list.SelectedIndex];
+            SearchResultItem confirmed = frame.Results[list.List.SelectedIndex];
             return (SearchProgressInput.GoTo(confirmed), UiInputResult.HandledAndInvalidate);
         }
 
-        if (listInput.DragStarted)
-            return (SearchProgressInput.None, UiInputResult.CaptureMouse(ScrollbarTarget, MouseButton.Left, invalidate: true));
-        if (listInput.DragEnded)
-            return (SearchProgressInput.None, UiInputResult.ReleaseMouse(invalidate: true));
-
-        return (SearchProgressInput.None, UiInputResult.HandledAndInvalidate);
+        return (SearchProgressInput.None, routedResult.UiResult);
     }
 
     private static SearchProgressInput ButtonInput(SearchProgressFrame frame, string? buttonId) =>
@@ -440,6 +428,7 @@ internal sealed class SearchProgressDialog
         ConsoleKeyInfo key,
         SearchProgressFrame frame,
         UiInputRouteContext route,
+        UiTargetId listTarget,
         out UiInputResult result)
     {
         if (key.Key != ConsoleKey.Tab)
@@ -448,13 +437,13 @@ internal sealed class SearchProgressDialog
             return false;
         }
 
-        if (route.Target == ListTarget && frame.Buttons.DefaultTarget is UiTargetId buttonTarget)
+        if (route.Target == listTarget && frame.Buttons.DefaultTarget is UiTargetId buttonTarget)
         {
             result = UiInputResult.RequestFocus(buttonTarget);
             return true;
         }
 
-        result = UiInputResult.RequestFocus(ListTarget);
+        result = UiInputResult.RequestFocus(listTarget);
         return true;
     }
 
