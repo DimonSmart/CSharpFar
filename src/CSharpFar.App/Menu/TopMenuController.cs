@@ -1,9 +1,6 @@
 using CSharpFar.App.Rendering;
-using CSharpFar.Console.Input;
-using CSharpFar.Console.Models;
 using CSharpFar.Core.Menu;
 using CSharpFar.Core.Models;
-using CSharpFar.Ui;
 
 namespace CSharpFar.App.Menu;
 
@@ -11,7 +8,6 @@ public sealed class TopMenuController
 {
     private readonly MenuState _state;
     private readonly Func<MenuCommandRequest, MenuCommandResult> _executeCommand;
-    private readonly VerticalScrollbarController _dropdownScrollbar = new();
 
     public TopMenuController(
         MenuState state,
@@ -103,43 +99,48 @@ public sealed class TopMenuController
         _state.OpenState = MenuOpenState.Closed;
         _state.ActiveDropdownItemIndex = 0;
         _state.DropdownFirstVisibleItemIndex = 0;
-        _dropdownScrollbar.ApplyCommittedFrame(null);
     }
 
-    internal void CommitDropdownViewport(
-        Rect? scrollbarBounds,
-        int totalItems,
+    internal void CommitDropdownViewport(int firstVisibleIndex)
+    {
+        _state.DropdownFirstVisibleItemIndex = _state.OpenState == MenuOpenState.DropdownOpen
+            ? Math.Max(0, firstVisibleIndex)
+            : 0;
+    }
+
+    internal void ApplyDropdownViewport(
+        MenuBarDefinition definition,
+        int activeTopMenuIndex,
         int viewportItems,
         int firstVisibleIndex)
     {
         if (_state.OpenState != MenuOpenState.DropdownOpen ||
-            totalItems <= viewportItems ||
+            _state.ActiveTopMenuIndex != activeTopMenuIndex ||
+            activeTopMenuIndex < 0 ||
+            activeTopMenuIndex >= definition.Items.Count ||
             viewportItems <= 0)
         {
-            _state.DropdownFirstVisibleItemIndex = 0;
-            _dropdownScrollbar.ApplyCommittedFrame(null);
             return;
         }
 
-        _state.DropdownFirstVisibleItemIndex = ScrollStateCalculator.ClampFirstVisibleIndex(
-            firstVisibleIndex,
-            totalItems,
-            viewportItems);
-
-        if (scrollbarBounds is null)
+        IReadOnlyList<MenuItemDefinition> children = definition.Items[activeTopMenuIndex].Children;
+        if (children.Count == 0)
         {
-            _dropdownScrollbar.ApplyCommittedFrame(null);
+            _state.DropdownFirstVisibleItemIndex = 0;
             return;
         }
 
-        _dropdownScrollbar.ApplyCommittedFrame(_dropdownScrollbar.CalculateFrame(
-            scrollbarBounds,
-            new ScrollState
-            {
-                TotalItems = totalItems,
-                ViewportItems = viewportItems,
-                FirstVisibleIndex = _state.DropdownFirstVisibleItemIndex,
-            }));
+        int normalizedFirst = ScrollStateCalculator.ClampFirstVisibleIndex(
+            firstVisibleIndex,
+            children.Count,
+            viewportItems);
+        int lastVisibleIndex = Math.Min(children.Count - 1, normalizedFirst + viewportItems - 1);
+        _state.ActiveDropdownItemIndex = SelectableIndexInRange(
+            children,
+            _state.ActiveDropdownItemIndex,
+            normalizedFirst,
+            lastVisibleIndex);
+        _state.DropdownFirstVisibleItemIndex = normalizedFirst;
     }
 
     private void OpenForPanel(MenuBarDefinition definition, PanelSide panelSide)
@@ -159,51 +160,6 @@ public sealed class TopMenuController
         _state.OpenState = MenuOpenState.DropdownOpen;
         _state.ActiveDropdownItemIndex = FirstSelectableIndex(CurrentChildren(definition));
         _state.DropdownFirstVisibleItemIndex = 0;
-        _dropdownScrollbar.ApplyCommittedFrame(null);
-    }
-
-    internal bool HandleDropdownScrollbarMouse(
-        MouseConsoleInputEvent mouse,
-        MenuBarDefinition definition,
-        MenuLayout layout)
-    {
-        if (_state.OpenState != MenuOpenState.DropdownOpen ||
-            layout.DropdownBounds is not { } dropdown ||
-            _state.ActiveTopMenuIndex < 0 ||
-            _state.ActiveTopMenuIndex >= definition.Items.Count)
-        {
-            return false;
-        }
-
-        var children = definition.Items[_state.ActiveTopMenuIndex].Children;
-        int visibleRows = Math.Max(0, dropdown.Height - 2);
-        int selectedIndex = _state.ActiveDropdownItemIndex;
-        int firstVisibleIndex = layout.DropdownFirstVisibleItemIndex;
-        var scrollbarBounds = new Rect(dropdown.Right - 1, dropdown.Y + 1, 1, visibleRows);
-        var scrollbarState = new ScrollState
-        {
-            TotalItems = children.Count,
-            ViewportItems = visibleRows,
-            FirstVisibleIndex = firstVisibleIndex,
-        };
-        if (!ScrollBarInteraction.IsInteractive(scrollbarBounds, scrollbarState))
-            return false;
-
-        VerticalScrollbarFrame? scrollbarFrame = _dropdownScrollbar.CalculateFrame(scrollbarBounds, scrollbarState);
-        if (scrollbarFrame is null)
-            return false;
-
-        VerticalScrollbarInputResult scrollbarResult = _dropdownScrollbar.HandleMouse(mouse, scrollbarFrame.Value);
-        if (!scrollbarResult.IsHandled)
-        {
-            return false;
-        }
-
-        firstVisibleIndex = scrollbarResult.FirstVisibleIndex;
-        int lastVisibleIndex = Math.Min(children.Count - 1, firstVisibleIndex + visibleRows - 1);
-        _state.ActiveDropdownItemIndex = SelectableIndexInRange(children, selectedIndex, firstVisibleIndex, lastVisibleIndex);
-        _state.DropdownFirstVisibleItemIndex = firstVisibleIndex;
-        return true;
     }
 
     private static int SelectableIndexInRange(
@@ -404,5 +360,4 @@ public sealed class TopMenuController
 
     private static bool IsPlainKey(ConsoleKeyInfo key, ConsoleKey consoleKey) =>
         key.Key == consoleKey && key.Modifiers == 0;
-
 }
