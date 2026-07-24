@@ -45,6 +45,31 @@ public static class ConsoleTextMetrics
         return truncated + new string(' ', cells - GetCellWidth(truncated));
     }
 
+    public static string TruncateEndToCells(string text, int cells)
+    {
+        ArgumentNullException.ThrowIfNull(text);
+        if (cells <= 0)
+            return string.Empty;
+        if (GetCellWidth(text) <= cells)
+            return text;
+        if (cells == 1)
+            return "…";
+
+        int start = text.Length;
+        int width = 0;
+        foreach (Rune rune in text.EnumerateRunes().Reverse())
+        {
+            int runeWidth = GetCellWidth(rune);
+            if (width + runeWidth > cells - 1)
+                break;
+
+            width += runeWidth;
+            start -= rune.Utf16SequenceLength;
+        }
+
+        return "…" + text[start..];
+    }
+
     public static int Utf16IndexFromCellOffset(string text, int cellOffset)
     {
         ArgumentNullException.ThrowIfNull(text);

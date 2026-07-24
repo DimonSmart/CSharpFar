@@ -31,10 +31,9 @@ public sealed class DialogFrameRenderer
                 return;
 
             string titleText = $" {title} ";
-            if (titleText.Length > bounds.Width)
-                titleText = titleText[..bounds.Width];
+            titleText = ConsoleTextMetrics.TruncateToCells(titleText, bounds.Width);
 
-            int titleX = bounds.X + Math.Max(0, (bounds.Width - titleText.Length) / 2);
+            int titleX = bounds.X + Math.Max(0, (bounds.Width - ConsoleTextMetrics.GetCellWidth(titleText)) / 2);
             renderer.Write(titleX, bounds.Y, titleText, options.TitleStyle ?? options.BorderStyle);
         });
     }

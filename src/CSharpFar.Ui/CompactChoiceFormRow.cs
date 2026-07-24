@@ -31,7 +31,7 @@ public sealed class CompactChoiceFormRow<T> : FormRow, IFormCursorProvider
             return false;
         }
 
-        int valueOffset = _label.Length + 2;
+        int valueOffset = ConsoleTextMetrics.GetCellWidth(_label) + 2;
         cursor = new FormCursorPlacement(context.Bounds.X + Math.Min(context.Bounds.Width - 1, valueOffset), context.Bounds.Y);
         return true;
     }

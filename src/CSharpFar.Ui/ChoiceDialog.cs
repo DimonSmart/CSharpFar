@@ -100,9 +100,9 @@ public sealed class ChoiceDialog
 
     private static ChoiceDialogLayout CreateLayout(ChoiceDialogOptions options, ConsoleSize size)
     {
-        int lineWidth = options.Lines.DefaultIfEmpty(string.Empty).Max(line => line.Length);
+        int lineWidth = options.Lines.DefaultIfEmpty(string.Empty).Max(ConsoleTextMetrics.GetCellWidth);
         int buttonWidth = DialogButtonBar.MeasureWidth(options.Buttons);
-        int titleWidth = string.IsNullOrEmpty(options.Title) ? 0 : options.Title.Length + 2;
+        int titleWidth = string.IsNullOrEmpty(options.Title) ? 0 : ConsoleTextMetrics.GetCellWidth(options.Title) + 2;
         int desiredWidth = Math.Max(MinDialogWidth, Math.Max(Math.Max(lineWidth, buttonWidth), titleWidth) + 4);
         int width = Math.Min(Math.Min(MaxDialogWidth, desiredWidth), Math.Max(1, size.Width));
 

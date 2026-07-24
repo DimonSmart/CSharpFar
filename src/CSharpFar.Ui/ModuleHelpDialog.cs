@@ -84,7 +84,7 @@ public sealed class ModuleHelpDialog
         var palette = UiTheme.Current;
         var headerStyle = PaletteStyles.PathHeaderActive(palette);
         string position = lines.Count == 0 ? " 0/0 " : $" {frame.Viewport.FirstVisibleIndex + 1}/{lines.Count} ";
-        int titleWidth = Math.Max(0, frame.Size.Width - position.Length);
+        int titleWidth = Math.Max(0, frame.Size.Width - ConsoleTextMetrics.GetCellWidth(position));
         screen.Write(0, 0, ConsoleTextMetrics.FitToCells(" " + title + " ", titleWidth) + position, headerStyle);
 
         var bodyStyle = PaletteStyles.HelpBody(palette);

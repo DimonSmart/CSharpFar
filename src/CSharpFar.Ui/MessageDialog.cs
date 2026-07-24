@@ -144,7 +144,7 @@ public sealed class MessageDialog
             {
                 const string hint = "[ Press Enter ]";
                 screen.Write(
-                    layout.Bounds.X + Math.Max(0, (layout.Bounds.Width - hint.Length) / 2),
+                    layout.Bounds.X + Math.Max(0, (layout.Bounds.Width - ConsoleTextMetrics.GetCellWidth(hint)) / 2),
                     layout.ActionRow,
                     hint,
                     PaletteStyles.DialogFill(palette));
@@ -170,8 +170,8 @@ public sealed class MessageDialog
     {
         int availableWidth = Math.Max(1, size.Width - 2);
         int rawTextWidth = LongestRawLine(message);
-        int buttonWidth = buttons is null ? "[ Press Enter ]".Length : DialogButtonBar.MeasureWidth(buttons);
-        int titleWidth = string.IsNullOrEmpty(title) ? 0 : title.Length + 2;
+        int buttonWidth = buttons is null ? ConsoleTextMetrics.GetCellWidth("[ Press Enter ]") : DialogButtonBar.MeasureWidth(buttons);
+        int titleWidth = string.IsNullOrEmpty(title) ? 0 : ConsoleTextMetrics.GetCellWidth(title) + 2;
         int desiredWidth = Math.Max(MinDialogWidth, Math.Max(Math.Max(rawTextWidth, buttonWidth), titleWidth) + 4);
         int width = Math.Min(Math.Min(MaxDialogWidth, desiredWidth), availableWidth);
         int textWidth = Math.Max(1, width - 4);
@@ -288,7 +288,7 @@ public sealed class MessageDialog
         string normalized = (message ?? string.Empty)
             .Replace("\r\n", "\n", StringComparison.Ordinal)
             .Replace('\r', '\n');
-        return normalized.Split('\n').DefaultIfEmpty(string.Empty).Max(line => line.Length);
+        return normalized.Split('\n').DefaultIfEmpty(string.Empty).Max(ConsoleTextMetrics.GetCellWidth);
     }
 
     private static string Fit(string text, int width)

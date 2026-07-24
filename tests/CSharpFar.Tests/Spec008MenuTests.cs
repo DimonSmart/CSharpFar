@@ -458,6 +458,24 @@ public sealed class Spec008MenuLayoutAndRenderingTests
         Assert.Equal(ConsoleColor.Yellow, driver.GetCell(10, 2).Background);
     }
 
+    [Fact]
+    public void DialogFrameRenderer_CentersWideUnicodeTitleByCellWidth()
+    {
+        var driver = new FakeConsoleDriver(width: 20, height: 8);
+        var screen = new ScreenRenderer(driver);
+        var options = new PopupRenderOptions
+        {
+            BorderStyle = new CellStyle(ConsoleColor.White, ConsoleColor.Blue),
+            BackgroundStyle = new CellStyle(ConsoleColor.White, ConsoleColor.Blue),
+            ShadowStyle = new CellStyle(ConsoleColor.Black, ConsoleColor.Black),
+        };
+
+        UiTestRender.Render(screen, canvas =>
+            new DialogFrameRenderer().RenderFrame(canvas, new Rect(2, 1, 11, 4), "界😀", false, options, (_, _) => { }));
+
+        Assert.Contains(driver.WriteRecords, record => record.X == 2 && record.Y == 1 && record.Text == "┌─ 界😀 ──┐");
+    }
+
     private static MenuRenderOptions MenuOptions() =>
         new()
         {

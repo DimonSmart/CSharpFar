@@ -59,7 +59,7 @@ public sealed class ConfirmDialog
             screen.Write(contentX, bounds.Y + 1, ConsoleTextMetrics.FitToCells(question, contentWidth), FarDialogStyles.Fill);
 
             string truncatedName = Truncate(itemName, contentWidth);
-            int nameX = contentX + Math.Max(0, (contentWidth - truncatedName.Length) / 2);
+            int nameX = contentX + Math.Max(0, (contentWidth - ConsoleTextMetrics.GetCellWidth(truncatedName)) / 2);
             screen.Write(contentX, bounds.Y + 2, new string(' ', contentWidth), FarDialogStyles.Fill);
             screen.Write(nameX, bounds.Y + 2, truncatedName, FarDialogStyles.Fill);
 
@@ -75,5 +75,5 @@ public sealed class ConfirmDialog
     }
 
     private static string Truncate(string s, int maxLen) =>
-        s.Length <= maxLen ? s : "\u2026" + s[^(maxLen - 1)..];
+        ConsoleTextMetrics.TruncateEndToCells(s, maxLen);
 }

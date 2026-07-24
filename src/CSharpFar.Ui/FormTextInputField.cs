@@ -75,8 +75,10 @@ internal sealed class FormTextInputField
         }
 
         int textWidth = _history is null ? bounds.Width : Math.Max(1, bounds.Width - 1);
-        int visibleStart = Math.Max(0, _buffer.CursorPosition - Math.Max(0, textWidth - 1));
-        int target = Math.Clamp(visibleStart + mouse.X - bounds.X, 0, _buffer.Text.Length);
+        int cursorCell = ConsoleTextMetrics.CellOffsetFromUtf16Index(_buffer.Text, _buffer.CursorPosition);
+        int visibleStart = ConsoleTextMetrics.Utf16IndexFromCellOffset(_buffer.Text, Math.Max(0, cursorCell - Math.Max(0, textWidth - 1)));
+        int visibleStartCell = ConsoleTextMetrics.CellOffsetFromUtf16Index(_buffer.Text, visibleStart);
+        int target = ConsoleTextMetrics.Utf16IndexFromCellOffset(_buffer.Text, visibleStartCell + mouse.X - bounds.X);
         _buffer.MoveCursor(target - _buffer.CursorPosition);
         return FormInputResult.Handled;
     }
