@@ -321,6 +321,20 @@ public sealed class UiComponentDialogTests
     }
 
     [Fact]
+    public void ListWithButtonsDialog_DeleteWorksWhileFooterHasFocus()
+    {
+        var driver = new FakeConsoleDriver(80, 20);
+        driver.EnqueueKey(Key(ConsoleKey.Tab));
+        driver.EnqueueKey(Key(ConsoleKey.Delete));
+
+        var result = CreateListWithButtons(["alpha"]).Show(CreateModalHost(driver));
+
+        Assert.NotNull(result);
+        Assert.Equal("delete", result.ActionId);
+        Assert.Equal("alpha", result.SelectedItem);
+    }
+
+    [Fact]
     public void ListWithButtonsDialog_MouseClickButtonReturnsButtonAction()
     {
         var driver = new FakeConsoleDriver(80, 20);
