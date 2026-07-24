@@ -55,36 +55,27 @@ public interface IFormRow
     FormInputResult HandleMouse(MouseConsoleInputEvent mouse, FormRowMouseContext context);
 }
 
-public interface IFormOverlayRow
+/// <summary>Optional contract for a row that owns interactive child surfaces.</summary>
+public interface IFormCompositeRow : IFormRow
 {
-    void RenderOverlay(FormRowRenderContext context);
+    bool IsCompositeOpen { get; }
+    FormCompositeFrame BuildCompositeFrame(FormCompositeFrameContext context);
+    void CommitCompositeFrame(FormCompositeFrame frame);
+    void RenderCompositeOverlay(FormRowRenderContext context, FormCompositeFrame frame);
+    FormInputResult HandleCompositeKey(ConsoleKeyInfo key, FormRowInputContext context, FormCompositeFrame frame);
+    FormInputResult HandleCompositeMouse(MouseConsoleInputEvent mouse, FormRowMouseContext context, FormCompositeFrame frame, string? childTargetId);
+    bool IsCompositeAnchorHit(MouseConsoleInputEvent mouse, FormRowMouseContext context, FormCompositeFrame frame);
+    void CloseComposite();
 }
 
-public interface IFormTransientOverlayRow : IFormRow
-{
-    bool IsOverlayOpen { get; }
-    void CancelOverlay();
-}
+public readonly record struct FormCompositeFrameContext(Rect RowBounds, ConsoleViewport Viewport);
 
-public interface IFormHistoryRow : IFormRow
-{
-    SingleLineTextHistoryState? History { get; }
-    TextInputRowState State { get; }
-    Rect GetInputBounds(Rect rowBounds);
-    bool IsHistoryArrow(MouseConsoleInputEvent mouse, FormRowMouseContext context);
-}
+public sealed record FormCompositeFrame(
+    bool IsOpen,
+    object? State,
+    IReadOnlyList<FormCompositeTarget> ChildTargets);
 
-public interface IFormDropdownRow : IFormRow
-{
-    bool IsDropdownOpen { get; }
-    Rect GetFieldBounds(Rect rowBounds);
-    DropdownSelectFrame BuildDropdownFrame(Rect rowBounds, ConsoleViewport viewport);
-    void RenderDropdownOverlay(FormRowRenderContext context, DropdownSelectFrame frame);
-    FormInputResult HandleDropdownKey(ConsoleKeyInfo key, FormRowInputContext context, DropdownSelectFrame frame);
-    FormInputResult HandleDropdownMouse(MouseConsoleInputEvent mouse, FormRowMouseContext context, DropdownSelectFrame frame);
-    void CommitDropdownFrame(DropdownSelectFrame frame);
-    void CloseDropdown();
-}
+public sealed record FormCompositeTarget(string Id, Rect Bounds, Rect? HitBounds = null, FormTargetKind Kind = FormTargetKind.CompositeChild, bool CapturesMouse = false);
 
 public readonly record struct FormCursorPlacement(int X, int Y);
 

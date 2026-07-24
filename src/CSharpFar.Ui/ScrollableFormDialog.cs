@@ -213,20 +213,12 @@ public sealed partial class ScrollableFormDialog
             return;
 
         bool overlayPublished = frame.Targets.Any(target =>
-            ReferenceEquals(target.Row, row) &&
-            target.Kind is FormTargetKind.HistoryDropdown or FormTargetKind.DropdownPopup);
-        if (!overlayPublished)
+            ReferenceEquals(target.Row, row) && target.CompositeChildId is not null);
+        if (!overlayPublished || targetFrame.CompositeFrame is not { IsOpen: true } compositeFrame || row is not IFormCompositeRow composite)
             return;
 
         var context = new FormRowRenderContext(screen, targetFrame.Bounds, focused: true, screenHeight: frame.ScreenHeight);
-        if (row is IFormDropdownRow dropdown && targetFrame.DropdownFrame is { } dropdownFrame)
-        {
-            dropdown.RenderDropdownOverlay(context, dropdownFrame);
-            return;
-        }
-
-        if (row is IFormOverlayRow overlayRow)
-            overlayRow.RenderOverlay(context);
+        composite.RenderCompositeOverlay(context, compositeFrame);
     }
 
     private void RequestEnsureFocusVisible() => _ensureFocusedTargetVisibleOnNextRender = true;
@@ -333,46 +325,6 @@ public sealed partial class ScrollableFormDialog
         {
             if (!string.IsNullOrEmpty(row.Id) && !ids.Add(row.Id))
                 throw new InvalidOperationException($"Duplicate form row ID '{row.Id}'.");
-        }
-    }
-
-    private static void AddDropdownOverlayTargets(
-        List<FormTargetFrame> targets,
-        FormTargetFrame rowFrame,
-        UiTargetId rowTarget)
-    {
-        if (rowFrame.Row is not IFormDropdownRow ||
-            rowFrame.DropdownFrame is not { IsOpen: true } frame)
-            return;
-
-        if (frame.PopupBounds is not Rect popupBounds)
-            return;
-
-        targets.Add(new FormTargetFrame(
-            FormTargetIds.ForDropdownPopup(rowTarget),
-            FormTargetKind.DropdownPopup,
-            rowFrame.Row,
-            rowFrame.RowIndex,
-            rowFrame.FocusIndex,
-            popupBounds,
-            popupBounds,
-            IsFocusable: false,
-            IsFooter: rowFrame.IsFooter,
-            DropdownFrame: frame));
-
-        if (frame.ScrollbarBounds is Rect scrollbarBounds)
-        {
-            targets.Add(new FormTargetFrame(
-                FormTargetIds.ForDropdownScrollbar(rowTarget),
-                FormTargetKind.DropdownScrollbar,
-                rowFrame.Row,
-                rowFrame.RowIndex,
-                rowFrame.FocusIndex,
-                scrollbarBounds,
-                scrollbarBounds,
-                IsFocusable: false,
-                IsFooter: rowFrame.IsFooter,
-                DropdownFrame: frame));
         }
     }
 

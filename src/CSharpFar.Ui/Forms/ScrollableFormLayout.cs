@@ -96,10 +96,8 @@ public sealed partial class ScrollableFormDialog
             _scrollbar.ApplyCommittedFrame(frame.VerticalScrollbarFrame);
             _ensureFocusedTargetVisibleOnNextRender = false;
             _requestedInitialTarget = null;
-            foreach (FormTargetFrame target in frame.Targets.Where(target => target.Kind == FormTargetKind.Row && target.Row is IFormDropdownRow && target.DropdownFrame is not null))
-            {
-                ((IFormDropdownRow)target.Row!).CommitDropdownFrame(target.DropdownFrame!.Value);
-            }
+            foreach (FormTargetFrame target in frame.Targets.Where(target => target.Kind == FormTargetKind.Row && target.Row is IFormCompositeRow && target.CompositeFrame is not null))
+                ((IFormCompositeRow)target.Row!).CommitCompositeFrame(target.CompositeFrame!);
         });
         return frame;
     }
@@ -192,9 +190,7 @@ public sealed partial class ScrollableFormDialog
             Rect? activeBounds = focusedFrame.HitBounds;
             if (activeBounds is not null)
             {
-                AddRowOverlayTargets(targets, focusedRow, focusedFrame.RowIndex, focusedFrame.Bounds,
-                    focusedFrame.IsFooter, focusedFrame.FocusIndex, context.Viewport.Height, focusedTarget);
-                AddDropdownOverlayTargets(targets, focusedFrame, focusedTarget);
+                AddCompositeTargets(targets, focusedFrame, focusedTarget);
             }
         }
 
@@ -231,8 +227,8 @@ public sealed partial class ScrollableFormDialog
         ConsoleViewport viewport,
         Rect activeBounds)
     {
-        DropdownSelectFrame? dropdownFrame = row is IFormDropdownRow dropdown
-            ? dropdown.BuildDropdownFrame(bounds, viewport)
+        FormCompositeFrame? compositeFrame = row is IFormCompositeRow composite
+            ? composite.BuildCompositeFrame(new FormCompositeFrameContext(bounds, viewport))
             : null;
         UiCursorPlacement? cursor = null;
         if (row.IsEnabled && row is IFormCursorProvider cursorProvider &&
@@ -257,7 +253,7 @@ public sealed partial class ScrollableFormDialog
             row.IsFocusable,
             isFooter,
             cursor,
-            dropdownFrame);
+            compositeFrame);
     }
 
     private static bool IsVisibleInBody(Rect bounds, Rect bodyBounds) =>
@@ -272,51 +268,29 @@ public sealed partial class ScrollableFormDialog
         return right > left && bottom > top ? new Rect(left, top, right - left, bottom - top) : null;
     }
 
-    private static void AddRowOverlayTargets(
+    private static void AddCompositeTargets(
         List<FormTargetFrame> targets,
-        IFormRow row,
-        int rowIndex,
-        Rect rowBounds,
-        bool isFooter,
-        int? focusIndex,
-        int screenHeight,
+        FormTargetFrame rowFrame,
         UiTargetId rowTarget)
     {
-        if (row is not IFormHistoryRow textInput || textInput.History is null)
+        if (rowFrame.Row is not IFormCompositeRow || rowFrame.CompositeFrame is not { IsOpen: true } compositeFrame)
             return;
 
-        Rect inputBounds = textInput.GetInputBounds(rowBounds);
-        SingleLineTextHistoryFrame? historyFrame = SingleLineTextInput.CalculateHistoryDropdownFrame(
-            inputBounds.X,
-            inputBounds.Y,
-            inputBounds.Width,
-            screenHeight,
-            textInput.History);
-        if (historyFrame is not { } frame)
-            return;
-
-        targets.Add(new FormTargetFrame(
-            FormTargetIds.ForHistoryDropdown(rowTarget),
-            FormTargetKind.HistoryDropdown,
-            row,
-            rowIndex,
-            focusIndex,
-            frame.PopupBounds,
-            frame.PopupBounds,
-            IsFocusable: false,
-            IsFooter: isFooter));
-        if (frame.ScrollbarBounds is Rect scrollbarBounds)
+        foreach (FormCompositeTarget child in compositeFrame.ChildTargets)
         {
             targets.Add(new FormTargetFrame(
-                FormTargetIds.ForHistoryScrollbar(rowTarget),
-                FormTargetKind.HistoryScrollbar,
-                row,
-                rowIndex,
-                focusIndex,
-                scrollbarBounds,
-                scrollbarBounds,
+                FormTargetIds.ForCompositeChild(rowTarget, child.Id),
+                child.Kind,
+                rowFrame.Row,
+                rowFrame.RowIndex,
+                rowFrame.FocusIndex,
+                child.Bounds,
+                child.HitBounds ?? child.Bounds,
                 IsFocusable: false,
-                IsFooter: isFooter));
+                IsFooter: rowFrame.IsFooter,
+                CompositeFrame: compositeFrame,
+                CompositeChildId: child.Id,
+                CapturesMouse: child.CapturesMouse));
         }
     }
 

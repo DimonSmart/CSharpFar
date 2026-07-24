@@ -5,7 +5,7 @@ using CSharpFar.Core.Models;
 
 namespace CSharpFar.Ui;
 
-public sealed class TextInputWithButtonsRow : FormRow, IFormOverlayRow, IFormCursorProvider
+public sealed class TextInputWithButtonsRow : FormRow, IFormCursorProvider
 {
     public override FormRowRole Role { get; init; } = FormRowRole.TextInput;
 
@@ -69,10 +69,6 @@ public sealed class TextInputWithButtonsRow : FormRow, IFormOverlayRow, IFormCur
                 _buttonState,
                 context.Focused);
         }
-    }
-
-    public void RenderOverlay(FormRowRenderContext context)
-    {
     }
 
     public bool TryGetCursor(FormRowRenderContext context, out FormCursorPlacement cursor)

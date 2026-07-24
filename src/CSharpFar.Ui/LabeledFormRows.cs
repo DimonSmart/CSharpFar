@@ -5,7 +5,7 @@ using CSharpFar.Core.Models;
 namespace CSharpFar.Ui;
 
 /// <summary>Reusable one-line form input with an inline label.</summary>
-public sealed class LabeledTextInputRow : FormRow, IFormOverlayRow, IFormCursorProvider, IFormHistoryRow, IFormTransientOverlayRow
+public sealed class LabeledTextInputRow : FormRow, IFormCursorProvider, IFormCompositeRow
 {
     private readonly string _label;
     private readonly int _labelWidth;
@@ -23,9 +23,7 @@ public sealed class LabeledTextInputRow : FormRow, IFormOverlayRow, IFormCursorP
 
     public override FormRowRole Role { get; init; } = FormRowRole.TextInput;
     public CommandLineState Buffer => _field.Buffer;
-    public SingleLineTextHistoryState? History => _field.History;
-    public TextInputRowState State => _field.State;
-    public bool IsOverlayOpen => History?.IsDropdownOpen == true;
+    public bool IsCompositeOpen => _field.History?.IsDropdownOpen == true;
     public Rect GetInputBounds(Rect rowBounds) => Layout(rowBounds).InputBounds;
 
     public override void Render(FormRowRenderContext context)
@@ -35,15 +33,16 @@ public sealed class LabeledTextInputRow : FormRow, IFormOverlayRow, IFormCursorP
         _field.Render(context, layout.InputBounds);
     }
 
-    public void RenderOverlay(FormRowRenderContext context) => _field.RenderOverlay(context, GetInputBounds(context.Bounds));
     public bool TryGetCursor(FormRowRenderContext context, out FormCursorPlacement cursor) => _field.TryGetCursor(context, GetInputBounds(context.Bounds), out cursor);
     public override FormInputResult HandleKey(ConsoleKeyInfo key, FormRowInputContext context) => _field.HandleKey(key, context);
     public override FormInputResult HandleMouse(MouseConsoleInputEvent mouse, FormRowMouseContext context) => _field.HandleMouse(mouse, context, GetInputBounds(context.Bounds));
-    public bool IsHistoryArrow(MouseConsoleInputEvent mouse, FormRowMouseContext context) => _field.IsHistoryArrow(mouse, GetInputBounds(context.Bounds));
-    public void CancelOverlay()
-    {
-        History?.Close();
-    }
+    public FormCompositeFrame BuildCompositeFrame(FormCompositeFrameContext context) => _field.BuildCompositeFrame(GetInputBounds(context.RowBounds), context.Viewport);
+    public void CommitCompositeFrame(FormCompositeFrame frame) { }
+    public void RenderCompositeOverlay(FormRowRenderContext context, FormCompositeFrame frame) => _field.RenderCompositeOverlay(context, frame);
+    public FormInputResult HandleCompositeKey(ConsoleKeyInfo key, FormRowInputContext context, FormCompositeFrame frame) => HandleKey(key, context);
+    public FormInputResult HandleCompositeMouse(MouseConsoleInputEvent mouse, FormRowMouseContext context, FormCompositeFrame frame, string? childTargetId) => _field.HandleCompositeMouse(mouse, context, GetInputBounds(context.Bounds), frame);
+    public bool IsCompositeAnchorHit(MouseConsoleInputEvent mouse, FormRowMouseContext context, FormCompositeFrame frame) => _field.IsHistoryArrow(mouse, GetInputBounds(context.Bounds));
+    public void CloseComposite() => _field.History?.Close();
 
     private (Rect LabelBounds, Rect InputBounds) Layout(Rect bounds)
     {

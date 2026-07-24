@@ -85,4 +85,53 @@ internal sealed class FormTextInputField
 
     public bool IsHistoryArrow(MouseConsoleInputEvent mouse, Rect bounds) =>
         _history is not null && SingleLineTextInput.IsHistoryArrowHit(bounds.X, bounds.Width, bounds.Y, mouse.X, mouse.Y);
+
+    public FormCompositeFrame BuildCompositeFrame(Rect bounds, ConsoleViewport viewport)
+    {
+        SingleLineTextHistoryFrame? frame = _history is null
+            ? null
+            : SingleLineTextInput.CalculateHistoryDropdownFrame(bounds.X, bounds.Y, bounds.Width, viewport.Height, _history);
+        if (frame is not { } value)
+            return new FormCompositeFrame(false, null, []);
+
+        var children = new List<FormCompositeTarget>
+        {
+            new("popup", value.PopupBounds, Kind: FormTargetKind.HistoryDropdown),
+        };
+        if (value.ScrollbarBounds is Rect scrollbar)
+            children.Add(new FormCompositeTarget("scrollbar", scrollbar, Kind: FormTargetKind.HistoryScrollbar, CapturesMouse: true));
+        return new FormCompositeFrame(true, value, children);
+    }
+
+    public void RenderCompositeOverlay(FormRowRenderContext context, FormCompositeFrame frame)
+    {
+        if (_history is not null && frame.State is SingleLineTextHistoryFrame historyFrame)
+            SingleLineTextInput.RenderHistoryDropdown(context.Canvas, _history, historyFrame);
+    }
+
+    public FormInputResult HandleCompositeMouse(
+        MouseConsoleInputEvent mouse,
+        FormRowMouseContext context,
+        Rect bounds,
+        FormCompositeFrame frame)
+    {
+        string before = _buffer.Text;
+        if (_history is not null && frame.State is SingleLineTextHistoryFrame historyFrame)
+        {
+            var currentFrame = historyFrame with
+            {
+                FirstVisibleIndex = _history.FirstVisibleIndex,
+                VerticalScrollbarFrame = _history.Scrollbar.CalculateFrame(historyFrame.ScrollbarBounds, new ScrollState
+                {
+                    TotalItems = _history.Matches.Count,
+                    ViewportItems = historyFrame.VisibleRows,
+                    FirstVisibleIndex = _history.FirstVisibleIndex,
+                }),
+            };
+            if (SingleLineTextInput.TryHandleHistoryDropdownMouse(_history, _buffer, mouse, currentFrame))
+                return _buffer.Text != before ? FormInputResult.ValueChanged : FormInputResult.Handled;
+        }
+
+        return HandleMouse(mouse, context, bounds);
+    }
 }
