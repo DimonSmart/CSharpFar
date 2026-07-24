@@ -17,21 +17,17 @@ internal sealed class ApplicationFunctionKeyBarInputHandler
     public ApplicationInputHandlingResult Handle(
         MouseConsoleInputEvent input,
         ApplicationUiFrame frame,
+        ApplicationFunctionKeyHit action,
         UiInputRouteKind routeKind)
     {
         if (routeKind != UiInputRouteKind.HitTarget ||
             input.Button != MouseButton.Left ||
-            input.Kind != MouseEventKind.Down ||
-            frame.FunctionKeyBar is null)
+            input.Kind != MouseEventKind.Down)
         {
             return ApplicationInputHandlingResult.NotHandled;
         }
 
-        var hit = frame.FunctionKeyBar.Actions.FirstOrDefault(action => action.Bounds.Contains(input.X, input.Y));
-        if (hit is null)
-            return ApplicationInputHandlingResult.NotHandled;
-
         return ApplicationInputHandlingResult.FromHandled(
-            _context.ExecuteRegisteredCommand(hit.CommandId, ApplicationPanelCommandInvocationFactory.Create(frame)));
+            _context.ExecuteRegisteredCommand(action.CommandId, ApplicationPanelCommandInvocationFactory.Create(frame)));
     }
 }
