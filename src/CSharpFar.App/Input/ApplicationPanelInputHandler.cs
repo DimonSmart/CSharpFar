@@ -16,6 +16,35 @@ internal sealed class ApplicationPanelInputHandler
         _context = context;
     }
 
+    // Direct-call adapter kept for focused handler tests. Production input always
+    // supplies the semantic target selected by the committed UiInteractionFrame.
+    public ApplicationInputHandlingResult Handle(
+        MouseConsoleInputEvent input,
+        ApplicationPanelFrame frame,
+        UiInputRouteKind routeKind)
+    {
+        UiTargetId? target = ApplicationTargetIds.Panel(frame.Side);
+        if (routeKind == UiInputRouteKind.HitTarget)
+        {
+            var builder = new UiInteractionFrameBuilder()
+                .AddHitRegion(ApplicationTargetIds.Panel(frame.Side), frame.Bounds);
+            if (frame.RetryBounds is { } retryBounds)
+                builder.AddHitRegion(ApplicationTargetIds.PanelRetry(frame.Side), retryBounds);
+            foreach (ApplicationPanelItemHit item in frame.VisibleItems)
+            {
+                UiTargetId itemTarget = ApplicationTargetIds.PanelItem(frame.Side, item.ItemIndex);
+                builder.AddHitRegion(itemTarget, item.Bounds);
+                if (frame.Side == PanelSide.Right && item.Bounds.X == frame.Bounds.X + 1)
+                    builder.AddHitRegion(itemTarget, new Rect(frame.Bounds.X, item.Bounds.Y, 1, item.Bounds.Height));
+            }
+
+            if (builder.Build().TryHitTest(input.X, input.Y, out UiHitRegion hit))
+                target = hit.Target;
+        }
+
+        return Handle(input, frame, routeKind, target);
+    }
+
     public ApplicationInputHandlingResult Handle(
         MouseConsoleInputEvent input,
         ApplicationPanelFrame frame,
