@@ -18,25 +18,20 @@ internal sealed class ApplicationDirectoryShortcutBarInputHandler
 
     public ApplicationInputHandlingResult Handle(
         MouseConsoleInputEvent input,
-        ApplicationDirectoryShortcutBarFrame? frame,
+        ApplicationDirectoryShortcutHit shortcut,
         PanelSide side,
         UiInputRouteKind routeKind)
     {
         if (routeKind != UiInputRouteKind.HitTarget ||
             input.Button != MouseButton.Left ||
-            input.Kind != MouseEventKind.Down ||
-            frame is null)
+            input.Kind != MouseEventKind.Down)
         {
             return ApplicationInputHandlingResult.NotHandled;
         }
 
-        var hit = frame.Shortcuts.FirstOrDefault(shortcut => shortcut.Bounds.Contains(input.X, input.Y));
-        if (hit is null)
-            return ApplicationInputHandlingResult.NotHandled;
-
         return ApplicationInputHandlingResult.FromHandled(
             _context.ExecuteRegisteredCommand(
                 DirectoryShortcutCommandIds.Navigate,
-                new NavigateToCommittedDirectoryShortcutArgs(hit.ShortcutNumber, hit.Path, side)));
+                new NavigateToCommittedDirectoryShortcutArgs(shortcut.ShortcutNumber, shortcut.Path, side)));
     }
 }
