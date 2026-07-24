@@ -254,7 +254,7 @@ public sealed class ApplicationInputDispatcherTests
         var request = dispatcher.Handle(new UiRoutedInput<ApplicationUiFrame>(
             new MouseConsoleInputEvent(2, 22, MouseButton.Left, MouseEventKind.Down, MouseKeyModifiers.None),
             frame,
-            ApplicationTargetIds.DirectoryShortcutBar,
+            ApplicationTargetIds.DirectoryShortcut(1),
             UiInputRouteKind.HitTarget));
 
         Assert.True(request.ShouldRender);

@@ -713,17 +713,17 @@ public sealed class ApplicationUiSurfaceTests
         Assert.NotNull(services.ApplicationSurface.CommittedFrame.FunctionKeyBar);
         Assert.NotNull(services.ApplicationSurface.CommittedFrame.DirectoryShortcutBar);
         Assert.All(
-            services.ApplicationSurface.CommittedInteractionFrame.HitRegions
-                .Where(region => region.Target == ApplicationTargetIds.FunctionKeyBar),
-            region => Assert.Contains(
-                services.ApplicationSurface.CommittedFrame.FunctionKeyBar!.Actions,
-                action => action.Bounds.Equals(region.Bounds)));
+            services.ApplicationSurface.CommittedFrame.FunctionKeyBar!.Actions.Where(action => action.Bounds.Width > 0),
+            action => Assert.Contains(
+                services.ApplicationSurface.CommittedInteractionFrame.HitRegions,
+                region => region.Target == ApplicationTargetIds.FunctionKeyAction(action.Layer, action.Key) &&
+                          region.Bounds.Equals(action.Bounds)));
         Assert.All(
-            services.ApplicationSurface.CommittedInteractionFrame.HitRegions
-                .Where(region => region.Target == ApplicationTargetIds.DirectoryShortcutBar),
-            region => Assert.Contains(
-                services.ApplicationSurface.CommittedFrame.DirectoryShortcutBar!.Shortcuts,
-                shortcut => shortcut.Bounds.Equals(region.Bounds)));
+            services.ApplicationSurface.CommittedFrame.DirectoryShortcutBar!.Shortcuts,
+            shortcut => Assert.Contains(
+                services.ApplicationSurface.CommittedInteractionFrame.HitRegions,
+                region => region.Target == ApplicationTargetIds.DirectoryShortcut(shortcut.ShortcutNumber) &&
+                          region.Bounds.Equals(shortcut.Bounds)));
     }
 
     [Theory]
