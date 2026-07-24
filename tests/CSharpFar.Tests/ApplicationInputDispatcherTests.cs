@@ -629,12 +629,12 @@ public sealed class ApplicationInputDispatcherTests
     }
 
     [Theory]
-    [InlineData('[', ConsoleKey.Oem4, @"C:\committed-left\")]
-    [InlineData(']', ConsoleKey.Oem6, @"C:\committed-right\")]
+    [InlineData('[', ConsoleKey.Oem4, @"C:\committed-left")]
+    [InlineData(']', ConsoleKey.Oem6, @"C:\committed-right")]
     public void WorkspaceKeyboard_CtrlBracketInsertsCommittedPanelDirectory(
         char keyChar,
         ConsoleKey key,
-        string expectedText)
+        string expectedDirectory)
     {
         var commandLine = new CommandLineState();
         var dispatcher = new ApplicationInputDispatcher(
@@ -686,7 +686,7 @@ public sealed class ApplicationInputDispatcherTests
             UiInputRouteKind.KeyboardTarget));
 
         Assert.True(request.ShouldRender);
-        Assert.Equal(expectedText, commandLine.Text);
+        Assert.Equal(expectedDirectory + System.IO.Path.DirectorySeparatorChar, commandLine.Text);
     }
 
     [Fact]
