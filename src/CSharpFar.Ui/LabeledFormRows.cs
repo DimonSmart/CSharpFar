@@ -31,7 +31,7 @@ public sealed class LabeledTextInputRow : FormRow, IFormOverlayRow, IFormCursorP
     public override void Render(FormRowRenderContext context)
     {
         var layout = Layout(context.Bounds);
-        context.Canvas.Write(layout.LabelBounds.X, layout.LabelBounds.Y, ScrollableFormDialog.Fit(_label, layout.LabelBounds.Width).PadRight(layout.LabelBounds.Width), context.Focused ? FarDialogStyles.FocusedInput : FarDialogStyles.Fill);
+        context.Canvas.Write(layout.LabelBounds.X, layout.LabelBounds.Y, ScrollableFormDialog.Fit(_label, layout.LabelBounds.Width), context.Focused ? FarDialogStyles.FocusedInput : FarDialogStyles.Fill);
         _field.Render(context, layout.InputBounds);
     }
 
@@ -73,7 +73,7 @@ public sealed class LabeledValueRow : FormRow
     {
         int labelWidth = Math.Min(Math.Max(0, _labelWidth), context.Bounds.Width);
         int valueWidth = Math.Max(0, context.Bounds.Width - labelWidth);
-        context.Canvas.Write(context.Bounds.X, context.Bounds.Y, ScrollableFormDialog.Fit(_label, labelWidth).PadRight(labelWidth), FarDialogStyles.Fill);
-        context.Canvas.Write(context.Bounds.X + labelWidth, context.Bounds.Y, ScrollableFormDialog.Fit(_value() ?? string.Empty, valueWidth).PadRight(valueWidth), FarDialogStyles.Fill);
+        context.Canvas.Write(context.Bounds.X, context.Bounds.Y, ScrollableFormDialog.Fit(_label, labelWidth), FarDialogStyles.Fill);
+        context.Canvas.Write(context.Bounds.X + labelWidth, context.Bounds.Y, ScrollableFormDialog.Fit(_value() ?? string.Empty, valueWidth), FarDialogStyles.Fill);
     }
 }

@@ -2,6 +2,7 @@ using CSharpFar.Console;
 using CSharpFar.Console.Input;
 using CSharpFar.Console.Models;
 using CSharpFar.Tests.Fakes;
+using CSharpFar.Ui;
 
 namespace CSharpFar.Tests;
 
@@ -27,6 +28,36 @@ public class ScreenRendererTests
         Assert.Equal('t', driver.GetCell(13, 5).Character);
         Assert.Equal(ConsoleColor.White, driver.GetCell(10, 5).Foreground);
         Assert.Equal(ConsoleColor.DarkBlue, driver.GetCell(10, 5).Background);
+    }
+
+    [Fact]
+    public void ConsoleTextMetrics_UsesTerminalCellsAndKeepsUnicodeScalarsWhole()
+    {
+        const string text = "A界🙂e\u0301";
+
+        Assert.Equal(6, ConsoleTextMetrics.GetCellWidth(text));
+        Assert.Equal("A界", ConsoleTextMetrics.TruncateToCells(text, 3));
+        Assert.Equal("A界 ", ConsoleTextMetrics.FitToCells(text, 4));
+        Assert.Equal(2, ConsoleTextMetrics.Utf16IndexFromCellOffset(text, 3));
+        Assert.Equal(3, ConsoleTextMetrics.CellOffsetFromUtf16Index(text, 3));
+    }
+
+    [Fact]
+    public void BufferedFrame_WideTextUsesCellWidthAndDoesNotRemainDirty()
+    {
+        var (renderer, driver) = Create(4, 1);
+        var style = new CellStyle(ConsoleColor.White, ConsoleColor.DarkBlue);
+
+        using (renderer.BeginFrame())
+            renderer.Write(0, 0, "界AB", style);
+
+        Assert.Contains(driver.WriteRecords, write => write.X == 0 && write.Text == "界AB");
+        driver.ClearRecordedOperations();
+
+        using (renderer.BeginFrame())
+            renderer.Write(0, 0, "界AB", style);
+
+        Assert.Equal(0, driver.WriteAtCallCount);
     }
 
     [Fact]

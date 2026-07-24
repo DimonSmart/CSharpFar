@@ -31,7 +31,7 @@ public sealed class DropdownSelectFormRow<T> : FormRow, IFormCursorProvider, IFo
         context.Canvas.Write(
             context.Bounds.X,
             context.Bounds.Y,
-            ScrollableFormDialog.Fit(_label.PadRight(layout.LabelWidth), layout.LabelWidth),
+            ScrollableFormDialog.Fit(_label, layout.LabelWidth),
             FarDialogStyles.Fill);
         _dropdown.RenderField(
             context.Canvas,

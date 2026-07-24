@@ -255,5 +255,5 @@ public sealed class DialogButtonBar
     }
 
     private static string FitVisibleLabel(string label, int width) =>
-        label.Length <= width ? label : label[..width];
+        ConsoleTextMetrics.TruncateToCells(label, width);
 }

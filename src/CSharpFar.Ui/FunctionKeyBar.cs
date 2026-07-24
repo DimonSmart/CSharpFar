@@ -158,12 +158,13 @@ public sealed class FunctionKeyBar
         if (width <= 0)
             return string.Empty;
 
-        if (label.Length <= width)
-            return label.PadRight(width);
+        if (ConsoleTextMetrics.GetCellWidth(label) <= width)
+            return ConsoleTextMetrics.FitToCells(label, width);
 
-        if (width <= Ellipsis.Length)
-            return Ellipsis[..width];
+        int ellipsisWidth = ConsoleTextMetrics.GetCellWidth(Ellipsis);
+        if (width <= ellipsisWidth)
+            return ConsoleTextMetrics.TruncateToCells(Ellipsis, width);
 
-        return label[..(width - Ellipsis.Length)] + Ellipsis;
+        return ConsoleTextMetrics.TruncateToCells(label, width - ellipsisWidth) + Ellipsis;
     }
 }
