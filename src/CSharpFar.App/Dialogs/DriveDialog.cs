@@ -16,9 +16,6 @@ internal sealed class DriveDialog
     private const int DiskColW = 18;
     private const int SizeColW = 10;
 
-    private static readonly UiTargetId VolumesTarget = new("drive.volumes");
-    private static readonly UiTargetId VolumesScrollbarTarget = new("drive.volumes.scrollbar");
-
     private readonly ModalDialogHost _modalDialogs;
     private readonly ConsolePalette _palette;
     private readonly ModalDialogRenderer _modalRenderer = new();
@@ -48,17 +45,21 @@ internal sealed class DriveDialog
             SelectedIndex = initialCursor,
             EmptyText = "No volumes found.",
         };
+        var routedList = new RoutedScrollableList<VolumeSelectionItem>(
+            list,
+            new UiTargetId("drive.volumes"),
+            new UiTargetId("drive.volumes.scrollbar"));
         string? lastShortcut = null;
 
         return _modalDialogs.RunInteractive<DriveDialogFrame, ScrollableListInputResult, VolumeSelectionItem?>(
             (context, _) =>
             {
-                DriveDialogFrame frame = BuildFrame(context.Size, items, list);
+                DriveDialogFrame frame = BuildFrame(context.Size, items, routedList);
                 RenderFrame(context, items, frame);
                 return frame;
             },
-            BuildInteractionFrame,
-            (input, frame, route) => RouteInput(input, frame, route, list),
+            frame => BuildInteractionFrame(frame, routedList),
+            (input, frame, route) => RouteInput(input, frame, route, routedList),
             (routed, result) =>
             {
                 if (routed.Input is KeyConsoleInputEvent { Key: var key })
@@ -87,44 +88,24 @@ internal sealed class DriveDialog
                 }
 
                 return ModalDialogLoopResult<VolumeSelectionItem?>.Continue;
-            });
+            },
+            applyCommittedFrame: frame => routedList.ApplyCommittedFrame(frame.ListState));
     }
 
     private static (ScrollableListInputResult Semantic, UiInputResult UiResult) RouteInput(
         ConsoleInputEvent input,
         DriveDialogFrame frame,
         UiInputRouteContext route,
-        ScrollableList<VolumeSelectionItem> list)
+        RoutedScrollableList<VolumeSelectionItem> list)
     {
-        list.ApplyCommittedFrame(frame.ListState);
-
         if (input is KeyConsoleInputEvent { Key: var key })
         {
             if (key.Key is ConsoleKey.Escape or ConsoleKey.F10)
                 return (ScrollableListInputResult.Handled, UiInputResult.HandledResult);
-
-            ScrollableListInputResult result = list.HandleKey(key, frame.ListState.ViewportRows);
-            return (result, result.IsHandled ? UiInputResult.HandledAndInvalidate : UiInputResult.NotHandled);
         }
 
-        if (input is MouseConsoleInputEvent mouse &&
-            route.Target is UiTargetId target &&
-            (target == VolumesTarget || target == VolumesScrollbarTarget))
-        {
-            ScrollableListInputResult result = list.HandleMouse(
-                mouse,
-                frame.ListBounds,
-                frame.ListState);
-            if (!result.IsHandled)
-                return (result, UiInputResult.NotHandled);
-
-            UiMouseCaptureRequest capture = result.DragStarted
-                ? UiMouseCaptureRequest.Capture(VolumesScrollbarTarget, MouseButton.Left)
-                : result.DragEnded ? UiMouseCaptureRequest.Release : UiMouseCaptureRequest.None;
-            return (result, new UiInputResult(true, true, UiFocusRequest.None, capture));
-        }
-
-        return (ScrollableListInputResult.NotHandled, UiInputResult.NotHandled);
+        RoutedScrollableListInputResult routed = list.RouteInput(input, frame.ListBounds, frame.ListState, route);
+        return (routed.ListResult, routed.UiResult);
     }
 
     private ModalDialogLoopResult<VolumeSelectionItem?> TryCompleteSelection(VolumeSelectionItem selected)
@@ -199,7 +180,7 @@ internal sealed class DriveDialog
     private static DriveDialogFrame BuildFrame(
         ConsoleSize size,
         VolumeSelectionItem[] items,
-        ScrollableList<VolumeSelectionItem> list)
+        RoutedScrollableList<VolumeSelectionItem> list)
     {
         int requestedRows = Math.Min(items.Length, Math.Max(0, size.Height - 6));
         Rect bounds = new ModalDialogRenderer().CenteredOuterBounds(size, DialogWidth, requestedRows + 6);
@@ -220,8 +201,8 @@ internal sealed class DriveDialog
             ? candidate
             : null;
         ScrollableListFrameState state = visibleRows > 0
-            ? list.CalculateFrameState(visibleRows, scrollbarBounds)
-            : new ScrollableListFrameState(list.SelectedIndex, list.ScrollTop, 0);
+            ? list.CalculateFrame(visibleRows, scrollbarBounds)
+            : new ScrollableListFrameState(list.List.SelectedIndex, list.List.ScrollTop, 0);
         return new DriveDialogFrame(
             items,
             bounds,
@@ -248,19 +229,21 @@ internal sealed class DriveDialog
         return new DriveDialogLayout(frameBounds, listBounds);
     }
 
-    private static UiInteractionFrame BuildInteractionFrame(DriveDialogFrame frame)
+    private static UiInteractionFrame BuildInteractionFrame(
+        DriveDialogFrame frame,
+        RoutedScrollableList<VolumeSelectionItem> list)
     {
-        var builder = new UiInteractionFrameBuilder();
-        if (frame.ListBounds.Width > 0 && frame.ListBounds.Height > 0)
-            builder.AddHitRegion(VolumesTarget, frame.ListBounds);
-        if (frame.ScrollbarBounds is { } scrollbar)
-            builder.AddHitRegion(VolumesScrollbarTarget, scrollbar);
+        var builder = new UiInteractionFrameBuilder()
+            .AddFragment(list.BuildInteractionFragment(
+                frame.ListBounds,
+                frame.ListState,
+                0,
+                frame.ListBounds.Width > 0 && frame.ListBounds.Height > 0));
 
         return frame.ListBounds.Width > 0 && frame.ListBounds.Height > 0
             ? builder
-                .AddFocusEntry(VolumesTarget, 0)
-                .SetDefaultFocusTarget(VolumesTarget)
-                .SetKeyboardTarget(VolumesTarget)
+                .SetDefaultFocusTarget(list.ListTarget)
+                .SetKeyboardTarget(list.ListTarget)
                 .Build()
             : builder.Build();
     }

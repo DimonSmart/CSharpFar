@@ -13,8 +13,6 @@ internal sealed record DirectoryShortcutsDialogResult(
 
 internal sealed class DirectoryShortcutsDialog
 {
-    private static readonly UiTargetId ListTarget = new("directory-shortcuts.list");
-    private static readonly UiTargetId ScrollbarTarget = new("directory-shortcuts.list.scrollbar");
     private const int DialogWidth = 68;
     private const int DialogHeight = 16;
 
@@ -39,6 +37,10 @@ internal sealed class DirectoryShortcutsDialog
             NormalStyle = PaletteStyles.DialogFill(_palette),
             SelectedStyle = PaletteStyles.InputField(_palette),
         };
+        var routedShortcuts = new RoutedScrollableList<int>(
+            shortcuts,
+            new UiTargetId("directory-shortcuts.list"),
+            new UiTargetId("directory-shortcuts.list.scrollbar"));
         var buttons = new ButtonRow(
         [
             new DialogButton("edit", "Edit", 'E', IsDefault: true),
@@ -49,9 +51,9 @@ internal sealed class DirectoryShortcutsDialog
         form.SetRows([], [buttons]);
 
         return _modalDialogs.RunInteractive<DirectoryShortcutsFrame, DirectoryShortcutsInput, DirectoryShortcutsDialogResult>(
-            (context, focusScope) => Draw(context, focusScope, form, shortcuts),
-            BuildInteractionFrame,
-            (input, frame, route) => RouteInput(input, frame, route, form, shortcuts),
+            (context, focusScope) => Draw(context, focusScope, form, routedShortcuts),
+            frame => BuildInteractionFrame(frame, routedShortcuts),
+            (input, frame, route) => RouteInput(input, frame, route, form, routedShortcuts),
             (routed, semantic) =>
             {
                 if (semantic.FormResult.Command is string buttonId)
@@ -71,18 +73,17 @@ internal sealed class DirectoryShortcutsDialog
 
                 return ModalDialogLoopResult<DirectoryShortcutsDialogResult>.Continue;
             },
-            applyCommittedFrame: frame => shortcuts.ApplyCommittedFrame(frame.ListState));
+            applyCommittedFrame: frame => routedShortcuts.ApplyCommittedFrame(frame.ListState));
     }
 
-    private static UiInteractionFrame BuildInteractionFrame(DirectoryShortcutsFrame frame)
+    private static UiInteractionFrame BuildInteractionFrame(
+        DirectoryShortcutsFrame frame,
+        RoutedScrollableList<int> shortcuts)
     {
         var builder = new UiInteractionFrameBuilder()
-            .AddHitRegion(ListTarget, frame.ListBounds)
-            .AddFocusEntry(ListTarget, 0)
+            .AddFragment(shortcuts.BuildInteractionFragment(frame.ListBounds, frame.ListState, 0))
             .AddFragment(frame.Form.BuildInteractionFragment(frame.Buttons))
-            .SetDefaultFocusTarget(ListTarget);
-        if (frame.ListState.ScrollbarBounds is Rect scrollbarBounds)
-            builder.AddHitRegion(ScrollbarTarget, scrollbarBounds);
+            .SetDefaultFocusTarget(shortcuts.ListTarget);
         return builder.Build();
     }
 
@@ -91,13 +92,12 @@ internal sealed class DirectoryShortcutsDialog
         DirectoryShortcutsFrame frame,
         UiInputRouteContext route,
         ScrollableFormDialog form,
-        ScrollableList<int> shortcuts)
+        RoutedScrollableList<int> shortcuts)
     {
-        shortcuts.ApplyCommittedFrame(frame.ListState);
-        if (input is KeyConsoleInputEvent { Key: var key } && TryRouteFocusKey(key, frame, route, out UiInputResult focusResult))
+        if (input is KeyConsoleInputEvent { Key: var key } && TryRouteFocusKey(key, frame, route, shortcuts.ListTarget, out UiInputResult focusResult))
             return (new DirectoryShortcutsInput(input, FormInputResult.NotHandled, ScrollableListInputResult.NotHandled), focusResult);
 
-        bool isListRoute = route.Target == ListTarget || route.Target == ScrollbarTarget;
+        bool isListRoute = shortcuts.IsTargetRoute(route);
         if (!isListRoute)
         {
             FormRouteResult formResult = form.RouteInput(input, frame.Buttons, route, allowUnfocusedButtonHotkeys: true);
@@ -111,22 +111,17 @@ internal sealed class DirectoryShortcutsDialog
                 return (new DirectoryShortcutsInput(input, formResult.FormResult, ScrollableListInputResult.NotHandled), formResult.UiResult);
         }
 
-        ScrollableListInputResult listResult = input switch
-        {
-            KeyConsoleInputEvent { Key: var listKey } => shortcuts.HandleKey(listKey, frame.ListState.ViewportRows),
-            MouseConsoleInputEvent mouse => shortcuts.HandleMouse(mouse, frame.ListBounds, frame.ListState),
-            _ => ScrollableListInputResult.NotHandled,
-        };
+        RoutedScrollableListInputResult routedResult = shortcuts.RouteInput(input, frame.ListBounds, frame.ListState, route);
         return (
-            new DirectoryShortcutsInput(input, FormInputResult.NotHandled, listResult),
-            ToUiInputResult(listResult, ScrollbarTarget));
+            new DirectoryShortcutsInput(input, FormInputResult.NotHandled, routedResult.ListResult),
+            routedResult.UiResult);
     }
 
     private DirectoryShortcutsFrame Draw(
         UiRenderContext context,
         IUiFocusState focusScope,
         ScrollableFormDialog form,
-        ScrollableList<int> shortcuts)
+        RoutedScrollableList<int> routedShortcuts)
     {
         Rect outerBounds = _modalRenderer.CenteredOuterBounds(context.Size, DialogWidth, DialogHeight);
         ModalDialogRenderer.Layout layout = default;
@@ -147,11 +142,11 @@ internal sealed class DirectoryShortcutsDialog
                 int buttonY = content.Y + Math.Min(11, Math.Max(0, content.Height - 1));
                 listBounds = new Rect(content.X, content.Y, content.Width, Math.Max(1, buttonY - content.Y - 1));
                 Rect scrollbarBounds = new(content.Right - 1, listBounds.Y, 1, listBounds.Height);
-                listState = shortcuts.CalculateFrameState(
+                listState = routedShortcuts.CalculateFrame(
                     listBounds.Height,
-                    shortcuts.Count > listBounds.Height ? scrollbarBounds : null);
-                shortcuts.Render(context.Canvas, listBounds, listState);
-                if (shortcuts.GetScrollState(listBounds.Height, listState.ScrollTop) is { } scrollState)
+                    routedShortcuts.List.Count > listBounds.Height ? scrollbarBounds : null);
+                routedShortcuts.Render(context.Canvas, listBounds, listState);
+                if (routedShortcuts.List.GetScrollState(listBounds.Height, listState.ScrollTop) is { } scrollState)
                 {
                     new ScrollBarRenderer().RenderVerticalScrollbar(
                         context.Canvas,
@@ -167,8 +162,8 @@ internal sealed class DirectoryShortcutsDialog
                         PaletteStyles.DialogBorder(_palette),
                         new Rect(content.X, buttonY, content.Width, 1)),
                     focusScope,
-                    [new UiFocusEntry(ListTarget, 0)],
-                    ListTarget);
+                    [new UiFocusEntry(routedShortcuts.ListTarget, 0)],
+                    routedShortcuts.ListTarget);
             });
         return new DirectoryShortcutsFrame(layout, listBounds, listState, buttons, form);
     }
@@ -177,6 +172,7 @@ internal sealed class DirectoryShortcutsDialog
         ConsoleKeyInfo key,
         DirectoryShortcutsFrame frame,
         UiInputRouteContext route,
+        UiTargetId listTarget,
         out UiInputResult result)
     {
         if (key.Key != ConsoleKey.Tab)
@@ -186,7 +182,7 @@ internal sealed class DirectoryShortcutsDialog
         }
 
         bool reverse = (key.Modifiers & ConsoleModifiers.Shift) != 0;
-        if (route.Target == ListTarget && frame.Buttons.DefaultTarget is UiTargetId buttonTarget)
+        if (route.Target == listTarget && frame.Buttons.DefaultTarget is UiTargetId buttonTarget)
         {
             result = UiInputResult.RequestFocus(buttonTarget);
             return true;
@@ -194,7 +190,7 @@ internal sealed class DirectoryShortcutsDialog
 
         if (route.Target == frame.Buttons.DefaultTarget || reverse)
         {
-            result = UiInputResult.RequestFocus(ListTarget);
+            result = UiInputResult.RequestFocus(listTarget);
             return true;
         }
 
@@ -202,14 +198,6 @@ internal sealed class DirectoryShortcutsDialog
         return false;
     }
 
-    private static UiInputResult ToUiInputResult(ScrollableListInputResult result, UiTargetId scrollbarTarget) =>
-        result.IsHandled
-            ? result.DragStarted
-                ? UiInputResult.CaptureMouse(scrollbarTarget, MouseButton.Left, invalidate: true)
-                : result.DragEnded
-                    ? UiInputResult.ReleaseMouse(invalidate: true)
-                    : UiInputResult.HandledAndInvalidate
-            : UiInputResult.NotHandled;
 
     private void EditSelected(
         IDictionary<int, AppSettings.DirectoryShortcutItem> items,

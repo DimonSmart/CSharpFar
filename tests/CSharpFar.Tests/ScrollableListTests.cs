@@ -390,6 +390,42 @@ public sealed class ScrollableListTests
         Assert.Equal(ConsoleColor.Blue, driver.GetCell(0, 1).Background);
     }
 
+    [Fact]
+    public void RoutedList_BuildsTargetsAndTranslatesScrollbarDragToMouseCapture()
+    {
+        var list = Create(Enumerable.Range(0, 20).Select(i => i.ToString()).ToArray());
+        var listTarget = new UiTargetId("test.list");
+        var scrollbarTarget = new UiTargetId("test.list.scrollbar");
+        var routed = new RoutedScrollableList<string>(list, listTarget, scrollbarTarget);
+        Rect contentBounds = new(0, 0, 9, 6);
+        ScrollableListFrameState frame = routed.CalculateFrame(6, new Rect(9, 0, 1, 6));
+
+        UiInteractionFragment fragment = routed.BuildInteractionFragment(contentBounds, frame, 2);
+        Assert.Equal([listTarget, scrollbarTarget], fragment.HitRegions.Select(region => region.Target));
+        Assert.Equal(listTarget, Assert.Single(fragment.FocusEntries).Target);
+
+        var focus = new UiFocusController();
+        RoutedScrollableListInputResult started = routed.RouteInput(
+            Mouse(MouseButton.Left, MouseEventKind.Down, 9, 1),
+            contentBounds,
+            frame,
+            UiInputRouteContext.HitTarget(focus, scrollbarTarget));
+
+        Assert.True(started.ListResult.DragStarted);
+        Assert.Equal(UiMouseCaptureRequestKind.Capture, started.UiResult.MouseCaptureRequest.Kind);
+        Assert.Equal(scrollbarTarget, started.UiResult.MouseCaptureRequest.Target);
+
+        frame = routed.CalculateFrame(6, new Rect(9, 0, 1, 6));
+        RoutedScrollableListInputResult ended = routed.RouteInput(
+            Mouse(MouseButton.Left, MouseEventKind.Up, 20, 3),
+            contentBounds,
+            frame,
+            UiInputRouteContext.CapturedTarget(focus, scrollbarTarget));
+
+        Assert.True(ended.ListResult.DragEnded);
+        Assert.Equal(UiMouseCaptureRequestKind.Release, ended.UiResult.MouseCaptureRequest.Kind);
+    }
+
     private static ScrollableList<string> Create(IReadOnlyList<string> items) => new(items, static item => item);
 
     private static ConsoleKeyInfo Key(ConsoleKey key) => new('\0', key, false, false, false);
