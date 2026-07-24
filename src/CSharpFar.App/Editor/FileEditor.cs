@@ -875,11 +875,30 @@ internal sealed partial class FileEditor
         {
             int visualColumn = frame.LeftColumn + screenX;
             int logicalColumn = LogicalColumnFromVisualColumn(line, visualColumn);
-            char ch = CharacterAtVisualColumn(line, visualColumn);
             bool selected = IsSelected(session.Selection, lineIndex, logicalColumn);
             bool cursorCell = IsCursorCell(frame, lineIndex, line, logicalColumn);
             CellStyle style = SyntaxStyleAt(syntaxSpans, lineIndex, logicalColumn)
                 ?? EditorTextStyle();
+            int scalarWidth = logicalColumn < line.Length
+                ? EditorUnicode.DisplayCellWidthAt(line, logicalColumn)
+                : 1;
+            int scalarStart = VisualColumn(line, logicalColumn);
+
+            if (scalarWidth > 1 && visualColumn == scalarStart)
+            {
+                int next = EditorUnicode.NextScalarColumn(line, logicalColumn);
+                canvas.Write(
+                    frame.ContentBounds.X + screenX,
+                    screenY,
+                    line[logicalColumn..next],
+                    cursorCell || selected ? EditorSelectionStyle() : style);
+                screenX += scalarWidth - 1;
+                continue;
+            }
+
+            char ch = visualColumn > scalarStart && scalarWidth > 1
+                ? ' '
+                : CharacterAtVisualColumn(line, visualColumn);
             canvas.WriteChar(
                 frame.ContentBounds.X + screenX,
                 screenY,

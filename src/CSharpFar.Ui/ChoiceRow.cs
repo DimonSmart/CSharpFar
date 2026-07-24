@@ -216,6 +216,6 @@ public sealed class ChoiceRow<T>
         if (width <= 0)
             return string.Empty;
 
-        return text.Length <= width ? text.PadRight(width) : text[..width];
+        return ConsoleTextMetrics.FitToCells(text, width);
     }
 }

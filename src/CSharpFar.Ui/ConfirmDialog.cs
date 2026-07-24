@@ -56,7 +56,7 @@ public sealed class ConfirmDialog
             int contentX = bounds.X + 2;
             int contentWidth = Math.Max(1, bounds.Width - 4);
 
-            screen.Write(contentX, bounds.Y + 1, Truncate(question, contentWidth).PadRight(contentWidth), FarDialogStyles.Fill);
+            screen.Write(contentX, bounds.Y + 1, ConsoleTextMetrics.FitToCells(question, contentWidth), FarDialogStyles.Fill);
 
             string truncatedName = Truncate(itemName, contentWidth);
             int nameX = contentX + Math.Max(0, (contentWidth - truncatedName.Length) / 2);

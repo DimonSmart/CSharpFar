@@ -172,22 +172,22 @@ public static class SingleLineTextInput
         int visibleStart = GetVisibleStart(buffer, width);
         string displayText = maskInput ? new string('*', buffer.Text.Length) : buffer.Text;
         string visible = displayText.Length > visibleStart ? displayText[visibleStart..] : string.Empty;
-        if (visible.Length > width)
-            visible = visible[..width];
-
-        string padded = visible.PadRight(width);
+        string padded = ConsoleTextMetrics.FitToCells(visible, width);
         if (!buffer.HasSelection)
         {
             screen.Write(x, y, padded, normalStyle);
             return;
         }
 
-        int selectionStart = buffer.SelectionStart!.Value - visibleStart;
+        int selectionStart = buffer.SelectionStart!.Value;
         int selectionEnd = selectionStart + buffer.SelectionLength;
-        for (int i = 0; i < padded.Length; i++)
+        int cell = 0;
+        foreach (var rune in padded.EnumerateRunes())
         {
-            bool isSelected = i >= selectionStart && i < selectionEnd;
-            screen.WriteChar(x + i, y, padded[i], isSelected ? selectedStyle : normalStyle);
+            int sourceStart = visibleStart + ConsoleTextMetrics.Utf16IndexFromCellOffset(padded, cell);
+            bool isSelected = sourceStart >= selectionStart && sourceStart < selectionEnd;
+            screen.Write(x + cell, y, rune.ToString(), isSelected ? selectedStyle : normalStyle);
+            cell += ConsoleTextMetrics.GetCellWidth(rune);
         }
     }
 
@@ -315,7 +315,8 @@ public static class SingleLineTextInput
     public static int GetCursorX(int x, int width, CommandLineState buffer)
     {
         int visibleStart = GetVisibleStart(buffer, width);
-        return x + buffer.CursorPosition - visibleStart;
+        return x + ConsoleTextMetrics.CellOffsetFromUtf16Index(buffer.Text, buffer.CursorPosition) -
+            ConsoleTextMetrics.CellOffsetFromUtf16Index(buffer.Text, visibleStart);
     }
 
     public static string VisibleText(CommandLineState buffer, int width)
@@ -325,11 +326,14 @@ public static class SingleLineTextInput
 
         int visibleStart = GetVisibleStart(buffer, width);
         string visible = buffer.Text.Length > visibleStart ? buffer.Text[visibleStart..] : string.Empty;
-        return visible.Length > width ? visible[..width] : visible;
+        return ConsoleTextMetrics.TruncateToCells(visible, width);
     }
 
-    private static int GetVisibleStart(CommandLineState buffer, int width) =>
-        Math.Max(0, buffer.CursorPosition - Math.Max(0, width - 1));
+    private static int GetVisibleStart(CommandLineState buffer, int width)
+    {
+        int cursorCell = ConsoleTextMetrics.CellOffsetFromUtf16Index(buffer.Text, buffer.CursorPosition);
+        return ConsoleTextMetrics.Utf16IndexFromCellOffset(buffer.Text, Math.Max(0, cursorCell - Math.Max(0, width - 1)));
+    }
 
     public static int AvailableDropdownContentRows(int fieldY, int screenHeight)
     {
@@ -430,7 +434,7 @@ public static class SingleLineTextInput
         if (width <= 0)
             return string.Empty;
 
-        return text.Length > width ? text[..width] : text.PadRight(width);
+        return ConsoleTextMetrics.FitToCells(text, width);
     }
 
     private static bool IsPlainControlA(ConsoleKeyInfo key)

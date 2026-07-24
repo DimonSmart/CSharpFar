@@ -121,9 +121,7 @@ public sealed class ChoiceDialog
         if (width <= 0)
             return string.Empty;
 
-        return text.Length <= width
-            ? text.PadRight(width)
-            : text[..width];
+        return ConsoleTextMetrics.FitToCells(text, width);
     }
 
     private readonly record struct ChoiceDialogLayout(Rect Bounds, int LineRows, int ButtonY);

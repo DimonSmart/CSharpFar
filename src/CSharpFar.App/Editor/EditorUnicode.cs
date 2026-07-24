@@ -1,4 +1,5 @@
 using System.Text;
+using CSharpFar.Ui;
 
 namespace CSharpFar.App.Editor;
 
@@ -61,7 +62,7 @@ internal static class EditorUnicode
         if (!TryGetScalarAt(text, column, out Rune scalar))
             return 1;
 
-        return DisplayCellWidth(scalar);
+        return ConsoleTextMetrics.GetCellWidth(scalar);
     }
 
     public static bool TryGetScalarAt(string text, int column, out Rune scalar)
@@ -100,32 +101,4 @@ internal static class EditorUnicode
         return false;
     }
 
-    private static int DisplayCellWidth(Rune scalar)
-    {
-        var category = Rune.GetUnicodeCategory(scalar);
-        if (category is
-            System.Globalization.UnicodeCategory.NonSpacingMark or
-            System.Globalization.UnicodeCategory.EnclosingMark or
-            System.Globalization.UnicodeCategory.Format)
-        {
-            return 0;
-        }
-
-        int value = scalar.Value;
-        return IsWideDisplayScalar(value) ? 2 : 1;
-    }
-
-    private static bool IsWideDisplayScalar(int value) =>
-        value is >= 0x1100 and <= 0x115F or
-        0x2329 or
-        0x232A or
-        >= 0x2E80 and <= 0xA4CF or
-        >= 0xAC00 and <= 0xD7A3 or
-        >= 0xF900 and <= 0xFAFF or
-        >= 0xFE10 and <= 0xFE19 or
-        >= 0xFE30 and <= 0xFE6F or
-        >= 0xFF00 and <= 0xFF60 or
-        >= 0xFFE0 and <= 0xFFE6 or
-        >= 0x1F300 and <= 0x1FAFF or
-        >= 0x20000 and <= 0x3FFFD;
 }

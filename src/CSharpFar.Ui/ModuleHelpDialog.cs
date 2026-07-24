@@ -85,14 +85,14 @@ public sealed class ModuleHelpDialog
         var headerStyle = PaletteStyles.PathHeaderActive(palette);
         string position = lines.Count == 0 ? " 0/0 " : $" {frame.Viewport.FirstVisibleIndex + 1}/{lines.Count} ";
         int titleWidth = Math.Max(0, frame.Size.Width - position.Length);
-        screen.Write(0, 0, Truncate(" " + title + " ", titleWidth).PadRight(titleWidth) + position, headerStyle);
+        screen.Write(0, 0, ConsoleTextMetrics.FitToCells(" " + title + " ", titleWidth) + position, headerStyle);
 
         var bodyStyle = PaletteStyles.HelpBody(palette);
         for (int row = 0; row < frame.Viewport.ViewportItems; row++)
         {
             int lineIndex = frame.Viewport.FirstVisibleIndex + row;
             string text = lineIndex < lines.Count ? lines[lineIndex] : string.Empty;
-            screen.Write(0, row + 1, Truncate(text, frame.Viewport.ContentBounds.Width).PadRight(frame.Viewport.ContentBounds.Width), bodyStyle);
+            screen.Write(0, row + 1, ConsoleTextMetrics.FitToCells(text, frame.Viewport.ContentBounds.Width), bodyStyle);
         }
 
         if (frame.Viewport.ScrollbarBounds is Rect scrollbarBounds && viewport.GetScrollState(frame.Viewport) is { } scrollState)
@@ -101,11 +101,11 @@ public sealed class ModuleHelpDialog
                 new ScrollBarOptions { Enabled = true, DrawWhenNotScrollable = false }, PaletteStyles.DialogBorder(palette));
         }
 
-        screen.Write(0, frame.Size.Height - 1, "Esc/F10 Close".PadRight(frame.Size.Width), PaletteStyles.KeyBarLabel(palette));
+        screen.Write(0, frame.Size.Height - 1, ConsoleTextMetrics.FitToCells("Esc/F10 Close", frame.Size.Width), PaletteStyles.KeyBarLabel(palette));
     }
 
     private static string Truncate(string value, int width) =>
-        width <= 0 ? string.Empty : value.Length <= width ? value : value[..width];
+        ConsoleTextMetrics.TruncateToCells(value, width);
 
     private readonly record struct ModuleHelpFrame(ConsoleSize Size, ScrollableViewportFrameState Viewport);
 }

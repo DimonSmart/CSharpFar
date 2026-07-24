@@ -12,8 +12,8 @@ namespace CSharpFar.Console;
 public sealed class ScreenRenderer
 {
     private readonly IConsoleDriver _driver;
-    private SnapshotCell[,]? _frontBuffer;
-    private SnapshotCell[,]? _backBuffer;
+    private BufferCell[,]? _frontBuffer;
+    private BufferCell[,]? _backBuffer;
     private ConsoleSize _bufferSize;
     private bool _frontBufferKnown;
     private ConsoleViewport? _frontBufferViewport;
@@ -186,8 +186,7 @@ public sealed class ScreenRenderer
         if (y >= size.Height || x >= size.Width)
             return;
 
-        int len = Math.Min(text.Length, size.Width - x);
-        var clipped = text[..len];
+        string clipped = ConsoleTextMetrics.TruncateToCells(text.ToString(), size.Width - x);
 
         if (!_frameActive)
         {
@@ -197,11 +196,11 @@ public sealed class ScreenRenderer
 
         EnsureBuffers(size);
         WriteToBuffer(_backBuffer!, x, y, clipped, style);
-        for (int i = 0; i < clipped.Length; i++)
+        int writtenCells = ConsoleTextMetrics.GetCellWidth(clipped);
+        for (int i = 0; i < writtenCells; i++)
         {
-            _frontBuffer![y, x + i] = new SnapshotCell
+            _frontBuffer![y, x + i] = new BufferCell
             {
-                Character = '\0',
                 Foreground = style.Foreground,
                 Background = style.Background,
                 Attributes = style.Attributes,
@@ -218,8 +217,7 @@ public sealed class ScreenRenderer
         if (y >= size.Height || x >= size.Width)
             return;
 
-        int len = Math.Min(text.Length, size.Width - x);
-        var clipped = text[..len];
+        string clipped = ConsoleTextMetrics.TruncateToCells(text.ToString(), size.Width - x);
 
         if (_frameActive)
         {
@@ -516,11 +514,15 @@ public sealed class ScreenRenderer
                 }
 
                 int len = x - start;
-                var chars = new char[len];
-                for (int i = 0; i < len; i++)
-                    chars[i] = _backBuffer[y, start + i].Character;
+                while (start > 0 && _backBuffer[y, start].IsContinuation)
+                    start--;
 
-                if (!_driver.TryWriteAtViewport(_frameViewport, start, y, chars, first.Foreground, first.Background, first.Attributes))
+                var chars = new System.Text.StringBuilder();
+                for (int i = start; i < x; i++)
+                    if (!_backBuffer[y, i].IsContinuation)
+                        chars.Append(_backBuffer[y, i].Text);
+
+                if (!_driver.TryWriteAtViewport(_frameViewport, start, y, chars.ToString(), first.Foreground, first.Background, first.Attributes))
                 {
                     InterruptFrame();
                     return;
@@ -580,41 +582,47 @@ public sealed class ScreenRenderer
             FillBuffer(_backBuffer, 0, 0, _bufferSize.Width, _bufferSize.Height, CellStyle.Default);
     }
 
-    private static SnapshotCell[,] CreateBuffer(ConsoleSize size)
+    private static BufferCell[,] CreateBuffer(ConsoleSize size)
     {
-        var buffer = new SnapshotCell[size.Height, size.Width];
+        var buffer = new BufferCell[size.Height, size.Width];
         FillBuffer(buffer, 0, 0, size.Width, size.Height, CellStyle.Default);
         return buffer;
     }
 
     private static void WriteToBuffer(
-        SnapshotCell[,] buffer,
+        BufferCell[,] buffer,
         int x,
         int y,
         ReadOnlySpan<char> text,
         CellStyle style)
     {
-        for (int i = 0; i < text.Length; i++)
+        int column = x;
+        foreach (var rune in text.ToString().EnumerateRunes())
         {
-            buffer[y, x + i] = new SnapshotCell
+            int width = ConsoleTextMetrics.GetCellWidth(rune);
+            if (width == 0)
             {
-                Character = text[i],
-                Foreground = style.Foreground,
-                Background = style.Background,
-                Attributes = style.Attributes,
-            };
+                int baseColumn = column - 1;
+                while (baseColumn >= x && buffer[y, baseColumn].IsContinuation)
+                    baseColumn--;
+                if (baseColumn >= x)
+                    buffer[y, baseColumn].Text += rune.ToString();
+                continue;
+            }
+
+            if (column + width > buffer.GetLength(1))
+                break;
+
+            buffer[y, column] = new BufferCell(rune.ToString(), false, style.Foreground, style.Background, style.Attributes);
+            for (int i = 1; i < width; i++)
+                buffer[y, column + i] = new BufferCell(string.Empty, true, style.Foreground, style.Background, style.Attributes);
+            column += width;
         }
     }
 
-    private static void FillBuffer(SnapshotCell[,] buffer, int x, int y, int width, int height, CellStyle style)
+    private static void FillBuffer(BufferCell[,] buffer, int x, int y, int width, int height, CellStyle style)
     {
-        var cell = new SnapshotCell
-        {
-            Character = ' ',
-            Foreground = style.Foreground,
-            Background = style.Background,
-            Attributes = style.Attributes,
-        };
+        var cell = new BufferCell(" ", false, style.Foreground, style.Background, style.Attributes);
 
         for (int row = y; row < y + height; row++)
             for (int col = x; col < x + width; col++)
@@ -637,7 +645,7 @@ public sealed class ScreenRenderer
         }
     }
 
-    private void CopySnapshotToBuffer(SnapshotCell[,] buffer, ScreenSnapshot snapshot)
+    private void CopySnapshotToBuffer(BufferCell[,] buffer, ScreenSnapshot snapshot)
     {
         int rowStart = Math.Max(0, -snapshot.Region.Y);
         int colStart = Math.Max(0, -snapshot.Region.X);
@@ -650,7 +658,8 @@ public sealed class ScreenRenderer
             {
                 int y = snapshot.Region.Y + row;
                 int x = snapshot.Region.X + col;
-                buffer[y, x] = snapshot.Cells[row, col];
+                var cell = snapshot.Cells[row, col];
+                buffer[y, x] = new BufferCell(cell.Character.ToString(), false, cell.Foreground, cell.Background, cell.Attributes);
             }
         }
     }
@@ -671,11 +680,12 @@ public sealed class ScreenRenderer
         _cursorVisible = visible;
     }
 
-    private static bool SameCell(SnapshotCell left, SnapshotCell right) =>
-        left.Character == right.Character &&
+    private static bool SameCell(BufferCell left, BufferCell right) =>
+        left.Text == right.Text &&
+        left.IsContinuation == right.IsContinuation &&
         SameStyle(left, right);
 
-    private static bool SameStyle(SnapshotCell left, SnapshotCell right) =>
+    private static bool SameStyle(BufferCell left, BufferCell right) =>
         left.Foreground == right.Foreground &&
         left.Background == right.Background &&
         left.Attributes == right.Attributes;
@@ -691,6 +701,24 @@ public sealed class ScreenRenderer
             _owner?.EndFrame();
             _owner = null;
         }
+    }
+
+    private struct BufferCell
+    {
+        public BufferCell(string text, bool isContinuation, ConsoleColor foreground, ConsoleColor background, TextAttributes attributes)
+        {
+            Text = text;
+            IsContinuation = isContinuation;
+            Foreground = foreground;
+            Background = background;
+            Attributes = attributes;
+        }
+
+        public string Text { get; set; }
+        public bool IsContinuation { get; set; }
+        public ConsoleColor Foreground { get; set; }
+        public ConsoleColor Background { get; set; }
+        public TextAttributes Attributes { get; set; }
     }
 
     private sealed class EmptyDisposable : IDisposable

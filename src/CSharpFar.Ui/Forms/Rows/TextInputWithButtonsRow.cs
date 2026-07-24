@@ -47,7 +47,7 @@ public sealed class TextInputWithButtonsRow : FormRow, IFormOverlayRow, IFormCur
         context.Canvas.Write(
             context.Bounds.X,
             context.Bounds.Y,
-            ScrollableFormDialog.Fit(_label.PadRight(labelWidth), labelWidth),
+            ScrollableFormDialog.Fit(_label, labelWidth),
             FarDialogStyles.Fill);
 
         SingleLineTextInput.Render(

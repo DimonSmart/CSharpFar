@@ -266,11 +266,12 @@ public sealed class MessageDialog
         }
 
         string remaining = rawLine;
-        while (remaining.Length > width)
+        while (ConsoleTextMetrics.GetCellWidth(remaining) > width)
         {
-            int breakAt = remaining.LastIndexOf(' ', width - 1, width);
+            string visible = ConsoleTextMetrics.TruncateToCells(remaining, width);
+            int breakAt = visible.LastIndexOf(' ');
             if (breakAt <= 0)
-                breakAt = width;
+                breakAt = visible.Length;
 
             string line = remaining[..breakAt].TrimEnd();
             result.Add(line.Length == 0 ? remaining[..breakAt] : line);
@@ -295,9 +296,7 @@ public sealed class MessageDialog
         if (width <= 0)
             return string.Empty;
 
-        return text.Length <= width
-            ? text.PadRight(width)
-            : text[..width];
+        return ConsoleTextMetrics.FitToCells(text, width);
     }
 
     private sealed record MessageDialogLayout(
