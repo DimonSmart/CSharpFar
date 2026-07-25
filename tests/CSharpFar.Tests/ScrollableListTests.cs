@@ -412,6 +412,8 @@ public sealed class ScrollableListTests
             UiInputRouteContext.HitTarget(focus, scrollbarTarget));
 
         Assert.True(started.ListResult.DragStarted);
+        Assert.Equal(UiFocusRequestKind.Set, started.UiResult.FocusRequest.Kind);
+        Assert.Equal(listTarget, started.UiResult.FocusRequest.Target);
         Assert.Equal(UiMouseCaptureRequestKind.Capture, started.UiResult.MouseCaptureRequest.Kind);
         Assert.Equal(scrollbarTarget, started.UiResult.MouseCaptureRequest.Target);
 
