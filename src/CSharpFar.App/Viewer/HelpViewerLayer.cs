@@ -25,7 +25,8 @@ internal sealed partial class HelpViewerLayer : InteractiveSurfaceLayer<HelpView
     private const int KeyColumnWidth = 20;
     private readonly HelpLine[] _lines;
     private readonly ConsolePalette _palette;
-    private readonly ScrollableViewport _verticalViewport = new();
+    private readonly RoutedScrollableViewport _verticalViewport =
+        new(new ScrollableViewport(), Content, Scrollbar);
     private int _scrollLeft;
 
     public HelpViewerLayer(HelpLine[] lines, ConsolePalette palette)
@@ -62,7 +63,7 @@ internal sealed partial class HelpViewerLayer : InteractiveSurfaceLayer<HelpView
         bool scrollbarVisible = visibleRows > 0 && _lines.Length > visibleRows && width > 1;
         Rect content = new(0, 1, Math.Max(0, width - (scrollbarVisible ? 1 : 0)), visibleRows);
         Rect? scrollbar = scrollbarVisible ? new Rect(width - 1, 1, 1, visibleRows) : null;
-        ScrollableViewportFrameState verticalViewport = _verticalViewport.CalculateFrameState(
+        ScrollableViewportFrameState verticalViewport = _verticalViewport.CalculateFrame(
             _lines.Length,
             visibleRows,
             content,
@@ -90,16 +91,13 @@ internal sealed partial class HelpViewerLayer : InteractiveSurfaceLayer<HelpView
             visibleRows);
     }
 
-    private static UiInteractionFrame BuildInteraction(HelpViewerFrame frame)
+    private UiInteractionFrame BuildInteraction(HelpViewerFrame frame)
     {
         var builder = new UiInteractionFrameBuilder()
             .AddFocusEntry(Keyboard, 0, cursor: new UiCursorPlacement(0, 0, false))
             .SetDefaultFocusTarget(Keyboard)
             .SetKeyboardTarget(Keyboard);
-        if (frame.ContentBounds.Width > 0 && frame.ContentBounds.Height > 0)
-            builder.AddHitRegion(Content, frame.ContentBounds);
-        if (frame.ScrollBarBounds is { } bar)
-            builder.AddHitRegion(Scrollbar, bar);
+        builder.AddFragment(_verticalViewport.BuildInteractionFragment(frame.VerticalViewport));
 
         builder.AddFragment(FunctionKeysController.BuildInteractionFragment(frame.FooterActionHits));
         return builder.Build();
