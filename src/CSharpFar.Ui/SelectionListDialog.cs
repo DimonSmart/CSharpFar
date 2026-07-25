@@ -81,8 +81,8 @@ public sealed class SelectionListDialog<T>
                 return frame;
             },
             frame => new UiInteractionFrameBuilder()
-                .AddFragment(_list.BuildInteractionFragment(frame.Layout.ContentBounds, frame.ListState, 0, _list.HasItems))
-                .SetDefaultFocusTarget(_list.HasItems ? ListTarget : null)
+                .AddFragment(_list.BuildInteractionFragment(frame.Layout.ContentBounds, frame.ListState, 0, _list.HasItems && frame.Layout.ContentBounds.Width > 0 && frame.Layout.ContentBounds.Height > 0))
+                .SetDefaultFocusTarget(_list.HasItems && frame.Layout.ContentBounds.Width > 0 && frame.Layout.ContentBounds.Height > 0 ? ListTarget : null)
                 .Build(),
             (input, frame, route) =>
             {
@@ -171,14 +171,16 @@ public sealed class SelectionListDialog<T>
         return new SelectionListLayout(
             bounds,
             contentBounds,
-            new Rect(bounds.Right - 1, contentBounds.Y, 1, contentBounds.Height),
+            contentBounds.Width > 0 && contentBounds.Height > 0 && _list.Count > contentBounds.Height
+                ? new Rect(bounds.Right - 1, contentBounds.Y, 1, contentBounds.Height)
+                : null,
             contentBounds.Height);
     }
 
     private readonly record struct SelectionListLayout(
         Rect Bounds,
         Rect ContentBounds,
-        Rect ScrollbarBounds,
+        Rect? ScrollbarBounds,
         int VisibleRows);
 
     private readonly record struct SelectionListFrame(

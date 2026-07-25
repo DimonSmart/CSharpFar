@@ -22,13 +22,15 @@ public static class UiLayout
         int safeTop = Math.Max(0, top);
         int safeRight = Math.Max(0, right);
         int safeBottom = Math.Max(0, bottom);
-        return new Rect(bounds.X + safeLeft, bounds.Y + safeTop, Math.Max(0, bounds.Width - safeLeft - safeRight), Math.Max(0, bounds.Height - safeTop - safeBottom));
+        int x = Math.Clamp(bounds.X + safeLeft, bounds.X, bounds.Right);
+        int y = Math.Clamp(bounds.Y + safeTop, bounds.Y, bounds.Bottom);
+        return new Rect(x, y, Math.Max(0, bounds.Right - x - safeRight), Math.Max(0, bounds.Bottom - y - safeBottom));
     }
 
     public static VerticalLayoutSplit SplitBottom(Rect bounds, int footerHeight, int gap = 0)
     {
         int footer = Math.Clamp(footerHeight, 0, Math.Max(0, bounds.Height));
-        int bodyHeight = Math.Max(0, bounds.Height - footer - Math.Max(0, gap));
+        int bodyHeight = Math.Max(0, bounds.Height - footer - Math.Min(Math.Max(0, gap), bounds.Height - footer));
         return new VerticalLayoutSplit(new Rect(bounds.X, bounds.Y, bounds.Width, bodyHeight), new Rect(bounds.X, bounds.Bottom - footer, bounds.Width, footer));
     }
 }

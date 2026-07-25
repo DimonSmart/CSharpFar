@@ -289,39 +289,37 @@ internal sealed class SearchProgressDialog
             DialogHeight,
             minWidth: 50,
             minHeight: 14);
-        SearchProgressLayout? resultLayout = null;
+        SearchProgressLayout layout = CalculateLayout(modal, list.Count);
         ScrollableFormFrame? buttonFrame = null;
-        ScrollableListFrameState listState = ScrollableListFrameState.Empty;
+        ScrollableListFrameState listState = list.CalculateFrame(layout.ListBounds.Height, layout.ScrollbarBounds);
         _modalRenderer.Render(
             context.Canvas,
-            modal.OuterBounds,
+            modal,
             $"Find file: {request.FileMaskExpression}",
             true,
             FarDialogStyles.OuterOptions,
             FarDialogStyles.FrameOptions,
             (_, _) =>
             {
-                Rect bounds = modal.FrameBounds;
-                int contentX = bounds.X + 2;
-                int contentWidth = Math.Max(1, bounds.Width - 4);
+                if (layout.StatusBounds.Width > 0)
+                {
+                    int contentWidth = layout.StatusBounds.Width;
+                    context.Canvas.Write(layout.StatusBounds.X, layout.StatusBounds.Y, ShortenMiddle(state.Progress.CurrentPath ?? request.RootPath, contentWidth).PadRight(contentWidth), FarDialogStyles.Fill);
+                    if (layout.StatusBounds.Height > 1)
+                        context.Canvas.Write(layout.StatusBounds.X, layout.StatusBounds.Y + 1, StatsLine(state.Progress, contentWidth).PadRight(contentWidth), FarDialogStyles.Fill);
+                    if (layout.StatusBounds.Height > 2)
+                    {
+                        string errorText = state.Progress.LastErrorMessage is null
+                            ? StatusText(state.Status)
+                            : ShortenMiddle($"{state.Progress.LastErrorPath}: {state.Progress.LastErrorMessage}", contentWidth);
+                        context.Canvas.Write(layout.StatusBounds.X, layout.StatusBounds.Y + 2, errorText.PadRight(contentWidth), state.Status == SearchProgressStatus.Failed ? FarDialogStyles.Error : FarDialogStyles.Fill);
+                    }
+                }
 
-                context.Canvas.Write(contentX, bounds.Y + 1, ShortenMiddle(state.Progress.CurrentPath ?? request.RootPath, contentWidth).PadRight(contentWidth), FarDialogStyles.Fill);
-                context.Canvas.Write(contentX, bounds.Y + 2, StatsLine(state.Progress, contentWidth).PadRight(contentWidth), FarDialogStyles.Fill);
-
-                string errorText = state.Progress.LastErrorMessage is null
-                    ? StatusText(state.Status)
-                    : ShortenMiddle($"{state.Progress.LastErrorPath}: {state.Progress.LastErrorMessage}", contentWidth);
-                context.Canvas.Write(contentX, bounds.Y + 3, errorText.PadRight(contentWidth), state.Status == SearchProgressStatus.Failed ? FarDialogStyles.Error : FarDialogStyles.Fill);
-
-                DrawSeparator(context.Canvas, bounds, bounds.Y + 4);
-
-                int listY = bounds.Y + 5;
-                int listHeight = VisibleResultRows(bounds);
-                Rect listBounds = new(contentX, listY, contentWidth, listHeight);
-                Rect scrollbarBounds = new(bounds.Right - 1, listY, 1, listHeight);
-                listState = list.CalculateFrame(listHeight, list.Count > listHeight ? scrollbarBounds : null);
-                list.Render(context.Canvas, listBounds, listState);
-                if (list.GetScrollState(listHeight, listState.ScrollTop) is { } scrollState)
+                DrawSeparator(context.Canvas, modal.FrameBounds, layout.SeparatorY);
+                list.Render(context.Canvas, layout.ListBounds, listState);
+                if (layout.ScrollbarBounds is { } scrollbarBounds &&
+                    list.GetScrollState(layout.ListBounds.Height, listState.ScrollTop) is { } scrollState)
                 {
                     new ScrollBarRenderer().RenderVerticalScrollbar(
                         context.Canvas,
@@ -331,20 +329,21 @@ internal sealed class SearchProgressDialog
                         FarDialogStyles.Border);
                 }
 
-                buttonFrame = form.Render(
-                    new FormRenderContext(
-                        context,
-                        new Rect(contentX, listBounds.Bottom, contentWidth, 1),
-                        FarDialogStyles.Border,
-                        new Rect(contentX, bounds.Y + bounds.Height - 2, contentWidth, 1)),
-                    focusScope,
-                    [new UiFocusEntry(list.ListTarget, 0)],
-                    list.ListTarget);
-                resultLayout = new SearchProgressLayout(bounds, listBounds, scrollbarBounds, listHeight);
+                buttonFrame = layout.FooterBounds.Height > 0
+                    ? form.Render(
+                        new FormRenderContext(
+                            context,
+                            layout.FormBodyBounds,
+                            FarDialogStyles.Border,
+                            layout.FooterBounds),
+                        focusScope,
+                        [new UiFocusEntry(list.ListTarget, 0)],
+                        list.ListTarget)
+                    : EmptyFormFrame(context, layout.FormBodyBounds);
             });
 
         return new SearchProgressFrame(
-            resultLayout ?? throw new InvalidOperationException("Search progress layout was not rendered."),
+            layout,
             listState,
             buttonFrame ?? throw new InvalidOperationException("Search progress buttons were not rendered."),
             form,
@@ -353,14 +352,38 @@ internal sealed class SearchProgressDialog
             canStop);
     }
 
+    private static SearchProgressLayout CalculateLayout(ModalDialogRenderer.Layout modal, int itemCount)
+    {
+        Rect frame = modal.FrameBounds;
+        Rect statusBounds = UiLayout.Inset(frame, left: 2, top: 1, right: 2, bottom: 1);
+        int separatorY = Math.Min(frame.Bottom, frame.Y + 4);
+        int listY = Math.Min(frame.Bottom, frame.Y + 5);
+        int footerY = Math.Max(listY, frame.Bottom - 2);
+        Rect listBounds = new(statusBounds.X, listY, statusBounds.Width, Math.Max(0, footerY - listY - 1));
+        Rect? scrollbarBounds = listBounds.Width > 0 && listBounds.Height > 0 && itemCount > listBounds.Height
+            ? new Rect(frame.Right - 1, listBounds.Y, 1, listBounds.Height)
+            : null;
+        Rect formBodyBounds = new(statusBounds.X, Math.Clamp(listBounds.Bottom, frame.Y, frame.Bottom), statusBounds.Width, listBounds.Bottom < footerY ? 1 : 0);
+        Rect footerBounds = new(statusBounds.X, footerY, statusBounds.Width, footerY < frame.Bottom ? 1 : 0);
+        return new SearchProgressLayout(frame, statusBounds, separatorY, listBounds, scrollbarBounds, formBodyBounds, footerBounds);
+    }
+
+    private static ScrollableFormFrame EmptyFormFrame(UiRenderContext context, Rect bodyBounds) =>
+        new(context.Viewport, bodyBounds, null, 0, context.Viewport.Height, 0, [], null);
+
     private static UiInteractionFrame BuildInteractionFrame(
         SearchProgressFrame frame,
         RoutedScrollableList<SearchResultItem> list)
     {
         var builder = new UiInteractionFrameBuilder()
-            .AddFragment(list.BuildInteractionFragment(frame.Layout.ListBounds, frame.ListState, 0))
-            .SetDefaultFocusTarget(list.ListTarget)
-            .SetKeyboardTarget(list.ListTarget);
+            .AddFragment(list.BuildInteractionFragment(
+                frame.Layout.ListBounds,
+                frame.ListState,
+                0,
+                frame.Layout.ListBounds.Width > 0 && frame.Layout.ListBounds.Height > 0))
+            .SetDefaultFocusTarget(frame.Layout.ListBounds.Width > 0 && frame.Layout.ListBounds.Height > 0 ? list.ListTarget : null);
+        if (frame.Layout.ListBounds.Width > 0 && frame.Layout.ListBounds.Height > 0)
+            builder.SetKeyboardTarget(list.ListTarget);
         builder.AddFragment(frame.Form.BuildInteractionFragment(frame.Buttons));
 
         return builder.Build();
@@ -487,12 +510,6 @@ internal sealed class SearchProgressDialog
         canvas.WriteChar(bounds.Right - 1, y, '╢', FarDialogStyles.Border);
     }
 
-    private static int VisibleResultRows(Rect frameBounds)
-    {
-        int listY = frameBounds.Y + 5;
-        int buttonY = frameBounds.Y + frameBounds.Height - 2;
-        return Math.Max(1, buttonY - listY - 1);
-    }
 
     private static string StatsLine(SearchProgress progress, int width)
     {
@@ -591,9 +608,12 @@ internal sealed class SearchProgressDialog
 
     private sealed record SearchProgressLayout(
         Rect FrameBounds,
+        Rect StatusBounds,
+        int SeparatorY,
         Rect ListBounds,
-        Rect ScrollbarBounds,
-        int VisibleResultRows);
+        Rect? ScrollbarBounds,
+        Rect FormBodyBounds,
+        Rect FooterBounds);
 
     private sealed record SearchProgressFrame(
         SearchProgressLayout Layout,
