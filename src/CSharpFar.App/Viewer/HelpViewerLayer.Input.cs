@@ -17,7 +17,7 @@ internal sealed partial class HelpViewerLayer
             context.RouteKind == UiInputRouteKind.KeyboardTarget &&
             context.Target == Keyboard)
         {
-            var (action, invalidate) = RouteKey(key.Key, frame);
+            var (action, invalidate) = RouteKey(key.Key, frame, context);
             return new InteractiveSurfaceRouteResult<HelpAction>(action, invalidate);
         }
 
@@ -27,7 +27,10 @@ internal sealed partial class HelpViewerLayer
         return new InteractiveSurfaceRouteResult<HelpAction>(HelpAction.None);
     }
 
-    private (HelpAction Action, bool Invalidate) RouteKey(ConsoleKeyInfo key, HelpViewerFrame frame)
+    private (HelpAction Action, bool Invalidate) RouteKey(
+        ConsoleKeyInfo key,
+        HelpViewerFrame frame,
+        UiInputRouteContext context)
     {
         if (key.Key is ConsoleKey.F1 or ConsoleKey.F10 or ConsoleKey.Escape)
             return (HelpAction.Close, false);
@@ -47,9 +50,12 @@ internal sealed partial class HelpViewerLayer
                 break;
         }
 
-        ScrollableViewportInputResult result = _verticalViewport.HandleKey(key, frame.VerticalViewport);
-        return result.IsHandled
-            ? (HelpAction.None, result.PositionChanged || _scrollLeft != oldLeft)
+        RoutedScrollableViewportInputResult routed = _verticalViewport.RouteInput(
+            new KeyConsoleInputEvent(key),
+            frame.VerticalViewport,
+            context);
+        return routed.ViewportResult.IsHandled
+            ? (HelpAction.None, routed.UiResult.Invalidate || _scrollLeft != oldLeft)
             : (HelpAction.None, false);
     }
 
@@ -69,24 +75,17 @@ internal sealed partial class HelpViewerLayer
             return new InteractiveSurfaceRouteResult<HelpAction>(functionKeyAction);
         }
 
-        if (mouse.Kind == MouseEventKind.Wheel)
-        {
-            if (context.Target != Content)
-                return new InteractiveSurfaceRouteResult<HelpAction>(HelpAction.None);
-        }
-        else if (context.Target != Scrollbar)
-        {
+        if (!_verticalViewport.IsTargetRoute(context))
             return new InteractiveSurfaceRouteResult<HelpAction>(HelpAction.None);
-        }
 
-        ScrollableViewportInputResult viewportResult = _verticalViewport.HandleMouse(
+        RoutedScrollableViewportInputResult routed = _verticalViewport.RouteInput(
             mouse,
-            frame.VerticalViewport);
-        UiInputResult uiResult = ScrollableViewportRouting.ToUiInputResult(viewportResult, Scrollbar);
+            frame.VerticalViewport,
+            context);
         return new InteractiveSurfaceRouteResult<HelpAction>(
             HelpAction.None,
-            uiResult.Invalidate,
-            uiResult.FocusRequest,
-            uiResult.MouseCaptureRequest);
+            routed.UiResult.Invalidate,
+            routed.UiResult.FocusRequest,
+            routed.UiResult.MouseCaptureRequest);
     }
 }
