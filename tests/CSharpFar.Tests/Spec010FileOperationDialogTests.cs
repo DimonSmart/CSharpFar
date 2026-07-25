@@ -572,9 +572,15 @@ public sealed class Spec010FileOperationDialogTests
         var screen = new ScreenRenderer(driver);
         var service = new ConflictFileOperationService();
         var runner = CreateRunner(screen, service);
-        driver.BeforeReadInput = currentDriver =>
-            currentDriver.BeforeReadInput = nextDriver =>
-                nextDriver.EnqueueKey(new ConsoleKeyInfo('O', ConsoleKey.O, shift: true, alt: false, control: false));
+        bool conflictDecisionQueued = false;
+        driver.Wrote += record =>
+        {
+            if (!conflictDecisionQueued && record.Text.Contains(@"C:\destination\a.txt", StringComparison.Ordinal))
+            {
+                conflictDecisionQueued = true;
+                driver.EnqueueKey(new ConsoleKeyInfo('O', ConsoleKey.O, shift: true, alt: false, control: false));
+            }
+        };
 
         FileOperationResult result = runner.Execute(CopyRequest());
 
