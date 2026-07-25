@@ -50,10 +50,11 @@ internal sealed class SearchProgressDialog
             SelectedStyle = FarDialogStyles.Input,
             EmptyStyle = FarDialogStyles.Fill,
         };
+        var targets = new UiTargetScope("search-progress");
         var routedList = new RoutedScrollableList<SearchResultItem>(
             list,
-            new UiTargetId("search-progress.results"),
-            new UiTargetId("search-progress.results.scrollbar"));
+            targets.Child("results"),
+            targets.Child("results.scrollbar"));
         var state = new SearchProgressViewState(
             latestProgress,
             Array.Empty<SearchResultItem>(),
@@ -282,26 +283,25 @@ internal sealed class SearchProgressDialog
         bool canGoTo,
         bool canStop)
     {
-        SearchProgressLayout? resultLayout = null;
-        ScrollableFormFrame? buttonFrame = null;
-        ScrollableListFrameState listState = ScrollableListFrameState.Empty;
-        var outerBounds = _modalRenderer.CenteredOuterBounds(
+        ModalDialogRenderer.Layout modal = _modalRenderer.CalculateLayout(
             context.Size,
             DialogWidth,
             DialogHeight,
             minWidth: 50,
             minHeight: 14);
-
+        SearchProgressLayout? resultLayout = null;
+        ScrollableFormFrame? buttonFrame = null;
+        ScrollableListFrameState listState = ScrollableListFrameState.Empty;
         _modalRenderer.Render(
             context.Canvas,
-            outerBounds,
+            modal.OuterBounds,
             $"Find file: {request.FileMaskExpression}",
             true,
             FarDialogStyles.OuterOptions,
             FarDialogStyles.FrameOptions,
-            (_, layout) =>
+            (_, _) =>
             {
-                Rect bounds = layout.FrameBounds;
+                Rect bounds = modal.FrameBounds;
                 int contentX = bounds.X + 2;
                 int contentWidth = Math.Max(1, bounds.Width - 4);
 

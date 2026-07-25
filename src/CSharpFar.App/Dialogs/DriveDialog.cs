@@ -45,10 +45,11 @@ internal sealed class DriveDialog
             SelectedIndex = initialCursor,
             EmptyText = "No volumes found.",
         };
+        var targets = new UiTargetScope("drive");
         var routedList = new RoutedScrollableList<VolumeSelectionItem>(
             list,
-            new UiTargetId("drive.volumes"),
-            new UiTargetId("drive.volumes.scrollbar"));
+            targets.Child("volumes"),
+            targets.Child("volumes.scrollbar"));
         string? lastShortcut = null;
 
         return _modalDialogs.RunInteractive<DriveDialogFrame, ScrollableListInputResult, VolumeSelectionItem?>(
@@ -177,17 +178,17 @@ internal sealed class DriveDialog
         };
     }
 
-    private static DriveDialogFrame BuildFrame(
+    private DriveDialogFrame BuildFrame(
         ConsoleSize size,
         VolumeSelectionItem[] items,
         RoutedScrollableList<VolumeSelectionItem> list)
     {
         int requestedRows = Math.Min(items.Length, Math.Max(0, size.Height - 6));
-        Rect bounds = new ModalDialogRenderer().CenteredOuterBounds(size, DialogWidth, requestedRows + 6);
-        DriveDialogLayout layout = CalculateLayout(bounds, items.Length);
+        ModalDialogRenderer.Layout modal = _modalRenderer.CalculateLayout(size, DialogWidth, requestedRows + 6);
+        DriveDialogLayout layout = CalculateLayout(modal, items.Length);
         int visibleRows = layout.ListBounds.Height;
         Rect? scrollbarBoundsCandidate = visibleRows > 0 && items.Length > visibleRows
-            ? new Rect(layout.FrameBounds.Right - 1, layout.ListBounds.Y, 1, visibleRows)
+            ? new Rect(modal.FrameBounds.Right - 1, layout.ListBounds.Y, 1, visibleRows)
             : null;
         Rect? scrollbarBounds = scrollbarBoundsCandidate is { } candidate &&
             ScrollBarInteraction.IsInteractive(
@@ -205,28 +206,20 @@ internal sealed class DriveDialog
             : new ScrollableListFrameState(list.SelectedIndex, list.ScrollTop, 0);
         return new DriveDialogFrame(
             items,
-            bounds,
+            modal,
             layout.ListBounds,
             scrollbarBounds,
             state);
     }
 
-    private static DriveDialogLayout CalculateLayout(Rect bounds, int itemCount)
+    private static DriveDialogLayout CalculateLayout(ModalDialogRenderer.Layout modal, int itemCount)
     {
-        if (bounds.Width < 3 || bounds.Height < 3)
-            return new DriveDialogLayout(new Rect(bounds.X, bounds.Y, 0, 0), new Rect(bounds.X, bounds.Y, 0, 0));
-
-        var frameBounds = new Rect(bounds.X + 1, bounds.Y + 1, bounds.Width - 2, bounds.Height - 2);
-        var contentBounds = new Rect(
-            frameBounds.X + 1,
-            frameBounds.Y + 1,
-            Math.Max(0, frameBounds.Width - 2),
-            Math.Max(0, frameBounds.Height - 2));
+        Rect contentBounds = modal.ContentBounds;
         int visibleRows = Math.Min(itemCount, Math.Max(0, contentBounds.Height - 2));
         Rect listBounds = visibleRows > 0 && contentBounds.Width > 0
             ? new Rect(contentBounds.X, contentBounds.Y + 2, contentBounds.Width, visibleRows)
             : new Rect(contentBounds.X, contentBounds.Y, 0, 0);
-        return new DriveDialogLayout(frameBounds, listBounds);
+        return new DriveDialogLayout(listBounds);
     }
 
     private static UiInteractionFrame BuildInteractionFrame(
@@ -253,10 +246,10 @@ internal sealed class DriveDialog
         IReadOnlyList<VolumeSelectionItem> items,
         DriveDialogFrame frame)
     {
-        _modalRenderer.Render(context.Canvas, frame.Bounds, "Change drive", true, DriveOuterOptions, DriveFrameOptions, (_, layout) =>
+        _modalRenderer.Render(context.Canvas, frame.Modal.OuterBounds, "Change drive", true, DriveOuterOptions, DriveFrameOptions, (_, _) =>
         {
-            Rect frameBounds = layout.FrameBounds;
-            Rect contentBounds = layout.ContentBounds;
+            Rect frameBounds = frame.Modal.FrameBounds;
+            Rect contentBounds = frame.Modal.ContentBounds;
             const string hint = " Enter  Esc ";
             int hintX = frameBounds.X + (frameBounds.Width - hint.Length) / 2;
             context.Canvas.Write(hintX, frameBounds.Y + frameBounds.Height - 1, hint, PaletteStyles.DialogTitle(_palette));
@@ -302,12 +295,12 @@ internal sealed class DriveDialog
 
     private readonly record struct DriveDialogFrame(
         IReadOnlyList<VolumeSelectionItem> Items,
-        Rect Bounds,
+        ModalDialogRenderer.Layout Modal,
         Rect ListBounds,
         Rect? ScrollbarBounds,
         ScrollableListFrameState ListState);
 
-    private readonly record struct DriveDialogLayout(Rect FrameBounds, Rect ListBounds);
+    private readonly record struct DriveDialogLayout(Rect ListBounds);
 
     private void WriteHeader(IUiCanvas canvas, int x, int y, int width)
     {

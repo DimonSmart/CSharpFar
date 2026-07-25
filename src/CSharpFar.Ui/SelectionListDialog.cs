@@ -14,8 +14,9 @@ public sealed class SelectionListDialog<T>
 {
     private const int DefaultMaxVisibleRows = 15;
     private const int DefaultMinWidth = 20;
-    private static readonly UiTargetId ListTarget = new("selection-list.list");
-    private static readonly UiTargetId ScrollbarTarget = new("selection-list.list.scrollbar");
+    private static readonly UiTargetScope Targets = new("selection-list");
+    private static readonly UiTargetId ListTarget = Targets.Child("list");
+    private static readonly UiTargetId ScrollbarTarget = Targets.Child("list.scrollbar");
 
     private readonly RoutedScrollableList<T> _list;
     private readonly string _title;
@@ -165,10 +166,8 @@ public sealed class SelectionListDialog<T>
         int visibleRows = Math.Min(Math.Max(1, _list.Count == 0 ? 1 : _list.Count), Math.Max(1, Math.Min(maxRows, size.Height - 2)));
         int width = Math.Min(size.Width, contentWidth + 2);
         int height = Math.Min(size.Height, visibleRows + 2);
-        int x = Math.Max(0, (size.Width - width) / 2);
-        int y = Math.Max(0, (size.Height - height) / 2);
-        var bounds = new Rect(x, y, width, height);
-        var contentBounds = new Rect(x + 1, y + 1, Math.Max(1, width - 2), Math.Max(1, height - 2));
+        Rect bounds = UiLayout.Center(size, width, height);
+        Rect contentBounds = UiLayout.Inset(bounds, 1, 1);
         return new SelectionListLayout(
             bounds,
             contentBounds,
