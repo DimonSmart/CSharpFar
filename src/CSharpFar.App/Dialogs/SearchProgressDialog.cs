@@ -319,9 +319,9 @@ internal sealed class SearchProgressDialog
                 int listHeight = VisibleResultRows(bounds);
                 Rect listBounds = new(contentX, listY, contentWidth, listHeight);
                 Rect scrollbarBounds = new(bounds.Right - 1, listY, 1, listHeight);
-                listState = list.CalculateFrame(listHeight, list.List.Count > listHeight ? scrollbarBounds : null);
+                listState = list.CalculateFrame(listHeight, list.Count > listHeight ? scrollbarBounds : null);
                 list.Render(context.Canvas, listBounds, listState);
-                if (list.List.GetScrollState(listHeight, listState.ScrollTop) is { } scrollState)
+                if (list.GetScrollState(listHeight, listState.ScrollTop) is { } scrollState)
                 {
                     new ScrollBarRenderer().RenderVerticalScrollbar(
                         context.Canvas,
@@ -406,10 +406,10 @@ internal sealed class SearchProgressDialog
 
         if (listInput.Kind == ScrollableListInputResultKind.Confirmed &&
             frame.CanGoTo &&
-            list.List.SelectedIndex >= 0 &&
-            list.List.SelectedIndex < frame.Results.Length)
+            list.SelectedIndex >= 0 &&
+            list.SelectedIndex < frame.Results.Length)
         {
-            SearchResultItem confirmed = frame.Results[list.List.SelectedIndex];
+            SearchResultItem confirmed = frame.Results[list.SelectedIndex];
             return (SearchProgressInput.GoTo(confirmed), UiInputResult.HandledAndInvalidate);
         }
 

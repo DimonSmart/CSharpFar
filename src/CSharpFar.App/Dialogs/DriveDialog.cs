@@ -72,7 +72,7 @@ internal sealed class DriveDialog
                         (key.Modifiers & (ConsoleModifiers.Control | ConsoleModifiers.Alt)) == 0)
                     {
                         string shortcut = key.KeyChar.ToString().ToUpperInvariant();
-                        VolumeSelectionItem? immediate = HandleShortcut(list, shortcut, routed.Frame.ListState.ViewportRows, ref lastShortcut);
+                        VolumeSelectionItem? immediate = HandleShortcut(routedList, shortcut, routed.Frame.ListState.ViewportRows, ref lastShortcut);
                         if (immediate is not null)
                             return ModalDialogLoopResult<VolumeSelectionItem?>.Complete(immediate);
                     }
@@ -128,7 +128,7 @@ internal sealed class DriveDialog
     }
 
     private static VolumeSelectionItem? HandleShortcut(
-        ScrollableList<VolumeSelectionItem> list,
+        RoutedScrollableList<VolumeSelectionItem> list,
         string shortcut,
         int visibleRows,
         ref string? lastShortcut)
@@ -202,7 +202,7 @@ internal sealed class DriveDialog
             : null;
         ScrollableListFrameState state = visibleRows > 0
             ? list.CalculateFrame(visibleRows, scrollbarBounds)
-            : new ScrollableListFrameState(list.List.SelectedIndex, list.List.ScrollTop, 0);
+            : new ScrollableListFrameState(list.SelectedIndex, list.ScrollTop, 0);
         return new DriveDialogFrame(
             items,
             bounds,

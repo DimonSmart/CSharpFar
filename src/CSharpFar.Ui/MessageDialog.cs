@@ -23,7 +23,7 @@ public sealed class MessageDialog
 
     public void Show(string title, string message)
     {
-        var viewport = new ScrollableViewport();
+        var viewport = CreateViewport();
         _modalDialogs.RunInteractive<MessageDialogFrame, MessageDialogInput, Unit>(
             (context, focusScope) =>
             {
@@ -51,7 +51,7 @@ public sealed class MessageDialog
             .Select((text, index) => new DialogButton(index.ToString(), text, HotKeyFrom(text), index == 0))
             .ToArray();
         var actions = new DialogActionController(dialogButtons, 0, null);
-        var viewport = new ScrollableViewport();
+        var viewport = CreateViewport();
         return _modalDialogs.RunInteractive<MessageDialogFrame, MessageDialogInput, int>(
             (context, focusScope) =>
             {
@@ -65,11 +65,11 @@ public sealed class MessageDialog
                     IsScrollable(frame.Viewport) &&
                     IsViewportScrollKey(key))
                 {
-                    return (new MessageDialogInput(input, FormInputResult.NotHandled), RouteViewportKey(key, frame, viewport));
+                    return (new MessageDialogInput(input, FormInputResult.NotHandled), viewport.RouteInput(input, frame.Viewport, route).UiResult);
                 }
 
-                if (input is MouseConsoleInputEvent && IsViewportMouseRoute(route))
-                    return (new MessageDialogInput(input, FormInputResult.NotHandled), RouteViewportMouse((MouseConsoleInputEvent)input, frame, viewport));
+                if (input is MouseConsoleInputEvent && viewport.IsTargetRoute(route))
+                    return (new MessageDialogInput(input, FormInputResult.NotHandled), viewport.RouteInput(input, frame.Viewport, route).UiResult);
 
                 FormRouteResult result = actions.RouteInput(input, frame.Buttons!, route);
                 return (new MessageDialogInput(input, result.FormResult, actions.Interpret(result.FormResult)), result.UiResult);
@@ -87,9 +87,7 @@ public sealed class MessageDialog
     private static UiInteractionFrame BuildInteractionFrame(MessageDialogFrame frame)
     {
         var builder = new UiInteractionFrameBuilder()
-            .AddHitRegion(ContentTarget, frame.Viewport.ContentBounds);
-        if (frame.Viewport.ScrollbarBounds is Rect scrollbar)
-            builder.AddHitRegion(ScrollbarTarget, scrollbar);
+            .AddFragment(frame.ViewportControl.BuildInteractionFragment(frame.Viewport));
         if (frame is { Actions: not null, Buttons: not null })
             return builder
                 .AddFragment(frame.Actions.BuildInteractionFragment(frame.Buttons))
@@ -108,7 +106,7 @@ public sealed class MessageDialog
         IUiFocusState focusScope,
         string title,
         MessageDialogLayout layout,
-        ScrollableViewport viewport,
+        RoutedScrollableViewport viewport,
         DialogActionController? actions)
     {
         ScrollableFormFrame? buttons = null;
@@ -118,9 +116,9 @@ public sealed class MessageDialog
         Rect? scrollbarBounds = layout.MessageLines.Count > layout.ContentHeight
             ? new Rect(layout.Bounds.Right - 1, contentBounds.Y, 1, contentBounds.Height)
             : null;
-        ScrollableViewportFrameState viewportFrame = viewport.CalculateFrameState(
+        ScrollableViewportFrameState viewportFrame = viewport.CalculateFrame(
             layout.MessageLines.Count, layout.ContentHeight, textBounds, scrollbarBounds);
-        ScrollState? scrollState = viewport.GetScrollState(viewportFrame);
+        ScrollState? scrollState = viewport.Viewport.GetScrollState(viewportFrame);
 
         var palette = UiTheme.Current;
         new DialogFrameRenderer().RenderFrame(screen, layout.Bounds, title, false, PaletteStyles.DialogPopupOptions(palette), scrollState, (_, contentBounds) =>
@@ -159,7 +157,7 @@ public sealed class MessageDialog
                     new Rect(textX, layout.ActionRow, textWidth, 1)),
                 focusScope);
         });
-        return new MessageDialogFrame(layout, viewportFrame, buttons, actions);
+        return new MessageDialogFrame(layout, viewportFrame, viewport, buttons, actions);
     }
 
     private static MessageDialogLayout CreateLayout(
@@ -204,30 +202,15 @@ public sealed class MessageDialog
         return text.Length == 0 ? '\0' : text[0];
     }
 
+    private static RoutedScrollableViewport CreateViewport() =>
+        new(new ScrollableViewport(), ContentTarget, ScrollbarTarget);
+
     private static UiInputResult RouteViewportInput(
         ConsoleInputEvent input,
         MessageDialogFrame frame,
         UiInputRouteContext route,
-        ScrollableViewport viewport) => input switch
-        {
-            KeyConsoleInputEvent { Key: var key } => RouteViewportKey(key, frame, viewport),
-            MouseConsoleInputEvent mouse when IsViewportMouseRoute(route) => RouteViewportMouse(mouse, frame, viewport),
-            _ => UiInputResult.NotHandled,
-        };
-
-    private static UiInputResult RouteViewportKey(
-        ConsoleKeyInfo key,
-        MessageDialogFrame frame,
-        ScrollableViewport viewport) =>
-        IsViewportScrollKey(key)
-            ? ScrollableViewportRouting.ToUiInputResult(viewport.HandleKey(key, frame.Viewport), ScrollbarTarget)
-            : UiInputResult.NotHandled;
-
-    private static UiInputResult RouteViewportMouse(
-        MouseConsoleInputEvent mouse,
-        MessageDialogFrame frame,
-        ScrollableViewport viewport) =>
-        ScrollableViewportRouting.ToUiInputResult(viewport.HandleMouse(mouse, frame.Viewport), ScrollbarTarget);
+        RoutedScrollableViewport viewport) =>
+        viewport.RouteInput(input, frame.Viewport, route).UiResult;
 
     private static bool IsViewportScrollKey(ConsoleKeyInfo key) =>
         key.Key is ConsoleKey.UpArrow or ConsoleKey.DownArrow or ConsoleKey.PageUp or
@@ -235,11 +218,6 @@ public sealed class MessageDialog
 
     private static bool IsScrollable(ScrollableViewportFrameState frame) =>
         frame.TotalItems > frame.ViewportItems;
-
-    private static bool IsViewportMouseRoute(UiInputRouteContext route) =>
-        route.RouteKind == UiInputRouteKind.HitTarget &&
-        (route.Target == ContentTarget || route.Target == ScrollbarTarget) ||
-        route.RouteKind == UiInputRouteKind.CapturedTarget && route.Target == ScrollbarTarget;
 
     private static List<string> WrapMessage(string message, int width)
     {
@@ -308,6 +286,7 @@ public sealed class MessageDialog
     private readonly record struct MessageDialogFrame(
         MessageDialogLayout Layout,
         ScrollableViewportFrameState Viewport,
+        RoutedScrollableViewport ViewportControl,
         ScrollableFormFrame? Buttons,
         DialogActionController? Actions);
 

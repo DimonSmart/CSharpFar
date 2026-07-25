@@ -428,6 +428,39 @@ public sealed class ScrollableListTests
         Assert.Equal(UiMouseCaptureRequestKind.Release, ended.UiResult.MouseCaptureRequest.Kind);
     }
 
+    [Fact]
+    public void RoutedList_ForwardsOrdinaryListStateAndOperations()
+    {
+        var routed = new RoutedScrollableList<string>(
+            Create(["a", "b"]),
+            new UiTargetId("test.list"),
+            new UiTargetId("test.list.scrollbar"));
+        var changes = new List<int>();
+        routed.SelectionChanged = (_, index) => changes.Add(index);
+
+        routed.SelectedIndex = 1;
+        routed.ScrollTop = 1;
+        routed.EmptyText = "Empty";
+        routed.ReplaceItems(["b", "c"], static item => item, viewportRows: 1);
+        routed.ResetItems(["x", "y"], selectedIndex: 1);
+
+        Assert.Equal(["x", "y"], routed.Items);
+        Assert.Equal(2, routed.Count);
+        Assert.True(routed.HasItems);
+        Assert.Equal("y", routed.SelectedItemOrDefault);
+        Assert.Equal("Empty", routed.EmptyText);
+        Assert.NotNull(routed.GetScrollState(1));
+
+        RoutedScrollableListInputResult result = routed.RouteInput(
+            new KeyConsoleInputEvent(Key(ConsoleKey.UpArrow)),
+            new Rect(0, 0, 5, 1),
+            routed.CalculateFrame(1, null),
+            UiInputRouteContext.KeyboardTarget(new UiFocusController(), routed.ListTarget));
+
+        Assert.Equal(ScrollableListInputResultKind.SelectionChanged, result.ListResult.Kind);
+        Assert.Equal([0], changes);
+    }
+
     private static ScrollableList<string> Create(IReadOnlyList<string> items) => new(items, static item => item);
 
     private static ConsoleKeyInfo Key(ConsoleKey key) => new('\0', key, false, false, false);

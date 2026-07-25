@@ -17,22 +17,70 @@ public sealed class RoutedScrollableList<T>
         UiTargetId listTarget,
         UiTargetId scrollbarTarget)
     {
-        List = list ?? throw new ArgumentNullException(nameof(list));
+        _list = list ?? throw new ArgumentNullException(nameof(list));
         ListTarget = listTarget;
         ScrollbarTarget = scrollbarTarget;
     }
 
-    public ScrollableList<T> List { get; }
+    private readonly ScrollableList<T> _list;
+
+    public IReadOnlyList<T> Items => _list.Items;
+
+    public Func<T, string> ItemText => _list.ItemText;
+
+    public int Count => _list.Count;
+
+    public bool HasItems => _list.HasItems;
+
+    public T? SelectedItemOrDefault => _list.SelectedItemOrDefault;
+
+    public int SelectedIndex
+    {
+        get => _list.SelectedIndex;
+        set => _list.SelectedIndex = value;
+    }
+
+    public int ScrollTop
+    {
+        get => _list.ScrollTop;
+        set => _list.ScrollTop = value;
+    }
+
+    public string? EmptyText
+    {
+        get => _list.EmptyText;
+        set => _list.EmptyText = value;
+    }
+
+    public Action<T, int>? SelectionChanged
+    {
+        get => _list.SelectionChanged;
+        set => _list.SelectionChanged = value;
+    }
+
+    public void ResetItems(IReadOnlyList<T> items, int selectedIndex = 0) =>
+        _list.ResetItems(items, selectedIndex);
+
+    public void ReplaceItems<TKey>(IReadOnlyList<T> items, Func<T, TKey> identityKey, int viewportRows)
+        where TKey : notnull =>
+        _list.ReplaceItems(items, identityKey, viewportRows);
+
+    public void EnsureSelectedVisible(int viewportRows) => _list.EnsureSelectedVisible(viewportRows);
+
+    public ScrollState? GetScrollState(int viewportRows) => _list.GetScrollState(viewportRows);
+
+    public ScrollState? GetScrollState(int viewportRows, int scrollTop) =>
+        _list.GetScrollState(viewportRows, scrollTop);
 
     public UiTargetId ListTarget { get; }
 
     public UiTargetId ScrollbarTarget { get; }
 
     public ScrollableListFrameState CalculateFrame(int viewportRows, Rect? scrollbarBounds) =>
-        List.CalculateFrameState(viewportRows, scrollbarBounds);
+        _list.CalculateFrameState(viewportRows, scrollbarBounds);
 
     public void Render(IUiCanvas canvas, Rect contentBounds, ScrollableListFrameState frame) =>
-        List.Render(canvas, contentBounds, frame);
+        _list.Render(canvas, contentBounds, frame);
 
     public void Render(
         IUiCanvas canvas,
@@ -41,7 +89,7 @@ public sealed class RoutedScrollableList<T>
         CellStyle normalStyle,
         CellStyle selectedStyle,
         CellStyle emptyStyle) =>
-        List.Render(canvas, contentBounds, frame, normalStyle, selectedStyle, emptyStyle);
+        _list.Render(canvas, contentBounds, frame, normalStyle, selectedStyle, emptyStyle);
 
     public UiInteractionFragment BuildInteractionFragment(
         Rect contentBounds,
@@ -81,8 +129,8 @@ public sealed class RoutedScrollableList<T>
 
         ScrollableListInputResult result = input switch
         {
-            KeyConsoleInputEvent { Key: var key } => List.HandleKey(key, frame.ViewportRows),
-            MouseConsoleInputEvent mouse => List.HandleMouse(
+            KeyConsoleInputEvent { Key: var key } => _list.HandleKey(key, frame.ViewportRows),
+            MouseConsoleInputEvent mouse => _list.HandleMouse(
                 mouse,
                 contentBounds,
                 frame,
@@ -104,5 +152,5 @@ public sealed class RoutedScrollableList<T>
         return new RoutedScrollableListInputResult(result, uiResult);
     }
 
-    public void ApplyCommittedFrame(ScrollableListFrameState frame) => List.ApplyCommittedFrame(frame);
+    public void ApplyCommittedFrame(ScrollableListFrameState frame) => _list.ApplyCommittedFrame(frame);
 }

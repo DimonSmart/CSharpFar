@@ -144,9 +144,9 @@ internal sealed class DirectoryShortcutsDialog
                 Rect scrollbarBounds = new(content.Right - 1, listBounds.Y, 1, listBounds.Height);
                 listState = routedShortcuts.CalculateFrame(
                     listBounds.Height,
-                    routedShortcuts.List.Count > listBounds.Height ? scrollbarBounds : null);
+                    routedShortcuts.Count > listBounds.Height ? scrollbarBounds : null);
                 routedShortcuts.Render(context.Canvas, listBounds, listState);
-                if (routedShortcuts.List.GetScrollState(listBounds.Height, listState.ScrollTop) is { } scrollState)
+                if (routedShortcuts.GetScrollState(listBounds.Height, listState.ScrollTop) is { } scrollState)
                 {
                     new ScrollBarRenderer().RenderVerticalScrollbar(
                         context.Canvas,
