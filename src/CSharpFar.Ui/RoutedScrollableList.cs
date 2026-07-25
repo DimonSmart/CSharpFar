@@ -90,9 +90,18 @@ public sealed class RoutedScrollableList<T>
                 confirmOnDoubleClick),
             _ => ScrollableListInputResult.NotHandled,
         };
-        return new RoutedScrollableListInputResult(
-            result,
-            ScrollableListRouting.ToUiInputResult(result, ScrollbarTarget));
+        UiInputResult uiResult = ScrollableListRouting.ToUiInputResult(result, ScrollbarTarget);
+        if (result.IsHandled &&
+            input is MouseConsoleInputEvent { Button: MouseButton.Left, Kind: MouseEventKind.Down })
+        {
+            uiResult = new UiInputResult(
+                uiResult.Handled,
+                true,
+                UiFocusRequest.Set(ListTarget),
+                uiResult.MouseCaptureRequest);
+        }
+
+        return new RoutedScrollableListInputResult(result, uiResult);
     }
 
     public void ApplyCommittedFrame(ScrollableListFrameState frame) => List.ApplyCommittedFrame(frame);
