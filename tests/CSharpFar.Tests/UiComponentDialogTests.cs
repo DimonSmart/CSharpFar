@@ -128,6 +128,21 @@ public sealed class UiComponentDialogTests
     }
 
     [Fact]
+    public void SelectionListDialog_TinyViewportCollapsesListWithoutPublishingInvalidScrollbar()
+    {
+        var driver = new FakeConsoleDriver(2, 2);
+        driver.EnqueueKey(Key(ConsoleKey.F10));
+
+        var result = new SelectionListDialog<int>(Enumerable.Range(0, 20).ToArray(), static item => item.ToString(), "Pick")
+        {
+            MaxVisibleRows = 5,
+        }.Show(CreateModalHost(driver));
+
+        Assert.False(result.IsConfirmed);
+        Assert.DoesNotContain(driver.WriteRecords, write => write.X < 0 || write.Y < 0);
+    }
+
+    [Fact]
     public void DropdownSelect_KeyboardSelectionAndCancelKeepsPreviousValue()
     {
         var driver = new FakeConsoleDriver(40, 12);
@@ -318,6 +333,18 @@ public sealed class UiComponentDialogTests
         var result = CreateListWithButtons(["alpha"]).Show(CreateModalHost(driver));
 
         Assert.Null(result);
+    }
+
+    [Fact]
+    public void ListWithButtonsDialog_TinyViewportAllowsCollapsedListSection()
+    {
+        var driver = new FakeConsoleDriver(2, 2);
+        driver.EnqueueKey(Key(ConsoleKey.Escape));
+
+        var result = CreateListWithButtons(["alpha", "beta"]).Show(CreateModalHost(driver));
+
+        Assert.Null(result);
+        Assert.DoesNotContain(driver.WriteRecords, write => write.X < 0 || write.Y < 0);
     }
 
     [Fact]

@@ -31,6 +31,23 @@ public sealed class UiLayoutTests
         Assert.Equal(new Rect(2, 1, 0, 0), empty);
     }
 
+    [Theory]
+    [InlineData(10, 20, 2, 2, 10, 0, 0, 0)]
+    [InlineData(10, 20, 2, 2, 0, 10, 0, 0)]
+    [InlineData(10, 20, 2, 2, 1, 0, 10, 0)]
+    [InlineData(10, 20, 2, 2, 0, 1, 0, 10)]
+    public void Inset_OversizedInsetsRemainContained(int x, int y, int width, int height, int left, int top, int right, int bottom)
+    {
+        Rect bounds = new(x, y, width, height);
+        Rect result = UiLayout.Inset(bounds, left, top, right, bottom);
+
+        Assert.InRange(result.X, bounds.X, bounds.Right);
+        Assert.InRange(result.Y, bounds.Y, bounds.Bottom);
+        Assert.True(result.Right <= bounds.Right);
+        Assert.True(result.Bottom <= bounds.Bottom);
+        Assert.True(result.Width >= 0 && result.Height >= 0);
+    }
+
     [Fact]
     public void SplitBottom_SeparatesBodyFooterAndGapWithoutOverlap()
     {
@@ -43,6 +60,24 @@ public sealed class UiLayoutTests
         Assert.True(split.Body.Bottom <= split.Footer.Y);
         Assert.Equal(new Rect(3, 5, 10, 0), UiLayout.SplitBottom(bounds, footerHeight: 8).Body);
         Assert.Equal(bounds, UiLayout.SplitBottom(bounds, footerHeight: 20).Footer);
+    }
+
+    [Theory]
+    [InlineData(5, 0, 3, 0)]
+    [InlineData(5, 10, 2, 5)]
+    [InlineData(5, 2, 10, 2)]
+    [InlineData(5, -1, -1, 0)]
+    public void SplitBottom_ContainsBothSectionsForBoundaryInputs(int height, int footerHeight, int gap, int expectedFooterHeight)
+    {
+        Rect bounds = new(3, 5, 10, height);
+        VerticalLayoutSplit split = UiLayout.SplitBottom(bounds, footerHeight, gap);
+
+        Assert.Equal(expectedFooterHeight, split.Footer.Height);
+        Assert.True(split.Body.X >= bounds.X && split.Body.Bottom <= bounds.Bottom);
+        Assert.True(split.Footer.X >= bounds.X && split.Footer.Bottom <= bounds.Bottom);
+        Assert.Equal(bounds.Width, split.Body.Width);
+        Assert.Equal(bounds.Width, split.Footer.Width);
+        Assert.True(split.Body.Bottom <= split.Footer.Y);
     }
 
     [Theory]
@@ -69,6 +104,23 @@ public sealed class UiLayoutTests
         Assert.Equal(expected, rendered);
         Assert.Equal(expectedWidth, expected.OuterBounds.Width);
         Assert.Equal(expectedHeight, expected.OuterBounds.Height);
+    }
+
+    [Fact]
+    public void ModalDialogRenderer_RenderWithLayoutPassesTheExactProvidedLayout()
+    {
+        var renderer = new ModalDialogRenderer();
+        ModalDialogRenderer.Layout layout = renderer.CalculateLayout(new ConsoleSize(80, 25), 50, 14);
+        ModalDialogRenderer.Layout? rendered = null;
+        var screen = new ScreenRenderer(new FakeConsoleDriver(80, 25));
+
+        UiTestRender.Render(screen, canvas => renderer.Render(
+            canvas, layout, "Test", true,
+            PaletteStyles.DialogPopupOptions(PaletteRegistry.Default),
+            PaletteStyles.DialogPopupOptions(PaletteRegistry.Default),
+            (_, actual) => rendered = actual));
+
+        Assert.Equal(layout, rendered);
     }
 
     [Fact]

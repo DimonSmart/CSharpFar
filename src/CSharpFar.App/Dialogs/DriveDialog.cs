@@ -246,13 +246,16 @@ internal sealed class DriveDialog
         IReadOnlyList<VolumeSelectionItem> items,
         DriveDialogFrame frame)
     {
-        _modalRenderer.Render(context.Canvas, frame.Modal.OuterBounds, "Change drive", true, DriveOuterOptions, DriveFrameOptions, (_, _) =>
+        _modalRenderer.Render(context.Canvas, frame.Modal, "Change drive", true, DriveOuterOptions, DriveFrameOptions, (_, _) =>
         {
             Rect frameBounds = frame.Modal.FrameBounds;
             Rect contentBounds = frame.Modal.ContentBounds;
             const string hint = " Enter  Esc ";
-            int hintX = frameBounds.X + (frameBounds.Width - hint.Length) / 2;
-            context.Canvas.Write(hintX, frameBounds.Y + frameBounds.Height - 1, hint, PaletteStyles.DialogTitle(_palette));
+            if (frameBounds.Width >= hint.Length && frameBounds.Height > 0)
+            {
+                int hintX = frameBounds.X + (frameBounds.Width - hint.Length) / 2;
+                context.Canvas.Write(hintX, frameBounds.Y + frameBounds.Height - 1, hint, PaletteStyles.DialogTitle(_palette));
+            }
 
             WriteHeader(context.Canvas, contentBounds.X, contentBounds.Y, contentBounds.Width);
             WriteTableSeparator(context.Canvas, contentBounds.X, contentBounds.Y + 1, contentBounds.Width);

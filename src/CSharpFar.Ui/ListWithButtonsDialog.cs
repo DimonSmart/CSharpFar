@@ -102,25 +102,30 @@ public sealed class ListWithButtonsDialog<T>
         ListWithButtonsLayout layout = CalculateLayout(context.Size);
         ScrollableListFrameState listState = _list.CalculateFrame(
             layout.ListBounds.Height,
-            _list.Count > layout.ListBounds.Height ? new Rect(layout.Modal.FrameBounds.Right - 1, layout.ListBounds.Y, 1, layout.ListBounds.Height) : null);
+            layout.ListBounds.Width > 0 && layout.ListBounds.Height > 0 && _list.Count > layout.ListBounds.Height
+                ? new Rect(layout.Modal.FrameBounds.Right - 1, layout.ListBounds.Y, 1, layout.ListBounds.Height)
+                : null);
         ScrollableFormFrame? buttons = null;
-        _modalRenderer.Render(context.Canvas, layout.Modal.OuterBounds, Title, true, FarDialogStyles.OuterOptions, FarDialogStyles.FrameOptions, (_, _) =>
+        _modalRenderer.Render(context.Canvas, layout.Modal, Title, true, FarDialogStyles.OuterOptions, FarDialogStyles.FrameOptions, (_, _) =>
         {
-            buttons = _form.Render(
-                new FormRenderContext(
-                    context,
-                    layout.ListBounds,
-                    FarDialogStyles.Border,
-                    new Rect(layout.ListBounds.X, layout.ButtonY, layout.ListBounds.Width, 1)),
-                focusScope,
-                [new UiFocusEntry(ListTarget, 0, _list.HasItems)],
-                _list.HasItems ? ListTarget : null);
+            buttons = layout.FooterBounds.Height > 0
+                ? _form.Render(
+                    new FormRenderContext(
+                        context,
+                        layout.ListBounds,
+                        FarDialogStyles.Border,
+                        layout.FooterBounds),
+                    focusScope,
+                    [new UiFocusEntry(ListTarget, 0, _list.HasItems)],
+                    _list.HasItems ? ListTarget : null)
+                : EmptyFormFrame(context, layout.ListBounds);
 
-            if (_list.GetScrollState(layout.ListBounds.Height, listState.ScrollTop) is { } scrollState)
+            if (listState.ScrollbarBounds is { } scrollbarBounds &&
+                _list.GetScrollState(layout.ListBounds.Height, listState.ScrollTop) is { } scrollState)
             {
                 new ScrollBarRenderer().RenderVerticalScrollbar(
                     context.Canvas,
-                    listState.ScrollbarBounds!.Value,
+                    scrollbarBounds,
                     scrollState,
                     new ScrollBarOptions { Enabled = true, DrawWhenNotScrollable = false },
                     FarDialogStyles.Border);
@@ -174,6 +179,9 @@ public sealed class ListWithButtonsDialog<T>
             ? new ListWithButtonsDialogResult<T>(actionId, default, -1)
             : new ListWithButtonsDialogResult<T>(actionId, _list.Items[SelectedIndex], SelectedIndex);
 
+    private static ScrollableFormFrame EmptyFormFrame(UiRenderContext context, Rect bodyBounds) =>
+        new(context.Viewport, bodyBounds, null, 0, context.Viewport.Height, 0, [], null);
+
     private ListWithButtonsLayout CalculateLayout(ConsoleSize size)
     {
         int width = Math.Min(DialogWidth, Math.Max(MinDialogWidth, size.Width - 2));
@@ -182,10 +190,10 @@ public sealed class ListWithButtonsDialog<T>
         ModalDialogRenderer.Layout modal = _modalRenderer.CalculateLayout(size, width, height);
         VerticalLayoutSplit sections = UiLayout.SplitBottom(modal.ContentBounds, footerHeight: 1, gap: 1);
         Rect listBounds = UiLayout.Inset(sections.Body, left: 2, top: 0, right: 2, bottom: 0);
-        return new ListWithButtonsLayout(modal, listBounds, sections.Footer.Y);
+        return new ListWithButtonsLayout(modal, listBounds, sections.Footer);
     }
 
-    private readonly record struct ListWithButtonsLayout(ModalDialogRenderer.Layout Modal, Rect ListBounds, int ButtonY);
+    private readonly record struct ListWithButtonsLayout(ModalDialogRenderer.Layout Modal, Rect ListBounds, Rect FooterBounds);
     private readonly record struct ListWithButtonsFrame(ListWithButtonsLayout Layout, ScrollableListFrameState ListState, ScrollableFormFrame Buttons);
     private readonly record struct ListWithButtonsInput(ConsoleInputEvent Input, FormInputResult FormResult, ScrollableListInputResult ListResult);
 }

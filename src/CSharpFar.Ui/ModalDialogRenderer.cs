@@ -40,8 +40,18 @@ public sealed class ModalDialogRenderer
         PopupRenderOptions outerOptions,
         PopupRenderOptions frameOptions,
         Action<IUiCanvas, Layout> renderContent)
+        => Render(screen, CalculateLayout(outerBounds), title, doubleBorder, outerOptions, frameOptions, renderContent);
+
+    public void Render(
+        IUiCanvas screen,
+        Layout layout,
+        string title,
+        bool doubleBorder,
+        PopupRenderOptions outerOptions,
+        PopupRenderOptions frameOptions,
+        Action<IUiCanvas, Layout> renderContent)
     {
-        Layout layout = CalculateLayout(outerBounds);
+        Rect outerBounds = layout.OuterBounds;
         if (outerBounds.Width < 3 || outerBounds.Height < 3)
         {
             screen.FillRegion(outerBounds, outerOptions.BackgroundStyle);
