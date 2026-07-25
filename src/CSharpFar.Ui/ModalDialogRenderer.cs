@@ -17,13 +17,19 @@ public sealed class ModalDialogRenderer
 
     public Rect CenteredOuterBounds(ConsoleSize size, int outerWidth, int outerHeight, int minWidth = 20, int minHeight = 8)
     {
-        int width = Math.Clamp(Math.Max(minWidth, outerWidth), 0, Math.Max(0, size.Width));
-        int height = Math.Clamp(Math.Max(minHeight, outerHeight), 0, Math.Max(0, size.Height));
-        return new Rect(
-            Math.Max(0, (size.Width - width) / 2),
-            Math.Max(0, (size.Height - height) / 2),
-            width,
-            height);
+        return UiLayout.Center(size, Math.Max(minWidth, outerWidth), Math.Max(minHeight, outerHeight));
+    }
+
+    public Layout CalculateLayout(ConsoleSize size, int outerWidth, int outerHeight, int minWidth = 20, int minHeight = 8) =>
+        CalculateLayout(CenteredOuterBounds(size, outerWidth, outerHeight, minWidth, minHeight));
+
+    internal Layout CalculateLayout(Rect outerBounds)
+    {
+        if (outerBounds.Width < 3 || outerBounds.Height < 3)
+            return new Layout(outerBounds, outerBounds, new Rect(outerBounds.X, outerBounds.Y, 0, 0));
+
+        Rect frameBounds = UiLayout.Inset(outerBounds, OuterPaddingX, OuterPaddingY);
+        return new Layout(outerBounds, frameBounds, UiLayout.Inset(frameBounds, 1, 1));
     }
 
     public void Render(
@@ -35,10 +41,11 @@ public sealed class ModalDialogRenderer
         PopupRenderOptions frameOptions,
         Action<IUiCanvas, Layout> renderContent)
     {
+        Layout layout = CalculateLayout(outerBounds);
         if (outerBounds.Width < 3 || outerBounds.Height < 3)
         {
             screen.FillRegion(outerBounds, outerOptions.BackgroundStyle);
-            renderContent(screen, new Layout(outerBounds, outerBounds, new Rect(outerBounds.X, outerBounds.Y, 0, 0)));
+            renderContent(screen, layout);
             return;
         }
 
@@ -48,19 +55,13 @@ public sealed class ModalDialogRenderer
             outerOptions,
             (_, _) =>
             {
-                var frameBounds = new Rect(
-                    outerBounds.X + OuterPaddingX,
-                    outerBounds.Y + OuterPaddingY,
-                    outerBounds.Width - OuterPaddingX * 2,
-                    outerBounds.Height - OuterPaddingY * 2);
-
                 _frameRenderer.RenderFrame(
                     screen,
-                    frameBounds,
+                    layout.FrameBounds,
                     title,
                     doubleBorder,
                     frameOptions,
-                    (_, contentBounds) => renderContent(screen, new Layout(outerBounds, frameBounds, contentBounds)));
+                    (_, _) => renderContent(screen, layout));
             });
     }
 }

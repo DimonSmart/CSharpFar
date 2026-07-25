@@ -37,10 +37,11 @@ internal sealed class DirectoryShortcutsDialog
             NormalStyle = PaletteStyles.DialogFill(_palette),
             SelectedStyle = PaletteStyles.InputField(_palette),
         };
+        var targets = new UiTargetScope("directory-shortcuts");
         var routedShortcuts = new RoutedScrollableList<int>(
             shortcuts,
-            new UiTargetId("directory-shortcuts.list"),
-            new UiTargetId("directory-shortcuts.list.scrollbar"));
+            targets.Child("list"),
+            targets.Child("list.scrollbar"));
         var buttons = new ButtonRow(
         [
             new DialogButton("edit", "Edit", 'E', IsDefault: true),
@@ -123,22 +124,20 @@ internal sealed class DirectoryShortcutsDialog
         ScrollableFormDialog form,
         RoutedScrollableList<int> routedShortcuts)
     {
-        Rect outerBounds = _modalRenderer.CenteredOuterBounds(context.Size, DialogWidth, DialogHeight);
-        ModalDialogRenderer.Layout layout = default;
+        ModalDialogRenderer.Layout layout = _modalRenderer.CalculateLayout(context.Size, DialogWidth, DialogHeight);
         ScrollableFormFrame buttons = null!;
         ScrollableListFrameState listState = ScrollableListFrameState.Empty;
         Rect listBounds = default;
         _modalRenderer.Render(
             context.Canvas,
-            outerBounds,
+            layout.OuterBounds,
             "Directory shortcuts",
             doubleBorder: true,
             PaletteStyles.DialogPopupOptions(_palette) with { DrawBorder = false },
             PaletteStyles.DialogPopupOptions(_palette) with { DrawShadow = false },
-            (_, currentLayout) =>
+            (_, _) =>
             {
-                layout = currentLayout;
-                Rect content = currentLayout.ContentBounds;
+                Rect content = layout.ContentBounds;
                 int buttonY = content.Y + Math.Min(11, Math.Max(0, content.Height - 1));
                 listBounds = new Rect(content.X, content.Y, content.Width, Math.Max(1, buttonY - content.Y - 1));
                 Rect scrollbarBounds = new(content.Right - 1, listBounds.Y, 1, listBounds.Height);

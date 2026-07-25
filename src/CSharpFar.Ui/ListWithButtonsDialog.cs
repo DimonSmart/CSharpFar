@@ -12,8 +12,9 @@ public sealed record ListWithButtonsDialogResult<T>(
 
 public sealed class ListWithButtonsDialog<T>
 {
-    private static readonly UiTargetId ListTarget = new("list-with-buttons.list");
-    private static readonly UiTargetId ScrollbarTarget = new("list-with-buttons.list.scrollbar");
+    private static readonly UiTargetScope Targets = new("list-with-buttons");
+    private static readonly UiTargetId ListTarget = Targets.Child("list");
+    private static readonly UiTargetId ScrollbarTarget = Targets.Child("list.scrollbar");
 
     private readonly RoutedScrollableList<T> _list;
     private readonly ScrollableFormDialog _form = new();
@@ -101,9 +102,9 @@ public sealed class ListWithButtonsDialog<T>
         ListWithButtonsLayout layout = CalculateLayout(context.Size);
         ScrollableListFrameState listState = _list.CalculateFrame(
             layout.ListBounds.Height,
-            _list.Count > layout.ListBounds.Height ? new Rect(layout.FrameBounds.Right - 1, layout.ListBounds.Y, 1, layout.ListBounds.Height) : null);
+            _list.Count > layout.ListBounds.Height ? new Rect(layout.Modal.FrameBounds.Right - 1, layout.ListBounds.Y, 1, layout.ListBounds.Height) : null);
         ScrollableFormFrame? buttons = null;
-        _modalRenderer.Render(context.Canvas, layout.Bounds, Title, true, FarDialogStyles.OuterOptions, FarDialogStyles.FrameOptions, (_, _) =>
+        _modalRenderer.Render(context.Canvas, layout.Modal.OuterBounds, Title, true, FarDialogStyles.OuterOptions, FarDialogStyles.FrameOptions, (_, _) =>
         {
             buttons = _form.Render(
                 new FormRenderContext(
@@ -178,17 +179,13 @@ public sealed class ListWithButtonsDialog<T>
         int width = Math.Min(DialogWidth, Math.Max(MinDialogWidth, size.Width - 2));
         int targetListRows = Math.Min(MaxVisibleRows, Math.Max(1, _list.Count));
         int height = Math.Min(targetListRows + 7, Math.Max(8, size.Height - 2));
-        int x = Math.Max(0, (size.Width - width) / 2);
-        int y = Math.Max(0, (size.Height - height) / 2);
-        var bounds = new Rect(x, y, width, height);
-        var frameBounds = new Rect(bounds.X + 1, bounds.Y + 1, Math.Max(1, bounds.Width - 2), Math.Max(1, bounds.Height - 2));
-        var contentBounds = new Rect(bounds.X + 2, bounds.Y + 2, Math.Max(0, bounds.Width - 4), Math.Max(0, bounds.Height - 4));
-        int buttonY = contentBounds.Bottom - 1;
-        var listBounds = new Rect(contentBounds.X + 2, contentBounds.Y, Math.Max(1, contentBounds.Width - 4), Math.Max(1, buttonY - contentBounds.Y - 1));
-        return new ListWithButtonsLayout(bounds, frameBounds, listBounds, buttonY);
+        ModalDialogRenderer.Layout modal = _modalRenderer.CalculateLayout(size, width, height);
+        VerticalLayoutSplit sections = UiLayout.SplitBottom(modal.ContentBounds, footerHeight: 1, gap: 1);
+        Rect listBounds = UiLayout.Inset(sections.Body, left: 2, top: 0, right: 2, bottom: 0);
+        return new ListWithButtonsLayout(modal, listBounds, sections.Footer.Y);
     }
 
-    private readonly record struct ListWithButtonsLayout(Rect Bounds, Rect FrameBounds, Rect ListBounds, int ButtonY);
+    private readonly record struct ListWithButtonsLayout(ModalDialogRenderer.Layout Modal, Rect ListBounds, int ButtonY);
     private readonly record struct ListWithButtonsFrame(ListWithButtonsLayout Layout, ScrollableListFrameState ListState, ScrollableFormFrame Buttons);
     private readonly record struct ListWithButtonsInput(ConsoleInputEvent Input, FormInputResult FormResult, ScrollableListInputResult ListResult);
 }
