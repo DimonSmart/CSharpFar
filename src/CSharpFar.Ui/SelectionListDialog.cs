@@ -36,14 +36,14 @@ public sealed class SelectionListDialog<T>
 
     public int SelectedIndex
     {
-        get => _list.List.SelectedIndex;
-        set => _list.List.SelectedIndex = value;
+        get => _list.SelectedIndex;
+        set => _list.SelectedIndex = value;
     }
 
     public int ScrollTop
     {
-        get => _list.List.ScrollTop;
-        set => _list.List.ScrollTop = value;
+        get => _list.ScrollTop;
+        set => _list.ScrollTop = value;
     }
 
     public int MaxVisibleRows { get; set; } = DefaultMaxVisibleRows;
@@ -54,8 +54,8 @@ public sealed class SelectionListDialog<T>
 
     public string? EmptyText
     {
-        get => _list.List.EmptyText;
-        set => _list.List.EmptyText = value;
+        get => _list.EmptyText;
+        set => _list.EmptyText = value;
     }
 
     public bool DoubleBorder { get; set; }
@@ -80,8 +80,8 @@ public sealed class SelectionListDialog<T>
                 return frame;
             },
             frame => new UiInteractionFrameBuilder()
-                .AddFragment(_list.BuildInteractionFragment(frame.Layout.ContentBounds, frame.ListState, 0, _list.List.HasItems))
-                .SetDefaultFocusTarget(_list.List.HasItems ? ListTarget : null)
+                .AddFragment(_list.BuildInteractionFragment(frame.Layout.ContentBounds, frame.ListState, 0, _list.HasItems))
+                .SetDefaultFocusTarget(_list.HasItems ? ListTarget : null)
                 .Build(),
             (input, frame, route) =>
             {
@@ -102,11 +102,11 @@ public sealed class SelectionListDialog<T>
                     NotifySelectionChanged();
 
                 if (semantic.Input is KeyConsoleInputEvent { Key.Key: ConsoleKey.Escape or ConsoleKey.F10 } ||
-                    semantic.ListResult.Kind == ScrollableListInputResultKind.Confirmed && _list.List.HasItems ||
-                    semantic.Input is KeyConsoleInputEvent { Key.Key: ConsoleKey.Enter } && !_list.List.HasItems)
+                    semantic.ListResult.Kind == ScrollableListInputResultKind.Confirmed && _list.HasItems ||
+                    semantic.Input is KeyConsoleInputEvent { Key.Key: ConsoleKey.Enter } && !_list.HasItems)
                 {
                     return ModalDialogLoopResult<SelectionListDialogResult<T>>.Complete(
-                        _list.List.HasItems && semantic.ListResult.Kind == ScrollableListInputResultKind.Confirmed
+                        _list.HasItems && semantic.ListResult.Kind == ScrollableListInputResultKind.Confirmed
                             ? Confirmed()
                             : Cancelled());
                 }
@@ -116,7 +116,7 @@ public sealed class SelectionListDialog<T>
             applyCommittedFrame: frame =>
             {
                 _list.ApplyCommittedFrame(frame.ListState);
-                if (_list.List.HasItems && !initialSelectionNotified)
+                if (_list.HasItems && !initialSelectionNotified)
                 {
                     NotifySelectionChanged();
                     initialSelectionNotified = true;
@@ -125,13 +125,13 @@ public sealed class SelectionListDialog<T>
     }
 
     private SelectionListDialogResult<T> Confirmed() =>
-        new(true, _list.List.Items[SelectedIndex], SelectedIndex);
+        new(true, _list.Items[SelectedIndex], SelectedIndex);
 
     private static SelectionListDialogResult<T> Cancelled() =>
         new(false, default, -1);
 
     private void NotifySelectionChanged() =>
-        _selectionChanged?.Invoke(_list.List.Items[_list.List.SelectedIndex], _list.List.SelectedIndex);
+        _selectionChanged?.Invoke(_list.Items[_list.SelectedIndex], _list.SelectedIndex);
 
     private void RenderLayer(IUiCanvas screen, SelectionListFrame frame)
     {
@@ -141,7 +141,7 @@ public sealed class SelectionListDialog<T>
         var normalStyle = PaletteStyles.DialogFill(palette);
         var selectedStyle = PaletteStyles.InputField(palette);
         var emptyStyle = PaletteStyles.DialogFill(palette);
-        var scrollState = _list.List.GetScrollState(layout.VisibleRows, frame.ListState.ScrollTop);
+        var scrollState = _list.GetScrollState(layout.VisibleRows, frame.ListState.ScrollTop);
 
         _frameRenderer.RenderFrame(
             screen,
@@ -156,13 +156,13 @@ public sealed class SelectionListDialog<T>
 
     private SelectionListLayout CalculateLayout(ConsoleSize size)
     {
-        int itemWidth = _list.List.Count == 0 ? ConsoleTextMetrics.GetCellWidth(EmptyText ?? string.Empty) : _list.List.Items.Max(item => ConsoleTextMetrics.GetCellWidth(_list.List.ItemText(item)));
+        int itemWidth = _list.Count == 0 ? ConsoleTextMetrics.GetCellWidth(EmptyText ?? string.Empty) : _list.Items.Max(item => ConsoleTextMetrics.GetCellWidth(_list.ItemText(item)));
         int contentWidth = Math.Max(DefaultMinWidth, Math.Max(itemWidth, ConsoleTextMetrics.GetCellWidth(_title)) + 2);
         int maxWidth = MaxWidth.HasValue ? Math.Min(MaxWidth.Value, size.Width) : size.Width - 2;
         contentWidth = Math.Min(contentWidth, Math.Max(DefaultMinWidth, maxWidth - 2));
 
         int maxRows = Math.Max(1, Math.Min(MaxVisibleRows, MaxHeight.GetValueOrDefault(size.Height) - 2));
-        int visibleRows = Math.Min(Math.Max(1, _list.List.Count == 0 ? 1 : _list.List.Count), Math.Max(1, Math.Min(maxRows, size.Height - 2)));
+        int visibleRows = Math.Min(Math.Max(1, _list.Count == 0 ? 1 : _list.Count), Math.Max(1, Math.Min(maxRows, size.Height - 2)));
         int width = Math.Min(size.Width, contentWidth + 2);
         int height = Math.Min(size.Height, visibleRows + 2);
         int x = Math.Max(0, (size.Width - width) / 2);

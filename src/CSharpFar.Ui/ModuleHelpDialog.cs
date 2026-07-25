@@ -18,7 +18,7 @@ public sealed class ModuleHelpDialog
     public void Show(string title, IReadOnlyList<string> lines)
     {
         ArgumentNullException.ThrowIfNull(lines);
-        var viewport = new ScrollableViewport();
+        var viewport = new RoutedScrollableViewport(new ScrollableViewport(), ContentTarget, ScrollbarTarget);
         _modalDialogs.RunInteractive<ModuleHelpFrame, ConsoleInputEvent, Unit>(
             (context, _) =>
             {
@@ -37,25 +37,23 @@ public sealed class ModuleHelpDialog
             applyCommittedFrame: frame => viewport.ApplyCommittedFrame(frame.Viewport));
     }
 
-    private static ModuleHelpFrame CalculateFrame(ConsoleSize size, int lineCount, ScrollableViewport viewport)
+    private static ModuleHelpFrame CalculateFrame(ConsoleSize size, int lineCount, RoutedScrollableViewport viewport)
     {
         int contentHeight = Math.Max(1, size.Height - 2);
         var contentBounds = new Rect(0, 1, Math.Max(0, size.Width - 1), contentHeight);
         Rect? scrollbarBounds = lineCount > contentHeight
             ? new Rect(Math.Max(0, size.Width - 1), 1, 1, contentHeight)
             : null;
-        return new ModuleHelpFrame(size, viewport.CalculateFrameState(lineCount, contentHeight, contentBounds, scrollbarBounds));
+        return new ModuleHelpFrame(size, viewport.CalculateFrame(lineCount, contentHeight, contentBounds, scrollbarBounds), viewport);
     }
 
     private static UiInteractionFrame BuildInteractionFrame(ModuleHelpFrame frame)
     {
         var builder = new UiInteractionFrameBuilder()
-            .AddHitRegion(ContentTarget, frame.Viewport.ContentBounds)
+            .AddFragment(frame.ViewportControl.BuildInteractionFragment(frame.Viewport))
             .AddFocusEntry(HelpTarget, 0, cursor: new UiCursorPlacement(0, 0, Visible: false))
             .SetDefaultFocusTarget(HelpTarget)
             .SetKeyboardTarget(HelpTarget);
-        if (frame.Viewport.ScrollbarBounds is Rect scrollbar)
-            builder.AddHitRegion(ScrollbarTarget, scrollbar);
         return builder.Build();
     }
 
@@ -63,23 +61,12 @@ public sealed class ModuleHelpDialog
         ConsoleInputEvent input,
         ModuleHelpFrame frame,
         UiInputRouteContext route,
-        ScrollableViewport viewport)
+        RoutedScrollableViewport viewport)
     {
-        ScrollableViewportInputResult result = input switch
-        {
-            KeyConsoleInputEvent key => viewport.HandleKey(key.Key, frame.Viewport),
-            MouseConsoleInputEvent mouse when IsViewportMouseRoute(route) => viewport.HandleMouse(mouse, frame.Viewport),
-            _ => ScrollableViewportInputResult.NotHandled,
-        };
-        return ScrollableViewportRouting.ToUiInputResult(result, ScrollbarTarget);
+        return viewport.RouteInput(input, frame.Viewport, route).UiResult;
     }
 
-    private static bool IsViewportMouseRoute(UiInputRouteContext route) =>
-        route.RouteKind == UiInputRouteKind.HitTarget &&
-        (route.Target == ContentTarget || route.Target == ScrollbarTarget) ||
-        route.RouteKind == UiInputRouteKind.CapturedTarget && route.Target == ScrollbarTarget;
-
-    private static void Draw(IUiCanvas screen, string title, IReadOnlyList<string> lines, ScrollableViewport viewport, ModuleHelpFrame frame)
+    private static void Draw(IUiCanvas screen, string title, IReadOnlyList<string> lines, RoutedScrollableViewport viewport, ModuleHelpFrame frame)
     {
         var palette = UiTheme.Current;
         var headerStyle = PaletteStyles.PathHeaderActive(palette);
@@ -95,7 +82,7 @@ public sealed class ModuleHelpDialog
             screen.Write(0, row + 1, ConsoleTextMetrics.FitToCells(text, frame.Viewport.ContentBounds.Width), bodyStyle);
         }
 
-        if (frame.Viewport.ScrollbarBounds is Rect scrollbarBounds && viewport.GetScrollState(frame.Viewport) is { } scrollState)
+        if (frame.Viewport.ScrollbarBounds is Rect scrollbarBounds && viewport.Viewport.GetScrollState(frame.Viewport) is { } scrollState)
         {
             new ScrollBarRenderer().RenderVerticalScrollbar(screen, scrollbarBounds, scrollState,
                 new ScrollBarOptions { Enabled = true, DrawWhenNotScrollable = false }, PaletteStyles.DialogBorder(palette));
@@ -107,5 +94,8 @@ public sealed class ModuleHelpDialog
     private static string Truncate(string value, int width) =>
         ConsoleTextMetrics.TruncateToCells(value, width);
 
-    private readonly record struct ModuleHelpFrame(ConsoleSize Size, ScrollableViewportFrameState Viewport);
+    private readonly record struct ModuleHelpFrame(
+        ConsoleSize Size,
+        ScrollableViewportFrameState Viewport,
+        RoutedScrollableViewport ViewportControl);
 }
