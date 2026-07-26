@@ -262,7 +262,7 @@ public sealed class ScrollableList<T>
         return ChangeSelection(target, viewportRows);
     }
 
-    public ScrollableListInputResult HandleMouse(
+    public ScrollableListInputResult HandleContentMouse(
         MouseConsoleInputEvent mouse,
         Rect contentBounds,
         ScrollableListFrameState frame,
@@ -270,14 +270,8 @@ public sealed class ScrollableList<T>
         bool confirmOnDoubleClick = true)
     {
         int viewportRows = frame.ViewportRows;
-        Rect? scrollbarBounds = frame.ScrollbarBounds;
         if (mouse.Kind == MouseEventKind.Wheel)
         {
-            bool insideContent = contentBounds.Contains(mouse.X, mouse.Y);
-            bool insideScrollbar = scrollbarBounds is Rect wheelScrollbar && wheelScrollbar.Contains(mouse.X, mouse.Y);
-            if (!insideContent && !insideScrollbar)
-                return ScrollableListInputResult.NotHandled;
-
             // Far-like wheel navigation moves selection and keeps the selected item visible.
             if (mouse.Button == MouseButton.WheelUp)
                 return HasItems ? ChangeSelection(SelectedIndex - 1, viewportRows) : ScrollableListInputResult.Handled;
@@ -286,35 +280,8 @@ public sealed class ScrollableList<T>
             return ScrollableListInputResult.NotHandled;
         }
 
-        if (frame.VerticalScrollbarFrame is { } scrollbarFrame)
-        {
-            int selectedIndex = SelectedIndex;
-            int rows = Math.Max(1, viewportRows);
-            {
-                VerticalScrollbarInputResult scrollbarResult = _scrollbar.HandleMouse(mouse, scrollbarFrame);
-                if (!scrollbarResult.IsHandled)
-                    goto HandleContent;
-
-                int scrollTop = scrollbarResult.FirstVisibleIndex;
-                int visibleLast = Math.Min(Count - 1, scrollTop + rows - 1);
-                selectedIndex = HasItems ? Math.Clamp(selectedIndex, scrollTop, visibleLast) : -1;
-                bool changed = selectedIndex != SelectedIndex;
-                SelectedIndex = selectedIndex;
-                ScrollTop = scrollTop;
-                if (changed)
-                    NotifySelectionChanged();
-                return new ScrollableListInputResult(
-                    changed ? ScrollableListInputResultKind.SelectionChanged : ScrollableListInputResultKind.Handled,
-                    DragStarted: scrollbarResult.DragStarted,
-                    DragEnded: scrollbarResult.DragEnded);
-            }
-        }
-
-    HandleContent:
         if (mouse.Button != MouseButton.Left ||
             mouse.Kind is not (MouseEventKind.Down or MouseEventKind.DoubleClick) ||
-            mouse.X < contentBounds.X ||
-            mouse.X >= contentBounds.Right ||
             mouse.Y < contentBounds.Y ||
             mouse.Y >= contentBounds.Bottom)
         {
@@ -342,6 +309,46 @@ public sealed class ScrollableList<T>
         if (confirmed)
             return ScrollableListInputResult.Confirmed;
         return changedByClick ? ScrollableListInputResult.SelectionChanged : ScrollableListInputResult.Handled;
+    }
+
+    public ScrollableListInputResult HandleScrollbarMouse(
+        MouseConsoleInputEvent mouse,
+        ScrollableListFrameState frame)
+    {
+        if (frame.VerticalScrollbarFrame is not { } scrollbarFrame)
+            return ScrollableListInputResult.NotHandled;
+
+        int selectedIndex = SelectedIndex;
+        int rows = Math.Max(1, frame.ViewportRows);
+        VerticalScrollbarInputResult scrollbarResult = _scrollbar.HandleMouse(mouse, scrollbarFrame);
+        if (!scrollbarResult.IsHandled)
+            return ScrollableListInputResult.NotHandled;
+
+        int scrollTop = scrollbarResult.FirstVisibleIndex;
+        int visibleLast = Math.Min(Count - 1, scrollTop + rows - 1);
+        selectedIndex = HasItems ? Math.Clamp(selectedIndex, scrollTop, visibleLast) : -1;
+        bool changed = selectedIndex != SelectedIndex;
+        SelectedIndex = selectedIndex;
+        ScrollTop = scrollTop;
+        if (changed)
+            NotifySelectionChanged();
+        return new ScrollableListInputResult(
+            changed ? ScrollableListInputResultKind.SelectionChanged : ScrollableListInputResultKind.Handled,
+            DragStarted: scrollbarResult.DragStarted,
+            DragEnded: scrollbarResult.DragEnded);
+    }
+
+    [Obsolete("Use HandleContentMouse or HandleScrollbarMouse after target routing.")]
+    public ScrollableListInputResult HandleMouse(MouseConsoleInputEvent mouse, Rect contentBounds, ScrollableListFrameState frame, bool confirmOnMouseDown = false, bool confirmOnDoubleClick = true)
+    {
+        if (mouse.Kind == MouseEventKind.Wheel &&
+            !contentBounds.Contains(mouse.X, mouse.Y) &&
+            (frame.ScrollbarBounds is not Rect scrollbarBounds || !scrollbarBounds.Contains(mouse.X, mouse.Y)))
+            return ScrollableListInputResult.NotHandled;
+
+        return mouse.Kind == MouseEventKind.Wheel || !frame.ScrollbarBounds.HasValue || !frame.ScrollbarBounds.Value.Contains(mouse.X, mouse.Y)
+            ? HandleContentMouse(mouse, contentBounds, frame, confirmOnMouseDown, confirmOnDoubleClick)
+            : HandleScrollbarMouse(mouse, frame);
     }
 
     private ScrollableListInputResult ChangeSelection(int target, int viewportRows)

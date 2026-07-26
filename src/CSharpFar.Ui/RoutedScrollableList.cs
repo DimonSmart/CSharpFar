@@ -9,6 +9,10 @@ public readonly record struct RoutedScrollableListInputResult(
     ScrollableListInputResult ListResult,
     UiInputResult UiResult);
 
+public readonly record struct RoutedScrollableListFrame(
+    Rect ContentBounds,
+    ScrollableListFrameState List);
+
 /// <summary>Configures how a routed list participates in its enclosing layer's interaction model.</summary>
 public readonly record struct RoutedScrollableListInteractionOptions
 {
@@ -124,26 +128,29 @@ public sealed class RoutedScrollableList<T>
 
     public RoutedScrollableListInteractionOptions InteractionOptions { get; }
 
+    public RoutedScrollableListFrame CalculateFrame(int viewportRows, Rect contentBounds, Rect? scrollbarBounds) =>
+        new(contentBounds, _list.CalculateFrameState(viewportRows, scrollbarBounds));
+
+    [Obsolete("Use the committed RoutedScrollableListFrame overload.")]
     public ScrollableListFrameState CalculateFrame(int viewportRows, Rect? scrollbarBounds) =>
         _list.CalculateFrameState(viewportRows, scrollbarBounds);
 
-    public void Render(IUiCanvas canvas, Rect contentBounds, ScrollableListFrameState frame) =>
-        _list.Render(canvas, contentBounds, frame);
+    public void Render(IUiCanvas canvas, RoutedScrollableListFrame frame) =>
+        _list.Render(canvas, frame.ContentBounds, frame.List);
 
     public void Render(
         IUiCanvas canvas,
-        Rect contentBounds,
-        ScrollableListFrameState frame,
+        RoutedScrollableListFrame frame,
         CellStyle normalStyle,
         CellStyle selectedStyle,
         CellStyle emptyStyle) =>
-        _list.Render(canvas, contentBounds, frame, normalStyle, selectedStyle, emptyStyle);
+        _list.Render(canvas, frame.ContentBounds, frame.List, normalStyle, selectedStyle, emptyStyle);
 
-    public void RenderScrollbar(IUiCanvas canvas, ScrollableListFrameState frame, CellStyle style)
+    public void RenderScrollbar(IUiCanvas canvas, RoutedScrollableListFrame frame, CellStyle style)
     {
         ArgumentNullException.ThrowIfNull(canvas);
-        if (frame.ScrollbarBounds is not { } bounds ||
-            GetScrollState(frame.ViewportRows, frame.ScrollTop) is not { } state)
+        if (frame.List.ScrollbarBounds is not { } bounds ||
+            GetScrollState(frame.List.ViewportRows, frame.List.ScrollTop) is not { } state)
         {
             return;
         }
@@ -157,15 +164,14 @@ public sealed class RoutedScrollableList<T>
     }
 
     public UiInteractionFragment BuildInteractionFragment(
-        Rect contentBounds,
-        ScrollableListFrameState frame,
+        RoutedScrollableListFrame frame,
         int tabOrder,
         bool isEnabled = true)
     {
         var builder = new UiInteractionFrameBuilder();
-        if (contentBounds.Width > 0 && contentBounds.Height > 0)
-            builder.AddHitRegion(ListTarget, contentBounds);
-        if (frame.ScrollbarBounds is Rect scrollbarBounds)
+        if (frame.ContentBounds.Width > 0 && frame.ContentBounds.Height > 0)
+            builder.AddHitRegion(ListTarget, frame.ContentBounds);
+        if (frame.List.ScrollbarBounds is Rect scrollbarBounds)
             builder.AddHitRegion(ScrollbarTarget, scrollbarBounds);
         if (InteractionOptions.PublishFocusEntry)
             builder.AddFocusEntry(ListTarget, tabOrder, isEnabled);
@@ -180,8 +186,7 @@ public sealed class RoutedScrollableList<T>
 
     public RoutedScrollableListInputResult RouteInput(
         ConsoleInputEvent input,
-        Rect contentBounds,
-        ScrollableListFrameState frame,
+        RoutedScrollableListFrame frame,
         UiInputRouteContext route,
         bool confirmOnMouseDown = false,
         bool confirmOnDoubleClick = true)
@@ -198,13 +203,10 @@ public sealed class RoutedScrollableList<T>
 
         ScrollableListInputResult result = input switch
         {
-            KeyConsoleInputEvent { Key: var key } => _list.HandleKey(key, frame.ViewportRows),
-            MouseConsoleInputEvent mouse => _list.HandleMouse(
-                mouse,
-                contentBounds,
-                frame,
-                confirmOnMouseDown,
-                confirmOnDoubleClick),
+            KeyConsoleInputEvent { Key: var key } => _list.HandleKey(key, frame.List.ViewportRows),
+            MouseConsoleInputEvent mouse when route.Target == ListTarget => _list.HandleContentMouse(
+                mouse, frame.ContentBounds, frame.List, confirmOnMouseDown, confirmOnDoubleClick),
+            MouseConsoleInputEvent mouse when route.Target == ScrollbarTarget => _list.HandleScrollbarMouse(mouse, frame.List),
             _ => ScrollableListInputResult.NotHandled,
         };
         UiInputResult uiResult = ScrollableListRouting.ToUiInputResult(result, ScrollbarTarget);
@@ -222,5 +224,28 @@ public sealed class RoutedScrollableList<T>
         return new RoutedScrollableListInputResult(result, uiResult);
     }
 
+    public void ApplyCommittedFrame(RoutedScrollableListFrame frame) => _list.ApplyCommittedFrame(frame.List);
+
+    [Obsolete("Use the committed RoutedScrollableListFrame overload.")]
+    public RoutedScrollableListInputResult RouteInput(ConsoleInputEvent input, Rect contentBounds, ScrollableListFrameState frame, UiInputRouteContext route, bool confirmOnMouseDown = false, bool confirmOnDoubleClick = true) =>
+        RouteInput(input, new RoutedScrollableListFrame(contentBounds, frame), route, confirmOnMouseDown, confirmOnDoubleClick);
+
+    [Obsolete("Use the committed RoutedScrollableListFrame overload.")]
+    public UiInteractionFragment BuildInteractionFragment(Rect contentBounds, ScrollableListFrameState frame, int tabOrder, bool isEnabled = true) =>
+        BuildInteractionFragment(new RoutedScrollableListFrame(contentBounds, frame), tabOrder, isEnabled);
+
+    [Obsolete("Use the committed RoutedScrollableListFrame overload.")]
+    public void Render(IUiCanvas canvas, Rect contentBounds, ScrollableListFrameState frame, CellStyle normalStyle, CellStyle selectedStyle, CellStyle emptyStyle) =>
+        Render(canvas, new RoutedScrollableListFrame(contentBounds, frame), normalStyle, selectedStyle, emptyStyle);
+
+    [Obsolete("Use the committed RoutedScrollableListFrame overload.")]
+    public void Render(IUiCanvas canvas, Rect contentBounds, ScrollableListFrameState frame) =>
+        Render(canvas, new RoutedScrollableListFrame(contentBounds, frame));
+
+    [Obsolete("Use the committed RoutedScrollableListFrame overload.")]
+    public void RenderScrollbar(IUiCanvas canvas, ScrollableListFrameState frame, CellStyle style) =>
+        RenderScrollbar(canvas, new RoutedScrollableListFrame(default, frame), style);
+
+    [Obsolete("Use the committed RoutedScrollableListFrame overload.")]
     public void ApplyCommittedFrame(ScrollableListFrameState frame) => _list.ApplyCommittedFrame(frame);
 }

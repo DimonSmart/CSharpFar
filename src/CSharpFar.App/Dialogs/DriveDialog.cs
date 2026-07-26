@@ -73,7 +73,7 @@ internal sealed class DriveDialog
                         (key.Modifiers & (ConsoleModifiers.Control | ConsoleModifiers.Alt)) == 0)
                     {
                         string shortcut = key.KeyChar.ToString().ToUpperInvariant();
-                        VolumeSelectionItem? immediate = HandleShortcut(routedList, shortcut, routed.Frame.ListState.ViewportRows, ref lastShortcut);
+                        VolumeSelectionItem? immediate = HandleShortcut(routedList, shortcut, routed.Frame.List.List.ViewportRows, ref lastShortcut);
                         if (immediate is not null)
                             return ModalDialogLoopResult<VolumeSelectionItem?>.Complete(immediate);
                     }
@@ -90,7 +90,7 @@ internal sealed class DriveDialog
 
                 return ModalDialogLoopResult<VolumeSelectionItem?>.Continue;
             },
-            applyCommittedFrame: frame => routedList.ApplyCommittedFrame(frame.ListState));
+            applyCommittedFrame: frame => routedList.ApplyCommittedFrame(frame.List));
     }
 
     private static (ScrollableListInputResult Semantic, UiInputResult UiResult) RouteInput(
@@ -105,7 +105,7 @@ internal sealed class DriveDialog
                 return (ScrollableListInputResult.Handled, UiInputResult.HandledResult);
         }
 
-        RoutedScrollableListInputResult routed = list.RouteInput(input, frame.ListBounds, frame.ListState, route);
+        RoutedScrollableListInputResult routed = list.RouteInput(input, frame.List, route);
         return (routed.ListResult, routed.UiResult);
     }
 
@@ -201,9 +201,7 @@ internal sealed class DriveDialog
                 })
             ? candidate
             : null;
-        ScrollableListFrameState state = visibleRows > 0
-            ? list.CalculateFrame(visibleRows, scrollbarBounds)
-            : new ScrollableListFrameState(list.SelectedIndex, list.ScrollTop, 0);
+        RoutedScrollableListFrame state = list.CalculateFrame(visibleRows, layout.ListBounds, scrollbarBounds);
         return new DriveDialogFrame(
             items,
             modal,
@@ -228,8 +226,7 @@ internal sealed class DriveDialog
     {
         var builder = new UiInteractionFrameBuilder()
             .AddFragment(list.BuildInteractionFragment(
-                frame.ListBounds,
-                frame.ListState,
+                frame.List,
                 0,
                 frame.ListBounds.Width > 0 && frame.ListBounds.Height > 0));
 
@@ -261,9 +258,9 @@ internal sealed class DriveDialog
             WriteHeader(context.Canvas, contentBounds.X, contentBounds.Y, contentBounds.Width);
             WriteTableSeparator(context.Canvas, contentBounds.X, contentBounds.Y + 1, contentBounds.Width);
 
-            for (int line = 0; line < frame.ListState.ViewportRows; line++)
+            for (int line = 0; line < frame.List.List.ViewportRows; line++)
             {
-                int itemIndex = frame.ListState.ScrollTop + line;
+                int itemIndex = frame.List.List.ScrollTop + line;
                 if (itemIndex >= items.Count)
                     break;
 
@@ -273,10 +270,10 @@ internal sealed class DriveDialog
                     contentBounds.X,
                     contentBounds.Y + 2 + line,
                     contentBounds.Width,
-                    itemIndex == frame.ListState.SelectedIndex);
+                    itemIndex == frame.List.List.SelectedIndex);
             }
 
-            list.RenderScrollbar(context.Canvas, frame.ListState, PaletteStyles.DialogBorder(_palette));
+            list.RenderScrollbar(context.Canvas, frame.List, PaletteStyles.DialogBorder(_palette));
         });
     }
 
@@ -285,7 +282,7 @@ internal sealed class DriveDialog
         ModalDialogRenderer.Layout Modal,
         Rect ListBounds,
         Rect? ScrollbarBounds,
-        ScrollableListFrameState ListState);
+        RoutedScrollableListFrame List);
 
     private readonly record struct DriveDialogLayout(Rect ListBounds);
 

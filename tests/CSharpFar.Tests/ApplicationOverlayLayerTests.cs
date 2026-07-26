@@ -234,7 +234,7 @@ public sealed class ApplicationOverlayLayerTests
 
         var frame = services.Inner.CommandCompletionLayer.CommittedFrame;
         Assert.True(completion.List.ScrollTop > 0);
-        Assert.InRange(completion.List.SelectedIndex, frame.ListState.ScrollTop, frame.ListState.ScrollTop + frame.VisibleRows - 1);
+        Assert.InRange(completion.List.SelectedIndex, frame.List.List.ScrollTop, frame.List.List.ScrollTop + frame.VisibleRows - 1);
     }
 
     [Fact]

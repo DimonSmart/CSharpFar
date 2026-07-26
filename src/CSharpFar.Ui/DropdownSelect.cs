@@ -177,12 +177,9 @@ public sealed class DropdownSelect<T>
             return true;
         }
 
-        var listInput = _list.HandleMouse(
-            mouse,
-            contentBounds,
-            frame.ListState,
-            confirmOnMouseDown: true,
-            confirmOnDoubleClick: true);
+        var listInput = frame.ListState.ScrollbarBounds is Rect scrollbarBounds && scrollbarBounds.Contains(mouse.X, mouse.Y)
+            ? _list.HandleScrollbarMouse(mouse, frame.ListState)
+            : _list.HandleContentMouse(mouse, contentBounds, frame.ListState, confirmOnMouseDown: true, confirmOnDoubleClick: true);
         if (!listInput.IsHandled)
             return mouse.Kind == MouseEventKind.Down && mouse.Button == MouseButton.Left &&
                 mouse.X >= bounds.X && mouse.X < bounds.Right && mouse.Y >= bounds.Y && mouse.Y < bounds.Bottom;

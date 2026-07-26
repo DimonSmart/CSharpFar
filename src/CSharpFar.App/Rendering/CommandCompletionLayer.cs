@@ -19,7 +19,7 @@ internal sealed record CommandCompletionFrame(
     Rect? ScrollbarBounds,
     int VisibleRows,
     int MatchCount,
-    ScrollableListFrameState ListState);
+    RoutedScrollableListFrame List);
 
 internal sealed class CommandCompletionLayer : UiLayer<CommandCompletionFrame>
 {
@@ -55,7 +55,7 @@ internal sealed class CommandCompletionLayer : UiLayer<CommandCompletionFrame>
     {
         var completion = _context.CommandCompletion;
         var list = _list;
-        var empty = new CommandCompletionFrame(false, context.Viewport, default, default, [], null, 0, list.Count, ScrollableListFrameState.Empty);
+        var empty = new CommandCompletionFrame(false, context.Viewport, default, default, [], null, 0, list.Count, new RoutedScrollableListFrame(default, ScrollableListFrameState.Empty));
         if (_context.App.WorkspaceMode != ApplicationWorkspaceMode.Panels)
             return empty;
 
@@ -69,39 +69,39 @@ internal sealed class CommandCompletionLayer : UiLayer<CommandCompletionFrame>
         var popupBounds = new Rect(0, commandLineRow - height, context.Size.Width, height);
         var contentBounds = new Rect(1, popupBounds.Y + 1, Math.Max(0, popupBounds.Width - 2), rowCount);
         var candidateScrollbarBounds = new Rect(popupBounds.Right - 1, popupBounds.Y + 1, 1, rowCount);
-        ScrollableListFrameState candidateState = list.CalculateFrame(rowCount, candidateScrollbarBounds);
-        ScrollState? scrollState = list.GetScrollState(rowCount, candidateState.ScrollTop);
+        RoutedScrollableListFrame candidate = list.CalculateFrame(rowCount, contentBounds, candidateScrollbarBounds);
+        ScrollState? scrollState = list.GetScrollState(rowCount, candidate.List.ScrollTop);
         Rect? scrollbarBounds = scrollState is not null && ScrollBarInteraction.IsInteractive(candidateScrollbarBounds, scrollState)
             ? candidateScrollbarBounds
             : null;
-        ScrollableListFrameState listState = list.CalculateFrame(rowCount, scrollbarBounds);
+        RoutedScrollableListFrame listFrame = list.CalculateFrame(rowCount, contentBounds, scrollbarBounds);
 
         var popupOptions = PaletteStyles.DialogPopupOptions(_context.App.Palette) with
         {
             DrawShadow = false,
-            VerticalScrollState = list.GetScrollState(rowCount, listState.ScrollTop),
+            VerticalScrollState = list.GetScrollState(rowCount, listFrame.List.ScrollTop),
         };
         _popupRenderer.RenderPopup(context.Canvas, popupBounds, popupOptions, (screen, bounds) =>
-            list.Render(screen, bounds, listState, PaletteStyles.DialogFill(_context.App.Palette), PaletteStyles.InputField(_context.App.Palette), PaletteStyles.DialogFill(_context.App.Palette)));
+            list.Render(screen, listFrame, PaletteStyles.DialogFill(_context.App.Palette), PaletteStyles.InputField(_context.App.Palette), PaletteStyles.DialogFill(_context.App.Palette)));
 
         var items = Enumerable.Range(0, rowCount).Select(row =>
         {
-            int index = listState.ScrollTop + row;
+            int index = listFrame.List.ScrollTop + row;
             return new CommandCompletionItemFrame(index, list.Items[index], new Rect(contentBounds.X, contentBounds.Y + row, contentBounds.Width, 1));
         }).ToArray();
-        return new CommandCompletionFrame(true, context.Viewport, popupBounds, contentBounds, items, scrollbarBounds, rowCount, list.Count, listState);
+        return new CommandCompletionFrame(true, context.Viewport, popupBounds, contentBounds, items, scrollbarBounds, rowCount, list.Count, listFrame);
     }
 
     protected override void OnFrameCommitted(CommandCompletionFrame frame)
     {
         if (!frame.Visible)
         {
-            _list.ApplyCommittedFrame(ScrollableListFrameState.Empty);
+            _list.ApplyCommittedFrame(new RoutedScrollableListFrame(default, ScrollableListFrameState.Empty));
             return;
         }
 
         if (_context.CommandCompletion.Visible && _list.Count == frame.MatchCount)
-            _list.ApplyCommittedFrame(frame.ListState);
+            _list.ApplyCommittedFrame(frame.List);
     }
 
     protected override UiInteractionFrame BuildInteractionFrame(CommandCompletionFrame frame)
@@ -109,7 +109,7 @@ internal sealed class CommandCompletionLayer : UiLayer<CommandCompletionFrame>
         if (!frame.Visible)
             return UiInteractionFrame.Empty;
         return new UiInteractionFrameBuilder()
-            .AddFragment(_list.BuildInteractionFragment(frame.ContentBounds, frame.ListState, tabOrder: 0))
+            .AddFragment(_list.BuildInteractionFragment(frame.List, tabOrder: 0))
             .Build();
     }
 
@@ -127,7 +127,7 @@ internal sealed class CommandCompletionLayer : UiLayer<CommandCompletionFrame>
             return UiInputResult.HandledAndInvalidate;
 
         if (key.Key is ConsoleKey.UpArrow or ConsoleKey.DownArrow)
-            return _list.RouteInput(new KeyConsoleInputEvent(key), frame.ContentBounds, frame.ListState, route).UiResult;
+            return _list.RouteInput(new KeyConsoleInputEvent(key), frame.List, route).UiResult;
         if (key.Key == ConsoleKey.Enter)
             return KeyboardShortcutClassifier.IsPlainControlEnter(key) ? UiInputResult.NotHandled : AcceptByKeyboard(frame);
         if (key.Key == ConsoleKey.Escape)
@@ -150,8 +150,7 @@ internal sealed class CommandCompletionLayer : UiLayer<CommandCompletionFrame>
 
         RoutedScrollableListInputResult routed = _list.RouteInput(
             mouse,
-            frame.ContentBounds,
-            frame.ListState,
+            frame.List,
             route,
             confirmOnMouseDown: true,
             confirmOnDoubleClick: true);
@@ -164,7 +163,7 @@ internal sealed class CommandCompletionLayer : UiLayer<CommandCompletionFrame>
     }
 
     private UiInputResult AcceptByKeyboard(CommandCompletionFrame frame) =>
-        AcceptItem(frame.ListState.SelectedIndex, frame, continueRoutingForNeutralItem: true);
+        AcceptItem(frame.List.List.SelectedIndex, frame, continueRoutingForNeutralItem: true);
 
     private UiInputResult AcceptByMouse(int itemIndex, CommandCompletionFrame frame) =>
         AcceptItem(itemIndex, frame, continueRoutingForNeutralItem: false);
@@ -194,7 +193,7 @@ internal sealed class CommandCompletionLayer : UiLayer<CommandCompletionFrame>
             frame.Items.Any(item => item.AbsoluteIndex >= completion.List.Count || !string.Equals(completion.List.Items[item.AbsoluteIndex], item.Text, StringComparison.Ordinal)))
             return false;
 
-        _list.ApplyCommittedFrame(frame.ListState);
+        _list.ApplyCommittedFrame(frame.List);
         return true;
     }
 
