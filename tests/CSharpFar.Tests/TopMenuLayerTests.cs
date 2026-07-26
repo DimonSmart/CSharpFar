@@ -1,3 +1,5 @@
+
+
 using CSharpFar.App;
 using CSharpFar.App.Bootstrap;
 using CSharpFar.App.Rendering;
@@ -21,7 +23,7 @@ public sealed class TopMenuLayerTests
 
         Assert.Equal(UiLayerInputPolicy.Bubble, fixture.Services.TopMenuLayer.InputPolicy);
         fixture.Services.Composition.Render();
-        fixture.Services.Composition.DispatchInput(Key(ConsoleKey.F9));
+        fixture.Services.Composition.DispatchInput(UiTestInput.Key(ConsoleKey.F9));
         Assert.Equal(UiLayerInputPolicy.Modal, fixture.Services.TopMenuLayer.InputPolicy);
 
         fixture.Services.Session.App.WorkspaceMode = ApplicationWorkspaceMode.HiddenCommandLine;
@@ -33,7 +35,7 @@ public sealed class TopMenuLayerTests
     {
         var fixture = Fixture.Create();
         fixture.Services.Composition.Render();
-        fixture.Services.Composition.DispatchInput(Key(ConsoleKey.F9));
+        fixture.Services.Composition.DispatchInput(UiTestInput.Key(ConsoleKey.F9));
         fixture.Services.Composition.Render();
 
         UiFocusFrame focus = fixture.Services.TopMenuLayer.CommittedInteractionFrame.Focus;
@@ -50,10 +52,10 @@ public sealed class TopMenuLayerTests
     {
         var fixture = Fixture.Create();
         fixture.Services.Composition.Render();
-        fixture.Services.Composition.DispatchInput(Key(ConsoleKey.F9));
+        fixture.Services.Composition.DispatchInput(UiTestInput.Key(ConsoleKey.F9));
         fixture.Services.Composition.Render();
 
-        UiInputResult result = fixture.Services.Composition.DispatchInput(Key(ConsoleKey.A, 'a'));
+        UiInputResult result = fixture.Services.Composition.DispatchInput(UiTestInput.Key(ConsoleKey.A, 'a'));
 
         Assert.True(result.Handled);
         Assert.False(fixture.Services.ApplicationSurface.TryTakeInput(out _));
@@ -65,27 +67,27 @@ public sealed class TopMenuLayerTests
         var fixture = Fixture.Create();
         fixture.Services.Composition.Render();
 
-        fixture.Services.Composition.DispatchInput(Key(ConsoleKey.F9));
+        fixture.Services.Composition.DispatchInput(UiTestInput.Key(ConsoleKey.F9));
         Assert.Equal(MenuOpenState.DropdownOpen, fixture.Services.Session.Menu.State.OpenState);
         fixture.Services.Composition.Render();
 
-        fixture.Services.Composition.DispatchInput(Key(ConsoleKey.LeftArrow));
+        fixture.Services.Composition.DispatchInput(UiTestInput.Key(ConsoleKey.LeftArrow));
         Assert.Equal(1, fixture.Services.Session.Menu.State.ActiveTopMenuIndex);
         Assert.Equal(0, fixture.Services.Session.Menu.State.ActiveDropdownItemIndex);
 
-        fixture.Services.Composition.DispatchInput(Key(ConsoleKey.DownArrow));
+        fixture.Services.Composition.DispatchInput(UiTestInput.Key(ConsoleKey.DownArrow));
         Assert.Equal(1, fixture.Services.Session.Menu.State.ActiveDropdownItemIndex);
 
-        fixture.Services.Composition.DispatchInput(Key(ConsoleKey.DownArrow));
+        fixture.Services.Composition.DispatchInput(UiTestInput.Key(ConsoleKey.DownArrow));
         Assert.Equal(3, fixture.Services.Session.Menu.State.ActiveDropdownItemIndex);
 
-        fixture.Services.Composition.DispatchInput(Key(ConsoleKey.Home));
+        fixture.Services.Composition.DispatchInput(UiTestInput.Key(ConsoleKey.Home));
         Assert.Equal(0, fixture.Services.Session.Menu.State.ActiveDropdownItemIndex);
 
-        fixture.Services.Composition.DispatchInput(Key(ConsoleKey.End));
+        fixture.Services.Composition.DispatchInput(UiTestInput.Key(ConsoleKey.End));
         Assert.Equal(4, fixture.Services.Session.Menu.State.ActiveDropdownItemIndex);
 
-        fixture.Services.Composition.DispatchInput(Key(ConsoleKey.LeftArrow));
+        fixture.Services.Composition.DispatchInput(UiTestInput.Key(ConsoleKey.LeftArrow));
         Assert.Equal(0, fixture.Services.Session.Menu.State.ActiveTopMenuIndex);
         Assert.Equal(0, fixture.Services.Session.Menu.State.ActiveDropdownItemIndex);
 
@@ -112,7 +114,7 @@ public sealed class TopMenuLayerTests
             out UiHitRegion hit));
         Assert.Equal(topTarget.Target, hit.Target);
 
-        fixture.Services.Composition.DispatchInput(Mouse(topTarget.Bounds.X, topTarget.Bounds.Y));
+        fixture.Services.Composition.DispatchInput(UiTestInput.Mouse(topTarget.Bounds.X, topTarget.Bounds.Y));
 
         Assert.Equal(MenuOpenState.DropdownOpen, fixture.Services.Session.Menu.State.OpenState);
         Assert.Equal(1, fixture.Services.Session.Menu.State.ActiveTopMenuIndex);
@@ -129,7 +131,7 @@ public sealed class TopMenuLayerTests
                 target.Action.Kind == TopMenuPointerActionKind.OpenTopItem &&
                 target.Bounds.Contains(value, frame.ActivationBounds.Y)));
 
-        fixture.Services.Composition.DispatchInput(Mouse(x, frame.ActivationBounds.Y));
+        fixture.Services.Composition.DispatchInput(UiTestInput.Mouse(x, frame.ActivationBounds.Y));
 
         Assert.Equal(MenuOpenState.DropdownOpen, fixture.Services.Session.Menu.State.OpenState);
         string panelMenuId = frame.ActivePanelSide == PanelSide.Left ? "Left" : "Right";
@@ -143,15 +145,15 @@ public sealed class TopMenuLayerTests
     {
         var fixture = Fixture.Create();
         fixture.Services.Composition.Render();
-        fixture.Services.Composition.DispatchInput(Key(ConsoleKey.F9));
+        fixture.Services.Composition.DispatchInput(UiTestInput.Key(ConsoleKey.F9));
         fixture.Services.Composition.Render();
 
         TopMenuPointerTarget surface = fixture.Services.TopMenuLayer.CommittedFrame.PointerTargets.Single(
             target => target.Action.Kind == TopMenuPointerActionKind.ConsumeDropdownSurface);
-        fixture.Services.Composition.DispatchInput(Mouse(surface.Bounds.X, surface.Bounds.Y));
+        fixture.Services.Composition.DispatchInput(UiTestInput.Mouse(surface.Bounds.X, surface.Bounds.Y));
         Assert.Equal(MenuOpenState.DropdownOpen, fixture.Services.Session.Menu.State.OpenState);
 
-        fixture.Services.Composition.DispatchInput(Mouse(79, 24));
+        fixture.Services.Composition.DispatchInput(UiTestInput.Mouse(79, 24));
         Assert.Equal(MenuOpenState.Closed, fixture.Services.Session.Menu.State.OpenState);
     }
 
@@ -164,7 +166,7 @@ public sealed class TopMenuLayerTests
         TopMenuPointerTarget topTarget = closedFrame.PointerTargets.First(value =>
             value.Action.Kind == TopMenuPointerActionKind.OpenTopItem &&
             closedFrame.Definition.Items[value.Action.ItemIndex].Children.Count > 3);
-        fixture.Services.Composition.DispatchInput(Mouse(topTarget.Bounds.X, topTarget.Bounds.Y));
+        fixture.Services.Composition.DispatchInput(UiTestInput.Mouse(topTarget.Bounds.X, topTarget.Bounds.Y));
         fixture.Services.Composition.Render();
 
         TopMenuFrame initialFrame = fixture.Services.TopMenuLayer.CommittedFrame;
@@ -173,7 +175,7 @@ public sealed class TopMenuLayerTests
             value => value.Action.Kind == TopMenuPointerActionKind.Scrollbar);
         Assert.Equal(scrollbar.Bounds, target.Bounds);
 
-        fixture.Services.Composition.DispatchInput(Mouse(scrollbar.Bounds.X, scrollbar.Bounds.Bottom - 1));
+        fixture.Services.Composition.DispatchInput(UiTestInput.Mouse(scrollbar.Bounds.X, scrollbar.Bounds.Bottom - 1));
         Assert.True(fixture.Services.Session.Menu.State.DropdownFirstVisibleItemIndex > 0);
 
         fixture.Services.Composition.Render();
@@ -189,12 +191,6 @@ public sealed class TopMenuLayerTests
         Assert.DoesNotContain(resizedFrame.PointerTargets,
             value => value.Action.Kind == TopMenuPointerActionKind.Scrollbar);
     }
-
-    private static KeyConsoleInputEvent Key(ConsoleKey key, char keyChar = '\0') =>
-        new(new ConsoleKeyInfo(keyChar, key, false, false, false));
-
-    private static MouseConsoleInputEvent Mouse(int x, int y) =>
-        new(x, y, MouseButton.Left, MouseEventKind.Down, MouseKeyModifiers.None);
 
     private sealed record Fixture(ApplicationServices Services, FakeConsoleDriver Driver)
     {

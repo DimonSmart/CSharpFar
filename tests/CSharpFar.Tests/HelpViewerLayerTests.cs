@@ -1,3 +1,5 @@
+
+
 using CSharpFar.App.Viewer;
 using CSharpFar.Console;
 using CSharpFar.Console.Input;
@@ -45,7 +47,7 @@ public sealed class HelpViewerLayerTests
 
         for (int i = 0; i < maxLeft + 5; i++)
         {
-            UiInputResult result = composition.DispatchInput(Key(ConsoleKey.RightArrow));
+            UiInputResult result = composition.DispatchInput(UiTestInput.Key(ConsoleKey.RightArrow));
             Assert.True(layer.TryTakeInput(out _));
             if (result.Invalidate)
                 composition.Render();
@@ -53,7 +55,7 @@ public sealed class HelpViewerLayerTests
 
         Assert.Equal(maxLeft, layer.CommittedFrame.ScrollLeft);
 
-        UiInputResult unsupported = composition.DispatchInput(Key(ConsoleKey.X));
+        UiInputResult unsupported = composition.DispatchInput(UiTestInput.Key(ConsoleKey.X));
         Assert.True(layer.TryTakeInput(out var packet));
 
         Assert.False(unsupported.Invalidate);
@@ -88,7 +90,7 @@ public sealed class HelpViewerLayerTests
         Assert.Equal(maxTop, layer.CommittedFrame.ScrollTop);
         Assert.Equal(0, layer.CommittedFrame.ScrollLeft);
 
-        UiInputResult clampedDown = composition.DispatchInput(Key(ConsoleKey.PageDown));
+        UiInputResult clampedDown = composition.DispatchInput(UiTestInput.Key(ConsoleKey.PageDown));
         Assert.True(layer.TryTakeInput(out _));
         Assert.False(clampedDown.Invalidate);
 
@@ -111,7 +113,7 @@ public sealed class HelpViewerLayerTests
 
         for (int i = 0; i < maxLeft + 3; i++)
         {
-            UiInputResult result = composition.DispatchInput(Key(ConsoleKey.RightArrow));
+            UiInputResult result = composition.DispatchInput(UiTestInput.Key(ConsoleKey.RightArrow));
             Assert.True(layer.TryTakeInput(out _));
             if (result.Invalidate)
                 composition.Render();
@@ -127,7 +129,7 @@ public sealed class HelpViewerLayerTests
         }
 
         HelpViewerFrame before = layer.CommittedFrame;
-        UiInputResult unsupported = composition.DispatchInput(Key(ConsoleKey.X));
+        UiInputResult unsupported = composition.DispatchInput(UiTestInput.Key(ConsoleKey.X));
         Assert.True(layer.TryTakeInput(out var unsupportedPacket));
         Assert.False(unsupported.Invalidate);
         Assert.Equal(HelpAction.None, unsupportedPacket.Semantic);
@@ -142,7 +144,7 @@ public sealed class HelpViewerLayerTests
     {
         var (composition, _, layer) = Render([new HelpLine(HelpLineKind.Plain, Description: "body")], 40, 5);
 
-        composition.DispatchInput(Key(key));
+        composition.DispatchInput(UiTestInput.Key(key));
 
         Assert.True(layer.TryTakeInput(out var packet));
         Assert.Equal(HelpAction.Close, packet.Semantic);
@@ -156,14 +158,14 @@ public sealed class HelpViewerLayerTests
             .ToArray();
         var (composition, _, layer) = Render(lines, 40, 5);
 
-        UiInputResult down = composition.DispatchInput(Mouse(1, 1, MouseButton.WheelDown, MouseEventKind.Wheel));
+        UiInputResult down = composition.DispatchInput(UiTestInput.Mouse(1, 1, MouseEventKind.Wheel, MouseButton.WheelDown));
         Assert.True(layer.TryTakeInput(out _));
         composition.Render();
 
         Assert.True(down.Invalidate);
         Assert.Equal(3, layer.CommittedFrame.ScrollTop);
 
-        UiInputResult unrelated = composition.DispatchInput(Mouse(1, 1, MouseButton.Left, MouseEventKind.Wheel));
+        UiInputResult unrelated = composition.DispatchInput(UiTestInput.Mouse(1, 1, MouseEventKind.Wheel, MouseButton.Left));
         Assert.True(layer.TryTakeInput(out _));
 
         Assert.False(unrelated.Invalidate);
@@ -178,31 +180,31 @@ public sealed class HelpViewerLayerTests
             .ToArray();
         var (composition, _, layer) = Render(lines, 40, 5);
 
-        DispatchMouse(composition, layer, Mouse(1, 1, MouseButton.WheelDown, MouseEventKind.Wheel));
+        DispatchMouse(composition, layer, UiTestInput.Mouse(1, 1, MouseEventKind.Wheel, MouseButton.WheelDown));
         composition.Render();
         Assert.Equal(3, layer.CommittedFrame.ScrollTop);
 
-        DispatchMouse(composition, layer, Mouse(1, 1, MouseButton.WheelUp, MouseEventKind.Wheel));
+        DispatchMouse(composition, layer, UiTestInput.Mouse(1, 1, MouseEventKind.Wheel, MouseButton.WheelUp));
         composition.Render();
         Assert.Equal(0, layer.CommittedFrame.ScrollTop);
 
-        UiInputResult topClamp = composition.DispatchInput(Mouse(1, 1, MouseButton.WheelUp, MouseEventKind.Wheel));
+        UiInputResult topClamp = composition.DispatchInput(UiTestInput.Mouse(1, 1, MouseEventKind.Wheel, MouseButton.WheelUp));
         Assert.True(layer.TryTakeInput(out _));
         Assert.False(topClamp.Invalidate);
 
         DispatchKey(composition, layer, ConsoleKey.End);
         composition.Render();
         int bottom = layer.CommittedFrame.ScrollTop;
-        UiInputResult bottomClamp = composition.DispatchInput(Mouse(1, 1, MouseButton.WheelDown, MouseEventKind.Wheel));
+        UiInputResult bottomClamp = composition.DispatchInput(UiTestInput.Mouse(1, 1, MouseEventKind.Wheel, MouseButton.WheelDown));
         Assert.True(layer.TryTakeInput(out _));
         Assert.False(bottomClamp.Invalidate);
         Assert.Equal(bottom, layer.CommittedFrame.ScrollTop);
 
-        Assert.False(composition.DispatchInput(Mouse(1, 0, MouseButton.WheelDown, MouseEventKind.Wheel)).Invalidate);
+        Assert.False(composition.DispatchInput(UiTestInput.Mouse(1, 0, MouseEventKind.Wheel, MouseButton.WheelDown)).Invalidate);
         Assert.True(layer.TryTakeInput(out _));
-        Assert.False(composition.DispatchInput(Mouse(3, 4, MouseButton.WheelDown, MouseEventKind.Wheel)).Invalidate);
+        Assert.False(composition.DispatchInput(UiTestInput.Mouse(3, 4, MouseEventKind.Wheel, MouseButton.WheelDown)).Invalidate);
         Assert.True(layer.TryTakeInput(out _));
-        Assert.False(composition.DispatchInput(Mouse(1, 1, MouseButton.Left, MouseEventKind.Wheel)).Invalidate);
+        Assert.False(composition.DispatchInput(UiTestInput.Mouse(1, 1, MouseEventKind.Wheel, MouseButton.Left)).Invalidate);
         Assert.True(layer.TryTakeInput(out _));
     }
 
@@ -215,14 +217,14 @@ public sealed class HelpViewerLayerTests
         var (composition, _, layer) = Render(lines, 20, 8);
         Rect bar = layer.CommittedFrame.ScrollBarBounds!.Value;
 
-        UiInputResult belowThumb = composition.DispatchInput(Mouse(bar.X, bar.Bottom - 1, MouseButton.Left, MouseEventKind.Down));
+        UiInputResult belowThumb = composition.DispatchInput(UiTestInput.Mouse(bar.X, bar.Bottom - 1, MouseEventKind.Down, MouseButton.Left));
         Assert.True(layer.TryTakeInput(out _));
         Assert.True(belowThumb.Invalidate);
         composition.Render();
         Assert.True(layer.CommittedFrame.ScrollTop > 0);
 
         int afterBelow = layer.CommittedFrame.ScrollTop;
-        UiInputResult aboveThumb = composition.DispatchInput(Mouse(bar.X, bar.Y, MouseButton.Left, MouseEventKind.Down));
+        UiInputResult aboveThumb = composition.DispatchInput(UiTestInput.Mouse(bar.X, bar.Y, MouseEventKind.Down, MouseButton.Left));
         Assert.True(layer.TryTakeInput(out _));
         if (aboveThumb.Invalidate)
             composition.Render();
@@ -230,22 +232,22 @@ public sealed class HelpViewerLayerTests
 
         bar = layer.CommittedFrame.ScrollBarBounds!.Value;
         int thumbY = FirstThumbY(bar, layer.CommittedFrame.VerticalScrollState!);
-        UiInputResult thumbDown = composition.DispatchInput(Mouse(bar.X, thumbY, MouseButton.Left, MouseEventKind.Down));
+        UiInputResult thumbDown = composition.DispatchInput(UiTestInput.Mouse(bar.X, thumbY, MouseEventKind.Down, MouseButton.Left));
         Assert.True(layer.TryTakeInput(out _));
         Assert.False(thumbDown.Invalidate);
 
-        UiInputResult capturedMove = composition.DispatchInput(Mouse(bar.X, bar.Bottom + 5, MouseButton.Left, MouseEventKind.Move));
+        UiInputResult capturedMove = composition.DispatchInput(UiTestInput.Mouse(bar.X, bar.Bottom + 5, MouseEventKind.Move, MouseButton.Left));
         Assert.True(layer.TryTakeInput(out var movePacket));
         Assert.Equal(UiInputRouteKind.CapturedTarget, movePacket.Routed.RouteKind);
         if (capturedMove.Invalidate)
             composition.Render();
 
-        UiInputResult up = composition.DispatchInput(Mouse(bar.X, bar.Bottom + 5, MouseButton.Left, MouseEventKind.Up));
+        UiInputResult up = composition.DispatchInput(UiTestInput.Mouse(bar.X, bar.Bottom + 5, MouseEventKind.Up, MouseButton.Left));
         Assert.True(layer.TryTakeInput(out var upPacket));
         Assert.Equal(UiInputRouteKind.CapturedTarget, upPacket.Routed.RouteKind);
         Assert.False(up.Invalidate);
 
-        UiInputResult moveAfterRelease = composition.DispatchInput(Mouse(bar.X, bar.Bottom + 5, MouseButton.Left, MouseEventKind.Move));
+        UiInputResult moveAfterRelease = composition.DispatchInput(UiTestInput.Mouse(bar.X, bar.Bottom + 5, MouseEventKind.Move, MouseButton.Left));
         Assert.True(layer.TryTakeInput(out var afterRelease));
         Assert.NotEqual(UiInputRouteKind.CapturedTarget, afterRelease.Routed.RouteKind);
         Assert.False(moveAfterRelease.Invalidate);
@@ -260,7 +262,7 @@ public sealed class HelpViewerLayerTests
         var (composition, driver, layer) = Render(lines, 20, 8);
         Rect bar = layer.CommittedFrame.ScrollBarBounds!.Value;
         int thumbY = FirstThumbY(bar, layer.CommittedFrame.VerticalScrollState!);
-        DispatchMouse(composition, layer, Mouse(bar.X, thumbY, MouseButton.Left, MouseEventKind.Down));
+        DispatchMouse(composition, layer, UiTestInput.Mouse(bar.X, thumbY, MouseEventKind.Down, MouseButton.Left));
 
         driver.SetSize(1, 1);
         driver.ResizeAfterWriteCount = driver.WriteAtCallCount + 1;
@@ -268,7 +270,7 @@ public sealed class HelpViewerLayerTests
         composition.Render();
         Assert.NotNull(layer.CommittedFrame.ScrollBarBounds);
 
-        UiInputResult stillCaptured = composition.DispatchInput(Mouse(19, 7, MouseButton.Left, MouseEventKind.Move));
+        UiInputResult stillCaptured = composition.DispatchInput(UiTestInput.Mouse(19, 7, MouseEventKind.Move, MouseButton.Left));
         Assert.True(layer.TryTakeInput(out var stillCapturedPacket));
         Assert.Equal(UiInputRouteKind.CapturedTarget, stillCapturedPacket.Routed.RouteKind);
         if (stillCaptured.Invalidate)
@@ -276,7 +278,7 @@ public sealed class HelpViewerLayerTests
 
         driver.SetSize(20, 20);
         composition.Render(isResizeRecovery: true);
-        UiInputResult rebasedMove = composition.DispatchInput(Mouse(19, 18, MouseButton.Left, MouseEventKind.Move));
+        UiInputResult rebasedMove = composition.DispatchInput(UiTestInput.Mouse(19, 18, MouseEventKind.Move, MouseButton.Left));
         Assert.True(layer.TryTakeInput(out var rebasedPacket));
         Assert.Equal(UiInputRouteKind.CapturedTarget, rebasedPacket.Routed.RouteKind);
         if (rebasedMove.Invalidate)
@@ -286,7 +288,7 @@ public sealed class HelpViewerLayerTests
         composition.Render(isResizeRecovery: true);
         Assert.Null(layer.CommittedFrame.ScrollBarBounds);
 
-        UiInputResult afterDisappearance = composition.DispatchInput(Mouse(0, 0, MouseButton.Left, MouseEventKind.Move));
+        UiInputResult afterDisappearance = composition.DispatchInput(UiTestInput.Mouse(0, 0, MouseEventKind.Move, MouseButton.Left));
         Assert.True(layer.TryTakeInput(out var ordinaryPacket));
         Assert.NotEqual(UiInputRouteKind.CapturedTarget, ordinaryPacket.Routed.RouteKind);
         Assert.False(afterDisappearance.Invalidate);
@@ -342,17 +344,17 @@ public sealed class HelpViewerLayerTests
         var (composition, _, layer) = Render([new HelpLine(HelpLineKind.Plain, Description: "body")], 20, 4);
         Rect action = layer.CommittedFrame.FooterActionHits.Single().Bounds;
 
-        HelpAction close = DispatchMouse(composition, layer, Mouse(action.X, action.Y, MouseButton.Left, MouseEventKind.Down)).Semantic;
+        HelpAction close = DispatchMouse(composition, layer, UiTestInput.Mouse(action.X, action.Y, MouseEventKind.Down, MouseButton.Left)).Semantic;
         Assert.Equal(HelpAction.Close, close);
 
-        UiInputResult outside = composition.DispatchInput(Mouse(action.Right + 1, action.Y, MouseButton.Left, MouseEventKind.Down));
+        UiInputResult outside = composition.DispatchInput(UiTestInput.Mouse(action.Right + 1, action.Y, MouseEventKind.Down, MouseButton.Left));
         Assert.True(layer.TryTakeInput(out var packet));
         Assert.False(outside.Invalidate);
         Assert.Equal(HelpAction.None, packet.Semantic);
 
         var (croppedComposition, _, croppedLayer) = Render([new HelpLine(HelpLineKind.Plain, Description: "body")], 6, 4);
         Assert.Empty(croppedLayer.CommittedFrame.FooterActionHits);
-        UiInputResult cropped = croppedComposition.DispatchInput(Mouse(1, 3, MouseButton.Left, MouseEventKind.Down));
+        UiInputResult cropped = croppedComposition.DispatchInput(UiTestInput.Mouse(1, 3, MouseEventKind.Down, MouseButton.Left));
         Assert.True(croppedLayer.TryTakeInput(out var croppedPacket));
         Assert.Equal(HelpAction.None, croppedPacket.Semantic);
         Assert.False(cropped.Invalidate);
@@ -400,7 +402,7 @@ public sealed class HelpViewerLayerTests
         composition.Render();
         for (int i = 0; i < HelpKeyColumnWidth() - 2; i++)
         {
-            composition.DispatchInput(Key(ConsoleKey.RightArrow));
+            composition.DispatchInput(UiTestInput.Key(ConsoleKey.RightArrow));
             Assert.True(layer.TryTakeInput(out _));
             composition.Render();
         }
@@ -433,19 +435,13 @@ public sealed class HelpViewerLayerTests
         ConsolePalette? palette = null)
     {
         driver = new FakeConsoleDriver(width, height);
-        var screen = new ScreenRenderer(driver);
-        var composition = new UiCompositionHost(screen);
-        composition.SetRootSurface(new ScreenRendererSurface(screen, _ => { }));
+        var host = UiTestHost.Create(driver);
+        var screen = host.Screen;
+        var composition = host.Composition;
         layer = new HelpViewerLayer(lines, palette ?? PaletteRegistry.Default);
         composition.OpenSurface(new InteractiveSurface(screen), layer);
         return composition;
     }
-
-    private static KeyConsoleInputEvent Key(ConsoleKey key) =>
-        new(new ConsoleKeyInfo('\0', key, false, false, false));
-
-    private static MouseConsoleInputEvent Mouse(int x, int y, MouseButton button, MouseEventKind kind) =>
-        new(x, y, button, kind, MouseKeyModifiers.None);
 
     private static int HelpKeyColumnWidth() => 20;
 
@@ -454,7 +450,7 @@ public sealed class HelpViewerLayerTests
         HelpViewerLayer layer,
         ConsoleKey key)
     {
-        composition.DispatchInput(Key(key));
+        composition.DispatchInput(UiTestInput.Key(key));
         Assert.True(layer.TryTakeInput(out var packet));
         return packet;
     }

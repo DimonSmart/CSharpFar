@@ -162,11 +162,6 @@ public sealed class MessageDialogTests
         CreateDialog(driver).Show(title, message);
     }
 
-    private static MessageDialog CreateDialog(FakeConsoleDriver driver)
-    {
-        var screen = new ScreenRenderer(driver);
-        var composition = new UiCompositionHost(screen);
-        composition.SetRootSurface(new ScreenRendererSurface(screen, _ => { }));
-        return new MessageDialog(new ModalDialogHost(composition));
-    }
+    private static MessageDialog CreateDialog(FakeConsoleDriver driver) =>
+        new(ModalTestHost.Create(driver));
 }

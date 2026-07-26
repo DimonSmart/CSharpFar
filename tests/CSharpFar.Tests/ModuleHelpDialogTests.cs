@@ -33,11 +33,7 @@ public sealed class ModuleHelpDialogTests
             }
         };
         driver.BeforeReadInput = observeRead;
-        var screen = new ScreenRenderer(driver);
-        var composition = new UiCompositionHost(screen);
-        composition.SetRootSurface(new ScreenRendererSurface(screen, _ => { }));
-
-        new ModuleHelpDialog(new ModalDialogHost(composition)).Show(
+        new ModuleHelpDialog(ModalTestHost.Create(driver)).Show(
             "Help",
             Enumerable.Range(1, 12).Select(index => $"line {index}").ToArray());
 

@@ -1,3 +1,5 @@
+
+
 using CSharpFar.Console;
 using CSharpFar.Console.Input;
 using CSharpFar.Console.Models;
@@ -212,7 +214,7 @@ public sealed class UiLayerTests
         var layer = new TestLayer(UiLayerInputPolicy.Bubble);
 
         Assert.Throws<InvalidOperationException>(() =>
-            layer.RouteInput(Key(ConsoleKey.A), UiInputRouteContext.Layer(layer.FocusState)));
+            layer.RouteInput(UiTestInput.Key(ConsoleKey.A), UiInputRouteContext.Layer(layer.FocusState)));
     }
 
     [Fact]
@@ -242,7 +244,7 @@ public sealed class UiLayerTests
         Assert.Same(layer.CommittedInteractionFrame.Focus, layer.FocusState.CurrentFrame);
         Assert.Equal(new UiTargetId("target-100"), layer.FocusState.FocusedTarget);
         Assert.Equal([100], layer.CommittedValues);
-        Assert.Equal(100, layer.LastInputFrameValue(Key(ConsoleKey.A)));
+        Assert.Equal(100, layer.LastInputFrameValue(UiTestInput.Key(ConsoleKey.A)));
     }
 
     [Fact]
@@ -395,9 +397,6 @@ public sealed class UiLayerTests
                 new(new UiTargetId(target), 0, Cursor: cursor),
             ])),
         };
-
-    private static KeyConsoleInputEvent Key(ConsoleKey key) =>
-        new(new ConsoleKeyInfo('\0', key, shift: false, alt: false, control: false));
 
     private sealed record TestFrame(int Value, UiFocusFrame Focus);
 

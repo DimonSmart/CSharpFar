@@ -46,13 +46,13 @@ public sealed class UiMouseCaptureTests
         using var ownerScope = host.PushOverlay(owner);
         using var topScope = host.PushOverlay(top);
 
-        host.DispatchInput(Mouse(MouseEventKind.Down, MouseButton.Left));
+        host.DispatchInput(UiTestInput.Mouse(1, 1, MouseEventKind.Down, MouseButton.Left));
         owner.Result = UiInputResult.ReleaseMouse();
-        host.DispatchInput(Mouse(MouseEventKind.Move, MouseButton.Left));
+        host.DispatchInput(UiTestInput.Mouse(1, 1, MouseEventKind.Move, MouseButton.Left));
         calls.Clear();
         owner.Result = UiInputResult.NotHandled;
         top.Result = UiInputResult.HandledResult;
-        host.DispatchInput(Mouse(MouseEventKind.Move, MouseButton.Left));
+        host.DispatchInput(UiTestInput.Mouse(1, 1, MouseEventKind.Move, MouseButton.Left));
 
         Assert.Equal(["top"], calls);
     }
@@ -73,11 +73,11 @@ public sealed class UiMouseCaptureTests
         using var firstScope = host.PushOverlay(first);
         using var secondScope = host.PushOverlay(second);
 
-        host.DispatchInput(Mouse(MouseEventKind.Down, MouseButton.Right));
+        host.DispatchInput(UiTestInput.Mouse(1, 1, MouseEventKind.Down, MouseButton.Right));
         calls.Clear();
         first.Result = UiInputResult.NotHandled;
         second.Result = UiInputResult.NotHandled;
-        host.DispatchInput(Mouse(MouseEventKind.Move, MouseButton.Right));
+        host.DispatchInput(UiTestInput.Mouse(1, 1, MouseEventKind.Move, MouseButton.Right));
 
         Assert.Equal(["second"], calls);
         Assert.Contains(second.Contexts, context => context is { IsCapturedRoute: true, Target.Value: "second" });
@@ -95,11 +95,11 @@ public sealed class UiMouseCaptureTests
         using var ownerScope = host.PushOverlay(owner);
         using var topScope = host.PushOverlay(top);
 
-        host.DispatchInput(Mouse(MouseEventKind.Down, MouseButton.Left));
+        host.DispatchInput(UiTestInput.Mouse(1, 1, MouseEventKind.Down, MouseButton.Left));
         top.Result = UiInputResult.HandledResult;
         owner.Result = UiInputResult.NotHandled;
-        host.DispatchInput(Mouse(MouseEventKind.Up, MouseButton.Left));
-        host.DispatchInput(Mouse(MouseEventKind.Move, MouseButton.Left));
+        host.DispatchInput(UiTestInput.Mouse(1, 1, MouseEventKind.Up, MouseButton.Left));
+        host.DispatchInput(UiTestInput.Mouse(1, 1, MouseEventKind.Move, MouseButton.Left));
 
         Assert.Equal(2, owner.Calls.Count);
         Assert.Equal(2, top.Calls.Count);
@@ -117,11 +117,11 @@ public sealed class UiMouseCaptureTests
         using var ownerScope = host.PushOverlay(owner);
         using var topScope = host.PushOverlay(top);
 
-        host.DispatchInput(Mouse(MouseEventKind.Down, MouseButton.Left));
+        host.DispatchInput(UiTestInput.Mouse(1, 1, MouseEventKind.Down, MouseButton.Left));
         top.Result = UiInputResult.HandledResult;
         owner.Result = UiInputResult.NotHandled;
-        host.DispatchInput(Mouse(MouseEventKind.Up, MouseButton.Right));
-        host.DispatchInput(Mouse(MouseEventKind.Move, MouseButton.Left));
+        host.DispatchInput(UiTestInput.Mouse(1, 1, MouseEventKind.Up, MouseButton.Right));
+        host.DispatchInput(UiTestInput.Mouse(1, 1, MouseEventKind.Move, MouseButton.Left));
 
         Assert.Equal(3, owner.Calls.Count);
         Assert.Single(top.Calls);
@@ -139,11 +139,11 @@ public sealed class UiMouseCaptureTests
         var ownerScope = host.PushOverlay(owner);
         using var topScope = host.PushOverlay(top);
 
-        host.DispatchInput(Mouse(MouseEventKind.Down, MouseButton.Left));
+        host.DispatchInput(UiTestInput.Mouse(1, 1, MouseEventKind.Down, MouseButton.Left));
         top.Result = UiInputResult.HandledResult;
         topScope.Dispose();
         ownerScope.Dispose();
-        host.DispatchInput(Mouse(MouseEventKind.Move, MouseButton.Left));
+        host.DispatchInput(UiTestInput.Mouse(1, 1, MouseEventKind.Move, MouseButton.Left));
 
         Assert.Single(owner.Calls);
     }
@@ -154,15 +154,15 @@ public sealed class UiMouseCaptureTests
         var (host, surface) = Fixture();
         surface.Result = UiInputResult.CaptureMouse(new UiTargetId("thumb"), MouseButton.Left);
 
-        Assert.Throws<InvalidOperationException>(() => host.DispatchInput(Key(ConsoleKey.A)));
+        Assert.Throws<InvalidOperationException>(() => host.DispatchInput(UiTestInput.Key(ConsoleKey.A)));
         surface.Result = new UiInputResult(
             false,
             false,
             UiFocusRequest.None,
             UiMouseCaptureRequest.Capture(new UiTargetId("thumb"), MouseButton.Left));
-        Assert.Throws<InvalidOperationException>(() => host.DispatchInput(Mouse(MouseEventKind.Down, MouseButton.Left)));
+        Assert.Throws<InvalidOperationException>(() => host.DispatchInput(UiTestInput.Mouse(1, 1, MouseEventKind.Down, MouseButton.Left)));
         surface.Result = UiInputResult.CaptureMouse(new UiTargetId("thumb"), MouseButton.Right);
-        Assert.Throws<InvalidOperationException>(() => host.DispatchInput(Mouse(MouseEventKind.Down, MouseButton.Left)));
+        Assert.Throws<InvalidOperationException>(() => host.DispatchInput(UiTestInput.Mouse(1, 1, MouseEventKind.Down, MouseButton.Left)));
         Assert.Throws<ArgumentException>(() => UiInputResult.CaptureMouse(new UiTargetId("thumb"), MouseButton.WheelUp));
     }
 
@@ -172,7 +172,7 @@ public sealed class UiMouseCaptureTests
         var (host, surface) = Fixture();
         surface.Result = UiInputResult.CaptureMouse(new UiTargetId("missing"), MouseButton.Left);
 
-        Assert.Throws<InvalidOperationException>(() => host.DispatchInput(Mouse(MouseEventKind.Down, MouseButton.Left)));
+        Assert.Throws<InvalidOperationException>(() => host.DispatchInput(UiTestInput.Mouse(1, 1, MouseEventKind.Down, MouseButton.Left)));
     }
 
     [Fact]
@@ -185,8 +185,8 @@ public sealed class UiMouseCaptureTests
         };
         using var scope = host.PushOverlay(none);
 
-        host.DispatchInput(Mouse(MouseEventKind.Down, MouseButton.Left));
-        host.DispatchInput(Mouse(MouseEventKind.Move, MouseButton.Left));
+        host.DispatchInput(UiTestInput.Mouse(1, 1, MouseEventKind.Down, MouseButton.Left));
+        host.DispatchInput(UiTestInput.Mouse(1, 1, MouseEventKind.Move, MouseButton.Left));
 
         Assert.Empty(none.Calls);
         Assert.Equal(2, surface.Calls.Count);
@@ -200,7 +200,7 @@ public sealed class UiMouseCaptureTests
         surface.Result = UiInputResult.CaptureMouse(new UiTargetId("thumb"), MouseButton.Left);
         surface.OnRoute = () => surface.Policy = UiLayerInputPolicy.None;
 
-        Assert.Throws<InvalidOperationException>(() => host.DispatchInput(Mouse(MouseEventKind.Down, MouseButton.Left)));
+        Assert.Throws<InvalidOperationException>(() => host.DispatchInput(UiTestInput.Mouse(1, 1, MouseEventKind.Down, MouseButton.Left)));
     }
 
     [Fact]
@@ -213,14 +213,14 @@ public sealed class UiMouseCaptureTests
             Result = UiInputResult.CaptureMouse(new UiTargetId("thumb"), MouseButton.Left),
         };
         using var ownerScope = host.PushOverlay(owner);
-        host.DispatchInput(Mouse(MouseEventKind.Down, MouseButton.Left));
+        host.DispatchInput(UiTestInput.Mouse(1, 1, MouseEventKind.Down, MouseButton.Left));
 
         var modal = new CaptureLayer("modal", calls, UiLayerInputPolicy.Modal);
         using var modalScope = host.PushOverlay(modal);
         calls.Clear();
         owner.Result = UiInputResult.NotHandled;
 
-        host.DispatchInput(Mouse(MouseEventKind.Move, MouseButton.Left));
+        host.DispatchInput(UiTestInput.Mouse(1, 1, MouseEventKind.Move, MouseButton.Left));
 
         Assert.Equal(["modal"], calls);
     }
@@ -231,7 +231,7 @@ public sealed class UiMouseCaptureTests
         var calls = new List<string>();
         var (host, surface) = Fixture(calls);
         surface.Result = UiInputResult.CaptureMouse(new UiTargetId("root"), MouseButton.Left);
-        host.DispatchInput(Mouse(MouseEventKind.Down, MouseButton.Left));
+        host.DispatchInput(UiTestInput.Mouse(1, 1, MouseEventKind.Down, MouseButton.Left));
 
         var temporary = new CaptureLayer("temporary", calls);
         using (host.OpenSurface(new UiLayerTestSurface(host.Screen, temporary)))
@@ -239,12 +239,12 @@ public sealed class UiMouseCaptureTests
             calls.Clear();
             surface.Result = UiInputResult.NotHandled;
             temporary.Result = UiInputResult.HandledResult;
-            host.DispatchInput(Mouse(MouseEventKind.Move, MouseButton.Left));
+            host.DispatchInput(UiTestInput.Mouse(1, 1, MouseEventKind.Move, MouseButton.Left));
             Assert.Equal(["temporary"], calls);
         }
 
         calls.Clear();
-        host.DispatchInput(Mouse(MouseEventKind.Move, MouseButton.Left));
+        host.DispatchInput(UiTestInput.Mouse(1, 1, MouseEventKind.Move, MouseButton.Left));
 
         Assert.Equal(["surface"], calls);
         Assert.DoesNotContain(surface.Contexts, context => context.IsCapturedRoute);
@@ -262,12 +262,12 @@ public sealed class UiMouseCaptureTests
         var top = new CaptureLayer("top", calls);
         using var ownerScope = host.PushOverlay(owner);
         using var topScope = host.PushOverlay(top);
-        host.DispatchInput(Mouse(MouseEventKind.Down, MouseButton.Left));
+        host.DispatchInput(UiTestInput.Mouse(1, 1, MouseEventKind.Down, MouseButton.Left));
 
         calls.Clear();
         owner.Policy = UiLayerInputPolicy.None;
         top.Result = UiInputResult.HandledResult;
-        host.DispatchInput(Mouse(MouseEventKind.Move, MouseButton.Left));
+        host.DispatchInput(UiTestInput.Mouse(1, 1, MouseEventKind.Move, MouseButton.Left));
 
         Assert.Equal(["top"], calls);
     }
@@ -282,7 +282,7 @@ public sealed class UiMouseCaptureTests
             Result = UiInputResult.CaptureMouse(new UiTargetId("thumb"), MouseButton.Left),
         };
         using var ownerScope = host.PushOverlay(owner);
-        host.DispatchInput(Mouse(MouseEventKind.Down, MouseButton.Left));
+        host.DispatchInput(UiTestInput.Mouse(1, 1, MouseEventKind.Down, MouseButton.Left));
 
         var temporary = new CaptureLayer("temporary", calls)
         {
@@ -292,7 +292,7 @@ public sealed class UiMouseCaptureTests
         calls.Clear();
         owner.Result = UiInputResult.NotHandled;
 
-        host.DispatchInput(Mouse(MouseEventKind.Move, MouseButton.Left));
+        host.DispatchInput(UiTestInput.Mouse(1, 1, MouseEventKind.Move, MouseButton.Left));
 
         Assert.Equal(["temporary"], calls);
     }
@@ -303,7 +303,7 @@ public sealed class UiMouseCaptureTests
         var calls = new List<string>();
         var (host, surface) = Fixture(calls);
         surface.Result = UiInputResult.CaptureMouse(new UiTargetId("root"), MouseButton.Left);
-        host.DispatchInput(Mouse(MouseEventKind.Down, MouseButton.Left));
+        host.DispatchInput(UiTestInput.Mouse(1, 1, MouseEventKind.Down, MouseButton.Left));
 
         var replacement = new CaptureLayer("replacement", calls)
         {
@@ -311,7 +311,7 @@ public sealed class UiMouseCaptureTests
         };
         host.SetRootSurface(new UiLayerTestSurface(host.Screen, replacement));
         calls.Clear();
-        host.DispatchInput(Mouse(MouseEventKind.Move, MouseButton.Left));
+        host.DispatchInput(UiTestInput.Mouse(1, 1, MouseEventKind.Move, MouseButton.Left));
 
         Assert.Equal(["replacement"], calls);
     }
@@ -322,12 +322,6 @@ public sealed class UiMouseCaptureTests
         var fixture = new UiLayerTestHost(surface);
         return (fixture.Composition, surface);
     }
-
-    private static MouseConsoleInputEvent Mouse(MouseEventKind kind, MouseButton button) =>
-        UiTestInput.Mouse(1, 1, kind, button);
-
-    private static KeyConsoleInputEvent Key(ConsoleKey key) =>
-        UiTestInput.Key(key);
 
     private sealed class CaptureLayer(
         string name,

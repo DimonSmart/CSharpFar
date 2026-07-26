@@ -10,7 +10,7 @@ internal static class UiTestInput
     public static MouseConsoleInputEvent Mouse(
         int x,
         int y,
-        MouseEventKind kind,
+        MouseEventKind kind = MouseEventKind.Down,
         MouseButton button = MouseButton.Left,
         MouseKeyModifiers modifiers = MouseKeyModifiers.None) =>
         new(x, y, button, kind, modifiers);
