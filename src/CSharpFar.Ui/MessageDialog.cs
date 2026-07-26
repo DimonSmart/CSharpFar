@@ -8,9 +8,10 @@ namespace CSharpFar.Ui;
 /// <summary>Shows a message box and waits for Enter or Esc.</summary>
 public sealed class MessageDialog
 {
-    private static readonly UiTargetId DialogTarget = new("message-dialog");
-    private static readonly UiTargetId ContentTarget = new("message-dialog-content");
-    private static readonly UiTargetId ScrollbarTarget = new("message-dialog-scrollbar");
+    private static readonly UiTargetScope Targets = new("message-dialog");
+    private static readonly UiTargetId DialogTarget = Targets.Root;
+    private static readonly UiTargetId ContentTarget = Targets.Child("content");
+    private static readonly UiTargetId ScrollbarTarget = Targets.Child("scrollbar");
     private const int MinDialogWidth = 52;
     private const int MaxDialogWidth = 96;
 
@@ -118,7 +119,7 @@ public sealed class MessageDialog
             : null;
         ScrollableViewportFrameState viewportFrame = viewport.CalculateFrame(
             layout.MessageLines.Count, layout.ContentHeight, textBounds, scrollbarBounds);
-        ScrollState? scrollState = viewport.Viewport.GetScrollState(viewportFrame);
+        ScrollState? scrollState = viewport.GetScrollState(viewportFrame);
 
         var palette = UiTheme.Current;
         new DialogFrameRenderer().RenderFrame(screen, layout.Bounds, title, false, PaletteStyles.DialogPopupOptions(palette), scrollState, (_, contentBounds) =>
@@ -181,14 +182,13 @@ public sealed class MessageDialog
         int height = Math.Min(availableHeight, contentHeight + 4);
         contentHeight = Math.Max(1, height - 4);
 
-        int dlgX = Math.Max(0, (size.Width - width) / 2);
-        int dlgY = Math.Max(0, (size.Height - height) / 2);
+        Rect bounds = UiLayout.Center(size, width, height);
 
         return new MessageDialogLayout(
-            new Rect(dlgX, dlgY, width, height),
+            bounds,
             messageLines,
             contentHeight,
-            dlgY + height - 2);
+            bounds.Bottom - 2);
     }
 
     private static char HotKeyFrom(string text)
@@ -203,7 +203,7 @@ public sealed class MessageDialog
     }
 
     private static RoutedScrollableViewport CreateViewport() =>
-        new(new ScrollableViewport(), ContentTarget, ScrollbarTarget);
+        new(ContentTarget, ScrollbarTarget);
 
     private static UiInputResult RouteViewportInput(
         ConsoleInputEvent input,

@@ -1,6 +1,8 @@
+using CSharpFar.Console;
 using CSharpFar.Console.Input;
 using CSharpFar.Console.Models;
 using CSharpFar.Core.Models;
+using CSharpFar.Tests.Fakes;
 using CSharpFar.Ui;
 
 namespace CSharpFar.Tests;
@@ -84,8 +86,39 @@ public sealed class RoutedScrollableViewportTests
         Assert.Equal(UiMouseCaptureRequestKind.Release, ended.UiResult.MouseCaptureRequest.Kind);
     }
 
+    [Fact]
+    public void GetScrollState_ExposesScrollableFrameWithoutPrimitiveAccess()
+    {
+        var routed = Create();
+        ScrollableViewportFrameState frame = routed.CalculateFrame(10, 3, new Rect(0, 0, 9, 3), new Rect(9, 0, 1, 5));
+
+        ScrollState state = Assert.IsType<ScrollState>(routed.GetScrollState(frame));
+
+        Assert.Equal(10, state.TotalItems);
+        Assert.Equal(3, state.ViewportItems);
+    }
+
+    [Fact]
+    public void RenderScrollbar_UsesCalculatedFrameBoundsAndSkipsAbsentScrollbar()
+    {
+        var routed = Create();
+        var driver = new FakeConsoleDriver(12, 8);
+        var screen = new ScreenRenderer(driver);
+        ScrollableViewportFrameState frame = routed.CalculateFrame(10, 3, new Rect(0, 0, 9, 3), new Rect(10, 1, 1, 5));
+
+        UiTestRender.Render(screen, canvas => routed.RenderScrollbar(canvas, frame, new CellStyle(ConsoleColor.White, ConsoleColor.Black)));
+
+        Assert.Equal('▲', driver.GetCell(10, 1).Character);
+        Assert.Equal('▼', driver.GetCell(10, 5).Character);
+
+        var emptyDriver = new FakeConsoleDriver(12, 8);
+        UiTestRender.Render(new ScreenRenderer(emptyDriver), canvas =>
+            routed.RenderScrollbar(canvas, routed.CalculateFrame(3, 3, new Rect(0, 0, 9, 3), null), new CellStyle(ConsoleColor.White, ConsoleColor.Black)));
+        Assert.All(Enumerable.Range(0, 8), y => Assert.Equal(' ', emptyDriver.GetCell(10, y).Character));
+    }
+
     private static RoutedScrollableViewport Create() =>
-        new(new ScrollableViewport(), new UiTargetId("viewport.content"), new UiTargetId("viewport.scrollbar"));
+        new(new UiTargetId("viewport.content"), new UiTargetId("viewport.scrollbar"));
 
     private static MouseConsoleInputEvent Mouse(MouseButton button, MouseEventKind kind, int x, int y) =>
         new(x, y, button, kind, MouseKeyModifiers.None);

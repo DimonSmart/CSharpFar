@@ -56,7 +56,7 @@ internal sealed class DriveDialog
             (context, _) =>
             {
                 DriveDialogFrame frame = BuildFrame(context.Size, items, routedList);
-                RenderFrame(context, items, frame);
+                RenderFrame(context, items, routedList, frame);
                 return frame;
             },
             frame => BuildInteractionFrame(frame, routedList),
@@ -244,6 +244,7 @@ internal sealed class DriveDialog
     private void RenderFrame(
         UiRenderContext context,
         IReadOnlyList<VolumeSelectionItem> items,
+        RoutedScrollableList<VolumeSelectionItem> list,
         DriveDialogFrame frame)
     {
         _modalRenderer.Render(context.Canvas, frame.Modal, "Change drive", true, DriveOuterOptions, DriveFrameOptions, (_, _) =>
@@ -275,24 +276,7 @@ internal sealed class DriveDialog
                     itemIndex == frame.ListState.SelectedIndex);
             }
 
-            if (frame.ScrollbarBounds is { } scrollbarBounds)
-            {
-                new ScrollBarRenderer().RenderVerticalScrollbar(
-                    context.Canvas,
-                    scrollbarBounds,
-                    new ScrollState
-                    {
-                        TotalItems = items.Count,
-                        ViewportItems = frame.ListState.ViewportRows,
-                        FirstVisibleIndex = frame.ListState.ScrollTop,
-                    },
-                    new ScrollBarOptions
-                    {
-                        Enabled = true,
-                        DrawWhenNotScrollable = false,
-                    },
-                    PaletteStyles.DialogBorder(_palette));
-            }
+            list.RenderScrollbar(context.Canvas, frame.ListState, PaletteStyles.DialogBorder(_palette));
         });
     }
 

@@ -27,7 +27,7 @@ internal sealed partial class HelpViewerLayer : InteractiveSurfaceLayer<HelpView
     private readonly HelpLine[] _lines;
     private readonly ConsolePalette _palette;
     private readonly RoutedScrollableViewport _verticalViewport =
-        new(new ScrollableViewport(), Content, Scrollbar);
+        new(Content, Scrollbar);
     private int _scrollLeft;
 
     public HelpViewerLayer(HelpLine[] lines, ConsolePalette palette)

@@ -121,16 +121,7 @@ public sealed class ListWithButtonsDialog<T>
                     _list.HasItems ? ListTarget : null)
                 : EmptyFormFrame(context, layout.ListBounds);
 
-            if (listState.ScrollbarBounds is { } scrollbarBounds &&
-                _list.GetScrollState(layout.ListBounds.Height, listState.ScrollTop) is { } scrollState)
-            {
-                new ScrollBarRenderer().RenderVerticalScrollbar(
-                    context.Canvas,
-                    scrollbarBounds,
-                    scrollState,
-                    new ScrollBarOptions { Enabled = true, DrawWhenNotScrollable = false },
-                    FarDialogStyles.Border);
-            }
+            _list.RenderScrollbar(context.Canvas, listState, FarDialogStyles.Border);
 
             _list.Render(context.Canvas, layout.ListBounds, listState, FarDialogStyles.Fill, FarDialogStyles.FocusedInput, FarDialogStyles.Fill);
         });

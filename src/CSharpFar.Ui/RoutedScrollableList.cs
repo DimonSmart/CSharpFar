@@ -139,6 +139,23 @@ public sealed class RoutedScrollableList<T>
         CellStyle emptyStyle) =>
         _list.Render(canvas, contentBounds, frame, normalStyle, selectedStyle, emptyStyle);
 
+    public void RenderScrollbar(IUiCanvas canvas, ScrollableListFrameState frame, CellStyle style)
+    {
+        ArgumentNullException.ThrowIfNull(canvas);
+        if (frame.ScrollbarBounds is not { } bounds ||
+            GetScrollState(frame.ViewportRows, frame.ScrollTop) is not { } state)
+        {
+            return;
+        }
+
+        new ScrollBarRenderer().RenderVerticalScrollbar(
+            canvas,
+            bounds,
+            state,
+            new ScrollBarOptions { Enabled = true, DrawWhenNotScrollable = false },
+            style);
+    }
+
     public UiInteractionFragment BuildInteractionFragment(
         Rect contentBounds,
         ScrollableListFrameState frame,

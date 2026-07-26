@@ -318,16 +318,7 @@ internal sealed class SearchProgressDialog
 
                 DrawSeparator(context.Canvas, modal.FrameBounds, layout.SeparatorY);
                 list.Render(context.Canvas, layout.ListBounds, listState);
-                if (layout.ScrollbarBounds is { } scrollbarBounds &&
-                    list.GetScrollState(layout.ListBounds.Height, listState.ScrollTop) is { } scrollState)
-                {
-                    new ScrollBarRenderer().RenderVerticalScrollbar(
-                        context.Canvas,
-                        scrollbarBounds,
-                        scrollState,
-                        new ScrollBarOptions { Enabled = true, DrawWhenNotScrollable = false },
-                        FarDialogStyles.Border);
-                }
+                list.RenderScrollbar(context.Canvas, listState, FarDialogStyles.Border);
 
                 buttonFrame = layout.FooterBounds.Height > 0
                     ? form.Render(
