@@ -554,6 +554,8 @@ public sealed class Spec010FileOperationDialogTests
                 nextDriver.BeforeReadInput = dialogDriver =>
                 {
                     Assert.True(service.PauseReady.Wait(TimeSpan.FromSeconds(2)));
+                    service.AllowPauseWait.Set();
+                    Assert.True(service.PauseObservedReady.Wait(TimeSpan.FromSeconds(2)));
                     dialogDriver.EnqueueKey(Key(ConsoleKey.Enter));
                 };
             };
@@ -925,6 +927,10 @@ public sealed class Spec010FileOperationDialogTests
 
         public ManualResetEventSlim PauseReady { get; } = new();
 
+        public ManualResetEventSlim AllowPauseWait { get; } = new();
+
+        public ManualResetEventSlim PauseObservedReady { get; } = new();
+
         public async Task<FileOperationResult> ExecuteAsync(
             FileOperationRequest request,
             IProgress<FileOperationProgress>? progress,
@@ -947,10 +953,21 @@ public sealed class Spec010FileOperationDialogTests
 
             while (true)
             {
-                if (phase != FileOperationPhase.Scanning && !PauseObserved && IsPaused(request.PauseController))
+                if (phase != FileOperationPhase.Scanning && !PauseObserved)
                 {
-                    PauseObserved = true;
                     PauseReady.Set();
+                    try
+                    {
+                        AllowPauseWait.Wait(cancellationToken);
+                    }
+                    catch (OperationCanceledException)
+                    {
+                        CancellationObserved = true;
+                        throw;
+                    }
+
+                    PauseObserved = true;
+                    PauseObservedReady.Set();
                 }
 
                 try
@@ -975,22 +992,6 @@ public sealed class Spec010FileOperationDialogTests
             }
         }
 
-        private static bool IsPaused(IFileOperationPauseController? pauseController)
-        {
-            if (pauseController is null)
-                return false;
-
-            using var probe = new CancellationTokenSource(TimeSpan.FromMilliseconds(1));
-            try
-            {
-                pauseController.WaitIfPaused(probe.Token);
-                return false;
-            }
-            catch (OperationCanceledException)
-            {
-                return true;
-            }
-        }
     }
 
     private sealed class ConflictFileOperationService : IFileOperationService
