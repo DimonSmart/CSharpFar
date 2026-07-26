@@ -184,7 +184,7 @@ public sealed class UiComponentDialogTests
 
         var mouseFrame = dropdown.CalculateFrame(driver.GetSize(), field);
         dropdown.ApplyCommittedFrame(mouseFrame);
-        Assert.True(dropdown.TryHandlePopupMouse(
+        Assert.True(dropdown.TryHandlePopupContentMouse(
             new MouseConsoleInputEvent(6, 7, MouseButton.Left, MouseEventKind.Down, MouseKeyModifiers.None),
             mouseFrame,
             out bool selected,
@@ -207,7 +207,7 @@ public sealed class UiComponentDialogTests
             dropdown.RenderPopup(canvas, frame));
         Rect popupBounds = frame.PopupBounds!.Value;
 
-        bool handled = dropdown.TryHandlePopupMouse(
+        bool handled = dropdown.TryHandlePopupContentMouse(
             new MouseConsoleInputEvent(popupBounds.X, popupBounds.Y + 1, MouseButton.Left, MouseEventKind.Down, MouseKeyModifiers.None),
             frame,
             out bool selected,
@@ -234,7 +234,7 @@ public sealed class UiComponentDialogTests
             dropdown.RenderPopup(canvas, frame));
         Rect popupBounds = frame.PopupBounds!.Value;
 
-        bool handled = dropdown.TryHandlePopupMouse(
+        bool handled = dropdown.TryHandlePopupContentMouse(
             new MouseConsoleInputEvent(popupBounds.X + 1, popupBounds.Y + 2, MouseButton.Left, MouseEventKind.Down, MouseKeyModifiers.None),
             frame,
             out bool selected,

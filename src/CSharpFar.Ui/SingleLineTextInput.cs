@@ -249,10 +249,12 @@ public static class SingleLineTextInput
     {
         var frame = CalculateHistoryDropdownFrame(fieldX, fieldY, fieldWidth, screenHeight, history);
         return frame is { } value &&
-            TryHandleHistoryDropdownMouse(history, buffer, mouse, value);
+            (value.ScrollbarBounds is Rect scrollbarBounds && scrollbarBounds.Contains(mouse.X, mouse.Y)
+                ? TryHandleHistoryScrollbarMouse(history, mouse, value)
+                : TryHandleHistoryPopupContentMouse(history, buffer, mouse, value));
     }
 
-    public static bool TryHandleHistoryDropdownMouse(
+    public static bool TryHandleHistoryPopupContentMouse(
         SingleLineTextHistoryState history,
         CommandLineState buffer,
         MouseConsoleInputEvent mouse,
@@ -274,16 +276,6 @@ public static class SingleLineTextInput
 
             history.MoveSelection(delta, frame.VisibleRows);
             return true;
-        }
-
-        if (frame.VerticalScrollbarFrame is { } scrollbarFrame)
-        {
-            VerticalScrollbarInputResult result = history.Scrollbar.HandleMouse(mouse, scrollbarFrame);
-            if (result.IsHandled)
-            {
-                history.SetFirstVisibleIndex(result.FirstVisibleIndex, frame.VisibleRows);
-                return true;
-            }
         }
 
         if (mouse.Button == MouseButton.Left &&
@@ -310,6 +302,37 @@ public static class SingleLineTextInput
         }
 
         return false;
+    }
+
+    public static bool TryHandleHistoryScrollbarMouse(
+        SingleLineTextHistoryState history,
+        MouseConsoleInputEvent mouse,
+        SingleLineTextHistoryFrame frame)
+    {
+        if (!history.IsDropdownOpen || frame.VerticalScrollbarFrame is not { } scrollbarFrame)
+            return false;
+
+        if (mouse.Kind == MouseEventKind.Wheel)
+        {
+            int delta = mouse.Button switch
+            {
+                MouseButton.WheelUp => -1,
+                MouseButton.WheelDown => 1,
+                _ => 0,
+            };
+            if (delta == 0)
+                return false;
+
+            history.MoveSelection(delta, frame.VisibleRows);
+            return true;
+        }
+
+        VerticalScrollbarInputResult result = history.Scrollbar.HandleMouse(mouse, scrollbarFrame);
+        if (!result.IsHandled)
+            return false;
+
+        history.SetFirstVisibleIndex(result.FirstVisibleIndex, frame.VisibleRows);
+        return true;
     }
 
     public static int GetCursorX(int x, int width, CommandLineState buffer)

@@ -1529,7 +1529,8 @@ public sealed class ScrollableFormDialogTests
 
         host.Composition.Render();
         FormTargetFrame popup = Assert.Single(layer.CommittedFrame.Targets, target => target.Kind == FormTargetKind.DropdownPopup);
-        host.Composition.DispatchInput(Mouse(popup.Bounds.X + 1, popup.Bounds.Y + 2));
+        Rect content = popup.DropdownFrame!.Value.ContentBounds!.Value;
+        host.Composition.DispatchInput(Mouse(content.X, content.Y + 1));
         Assert.Equal(FormInputResultKind.ValueChanged, layer.LastRouteResult!.Value.FormResult.Kind);
     }
 
@@ -1678,11 +1679,16 @@ public sealed class ScrollableFormDialogTests
         host.Composition.Render();
         FormTargetFrame scrollbar = Assert.Single(layer.CommittedFrame.Targets, target => target.Kind == FormTargetKind.DropdownScrollbar);
 
-        host.Composition.DispatchInput(Mouse(scrollbar.Bounds.X, scrollbar.Bounds.Y + 1, MouseButton.Left, MouseEventKind.Down));
+        ScrollBarThumb thumb = ScrollBarInteraction.CalculateThumb(
+            scrollbar.Bounds,
+            scrollbar.DropdownFrame!.Value.ListState.VerticalScrollbarFrame!.Value.ToScrollState());
+        host.Composition.DispatchInput(Mouse(scrollbar.Bounds.X, thumb.ThumbY, MouseButton.Left, MouseEventKind.Down));
+        int scrollTopBeforeDrag = dropdown.ScrollTop;
         host.Composition.DispatchInput(Mouse(0, 11, MouseButton.Left, MouseEventKind.Move));
 
         Assert.Equal(UiInputRouteKind.CapturedTarget, layer.LastRouteKind);
         Assert.Equal(scrollbar.Target, layer.LastRouteTarget);
+        Assert.True(dropdown.ScrollTop > scrollTopBeforeDrag);
 
         host.Composition.DispatchInput(Mouse(0, 11, MouseButton.Left, MouseEventKind.Up));
         host.Composition.DispatchInput(Mouse(0, 11, MouseButton.Left, MouseEventKind.Move));

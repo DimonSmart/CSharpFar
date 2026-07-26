@@ -412,7 +412,7 @@ public class SingleLineTextInputTests
         Assert.Equal(frame.Value.FirstVisibleIndex, frame.Value.SelectedIndex);
         string expected = history.Matches[frame.Value.FirstVisibleIndex];
 
-        bool handled = SingleLineTextInput.TryHandleHistoryDropdownMouse(
+        bool handled = SingleLineTextInput.TryHandleHistoryPopupContentMouse(
             history,
             buffer,
             LeftMouse(frame.Value.ContentBounds.X, frame.Value.ContentBounds.Y),

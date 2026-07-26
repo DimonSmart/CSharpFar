@@ -18,7 +18,17 @@ internal static class ScrollableListTestExtensions
     {
         ScrollableListFrameState frame = list.CalculateFrameState(viewportRows, scrollbarBounds);
         list.ApplyCommittedFrame(frame);
-        ScrollableListInputResult result = list.HandleMouse(mouse, contentBounds, frame, confirmOnMouseDown, confirmOnDoubleClick);
+        bool isScrollbarTarget = scrollbarBounds is Rect bounds && bounds.Contains(mouse.X, mouse.Y);
+        bool isContentTarget = contentBounds.Contains(mouse.X, mouse.Y);
+        ScrollableListInputResult result = mouse.Kind == MouseEventKind.Wheel
+            ? isContentTarget || isScrollbarTarget
+                ? list.HandleContentMouse(mouse, contentBounds, frame, confirmOnMouseDown, confirmOnDoubleClick)
+                : ScrollableListInputResult.NotHandled
+            : drag is not null || isScrollbarTarget
+                ? list.HandleScrollbarMouse(mouse, frame)
+                : isContentTarget
+                    ? list.HandleContentMouse(mouse, contentBounds, frame, confirmOnMouseDown, confirmOnDoubleClick)
+                    : ScrollableListInputResult.NotHandled;
         drag = list.ScrollbarDragState;
         return result;
     }

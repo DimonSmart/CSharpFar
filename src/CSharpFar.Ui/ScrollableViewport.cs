@@ -139,19 +139,6 @@ public sealed class ScrollableViewport
             result.DragEnded);
     }
 
-    [Obsolete("Use HandleContentMouse or HandleScrollbarMouse after target routing.")]
-    public ScrollableViewportInputResult HandleMouse(MouseConsoleInputEvent mouse, ScrollableViewportFrameState frame, int wheelStep = 3)
-    {
-        if (mouse.Kind == MouseEventKind.Wheel &&
-            !frame.ContentBounds.Contains(mouse.X, mouse.Y) &&
-            (frame.ScrollbarBounds is not Rect scrollbarBounds || !scrollbarBounds.Contains(mouse.X, mouse.Y)))
-            return ScrollableViewportInputResult.NotHandled;
-
-        return mouse.Kind == MouseEventKind.Wheel
-            ? HandleContentMouse(mouse, frame, wheelStep)
-            : HandleScrollbarMouse(mouse, frame);
-    }
-
     private ScrollableViewportInputResult SetFirstVisibleIndex(int requested, ScrollableViewportFrameState frame)
     {
         FirstVisibleIndex = ScrollStateCalculator.ClampFirstVisibleIndex(
