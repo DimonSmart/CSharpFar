@@ -18,11 +18,11 @@ public sealed class UiComponentDialogTests
     public void SelectionListDialog_EnterReturnsSelectedItem()
     {
         var driver = new FakeConsoleDriver(40, 12);
-        driver.EnqueueKey(Key(ConsoleKey.DownArrow));
-        driver.EnqueueKey(Key(ConsoleKey.Enter));
+        driver.EnqueueKey(KeyInfo(ConsoleKey.DownArrow));
+        driver.EnqueueKey(KeyInfo(ConsoleKey.Enter));
         var dialog = new SelectionListDialog<string>(["one", "two", "three"], static item => item, "Pick");
 
-        var result = dialog.Show(CreateModalHost(driver));
+        var result = dialog.Show(ModalTestHost.Create(driver));
 
         Assert.True(result.IsConfirmed);
         Assert.Equal("two", result.SelectedItem);
@@ -33,10 +33,10 @@ public sealed class UiComponentDialogTests
     public void SelectionListDialog_EscapeCancels()
     {
         var driver = new FakeConsoleDriver(40, 12);
-        driver.EnqueueKey(Key(ConsoleKey.Escape));
+        driver.EnqueueKey(KeyInfo(ConsoleKey.Escape));
         var dialog = new SelectionListDialog<string>(["one"], static item => item, "Pick");
 
-        var result = dialog.Show(CreateModalHost(driver));
+        var result = dialog.Show(ModalTestHost.Create(driver));
 
         Assert.False(result.IsConfirmed);
         Assert.Null(result.SelectedItem);
@@ -47,10 +47,10 @@ public sealed class UiComponentDialogTests
     public void SelectionListDialog_F10Cancels()
     {
         var driver = new FakeConsoleDriver(40, 12);
-        driver.EnqueueKey(Key(ConsoleKey.F10));
+        driver.EnqueueKey(KeyInfo(ConsoleKey.F10));
         var dialog = new SelectionListDialog<string>(["one"], static item => item, "Pick");
 
-        var result = dialog.Show(CreateModalHost(driver));
+        var result = dialog.Show(ModalTestHost.Create(driver));
 
         Assert.False(result.IsConfirmed);
         Assert.Equal(-1, result.SelectedIndex);
@@ -60,17 +60,17 @@ public sealed class UiComponentDialogTests
     public void SelectionListDialog_PageAndHomeEndUpdateSelectionAndScroll()
     {
         var driver = new FakeConsoleDriver(40, 12);
-        driver.EnqueueKey(Key(ConsoleKey.PageDown));
-        driver.EnqueueKey(Key(ConsoleKey.End));
-        driver.EnqueueKey(Key(ConsoleKey.PageUp));
-        driver.EnqueueKey(Key(ConsoleKey.Home));
-        driver.EnqueueKey(Key(ConsoleKey.Enter));
+        driver.EnqueueKey(KeyInfo(ConsoleKey.PageDown));
+        driver.EnqueueKey(KeyInfo(ConsoleKey.End));
+        driver.EnqueueKey(KeyInfo(ConsoleKey.PageUp));
+        driver.EnqueueKey(KeyInfo(ConsoleKey.Home));
+        driver.EnqueueKey(KeyInfo(ConsoleKey.Enter));
         var dialog = new SelectionListDialog<int>(Enumerable.Range(0, 20).ToArray(), static item => item.ToString(), "Pick")
         {
             MaxVisibleRows = 5,
         };
 
-        var result = dialog.Show(CreateModalHost(driver));
+        var result = dialog.Show(ModalTestHost.Create(driver));
 
         Assert.True(result.IsConfirmed);
         Assert.Equal(0, result.SelectedItem);
@@ -83,10 +83,10 @@ public sealed class UiComponentDialogTests
     {
         var driver = new FakeConsoleDriver(40, 12);
         driver.EnqueueInput(new MouseConsoleInputEvent(10, 5, MouseButton.Left, MouseEventKind.Down, MouseKeyModifiers.None));
-        driver.EnqueueKey(Key(ConsoleKey.Enter));
+        driver.EnqueueKey(KeyInfo(ConsoleKey.Enter));
         var dialog = new SelectionListDialog<string>(["one", "two", "three"], static item => item, "Pick");
 
-        var result = dialog.Show(CreateModalHost(driver));
+        var result = dialog.Show(ModalTestHost.Create(driver));
 
         Assert.True(result.IsConfirmed);
         Assert.Equal("two", result.SelectedItem);
@@ -96,15 +96,15 @@ public sealed class UiComponentDialogTests
     public void SelectionListDialog_DrawsScrollbarOnlyWhenNeeded()
     {
         var noScrollDriver = new FakeConsoleDriver(40, 12);
-        noScrollDriver.EnqueueKey(Key(ConsoleKey.Escape));
-        new SelectionListDialog<string>(["one", "two"], static item => item, "Pick").Show(CreateModalHost(noScrollDriver));
+        noScrollDriver.EnqueueKey(KeyInfo(ConsoleKey.Escape));
+        new SelectionListDialog<string>(["one", "two"], static item => item, "Pick").Show(ModalTestHost.Create(noScrollDriver));
 
         var scrollDriver = new FakeConsoleDriver(40, 12);
-        scrollDriver.EnqueueKey(Key(ConsoleKey.Escape));
+        scrollDriver.EnqueueKey(KeyInfo(ConsoleKey.Escape));
         new SelectionListDialog<int>(Enumerable.Range(0, 20).ToArray(), static item => item.ToString(), "Pick")
         {
             MaxVisibleRows = 5,
-        }.Show(CreateModalHost(scrollDriver));
+        }.Show(ModalTestHost.Create(scrollDriver));
 
         Assert.DoesNotContain(noScrollDriver.WriteRecords, write => write.Text.Contains('▲'));
         Assert.Contains(scrollDriver.WriteRecords, write => write.Text.Contains('▲'));
@@ -114,13 +114,13 @@ public sealed class UiComponentDialogTests
     public void SelectionListDialog_EmptyListShowsEmptyTextAndCancelsOnEnter()
     {
         var driver = new FakeConsoleDriver(40, 12);
-        driver.EnqueueKey(Key(ConsoleKey.Enter));
+        driver.EnqueueKey(KeyInfo(ConsoleKey.Enter));
         var dialog = new SelectionListDialog<string>([], static item => item, "Pick")
         {
             EmptyText = "Nothing here",
         };
 
-        var result = dialog.Show(CreateModalHost(driver));
+        var result = dialog.Show(ModalTestHost.Create(driver));
 
         Assert.False(result.IsConfirmed);
         Assert.Equal(-1, result.SelectedIndex);
@@ -131,12 +131,12 @@ public sealed class UiComponentDialogTests
     public void SelectionListDialog_TinyViewportCollapsesListWithoutPublishingInvalidScrollbar()
     {
         var driver = new FakeConsoleDriver(2, 2);
-        driver.EnqueueKey(Key(ConsoleKey.F10));
+        driver.EnqueueKey(KeyInfo(ConsoleKey.F10));
 
         var result = new SelectionListDialog<int>(Enumerable.Range(0, 20).ToArray(), static item => item.ToString(), "Pick")
         {
             MaxVisibleRows = 5,
-        }.Show(CreateModalHost(driver));
+        }.Show(ModalTestHost.Create(driver));
 
         Assert.False(result.IsConfirmed);
         Assert.DoesNotContain(driver.WriteRecords, write => write.X < 0 || write.Y < 0);
@@ -153,11 +153,11 @@ public sealed class UiComponentDialogTests
         var frame = dropdown.CalculateFrame(driver.GetSize(), field);
         dropdown.ApplyCommittedFrame(frame);
         Assert.True(dropdown.IsOpen);
-        Assert.True(dropdown.TryHandleKey(Key(ConsoleKey.DownArrow), frame, out _, out _));
+        Assert.True(dropdown.TryHandleKey(KeyInfo(ConsoleKey.DownArrow), frame, out _, out _));
         Assert.Equal(1, dropdown.SelectedIndex);
         frame = dropdown.CalculateFrame(driver.GetSize(), field);
         dropdown.ApplyCommittedFrame(frame);
-        Assert.True(dropdown.TryHandleKey(Key(ConsoleKey.Escape), frame, out _, out _));
+        Assert.True(dropdown.TryHandleKey(KeyInfo(ConsoleKey.Escape), frame, out _, out _));
 
         Assert.False(dropdown.IsOpen);
         Assert.Equal("utf-8", dropdown.SelectedItem);
@@ -178,7 +178,7 @@ public sealed class UiComponentDialogTests
         {
             var frame = dropdown.CalculateFrame(driver.GetSize(), field);
             dropdown.ApplyCommittedFrame(frame);
-            dropdown.TryHandleKey(Key(ConsoleKey.DownArrow), frame, out _, out _);
+            dropdown.TryHandleKey(KeyInfo(ConsoleKey.DownArrow), frame, out _, out _);
         }
         Assert.True(dropdown.ScrollTop > 0);
 
@@ -257,7 +257,7 @@ public sealed class UiComponentDialogTests
         dropdown.Toggle();
         var frame = dropdown.CalculateFrame(driver.GetSize(), field);
         dropdown.ApplyCommittedFrame(frame);
-        dropdown.TryHandleKey(Key(ConsoleKey.DownArrow), frame, out _, out _);
+        dropdown.TryHandleKey(KeyInfo(ConsoleKey.DownArrow), frame, out _, out _);
         dropdown.Toggle();
 
         Assert.False(dropdown.IsOpen);
@@ -303,22 +303,22 @@ public sealed class UiComponentDialogTests
     public void ListWithButtonsDialog_ReturnsListDefaultAndButtonActions()
     {
         var listDriver = new FakeConsoleDriver(80, 20);
-        listDriver.EnqueueKey(Key(ConsoleKey.Enter));
+        listDriver.EnqueueKey(KeyInfo(ConsoleKey.Enter));
         var listDialog = CreateListWithButtons(["alpha"]);
 
-        var listResult = listDialog.Show(CreateModalHost(listDriver));
+        var listResult = listDialog.Show(ModalTestHost.Create(listDriver));
 
         Assert.NotNull(listResult);
         Assert.Equal("connect", listResult.ActionId);
         Assert.Equal("alpha", listResult.SelectedItem);
 
         var buttonDriver = new FakeConsoleDriver(80, 20);
-        buttonDriver.EnqueueKey(Key(ConsoleKey.Tab));
-        buttonDriver.EnqueueKey(Key(ConsoleKey.RightArrow));
-        buttonDriver.EnqueueKey(Key(ConsoleKey.Enter));
+        buttonDriver.EnqueueKey(KeyInfo(ConsoleKey.Tab));
+        buttonDriver.EnqueueKey(KeyInfo(ConsoleKey.RightArrow));
+        buttonDriver.EnqueueKey(KeyInfo(ConsoleKey.Enter));
         var buttonDialog = CreateListWithButtons(["alpha"]);
 
-        var buttonResult = buttonDialog.Show(CreateModalHost(buttonDriver));
+        var buttonResult = buttonDialog.Show(ModalTestHost.Create(buttonDriver));
 
         Assert.NotNull(buttonResult);
         Assert.Equal("delete", buttonResult.ActionId);
@@ -328,9 +328,9 @@ public sealed class UiComponentDialogTests
     public void ListWithButtonsDialog_EscapeCancels()
     {
         var driver = new FakeConsoleDriver(80, 20);
-        driver.EnqueueKey(Key(ConsoleKey.Escape));
+        driver.EnqueueKey(KeyInfo(ConsoleKey.Escape));
 
-        var result = CreateListWithButtons(["alpha"]).Show(CreateModalHost(driver));
+        var result = CreateListWithButtons(["alpha"]).Show(ModalTestHost.Create(driver));
 
         Assert.Null(result);
     }
@@ -339,9 +339,9 @@ public sealed class UiComponentDialogTests
     public void ListWithButtonsDialog_TinyViewportAllowsCollapsedListSection()
     {
         var driver = new FakeConsoleDriver(2, 2);
-        driver.EnqueueKey(Key(ConsoleKey.Escape));
+        driver.EnqueueKey(KeyInfo(ConsoleKey.Escape));
 
-        var result = CreateListWithButtons(["alpha", "beta"]).Show(CreateModalHost(driver));
+        var result = CreateListWithButtons(["alpha", "beta"]).Show(ModalTestHost.Create(driver));
 
         Assert.Null(result);
         Assert.DoesNotContain(driver.WriteRecords, write => write.X < 0 || write.Y < 0);
@@ -351,10 +351,10 @@ public sealed class UiComponentDialogTests
     public void ListWithButtonsDialog_DeleteWorksWhileFooterHasFocus()
     {
         var driver = new FakeConsoleDriver(80, 20);
-        driver.EnqueueKey(Key(ConsoleKey.Tab));
-        driver.EnqueueKey(Key(ConsoleKey.Delete));
+        driver.EnqueueKey(KeyInfo(ConsoleKey.Tab));
+        driver.EnqueueKey(KeyInfo(ConsoleKey.Delete));
 
-        var result = CreateListWithButtons(["alpha"]).Show(CreateModalHost(driver));
+        var result = CreateListWithButtons(["alpha"]).Show(ModalTestHost.Create(driver));
 
         Assert.NotNull(result);
         Assert.Equal("delete", result.ActionId);
@@ -372,7 +372,7 @@ public sealed class UiComponentDialogTests
                 driver.EnqueueInput(new MouseConsoleInputEvent(x, y, MouseButton.Left, MouseEventKind.Up, MouseKeyModifiers.None));
             }
 
-        var result = CreateListWithButtons(["alpha"]).Show(CreateModalHost(driver));
+        var result = CreateListWithButtons(["alpha"]).Show(ModalTestHost.Create(driver));
 
         Assert.NotNull(result);
         Assert.Equal("delete", result.ActionId);
@@ -405,7 +405,7 @@ public sealed class UiComponentDialogTests
             buttonBar.Render(canvas, 0, 0, 20, state, isFocused: true));
 
         DialogButtonBarInputResult result = buttonBar.HandleInput(
-            new KeyConsoleInputEvent(Key(ConsoleKey.Enter)),
+            UiTestInput.Key(ConsoleKey.Enter),
             layout,
             state);
 
@@ -452,7 +452,7 @@ public sealed class UiComponentDialogTests
         DialogButtonBarLayout layout = buttonBar.CalculateLayout(0, 1, 20);
         int x = layout.ButtonBounds[0].X;
 
-        DialogButtonBarInputResult down = buttonBar.HandleMouse(Mouse(x, 1, MouseEventKind.Down), layout, state);
+        DialogButtonBarInputResult down = buttonBar.HandleMouse(UiTestInput.Mouse(x, 1, MouseEventKind.Down), layout, state);
         Assert.True(down.IsHandled);
         Assert.Equal(UiMouseCaptureRequestKind.Capture, down.MouseCapture);
         Assert.Equal(0, down.State.PressedButtonIndex);
@@ -462,14 +462,14 @@ public sealed class UiComponentDialogTests
         Assert.Equal(FarDialogStyles.PressedButton.Foreground, driver.GetCell(x, 1).Foreground);
         Assert.Equal(FarDialogStyles.PressedButton.Background, driver.GetCell(x, 1).Background);
 
-        DialogButtonBarInputResult moveOutside = buttonBar.HandleMouse(Mouse(39, 7, MouseEventKind.Move), layout, down.State);
+        DialogButtonBarInputResult moveOutside = buttonBar.HandleMouse(UiTestInput.Mouse(39, 7, MouseEventKind.Move), layout, down.State);
         Assert.Null(moveOutside.State.PressedButtonIndex);
-        DialogButtonBarInputResult cancelledUp = buttonBar.HandleMouse(Mouse(39, 7, MouseEventKind.Up), layout, moveOutside.State);
+        DialogButtonBarInputResult cancelledUp = buttonBar.HandleMouse(UiTestInput.Mouse(39, 7, MouseEventKind.Up), layout, moveOutside.State);
         Assert.Equal(UiMouseCaptureRequestKind.Release, cancelledUp.MouseCapture);
         Assert.Null(cancelledUp.ButtonId);
 
-        DialogButtonBarInputResult secondDown = buttonBar.HandleMouse(Mouse(x, 1, MouseEventKind.Down), layout, cancelledUp.State);
-        DialogButtonBarInputResult up = buttonBar.HandleMouse(Mouse(x, 1, MouseEventKind.Up), layout, secondDown.State);
+        DialogButtonBarInputResult secondDown = buttonBar.HandleMouse(UiTestInput.Mouse(x, 1, MouseEventKind.Down), layout, cancelledUp.State);
+        DialogButtonBarInputResult up = buttonBar.HandleMouse(UiTestInput.Mouse(x, 1, MouseEventKind.Up), layout, secondDown.State);
         Assert.Equal(UiMouseCaptureRequestKind.Release, up.MouseCapture);
         Assert.Null(up.State.PressedButtonIndex);
         Assert.Equal("ok", up.ButtonId);
@@ -479,9 +479,9 @@ public sealed class UiComponentDialogTests
     public void ChoiceDialog_EnterActivatesDefaultButton()
     {
         var driver = new FakeConsoleDriver(80, 20);
-        driver.EnqueueKey(Key(ConsoleKey.Enter));
+        driver.EnqueueKey(KeyInfo(ConsoleKey.Enter));
 
-        var result = new ChoiceDialog(CreateModalHost(driver)).Show(CreateChoiceOptions());
+        var result = new ChoiceDialog(ModalTestHost.Create(driver)).Show(CreateChoiceOptions());
 
         Assert.Equal(0, result.ButtonIndex);
         Assert.Equal("yes", result.ButtonId);
@@ -491,9 +491,9 @@ public sealed class UiComponentDialogTests
     public void ChoiceDialog_EscapeReturnsCancelButton()
     {
         var driver = new FakeConsoleDriver(80, 20);
-        driver.EnqueueKey(Key(ConsoleKey.Escape));
+        driver.EnqueueKey(KeyInfo(ConsoleKey.Escape));
 
-        var result = new ChoiceDialog(CreateModalHost(driver)).Show(CreateChoiceOptions());
+        var result = new ChoiceDialog(ModalTestHost.Create(driver)).Show(CreateChoiceOptions());
 
         Assert.Equal(1, result.ButtonIndex);
         Assert.Equal("no", result.ButtonId);
@@ -506,7 +506,7 @@ public sealed class UiComponentDialogTests
         driver.EnqueueInput(new MouseConsoleInputEvent(42, 10, MouseButton.Left, MouseEventKind.Down, MouseKeyModifiers.None));
         driver.EnqueueInput(new MouseConsoleInputEvent(42, 10, MouseButton.Left, MouseEventKind.Up, MouseKeyModifiers.None));
 
-        var result = new ChoiceDialog(CreateModalHost(driver)).Show(CreateChoiceOptions());
+        var result = new ChoiceDialog(ModalTestHost.Create(driver)).Show(CreateChoiceOptions());
 
         Assert.Equal("no", result.ButtonId);
     }
@@ -515,9 +515,9 @@ public sealed class UiComponentDialogTests
     public void ChoiceDialog_NormalizesDefaultAndCancelButtonIndexes()
     {
         var enterDriver = new FakeConsoleDriver(80, 20);
-        enterDriver.EnqueueKey(Key(ConsoleKey.Enter));
+        enterDriver.EnqueueKey(KeyInfo(ConsoleKey.Enter));
         var escapeDriver = new FakeConsoleDriver(80, 20);
-        escapeDriver.EnqueueKey(Key(ConsoleKey.Escape));
+        escapeDriver.EnqueueKey(KeyInfo(ConsoleKey.Escape));
         var options = new ChoiceDialogOptions
         {
             Title = "Question",
@@ -531,8 +531,8 @@ public sealed class UiComponentDialogTests
             CancelButtonIndex = -1,
         };
 
-        ChoiceDialogResult entered = new ChoiceDialog(CreateModalHost(enterDriver)).Show(options);
-        ChoiceDialogResult cancelled = new ChoiceDialog(CreateModalHost(escapeDriver)).Show(options);
+        ChoiceDialogResult entered = new ChoiceDialog(ModalTestHost.Create(enterDriver)).Show(options);
+        ChoiceDialogResult cancelled = new ChoiceDialog(ModalTestHost.Create(escapeDriver)).Show(options);
 
         Assert.Equal("no", entered.ButtonId);
         Assert.Equal("yes", cancelled.ButtonId);
@@ -542,9 +542,9 @@ public sealed class UiComponentDialogTests
     public void ConfirmDialog_EnterConfirms()
     {
         var enterDriver = new FakeConsoleDriver(80, 20);
-        enterDriver.EnqueueKey(Key(ConsoleKey.Enter));
+        enterDriver.EnqueueKey(KeyInfo(ConsoleKey.Enter));
 
-        bool confirmed = new ConfirmDialog(CreateModalHost(enterDriver)).Show("Confirm", "Delete?", "file.txt");
+        bool confirmed = new ConfirmDialog(ModalTestHost.Create(enterDriver)).Show("Confirm", "Delete?", "file.txt");
 
         Assert.True(confirmed);
     }
@@ -553,9 +553,9 @@ public sealed class UiComponentDialogTests
     public void ConfirmDialog_EscapeCancels()
     {
         var driver = new FakeConsoleDriver(80, 20);
-        driver.EnqueueKey(Key(ConsoleKey.Escape));
+        driver.EnqueueKey(KeyInfo(ConsoleKey.Escape));
 
-        bool cancelled = new ConfirmDialog(CreateModalHost(driver)).Show("Confirm", "Delete?", "file.txt");
+        bool cancelled = new ConfirmDialog(ModalTestHost.Create(driver)).Show("Confirm", "Delete?", "file.txt");
 
         Assert.False(cancelled);
     }
@@ -564,9 +564,9 @@ public sealed class UiComponentDialogTests
     public void SingleLineInputDialog_EnterConfirmsInitialText()
     {
         var driver = new FakeConsoleDriver(80, 20);
-        driver.EnqueueKey(Key(ConsoleKey.Enter));
+        driver.EnqueueKey(KeyInfo(ConsoleKey.Enter));
 
-        var result = new SingleLineInputDialog(CreateModalHost(driver)).Show(new SingleLineInputDialogOptions
+        var result = new SingleLineInputDialog(ModalTestHost.Create(driver)).Show(new SingleLineInputDialogOptions
         {
             Title = "Input",
             Prompt = "Name",
@@ -581,11 +581,11 @@ public sealed class UiComponentDialogTests
     public void SingleLineInputDialog_RejectsEmptyUntilAllowedValueEntered()
     {
         var driver = new FakeConsoleDriver(80, 20);
-        driver.EnqueueKey(Key(ConsoleKey.Enter));
+        driver.EnqueueKey(KeyInfo(ConsoleKey.Enter));
         driver.EnqueueKey(new ConsoleKeyInfo('a', ConsoleKey.A, false, false, false));
-        driver.EnqueueKey(Key(ConsoleKey.Enter));
+        driver.EnqueueKey(KeyInfo(ConsoleKey.Enter));
 
-        var result = new SingleLineInputDialog(CreateModalHost(driver)).Show(new SingleLineInputDialogOptions
+        var result = new SingleLineInputDialog(ModalTestHost.Create(driver)).Show(new SingleLineInputDialogOptions
         {
             Title = "Input",
             Prompt = "Name",
@@ -600,11 +600,11 @@ public sealed class UiComponentDialogTests
     public void SingleLineInputDialog_ShowsValidationErrorAndReprompts()
     {
         var driver = new FakeConsoleDriver(80, 20);
-        driver.EnqueueKey(Key(ConsoleKey.Enter));
+        driver.EnqueueKey(KeyInfo(ConsoleKey.Enter));
         driver.EnqueueKey(new ConsoleKeyInfo('x', ConsoleKey.X, false, false, false));
-        driver.EnqueueKey(Key(ConsoleKey.Enter));
+        driver.EnqueueKey(KeyInfo(ConsoleKey.Enter));
 
-        var result = new SingleLineInputDialog(CreateModalHost(driver)).Show(new SingleLineInputDialogOptions
+        var result = new SingleLineInputDialog(ModalTestHost.Create(driver)).Show(new SingleLineInputDialogOptions
         {
             Title = "Input",
             Prompt = "Name",
@@ -639,9 +639,9 @@ public sealed class UiComponentDialogTests
     {
         var row = new ChoiceRow<string>(["one", "two", "three"], static value => value, selectedIndex: 1);
 
-        Assert.True(row.TryHandleKey(Key(ConsoleKey.LeftArrow)));
+        Assert.True(row.TryHandleKey(KeyInfo(ConsoleKey.LeftArrow)));
         Assert.Equal("one", row.Value);
-        Assert.True(row.TryHandleKey(Key(ConsoleKey.RightArrow)));
+        Assert.True(row.TryHandleKey(KeyInfo(ConsoleKey.RightArrow)));
         Assert.Equal("two", row.Value);
     }
 
@@ -741,16 +741,6 @@ public sealed class UiComponentDialogTests
             CancelButtonIndex = 1,
         };
 
-    private static ConsoleKeyInfo Key(ConsoleKey key) => new('\0', key, false, false, false);
+    private static ConsoleKeyInfo KeyInfo(ConsoleKey key) => UiTestInput.Key(key).Key;
 
-    private static MouseConsoleInputEvent Mouse(int x, int y, MouseEventKind kind) =>
-        new(x, y, MouseButton.Left, kind, MouseKeyModifiers.None);
-
-    private static ModalDialogHost CreateModalHost(FakeConsoleDriver driver)
-    {
-        var screen = new ScreenRenderer(driver);
-        var composition = new UiCompositionHost(screen);
-        composition.SetRootSurface(new ScreenRendererSurface(screen, _ => { }));
-        return new ModalDialogHost(composition);
-    }
 }

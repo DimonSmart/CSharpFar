@@ -1,3 +1,5 @@
+
+
 using CSharpFar.App;
 using CSharpFar.App.Bootstrap;
 using CSharpFar.App.Rendering;
@@ -48,7 +50,7 @@ public sealed class ApplicationOverlayLayerTests
         Assert.True(completion.Visible);
         Assert.Equal(["", "alpha"], completion.Matches);
 
-        var input = Key(ConsoleKey.A, keyChar: 'a');
+        var input = UiTestInput.Key(ConsoleKey.A, keyChar: 'a');
         Assert.True(services.Composition.DispatchInput(input).Handled);
         Assert.True(services.ApplicationSurface.TryTakeInput(out var packet));
         Assert.Same(input, packet.Input);
@@ -74,7 +76,7 @@ public sealed class ApplicationOverlayLayerTests
         Assert.True(completion.Visible);
         Assert.Equal(["", "git status"], completion.Matches);
 
-        var input = Key(ConsoleKey.DownArrow);
+        var input = UiTestInput.Key(ConsoleKey.DownArrow);
         Assert.True(services.Composition.DispatchInput(input).Handled);
         Assert.True(services.ApplicationSurface.TryTakeInput(out var packet));
         Assert.Same(input, packet.Input);
@@ -147,7 +149,7 @@ public sealed class ApplicationOverlayLayerTests
         completion.Visible = true;
         completion.List.ResetItems(["", "alpha"]);
         services.Composition.Render();
-        var input = Key(ConsoleKey.Enter);
+        var input = UiTestInput.Key(ConsoleKey.Enter);
 
         UiInputResult result = services.Composition.DispatchInput(input);
 
@@ -167,7 +169,7 @@ public sealed class ApplicationOverlayLayerTests
         services.Composition.Render();
         Rect bounds = services.Inner.CommandCompletionLayer.CommittedFrame.Items[0].Bounds;
 
-        UiInputResult result = services.Composition.DispatchInput(Mouse(bounds.X, bounds.Y));
+        UiInputResult result = services.Composition.DispatchInput(UiTestInput.Mouse(bounds.X, bounds.Y));
 
         Assert.True(result.Handled);
         Assert.True(result.Invalidate);
@@ -186,7 +188,7 @@ public sealed class ApplicationOverlayLayerTests
         services.Composition.Render();
         Rect bounds = services.Inner.CommandCompletionLayer.CommittedFrame.Items[1].Bounds;
 
-        UiInputResult result = services.Composition.DispatchInput(Mouse(bounds.X, bounds.Y));
+        UiInputResult result = services.Composition.DispatchInput(UiTestInput.Mouse(bounds.X, bounds.Y));
 
         Assert.True(result.Handled);
         Assert.True(result.Invalidate);
@@ -207,7 +209,7 @@ public sealed class ApplicationOverlayLayerTests
         services.Composition.Render();
         completion.List.SelectedIndex = 2;
 
-        UiInputResult result = services.Composition.DispatchInput(Key(ConsoleKey.Delete));
+        UiInputResult result = services.Composition.DispatchInput(UiTestInput.Key(ConsoleKey.Delete));
 
         Assert.True(result.Handled);
         Assert.DoesNotContain(services.History.GetCommandHistory(), item => item.Command == "alpha");
@@ -227,7 +229,7 @@ public sealed class ApplicationOverlayLayerTests
         completion.List.ScrollTop = 4;
         services.Composition.Render();
 
-        Assert.True(services.Composition.DispatchInput(Key(ConsoleKey.Delete)).Handled);
+        Assert.True(services.Composition.DispatchInput(UiTestInput.Key(ConsoleKey.Delete)).Handled);
         services.Composition.Render();
 
         var frame = services.Inner.CommandCompletionLayer.CommittedFrame;
@@ -246,7 +248,7 @@ public sealed class ApplicationOverlayLayerTests
         Rect oldBounds = services.Inner.CommandCompletionLayer.CommittedFrame.Items[1].Bounds;
         completion.List.ResetItems(["", "new"]);
 
-        UiInputResult result = services.Composition.DispatchInput(Mouse(oldBounds.X, oldBounds.Y));
+        UiInputResult result = services.Composition.DispatchInput(UiTestInput.Mouse(oldBounds.X, oldBounds.Y));
 
         Assert.True(result.Handled);
         Assert.True(result.Invalidate);
@@ -289,7 +291,7 @@ public sealed class ApplicationOverlayLayerTests
         services.Session.CommandLine.Completion.List.ResetItems(["", "history"], 1);
 
         services.Composition.Render();
-        var input = Key(ConsoleKey.Enter, control: true);
+        var input = UiTestInput.Key(ConsoleKey.Enter, control: true);
         UiInputResult routed = services.Composition.DispatchInput(input);
 
         Assert.True(routed.Handled);
@@ -311,7 +313,7 @@ public sealed class ApplicationOverlayLayerTests
         completion.List.ResetItems(Enumerable.Range(0, 12).Select(i => $"item-{i}").ToArray());
 
         services.Composition.Render();
-        UiInputResult down = services.Composition.DispatchInput(Mouse(79, 15));
+        UiInputResult down = services.Composition.DispatchInput(UiTestInput.Mouse(79, 15));
         Assert.True(down.Handled);
         Assert.NotNull(completion.List.GetScrollbarDrag());
 
@@ -330,19 +332,19 @@ public sealed class ApplicationOverlayLayerTests
         completion.List.ResetItems(Enumerable.Range(0, 12).Select(i => $"item-{i}").ToArray());
 
         services.Composition.Render();
-        Assert.True(services.Composition.DispatchInput(Mouse(79, 15)).Handled);
+        Assert.True(services.Composition.DispatchInput(UiTestInput.Mouse(79, 15)).Handled);
         Assert.NotNull(completion.List.GetScrollbarDrag());
 
         services.Driver.SetSize(80, 6);
         services.Composition.Render();
 
         Assert.Null(completion.List.GetScrollbarDrag());
-        UiInputResult move = services.Composition.DispatchInput(Mouse(0, 0, MouseEventKind.Move));
+        UiInputResult move = services.Composition.DispatchInput(UiTestInput.Mouse(0, 0, MouseEventKind.Move));
         Assert.True(move.Handled);
         Assert.True(services.ApplicationSurface.TryTakeInput(out var packet));
         Assert.IsType<MouseConsoleInputEvent>(packet.Input);
 
-        services.Composition.DispatchInput(Mouse(79, 1));
+        services.Composition.DispatchInput(UiTestInput.Mouse(79, 1));
         Assert.Null(completion.List.GetScrollbarDrag());
     }
 
@@ -354,7 +356,7 @@ public sealed class ApplicationOverlayLayerTests
         completion.Visible = true;
         completion.List.ResetItems(Enumerable.Range(0, 12).Select(i => $"item-{i}").ToArray());
         services.Composition.Render();
-        services.Composition.DispatchInput(Mouse(79, 15));
+        services.Composition.DispatchInput(UiTestInput.Mouse(79, 15));
         ScrollBarDragState dragBeforeRetry = Assert.IsType<ScrollBarDragState>(completion.List.GetScrollbarDrag());
         bool observedRejectedAttempt = false;
 
@@ -381,7 +383,7 @@ public sealed class ApplicationOverlayLayerTests
         completion.Visible = true;
         completion.List.ResetItems(Enumerable.Range(0, 12).Select(i => $"item-{i}").ToArray());
         services.Composition.Render();
-        services.Composition.DispatchInput(Mouse(79, 15));
+        services.Composition.DispatchInput(UiTestInput.Mouse(79, 15));
 
         completion.List.SelectedIndex = 1;
         services.Driver.ResizeAfterWriteCount = services.Driver.WriteAtCallCount + 1;
@@ -402,7 +404,7 @@ public sealed class ApplicationOverlayLayerTests
             }).ThumbHeight;
         Assert.InRange(drag.PointerOffsetInThumb, 0, thumbHeight - 1);
 
-        UiInputResult move = services.Composition.DispatchInput(Mouse(0, drag.Bounds.Bottom - 2, MouseEventKind.Move));
+        UiInputResult move = services.Composition.DispatchInput(UiTestInput.Mouse(0, drag.Bounds.Bottom - 2, MouseEventKind.Move));
 
         Assert.True(move.Handled);
         Assert.Equal(4, completion.List.ScrollTop);
@@ -416,12 +418,12 @@ public sealed class ApplicationOverlayLayerTests
         services.Session.Panels.Left.Items.Add(Item("alpha.txt"));
         services.Composition.Render();
 
-        UiInputResult activate = services.Composition.DispatchInput(Key(ConsoleKey.G, alt: true));
+        UiInputResult activate = services.Composition.DispatchInput(UiTestInput.Key(ConsoleKey.G, alt: true));
         Assert.True(activate.Handled);
         services.Composition.Render();
 
         Assert.False(services.ApplicationSurface.TryTakeInput(out _));
-        UiInputResult refine = services.Composition.DispatchInput(Key(ConsoleKey.E, keyChar: 'e'));
+        UiInputResult refine = services.Composition.DispatchInput(UiTestInput.Key(ConsoleKey.E, keyChar: 'e'));
         Assert.True(refine.Handled);
         Assert.False(services.ApplicationSurface.TryTakeInput(out _));
         Assert.Equal("ge", services.PanelQuickSearch.State?.SearchText);
@@ -433,7 +435,7 @@ public sealed class ApplicationOverlayLayerTests
         var services = Services(new FakeConsoleDriver(80, 3));
         services.Session.Panels.Left.Items.Add(Item("gemini.md"));
         services.Composition.Render();
-        services.Composition.DispatchInput(Key(ConsoleKey.G, alt: true));
+        services.Composition.DispatchInput(UiTestInput.Key(ConsoleKey.G, alt: true));
         services.Composition.Render();
 
         var layer = services.Inner.PanelQuickSearchLayer;
@@ -454,7 +456,7 @@ public sealed class ApplicationOverlayLayerTests
         var services = Services(new FakeConsoleDriver(80, 3));
         services.Session.Panels.Left.Items.Add(Item("gemini.md"));
         services.Composition.Render();
-        services.Composition.DispatchInput(Key(ConsoleKey.G, alt: true));
+        services.Composition.DispatchInput(UiTestInput.Key(ConsoleKey.G, alt: true));
         services.Composition.Render();
         var layer = services.Inner.PanelQuickSearchLayer;
         UiTargetId target = Assert.Single(layer.CommittedInteractionFrame.Focus.Entries).Target;
@@ -487,13 +489,13 @@ public sealed class ApplicationOverlayLayerTests
         var services = Services();
         services.Session.Panels.Left.Items.Add(Item("gemini.md"));
         services.Composition.Render();
-        services.Composition.DispatchInput(Key(ConsoleKey.G, alt: true));
+        services.Composition.DispatchInput(UiTestInput.Key(ConsoleKey.G, alt: true));
         services.Composition.Render();
         var layer = services.Inner.PanelQuickSearchLayer;
         var interaction = layer.CommittedInteractionFrame;
         var cursor = (services.Driver.CursorVisible, services.Driver.CursorX, services.Driver.CursorY);
         bool observedRejectedAttempt = false;
-        services.Composition.DispatchInput(Key(ConsoleKey.E, keyChar: 'e'));
+        services.Composition.DispatchInput(UiTestInput.Key(ConsoleKey.E, keyChar: 'e'));
 
         services.Driver.ResizeAfterWriteCount = services.Driver.WriteAtCallCount + 1;
         services.Driver.ResizeAfterWrite = driver => driver.SetSize(80, 3);
@@ -521,9 +523,9 @@ public sealed class ApplicationOverlayLayerTests
         var services = Services();
         services.Session.Panels.Left.Items.Add(Item("gemini.md"));
         services.Composition.Render();
-        services.Composition.DispatchInput(Key(ConsoleKey.G, alt: true));
+        services.Composition.DispatchInput(UiTestInput.Key(ConsoleKey.G, alt: true));
         services.Composition.Render();
-        var input = Key(ConsoleKey.Enter);
+        var input = UiTestInput.Key(ConsoleKey.Enter);
 
         UiInputResult result = services.Composition.DispatchInput(input);
 
@@ -540,9 +542,9 @@ public sealed class ApplicationOverlayLayerTests
         var services = Services();
         services.Session.Panels.Left.Items.Add(Item("gemini.md"));
         services.Composition.Render();
-        services.Composition.DispatchInput(Key(ConsoleKey.G, alt: true));
+        services.Composition.DispatchInput(UiTestInput.Key(ConsoleKey.G, alt: true));
         services.Composition.Render();
-        var input = Mouse(20, 4);
+        var input = UiTestInput.Mouse(20, 4);
 
         UiInputResult result = services.Composition.DispatchInput(input);
 
@@ -560,11 +562,11 @@ public sealed class ApplicationOverlayLayerTests
         var services = Services();
         services.Session.Panels.Left.Items.Add(Item("gemini.md"));
         services.Composition.Render();
-        services.Composition.DispatchInput(Key(ConsoleKey.G, alt: true));
+        services.Composition.DispatchInput(UiTestInput.Key(ConsoleKey.G, alt: true));
         services.Composition.Render();
         Rect inputBounds = services.Inner.PanelQuickSearchLayer.CommittedFrame.InputBounds;
 
-        UiInputResult result = services.Composition.DispatchInput(Mouse(inputBounds.X, inputBounds.Y));
+        UiInputResult result = services.Composition.DispatchInput(UiTestInput.Mouse(inputBounds.X, inputBounds.Y));
 
         Assert.True(result.Handled);
         Assert.False(result.Invalidate);
@@ -585,9 +587,9 @@ public sealed class ApplicationOverlayLayerTests
         var services = Services();
         services.Session.Panels.Left.Items.Add(Item("gemini.md"));
         services.Composition.Render();
-        services.Composition.DispatchInput(Key(ConsoleKey.G, alt: true));
+        services.Composition.DispatchInput(UiTestInput.Key(ConsoleKey.G, alt: true));
         services.Composition.Render();
-        var input = Mouse(20, 4, kind, button);
+        var input = UiTestInput.Mouse(20, 4, kind, button);
 
         UiInputResult result = services.Composition.DispatchInput(input);
 
@@ -604,12 +606,12 @@ public sealed class ApplicationOverlayLayerTests
         var services = Services();
         services.Session.Panels.Left.Items.Add(Item("gemini.md"));
         services.Composition.Render();
-        services.Composition.DispatchInput(Key(ConsoleKey.G, alt: true));
+        services.Composition.DispatchInput(UiTestInput.Key(ConsoleKey.G, alt: true));
         services.Composition.Render();
         Rect inputBounds = services.Inner.PanelQuickSearchLayer.CommittedFrame.InputBounds;
 
         UiInputResult result = services.Composition.DispatchInput(
-            Mouse(inputBounds.X, inputBounds.Y, MouseEventKind.Wheel, MouseButton.WheelDown));
+            UiTestInput.Mouse(inputBounds.X, inputBounds.Y, MouseEventKind.Wheel, MouseButton.WheelDown));
 
         Assert.True(result.Handled);
         Assert.False(result.Invalidate);
@@ -624,11 +626,11 @@ public sealed class ApplicationOverlayLayerTests
         services.Session.App.WorkspaceMode = ApplicationWorkspaceMode.HiddenCommandLine;
         services.Composition.Render();
 
-        services.Composition.DispatchInput(Key(ConsoleKey.F9));
+        services.Composition.DispatchInput(UiTestInput.Key(ConsoleKey.F9));
         Assert.True(services.ApplicationSurface.TryTakeInput(out var keyPacket));
         Assert.Equal(ConsoleKey.F9, Assert.IsType<KeyConsoleInputEvent>(keyPacket.Input).Key.Key);
 
-        services.Composition.DispatchInput(Mouse(0, 0));
+        services.Composition.DispatchInput(UiTestInput.Mouse(0, 0));
         Assert.True(services.ApplicationSurface.TryTakeInput(out var mousePacket));
         Assert.IsType<MouseConsoleInputEvent>(mousePacket.Input);
     }
@@ -654,20 +656,6 @@ public sealed class ApplicationOverlayLayerTests
         _ = new Application(services);
         return new TestServices(driver, services, history);
     }
-
-    private static KeyConsoleInputEvent Key(
-        ConsoleKey key,
-        char keyChar = '\0',
-        bool alt = false,
-        bool control = false) =>
-        new(new ConsoleKeyInfo(keyChar, key, shift: false, alt, control));
-
-    private static MouseConsoleInputEvent Mouse(
-        int x,
-        int y,
-        MouseEventKind kind = MouseEventKind.Down,
-        MouseButton button = MouseButton.Left) =>
-        new(x, y, button, kind, MouseKeyModifiers.None);
 
     private static FilePanelItem Item(string name) => new()
     {
