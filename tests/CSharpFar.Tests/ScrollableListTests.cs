@@ -393,10 +393,9 @@ public sealed class ScrollableListTests
     [Fact]
     public void RoutedList_BuildsTargetsAndTranslatesScrollbarDragToMouseCapture()
     {
-        var list = Create(Enumerable.Range(0, 20).Select(i => i.ToString()).ToArray());
         var listTarget = new UiTargetId("test.list");
         var scrollbarTarget = new UiTargetId("test.list.scrollbar");
-        var routed = new RoutedScrollableList<string>(list, listTarget, scrollbarTarget);
+        var routed = new RoutedScrollableList<string>(Enumerable.Range(0, 20).Select(i => i.ToString()).ToArray(), static item => item, listTarget, scrollbarTarget);
         Rect contentBounds = new(0, 0, 9, 6);
         ScrollableListFrameState frame = routed.CalculateFrame(6, new Rect(9, 0, 1, 6));
 
@@ -432,7 +431,8 @@ public sealed class ScrollableListTests
     public void RoutedList_ForwardsOrdinaryListStateAndOperations()
     {
         var routed = new RoutedScrollableList<string>(
-            Create(["a", "b"]),
+            ["a", "b"],
+            static item => item,
             new UiTargetId("test.list"),
             new UiTargetId("test.list.scrollbar"));
         var changes = new List<int>();
@@ -464,9 +464,9 @@ public sealed class ScrollableListTests
     [Fact]
     public void RoutedList_NonFocusablePolicy_PublishesMouseTargetsAndAcceptsOwnerKeyboardRoute()
     {
-        var list = Create(Enumerable.Range(0, 20).Select(index => index.ToString()).ToArray());
         var routed = new RoutedScrollableList<string>(
-            list,
+            Enumerable.Range(0, 20).Select(index => index.ToString()).ToArray(),
+            static item => item,
             new UiTargetId("test.list"),
             new UiTargetId("test.list.scrollbar"),
             new RoutedScrollableListInteractionOptions { AcceptKeyboardFromLayerRoute = true });

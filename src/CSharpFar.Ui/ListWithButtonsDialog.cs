@@ -27,7 +27,8 @@ public sealed class ListWithButtonsDialog<T>
         string title)
     {
         _list = new RoutedScrollableList<T>(
-            new ScrollableList<T>(items, itemText),
+            items,
+            itemText,
             ListTarget,
             ScrollbarTarget);
         _form.SetRows([], [new ButtonRow(buttons ?? throw new ArgumentNullException(nameof(buttons))) { Id = "actions" }]);
@@ -159,7 +160,7 @@ public sealed class ListWithButtonsDialog<T>
         }
 
         bool isListRoute = _list.IsTargetRoute(route);
-        if (!isListRoute || input is KeyConsoleInputEvent { Key.Key: ConsoleKey.Tab or ConsoleKey.Escape })
+        if (!isListRoute)
         {
             FormRouteResult formResult = _form.RouteInput(input, frame.Buttons, route);
             return (new ListWithButtonsInput(input, formResult.FormResult, ScrollableListInputResult.NotHandled), formResult.UiResult);
@@ -171,7 +172,14 @@ public sealed class ListWithButtonsDialog<T>
             frame.ListState,
             route,
             confirmOnDoubleClick: true);
-        return (new ListWithButtonsInput(input, FormInputResult.NotHandled, routedResult.ListResult), routedResult.UiResult);
+        if (routedResult.ListResult.IsHandled)
+            return (new ListWithButtonsInput(input, FormInputResult.NotHandled, routedResult.ListResult), routedResult.UiResult);
+
+        if (UiFocusRouting.TryHandleTraversal(input, out UiInputResult focusResult))
+            return (new ListWithButtonsInput(input, FormInputResult.NotHandled, routedResult.ListResult), focusResult);
+
+        FormRouteResult fallbackFormResult = _form.RouteInput(input, frame.Buttons, route);
+        return (new ListWithButtonsInput(input, fallbackFormResult.FormResult, routedResult.ListResult), fallbackFormResult.UiResult);
     }
 
     private ListWithButtonsDialogResult<T> CreateResult(string actionId) =>

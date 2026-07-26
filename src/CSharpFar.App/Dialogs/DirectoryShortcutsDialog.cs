@@ -32,16 +32,16 @@ internal sealed class DirectoryShortcutsDialog
     {
         var items = currentItems.ToDictionary(item => item.Number);
         var initialItems = CloneItems(items);
-        var shortcuts = new ScrollableList<int>(DirectoryShortcutNormalizer.DisplayOrder, number => FormatShortcut(number, items))
+        var targets = new UiTargetScope("directory-shortcuts");
+        var routedShortcuts = new RoutedScrollableList<int>(
+            DirectoryShortcutNormalizer.DisplayOrder,
+            number => FormatShortcut(number, items),
+            targets.Child("list"),
+            targets.Child("list.scrollbar"))
         {
             NormalStyle = PaletteStyles.DialogFill(_palette),
             SelectedStyle = PaletteStyles.InputField(_palette),
         };
-        var targets = new UiTargetScope("directory-shortcuts");
-        var routedShortcuts = new RoutedScrollableList<int>(
-            shortcuts,
-            targets.Child("list"),
-            targets.Child("list.scrollbar"));
         var buttons = new ButtonRow(
         [
             new DialogButton("edit", "Edit", 'E', IsDefault: true),
@@ -62,12 +62,12 @@ internal sealed class DirectoryShortcutsDialog
                     if (buttonId == "close")
                         return ModalDialogLoopResult<DirectoryShortcutsDialogResult>.Complete(Result(initialItems, items));
                     if (buttonId == "edit")
-                        EditSelected(items, shortcuts.SelectedItemOrDefault, activePanelPath);
+                        EditSelected(items, routedShortcuts.SelectedItemOrDefault, activePanelPath);
                     return ModalDialogLoopResult<DirectoryShortcutsDialogResult>.Continue;
                 }
 
                 if (semantic.ListResult.Kind == ScrollableListInputResultKind.Confirmed)
-                    EditSelected(items, shortcuts.SelectedItemOrDefault, activePanelPath);
+                    EditSelected(items, routedShortcuts.SelectedItemOrDefault, activePanelPath);
 
                 if (semantic.Input is KeyConsoleInputEvent { Key.Key: ConsoleKey.Escape or ConsoleKey.F10 })
                     return ModalDialogLoopResult<DirectoryShortcutsDialogResult>.Complete(Result(initialItems, items));
@@ -99,9 +99,6 @@ internal sealed class DirectoryShortcutsDialog
         ScrollableFormDialog form,
         RoutedScrollableList<int> shortcuts)
     {
-        if (input is KeyConsoleInputEvent { Key: var key } && TryRouteFocusKey(key, frame, route, shortcuts.ListTarget, out UiInputResult focusResult))
-            return (new DirectoryShortcutsInput(input, FormInputResult.NotHandled, ScrollableListInputResult.NotHandled), focusResult);
-
         bool isListRoute = shortcuts.IsTargetRoute(route);
         if (!isListRoute)
         {
@@ -117,6 +114,8 @@ internal sealed class DirectoryShortcutsDialog
         }
 
         RoutedScrollableListInputResult routedResult = shortcuts.RouteInput(input, frame.ListBounds, frame.ListState, route);
+        if (!routedResult.ListResult.IsHandled && UiFocusRouting.TryHandleTraversal(input, out UiInputResult focusResult))
+            return (new DirectoryShortcutsInput(input, FormInputResult.NotHandled, routedResult.ListResult), focusResult);
         return (
             new DirectoryShortcutsInput(input, FormInputResult.NotHandled, routedResult.ListResult),
             routedResult.UiResult);
@@ -184,37 +183,6 @@ internal sealed class DirectoryShortcutsDialog
 
     private static ScrollableFormFrame EmptyFormFrame(UiRenderContext context, Rect bodyBounds) =>
         new(context.Viewport, bodyBounds, null, 0, context.Viewport.Height, 0, [], null);
-
-    private static bool TryRouteFocusKey(
-        ConsoleKeyInfo key,
-        DirectoryShortcutsFrame frame,
-        UiInputRouteContext route,
-        UiTargetId listTarget,
-        out UiInputResult result)
-    {
-        if (key.Key != ConsoleKey.Tab)
-        {
-            result = UiInputResult.NotHandled;
-            return false;
-        }
-
-        bool reverse = (key.Modifiers & ConsoleModifiers.Shift) != 0;
-        if (route.Target == listTarget && frame.Buttons.DefaultTarget is UiTargetId buttonTarget)
-        {
-            result = UiInputResult.RequestFocus(buttonTarget);
-            return true;
-        }
-
-        if (route.Target == frame.Buttons.DefaultTarget || reverse)
-        {
-            result = UiInputResult.RequestFocus(listTarget);
-            return true;
-        }
-
-        result = UiInputResult.NotHandled;
-        return false;
-    }
-
 
     private void EditSelected(
         IDictionary<int, AppSettings.DirectoryShortcutItem> items,
