@@ -16,8 +16,10 @@ internal sealed class LargeFileViewer
     private const int FastHorizontalTextScrollChars = 20;
     private const int FastPageMultiplier = 5;
 
+    private static readonly UiTargetScope Targets = new("viewer");
+
     private static readonly FunctionKeyBarController<ConsoleKeyInfo> FunctionKeysController =
-        new(new UiTargetId("viewer.function-key-bar"));
+        new(Targets.Child("function-key-bar"));
 
     private readonly ModalDialogHost _modalDialogs;
     private readonly ConsolePalette _palette;
@@ -1140,8 +1142,8 @@ internal sealed class LargeFileViewer
 
     private sealed class LargeFileViewerLayer : InteractiveSurfaceLayer<LargeFileViewerFrame, ViewerInput>
     {
-        internal static readonly UiTargetId Keyboard = new("viewer.keyboard");
-        internal static readonly UiTargetId Content = new("viewer.content");
+        internal static readonly UiTargetId Keyboard = Targets.Child("keyboard");
+        internal static readonly UiTargetId Content = Targets.Child("content");
         internal static UiTargetId FunctionKeys => FunctionKeysController.InteractionTarget;
 
         private readonly LargeFileViewer _viewer;

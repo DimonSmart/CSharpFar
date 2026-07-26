@@ -461,6 +461,57 @@ public sealed class ScrollableListTests
         Assert.Equal([0], changes);
     }
 
+    [Fact]
+    public void RoutedList_NonFocusablePolicy_PublishesMouseTargetsAndAcceptsOwnerKeyboardRoute()
+    {
+        var list = Create(Enumerable.Range(0, 20).Select(index => index.ToString()).ToArray());
+        var routed = new RoutedScrollableList<string>(
+            list,
+            new UiTargetId("test.list"),
+            new UiTargetId("test.list.scrollbar"),
+            new RoutedScrollableListInteractionOptions { AcceptKeyboardFromLayerRoute = true });
+        Rect contentBounds = new(0, 0, 9, 6);
+        ScrollableListFrameState frame = routed.CalculateFrame(6, new Rect(9, 0, 1, 6));
+        var focus = new UiFocusController();
+
+        UiInteractionFragment fragment = routed.BuildInteractionFragment(contentBounds, frame, 0);
+        Assert.Equal([routed.ListTarget, routed.ScrollbarTarget], fragment.HitRegions.Select(region => region.Target));
+        Assert.Empty(fragment.FocusEntries);
+
+        RoutedScrollableListInputResult keyboard = routed.RouteInput(
+            new KeyConsoleInputEvent(Key(ConsoleKey.DownArrow)),
+            contentBounds,
+            frame,
+            UiInputRouteContext.Layer(focus));
+        Assert.Equal(ScrollableListInputResultKind.SelectionChanged, keyboard.ListResult.Kind);
+
+        RoutedScrollableListInputResult wheel = routed.RouteInput(
+            Mouse(MouseButton.WheelDown, MouseEventKind.Wheel, 1, 1),
+            contentBounds,
+            frame,
+            UiInputRouteContext.HitTarget(focus, routed.ListTarget));
+        Assert.True(wheel.ListResult.IsHandled);
+        Assert.Equal(UiFocusRequestKind.None, wheel.UiResult.FocusRequest.Kind);
+
+        RoutedScrollableListInputResult started = routed.RouteInput(
+            Mouse(MouseButton.Left, MouseEventKind.Down, 9, 1),
+            contentBounds,
+            frame,
+            UiInputRouteContext.HitTarget(focus, routed.ScrollbarTarget));
+        Assert.True(started.ListResult.DragStarted);
+        Assert.Equal(UiMouseCaptureRequestKind.Capture, started.UiResult.MouseCaptureRequest.Kind);
+        Assert.Equal(UiFocusRequestKind.None, started.UiResult.FocusRequest.Kind);
+
+        frame = routed.CalculateFrame(6, new Rect(9, 0, 1, 6));
+        RoutedScrollableListInputResult ended = routed.RouteInput(
+            Mouse(MouseButton.Left, MouseEventKind.Up, 20, 3),
+            contentBounds,
+            frame,
+            UiInputRouteContext.CapturedTarget(focus, routed.ScrollbarTarget));
+        Assert.True(ended.ListResult.DragEnded);
+        Assert.Equal(UiMouseCaptureRequestKind.Release, ended.UiResult.MouseCaptureRequest.Kind);
+    }
+
     private static ScrollableList<string> Create(IReadOnlyList<string> items) => new(items, static item => item);
 
     private static ConsoleKeyInfo Key(ConsoleKey key) => new('\0', key, false, false, false);

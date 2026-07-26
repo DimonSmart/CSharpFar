@@ -14,12 +14,12 @@ public sealed class UiLayerTargetRoutingTests
     {
         var focused = new UiTargetId("focused");
         var layer = Layer(focus: Focus(focused));
-        var host = Host(layer);
+        var host = new UiLayerTestHost(layer);
         host.Render();
 
-        host.DispatchInput(Key(ConsoleKey.A));
+        host.Dispatch(Key(ConsoleKey.A));
         AssertRoute(layer, focused, UiInputRouteKind.FocusedTarget);
-        host.DispatchInput(new ModifierKeyConsoleInputEvent(ConsoleModifiers.Control));
+        host.Dispatch(new ModifierKeyConsoleInputEvent(ConsoleModifiers.Control));
         AssertRoute(layer, focused, UiInputRouteKind.FocusedTarget);
         Assert.Equal(2, layer.CallCount);
     }
