@@ -29,7 +29,8 @@ public sealed class SelectionListDialog<T>
         string title)
     {
         _list = new RoutedScrollableList<T>(
-            new ScrollableList<T>(items, itemText),
+            items,
+            itemText,
             ListTarget,
             ScrollbarTarget);
         _title = title ?? throw new ArgumentNullException(nameof(title));

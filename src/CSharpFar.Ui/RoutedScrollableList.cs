@@ -29,6 +29,16 @@ public readonly record struct RoutedScrollableListInteractionOptions
 public sealed class RoutedScrollableList<T>
 {
     public RoutedScrollableList(
+        IReadOnlyList<T> items,
+        Func<T, string> itemText,
+        UiTargetId listTarget,
+        UiTargetId scrollbarTarget,
+        RoutedScrollableListInteractionOptions? interactionOptions = null)
+        : this(new ScrollableList<T>(items, itemText), listTarget, scrollbarTarget, interactionOptions)
+    {
+    }
+
+    public RoutedScrollableList(
         ScrollableList<T> list,
         UiTargetId listTarget,
         UiTargetId scrollbarTarget,
@@ -68,6 +78,24 @@ public sealed class RoutedScrollableList<T>
     {
         get => _list.EmptyText;
         set => _list.EmptyText = value;
+    }
+
+    public CellStyle NormalStyle
+    {
+        get => _list.NormalStyle;
+        set => _list.NormalStyle = value;
+    }
+
+    public CellStyle SelectedStyle
+    {
+        get => _list.SelectedStyle;
+        set => _list.SelectedStyle = value;
+    }
+
+    public CellStyle EmptyStyle
+    {
+        get => _list.EmptyStyle;
+        set => _list.EmptyStyle = value;
     }
 
     public Action<T, int>? SelectionChanged

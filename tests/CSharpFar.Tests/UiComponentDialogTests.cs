@@ -314,6 +314,8 @@ public sealed class UiComponentDialogTests
 
         var buttonDriver = new FakeConsoleDriver(80, 20);
         buttonDriver.EnqueueKey(KeyInfo(ConsoleKey.Tab));
+        buttonDriver.EnqueueKey(new ConsoleKeyInfo('\0', ConsoleKey.Tab, shift: true, alt: false, control: false));
+        buttonDriver.EnqueueKey(KeyInfo(ConsoleKey.Tab));
         buttonDriver.EnqueueKey(KeyInfo(ConsoleKey.RightArrow));
         buttonDriver.EnqueueKey(KeyInfo(ConsoleKey.Enter));
         var buttonDialog = CreateListWithButtons(["alpha"]);

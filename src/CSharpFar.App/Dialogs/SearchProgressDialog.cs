@@ -43,18 +43,18 @@ internal sealed class SearchProgressDialog
         SearchProgress latestProgress = new() { CurrentPath = request.RootPath };
         SearchCompletionIntent completionIntent = new SearchCompletionIntent.None();
 
-        var list = new ScrollableList<SearchResultItem>(Array.Empty<SearchResultItem>(), item => FormatResult(item, DialogWidth))
+        var targets = new UiTargetScope("search-progress");
+        var routedList = new RoutedScrollableList<SearchResultItem>(
+            Array.Empty<SearchResultItem>(),
+            item => FormatResult(item, DialogWidth),
+            targets.Child("results"),
+            targets.Child("results.scrollbar"))
         {
             EmptyText = "No files found yet",
             NormalStyle = FarDialogStyles.Fill,
             SelectedStyle = FarDialogStyles.Input,
             EmptyStyle = FarDialogStyles.Fill,
         };
-        var targets = new UiTargetScope("search-progress");
-        var routedList = new RoutedScrollableList<SearchResultItem>(
-            list,
-            targets.Child("results"),
-            targets.Child("results.scrollbar"));
         var state = new SearchProgressViewState(
             latestProgress,
             Array.Empty<SearchResultItem>(),
@@ -132,7 +132,7 @@ internal sealed class SearchProgressDialog
             throw completion.Exception;
         return completion.Result ?? throw new InvalidOperationException("Search progress did not produce a result.");
 
-        bool CanGoTo() => completionIntent is SearchCompletionIntent.None && list.SelectedItemOrDefault is not null && !searchTask.IsCompleted;
+        bool CanGoTo() => completionIntent is SearchCompletionIntent.None && routedList.SelectedItemOrDefault is not null && !searchTask.IsCompleted;
 
         bool CanRequestStop()
             => completionIntent is SearchCompletionIntent.None && !searchTask.IsCompleted;
@@ -217,7 +217,7 @@ internal sealed class SearchProgressDialog
             var next = new SearchProgressViewState(snapshot.Progress, snapshot.Results, status);
             bool changed = HasVisibleChanges(state, next);
             state = next;
-            list.ReplaceItems(next.Results, static item => new SearchResultKey(item.FullPath, item.Kind), committedListRows);
+            routedList.ReplaceItems(next.Results, static item => new SearchResultKey(item.FullPath, item.Kind), committedListRows);
             return changed;
         }
 
@@ -227,7 +227,7 @@ internal sealed class SearchProgressDialog
             var next = new SearchProgressViewState(outcome.FinalProgress, outcome.Results, status);
             bool changed = HasVisibleChanges(state, next);
             state = next;
-            list.ReplaceItems(next.Results, static item => new SearchResultKey(item.FullPath, item.Kind), committedListRows);
+            routedList.ReplaceItems(next.Results, static item => new SearchResultKey(item.FullPath, item.Kind), committedListRows);
             return changed;
         }
 
@@ -401,9 +401,6 @@ internal sealed class SearchProgressDialog
                 ? (SearchProgressInput.Stop, UiInputResult.HandledResult)
                 : (SearchProgressInput.None, UiInputResult.HandledResult);
 
-        if (input is KeyConsoleInputEvent { Key: var focusKey } && TryRouteFocusKey(focusKey, frame, route, list.ListTarget, out UiInputResult focusResult))
-            return (SearchProgressInput.None, focusResult);
-
         bool isListRoute = list.IsTargetRoute(route);
         if (!isListRoute)
         {
@@ -419,13 +416,19 @@ internal sealed class SearchProgressDialog
         }
 
         if (!frame.CanGoTo)
-            return (SearchProgressInput.None, UiInputResult.HandledAndInvalidate);
+        {
+            return UiFocusRouting.TryHandleTraversal(input, out UiInputResult focusResult)
+                ? (SearchProgressInput.None, focusResult)
+                : (SearchProgressInput.None, UiInputResult.HandledAndInvalidate);
+        }
 
         RoutedScrollableListInputResult routedResult = list.RouteInput(input, frame.Layout.ListBounds, frame.ListState, route);
         ScrollableListInputResult listInput = routedResult.ListResult;
 
         if (!listInput.IsHandled)
-            return (SearchProgressInput.None, UiInputResult.NotHandled);
+            return UiFocusRouting.TryHandleTraversal(input, out UiInputResult focusResult)
+                ? (SearchProgressInput.None, focusResult)
+                : (SearchProgressInput.None, UiInputResult.NotHandled);
 
         if (listInput.Kind == ScrollableListInputResultKind.Confirmed &&
             frame.CanGoTo &&
@@ -446,29 +449,6 @@ internal sealed class SearchProgressDialog
             GoToButton when frame.CanGoTo && frame.SelectedResult is { } selected => SearchProgressInput.GoTo(selected),
             _ => SearchProgressInput.None,
         };
-
-    private static bool TryRouteFocusKey(
-        ConsoleKeyInfo key,
-        SearchProgressFrame frame,
-        UiInputRouteContext route,
-        UiTargetId listTarget,
-        out UiInputResult result)
-    {
-        if (key.Key != ConsoleKey.Tab)
-        {
-            result = UiInputResult.NotHandled;
-            return false;
-        }
-
-        if (route.Target == listTarget && frame.Buttons.DefaultTarget is UiTargetId buttonTarget)
-        {
-            result = UiInputResult.RequestFocus(buttonTarget);
-            return true;
-        }
-
-        result = UiInputResult.RequestFocus(listTarget);
-        return true;
-    }
 
     private static IReadOnlyList<DialogButton> CreateButtons(bool canGoTo, bool canStop) =>
         [

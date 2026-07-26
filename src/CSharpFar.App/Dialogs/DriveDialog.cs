@@ -40,16 +40,16 @@ internal sealed class DriveDialog
 
     private VolumeSelectionItem? RunLoop(VolumeSelectionItem[] items, int initialCursor)
     {
-        var list = new ScrollableList<VolumeSelectionItem>(items, ItemText)
+        var targets = new UiTargetScope("drive");
+        var routedList = new RoutedScrollableList<VolumeSelectionItem>(
+            items,
+            ItemText,
+            targets.Child("volumes"),
+            targets.Child("volumes.scrollbar"))
         {
             SelectedIndex = initialCursor,
             EmptyText = "No volumes found.",
         };
-        var targets = new UiTargetScope("drive");
-        var routedList = new RoutedScrollableList<VolumeSelectionItem>(
-            list,
-            targets.Child("volumes"),
-            targets.Child("volumes.scrollbar"));
         string? lastShortcut = null;
 
         return _modalDialogs.RunInteractive<DriveDialogFrame, ScrollableListInputResult, VolumeSelectionItem?>(
@@ -83,7 +83,7 @@ internal sealed class DriveDialog
                     lastShortcut = null;
 
                 if (result.Kind == ScrollableListInputResultKind.Confirmed &&
-                    list.SelectedItemOrDefault is { } selected)
+                    routedList.SelectedItemOrDefault is { } selected)
                 {
                     return TryCompleteSelection(selected);
                 }
