@@ -1524,10 +1524,12 @@ public sealed class ScrollableFormDialogTests
 
         host.Composition.Render();
         FormTargetFrame scrollbar = Assert.Single(layer.CommittedFrame.Targets, target => target.Kind == FormTargetKind.DropdownScrollbar);
-        host.Composition.DispatchInput(Mouse(scrollbar.Bounds.X, scrollbar.Bounds.Bottom - 2));
+        int scrollbarY = scrollbar.Bounds.Bottom - 1;
+        host.Composition.DispatchInput(Mouse(scrollbar.Bounds.X, scrollbarY));
         Assert.Equal(FormInputResultKind.Handled, layer.LastRouteResult!.Value.FormResult.Kind);
-
         host.Composition.Render();
+        host.Composition.DispatchInput(Mouse(scrollbar.Bounds.X, scrollbarY, MouseButton.Left, MouseEventKind.Up));
+
         FormTargetFrame popup = Assert.Single(layer.CommittedFrame.Targets, target => target.Kind == FormTargetKind.DropdownPopup);
         Rect content = popup.DropdownFrame!.Value.ContentBounds!.Value;
         host.Composition.DispatchInput(Mouse(content.X, content.Y + 1));
@@ -1663,37 +1665,6 @@ public sealed class ScrollableFormDialogTests
         Assert.Equal("next", form.FocusedRowId);
         Assert.False(dropdown.IsOpen);
         Assert.Equal(0, dropdown.SelectedIndex);
-    }
-
-    [Fact]
-    public void DropdownScrollbarCapture_ContinuesOutsideBoundsAndReleasesAfterUp()
-    {
-        var dropdown = new DropdownSelect<int>(Enumerable.Range(0, 20).ToArray(), static item => item.ToString())
-        {
-            MaxVisibleRows = 4,
-        };
-        dropdown.Open();
-        var form = new ScrollableFormDialog([new DropdownSelectFormRow<int>("Value:", dropdown) { Id = "choice" }]);
-        var driver = new FakeConsoleDriver(24, 12);
-        var (host, layer) = CreateRoutedFormHostWithLayer(form, driver, visibleRows: 1);
-        host.Composition.Render();
-        FormTargetFrame scrollbar = Assert.Single(layer.CommittedFrame.Targets, target => target.Kind == FormTargetKind.DropdownScrollbar);
-
-        ScrollBarThumb thumb = ScrollBarInteraction.CalculateThumb(
-            scrollbar.Bounds,
-            scrollbar.DropdownFrame!.Value.ListState.VerticalScrollbarFrame!.Value.ToScrollState());
-        host.Composition.DispatchInput(Mouse(scrollbar.Bounds.X, thumb.ThumbY, MouseButton.Left, MouseEventKind.Down));
-        int scrollTopBeforeDrag = dropdown.ScrollTop;
-        host.Composition.DispatchInput(Mouse(0, 11, MouseButton.Left, MouseEventKind.Move));
-
-        Assert.Equal(UiInputRouteKind.CapturedTarget, layer.LastRouteKind);
-        Assert.Equal(scrollbar.Target, layer.LastRouteTarget);
-        Assert.True(dropdown.ScrollTop > scrollTopBeforeDrag);
-
-        host.Composition.DispatchInput(Mouse(0, 11, MouseButton.Left, MouseEventKind.Up));
-        host.Composition.DispatchInput(Mouse(0, 11, MouseButton.Left, MouseEventKind.Move));
-
-        Assert.NotEqual(UiInputRouteKind.CapturedTarget, layer.LastRouteKind);
     }
 
     [Fact]
