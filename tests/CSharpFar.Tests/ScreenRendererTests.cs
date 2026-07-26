@@ -43,6 +43,43 @@ public class ScreenRendererTests
     }
 
     [Fact]
+    public void ClippedCanvas_ConstrainsTextAndNeverDrawsPartOfWideRune()
+    {
+        var (renderer, driver) = Create(6, 2);
+        var style = new CellStyle(ConsoleColor.White, ConsoleColor.DarkBlue);
+
+        UiTestRender.Render(renderer, canvas =>
+        {
+            canvas.FillRegion(new Rect(0, 0, 6, 2), CellStyle.Default);
+            canvas.Clip(new Rect(2, 0, 2, 1)).Write(1, 0, "界AB", style);
+        });
+
+        Assert.Equal(' ', driver.GetCell(2, 0).Character);
+        Assert.Equal('A', driver.GetCell(3, 0).Character);
+        Assert.Equal(' ', driver.GetCell(4, 0).Character);
+    }
+
+    [Fact]
+    public void ClippedCanvas_FillAndBoxKeepOriginalGeometryInsideClip()
+    {
+        var (renderer, driver) = Create(8, 6);
+        var style = new CellStyle(ConsoleColor.White, ConsoleColor.DarkBlue);
+
+        UiTestRender.Render(renderer, canvas =>
+        {
+            canvas.FillRegion(new Rect(0, 0, 8, 6), CellStyle.Default);
+            IUiCanvas clipped = canvas.Clip(new Rect(3, 1, 2, 4));
+            clipped.FillRegion(new Rect(1, 0, 6, 6), style);
+            clipped.DrawBox(new Rect(1, 1, 6, 4), style);
+        });
+
+        Assert.Equal(ConsoleColor.DarkBlue, driver.GetCell(3, 2).Background);
+        Assert.Equal(ConsoleColor.Black, driver.GetCell(2, 2).Background);
+        Assert.Equal('─', driver.GetCell(3, 1).Character);
+        Assert.Equal('─', driver.GetCell(4, 1).Character);
+    }
+
+    [Fact]
     public void BufferedFrame_WideTextUsesCellWidthAndDoesNotRemainDirty()
     {
         var (renderer, driver) = Create(4, 1);

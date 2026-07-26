@@ -25,7 +25,7 @@ public sealed class DialogFrameRenderer
         };
         _popupRenderer.RenderPopup(screen, bounds, popupOptions, (renderer, contentBounds) =>
         {
-            renderContent(renderer, contentBounds);
+            renderContent(renderer.Clip(contentBounds), contentBounds);
 
             if (title.Length == 0 || bounds.Width <= 0)
                 return;
