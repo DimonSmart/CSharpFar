@@ -142,16 +142,7 @@ internal sealed class DirectoryShortcutsDialog
             (_, _) =>
             {
                 routedShortcuts.Render(context.Canvas, layout.ListBounds, listState);
-                if (layout.ScrollbarBounds is { } scrollbarBounds &&
-                    routedShortcuts.GetScrollState(layout.ListBounds.Height, listState.ScrollTop) is { } scrollState)
-                {
-                    new ScrollBarRenderer().RenderVerticalScrollbar(
-                        context.Canvas,
-                        scrollbarBounds,
-                        scrollState,
-                        new ScrollBarOptions { Enabled = true, DrawWhenNotScrollable = false },
-                        PaletteStyles.DialogBorder(_palette));
-                }
+                routedShortcuts.RenderScrollbar(context.Canvas, listState, PaletteStyles.DialogBorder(_palette));
                 buttons = layout.FooterBounds.Height > 0
                     ? form.Render(
                         new FormRenderContext(

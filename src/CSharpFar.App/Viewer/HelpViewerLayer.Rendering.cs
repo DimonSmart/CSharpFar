@@ -8,7 +8,7 @@ namespace CSharpFar.App.Viewer;
 
 internal sealed partial class HelpViewerLayer
 {
-    private static void Draw(
+    private void Draw(
         IUiCanvas screen,
         HelpLine[] lines,
         HelpViewerFrame frame,
@@ -35,15 +35,7 @@ internal sealed partial class HelpViewerLayer
                 DrawLine(screen, lines[line], row + 1, frame.ScrollLeft, frame.ContentBounds.Width, palette);
         }
 
-        if (frame.ScrollBarBounds is { } scrollbar && frame.VerticalScrollState is { } scrollState)
-        {
-            new ScrollBarRenderer().RenderVerticalScrollbar(
-                screen,
-                scrollbar,
-                scrollState,
-                new ScrollBarOptions { Enabled = true },
-                body);
-        }
+        _verticalViewport.RenderScrollbar(screen, frame.VerticalViewport, body);
 
         FunctionKeysController.Render(
             screen,

@@ -1,5 +1,6 @@
 using CSharpFar.Console.Input;
 using CSharpFar.Console.Models;
+using CSharpFar.Core.Models;
 
 namespace CSharpFar.Ui;
 
@@ -10,17 +11,28 @@ public readonly record struct RoutedScrollableViewportInputResult(
 /// <summary>Adapts a non-selectable scrollable viewport to routed UI input and interaction metadata.</summary>
 public sealed class RoutedScrollableViewport
 {
-    public RoutedScrollableViewport(
+    private RoutedScrollableViewport(
         ScrollableViewport viewport,
         UiTargetId contentTarget,
         UiTargetId scrollbarTarget)
     {
-        Viewport = viewport ?? throw new ArgumentNullException(nameof(viewport));
+        _viewport = viewport ?? throw new ArgumentNullException(nameof(viewport));
         ContentTarget = contentTarget;
         ScrollbarTarget = scrollbarTarget;
     }
 
-    public ScrollableViewport Viewport { get; }
+    public RoutedScrollableViewport(UiTargetId contentTarget, UiTargetId scrollbarTarget)
+        : this(new ScrollableViewport(), contentTarget, scrollbarTarget)
+    {
+    }
+
+    private readonly ScrollableViewport _viewport;
+
+    public int FirstVisibleIndex
+    {
+        get => _viewport.FirstVisibleIndex;
+        set => _viewport.FirstVisibleIndex = value;
+    }
 
     public UiTargetId ContentTarget { get; }
 
@@ -31,10 +43,25 @@ public sealed class RoutedScrollableViewport
         int viewportItems,
         Rect contentBounds,
         Rect? scrollbarBounds) =>
-        Viewport.CalculateFrameState(totalItems, viewportItems, contentBounds, scrollbarBounds);
+        _viewport.CalculateFrameState(totalItems, viewportItems, contentBounds, scrollbarBounds);
 
-    public void ApplyCommittedFrame(ScrollableViewportFrameState frame) =>
-        Viewport.ApplyCommittedFrame(frame);
+    public void ApplyCommittedFrame(ScrollableViewportFrameState frame) => _viewport.ApplyCommittedFrame(frame);
+
+    public ScrollState? GetScrollState(ScrollableViewportFrameState frame) => _viewport.GetScrollState(frame);
+
+    public void RenderScrollbar(IUiCanvas canvas, ScrollableViewportFrameState frame, CellStyle style)
+    {
+        ArgumentNullException.ThrowIfNull(canvas);
+        if (frame.ScrollbarBounds is not { } bounds || GetScrollState(frame) is not { } state)
+            return;
+
+        new ScrollBarRenderer().RenderVerticalScrollbar(
+            canvas,
+            bounds,
+            state,
+            new ScrollBarOptions { Enabled = true, DrawWhenNotScrollable = false },
+            style);
+    }
 
     public UiInteractionFragment BuildInteractionFragment(ScrollableViewportFrameState frame)
     {
@@ -66,8 +93,8 @@ public sealed class RoutedScrollableViewport
         ApplyCommittedFrame(frame);
         ScrollableViewportInputResult result = input switch
         {
-            KeyConsoleInputEvent key => Viewport.HandleKey(key.Key, frame),
-            MouseConsoleInputEvent mouse when IsTargetRoute(route) => Viewport.HandleMouse(mouse, frame, wheelStep),
+            KeyConsoleInputEvent key => _viewport.HandleKey(key.Key, frame),
+            MouseConsoleInputEvent mouse when IsTargetRoute(route) => _viewport.HandleMouse(mouse, frame, wheelStep),
             _ => ScrollableViewportInputResult.NotHandled,
         };
         return new RoutedScrollableViewportInputResult(

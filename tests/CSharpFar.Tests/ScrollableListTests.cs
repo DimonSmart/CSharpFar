@@ -462,6 +462,30 @@ public sealed class ScrollableListTests
     }
 
     [Fact]
+    public void RoutedList_RenderScrollbar_UsesFrameAndSkipsNonScrollableContent()
+    {
+        var routed = new RoutedScrollableList<string>(
+            Enumerable.Range(0, 10).Select(index => index.ToString()).ToArray(),
+            static item => item,
+            new UiTargetId("test.list"),
+            new UiTargetId("test.list.scrollbar"));
+        var driver = new FakeConsoleDriver(12, 8);
+        ScrollableListFrameState frame = routed.CalculateFrame(3, new Rect(10, 1, 1, 5));
+
+        UiTestRender.Render(new ScreenRenderer(driver), canvas =>
+            routed.RenderScrollbar(canvas, frame, new CellStyle(ConsoleColor.White, ConsoleColor.Black)));
+
+        Assert.Equal('▲', driver.GetCell(10, 1).Character);
+        Assert.Equal('▼', driver.GetCell(10, 5).Character);
+
+        routed.ResetItems(["only"]);
+        var emptyDriver = new FakeConsoleDriver(12, 8);
+        UiTestRender.Render(new ScreenRenderer(emptyDriver), canvas =>
+            routed.RenderScrollbar(canvas, routed.CalculateFrame(3, null), new CellStyle(ConsoleColor.White, ConsoleColor.Black)));
+        Assert.All(Enumerable.Range(0, 8), y => Assert.Equal(' ', emptyDriver.GetCell(10, y).Character));
+    }
+
+    [Fact]
     public void RoutedList_NonFocusablePolicy_PublishesMouseTargetsAndAcceptsOwnerKeyboardRoute()
     {
         var routed = new RoutedScrollableList<string>(

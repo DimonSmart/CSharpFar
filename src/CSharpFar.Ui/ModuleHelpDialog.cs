@@ -7,9 +7,10 @@ namespace CSharpFar.Ui;
 
 public sealed class ModuleHelpDialog
 {
-    private static readonly UiTargetId HelpTarget = new("module-help");
-    private static readonly UiTargetId ContentTarget = new("module-help-content");
-    private static readonly UiTargetId ScrollbarTarget = new("module-help-scrollbar");
+    private static readonly UiTargetScope Targets = new("module-help");
+    private static readonly UiTargetId HelpTarget = Targets.Root;
+    private static readonly UiTargetId ContentTarget = Targets.Child("content");
+    private static readonly UiTargetId ScrollbarTarget = Targets.Child("scrollbar");
     private readonly ModalDialogHost _modalDialogs;
 
     public ModuleHelpDialog(ModalDialogHost modalDialogs) =>
@@ -18,7 +19,7 @@ public sealed class ModuleHelpDialog
     public void Show(string title, IReadOnlyList<string> lines)
     {
         ArgumentNullException.ThrowIfNull(lines);
-        var viewport = new RoutedScrollableViewport(new ScrollableViewport(), ContentTarget, ScrollbarTarget);
+        var viewport = new RoutedScrollableViewport(ContentTarget, ScrollbarTarget);
         _modalDialogs.RunInteractive<ModuleHelpFrame, ConsoleInputEvent, Unit>(
             (context, _) =>
             {
@@ -82,11 +83,7 @@ public sealed class ModuleHelpDialog
             screen.Write(0, row + 1, ConsoleTextMetrics.FitToCells(text, frame.Viewport.ContentBounds.Width), bodyStyle);
         }
 
-        if (frame.Viewport.ScrollbarBounds is Rect scrollbarBounds && viewport.Viewport.GetScrollState(frame.Viewport) is { } scrollState)
-        {
-            new ScrollBarRenderer().RenderVerticalScrollbar(screen, scrollbarBounds, scrollState,
-                new ScrollBarOptions { Enabled = true, DrawWhenNotScrollable = false }, PaletteStyles.DialogBorder(palette));
-        }
+        viewport.RenderScrollbar(screen, frame.Viewport, PaletteStyles.DialogBorder(palette));
 
         screen.Write(0, frame.Size.Height - 1, ConsoleTextMetrics.FitToCells("Esc/F10 Close", frame.Size.Width), PaletteStyles.KeyBarLabel(palette));
     }
