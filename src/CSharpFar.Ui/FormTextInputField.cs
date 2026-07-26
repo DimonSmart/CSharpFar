@@ -113,7 +113,8 @@ internal sealed class FormTextInputField
         MouseConsoleInputEvent mouse,
         FormRowMouseContext context,
         Rect bounds,
-        FormCompositeFrame frame)
+        FormCompositeFrame frame,
+        string? childTargetId)
     {
         string before = _buffer.Text;
         if (_history is not null && frame.State is SingleLineTextHistoryFrame historyFrame)
@@ -128,7 +129,13 @@ internal sealed class FormTextInputField
                     FirstVisibleIndex = _history.FirstVisibleIndex,
                 }),
             };
-            if (SingleLineTextInput.TryHandleHistoryDropdownMouse(_history, _buffer, mouse, currentFrame))
+            bool handled = childTargetId switch
+            {
+                "scrollbar" => SingleLineTextInput.TryHandleHistoryScrollbarMouse(_history, mouse, currentFrame),
+                "popup" => SingleLineTextInput.TryHandleHistoryPopupContentMouse(_history, _buffer, mouse, currentFrame),
+                _ => false,
+            };
+            if (handled)
                 return _buffer.Text != before ? FormInputResult.ValueChanged : FormInputResult.Handled;
         }
 

@@ -397,16 +397,15 @@ public sealed class ScrollableListTests
         var scrollbarTarget = new UiTargetId("test.list.scrollbar");
         var routed = new RoutedScrollableList<string>(Enumerable.Range(0, 20).Select(i => i.ToString()).ToArray(), static item => item, listTarget, scrollbarTarget);
         Rect contentBounds = new(0, 0, 9, 6);
-        ScrollableListFrameState frame = routed.CalculateFrame(6, new Rect(9, 0, 1, 6));
+        RoutedScrollableListFrame frame = routed.CalculateFrame(6, contentBounds, new Rect(9, 0, 1, 6));
 
-        UiInteractionFragment fragment = routed.BuildInteractionFragment(contentBounds, frame, 2);
+        UiInteractionFragment fragment = routed.BuildInteractionFragment(frame, 2);
         Assert.Equal([listTarget, scrollbarTarget], fragment.HitRegions.Select(region => region.Target));
         Assert.Equal(listTarget, Assert.Single(fragment.FocusEntries).Target);
 
         var focus = new UiFocusController();
         RoutedScrollableListInputResult started = routed.RouteInput(
             Mouse(MouseButton.Left, MouseEventKind.Down, 9, 1),
-            contentBounds,
             frame,
             UiInputRouteContext.HitTarget(focus, scrollbarTarget));
 
@@ -416,10 +415,9 @@ public sealed class ScrollableListTests
         Assert.Equal(UiMouseCaptureRequestKind.Capture, started.UiResult.MouseCaptureRequest.Kind);
         Assert.Equal(scrollbarTarget, started.UiResult.MouseCaptureRequest.Target);
 
-        frame = routed.CalculateFrame(6, new Rect(9, 0, 1, 6));
+        frame = routed.CalculateFrame(6, contentBounds, new Rect(9, 0, 1, 6));
         RoutedScrollableListInputResult ended = routed.RouteInput(
             Mouse(MouseButton.Left, MouseEventKind.Up, 20, 3),
-            contentBounds,
             frame,
             UiInputRouteContext.CapturedTarget(focus, scrollbarTarget));
 
@@ -453,8 +451,7 @@ public sealed class ScrollableListTests
 
         RoutedScrollableListInputResult result = routed.RouteInput(
             new KeyConsoleInputEvent(Key(ConsoleKey.UpArrow)),
-            new Rect(0, 0, 5, 1),
-            routed.CalculateFrame(1, null),
+            routed.CalculateFrame(1, new Rect(0, 0, 5, 1), null),
             UiInputRouteContext.KeyboardTarget(new UiFocusController(), routed.ListTarget));
 
         Assert.Equal(ScrollableListInputResultKind.SelectionChanged, result.ListResult.Kind);
@@ -470,7 +467,7 @@ public sealed class ScrollableListTests
             new UiTargetId("test.list"),
             new UiTargetId("test.list.scrollbar"));
         var driver = new FakeConsoleDriver(12, 8);
-        ScrollableListFrameState frame = routed.CalculateFrame(3, new Rect(10, 1, 1, 5));
+        RoutedScrollableListFrame frame = routed.CalculateFrame(3, new Rect(0, 1, 10, 5), new Rect(10, 1, 1, 5));
 
         UiTestRender.Render(new ScreenRenderer(driver), canvas =>
             routed.RenderScrollbar(canvas, frame, new CellStyle(ConsoleColor.White, ConsoleColor.Black)));
@@ -481,7 +478,7 @@ public sealed class ScrollableListTests
         routed.ResetItems(["only"]);
         var emptyDriver = new FakeConsoleDriver(12, 8);
         UiTestRender.Render(new ScreenRenderer(emptyDriver), canvas =>
-            routed.RenderScrollbar(canvas, routed.CalculateFrame(3, null), new CellStyle(ConsoleColor.White, ConsoleColor.Black)));
+            routed.RenderScrollbar(canvas, routed.CalculateFrame(3, new Rect(0, 1, 10, 5), null), new CellStyle(ConsoleColor.White, ConsoleColor.Black)));
         Assert.All(Enumerable.Range(0, 8), y => Assert.Equal(' ', emptyDriver.GetCell(10, y).Character));
     }
 
@@ -495,23 +492,21 @@ public sealed class ScrollableListTests
             new UiTargetId("test.list.scrollbar"),
             new RoutedScrollableListInteractionOptions { AcceptKeyboardFromLayerRoute = true });
         Rect contentBounds = new(0, 0, 9, 6);
-        ScrollableListFrameState frame = routed.CalculateFrame(6, new Rect(9, 0, 1, 6));
+        RoutedScrollableListFrame frame = routed.CalculateFrame(6, contentBounds, new Rect(9, 0, 1, 6));
         var focus = new UiFocusController();
 
-        UiInteractionFragment fragment = routed.BuildInteractionFragment(contentBounds, frame, 0);
+        UiInteractionFragment fragment = routed.BuildInteractionFragment(frame, 0);
         Assert.Equal([routed.ListTarget, routed.ScrollbarTarget], fragment.HitRegions.Select(region => region.Target));
         Assert.Empty(fragment.FocusEntries);
 
         RoutedScrollableListInputResult keyboard = routed.RouteInput(
             new KeyConsoleInputEvent(Key(ConsoleKey.DownArrow)),
-            contentBounds,
             frame,
             UiInputRouteContext.Layer(focus));
         Assert.Equal(ScrollableListInputResultKind.SelectionChanged, keyboard.ListResult.Kind);
 
         RoutedScrollableListInputResult wheel = routed.RouteInput(
             Mouse(MouseButton.WheelDown, MouseEventKind.Wheel, 1, 1),
-            contentBounds,
             frame,
             UiInputRouteContext.HitTarget(focus, routed.ListTarget));
         Assert.True(wheel.ListResult.IsHandled);
@@ -519,17 +514,15 @@ public sealed class ScrollableListTests
 
         RoutedScrollableListInputResult started = routed.RouteInput(
             Mouse(MouseButton.Left, MouseEventKind.Down, 9, 1),
-            contentBounds,
             frame,
             UiInputRouteContext.HitTarget(focus, routed.ScrollbarTarget));
         Assert.True(started.ListResult.DragStarted);
         Assert.Equal(UiMouseCaptureRequestKind.Capture, started.UiResult.MouseCaptureRequest.Kind);
         Assert.Equal(UiFocusRequestKind.None, started.UiResult.FocusRequest.Kind);
 
-        frame = routed.CalculateFrame(6, new Rect(9, 0, 1, 6));
+        frame = routed.CalculateFrame(6, contentBounds, new Rect(9, 0, 1, 6));
         RoutedScrollableListInputResult ended = routed.RouteInput(
             Mouse(MouseButton.Left, MouseEventKind.Up, 20, 3),
-            contentBounds,
             frame,
             UiInputRouteContext.CapturedTarget(focus, routed.ScrollbarTarget));
         Assert.True(ended.ListResult.DragEnded);

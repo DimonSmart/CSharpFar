@@ -131,10 +131,6 @@ public sealed class RoutedScrollableList<T>
     public RoutedScrollableListFrame CalculateFrame(int viewportRows, Rect contentBounds, Rect? scrollbarBounds) =>
         new(contentBounds, _list.CalculateFrameState(viewportRows, scrollbarBounds));
 
-    [Obsolete("Use the committed RoutedScrollableListFrame overload.")]
-    public ScrollableListFrameState CalculateFrame(int viewportRows, Rect? scrollbarBounds) =>
-        _list.CalculateFrameState(viewportRows, scrollbarBounds);
-
     public void Render(IUiCanvas canvas, RoutedScrollableListFrame frame) =>
         _list.Render(canvas, frame.ContentBounds, frame.List);
 
@@ -226,26 +222,4 @@ public sealed class RoutedScrollableList<T>
 
     public void ApplyCommittedFrame(RoutedScrollableListFrame frame) => _list.ApplyCommittedFrame(frame.List);
 
-    [Obsolete("Use the committed RoutedScrollableListFrame overload.")]
-    public RoutedScrollableListInputResult RouteInput(ConsoleInputEvent input, Rect contentBounds, ScrollableListFrameState frame, UiInputRouteContext route, bool confirmOnMouseDown = false, bool confirmOnDoubleClick = true) =>
-        RouteInput(input, new RoutedScrollableListFrame(contentBounds, frame), route, confirmOnMouseDown, confirmOnDoubleClick);
-
-    [Obsolete("Use the committed RoutedScrollableListFrame overload.")]
-    public UiInteractionFragment BuildInteractionFragment(Rect contentBounds, ScrollableListFrameState frame, int tabOrder, bool isEnabled = true) =>
-        BuildInteractionFragment(new RoutedScrollableListFrame(contentBounds, frame), tabOrder, isEnabled);
-
-    [Obsolete("Use the committed RoutedScrollableListFrame overload.")]
-    public void Render(IUiCanvas canvas, Rect contentBounds, ScrollableListFrameState frame, CellStyle normalStyle, CellStyle selectedStyle, CellStyle emptyStyle) =>
-        Render(canvas, new RoutedScrollableListFrame(contentBounds, frame), normalStyle, selectedStyle, emptyStyle);
-
-    [Obsolete("Use the committed RoutedScrollableListFrame overload.")]
-    public void Render(IUiCanvas canvas, Rect contentBounds, ScrollableListFrameState frame) =>
-        Render(canvas, new RoutedScrollableListFrame(contentBounds, frame));
-
-    [Obsolete("Use the committed RoutedScrollableListFrame overload.")]
-    public void RenderScrollbar(IUiCanvas canvas, ScrollableListFrameState frame, CellStyle style) =>
-        RenderScrollbar(canvas, new RoutedScrollableListFrame(default, frame), style);
-
-    [Obsolete("Use the committed RoutedScrollableListFrame overload.")]
-    public void ApplyCommittedFrame(ScrollableListFrameState frame) => _list.ApplyCommittedFrame(frame);
 }

@@ -35,7 +35,7 @@ public sealed class DropdownSelect<T>
 
     public int SelectionBeforeOpen => _selectedIndexBeforeOpen;
 
-    internal bool HasScrollbarDrag => _list.CalculateFrameState(1).VerticalScrollbarFrame?.DragState is not null;
+    internal bool HasScrollbarDrag => _list.ScrollbarDragState is not null;
 
     public int MaxVisibleRows { get; set; } = 6;
 
@@ -156,7 +156,7 @@ public sealed class DropdownSelect<T>
         return true;
     }
 
-    public bool TryHandlePopupMouse(
+    public bool TryHandlePopupContentMouse(
         MouseConsoleInputEvent mouse,
         DropdownSelectFrame frame,
         out bool selected,
@@ -170,16 +170,10 @@ public sealed class DropdownSelect<T>
         if (frame.PopupBounds is not { } bounds || frame.ContentBounds is not { } contentBounds)
             return false;
 
-        if (mouse.Kind == MouseEventKind.Down && mouse.Button == MouseButton.Left &&
-            (mouse.X < bounds.X || mouse.X >= bounds.Right || mouse.Y < bounds.Y || mouse.Y >= bounds.Bottom))
-        {
-            Close();
-            return true;
-        }
+        if (!contentBounds.Contains(mouse.X, mouse.Y))
+            return mouse.Kind == MouseEventKind.Down && mouse.Button == MouseButton.Left && bounds.Contains(mouse.X, mouse.Y);
 
-        var listInput = frame.ListState.ScrollbarBounds is Rect scrollbarBounds && scrollbarBounds.Contains(mouse.X, mouse.Y)
-            ? _list.HandleScrollbarMouse(mouse, frame.ListState)
-            : _list.HandleContentMouse(mouse, contentBounds, frame.ListState, confirmOnMouseDown: true, confirmOnDoubleClick: true);
+        var listInput = _list.HandleContentMouse(mouse, contentBounds, frame.ListState, confirmOnMouseDown: true, confirmOnDoubleClick: true);
         if (!listInput.IsHandled)
             return mouse.Kind == MouseEventKind.Down && mouse.Button == MouseButton.Left &&
                 mouse.X >= bounds.X && mouse.X < bounds.Right && mouse.Y >= bounds.Y && mouse.Y < bounds.Bottom;
@@ -191,6 +185,15 @@ public sealed class DropdownSelect<T>
             Close(commit: true);
         }
         return true;
+    }
+
+    public bool TryHandleScrollbarMouse(
+        MouseConsoleInputEvent mouse,
+        DropdownSelectFrame frame)
+    {
+        if (!HasScrollbarDrag)
+            RestoreCommittedFrame(frame);
+        return frame.IsOpen && _list.HandleScrollbarMouse(mouse, frame.ListState).IsHandled;
     }
 
     public bool TryHandleKey(

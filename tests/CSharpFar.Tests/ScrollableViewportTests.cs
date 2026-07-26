@@ -40,38 +40,35 @@ public sealed class ScrollableViewportTests
     }
 
     [Fact]
-    public void HandleMouse_WheelUsesCommittedBoundsOnly()
+    public void HandleContentMouse_WheelUsesCommittedFrame()
     {
         var viewport = new ScrollableViewport();
         ScrollableViewportFrameState frame = Frame(viewport);
 
-        Assert.True(viewport.HandleMouse(Mouse(MouseButton.WheelDown, MouseEventKind.Wheel, 2, 1), frame).PositionChanged);
+        Assert.True(viewport.HandleContentMouse(Mouse(MouseButton.WheelDown, MouseEventKind.Wheel, 2, 1), frame).PositionChanged);
         Assert.Equal(3, viewport.FirstVisibleIndex);
-        Assert.Equal(
-            ScrollableViewportInputResultKind.NotHandled,
-            viewport.HandleMouse(Mouse(MouseButton.WheelDown, MouseEventKind.Wheel, 20, 20), frame).Kind);
     }
 
     [Fact]
-    public void HandleMouse_ScrollbarDragSignalsLifecycleAndClearsWhenScrollbarDisappears()
+    public void HandleScrollbarMouse_SignalsLifecycleAndClearsWhenScrollbarDisappears()
     {
         var viewport = new ScrollableViewport();
         ScrollableViewportFrameState frame = Frame(viewport);
 
-        ScrollableViewportInputResult started = viewport.HandleMouse(Mouse(MouseButton.Left, MouseEventKind.Down, 9, 1), frame);
+        ScrollableViewportInputResult started = viewport.HandleScrollbarMouse(Mouse(MouseButton.Left, MouseEventKind.Down, 9, 1), frame);
         viewport.ApplyCommittedFrame(viewport.CalculateFrameState(10, 3, new Rect(0, 0, 9, 3), new Rect(9, 0, 1, 5)));
         frame = Frame(viewport);
-        ScrollableViewportInputResult moved = viewport.HandleMouse(Mouse(MouseButton.Left, MouseEventKind.Move, 20, 3), frame);
+        ScrollableViewportInputResult moved = viewport.HandleScrollbarMouse(Mouse(MouseButton.Left, MouseEventKind.Move, 20, 3), frame);
         viewport.ApplyCommittedFrame(viewport.CalculateFrameState(10, 3, new Rect(0, 0, 9, 3), new Rect(9, 0, 1, 5)));
         frame = Frame(viewport);
-        ScrollableViewportInputResult ended = viewport.HandleMouse(Mouse(MouseButton.Left, MouseEventKind.Up, 20, 3), frame);
+        ScrollableViewportInputResult ended = viewport.HandleScrollbarMouse(Mouse(MouseButton.Left, MouseEventKind.Up, 20, 3), frame);
 
         Assert.True(started.DragStarted);
         Assert.True(moved.IsHandled);
         Assert.True(ended.DragEnded);
         Assert.Null(viewport.CalculateFrameState(10, 3, new Rect(0, 0, 9, 3), new Rect(9, 0, 1, 5)).ScrollbarFrame?.DragState);
 
-        viewport.HandleMouse(Mouse(MouseButton.Left, MouseEventKind.Down, 9, 1), frame);
+        viewport.HandleScrollbarMouse(Mouse(MouseButton.Left, MouseEventKind.Down, 9, 1), frame);
         viewport.ApplyCommittedFrame(viewport.CalculateFrameState(3, 3, new Rect(0, 0, 9, 3), scrollbarBounds: null));
         Assert.Null(viewport.CalculateFrameState(3, 3, new Rect(0, 0, 9, 3), scrollbarBounds: null).ScrollbarFrame);
     }

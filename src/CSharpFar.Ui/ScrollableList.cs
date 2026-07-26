@@ -338,19 +338,6 @@ public sealed class ScrollableList<T>
             DragEnded: scrollbarResult.DragEnded);
     }
 
-    [Obsolete("Use HandleContentMouse or HandleScrollbarMouse after target routing.")]
-    public ScrollableListInputResult HandleMouse(MouseConsoleInputEvent mouse, Rect contentBounds, ScrollableListFrameState frame, bool confirmOnMouseDown = false, bool confirmOnDoubleClick = true)
-    {
-        if (mouse.Kind == MouseEventKind.Wheel &&
-            !contentBounds.Contains(mouse.X, mouse.Y) &&
-            (frame.ScrollbarBounds is not Rect scrollbarBounds || !scrollbarBounds.Contains(mouse.X, mouse.Y)))
-            return ScrollableListInputResult.NotHandled;
-
-        return mouse.Kind == MouseEventKind.Wheel || !frame.ScrollbarBounds.HasValue || !frame.ScrollbarBounds.Value.Contains(mouse.X, mouse.Y)
-            ? HandleContentMouse(mouse, contentBounds, frame, confirmOnMouseDown, confirmOnDoubleClick)
-            : HandleScrollbarMouse(mouse, frame);
-    }
-
     private ScrollableListInputResult ChangeSelection(int target, int viewportRows)
     {
         int selectedIndex = Math.Clamp(target, 0, Count - 1);
