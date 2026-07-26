@@ -4,6 +4,7 @@ using CSharpFar.Console;
 using CSharpFar.Console.Input;
 using CSharpFar.Core.Text;
 using CSharpFar.Tests.Fakes;
+using CSharpFar.Ui;
 
 namespace CSharpFar.Tests;
 
@@ -316,6 +317,67 @@ public class FileViewerTests : IDisposable
         string sanitized = LargeFileViewer.SanitizeTextForConsole("A\u001B[31mB\u0007C\0D\tE");
 
         Assert.Equal("A [31mB C D    E", sanitized);
+    }
+
+    [Fact]
+    public void Show_TextHorizontalScrollUsesTerminalCellsForWideCharacters()
+    {
+        string path = Write("wide-scroll.txt", "界ABCD", new UTF8Encoding(false));
+        var driver = new FakeConsoleDriver(width: 8, height: 6);
+        driver.EnqueueKey(Key(ConsoleKey.RightArrow));
+        driver.EnqueueKey(Key(ConsoleKey.RightArrow));
+        driver.EnqueueKey(Key(ConsoleKey.F10));
+
+        FileViewerFor(new ScreenRenderer(driver)).Show(path);
+
+        Assert.Equal('A', driver.GetCell(0, 1).Character);
+        Assert.Equal('B', driver.GetCell(1, 1).Character);
+    }
+
+    [Fact]
+    public void Show_WrapsWideTextWithinTerminalCellViewport()
+    {
+        string path = Write("wide-wrap.txt", "界AB", new UTF8Encoding(false));
+        var driver = new FakeConsoleDriver(width: 3, height: 6);
+        driver.EnqueueKey(Key(ConsoleKey.F2));
+        driver.EnqueueKey(Key(ConsoleKey.F10));
+
+        FileViewerFor(new ScreenRenderer(driver)).Show(path);
+
+        string firstContentWrite = driver.WriteRecords
+            .First(record => record.Y == 1 && record.Text.Contains('界'))
+            .Text;
+        Assert.Equal(3, ConsoleTextMetrics.GetCellWidth(firstContentWrite));
+        Assert.Equal("界A", firstContentWrite.TrimEnd());
+    }
+
+    [Fact]
+    public void Show_SearchHighlightAccountsForWideTextAndExpandedTab()
+    {
+        string path = Write("wide-tab-find.txt", "界\ttarget", new UTF8Encoding(false));
+        var driver = new FakeConsoleDriver(width: 20, height: 8);
+        driver.EnqueueKey(Key(ConsoleKey.F7));
+        EnqueueText(driver, "target");
+        driver.EnqueueKey(Key(ConsoleKey.Enter));
+        driver.EnqueueKey(Key(ConsoleKey.F10));
+
+        FileViewerFor(new ScreenRenderer(driver)).Show(path);
+
+        Assert.NotEqual(driver.GetCell(5, 1).Foreground, driver.GetCell(6, 1).Foreground);
+        Assert.Equal('t', driver.GetCell(6, 1).Character);
+    }
+
+    [Fact]
+    public void Show_HeaderFitsUnicodeFilePathIntoViewport()
+    {
+        string path = Write("界界界-long-name.txt", "text", new UTF8Encoding(false));
+        var driver = new FakeConsoleDriver(width: 24, height: 6);
+        driver.EnqueueKey(Key(ConsoleKey.F10));
+
+        FileViewerFor(new ScreenRenderer(driver)).Show(path);
+
+        Assert.All(driver.WriteRecords.Where(record => record.Y == 0),
+            record => Assert.True(ConsoleTextMetrics.GetCellWidth(record.Text) <= 24));
     }
 
     [Fact]

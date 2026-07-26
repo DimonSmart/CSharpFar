@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Text;
 using CSharpFar.App.Dialogs;
 using CSharpFar.App.Rendering;
 using CSharpFar.Console;
@@ -13,7 +14,7 @@ internal sealed class LargeFileViewer
 {
     private const int BinaryBytesPerRow = 16;
     private const int FollowPollMs = 250;
-    private const int FastHorizontalTextScrollChars = 20;
+    private const int FastHorizontalTextScrollCells = 20;
     private const int FastPageMultiplier = 5;
 
     private static readonly UiTargetScope Targets = new("viewer");
@@ -155,11 +156,11 @@ internal sealed class LargeFileViewer
                 break;
 
             case ConsoleKey.LeftArrow when control:
-                MoveHorizontal(state, -(state.IsHexMode ? 1 : FastHorizontalTextScrollChars));
+                MoveHorizontal(state, -(state.IsHexMode ? 1 : FastHorizontalTextScrollCells));
                 break;
 
             case ConsoleKey.RightArrow when control:
-                MoveHorizontal(state, state.IsHexMode ? 1 : FastHorizontalTextScrollChars);
+                MoveHorizontal(state, state.IsHexMode ? 1 : FastHorizontalTextScrollCells);
                 break;
 
             case ConsoleKey.LeftArrow when shift:
@@ -432,10 +433,10 @@ internal sealed class LargeFileViewer
             ? $" 0%{mode}{wrap}{follow}{found} "
             : $" {FormatPercent(state.TopByteOffset, reader.Length)}%{mode}{wrap}{follow}{found} ";
 
-        int nameWidth = Math.Max(0, size.Width - posSection.Length);
+        int nameWidth = Math.Max(0, size.Width - ConsoleTextMetrics.GetCellWidth(posSection));
         string nameSection = FormatHeaderPath(filePath, nameWidth);
 
-        string header = nameSection.PadRight(nameWidth) + posSection;
+        string header = ConsoleTextMetrics.FitToCells(nameSection, nameWidth) + posSection;
         canvas.WriteForced(0, 0, header, PaletteStyles.PathHeaderActive(_palette));
     }
 
@@ -445,13 +446,10 @@ internal sealed class LargeFileViewer
             return string.Empty;
 
         string text = $" {filePath} ";
-        if (text.Length <= width)
+        if (ConsoleTextMetrics.GetCellWidth(text) <= width)
             return text;
 
-        if (width <= 3)
-            return text[^width..];
-
-        return "..." + text[^(width - 3)..];
+        return ConsoleTextMetrics.TruncateEndToCells(text, width);
     }
 
     private LargeFileRenderView DrawTextContent(
@@ -590,34 +588,24 @@ internal sealed class LargeFileViewer
         if (width <= 0)
             return;
 
-        string sanitized = SanitizeTextForConsole(line);
-        if (scrollLeft >= sanitized.Length)
-        {
-            canvas.WriteForced(0, y, new string(' ', width), PaletteStyles.CommandLine(_palette));
-            return;
-        }
-
-        string visible = sanitized[scrollLeft..];
-        if (visible.Length > width)
-            visible = visible[..width];
-
-        canvas.WriteForced(0, y, visible.PadRight(width), PaletteStyles.CommandLine(_palette));
+        var layout = new ViewerTextLayout(line);
+        string visible = layout.Slice(scrollLeft, width);
+        canvas.WriteForced(0, y, visible, PaletteStyles.CommandLine(_palette));
         if (match is not { IsHex: false } || match.LineStartOffset != lineStartOffset)
             return;
 
-        int visibleStart = segmentStartIndex + scrollLeft;
-        int visibleEnd = visibleStart + visible.Length;
-        int matchStart = match.CharacterIndex;
-        int matchEnd = match.CharacterIndex + match.CharacterLength;
+        int visibleStart = scrollLeft;
+        int visibleEnd = scrollLeft + width;
+        int matchStart = layout.CellOffsetFromSourceIndex(match.CharacterIndex - segmentStartIndex);
+        int matchEnd = layout.CellOffsetFromSourceIndex(match.CharacterIndex + match.CharacterLength - segmentStartIndex);
         int highlightStart = Math.Max(visibleStart, matchStart);
         int highlightEnd = Math.Min(visibleEnd, matchEnd);
-        if (highlightEnd <= highlightStart)
+        if (highlightEnd <= highlightStart || highlightStart < visibleStart)
             return;
 
-        int x = highlightStart - visibleStart;
-        int length = highlightEnd - highlightStart;
-        if (x >= 0 && x < visible.Length)
-            canvas.Write(x, y, visible.Substring(x, Math.Min(length, visible.Length - x)), PaletteStyles.InputHighlight(_palette));
+        string highlight = layout.Slice(highlightStart, highlightEnd - highlightStart);
+        if (ConsoleTextMetrics.GetCellWidth(highlight) > 0)
+            canvas.Write(highlightStart - visibleStart, y, highlight, PaletteStyles.InputHighlight(_palette));
     }
 
     private void DrawFooter(IUiCanvas canvas, ConsoleSize size, LargeFileViewerState state)
@@ -766,7 +754,7 @@ internal sealed class LargeFileViewer
         if (state.WrapLines || view.Lines.Count == 0)
             return;
 
-        int lineLength = SanitizeTextForConsole(view.Lines[0].Text).Length;
+        int lineLength = new ViewerTextLayout(view.Lines[0].Text).CellWidth;
         state.HorizontalOffset = Math.Max(0, lineLength - Math.Max(1, width));
     }
 
@@ -1088,11 +1076,7 @@ internal sealed class LargeFileViewer
             return string.Empty;
 
         line = SanitizeTextForConsole(line);
-        if (scrollLeft >= line.Length)
-            return new string(' ', width);
-
-        string visible = line[scrollLeft..];
-        return visible.Length <= width ? visible.PadRight(width) : visible[..width];
+        return new ViewerTextLayout(line).Slice(scrollLeft, width);
     }
 
     internal static string SanitizeTextForConsole(string line)
@@ -1116,19 +1100,23 @@ internal sealed class LargeFileViewer
             yield break;
         }
 
+        var layout = new ViewerTextLayout(line);
         int index = 0;
         while (index < line.Length)
         {
-            int take = Math.Min(width, line.Length - index);
-            if (wordWrap && index + take < line.Length)
+            int end = layout.SourceIndexAtCellBoundary(index, width);
+            if (end <= index)
+                end = index + Rune.GetRuneAt(line, index).Utf16SequenceLength;
+
+            if (wordWrap && end < line.Length)
             {
-                int breakAt = line.LastIndexOf(' ', index + take - 1, take);
+                int breakAt = layout.LastWhitespaceBoundary(index, end);
                 if (breakAt > index)
-                    take = breakAt - index + 1;
+                    end = breakAt;
             }
 
-            yield return new WrappedTextSegment(index, line.Substring(index, take));
-            index += take;
+            yield return new WrappedTextSegment(index, line[index..end]);
+            index = end;
         }
     }
 
@@ -1138,6 +1126,129 @@ internal sealed class LargeFileViewer
             return 0;
 
         return Math.Clamp(offset * 100 / length, 0, 100);
+    }
+
+    private sealed class ViewerTextLayout
+    {
+        private readonly string _source;
+        private readonly int[] _sourceCellOffsets;
+
+        public ViewerTextLayout(string source)
+        {
+            _source = source;
+            _sourceCellOffsets = new int[source.Length + 1];
+            var display = new StringBuilder(source.Length);
+            int sourceIndex = 0;
+            int cellOffset = 0;
+
+            while (sourceIndex < source.Length)
+            {
+                Rune rune = Rune.GetRuneAt(source, sourceIndex);
+                int length = rune.Utf16SequenceLength;
+                for (int i = 0; i < length; i++)
+                    _sourceCellOffsets[sourceIndex + i] = cellOffset;
+
+                string rendered = rune.Value == '\t'
+                    ? "    "
+                    : Rune.GetUnicodeCategory(rune) == System.Globalization.UnicodeCategory.Control
+                        ? " "
+                        : rune.ToString();
+                display.Append(rendered);
+                cellOffset += ConsoleTextMetrics.GetCellWidth(rendered);
+                sourceIndex += length;
+                _sourceCellOffsets[sourceIndex] = cellOffset;
+            }
+
+            DisplayText = display.ToString();
+            CellWidth = cellOffset;
+        }
+
+        public string DisplayText { get; }
+        public int CellWidth { get; }
+
+        public int CellOffsetFromSourceIndex(int sourceIndex) =>
+            _sourceCellOffsets[Math.Clamp(sourceIndex, 0, _source.Length)];
+
+        public string Slice(int scrollLeft, int width)
+        {
+            if (width <= 0)
+                return string.Empty;
+
+            scrollLeft = Math.Max(0, scrollLeft);
+            var result = new StringBuilder(width);
+            int displayOffset = 0;
+            int written = 0;
+            foreach (Rune rune in DisplayText.EnumerateRunes())
+            {
+                int runeWidth = ConsoleTextMetrics.GetCellWidth(rune);
+                int runeEnd = displayOffset + runeWidth;
+                if (runeWidth == 0)
+                {
+                    if (displayOffset >= scrollLeft && written > 0)
+                        result.Append(rune.ToString());
+                    continue;
+                }
+
+                if (runeEnd <= scrollLeft)
+                {
+                    displayOffset = runeEnd;
+                    continue;
+                }
+
+                if (displayOffset < scrollLeft)
+                {
+                    int hiddenPart = runeEnd - scrollLeft;
+                    if (hiddenPart > width)
+                        break;
+
+                    result.Append(' ', hiddenPart);
+                    written += hiddenPart;
+                    displayOffset = runeEnd;
+                    continue;
+                }
+
+                if (written + runeWidth > width)
+                    break;
+
+                result.Append(rune.ToString());
+                written += runeWidth;
+                displayOffset = runeEnd;
+            }
+
+            return ConsoleTextMetrics.FitToCells(result.ToString(), width);
+        }
+
+        public int SourceIndexAtCellBoundary(int sourceStartIndex, int width)
+        {
+            int start = Math.Clamp(sourceStartIndex, 0, _source.Length);
+            int startCells = CellOffsetFromSourceIndex(start);
+            int index = start;
+            while (index < _source.Length)
+            {
+                Rune rune = Rune.GetRuneAt(_source, index);
+                int end = index + rune.Utf16SequenceLength;
+                if (CellOffsetFromSourceIndex(end) - startCells > width)
+                    break;
+
+                index = end;
+            }
+
+            return index;
+        }
+
+        public int LastWhitespaceBoundary(int sourceStartIndex, int sourceEndIndex)
+        {
+            int boundary = sourceStartIndex;
+            for (int index = sourceStartIndex; index < sourceEndIndex;)
+            {
+                Rune rune = Rune.GetRuneAt(_source, index);
+                index += rune.Utf16SequenceLength;
+                if (Rune.IsWhiteSpace(rune))
+                    boundary = index;
+            }
+
+            return boundary;
+        }
     }
 
     private sealed class LargeFileViewerLayer : InteractiveSurfaceLayer<LargeFileViewerFrame, ViewerInput>
