@@ -17,7 +17,7 @@ public sealed class UiLayerTests
                 new(new UiTargetId("target"), 0),
             ])),
         };
-        var host = Host(layer);
+        var host = new UiLayerTestHost(layer);
 
         host.Render();
 

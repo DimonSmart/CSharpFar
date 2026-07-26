@@ -9,17 +9,35 @@ public readonly record struct RoutedScrollableListInputResult(
     ScrollableListInputResult ListResult,
     UiInputResult UiResult);
 
+/// <summary>Configures how a routed list participates in its enclosing layer's interaction model.</summary>
+public readonly record struct RoutedScrollableListInteractionOptions
+{
+    public static RoutedScrollableListInteractionOptions Focusable { get; } = new()
+    {
+        PublishFocusEntry = true,
+        FocusOnMouseDown = true,
+    };
+
+    public bool PublishFocusEntry { get; init; }
+
+    public bool FocusOnMouseDown { get; init; }
+
+    public bool AcceptKeyboardFromLayerRoute { get; init; }
+}
+
 /// <summary>Adapts a selectable scrollable list to routed UI input and interaction metadata.</summary>
 public sealed class RoutedScrollableList<T>
 {
     public RoutedScrollableList(
         ScrollableList<T> list,
         UiTargetId listTarget,
-        UiTargetId scrollbarTarget)
+        UiTargetId scrollbarTarget,
+        RoutedScrollableListInteractionOptions? interactionOptions = null)
     {
         _list = list ?? throw new ArgumentNullException(nameof(list));
         ListTarget = listTarget;
         ScrollbarTarget = scrollbarTarget;
+        InteractionOptions = interactionOptions ?? RoutedScrollableListInteractionOptions.Focusable;
     }
 
     private readonly ScrollableList<T> _list;
@@ -76,6 +94,8 @@ public sealed class RoutedScrollableList<T>
 
     public UiTargetId ScrollbarTarget { get; }
 
+    public RoutedScrollableListInteractionOptions InteractionOptions { get; }
+
     public ScrollableListFrameState CalculateFrame(int viewportRows, Rect? scrollbarBounds) =>
         _list.CalculateFrameState(viewportRows, scrollbarBounds);
 
@@ -102,7 +122,8 @@ public sealed class RoutedScrollableList<T>
             builder.AddHitRegion(ListTarget, contentBounds);
         if (frame.ScrollbarBounds is Rect scrollbarBounds)
             builder.AddHitRegion(ScrollbarTarget, scrollbarBounds);
-        builder.AddFocusEntry(ListTarget, tabOrder, isEnabled);
+        if (InteractionOptions.PublishFocusEntry)
+            builder.AddFocusEntry(ListTarget, tabOrder, isEnabled);
         return builder.BuildFragment();
     }
 
@@ -124,7 +145,10 @@ public sealed class RoutedScrollableList<T>
         ArgumentNullException.ThrowIfNull(route);
 
         ApplyCommittedFrame(frame);
-        if (!IsTargetRoute(route))
+        bool acceptsLayerKeyboard = InteractionOptions.AcceptKeyboardFromLayerRoute &&
+            route.RouteKind == UiInputRouteKind.Layer &&
+            input is KeyConsoleInputEvent;
+        if (!IsTargetRoute(route) && !acceptsLayerKeyboard)
             return new RoutedScrollableListInputResult(ScrollableListInputResult.NotHandled, UiInputResult.NotHandled);
 
         ScrollableListInputResult result = input switch
@@ -140,6 +164,7 @@ public sealed class RoutedScrollableList<T>
         };
         UiInputResult uiResult = ScrollableListRouting.ToUiInputResult(result, ScrollbarTarget);
         if (result.IsHandled &&
+            InteractionOptions.FocusOnMouseDown &&
             input is MouseConsoleInputEvent { Button: MouseButton.Left, Kind: MouseEventKind.Down })
         {
             uiResult = new UiInputResult(

@@ -11,7 +11,9 @@ public sealed class UiMouseCaptureTests
     public void Capture_RoutesLaterMouseEventsOnlyToOwnerWithCapturedContext()
     {
         var calls = new List<string>();
-        var (host, surface) = Host(calls);
+        var surface = new CaptureLayer("surface", calls);
+        var fixture = new UiLayerTestHost(surface);
+        var host = fixture.Composition;
         var owner = new CaptureLayer("owner", calls)
         {
             Result = UiInputResult.CaptureMouse(new UiTargetId("thumb"), MouseButton.Left),

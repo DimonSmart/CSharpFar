@@ -8,7 +8,7 @@ using CSharpFar.Ui;
 
 namespace CSharpFar.App.Rendering;
 
-internal sealed record CommandCompletionItemFrame(int AbsoluteIndex, string Text, Rect Bounds, UiTargetId Target);
+internal sealed record CommandCompletionItemFrame(int AbsoluteIndex, string Text, Rect Bounds);
 
 internal sealed record CommandCompletionFrame(
     bool Visible,
@@ -23,12 +23,15 @@ internal sealed record CommandCompletionFrame(
 
 internal sealed class CommandCompletionLayer : UiLayer<CommandCompletionFrame>
 {
-    private static readonly UiTargetId ScrollbarTarget = new("application.command-completion.scrollbar");
+    private static readonly UiTargetScope Targets = new("application.command-completion");
+    private static readonly UiTargetId ListTarget = Targets.Child("list");
+    private static readonly UiTargetId ScrollbarTarget = Targets.Child("list.scrollbar");
     private readonly ApplicationRenderContext _context;
     private readonly CommandCompletionController _controller;
     private readonly Action<bool> _hideCompletion;
     private readonly Action _resetHistoryNavigation;
     private readonly PopupRenderer _popupRenderer = new();
+    private readonly RoutedScrollableList<string> _list;
 
     public CommandCompletionLayer(ApplicationRenderContext context, CommandCompletionController controller, Action<bool> hideCompletion, Action resetHistoryNavigation)
     {
@@ -36,6 +39,14 @@ internal sealed class CommandCompletionLayer : UiLayer<CommandCompletionFrame>
         _controller = controller;
         _hideCompletion = hideCompletion;
         _resetHistoryNavigation = resetHistoryNavigation;
+        _list = new RoutedScrollableList<string>(
+            context.CommandCompletion.List,
+            ListTarget,
+            ScrollbarTarget,
+            new RoutedScrollableListInteractionOptions
+            {
+                AcceptKeyboardFromLayerRoute = true,
+            });
     }
 
     public override UiLayerInputPolicy InputPolicy => HasCommittedFrame && CommittedFrame.Visible ? UiLayerInputPolicy.Bubble : UiLayerInputPolicy.None;
@@ -43,7 +54,7 @@ internal sealed class CommandCompletionLayer : UiLayer<CommandCompletionFrame>
     protected override CommandCompletionFrame RenderFrame(UiRenderContext context)
     {
         var completion = _context.CommandCompletion;
-        var list = completion.List;
+        var list = _list;
         var empty = new CommandCompletionFrame(false, context.Viewport, default, default, [], null, 0, list.Count, ScrollableListFrameState.Empty);
         if (_context.App.WorkspaceMode != ApplicationWorkspaceMode.Panels)
             return empty;
@@ -58,12 +69,12 @@ internal sealed class CommandCompletionLayer : UiLayer<CommandCompletionFrame>
         var popupBounds = new Rect(0, commandLineRow - height, context.Size.Width, height);
         var contentBounds = new Rect(1, popupBounds.Y + 1, Math.Max(0, popupBounds.Width - 2), rowCount);
         var candidateScrollbarBounds = new Rect(popupBounds.Right - 1, popupBounds.Y + 1, 1, rowCount);
-        ScrollableListFrameState candidateState = list.CalculateFrameState(rowCount, candidateScrollbarBounds);
+        ScrollableListFrameState candidateState = list.CalculateFrame(rowCount, candidateScrollbarBounds);
         ScrollState? scrollState = list.GetScrollState(rowCount, candidateState.ScrollTop);
         Rect? scrollbarBounds = scrollState is not null && ScrollBarInteraction.IsInteractive(candidateScrollbarBounds, scrollState)
             ? candidateScrollbarBounds
             : null;
-        ScrollableListFrameState listState = list.CalculateFrameState(rowCount, scrollbarBounds);
+        ScrollableListFrameState listState = list.CalculateFrame(rowCount, scrollbarBounds);
 
         var popupOptions = PaletteStyles.DialogPopupOptions(_context.App.Palette) with
         {
@@ -76,49 +87,47 @@ internal sealed class CommandCompletionLayer : UiLayer<CommandCompletionFrame>
         var items = Enumerable.Range(0, rowCount).Select(row =>
         {
             int index = listState.ScrollTop + row;
-            return new CommandCompletionItemFrame(index, list.Items[index], new Rect(contentBounds.X, contentBounds.Y + row, contentBounds.Width, 1), ItemTarget(index));
+            return new CommandCompletionItemFrame(index, list.Items[index], new Rect(contentBounds.X, contentBounds.Y + row, contentBounds.Width, 1));
         }).ToArray();
         return new CommandCompletionFrame(true, context.Viewport, popupBounds, contentBounds, items, scrollbarBounds, rowCount, list.Count, listState);
     }
 
     protected override void OnFrameCommitted(CommandCompletionFrame frame)
     {
-        var list = _context.CommandCompletion.List;
         if (!frame.Visible)
         {
-            list.ApplyCommittedFrame(ScrollableListFrameState.Empty);
+            _list.ApplyCommittedFrame(ScrollableListFrameState.Empty);
             return;
         }
 
-        if (_context.CommandCompletion.Visible && list.Count == frame.MatchCount)
-            list.ApplyCommittedFrame(frame.ListState);
+        if (_context.CommandCompletion.Visible && _list.Count == frame.MatchCount)
+            _list.ApplyCommittedFrame(frame.ListState);
     }
 
     protected override UiInteractionFrame BuildInteractionFrame(CommandCompletionFrame frame)
     {
         if (!frame.Visible)
             return UiInteractionFrame.Empty;
-        var builder = new UiInteractionFrameBuilder().AddHitRegions(frame.Items.Select(item => new UiHitRegion(item.Target, item.Bounds)));
-        if (frame.ScrollbarBounds is { } scrollbar)
-            builder.AddHitRegion(ScrollbarTarget, scrollbar);
-        return builder.Build();
+        return new UiInteractionFrameBuilder()
+            .AddFragment(_list.BuildInteractionFragment(frame.ContentBounds, frame.ListState, tabOrder: 0))
+            .Build();
     }
 
     protected override UiInputResult RouteInput(ConsoleInputEvent input, CommandCompletionFrame frame, UiInputRouteContext context) =>
         !frame.Visible || frame.VisibleRows <= 0 || frame.MatchCount == 0 ? UiInputResult.NotHandled : input switch
         {
-            KeyConsoleInputEvent { Key: var key } => RouteKey(key, frame),
+            KeyConsoleInputEvent { Key: var key } => RouteKey(key, frame, context),
             MouseConsoleInputEvent mouse => RouteMouse(mouse, frame, context),
             _ => UiInputResult.NotHandled,
         };
 
-    private UiInputResult RouteKey(ConsoleKeyInfo key, CommandCompletionFrame frame)
+    private UiInputResult RouteKey(ConsoleKeyInfo key, CommandCompletionFrame frame, UiInputRouteContext route)
     {
         if (!TryRestoreCommittedList(frame))
             return UiInputResult.HandledAndInvalidate;
 
         if (key.Key is ConsoleKey.UpArrow or ConsoleKey.DownArrow)
-            return ToUiResult(_context.CommandCompletion.List.HandleKey(key, frame.VisibleRows));
+            return _list.RouteInput(new KeyConsoleInputEvent(key), frame.ContentBounds, frame.ListState, route).UiResult;
         if (key.Key == ConsoleKey.Enter)
             return KeyboardShortcutClassifier.IsPlainControlEnter(key) ? UiInputResult.NotHandled : AcceptByKeyboard(frame);
         if (key.Key == ConsoleKey.Escape)
@@ -139,20 +148,19 @@ internal sealed class CommandCompletionLayer : UiLayer<CommandCompletionFrame>
         if (!TryRestoreCommittedList(frame))
             return UiInputResult.HandledAndInvalidate;
 
-        bool relevant = route.IsCapturedRoute || route.Target == ScrollbarTarget || (route.Target is not null && TryItemIndex(route.Target, out _));
-        if (!relevant)
-            return UiInputResult.NotHandled;
-
-        ScrollableListInputResult result = _context.CommandCompletion.List.HandleMouse(mouse, frame.ContentBounds, frame.ListState, confirmOnMouseDown: true, confirmOnDoubleClick: true);
+        RoutedScrollableListInputResult routed = _list.RouteInput(
+            mouse,
+            frame.ContentBounds,
+            frame.ListState,
+            route,
+            confirmOnMouseDown: true,
+            confirmOnDoubleClick: true);
+        ScrollableListInputResult result = routed.ListResult;
         if (!result.IsHandled)
             return UiInputResult.NotHandled;
-        if (result.Kind == ScrollableListInputResultKind.Confirmed && route.Target is { } target && TryItemIndex(target, out int itemIndex))
-            return AcceptByMouse(itemIndex, frame);
-        if (result.DragStarted)
-            return UiInputResult.CaptureMouse(ScrollbarTarget, MouseButton.Left, invalidate: true);
-        if (result.DragEnded)
-            return UiInputResult.ReleaseMouse(invalidate: true);
-        return UiInputResult.HandledAndInvalidate;
+        if (result.Kind == ScrollableListInputResultKind.Confirmed)
+            return AcceptByMouse(_list.SelectedIndex, frame);
+        return routed.UiResult;
     }
 
     private UiInputResult AcceptByKeyboard(CommandCompletionFrame frame) =>
@@ -186,24 +194,13 @@ internal sealed class CommandCompletionLayer : UiLayer<CommandCompletionFrame>
             frame.Items.Any(item => item.AbsoluteIndex >= completion.List.Count || !string.Equals(completion.List.Items[item.AbsoluteIndex], item.Text, StringComparison.Ordinal)))
             return false;
 
-        completion.List.ApplyCommittedFrame(frame.ListState);
+        _list.ApplyCommittedFrame(frame.ListState);
         return true;
     }
 
-    private static UiInputResult ToUiResult(ScrollableListInputResult result) => result.IsHandled ? UiInputResult.HandledAndInvalidate : UiInputResult.NotHandled;
     private static bool TryGetCommittedItem(int index, CommandCompletionFrame frame, out CommandCompletionItemFrame item)
     {
         item = frame.Items.FirstOrDefault(candidate => candidate.AbsoluteIndex == index)!;
         return item is not null;
-    }
-    private static UiTargetId ItemTarget(int index) => new($"application.command-completion.item:{index}");
-    private static bool TryItemIndex(UiTargetId target, out int index)
-    {
-        const string prefix = "application.command-completion.item:";
-        if (target.Value.StartsWith(prefix, StringComparison.Ordinal) && int.TryParse(target.Value[prefix.Length..], out index))
-            return true;
-
-        index = -1;
-        return false;
     }
 }

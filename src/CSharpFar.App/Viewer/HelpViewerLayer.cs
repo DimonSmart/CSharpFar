@@ -8,9 +8,10 @@ namespace CSharpFar.App.Viewer;
 
 internal sealed partial class HelpViewerLayer : InteractiveSurfaceLayer<HelpViewerFrame, HelpAction>
 {
-    internal static readonly UiTargetId Keyboard = new("help.keyboard");
-    internal static readonly UiTargetId Content = new("help.content");
-    internal static readonly UiTargetId Scrollbar = new("help.vertical-scrollbar");
+    private static readonly UiTargetScope Targets = new("help");
+    internal static readonly UiTargetId Keyboard = Targets.Child("keyboard");
+    internal static readonly UiTargetId Content = Targets.Child("content");
+    internal static readonly UiTargetId Scrollbar = Targets.Child("vertical-scrollbar");
 
     private static readonly FunctionKeyBarAction<HelpAction>[] FunctionKeyActions =
     [
@@ -18,7 +19,7 @@ internal sealed partial class HelpViewerLayer : InteractiveSurfaceLayer<HelpView
     ];
 
     private static readonly FunctionKeyBarController<HelpAction> FunctionKeysController =
-        new(new UiTargetId("help.function-key-bar"));
+        new(Targets.Child("function-key-bar"));
 
     internal static UiTargetId FunctionKeys => FunctionKeysController.InteractionTarget;
 
