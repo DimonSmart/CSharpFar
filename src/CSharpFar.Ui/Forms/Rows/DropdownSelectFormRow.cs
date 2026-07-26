@@ -104,11 +104,8 @@ public sealed class DropdownSelectFormRow<T> : FormRow, IFormCursorProvider, IFo
         {
             "scrollbar" => _dropdown.TryHandleScrollbarMouse(mouse, dropdownFrame),
             "popup" => _dropdown.TryHandlePopupContentMouse(mouse, dropdownFrame, out _, out valueChanged),
-            _ when _dropdown.HasScrollbarDrag => _dropdown.TryHandleScrollbarMouse(mouse, dropdownFrame),
-            _ when dropdownFrame.IsOpen && dropdownFrame.ScrollbarBounds is Rect scrollbar && scrollbar.Contains(mouse.X, mouse.Y) =>
-                _dropdown.TryHandleScrollbarMouse(mouse, dropdownFrame),
-            _ when dropdownFrame.IsOpen => _dropdown.TryHandlePopupContentMouse(mouse, dropdownFrame, out _, out valueChanged),
-            _ => _dropdown.TryHandleFieldMouse(mouse, dropdownFrame),
+            null => _dropdown.TryHandleFieldMouse(mouse, dropdownFrame),
+            _ => false,
         };
         if (handled)
             return valueChanged
