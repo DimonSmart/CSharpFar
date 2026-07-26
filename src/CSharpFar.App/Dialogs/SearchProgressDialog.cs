@@ -116,8 +116,8 @@ internal sealed class SearchProgressDialog
                 },
                 applyCommittedFrame: frame =>
                 {
-                    committedListRows = frame.ListState.ViewportRows;
-                    routedList.ApplyCommittedFrame(frame.ListState);
+                    committedListRows = frame.List.List.ViewportRows;
+                    routedList.ApplyCommittedFrame(frame.List);
                 },
                 wakeSignal: completionWake.Token);
         }
@@ -291,7 +291,7 @@ internal sealed class SearchProgressDialog
             minHeight: 14);
         SearchProgressLayout layout = CalculateLayout(modal, list.Count);
         ScrollableFormFrame? buttonFrame = null;
-        ScrollableListFrameState listState = list.CalculateFrame(layout.ListBounds.Height, layout.ScrollbarBounds);
+        RoutedScrollableListFrame listFrame = list.CalculateFrame(layout.ListBounds.Height, layout.ListBounds, layout.ScrollbarBounds);
         _modalRenderer.Render(
             context.Canvas,
             modal,
@@ -317,8 +317,8 @@ internal sealed class SearchProgressDialog
                 }
 
                 DrawSeparator(context.Canvas, modal.FrameBounds, layout.SeparatorY);
-                list.Render(context.Canvas, layout.ListBounds, listState);
-                list.RenderScrollbar(context.Canvas, listState, FarDialogStyles.Border);
+                list.Render(context.Canvas, listFrame);
+                list.RenderScrollbar(context.Canvas, listFrame, FarDialogStyles.Border);
 
                 buttonFrame = layout.FooterBounds.Height > 0
                     ? form.Render(
@@ -335,7 +335,7 @@ internal sealed class SearchProgressDialog
 
         return new SearchProgressFrame(
             layout,
-            listState,
+            listFrame,
             buttonFrame ?? throw new InvalidOperationException("Search progress buttons were not rendered."),
             form,
             state.Results,
@@ -368,8 +368,7 @@ internal sealed class SearchProgressDialog
     {
         var builder = new UiInteractionFrameBuilder()
             .AddFragment(list.BuildInteractionFragment(
-                frame.Layout.ListBounds,
-                frame.ListState,
+                frame.List,
                 0,
                 frame.Layout.ListBounds.Width > 0 && frame.Layout.ListBounds.Height > 0))
             .SetDefaultFocusTarget(frame.Layout.ListBounds.Width > 0 && frame.Layout.ListBounds.Height > 0 ? list.ListTarget : null);
@@ -413,7 +412,7 @@ internal sealed class SearchProgressDialog
                 : (SearchProgressInput.None, UiInputResult.HandledAndInvalidate);
         }
 
-        RoutedScrollableListInputResult routedResult = list.RouteInput(input, frame.Layout.ListBounds, frame.ListState, route);
+        RoutedScrollableListInputResult routedResult = list.RouteInput(input, frame.List, route);
         ScrollableListInputResult listInput = routedResult.ListResult;
 
         if (!listInput.IsHandled)
@@ -588,7 +587,7 @@ internal sealed class SearchProgressDialog
 
     private sealed record SearchProgressFrame(
         SearchProgressLayout Layout,
-        ScrollableListFrameState ListState,
+        RoutedScrollableListFrame List,
         ScrollableFormFrame Buttons,
         ScrollableFormDialog Form,
         SearchResultItem[] Results,
@@ -596,8 +595,8 @@ internal sealed class SearchProgressDialog
         bool CanStop)
     {
         public SearchResultItem? SelectedResult =>
-            ListState.SelectedIndex >= 0 && ListState.SelectedIndex < Results.Length
-                ? Results[ListState.SelectedIndex]
+            List.List.SelectedIndex >= 0 && List.List.SelectedIndex < Results.Length
+                ? Results[List.List.SelectedIndex]
                 : null;
     }
 }

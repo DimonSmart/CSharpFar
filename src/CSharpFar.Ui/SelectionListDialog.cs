@@ -76,13 +76,13 @@ public sealed class SelectionListDialog<T>
             (context, _) =>
             {
                 var frameLayout = CalculateLayout(context.Size);
-                var listState = _list.CalculateFrame(frameLayout.VisibleRows, frameLayout.ScrollbarBounds);
-                var frame = new SelectionListFrame(frameLayout, listState);
+                var list = _list.CalculateFrame(frameLayout.VisibleRows, frameLayout.ContentBounds, frameLayout.ScrollbarBounds);
+                var frame = new SelectionListFrame(frameLayout, list);
                 RenderLayer(context.Canvas, frame);
                 return frame;
             },
             frame => new UiInteractionFrameBuilder()
-                .AddFragment(_list.BuildInteractionFragment(frame.Layout.ContentBounds, frame.ListState, 0, _list.HasItems && frame.Layout.ContentBounds.Width > 0 && frame.Layout.ContentBounds.Height > 0))
+                .AddFragment(_list.BuildInteractionFragment(frame.List, 0, _list.HasItems && frame.List.ContentBounds.Width > 0 && frame.List.ContentBounds.Height > 0))
                 .SetDefaultFocusTarget(_list.HasItems && frame.Layout.ContentBounds.Width > 0 && frame.Layout.ContentBounds.Height > 0 ? ListTarget : null)
                 .Build(),
             (input, frame, route) =>
@@ -92,8 +92,7 @@ public sealed class SelectionListDialog<T>
 
                 RoutedScrollableListInputResult routed = _list.RouteInput(
                     input,
-                    frame.Layout.ContentBounds,
-                    frame.ListState,
+                    frame.List,
                     route,
                     confirmOnDoubleClick: true);
                 return (new SelectionListInput(input, routed.ListResult), routed.UiResult);
@@ -117,7 +116,7 @@ public sealed class SelectionListDialog<T>
             },
             applyCommittedFrame: frame =>
             {
-                _list.ApplyCommittedFrame(frame.ListState);
+                _list.ApplyCommittedFrame(frame.List);
                 if (_list.HasItems && !initialSelectionNotified)
                 {
                     NotifySelectionChanged();
@@ -143,7 +142,7 @@ public sealed class SelectionListDialog<T>
         var normalStyle = PaletteStyles.DialogFill(palette);
         var selectedStyle = PaletteStyles.InputField(palette);
         var emptyStyle = PaletteStyles.DialogFill(palette);
-        var scrollState = _list.GetScrollState(layout.VisibleRows, frame.ListState.ScrollTop);
+        var scrollState = _list.GetScrollState(layout.VisibleRows, frame.List.List.ScrollTop);
 
         _frameRenderer.RenderFrame(
             screen,
@@ -152,7 +151,7 @@ public sealed class SelectionListDialog<T>
             DoubleBorder,
             PaletteStyles.DialogPopupOptions(palette),
             scrollState,
-            (_, _) => _list.Render(screen, layout.ContentBounds, frame.ListState, normalStyle, selectedStyle, emptyStyle));
+            (_, _) => _list.Render(screen, frame.List, normalStyle, selectedStyle, emptyStyle));
 
     }
 
@@ -186,7 +185,7 @@ public sealed class SelectionListDialog<T>
 
     private readonly record struct SelectionListFrame(
         SelectionListLayout Layout,
-        ScrollableListFrameState ListState);
+        RoutedScrollableListFrame List);
 
     private readonly record struct SelectionListInput(
         ConsoleInputEvent Input,

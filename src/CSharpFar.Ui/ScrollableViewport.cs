@@ -100,18 +100,13 @@ public sealed class ScrollableViewport
         return SetFirstVisibleIndex(target, frame);
     }
 
-    public ScrollableViewportInputResult HandleMouse(
+    public ScrollableViewportInputResult HandleContentMouse(
         MouseConsoleInputEvent mouse,
         ScrollableViewportFrameState frame,
         int wheelStep = 3)
     {
         if (mouse.Kind == MouseEventKind.Wheel)
         {
-            bool insideContent = frame.ContentBounds.Contains(mouse.X, mouse.Y);
-            bool insideScrollbar = frame.ScrollbarBounds is Rect scrollbar && scrollbar.Contains(mouse.X, mouse.Y);
-            if (!insideContent && !insideScrollbar)
-                return ScrollableViewportInputResult.NotHandled;
-
             int step = Math.Max(1, wheelStep);
             return mouse.Button switch
             {
@@ -121,6 +116,13 @@ public sealed class ScrollableViewport
             };
         }
 
+        return ScrollableViewportInputResult.NotHandled;
+    }
+
+    public ScrollableViewportInputResult HandleScrollbarMouse(
+        MouseConsoleInputEvent mouse,
+        ScrollableViewportFrameState frame)
+    {
         if (frame.ScrollbarFrame is not { } scrollbarFrame)
             return ScrollableViewportInputResult.NotHandled;
 
@@ -135,6 +137,19 @@ public sealed class ScrollableViewport
                 : ScrollableViewportInputResultKind.Handled,
             result.DragStarted,
             result.DragEnded);
+    }
+
+    [Obsolete("Use HandleContentMouse or HandleScrollbarMouse after target routing.")]
+    public ScrollableViewportInputResult HandleMouse(MouseConsoleInputEvent mouse, ScrollableViewportFrameState frame, int wheelStep = 3)
+    {
+        if (mouse.Kind == MouseEventKind.Wheel &&
+            !frame.ContentBounds.Contains(mouse.X, mouse.Y) &&
+            (frame.ScrollbarBounds is not Rect scrollbarBounds || !scrollbarBounds.Contains(mouse.X, mouse.Y)))
+            return ScrollableViewportInputResult.NotHandled;
+
+        return mouse.Kind == MouseEventKind.Wheel
+            ? HandleContentMouse(mouse, frame, wheelStep)
+            : HandleScrollbarMouse(mouse, frame);
     }
 
     private ScrollableViewportInputResult SetFirstVisibleIndex(int requested, ScrollableViewportFrameState frame)

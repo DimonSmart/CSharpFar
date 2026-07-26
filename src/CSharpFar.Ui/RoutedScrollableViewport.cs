@@ -94,7 +94,8 @@ public sealed class RoutedScrollableViewport
         ScrollableViewportInputResult result = input switch
         {
             KeyConsoleInputEvent key => _viewport.HandleKey(key.Key, frame),
-            MouseConsoleInputEvent mouse when IsTargetRoute(route) => _viewport.HandleMouse(mouse, frame, wheelStep),
+            MouseConsoleInputEvent mouse when route.Target == ContentTarget => _viewport.HandleContentMouse(mouse, frame, wheelStep),
+            MouseConsoleInputEvent mouse when route.Target == ScrollbarTarget => _viewport.HandleScrollbarMouse(mouse, frame),
             _ => ScrollableViewportInputResult.NotHandled,
         };
         return new RoutedScrollableViewportInputResult(
