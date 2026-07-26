@@ -324,7 +324,7 @@ public class SingleLineTextInputTests
     }
 
     [Fact]
-    public void HandleHistoryDropdownMouse_ClickSuggestionAcceptsValue()
+    public void HandleHistoryPopupContentMouse_ClickSuggestionAcceptsValue()
     {
         var buffer = new CommandLineState();
         var history = new SingleLineTextHistoryState();
@@ -332,14 +332,17 @@ public class SingleLineTextInputTests
         history.Add("compare");
         Assert.True(history.OpenForPrefix("c", availableContentRows: 5));
 
-        bool handled = SingleLineTextInput.TryHandleHistoryDropdownMouse(
-            history,
-            buffer,
-            LeftMouse(2, 2),
+        SingleLineTextHistoryFrame frame = Assert.IsType<SingleLineTextHistoryFrame>(SingleLineTextInput.CalculateHistoryDropdownFrame(
             fieldX: 1,
             fieldY: 0,
             fieldWidth: 12,
-            screenHeight: 8);
+            screenHeight: 8,
+            history));
+        bool handled = SingleLineTextInput.TryHandleHistoryPopupContentMouse(
+            history,
+            buffer,
+            LeftMouse(2, 2),
+            frame);
 
         Assert.True(handled);
         Assert.Equal("compare", buffer.Text);
@@ -347,47 +350,27 @@ public class SingleLineTextInputTests
     }
 
     [Fact]
-    public void HandleHistoryDropdownMouse_ClickScrollbarMovesFirstVisibleIndex()
+    public void HandleHistoryScrollbarMouse_ClickScrollbarMovesFirstVisibleIndex()
     {
-        var buffer = new CommandLineState();
         var history = new SingleLineTextHistoryState();
         for (int i = 0; i < 20; i++)
             history.Add("item-" + i);
         Assert.True(history.OpenAll(availableContentRows: 5));
 
-        bool handled = SingleLineTextInput.TryHandleHistoryDropdownMouse(
-            history,
-            buffer,
-            LeftMouse(12, 6),
+        SingleLineTextHistoryFrame frame = Assert.IsType<SingleLineTextHistoryFrame>(SingleLineTextInput.CalculateHistoryDropdownFrame(
             fieldX: 1,
             fieldY: 0,
             fieldWidth: 12,
-            screenHeight: 8);
+            screenHeight: 8,
+            history));
+        bool handled = SingleLineTextInput.TryHandleHistoryScrollbarMouse(
+            history,
+            LeftMouse(12, 6),
+            frame);
 
         Assert.True(handled);
         Assert.True(history.FirstVisibleIndex > 0);
         Assert.True(history.IsDropdownOpen);
-    }
-
-    [Fact]
-    public void HandleHistoryDropdownMouse_ClickOutsideClosesDropdown()
-    {
-        var buffer = new CommandLineState();
-        var history = new SingleLineTextHistoryState();
-        history.Add("copy");
-        Assert.True(history.OpenForPrefix("c", availableContentRows: 5));
-
-        bool handled = SingleLineTextInput.TryHandleHistoryDropdownMouse(
-            history,
-            buffer,
-            LeftMouse(18, 7),
-            fieldX: 1,
-            fieldY: 0,
-            fieldWidth: 12,
-            screenHeight: 8);
-
-        Assert.True(handled);
-        Assert.False(history.IsDropdownOpen);
     }
 
     [Fact]

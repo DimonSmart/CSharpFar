@@ -238,22 +238,6 @@ public static class SingleLineTextInput
         mouseY == fieldY &&
         mouseX == fieldX + fieldWidth - 1;
 
-    public static bool TryHandleHistoryDropdownMouse(
-        SingleLineTextHistoryState history,
-        CommandLineState buffer,
-        MouseConsoleInputEvent mouse,
-        int fieldX,
-        int fieldY,
-        int fieldWidth,
-        int screenHeight)
-    {
-        var frame = CalculateHistoryDropdownFrame(fieldX, fieldY, fieldWidth, screenHeight, history);
-        return frame is { } value &&
-            (value.ScrollbarBounds is Rect scrollbarBounds && scrollbarBounds.Contains(mouse.X, mouse.Y)
-                ? TryHandleHistoryScrollbarMouse(history, mouse, value)
-                : TryHandleHistoryPopupContentMouse(history, buffer, mouse, value));
-    }
-
     public static bool TryHandleHistoryPopupContentMouse(
         SingleLineTextHistoryState history,
         CommandLineState buffer,
