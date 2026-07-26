@@ -8,11 +8,15 @@ namespace CSharpFar.Tests;
 internal sealed class UiLayerTestHost
 {
     public UiLayerTestHost(IUiLayer layer, int width = 80, int height = 25)
+        : this(layer, new FakeConsoleDriver(width, height))
     {
-        Driver = new FakeConsoleDriver(width, height);
+    }
+
+    public UiLayerTestHost(IUiLayer layer, FakeConsoleDriver driver)
+    {
+        Driver = driver;
         Screen = new ScreenRenderer(Driver);
-        Composition = new UiCompositionHost(Screen);
-        Composition.SetRootSurface(new LayerSurface(Screen, layer));
+        Composition = UiTestHost.Create(Screen, new UiLayerTestSurface(Screen, layer)).Composition;
     }
 
     public FakeConsoleDriver Driver { get; }
@@ -26,23 +30,4 @@ internal sealed class UiLayerTestHost
     public UiInputResult Dispatch(ConsoleInputEvent input) => Composition.DispatchInput(input);
 
     public void Resize(int width, int height) => Driver.SetSize(width, height);
-
-    private sealed class LayerSurface(ScreenRenderer screen, IUiLayer layer) : IUiSurface, IUiLayer, IUiFocusRuntime
-    {
-        public UiLayerInputPolicy InputPolicy => layer.InputPolicy;
-        public IUiFocusState FocusState => layer.FocusState;
-        public UiInteractionFrame CommittedInteractionFrame => layer.CommittedInteractionFrame;
-        public IDisposable BeginFrame(UiRenderRequest request) => screen.BeginFrame();
-        public void Render(UiRenderContext context) => layer.Render(context);
-        public void CompleteFrame(UiFrameCompletion completion) { }
-        public UiInputResult RouteInput(ConsoleInputEvent input, UiInputRouteContext context) => layer.RouteInput(input, context);
-
-        public void RequestFocusOnNextCommit(UiFocusRequest request)
-        {
-            if (layer is not IUiFocusRuntime runtime)
-                throw new InvalidOperationException("The test layer does not support focus requests.");
-
-            runtime.RequestFocusOnNextCommit(request);
-        }
-    }
 }

@@ -40,8 +40,7 @@ public sealed class UiLayerTests
     public void StableRender_DefaultInteractionFrameIsEmpty()
     {
         var layer = new DefaultInteractionLayer();
-        var host = new UiCompositionHost(new ScreenRenderer(new FakeConsoleDriver()));
-        host.SetRootSurface(new SurfaceLayer(host.Screen, layer));
+        var host = new UiLayerTestHost(layer);
 
         host.Render();
 
@@ -58,7 +57,7 @@ public sealed class UiLayerTests
                 new(new UiTargetId("target"), 0, Cursor: cursor),
             ])),
         };
-        var host = Host(layer);
+        var host = new UiLayerTestHost(layer);
 
         host.Render();
 
@@ -75,8 +74,7 @@ public sealed class UiLayerTests
                 new(new UiTargetId("target"), 0, Cursor: new UiCursorPlacement(12, 7)),
             ])),
         };
-        var host = new UiCompositionHost(new ScreenRenderer(driver));
-        host.SetRootSurface(new SurfaceLayer(host.Screen, layer));
+        var host = new UiLayerTestHost(layer, driver);
 
         host.Render();
 
@@ -93,8 +91,8 @@ public sealed class UiLayerTests
         var root = CursorLayer("root", new UiCursorPlacement(1, 1));
         var middle = CursorLayer("middle", new UiCursorPlacement(2, 2));
         var top = CursorLayer("top", null);
-        var host = new UiCompositionHost(new ScreenRenderer(driver));
-        host.SetRootSurface(new SurfaceLayer(host.Screen, root));
+        var fixture = new UiLayerTestHost(root, driver);
+        var host = fixture.Composition;
         using var middleScope = host.RegisterPersistentOverlay(middle);
         using var topScope = host.RegisterPersistentOverlay(top);
 
@@ -109,8 +107,8 @@ public sealed class UiLayerTests
         var driver = new FakeConsoleDriver(80, 25);
         var root = CursorLayer("root", new UiCursorPlacement(1, 1));
         var top = CursorLayer("top", new UiCursorPlacement(3, 4));
-        var host = new UiCompositionHost(new ScreenRenderer(driver));
-        host.SetRootSurface(new SurfaceLayer(host.Screen, root));
+        var fixture = new UiLayerTestHost(root, driver);
+        var host = fixture.Composition;
         using var topScope = host.RegisterPersistentOverlay(top);
 
         host.Render();
@@ -130,11 +128,10 @@ public sealed class UiLayerTests
                     Cursor: new UiCursorPlacement(context.Viewport.Width - 1, 0)),
             ])),
         };
-        var host = new UiCompositionHost(new ScreenRenderer(driver));
-        host.SetRootSurface(new SurfaceLayer(host.Screen, layer));
+        var host = new UiLayerTestHost(layer, driver);
         host.Render();
         var cursor = (driver.CursorVisible, driver.CursorX, driver.CursorY);
-        long stableVersion = host.StableRenderVersion;
+        long stableVersion = host.Composition.StableRenderVersion;
         bool observedRejectedAttempt = false;
         driver.BeforeTrySetCursorPositionInViewport = current =>
         {
@@ -148,7 +145,7 @@ public sealed class UiLayerTests
         host.Render();
 
         Assert.True(observedRejectedAttempt);
-        Assert.Equal(stableVersion + 1, host.StableRenderVersion);
+        Assert.Equal(stableVersion + 1, host.Composition.StableRenderVersion);
         Assert.Equal(100, layer.CommittedFrame.Value);
         Assert.Equal((99, 0), (driver.CursorX, driver.CursorY));
         Assert.True(driver.CursorVisible);
@@ -170,8 +167,8 @@ public sealed class UiLayerTests
                     : UiFocusFrame.Empty);
             },
         };
-        var host = new UiCompositionHost(new ScreenRenderer(driver));
-        host.SetRootSurface(new SurfaceLayer(host.Screen, root));
+        var fixture = new UiLayerTestHost(root, driver);
+        var host = fixture.Composition;
         using var topScope = host.RegisterPersistentOverlay(top);
         host.Render();
         var cursor = (driver.CursorVisible, driver.CursorX, driver.CursorY);
@@ -202,7 +199,7 @@ public sealed class UiLayerTests
                 new(new UiTargetId("target"), 0),
             ])),
         };
-        var host = Host(layer);
+        var host = new UiLayerTestHost(layer);
 
         host.Render();
 
@@ -237,8 +234,7 @@ public sealed class UiLayerTests
                 ]));
             },
         };
-        var host = new UiCompositionHost(new ScreenRenderer(driver));
-        host.SetRootSurface(new SurfaceLayer(host.Screen, layer));
+        var host = new UiLayerTestHost(layer, driver);
 
         host.Render();
 
@@ -262,8 +258,7 @@ public sealed class UiLayerTests
                 ]));
             },
         };
-        var host = new UiCompositionHost(new ScreenRenderer(driver));
-        host.SetRootSurface(new SurfaceLayer(host.Screen, layer));
+        var host = new UiLayerTestHost(layer, driver);
         host.Render();
         var previousInteraction = layer.CommittedInteractionFrame;
         layer.RenderCore = _ => throw new InvalidOperationException("render failed");
@@ -292,8 +287,7 @@ public sealed class UiLayerTests
                 ]));
             },
         };
-        var host = new UiCompositionHost(new ScreenRenderer(driver));
-        host.SetRootSurface(new SurfaceLayer(host.Screen, layer));
+        var host = new UiLayerTestHost(layer, driver);
         host.Render();
         driver.ResizeAfterWriteCount = driver.WriteAtCallCount + 1;
         driver.ResizeAfterWrite = d => d.SetSize(100, 35);
@@ -315,10 +309,10 @@ public sealed class UiLayerTests
         {
             RenderCore = _ => new TestFrame(1, FocusFrame([new(first, 0), new(second, 1)], first)),
         };
-        var host = Host(layer);
+        var host = new UiLayerTestHost(layer);
         host.Render();
 
-        host.DispatchInput(Key(ConsoleKey.A));
+        host.Dispatch(UiTestInput.Key(ConsoleKey.A));
 
         Assert.Equal(first, layer.LastRoute!.Target);
         Assert.Equal(UiInputRouteKind.FocusedTarget, layer.LastRoute.RouteKind);
@@ -335,10 +329,10 @@ public sealed class UiLayerTests
                 new(new UiTargetId("top"), new Rect(0, 0, 4, 4)),
             ],
         };
-        var host = Host(layer);
+        var host = new UiLayerTestHost(layer);
         host.Render();
 
-        host.DispatchInput(new MouseConsoleInputEvent(1, 1, MouseButton.Left, MouseEventKind.Down, MouseKeyModifiers.None));
+        host.Dispatch(UiTestInput.Mouse(1, 1, MouseEventKind.Down));
 
         Assert.Equal(new UiTargetId("top"), layer.LastRoute!.Target);
         Assert.Equal(UiInputRouteKind.HitTarget, layer.LastRoute.RouteKind);
@@ -356,16 +350,16 @@ public sealed class UiLayerTests
                 ? UiInputResult.RequestFocus(second)
                 : UiInputResult.NotHandled,
         };
-        var host = Host(layer);
+        var host = new UiLayerTestHost(layer);
         host.Render();
 
-        host.DispatchInput(Key(ConsoleKey.A));
+        host.Dispatch(UiTestInput.Key(ConsoleKey.A));
         Assert.Equal(first, layer.LastRoute!.Target);
         Assert.Equal(first, layer.FocusState.FocusedTarget);
 
         host.Render();
         Assert.Equal(second, layer.FocusState.FocusedTarget);
-        host.DispatchInput(Key(ConsoleKey.B));
+        host.Dispatch(UiTestInput.Key(ConsoleKey.B));
 
         Assert.Equal(second, layer.LastRoute!.Target);
     }
@@ -382,23 +376,16 @@ public sealed class UiLayerTests
                 ? UiInputResult.CaptureMouse(target, MouseButton.Left)
                 : UiInputResult.NotHandled,
         };
-        var host = Host(layer);
+        var host = new UiLayerTestHost(layer);
         host.Render();
-        host.DispatchInput(new MouseConsoleInputEvent(1, 1, MouseButton.Left, MouseEventKind.Down, MouseKeyModifiers.None));
+        host.Dispatch(UiTestInput.Mouse(1, 1, MouseEventKind.Down));
 
         layer.HitRegions = [];
         host.Render();
-        host.DispatchInput(new MouseConsoleInputEvent(10, 10, MouseButton.Left, MouseEventKind.Move, MouseKeyModifiers.None));
+        host.Dispatch(UiTestInput.Mouse(10, 10, MouseEventKind.Move));
 
         Assert.Equal(UiInputRouteKind.Layer, layer.LastRoute!.RouteKind);
         Assert.Null(layer.LastRoute.Target);
-    }
-
-    private static UiCompositionHost Host(TestLayer layer)
-    {
-        var host = new UiCompositionHost(new ScreenRenderer(new FakeConsoleDriver()));
-        host.SetRootSurface(new SurfaceLayer(host.Screen, layer));
-        return host;
     }
 
     private static TestLayer CursorLayer(string target, UiCursorPlacement? cursor) =>
@@ -482,25 +469,4 @@ public sealed class UiLayerTests
             UiInputRouteContext context) => UiInputResult.NotHandled;
     }
 
-    private sealed class SurfaceLayer : IUiSurface, IUiLayer, IUiFocusRuntime
-    {
-        private readonly ScreenRenderer _screen;
-        private readonly UiLayer<TestFrame> _layer;
-
-        public SurfaceLayer(ScreenRenderer screen, UiLayer<TestFrame> layer) =>
-            (_screen, _layer) = (screen, layer);
-
-        public UiLayerInputPolicy InputPolicy => _layer.InputPolicy;
-        public IUiFocusState FocusState => _layer.FocusState;
-        public UiInteractionFrame CommittedInteractionFrame => _layer.CommittedInteractionFrame;
-        public IDisposable BeginFrame(UiRenderRequest request) => _screen.BeginFrame();
-        public void Render(UiRenderContext context) => _layer.Render(context);
-        public void CompleteFrame(UiFrameCompletion completion) { }
-
-        public UiInputResult RouteInput(ConsoleInputEvent input, UiInputRouteContext context) =>
-            _layer.RouteInput(input, context);
-
-        void IUiFocusRuntime.RequestFocusOnNextCommit(UiFocusRequest request) =>
-            ((IUiFocusRuntime)_layer).RequestFocusOnNextCommit(request);
-    }
 }
