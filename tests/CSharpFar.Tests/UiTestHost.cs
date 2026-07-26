@@ -39,11 +39,12 @@ internal sealed class UiTestHost
 
     public static UiTestHost Create(
         ScreenRenderer screen,
-        Action<UiRenderContext>? rootRender = null) =>
-        new(screen, rootRender);
+        IUiSurface rootSurface) =>
+        new(screen, rootSurface);
 
     public static UiTestHost Create(
         ScreenRenderer screen,
-        IUiSurface rootSurface) =>
-        new(screen, rootSurface);
+        Action<UiRenderContext>? rootRender = null) =>
+        new(screen, rootRender);
+
 }

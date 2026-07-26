@@ -22,10 +22,10 @@ public sealed class UiMouseCaptureTests
         using var ownerScope = host.PushOverlay(owner);
         using var topScope = host.PushOverlay(top);
 
-        host.DispatchInput(Mouse(MouseEventKind.Down, MouseButton.Left));
+        fixture.Dispatch(UiTestInput.Mouse(1, 1, MouseEventKind.Down));
         owner.Result = UiInputResult.NotHandled;
         top.Result = UiInputResult.HandledResult;
-        host.DispatchInput(Mouse(MouseEventKind.Move, MouseButton.Left));
+        fixture.Dispatch(UiTestInput.Mouse(1, 1, MouseEventKind.Move));
 
         Assert.Contains(owner.Contexts, context => context.IsCapturedRoute && context.Target == new UiTargetId("thumb"));
         Assert.Equal(2, owner.Calls.Count);
@@ -37,7 +37,7 @@ public sealed class UiMouseCaptureTests
     public void ExplicitRelease_ClearsCapture()
     {
         var calls = new List<string>();
-        var (host, _) = Host(calls);
+        var (host, _) = Fixture(calls);
         var owner = new CaptureLayer("owner", calls)
         {
             Result = UiInputResult.CaptureMouse(new UiTargetId("thumb"), MouseButton.Left),
@@ -61,7 +61,7 @@ public sealed class UiMouseCaptureTests
     public void NewCapture_ReplacesOldCapture()
     {
         var calls = new List<string>();
-        var (host, _) = Host(calls);
+        var (host, _) = Fixture(calls);
         var first = new CaptureLayer("first", calls)
         {
             Result = UiInputResult.CaptureMouse(new UiTargetId("first"), MouseButton.Left),
@@ -86,7 +86,7 @@ public sealed class UiMouseCaptureTests
     [Fact]
     public void MatchingUp_ReleasesCapture()
     {
-        var (host, _) = Host();
+        var (host, _) = Fixture();
         var owner = new CaptureLayer("owner")
         {
             Result = UiInputResult.CaptureMouse(new UiTargetId("thumb"), MouseButton.Left),
@@ -108,7 +108,7 @@ public sealed class UiMouseCaptureTests
     [Fact]
     public void NonMatchingUp_DoesNotReleaseCapture()
     {
-        var (host, _) = Host();
+        var (host, _) = Fixture();
         var owner = new CaptureLayer("owner")
         {
             Result = UiInputResult.CaptureMouse(new UiTargetId("thumb"), MouseButton.Left),
@@ -130,7 +130,7 @@ public sealed class UiMouseCaptureTests
     [Fact]
     public void DisposeOwner_ClearsCapture()
     {
-        var (host, _) = Host();
+        var (host, _) = Fixture();
         var owner = new CaptureLayer("owner")
         {
             Result = UiInputResult.CaptureMouse(new UiTargetId("thumb"), MouseButton.Left),
@@ -151,7 +151,7 @@ public sealed class UiMouseCaptureTests
     [Fact]
     public void InvalidCaptureRequestsThrow()
     {
-        var (host, surface) = Host();
+        var (host, surface) = Fixture();
         surface.Result = UiInputResult.CaptureMouse(new UiTargetId("thumb"), MouseButton.Left);
 
         Assert.Throws<InvalidOperationException>(() => host.DispatchInput(Key(ConsoleKey.A)));
@@ -169,7 +169,7 @@ public sealed class UiMouseCaptureTests
     [Fact]
     public void CaptureRequest_ForUnknownCommittedTargetThrows()
     {
-        var (host, surface) = Host();
+        var (host, surface) = Fixture();
         surface.Result = UiInputResult.CaptureMouse(new UiTargetId("missing"), MouseButton.Left);
 
         Assert.Throws<InvalidOperationException>(() => host.DispatchInput(Mouse(MouseEventKind.Down, MouseButton.Left)));
@@ -178,7 +178,7 @@ public sealed class UiMouseCaptureTests
     [Fact]
     public void NonePolicyLayer_IsSkippedAndCannotEstablishCapture()
     {
-        var (host, surface) = Host();
+        var (host, surface) = Fixture();
         var none = new CaptureLayer("none", policy: UiLayerInputPolicy.None)
         {
             Result = UiInputResult.CaptureMouse(new UiTargetId("thumb"), MouseButton.Left),
@@ -196,7 +196,7 @@ public sealed class UiMouseCaptureTests
     [Fact]
     public void LayerChangingToNonePolicyBeforeCaptureValidationIsRejected()
     {
-        var (host, surface) = Host();
+        var (host, surface) = Fixture();
         surface.Result = UiInputResult.CaptureMouse(new UiTargetId("thumb"), MouseButton.Left);
         surface.OnRoute = () => surface.Policy = UiLayerInputPolicy.None;
 
@@ -207,7 +207,7 @@ public sealed class UiMouseCaptureTests
     public void ModalOverlayAboveOwner_PreemptsCaptureAndBlocksCapturedOwner()
     {
         var calls = new List<string>();
-        var (host, _) = Host(calls);
+        var (host, _) = Fixture(calls);
         var owner = new CaptureLayer("owner", calls)
         {
             Result = UiInputResult.CaptureMouse(new UiTargetId("thumb"), MouseButton.Left),
@@ -229,12 +229,12 @@ public sealed class UiMouseCaptureTests
     public void TemporarySurfaceClearsRootCaptureAndDoesNotRestoreIt()
     {
         var calls = new List<string>();
-        var (host, surface) = Host(calls);
+        var (host, surface) = Fixture(calls);
         surface.Result = UiInputResult.CaptureMouse(new UiTargetId("root"), MouseButton.Left);
         host.DispatchInput(Mouse(MouseEventKind.Down, MouseButton.Left));
 
         var temporary = new CaptureLayer("temporary", calls);
-        using (host.OpenSurface(new SurfaceLayer(host.Screen, temporary)))
+        using (host.OpenSurface(new UiLayerTestSurface(host.Screen, temporary)))
         {
             calls.Clear();
             surface.Result = UiInputResult.NotHandled;
@@ -254,7 +254,7 @@ public sealed class UiMouseCaptureTests
     public void OwnerWithNonePolicy_LosesCaptureAndCurrentEventUsesNormalRouting()
     {
         var calls = new List<string>();
-        var (host, _) = Host(calls);
+        var (host, _) = Fixture(calls);
         var owner = new CaptureLayer("owner", calls)
         {
             Result = UiInputResult.CaptureMouse(new UiTargetId("thumb"), MouseButton.Left),
@@ -276,7 +276,7 @@ public sealed class UiMouseCaptureTests
     public void OwnerAbsentFromActiveComposition_LosesCaptureAndCurrentEventUsesNormalRouting()
     {
         var calls = new List<string>();
-        var (host, _) = Host(calls);
+        var (host, _) = Fixture(calls);
         var owner = new CaptureLayer("owner", calls)
         {
             Result = UiInputResult.CaptureMouse(new UiTargetId("thumb"), MouseButton.Left),
@@ -288,7 +288,7 @@ public sealed class UiMouseCaptureTests
         {
             Result = UiInputResult.HandledResult,
         };
-        using var temporaryScope = host.OpenSurface(new SurfaceLayer(host.Screen, temporary));
+        using var temporaryScope = host.OpenSurface(new UiLayerTestSurface(host.Screen, temporary));
         calls.Clear();
         owner.Result = UiInputResult.NotHandled;
 
@@ -301,7 +301,7 @@ public sealed class UiMouseCaptureTests
     public void ReplaceRoot_ClearsCapture()
     {
         var calls = new List<string>();
-        var (host, surface) = Host(calls);
+        var (host, surface) = Fixture(calls);
         surface.Result = UiInputResult.CaptureMouse(new UiTargetId("root"), MouseButton.Left);
         host.DispatchInput(Mouse(MouseEventKind.Down, MouseButton.Left));
 
@@ -309,26 +309,25 @@ public sealed class UiMouseCaptureTests
         {
             Result = UiInputResult.HandledResult,
         };
-        host.SetRootSurface(new SurfaceLayer(host.Screen, replacement));
+        host.SetRootSurface(new UiLayerTestSurface(host.Screen, replacement));
         calls.Clear();
         host.DispatchInput(Mouse(MouseEventKind.Move, MouseButton.Left));
 
         Assert.Equal(["replacement"], calls);
     }
 
-    private static (UiCompositionHost Host, CaptureLayer Surface) Host(List<string>? calls = null)
+    private static (UiCompositionHost Host, CaptureLayer Surface) Fixture(List<string>? calls = null)
     {
-        var host = new UiCompositionHost(new ScreenRenderer(new FakeConsoleDriver()));
         var surface = new CaptureLayer("surface", calls);
-        host.SetRootSurface(new SurfaceLayer(host.Screen, surface));
-        return (host, surface);
+        var fixture = new UiLayerTestHost(surface);
+        return (fixture.Composition, surface);
     }
 
     private static MouseConsoleInputEvent Mouse(MouseEventKind kind, MouseButton button) =>
-        new(1, 1, button, kind, MouseKeyModifiers.None);
+        UiTestInput.Mouse(1, 1, kind, button);
 
     private static KeyConsoleInputEvent Key(ConsoleKey key) =>
-        new(new ConsoleKeyInfo('\0', key, shift: false, alt: false, control: false));
+        UiTestInput.Key(key);
 
     private sealed class CaptureLayer(
         string name,
@@ -360,14 +359,4 @@ public sealed class UiMouseCaptureTests
         }
     }
 
-    private sealed class SurfaceLayer(ScreenRenderer screen, CaptureLayer layer) : IUiSurface, IUiLayer
-    {
-        public UiLayerInputPolicy InputPolicy => layer.InputPolicy;
-        public IUiFocusState FocusState => layer.FocusState;
-        public UiInteractionFrame CommittedInteractionFrame => layer.CommittedInteractionFrame;
-        public IDisposable BeginFrame(UiRenderRequest request) => screen.BeginFrame();
-        public void Render(UiRenderContext context) => layer.Render(context);
-        public void CompleteFrame(UiFrameCompletion completion) { }
-        public UiInputResult RouteInput(ConsoleInputEvent input, UiInputRouteContext context) => layer.RouteInput(input, context);
-    }
 }
