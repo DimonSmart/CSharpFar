@@ -135,7 +135,7 @@ public sealed class ApplicationSettingsTests : IDisposable
         UiTestRender.Render(new ScreenRenderer(driver), canvas =>
             frame = renderer.Render(canvas, new ConsoleSize(20, 5)));
 
-        Assert.Equal(new ApplicationClockFrame(new Rect(16, 0, 4, 1), "9:07"), frame);
+        Assert.Equal(new ApplicationClockFrame(new Rect(15, 0, 5, 1), "09:07"), frame);
         for (int x = 0; x < 20; x++)
         {
             var cell = driver.GetCell(x, 0);
@@ -157,7 +157,6 @@ public sealed class ApplicationSettingsTests : IDisposable
             "Render",
             BindingFlags.Instance | BindingFlags.NonPublic)
             ?? throw new InvalidOperationException("Application.Render method not found.");
-
         method.Invoke(app, []);
 
         Assert.Equal('╗', driver.GetCell(39, 0).Character);
