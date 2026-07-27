@@ -16,7 +16,7 @@ internal sealed class ClockRenderer
 
     public ApplicationClockFrame? CreateFrame(ConsoleSize size)
     {
-        string text = _now().ToString("H:mm", System.Globalization.CultureInfo.InvariantCulture);
+        string text = _now().ToString("HH:mm", System.Globalization.CultureInfo.InvariantCulture);
         if (text.Length > size.Width)
             return null;
 
