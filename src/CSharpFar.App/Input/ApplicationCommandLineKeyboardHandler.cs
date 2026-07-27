@@ -26,7 +26,10 @@ internal sealed class ApplicationCommandLineKeyboardHandler
         if (KeyboardShortcutClassifier.IsPlainControlKey(key, ConsoleKey.A, '\u0001'))
         {
             if (frame.Mode == ApplicationWorkspaceMode.HiddenCommandLine || frame.Keyboard.CommandLineHasText)
+            {
                 _context.CommandLine.SelectAll();
+                return CommandLineChanged();
+            }
             else
                 _context.ToggleSelectAllPanelItems(frame.Keyboard.ActiveSide);
             return ApplicationInputHandlingResult.FromHandled(true);
@@ -36,14 +39,14 @@ internal sealed class ApplicationCommandLineKeyboardHandler
             return ApplicationInputHandlingResult.FromHandled(_context.CopyCommandLineSelection());
 
         if (KeyboardShortcutClassifier.IsPlainControlKey(key, ConsoleKey.V, '\u0016'))
-            return ApplicationInputHandlingResult.FromHandled(_context.PasteTextIntoCommandLine(frame.Mode));
+            return CommandLineChanged(_context.PasteTextIntoCommandLine(frame.Mode));
 
         if (TryHandleNavigationKey(
             key,
             frame.Mode == ApplicationWorkspaceMode.HiddenCommandLine,
             frame.Keyboard.CommandLineHasText,
             frame.Keyboard.CommandLineHasSelection))
-            return ApplicationInputHandlingResult.FromHandled(true);
+            return CommandLineChanged();
 
         switch (key.Key)
         {
@@ -51,19 +54,19 @@ internal sealed class ApplicationCommandLineKeyboardHandler
                 ResetNavigation(frame);
                 _context.CommandLine.DeleteForward();
                 NotifyVisibleEdit(frame);
-                return ApplicationInputHandlingResult.FromHandled(true);
+                return CommandLineChanged();
 
             case ConsoleKey.Backspace:
                 ResetNavigation(frame);
                 _context.CommandLine.DeleteBack();
                 NotifyVisibleEdit(frame);
-                return ApplicationInputHandlingResult.FromHandled(true);
+                return CommandLineChanged();
 
             case ConsoleKey.Escape:
                 ResetNavigation(frame);
                 _context.CommandLine.Clear();
                 _context.HideCommandCompletion(false);
-                return ApplicationInputHandlingResult.FromHandled(true);
+                return CommandLineChanged();
 
             case ConsoleKey.Enter:
                 ResetNavigation(frame);
@@ -72,11 +75,11 @@ internal sealed class ApplicationCommandLineKeyboardHandler
                 return ApplicationInputHandlingResult.FromHandled(true);
 
             case ConsoleKey.UpArrow when frame.Mode == ApplicationWorkspaceMode.HiddenCommandLine:
-                return ApplicationInputHandlingResult.FromHandled(
+                return CommandLineChanged(
                     _context.BrowseCommandHistory(-1, CommandHistoryNavigationStart.Newest));
 
             case ConsoleKey.DownArrow when frame.Mode == ApplicationWorkspaceMode.HiddenCommandLine:
-                return ApplicationInputHandlingResult.FromHandled(
+                return CommandLineChanged(
                     _context.BrowseCommandHistory(+1, CommandHistoryNavigationStart.Oldest));
 
             case ConsoleKey.F10 when frame.Mode == ApplicationWorkspaceMode.HiddenCommandLine:
@@ -89,7 +92,7 @@ internal sealed class ApplicationCommandLineKeyboardHandler
             ResetNavigation(frame);
             _context.CommandLine.Insert(key.KeyChar);
             NotifyVisibleEdit(frame);
-            return ApplicationInputHandlingResult.FromHandled(true);
+            return CommandLineChanged();
         }
 
         return ApplicationInputHandlingResult.NotHandled;
@@ -238,4 +241,9 @@ internal sealed class ApplicationCommandLineKeyboardHandler
 
     private FilePanelState StateForSide(PanelSide side) =>
         side == PanelSide.Left ? _context.LeftPanel() : _context.RightPanel();
+
+    private static ApplicationInputHandlingResult CommandLineChanged(bool changed = true) =>
+        ApplicationInputHandlingResult.FromHandled(
+            changed,
+            ApplicationRenderPart.CommandLine);
 }

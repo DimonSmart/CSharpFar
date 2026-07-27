@@ -18,6 +18,8 @@ internal sealed partial class FileEditor
         private readonly FileEditor _editor;
         private readonly EditorSession _session;
         private readonly VerticalScrollbarController _verticalScrollbar = new();
+        private readonly PendingInvalidation<EditorRenderPart> _invalidation =
+            new(EditorRenderPart.Full);
         private ConsoleModifiers _functionKeyModifiers;
         private EditorPosition? _mouseSelectionAnchor;
         private bool _committedCustomCursorVisible = true;
@@ -32,12 +34,38 @@ internal sealed partial class FileEditor
         {
             _editor = editor;
             _session = session;
+            _invalidation.RequestFull();
         }
 
         protected override FileEditorFrame RenderFrameCore(UiRenderContext context)
         {
+            PendingInvalidationSnapshot<EditorRenderPart> attempt =
+                _invalidation.SnapshotForRenderAttempt();
+            EditorRenderPart parts = attempt.Parts;
+            if (!HasCommittedFrame ||
+                parts == EditorRenderPart.None ||
+                context.Viewport != CommittedFrame.Viewport ||
+                !context.Size.Equals(CommittedFrame.Size) ||
+                !_editor.CanRenderPartial(
+                    CommittedFrame,
+                    _session,
+                    context,
+                    parts))
+            {
+                parts = EditorRenderPart.Full;
+            }
+
             bool visible = _pendingCustomCursorVisible ?? _committedCustomCursorVisible;
-            FileEditorFrame frame = _editor.RenderFrame(_session, _functionKeyModifiers, context, visible);
+            FileEditorFrame frame = parts.HasFlag(EditorRenderPart.Full)
+                ? _editor.RenderFullFrame(_session, _functionKeyModifiers, context, visible)
+                : _editor.RenderPartialFrame(
+                    CommittedFrame,
+                    _session,
+                    _functionKeyModifiers,
+                    context,
+                    visible,
+                    parts);
+            context.PublishOnStable(attempt, _invalidation.Commit);
             return frame with
             {
                 VerticalScrollbarFrame = _verticalScrollbar.CalculateFrame(
@@ -66,18 +94,26 @@ internal sealed partial class FileEditor
 
         protected override void OnFrameCommitted(FileEditorFrame frame)
         {
-            _session.Viewport.TopLine = frame.TopLine;
-            _session.Viewport.LeftColumn = frame.LeftColumn;
-            _session.SetSyntaxDiagnostics(frame.SyntaxDiagnostics);
-            _session.RaiseRedraw(frame.TopLine, frame.ContentHeight);
+            if (frame.RenderedParts.HasFlag(EditorRenderPart.Full))
+            {
+                _session.Viewport.TopLine = frame.TopLine;
+                _session.Viewport.LeftColumn = frame.LeftColumn;
+                _session.SetSyntaxDiagnostics(frame.SyntaxDiagnostics);
+                _session.RaiseRedraw(frame.TopLine, frame.ContentHeight);
+                _verticalScrollbar.ApplyCommittedFrame(frame.VerticalScrollbarFrame);
+                if (frame.ContentBounds.Width <= 0 || frame.ContentBounds.Height <= 0)
+                    _mouseSelectionAnchor = null;
+            }
+            else if (frame.RenderedParts.HasFlag(EditorRenderPart.CursorVisual))
+            {
+                _session.RaiseRedraw(_session.Cursor.Line, 1);
+            }
+
             _committedCustomCursorVisible = frame.CustomCursorVisible;
             _pendingCustomCursorVisible = null;
             _nextWakeUtc = frame.UsesCustomCursor
                 ? DateTimeOffset.UtcNow.AddMilliseconds(CustomCursorBlinkIntervalMs)
                 : null;
-            _verticalScrollbar.ApplyCommittedFrame(frame.VerticalScrollbarFrame);
-            if (frame.ContentBounds.Width <= 0 || frame.ContentBounds.Height <= 0)
-                _mouseSelectionAnchor = null;
         }
 
         protected override InteractiveSurfaceRouteResult<FileEditorInput> RouteSemanticInput(
@@ -89,7 +125,14 @@ internal sealed partial class FileEditor
                 context.RouteKind == UiInputRouteKind.KeyboardTarget &&
                 context.Target == Keyboard)
             {
+                if (_functionKeyModifiers == modifier.Modifiers)
+                {
+                    return new InteractiveSurfaceRouteResult<FileEditorInput>(
+                        FileEditorInput.ModifierChanged(modifier.Modifiers));
+                }
+
                 _functionKeyModifiers = modifier.Modifiers;
+                _invalidation.Request(EditorRenderPart.FunctionKeyBar);
                 return new InteractiveSurfaceRouteResult<FileEditorInput>(
                     FileEditorInput.ModifierChanged(modifier.Modifiers),
                     Invalidate: true);
@@ -100,8 +143,13 @@ internal sealed partial class FileEditor
                 context.Target == Keyboard)
             {
                 _mouseSelectionAnchor = null;
+                bool modifiersChanged = _functionKeyModifiers != key.Key.Modifiers;
                 _functionKeyModifiers = key.Key.Modifiers;
-                return new InteractiveSurfaceRouteResult<FileEditorInput>(FileEditorInput.Keyboard(key.Key));
+                if (modifiersChanged)
+                    _invalidation.Request(EditorRenderPart.FunctionKeyBar);
+                return new InteractiveSurfaceRouteResult<FileEditorInput>(
+                    FileEditorInput.Keyboard(key.Key),
+                    Invalidate: modifiersChanged);
             }
 
             if (input is MouseConsoleInputEvent mouse)
@@ -215,16 +263,33 @@ internal sealed partial class FileEditor
                 return InteractiveSurfaceWakeResult.NoChange;
 
             _pendingCustomCursorVisible = !_committedCustomCursorVisible;
+            _invalidation.Request(EditorRenderPart.CursorVisual);
             _nextWakeUtc = DateTimeOffset.UtcNow.AddMilliseconds(CustomCursorBlinkIntervalMs);
             return InteractiveSurfaceWakeResult.Changed;
         }
 
-        public void RestoreVisibleCursorPhase()
+        public bool RestoreVisibleCursorPhase()
         {
+            bool changed = HasCommittedFrame &&
+                CommittedFrame.UsesCustomCursor &&
+                !_committedCustomCursorVisible;
             _pendingCustomCursorVisible = true;
+            if (changed)
+                _invalidation.Request(EditorRenderPart.CursorVisual);
             _nextWakeUtc = HasCommittedFrame && CommittedFrame.UsesCustomCursor
                 ? DateTimeOffset.UtcNow.AddMilliseconds(CustomCursorBlinkIntervalMs)
                 : null;
+            return changed;
+        }
+
+        public void RequestAfterSemanticChange()
+        {
+            EditorRenderPart parts = HasCommittedFrame
+                ? _editor.ClassifyRenderChange(CommittedFrame, _session)
+                : EditorRenderPart.Full;
+            if (parts == EditorRenderPart.None)
+                parts = EditorRenderPart.Full;
+            _invalidation.Request(parts);
         }
     }
 
@@ -249,7 +314,41 @@ internal sealed partial class FileEditor
         bool UsesCustomCursor,
         bool CustomCursorVisible,
         EditorSyntaxDiagnostics SyntaxDiagnostics,
-        EditorSyntaxHighlightResult SyntaxResult);
+        EditorSyntaxHighlightResult SyntaxResult,
+        EditorRenderFingerprint Fingerprint,
+        EditorRenderPart RenderedParts);
+
+    private sealed record EditorRenderFingerprint(
+        long DocumentRevision,
+        long CleanRevision,
+        EditorPosition Cursor,
+        EditorSelection? Selection,
+        int TopLine,
+        int LeftColumn,
+        bool SyntaxHighlightingEnabled,
+        string SyntaxLanguage,
+        string SyntaxTheme,
+        ConsoleViewport Viewport,
+        ConsoleSize Size,
+        bool UsesCustomCursor,
+        int FormatCodePage,
+        bool EmitByteOrderMark,
+        EditorLineEnding LineEnding,
+        bool CanUndo,
+        bool CanRedo,
+        int TabSize,
+        bool ExpandTabs);
+
+    [Flags]
+    private enum EditorRenderPart
+    {
+        None = 0,
+        Cursor = 1 << 0,
+        Status = 1 << 1,
+        FunctionKeyBar = 1 << 2,
+        CursorVisual = 1 << 3,
+        Full = 1 << 30,
+    }
 
     private readonly record struct FileEditorInput(
         FileEditorInputKind Kind,

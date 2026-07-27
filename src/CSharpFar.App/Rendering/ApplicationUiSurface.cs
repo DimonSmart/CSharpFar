@@ -15,7 +15,38 @@ internal sealed record ApplicationUiFrame(
     ApplicationPanelFrame? LeftPanel,
     ApplicationPanelFrame? RightPanel,
     ApplicationFunctionKeyBarFrame? FunctionKeyBar,
-    ApplicationDirectoryShortcutBarFrame? DirectoryShortcutBar);
+    ApplicationDirectoryShortcutBarFrame? DirectoryShortcutBar)
+{
+    public ApplicationRenderFingerprint? Fingerprint { get; init; }
+    public ApplicationRenderPart RenderedParts { get; init; } = ApplicationRenderPart.Full;
+}
+
+internal sealed record ApplicationRenderFingerprint(
+    ConsoleViewport Viewport,
+    ConsoleSize Size,
+    ApplicationWorkspaceMode Mode,
+    ApplicationCommandLineFingerprint CommandLine,
+    FunctionKeys.FunctionKeyLayer FunctionKeyLayer,
+    ApplicationClockFrame? Clock);
+
+internal sealed record ApplicationCommandLineFingerprint(
+    string CurrentDirectory,
+    string Text,
+    int CursorPosition,
+    int? SelectionStart,
+    int SelectionLength,
+    ApplicationCommandLineFrame Frame);
+
+[Flags]
+internal enum ApplicationRenderPart
+{
+    None = 0,
+    Clock = 1 << 0,
+    CommandLine = 1 << 1,
+    CommandLineCursor = 1 << 2,
+    FunctionKeyBar = 1 << 3,
+    Full = 1 << 30,
+}
 
 internal sealed record ApplicationKeyboardFrame(
     PanelSide ActiveSide,
@@ -257,6 +288,8 @@ internal sealed class ApplicationUiSurface : UiLayer<ApplicationUiFrame>, IUiSur
     private readonly ScreenRenderer _screen;
     private readonly VerticalScrollbarController _leftScrollbar = new();
     private readonly VerticalScrollbarController _rightScrollbar = new();
+    private readonly PendingInvalidation<ApplicationRenderPart> _invalidation =
+        new(ApplicationRenderPart.Full);
     private bool _hidden;
     private ApplicationUiInputPacket? _pendingInput;
 
@@ -265,6 +298,7 @@ internal sealed class ApplicationUiSurface : UiLayer<ApplicationUiFrame>, IUiSur
         _screen = screen;
         _context = context;
         _coordinator = coordinator;
+        _invalidation.RequestFull();
     }
 
     public override UiLayerInputPolicy InputPolicy => UiLayerInputPolicy.Bubble;
@@ -296,10 +330,39 @@ internal sealed class ApplicationUiSurface : UiLayer<ApplicationUiFrame>, IUiSur
 
     protected override ApplicationUiFrame RenderFrame(UiRenderContext context)
     {
-        ApplicationUiFrame frame = _hidden
-            ? _coordinator.RenderHiddenCommandLineContent(context)
-            : _coordinator.RenderMainContent(context);
-        return AttachScrollbarFrames(frame);
+        PendingInvalidationSnapshot<ApplicationRenderPart> attempt =
+            _invalidation.SnapshotForRenderAttempt();
+        ApplicationRenderPart parts = attempt.Parts;
+        ApplicationWorkspaceMode mode = _hidden
+            ? ApplicationWorkspaceMode.HiddenCommandLine
+            : ApplicationWorkspaceMode.Panels;
+        bool full = !HasCommittedFrame ||
+            parts == ApplicationRenderPart.None ||
+            CommittedFrame.Fingerprint is null ||
+            CommittedFrame.Viewport != context.Viewport ||
+            CommittedFrame.Mode != mode;
+
+        ApplicationUiFrame frame;
+        if (full || parts.HasFlag(ApplicationRenderPart.Full))
+        {
+            frame = _hidden
+                ? _coordinator.RenderHiddenCommandLineContent(context)
+                : _coordinator.RenderMainContent(context);
+            frame = AttachScrollbarFrames(frame);
+        }
+        else
+        {
+            frame = _coordinator.RenderPartial(context, CommittedFrame, parts);
+        }
+
+        context.PublishOnStable(attempt, _invalidation.Commit);
+        return frame;
+    }
+
+    public void RequestRender(ApplicationRenderPart parts)
+    {
+        if (parts != ApplicationRenderPart.None)
+            _invalidation.Request(parts);
     }
 
     public void CompleteFrame(UiFrameCompletion completion)

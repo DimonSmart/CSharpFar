@@ -287,7 +287,9 @@ public sealed class Application
     {
         bool scrolledHiddenViewport = _terminalSurface.ScrollHiddenViewportToBottomForInput();
         ApplicationRuntimeRenderRequest request = _applicationInputDispatcher.Handle(packet);
-        return new ApplicationRuntimeRenderRequest(request.ShouldRender || scrolledHiddenViewport);
+        return scrolledHiddenViewport
+            ? new ApplicationRuntimeRenderRequest(true, ApplicationRenderPart.Full)
+            : request;
     }
 
     private void Render() => _composition.Render();

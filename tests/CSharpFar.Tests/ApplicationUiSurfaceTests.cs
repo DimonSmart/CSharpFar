@@ -54,6 +54,95 @@ public sealed class ApplicationUiSurfaceTests
     }
 
     [Fact]
+    public void PartialRender_CommandLineCursorPublishesInteractionWithoutDrawingText()
+    {
+        var services = Services();
+        services.Session.CommandLine.State.SetText("abc");
+        services.Composition.Render();
+        UiCursorPlacement previous =
+            services.ApplicationSurface.CommittedFrame.CommandLine.Cursor!.Value;
+        services.Driver.ClearRecordedOperations();
+
+        services.Session.CommandLine.State.MoveCursor(-1);
+        services.ApplicationSurface.RequestRender(ApplicationRenderPart.CommandLine);
+        services.Composition.Render();
+
+        ApplicationUiFrame committed = services.ApplicationSurface.CommittedFrame;
+        UiCursorPlacement current = committed.CommandLine.Cursor!.Value;
+        UiFocusEntry focus = Assert.Single(
+            services.ApplicationSurface.CommittedInteractionFrame.Focus.Entries,
+            entry => entry.Target == ApplicationTargetIds.CommandLine);
+        Assert.True(committed.RenderedParts.HasFlag(ApplicationRenderPart.CommandLineCursor));
+        Assert.False(committed.RenderedParts.HasFlag(ApplicationRenderPart.CommandLine));
+        Assert.False(committed.RenderedParts.HasFlag(ApplicationRenderPart.Full));
+        Assert.NotEqual(previous.X, current.X);
+        Assert.Equal(current, focus.Cursor);
+        Assert.DoesNotContain(
+            services.Driver.WriteRecords,
+            write => write.Y == committed.CommandLine.Bounds.Y);
+    }
+
+    [Fact]
+    public void PartialRender_CommandLinePublishesKeyboardOwnershipSnapshot()
+    {
+        var services = Services();
+        services.Composition.Render();
+
+        services.Session.CommandLine.State.SetText("abc");
+        services.ApplicationSurface.RequestRender(ApplicationRenderPart.CommandLine);
+        services.Composition.Render();
+
+        Assert.True(services.ApplicationSurface.CommittedFrame.Keyboard.CommandLineHasText);
+        Assert.False(services.ApplicationSurface.CommittedFrame.Keyboard.CommandLineHasSelection);
+
+        services.Session.CommandLine.State.SelectAll();
+        services.ApplicationSurface.RequestRender(ApplicationRenderPart.CommandLine);
+        services.Composition.Render();
+
+        Assert.True(services.ApplicationSurface.CommittedFrame.Keyboard.CommandLineHasSelection);
+    }
+
+    [Fact]
+    public void PartialRender_FunctionKeyBarDoesNotDrawPanelsOrCommandLine()
+    {
+        var services = Services();
+        services.Composition.Render();
+        services.Driver.ClearRecordedOperations();
+        services.Session.FunctionKeyLayer = CSharpFar.App.FunctionKeys.FunctionKeyLayer.Control;
+
+        services.ApplicationSurface.RequestRender(ApplicationRenderPart.FunctionKeyBar);
+        services.Composition.Render();
+
+        ApplicationUiFrame committed = services.ApplicationSurface.CommittedFrame;
+        Assert.True(committed.RenderedParts.HasFlag(ApplicationRenderPart.FunctionKeyBar));
+        Assert.False(committed.RenderedParts.HasFlag(ApplicationRenderPart.Full));
+        Assert.Contains(
+            committed.FunctionKeyBar!.Actions,
+            action =>
+                action.Layer == CSharpFar.App.FunctionKeys.FunctionKeyLayer.Control &&
+                action.Bounds.Width > 0);
+        Assert.All(
+            services.Driver.WriteRecords,
+            write => Assert.True(write.Y is 0 or 24));
+    }
+
+    [Fact]
+    public void PartialRender_ClockUsesLogicalApplicationPart()
+    {
+        var services = Services();
+        services.Composition.Render();
+        services.Driver.ClearRecordedOperations();
+
+        services.ApplicationSurface.RequestRender(ApplicationRenderPart.Clock);
+        services.Composition.Render();
+
+        ApplicationUiFrame committed = services.ApplicationSurface.CommittedFrame;
+        Assert.Equal(ApplicationRenderPart.Clock, committed.RenderedParts);
+        Assert.NotNull(committed.Fingerprint!.Clock);
+        Assert.All(services.Driver.WriteRecords, write => Assert.Equal(0, write.Y));
+    }
+
+    [Fact]
     public void RejectedRenderAttempt_DoesNotBecomeCommittedFrame()
     {
         var driver = new FakeConsoleDriver(80, 25)

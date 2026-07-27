@@ -86,6 +86,112 @@ public sealed class FileEditorTests : IDisposable
     }
 
     [Fact]
+    public void Show_CursorMovementInsideViewportOnlyUpdatesCursorAndStatus()
+    {
+        string filePath = Path.Combine(_tempDir, "cursor-partial.txt");
+        File.WriteAllText(filePath, "abc");
+        var highlighter = new StaticSyntaxHighlighter();
+        var driver = new FakeConsoleDriver(80, 25);
+        driver.BeforeTryReadInput = current => current.ClearRecordedOperations();
+        driver.EnqueueKey(new ConsoleKeyInfo('\0', ConsoleKey.RightArrow, shift: false, alt: false, control: false));
+        driver.EnqueueKey(new ConsoleKeyInfo('\0', ConsoleKey.F10, shift: false, alt: false, control: false));
+
+        ShowFileEditor(
+            new ScreenRenderer(driver),
+            filePath,
+            syntaxHighlighter: highlighter);
+
+        Assert.Equal(1, highlighter.CallCount);
+        Assert.Equal(1, driver.CursorX);
+        Assert.DoesNotContain(driver.WriteRecords, write => write.Y is 0 or 1 or 24);
+        Assert.Contains(driver.WriteRecords, write => write.Y == 23);
+    }
+
+    [Fact]
+    public void Show_CursorMovementThatScrollsViewportUsesFullRender()
+    {
+        string filePath = Path.Combine(_tempDir, "cursor-scroll-full.txt");
+        File.WriteAllText(filePath, "abcdef");
+        var highlighter = new StaticSyntaxHighlighter();
+        var driver = new FakeConsoleDriver(width: 5, height: 6);
+        driver.EnqueueKey(new ConsoleKeyInfo('\0', ConsoleKey.End, shift: false, alt: false, control: false));
+        driver.EnqueueKey(new ConsoleKeyInfo('\0', ConsoleKey.F10, shift: false, alt: false, control: false));
+
+        ShowFileEditor(
+            new ScreenRenderer(driver),
+            filePath,
+            syntaxHighlighter: highlighter);
+
+        Assert.Equal(2, highlighter.CallCount);
+        Assert.Contains(driver.WriteRecords, write => write.Y == 1);
+    }
+
+    [Fact]
+    public void Show_SelectionChangeUsesFullRender()
+    {
+        string filePath = Path.Combine(_tempDir, "selection-full.txt");
+        File.WriteAllText(filePath, "abc");
+        var highlighter = new StaticSyntaxHighlighter();
+        var driver = new FakeConsoleDriver(80, 25);
+        driver.EnqueueKey(new ConsoleKeyInfo('\0', ConsoleKey.RightArrow, shift: true, alt: false, control: false));
+        driver.EnqueueKey(new ConsoleKeyInfo('\0', ConsoleKey.F10, shift: false, alt: false, control: false));
+
+        ShowFileEditor(
+            new ScreenRenderer(driver),
+            filePath,
+            syntaxHighlighter: highlighter);
+
+        Assert.Equal(2, highlighter.CallCount);
+    }
+
+    [Fact]
+    public void Show_InterruptedCursorPartialRetriesAsFullForNewGeometry()
+    {
+        string filePath = Path.Combine(_tempDir, "cursor-partial-resize.txt");
+        File.WriteAllText(filePath, "abc");
+        var highlighter = new StaticSyntaxHighlighter();
+        var driver = new FakeConsoleDriver(80, 25);
+        driver.BeforeTryReadInput = current =>
+        {
+            current.ResizeAfterWriteCount = 1;
+            current.ResizeAfterWrite = resized => resized.SetSize(100, 30);
+        };
+        driver.EnqueueKey(new ConsoleKeyInfo('\0', ConsoleKey.RightArrow, shift: false, alt: false, control: false));
+        driver.EnqueueKey(new ConsoleKeyInfo('\0', ConsoleKey.F10, shift: false, alt: false, control: false));
+
+        ShowFileEditor(
+            new ScreenRenderer(driver),
+            filePath,
+            syntaxHighlighter: highlighter);
+
+        Assert.Equal(new ConsoleSize(100, 30), driver.GetSize());
+        Assert.Equal(2, highlighter.CallCount);
+        Assert.Equal(1, driver.CursorX);
+        Assert.Equal(1, driver.CursorY);
+    }
+
+    [Fact]
+    public void Show_ModifierChangeOnlyUpdatesFunctionKeyBar()
+    {
+        string filePath = Path.Combine(_tempDir, "modifier-partial.txt");
+        File.WriteAllText(filePath, "abc");
+        var highlighter = new StaticSyntaxHighlighter();
+        var driver = new FakeConsoleDriver(80, 25);
+        driver.BeforeTryReadInput = current => current.ClearRecordedOperations();
+        driver.EnqueueInput(new ModifierKeyConsoleInputEvent(ConsoleModifiers.Alt));
+        driver.EnqueueKey(new ConsoleKeyInfo('\0', ConsoleKey.F10, shift: false, alt: false, control: false));
+
+        ShowFileEditor(
+            new ScreenRenderer(driver),
+            filePath,
+            syntaxHighlighter: highlighter);
+
+        Assert.Equal(1, highlighter.CallCount);
+        Assert.NotEmpty(driver.WriteRecords);
+        Assert.All(driver.WriteRecords, write => Assert.Equal(24, write.Y));
+    }
+
+    [Fact]
     public void Show_FunctionKeyBarMouseClickSavesAndClosesEditor()
     {
         string filePath = Path.Combine(_tempDir, "mouse-keybar.txt");
@@ -804,6 +910,7 @@ public sealed class FileEditorTests : IDisposable
         bool sawCursorOn = false;
         bool sawCursorOffAfterOn = false;
         int polls = 0;
+        var highlighter = new StaticSyntaxHighlighter();
         var driver = new FakeConsoleDriver(80, 25);
         driver.BeforeReadInput = currentDriver =>
         {
@@ -811,10 +918,14 @@ public sealed class FileEditorTests : IDisposable
         };
         driver.EnqueueKey(new ConsoleKeyInfo('\0', ConsoleKey.RightArrow, shift: false, alt: false, control: false));
 
-        ShowFileEditor(new ScreenRenderer(driver), filePath);
+        ShowFileEditor(
+            new ScreenRenderer(driver),
+            filePath,
+            syntaxHighlighter: highlighter);
 
         Assert.True(sawCursorOn);
         Assert.True(sawCursorOffAfterOn);
+        Assert.Equal(2, highlighter.CallCount);
 
         void ObserveBlink(FakeConsoleDriver currentDriver)
         {
@@ -1040,7 +1151,12 @@ public sealed class FileEditorTests : IDisposable
             _spans = spans;
         }
 
-        public EditorSyntaxHighlightResult Highlight(EditorSyntaxHighlightRequest request) =>
-            new(_spans, EditorSyntaxDiagnostics.Active("Fake", "Fake", "palette"));
+        public int CallCount { get; private set; }
+
+        public EditorSyntaxHighlightResult Highlight(EditorSyntaxHighlightRequest request)
+        {
+            CallCount++;
+            return new(_spans, EditorSyntaxDiagnostics.Active("Fake", "Fake", "palette"));
+        }
     }
 }

@@ -41,7 +41,7 @@ internal sealed class ApplicationInputDispatcher
 
     private static ApplicationRuntimeRenderRequest ToRuntimeRequest(ApplicationInputHandlingResult result) =>
         result.Handled
-            ? new ApplicationRuntimeRenderRequest(result.ShouldRender)
+            ? new ApplicationRuntimeRenderRequest(result.ShouldRender, result.RenderParts)
             : ApplicationRuntimeRenderRequest.None;
 
     private ApplicationRuntimeRenderRequest HandleMouse(
@@ -103,7 +103,7 @@ internal sealed class ApplicationInputDispatcher
         }
 
         return result.Handled
-            ? new ApplicationRuntimeRenderRequest(result.ShouldRender)
+            ? new ApplicationRuntimeRenderRequest(result.ShouldRender, result.RenderParts)
             : ApplicationRuntimeRenderRequest.None;
     }
 

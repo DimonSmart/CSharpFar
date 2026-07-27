@@ -130,8 +130,14 @@ internal sealed partial class FileEditor
             layer,
             (packet, input) =>
             {
-                layer.RestoreVisibleCursorPhase();
-                return HandleSurfaceInput(session, input, packet.Frame);
+                bool cursorPhaseChanged = layer.RestoreVisibleCursorPhase();
+                ModalDialogLoopResult<bool> result =
+                    HandleSurfaceInput(session, input, packet.Frame);
+                if (result.Invalidate)
+                    layer.RequestAfterSemanticChange();
+                else if (cursorPhaseChanged && !result.IsCompleted)
+                    return ModalDialogLoopResult<bool>.ContinueChanged;
+                return result;
             },
             getNextWakeUtc: layer.GetNextWakeUtc,
             handleWake: _ => layer.HandleWake());
@@ -660,7 +666,7 @@ internal sealed partial class FileEditor
             session.SetSyntaxTheme(theme);
     }
 
-    private FileEditorFrame RenderFrame(
+    private FileEditorFrame RenderFullFrame(
         EditorSession session,
         ConsoleModifiers functionKeyModifiers,
         UiRenderContext context,
@@ -697,6 +703,12 @@ internal sealed partial class FileEditor
             : null;
         UiCursorPlacement cursor = BuildCursorPlacement(session, contentHeight, context.Size, viewport);
         bool usesCustomCursor = UsesCustomCursor(session);
+        EditorRenderFingerprint fingerprint = CreateRenderFingerprint(
+            session,
+            context.Viewport,
+            context.Size,
+            contentHeight,
+            contentWidth);
         var frame = new FileEditorFrame(
             session,
             context.Viewport,
@@ -718,11 +730,171 @@ internal sealed partial class FileEditor
             usesCustomCursor,
             customCursorVisible,
             syntaxResult.Diagnostics,
-            syntaxResult);
+            syntaxResult,
+            fingerprint,
+            EditorRenderPart.Full);
 
         Draw(context.Canvas, frame);
         return frame;
     }
+
+    private FileEditorFrame RenderPartialFrame(
+        FileEditorFrame committedFrame,
+        EditorSession session,
+        ConsoleModifiers functionKeyModifiers,
+        UiRenderContext context,
+        bool customCursorVisible,
+        EditorRenderPart parts)
+    {
+        EditorRenderFingerprint fingerprint = CreateRenderFingerprint(
+            session,
+            context.Viewport,
+            context.Size,
+            committedFrame.ContentHeight,
+            committedFrame.ContentWidth);
+        IReadOnlyList<FunctionKeyBarAction<ConsoleKeyInfo>> actions =
+            parts.HasFlag(EditorRenderPart.FunctionKeyBar)
+                ? CreateEditorFunctionKeyBarActions(functionKeyModifiers)
+                : committedFrame.FunctionKeyActions;
+        UiCursorPlacement cursor =
+            parts.HasFlag(EditorRenderPart.Cursor)
+                ? BuildCursorPlacement(
+                    session,
+                    committedFrame.ContentHeight,
+                    committedFrame.Size,
+                    new EditorViewport
+                    {
+                        TopLine = fingerprint.TopLine,
+                        LeftColumn = fingerprint.LeftColumn,
+                    })
+                : committedFrame.CursorPlacement;
+        var frame = committedFrame with
+        {
+            Session = session,
+            FunctionKeyActions = actions,
+            CursorPlacement = cursor,
+            UsesCustomCursor = fingerprint.UsesCustomCursor,
+            CustomCursorVisible = customCursorVisible,
+            Fingerprint = fingerprint,
+            RenderedParts = parts,
+        };
+
+        if (parts.HasFlag(EditorRenderPart.CursorVisual))
+            DrawCursorVisual(context.Canvas, frame);
+        if (parts.HasFlag(EditorRenderPart.Status))
+            DrawStatus(context.Canvas, session, frame.StatusBarBounds.Y, frame.Size);
+        if (parts.HasFlag(EditorRenderPart.FunctionKeyBar))
+            DrawKeyBar(context.Canvas, frame.FunctionKeyBarBounds, actions);
+
+        return frame;
+    }
+
+    private EditorRenderPart ClassifyRenderChange(
+        FileEditorFrame committedFrame,
+        EditorSession session)
+    {
+        EditorRenderFingerprint current = CreateRenderFingerprint(
+            session,
+            committedFrame.Viewport,
+            committedFrame.Size,
+            committedFrame.ContentHeight,
+            committedFrame.ContentWidth);
+        EditorRenderFingerprint previous = committedFrame.Fingerprint;
+        if (previous.UsesCustomCursor ||
+            current.UsesCustomCursor ||
+            !SameExceptCursor(previous, current))
+        {
+            return EditorRenderPart.Full;
+        }
+
+        return previous.Cursor != current.Cursor
+            ? EditorRenderPart.Cursor | EditorRenderPart.Status
+            : EditorRenderPart.None;
+    }
+
+    private bool CanRenderPartial(
+        FileEditorFrame committedFrame,
+        EditorSession session,
+        UiRenderContext context,
+        EditorRenderPart parts)
+    {
+        if (parts.HasFlag(EditorRenderPart.Full))
+            return false;
+
+        const EditorRenderPart supported =
+            EditorRenderPart.Cursor |
+            EditorRenderPart.Status |
+            EditorRenderPart.FunctionKeyBar |
+            EditorRenderPart.CursorVisual;
+        if ((parts & ~supported) != 0)
+            return false;
+
+        EditorRenderFingerprint current = CreateRenderFingerprint(
+            session,
+            context.Viewport,
+            context.Size,
+            committedFrame.ContentHeight,
+            committedFrame.ContentWidth);
+        EditorRenderFingerprint previous = committedFrame.Fingerprint;
+        bool cursorChanged = previous.Cursor != current.Cursor;
+        bool cursorUpdate = parts.HasFlag(EditorRenderPart.Cursor);
+        if (cursorChanged != cursorUpdate)
+            return false;
+        if (cursorUpdate)
+        {
+            if (previous.UsesCustomCursor ||
+                current.UsesCustomCursor ||
+                !parts.HasFlag(EditorRenderPart.Status))
+            {
+                return false;
+            }
+
+            return SameExceptCursor(previous, current);
+        }
+
+        if (previous != current)
+            return false;
+
+        return !parts.HasFlag(EditorRenderPart.CursorVisual) ||
+            current.UsesCustomCursor;
+    }
+
+    private EditorRenderFingerprint CreateRenderFingerprint(
+        EditorSession session,
+        ConsoleViewport viewport,
+        ConsoleSize size,
+        int contentHeight,
+        int contentWidth)
+    {
+        EditorViewport effectiveViewport =
+            CalculateEffectiveViewport(session, contentHeight, contentWidth);
+        EditorDocumentFormat format = session.Document.Format;
+        return new EditorRenderFingerprint(
+            session.Document.Revision,
+            session.Document.CleanRevision,
+            session.Cursor,
+            session.Selection,
+            effectiveViewport.TopLine,
+            effectiveViewport.LeftColumn,
+            session.SyntaxHighlightingEnabled,
+            session.SyntaxLanguage,
+            session.SyntaxTheme,
+            viewport,
+            size,
+            UsesCustomCursor(session),
+            format.Encoding.CodePage,
+            format.EmitByteOrderMark,
+            format.LineEnding,
+            session.UndoHistory.CanUndo,
+            session.UndoHistory.CanRedo,
+            EditorSettingsResolver.ResolveTabSize(_settings),
+            _settings.ExpandTabs);
+    }
+
+    private static bool SameExceptCursor(
+        EditorRenderFingerprint previous,
+        EditorRenderFingerprint current) =>
+        previous with { Cursor = current.Cursor } == current;
 
     private void Draw(IUiCanvas canvas, FileEditorFrame frame)
     {
@@ -801,6 +973,25 @@ internal sealed partial class FileEditor
                 new ScrollBarOptions { Enabled = true, DrawWhenNotScrollable = false },
                 PaletteStyles.DialogBorder(_palette));
         }
+    }
+
+    private void DrawCursorVisual(IUiCanvas canvas, FileEditorFrame frame)
+    {
+        int lineIndex = frame.Fingerprint.Cursor.Line;
+        int row = lineIndex - frame.TopLine;
+        if (row < 0 || row >= frame.ContentHeight)
+            return;
+
+        IReadOnlyList<EditorColorSpan> spans = frame.SyntaxResult.Spans
+            .Where(span => span.LineIndex == lineIndex)
+            .ToArray();
+        DrawTextLine(
+            canvas,
+            frame,
+            lineIndex,
+            frame.ContentBounds.Y + row,
+            frame.ContentBounds.Width,
+            spans);
     }
 
     private void DrawStatus(IUiCanvas canvas, EditorSession session, int y, ConsoleSize size)

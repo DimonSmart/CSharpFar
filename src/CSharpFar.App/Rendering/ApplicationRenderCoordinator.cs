@@ -1,3 +1,4 @@
+using CSharpFar.App.FunctionKeys;
 using CSharpFar.App.State;
 using CSharpFar.Console.Models;
 using CSharpFar.Core.Models;
@@ -54,7 +55,7 @@ internal sealed class ApplicationRenderCoordinator
             new DirectoryShortcutBarRenderer(context.Canvas, _context.App.Palette)
                 .Render(panelHeight - 1, size.Width, _context.DirectoryShortcuts());
 
-        _clockRenderer.Render(context.Canvas, size);
+        ApplicationClockFrame? clock = _clockRenderer.Render(context.Canvas, size);
 
         ApplicationCommandLineFrame commandLine = _commandLineRenderer.Render(
             context.Canvas,
@@ -74,7 +75,16 @@ internal sealed class ApplicationRenderCoordinator
             workspace.LeftPanel,
             workspace.RightPanel,
             functionKeyBar,
-            directoryShortcutBar);
+            directoryShortcutBar)
+        {
+            Fingerprint = CreateFingerprint(
+                context.Viewport,
+                ApplicationWorkspaceMode.Panels,
+                activeState.CurrentDirectory,
+                commandLine,
+                clock),
+            RenderedParts = ApplicationRenderPart.Full,
+        };
     }
 
     public ApplicationUiFrame RenderHiddenCommandLineContent(UiRenderContext context)
@@ -104,8 +114,154 @@ internal sealed class ApplicationRenderCoordinator
             null,
             null,
             null,
-            null);
+            null)
+        {
+            Fingerprint = CreateFingerprint(
+                context.Viewport,
+                ApplicationWorkspaceMode.HiddenCommandLine,
+                activeState.CurrentDirectory,
+                commandLine,
+                clock: null),
+            RenderedParts = ApplicationRenderPart.Full,
+        };
     }
+
+    public ApplicationUiFrame RenderPartial(
+        UiRenderContext context,
+        ApplicationUiFrame committed,
+        ApplicationRenderPart requestedParts)
+    {
+        ApplicationRenderFingerprint previous = committed.Fingerprint ??
+            throw new InvalidOperationException("A partial application render requires a committed fingerprint.");
+        ApplicationRenderPart renderedParts = ApplicationRenderPart.None;
+        ApplicationKeyboardFrame keyboard = committed.Keyboard;
+        ApplicationCommandLineFrame commandLine = committed.CommandLine;
+        ApplicationFunctionKeyBarFrame? functionKeyBar = committed.FunctionKeyBar;
+        ApplicationCommandLineFingerprint commandFingerprint = previous.CommandLine;
+        FunctionKeyLayer functionKeyLayer = previous.FunctionKeyLayer;
+        ApplicationClockFrame? clock = previous.Clock;
+
+        if ((requestedParts & (ApplicationRenderPart.CommandLine | ApplicationRenderPart.CommandLineCursor)) != 0)
+        {
+            ApplicationCommandLineFingerprint current = CaptureCommandLine(committed);
+            bool cursorOnly =
+                SameCommandLineExceptCursor(previous.CommandLine, current) &&
+                previous.CommandLine.CursorPosition != current.CursorPosition;
+            if (cursorOnly)
+            {
+                commandLine = current.Frame;
+                commandFingerprint = current;
+                renderedParts |= ApplicationRenderPart.CommandLineCursor;
+            }
+            else
+            {
+                _commandLineRenderer.Render(
+                    context.Canvas,
+                    current.Frame,
+                    current.CurrentDirectory,
+                    _context.CommandLine);
+                commandLine = current.Frame;
+                commandFingerprint = current;
+                renderedParts |= ApplicationRenderPart.CommandLine;
+            }
+
+            keyboard = keyboard with
+            {
+                CommandLineHasText = _context.CommandLine.HasText,
+                CommandLineHasSelection = _context.CommandLine.HasSelection,
+            };
+        }
+
+        if (requestedParts.HasFlag(ApplicationRenderPart.FunctionKeyBar) &&
+            committed.Mode == ApplicationWorkspaceMode.Panels)
+        {
+            functionKeyLayer = _context.FunctionKeyLayer();
+            functionKeyBar = _functionKeyBarRenderer.Render(
+                context.Canvas,
+                context.Size,
+                functionKeyLayer);
+            renderedParts |= ApplicationRenderPart.FunctionKeyBar;
+        }
+
+        ApplicationClockFrame? currentClock = committed.Mode == ApplicationWorkspaceMode.Panels
+            ? _clockRenderer.CreateFrame(context.Size)
+            : null;
+        if (requestedParts.HasFlag(ApplicationRenderPart.Clock) ||
+            currentClock != previous.Clock)
+        {
+            clock = committed.Mode == ApplicationWorkspaceMode.Panels
+                ? _clockRenderer.Render(context.Canvas, context.Size)
+                : null;
+            renderedParts |= ApplicationRenderPart.Clock;
+        }
+
+        return committed with
+        {
+            Keyboard = keyboard,
+            CommandLine = commandLine,
+            FunctionKeyBar = functionKeyBar,
+            Fingerprint = previous with
+            {
+                CommandLine = commandFingerprint,
+                FunctionKeyLayer = functionKeyLayer,
+                Clock = clock,
+            },
+            RenderedParts = renderedParts,
+        };
+    }
+
+    private ApplicationCommandLineFingerprint CaptureCommandLine(ApplicationUiFrame committed)
+    {
+        FilePanelState activeState = _context.ActiveSide() == PanelSide.Left
+            ? _context.LeftPanel()
+            : _context.RightPanel();
+        string currentDirectory = activeState.CurrentDirectory;
+        ApplicationCommandLineFrame frame = CommandLineLayoutCalculator.Calculate(
+            committed.CommandLine.Bounds.Y,
+            committed.Viewport.Width,
+            currentDirectory,
+            _context.CommandLine);
+        return CreateCommandLineFingerprint(currentDirectory, frame);
+    }
+
+    private ApplicationRenderFingerprint CreateFingerprint(
+        ConsoleViewport viewport,
+        ApplicationWorkspaceMode mode,
+        string currentDirectory,
+        ApplicationCommandLineFrame commandLine,
+        ApplicationClockFrame? clock) =>
+        new(
+            viewport,
+            viewport.Size,
+            mode,
+            CreateCommandLineFingerprint(currentDirectory, commandLine),
+            mode == ApplicationWorkspaceMode.Panels
+                ? _context.FunctionKeyLayer()
+                : FunctionKeyLayer.Plain,
+            clock);
+
+    private ApplicationCommandLineFingerprint CreateCommandLineFingerprint(
+        string currentDirectory,
+        ApplicationCommandLineFrame frame) =>
+        new(
+            currentDirectory,
+            _context.CommandLine.Text,
+            _context.CommandLine.CursorPosition,
+            _context.CommandLine.SelectionStart,
+            _context.CommandLine.SelectionLength,
+            frame);
+
+    private static bool SameCommandLineExceptCursor(
+        ApplicationCommandLineFingerprint previous,
+        ApplicationCommandLineFingerprint current) =>
+        previous.CurrentDirectory == current.CurrentDirectory &&
+        previous.Text == current.Text &&
+        previous.SelectionStart == current.SelectionStart &&
+        previous.SelectionLength == current.SelectionLength &&
+        previous.Frame.Bounds.Equals(current.Frame.Bounds) &&
+        previous.Frame.PromptLength == current.Frame.PromptLength &&
+        previous.Frame.DisplayOffset == current.Frame.DisplayOffset &&
+        previous.Frame.TextLength == current.Frame.TextLength;
 
     private void UpdateQuickViewDirSize()
     {
