@@ -17,6 +17,7 @@ using CSharpFar.Core.Controllers;
 using CSharpFar.Core.Highlighting;
 using CSharpFar.Core.Menu;
 using CSharpFar.Core.Models;
+using CSharpFar.Core.Services;
 using CSharpFar.Ui;
 using AppSettingsAlias = CSharpFar.Core.Models.AppSettings;
 
@@ -64,6 +65,7 @@ internal sealed class ApplicationCommandContext
     private readonly IVolumeService? _volumeService;
     private readonly IFileMetadataService _fileMetadata;
     private readonly Func<IFileAttributesDialog> _fileAttributesDialogFactory;
+    private readonly FilePanelSourceRegistry _sourceRegistry;
     private IFileHighlightService? _highlightService;
 
     public ApplicationCommandContext(
@@ -76,6 +78,7 @@ internal sealed class ApplicationCommandContext
         IHistoryStore history,
         UserMenuStore userMenu,
         ITextClipboard textClipboard,
+        FilePanelSourceRegistry sourceRegistry,
         AppSettingsAlias settings,
         ApplicationSession session,
         DefaultMenuDefinitionProvider menuProvider,
@@ -112,6 +115,7 @@ internal sealed class ApplicationCommandContext
         History = history;
         UserMenu = userMenu;
         TextClipboard = textClipboard;
+        _sourceRegistry = sourceRegistry;
         Settings = settings;
         _session = session;
         _menuProvider = menuProvider;
@@ -248,6 +252,27 @@ internal sealed class ApplicationCommandContext
             Settings.Editor,
             TextClipboard,
             fileNameInsertionContext).Show(path);
+    }
+
+    public void EditFile(
+        PanelLocation location,
+        EditorFileNameInsertionContext? fileNameInsertionContext = null)
+    {
+        if (location.SourceId == PanelSourceId.Local)
+        {
+            EditFile(location.SourcePath, fileNameInsertionContext);
+            return;
+        }
+
+        new FileEditor(
+            _interactiveSurfaces,
+            ModalDialogs,
+            Palette,
+            Settings.Editor,
+            TextClipboard,
+            fileNameInsertionContext,
+            null,
+            _sourceRegistry).Show(location);
     }
 
     public void EditFileWithNewFileFormat(
@@ -422,6 +447,9 @@ internal sealed class ApplicationCommandContext
 
     public void ViewPanelFile(FilePanelState state, FilePanelItem item) =>
         _panelFileViewer.ViewPanelFile(state, item);
+
+    public void EditPanelFile(FilePanelState state, FilePanelItem item) =>
+        _panelFileViewer.EditPanelFile(state, item);
 
     public void ExecuteCommand(string command) =>
         _commandLineCommandExecutor.Execute(command);

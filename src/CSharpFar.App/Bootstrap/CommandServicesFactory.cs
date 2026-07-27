@@ -15,6 +15,7 @@ using CSharpFar.Core.Abstractions;
 using CSharpFar.Core.Controllers;
 using CSharpFar.Core.Highlighting;
 using CSharpFar.Core.Models;
+using CSharpFar.Core.Services;
 using CSharpFar.Shell;
 using CSharpFar.Ui;
 using AppSettingsAlias = CSharpFar.Core.Models.AppSettings;
@@ -39,6 +40,7 @@ internal static class CommandServicesFactory
         IHistoryStore history,
         UserMenuStore userMenu,
         ITextClipboard clipboard,
+        FilePanelSourceRegistry sourceRegistry,
         AppSettingsAlias settings,
         ApplicationSession session,
         DefaultMenuDefinitionProvider menuProvider,
@@ -103,6 +105,7 @@ internal static class CommandServicesFactory
             history,
             userMenu,
             clipboard,
+            sourceRegistry,
             settings,
             session,
             menuProvider,

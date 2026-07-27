@@ -55,7 +55,8 @@ internal static class ApplicationServicesBuilder
         ITextClipboard? clipboard = null,
         ITerminalScreenMode? terminalScreenMode = null,
         IFileMetadataService? fileMetadata = null,
-        Func<IFileAttributesDialog>? fileAttributesDialogFactory = null)
+        Func<IFileAttributesDialog>? fileAttributesDialogFactory = null,
+        ApplicationRunOptions? runOptions = null)
     {
         var core = CoreServicesFactory.Create(
             fs,
@@ -68,7 +69,8 @@ internal static class ApplicationServicesBuilder
             searchService,
             sourceRegistry,
             configDirectory,
-            clipboard);
+            clipboard,
+            runOptions);
         var effectiveSettings = core.Settings;
         var effectiveSourceRegistry = core.SourceRegistry;
         var controller = core.PanelController;
@@ -302,6 +304,7 @@ internal static class ApplicationServicesBuilder
             effectiveHistory,
             effectiveUserMenu,
             effectiveClipboard,
+            effectiveSourceRegistry,
             effectiveSettings,
             session,
             menuProvider,

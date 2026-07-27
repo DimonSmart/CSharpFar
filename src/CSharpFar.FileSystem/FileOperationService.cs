@@ -168,7 +168,7 @@ public sealed class FileOperationService : IFileOperationService
         var destination = RequireDestinationLocation(request);
         var sources = RequireSourceLocations(request);
         if (destination.SourceId != PanelSourceId.Local &&
-            sources.Any(source => source.SourceId != PanelSourceId.Local))
+            sources.Any(source => source.SourceId != PanelSourceId.Local && source.SourceId != destination.SourceId))
         {
             throw new InvalidOperationException("Provider-to-provider copy is not supported.");
         }

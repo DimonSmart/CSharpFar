@@ -8,6 +8,7 @@ internal sealed class LargeFileViewerOptions
     public int CurrentFileIndex { get; set; } = -1;
     public Action<string>? CurrentFileChanged { get; init; }
     public Action<string>? EditFile { get; init; }
+    public Action? EditCurrentFile { get; init; }
     public ITextClipboard? Clipboard { get; init; }
 
     public bool HasSiblingFiles =>

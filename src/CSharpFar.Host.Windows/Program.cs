@@ -20,12 +20,32 @@ if (args is ["--self-test"])
 if (args is ["--check-terminal"])
     return RunTerminalCheck(settingsStore);
 
+if (!ApplicationRunOptionsParser.TryParse(args, out var runOptions, out string? runError))
+{
+    Console.Error.WriteLine(runError);
+    return 2;
+}
+
+if (!ApplicationRunOptionsValidator.TryValidate(runOptions, out string? validationError))
+{
+    Console.Error.WriteLine(validationError);
+    return 1;
+}
+
 using var platform = WindowsPlatformServices.Create(
     settingsStore.ConfigDirectory,
     settingsStore.Settings.Shell);
 
-ApplicationBootstrap.Run(platform.ConsoleDriver, platform, settingsStore);
-return 0;
+try
+{
+    ApplicationBootstrap.Run(platform.ConsoleDriver, platform, settingsStore, runOptions);
+    return 0;
+}
+catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException)
+{
+    Console.Error.WriteLine(ex.Message);
+    return 1;
+}
 
 static void PrintVersion()
 {

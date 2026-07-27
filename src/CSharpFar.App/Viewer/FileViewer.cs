@@ -41,4 +41,7 @@ internal sealed class FileViewer
 
         new LargeFileViewer(_surfaces, _modalDialogs, _palette).Show(filePath, options);
     }
+
+    internal void Show(string displayPath, IFileByteReader reader, LargeFileViewerOptions? options = null) =>
+        new LargeFileViewer(_surfaces, _modalDialogs, _palette).ShowVirtual(displayPath, reader, options);
 }

@@ -6,6 +6,7 @@ using CSharpFar.Console.Input;
 using CSharpFar.Console.Models;
 using CSharpFar.Core.Abstractions;
 using CSharpFar.Core.Models;
+using CSharpFar.Core.Services;
 using CSharpFar.Ui;
 
 namespace CSharpFar.App.Editor;
@@ -25,10 +26,13 @@ internal sealed partial class FileEditor
     private readonly ITextClipboard _clipboard;
     private readonly EditorFileNameInsertionContext? _fileNameInsertionContext;
     private readonly IEditorSyntaxHighlighter _syntaxHighlighter;
+    private readonly FilePanelSourceRegistry? _sourceRegistry;
     private readonly FunctionKeyBarController<ConsoleKeyInfo> _functionKeyBar = new();
     private EditorFindDialogResult? _lastFind;
     private bool _markMode;
     private bool _persistentSelection;
+    private IFilePanelSource? _activeSource;
+    private string? _activeSourcePath;
 
     public FileEditor(InteractiveSurfaceHost surfaces, ModalDialogHost modalDialogs)
         : this(surfaces, modalDialogs, null, null) { }
@@ -73,7 +77,8 @@ internal sealed partial class FileEditor
         AppSettings.EditorSettings? settings,
         ITextClipboard? clipboard,
         EditorFileNameInsertionContext? fileNameInsertionContext,
-        IEditorSyntaxHighlighter? syntaxHighlighter)
+        IEditorSyntaxHighlighter? syntaxHighlighter,
+        FilePanelSourceRegistry? sourceRegistry = null)
     {
         _surfaces = surfaces ?? throw new ArgumentNullException(nameof(surfaces));
         _modalDialogs = modalDialogs ?? throw new ArgumentNullException(nameof(modalDialogs));
@@ -83,15 +88,21 @@ internal sealed partial class FileEditor
         _clipboard = clipboard ?? TextCopyTextClipboard.Instance;
         _fileNameInsertionContext = fileNameInsertionContext;
         _syntaxHighlighter = syntaxHighlighter ?? new TextMateEditorSyntaxHighlighter();
+        _sourceRegistry = sourceRegistry;
     }
 
     public void Show(string filePath) => Show(filePath, newFileFormat: null);
+    public void Show(PanelLocation location) => Show(location, newFileFormat: null);
 
     public void ShowWithNewFileFormat(string filePath, EditorDocumentFormat newFileFormat) =>
         Show(filePath, newFileFormat);
+    public void ShowWithNewFileFormat(PanelLocation location, EditorDocumentFormat newFileFormat) =>
+        Show(location, newFileFormat);
 
     private void Show(string filePath, EditorDocumentFormat? newFileFormat)
     {
+        _activeSource = null;
+        _activeSourcePath = null;
         if (_fileService.RequiresSizeWarning(filePath) &&
             !new ConfirmDialog(_modalDialogs).Show(
                 "Editor",
@@ -120,6 +131,52 @@ internal sealed partial class FileEditor
         finally
         {
             session.RaiseClosed();
+        }
+    }
+
+    private void Show(PanelLocation location, EditorDocumentFormat? newFileFormat)
+    {
+        if (location.SourceId == PanelSourceId.Local)
+        {
+            Show(location.SourcePath, newFileFormat);
+            return;
+        }
+
+        var source = _sourceRegistry?.GetSource(location.SourceId)
+                     ?? throw new InvalidOperationException($"Panel source '{location.SourceId}' is not registered.");
+        _activeSource = source;
+        _activeSourcePath = location.SourcePath;
+
+        if (_fileService.RequiresSizeWarning(source, location.SourcePath) &&
+            !new ConfirmDialog(_modalDialogs).Show(
+                "Editor",
+                $"File is larger than the editor warning limit ({_settings.FileSizeLimitBytes / 1024 / 1024} MB).",
+                "Open anyway?"))
+        {
+            return;
+        }
+
+        EditorSession session;
+        try
+        {
+            session = _fileService.Load(source, location.SourcePath, location.SourcePath, newFileFormat);
+        }
+        catch (Exception ex)
+        {
+            new MessageDialog(_modalDialogs).Show("Editor", ex.Message);
+            return;
+        }
+
+        try
+        {
+            session.RaiseOpened();
+            RunLoop(session);
+        }
+        finally
+        {
+            session.RaiseClosed();
+            _activeSource = null;
+            _activeSourcePath = null;
         }
     }
 
@@ -547,7 +604,10 @@ internal sealed partial class FileEditor
     {
         try
         {
-            _fileService.Save(session);
+            if (_activeSource is not null && _activeSourcePath is not null)
+                _fileService.Save(session, _activeSource, _activeSourcePath);
+            else
+                _fileService.Save(session);
             return true;
         }
         catch (Exception ex)

@@ -11,7 +11,6 @@ internal sealed class OpenCreateFileCommand : IApplicationCommand
     public string CommandId => FunctionKeyCommandIds.OpenCreateFile;
 
     public bool CanExecute(ApplicationCommandContext context, object? args = null) =>
-        context.ResolvePanelTarget(args).State.SourceId == PanelSourceId.Local &&
         context.HasCapability(context.ResolvePanelTarget(args).State, PanelProviderCapabilities.CreateFile);
 
     public ApplicationCommandResult Execute(ApplicationCommandContext context, object? args = null)
@@ -35,29 +34,42 @@ internal sealed class OpenCreateFileCommand : IApplicationCommand
             return ApplicationCommandResult.Rendered();
 
         string filePath;
+        PanelLocation fileLocation;
         try
         {
-            filePath = ResolveLocalPath(target.State.SourcePath, result.FilePath);
+            fileLocation = ResolvePath(context, target.State, result.FilePath);
+            filePath = fileLocation.SourcePath;
         }
-        catch (Exception ex) when (ex is ArgumentException or NotSupportedException or PathTooLongException)
+        catch (Exception ex) when (ex is ArgumentException or NotSupportedException or PathTooLongException or IOException)
         {
             new MessageDialog(context.ModalDialogs).Show("Editor", ex.Message);
             return ApplicationCommandResult.Rendered();
         }
 
-        bool existedBefore = File.Exists(filePath);
+        bool existedBefore = target.State.SourceId == PanelSourceId.Local
+            ? File.Exists(filePath)
+            : context.Controller.CurrentItem(target.State)?.Location == fileLocation;
         EditorDocumentFormat newFileFormat = result.CodePage.CreateDocumentFormat(context.Settings.Editor);
-        context.EditFileWithNewFileFormat(
-            filePath,
-            newFileFormat,
-            PanelCommandEditorContextFactory.Create(context, target));
+        if (fileLocation.SourceId == PanelSourceId.Local)
+        {
+            context.EditFileWithNewFileFormat(
+                filePath,
+                newFileFormat,
+                PanelCommandEditorContextFactory.Create(context, target));
+        }
+        else
+        {
+            context.EditFile(
+                fileLocation,
+                PanelCommandEditorContextFactory.Create(context, target));
+        }
 
-        if (File.Exists(filePath))
+        if (target.State.SourceId == PanelSourceId.Local && File.Exists(filePath))
             context.History.AddFile(new FileHistoryItem { Path = filePath });
 
         context.SafeRefresh(target.State, target.VisibleRows);
-        if (!existedBefore && IsInCurrentLocalDirectory(target.State.SourcePath, filePath))
-            context.Controller.SetCursorByName(target.State, Path.GetFileName(filePath), target.VisibleRows);
+        if (!existedBefore)
+            context.Controller.SetCursorByName(target.State, Path.GetFileName(filePath.Replace('/', Path.DirectorySeparatorChar)), target.VisibleRows);
 
         return ApplicationCommandResult.Rendered();
     }
@@ -85,6 +97,20 @@ internal sealed class OpenCreateFileCommand : IApplicationCommand
         catch (ArgumentException ex) { return ex.Message; }
         catch (NotSupportedException ex) { return ex.Message; }
         catch (PathTooLongException ex) { return ex.Message; }
+    }
+
+    private static PanelLocation ResolvePath(
+        ApplicationCommandContext context,
+        FilePanelState state,
+        string path)
+    {
+        if (state.SourceId == PanelSourceId.Local)
+            return PanelLocation.Local(ResolveLocalPath(state.SourcePath, path));
+
+        string combined = path.Contains('/') || path.Contains('\\')
+            ? path
+            : context.CombinePanelPath(state, path);
+        return new PanelLocation(state.SourceId, combined.Replace('\\', '/'));
     }
 
     private static string ResolveLocalPath(string currentDirectory, string path) =>
