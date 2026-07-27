@@ -13,14 +13,13 @@ internal sealed class FileAttributesDialog : IFileAttributesDialog
     private const int DialogHeight = 25;
     private const string DateTimeFormat = "dd.MM.yyyy HH:mm:ss";
 
-    private readonly ModalDialogHost _modalDialogs;
+    private readonly ModalFormHost _formDialogs;
     private readonly IClock _clock;
     private readonly bool _canOpenSystemProperties;
-    private readonly ModalDialogRenderer _modalRenderer = new();
 
     public FileAttributesDialog(ModalDialogHost modalDialogs, IClock? clock = null, bool canOpenSystemProperties = false)
     {
-        _modalDialogs = modalDialogs;
+        _formDialogs = new ModalFormHost(modalDialogs);
         _clock = clock ?? new SystemClock();
         _canOpenSystemProperties = canOpenSystemProperties;
     }
@@ -126,16 +125,12 @@ internal sealed class FileAttributesDialog : IFileAttributesDialog
         string? error = null;
 
         void PrepareRows() =>
-            form.SetRows(BuildRows(snapshot, attributeRows, unixMatrixRows, unixSpecialRows, creation, write, access));
+            form.SetRows(BuildRows(snapshot, attributeRows, unixMatrixRows, unixSpecialRows, creation, write, access, error));
 
-        return _modalDialogs.RunInteractive<ScrollableFormFrame, FormInputResult, FileAttributesDialogResult?>(
-            (context, focusScope) => Draw(context, focusScope, form, error),
-            form.BuildInteractionFrame,
-            (input, frame, route) =>
-            {
-                FormRouteResult result = form.RouteInput(input, frame, route);
-                return (result.FormResult, result.UiResult);
-            },
+        return _formDialogs.Run(
+            form,
+            new ModalFormOptions("File attributes", DialogWidth, DialogHeight, 48, 8),
+            static layout => new ModalFormLayout(layout.FrameBounds),
             (routed, result) =>
             {
                 if (result.Kind == FormInputResultKind.Cancel)
@@ -181,7 +176,8 @@ internal sealed class FileAttributesDialog : IFileAttributesDialog
         IReadOnlyList<UnixPermissionDialogRow> unixSpecialRows,
         CommandLineState creation,
         CommandLineState write,
-        CommandLineState access)
+        CommandLineState access,
+        string? error)
     {
         var fill = FarDialogStyles.Fill;
         var disabled = new CellStyle(ConsoleColor.DarkGray, fill.Background);
@@ -233,6 +229,7 @@ internal sealed class FileAttributesDialog : IFileAttributesDialog
                 new DialogButton("cancel", "Cancel", 'C', Role: DialogButtonRole.Cancel),
             }
             : [new DialogButton("set", "Set", 'S', IsDefault: true), new DialogButton("cancel", "Cancel", 'C', Role: DialogButtonRole.Cancel)];
+        rows.Add(new LabelRow(error ?? string.Empty, FarDialogStyles.Error));
         rows.Add(new ButtonRow(buttons));
         return rows;
     }
@@ -263,32 +260,6 @@ internal sealed class FileAttributesDialog : IFileAttributesDialog
             commandPrefix,
             inputWidth: DateTimeFormat.Length,
             buttonAreaWidth: 36));
-    }
-
-    private ScrollableFormFrame Draw(UiRenderContext context, IUiFocusState focusScope, ScrollableFormDialog form, string? error)
-    {
-        Rect outerBounds = OuterBounds(context.Size);
-        ScrollableFormFrame? frame = null;
-
-        _modalRenderer.Render(context.Canvas, outerBounds, "Attributes", true, FarDialogStyles.OuterOptions, FarDialogStyles.FrameOptions, (_, layout) =>
-        {
-            Rect bounds = layout.FrameBounds;
-            int contentX = bounds.X + 2;
-            int contentWidth = Math.Max(1, bounds.Width - 4);
-            int errorY = bounds.Y + bounds.Height - 2;
-            int bodyTop = bounds.Y + 1;
-            int bodyHeight = Math.Max(1, errorY - bodyTop);
-
-            frame = form.Render(new FormRenderContext(
-                context,
-                new Rect(contentX, bodyTop, contentWidth, bodyHeight),
-                FarDialogStyles.Border),
-                focusScope);
-
-            string errorText = error is null ? string.Empty : Truncate(error, contentWidth);
-            context.Canvas.Write(contentX, errorY, errorText.PadRight(contentWidth), FarDialogStyles.Error);
-        });
-        return frame ?? throw new InvalidOperationException("File attributes dialog did not render a form frame.");
     }
 
     private static DateTime? ParseChangedTime(
@@ -447,22 +418,6 @@ internal sealed class FileAttributesDialog : IFileAttributesDialog
             null,
             null,
             new Dictionary<UnixPermissionBit, AttributeEditState>());
-
-    private static Rect OuterBounds(ConsoleSize size)
-    {
-        int dialogWidth = Math.Min(DialogWidth, Math.Max(48, size.Width - 2));
-        int dialogHeight = Math.Min(DialogHeight, Math.Max(12, size.Height - 2));
-        int dialogX = Math.Max(0, (size.Width - dialogWidth) / 2);
-        int dialogY = Math.Max(0, (size.Height - dialogHeight) / 2);
-        return new Rect(dialogX, dialogY, dialogWidth, dialogHeight);
-    }
-
-    private static string Truncate(string value, int maxLength)
-    {
-        if (maxLength <= 0)
-            return string.Empty;
-        return value.Length <= maxLength ? value : value[..Math.Max(0, maxLength - 1)] + "~";
-    }
 
     private sealed record AttributeDialogRow(
         FileAttributeDescriptor Descriptor,

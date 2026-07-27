@@ -65,12 +65,11 @@ public sealed class SearchOptionsDialog
 
     private static readonly SingleLineTextHistoryRegistry HistoryRegistry = new();
 
-    private readonly ModalDialogHost _modalDialogs;
-    private readonly ModalDialogRenderer _modalRenderer = new();
+    private readonly ModalFormHost _formDialogs;
 
     public SearchOptionsDialog(ModalDialogHost modalDialogs)
     {
-        _modalDialogs = modalDialogs ?? throw new ArgumentNullException(nameof(modalDialogs));
+        _formDialogs = new ModalFormHost(modalDialogs ?? throw new ArgumentNullException(nameof(modalDialogs)));
     }
 
     public SearchOptionsDialogResult? Show(SearchOptionsDialogOptions options)
@@ -97,20 +96,19 @@ public sealed class SearchOptionsDialog
                 new DialogButton("find", "Find", 'F', IsDefault: true),
                 new DialogButton("cancel", "Cancel", 'C', Role: DialogButtonRole.Cancel),
             ]);
-        var form = new ScrollableFormDialog(BuildRows(options, pattern, patternHistory, patternRowState, checkboxes, buttons));
+        var form = new ScrollableFormDialog();
         string? error = null;
-        return _modalDialogs.RunInteractive<ScrollableFormFrame, FormInputResult, SearchOptionsDialogResult?>(
-            (context, focusScope) =>
-            {
-                var layout = SearchOptionsDialogLayout.Create(context.Size, options.Width, options.Options.Count);
-                return Draw(context, focusScope, options, layout, form, error);
-            },
-            form.BuildInteractionFrame,
-            (input, frame, route) =>
-            {
-                FormRouteResult result = form.RouteInput(input, frame, route);
-                return (result.FormResult, result.UiResult);
-            },
+        void PrepareRows() => form.SetRows(BuildRows(options, pattern, patternHistory, patternRowState, checkboxes, buttons),
+            [new LabelRow(error ?? string.Empty, PaletteStyles.DialogError(UiTheme.Current)), buttons]);
+        return _formDialogs.Run(
+            form,
+            new ModalFormOptions(
+                options.Title, options.Width, options.Options.Count + 8, MinimumWidth, MinimumHeight,
+                OuterRenderOptions: PaletteStyles.DialogPopupOptions(UiTheme.Current) with { DrawBorder = false },
+                FrameRenderOptions: PaletteStyles.DialogPopupOptions(UiTheme.Current) with { DrawShadow = false }),
+            static layout => new ModalFormLayout(
+                new Rect(layout.ContentBounds.X, layout.ContentBounds.Y, layout.ContentBounds.Width, Math.Max(1, layout.ContentBounds.Height - 2)),
+                new Rect(layout.ContentBounds.X, layout.ContentBounds.Bottom - 2, layout.ContentBounds.Width, 2)),
             (routed, result) =>
             {
                 if (result.Kind == FormInputResultKind.ValueChanged)
@@ -139,7 +137,8 @@ public sealed class SearchOptionsDialog
                 }
 
                 return ModalDialogLoopResult<SearchOptionsDialogResult?>.Continue;
-            });
+            },
+            prepareRender: PrepareRows);
     }
 
     internal static IReadOnlyList<IFormRow> BuildRows(
@@ -161,8 +160,6 @@ public sealed class SearchOptionsDialog
             },
         };
         rows.AddRange(checkboxes);
-        rows.Add(new SeparatorRow(FarDialogStyles.Fill, drawLine: false));
-        rows.Add(buttons);
         return rows;
     }
 
@@ -228,56 +225,4 @@ public sealed class SearchOptionsDialog
     private static SearchOptionsDialogResult CreateResult(SearchOptionsDialogState state) =>
         new(state.Pattern, new Dictionary<string, bool>(state.Options));
 
-    private ScrollableFormFrame Draw(
-        UiRenderContext context,
-        IUiFocusState focusScope,
-        SearchOptionsDialogOptions options,
-        SearchOptionsDialogLayout layout,
-        ScrollableFormDialog form,
-        string? error)
-    {
-        var palette = UiTheme.Current;
-        ScrollableFormFrame? frame = null;
-        _modalRenderer.Render(
-            context.Canvas,
-            layout.Bounds,
-            options.Title,
-            doubleBorder: true,
-            PaletteStyles.DialogPopupOptions(palette) with { DrawBorder = false },
-            PaletteStyles.DialogPopupOptions(palette) with { DrawShadow = false },
-            (_, modalLayout) =>
-            {
-                Rect content = modalLayout.ContentBounds;
-                frame = form.Render(new FormRenderContext(
-                    context,
-                    new Rect(content.X, content.Y, content.Width, layout.BodyHeight),
-                    FarDialogStyles.Border),
-                    focusScope);
-
-                string errorText = error is null ? string.Empty : error;
-                context.Canvas.Write(content.X, layout.ErrorY, ScrollableFormDialog.Fit(errorText, content.Width), PaletteStyles.DialogError(palette));
-            });
-        return frame ?? throw new InvalidOperationException("Search options dialog did not render a form frame.");
-    }
-
-    private readonly record struct SearchOptionsDialogLayout(
-        Rect Bounds,
-        int BodyHeight,
-        int ErrorY)
-    {
-        public static SearchOptionsDialogLayout Create(ConsoleSize size, int preferredWidth, int optionCount)
-        {
-            int width = Math.Min(Math.Max(MinimumWidth, preferredWidth), Math.Max(MinimumWidth, size.Width));
-            int height = Math.Min(Math.Max(MinimumHeight, optionCount + 8), Math.Max(MinimumHeight, size.Height));
-            int x = Math.Max(0, (size.Width - width) / 2);
-            int y = Math.Max(0, (size.Height - height) / 2);
-            var bounds = new Rect(x, y, width, height);
-            int contentY = y + 2;
-            int bodyHeight = Math.Max(1, optionCount + 4);
-            return new SearchOptionsDialogLayout(
-                bounds,
-                bodyHeight,
-                contentY + bodyHeight);
-        }
-    }
 }

@@ -32,12 +32,11 @@ internal sealed class SettingsDialog
     private static readonly PanelViewMode[] ViewModes = [PanelViewMode.Full, PanelViewMode.BriefTwoColumns];
     private static readonly string[] PaletteNames = [.. PaletteRegistry.Names];
 
-    private readonly ModalDialogHost _modalDialogs;
-    private readonly ModalDialogRenderer _modalRenderer = new();
+    private readonly ModalFormHost _formDialogs;
 
     public SettingsDialog(ModalDialogHost modalDialogs)
     {
-        _modalDialogs = modalDialogs;
+        _formDialogs = new ModalFormHost(modalDialogs);
     }
 
     /// <summary>
@@ -101,14 +100,10 @@ internal sealed class SettingsDialog
                     new SeparatorRow(FarDialogStyles.Border, drawLine: false),
                 ]);
 
-        return _modalDialogs.RunInteractive<ScrollableFormFrame, FormInputResult, SettingsDialogResult?>(
-            (context, focusScope) => Draw(context, focusScope, form, () => palette.Value),
-            form.BuildInteractionFrame,
-            (input, frame, route) =>
-            {
-                FormRouteResult result = form.RouteInput(input, frame, route);
-                return (result.FormResult, result.UiResult);
-            },
+        return _formDialogs.Run(
+            form,
+            new ModalFormOptions("Settings", DialogWidth, DialogHeight),
+            static layout => new ModalFormLayout(Inset(layout.ContentBounds)),
             (routed, result) =>
             {
                 if (result.Kind == FormInputResultKind.Cancel)
@@ -126,42 +121,13 @@ internal sealed class SettingsDialog
 
                 return ModalDialogLoopResult<SettingsDialogResult?>.Continue;
             },
-            prepareRender: PrepareRows);
+            prepareRender: PrepareRows,
+            beginRenderScope: () => UiTheme.UseTemporary(PaletteRegistry.Resolve(palette.Value)));
     }
 
-    private ScrollableFormFrame Draw(
-        UiRenderContext context,
-        IUiFocusState focusScope,
-        ScrollableFormDialog form,
-        Func<string> paletteName)
-    {
-        ScrollableFormFrame? frame = null;
-        using (UiTheme.UseTemporary(PaletteRegistry.Resolve(paletteName())))
-        {
-            _modalRenderer.Render(
-                context.Canvas,
-                OuterBounds(context.Size),
-                "Settings",
-                doubleBorder: true,
-                FarDialogStyles.OuterOptions,
-                FarDialogStyles.FrameOptions,
-                (_, layout) =>
-                {
-                    Rect contentBounds = layout.ContentBounds;
-                    var bodyBounds = contentBounds.Width >= 2
-                        ? new Rect(contentBounds.X + 1, contentBounds.Y, contentBounds.Width - 2, contentBounds.Height)
-                        : new Rect(contentBounds.X, contentBounds.Y, 0, 0);
-                    frame = form.Render(new FormRenderContext(context, bodyBounds, FarDialogStyles.Border), focusScope);
-                });
-        }
-
-        return frame ?? throw new InvalidOperationException("Settings dialog did not render a form frame.");
-    }
-
-    private static Rect OuterBounds(ConsoleSize size)
-    {
-        return new ModalDialogRenderer().CenteredOuterBounds(size, DialogWidth, DialogHeight);
-    }
+    private static Rect Inset(Rect content) => content.Width >= 2
+        ? new Rect(content.X + 1, content.Y, content.Width - 2, content.Height)
+        : new Rect(content.X, content.Y, 0, 0);
 
     private static string ViewModeLabel(PanelViewMode mode) => mode switch
     {

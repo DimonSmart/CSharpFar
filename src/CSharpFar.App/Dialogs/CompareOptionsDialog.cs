@@ -14,12 +14,11 @@ internal sealed class CompareOptionsDialog
     private const int DialogHeight = 26;
 
     private static readonly SingleLineTextHistoryRegistry HistoryRegistry = new();
-    private readonly ModalDialogHost _modalDialogs;
-    private readonly ModalDialogRenderer _modalRenderer = new();
+    private readonly ModalFormHost _formDialogs;
 
     public CompareOptionsDialog(ModalDialogHost modalDialogs)
     {
-        _modalDialogs = modalDialogs;
+        _formDialogs = new ModalFormHost(modalDialogs);
     }
 
     public ComparisonOptions? Show(
@@ -96,16 +95,13 @@ internal sealed class CompareOptionsDialog
                 tolerance,
                 nameComparison,
                 fileSetMatch,
-                buttons));
+                buttons,
+                error));
 
-        return _modalDialogs.RunInteractive<ScrollableFormFrame, FormInputResult, ComparisonOptions?>(
-            (context, focusScope) => RenderLayer(context, focusScope, mode == CompareMode.FileSet ? "Compare file sets" : "Compare folders", form, error),
-            form.BuildInteractionFrame,
-            (input, frame, route) =>
-            {
-                FormRouteResult result = form.RouteInput(input, frame, route);
-                return (result.FormResult, result.UiResult);
-            },
+        return _formDialogs.Run(
+            form,
+            new ModalFormOptions(mode == CompareMode.FileSet ? "Compare file sets" : "Compare folders", DialogWidth, DialogHeight, 52, 12),
+            static layout => new ModalFormLayout(layout.FrameBounds),
             (routed, result) =>
             {
                 if (result.Kind == FormInputResultKind.Cancel)
@@ -160,7 +156,8 @@ internal sealed class CompareOptionsDialog
         ChoiceFormRow<TimestampTolerance> tolerance,
         ChoiceFormRow<NameComparisonMode> nameComparison,
         ChoiceFormRow<FileSetMatchMode> fileSetMatch,
-        ButtonRow buttons)
+        ButtonRow buttons,
+        string? error)
     {
         List<IFormRow> rows =
         [
@@ -195,6 +192,7 @@ internal sealed class CompareOptionsDialog
         if (mode == CompareMode.FileSet)
             rows.Add(fileSetMatch);
         rows.Add(new SeparatorRow(FarDialogStyles.Fill, drawLine: false));
+        rows.Add(new LabelRow(error ?? string.Empty, FarDialogStyles.Error));
         rows.Add(buttons);
         return rows;
     }
@@ -274,26 +272,6 @@ internal sealed class CompareOptionsDialog
 
         error = null;
         return value;
-    }
-
-    private ScrollableFormFrame RenderLayer(UiRenderContext context, IUiFocusState focusScope, string title, ScrollableFormDialog form, string? error)
-    {
-        Rect outerBounds = _modalRenderer.CenteredOuterBounds(context.Size, DialogWidth, DialogHeight, minWidth: 52, minHeight: 12);
-        ScrollableFormFrame? frame = null;
-        _modalRenderer.Render(context.Canvas, outerBounds, title, true, FarDialogStyles.OuterOptions, FarDialogStyles.FrameOptions, (_, layout) =>
-        {
-            Rect bounds = layout.FrameBounds;
-            int contentX = bounds.X + 2;
-            int contentWidth = Math.Max(1, bounds.Width - 4);
-            int errorY = bounds.Y + bounds.Height - 2;
-            frame = form.Render(new FormRenderContext(
-                context,
-                new Rect(contentX, bounds.Y + 1, contentWidth, Math.Max(1, errorY - bounds.Y - 1)),
-                FarDialogStyles.Border),
-                focusScope);
-            context.Canvas.Write(contentX, errorY, (error ?? "").PadRight(contentWidth), FarDialogStyles.Error);
-        });
-        return frame ?? throw new InvalidOperationException("Compare options dialog did not render a form frame.");
     }
 
     private static int DepthIndex(string value) => value switch

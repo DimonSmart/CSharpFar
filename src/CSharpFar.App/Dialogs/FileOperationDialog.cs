@@ -48,12 +48,11 @@ internal sealed class FileOperationDialog
     ];
 
     private static readonly SingleLineTextHistoryRegistry HistoryRegistry = new();
-    private readonly ModalDialogHost _modalDialogs;
-    private readonly ModalDialogRenderer _modalRenderer = new();
+    private readonly ModalFormHost _formDialogs;
 
     public FileOperationDialog(ModalDialogHost modalDialogs)
     {
-        _modalDialogs = modalDialogs;
+        _formDialogs = new ModalFormHost(modalDialogs);
     }
 
     public FileOperationDialogResult? ShowCopy(
@@ -200,16 +199,14 @@ internal sealed class FileOperationDialog
                 copySymlinkContents,
                 useFilter,
                 showOperationOptions),
-                footerRows: [buttons]);
+                footerRows: [new LabelRow(error ?? string.Empty, FarDialogStyles.Error), buttons]);
 
-        return _modalDialogs.RunInteractive<ScrollableFormFrame, FormInputResult, FileOperationDialogResult?>(
-            (context, focusScope) => Draw(context, focusScope, title, form, error),
-            form.BuildInteractionFrame,
-            (input, frame, route) =>
-            {
-                FormRouteResult result = form.RouteInput(input, frame, route);
-                return (result.FormResult, result.UiResult);
-            },
+        return _formDialogs.Run(
+            form,
+            new ModalFormOptions(title, DialogWidth, DialogHeight, 40, 8),
+            static layout => new ModalFormLayout(
+                new Rect(layout.FrameBounds.X, layout.FrameBounds.Y, layout.FrameBounds.Width, Math.Max(1, layout.FrameBounds.Height - 2)),
+                new Rect(layout.FrameBounds.X, layout.FrameBounds.Bottom - 2, layout.FrameBounds.Width, 2)),
             (routed, result) =>
             {
                 if (result.Kind == FormInputResultKind.Cancel)
@@ -353,43 +350,6 @@ internal sealed class FileOperationDialog
                 SymlinkMode = copySymlinkContents ? SymlinkCopyMode.CopyTargetContents : SymlinkCopyMode.CopyLink,
                 FileMask = mask,
             });
-    }
-
-    private ScrollableFormFrame Draw(UiRenderContext context, IUiFocusState focusScope, string title, ScrollableFormDialog form, string? error)
-    {
-        Rect outerBounds = OuterBounds(context.Size);
-        ScrollableFormFrame? frame = null;
-
-        _modalRenderer.Render(context.Canvas, outerBounds, title, true, FarDialogStyles.OuterOptions, FarDialogStyles.FrameOptions, (_, layout) =>
-        {
-            Rect bounds = layout.FrameBounds;
-            int contentX = bounds.X + 2;
-            int contentWidth = Math.Max(1, bounds.Width - 4);
-            int buttonY = bounds.Y + bounds.Height - 2;
-            int errorY = buttonY - 1;
-            int bodyTop = bounds.Y + 1;
-            int bodyHeight = Math.Max(1, errorY - bodyTop);
-
-            frame = form.Render(new FormRenderContext(
-                context,
-                new Rect(contentX, bodyTop, contentWidth, bodyHeight),
-                FarDialogStyles.Border,
-                new Rect(contentX, buttonY, contentWidth, 1)),
-                focusScope);
-
-            string errorText = error is null ? string.Empty : Truncate(error, contentWidth);
-            context.Canvas.Write(contentX, errorY, errorText.PadRight(contentWidth), FarDialogStyles.Error);
-        });
-        return frame ?? throw new InvalidOperationException("File operation dialog did not render a form frame.");
-    }
-
-    private static Rect OuterBounds(ConsoleSize size)
-    {
-        int dialogWidth = Math.Min(DialogWidth, Math.Max(40, size.Width - 2));
-        int dialogHeight = Math.Min(DialogHeight, Math.Max(8, size.Height - 2));
-        int dialogX = Math.Max(0, (size.Width - dialogWidth) / 2);
-        int dialogY = Math.Max(0, (size.Height - dialogHeight) / 2);
-        return new Rect(dialogX, dialogY, dialogWidth, dialogHeight);
     }
 
     private static int FindConflictIndex(ConflictDecisionMode mode, IReadOnlyList<ConflictDecisionMode> conflictModes)

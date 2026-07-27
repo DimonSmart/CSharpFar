@@ -17,13 +17,12 @@ internal sealed class DirectoryShortcutEditDialog
     private const int DialogWidth = 62;
     private const int DialogHeight = 10;
 
-    private readonly ModalDialogHost _modalDialogs;
+    private readonly ModalFormHost _formDialogs;
     private readonly ConsolePalette _palette;
-    private readonly ModalDialogRenderer _modalRenderer = new();
 
     public DirectoryShortcutEditDialog(ModalDialogHost modalDialogs, ConsolePalette? palette = null)
     {
-        _modalDialogs = modalDialogs;
+        _formDialogs = new ModalFormHost(modalDialogs);
         _palette = palette ?? PaletteRegistry.Default;
     }
 
@@ -57,14 +56,15 @@ internal sealed class DirectoryShortcutEditDialog
                 ],
                 [actions]);
 
-        return _modalDialogs.RunInteractive<ScrollableFormFrame, FormInputResult, DirectoryShortcutEditResult>(
-            (context, focusScope) => Draw(context, focusScope, form, number),
-            form.BuildInteractionFrame,
-            (input, frame, route) =>
-            {
-                FormRouteResult result = form.RouteInput(input, frame, route);
-                return (result.FormResult, result.UiResult);
-            },
+        return _formDialogs.Run(
+            form,
+            new ModalFormOptions(
+                $"Directory shortcut {number}", DialogWidth, DialogHeight,
+                OuterRenderOptions: PaletteStyles.DialogPopupOptions(_palette) with { DrawBorder = false },
+                FrameRenderOptions: PaletteStyles.DialogPopupOptions(_palette) with { DrawShadow = false }),
+            static layout => new ModalFormLayout(
+                new Rect(layout.ContentBounds.X, layout.ContentBounds.Y, layout.ContentBounds.Width, Math.Max(1, layout.ContentBounds.Height - 2)),
+                new Rect(layout.ContentBounds.X, layout.ContentBounds.Bottom - 1, layout.ContentBounds.Width, 1)),
             (routed, result) =>
             {
                 if (result.Kind == FormInputResultKind.Cancel)
@@ -92,33 +92,6 @@ internal sealed class DirectoryShortcutEditDialog
                 return ModalDialogLoopResult<DirectoryShortcutEditResult>.Continue;
             },
             prepareRender: PrepareRows);
-    }
-
-    private ScrollableFormFrame Draw(
-        UiRenderContext context,
-        IUiFocusState focusScope,
-        ScrollableFormDialog form,
-        int number)
-    {
-        ScrollableFormFrame? frame = null;
-        _modalRenderer.Render(
-            context.Canvas,
-            _modalRenderer.CenteredOuterBounds(context.Size, DialogWidth, DialogHeight),
-            $"Directory shortcut {number}",
-            doubleBorder: true,
-            PaletteStyles.DialogPopupOptions(_palette) with { DrawBorder = false },
-            PaletteStyles.DialogPopupOptions(_palette) with { DrawShadow = false },
-            (_, layout) =>
-            {
-                Rect content = layout.ContentBounds;
-                var bodyBounds = new Rect(content.X, content.Y, content.Width, Math.Max(1, content.Height - 2));
-                var footerBounds = new Rect(content.X, content.Bottom - 1, content.Width, 1);
-                frame = form.Render(
-                    new FormRenderContext(context, bodyBounds, PaletteStyles.DialogFill(_palette), footerBounds),
-                    focusScope);
-            });
-
-        return frame ?? throw new InvalidOperationException("Directory shortcut edit dialog did not render a form frame.");
     }
 
     private static DirectoryShortcutEditResult Accepted(int number, string name, string path)
