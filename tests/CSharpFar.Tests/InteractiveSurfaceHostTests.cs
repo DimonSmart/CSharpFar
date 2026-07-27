@@ -94,10 +94,38 @@ public sealed class InteractiveSurfaceHostTests
                 handled++;
                 return key == ConsoleKey.Enter
                     ? ModalDialogLoopResult<bool>.Complete(true)
-                    : ModalDialogLoopResult<bool>.Continue;
+                    : ModalDialogLoopResult<bool>.ContinueNoChange;
             });
 
         Assert.Equal(2, handled);
+        Assert.Equal(2, renders);
+    }
+
+    [Fact]
+    public void Run_SemanticInvalidationCreatesExactlyOneSubsequentCompositionRender()
+    {
+        var driver = new FakeConsoleDriver();
+        driver.EnqueueKey(Key(ConsoleKey.A));
+        driver.EnqueueKey(Key(ConsoleKey.Enter));
+        var screen = new ScreenRenderer(driver);
+        var composition = new UiCompositionHost(screen);
+        composition.SetRootSurface(new ScreenRendererSurface(screen, _ => { }));
+        int renders = 0;
+        var layer = new InteractiveSurfaceLayer<int, ConsoleKey>(
+            (context, _) =>
+            {
+                context.Canvas.Write(0, 0, "S", new CellStyle(ConsoleColor.Gray, ConsoleColor.Black));
+                return ++renders;
+            },
+            _ => new UiInteractionFrame([], keyboardTarget: new UiTargetId("surface.keyboard")),
+            (input, _, _) => new InteractiveSurfaceRouteResult<ConsoleKey>(((KeyConsoleInputEvent)input).Key.Key));
+
+        new InteractiveSurfaceHost(composition).Run(
+            layer,
+            (_, key) => key == ConsoleKey.Enter
+                ? ModalDialogLoopResult<bool>.Complete(true)
+                : ModalDialogLoopResult<bool>.ContinueChanged);
+
         Assert.Equal(2, renders);
     }
 
@@ -177,7 +205,7 @@ public sealed class InteractiveSurfaceHostTests
             layer,
             (_, key) => key == ConsoleKey.Enter
                 ? ModalDialogLoopResult<bool>.Complete(true)
-                : ModalDialogLoopResult<bool>.Continue,
+                : ModalDialogLoopResult<bool>.ContinueNoChange,
             getNextWakeUtc: () => DateTimeOffset.UtcNow.AddMilliseconds(-1),
             handleWake: _ =>
             {
@@ -234,7 +262,7 @@ public sealed class InteractiveSurfaceHostTests
             (routed, key) =>
             {
                 if (key == ConsoleKey.A)
-                    return ModalDialogLoopResult<bool>.Continue;
+                    return ModalDialogLoopResult<bool>.ContinueChanged;
 
                 Assert.Equal(new ConsoleSize(100, 35), routed.Frame.Viewport.Size);
                 Assert.Equal(routed.Frame, layer.MutableStateFrame);
@@ -443,7 +471,7 @@ public sealed class InteractiveSurfaceHostTests
                             modalInputs++;
                             return ModalDialogLoopResult<bool>.Complete(true);
                         });
-                    return ModalDialogLoopResult<bool>.Continue;
+                    return ModalDialogLoopResult<bool>.ContinueNoChange;
                 }
 
                 return ModalDialogLoopResult<bool>.Complete(true);

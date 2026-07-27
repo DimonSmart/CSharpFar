@@ -145,7 +145,7 @@ internal sealed class SftpConnectionDialog
                     if (candidate is null)
                     {
                         error = "Host, user name, password, and remote root are required.";
-                        return ModalDialogLoopResult<SftpConnectionDialogResult?>.Continue;
+                        return ModalDialogLoopResult<SftpConnectionDialogResult?>.ContinueChanged;
                     }
 
                     SftpConnectionDialogValidationResult validation = validate(candidate);
@@ -168,7 +168,7 @@ internal sealed class SftpConnectionDialog
                     error = validation.ErrorMessage;
                 }
 
-                return ModalDialogLoopResult<SftpConnectionDialogResult?>.Continue;
+                return ModalDialogLoopResult<SftpConnectionDialogResult?>.ContinueChanged;
             },
             prepareRender: PrepareRows);
     }

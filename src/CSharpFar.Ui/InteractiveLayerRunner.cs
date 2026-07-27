@@ -8,7 +8,8 @@ internal enum InteractiveLayerPlacement
 
 internal sealed record InteractiveLayerInput<TFrame, TSemantic>(
     UiRoutedInput<TFrame> Routed,
-    TSemantic Semantic);
+    TSemantic Semantic,
+    bool RouteInvalidate);
 
 internal readonly record struct InteractiveLayerWakeResult<TResult>(
     bool Invalidate,
@@ -86,7 +87,8 @@ internal sealed class InteractiveLayerRunner
                     return step.Result;
 
                 requestFocus(step.FocusRequest);
-                RenderAndApply(committedFrame, applyCommittedFrame, prepareRender);
+                if (packet.RouteInvalidate || step.Invalidate)
+                    RenderAndApply(committedFrame, applyCommittedFrame, prepareRender);
             }
         }
         finally

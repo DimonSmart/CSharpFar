@@ -40,7 +40,7 @@ public sealed class ConfirmDialog
             {
                 if (outcome is { } action)
                     return ModalDialogLoopResult<bool>.Complete(action.Kind == DialogActionOutcomeKind.Activated && action.ButtonId == "ok");
-                return ModalDialogLoopResult<bool>.Continue;
+                return ModalDialogLoopResult<bool>.ContinueNoChange;
             });
     }
 

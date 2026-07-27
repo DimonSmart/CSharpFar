@@ -123,7 +123,7 @@ internal sealed class OpenCreateFileDialog
                         return ModalDialogLoopResult<OpenCreateFileDialogResult?>.Complete(accepted);
                 }
 
-                return ModalDialogLoopResult<OpenCreateFileDialogResult?>.Continue;
+                return ModalDialogLoopResult<OpenCreateFileDialogResult?>.ContinueNoChange;
             },
             prepareRender: PrepareRows);
     }

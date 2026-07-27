@@ -18,7 +18,7 @@ internal sealed class HelpViewer
         var layer = new HelpViewerLayer(HelpContent.Lines, _palette);
         _surfaces.Run(layer, static (_, action) => action == HelpAction.Close
             ? ModalDialogLoopResult<bool>.Complete(true)
-            : ModalDialogLoopResult<bool>.Continue);
+            : ModalDialogLoopResult<bool>.ContinueNoChange);
     }
 }
 

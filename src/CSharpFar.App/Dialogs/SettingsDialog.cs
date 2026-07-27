@@ -119,7 +119,7 @@ internal sealed class SettingsDialog
                         syntaxHighlighting.Value));
                 }
 
-                return ModalDialogLoopResult<SettingsDialogResult?>.Continue;
+                return ModalDialogLoopResult<SettingsDialogResult?>.ContinueNoChange;
             },
             prepareRender: PrepareRows,
             beginRenderScope: () => UiTheme.UseTemporary(PaletteRegistry.Resolve(palette.Value)));

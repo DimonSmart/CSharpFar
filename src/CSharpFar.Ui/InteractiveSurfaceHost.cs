@@ -136,7 +136,7 @@ public class InteractiveSurfaceLayer<TFrame, TSemantic> : UiLayer<TFrame>
     {
         var result = RouteSemanticInput(input, frame, context);
         _pendingInput.Store(new InteractiveLayerInput<TFrame, TSemantic>(
-            new UiRoutedInput<TFrame>(input, frame, context.Target, context.RouteKind), result.Semantic));
+            new UiRoutedInput<TFrame>(input, frame, context.Target, context.RouteKind), result.Semantic, result.Invalidate));
         return result.ToUiInputResult();
     }
 

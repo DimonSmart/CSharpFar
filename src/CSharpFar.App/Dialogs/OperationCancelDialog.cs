@@ -48,7 +48,7 @@ internal sealed class OperationCancelDialog
                     return ModalDialogLoopResult<bool>.Complete(false);
                 if (result.Kind == FormInputResultKind.Submit)
                     return ModalDialogLoopResult<bool>.Complete(result.Command == YesButton);
-                return ModalDialogLoopResult<bool>.Continue;
+                return ModalDialogLoopResult<bool>.ContinueNoChange;
             });
     }
 

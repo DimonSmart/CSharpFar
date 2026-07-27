@@ -92,7 +92,7 @@ public sealed class ListWithButtonsDialog<T>
                     ScrollableListInputResultKind.Confirmed => ModalDialogLoopResult<ListWithButtonsDialogResult<T>?>.Complete(CreateResult(DefaultListActionId)),
                     _ when semantic.Input is KeyConsoleInputEvent { Key.Key: ConsoleKey.Delete } && DeleteActionId is not null && _list.HasItems =>
                         ModalDialogLoopResult<ListWithButtonsDialogResult<T>?>.Complete(CreateResult(DeleteActionId)),
-                    _ => ModalDialogLoopResult<ListWithButtonsDialogResult<T>?>.Continue,
+                    _ => ModalDialogLoopResult<ListWithButtonsDialogResult<T>?>.ContinueNoChange,
                 };
             },
             applyCommittedFrame: frame => _list.ApplyCommittedFrame(frame.List));

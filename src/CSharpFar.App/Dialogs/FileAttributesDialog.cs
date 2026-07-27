@@ -142,7 +142,7 @@ internal sealed class FileAttributesDialog : IFileAttributesDialog
                     if (IsTimeCommand(result.Command))
                     {
                         ApplyTimeCommand(result.Command, snapshot, creation, write, access);
-                        return ModalDialogLoopResult<FileAttributesDialogResult?>.Continue;
+                        return ModalDialogLoopResult<FileAttributesDialogResult?>.ContinueChanged;
                     }
 
                     switch (result.Command)
@@ -160,11 +160,11 @@ internal sealed class FileAttributesDialog : IFileAttributesDialog
                                 return ModalDialogLoopResult<FileAttributesDialogResult?>.Complete(
                                     new FileAttributesDialogResult(changeSet, OpenSystemProperties: false));
                             }
-                            return ModalDialogLoopResult<FileAttributesDialogResult?>.Continue;
+                            return ModalDialogLoopResult<FileAttributesDialogResult?>.ContinueChanged;
                     }
                 }
 
-                return ModalDialogLoopResult<FileAttributesDialogResult?>.Continue;
+                return ModalDialogLoopResult<FileAttributesDialogResult?>.ContinueNoChange;
             },
             prepareRender: PrepareRows);
     }

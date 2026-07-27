@@ -53,7 +53,7 @@ public sealed class ChoiceDialog
             {
                 if (outcome is { } action)
                     return ModalDialogLoopResult<ChoiceDialogResult>.Complete(new ChoiceDialogResult(action.ButtonIndex, action.ButtonId!));
-                return ModalDialogLoopResult<ChoiceDialogResult>.Continue;
+                return ModalDialogLoopResult<ChoiceDialogResult>.ContinueNoChange;
             });
     }
 

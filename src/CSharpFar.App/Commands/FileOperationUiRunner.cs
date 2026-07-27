@@ -142,7 +142,7 @@ internal sealed class FileOperationUiRunner
             FileOperationProgressInput input)
         {
             if (input != FileOperationProgressInput.CancelRequested || cancellationRequested)
-                return ModalDialogLoopResult<FileOperationBackgroundOutcome>.Continue;
+                return ModalDialogLoopResult<FileOperationBackgroundOutcome>.ContinueNoChange;
 
             HandleCancellation(
                 frame,
@@ -172,7 +172,7 @@ internal sealed class FileOperationUiRunner
                     }
                 });
 
-            return ModalDialogLoopResult<FileOperationBackgroundOutcome>.Continue;
+            return ModalDialogLoopResult<FileOperationBackgroundOutcome>.ContinueNoChange;
         }
 
         FileOperationProgress? ReadLatestProgress()

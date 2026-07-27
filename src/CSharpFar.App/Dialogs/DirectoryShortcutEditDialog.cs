@@ -79,7 +79,7 @@ internal sealed class DirectoryShortcutEditDialog
                     else if (form.FocusedRowId == "path")
                         return ModalDialogLoopResult<DirectoryShortcutEditResult>.ContinueWithFocus(
                             form.GetFocusTarget("actions"));
-                    return ModalDialogLoopResult<DirectoryShortcutEditResult>.Continue;
+                    return ModalDialogLoopResult<DirectoryShortcutEditResult>.ContinueNoChange;
                 }
 
                 if (result.Kind == FormInputResultKind.Submit ||
@@ -89,7 +89,7 @@ internal sealed class DirectoryShortcutEditDialog
                     return ModalDialogLoopResult<DirectoryShortcutEditResult>.Complete(Accepted(number, name.Text, path.Text));
                 }
 
-                return ModalDialogLoopResult<DirectoryShortcutEditResult>.Continue;
+                return ModalDialogLoopResult<DirectoryShortcutEditResult>.ContinueNoChange;
             },
             prepareRender: PrepareRows);
     }

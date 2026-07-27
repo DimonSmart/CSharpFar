@@ -88,7 +88,7 @@ internal sealed class DriveDialog
                     return TryCompleteSelection(selected);
                 }
 
-                return ModalDialogLoopResult<VolumeSelectionItem?>.Continue;
+                return ModalDialogLoopResult<VolumeSelectionItem?>.ContinueNoChange;
             },
             applyCommittedFrame: frame => routedList.ApplyCommittedFrame(frame.List));
     }
@@ -122,7 +122,7 @@ internal sealed class DriveDialog
             new MessageDialog(_modalDialogs).Show(
                 "Change drive",
                 $"{volume.DisplayName}: volume is {statusText}.");
-            return ModalDialogLoopResult<VolumeSelectionItem?>.Continue;
+            return ModalDialogLoopResult<VolumeSelectionItem?>.ContinueNoChange;
         }
 
         return ModalDialogLoopResult<VolumeSelectionItem?>.Complete(selected);

@@ -63,7 +63,7 @@ internal sealed class DirectoryShortcutsDialog
                         return ModalDialogLoopResult<DirectoryShortcutsDialogResult>.Complete(Result(initialItems, items));
                     if (buttonId == "edit")
                         EditSelected(items, routedShortcuts.SelectedItemOrDefault, activePanelPath);
-                    return ModalDialogLoopResult<DirectoryShortcutsDialogResult>.Continue;
+                    return ModalDialogLoopResult<DirectoryShortcutsDialogResult>.ContinueNoChange;
                 }
 
                 if (semantic.ListResult.Kind == ScrollableListInputResultKind.Confirmed)
@@ -72,7 +72,7 @@ internal sealed class DirectoryShortcutsDialog
                 if (semantic.Input is KeyConsoleInputEvent { Key.Key: ConsoleKey.Escape or ConsoleKey.F10 })
                     return ModalDialogLoopResult<DirectoryShortcutsDialogResult>.Complete(Result(initialItems, items));
 
-                return ModalDialogLoopResult<DirectoryShortcutsDialogResult>.Continue;
+                return ModalDialogLoopResult<DirectoryShortcutsDialogResult>.ContinueNoChange;
             },
             applyCommittedFrame: frame => routedShortcuts.ApplyCommittedFrame(frame.List));
     }

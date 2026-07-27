@@ -168,7 +168,7 @@ internal sealed class SearchDialog
                         return ModalDialogLoopResult<SearchRequest?>.Complete(request);
                 }
 
-                return ModalDialogLoopResult<SearchRequest?>.Continue;
+                return ModalDialogLoopResult<SearchRequest?>.ContinueNoChange;
             },
             prepareRender: PrepareRows);
     }

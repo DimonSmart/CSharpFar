@@ -33,7 +33,7 @@ public sealed class ModuleHelpDialog
             {
                 if (input is KeyConsoleInputEvent { Key.Key: ConsoleKey.Escape or ConsoleKey.F1 or ConsoleKey.F10 })
                     return ModalDialogLoopResult<Unit>.Complete(default);
-                return ModalDialogLoopResult<Unit>.Continue;
+                return ModalDialogLoopResult<Unit>.ContinueNoChange;
             },
             applyCommittedFrame: frame => viewport.ApplyCommittedFrame(frame.Viewport));
     }

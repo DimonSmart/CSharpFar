@@ -76,7 +76,7 @@ internal sealed class EditorFormatDialog
                         CreateFormat(encoding.Value, bom.Value, lineEnding.Value.Value));
                 }
 
-                return ModalDialogLoopResult<EditorDocumentFormat?>.Continue;
+                return ModalDialogLoopResult<EditorDocumentFormat?>.ContinueNoChange;
             },
             prepareRender: PrepareRows);
     }

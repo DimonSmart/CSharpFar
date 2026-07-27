@@ -177,7 +177,7 @@ public sealed class ModalDialogHost
             render,
             (input, frame) => handleInput(input, frame) == ModalDialogLoopAction.Close
                 ? ModalDialogLoopResult<Unit>.Complete(default)
-                : ModalDialogLoopResult<Unit>.Continue,
+                : ModalDialogLoopResult<Unit>.ContinueNoChange,
             prepareRender,
             applyCommittedFrame,
             cancellationToken);
@@ -216,7 +216,7 @@ public sealed class ModalDialogHost
             render,
             input => handleInput(input) == ModalDialogLoopAction.Close
                 ? ModalDialogLoopResult<Unit>.Complete(default)
-                : ModalDialogLoopResult<Unit>.Continue,
+                : ModalDialogLoopResult<Unit>.ContinueNoChange,
             prepareRender,
             cancellationToken);
     }
