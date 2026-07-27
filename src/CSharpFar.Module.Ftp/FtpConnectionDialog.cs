@@ -29,28 +29,15 @@ internal sealed record FtpConnectionDialogValidationResult(
         new(false, "Review the TLS certificate fingerprint and check Trust certificate.", fingerprint);
 }
 
-internal enum FtpSaveOptionChange { None, SaveConnection, SavePassword }
-
-internal readonly record struct FtpSecurityModeChange(
-    FtpConnectionSecurityMode Previous,
-    FtpConnectionSecurityMode Current);
-
-internal readonly record struct FtpConnectionFormInputResult(
-    FormInputResult FormResult,
-    bool EndpointChanged,
-    FtpSaveOptionChange SaveOptionChange,
-    FtpSecurityModeChange? SecurityModeChange);
-
 internal sealed class FtpConnectionDialog
 {
     private const int DialogWidth = 80;
     private const int DialogHeight = 22;
     private const int FieldWidth = 44;
     private static readonly SingleLineTextHistoryRegistry HistoryRegistry = new();
-    private readonly ModalDialogHost _modalDialogs;
-    private readonly ModalDialogRenderer _modalRenderer = new();
+    private readonly ModalFormHost _formDialogs;
 
-    public FtpConnectionDialog(ModalDialogHost modalDialogs) => _modalDialogs = modalDialogs;
+    public FtpConnectionDialog(ModalDialogHost modalDialogs) => _formDialogs = new ModalFormHost(modalDialogs);
 
     public FtpConnectionDialogResult? Show(
         FtpConnectionDialogRequest request,
@@ -101,6 +88,7 @@ internal sealed class FtpConnectionDialog
         ])
         { Id = "actions" };
         var form = new ScrollableFormDialog();
+        FtpConnectionSecurityMode previousSecurity = security.Value;
 
         void SyncEnabledRows()
         {
@@ -116,66 +104,61 @@ internal sealed class FtpConnectionDialog
             form.SetRows(BuildRows(request.AllowTemporaryConnection, security.Value, dataMode.Value, fingerprint,
                 connectionName, host, port, username, password, remoteRoot, activePorts,
                 histories, nameState, hostState, portState, usernameState, passwordState, rootState, activePortsState,
-                saveConnection, savePassword, showInDrive, security, dataMode, dataTls, activePortsRow, trust), [actions]);
+                saveConnection, savePassword, showInDrive, security, dataMode, dataTls, activePortsRow, trust),
+                [new LabelRow(error ?? string.Empty, FarDialogStyles.Error), actions]);
         }
 
         PrepareRows();
-        return _modalDialogs.RunInteractive<ScrollableFormFrame, FtpConnectionFormInputResult, FtpConnectionDialogResult?>(
-            (context, focusScope) => Draw(context, focusScope, form, connection is null ? "FTP/FTPS connection" : "Edit FTP/FTPS connection", error),
-            form.BuildInteractionFrame,
-            (input, frame, route) =>
+        return _formDialogs.Run(
+            form,
+            new ModalFormOptions(
+                connection is null ? "FTP/FTPS connection" : "Edit FTP/FTPS connection",
+                DialogWidth, DialogHeight, MinWidth: 48, MinHeight: 8),
+            static layout =>
             {
-                string oldHost = host.Text, oldPort = port.Text;
-                bool oldSaveConnection = saveConnection.Value, oldSavePassword = savePassword.Value;
-                var oldSecurity = security.Value;
-                FormRouteResult routed = form.RouteInput(input, frame, route);
-                var result = new FtpConnectionFormInputResult(
-                    routed.FormResult,
-                    !string.Equals(oldHost, host.Text, StringComparison.Ordinal) || !string.Equals(oldPort, port.Text, StringComparison.Ordinal),
-                    (oldSaveConnection != saveConnection.Value, oldSavePassword != savePassword.Value) switch
-                    {
-                        (false, false) => FtpSaveOptionChange.None,
-                        (true, false) => FtpSaveOptionChange.SaveConnection,
-                        (false, true) => FtpSaveOptionChange.SavePassword,
-                        _ => throw new InvalidOperationException("One routed input event cannot change both FTP save options."),
-                    },
-                    oldSecurity == security.Value ? null : new FtpSecurityModeChange(oldSecurity, security.Value));
-                return (result, routed.UiResult);
+                Rect content = layout.ContentBounds;
+                int contentX = content.X + 1;
+                int contentWidth = Math.Max(1, content.Width - 2);
+                return new ModalFormLayout(
+                    new Rect(contentX, content.Y, contentWidth, Math.Max(1, content.Height - 2)),
+                    new Rect(contentX, content.Bottom - 2, contentWidth, 2));
             },
             (routed, result) =>
             {
-                if (result.FormResult.IsHandled) error = null;
-                if (result.EndpointChanged)
+                if (result.IsHandled) error = null;
+                if (result.Kind == FormInputResultKind.ValueChanged &&
+                    (routed.Target == form.GetFocusTarget("host") || routed.Target == form.GetFocusTarget("port")))
                 {
                     fingerprint = null;
                     trust.Value = false;
                 }
-                if (result.SecurityModeChange is { } securityChange)
+                if (result.Kind == FormInputResultKind.ValueChanged && routed.Target == form.GetFocusTarget("security"))
                 {
-                    if (port.Text == DefaultPort(securityChange.Previous).ToString())
-                        port.SetText(DefaultPort(securityChange.Current).ToString());
-                    if (securityChange.Current == FtpConnectionSecurityMode.PlainFtp)
+                    if (port.Text == DefaultPort(previousSecurity).ToString())
+                        port.SetText(DefaultPort(security.Value).ToString());
+                    if (security.Value == FtpConnectionSecurityMode.PlainFtp)
                     {
                         dataTls.Value = false;
                         fingerprint = null;
                         trust.Value = false;
                     }
-                    else if (securityChange.Previous == FtpConnectionSecurityMode.PlainFtp)
+                    else if (previousSecurity == FtpConnectionSecurityMode.PlainFtp)
                         dataTls.Value = true;
                     else { fingerprint = null; trust.Value = false; }
+                    previousSecurity = security.Value;
                 }
-                if (result.SaveOptionChange == FtpSaveOptionChange.SavePassword && savePassword.Value)
+                if (result.Kind == FormInputResultKind.ValueChanged && routed.Target == form.GetFocusTarget("save-password") && savePassword.Value)
                     saveConnection.Value = true;
-                else if (result.SaveOptionChange == FtpSaveOptionChange.SaveConnection && !saveConnection.Value)
+                else if (result.Kind == FormInputResultKind.ValueChanged && routed.Target == form.GetFocusTarget("save-connection") && !saveConnection.Value)
                     savePassword.Value = false;
                 SyncEnabledRows();
 
-                if (result.FormResult.Kind == FormInputResultKind.Cancel)
+                if (result.Kind == FormInputResultKind.Cancel)
                     return ModalDialogLoopResult<FtpConnectionDialogResult?>.Complete(null);
 
-                bool submit = result.FormResult.Kind == FormInputResultKind.Submit ||
+                bool submit = result.Kind == FormInputResultKind.Submit ||
                     routed.Input is KeyConsoleInputEvent { Key.Key: ConsoleKey.F10 } ||
-                    FormDialogInput.ShouldImplicitlySubmit(routed, result.FormResult, form);
+                    FormDialogInput.ShouldImplicitlySubmit(routed, result, form);
                 if (!submit)
                     return ModalDialogLoopResult<FtpConnectionDialogResult?>.Continue;
 
@@ -208,21 +191,6 @@ internal sealed class FtpConnectionDialog
                 error = validation.ErrorMessage;
                 return ModalDialogLoopResult<FtpConnectionDialogResult?>.Continue;
             }, prepareRender: PrepareRows);
-    }
-
-    private ScrollableFormFrame Draw(UiRenderContext context, IUiFocusState focusScope, ScrollableFormDialog form, string title, string? error)
-    {
-        ScrollableFormFrame? frame = null;
-        _modalRenderer.Render(context.Canvas, OuterBounds(context.Size), title, true, FarDialogStyles.OuterOptions, FarDialogStyles.FrameOptions, (_, layout) =>
-        {
-            int buttonY = layout.FrameBounds.Bottom - 2;
-            int errorY = buttonY - 1;
-            int contentX = layout.FrameBounds.X + 2;
-            int contentWidth = Math.Max(1, layout.FrameBounds.Width - 4);
-            frame = form.Render(new FormRenderContext(context, new Rect(contentX, layout.FrameBounds.Y + 1, contentWidth, Math.Max(1, errorY - layout.FrameBounds.Y - 1)), FarDialogStyles.Border, new Rect(contentX, buttonY, contentWidth, 1)), focusScope);
-            context.Canvas.Write(contentX, errorY, Fit(error ?? string.Empty, contentWidth), FarDialogStyles.Error);
-        });
-        return frame ?? throw new InvalidOperationException("FTP connection dialog did not render a form frame.");
     }
 
     private static IReadOnlyList<IFormRow> BuildRows(bool allowTemporary, FtpConnectionSecurityMode securityMode, FtpDataConnectionMode dataMode, string? fingerprint,
@@ -275,8 +243,6 @@ internal sealed class FtpConnectionDialog
     }
 
     private static CommandLineState TextBuffer(string value) { var result = new CommandLineState(); result.SetText(value); return result; }
-    private static string Fit(string text, int width) => width <= 0 ? string.Empty : text.Length <= width ? text.PadRight(width) : text[..width];
-    private static Rect OuterBounds(ConsoleSize size) { int width = Math.Min(DialogWidth, Math.Max(48, size.Width - 2)); int height = Math.Min(DialogHeight, Math.Max(8, size.Height - 2)); return new Rect(Math.Max(0, (size.Width - width) / 2), Math.Max(0, (size.Height - height) / 2), width, height); }
     private static int SecurityIndex(FtpConnectionSecurityMode mode) => Array.IndexOf(Enum.GetValues<FtpConnectionSecurityMode>(), mode);
     private static int DataModeIndex(FtpDataConnectionMode mode) => Array.IndexOf(Enum.GetValues<FtpDataConnectionMode>(), mode);
     private static int DefaultPort(FtpConnectionSecurityMode mode) => mode == FtpConnectionSecurityMode.ImplicitFtps ? 990 : 21;
