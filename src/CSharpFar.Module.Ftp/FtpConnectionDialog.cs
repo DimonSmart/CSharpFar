@@ -158,19 +158,19 @@ internal sealed class FtpConnectionDialog
 
                 bool submit = result.Kind == FormInputResultKind.Submit ||
                     routed.Input is KeyConsoleInputEvent { Key.Key: ConsoleKey.F10 } ||
-                    FormDialogInput.ShouldImplicitlySubmit(routed, result, form);
+                FormDialogInput.ShouldImplicitlySubmit(routed, result, form);
                 if (!submit)
-                    return ModalDialogLoopResult<FtpConnectionDialogResult?>.Continue;
+                    return ModalDialogLoopResult<FtpConnectionDialogResult?>.ContinueNoChange;
 
                 if (!TryParseActivePortRange(activePorts.Text.Trim(), dataMode.Value, out int? from, out int? to, out error))
-                    return ModalDialogLoopResult<FtpConnectionDialogResult?>.Continue;
+                    return ModalDialogLoopResult<FtpConnectionDialogResult?>.ContinueChanged;
                 var candidate = BuildResult(request, connectionName.Text.Trim(), host.Text.Trim(), port.Text.Trim(), username.Text.Trim(), password.Text,
                     remoteRoot.Text.Trim(), saveConnection.Value, savePassword.Value, showInDrive.Value, security.Value, dataMode.Value,
                     dataTls.Value, from, to, trust.Value ? fingerprint : null);
                 if (candidate is null)
                 {
                     error = "Host, user name, password, remote root, and valid port are required.";
-                    return ModalDialogLoopResult<FtpConnectionDialogResult?>.Continue;
+                    return ModalDialogLoopResult<FtpConnectionDialogResult?>.ContinueChanged;
                 }
                 var validation = validate(candidate);
                 if (validation.IsAccepted)
@@ -189,7 +189,7 @@ internal sealed class FtpConnectionDialog
                         form.GetFocusTarget("trust-certificate"));
                 }
                 error = validation.ErrorMessage;
-                return ModalDialogLoopResult<FtpConnectionDialogResult?>.Continue;
+                return ModalDialogLoopResult<FtpConnectionDialogResult?>.ContinueChanged;
             }, prepareRender: PrepareRows);
     }
 

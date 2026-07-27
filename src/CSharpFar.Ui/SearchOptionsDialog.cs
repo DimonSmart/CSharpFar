@@ -136,7 +136,7 @@ public sealed class SearchOptionsDialog
                     }
                 }
 
-                return ModalDialogLoopResult<SearchOptionsDialogResult?>.Continue;
+                return ModalDialogLoopResult<SearchOptionsDialogResult?>.ContinueNoChange;
             },
             prepareRender: PrepareRows);
     }

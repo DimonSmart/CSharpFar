@@ -38,7 +38,7 @@ public sealed class MessageDialog
                 ConsoleInputEvent input = semantic.Input;
                 if (input is KeyConsoleInputEvent { Key.Key: ConsoleKey.Enter or ConsoleKey.Escape })
                     return ModalDialogLoopResult<Unit>.Complete(default);
-                return ModalDialogLoopResult<Unit>.Continue;
+                return ModalDialogLoopResult<Unit>.ContinueNoChange;
             },
             applyCommittedFrame: frame => viewport.ApplyCommittedFrame(frame.Viewport));
     }
@@ -80,7 +80,7 @@ public sealed class MessageDialog
                 if (semantic.ActionOutcome is { } outcome)
                     return ModalDialogLoopResult<int>.Complete(outcome.Kind == DialogActionOutcomeKind.Activated ? outcome.ButtonIndex : -1);
 
-                return ModalDialogLoopResult<int>.Continue;
+                return ModalDialogLoopResult<int>.ContinueNoChange;
             },
             applyCommittedFrame: frame => viewport.ApplyCommittedFrame(frame.Viewport));
     }

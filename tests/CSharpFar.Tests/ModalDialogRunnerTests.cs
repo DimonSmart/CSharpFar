@@ -33,7 +33,7 @@ public sealed class ModalDialogRunnerTests
     }
 
     [Fact]
-    public void Run_ContinuePerformsOneAdditionalRender()
+    public void Run_ContinueChangedPerformsOneAdditionalRender()
     {
         var driver = new FakeConsoleDriver();
         driver.EnqueueKey(Key(ConsoleKey.Spacebar));
@@ -50,9 +50,32 @@ public sealed class ModalDialogRunnerTests
             },
             (input, _) => input is KeyConsoleInputEvent { Key.Key: ConsoleKey.Enter }
                 ? ModalDialogLoopResult<int>.Complete(0)
-                : ModalDialogLoopResult<int>.Continue);
+                : ModalDialogLoopResult<int>.ContinueChanged);
 
         Assert.Equal(2, renders);
+    }
+
+    [Fact]
+    public void Run_ContinueNoChangeDoesNotPerformAdditionalRender()
+    {
+        var driver = new FakeConsoleDriver();
+        driver.EnqueueKey(Key(ConsoleKey.Spacebar));
+        driver.EnqueueKey(Key(ConsoleKey.Enter));
+        var modals = CreateHost(driver, out _);
+        int renders = 0;
+
+        modals.Run(
+            context =>
+            {
+                renders++;
+                context.Canvas.Write(0, 0, "M", Style);
+                return renders;
+            },
+            (input, _) => input is KeyConsoleInputEvent { Key.Key: ConsoleKey.Enter }
+                ? ModalDialogLoopResult<int>.Complete(0)
+                : ModalDialogLoopResult<int>.ContinueNoChange);
+
+        Assert.Equal(1, renders);
     }
 
     [Fact]
@@ -314,7 +337,7 @@ public sealed class ModalDialogRunnerTests
                 if (input is KeyConsoleInputEvent { Key.Key: ConsoleKey.N })
                 {
                     new MessageDialog(modals).Show("Nested", "Confirm");
-                    return ModalDialogLoopResult<int>.Continue;
+                    return ModalDialogLoopResult<int>.ContinueNoChange;
                 }
 
                 return ModalDialogLoopResult<int>.Complete(0);
@@ -340,7 +363,7 @@ public sealed class ModalDialogRunnerTests
                 kinds.Add(routed.RouteKind);
                 return routed.Input is KeyConsoleInputEvent { Key.Key: ConsoleKey.Enter }
                     ? ModalDialogLoopResult<int>.Complete(0)
-                    : ModalDialogLoopResult<int>.Continue;
+                    : ModalDialogLoopResult<int>.ContinueChanged;
             });
 
         Assert.Equal(2, renders);
@@ -368,7 +391,7 @@ public sealed class ModalDialogRunnerTests
                 events.Add($"handler:{routed.Frame}");
                 return routed.Input is KeyConsoleInputEvent { Key.Key: ConsoleKey.Enter }
                     ? ModalDialogLoopResult<int>.Complete(0)
-                    : ModalDialogLoopResult<int>.Continue;
+                    : ModalDialogLoopResult<int>.ContinueChanged;
             },
             applyCommittedFrame: committed => events.Add($"apply:{committed}"));
 
@@ -421,7 +444,7 @@ public sealed class ModalDialogRunnerTests
                 events.Add("domain");
                 return semantic == "complete"
                     ? ModalDialogLoopResult<int>.Complete(42)
-                    : ModalDialogLoopResult<int>.Continue;
+                    : ModalDialogLoopResult<int>.ContinueNoChange;
             },
             prepareRender: () => events.Add("prepare"));
 
@@ -460,7 +483,7 @@ public sealed class ModalDialogRunnerTests
             (_, complete) =>
             {
                 events.Add($"domain:{state}");
-                return complete ? ModalDialogLoopResult<int>.Complete(state) : ModalDialogLoopResult<int>.Continue;
+                return complete ? ModalDialogLoopResult<int>.Complete(state) : ModalDialogLoopResult<int>.ContinueNoChange;
             },
             applyCommittedFrame: frame =>
             {

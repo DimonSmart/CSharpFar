@@ -112,7 +112,7 @@ public sealed class SelectionListDialog<T>
                             : Cancelled());
                 }
 
-                return ModalDialogLoopResult<SelectionListDialogResult<T>>.Continue;
+                return ModalDialogLoopResult<SelectionListDialogResult<T>>.ContinueNoChange;
             },
             applyCommittedFrame: frame =>
             {

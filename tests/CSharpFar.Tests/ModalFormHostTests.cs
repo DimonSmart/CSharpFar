@@ -54,7 +54,7 @@ public sealed class ModalFormHostTests
                 handledFrames.Add(routed.Frame);
                 return input.Kind == FormInputResultKind.Cancel
                     ? ModalDialogLoopResult<object?>.Complete(null)
-                    : ModalDialogLoopResult<object?>.Continue;
+                    : ModalDialogLoopResult<object?>.ContinueNoChange;
             },
             prepareRender: () =>
             {
@@ -108,7 +108,7 @@ public sealed class ModalFormHostTests
             Layout,
             (_, input) => input.Kind == FormInputResultKind.Cancel
                 ? ModalDialogLoopResult<object?>.Complete(null)
-                : ModalDialogLoopResult<object?>.Continue,
+                : ModalDialogLoopResult<object?>.ContinueNoChange,
             beginRenderScope: () => new CallbackDisposable(() => disposed++, () => created++));
 
         Assert.Equal(2, created);

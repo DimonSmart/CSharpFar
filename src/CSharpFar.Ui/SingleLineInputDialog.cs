@@ -80,7 +80,7 @@ public sealed class SingleLineInputDialog
                 bool submit = result.Command == "ok" ||
                     FormDialogInput.ShouldImplicitlySubmit(routed, result, form);
                 if (!submit)
-                    return ModalDialogLoopResult<SingleLineInputDialogResult>.Continue;
+                    return ModalDialogLoopResult<SingleLineInputDialogResult>.ContinueNoChange;
 
                 string text = buffer.Text.Trim();
                 error = text.Length == 0 && !options.AllowEmpty

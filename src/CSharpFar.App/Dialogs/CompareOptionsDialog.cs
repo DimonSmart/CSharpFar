@@ -131,7 +131,7 @@ internal sealed class CompareOptionsDialog
                         return ModalDialogLoopResult<ComparisonOptions?>.Complete(options);
                 }
 
-                return ModalDialogLoopResult<ComparisonOptions?>.Continue;
+                return ModalDialogLoopResult<ComparisonOptions?>.ContinueNoChange;
             },
             prepareRender: PrepareRows);
     }

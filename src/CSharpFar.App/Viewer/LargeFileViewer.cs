@@ -124,18 +124,18 @@ internal sealed class LargeFileViewer
         if (input.ScrollLines is { } lines)
         {
             ApplyScrollLines(reader, state, view, lines);
-            return ModalDialogLoopResult<ViewerLoopAction>.Continue;
+            return ModalDialogLoopResult<ViewerLoopAction>.ContinueChanged;
         }
 
         if (input.Key is not { } key || key.Key == ConsoleKey.NoName)
-            return ModalDialogLoopResult<ViewerLoopAction>.Continue;
+            return ModalDialogLoopResult<ViewerLoopAction>.ContinueNoChange;
 
         bool shift = (key.Modifiers & ConsoleModifiers.Shift) != 0;
         bool alt = (key.Modifiers & ConsoleModifiers.Alt) != 0;
         bool control = (key.Modifiers & ConsoleModifiers.Control) != 0;
 
         if (TryHandleUnsupportedNumberedBookmark(key, control, shift, alt))
-            return ModalDialogLoopResult<ViewerLoopAction>.Continue;
+            return ModalDialogLoopResult<ViewerLoopAction>.ContinueNoChange;
 
         switch (key.Key)
         {
@@ -345,7 +345,7 @@ internal sealed class LargeFileViewer
                 return ModalDialogLoopResult<ViewerLoopAction>.Complete(ViewerLoopAction.PreviousFile);
         }
 
-        return ModalDialogLoopResult<ViewerLoopAction>.Continue;
+        return ModalDialogLoopResult<ViewerLoopAction>.ContinueChanged;
     }
 
     private bool TryHandleUnsupportedNumberedBookmark(

@@ -234,7 +234,7 @@ internal sealed class FileOperationDialog
                         return ModalDialogLoopResult<FileOperationDialogResult?>.Complete(dialogResult);
                 }
 
-                return ModalDialogLoopResult<FileOperationDialogResult?>.Continue;
+                return ModalDialogLoopResult<FileOperationDialogResult?>.ContinueNoChange;
             },
             prepareRender: PrepareRows);
     }

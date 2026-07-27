@@ -56,7 +56,7 @@ internal sealed class ConflictDialog
                 if (result.Kind == FormInputResultKind.Submit && result.Command is string buttonId)
                     return ModalDialogLoopResult<FileOperationConflictDecision>.Complete(
                         BuildDecision(buttonId, rememberChoice.Value, conflict));
-                return ModalDialogLoopResult<FileOperationConflictDecision>.Continue;
+                return ModalDialogLoopResult<FileOperationConflictDecision>.ContinueNoChange;
             });
     }
 

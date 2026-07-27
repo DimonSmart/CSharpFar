@@ -86,7 +86,7 @@ internal sealed class CreateFolderDialog
                         return ModalDialogLoopResult<string?>.Complete(accepted);
                 }
 
-                return ModalDialogLoopResult<string?>.Continue;
+                return ModalDialogLoopResult<string?>.ContinueNoChange;
             },
             prepareRender: PrepareRows);
     }

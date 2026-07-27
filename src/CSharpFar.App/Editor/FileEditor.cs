@@ -146,43 +146,43 @@ internal sealed partial class FileEditor
         {
             case FileEditorInputKind.None:
             case FileEditorInputKind.ModifierChanged:
-                return ModalDialogLoopResult<bool>.Continue;
+                return ModalDialogLoopResult<bool>.ContinueNoChange;
             case FileEditorInputKind.MouseWheel:
                 if (input.ScrollLines < 0)
                     session.MoveUp(-input.ScrollLines);
                 else if (input.ScrollLines > 0)
                     session.MoveDown(input.ScrollLines);
-                return ModalDialogLoopResult<bool>.Continue;
+                return ModalDialogLoopResult<bool>.ContinueChanged;
             case FileEditorInputKind.ScrollbarToLine:
                 MoveViewportTo(session, input.TopLine, frame.ContentHeight);
-                return ModalDialogLoopResult<bool>.Continue;
+                return ModalDialogLoopResult<bool>.ContinueChanged;
             case FileEditorInputKind.TextMouseDown:
                 if (input.Position is { } downPosition)
                     session.MoveTo(downPosition);
                 _markMode = false;
                 _persistentSelection = false;
-                return ModalDialogLoopResult<bool>.Continue;
+                return ModalDialogLoopResult<bool>.ContinueChanged;
             case FileEditorInputKind.TextMouseDoubleClick:
                 if (input.Position is { } doubleClickPosition)
                     session.SelectWordAt(doubleClickPosition);
                 _markMode = false;
                 _persistentSelection = false;
-                return ModalDialogLoopResult<bool>.Continue;
+                return ModalDialogLoopResult<bool>.ContinueChanged;
             case FileEditorInputKind.TextMouseDrag:
                 if (input.Anchor is { } dragAnchor && input.Position is { } dragPosition)
                     session.SelectRange(dragAnchor, dragPosition);
                 _markMode = false;
                 _persistentSelection = false;
-                return ModalDialogLoopResult<bool>.Continue;
+                return ModalDialogLoopResult<bool>.ContinueChanged;
             case FileEditorInputKind.TextMouseUp:
                 if (input.Anchor is { } upAnchor && input.Position is { } upPosition)
                     session.SelectRange(upAnchor, upPosition);
                 _markMode = false;
                 _persistentSelection = false;
-                return ModalDialogLoopResult<bool>.Continue;
+                return ModalDialogLoopResult<bool>.ContinueChanged;
             case FileEditorInputKind.Keyboard:
                 if (input.Key is not { } key)
-                    return ModalDialogLoopResult<bool>.Continue;
+                    return ModalDialogLoopResult<bool>.ContinueNoChange;
 
                 session.RaiseInput(key);
                 bool printable = key.KeyChar >= ' ' &&
@@ -194,16 +194,16 @@ internal sealed partial class FileEditor
                         : key.KeyChar.ToString();
                     session.InsertText(text);
                     _persistentSelection = false;
-                    return ModalDialogLoopResult<bool>.Continue;
+                    return ModalDialogLoopResult<bool>.ContinueChanged;
                 }
 
                 if (HandleKey(session, key, frame.ContentHeight))
-                    return ModalDialogLoopResult<bool>.Continue;
+                    return ModalDialogLoopResult<bool>.ContinueChanged;
 
                 if (key.Key is ConsoleKey.Escape or ConsoleKey.F10 && TryExit(session))
                     return ModalDialogLoopResult<bool>.Complete(true);
 
-                return ModalDialogLoopResult<bool>.Continue;
+                return ModalDialogLoopResult<bool>.ContinueNoChange;
             default:
                 throw new ArgumentOutOfRangeException(nameof(input));
         }
