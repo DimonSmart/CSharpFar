@@ -1,4 +1,5 @@
 using CSharpFar.Console;
+using CSharpFar.Console.Input;
 using CSharpFar.Console.Models;
 
 namespace CSharpFar.Ui;
@@ -11,7 +12,8 @@ public sealed record ModalFormOptions(
     int MinHeight = 8,
     bool DoubleBorder = true,
     PopupRenderOptions? OuterRenderOptions = null,
-    PopupRenderOptions? FrameRenderOptions = null);
+    PopupRenderOptions? FrameRenderOptions = null,
+    bool SubmitOnEnter = false);
 
 public readonly record struct ModalFormLayout(
     Rect BodyBounds,
@@ -49,6 +51,9 @@ public sealed class ModalFormHost
             form.BuildInteractionFrame,
             (input, frame, route) =>
             {
+                if (options.SubmitOnEnter && input is KeyConsoleInputEvent { Key.Key: ConsoleKey.Enter })
+                    return (FormInputResult.Submit(), UiInputResult.HandledResult);
+
                 FormRouteResult result = form.RouteInput(input, frame, route);
                 return (result.FormResult, result.UiResult);
             },

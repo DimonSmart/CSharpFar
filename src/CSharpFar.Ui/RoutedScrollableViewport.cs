@@ -90,7 +90,8 @@ public sealed class RoutedScrollableViewport
         ArgumentNullException.ThrowIfNull(input);
         ArgumentNullException.ThrowIfNull(route);
 
-        ApplyCommittedFrame(frame);
+        if (route.RouteKind != UiInputRouteKind.CapturedTarget || route.Target != ScrollbarTarget)
+            ApplyCommittedFrame(frame);
         ScrollableViewportInputResult result = input switch
         {
             KeyConsoleInputEvent key => _viewport.HandleKey(key.Key, frame),

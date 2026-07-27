@@ -22,8 +22,14 @@ public readonly struct ModalDialogLoopResult<TResult>
         ? _result!
         : throw new InvalidOperationException("A continuing modal loop has no result.");
 
+    /// <summary>
+    /// Continues when the semantic handler introduced no render-visible change that is not already represented by routed invalidation.
+    /// </summary>
     public static ModalDialogLoopResult<TResult> ContinueNoChange => new(false, default, false, UiFocusRequest.None);
 
+    /// <summary>
+    /// Continues and commits a render because the semantic handler introduced render-visible state.
+    /// </summary>
     public static ModalDialogLoopResult<TResult> ContinueChanged => new(false, default, true, UiFocusRequest.None);
 
     public static ModalDialogLoopResult<TResult> ContinueWithFocus(UiTargetId target) =>

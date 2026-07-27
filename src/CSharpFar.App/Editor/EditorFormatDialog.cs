@@ -59,7 +59,7 @@ internal sealed class EditorFormatDialog
 
         return _formDialogs.Run(
             form,
-            new ModalFormOptions("Editor format", DialogWidth, DialogHeight),
+            new ModalFormOptions("Editor format", DialogWidth, DialogHeight, SubmitOnEnter: true),
             static layout => new ModalFormLayout(Inset(layout.ContentBounds)),
             (routed, result) =>
             {

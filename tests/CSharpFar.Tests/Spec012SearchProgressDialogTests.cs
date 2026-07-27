@@ -106,6 +106,39 @@ public sealed class Spec012SearchProgressDialogTests
     }
 
     [Fact]
+    public void Show_ConfirmedEscapeRendersStoppingBeforeSearchCompletes()
+    {
+        var item = Result(@"C:\root\found.txt");
+        var service = new RenderGatedCancellationSearchService(item);
+        var driver = new FakeConsoleDriver(width: 100, height: 30);
+        var screen = new ScreenRenderer(driver);
+        bool stoppingRenderedBeforeCompletion = false;
+        _ = Task.Run(async () =>
+        {
+            await Task.Delay(TimeSpan.FromSeconds(1));
+            service.AllowCompletion.Set();
+        });
+        driver.Wrote += record =>
+        {
+            if (!record.Text.Contains("Stopping...", StringComparison.Ordinal))
+                return;
+
+            stoppingRenderedBeforeCompletion = !service.CancellationCompleted;
+            service.AllowCompletion.Set();
+        };
+        EnqueueKeysWhenWriteContains(
+            driver,
+            "found.txt",
+            Key(ConsoleKey.Escape),
+            Key(ConsoleKey.Enter));
+
+        var result = new SearchProgressDialog(ModalTestHost.Create(screen), service).Show(Request(@"C:\root", "*.txt"));
+
+        Assert.True(result.Cancelled);
+        Assert.True(stoppingRenderedBeforeCompletion);
+    }
+
+    [Fact]
     public void Show_ConfirmedStopCannotBeReplacedByGoToWhileStopping()
     {
         var item = Result(@"C:\root\found.txt");
@@ -332,6 +365,38 @@ public sealed class Spec012SearchProgressDialogTests
             {
                 CancellationObserved = true;
                 await Task.Delay(200);
+                throw;
+            }
+        }
+    }
+
+    private sealed class RenderGatedCancellationSearchService(SearchResultItem item) : ISearchService
+    {
+        public bool CancellationCompleted { get; private set; }
+
+        public ManualResetEventSlim AllowCompletion { get; } = new();
+
+        public async IAsyncEnumerable<SearchResultItem> SearchAsync(
+            SearchRequest request,
+            IProgress<SearchProgress>? progress,
+            [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
+        {
+            progress?.Report(new SearchProgress
+            {
+                CurrentPath = item.FullPath,
+                ScannedFiles = 1,
+                MatchedItems = 1,
+            });
+            yield return item;
+
+            try
+            {
+                await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken);
+            }
+            catch (OperationCanceledException)
+            {
+                AllowCompletion.Wait();
+                CancellationCompleted = true;
                 throw;
             }
         }

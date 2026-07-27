@@ -1,3 +1,4 @@
+using CSharpFar.App.Commands;
 using CSharpFar.App.Rendering;
 using CSharpFar.Console;
 using CSharpFar.Console.Models;
@@ -26,22 +27,26 @@ internal sealed class ProgressDialog
         _destination = destination;
     }
 
-    public void Render(UiRenderContext context, FileOperationProgress progress, bool showTotalProgress)
+    public void Render(
+        UiRenderContext context,
+        FileOperationProgress progress,
+        bool showTotalProgress,
+        FileOperationUiRunner.FileOperationUiStatus status)
     {
         if (progress.Phase == FileOperationPhase.Scanning)
-            RenderScanning(context, progress);
+            RenderScanning(context, progress, status);
         else if (progress.Kind == FileOperationKind.Delete || progress.Phase == FileOperationPhase.Deleting)
-            RenderDeleting(context, progress);
+            RenderDeleting(context, progress, status);
         else
-            RenderCopying(context, progress, showTotalProgress);
+            RenderCopying(context, progress, showTotalProgress, status);
     }
 
-    private void RenderScanning(UiRenderContext context, FileOperationProgress progress)
+    private void RenderScanning(UiRenderContext context, FileOperationProgress progress, FileOperationUiRunner.FileOperationUiStatus status)
     {
         var outer = _modalRenderer.CenteredOuterBounds(context.Size, ScanOuterWidth, ScanOuterHeight);
         RenderOuter(outer, "Copy", true, (frameBounds, contentX, contentWidth) =>
         {
-            _screen.Write(contentX, frameBounds.Y + 1, "Scanning the folder".PadRight(contentWidth), FillStyle);
+            _screen.Write(contentX, frameBounds.Y + 1, StatusText(status, "Scanning the folder").PadRight(contentWidth), FillStyle);
             _screen.Write(contentX, frameBounds.Y + 2, ShortenMiddle(DisplayFolderName(progress.CurrentPath), contentWidth).PadRight(contentWidth), FillStyle);
 
             DrawSeparator(frameBounds, frameBounds.Y + 4);
@@ -52,15 +57,15 @@ internal sealed class ProgressDialog
         });
     }
 
-    private void RenderCopying(UiRenderContext context, FileOperationProgress progress, bool showTotalProgress)
+    private void RenderCopying(UiRenderContext context, FileOperationProgress progress, bool showTotalProgress, FileOperationUiRunner.FileOperationUiStatus status)
     {
         var outer = _modalRenderer.CenteredOuterBounds(context.Size, CopyOuterWidth, CopyOuterHeight);
         RenderOuter(outer, "Copy", true, (frameBounds, contentX, contentWidth) =>
         {
-            string status = progress.Phase == FileOperationPhase.Validating
+            string runningStatus = progress.Phase == FileOperationPhase.Validating
                 ? progress.StatusMessage ?? "Validating partial file..."
                 : "Copying the file";
-            _screen.Write(contentX, frameBounds.Y + 1, ShortenMiddle(status, contentWidth).PadRight(contentWidth), FillStyle);
+            _screen.Write(contentX, frameBounds.Y + 1, ShortenMiddle(StatusText(status, runningStatus), contentWidth).PadRight(contentWidth), FillStyle);
             _screen.Write(contentX, frameBounds.Y + 2, ShortenMiddle(progress.CurrentPath, contentWidth).PadRight(contentWidth), FillStyle);
             _screen.Write(contentX, frameBounds.Y + 3, "to".PadRight(contentWidth), FillStyle);
             string destination = progress.CurrentDestinationPath ?? _destination;
@@ -80,13 +85,13 @@ internal sealed class ProgressDialog
         });
     }
 
-    private void RenderDeleting(UiRenderContext context, FileOperationProgress progress)
+    private void RenderDeleting(UiRenderContext context, FileOperationProgress progress, FileOperationUiRunner.FileOperationUiStatus status)
     {
         var outer = _modalRenderer.CenteredOuterBounds(context.Size, DeleteOuterWidth, DeleteOuterHeight);
         RenderOuter(outer, "Delete", true, (frameBounds, contentX, contentWidth) =>
         {
-            string status = progress.StatusMessage ?? "Deleting the file";
-            _screen.Write(contentX, frameBounds.Y + 1, ShortenMiddle(status, contentWidth).PadRight(contentWidth), FillStyle);
+            string statusText = progress.StatusMessage ?? "Deleting the file";
+            _screen.Write(contentX, frameBounds.Y + 1, ShortenMiddle(StatusText(status, statusText), contentWidth).PadRight(contentWidth), FillStyle);
             _screen.Write(contentX, frameBounds.Y + 2, ShortenMiddle(progress.CurrentPath, contentWidth).PadRight(contentWidth), FillStyle);
 
             DrawTitledSeparator(frameBounds, frameBounds.Y + 4, "Total");
@@ -247,6 +252,9 @@ internal sealed class ProgressDialog
         int right = maxLength - left - 1;
         return value[..left] + "…" + value[^right..];
     }
+
+    private static string StatusText(FileOperationUiRunner.FileOperationUiStatus status, string runningText) =>
+        status == FileOperationUiRunner.FileOperationUiStatus.Stopping ? "Stopping..." : runningText;
 
     private static string ShortenLeft(string value, int maxLength)
     {
