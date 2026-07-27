@@ -26,14 +26,14 @@ internal sealed class ApplicationCommandLineInputHandler
         {
             _context.CommandLine.MoveCursorTo(frame.TextPositionFromX(input.X));
             _context.ResetCommandHistoryNavigation();
-            return ApplicationInputHandlingResult.FromHandled(shouldRender: true);
+            return CommandLineChanged();
         }
 
         if (input.Button == MouseButton.Left && input.Kind == MouseEventKind.Move && captured)
         {
             _context.CommandLine.MoveCursorWithSelection(frame.TextPositionFromX(input.X));
             _context.ResetCommandHistoryNavigation();
-            return ApplicationInputHandlingResult.FromHandled(shouldRender: true);
+            return CommandLineChanged();
         }
 
         if (input.Button == MouseButton.Left && input.Kind == MouseEventKind.Up && captured)
@@ -43,16 +43,21 @@ internal sealed class ApplicationCommandLineInputHandler
         {
             SelectWordAt(frame.TextPositionFromX(input.X));
             _context.ResetCommandHistoryNavigation();
-            return ApplicationInputHandlingResult.FromHandled(shouldRender: true);
+            return CommandLineChanged();
         }
 
         if (input.Button == MouseButton.Right && input.Kind == MouseEventKind.Down && hit)
-            return ApplicationInputHandlingResult.FromHandled(_context.PasteTextIntoCommandLine());
+            return CommandLineChanged(_context.PasteTextIntoCommandLine());
 
         return captured
             ? ApplicationInputHandlingResult.FromHandled(shouldRender: false)
             : ApplicationInputHandlingResult.NotHandled;
     }
+
+    private static ApplicationInputHandlingResult CommandLineChanged(bool changed = true) =>
+        ApplicationInputHandlingResult.FromHandled(
+            changed,
+            ApplicationRenderPart.CommandLine);
 
     private void SelectWordAt(int position)
     {

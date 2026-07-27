@@ -55,15 +55,15 @@ internal sealed class KeyboardInputRouter
 
         ApplicationInputHandlingResult global = _globalHandler.Handle(input);
         if (global.Handled)
-            return new ApplicationInputHandlingResult(true, global.ShouldRender || functionKeyLayerChanged);
+            return WithFunctionKeyBar(global, functionKeyLayerChanged);
 
         ApplicationInputHandlingResult directoryShortcut = _directoryShortcutHandler.Handle(input);
         if (directoryShortcut.Handled)
-            return new ApplicationInputHandlingResult(true, directoryShortcut.ShouldRender || functionKeyLayerChanged);
+            return WithFunctionKeyBar(directoryShortcut, functionKeyLayerChanged);
 
         ApplicationInputHandlingResult functionKey = _functionKeyHandler.Handle(input);
         if (functionKey.Handled)
-            return new ApplicationInputHandlingResult(true, functionKey.ShouldRender || functionKeyLayerChanged);
+            return WithFunctionKeyBar(functionKey, functionKeyLayerChanged);
 
         ApplicationInputHandlingResult owned = owner switch
         {
@@ -77,10 +77,12 @@ internal sealed class KeyboardInputRouter
         };
 
         if (owned.Handled)
-            return new ApplicationInputHandlingResult(true, owned.ShouldRender || functionKeyLayerChanged);
+            return WithFunctionKeyBar(owned, functionKeyLayerChanged);
 
         return functionKeyLayerChanged
-            ? ApplicationInputHandlingResult.FromHandled(true)
+            ? ApplicationInputHandlingResult.FromHandled(
+                true,
+                ApplicationRenderPart.FunctionKeyBar)
             : ApplicationInputHandlingResult.NotHandled;
     }
 
@@ -94,7 +96,22 @@ internal sealed class KeyboardInputRouter
         }
 
         return _context.SetFunctionKeyLayer(modifiers)
-            ? ApplicationInputHandlingResult.FromHandled(true)
+            ? ApplicationInputHandlingResult.FromHandled(
+                true,
+                ApplicationRenderPart.FunctionKeyBar)
             : ApplicationInputHandlingResult.NotHandled;
+    }
+
+    private static ApplicationInputHandlingResult WithFunctionKeyBar(
+        ApplicationInputHandlingResult result,
+        bool functionKeyLayerChanged)
+    {
+        if (!functionKeyLayerChanged)
+            return result;
+
+        ApplicationRenderPart parts = result.ShouldRender
+            ? result.RenderParts | ApplicationRenderPart.FunctionKeyBar
+            : ApplicationRenderPart.FunctionKeyBar;
+        return ApplicationInputHandlingResult.FromHandled(true, parts);
     }
 }

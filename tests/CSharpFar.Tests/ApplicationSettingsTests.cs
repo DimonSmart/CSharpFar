@@ -127,11 +127,15 @@ public sealed class ApplicationSettingsTests : IDisposable
     public void RenderClock_UsesActivePathColors()
     {
         var driver = new FakeConsoleDriver(width: 20, height: 5);
-        var renderer = new ClockRenderer(() => PaletteRegistry.Default);
+        var renderer = new ClockRenderer(
+            () => PaletteRegistry.Default,
+            () => new DateTime(2026, 7, 27, 9, 7, 0));
+        ApplicationClockFrame? frame = null;
 
         UiTestRender.Render(new ScreenRenderer(driver), canvas =>
-            renderer.Render(canvas, new ConsoleSize(20, 5)));
+            frame = renderer.Render(canvas, new ConsoleSize(20, 5)));
 
+        Assert.Equal(new ApplicationClockFrame(new Rect(16, 0, 4, 1), "9:07"), frame);
         for (int x = 0; x < 20; x++)
         {
             var cell = driver.GetCell(x, 0);

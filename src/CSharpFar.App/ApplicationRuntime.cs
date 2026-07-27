@@ -61,7 +61,10 @@ internal sealed class ApplicationRuntime
                     _context.ResetWaitToken();
                     _context.ProcessPendingRefreshes();
                     if (_context.IsRunning())
+                    {
+                        _applicationSurface.RequestRender(ApplicationRenderPart.Full);
                         _composition.Render();
+                    }
                     continue;
                 }
 
@@ -83,6 +86,12 @@ internal sealed class ApplicationRuntime
                 if (!_context.IsRunning() || !shouldRender)
                     continue;
 
+                ApplicationRenderPart requestedParts =
+                    menuCommandRequest.ShouldRender
+                        ? ApplicationRenderPart.Full
+                        : applicationRequest.Parts;
+                if (requestedParts != ApplicationRenderPart.None)
+                    _applicationSurface.RequestRender(requestedParts);
                 _composition.Render();
             }
 
@@ -135,7 +144,10 @@ internal sealed class NullDisposable : IDisposable
     }
 }
 
-internal readonly record struct ApplicationRuntimeRenderRequest(bool ShouldRender)
+internal readonly record struct ApplicationRuntimeRenderRequest(
+    bool ShouldRender,
+    ApplicationRenderPart Parts = ApplicationRenderPart.Full)
 {
-    public static ApplicationRuntimeRenderRequest None { get; } = new(false);
+    public static ApplicationRuntimeRenderRequest None { get; } =
+        new(false, ApplicationRenderPart.None);
 }

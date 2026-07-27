@@ -25,6 +25,13 @@ internal sealed class ApplicationCommandLineRenderer
         return frame;
     }
 
+    public void Render(
+        IUiCanvas canvas,
+        ApplicationCommandLineFrame frame,
+        string currentDirectory,
+        CommandLineState commandLine) =>
+        CreateRenderer(canvas).Render(frame, currentDirectory, commandLine);
+
     private CommandLineRenderer CreateRenderer(IUiCanvas canvas) =>
         new(canvas, _palette());
 }
