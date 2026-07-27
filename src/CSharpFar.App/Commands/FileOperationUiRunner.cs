@@ -144,7 +144,7 @@ internal sealed class FileOperationUiRunner
             if (input != FileOperationProgressInput.CancelRequested || cancellationRequested)
                 return ModalDialogLoopResult<FileOperationBackgroundOutcome>.ContinueNoChange;
 
-            HandleCancellation(
+            bool cancellationAccepted = HandleCancellation(
                 frame,
                 cancelImmediately: () =>
                 {
@@ -152,6 +152,7 @@ internal sealed class FileOperationUiRunner
                     visibleState = visibleState with { Status = FileOperationUiStatus.Stopping };
                     TryCancel(cts);
                     resolver.CancelPending();
+                    return true;
                 },
                 requestConfirmation: () =>
                 {
@@ -164,7 +165,10 @@ internal sealed class FileOperationUiRunner
                             visibleState = visibleState with { Status = FileOperationUiStatus.Stopping };
                             TryCancel(cts);
                             resolver.CancelPending();
+                            return true;
                         }
+
+                        return false;
                     }
                     finally
                     {
@@ -172,7 +176,9 @@ internal sealed class FileOperationUiRunner
                     }
                 });
 
-            return ModalDialogLoopResult<FileOperationBackgroundOutcome>.ContinueNoChange;
+            return cancellationAccepted
+                ? ModalDialogLoopResult<FileOperationBackgroundOutcome>.ContinueChanged
+                : ModalDialogLoopResult<FileOperationBackgroundOutcome>.ContinueNoChange;
         }
 
         FileOperationProgress? ReadLatestProgress()
@@ -193,21 +199,18 @@ internal sealed class FileOperationUiRunner
         }
     }
 
-    internal static void HandleCancellation(
+    internal static bool HandleCancellation(
         FileOperationProgressFrame frame,
-        Action cancelImmediately,
-        Action requestConfirmation)
+        Func<bool> cancelImmediately,
+        Func<bool> requestConfirmation)
     {
         if (frame.Status != FileOperationUiStatus.Running)
-            return;
+            return false;
 
         if (frame.Progress is null || frame.Progress.Phase == FileOperationPhase.Scanning)
-        {
-            cancelImmediately();
-            return;
-        }
+            return cancelImmediately();
 
-        requestConfirmation();
+        return requestConfirmation();
     }
 
     private static FileOperationProgressFrame RenderProgressFrame(
@@ -216,7 +219,7 @@ internal sealed class FileOperationUiRunner
         FileOperationProgressViewState state)
     {
         if (state.Progress is { } progress)
-            new ProgressDialog(context.Canvas, destination).Render(context, progress, state.ShowTotalProgress);
+            new ProgressDialog(context.Canvas, destination).Render(context, progress, state.ShowTotalProgress, state.Status);
 
         return new FileOperationProgressFrame(state.Progress, state.ShowTotalProgress, state.Status);
     }

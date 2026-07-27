@@ -165,6 +165,7 @@ internal sealed class SearchProgressDialog
                     {
                         completionIntent = new SearchCompletionIntent.GoTo(selected);
                         cts.Cancel();
+                        return ModalDialogLoopResult<SearchDialogCompletion>.ContinueChanged;
                     }
                     return ModalDialogLoopResult<SearchDialogCompletion>.ContinueNoChange;
                 case SearchProgressInputKind.Stop:
@@ -175,6 +176,7 @@ internal sealed class SearchProgressDialog
                     {
                         completionIntent = new SearchCompletionIntent.StopAndDiscard();
                         cts.Cancel();
+                        return ModalDialogLoopResult<SearchDialogCompletion>.ContinueChanged;
                     }
                     return ModalDialogLoopResult<SearchDialogCompletion>.ContinueNoChange;
                 default:

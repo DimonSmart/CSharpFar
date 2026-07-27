@@ -72,10 +72,16 @@ internal sealed class DriveDialog
                         key.KeyChar > ' ' &&
                         (key.Modifiers & (ConsoleModifiers.Control | ConsoleModifiers.Alt)) == 0)
                     {
+                        int selectedIndex = routedList.SelectedIndex;
+                        int scrollTop = routedList.ScrollTop;
                         string shortcut = key.KeyChar.ToString().ToUpperInvariant();
                         VolumeSelectionItem? immediate = HandleShortcut(routedList, shortcut, routed.Frame.List.List.ViewportRows, ref lastShortcut);
                         if (immediate is not null)
                             return ModalDialogLoopResult<VolumeSelectionItem?>.Complete(immediate);
+
+                        return routedList.SelectedIndex != selectedIndex || routedList.ScrollTop != scrollTop
+                            ? ModalDialogLoopResult<VolumeSelectionItem?>.ContinueChanged
+                            : ModalDialogLoopResult<VolumeSelectionItem?>.ContinueNoChange;
                     }
                 }
 
