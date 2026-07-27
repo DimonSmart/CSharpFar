@@ -29,18 +29,6 @@ internal sealed record SftpConnectionDialogValidationResult(
         new(false, "Review the host key fingerprint and check Trust host key.", fingerprint);
 }
 
-internal enum SftpSaveOptionChange
-{
-    None,
-    SaveConnection,
-    SavePassword,
-}
-
-internal readonly record struct SftpConnectionFormInputResult(
-    FormInputResult FormResult,
-    bool EndpointChanged,
-    SftpSaveOptionChange SaveOptionChange);
-
 internal sealed class SftpConnectionDialog
 {
     private const int DialogWidth = 74;
@@ -48,10 +36,9 @@ internal sealed class SftpConnectionDialog
     private const int FieldWidth = 42;
 
     private static readonly SingleLineTextHistoryRegistry HistoryRegistry = new();
-    private readonly ModalDialogHost _modalDialogs;
-    private readonly ModalDialogRenderer _modalRenderer = new();
+    private readonly ModalFormHost _formDialogs;
 
-    public SftpConnectionDialog(ModalDialogHost modalDialogs) => _modalDialogs = modalDialogs;
+    public SftpConnectionDialog(ModalDialogHost modalDialogs) => _formDialogs = new ModalFormHost(modalDialogs);
 
     public SftpConnectionDialogResult? Show(
         SftpConnectionDialogRequest request,
@@ -108,55 +95,47 @@ internal sealed class SftpConnectionDialog
                 connectionName, host, port, userName, password, remoteRoot,
                 histories, connectionNameState, hostState, portState, userNameState, passwordState, remoteRootState,
                 saveConnectionRow, savePasswordRow, showInDriveRow, trustHostKeyRow, hostKeyFingerprint),
-            [actions]);
+            [new LabelRow(error ?? string.Empty, FarDialogStyles.Error), actions]);
 
-        return _modalDialogs.RunInteractive<ScrollableFormFrame, SftpConnectionFormInputResult, SftpConnectionDialogResult?>(
-            (context, focusScope) => Draw(context, focusScope, form, connection is null ? "SFTP connection" : "Edit SFTP connection", error),
-            form.BuildInteractionFrame,
-            (input, frame, route) =>
+        return _formDialogs.Run(
+            form,
+            new ModalFormOptions(
+                connection is null ? "SFTP connection" : "Edit SFTP connection",
+                DialogWidth, DialogHeight, MinWidth: 42, MinHeight: 8),
+            static layout =>
             {
-                string previousHost = host.Text;
-                string previousPort = port.Text;
-                bool previousSaveConnection = saveConnectionRow.Value;
-                bool previousSavePassword = savePasswordRow.Value;
-                FormRouteResult result = form.RouteInput(input, frame, route);
-                SftpSaveOptionChange saveOptionChange = (previousSaveConnection != saveConnectionRow.Value, previousSavePassword != savePasswordRow.Value) switch
-                {
-                    (false, false) => SftpSaveOptionChange.None,
-                    (true, false) => SftpSaveOptionChange.SaveConnection,
-                    (false, true) => SftpSaveOptionChange.SavePassword,
-                    _ => throw new InvalidOperationException("One routed input event cannot change both SFTP save options."),
-                };
-                return (new SftpConnectionFormInputResult(
-                    result.FormResult,
-                    !string.Equals(previousHost, host.Text, StringComparison.Ordinal) || !string.Equals(previousPort, port.Text, StringComparison.Ordinal),
-                    saveOptionChange), result.UiResult);
+                Rect content = layout.ContentBounds;
+                int contentX = content.X + 1;
+                int contentWidth = Math.Max(1, content.Width - 2);
+                return new ModalFormLayout(
+                    new Rect(contentX, content.Y, contentWidth, Math.Max(1, content.Height - 2)),
+                    new Rect(contentX, content.Bottom - 2, contentWidth, 2));
             },
             (routed, result) =>
             {
-                FormInputResult formResult = result.FormResult;
-                if (formResult.IsHandled)
+                if (result.IsHandled)
                     error = null;
-                if (result.EndpointChanged)
+                if (result.Kind == FormInputResultKind.ValueChanged &&
+                    (routed.Target == form.GetFocusTarget("host") || routed.Target == form.GetFocusTarget("port")))
                 {
                     hostKeyFingerprint = null;
                     trustHostKeyRow.Value = false;
                 }
-                if (result.SaveOptionChange == SftpSaveOptionChange.SavePassword && savePasswordRow.Value)
+                if (result.Kind == FormInputResultKind.ValueChanged && routed.Target == form.GetFocusTarget("save-password") && savePasswordRow.Value)
                 {
                     saveConnectionRow.Value = true;
                 }
-                else if (result.SaveOptionChange == SftpSaveOptionChange.SaveConnection && !saveConnectionRow.Value)
+                else if (result.Kind == FormInputResultKind.ValueChanged && routed.Target == form.GetFocusTarget("save-connection") && !saveConnectionRow.Value)
                 {
                     savePasswordRow.Value = false;
                 }
 
-                if (formResult.Kind == FormInputResultKind.Cancel)
+                if (result.Kind == FormInputResultKind.Cancel)
                     return ModalDialogLoopResult<SftpConnectionDialogResult?>.Complete(null);
 
-                if (formResult.Kind == FormInputResultKind.Submit ||
+                if (result.Kind == FormInputResultKind.Submit ||
                     routed.Input is KeyConsoleInputEvent { Key.Key: ConsoleKey.F10 } ||
-                    FormDialogInput.ShouldImplicitlySubmit(routed, formResult, form))
+                    FormDialogInput.ShouldImplicitlySubmit(routed, result, form))
                 {
                     SftpConnectionDialogResult? candidate = BuildResult(
                         request,
@@ -236,33 +215,6 @@ internal sealed class SftpConnectionDialog
         return rows;
     }
 
-    private ScrollableFormFrame Draw(UiRenderContext context, IUiFocusState focusScope, ScrollableFormDialog form, string title, string? error)
-    {
-        ScrollableFormFrame? frame = null;
-        _modalRenderer.Render(context.Canvas, OuterBounds(context.Size), title, true, FarDialogStyles.OuterOptions, FarDialogStyles.FrameOptions, (_, layout) =>
-        {
-            Rect bounds = layout.FrameBounds;
-            int contentX = bounds.X + 2;
-            int contentWidth = Math.Max(1, bounds.Width - 4);
-            int buttonY = bounds.Bottom - 2;
-            int errorY = buttonY - 1;
-            frame = form.Render(new FormRenderContext(
-                context,
-                new Rect(contentX, bounds.Y + 1, contentWidth, Math.Max(1, errorY - bounds.Y - 1)),
-                FarDialogStyles.Border,
-                new Rect(contentX, buttonY, contentWidth, 1)), focusScope);
-            context.Canvas.Write(contentX, errorY, Fit(error ?? string.Empty, contentWidth).PadRight(contentWidth), FarDialogStyles.Error);
-        });
-        return frame ?? throw new InvalidOperationException("SFTP connection dialog did not render a form frame.");
-    }
-
-    private static Rect OuterBounds(ConsoleSize size)
-    {
-        int width = Math.Min(DialogWidth, Math.Max(42, size.Width - 2));
-        int height = Math.Min(DialogHeight, Math.Max(8, size.Height - 2));
-        return new Rect(Math.Max(0, (size.Width - width) / 2), Math.Max(0, (size.Height - height) / 2), width, height);
-    }
-
     private static SftpConnectionDialogResult? BuildResult(
         SftpConnectionDialogRequest request, string connectionName, string host, string portText, string userName, string password,
         string remoteRoot, bool saveConnection, bool savePassword, bool showInDrive, string? hostKeyFingerprint)
@@ -298,9 +250,6 @@ internal sealed class SftpConnectionDialog
         buffer.SetText(value);
         return buffer;
     }
-
-    private static string Fit(string text, int width) =>
-        width <= 0 ? string.Empty : text.Length <= width ? text : text[..Math.Max(0, width - 1)] + "~";
 
     private sealed class TextFieldHistories
     {
