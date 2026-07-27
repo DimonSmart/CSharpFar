@@ -25,12 +25,11 @@ public sealed class SingleLineInputDialog
 
     private static readonly SingleLineTextHistoryRegistry HistoryRegistry = new();
 
-    private readonly ModalDialogHost _modalDialogs;
-    private readonly ModalDialogRenderer _modalRenderer = new();
+    private readonly ModalFormHost _formDialogs;
 
     public SingleLineInputDialog(ModalDialogHost modalDialogs)
     {
-        _modalDialogs = modalDialogs ?? throw new ArgumentNullException(nameof(modalDialogs));
+        _formDialogs = new ModalFormHost(modalDialogs ?? throw new ArgumentNullException(nameof(modalDialogs)));
     }
 
     public SingleLineInputDialogResult Show(SingleLineInputDialogOptions options)
@@ -50,28 +49,29 @@ public sealed class SingleLineInputDialog
             ? HistoryRegistry.GetOrCreate(options.HistoryKey)
             : null;
         string? error = null;
-        var form = new ScrollableFormDialog([
+        var actions = new ButtonRow([
+            new DialogButton("ok", "OK", 'O', IsDefault: true),
+            new DialogButton("cancel", "Cancel", 'C', Role: DialogButtonRole.Cancel),
+        ])
+        { Id = "actions" };
+        var form = new ScrollableFormDialog();
+        void PrepareRows() => form.SetRows([
             new LabelRow(options.Prompt, FarDialogStyles.Fill),
-            new TextInputRow(buffer, history, maskInput: options.MaskInput)
-            {
-                Id = "input",
-                SubmitOnEnter = true,
-            },
+            new TextInputRow(buffer, history, maskInput: options.MaskInput) { Id = "input", SubmitOnEnter = true },
             new SeparatorRow(FarDialogStyles.Fill, drawLine: false),
-            new ButtonRow([
-                new DialogButton("ok", "OK", 'O', IsDefault: true),
-                new DialogButton("cancel", "Cancel", 'C', Role: DialogButtonRole.Cancel),
-            ]) { Id = "actions" },
+        ], [
+            new LabelRow(error ?? string.Empty, PaletteStyles.DialogError(UiTheme.Current)),
+            actions,
         ]);
 
-        return _modalDialogs.RunInteractive<ScrollableFormFrame, FormInputResult, SingleLineInputDialogResult>(
-            (context, focusScope) => Draw(context, focusScope, options.Title, form, error),
-            form.BuildInteractionFrame,
-            (input, frame, route) =>
-            {
-                FormRouteResult routed = form.RouteInput(input, frame, route);
-                return (routed.FormResult, routed.UiResult);
-            },
+        return _formDialogs.Run(
+            form,
+            new ModalFormOptions(
+                options.Title, DialogWidth, DialogHeight, MinWidth: 20, MinHeight: 5, DoubleBorder: false,
+                OuterRenderOptions: PaletteStyles.DialogPopupOptions(UiTheme.Current),
+                FrameRenderOptions: PaletteStyles.DialogPopupOptions(UiTheme.Current) with { DrawShadow = false }),
+            static layout => new ModalFormLayout(new Rect(layout.ContentBounds.X, layout.ContentBounds.Y, layout.ContentBounds.Width, 3),
+                new Rect(layout.ContentBounds.X, layout.ContentBounds.Y + 3, layout.ContentBounds.Width, 2)),
             (routed, result) =>
             {
                 if (result.Kind == FormInputResultKind.Cancel || result.Command == "cancel")
@@ -91,45 +91,7 @@ public sealed class SingleLineInputDialog
 
                 history?.Add(text);
                 return ModalDialogLoopResult<SingleLineInputDialogResult>.Complete(new(true, text));
-            });
+            },
+            prepareRender: PrepareRows);
     }
-
-    private static SingleLineInputLayout CreateLayout(ConsoleSize size)
-    {
-        int width = Math.Min(DialogWidth, Math.Max(20, size.Width));
-        int height = Math.Min(DialogHeight, Math.Max(5, size.Height));
-        int x = Math.Max(0, (size.Width - width) / 2);
-        int y = Math.Max(0, (size.Height - height) / 2);
-        return new SingleLineInputLayout(new Rect(x, y, width, height));
-    }
-
-    private ScrollableFormFrame Draw(
-        UiRenderContext context,
-        IUiFocusState focusScope,
-        string title,
-        ScrollableFormDialog form,
-        string? error)
-    {
-        SingleLineInputLayout layout = CreateLayout(context.Size);
-        ScrollableFormFrame? frame = null;
-        var palette = UiTheme.Current;
-        _modalRenderer.Render(
-            context.Canvas,
-            layout.Bounds,
-            title,
-            doubleBorder: false,
-            PaletteStyles.DialogPopupOptions(palette),
-            PaletteStyles.DialogPopupOptions(palette) with { DrawShadow = false },
-            (_, modalLayout) =>
-            {
-                Rect content = modalLayout.ContentBounds;
-                frame = form.Render(
-                    new FormRenderContext(context, new Rect(content.X, content.Y, content.Width, 4), FarDialogStyles.Border),
-                    focusScope);
-                context.Canvas.Write(content.X, content.Y + 4, ScrollableFormDialog.Fit(error ?? string.Empty, content.Width), PaletteStyles.DialogError(palette));
-            });
-        return frame ?? throw new InvalidOperationException("Single-line input dialog did not render a form frame.");
-    }
-
-    private readonly record struct SingleLineInputLayout(Rect Bounds);
 }

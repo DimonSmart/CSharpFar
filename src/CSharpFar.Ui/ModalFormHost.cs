@@ -9,7 +9,9 @@ public sealed record ModalFormOptions(
     int Height,
     int MinWidth = 20,
     int MinHeight = 8,
-    bool DoubleBorder = true);
+    bool DoubleBorder = true,
+    PopupRenderOptions? OuterRenderOptions = null,
+    PopupRenderOptions? FrameRenderOptions = null);
 
 public readonly record struct ModalFormLayout(
     Rect BodyBounds,
@@ -34,6 +36,7 @@ public sealed class ModalFormHost
         Func<ModalDialogRenderer.Layout, ModalFormLayout> calculateLayout,
         Func<UiRoutedInput<ScrollableFormFrame>, FormInputResult, ModalDialogLoopResult<TResult>> handleInput,
         Action? prepareRender = null,
+        Func<IDisposable>? beginRenderScope = null,
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(form);
@@ -42,7 +45,7 @@ public sealed class ModalFormHost
         ArgumentNullException.ThrowIfNull(handleInput);
 
         return _modalDialogs.RunInteractive<ScrollableFormFrame, FormInputResult, TResult>(
-            (context, focusScope) => Render(context, focusScope, form, options, calculateLayout),
+            (context, focusScope) => Render(context, focusScope, form, options, calculateLayout, beginRenderScope),
             form.BuildInteractionFrame,
             (input, frame, route) =>
             {
@@ -59,8 +62,10 @@ public sealed class ModalFormHost
         IUiFocusState focusScope,
         ScrollableFormDialog form,
         ModalFormOptions options,
-        Func<ModalDialogRenderer.Layout, ModalFormLayout> calculateLayout)
+        Func<ModalDialogRenderer.Layout, ModalFormLayout> calculateLayout,
+        Func<IDisposable>? beginRenderScope)
     {
+        using IDisposable? renderScope = beginRenderScope?.Invoke();
         ScrollableFormFrame? frame = null;
         ModalDialogRenderer.Layout layout = _modalRenderer.CalculateLayout(
             context.Size,
@@ -74,8 +79,8 @@ public sealed class ModalFormHost
             layout,
             options.Title,
             options.DoubleBorder,
-            FarDialogStyles.OuterOptions,
-            FarDialogStyles.FrameOptions,
+            options.OuterRenderOptions ?? FarDialogStyles.OuterOptions,
+            options.FrameRenderOptions ?? FarDialogStyles.FrameOptions,
             (_, modalLayout) =>
             {
                 ModalFormLayout formLayout = calculateLayout(modalLayout);
