@@ -16,12 +16,11 @@ internal sealed class CreateFolderDialog
 
     private static readonly SingleLineTextHistoryRegistry HistoryRegistry = new();
 
-    private readonly ModalDialogHost _modalDialogs;
-    private readonly ModalDialogRenderer _modalRenderer = new();
+    private readonly ModalFormHost _formDialogs;
 
     public CreateFolderDialog(ModalDialogHost modalDialogs)
     {
-        _modalDialogs = modalDialogs;
+        _formDialogs = new ModalFormHost(modalDialogs);
     }
 
     public string? Show(string? initialText = null, Func<string, string?>? validate = null)
@@ -58,13 +57,17 @@ internal sealed class CreateFolderDialog
                 ],
                 [actions]);
 
-        return _modalDialogs.RunInteractive<ScrollableFormFrame, FormInputResult, string?>(
-            (context, focusScope) => Draw(context, focusScope, form),
-            form.BuildInteractionFrame,
-            (inputEvent, frame, route) =>
+        return _formDialogs.Run(
+            form,
+            new ModalFormOptions(Title, DialogWidth, DialogHeight, MinWidth: 40),
+            static layout =>
             {
-                FormRouteResult result = form.RouteInput(inputEvent, frame, route);
-                return (result.FormResult, result.UiResult);
+                Rect bounds = layout.FrameBounds;
+                int contentX = bounds.X + 2;
+                int contentWidth = Math.Max(1, bounds.Width - 4);
+                return new ModalFormLayout(
+                    new Rect(contentX, bounds.Y + 1, contentWidth, Math.Max(1, bounds.Height - 4)),
+                    new Rect(contentX, bounds.Bottom - 2, contentWidth, 1));
             },
             (routed, result) =>
             {
@@ -106,37 +109,4 @@ internal sealed class CreateFolderDialog
         return text;
     }
 
-    private ScrollableFormFrame Draw(UiRenderContext context, IUiFocusState focusScope, ScrollableFormDialog form)
-    {
-        ScrollableFormFrame? frame = null;
-        _modalRenderer.Render(
-            context.Canvas,
-            OuterBounds(context.Size),
-            Title,
-            doubleBorder: true,
-            FarDialogStyles.OuterOptions,
-            FarDialogStyles.FrameOptions,
-            (_, layout) =>
-            {
-                Rect bounds = layout.FrameBounds;
-                int contentX = bounds.X + 2;
-                int contentWidth = Math.Max(1, bounds.Width - 4);
-                var bodyBounds = new Rect(contentX, bounds.Y + 1, contentWidth, Math.Max(1, bounds.Height - 4));
-                var footerBounds = new Rect(contentX, bounds.Bottom - 2, contentWidth, 1);
-                frame = form.Render(
-                    new FormRenderContext(context, bodyBounds, FarDialogStyles.Border, footerBounds),
-                    focusScope);
-            });
-
-        return frame ?? throw new InvalidOperationException("Create folder dialog did not render a form frame.");
-    }
-
-    private static Rect OuterBounds(ConsoleSize size)
-    {
-        int dialogWidth = Math.Min(DialogWidth, Math.Max(40, size.Width - 2));
-        int dialogHeight = Math.Min(DialogHeight, Math.Max(8, size.Height - 2));
-        int dialogX = Math.Max(0, (size.Width - dialogWidth) / 2);
-        int dialogY = Math.Max(0, (size.Height - dialogHeight) / 2);
-        return new Rect(dialogX, dialogY, dialogWidth, dialogHeight);
-    }
 }

@@ -12,12 +12,11 @@ internal sealed class SearchDialog
     private const int DialogHeight = 19;
 
     private static readonly SingleLineTextHistoryRegistry HistoryRegistry = new();
-    private readonly ModalDialogHost _modalDialogs;
-    private readonly ModalDialogRenderer _modalRenderer = new();
+    private readonly ModalFormHost _formDialogs;
 
     public SearchDialog(ModalDialogHost modalDialogs)
     {
-        _modalDialogs = modalDialogs;
+        _formDialogs = new ModalFormHost(modalDialogs);
     }
 
     public SearchRequest? Show(string rootPath)
@@ -106,33 +105,40 @@ internal sealed class SearchDialog
         void PrepareRows()
         {
             bool hasText = text.Text.Length > 0;
-            form.SetRows(BuildRows(
-                mask,
-                text,
-                parallelism,
-                maskHistory,
-                textHistory,
-                parallelismHistory,
-                maskRowState,
-                textRowState,
-                parallelismRowState,
-                caseSensitiveRow,
-                wholeWordsRow,
-                notContainingRow,
-                includeDirectoriesRow,
-                searchLinksRow,
-                scopeRow,
-                buttons,
-                hasText));
+            form.SetRows(
+                BuildRows(
+                    mask,
+                    text,
+                    parallelism,
+                    maskHistory,
+                    textHistory,
+                    parallelismHistory,
+                    maskRowState,
+                    textRowState,
+                    parallelismRowState,
+                    caseSensitiveRow,
+                    wholeWordsRow,
+                    notContainingRow,
+                    includeDirectoriesRow,
+                    searchLinksRow,
+                    scopeRow,
+                    buttons,
+                    hasText),
+                [new LabelRow(error is null ? string.Empty : Truncate(error, DialogWidth), FarDialogStyles.Error)]);
         }
 
-        return _modalDialogs.RunInteractive<ScrollableFormFrame, FormInputResult, SearchRequest?>(
-            (context, focusScope) => Draw(context, focusScope, form, error),
-            form.BuildInteractionFrame,
-            (input, frame, route) =>
+        return _formDialogs.Run(
+            form,
+            new ModalFormOptions("Find file", DialogWidth, DialogHeight, MinWidth: 48),
+            static layout =>
             {
-                FormRouteResult result = form.RouteInput(input, frame, route);
-                return (result.FormResult, result.UiResult);
+                Rect bounds = layout.FrameBounds;
+                int contentX = bounds.X + 2;
+                int contentWidth = Math.Max(1, bounds.Width - 4);
+                int errorY = bounds.Y + bounds.Height - 2;
+                return new ModalFormLayout(
+                    new Rect(contentX, bounds.Y + 1, contentWidth, Math.Max(1, errorY - bounds.Y - 1)),
+                    new Rect(contentX, errorY, contentWidth, 1));
             },
             (routed, result) =>
             {
@@ -252,41 +258,6 @@ internal sealed class SearchDialog
         textHistory.Close();
         parallelismHistory.Close();
         return request;
-    }
-
-    private ScrollableFormFrame Draw(UiRenderContext context, IUiFocusState focusScope, ScrollableFormDialog form, string? error)
-    {
-        Rect outerBounds = OuterBounds(context.Size);
-        ScrollableFormFrame? frame = null;
-
-        _modalRenderer.Render(context.Canvas, outerBounds, "Find file", true, FarDialogStyles.OuterOptions, FarDialogStyles.FrameOptions, (_, layout) =>
-        {
-            Rect bounds = layout.FrameBounds;
-            int contentX = bounds.X + 2;
-            int contentWidth = Math.Max(1, bounds.Width - 4);
-            int errorY = bounds.Y + bounds.Height - 2;
-            int bodyTop = bounds.Y + 1;
-            int bodyHeight = Math.Max(1, errorY - bodyTop);
-
-            frame = form.Render(new FormRenderContext(
-                context,
-                new Rect(contentX, bodyTop, contentWidth, bodyHeight),
-                FarDialogStyles.Border),
-                focusScope);
-
-            string errorText = error is null ? string.Empty : Truncate(error, contentWidth);
-            context.Canvas.Write(contentX, errorY, errorText.PadRight(contentWidth), FarDialogStyles.Error);
-        });
-        return frame ?? throw new InvalidOperationException("Search dialog did not render a form frame.");
-    }
-
-    private static Rect OuterBounds(ConsoleSize size)
-    {
-        int dialogWidth = Math.Min(DialogWidth, Math.Max(48, size.Width - 2));
-        int dialogHeight = Math.Min(DialogHeight, Math.Max(8, size.Height - 2));
-        int dialogX = Math.Max(0, (size.Width - dialogWidth) / 2);
-        int dialogY = Math.Max(0, (size.Height - dialogHeight) / 2);
-        return new Rect(dialogX, dialogY, dialogWidth, dialogHeight);
     }
 
     private static string ScopeLabel(SearchScope scope) => scope switch
