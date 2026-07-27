@@ -11,18 +11,19 @@ internal static class ApplicationSessionFactory
 {
     public static ApplicationSession Create(
         AppSettingsAlias settings,
-        PanelController controller)
+        PanelController controller,
+        ApplicationRunOptions? runOptions = null)
     {
-        var currentDirectory = Directory.GetCurrentDirectory();
-        var leftStart = ResolveStartDir(settings.Panels.LeftStartDirectory, currentDirectory);
-        var rightStart = ResolveStartDir(settings.Panels.RightStartDirectory, currentDirectory);
+        runOptions ??= ApplicationRunOptions.Normal;
+        PanelLocation leftStart = ResolveStartLocation(settings.Panels.LeftStartDirectory, runOptions);
+        PanelLocation rightStart = ResolveStartLocation(settings.Panels.RightStartDirectory, runOptions);
         var sortMode = ResolveSortMode(settings.Panels.DefaultSortMode);
 
-        var left = new FilePanelState { CurrentDirectory = leftStart, SortMode = sortMode };
-        var right = new FilePanelState { CurrentDirectory = rightStart, SortMode = sortMode };
+        var left = new FilePanelState { CurrentLocation = leftStart, SortMode = sortMode };
+        var right = new FilePanelState { CurrentLocation = rightStart, SortMode = sortMode };
         var options = settings.Panels.Options;
-        controller.LoadDirectory(left, leftStart, options);
-        controller.LoadDirectory(right, rightStart, options);
+        controller.LoadLocation(left, leftStart, options);
+        controller.LoadLocation(right, rightStart, options);
 
         return new ApplicationSession
         {
@@ -48,11 +49,15 @@ internal static class ApplicationSessionFactory
         };
     }
 
-    private static string ResolveStartDir(string? configured, string fallback)
+    private static PanelLocation ResolveStartLocation(string? configured, ApplicationRunOptions runOptions)
     {
+        if (runOptions.Mode == ApplicationRunMode.Demo)
+            return PanelLocation.Demo("/");
+
+        string fallback = Directory.GetCurrentDirectory();
         if (!string.IsNullOrWhiteSpace(configured) && Directory.Exists(configured))
-            return configured;
-        return fallback;
+            return PanelLocation.Local(configured);
+        return PanelLocation.Local(fallback);
     }
 
     private static SortMode ResolveSortMode(string? configured) =>

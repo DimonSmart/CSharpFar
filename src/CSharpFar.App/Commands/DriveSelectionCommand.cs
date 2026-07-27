@@ -56,7 +56,7 @@ internal abstract class DriveSelectionCommand : IApplicationCommand
             });
         }
 
-        int initialCursor = FindInitialCursor(items, targetState.CurrentDirectory);
+        int initialCursor = FindInitialCursor(items, targetState.CurrentDirectory, targetState.SourceId);
 
         var selected = new DriveDialog(context.ModalDialogs, context.Palette).Show(items, initialCursor);
         if (selected is null)
@@ -70,22 +70,29 @@ internal abstract class DriveSelectionCommand : IApplicationCommand
         }
 
         var volume = selected.Volume!;
-        string directoryPath = SelectedVolumeDirectory(volume.RootPath, otherState.CurrentDirectory);
+        string directoryPath = SelectedVolumeDirectory(volume.RootPath, otherState.CurrentDirectory, targetState.SourceId);
 
         context.QuickView = false;
         context.ActiveSide = PanelSide;
 
-        if (context.Controller.TryLoadDirectory(targetState, directoryPath, context.PanelOptions))
+        bool loaded = targetState.SourceId == PanelSourceId.Local
+            ? context.Controller.TryLoadDirectory(targetState, directoryPath, context.PanelOptions)
+            : context.Controller.TryLoadLocation(targetState, new PanelLocation(targetState.SourceId, directoryPath), context.PanelOptions);
+        if (loaded)
         {
-            context.History.AddDirectory(new DirectoryHistoryItem { Path = directoryPath });
+            if (targetState.SourceId == PanelSourceId.Local)
+                context.History.AddDirectory(new DirectoryHistoryItem { Path = directoryPath });
             context.StartWatching(targetState, PanelSide);
         }
 
         return ApplicationCommandResult.Rendered();
     }
 
-    private static int FindInitialCursor(List<VolumeSelectionItem> items, string currentDirectory)
+    private static int FindInitialCursor(List<VolumeSelectionItem> items, string currentDirectory, PanelSourceId sourceId)
     {
+        if (sourceId != PanelSourceId.Local)
+            return items.FindIndex(item => item.Volume?.RootPath == "/") is var index && index >= 0 ? index : 0;
+
         int bestIndex = 0;
         int bestLength = -1;
 
@@ -106,8 +113,11 @@ internal abstract class DriveSelectionCommand : IApplicationCommand
         return bestIndex;
     }
 
-    private static string SelectedVolumeDirectory(string rootPath, string otherPanelDirectory)
+    private static string SelectedVolumeDirectory(string rootPath, string otherPanelDirectory, PanelSourceId sourceId)
     {
+        if (sourceId != PanelSourceId.Local)
+            return rootPath;
+
         if (IsSameVolumePath(rootPath, otherPanelDirectory))
             return otherPanelDirectory;
 

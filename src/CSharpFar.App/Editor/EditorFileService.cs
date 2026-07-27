@@ -1,4 +1,5 @@
 using System.Text;
+using CSharpFar.Core.Abstractions;
 using CSharpFar.Core.Models;
 using CSharpFar.Core.Text;
 
@@ -22,6 +23,18 @@ public sealed class EditorFileService
 
         long limit = _settings.FileSizeLimitBytes;
         return limit > 0 && new FileInfo(filePath).Length > limit;
+    }
+
+    public bool RequiresSizeWarning(IFilePanelSource source, string sourcePath)
+    {
+        ArgumentNullException.ThrowIfNull(source);
+
+        var item = source.GetItem(sourcePath);
+        if (item is null || item.IsDirectory || item.Size is null)
+            return false;
+
+        long limit = _settings.FileSizeLimitBytes;
+        return limit > 0 && item.Size.Value > limit;
     }
 
     public EditorSession Load(string filePath, EditorDocumentFormat? newFileFormat = null)
@@ -58,6 +71,57 @@ public sealed class EditorFileService
         return new EditorSession(filePath, document, _settings, readOnly);
     }
 
+    public EditorSession Load(
+        IFilePanelSource source,
+        string sourcePath,
+        string displayPath,
+        EditorDocumentFormat? newFileFormat = null)
+    {
+        ArgumentNullException.ThrowIfNull(source);
+
+        var item = source.GetItem(sourcePath);
+        if (item is null)
+        {
+            var initialFormat = newFileFormat ?? CreateDefaultNewFileFormat(_settings);
+            var newFileDocument = new EditorDocument(EditorTextBuffer.FromText(string.Empty), initialFormat);
+            newFileDocument.MarkClean();
+            return new EditorSession(displayPath, newFileDocument, _settings, readOnly: false);
+        }
+
+        if (item.IsDirectory)
+            throw new IOException("Cannot open a directory in the editor.");
+
+        byte[] bytes;
+        using (var stream = source.OpenReadAsync(sourcePath).GetAwaiter().GetResult())
+        using (var memory = new MemoryStream())
+        {
+            stream.CopyTo(memory);
+            bytes = memory.ToArray();
+        }
+
+        byte[] sample = bytes.Length <= MaxEncodingSampleBytes ? bytes : bytes[..MaxEncodingSampleBytes];
+        var detection = TextEncodingDetector.Detect(sample);
+        string text = detection.Encoding.GetString(
+            bytes,
+            detection.ContentStartLength,
+            bytes.Length - detection.ContentStartLength);
+
+        var lineEnding = ToEditorLineEnding(TextLineEndingDetector.Detect(text));
+        var format = new EditorDocumentFormat(
+            detection.Encoding,
+            detection.HasByteOrderMark,
+            lineEnding == EditorLineEnding.Mixed
+                ? EditorLineEnding.Mixed
+                : lineEnding,
+            detection.DisplayName);
+        var document = new EditorDocument(EditorTextBuffer.FromText(text), format);
+        document.MarkClean();
+
+        bool readOnly = item.Attributes.HasFlag(FileAttributes.ReadOnly) &&
+            _settings.OpenReadOnlyFilesReadOnly;
+        return new EditorSession(displayPath, document, _settings, readOnly);
+    }
+
     public void Save(EditorSession session)
     {
         ArgumentNullException.ThrowIfNull(session);
@@ -87,6 +151,25 @@ public sealed class EditorFileService
         {
             File.Move(tempPath, session.FilePath);
         }
+
+        session.Document.MarkClean();
+        session.RaiseSaved();
+    }
+
+    public void Save(EditorSession session, IFilePanelSource source, string sourcePath)
+    {
+        ArgumentNullException.ThrowIfNull(session);
+        ArgumentNullException.ThrowIfNull(source);
+
+        if (session.ReadOnly)
+            throw new IOException("The file is opened read-only.");
+
+        byte[] bytes = session.Document.Format.CreateSaveEncoding().GetBytes(
+            session.Document.Buffer.GetText(session.Document.Format));
+
+        using var stream = source.OpenWriteAsync(sourcePath, overwrite: true).GetAwaiter().GetResult();
+        stream.Write(bytes, 0, bytes.Length);
+        stream.Flush();
 
         session.Document.MarkClean();
         session.RaiseSaved();

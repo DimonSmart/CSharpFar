@@ -36,7 +36,8 @@ public static class ApplicationFactory
         ITextClipboard? clipboard = null,
         ITerminalScreenMode? terminalScreenMode = null,
         IFileMetadataService? fileMetadata = null,
-        Func<IFileAttributesDialog>? fileAttributesDialogFactory = null) =>
+        Func<IFileAttributesDialog>? fileAttributesDialogFactory = null,
+        ApplicationRunOptions? runOptions = null) =>
         new(ApplicationServicesBuilder.Create(
             screen,
             fs,
@@ -62,6 +63,7 @@ public static class ApplicationFactory
             clipboard,
             terminalScreenMode,
             fileMetadata,
-            fileAttributesDialogFactory));
+            fileAttributesDialogFactory,
+            runOptions));
 
 }

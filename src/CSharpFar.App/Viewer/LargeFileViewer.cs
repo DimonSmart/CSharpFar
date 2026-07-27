@@ -93,6 +93,38 @@ internal sealed class LargeFileViewer
         }
     }
 
+    internal void ShowVirtual(string filePath, IFileByteReader reader, LargeFileViewerOptions? options)
+    {
+        options ??= new LargeFileViewerOptions();
+
+        try
+        {
+            var cache = new BlockCache(reader);
+            var scanner = LineScanner.CreateAsync(cache, reader).GetAwaiter().GetResult();
+            var state = new LargeFileViewerState(cache, scanner);
+            var layer = new LargeFileViewerLayer(this, filePath, reader, state);
+            long knownFollowLength = reader.Length;
+            _surfaces.Run(
+                layer,
+                (routed, input) => HandleViewerInput(filePath, reader, state, options, routed.Frame, input),
+                getNextWakeUtc: () => state.FollowMode ? DateTimeOffset.UtcNow.AddMilliseconds(FollowPollMs) : null,
+                handleWake: frame =>
+                {
+                    long currentLength = reader.Length;
+                    if (currentLength == knownFollowLength)
+                        return InteractiveSurfaceWakeResult.NoChange;
+
+                    knownFollowLength = currentLength;
+                    MoveToEnd(reader, state, frame.ContentHeight);
+                    return InteractiveSurfaceWakeResult.Changed;
+                });
+        }
+        catch (Exception ex)
+        {
+            new MessageDialog(_modalDialogs).Show("Viewer", ex.Message);
+        }
+    }
+
     private static (RandomAccessFileByteReader Reader, LargeFileViewerState State) OpenViewerFile(string filePath)
     {
         var reader = new RandomAccessFileByteReader(filePath);
@@ -907,6 +939,13 @@ internal sealed class LargeFileViewer
         LargeFileViewerState state,
         LargeFileViewerOptions options)
     {
+        if (options.EditCurrentFile is not null)
+        {
+            options.EditCurrentFile();
+            RefreshScanner(reader, state);
+            return;
+        }
+
         if (options.EditFile is null)
         {
             ShowUnsupported("Edit from viewer");

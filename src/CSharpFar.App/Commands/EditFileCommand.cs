@@ -28,10 +28,7 @@ internal sealed class EditFileCommand : IApplicationCommand
         if (item.IsDirectory)
             return ApplicationCommandResult.Rendered();
 
-        context.History.AddFile(new FileHistoryItem { Path = item.FullPath });
-        context.EditFile(
-            item.FullPath,
-            PanelCommandEditorContextFactory.Create(context, target, item));
+        context.EditPanelFile(target.State, item);
         context.SafeRefresh(target.State, target.VisibleRows);
         return ApplicationCommandResult.Rendered();
     }

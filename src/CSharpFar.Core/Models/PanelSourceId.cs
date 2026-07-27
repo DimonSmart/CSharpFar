@@ -3,6 +3,7 @@ namespace CSharpFar.Core.Models;
 public readonly record struct PanelSourceId(string Value)
 {
     public static PanelSourceId Local { get; } = new("local");
+    public static PanelSourceId Demo { get; } = new("demo");
     public static PanelSourceId SearchResults { get; } = new("search");
 
     public static PanelSourceId Module(Guid moduleId, string panelId)

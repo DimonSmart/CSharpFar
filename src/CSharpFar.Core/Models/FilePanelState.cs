@@ -4,7 +4,7 @@ public sealed class FilePanelState
 {
     private PanelLocation _currentLocation = PanelLocation.Local(string.Empty);
 
-    public required string CurrentDirectory
+    public string CurrentDirectory
     {
         get => _currentLocation.SourcePath;
         set => _currentLocation = PanelLocation.Local(value);

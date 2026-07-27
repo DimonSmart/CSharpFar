@@ -62,23 +62,42 @@ internal sealed class PanelFileViewerService
         }
 
         var source = _sourceRegistry.GetSource(item.SourceId);
-        string tempPath = Path.Combine(Path.GetTempPath(), "CSharpFar", Guid.NewGuid().ToString("N"), item.Name);
-        Directory.CreateDirectory(Path.GetDirectoryName(tempPath)!);
-        try
+        byte[] content;
+        using (var input = source.OpenReadAsync(item.SourcePath).GetAwaiter().GetResult())
+        using (var memory = new MemoryStream())
         {
-            using (var input = source.OpenReadAsync(item.SourcePath).GetAwaiter().GetResult())
-            using (var output = File.Create(tempPath))
-            {
-                input.CopyTo(output);
-            }
-
-            _history.AddFile(new FileHistoryItem { Path = $"{item.SourceId}:{item.SourcePath}" });
-            new FileViewer(_surfaces, _modalDialogs, _palette()).Show(tempPath);
+            input.CopyTo(memory);
+            content = memory.ToArray();
         }
-        finally
+
+        _history.AddFile(new FileHistoryItem { Path = $"{item.SourceId}:{item.SourcePath}" });
+        new FileViewer(_surfaces, _modalDialogs, _palette()).Show(
+            item.SourcePath,
+            new MemoryFileByteReader(content),
+            new LargeFileViewerOptions
+            {
+                Clipboard = _clipboard,
+                EditCurrentFile = () => EditPanelFile(state, item),
+            });
+    }
+
+    public void EditPanelFile(FilePanelState state, FilePanelItem item)
+    {
+        _history.AddFile(new FileHistoryItem
         {
-            try { Directory.Delete(Path.GetDirectoryName(tempPath)!, recursive: true); }
-            catch { }
+            Path = state.SourceId == PanelSourceId.Local
+                ? item.FullPath
+                : $"{item.SourceId}:{item.SourcePath}",
+        });
+
+        if (state.SourceId == PanelSourceId.Local)
+        {
+            new FileEditor(_surfaces, _modalDialogs, _palette(), _settings.Editor, _clipboard).Show(item.FullPath);
+        }
+        else
+        {
+            new FileEditor(_surfaces, _modalDialogs, _palette(), _settings.Editor, _clipboard, null, null, _sourceRegistry)
+                .Show(item.Location);
         }
     }
 

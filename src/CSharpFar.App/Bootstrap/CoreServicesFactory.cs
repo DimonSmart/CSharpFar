@@ -27,7 +27,8 @@ internal static class CoreServicesFactory
         ISearchService? searchService,
         FilePanelSourceRegistry? sourceRegistry,
         string? configDirectory,
-        ITextClipboard? clipboard)
+        ITextClipboard? clipboard,
+        ApplicationRunOptions? runOptions)
     {
         var effectiveSettings = settings ?? new AppSettingsAlias();
         var effectiveSourceRegistry = sourceRegistry ?? new FilePanelSourceRegistry([new LocalFilePanelSource(fs)]);
@@ -40,7 +41,7 @@ internal static class CoreServicesFactory
             sources: effectiveSourceRegistry);
         var controller = new PanelController(viewBuilder);
         var effectiveHistory = history ?? new InMemoryHistoryStore();
-        var session = ApplicationSessionFactory.Create(effectiveSettings, controller);
+        var session = ApplicationSessionFactory.Create(effectiveSettings, controller, runOptions);
         var effectiveConfigDirectory = configDirectory ?? Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
             "CSharpFar");
