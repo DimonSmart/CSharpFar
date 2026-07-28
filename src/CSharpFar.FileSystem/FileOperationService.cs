@@ -85,6 +85,8 @@ public sealed class FileOperationService : IFileOperationService
 
         try
         {
+            ValidateAccessibleSources(request);
+
             if (UsesProviderLocations(request))
             {
                 await ExecuteProviderOperationAsync(request, conflictResolver, state, cancellationToken)
@@ -129,6 +131,20 @@ public sealed class FileOperationService : IFileOperationService
         return hasRemoteSource || hasRemoteDestination;
     }
 
+    private void ValidateAccessibleSources(FileOperationRequest request)
+    {
+        if (_sources is null)
+            return;
+
+        foreach (PanelSourceId sourceId in EnumerateReferencedSources(request).Distinct())
+        {
+            if (_sources.TryGetSource(sourceId, out _))
+                continue;
+
+            throw new IOException($"Panel source '{sourceId.Value}' is not available in the current composition.");
+        }
+    }
+
     private async Task ExecuteProviderOperationAsync(
         FileOperationRequest request,
         IFileOperationConflictResolver conflictResolver,
@@ -144,7 +160,7 @@ public sealed class FileOperationService : IFileOperationService
                 await CopyProviderAsync(request, conflictResolver, state, cancellationToken).ConfigureAwait(false);
                 break;
             case FileOperationKind.Move:
-                await MoveProviderAsync(request, state, cancellationToken).ConfigureAwait(false);
+                await MoveProviderAsync(request, conflictResolver, state, cancellationToken).ConfigureAwait(false);
                 break;
             case FileOperationKind.Delete:
                 await DeleteProviderAsync(request, state, cancellationToken).ConfigureAwait(false);
@@ -314,25 +330,77 @@ public sealed class FileOperationService : IFileOperationService
 
     private async Task MoveProviderAsync(
         FileOperationRequest request,
+        IFileOperationConflictResolver conflictResolver,
         OperationState state,
         CancellationToken cancellationToken)
     {
         ValidateMoveConflictDecision(request.Options.DefaultConflictDecision);
 
         var sources = RequireSourceLocations(request);
-        if (sources.Count != 1)
-            throw new InvalidOperationException("Provider move supports a single-source rename only.");
-
         var sourceLocation = sources[0];
         var destination = RequireDestinationLocation(request);
-        if (sourceLocation.SourceId != destination.SourceId)
+        if (sources.Any(source => source.SourceId != destination.SourceId))
             throw new InvalidOperationException("Cross-provider move is not supported.");
 
         var source = _sources!.GetSource(sourceLocation.SourceId);
-        await source.RenameAsync(sourceLocation.SourcePath, destination.SourcePath, cancellationToken).ConfigureAwait(false);
-        state.MovedCount++;
-        state.SetTotals(0, 1);
-        state.CompleteItem();
+        state.SetTotals(CalculateProviderSourcesSize(sources, cancellationToken), sources.Count);
+        state.StartProgressTimer();
+
+        foreach (var location in sources)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var item = source.GetItem(location.SourcePath, cancellationToken);
+            if (item is null)
+            {
+                state.SkippedCount++;
+                state.CompleteItem();
+                continue;
+            }
+
+            string targetPath = ResolveProviderMoveTargetPath(source, item, location.SourcePath, destination.SourcePath, sources.Count, cancellationToken);
+            if (string.Equals(item.SourcePath, targetPath, StringComparison.Ordinal))
+            {
+                state.CompleteItem();
+                continue;
+            }
+
+            FilePanelItem? destinationItem = source.GetItem(targetPath, cancellationToken);
+            if (destinationItem is not null)
+            {
+                EnsureMoveTypeCompatibility(item, destinationItem);
+                var decision = request.Options.DefaultConflictDecision == ConflictDecisionMode.Ask
+                    ? conflictResolver.Resolve(BuildProviderConflict(item, destinationItem, targetPath))
+                    : FileOperationConflictDecision.FromMode(request.Options.DefaultConflictDecision);
+
+                switch (decision.Mode)
+                {
+                    case ConflictDecisionMode.Skip:
+                    case ConflictDecisionMode.SkipAll:
+                        state.SkippedCount++;
+                        state.CompleteItem();
+                        continue;
+                    case ConflictDecisionMode.Rename:
+                    case ConflictDecisionMode.RenameAll:
+                        targetPath = string.IsNullOrWhiteSpace(decision.NewDestinationPath)
+                            ? GenerateProviderName(source, targetPath, cancellationToken)
+                            : decision.NewDestinationPath;
+                        break;
+                    case ConflictDecisionMode.Cancel:
+                        throw new OperationCanceledException("File operation cancelled by user.");
+                    case ConflictDecisionMode.Overwrite:
+                    case ConflictDecisionMode.OverwriteAll:
+                        await source.DeleteAsync(targetPath, destinationItem.IsDirectory, cancellationToken).ConfigureAwait(false);
+                        break;
+                    case ConflictDecisionMode.OnlyNewer:
+                        throw new InvalidOperationException("Only newer is only supported for copy operations.");
+                }
+            }
+
+            await source.RenameAsync(location.SourcePath, targetPath, cancellationToken).ConfigureAwait(false);
+            state.MovedCount++;
+            state.AddBytes(CalculateProviderSourceSize(location, cancellationToken));
+            state.CompleteItem();
+        }
     }
 
     private async Task DeleteProviderAsync(
@@ -1445,6 +1513,69 @@ public sealed class FileOperationService : IFileOperationService
         foreach (var child in source.EnumerateDirectory(location.SourcePath, cancellationToken).Where(i => !i.IsParentDirectory))
             total += CalculateProviderSourceSize(child.Location, cancellationToken);
         return total;
+    }
+
+    private static IEnumerable<PanelSourceId> EnumerateReferencedSources(FileOperationRequest request)
+    {
+        if (request.SourceLocations is { Count: > 0 } sourceLocations)
+        {
+            foreach (PanelLocation location in sourceLocations)
+                yield return location.SourceId;
+        }
+        else if (request.Sources.Count > 0)
+        {
+            yield return PanelSourceId.Local;
+        }
+
+        if (request.DestinationLocation is { } destinationLocation)
+        {
+            yield return destinationLocation.SourceId;
+        }
+        else if (request.Kind is FileOperationKind.Copy or FileOperationKind.Move or FileOperationKind.CreateDirectory &&
+                 !string.IsNullOrWhiteSpace(request.Destination))
+        {
+            yield return PanelSourceId.Local;
+        }
+    }
+
+    private static string ResolveProviderMoveTargetPath(
+        IFilePanelSource source,
+        FilePanelItem item,
+        string sourcePath,
+        string destinationPath,
+        int sourceCount,
+        CancellationToken cancellationToken)
+    {
+        if (sourceCount > 1)
+            return CombineProviderPath(source.SourceId, destinationPath, item.Name);
+
+        FilePanelItem? destinationItem = source.GetItem(destinationPath, cancellationToken);
+        if (destinationItem?.IsDirectory == true)
+            return CombineProviderPath(source.SourceId, destinationPath, item.Name);
+
+        return destinationPath;
+    }
+
+    private static FileOperationConflict BuildProviderConflict(
+        FilePanelItem sourceItem,
+        FilePanelItem destinationItem,
+        string destinationPath) =>
+        new()
+        {
+            SourcePath = sourceItem.SourcePath,
+            DestinationPath = destinationPath,
+            SourceIsDirectory = sourceItem.IsDirectory,
+            DestinationIsDirectory = destinationItem.IsDirectory,
+            SourceSize = sourceItem.Size,
+            DestinationSize = destinationItem.Size,
+            SourceLastWriteTime = sourceItem.LastWriteTime,
+            DestinationLastWriteTime = destinationItem.LastWriteTime,
+        };
+
+    private static void EnsureMoveTypeCompatibility(FilePanelItem sourceItem, FilePanelItem destinationItem)
+    {
+        if (sourceItem.IsDirectory != destinationItem.IsDirectory)
+            throw new IOException("Directory/file type conflicts are not overwritten silently.");
     }
 
     private static string CombineProviderPath(PanelSourceId sourceId, string directoryPath, string name)

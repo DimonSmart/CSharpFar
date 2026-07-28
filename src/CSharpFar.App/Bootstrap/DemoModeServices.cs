@@ -24,12 +24,56 @@ internal static class DemoModeServices
             throw new InvalidOperationException("External commands are disabled in demo mode.");
     }
 
+    public sealed class DisabledLocalFileSystemService : IFileSystemService
+    {
+        public IReadOnlyList<FilePanelItem> ReadDirectory(string path) => throw Disabled();
+
+        public bool DirectoryExists(string path) => throw Disabled();
+
+        public bool FileExists(string path) => throw Disabled();
+
+        private static IOException Disabled() =>
+            new("Local file system access is disabled in demo mode.");
+    }
+
     public sealed class DisabledFileLauncher : IFileLauncher
     {
         public FileLaunchMode GetLaunchMode(string fullPath) => FileLaunchMode.ShellAssociation;
 
         public void OpenFile(string fullPath, string workingDirectory) =>
             throw new InvalidOperationException("External file launching is disabled in demo mode.");
+    }
+
+    public sealed class DisabledFileSystemPlatformOperations : IFileSystemPlatformOperations
+    {
+        public bool SupportsRecycleBin => false;
+
+        public void DeleteFile(string path, bool useRecycleBin) => throw Disabled();
+
+        public void DeleteDirectory(string path, bool recursive, bool useRecycleBin) => throw Disabled();
+
+        public bool IsSymbolicLink(string path) => throw Disabled();
+
+        public bool TryCopySymbolicLink(string sourcePath, string destinationPath, out string? error) =>
+            throw Disabled();
+
+        public void PreserveFileMetadata(
+            string sourcePath,
+            string destinationPath,
+            FileOperationOptions options,
+            IFileOperationErrorSink errors) => throw Disabled();
+
+        private static IOException Disabled() =>
+            new("Local file system operations are disabled in demo mode.");
+    }
+
+    public sealed class EmptyCredentialStore : ICredentialStore
+    {
+        public void SavePassword(string credentialId, string password) { }
+
+        public string? TryReadPassword(string credentialId) => null;
+
+        public void DeletePassword(string credentialId) { }
     }
 
     public sealed class DemoVolumeService : IVolumeService

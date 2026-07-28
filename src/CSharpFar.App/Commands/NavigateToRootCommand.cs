@@ -25,7 +25,7 @@ internal sealed class NavigateToRootCommand : IApplicationCommand
         if (!string.Equals(state.CurrentDirectory, currentDirectory, StringComparison.OrdinalIgnoreCase))
             return ApplicationCommandResult.Rendered();
 
-        var root = Path.GetPathRoot(currentDirectory);
+        string? root = TryResolveRootPath(context, state, currentDirectory);
         if (string.IsNullOrEmpty(root))
             return ApplicationCommandResult.Rendered();
 
@@ -34,12 +34,36 @@ internal sealed class NavigateToRootCommand : IApplicationCommand
 
         bool loaded = context.Controller.TryLoadLocation(
             state,
-            PanelLocation.Local(root),
+            new PanelLocation(state.SourceId, root),
             context.PanelOptions);
 
         if (loaded)
             context.StartWatching(state, side);
 
         return ApplicationCommandResult.Rendered();
+    }
+
+    private static string? TryResolveRootPath(
+        ApplicationCommandContext context,
+        FilePanelState state,
+        string currentDirectory)
+    {
+        if (state.SourceId == PanelSourceId.Local)
+            return Path.GetPathRoot(currentDirectory);
+
+        if (!context.TryGetSource(state.SourceId, out var source))
+            return null;
+
+        string root = source.NormalizePath(currentDirectory);
+        while (!source.IsRootPath(root))
+        {
+            string? parent = source.GetParentPath(root);
+            if (string.IsNullOrEmpty(parent) || string.Equals(parent, root, StringComparison.Ordinal))
+                break;
+
+            root = parent;
+        }
+
+        return root;
     }
 }

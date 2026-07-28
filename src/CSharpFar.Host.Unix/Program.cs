@@ -4,11 +4,6 @@ using CSharpFar.App.Settings;
 using CSharpFar.Console.Ansi;
 using CSharpFar.Platform.Unix;
 
-var settingsStore = JsonSettingsStore.Create(
-    createDefaultSettings: UnixPlatformServices.CreateDefaultSettings);
-
-ValidateShellSettings(settingsStore);
-
 if (args is ["--version"])
 {
     PrintVersion();
@@ -16,7 +11,13 @@ if (args is ["--version"])
 }
 
 if (args is ["--self-test"])
-    return RunSelfTest(settingsStore);
+{
+    using var selfTestStartup = ApplicationStartupContext.Create(
+        ApplicationRunOptions.Normal,
+        UnixPlatformServices.CreateDefaultSettings,
+        ValidateShellSettings);
+    return RunSelfTest(selfTestStartup.SettingsStore);
+}
 
 if (args is ["--check-terminal"])
     return RunTerminalCheck();
@@ -43,6 +44,12 @@ if (!ApplicationRunOptionsValidator.TryValidate(runOptions, out string? validati
     Console.Error.WriteLine(validationError);
     return 1;
 }
+
+using var startup = ApplicationStartupContext.Create(
+    runOptions,
+    UnixPlatformServices.CreateDefaultSettings,
+    ValidateShellSettings);
+JsonSettingsStore settingsStore = startup.SettingsStore;
 
 using var platform = UnixPlatformServices.Create(
     settingsStore.ConfigDirectory,

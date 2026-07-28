@@ -1,5 +1,6 @@
 using CSharpFar.App.Dialogs;
 using CSharpFar.App.FunctionKeys;
+using CSharpFar.Core.Models;
 
 namespace CSharpFar.App.Commands;
 
@@ -12,6 +13,9 @@ internal sealed class DirectoryHistoryCommand : IApplicationCommand
     public ApplicationCommandResult Execute(ApplicationCommandContext context, object? args = null)
     {
         var target = context.ResolvePanelTarget(args);
+        if (target.State.SourceId != PanelSourceId.Local)
+            return ApplicationCommandResult.Rendered();
+
         if (!ApplicationCommandContext.CommittedLocationMatches(target.State, target.ActiveCommitted))
         {
             return ApplicationCommandResult.Rendered();

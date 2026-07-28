@@ -445,6 +445,9 @@ internal sealed class ApplicationCommandContext
             : directory + "/" + name;
     }
 
+    public bool TryGetSource(PanelSourceId sourceId, out IFilePanelSource source) =>
+        _sourceRegistry.TryGetSource(sourceId, out source);
+
     public void ViewPanelFile(FilePanelState state, FilePanelItem item) =>
         _panelFileViewer.ViewPanelFile(state, item);
 

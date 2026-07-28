@@ -3,11 +3,6 @@ using CSharpFar.App.Bootstrap;
 using CSharpFar.App.Settings;
 using CSharpFar.Platform.Windows;
 
-var settingsStore = JsonSettingsStore.Create(
-    createDefaultSettings: WindowsPlatformServices.CreateDefaultSettings);
-
-ValidateShellSettings(settingsStore);
-
 if (args is ["--version"])
 {
     PrintVersion();
@@ -15,10 +10,22 @@ if (args is ["--version"])
 }
 
 if (args is ["--self-test"])
-    return RunSelfTest(settingsStore);
+{
+    using var selfTestStartup = ApplicationStartupContext.Create(
+        ApplicationRunOptions.Normal,
+        WindowsPlatformServices.CreateDefaultSettings,
+        ValidateShellSettings);
+    return RunSelfTest(selfTestStartup.SettingsStore);
+}
 
 if (args is ["--check-terminal"])
-    return RunTerminalCheck(settingsStore);
+{
+    using var terminalCheckStartup = ApplicationStartupContext.Create(
+        ApplicationRunOptions.Normal,
+        WindowsPlatformServices.CreateDefaultSettings,
+        ValidateShellSettings);
+    return RunTerminalCheck(terminalCheckStartup.SettingsStore);
+}
 
 if (!ApplicationRunOptionsParser.TryParse(args, out var runOptions, out string? runError))
 {
@@ -31,6 +38,12 @@ if (!ApplicationRunOptionsValidator.TryValidate(runOptions, out string? validati
     Console.Error.WriteLine(validationError);
     return 1;
 }
+
+using var startup = ApplicationStartupContext.Create(
+    runOptions,
+    WindowsPlatformServices.CreateDefaultSettings,
+    ValidateShellSettings);
+JsonSettingsStore settingsStore = startup.SettingsStore;
 
 using var platform = WindowsPlatformServices.Create(
     settingsStore.ConfigDirectory,

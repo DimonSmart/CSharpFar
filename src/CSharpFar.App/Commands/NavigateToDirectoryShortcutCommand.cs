@@ -18,8 +18,13 @@ internal sealed class NavigateToDirectoryShortcutCommand : IApplicationCommand
     public bool CanExecute(ApplicationCommandContext context, object? args = null) =>
         args switch
         {
-            NavigateToDirectoryShortcutArgs menu => context.IsPanelsMode && DirectoryShortcutNormalizer.IsValidNumber(menu.Number),
-            NavigateToCommittedDirectoryShortcutArgs committed => DirectoryShortcutNormalizer.IsValidNumber(committed.Number),
+            NavigateToDirectoryShortcutArgs menu =>
+                context.IsPanelsMode &&
+                context.ActiveState.SourceId == PanelSourceId.Local &&
+                DirectoryShortcutNormalizer.IsValidNumber(menu.Number),
+            NavigateToCommittedDirectoryShortcutArgs committed =>
+                context.GetPanelState(committed.Side).SourceId == PanelSourceId.Local &&
+                DirectoryShortcutNormalizer.IsValidNumber(committed.Number),
             _ => false,
         };
 
@@ -41,6 +46,10 @@ internal sealed class NavigateToDirectoryShortcutCommand : IApplicationCommand
         if (path is null)
             return ApplicationCommandResult.Rendered();
 
+        FilePanelState state = context.GetPanelState(side);
+        if (state.SourceId != PanelSourceId.Local)
+            return ApplicationCommandResult.Rendered();
+
         if (!Directory.Exists(path))
         {
             new MessageDialog(context.ModalDialogs)
@@ -50,7 +59,6 @@ internal sealed class NavigateToDirectoryShortcutCommand : IApplicationCommand
 
         try
         {
-            FilePanelState state = context.GetPanelState(side);
             context.ResetTransientNavigationUi();
             context.Controller.LoadDirectory(state, path, context.PanelOptions);
             context.StartWatching(state, side);

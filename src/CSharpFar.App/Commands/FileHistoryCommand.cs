@@ -14,6 +14,9 @@ internal sealed class FileHistoryCommand : IApplicationCommand
     public ApplicationCommandResult Execute(ApplicationCommandContext context, object? args = null)
     {
         var target = context.ResolvePanelTarget(args);
+        if (target.State.SourceId != PanelSourceId.Local)
+            return ApplicationCommandResult.Rendered();
+
         try
         {
             string? path = new FileHistoryDialog(context.ModalDialogs).Show(context.History.GetFileHistory());
