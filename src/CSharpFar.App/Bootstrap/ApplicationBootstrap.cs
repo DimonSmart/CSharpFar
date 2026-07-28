@@ -83,52 +83,38 @@ public static class ApplicationBootstrap
         if (string.IsNullOrWhiteSpace(runOptions.DemoRootPath))
             throw new InvalidOperationException("Demo mode requires a fixture directory path.");
 
-        var fs = new FileSystemService();
+        var fs = new DemoModeServices.DisabledLocalFileSystemService();
         var demoSource = DemoFilePanelSource.ImportFromDirectory(runOptions.DemoRootPath);
         var panelSources = new FilePanelSourceRegistry([demoSource]);
-        var fileOps = new FileOperationService(panelSources, platform.FileSystemOperations);
+        var fileOps = new FileOperationService(panelSources, new DemoModeServices.DisabledFileSystemPlatformOperations());
         var history = new Core.History.InMemoryHistoryStore(
             settings.History.MaxCommandHistoryItems,
             settings.History.MaxDirectoryHistoryItems,
             settings.History.MaxFileHistoryItems);
-        string tempConfigDirectory = Path.Combine(Path.GetTempPath(), "CSharpFar.Demo", Guid.NewGuid().ToString("N"));
-        Directory.CreateDirectory(tempConfigDirectory);
+        string configDirectory = settingsStore.ConfigDirectory;
 
-        try
-        {
-            ApplicationFactory.Create(
-                    renderer,
-                    fs,
-                    new DemoModeServices.DisabledShellService(),
-                    fileOps,
-                    history,
-                    settings,
-                    new UserMenuStore(tempConfigDirectory),
-                    saveSettings: null,
-                    volumeService: new DemoModeServices.DemoVolumeService(),
-                    volumeInfoService: null,
-                    changeWatcher: null,
-                    locationService: null,
-                    mountPointService: null,
-                    fileLauncher: new DemoModeServices.DisabledFileLauncher(),
-                    searchService: new FileSystemSearchService(),
-                    sourceRegistry: panelSources,
-                    credentialStore: platform.CredentialStore,
-                    enableBuiltInNetworkModules: false,
-                    configDirectory: tempConfigDirectory,
-                    terminalScreenMode: platform.TerminalScreenMode,
-                    runOptions: runOptions)
-                .Run();
-        }
-        finally
-        {
-            try
-            {
-                Directory.Delete(tempConfigDirectory, recursive: true);
-            }
-            catch
-            {
-            }
-        }
+        ApplicationFactory.Create(
+                renderer,
+                fs,
+                new DemoModeServices.DisabledShellService(),
+                fileOps,
+                history,
+                settings,
+                new UserMenuStore(configDirectory),
+                saveSettings: null,
+                volumeService: new DemoModeServices.DemoVolumeService(),
+                volumeInfoService: null,
+                changeWatcher: null,
+                locationService: null,
+                mountPointService: null,
+                fileLauncher: new DemoModeServices.DisabledFileLauncher(),
+                searchService: new FileSystemSearchService(),
+                sourceRegistry: panelSources,
+                credentialStore: new DemoModeServices.EmptyCredentialStore(),
+                enableBuiltInNetworkModules: false,
+                configDirectory: configDirectory,
+                terminalScreenMode: platform.TerminalScreenMode,
+                runOptions: runOptions)
+            .Run();
     }
 }

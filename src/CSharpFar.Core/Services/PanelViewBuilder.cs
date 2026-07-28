@@ -33,6 +33,13 @@ public sealed class PanelViewBuilder : IPanelViewBuilder
         var opts = request.Options;
         var location = request.Location ?? PanelLocation.Local(request.DirectoryPath);
         bool isLocal = location.SourceId == PanelSourceId.Local;
+        if (isLocal &&
+            _sources is not null &&
+            !_sources.TryGetSource(PanelSourceId.Local, out _))
+        {
+            throw new IOException("Panel source 'local' is not available in the current composition.");
+        }
+
         IFilePanelSource? source = isLocal ? null : _sources?.GetSource(location.SourceId);
         string sourcePath = source?.NormalizePath(location.SourcePath) ?? request.DirectoryPath;
 

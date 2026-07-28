@@ -133,7 +133,7 @@ public sealed class Spec035FtpProviderTests : IDisposable
     {
         var service = new FileOperationService(new FilePanelSourceRegistry([]));
 
-        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => service.ExecuteAsync(
+        var ex = await Assert.ThrowsAsync<IOException>(() => service.ExecuteAsync(
             new FileOperationRequest
             {
                 Kind = FileOperationKind.Copy,
@@ -145,7 +145,7 @@ public sealed class Spec035FtpProviderTests : IDisposable
             progress: null,
             conflictResolver: new NoOpConflictResolver()));
 
-        Assert.Contains("Provider-to-provider copy is not supported", ex.Message, StringComparison.Ordinal);
+        Assert.Contains("not available in the current composition", ex.Message, StringComparison.Ordinal);
     }
 
     [Fact]

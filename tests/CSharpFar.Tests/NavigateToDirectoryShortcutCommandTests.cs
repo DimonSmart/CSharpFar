@@ -136,6 +136,31 @@ public sealed class NavigateToDirectoryShortcutCommandTests : IDisposable
         Assert.Equal(_otherTarget, context.ActiveState.CurrentDirectory);
     }
 
+    [Fact]
+    public void CanExecute_DemoPanel_IsUnavailable()
+    {
+        var context = CreateContext(out _, out _);
+        context.LeftPanel.CurrentLocation = PanelLocation.Demo("/");
+
+        var command = new NavigateToDirectoryShortcutCommand();
+
+        Assert.False(command.CanExecute(context, new NavigateToDirectoryShortcutArgs(1)));
+        Assert.False(command.CanExecute(context, new NavigateToCommittedDirectoryShortcutArgs(1, _target, PanelSide.Left)));
+    }
+
+    [Fact]
+    public void Execute_CommittedPath_DemoPanel_DoesNotNavigate()
+    {
+        var context = CreateContext(out _, out _);
+        context.LeftPanel.CurrentLocation = PanelLocation.Demo("/");
+
+        new NavigateToDirectoryShortcutCommand()
+            .Execute(context, new NavigateToCommittedDirectoryShortcutArgs(1, _target, PanelSide.Left));
+
+        Assert.Equal("/", context.LeftPanel.CurrentDirectory);
+        Assert.Equal(PanelSourceId.Demo, context.LeftPanel.SourceId);
+    }
+
     private ApplicationCommandContext CreateContext(
         out FakeConsoleDriver driver,
         out AppSettings settings)

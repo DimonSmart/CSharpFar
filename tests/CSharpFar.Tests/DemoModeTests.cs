@@ -1,11 +1,15 @@
 using System.Text;
 using CSharpFar.App.Bootstrap;
+using CSharpFar.App.Commands;
 using CSharpFar.App.UserMenu;
+using CSharpFar.Console;
 using CSharpFar.Core.Abstractions;
+using CSharpFar.Core.Controllers;
 using CSharpFar.Core.History;
 using CSharpFar.Core.Models;
 using CSharpFar.Core.Services;
 using CSharpFar.FileSystem;
+using CSharpFar.Tests.Fakes;
 
 namespace CSharpFar.Tests;
 
@@ -119,6 +123,65 @@ public sealed class DemoModeTests : IDisposable
     }
 
     [Fact]
+    public async Task DemoFilePanelSource_MoveIntoDirectory_StaysInMemory()
+    {
+        string fixture = CreateFixture(("A/file.txt", "original"), ("B/.keep", "keep"));
+        var source = DemoFilePanelSource.ImportFromDirectory(fixture);
+        var registry = new FilePanelSourceRegistry([source]);
+        var operations = new FileOperationService(registry);
+
+        var moveResult = await operations.ExecuteAsync(
+            new FileOperationRequest
+            {
+                Kind = FileOperationKind.Move,
+                Sources = [],
+                SourceLocations = [PanelLocation.Demo("/A/file.txt")],
+                DestinationLocation = PanelLocation.Demo("/B"),
+                Options = new FileOperationOptions
+                {
+                    DefaultConflictDecision = ConflictDecisionMode.Overwrite,
+                },
+            },
+            progress: null,
+            conflictResolver: new OverwriteConflictResolver());
+
+        Assert.Equal(1, moveResult.MovedCount);
+        Assert.Null(source.GetItem("/A/file.txt"));
+        Assert.Equal("original", await ReadAllTextAsync(source, "/B/file.txt"));
+        Assert.False(File.Exists(Path.Combine(fixture, "B", "file.txt")));
+    }
+
+    [Fact]
+    public async Task DemoFilePanelSource_MoveMultipleItemsIntoDirectory_StaysInMemory()
+    {
+        string fixture = CreateFixture(("A/a.txt", "A"), ("A/b.txt", "B"), ("B/.keep", "keep"));
+        var source = DemoFilePanelSource.ImportFromDirectory(fixture);
+        var registry = new FilePanelSourceRegistry([source]);
+        var operations = new FileOperationService(registry);
+
+        var moveResult = await operations.ExecuteAsync(
+            new FileOperationRequest
+            {
+                Kind = FileOperationKind.Move,
+                Sources = [],
+                SourceLocations = [PanelLocation.Demo("/A/a.txt"), PanelLocation.Demo("/A/b.txt")],
+                DestinationLocation = PanelLocation.Demo("/B"),
+                Options = new FileOperationOptions
+                {
+                    DefaultConflictDecision = ConflictDecisionMode.Overwrite,
+                },
+            },
+            progress: null,
+            conflictResolver: new OverwriteConflictResolver());
+
+        Assert.Equal(2, moveResult.MovedCount);
+        Assert.Null(source.GetItem("/A/a.txt"));
+        Assert.Null(source.GetItem("/A/b.txt"));
+        Assert.Equal("A", await ReadAllTextAsync(source, "/B/a.txt"));
+        Assert.Equal("B", await ReadAllTextAsync(source, "/B/b.txt"));
+    }
+
+    [Fact]
     public void DemoFilePanelSource_UsesVirtualRootSemantics()
     {
         string fixture = CreateFixture(("nested/file.txt", "value"));
@@ -159,6 +222,67 @@ public sealed class DemoModeTests : IDisposable
         Assert.DoesNotContain(DemoModeServices.CreateVolumes(), volume => volume.RootPath != "/");
     }
 
+    [Fact]
+    public void DemoNavigateToRoot_StaysInsideDemoSource()
+    {
+        string fixture = CreateFixture(("Projects/SampleApp/file.txt", "value"));
+        var context = CreateDemoCommandContext(fixture);
+        context.Controller.LoadLocation(context.LeftPanel, PanelLocation.Demo("/Projects/SampleApp"), context.PanelOptions);
+
+        new NavigateToRootCommand().Execute(
+            context,
+            new NavigateToRootArgs(PanelSide.Left, "/Projects/SampleApp"));
+
+        Assert.Equal(PanelSourceId.Demo, context.LeftPanel.SourceId);
+        Assert.Equal("/", context.LeftPanel.CurrentDirectory);
+    }
+
+    [Fact]
+    public void DemoRegistry_RejectsLocalPanelLocationBeforeReadingPhysicalDirectory()
+    {
+        string fixture = CreateFixture(("file.txt", "value"));
+        var fakeFs = new FakeFileSystemService();
+        var sourceRegistry = new FilePanelSourceRegistry([DemoFilePanelSource.ImportFromDirectory(fixture)]);
+        var builder = new PanelViewBuilder(fakeFs, new PanelSortService(), sources: sourceRegistry);
+        var controller = new PanelController(builder);
+        var state = new FilePanelState();
+
+        bool loaded = controller.TryLoadLocation(
+            state,
+            PanelLocation.Local(Path.Combine(_tempRoot, "physical")),
+            new AppSettings.PanelOptionsSettings());
+
+        Assert.False(loaded);
+        Assert.Equal(0, fakeFs.ReadDirectoryCallCount);
+        Assert.NotNull(state.LoadError);
+        Assert.Contains("local", state.LoadError!.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task DemoRegistry_RejectsAccidentalLocalDeleteBeforePhysicalIo()
+    {
+        string fixture = CreateFixture(("file.txt", "value"));
+        string physicalFile = Path.Combine(_tempRoot, "physical.txt");
+        await File.WriteAllTextAsync(physicalFile, "keep");
+
+        var sourceRegistry = new FilePanelSourceRegistry([DemoFilePanelSource.ImportFromDirectory(fixture)]);
+        var operations = new FileOperationService(
+            sourceRegistry,
+            new DemoModeServices.DisabledFileSystemPlatformOperations());
+
+        await Assert.ThrowsAsync<IOException>(() => operations.ExecuteAsync(
+            new FileOperationRequest
+            {
+                Kind = FileOperationKind.Delete,
+                Sources = [physicalFile],
+                Options = new FileOperationOptions(),
+            },
+            progress: null,
+            conflictResolver: new OverwriteConflictResolver()));
+
+        Assert.True(File.Exists(physicalFile));
+    }
+
     private string CreateFixture(params (string RelativePath, string Content)[] files)
     {
         string fixture = Path.Combine(_tempRoot, Guid.NewGuid().ToString("N"));
@@ -178,6 +302,35 @@ public sealed class DemoModeTests : IDisposable
         await using var stream = await source.OpenReadAsync(path);
         using var reader = new StreamReader(stream, Encoding.UTF8, detectEncodingFromByteOrderMarks: true, leaveOpen: false);
         return await reader.ReadToEndAsync();
+    }
+
+    private ApplicationCommandContext CreateDemoCommandContext(string fixture)
+    {
+        string configDirectory = Path.Combine(_tempRoot, Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(configDirectory);
+        var settings = new AppSettings();
+        var sourceRegistry = new FilePanelSourceRegistry([DemoFilePanelSource.ImportFromDirectory(fixture)]);
+        var services = ApplicationServicesBuilder.Create(
+            new ScreenRenderer(new FakeConsoleDriver()),
+            new DemoModeServices.DisabledLocalFileSystemService(),
+            new DemoModeServices.DisabledShellService(),
+            new NoOpFileOperationService(),
+            new InMemoryHistoryStore(),
+            settings,
+            new UserMenuStore(configDirectory),
+            volumeService: new DemoModeServices.DemoVolumeService(),
+            volumeInfoService: null,
+            changeWatcher: null,
+            locationService: null,
+            mountPointService: null,
+            fileLauncher: new DemoModeServices.DisabledFileLauncher(),
+            searchService: new FileSystemSearchService(),
+            sourceRegistry: sourceRegistry,
+            credentialStore: new DemoModeServices.EmptyCredentialStore(),
+            enableBuiltInNetworkModules: false,
+            configDirectory: configDirectory,
+            runOptions: new ApplicationRunOptions(ApplicationRunMode.Demo, fixture));
+        return services.CommandContext;
     }
 
     private sealed class OverwriteConflictResolver : IFileOperationConflictResolver
