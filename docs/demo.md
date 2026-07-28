@@ -45,7 +45,7 @@ It models an AI-course professor workspace with:
 
 ## Documentation recording
 
-Demo Mode is the supported source of truth for future automated README
+Demo Mode is the supported source of truth for README and documentation
 recordings because it isolates the walkthrough from the user's real file
 system and configuration.
 
@@ -54,11 +54,28 @@ external browser-hosted terminal-video stack, which made reproduction sensitive
 to non-product tooling, Linux desktop libraries, terminal rendering quirks, and
 environment-specific timing.
 
-The intended replacement is a product-owned scripted recorder that drives the
-application through its own input model and captures committed frames from a
-fake or recording console driver. That design keeps the demo deterministic and
-also enables saving real rendered screenshots from those committed frames for
-documentation and future visual test evidence.
+The replacement is the product-owned `CSharpFar.DemoRecorder`. It drives the
+application through its own input model, captures committed frames from a
+recording console driver, and renders repository-owned PNG, GIF, and MP4 demo
+artifacts from the same product UI that users see.
 
-Until that recorder exists, this directory only defines the demo fixture and
-manual Demo Mode entry point.
+Run the recorder manually with:
+
+```powershell
+pwsh ./scripts/demo/generate-demo-assets.ps1
+```
+
+Or pass explicit paths:
+
+```powershell
+pwsh ./scripts/demo/generate-demo-assets.ps1 `
+  -Fixture docs/demo/filesystem `
+  -Scenario scripts/demo/readme-demo.json `
+  -Output artifacts/demo
+```
+
+The recorder is intentionally manual. Demo-asset generation is not part of the
+default build, test, or publish flow.
+
+Detailed requirements for the recorder and its constraints live in
+[`demo/requirements.md`](demo/requirements.md).
