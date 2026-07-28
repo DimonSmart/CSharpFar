@@ -335,6 +335,32 @@ public sealed class DemoModeTests : IDisposable
     }
 
     [Fact]
+    public void RepositoryDemoFixture_ImportsExpectedScenarioWithinDemoLimits()
+    {
+        string fixture = GetRepositoryDemoFixturePath();
+        var source = DemoFilePanelSource.ImportFromDirectory(fixture);
+
+        Assert.NotNull(source.GetItem("/Professor-Workspace.md"));
+        Assert.NotNull(source.GetItem("/01-Lectures"));
+        Assert.NotNull(source.GetItem("/02-Assignments"));
+        Assert.NotNull(source.GetItem("/03-Research"));
+        Assert.NotNull(source.GetItem("/04-Archive"));
+        Assert.NotNull(source.GetItem("/01-Lectures/02-transformers-and-attention.md"));
+        Assert.NotNull(source.GetItem("/01-Lectures/03-rag-and-agents.md"));
+        Assert.NotNull(source.GetItem("/02-Assignments/01-Incoming/01-anna-transformer-summary.md"));
+        Assert.NotNull(source.GetItem("/02-Assignments/02-Reviewed/README.md"));
+        Assert.NotNull(source.GetItem("/02-Assignments/03-Rubrics/ai-assignment-rubric.md"));
+
+        string[] files = Directory.GetFiles(fixture, "*", SearchOption.AllDirectories);
+        string[] directories = Directory.GetDirectories(fixture, "*", SearchOption.AllDirectories);
+        long totalBytes = files.Sum(path => new FileInfo(path).Length);
+
+        Assert.InRange(files.Length + directories.Length, 1, 512);
+        Assert.All(files, path => Assert.InRange(new FileInfo(path).Length, 0, 4 * 1024 * 1024));
+        Assert.InRange(totalBytes, 1, 16 * 1024 * 1024);
+    }
+
+    [Fact]
     public void DemoNavigateToRoot_StaysInsideDemoSource()
     {
         string fixture = CreateFixture(("Projects/SampleApp/file.txt", "value"));
@@ -440,6 +466,26 @@ public sealed class DemoModeTests : IDisposable
         }
 
         return fixture;
+    }
+
+    private static string GetRepositoryDemoFixturePath()
+    {
+        string root = FindRepositoryRoot();
+        return Path.Combine(root, "docs", "demo", "filesystem");
+    }
+
+    private static string FindRepositoryRoot()
+    {
+        string? current = AppContext.BaseDirectory;
+        while (current is not null)
+        {
+            if (File.Exists(Path.Combine(current, "CSharpFar.slnx")))
+                return current;
+
+            current = Directory.GetParent(current)?.FullName;
+        }
+
+        throw new DirectoryNotFoundException("Could not locate repository root from test output directory.");
     }
 
     private static async Task<string> ReadAllTextAsync(DemoFilePanelSource source, string path)
