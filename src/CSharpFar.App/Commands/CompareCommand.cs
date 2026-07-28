@@ -25,8 +25,8 @@ internal sealed class CompareCommand : IApplicationCommand
         : ApplicationCommandIds.CompareFolders;
 
     public bool CanExecute(ApplicationCommandContext context, object? args = null) =>
-        context.ActiveState.SourceId == PanelSourceId.Local &&
-        context.PassiveState.SourceId == PanelSourceId.Local;
+        context.CanAccessLocalFileSystem(context.ActiveState) &&
+        context.CanAccessLocalFileSystem(context.PassiveState);
 
     public ApplicationCommandResult Execute(ApplicationCommandContext context, object? args = null)
     {

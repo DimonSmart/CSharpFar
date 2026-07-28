@@ -320,7 +320,7 @@ public sealed class DemoModeTests : IDisposable
             volumeInfoService: null,
             mountPointService: null,
             fileLauncher: new DemoModeServices.DisabledFileLauncher(),
-            searchService: new FileSystemSearchService(),
+            searchService: new DemoModeServices.DisabledSearchService(),
             sourceRegistry: sourceRegistry,
             configDirectory: configDirectory,
             clipboard: null,
@@ -329,6 +329,7 @@ public sealed class DemoModeTests : IDisposable
         Assert.Equal(PanelSourceId.Demo, services.Session.Panels.Left.SourceId);
         Assert.Equal(PanelSourceId.Demo, services.Session.Panels.Right.SourceId);
         Assert.False(services.SourceRegistry.TryGetSource(PanelSourceId.Local, out _));
+        Assert.IsType<DemoModeServices.DisabledSearchService>(services.SearchService);
         Assert.Throws<InvalidOperationException>(() => new DemoModeServices.DisabledShellService().Execute("dir", "/"));
         Assert.DoesNotContain(DemoModeServices.CreateVolumes(), volume => volume.RootPath != "/");
     }
@@ -356,7 +357,30 @@ public sealed class DemoModeTests : IDisposable
         var sourceRegistry = new FilePanelSourceRegistry([DemoFilePanelSource.ImportFromDirectory(fixture)]);
         var builder = new PanelViewBuilder(fakeFs, new PanelSortService(), sources: sourceRegistry);
         var controller = new PanelController(builder);
-        var state = new FilePanelState();
+        var state = new FilePanelState
+        {
+            CurrentLocation = PanelLocation.Demo("/"),
+            ProviderCapabilities = PanelProviderCapabilities.Enumerate | PanelProviderCapabilities.OpenRead,
+            CursorIndex = 1,
+            ScrollOffset = 2,
+        };
+        state.Items.Add(new FilePanelItem
+        {
+            Name = "file.txt",
+            FullPath = "/file.txt",
+            SourceId = PanelSourceId.Demo,
+            IsDirectory = false,
+            Size = 5,
+        });
+        state.SelectedPaths.Add("/file.txt");
+        state.SelectedLocations.Add(PanelLocation.Demo("/file.txt"));
+        PanelLocation originalLocation = state.CurrentLocation;
+        PanelSourceId originalSourceId = state.SourceId;
+        PanelProviderCapabilities originalCapabilities = state.ProviderCapabilities;
+        int originalCursor = state.CursorIndex;
+        int originalScroll = state.ScrollOffset;
+        string originalItemPath = state.Items[0].FullPath;
+        PanelLocation originalItemLocation = state.Items[0].Location;
 
         bool loaded = controller.TryLoadLocation(
             state,
@@ -365,8 +389,18 @@ public sealed class DemoModeTests : IDisposable
 
         Assert.False(loaded);
         Assert.Equal(0, fakeFs.ReadDirectoryCallCount);
-        Assert.NotNull(state.LoadError);
-        Assert.Contains("local", state.LoadError!.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal(originalSourceId, state.SourceId);
+        Assert.Equal(originalLocation, state.CurrentLocation);
+        Assert.Equal(originalCapabilities, state.ProviderCapabilities);
+        Assert.Equal(originalCursor, state.CursorIndex);
+        Assert.Equal(originalScroll, state.ScrollOffset);
+        Assert.Null(state.LoadError);
+        Assert.Single(state.Items);
+        Assert.Equal(originalItemPath, state.Items[0].FullPath);
+        Assert.Equal(originalItemLocation, state.Items[0].Location);
+        Assert.Contains("/file.txt", state.SelectedPaths);
+        Assert.Contains(PanelLocation.Demo("/file.txt"), state.SelectedLocations);
+        Assert.DoesNotContain("physical", state.CurrentLocation.SourcePath, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
@@ -435,7 +469,7 @@ public sealed class DemoModeTests : IDisposable
             locationService: null,
             mountPointService: null,
             fileLauncher: new DemoModeServices.DisabledFileLauncher(),
-            searchService: new FileSystemSearchService(),
+            searchService: new DemoModeServices.DisabledSearchService(),
             sourceRegistry: sourceRegistry,
             credentialStore: new DemoModeServices.EmptyCredentialStore(),
             enableBuiltInNetworkModules: false,

@@ -20,10 +20,10 @@ internal sealed class NavigateToDirectoryShortcutCommand : IApplicationCommand
         {
             NavigateToDirectoryShortcutArgs menu =>
                 context.IsPanelsMode &&
-                context.ActiveState.SourceId == PanelSourceId.Local &&
+                context.CanAccessLocalFileSystem(context.ActiveState) &&
                 DirectoryShortcutNormalizer.IsValidNumber(menu.Number),
             NavigateToCommittedDirectoryShortcutArgs committed =>
-                context.GetPanelState(committed.Side).SourceId == PanelSourceId.Local &&
+                context.CanAccessLocalFileSystem(context.GetPanelState(committed.Side)) &&
                 DirectoryShortcutNormalizer.IsValidNumber(committed.Number),
             _ => false,
         };
@@ -47,7 +47,7 @@ internal sealed class NavigateToDirectoryShortcutCommand : IApplicationCommand
             return ApplicationCommandResult.Rendered();
 
         FilePanelState state = context.GetPanelState(side);
-        if (state.SourceId != PanelSourceId.Local)
+        if (!context.CanAccessLocalFileSystem(state))
             return ApplicationCommandResult.Rendered();
 
         if (!Directory.Exists(path))
