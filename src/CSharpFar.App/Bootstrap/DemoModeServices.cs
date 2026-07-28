@@ -82,4 +82,39 @@ internal static class DemoModeServices
 
         public IReadOnlyList<FileSystemVolume> GetVolumes() => _volumes;
     }
+
+    public sealed class DisabledSearchService : ISearchService
+    {
+        public IAsyncEnumerable<SearchResultItem> SearchAsync(
+            SearchRequest request,
+            IProgress<SearchProgress>? progress,
+            CancellationToken cancellationToken = default) =>
+            new DisabledSearchEnumerable(cancellationToken);
+
+        private sealed class DisabledSearchEnumerable : IAsyncEnumerable<SearchResultItem>, IAsyncEnumerator<SearchResultItem>
+        {
+            private readonly CancellationToken _cancellationToken;
+
+            public DisabledSearchEnumerable(CancellationToken cancellationToken)
+            {
+                _cancellationToken = cancellationToken;
+            }
+
+            public SearchResultItem Current => null!;
+
+            public IAsyncEnumerator<SearchResultItem> GetAsyncEnumerator(CancellationToken cancellationToken = default) =>
+                new DisabledSearchEnumerable(cancellationToken.CanBeCanceled ? cancellationToken : _cancellationToken);
+
+            public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+
+            public ValueTask<bool> MoveNextAsync()
+            {
+                if (_cancellationToken.IsCancellationRequested)
+                    return ValueTask.FromCanceled<bool>(_cancellationToken);
+
+                return ValueTask.FromException<bool>(
+                    new IOException("Local filesystem search is disabled in this composition."));
+            }
+        }
+    }
 }

@@ -9,7 +9,7 @@ internal sealed class SearchFilesCommand : IApplicationCommand
     public string CommandId => FunctionKeyCommandIds.Search;
 
     public bool CanExecute(ApplicationCommandContext context, object? args = null) =>
-        context.ResolvePanelTarget(args).State.SourceId == PanelSourceId.Local;
+        context.CanAccessLocalFileSystem(context.ResolvePanelTarget(args).State);
 
     public ApplicationCommandResult Execute(ApplicationCommandContext context, object? args = null)
     {

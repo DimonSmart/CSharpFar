@@ -57,6 +57,10 @@ public sealed class PanelController
             ApplyLoadedLocation(state, location, view);
             return true;
         }
+        catch (PanelSourceUnavailableException)
+        {
+            return false;
+        }
         catch (Exception ex) when (IsPanelLoadException(ex))
         {
             ApplyLoadError(state, location, ex);

@@ -37,10 +37,10 @@ public sealed class PanelViewBuilder : IPanelViewBuilder
             _sources is not null &&
             !_sources.TryGetSource(PanelSourceId.Local, out _))
         {
-            throw new IOException("Panel source 'local' is not available in the current composition.");
+            throw new PanelSourceUnavailableException(PanelSourceId.Local);
         }
 
-        IFilePanelSource? source = isLocal ? null : _sources?.GetSource(location.SourceId);
+        IFilePanelSource? source = isLocal ? null : ResolveSource(location.SourceId);
         string sourcePath = source?.NormalizePath(location.SourcePath) ?? request.DirectoryPath;
 
         // 1. Read raw entries (no .., no filtering, no sorting)
@@ -172,6 +172,17 @@ public sealed class PanelViewBuilder : IPanelViewBuilder
             IsRootDirectory = isRoot,
             ProviderCapabilities = source?.Capabilities ?? PanelProviderCapabilities.LocalFileSystem,
         };
+    }
+
+    private IFilePanelSource ResolveSource(PanelSourceId sourceId)
+    {
+        if (_sources is null)
+            throw new PanelSourceUnavailableException(sourceId);
+
+        if (_sources.TryGetSource(sourceId, out var source))
+            return source;
+
+        throw new PanelSourceUnavailableException(sourceId);
     }
 
     // ── helpers ─────────────────────────────────────────────────────────────

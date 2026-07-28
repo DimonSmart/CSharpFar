@@ -108,7 +108,7 @@ public static class ApplicationBootstrap
                 locationService: null,
                 mountPointService: null,
                 fileLauncher: new DemoModeServices.DisabledFileLauncher(),
-                searchService: new FileSystemSearchService(),
+                searchService: new DemoModeServices.DisabledSearchService(),
                 sourceRegistry: panelSources,
                 credentialStore: new DemoModeServices.EmptyCredentialStore(),
                 enableBuiltInNetworkModules: false,

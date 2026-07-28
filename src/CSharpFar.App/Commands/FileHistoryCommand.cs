@@ -14,7 +14,7 @@ internal sealed class FileHistoryCommand : IApplicationCommand
     public ApplicationCommandResult Execute(ApplicationCommandContext context, object? args = null)
     {
         var target = context.ResolvePanelTarget(args);
-        if (target.State.SourceId != PanelSourceId.Local)
+        if (!context.CanAccessLocalFileSystem(target.State))
             return ApplicationCommandResult.Rendered();
 
         try

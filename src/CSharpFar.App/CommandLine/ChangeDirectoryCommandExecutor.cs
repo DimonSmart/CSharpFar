@@ -9,6 +9,7 @@ internal sealed class ChangeDirectoryCommandExecutor
     private readonly PanelController _controller;
     private readonly Func<FilePanelState> _activeState;
     private readonly Func<PanelSide> _activeSide;
+    private readonly Func<bool> _isLocalSourceAvailable;
     private readonly Func<AppSettingsAlias.PanelOptionsSettings> _panelOptions;
     private readonly Action<FilePanelState, PanelSide> _startWatching;
 
@@ -16,12 +17,14 @@ internal sealed class ChangeDirectoryCommandExecutor
         PanelController controller,
         Func<FilePanelState> activeState,
         Func<PanelSide> activeSide,
+        Func<bool> isLocalSourceAvailable,
         Func<AppSettingsAlias.PanelOptionsSettings> panelOptions,
         Action<FilePanelState, PanelSide> startWatching)
     {
         _controller = controller;
         _activeState = activeState;
         _activeSide = activeSide;
+        _isLocalSourceAvailable = isLocalSourceAvailable;
         _panelOptions = panelOptions;
         _startWatching = startWatching;
     }
@@ -32,7 +35,7 @@ internal sealed class ChangeDirectoryCommandExecutor
             return false;
 
         var state = _activeState();
-        if (state.SourceId != PanelSourceId.Local)
+        if (state.SourceId != PanelSourceId.Local || !_isLocalSourceAvailable())
             return true;
 
         string targetDirectory;

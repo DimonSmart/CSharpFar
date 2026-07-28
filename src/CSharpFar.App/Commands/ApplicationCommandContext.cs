@@ -448,6 +448,13 @@ internal sealed class ApplicationCommandContext
     public bool TryGetSource(PanelSourceId sourceId, out IFilePanelSource source) =>
         _sourceRegistry.TryGetSource(sourceId, out source);
 
+    public bool IsSourceAvailable(PanelSourceId sourceId) =>
+        _sourceRegistry.TryGetSource(sourceId, out _);
+
+    public bool CanAccessLocalFileSystem(FilePanelState state) =>
+        state.SourceId == PanelSourceId.Local &&
+        IsSourceAvailable(PanelSourceId.Local);
+
     public void ViewPanelFile(FilePanelState state, FilePanelItem item) =>
         _panelFileViewer.ViewPanelFile(state, item);
 
