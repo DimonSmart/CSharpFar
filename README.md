@@ -4,7 +4,9 @@
 
 CSharpFar brings the fast, keyboard-first two-panel workflow of classic file managers to a modern C# codebase, with a built-in viewer and editor, powerful file operations, remote file systems, native plugins, mouse interaction, and support for both Windows and Linux.
 
-![CSharpFar two-panel file manager preview](docs/images/csharpfar-preview.svg)
+[![CSharpFar keyboard-first file manager demo](docs/images/csharpfar-demo.gif)](docs/demo.md)
+
+The demo runs against an [isolated in-memory file system](docs/demo.md) built from the repository-owned fixture.
 
 ## Why CSharpFar?
 

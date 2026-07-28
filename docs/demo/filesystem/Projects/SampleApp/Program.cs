@@ -1,1 +1,0 @@
-Console.WriteLine("Sample app");
