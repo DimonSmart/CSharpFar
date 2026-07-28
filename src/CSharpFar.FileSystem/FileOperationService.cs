@@ -190,33 +190,27 @@ public sealed class FileOperationService : IFileOperationService
         }
 
         var destinationSource = _sources!.GetSource(destination.SourceId);
+        var plan = BuildProviderCopyPlan(sources, destination, cancellationToken);
 
         state.SetTotals(CalculateProviderSourcesSize(sources, cancellationToken), sources.Count);
         state.StartProgressTimer();
 
-        foreach (var sourceLocation in sources)
+        foreach (var plannedItem in plan)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            var source = _sources.GetSource(sourceLocation.SourceId);
-            var item = source.GetItem(sourceLocation.SourcePath, cancellationToken);
-            if (item is null)
+            if (plannedItem.Item is null)
             {
                 state.SkippedCount++;
                 state.CompleteItem();
                 continue;
             }
 
-            string targetPath = CombineProviderPath(
-                destination.SourceId,
-                destination.SourcePath,
-                item.Name);
-
             await CopyProviderItemAsync(
-                    source,
-                    sourceLocation.SourcePath,
+                    plannedItem.Source,
+                    plannedItem.SourcePath,
                     destinationSource,
-                    targetPath,
-                    item,
+                    plannedItem.TargetPath,
+                    plannedItem.Item!,
                     request.Options,
                     conflictResolver,
                     state,
@@ -238,6 +232,8 @@ public sealed class FileOperationService : IFileOperationService
     {
         if (sourceItem.IsDirectory)
         {
+            if (source.SourceId == destinationSource.SourceId)
+                ValidateProviderCopyTarget(source, sourcePath, destinationPath, sourceItem.IsDirectory);
             await destinationSource.CreateDirectoryAsync(destinationPath, cancellationToken).ConfigureAwait(false);
             state.CompleteFolder();
 
@@ -294,6 +290,8 @@ public sealed class FileOperationService : IFileOperationService
                     destinationPath = string.IsNullOrWhiteSpace(decision.NewDestinationPath)
                         ? GenerateProviderName(destinationSource, destinationPath, cancellationToken)
                         : decision.NewDestinationPath;
+                    if (source.SourceId == destinationSource.SourceId)
+                        ValidateProviderCopyTarget(source, sourcePath, destinationPath, sourceItem.IsDirectory);
                     break;
                 case ConflictDecisionMode.Cancel:
                     throw new OperationCanceledException("File operation cancelled by user.");
@@ -343,22 +341,22 @@ public sealed class FileOperationService : IFileOperationService
             throw new InvalidOperationException("Cross-provider move is not supported.");
 
         var source = _sources!.GetSource(sourceLocation.SourceId);
+        var plan = BuildProviderMovePlan(source, sources, destination.SourcePath, cancellationToken);
         state.SetTotals(CalculateProviderSourcesSize(sources, cancellationToken), sources.Count);
         state.StartProgressTimer();
 
-        foreach (var location in sources)
+        foreach (var plannedItem in plan)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            var item = source.GetItem(location.SourcePath, cancellationToken);
-            if (item is null)
+            if (plannedItem.Item is null)
             {
                 state.SkippedCount++;
                 state.CompleteItem();
                 continue;
             }
 
-            string targetPath = ResolveProviderMoveTargetPath(source, item, location.SourcePath, destination.SourcePath, sources.Count, cancellationToken);
-            if (string.Equals(item.SourcePath, targetPath, StringComparison.Ordinal))
+            string targetPath = plannedItem.TargetPath;
+            if (ProviderPathRelations.PathsEqual(source, plannedItem.SourcePath, targetPath))
             {
                 state.CompleteItem();
                 continue;
@@ -367,9 +365,9 @@ public sealed class FileOperationService : IFileOperationService
             FilePanelItem? destinationItem = source.GetItem(targetPath, cancellationToken);
             if (destinationItem is not null)
             {
-                EnsureMoveTypeCompatibility(item, destinationItem);
+                EnsureMoveTypeCompatibility(plannedItem.Item!, destinationItem);
                 var decision = request.Options.DefaultConflictDecision == ConflictDecisionMode.Ask
-                    ? conflictResolver.Resolve(BuildProviderConflict(item, destinationItem, targetPath))
+                    ? conflictResolver.Resolve(BuildProviderConflict(plannedItem.Item!, destinationItem, targetPath))
                     : FileOperationConflictDecision.FromMode(request.Options.DefaultConflictDecision);
 
                 switch (decision.Mode)
@@ -384,6 +382,7 @@ public sealed class FileOperationService : IFileOperationService
                         targetPath = string.IsNullOrWhiteSpace(decision.NewDestinationPath)
                             ? GenerateProviderName(source, targetPath, cancellationToken)
                             : decision.NewDestinationPath;
+                        ValidateProviderMoveTarget(source, plannedItem.SourcePath, targetPath, plannedItem.Item!.IsDirectory);
                         break;
                     case ConflictDecisionMode.Cancel:
                         throw new OperationCanceledException("File operation cancelled by user.");
@@ -396,9 +395,9 @@ public sealed class FileOperationService : IFileOperationService
                 }
             }
 
-            await source.RenameAsync(location.SourcePath, targetPath, cancellationToken).ConfigureAwait(false);
+            await source.RenameAsync(plannedItem.SourcePath, targetPath, cancellationToken).ConfigureAwait(false);
             state.MovedCount++;
-            state.AddBytes(CalculateProviderSourceSize(location, cancellationToken));
+            state.AddBytes(CalculateProviderSourceSize(plannedItem.Location, cancellationToken));
             state.CompleteItem();
         }
     }
@@ -1486,6 +1485,82 @@ public sealed class FileOperationService : IFileOperationService
         return PanelLocation.Local(RequireDestination(request));
     }
 
+    private List<ProviderOperationPlanItem> BuildProviderCopyPlan(
+        IReadOnlyList<PanelLocation> sources,
+        PanelLocation destination,
+        CancellationToken cancellationToken)
+    {
+        var plan = new List<ProviderOperationPlanItem>(sources.Count);
+        foreach (PanelLocation location in sources)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            IFilePanelSource source = _sources!.GetSource(location.SourceId);
+            FilePanelItem? item = source.GetItem(location.SourcePath, cancellationToken);
+            string normalizedSourcePath = source.NormalizePath(location.SourcePath);
+            string targetPath = item is null
+                ? string.Empty
+                : CombineProviderPath(destination.SourceId, destination.SourcePath, item.Name);
+
+            if (item is not null && location.SourceId == destination.SourceId)
+                ValidateProviderCopyTarget(source, normalizedSourcePath, targetPath, item.IsDirectory);
+
+            plan.Add(new ProviderOperationPlanItem(location, source, normalizedSourcePath, item, targetPath));
+        }
+
+        return plan;
+    }
+
+    private List<ProviderOperationPlanItem> BuildProviderMovePlan(
+        IFilePanelSource source,
+        IReadOnlyList<PanelLocation> sources,
+        string destinationPath,
+        CancellationToken cancellationToken)
+    {
+        var plan = new List<ProviderOperationPlanItem>(sources.Count);
+        foreach (PanelLocation location in sources)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            FilePanelItem? item = source.GetItem(location.SourcePath, cancellationToken);
+            string normalizedSourcePath = source.NormalizePath(location.SourcePath);
+            string targetPath = item is null
+                ? string.Empty
+                : ResolveProviderMoveTargetPath(source, item, normalizedSourcePath, destinationPath, sources.Count, cancellationToken);
+
+            if (item is not null)
+                ValidateProviderMoveTarget(source, normalizedSourcePath, targetPath, item.IsDirectory);
+
+            plan.Add(new ProviderOperationPlanItem(location, source, normalizedSourcePath, item, targetPath));
+        }
+
+        return plan;
+    }
+
+    private static void ValidateProviderCopyTarget(
+        IFilePanelSource source,
+        string sourcePath,
+        string targetPath,
+        bool sourceIsDirectory)
+    {
+        if (ProviderPathRelations.PathsEqual(source, sourcePath, targetPath))
+            throw new IOException("Source and destination refer to the same provider item.");
+
+        if (sourceIsDirectory && ProviderPathRelations.IsDescendantOf(source, targetPath, sourcePath))
+            throw new IOException("Cannot copy a directory into itself or one of its subdirectories.");
+    }
+
+    private static void ValidateProviderMoveTarget(
+        IFilePanelSource source,
+        string sourcePath,
+        string targetPath,
+        bool sourceIsDirectory)
+    {
+        if (!sourceIsDirectory)
+            return;
+
+        if (ProviderPathRelations.IsSameOrDescendant(source, targetPath, sourcePath))
+            throw new IOException("Cannot move a directory into itself.");
+    }
+
     private long CalculateProviderSourcesSize(
         IReadOnlyList<PanelLocation> sources,
         CancellationToken cancellationToken)
@@ -1650,6 +1725,12 @@ public sealed class FileOperationService : IFileOperationService
     private sealed record CopyFilePlanItem(string SourcePath, string DestinationPath, long Size, DateTime LastWriteTimeUtc);
     private sealed record CopyAttemptResult(FileInfo SourceInfo, FileAttributes SourceAttributes);
     private sealed record CopyDirectoryPlanItem(string SourcePath, string DestinationPath);
+    private sealed record ProviderOperationPlanItem(
+        PanelLocation Location,
+        IFilePanelSource Source,
+        string SourcePath,
+        FilePanelItem? Item,
+        string TargetPath);
     private enum CopyDestinationAction
     {
         CreateOrOverwrite,

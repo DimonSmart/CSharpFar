@@ -182,6 +182,117 @@ public sealed class DemoModeTests : IDisposable
     }
 
     [Fact]
+    public async Task DemoFilePanelSource_CopyToSameProviderItem_ThrowsWithoutChangingSource()
+    {
+        string fixture = CreateFixture(("A/file.txt", "original"));
+        var source = DemoFilePanelSource.ImportFromDirectory(fixture);
+        var operations = new FileOperationService(new FilePanelSourceRegistry([source]));
+
+        await Assert.ThrowsAsync<IOException>(() => operations.ExecuteAsync(
+            new FileOperationRequest
+            {
+                Kind = FileOperationKind.Copy,
+                Sources = [],
+                SourceLocations = [PanelLocation.Demo("/A/file.txt")],
+                DestinationLocation = PanelLocation.Demo("/A"),
+                Options = new FileOperationOptions
+                {
+                    DefaultConflictDecision = ConflictDecisionMode.Overwrite,
+                },
+            },
+            progress: null,
+            conflictResolver: new OverwriteConflictResolver()));
+
+        Assert.Equal("original", await ReadAllTextAsync(source, "/A/file.txt"));
+    }
+
+    [Fact]
+    public async Task DemoFilePanelSource_CopyDirectoryIntoDescendant_ThrowsBeforeMutation()
+    {
+        string fixture = CreateFixture(("A/B/file.txt", "value"));
+        var source = DemoFilePanelSource.ImportFromDirectory(fixture);
+        var operations = new FileOperationService(new FilePanelSourceRegistry([source]));
+
+        await Assert.ThrowsAsync<IOException>(() => operations.ExecuteAsync(
+            new FileOperationRequest
+            {
+                Kind = FileOperationKind.Copy,
+                Sources = [],
+                SourceLocations = [PanelLocation.Demo("/A")],
+                DestinationLocation = PanelLocation.Demo("/A/B"),
+                Options = new FileOperationOptions(),
+            },
+            progress: null,
+            conflictResolver: new OverwriteConflictResolver()));
+
+        Assert.NotNull(source.GetItem("/A"));
+        Assert.NotNull(source.GetItem("/A/B/file.txt"));
+        Assert.Null(source.GetItem("/A/B/A"));
+    }
+
+    [Fact]
+    public async Task DemoFilePanelSource_MoveDirectoryIntoDescendant_ThrowsBeforeMutation()
+    {
+        string fixture = CreateFixture(("A/B/file.txt", "value"));
+        var source = DemoFilePanelSource.ImportFromDirectory(fixture);
+        var operations = new FileOperationService(new FilePanelSourceRegistry([source]));
+
+        await Assert.ThrowsAsync<IOException>(() => operations.ExecuteAsync(
+            new FileOperationRequest
+            {
+                Kind = FileOperationKind.Move,
+                Sources = [],
+                SourceLocations = [PanelLocation.Demo("/A")],
+                DestinationLocation = PanelLocation.Demo("/A/B"),
+                Options = new FileOperationOptions(),
+            },
+            progress: null,
+            conflictResolver: new OverwriteConflictResolver()));
+
+        Assert.NotNull(source.GetItem("/A"));
+        Assert.NotNull(source.GetItem("/A/B/file.txt"));
+        Assert.Null(source.GetItem("/A/B/A"));
+    }
+
+    [Fact]
+    public async Task DemoFilePanelSource_RenameAsync_RejectsDirectoryMoveIntoDescendant()
+    {
+        string fixture = CreateFixture(("A/B/file.txt", "value"));
+        var source = DemoFilePanelSource.ImportFromDirectory(fixture);
+
+        await Assert.ThrowsAsync<IOException>(() => source.RenameAsync("/A", "/A/B/A"));
+
+        Assert.NotNull(source.GetItem("/A"));
+        Assert.NotNull(source.GetItem("/A/B/file.txt"));
+        Assert.Null(source.GetItem("/A/B/A"));
+    }
+
+    [Fact]
+    public async Task DemoFilePanelSource_MovePreflight_RejectsWholeRequestBeforeEarlierItemsMove()
+    {
+        string fixture = CreateFixture(("A/file.txt", "file"), ("A/Folder/child.txt", "child"));
+        var source = DemoFilePanelSource.ImportFromDirectory(fixture);
+        var operations = new FileOperationService(new FilePanelSourceRegistry([source]));
+
+        await Assert.ThrowsAsync<IOException>(() => operations.ExecuteAsync(
+            new FileOperationRequest
+            {
+                Kind = FileOperationKind.Move,
+                Sources = [],
+                SourceLocations = [PanelLocation.Demo("/A/file.txt"), PanelLocation.Demo("/A/Folder")],
+                DestinationLocation = PanelLocation.Demo("/A/Folder/Subfolder"),
+                Options = new FileOperationOptions(),
+            },
+            progress: null,
+            conflictResolver: new OverwriteConflictResolver()));
+
+        Assert.NotNull(source.GetItem("/A/file.txt"));
+        Assert.NotNull(source.GetItem("/A/Folder"));
+        Assert.NotNull(source.GetItem("/A/Folder/child.txt"));
+        Assert.Null(source.GetItem("/A/Folder/Subfolder/file.txt"));
+    }
+
+    [Fact]
     public void DemoFilePanelSource_UsesVirtualRootSemantics()
     {
         string fixture = CreateFixture(("nested/file.txt", "value"));

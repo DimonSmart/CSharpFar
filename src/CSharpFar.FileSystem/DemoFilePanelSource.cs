@@ -218,6 +218,15 @@ public sealed class DemoFilePanelSource : IFilePanelSource
                 throw new IOException("Cannot rename the demo root directory.");
 
             var node = TryGetNode(source) ?? throw new FileNotFoundException("Demo item not found.", source);
+            if (ProviderPathRelations.PathsEqual(this, source, target))
+                return Task.CompletedTask;
+
+            if (node is DemoDirectoryNode &&
+                ProviderPathRelations.IsDescendantOf(this, target, source))
+            {
+                throw new IOException("Cannot move a directory into itself.");
+            }
+
             var sourceParent = GetDirectoryNode(GetParentPath(source) ?? "/");
             var targetParent = EnsureDirectory(GetParentPath(target) ?? "/");
             string targetName = GetName(target);
