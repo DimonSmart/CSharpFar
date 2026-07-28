@@ -2,8 +2,16 @@ using CSharpFar.Core.Models;
 
 namespace CSharpFar.Plugin.Abstractions;
 
+public enum PluginRunMode
+{
+    Normal = 0,
+    Demo = 1,
+}
+
 public interface IPluginApplicationContext
 {
+    PluginRunMode RunMode { get; }
+
     PanelSide ActivePanelSide { get; }
 
     string CurrentDirectory { get; }

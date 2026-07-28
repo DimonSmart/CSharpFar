@@ -204,9 +204,13 @@ internal sealed class FileOperationDialog
         return _formDialogs.Run(
             form,
             new ModalFormOptions(title, DialogWidth, DialogHeight, 40, 8),
-            static layout => new ModalFormLayout(
-                new Rect(layout.FrameBounds.X, layout.FrameBounds.Y, layout.FrameBounds.Width, Math.Max(1, layout.FrameBounds.Height - 2)),
-                new Rect(layout.FrameBounds.X, layout.FrameBounds.Bottom - 2, layout.FrameBounds.Width, 2)),
+            static layout =>
+            {
+                Rect content = layout.ContentBounds;
+                return new ModalFormLayout(
+                    new Rect(content.X, content.Y, content.Width, Math.Max(1, content.Height - 2)),
+                    new Rect(content.X, content.Bottom - 2, content.Width, 2));
+            },
             (routed, result) =>
             {
                 if (result.Kind == FormInputResultKind.Cancel)

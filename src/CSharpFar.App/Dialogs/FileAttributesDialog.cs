@@ -130,7 +130,7 @@ internal sealed class FileAttributesDialog : IFileAttributesDialog
         return _formDialogs.Run(
             form,
             new ModalFormOptions("File attributes", DialogWidth, DialogHeight, 48, 8),
-            static layout => new ModalFormLayout(layout.FrameBounds),
+            static layout => new ModalFormLayout(layout.ContentBounds),
             (routed, result) =>
             {
                 if (result.Kind == FormInputResultKind.Cancel)
