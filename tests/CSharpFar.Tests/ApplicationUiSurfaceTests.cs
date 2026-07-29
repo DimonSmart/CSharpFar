@@ -59,6 +59,8 @@ public sealed class ApplicationUiSurfaceTests
         var services = Services();
         services.Session.CommandLine.State.SetText("abc");
         services.Composition.Render();
+        ApplicationRenderFingerprint previousFingerprint =
+            services.ApplicationSurface.CommittedFrame.Fingerprint!;
         UiCursorPlacement previous =
             services.ApplicationSurface.CommittedFrame.CommandLine.Cursor!.Value;
         services.Driver.ClearRecordedOperations();
@@ -72,7 +74,14 @@ public sealed class ApplicationUiSurfaceTests
         UiFocusEntry focus = Assert.Single(
             services.ApplicationSurface.CommittedInteractionFrame.Focus.Entries,
             entry => entry.Target == ApplicationTargetIds.CommandLine);
-        Assert.True(committed.RenderedParts.HasFlag(ApplicationRenderPart.CommandLineCursor));
+        Assert.True(
+            committed.RenderedParts.HasFlag(ApplicationRenderPart.CommandLineCursor),
+            $"Cursor-only render was not selected. " +
+            $"RenderedParts={committed.RenderedParts}; " +
+            $"Viewport={committed.Viewport}; " +
+            $"PreviousCommandLine={previousFingerprint.CommandLine}; " +
+            $"CurrentCommandLine={committed.Fingerprint!.CommandLine}; " +
+            $"PreviousCursor={previous}; CurrentCursor={current}.");
         Assert.False(committed.RenderedParts.HasFlag(ApplicationRenderPart.CommandLine));
         Assert.False(committed.RenderedParts.HasFlag(ApplicationRenderPart.Full));
         Assert.NotEqual(previous.X, current.X);
