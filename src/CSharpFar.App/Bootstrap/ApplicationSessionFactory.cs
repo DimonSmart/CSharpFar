@@ -1,5 +1,6 @@
 using CSharpFar.App.CommandLine;
 using CSharpFar.App.State;
+using CSharpFar.Core.Abstractions;
 using CSharpFar.Core.Controllers;
 using CSharpFar.Core.Models;
 using CSharpFar.Ui;
@@ -12,11 +13,18 @@ internal static class ApplicationSessionFactory
     public static ApplicationSession Create(
         AppSettingsAlias settings,
         PanelController controller,
+        IFileSystemService fileSystem,
         ApplicationRunOptions? runOptions = null)
     {
         runOptions ??= ApplicationRunOptions.Normal;
-        PanelLocation leftStart = ResolveStartLocation(settings.Panels.LeftStartDirectory, runOptions);
-        PanelLocation rightStart = ResolveStartLocation(settings.Panels.RightStartDirectory, runOptions);
+        PanelLocation leftStart = ResolveStartLocation(
+            settings.Panels.LeftStartDirectory,
+            fileSystem,
+            runOptions);
+        PanelLocation rightStart = ResolveStartLocation(
+            settings.Panels.RightStartDirectory,
+            fileSystem,
+            runOptions);
         var sortMode = ResolveSortMode(settings.Panels.DefaultSortMode);
 
         var left = new FilePanelState { CurrentLocation = leftStart, SortMode = sortMode };
@@ -49,13 +57,16 @@ internal static class ApplicationSessionFactory
         };
     }
 
-    private static PanelLocation ResolveStartLocation(string? configured, ApplicationRunOptions runOptions)
+    private static PanelLocation ResolveStartLocation(
+        string? configured,
+        IFileSystemService fileSystem,
+        ApplicationRunOptions runOptions)
     {
         if (runOptions.Mode == ApplicationRunMode.Demo)
             return PanelLocation.Demo("/");
 
         string fallback = Directory.GetCurrentDirectory();
-        if (!string.IsNullOrWhiteSpace(configured) && Directory.Exists(configured))
+        if (!string.IsNullOrWhiteSpace(configured) && fileSystem.DirectoryExists(configured))
             return PanelLocation.Local(configured);
         return PanelLocation.Local(fallback);
     }
