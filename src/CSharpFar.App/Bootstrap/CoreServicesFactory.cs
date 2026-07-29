@@ -41,7 +41,7 @@ internal static class CoreServicesFactory
             sources: effectiveSourceRegistry);
         var controller = new PanelController(viewBuilder);
         var effectiveHistory = history ?? new InMemoryHistoryStore();
-        var session = ApplicationSessionFactory.Create(effectiveSettings, controller, runOptions);
+        var session = ApplicationSessionFactory.Create(effectiveSettings, controller, fs, runOptions);
         var effectiveConfigDirectory = configDirectory ?? Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
             "CSharpFar");
