@@ -5,6 +5,7 @@ using CSharpFar.Core.Abstractions;
 using CSharpFar.Core.Services;
 using CSharpFar.Module.Ftp;
 using CSharpFar.Module.Sftp;
+using CSharpFar.Platform.Abstractions;
 using AppSettingsAlias = CSharpFar.Core.Models.AppSettings;
 
 namespace CSharpFar.App.Bootstrap;
@@ -37,7 +38,8 @@ public static class ApplicationFactory
         ITerminalScreenMode? terminalScreenMode = null,
         IFileMetadataService? fileMetadata = null,
         Func<IFileAttributesDialog>? fileAttributesDialogFactory = null,
-        ApplicationRunOptions? runOptions = null) =>
+        ApplicationRunOptions? runOptions = null,
+        IProcessesAndPortsPlatformService? processesAndPorts = null) =>
         new(ApplicationServicesBuilder.Create(
             screen,
             fs,
@@ -64,6 +66,7 @@ public static class ApplicationFactory
             terminalScreenMode,
             fileMetadata,
             fileAttributesDialogFactory,
-            runOptions));
+            runOptions,
+            processesAndPorts));
 
 }

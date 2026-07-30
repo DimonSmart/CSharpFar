@@ -21,7 +21,8 @@ public sealed class WindowsPlatformServices : IPlatformServices
         IVolumeInfoService volumeInfoService,
         IFileSystemLocationService locationService,
         IVolumeMountPointService volumeMountPointService,
-        IFileSystemPlatformOperations fileSystemOperations)
+        IFileSystemPlatformOperations fileSystemOperations,
+        IProcessesAndPortsPlatformService? processesAndPorts = null)
     {
         _disposableConsoleDriver = consoleDriver as IDisposable;
         ConsoleDriver = consoleDriver;
@@ -34,6 +35,7 @@ public sealed class WindowsPlatformServices : IPlatformServices
         VolumeMountPointService = volumeMountPointService;
         FileSystemOperations = fileSystemOperations;
         TerminalScreenMode = terminalScreenMode;
+        ProcessesAndPorts = processesAndPorts ?? new WindowsProcessesAndPortsPlatformService();
     }
 
     public IConsoleDriver ConsoleDriver { get; }
@@ -46,6 +48,7 @@ public sealed class WindowsPlatformServices : IPlatformServices
     public IVolumeMountPointService VolumeMountPointService { get; }
     public IFileSystemPlatformOperations FileSystemOperations { get; }
     public ITerminalScreenMode TerminalScreenMode { get; }
+    public IProcessesAndPortsPlatformService ProcessesAndPorts { get; }
 
     public static WindowsPlatformServices Create(string configDirectory, AppSettings.ShellSettings shellSettings)
     {
@@ -60,7 +63,8 @@ public sealed class WindowsPlatformServices : IPlatformServices
             new VolumeInfoService(),
             new FileSystemLocationService(),
             new VolumeMountPointService(),
-            new WindowsFileSystemPlatformOperations());
+            new WindowsFileSystemPlatformOperations(),
+            new WindowsProcessesAndPortsPlatformService());
     }
 
     public static AppSettings CreateDefaultSettings()

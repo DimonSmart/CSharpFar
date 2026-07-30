@@ -22,7 +22,8 @@ public sealed class UnixPlatformServices : IPlatformServices
         IVolumeInfoService volumeInfoService,
         IFileSystemLocationService locationService,
         IVolumeMountPointService volumeMountPointService,
-        IFileSystemPlatformOperations fileSystemOperations)
+        IFileSystemPlatformOperations fileSystemOperations,
+        IProcessesAndPortsPlatformService? processesAndPorts = null)
     {
         _disposableConsoleDriver = consoleDriver as IDisposable;
         ConsoleDriver = consoleDriver;
@@ -35,6 +36,7 @@ public sealed class UnixPlatformServices : IPlatformServices
         VolumeMountPointService = volumeMountPointService;
         FileSystemOperations = fileSystemOperations;
         TerminalScreenMode = terminalScreenMode;
+        ProcessesAndPorts = processesAndPorts ?? new UnsupportedProcessesAndPortsPlatformService();
     }
 
     public IConsoleDriver ConsoleDriver { get; }
@@ -47,6 +49,7 @@ public sealed class UnixPlatformServices : IPlatformServices
     public IVolumeMountPointService VolumeMountPointService { get; }
     public IFileSystemPlatformOperations FileSystemOperations { get; }
     public ITerminalScreenMode TerminalScreenMode { get; }
+    public IProcessesAndPortsPlatformService ProcessesAndPorts { get; }
 
     public static UnixPlatformServices Create(string configDirectory, AppSettings.ShellSettings shellSettings)
     {
@@ -61,7 +64,8 @@ public sealed class UnixPlatformServices : IPlatformServices
             new VolumeInfoService(),
             new FileSystemLocationService(),
             new UnixVolumeMountPointService(),
-            new UnixFileSystemPlatformOperations());
+            new UnixFileSystemPlatformOperations(),
+            new UnsupportedProcessesAndPortsPlatformService());
     }
 
     public static AppSettings CreateDefaultSettings()

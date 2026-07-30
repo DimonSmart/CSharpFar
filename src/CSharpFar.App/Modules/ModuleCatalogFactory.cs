@@ -1,6 +1,7 @@
 using CSharpFar.Core.Models;
 using CSharpFar.Module.Abstractions;
 using CSharpFar.Module.Ftp;
+using CSharpFar.Module.ProcessesAndPorts;
 using CSharpFar.Module.Sftp;
 
 namespace CSharpFar.App.Modules;
@@ -10,6 +11,7 @@ internal static class ModuleCatalogFactory
     public static NativeModuleCatalog Create(
         SftpModule? sftpModule,
         FtpModule? ftpModule,
+        ProcessesAndPortsModule? processesAndPortsModule,
         ModuleStartupInfo startupInfo)
     {
         var catalog = new NativeModuleCatalog();
@@ -37,6 +39,13 @@ internal static class ModuleCatalogFactory
                 ftpModule.OpenFromDiskMenu);
             catalog.AddCommandPrefix("ftp", (commandLine, side) => ftpModule.OpenFromCommandLine(side, commandLine));
             catalog.AddCommandPrefix("ftps", (commandLine, side) => ftpModule.OpenFromCommandLine(side, commandLine));
+        }
+
+        if (processesAndPortsModule is not null)
+        {
+            processesAndPortsModule.Initialize(startupInfo);
+            catalog.AddMenuAction(new ModuleMenuProjection(ProcessesAndPortsModuleIds.MenuActionId, "Processes and Ports...", 'P'), processesAndPortsModule.OpenFromMenu);
+            catalog.AddCommandPrefix("ports", (commandLine, side) => processesAndPortsModule.OpenFromCommandLine(side, commandLine));
         }
 
         return catalog;
