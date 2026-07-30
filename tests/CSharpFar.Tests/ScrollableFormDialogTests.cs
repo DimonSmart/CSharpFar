@@ -13,6 +13,29 @@ public sealed class ScrollableFormDialogTests
     private static readonly ConditionalWeakTable<ScrollableFormDialog, FormHarness> Harnesses = new();
 
     [Fact]
+    public void Scrollbar_ReservesTheLastBodyColumnForRowsAndHistoryArrow()
+    {
+        var history = new SingleLineTextHistoryState(["saved"]);
+        var form = new ScrollableFormDialog([
+            new TextInputRow(new CommandLineState(), history) { Id = "input" },
+            new LabelRow("second", FarDialogStyles.Fill),
+        ]);
+        var driver = new FakeConsoleDriver(20, 4);
+        var screen = new ScreenRenderer(driver);
+        var layer = new TestFormLayer(
+            screen,
+            form,
+            context => new FormRenderContext(context, new Rect(0, 0, 20, 1), FarDialogStyles.Border));
+        UiTestHost.Create(screen, layer).Composition.Render();
+
+        FormTargetFrame row = Assert.Single(layer.CommittedFrame.Targets, target => target.Target == FormTargetIds.ForExplicitRow("input"));
+        FormTargetFrame scrollbar = Assert.Single(layer.CommittedFrame.Targets, target => target.Kind == FormTargetKind.BodyScrollbar);
+
+        Assert.Equal(scrollbar.Bounds.X, row.Bounds.Right);
+        Assert.Equal(SingleLineTextInput.HistoryDropdownArrow, driver.GetCell(row.Bounds.Right - 1, row.Bounds.Y).Character);
+    }
+
+    [Fact]
     public void FocusedRowId_ReturnsCurrentFocusableRowId()
     {
         var form = new ScrollableFormDialog([
@@ -551,14 +574,20 @@ public sealed class ScrollableFormDialogTests
         var driver = new FakeConsoleDriver(20, 8);
         var (host, layer) = CreateRoutedFormHostWithLayer(form, driver, visibleRows: 1);
         host.Composition.Render();
-        int expectedIndex = selectionKey == ConsoleKey.DownArrow ? 1 : history.Matches.Count - 1;
-
         host.Composition.DispatchInput(new KeyConsoleInputEvent(Key(selectionKey)));
         UiInputResult enter = host.Composition.DispatchInput(new KeyConsoleInputEvent(Key(ConsoleKey.Enter)));
 
         Assert.True(enter.Handled);
-        Assert.Equal(FormInputResultKind.ValueChanged, layer.LastRouteResult!.Value.FormResult.Kind);
-        Assert.Equal($"item-{expectedIndex:D2}", text.Text);
+        if (selectionKey == ConsoleKey.UpArrow)
+        {
+            Assert.Equal(FormInputResultKind.Submit, layer.LastRouteResult!.Value.FormResult.Kind);
+            Assert.Equal(string.Empty, text.Text);
+        }
+        else
+        {
+            Assert.Equal(FormInputResultKind.ValueChanged, layer.LastRouteResult!.Value.FormResult.Kind);
+            Assert.Equal("item-02", text.Text);
+        }
         Assert.False(history.IsDropdownOpen);
         Assert.False(FormDialogInput.ShouldImplicitlySubmit(
             new UiRoutedInput<ScrollableFormFrame>(

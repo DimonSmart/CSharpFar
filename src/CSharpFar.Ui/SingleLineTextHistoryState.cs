@@ -2,6 +2,13 @@ using CSharpFar.Core.Models;
 
 namespace CSharpFar.Ui;
 
+public enum SingleLineTextHistoryAcceptResult
+{
+    NotAccepted,
+    CurrentText,
+    HistoryItem,
+}
+
 public sealed class SingleLineTextHistoryState
 {
     public const int MaxVisibleRows = 10;
@@ -76,16 +83,15 @@ public sealed class SingleLineTextHistoryState
             return false;
         }
 
-        int selectedIndex = SelectedIndex;
-        int firstVisibleIndex = FirstVisibleIndex;
-        ScrollStateCalculator.MoveSelection(
-            delta,
+        SelectedIndex = Math.Clamp(SelectedIndex + delta, 0, _matches.Count - 1);
+        FirstVisibleIndex = ScrollStateCalculator.EnsureIndexVisible(
+            SelectedIndex,
+            FirstVisibleIndex,
+            visibleRows);
+        FirstVisibleIndex = ScrollStateCalculator.ClampFirstVisibleIndex(
+            FirstVisibleIndex,
             _matches.Count,
-            visibleRows,
-            ref selectedIndex,
-            ref firstVisibleIndex);
-        SelectedIndex = selectedIndex;
-        FirstVisibleIndex = firstVisibleIndex;
+            visibleRows);
         return true;
     }
 
@@ -124,14 +130,22 @@ public sealed class SingleLineTextHistoryState
             SelectedIndex = Math.Clamp(SelectedIndex, FirstVisibleIndex, FirstVisibleIndex + Math.Max(0, visibleRows - 1));
     }
 
-    public bool AcceptSelected(CommandLineState buffer)
+    public SingleLineTextHistoryAcceptResult AcceptSelected(CommandLineState buffer)
     {
         if (!IsDropdownOpen || _matches.Count == 0)
-            return false;
+            return SingleLineTextHistoryAcceptResult.NotAccepted;
 
-        buffer.SetText(_matches[Math.Clamp(SelectedIndex, 0, _matches.Count - 1)]);
+        int selectedIndex = Math.Clamp(SelectedIndex, 0, _matches.Count - 1);
+        if (selectedIndex == 0)
+        {
+            Close();
+            return SingleLineTextHistoryAcceptResult.CurrentText;
+        }
+
+        string selectedItem = _matches[selectedIndex];
         Close();
-        return true;
+        buffer.SetText(selectedItem);
+        return SingleLineTextHistoryAcceptResult.HistoryItem;
     }
 
     public int VisibleRows(int availableContentRows) =>
@@ -148,7 +162,8 @@ public sealed class SingleLineTextHistoryState
 
         foreach (string item in _items)
         {
-            if (prefix.Length == 0 || item.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+            if ((prefix.Length == 0 || item.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)) &&
+                _matches.Count < MaxVisibleRows - 1)
                 _matches.Add(item);
         }
 
@@ -158,6 +173,7 @@ public sealed class SingleLineTextHistoryState
             return false;
         }
 
+        _matches.Insert(0, string.Empty);
         IsDropdownOpen = true;
         SelectedIndex = 0;
         FirstVisibleIndex = 0;
@@ -170,8 +186,12 @@ public sealed class SingleLineTextHistoryState
         if (!IsDropdownOpen)
             return;
 
-        _matches.RemoveAll(match => !_items.Contains(match, StringComparer.Ordinal));
-        if (_matches.Count == 0)
+        for (int index = _matches.Count - 1; index > 0; index--)
+        {
+            if (!_items.Contains(_matches[index], StringComparer.Ordinal))
+                _matches.RemoveAt(index);
+        }
+        if (_matches.Count == 1)
             Close();
     }
 

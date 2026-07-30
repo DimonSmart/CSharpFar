@@ -51,6 +51,7 @@ internal sealed class FormTextInputField
         {
             TextInputKeyResult.TextChanged when _buffer.Text != before => FormInputResult.ValueChanged,
             TextInputKeyResult.TextChanged or TextInputKeyResult.Handled => FormInputResult.Handled,
+            TextInputKeyResult.AcceptCurrentText => FormInputResult.OverlayChanged,
             _ => FormInputResult.NotHandled,
         };
     }

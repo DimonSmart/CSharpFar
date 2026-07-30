@@ -203,7 +203,8 @@ public class SingleLineTextInputTests
 
         Assert.Equal(TextInputKeyResult.TextChanged, result);
         Assert.True(history.IsDropdownOpen);
-        Assert.Equal(["compare", "copy"], history.Matches);
+        Assert.Equal(["", "compare", "copy"], history.Matches);
+        Assert.Equal(0, history.SelectedIndex);
     }
 
     [Fact]
@@ -236,8 +237,49 @@ public class SingleLineTextInputTests
             availableDropdownContentRows: 10);
 
         Assert.Equal(TextInputKeyResult.TextChanged, result);
-        Assert.Equal("copy", buffer.Text);
+        Assert.Equal("compare", buffer.Text);
         Assert.False(history.IsDropdownOpen);
+    }
+
+    [Fact]
+    public void HandleKey_WithHistoryEnterOnNeutralItemKeepsCurrentText()
+    {
+        var buffer = new CommandLineState();
+        buffer.SetText("co");
+        var history = new SingleLineTextHistoryState(["copy"]);
+        string? error = null;
+        Assert.True(history.OpenForPrefix(buffer.Text, availableContentRows: 10));
+
+        TextInputKeyResult result = SingleLineTextInput.HandleKey(
+            buffer,
+            new ConsoleKeyInfo('\r', ConsoleKey.Enter, shift: false, alt: false, control: false),
+            ref error,
+            history,
+            availableDropdownContentRows: 10);
+
+        Assert.Equal(TextInputKeyResult.AcceptCurrentText, result);
+        Assert.Equal("co", buffer.Text);
+        Assert.False(history.IsDropdownOpen);
+    }
+
+    [Fact]
+    public void History_DoesNotOpenWithoutRealMatches()
+    {
+        var history = new SingleLineTextHistoryState(["copy"]);
+
+        Assert.False(history.OpenForPrefix("z", availableContentRows: 10));
+        Assert.False(history.IsDropdownOpen);
+        Assert.Empty(history.Matches);
+    }
+
+    [Fact]
+    public void History_VisibleRowsIncludeNeutralItem()
+    {
+        var history = new SingleLineTextHistoryState(Enumerable.Range(1, 12).Select(index => $"item-{index:D2}"));
+
+        Assert.True(history.OpenAll(availableContentRows: 10));
+        Assert.Equal(10, history.Matches.Count);
+        Assert.Equal(string.Empty, history.Matches[0]);
     }
 
     [Fact]
@@ -287,8 +329,8 @@ public class SingleLineTextInputTests
         Assert.Equal(SingleLineTextInput.HistoryDropdownArrow, driver.GetCell(12, 1).Character);
         Assert.Equal('┌', driver.GetCell(1, 2).Character);
         Assert.Equal('┐', driver.GetCell(12, 2).Character);
-        Assert.Contains("compare", driver.GetRow(3));
-        Assert.Contains("copy", driver.GetRow(4));
+        Assert.Contains("compare", driver.GetRow(4));
+        Assert.Contains("copy", driver.GetRow(5));
     }
 
     [Fact]
@@ -341,7 +383,7 @@ public class SingleLineTextInputTests
         bool handled = SingleLineTextInput.TryHandleHistoryPopupContentMouse(
             history,
             buffer,
-            LeftMouse(2, 2),
+            LeftMouse(2, 3),
             frame);
 
         Assert.True(handled);

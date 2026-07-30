@@ -50,7 +50,10 @@ public sealed class TextInputRow : FormRow, IFormCursorProvider, IFormCompositeR
 
     public override FormInputResult HandleKey(ConsoleKeyInfo key, FormRowInputContext context)
     {
-        return _field.HandleKey(key, context);
+        FormInputResult result = _field.HandleKey(key, context);
+        return result.Kind == FormInputResultKind.OverlayChanged && SubmitOnEnter
+            ? FormInputResult.Submit()
+            : result;
     }
 
     public override FormInputResult HandleMouse(MouseConsoleInputEvent mouse, FormRowMouseContext context)
