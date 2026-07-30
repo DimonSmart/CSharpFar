@@ -172,10 +172,11 @@ public sealed class Spec029SftpProviderTests : IDisposable
     public void SftpConnectionDialog_HistoryEscapeClosesDropdownBeforeCancellingDialog()
     {
         string connectionName = "escape-history-" + Guid.NewGuid().ToString("N");
+        var historyRegistry = new SingleLineTextHistoryRegistry();
         var seedDriver = new FakeConsoleDriver(width: 100, height: 30);
         seedDriver.EnqueueKey(Key(ConsoleKey.F10));
         var seedScreen = new ScreenRenderer(seedDriver);
-        _ = new SftpConnectionDialog(ModalTestHost.Create(seedScreen)).Show(
+        _ = new SftpConnectionDialog(ModalTestHost.Create(seedScreen), historyRegistry).Show(
             new SftpConnectionDialogRequest(
                 TestConnection() with { DisplayName = connectionName },
                 SavedPassword: "secret-password",
@@ -199,7 +200,7 @@ public sealed class Spec029SftpProviderTests : IDisposable
         driver.EnqueueKey(Key(ConsoleKey.Escape));
         int validationCalls = 0;
 
-        SftpConnectionDialogResult? result = new SftpConnectionDialog(ModalTestHost.Create(screen)).Show(
+        SftpConnectionDialogResult? result = new SftpConnectionDialog(ModalTestHost.Create(screen), historyRegistry).Show(
             new SftpConnectionDialogRequest(
                 Connection: null,
                 SavedPassword: null,

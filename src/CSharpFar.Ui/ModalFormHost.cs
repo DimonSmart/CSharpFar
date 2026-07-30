@@ -24,6 +24,7 @@ public readonly record struct ModalFormLayout(
 /// </summary>
 public sealed class ModalFormHost
 {
+    private const int HorizontalContentInset = 1;
     private readonly ModalDialogHost _modalDialogs;
     private readonly ModalDialogRenderer _modalRenderer = new();
 
@@ -88,7 +89,7 @@ public sealed class ModalFormHost
             options.FrameRenderOptions ?? FarDialogStyles.FrameOptions,
             (_, modalLayout) =>
             {
-                ModalFormLayout formLayout = calculateLayout(modalLayout);
+                ModalFormLayout formLayout = InsetHorizontally(calculateLayout(modalLayout));
                 frame = form.Render(
                     new FormRenderContext(context, formLayout.BodyBounds, FarDialogStyles.Border, formLayout.FooterBounds),
                     focusScope);
@@ -96,4 +97,12 @@ public sealed class ModalFormHost
 
         return frame ?? throw new InvalidOperationException("Modal form host did not render a form frame.");
     }
+
+    private static ModalFormLayout InsetHorizontally(ModalFormLayout layout) => new(
+        InsetHorizontally(layout.BodyBounds),
+        layout.FooterBounds is Rect footerBounds ? InsetHorizontally(footerBounds) : null);
+
+    private static Rect InsetHorizontally(Rect bounds) => bounds.Width <= HorizontalContentInset * 2
+        ? new Rect(bounds.X, bounds.Y, 0, bounds.Height)
+        : new Rect(bounds.X + HorizontalContentInset, bounds.Y, bounds.Width - HorizontalContentInset * 2, bounds.Height);
 }

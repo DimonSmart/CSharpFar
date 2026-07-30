@@ -60,7 +60,7 @@ internal sealed class EditorFormatDialog
         return _formDialogs.Run(
             form,
             new ModalFormOptions("Editor format", DialogWidth, DialogHeight, SubmitOnEnter: true),
-            static layout => new ModalFormLayout(Inset(layout.ContentBounds)),
+            static layout => new ModalFormLayout(layout.ContentBounds),
             (routed, result) =>
             {
                 if (result.Kind == FormInputResultKind.Cancel ||
@@ -80,10 +80,6 @@ internal sealed class EditorFormatDialog
             },
             prepareRender: PrepareRows);
     }
-
-    private static Rect Inset(Rect content) => content.Width >= 2
-        ? new Rect(content.X + 1, content.Y, content.Width - 2, content.Height)
-        : new Rect(content.X, content.Y, 0, 0);
 
     private static EditorDocumentFormat CreateFormat(EncodingSpec encodingSpec, bool emitBom, EditorLineEnding lineEnding)
     {

@@ -34,6 +34,34 @@ public sealed class ModalFormHostTests
     }
 
     [Fact]
+    public void Run_ReservesOneColumnInsideEachFrameEdgeForFormContent()
+    {
+        var driver = new FakeConsoleDriver();
+        driver.EnqueueKey(Key(ConsoleKey.Escape));
+        var host = new ModalFormHost(ModalTestHost.Create(driver));
+        ScrollableFormFrame? frame = null;
+        Rect expectedContent = default;
+
+        host.Run(
+            new ScrollableFormDialog([new LabelRow("Value", FarDialogStyles.Fill)]),
+            Options,
+            layout =>
+            {
+                expectedContent = layout.ContentBounds;
+                return new ModalFormLayout(layout.ContentBounds);
+            },
+            (routed, input) =>
+            {
+                frame = routed.Frame;
+                return ModalDialogLoopResult<object?>.Complete(null);
+            });
+
+        Assert.NotNull(frame);
+        Assert.Equal(expectedContent.X + 1, frame.BodyBounds.X);
+        Assert.Equal(expectedContent.Width - 2, frame.BodyBounds.Width);
+    }
+
+    [Fact]
     public void Run_PreparesRowsAndUsesCommittedFrameAfterContinuingInput()
     {
         var driver = new FakeConsoleDriver();

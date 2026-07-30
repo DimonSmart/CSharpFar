@@ -103,7 +103,7 @@ internal sealed class SettingsDialog
         return _formDialogs.Run(
             form,
             new ModalFormOptions("Settings", DialogWidth, DialogHeight),
-            static layout => new ModalFormLayout(Inset(layout.ContentBounds)),
+            static layout => new ModalFormLayout(layout.ContentBounds),
             (routed, result) =>
             {
                 if (result.Kind == FormInputResultKind.Cancel)
@@ -124,10 +124,6 @@ internal sealed class SettingsDialog
             prepareRender: PrepareRows,
             beginRenderScope: () => UiTheme.UseTemporary(PaletteRegistry.Resolve(palette.Value)));
     }
-
-    private static Rect Inset(Rect content) => content.Width >= 2
-        ? new Rect(content.X + 1, content.Y, content.Width - 2, content.Height)
-        : new Rect(content.X, content.Y, 0, 0);
 
     private static string ViewModeLabel(PanelViewMode mode) => mode switch
     {

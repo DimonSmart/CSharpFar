@@ -11,6 +11,7 @@ public sealed class EditorFindDialogTests
     [Fact]
     public void Show_UsesInputHistory()
     {
+        var historyRegistry = new SingleLineTextHistoryRegistry();
         var firstDriver = new FakeConsoleDriver(80, 25);
         firstDriver.EnqueueKey(new ConsoleKeyInfo('a', ConsoleKey.A, shift: false, alt: false, control: false));
         firstDriver.EnqueueKey(new ConsoleKeyInfo('b', ConsoleKey.B, shift: false, alt: false, control: false));
@@ -18,7 +19,7 @@ public sealed class EditorFindDialogTests
         firstDriver.EnqueueKey(new ConsoleKeyInfo('\0', ConsoleKey.Enter, shift: false, alt: false, control: false));
         firstDriver.EnqueueKey(new ConsoleKeyInfo('\0', ConsoleKey.Enter, shift: false, alt: false, control: false));
 
-        var first = new EditorFindDialog(ModalTestHost.Create(firstDriver), PaletteRegistry.Default).Show(null);
+        var first = new EditorFindDialog(ModalTestHost.Create(firstDriver), PaletteRegistry.Default, historyRegistry).Show(null);
         Assert.Equal("abc", first?.Pattern);
 
         var secondDriver = new FakeConsoleDriver(80, 25);
@@ -27,7 +28,7 @@ public sealed class EditorFindDialogTests
         secondDriver.EnqueueKey(new ConsoleKeyInfo('\0', ConsoleKey.Enter, shift: false, alt: false, control: false));
         secondDriver.EnqueueKey(new ConsoleKeyInfo('\0', ConsoleKey.Enter, shift: false, alt: false, control: false));
 
-        var second = new EditorFindDialog(ModalTestHost.Create(secondDriver), PaletteRegistry.Default).Show(null);
+        var second = new EditorFindDialog(ModalTestHost.Create(secondDriver), PaletteRegistry.Default, historyRegistry).Show(null);
 
         Assert.Equal("abc", second?.Pattern);
     }

@@ -109,11 +109,9 @@ internal sealed class SftpConnectionDialog
             static layout =>
             {
                 Rect content = layout.ContentBounds;
-                int contentX = content.X + 1;
-                int contentWidth = Math.Max(1, content.Width - 2);
                 return new ModalFormLayout(
-                    new Rect(contentX, content.Y, contentWidth, Math.Max(1, content.Height - 2)),
-                    new Rect(contentX, content.Bottom - 2, contentWidth, 2));
+                    new Rect(content.X, content.Y, content.Width, Math.Max(1, content.Height - 2)),
+                    new Rect(content.X, content.Bottom - 2, content.Width, 2));
             },
             (routed, result) =>
             {

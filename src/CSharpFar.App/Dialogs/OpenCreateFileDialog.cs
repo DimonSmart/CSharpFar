@@ -89,11 +89,9 @@ internal sealed class OpenCreateFileDialog
             static layout =>
             {
                 Rect content = layout.ContentBounds;
-                int contentX = content.X + 1;
-                int contentWidth = Math.Max(1, content.Width - 2);
                 return new ModalFormLayout(
-                    new Rect(contentX, content.Y, contentWidth, Math.Max(1, content.Height - 2)),
-                    new Rect(contentX, layout.FrameBounds.Bottom - 2, contentWidth, 1));
+                    new Rect(content.X, content.Y, content.Width, Math.Max(1, content.Height - 2)),
+                    new Rect(content.X, layout.FrameBounds.Bottom - 2, content.Width, 1));
             },
             (routed, result) =>
             {
