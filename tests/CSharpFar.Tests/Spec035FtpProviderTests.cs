@@ -606,7 +606,8 @@ public sealed class Spec035FtpProviderTests : IDisposable
     public void FtpConnectionDialog_HistoryEnterSelectsItemBeforeSubmit()
     {
         string host = "history-enter-" + Guid.NewGuid().ToString("N") + ".test";
-        SeedAcceptedFtpHistory(TestConnection() with { Host = host });
+        var historyRegistry = new SingleLineTextHistoryRegistry();
+        SeedAcceptedFtpHistory(TestConnection() with { Host = host }, historyRegistry);
         var driver = new FakeConsoleDriver(width: 100, height: 30);
         var screen = new ScreenRenderer(driver);
         RunReadScript(driver,
@@ -621,7 +622,7 @@ public sealed class Spec035FtpProviderTests : IDisposable
             });
         int validationCalls = 0;
 
-        var result = new FtpConnectionDialog(ModalTestHost.Create(screen)).Show(
+        var result = new FtpConnectionDialog(ModalTestHost.Create(screen), historyRegistry).Show(
             new FtpConnectionDialogRequest(TestConnection(), "secret-password", true, true),
             _ =>
             {
@@ -1205,13 +1206,13 @@ public sealed class Spec035FtpProviderTests : IDisposable
             DateTimeOffset.UtcNow.AddDays(1));
     }
 
-    private static void SeedAcceptedFtpHistory(FtpConnectionInfo connection)
+    private static void SeedAcceptedFtpHistory(FtpConnectionInfo connection, SingleLineTextHistoryRegistry? historyRegistry = null)
     {
         var driver = new FakeConsoleDriver(width: 100, height: 30);
         var screen = new ScreenRenderer(driver);
         driver.EnqueueKey(Key(ConsoleKey.F10));
 
-        _ = new FtpConnectionDialog(ModalTestHost.Create(screen)).Show(
+        _ = new FtpConnectionDialog(ModalTestHost.Create(screen), historyRegistry).Show(
             new FtpConnectionDialogRequest(connection, "secret-password", true, true),
             _ => FtpConnectionDialogValidationResult.Accepted());
     }

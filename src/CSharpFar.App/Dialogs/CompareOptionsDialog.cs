@@ -102,7 +102,7 @@ internal sealed class CompareOptionsDialog
         return _formDialogs.Run(
             form,
             new ModalFormOptions(mode == CompareMode.FileSet ? "Compare file sets" : "Compare folders", DialogWidth, DialogHeight, 52, 12),
-            static layout => new ModalFormLayout(layout.FrameBounds),
+            static layout => new ModalFormLayout(layout.ContentBounds),
             (routed, result) =>
             {
                 if (result.Kind == FormInputResultKind.Cancel)

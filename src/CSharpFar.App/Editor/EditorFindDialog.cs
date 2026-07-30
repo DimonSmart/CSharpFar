@@ -9,16 +9,18 @@ internal sealed class EditorFindDialog
     private const string WholeWordsOption = "whole-words";
 
     private readonly ModalDialogHost _modalDialogs;
+    private readonly SingleLineTextHistoryRegistry _historyRegistry;
 
-    public EditorFindDialog(ModalDialogHost modalDialogs, ConsolePalette palette)
+    public EditorFindDialog(ModalDialogHost modalDialogs, ConsolePalette palette, SingleLineTextHistoryRegistry? historyRegistry = null)
     {
         _modalDialogs = modalDialogs;
+        _historyRegistry = historyRegistry ?? new SingleLineTextHistoryRegistry();
         _ = palette;
     }
 
     public EditorFindDialogResult? Show(EditorFindDialogResult? previous)
     {
-        var result = new SearchOptionsDialog(_modalDialogs).Show(new SearchOptionsDialogOptions
+        var result = new SearchOptionsDialog(_modalDialogs, _historyRegistry).Show(new SearchOptionsDialogOptions
         {
             Title = "Find",
             InitialPattern = previous?.Pattern ?? string.Empty,
