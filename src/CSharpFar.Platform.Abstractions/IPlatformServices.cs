@@ -15,4 +15,5 @@ public interface IPlatformServices : IDisposable
     IVolumeMountPointService VolumeMountPointService { get; }
     IFileSystemPlatformOperations FileSystemOperations { get; }
     ITerminalScreenMode TerminalScreenMode { get; }
+    IProcessesAndPortsPlatformService ProcessesAndPorts { get; }
 }

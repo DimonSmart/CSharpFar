@@ -69,7 +69,8 @@ public static class ApplicationBootstrap
                 sourceRegistry: panelSources,
                 credentialStore: platform.CredentialStore,
                 configDirectory: settingsStore.ConfigDirectory,
-                terminalScreenMode: platform.TerminalScreenMode)
+                terminalScreenMode: platform.TerminalScreenMode,
+                processesAndPorts: platform.ProcessesAndPorts)
             .Run();
     }
 
@@ -114,7 +115,8 @@ public static class ApplicationBootstrap
                 enableBuiltInNetworkModules: false,
                 configDirectory: configDirectory,
                 terminalScreenMode: platform.TerminalScreenMode,
-                runOptions: runOptions)
+                runOptions: runOptions,
+                processesAndPorts: new DemoModeServices.DemoProcessesAndPortsPlatformService())
             .Run();
     }
 }

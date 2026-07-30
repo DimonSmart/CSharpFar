@@ -21,7 +21,9 @@ using CSharpFar.Core.Services;
 using CSharpFar.FileSystem;
 using CSharpFar.Module.Abstractions;
 using CSharpFar.Module.Ftp;
+using CSharpFar.Module.ProcessesAndPorts;
 using CSharpFar.Module.Sftp;
+using CSharpFar.Platform.Abstractions;
 using CSharpFar.Shell;
 using CSharpFar.Ui;
 using AppSettingsAlias = CSharpFar.Core.Models.AppSettings;
@@ -56,7 +58,8 @@ internal static class ApplicationServicesBuilder
         ITerminalScreenMode? terminalScreenMode = null,
         IFileMetadataService? fileMetadata = null,
         Func<IFileAttributesDialog>? fileAttributesDialogFactory = null,
-        ApplicationRunOptions? runOptions = null)
+        ApplicationRunOptions? runOptions = null,
+        IProcessesAndPortsPlatformService? processesAndPorts = null)
     {
         var core = CoreServicesFactory.Create(
             fs,
@@ -269,6 +272,7 @@ internal static class ApplicationServicesBuilder
         var moduleCatalog = ModuleCatalogFactory.Create(
             enableBuiltInNetworkModules ? sftpModule ?? new SftpModule() : null,
             enableBuiltInNetworkModules ? ftpModule ?? new FtpModule() : null,
+            new ProcessesAndPortsModule(processesAndPorts ?? new UnsupportedProcessesAndPortsPlatformService()),
             new ModuleStartupInfo
             {
                 Ui = moduleUiServices,

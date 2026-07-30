@@ -1,10 +1,24 @@
+using System.Net;
+using System.Net.NetworkInformation;
 using CSharpFar.Core.Abstractions;
 using CSharpFar.Core.Models;
+using CSharpFar.Platform.Abstractions;
 
 namespace CSharpFar.App.Bootstrap;
 
 internal static class DemoModeServices
 {
+    public sealed class DemoProcessesAndPortsPlatformService : IProcessesAndPortsPlatformService
+    {
+        public ProcessesAndPortsSupportInfo Support { get; } = new(true);
+        public ProcessesAndPortsSnapshot CaptureSnapshot(ProcessesAndPortsQuery query, CancellationToken cancellationToken = default)
+        {
+            var process = new ProcessSnapshot(18424, "dotnet", @"C:\\Program Files\\dotnet\\dotnet.exe", DateTimeOffset.Parse("2026-07-30T18:12:43+00:00"));
+            var all = new[] { new ProcessNetworkEndpoint(NetworkTransportProtocol.Tcp, IPAddress.Loopback, 64341, null, null, TcpState.Listen, process), new ProcessNetworkEndpoint(NetworkTransportProtocol.Tcp, IPAddress.IPv6Loopback, 64341, null, null, TcpState.Listen, process), new ProcessNetworkEndpoint(NetworkTransportProtocol.Udp, IPAddress.Any, 5353, null, null, null, new(2380, "svchost", null, null)) };
+            return new(DateTimeOffset.Parse("2026-07-30T18:37:10+00:00"), all.Where(x => x.Protocol == NetworkTransportProtocol.Tcp ? (x.TcpState == TcpState.Listen ? query.IncludeTcpListeners : query.IncludeOtherTcpConnections) : query.IncludeUdpEndpoints).ToArray());
+        }
+        public ProcessTerminationResult TerminateProcess(ProcessIdentity identity, CancellationToken cancellationToken = default) => new(ProcessTerminationStatus.NotSupported, "Terminate process is disabled in demo mode.");
+    }
     public static IReadOnlyList<FileSystemVolume> CreateVolumes() =>
     [
         new FileSystemVolume

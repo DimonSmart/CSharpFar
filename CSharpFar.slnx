@@ -12,6 +12,7 @@
     <Project Path="src/CSharpFar.Plugin.Abstractions/CSharpFar.Plugin.Abstractions.csproj" />
     <Project Path="src/CSharpFar.Module.Ftp/CSharpFar.Module.Ftp.csproj" />
     <Project Path="src/CSharpFar.Module.Sftp/CSharpFar.Module.Sftp.csproj" />
+    <Project Path="src/CSharpFar.Module.ProcessesAndPorts/CSharpFar.Module.ProcessesAndPorts.csproj" />
     <Project Path="src/CSharpFar.Platform.Abstractions/CSharpFar.Platform.Abstractions.csproj" />
     <Project Path="src/CSharpFar.Platform.Unix/CSharpFar.Platform.Unix.csproj" />
     <Project Path="src/CSharpFar.Platform.Windows/CSharpFar.Platform.Windows.csproj" />
