@@ -5,12 +5,21 @@ namespace CSharpFar.Ui;
 public sealed class SingleLineTextHistoryState
 {
     public const int MaxVisibleRows = 10;
+    public const int MaxItemsPerField = 100;
 
     private readonly List<string> _items = [];
     private readonly List<string> _matches = [];
     internal VerticalScrollbarController Scrollbar { get; } = new();
 
+    public SingleLineTextHistoryState(IEnumerable<string>? initialItems = null, Action<IReadOnlyList<string>>? itemsChanged = null)
+    {
+        _items = Normalize(initialItems);
+        ItemsChanged = itemsChanged;
+    }
+
+    private Action<IReadOnlyList<string>>? ItemsChanged { get; }
     public IReadOnlyList<string> Items => _items;
+    public bool HasItems => _items.Count > 0;
     public IReadOnlyList<string> Matches => _matches;
     public bool IsDropdownOpen { get; private set; }
     public int SelectedIndex { get; private set; }
@@ -21,9 +30,15 @@ public sealed class SingleLineTextHistoryState
         if (string.IsNullOrWhiteSpace(text))
             return;
 
+        if (_items.Count > 0 && string.Equals(_items[0], text, StringComparison.Ordinal))
+            return;
+
         _items.RemoveAll(item => string.Equals(item, text, StringComparison.Ordinal));
         _items.Insert(0, text);
+        if (_items.Count > MaxItemsPerField)
+            _items.RemoveRange(MaxItemsPerField, _items.Count - MaxItemsPerField);
         RefreshOpenMatches();
+        ItemsChanged?.Invoke(_items);
     }
 
     public bool OpenAll(int availableContentRows) =>
@@ -182,4 +197,21 @@ public sealed class SingleLineTextHistoryState
 
     private static int VisibleRows(int availableContentRows, int itemCount) =>
         Math.Max(0, Math.Min(Math.Min(MaxVisibleRows, availableContentRows), itemCount));
+
+    private static List<string> Normalize(IEnumerable<string>? items)
+    {
+        var result = new List<string>();
+        if (items is null)
+            return result;
+
+        var seen = new HashSet<string>(StringComparer.Ordinal);
+        foreach (string item in items)
+        {
+            if (!string.IsNullOrWhiteSpace(item) && seen.Add(item))
+                result.Add(item);
+            if (result.Count == MaxItemsPerField)
+                break;
+        }
+        return result;
+    }
 }

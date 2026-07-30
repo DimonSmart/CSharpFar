@@ -35,10 +35,14 @@ internal sealed class SftpConnectionDialog
     private const int DialogHeight = 18;
     private const int FieldWidth = 42;
 
-    private static readonly SingleLineTextHistoryRegistry HistoryRegistry = new();
+    private readonly SingleLineTextHistoryRegistry _historyRegistry;
     private readonly ModalFormHost _formDialogs;
 
-    public SftpConnectionDialog(ModalDialogHost modalDialogs) => _formDialogs = new ModalFormHost(modalDialogs);
+    public SftpConnectionDialog(ModalDialogHost modalDialogs, SingleLineTextHistoryRegistry? historyRegistry = null)
+    {
+        _formDialogs = new ModalFormHost(modalDialogs);
+        _historyRegistry = historyRegistry ?? new SingleLineTextHistoryRegistry();
+    }
 
     public SftpConnectionDialogResult? Show(
         SftpConnectionDialogRequest request,
@@ -61,7 +65,7 @@ internal sealed class SftpConnectionDialog
         var userName = TextBuffer(connection?.Username ?? string.Empty);
         var password = TextBuffer(request.SavedPassword ?? string.Empty);
         var remoteRoot = TextBuffer(connection?.RemoteRootPath ?? "/");
-        var histories = new TextFieldHistories();
+        var histories = new TextFieldHistories(_historyRegistry);
         var connectionNameState = new TextInputRowState();
         var hostState = new TextInputRowState();
         var portState = new TextInputRowState();
@@ -253,11 +257,15 @@ internal sealed class SftpConnectionDialog
 
     private sealed class TextFieldHistories
     {
-        public SingleLineTextHistoryState ConnectionName { get; } = HistoryRegistry.GetOrCreate("SftpConnectionDialog.ConnectionName");
-        public SingleLineTextHistoryState Host { get; } = HistoryRegistry.GetOrCreate("SftpConnectionDialog.Host");
-        public SingleLineTextHistoryState Port { get; } = HistoryRegistry.GetOrCreate("SftpConnectionDialog.Port");
-        public SingleLineTextHistoryState UserName { get; } = HistoryRegistry.GetOrCreate("SftpConnectionDialog.UserName");
-        public SingleLineTextHistoryState RemoteRoot { get; } = HistoryRegistry.GetOrCreate("SftpConnectionDialog.RemoteRoot");
+        public TextFieldHistories(SingleLineTextHistoryRegistry historyRegistry)
+        {
+            ConnectionName = historyRegistry.GetOrCreate("SftpConnectionDialog.ConnectionName"); Host = historyRegistry.GetOrCreate("SftpConnectionDialog.Host"); Port = historyRegistry.GetOrCreate("SftpConnectionDialog.Port"); UserName = historyRegistry.GetOrCreate("SftpConnectionDialog.UserName"); RemoteRoot = historyRegistry.GetOrCreate("SftpConnectionDialog.RemoteRoot");
+        }
+        public SingleLineTextHistoryState ConnectionName { get; }
+        public SingleLineTextHistoryState Host { get; }
+        public SingleLineTextHistoryState Port { get; }
+        public SingleLineTextHistoryState UserName { get; }
+        public SingleLineTextHistoryState RemoteRoot { get; }
 
         public void Add(CommandLineState connectionName, CommandLineState host, CommandLineState port, CommandLineState userName, CommandLineState remoteRoot)
         {

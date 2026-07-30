@@ -115,7 +115,7 @@ public sealed class FtpModule
             ? CredentialStore.TryReadPassword(connection.CredentialId)
             : null;
 
-        return new FtpConnectionDialog(StartupInfo.Ui.ModalDialogs).Show(
+        return new FtpConnectionDialog(StartupInfo.Ui.ModalDialogs, StartupInfo.Ui.TextFieldHistory).Show(
             new FtpConnectionDialogRequest(
                 connection,
                 savedPassword,

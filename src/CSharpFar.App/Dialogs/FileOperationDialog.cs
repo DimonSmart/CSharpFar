@@ -47,12 +47,13 @@ internal sealed class FileOperationDialog
         FileSecurityMode.Inherit,
     ];
 
-    private static readonly SingleLineTextHistoryRegistry HistoryRegistry = new();
+    private readonly SingleLineTextHistoryRegistry _historyRegistry;
     private readonly ModalFormHost _formDialogs;
 
-    public FileOperationDialog(ModalDialogHost modalDialogs)
+    public FileOperationDialog(ModalDialogHost modalDialogs, SingleLineTextHistoryRegistry? historyRegistry = null)
     {
         _formDialogs = new ModalFormHost(modalDialogs);
+        _historyRegistry = historyRegistry ?? new SingleLineTextHistoryRegistry();
     }
 
     public FileOperationDialogResult? ShowCopy(
@@ -117,8 +118,8 @@ internal sealed class FileOperationDialog
         var filter = new CommandLineState();
         filter.SetText(string.IsNullOrWhiteSpace(initialOptions.FileMask) ? "*" : initialOptions.FileMask);
 
-        SingleLineTextHistoryState destinationHistory = HistoryRegistry.GetOrCreate("FileOperationDialog.Destination");
-        SingleLineTextHistoryState filterHistory = HistoryRegistry.GetOrCreate("FileOperationDialog.Filter");
+        SingleLineTextHistoryState destinationHistory = _historyRegistry.GetOrCreate("FileOperationDialog.Destination");
+        SingleLineTextHistoryState filterHistory = _historyRegistry.GetOrCreate("FileOperationDialog.Filter");
         var destinationRowState = new TextInputRowState();
         var filterRowState = new TextInputRowState();
 

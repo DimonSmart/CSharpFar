@@ -78,6 +78,8 @@ internal static class ApplicationServicesBuilder
         var functionKeyBindingProvider = core.FunctionKeyBindingProvider;
         var session = core.Session;
         var effectiveConfigDirectory = core.ConfigDirectory;
+        var fieldHistoryStore = new History.JsonSingleLineTextHistoryStore(effectiveConfigDirectory);
+        var fieldHistoryRegistry = new SingleLineTextHistoryRegistry(fieldHistoryStore);
         var effectiveSearchService = core.SearchService;
         var effectiveFileLauncher = core.FileLauncher;
         var effectiveClipboard = core.Clipboard;
@@ -262,6 +264,7 @@ internal static class ApplicationServicesBuilder
             Screen = screen,
             ModalDialogs = modalDialogs,
             Palette = () => session.App.Palette,
+            TextFieldHistory = fieldHistoryRegistry,
         };
         var moduleCatalog = ModuleCatalogFactory.Create(
             enableBuiltInNetworkModules ? sftpModule ?? new SftpModule() : null,
@@ -302,6 +305,7 @@ internal static class ApplicationServicesBuilder
             effectiveFileLauncher,
             effectiveSearchService,
             effectiveHistory,
+            fieldHistoryRegistry,
             effectiveUserMenu,
             effectiveClipboard,
             effectiveSourceRegistry,

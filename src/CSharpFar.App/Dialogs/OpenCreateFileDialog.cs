@@ -18,21 +18,23 @@ internal sealed class OpenCreateFileDialog
     private const int DialogHeight = 11;
     private const string Title = "Editor";
 
-    private static readonly SingleLineTextHistoryRegistry HistoryRegistry = new();
+    private readonly SingleLineTextHistoryRegistry _historyRegistry;
 
     private readonly ModalFormHost _formDialogs;
     private readonly IReadOnlyList<EditorNewFileEncodingOption> _codePages;
 
-    public OpenCreateFileDialog(ModalDialogHost modalDialogs)
-        : this(modalDialogs, EditorNewFileEncodingOption.CreateCatalog())
+    public OpenCreateFileDialog(ModalDialogHost modalDialogs, SingleLineTextHistoryRegistry? historyRegistry = null)
+        : this(modalDialogs, EditorNewFileEncodingOption.CreateCatalog(), historyRegistry)
     {
     }
 
     internal OpenCreateFileDialog(
         ModalDialogHost modalDialogs,
-        IReadOnlyList<EditorNewFileEncodingOption> codePages)
+        IReadOnlyList<EditorNewFileEncodingOption> codePages,
+        SingleLineTextHistoryRegistry? historyRegistry = null)
     {
         _formDialogs = new ModalFormHost(modalDialogs);
+        _historyRegistry = historyRegistry ?? new SingleLineTextHistoryRegistry();
         _codePages = codePages.Count == 0
             ? [new EditorNewFileEncodingOption("Default", null, EmitByteOrderMark: false)]
             : codePages;
@@ -46,7 +48,7 @@ internal sealed class OpenCreateFileDialog
         if (!string.IsNullOrEmpty(initialPath))
             filePath.SetText(initialPath);
 
-        SingleLineTextHistoryState history = HistoryRegistry.GetOrCreate("OpenCreateFileDialog.FilePath");
+        SingleLineTextHistoryState history = _historyRegistry.GetOrCreate("OpenCreateFileDialog.FilePath");
         var pathState = new TextInputRowState();
         var pathRow = new TextInputRow(filePath, history, pathState)
         {

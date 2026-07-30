@@ -25,7 +25,7 @@ internal sealed class OpenCreateFileCommand : IApplicationCommand
         if (!ApplicationCommandContext.CommittedLocationMatches(target.State, target.ActiveCommitted))
             return ApplicationCommandResult.Rendered();
 
-        var dialog = new OpenCreateFileDialog(context.ModalDialogs);
+        var dialog = new OpenCreateFileDialog(context.ModalDialogs, context.TextFieldHistory);
         var result = dialog.Show(
             InitialPath(context, target),
             attempt => ValidateLocalPath(target.State.SourcePath, attempt));

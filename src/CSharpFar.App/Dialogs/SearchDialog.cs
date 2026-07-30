@@ -11,12 +11,13 @@ internal sealed class SearchDialog
     private const int DialogWidth = 76;
     private const int DialogHeight = 19;
 
-    private static readonly SingleLineTextHistoryRegistry HistoryRegistry = new();
+    private readonly SingleLineTextHistoryRegistry _historyRegistry;
     private readonly ModalFormHost _formDialogs;
 
-    public SearchDialog(ModalDialogHost modalDialogs)
+    public SearchDialog(ModalDialogHost modalDialogs, SingleLineTextHistoryRegistry? historyRegistry = null)
     {
         _formDialogs = new ModalFormHost(modalDialogs);
+        _historyRegistry = historyRegistry ?? new SingleLineTextHistoryRegistry();
     }
 
     public SearchRequest? Show(string rootPath)
@@ -77,9 +78,9 @@ internal sealed class SearchDialog
         var parallelism = new CommandLineState();
         parallelism.SetText(DefaultParallelism().ToString(System.Globalization.CultureInfo.InvariantCulture));
 
-        SingleLineTextHistoryState maskHistory = HistoryRegistry.GetOrCreate("SearchDialog.Mask");
-        SingleLineTextHistoryState textHistory = HistoryRegistry.GetOrCreate("SearchDialog.Text");
-        SingleLineTextHistoryState parallelismHistory = HistoryRegistry.GetOrCreate("SearchDialog.Parallelism");
+        SingleLineTextHistoryState maskHistory = _historyRegistry.GetOrCreate("SearchDialog.Mask");
+        SingleLineTextHistoryState textHistory = _historyRegistry.GetOrCreate("SearchDialog.Text");
+        SingleLineTextHistoryState parallelismHistory = _historyRegistry.GetOrCreate("SearchDialog.Parallelism");
         var maskRowState = new TextInputRowState();
         var textRowState = new TextInputRowState();
         var parallelismRowState = new TextInputRowState();
@@ -193,7 +194,7 @@ internal sealed class SearchDialog
         bool hasText)
     {
         var fill = FarDialogStyles.Fill;
-        var disabled = new CellStyle(ConsoleColor.DarkGray, fill.Background);
+        var disabled = FarDialogStyles.DisabledControl(fill);
         return
         [
             new LabelRow("A file mask or several file masks:", fill),

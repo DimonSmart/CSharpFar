@@ -62,6 +62,8 @@ internal sealed class FormTextInputField
 
         if (_history is not null && SingleLineTextInput.IsHistoryArrowHit(bounds.X, bounds.Width, bounds.Y, mouse.X, mouse.Y))
         {
+            if (!_history.HasItems)
+                return FormInputResult.Handled;
             if (_history.IsDropdownOpen)
             {
                 _history.Close();

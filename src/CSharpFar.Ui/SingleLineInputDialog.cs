@@ -23,13 +23,13 @@ public sealed class SingleLineInputDialog
     private const int DialogWidth = 52;
     private const int DialogHeight = 7;
 
-    private static readonly SingleLineTextHistoryRegistry HistoryRegistry = new();
-
     private readonly ModalFormHost _formDialogs;
+    private readonly SingleLineTextHistoryRegistry _historyRegistry;
 
-    public SingleLineInputDialog(ModalDialogHost modalDialogs)
+    public SingleLineInputDialog(ModalDialogHost modalDialogs, SingleLineTextHistoryRegistry? historyRegistry = null)
     {
         _formDialogs = new ModalFormHost(modalDialogs ?? throw new ArgumentNullException(nameof(modalDialogs)));
+        _historyRegistry = historyRegistry ?? new SingleLineTextHistoryRegistry();
     }
 
     public SingleLineInputDialogResult Show(SingleLineInputDialogOptions options)
@@ -46,7 +46,7 @@ public sealed class SingleLineInputDialog
             buffer.SetText(options.InitialText);
 
         SingleLineTextHistoryState? history = options is { MaskInput: false, HistoryKey: not null }
-            ? HistoryRegistry.GetOrCreate(options.HistoryKey)
+            ? _historyRegistry.GetOrCreate(options.HistoryKey)
             : null;
         string? error = null;
         var actions = new ButtonRow([

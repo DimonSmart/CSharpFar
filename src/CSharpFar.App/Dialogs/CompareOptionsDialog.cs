@@ -13,12 +13,13 @@ internal sealed class CompareOptionsDialog
     private const int DialogWidth = 86;
     private const int DialogHeight = 26;
 
-    private static readonly SingleLineTextHistoryRegistry HistoryRegistry = new();
+    private readonly SingleLineTextHistoryRegistry _historyRegistry;
     private readonly ModalFormHost _formDialogs;
 
-    public CompareOptionsDialog(ModalDialogHost modalDialogs)
+    public CompareOptionsDialog(ModalDialogHost modalDialogs, SingleLineTextHistoryRegistry? historyRegistry = null)
     {
         _formDialogs = new ModalFormHost(modalDialogs);
+        _historyRegistry = historyRegistry ?? new SingleLineTextHistoryRegistry();
     }
 
     public ComparisonOptions? Show(
@@ -42,9 +43,9 @@ internal sealed class CompareOptionsDialog
         exclude.SetText(settings.ExcludeMasks ?? "");
         var customDepth = new CommandLineState();
         customDepth.SetText(Math.Max(0, settings.CustomDepth).ToString(System.Globalization.CultureInfo.InvariantCulture));
-        var includeHistory = HistoryRegistry.GetOrCreate("Compare.Include");
-        var excludeHistory = HistoryRegistry.GetOrCreate("Compare.Exclude");
-        var depthHistory = HistoryRegistry.GetOrCreate("Compare.Depth");
+        var includeHistory = _historyRegistry.GetOrCreate("Compare.Include");
+        var excludeHistory = _historyRegistry.GetOrCreate("Compare.Exclude");
+        var depthHistory = _historyRegistry.GetOrCreate("Compare.Depth");
         var includeRowState = new TextInputRowState();
         var excludeRowState = new TextInputRowState();
         var depthRowState = new TextInputRowState();

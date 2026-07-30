@@ -14,13 +14,14 @@ internal sealed class CreateFolderDialog
     private const string Title = "Make folder";
     private const string Prompt = "Create the folder:";
 
-    private static readonly SingleLineTextHistoryRegistry HistoryRegistry = new();
+    private readonly SingleLineTextHistoryRegistry _historyRegistry;
 
     private readonly ModalFormHost _formDialogs;
 
-    public CreateFolderDialog(ModalDialogHost modalDialogs)
+    public CreateFolderDialog(ModalDialogHost modalDialogs, SingleLineTextHistoryRegistry? historyRegistry = null)
     {
         _formDialogs = new ModalFormHost(modalDialogs);
+        _historyRegistry = historyRegistry ?? new SingleLineTextHistoryRegistry();
     }
 
     public string? Show(string? initialText = null, Func<string, string?>? validate = null)
@@ -29,7 +30,7 @@ internal sealed class CreateFolderDialog
         if (initialText is not null)
             folderName.SetText(initialText);
 
-        SingleLineTextHistoryState history = HistoryRegistry.GetOrCreate("CreateFolderDialog.FolderName");
+        SingleLineTextHistoryState history = _historyRegistry.GetOrCreate("CreateFolderDialog.FolderName");
         var inputState = new TextInputRowState();
         var input = new TextInputRow(folderName, history, inputState)
         {

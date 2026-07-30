@@ -180,7 +180,7 @@ internal sealed class FileAttributesDialog : IFileAttributesDialog
         string? error)
     {
         var fill = FarDialogStyles.Fill;
-        var disabled = new CellStyle(ConsoleColor.DarkGray, fill.Background);
+        var disabled = FarDialogStyles.DisabledControl(fill);
         var rows = new List<IFormRow>
         {
             new LabelRow("Change file attributes for", fill),

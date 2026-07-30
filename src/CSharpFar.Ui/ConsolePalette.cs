@@ -87,6 +87,7 @@ public sealed class ConsolePalette
     public ConsoleColor InputBackground { get; init; } = ConsoleColor.DarkCyan;
     public ConsoleColor InputFocusedText { get; init; } = ConsoleColor.White;
     public ConsoleColor InputFocusedBackground { get; init; } = ConsoleColor.DarkBlue;
+    public ConsoleColor DisabledControlForeground { get; init; } = ConsoleColor.DarkGray;
 
     // Warning dialogs
     public ConsoleColor WarningForeground { get; init; } = ConsoleColor.White;
