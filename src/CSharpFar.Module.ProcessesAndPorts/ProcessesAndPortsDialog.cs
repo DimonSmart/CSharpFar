@@ -124,7 +124,7 @@ internal sealed class ProcessesAndPortsDialog(ModuleUiServices ui, IProcessesAnd
         ScrollableFormFrame formFrame = null!;
         _renderer.Render(context.Canvas, modal, "Processes and Ports", true, FarDialogStyles.OuterOptions, FarDialogStyles.FrameOptions, (_, _) =>
         {
-            formFrame = form.Render(new FormRenderContext(context, formBody, FarDialogStyles.Border, footer), focus, [new UiFocusEntry(list.ListTarget, 1, list.HasItems)], list.ListTarget);
+            formFrame = form.Render(new FormRenderContext(context, formBody, FarDialogStyles.Border, footer), focus, [new UiFocusEntry(list.ListTarget, 1, list.HasItems)], list.HasItems ? list.ListTarget : null);
             if (header.Height > 0) context.Canvas.Write(header.X, header.Y, Fit("Process                 PID  Proto  Port  Local address                 State  Remote", header.Width), FarDialogStyles.Fill);
             list.Render(context.Canvas, listFrame, FarDialogStyles.Fill, FarDialogStyles.FocusedInput, FarDialogStyles.Fill);
             list.RenderScrollbar(context.Canvas, listFrame, FarDialogStyles.Border);
