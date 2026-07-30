@@ -31,7 +31,8 @@ internal sealed class InputDialog
         string? initialText = null,
         Func<string, string?>? validate = null,
         bool allowEmpty = false,
-        bool maskInput = false)
+        bool maskInput = false,
+        string? historyKey = null)
     {
         var result = new SingleLineInputDialog(_modalDialogs).Show(new SingleLineInputDialogOptions
         {
@@ -40,7 +41,7 @@ internal sealed class InputDialog
             InitialText = initialText ?? string.Empty,
             AllowEmpty = allowEmpty,
             MaskInput = maskInput,
-            HistoryKey = maskInput ? null : $"{title}\n{prompt}",
+            HistoryKey = maskInput ? null : historyKey,
             Validate = validate,
         });
 

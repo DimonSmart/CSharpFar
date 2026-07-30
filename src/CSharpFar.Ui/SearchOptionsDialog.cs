@@ -63,13 +63,13 @@ public sealed class SearchOptionsDialog
     private const int MinimumWidth = 40;
     private const int MinimumHeight = 8;
 
-    private static readonly SingleLineTextHistoryRegistry HistoryRegistry = new();
-
     private readonly ModalFormHost _formDialogs;
+    private readonly SingleLineTextHistoryRegistry _historyRegistry;
 
-    public SearchOptionsDialog(ModalDialogHost modalDialogs)
+    public SearchOptionsDialog(ModalDialogHost modalDialogs, SingleLineTextHistoryRegistry? historyRegistry = null)
     {
         _formDialogs = new ModalFormHost(modalDialogs ?? throw new ArgumentNullException(nameof(modalDialogs)));
+        _historyRegistry = historyRegistry ?? new SingleLineTextHistoryRegistry();
     }
 
     public SearchOptionsDialogResult? Show(SearchOptionsDialogOptions options)
@@ -86,7 +86,7 @@ public sealed class SearchOptionsDialog
             pattern.SetText(options.InitialPattern);
 
         var state = new SearchOptionsDialogState(pattern.Text, options.Options);
-        SingleLineTextHistoryState patternHistory = HistoryRegistry.GetOrCreate(options.HistoryKey);
+        SingleLineTextHistoryState patternHistory = _historyRegistry.GetOrCreate(options.HistoryKey);
         var patternRowState = new TextInputRowState();
         var checkboxes = options.Options
             .Select(option => new CheckBoxRow(new CheckBoxLine(option.Label, option.IsChecked)))

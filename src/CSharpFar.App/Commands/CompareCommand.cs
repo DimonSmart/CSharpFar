@@ -45,7 +45,7 @@ internal sealed class CompareCommand : IApplicationCommand
         }
 
         CompareMode mode = _kind == CompareCommandKind.FileSets ? CompareMode.FileSet : CompareMode.FolderStructure;
-        var options = new CompareOptionsDialog(context.ModalDialogs).Show(
+        var options = new CompareOptionsDialog(context.ModalDialogs, context.TextFieldHistory).Show(
             mode,
             context.Settings.Compare,
             context.LeftPanel,

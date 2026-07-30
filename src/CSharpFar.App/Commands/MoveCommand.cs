@@ -44,7 +44,7 @@ internal sealed class MoveCommand : IApplicationCommand
             return ApplicationCommandResult.Rendered();
         }
 
-        var dialogResult = new FileOperationDialog(context.ModalDialogs).ShowMove(
+        var dialogResult = new FileOperationDialog(context.ModalDialogs, context.TextFieldHistory).ShowMove(
             sources,
             target.PassiveCommitted?.CurrentDirectory ?? target.PassiveState.CurrentDirectory,
             context.BuildFileOperationOptions());

@@ -34,10 +34,14 @@ internal sealed class FtpConnectionDialog
     private const int DialogWidth = 80;
     private const int DialogHeight = 22;
     private const int FieldWidth = 44;
-    private static readonly SingleLineTextHistoryRegistry HistoryRegistry = new();
+    private readonly SingleLineTextHistoryRegistry _historyRegistry;
     private readonly ModalFormHost _formDialogs;
 
-    public FtpConnectionDialog(ModalDialogHost modalDialogs) => _formDialogs = new ModalFormHost(modalDialogs);
+    public FtpConnectionDialog(ModalDialogHost modalDialogs, SingleLineTextHistoryRegistry? historyRegistry = null)
+    {
+        _formDialogs = new ModalFormHost(modalDialogs);
+        _historyRegistry = historyRegistry ?? new SingleLineTextHistoryRegistry();
+    }
 
     public FtpConnectionDialogResult? Show(
         FtpConnectionDialogRequest request,
@@ -54,7 +58,7 @@ internal sealed class FtpConnectionDialog
         var password = TextBuffer(request.SavedPassword ?? string.Empty);
         var remoteRoot = TextBuffer(connection?.RemoteRootPath ?? "/");
         var activePorts = TextBuffer(FormatActivePortRange(connection) ?? string.Empty);
-        var histories = new TextFieldHistories();
+        var histories = new TextFieldHistories(_historyRegistry);
         var nameState = new TextInputRowState();
         var hostState = new TextInputRowState();
         var portState = new TextInputRowState();
@@ -262,12 +266,16 @@ internal sealed class FtpConnectionDialog
 
     private sealed class TextFieldHistories
     {
-        public SingleLineTextHistoryState ConnectionName { get; } = HistoryRegistry.GetOrCreate("FtpConnectionDialog.ConnectionName");
-        public SingleLineTextHistoryState Host { get; } = HistoryRegistry.GetOrCreate("FtpConnectionDialog.Host");
-        public SingleLineTextHistoryState Port { get; } = HistoryRegistry.GetOrCreate("FtpConnectionDialog.Port");
-        public SingleLineTextHistoryState UserName { get; } = HistoryRegistry.GetOrCreate("FtpConnectionDialog.UserName");
-        public SingleLineTextHistoryState RemoteRoot { get; } = HistoryRegistry.GetOrCreate("FtpConnectionDialog.RemoteRoot");
-        public SingleLineTextHistoryState ActivePorts { get; } = HistoryRegistry.GetOrCreate("FtpConnectionDialog.ActivePorts");
+        public TextFieldHistories(SingleLineTextHistoryRegistry historyRegistry)
+        {
+            ConnectionName = historyRegistry.GetOrCreate("FtpConnectionDialog.ConnectionName"); Host = historyRegistry.GetOrCreate("FtpConnectionDialog.Host"); Port = historyRegistry.GetOrCreate("FtpConnectionDialog.Port"); UserName = historyRegistry.GetOrCreate("FtpConnectionDialog.UserName"); RemoteRoot = historyRegistry.GetOrCreate("FtpConnectionDialog.RemoteRoot"); ActivePorts = historyRegistry.GetOrCreate("FtpConnectionDialog.ActivePorts");
+        }
+        public SingleLineTextHistoryState ConnectionName { get; }
+        public SingleLineTextHistoryState Host { get; }
+        public SingleLineTextHistoryState Port { get; }
+        public SingleLineTextHistoryState UserName { get; }
+        public SingleLineTextHistoryState RemoteRoot { get; }
+        public SingleLineTextHistoryState ActivePorts { get; }
         public void Add(params CommandLineState[] fields) { foreach (var field in fields) _ = field; ConnectionName.Add(fields[0].Text.Trim()); Host.Add(fields[1].Text.Trim()); Port.Add(fields[2].Text.Trim()); UserName.Add(fields[3].Text.Trim()); RemoteRoot.Add(fields[4].Text.Trim()); ActivePorts.Add(fields[5].Text.Trim()); }
     }
 }

@@ -76,6 +76,7 @@ internal sealed class ApplicationCommandContext
         IFileOperationService fileOperations,
         ISearchService searchService,
         IHistoryStore history,
+        SingleLineTextHistoryRegistry textFieldHistory,
         UserMenuStore userMenu,
         ITextClipboard textClipboard,
         FilePanelSourceRegistry sourceRegistry,
@@ -113,6 +114,7 @@ internal sealed class ApplicationCommandContext
         FileOperations = fileOperations;
         SearchService = searchService;
         History = history;
+        TextFieldHistory = textFieldHistory;
         UserMenu = userMenu;
         TextClipboard = textClipboard;
         _sourceRegistry = sourceRegistry;
@@ -163,6 +165,8 @@ internal sealed class ApplicationCommandContext
     public ISearchService SearchService { get; }
 
     public IHistoryStore History { get; }
+
+    public SingleLineTextHistoryRegistry TextFieldHistory { get; }
 
     public CommandLineState CommandLine => _session.CommandLine.State;
 

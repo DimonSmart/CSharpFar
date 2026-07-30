@@ -11,6 +11,8 @@ public sealed class ModuleUiServices
 
     public required Func<ConsolePalette> Palette { get; init; }
 
+    public required SingleLineTextHistoryRegistry TextFieldHistory { get; init; }
+
     public ConsolePalette CurrentPalette => Palette();
 
     /// <summary>
