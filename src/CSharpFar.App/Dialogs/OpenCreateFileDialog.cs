@@ -15,7 +15,7 @@ internal sealed record OpenCreateFileDialogResult(
 internal sealed class OpenCreateFileDialog
 {
     private const int DialogWidth = 72;
-    private const int DialogHeight = 11;
+    private const int DialogHeight = 12;
     private const string Title = "Editor";
 
     private readonly SingleLineTextHistoryRegistry _historyRegistry;

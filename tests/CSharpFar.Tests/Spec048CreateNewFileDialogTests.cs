@@ -56,6 +56,18 @@ public sealed class Spec048CreateNewFileDialogTests : IDisposable
     }
 
     [Fact]
+    public void OpenCreateFileDialog_StandardLayoutDoesNotShowVerticalScrollbar()
+    {
+        var driver = new FakeConsoleDriver(width: 100, height: 30);
+        var screen = new ScreenRenderer(driver);
+        driver.EnqueueKey(Key(ConsoleKey.Escape));
+
+        _ = new OpenCreateFileDialog(ModalTestHost.Create(screen)).Show();
+
+        Assert.DoesNotContain(driver.WriteRecords, record => record.Text.Contains('▲'));
+    }
+
+    [Fact]
     public void OpenCreateFileDialog_MouseOpensScrollableCodePageDropdown()
     {
         var driver = new FakeConsoleDriver(width: 100, height: 30);
