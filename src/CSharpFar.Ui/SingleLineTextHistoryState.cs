@@ -9,7 +9,7 @@ public enum SingleLineTextHistoryAcceptResult
     HistoryItem,
 }
 
-public sealed class SingleLineTextHistoryState
+public class SingleLineTextHistoryState
 {
     public const int MaxVisibleRows = 10;
     public const int MaxItemsPerField = 100;

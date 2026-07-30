@@ -41,7 +41,7 @@ internal sealed class InputDialog
             InitialText = initialText ?? string.Empty,
             AllowEmpty = allowEmpty,
             MaskInput = maskInput,
-            HistoryKey = maskInput ? null : historyKey,
+            History = maskInput || string.IsNullOrWhiteSpace(historyKey) ? null : new TextHistoryId(historyKey),
             Validate = validate,
         });
 

@@ -23,6 +23,8 @@ public sealed class LabelRow : FormRow
     private readonly string _text;
     private readonly CellStyle _style;
 
+    public LabelRow(string text) : this(text, FarDialogStyles.Fill) { }
+
     public LabelRow(string text, CellStyle style)
     {
         _text = text;
@@ -39,6 +41,8 @@ public sealed class SeparatorRow : FormRow
 {
     private readonly CellStyle _style;
     private readonly bool _drawLine;
+
+    public SeparatorRow(bool drawLine = true) : this(FarDialogStyles.Fill, drawLine) { }
 
     public SeparatorRow(CellStyle style, bool drawLine = true)
     {

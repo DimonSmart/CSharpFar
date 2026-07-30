@@ -1,29 +1,32 @@
 namespace CSharpFar.Ui;
 
-public sealed class SingleLineTextHistoryRegistry
+public sealed class SingleLineTextHistoryRegistry : ITextFieldHistoryProvider
 {
     private readonly ISingleLineTextHistoryStore _store;
-    private readonly Dictionary<string, SingleLineTextHistoryState> _histories = new(StringComparer.Ordinal);
+    private readonly Dictionary<TextHistoryId, TextHistory> _histories = [];
     private readonly object _sync = new();
 
+    [Obsolete("Use SingleLineTextHistoryRegistry(ISingleLineTextHistoryStore) or TextFieldHistoryTestFactory.CreateInMemory().")]
     public SingleLineTextHistoryRegistry() : this(new InMemorySingleLineTextHistoryStore()) { }
 
     public SingleLineTextHistoryRegistry(ISingleLineTextHistoryStore store) =>
         _store = store ?? throw new ArgumentNullException(nameof(store));
 
-    public SingleLineTextHistoryState GetOrCreate(string fieldKey)
+    public TextHistory Get(TextHistoryId id)
     {
-        if (string.IsNullOrWhiteSpace(fieldKey))
-            throw new ArgumentException("A field history key is required.", nameof(fieldKey));
-
         lock (_sync)
         {
-            if (_histories.TryGetValue(fieldKey, out SingleLineTextHistoryState? history))
+            if (_histories.TryGetValue(id, out TextHistory? history))
                 return history;
 
-            history = new SingleLineTextHistoryState(_store.Load(fieldKey), items => _store.Save(fieldKey, items));
-            _histories.Add(fieldKey, history);
+            history = new TextHistory(_store.Load(id.Value), items => _store.Save(id.Value, items));
+            _histories.Add(id, history);
             return history;
         }
     }
+
+    public TextHistory GetOrCreate(TextHistoryId id) => Get(id);
+
+    [Obsolete("Use Get(TextHistoryId) with a centralized stable identifier.")]
+    public TextHistory GetOrCreate(string fieldKey) => Get(new TextHistoryId(fieldKey));
 }
