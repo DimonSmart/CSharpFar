@@ -20,6 +20,7 @@ internal sealed class ProcessesAndPortsDialog(ModuleUiServices ui, IProcessesAnd
     private readonly ModuleUiServices _ui = ui;
     private readonly IProcessesAndPortsPlatformService _platform = platform;
     private readonly ModalDialogRenderer _renderer = new();
+    private ProcessesAndPortsTableLayout _currentLayout = ProcessesAndPortsTableLayout.Calculate(0);
 
     public void Show(string? initialFilter)
     {
@@ -36,7 +37,7 @@ internal sealed class ProcessesAndPortsDialog(ModuleUiServices ui, IProcessesAnd
 
         ProcessesAndPortsSnapshot? snapshot = TryCapture(null, out string? captureError);
         var targets = new UiTargetScope("processes-and-ports");
-        var list = new RoutedScrollableList<ProcessesAndPortsRow>([], x => x.SearchText, targets.Child("endpoints"), targets.Child("endpoints.scrollbar"))
+        var list = new RoutedScrollableList<ProcessesAndPortsRow>([], x => _currentLayout.FormatRow(x), targets.Child("endpoints"), targets.Child("endpoints.scrollbar"))
         {
             EmptyText = "No matching endpoints.",
             NormalStyle = FarDialogStyles.Fill,
@@ -119,16 +120,19 @@ internal sealed class ProcessesAndPortsDialog(ModuleUiServices ui, IProcessesAnd
         Rect header = new(content.X, formBody.Bottom, content.Width, formBody.Bottom < footer.Y ? 1 : 0);
         Rect status = new(content.X, Math.Max(header.Bottom, footer.Y - 1), content.Width, footer.Y - header.Bottom > 0 ? 1 : 0);
         Rect listBounds = new(content.X, header.Bottom, content.Width, Math.Max(0, status.Y - header.Bottom));
-        Rect? scrollbar = list.Count > listBounds.Height && listBounds.Height > 0 ? new Rect(content.Right - 1, listBounds.Y, 1, listBounds.Height) : null;
-        RoutedScrollableListFrame listFrame = list.CalculateFrame(listBounds.Height, listBounds, scrollbar);
+        Rect tableBounds = new(listBounds.X, listBounds.Y, Math.Max(0, listBounds.Width - 1), listBounds.Height);
+        Rect scrollbarGutter = new(tableBounds.Right, listBounds.Y, listBounds.Width > 0 ? 1 : 0, listBounds.Height);
+        _currentLayout = ProcessesAndPortsTableLayout.Calculate(tableBounds.Width);
+        RoutedScrollableListFrame listFrame = list.CalculateFrame(tableBounds.Height, tableBounds, scrollbarGutter);
         ScrollableFormFrame formFrame = null!;
         _renderer.Render(context.Canvas, modal, "Processes and Ports", true, FarDialogStyles.OuterOptions, FarDialogStyles.FrameOptions, (_, _) =>
         {
             formFrame = form.Render(new FormRenderContext(context, formBody, FarDialogStyles.Border, footer), focus, [new UiFocusEntry(list.ListTarget, 1, list.HasItems)], list.HasItems ? list.ListTarget : null);
-            if (header.Height > 0) context.Canvas.Write(header.X, header.Y, Fit("Process                 PID  Proto  Port  Local address                 State  Remote", header.Width), FarDialogStyles.Fill);
+            if (header.Height > 0) context.Canvas.Write(header.X, header.Y, _currentLayout.FormatHeader(), FarDialogStyles.Fill);
             list.Render(context.Canvas, listFrame, FarDialogStyles.Fill, FarDialogStyles.FocusedInput, FarDialogStyles.Fill);
+            context.Canvas.FillRegion(scrollbarGutter, FarDialogStyles.Fill);
             list.RenderScrollbar(context.Canvas, listFrame, FarDialogStyles.Border);
-            if (status.Height > 0) context.Canvas.Write(status.X, status.Y, Fit(captureError ?? Status(rows, AllowedCount(snapshot?.Endpoints ?? [], tcp, udp, other)), status.Width), FarDialogStyles.Fill);
+            if (status.Height > 0) context.Canvas.Write(status.X, status.Y, ConsoleTextMetrics.FitToCells(captureError ?? Status(rows, AllowedCount(snapshot?.Endpoints ?? [], tcp, udp, other)), status.Width), FarDialogStyles.Fill);
         });
         return new(modal, listBounds, listFrame, formFrame);
     }
@@ -182,7 +186,6 @@ internal sealed class ProcessesAndPortsDialog(ModuleUiServices ui, IProcessesAnd
     private static string DisplayName(ProcessSnapshot process) => process.Name ?? MetadataText(process.MetadataStatus);
     private static string MetadataText(ProcessMetadataStatus status) => status switch { ProcessMetadataStatus.AccessDenied => "<access denied>", ProcessMetadataStatus.Exited => "<process exited>", _ => "<unavailable>" };
     private static bool SameRows(IReadOnlyList<ProcessesAndPortsRow> left, IReadOnlyList<ProcessesAndPortsRow> right) => left.Count == right.Count && left.Zip(right).All(x => x.First.Key.Equals(x.Second.Key));
-    private static string Fit(string value, int width) => value.Length <= width ? value.PadRight(width) : value[..Math.Max(0, width)];
     private readonly record struct Frame(ModalDialogRenderer.Layout Modal, Rect ListBounds, RoutedScrollableListFrame List, ScrollableFormFrame Form);
     private readonly record struct Input(ConsoleInputEvent InputEvent, FormInputResult Form, ScrollableListInputResult List);
 }
