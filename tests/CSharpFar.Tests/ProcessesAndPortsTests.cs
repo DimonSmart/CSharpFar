@@ -95,6 +95,89 @@ public sealed class ProcessesAndPortsTests
         Assert.Equal(1, platform.CaptureCount);
     }
 
+    [Fact]
+    public void Table_layout_clips_long_process_names_without_moving_pid()
+    {
+        ProcessesAndPortsTableLayout layout = ProcessesAndPortsTableLayout.Calculate(90);
+        ProcessesAndPortsRow shortName = Row("worker", IPAddress.Loopback);
+        ProcessesAndPortsRow longName = Row("a-very-long-process-name-that-must-not-reach-the-pid", IPAddress.Loopback);
+
+        string shortText = layout.FormatRow(shortName);
+        string longText = layout.FormatRow(longName);
+        CalculatedColumn pid = layout.Columns.Single(column => column.Definition.Header == "PID");
+
+        Assert.Equal("  4242", CellSlice(shortText, pid));
+        Assert.Equal("  4242", CellSlice(longText, pid));
+        Assert.Contains('…', longText);
+        Assert.Equal(layout.Width, ConsoleTextMetrics.GetCellWidth(longText));
+    }
+
+    [Fact]
+    public void Table_layout_keeps_ipv6_state_and_remote_at_calculated_offsets()
+    {
+        ProcessesAndPortsTableLayout layout = ProcessesAndPortsTableLayout.Calculate(120);
+        ProcessesAndPortsRow row = Row("worker", IPAddress.Parse("fe80::1234:5678:9abc:def0%17"));
+
+        string text = layout.FormatRow(row);
+        CalculatedColumn state = layout.Columns.Single(column => column.Definition.Header == "State");
+        CalculatedColumn remote = layout.Columns.Single(column => column.Definition.Header == "Remote");
+
+        Assert.StartsWith("Listen", CellSlice(text, state));
+        Assert.StartsWith("[2001:db8", CellSlice(text, remote));
+        Assert.Contains('…', text);
+    }
+
+    [Fact]
+    public void Table_layout_uses_the_same_offsets_for_header_and_rows_at_narrow_width()
+    {
+        ProcessesAndPortsTableLayout layout = ProcessesAndPortsTableLayout.Calculate(35);
+        string header = layout.FormatHeader();
+        string row = layout.FormatRow(Row("界e\u0301-long-process", IPAddress.Loopback));
+
+        Assert.Equal(layout.Width, ConsoleTextMetrics.GetCellWidth(header));
+        Assert.Equal(layout.Width, ConsoleTextMetrics.GetCellWidth(row));
+        foreach (CalculatedColumn column in layout.Columns)
+        {
+            string cell = CellSlice(header, column);
+            Assert.Equal(column.Width, ConsoleTextMetrics.GetCellWidth(cell));
+            Assert.Contains(ConsoleTextMetrics.TruncateToCells(column.Definition.Header, column.Width), cell);
+        }
+        Assert.Contains('…', row);
+    }
+
+    [Fact]
+    public void Table_layout_reserves_a_stable_scrollbar_gutter_width()
+    {
+        ProcessesAndPortsTableLayout withoutScrollbar = ProcessesAndPortsTableLayout.Calculate(79);
+        ProcessesAndPortsTableLayout withScrollbar = ProcessesAndPortsTableLayout.Calculate(79);
+
+        Assert.Equal(withoutScrollbar.Width, withScrollbar.Width);
+        Assert.Equal(withoutScrollbar.Columns.Select(column => column.Offset), withScrollbar.Columns.Select(column => column.Offset));
+        Assert.Contains(withoutScrollbar.Columns, column => column.Definition.Header == "PID");
+        Assert.Contains(withoutScrollbar.Columns, column => column.Definition.Header == "Proto");
+        Assert.Contains(withoutScrollbar.Columns, column => column.Definition.Header == "Port");
+    }
+
+    private static ProcessesAndPortsRow Row(string name, IPAddress localAddress)
+    {
+        var process = new ProcessSnapshot(4242, name, null, DateTimeOffset.UtcNow);
+        var endpoint = new ProcessNetworkEndpoint(
+            NetworkTransportProtocol.Tcp,
+            localAddress,
+            443,
+            IPAddress.Parse("2001:db8:1234:5678:9abc:def0:1234:5678"),
+            8443,
+            TcpState.Listen,
+            process);
+        return new ProcessesAndPortsRow(new(NetworkTransportProtocol.Tcp, localAddress, 443, endpoint.RemoteAddress, 8443, process.ProcessId), endpoint, name);
+    }
+
+    private static string CellSlice(string text, CalculatedColumn column)
+    {
+        int start = ConsoleTextMetrics.Utf16IndexFromCellOffset(text, column.Offset);
+        return ConsoleTextMetrics.TruncateToCells(text[start..], column.Width);
+    }
+
     private sealed class FakeProcessesAndPortsPlatformService(IReadOnlyList<ProcessNetworkEndpoint> endpoints) : IProcessesAndPortsPlatformService
     {
         public ProcessesAndPortsSupportInfo Support { get; } = new(true, false);
