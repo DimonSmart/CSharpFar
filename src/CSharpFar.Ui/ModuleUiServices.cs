@@ -40,7 +40,7 @@ public sealed class ModuleUiServices
         new MessageDialog(ModalDialogs).ShowButtons(title, message, buttons);
 
     public string? Input(string title, string prompt, string? initialText = null) =>
-        new ModuleInputDialog(ModalDialogs).Show(title, prompt, initialText);
+        new ModuleInputDialog(ModalDialogs, TextFieldHistory).Show(title, prompt, initialText);
 
     public int? ShowMenu(string title, IReadOnlyList<string> items, int selected) =>
         new ModuleMenuDialog(ModalDialogs).Show(title, items, selected);

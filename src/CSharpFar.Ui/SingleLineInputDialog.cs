@@ -12,7 +12,7 @@ public sealed class SingleLineInputDialogOptions
     public string InitialText { get; init; } = string.Empty;
     public bool AllowEmpty { get; init; }
     public bool MaskInput { get; init; }
-    public string? HistoryKey { get; init; }
+    public TextHistoryId? History { get; init; }
     public Func<string, string?>? Validate { get; init; }
 }
 
@@ -24,12 +24,16 @@ public sealed class SingleLineInputDialog
     private const int DialogHeight = 7;
 
     private readonly ModalFormHost _formDialogs;
-    private readonly SingleLineTextHistoryRegistry _historyRegistry;
+    private readonly ITextFieldHistoryProvider _history;
 
-    public SingleLineInputDialog(ModalDialogHost modalDialogs, SingleLineTextHistoryRegistry? historyRegistry = null)
+    [Obsolete("Pass the application-scoped ITextFieldHistoryProvider.")]
+    public SingleLineInputDialog(ModalDialogHost modalDialogs)
+        : this(modalDialogs, TextFieldHistoryTestFactory.CreateInMemory()) { }
+
+    public SingleLineInputDialog(ModalDialogHost modalDialogs, ITextFieldHistoryProvider history)
     {
         _formDialogs = new ModalFormHost(modalDialogs ?? throw new ArgumentNullException(nameof(modalDialogs)));
-        _historyRegistry = historyRegistry ?? new SingleLineTextHistoryRegistry();
+        _history = history ?? throw new ArgumentNullException(nameof(history));
     }
 
     public SingleLineInputDialogResult Show(SingleLineInputDialogOptions options)
@@ -45,8 +49,8 @@ public sealed class SingleLineInputDialog
         if (options.InitialText.Length > 0)
             buffer.SetText(options.InitialText);
 
-        SingleLineTextHistoryState? history = options is { MaskInput: false, HistoryKey: not null }
-            ? _historyRegistry.GetOrCreate(options.HistoryKey)
+        TextHistory? history = options is { MaskInput: false, History: { } historyId }
+            ? _history.Get(historyId)
             : null;
         string? error = null;
         var actions = new ButtonRow([
@@ -56,9 +60,9 @@ public sealed class SingleLineInputDialog
         { Id = "actions" };
         var form = new ScrollableFormDialog();
         void PrepareRows() => form.SetRows([
-            new LabelRow(options.Prompt, FarDialogStyles.Fill),
+            new LabelRow(options.Prompt),
             new TextInputRow(buffer, history, maskInput: options.MaskInput) { Id = "input", SubmitOnEnter = true },
-            new SeparatorRow(FarDialogStyles.Fill, drawLine: false),
+            new SeparatorRow(drawLine: false),
         ], [
             new LabelRow(error ?? string.Empty, PaletteStyles.DialogError(UiTheme.Current)),
             actions,

@@ -9,22 +9,29 @@ internal sealed class EditorFindDialog
     private const string WholeWordsOption = "whole-words";
 
     private readonly ModalDialogHost _modalDialogs;
-    private readonly SingleLineTextHistoryRegistry _historyRegistry;
+    private readonly ITextFieldHistoryProvider _history;
 
-    public EditorFindDialog(ModalDialogHost modalDialogs, ConsolePalette palette, SingleLineTextHistoryRegistry? historyRegistry = null)
+    [Obsolete("Pass the application-scoped ITextFieldHistoryProvider.")]
+    public EditorFindDialog(ModalDialogHost modalDialogs, ConsolePalette palette)
+        : this(modalDialogs, TextFieldHistoryTestFactory.CreateInMemory()) { }
+
+    [Obsolete("Pass the application-scoped ITextFieldHistoryProvider.")]
+    public EditorFindDialog(ModalDialogHost modalDialogs, ConsolePalette palette, SingleLineTextHistoryRegistry history)
+        : this(modalDialogs, (ITextFieldHistoryProvider)history) { }
+
+    public EditorFindDialog(ModalDialogHost modalDialogs, ITextFieldHistoryProvider history)
     {
         _modalDialogs = modalDialogs;
-        _historyRegistry = historyRegistry ?? new SingleLineTextHistoryRegistry();
-        _ = palette;
+        _history = history;
     }
 
     public EditorFindDialogResult? Show(EditorFindDialogResult? previous)
     {
-        var result = new SearchOptionsDialog(_modalDialogs, _historyRegistry).Show(new SearchOptionsDialogOptions
+        var result = new SearchOptionsDialog(_modalDialogs, _history).Show(new SearchOptionsDialogOptions
         {
             Title = "Find",
             InitialPattern = previous?.Pattern ?? string.Empty,
-            HistoryKey = "Editor.Find.Pattern",
+            History = TextHistoryIds.EditorFindPattern,
             Width = 56,
             Options =
             [
