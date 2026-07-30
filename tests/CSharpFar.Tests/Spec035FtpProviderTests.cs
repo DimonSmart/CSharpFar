@@ -615,6 +615,7 @@ public sealed class Spec035FtpProviderTests : IDisposable
             {
                 d.EnqueueKey(ControlA());
                 EnqueueText(d, host[..8]);
+                d.EnqueueKey(Key(ConsoleKey.DownArrow));
                 d.EnqueueKey(Key(ConsoleKey.Enter));
                 d.EnqueueKey(Key(ConsoleKey.F10));
             });

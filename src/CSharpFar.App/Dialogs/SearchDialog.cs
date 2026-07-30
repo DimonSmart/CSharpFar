@@ -107,7 +107,7 @@ internal sealed class SearchDialog
         {
             bool hasText = text.Text.Length > 0;
             form.SetRows(
-                BuildRows(
+                BuildBodyRows(
                     mask,
                     text,
                     parallelism,
@@ -123,9 +123,11 @@ internal sealed class SearchDialog
                     includeDirectoriesRow,
                     searchLinksRow,
                     scopeRow,
-                    buttons,
                     hasText),
-                [new LabelRow(error is null ? string.Empty : Truncate(error, DialogWidth), FarDialogStyles.Error)]);
+                [
+                    new LabelRow(error is null ? string.Empty : Truncate(error, DialogWidth), FarDialogStyles.Error),
+                    buttons,
+                ]);
         }
 
         return _formDialogs.Run(
@@ -133,13 +135,12 @@ internal sealed class SearchDialog
             new ModalFormOptions("Find file", DialogWidth, DialogHeight, MinWidth: 48),
             static layout =>
             {
-                Rect bounds = layout.FrameBounds;
-                int contentX = bounds.X + 2;
-                int contentWidth = Math.Max(1, bounds.Width - 4);
-                int errorY = bounds.Y + bounds.Height - 2;
+                Rect content = layout.ContentBounds;
+                int contentX = content.X + 1;
+                int contentWidth = Math.Max(1, content.Width - 2);
                 return new ModalFormLayout(
-                    new Rect(contentX, bounds.Y + 1, contentWidth, Math.Max(1, errorY - bounds.Y - 1)),
-                    new Rect(contentX, errorY, contentWidth, 1));
+                    new Rect(contentX, content.Y, contentWidth, Math.Max(1, content.Height - 2)),
+                    new Rect(contentX, content.Bottom - 2, contentWidth, 2));
             },
             (routed, result) =>
             {
@@ -174,7 +175,7 @@ internal sealed class SearchDialog
             prepareRender: PrepareRows);
     }
 
-    private static IReadOnlyList<IFormRow> BuildRows(
+    private static IReadOnlyList<IFormRow> BuildBodyRows(
         CommandLineState mask,
         CommandLineState text,
         CommandLineState parallelism,
@@ -190,7 +191,6 @@ internal sealed class SearchDialog
         CheckBoxRow includeDirectories,
         CheckBoxRow searchLinks,
         ChoiceFormRow<SearchScope> scope,
-        ButtonRow buttons,
         bool hasText)
     {
         var fill = FarDialogStyles.Fill;
@@ -214,8 +214,6 @@ internal sealed class SearchDialog
                 Id = "parallelism",
                 SubmitOnEnter = true,
             },
-            new SeparatorRow(fill, drawLine: false),
-            buttons,
         ];
     }
 

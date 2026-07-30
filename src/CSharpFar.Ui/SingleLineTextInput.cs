@@ -11,6 +11,7 @@ public enum TextInputKeyResult
     Ignored,
     Handled,
     TextChanged,
+    AcceptCurrentText,
 }
 
 public readonly record struct SingleLineTextHistoryFrame(
@@ -140,9 +141,12 @@ public static class SingleLineTextInput
                         ? TextInputKeyResult.Handled
                         : TextInputKeyResult.Ignored;
                 case ConsoleKey.Enter:
-                    return history.AcceptSelected(buffer)
-                        ? TextInputKeyResult.TextChanged
-                        : TextInputKeyResult.Ignored;
+                    return history.AcceptSelected(buffer) switch
+                    {
+                        SingleLineTextHistoryAcceptResult.CurrentText => TextInputKeyResult.AcceptCurrentText,
+                        SingleLineTextHistoryAcceptResult.HistoryItem => TextInputKeyResult.TextChanged,
+                        _ => TextInputKeyResult.Ignored,
+                    };
                 case ConsoleKey.Escape:
                     history.Close();
                     return TextInputKeyResult.Handled;
@@ -275,7 +279,7 @@ public static class SingleLineTextInput
             if (!history.Select(itemIndex, frame.VisibleRows))
                 return false;
 
-            history.AcceptSelected(buffer);
+            _ = history.AcceptSelected(buffer);
             return true;
         }
 

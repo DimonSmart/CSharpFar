@@ -33,7 +33,7 @@ public sealed class SearchOptionsDialogTests
     }
 
     [Fact]
-    public void SearchOptionsDialog_EnterOnPatternWithOpenHistory_DoesNotSubmitDirectly()
+    public void SearchOptionsDialog_EnterOnNeutralPatternHistory_SubmitsTypedValue()
     {
         var history = new SingleLineTextHistoryState();
         history.Add("saved pattern");
@@ -42,7 +42,7 @@ public sealed class SearchOptionsDialogTests
 
         FormInputResult result = HandleKey(form, history, Key(ConsoleKey.Enter));
 
-        Assert.Equal(FormInputResultKind.ValueChanged, result.Kind);
+        Assert.Equal(FormInputResultKind.Submit, result.Kind);
         Assert.Null(result.Command);
         Assert.False(history.IsDropdownOpen);
     }

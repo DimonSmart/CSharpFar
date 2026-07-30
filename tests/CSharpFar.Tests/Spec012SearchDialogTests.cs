@@ -137,6 +137,45 @@ public sealed class Spec012SearchDialogTests
     }
 
     [Fact]
+    public void Show_EnterOnNeutralMaskHistorySubmitsTypedMask()
+    {
+        var registry = new SingleLineTextHistoryRegistry();
+        registry.GetOrCreate("SearchDialog.Mask").Add("*.cs");
+        var driver = new FakeConsoleDriver(width: 100, height: 30);
+        var screen = new ScreenRenderer(driver);
+        driver.EnqueueKey(CharKey('*'));
+        driver.EnqueueKey(CharKey('.'));
+        driver.EnqueueKey(CharKey('c'));
+        driver.EnqueueKey(Key(ConsoleKey.Enter));
+
+        SearchRequest? result = new SearchDialog(ModalTestHost.Create(screen), registry).Show(@"C:\Work");
+
+        Assert.NotNull(result);
+        Assert.Equal("*.c", result.FileMaskExpression);
+    }
+
+    [Fact]
+    public void Show_ExplicitMaskHistorySelectionDoesNotSubmitUntilConfirmedAgain()
+    {
+        var registry = new SingleLineTextHistoryRegistry();
+        registry.GetOrCreate("SearchDialog.Mask").Add("*.cs");
+        var driver = new FakeConsoleDriver(width: 100, height: 30);
+        var screen = new ScreenRenderer(driver);
+        driver.EnqueueKey(CharKey('*'));
+        driver.EnqueueKey(CharKey('.'));
+        driver.EnqueueKey(CharKey('c'));
+        driver.EnqueueKey(Key(ConsoleKey.DownArrow));
+        driver.EnqueueKey(Key(ConsoleKey.Enter));
+        driver.EnqueueKey(CharKey('x'));
+        driver.EnqueueKey(Key(ConsoleKey.F10));
+
+        SearchRequest? result = new SearchDialog(ModalTestHost.Create(screen), registry).Show(@"C:\Work");
+
+        Assert.NotNull(result);
+        Assert.Equal("*.csx", result.FileMaskExpression);
+    }
+
+    [Fact]
     public void BuildRows_ReusesSearchTextInputRowStates()
     {
         var maskRowState = new TextInputRowState();
@@ -176,9 +215,9 @@ public sealed class Spec012SearchDialogTests
         TextInputRowState parallelismRowState)
     {
         var method = typeof(SearchDialog).GetMethod(
-            "BuildRows",
+            "BuildBodyRows",
             System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static)
-            ?? throw new InvalidOperationException("SearchDialog.BuildRows was not found.");
+            ?? throw new InvalidOperationException("SearchDialog.BuildBodyRows was not found.");
 
         return (IReadOnlyList<IFormRow>)method.Invoke(
             null,
@@ -200,8 +239,6 @@ public sealed class Spec012SearchDialogTests
                 new ChoiceFormRow<SearchScope>(
                     new ChoiceRow<SearchScope>([SearchScope.CurrentDirectoryRecursive], static scope => scope.ToString()),
                     "Select search area:"),
-                new ButtonRow(
-                    [new DialogButton("find", "Find", 'F', IsDefault: true)]),
                 true,
             ])!;
     }

@@ -34,7 +34,13 @@ public sealed class LabeledTextInputRow : FormRow, IFormCursorProvider, IFormCom
     }
 
     public bool TryGetCursor(FormRowRenderContext context, out FormCursorPlacement cursor) => _field.TryGetCursor(context, GetInputBounds(context.Bounds), out cursor);
-    public override FormInputResult HandleKey(ConsoleKeyInfo key, FormRowInputContext context) => _field.HandleKey(key, context);
+    public override FormInputResult HandleKey(ConsoleKeyInfo key, FormRowInputContext context)
+    {
+        FormInputResult result = _field.HandleKey(key, context);
+        return result.Kind == FormInputResultKind.OverlayChanged && SubmitOnEnter
+            ? FormInputResult.Submit()
+            : result;
+    }
     public override FormInputResult HandleMouse(MouseConsoleInputEvent mouse, FormRowMouseContext context) => _field.HandleMouse(mouse, context, GetInputBounds(context.Bounds));
     public FormCompositeFrame BuildCompositeFrame(FormCompositeFrameContext context) => _field.BuildCompositeFrame(GetInputBounds(context.RowBounds), context.Viewport);
     public void CommitCompositeFrame(FormCompositeFrame frame) { }

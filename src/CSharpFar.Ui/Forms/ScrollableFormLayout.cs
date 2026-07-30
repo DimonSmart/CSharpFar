@@ -134,6 +134,10 @@ public sealed partial class ScrollableFormDialog
         UiTargetId? overlayTarget = null)
     {
         var targets = new List<FormTargetFrame>();
+        bool hasBodyScrollbar = BodyRowCount > Math.Max(1, context.BodyBounds.Height);
+        Rect bodyRowBounds = hasBodyScrollbar
+            ? new Rect(context.BodyBounds.X, context.BodyBounds.Y, Math.Max(0, context.BodyBounds.Width - 1), context.BodyBounds.Height)
+            : context.BodyBounds;
         int focusIndex = 0;
         int virtualTop = 0;
         for (int rowIndex = 0; rowIndex < _bodyRows.Count; rowIndex++)
@@ -143,10 +147,10 @@ public sealed partial class ScrollableFormDialog
             bool visible = virtualTop + rowHeight > effectiveScrollTop &&
                 virtualTop < effectiveScrollTop + Math.Max(1, context.BodyBounds.Height);
             Rect rowBounds = visible
-                ? new Rect(context.BodyBounds.X, context.BodyBounds.Y + virtualTop - effectiveScrollTop, context.BodyBounds.Width, rowHeight)
-                : new Rect(context.BodyBounds.X, context.BodyBounds.Y - rowHeight - 1, context.BodyBounds.Width, rowHeight);
+                ? new Rect(bodyRowBounds.X, bodyRowBounds.Y + virtualTop - effectiveScrollTop, bodyRowBounds.Width, rowHeight)
+                : new Rect(bodyRowBounds.X, bodyRowBounds.Y - rowHeight - 1, bodyRowBounds.Width, rowHeight);
             int? rowFocusIndex = row.IsFocusable ? focusIndex : null;
-            targets.Add(CreateRowTargetFrame(context.Canvas, row, rowIndex, rowFocusIndex, rowBounds, isFooter: false, context.Viewport, context.BodyBounds));
+            targets.Add(CreateRowTargetFrame(context.Canvas, row, rowIndex, rowFocusIndex, rowBounds, isFooter: false, context.Viewport, bodyRowBounds));
             if (row.IsFocusable)
                 focusIndex++;
             virtualTop += rowHeight;
