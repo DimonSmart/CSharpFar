@@ -56,6 +56,10 @@ CSharpFar has its own plugin API rather than relying on Far Manager compatibilit
 
 The plugin model provides abstractions for commands, menu items, panel providers, context, settings and UI services. FTP and SFTP are first-party examples of functionality built on this extensibility model.
 
+### Processes and Ports
+
+On Windows, **Plugins → Processes and Ports...** opens a selectable diagnostic list of local TCP and UDP endpoints. The same dialog is available through `ports`, or `ports 64341` to start with a port filter. It identifies the owning process and can safely request termination when the platform supports it.
+
 ## Windows and Linux
 
 The solution has separate Windows and Unix hosts and platform implementations behind shared abstractions.
