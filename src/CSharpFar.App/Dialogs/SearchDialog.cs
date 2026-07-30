@@ -9,7 +9,7 @@ namespace CSharpFar.App.Dialogs;
 internal sealed class SearchDialog
 {
     private const int DialogWidth = 76;
-    private const int DialogHeight = 19;
+    private const int DialogHeight = 18;
 
     private readonly SingleLineTextHistoryRegistry _historyRegistry;
     private readonly ModalFormHost _formDialogs;
@@ -88,13 +88,31 @@ internal sealed class SearchDialog
         var caseSensitiveRow = new CheckBoxRow(new CheckBoxLine("Case sensitive"));
         var wholeWordsRow = new CheckBoxRow(new CheckBoxLine("Whole words"));
         var notContainingRow = new CheckBoxRow(new CheckBoxLine("Not containing"));
-        var includeDirectoriesRow = new CheckBoxRow(new CheckBoxLine("Search folders"));
+        var includeDirectoriesRow = new CheckBoxRow(new CheckBoxLine("Include folders in results"));
         var searchLinksRow = new CheckBoxRow(new CheckBoxLine("Search in symbolic links"));
-        var scopeRow = new ChoiceFormRow<SearchScope>(
-            new ChoiceRow<SearchScope>(
-                [SearchScope.CurrentDirectoryRecursive, SearchScope.CurrentDirectoryOnly],
-                ScopeLabel),
-            "Select search area:");
+        SearchScope[] scopes =
+        [
+            SearchScope.CurrentDirectoryRecursive,
+            SearchScope.CurrentDirectoryOnly,
+        ];
+        var scopeDropdown = new DropdownSelect<SearchScope>(scopes, ScopeLabel)
+        {
+            SelectedIndex = 0,
+            MaxVisibleRows = 6,
+        };
+        var scopeRow = new DropdownSelectFormRow<SearchScope>(string.Empty, scopeDropdown)
+        {
+            Id = "scope",
+        };
+        var optionsRow = new CheckBoxColumnsRow(
+            [
+                [caseSensitiveRow, wholeWordsRow, notContainingRow],
+                [includeDirectoriesRow, searchLinksRow],
+            ],
+            columnGap: 2)
+        {
+            Id = "search-options",
+        };
         var buttons = new ButtonRow(
             [
                 new DialogButton("find", "Find", 'F', IsDefault: true),
@@ -117,11 +135,8 @@ internal sealed class SearchDialog
                     maskRowState,
                     textRowState,
                     parallelismRowState,
-                    caseSensitiveRow,
-                    wholeWordsRow,
                     notContainingRow,
-                    includeDirectoriesRow,
-                    searchLinksRow,
+                    optionsRow,
                     scopeRow,
                     hasText),
                 [
@@ -183,16 +198,13 @@ internal sealed class SearchDialog
         TextInputRowState maskRowState,
         TextInputRowState textRowState,
         TextInputRowState parallelismRowState,
-        CheckBoxRow caseSensitive,
-        CheckBoxRow wholeWords,
         CheckBoxRow notContaining,
-        CheckBoxRow includeDirectories,
-        CheckBoxRow searchLinks,
-        ChoiceFormRow<SearchScope> scope,
+        CheckBoxColumnsRow options,
+        DropdownSelectFormRow<SearchScope> scope,
         bool hasText)
     {
         var fill = FarDialogStyles.Fill;
-        var disabled = FarDialogStyles.DisabledControl(fill);
+        notContaining.Enabled = hasText;
         return
         [
             new LabelRow("A file mask or several file masks:", fill),
@@ -200,11 +212,8 @@ internal sealed class SearchDialog
             new LabelRow("Containing text:", fill),
             new TextInputRow(text, textHistory, textRowState) { Id = "text", SubmitOnEnter = true },
             new LabelRow("Using code page: Automatic detection", fill),
-            caseSensitive,
-            wholeWords,
-            hasText ? notContaining : new LabelRow("[ ] Not containing", disabled),
-            includeDirectories,
-            searchLinks,
+            options,
+            new LabelRow("Select search area:", fill),
             scope,
             new LabelRow("Parallelism:", fill),
             new TextInputRow(parallelism, parallelismHistory, parallelismRowState, width: 8)
@@ -259,8 +268,9 @@ internal sealed class SearchDialog
 
     private static string ScopeLabel(SearchScope scope) => scope switch
     {
-        SearchScope.CurrentDirectoryOnly => "In current folder",
-        _ => "From the current folder",
+        SearchScope.CurrentDirectoryRecursive => "Current folder and subfolders",
+        SearchScope.CurrentDirectoryOnly => "Current folder only",
+        _ => scope.ToString(),
     };
 
     private static string Truncate(string value, int maxLength)

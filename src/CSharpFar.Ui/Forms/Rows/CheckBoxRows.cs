@@ -26,13 +26,26 @@ public sealed class CheckBoxRow : FormRow, IFormCursorProvider
     public override bool IsEnabled => Enabled;
     public bool ShowCursor { get; init; } = true;
 
-    public override void Render(FormRowRenderContext context) =>
-        _checkBox.Render(context.Canvas, context.Bounds.X, context.Bounds.Y, context.Bounds.Width, context.Focused && Enabled);
+    public override void Render(FormRowRenderContext context)
+    {
+        CellStyle fill = Enabled
+            ? FarDialogStyles.Fill
+            : FarDialogStyles.DisabledControl(FarDialogStyles.Fill);
+
+        _checkBox.Render(
+            context.Canvas,
+            context.Bounds.X,
+            context.Bounds.Y,
+            context.Bounds.Width,
+            context.Focused && Enabled,
+            fill,
+            FarDialogStyles.FocusedInput);
+    }
 
     public bool TryGetCursor(FormRowRenderContext context, out FormCursorPlacement cursor)
     {
         cursor = new FormCursorPlacement(context.Bounds.X + 1, context.Bounds.Y);
-        return ShowCursor && context.Focused && context.Bounds.Width >= 3;
+        return ShowCursor && Enabled && context.Focused && context.Bounds.Width >= 3;
     }
 
     public override FormInputResult HandleKey(ConsoleKeyInfo key, FormRowInputContext context)

@@ -207,7 +207,7 @@ public sealed class DropdownSelect<T>
         RestoreCommittedFrame(frame);
         if (!frame.IsOpen)
         {
-            if (key.Key is ConsoleKey.DownArrow or ConsoleKey.LeftArrow or ConsoleKey.RightArrow or ConsoleKey.Spacebar)
+            if (key.Key is ConsoleKey.Enter or ConsoleKey.Spacebar or ConsoleKey.DownArrow or ConsoleKey.F4)
             {
                 Open();
                 return true;
