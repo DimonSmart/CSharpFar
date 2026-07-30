@@ -58,8 +58,13 @@ public sealed class Spec012SearchDialogTests
     {
         var driver = new FakeConsoleDriver(width: 100, height: 30);
         var screen = new ScreenRenderer(driver);
-        driver.EnqueueInput(new MouseConsoleInputEvent(16, 12, MouseButton.Left, MouseEventKind.Down, MouseKeyModifiers.None));
-        driver.EnqueueKey(Key(ConsoleKey.F10));
+        driver.BeforeReadInput = currentDriver =>
+        {
+            var row = currentDriver.WriteRecords.Last(record =>
+                record.Text.Contains("Case sensitive", StringComparison.Ordinal));
+            currentDriver.EnqueueInput(new MouseConsoleInputEvent(row.X + 1, row.Y, MouseButton.Left, MouseEventKind.Down, MouseKeyModifiers.None));
+            currentDriver.EnqueueKey(Key(ConsoleKey.F10));
+        };
 
         var result = new SearchDialog(ModalTestHost.Create(screen)).Show(@"C:\Work");
 
@@ -68,23 +73,37 @@ public sealed class Spec012SearchDialogTests
     }
 
     [Fact]
-    public void Show_MouseClickSearchScopeChangesScope()
+    public void Show_DefaultSearchScopeIsRecursive()
     {
         var driver = new FakeConsoleDriver(width: 100, height: 30);
         var screen = new ScreenRenderer(driver);
-        driver.BeforeReadInput = currentDriver =>
-        {
-            var row = currentDriver.WriteRecords.Last(record =>
-                record.Text.Contains("In current folder", StringComparison.Ordinal));
-            int x = row.X + row.Text.IndexOf("In current folder", StringComparison.Ordinal);
-            currentDriver.EnqueueInput(new MouseConsoleInputEvent(x, row.Y, MouseButton.Left, MouseEventKind.Down, MouseKeyModifiers.None));
-            currentDriver.EnqueueKey(Key(ConsoleKey.F10));
-        };
+        driver.EnqueueKey(Key(ConsoleKey.F10));
 
         var result = new SearchDialog(ModalTestHost.Create(screen)).Show(@"C:\Work");
 
         Assert.NotNull(result);
-        Assert.Equal(SearchScope.CurrentDirectoryOnly, result.Scope);
+        Assert.Equal(SearchScope.CurrentDirectoryRecursive, result.Scope);
+    }
+
+    [Fact]
+    public void TryCreateRequest_CurrentDirectoryOnlyPreservesScope()
+    {
+        var request = SearchDialog.TryCreateRequest(
+            rootPath: @"C:\Work",
+            fileMaskExpression: "*",
+            containingText: string.Empty,
+            caseSensitive: false,
+            wholeWords: false,
+            notContaining: false,
+            includeDirectoriesInResults: false,
+            searchInSymbolicLinks: false,
+            scope: SearchScope.CurrentDirectoryOnly,
+            maxDegreeOfParallelismText: "4",
+            out string? error);
+
+        Assert.Null(error);
+        Assert.NotNull(request);
+        Assert.Equal(SearchScope.CurrentDirectoryOnly, request.Scope);
     }
 
     [Fact]
@@ -209,15 +228,70 @@ public sealed class Spec012SearchDialogTests
         }
     }
 
+    [Fact]
+    public void BuildRows_UsesCheckBoxColumnsAndDropdownScope()
+    {
+        IReadOnlyList<IFormRow> rows = BuildSearchRows(
+            new TextInputRowState(),
+            new TextInputRowState(),
+            new TextInputRowState());
+
+        Assert.Contains(rows, row => row is CheckBoxColumnsRow { Id: "search-options" });
+        Assert.Contains(rows, row => row is DropdownSelectFormRow<SearchScope> { Id: "scope" });
+        Assert.Empty(rows.OfType<ChoiceFormRow<SearchScope>>());
+    }
+
+    [Fact]
+    public void BuildRows_NotContainingEnabledTracksTextPresence()
+    {
+        var notContaining = new CheckBoxRow(new CheckBoxLine("Not containing"));
+
+        _ = BuildSearchRows(
+            new TextInputRowState(),
+            new TextInputRowState(),
+            new TextInputRowState(),
+            hasText: false,
+            notContaining: notContaining);
+
+        Assert.False(notContaining.Enabled);
+
+        _ = BuildSearchRows(
+            new TextInputRowState(),
+            new TextInputRowState(),
+            new TextInputRowState(),
+            hasText: true,
+            notContaining: notContaining);
+
+        Assert.True(notContaining.Enabled);
+    }
+
     private static IReadOnlyList<IFormRow> BuildSearchRows(
         TextInputRowState maskRowState,
         TextInputRowState textRowState,
-        TextInputRowState parallelismRowState)
+        TextInputRowState parallelismRowState,
+        bool hasText = true,
+        CheckBoxRow? notContaining = null)
     {
         var method = typeof(SearchDialog).GetMethod(
             "BuildBodyRows",
             System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static)
             ?? throw new InvalidOperationException("SearchDialog.BuildBodyRows was not found.");
+        var caseSensitive = new CheckBoxRow(new CheckBoxLine("Case sensitive"));
+        var wholeWords = new CheckBoxRow(new CheckBoxLine("Whole words"));
+        notContaining ??= new CheckBoxRow(new CheckBoxLine("Not containing"));
+        var includeDirectories = new CheckBoxRow(new CheckBoxLine("Include folders in results"));
+        var searchLinks = new CheckBoxRow(new CheckBoxLine("Search in symbolic links"));
+        var options = new CheckBoxColumnsRow(
+            [
+                [caseSensitive, wholeWords, notContaining],
+                [includeDirectories, searchLinks],
+            ])
+        {
+            Id = "search-options",
+        };
+        var dropdown = new DropdownSelect<SearchScope>(
+            [SearchScope.CurrentDirectoryRecursive, SearchScope.CurrentDirectoryOnly],
+            static scope => scope.ToString());
 
         return (IReadOnlyList<IFormRow>)method.Invoke(
             null,
@@ -231,15 +305,10 @@ public sealed class Spec012SearchDialogTests
                 maskRowState,
                 textRowState,
                 parallelismRowState,
-                new CheckBoxRow(new CheckBoxLine("Case sensitive")),
-                new CheckBoxRow(new CheckBoxLine("Whole words")),
-                new CheckBoxRow(new CheckBoxLine("Not containing")),
-                new CheckBoxRow(new CheckBoxLine("Search folders")),
-                new CheckBoxRow(new CheckBoxLine("Search in symbolic links")),
-                new ChoiceFormRow<SearchScope>(
-                    new ChoiceRow<SearchScope>([SearchScope.CurrentDirectoryRecursive], static scope => scope.ToString()),
-                    "Select search area:"),
-                true,
+                notContaining,
+                options,
+                new DropdownSelectFormRow<SearchScope>(string.Empty, dropdown) { Id = "scope" },
+                hasText,
             ])!;
     }
 
