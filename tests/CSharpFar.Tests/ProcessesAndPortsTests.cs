@@ -4,6 +4,8 @@ using System.Net.NetworkInformation;
 using CSharpFar.Module.ProcessesAndPorts;
 using CSharpFar.Platform.Abstractions;
 using CSharpFar.Platform.Windows;
+using CSharpFar.Tests.Fakes;
+using CSharpFar.Ui;
 
 namespace CSharpFar.Tests;
 
@@ -62,5 +64,49 @@ public sealed class ProcessesAndPortsTests
     public void Truncated_native_row_raises_controlled_error()
     {
         Assert.Throws<InvalidDataException>(() => WindowsProcessesAndPortsPlatformService.ParseUdp6Row(new byte[27]));
+    }
+
+    [Fact]
+    public void Dialog_remains_open_when_filter_hides_all_endpoints()
+    {
+        var driver = new FakeConsoleDriver(100, 30);
+        driver.EnqueueKey(new ConsoleKeyInfo('z', ConsoleKey.Z, false, false, false));
+        driver.EnqueueKey(new ConsoleKeyInfo('\0', ConsoleKey.Escape, false, false, false));
+        UiTestHost host = UiTestHost.Create(driver);
+        var ui = new ModuleUiServices
+        {
+            Screen = host.Screen,
+            ModalDialogs = host.ModalDialogs,
+            Palette = () => new ConsolePalette { Name = "Test" },
+            TextFieldHistory = new SingleLineTextHistoryRegistry(),
+        };
+        var endpoint = new ProcessNetworkEndpoint(
+            NetworkTransportProtocol.Tcp,
+            IPAddress.Loopback,
+            8080,
+            null,
+            null,
+            TcpState.Listen,
+            new ProcessSnapshot(42, "worker", null, DateTimeOffset.UtcNow));
+        var platform = new FakeProcessesAndPortsPlatformService([endpoint]);
+
+        new ProcessesAndPortsDialog(ui, platform).Show(null);
+
+        Assert.Equal(1, platform.CaptureCount);
+    }
+
+    private sealed class FakeProcessesAndPortsPlatformService(IReadOnlyList<ProcessNetworkEndpoint> endpoints) : IProcessesAndPortsPlatformService
+    {
+        public ProcessesAndPortsSupportInfo Support { get; } = new(true, false);
+        public int CaptureCount { get; private set; }
+
+        public ProcessesAndPortsSnapshot CaptureSnapshot(ProcessesAndPortsQuery query, CancellationToken cancellationToken = default)
+        {
+            CaptureCount++;
+            return new ProcessesAndPortsSnapshot(DateTimeOffset.UtcNow, endpoints);
+        }
+
+        public ProcessTerminationResult TerminateProcess(ProcessIdentity identity, CancellationToken cancellationToken = default) =>
+            new(ProcessTerminationStatus.NotSupported);
     }
 }
