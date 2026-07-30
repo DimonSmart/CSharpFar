@@ -10,7 +10,7 @@ internal static class DemoModeServices
 {
     public sealed class DemoProcessesAndPortsPlatformService : IProcessesAndPortsPlatformService
     {
-        public ProcessesAndPortsSupportInfo Support { get; } = new(true);
+        public ProcessesAndPortsSupportInfo Support { get; } = new(true, false, TerminationUnavailableReason: "Terminate process is disabled in demo mode.");
         public ProcessesAndPortsSnapshot CaptureSnapshot(ProcessesAndPortsQuery query, CancellationToken cancellationToken = default)
         {
             var process = new ProcessSnapshot(18424, "dotnet", @"C:\\Program Files\\dotnet\\dotnet.exe", DateTimeOffset.Parse("2026-07-30T18:12:43+00:00"));

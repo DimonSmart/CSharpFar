@@ -34,6 +34,7 @@
     <ProjectReference Include="..\..\src\CSharpFar.Module.Abstractions\CSharpFar.Module.Abstractions.csproj" />
     <ProjectReference Include="..\..\src\CSharpFar.Module.Sftp\CSharpFar.Module.Sftp.csproj" />
     <ProjectReference Include="..\..\src\CSharpFar.Module.Ftp\CSharpFar.Module.Ftp.csproj" />
+    <ProjectReference Include="..\..\src\CSharpFar.Module.ProcessesAndPorts\CSharpFar.Module.ProcessesAndPorts.csproj" />
     <ProjectReference Include="..\..\src\CSharpFar.FileSystem\CSharpFar.FileSystem.csproj" />
     <ProjectReference Include="..\..\src\CSharpFar.App\CSharpFar.App.csproj" />
     <ProjectReference Include="..\..\src\CSharpFar.Platform.Unix\CSharpFar.Platform.Unix.csproj" />
