@@ -10,12 +10,12 @@ namespace CSharpFar.App.Dialogs;
 internal sealed class InputDialog
 {
     private readonly ModalDialogHost _modalDialogs;
-    private readonly ITextFieldHistoryProvider _history;
+    private readonly FormFieldFactory _fields;
 
-    public InputDialog(ModalDialogHost modalDialogs, ITextFieldHistoryProvider history)
+    public InputDialog(ModalDialogHost modalDialogs, FormFieldFactory fields)
     {
         _modalDialogs = modalDialogs;
-        _history = history;
+        _fields = fields;
     }
 
     /// <summary>
@@ -36,7 +36,7 @@ internal sealed class InputDialog
         bool maskInput = false,
         TextHistoryId? history = null)
     {
-        var result = new SingleLineInputDialog(_modalDialogs, _history).Show(new SingleLineInputDialogOptions
+        var result = new SingleLineInputDialog(_modalDialogs, _fields).Show(new SingleLineInputDialogOptions
         {
             Title = title,
             Prompt = prompt,

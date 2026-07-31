@@ -34,13 +34,13 @@ internal sealed class FtpConnectionDialog
     private const int DialogWidth = 80;
     private const int DialogHeight = 22;
     private const int FieldWidth = 44;
-    private readonly ITextFieldHistoryProvider _historyRegistry;
+    private readonly FormFieldFactory _fields;
     private readonly ModalFormHost _formDialogs;
 
-    public FtpConnectionDialog(ModalDialogHost modalDialogs, ITextFieldHistoryProvider historyRegistry)
+    public FtpConnectionDialog(ModalDialogHost modalDialogs, FormFieldFactory fields)
     {
         _formDialogs = new ModalFormHost(modalDialogs);
-        _historyRegistry = historyRegistry ?? throw new ArgumentNullException(nameof(historyRegistry));
+        _fields = fields ?? throw new ArgumentNullException(nameof(fields));
     }
 
     public FtpConnectionDialogResult? Show(
@@ -51,15 +51,14 @@ internal sealed class FtpConnectionDialog
         ArgumentNullException.ThrowIfNull(validate);
 
         var connection = request.Connection;
-        var fields = new FormFieldFactory(_historyRegistry);
         var state = new FtpFormState(
-            fields.Text("connection-name", connection?.DisplayName ?? string.Empty, FtpTextHistoryIds.ConnectionName, width: FieldWidth, submitOnEnter: true),
-            fields.Text("host", connection?.Host ?? string.Empty, FtpTextHistoryIds.Host, width: FieldWidth, submitOnEnter: true),
-            fields.Text("port", (connection?.Port ?? 21).ToString(), FtpTextHistoryIds.Port, width: FieldWidth, submitOnEnter: true),
-            fields.Text("username", connection?.Username ?? string.Empty, FtpTextHistoryIds.UserName, width: FieldWidth, submitOnEnter: true),
-            fields.Text("password", request.SavedPassword ?? string.Empty, maskInput: true, width: FieldWidth, submitOnEnter: true),
-            fields.Text("remote-root", connection?.RemoteRootPath ?? "/", FtpTextHistoryIds.RemoteRoot, width: FieldWidth, submitOnEnter: true),
-            fields.Text("active-ports", FormatActivePortRange(connection) ?? string.Empty, FtpTextHistoryIds.ActivePorts, width: FieldWidth, submitOnEnter: true),
+            _fields.Text("connection-name", connection?.DisplayName ?? string.Empty, FtpTextHistoryIds.ConnectionName, width: FieldWidth, submitOnEnter: true),
+            _fields.Text("host", connection?.Host ?? string.Empty, FtpTextHistoryIds.Host, width: FieldWidth, submitOnEnter: true),
+            _fields.Text("port", (connection?.Port ?? 21).ToString(), FtpTextHistoryIds.Port, width: FieldWidth, submitOnEnter: true),
+            _fields.Text("username", connection?.Username ?? string.Empty, FtpTextHistoryIds.UserName, width: FieldWidth, submitOnEnter: true),
+            _fields.Text("password", request.SavedPassword ?? string.Empty, maskInput: true, width: FieldWidth, submitOnEnter: true),
+            _fields.Text("remote-root", connection?.RemoteRootPath ?? "/", FtpTextHistoryIds.RemoteRoot, width: FieldWidth, submitOnEnter: true),
+            _fields.Text("active-ports", FormatActivePortRange(connection) ?? string.Empty, FtpTextHistoryIds.ActivePorts, width: FieldWidth, submitOnEnter: true),
             new CheckBoxRow("Save connection", request.SaveConnectionByDefault) { Id = "save-connection" },
             new CheckBoxRow("Save password", connection?.CredentialId is not null && request.SavedPassword is not null) { Id = "save-password" },
             new CheckBoxRow("Show in drive menu", connection?.ShowInDriveSelection ?? true) { Id = "show-in-drive" },

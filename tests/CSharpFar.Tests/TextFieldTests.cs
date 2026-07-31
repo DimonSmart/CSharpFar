@@ -46,8 +46,8 @@ public sealed class TextFieldTests
         for (int index = 0; index < 15; index++)
             persistent.Add($"item-{index:D2}");
         var factory = new FormFieldFactory(provider);
-        TextField first = factory.Text("first", history: id);
-        TextField second = factory.Text("second", history: id);
+        TextField first = factory.Text("first", historyId: id);
+        TextField second = factory.Text("second", historyId: id);
         SingleLineTextHistoryState firstPopup = Assert.IsType<SingleLineTextHistoryState>(first.Input.History);
         SingleLineTextHistoryState secondPopup = Assert.IsType<SingleLineTextHistoryState>(second.Input.History);
 

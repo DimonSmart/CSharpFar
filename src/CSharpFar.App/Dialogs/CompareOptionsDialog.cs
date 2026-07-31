@@ -13,13 +13,13 @@ internal sealed class CompareOptionsDialog
     private const int DialogWidth = 86;
     private const int DialogHeight = 26;
 
-    private readonly ITextFieldHistoryProvider _historyRegistry;
+    private readonly FormFieldFactory _fields;
     private readonly ModalFormHost _formDialogs;
 
-    public CompareOptionsDialog(ModalDialogHost modalDialogs, ITextFieldHistoryProvider historyRegistry)
+    public CompareOptionsDialog(ModalDialogHost modalDialogs, FormFieldFactory fields)
     {
         _formDialogs = new ModalFormHost(modalDialogs);
-        _historyRegistry = historyRegistry ?? throw new ArgumentNullException(nameof(historyRegistry));
+        _fields = fields ?? throw new ArgumentNullException(nameof(fields));
     }
 
     public ComparisonOptions? Show(
@@ -37,15 +37,9 @@ internal sealed class CompareOptionsDialog
         FilePanelState leftPanel,
         FilePanelState rightPanel)
     {
-        var include = new CommandLineState();
-        include.SetText(string.IsNullOrWhiteSpace(settings.IncludeMasks) ? "*" : settings.IncludeMasks);
-        var exclude = new CommandLineState();
-        exclude.SetText(settings.ExcludeMasks ?? "");
-        var customDepth = new CommandLineState();
-        customDepth.SetText(Math.Max(0, settings.CustomDepth).ToString(System.Globalization.CultureInfo.InvariantCulture));
-        var includeHistory = new SingleLineTextHistoryState(_historyRegistry.Get(AppTextHistoryIds.CompareInclude));
-        var excludeHistory = new SingleLineTextHistoryState(_historyRegistry.Get(AppTextHistoryIds.CompareExclude));
-        var depthHistory = new SingleLineTextHistoryState(_historyRegistry.Get(AppTextHistoryIds.CompareDepth));
+        TextField include = _fields.Text("include", string.IsNullOrWhiteSpace(settings.IncludeMasks) ? "*" : settings.IncludeMasks, AppTextHistoryIds.CompareInclude, submitOnEnter: true);
+        TextField exclude = _fields.Text("exclude", settings.ExcludeMasks ?? "", AppTextHistoryIds.CompareExclude, submitOnEnter: true);
+        TextField customDepth = _fields.Text("custom-depth", Math.Max(0, settings.CustomDepth).ToString(System.Globalization.CultureInfo.InvariantCulture), AppTextHistoryIds.CompareDepth, width: 8, submitOnEnter: true);
 
         var recursive = new CheckBoxRow(new CheckBoxLine("Include subfolders", settings.IncludeSubfolders));
         var selectedOnly = new CheckBoxRow(new CheckBoxLine("Selected items only", settings.SelectedItemsOnly));
@@ -81,11 +75,8 @@ internal sealed class CompareOptionsDialog
                 selectedOnly,
                 depth,
                 customDepth,
-                depthHistory,
                 include,
                 exclude,
-                includeHistory,
-                excludeHistory,
                 method,
                 tolerance,
                 nameComparison,
@@ -111,16 +102,13 @@ internal sealed class CompareOptionsDialog
                         recursive.Value,
                         selectedOnly.Value,
                         depth.Value,
-                        customDepth.Text,
-                        include.Text,
-                        exclude.Text,
+                        customDepth,
+                        include,
+                        exclude,
                         method.Value,
                         tolerance.Value,
                         nameComparison.Value,
                         fileSetMatch.Value,
-                        includeHistory,
-                        excludeHistory,
-                        depthHistory,
                         ref error);
                     if (options is not null)
                         return ModalDialogLoopResult<ComparisonOptions?>.Complete(options);
@@ -138,12 +126,9 @@ internal sealed class CompareOptionsDialog
         CheckBoxRow recursive,
         CheckBoxRow selectedOnly,
         ChoiceFormRow<string> depth,
-        CommandLineState customDepth,
-        SingleLineTextHistoryState depthHistory,
-        CommandLineState include,
-        CommandLineState exclude,
-        SingleLineTextHistoryState includeHistory,
-        SingleLineTextHistoryState excludeHistory,
+        TextField customDepth,
+        TextField include,
+        TextField exclude,
         ChoiceFormRow<CompareMethod> method,
         ChoiceFormRow<TimestampTolerance> tolerance,
         ChoiceFormRow<NameComparisonMode> nameComparison,
@@ -166,15 +151,15 @@ internal sealed class CompareOptionsDialog
         if (depth.Value == "Custom")
         {
             rows.Add(new LabelRow("Custom depth:", FarDialogStyles.Fill));
-            rows.Add(new TextInputRow(customDepth, depthHistory, width: 8) { SubmitOnEnter = true });
+            rows.Add(customDepth.AsRow());
         }
 
         rows.Add(new SeparatorRow(FarDialogStyles.Border));
         rows.Add(new LabelRow("Filters", FarDialogStyles.Fill));
         rows.Add(new LabelRow("Include masks (semicolon-separated):", FarDialogStyles.Fill));
-        rows.Add(new TextInputRow(include, includeHistory) { SubmitOnEnter = true });
+        rows.Add(include.AsRow());
         rows.Add(new LabelRow("Exclude masks (semicolon-separated):", FarDialogStyles.Fill));
-        rows.Add(new TextInputRow(exclude, excludeHistory) { SubmitOnEnter = true });
+        rows.Add(exclude.AsRow());
         rows.Add(new SeparatorRow(FarDialogStyles.Border));
         rows.Add(new LabelRow("Comparison", FarDialogStyles.Fill));
         rows.Add(method);
@@ -203,16 +188,13 @@ internal sealed class CompareOptionsDialog
         bool recursive,
         bool selectedOnly,
         string depth,
-        string customDepthText,
-        string include,
-        string exclude,
+        TextField customDepth,
+        TextField include,
+        TextField exclude,
         CompareMethod method,
         TimestampTolerance tolerance,
         NameComparisonMode nameComparison,
         FileSetMatchMode fileSetMatch,
-        SingleLineTextHistoryState includeHistory,
-        SingleLineTextHistoryState excludeHistory,
-        SingleLineTextHistoryState depthHistory,
         ref string? error)
     {
         error = null;
@@ -222,22 +204,19 @@ internal sealed class CompareOptionsDialog
             "0" => 0,
             "1" => 1,
             "2" => 2,
-            _ => TryParseCustomDepth(customDepthText, ref error),
+            _ => TryParseCustomDepth(customDepth.Text, ref error),
         };
 
         if (error is not null)
             return null;
 
-        string includeMasks = string.IsNullOrWhiteSpace(include) ? "*" : include.Trim();
-        string excludeMasks = exclude.Trim();
-        includeHistory.History.Add(includeMasks);
+        string includeMasks = string.IsNullOrWhiteSpace(include.Text) ? "*" : include.TrimmedText;
+        string excludeMasks = exclude.TrimmedText;
+        include.AcceptHistory();
         if (excludeMasks.Length > 0)
-            excludeHistory.History.Add(excludeMasks);
+            exclude.AcceptHistory();
         if (maxDepth.HasValue)
-            depthHistory.History.Add(maxDepth.Value.ToString(System.Globalization.CultureInfo.InvariantCulture));
-        includeHistory.Close();
-        excludeHistory.Close();
-        depthHistory.Close();
+            customDepth.AcceptHistory();
 
         return new ComparisonOptions
         {

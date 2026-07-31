@@ -31,7 +31,7 @@ public sealed class Spec035FtpProviderTests : IDisposable
 
         var result = new FtpConnectionDialog(
             ModalTestHost.Create(new ScreenRenderer(driver)),
-            TextFieldHistoryTestProvider.Create()).Show(
+            new FormFieldFactory(TextFieldHistoryTestProvider.Create())).Show(
                 new FtpConnectionDialogRequest(
                     Connection: TestConnection(),
                     SavedPassword: "secret-password",
@@ -183,7 +183,7 @@ public sealed class Spec035FtpProviderTests : IDisposable
         };
         driver.EnqueueKey(Key(ConsoleKey.Escape));
 
-        var result = new FtpConnectionDialog(ModalTestHost.Create(screen), TextFieldHistoryTestProvider.Create()).Show(
+        var result = new FtpConnectionDialog(ModalTestHost.Create(screen), new FormFieldFactory(TextFieldHistoryTestProvider.Create())).Show(
             new FtpConnectionDialogRequest(
                 Connection: null,
                 SavedPassword: null,
@@ -221,7 +221,7 @@ public sealed class Spec035FtpProviderTests : IDisposable
         };
         driver.BeforeReadInput = beforeRead;
 
-        var result = new FtpConnectionDialog(ModalTestHost.Create(screen), TextFieldHistoryTestProvider.Create()).Show(
+        var result = new FtpConnectionDialog(ModalTestHost.Create(screen), new FormFieldFactory(TextFieldHistoryTestProvider.Create())).Show(
             new FtpConnectionDialogRequest(
                 TestConnection(),
                 SavedPassword: "secret-password",
@@ -242,7 +242,7 @@ public sealed class Spec035FtpProviderTests : IDisposable
             d => ClickRowByText(d, "Show in drive menu"),
             d => d.EnqueueKey(Key(ConsoleKey.F10)));
 
-        var result = new FtpConnectionDialog(ModalTestHost.Create(screen), TextFieldHistoryTestProvider.Create()).Show(
+        var result = new FtpConnectionDialog(ModalTestHost.Create(screen), new FormFieldFactory(TextFieldHistoryTestProvider.Create())).Show(
             new FtpConnectionDialogRequest(
                 TestConnection(),
                 SavedPassword: "secret-password",
@@ -262,7 +262,7 @@ public sealed class Spec035FtpProviderTests : IDisposable
         driver.EnqueueKey(ShiftTab());
         driver.EnqueueKey(Key(ConsoleKey.Enter));
 
-        var result = new FtpConnectionDialog(ModalTestHost.Create(screen), TextFieldHistoryTestProvider.Create()).Show(
+        var result = new FtpConnectionDialog(ModalTestHost.Create(screen), new FormFieldFactory(TextFieldHistoryTestProvider.Create())).Show(
             new FtpConnectionDialogRequest(
                 TestConnection(),
                 SavedPassword: "secret-password",
@@ -281,7 +281,7 @@ public sealed class Spec035FtpProviderTests : IDisposable
         var screen = new ScreenRenderer(driver);
         driver.EnqueueKey(Key(ConsoleKey.Escape));
 
-        var result = new FtpConnectionDialog(ModalTestHost.Create(screen), TextFieldHistoryTestProvider.Create()).Show(
+        var result = new FtpConnectionDialog(ModalTestHost.Create(screen), new FormFieldFactory(TextFieldHistoryTestProvider.Create())).Show(
             new FtpConnectionDialogRequest(
                 TestConnection(),
                 SavedPassword: "secret-password",
@@ -304,7 +304,7 @@ public sealed class Spec035FtpProviderTests : IDisposable
             d => ClickRowByText(d, "Save password"),
             d => d.EnqueueKey(Key(ConsoleKey.F10)));
 
-        var result = new FtpConnectionDialog(ModalTestHost.Create(screen), TextFieldHistoryTestProvider.Create()).Show(
+        var result = new FtpConnectionDialog(ModalTestHost.Create(screen), new FormFieldFactory(TextFieldHistoryTestProvider.Create())).Show(
             new FtpConnectionDialogRequest(TestConnection(), "secret-password", true, true),
             _ => FtpConnectionDialogValidationResult.Accepted());
 
@@ -322,7 +322,7 @@ public sealed class Spec035FtpProviderTests : IDisposable
             d => ClickRowByText(d, "Save connection"),
             d => d.EnqueueKey(Key(ConsoleKey.F10)));
 
-        var result = new FtpConnectionDialog(ModalTestHost.Create(screen), TextFieldHistoryTestProvider.Create()).Show(
+        var result = new FtpConnectionDialog(ModalTestHost.Create(screen), new FormFieldFactory(TextFieldHistoryTestProvider.Create())).Show(
             new FtpConnectionDialogRequest(TestConnection() with { CredentialId = "cred" }, "secret-password", true, true),
             _ => FtpConnectionDialogValidationResult.Accepted());
 
@@ -341,7 +341,7 @@ public sealed class Spec035FtpProviderTests : IDisposable
             d => ClickRowByText(d, "Save password"),
             d => d.EnqueueKey(Key(ConsoleKey.F10)));
 
-        var result = new FtpConnectionDialog(ModalTestHost.Create(screen), TextFieldHistoryTestProvider.Create()).Show(
+        var result = new FtpConnectionDialog(ModalTestHost.Create(screen), new FormFieldFactory(TextFieldHistoryTestProvider.Create())).Show(
             new FtpConnectionDialogRequest(TestConnection() with { CredentialId = "cred" }, "secret-password", true, true),
             _ => FtpConnectionDialogValidationResult.Accepted());
 
@@ -359,7 +359,7 @@ public sealed class Spec035FtpProviderTests : IDisposable
             d => ClickRowByText(d, "Save connection"),
             d => d.EnqueueKey(Key(ConsoleKey.F10)));
 
-        var result = new FtpConnectionDialog(ModalTestHost.Create(screen), TextFieldHistoryTestProvider.Create()).Show(
+        var result = new FtpConnectionDialog(ModalTestHost.Create(screen), new FormFieldFactory(TextFieldHistoryTestProvider.Create())).Show(
             new FtpConnectionDialogRequest(TestConnection(), "secret-password", SaveConnectionByDefault: false, AllowTemporaryConnection: true),
             _ => FtpConnectionDialogValidationResult.Accepted());
 
@@ -377,7 +377,7 @@ public sealed class Spec035FtpProviderTests : IDisposable
             d => ClickRowByText(d, "Security:"),
             d => d.EnqueueKey(Key(ConsoleKey.F10)));
 
-        var result = new FtpConnectionDialog(ModalTestHost.Create(screen), TextFieldHistoryTestProvider.Create()).Show(
+        var result = new FtpConnectionDialog(ModalTestHost.Create(screen), new FormFieldFactory(TextFieldHistoryTestProvider.Create())).Show(
             new FtpConnectionDialogRequest(TestConnection(), "secret-password", true, true),
             _ => FtpConnectionDialogValidationResult.Accepted());
 
@@ -399,7 +399,7 @@ public sealed class Spec035FtpProviderTests : IDisposable
                 d.EnqueueKey(Key(ConsoleKey.F10));
             });
 
-        var result = new FtpConnectionDialog(ModalTestHost.Create(screen), TextFieldHistoryTestProvider.Create()).Show(
+        var result = new FtpConnectionDialog(ModalTestHost.Create(screen), new FormFieldFactory(TextFieldHistoryTestProvider.Create())).Show(
             new FtpConnectionDialogRequest(TestConnection() with { SecurityMode = FtpConnectionSecurityMode.ExplicitFtps, Port = 21 }, "secret-password", true, true),
             _ => FtpConnectionDialogValidationResult.Accepted());
 
@@ -417,7 +417,7 @@ public sealed class Spec035FtpProviderTests : IDisposable
             d => ClickRowByText(d, "Security:"),
             d => d.EnqueueKey(Key(ConsoleKey.F10)));
 
-        var result = new FtpConnectionDialog(ModalTestHost.Create(screen), TextFieldHistoryTestProvider.Create()).Show(
+        var result = new FtpConnectionDialog(ModalTestHost.Create(screen), new FormFieldFactory(TextFieldHistoryTestProvider.Create())).Show(
             new FtpConnectionDialogRequest(TestConnection() with { SecurityMode = FtpConnectionSecurityMode.ExplicitFtps, Port = 2121 }, "secret-password", true, true),
             _ => FtpConnectionDialogValidationResult.Accepted());
 
@@ -439,7 +439,7 @@ public sealed class Spec035FtpProviderTests : IDisposable
                 d.EnqueueKey(Key(ConsoleKey.F10));
             });
 
-        var result = new FtpConnectionDialog(ModalTestHost.Create(screen), TextFieldHistoryTestProvider.Create()).Show(
+        var result = new FtpConnectionDialog(ModalTestHost.Create(screen), new FormFieldFactory(TextFieldHistoryTestProvider.Create())).Show(
             new FtpConnectionDialogRequest(TestConnection() with { SecurityMode = FtpConnectionSecurityMode.ExplicitFtps, Port = 2121 }, "secret-password", true, true),
             _ => FtpConnectionDialogValidationResult.Accepted());
 
@@ -457,7 +457,7 @@ public sealed class Spec035FtpProviderTests : IDisposable
             d => ClickRowByText(d, "Security:"),
             d => d.EnqueueKey(Key(ConsoleKey.F10)));
 
-        var result = new FtpConnectionDialog(ModalTestHost.Create(screen), TextFieldHistoryTestProvider.Create()).Show(
+        var result = new FtpConnectionDialog(ModalTestHost.Create(screen), new FormFieldFactory(TextFieldHistoryTestProvider.Create())).Show(
             new FtpConnectionDialogRequest(TestConnection() with
             {
                 SecurityMode = FtpConnectionSecurityMode.PlainFtp,
@@ -499,7 +499,7 @@ public sealed class Spec035FtpProviderTests : IDisposable
                 d.EnqueueKey(Key(ConsoleKey.F10));
             });
 
-        var result = new FtpConnectionDialog(ModalTestHost.Create(screen), TextFieldHistoryTestProvider.Create()).Show(
+        var result = new FtpConnectionDialog(ModalTestHost.Create(screen), new FormFieldFactory(TextFieldHistoryTestProvider.Create())).Show(
             new FtpConnectionDialogRequest(TestConnection() with
             {
                 SecurityMode = FtpConnectionSecurityMode.PlainFtp,
@@ -525,7 +525,7 @@ public sealed class Spec035FtpProviderTests : IDisposable
             d => ClickRowByText(d, "Security:"),
             d => d.EnqueueKey(Key(ConsoleKey.F10)));
 
-        var result = new FtpConnectionDialog(ModalTestHost.Create(screen), TextFieldHistoryTestProvider.Create()).Show(
+        var result = new FtpConnectionDialog(ModalTestHost.Create(screen), new FormFieldFactory(TextFieldHistoryTestProvider.Create())).Show(
             new FtpConnectionDialogRequest(TestConnection() with
             {
                 SecurityMode = FtpConnectionSecurityMode.Auto,
@@ -548,7 +548,7 @@ public sealed class Spec035FtpProviderTests : IDisposable
         var screen = new ScreenRenderer(driver);
         driver.EnqueueKey(Key(ConsoleKey.Escape));
 
-        _ = new FtpConnectionDialog(ModalTestHost.Create(screen), TextFieldHistoryTestProvider.Create()).Show(
+        _ = new FtpConnectionDialog(ModalTestHost.Create(screen), new FormFieldFactory(TextFieldHistoryTestProvider.Create())).Show(
             new FtpConnectionDialogRequest(TestConnection(), "secret-password", true, true),
             _ => FtpConnectionDialogValidationResult.Accepted());
 
@@ -569,7 +569,7 @@ public sealed class Spec035FtpProviderTests : IDisposable
         driver.EnqueueKey(CharKey(hotkey));
 
         int validationCalls = 0;
-        var result = new FtpConnectionDialog(ModalTestHost.Create(screen), TextFieldHistoryTestProvider.Create()).Show(
+        var result = new FtpConnectionDialog(ModalTestHost.Create(screen), new FormFieldFactory(TextFieldHistoryTestProvider.Create())).Show(
             new FtpConnectionDialogRequest(TestConnection(), "secret-password", true, temporary),
             _ =>
             {
@@ -591,7 +591,7 @@ public sealed class Spec035FtpProviderTests : IDisposable
         driver.EnqueueKey(CharKey('c'));
 
         int validationCalls = 0;
-        var result = new FtpConnectionDialog(ModalTestHost.Create(screen), TextFieldHistoryTestProvider.Create()).Show(
+        var result = new FtpConnectionDialog(ModalTestHost.Create(screen), new FormFieldFactory(TextFieldHistoryTestProvider.Create())).Show(
             new FtpConnectionDialogRequest(TestConnection(), "secret-password", true, true),
             _ =>
             {
@@ -611,7 +611,7 @@ public sealed class Spec035FtpProviderTests : IDisposable
         driver.EnqueueKey(Key(ConsoleKey.Enter));
         int validationCalls = 0;
 
-        var result = new FtpConnectionDialog(ModalTestHost.Create(screen), TextFieldHistoryTestProvider.Create()).Show(
+        var result = new FtpConnectionDialog(ModalTestHost.Create(screen), new FormFieldFactory(TextFieldHistoryTestProvider.Create())).Show(
             new FtpConnectionDialogRequest(TestConnection(), "secret-password", true, true),
             _ =>
             {
@@ -627,7 +627,7 @@ public sealed class Spec035FtpProviderTests : IDisposable
     public void FtpConnectionDialog_HistoryEnterSelectsItemBeforeSubmit()
     {
         string host = "history-enter-" + Guid.NewGuid().ToString("N") + ".test";
-        var historyRegistry = TextFieldHistoryTestProvider.Create();
+        ITextFieldHistoryProvider historyRegistry = TextFieldHistoryTestProvider.Create();
         SeedAcceptedFtpHistory(TestConnection() with { Host = host }, historyRegistry);
         var driver = new FakeConsoleDriver(width: 100, height: 30);
         var screen = new ScreenRenderer(driver);
@@ -643,7 +643,7 @@ public sealed class Spec035FtpProviderTests : IDisposable
             });
         int validationCalls = 0;
 
-        var result = new FtpConnectionDialog(ModalTestHost.Create(screen), historyRegistry).Show(
+        var result = new FtpConnectionDialog(ModalTestHost.Create(screen), new FormFieldFactory(historyRegistry)).Show(
             new FtpConnectionDialogRequest(TestConnection(), "secret-password", true, true),
             _ =>
             {
@@ -660,7 +660,7 @@ public sealed class Spec035FtpProviderTests : IDisposable
     public void FtpConnectionDialog_HistoryEscapeClosesOverlayBeforeDialogCancel()
     {
         string host = "history-escape-" + Guid.NewGuid().ToString("N") + ".test";
-        var historyRegistry = TextFieldHistoryTestProvider.Create();
+        ITextFieldHistoryProvider historyRegistry = TextFieldHistoryTestProvider.Create();
         SeedAcceptedFtpHistory(TestConnection() with { Host = host }, historyRegistry);
         var driver = new FakeConsoleDriver(width: 100, height: 30);
         var screen = new ScreenRenderer(driver);
@@ -675,7 +675,7 @@ public sealed class Spec035FtpProviderTests : IDisposable
             });
         int validationCalls = 0;
 
-        var result = new FtpConnectionDialog(ModalTestHost.Create(screen), historyRegistry).Show(
+        var result = new FtpConnectionDialog(ModalTestHost.Create(screen), new FormFieldFactory(historyRegistry)).Show(
             new FtpConnectionDialogRequest(TestConnection(), "secret-password", true, true),
             _ =>
             {
@@ -701,7 +701,7 @@ public sealed class Spec035FtpProviderTests : IDisposable
             });
         int validationCalls = 0;
 
-        var result = new FtpConnectionDialog(ModalTestHost.Create(screen), TextFieldHistoryTestProvider.Create()).Show(
+        var result = new FtpConnectionDialog(ModalTestHost.Create(screen), new FormFieldFactory(TextFieldHistoryTestProvider.Create())).Show(
             new FtpConnectionDialogRequest(TestConnection(), "secret-password", true, true),
             _ =>
             {
@@ -725,7 +725,7 @@ public sealed class Spec035FtpProviderTests : IDisposable
         driver.EnqueueKey(Key(ConsoleKey.F10));
 
         var candidates = new List<FtpConnectionDialogResult>();
-        var result = new FtpConnectionDialog(ModalTestHost.Create(screen), TextFieldHistoryTestProvider.Create()).Show(
+        var result = new FtpConnectionDialog(ModalTestHost.Create(screen), new FormFieldFactory(TextFieldHistoryTestProvider.Create())).Show(
             new FtpConnectionDialogRequest(TestConnection() with
             {
                 DisplayName = "certificate-review",
@@ -786,7 +786,7 @@ public sealed class Spec035FtpProviderTests : IDisposable
             });
 
         var candidates = new List<FtpConnectionDialogResult>();
-        var result = new FtpConnectionDialog(ModalTestHost.Create(screen), TextFieldHistoryTestProvider.Create()).Show(
+        var result = new FtpConnectionDialog(ModalTestHost.Create(screen), new FormFieldFactory(TextFieldHistoryTestProvider.Create())).Show(
             new FtpConnectionDialogRequest(TestConnection() with { ExpectedTlsCertificateFingerprint = null }, "secret-password", true, true),
             candidate =>
             {
@@ -820,7 +820,7 @@ public sealed class Spec035FtpProviderTests : IDisposable
             });
 
         var candidates = new List<FtpConnectionDialogResult>();
-        var result = new FtpConnectionDialog(ModalTestHost.Create(screen), TextFieldHistoryTestProvider.Create()).Show(
+        var result = new FtpConnectionDialog(ModalTestHost.Create(screen), new FormFieldFactory(TextFieldHistoryTestProvider.Create())).Show(
             new FtpConnectionDialogRequest(TestConnection() with { ExpectedTlsCertificateFingerprint = null }, "secret-password", true, true),
             candidate =>
             {
@@ -850,7 +850,7 @@ public sealed class Spec035FtpProviderTests : IDisposable
             d => ClickRowByText(d, "Security:"),
             d => d.EnqueueKey(Key(ConsoleKey.F10)));
 
-        var result = new FtpConnectionDialog(ModalTestHost.Create(screen), TextFieldHistoryTestProvider.Create()).Show(
+        var result = new FtpConnectionDialog(ModalTestHost.Create(screen), new FormFieldFactory(TextFieldHistoryTestProvider.Create())).Show(
             new FtpConnectionDialogRequest(TestConnection() with
             {
                 SecurityMode = initialMode,
@@ -874,7 +874,7 @@ public sealed class Spec035FtpProviderTests : IDisposable
             d => ClickRowByText(d, "Security:"),
             d => d.EnqueueKey(Key(ConsoleKey.F10)));
 
-        var result = new FtpConnectionDialog(ModalTestHost.Create(screen), TextFieldHistoryTestProvider.Create()).Show(
+        var result = new FtpConnectionDialog(ModalTestHost.Create(screen), new FormFieldFactory(TextFieldHistoryTestProvider.Create())).Show(
             new FtpConnectionDialogRequest(TestConnection() with
             {
                 SecurityMode = FtpConnectionSecurityMode.Auto,
@@ -907,7 +907,7 @@ public sealed class Spec035FtpProviderTests : IDisposable
             });
 
         int validationCalls = 0;
-        var result = new FtpConnectionDialog(ModalTestHost.Create(screen), TextFieldHistoryTestProvider.Create()).Show(
+        var result = new FtpConnectionDialog(ModalTestHost.Create(screen), new FormFieldFactory(TextFieldHistoryTestProvider.Create())).Show(
             new FtpConnectionDialogRequest(TestConnection() with { DataConnectionMode = FtpDataConnectionMode.Active }, "secret-password", true, true),
             _ =>
             {
@@ -932,7 +932,7 @@ public sealed class Spec035FtpProviderTests : IDisposable
             d => ClickRowByText(d, "Data mode:"),
             d => d.EnqueueKey(Key(ConsoleKey.F10)));
 
-        var result = new FtpConnectionDialog(ModalTestHost.Create(screen), TextFieldHistoryTestProvider.Create()).Show(
+        var result = new FtpConnectionDialog(ModalTestHost.Create(screen), new FormFieldFactory(TextFieldHistoryTestProvider.Create())).Show(
             new FtpConnectionDialogRequest(TestConnection() with { DataConnectionMode = FtpDataConnectionMode.Active }, "secret-password", true, true),
             _ => FtpConnectionDialogValidationResult.Accepted());
 
@@ -958,7 +958,7 @@ public sealed class Spec035FtpProviderTests : IDisposable
                 d.EnqueueKey(Key(ConsoleKey.F10));
             });
 
-        var result = new FtpConnectionDialog(ModalTestHost.Create(screen), TextFieldHistoryTestProvider.Create()).Show(
+        var result = new FtpConnectionDialog(ModalTestHost.Create(screen), new FormFieldFactory(TextFieldHistoryTestProvider.Create())).Show(
             new FtpConnectionDialogRequest(TestConnection() with { DataConnectionMode = FtpDataConnectionMode.Active }, "secret-password", true, true),
             _ => FtpConnectionDialogValidationResult.Accepted());
 
@@ -977,7 +977,7 @@ public sealed class Spec035FtpProviderTests : IDisposable
         var screen = new ScreenRenderer(driver);
         driver.EnqueueKey(Key(ConsoleKey.F10));
 
-        var result = new FtpConnectionDialog(ModalTestHost.Create(screen), TextFieldHistoryTestProvider.Create()).Show(
+        var result = new FtpConnectionDialog(ModalTestHost.Create(screen), new FormFieldFactory(TextFieldHistoryTestProvider.Create())).Show(
             new FtpConnectionDialogRequest(TestConnection() with
             {
                 DataConnectionMode = visibleMode,
@@ -999,7 +999,7 @@ public sealed class Spec035FtpProviderTests : IDisposable
         var screen = new ScreenRenderer(driver);
         driver.EnqueueKey(Key(ConsoleKey.F10));
 
-        var result = new FtpConnectionDialog(ModalTestHost.Create(screen), TextFieldHistoryTestProvider.Create()).Show(
+        var result = new FtpConnectionDialog(ModalTestHost.Create(screen), new FormFieldFactory(TextFieldHistoryTestProvider.Create())).Show(
             new FtpConnectionDialogRequest(TestConnection(), "secret-password", false, false),
             _ => FtpConnectionDialogValidationResult.Accepted());
 
@@ -1015,7 +1015,7 @@ public sealed class Spec035FtpProviderTests : IDisposable
         var screen = new ScreenRenderer(driver);
         driver.EnqueueKey(Key(ConsoleKey.Escape));
 
-        _ = new FtpConnectionDialog(ModalTestHost.Create(screen), TextFieldHistoryTestProvider.Create()).Show(
+        _ = new FtpConnectionDialog(ModalTestHost.Create(screen), new FormFieldFactory(TextFieldHistoryTestProvider.Create())).Show(
             new FtpConnectionDialogRequest(TestConnection(), "unique-secret-password", true, true),
             _ => FtpConnectionDialogValidationResult.Accepted());
 
@@ -1032,7 +1032,7 @@ public sealed class Spec035FtpProviderTests : IDisposable
         var driver = new FakeConsoleDriver(width: 100, height: 30);
         driver.EnqueueKey(Key(ConsoleKey.F10));
 
-        _ = new FtpConnectionDialog(ModalTestHost.Create(new ScreenRenderer(driver)), history).Show(
+        _ = new FtpConnectionDialog(ModalTestHost.Create(new ScreenRenderer(driver)), new FormFieldFactory(history)).Show(
             new FtpConnectionDialogRequest(TestConnection() with { Host = host }, password, true, true),
             _ => FtpConnectionDialogValidationResult.Accepted());
 
@@ -1052,13 +1052,13 @@ public sealed class Spec035FtpProviderTests : IDisposable
         rejectedDriver.EnqueueKey(Key(ConsoleKey.F10));
         rejectedDriver.EnqueueKey(Key(ConsoleKey.Escape));
 
-        _ = new FtpConnectionDialog(ModalTestHost.Create(new ScreenRenderer(rejectedDriver)), history).Show(
+        _ = new FtpConnectionDialog(ModalTestHost.Create(new ScreenRenderer(rejectedDriver)), new FormFieldFactory(history)).Show(
             new FtpConnectionDialogRequest(TestConnection() with { Host = rejectedHost }, "secret-password", true, true),
             _ => FtpConnectionDialogValidationResult.Error("rejected"));
 
         var cancelDriver = new FakeConsoleDriver(width: 100, height: 30);
         cancelDriver.EnqueueKey(Key(ConsoleKey.Escape));
-        _ = new FtpConnectionDialog(ModalTestHost.Create(new ScreenRenderer(cancelDriver)), history).Show(
+        _ = new FtpConnectionDialog(ModalTestHost.Create(new ScreenRenderer(cancelDriver)), new FormFieldFactory(history)).Show(
             new FtpConnectionDialogRequest(TestConnection() with { Host = "cancelled-history.test" }, "secret-password", true, true),
             _ => FtpConnectionDialogValidationResult.Accepted());
 
@@ -1099,7 +1099,7 @@ public sealed class Spec035FtpProviderTests : IDisposable
             d => ClickRowByText(d, "Show in drive menu"),
             d => d.EnqueueKey(Key(ConsoleKey.F10)));
 
-        var result = new FtpConnectionDialog(ModalTestHost.Create(screen), TextFieldHistoryTestProvider.Create()).Show(
+        var result = new FtpConnectionDialog(ModalTestHost.Create(screen), new FormFieldFactory(TextFieldHistoryTestProvider.Create())).Show(
             new FtpConnectionDialogRequest(TestConnection(), "secret-password", true, true),
             _ => FtpConnectionDialogValidationResult.Accepted());
 
@@ -1245,7 +1245,7 @@ public sealed class Spec035FtpProviderTests : IDisposable
         var screen = new ScreenRenderer(driver);
         driver.EnqueueKey(Key(ConsoleKey.F10));
 
-        _ = new FtpConnectionDialog(ModalTestHost.Create(screen), historyRegistry).Show(
+        _ = new FtpConnectionDialog(ModalTestHost.Create(screen), new FormFieldFactory(historyRegistry)).Show(
             new FtpConnectionDialogRequest(connection, "secret-password", true, true),
             _ => FtpConnectionDialogValidationResult.Accepted());
     }

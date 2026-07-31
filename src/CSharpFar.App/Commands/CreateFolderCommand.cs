@@ -23,7 +23,7 @@ internal sealed class CreateFolderCommand : IApplicationCommand
         if (!CommittedLocationMatches(target))
             return ApplicationCommandResult.Rendered();
 
-        var dialog = new CreateFolderDialog(context.ModalDialogs, context.TextFieldHistory);
+        var dialog = new CreateFolderDialog(context.ModalDialogs, context.Fields);
         string? name = dialog.Show(validate: attempt =>
         {
             if (attempt.IndexOfAny(Path.GetInvalidPathChars()) >= 0)

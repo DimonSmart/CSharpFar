@@ -242,11 +242,11 @@ public sealed class UnifiedWindowScrollbarTests
         var searchDriver = new FakeConsoleDriver(width: 80, height: 11);
         searchDriver.EnqueueKey(Key(ConsoleKey.F10));
         var searchScreen = new ScreenRenderer(searchDriver);
-        var searchResult = new SearchDialog(ModalTestHost.Create(searchScreen), TextFieldHistoryTestProvider.Create()).Show(@"C:\root");
+        var searchResult = new SearchDialog(ModalTestHost.Create(searchScreen), new FormFieldFactory(TextFieldHistoryTestProvider.Create())).Show(@"C:\root");
 
         var operationDriver = new FakeConsoleDriver(width: 80, height: 11);
         operationDriver.EnqueueKey(Key(ConsoleKey.F10));
-        var operationResult = new FileOperationDialog(ModalTestHost.Create(new ScreenRenderer(operationDriver)), TextFieldHistoryTestProvider.Create()).ShowCopy(
+        var operationResult = new FileOperationDialog(ModalTestHost.Create(new ScreenRenderer(operationDriver)), new FormFieldFactory(TextFieldHistoryTestProvider.Create())).ShowCopy(
             [@"C:\root\file.txt"],
             @"C:\target",
             new FileOperationOptions());

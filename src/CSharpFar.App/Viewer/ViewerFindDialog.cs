@@ -12,12 +12,12 @@ internal sealed class ViewerFindDialog
     private const string SearchHexOption = "search-hex";
 
     private readonly ModalDialogHost _modalDialogs;
-    private readonly ITextFieldHistoryProvider _history;
+    private readonly FormFieldFactory _fields;
 
-    public ViewerFindDialog(ModalDialogHost modalDialogs, ITextFieldHistoryProvider history)
+    public ViewerFindDialog(ModalDialogHost modalDialogs, FormFieldFactory fields)
     {
         _modalDialogs = modalDialogs;
-        _history = history;
+        _fields = fields;
     }
 
     public ViewerFindDialogResult? Show(ViewerSearchRequest? previous, bool hexMode)
@@ -27,7 +27,7 @@ internal sealed class ViewerFindDialog
         if (searchHex)
             useRegex = false;
 
-        var result = new SearchOptionsDialog(_modalDialogs, _history).Show(new SearchOptionsDialogOptions
+        var result = new SearchOptionsDialog(_modalDialogs, _fields).Show(new SearchOptionsDialogOptions
         {
             Title = "Find",
             InitialPattern = previous?.Pattern ?? string.Empty,

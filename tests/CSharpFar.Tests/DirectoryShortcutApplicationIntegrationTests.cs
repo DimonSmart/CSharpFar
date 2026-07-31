@@ -88,7 +88,7 @@ public sealed class DirectoryShortcutApplicationIntegrationTests : IDisposable
         driver.EnqueueKey(Key(ConsoleKey.Enter));
 
         var screen = new ScreenRenderer(driver);
-        var result = new DirectoryShortcutEditDialog(ModalTestHost.Create(screen))
+        var result = new DirectoryShortcutEditDialog(ModalTestHost.Create(screen), new FormFieldFactory(TextFieldHistoryTestProvider.Create()))
             .Show(1, currentItem: null, _target);
 
         Assert.True(result.Accepted);
@@ -119,7 +119,7 @@ public sealed class DirectoryShortcutApplicationIntegrationTests : IDisposable
         };
 
         var screen = new ScreenRenderer(driver);
-        var result = new DirectoryShortcutEditDialog(ModalTestHost.Create(screen))
+        var result = new DirectoryShortcutEditDialog(ModalTestHost.Create(screen), new FormFieldFactory(TextFieldHistoryTestProvider.Create()))
             .Show(1, currentItem, _root);
 
         Assert.False(result.Accepted);
@@ -144,7 +144,7 @@ public sealed class DirectoryShortcutApplicationIntegrationTests : IDisposable
             MouseKeyModifiers.None));
 
         var screen = new ScreenRenderer(driver);
-        var result = new DirectoryShortcutEditDialog(ModalTestHost.Create(screen))
+        var result = new DirectoryShortcutEditDialog(ModalTestHost.Create(screen), new FormFieldFactory(TextFieldHistoryTestProvider.Create()))
             .Show(1, currentItem: null, _target);
 
         Assert.True(result.Accepted);

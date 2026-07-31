@@ -12,10 +12,10 @@ public sealed class FormFieldFactory
     public FormFieldFactory(ITextFieldHistoryProvider history) =>
         _history = history ?? throw new ArgumentNullException(nameof(history));
 
-    public TextField Text(string id, string initialText = "", TextHistoryId? history = null,
+    public TextField Text(string id, string initialText = "", TextHistoryId? historyId = null,
         bool maskInput = false, int? width = null, bool submitOnEnter = false)
     {
-        var field = new TextField(id, initialText, maskInput ? null : history is { } key ? _history.Get(key) : null, width, maskInput, submitOnEnter);
+        var field = new TextField(id, initialText, maskInput ? null : historyId is { } key ? _history.Get(key) : null, width, maskInput, submitOnEnter);
         return field;
     }
 }

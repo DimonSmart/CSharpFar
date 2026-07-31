@@ -19,7 +19,7 @@ public sealed class TextInputRow : FormRow, IFormCursorProvider, IFormCompositeR
         SubmitOnEnter = field.SubmitOnEnter;
     }
 
-    public TextInputRow(
+    internal TextInputRow(
         CommandLineState buffer,
         SingleLineTextHistoryState? history = null,
         int? width = null,

@@ -12,7 +12,7 @@ public sealed class LabeledTextInputRow : FormRow, IFormCursorProvider, IFormCom
     private readonly int? _inputWidth;
     private readonly FormTextInputField _field;
 
-    public LabeledTextInputRow(string label, CommandLineState buffer, SingleLineTextHistoryState? history = null,
+    internal LabeledTextInputRow(string label, CommandLineState buffer, SingleLineTextHistoryState? history = null,
         int labelWidth = 22, int? inputWidth = null, bool maskInput = false)
     {
         _label = label;
