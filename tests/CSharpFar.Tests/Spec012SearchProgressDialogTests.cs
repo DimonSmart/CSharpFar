@@ -249,6 +249,16 @@ public sealed class Spec012SearchProgressDialogTests
         }
     }
 
+    private static async Task WaitUntilCancelledAsync(CancellationToken cancellationToken)
+    {
+        var completion = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        using var registration = cancellationToken.Register(
+            static state => ((TaskCompletionSource<bool>)state!).TrySetResult(true),
+            completion);
+        await completion.Task.ConfigureAwait(false);
+        cancellationToken.ThrowIfCancellationRequested();
+    }
+
     private sealed class BlockingSearchService : ISearchService
     {
         private readonly SearchResultItem _item;
@@ -273,7 +283,7 @@ public sealed class Spec012SearchProgressDialogTests
 
             try
             {
-                await Task.Delay(TimeSpan.FromSeconds(30), cancellationToken);
+                await WaitUntilCancelledAsync(cancellationToken);
             }
             catch (OperationCanceledException)
             {
@@ -327,7 +337,7 @@ public sealed class Spec012SearchProgressDialogTests
 
             try
             {
-                await Task.Delay(TimeSpan.FromSeconds(30), cancellationToken);
+                await WaitUntilCancelledAsync(cancellationToken);
             }
             catch (OperationCanceledException)
             {
@@ -359,7 +369,7 @@ public sealed class Spec012SearchProgressDialogTests
 
             try
             {
-                await Task.Delay(TimeSpan.FromSeconds(30), cancellationToken);
+                await WaitUntilCancelledAsync(cancellationToken);
             }
             catch (OperationCanceledException)
             {
@@ -391,7 +401,7 @@ public sealed class Spec012SearchProgressDialogTests
 
             try
             {
-                await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken);
+                await WaitUntilCancelledAsync(cancellationToken);
             }
             catch (OperationCanceledException)
             {
