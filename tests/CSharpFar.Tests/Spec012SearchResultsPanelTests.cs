@@ -210,6 +210,7 @@ public sealed class Spec012SearchResultsPanelTests : IDisposable
         string foundFile = Path.Combine(subDirectory, "found.txt");
         var fileOps = new RecordingFileOperationService();
         var driver = new FakeConsoleDriver(width: 100, height: 30);
+        var service = new BlockingSearchService(SearchResult(foundFile));
         EnqueueKeysWhenWriteContains(
             driver,
             "found.txt",
@@ -235,7 +236,7 @@ public sealed class Spec012SearchResultsPanelTests : IDisposable
                 LastWriteTime = new DateTime(2026, 1, 1),
             });
 
-        var app = CreateApp(fs, driver, fileOps, new BlockingSearchService(SearchResult(foundFile)));
+        var app = CreateApp(fs, driver, fileOps, service);
 
         ApplicationTestRunBuilder
             .For(app, driver)
@@ -245,8 +246,11 @@ public sealed class Spec012SearchResultsPanelTests : IDisposable
             .Run();
 
         var left = GetLeftPanel(app);
+        Assert.True(service.CancellationObserved);
         Assert.Equal(subDirectory, left.CurrentDirectory);
         Assert.Equal(PanelProviderCapabilities.LocalFileSystem, left.ProviderCapabilities);
+        Assert.Null(left.SearchRequest);
+        Assert.False(left.ShowCurrentItemFullPath);
         Assert.Equal("found.txt", left.Items[left.CursorIndex].Name);
     }
 
@@ -428,6 +432,16 @@ public sealed class Spec012SearchResultsPanelTests : IDisposable
     private static FilePanelState GetRightPanel(Application app) =>
         app.Session.Panels.Right;
 
+    private static async Task WaitUntilCancelledAsync(CancellationToken cancellationToken)
+    {
+        var completion = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        using var registration = cancellationToken.Register(
+            static state => ((TaskCompletionSource<bool>)state!).TrySetResult(true),
+            completion);
+        await completion.Task.ConfigureAwait(false);
+        cancellationToken.ThrowIfCancellationRequested();
+    }
+
     private sealed class RecordingFileOperationService : IFileOperationService
     {
         public bool SupportsRecycleBin => true;
@@ -512,7 +526,7 @@ public sealed class Spec012SearchResultsPanelTests : IDisposable
             try
             {
                 cancellationToken.ThrowIfCancellationRequested();
-                await Task.Delay(TimeSpan.FromSeconds(2), cancellationToken);
+                await WaitUntilCancelledAsync(cancellationToken);
             }
             catch (OperationCanceledException)
             {
