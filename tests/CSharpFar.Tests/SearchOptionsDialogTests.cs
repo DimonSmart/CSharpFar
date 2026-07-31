@@ -24,9 +24,10 @@ public sealed class SearchOptionsDialogTests
     public void SearchOptionsDialog_EnterOnPattern_SubmitsFind()
     {
         var history = CreateHistory();
-        var form = new ScrollableFormDialog(BuildRows(history));
+        IReadOnlyList<IFormRow> rows = BuildRows(history);
+        var form = new ScrollableFormDialog(rows);
 
-        FormInputResult result = HandleKey(form, history, Key(ConsoleKey.Enter));
+        FormInputResult result = HandleKey(form, PopupState(rows), Key(ConsoleKey.Enter));
 
         Assert.Equal(FormInputResultKind.Submit, result.Kind);
         Assert.Equal("find", result.Command);
@@ -37,24 +38,27 @@ public sealed class SearchOptionsDialogTests
     {
         var history = CreateHistory();
         history.Add("saved pattern");
-        Assert.True(history.OpenAll(availableContentRows: 1));
-        var form = new ScrollableFormDialog(BuildRows(history));
+        IReadOnlyList<IFormRow> rows = BuildRows(history);
+        SingleLineTextHistoryState popup = PopupState(rows);
+        Assert.True(popup.OpenAll(availableContentRows: 1));
+        var form = new ScrollableFormDialog(rows);
 
-        FormInputResult result = HandleKey(form, history, Key(ConsoleKey.Enter));
+        FormInputResult result = HandleKey(form, popup, Key(ConsoleKey.Enter));
 
         Assert.Equal(FormInputResultKind.Submit, result.Kind);
         Assert.Null(result.Command);
-        Assert.False(history.IsDropdownOpen);
+        Assert.False(popup.IsDropdownOpen);
     }
 
     [Fact]
     public void SearchOptionsDialog_EnterOnCheckbox_DoesNotSubmitFind()
     {
         var history = CreateHistory();
-        var form = new ScrollableFormDialog(BuildRows(history));
+        IReadOnlyList<IFormRow> rows = BuildRows(history);
+        var form = new ScrollableFormDialog(rows);
         form.SetInitialFocus("option");
 
-        FormInputResult result = HandleKey(form, history, Key(ConsoleKey.Enter));
+        FormInputResult result = HandleKey(form, PopupState(rows), Key(ConsoleKey.Enter));
 
         Assert.Equal(FormInputResultKind.ValueChanged, result.Kind);
         Assert.Null(result.Command);
@@ -73,7 +77,7 @@ public sealed class SearchOptionsDialogTests
         form.SetInitialFocus("pattern");
         Assert.NotEqual(0, form.FocusIndex);
 
-        FormInputResult result = HandleKey(form, history, Key(ConsoleKey.Enter));
+        FormInputResult result = HandleKey(form, PopupState(rows), Key(ConsoleKey.Enter));
 
         Assert.Equal(FormInputResultKind.Submit, result.Kind);
         Assert.Equal("find", result.Command);
@@ -186,7 +190,7 @@ public sealed class SearchOptionsDialogTests
 
     private static FormInputResult HandleKey(
         ScrollableFormDialog form,
-        TextHistory history,
+        SingleLineTextHistoryState history,
         ConsoleKeyInfo key)
     {
         if (key.Key == ConsoleKey.F10 ||
@@ -203,6 +207,9 @@ public sealed class SearchOptionsDialogTests
         host.Composition.DispatchInput(new KeyConsoleInputEvent(key));
         return layer.LastResult?.FormResult ?? FormInputResult.NotHandled;
     }
+
+    private static SingleLineTextHistoryState PopupState(IReadOnlyList<IFormRow> rows) =>
+        Assert.IsType<SingleLineTextHistoryState>(Assert.Single(rows.OfType<TextInputRow>()).Input.History);
 
     private sealed class SearchOptionsFormLayer(ScreenRenderer screen, ScrollableFormDialog form) :
         UiLayer<ScrollableFormFrame>,

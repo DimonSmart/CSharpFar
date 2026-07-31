@@ -10,6 +10,15 @@ public sealed class TextInputRow : FormRow, IFormCursorProvider, IFormCompositeR
     private readonly FormTextInputField _field;
     private readonly int? _width;
 
+    public TextInputRow(TextField field)
+    {
+        ArgumentNullException.ThrowIfNull(field);
+        _field = field.Input;
+        _width = field.Width;
+        Id = field.Id;
+        SubmitOnEnter = field.SubmitOnEnter;
+    }
+
     public TextInputRow(
         CommandLineState buffer,
         SingleLineTextHistoryState? history = null,
@@ -21,6 +30,7 @@ public sealed class TextInputRow : FormRow, IFormCursorProvider, IFormCompositeR
     }
 
     public CommandLineState Buffer => _field.Buffer;
+    internal FormTextInputField Input => _field;
     public override FormRowRole Role { get; init; } = FormRowRole.TextInput;
     public int? Width => _width;
     public bool IsCompositeOpen => _field.History?.IsDropdownOpen == true;

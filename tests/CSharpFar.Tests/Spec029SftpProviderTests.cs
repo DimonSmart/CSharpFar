@@ -218,6 +218,48 @@ public sealed class Spec029SftpProviderTests : IDisposable
     }
 
     [Fact]
+    public void SftpConnectionDialog_AcceptedValidationAddsOnlyNonSecretHistory()
+    {
+        string host = "accepted-history-" + Guid.NewGuid().ToString("N") + ".test";
+        const string password = "sftp-history-secret";
+        ITextFieldHistoryProvider history = TextFieldHistoryTestProvider.Create();
+        var driver = new FakeConsoleDriver(width: 100, height: 30);
+        driver.EnqueueKey(Key(ConsoleKey.F10));
+
+        _ = new SftpConnectionDialog(ModalTestHost.Create(new ScreenRenderer(driver)), history).Show(
+            new SftpConnectionDialogRequest(TestConnection() with { Host = host }, password, true, true),
+            _ => SftpConnectionDialogValidationResult.Accepted());
+
+        Assert.Contains(host, history.Get(SftpTextHistoryIds.Host).Items);
+        Assert.DoesNotContain(driver.WriteRecords, record => record.Text.Contains(password, StringComparison.Ordinal));
+        Assert.All(
+            new[] { SftpTextHistoryIds.ConnectionName, SftpTextHistoryIds.Host, SftpTextHistoryIds.Port, SftpTextHistoryIds.UserName, SftpTextHistoryIds.RemoteRoot },
+            id => Assert.DoesNotContain(history.Get(id).Items, item => item.Contains(password, StringComparison.Ordinal)));
+    }
+
+    [Fact]
+    public void SftpConnectionDialog_RejectedValidationAndCancelDoNotAddHistory()
+    {
+        string rejectedHost = "rejected-history-" + Guid.NewGuid().ToString("N") + ".test";
+        ITextFieldHistoryProvider history = TextFieldHistoryTestProvider.Create();
+        var rejectedDriver = new FakeConsoleDriver(width: 100, height: 30);
+        rejectedDriver.EnqueueKey(Key(ConsoleKey.F10));
+        rejectedDriver.EnqueueKey(Key(ConsoleKey.Escape));
+
+        _ = new SftpConnectionDialog(ModalTestHost.Create(new ScreenRenderer(rejectedDriver)), history).Show(
+            new SftpConnectionDialogRequest(TestConnection() with { Host = rejectedHost }, "secret-password", true, true),
+            _ => SftpConnectionDialogValidationResult.Error("rejected"));
+
+        var cancelDriver = new FakeConsoleDriver(width: 100, height: 30);
+        cancelDriver.EnqueueKey(Key(ConsoleKey.Escape));
+        _ = new SftpConnectionDialog(ModalTestHost.Create(new ScreenRenderer(cancelDriver)), history).Show(
+            new SftpConnectionDialogRequest(TestConnection() with { Host = "cancelled-history.test" }, "secret-password", true, true),
+            _ => SftpConnectionDialogValidationResult.Accepted());
+
+        Assert.Empty(history.Get(SftpTextHistoryIds.Host).Items);
+    }
+
+    [Fact]
     public void SftpConnectionDialog_EnterInTextInput_SubmitsForm()
     {
         var driver = new FakeConsoleDriver(width: 100, height: 30);

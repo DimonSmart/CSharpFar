@@ -9,44 +9,21 @@ public enum SingleLineTextHistoryAcceptResult
     HistoryItem,
 }
 
-public class SingleLineTextHistoryState
+public sealed class SingleLineTextHistoryState
 {
     public const int MaxVisibleRows = 10;
-    public const int MaxItemsPerField = 100;
 
-    private readonly List<string> _items = [];
     private readonly List<string> _matches = [];
     internal VerticalScrollbarController Scrollbar { get; } = new();
 
-    public SingleLineTextHistoryState(IEnumerable<string>? initialItems = null, Action<IReadOnlyList<string>>? itemsChanged = null)
-    {
-        _items = Normalize(initialItems);
-        ItemsChanged = itemsChanged;
-    }
+    public SingleLineTextHistoryState(TextHistory history) =>
+        History = history ?? throw new ArgumentNullException(nameof(history));
 
-    private Action<IReadOnlyList<string>>? ItemsChanged { get; }
-    public IReadOnlyList<string> Items => _items;
-    public bool HasItems => _items.Count > 0;
+    public TextHistory History { get; }
     public IReadOnlyList<string> Matches => _matches;
     public bool IsDropdownOpen { get; private set; }
     public int SelectedIndex { get; private set; }
     public int FirstVisibleIndex { get; private set; }
-
-    public void Add(string text)
-    {
-        if (string.IsNullOrWhiteSpace(text))
-            return;
-
-        if (_items.Count > 0 && string.Equals(_items[0], text, StringComparison.Ordinal))
-            return;
-
-        _items.RemoveAll(item => string.Equals(item, text, StringComparison.Ordinal));
-        _items.Insert(0, text);
-        if (_items.Count > MaxItemsPerField)
-            _items.RemoveRange(MaxItemsPerField, _items.Count - MaxItemsPerField);
-        RefreshOpenMatches();
-        ItemsChanged?.Invoke(_items);
-    }
 
     public bool OpenAll(int availableContentRows) =>
         OpenMatches(prefix: string.Empty, availableContentRows);
@@ -160,7 +137,7 @@ public class SingleLineTextHistoryState
             return false;
         }
 
-        foreach (string item in _items)
+        foreach (string item in History.Items)
         {
             if ((prefix.Length == 0 || item.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)) &&
                 _matches.Count < MaxVisibleRows - 1)
@@ -179,20 +156,6 @@ public class SingleLineTextHistoryState
         FirstVisibleIndex = 0;
         NormalizeSelection(availableContentRows);
         return true;
-    }
-
-    private void RefreshOpenMatches()
-    {
-        if (!IsDropdownOpen)
-            return;
-
-        for (int index = _matches.Count - 1; index > 0; index--)
-        {
-            if (!_items.Contains(_matches[index], StringComparer.Ordinal))
-                _matches.RemoveAt(index);
-        }
-        if (_matches.Count == 1)
-            Close();
     }
 
     private void NormalizeSelection(int availableContentRows)
@@ -218,20 +181,4 @@ public class SingleLineTextHistoryState
     private static int VisibleRows(int availableContentRows, int itemCount) =>
         Math.Max(0, Math.Min(Math.Min(MaxVisibleRows, availableContentRows), itemCount));
 
-    private static List<string> Normalize(IEnumerable<string>? items)
-    {
-        var result = new List<string>();
-        if (items is null)
-            return result;
-
-        var seen = new HashSet<string>(StringComparer.Ordinal);
-        foreach (string item in items)
-        {
-            if (!string.IsNullOrWhiteSpace(item) && seen.Add(item))
-                result.Add(item);
-            if (result.Count == MaxItemsPerField)
-                break;
-        }
-        return result;
-    }
 }

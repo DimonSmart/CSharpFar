@@ -21,16 +21,20 @@ public sealed class LabeledTextInputRow : FormRow, IFormCursorProvider, IFormCom
         _field = new FormTextInputField(buffer, history, maskInput);
     }
 
-    public LabeledTextInputRow(string label, TextField field, int labelWidth = 22, int? inputWidth = null, bool maskInput = false)
-        : this(label, field?.Buffer ?? throw new ArgumentNullException(nameof(field)), field.History,
-            labelWidth, inputWidth, maskInput)
+    public LabeledTextInputRow(string label, TextField field, int labelWidth = 22)
     {
+        ArgumentNullException.ThrowIfNull(field);
+        _label = label;
+        _labelWidth = labelWidth;
+        _inputWidth = field.Width;
+        _field = field.Input;
         Id = field.Id;
         SubmitOnEnter = field.SubmitOnEnter;
     }
 
     public override FormRowRole Role { get; init; } = FormRowRole.TextInput;
     public CommandLineState Buffer => _field.Buffer;
+    internal FormTextInputField Input => _field;
     public bool IsCompositeOpen => _field.History?.IsDropdownOpen == true;
     public Rect GetInputBounds(Rect rowBounds) => Layout(rowBounds).InputBounds;
 

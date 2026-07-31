@@ -1003,34 +1003,45 @@ public sealed class Spec035FtpProviderTests : IDisposable
     }
 
     [Fact]
-    public void FtpConnectionDialog_RejectedValidationDoesNotAddHistory()
+    public void FtpConnectionDialog_AcceptedValidationAddsOnlyNonSecretHistory()
+    {
+        string host = "accepted-history-" + Guid.NewGuid().ToString("N") + ".test";
+        const string password = "ftp-history-secret";
+        ITextFieldHistoryProvider history = TextFieldHistoryTestProvider.Create();
+        var driver = new FakeConsoleDriver(width: 100, height: 30);
+        driver.EnqueueKey(Key(ConsoleKey.F10));
+
+        _ = new FtpConnectionDialog(ModalTestHost.Create(new ScreenRenderer(driver)), history).Show(
+            new FtpConnectionDialogRequest(TestConnection() with { Host = host }, password, true, true),
+            _ => FtpConnectionDialogValidationResult.Accepted());
+
+        Assert.Contains(host, history.Get(FtpTextHistoryIds.Host).Items);
+        Assert.DoesNotContain(driver.WriteRecords, record => record.Text.Contains(password, StringComparison.Ordinal));
+        Assert.All(
+            new[] { FtpTextHistoryIds.ConnectionName, FtpTextHistoryIds.Host, FtpTextHistoryIds.Port, FtpTextHistoryIds.UserName, FtpTextHistoryIds.RemoteRoot, FtpTextHistoryIds.ActivePorts },
+            id => Assert.DoesNotContain(history.Get(id).Items, item => item.Contains(password, StringComparison.Ordinal)));
+    }
+
+    [Fact]
+    public void FtpConnectionDialog_RejectedValidationAndCancelDoNotAddHistory()
     {
         string rejectedHost = "rejected-history-" + Guid.NewGuid().ToString("N") + ".test";
+        ITextFieldHistoryProvider history = TextFieldHistoryTestProvider.Create();
         var rejectedDriver = new FakeConsoleDriver(width: 100, height: 30);
-        var rejectedScreen = new ScreenRenderer(rejectedDriver);
         rejectedDriver.EnqueueKey(Key(ConsoleKey.F10));
         rejectedDriver.EnqueueKey(Key(ConsoleKey.Escape));
 
-        _ = new FtpConnectionDialog(ModalTestHost.Create(rejectedScreen), TextFieldHistoryTestProvider.Create()).Show(
+        _ = new FtpConnectionDialog(ModalTestHost.Create(new ScreenRenderer(rejectedDriver)), history).Show(
             new FtpConnectionDialogRequest(TestConnection() with { Host = rejectedHost }, "secret-password", true, true),
             _ => FtpConnectionDialogValidationResult.Error("rejected"));
 
-        var driver = new FakeConsoleDriver(width: 100, height: 30);
-        var screen = new ScreenRenderer(driver);
-        RunReadScript(driver,
-            d => ClickInputByLabel(d, "Host:"),
-            d =>
-            {
-                d.EnqueueKey(ControlA());
-                EnqueueText(d, rejectedHost[..8]);
-                d.EnqueueKey(Key(ConsoleKey.Escape));
-            });
-
-        _ = new FtpConnectionDialog(ModalTestHost.Create(screen), TextFieldHistoryTestProvider.Create()).Show(
-            new FtpConnectionDialogRequest(TestConnection(), "secret-password", true, true),
+        var cancelDriver = new FakeConsoleDriver(width: 100, height: 30);
+        cancelDriver.EnqueueKey(Key(ConsoleKey.Escape));
+        _ = new FtpConnectionDialog(ModalTestHost.Create(new ScreenRenderer(cancelDriver)), history).Show(
+            new FtpConnectionDialogRequest(TestConnection() with { Host = "cancelled-history.test" }, "secret-password", true, true),
             _ => FtpConnectionDialogValidationResult.Accepted());
 
-        Assert.DoesNotContain(driver.WriteRecords, record => record.Text.Contains(rejectedHost, StringComparison.Ordinal));
+        Assert.Empty(history.Get(FtpTextHistoryIds.Host).Items);
     }
 
     [Fact]

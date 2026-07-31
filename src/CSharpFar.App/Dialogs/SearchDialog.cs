@@ -186,15 +186,15 @@ internal sealed class SearchDialog
         return
         [
             new LabelRow("A file mask or several file masks:", fill),
-            mask.Row,
+            mask.AsRow(),
             new LabelRow("Containing text:", fill),
-            text.Row,
+            text.AsRow(),
             new LabelRow("Using code page: Automatic detection", fill),
             options,
             new LabelRow("Select search area:", fill),
             scope,
             new LabelRow("Parallelism:", fill),
-            parallelism.Row,
+            parallelism.AsRow(),
         ];
     }
 

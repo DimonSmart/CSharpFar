@@ -66,20 +66,15 @@ internal sealed class SftpConnectionDialog
             fields.Text("port", (connection?.Port ?? 22).ToString(), SftpTextHistoryIds.Port, width: FieldWidth, submitOnEnter: true),
             fields.Text("username", connection?.Username ?? string.Empty, SftpTextHistoryIds.UserName, width: FieldWidth, submitOnEnter: true),
             fields.Text("password", request.SavedPassword ?? string.Empty, maskInput: true, width: FieldWidth, submitOnEnter: true),
-            fields.Text("remote-root", connection?.RemoteRootPath ?? "/", SftpTextHistoryIds.RemoteRoot, width: FieldWidth, submitOnEnter: true));
-        var connectionName = state.ConnectionName; var host = state.Host; var port = state.Port;
-        var userName = state.UserName; var password = state.Password; var remoteRoot = state.RemoteRoot;
-
-        var saveConnectionRow = new CheckBoxRow(new CheckBoxLine("Save connection")) { Id = "save-connection" };
-        var savePasswordRow = new CheckBoxRow(new CheckBoxLine("Save password")) { Id = "save-password" };
-        var showInDriveRow = new CheckBoxRow(new CheckBoxLine("Show in drive menu")) { Id = "show-in-drive" };
-        var trustHostKeyRow = new CheckBoxRow(new CheckBoxLine("Trust host key")) { Id = "trust-host-key" };
-        saveConnectionRow.Value = request.SaveConnectionByDefault;
-        savePasswordRow.Value = connection?.CredentialId is not null && request.SavedPassword is not null;
-        showInDriveRow.Value = connection?.ShowInDriveSelection ?? true;
+            fields.Text("remote-root", connection?.RemoteRootPath ?? "/", SftpTextHistoryIds.RemoteRoot, width: FieldWidth, submitOnEnter: true),
+            new CheckBoxRow("Save connection", request.SaveConnectionByDefault) { Id = "save-connection" },
+            new CheckBoxRow("Save password", connection?.CredentialId is not null && request.SavedPassword is not null) { Id = "save-password" },
+            new CheckBoxRow("Show in drive menu", connection?.ShowInDriveSelection ?? true) { Id = "show-in-drive" },
+            new CheckBoxRow("Trust host key") { Id = "trust-host-key" },
+            request.AllowTemporaryConnection);
 
         string? hostKeyFingerprint = connection?.ExpectedHostKeyFingerprint;
-        trustHostKeyRow.Value = !string.IsNullOrWhiteSpace(hostKeyFingerprint);
+        state.TrustHostKey.Value = !string.IsNullOrWhiteSpace(hostKeyFingerprint);
         string? error = null;
         string submitLabel = request.AllowTemporaryConnection ? "Connect" : "Save";
         var actions = new ButtonRow(
@@ -91,10 +86,7 @@ internal sealed class SftpConnectionDialog
         var form = new ScrollableFormDialog();
 
         void PrepareRows() => form.SetRows(
-            BuildRows(
-                request.AllowTemporaryConnection,
-                connectionName, host, port, userName, password, remoteRoot,
-                saveConnectionRow, savePasswordRow, showInDriveRow, trustHostKeyRow, hostKeyFingerprint),
+            BuildRows(state, hostKeyFingerprint),
             [new LabelRow(error ?? string.Empty, FarDialogStyles.Error), actions]);
 
         return _formDialogs.Run(
@@ -117,15 +109,15 @@ internal sealed class SftpConnectionDialog
                     (routed.Target == form.GetFocusTarget("host") || routed.Target == form.GetFocusTarget("port")))
                 {
                     hostKeyFingerprint = null;
-                    trustHostKeyRow.Value = false;
+                    state.TrustHostKey.Value = false;
                 }
-                if (result.Kind == FormInputResultKind.ValueChanged && routed.Target == form.GetFocusTarget("save-password") && savePasswordRow.Value)
+                if (result.Kind == FormInputResultKind.ValueChanged && routed.Target == form.GetFocusTarget("save-password") && state.SavePassword.Value)
                 {
-                    saveConnectionRow.Value = true;
+                    state.SaveConnection.Value = true;
                 }
-                else if (result.Kind == FormInputResultKind.ValueChanged && routed.Target == form.GetFocusTarget("save-connection") && !saveConnectionRow.Value)
+                else if (result.Kind == FormInputResultKind.ValueChanged && routed.Target == form.GetFocusTarget("save-connection") && !state.SaveConnection.Value)
                 {
-                    savePasswordRow.Value = false;
+                    state.SavePassword.Value = false;
                 }
 
                 if (result.Kind == FormInputResultKind.Cancel)
@@ -137,9 +129,9 @@ internal sealed class SftpConnectionDialog
                 {
                     SftpConnectionDialogResult? candidate = BuildResult(
                         request,
-                        connectionName.Text.Trim(), host.Text.Trim(), port.Text.Trim(), userName.Text.Trim(), password.Text,
-                        remoteRoot.Text.Trim(), saveConnectionRow.Value, savePasswordRow.Value, showInDriveRow.Value,
-                        trustHostKeyRow.Value ? hostKeyFingerprint : null);
+                        state.ConnectionName.Text.Trim(), state.Host.Text.Trim(), state.Port.Text.Trim(), state.UserName.Text.Trim(), state.Password.Text,
+                        state.RemoteRoot.Text.Trim(), state.SaveConnection.Value, state.SavePassword.Value, state.ShowInDrive.Value,
+                        state.TrustHostKey.Value ? hostKeyFingerprint : null);
                     if (candidate is null)
                     {
                         error = "Host, user name, password, and remote root are required.";
@@ -156,7 +148,7 @@ internal sealed class SftpConnectionDialog
                     if (validation.HostKeyFingerprint is not null)
                     {
                         hostKeyFingerprint = validation.HostKeyFingerprint;
-                        trustHostKeyRow.Value = false;
+                        state.TrustHostKey.Value = false;
                         PrepareRows();
                         error = validation.ErrorMessage;
                         return ModalDialogLoopResult<SftpConnectionDialogResult?>.ContinueWithFocus(
@@ -171,37 +163,25 @@ internal sealed class SftpConnectionDialog
             prepareRender: PrepareRows);
     }
 
-    private static IReadOnlyList<IFormRow> BuildRows(
-        bool allowTemporaryConnection,
-        TextField connectionName,
-        TextField host,
-        TextField port,
-        TextField userName,
-        TextField password,
-        TextField remoteRoot,
-        CheckBoxRow saveConnectionRow,
-        CheckBoxRow savePasswordRow,
-        CheckBoxRow showInDriveRow,
-        CheckBoxRow trustHostKeyRow,
-        string? hostKeyFingerprint)
+    private static IReadOnlyList<IFormRow> BuildRows(SftpFormState state, string? hostKeyFingerprint)
     {
         var rows = new List<IFormRow>
         {
-            new LabeledTextInputRow("Connection name:", connectionName, inputWidth: FieldWidth),
-            new LabeledTextInputRow("Host:", host, inputWidth: FieldWidth),
-            new LabeledTextInputRow("Port:", port, inputWidth: FieldWidth),
-            new LabeledTextInputRow("User name:", userName, inputWidth: FieldWidth),
-            new LabeledTextInputRow("Password:", password, inputWidth: FieldWidth, maskInput: true),
-            new LabeledTextInputRow("Remote root:", remoteRoot, inputWidth: FieldWidth),
+            state.ConnectionName.AsLabeledRow("Connection name:"),
+            state.Host.AsLabeledRow("Host:"),
+            state.Port.AsLabeledRow("Port:"),
+            state.UserName.AsLabeledRow("User name:"),
+            state.Password.AsLabeledRow("Password:"),
+            state.RemoteRoot.AsLabeledRow("Remote root:"),
         };
-        if (allowTemporaryConnection)
-            rows.Add(saveConnectionRow);
-        rows.Add(savePasswordRow);
-        rows.Add(showInDriveRow);
+        if (state.AllowTemporaryConnection)
+            rows.Add(state.SaveConnection);
+        rows.Add(state.SavePassword);
+        rows.Add(state.ShowInDrive);
         if (!string.IsNullOrWhiteSpace(hostKeyFingerprint))
         {
             rows.Add(new LabeledValueRow("Host key:", () => hostKeyFingerprint, 22) { Id = "host-key-fingerprint" });
-            rows.Add(trustHostKeyRow);
+            rows.Add(state.TrustHostKey);
         }
         return rows;
     }
@@ -236,7 +216,9 @@ internal sealed class SftpConnectionDialog
     }
 
     private sealed record SftpFormState(TextField ConnectionName, TextField Host, TextField Port,
-        TextField UserName, TextField Password, TextField RemoteRoot)
+        TextField UserName, TextField Password, TextField RemoteRoot, CheckBoxRow SaveConnection,
+        CheckBoxRow SavePassword, CheckBoxRow ShowInDrive, CheckBoxRow TrustHostKey,
+        bool AllowTemporaryConnection)
     {
         public void AcceptHistory()
         {

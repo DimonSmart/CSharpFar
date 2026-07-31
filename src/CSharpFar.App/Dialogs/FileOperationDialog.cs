@@ -118,8 +118,10 @@ internal sealed class FileOperationDialog
         var filter = new CommandLineState();
         filter.SetText(string.IsNullOrWhiteSpace(initialOptions.FileMask) ? "*" : initialOptions.FileMask);
 
-        SingleLineTextHistoryState destinationHistory = _historyRegistry.Get(AppTextHistoryIds.FileOperationDestination);
-        SingleLineTextHistoryState filterHistory = _historyRegistry.Get(AppTextHistoryIds.FileOperationFilter);
+        var destinationHistory = new SingleLineTextHistoryState(
+            _historyRegistry.Get(AppTextHistoryIds.FileOperationDestination));
+        var filterHistory = new SingleLineTextHistoryState(
+            _historyRegistry.Get(AppTextHistoryIds.FileOperationFilter));
 
         var securityChoice = new ChoiceFormRow<FileSecurityMode>(
             new ChoiceRow<FileSecurityMode>(
@@ -331,9 +333,9 @@ internal sealed class FileOperationDialog
             ? filter.Text.Trim()
             : null;
 
-        destinationHistory.Add(destinationText);
+        destinationHistory.History.Add(destinationText);
         if (mask is not null)
-            filterHistory.Add(mask);
+            filterHistory.History.Add(mask);
         destinationHistory.Close();
         filterHistory.Close();
 

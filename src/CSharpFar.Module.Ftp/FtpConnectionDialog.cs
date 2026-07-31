@@ -59,27 +59,20 @@ internal sealed class FtpConnectionDialog
             fields.Text("username", connection?.Username ?? string.Empty, FtpTextHistoryIds.UserName, width: FieldWidth, submitOnEnter: true),
             fields.Text("password", request.SavedPassword ?? string.Empty, maskInput: true, width: FieldWidth, submitOnEnter: true),
             fields.Text("remote-root", connection?.RemoteRootPath ?? "/", FtpTextHistoryIds.RemoteRoot, width: FieldWidth, submitOnEnter: true),
-            fields.Text("active-ports", FormatActivePortRange(connection) ?? string.Empty, FtpTextHistoryIds.ActivePorts, width: FieldWidth, submitOnEnter: true));
-        var connectionName = state.ConnectionName; var host = state.Host; var port = state.Port; var username = state.UserName;
-        var password = state.Password; var remoteRoot = state.RemoteRoot; var activePorts = state.ActivePorts;
-
-        var saveConnection = new CheckBoxRow(new CheckBoxLine("Save connection")) { Id = "save-connection", Value = request.SaveConnectionByDefault };
-        var savePassword = new CheckBoxRow(new CheckBoxLine("Save password")) { Id = "save-password", Value = connection?.CredentialId is not null && request.SavedPassword is not null };
-        var showInDrive = new CheckBoxRow(new CheckBoxLine("Show in drive menu")) { Id = "show-in-drive", Value = connection?.ShowInDriveSelection ?? true };
-        var dataTls = new CheckBoxRow(new CheckBoxLine("Use TLS for data connection")) { Id = "data-tls" };
-        var trust = new CheckBoxRow(new CheckBoxLine("Trust certificate")) { Id = "trust-certificate" };
-        var security = new CompactChoiceFormRow<FtpConnectionSecurityMode>(
-            new ChoiceRow<FtpConnectionSecurityMode>(Enum.GetValues<FtpConnectionSecurityMode>(), SecurityLabel, SecurityIndex(connection?.SecurityMode ?? FtpConnectionSecurityMode.ExplicitFtps)), "Security")
-        { Id = "security" };
-        var dataMode = new CompactChoiceFormRow<FtpDataConnectionMode>(
-            new ChoiceRow<FtpDataConnectionMode>(Enum.GetValues<FtpDataConnectionMode>(), DataModeLabel, DataModeIndex(connection?.DataConnectionMode ?? FtpDataConnectionMode.AutoPassive)), "Data mode")
-        { Id = "data-mode" };
-        var activePortsRow = new LabeledTextInputRow("Active ports:", activePorts, inputWidth: FieldWidth);
+            fields.Text("active-ports", FormatActivePortRange(connection) ?? string.Empty, FtpTextHistoryIds.ActivePorts, width: FieldWidth, submitOnEnter: true),
+            new CheckBoxRow("Save connection", request.SaveConnectionByDefault) { Id = "save-connection" },
+            new CheckBoxRow("Save password", connection?.CredentialId is not null && request.SavedPassword is not null) { Id = "save-password" },
+            new CheckBoxRow("Show in drive menu", connection?.ShowInDriveSelection ?? true) { Id = "show-in-drive" },
+            new CheckBoxRow("Use TLS for data connection") { Id = "data-tls" },
+            new CheckBoxRow("Trust certificate") { Id = "trust-certificate" },
+            new CompactChoiceFormRow<FtpConnectionSecurityMode>("Security", Enum.GetValues<FtpConnectionSecurityMode>(), SecurityLabel, connection?.SecurityMode ?? FtpConnectionSecurityMode.ExplicitFtps) { Id = "security" },
+            new CompactChoiceFormRow<FtpDataConnectionMode>("Data mode", Enum.GetValues<FtpDataConnectionMode>(), DataModeLabel, connection?.DataConnectionMode ?? FtpDataConnectionMode.AutoPassive) { Id = "data-mode" },
+            request.AllowTemporaryConnection);
         string? fingerprint = connection?.ExpectedTlsCertificateFingerprint;
         string? error = null;
 
-        dataTls.Value = security.Value != FtpConnectionSecurityMode.PlainFtp && (connection?.UseDataConnectionTls ?? true);
-        trust.Value = !string.IsNullOrWhiteSpace(fingerprint);
+        state.DataTls.Value = state.Security.Value != FtpConnectionSecurityMode.PlainFtp && (connection?.UseDataConnectionTls ?? true);
+        state.TrustCertificate.Value = !string.IsNullOrWhiteSpace(fingerprint);
         string submitLabel = request.AllowTemporaryConnection ? "Connect" : "Save";
         var actions = new ButtonRow(
         [
@@ -88,22 +81,20 @@ internal sealed class FtpConnectionDialog
         ])
         { Id = "actions" };
         var form = new ScrollableFormDialog();
-        FtpConnectionSecurityMode previousSecurity = security.Value;
+        FtpConnectionSecurityMode previousSecurity = state.Security.Value;
 
         void SyncEnabledRows()
         {
-            dataTls.Enabled = security.Value != FtpConnectionSecurityMode.PlainFtp;
-            if (!dataTls.Enabled) dataTls.Value = false;
-            trust.Enabled = security.Value != FtpConnectionSecurityMode.PlainFtp && !string.IsNullOrWhiteSpace(fingerprint);
-            if (!trust.Enabled) trust.Value = false;
+            state.DataTls.Enabled = state.Security.Value != FtpConnectionSecurityMode.PlainFtp;
+            if (!state.DataTls.Enabled) state.DataTls.Value = false;
+            state.TrustCertificate.Enabled = state.Security.Value != FtpConnectionSecurityMode.PlainFtp && !string.IsNullOrWhiteSpace(fingerprint);
+            if (!state.TrustCertificate.Enabled) state.TrustCertificate.Value = false;
         }
 
         void PrepareRows()
         {
             SyncEnabledRows();
-            form.SetRows(BuildRows(request.AllowTemporaryConnection, security.Value, dataMode.Value, fingerprint,
-                connectionName, host, port, username, password, remoteRoot,
-                saveConnection, savePassword, showInDrive, security, dataMode, dataTls, activePortsRow, trust),
+            form.SetRows(BuildRows(state, fingerprint),
                 [new LabelRow(error ?? string.Empty, FarDialogStyles.Error), actions]);
         }
 
@@ -127,27 +118,27 @@ internal sealed class FtpConnectionDialog
                     (routed.Target == form.GetFocusTarget("host") || routed.Target == form.GetFocusTarget("port")))
                 {
                     fingerprint = null;
-                    trust.Value = false;
+                    state.TrustCertificate.Value = false;
                 }
                 if (result.Kind == FormInputResultKind.ValueChanged && routed.Target == form.GetFocusTarget("security"))
                 {
-                    if (port.Text == DefaultPort(previousSecurity).ToString())
-                        port.Text = DefaultPort(security.Value).ToString();
-                    if (security.Value == FtpConnectionSecurityMode.PlainFtp)
+                    if (state.Port.Text == DefaultPort(previousSecurity).ToString())
+                        state.Port.Text = DefaultPort(state.Security.Value).ToString();
+                    if (state.Security.Value == FtpConnectionSecurityMode.PlainFtp)
                     {
-                        dataTls.Value = false;
+                        state.DataTls.Value = false;
                         fingerprint = null;
-                        trust.Value = false;
+                        state.TrustCertificate.Value = false;
                     }
                     else if (previousSecurity == FtpConnectionSecurityMode.PlainFtp)
-                        dataTls.Value = true;
-                    else { fingerprint = null; trust.Value = false; }
-                    previousSecurity = security.Value;
+                        state.DataTls.Value = true;
+                    else { fingerprint = null; state.TrustCertificate.Value = false; }
+                    previousSecurity = state.Security.Value;
                 }
-                if (result.Kind == FormInputResultKind.ValueChanged && routed.Target == form.GetFocusTarget("save-password") && savePassword.Value)
-                    saveConnection.Value = true;
-                else if (result.Kind == FormInputResultKind.ValueChanged && routed.Target == form.GetFocusTarget("save-connection") && !saveConnection.Value)
-                    savePassword.Value = false;
+                if (result.Kind == FormInputResultKind.ValueChanged && routed.Target == form.GetFocusTarget("save-password") && state.SavePassword.Value)
+                    state.SaveConnection.Value = true;
+                else if (result.Kind == FormInputResultKind.ValueChanged && routed.Target == form.GetFocusTarget("save-connection") && !state.SaveConnection.Value)
+                    state.SavePassword.Value = false;
                 SyncEnabledRows();
 
                 if (result.Kind == FormInputResultKind.Cancel)
@@ -159,11 +150,11 @@ internal sealed class FtpConnectionDialog
                 if (!submit)
                     return ModalDialogLoopResult<FtpConnectionDialogResult?>.ContinueNoChange;
 
-                if (!TryParseActivePortRange(activePorts.Text.Trim(), dataMode.Value, out int? from, out int? to, out error))
+                if (!TryParseActivePortRange(state.ActivePorts.Text.Trim(), state.DataMode.Value, out int? from, out int? to, out error))
                     return ModalDialogLoopResult<FtpConnectionDialogResult?>.ContinueChanged;
-                var candidate = BuildResult(request, connectionName.Text.Trim(), host.Text.Trim(), port.Text.Trim(), username.Text.Trim(), password.Text,
-                    remoteRoot.Text.Trim(), saveConnection.Value, savePassword.Value, showInDrive.Value, security.Value, dataMode.Value,
-                    dataTls.Value, from, to, trust.Value ? fingerprint : null);
+                var candidate = BuildResult(request, state.ConnectionName.Text.Trim(), state.Host.Text.Trim(), state.Port.Text.Trim(), state.UserName.Text.Trim(), state.Password.Text,
+                    state.RemoteRoot.Text.Trim(), state.SaveConnection.Value, state.SavePassword.Value, state.ShowInDrive.Value, state.Security.Value, state.DataMode.Value,
+                    state.DataTls.Value, from, to, state.TrustCertificate.Value ? fingerprint : null);
                 if (candidate is null)
                 {
                     error = "Host, user name, password, remote root, and valid port are required.";
@@ -178,7 +169,7 @@ internal sealed class FtpConnectionDialog
                 if (validation.CertificateFingerprint is not null)
                 {
                     fingerprint = validation.CertificateFingerprint;
-                    trust.Value = false;
+                    state.TrustCertificate.Value = false;
                     SyncEnabledRows();
                     PrepareRows();
                     error = validation.ErrorMessage;
@@ -190,24 +181,22 @@ internal sealed class FtpConnectionDialog
             }, prepareRender: PrepareRows);
     }
 
-    private static IReadOnlyList<IFormRow> BuildRows(bool allowTemporary, FtpConnectionSecurityMode securityMode, FtpDataConnectionMode dataMode, string? fingerprint,
-        TextField name, TextField host, TextField port, TextField username, TextField password, TextField root,
-        CheckBoxRow saveConnection, CheckBoxRow savePassword, CheckBoxRow showInDrive, CompactChoiceFormRow<FtpConnectionSecurityMode> security, CompactChoiceFormRow<FtpDataConnectionMode> dataChoice, CheckBoxRow dataTls, LabeledTextInputRow activeRow, CheckBoxRow trust)
+    private static IReadOnlyList<IFormRow> BuildRows(FtpFormState state, string? fingerprint)
     {
         var rows = new List<IFormRow>
         {
-            new LabeledTextInputRow("Connection name:", name, inputWidth: FieldWidth),
-            new LabeledTextInputRow("Host:", host, inputWidth: FieldWidth),
-            new LabeledTextInputRow("Port:", port, inputWidth: FieldWidth),
-            new LabeledTextInputRow("User name:", username, inputWidth: FieldWidth),
-            new LabeledTextInputRow("Password:", password, inputWidth: FieldWidth, maskInput: true),
-            new LabeledTextInputRow("Remote root:", root, inputWidth: FieldWidth),
+            state.ConnectionName.AsLabeledRow("Connection name:"),
+            state.Host.AsLabeledRow("Host:"),
+            state.Port.AsLabeledRow("Port:"),
+            state.UserName.AsLabeledRow("User name:"),
+            state.Password.AsLabeledRow("Password:"),
+            state.RemoteRoot.AsLabeledRow("Remote root:"),
         };
-        if (allowTemporary) rows.Add(saveConnection);
-        rows.Add(savePassword); rows.Add(showInDrive); rows.Add(security); rows.Add(dataChoice); rows.Add(dataTls);
-        if (dataMode == FtpDataConnectionMode.Active) rows.Add(activeRow);
-        rows.Add(new LabeledValueRow("TLS cert:", () => securityMode == FtpConnectionSecurityMode.PlainFtp ? "(plain FTP has no TLS certificate)" : string.IsNullOrWhiteSpace(fingerprint) ? "(press F10 to read certificate)" : fingerprint, 22) { Id = "certificate-fingerprint" });
-        rows.Add(trust);
+        if (state.AllowTemporaryConnection) rows.Add(state.SaveConnection);
+        rows.Add(state.SavePassword); rows.Add(state.ShowInDrive); rows.Add(state.Security); rows.Add(state.DataMode); rows.Add(state.DataTls);
+        if (state.DataMode.Value == FtpDataConnectionMode.Active) rows.Add(state.ActivePorts.AsLabeledRow("Active ports:"));
+        rows.Add(new LabeledValueRow("TLS cert:", () => state.Security.Value == FtpConnectionSecurityMode.PlainFtp ? "(plain FTP has no TLS certificate)" : string.IsNullOrWhiteSpace(fingerprint) ? "(press F10 to read certificate)" : fingerprint, 22) { Id = "certificate-fingerprint" });
+        rows.Add(state.TrustCertificate);
         return rows;
     }
 
@@ -256,7 +245,12 @@ internal sealed class FtpConnectionDialog
     }
 
     private sealed record FtpFormState(TextField ConnectionName, TextField Host, TextField Port,
-        TextField UserName, TextField Password, TextField RemoteRoot, TextField ActivePorts)
+        TextField UserName, TextField Password, TextField RemoteRoot, TextField ActivePorts,
+        CheckBoxRow SaveConnection, CheckBoxRow SavePassword, CheckBoxRow ShowInDrive,
+        CheckBoxRow DataTls, CheckBoxRow TrustCertificate,
+        CompactChoiceFormRow<FtpConnectionSecurityMode> Security,
+        CompactChoiceFormRow<FtpDataConnectionMode> DataMode,
+        bool AllowTemporaryConnection)
     {
         public void AcceptHistory()
         {

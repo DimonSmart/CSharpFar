@@ -44,7 +44,7 @@ internal sealed class CreateFolderDialog
             form.SetRows(
                 [
                     new LabelRow(Prompt, FarDialogStyles.Fill),
-                    folderName.Row,
+                    folderName.AsRow(),
                     new SeparatorRow(FarDialogStyles.Border),
                     new LabelRow(error ?? string.Empty, FarDialogStyles.Error),
                 ],

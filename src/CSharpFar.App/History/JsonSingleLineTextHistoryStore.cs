@@ -93,7 +93,7 @@ public sealed class JsonSingleLineTextHistoryStore : ISingleLineTextHistoryStore
         foreach (string value in values)
         {
             if (!string.IsNullOrWhiteSpace(value) && seen.Add(value)) result.Add(value);
-            if (result.Count == SingleLineTextHistoryState.MaxItemsPerField) break;
+            if (result.Count == TextHistory.MaxItemsPerField) break;
         }
         return result;
     }

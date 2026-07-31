@@ -43,9 +43,9 @@ internal sealed class CompareOptionsDialog
         exclude.SetText(settings.ExcludeMasks ?? "");
         var customDepth = new CommandLineState();
         customDepth.SetText(Math.Max(0, settings.CustomDepth).ToString(System.Globalization.CultureInfo.InvariantCulture));
-        var includeHistory = _historyRegistry.Get(AppTextHistoryIds.CompareInclude);
-        var excludeHistory = _historyRegistry.Get(AppTextHistoryIds.CompareExclude);
-        var depthHistory = _historyRegistry.Get(AppTextHistoryIds.CompareDepth);
+        var includeHistory = new SingleLineTextHistoryState(_historyRegistry.Get(AppTextHistoryIds.CompareInclude));
+        var excludeHistory = new SingleLineTextHistoryState(_historyRegistry.Get(AppTextHistoryIds.CompareExclude));
+        var depthHistory = new SingleLineTextHistoryState(_historyRegistry.Get(AppTextHistoryIds.CompareDepth));
 
         var recursive = new CheckBoxRow(new CheckBoxLine("Include subfolders", settings.IncludeSubfolders));
         var selectedOnly = new CheckBoxRow(new CheckBoxLine("Selected items only", settings.SelectedItemsOnly));
@@ -230,11 +230,11 @@ internal sealed class CompareOptionsDialog
 
         string includeMasks = string.IsNullOrWhiteSpace(include) ? "*" : include.Trim();
         string excludeMasks = exclude.Trim();
-        includeHistory.Add(includeMasks);
+        includeHistory.History.Add(includeMasks);
         if (excludeMasks.Length > 0)
-            excludeHistory.Add(excludeMasks);
+            excludeHistory.History.Add(excludeMasks);
         if (maxDepth.HasValue)
-            depthHistory.Add(maxDepth.Value.ToString(System.Globalization.CultureInfo.InvariantCulture));
+            depthHistory.History.Add(maxDepth.Value.ToString(System.Globalization.CultureInfo.InvariantCulture));
         includeHistory.Close();
         excludeHistory.Close();
         depthHistory.Close();

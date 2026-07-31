@@ -30,17 +30,28 @@ public sealed class TextField
         ArgumentException.ThrowIfNullOrWhiteSpace(id);
         Id = id;
         _history = history;
+        IsMasked = maskInput;
+        Width = width;
+        SubmitOnEnter = submitOnEnter;
         if (initialText.Length > 0) _buffer.SetText(initialText);
-        Row = new TextInputRow(_buffer, _history, width: width, maskInput: maskInput) { Id = id, SubmitOnEnter = submitOnEnter };
+        Input = new FormTextInputField(
+            _buffer,
+            history is null ? null : new SingleLineTextHistoryState(history),
+            maskInput);
     }
 
     public string Id { get; }
+    public bool IsMasked { get; }
+    public int? Width { get; }
     public string Text { get => _buffer.Text; set => _buffer.SetText(value ?? string.Empty); }
     public string TrimmedText => Text.Trim();
-    public bool SubmitOnEnter => Row.SubmitOnEnter;
-    public TextInputRow Row { get; }
+    public bool SubmitOnEnter { get; }
+    public TextInputRow AsRow() => new(this);
+    public LabeledTextInputRow AsLabeledRow(string label, int labelWidth = 22) =>
+        new(label, this, labelWidth);
     public void SelectAll() => _buffer.SelectAll();
     internal CommandLineState Buffer => _buffer;
     internal TextHistory? History => _history;
+    internal FormTextInputField Input { get; }
     public void AcceptHistory() => _history?.Add(TrimmedText);
 }

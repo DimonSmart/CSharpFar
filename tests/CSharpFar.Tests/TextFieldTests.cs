@@ -1,9 +1,72 @@
+using CSharpFar.Console;
+using CSharpFar.Console.Models;
+using CSharpFar.Tests.Fakes;
 using CSharpFar.Ui;
 
 namespace CSharpFar.Tests;
 
 public sealed class TextFieldTests
 {
+    [Fact]
+    public void LabeledRow_InheritsMaskedFieldConfigurationAndSharedInput()
+    {
+        var provider = new CountingHistoryProvider();
+        TextField field = new FormFieldFactory(provider).Text(
+            "password",
+            "secret",
+            new TextHistoryId("TextFieldTests.Password"),
+            maskInput: true,
+            width: 10,
+            submitOnEnter: true);
+        TextInputRow ordinary = field.AsRow();
+        LabeledTextInputRow labeled = field.AsLabeledRow("Password:", labelWidth: 0);
+        var driver = new FakeConsoleDriver(width: 20, height: 2);
+        var screen = new ScreenRenderer(driver);
+
+        UiTestRender.Render(screen, canvas =>
+            labeled.Render(new FormRowRenderContext(canvas, new Rect(0, 0, 20, 1), focused: true)));
+
+        Assert.Equal("password", labeled.Id);
+        Assert.True(labeled.SubmitOnEnter);
+        Assert.Equal(10, labeled.GetInputBounds(new Rect(0, 0, 20, 1)).Width);
+        Assert.Same(field.Input, ordinary.Input);
+        Assert.Same(field.Input, labeled.Input);
+        Assert.Equal("secret", labeled.Buffer.Text);
+        Assert.DoesNotContain("secret", driver.GetRow(0));
+        Assert.Contains("******", driver.GetRow(0));
+        Assert.Equal(0, provider.GetCallCount);
+    }
+
+    [Fact]
+    public void FieldsWithSameHistoryId_ShareValuesButNotPopupState()
+    {
+        ITextFieldHistoryProvider provider = TextFieldHistoryTestProvider.Create();
+        var id = new TextHistoryId("TextFieldTests.Shared");
+        TextHistory persistent = provider.Get(id);
+        for (int index = 0; index < 15; index++)
+            persistent.Add($"item-{index:D2}");
+        var factory = new FormFieldFactory(provider);
+        TextField first = factory.Text("first", history: id);
+        TextField second = factory.Text("second", history: id);
+        SingleLineTextHistoryState firstPopup = Assert.IsType<SingleLineTextHistoryState>(first.Input.History);
+        SingleLineTextHistoryState secondPopup = Assert.IsType<SingleLineTextHistoryState>(second.Input.History);
+
+        Assert.Same(persistent, firstPopup.History);
+        Assert.Same(persistent, secondPopup.History);
+        Assert.True(firstPopup.OpenAll(availableContentRows: 4));
+        Assert.True(firstPopup.MoveSelection(3, availableContentRows: 4));
+        firstPopup.SetFirstVisibleIndex(4, availableContentRows: 4);
+
+        Assert.True(firstPopup.IsDropdownOpen);
+        Assert.NotEmpty(firstPopup.Matches);
+        Assert.True(firstPopup.SelectedIndex > 0);
+        Assert.True(firstPopup.FirstVisibleIndex > 0);
+        Assert.False(secondPopup.IsDropdownOpen);
+        Assert.Empty(secondPopup.Matches);
+        Assert.Equal(0, secondPopup.SelectedIndex);
+        Assert.Equal(0, secondPopup.FirstVisibleIndex);
+    }
+
     [Fact]
     public void TextField_WithoutHistory_DoesNotQueryProviderOrRetainText()
     {
