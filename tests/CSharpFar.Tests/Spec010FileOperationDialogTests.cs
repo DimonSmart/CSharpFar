@@ -19,7 +19,7 @@ public sealed class Spec010FileOperationDialogTests
         var screen = new ScreenRenderer(driver);
         driver.EnqueueKey(Key(ConsoleKey.F10));
 
-        var result = new FileOperationDialog(ModalTestHost.Create(screen)).ShowCopy(
+        var result = new FileOperationDialog(ModalTestHost.Create(screen), TextFieldHistoryTestProvider.Create()).ShowCopy(
             [@"C:\source\a.txt"],
             @"C:\destination",
             new FileOperationOptions());
@@ -46,7 +46,7 @@ public sealed class Spec010FileOperationDialogTests
         var screen = new ScreenRenderer(driver);
         driver.EnqueueKey(Key(ConsoleKey.Enter));
 
-        var result = new FileOperationDialog(ModalTestHost.Create(screen)).ShowCopy(
+        var result = new FileOperationDialog(ModalTestHost.Create(screen), TextFieldHistoryTestProvider.Create()).ShowCopy(
             [@"C:\source\a.txt"],
             @"C:\destination",
             new FileOperationOptions());
@@ -62,7 +62,7 @@ public sealed class Spec010FileOperationDialogTests
         var screen = new ScreenRenderer(driver);
         driver.EnqueueKey(Key(ConsoleKey.Escape));
 
-        var result = new FileOperationDialog(ModalTestHost.Create(screen)).ShowCopy(
+        var result = new FileOperationDialog(ModalTestHost.Create(screen), TextFieldHistoryTestProvider.Create()).ShowCopy(
             [@"C:\source\a.txt"],
             @"C:\destination",
             new FileOperationOptions());
@@ -79,7 +79,7 @@ public sealed class Spec010FileOperationDialogTests
             driver.EnqueueKey(Key(ConsoleKey.Tab));
         driver.EnqueueKey(Key(ConsoleKey.Enter));
 
-        var result = new FileOperationDialog(ModalTestHost.Create(screen)).ShowCopy(
+        var result = new FileOperationDialog(ModalTestHost.Create(screen), TextFieldHistoryTestProvider.Create()).ShowCopy(
             [@"C:\source\a.txt"],
             @"C:\destination",
             new FileOperationOptions());
@@ -98,7 +98,7 @@ public sealed class Spec010FileOperationDialogTests
         driver.EnqueueKey(Key(ConsoleKey.RightArrow));
         driver.EnqueueKey(Key(ConsoleKey.Enter));
 
-        var result = new FileOperationDialog(ModalTestHost.Create(screen)).ShowCopy(
+        var result = new FileOperationDialog(ModalTestHost.Create(screen), TextFieldHistoryTestProvider.Create()).ShowCopy(
             [@"C:\source\a.txt"],
             @"C:\destination",
             new FileOperationOptions());
@@ -124,7 +124,7 @@ public sealed class Spec010FileOperationDialogTests
             };
         };
 
-        var result = new FileOperationDialog(ModalTestHost.Create(screen)).ShowCopy(
+        var result = new FileOperationDialog(ModalTestHost.Create(screen), TextFieldHistoryTestProvider.Create()).ShowCopy(
             [@"C:\source\a.txt"],
             @"C:\destination",
             new FileOperationOptions());
@@ -150,7 +150,7 @@ public sealed class Spec010FileOperationDialogTests
             };
         };
 
-        var result = new FileOperationDialog(ModalTestHost.Create(screen)).ShowCopy(
+        var result = new FileOperationDialog(ModalTestHost.Create(screen), TextFieldHistoryTestProvider.Create()).ShowCopy(
             [@"C:\source\a.txt"],
             @"C:\destination",
             new FileOperationOptions());
@@ -171,7 +171,7 @@ public sealed class Spec010FileOperationDialogTests
         EnqueueText(driver, "*.txt");
         driver.EnqueueKey(Key(ConsoleKey.F10));
 
-        var result = new FileOperationDialog(ModalTestHost.Create(screen)).ShowCopy(
+        var result = new FileOperationDialog(ModalTestHost.Create(screen), TextFieldHistoryTestProvider.Create()).ShowCopy(
             [@"C:\source\a.txt"],
             @"C:\destination",
             new FileOperationOptions());
@@ -190,7 +190,7 @@ public sealed class Spec010FileOperationDialogTests
             driver.EnqueueKey(Key(ConsoleKey.Spacebar));
         driver.EnqueueKey(Key(ConsoleKey.F10));
 
-        var result = new FileOperationDialog(ModalTestHost.Create(screen)).ShowCopy(
+        var result = new FileOperationDialog(ModalTestHost.Create(screen), TextFieldHistoryTestProvider.Create()).ShowCopy(
             [@"C:\source\a.txt"],
             @"C:\destination",
             new FileOperationOptions());
@@ -210,7 +210,7 @@ public sealed class Spec010FileOperationDialogTests
         var screen = new ScreenRenderer(driver);
         driver.EnqueueKey(Key(ConsoleKey.F10));
 
-        var result = new FileOperationDialog(ModalTestHost.Create(screen)).ShowCopy(
+        var result = new FileOperationDialog(ModalTestHost.Create(screen), TextFieldHistoryTestProvider.Create()).ShowCopy(
             [@"C:\source\a.txt"],
             @"C:\destination",
             new FileOperationOptions());
@@ -238,7 +238,7 @@ public sealed class Spec010FileOperationDialogTests
             currentDriver.EnqueueKey(Key(ConsoleKey.F10));
         };
 
-        var result = new FileOperationDialog(ModalTestHost.Create(screen)).ShowCopy(
+        var result = new FileOperationDialog(ModalTestHost.Create(screen), TextFieldHistoryTestProvider.Create()).ShowCopy(
             [@"C:\source\a.txt"],
             @"C:\destination",
             new FileOperationOptions());
@@ -261,7 +261,7 @@ public sealed class Spec010FileOperationDialogTests
             currentDriver.EnqueueKey(Key(ConsoleKey.F10));
         };
 
-        var result = new FileOperationDialog(ModalTestHost.Create(screen)).ShowCopy(
+        var result = new FileOperationDialog(ModalTestHost.Create(screen), TextFieldHistoryTestProvider.Create()).ShowCopy(
             [@"C:\source\a.txt"],
             @"C:\destination",
             new FileOperationOptions());
@@ -284,7 +284,7 @@ public sealed class Spec010FileOperationDialogTests
             currentDriver.EnqueueKey(Key(ConsoleKey.F10));
         };
 
-        var result = new FileOperationDialog(ModalTestHost.Create(screen)).ShowCopy(
+        var result = new FileOperationDialog(ModalTestHost.Create(screen), TextFieldHistoryTestProvider.Create()).ShowCopy(
             [@"C:\source\a.txt"],
             @"C:\destination",
             new FileOperationOptions());
@@ -300,7 +300,7 @@ public sealed class Spec010FileOperationDialogTests
         var screen = new ScreenRenderer(driver);
         driver.EnqueueKey(Key(ConsoleKey.F10));
 
-        var result = new FileOperationDialog(ModalTestHost.Create(screen)).ShowMove(
+        var result = new FileOperationDialog(ModalTestHost.Create(screen), TextFieldHistoryTestProvider.Create()).ShowMove(
             [@"C:\source\a.txt"],
             @"C:\destination",
             new FileOperationOptions
@@ -322,7 +322,7 @@ public sealed class Spec010FileOperationDialogTests
         var screen = new ScreenRenderer(driver);
         driver.EnqueueKey(Key(ConsoleKey.F10));
 
-        var result = new FileOperationDialog(ModalTestHost.Create(screen)).ShowRename(
+        var result = new FileOperationDialog(ModalTestHost.Create(screen), TextFieldHistoryTestProvider.Create()).ShowRename(
             @"C:\source\old.txt",
             "old.txt",
             new FileOperationOptions());
@@ -351,29 +351,12 @@ public sealed class Spec010FileOperationDialogTests
             currentDriver.EnqueueInput(new MouseConsoleInputEvent(x, row.Y, MouseButton.Left, MouseEventKind.Up, MouseKeyModifiers.None));
         };
 
-        var result = new FileOperationDialog(ModalTestHost.Create(screen)).ShowCopy(
+        var result = new FileOperationDialog(ModalTestHost.Create(screen), TextFieldHistoryTestProvider.Create()).ShowCopy(
             [@"C:\source\a.txt"],
             @"C:\destination",
             new FileOperationOptions());
 
         Assert.Null(result);
-    }
-
-    [Fact]
-    public void BuildRows_ReusesDestinationAndFilterTextInputRowState()
-    {
-        var destinationRowState = new TextInputRowState();
-        var filterRowState = new TextInputRowState();
-        var firstRows = BuildFileOperationRows(destinationRowState, filterRowState);
-        var secondRows = BuildFileOperationRows(destinationRowState, filterRowState);
-
-        var firstInputs = firstRows.OfType<TextInputRow>().ToArray();
-        var secondInputs = secondRows.OfType<TextInputRow>().ToArray();
-
-        Assert.Same(destinationRowState, firstInputs[0].State);
-        Assert.Same(filterRowState, firstInputs[1].State);
-        Assert.Same(destinationRowState, secondInputs[0].State);
-        Assert.Same(filterRowState, secondInputs[1].State);
     }
 
     [Fact]
@@ -384,7 +367,7 @@ public sealed class Spec010FileOperationDialogTests
         EnqueueText(driver, "NewDir");
         driver.EnqueueKey(Key(ConsoleKey.F10));
 
-        string? result = new CreateFolderDialog(ModalTestHost.Create(screen)).Show();
+        string? result = new CreateFolderDialog(ModalTestHost.Create(screen), TextFieldHistoryTestProvider.Create()).Show();
 
         Assert.Equal("NewDir", result);
         Assert.Contains(driver.WriteRecords, r => r.Text.Contains("Make folder", StringComparison.Ordinal));
@@ -405,7 +388,7 @@ public sealed class Spec010FileOperationDialogTests
         driver.EnqueueInput(new MouseConsoleInputEvent(50, 16, MouseButton.Left, MouseEventKind.Down, MouseKeyModifiers.None));
         driver.EnqueueInput(new MouseConsoleInputEvent(50, 16, MouseButton.Left, MouseEventKind.Up, MouseKeyModifiers.None));
 
-        string? result = new CreateFolderDialog(ModalTestHost.Create(screen)).Show();
+        string? result = new CreateFolderDialog(ModalTestHost.Create(screen), TextFieldHistoryTestProvider.Create()).Show();
 
         Assert.Null(result);
     }
@@ -448,7 +431,8 @@ public sealed class Spec010FileOperationDialogTests
             ModalTestHost.Create(screen),
             () => PaletteRegistry.Default,
             new NoOpFileOperationService(),
-            () => true);
+            () => true,
+            TextFieldHistoryTestProvider.Create());
 
         runner.Execute(new FileOperationRequest
         {
@@ -775,7 +759,7 @@ public sealed class Spec010FileOperationDialogTests
         var screen = new ScreenRenderer(driver);
         driver.EnqueueKey(new ConsoleKeyInfo('O', ConsoleKey.O, shift: true, alt: false, control: false));
 
-        var decision = new ConflictDialog(ModalTestHost.Create(screen)).Show(
+        var decision = new ConflictDialog(ModalTestHost.Create(screen), TextFieldHistoryTestProvider.Create()).Show(
             new FileOperationConflict
             {
                 SourcePath = @"C:\src\a.txt",
@@ -797,7 +781,7 @@ public sealed class Spec010FileOperationDialogTests
         driver.EnqueueKey(Key(ConsoleKey.Tab));
         driver.EnqueueKey(Key(ConsoleKey.Enter));
 
-        var decision = new ConflictDialog(ModalTestHost.Create(screen)).Show(
+        var decision = new ConflictDialog(ModalTestHost.Create(screen), TextFieldHistoryTestProvider.Create()).Show(
             new FileOperationConflict
             {
                 SourcePath = @"C:\src\a.txt",
@@ -816,7 +800,7 @@ public sealed class Spec010FileOperationDialogTests
         var screen = new ScreenRenderer(driver);
         driver.EnqueueKey(Key(ConsoleKey.Escape));
 
-        var decision = new ConflictDialog(ModalTestHost.Create(screen)).Show(
+        var decision = new ConflictDialog(ModalTestHost.Create(screen), TextFieldHistoryTestProvider.Create()).Show(
             new FileOperationConflict
             {
                 SourcePath = @"C:\src\a.txt",
@@ -869,42 +853,6 @@ public sealed class Spec010FileOperationDialogTests
             driver.EnqueueKey(new ConsoleKeyInfo(ch, ConsoleKey.None, shift: false, alt: false, control: false));
     }
 
-    private static IReadOnlyList<IFormRow> BuildFileOperationRows(TextInputRowState destinationRowState, TextInputRowState filterRowState)
-    {
-        var destination = new CommandLineState();
-        var filter = new CommandLineState();
-        filter.SetText("*");
-        var conflictChoice = new ChoiceRow<ConflictDecisionMode>([ConflictDecisionMode.Ask], static mode => mode.ToString());
-        var method = typeof(FileOperationDialog).GetMethod(
-            "BuildRows",
-            System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static)
-            ?? throw new InvalidOperationException("FileOperationDialog.BuildRows was not found.");
-
-        return (IReadOnlyList<IFormRow>)method.Invoke(
-            null,
-            [
-                "Copy to:",
-                destination,
-                filter,
-                new SingleLineTextHistoryState(),
-                new SingleLineTextHistoryState(),
-                destinationRowState,
-                filterRowState,
-                new ChoiceFormRow<FileSecurityMode>(
-                    new ChoiceRow<FileSecurityMode>([FileSecurityMode.Default], static mode => mode.ToString()),
-                    "Access rights:"),
-                new ChoiceFormRow<CopyMode>(
-                    new ChoiceRow<CopyMode>([CopyMode.Normal], static mode => mode.ToString()),
-                    "Copy mode:"),
-                new MultiLineChoiceFormRow<ConflictDecisionMode>(conflictChoice, string.Empty, [1, 1]),
-                new CheckBoxRow(new CheckBoxLine("Preserve all timestamps")),
-                new CheckBoxRow(new CheckBoxLine("Preserve attributes")),
-                new CheckBoxRow(new CheckBoxLine("Copy contents of symbolic links")),
-                new CheckBoxRow(new CheckBoxLine("Use filter", value: true)),
-                true,
-            ])!;
-    }
-
     private static void RenderProgress(
         ScreenRenderer screen,
         string destination,
@@ -930,7 +878,8 @@ public sealed class Spec010FileOperationDialogTests
             ModalTestHost.Create(screen),
             () => PaletteRegistry.Default,
             service,
-            () => true);
+            () => true,
+            TextFieldHistoryTestProvider.Create());
 
     private static FileOperationRequest CopyRequest() =>
         new()

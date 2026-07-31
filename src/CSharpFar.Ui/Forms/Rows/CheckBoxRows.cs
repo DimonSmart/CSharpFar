@@ -16,6 +16,11 @@ public sealed class CheckBoxRow : FormRow, IFormCursorProvider
         _checkBox = checkBox;
     }
 
+    public CheckBoxRow(string label, bool value = false)
+        : this(new CheckBoxLine(label, value))
+    {
+    }
+
     public bool Value
     {
         get => _checkBox.Value;

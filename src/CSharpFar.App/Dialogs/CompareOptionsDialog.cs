@@ -13,13 +13,13 @@ internal sealed class CompareOptionsDialog
     private const int DialogWidth = 86;
     private const int DialogHeight = 26;
 
-    private readonly SingleLineTextHistoryRegistry _historyRegistry;
+    private readonly ITextFieldHistoryProvider _historyRegistry;
     private readonly ModalFormHost _formDialogs;
 
-    public CompareOptionsDialog(ModalDialogHost modalDialogs, SingleLineTextHistoryRegistry? historyRegistry = null)
+    public CompareOptionsDialog(ModalDialogHost modalDialogs, ITextFieldHistoryProvider historyRegistry)
     {
         _formDialogs = new ModalFormHost(modalDialogs);
-        _historyRegistry = historyRegistry ?? new SingleLineTextHistoryRegistry();
+        _historyRegistry = historyRegistry ?? throw new ArgumentNullException(nameof(historyRegistry));
     }
 
     public ComparisonOptions? Show(
@@ -43,12 +43,9 @@ internal sealed class CompareOptionsDialog
         exclude.SetText(settings.ExcludeMasks ?? "");
         var customDepth = new CommandLineState();
         customDepth.SetText(Math.Max(0, settings.CustomDepth).ToString(System.Globalization.CultureInfo.InvariantCulture));
-        var includeHistory = _historyRegistry.GetOrCreate("Compare.Include");
-        var excludeHistory = _historyRegistry.GetOrCreate("Compare.Exclude");
-        var depthHistory = _historyRegistry.GetOrCreate("Compare.Depth");
-        var includeRowState = new TextInputRowState();
-        var excludeRowState = new TextInputRowState();
-        var depthRowState = new TextInputRowState();
+        var includeHistory = _historyRegistry.Get(AppTextHistoryIds.CompareInclude);
+        var excludeHistory = _historyRegistry.Get(AppTextHistoryIds.CompareExclude);
+        var depthHistory = _historyRegistry.Get(AppTextHistoryIds.CompareDepth);
 
         var recursive = new CheckBoxRow(new CheckBoxLine("Include subfolders", settings.IncludeSubfolders));
         var selectedOnly = new CheckBoxRow(new CheckBoxLine("Selected items only", settings.SelectedItemsOnly));
@@ -85,13 +82,10 @@ internal sealed class CompareOptionsDialog
                 depth,
                 customDepth,
                 depthHistory,
-                depthRowState,
                 include,
                 exclude,
                 includeHistory,
                 excludeHistory,
-                includeRowState,
-                excludeRowState,
                 method,
                 tolerance,
                 nameComparison,
@@ -146,13 +140,10 @@ internal sealed class CompareOptionsDialog
         ChoiceFormRow<string> depth,
         CommandLineState customDepth,
         SingleLineTextHistoryState depthHistory,
-        TextInputRowState depthRowState,
         CommandLineState include,
         CommandLineState exclude,
         SingleLineTextHistoryState includeHistory,
         SingleLineTextHistoryState excludeHistory,
-        TextInputRowState includeRowState,
-        TextInputRowState excludeRowState,
         ChoiceFormRow<CompareMethod> method,
         ChoiceFormRow<TimestampTolerance> tolerance,
         ChoiceFormRow<NameComparisonMode> nameComparison,
@@ -175,15 +166,15 @@ internal sealed class CompareOptionsDialog
         if (depth.Value == "Custom")
         {
             rows.Add(new LabelRow("Custom depth:", FarDialogStyles.Fill));
-            rows.Add(new TextInputRow(customDepth, depthHistory, depthRowState, width: 8) { SubmitOnEnter = true });
+            rows.Add(new TextInputRow(customDepth, depthHistory, width: 8) { SubmitOnEnter = true });
         }
 
         rows.Add(new SeparatorRow(FarDialogStyles.Border));
         rows.Add(new LabelRow("Filters", FarDialogStyles.Fill));
         rows.Add(new LabelRow("Include masks (semicolon-separated):", FarDialogStyles.Fill));
-        rows.Add(new TextInputRow(include, includeHistory, includeRowState) { SubmitOnEnter = true });
+        rows.Add(new TextInputRow(include, includeHistory) { SubmitOnEnter = true });
         rows.Add(new LabelRow("Exclude masks (semicolon-separated):", FarDialogStyles.Fill));
-        rows.Add(new TextInputRow(exclude, excludeHistory, excludeRowState) { SubmitOnEnter = true });
+        rows.Add(new TextInputRow(exclude, excludeHistory) { SubmitOnEnter = true });
         rows.Add(new SeparatorRow(FarDialogStyles.Border));
         rows.Add(new LabelRow("Comparison", FarDialogStyles.Fill));
         rows.Add(method);

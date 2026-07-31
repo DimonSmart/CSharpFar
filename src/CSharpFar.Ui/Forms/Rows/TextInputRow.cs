@@ -13,16 +13,14 @@ public sealed class TextInputRow : FormRow, IFormCursorProvider, IFormCompositeR
     public TextInputRow(
         CommandLineState buffer,
         SingleLineTextHistoryState? history = null,
-        TextInputRowState? state = null,
         int? width = null,
         bool maskInput = false)
     {
-        _field = new FormTextInputField(buffer, history, state ?? new TextInputRowState(), maskInput);
+        _field = new FormTextInputField(buffer, history, maskInput);
         _width = width;
     }
 
     public CommandLineState Buffer => _field.Buffer;
-    public TextInputRowState State => _field.State;
     public override FormRowRole Role { get; init; } = FormRowRole.TextInput;
     public int? Width => _width;
     public bool IsCompositeOpen => _field.History?.IsDropdownOpen == true;
@@ -61,5 +59,3 @@ public sealed class TextInputRow : FormRow, IFormCursorProvider, IFormCompositeR
         return _field.HandleMouse(mouse, context, GetInputBounds(context.Bounds));
     }
 }
-
-public sealed class TextInputRowState;

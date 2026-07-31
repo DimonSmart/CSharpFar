@@ -15,6 +15,16 @@ public sealed class CompactChoiceFormRow<T> : FormRow, IFormCursorProvider
         _label = label;
     }
 
+    public CompactChoiceFormRow(
+        string label,
+        IReadOnlyList<T> values,
+        Func<T, string> format,
+        T selectedValue)
+        : this(new ChoiceRow<T>(values, format), label)
+    {
+        _choice.Value = selectedValue;
+    }
+
     public override FormRowRole Role { get; init; } = FormRowRole.Option;
     public ChoiceRow<T> Choice => _choice;
     public T Value => _choice.Value;

@@ -659,19 +659,18 @@ public sealed class ScrollableFormDialogTests
     }
 
     [Fact]
-    public void LabeledTextInputRow_StatePreservesHistoryScrollbarDragAcrossRecreation()
+    public void LabeledTextInputRow_PreservesHistoryScrollbarDragAcrossRecreation()
     {
         var text = new CommandLineState();
         var history = new SingleLineTextHistoryState();
         for (int i = 0; i < 20; i++) history.Add("item-" + i);
         Assert.True(history.OpenAll(5));
-        var state = new TextInputRowState();
-        var form = new ScrollableFormDialog([new LabeledTextInputRow("Value:", text, history, state, labelWidth: 0, inputWidth: 14)]);
+        var form = new ScrollableFormDialog([new LabeledTextInputRow("Value:", text, history, labelWidth: 0, inputWidth: 14)]);
         Render(form, visibleRows: 1, screenHeight: 8);
 
         HandleMouse(form, Mouse(13, 3, MouseButton.Left, MouseEventKind.Down));
         Assert.True(history.IsDropdownOpen);
-        form.SetRows([new LabeledTextInputRow("Value:", text, history, state, labelWidth: 0, inputWidth: 14)]);
+        form.SetRows([new LabeledTextInputRow("Value:", text, history, labelWidth: 0, inputWidth: 14)]);
         HandleMouse(form, Mouse(13, 5, MouseButton.Left, MouseEventKind.Move));
         HandleMouse(form, Mouse(13, 5, MouseButton.Left, MouseEventKind.Up));
 
@@ -867,7 +866,7 @@ public sealed class ScrollableFormDialogTests
     }
 
     [Fact]
-    public void TextInputRowState_PreservesHistoryScrollbarDragAcrossRowRecreation()
+    public void TextInputRow_PreservesHistoryScrollbarDragAcrossRowRecreation()
     {
         var text = new CommandLineState();
         var history = new SingleLineTextHistoryState();
@@ -875,14 +874,13 @@ public sealed class ScrollableFormDialogTests
             history.Add("item-" + i);
         Assert.True(history.OpenAll(availableContentRows: 5));
 
-        var state = new TextInputRowState();
-        var form = new ScrollableFormDialog([new TextInputRow(text, history, state)]);
+        var form = new ScrollableFormDialog([new TextInputRow(text, history)]);
         Render(form, visibleRows: 1, screenHeight: 8);
 
         HandleMouse(form, Mouse(19, 3, MouseButton.Left, MouseEventKind.Down));
         Assert.NotNull(history.Scrollbar.DragState);
 
-        form.SetRows([new TextInputRow(text, history, state)]);
+        form.SetRows([new TextInputRow(text, history)]);
         HandleMouse(form, Mouse(19, 5, MouseButton.Left, MouseEventKind.Move));
         HandleMouse(form, Mouse(19, 5, MouseButton.Left, MouseEventKind.Up));
 
@@ -1772,8 +1770,7 @@ public sealed class ScrollableFormDialogTests
     public void RoutedHistoryScrollbarCapture_ContinuesOutsideBoundsAndReleasesAfterUp()
     {
         var history = HistoryWithItems(20);
-        var state = new TextInputRowState();
-        var form = new ScrollableFormDialog([new TextInputRow(new CommandLineState(), history, state) { Id = "pattern" }]);
+        var form = new ScrollableFormDialog([new TextInputRow(new CommandLineState(), history) { Id = "pattern" }]);
         var driver = new FakeConsoleDriver(20, 10);
         var screen = new ScreenRenderer(driver);
         var layer = new TestFormLayer(screen, form, context => new FormRenderContext(context, new Rect(0, 0, 20, 1), FarDialogStyles.Border));
@@ -1796,8 +1793,7 @@ public sealed class ScrollableFormDialogTests
     public void RoutedLabeledHistoryScrollbarCapture_ContinuesOutsideBoundsAndReleasesAfterUp()
     {
         var history = HistoryWithItems(20);
-        var state = new TextInputRowState();
-        var form = new ScrollableFormDialog([new LabeledTextInputRow("Value:", new CommandLineState(), history, state, labelWidth: 0, inputWidth: 20) { Id = "pattern" }]);
+        var form = new ScrollableFormDialog([new LabeledTextInputRow("Value:", new CommandLineState(), history, labelWidth: 0, inputWidth: 20) { Id = "pattern" }]);
         var driver = new FakeConsoleDriver(20, 10);
         var screen = new ScreenRenderer(driver);
         var layer = new TestFormLayer(screen, form, context => new FormRenderContext(context, new Rect(0, 0, 20, 1), FarDialogStyles.Border));

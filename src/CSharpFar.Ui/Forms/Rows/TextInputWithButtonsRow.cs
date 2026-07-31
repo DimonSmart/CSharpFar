@@ -10,8 +10,7 @@ public sealed class TextInputWithButtonsRow : FormRow, IFormCursorProvider
     public override FormRowRole Role { get; init; } = FormRowRole.TextInput;
 
     private readonly string _label;
-    private readonly CommandLineState _buffer;
-    private readonly TextInputRowState _state;
+    private readonly FormTextInputField _field;
     private readonly DialogButtonBar _buttonBar;
     private DialogButtonBarState _buttonState;
     private readonly int _inputWidth;
@@ -24,21 +23,18 @@ public sealed class TextInputWithButtonsRow : FormRow, IFormCursorProvider
         IReadOnlyList<DialogButton> buttons,
         string commandPrefix,
         int inputWidth,
-        int buttonAreaWidth,
-        TextInputRowState? state = null)
+        int buttonAreaWidth)
     {
         _label = label;
-        _buffer = buffer;
+        _field = new FormTextInputField(buffer, history: null);
         _buttonBar = new DialogButtonBar(buttons);
         _buttonState = _buttonBar.CreateState();
         _commandPrefix = commandPrefix;
         _inputWidth = inputWidth;
         _buttonAreaWidth = buttonAreaWidth;
-        _state = state ?? new TextInputRowState();
     }
 
-    public CommandLineState Buffer => _buffer;
-    public TextInputRowState State => _state;
+    public CommandLineState Buffer => _field.Buffer;
 
     public override void Render(FormRowRenderContext context)
     {
@@ -50,16 +46,7 @@ public sealed class TextInputWithButtonsRow : FormRow, IFormCursorProvider
             ScrollableFormDialog.Fit(_label, labelWidth),
             FarDialogStyles.Fill);
 
-        SingleLineTextInput.Render(
-            context.Canvas,
-            layout.InputBounds.X,
-            layout.InputBounds.Y,
-            layout.InputBounds.Width,
-            _buffer,
-            context.Focused ? FarDialogStyles.FocusedInput : FarDialogStyles.Input,
-            FarDialogStyles.Input,
-            history: null,
-            renderDropdown: false);
+        _field.Render(context, layout.InputBounds);
 
         if (layout.ButtonAreaBounds.Width > 0)
         {
@@ -74,31 +61,12 @@ public sealed class TextInputWithButtonsRow : FormRow, IFormCursorProvider
     public bool TryGetCursor(FormRowRenderContext context, out FormCursorPlacement cursor)
     {
         var layout = CalculateLayout(context.Bounds);
-        int cursorX = Math.Min(
-            layout.InputBounds.Right - 1,
-            SingleLineTextInput.GetCursorX(layout.InputBounds.X, layout.InputBounds.Width, _buffer));
-        cursor = new FormCursorPlacement(cursorX, layout.InputBounds.Y);
-        return context.Focused && layout.InputBounds.Width > 0;
+        return _field.TryGetCursor(context, layout.InputBounds, out cursor);
     }
 
     public override FormInputResult HandleKey(ConsoleKeyInfo key, FormRowInputContext context)
     {
-        string? error = null;
-        string before = _buffer.Text;
-        TextInputKeyResult result = SingleLineTextInput.HandleKey(
-            _buffer,
-            key,
-            ref error,
-            history: null,
-            availableDropdownContentRows: 0);
-
-        return result switch
-        {
-            TextInputKeyResult.TextChanged when _buffer.Text != before => FormInputResult.ValueChanged,
-            TextInputKeyResult.TextChanged => FormInputResult.Handled,
-            TextInputKeyResult.Handled => FormInputResult.Handled,
-            _ => FormInputResult.NotHandled,
-        };
+        return _field.HandleKey(key, context);
     }
 
     public override FormInputResult HandleMouse(MouseConsoleInputEvent mouse, FormRowMouseContext context)
@@ -127,9 +95,7 @@ public sealed class TextInputWithButtonsRow : FormRow, IFormCursorProvider
             return FormInputResult.NotHandled;
         }
 
-        int target = ConsoleTextMetrics.Utf16IndexFromCellOffset(_buffer.Text, mouse.X - layout.InputBounds.X);
-        _buffer.MoveCursor(target - _buffer.CursorPosition);
-        return FormInputResult.Handled;
+        return _field.HandleMouse(mouse, context, layout.InputBounds);
     }
 
     private TextInputWithButtonsLayout CalculateLayout(Rect rowBounds)

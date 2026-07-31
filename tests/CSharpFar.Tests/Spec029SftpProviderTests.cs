@@ -153,7 +153,7 @@ public sealed class Spec029SftpProviderTests : IDisposable
         };
         driver.EnqueueKey(Key(ConsoleKey.Escape));
 
-        var result = new SftpConnectionDialog(ModalTestHost.Create(screen)).Show(
+        var result = new SftpConnectionDialog(ModalTestHost.Create(screen), TextFieldHistoryTestProvider.Create()).Show(
             new SftpConnectionDialogRequest(
                 Connection: null,
                 SavedPassword: null,
@@ -172,7 +172,7 @@ public sealed class Spec029SftpProviderTests : IDisposable
     public void SftpConnectionDialog_HistoryEscapeClosesDropdownBeforeCancellingDialog()
     {
         string connectionName = "escape-history-" + Guid.NewGuid().ToString("N");
-        var historyRegistry = new SingleLineTextHistoryRegistry();
+        var historyRegistry = TextFieldHistoryTestProvider.Create();
         var seedDriver = new FakeConsoleDriver(width: 100, height: 30);
         seedDriver.EnqueueKey(Key(ConsoleKey.F10));
         var seedScreen = new ScreenRenderer(seedDriver);
@@ -225,7 +225,7 @@ public sealed class Spec029SftpProviderTests : IDisposable
         driver.EnqueueKey(Key(ConsoleKey.Enter));
         int validationCalls = 0;
 
-        SftpConnectionDialogResult? result = new SftpConnectionDialog(ModalTestHost.Create(screen)).Show(
+        SftpConnectionDialogResult? result = new SftpConnectionDialog(ModalTestHost.Create(screen), TextFieldHistoryTestProvider.Create()).Show(
             new SftpConnectionDialogRequest(TestConnection() with { CredentialId = "cred" }, "secret-password", SaveConnectionByDefault: true, AllowTemporaryConnection: true),
             _ =>
             {
@@ -246,7 +246,7 @@ public sealed class Spec029SftpProviderTests : IDisposable
         driver.EnqueueKey(new ConsoleKeyInfo('x', ConsoleKey.X, shift: false, alt: false, control: false));
         driver.EnqueueKey(Key(ConsoleKey.F10));
 
-        SftpConnectionDialogResult? result = new SftpConnectionDialog(ModalTestHost.Create(screen)).Show(
+        SftpConnectionDialogResult? result = new SftpConnectionDialog(ModalTestHost.Create(screen), TextFieldHistoryTestProvider.Create()).Show(
             new SftpConnectionDialogRequest(TestConnection() with { ExpectedHostKeyFingerprint = "AA:BB" }, "secret-password", SaveConnectionByDefault: true, AllowTemporaryConnection: true),
             _ => SftpConnectionDialogValidationResult.Accepted());
 
@@ -264,7 +264,7 @@ public sealed class Spec029SftpProviderTests : IDisposable
         driver.EnqueueKey(Key(ConsoleKey.Spacebar));
         driver.EnqueueKey(Key(ConsoleKey.F10));
 
-        SftpConnectionDialogResult? result = new SftpConnectionDialog(ModalTestHost.Create(screen)).Show(
+        SftpConnectionDialogResult? result = new SftpConnectionDialog(ModalTestHost.Create(screen), TextFieldHistoryTestProvider.Create()).Show(
             new SftpConnectionDialogRequest(TestConnection(), "secret-password", SaveConnectionByDefault: false, AllowTemporaryConnection: true),
             _ => SftpConnectionDialogValidationResult.Accepted());
 
@@ -283,7 +283,7 @@ public sealed class Spec029SftpProviderTests : IDisposable
         driver.EnqueueKey(Key(ConsoleKey.Spacebar));
         driver.EnqueueKey(Key(ConsoleKey.F10));
 
-        SftpConnectionDialogResult? result = new SftpConnectionDialog(ModalTestHost.Create(screen)).Show(
+        SftpConnectionDialogResult? result = new SftpConnectionDialog(ModalTestHost.Create(screen), TextFieldHistoryTestProvider.Create()).Show(
             new SftpConnectionDialogRequest(TestConnection() with { CredentialId = "cred" }, "secret-password", SaveConnectionByDefault: true, AllowTemporaryConnection: true),
             _ => SftpConnectionDialogValidationResult.Accepted());
 
@@ -303,7 +303,7 @@ public sealed class Spec029SftpProviderTests : IDisposable
         driver.EnqueueKey(Key(ConsoleKey.Spacebar));
         driver.EnqueueKey(Key(ConsoleKey.F10));
 
-        SftpConnectionDialogResult? result = new SftpConnectionDialog(ModalTestHost.Create(screen)).Show(
+        SftpConnectionDialogResult? result = new SftpConnectionDialog(ModalTestHost.Create(screen), TextFieldHistoryTestProvider.Create()).Show(
             new SftpConnectionDialogRequest(TestConnection() with { CredentialId = "cred" }, "secret-password", SaveConnectionByDefault: true, AllowTemporaryConnection: true),
             _ => SftpConnectionDialogValidationResult.Accepted());
 
@@ -322,7 +322,7 @@ public sealed class Spec029SftpProviderTests : IDisposable
         driver.EnqueueKey(Key(ConsoleKey.Spacebar));
         driver.EnqueueKey(Key(ConsoleKey.F10));
 
-        SftpConnectionDialogResult? result = new SftpConnectionDialog(ModalTestHost.Create(screen)).Show(
+        SftpConnectionDialogResult? result = new SftpConnectionDialog(ModalTestHost.Create(screen), TextFieldHistoryTestProvider.Create()).Show(
             new SftpConnectionDialogRequest(TestConnection(), SavedPassword: "secret-password", SaveConnectionByDefault: false, AllowTemporaryConnection: true),
             _ => SftpConnectionDialogValidationResult.Accepted());
 
@@ -341,7 +341,7 @@ public sealed class Spec029SftpProviderTests : IDisposable
         driver.EnqueueKey(new ConsoleKeyInfo('3', ConsoleKey.D3, shift: false, alt: false, control: false));
         driver.EnqueueKey(Key(ConsoleKey.F10));
 
-        SftpConnectionDialogResult? result = new SftpConnectionDialog(ModalTestHost.Create(screen)).Show(
+        SftpConnectionDialogResult? result = new SftpConnectionDialog(ModalTestHost.Create(screen), TextFieldHistoryTestProvider.Create()).Show(
             new SftpConnectionDialogRequest(TestConnection() with { ExpectedHostKeyFingerprint = "AA:BB" }, "secret-password", SaveConnectionByDefault: true, AllowTemporaryConnection: true),
             _ => SftpConnectionDialogValidationResult.Accepted());
 
@@ -360,7 +360,7 @@ public sealed class Spec029SftpProviderTests : IDisposable
         driver.EnqueueKey(Key(ConsoleKey.F10));
         var candidates = new List<SftpConnectionDialogResult>();
 
-        SftpConnectionDialogResult? result = new SftpConnectionDialog(ModalTestHost.Create(screen)).Show(
+        SftpConnectionDialogResult? result = new SftpConnectionDialog(ModalTestHost.Create(screen), TextFieldHistoryTestProvider.Create()).Show(
             new SftpConnectionDialogRequest(TestConnection(), "secret-password", true, true),
             candidate =>
             {
@@ -385,7 +385,7 @@ public sealed class Spec029SftpProviderTests : IDisposable
         driver.EnqueueKey(Key(ConsoleKey.Spacebar));
         driver.EnqueueKey(Key(ConsoleKey.F10));
 
-        SftpConnectionDialogResult? result = new SftpConnectionDialog(ModalTestHost.Create(screen)).Show(
+        SftpConnectionDialogResult? result = new SftpConnectionDialog(ModalTestHost.Create(screen), TextFieldHistoryTestProvider.Create()).Show(
             new SftpConnectionDialogRequest(TestConnection() with { ExpectedHostKeyFingerprint = null }, "secret-password", true, true),
             candidate => candidate.Connection.ExpectedHostKeyFingerprint is null
                 ? SftpConnectionDialogValidationResult.RequireHostKeyTrust("AA:BB")
@@ -409,7 +409,7 @@ public sealed class Spec029SftpProviderTests : IDisposable
         driver.EnqueueKey(Key(ConsoleKey.F10));
         var candidates = new List<SftpConnectionDialogResult>();
 
-        _ = new SftpConnectionDialog(ModalTestHost.Create(screen)).Show(
+        _ = new SftpConnectionDialog(ModalTestHost.Create(screen), TextFieldHistoryTestProvider.Create()).Show(
             new SftpConnectionDialogRequest(TestConnection() with { ExpectedHostKeyFingerprint = null }, "secret-password", true, true),
             candidate =>
             {
@@ -451,7 +451,7 @@ public sealed class Spec029SftpProviderTests : IDisposable
         driver.EnqueueInput(LeftMouse(40, 9));
         driver.EnqueueKey(Key(ConsoleKey.Escape));
 
-        var result = new SftpConnectionDialog(ModalTestHost.Create(screen)).Show(
+        var result = new SftpConnectionDialog(ModalTestHost.Create(screen), TextFieldHistoryTestProvider.Create()).Show(
             new SftpConnectionDialogRequest(
                 TestConnection(),
                 SavedPassword: "secret-password",
@@ -471,7 +471,7 @@ public sealed class Spec029SftpProviderTests : IDisposable
         driver.EnqueueInput(LeftMouse(17, 16));
         driver.EnqueueKey(Key(ConsoleKey.F10));
 
-        var result = new SftpConnectionDialog(ModalTestHost.Create(screen)).Show(
+        var result = new SftpConnectionDialog(ModalTestHost.Create(screen), TextFieldHistoryTestProvider.Create()).Show(
             new SftpConnectionDialogRequest(
                 TestConnection(),
                 SavedPassword: "secret-password",
@@ -491,7 +491,7 @@ public sealed class Spec029SftpProviderTests : IDisposable
         driver.EnqueueKey(ShiftTab());
         driver.EnqueueKey(Key(ConsoleKey.Enter));
 
-        var result = new SftpConnectionDialog(ModalTestHost.Create(screen)).Show(
+        var result = new SftpConnectionDialog(ModalTestHost.Create(screen), TextFieldHistoryTestProvider.Create()).Show(
             new SftpConnectionDialogRequest(
                 TestConnection(),
                 SavedPassword: "secret-password",
@@ -510,7 +510,7 @@ public sealed class Spec029SftpProviderTests : IDisposable
         var screen = new ScreenRenderer(driver);
         driver.EnqueueKey(Key(ConsoleKey.Escape));
 
-        var result = new SftpConnectionDialog(ModalTestHost.Create(screen)).Show(
+        var result = new SftpConnectionDialog(ModalTestHost.Create(screen), TextFieldHistoryTestProvider.Create()).Show(
             new SftpConnectionDialogRequest(
                 TestConnection(),
                 SavedPassword: "secret-password",
@@ -534,7 +534,7 @@ public sealed class Spec029SftpProviderTests : IDisposable
         int validationCalls = 0;
         var connection = TestConnection() with { ExpectedHostKeyFingerprint = null };
 
-        SftpConnectionDialogResult? result = new SftpConnectionDialog(ModalTestHost.Create(screen)).Show(
+        SftpConnectionDialogResult? result = new SftpConnectionDialog(ModalTestHost.Create(screen), TextFieldHistoryTestProvider.Create()).Show(
             new SftpConnectionDialogRequest(connection, "secret-password", SaveConnectionByDefault: true, AllowTemporaryConnection: true),
             candidate =>
             {
@@ -587,7 +587,7 @@ public sealed class Spec029SftpProviderTests : IDisposable
         driver.BeforeReadInput = beforeRead;
         var candidates = new List<SftpConnectionDialogResult>();
 
-        SftpConnectionDialogResult? result = new SftpConnectionDialog(ModalTestHost.Create(screen)).Show(
+        SftpConnectionDialogResult? result = new SftpConnectionDialog(ModalTestHost.Create(screen), TextFieldHistoryTestProvider.Create()).Show(
             new SftpConnectionDialogRequest(TestConnection(), "secret-password", SaveConnectionByDefault: true, AllowTemporaryConnection: true),
             candidate =>
             {

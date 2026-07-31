@@ -10,10 +10,12 @@ namespace CSharpFar.App.Dialogs;
 internal sealed class InputDialog
 {
     private readonly ModalDialogHost _modalDialogs;
+    private readonly ITextFieldHistoryProvider _history;
 
-    public InputDialog(ModalDialogHost modalDialogs)
+    public InputDialog(ModalDialogHost modalDialogs, ITextFieldHistoryProvider history)
     {
         _modalDialogs = modalDialogs;
+        _history = history;
     }
 
     /// <summary>
@@ -32,16 +34,16 @@ internal sealed class InputDialog
         Func<string, string?>? validate = null,
         bool allowEmpty = false,
         bool maskInput = false,
-        string? historyKey = null)
+        TextHistoryId? history = null)
     {
-        var result = new SingleLineInputDialog(_modalDialogs).Show(new SingleLineInputDialogOptions
+        var result = new SingleLineInputDialog(_modalDialogs, _history).Show(new SingleLineInputDialogOptions
         {
             Title = title,
             Prompt = prompt,
             InitialText = initialText ?? string.Empty,
             AllowEmpty = allowEmpty,
             MaskInput = maskInput,
-            History = maskInput || string.IsNullOrWhiteSpace(historyKey) ? null : new TextHistoryId(historyKey),
+            History = maskInput ? null : history,
             Validate = validate,
         });
 

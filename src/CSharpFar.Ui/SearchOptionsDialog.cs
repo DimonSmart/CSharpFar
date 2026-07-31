@@ -13,8 +13,6 @@ public sealed class SearchOptionsDialogOptions
     public string TextLabel { get; init; } = "Text";
     public string InitialPattern { get; init; } = string.Empty;
     public TextHistoryId? History { get; init; }
-    [Obsolete("Use History with TextHistoryId.")]
-    public string HistoryKey { init => History = new TextHistoryId(value); }
     public IReadOnlyList<SearchOptionLine> Options { get; init; } = [];
     public int Width { get; init; } = 56;
     public Func<SearchOptionsDialogState, string?>? Validate { get; init; }
@@ -68,10 +66,6 @@ public sealed class SearchOptionsDialog
     private readonly ModalFormHost _formDialogs;
     private readonly ITextFieldHistoryProvider _history;
 
-    [Obsolete("Pass the application-scoped ITextFieldHistoryProvider.")]
-    public SearchOptionsDialog(ModalDialogHost modalDialogs)
-        : this(modalDialogs, TextFieldHistoryTestFactory.CreateInMemory()) { }
-
     public SearchOptionsDialog(ModalDialogHost modalDialogs, ITextFieldHistoryProvider history)
     {
         _formDialogs = new ModalFormHost(modalDialogs ?? throw new ArgumentNullException(nameof(modalDialogs)));
@@ -87,14 +81,10 @@ public sealed class SearchOptionsDialog
 
     private SearchOptionsDialogResult? RunLoop(SearchOptionsDialogOptions options)
     {
-        var pattern = new CommandLineState();
-        if (options.InitialPattern.Length > 0)
-            pattern.SetText(options.InitialPattern);
+        var fields = new FormFieldFactory(_history);
+        TextField pattern = fields.Text("pattern", options.InitialPattern, options.History, submitOnEnter: true);
 
         var state = new SearchOptionsDialogState(pattern.Text, options.Options);
-        TextHistory patternHistory = options.History is { } historyId
-            ? _history.Get(historyId)
-            : new TextHistory(null, null);
         var checkboxes = options.Options
             .Select(option => new CheckBoxRow(new CheckBoxLine(option.Label, option.IsChecked)))
             .ToArray();
@@ -105,7 +95,7 @@ public sealed class SearchOptionsDialog
             ]);
         var form = new ScrollableFormDialog();
         string? error = null;
-        void PrepareRows() => form.SetRows(BuildRows(options, pattern, patternHistory, checkboxes),
+        void PrepareRows() => form.SetRows(BuildRows(options, pattern, checkboxes),
             [new LabelRow(error ?? string.Empty, PaletteStyles.DialogError(UiTheme.Current)), buttons]);
         return _formDialogs.Run(
             form,
@@ -135,7 +125,7 @@ public sealed class SearchOptionsDialog
                         command = "find";
                     }
 
-                    var accepted = HandleButton(command, options, state, pattern, patternHistory, ref error);
+                    var accepted = HandleButton(command, options, state, pattern, ref error);
                     if (accepted.HasValue)
                     {
                         return ModalDialogLoopResult<SearchOptionsDialogResult?>.Complete(
@@ -150,32 +140,17 @@ public sealed class SearchOptionsDialog
 
     internal static IReadOnlyList<IFormRow> BuildRows(
         SearchOptionsDialogOptions options,
-        CommandLineState pattern,
-        SingleLineTextHistoryState patternHistory,
+        TextField pattern,
         IReadOnlyList<CheckBoxRow> checkboxes)
     {
         var rows = new List<IFormRow>
         {
             new LabelRow(options.TextLabel),
-            new TextInputRow(pattern, patternHistory)
-            {
-                Id = "pattern",
-                Role = FormRowRole.TextInput,
-                SubmitOnEnter = true,
-            },
+            pattern.Row,
         };
         rows.AddRange(checkboxes);
         return rows;
     }
-
-    [Obsolete("Build rows from the field and checkbox state only.")]
-    internal static IReadOnlyList<IFormRow> BuildRows(
-        SearchOptionsDialogOptions options,
-        CommandLineState pattern,
-        SingleLineTextHistoryState patternHistory,
-        TextInputRowState patternRowState,
-        IReadOnlyList<CheckBoxRow> checkboxes,
-        ButtonRow buttons) => BuildRows(options, pattern, patternHistory, checkboxes);
 
     private static void SynchronizeOptions(
         SearchOptionsDialogOptions options,
@@ -201,15 +176,14 @@ public sealed class SearchOptionsDialog
         string? buttonId,
         SearchOptionsDialogOptions options,
         SearchOptionsDialogState state,
-        CommandLineState pattern,
-        SingleLineTextHistoryState patternHistory,
+        TextField pattern,
         ref string? error)
     {
         if (buttonId == "cancel")
             return false;
 
         if (buttonId == "find")
-            return TryAccept(options, state, pattern, patternHistory, ref error);
+            return TryAccept(options, state, pattern, ref error);
 
         return null;
     }
@@ -217,8 +191,7 @@ public sealed class SearchOptionsDialog
     private static bool TryAccept(
         SearchOptionsDialogOptions options,
         SearchOptionsDialogState state,
-        CommandLineState pattern,
-        SingleLineTextHistoryState patternHistory,
+        TextField pattern,
         ref string? error)
     {
         state.Pattern = pattern.Text;
@@ -232,7 +205,7 @@ public sealed class SearchOptionsDialog
         if (error is not null)
             return false;
 
-        patternHistory.Add(state.Pattern);
+        pattern.AcceptHistory();
         return true;
     }
 

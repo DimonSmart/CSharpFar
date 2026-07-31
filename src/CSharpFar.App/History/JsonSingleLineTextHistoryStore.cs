@@ -15,11 +15,13 @@ public sealed class JsonSingleLineTextHistoryStore : ISingleLineTextHistoryStore
     private readonly object _sync = new();
     private readonly string _filePath;
     private readonly Dictionary<string, List<string>> _fields = new(StringComparer.Ordinal);
+    private readonly ITextFieldHistoryDiagnostics _diagnostics;
 
-    public JsonSingleLineTextHistoryStore(string configDirectory)
+    public JsonSingleLineTextHistoryStore(string configDirectory, ITextFieldHistoryDiagnostics? diagnostics = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(configDirectory);
         _filePath = Path.Combine(configDirectory, "field-history.json");
+        _diagnostics = diagnostics ?? new TraceTextFieldHistoryDiagnostics();
         LoadDocument();
     }
 
@@ -59,21 +61,28 @@ public sealed class JsonSingleLineTextHistoryStore : ISingleLineTextHistoryStore
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException or NotSupportedException)
             {
                 _fields.Clear();
+                ReportFailure(TextHistoryPersistenceOperation.Load, ex);
             }
         }
     }
 
     private void SaveDocument()
     {
+        string? temporaryPath = null;
         try
         {
             string directory = Path.GetDirectoryName(_filePath)!;
             Directory.CreateDirectory(directory);
-            string temporaryPath = Path.Combine(directory, $".{Path.GetFileName(_filePath)}.{Guid.NewGuid():N}.tmp");
+            temporaryPath = Path.Combine(directory, $".{Path.GetFileName(_filePath)}.{Guid.NewGuid():N}.tmp");
             File.WriteAllText(temporaryPath, JsonSerializer.Serialize(new Document { Version = Version, Fields = _fields }, JsonOptions));
             File.Move(temporaryPath, _filePath, overwrite: true);
         }
-        catch { }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or NotSupportedException)
+        {
+            if (temporaryPath is not null)
+                TryDeleteTemporaryFile(temporaryPath);
+            ReportFailure(TextHistoryPersistenceOperation.Save, ex);
+        }
     }
 
     private static List<string> Normalize(IEnumerable<string>? values)
@@ -89,9 +98,39 @@ public sealed class JsonSingleLineTextHistoryStore : ISingleLineTextHistoryStore
         return result;
     }
 
+    private void ReportFailure(TextHistoryPersistenceOperation operation, Exception exception)
+    {
+        try
+        {
+            _diagnostics.ReportPersistenceFailure(operation, exception);
+        }
+        catch
+        {
+            // Diagnostics must not make field-history persistence fatal.
+        }
+    }
+
+    private static void TryDeleteTemporaryFile(string path)
+    {
+        try
+        {
+            File.Delete(path);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            // The original persistence failure has already been reported.
+        }
+    }
+
     private sealed class Document
     {
         public int Version { get; set; }
         public Dictionary<string, List<string>>? Fields { get; set; }
+    }
+
+    private sealed class TraceTextFieldHistoryDiagnostics : ITextFieldHistoryDiagnostics
+    {
+        public void ReportPersistenceFailure(TextHistoryPersistenceOperation operation, Exception exception) =>
+            System.Diagnostics.Trace.TraceError($"Text field history {operation.ToString().ToLowerInvariant()} failed: {exception}");
     }
 }

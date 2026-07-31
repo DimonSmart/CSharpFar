@@ -17,22 +17,25 @@ internal sealed class FileOperationUiRunner
     private readonly Func<ConsolePalette> _palette;
     private readonly IFileOperationService _fileOperations;
     private readonly Func<bool> _showTotalProgress;
+    private readonly ITextFieldHistoryProvider _textFieldHistory;
 
     public FileOperationUiRunner(
         ModalDialogHost modalDialogs,
         Func<ConsolePalette> palette,
         IFileOperationService fileOperations,
-        Func<bool> showTotalProgress)
+        Func<bool> showTotalProgress,
+        ITextFieldHistoryProvider textFieldHistory)
     {
         _modalDialogs = modalDialogs;
         _palette = palette;
         _fileOperations = fileOperations;
         _showTotalProgress = showTotalProgress;
+        _textFieldHistory = textFieldHistory;
     }
 
     public FileOperationResult Execute(FileOperationRequest request)
     {
-        var conflictDialog = new ConflictDialog(_modalDialogs, _palette());
+        var conflictDialog = new ConflictDialog(_modalDialogs, _textFieldHistory, _palette());
         var cancelDialog = new OperationCancelDialog(_modalDialogs);
         using var cts = new CancellationTokenSource();
         var resolver = new DialogConflictResolver(conflictDialog);

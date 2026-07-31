@@ -38,7 +38,7 @@ internal static class CommandServicesFactory
         IFileLauncher fileLauncher,
         ISearchService searchService,
         IHistoryStore history,
-        SingleLineTextHistoryRegistry textFieldHistory,
+        ITextFieldHistoryProvider textFieldHistory,
         UserMenuStore userMenu,
         ITextClipboard clipboard,
         FilePanelSourceRegistry sourceRegistry,

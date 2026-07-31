@@ -26,10 +26,6 @@ public sealed class SingleLineInputDialog
     private readonly ModalFormHost _formDialogs;
     private readonly ITextFieldHistoryProvider _history;
 
-    [Obsolete("Pass the application-scoped ITextFieldHistoryProvider.")]
-    public SingleLineInputDialog(ModalDialogHost modalDialogs)
-        : this(modalDialogs, TextFieldHistoryTestFactory.CreateInMemory()) { }
-
     public SingleLineInputDialog(ModalDialogHost modalDialogs, ITextFieldHistoryProvider history)
     {
         _formDialogs = new ModalFormHost(modalDialogs ?? throw new ArgumentNullException(nameof(modalDialogs)));
@@ -45,13 +41,9 @@ public sealed class SingleLineInputDialog
 
     private SingleLineInputDialogResult RunLoop(SingleLineInputDialogOptions options)
     {
-        var buffer = new CommandLineState();
-        if (options.InitialText.Length > 0)
-            buffer.SetText(options.InitialText);
-
-        TextHistory? history = options is { MaskInput: false, History: { } historyId }
-            ? _history.Get(historyId)
-            : null;
+        var fields = new FormFieldFactory(_history);
+        TextField field = fields.Text("input", options.InitialText, options.History,
+            maskInput: options.MaskInput, submitOnEnter: true);
         string? error = null;
         var actions = new ButtonRow([
             new DialogButton("ok", "OK", 'O', IsDefault: true),
@@ -61,7 +53,7 @@ public sealed class SingleLineInputDialog
         var form = new ScrollableFormDialog();
         void PrepareRows() => form.SetRows([
             new LabelRow(options.Prompt),
-            new TextInputRow(buffer, history, maskInput: options.MaskInput) { Id = "input", SubmitOnEnter = true },
+            field.Row,
             new SeparatorRow(drawLine: false),
         ], [
             new LabelRow(error ?? string.Empty, PaletteStyles.DialogError(UiTheme.Current)),
@@ -86,14 +78,14 @@ public sealed class SingleLineInputDialog
                 if (!submit)
                     return ModalDialogLoopResult<SingleLineInputDialogResult>.ContinueNoChange;
 
-                string text = buffer.Text.Trim();
+                string text = field.TrimmedText;
                 error = text.Length == 0 && !options.AllowEmpty
                     ? "A value is required."
                     : options.Validate?.Invoke(text);
                 if (error is not null)
                     return ModalDialogLoopResult<SingleLineInputDialogResult>.ContinueWithFocus(form.GetFocusTarget("input"));
 
-                history?.Add(text);
+                field.AcceptHistory();
                 return ModalDialogLoopResult<SingleLineInputDialogResult>.Complete(new(true, text));
             },
             prepareRender: PrepareRows);

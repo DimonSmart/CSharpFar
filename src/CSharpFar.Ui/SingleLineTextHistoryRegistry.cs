@@ -6,14 +6,14 @@ public sealed class SingleLineTextHistoryRegistry : ITextFieldHistoryProvider
     private readonly Dictionary<TextHistoryId, TextHistory> _histories = [];
     private readonly object _sync = new();
 
-    [Obsolete("Use SingleLineTextHistoryRegistry(ISingleLineTextHistoryStore) or TextFieldHistoryTestFactory.CreateInMemory().")]
-    public SingleLineTextHistoryRegistry() : this(new InMemorySingleLineTextHistoryStore()) { }
-
     public SingleLineTextHistoryRegistry(ISingleLineTextHistoryStore store) =>
         _store = store ?? throw new ArgumentNullException(nameof(store));
 
     public TextHistory Get(TextHistoryId id)
     {
+        if (string.IsNullOrWhiteSpace(id.Value))
+            throw new ArgumentException("A valid text history ID is required.", nameof(id));
+
         lock (_sync)
         {
             if (_histories.TryGetValue(id, out TextHistory? history))
@@ -24,9 +24,4 @@ public sealed class SingleLineTextHistoryRegistry : ITextFieldHistoryProvider
             return history;
         }
     }
-
-    public TextHistory GetOrCreate(TextHistoryId id) => Get(id);
-
-    [Obsolete("Use Get(TextHistoryId) with a centralized stable identifier.")]
-    public TextHistory GetOrCreate(string fieldKey) => Get(new TextHistoryId(fieldKey));
 }

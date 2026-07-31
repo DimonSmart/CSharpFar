@@ -43,7 +43,7 @@ public sealed class Spec048CreateNewFileDialogTests : IDisposable
         driver.EnqueueKey(Key(ConsoleKey.Enter));
         driver.EnqueueKey(Key(ConsoleKey.F10));
 
-        var result = new OpenCreateFileDialog(ModalTestHost.Create(screen)).Show();
+        var result = new OpenCreateFileDialog(ModalTestHost.Create(screen), TextFieldHistoryTestProvider.Create()).Show();
 
         Assert.NotNull(result);
         Assert.Equal("new.txt", result.FilePath);
@@ -62,7 +62,7 @@ public sealed class Spec048CreateNewFileDialogTests : IDisposable
         var screen = new ScreenRenderer(driver);
         driver.EnqueueKey(Key(ConsoleKey.Escape));
 
-        _ = new OpenCreateFileDialog(ModalTestHost.Create(screen)).Show();
+        _ = new OpenCreateFileDialog(ModalTestHost.Create(screen), TextFieldHistoryTestProvider.Create()).Show();
 
         Assert.DoesNotContain(driver.WriteRecords, record => record.Text.Contains('▲'));
     }
@@ -77,7 +77,7 @@ public sealed class Spec048CreateNewFileDialogTests : IDisposable
         driver.EnqueueInput(new MouseConsoleInputEvent(18, 19, MouseButton.Left, MouseEventKind.Down, MouseKeyModifiers.None));
         driver.EnqueueKey(Key(ConsoleKey.F10));
 
-        var result = new OpenCreateFileDialog(ModalTestHost.Create(screen)).Show();
+        var result = new OpenCreateFileDialog(ModalTestHost.Create(screen), TextFieldHistoryTestProvider.Create()).Show();
 
         Assert.NotNull(result);
         Assert.Equal("mouse.txt", result.FilePath);
@@ -97,7 +97,7 @@ public sealed class Spec048CreateNewFileDialogTests : IDisposable
         driver.EnqueueKey(Key(ConsoleKey.Escape));
         driver.EnqueueKey(Key(ConsoleKey.Escape));
 
-        _ = new OpenCreateFileDialog(CreateUnderlayModalHost(screen)).Show();
+        _ = new OpenCreateFileDialog(CreateUnderlayModalHost(screen), TextFieldHistoryTestProvider.Create()).Show();
 
         string finalRow = driver.GetRow(22);
         Assert.Contains("UNDERLAY", finalRow, StringComparison.Ordinal);
@@ -113,7 +113,7 @@ public sealed class Spec048CreateNewFileDialogTests : IDisposable
         driver.EnqueueKey(new ConsoleKeyInfo('X', ConsoleKey.X, shift: true, alt: false, control: false));
         driver.EnqueueKey(Key(ConsoleKey.F10));
 
-        var result = new OpenCreateFileDialog(ModalTestHost.Create(screen)).Show("abcdef");
+        var result = new OpenCreateFileDialog(ModalTestHost.Create(screen), TextFieldHistoryTestProvider.Create()).Show("abcdef");
 
         Assert.NotNull(result);
         Assert.Equal("abXcdef", result.FilePath);
@@ -128,7 +128,7 @@ public sealed class Spec048CreateNewFileDialogTests : IDisposable
         EnqueueText(driver, "after-error.txt");
         driver.EnqueueKey(Key(ConsoleKey.F10));
 
-        var result = new OpenCreateFileDialog(ModalTestHost.Create(screen)).Show();
+        var result = new OpenCreateFileDialog(ModalTestHost.Create(screen), TextFieldHistoryTestProvider.Create()).Show();
 
         Assert.NotNull(result);
         Assert.Equal("after-error.txt", result.FilePath);
@@ -146,7 +146,7 @@ public sealed class Spec048CreateNewFileDialogTests : IDisposable
         driver.EnqueueKey(Key(ConsoleKey.DownArrow));
         driver.EnqueueKey(Key(ConsoleKey.F10));
 
-        var result = new OpenCreateFileDialog(ModalTestHost.Create(screen)).Show();
+        var result = new OpenCreateFileDialog(ModalTestHost.Create(screen), TextFieldHistoryTestProvider.Create()).Show();
 
         Assert.NotNull(result);
         Assert.Equal("new.txt", result.FilePath);
@@ -165,7 +165,7 @@ public sealed class Spec048CreateNewFileDialogTests : IDisposable
         driver.EnqueueKey(Key(ConsoleKey.Escape));
         driver.EnqueueKey(Key(ConsoleKey.F10));
 
-        var result = new OpenCreateFileDialog(ModalTestHost.Create(screen)).Show();
+        var result = new OpenCreateFileDialog(ModalTestHost.Create(screen), TextFieldHistoryTestProvider.Create()).Show();
 
         Assert.NotNull(result);
         Assert.Equal("Default", result.CodePage.Label);
@@ -183,7 +183,7 @@ public sealed class Spec048CreateNewFileDialogTests : IDisposable
         driver.EnqueueKey(Key(ConsoleKey.Tab));
         driver.EnqueueKey(Key(ConsoleKey.F10));
 
-        var result = new OpenCreateFileDialog(ModalTestHost.Create(screen)).Show();
+        var result = new OpenCreateFileDialog(ModalTestHost.Create(screen), TextFieldHistoryTestProvider.Create()).Show();
 
         Assert.NotNull(result);
         Assert.Equal("Default", result.CodePage.Label);
@@ -196,7 +196,7 @@ public sealed class Spec048CreateNewFileDialogTests : IDisposable
         var screen = new ScreenRenderer(driver);
         driver.EnqueueKey(Key(ConsoleKey.Escape));
 
-        _ = new OpenCreateFileDialog(ModalTestHost.Create(screen)).Show();
+        _ = new OpenCreateFileDialog(ModalTestHost.Create(screen), TextFieldHistoryTestProvider.Create()).Show();
 
         int codePageValueRow = driver.WriteRecords
             .Where(record => record.Text.Contains("Default", StringComparison.Ordinal))

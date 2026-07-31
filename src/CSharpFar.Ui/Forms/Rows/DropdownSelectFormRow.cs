@@ -16,6 +16,16 @@ public sealed class DropdownSelectFormRow<T> : FormRow, IFormCursorProvider, IFo
         _dropdown = dropdown;
     }
 
+    public DropdownSelectFormRow(
+        string label,
+        IReadOnlyList<T> items,
+        Func<T, string> itemText,
+        T selectedValue)
+        : this(label, new DropdownSelect<T>(items, itemText))
+    {
+        _dropdown.SelectedIndex = FindSelectedIndex(items, selectedValue);
+    }
+
     public override FormRowRole Role { get; init; } = FormRowRole.Option;
     public bool IsCompositeOpen => _dropdown.IsOpen;
     public T Value => _dropdown.SelectedItem;
@@ -121,6 +131,17 @@ public sealed class DropdownSelectFormRow<T> : FormRow, IFormCursorProvider, IFo
         return new DropdownSelectFormRowLayout(
             labelWidth,
             new Rect(fieldX, bounds.Y, Math.Max(0, bounds.Right - fieldX), 1));
+    }
+
+    private static int FindSelectedIndex(IReadOnlyList<T> items, T selectedValue)
+    {
+        for (int index = 0; index < items.Count; index++)
+        {
+            if (EqualityComparer<T>.Default.Equals(items[index], selectedValue))
+                return index;
+        }
+
+        return 0;
     }
 
     private readonly record struct DropdownSelectFormRowLayout(int LabelWidth, Rect FieldBounds);

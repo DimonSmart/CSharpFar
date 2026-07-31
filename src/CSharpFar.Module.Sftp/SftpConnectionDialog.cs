@@ -35,13 +35,13 @@ internal sealed class SftpConnectionDialog
     private const int DialogHeight = 18;
     private const int FieldWidth = 42;
 
-    private readonly SingleLineTextHistoryRegistry _historyRegistry;
+    private readonly ITextFieldHistoryProvider _historyRegistry;
     private readonly ModalFormHost _formDialogs;
 
-    public SftpConnectionDialog(ModalDialogHost modalDialogs, SingleLineTextHistoryRegistry? historyRegistry = null)
+    public SftpConnectionDialog(ModalDialogHost modalDialogs, ITextFieldHistoryProvider historyRegistry)
     {
         _formDialogs = new ModalFormHost(modalDialogs);
-        _historyRegistry = historyRegistry ?? new SingleLineTextHistoryRegistry();
+        _historyRegistry = historyRegistry ?? throw new ArgumentNullException(nameof(historyRegistry));
     }
 
     public SftpConnectionDialogResult? Show(
@@ -59,19 +59,16 @@ internal sealed class SftpConnectionDialog
         Func<SftpConnectionDialogResult, SftpConnectionDialogValidationResult> validate)
     {
         SftpConnectionInfo? connection = request.Connection;
-        var connectionName = TextBuffer(connection?.DisplayName ?? string.Empty);
-        var host = TextBuffer(connection?.Host ?? string.Empty);
-        var port = TextBuffer((connection?.Port ?? 22).ToString());
-        var userName = TextBuffer(connection?.Username ?? string.Empty);
-        var password = TextBuffer(request.SavedPassword ?? string.Empty);
-        var remoteRoot = TextBuffer(connection?.RemoteRootPath ?? "/");
-        var histories = new TextFieldHistories(_historyRegistry);
-        var connectionNameState = new TextInputRowState();
-        var hostState = new TextInputRowState();
-        var portState = new TextInputRowState();
-        var userNameState = new TextInputRowState();
-        var passwordState = new TextInputRowState();
-        var remoteRootState = new TextInputRowState();
+        var fields = new FormFieldFactory(_historyRegistry);
+        var state = new SftpFormState(
+            fields.Text("connection-name", connection?.DisplayName ?? string.Empty, SftpTextHistoryIds.ConnectionName, width: FieldWidth, submitOnEnter: true),
+            fields.Text("host", connection?.Host ?? string.Empty, SftpTextHistoryIds.Host, width: FieldWidth, submitOnEnter: true),
+            fields.Text("port", (connection?.Port ?? 22).ToString(), SftpTextHistoryIds.Port, width: FieldWidth, submitOnEnter: true),
+            fields.Text("username", connection?.Username ?? string.Empty, SftpTextHistoryIds.UserName, width: FieldWidth, submitOnEnter: true),
+            fields.Text("password", request.SavedPassword ?? string.Empty, maskInput: true, width: FieldWidth, submitOnEnter: true),
+            fields.Text("remote-root", connection?.RemoteRootPath ?? "/", SftpTextHistoryIds.RemoteRoot, width: FieldWidth, submitOnEnter: true));
+        var connectionName = state.ConnectionName; var host = state.Host; var port = state.Port;
+        var userName = state.UserName; var password = state.Password; var remoteRoot = state.RemoteRoot;
 
         var saveConnectionRow = new CheckBoxRow(new CheckBoxLine("Save connection")) { Id = "save-connection" };
         var savePasswordRow = new CheckBoxRow(new CheckBoxLine("Save password")) { Id = "save-password" };
@@ -97,7 +94,6 @@ internal sealed class SftpConnectionDialog
             BuildRows(
                 request.AllowTemporaryConnection,
                 connectionName, host, port, userName, password, remoteRoot,
-                histories, connectionNameState, hostState, portState, userNameState, passwordState, remoteRootState,
                 saveConnectionRow, savePasswordRow, showInDriveRow, trustHostKeyRow, hostKeyFingerprint),
             [new LabelRow(error ?? string.Empty, FarDialogStyles.Error), actions]);
 
@@ -153,7 +149,7 @@ internal sealed class SftpConnectionDialog
                     SftpConnectionDialogValidationResult validation = validate(candidate);
                     if (validation.IsAccepted)
                     {
-                        histories.Add(connectionName, host, port, userName, remoteRoot);
+                        state.AcceptHistory();
                         return ModalDialogLoopResult<SftpConnectionDialogResult?>.Complete(candidate);
                     }
 
@@ -177,19 +173,12 @@ internal sealed class SftpConnectionDialog
 
     private static IReadOnlyList<IFormRow> BuildRows(
         bool allowTemporaryConnection,
-        CommandLineState connectionName,
-        CommandLineState host,
-        CommandLineState port,
-        CommandLineState userName,
-        CommandLineState password,
-        CommandLineState remoteRoot,
-        TextFieldHistories histories,
-        TextInputRowState connectionNameState,
-        TextInputRowState hostState,
-        TextInputRowState portState,
-        TextInputRowState userNameState,
-        TextInputRowState passwordState,
-        TextInputRowState remoteRootState,
+        TextField connectionName,
+        TextField host,
+        TextField port,
+        TextField userName,
+        TextField password,
+        TextField remoteRoot,
         CheckBoxRow saveConnectionRow,
         CheckBoxRow savePasswordRow,
         CheckBoxRow showInDriveRow,
@@ -198,12 +187,12 @@ internal sealed class SftpConnectionDialog
     {
         var rows = new List<IFormRow>
         {
-            new LabeledTextInputRow("Connection name:", connectionName, histories.ConnectionName, connectionNameState, inputWidth: FieldWidth) { Id = "connection-name", SubmitOnEnter = true },
-            new LabeledTextInputRow("Host:", host, histories.Host, hostState, inputWidth: FieldWidth) { Id = "host", SubmitOnEnter = true },
-            new LabeledTextInputRow("Port:", port, histories.Port, portState, inputWidth: FieldWidth) { Id = "port", SubmitOnEnter = true },
-            new LabeledTextInputRow("User name:", userName, histories.UserName, userNameState, inputWidth: FieldWidth) { Id = "username", SubmitOnEnter = true },
-            new LabeledTextInputRow("Password:", password, state: passwordState, inputWidth: FieldWidth, maskInput: true) { Id = "password", SubmitOnEnter = true },
-            new LabeledTextInputRow("Remote root:", remoteRoot, histories.RemoteRoot, remoteRootState, inputWidth: FieldWidth) { Id = "remote-root", SubmitOnEnter = true },
+            new LabeledTextInputRow("Connection name:", connectionName, inputWidth: FieldWidth),
+            new LabeledTextInputRow("Host:", host, inputWidth: FieldWidth),
+            new LabeledTextInputRow("Port:", port, inputWidth: FieldWidth),
+            new LabeledTextInputRow("User name:", userName, inputWidth: FieldWidth),
+            new LabeledTextInputRow("Password:", password, inputWidth: FieldWidth, maskInput: true),
+            new LabeledTextInputRow("Remote root:", remoteRoot, inputWidth: FieldWidth),
         };
         if (allowTemporaryConnection)
             rows.Add(saveConnectionRow);
@@ -246,32 +235,14 @@ internal sealed class SftpConnectionDialog
         }, password, saveConnection, savePassword, request.Connection?.CredentialId);
     }
 
-    private static CommandLineState TextBuffer(string value)
+    private sealed record SftpFormState(TextField ConnectionName, TextField Host, TextField Port,
+        TextField UserName, TextField Password, TextField RemoteRoot)
     {
-        var buffer = new CommandLineState();
-        buffer.SetText(value);
-        return buffer;
-    }
-
-    private sealed class TextFieldHistories
-    {
-        public TextFieldHistories(SingleLineTextHistoryRegistry historyRegistry)
+        public void AcceptHistory()
         {
-            ConnectionName = historyRegistry.GetOrCreate("SftpConnectionDialog.ConnectionName"); Host = historyRegistry.GetOrCreate("SftpConnectionDialog.Host"); Port = historyRegistry.GetOrCreate("SftpConnectionDialog.Port"); UserName = historyRegistry.GetOrCreate("SftpConnectionDialog.UserName"); RemoteRoot = historyRegistry.GetOrCreate("SftpConnectionDialog.RemoteRoot");
-        }
-        public SingleLineTextHistoryState ConnectionName { get; }
-        public SingleLineTextHistoryState Host { get; }
-        public SingleLineTextHistoryState Port { get; }
-        public SingleLineTextHistoryState UserName { get; }
-        public SingleLineTextHistoryState RemoteRoot { get; }
-
-        public void Add(CommandLineState connectionName, CommandLineState host, CommandLineState port, CommandLineState userName, CommandLineState remoteRoot)
-        {
-            ConnectionName.Add(connectionName.Text.Trim());
-            Host.Add(host.Text.Trim());
-            Port.Add(port.Text.Trim());
-            UserName.Add(userName.Text.Trim());
-            RemoteRoot.Add(remoteRoot.Text.Trim());
+            ConnectionName.AcceptHistory(); Host.AcceptHistory(); Port.AcceptHistory();
+            UserName.AcceptHistory(); RemoteRoot.AcceptHistory();
         }
     }
+
 }

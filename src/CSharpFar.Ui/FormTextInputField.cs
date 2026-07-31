@@ -9,20 +9,17 @@ internal sealed class FormTextInputField
 {
     private readonly CommandLineState _buffer;
     private readonly SingleLineTextHistoryState? _history;
-    private readonly TextInputRowState _state;
     private readonly bool _maskInput;
 
-    public FormTextInputField(CommandLineState buffer, SingleLineTextHistoryState? history, TextInputRowState state, bool maskInput = false)
+    public FormTextInputField(CommandLineState buffer, SingleLineTextHistoryState? history, bool maskInput = false)
     {
         _buffer = buffer;
         _history = history;
-        _state = state;
         _maskInput = maskInput;
     }
 
     public CommandLineState Buffer => _buffer;
     public SingleLineTextHistoryState? History => _history;
-    public TextInputRowState State => _state;
 
     public void Render(FormRowRenderContext context, Rect bounds) =>
         SingleLineTextInput.Render(context.Canvas, bounds.X, bounds.Y, bounds.Width, _buffer,
