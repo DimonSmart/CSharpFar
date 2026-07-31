@@ -169,6 +169,27 @@ public sealed class Spec029SftpProviderTests : IDisposable
     }
 
     [Fact]
+    public void SftpConnectionDialog_TypingConnectionNameWithoutSaveConnectionRowDoesNotCrash()
+    {
+        var driver = new FakeConsoleDriver(width: 100, height: 30);
+        driver.EnqueueKey(Printable('n'));
+        driver.EnqueueKey(Key(ConsoleKey.F10));
+
+        var result = new SftpConnectionDialog(
+            ModalTestHost.Create(new ScreenRenderer(driver)),
+            TextFieldHistoryTestProvider.Create()).Show(
+                new SftpConnectionDialogRequest(
+                    Connection: TestConnection(),
+                    SavedPassword: "secret-password",
+                    SaveConnectionByDefault: true,
+                    AllowTemporaryConnection: false),
+                _ => SftpConnectionDialogValidationResult.Accepted());
+
+        Assert.NotNull(result);
+        Assert.Equal("testn", result.Connection.DisplayName);
+    }
+
+    [Fact]
     public void SftpConnectionDialog_HistoryEscapeClosesDropdownBeforeCancellingDialog()
     {
         string connectionName = "escape-history-" + Guid.NewGuid().ToString("N");
