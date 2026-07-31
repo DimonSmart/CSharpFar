@@ -41,7 +41,7 @@ internal sealed class SearchProgressDialog
         var syncRoot = new object();
         var results = new List<SearchResultItem>();
         SearchProgress latestProgress = new() { CurrentPath = request.RootPath };
-        SearchCompletionIntent completionIntent = new SearchCompletionIntent.None();
+        var session = new SearchProgressSession(cts);
 
         var targets = new UiTargetScope("search-progress");
         var routedList = new RoutedScrollableList<SearchResultItem>(
@@ -132,10 +132,10 @@ internal sealed class SearchProgressDialog
             throw completion.Exception;
         return completion.Result ?? throw new InvalidOperationException("Search progress did not produce a result.");
 
-        bool CanGoTo() => completionIntent is SearchCompletionIntent.None && routedList.SelectedItemOrDefault is not null && !searchTask.IsCompleted;
+        bool CanGoTo() => session.CanGoTo && routedList.SelectedItemOrDefault is not null && !searchTask.IsCompleted;
 
         bool CanRequestStop()
-            => completionIntent is SearchCompletionIntent.None && !searchTask.IsCompleted;
+            => session.CanStop && !searchTask.IsCompleted;
 
         DateTimeOffset? GetNextWakeUtc() => DateTimeOffset.UtcNow.AddMilliseconds(RedrawDelayMilliseconds);
 
@@ -155,18 +155,11 @@ internal sealed class SearchProgressDialog
 
         ModalDialogLoopResult<SearchDialogCompletion> HandleInput(SearchProgressInput input)
         {
-            if (completionIntent is not SearchCompletionIntent.None)
-                return ModalDialogLoopResult<SearchDialogCompletion>.ContinueNoChange;
-
             switch (input.Kind)
             {
                 case SearchProgressInputKind.GoTo:
-                    if (!searchTask.IsCompleted && input.Result is { } selected)
-                    {
-                        completionIntent = new SearchCompletionIntent.GoTo(selected);
-                        cts.Cancel();
+                    if (!searchTask.IsCompleted && input.Result is { } selected && session.TryGoTo(selected))
                         return ModalDialogLoopResult<SearchDialogCompletion>.ContinueChanged;
-                    }
                     return ModalDialogLoopResult<SearchDialogCompletion>.ContinueNoChange;
                 case SearchProgressInputKind.Stop:
                     if (!CanRequestStop())
@@ -174,9 +167,9 @@ internal sealed class SearchProgressDialog
 
                     if (ConfirmStopSearch())
                     {
-                        completionIntent = new SearchCompletionIntent.StopAndDiscard();
-                        cts.Cancel();
-                        return ModalDialogLoopResult<SearchDialogCompletion>.ContinueChanged;
+                        return session.TryStop()
+                            ? ModalDialogLoopResult<SearchDialogCompletion>.ContinueChanged
+                            : ModalDialogLoopResult<SearchDialogCompletion>.ContinueNoChange;
                     }
                     return ModalDialogLoopResult<SearchDialogCompletion>.ContinueNoChange;
                 default:
@@ -189,33 +182,12 @@ internal sealed class SearchProgressDialog
             if (outcome.Exception is not null)
                 return new SearchDialogCompletion(null, outcome.Exception);
 
-            SearchRunResult result = completionIntent switch
-            {
-                SearchCompletionIntent.StopAndDiscard => new SearchRunResult(
-                    [],
-                    Cancelled: true,
-                    GoToResult: null,
-                    DiscardResults: true),
-                SearchCompletionIntent.GoTo goTo => new SearchRunResult(
-                    outcome.Results,
-                    Cancelled: true,
-                    GoToResult: goTo.Result,
-                    DiscardResults: false),
-                SearchCompletionIntent.None => new SearchRunResult(
-                    outcome.Results,
-                    Cancelled: outcome.Cancelled,
-                    GoToResult: null,
-                    DiscardResults: false),
-                _ => throw new InvalidOperationException($"Unsupported search completion intent: {completionIntent.GetType().Name}."),
-            };
-            return new SearchDialogCompletion(result, null);
+            return new SearchDialogCompletion(session.BuildResult(outcome.Results, outcome.Cancelled), null);
         }
 
         bool SynchronizeVisibleState(SearchProgressSnapshot snapshot)
         {
-            SearchProgressStatus status = completionIntent is SearchCompletionIntent.None
-                ? SearchProgressStatus.Running
-                : SearchProgressStatus.Stopping;
+            SearchProgressStatus status = session.IsStopping ? SearchProgressStatus.Stopping : SearchProgressStatus.Running;
             var next = new SearchProgressViewState(snapshot.Progress, snapshot.Results, status);
             bool changed = HasVisibleChanges(state, next);
             state = next;
@@ -539,15 +511,6 @@ internal sealed class SearchProgressDialog
         SearchProgress FinalProgress,
         bool Cancelled,
         Exception? Exception);
-
-    private abstract record SearchCompletionIntent
-    {
-        public sealed record None : SearchCompletionIntent;
-
-        public sealed record StopAndDiscard : SearchCompletionIntent;
-
-        public sealed record GoTo(SearchResultItem Result) : SearchCompletionIntent;
-    }
 
     private readonly record struct SearchProgressViewState(
         SearchProgress Progress,
