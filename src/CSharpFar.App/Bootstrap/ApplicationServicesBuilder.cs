@@ -83,6 +83,7 @@ internal static class ApplicationServicesBuilder
         var effectiveConfigDirectory = core.ConfigDirectory;
         var fieldHistoryStore = new History.JsonSingleLineTextHistoryStore(effectiveConfigDirectory);
         var fieldHistoryRegistry = new SingleLineTextHistoryRegistry(fieldHistoryStore);
+        var formFields = new FormFieldFactory(fieldHistoryRegistry);
         var effectiveSearchService = core.SearchService;
         var effectiveFileLauncher = core.FileLauncher;
         var effectiveClipboard = core.Clipboard;
@@ -251,7 +252,7 @@ internal static class ApplicationServicesBuilder
             effectiveSourceRegistry,
             effectiveHistory,
             effectiveClipboard,
-            fieldHistoryRegistry,
+            formFields,
             effectiveSettings,
             controller,
             state => callbacks.PanelSideForState(state),
@@ -268,7 +269,7 @@ internal static class ApplicationServicesBuilder
             Screen = screen,
             ModalDialogs = modalDialogs,
             Palette = () => session.App.Palette,
-            TextFieldHistory = fieldHistoryRegistry,
+            Fields = formFields,
         };
         var moduleCatalog = ModuleCatalogFactory.Create(
             enableBuiltInNetworkModules ? sftpModule ?? new SftpModule() : null,
@@ -310,7 +311,7 @@ internal static class ApplicationServicesBuilder
             effectiveFileLauncher,
             effectiveSearchService,
             effectiveHistory,
-            fieldHistoryRegistry,
+            formFields,
             effectiveUserMenu,
             effectiveClipboard,
             effectiveSourceRegistry,

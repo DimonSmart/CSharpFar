@@ -19,10 +19,12 @@ internal sealed class DirectoryShortcutEditDialog
 
     private readonly ModalFormHost _formDialogs;
     private readonly ConsolePalette _palette;
+    private readonly FormFieldFactory _fields;
 
-    public DirectoryShortcutEditDialog(ModalDialogHost modalDialogs, ConsolePalette? palette = null)
+    public DirectoryShortcutEditDialog(ModalDialogHost modalDialogs, FormFieldFactory fields, ConsolePalette? palette = null)
     {
         _formDialogs = new ModalFormHost(modalDialogs);
+        _fields = fields ?? throw new ArgumentNullException(nameof(fields));
         _palette = palette ?? PaletteRegistry.Default;
     }
 
@@ -31,10 +33,10 @@ internal sealed class DirectoryShortcutEditDialog
         AppSettings.DirectoryShortcutItem? currentItem,
         string activePanelPath)
     {
-        var name = Buffer(currentItem?.Name ?? DirectoryShortcutNormalizer.GetDefaultNameFromPath(activePanelPath));
-        var path = Buffer(currentItem?.Path ?? activePanelPath);
-        var nameRow = new TextInputRow(name) { Id = "name" };
-        var pathRow = new TextInputRow(path) { Id = "path" };
+        TextField name = _fields.Text("name", currentItem?.Name ?? DirectoryShortcutNormalizer.GetDefaultNameFromPath(activePanelPath));
+        TextField path = _fields.Text("path", currentItem?.Path ?? activePanelPath);
+        TextInputRow nameRow = name.AsRow();
+        TextInputRow pathRow = path.AsRow();
         var actions = new ButtonRow(
             [
                 new DialogButton("ok", "OK", 'O', IsDefault: true),
@@ -109,10 +111,4 @@ internal sealed class DirectoryShortcutEditDialog
                 });
     }
 
-    private static CommandLineState Buffer(string text)
-    {
-        var buffer = new CommandLineState();
-        buffer.SetText(text);
-        return buffer;
-    }
 }

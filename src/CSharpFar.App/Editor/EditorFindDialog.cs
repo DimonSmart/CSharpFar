@@ -9,17 +9,17 @@ internal sealed class EditorFindDialog
     private const string WholeWordsOption = "whole-words";
 
     private readonly ModalDialogHost _modalDialogs;
-    private readonly ITextFieldHistoryProvider _history;
+    private readonly FormFieldFactory _fields;
 
-    public EditorFindDialog(ModalDialogHost modalDialogs, ITextFieldHistoryProvider history)
+    public EditorFindDialog(ModalDialogHost modalDialogs, FormFieldFactory fields)
     {
         _modalDialogs = modalDialogs;
-        _history = history;
+        _fields = fields;
     }
 
     public EditorFindDialogResult? Show(EditorFindDialogResult? previous)
     {
-        var result = new SearchOptionsDialog(_modalDialogs, _history).Show(new SearchOptionsDialogOptions
+        var result = new SearchOptionsDialog(_modalDialogs, _fields).Show(new SearchOptionsDialogOptions
         {
             Title = "Find",
             InitialPattern = previous?.Pattern ?? string.Empty,

@@ -18,23 +18,23 @@ internal sealed class OpenCreateFileDialog
     private const int DialogHeight = 12;
     private const string Title = "Editor";
 
-    private readonly ITextFieldHistoryProvider _historyRegistry;
+    private readonly FormFieldFactory _fields;
 
     private readonly ModalFormHost _formDialogs;
     private readonly IReadOnlyList<EditorNewFileEncodingOption> _codePages;
 
-    public OpenCreateFileDialog(ModalDialogHost modalDialogs, ITextFieldHistoryProvider historyRegistry)
-        : this(modalDialogs, EditorNewFileEncodingOption.CreateCatalog(), historyRegistry)
+    public OpenCreateFileDialog(ModalDialogHost modalDialogs, FormFieldFactory fields)
+        : this(modalDialogs, EditorNewFileEncodingOption.CreateCatalog(), fields)
     {
     }
 
     internal OpenCreateFileDialog(
         ModalDialogHost modalDialogs,
         IReadOnlyList<EditorNewFileEncodingOption> codePages,
-        ITextFieldHistoryProvider historyRegistry)
+        FormFieldFactory fields)
     {
         _formDialogs = new ModalFormHost(modalDialogs);
-        _historyRegistry = historyRegistry ?? throw new ArgumentNullException(nameof(historyRegistry));
+        _fields = fields ?? throw new ArgumentNullException(nameof(fields));
         _codePages = codePages.Count == 0
             ? [new EditorNewFileEncodingOption("Default", null, EmitByteOrderMark: false)]
             : codePages;
@@ -44,17 +44,9 @@ internal sealed class OpenCreateFileDialog
         string? initialPath = null,
         Func<string, string?>? validate = null)
     {
-        var filePath = new CommandLineState();
-        if (!string.IsNullOrEmpty(initialPath))
-            filePath.SetText(initialPath);
-
-        var history = new SingleLineTextHistoryState(
-            _historyRegistry.Get(AppTextHistoryIds.OpenCreateFilePath));
-        var pathRow = new TextInputRow(filePath, history)
-        {
-            Id = "file-path",
-            SubmitOnEnter = true,
-        };
+        TextField filePath = _fields.Text("file-path", initialPath ?? string.Empty,
+            AppTextHistoryIds.OpenCreateFilePath, submitOnEnter: true);
+        TextInputRow pathRow = filePath.AsRow();
         var dropdown = new DropdownSelect<EditorNewFileEncodingOption>(_codePages, static item => item.Label);
         var codePageRow = new DropdownSelectFormRow<EditorNewFileEncodingOption>(string.Empty, dropdown)
         {
@@ -108,7 +100,7 @@ internal sealed class OpenCreateFileDialog
                     else if (form.FocusedRowId == "code-page")
                     {
                         error = null;
-                        history.Close();
+                        pathRow.CloseComposite();
                     }
                 }
 
@@ -118,7 +110,7 @@ internal sealed class OpenCreateFileDialog
                 {
                     int confirmedCodePageIndex = codePageRow.ConfirmedSelectedIndex;
                     codePageRow.CloseComposite();
-                    var accepted = TrySubmit(filePath, history, confirmedCodePageIndex, validate, ref error);
+                    var accepted = TrySubmit(filePath, confirmedCodePageIndex, validate, ref error);
                     if (accepted is not null)
                         return ModalDialogLoopResult<OpenCreateFileDialogResult?>.Complete(accepted);
                 }
@@ -129,8 +121,7 @@ internal sealed class OpenCreateFileDialog
     }
 
     private OpenCreateFileDialogResult? TrySubmit(
-        CommandLineState filePath,
-        SingleLineTextHistoryState history,
+        TextField filePath,
         int codePageIndex,
         Func<string, string?>? validate,
         ref string? error)
@@ -146,7 +137,7 @@ internal sealed class OpenCreateFileDialog
         if (error is not null)
             return null;
 
-        history.History.Add(path);
+        filePath.AcceptHistory();
         return new OpenCreateFileDialogResult(path, _codePages[codePageIndex]);
     }
 

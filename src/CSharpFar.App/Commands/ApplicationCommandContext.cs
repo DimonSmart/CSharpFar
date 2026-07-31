@@ -76,7 +76,7 @@ internal sealed class ApplicationCommandContext
         IFileOperationService fileOperations,
         ISearchService searchService,
         IHistoryStore history,
-        ITextFieldHistoryProvider textFieldHistory,
+        FormFieldFactory fields,
         UserMenuStore userMenu,
         ITextClipboard textClipboard,
         FilePanelSourceRegistry sourceRegistry,
@@ -114,7 +114,7 @@ internal sealed class ApplicationCommandContext
         FileOperations = fileOperations;
         SearchService = searchService;
         History = history;
-        TextFieldHistory = textFieldHistory;
+        Fields = fields;
         UserMenu = userMenu;
         TextClipboard = textClipboard;
         _sourceRegistry = sourceRegistry;
@@ -166,7 +166,7 @@ internal sealed class ApplicationCommandContext
 
     public IHistoryStore History { get; }
 
-    public ITextFieldHistoryProvider TextFieldHistory { get; }
+    public FormFieldFactory Fields { get; }
 
     public CommandLineState CommandLine => _session.CommandLine.State;
 
@@ -243,7 +243,7 @@ internal sealed class ApplicationCommandContext
         new HelpViewer(_interactiveSurfaces, Palette).Show();
 
     public void ViewFile(string path) =>
-        new FileViewer(_interactiveSurfaces, ModalDialogs, TextFieldHistory, Palette).Show(path);
+        new FileViewer(_interactiveSurfaces, ModalDialogs, Fields, Palette).Show(path);
 
     public void EditFile(
         string path,
@@ -255,7 +255,7 @@ internal sealed class ApplicationCommandContext
             Palette,
             Settings.Editor,
             TextClipboard,
-            TextFieldHistory,
+            Fields,
             fileNameInsertionContext,
             null).Show(path);
     }
@@ -276,7 +276,7 @@ internal sealed class ApplicationCommandContext
             Palette,
             Settings.Editor,
             TextClipboard,
-            TextFieldHistory,
+            Fields,
             fileNameInsertionContext,
             null,
             _sourceRegistry).Show(location);
@@ -293,7 +293,7 @@ internal sealed class ApplicationCommandContext
             Palette,
             Settings.Editor,
             TextClipboard,
-            TextFieldHistory,
+            Fields,
             fileNameInsertionContext,
             null).ShowWithNewFileFormat(path, newFileFormat);
     }
@@ -550,7 +550,7 @@ internal sealed class ApplicationCommandContext
             () => Palette,
             FileOperations,
             () => Settings.FileOperations.ShowTotalProgress,
-            TextFieldHistory).Execute(request);
+            Fields).Execute(request);
 
     public IFileHighlightService? CreateHighlightService() =>
         FileHighlightServiceFactory.Create(Settings);

@@ -14,19 +14,19 @@ internal sealed class CreateFolderDialog
     private const string Title = "Make folder";
     private const string Prompt = "Create the folder:";
 
-    private readonly ITextFieldHistoryProvider _history;
+    private readonly FormFieldFactory _fields;
 
     private readonly ModalFormHost _formDialogs;
 
-    public CreateFolderDialog(ModalDialogHost modalDialogs, ITextFieldHistoryProvider history)
+    public CreateFolderDialog(ModalDialogHost modalDialogs, FormFieldFactory fields)
     {
         _formDialogs = new ModalFormHost(modalDialogs);
-        _history = history ?? throw new ArgumentNullException(nameof(history));
+        _fields = fields ?? throw new ArgumentNullException(nameof(fields));
     }
 
     public string? Show(string? initialText = null, Func<string, string?>? validate = null)
     {
-        var fields = new FormFieldFactory(_history);
+        var fields = _fields;
         TextField folderName = fields.Text("folder-name", initialText ?? string.Empty,
             AppTextHistoryIds.CreateFolderName, submitOnEnter: true);
         var actions = new ButtonRow(

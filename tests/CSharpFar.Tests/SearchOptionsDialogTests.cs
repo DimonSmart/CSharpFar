@@ -164,7 +164,7 @@ public sealed class SearchOptionsDialogTests
     private static SearchOptionsDialogResult? ShowDialog(FakeConsoleDriver driver, string initialPattern)
     {
         var modalDialogs = ModalTestHost.Create(driver);
-        return new SearchOptionsDialog(modalDialogs, CreateProvider()).Show(new SearchOptionsDialogOptions
+        return new SearchOptionsDialog(modalDialogs, new FormFieldFactory(CreateProvider())).Show(new SearchOptionsDialogOptions
         {
             InitialPattern = initialPattern,
             History = new TextHistoryId($"SearchOptionsDialogTests:{Guid.NewGuid()}"),
@@ -181,7 +181,7 @@ public sealed class SearchOptionsDialogTests
     {
         history ??= CreateHistory();
         var field = new FormFieldFactory(new FixedHistoryProvider(history)).Text(
-            "pattern", history: new TextHistoryId("SearchOptionsDialogTests.Pattern"), submitOnEnter: true);
+            "pattern", historyId: new TextHistoryId("SearchOptionsDialogTests.Pattern"), submitOnEnter: true);
         return SearchOptionsDialog.BuildRows(
             new SearchOptionsDialogOptions(),
             field,

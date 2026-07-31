@@ -24,12 +24,12 @@ public sealed class SingleLineInputDialog
     private const int DialogHeight = 7;
 
     private readonly ModalFormHost _formDialogs;
-    private readonly ITextFieldHistoryProvider _history;
+    private readonly FormFieldFactory _fields;
 
-    public SingleLineInputDialog(ModalDialogHost modalDialogs, ITextFieldHistoryProvider history)
+    public SingleLineInputDialog(ModalDialogHost modalDialogs, FormFieldFactory fields)
     {
         _formDialogs = new ModalFormHost(modalDialogs ?? throw new ArgumentNullException(nameof(modalDialogs)));
-        _history = history ?? throw new ArgumentNullException(nameof(history));
+        _fields = fields ?? throw new ArgumentNullException(nameof(fields));
     }
 
     public SingleLineInputDialogResult Show(SingleLineInputDialogOptions options)
@@ -41,8 +41,7 @@ public sealed class SingleLineInputDialog
 
     private SingleLineInputDialogResult RunLoop(SingleLineInputDialogOptions options)
     {
-        var fields = new FormFieldFactory(_history);
-        TextField field = fields.Text("input", options.InitialText, options.History,
+        TextField field = _fields.Text("input", options.InitialText, options.History,
             maskInput: options.MaskInput, submitOnEnter: true);
         string? error = null;
         var actions = new ButtonRow([

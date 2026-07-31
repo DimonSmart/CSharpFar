@@ -18,11 +18,13 @@ internal sealed class DirectoryShortcutsDialog
 
     private readonly ModalDialogHost _modalDialogs;
     private readonly ConsolePalette _palette;
+    private readonly FormFieldFactory _fields;
     private readonly ModalDialogRenderer _modalRenderer = new();
 
-    public DirectoryShortcutsDialog(ModalDialogHost modalDialogs, ConsolePalette? palette = null)
+    public DirectoryShortcutsDialog(ModalDialogHost modalDialogs, FormFieldFactory fields, ConsolePalette? palette = null)
     {
         _modalDialogs = modalDialogs;
+        _fields = fields;
         _palette = palette ?? PaletteRegistry.Default;
     }
 
@@ -184,7 +186,7 @@ internal sealed class DirectoryShortcutsDialog
             return;
 
         items.TryGetValue(number.Value, out var currentItem);
-        var result = new DirectoryShortcutEditDialog(_modalDialogs, _palette)
+        var result = new DirectoryShortcutEditDialog(_modalDialogs, _fields, _palette)
             .Show(number.Value, currentItem, activePanelPath);
         if (!result.Accepted)
             return;

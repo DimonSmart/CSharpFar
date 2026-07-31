@@ -37,7 +37,7 @@ public sealed class ModalFormHostTests
                 return ModalDialogLoopResult<object?>.Complete(null);
             });
 
-        TextField reopened = factory.Text("value", history: id);
+        TextField reopened = factory.Text("value", historyId: id);
         SingleLineTextHistoryState reopenedPopup = Assert.IsType<SingleLineTextHistoryState>(reopened.Input.History);
         Assert.False(reopenedPopup.IsDropdownOpen);
         Assert.Empty(reopenedPopup.Matches);

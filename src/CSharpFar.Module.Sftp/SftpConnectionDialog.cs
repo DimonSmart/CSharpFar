@@ -35,13 +35,13 @@ internal sealed class SftpConnectionDialog
     private const int DialogHeight = 18;
     private const int FieldWidth = 42;
 
-    private readonly ITextFieldHistoryProvider _historyRegistry;
+    private readonly FormFieldFactory _fields;
     private readonly ModalFormHost _formDialogs;
 
-    public SftpConnectionDialog(ModalDialogHost modalDialogs, ITextFieldHistoryProvider historyRegistry)
+    public SftpConnectionDialog(ModalDialogHost modalDialogs, FormFieldFactory fields)
     {
         _formDialogs = new ModalFormHost(modalDialogs);
-        _historyRegistry = historyRegistry ?? throw new ArgumentNullException(nameof(historyRegistry));
+        _fields = fields ?? throw new ArgumentNullException(nameof(fields));
     }
 
     public SftpConnectionDialogResult? Show(
@@ -59,14 +59,13 @@ internal sealed class SftpConnectionDialog
         Func<SftpConnectionDialogResult, SftpConnectionDialogValidationResult> validate)
     {
         SftpConnectionInfo? connection = request.Connection;
-        var fields = new FormFieldFactory(_historyRegistry);
         var state = new SftpFormState(
-            fields.Text("connection-name", connection?.DisplayName ?? string.Empty, SftpTextHistoryIds.ConnectionName, width: FieldWidth, submitOnEnter: true),
-            fields.Text("host", connection?.Host ?? string.Empty, SftpTextHistoryIds.Host, width: FieldWidth, submitOnEnter: true),
-            fields.Text("port", (connection?.Port ?? 22).ToString(), SftpTextHistoryIds.Port, width: FieldWidth, submitOnEnter: true),
-            fields.Text("username", connection?.Username ?? string.Empty, SftpTextHistoryIds.UserName, width: FieldWidth, submitOnEnter: true),
-            fields.Text("password", request.SavedPassword ?? string.Empty, maskInput: true, width: FieldWidth, submitOnEnter: true),
-            fields.Text("remote-root", connection?.RemoteRootPath ?? "/", SftpTextHistoryIds.RemoteRoot, width: FieldWidth, submitOnEnter: true),
+            _fields.Text("connection-name", connection?.DisplayName ?? string.Empty, SftpTextHistoryIds.ConnectionName, width: FieldWidth, submitOnEnter: true),
+            _fields.Text("host", connection?.Host ?? string.Empty, SftpTextHistoryIds.Host, width: FieldWidth, submitOnEnter: true),
+            _fields.Text("port", (connection?.Port ?? 22).ToString(), SftpTextHistoryIds.Port, width: FieldWidth, submitOnEnter: true),
+            _fields.Text("username", connection?.Username ?? string.Empty, SftpTextHistoryIds.UserName, width: FieldWidth, submitOnEnter: true),
+            _fields.Text("password", request.SavedPassword ?? string.Empty, maskInput: true, width: FieldWidth, submitOnEnter: true),
+            _fields.Text("remote-root", connection?.RemoteRootPath ?? "/", SftpTextHistoryIds.RemoteRoot, width: FieldWidth, submitOnEnter: true),
             new CheckBoxRow("Save connection", request.SaveConnectionByDefault) { Id = "save-connection" },
             new CheckBoxRow("Save password", connection?.CredentialId is not null && request.SavedPassword is not null) { Id = "save-password" },
             new CheckBoxRow("Show in drive menu", connection?.ShowInDriveSelection ?? true) { Id = "show-in-drive" },

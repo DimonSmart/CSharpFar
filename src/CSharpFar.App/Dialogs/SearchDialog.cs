@@ -11,13 +11,13 @@ internal sealed class SearchDialog
     private const int DialogWidth = 76;
     private const int DialogHeight = 18;
 
-    private readonly ITextFieldHistoryProvider _history;
+    private readonly FormFieldFactory _fields;
     private readonly ModalFormHost _formDialogs;
 
-    public SearchDialog(ModalDialogHost modalDialogs, ITextFieldHistoryProvider history)
+    public SearchDialog(ModalDialogHost modalDialogs, FormFieldFactory fields)
     {
         _formDialogs = new ModalFormHost(modalDialogs);
-        _history = history ?? throw new ArgumentNullException(nameof(history));
+        _fields = fields ?? throw new ArgumentNullException(nameof(fields));
     }
 
     public SearchRequest? Show(string rootPath)
@@ -71,10 +71,10 @@ internal sealed class SearchDialog
 
     private SearchRequest? RunLoop(string rootPath)
     {
-        var fields = new FormFieldFactory(_history);
+        var fields = _fields;
         TextField mask = fields.Text("mask", "*.*", AppTextHistoryIds.SearchMask, submitOnEnter: true);
         mask.SelectAll();
-        TextField text = fields.Text("text", history: AppTextHistoryIds.SearchText, submitOnEnter: true);
+        TextField text = fields.Text("text", historyId: AppTextHistoryIds.SearchText, submitOnEnter: true);
         TextField parallelism = fields.Text("parallelism", DefaultParallelism().ToString(System.Globalization.CultureInfo.InvariantCulture),
             AppTextHistoryIds.SearchParallelism, width: 8, submitOnEnter: true);
 

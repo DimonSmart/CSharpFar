@@ -66,7 +66,7 @@ public sealed class Spec012SearchDialogTests
             currentDriver.EnqueueKey(Key(ConsoleKey.F10));
         };
 
-        var result = new SearchDialog(ModalTestHost.Create(screen), TextFieldHistoryTestProvider.Create()).Show(@"C:\Work");
+        var result = new SearchDialog(ModalTestHost.Create(screen), new FormFieldFactory(TextFieldHistoryTestProvider.Create())).Show(@"C:\Work");
 
         Assert.NotNull(result);
         Assert.True(result.CaseSensitive);
@@ -79,7 +79,7 @@ public sealed class Spec012SearchDialogTests
         var screen = new ScreenRenderer(driver);
         driver.EnqueueKey(Key(ConsoleKey.F10));
 
-        var result = new SearchDialog(ModalTestHost.Create(screen), TextFieldHistoryTestProvider.Create()).Show(@"C:\Work");
+        var result = new SearchDialog(ModalTestHost.Create(screen), new FormFieldFactory(TextFieldHistoryTestProvider.Create())).Show(@"C:\Work");
 
         Assert.NotNull(result);
         Assert.Equal(SearchScope.CurrentDirectoryRecursive, result.Scope);
@@ -119,7 +119,7 @@ public sealed class Spec012SearchDialogTests
             currentDriver.EnqueueKey(Key(ConsoleKey.Escape));
         };
 
-        _ = new SearchDialog(ModalTestHost.Create(screen), TextFieldHistoryTestProvider.Create()).Show(@"C:\Work");
+        _ = new SearchDialog(ModalTestHost.Create(screen), new FormFieldFactory(TextFieldHistoryTestProvider.Create())).Show(@"C:\Work");
     }
 
     [Fact]
@@ -132,7 +132,7 @@ public sealed class Spec012SearchDialogTests
         driver.EnqueueKey(CharKey('c'));
         driver.EnqueueKey(Key(ConsoleKey.F10));
 
-        var result = new SearchDialog(ModalTestHost.Create(screen), TextFieldHistoryTestProvider.Create()).Show(@"C:\Work");
+        var result = new SearchDialog(ModalTestHost.Create(screen), new FormFieldFactory(TextFieldHistoryTestProvider.Create())).Show(@"C:\Work");
 
         Assert.NotNull(result);
         Assert.Equal("abc", result.FileMaskExpression);
@@ -149,7 +149,7 @@ public sealed class Spec012SearchDialogTests
         driver.EnqueueKey(CharKey('c'));
         driver.EnqueueKey(Key(ConsoleKey.F10));
 
-        var result = new SearchDialog(ModalTestHost.Create(screen), TextFieldHistoryTestProvider.Create()).Show(@"C:\Work");
+        var result = new SearchDialog(ModalTestHost.Create(screen), new FormFieldFactory(TextFieldHistoryTestProvider.Create())).Show(@"C:\Work");
 
         Assert.NotNull(result);
         Assert.Equal("*.*abc", result.FileMaskExpression);
@@ -167,7 +167,7 @@ public sealed class Spec012SearchDialogTests
         driver.EnqueueKey(CharKey('c'));
         driver.EnqueueKey(Key(ConsoleKey.Enter));
 
-        SearchRequest? result = new SearchDialog(ModalTestHost.Create(screen), registry).Show(@"C:\Work");
+        SearchRequest? result = new SearchDialog(ModalTestHost.Create(screen), new FormFieldFactory(registry)).Show(@"C:\Work");
 
         Assert.NotNull(result);
         Assert.Equal("*.c", result.FileMaskExpression);
@@ -188,7 +188,7 @@ public sealed class Spec012SearchDialogTests
         driver.EnqueueKey(CharKey('x'));
         driver.EnqueueKey(Key(ConsoleKey.F10));
 
-        SearchRequest? result = new SearchDialog(ModalTestHost.Create(screen), registry).Show(@"C:\Work");
+        SearchRequest? result = new SearchDialog(ModalTestHost.Create(screen), new FormFieldFactory(registry)).Show(@"C:\Work");
 
         Assert.NotNull(result);
         Assert.Equal("*.csx", result.FileMaskExpression);

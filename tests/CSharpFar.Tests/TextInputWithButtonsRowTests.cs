@@ -47,7 +47,7 @@ public sealed class TextInputWithButtonsRowTests
         ITextFieldHistoryProvider provider = TextFieldHistoryTestProvider.Create();
         var id = new TextHistoryId("TextInputWithButtonsRowTests.History");
         provider.Get(id).Add("saved");
-        TextField field = new FormFieldFactory(provider).Text("value", history: id, width: 12);
+        TextField field = new FormFieldFactory(provider).Text("value", historyId: id, width: 12);
         var row = new TextInputWithButtonsRow(
             "Value:",
             field,

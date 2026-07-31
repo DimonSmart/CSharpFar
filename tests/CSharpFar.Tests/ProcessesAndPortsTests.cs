@@ -78,7 +78,7 @@ public sealed class ProcessesAndPortsTests
             Screen = host.Screen,
             ModalDialogs = host.ModalDialogs,
             Palette = () => new ConsolePalette { Name = "Test" },
-            TextFieldHistory = TextFieldHistoryTestProvider.Create(),
+            Fields = new FormFieldFactory(TextFieldHistoryTestProvider.Create()),
         };
         var endpoint = new ProcessNetworkEndpoint(
             NetworkTransportProtocol.Tcp,

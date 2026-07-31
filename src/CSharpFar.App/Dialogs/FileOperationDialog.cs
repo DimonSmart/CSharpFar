@@ -47,13 +47,13 @@ internal sealed class FileOperationDialog
         FileSecurityMode.Inherit,
     ];
 
-    private readonly ITextFieldHistoryProvider _historyRegistry;
+    private readonly FormFieldFactory _fields;
     private readonly ModalFormHost _formDialogs;
 
-    public FileOperationDialog(ModalDialogHost modalDialogs, ITextFieldHistoryProvider historyRegistry)
+    public FileOperationDialog(ModalDialogHost modalDialogs, FormFieldFactory fields)
     {
         _formDialogs = new ModalFormHost(modalDialogs);
-        _historyRegistry = historyRegistry ?? throw new ArgumentNullException(nameof(historyRegistry));
+        _fields = fields ?? throw new ArgumentNullException(nameof(fields));
     }
 
     public FileOperationDialogResult? ShowCopy(
@@ -113,15 +113,10 @@ internal sealed class FileOperationDialog
         IReadOnlyList<CopyMode>? copyModes,
         bool showOperationOptions)
     {
-        var destination = new CommandLineState();
-        destination.SetText(initialDestination);
-        var filter = new CommandLineState();
-        filter.SetText(string.IsNullOrWhiteSpace(initialOptions.FileMask) ? "*" : initialOptions.FileMask);
-
-        var destinationHistory = new SingleLineTextHistoryState(
-            _historyRegistry.Get(AppTextHistoryIds.FileOperationDestination));
-        var filterHistory = new SingleLineTextHistoryState(
-            _historyRegistry.Get(AppTextHistoryIds.FileOperationFilter));
+        TextField destination = _fields.Text("destination", initialDestination,
+            AppTextHistoryIds.FileOperationDestination, submitOnEnter: true);
+        TextField filter = _fields.Text("filter", string.IsNullOrWhiteSpace(initialOptions.FileMask) ? "*" : initialOptions.FileMask,
+            AppTextHistoryIds.FileOperationFilter, submitOnEnter: true);
 
         var securityChoice = new ChoiceFormRow<FileSecurityMode>(
             new ChoiceRow<FileSecurityMode>(
@@ -188,8 +183,6 @@ internal sealed class FileOperationDialog
                 prompt,
                 destination,
                 filter,
-                destinationHistory,
-                filterHistory,
                 securityChoice,
                 copyModeChoice,
                 conflictChoiceRow,
@@ -230,8 +223,6 @@ internal sealed class FileOperationDialog
                         preserveAttributes.Value,
                         copySymlinkContents.Value,
                         useFilter.Value,
-                        destinationHistory,
-                        filterHistory,
                         ref error);
                     if (dialogResult is not null)
                         return ModalDialogLoopResult<FileOperationDialogResult?>.Complete(dialogResult);
@@ -244,10 +235,8 @@ internal sealed class FileOperationDialog
 
     private static IReadOnlyList<IFormRow> BuildRows(
         string prompt,
-        CommandLineState destination,
-        CommandLineState filter,
-        SingleLineTextHistoryState destinationHistory,
-        SingleLineTextHistoryState filterHistory,
+        TextField destination,
+        TextField filter,
         ChoiceFormRow<FileSecurityMode> securityChoice,
         ChoiceFormRow<CopyMode>? copyModeChoice,
         MultiLineChoiceFormRow<ConflictDecisionMode> conflictChoiceRow,
@@ -261,11 +250,7 @@ internal sealed class FileOperationDialog
         var rows = new List<IFormRow>
         {
             new LabelRow(prompt, fill),
-            new TextInputRow(destination, destinationHistory)
-            {
-                Id = "destination",
-                SubmitOnEnter = true,
-            },
+            destination.AsRow(),
             new SeparatorRow(fill, drawLine: false),
         };
 
@@ -294,12 +279,8 @@ internal sealed class FileOperationDialog
             rows.Add(useFilter);
             rows.Add(new LabelRow("Filter mask:", fill));
             rows.Add(useFilter.Value
-                ? new TextInputRow(filter, filterHistory)
-                {
-                    Id = "filter",
-                    SubmitOnEnter = true,
-                }
-                : new LabelRow(SingleLineTextInput.VisibleText(filter, 60), fill) { Id = "filter" });
+                ? filter.AsRow()
+                : new LabelRow(SingleLineTextInput.VisibleText(filter.Buffer, 60), fill) { Id = "filter" });
             rows.Add(new SeparatorRow(fill, drawLine: false));
         }
 
@@ -307,8 +288,8 @@ internal sealed class FileOperationDialog
     }
 
     private static FileOperationDialogResult? BuildResult(
-        CommandLineState destination,
-        CommandLineState filter,
+        TextField destination,
+        TextField filter,
         FileOperationOptions initialOptions,
         ConflictDecisionMode conflictMode,
         CopyMode copyMode,
@@ -317,11 +298,9 @@ internal sealed class FileOperationDialog
         bool preserveAttributes,
         bool copySymlinkContents,
         bool useFilter,
-        SingleLineTextHistoryState destinationHistory,
-        SingleLineTextHistoryState filterHistory,
         ref string? error)
     {
-        string destinationText = destination.Text.Trim();
+        string destinationText = destination.TrimmedText;
         if (string.IsNullOrWhiteSpace(destinationText))
         {
             error = "Destination must not be empty.";
@@ -330,14 +309,12 @@ internal sealed class FileOperationDialog
 
         error = null;
         string? mask = useFilter && !string.IsNullOrWhiteSpace(filter.Text)
-            ? filter.Text.Trim()
+            ? filter.TrimmedText
             : null;
 
-        destinationHistory.History.Add(destinationText);
+        destination.AcceptHistory();
         if (mask is not null)
-            filterHistory.History.Add(mask);
-        destinationHistory.Close();
-        filterHistory.Close();
+            filter.AcceptHistory();
 
         return new FileOperationDialogResult(
             destinationText,

@@ -24,7 +24,7 @@ internal sealed class ProcessesAndPortsDialog(ModuleUiServices ui, IProcessesAnd
 
     public void Show(string? initialFilter)
     {
-        var filter = new CommandLineState(); filter.SetText(initialFilter ?? string.Empty);
+        TextField filter = _ui.Fields.Text("filter", initialFilter ?? string.Empty);
         var tcp = new CheckBoxRow(new CheckBoxLine("TCP listeners", true)) { Id = "tcp" };
         var udp = new CheckBoxRow(new CheckBoxLine("UDP endpoints", true)) { Id = "udp" };
         var other = new CheckBoxRow(new CheckBoxLine("Other TCP connections")) { Id = "other" };
@@ -33,7 +33,7 @@ internal sealed class ProcessesAndPortsDialog(ModuleUiServices ui, IProcessesAnd
             new DialogButton("details", "Details", 'D'), new DialogButton("refresh", "Refresh", 'R'),
             new DialogButton("terminate", "Terminate", 'T'), new DialogButton("close", "Close", 'C', Role: DialogButtonRole.Cancel)];
         var actions = new ButtonRow(actionButtons) { Id = "actions" };
-        form.SetRows([new LabeledTextInputRow("Filter:", filter, labelWidth: 9) { Id = "filter" }, tcp, udp, other], [actions]);
+        form.SetRows([filter.AsLabeledRow("Filter:", labelWidth: 9), tcp, udp, other], [actions]);
 
         ProcessesAndPortsSnapshot? snapshot = TryCapture(null, out string? captureError);
         var targets = new UiTargetScope("processes-and-ports");

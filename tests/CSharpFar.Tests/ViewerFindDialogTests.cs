@@ -20,7 +20,7 @@ public sealed class ViewerFindDialogTests
 
         var result = new ViewerFindDialog(
                 ModalTestHost.Create(driver),
-                new SingleLineTextHistoryRegistry(new InMemorySingleLineTextHistoryStore()))
+                new FormFieldFactory(new SingleLineTextHistoryRegistry(new InMemorySingleLineTextHistoryStore())))
             .Show(new ViewerSearchRequest(
                 "abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwj",
                 CaseSensitive: false,

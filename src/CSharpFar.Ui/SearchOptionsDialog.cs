@@ -64,12 +64,12 @@ public sealed class SearchOptionsDialog
     private const int MinimumHeight = 8;
 
     private readonly ModalFormHost _formDialogs;
-    private readonly ITextFieldHistoryProvider _history;
+    private readonly FormFieldFactory _fields;
 
-    public SearchOptionsDialog(ModalDialogHost modalDialogs, ITextFieldHistoryProvider history)
+    public SearchOptionsDialog(ModalDialogHost modalDialogs, FormFieldFactory fields)
     {
         _formDialogs = new ModalFormHost(modalDialogs ?? throw new ArgumentNullException(nameof(modalDialogs)));
-        _history = history ?? throw new ArgumentNullException(nameof(history));
+        _fields = fields ?? throw new ArgumentNullException(nameof(fields));
     }
 
     public SearchOptionsDialogResult? Show(SearchOptionsDialogOptions options)
@@ -81,8 +81,7 @@ public sealed class SearchOptionsDialog
 
     private SearchOptionsDialogResult? RunLoop(SearchOptionsDialogOptions options)
     {
-        var fields = new FormFieldFactory(_history);
-        TextField pattern = fields.Text("pattern", options.InitialPattern, options.History, submitOnEnter: true);
+        TextField pattern = _fields.Text("pattern", options.InitialPattern, options.History, submitOnEnter: true);
 
         var state = new SearchOptionsDialogState(pattern.Text, options.Options);
         var checkboxes = options.Options

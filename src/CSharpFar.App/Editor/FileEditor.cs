@@ -27,7 +27,7 @@ internal sealed partial class FileEditor
     private readonly EditorFileNameInsertionContext? _fileNameInsertionContext;
     private readonly IEditorSyntaxHighlighter _syntaxHighlighter;
     private readonly FilePanelSourceRegistry? _sourceRegistry;
-    private readonly ITextFieldHistoryProvider _textFieldHistory;
+    private readonly FormFieldFactory _fields;
     private readonly FunctionKeyBarController<ConsoleKeyInfo> _functionKeyBar = new();
     private EditorFindDialogResult? _lastFind;
     private bool _markMode;
@@ -41,7 +41,7 @@ internal sealed partial class FileEditor
         ConsolePalette? palette,
         AppSettings.EditorSettings? settings,
         ITextClipboard? clipboard,
-        ITextFieldHistoryProvider textFieldHistory,
+        FormFieldFactory fields,
         EditorFileNameInsertionContext? fileNameInsertionContext,
         IEditorSyntaxHighlighter? syntaxHighlighter,
         FilePanelSourceRegistry? sourceRegistry = null)
@@ -55,7 +55,7 @@ internal sealed partial class FileEditor
         _fileNameInsertionContext = fileNameInsertionContext;
         _syntaxHighlighter = syntaxHighlighter ?? new TextMateEditorSyntaxHighlighter();
         _sourceRegistry = sourceRegistry;
-        _textFieldHistory = textFieldHistory ?? throw new ArgumentNullException(nameof(textFieldHistory));
+        _fields = fields ?? throw new ArgumentNullException(nameof(fields));
     }
 
     public void Show(string filePath) => Show(filePath, newFileFormat: null);
@@ -593,7 +593,7 @@ internal sealed partial class FileEditor
 
     private void ShowFindDialog(EditorSession session)
     {
-        var result = new EditorFindDialog(_modalDialogs, _textFieldHistory).Show(_lastFind);
+        var result = new EditorFindDialog(_modalDialogs, _fields).Show(_lastFind);
         if (result is null)
             return;
 
@@ -648,11 +648,11 @@ internal sealed partial class FileEditor
 
     private void ShowReplaceDialog(EditorSession session)
     {
-        string? pattern = new InputDialog(_modalDialogs, _textFieldHistory).Show("Replace", "Find", allowEmpty: false);
+        string? pattern = new InputDialog(_modalDialogs, _fields).Show("Replace", "Find", allowEmpty: false);
         if (pattern is null)
             return;
 
-        string? replacement = new InputDialog(_modalDialogs, _textFieldHistory).Show("Replace", "With", allowEmpty: true);
+        string? replacement = new InputDialog(_modalDialogs, _fields).Show("Replace", "With", allowEmpty: true);
         if (replacement is null)
             return;
 
@@ -673,7 +673,7 @@ internal sealed partial class FileEditor
 
     private void ShowSyntaxLanguageDialog(EditorSession session)
     {
-        string? language = new InputDialog(_modalDialogs, _textFieldHistory).Show(
+        string? language = new InputDialog(_modalDialogs, _fields).Show(
             "Syntax",
             "Language",
             allowEmpty: false,
@@ -684,7 +684,7 @@ internal sealed partial class FileEditor
 
     private void ShowSyntaxThemeDialog(EditorSession session)
     {
-        string? theme = new InputDialog(_modalDialogs, _textFieldHistory).Show(
+        string? theme = new InputDialog(_modalDialogs, _fields).Show(
             "Syntax",
             "Theme",
             allowEmpty: false,
