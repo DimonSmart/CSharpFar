@@ -14,10 +14,6 @@ internal sealed class ViewerFindDialog
     private readonly ModalDialogHost _modalDialogs;
     private readonly ITextFieldHistoryProvider _history;
 
-    [Obsolete("Pass the application-scoped ITextFieldHistoryProvider.")]
-    public ViewerFindDialog(ModalDialogHost modalDialogs, ConsolePalette palette)
-        : this(modalDialogs, TextFieldHistoryTestFactory.CreateInMemory()) { }
-
     public ViewerFindDialog(ModalDialogHost modalDialogs, ITextFieldHistoryProvider history)
     {
         _modalDialogs = modalDialogs;
@@ -35,7 +31,7 @@ internal sealed class ViewerFindDialog
         {
             Title = "Find",
             InitialPattern = previous?.Pattern ?? string.Empty,
-            History = TextHistoryIds.ViewerFindPattern,
+            History = AppTextHistoryIds.ViewerFindPattern,
             Width = 60,
             Options =
             [

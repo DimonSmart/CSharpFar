@@ -23,7 +23,7 @@ public sealed class SearchOptionsDialogTests
     [Fact]
     public void SearchOptionsDialog_EnterOnPattern_SubmitsFind()
     {
-        var history = new SingleLineTextHistoryState();
+        var history = CreateHistory();
         var form = new ScrollableFormDialog(BuildRows(history));
 
         FormInputResult result = HandleKey(form, history, Key(ConsoleKey.Enter));
@@ -35,7 +35,7 @@ public sealed class SearchOptionsDialogTests
     [Fact]
     public void SearchOptionsDialog_EnterOnNeutralPatternHistory_SubmitsTypedValue()
     {
-        var history = new SingleLineTextHistoryState();
+        var history = CreateHistory();
         history.Add("saved pattern");
         Assert.True(history.OpenAll(availableContentRows: 1));
         var form = new ScrollableFormDialog(BuildRows(history));
@@ -50,7 +50,7 @@ public sealed class SearchOptionsDialogTests
     [Fact]
     public void SearchOptionsDialog_EnterOnCheckbox_DoesNotSubmitFind()
     {
-        var history = new SingleLineTextHistoryState();
+        var history = CreateHistory();
         var form = new ScrollableFormDialog(BuildRows(history));
         form.SetInitialFocus("option");
 
@@ -63,7 +63,7 @@ public sealed class SearchOptionsDialogTests
     [Fact]
     public void SearchOptionsDialog_DoesNotDependOnNumericFocusIndex()
     {
-        var history = new SingleLineTextHistoryState();
+        var history = CreateHistory();
         var rows = new List<IFormRow>
         {
             new CheckBoxRow(new CheckBoxLine("Before pattern")) { Id = "before-pattern" },
@@ -160,10 +160,10 @@ public sealed class SearchOptionsDialogTests
     private static SearchOptionsDialogResult? ShowDialog(FakeConsoleDriver driver, string initialPattern)
     {
         var modalDialogs = ModalTestHost.Create(driver);
-        return new SearchOptionsDialog(modalDialogs).Show(new SearchOptionsDialogOptions
+        return new SearchOptionsDialog(modalDialogs, CreateProvider()).Show(new SearchOptionsDialogOptions
         {
             InitialPattern = initialPattern,
-            HistoryKey = $"SearchOptionsDialogTests:{Guid.NewGuid()}",
+            History = new TextHistoryId($"SearchOptionsDialogTests:{Guid.NewGuid()}"),
             Width = 56,
             Options =
             [
@@ -173,22 +173,20 @@ public sealed class SearchOptionsDialogTests
         });
     }
 
-    private static IReadOnlyList<IFormRow> BuildRows(SingleLineTextHistoryState? history = null)
+    private static IReadOnlyList<IFormRow> BuildRows(TextHistory? history = null)
     {
-        history ??= new SingleLineTextHistoryState();
+        history ??= CreateHistory();
+        var field = new FormFieldFactory(new FixedHistoryProvider(history)).Text(
+            "pattern", history: new TextHistoryId("SearchOptionsDialogTests.Pattern"), submitOnEnter: true);
         return SearchOptionsDialog.BuildRows(
             new SearchOptionsDialogOptions(),
-            new CommandLineState(),
-            history,
-            new TextInputRowState(),
-            [new CheckBoxRow(new CheckBoxLine("Option")) { Id = "option" }],
-            new ButtonRow(
-                [new DialogButton("find", "Find", 'F', IsDefault: true)]));
+            field,
+            [new CheckBoxRow("Option") { Id = "option" }]);
     }
 
     private static FormInputResult HandleKey(
         ScrollableFormDialog form,
-        SingleLineTextHistoryState history,
+        TextHistory history,
         ConsoleKeyInfo key)
     {
         if (key.Key == ConsoleKey.F10 ||
@@ -240,4 +238,18 @@ public sealed class SearchOptionsDialogTests
 
     private static ConsoleKeyInfo Key(ConsoleKey key) =>
         new('\0', key, shift: false, alt: false, control: false);
+
+    private static TextHistory CreateHistory()
+    {
+        var registry = new SingleLineTextHistoryRegistry(new InMemorySingleLineTextHistoryStore());
+        return registry.Get(new TextHistoryId(Guid.NewGuid().ToString()));
+    }
+
+    private static ITextFieldHistoryProvider CreateProvider() =>
+        new SingleLineTextHistoryRegistry(new InMemorySingleLineTextHistoryStore());
+
+    private sealed class FixedHistoryProvider(TextHistory history) : ITextFieldHistoryProvider
+    {
+        public TextHistory Get(TextHistoryId id) => history;
+    }
 }

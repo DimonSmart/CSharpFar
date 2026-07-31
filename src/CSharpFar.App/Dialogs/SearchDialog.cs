@@ -11,13 +11,13 @@ internal sealed class SearchDialog
     private const int DialogWidth = 76;
     private const int DialogHeight = 18;
 
-    private readonly SingleLineTextHistoryRegistry _historyRegistry;
+    private readonly ITextFieldHistoryProvider _history;
     private readonly ModalFormHost _formDialogs;
 
-    public SearchDialog(ModalDialogHost modalDialogs, SingleLineTextHistoryRegistry? historyRegistry = null)
+    public SearchDialog(ModalDialogHost modalDialogs, ITextFieldHistoryProvider history)
     {
         _formDialogs = new ModalFormHost(modalDialogs);
-        _historyRegistry = historyRegistry ?? new SingleLineTextHistoryRegistry();
+        _history = history ?? throw new ArgumentNullException(nameof(history));
     }
 
     public SearchRequest? Show(string rootPath)
@@ -71,25 +71,18 @@ internal sealed class SearchDialog
 
     private SearchRequest? RunLoop(string rootPath)
     {
-        var mask = new CommandLineState();
-        mask.SetText("*.*");
+        var fields = new FormFieldFactory(_history);
+        TextField mask = fields.Text("mask", "*.*", AppTextHistoryIds.SearchMask, submitOnEnter: true);
         mask.SelectAll();
-        var text = new CommandLineState();
-        var parallelism = new CommandLineState();
-        parallelism.SetText(DefaultParallelism().ToString(System.Globalization.CultureInfo.InvariantCulture));
+        TextField text = fields.Text("text", history: AppTextHistoryIds.SearchText, submitOnEnter: true);
+        TextField parallelism = fields.Text("parallelism", DefaultParallelism().ToString(System.Globalization.CultureInfo.InvariantCulture),
+            AppTextHistoryIds.SearchParallelism, width: 8, submitOnEnter: true);
 
-        SingleLineTextHistoryState maskHistory = _historyRegistry.GetOrCreate("SearchDialog.Mask");
-        SingleLineTextHistoryState textHistory = _historyRegistry.GetOrCreate("SearchDialog.Text");
-        SingleLineTextHistoryState parallelismHistory = _historyRegistry.GetOrCreate("SearchDialog.Parallelism");
-        var maskRowState = new TextInputRowState();
-        var textRowState = new TextInputRowState();
-        var parallelismRowState = new TextInputRowState();
-
-        var caseSensitiveRow = new CheckBoxRow(new CheckBoxLine("Case sensitive"));
-        var wholeWordsRow = new CheckBoxRow(new CheckBoxLine("Whole words"));
-        var notContainingRow = new CheckBoxRow(new CheckBoxLine("Not containing"));
-        var includeDirectoriesRow = new CheckBoxRow(new CheckBoxLine("Include folders in results"));
-        var searchLinksRow = new CheckBoxRow(new CheckBoxLine("Search in symbolic links"));
+        var caseSensitiveRow = new CheckBoxRow("Case sensitive");
+        var wholeWordsRow = new CheckBoxRow("Whole words");
+        var notContainingRow = new CheckBoxRow("Not containing");
+        var includeDirectoriesRow = new CheckBoxRow("Include folders in results");
+        var searchLinksRow = new CheckBoxRow("Search in symbolic links");
         SearchScope[] scopes =
         [
             SearchScope.CurrentDirectoryRecursive,
@@ -129,12 +122,6 @@ internal sealed class SearchDialog
                     mask,
                     text,
                     parallelism,
-                    maskHistory,
-                    textHistory,
-                    parallelismHistory,
-                    maskRowState,
-                    textRowState,
-                    parallelismRowState,
                     notContainingRow,
                     optionsRow,
                     scopeRow,
@@ -175,9 +162,6 @@ internal sealed class SearchDialog
                         searchLinksRow.Value,
                         scopeRow.Value,
                         parallelism,
-                        maskHistory,
-                        textHistory,
-                        parallelismHistory,
                         ref error);
                     if (request is not null)
                         return ModalDialogLoopResult<SearchRequest?>.Complete(request);
@@ -189,15 +173,9 @@ internal sealed class SearchDialog
     }
 
     private static IReadOnlyList<IFormRow> BuildBodyRows(
-        CommandLineState mask,
-        CommandLineState text,
-        CommandLineState parallelism,
-        SingleLineTextHistoryState maskHistory,
-        SingleLineTextHistoryState textHistory,
-        SingleLineTextHistoryState parallelismHistory,
-        TextInputRowState maskRowState,
-        TextInputRowState textRowState,
-        TextInputRowState parallelismRowState,
+        TextField mask,
+        TextField text,
+        TextField parallelism,
         CheckBoxRow notContaining,
         CheckBoxColumnsRow options,
         DropdownSelectFormRow<SearchScope> scope,
@@ -208,36 +186,29 @@ internal sealed class SearchDialog
         return
         [
             new LabelRow("A file mask or several file masks:", fill),
-            new TextInputRow(mask, maskHistory, maskRowState) { Id = "mask", SubmitOnEnter = true },
+            mask.Row,
             new LabelRow("Containing text:", fill),
-            new TextInputRow(text, textHistory, textRowState) { Id = "text", SubmitOnEnter = true },
+            text.Row,
             new LabelRow("Using code page: Automatic detection", fill),
             options,
             new LabelRow("Select search area:", fill),
             scope,
             new LabelRow("Parallelism:", fill),
-            new TextInputRow(parallelism, parallelismHistory, parallelismRowState, width: 8)
-            {
-                Id = "parallelism",
-                SubmitOnEnter = true,
-            },
+            parallelism.Row,
         ];
     }
 
     private SearchRequest? BuildRequest(
         string rootPath,
-        CommandLineState mask,
-        CommandLineState text,
+        TextField mask,
+        TextField text,
         bool caseSensitive,
         bool wholeWords,
         bool notContaining,
         bool includeDirectoriesInResults,
         bool searchInSymbolicLinks,
         SearchScope scope,
-        CommandLineState parallelism,
-        SingleLineTextHistoryState maskHistory,
-        SingleLineTextHistoryState textHistory,
-        SingleLineTextHistoryState parallelismHistory,
+        TextField parallelism,
         ref string? error)
     {
         var request = TryCreateRequest(
@@ -256,13 +227,15 @@ internal sealed class SearchDialog
         if (request is null)
             return null;
 
-        maskHistory.Add(request.FileMaskExpression);
+        mask.Text = request.FileMaskExpression;
+        mask.AcceptHistory();
         if (request.ContainingText is not null)
-            textHistory.Add(request.ContainingText);
-        parallelismHistory.Add(request.MaxDegreeOfParallelism.ToString(System.Globalization.CultureInfo.InvariantCulture));
-        maskHistory.Close();
-        textHistory.Close();
-        parallelismHistory.Close();
+        {
+            text.Text = request.ContainingText;
+            text.AcceptHistory();
+        }
+        parallelism.Text = request.MaxDegreeOfParallelism.ToString(System.Globalization.CultureInfo.InvariantCulture);
+        parallelism.AcceptHistory();
         return request;
     }
 

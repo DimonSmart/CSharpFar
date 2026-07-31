@@ -34,13 +34,13 @@ internal sealed class FtpConnectionDialog
     private const int DialogWidth = 80;
     private const int DialogHeight = 22;
     private const int FieldWidth = 44;
-    private readonly SingleLineTextHistoryRegistry _historyRegistry;
+    private readonly ITextFieldHistoryProvider _historyRegistry;
     private readonly ModalFormHost _formDialogs;
 
-    public FtpConnectionDialog(ModalDialogHost modalDialogs, SingleLineTextHistoryRegistry? historyRegistry = null)
+    public FtpConnectionDialog(ModalDialogHost modalDialogs, ITextFieldHistoryProvider historyRegistry)
     {
         _formDialogs = new ModalFormHost(modalDialogs);
-        _historyRegistry = historyRegistry ?? new SingleLineTextHistoryRegistry();
+        _historyRegistry = historyRegistry ?? throw new ArgumentNullException(nameof(historyRegistry));
     }
 
     public FtpConnectionDialogResult? Show(
@@ -51,21 +51,17 @@ internal sealed class FtpConnectionDialog
         ArgumentNullException.ThrowIfNull(validate);
 
         var connection = request.Connection;
-        var connectionName = TextBuffer(connection?.DisplayName ?? string.Empty);
-        var host = TextBuffer(connection?.Host ?? string.Empty);
-        var port = TextBuffer((connection?.Port ?? 21).ToString());
-        var username = TextBuffer(connection?.Username ?? string.Empty);
-        var password = TextBuffer(request.SavedPassword ?? string.Empty);
-        var remoteRoot = TextBuffer(connection?.RemoteRootPath ?? "/");
-        var activePorts = TextBuffer(FormatActivePortRange(connection) ?? string.Empty);
-        var histories = new TextFieldHistories(_historyRegistry);
-        var nameState = new TextInputRowState();
-        var hostState = new TextInputRowState();
-        var portState = new TextInputRowState();
-        var usernameState = new TextInputRowState();
-        var passwordState = new TextInputRowState();
-        var rootState = new TextInputRowState();
-        var activePortsState = new TextInputRowState();
+        var fields = new FormFieldFactory(_historyRegistry);
+        var state = new FtpFormState(
+            fields.Text("connection-name", connection?.DisplayName ?? string.Empty, FtpTextHistoryIds.ConnectionName, width: FieldWidth, submitOnEnter: true),
+            fields.Text("host", connection?.Host ?? string.Empty, FtpTextHistoryIds.Host, width: FieldWidth, submitOnEnter: true),
+            fields.Text("port", (connection?.Port ?? 21).ToString(), FtpTextHistoryIds.Port, width: FieldWidth, submitOnEnter: true),
+            fields.Text("username", connection?.Username ?? string.Empty, FtpTextHistoryIds.UserName, width: FieldWidth, submitOnEnter: true),
+            fields.Text("password", request.SavedPassword ?? string.Empty, maskInput: true, width: FieldWidth, submitOnEnter: true),
+            fields.Text("remote-root", connection?.RemoteRootPath ?? "/", FtpTextHistoryIds.RemoteRoot, width: FieldWidth, submitOnEnter: true),
+            fields.Text("active-ports", FormatActivePortRange(connection) ?? string.Empty, FtpTextHistoryIds.ActivePorts, width: FieldWidth, submitOnEnter: true));
+        var connectionName = state.ConnectionName; var host = state.Host; var port = state.Port; var username = state.UserName;
+        var password = state.Password; var remoteRoot = state.RemoteRoot; var activePorts = state.ActivePorts;
 
         var saveConnection = new CheckBoxRow(new CheckBoxLine("Save connection")) { Id = "save-connection", Value = request.SaveConnectionByDefault };
         var savePassword = new CheckBoxRow(new CheckBoxLine("Save password")) { Id = "save-password", Value = connection?.CredentialId is not null && request.SavedPassword is not null };
@@ -78,7 +74,7 @@ internal sealed class FtpConnectionDialog
         var dataMode = new CompactChoiceFormRow<FtpDataConnectionMode>(
             new ChoiceRow<FtpDataConnectionMode>(Enum.GetValues<FtpDataConnectionMode>(), DataModeLabel, DataModeIndex(connection?.DataConnectionMode ?? FtpDataConnectionMode.AutoPassive)), "Data mode")
         { Id = "data-mode" };
-        var activePortsRow = new LabeledTextInputRow("Active ports:", activePorts, histories.ActivePorts, activePortsState, inputWidth: FieldWidth) { Id = "active-ports", SubmitOnEnter = true };
+        var activePortsRow = new LabeledTextInputRow("Active ports:", activePorts, inputWidth: FieldWidth);
         string? fingerprint = connection?.ExpectedTlsCertificateFingerprint;
         string? error = null;
 
@@ -106,8 +102,7 @@ internal sealed class FtpConnectionDialog
         {
             SyncEnabledRows();
             form.SetRows(BuildRows(request.AllowTemporaryConnection, security.Value, dataMode.Value, fingerprint,
-                connectionName, host, port, username, password, remoteRoot, activePorts,
-                histories, nameState, hostState, portState, usernameState, passwordState, rootState, activePortsState,
+                connectionName, host, port, username, password, remoteRoot,
                 saveConnection, savePassword, showInDrive, security, dataMode, dataTls, activePortsRow, trust),
                 [new LabelRow(error ?? string.Empty, FarDialogStyles.Error), actions]);
         }
@@ -137,7 +132,7 @@ internal sealed class FtpConnectionDialog
                 if (result.Kind == FormInputResultKind.ValueChanged && routed.Target == form.GetFocusTarget("security"))
                 {
                     if (port.Text == DefaultPort(previousSecurity).ToString())
-                        port.SetText(DefaultPort(security.Value).ToString());
+                        port.Text = DefaultPort(security.Value).ToString();
                     if (security.Value == FtpConnectionSecurityMode.PlainFtp)
                     {
                         dataTls.Value = false;
@@ -177,7 +172,7 @@ internal sealed class FtpConnectionDialog
                 var validation = validate(candidate);
                 if (validation.IsAccepted)
                 {
-                    histories.Add(connectionName, host, port, username, remoteRoot, activePorts);
+                    state.AcceptHistory();
                     return ModalDialogLoopResult<FtpConnectionDialogResult?>.Complete(candidate);
                 }
                 if (validation.CertificateFingerprint is not null)
@@ -196,18 +191,17 @@ internal sealed class FtpConnectionDialog
     }
 
     private static IReadOnlyList<IFormRow> BuildRows(bool allowTemporary, FtpConnectionSecurityMode securityMode, FtpDataConnectionMode dataMode, string? fingerprint,
-        CommandLineState name, CommandLineState host, CommandLineState port, CommandLineState username, CommandLineState password, CommandLineState root, CommandLineState active,
-        TextFieldHistories histories, TextInputRowState nameState, TextInputRowState hostState, TextInputRowState portState, TextInputRowState usernameState, TextInputRowState passwordState, TextInputRowState rootState, TextInputRowState activeState,
+        TextField name, TextField host, TextField port, TextField username, TextField password, TextField root,
         CheckBoxRow saveConnection, CheckBoxRow savePassword, CheckBoxRow showInDrive, CompactChoiceFormRow<FtpConnectionSecurityMode> security, CompactChoiceFormRow<FtpDataConnectionMode> dataChoice, CheckBoxRow dataTls, LabeledTextInputRow activeRow, CheckBoxRow trust)
     {
         var rows = new List<IFormRow>
         {
-            new LabeledTextInputRow("Connection name:", name, histories.ConnectionName, nameState, inputWidth: FieldWidth) { Id = "connection-name", SubmitOnEnter = true },
-            new LabeledTextInputRow("Host:", host, histories.Host, hostState, inputWidth: FieldWidth) { Id = "host", SubmitOnEnter = true },
-            new LabeledTextInputRow("Port:", port, histories.Port, portState, inputWidth: FieldWidth) { Id = "port", SubmitOnEnter = true },
-            new LabeledTextInputRow("User name:", username, histories.UserName, usernameState, inputWidth: FieldWidth) { Id = "username", SubmitOnEnter = true },
-            new LabeledTextInputRow("Password:", password, state: passwordState, inputWidth: FieldWidth, maskInput: true) { Id = "password", SubmitOnEnter = true },
-            new LabeledTextInputRow("Remote root:", root, histories.RemoteRoot, rootState, inputWidth: FieldWidth) { Id = "remote-root", SubmitOnEnter = true },
+            new LabeledTextInputRow("Connection name:", name, inputWidth: FieldWidth),
+            new LabeledTextInputRow("Host:", host, inputWidth: FieldWidth),
+            new LabeledTextInputRow("Port:", port, inputWidth: FieldWidth),
+            new LabeledTextInputRow("User name:", username, inputWidth: FieldWidth),
+            new LabeledTextInputRow("Password:", password, inputWidth: FieldWidth, maskInput: true),
+            new LabeledTextInputRow("Remote root:", root, inputWidth: FieldWidth),
         };
         if (allowTemporary) rows.Add(saveConnection);
         rows.Add(savePassword); rows.Add(showInDrive); rows.Add(security); rows.Add(dataChoice); rows.Add(dataTls);
@@ -244,7 +238,6 @@ internal sealed class FtpConnectionDialog
         return new FtpConnectionDialogResult(connection, password, saveConnection, savePassword, request.Connection?.CredentialId);
     }
 
-    private static CommandLineState TextBuffer(string value) { var result = new CommandLineState(); result.SetText(value); return result; }
     private static int SecurityIndex(FtpConnectionSecurityMode mode) => Array.IndexOf(Enum.GetValues<FtpConnectionSecurityMode>(), mode);
     private static int DataModeIndex(FtpDataConnectionMode mode) => Array.IndexOf(Enum.GetValues<FtpDataConnectionMode>(), mode);
     private static int DefaultPort(FtpConnectionSecurityMode mode) => mode == FtpConnectionSecurityMode.ImplicitFtps ? 990 : 21;
@@ -262,18 +255,14 @@ internal sealed class FtpConnectionDialog
         return true;
     }
 
-    private sealed class TextFieldHistories
+    private sealed record FtpFormState(TextField ConnectionName, TextField Host, TextField Port,
+        TextField UserName, TextField Password, TextField RemoteRoot, TextField ActivePorts)
     {
-        public TextFieldHistories(SingleLineTextHistoryRegistry historyRegistry)
+        public void AcceptHistory()
         {
-            ConnectionName = historyRegistry.GetOrCreate("FtpConnectionDialog.ConnectionName"); Host = historyRegistry.GetOrCreate("FtpConnectionDialog.Host"); Port = historyRegistry.GetOrCreate("FtpConnectionDialog.Port"); UserName = historyRegistry.GetOrCreate("FtpConnectionDialog.UserName"); RemoteRoot = historyRegistry.GetOrCreate("FtpConnectionDialog.RemoteRoot"); ActivePorts = historyRegistry.GetOrCreate("FtpConnectionDialog.ActivePorts");
+            ConnectionName.AcceptHistory(); Host.AcceptHistory(); Port.AcceptHistory();
+            UserName.AcceptHistory(); RemoteRoot.AcceptHistory(); ActivePorts.AcceptHistory();
         }
-        public SingleLineTextHistoryState ConnectionName { get; }
-        public SingleLineTextHistoryState Host { get; }
-        public SingleLineTextHistoryState Port { get; }
-        public SingleLineTextHistoryState UserName { get; }
-        public SingleLineTextHistoryState RemoteRoot { get; }
-        public SingleLineTextHistoryState ActivePorts { get; }
-        public void Add(params CommandLineState[] fields) { foreach (var field in fields) _ = field; ConnectionName.Add(fields[0].Text.Trim()); Host.Add(fields[1].Text.Trim()); Port.Add(fields[2].Text.Trim()); UserName.Add(fields[3].Text.Trim()); RemoteRoot.Add(fields[4].Text.Trim()); ActivePorts.Add(fields[5].Text.Trim()); }
     }
+
 }

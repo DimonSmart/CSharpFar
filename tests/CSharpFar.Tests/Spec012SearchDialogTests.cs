@@ -66,7 +66,7 @@ public sealed class Spec012SearchDialogTests
             currentDriver.EnqueueKey(Key(ConsoleKey.F10));
         };
 
-        var result = new SearchDialog(ModalTestHost.Create(screen)).Show(@"C:\Work");
+        var result = new SearchDialog(ModalTestHost.Create(screen), TextFieldHistoryTestProvider.Create()).Show(@"C:\Work");
 
         Assert.NotNull(result);
         Assert.True(result.CaseSensitive);
@@ -79,7 +79,7 @@ public sealed class Spec012SearchDialogTests
         var screen = new ScreenRenderer(driver);
         driver.EnqueueKey(Key(ConsoleKey.F10));
 
-        var result = new SearchDialog(ModalTestHost.Create(screen)).Show(@"C:\Work");
+        var result = new SearchDialog(ModalTestHost.Create(screen), TextFieldHistoryTestProvider.Create()).Show(@"C:\Work");
 
         Assert.NotNull(result);
         Assert.Equal(SearchScope.CurrentDirectoryRecursive, result.Scope);
@@ -119,7 +119,7 @@ public sealed class Spec012SearchDialogTests
             currentDriver.EnqueueKey(Key(ConsoleKey.Escape));
         };
 
-        _ = new SearchDialog(ModalTestHost.Create(screen)).Show(@"C:\Work");
+        _ = new SearchDialog(ModalTestHost.Create(screen), TextFieldHistoryTestProvider.Create()).Show(@"C:\Work");
     }
 
     [Fact]
@@ -132,7 +132,7 @@ public sealed class Spec012SearchDialogTests
         driver.EnqueueKey(CharKey('c'));
         driver.EnqueueKey(Key(ConsoleKey.F10));
 
-        var result = new SearchDialog(ModalTestHost.Create(screen)).Show(@"C:\Work");
+        var result = new SearchDialog(ModalTestHost.Create(screen), TextFieldHistoryTestProvider.Create()).Show(@"C:\Work");
 
         Assert.NotNull(result);
         Assert.Equal("abc", result.FileMaskExpression);
@@ -149,7 +149,7 @@ public sealed class Spec012SearchDialogTests
         driver.EnqueueKey(CharKey('c'));
         driver.EnqueueKey(Key(ConsoleKey.F10));
 
-        var result = new SearchDialog(ModalTestHost.Create(screen)).Show(@"C:\Work");
+        var result = new SearchDialog(ModalTestHost.Create(screen), TextFieldHistoryTestProvider.Create()).Show(@"C:\Work");
 
         Assert.NotNull(result);
         Assert.Equal("*.*abc", result.FileMaskExpression);
@@ -158,8 +158,8 @@ public sealed class Spec012SearchDialogTests
     [Fact]
     public void Show_EnterOnNeutralMaskHistorySubmitsTypedMask()
     {
-        var registry = new SingleLineTextHistoryRegistry();
-        registry.GetOrCreate("SearchDialog.Mask").Add("*.cs");
+        var registry = new SingleLineTextHistoryRegistry(new InMemorySingleLineTextHistoryStore());
+        registry.Get(new TextHistoryId("SearchDialog.Mask")).Add("*.cs");
         var driver = new FakeConsoleDriver(width: 100, height: 30);
         var screen = new ScreenRenderer(driver);
         driver.EnqueueKey(CharKey('*'));
@@ -176,8 +176,8 @@ public sealed class Spec012SearchDialogTests
     [Fact]
     public void Show_ExplicitMaskHistorySelectionDoesNotSubmitUntilConfirmedAgain()
     {
-        var registry = new SingleLineTextHistoryRegistry();
-        registry.GetOrCreate("SearchDialog.Mask").Add("*.cs");
+        var registry = new SingleLineTextHistoryRegistry(new InMemorySingleLineTextHistoryStore());
+        registry.Get(new TextHistoryId("SearchDialog.Mask")).Add("*.cs");
         var driver = new FakeConsoleDriver(width: 100, height: 30);
         var screen = new ScreenRenderer(driver);
         driver.EnqueueKey(CharKey('*'));
@@ -192,124 +192,6 @@ public sealed class Spec012SearchDialogTests
 
         Assert.NotNull(result);
         Assert.Equal("*.csx", result.FileMaskExpression);
-    }
-
-    [Fact]
-    public void BuildRows_ReusesSearchTextInputRowStates()
-    {
-        var maskRowState = new TextInputRowState();
-        var textRowState = new TextInputRowState();
-        var parallelismRowState = new TextInputRowState();
-        var firstRows = BuildSearchRows(maskRowState, textRowState, parallelismRowState);
-        var secondRows = BuildSearchRows(maskRowState, textRowState, parallelismRowState);
-
-        var firstInputs = firstRows.OfType<TextInputRow>().ToArray();
-        var secondInputs = secondRows.OfType<TextInputRow>().ToArray();
-
-        Assert.Same(maskRowState, firstInputs[0].State);
-        Assert.Same(textRowState, firstInputs[1].State);
-        Assert.Same(parallelismRowState, firstInputs[2].State);
-        Assert.Same(maskRowState, secondInputs[0].State);
-        Assert.Same(textRowState, secondInputs[1].State);
-        Assert.Same(parallelismRowState, secondInputs[2].State);
-    }
-
-    [Fact]
-    public void Enter_SubmitsFromRowsMarkedForSubmission()
-    {
-        IReadOnlyList<IFormRow> rows = BuildSearchRows(
-            new TextInputRowState(),
-            new TextInputRowState(),
-            new TextInputRowState());
-        foreach (string rowId in new[] { "mask", "text", "parallelism" })
-        {
-            TextInputRow row = Assert.Single(rows.OfType<TextInputRow>(), row => row.Id == rowId);
-            Assert.True(row.SubmitOnEnter);
-        }
-    }
-
-    [Fact]
-    public void BuildRows_UsesCheckBoxColumnsAndDropdownScope()
-    {
-        IReadOnlyList<IFormRow> rows = BuildSearchRows(
-            new TextInputRowState(),
-            new TextInputRowState(),
-            new TextInputRowState());
-
-        Assert.Contains(rows, row => row is CheckBoxColumnsRow { Id: "search-options" });
-        Assert.Contains(rows, row => row is DropdownSelectFormRow<SearchScope> { Id: "scope" });
-        Assert.Empty(rows.OfType<ChoiceFormRow<SearchScope>>());
-    }
-
-    [Fact]
-    public void BuildRows_NotContainingEnabledTracksTextPresence()
-    {
-        var notContaining = new CheckBoxRow(new CheckBoxLine("Not containing"));
-
-        _ = BuildSearchRows(
-            new TextInputRowState(),
-            new TextInputRowState(),
-            new TextInputRowState(),
-            hasText: false,
-            notContaining: notContaining);
-
-        Assert.False(notContaining.Enabled);
-
-        _ = BuildSearchRows(
-            new TextInputRowState(),
-            new TextInputRowState(),
-            new TextInputRowState(),
-            hasText: true,
-            notContaining: notContaining);
-
-        Assert.True(notContaining.Enabled);
-    }
-
-    private static IReadOnlyList<IFormRow> BuildSearchRows(
-        TextInputRowState maskRowState,
-        TextInputRowState textRowState,
-        TextInputRowState parallelismRowState,
-        bool hasText = true,
-        CheckBoxRow? notContaining = null)
-    {
-        var method = typeof(SearchDialog).GetMethod(
-            "BuildBodyRows",
-            System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static)
-            ?? throw new InvalidOperationException("SearchDialog.BuildBodyRows was not found.");
-        var caseSensitive = new CheckBoxRow(new CheckBoxLine("Case sensitive"));
-        var wholeWords = new CheckBoxRow(new CheckBoxLine("Whole words"));
-        notContaining ??= new CheckBoxRow(new CheckBoxLine("Not containing"));
-        var includeDirectories = new CheckBoxRow(new CheckBoxLine("Include folders in results"));
-        var searchLinks = new CheckBoxRow(new CheckBoxLine("Search in symbolic links"));
-        var options = new CheckBoxColumnsRow(
-            [
-                [caseSensitive, wholeWords, notContaining],
-                [includeDirectories, searchLinks],
-            ])
-        {
-            Id = "search-options",
-        };
-        var dropdown = new DropdownSelect<SearchScope>(
-            [SearchScope.CurrentDirectoryRecursive, SearchScope.CurrentDirectoryOnly],
-            static scope => scope.ToString());
-
-        return (IReadOnlyList<IFormRow>)method.Invoke(
-            null,
-            [
-                new CommandLineState(),
-                new CommandLineState(),
-                new CommandLineState(),
-                new SingleLineTextHistoryState(),
-                new SingleLineTextHistoryState(),
-                new SingleLineTextHistoryState(),
-                maskRowState,
-                textRowState,
-                parallelismRowState,
-                notContaining,
-                options,
-                new DropdownSelectFormRow<SearchScope>(string.Empty, dropdown) { Id = "scope" },
-                hasText,
-            ])!;
     }
 
     private static ConsoleKeyInfo Key(ConsoleKey key) =>

@@ -13,12 +13,20 @@ public sealed class LabeledTextInputRow : FormRow, IFormCursorProvider, IFormCom
     private readonly FormTextInputField _field;
 
     public LabeledTextInputRow(string label, CommandLineState buffer, SingleLineTextHistoryState? history = null,
-        TextInputRowState? state = null, int labelWidth = 22, int? inputWidth = null, bool maskInput = false)
+        int labelWidth = 22, int? inputWidth = null, bool maskInput = false)
     {
         _label = label;
         _labelWidth = labelWidth;
         _inputWidth = inputWidth;
-        _field = new FormTextInputField(buffer, history, state ?? new TextInputRowState(), maskInput);
+        _field = new FormTextInputField(buffer, history, maskInput);
+    }
+
+    public LabeledTextInputRow(string label, TextField field, int labelWidth = 22, int? inputWidth = null, bool maskInput = false)
+        : this(label, field?.Buffer ?? throw new ArgumentNullException(nameof(field)), field.History,
+            labelWidth, inputWidth, maskInput)
+    {
+        Id = field.Id;
+        SubmitOnEnter = field.SubmitOnEnter;
     }
 
     public override FormRowRole Role { get; init; } = FormRowRole.TextInput;

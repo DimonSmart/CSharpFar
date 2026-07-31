@@ -251,6 +251,7 @@ internal static class ApplicationServicesBuilder
             effectiveSourceRegistry,
             effectiveHistory,
             effectiveClipboard,
+            fieldHistoryRegistry,
             effectiveSettings,
             controller,
             state => callbacks.PanelSideForState(state),

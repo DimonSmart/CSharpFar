@@ -20,12 +20,17 @@ internal sealed class ConflictDialog
 
     private readonly ModalDialogHost _modalDialogs;
     private readonly ConsolePalette _palette;
+    private readonly ITextFieldHistoryProvider _textFieldHistory;
     private readonly ModalDialogRenderer _modalRenderer = new();
 
-    public ConflictDialog(ModalDialogHost modalDialogs, ConsolePalette? palette = null)
+    public ConflictDialog(
+        ModalDialogHost modalDialogs,
+        ITextFieldHistoryProvider textFieldHistory,
+        ConsolePalette? palette = null)
     {
         _modalDialogs = modalDialogs;
         _palette = palette ?? PaletteRegistry.Default;
+        _textFieldHistory = textFieldHistory;
     }
 
     public FileOperationConflictDecision Show(FileOperationConflict conflict)
@@ -113,7 +118,7 @@ internal sealed class ConflictDialog
         if (rememberChoice)
             return FileOperationConflictDecision.FromMode(ConflictDecisionMode.RenameAll);
 
-        string? renamed = new InputDialog(_modalDialogs).Show(
+        string? renamed = new InputDialog(_modalDialogs, _textFieldHistory).Show(
             "Rename",
             "New destination:",
             initialText: conflict.DestinationPath);

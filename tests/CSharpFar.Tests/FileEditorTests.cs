@@ -1077,6 +1077,7 @@ public sealed class FileEditorTests : IDisposable
             null,
             settings,
             clipboard,
+            new SingleLineTextHistoryRegistry(new InMemorySingleLineTextHistoryStore()),
             fileNameInsertionContext,
             syntaxHighlighter);
         editor.Show(filePath);

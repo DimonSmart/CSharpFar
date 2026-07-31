@@ -11,14 +11,6 @@ internal sealed class EditorFindDialog
     private readonly ModalDialogHost _modalDialogs;
     private readonly ITextFieldHistoryProvider _history;
 
-    [Obsolete("Pass the application-scoped ITextFieldHistoryProvider.")]
-    public EditorFindDialog(ModalDialogHost modalDialogs, ConsolePalette palette)
-        : this(modalDialogs, TextFieldHistoryTestFactory.CreateInMemory()) { }
-
-    [Obsolete("Pass the application-scoped ITextFieldHistoryProvider.")]
-    public EditorFindDialog(ModalDialogHost modalDialogs, ConsolePalette palette, SingleLineTextHistoryRegistry history)
-        : this(modalDialogs, (ITextFieldHistoryProvider)history) { }
-
     public EditorFindDialog(ModalDialogHost modalDialogs, ITextFieldHistoryProvider history)
     {
         _modalDialogs = modalDialogs;
@@ -31,7 +23,7 @@ internal sealed class EditorFindDialog
         {
             Title = "Find",
             InitialPattern = previous?.Pattern ?? string.Empty,
-            History = TextHistoryIds.EditorFindPattern,
+            History = AppTextHistoryIds.EditorFindPattern,
             Width = 56,
             Options =
             [

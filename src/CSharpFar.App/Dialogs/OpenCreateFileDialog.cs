@@ -18,12 +18,12 @@ internal sealed class OpenCreateFileDialog
     private const int DialogHeight = 12;
     private const string Title = "Editor";
 
-    private readonly SingleLineTextHistoryRegistry _historyRegistry;
+    private readonly ITextFieldHistoryProvider _historyRegistry;
 
     private readonly ModalFormHost _formDialogs;
     private readonly IReadOnlyList<EditorNewFileEncodingOption> _codePages;
 
-    public OpenCreateFileDialog(ModalDialogHost modalDialogs, SingleLineTextHistoryRegistry? historyRegistry = null)
+    public OpenCreateFileDialog(ModalDialogHost modalDialogs, ITextFieldHistoryProvider historyRegistry)
         : this(modalDialogs, EditorNewFileEncodingOption.CreateCatalog(), historyRegistry)
     {
     }
@@ -31,10 +31,10 @@ internal sealed class OpenCreateFileDialog
     internal OpenCreateFileDialog(
         ModalDialogHost modalDialogs,
         IReadOnlyList<EditorNewFileEncodingOption> codePages,
-        SingleLineTextHistoryRegistry? historyRegistry = null)
+        ITextFieldHistoryProvider historyRegistry)
     {
         _formDialogs = new ModalFormHost(modalDialogs);
-        _historyRegistry = historyRegistry ?? new SingleLineTextHistoryRegistry();
+        _historyRegistry = historyRegistry ?? throw new ArgumentNullException(nameof(historyRegistry));
         _codePages = codePages.Count == 0
             ? [new EditorNewFileEncodingOption("Default", null, EmitByteOrderMark: false)]
             : codePages;
@@ -48,9 +48,8 @@ internal sealed class OpenCreateFileDialog
         if (!string.IsNullOrEmpty(initialPath))
             filePath.SetText(initialPath);
 
-        SingleLineTextHistoryState history = _historyRegistry.GetOrCreate("OpenCreateFileDialog.FilePath");
-        var pathState = new TextInputRowState();
-        var pathRow = new TextInputRow(filePath, history, pathState)
+        SingleLineTextHistoryState history = _historyRegistry.Get(AppTextHistoryIds.OpenCreateFilePath);
+        var pathRow = new TextInputRow(filePath, history)
         {
             Id = "file-path",
             SubmitOnEnter = true,

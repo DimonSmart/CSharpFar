@@ -14,29 +14,21 @@ internal sealed class CreateFolderDialog
     private const string Title = "Make folder";
     private const string Prompt = "Create the folder:";
 
-    private readonly SingleLineTextHistoryRegistry _historyRegistry;
+    private readonly ITextFieldHistoryProvider _history;
 
     private readonly ModalFormHost _formDialogs;
 
-    public CreateFolderDialog(ModalDialogHost modalDialogs, SingleLineTextHistoryRegistry? historyRegistry = null)
+    public CreateFolderDialog(ModalDialogHost modalDialogs, ITextFieldHistoryProvider history)
     {
         _formDialogs = new ModalFormHost(modalDialogs);
-        _historyRegistry = historyRegistry ?? new SingleLineTextHistoryRegistry();
+        _history = history ?? throw new ArgumentNullException(nameof(history));
     }
 
     public string? Show(string? initialText = null, Func<string, string?>? validate = null)
     {
-        var folderName = new CommandLineState();
-        if (initialText is not null)
-            folderName.SetText(initialText);
-
-        SingleLineTextHistoryState history = _historyRegistry.GetOrCreate("CreateFolderDialog.FolderName");
-        var inputState = new TextInputRowState();
-        var input = new TextInputRow(folderName, history, inputState)
-        {
-            Id = "folder-name",
-            SubmitOnEnter = true,
-        };
+        var fields = new FormFieldFactory(_history);
+        TextField folderName = fields.Text("folder-name", initialText ?? string.Empty,
+            AppTextHistoryIds.CreateFolderName, submitOnEnter: true);
         var actions = new ButtonRow(
             [
                 new DialogButton("ok", "OK", 'O', IsDefault: true),
@@ -52,7 +44,7 @@ internal sealed class CreateFolderDialog
             form.SetRows(
                 [
                     new LabelRow(Prompt, FarDialogStyles.Fill),
-                    input,
+                    folderName.Row,
                     new SeparatorRow(FarDialogStyles.Border),
                     new LabelRow(error ?? string.Empty, FarDialogStyles.Error),
                 ],
@@ -82,7 +74,7 @@ internal sealed class CreateFolderDialog
                     routed.Input is KeyConsoleInputEvent { Key.Key: ConsoleKey.F10 } ||
                     FormDialogInput.ShouldImplicitlySubmit(routed, result, form))
                 {
-                    string? accepted = TrySubmit(folderName, history, validate, ref error);
+                    string? accepted = TrySubmit(folderName, validate, ref error);
                     if (accepted is not null)
                         return ModalDialogLoopResult<string?>.Complete(accepted);
                 }
@@ -93,12 +85,11 @@ internal sealed class CreateFolderDialog
     }
 
     private static string? TrySubmit(
-        CommandLineState folderName,
-        SingleLineTextHistoryState history,
+        TextField folderName,
         Func<string, string?>? validate,
         ref string? error)
     {
-        string text = folderName.Text.Trim();
+        string text = folderName.TrimmedText;
         if (text.Length == 0)
             return null;
 
@@ -106,7 +97,7 @@ internal sealed class CreateFolderDialog
         if (error is not null)
             return null;
 
-        history.Add(text);
+        folderName.AcceptHistory();
         return text;
     }
 

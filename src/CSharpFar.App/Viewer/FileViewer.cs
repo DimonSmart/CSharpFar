@@ -12,12 +12,18 @@ internal sealed class FileViewer
     private readonly InteractiveSurfaceHost _surfaces;
     private readonly ModalDialogHost _modalDialogs;
     private readonly ConsolePalette _palette;
+    private readonly ITextFieldHistoryProvider _textFieldHistory;
 
-    public FileViewer(InteractiveSurfaceHost surfaces, ModalDialogHost modalDialogs, ConsolePalette? palette = null)
+    public FileViewer(
+        InteractiveSurfaceHost surfaces,
+        ModalDialogHost modalDialogs,
+        ITextFieldHistoryProvider textFieldHistory,
+        ConsolePalette? palette = null)
     {
         _surfaces = surfaces;
         _modalDialogs = modalDialogs;
         _palette = palette ?? PaletteRegistry.Default;
+        _textFieldHistory = textFieldHistory ?? throw new ArgumentNullException(nameof(textFieldHistory));
     }
 
     public void Show(string filePath)
@@ -28,7 +34,7 @@ internal sealed class FileViewer
             return;
         }
 
-        new LargeFileViewer(_surfaces, _modalDialogs, _palette).Show(filePath);
+        new LargeFileViewer(_surfaces, _modalDialogs, _textFieldHistory, _palette).Show(filePath);
     }
 
     internal void Show(string filePath, LargeFileViewerOptions options)
@@ -39,9 +45,9 @@ internal sealed class FileViewer
             return;
         }
 
-        new LargeFileViewer(_surfaces, _modalDialogs, _palette).Show(filePath, options);
+        new LargeFileViewer(_surfaces, _modalDialogs, _textFieldHistory, _palette).Show(filePath, options);
     }
 
     internal void Show(string displayPath, IFileByteReader reader, LargeFileViewerOptions? options = null) =>
-        new LargeFileViewer(_surfaces, _modalDialogs, _palette).ShowVirtual(displayPath, reader, options);
+        new LargeFileViewer(_surfaces, _modalDialogs, _textFieldHistory, _palette).ShowVirtual(displayPath, reader, options);
 }

@@ -39,5 +39,8 @@ public sealed class TextField
     public string TrimmedText => Text.Trim();
     public bool SubmitOnEnter => Row.SubmitOnEnter;
     public TextInputRow Row { get; }
+    public void SelectAll() => _buffer.SelectAll();
+    internal CommandLineState Buffer => _buffer;
+    internal TextHistory? History => _history;
     public void AcceptHistory() => _history?.Add(TrimmedText);
 }

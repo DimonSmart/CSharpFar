@@ -47,13 +47,13 @@ internal sealed class FileOperationDialog
         FileSecurityMode.Inherit,
     ];
 
-    private readonly SingleLineTextHistoryRegistry _historyRegistry;
+    private readonly ITextFieldHistoryProvider _historyRegistry;
     private readonly ModalFormHost _formDialogs;
 
-    public FileOperationDialog(ModalDialogHost modalDialogs, SingleLineTextHistoryRegistry? historyRegistry = null)
+    public FileOperationDialog(ModalDialogHost modalDialogs, ITextFieldHistoryProvider historyRegistry)
     {
         _formDialogs = new ModalFormHost(modalDialogs);
-        _historyRegistry = historyRegistry ?? new SingleLineTextHistoryRegistry();
+        _historyRegistry = historyRegistry ?? throw new ArgumentNullException(nameof(historyRegistry));
     }
 
     public FileOperationDialogResult? ShowCopy(
@@ -118,10 +118,8 @@ internal sealed class FileOperationDialog
         var filter = new CommandLineState();
         filter.SetText(string.IsNullOrWhiteSpace(initialOptions.FileMask) ? "*" : initialOptions.FileMask);
 
-        SingleLineTextHistoryState destinationHistory = _historyRegistry.GetOrCreate("FileOperationDialog.Destination");
-        SingleLineTextHistoryState filterHistory = _historyRegistry.GetOrCreate("FileOperationDialog.Filter");
-        var destinationRowState = new TextInputRowState();
-        var filterRowState = new TextInputRowState();
+        SingleLineTextHistoryState destinationHistory = _historyRegistry.Get(AppTextHistoryIds.FileOperationDestination);
+        SingleLineTextHistoryState filterHistory = _historyRegistry.Get(AppTextHistoryIds.FileOperationFilter);
 
         var securityChoice = new ChoiceFormRow<FileSecurityMode>(
             new ChoiceRow<FileSecurityMode>(
@@ -190,8 +188,6 @@ internal sealed class FileOperationDialog
                 filter,
                 destinationHistory,
                 filterHistory,
-                destinationRowState,
-                filterRowState,
                 securityChoice,
                 copyModeChoice,
                 conflictChoiceRow,
@@ -250,8 +246,6 @@ internal sealed class FileOperationDialog
         CommandLineState filter,
         SingleLineTextHistoryState destinationHistory,
         SingleLineTextHistoryState filterHistory,
-        TextInputRowState destinationRowState,
-        TextInputRowState filterRowState,
         ChoiceFormRow<FileSecurityMode> securityChoice,
         ChoiceFormRow<CopyMode>? copyModeChoice,
         MultiLineChoiceFormRow<ConflictDecisionMode> conflictChoiceRow,
@@ -265,7 +259,7 @@ internal sealed class FileOperationDialog
         var rows = new List<IFormRow>
         {
             new LabelRow(prompt, fill),
-            new TextInputRow(destination, destinationHistory, destinationRowState)
+            new TextInputRow(destination, destinationHistory)
             {
                 Id = "destination",
                 SubmitOnEnter = true,
@@ -298,7 +292,7 @@ internal sealed class FileOperationDialog
             rows.Add(useFilter);
             rows.Add(new LabelRow("Filter mask:", fill));
             rows.Add(useFilter.Value
-                ? new TextInputRow(filter, filterHistory, filterRowState)
+                ? new TextInputRow(filter, filterHistory)
                 {
                     Id = "filter",
                     SubmitOnEnter = true,

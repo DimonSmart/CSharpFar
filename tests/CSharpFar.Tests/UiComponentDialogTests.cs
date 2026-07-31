@@ -568,7 +568,7 @@ public sealed class UiComponentDialogTests
         var driver = new FakeConsoleDriver(80, 20);
         driver.EnqueueKey(KeyInfo(ConsoleKey.Enter));
 
-        var result = new SingleLineInputDialog(ModalTestHost.Create(driver)).Show(new SingleLineInputDialogOptions
+        var result = new SingleLineInputDialog(ModalTestHost.Create(driver), TextFieldHistoryTestProvider.Create()).Show(new SingleLineInputDialogOptions
         {
             Title = "Input",
             Prompt = "Name",
@@ -587,7 +587,7 @@ public sealed class UiComponentDialogTests
         driver.EnqueueKey(new ConsoleKeyInfo('a', ConsoleKey.A, false, false, false));
         driver.EnqueueKey(KeyInfo(ConsoleKey.Enter));
 
-        var result = new SingleLineInputDialog(ModalTestHost.Create(driver)).Show(new SingleLineInputDialogOptions
+        var result = new SingleLineInputDialog(ModalTestHost.Create(driver), TextFieldHistoryTestProvider.Create()).Show(new SingleLineInputDialogOptions
         {
             Title = "Input",
             Prompt = "Name",
@@ -606,7 +606,7 @@ public sealed class UiComponentDialogTests
         driver.EnqueueKey(new ConsoleKeyInfo('x', ConsoleKey.X, false, false, false));
         driver.EnqueueKey(KeyInfo(ConsoleKey.Enter));
 
-        var result = new SingleLineInputDialog(ModalTestHost.Create(driver)).Show(new SingleLineInputDialogOptions
+        var result = new SingleLineInputDialog(ModalTestHost.Create(driver), TextFieldHistoryTestProvider.Create()).Show(new SingleLineInputDialogOptions
         {
             Title = "Input",
             Prompt = "Name",

@@ -25,12 +25,18 @@ internal sealed class LargeFileViewer
     private readonly ModalDialogHost _modalDialogs;
     private readonly ConsolePalette _palette;
     private readonly InteractiveSurfaceHost _surfaces;
+    private readonly ITextFieldHistoryProvider _textFieldHistory;
 
-    public LargeFileViewer(InteractiveSurfaceHost surfaces, ModalDialogHost modalDialogs, ConsolePalette? palette = null)
+    public LargeFileViewer(
+        InteractiveSurfaceHost surfaces,
+        ModalDialogHost modalDialogs,
+        ITextFieldHistoryProvider textFieldHistory,
+        ConsolePalette? palette = null)
     {
         _surfaces = surfaces ?? throw new ArgumentNullException(nameof(surfaces));
         _modalDialogs = modalDialogs;
         _palette = palette ?? PaletteRegistry.Default;
+        _textFieldHistory = textFieldHistory ?? throw new ArgumentNullException(nameof(textFieldHistory));
     }
 
     public void Show(string filePath) => Show(filePath, null);
@@ -792,7 +798,7 @@ internal sealed class LargeFileViewer
 
     private void JumpToPosition(IFileByteReader reader, LargeFileViewerState state, int contentHeight)
     {
-        string? input = new InputDialog(_modalDialogs).Show(
+        string? input = new InputDialog(_modalDialogs, _textFieldHistory).Show(
             "Viewer",
             state.IsHexMode ? "Percent or byte offset:" : "Line number or percent:",
             validate: text => ValidateJump(text, state.IsHexMode));
@@ -851,7 +857,7 @@ internal sealed class LargeFileViewer
 
     private void ShowFindDialog(IFileByteReader reader, LargeFileViewerState state, int width)
     {
-        var selected = new ViewerFindDialog(_modalDialogs, _palette).Show(state.LastSearch, state.IsHexMode);
+        var selected = new ViewerFindDialog(_modalDialogs, _textFieldHistory).Show(state.LastSearch, state.IsHexMode);
         if (selected is null)
             return;
 

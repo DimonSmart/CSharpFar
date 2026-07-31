@@ -48,19 +48,79 @@ public sealed class JsonSingleLineTextHistoryStoreTests : IDisposable
     {
         var store = new InMemorySingleLineTextHistoryStore();
         var registry = new SingleLineTextHistoryRegistry(store);
-        var history = registry.GetOrCreate("A");
+        var id = new TextHistoryId("A");
+        var history = registry.Get(id);
         for (int i = 0; i < 101; i++) history.Add(i.ToString());
         history.Add("50");
 
-        Assert.Same(history, registry.GetOrCreate("A"));
+        Assert.Same(history, registry.Get(id));
         Assert.Equal("50", history.Items[0]);
         Assert.Equal(100, history.Items.Count);
         Assert.True(history.HasItems);
         Assert.Equal(history.Items, store.Load("A"));
     }
 
+    [Fact]
+    public void Corrupt_document_reports_load_failure_without_throwing()
+    {
+        Directory.CreateDirectory(_directory);
+        File.WriteAllText(Path.Combine(_directory, "field-history.json"), "not json");
+        var diagnostics = new RecordingDiagnostics();
+
+        var store = new JsonSingleLineTextHistoryStore(_directory, diagnostics);
+
+        Assert.Empty(store.Load("A"));
+        Assert.Equal(TextHistoryPersistenceOperation.Load, Assert.Single(diagnostics.Failures).Operation);
+    }
+
+    [Fact]
+    public void Save_failure_is_reported_without_throwing()
+    {
+        string filePath = Path.Combine(_directory, "not-a-directory");
+        Directory.CreateDirectory(_directory);
+        File.WriteAllText(filePath, string.Empty);
+        var diagnostics = new RecordingDiagnostics();
+        var store = new JsonSingleLineTextHistoryStore(filePath, diagnostics);
+
+        store.Save("A", ["value"]);
+
+        Assert.Equal(TextHistoryPersistenceOperation.Save, Assert.Single(diagnostics.Failures).Operation);
+    }
+
+    [Fact]
+    public void Move_failure_removes_temporary_file()
+    {
+        Directory.CreateDirectory(_directory);
+        string historyPath = Path.Combine(_directory, "field-history.json");
+        File.WriteAllText(historyPath, "{}");
+        var diagnostics = new RecordingDiagnostics();
+        var store = new JsonSingleLineTextHistoryStore(_directory, diagnostics);
+
+        using (new FileStream(historyPath, FileMode.Open, FileAccess.Read, FileShare.None))
+            store.Save("A", ["value"]);
+
+        Assert.Equal(TextHistoryPersistenceOperation.Save, Assert.Single(diagnostics.Failures).Operation);
+        Assert.Empty(Directory.GetFiles(_directory, ".field-history.json.*.tmp"));
+    }
+
+    [Fact]
+    public void Registry_rejects_default_history_identifier()
+    {
+        var registry = new SingleLineTextHistoryRegistry(new InMemorySingleLineTextHistoryStore());
+
+        Assert.Throws<ArgumentException>(() => registry.Get(default));
+    }
+
     public void Dispose()
     {
         if (Directory.Exists(_directory)) Directory.Delete(_directory, recursive: true);
+    }
+
+    private sealed class RecordingDiagnostics : ITextFieldHistoryDiagnostics
+    {
+        public List<(TextHistoryPersistenceOperation Operation, Exception Exception)> Failures { get; } = [];
+
+        public void ReportPersistenceFailure(TextHistoryPersistenceOperation operation, Exception exception) =>
+            Failures.Add((operation, exception));
     }
 }
