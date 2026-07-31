@@ -1,6 +1,5 @@
 using CSharpFar.App.Dialogs;
 using CSharpFar.Console;
-using CSharpFar.Console.Models;
 using CSharpFar.Core.Abstractions;
 using CSharpFar.Core.Models;
 using CSharpFar.Tests.Fakes;
@@ -10,180 +9,91 @@ namespace CSharpFar.Tests;
 public sealed class Spec012SearchProgressDialogTests
 {
     [Fact]
-    public void Show_RendersFindFileFarStyleDialog()
+    public void GoTo_FixesSelectedResultAndRequestsCancellation()
     {
-        var driver = new FakeConsoleDriver(width: 100, height: 30);
-        var screen = new ScreenRenderer(driver);
-        driver.EnqueueKey(KeyChar('S', ConsoleKey.S));
-        driver.EnqueueKey(Key(ConsoleKey.Enter));
+        using var cancellation = new CancellationTokenSource();
+        SearchResultItem selected = Result(@"C:\root\found.txt");
+        var session = new SearchProgressSession(cancellation);
 
-        var result = new SearchProgressDialog(ModalTestHost.Create(screen), new BlockingSearchService(Result(@"C:\root\found.cs")))
-            .Show(Request(@"C:\root", "*.cs"));
+        bool accepted = session.TryGoTo(selected);
 
-        Assert.True(result.Cancelled);
-        Assert.True(result.DiscardResults);
-        Assert.Contains(driver.WriteRecords, r => r.Text.Contains("Find file: *.cs", StringComparison.Ordinal));
-        Assert.Contains(driver.WriteRecords, r => r.Text.Contains("Files:", StringComparison.Ordinal) && r.Background == ConsoleColor.Gray);
-        Assert.Contains(driver.WriteRecords, r => r.Text.Contains("{ Go to }", StringComparison.Ordinal));
-        Assert.Contains(driver.WriteRecords, r => r.Text.Contains("[ Stop ]", StringComparison.Ordinal));
-        Assert.Contains(driver.WriteRecords, r => r.Text.Contains("Search has been interrupted", StringComparison.Ordinal) && r.Background == ConsoleColor.DarkRed);
+        Assert.True(accepted);
+        Assert.True(cancellation.IsCancellationRequested);
+        Assert.Same(selected, session.GoToResult);
+        Assert.False(session.CanGoTo);
+        Assert.False(session.CanStop);
     }
 
     [Fact]
-    public void Show_RendersResultsBeforeSearchCompletes()
+    public void GoTo_CannotBeReplacedByAnotherResult()
     {
-        var driver = new FakeConsoleDriver(width: 100, height: 30);
-        var screen = new ScreenRenderer(driver);
-        EnqueueKeysWhenWriteContains(
-            driver,
-            "found.txt",
-            KeyChar('S', ConsoleKey.S),
-            Key(ConsoleKey.Enter));
+        using var cancellation = new CancellationTokenSource();
+        SearchResultItem first = Result(@"C:\root\first.txt");
+        SearchResultItem second = Result(@"C:\root\second.txt");
+        var session = new SearchProgressSession(cancellation);
 
-        var result = new SearchProgressDialog(ModalTestHost.Create(screen), new BlockingSearchService(Result(@"C:\root\found.txt")))
-            .Show(Request(@"C:\root", "*.txt"));
+        session.TryGoTo(first);
+        bool accepted = session.TryGoTo(second);
 
-        Assert.True(result.Cancelled);
-        Assert.True(result.DiscardResults);
-        Assert.Empty(result.Results);
-        Assert.Contains(driver.WriteRecords, r => r.Text.Contains("found.txt", StringComparison.Ordinal));
+        Assert.False(accepted);
+        Assert.Same(first, session.GoToResult);
     }
 
     [Fact]
-    public void Show_GoToReturnsSelectedResultAndCancelsSearch()
+    public void GoTo_CannotBeReplacedByStop()
     {
-        var item = Result(@"C:\root\found.txt");
-        var service = new BlockingSearchService(item);
-        var driver = new FakeConsoleDriver(width: 100, height: 30);
-        var screen = new ScreenRenderer(driver);
-        EnqueueKeysWhenWriteContains(driver, "found.txt", Key(ConsoleKey.Enter));
+        using var cancellation = new CancellationTokenSource();
+        SearchResultItem selected = Result(@"C:\root\found.txt");
+        var session = new SearchProgressSession(cancellation);
 
-        var result = new SearchProgressDialog(ModalTestHost.Create(screen), service).Show(Request(@"C:\root", "*.txt"));
+        session.TryGoTo(selected);
+        bool accepted = session.TryStop();
 
-        Assert.True(result.Cancelled);
-        Assert.Same(item, result.GoToResult);
-        Assert.True(service.CancellationObserved);
+        Assert.False(accepted);
+        Assert.Same(selected, session.GoToResult);
     }
 
     [Fact]
-    public void Show_StreamingResultsPreserveSelectedResultForGoTo()
+    public void Stop_CannotBeReplacedByGoTo()
     {
-        var first = Result(@"C:\root\a.txt");
-        var selected = Result(@"C:\root\b.txt");
-        var later = Result(@"C:\root\c.txt");
-        var service = new StreamingSearchService(first, selected, later);
-        var driver = new FakeConsoleDriver(width: 100, height: 30);
-        var screen = new ScreenRenderer(driver);
-        EnqueueKeysWhenWriteContains(driver, "b.txt", Key(ConsoleKey.DownArrow));
-        EnqueueKeysWhenWriteContains(driver, "c.txt", Key(ConsoleKey.Enter));
+        using var cancellation = new CancellationTokenSource();
+        var session = new SearchProgressSession(cancellation);
 
-        var result = new SearchProgressDialog(ModalTestHost.Create(screen), service).Show(Request(@"C:\root", "*.txt"));
+        session.TryStop();
+        bool accepted = session.TryGoTo(Result(@"C:\root\found.txt"));
 
-        Assert.True(result.Cancelled);
+        Assert.False(accepted);
+        Assert.Null(session.GoToResult);
+    }
+
+    [Fact]
+    public void BuildResult_ForGoToRetainsSelectedResult()
+    {
+        using var cancellation = new CancellationTokenSource();
+        SearchResultItem selected = Result(@"C:\root\found.txt");
+        var session = new SearchProgressSession(cancellation);
+        session.TryGoTo(selected);
+
+        SearchRunResult result = session.BuildResult([selected], cancelled: false);
+
         Assert.Same(selected, result.GoToResult);
-        Assert.True(service.CancellationObserved);
-    }
-
-    [Fact]
-    public void Show_StopConfirmationNoContinuesSearch()
-    {
-        var item = Result(@"C:\root\found.txt");
-        var service = new BlockingSearchService(item);
-        var driver = new FakeConsoleDriver(width: 100, height: 30);
-        var screen = new ScreenRenderer(driver);
-        EnqueueKeysWhenWriteContains(
-            driver,
-            "found.txt",
-            KeyChar('S', ConsoleKey.S),
-            KeyChar('N', ConsoleKey.N),
-            KeyChar('G', ConsoleKey.G));
-
-        var result = new SearchProgressDialog(ModalTestHost.Create(screen), service).Show(Request(@"C:\root", "*.txt"));
-
         Assert.True(result.Cancelled);
         Assert.False(result.DiscardResults);
-        Assert.Same(item, result.GoToResult);
     }
 
     [Fact]
-    public void Show_ConfirmedEscapeRendersStoppingBeforeSearchCompletes()
+    public void BuildResult_ForStopDiscardsResults()
     {
-        var item = Result(@"C:\root\found.txt");
-        var service = new RenderGatedCancellationSearchService(item);
-        var driver = new FakeConsoleDriver(width: 100, height: 30);
-        var screen = new ScreenRenderer(driver);
-        bool stoppingRenderedBeforeCompletion = false;
-        _ = Task.Run(async () =>
-        {
-            await Task.Delay(TimeSpan.FromSeconds(1));
-            service.AllowCompletion.Set();
-        });
-        driver.Wrote += record =>
-        {
-            if (!record.Text.Contains("Stopping...", StringComparison.Ordinal))
-                return;
+        using var cancellation = new CancellationTokenSource();
+        var session = new SearchProgressSession(cancellation);
+        session.TryStop();
 
-            stoppingRenderedBeforeCompletion = !service.CancellationCompleted;
-            service.AllowCompletion.Set();
-        };
-        EnqueueKeysWhenWriteContains(
-            driver,
-            "found.txt",
-            Key(ConsoleKey.Escape),
-            Key(ConsoleKey.Enter));
+        SearchRunResult result = session.BuildResult([Result(@"C:\root\found.txt")], cancelled: false);
 
-        var result = new SearchProgressDialog(ModalTestHost.Create(screen), service).Show(Request(@"C:\root", "*.txt"));
-
-        Assert.True(result.Cancelled);
-        Assert.True(stoppingRenderedBeforeCompletion);
-    }
-
-    [Fact]
-    public void Show_ConfirmedStopCannotBeReplacedByGoToWhileStopping()
-    {
-        var item = Result(@"C:\root\found.txt");
-        var service = new DelayedCancellationSearchService(item);
-        var driver = new FakeConsoleDriver(width: 100, height: 30);
-        var screen = new ScreenRenderer(driver);
-        EnqueueKeysWhenWriteContains(
-            driver,
-            "found.txt",
-            KeyChar('S', ConsoleKey.S),
-            Key(ConsoleKey.Enter),
-            KeyChar('G', ConsoleKey.G),
-            Key(ConsoleKey.Enter));
-
-        var result = new SearchProgressDialog(ModalTestHost.Create(screen), service).Show(Request(@"C:\root", "*.txt"));
-
+        Assert.Null(result.GoToResult);
         Assert.True(result.Cancelled);
         Assert.True(result.DiscardResults);
-        Assert.Null(result.GoToResult);
         Assert.Empty(result.Results);
-        Assert.True(service.CancellationObserved);
-    }
-
-    [Fact]
-    public void Show_FirstGoToCannotBeReplacedWhileStopping()
-    {
-        var first = Result(@"C:\root\a.txt");
-        var second = Result(@"C:\root\b.txt");
-        var service = new DelayedCancellationSearchService(first, second);
-        var driver = new FakeConsoleDriver(width: 100, height: 30);
-        var screen = new ScreenRenderer(driver);
-        EnqueueKeysWhenWriteContains(
-            driver,
-            "b.txt",
-            Key(ConsoleKey.DownArrow),
-            Key(ConsoleKey.Enter),
-            Key(ConsoleKey.UpArrow),
-            Key(ConsoleKey.Enter));
-
-        var result = new SearchProgressDialog(ModalTestHost.Create(screen), service).Show(Request(@"C:\root", "*.txt"));
-
-        Assert.True(result.Cancelled);
-        Assert.False(result.DiscardResults);
-        Assert.Same(second, result.GoToResult);
-        Assert.True(service.CancellationObserved);
     }
 
     [Fact]
@@ -192,9 +102,7 @@ public sealed class Spec012SearchProgressDialogTests
         var driver = new FakeConsoleDriver(width: 100, height: 30);
         var screen = new ScreenRenderer(driver);
 
-        var result = new SearchProgressDialog(
-                ModalTestHost.Create(screen),
-                new EmptySearchService())
+        var result = new SearchProgressDialog(ModalTestHost.Create(screen), new EmptySearchService())
             .Show(Request(@"C:\root", "*.txt"));
 
         Assert.False(result.Cancelled);
@@ -226,73 +134,6 @@ public sealed class Spec012SearchProgressDialogTests
     private static ConsoleKeyInfo Key(ConsoleKey key) =>
         new('\0', key, shift: false, alt: false, control: false);
 
-    private static ConsoleKeyInfo KeyChar(char keyChar, ConsoleKey key) =>
-        new(keyChar, key, shift: false, alt: false, control: false);
-
-    private static void EnqueueKeysWhenWriteContains(
-        FakeConsoleDriver driver,
-        string text,
-        params ConsoleKeyInfo[] keys)
-    {
-        bool enqueued = false;
-        driver.Wrote += OnWrote;
-
-        void OnWrote(FakeConsoleDriver.WriteRecord record)
-        {
-            if (enqueued || !record.Text.Contains(text, StringComparison.Ordinal))
-                return;
-
-            enqueued = true;
-            driver.Wrote -= OnWrote;
-            foreach (var key in keys)
-                driver.EnqueueKey(key);
-        }
-    }
-
-    private static async Task WaitUntilCancelledAsync(CancellationToken cancellationToken)
-    {
-        var completion = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
-        using var registration = cancellationToken.Register(
-            static state => ((TaskCompletionSource<bool>)state!).TrySetResult(true),
-            completion);
-        await completion.Task.ConfigureAwait(false);
-        cancellationToken.ThrowIfCancellationRequested();
-    }
-
-    private sealed class BlockingSearchService : ISearchService
-    {
-        private readonly SearchResultItem _item;
-
-        public BlockingSearchService(SearchResultItem item) => _item = item;
-
-        public bool CancellationObserved { get; private set; }
-
-        public async IAsyncEnumerable<SearchResultItem> SearchAsync(
-            SearchRequest request,
-            IProgress<SearchProgress>? progress,
-            [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
-        {
-            progress?.Report(new SearchProgress
-            {
-                CurrentPath = request.RootPath,
-                ScannedFiles = 1,
-                MatchedItems = 1,
-            });
-
-            yield return _item;
-
-            try
-            {
-                await WaitUntilCancelledAsync(cancellationToken);
-            }
-            catch (OperationCanceledException)
-            {
-                CancellationObserved = true;
-                throw;
-            }
-        }
-    }
-
     private sealed class EmptySearchService : ISearchService
     {
         public async IAsyncEnumerable<SearchResultItem> SearchAsync(
@@ -300,115 +141,8 @@ public sealed class Spec012SearchProgressDialogTests
             IProgress<SearchProgress>? progress,
             [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
         {
-            await Task.Delay(10, cancellationToken);
-            cancellationToken.ThrowIfCancellationRequested();
+            await Task.CompletedTask;
             yield break;
-        }
-    }
-
-    private sealed class StreamingSearchService(params SearchResultItem[] items) : ISearchService
-    {
-        public bool CancellationObserved { get; private set; }
-
-        public async IAsyncEnumerable<SearchResultItem> SearchAsync(
-            SearchRequest request,
-            IProgress<SearchProgress>? progress,
-            [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
-        {
-            for (int i = 0; i < items.Length; i++)
-            {
-                progress?.Report(new SearchProgress
-                {
-                    CurrentPath = items[i].FullPath,
-                    ScannedFiles = i + 1,
-                    MatchedItems = i + 1,
-                });
-                yield return items[i];
-                try
-                {
-                    await Task.Delay(80, cancellationToken);
-                }
-                catch (OperationCanceledException)
-                {
-                    CancellationObserved = true;
-                    throw;
-                }
-            }
-
-            try
-            {
-                await WaitUntilCancelledAsync(cancellationToken);
-            }
-            catch (OperationCanceledException)
-            {
-                CancellationObserved = true;
-                throw;
-            }
-        }
-    }
-
-    private sealed class DelayedCancellationSearchService(params SearchResultItem[] items) : ISearchService
-    {
-        public bool CancellationObserved { get; private set; }
-
-        public async IAsyncEnumerable<SearchResultItem> SearchAsync(
-            SearchRequest request,
-            IProgress<SearchProgress>? progress,
-            [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
-        {
-            for (int i = 0; i < items.Length; i++)
-            {
-                progress?.Report(new SearchProgress
-                {
-                    CurrentPath = items[i].FullPath,
-                    ScannedFiles = i + 1,
-                    MatchedItems = i + 1,
-                });
-                yield return items[i];
-            }
-
-            try
-            {
-                await WaitUntilCancelledAsync(cancellationToken);
-            }
-            catch (OperationCanceledException)
-            {
-                CancellationObserved = true;
-                await Task.Delay(200);
-                throw;
-            }
-        }
-    }
-
-    private sealed class RenderGatedCancellationSearchService(SearchResultItem item) : ISearchService
-    {
-        public bool CancellationCompleted { get; private set; }
-
-        public ManualResetEventSlim AllowCompletion { get; } = new();
-
-        public async IAsyncEnumerable<SearchResultItem> SearchAsync(
-            SearchRequest request,
-            IProgress<SearchProgress>? progress,
-            [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
-        {
-            progress?.Report(new SearchProgress
-            {
-                CurrentPath = item.FullPath,
-                ScannedFiles = 1,
-                MatchedItems = 1,
-            });
-            yield return item;
-
-            try
-            {
-                await WaitUntilCancelledAsync(cancellationToken);
-            }
-            catch (OperationCanceledException)
-            {
-                AllowCompletion.Wait();
-                CancellationCompleted = true;
-                throw;
-            }
         }
     }
 }

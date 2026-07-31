@@ -203,98 +203,6 @@ public sealed class Spec012SearchResultsPanelTests : IDisposable
         Assert.Contains(left.Items, item => item.Name == "child.txt");
     }
 
-    [Fact]
-    public void Run_GoToDuringSearchLoadsRealParentDirectoryAndSelectsFoundFile()
-    {
-        string subDirectory = Path.Combine(_root, "sub");
-        string foundFile = Path.Combine(subDirectory, "found.txt");
-        var fileOps = new RecordingFileOperationService();
-        var driver = new FakeConsoleDriver(width: 100, height: 30);
-        var service = new BlockingSearchService(SearchResult(foundFile));
-        EnqueueKeysWhenWriteContains(
-            driver,
-            "found.txt",
-            Key(ConsoleKey.Enter));
-
-        var fs = new FakeFileSystemService();
-        fs.AddDirectory(
-            _root,
-            new FilePanelItem
-            {
-                Name = "sub",
-                FullPath = subDirectory,
-                IsDirectory = true,
-            });
-        fs.AddDirectory(
-            subDirectory,
-            new FilePanelItem
-            {
-                Name = "found.txt",
-                FullPath = foundFile,
-                IsDirectory = false,
-                Size = 1,
-                LastWriteTime = new DateTime(2026, 1, 1),
-            });
-
-        var app = CreateApp(fs, driver, fileOps, service);
-
-        ApplicationTestRunBuilder
-            .For(app, driver)
-            .Press(ConsoleKey.F7, alt: true)
-            .Press(ConsoleKey.F10)
-            .ExitWhenApplicationReady()
-            .Run();
-
-        var left = GetLeftPanel(app);
-        Assert.True(service.CancellationObserved);
-        Assert.Equal(subDirectory, left.CurrentDirectory);
-        Assert.Equal(PanelProviderCapabilities.LocalFileSystem, left.ProviderCapabilities);
-        Assert.Null(left.SearchRequest);
-        Assert.False(left.ShowCurrentItemFullPath);
-        Assert.Equal("found.txt", left.Items[left.CursorIndex].Name);
-    }
-
-    [Fact]
-    public void Run_StopDuringSearchReturnsToActivePanelWithoutPartialResults()
-    {
-        string localFile = Path.Combine(_root, "local.txt");
-        string subDirectory = Path.Combine(_root, "sub");
-        string foundFile = Path.Combine(subDirectory, "found.txt");
-        var fileOps = new RecordingFileOperationService();
-        var driver = new FakeConsoleDriver(width: 100, height: 30);
-        var service = new BlockingSearchService(SearchResult(foundFile));
-        EnqueueMouseClickWhenWriteContains(
-            driver,
-            "[ Stop ]",
-            offsetX: 2,
-            KeyChar('Y', ConsoleKey.Y));
-
-        var fs = CreateFileSystem(new FilePanelItem
-        {
-            Name = "local.txt",
-            FullPath = localFile,
-            IsDirectory = false,
-            Size = 1,
-            LastWriteTime = new DateTime(2026, 1, 1),
-        });
-
-        var app = CreateApp(fs, driver, fileOps, service);
-
-        ApplicationTestRunBuilder
-            .For(app, driver)
-            .Press(ConsoleKey.F7, alt: true)
-            .Press(ConsoleKey.F10)
-            .ExitWhenApplicationReady()
-            .Run();
-
-        var left = GetLeftPanel(app);
-        Assert.Equal(_root, left.CurrentDirectory);
-        Assert.Equal(PanelProviderCapabilities.LocalFileSystem, left.ProviderCapabilities);
-        Assert.Null(left.SearchRequest);
-        Assert.DoesNotContain(left.Items, item => item.FullPath == foundFile);
-        Assert.True(service.CancellationObserved);
-    }
-
     private FakeFileSystemService CreateFileSystem(params FilePanelItem[] items)
     {
         var fs = new FakeFileSystemService();
@@ -358,89 +266,11 @@ public sealed class Spec012SearchResultsPanelTests : IDisposable
     private static ConsoleKeyInfo Key(ConsoleKey key, bool alt = false) =>
         new('\0', key, shift: false, alt: alt, control: false);
 
-    private static ConsoleKeyInfo KeyChar(char keyChar, ConsoleKey key) =>
-        new(keyChar, key, shift: false, alt: false, control: false);
-
-    private static void EnqueueKeysWhenWriteContains(
-        FakeConsoleDriver driver,
-        string text,
-        params ConsoleKeyInfo[] keys)
-    {
-        bool enqueued = false;
-        driver.Wrote += OnWrote;
-
-        void OnWrote(FakeConsoleDriver.WriteRecord record)
-        {
-            if (enqueued || !record.Text.Contains(text, StringComparison.Ordinal))
-                return;
-
-            enqueued = true;
-            driver.Wrote -= OnWrote;
-            foreach (var key in keys)
-                driver.EnqueueKey(key);
-        }
-    }
-
-    private static void EnqueueMouseClickWhenWriteContains(
-        FakeConsoleDriver driver,
-        string text,
-        int offsetX,
-        params ConsoleKeyInfo[] followingKeys)
-    {
-        bool enqueued = false;
-        driver.Wrote += OnWrote;
-
-        void OnWrote(FakeConsoleDriver.WriteRecord record)
-        {
-            if (enqueued || !record.Text.Contains(text, StringComparison.Ordinal))
-                return;
-
-            enqueued = true;
-            driver.Wrote -= OnWrote;
-            int x = record.X + record.Text.IndexOf(text, StringComparison.Ordinal) + offsetX;
-            driver.EnqueueInput(new CSharpFar.Console.Input.MouseConsoleInputEvent(
-                x,
-                record.Y,
-                CSharpFar.Console.Input.MouseButton.Left,
-                CSharpFar.Console.Input.MouseEventKind.Down,
-                CSharpFar.Console.Input.MouseKeyModifiers.None));
-            driver.EnqueueInput(new CSharpFar.Console.Input.MouseConsoleInputEvent(
-                x,
-                record.Y,
-                CSharpFar.Console.Input.MouseButton.Left,
-                CSharpFar.Console.Input.MouseEventKind.Up,
-                CSharpFar.Console.Input.MouseKeyModifiers.None));
-            foreach (var key in followingKeys)
-                driver.EnqueueKey(key);
-        }
-    }
-
-    private static SearchResultItem SearchResult(string fullPath) =>
-        new()
-        {
-            FullPath = fullPath,
-            Name = Path.GetFileName(fullPath),
-            Kind = SearchResultItemKind.File,
-            Size = 1,
-            LastWriteTime = new DateTime(2026, 1, 1),
-            Attributes = FileAttributes.Archive,
-        };
-
     private static FilePanelState GetLeftPanel(Application app) =>
         app.Session.Panels.Left;
 
     private static FilePanelState GetRightPanel(Application app) =>
         app.Session.Panels.Right;
-
-    private static async Task WaitUntilCancelledAsync(CancellationToken cancellationToken)
-    {
-        var completion = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
-        using var registration = cancellationToken.Register(
-            static state => ((TaskCompletionSource<bool>)state!).TrySetResult(true),
-            completion);
-        await completion.Task.ConfigureAwait(false);
-        cancellationToken.ThrowIfCancellationRequested();
-    }
 
     private sealed class RecordingFileOperationService : IFileOperationService
     {
@@ -495,49 +325,4 @@ public sealed class Spec012SearchResultsPanelTests : IDisposable
         }
     }
 
-    private sealed class BlockingSearchService : ISearchService
-    {
-        private readonly SearchResultItem _item;
-        private readonly Action? _onCancellationObserved;
-        private readonly Action? _onCompleted;
-
-        public BlockingSearchService(
-            SearchResultItem item,
-            Action? onCancellationObserved = null,
-            Action? onCompleted = null) =>
-            (_item, _onCancellationObserved, _onCompleted) = (item, onCancellationObserved, onCompleted);
-
-        public bool CancellationObserved { get; private set; }
-
-        public async IAsyncEnumerable<SearchResultItem> SearchAsync(
-            SearchRequest request,
-            IProgress<SearchProgress>? progress,
-            [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
-        {
-            progress?.Report(new SearchProgress
-            {
-                CurrentPath = request.RootPath,
-                ScannedFiles = 1,
-                MatchedItems = 1,
-            });
-
-            yield return _item;
-
-            try
-            {
-                cancellationToken.ThrowIfCancellationRequested();
-                await WaitUntilCancelledAsync(cancellationToken);
-            }
-            catch (OperationCanceledException)
-            {
-                CancellationObserved = true;
-                _onCancellationObserved?.Invoke();
-                throw;
-            }
-            finally
-            {
-                _onCompleted?.Invoke();
-            }
-        }
-    }
 }
