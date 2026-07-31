@@ -23,6 +23,27 @@ public sealed class Spec035FtpProviderTests : IDisposable
     }
 
     [Fact]
+    public void FtpConnectionDialog_TypingConnectionNameWithoutSaveConnectionRowDoesNotCrash()
+    {
+        var driver = new FakeConsoleDriver(width: 100, height: 30);
+        driver.EnqueueKey(Printable('n'));
+        driver.EnqueueKey(Key(ConsoleKey.F10));
+
+        var result = new FtpConnectionDialog(
+            ModalTestHost.Create(new ScreenRenderer(driver)),
+            TextFieldHistoryTestProvider.Create()).Show(
+                new FtpConnectionDialogRequest(
+                    Connection: TestConnection(),
+                    SavedPassword: "secret-password",
+                    SaveConnectionByDefault: true,
+                    AllowTemporaryConnection: false),
+                _ => FtpConnectionDialogValidationResult.Accepted());
+
+        Assert.NotNull(result);
+        Assert.Equal("testn", result.Connection.DisplayName);
+    }
+
+    [Fact]
     public void PanelSourceId_Module_UsesLegacyPluginPrefix()
     {
         Assert.Equal($"plugin:{FtpModuleIds.ModuleId:D}:main", PanelSourceId.Module(FtpModuleIds.ModuleId, "main").Value);

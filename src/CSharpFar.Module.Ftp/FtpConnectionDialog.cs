@@ -137,7 +137,10 @@ internal sealed class FtpConnectionDialog
                 }
                 if (result.Kind == FormInputResultKind.ValueChanged && routed.Target == form.GetFocusTarget("save-password") && state.SavePassword.Value)
                     state.SaveConnection.Value = true;
-                else if (result.Kind == FormInputResultKind.ValueChanged && routed.Target == form.GetFocusTarget("save-connection") && !state.SaveConnection.Value)
+                else if (state.AllowTemporaryConnection &&
+                    result.Kind == FormInputResultKind.ValueChanged &&
+                    routed.Target == form.GetFocusTarget("save-connection") &&
+                    !state.SaveConnection.Value)
                     state.SavePassword.Value = false;
                 SyncEnabledRows();
 
