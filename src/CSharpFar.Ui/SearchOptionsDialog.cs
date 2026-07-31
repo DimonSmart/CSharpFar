@@ -146,7 +146,7 @@ public sealed class SearchOptionsDialog
         var rows = new List<IFormRow>
         {
             new LabelRow(options.TextLabel),
-            pattern.Row,
+            pattern.AsRow(),
         };
         rows.AddRange(checkboxes);
         return rows;

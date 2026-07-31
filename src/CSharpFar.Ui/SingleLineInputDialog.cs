@@ -53,7 +53,7 @@ public sealed class SingleLineInputDialog
         var form = new ScrollableFormDialog();
         void PrepareRows() => form.SetRows([
             new LabelRow(options.Prompt),
-            field.Row,
+            field.AsRow(),
             new SeparatorRow(drawLine: false),
         ], [
             new LabelRow(error ?? string.Empty, PaletteStyles.DialogError(UiTheme.Current)),

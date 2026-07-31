@@ -218,12 +218,12 @@ public static class SingleLineTextInput
 
         if (width == 1)
         {
-            screen.WriteChar(x, y, HistoryDropdownArrow, history.HasItems ? normalStyle : FarDialogStyles.DisabledControl(normalStyle));
+            screen.WriteChar(x, y, HistoryDropdownArrow, history.History.HasItems ? normalStyle : FarDialogStyles.DisabledControl(normalStyle));
             return;
         }
 
         Render(screen, x, y, width - 1, buffer, normalStyle, selectedStyle, maskInput);
-        screen.WriteChar(x + width - 1, y, HistoryDropdownArrow, history.HasItems ? normalStyle : FarDialogStyles.DisabledControl(normalStyle));
+        screen.WriteChar(x + width - 1, y, HistoryDropdownArrow, history.History.HasItems ? normalStyle : FarDialogStyles.DisabledControl(normalStyle));
         if (renderDropdown)
             RenderHistoryDropdown(screen, x, y, width, history);
     }
@@ -233,7 +233,7 @@ public static class SingleLineTextInput
         int fieldY,
         int screenHeight)
     {
-        if (!history.HasItems)
+        if (!history.History.HasItems)
             return false;
         int availableContentRows = AvailableDropdownContentRows(fieldY, screenHeight);
         return history.OpenAll(availableContentRows);

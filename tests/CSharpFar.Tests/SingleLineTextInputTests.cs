@@ -174,24 +174,24 @@ public class SingleLineTextInputTests
     [Fact]
     public void History_AddKeepsUniqueRecencyOrder()
     {
-        var history = new SingleLineTextHistoryState();
+        var history = TextFieldHistoryTestProvider.CreateState();
 
-        history.Add("first");
-        history.Add("second");
-        history.Add("first");
-        history.Add("   ");
+        history.History.Add("first");
+        history.History.Add("second");
+        history.History.Add("first");
+        history.History.Add("   ");
 
-        Assert.Equal(["first", "second"], history.Items);
+        Assert.Equal(["first", "second"], history.History.Items);
     }
 
     [Fact]
     public void HandleKey_WithHistoryTypingPrefixOpensMatchingDropdown()
     {
         var buffer = new CommandLineState();
-        var history = new SingleLineTextHistoryState();
-        history.Add("copy");
-        history.Add("compare");
-        history.Add("delete");
+        var history = TextFieldHistoryTestProvider.CreateState();
+        history.History.Add("copy");
+        history.History.Add("compare");
+        history.History.Add("delete");
         string? error = null;
 
         var result = SingleLineTextInput.HandleKey(
@@ -211,9 +211,9 @@ public class SingleLineTextInputTests
     public void HandleKey_WithHistoryEnterAcceptsSelectedSuggestion()
     {
         var buffer = new CommandLineState();
-        var history = new SingleLineTextHistoryState();
-        history.Add("copy");
-        history.Add("compare");
+        var history = TextFieldHistoryTestProvider.CreateState();
+        history.History.Add("copy");
+        history.History.Add("compare");
         string? error = null;
 
         SingleLineTextInput.HandleKey(
@@ -246,7 +246,7 @@ public class SingleLineTextInputTests
     {
         var buffer = new CommandLineState();
         buffer.SetText("co");
-        var history = new SingleLineTextHistoryState(["copy"]);
+        var history = TextFieldHistoryTestProvider.CreateState(["copy"]);
         string? error = null;
         Assert.True(history.OpenForPrefix(buffer.Text, availableContentRows: 10));
 
@@ -265,7 +265,7 @@ public class SingleLineTextInputTests
     [Fact]
     public void History_DoesNotOpenWithoutRealMatches()
     {
-        var history = new SingleLineTextHistoryState(["copy"]);
+        var history = TextFieldHistoryTestProvider.CreateState(["copy"]);
 
         Assert.False(history.OpenForPrefix("z", availableContentRows: 10));
         Assert.False(history.IsDropdownOpen);
@@ -275,7 +275,7 @@ public class SingleLineTextInputTests
     [Fact]
     public void History_VisibleRowsIncludeNeutralItem()
     {
-        var history = new SingleLineTextHistoryState(Enumerable.Range(1, 12).Select(index => $"item-{index:D2}"));
+        var history = TextFieldHistoryTestProvider.CreateState(Enumerable.Range(1, 12).Select(index => $"item-{index:D2}"));
 
         Assert.True(history.OpenAll(availableContentRows: 10));
         Assert.Equal(10, history.Matches.Count);
@@ -286,8 +286,8 @@ public class SingleLineTextInputTests
     public void HandleKey_WithHistoryEscapeClosesDropdownWithoutChangingText()
     {
         var buffer = new CommandLineState();
-        var history = new SingleLineTextHistoryState();
-        history.Add("copy");
+        var history = TextFieldHistoryTestProvider.CreateState();
+        history.History.Add("copy");
         string? error = null;
 
         SingleLineTextInput.HandleKey(
@@ -316,9 +316,9 @@ public class SingleLineTextInputTests
         var screen = new ScreenRenderer(driver);
         var buffer = new CommandLineState();
         buffer.SetText("c");
-        var history = new SingleLineTextHistoryState();
-        history.Add("copy");
-        history.Add("compare");
+        var history = TextFieldHistoryTestProvider.CreateState();
+        history.History.Add("copy");
+        history.History.Add("compare");
         Assert.True(history.OpenForPrefix("c", availableContentRows: 5));
         var normal = new CellStyle(ConsoleColor.Gray, ConsoleColor.Black);
         var selected = new CellStyle(ConsoleColor.Yellow, ConsoleColor.Blue);
@@ -336,8 +336,8 @@ public class SingleLineTextInputTests
     [Fact]
     public void History_DoesNotOpenWhenDropdownCannotFitOneContentRow()
     {
-        var history = new SingleLineTextHistoryState();
-        history.Add("copy");
+        var history = TextFieldHistoryTestProvider.CreateState();
+        history.History.Add("copy");
 
         bool opened = history.OpenForPrefix("c", availableContentRows: 0);
 
@@ -351,9 +351,9 @@ public class SingleLineTextInputTests
         var driver = new FakeConsoleDriver(width: 30, height: 20);
         var screen = new ScreenRenderer(driver);
         var buffer = new CommandLineState();
-        var history = new SingleLineTextHistoryState();
+        var history = TextFieldHistoryTestProvider.CreateState();
         for (int i = 0; i < 12; i++)
-            history.Add("item-" + i);
+            history.History.Add("item-" + i);
         Assert.True(history.OpenAll(availableContentRows: 20));
         var normal = new CellStyle(ConsoleColor.Gray, ConsoleColor.Black);
         var selected = new CellStyle(ConsoleColor.Yellow, ConsoleColor.Blue);
@@ -369,9 +369,9 @@ public class SingleLineTextInputTests
     public void HandleHistoryPopupContentMouse_ClickSuggestionAcceptsValue()
     {
         var buffer = new CommandLineState();
-        var history = new SingleLineTextHistoryState();
-        history.Add("copy");
-        history.Add("compare");
+        var history = TextFieldHistoryTestProvider.CreateState();
+        history.History.Add("copy");
+        history.History.Add("compare");
         Assert.True(history.OpenForPrefix("c", availableContentRows: 5));
 
         SingleLineTextHistoryFrame frame = Assert.IsType<SingleLineTextHistoryFrame>(SingleLineTextInput.CalculateHistoryDropdownFrame(
@@ -394,9 +394,9 @@ public class SingleLineTextInputTests
     [Fact]
     public void HandleHistoryScrollbarMouse_ClickScrollbarMovesFirstVisibleIndex()
     {
-        var history = new SingleLineTextHistoryState();
+        var history = TextFieldHistoryTestProvider.CreateState();
         for (int i = 0; i < 20; i++)
-            history.Add("item-" + i);
+            history.History.Add("item-" + i);
         Assert.True(history.OpenAll(availableContentRows: 5));
 
         SingleLineTextHistoryFrame frame = Assert.IsType<SingleLineTextHistoryFrame>(SingleLineTextInput.CalculateHistoryDropdownFrame(
@@ -419,9 +419,9 @@ public class SingleLineTextInputTests
     public void HistoryDropdownFrame_MouseUsesNormalizedFirstVisibleIndex()
     {
         var buffer = new CommandLineState();
-        var history = new SingleLineTextHistoryState();
+        var history = TextFieldHistoryTestProvider.CreateState();
         for (int i = 0; i < 12; i++)
-            history.Add("item-" + i);
+            history.History.Add("item-" + i);
         Assert.True(history.OpenAll(availableContentRows: 10));
         history.SetFirstVisibleIndex(8, availableContentRows: 10);
 

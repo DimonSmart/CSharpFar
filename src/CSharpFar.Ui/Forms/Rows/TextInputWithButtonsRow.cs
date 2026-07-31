@@ -5,7 +5,7 @@ using CSharpFar.Core.Models;
 
 namespace CSharpFar.Ui;
 
-public sealed class TextInputWithButtonsRow : FormRow, IFormCursorProvider
+public sealed class TextInputWithButtonsRow : FormRow, IFormCursorProvider, IFormCompositeRow
 {
     public override FormRowRole Role { get; init; } = FormRowRole.TextInput;
 
@@ -13,9 +13,28 @@ public sealed class TextInputWithButtonsRow : FormRow, IFormCursorProvider
     private readonly FormTextInputField _field;
     private readonly DialogButtonBar _buttonBar;
     private DialogButtonBarState _buttonState;
-    private readonly int _inputWidth;
+    private readonly int? _inputWidth;
     private readonly int _buttonAreaWidth;
     private readonly string _commandPrefix;
+
+    public TextInputWithButtonsRow(
+        string label,
+        TextField field,
+        IReadOnlyList<DialogButton> buttons,
+        string commandPrefix,
+        int buttonAreaWidth)
+    {
+        ArgumentNullException.ThrowIfNull(field);
+        _label = label;
+        _field = field.Input;
+        _buttonBar = new DialogButtonBar(buttons);
+        _buttonState = _buttonBar.CreateState();
+        _commandPrefix = commandPrefix;
+        _inputWidth = field.Width;
+        _buttonAreaWidth = buttonAreaWidth;
+        Id = field.Id;
+        SubmitOnEnter = field.SubmitOnEnter;
+    }
 
     public TextInputWithButtonsRow(
         string label,
@@ -35,6 +54,8 @@ public sealed class TextInputWithButtonsRow : FormRow, IFormCursorProvider
     }
 
     public CommandLineState Buffer => _field.Buffer;
+    internal FormTextInputField Input => _field;
+    public bool IsCompositeOpen => _field.History?.IsDropdownOpen == true;
 
     public override void Render(FormRowRenderContext context)
     {
@@ -66,7 +87,10 @@ public sealed class TextInputWithButtonsRow : FormRow, IFormCursorProvider
 
     public override FormInputResult HandleKey(ConsoleKeyInfo key, FormRowInputContext context)
     {
-        return _field.HandleKey(key, context);
+        FormInputResult result = _field.HandleKey(key, context);
+        return result.Kind == FormInputResultKind.OverlayChanged && SubmitOnEnter
+            ? FormInputResult.Submit()
+            : result;
     }
 
     public override FormInputResult HandleMouse(MouseConsoleInputEvent mouse, FormRowMouseContext context)
@@ -98,12 +122,35 @@ public sealed class TextInputWithButtonsRow : FormRow, IFormCursorProvider
         return _field.HandleMouse(mouse, context, layout.InputBounds);
     }
 
+    public FormCompositeFrame BuildCompositeFrame(FormCompositeFrameContext context) =>
+        _field.BuildCompositeFrame(CalculateLayout(context.RowBounds).InputBounds, context.Viewport);
+
+    public void CommitCompositeFrame(FormCompositeFrame frame) { }
+
+    public void RenderCompositeOverlay(FormRowRenderContext context, FormCompositeFrame frame) =>
+        _field.RenderCompositeOverlay(context, frame);
+
+    public FormInputResult HandleCompositeKey(ConsoleKeyInfo key, FormRowInputContext context, FormCompositeFrame frame) =>
+        HandleKey(key, context);
+
+    public FormInputResult HandleCompositeMouse(
+        MouseConsoleInputEvent mouse,
+        FormRowMouseContext context,
+        FormCompositeFrame frame,
+        string? childTargetId) =>
+        _field.HandleCompositeMouse(mouse, context, CalculateLayout(context.Bounds).InputBounds, frame, childTargetId);
+
+    public bool IsCompositeAnchorHit(MouseConsoleInputEvent mouse, FormRowMouseContext context, FormCompositeFrame frame) =>
+        _field.IsHistoryArrow(mouse, CalculateLayout(context.Bounds).InputBounds);
+
+    public void CloseComposite() => _field.History?.Close();
+
     private TextInputWithButtonsLayout CalculateLayout(Rect rowBounds)
     {
         int labelWidth = Math.Min(ConsoleTextMetrics.GetCellWidth(_label) + 1, Math.Max(0, rowBounds.Width));
         int inputX = rowBounds.X + labelWidth;
         int remainingAfterLabel = Math.Max(0, rowBounds.Width - labelWidth);
-        int inputWidth = Math.Min(_inputWidth, remainingAfterLabel);
+        int inputWidth = Math.Min(_inputWidth ?? remainingAfterLabel, remainingAfterLabel);
         var inputBounds = new Rect(inputX, rowBounds.Y, inputWidth, 1);
         int buttonX = inputBounds.Right + 1;
         int buttonWidth = Math.Min(_buttonAreaWidth, Math.Max(0, rowBounds.Right - buttonX));

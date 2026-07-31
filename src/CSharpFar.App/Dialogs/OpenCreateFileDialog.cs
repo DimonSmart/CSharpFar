@@ -48,7 +48,8 @@ internal sealed class OpenCreateFileDialog
         if (!string.IsNullOrEmpty(initialPath))
             filePath.SetText(initialPath);
 
-        SingleLineTextHistoryState history = _historyRegistry.Get(AppTextHistoryIds.OpenCreateFilePath);
+        var history = new SingleLineTextHistoryState(
+            _historyRegistry.Get(AppTextHistoryIds.OpenCreateFilePath));
         var pathRow = new TextInputRow(filePath, history)
         {
             Id = "file-path",
@@ -145,7 +146,7 @@ internal sealed class OpenCreateFileDialog
         if (error is not null)
             return null;
 
-        history.Add(path);
+        history.History.Add(path);
         return new OpenCreateFileDialogResult(path, _codePages[codePageIndex]);
     }
 

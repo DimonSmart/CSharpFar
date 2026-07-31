@@ -7,6 +7,46 @@ namespace CSharpFar.Tests;
 
 public sealed class ModalFormHostTests
 {
+    [Theory]
+    [InlineData(ConsoleKey.F10, true)]
+    [InlineData(ConsoleKey.Escape, false)]
+    [InlineData(ConsoleKey.Spacebar, true)]
+    public void Run_NewFieldWithSameHistoryStartsClosedAfterEveryCompletionPath(
+        ConsoleKey completionKey,
+        bool acceptValue)
+    {
+        var driver = new FakeConsoleDriver();
+        driver.EnqueueKey(Key(completionKey));
+        var host = new ModalFormHost(ModalTestHost.Create(driver));
+        ITextFieldHistoryProvider provider = TextFieldHistoryTestProvider.Create();
+        var id = new TextHistoryId("ModalFormHostTests.Reopen");
+        provider.Get(id).Add("saved");
+        var factory = new FormFieldFactory(provider);
+        TextField first = factory.Text("value", "confirmed", id);
+        SingleLineTextHistoryState firstPopup = Assert.IsType<SingleLineTextHistoryState>(first.Input.History);
+        Assert.True(firstPopup.OpenAll(availableContentRows: 5));
+
+        host.Run(
+            new ScrollableFormDialog([first.AsRow()]),
+            Options,
+            Layout,
+            (_, input) =>
+            {
+                if (acceptValue)
+                    first.AcceptHistory();
+                return ModalDialogLoopResult<object?>.Complete(null);
+            });
+
+        TextField reopened = factory.Text("value", history: id);
+        SingleLineTextHistoryState reopenedPopup = Assert.IsType<SingleLineTextHistoryState>(reopened.Input.History);
+        Assert.False(reopenedPopup.IsDropdownOpen);
+        Assert.Empty(reopenedPopup.Matches);
+        Assert.Equal(0, reopenedPopup.SelectedIndex);
+        Assert.Equal(0, reopenedPopup.FirstVisibleIndex);
+        Assert.Contains("saved", reopenedPopup.History.Items);
+        Assert.Equal(acceptValue, reopenedPopup.History.Items.Contains("confirmed"));
+    }
+
     [Fact]
     public void Run_RoutesFormCancelToHandler()
     {

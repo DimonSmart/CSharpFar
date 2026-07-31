@@ -15,7 +15,7 @@ public sealed class ScrollableFormDialogTests
     [Fact]
     public void Scrollbar_ReservesTheLastBodyColumnForRowsAndHistoryArrow()
     {
-        var history = new SingleLineTextHistoryState(["saved"]);
+        var history = TextFieldHistoryTestProvider.CreateState(["saved"]);
         var form = new ScrollableFormDialog([
             new TextInputRow(new CommandLineState(), history) { Id = "input" },
             new LabelRow("second", FarDialogStyles.Fill),
@@ -204,9 +204,9 @@ public sealed class ScrollableFormDialogTests
     [Fact]
     public void RenderFrame_PublishesHistoryDropdownTargetsForFocusedRow()
     {
-        var history = new SingleLineTextHistoryState();
-        history.Add("alpha");
-        history.Add("beta");
+        var history = TextFieldHistoryTestProvider.CreateState();
+        history.History.Add("alpha");
+        history.History.Add("beta");
         var form = new ScrollableFormDialog([
             new TextInputRow(new CommandLineState(), history) { Id = "pattern" },
         ]);
@@ -662,8 +662,8 @@ public sealed class ScrollableFormDialogTests
     public void LabeledTextInputRow_PreservesHistoryScrollbarDragAcrossRecreation()
     {
         var text = new CommandLineState();
-        var history = new SingleLineTextHistoryState();
-        for (int i = 0; i < 20; i++) history.Add("item-" + i);
+        var history = TextFieldHistoryTestProvider.CreateState();
+        for (int i = 0; i < 20; i++) history.History.Add("item-" + i);
         Assert.True(history.OpenAll(5));
         var form = new ScrollableFormDialog([new LabeledTextInputRow("Value:", text, history, labelWidth: 0, inputWidth: 14)]);
         Render(form, visibleRows: 1, screenHeight: 8);
@@ -869,9 +869,9 @@ public sealed class ScrollableFormDialogTests
     public void TextInputRow_PreservesHistoryScrollbarDragAcrossRowRecreation()
     {
         var text = new CommandLineState();
-        var history = new SingleLineTextHistoryState();
+        var history = TextFieldHistoryTestProvider.CreateState();
         for (int i = 0; i < 20; i++)
-            history.Add("item-" + i);
+            history.History.Add("item-" + i);
         Assert.True(history.OpenAll(availableContentRows: 5));
 
         var form = new ScrollableFormDialog([new TextInputRow(text, history)]);
@@ -1070,8 +1070,8 @@ public sealed class ScrollableFormDialogTests
     [Fact]
     public void RoutedWheelScroll_HidesOffscreenHistoryOverlayUntilFocusedRowReceivesKey()
     {
-        var history = new SingleLineTextHistoryState();
-        history.Add("alpha");
+        var history = TextFieldHistoryTestProvider.CreateState();
+        history.History.Add("alpha");
         Assert.True(history.OpenAll(availableContentRows: 3));
         var form = new ScrollableFormDialog([
             new TextInputRow(new CommandLineState(), history) { Id = "pattern" },
@@ -1111,8 +1111,8 @@ public sealed class ScrollableFormDialogTests
     [Fact]
     public void RoutedHistoryArrow_TogglesOpenDropdownClosed()
     {
-        var history = new SingleLineTextHistoryState();
-        history.Add("alpha");
+        var history = TextFieldHistoryTestProvider.CreateState();
+        history.History.Add("alpha");
         var form = new ScrollableFormDialog([
             new TextInputRow(new CommandLineState(), history) { Id = "pattern" },
         ]);
@@ -1132,8 +1132,8 @@ public sealed class ScrollableFormDialogTests
     [Fact]
     public void RoutedHistoryCloseOnLabelClick_InvalidatesFrame()
     {
-        var history = new SingleLineTextHistoryState();
-        history.Add("alpha");
+        var history = TextFieldHistoryTestProvider.CreateState();
+        history.History.Add("alpha");
         Assert.True(SingleLineTextInput.TryOpenHistoryDropdown(history, fieldY: 0, screenHeight: 8));
         var form = new ScrollableFormDialog([
             new TextInputRow(new CommandLineState(), history) { Id = "pattern" },
@@ -1916,9 +1916,9 @@ public sealed class ScrollableFormDialogTests
 
     private static SingleLineTextHistoryState HistoryWithItems(int count)
     {
-        var history = new SingleLineTextHistoryState();
+        var history = TextFieldHistoryTestProvider.CreateState();
         for (int i = 0; i < count; i++)
-            history.Add($"item-{i:D2}");
+            history.History.Add($"item-{i:D2}");
         Assert.True(history.OpenAll(availableContentRows: 8));
         return history;
     }
