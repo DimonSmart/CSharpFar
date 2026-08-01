@@ -287,6 +287,7 @@ public sealed class UiCompositionHostTests
         host.SetRootSurface(surface);
         host.Render();
         driver.SetViewportOrigin(0, 3);
+        driver.EnqueueInput(new ConsoleResizeInputEvent());
         driver.EnqueueKey(new ConsoleKeyInfo('x', ConsoleKey.X, false, false, false));
 
         ConsoleInputEvent input = host.ReadInput();

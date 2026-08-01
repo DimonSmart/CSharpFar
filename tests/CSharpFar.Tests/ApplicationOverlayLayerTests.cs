@@ -82,6 +82,33 @@ public sealed class ApplicationOverlayLayerTests
     }
 
     [Fact]
+    public void CommandCompletion_HiddenOriginScrollClosesWithoutRenderingOrLosingNextKey()
+    {
+        var driver = new FakeConsoleDriver(80, 25);
+        driver.SetBufferHeight(50);
+        driver.TryScrollViewportToBottom();
+        var services = Services(driver);
+        var completion = services.Session.CommandLine.Completion;
+        completion.Visible = true;
+        completion.List.ResetItems(["", "git status"]);
+        services.Session.App.WorkspaceMode = ApplicationWorkspaceMode.HiddenCommandLine;
+        services.Composition.Render();
+        long renderVersion = services.Composition.StableRenderVersion;
+
+        driver.SetViewportOrigin(0, 10);
+        driver.EnqueueInput(new ConsoleResizeInputEvent());
+        driver.EnqueueKey(new ConsoleKeyInfo('x', ConsoleKey.X, false, false, false));
+
+        ConsoleInputEvent input = services.Composition.ReadInput();
+
+        Assert.Equal(ConsoleKey.X, Assert.IsType<KeyConsoleInputEvent>(input).Key.Key);
+        Assert.Equal(10, driver.GetViewport().Top);
+        Assert.Equal(renderVersion, services.Composition.StableRenderVersion);
+        Assert.False(completion.Visible);
+        Assert.Empty(completion.Matches);
+    }
+
+    [Fact]
     public void CommandCompletion_SelectionInvalidatesOnlyCompletion()
     {
         var services = Services();
