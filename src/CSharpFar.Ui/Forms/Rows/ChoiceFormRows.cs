@@ -24,6 +24,29 @@ public sealed class ChoiceFormRow<T> : FormRow, IFormCursorProvider
         _isFocusable = isFocusable;
     }
 
+    public ChoiceFormRow(
+        string label,
+        IReadOnlyList<T> values,
+        Func<T, string> format,
+        T selectedValue,
+        IEqualityComparer<T>? comparer = null,
+        bool isFocusable = true)
+        : this(ChoiceRow<T>.FromValue(values, format, selectedValue, comparer), label, isFocusable: isFocusable)
+    {
+    }
+
+    public ChoiceFormRow(
+        string label,
+        IReadOnlyList<T> values,
+        Func<T, string> format,
+        T selectedValue,
+        T fallbackValue,
+        IEqualityComparer<T>? comparer = null,
+        bool isFocusable = true)
+        : this(ChoiceRow<T>.FromValue(values, format, selectedValue, fallbackValue, comparer), label, isFocusable: isFocusable)
+    {
+    }
+
     public override bool IsFocusable => _isFocusable;
     public ChoiceRow<T> Choice => _choice;
     public T Value => _choice.Value;
@@ -110,6 +133,29 @@ public sealed class MultiLineChoiceFormRow<T> : FormRow, IFormCursorProvider
         _segmentEndIndices = segmentEndIndices.ToArray();
     }
 
+    public MultiLineChoiceFormRow(
+        string label,
+        IReadOnlyList<T> values,
+        Func<T, string> format,
+        T selectedValue,
+        int itemsPerRow,
+        IEqualityComparer<T>? comparer = null)
+        : this(ChoiceRow<T>.FromValue(values, format, selectedValue, comparer), label, SegmentEndIndices(values, itemsPerRow))
+    {
+    }
+
+    public MultiLineChoiceFormRow(
+        string label,
+        IReadOnlyList<T> values,
+        Func<T, string> format,
+        T selectedValue,
+        T fallbackValue,
+        int itemsPerRow,
+        IEqualityComparer<T>? comparer = null)
+        : this(ChoiceRow<T>.FromValue(values, format, selectedValue, fallbackValue, comparer), label, SegmentEndIndices(values, itemsPerRow))
+    {
+    }
+
     public override int Height => _segmentEndIndices.Count;
     public ChoiceRow<T> Choice => _choice;
     public T Value => _choice.Value;
@@ -188,6 +234,19 @@ public sealed class MultiLineChoiceFormRow<T> : FormRow, IFormCursorProvider
         }
 
         return new ChoiceRowLayout(ChoiceRowLayoutKind.Segmented, rowBounds, choices);
+    }
+
+    private static IReadOnlyList<int> SegmentEndIndices(IReadOnlyList<T> values, int itemsPerRow)
+    {
+        ArgumentNullException.ThrowIfNull(values);
+        if (itemsPerRow <= 0)
+            throw new ArgumentOutOfRangeException(nameof(itemsPerRow), "Items per row must be positive.");
+
+        var ends = new List<int>();
+        for (int end = itemsPerRow; end < values.Count; end += itemsPerRow)
+            ends.Add(end);
+        ends.Add(values.Count);
+        return ends;
     }
 }
 

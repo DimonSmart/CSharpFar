@@ -44,20 +44,30 @@ internal sealed class CompareOptionsDialog
         var recursive = new CheckBoxRow(new CheckBoxLine("Include subfolders", settings.IncludeSubfolders));
         var selectedOnly = new CheckBoxRow(new CheckBoxLine("Selected items only", settings.SelectedItemsOnly));
         var depth = new ChoiceFormRow<string>(
-            new ChoiceRow<string>(["All", "0", "1", "2", "Custom"], x => x, DepthIndex(settings.Depth)),
-            "Depth:");
+            label: "Depth:",
+            values: ["All", "0", "1", "2", "Custom"],
+            format: static value => value,
+            selectedValue: settings.Depth);
         var method = new ChoiceFormRow<CompareMethod>(
-            new ChoiceRow<CompareMethod>([CompareMethod.Fast, CompareMethod.Content], MethodLabel, MethodIndex(settings.Method)),
-            "Method:");
+            label: "Method:",
+            values: [CompareMethod.Fast, CompareMethod.Content],
+            format: MethodLabel,
+            selectedValue: Enum.TryParse(settings.Method, out CompareMethod initialMethod) ? initialMethod : CompareMethod.Fast);
         var tolerance = new ChoiceFormRow<TimestampTolerance>(
-            new ChoiceRow<TimestampTolerance>([TimestampTolerance.Exact, TimestampTolerance.TwoSeconds, TimestampTolerance.OneHour], ToleranceLabel, ToleranceIndex(settings.TimestampTolerance)),
-            "Timestamp:");
+            label: "Timestamp:",
+            values: [TimestampTolerance.Exact, TimestampTolerance.TwoSeconds, TimestampTolerance.OneHour],
+            format: ToleranceLabel,
+            selectedValue: Enum.TryParse(settings.TimestampTolerance, out TimestampTolerance initialTolerance) ? initialTolerance : TimestampTolerance.Exact);
         var nameComparison = new ChoiceFormRow<NameComparisonMode>(
-            new ChoiceRow<NameComparisonMode>([NameComparisonMode.SystemDefault, NameComparisonMode.CaseSensitive, NameComparisonMode.CaseInsensitive], NameComparisonLabel, NameComparisonIndex(settings.NameComparison)),
-            "Name comparison:");
+            label: "Name comparison:",
+            values: [NameComparisonMode.SystemDefault, NameComparisonMode.CaseSensitive, NameComparisonMode.CaseInsensitive],
+            format: NameComparisonLabel,
+            selectedValue: Enum.TryParse(settings.NameComparison, out NameComparisonMode initialNameComparison) ? initialNameComparison : NameComparisonMode.SystemDefault);
         var fileSetMatch = new ChoiceFormRow<FileSetMatchMode>(
-            new ChoiceRow<FileSetMatchMode>([FileSetMatchMode.FileName, FileSetMatchMode.FileNameAndSize, FileSetMatchMode.FileNameAndContentHash], FileSetMatchLabel, FileSetIndex(settings.FileSetMatchMode)),
-            "Match by:");
+            label: "Match by:",
+            values: [FileSetMatchMode.FileName, FileSetMatchMode.FileNameAndSize, FileSetMatchMode.FileNameAndContentHash],
+            format: FileSetMatchLabel,
+            selectedValue: Enum.TryParse(settings.FileSetMatchMode, out FileSetMatchMode initialFileSetMatch) ? initialFileSetMatch : FileSetMatchMode.FileName);
         var buttons = new ButtonRow(
             [
                 new DialogButton("compare", "Compare", 'C', IsDefault: true),
@@ -244,33 +254,6 @@ internal sealed class CompareOptionsDialog
         error = null;
         return value;
     }
-
-    private static int DepthIndex(string value) => value switch
-    {
-        "0" => 1,
-        "1" => 2,
-        "2" => 3,
-        "Custom" => 4,
-        _ => 0,
-    };
-
-    private static int MethodIndex(string value) =>
-        Enum.TryParse<CompareMethod>(value, out var parsed) && parsed == CompareMethod.Content ? 1 : 0;
-
-    private static int ToleranceIndex(string value) =>
-        Enum.TryParse<TimestampTolerance>(value, out var parsed)
-            ? parsed switch { TimestampTolerance.TwoSeconds => 1, TimestampTolerance.OneHour => 2, _ => 0 }
-            : 0;
-
-    private static int NameComparisonIndex(string value) =>
-        Enum.TryParse<NameComparisonMode>(value, out var parsed)
-            ? parsed switch { NameComparisonMode.CaseSensitive => 1, NameComparisonMode.CaseInsensitive => 2, _ => 0 }
-            : 0;
-
-    private static int FileSetIndex(string value) =>
-        Enum.TryParse<FileSetMatchMode>(value, out var parsed)
-            ? parsed switch { FileSetMatchMode.FileNameAndSize => 1, FileSetMatchMode.FileNameAndContentHash => 2, _ => 0 }
-            : 0;
 
     private static string MethodLabel(CompareMethod method) =>
         method == CompareMethod.Content ? "Content (byte-by-byte)" : "Fast (size and modified time)";

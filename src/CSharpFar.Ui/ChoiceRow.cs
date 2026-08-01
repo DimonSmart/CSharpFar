@@ -21,32 +21,66 @@ public sealed class ChoiceRow<T>
 {
     private readonly IReadOnlyList<T> _choices;
     private readonly Func<T, string> _format;
+    private readonly IEqualityComparer<T> _comparer;
 
-    public ChoiceRow(IReadOnlyList<T> choices, Func<T, string> format, int selectedIndex = 0)
+    public ChoiceRow(
+        IReadOnlyList<T> choices,
+        Func<T, string> format,
+        int selectedIndex = 0,
+        IEqualityComparer<T>? comparer = null)
     {
-        _choices = choices;
-        _format = format;
+        _choices = choices ?? throw new ArgumentNullException(nameof(choices));
+        _format = format ?? throw new ArgumentNullException(nameof(format));
+        _comparer = comparer ?? EqualityComparer<T>.Default;
         SelectedIndex = choices.Count == 0 ? -1 : Math.Clamp(selectedIndex, 0, choices.Count - 1);
+    }
+
+    public static ChoiceRow<T> FromValue(
+        IReadOnlyList<T> choices,
+        Func<T, string> format,
+        T selectedValue,
+        IEqualityComparer<T>? comparer = null)
+    {
+        var choice = new ChoiceRow<T>(choices, format, comparer: comparer);
+        choice.TrySelectValue(selectedValue);
+        return choice;
+    }
+
+    public static ChoiceRow<T> FromValue(
+        IReadOnlyList<T> choices,
+        Func<T, string> format,
+        T selectedValue,
+        T fallbackValue,
+        IEqualityComparer<T>? comparer = null)
+    {
+        var choice = new ChoiceRow<T>(choices, format, comparer: comparer);
+        if (!choice.TrySelectValue(selectedValue))
+            choice.TrySelectValue(fallbackValue);
+        return choice;
     }
 
     public T Value
     {
         get => SelectedIndex < 0 ? default! : _choices[SelectedIndex];
-        set
-        {
-            for (int i = 0; i < _choices.Count; i++)
-            {
-                if (!EqualityComparer<T>.Default.Equals(_choices[i], value))
-                    continue;
-
-                SelectedIndex = i;
-                break;
-            }
-        }
+        set => TrySelectValue(value);
     }
 
     public int SelectedIndex { get; private set; }
     public int Count => _choices.Count;
+
+    public bool TrySelectValue(T value)
+    {
+        for (int i = 0; i < _choices.Count; i++)
+        {
+            if (!_comparer.Equals(_choices[i], value))
+                continue;
+
+            SelectedIndex = i;
+            return true;
+        }
+
+        return false;
+    }
 
     public bool TryGetSelectedMarkerBounds(ChoiceRowLayout layout, out Rect bounds)
     {

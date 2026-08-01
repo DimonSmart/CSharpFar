@@ -119,33 +119,29 @@ internal sealed class FileOperationDialog
             AppTextHistoryIds.FileOperationFilter, submitOnEnter: true);
 
         var securityChoice = new ChoiceFormRow<FileSecurityMode>(
-            new ChoiceRow<FileSecurityMode>(
-                SecurityModes,
-                SecurityModeLabel,
-                Array.IndexOf(SecurityModes, initialOptions.SecurityMode) is var securityIndex && securityIndex >= 0 ? securityIndex : 0),
-            "Access rights:")
+            label: "Access rights:",
+            values: SecurityModes,
+            format: SecurityModeLabel,
+            selectedValue: initialOptions.SecurityMode)
         {
             Id = "security",
         };
         ChoiceFormRow<CopyMode>? copyModeChoice = copyModes is null
             ? null
             : new ChoiceFormRow<CopyMode>(
-                new ChoiceRow<CopyMode>(
-                    copyModes,
-                    CopyModeLabel,
-                    FindCopyModeIndex(initialOptions.CopyMode, copyModes)),
-                "Copy mode:")
+                label: "Copy mode:",
+                values: copyModes,
+                format: CopyModeLabel,
+                selectedValue: initialOptions.CopyMode)
             {
                 Id = "copyMode",
             };
-        var conflictChoice = new ChoiceRow<ConflictDecisionMode>(
-            conflictModes,
-            ConflictLabel,
-            FindConflictIndex(initialOptions.DefaultConflictDecision, conflictModes));
         var conflictChoiceRow = new MultiLineChoiceFormRow<ConflictDecisionMode>(
-            conflictChoice,
-            string.Empty,
-            [Math.Min(4, conflictModes.Count), conflictModes.Count])
+            label: string.Empty,
+            values: conflictModes,
+            format: ConflictLabel,
+            selectedValue: initialOptions.DefaultConflictDecision,
+            itemsPerRow: 4)
         {
             Id = "conflict",
         };
@@ -216,7 +212,7 @@ internal sealed class FileOperationDialog
                         destination,
                         filter,
                         initialOptions,
-                        conflictChoice.Value,
+                        conflictChoiceRow.Value,
                         copyModeChoice?.Value ?? CopyMode.Normal,
                         securityChoice.Value,
                         preserveTimestamps.Value,
@@ -328,28 +324,6 @@ internal sealed class FileOperationDialog
                 SymlinkMode = copySymlinkContents ? SymlinkCopyMode.CopyTargetContents : SymlinkCopyMode.CopyLink,
                 FileMask = mask,
             });
-    }
-
-    private static int FindConflictIndex(ConflictDecisionMode mode, IReadOnlyList<ConflictDecisionMode> conflictModes)
-    {
-        for (int i = 0; i < conflictModes.Count; i++)
-        {
-            if (conflictModes[i] == mode)
-                return i;
-        }
-
-        return 0;
-    }
-
-    private static int FindCopyModeIndex(CopyMode mode, IReadOnlyList<CopyMode> copyModes)
-    {
-        for (int i = 0; i < copyModes.Count; i++)
-        {
-            if (copyModes[i] == mode)
-                return i;
-        }
-
-        return 0;
     }
 
     private static string ConflictLabel(ConflictDecisionMode mode) => mode switch

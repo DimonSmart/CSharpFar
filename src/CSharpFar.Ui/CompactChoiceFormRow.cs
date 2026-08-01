@@ -19,10 +19,21 @@ public sealed class CompactChoiceFormRow<T> : FormRow, IFormCursorProvider
         string label,
         IReadOnlyList<T> values,
         Func<T, string> format,
-        T selectedValue)
-        : this(new ChoiceRow<T>(values, format), label)
+        T selectedValue,
+        IEqualityComparer<T>? comparer = null)
+        : this(ChoiceRow<T>.FromValue(values, format, selectedValue, comparer), label)
     {
-        _choice.Value = selectedValue;
+    }
+
+    public CompactChoiceFormRow(
+        string label,
+        IReadOnlyList<T> values,
+        Func<T, string> format,
+        T selectedValue,
+        T fallbackValue,
+        IEqualityComparer<T>? comparer = null)
+        : this(ChoiceRow<T>.FromValue(values, format, selectedValue, fallbackValue, comparer), label)
+    {
     }
 
     public override FormRowRole Role { get; init; } = FormRowRole.Option;
