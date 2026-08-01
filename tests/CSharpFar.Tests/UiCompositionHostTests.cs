@@ -279,6 +279,25 @@ public sealed class UiCompositionHostTests
     }
 
     [Fact]
+    public void ReadInput_OriginOnlyViewportChangeAcceptedByRoot_DoesNotRender()
+    {
+        var driver = new FakeConsoleDriver(80, 25);
+        var host = new UiCompositionHost(new ScreenRenderer(driver));
+        var surface = new ViewportAcceptingSurface(host.Screen);
+        host.SetRootSurface(surface);
+        host.Render();
+        driver.SetViewportOrigin(0, 3);
+        driver.EnqueueKey(new ConsoleKeyInfo('x', ConsoleKey.X, false, false, false));
+
+        ConsoleInputEvent input = host.ReadInput();
+
+        Assert.Equal(ConsoleKey.X, Assert.IsType<KeyConsoleInputEvent>(input).Key.Key);
+        Assert.Equal(1, surface.RenderCount);
+        Assert.Equal(ConsoleViewportChange.OriginOnly, surface.AcceptedChange);
+        Assert.Equal(driver.GetViewport(), host.LastStableViewport);
+    }
+
+    [Fact]
     public void PollingResizeRecovery_DoesNotRenderRepeatedlyWhenStable()
     {
         var driver = new FakeConsoleDriver(80, 25);
@@ -448,6 +467,22 @@ public sealed class UiCompositionHostTests
         public IDisposable BeginFrame(UiRenderRequest request) => _screen.BeginFrame();
         public void Render(UiRenderContext context) => _render(context);
         public void CompleteFrame(UiFrameCompletion completion) => _completions.Add(completion);
+    }
+
+    private sealed class ViewportAcceptingSurface(ScreenRenderer screen) : IUiSurface
+    {
+        public int RenderCount { get; private set; }
+        public ConsoleViewportChange? AcceptedChange { get; private set; }
+
+        public IDisposable BeginFrame(UiRenderRequest request) => screen.BeginFrame();
+        public bool TryAcceptViewportChange(ConsoleViewport viewport, ConsoleViewportChange change)
+        {
+            AcceptedChange = change;
+            return change == ConsoleViewportChange.OriginOnly;
+        }
+
+        public void Render(UiRenderContext context) => RenderCount++;
+        public void CompleteFrame(UiFrameCompletion completion) { }
     }
 
     private sealed class SplitSurface(ScreenRenderer screen) : IUiSurface, IUiLayer

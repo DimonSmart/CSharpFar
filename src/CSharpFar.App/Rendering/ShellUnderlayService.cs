@@ -7,7 +7,7 @@ internal sealed class ShellUnderlayService
 {
     private readonly ScreenRenderer _screen;
     private ScreenSnapshot? _underlay;
-    private HiddenCommandLineOverlay? _hiddenCommandLineOverlay;
+    private HiddenOverlay? _hiddenOverlay;
 
     public ShellUnderlayService(ScreenRenderer screen)
     {
@@ -18,7 +18,7 @@ internal sealed class ShellUnderlayService
 
     public void Capture()
     {
-        RemoveHiddenCommandLineOverlay();
+        RemoveHiddenOverlay();
         var viewport = _screen.GetViewport();
         HiddenResizeTrace.Write($"ShellUnderlay.Capture viewport={HiddenResizeTrace.Viewport(viewport)}");
         _underlay = _screen.Capture(new Rect(0, 0, viewport.Width, viewport.Height));
@@ -31,13 +31,13 @@ internal sealed class ShellUnderlayService
     {
         ApplyLegacyConsoleScrollbackMode(isPanelsMode);
         _screen.SetRenderingOutputMode(false);
-        RemoveHiddenCommandLineOverlay();
+        RemoveHiddenOverlay();
         RestoreOrClearVisibleArea();
     }
 
     public void RestoreOrClearVisibleArea()
     {
-        RemoveHiddenCommandLineOverlay();
+        RemoveHiddenOverlay();
 
         if (_underlay is null)
         {
@@ -51,95 +51,93 @@ internal sealed class ShellUnderlayService
             _screen.Restore(underlay);
     }
 
-    public void PrepareHiddenCommandLineOverlay(ConsoleViewport viewport, int row, int width)
+    public void PrepareHiddenOverlay(ConsoleViewport viewport, Rect bounds)
     {
-        if (width <= 0 || row < 0 || row >= viewport.Height)
+        int left = Math.Clamp(bounds.X, 0, viewport.Width);
+        int top = Math.Clamp(bounds.Y, 0, viewport.Height);
+        int right = Math.Clamp(bounds.Right, 0, viewport.Width);
+        int bottom = Math.Clamp(bounds.Bottom, 0, viewport.Height);
+        bounds = new Rect(left, top, right - left, bottom - top);
+        if (bounds.Width <= 0 || bounds.Height <= 0)
             return;
 
         HiddenResizeTrace.Write(
-            $"Overlay.Prepare requested viewport={HiddenResizeTrace.Viewport(viewport)} row={row} width={width}");
+            $"Overlay.Prepare requested viewport={HiddenResizeTrace.Viewport(viewport)} bounds={bounds}");
 
-        if (_hiddenCommandLineOverlay is { } current &&
+        if (_hiddenOverlay is { } current &&
             current.Viewport == viewport &&
-            current.Row == row &&
-            current.Width == width)
+            current.Bounds.Equals(bounds))
         {
             HiddenResizeTrace.Write("Overlay.Prepare reuse");
             return;
         }
 
-        RemoveHiddenCommandLineOverlay();
+        RemoveHiddenOverlay();
 
-        var snapshot = _screen.Capture(new Rect(0, row, width, 1));
+        var snapshot = _screen.Capture(bounds);
         HiddenResizeTrace.Write(
-            $"Overlay.Prepare captured snapshotViewport={HiddenResizeTrace.Viewport(snapshot.Viewport)} row={row}");
-        _hiddenCommandLineOverlay = new HiddenCommandLineOverlay(viewport, row, width, snapshot);
+            $"Overlay.Prepare captured snapshotViewport={HiddenResizeTrace.Viewport(snapshot.Viewport)} bounds={bounds}");
+        _hiddenOverlay = new HiddenOverlay(viewport, bounds, snapshot);
     }
 
-    public void RemoveHiddenCommandLineOverlay()
+    public void RemoveHiddenOverlay()
     {
-        if (_hiddenCommandLineOverlay is not { } overlay)
+        if (_hiddenOverlay is not { } overlay)
             return;
 
-        _hiddenCommandLineOverlay = null;
+        _hiddenOverlay = null;
 
         var viewport = _screen.GetViewport();
         HiddenResizeTrace.Write(
-            $"Overlay.Remove current={HiddenResizeTrace.Viewport(viewport)} overlayViewport={HiddenResizeTrace.Viewport(overlay.Viewport)} overlayRow={overlay.Row}");
+            $"Overlay.Remove current={HiddenResizeTrace.Viewport(viewport)} overlayViewport={HiddenResizeTrace.Viewport(overlay.Viewport)} overlayBounds={overlay.Bounds}");
 
-        if (overlay.RowUnderlay is not null)
+        if (overlay.Underlay is not null)
         {
-            var rowUnderlay = CreateOverlayRowUnderlayForCurrentViewport(overlay, viewport);
-            if (rowUnderlay is not null)
+            var underlay = CreateOverlayUnderlayForCurrentViewport(overlay, viewport);
+            if (underlay is not null)
             {
                 HiddenResizeTrace.Write(
-                    $"Overlay.Remove restore row={rowUnderlay.Region.Y} width={rowUnderlay.Region.Width}");
-                _screen.Restore(rowUnderlay);
+                    $"Overlay.Remove restore bounds={underlay.Region}");
+                _screen.Restore(underlay);
             }
             else
             {
-                HiddenResizeTrace.Write("Overlay.Remove skipped notInCurrentViewport");
+                HiddenResizeTrace.Write("Overlay.Remove discarded stale viewport");
             }
-            return;
         }
-
-        int absoluteRow = overlay.Viewport.Top + overlay.Row;
-        if (absoluteRow < viewport.Top || absoluteRow > viewport.Bottom)
-        {
-            HiddenResizeTrace.Write("Overlay.Remove clear skipped notInCurrentViewport");
-            return;
-        }
-
-        int row = absoluteRow - viewport.Top;
-        HiddenResizeTrace.Write($"Overlay.Remove clear row={row}");
-        _screen.ClearRegion(new Rect(0, row, Math.Min(overlay.Width, viewport.Width), 1));
     }
 
-    private static ScreenSnapshot? CreateOverlayRowUnderlayForCurrentViewport(
-        HiddenCommandLineOverlay overlay,
+    private static ScreenSnapshot? CreateOverlayUnderlayForCurrentViewport(
+        HiddenOverlay overlay,
         ConsoleViewport viewport)
     {
-        var underlay = overlay.RowUnderlay;
+        var underlay = overlay.Underlay;
         if (underlay is null)
             return null;
 
-        int absoluteRow = overlay.Viewport.Top + overlay.Row;
-        if (absoluteRow < viewport.Top || absoluteRow > viewport.Bottom)
+        if (overlay.Viewport.Left != viewport.Left || overlay.Viewport.Top != viewport.Top)
             return null;
 
-        if (overlay.Viewport.Left != viewport.Left)
-            return null;
-
-        int row = absoluteRow - viewport.Top;
-        int width = Math.Min(underlay.Region.Width, viewport.Width);
+        int x = Math.Max(0, underlay.Region.X);
+        int y = Math.Max(0, underlay.Region.Y);
+        int right = Math.Min(viewport.Width, underlay.Region.Right);
+        int bottom = Math.Min(viewport.Height, underlay.Region.Bottom);
+        int width = right - x;
+        int height = bottom - y;
         if (width <= 0)
             return null;
 
-        var cells = new SnapshotCell[1, width];
-        for (int col = 0; col < width; col++)
-            cells[0, col] = underlay.Cells[0, col];
+        if (height <= 0)
+            return null;
 
-        return new ScreenSnapshot(viewport, new Rect(0, row, width, 1), cells);
+        var cells = new SnapshotCell[height, width];
+        for (int row = 0; row < height; row++)
+        {
+            for (int col = 0; col < width; col++)
+                cells[row, col] = underlay.Cells[y - underlay.Region.Y + row, x - underlay.Region.X + col];
+        }
+
+        return new ScreenSnapshot(viewport, new Rect(x, y, width, height), cells);
     }
 
     private ScreenSnapshot? CreateUnderlaySnapshotForCurrentViewport(ScreenSnapshot underlay)
@@ -164,9 +162,8 @@ internal sealed class ShellUnderlayService
         return new ScreenSnapshot(viewport, new Rect(x, y, width, height), cells);
     }
 
-    private sealed record HiddenCommandLineOverlay(
+    private sealed record HiddenOverlay(
         ConsoleViewport Viewport,
-        int Row,
-        int Width,
-        ScreenSnapshot? RowUnderlay);
+        Rect Bounds,
+        ScreenSnapshot? Underlay);
 }

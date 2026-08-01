@@ -1,3 +1,4 @@
+using CSharpFar.App.CommandLine;
 using CSharpFar.App.State;
 using CSharpFar.Console;
 using CSharpFar.Console.Input;
@@ -45,6 +46,7 @@ internal enum ApplicationRenderPart
     CommandLine = 1 << 1,
     CommandLineCursor = 1 << 2,
     FunctionKeyBar = 1 << 3,
+    Completion = 1 << 4,
     Full = 1 << 30,
 }
 
@@ -303,6 +305,10 @@ internal sealed class ApplicationUiSurface : UiLayer<ApplicationUiFrame>, IUiSur
 
     public override UiLayerInputPolicy InputPolicy => UiLayerInputPolicy.Bubble;
 
+    public bool TryAcceptViewportChange(ConsoleViewport viewport, ConsoleViewportChange change) =>
+        _context.App.WorkspaceMode == ApplicationWorkspaceMode.HiddenCommandLine &&
+        _context.TerminalSurface.TryAcceptViewportChange(viewport, change);
+
     public IDisposable BeginFrame(UiRenderRequest request)
     {
         _hidden = _context.App.WorkspaceMode == ApplicationWorkspaceMode.HiddenCommandLine;
@@ -322,7 +328,15 @@ internal sealed class ApplicationUiSurface : UiLayer<ApplicationUiFrame>, IUiSur
 
         var viewport = _screen.GetViewport();
         var row = ApplicationLayoutService.CommandLineRow(viewport.Size);
-        _context.TerminalSurface.PrepareHiddenCommandLineOverlay(viewport, row, viewport.Width);
+        var overlayBounds = new Rect(0, row, viewport.Width, 1);
+        CommandCompletionState completion = _context.CommandCompletion;
+        if (completion.Visible)
+        {
+            CommandCompletionLayoutFrame layout = CommandCompletionLayout.Calculate(viewport.Size, completion.List.Count);
+            if (layout.IsVisible)
+                overlayBounds = Union(overlayBounds, layout.PopupBounds);
+        }
+        _context.TerminalSurface.PrepareHiddenOverlay(viewport, overlayBounds);
         return _context.TerminalSurface.UsesTerminalScreenMode
             ? _screen.BeginFrameFromCurrentViewportCapture()
             : _screen.BeginFrame();
@@ -543,6 +557,15 @@ internal sealed class ApplicationUiSurface : UiLayer<ApplicationUiFrame>, IUiSur
         bounds.Bottom > 0 &&
         bounds.X < viewport.Width &&
         bounds.Y < viewport.Height;
+
+    private static Rect Union(Rect first, Rect second)
+    {
+        int left = Math.Min(first.X, second.X);
+        int top = Math.Min(first.Y, second.Y);
+        int right = Math.Max(first.Right, second.Right);
+        int bottom = Math.Max(first.Bottom, second.Bottom);
+        return new Rect(left, top, right - left, bottom - top);
+    }
 
     private bool TryRouteScrollbarMouse(
         MouseConsoleInputEvent mouse,

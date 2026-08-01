@@ -377,6 +377,33 @@ public sealed class ApplicationRuntimeTests
     }
 
     [Fact]
+    public void CancellationRefresh_HiddenWorkspaceDoesNotRender()
+    {
+        var fixture = RuntimeFixture.Create();
+        fixture.Services.Session.App.WorkspaceMode = ApplicationWorkspaceMode.HiddenCommandLine;
+        fixture.RenderCount = 0;
+        using var overlay = fixture.Services.Composition.PushOverlay(new TestLayer(
+            UiLayerInputPolicy.Bubble,
+            UiInputResult.NotHandled,
+            fixture.CountRender));
+        using var cts = new CancellationTokenSource();
+        cts.Cancel();
+        int waitCalls = 0;
+        fixture.Context.WaitToken = () => waitCalls++ == 0 ? cts.Token : CancellationToken.None;
+        fixture.Context.ProcessPendingRefreshes = () =>
+        {
+            fixture.ProcessRefreshCount++;
+            fixture.Running = false;
+        };
+
+        fixture.Run();
+
+        Assert.Equal(1, fixture.ResetCount);
+        Assert.Equal(1, fixture.ProcessRefreshCount);
+        Assert.Equal(1, fixture.RenderCount);
+    }
+
+    [Fact]
     public void RuntimeLifecycle_DisposesAndRestoresTerminalOnNormalExitAndException()
     {
         var normal = RuntimeFixture.Create();
@@ -527,6 +554,7 @@ public sealed class ApplicationRuntimeTests
             ProcessPendingRefreshes = ProcessPendingRefreshes,
             DisposeRuntimeState = DisposeRuntimeState,
             HandleApplicationInput = HandleApplicationInput,
+            IsPanelsMode = () => fixture.Services.Session.App.WorkspaceMode == ApplicationWorkspaceMode.Panels,
             TryTakeMenuCommand = TryTakeMenuCommand,
             ExecuteMenuCommand = ExecuteMenuCommand,
         };

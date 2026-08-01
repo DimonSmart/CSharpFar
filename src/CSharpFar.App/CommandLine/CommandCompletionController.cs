@@ -18,12 +18,11 @@ internal sealed class CommandCompletionController
 
     public bool IsNeutralSelected => _state.List.SelectedIndex == NeutralIndex;
 
-    public void Refresh(CommandLineState commandLine, bool isPanelsMode, bool hasRows)
+    public void Refresh(CommandLineState commandLine, bool hasRows)
     {
         _state.ClearMatches();
 
-        if (!isPanelsMode ||
-            _state.TemporarilyHidden ||
+        if (_state.TemporarilyHidden ||
             !hasRows ||
             string.IsNullOrWhiteSpace(commandLine.Text))
         {

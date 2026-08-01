@@ -62,23 +62,14 @@ internal sealed class TerminalSurfaceController
     public void RestoreHiddenScreen() =>
         _shellUnderlay.RestoreForHiddenScreen(IsPanelsMode);
 
-    public void PrepareHiddenCommandLineOverlay(ConsoleViewport viewport, int row, int width) =>
-        _shellUnderlay.PrepareHiddenCommandLineOverlay(viewport, row, width);
+    public void PrepareHiddenOverlay(ConsoleViewport viewport, Rect bounds) =>
+        _shellUnderlay.PrepareHiddenOverlay(viewport, bounds);
 
-    public void RemoveHiddenCommandLineOverlay() =>
-        _shellUnderlay.RemoveHiddenCommandLineOverlay();
+    public void RemoveHiddenOverlay() =>
+        _shellUnderlay.RemoveHiddenOverlay();
 
     public void RestoreOrClearVisibleArea() =>
         _shellUnderlay.RestoreOrClearVisibleArea();
-
-    public bool HasRenderableViewportChange()
-    {
-        var viewportChange = GetViewportChange();
-        HiddenResizeTrace.Write(
-            $"HasRenderableViewportChange change={viewportChange} panelsMode={IsPanelsMode} current={HiddenResizeTrace.Viewport(_screen.GetViewport())} last={(_ui.LastRenderViewport.HasValue ? HiddenResizeTrace.Viewport(_ui.LastRenderViewport.Value) : "<none>")}");
-        return !AcceptHiddenViewportScroll(viewportChange) &&
-            viewportChange != ConsoleViewportChange.None;
-    }
 
     public bool ScrollHiddenViewportToBottomForInput()
     {
@@ -92,7 +83,7 @@ internal sealed class TerminalSurfaceController
             return false;
         }
 
-        _shellUnderlay.RemoveHiddenCommandLineOverlay();
+        _shellUnderlay.RemoveHiddenOverlay();
 
         if (UsesTerminalScreenMode)
             SyncRendererWithCurrentMainScreenViewport();
@@ -123,7 +114,7 @@ internal sealed class TerminalSurfaceController
     public void ScrollToBottomAndSyncViewport()
     {
         _screen.TryScrollViewportToBottom();
-        _shellUnderlay.RemoveHiddenCommandLineOverlay();
+        _shellUnderlay.RemoveHiddenOverlay();
         _ui.LastRenderViewport = _screen.GetViewport();
         _hiddenViewportPinnedToBottom = true;
     }
@@ -135,7 +126,7 @@ internal sealed class TerminalSurfaceController
         if (UsesTerminalScreenMode)
         {
             _screen.TryScrollViewportToBottom();
-            _shellUnderlay.RemoveHiddenCommandLineOverlay();
+            _shellUnderlay.RemoveHiddenOverlay();
             SyncRendererWithCurrentMainScreenViewport();
             _hiddenViewportPinnedToBottom = true;
             return;
@@ -159,7 +150,7 @@ internal sealed class TerminalSurfaceController
 
         HiddenResizeTrace.Write(
             $"PrepareHiddenResize afterScroll viewport={HiddenResizeTrace.Viewport(_screen.GetViewport())}");
-        _shellUnderlay.RemoveHiddenCommandLineOverlay();
+        _shellUnderlay.RemoveHiddenOverlay();
         HiddenResizeTrace.Write(
             $"PrepareHiddenResize afterOverlayRemove viewport={HiddenResizeTrace.Viewport(_screen.GetViewport())}");
 
@@ -195,40 +186,25 @@ internal sealed class TerminalSurfaceController
         {
             _terminalScreenMode!.EnsureMainScreen();
             _screen.TryScrollViewportToBottom();
-            _shellUnderlay.RemoveHiddenCommandLineOverlay();
+            _shellUnderlay.RemoveHiddenOverlay();
             SyncRendererWithCurrentMainScreenViewport();
             _hiddenViewportPinnedToBottom = true;
             return;
         }
 
-        _shellUnderlay.RemoveHiddenCommandLineOverlay();
+        _shellUnderlay.RemoveHiddenOverlay();
         _screen.SetConsoleScrollbackEnabled(true);
     }
 
     public void RestoreTerminal() =>
         _terminalScreenMode?.RestoreTerminal();
 
-    private ConsoleViewportChange GetViewportChange()
+    public bool TryAcceptViewportChange(ConsoleViewport viewport, ConsoleViewportChange change)
     {
-        if (!_ui.LastRenderViewport.HasValue)
-            return ConsoleViewportChange.None;
-
-        var viewport = _screen.GetViewport();
-        var last = _ui.LastRenderViewport.Value;
-        if (viewport == last)
-            return ConsoleViewportChange.None;
-
-        return viewport.Width == last.Width && viewport.Height == last.Height
-            ? ConsoleViewportChange.OriginOnly
-            : ConsoleViewportChange.Size;
-    }
-
-    private bool AcceptHiddenViewportScroll(ConsoleViewportChange viewportChange)
-    {
-        if (IsPanelsMode || viewportChange != ConsoleViewportChange.OriginOnly)
+        if (IsPanelsMode || change != ConsoleViewportChange.OriginOnly)
             return false;
 
-        _ui.LastRenderViewport = _screen.GetViewport();
+        _ui.LastRenderViewport = viewport;
         RefreshHiddenViewportPinnedState();
         HiddenResizeTrace.Write(
             $"AcceptHiddenViewportScroll pinned={_hiddenViewportPinnedToBottom} viewport={HiddenResizeTrace.Viewport(_ui.LastRenderViewport.Value)}");
@@ -254,10 +230,4 @@ internal sealed class TerminalSurfaceController
     private bool IsPanelsMode =>
         _workspaceMode() == ApplicationWorkspaceMode.Panels;
 
-    private enum ConsoleViewportChange
-    {
-        None,
-        OriginOnly,
-        Size,
-    }
 }

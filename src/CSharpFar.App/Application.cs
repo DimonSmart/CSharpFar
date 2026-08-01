@@ -203,7 +203,7 @@ public sealed class Application
         context.CopyCommandLineSelection = CopyCommandLineSelection;
         context.PasteTextIntoCommandLine = PasteTextIntoCommandLine;
         context.SetFunctionKeyLayer = SetFunctionKeyLayer;
-        context.OnVisibleCommandLineTextEdited = OnVisibleCommandLineTextEdited;
+        context.OnCommandLineTextEdited = OnCommandLineTextEdited;
         context.CloseSearchResultsPanel = CloseSearchResultsPanel;
         context.ExecuteCommand = ExecuteCommand;
         context.BrowseCommandHistory = BrowseCommandHistory;
@@ -285,10 +285,12 @@ public sealed class Application
 
     private ApplicationRuntimeRenderRequest HandleRuntimeApplicationInput(ApplicationUiInputPacket packet)
     {
-        bool scrolledHiddenViewport = _terminalSurface.ScrollHiddenViewportToBottomForInput();
+        bool wasHidden = !_panelWorkspace.IsPanelsMode;
         ApplicationRuntimeRenderRequest request = _applicationInputDispatcher.Handle(packet);
+        bool scrolledHiddenViewport = wasHidden && request.ResumesHiddenInteraction &&
+            _terminalSurface.ScrollHiddenViewportToBottomForInput();
         return scrolledHiddenViewport
-            ? new ApplicationRuntimeRenderRequest(true, ApplicationRenderPart.Full)
+            ? new ApplicationRuntimeRenderRequest(true, ApplicationRenderPart.Full, true)
             : request;
     }
 
@@ -371,10 +373,7 @@ public sealed class Application
             return true;
 
         _cmdLine.InsertText(singleLine);
-        if (mode == ApplicationWorkspaceMode.Panels)
-            OnVisibleCommandLineTextEdited();
-        else
-            ResetCommandHistoryNavigation();
+        OnCommandLineTextEdited();
 
         return true;
     }
@@ -388,7 +387,7 @@ public sealed class Application
     private void ToggleSelectAllPanelItems(PanelSide side) =>
         _ctrl.ToggleSelectAll(GetPanelState(side), PanelOptions);
 
-    private void OnVisibleCommandLineTextEdited()
+    private void OnCommandLineTextEdited()
     {
         ResetCommandHistoryNavigation();
         _commandCompletion.TemporarilyHidden = false;
@@ -399,7 +398,6 @@ public sealed class Application
     {
         _commandCompletionController.Refresh(
             _cmdLine,
-            _panelWorkspace.IsPanelsMode,
             HasCommandCompletionRows());
     }
 

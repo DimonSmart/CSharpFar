@@ -53,13 +53,13 @@ internal sealed class ApplicationCommandLineKeyboardHandler
             case ConsoleKey.Delete:
                 ResetNavigation(frame);
                 _context.CommandLine.DeleteForward();
-                NotifyVisibleEdit(frame);
+                NotifyCommandLineEdit();
                 return CommandLineChanged();
 
             case ConsoleKey.Backspace:
                 ResetNavigation(frame);
                 _context.CommandLine.DeleteBack();
-                NotifyVisibleEdit(frame);
+                NotifyCommandLineEdit();
                 return CommandLineChanged();
 
             case ConsoleKey.Escape:
@@ -84,14 +84,16 @@ internal sealed class ApplicationCommandLineKeyboardHandler
 
             case ConsoleKey.F10 when frame.Mode == ApplicationWorkspaceMode.HiddenCommandLine:
                 _context.SetRunning(false);
-                return ApplicationInputHandlingResult.FromHandled(false);
+                return ApplicationInputHandlingResult.FromHandled(
+                    shouldRender: false,
+                    resumesHiddenInteraction: false);
         }
 
         if (ApplicationKeyboardTargetResolver.IsPrintable(key))
         {
             ResetNavigation(frame);
             _context.CommandLine.Insert(key.KeyChar);
-            NotifyVisibleEdit(frame);
+            NotifyCommandLineEdit();
             return CommandLineChanged();
         }
 
@@ -218,17 +220,11 @@ internal sealed class ApplicationCommandLineKeyboardHandler
     {
         _context.CommandLine.InsertText(QuoteCommandLineInsertion(text));
 
-        if (mode == ApplicationWorkspaceMode.Panels)
-            _context.OnVisibleCommandLineTextEdited();
-        else
-            _context.ResetCommandHistoryNavigation();
+        _context.OnCommandLineTextEdited();
     }
 
-    private void NotifyVisibleEdit(ApplicationUiFrame frame)
-    {
-        if (frame.Mode == ApplicationWorkspaceMode.Panels)
-            _context.OnVisibleCommandLineTextEdited();
-    }
+    private void NotifyCommandLineEdit() =>
+        _context.OnCommandLineTextEdited();
 
     private void ResetNavigation(ApplicationUiFrame frame)
     {
@@ -245,5 +241,5 @@ internal sealed class ApplicationCommandLineKeyboardHandler
     private static ApplicationInputHandlingResult CommandLineChanged(bool changed = true) =>
         ApplicationInputHandlingResult.FromHandled(
             changed,
-            ApplicationRenderPart.CommandLine);
+            ApplicationRenderPart.CommandLine | ApplicationRenderPart.Completion);
 }
