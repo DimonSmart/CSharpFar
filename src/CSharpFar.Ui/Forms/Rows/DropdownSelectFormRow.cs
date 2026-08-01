@@ -9,6 +9,7 @@ public sealed class DropdownSelectFormRow<T> : FormRow, IFormCursorProvider, IFo
 {
     private readonly string _label;
     private readonly DropdownSelect<T> _dropdown;
+    private bool _enabled = true;
 
     public DropdownSelectFormRow(string label, DropdownSelect<T> dropdown)
     {
@@ -27,9 +28,26 @@ public sealed class DropdownSelectFormRow<T> : FormRow, IFormCursorProvider, IFo
     }
 
     public override FormRowRole Role { get; init; } = FormRowRole.Option;
-    public bool IsCompositeOpen => _dropdown.IsOpen;
+    public bool Enabled
+    {
+        get => _enabled;
+        set
+        {
+            _enabled = value;
+            if (!value)
+                _dropdown.Close(commit: false);
+        }
+    }
+    public string? DisabledReason { get; set; }
+    public override bool IsEnabled => Enabled;
+    public bool IsCompositeOpen => Enabled && _dropdown.IsOpen;
     public T Value => _dropdown.SelectedItem;
     public int SelectedIndex => _dropdown.SelectedIndex;
+    public int MaxVisibleRows
+    {
+        get => _dropdown.MaxVisibleRows;
+        set => _dropdown.MaxVisibleRows = value;
+    }
     public int ConfirmedSelectedIndex => _dropdown.IsOpen
         ? _dropdown.SelectionBeforeOpen
         : _dropdown.SelectedIndex;
@@ -41,23 +59,25 @@ public sealed class DropdownSelectFormRow<T> : FormRow, IFormCursorProvider, IFo
         context.Canvas.Write(
             context.Bounds.X,
             context.Bounds.Y,
-            ScrollableFormDialog.Fit(_label, layout.LabelWidth),
-            FarDialogStyles.Fill);
+            ScrollableFormDialog.Fit(!Enabled ? DisabledFormControlPresentation.WithReason(_label, DisabledReason) : _label, layout.LabelWidth),
+            DisabledFormControlPresentation.Style(Enabled, FarDialogStyles.Fill));
         _dropdown.RenderField(
             context.Canvas,
             layout.FieldBounds,
-            context.Focused ? FarDialogStyles.FocusedInput : FarDialogStyles.Input);
+            Enabled && context.Focused ? FarDialogStyles.FocusedInput : DisabledFormControlPresentation.Style(Enabled, FarDialogStyles.Input));
     }
 
     public bool TryGetCursor(FormRowRenderContext context, out FormCursorPlacement cursor)
     {
         Rect field = CalculateLayout(context.Bounds).FieldBounds;
         cursor = new FormCursorPlacement(field.X, field.Y);
-        return context.Focused && field.Width > 0;
+        return Enabled && context.Focused && field.Width > 0;
     }
 
     public FormCompositeFrame BuildCompositeFrame(FormCompositeFrameContext context)
     {
+        if (!Enabled)
+            return new FormCompositeFrame(false, null, []);
         DropdownSelectFrame frame = _dropdown.CalculateFrame(context.Viewport.Size, CalculateLayout(context.RowBounds).FieldBounds);
         if (!frame.IsOpen || frame.PopupBounds is not Rect popup)
             return new FormCompositeFrame(false, frame, []);
@@ -90,6 +110,8 @@ public sealed class DropdownSelectFormRow<T> : FormRow, IFormCursorProvider, IFo
 
     public FormInputResult HandleCompositeKey(ConsoleKeyInfo key, FormRowInputContext context, FormCompositeFrame frame)
     {
+        if (!Enabled)
+            return FormInputResult.NotHandled;
         if (frame.State is not DropdownSelectFrame dropdownFrame)
             return FormInputResult.NotHandled;
         if (_dropdown.TryHandleKey(key, dropdownFrame, out _, out bool valueChanged))
@@ -107,6 +129,8 @@ public sealed class DropdownSelectFormRow<T> : FormRow, IFormCursorProvider, IFo
 
     public FormInputResult HandleCompositeMouse(MouseConsoleInputEvent mouse, FormRowMouseContext context, FormCompositeFrame frame, string? childTargetId)
     {
+        if (!Enabled)
+            return FormInputResult.NotHandled;
         if (frame.State is not DropdownSelectFrame dropdownFrame)
             return FormInputResult.NotHandled;
         bool valueChanged = false;

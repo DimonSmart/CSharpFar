@@ -46,12 +46,9 @@ internal sealed class OpenCreateFileDialog
     {
         TextField filePath = _fields.Text("file-path", initialPath ?? string.Empty,
             AppTextHistoryIds.OpenCreateFilePath, submitOnEnter: true);
-        TextInputRow pathRow = filePath.AsRow();
-        var dropdown = new DropdownSelect<EditorNewFileEncodingOption>(_codePages, static item => item.Label);
-        var codePageRow = new DropdownSelectFormRow<EditorNewFileEncodingOption>(string.Empty, dropdown)
-        {
-            Id = "code-page",
-        };
+        TextInputRow pathRow = FormControls.Text(filePath);
+        var codePageRow = FormControls.Dropdown(
+            "code-page", string.Empty, _codePages, static item => item.Label, _codePages[0]);
         var actions = new ButtonRow(
             [
                 DialogButton.Default("ok", "OK", 'O'),
@@ -106,9 +103,9 @@ internal sealed class OpenCreateFileDialog
 
                 if (FormDialogInput.ShouldSubmit(routed, result, form))
                 {
-                    int confirmedCodePageIndex = codePageRow.ConfirmedSelectedIndex;
+                    EditorNewFileEncodingOption selectedCodePage = _codePages[codePageRow.ConfirmedSelectedIndex];
                     codePageRow.CloseComposite();
-                    var accepted = TrySubmit(filePath, confirmedCodePageIndex, validate, ref error);
+                    var accepted = TrySubmit(filePath, selectedCodePage, validate, ref error);
                     if (accepted is not null)
                         return ModalDialogLoopResult<OpenCreateFileDialogResult?>.Complete(accepted);
                 }
@@ -120,7 +117,7 @@ internal sealed class OpenCreateFileDialog
 
     private OpenCreateFileDialogResult? TrySubmit(
         TextField filePath,
-        int codePageIndex,
+        EditorNewFileEncodingOption codePage,
         Func<string, string?>? validate,
         ref string? error)
     {
@@ -136,7 +133,7 @@ internal sealed class OpenCreateFileDialog
             return null;
 
         filePath.AcceptHistory();
-        return new OpenCreateFileDialogResult(path, _codePages[codePageIndex]);
+        return new OpenCreateFileDialogResult(path, codePage);
     }
 
 }

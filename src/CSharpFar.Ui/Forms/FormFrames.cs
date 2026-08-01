@@ -74,10 +74,21 @@ public static class FormDialogInput
     public static bool ShouldSubmit(
         UiRoutedInput<ScrollableFormFrame> routed,
         FormInputResult result,
-        ScrollableFormDialog form) =>
-        result.Kind == FormInputResultKind.Submit ||
-        routed.Input is KeyConsoleInputEvent { Key.Key: ConsoleKey.F10 } ||
-        ShouldImplicitlySubmit(routed, result, form);
+        ScrollableFormDialog form)
+    {
+        if (result.Kind == FormInputResultKind.Submit)
+        {
+            return true;
+        }
+
+        if (result.Kind != FormInputResultKind.NotHandled)
+        {
+            return false;
+        }
+
+        return routed.Input is KeyConsoleInputEvent { Key.Key: ConsoleKey.F10 } ||
+            ShouldImplicitlySubmit(routed, result, form);
+    }
 
     public static bool ShouldCancel(FormInputResult result) =>
         result.Kind == FormInputResultKind.Cancel;

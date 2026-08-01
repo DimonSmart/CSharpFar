@@ -24,36 +24,15 @@ internal sealed class EditorFormatDialog
 
     public EditorDocumentFormat? Show(EditorDocumentFormat current)
     {
-        var encoding = new CompactChoiceFormRow<EncodingSpec>(
-            label: "Encoding",
-            values: Encodings,
-            format: static value => value.Label,
-            selectedValue: new EncodingSpec(current.Encoding.CodePage, string.Empty),
-            comparer: EncodingSpecCodePageComparer)
-        {
-            Id = EncodingRowId,
-            ShowCursor = false,
-        };
-        var bom = new CompactChoiceFormRow<bool>(
-            label: "BOM",
-            values: BomChoices,
-            format: static value => value ? "Yes" : "No",
-            selectedValue: current.EmitByteOrderMark)
-        {
-            Id = BomRowId,
-            ShowCursor = false,
-        };
-        var lineEnding = new CompactChoiceFormRow<LineEndingSpec>(
-            label: "Line ends",
-            values: LineEndings,
-            format: static value => value.Value.ToDisplayName(),
-            selectedValue: new LineEndingSpec(current.LineEnding),
-            comparer: LineEndingSpecValueComparer)
-        {
-            Id = LineEndingRowId,
-            ShowCursor = false,
-        };
-        var form = new ScrollableFormDialog();
+        var encoding = FormControls.CompactChoice(
+            EncodingRowId, "Encoding", Encodings, static value => value.Label,
+            new EncodingSpec(current.Encoding.CodePage, string.Empty), EncodingSpecCodePageComparer);
+        var bom = FormControls.CompactChoice(
+            BomRowId, "BOM", BomChoices, static value => value ? "Yes" : "No", current.EmitByteOrderMark);
+        var lineEnding = FormControls.CompactChoice(
+            LineEndingRowId, "Line ends", LineEndings, static value => value.Value.ToDisplayName(),
+            new LineEndingSpec(current.LineEnding), LineEndingSpecValueComparer);
+        var form = new ScrollableFormDialog(new FormLayoutOptions(CursorPolicy: FormCursorPolicy.Hidden));
 
         void PrepareRows() =>
             form.SetRows(
@@ -68,7 +47,7 @@ internal sealed class EditorFormatDialog
         return _formDialogs.Run(
             form,
             new ModalFormOptions("Editor format", DialogWidth, DialogHeight, SubmitOnEnter: true),
-            static layout => new ModalFormLayout(layout.ContentBounds),
+            static layout => ModalFormLayout.BodyOnly(layout.ContentBounds),
             (routed, result) =>
             {
                 if (result.Kind == FormInputResultKind.Cancel ||

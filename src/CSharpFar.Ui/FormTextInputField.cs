@@ -10,6 +10,7 @@ internal sealed class FormTextInputField
     private readonly CommandLineState _buffer;
     private readonly SingleLineTextHistoryState? _history;
     private readonly bool _maskInput;
+    private bool _enabled = true;
 
     public FormTextInputField(CommandLineState buffer, SingleLineTextHistoryState? history, bool maskInput = false)
     {
@@ -20,15 +21,26 @@ internal sealed class FormTextInputField
 
     public CommandLineState Buffer => _buffer;
     public SingleLineTextHistoryState? History => _history;
+    public bool Enabled
+    {
+        get => _enabled;
+        set
+        {
+            _enabled = value;
+            if (!value)
+                _history?.Close();
+        }
+    }
+    public string? DisabledReason { get; set; }
 
     public void Render(FormRowRenderContext context, Rect bounds) =>
         SingleLineTextInput.Render(context.Canvas, bounds.X, bounds.Y, bounds.Width, _buffer,
-            context.Focused ? FarDialogStyles.FocusedInput : FarDialogStyles.Input,
-            FarDialogStyles.Input, _history, maskInput: _maskInput, renderDropdown: false);
+            Enabled && context.Focused ? FarDialogStyles.FocusedInput : DisabledFormControlPresentation.Style(Enabled, FarDialogStyles.Input),
+            DisabledFormControlPresentation.Style(Enabled, FarDialogStyles.Input), Enabled ? _history : null, maskInput: _maskInput, renderDropdown: false);
 
     public void RenderOverlay(FormRowRenderContext context, Rect bounds)
     {
-        if (_history is not null && context.Focused)
+        if (Enabled && _history is not null && context.Focused)
             SingleLineTextInput.RenderHistoryDropdown(context.Canvas, bounds.X, bounds.Y, bounds.Width, _history, context.CanvasHeight);
     }
 
@@ -36,11 +48,13 @@ internal sealed class FormTextInputField
     {
         int textWidth = _history is null ? bounds.Width : Math.Max(1, bounds.Width - 1);
         cursor = new FormCursorPlacement(Math.Min(bounds.Right - 1, SingleLineTextInput.GetCursorX(bounds.X, textWidth, _buffer)), bounds.Y);
-        return context.Focused && bounds.Width > 0;
+        return Enabled && context.Focused && bounds.Width > 0;
     }
 
     public FormInputResult HandleKey(ConsoleKeyInfo key, FormRowInputContext context)
     {
+        if (!Enabled)
+            return FormInputResult.NotHandled;
         string? error = null;
         string before = _buffer.Text;
         TextInputKeyResult result = SingleLineTextInput.HandleKey(_buffer, key, ref error, _history, context.AvailableDropdownContentRows);
@@ -55,6 +69,8 @@ internal sealed class FormTextInputField
 
     public FormInputResult HandleMouse(MouseConsoleInputEvent mouse, FormRowMouseContext context, Rect bounds)
     {
+        if (!Enabled)
+            return FormInputResult.NotHandled;
         if (mouse is not { Button: MouseButton.Left, Kind: MouseEventKind.Down } || !bounds.Contains(mouse.X, mouse.Y))
             return FormInputResult.NotHandled;
 
@@ -80,11 +96,11 @@ internal sealed class FormTextInputField
     }
 
     public bool IsHistoryArrow(MouseConsoleInputEvent mouse, Rect bounds) =>
-        _history is not null && SingleLineTextInput.IsHistoryArrowHit(bounds.X, bounds.Width, bounds.Y, mouse.X, mouse.Y);
+        Enabled && _history is not null && SingleLineTextInput.IsHistoryArrowHit(bounds.X, bounds.Width, bounds.Y, mouse.X, mouse.Y);
 
     public FormCompositeFrame BuildCompositeFrame(Rect bounds, ConsoleViewport viewport)
     {
-        SingleLineTextHistoryFrame? frame = _history is null
+        SingleLineTextHistoryFrame? frame = !Enabled || _history is null
             ? null
             : SingleLineTextInput.CalculateHistoryDropdownFrame(bounds.X, bounds.Y, bounds.Width, viewport.Height, _history);
         if (frame is not { } value)
@@ -112,6 +128,8 @@ internal sealed class FormTextInputField
         FormCompositeFrame frame,
         string? childTargetId)
     {
+        if (!Enabled)
+            return FormInputResult.NotHandled;
         string before = _buffer.Text;
         if (_history is not null && frame.State is SingleLineTextHistoryFrame historyFrame)
         {

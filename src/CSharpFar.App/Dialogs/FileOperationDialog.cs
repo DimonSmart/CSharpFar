@@ -115,24 +115,12 @@ internal sealed class FileOperationDialog
         TextField filter = _fields.Text("filter", string.IsNullOrWhiteSpace(initialOptions.FileMask) ? "*" : initialOptions.FileMask,
             AppTextHistoryIds.FileOperationFilter, submitOnEnter: true);
 
-        var securityChoice = new ChoiceFormRow<FileSecurityMode>(
-            label: "Access rights:",
-            values: SecurityModes,
-            format: SecurityModeLabel,
-            selectedValue: initialOptions.SecurityMode)
-        {
-            Id = "security",
-        };
+        var securityChoice = FormControls.Choice(
+            "security", "Access rights:", SecurityModes, SecurityModeLabel, initialOptions.SecurityMode);
         ChoiceFormRow<CopyMode>? copyModeChoice = copyModes is null
             ? null
-            : new ChoiceFormRow<CopyMode>(
-                label: "Copy mode:",
-                values: copyModes,
-                format: CopyModeLabel,
-                selectedValue: initialOptions.CopyMode)
-            {
-                Id = "copyMode",
-            };
+            : FormControls.Choice(
+                "copyMode", "Copy mode:", copyModes, CopyModeLabel, initialOptions.CopyMode);
         var conflictChoiceRow = new MultiLineChoiceFormRow<ConflictDecisionMode>(
             label: string.Empty,
             values: conflictModes,
@@ -142,24 +130,15 @@ internal sealed class FileOperationDialog
         {
             Id = "conflict",
         };
-        var preserveTimestamps = new CheckBoxRow(new CheckBoxLine("Preserve all timestamps", initialOptions.PreserveTimestamps))
-        {
-            Id = "preserveTimestamps",
-        };
-        var preserveAttributes = new CheckBoxRow(new CheckBoxLine("Preserve attributes", initialOptions.PreserveAttributes))
-        {
-            Id = "preserveAttributes",
-        };
-        var copySymlinkContents = new CheckBoxRow(new CheckBoxLine(
-            "Copy contents of symbolic links",
-            initialOptions.SymlinkMode == SymlinkCopyMode.CopyTargetContents))
-        {
-            Id = "copySymlinkContents",
-        };
-        var useFilter = new CheckBoxRow(new CheckBoxLine("Use filter", !string.IsNullOrWhiteSpace(initialOptions.FileMask)))
-        {
-            Id = "useFilter",
-        };
+        var preserveTimestamps = FormControls.CheckBox(
+            "preserveTimestamps", "Preserve all timestamps", initialOptions.PreserveTimestamps);
+        var preserveAttributes = FormControls.CheckBox(
+            "preserveAttributes", "Preserve attributes", initialOptions.PreserveAttributes);
+        var copySymlinkContents = FormControls.CheckBox(
+            "copySymlinkContents", "Copy contents of symbolic links",
+            initialOptions.SymlinkMode == SymlinkCopyMode.CopyTargetContents);
+        var useFilter = FormControls.CheckBox(
+            "useFilter", "Use filter", !string.IsNullOrWhiteSpace(initialOptions.FileMask));
         var buttons = new ButtonRow(
             [
                 DialogButton.Default("submit", actionLabel, actionLabel[0]),
@@ -235,7 +214,7 @@ internal sealed class FileOperationDialog
         var rows = new List<IFormRow>
         {
             new LabelRow(prompt, fill),
-            destination.AsRow(),
+            FormControls.Text(destination),
             new SpacerRow(fill),
         };
 
@@ -264,7 +243,7 @@ internal sealed class FileOperationDialog
             rows.Add(useFilter);
             rows.Add(new LabelRow("Filter mask:", fill));
             rows.Add(useFilter.Value
-                ? filter.AsRow()
+                ? FormControls.Text(filter)
                 : new LabelRow(SingleLineTextInput.VisibleText(filter.Buffer, 60), fill) { Id = "filter" });
             rows.Add(new SpacerRow(fill));
         }

@@ -94,21 +94,19 @@ internal sealed class FileAttributesDialog : IFileAttributesDialog
     private FileAttributesDialogResult? RunLoop(FileMetadataSnapshot snapshot)
     {
         var attributeRows = snapshot.AttributesDescriptors
-            .Select(descriptor => new AttributeDialogRow(
-                descriptor,
-                new TriStateCheckBoxRow(new TriStateCheckBoxLine(
-                    descriptor.Label,
-                    snapshot.AttributeStates.TryGetValue(descriptor.Id, out var state) ? state : AttributeEditState.Unchecked,
-                    descriptor.IsEditable))))
+            .Select(descriptor => CreateAttributeRow(snapshot, descriptor))
             .ToList();
         TextField creation = _fields.Text("creation", FormatTime(snapshot.CreationTime), width: DateTimeFormat.Length);
         TextField write = _fields.Text("write", FormatTime(snapshot.LastWriteTime), width: DateTimeFormat.Length);
         TextField access = _fields.Text("access", FormatTime(snapshot.LastAccessTime), width: DateTimeFormat.Length);
+        creation.Enabled = snapshot.CanEditCreationTime;
+        write.Enabled = snapshot.CanEditLastWriteTime;
+        access.Enabled = snapshot.CanEditLastAccessTime;
         var permissionLines = snapshot.UnixMetadata?.PermissionStates.ToDictionary(
             static pair => pair.Key,
             pair => new TriStateCheckBoxLine(
                 PermissionColumnLabel(pair.Key),
-                pair.Value,
+                ToCheckState(pair.Value),
                 snapshot.UnixMetadata.CanEditPermissions))
             ?? new Dictionary<UnixPermissionBit, TriStateCheckBoxLine>();
         var unixMatrixRows = snapshot.UnixMetadata is null
@@ -121,7 +119,7 @@ internal sealed class FileAttributesDialog : IFileAttributesDialog
             };
         var unixSpecialRows = new[] { UnixPermissionBit.SetUid, UnixPermissionBit.SetGid, UnixPermissionBit.Sticky }
             .Where(permissionLines.ContainsKey)
-            .Select(bit => new UnixPermissionDialogRow(bit, new TriStateCheckBoxRow(permissionLines[bit])))
+            .Select(bit => CreateUnixPermissionRow(bit, permissionLines[bit], snapshot.UnixMetadata!))
             .ToList();
         var form = new ScrollableFormDialog();
         string? error = null;
@@ -163,8 +161,8 @@ internal sealed class FileAttributesDialog : IFileAttributesDialog
                                 new FileAttributesDialogResult(EmptyChangeSet(), OpenSystemProperties: true));
                         case "set":
                         case null:
-                            var states = attributeRows.ToDictionary(row => row.Descriptor.Id, row => row.Row.Value);
-                            var unixStates = permissionLines.ToDictionary(static pair => pair.Key, static pair => pair.Value.Value);
+                            var states = attributeRows.ToDictionary(row => row.Descriptor.Id, row => ToAttributeEditState(row.Row.Value));
+                            var unixStates = permissionLines.ToDictionary(static pair => pair.Key, pair => ToAttributeEditState(pair.Value.Value));
                             var changeSet = CreateChangeSet(snapshot, states, unixStates, creation.Text, write.Text, access.Text, out error);
                             if (error is null)
                             {
@@ -190,7 +188,6 @@ internal sealed class FileAttributesDialog : IFileAttributesDialog
         TextField access)
     {
         var fill = FarDialogStyles.Fill;
-        var disabled = FarDialogStyles.DisabledControl(fill);
         var rows = new List<IFormRow>
         {
             new LabelRow("Change file attributes for", fill),
@@ -198,21 +195,15 @@ internal sealed class FileAttributesDialog : IFileAttributesDialog
             new SpacerRow(fill),
         };
 
-        rows.AddRange(attributeRows.Select(row => row.Descriptor.IsEditable
-            ? (IFormRow)row.Row
-            : new LabelRow(FormatDisabledAttribute(row), disabled)));
+        rows.AddRange(attributeRows.Select(static row => (IFormRow)row.Row));
 
         if (snapshot.UnixMetadata is { } unixMetadata)
         {
             rows.Add(new SpacerRow(fill));
             rows.Add(new LabelRow("Unix permissions:", fill));
-            if (!unixMetadata.CanEditPermissions && unixMetadata.PermissionsDisabledReason is { Length: > 0 } reason)
-                rows.Add(new LabelRow(reason, disabled));
             rows.Add(new LabelRow("          Read        Write       Exec", fill));
             rows.AddRange(unixMatrixRows);
-            rows.AddRange(unixSpecialRows.Select(row => unixMetadata.CanEditPermissions
-                ? (IFormRow)row.Row
-                : new LabelRow(FormatDisabledPermission(row), disabled)));
+            rows.AddRange(unixSpecialRows.Select(static row => (IFormRow)row.Row));
             rows.Add(new LabelRow($"Owner: {unixMetadata.OwnerName ?? unixMetadata.Uid?.ToString(CultureInfo.InvariantCulture) ?? "<not available>"}", fill));
             rows.Add(new LabelRow($"Group: {unixMetadata.GroupName ?? unixMetadata.Gid?.ToString(CultureInfo.InvariantCulture) ?? "<not available>"}", fill));
             rows.Add(new LabelRow($"Mode: {FormatUnixMode(unixMetadata)}", fill));
@@ -220,9 +211,9 @@ internal sealed class FileAttributesDialog : IFileAttributesDialog
 
         rows.Add(new SpacerRow(fill));
         rows.Add(new LabelRow("Date/Time:", fill));
-        AddTimeRows(rows, "write:", write, snapshot.LastWriteTime, snapshot.CanEditLastWriteTime, disabled);
-        AddTimeRows(rows, "creation:", creation, snapshot.CreationTime, snapshot.CanEditCreationTime, disabled);
-        AddTimeRows(rows, "access:", access, snapshot.LastAccessTime, snapshot.CanEditLastAccessTime, disabled);
+        AddTimeRows(rows, "write:", write, snapshot.LastWriteTime, snapshot.CanEditLastWriteTime);
+        AddTimeRows(rows, "creation:", creation, snapshot.CreationTime, snapshot.CanEditCreationTime);
+        AddTimeRows(rows, "access:", access, snapshot.LastAccessTime, snapshot.CanEditLastAccessTime);
         rows.Add(new SpacerRow(fill));
         if (snapshot.UnixMetadata is null)
         {
@@ -238,24 +229,16 @@ internal sealed class FileAttributesDialog : IFileAttributesDialog
         string label,
         TextField field,
         DateTime? original,
-        bool enabled,
-        CellStyle disabled)
+        bool enabled)
     {
-        if (!enabled)
-        {
-            rows.Add(new LabelRow($"{label} {FormatTime(original)}", disabled));
-            return;
-        }
-
-        rows.Add(new TextInputWithButtonsRow(
-            label.PadRight(10),
-            field,
+        rows.Add(enabled
+            ? FormControls.Text(label, field,
             [
                 new DialogButton("original", "Original", 'O'),
                 new DialogButton("current", "Current", 'U'),
                 new DialogButton("blank", "Blank", 'B'),
-            ],
-            buttonAreaWidth: 36));
+            ])
+            : FormControls.Text(label, field));
     }
 
     private static DateTime? ParseChangedTime(
@@ -283,52 +266,53 @@ internal sealed class FileAttributesDialog : IFileAttributesDialog
         return value == original ? null : value;
     }
 
-    private static string FormatDisabledAttribute(AttributeDialogRow row)
-    {
-        string marker = row.Row.Value switch
-        {
-            AttributeEditState.Checked => "x",
-            AttributeEditState.Indeterminate => "-",
-            _ => " ",
-        };
-        string reason = row.Descriptor.DisabledReason is { Length: > 0 } value ? $" - {value}" : string.Empty;
-        return $"[{marker}] {row.Descriptor.Label}{reason}";
-    }
-
-    private static string FormatDisabledPermission(UnixPermissionDialogRow row)
-    {
-        string marker = row.Row.Value switch
-        {
-            AttributeEditState.Checked => "x",
-            AttributeEditState.Indeterminate => "-",
-            _ => " ",
-        };
-        return $"[{marker}] {PermissionLabel(row.Bit)}";
-    }
-
-    private static string PermissionLabel(UnixPermissionBit bit) => bit switch
-    {
-        UnixPermissionBit.OwnerRead => "Owner read",
-        UnixPermissionBit.OwnerWrite => "Owner write",
-        UnixPermissionBit.OwnerExecute => "Owner execute",
-        UnixPermissionBit.GroupRead => "Group read",
-        UnixPermissionBit.GroupWrite => "Group write",
-        UnixPermissionBit.GroupExecute => "Group execute",
-        UnixPermissionBit.OthersRead => "Others read",
-        UnixPermissionBit.OthersWrite => "Others write",
-        UnixPermissionBit.OthersExecute => "Others execute",
-        UnixPermissionBit.SetUid => "Set UID",
-        UnixPermissionBit.SetGid => "Set GID",
-        UnixPermissionBit.Sticky => "Sticky",
-        _ => bit.ToString(),
-    };
-
     internal static string FormatUnixMode(UnixFileMetadata metadata)
     {
         if (metadata.PermissionStates.Values.Any(static state => state == AttributeEditState.Indeterminate))
             return "<mixed>";
         return UnixPermissionFormatter.ToDisplayString(metadata.Permissions);
     }
+
+    private static AttributeDialogRow CreateAttributeRow(
+        FileMetadataSnapshot snapshot,
+        FileAttributeDescriptor descriptor)
+    {
+        AttributeEditState state = snapshot.AttributeStates.TryGetValue(descriptor.Id, out var value)
+            ? value
+            : AttributeEditState.Unchecked;
+        TriStateCheckBoxRow row = FormControls.TriStateCheckBox(
+            $"attribute-{descriptor.Id}",
+            descriptor.Label,
+            ToCheckState(state));
+        row.Enabled = descriptor.IsEditable;
+        row.DisabledReason = descriptor.DisabledReason;
+        return new AttributeDialogRow(descriptor, row);
+    }
+
+    private static UnixPermissionDialogRow CreateUnixPermissionRow(
+        UnixPermissionBit bit,
+        TriStateCheckBoxLine line,
+        UnixFileMetadata metadata)
+    {
+        var row = new TriStateCheckBoxRow(line);
+        row.Enabled = metadata.CanEditPermissions;
+        row.DisabledReason = metadata.PermissionsDisabledReason;
+        return new UnixPermissionDialogRow(bit, row);
+    }
+
+    private static CheckState ToCheckState(AttributeEditState value) => value switch
+    {
+        AttributeEditState.Checked => CheckState.Checked,
+        AttributeEditState.Indeterminate => CheckState.Indeterminate,
+        _ => CheckState.Unchecked,
+    };
+
+    private static AttributeEditState ToAttributeEditState(CheckState value) => value switch
+    {
+        CheckState.Checked => AttributeEditState.Checked,
+        CheckState.Indeterminate => AttributeEditState.Indeterminate,
+        _ => AttributeEditState.Unchecked,
+    };
 
     private static UnixPermissionMatrixRow MatrixRow(
         string label,
@@ -441,7 +425,19 @@ internal sealed class FileAttributesDialog : IFileAttributesDialog
                 int x = context.Bounds.X + LabelWidth + index * ColumnWidth;
                 int width = Math.Min(ColumnWidth, context.Bounds.Right - x);
                 if (width > 0)
-                    _columns[index].Render(context.Canvas, x, context.Bounds.Y, width, context.Focused && index == _focusedColumn);
+                {
+                    CellStyle fill = _columns[index].Enabled
+                        ? FarDialogStyles.Fill
+                        : FarDialogStyles.DisabledControl(FarDialogStyles.Fill);
+                    _columns[index].Render(
+                        context.Canvas,
+                        x,
+                        context.Bounds.Y,
+                        width,
+                        context.Focused && index == _focusedColumn && _columns[index].Enabled,
+                        fill,
+                        FarDialogStyles.FocusedInput);
+                }
             }
         }
 

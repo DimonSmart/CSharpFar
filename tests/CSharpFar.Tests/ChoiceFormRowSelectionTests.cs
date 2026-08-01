@@ -32,6 +32,25 @@ public sealed class ChoiceFormRowSelectionTests
     }
 
     [Fact]
+    public void DisabledChoice_IsNotFocusableAndDoesNotChangeValue()
+    {
+        var row = new ChoiceFormRow<string>(
+            label: "Mode:",
+            values: ["Default", "Copy"],
+            format: static value => value,
+            selectedValue: "Default")
+        {
+            Enabled = false,
+            DisabledReason = "Unavailable",
+        };
+
+        Assert.False(row.IsFocusable);
+        Assert.Equal(FormInputResultKind.NotHandled,
+            row.HandleKey(new ConsoleKeyInfo('\0', ConsoleKey.RightArrow, false, false, false), new FormRowInputContext(0, true)).Kind);
+        Assert.Equal("Default", row.Value);
+    }
+
+    [Fact]
     public void MultiLineChoiceFormRow_SplitsValuesByItemsPerRow()
     {
         var row = new MultiLineChoiceFormRow<string>(

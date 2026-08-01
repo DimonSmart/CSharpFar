@@ -27,18 +27,21 @@ public sealed partial class ScrollableFormDialog
     }
     private FormLayoutSnapshot StableLayout => _stableLayout ?? new(default, default, null, 1, 1, ScrollTop);
 
-    public ScrollableFormDialog()
+    public ScrollableFormDialog(FormLayoutOptions? layoutOptions = null)
     {
+        LayoutOptions = (layoutOptions ?? new FormLayoutOptions()).Validate();
     }
 
-    public ScrollableFormDialog(IReadOnlyList<IFormRow> rows)
+    public ScrollableFormDialog(IReadOnlyList<IFormRow> rows, FormLayoutOptions? layoutOptions = null)
     {
+        LayoutOptions = (layoutOptions ?? new FormLayoutOptions()).Validate();
         SetRows(rows);
     }
 
     public int FocusIndex => FocusIndexFromScope(CurrentFocusedTarget) ?? 0;
     public int FocusableCount => TotalFocusableCount;
     public int ScrollTop { get; private set; }
+    public FormLayoutOptions LayoutOptions { get; }
     public string? FocusedRowId => FocusedTargetFrame()?.Row?.Id;
     public FormRowRole FocusedRowRole => FocusedTargetFrame()?.Row?.Role ?? FormRowRole.Normal;
     public bool IsFocusedOnSubmitRow => FocusedTargetFrame()?.Row is { IsFocusable: true, SubmitOnEnter: true };

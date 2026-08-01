@@ -17,9 +17,6 @@ public sealed record DialogButton(
     public static DialogButton Default(string id, string text, char hotKey) =>
         new(id, text, hotKey, IsDefault: true);
 
-    public static DialogButton Submit(string id, string text, char hotKey) =>
-        new(id, text, hotKey);
-
     public static DialogButton Action(string id, string text, char hotKey) =>
         new(id, text, hotKey);
 

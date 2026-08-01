@@ -31,7 +31,6 @@ internal sealed class FtpConnectionDialog
 {
     private const int DialogWidth = 80;
     private const int DialogHeight = 22;
-    private const int FieldWidth = 44;
     private readonly FormFieldFactory _fields;
     private readonly ModalFormHost _formDialogs;
 
@@ -49,21 +48,22 @@ internal sealed class FtpConnectionDialog
         ArgumentNullException.ThrowIfNull(validate);
 
         var connection = request.Connection;
+        FormFieldFactory fields = _fields.WithDefaults(new TextFieldDefaults(Width: 44, SubmitOnEnter: true));
         var state = new FtpFormState(
-            _fields.Text("connection-name", connection?.DisplayName ?? string.Empty, FtpTextHistoryIds.ConnectionName, width: FieldWidth, submitOnEnter: true),
-            _fields.Text("host", connection?.Host ?? string.Empty, FtpTextHistoryIds.Host, width: FieldWidth, submitOnEnter: true),
-            _fields.Text("port", (connection?.Port ?? 21).ToString(), FtpTextHistoryIds.Port, width: FieldWidth, submitOnEnter: true),
-            _fields.Text("username", connection?.Username ?? string.Empty, FtpTextHistoryIds.UserName, width: FieldWidth, submitOnEnter: true),
-            _fields.Text("password", request.SavedPassword ?? string.Empty, maskInput: true, width: FieldWidth, submitOnEnter: true),
-            _fields.Text("remote-root", connection?.RemoteRootPath ?? "/", FtpTextHistoryIds.RemoteRoot, width: FieldWidth, submitOnEnter: true),
-            _fields.Text("active-ports", FormatActivePortRange(connection) ?? string.Empty, FtpTextHistoryIds.ActivePorts, width: FieldWidth, submitOnEnter: true),
-            new CheckBoxRow("Save connection", request.SaveConnectionByDefault) { Id = "save-connection" },
-            new CheckBoxRow("Save password", connection?.CredentialId is not null && request.SavedPassword is not null) { Id = "save-password" },
-            new CheckBoxRow("Show in drive menu", connection?.ShowInDriveSelection ?? true) { Id = "show-in-drive" },
-            new CheckBoxRow("Use TLS for data connection") { Id = "data-tls" },
-            new CheckBoxRow("Trust certificate") { Id = "trust-certificate" },
-            new CompactChoiceFormRow<FtpConnectionSecurityMode>("Security", Enum.GetValues<FtpConnectionSecurityMode>(), SecurityLabel, connection?.SecurityMode ?? FtpConnectionSecurityMode.ExplicitFtps) { Id = "security" },
-            new CompactChoiceFormRow<FtpDataConnectionMode>("Data mode", Enum.GetValues<FtpDataConnectionMode>(), DataModeLabel, connection?.DataConnectionMode ?? FtpDataConnectionMode.AutoPassive) { Id = "data-mode" },
+            fields.Text("connection-name", connection?.DisplayName ?? string.Empty, FtpTextHistoryIds.ConnectionName),
+            fields.Text("host", connection?.Host ?? string.Empty, FtpTextHistoryIds.Host),
+            fields.Text("port", (connection?.Port ?? 21).ToString(), FtpTextHistoryIds.Port),
+            fields.Text("username", connection?.Username ?? string.Empty, FtpTextHistoryIds.UserName),
+            fields.Text("password", request.SavedPassword ?? string.Empty, maskInput: true),
+            fields.Text("remote-root", connection?.RemoteRootPath ?? "/", FtpTextHistoryIds.RemoteRoot),
+            fields.Text("active-ports", FormatActivePortRange(connection) ?? string.Empty, FtpTextHistoryIds.ActivePorts),
+            FormControls.CheckBox("save-connection", "Save connection", request.SaveConnectionByDefault),
+            FormControls.CheckBox("save-password", "Save password", connection?.CredentialId is not null && request.SavedPassword is not null),
+            FormControls.CheckBox("show-in-drive", "Show in drive menu", connection?.ShowInDriveSelection ?? true),
+            FormControls.CheckBox("data-tls", "Use TLS for data connection"),
+            FormControls.CheckBox("trust-certificate", "Trust certificate"),
+            FormControls.CompactChoice("security", "Security", Enum.GetValues<FtpConnectionSecurityMode>(), SecurityLabel, connection?.SecurityMode ?? FtpConnectionSecurityMode.ExplicitFtps),
+            FormControls.CompactChoice("data-mode", "Data mode", Enum.GetValues<FtpDataConnectionMode>(), DataModeLabel, connection?.DataConnectionMode ?? FtpDataConnectionMode.AutoPassive),
             request.AllowTemporaryConnection);
         string? fingerprint = connection?.ExpectedTlsCertificateFingerprint;
         string? error = null;
@@ -174,17 +174,17 @@ internal sealed class FtpConnectionDialog
     {
         var rows = new List<IFormRow>
         {
-            state.ConnectionName.AsLabeledRow("Connection name:"),
-            state.Host.AsLabeledRow("Host:"),
-            state.Port.AsLabeledRow("Port:"),
-            state.UserName.AsLabeledRow("User name:"),
-            state.Password.AsLabeledRow("Password:"),
-            state.RemoteRoot.AsLabeledRow("Remote root:"),
+            FormControls.Text("Connection name:", state.ConnectionName),
+            FormControls.Text("Host:", state.Host),
+            FormControls.Text("Port:", state.Port),
+            FormControls.Text("User name:", state.UserName),
+            FormControls.Text("Password:", state.Password),
+            FormControls.Text("Remote root:", state.RemoteRoot),
         };
         if (state.AllowTemporaryConnection) rows.Add(state.SaveConnection);
         rows.Add(state.SavePassword); rows.Add(state.ShowInDrive); rows.Add(state.Security); rows.Add(state.DataMode); rows.Add(state.DataTls);
-        if (state.DataMode.Value == FtpDataConnectionMode.Active) rows.Add(state.ActivePorts.AsLabeledRow("Active ports:"));
-        rows.Add(new LabeledValueRow("TLS cert:", () => state.Security.Value == FtpConnectionSecurityMode.PlainFtp ? "(plain FTP has no TLS certificate)" : string.IsNullOrWhiteSpace(fingerprint) ? "(press F10 to read certificate)" : fingerprint, 22) { Id = "certificate-fingerprint" });
+        if (state.DataMode.Value == FtpDataConnectionMode.Active) rows.Add(FormControls.Text("Active ports:", state.ActivePorts));
+        rows.Add(new LabeledValueRow("TLS cert:", () => state.Security.Value == FtpConnectionSecurityMode.PlainFtp ? "(plain FTP has no TLS certificate)" : string.IsNullOrWhiteSpace(fingerprint) ? "(press F10 to read certificate)" : fingerprint) { Id = "certificate-fingerprint" });
         rows.Add(state.TrustCertificate);
         return rows;
     }

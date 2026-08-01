@@ -32,8 +32,11 @@ public sealed class TextInputRow : FormRow, IFormCursorProvider, IFormCompositeR
     public CommandLineState Buffer => _field.Buffer;
     internal FormTextInputField Input => _field;
     public override FormRowRole Role { get; init; } = FormRowRole.TextInput;
+    public bool Enabled { get => _field.Enabled; set => _field.Enabled = value; }
+    public string? DisabledReason { get => _field.DisabledReason; set => _field.DisabledReason = value; }
+    public override bool IsEnabled => Enabled;
     public int? Width => _width;
-    public bool IsCompositeOpen => _field.History?.IsDropdownOpen == true;
+    public bool IsCompositeOpen => Enabled && _field.History?.IsDropdownOpen == true;
 
     public Rect GetInputBounds(Rect rowBounds) =>
         new(rowBounds.X, rowBounds.Y, Math.Min(rowBounds.Width, _width ?? rowBounds.Width), rowBounds.Height);

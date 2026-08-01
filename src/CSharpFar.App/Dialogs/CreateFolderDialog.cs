@@ -44,7 +44,7 @@ internal sealed class CreateFolderDialog
             form.SetRows(
                 [
                     new LabelRow(Prompt, FarDialogStyles.Fill),
-                    folderName.AsRow(),
+                    FormControls.Text(folderName),
                     new SeparatorRow(FarDialogStyles.Border),
                     new LabelRow(error ?? string.Empty, FarDialogStyles.Error),
                 ],
@@ -53,15 +53,7 @@ internal sealed class CreateFolderDialog
         return _formDialogs.Run(
             form,
             new ModalFormOptions(Title, DialogWidth, DialogHeight, MinWidth: 40),
-            static layout =>
-            {
-                Rect bounds = layout.FrameBounds;
-                int contentX = bounds.X + 2;
-                int contentWidth = Math.Max(1, bounds.Width - 4);
-                return new ModalFormLayout(
-                    new Rect(contentX, bounds.Y + 1, contentWidth, Math.Max(1, bounds.Height - 4)),
-                    new Rect(contentX, bounds.Bottom - 2, contentWidth, 1));
-            },
+            static layout => ModalFormLayout.WithFooter(layout.ContentBounds, footerHeight: 2),
             (routed, result) =>
             {
                 if (FormDialogInput.ShouldCancel(result))

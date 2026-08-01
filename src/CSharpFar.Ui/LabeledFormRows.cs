@@ -33,15 +33,20 @@ public sealed class LabeledTextInputRow : FormRow, IFormCursorProvider, IFormCom
     }
 
     public override FormRowRole Role { get; init; } = FormRowRole.TextInput;
+    public bool Enabled { get => _field.Enabled; set => _field.Enabled = value; }
+    public string? DisabledReason { get => _field.DisabledReason; set => _field.DisabledReason = value; }
+    public override bool IsEnabled => Enabled;
     public CommandLineState Buffer => _field.Buffer;
     internal FormTextInputField Input => _field;
-    public bool IsCompositeOpen => _field.History?.IsDropdownOpen == true;
+    public bool IsCompositeOpen => Enabled && _field.History?.IsDropdownOpen == true;
     public Rect GetInputBounds(Rect rowBounds) => Layout(rowBounds).InputBounds;
 
     public override void Render(FormRowRenderContext context)
     {
         var layout = Layout(context.Bounds);
-        context.Canvas.Write(layout.LabelBounds.X, layout.LabelBounds.Y, ScrollableFormDialog.Fit(_label, layout.LabelBounds.Width), context.Focused ? FarDialogStyles.FocusedInput : FarDialogStyles.Fill);
+        string label = !Enabled ? DisabledFormControlPresentation.WithReason(_label, DisabledReason) : _label;
+        context.Canvas.Write(layout.LabelBounds.X, layout.LabelBounds.Y, ScrollableFormDialog.Fit(label, layout.LabelBounds.Width),
+            DisabledFormControlPresentation.Style(Enabled, context.Focused ? FarDialogStyles.FocusedInput : FarDialogStyles.Fill));
         _field.Render(context, layout.InputBounds);
     }
 

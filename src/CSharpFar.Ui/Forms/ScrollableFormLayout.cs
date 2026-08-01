@@ -235,7 +235,7 @@ public sealed partial class ScrollableFormDialog
             ? composite.BuildCompositeFrame(new FormCompositeFrameContext(bounds, viewport))
             : null;
         UiCursorPlacement? cursor = null;
-        if (row.IsEnabled && row is IFormCursorProvider cursorProvider &&
+        if (AllowsCursor(row) && row is IFormCursorProvider cursorProvider &&
             cursorProvider.TryGetCursor(new FormRowRenderContext(screen, bounds, focused: true, viewport.Height), out FormCursorPlacement placement) &&
             placement.X >= bounds.X &&
             placement.X < bounds.Right &&
@@ -259,6 +259,15 @@ public sealed partial class ScrollableFormDialog
             cursor,
             compositeFrame);
     }
+
+    private bool AllowsCursor(IFormRow row) =>
+        row.IsEnabled && LayoutOptions.CursorPolicy switch
+        {
+            FormCursorPolicy.ControlDefault => true,
+            FormCursorPolicy.TextInputsOnly => row.Role == FormRowRole.TextInput,
+            FormCursorPolicy.Hidden => false,
+            _ => throw new InvalidOperationException("Unknown form cursor policy."),
+        };
 
     private static bool IsVisibleInBody(Rect bounds, Rect bodyBounds) =>
         bounds.Bottom > bodyBounds.Y && bounds.Y < bodyBounds.Bottom;

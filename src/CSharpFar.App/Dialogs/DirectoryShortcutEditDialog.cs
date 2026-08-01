@@ -35,8 +35,8 @@ internal sealed class DirectoryShortcutEditDialog
     {
         TextField name = _fields.Text("name", currentItem?.Name ?? DirectoryShortcutNormalizer.GetDefaultNameFromPath(activePanelPath));
         TextField path = _fields.Text("path", currentItem?.Path ?? activePanelPath);
-        TextInputRow nameRow = name.AsRow();
-        TextInputRow pathRow = path.AsRow();
+        TextInputRow nameRow = FormControls.Text(name);
+        TextInputRow pathRow = FormControls.Text(path);
         var actions = new ButtonRow(
             [
                 DialogButton.Default("ok", "OK", 'O'),
@@ -64,9 +64,7 @@ internal sealed class DirectoryShortcutEditDialog
                 $"Directory shortcut {number}", DialogWidth, DialogHeight,
                 OuterRenderOptions: PaletteStyles.DialogPopupOptions(_palette) with { DrawBorder = false },
                 FrameRenderOptions: PaletteStyles.DialogPopupOptions(_palette) with { DrawShadow = false }),
-            static layout => new ModalFormLayout(
-                new Rect(layout.ContentBounds.X, layout.ContentBounds.Y, layout.ContentBounds.Width, Math.Max(1, layout.ContentBounds.Height - 2)),
-                new Rect(layout.ContentBounds.X, layout.ContentBounds.Bottom - 1, layout.ContentBounds.Width, 1)),
+            static layout => ModalFormLayout.WithFooter(layout.ContentBounds, footerHeight: 1),
             (routed, result) =>
             {
                 if (FormDialogInput.ShouldCancel(result))
