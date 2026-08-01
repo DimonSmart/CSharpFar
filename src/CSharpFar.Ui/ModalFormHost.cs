@@ -17,7 +17,21 @@ public sealed record ModalFormOptions(
 
 public readonly record struct ModalFormLayout(
     Rect BodyBounds,
-    Rect? FooterBounds = null);
+    Rect? FooterBounds = null)
+{
+    public static ModalFormLayout BodyOnly(Rect contentBounds) => new(contentBounds);
+
+    public static ModalFormLayout WithFooter(Rect contentBounds, int footerHeight)
+    {
+        if (footerHeight < 0)
+            throw new ArgumentOutOfRangeException(nameof(footerHeight));
+
+        int reservedFooterHeight = Math.Min(contentBounds.Height, footerHeight);
+        return new(
+            new Rect(contentBounds.X, contentBounds.Y, contentBounds.Width, contentBounds.Height - reservedFooterHeight),
+            new Rect(contentBounds.X, contentBounds.Bottom - reservedFooterHeight, contentBounds.Width, reservedFooterHeight));
+    }
+}
 
 /// <summary>
 /// Composes the standard modal window and routed scrollable-form lifecycle.

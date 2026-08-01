@@ -40,14 +40,12 @@ public sealed class LabelRow : FormRow
 public sealed class SeparatorRow : FormRow
 {
     private readonly CellStyle _style;
-    private readonly bool _drawLine;
 
-    public SeparatorRow(bool drawLine = true) : this(FarDialogStyles.Fill, drawLine) { }
+    public SeparatorRow() : this(FarDialogStyles.Fill) { }
 
-    public SeparatorRow(CellStyle style, bool drawLine = true)
+    public SeparatorRow(CellStyle style)
     {
         _style = style;
-        _drawLine = drawLine;
     }
 
     public override bool IsFocusable => false;
@@ -57,8 +55,29 @@ public sealed class SeparatorRow : FormRow
         if (context.Bounds.Width <= 0)
             return;
 
-        string text = _drawLine ? new string('─', context.Bounds.Width) : string.Empty.PadRight(context.Bounds.Width);
-        context.Canvas.Write(context.Bounds.X, context.Bounds.Y, text, _style);
+        context.Canvas.Write(context.Bounds.X, context.Bounds.Y, new string('─', context.Bounds.Width), _style);
     }
+}
+
+public sealed class SpacerRow : FormRow
+{
+    private readonly CellStyle _style;
+
+    public SpacerRow(int height = 1) : this(FarDialogStyles.Fill, height) { }
+
+    public SpacerRow(CellStyle style, int height = 1)
+    {
+        if (height <= 0)
+            throw new ArgumentOutOfRangeException(nameof(height));
+
+        _style = style;
+        Height = height;
+    }
+
+    public override bool IsFocusable => false;
+    public override int Height { get; }
+
+    public override void Render(FormRowRenderContext context) =>
+        context.Canvas.FillRegion(context.Bounds, _style);
 }
 

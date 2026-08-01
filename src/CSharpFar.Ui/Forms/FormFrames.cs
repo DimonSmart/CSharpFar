@@ -71,6 +71,17 @@ public readonly record struct FormRouteResult(
 
 public static class FormDialogInput
 {
+    public static bool ShouldSubmit(
+        UiRoutedInput<ScrollableFormFrame> routed,
+        FormInputResult result,
+        ScrollableFormDialog form) =>
+        result.Kind == FormInputResultKind.Submit ||
+        routed.Input is KeyConsoleInputEvent { Key.Key: ConsoleKey.F10 } ||
+        ShouldImplicitlySubmit(routed, result, form);
+
+    public static bool ShouldCancel(FormInputResult result) =>
+        result.Kind == FormInputResultKind.Cancel;
+
     public static bool ShouldImplicitlySubmit(
         UiRoutedInput<ScrollableFormFrame> routed,
         FormInputResult result,

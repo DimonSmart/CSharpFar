@@ -31,8 +31,8 @@ internal sealed class CreateFolderDialog
             AppTextHistoryIds.CreateFolderName, submitOnEnter: true);
         var actions = new ButtonRow(
             [
-                new DialogButton("ok", "OK", 'O', IsDefault: true),
-                new DialogButton("cancel", "Cancel", 'C', Role: DialogButtonRole.Cancel),
+                DialogButton.Default("ok", "OK", 'O'),
+                DialogButton.Cancel(),
             ])
         {
             Id = "actions",
@@ -64,15 +64,13 @@ internal sealed class CreateFolderDialog
             },
             (routed, result) =>
             {
-                if (result.Kind == FormInputResultKind.Cancel)
+                if (FormDialogInput.ShouldCancel(result))
                     return ModalDialogLoopResult<string?>.Complete(null);
 
                 if (result.Kind == FormInputResultKind.ValueChanged)
                     error = null;
 
-                if (result.Kind == FormInputResultKind.Submit ||
-                    routed.Input is KeyConsoleInputEvent { Key.Key: ConsoleKey.F10 } ||
-                    FormDialogInput.ShouldImplicitlySubmit(routed, result, form))
+                if (FormDialogInput.ShouldSubmit(routed, result, form))
                 {
                     string? accepted = TrySubmit(folderName, validate, ref error);
                     if (accepted is not null)

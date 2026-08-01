@@ -1,7 +1,4 @@
 using CSharpFar.App.Rendering;
-using CSharpFar.Console;
-using CSharpFar.Console.Input;
-using CSharpFar.Console.Models;
 using CSharpFar.Core.Models;
 using CSharpFar.Ui;
 
@@ -165,8 +162,8 @@ internal sealed class FileOperationDialog
         };
         var buttons = new ButtonRow(
             [
-                new DialogButton("submit", actionLabel, actionLabel[0], IsDefault: true),
-                new DialogButton("cancel", "Cancel", 'C', Role: DialogButtonRole.Cancel),
+                DialogButton.Default("submit", actionLabel, actionLabel[0]),
+                DialogButton.Cancel(),
             ])
         {
             Id = "footerButtons",
@@ -187,26 +184,18 @@ internal sealed class FileOperationDialog
                 copySymlinkContents,
                 useFilter,
                 showOperationOptions),
-                footerRows: [new LabelRow(error ?? string.Empty, FarDialogStyles.Error), buttons]);
+                footerRows: FormFooter.ErrorAndButtons(() => error, buttons));
 
         return _formDialogs.Run(
             form,
             new ModalFormOptions(title, DialogWidth, DialogHeight, 40, 8),
-            static layout =>
-            {
-                Rect content = layout.ContentBounds;
-                return new ModalFormLayout(
-                    new Rect(content.X, content.Y, content.Width, Math.Max(1, content.Height - 2)),
-                    new Rect(content.X, content.Bottom - 2, content.Width, 2));
-            },
+            static layout => ModalFormLayout.WithFooter(layout.ContentBounds, footerHeight: 2),
             (routed, result) =>
             {
-                if (result.Kind == FormInputResultKind.Cancel)
+                if (FormDialogInput.ShouldCancel(result))
                     return ModalDialogLoopResult<FileOperationDialogResult?>.Complete(null);
 
-                if (result.Kind == FormInputResultKind.Submit ||
-                    routed.Input is KeyConsoleInputEvent { Key.Key: ConsoleKey.F10 } ||
-                    FormDialogInput.ShouldImplicitlySubmit(routed, result, form))
+                if (FormDialogInput.ShouldSubmit(routed, result, form))
                 {
                     var dialogResult = BuildResult(
                         destination,
@@ -247,7 +236,7 @@ internal sealed class FileOperationDialog
         {
             new LabelRow(prompt, fill),
             destination.AsRow(),
-            new SeparatorRow(fill, drawLine: false),
+            new SpacerRow(fill),
         };
 
         if (showOperationOptions)
@@ -255,11 +244,11 @@ internal sealed class FileOperationDialog
             if (copyModeChoice is not null)
             {
                 rows.Add(copyModeChoice);
-                rows.Add(new SeparatorRow(fill, drawLine: false));
+                rows.Add(new SpacerRow(fill));
             }
 
             rows.Add(securityChoice);
-            rows.Add(new SeparatorRow(fill, drawLine: false));
+            rows.Add(new SpacerRow(fill));
         }
 
         rows.Add(new LabelRow("Already existing files:", fill));
@@ -267,17 +256,17 @@ internal sealed class FileOperationDialog
 
         if (showOperationOptions)
         {
-            rows.Add(new SeparatorRow(fill, drawLine: false));
+            rows.Add(new SpacerRow(fill));
             rows.Add(preserveTimestamps);
             rows.Add(preserveAttributes);
             rows.Add(copySymlinkContents);
-            rows.Add(new SeparatorRow(fill, drawLine: false));
+            rows.Add(new SpacerRow(fill));
             rows.Add(useFilter);
             rows.Add(new LabelRow("Filter mask:", fill));
             rows.Add(useFilter.Value
                 ? filter.AsRow()
                 : new LabelRow(SingleLineTextInput.VisibleText(filter.Buffer, 60), fill) { Id = "filter" });
-            rows.Add(new SeparatorRow(fill, drawLine: false));
+            rows.Add(new SpacerRow(fill));
         }
 
         return rows;

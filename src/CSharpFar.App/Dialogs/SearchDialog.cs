@@ -1,6 +1,4 @@
 using CSharpFar.App.Rendering;
-using CSharpFar.Console.Input;
-using CSharpFar.Console.Models;
 using CSharpFar.Core.Models;
 using CSharpFar.Ui;
 
@@ -108,9 +106,12 @@ internal sealed class SearchDialog
         };
         var buttons = new ButtonRow(
             [
-                new DialogButton("find", "Find", 'F', IsDefault: true),
-                new DialogButton("cancel", "Cancel", 'C', Role: DialogButtonRole.Cancel),
-            ]);
+                DialogButton.Default("find", "Find", 'F'),
+                DialogButton.Cancel(),
+            ])
+        {
+            Id = "footerButtons",
+        };
         var form = new ScrollableFormDialog();
         string? error = null;
 
@@ -126,30 +127,19 @@ internal sealed class SearchDialog
                     optionsRow,
                     scopeRow,
                     hasText),
-                [
-                    new LabelRow(error is null ? string.Empty : Truncate(error, DialogWidth), FarDialogStyles.Error),
-                    buttons,
-                ]);
+                FormFooter.ErrorAndButtons(() => error is null ? null : Truncate(error, DialogWidth), buttons));
         }
 
         return _formDialogs.Run(
             form,
             new ModalFormOptions("Find file", DialogWidth, DialogHeight, MinWidth: 48),
-            static layout =>
-            {
-                Rect content = layout.ContentBounds;
-                return new ModalFormLayout(
-                    new Rect(content.X, content.Y, content.Width, Math.Max(1, content.Height - 2)),
-                    new Rect(content.X, content.Bottom - 2, content.Width, 2));
-            },
+            static layout => ModalFormLayout.WithFooter(layout.ContentBounds, footerHeight: 2),
             (routed, result) =>
             {
-                if (result.Kind == FormInputResultKind.Cancel)
+                if (FormDialogInput.ShouldCancel(result))
                     return ModalDialogLoopResult<SearchRequest?>.Complete(null);
 
-                if (result.Kind == FormInputResultKind.Submit ||
-                    routed.Input is KeyConsoleInputEvent { Key.Key: ConsoleKey.F10 } ||
-                    FormDialogInput.ShouldImplicitlySubmit(routed, result, form))
+                if (FormDialogInput.ShouldSubmit(routed, result, form))
                 {
                     var request = BuildRequest(
                         rootPath,

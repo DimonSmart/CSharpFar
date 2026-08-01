@@ -1,6 +1,3 @@
-using CSharpFar.Console;
-using CSharpFar.Console.Input;
-using CSharpFar.Console.Models;
 using CSharpFar.Core.Models;
 using CSharpFar.Ui;
 
@@ -99,24 +96,24 @@ internal sealed class SettingsDialog
                     palette,
                     fileHighlighting,
                     syntaxHighlighting,
-                    new SeparatorRow(FarDialogStyles.Border, drawLine: false),
+                    new SpacerRow(),
                     new LabelRow("Enter/Space  change value", FarDialogStyles.Fill),
                     new LabelRow("Up/Down      select item", FarDialogStyles.Fill),
                     new LabelRow("F10          save & close", FarDialogStyles.Fill),
                     new LabelRow("Esc          close", FarDialogStyles.Fill),
-                    new SeparatorRow(FarDialogStyles.Border, drawLine: false),
+                    new SpacerRow(),
                 ]);
 
         return _formDialogs.Run(
             form,
             new ModalFormOptions("Settings", DialogWidth, DialogHeight),
-            static layout => new ModalFormLayout(layout.ContentBounds),
+            static layout => ModalFormLayout.BodyOnly(layout.ContentBounds),
             (routed, result) =>
             {
-                if (result.Kind == FormInputResultKind.Cancel)
+                if (FormDialogInput.ShouldCancel(result))
                     return ModalDialogLoopResult<SettingsDialogResult?>.Complete(null);
 
-                if (routed.Input is KeyConsoleInputEvent { Key.Key: ConsoleKey.F10 })
+                if (FormDialogInput.ShouldSubmit(routed, result, form))
                 {
                     return ModalDialogLoopResult<SettingsDialogResult?>.Complete(new SettingsDialogResult(
                         leftViewMode.Value,

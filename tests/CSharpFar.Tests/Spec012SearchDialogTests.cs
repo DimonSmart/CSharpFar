@@ -73,6 +73,25 @@ public sealed class Spec012SearchDialogTests
     }
 
     [Fact]
+    public void Show_ConstrainedHeightFooterCancelButtonRemainsMouseAccessible()
+    {
+        var driver = new FakeConsoleDriver(width: 60, height: 10);
+        var screen = new ScreenRenderer(driver);
+        driver.BeforeReadInput = currentDriver =>
+        {
+            var row = currentDriver.WriteRecords.Last(record =>
+                record.Text.Contains("Cancel", StringComparison.Ordinal));
+            int x = row.X + row.Text.IndexOf("Cancel", StringComparison.Ordinal);
+            currentDriver.EnqueueInput(new MouseConsoleInputEvent(x, row.Y, MouseButton.Left, MouseEventKind.Down, MouseKeyModifiers.None));
+            currentDriver.EnqueueInput(new MouseConsoleInputEvent(x, row.Y, MouseButton.Left, MouseEventKind.Up, MouseKeyModifiers.None));
+        };
+
+        var result = new SearchDialog(ModalTestHost.Create(screen), new FormFieldFactory(TextFieldHistoryTestProvider.Create())).Show(@"C:\Work");
+
+        Assert.Null(result);
+    }
+
+    [Fact]
     public void Show_DefaultSearchScopeIsRecursive()
     {
         var driver = new FakeConsoleDriver(width: 100, height: 30);

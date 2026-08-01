@@ -89,33 +89,29 @@ public sealed class SearchOptionsDialog
             .ToArray();
         var buttons = new ButtonRow(
             [
-                new DialogButton("find", "Find", 'F', IsDefault: true),
-                new DialogButton("cancel", "Cancel", 'C', Role: DialogButtonRole.Cancel),
+                DialogButton.Default("find", "Find", 'F'),
+                DialogButton.Cancel(),
             ]);
         var form = new ScrollableFormDialog();
         string? error = null;
         void PrepareRows() => form.SetRows(BuildRows(options, pattern, checkboxes),
-            [new LabelRow(error ?? string.Empty, PaletteStyles.DialogError(UiTheme.Current)), buttons]);
+            FormFooter.ErrorAndButtons(() => error, buttons));
         return _formDialogs.Run(
             form,
             new ModalFormOptions(
                 options.Title, options.Width, options.Options.Count + 8, MinimumWidth, MinimumHeight,
                 OuterRenderOptions: PaletteStyles.DialogPopupOptions(UiTheme.Current) with { DrawBorder = false },
                 FrameRenderOptions: PaletteStyles.DialogPopupOptions(UiTheme.Current) with { DrawShadow = false }),
-            static layout => new ModalFormLayout(
-                new Rect(layout.ContentBounds.X, layout.ContentBounds.Y, layout.ContentBounds.Width, Math.Max(1, layout.ContentBounds.Height - 2)),
-                new Rect(layout.ContentBounds.X, layout.ContentBounds.Bottom - 2, layout.ContentBounds.Width, 2)),
+            static layout => ModalFormLayout.WithFooter(layout.ContentBounds, footerHeight: 2),
             (routed, result) =>
             {
                 if (result.Kind == FormInputResultKind.ValueChanged)
                     SynchronizeOptions(options, state, checkboxes);
 
-                if (result.Kind == FormInputResultKind.Cancel)
+                if (FormDialogInput.ShouldCancel(result))
                     return ModalDialogLoopResult<SearchOptionsDialogResult?>.Complete(null);
 
-                if (result.Kind == FormInputResultKind.Submit ||
-                    routed.Input is KeyConsoleInputEvent { Key.Key: ConsoleKey.F10 } ||
-                    FormDialogInput.ShouldImplicitlySubmit(routed, result, form))
+                if (FormDialogInput.ShouldSubmit(routed, result, form))
                 {
                     string? command = result.Command;
                     if (command is null &&

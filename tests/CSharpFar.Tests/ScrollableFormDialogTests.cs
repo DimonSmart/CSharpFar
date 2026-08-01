@@ -371,13 +371,14 @@ public sealed class ScrollableFormDialogTests
     [Fact]
     public void ClickCheckbox_ChangesValue()
     {
-        var checkbox = new CheckBoxRow(new CheckBoxLine("one"));
+        var checkbox = new CheckBoxRow(new CheckBoxLine("one")) { Id = "option" };
         var form = new ScrollableFormDialog([checkbox]);
         Render(form, visibleRows: 1);
 
         var result = HandleMouse(form, Mouse(2, 0));
 
         Assert.Equal(FormInputResultKind.ValueChanged, result.Kind);
+        Assert.Equal("option", result.SourceRowId);
         Assert.True(checkbox.Value);
     }
 
@@ -479,13 +480,29 @@ public sealed class ScrollableFormDialogTests
     [Fact]
     public void KeyDispatch_GoesToFocusedRow()
     {
-        var checkbox = new CheckBoxRow(new CheckBoxLine("one"));
+        var checkbox = new CheckBoxRow(new CheckBoxLine("one")) { Id = "option" };
         var form = new ScrollableFormDialog([checkbox]);
         Render(form, visibleRows: 1);
 
-        HandleKey(form, Key(ConsoleKey.Spacebar));
+        FormInputResult result = HandleKey(form, Key(ConsoleKey.Spacebar));
 
+        Assert.Equal("option", result.SourceRowId);
         Assert.True(checkbox.Value);
+    }
+
+    [Fact]
+    public void FormNavigation_HasNoSourceRowId()
+    {
+        var form = new ScrollableFormDialog([
+            new CheckBoxRow(new CheckBoxLine("one")) { Id = "first" },
+            new CheckBoxRow(new CheckBoxLine("two")) { Id = "second" },
+        ]);
+        Render(form, visibleRows: 2);
+
+        FormInputResult result = HandleKey(form, Key(ConsoleKey.Tab));
+
+        Assert.Equal(FormInputResultKind.Handled, result.Kind);
+        Assert.Null(result.SourceRowId);
     }
 
     [Fact]
@@ -979,6 +996,7 @@ public sealed class ScrollableFormDialogTests
 
         Assert.Equal(FormInputResultKind.Submit, result.Kind);
         Assert.Equal("submit", result.Command);
+        Assert.Equal("footerButtons", result.SourceRowId);
     }
 
     [Fact]
@@ -1006,6 +1024,7 @@ public sealed class ScrollableFormDialogTests
 
         Assert.Equal("footerButtons", form.FocusedRowId);
         Assert.Equal(FormInputResultKind.Submit, result.Kind);
+        Assert.Equal("footerButtons", result.SourceRowId);
     }
 
     [Fact]
@@ -1435,6 +1454,7 @@ public sealed class ScrollableFormDialogTests
 
         Assert.True(result.Handled);
         Assert.Equal(FormInputResultKind.ValueChanged, layer.LastRouteResult!.Value.FormResult.Kind);
+        Assert.Equal("choice", layer.LastRouteResult.Value.FormResult.SourceRowId);
         Assert.False(dropdown.IsOpen);
         Assert.Equal(1, dropdown.SelectedIndex);
     }
