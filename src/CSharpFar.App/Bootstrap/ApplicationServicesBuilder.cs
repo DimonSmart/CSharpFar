@@ -113,7 +113,7 @@ internal static class ApplicationServicesBuilder
             ToggleSelectAllPanelItems = _ => throw new InvalidOperationException("Keyboard input context is not assigned."),
             CopyCommandLineSelection = () => throw new InvalidOperationException("Keyboard input context is not assigned."),
             PasteTextIntoCommandLine = _ => throw new InvalidOperationException("Keyboard input context is not assigned."),
-            OnVisibleCommandLineTextEdited = () => throw new InvalidOperationException("Keyboard input context is not assigned."),
+            OnCommandLineTextEdited = () => throw new InvalidOperationException("Keyboard input context is not assigned."),
             CloseSearchResultsPanel = (_, _) => throw new InvalidOperationException("Keyboard input context is not assigned."),
             ExecuteCommand = _ => throw new InvalidOperationException("Keyboard input context is not assigned."),
             BrowseCommandHistory = (_, _) => throw new InvalidOperationException("Keyboard input context is not assigned."),
@@ -210,7 +210,8 @@ internal static class ApplicationServicesBuilder
             rendering.RenderContext,
             commandCompletionController,
             temporarily => commandCompletionController.Hide(temporarily),
-            commandHistoryNavigator.Reset);
+            commandHistoryNavigator.Reset,
+            applicationSurface.RequestRender);
         var panelQuickSearchLayer = new PanelQuickSearchLayer(
             rendering.RenderContext,
             temporarily => commandCompletionController.Hide(temporarily),

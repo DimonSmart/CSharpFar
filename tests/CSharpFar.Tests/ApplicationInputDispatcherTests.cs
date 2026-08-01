@@ -1145,7 +1145,7 @@ public sealed class ApplicationInputDispatcherTests
             ToggleSelectAllPanelItems = toggleSelectAllPanelItems ?? (_ => { }),
             CopyCommandLineSelection = () => false,
             PasteTextIntoCommandLine = pasteTextIntoCommandLine ?? (_ => false),
-            OnVisibleCommandLineTextEdited = () => { },
+            OnCommandLineTextEdited = () => { },
             CloseSearchResultsPanel = (_, _) => { },
             ExecuteCommand = _ => { },
             BrowseCommandHistory = (_, _) => false,

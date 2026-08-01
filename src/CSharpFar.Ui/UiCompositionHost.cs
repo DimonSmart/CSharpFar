@@ -95,6 +95,11 @@ public interface IUiSurface
     IDisposable BeginFrame(UiRenderRequest request);
 
     /// <summary>
+    /// Allows the active surface to commit a viewport movement without a frame.
+    /// </summary>
+    bool TryAcceptViewportChange(ConsoleViewport viewport, ConsoleViewportChange change) => false;
+
+    /// <summary>
     /// Builds one attempt-local frame. This callback may run repeatedly before
     /// one attempt commits and must publish observable state through the
     /// render context rather than changing it immediately.
@@ -463,9 +468,7 @@ public sealed class UiCompositionHost
             }
 
             if (HasViewportChanged())
-            {
-                Render(isResizeRecovery: true);
-            }
+                RecoverChangedViewport();
 
             return input;
         }
@@ -518,9 +521,7 @@ public sealed class UiCompositionHost
             }
 
             if (HasViewportChanged())
-            {
-                Render(isResizeRecovery: true);
-            }
+                RecoverChangedViewport();
 
             return true;
         }
@@ -532,8 +533,27 @@ public sealed class UiCompositionHost
 
     private void RecoverChangedViewport()
     {
-        if (HasViewportChanged())
+        if (HasViewportChanged() && !TryAcceptViewportChange())
             Render(isResizeRecovery: true);
+    }
+
+    private bool TryAcceptViewportChange()
+    {
+        if (LastStableViewport is not { } previous)
+            return false;
+
+        ConsoleViewport viewport = Screen.GetViewport();
+        ConsoleViewportChange change = previous.ClassifyChange(viewport);
+        if (change == ConsoleViewportChange.None)
+            return true;
+
+        ActiveComposition composition = CaptureActiveComposition();
+        if (!composition.Surface.SurfaceLifecycle!.TryAcceptViewportChange(viewport, change))
+            return false;
+
+        LastStableViewport = viewport;
+        RevalidateMouseCapture();
+        return true;
     }
 
     internal sealed class UiLayerScope : IDisposable

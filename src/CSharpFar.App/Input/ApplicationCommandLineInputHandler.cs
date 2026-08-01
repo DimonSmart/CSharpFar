@@ -37,7 +37,9 @@ internal sealed class ApplicationCommandLineInputHandler
         }
 
         if (input.Button == MouseButton.Left && input.Kind == MouseEventKind.Up && captured)
-            return ApplicationInputHandlingResult.FromHandled(shouldRender: false);
+            return ApplicationInputHandlingResult.FromHandled(
+                shouldRender: false,
+                resumesHiddenInteraction: false);
 
         if (input.Button == MouseButton.Left && input.Kind == MouseEventKind.DoubleClick && hit)
         {
@@ -50,14 +52,16 @@ internal sealed class ApplicationCommandLineInputHandler
             return CommandLineChanged(_context.PasteTextIntoCommandLine());
 
         return captured
-            ? ApplicationInputHandlingResult.FromHandled(shouldRender: false)
+            ? ApplicationInputHandlingResult.FromHandled(
+                shouldRender: false,
+                resumesHiddenInteraction: false)
             : ApplicationInputHandlingResult.NotHandled;
     }
 
     private static ApplicationInputHandlingResult CommandLineChanged(bool changed = true) =>
         ApplicationInputHandlingResult.FromHandled(
             changed,
-            ApplicationRenderPart.CommandLine);
+            ApplicationRenderPart.CommandLine | ApplicationRenderPart.Completion);
 
     private void SelectWordAt(int position)
     {

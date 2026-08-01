@@ -259,7 +259,8 @@ public sealed class ApplicationUiLayerScopeTests
                 services.RenderContext,
                 services.CommandCompletionController,
                 temporarily => services.CommandCompletionController.Hide(temporarily),
-                services.CommandHistoryNavigator.Reset);
+                services.CommandHistoryNavigator.Reset,
+                _ => { });
             var panelQuickSearchLayer = new PanelQuickSearchLayer(
                 services.RenderContext,
                 temporarily => services.CommandCompletionController.Hide(temporarily),

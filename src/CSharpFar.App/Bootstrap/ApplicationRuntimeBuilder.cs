@@ -35,6 +35,7 @@ internal static class ApplicationRuntimeBuilder
                 ProcessPendingRefreshes = autoRefresh.ProcessPendingRefreshes,
                 DisposeRuntimeState = quickViewDirectorySize.Dispose,
                 HandleApplicationInput = packet => callbacks.HandleApplicationInput(packet),
+                IsPanelsMode = callbacks.IsPanelsMode,
                 TryTakeMenuCommand = pendingMenuCommands.TryTake,
                 ExecuteMenuCommand = request => callbacks.ExecuteMenuCommand(request),
             });

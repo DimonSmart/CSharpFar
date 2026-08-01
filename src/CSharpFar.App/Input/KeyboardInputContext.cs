@@ -24,7 +24,7 @@ internal sealed class KeyboardInputContext
     public Action<PanelSide> ToggleSelectAllPanelItems { get; set; } = _ => throw Missing();
     public Func<bool> CopyCommandLineSelection { get; set; } = () => throw Missing();
     public Func<ApplicationWorkspaceMode, bool> PasteTextIntoCommandLine { get; set; } = _ => throw Missing();
-    public Action OnVisibleCommandLineTextEdited { get; set; } = () => throw Missing();
+    public Action OnCommandLineTextEdited { get; set; } = () => throw Missing();
     public Action<FilePanelState, PanelSide> CloseSearchResultsPanel { get; set; } =
         (_, _) => throw Missing();
     public Action<string> ExecuteCommand { get; set; } = _ => throw Missing();

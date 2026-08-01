@@ -60,7 +60,7 @@ internal sealed class ApplicationRuntime
                 {
                     _context.ResetWaitToken();
                     _context.ProcessPendingRefreshes();
-                    if (_context.IsRunning())
+                    if (_context.IsRunning() && _context.IsPanelsMode())
                     {
                         _applicationSurface.RequestRender(ApplicationRenderPart.Full);
                         _composition.Render();
@@ -119,6 +119,7 @@ internal sealed class ApplicationRuntimeContext
     public required Action ProcessPendingRefreshes { get; init; }
     public required Action DisposeRuntimeState { get; init; }
     public required Func<ApplicationUiInputPacket, ApplicationRuntimeRenderRequest> HandleApplicationInput { get; init; }
+    public Func<bool> IsPanelsMode { get; init; } = () => true;
     public TryTakeMenuCommand TryTakeMenuCommand { get; init; } = static (out MenuCommandRequest request) =>
     {
         request = null!;
@@ -146,7 +147,8 @@ internal sealed class NullDisposable : IDisposable
 
 internal readonly record struct ApplicationRuntimeRenderRequest(
     bool ShouldRender,
-    ApplicationRenderPart Parts = ApplicationRenderPart.Full)
+    ApplicationRenderPart Parts = ApplicationRenderPart.Full,
+    bool ResumesHiddenInteraction = false)
 {
     public static ApplicationRuntimeRenderRequest None { get; } =
         new(false, ApplicationRenderPart.None);

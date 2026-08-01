@@ -17,4 +17,11 @@ public readonly record struct ConsoleViewport(int Left, int Top, int Width, int 
         x < Width &&
         y >= 0 &&
         y < Height;
+
+    public ConsoleViewportChange ClassifyChange(ConsoleViewport other) =>
+        this == other
+            ? ConsoleViewportChange.None
+            : Width == other.Width && Height == other.Height
+                ? ConsoleViewportChange.OriginOnly
+                : ConsoleViewportChange.Size;
 }

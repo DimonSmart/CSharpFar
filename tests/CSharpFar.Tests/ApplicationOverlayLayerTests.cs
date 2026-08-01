@@ -57,7 +57,7 @@ public sealed class ApplicationOverlayLayerTests
     }
 
     [Fact]
-    public void CommandCompletion_HiddenCommandLine_DoesNotRenderOrPublishInput()
+    public void CommandCompletion_HiddenCommandLine_PublishesExistingCompletionLayer()
     {
         var services = Services();
         var completion = services.Session.CommandLine.Completion;
@@ -68,18 +68,50 @@ public sealed class ApplicationOverlayLayerTests
         services.Composition.Render();
 
         var layer = services.Inner.CommandCompletionLayer;
-        Assert.False(layer.CommittedFrame.Visible);
-        Assert.Equal(UiLayerInputPolicy.None, layer.InputPolicy);
-        Assert.Same(UiInteractionFrame.Empty, layer.CommittedInteractionFrame);
-        Assert.Empty(layer.CommittedFrame.Items);
-        Assert.Null(layer.CommittedFrame.ScrollbarBounds);
+        Assert.True(layer.CommittedFrame.Visible);
+        Assert.Equal(UiLayerInputPolicy.Bubble, layer.InputPolicy);
+        Assert.NotEmpty(layer.CommittedInteractionFrame.HitRegions);
+        Assert.Equal(["", "git status"], layer.CommittedFrame.Items.Select(item => item.Text));
         Assert.True(completion.Visible);
         Assert.Equal(["", "git status"], completion.Matches);
 
         var input = UiTestInput.Key(ConsoleKey.DownArrow);
         Assert.True(services.Composition.DispatchInput(input).Handled);
-        Assert.True(services.ApplicationSurface.TryTakeInput(out var packet));
-        Assert.Same(input, packet.Input);
+        Assert.False(services.ApplicationSurface.TryTakeInput(out _));
+        Assert.Equal(1, completion.List.SelectedIndex);
+    }
+
+    [Fact]
+    public void CommandCompletion_SelectionInvalidatesOnlyCompletion()
+    {
+        var services = Services();
+        var completion = services.Session.CommandLine.Completion;
+        completion.Visible = true;
+        completion.List.ResetItems(["", "alpha"]);
+        services.Composition.Render();
+
+        Assert.True(services.Composition.DispatchInput(UiTestInput.Key(ConsoleKey.DownArrow)).Invalidate);
+        services.Composition.Render();
+
+        Assert.Equal(1, completion.List.SelectedIndex);
+        Assert.False(services.ApplicationSurface.CommittedFrame.RenderedParts.HasFlag(ApplicationRenderPart.Full));
+        Assert.Equal(ApplicationRenderPart.None, services.ApplicationSurface.CommittedFrame.RenderedParts);
+    }
+
+    [Fact]
+    public void CommandCompletion_AcceptedSuggestionRendersCommandLineAndCompletion()
+    {
+        var services = Services();
+        var completion = services.Session.CommandLine.Completion;
+        completion.Visible = true;
+        completion.List.ResetItems(["", "alpha"], selectedIndex: 1);
+        services.Composition.Render();
+
+        Assert.True(services.Composition.DispatchInput(UiTestInput.Key(ConsoleKey.Enter)).Handled);
+        services.Composition.Render();
+
+        Assert.True(services.ApplicationSurface.CommittedFrame.RenderedParts.HasFlag(ApplicationRenderPart.CommandLine));
+        Assert.Contains("alpha", services.Driver.GetRow(services.ApplicationSurface.CommittedFrame.CommandLine.Bounds.Y), StringComparison.Ordinal);
     }
 
     [Fact]

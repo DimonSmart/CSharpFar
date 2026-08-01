@@ -116,7 +116,7 @@ public class UnderlaySnapshotTests
     }
 
     [Fact]
-    public void HiddenCommandLineOverlayCleanup_RestoresPreviousShellRowContent()
+    public void HiddenOverlayCleanup_RestoresPreviousShellRowContent()
     {
         var (renderer, driver) = Create(40, 8);
         var shellStyle = new CellStyle(ConsoleColor.Gray, ConsoleColor.Black);
@@ -125,21 +125,44 @@ public class UnderlaySnapshotTests
         var underlay = new ShellUnderlayService(renderer);
         var viewport = renderer.GetViewport();
         int row = ApplicationLayoutService.CommandLineRow(viewport.Size);
-        underlay.PrepareHiddenCommandLineOverlay(viewport, row, viewport.Width);
+        underlay.PrepareHiddenOverlay(viewport, new Rect(0, row, viewport.Width, 1));
 
         UiTestRender.Render(renderer, canvas =>
             new ApplicationCommandLineRenderer(() => PaletteRegistry.Default)
                 .Render(canvas, row, viewport.Size, @"C:\Work", new CommandLineState()));
         Assert.Contains(">", driver.GetRow(row), StringComparison.Ordinal);
 
-        underlay.RemoveHiddenCommandLineOverlay();
+        underlay.RemoveHiddenOverlay();
 
         Assert.StartsWith("SHELL-BEFORE", driver.GetRow(row));
         Assert.DoesNotContain(@"C:\Work>", driver.GetRow(row), StringComparison.Ordinal);
     }
 
     [Fact]
-    public void HiddenCommandLineOverlayCleanup_RestoresShellRowAfterViewportTopChange()
+    public void HiddenOverlayCleanup_RestoresPopupAndCommandLineBounds()
+    {
+        var (renderer, driver) = Create(40, 10);
+        var shellStyle = new CellStyle(ConsoleColor.Gray, ConsoleColor.Black);
+        renderer.Write(0, 4, "SHELL-FOUR".AsSpan(), shellStyle);
+        renderer.Write(0, 5, "SHELL-FIVE".AsSpan(), shellStyle);
+        renderer.Write(0, 6, "SHELL-SIX".AsSpan(), shellStyle);
+
+        var underlay = new ShellUnderlayService(renderer);
+        var viewport = renderer.GetViewport();
+        underlay.PrepareHiddenOverlay(viewport, new Rect(0, 4, viewport.Width, 3));
+
+        UiTestRender.Render(renderer, canvas => canvas.FillRegion(new Rect(0, 4, viewport.Width, 3), CellStyle.Default));
+        Assert.DoesNotContain("SHELL-FIVE", driver.GetRow(5), StringComparison.Ordinal);
+
+        underlay.RemoveHiddenOverlay();
+
+        Assert.StartsWith("SHELL-FOUR", driver.GetRow(4));
+        Assert.StartsWith("SHELL-FIVE", driver.GetRow(5));
+        Assert.StartsWith("SHELL-SIX", driver.GetRow(6));
+    }
+
+    [Fact]
+    public void HiddenOverlayCleanup_DiscardsSnapshotAfterViewportOriginChanges()
     {
         var (renderer, driver) = Create(40, 8);
         var shellStyle = new CellStyle(ConsoleColor.Gray, ConsoleColor.Black);
@@ -148,39 +171,34 @@ public class UnderlaySnapshotTests
 
         var underlay = new ShellUnderlayService(renderer);
         var viewport = renderer.GetViewport();
-        underlay.PrepareHiddenCommandLineOverlay(viewport, row: 7, viewport.Width);
+        underlay.PrepareHiddenOverlay(viewport, new Rect(0, 7, viewport.Width, 1));
 
         UiTestRender.Render(renderer, canvas =>
             new ApplicationCommandLineRenderer(() => PaletteRegistry.Default)
                 .Render(canvas, 7, viewport.Size, @"C:\Work", new CommandLineState()));
-        Assert.Contains(">", driver.GetRow(7), StringComparison.Ordinal);
 
         driver.SetViewportOrigin(0, 5);
-        underlay.RemoveHiddenCommandLineOverlay();
+        int restoresBeforeCleanup = driver.RestoreCallCount;
+        underlay.RemoveHiddenOverlay();
 
-        Assert.StartsWith("SHELL-BEFORE", driver.GetRow(5));
+        Assert.Equal(restoresBeforeCleanup, driver.RestoreCallCount);
     }
 
     [Fact]
-    public void HiddenCommandLineOverlayCleanup_RestoresShellRowAfterViewportShrink()
+    public void HiddenOverlayCleanup_RestoresVisibleIntersectionAfterViewportShrink()
     {
-        var (renderer, driver) = Create(40, 30);
+        var (renderer, driver) = Create(40, 12);
         var shellStyle = new CellStyle(ConsoleColor.Gray, ConsoleColor.Black);
-        renderer.Write(0, 28, "SHELL-BEFORE".AsSpan(), shellStyle);
+        renderer.Write(0, 6, "SHELL-BEFORE".AsSpan(), shellStyle);
 
         var underlay = new ShellUnderlayService(renderer);
         var viewport = renderer.GetViewport();
-        underlay.PrepareHiddenCommandLineOverlay(viewport, row: 28, viewport.Width);
+        underlay.PrepareHiddenOverlay(viewport, new Rect(0, 6, viewport.Width, 3));
 
-        UiTestRender.Render(renderer, canvas =>
-            new ApplicationCommandLineRenderer(() => PaletteRegistry.Default)
-                .Render(canvas, 28, viewport.Size, @"C:\Work", new CommandLineState()));
-        Assert.Contains(">", driver.GetRow(28), StringComparison.Ordinal);
+        UiTestRender.Render(renderer, canvas => canvas.FillRegion(new Rect(0, 6, viewport.Width, 3), CellStyle.Default));
+        driver.SetSize(40, 8);
+        underlay.RemoveHiddenOverlay();
 
-        driver.SetSize(40, 10);
-        driver.SetViewportOrigin(0, 20);
-        underlay.RemoveHiddenCommandLineOverlay();
-
-        Assert.StartsWith("SHELL-BEFORE", driver.GetRow(8));
+        Assert.StartsWith("SHELL-BEFORE", driver.GetRow(6));
     }
 }

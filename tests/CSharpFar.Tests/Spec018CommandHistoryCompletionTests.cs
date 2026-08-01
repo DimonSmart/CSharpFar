@@ -77,6 +77,125 @@ public sealed class Spec018CommandHistoryCompletionTests : IDisposable
     }
 
     [Fact]
+    public void Run_HiddenCommandLine_TypingPrefixPublishesHistoryCompletion()
+    {
+        var history = CreateHistory("git status", "git commit");
+        var driver = new FakeConsoleDriver(width: 100, height: 12);
+        driver.EnqueueKey(Key(ConsoleKey.O, control: true, keyChar: '\u000f'));
+        driver.EnqueueKey(KeyChar('g', ConsoleKey.G));
+        driver.EnqueueKey(Key(ConsoleKey.F10));
+
+        var app = CreateApp(driver, history, new RecordingShellService());
+        app.Run();
+
+        Assert.True(app.Session.CommandLine.Completion.Visible);
+        Assert.Equal(["", "git commit", "git status"], app.Session.CommandLine.Completion.Matches);
+    }
+
+    [Fact]
+    public void Run_HiddenCommandLine_SelectedCompletionIsAcceptedWithoutExecuting()
+    {
+        var history = CreateHistory("git status", "git commit");
+        var shell = new RecordingShellService();
+        var driver = new FakeConsoleDriver(width: 100, height: 12);
+        driver.EnqueueKey(Key(ConsoleKey.O, control: true, keyChar: '\u000f'));
+        driver.EnqueueKey(KeyChar('g', ConsoleKey.G));
+        driver.EnqueueKey(Key(ConsoleKey.DownArrow));
+        driver.EnqueueKey(Key(ConsoleKey.Enter));
+        driver.EnqueueKey(Key(ConsoleKey.F10));
+        bool observedAcceptedHiddenFrame = false;
+        int readCount = 0;
+        Action<FakeConsoleDriver> beforeRead = null!;
+        beforeRead = current =>
+        {
+            readCount++;
+            current.BeforeReadInput = beforeRead;
+            if (readCount == 2)
+            {
+                current.WriteAt(0, 4, "SHELL-FOUR");
+                current.WriteAt(0, 5, "SHELL-FIVE");
+                current.WriteAt(0, 6, "SHELL-SIX");
+                current.WriteAt(0, 7, "SHELL-SEVEN");
+                current.WriteAt(0, 8, "SHELL-EIGHT");
+                current.WriteAt(0, 9, "SHELL-NINE");
+            }
+            else if (readCount == 5)
+            {
+                Assert.Contains("git commit", current.GetRow(10), StringComparison.Ordinal);
+                Assert.StartsWith("SHELL-FOUR", current.GetRow(4));
+                Assert.StartsWith("SHELL-NINE", current.GetRow(9));
+                observedAcceptedHiddenFrame = true;
+            }
+        };
+        driver.BeforeReadInput = beforeRead;
+
+        var app = CreateApp(driver, history, shell);
+        app.Run();
+
+        Assert.Equal("git commit", GetCommandLine(app).Text);
+        Assert.False(app.Session.CommandLine.Completion.Visible);
+        Assert.Empty(shell.ExecutedCommands);
+        Assert.True(observedAcceptedHiddenFrame);
+    }
+
+    [Fact]
+    public void Run_HiddenCommandLine_NeutralCompletionEnterExecutesTypedCommand()
+    {
+        var history = CreateHistory("git status", "git commit");
+        var shell = new RecordingShellService();
+        var driver = new FakeConsoleDriver(width: 100, height: 12);
+        driver.EnqueueKey(Key(ConsoleKey.O, control: true, keyChar: '\u000f'));
+        driver.EnqueueKey(KeyChar('g', ConsoleKey.G));
+        driver.EnqueueKey(Key(ConsoleKey.Enter));
+        driver.EnqueueKey(Key(ConsoleKey.F10));
+
+        var app = CreateApp(driver, history, shell);
+        app.Run();
+
+        Assert.Equal(["g"], shell.ExecutedCommands);
+        Assert.False(app.Session.CommandLine.Completion.Visible);
+    }
+
+    [Fact]
+    public void Run_HiddenCommandLine_MouseClickCompletionAcceptsSuggestionWithoutExecuting()
+    {
+        var history = CreateHistory("git status", "git commit", "git branch");
+        var shell = new RecordingShellService();
+        var driver = new FakeConsoleDriver(width: 40, height: 12);
+        driver.EnqueueKey(Key(ConsoleKey.O, control: true, keyChar: '\u000f'));
+        driver.EnqueueKey(KeyChar('g', ConsoleKey.G));
+        driver.EnqueueInput(LeftMouse(2, 6));
+        driver.EnqueueKey(Key(ConsoleKey.F10));
+
+        var app = CreateApp(driver, history, shell);
+        app.Run();
+
+        Assert.Equal("git branch", GetCommandLine(app).Text);
+        Assert.False(app.Session.CommandLine.Completion.Visible);
+        Assert.Empty(shell.ExecutedCommands);
+    }
+
+    [Fact]
+    public void Run_WorkspaceTransitionAndExternalCommandCloseCompletion()
+    {
+        var history = CreateHistory("git status");
+        var shell = new RecordingShellService();
+        var driver = new FakeConsoleDriver(width: 100, height: 12);
+        driver.EnqueueKey(KeyChar('g', ConsoleKey.G));
+        driver.EnqueueKey(Key(ConsoleKey.O, control: true, keyChar: '\u000f'));
+        driver.EnqueueKey(Key(ConsoleKey.Backspace));
+        driver.EnqueueKey(KeyChar('g', ConsoleKey.G));
+        driver.EnqueueKey(Key(ConsoleKey.Enter));
+        driver.EnqueueKey(Key(ConsoleKey.F10));
+
+        var app = CreateApp(driver, history, shell);
+        app.Run();
+
+        Assert.Equal(["g"], shell.ExecutedCommands);
+        Assert.False(app.Session.CommandLine.Completion.Visible);
+    }
+
+    [Fact]
     public void Run_VisiblePanels_EnterOnDefaultNeutralCompletionExecutesTypedCommand()
     {
         var history = CreateHistory("git status", "git commit");
