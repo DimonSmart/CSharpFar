@@ -463,7 +463,7 @@ public sealed class UiCompositionHost
             var input = Screen.ReadInput(cancellationToken);
             if (input is ConsoleResizeInputEvent)
             {
-                Render(isResizeRecovery: true);
+                RecoverViewportSignal();
                 continue;
             }
 
@@ -516,7 +516,7 @@ public sealed class UiCompositionHost
         {
             if (input is ConsoleResizeInputEvent)
             {
-                Render(isResizeRecovery: true);
+                RecoverViewportSignal();
                 continue;
             }
 
@@ -535,6 +535,17 @@ public sealed class UiCompositionHost
     {
         if (HasViewportChanged() && !TryAcceptViewportChange())
             Render(isResizeRecovery: true);
+    }
+
+    private void RecoverViewportSignal()
+    {
+        if (LastStableViewport is null)
+        {
+            Render(isResizeRecovery: true);
+            return;
+        }
+
+        RecoverChangedViewport();
     }
 
     private bool TryAcceptViewportChange()

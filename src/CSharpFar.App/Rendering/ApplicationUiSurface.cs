@@ -305,9 +305,17 @@ internal sealed class ApplicationUiSurface : UiLayer<ApplicationUiFrame>, IUiSur
 
     public override UiLayerInputPolicy InputPolicy => UiLayerInputPolicy.Bubble;
 
-    public bool TryAcceptViewportChange(ConsoleViewport viewport, ConsoleViewportChange change) =>
-        _context.App.WorkspaceMode == ApplicationWorkspaceMode.HiddenCommandLine &&
-        _context.TerminalSurface.TryAcceptViewportChange(viewport, change);
+    public bool TryAcceptViewportChange(ConsoleViewport viewport, ConsoleViewportChange change)
+    {
+        if (_context.App.WorkspaceMode != ApplicationWorkspaceMode.HiddenCommandLine ||
+            !_context.TerminalSurface.TryAcceptViewportChange(viewport, change))
+        {
+            return false;
+        }
+
+        _context.CommandCompletion.ClearMatches();
+        return true;
+    }
 
     public IDisposable BeginFrame(UiRenderRequest request)
     {

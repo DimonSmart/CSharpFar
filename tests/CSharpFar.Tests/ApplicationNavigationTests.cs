@@ -343,7 +343,11 @@ public sealed class ApplicationNavigationTests : IDisposable
         BeforeEachRead(
             driver,
             _ => { },
-            afterHide => afterHide.SetViewportOrigin(0, 40),
+            afterHide =>
+            {
+                afterHide.ClearRecordedOperations();
+                afterHide.SetViewportOrigin(0, 40);
+            },
             afterScrollUp =>
             {
                 Assert.Equal(40, afterScrollUp.GetViewport().Top);
@@ -779,7 +783,6 @@ public sealed class ApplicationNavigationTests : IDisposable
         var driver = new FakeConsoleDriver(width: 40, height: 8);
         driver.SetBufferHeight(20);
         driver.TryScrollViewportToBottom();
-        int bottomTop = driver.GetViewport().Top;
         driver.EnqueueKey(Key(ConsoleKey.O, keyChar: '\u000f', control: true));
         driver.EnqueueInput(new ConsoleResizeInputEvent());
         driver.EnqueueKey(Key(ConsoleKey.O, keyChar: '\u000f', control: true));
@@ -795,7 +798,8 @@ public sealed class ApplicationNavigationTests : IDisposable
                     beforeShow.ClearRecordedOperations();
                     beforeShow.BeforeReadInput = afterShow =>
                     {
-                        Assert.Equal(bottomTop, afterShow.GetViewport().Top);
+                        Assert.True(afterShow.TryIsViewportAtBottom(out bool isAtBottom));
+                        Assert.True(isAtBottom);
                         Assert.True(afterShow.WriteAtCallCount > 0);
                     };
                 };
