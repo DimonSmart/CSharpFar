@@ -30,7 +30,6 @@ internal sealed class CommandCompletionLayer : UiLayer<CommandCompletionFrame>
     private readonly CommandCompletionController _controller;
     private readonly Action<bool> _hideCompletion;
     private readonly Action _resetHistoryNavigation;
-    private readonly Action<ApplicationRenderPart> _requestRender;
     private readonly PopupRenderer _popupRenderer = new();
     private readonly RoutedScrollableList<string> _list;
 
@@ -38,14 +37,12 @@ internal sealed class CommandCompletionLayer : UiLayer<CommandCompletionFrame>
         ApplicationRenderContext context,
         CommandCompletionController controller,
         Action<bool> hideCompletion,
-        Action resetHistoryNavigation,
-        Action<ApplicationRenderPart> requestRender)
+        Action resetHistoryNavigation)
     {
         _context = context;
         _controller = controller;
         _hideCompletion = hideCompletion;
         _resetHistoryNavigation = resetHistoryNavigation;
-        _requestRender = requestRender;
         _list = new RoutedScrollableList<string>(
             context.CommandCompletion.List,
             ListTarget,
@@ -56,7 +53,13 @@ internal sealed class CommandCompletionLayer : UiLayer<CommandCompletionFrame>
             });
     }
 
-    public override UiLayerInputPolicy InputPolicy => HasCommittedFrame && CommittedFrame.Visible ? UiLayerInputPolicy.Bubble : UiLayerInputPolicy.None;
+    public override UiLayerInputPolicy InputPolicy =>
+        HasCommittedFrame &&
+        CommittedFrame.Visible &&
+        _context.CommandCompletion.Visible &&
+        (_context.App.WorkspaceMode != ApplicationWorkspaceMode.HiddenCommandLine || !_context.Ui.HiddenUiDetachedByScroll)
+            ? UiLayerInputPolicy.Bubble
+            : UiLayerInputPolicy.None;
 
     protected override CommandCompletionFrame RenderFrame(UiRenderContext context)
     {
@@ -191,14 +194,11 @@ internal sealed class CommandCompletionLayer : UiLayer<CommandCompletionFrame>
 
     private UiInputResult InvalidateCompletion(UiInputResult result)
     {
-        if (result.Invalidate)
-            _requestRender(ApplicationRenderPart.Completion);
         return result;
     }
 
     private UiInputResult InvalidateCommandLineAndCompletion()
     {
-        _requestRender(ApplicationRenderPart.CommandLine | ApplicationRenderPart.Completion);
         return UiInputResult.HandledAndInvalidate;
     }
 

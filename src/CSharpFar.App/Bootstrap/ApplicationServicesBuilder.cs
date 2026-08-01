@@ -210,8 +210,7 @@ internal static class ApplicationServicesBuilder
             rendering.RenderContext,
             commandCompletionController,
             temporarily => commandCompletionController.Hide(temporarily),
-            commandHistoryNavigator.Reset,
-            applicationSurface.RequestRender);
+            commandHistoryNavigator.Reset);
         var panelQuickSearchLayer = new PanelQuickSearchLayer(
             rendering.RenderContext,
             temporarily => commandCompletionController.Hide(temporarily),

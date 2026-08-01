@@ -32,6 +32,8 @@ internal sealed class TerminalSurfaceController
     public bool UsesTerminalScreenMode =>
         _terminalScreenMode?.IsSupported == true;
 
+    public bool IsHiddenViewportPinnedToBottom => _hiddenViewportPinnedToBottom;
+
     public TerminalSurfaceDiagnostics GetDiagnostics()
     {
         var input = _screen.GetInputDiagnostics();
