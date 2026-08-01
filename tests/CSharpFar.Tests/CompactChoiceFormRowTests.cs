@@ -98,6 +98,25 @@ public sealed class CompactChoiceFormRowTests
         });
     }
 
+    [Fact]
+    public void DisabledChoice_IsNotFocusableOrInteractiveAndCanBeReenabled()
+    {
+        var row = Row(["one", "two"]);
+        row.Enabled = false;
+        row.DisabledReason = "Unavailable";
+        var context = new FormRowInputContext(0, true);
+
+        Assert.False(row.IsEnabled);
+        Assert.False(row.IsFocusable);
+        Assert.Equal(FormInputResultKind.NotHandled, row.HandleKey(Key(ConsoleKey.RightArrow), context).Kind);
+        Assert.Equal("one", row.Value);
+
+        row.Enabled = true;
+
+        Assert.Equal(FormInputResultKind.ValueChanged, row.HandleKey(Key(ConsoleKey.RightArrow), context).Kind);
+        Assert.Equal("two", row.Value);
+    }
+
     private static CompactChoiceFormRow<string> Row(IReadOnlyList<string> values, int selectedIndex = 0) =>
         new(new ChoiceRow<string>(values, static value => value, selectedIndex), "Mode");
 

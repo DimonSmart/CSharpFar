@@ -41,33 +41,22 @@ internal sealed class CompareOptionsDialog
         TextField exclude = _fields.Text("exclude", settings.ExcludeMasks ?? "", AppTextHistoryIds.CompareExclude, submitOnEnter: true);
         TextField customDepth = _fields.Text("custom-depth", Math.Max(0, settings.CustomDepth).ToString(System.Globalization.CultureInfo.InvariantCulture), AppTextHistoryIds.CompareDepth, width: 8, submitOnEnter: true);
 
-        var recursive = new CheckBoxRow(new CheckBoxLine("Include subfolders", settings.IncludeSubfolders));
-        var selectedOnly = new CheckBoxRow(new CheckBoxLine("Selected items only", settings.SelectedItemsOnly));
-        var depth = new ChoiceFormRow<string>(
-            label: "Depth:",
-            values: ["All", "0", "1", "2", "Custom"],
-            format: static value => value,
-            selectedValue: settings.Depth);
-        var method = new ChoiceFormRow<CompareMethod>(
-            label: "Method:",
-            values: [CompareMethod.Fast, CompareMethod.Content],
-            format: MethodLabel,
-            selectedValue: Enum.TryParse(settings.Method, out CompareMethod initialMethod) ? initialMethod : CompareMethod.Fast);
-        var tolerance = new ChoiceFormRow<TimestampTolerance>(
-            label: "Timestamp:",
-            values: [TimestampTolerance.Exact, TimestampTolerance.TwoSeconds, TimestampTolerance.OneHour],
-            format: ToleranceLabel,
-            selectedValue: Enum.TryParse(settings.TimestampTolerance, out TimestampTolerance initialTolerance) ? initialTolerance : TimestampTolerance.Exact);
-        var nameComparison = new ChoiceFormRow<NameComparisonMode>(
-            label: "Name comparison:",
-            values: [NameComparisonMode.SystemDefault, NameComparisonMode.CaseSensitive, NameComparisonMode.CaseInsensitive],
-            format: NameComparisonLabel,
-            selectedValue: Enum.TryParse(settings.NameComparison, out NameComparisonMode initialNameComparison) ? initialNameComparison : NameComparisonMode.SystemDefault);
-        var fileSetMatch = new ChoiceFormRow<FileSetMatchMode>(
-            label: "Match by:",
-            values: [FileSetMatchMode.FileName, FileSetMatchMode.FileNameAndSize, FileSetMatchMode.FileNameAndContentHash],
-            format: FileSetMatchLabel,
-            selectedValue: Enum.TryParse(settings.FileSetMatchMode, out FileSetMatchMode initialFileSetMatch) ? initialFileSetMatch : FileSetMatchMode.FileName);
+        var recursive = FormControls.CheckBox("recursive", "Include subfolders", settings.IncludeSubfolders);
+        var selectedOnly = FormControls.CheckBox("selected-only", "Selected items only", settings.SelectedItemsOnly);
+        var depth = FormControls.Choice(
+            "depth", "Depth:", ["All", "0", "1", "2", "Custom"], static value => value, settings.Depth, "All");
+        var method = FormControls.Choice(
+            "method", "Method:", [CompareMethod.Fast, CompareMethod.Content], MethodLabel,
+            Enum.TryParse(settings.Method, out CompareMethod initialMethod) ? initialMethod : CompareMethod.Fast);
+        var tolerance = FormControls.Choice(
+            "tolerance", "Timestamp:", [TimestampTolerance.Exact, TimestampTolerance.TwoSeconds, TimestampTolerance.OneHour], ToleranceLabel,
+            Enum.TryParse(settings.TimestampTolerance, out TimestampTolerance initialTolerance) ? initialTolerance : TimestampTolerance.Exact);
+        var nameComparison = FormControls.Choice(
+            "name-comparison", "Name comparison:", [NameComparisonMode.SystemDefault, NameComparisonMode.CaseSensitive, NameComparisonMode.CaseInsensitive], NameComparisonLabel,
+            Enum.TryParse(settings.NameComparison, out NameComparisonMode initialNameComparison) ? initialNameComparison : NameComparisonMode.SystemDefault);
+        var fileSetMatch = FormControls.Choice(
+            "file-set-match", "Match by:", [FileSetMatchMode.FileName, FileSetMatchMode.FileNameAndSize, FileSetMatchMode.FileNameAndContentHash], FileSetMatchLabel,
+            Enum.TryParse(settings.FileSetMatchMode, out FileSetMatchMode initialFileSetMatch) ? initialFileSetMatch : FileSetMatchMode.FileName);
         var buttons = new ButtonRow(
             [
                 DialogButton.Default("compare", "Compare", 'C'),
@@ -91,13 +80,13 @@ internal sealed class CompareOptionsDialog
                 tolerance,
                 nameComparison,
                 fileSetMatch,
-                buttons,
-                error));
+                error),
+                [buttons]);
 
         return _formDialogs.Run(
             form,
             new ModalFormOptions(mode == CompareMode.FileSet ? "Compare file sets" : "Compare folders", DialogWidth, DialogHeight, 52, 12),
-            static layout => new ModalFormLayout(layout.ContentBounds),
+            static layout => ModalFormLayout.WithFooter(layout.ContentBounds, footerHeight: 2),
             (routed, result) =>
             {
                 if (FormDialogInput.ShouldCancel(result))
@@ -141,7 +130,6 @@ internal sealed class CompareOptionsDialog
         ChoiceFormRow<TimestampTolerance> tolerance,
         ChoiceFormRow<NameComparisonMode> nameComparison,
         ChoiceFormRow<FileSetMatchMode> fileSetMatch,
-        ButtonRow buttons,
         string? error)
     {
         List<IFormRow> rows =
@@ -159,15 +147,15 @@ internal sealed class CompareOptionsDialog
         if (depth.Value == "Custom")
         {
             rows.Add(new LabelRow("Custom depth:", FarDialogStyles.Fill));
-            rows.Add(customDepth.AsRow());
+            rows.Add(FormControls.Text(customDepth));
         }
 
         rows.Add(new SeparatorRow(FarDialogStyles.Border));
         rows.Add(new LabelRow("Filters", FarDialogStyles.Fill));
         rows.Add(new LabelRow("Include masks (semicolon-separated):", FarDialogStyles.Fill));
-        rows.Add(include.AsRow());
+        rows.Add(FormControls.Text(include));
         rows.Add(new LabelRow("Exclude masks (semicolon-separated):", FarDialogStyles.Fill));
-        rows.Add(exclude.AsRow());
+        rows.Add(FormControls.Text(exclude));
         rows.Add(new SeparatorRow(FarDialogStyles.Border));
         rows.Add(new LabelRow("Comparison", FarDialogStyles.Fill));
         rows.Add(method);
@@ -178,7 +166,6 @@ internal sealed class CompareOptionsDialog
             rows.Add(fileSetMatch);
         rows.Add(new SpacerRow(FarDialogStyles.Fill));
         rows.Add(new LabelRow(error ?? string.Empty, FarDialogStyles.Error));
-        rows.Add(buttons);
         return rows;
     }
 

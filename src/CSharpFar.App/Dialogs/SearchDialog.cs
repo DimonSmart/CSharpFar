@@ -76,25 +76,19 @@ internal sealed class SearchDialog
         TextField parallelism = fields.Text("parallelism", DefaultParallelism().ToString(System.Globalization.CultureInfo.InvariantCulture),
             AppTextHistoryIds.SearchParallelism, width: 8, submitOnEnter: true);
 
-        var caseSensitiveRow = new CheckBoxRow("Case sensitive");
-        var wholeWordsRow = new CheckBoxRow("Whole words");
-        var notContainingRow = new CheckBoxRow("Not containing");
-        var includeDirectoriesRow = new CheckBoxRow("Include folders in results");
-        var searchLinksRow = new CheckBoxRow("Search in symbolic links");
+        var caseSensitiveRow = FormControls.CheckBox("case-sensitive", "Case sensitive");
+        var wholeWordsRow = FormControls.CheckBox("whole-words", "Whole words");
+        var notContainingRow = FormControls.CheckBox("not-containing", "Not containing");
+        var includeDirectoriesRow = FormControls.CheckBox("include-directories", "Include folders in results");
+        var searchLinksRow = FormControls.CheckBox("search-links", "Search in symbolic links");
         SearchScope[] scopes =
         [
             SearchScope.CurrentDirectoryRecursive,
             SearchScope.CurrentDirectoryOnly,
         ];
-        var scopeDropdown = new DropdownSelect<SearchScope>(scopes, ScopeLabel)
-        {
-            SelectedIndex = 0,
-            MaxVisibleRows = 6,
-        };
-        var scopeRow = new DropdownSelectFormRow<SearchScope>(string.Empty, scopeDropdown)
-        {
-            Id = "scope",
-        };
+        var scopeRow = FormControls.Dropdown(
+            "scope", string.Empty, scopes, ScopeLabel, SearchScope.CurrentDirectoryRecursive);
+        scopeRow.MaxVisibleRows = 6;
         var optionsRow = new CheckBoxColumnsRow(
             [
                 [caseSensitiveRow, wholeWordsRow, notContainingRow],
@@ -176,15 +170,15 @@ internal sealed class SearchDialog
         return
         [
             new LabelRow("A file mask or several file masks:", fill),
-            mask.AsRow(),
+            FormControls.Text(mask),
             new LabelRow("Containing text:", fill),
-            text.AsRow(),
+            FormControls.Text(text),
             new LabelRow("Using code page: Automatic detection", fill),
             options,
             new LabelRow("Select search area:", fill),
             scope,
             new LabelRow("Parallelism:", fill),
-            parallelism.AsRow(),
+            FormControls.Text(parallelism),
         ];
     }
 

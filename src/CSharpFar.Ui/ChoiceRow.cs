@@ -101,16 +101,18 @@ public sealed class ChoiceRow<T>
     }
 
     public ChoiceRowLayout Render(IUiCanvas screen, int x, int y, int width, string label, bool focused)
+        => Render(screen, x, y, width, label, focused, FarDialogStyles.Fill, FarDialogStyles.FocusedInput);
+
+    public ChoiceRowLayout Render(IUiCanvas screen, int x, int y, int width, string label, bool focused, CellStyle fillStyle, CellStyle focusedStyle)
     {
         ArgumentNullException.ThrowIfNull(screen);
 
-        var palette = UiTheme.Current;
         string text = SelectedIndex < 0 ? $"{label}: " : $"{label}: {_format(Value)}";
         screen.Write(
             x,
             y,
             Fit(text, width),
-            focused ? PaletteStyles.InputField(palette) : PaletteStyles.DialogFill(palette));
+            focused ? focusedStyle : fillStyle);
         return new ChoiceRowLayout(
             ChoiceRowLayoutKind.Simple,
             Array.AsReadOnly(new[] { new Rect(x, y, Math.Max(0, width), 1) }),

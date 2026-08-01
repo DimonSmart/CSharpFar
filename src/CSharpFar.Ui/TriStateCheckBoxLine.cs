@@ -1,13 +1,12 @@
 using CSharpFar.Console;
 using CSharpFar.Console.Input;
 using CSharpFar.Console.Models;
-using CSharpFar.Core.Models;
 
 namespace CSharpFar.Ui;
 
 public sealed class TriStateCheckBoxLine
 {
-    public TriStateCheckBoxLine(string label, AttributeEditState value = AttributeEditState.Unchecked, bool enabled = true)
+    internal TriStateCheckBoxLine(string label, CheckState value = CheckState.Unchecked, bool enabled = true)
     {
         Label = label;
         Value = value;
@@ -15,24 +14,28 @@ public sealed class TriStateCheckBoxLine
     }
 
     public string Label { get; }
-    public AttributeEditState Value { get; set; }
+    public CheckState Value { get; set; }
     public bool Enabled { get; set; }
 
-    public void Render(IUiCanvas screen, int x, int y, int width, bool focused)
+    public void Render(
+        IUiCanvas screen,
+        int x,
+        int y,
+        int width,
+        bool focused,
+        CellStyle fillStyle,
+        CellStyle focusedStyle)
     {
         ArgumentNullException.ThrowIfNull(screen);
 
         char marker = Value switch
         {
-            AttributeEditState.Checked => 'x',
-            AttributeEditState.Indeterminate => '-',
+            CheckState.Checked => 'x',
+            CheckState.Indeterminate => '-',
             _ => ' ',
         };
         string text = $"[{marker}] {Label}";
-        CellStyle style = focused && Enabled
-            ? FarDialogStyles.FocusedInput
-            : FarDialogStyles.Fill;
-        screen.Write(x, y, Fit(text, width), style);
+        screen.Write(x, y, Fit(text, width), focused ? focusedStyle : fillStyle);
     }
 
     public bool TryHandleKey(ConsoleKeyInfo key)
@@ -61,9 +64,9 @@ public sealed class TriStateCheckBoxLine
     private void Toggle() =>
         Value = Value switch
         {
-            AttributeEditState.Indeterminate => AttributeEditState.Checked,
-            AttributeEditState.Unchecked => AttributeEditState.Checked,
-            _ => AttributeEditState.Unchecked,
+            CheckState.Indeterminate => CheckState.Checked,
+            CheckState.Unchecked => CheckState.Checked,
+            _ => CheckState.Unchecked,
         };
 
     private static bool Contains(Rect bounds, int x, int y) =>

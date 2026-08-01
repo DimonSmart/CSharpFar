@@ -8,6 +8,28 @@ namespace CSharpFar.Tests;
 public sealed class TextFieldTests
 {
     [Fact]
+    public void WithDefaults_AppliesScopedDefaultsAndAllowsPerFieldOverrides()
+    {
+        var provider = new CountingHistoryProvider();
+        FormFieldFactory fields = new FormFieldFactory(provider).WithDefaults(
+            new TextFieldDefaults(Width: 44, SubmitOnEnter: true));
+
+        TextField inherited = fields.Text("inherited");
+        TextField overridden = fields.Text("overridden", width: 12, submitOnEnter: false);
+        TextField masked = fields.Text(
+            "password",
+            historyId: new TextHistoryId("TextFieldTests.ScopedPassword"),
+            maskInput: true);
+
+        Assert.Equal(44, inherited.Width);
+        Assert.True(inherited.SubmitOnEnter);
+        Assert.Equal(12, overridden.Width);
+        Assert.False(overridden.SubmitOnEnter);
+        Assert.Equal(44, masked.Width);
+        Assert.Equal(0, provider.GetCallCount);
+    }
+
+    [Fact]
     public void LabeledRow_InheritsMaskedFieldConfigurationAndSharedInput()
     {
         var provider = new CountingHistoryProvider();
@@ -93,6 +115,31 @@ public sealed class TextFieldTests
 
         Assert.Equal(0, provider.GetCallCount);
         Assert.Empty(provider.History.Items);
+    }
+
+    [Fact]
+    public void DisabledField_StateIsSharedByEveryRowProjectionAndPreventsInput()
+    {
+        TextField field = new FormFieldFactory(new CountingHistoryProvider()).Text("value", "retained");
+        TextInputRow ordinary = field.AsRow();
+        LabeledTextInputRow labeled = field.AsLabeledRow("Value:");
+        field.Enabled = false;
+        field.DisabledReason = "Unavailable";
+
+        Assert.False(ordinary.IsEnabled);
+        Assert.False(labeled.IsEnabled);
+        Assert.False(ordinary.IsFocusable);
+        Assert.Equal("Unavailable", ordinary.DisabledReason);
+        Assert.Equal(FormInputResultKind.NotHandled,
+            ordinary.HandleKey(new ConsoleKeyInfo('x', ConsoleKey.X, false, false, false), new FormRowInputContext(0, true)).Kind);
+        Assert.Equal("retained", field.Text);
+
+        field.Enabled = true;
+
+        Assert.True(ordinary.IsEnabled);
+        Assert.Equal(FormInputResultKind.ValueChanged,
+            ordinary.HandleKey(new ConsoleKeyInfo('x', ConsoleKey.X, false, false, false), new FormRowInputContext(0, true)).Kind);
+        Assert.Equal("retainedx", field.Text);
     }
 
     [Fact]

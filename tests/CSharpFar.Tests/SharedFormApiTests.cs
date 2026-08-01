@@ -30,6 +30,9 @@ public sealed class SharedFormApiTests
         var form = new ScrollableFormDialog();
 
         Assert.True(FormDialogInput.ShouldSubmit(Routed(ConsoleKey.F10), FormInputResult.NotHandled, form));
+        Assert.False(FormDialogInput.ShouldSubmit(Routed(ConsoleKey.F10), FormInputResult.Handled, form));
+        Assert.False(FormDialogInput.ShouldSubmit(Routed(ConsoleKey.F10), FormInputResult.ValueChanged, form));
+        Assert.False(FormDialogInput.ShouldSubmit(Routed(ConsoleKey.F10), FormInputResult.Cancel("cancel"), form));
         Assert.True(FormDialogInput.ShouldSubmit(Routed(ConsoleKey.Spacebar), FormInputResult.Submit("ok"), form));
         Assert.False(FormDialogInput.ShouldSubmit(Routed(ConsoleKey.Spacebar), FormInputResult.NotHandled, form));
         Assert.True(FormDialogInput.ShouldCancel(FormInputResult.Cancel("cancel")));
@@ -57,7 +60,6 @@ public sealed class SharedFormApiTests
     public void DialogButtonFactories_SetTheirDocumentedModels()
     {
         Assert.Equal(new DialogButton("default", "Default", 'D', IsDefault: true), DialogButton.Default("default", "Default", 'D'));
-        Assert.Equal(new DialogButton("submit", "Submit", 'S'), DialogButton.Submit("submit", "Submit", 'S'));
         Assert.Equal(new DialogButton("action", "Action", 'A'), DialogButton.Action("action", "Action", 'A'));
         Assert.Equal(new DialogButton("cancel", "Cancel", 'C', Role: DialogButtonRole.Cancel), DialogButton.Cancel());
     }
@@ -66,7 +68,7 @@ public sealed class SharedFormApiTests
     public void FormFooter_ErrorAndButtonsReadsErrorAtRenderTime()
     {
         string? error = "First";
-        IReadOnlyList<IFormRow> footer = FormFooter.ErrorAndButtons(() => error, new ButtonRow([DialogButton.Submit("ok", "OK", 'O')]));
+        IReadOnlyList<IFormRow> footer = FormFooter.ErrorAndButtons(() => error, new ButtonRow([DialogButton.Default("ok", "OK", 'O')]));
         var driver = new FakeConsoleDriver(10, 1);
         var screen = new ScreenRenderer(driver);
 

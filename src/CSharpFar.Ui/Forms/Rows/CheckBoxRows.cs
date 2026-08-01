@@ -1,7 +1,6 @@
 using CSharpFar.Console;
 using CSharpFar.Console.Input;
 using CSharpFar.Console.Models;
-using CSharpFar.Core.Models;
 
 namespace CSharpFar.Ui;
 
@@ -82,12 +81,18 @@ public sealed class TriStateCheckBoxRow : FormRow, IFormCursorProvider
 
     private readonly TriStateCheckBoxLine _checkBox;
 
-    public TriStateCheckBoxRow(TriStateCheckBoxLine checkBox)
+    internal TriStateCheckBoxRow(TriStateCheckBoxLine checkBox)
     {
         _checkBox = checkBox;
     }
 
-    public AttributeEditState Value
+    public TriStateCheckBoxRow(string id, string label, CheckState value = CheckState.Unchecked)
+        : this(new TriStateCheckBoxLine(label, value))
+    {
+        Id = id;
+    }
+
+    public CheckState Value
     {
         get => _checkBox.Value;
         set => _checkBox.Value = value;
@@ -99,20 +104,40 @@ public sealed class TriStateCheckBoxRow : FormRow, IFormCursorProvider
         set => _checkBox.Enabled = value;
     }
 
+    public string? DisabledReason { get; set; }
+
     public override bool IsEnabled => Enabled;
 
-    public override void Render(FormRowRenderContext context) =>
-        _checkBox.Render(context.Canvas, context.Bounds.X, context.Bounds.Y, context.Bounds.Width, context.Focused);
+    public override void Render(FormRowRenderContext context)
+    {
+        CellStyle fill = Enabled
+            ? FarDialogStyles.Fill
+            : FarDialogStyles.DisabledControl(FarDialogStyles.Fill);
+        string label = DisabledReason is { Length: > 0 }
+            ? $"{_checkBox.Label} - {DisabledReason}"
+            : _checkBox.Label;
+        var display = new TriStateCheckBoxLine(label, _checkBox.Value);
+        display.Render(
+            context.Canvas,
+            context.Bounds.X,
+            context.Bounds.Y,
+            context.Bounds.Width,
+            context.Focused && Enabled,
+            fill,
+            FarDialogStyles.FocusedInput);
+    }
 
     public bool TryGetCursor(FormRowRenderContext context, out FormCursorPlacement cursor)
     {
         cursor = new FormCursorPlacement(context.Bounds.X + 1, context.Bounds.Y);
-        return context.Focused && context.Bounds.Width >= 3;
+        return Enabled && context.Focused && context.Bounds.Width >= 3;
     }
 
     public override FormInputResult HandleKey(ConsoleKeyInfo key, FormRowInputContext context)
     {
-        AttributeEditState before = _checkBox.Value;
+        if (!Enabled)
+            return FormInputResult.NotHandled;
+        CheckState before = _checkBox.Value;
         if (!_checkBox.TryHandleKey(key))
             return FormInputResult.NotHandled;
 
@@ -121,7 +146,9 @@ public sealed class TriStateCheckBoxRow : FormRow, IFormCursorProvider
 
     public override FormInputResult HandleMouse(MouseConsoleInputEvent mouse, FormRowMouseContext context)
     {
-        AttributeEditState before = _checkBox.Value;
+        if (!Enabled)
+            return FormInputResult.NotHandled;
+        CheckState before = _checkBox.Value;
         if (!_checkBox.TryHandleMouse(mouse, context.Bounds))
             return FormInputResult.NotHandled;
 

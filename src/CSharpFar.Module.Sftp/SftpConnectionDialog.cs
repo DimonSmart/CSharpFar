@@ -31,7 +31,6 @@ internal sealed class SftpConnectionDialog
 {
     private const int DialogWidth = 74;
     private const int DialogHeight = 18;
-    private const int FieldWidth = 42;
 
     private readonly FormFieldFactory _fields;
     private readonly ModalFormHost _formDialogs;
@@ -57,17 +56,18 @@ internal sealed class SftpConnectionDialog
         Func<SftpConnectionDialogResult, SftpConnectionDialogValidationResult> validate)
     {
         SftpConnectionInfo? connection = request.Connection;
+        FormFieldFactory fields = _fields.WithDefaults(new TextFieldDefaults(Width: 42, SubmitOnEnter: true));
         var state = new SftpFormState(
-            _fields.Text("connection-name", connection?.DisplayName ?? string.Empty, SftpTextHistoryIds.ConnectionName, width: FieldWidth, submitOnEnter: true),
-            _fields.Text("host", connection?.Host ?? string.Empty, SftpTextHistoryIds.Host, width: FieldWidth, submitOnEnter: true),
-            _fields.Text("port", (connection?.Port ?? 22).ToString(), SftpTextHistoryIds.Port, width: FieldWidth, submitOnEnter: true),
-            _fields.Text("username", connection?.Username ?? string.Empty, SftpTextHistoryIds.UserName, width: FieldWidth, submitOnEnter: true),
-            _fields.Text("password", request.SavedPassword ?? string.Empty, maskInput: true, width: FieldWidth, submitOnEnter: true),
-            _fields.Text("remote-root", connection?.RemoteRootPath ?? "/", SftpTextHistoryIds.RemoteRoot, width: FieldWidth, submitOnEnter: true),
-            new CheckBoxRow("Save connection", request.SaveConnectionByDefault) { Id = "save-connection" },
-            new CheckBoxRow("Save password", connection?.CredentialId is not null && request.SavedPassword is not null) { Id = "save-password" },
-            new CheckBoxRow("Show in drive menu", connection?.ShowInDriveSelection ?? true) { Id = "show-in-drive" },
-            new CheckBoxRow("Trust host key") { Id = "trust-host-key" },
+            fields.Text("connection-name", connection?.DisplayName ?? string.Empty, SftpTextHistoryIds.ConnectionName),
+            fields.Text("host", connection?.Host ?? string.Empty, SftpTextHistoryIds.Host),
+            fields.Text("port", (connection?.Port ?? 22).ToString(), SftpTextHistoryIds.Port),
+            fields.Text("username", connection?.Username ?? string.Empty, SftpTextHistoryIds.UserName),
+            fields.Text("password", request.SavedPassword ?? string.Empty, maskInput: true),
+            fields.Text("remote-root", connection?.RemoteRootPath ?? "/", SftpTextHistoryIds.RemoteRoot),
+            FormControls.CheckBox("save-connection", "Save connection", request.SaveConnectionByDefault),
+            FormControls.CheckBox("save-password", "Save password", connection?.CredentialId is not null && request.SavedPassword is not null),
+            FormControls.CheckBox("show-in-drive", "Show in drive menu", connection?.ShowInDriveSelection ?? true),
+            FormControls.CheckBox("trust-host-key", "Trust host key"),
             request.AllowTemporaryConnection);
 
         string? hostKeyFingerprint = connection?.ExpectedHostKeyFingerprint;
@@ -157,12 +157,12 @@ internal sealed class SftpConnectionDialog
     {
         var rows = new List<IFormRow>
         {
-            state.ConnectionName.AsLabeledRow("Connection name:"),
-            state.Host.AsLabeledRow("Host:"),
-            state.Port.AsLabeledRow("Port:"),
-            state.UserName.AsLabeledRow("User name:"),
-            state.Password.AsLabeledRow("Password:"),
-            state.RemoteRoot.AsLabeledRow("Remote root:"),
+            FormControls.Text("Connection name:", state.ConnectionName),
+            FormControls.Text("Host:", state.Host),
+            FormControls.Text("Port:", state.Port),
+            FormControls.Text("User name:", state.UserName),
+            FormControls.Text("Password:", state.Password),
+            FormControls.Text("Remote root:", state.RemoteRoot),
         };
         if (state.AllowTemporaryConnection)
             rows.Add(state.SaveConnection);
@@ -170,7 +170,7 @@ internal sealed class SftpConnectionDialog
         rows.Add(state.ShowInDrive);
         if (!string.IsNullOrWhiteSpace(hostKeyFingerprint))
         {
-            rows.Add(new LabeledValueRow("Host key:", () => hostKeyFingerprint, 22) { Id = "host-key-fingerprint" });
+            rows.Add(new LabeledValueRow("Host key:", () => hostKeyFingerprint) { Id = "host-key-fingerprint" });
             rows.Add(state.TrustHostKey);
         }
         return rows;

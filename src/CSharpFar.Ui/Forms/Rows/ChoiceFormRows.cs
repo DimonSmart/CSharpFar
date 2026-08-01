@@ -47,7 +47,10 @@ public sealed class ChoiceFormRow<T> : FormRow, IFormCursorProvider
     {
     }
 
-    public override bool IsFocusable => _isFocusable;
+    public override bool IsFocusable => Enabled && _isFocusable;
+    public bool Enabled { get; set; } = true;
+    public string? DisabledReason { get; set; }
+    public override bool IsEnabled => Enabled;
     public ChoiceRow<T> Choice => _choice;
     public T Value => _choice.Value;
 
@@ -59,10 +62,10 @@ public sealed class ChoiceFormRow<T> : FormRow, IFormCursorProvider
             context.Bounds.X,
             context.Bounds.Y,
             context.Bounds.Width,
-            _label,
-            context.Focused,
-            FarDialogStyles.Fill,
-            FarDialogStyles.FocusedInput,
+            !Enabled ? DisabledFormControlPresentation.WithReason(_label, DisabledReason) : _label,
+            context.Focused && Enabled,
+            DisabledFormControlPresentation.Style(Enabled, FarDialogStyles.Fill),
+            DisabledFormControlPresentation.Style(Enabled, FarDialogStyles.FocusedInput),
             _startIndex,
             _endIndex);
     }
@@ -70,7 +73,7 @@ public sealed class ChoiceFormRow<T> : FormRow, IFormCursorProvider
     public bool TryGetCursor(FormRowRenderContext context, out FormCursorPlacement cursor)
     {
         var layout = CalculateLayout(context.Bounds);
-        if (context.Focused && _choice.TryGetSelectedMarkerBounds(layout, out Rect bounds))
+        if (Enabled && context.Focused && _choice.TryGetSelectedMarkerBounds(layout, out Rect bounds))
         {
             cursor = new FormCursorPlacement(bounds.X + 1, bounds.Y);
             return true;
@@ -82,6 +85,8 @@ public sealed class ChoiceFormRow<T> : FormRow, IFormCursorProvider
 
     public override FormInputResult HandleKey(ConsoleKeyInfo key, FormRowInputContext context)
     {
+        if (!Enabled)
+            return FormInputResult.NotHandled;
         int before = _choice.SelectedIndex;
         if (!_choice.TryHandleKey(key))
             return FormInputResult.NotHandled;
@@ -91,6 +96,8 @@ public sealed class ChoiceFormRow<T> : FormRow, IFormCursorProvider
 
     public override FormInputResult HandleMouse(MouseConsoleInputEvent mouse, FormRowMouseContext context)
     {
+        if (!Enabled)
+            return FormInputResult.NotHandled;
         int before = _choice.SelectedIndex;
         var layout = CalculateLayout(context.Bounds);
         if (!_choice.TryHandleMouse(mouse, layout))

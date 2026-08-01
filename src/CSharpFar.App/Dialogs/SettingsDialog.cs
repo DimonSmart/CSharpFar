@@ -46,47 +46,13 @@ internal sealed class SettingsDialog
         bool fileHighlightingEnabled,
         bool editorSyntaxHighlightingEnabled)
     {
-        var leftViewMode = new CompactChoiceFormRow<PanelViewMode>(
-            label: "Left panel",
-            values: ViewModes,
-            format: ViewModeLabel,
-            selectedValue: leftMode)
-        {
-            Id = LeftViewModeRowId,
-            ShowCursor = false,
-        };
-        var rightViewMode = new CompactChoiceFormRow<PanelViewMode>(
-            label: "Right panel",
-            values: ViewModes,
-            format: ViewModeLabel,
-            selectedValue: rightMode)
-        {
-            Id = RightViewModeRowId,
-            ShowCursor = false,
-        };
-        var palette = new CompactChoiceFormRow<string>(
-            label: "Palette",
-            values: PaletteNames,
-            format: static name => name,
-            selectedValue: paletteName,
-            comparer: StringComparer.OrdinalIgnoreCase)
-        {
-            Id = PaletteRowId,
-            ShowCursor = false,
-        };
-        var fileHighlighting = new CheckBoxRow(new CheckBoxLine("File highlighting"))
-        {
-            Id = FileHighlightingRowId,
-            Value = fileHighlightingEnabled,
-            ShowCursor = false,
-        };
-        var syntaxHighlighting = new CheckBoxRow(new CheckBoxLine("Editor syntax highlighting"))
-        {
-            Id = EditorSyntaxHighlightingRowId,
-            Value = editorSyntaxHighlightingEnabled,
-            ShowCursor = false,
-        };
-        var form = new ScrollableFormDialog();
+        var leftViewMode = FormControls.CompactChoice(LeftViewModeRowId, "Left panel", ViewModes, ViewModeLabel, leftMode);
+        var rightViewMode = FormControls.CompactChoice(RightViewModeRowId, "Right panel", ViewModes, ViewModeLabel, rightMode);
+        var palette = FormControls.CompactChoice(PaletteRowId, "Palette", PaletteNames, static name => name, paletteName, StringComparer.OrdinalIgnoreCase);
+        var fileHighlighting = FormControls.CheckBox(FileHighlightingRowId, "File highlighting", fileHighlightingEnabled);
+        var syntaxHighlighting = FormControls.CheckBox(EditorSyntaxHighlightingRowId, "Editor syntax highlighting", editorSyntaxHighlightingEnabled);
+        var form = new ScrollableFormDialog(
+            new FormLayoutOptions(CursorPolicy: FormCursorPolicy.Hidden));
 
         void PrepareRows() =>
             form.SetRows(

@@ -194,7 +194,8 @@ public sealed class EditorFormatDialogTests
         driver.BeforeReadInput = d =>
         {
             FakeConsoleDriver.WriteRecord record = d.WriteRecords.First(r => r.Text.Contains(text, StringComparison.Ordinal));
-            d.EnqueueInput(Mouse(record.X, record.Y));
+            int offset = record.Text.IndexOf(text, StringComparison.Ordinal);
+            d.EnqueueInput(Mouse(record.X + offset, record.Y));
             foreach (ConsoleInputEvent input in afterClick)
                 d.EnqueueInput(input);
         };

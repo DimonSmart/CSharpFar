@@ -35,8 +35,7 @@ internal sealed class ConflictDialog
 
     public FileOperationConflictDecision Show(FileOperationConflict conflict)
     {
-        var rememberChoice = new CheckBoxRow(new CheckBoxLine("Remember choice"))
-        { Id = "remember-choice" };
+        var rememberChoice = FormControls.CheckBox("remember-choice", "Remember choice");
         var actions = new ButtonRow(
             CreateButtons(),
             style: WarningDialogStyles.ButtonBar)

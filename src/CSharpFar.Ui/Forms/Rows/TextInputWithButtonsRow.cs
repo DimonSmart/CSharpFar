@@ -34,8 +34,11 @@ public sealed class TextInputWithButtonsRow : FormRow, IFormCursorProvider, IFor
     }
 
     public CommandLineState Buffer => _field.Buffer;
+    public bool Enabled { get => _field.Enabled; set => _field.Enabled = value; }
+    public string? DisabledReason { get => _field.DisabledReason; set => _field.DisabledReason = value; }
+    public override bool IsEnabled => Enabled;
     internal FormTextInputField Input => _field;
-    public bool IsCompositeOpen => _field.History?.IsDropdownOpen == true;
+    public bool IsCompositeOpen => Enabled && _field.History?.IsDropdownOpen == true;
 
     public override void Render(FormRowRenderContext context)
     {
@@ -44,8 +47,8 @@ public sealed class TextInputWithButtonsRow : FormRow, IFormCursorProvider, IFor
         context.Canvas.Write(
             context.Bounds.X,
             context.Bounds.Y,
-            ScrollableFormDialog.Fit(_label, labelWidth),
-            FarDialogStyles.Fill);
+            ScrollableFormDialog.Fit(!Enabled ? DisabledFormControlPresentation.WithReason(_label, DisabledReason) : _label, labelWidth),
+            DisabledFormControlPresentation.Style(Enabled, FarDialogStyles.Fill));
 
         _field.Render(context, layout.InputBounds);
 
@@ -55,7 +58,11 @@ public sealed class TextInputWithButtonsRow : FormRow, IFormCursorProvider, IFor
                 context.Canvas,
                 layout.ButtonLayout,
                 _buttonState,
-                context.Focused);
+                context.Focused && Enabled,
+                Enabled ? null : new DialogButtonBarStyle(
+                    FarDialogStyles.DisabledControl(FarDialogStyles.Fill),
+                    FarDialogStyles.DisabledControl(FarDialogStyles.Fill),
+                    FarDialogStyles.DisabledControl(FarDialogStyles.Fill)));
         }
     }
 
@@ -75,6 +82,8 @@ public sealed class TextInputWithButtonsRow : FormRow, IFormCursorProvider, IFor
 
     public override FormInputResult HandleMouse(MouseConsoleInputEvent mouse, FormRowMouseContext context)
     {
+        if (!Enabled)
+            return FormInputResult.NotHandled;
         var layout = CalculateLayout(context.Bounds);
         DialogButtonBarInputResult buttonResult = _buttonBar.HandleMouse(mouse, layout.ButtonLayout, _buttonState);
         _buttonState = buttonResult.State;
