@@ -342,6 +342,7 @@ internal static class ApplicationServicesBuilder
             effectiveFileMetadata,
             fileAttributesDialogFactory ?? (() => new FileAttributesDialog(
                 modalDialogs,
+                formFields,
                 canOpenSystemProperties: System.Runtime.InteropServices.RuntimeInformation.IsOSPlatform(
                     System.Runtime.InteropServices.OSPlatform.Windows))),
             highlightService);

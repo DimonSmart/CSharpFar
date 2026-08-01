@@ -183,7 +183,7 @@ internal sealed class CompareOptionsDialog
             : new LabelRow($"Selected: left {leftCount}, right {rightCount}", FarDialogStyles.Fill);
     }
 
-    private static ComparisonOptions? BuildOptions(
+    internal static ComparisonOptions? BuildOptions(
         CompareMode mode,
         bool recursive,
         bool selectedOnly,
@@ -215,7 +215,7 @@ internal sealed class CompareOptionsDialog
         include.AcceptHistory();
         if (excludeMasks.Length > 0)
             exclude.AcceptHistory();
-        if (maxDepth.HasValue)
+        if (depth == "Custom")
             customDepth.AcceptHistory();
 
         return new ComparisonOptions

@@ -24,7 +24,6 @@ public sealed class TextInputWithButtonsRowTests
             "",
             field,
             [new DialogButton("keep", "Keep", 'K')],
-            "write.",
             buttonAreaWidth: 0);
         var driver = new FakeConsoleDriver(width: 20, height: 2);
         var screen = new ScreenRenderer(driver);
@@ -52,7 +51,6 @@ public sealed class TextInputWithButtonsRowTests
             "Value:",
             field,
             [new DialogButton("keep", "Keep", 'K')],
-            "value.",
             buttonAreaWidth: 8);
         SingleLineTextHistoryState popup = Assert.IsType<SingleLineTextHistoryState>(field.Input.History);
 
@@ -68,22 +66,22 @@ public sealed class TextInputWithButtonsRowTests
     }
 
     [Fact]
-    public void MouseClickButton_ReturnsPrefixedCommand()
+    public void MouseClickButton_ReturnsButtonId()
     {
         var driver = new FakeConsoleDriver(width: 100, height: 5);
         var screen = new ScreenRenderer(driver);
-        var text = new CommandLineState();
-        text.SetText("14.06.2026 15:03:39");
+        TextField field = new FormFieldFactory(TextFieldHistoryTestProvider.Create()).Text(
+            "write",
+            "14.06.2026 15:03:39",
+            width: 19);
         var row = new TextInputWithButtonsRow(
             "write:    ",
-            text,
+            field,
             [
                 new DialogButton("original", "Original", 'O'),
                 new DialogButton("current", "Current", 'U'),
                 new DialogButton("blank", "Blank", 'B'),
             ],
-            "write.",
-            inputWidth: 19,
             buttonAreaWidth: 36);
 
         UiTestRender.Render(screen, canvas =>
@@ -98,7 +96,7 @@ public sealed class TextInputWithButtonsRowTests
         Assert.Equal(FormInputResultKind.Handled, pressed.Kind);
         Assert.Equal(UiMouseCaptureRequestKind.Capture, pressed.MouseCapture);
         Assert.Equal(FormInputResultKind.Submit, result.Kind);
-        Assert.Equal("write.current", result.Command);
+        Assert.Equal("current", result.Command);
         Assert.Equal(UiMouseCaptureRequestKind.Release, result.MouseCapture);
     }
 

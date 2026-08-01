@@ -15,13 +15,11 @@ public sealed class TextInputWithButtonsRow : FormRow, IFormCursorProvider, IFor
     private DialogButtonBarState _buttonState;
     private readonly int? _inputWidth;
     private readonly int _buttonAreaWidth;
-    private readonly string _commandPrefix;
 
     public TextInputWithButtonsRow(
         string label,
         TextField field,
         IReadOnlyList<DialogButton> buttons,
-        string commandPrefix,
         int buttonAreaWidth)
     {
         ArgumentNullException.ThrowIfNull(field);
@@ -29,28 +27,10 @@ public sealed class TextInputWithButtonsRow : FormRow, IFormCursorProvider, IFor
         _field = field.Input;
         _buttonBar = new DialogButtonBar(buttons);
         _buttonState = _buttonBar.CreateState();
-        _commandPrefix = commandPrefix;
         _inputWidth = field.Width;
         _buttonAreaWidth = buttonAreaWidth;
         Id = field.Id;
         SubmitOnEnter = field.SubmitOnEnter;
-    }
-
-    public TextInputWithButtonsRow(
-        string label,
-        CommandLineState buffer,
-        IReadOnlyList<DialogButton> buttons,
-        string commandPrefix,
-        int inputWidth,
-        int buttonAreaWidth)
-    {
-        _label = label;
-        _field = new FormTextInputField(buffer, history: null);
-        _buttonBar = new DialogButtonBar(buttons);
-        _buttonState = _buttonBar.CreateState();
-        _commandPrefix = commandPrefix;
-        _inputWidth = inputWidth;
-        _buttonAreaWidth = buttonAreaWidth;
     }
 
     public CommandLineState Buffer => _field.Buffer;
@@ -106,7 +86,7 @@ public sealed class TextInputWithButtonsRow : FormRow, IFormCursorProvider, IFor
                     buttonResult.ButtonRole == DialogButtonRole.Cancel
                         ? FormInputResultKind.Cancel
                         : FormInputResultKind.Submit,
-                    _commandPrefix + buttonResult.ButtonId,
+                    buttonResult.ButtonId,
                     buttonResult.MouseCapture);
         }
 

@@ -14,12 +14,14 @@ internal sealed class FileAttributesDialog : IFileAttributesDialog
     private const string DateTimeFormat = "dd.MM.yyyy HH:mm:ss";
 
     private readonly ModalFormHost _formDialogs;
+    private readonly FormFieldFactory _fields;
     private readonly IClock _clock;
     private readonly bool _canOpenSystemProperties;
 
-    public FileAttributesDialog(ModalDialogHost modalDialogs, IClock? clock = null, bool canOpenSystemProperties = false)
+    public FileAttributesDialog(ModalDialogHost modalDialogs, FormFieldFactory fields, IClock? clock = null, bool canOpenSystemProperties = false)
     {
         _formDialogs = new ModalFormHost(modalDialogs);
+        _fields = fields ?? throw new ArgumentNullException(nameof(fields));
         _clock = clock ?? new SystemClock();
         _canOpenSystemProperties = canOpenSystemProperties;
     }
@@ -99,9 +101,9 @@ internal sealed class FileAttributesDialog : IFileAttributesDialog
                     snapshot.AttributeStates.TryGetValue(descriptor.Id, out var state) ? state : AttributeEditState.Unchecked,
                     descriptor.IsEditable))))
             .ToList();
-        var creation = TextState(FormatTime(snapshot.CreationTime));
-        var write = TextState(FormatTime(snapshot.LastWriteTime));
-        var access = TextState(FormatTime(snapshot.LastAccessTime));
+        TextField creation = _fields.Text("creation", FormatTime(snapshot.CreationTime), width: DateTimeFormat.Length);
+        TextField write = _fields.Text("write", FormatTime(snapshot.LastWriteTime), width: DateTimeFormat.Length);
+        TextField access = _fields.Text("access", FormatTime(snapshot.LastAccessTime), width: DateTimeFormat.Length);
         var permissionLines = snapshot.UnixMetadata?.PermissionStates.ToDictionary(
             static pair => pair.Key,
             pair => new TriStateCheckBoxLine(
@@ -139,9 +141,9 @@ internal sealed class FileAttributesDialog : IFileAttributesDialog
                 if (result.Kind == FormInputResultKind.Submit ||
                     routed.Input is KeyConsoleInputEvent { Key.Key: ConsoleKey.F10 })
                 {
-                    if (IsTimeCommand(result.Command))
+                    if (IsTimeAction(routed.Target?.Value, result.Command))
                     {
-                        ApplyTimeCommand(result.Command, snapshot, creation, write, access);
+                        ApplyTimeAction(routed.Target!.Value, result.Command!, snapshot, creation, write, access, _clock.Now);
                         return ModalDialogLoopResult<FileAttributesDialogResult?>.ContinueChanged;
                     }
 
@@ -174,9 +176,9 @@ internal sealed class FileAttributesDialog : IFileAttributesDialog
         IReadOnlyList<AttributeDialogRow> attributeRows,
         IReadOnlyList<UnixPermissionMatrixRow> unixMatrixRows,
         IReadOnlyList<UnixPermissionDialogRow> unixSpecialRows,
-        CommandLineState creation,
-        CommandLineState write,
-        CommandLineState access,
+        TextField creation,
+        TextField write,
+        TextField access,
         string? error)
     {
         var fill = FarDialogStyles.Fill;
@@ -210,9 +212,9 @@ internal sealed class FileAttributesDialog : IFileAttributesDialog
 
         rows.Add(new SeparatorRow(fill, drawLine: false));
         rows.Add(new LabelRow("Date/Time:", fill));
-        AddTimeRows(rows, "write:", "write.", write, snapshot.LastWriteTime, snapshot.CanEditLastWriteTime, disabled);
-        AddTimeRows(rows, "creation:", "creation.", creation, snapshot.CreationTime, snapshot.CanEditCreationTime, disabled);
-        AddTimeRows(rows, "access:", "access.", access, snapshot.LastAccessTime, snapshot.CanEditLastAccessTime, disabled);
+        AddTimeRows(rows, "write:", write, snapshot.LastWriteTime, snapshot.CanEditLastWriteTime, disabled);
+        AddTimeRows(rows, "creation:", creation, snapshot.CreationTime, snapshot.CanEditCreationTime, disabled);
+        AddTimeRows(rows, "access:", access, snapshot.LastAccessTime, snapshot.CanEditLastAccessTime, disabled);
         rows.Add(new SeparatorRow(fill, drawLine: false));
         if (snapshot.UnixMetadata is null)
         {
@@ -237,8 +239,7 @@ internal sealed class FileAttributesDialog : IFileAttributesDialog
     private static void AddTimeRows(
         List<IFormRow> rows,
         string label,
-        string commandPrefix,
-        CommandLineState value,
+        TextField field,
         DateTime? original,
         bool enabled,
         CellStyle disabled)
@@ -251,14 +252,12 @@ internal sealed class FileAttributesDialog : IFileAttributesDialog
 
         rows.Add(new TextInputWithButtonsRow(
             label.PadRight(10),
-            value,
+            field,
             [
                 new DialogButton("original", "Original", 'O'),
                 new DialogButton("current", "Current", 'U'),
                 new DialogButton("blank", "Blank", 'B'),
             ],
-            commandPrefix,
-            inputWidth: DateTimeFormat.Length,
             buttonAreaWidth: 36));
     }
 
@@ -353,61 +352,49 @@ internal sealed class FileAttributesDialog : IFileAttributesDialog
         _ => bit.ToString(),
     };
 
-    private static CommandLineState TextState(string text)
-    {
-        var state = new CommandLineState();
-        state.SetText(text);
-        return state;
-    }
+    private static bool IsTimeAction(string? fieldId, string? action) =>
+        fieldId is "creation" or "write" or "access" &&
+        action is "original" or "current" or "blank";
 
-    private static bool IsTimeCommand(string? command) =>
-        command is not null &&
-        (command.StartsWith("creation.", StringComparison.Ordinal) ||
-         command.StartsWith("write.", StringComparison.Ordinal) ||
-         command.StartsWith("access.", StringComparison.Ordinal));
-
-    private void ApplyTimeCommand(
-        string? command,
+    internal static bool ApplyTimeAction(
+        string fieldId,
+        string action,
         FileMetadataSnapshot snapshot,
-        CommandLineState creation,
-        CommandLineState write,
-        CommandLineState access)
+        TextField creation,
+        TextField write,
+        TextField access,
+        DateTime now)
     {
-        if (command is null)
-            return;
-
-        var target = command.Split('.', 2);
-        if (target.Length != 2)
-            return;
-
-        CommandLineState? state = target[0] switch
+        TextField? field = fieldId switch
         {
             "creation" when snapshot.CanEditCreationTime => creation,
             "write" when snapshot.CanEditLastWriteTime => write,
             "access" when snapshot.CanEditLastAccessTime => access,
             _ => null,
         };
-        DateTime? original = target[0] switch
+        DateTime? original = fieldId switch
         {
             "creation" => snapshot.CreationTime,
             "write" => snapshot.LastWriteTime,
             "access" => snapshot.LastAccessTime,
             _ => null,
         };
-        if (state is null)
-            return;
+        if (field is null)
+            return false;
 
-        switch (target[1])
+        switch (action)
         {
             case "original":
-                state.SetText(FormatTime(original));
-                break;
+                field.Text = FormatTime(original);
+                return true;
             case "current":
-                state.SetText(FormatTime(_clock.Now));
-                break;
+                field.Text = FormatTime(now);
+                return true;
             case "blank":
-                state.Clear();
-                break;
+                field.Text = string.Empty;
+                return true;
+            default:
+                return false;
         }
     }
 
