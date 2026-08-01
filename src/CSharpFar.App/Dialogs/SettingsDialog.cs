@@ -50,22 +50,29 @@ internal sealed class SettingsDialog
         bool editorSyntaxHighlightingEnabled)
     {
         var leftViewMode = new CompactChoiceFormRow<PanelViewMode>(
-            new ChoiceRow<PanelViewMode>(ViewModes, ViewModeLabel, ViewModeIndex(leftMode)),
-            "Left panel")
+            label: "Left panel",
+            values: ViewModes,
+            format: ViewModeLabel,
+            selectedValue: leftMode)
         {
             Id = LeftViewModeRowId,
             ShowCursor = false,
         };
         var rightViewMode = new CompactChoiceFormRow<PanelViewMode>(
-            new ChoiceRow<PanelViewMode>(ViewModes, ViewModeLabel, ViewModeIndex(rightMode)),
-            "Right panel")
+            label: "Right panel",
+            values: ViewModes,
+            format: ViewModeLabel,
+            selectedValue: rightMode)
         {
             Id = RightViewModeRowId,
             ShowCursor = false,
         };
         var palette = new CompactChoiceFormRow<string>(
-            new ChoiceRow<string>(PaletteNames, static name => name, FindPaletteIndexOrDefault(paletteName)),
-            "Palette")
+            label: "Palette",
+            values: PaletteNames,
+            format: static name => name,
+            selectedValue: paletteName,
+            comparer: StringComparer.OrdinalIgnoreCase)
         {
             Id = PaletteRowId,
             ShowCursor = false,
@@ -131,16 +138,4 @@ internal sealed class SettingsDialog
         _ => "Full",
     };
 
-    private static int ViewModeIndex(PanelViewMode mode)
-    {
-        int index = Array.IndexOf(ViewModes, mode);
-        return index < 0 ? 0 : index;
-    }
-
-    private static int FindPaletteIndexOrDefault(string paletteName)
-    {
-        int index = Array.FindIndex(PaletteNames,
-            name => string.Equals(name, paletteName, StringComparison.OrdinalIgnoreCase));
-        return index < 0 ? 0 : index;
-    }
 }

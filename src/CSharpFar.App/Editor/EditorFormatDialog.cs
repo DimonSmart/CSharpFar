@@ -25,22 +25,30 @@ internal sealed class EditorFormatDialog
     public EditorDocumentFormat? Show(EditorDocumentFormat current)
     {
         var encoding = new CompactChoiceFormRow<EncodingSpec>(
-            new ChoiceRow<EncodingSpec>(Encodings, static value => value.Label, EncodingIndex(current.Encoding.CodePage)),
-            "Encoding")
+            label: "Encoding",
+            values: Encodings,
+            format: static value => value.Label,
+            selectedValue: new EncodingSpec(current.Encoding.CodePage, string.Empty),
+            comparer: EncodingSpecCodePageComparer)
         {
             Id = EncodingRowId,
             ShowCursor = false,
         };
         var bom = new CompactChoiceFormRow<bool>(
-            new ChoiceRow<bool>(BomChoices, static value => value ? "Yes" : "No", current.EmitByteOrderMark ? 1 : 0),
-            "BOM")
+            label: "BOM",
+            values: BomChoices,
+            format: static value => value ? "Yes" : "No",
+            selectedValue: current.EmitByteOrderMark)
         {
             Id = BomRowId,
             ShowCursor = false,
         };
         var lineEnding = new CompactChoiceFormRow<LineEndingSpec>(
-            new ChoiceRow<LineEndingSpec>(LineEndings, static value => value.Value.ToDisplayName(), LineEndingIndex(current.LineEnding)),
-            "Line ends")
+            label: "Line ends",
+            values: LineEndings,
+            format: static value => value.Value.ToDisplayName(),
+            selectedValue: new LineEndingSpec(current.LineEnding),
+            comparer: LineEndingSpecValueComparer)
         {
             Id = LineEndingRowId,
             ShowCursor = false,
@@ -87,30 +95,13 @@ internal sealed class EditorFormatDialog
         return new EditorDocumentFormat(encoding, emitBom, lineEnding, encodingSpec.Label);
     }
 
-    private static int EncodingIndex(int codePage)
-    {
-        for (int index = 0; index < Encodings.Length; index++)
-        {
-            if (Encodings[index].CodePage == codePage)
-                return index;
-        }
-
-        return 0;
-    }
-
-    private static int LineEndingIndex(EditorLineEnding lineEnding)
-    {
-        for (int index = 0; index < LineEndings.Length; index++)
-        {
-            if (LineEndings[index].Value == lineEnding)
-                return index;
-        }
-
-        return 0;
-    }
-
     private readonly record struct EncodingSpec(int CodePage, string Label);
     private readonly record struct LineEndingSpec(EditorLineEnding Value);
+
+    private static readonly IEqualityComparer<EncodingSpec> EncodingSpecCodePageComparer =
+        EqualityComparer<EncodingSpec>.Create(static (left, right) => left.CodePage == right.CodePage);
+    private static readonly IEqualityComparer<LineEndingSpec> LineEndingSpecValueComparer =
+        EqualityComparer<LineEndingSpec>.Create(static (left, right) => left.Value == right.Value);
 
     private static readonly EncodingSpec[] Encodings =
     [
