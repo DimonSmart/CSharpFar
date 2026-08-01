@@ -106,10 +106,17 @@ public sealed class ApplicationOverlayLayerTests
         Assert.Equal(renderVersion, services.Composition.StableRenderVersion);
         Assert.False(completion.Visible);
         Assert.Empty(completion.Matches);
+        Assert.True(services.Session.Ui.HiddenUiDetachedByScroll);
+        Assert.Equal(UiLayerInputPolicy.None, services.Inner.CommandCompletionLayer.InputPolicy);
+        Assert.False(driver.CursorVisible);
+
+        Assert.True(services.Composition.DispatchInput(input).Handled);
+        Assert.True(services.ApplicationSurface.TryTakeInput(out var packet));
+        Assert.Same(input, packet.Input);
     }
 
     [Fact]
-    public void CommandCompletion_SelectionInvalidatesOnlyCompletion()
+    public void CommandCompletion_SelectionInvalidatesFullComposition()
     {
         var services = Services();
         var completion = services.Session.CommandLine.Completion;
@@ -121,12 +128,11 @@ public sealed class ApplicationOverlayLayerTests
         services.Composition.Render();
 
         Assert.Equal(1, completion.List.SelectedIndex);
-        Assert.False(services.ApplicationSurface.CommittedFrame.RenderedParts.HasFlag(ApplicationRenderPart.Full));
-        Assert.Equal(ApplicationRenderPart.None, services.ApplicationSurface.CommittedFrame.RenderedParts);
+        Assert.True(services.ApplicationSurface.CommittedFrame.RenderedParts.HasFlag(ApplicationRenderPart.Full));
     }
 
     [Fact]
-    public void CommandCompletion_AcceptedSuggestionRendersCommandLineAndCompletion()
+    public void CommandCompletion_AcceptedSuggestionRendersFullComposition()
     {
         var services = Services();
         var completion = services.Session.CommandLine.Completion;
@@ -137,7 +143,7 @@ public sealed class ApplicationOverlayLayerTests
         Assert.True(services.Composition.DispatchInput(UiTestInput.Key(ConsoleKey.Enter)).Handled);
         services.Composition.Render();
 
-        Assert.True(services.ApplicationSurface.CommittedFrame.RenderedParts.HasFlag(ApplicationRenderPart.CommandLine));
+        Assert.True(services.ApplicationSurface.CommittedFrame.RenderedParts.HasFlag(ApplicationRenderPart.Full));
         Assert.Contains("alpha", services.Driver.GetRow(services.ApplicationSurface.CommittedFrame.CommandLine.Bounds.Y), StringComparison.Ordinal);
     }
 

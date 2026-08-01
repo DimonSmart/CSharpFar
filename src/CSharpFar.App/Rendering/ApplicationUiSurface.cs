@@ -313,13 +313,20 @@ internal sealed class ApplicationUiSurface : UiLayer<ApplicationUiFrame>, IUiSur
             return false;
         }
 
-        _context.CommandCompletion.ClearMatches();
+        _context.Ui.HiddenUiDetachedByScroll = !_context.TerminalSurface.IsHiddenViewportPinnedToBottom;
+        if (_context.Ui.HiddenUiDetachedByScroll)
+        {
+            _context.CommandCompletion.CloseForHiddenScroll();
+            _screen.SetCursorVisible(false);
+        }
         return true;
     }
 
     public IDisposable BeginFrame(UiRenderRequest request)
     {
         _hidden = _context.App.WorkspaceMode == ApplicationWorkspaceMode.HiddenCommandLine;
+        if (!_hidden)
+            _context.Ui.HiddenUiDetachedByScroll = false;
         _context.TerminalSurface.ApplyMode();
         _screen.SetRenderingOutputMode(true);
 
@@ -384,13 +391,18 @@ internal sealed class ApplicationUiSurface : UiLayer<ApplicationUiFrame>, IUiSur
     public void RequestRender(ApplicationRenderPart parts)
     {
         if (parts != ApplicationRenderPart.None)
-            _invalidation.Request(parts);
+            _invalidation.Request(parts.HasFlag(ApplicationRenderPart.Completion)
+                ? ApplicationRenderPart.Full
+                : parts);
     }
 
     public void CompleteFrame(UiFrameCompletion completion)
     {
         if (_hidden && completion.WasCommitted)
+        {
             _context.TerminalSurface.MarkHiddenCommandLineRenderCompleted();
+            _context.Ui.HiddenUiDetachedByScroll = !_context.TerminalSurface.IsHiddenViewportPinnedToBottom;
+        }
     }
 
     protected override UiInputResult RouteInput(
@@ -405,6 +417,9 @@ internal sealed class ApplicationUiSurface : UiLayer<ApplicationUiFrame>, IUiSur
         {
             return UiInputResult.NotHandled;
         }
+
+        if (_context.Ui.HiddenUiDetachedByScroll && input is MouseConsoleInputEvent)
+            return UiInputResult.NotHandled;
 
         if (_pendingInput is not null)
             throw new InvalidOperationException("Application input was dispatched before the previous input was processed.");

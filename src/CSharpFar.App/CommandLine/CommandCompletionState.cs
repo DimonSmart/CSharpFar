@@ -23,4 +23,6 @@ internal sealed class CommandCompletionState
         ClearMatches();
         TemporarilyHidden = temporarilyHidden;
     }
+
+    public void CloseForHiddenScroll() => Reset(temporarilyHidden: false);
 }
