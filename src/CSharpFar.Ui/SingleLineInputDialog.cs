@@ -1,6 +1,3 @@
-using CSharpFar.Console;
-using CSharpFar.Console.Input;
-using CSharpFar.Console.Models;
 using CSharpFar.Core.Models;
 
 namespace CSharpFar.Ui;
@@ -45,19 +42,16 @@ public sealed class SingleLineInputDialog
             maskInput: options.MaskInput, submitOnEnter: true);
         string? error = null;
         var actions = new ButtonRow([
-            new DialogButton("ok", "OK", 'O', IsDefault: true),
-            new DialogButton("cancel", "Cancel", 'C', Role: DialogButtonRole.Cancel),
+            DialogButton.Default("ok", "OK", 'O'),
+            DialogButton.Cancel(),
         ])
         { Id = "actions" };
         var form = new ScrollableFormDialog();
         void PrepareRows() => form.SetRows([
             new LabelRow(options.Prompt),
             field.AsRow(),
-            new SeparatorRow(drawLine: false),
-        ], [
-            new LabelRow(error ?? string.Empty, PaletteStyles.DialogError(UiTheme.Current)),
-            actions,
-        ]);
+            new SpacerRow(),
+        ], FormFooter.ErrorAndButtons(() => error, actions));
 
         return _formDialogs.Run(
             form,
@@ -65,16 +59,13 @@ public sealed class SingleLineInputDialog
                 options.Title, DialogWidth, DialogHeight, MinWidth: 20, MinHeight: 5, DoubleBorder: false,
                 OuterRenderOptions: PaletteStyles.DialogPopupOptions(UiTheme.Current),
                 FrameRenderOptions: PaletteStyles.DialogPopupOptions(UiTheme.Current) with { DrawShadow = false }),
-            static layout => new ModalFormLayout(new Rect(layout.ContentBounds.X, layout.ContentBounds.Y, layout.ContentBounds.Width, 3),
-                new Rect(layout.ContentBounds.X, layout.ContentBounds.Y + 3, layout.ContentBounds.Width, 2)),
+            static layout => ModalFormLayout.WithFooter(layout.ContentBounds, footerHeight: 2),
             (routed, result) =>
             {
-                if (result.Kind == FormInputResultKind.Cancel || result.Command == "cancel")
+                if (FormDialogInput.ShouldCancel(result))
                     return ModalDialogLoopResult<SingleLineInputDialogResult>.Complete(new(false, string.Empty));
 
-                bool submit = result.Command == "ok" ||
-                    FormDialogInput.ShouldImplicitlySubmit(routed, result, form);
-                if (!submit)
+                if (!FormDialogInput.ShouldSubmit(routed, result, form))
                     return ModalDialogLoopResult<SingleLineInputDialogResult>.ContinueNoChange;
 
                 string text = field.TrimmedText;

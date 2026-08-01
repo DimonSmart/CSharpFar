@@ -55,7 +55,10 @@ public sealed partial class ScrollableFormDialog
                 ? composite.HandleCompositeKey(key, inputContext, compositeFrame)
                 : row.HandleKey(key, inputContext);
             if (rowResult.IsHandled)
+            {
+                rowResult = WithSourceRowId(rowResult, row.Id);
                 return FormResult(rowResult, WithEnsureFocusVisible(FormResultToUi(rowResult, targetFrame.Target), ensureFocusedTargetVisible));
+            }
         }
 
         if (allowUnfocusedButtonHotkeys && key.KeyChar > ' ')
@@ -73,7 +76,10 @@ public sealed partial class ScrollableFormDialog
                         buttonFrame.Bounds,
                         frame.ScreenHeight));
                 if (buttonResult.IsHandled)
+                {
+                    buttonResult = WithSourceRowId(buttonResult, buttonFrame.Row.Id);
                     return FormResult(buttonResult, FormResultToUi(buttonResult, buttonFrame.Target));
+                }
             }
         }
 
@@ -146,6 +152,8 @@ public sealed partial class ScrollableFormDialog
             (targetFrame.CompositeFrame ?? rowFrame.CompositeFrame) is { } compositeFrame
             ? composite.HandleCompositeMouse(mouse, mouseContext, compositeFrame, targetFrame.CompositeChildId)
             : targetFrame.Row.HandleMouse(mouse, mouseContext);
+        if (rowResult.IsHandled)
+            rowResult = WithSourceRowId(rowResult, targetFrame.Row.Id);
         if (!rowResult.IsHandled && TryHandleWheel(mouse, frame.ViewportRows))
             return MergeTransientOverlayChange(FormInputResult.Handled, UiInputResult.HandledAndInvalidate, closedOverlay);
 
@@ -227,6 +235,9 @@ public sealed partial class ScrollableFormDialog
 
     private static FormRouteResult FormResult(FormInputResult formResult, UiInputResult uiResult) =>
         new(formResult, uiResult);
+
+    private static FormInputResult WithSourceRowId(FormInputResult result, string? sourceRowId) =>
+        result with { SourceRowId = sourceRowId };
 
     private UiInputResult FormResultToUi(FormInputResult result, UiTargetId sourceTarget)
     {

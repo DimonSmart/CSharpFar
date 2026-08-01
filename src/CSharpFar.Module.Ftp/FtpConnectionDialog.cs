@@ -1,5 +1,3 @@
-using CSharpFar.Console.Input;
-using CSharpFar.Console.Models;
 using CSharpFar.Core.Models;
 using CSharpFar.Ui;
 
@@ -75,8 +73,8 @@ internal sealed class FtpConnectionDialog
         string submitLabel = request.AllowTemporaryConnection ? "Connect" : "Save";
         var actions = new ButtonRow(
         [
-            new DialogButton("submit", submitLabel, request.AllowTemporaryConnection ? 'O' : 'S', IsDefault: true),
-            new DialogButton("cancel", "Cancel", 'C', Role: DialogButtonRole.Cancel),
+            DialogButton.Default("submit", submitLabel, request.AllowTemporaryConnection ? 'O' : 'S'),
+            DialogButton.Cancel(),
         ])
         { Id = "actions" };
         var form = new ScrollableFormDialog();
@@ -94,7 +92,7 @@ internal sealed class FtpConnectionDialog
         {
             SyncEnabledRows();
             form.SetRows(BuildRows(state, fingerprint),
-                [new LabelRow(error ?? string.Empty, FarDialogStyles.Error), actions]);
+                FormFooter.ErrorAndButtons(() => error, actions));
         }
 
         PrepareRows();
@@ -103,23 +101,16 @@ internal sealed class FtpConnectionDialog
             new ModalFormOptions(
                 connection is null ? "FTP/FTPS connection" : "Edit FTP/FTPS connection",
                 DialogWidth, DialogHeight, MinWidth: 48, MinHeight: 8),
-            static layout =>
-            {
-                Rect content = layout.ContentBounds;
-                return new ModalFormLayout(
-                    new Rect(content.X, content.Y, content.Width, Math.Max(1, content.Height - 2)),
-                    new Rect(content.X, content.Bottom - 2, content.Width, 2));
-            },
+            static layout => ModalFormLayout.WithFooter(layout.ContentBounds, footerHeight: 2),
             (routed, result) =>
             {
                 if (result.IsHandled) error = null;
-                if (result.Kind == FormInputResultKind.ValueChanged &&
-                    (routed.Target == form.GetFocusTarget("host") || routed.Target == form.GetFocusTarget("port")))
+                if (result is { Kind: FormInputResultKind.ValueChanged, SourceRowId: "host" or "port" })
                 {
                     fingerprint = null;
                     state.TrustCertificate.Value = false;
                 }
-                if (result.Kind == FormInputResultKind.ValueChanged && routed.Target == form.GetFocusTarget("security"))
+                if (result is { Kind: FormInputResultKind.ValueChanged, SourceRowId: "security" })
                 {
                     if (state.Port.Text == DefaultPort(previousSecurity).ToString())
                         state.Port.Text = DefaultPort(state.Security.Value).ToString();
@@ -134,22 +125,18 @@ internal sealed class FtpConnectionDialog
                     else { fingerprint = null; state.TrustCertificate.Value = false; }
                     previousSecurity = state.Security.Value;
                 }
-                if (result.Kind == FormInputResultKind.ValueChanged && routed.Target == form.GetFocusTarget("save-password") && state.SavePassword.Value)
+                if (result is { Kind: FormInputResultKind.ValueChanged, SourceRowId: "save-password" } && state.SavePassword.Value)
                     state.SaveConnection.Value = true;
                 else if (state.AllowTemporaryConnection &&
-                    result.Kind == FormInputResultKind.ValueChanged &&
-                    routed.Target == form.GetFocusTarget("save-connection") &&
+                    result is { Kind: FormInputResultKind.ValueChanged, SourceRowId: "save-connection" } &&
                     !state.SaveConnection.Value)
                     state.SavePassword.Value = false;
                 SyncEnabledRows();
 
-                if (result.Kind == FormInputResultKind.Cancel)
+                if (FormDialogInput.ShouldCancel(result))
                     return ModalDialogLoopResult<FtpConnectionDialogResult?>.Complete(null);
 
-                bool submit = result.Kind == FormInputResultKind.Submit ||
-                    routed.Input is KeyConsoleInputEvent { Key.Key: ConsoleKey.F10 } ||
-                FormDialogInput.ShouldImplicitlySubmit(routed, result, form);
-                if (!submit)
+                if (!FormDialogInput.ShouldSubmit(routed, result, form))
                     return ModalDialogLoopResult<FtpConnectionDialogResult?>.ContinueNoChange;
 
                 if (!TryParseActivePortRange(state.ActivePorts.Text.Trim(), state.DataMode.Value, out int? from, out int? to, out error))

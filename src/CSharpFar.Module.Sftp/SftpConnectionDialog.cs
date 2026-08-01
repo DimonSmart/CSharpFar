@@ -1,5 +1,3 @@
-using CSharpFar.Console.Input;
-using CSharpFar.Console.Models;
 using CSharpFar.Core.Models;
 using CSharpFar.Ui;
 
@@ -78,56 +76,46 @@ internal sealed class SftpConnectionDialog
         string submitLabel = request.AllowTemporaryConnection ? "Connect" : "Save";
         var actions = new ButtonRow(
         [
-            new DialogButton("submit", submitLabel, submitLabel[0], IsDefault: true),
-            new DialogButton("cancel", "Cancel", 'C', Role: DialogButtonRole.Cancel),
+            DialogButton.Default("submit", submitLabel, submitLabel[0]),
+            DialogButton.Cancel(),
         ])
         { Id = "actions" };
         var form = new ScrollableFormDialog();
 
         void PrepareRows() => form.SetRows(
             BuildRows(state, hostKeyFingerprint),
-            [new LabelRow(error ?? string.Empty, FarDialogStyles.Error), actions]);
+            FormFooter.ErrorAndButtons(() => error, actions));
 
         return _formDialogs.Run(
             form,
             new ModalFormOptions(
                 connection is null ? "SFTP connection" : "Edit SFTP connection",
                 DialogWidth, DialogHeight, MinWidth: 42, MinHeight: 8),
-            static layout =>
-            {
-                Rect content = layout.ContentBounds;
-                return new ModalFormLayout(
-                    new Rect(content.X, content.Y, content.Width, Math.Max(1, content.Height - 2)),
-                    new Rect(content.X, content.Bottom - 2, content.Width, 2));
-            },
+            static layout => ModalFormLayout.WithFooter(layout.ContentBounds, footerHeight: 2),
             (routed, result) =>
             {
                 if (result.IsHandled)
                     error = null;
-                if (result.Kind == FormInputResultKind.ValueChanged &&
-                    (routed.Target == form.GetFocusTarget("host") || routed.Target == form.GetFocusTarget("port")))
+                if (result is { Kind: FormInputResultKind.ValueChanged, SourceRowId: "host" or "port" })
                 {
                     hostKeyFingerprint = null;
                     state.TrustHostKey.Value = false;
                 }
-                if (result.Kind == FormInputResultKind.ValueChanged && routed.Target == form.GetFocusTarget("save-password") && state.SavePassword.Value)
+                if (result is { Kind: FormInputResultKind.ValueChanged, SourceRowId: "save-password" } && state.SavePassword.Value)
                 {
                     state.SaveConnection.Value = true;
                 }
                 else if (state.AllowTemporaryConnection &&
-                    result.Kind == FormInputResultKind.ValueChanged &&
-                    routed.Target == form.GetFocusTarget("save-connection") &&
+                    result is { Kind: FormInputResultKind.ValueChanged, SourceRowId: "save-connection" } &&
                     !state.SaveConnection.Value)
                 {
                     state.SavePassword.Value = false;
                 }
 
-                if (result.Kind == FormInputResultKind.Cancel)
+                if (FormDialogInput.ShouldCancel(result))
                     return ModalDialogLoopResult<SftpConnectionDialogResult?>.Complete(null);
 
-                if (result.Kind == FormInputResultKind.Submit ||
-                    routed.Input is KeyConsoleInputEvent { Key.Key: ConsoleKey.F10 } ||
-                    FormDialogInput.ShouldImplicitlySubmit(routed, result, form))
+                if (FormDialogInput.ShouldSubmit(routed, result, form))
                 {
                     SftpConnectionDialogResult? candidate = BuildResult(
                         request,

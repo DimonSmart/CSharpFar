@@ -61,7 +61,7 @@ internal sealed class EditorFormatDialog
                     encoding,
                     bom,
                     lineEnding,
-                    new SeparatorRow(FarDialogStyles.Border, drawLine: false),
+                    new SpacerRow(FarDialogStyles.Border),
                     new LabelRow("Enter apply  Esc/F10 cancel  Left/Right change", FarDialogStyles.Fill),
                 ]);
 

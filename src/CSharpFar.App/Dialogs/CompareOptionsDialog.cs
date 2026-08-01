@@ -70,8 +70,8 @@ internal sealed class CompareOptionsDialog
             selectedValue: Enum.TryParse(settings.FileSetMatchMode, out FileSetMatchMode initialFileSetMatch) ? initialFileSetMatch : FileSetMatchMode.FileName);
         var buttons = new ButtonRow(
             [
-                new DialogButton("compare", "Compare", 'C', IsDefault: true),
-                new DialogButton("cancel", "Cancel", 'A', Role: DialogButtonRole.Cancel),
+                DialogButton.Default("compare", "Compare", 'C'),
+                DialogButton.Cancel(hotKey: 'A'),
             ]);
         var form = new ScrollableFormDialog();
         string? error = null;
@@ -100,12 +100,10 @@ internal sealed class CompareOptionsDialog
             static layout => new ModalFormLayout(layout.ContentBounds),
             (routed, result) =>
             {
-                if (result.Kind == FormInputResultKind.Cancel)
+                if (FormDialogInput.ShouldCancel(result))
                     return ModalDialogLoopResult<ComparisonOptions?>.Complete(null);
 
-                if (result.Kind == FormInputResultKind.Submit ||
-                    routed.Input is KeyConsoleInputEvent { Key.Key: ConsoleKey.F10 } ||
-                    FormDialogInput.ShouldImplicitlySubmit(routed, result, form))
+                if (FormDialogInput.ShouldSubmit(routed, result, form))
                 {
                     var options = BuildOptions(
                         mode,
@@ -178,7 +176,7 @@ internal sealed class CompareOptionsDialog
         rows.Add(nameComparison);
         if (mode == CompareMode.FileSet)
             rows.Add(fileSetMatch);
-        rows.Add(new SeparatorRow(FarDialogStyles.Fill, drawLine: false));
+        rows.Add(new SpacerRow(FarDialogStyles.Fill));
         rows.Add(new LabelRow(error ?? string.Empty, FarDialogStyles.Error));
         rows.Add(buttons);
         return rows;

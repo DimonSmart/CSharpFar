@@ -39,8 +39,8 @@ internal sealed class DirectoryShortcutEditDialog
         TextInputRow pathRow = path.AsRow();
         var actions = new ButtonRow(
             [
-                new DialogButton("ok", "OK", 'O', IsDefault: true),
-                new DialogButton("cancel", "Cancel", 'C', Role: DialogButtonRole.Cancel),
+                DialogButton.Default("ok", "OK", 'O'),
+                DialogButton.Cancel(),
             ])
         {
             Id = "actions",
@@ -52,7 +52,7 @@ internal sealed class DirectoryShortcutEditDialog
                 [
                     new LabelRow("Name", PaletteStyles.DialogFill(_palette)),
                     nameRow,
-                    new SeparatorRow(PaletteStyles.DialogFill(_palette), drawLine: false),
+                    new SpacerRow(PaletteStyles.DialogFill(_palette)),
                     new LabelRow("Path", PaletteStyles.DialogFill(_palette)),
                     pathRow,
                 ],
@@ -69,7 +69,7 @@ internal sealed class DirectoryShortcutEditDialog
                 new Rect(layout.ContentBounds.X, layout.ContentBounds.Bottom - 1, layout.ContentBounds.Width, 1)),
             (routed, result) =>
             {
-                if (result.Kind == FormInputResultKind.Cancel)
+                if (FormDialogInput.ShouldCancel(result))
                     return ModalDialogLoopResult<DirectoryShortcutEditResult>.Complete(new DirectoryShortcutEditResult(false, currentItem));
 
                 if (result.Kind == FormInputResultKind.NotHandled &&
@@ -84,9 +84,7 @@ internal sealed class DirectoryShortcutEditDialog
                     return ModalDialogLoopResult<DirectoryShortcutEditResult>.ContinueNoChange;
                 }
 
-                if (result.Kind == FormInputResultKind.Submit ||
-                    routed.Input is KeyConsoleInputEvent { Key.Key: ConsoleKey.F10 } ||
-                    FormDialogInput.ShouldImplicitlySubmit(routed, result, form))
+                if (FormDialogInput.ShouldSubmit(routed, result, form))
                 {
                     return ModalDialogLoopResult<DirectoryShortcutEditResult>.Complete(Accepted(number, name.Text, path.Text));
                 }

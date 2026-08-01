@@ -54,8 +54,8 @@ internal sealed class OpenCreateFileDialog
         };
         var actions = new ButtonRow(
             [
-                new DialogButton("ok", "OK", 'O', IsDefault: true),
-                new DialogButton("cancel", "Cancel", 'C', Role: DialogButtonRole.Cancel),
+                DialogButton.Default("ok", "OK", 'O'),
+                DialogButton.Cancel(),
             ])
         {
             Id = "actions",
@@ -68,7 +68,7 @@ internal sealed class OpenCreateFileDialog
                 [
                     new LabelRow("Open/create file:", FarDialogStyles.Fill),
                     pathRow,
-                    new SeparatorRow(FarDialogStyles.Fill, drawLine: false),
+                    new SpacerRow(FarDialogStyles.Fill),
                     new LabelRow("Code page:", FarDialogStyles.Fill),
                     codePageRow,
                     new LabelRow(error ?? string.Empty, FarDialogStyles.Error),
@@ -87,26 +87,24 @@ internal sealed class OpenCreateFileDialog
             },
             (routed, result) =>
             {
-                if (result.Kind == FormInputResultKind.Cancel)
+                if (FormDialogInput.ShouldCancel(result))
                     return ModalDialogLoopResult<OpenCreateFileDialogResult?>.Complete(null);
 
                 if (result.Kind == FormInputResultKind.ValueChanged)
                 {
-                    if (form.FocusedRowId == "file-path")
+                    if (result.SourceRowId == "file-path")
                     {
                         error = null;
                         codePageRow.CloseComposite();
                     }
-                    else if (form.FocusedRowId == "code-page")
+                    else if (result.SourceRowId == "code-page")
                     {
                         error = null;
                         pathRow.CloseComposite();
                     }
                 }
 
-                if (result.Kind == FormInputResultKind.Submit ||
-                    routed.Input is KeyConsoleInputEvent { Key.Key: ConsoleKey.F10 } ||
-                    FormDialogInput.ShouldImplicitlySubmit(routed, result, form))
+                if (FormDialogInput.ShouldSubmit(routed, result, form))
                 {
                     int confirmedCodePageIndex = codePageRow.ConfirmedSelectedIndex;
                     codePageRow.CloseComposite();
