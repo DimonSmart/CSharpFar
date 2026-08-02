@@ -1,3 +1,5 @@
+using CSharpFar.Console.Models;
+
 namespace CSharpFar.Ui;
 
 public enum FormLabelColumnMode
@@ -34,3 +36,16 @@ public sealed record FormLayoutOptions(
         return this;
     }
 }
+
+internal interface IFormLabeledRow
+{
+    int DesiredLabelWidth { get; }
+    bool UseSharedLabelColumn { get; }
+}
+
+internal interface IFormLabelWidthOverride
+{
+    int? LabelWidthOverride { get; }
+}
+
+public readonly record struct FormRowLayout(Rect RowBounds, Rect? LabelBounds, Rect ControlBounds);

@@ -5,7 +5,7 @@ using CSharpFar.Core.Models;
 
 namespace CSharpFar.Ui;
 
-public sealed class DropdownSelectFormRow<T> : FormRow, IFormCursorProvider, IFormCompositeRow
+public sealed class DropdownSelectFormRow<T> : FormRow, IFormCursorProvider, IFormCompositeRow, IFormLabeledRow
 {
     private readonly string _label;
     private readonly DropdownSelect<T> _dropdown;
@@ -40,6 +40,8 @@ public sealed class DropdownSelectFormRow<T> : FormRow, IFormCursorProvider, IFo
     }
     public string? DisabledReason { get; set; }
     public override bool IsEnabled => Enabled;
+    int IFormLabeledRow.DesiredLabelWidth => ConsoleTextMetrics.GetCellWidth(_label);
+    bool IFormLabeledRow.UseSharedLabelColumn => true;
     public bool IsCompositeOpen => Enabled && _dropdown.IsOpen;
     public T Value => _dropdown.SelectedItem;
     public int SelectedIndex => _dropdown.SelectedIndex;
@@ -51,25 +53,25 @@ public sealed class DropdownSelectFormRow<T> : FormRow, IFormCursorProvider, IFo
     public int ConfirmedSelectedIndex => _dropdown.IsOpen
         ? _dropdown.SelectionBeforeOpen
         : _dropdown.SelectedIndex;
-    public Rect GetFieldBounds(Rect rowBounds) => CalculateLayout(rowBounds).FieldBounds;
+    public Rect GetFieldBounds(Rect rowBounds) => rowBounds;
 
     public override void Render(FormRowRenderContext context)
     {
-        var layout = CalculateLayout(context.Bounds);
-        context.Canvas.Write(
-            context.Bounds.X,
-            context.Bounds.Y,
-            ScrollableFormDialog.Fit(!Enabled ? DisabledFormControlPresentation.WithReason(_label, DisabledReason) : _label, layout.LabelWidth),
-            DisabledFormControlPresentation.Style(Enabled, FarDialogStyles.Fill));
+        if (context.Layout.LabelBounds is Rect labelBounds)
+            context.Canvas.Write(
+                labelBounds.X,
+                labelBounds.Y,
+                ScrollableFormDialog.Fit(_label, labelBounds.Width),
+                DisabledFormControlPresentation.Style(Enabled, FarDialogStyles.Fill));
         _dropdown.RenderField(
             context.Canvas,
-            layout.FieldBounds,
+            context.Layout.ControlBounds,
             Enabled && context.Focused ? FarDialogStyles.FocusedInput : DisabledFormControlPresentation.Style(Enabled, FarDialogStyles.Input));
     }
 
     public bool TryGetCursor(FormRowRenderContext context, out FormCursorPlacement cursor)
     {
-        Rect field = CalculateLayout(context.Bounds).FieldBounds;
+        Rect field = context.Layout.ControlBounds;
         cursor = new FormCursorPlacement(field.X, field.Y);
         return Enabled && context.Focused && field.Width > 0;
     }
@@ -78,7 +80,7 @@ public sealed class DropdownSelectFormRow<T> : FormRow, IFormCursorProvider, IFo
     {
         if (!Enabled)
             return new FormCompositeFrame(false, null, []);
-        DropdownSelectFrame frame = _dropdown.CalculateFrame(context.Viewport.Size, CalculateLayout(context.RowBounds).FieldBounds);
+        DropdownSelectFrame frame = _dropdown.CalculateFrame(context.Viewport.Size, context.Layout.ControlBounds);
         if (!frame.IsOpen || frame.PopupBounds is not Rect popup)
             return new FormCompositeFrame(false, frame, []);
 
@@ -148,15 +150,6 @@ public sealed class DropdownSelectFormRow<T> : FormRow, IFormCursorProvider, IFo
         return FormInputResult.NotHandled;
     }
 
-    private DropdownSelectFormRowLayout CalculateLayout(Rect bounds)
-    {
-        int labelWidth = Math.Min(bounds.Width, _label.Length == 0 ? 0 : ConsoleTextMetrics.GetCellWidth(_label) + 1);
-        int fieldX = bounds.X + labelWidth;
-        return new DropdownSelectFormRowLayout(
-            labelWidth,
-            new Rect(fieldX, bounds.Y, Math.Max(0, bounds.Right - fieldX), 1));
-    }
-
     private static int FindSelectedIndex(IReadOnlyList<T> items, T selectedValue)
     {
         for (int index = 0; index < items.Count; index++)
@@ -168,6 +161,5 @@ public sealed class DropdownSelectFormRow<T> : FormRow, IFormCursorProvider, IFo
         return 0;
     }
 
-    private readonly record struct DropdownSelectFormRowLayout(int LabelWidth, Rect FieldBounds);
 }
 

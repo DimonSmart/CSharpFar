@@ -79,9 +79,8 @@ internal sealed class CompareOptionsDialog
                 method,
                 tolerance,
                 nameComparison,
-                fileSetMatch,
-                error),
-                [buttons]);
+                fileSetMatch),
+                FormFooter.ErrorAndButtons(() => error, buttons));
 
         return _formDialogs.Run(
             form,
@@ -129,8 +128,7 @@ internal sealed class CompareOptionsDialog
         ChoiceFormRow<CompareMethod> method,
         ChoiceFormRow<TimestampTolerance> tolerance,
         ChoiceFormRow<NameComparisonMode> nameComparison,
-        ChoiceFormRow<FileSetMatchMode> fileSetMatch,
-        string? error)
+        ChoiceFormRow<FileSetMatchMode> fileSetMatch)
     {
         List<IFormRow> rows =
         [
@@ -164,8 +162,6 @@ internal sealed class CompareOptionsDialog
         rows.Add(nameComparison);
         if (mode == CompareMode.FileSet)
             rows.Add(fileSetMatch);
-        rows.Add(new SpacerRow(FarDialogStyles.Fill));
-        rows.Add(new LabelRow(error ?? string.Empty, FarDialogStyles.Error));
         return rows;
     }
 

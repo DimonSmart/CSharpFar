@@ -54,6 +54,7 @@ public sealed record FormTargetFrame(
     int? FocusIndex,
     Rect Bounds,
     Rect? HitBounds,
+    FormRowLayout Layout,
     bool IsFocusable,
     bool IsFooter,
     UiCursorPlacement? Cursor = null,

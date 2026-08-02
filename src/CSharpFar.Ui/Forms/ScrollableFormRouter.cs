@@ -147,7 +147,8 @@ public sealed partial class ScrollableFormDialog
                 focused: rowFrame.Target == route.FocusState.FocusedTarget || requestFocus,
                 frame.ScreenHeight,
                 targetFrame.Row.Id,
-                targetFrame.Row.Role);
+                targetFrame.Row.Role,
+                rowFrame.Layout);
         FormInputResult rowResult = targetFrame.Row is IFormCompositeRow composite &&
             (targetFrame.CompositeFrame ?? rowFrame.CompositeFrame) is { } compositeFrame
             ? composite.HandleCompositeMouse(mouse, mouseContext, compositeFrame, targetFrame.CompositeChildId)
@@ -203,7 +204,7 @@ public sealed partial class ScrollableFormDialog
             return false;
 
         var context = new FormRowMouseContext(rowFrame.Bounds, rowFrame.FocusIndex ?? rowFrame.RowIndex,
-            focused: true, frame.ScreenHeight, row.Id, row.Role);
+            focused: true, frame.ScreenHeight, row.Id, row.Role, rowFrame.Layout);
         if (row.IsCompositeAnchorHit(mouse, context, compositeFrame))
             return false;
 
