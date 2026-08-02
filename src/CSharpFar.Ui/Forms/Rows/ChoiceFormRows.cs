@@ -57,23 +57,15 @@ public sealed class ChoiceFormRow<T> : FormRow, IFormCursorProvider
     public override void Render(FormRowRenderContext context)
     {
         var layout = CalculateLayout(context.Bounds);
-        _choice.RenderSegmented(
-            context.Canvas,
-            context.Bounds.X,
-            context.Bounds.Y,
-            context.Bounds.Width,
+        ChoiceRenderer.Render(context.Canvas, layout, _choice.Selection, _choice.Format,
             !Enabled ? DisabledFormControlPresentation.WithReason(_label, DisabledReason) : _label,
-            context.Focused && Enabled,
-            DisabledFormControlPresentation.Style(Enabled, FarDialogStyles.Fill),
-            DisabledFormControlPresentation.Style(Enabled, FarDialogStyles.FocusedInput),
-            _startIndex,
-            _endIndex);
+            new(DisabledFormControlPresentation.Style(Enabled, FarDialogStyles.Fill), DisabledFormControlPresentation.Style(Enabled, FarDialogStyles.FocusedInput), context.Focused && Enabled));
     }
 
     public bool TryGetCursor(FormRowRenderContext context, out FormCursorPlacement cursor)
     {
         var layout = CalculateLayout(context.Bounds);
-        if (Enabled && context.Focused && _choice.TryGetSelectedMarkerBounds(layout, out Rect bounds))
+        if (Enabled && context.Focused && ChoiceRenderer.TryGetSelectedMarkerBounds(layout, _choice.Selection, out Rect bounds))
         {
             cursor = new FormCursorPlacement(bounds.X + 1, bounds.Y);
             return true;
@@ -87,27 +79,26 @@ public sealed class ChoiceFormRow<T> : FormRow, IFormCursorProvider
     {
         if (!Enabled)
             return FormInputResult.NotHandled;
-        int before = _choice.SelectedIndex;
-        if (!_choice.TryHandleKey(key))
-            return FormInputResult.NotHandled;
-
-        return _choice.SelectedIndex != before ? FormInputResult.ValueChanged : FormInputResult.Handled;
+        return ToFormResult(ChoiceInput.HandleKey(_choice.Selection, key));
     }
 
     public override FormInputResult HandleMouse(MouseConsoleInputEvent mouse, FormRowMouseContext context)
     {
         if (!Enabled)
             return FormInputResult.NotHandled;
-        int before = _choice.SelectedIndex;
         var layout = CalculateLayout(context.Bounds);
-        if (!_choice.TryHandleMouse(mouse, layout))
-            return FormInputResult.NotHandled;
-
-        return _choice.SelectedIndex != before ? FormInputResult.ValueChanged : FormInputResult.Handled;
+        return ToFormResult(ChoiceInput.HandleMouse(_choice.Selection, mouse, layout));
     }
 
-    private ChoiceRowLayout CalculateLayout(Rect bounds) =>
-        _choice.CalculateSegmentedLayout(bounds.X, bounds.Y, bounds.Width, _label, _startIndex, _endIndex);
+    private ChoiceLayout CalculateLayout(Rect bounds) =>
+        ChoiceLayoutCalculator.Segmented(_choice.Selection, _choice.Format, bounds, _label, _startIndex, _endIndex);
+
+    private static FormInputResult ToFormResult(ChoiceInputResultKind result) => result switch
+    {
+        ChoiceInputResultKind.Handled => FormInputResult.Handled,
+        ChoiceInputResultKind.ValueChanged => FormInputResult.ValueChanged,
+        _ => FormInputResult.NotHandled,
+    };
 }
 
 public sealed class MultiLineChoiceFormRow<T> : FormRow, IFormCursorProvider
@@ -169,29 +160,14 @@ public sealed class MultiLineChoiceFormRow<T> : FormRow, IFormCursorProvider
 
     public override void Render(FormRowRenderContext context)
     {
-        int startIndex = 0;
-        for (int line = 0; line < _segmentEndIndices.Count; line++)
-        {
-            int endIndex = _segmentEndIndices[line];
-            _choice.RenderSegmented(
-                context.Canvas,
-                context.Bounds.X,
-                context.Bounds.Y + line,
-                context.Bounds.Width,
-                line == 0 ? _label : string.Empty,
-                context.Focused,
-                FarDialogStyles.Fill,
-                FarDialogStyles.FocusedInput,
-                startIndex,
-                endIndex);
-            startIndex = endIndex;
-        }
+        ChoiceRenderer.Render(context.Canvas, CalculateLayout(context.Bounds), _choice.Selection, _choice.Format, _label,
+            new(FarDialogStyles.Fill, FarDialogStyles.FocusedInput, context.Focused));
     }
 
     public bool TryGetCursor(FormRowRenderContext context, out FormCursorPlacement cursor)
     {
         var layout = CalculateLayout(context.Bounds);
-        if (context.Focused && _choice.TryGetSelectedMarkerBounds(layout, out Rect bounds))
+        if (context.Focused && ChoiceRenderer.TryGetSelectedMarkerBounds(layout, _choice.Selection, out Rect bounds))
         {
             cursor = new FormCursorPlacement(bounds.X + 1, bounds.Y);
             return true;
@@ -203,45 +179,24 @@ public sealed class MultiLineChoiceFormRow<T> : FormRow, IFormCursorProvider
 
     public override FormInputResult HandleKey(ConsoleKeyInfo key, FormRowInputContext context)
     {
-        int before = _choice.SelectedIndex;
-        if (!_choice.TryHandleKey(key))
-            return FormInputResult.NotHandled;
-
-        return _choice.SelectedIndex != before ? FormInputResult.ValueChanged : FormInputResult.Handled;
+        return ToFormResult(ChoiceInput.HandleKey(_choice.Selection, key));
     }
 
     public override FormInputResult HandleMouse(MouseConsoleInputEvent mouse, FormRowMouseContext context)
     {
-        int before = _choice.SelectedIndex;
         var layout = CalculateLayout(context.Bounds);
-        if (!_choice.TryHandleMouse(mouse, layout))
-            return FormInputResult.NotHandled;
-
-        return _choice.SelectedIndex != before ? FormInputResult.ValueChanged : FormInputResult.Handled;
+        return ToFormResult(ChoiceInput.HandleMouse(_choice.Selection, mouse, layout));
     }
 
-    private ChoiceRowLayout CalculateLayout(Rect bounds)
+    private ChoiceLayout CalculateLayout(Rect bounds) =>
+        ChoiceLayoutCalculator.MultilineSegmented(_choice.Selection, _choice.Format, bounds, _label, _segmentEndIndices);
+
+    private static FormInputResult ToFormResult(ChoiceInputResultKind result) => result switch
     {
-        var rowBounds = new List<Rect>();
-        var choices = new List<ChoiceHitTarget>();
-        int startIndex = 0;
-        for (int line = 0; line < _segmentEndIndices.Count; line++)
-        {
-            int endIndex = _segmentEndIndices[line];
-            var lineLayout = _choice.CalculateSegmentedLayout(
-                bounds.X,
-                bounds.Y + line,
-                bounds.Width,
-                line == 0 ? _label : string.Empty,
-                startIndex,
-                endIndex);
-            rowBounds.AddRange(lineLayout.RowBounds);
-            choices.AddRange(lineLayout.Choices);
-            startIndex = endIndex;
-        }
-
-        return new ChoiceRowLayout(ChoiceRowLayoutKind.Segmented, rowBounds, choices);
-    }
+        ChoiceInputResultKind.Handled => FormInputResult.Handled,
+        ChoiceInputResultKind.ValueChanged => FormInputResult.ValueChanged,
+        _ => FormInputResult.NotHandled,
+    };
 
     private static IReadOnlyList<int> SegmentEndIndices(IReadOnlyList<T> values, int itemsPerRow)
     {

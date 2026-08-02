@@ -299,7 +299,7 @@ public sealed class ScrollableList<T>
             return ScrollableListInputResult.NotHandled;
         }
 
-        int index = ScrollTop + mouse.Y - contentBounds.Y;
+        int index = frame.ScrollTop + mouse.Y - contentBounds.Y;
         if (index < 0 || index >= Count)
             return ScrollableListInputResult.NotHandled;
 

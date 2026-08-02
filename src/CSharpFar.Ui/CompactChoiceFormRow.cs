@@ -43,12 +43,10 @@ public sealed class CompactChoiceFormRow<T> : FormRow, IFormCursorProvider
     public string? DisabledReason { get; set; }
     public override bool IsEnabled => Enabled;
 
-    public override void Render(FormRowRenderContext context) =>
-        _choice.Render(context.Canvas, context.Bounds.X, context.Bounds.Y, context.Bounds.Width,
-            !Enabled ? DisabledFormControlPresentation.WithReason(_label, DisabledReason) : _label,
-            context.Focused && Enabled,
-            DisabledFormControlPresentation.Style(Enabled, FarDialogStyles.Fill),
-            DisabledFormControlPresentation.Style(Enabled, FarDialogStyles.FocusedInput));
+    public override void Render(FormRowRenderContext context) => ChoiceRenderer.Render(context.Canvas,
+        ChoiceLayoutCalculator.Compact(context.Bounds), _choice.Selection, _choice.Format,
+        !Enabled ? DisabledFormControlPresentation.WithReason(_label, DisabledReason) : _label,
+        new(DisabledFormControlPresentation.Style(Enabled, FarDialogStyles.Fill), DisabledFormControlPresentation.Style(Enabled, FarDialogStyles.FocusedInput), context.Focused && Enabled));
 
     public bool TryGetCursor(FormRowRenderContext context, out FormCursorPlacement cursor)
     {
@@ -67,25 +65,15 @@ public sealed class CompactChoiceFormRow<T> : FormRow, IFormCursorProvider
     {
         if (!Enabled)
             return FormInputResult.NotHandled;
-        int before = _choice.SelectedIndex;
-        bool isChoiceKey = key.Key is ConsoleKey.LeftArrow or ConsoleKey.RightArrow or ConsoleKey.Spacebar or ConsoleKey.Enter;
-        if (!isChoiceKey)
-            return FormInputResult.NotHandled;
-        _choice.TryHandleKey(key);
-        return _choice.SelectedIndex == before ? FormInputResult.Handled : FormInputResult.ValueChanged;
+        return ToFormResult(ChoiceInput.HandleKey(_choice.Selection, key));
     }
 
     public override FormInputResult HandleMouse(MouseConsoleInputEvent mouse, FormRowMouseContext context)
     {
         if (!Enabled)
             return FormInputResult.NotHandled;
-        int before = _choice.SelectedIndex;
-        var layout = new ChoiceRowLayout(
-            ChoiceRowLayoutKind.Simple,
-            [context.Bounds],
-            []);
-        if (!_choice.TryHandleMouse(mouse, layout))
-            return FormInputResult.NotHandled;
-        return _choice.SelectedIndex == before ? FormInputResult.Handled : FormInputResult.ValueChanged;
+        return ToFormResult(ChoiceInput.HandleMouse(_choice.Selection, mouse, ChoiceLayoutCalculator.Compact(context.Bounds)));
     }
+
+    private static FormInputResult ToFormResult(ChoiceInputResultKind result) => result switch { ChoiceInputResultKind.Handled => FormInputResult.Handled, ChoiceInputResultKind.ValueChanged => FormInputResult.ValueChanged, _ => FormInputResult.NotHandled };
 }

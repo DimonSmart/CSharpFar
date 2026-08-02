@@ -31,11 +31,18 @@ public sealed class ChoiceSelection<T>
     public T Value => _items[SelectedIndex];
     public int SelectedIndex { get; private set; }
 
-    public bool TrySelect(T value)
+    public void SetValue(T value)
     {
         int index = FindIndex(value);
-        if (index < 0 || index == SelectedIndex)
-            return false;
+        if (index < 0)
+            throw new ArgumentException("The selected value must be present in the choice items.", nameof(value));
+        SelectedIndex = index;
+    }
+
+    public bool TrySetValue(T value)
+    {
+        int index = FindIndex(value);
+        if (index < 0) return false;
         SelectedIndex = index;
         return true;
     }
