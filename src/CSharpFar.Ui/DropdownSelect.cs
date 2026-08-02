@@ -82,16 +82,7 @@ public sealed class DropdownSelect<T>
         Rect fieldBounds)
     {
         if (!IsOpen)
-            return new DropdownSelectFrame(
-                size,
-                fieldBounds,
-                null,
-                null,
-                null,
-                0,
-                _list.CalculateFrameState(1),
-                IsOpen: false,
-                _selectedIndexBeforeOpen);
+            return DropdownSelectFrame.Closed(size, fieldBounds, _list.CalculateFrameState(1), _selectedIndexBeforeOpen);
 
         Rect bounds = PopupBounds(size, fieldBounds);
         Rect contentBounds = PopupRenderer.GetContentBounds(bounds, drawBorder: true);
@@ -99,16 +90,7 @@ public sealed class DropdownSelect<T>
         Rect? scrollbarBounds = contentRows > 0 && _list.Count > Math.Max(1, contentRows)
             ? new Rect(bounds.Right - 1, contentBounds.Y, 1, contentRows)
             : null;
-        return new DropdownSelectFrame(
-            size,
-            fieldBounds,
-            bounds,
-            contentBounds,
-            scrollbarBounds,
-            contentRows,
-            _list.CalculateFrameState(contentRows, scrollbarBounds),
-            IsOpen: true,
-            _selectedIndexBeforeOpen);
+        return DropdownSelectFrame.Open(size, fieldBounds, bounds, contentBounds, scrollbarBounds, contentRows, _list.CalculateFrameState(contentRows, scrollbarBounds), _selectedIndexBeforeOpen);
     }
 
     public void RenderPopup(
@@ -281,13 +263,38 @@ public sealed class DropdownSelect<T>
     }
 }
 
-public readonly record struct DropdownSelectFrame(
-    ConsoleSize Size,
-    Rect FieldBounds,
-    Rect? PopupBounds,
-    Rect? ContentBounds,
-    Rect? ScrollbarBounds,
-    int ContentRows,
-    ScrollableListFrameState ListState,
-    bool IsOpen,
-    int SelectionBeforeOpen);
+public sealed class DropdownSelectFrame
+{
+    private DropdownSelectFrame(ConsoleSize size, Rect fieldBounds, ScrollableListFrameState listState, int selectionBeforeOpen)
+    {
+        Size = size;
+        FieldBounds = fieldBounds;
+        ListState = listState;
+        SelectionBeforeOpen = selectionBeforeOpen;
+    }
+
+    public ConsoleSize Size { get; }
+    public Rect FieldBounds { get; }
+    public Rect? PopupBounds { get; private init; }
+    public Rect? ContentBounds { get; private init; }
+    public Rect? ScrollbarBounds { get; private init; }
+    public int ContentRows { get; private init; }
+    public ScrollableListFrameState ListState { get; }
+    public int SelectionBeforeOpen { get; }
+    public bool IsOpen => PopupBounds is not null;
+
+    public static DropdownSelectFrame Closed(ConsoleSize size, Rect fieldBounds, ScrollableListFrameState listState, int selectionBeforeOpen) =>
+        new(size, fieldBounds, listState, selectionBeforeOpen);
+
+    public static DropdownSelectFrame Open(ConsoleSize size, Rect fieldBounds, Rect popupBounds, Rect contentBounds, Rect? scrollbarBounds, int contentRows, ScrollableListFrameState listState, int selectionBeforeOpen)
+    {
+        if (contentRows < 0) throw new ArgumentOutOfRangeException(nameof(contentRows));
+        return new DropdownSelectFrame(size, fieldBounds, listState, selectionBeforeOpen)
+        {
+            PopupBounds = popupBounds,
+            ContentBounds = contentBounds,
+            ScrollbarBounds = scrollbarBounds,
+            ContentRows = contentRows,
+        };
+    }
+}

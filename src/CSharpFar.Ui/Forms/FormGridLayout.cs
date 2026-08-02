@@ -2,7 +2,18 @@ using CSharpFar.Console.Models;
 
 namespace CSharpFar.Ui;
 
-public readonly record struct FormGridCell(int Column, int Row, Rect Bounds);
+public readonly record struct FormGridPosition(int Column, int Row);
+
+public readonly record struct FormGridCell(int Column, int Row, Rect Bounds)
+{
+    public FormGridPosition Position => new(Column, Row);
+}
+
+public enum FormGridTraversalOrder
+{
+    RowMajor,
+    ColumnMajor,
+}
 
 /// <summary>Immutable geometry for the small, form-owned grids used by CSharpFar.</summary>
 public sealed class FormGridLayout
@@ -19,11 +30,11 @@ public sealed class FormGridLayout
     public IReadOnlyList<FormGridCell> Cells => _cells;
     public int ColumnCount => _cells.Select(cell => cell.Column).DefaultIfEmpty(-1).Max() + 1;
 
-    public bool TryGetCell(int column, int row, out FormGridCell cell)
+    public bool TryHitTest(int x, int y, out FormGridCell cell)
     {
         foreach (FormGridCell candidate in _cells)
         {
-            if (candidate.Column == column && candidate.Row == row)
+            if (candidate.Bounds.Contains(x, y))
             {
                 cell = candidate;
                 return true;
@@ -31,6 +42,34 @@ public sealed class FormGridLayout
         }
         cell = default;
         return false;
+    }
+
+    public bool TryGetCell(FormGridPosition position, out FormGridCell cell)
+    {
+        foreach (FormGridCell candidate in _cells)
+        {
+            if (candidate.Column == position.Column && candidate.Row == position.Row)
+            {
+                cell = candidate;
+                return true;
+            }
+        }
+        cell = default;
+        return false;
+    }
+
+    public bool TryGetCell(int column, int row, out FormGridCell cell) =>
+        TryGetCell(new FormGridPosition(column, row), out cell);
+
+    public IReadOnlyList<FormGridPosition> GetPositions(FormGridTraversalOrder order)
+    {
+        IEnumerable<FormGridCell> cells = order switch
+        {
+            FormGridTraversalOrder.RowMajor => _cells.OrderBy(cell => cell.Row).ThenBy(cell => cell.Column),
+            FormGridTraversalOrder.ColumnMajor => _cells.OrderBy(cell => cell.Column).ThenBy(cell => cell.Row),
+            _ => throw new ArgumentOutOfRangeException(nameof(order)),
+        };
+        return cells.Select(cell => cell.Position).ToArray();
     }
 
     public static FormGridLayout Calculate(Rect bounds, IReadOnlyList<int> rowsPerColumn, int columnGap = 2)
@@ -61,52 +100,73 @@ public sealed class FormGridLayout
     }
 }
 
-public sealed class EnabledGridNavigator
+/// <summary>Mutable focus state; all navigation is calculated from the current grid and enabled predicate.</summary>
+public sealed class FormGridNavigationState
 {
-    private readonly IReadOnlyList<(int Column, int Row)> _enabled;
+    public FormGridPosition? Current { get; private set; }
 
-    public EnabledGridNavigator(FormGridLayout layout, Func<FormGridCell, bool> isEnabled)
+    public bool EnsureCurrent(FormGridLayout layout, Func<FormGridCell, bool> isEnabled)
     {
         ArgumentNullException.ThrowIfNull(layout);
         ArgumentNullException.ThrowIfNull(isEnabled);
-        _enabled = layout.Cells.Where(isEnabled).Select(cell => (cell.Column, cell.Row)).ToArray();
-        Current = _enabled.FirstOrDefault();
+        if (Current is { } current && layout.TryGetCell(current, out FormGridCell currentCell) && isEnabled(currentCell))
+            return true;
+
+        foreach (FormGridPosition position in layout.GetPositions(FormGridTraversalOrder.RowMajor))
+        {
+            if (!layout.TryGetCell(position, out FormGridCell cell) || !isEnabled(cell))
+                continue;
+            Current = position;
+            return true;
+        }
+
+        Current = null;
+        return false;
     }
 
-    public (int Column, int Row) Current { get; private set; }
-    public bool HasEnabledCells => _enabled.Count > 0;
-
-    public bool SelectPointer(int x, int y, FormGridLayout layout)
+    public bool SelectPointer(int x, int y, FormGridLayout layout, Func<FormGridCell, bool> isEnabled)
     {
-        FormGridCell? cell = layout.Cells.LastOrDefault(value => value.Bounds.Contains(x, y));
-        if (cell is not { } value || !_enabled.Contains((value.Column, value.Row)))
+        if (!layout.TryHitTest(x, y, out FormGridCell cell) || !isEnabled(cell))
             return false;
-        Current = (value.Column, value.Row);
+        Current = cell.Position;
         return true;
     }
 
-    public bool MoveHorizontal(int direction) => Move(direction, 0);
-    public bool MoveVertical(int direction) => Move(0, direction);
+    public bool MoveHorizontal(int direction, FormGridLayout layout, Func<FormGridCell, bool> isEnabled) =>
+        Move(direction, 0, layout, isEnabled);
 
-    public FormInputResult MoveTab(int direction)
+    public bool MoveVertical(int direction, FormGridLayout layout, Func<FormGridCell, bool> isEnabled) =>
+        Move(0, direction, layout, isEnabled);
+
+    public FormInputResult MoveTab(int direction, FormGridLayout layout, Func<FormGridCell, bool> isEnabled)
     {
-        int index = Enumerable.Range(0, _enabled.Count).FirstOrDefault(value => _enabled[value] == Current);
-        int next = index + direction;
+        if (direction == 0 || !EnsureCurrent(layout, isEnabled))
+            return FormInputResult.NotHandled;
+        FormGridPosition[] enabled = layout.GetPositions(FormGridTraversalOrder.RowMajor)
+            .Where(position => layout.TryGetCell(position, out FormGridCell cell) && isEnabled(cell)).ToArray();
+        int current = Array.IndexOf(enabled, Current!.Value);
+        int next = current + Math.Sign(direction);
         if (next < 0) return FormInputResult.MoveFocusPrevious;
-        if (next >= _enabled.Count) return FormInputResult.MoveFocusNext;
-        Current = _enabled[next];
+        if (next >= enabled.Length) return FormInputResult.MoveFocusNext;
+        Current = enabled[next];
         return FormInputResult.Handled;
     }
 
-    private bool Move(int columnDelta, int rowDelta)
+    private bool Move(int columnDelta, int rowDelta, FormGridLayout layout, Func<FormGridCell, bool> isEnabled)
     {
-        if (!HasEnabledCells) return false;
-        IEnumerable<(int Column, int Row)> candidates = _enabled
-            .Where(cell => columnDelta != 0 ? Math.Sign(cell.Column - Current.Column) == Math.Sign(columnDelta) : Math.Sign(cell.Row - Current.Row) == Math.Sign(rowDelta))
-            .OrderBy(cell => Math.Abs(cell.Column - Current.Column) + Math.Abs(cell.Row - Current.Row));
-        (int Column, int Row) next = candidates.FirstOrDefault();
-        if (next == default && !_enabled.Contains(default)) return false;
-        Current = next;
+        if ((columnDelta == 0 && rowDelta == 0) || !EnsureCurrent(layout, isEnabled))
+            return false;
+        FormGridPosition current = Current!.Value;
+        FormGridCell[] enabled = layout.Cells.Where(isEnabled).ToArray();
+        IEnumerable<FormGridCell> candidates = columnDelta != 0
+            ? enabled.Where(cell => Math.Sign(cell.Column - current.Column) == Math.Sign(columnDelta))
+                .OrderBy(cell => Math.Abs(cell.Row - current.Row)).ThenBy(cell => Math.Abs(cell.Column - current.Column))
+            : enabled.Where(cell => cell.Column == current.Column && Math.Sign(cell.Row - current.Row) == Math.Sign(rowDelta))
+                .OrderBy(cell => Math.Abs(cell.Row - current.Row));
+        FormGridCell? next = candidates.Cast<FormGridCell?>().FirstOrDefault();
+        if (next is null)
+            return false;
+        Current = next.Value.Position;
         return true;
     }
 }

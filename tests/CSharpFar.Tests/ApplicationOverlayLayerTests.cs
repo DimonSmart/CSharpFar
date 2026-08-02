@@ -335,8 +335,8 @@ public sealed class ApplicationOverlayLayerTests
         services.Driver.ResizeAfterWrite = driver => driver.SetSize(100, 35);
         services.Driver.BeforeViewportWrite = _ =>
         {
-            Assert.Equal(99, completion.List.SelectedIndex);
-            Assert.Equal(99, completion.List.ScrollTop);
+            Assert.Equal(3, completion.List.SelectedIndex);
+            Assert.Equal(3, completion.List.ScrollTop);
         };
 
         services.Composition.Render();

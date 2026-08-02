@@ -38,19 +38,30 @@ public readonly record struct ScrollableListFrameState(
 
 public sealed class ScrollableList<T>
 {
+    private int _selectedIndex;
+    private int _scrollTop;
     public ScrollableList(IReadOnlyList<T> items, Func<T, string> itemText)
     {
         Items = items ?? throw new ArgumentNullException(nameof(items));
         ItemText = itemText ?? throw new ArgumentNullException(nameof(itemText));
+        _selectedIndex = Items.Count == 0 ? -1 : 0;
     }
 
     public IReadOnlyList<T> Items { get; private set; }
 
     public Func<T, string> ItemText { get; }
 
-    public int SelectedIndex { get; set; }
+    public int SelectedIndex
+    {
+        get => _selectedIndex;
+        set => _selectedIndex = Count == 0 ? -1 : Math.Clamp(value, 0, Count - 1);
+    }
 
-    public int ScrollTop { get; set; }
+    public int ScrollTop
+    {
+        get => _scrollTop;
+        set => _scrollTop = Count == 0 ? 0 : Math.Clamp(value, 0, Count - 1);
+    }
 
     public string? EmptyText { get; set; }
 
