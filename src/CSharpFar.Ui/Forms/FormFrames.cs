@@ -46,24 +46,48 @@ public sealed record ScrollableFormFrame(
     UiTargetId? DefaultTarget,
     VerticalScrollbarFrame? VerticalScrollbarFrame = null);
 
-public sealed record FormTargetFrame(
+public abstract record FormTargetFrame(UiTargetId Target, FormTargetKind Kind, Rect Bounds, Rect? HitBounds);
+
+public sealed record FormRowTargetFrame(
     UiTargetId Target,
-    FormTargetKind Kind,
-    IFormRow? Row,
+    IFormRow Row,
     int RowIndex,
     int? FocusIndex,
     Rect Bounds,
     Rect? HitBounds,
     FormRowLayout Layout,
-    bool IsFocusable,
     bool IsFooter,
-    UiCursorPlacement? Cursor = null,
-    FormCompositeFrame? CompositeFrame = null,
-    UiTargetId? CompositeChildTarget = null,
-    bool CapturesMouse = false)
+    UiCursorPlacement? Cursor,
+    FormCompositeFrame? CompositeFrame)
+    : FormTargetFrame(Target, FormTargetKind.Row, Bounds, HitBounds)
 {
-    // Kept as a frame-inspection convenience; routing never depends on this type.
+    public bool IsFocusable => FocusIndex is not null;
     public DropdownSelectFrame? DropdownFrame => CompositeFrame?.State is DropdownCompositeSnapshot { Frame: var frame } ? frame : null;
+}
+
+public sealed record FormBodyScrollbarTargetFrame : FormTargetFrame
+{
+    public FormBodyScrollbarTargetFrame(UiTargetId target, Rect bounds, Rect hitBounds)
+        : base(target, FormTargetKind.BodyScrollbar, bounds, hitBounds)
+    {
+    }
+}
+
+public sealed record FormCompositeChildTargetFrame : FormTargetFrame
+{
+    public FormCompositeChildTargetFrame(UiTargetId target, FormRowTargetFrame owner, FormCompositeFrame compositeFrame, FormCompositeTarget child)
+        : base(target, child.Kind, child.Bounds, child.HitBounds ?? child.Bounds)
+    {
+        Owner = owner ?? throw new ArgumentNullException(nameof(owner));
+        CompositeFrame = compositeFrame ?? throw new ArgumentNullException(nameof(compositeFrame));
+        Child = child ?? throw new ArgumentNullException(nameof(child));
+    }
+
+    public FormRowTargetFrame Owner { get; }
+    public FormCompositeFrame CompositeFrame { get; }
+    public FormCompositeTarget Child { get; }
+    public UiTargetId ChildTarget => Child.Id;
+    public bool CapturesMouse => Child.CapturesMouse;
 }
 
 public readonly record struct FormRouteResult(

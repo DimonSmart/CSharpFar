@@ -42,8 +42,8 @@ public sealed partial class ScrollableFormDialog
     internal int FocusIndex => FocusIndexFromScope(CurrentFocusedTarget) ?? 0;
     internal int FocusableCount => TotalFocusableCount;
     public FormLayoutOptions LayoutOptions { get; }
-    public string? FocusedRowId => FocusedTargetFrame()?.Row?.Id;
-    public FormRowRole FocusedRowRole => FocusedTargetFrame()?.Row?.Role ?? FormRowRole.Normal;
+    public string? FocusedRowId => FocusedTargetFrame()?.Row.Id;
+    public FormRowRole FocusedRowRole => FocusedTargetFrame()?.Row.Role ?? FormRowRole.Normal;
     public bool IsFocusedOnSubmitRow => FocusedTargetFrame()?.Row is { IsFocusable: true, SubmitOnEnter: true };
     private UiTargetId? CurrentFocusedTarget
     {
@@ -166,7 +166,7 @@ public sealed partial class ScrollableFormDialog
         return new UiFocusFrame(entries, defaultTarget);
     }
 
-    private FormTargetFrame? FocusedTargetFrame()
+    private FormRowTargetFrame? FocusedTargetFrame()
     {
         UiTargetId? focused = CurrentFocusedTarget;
         if (focused is null)
@@ -179,7 +179,7 @@ public sealed partial class ScrollableFormDialog
                 continue;
 
             if (RowTarget(row) == focused)
-                return new FormTargetFrame(focused, FormTargetKind.Row, row, -1, focusIndex, default, null, new FormRowLayout(default, null, default), true, false);
+                return new FormRowTargetFrame(focused, row, -1, focusIndex, default, null, new FormRowLayout(default, null, default), false, null, null);
 
             focusIndex++;
         }
@@ -192,16 +192,16 @@ public sealed partial class ScrollableFormDialog
         if (focusedTarget is null)
             return;
 
-        FormTargetFrame? targetFrame = FindRowTarget(frame, focusedTarget);
-        if (targetFrame?.Row is not { } row)
+        FormRowTargetFrame? targetFrame = FindRowTarget(frame, focusedTarget);
+        if (targetFrame is not { } rowFrame)
+            return;
+        IFormRow row = rowFrame.Row;
+
+        bool overlayPublished = frame.Targets.OfType<FormCompositeChildTargetFrame>().Any(target => ReferenceEquals(target.Owner.Row, row));
+        if (!overlayPublished || rowFrame.CompositeFrame is not { IsOpen: true } compositeFrame || row is not IFormCompositeOwner composite)
             return;
 
-        bool overlayPublished = frame.Targets.Any(target =>
-            ReferenceEquals(target.Row, row) && target.CompositeChildTarget is not null);
-        if (!overlayPublished || targetFrame.CompositeFrame is not { IsOpen: true } compositeFrame || row is not IFormCompositeOwner composite)
-            return;
-
-        var context = new FormRowRenderContext(screen, targetFrame.Bounds, focused: true, targetFrame.Layout);
+        var context = new FormRowRenderContext(screen, rowFrame.Bounds, focused: true, rowFrame.Layout);
         composite.CompositeController.RenderOverlay(context, compositeFrame);
     }
 
@@ -238,7 +238,7 @@ public sealed partial class ScrollableFormDialog
         return ScrollStateCalculator.ClampFirstVisibleIndex(effectiveScrollTop, BodyRowCount, clampedViewportRows);
     }
 
-    private static bool IsOffscreenBodyTarget(FormTargetFrame target, Rect bodyBounds) =>
+    private static bool IsOffscreenBodyTarget(FormRowTargetFrame target, Rect bodyBounds) =>
         !target.IsFooter &&
         (target.HitBounds is null ||
             target.Bounds.Bottom <= bodyBounds.Y ||

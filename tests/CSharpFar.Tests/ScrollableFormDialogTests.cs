@@ -191,8 +191,8 @@ public sealed class ScrollableFormDialogTests
         UiInteractionFragment fragment = form.BuildInteractionFragment(frame);
         UiInteractionFrame interaction = form.BuildInteractionFrame(frame);
 
-        Assert.Contains(frame.Targets, target => target.Target == FormTargetIds.ForExplicitRow("first") && target.IsFocusable);
-        Assert.Contains(frame.Targets, target => target.Target == FormTargetIds.ForExplicitRow("label") && !target.IsFocusable);
+        Assert.Contains(frame.Targets, target => target is FormRowTargetFrame { Target: var id, IsFocusable: true } && id == FormTargetIds.ForExplicitRow("first"));
+        Assert.Contains(frame.Targets, target => target is FormRowTargetFrame { Target: var id, IsFocusable: false } && id == FormTargetIds.ForExplicitRow("label"));
         Assert.Contains(frame.Targets, target => target is { Kind: FormTargetKind.BodyScrollbar, Target: var id } && id == FormTargetIds.BodyScrollbar);
         Assert.Equal(3, interaction.Focus.Entries.Count);
         Assert.Contains(interaction.HitRegions, region => region.Target == FormTargetIds.BodyScrollbar);
@@ -656,7 +656,7 @@ public sealed class ScrollableFormDialogTests
         host.Composition.Render();
         FormTargetFrame target = Assert.Single(layer.CommittedFrame.Targets, target => target.Kind == FormTargetKind.Row);
 
-        host.Composition.DispatchInput(Mouse(target.Layout.ControlBounds.X + 2, target.Bounds.Y));
+        host.Composition.DispatchInput(Mouse(Assert.IsType<FormRowTargetFrame>(target).Layout.ControlBounds.X + 2, target.Bounds.Y));
 
         Assert.Equal(21, text.CursorPosition);
     }
@@ -765,7 +765,7 @@ public sealed class ScrollableFormDialogTests
         Assert.Equal("enabled", form.FocusedRowId);
         Assert.DoesNotContain(interaction.Focus.Entries, entry => entry.Target == FormTargetIds.ForExplicitRow("disabled"));
         Assert.DoesNotContain(interaction.HitRegions, region => region.Target == FormTargetIds.ForExplicitRow("disabled"));
-        Assert.DoesNotContain(frame.Targets, target => target.Target == FormTargetIds.ForExplicitRow("disabled") && target.Cursor is not null);
+        Assert.DoesNotContain(frame.Targets, target => target is FormRowTargetFrame { Target: var id, Cursor: not null } && id == FormTargetIds.ForExplicitRow("disabled"));
         Assert.Equal(FormInputResultKind.NotHandled, disabled.HandleKey(Key(ConsoleKey.Spacebar), new FormRowInputContext(false)).Kind);
         Assert.Equal(FormInputResultKind.NotHandled, disabled.HandleKey(Key(ConsoleKey.Enter), new FormRowInputContext(false)).Kind);
         host.Composition.DispatchInput(Mouse(2, 0));
@@ -809,7 +809,7 @@ public sealed class ScrollableFormDialogTests
         Assert.Contains(layer.CommittedInteractionFrame.Focus.Entries, entry => entry.Target == target);
         Assert.Contains(layer.CommittedInteractionFrame.HitRegions, region => region.Target == target);
         RequestFocus(form, "target");
-        Assert.Contains(layer.CommittedFrame.Targets, frame => frame.Target == target && frame.Cursor is not null);
+        Assert.Contains(layer.CommittedFrame.Targets, frame => frame is FormRowTargetFrame { Target: var id, Cursor: not null } && id == target);
         host.Composition.DispatchInput(new KeyConsoleInputEvent(Key(ConsoleKey.Spacebar)));
         Assert.True(row.Value);
         host.Composition.DispatchInput(Mouse(2, 0));
@@ -1319,7 +1319,7 @@ public sealed class ScrollableFormDialogTests
 
         ScrollableFormFrame frame = RenderFrame(form, visibleRows: 1, screenHeight: 8);
 
-        FormTargetFrame target = Assert.Single(frame.Targets, target => target.Kind == FormTargetKind.Row);
+        FormRowTargetFrame target = Assert.IsType<FormRowTargetFrame>(Assert.Single(frame.Targets, target => target.Kind == FormTargetKind.Row));
         FormCompositeFrame compositeFrame = Assert.IsType<FormCompositeFrame>(target.CompositeFrame);
         Assert.False(compositeFrame.IsOpen);
         Assert.IsType<DropdownCompositeSnapshot>(compositeFrame.State);
@@ -1339,7 +1339,7 @@ public sealed class ScrollableFormDialogTests
         var (host, layer) = CreateRoutedFormHostWithLayer(form, driver, visibleRows: 1);
         host.Composition.Render();
         DropdownSelectFrame committed = Assert.IsType<DropdownSelectFrame>(
-            Assert.Single(layer.CommittedFrame.Targets, target => target.Kind == FormTargetKind.Row).DropdownFrame);
+            Assert.IsType<FormRowTargetFrame>(Assert.Single(layer.CommittedFrame.Targets, target => target.Kind == FormTargetKind.Row)).DropdownFrame);
         Assert.Equal(0, committed.Popup!.List.SelectedIndex);
 
         dropdown.SelectedIndex = 6;
@@ -1525,7 +1525,7 @@ public sealed class ScrollableFormDialogTests
         host.Composition.Render();
         host.Composition.DispatchInput(new KeyConsoleInputEvent(Key(ConsoleKey.DownArrow)));
         host.Composition.Render();
-        FormTargetFrame next = Assert.Single(layer.CommittedFrame.Targets, target => target.Kind == FormTargetKind.Row && target.Row?.Id == "next");
+        FormRowTargetFrame next = Assert.Single(layer.CommittedFrame.Targets.OfType<FormRowTargetFrame>(), target => target.Row.Id == "next");
 
         host.Composition.DispatchInput(Mouse(next.Bounds.X, next.Bounds.Y));
 
@@ -1569,7 +1569,8 @@ public sealed class ScrollableFormDialogTests
         host.Composition.Render();
         FormTargetFrame row = Assert.Single(layer.CommittedFrame.Targets, target => target.Kind == FormTargetKind.Row);
 
-        host.Composition.DispatchInput(Mouse(row.Layout.ControlBounds.X, row.Layout.ControlBounds.Y));
+        FormRowTargetFrame rowTarget = Assert.IsType<FormRowTargetFrame>(row);
+        host.Composition.DispatchInput(Mouse(rowTarget.Layout.ControlBounds.X, rowTarget.Layout.ControlBounds.Y));
         Assert.Equal(FormInputResultKind.OverlayChanged, layer.LastRouteResult!.Value.FormResult.Kind);
 
         host.Composition.Render();
@@ -1581,7 +1582,7 @@ public sealed class ScrollableFormDialogTests
         host.Composition.DispatchInput(Mouse(scrollbar.Bounds.X, scrollbarY, MouseButton.Left, MouseEventKind.Up));
 
         FormTargetFrame popup = Assert.Single(layer.CommittedFrame.Targets, target => target.Kind == FormTargetKind.DropdownPopup);
-        Rect content = popup.CompositeFrame!.State is DropdownCompositeSnapshot { Frame.Popup.List.ContentBounds: { } value }
+        Rect content = Assert.IsType<FormCompositeChildTargetFrame>(popup).CompositeFrame.State is DropdownCompositeSnapshot { Frame.Popup.List.ContentBounds: { } value }
             ? value
             : throw new Xunit.Sdk.XunitException("Expected dropdown content frame.");
         host.Composition.DispatchInput(Mouse(content.X, content.Y + 1));
@@ -1631,7 +1632,7 @@ public sealed class ScrollableFormDialogTests
         var (host, layer) = CreateRoutedFormHostWithLayer(form, driver, visibleRows: 2);
         host.Composition.Render();
         FormTargetFrame popup = Assert.Single(layer.CommittedFrame.Targets, target => target.Kind == FormTargetKind.DropdownPopup);
-        FormTargetFrame next = Assert.Single(layer.CommittedFrame.Targets, target => target.Kind == FormTargetKind.Row && target.Row?.Id == "next");
+        FormRowTargetFrame next = Assert.Single(layer.CommittedFrame.Targets.OfType<FormRowTargetFrame>(), target => target.Row.Id == "next");
 
         host.Composition.DispatchInput(Mouse(popup.Bounds.X + 1, popup.Bounds.Y + 2));
         layer.ThrowOnRender = true;
@@ -1660,7 +1661,7 @@ public sealed class ScrollableFormDialogTests
         var (host, layer) = CreateRoutedFooterFormHostWithLayer(form, driver, bodyRows: 1, footerY: 5);
         host.Composition.Render();
         FormTargetFrame popup = Assert.Single(layer.CommittedFrame.Targets, target => target.Kind == FormTargetKind.DropdownPopup);
-        FormTargetFrame footer = Assert.Single(layer.CommittedFrame.Targets, target => target.Kind == FormTargetKind.Row && target.IsFooter);
+        FormRowTargetFrame footer = Assert.Single(layer.CommittedFrame.Targets.OfType<FormRowTargetFrame>(), target => target.IsFooter);
 
         host.Composition.DispatchInput(Mouse(popup.Bounds.X + 1, popup.Bounds.Y + 2));
         layer.ThrowOnRender = true;
@@ -1706,7 +1707,7 @@ public sealed class ScrollableFormDialogTests
         var driver = new FakeConsoleDriver(24, 10);
         var (host, layer) = CreateRoutedFormHostWithLayer(form, driver, visibleRows: 2);
         host.Composition.Render();
-        FormTargetFrame next = Assert.Single(layer.CommittedFrame.Targets, target => target.Kind == FormTargetKind.Row && target.Row?.Id == "next");
+        FormRowTargetFrame next = Assert.Single(layer.CommittedFrame.Targets.OfType<FormRowTargetFrame>(), target => target.Row.Id == "next");
 
         host.Composition.DispatchInput(new KeyConsoleInputEvent(Key(ConsoleKey.Spacebar)));
         Assert.True(dropdown.IsOpen);
