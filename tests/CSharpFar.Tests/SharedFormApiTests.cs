@@ -53,7 +53,7 @@ public sealed class SharedFormApiTests
         Assert.Equal("      ", driver.GetRow(0));
         Assert.Equal("      ", driver.GetRow(1));
         Assert.Equal(FormInputResultKind.NotHandled, row.HandleKey(Key(ConsoleKey.Spacebar), new FormRowInputContext(false)).Kind);
-        Assert.Equal(FormInputResultKind.NotHandled, row.HandleMouse(Mouse(), new FormRowMouseContext(false, 2, new FormRowLayout(new Rect(0, 0, 6, 2), null, new Rect(0, 0, 6, 2)))).Kind);
+        Assert.Equal(FormInputResultKind.NotHandled, row.HandleMouse(Mouse(), new FormRowMouseContext(false, new FormRowLayout(new Rect(0, 0, 6, 2), null, new Rect(0, 0, 6, 2)))).Kind);
     }
 
     [Fact]

@@ -49,9 +49,8 @@ internal sealed class CommandCompletionController
         _state.Visible = true;
     }
 
-    public bool TryRemoveSelectedCommand(CommandLineState commandLine, int viewportRows)
+    public bool TryRemoveSelectedCommand(CommandLineState commandLine, int selectedIndex, int viewportRows)
     {
-        int selectedIndex = _state.List.SelectedIndex;
         if (!_state.Visible ||
             selectedIndex <= NeutralIndex ||
             selectedIndex >= _state.Matches.Count ||

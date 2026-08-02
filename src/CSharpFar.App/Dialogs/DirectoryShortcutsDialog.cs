@@ -35,15 +35,9 @@ internal sealed class DirectoryShortcutsDialog
         var items = currentItems.ToDictionary(item => item.Number);
         var initialItems = CloneItems(items);
         var targets = new UiTargetScope("directory-shortcuts");
-        var routedShortcuts = new RoutedScrollableList<int>(
-            DirectoryShortcutNormalizer.DisplayOrder,
-            number => FormatShortcut(number, items),
-            targets.Child("list"),
-            targets.Child("list.scrollbar"))
-        {
-            NormalStyle = PaletteStyles.DialogFill(_palette),
-            SelectedStyle = PaletteStyles.InputField(_palette),
-        };
+        var shortcutState = new ScrollableListState<int>(DirectoryShortcutNormalizer.DisplayOrder);
+        var routedShortcuts = new RoutedScrollableList<int>(shortcutState, targets.Child("list"), targets.Child("list.scrollbar"));
+        var presentation = new ScrollableListRenderOptions<int>(number => FormatShortcut(number, items), string.Empty, PaletteStyles.DialogFill(_palette), PaletteStyles.InputField(_palette), PaletteStyles.DialogFill(_palette));
         var buttons = new ButtonRow(
         [
             new DialogButton("edit", "Edit", 'E', IsDefault: true),
@@ -54,7 +48,7 @@ internal sealed class DirectoryShortcutsDialog
         form.SetRows([], [buttons]);
 
         return _modalDialogs.RunInteractive<DirectoryShortcutsFrame, DirectoryShortcutsInput, DirectoryShortcutsDialogResult>(
-            (context, focusScope) => Draw(context, focusScope, form, routedShortcuts),
+            (context, focusScope) => Draw(context, focusScope, form, routedShortcuts, presentation),
             frame => BuildInteractionFrame(frame, routedShortcuts),
             (input, frame, route) => RouteInput(input, frame, route, form, routedShortcuts),
             (routed, semantic) =>
@@ -64,19 +58,18 @@ internal sealed class DirectoryShortcutsDialog
                     if (buttonId == "close")
                         return ModalDialogLoopResult<DirectoryShortcutsDialogResult>.Complete(Result(initialItems, items));
                     if (buttonId == "edit")
-                        EditSelected(items, routedShortcuts.SelectedItemOrDefault, activePanelPath);
+                        EditSelected(items, shortcutState.SelectedItemOrDefault, activePanelPath);
                     return ModalDialogLoopResult<DirectoryShortcutsDialogResult>.ContinueNoChange;
                 }
 
                 if (semantic.ListResult.Kind == ScrollableListInputResultKind.Confirmed)
-                    EditSelected(items, routedShortcuts.SelectedItemOrDefault, activePanelPath);
+                    EditSelected(items, shortcutState.SelectedItemOrDefault, activePanelPath);
 
                 if (semantic.Input is KeyConsoleInputEvent { Key.Key: ConsoleKey.Escape or ConsoleKey.F10 })
                     return ModalDialogLoopResult<DirectoryShortcutsDialogResult>.Complete(Result(initialItems, items));
 
                 return ModalDialogLoopResult<DirectoryShortcutsDialogResult>.ContinueNoChange;
-            },
-            applyCommittedFrame: frame => routedShortcuts.ApplyCommittedFrame(frame.List));
+            });
     }
 
     private static UiInteractionFrame BuildInteractionFrame(
@@ -126,14 +119,11 @@ internal sealed class DirectoryShortcutsDialog
         UiRenderContext context,
         IUiFocusState focusScope,
         ScrollableFormDialog form,
-        RoutedScrollableList<int> routedShortcuts)
+        RoutedScrollableList<int> routedShortcuts, ScrollableListRenderOptions<int> presentation)
     {
         DirectoryShortcutsLayout layout = CalculateLayout(_modalRenderer.CalculateLayout(context.Size, DialogWidth, DialogHeight));
         ScrollableFormFrame buttons = null!;
-        RoutedScrollableListFrame list = routedShortcuts.CalculateFrame(
-            layout.ListBounds.Height,
-            layout.ListBounds,
-            layout.ScrollbarBounds);
+        RoutedScrollableListFrame list = routedShortcuts.CalculateFrame(layout.ListBounds, layout.ScrollbarBounds);
         _modalRenderer.Render(
             context.Canvas,
             layout.Modal,
@@ -143,7 +133,7 @@ internal sealed class DirectoryShortcutsDialog
             PaletteStyles.DialogPopupOptions(_palette) with { DrawShadow = false },
             (_, _) =>
             {
-                routedShortcuts.Render(context.Canvas, list);
+                routedShortcuts.Render(context.Canvas, list, presentation);
                 routedShortcuts.RenderScrollbar(context.Canvas, list, PaletteStyles.DialogBorder(_palette));
                 buttons = layout.FooterBounds.Height > 0
                     ? form.Render(

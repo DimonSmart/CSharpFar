@@ -40,10 +40,7 @@ public sealed partial class ScrollableFormDialog
             FindRowTarget(frame, target) is { Row: { } row } targetFrame)
         {
             ensureFocusedTargetVisible = IsOffscreenBodyTarget(targetFrame, frame.BodyBounds);
-            int availableDropdownRows = SingleLineTextInput.AvailableDropdownContentRows(
-                targetFrame.Bounds.Y,
-                frame.ScreenHeight);
-            var inputContext = new FormRowInputContext(Focused: true, availableDropdownRows);
+            var inputContext = new FormRowInputContext(Focused: true);
             FormInputResult rowResult = row is IFormCompositeOwner owner && targetFrame.CompositeFrame is { } compositeFrame
                 ? owner.CompositeController.RouteKey(key, inputContext, compositeFrame)
                 : row.HandleKey(key, inputContext);
@@ -60,9 +57,7 @@ public sealed partial class ScrollableFormDialog
             {
                 FormInputResult buttonResult = buttonFrame.Row!.HandleKey(
                     key,
-                    new FormRowInputContext(
-                        Focused: false,
-                        SingleLineTextInput.AvailableDropdownContentRows(buttonFrame.Bounds.Y, frame.ScreenHeight)));
+                    new FormRowInputContext(Focused: false));
                 if (buttonResult.IsHandled)
                 {
                     buttonResult = WithSourceRowId(buttonResult, buttonFrame.Row.Id);
@@ -131,7 +126,6 @@ public sealed partial class ScrollableFormDialog
             mouse is { Button: MouseButton.Left, Kind: MouseEventKind.Down };
         var mouseContext = new FormRowMouseContext(
                 Focused: rowFrame.Target == route.FocusState.FocusedTarget || requestFocus,
-                frame.ScreenHeight,
                 rowFrame.Layout);
         FormInputResult rowResult = targetFrame.Row is IFormCompositeOwner owner &&
             (targetFrame.CompositeFrame ?? rowFrame.CompositeFrame) is { } compositeFrame
@@ -187,7 +181,7 @@ public sealed partial class ScrollableFormDialog
         if (insideChild)
             return false;
 
-        var context = new FormRowMouseContext(Focused: true, frame.ScreenHeight, rowFrame.Layout);
+        var context = new FormRowMouseContext(Focused: true, rowFrame.Layout);
         if (row.CompositeController.IsAnchorHit(mouse, context, compositeFrame))
             return false;
 

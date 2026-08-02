@@ -186,7 +186,7 @@ public sealed class ApplicationOverlayLayerTests
         services.Composition.Render();
         var interaction = services.Inner.CommandCompletionLayer.CommittedInteractionFrame;
         bool observedRejectedAttempt = false;
-        completion.List.SelectedIndex = 1;
+        completion.List.SelectIndex(1, 1);
 
         services.Driver.ResizeAfterWriteCount = services.Driver.WriteAtCallCount + 1;
         services.Driver.ResizeAfterWrite = driver => driver.SetSize(80, 3);
@@ -272,7 +272,7 @@ public sealed class ApplicationOverlayLayerTests
         completion.Visible = true;
         completion.List.ResetItems(["", "alpha", "beta"], 1);
         services.Composition.Render();
-        completion.List.SelectedIndex = 2;
+        completion.List.SelectIndex(2, 1);
 
         UiInputResult result = services.Composition.DispatchInput(UiTestInput.Key(ConsoleKey.Delete));
 
@@ -291,7 +291,7 @@ public sealed class ApplicationOverlayLayerTests
         var completion = services.Session.CommandLine.Completion;
         completion.Visible = true;
         completion.List.ResetItems(["", .. commands], 10);
-        completion.List.ScrollTop = 4;
+        completion.List.SelectIndex(10, 7);
         services.Composition.Render();
 
         Assert.True(services.Composition.DispatchInput(UiTestInput.Key(ConsoleKey.Delete)).Handled);
@@ -328,8 +328,7 @@ public sealed class ApplicationOverlayLayerTests
         var completion = services.Session.CommandLine.Completion;
         completion.Visible = true;
         completion.List.ResetItems(["", "alpha", "beta", "gamma"]);
-        completion.List.SelectedIndex = 99;
-        completion.List.ScrollTop = 99;
+        completion.List.SelectIndex(99, 1);
 
         services.Driver.ResizeAfterWriteCount = 1;
         services.Driver.ResizeAfterWrite = driver => driver.SetSize(100, 35);
@@ -342,7 +341,7 @@ public sealed class ApplicationOverlayLayerTests
         services.Composition.Render();
 
         Assert.Equal(3, completion.List.SelectedIndex);
-        Assert.Equal(0, completion.List.ScrollTop);
+        Assert.Equal(3, completion.List.ScrollTop);
     }
 
     [Fact]
@@ -380,12 +379,12 @@ public sealed class ApplicationOverlayLayerTests
         services.Composition.Render();
         UiInputResult down = services.Composition.DispatchInput(UiTestInput.Mouse(79, 15));
         Assert.True(down.Handled);
-        Assert.NotNull(completion.List.GetScrollbarDrag());
+        Assert.NotNull(services.Inner.CommandCompletionLayer.ScrollbarDragState);
 
         completion.List.ResetItems(["item-0"]);
         services.Composition.Render();
 
-        Assert.Null(completion.List.GetScrollbarDrag());
+        Assert.Null(services.Inner.CommandCompletionLayer.ScrollbarDragState);
     }
 
     [Fact]
@@ -398,19 +397,19 @@ public sealed class ApplicationOverlayLayerTests
 
         services.Composition.Render();
         Assert.True(services.Composition.DispatchInput(UiTestInput.Mouse(79, 15)).Handled);
-        Assert.NotNull(completion.List.GetScrollbarDrag());
+        Assert.NotNull(services.Inner.CommandCompletionLayer.ScrollbarDragState);
 
         services.Driver.SetSize(80, 6);
         services.Composition.Render();
 
-        Assert.Null(completion.List.GetScrollbarDrag());
+        Assert.Null(services.Inner.CommandCompletionLayer.ScrollbarDragState);
         UiInputResult move = services.Composition.DispatchInput(UiTestInput.Mouse(0, 0, MouseEventKind.Move));
         Assert.True(move.Handled);
         Assert.True(services.ApplicationSurface.TryTakeInput(out var packet));
         Assert.IsType<MouseConsoleInputEvent>(packet.Input);
 
         services.Composition.DispatchInput(UiTestInput.Mouse(79, 1));
-        Assert.Null(completion.List.GetScrollbarDrag());
+        Assert.Null(services.Inner.CommandCompletionLayer.ScrollbarDragState);
     }
 
     [Fact]
@@ -422,16 +421,16 @@ public sealed class ApplicationOverlayLayerTests
         completion.List.ResetItems(Enumerable.Range(0, 12).Select(i => $"item-{i}").ToArray());
         services.Composition.Render();
         services.Composition.DispatchInput(UiTestInput.Mouse(79, 15));
-        ScrollBarDragState dragBeforeRetry = Assert.IsType<ScrollBarDragState>(completion.List.GetScrollbarDrag());
+        ScrollBarDragState dragBeforeRetry = Assert.IsType<ScrollBarDragState>(services.Inner.CommandCompletionLayer.ScrollbarDragState);
         bool observedRejectedAttempt = false;
 
-        completion.List.SelectedIndex = 1;
+        completion.List.SelectIndex(1, 1);
         services.Driver.ResizeAfterWriteCount = services.Driver.WriteAtCallCount + 1;
         services.Driver.ResizeAfterWrite = driver => driver.SetSize(100, 35);
         services.Driver.BeforeViewportWrite = _ =>
         {
             observedRejectedAttempt = true;
-            Assert.Equal(dragBeforeRetry, completion.List.GetScrollbarDrag());
+            Assert.Equal(dragBeforeRetry, services.Inner.CommandCompletionLayer.ScrollbarDragState);
             services.Driver.BeforeViewportWrite = null;
         };
 
@@ -450,12 +449,12 @@ public sealed class ApplicationOverlayLayerTests
         services.Composition.Render();
         services.Composition.DispatchInput(UiTestInput.Mouse(79, 15));
 
-        completion.List.SelectedIndex = 1;
+        completion.List.SelectIndex(1, 1);
         services.Driver.ResizeAfterWriteCount = services.Driver.WriteAtCallCount + 1;
         services.Driver.ResizeAfterWrite = driver => driver.SetSize(100, 35);
         services.Composition.Render();
 
-        ScrollBarDragState drag = Assert.IsType<ScrollBarDragState>(completion.List.GetScrollbarDrag());
+        ScrollBarDragState drag = Assert.IsType<ScrollBarDragState>(services.Inner.CommandCompletionLayer.ScrollbarDragState);
         Assert.Equal(new Rect(99, 24, 1, 8), drag.Bounds);
         Assert.Equal(12, drag.TotalItems);
         Assert.Equal(8, drag.ViewportItems);

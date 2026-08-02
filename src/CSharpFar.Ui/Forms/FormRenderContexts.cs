@@ -35,25 +35,23 @@ public sealed class FormRenderContext
 
 public sealed class FormRowRenderContext
 {
-    public FormRowRenderContext(IUiCanvas screen, Rect bounds, bool focused, int? screenHeight = null, FormRowLayout? layout = null)
+    public FormRowRenderContext(IUiCanvas screen, Rect bounds, bool focused, FormRowLayout? layout = null)
     {
         Canvas = screen;
         Bounds = bounds;
         Focused = focused;
-        CanvasHeight = screenHeight ?? 0;
         Layout = layout ?? new FormRowLayout(bounds, null, bounds);
     }
 
     public IUiCanvas Canvas { get; }
     public Rect Bounds { get; }
     public bool Focused { get; }
-    public int CanvasHeight { get; }
     public FormRowLayout Layout { get; }
 }
 
-public readonly record struct FormRowInputContext(bool Focused, int AvailableOverlayContentRows = 0);
+public readonly record struct FormRowInputContext(bool Focused);
 
-public readonly record struct FormRowMouseContext(bool Focused, int CanvasHeight, FormRowLayout Layout)
+public readonly record struct FormRowMouseContext(bool Focused, FormRowLayout Layout)
 {
     public Rect Bounds => Layout.RowBounds;
 }

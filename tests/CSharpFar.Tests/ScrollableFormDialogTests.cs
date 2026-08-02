@@ -708,7 +708,7 @@ public sealed class ScrollableFormDialogTests
         Assert.DoesNotContain(interaction.Focus.Entries, entry => entry.Target == FormTargetIds.ForExplicitRow("value"));
         Assert.Contains(frame.Targets, target => target.Target == FormTargetIds.ForExplicitRow("value"));
         Assert.Equal(FormInputResultKind.NotHandled, row.HandleKey(Key(ConsoleKey.Spacebar), new FormRowInputContext(false)).Kind);
-        Assert.Equal(FormInputResultKind.NotHandled, row.HandleMouse(Mouse(0, 0, MouseButton.Left, MouseEventKind.Down), new FormRowMouseContext(false, 5, new FormRowLayout(new Rect(0, 0, 5, 1), null, new Rect(0, 0, 5, 1)))).Kind);
+        Assert.Equal(FormInputResultKind.NotHandled, row.HandleMouse(Mouse(0, 0, MouseButton.Left, MouseEventKind.Down), new FormRowMouseContext(false, new FormRowLayout(new Rect(0, 0, 5, 1), null, new Rect(0, 0, 5, 1)))).Kind);
     }
 
     [Fact]
@@ -1340,7 +1340,7 @@ public sealed class ScrollableFormDialogTests
         host.Composition.Render();
         DropdownSelectFrame committed = Assert.IsType<DropdownSelectFrame>(
             Assert.Single(layer.CommittedFrame.Targets, target => target.Kind == FormTargetKind.Row).DropdownFrame);
-        Assert.Equal(0, committed.ListState.SelectedIndex);
+        Assert.Equal(0, committed.Popup!.List.SelectedIndex);
 
         dropdown.SelectedIndex = 6;
         dropdown.ScrollTop = 6;

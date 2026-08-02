@@ -37,12 +37,10 @@ internal sealed class ProcessesAndPortsDialog(ModuleUiServices ui, IProcessesAnd
 
         ProcessesAndPortsSnapshot? snapshot = TryCapture(null, out string? captureError);
         var targets = new UiTargetScope("processes-and-ports");
-        var list = new RoutedScrollableList<ProcessesAndPortsRow>([], x => _currentLayout.FormatRow(x), targets.Child("endpoints"), targets.Child("endpoints.scrollbar"))
-        {
-            EmptyText = "No matching endpoints.",
-            NormalStyle = FarDialogStyles.Fill,
-            SelectedStyle = FarDialogStyles.FocusedInput,
-        };
+        var endpointState = new ScrollableListState<ProcessesAndPortsRow>([]);
+        var list = new RoutedScrollableList<ProcessesAndPortsRow>(endpointState, targets.Child("endpoints"), targets.Child("endpoints.scrollbar"));
+        var presentation = new ScrollableListRenderOptions<ProcessesAndPortsRow>(
+            _currentLayout.FormatRow, "No matching endpoints.", FarDialogStyles.Fill, FarDialogStyles.FocusedInput, FarDialogStyles.Fill);
         IReadOnlyList<ProcessesAndPortsRow> lastRows = [];
 
         _ui.ModalDialogs.RunInteractive<Frame, Input, object?>(
@@ -51,22 +49,22 @@ internal sealed class ProcessesAndPortsDialog(ModuleUiServices ui, IProcessesAnd
                 IReadOnlyList<ProcessesAndPortsRow> rows = Project(snapshot?.Endpoints ?? [], filter.Text, tcp.Value, udp.Value, other.Value);
                 if (!SameRows(rows, lastRows))
                 {
-                    list.ReplaceItems(rows, row => row.Key, Math.Max(0, context.Size.Height - 10));
+                    endpointState.ReplaceItems(rows, row => row.Key, Math.Max(0, context.Size.Height - 10));
                     lastRows = rows;
                 }
-                bool canTerminate = CanTerminate(list.SelectedItemOrDefault?.Endpoint);
+                bool canTerminate = CanTerminate(endpointState.SelectedItemOrDefault?.Endpoint);
                 actions.SetButtons(actionButtons.Select(button => button with
                 {
-                    IsEnabled = button.Id == "details" ? list.HasItems : button.Id == "terminate" ? canTerminate : button.IsEnabled,
+                    IsEnabled = button.Id == "details" ? endpointState.HasItems : button.Id == "terminate" ? canTerminate : button.IsEnabled,
                 }).ToArray());
-                return Draw(context, focus, form, list, snapshot, captureError, rows, tcp.Value, udp.Value, other.Value);
+                return Draw(context, focus, form, list, presentation, endpointState, snapshot, captureError, rows, tcp.Value, udp.Value, other.Value);
             },
             frame => new UiInteractionFrameBuilder()
                 .AddFragment(list.BuildInteractionFragment(frame.List, 1, frame.ListBounds.Width > 0 && frame.ListBounds.Height > 0))
                 .AddFragment(form.BuildInteractionFragment(frame.Form))
                 .SetDefaultFocusTarget(frame.Form.DefaultTarget ?? list.ListTarget)
                 .Build(),
-            (input, frame, route) => Route(input, frame, route, form, list),
+            (input, frame, route) => Route(input, frame, route, form, list, endpointState),
             (routed, result) =>
             {
                 if (routed.Input is KeyConsoleInputEvent { Key.Key: ConsoleKey.Escape or ConsoleKey.F10 })
@@ -80,29 +78,27 @@ internal sealed class ProcessesAndPortsDialog(ModuleUiServices ui, IProcessesAnd
                 }
                 if (result.List.Kind == ScrollableListInputResultKind.Confirmed)
                 {
-                    ShowSelectedDetails(snapshot, list.SelectedItemOrDefault?.Endpoint);
+                    ShowSelectedDetails(snapshot, endpointState.SelectedItemOrDefault?.Endpoint);
                     return ModalDialogLoopResult<object?>.ContinueNoChange;
                 }
                 string? action = result.Form.Command;
                 if (action is null) return ModalDialogLoopResult<object?>.ContinueNoChange;
                 if (action == "close") return ModalDialogLoopResult<object?>.Complete(null);
                 if (action == "refresh") { snapshot = TryCapture(snapshot, out captureError); return ModalDialogLoopResult<object?>.ContinueChanged; }
-                if (action == "details") { ShowSelectedDetails(snapshot, list.SelectedItemOrDefault?.Endpoint); return ModalDialogLoopResult<object?>.ContinueNoChange; }
-                if (action == "terminate") Terminate(snapshot, list.SelectedItemOrDefault?.Endpoint, ref captureError, ref snapshot);
+                if (action == "details") { ShowSelectedDetails(snapshot, endpointState.SelectedItemOrDefault?.Endpoint); return ModalDialogLoopResult<object?>.ContinueNoChange; }
+                if (action == "terminate") Terminate(snapshot, endpointState.SelectedItemOrDefault?.Endpoint, ref captureError, ref snapshot);
                 return ModalDialogLoopResult<object?>.ContinueChanged;
-            },
-            applyCommittedFrame: frame => list.ApplyCommittedFrame(frame.List));
+            });
     }
 
-    private static (Input Semantic, UiInputResult Ui) Route(ConsoleInputEvent input, Frame frame, UiInputRouteContext route, ScrollableFormDialog form, RoutedScrollableList<ProcessesAndPortsRow> list)
+    private static (Input Semantic, UiInputResult Ui) Route(ConsoleInputEvent input, Frame frame, UiInputRouteContext route, ScrollableFormDialog form, RoutedScrollableList<ProcessesAndPortsRow> list, ScrollableListState<ProcessesAndPortsRow> endpointState)
     {
-        list.ApplyCommittedFrame(frame.List);
         if (list.IsTargetRoute(route))
         {
             RoutedScrollableListInputResult listResult = list.RouteInput(input, frame.List, route, confirmOnDoubleClick: true);
             if (listResult.ListResult.IsHandled)
                 return (new(input, FormInputResult.NotHandled, listResult.ListResult), listResult.UiResult);
-            if (input is KeyConsoleInputEvent { Key.Key: ConsoleKey.Delete } && list.SelectedItemOrDefault is not null)
+            if (input is KeyConsoleInputEvent { Key.Key: ConsoleKey.Delete } && endpointState.SelectedItemOrDefault is not null)
                 return (new(input, new FormInputResult(FormInputResultKind.Submit, "terminate"), ScrollableListInputResult.Handled), UiInputResult.HandledResult);
             if (UiFocusRouting.TryHandleTraversal(input, out UiInputResult traversal))
                 return (new(input, FormInputResult.NotHandled, listResult.ListResult), traversal);
@@ -111,7 +107,7 @@ internal sealed class ProcessesAndPortsDialog(ModuleUiServices ui, IProcessesAnd
         return (new(input, formResult.FormResult, ScrollableListInputResult.NotHandled), formResult.UiResult);
     }
 
-    private Frame Draw(UiRenderContext context, IUiFocusState focus, ScrollableFormDialog form, RoutedScrollableList<ProcessesAndPortsRow> list, ProcessesAndPortsSnapshot? snapshot, string? captureError, IReadOnlyList<ProcessesAndPortsRow> rows, bool tcp, bool udp, bool other)
+    private Frame Draw(UiRenderContext context, IUiFocusState focus, ScrollableFormDialog form, RoutedScrollableList<ProcessesAndPortsRow> list, ScrollableListRenderOptions<ProcessesAndPortsRow> presentation, ScrollableListState<ProcessesAndPortsRow> endpointState, ProcessesAndPortsSnapshot? snapshot, string? captureError, IReadOnlyList<ProcessesAndPortsRow> rows, bool tcp, bool udp, bool other)
     {
         ModalDialogRenderer.Layout modal = _renderer.CalculateLayout(context.Size, DialogWidth, 24);
         Rect content = modal.ContentBounds;
@@ -123,13 +119,13 @@ internal sealed class ProcessesAndPortsDialog(ModuleUiServices ui, IProcessesAnd
         Rect tableBounds = new(listBounds.X, listBounds.Y, Math.Max(0, listBounds.Width - 1), listBounds.Height);
         Rect scrollbarGutter = new(tableBounds.Right, listBounds.Y, listBounds.Width > 0 ? 1 : 0, listBounds.Height);
         _currentLayout = ProcessesAndPortsTableLayout.Calculate(tableBounds.Width);
-        RoutedScrollableListFrame listFrame = list.CalculateFrame(tableBounds.Height, tableBounds, scrollbarGutter);
+        RoutedScrollableListFrame listFrame = list.CalculateFrame(tableBounds, scrollbarGutter);
         ScrollableFormFrame formFrame = null!;
         _renderer.Render(context.Canvas, modal, "Processes and Ports", true, FarDialogStyles.OuterOptions, FarDialogStyles.FrameOptions, (_, _) =>
         {
-            formFrame = form.Render(new FormRenderContext(context, formBody, FarDialogStyles.Border, footer), focus, [new UiFocusEntry(list.ListTarget, 1, list.HasItems)], list.HasItems ? list.ListTarget : null);
+            formFrame = form.Render(new FormRenderContext(context, formBody, FarDialogStyles.Border, footer), focus, [new UiFocusEntry(list.ListTarget, 1, endpointState.HasItems)], endpointState.HasItems ? list.ListTarget : null);
             if (header.Height > 0) context.Canvas.Write(header.X, header.Y, _currentLayout.FormatHeader(), FarDialogStyles.Fill);
-            list.Render(context.Canvas, listFrame, FarDialogStyles.Fill, FarDialogStyles.FocusedInput, FarDialogStyles.Fill);
+            list.Render(context.Canvas, listFrame, presentation with { ItemText = _currentLayout.FormatRow });
             context.Canvas.FillRegion(scrollbarGutter, FarDialogStyles.Fill);
             list.RenderScrollbar(context.Canvas, listFrame, FarDialogStyles.Border);
             if (status.Height > 0) context.Canvas.Write(status.X, status.Y, ConsoleTextMetrics.FitToCells(captureError ?? Status(rows, AllowedCount(snapshot?.Endpoints ?? [], tcp, udp, other)), status.Width), FarDialogStyles.Fill);

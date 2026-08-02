@@ -4,7 +4,7 @@ namespace CSharpFar.App.CommandLine;
 
 internal sealed class CommandCompletionState
 {
-    public ScrollableList<string> List { get; } = new([], static value => value);
+    public ScrollableListState<string> List { get; } = new([]);
 
     public IReadOnlyList<string> Matches => List.Items;
 

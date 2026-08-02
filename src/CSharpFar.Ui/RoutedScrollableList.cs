@@ -25,33 +25,15 @@ public sealed class RoutedScrollableList<T>
         _input = new(); State = state ?? throw new ArgumentNullException(nameof(state)); ListTarget = listTarget; ScrollbarTarget = scrollbarTarget;
         InteractionOptions = interactionOptions ?? RoutedScrollableListInteractionOptions.Focusable;
     }
-    public RoutedScrollableList(IReadOnlyList<T> items, Func<T, string> itemText, UiTargetId listTarget, UiTargetId scrollbarTarget, RoutedScrollableListInteractionOptions? interactionOptions = null)
-        : this(new ScrollableListState<T>(items), listTarget, scrollbarTarget, interactionOptions) => ItemText = itemText ?? throw new ArgumentNullException(nameof(itemText));
-    public RoutedScrollableList(ScrollableList<T> list, UiTargetId listTarget, UiTargetId scrollbarTarget, RoutedScrollableListInteractionOptions? interactionOptions = null)
-        : this(list?.State ?? throw new ArgumentNullException(nameof(list)), listTarget, scrollbarTarget, interactionOptions) { _input = list.InputController; ItemText = list.ItemText; }
     public ScrollableListState<T> State { get; }
-    // Compatibility surface; new consumers use State and explicit presentation.
-    public Func<T, string>? ItemText { get; }
-    public IReadOnlyList<T> Items => State.Items; public int Count => State.Count; public bool HasItems => State.HasItems; public T? SelectedItemOrDefault => State.SelectedItemOrDefault;
-    public int SelectedIndex { get => State.SelectedIndex; set => State.SelectIndex(value, 1); }
-    public int ScrollTop { get => State.ScrollTop; set => State.SetFromInput(State.SelectedIndex, value, 1); }
-    public string? EmptyText { get; set; }
-    public CellStyle NormalStyle { get; set; } = CellStyle.Default; public CellStyle SelectedStyle { get; set; } = CellStyle.Default; public CellStyle EmptyStyle { get; set; } = CellStyle.Default;
-    public Action<T, int>? SelectionChanged { get; set; }
     public UiTargetId ListTarget { get; }
     public UiTargetId ScrollbarTarget { get; }
     public RoutedScrollableListInteractionOptions InteractionOptions { get; }
+    internal ScrollBarDragState? ScrollbarDragState => _input.DragState;
+    internal void SynchronizeCommittedScrollbar(RoutedScrollableListFrame frame) => _input.Synchronize(frame.List);
 
     public RoutedScrollableListFrame CalculateFrame(Rect contentBounds, Rect? scrollbarBounds) => new(_input.CalculateFrame(State, contentBounds, scrollbarBounds));
-    public RoutedScrollableListFrame CalculateFrame(int viewportRows, Rect contentBounds, Rect? scrollbarBounds) => CalculateFrame(contentBounds, scrollbarBounds);
     public void Render(IUiCanvas canvas, RoutedScrollableListFrame frame, ScrollableListRenderOptions<T> presentation) => ScrollableListRenderer.Render(canvas, State, frame.List, presentation);
-    public void Render(IUiCanvas canvas, RoutedScrollableListFrame frame) => Render(canvas, frame, NormalStyle, SelectedStyle, EmptyStyle);
-    public void Render(IUiCanvas canvas, RoutedScrollableListFrame frame, CellStyle normalStyle, CellStyle selectedStyle, CellStyle emptyStyle) =>
-        Render(canvas, frame, new(ItemText ?? throw new InvalidOperationException("List presentation is required."), EmptyText ?? string.Empty, normalStyle, selectedStyle, emptyStyle));
-    public void ResetItems(IReadOnlyList<T> items, int selectedIndex = 0) => State.ResetItems(items, selectedIndex);
-    public void ReplaceItems<TKey>(IReadOnlyList<T> items, Func<T, TKey> identityKey, int viewportRows) where TKey : notnull => State.ReplaceItems(items, identityKey, viewportRows);
-    public void EnsureSelectedVisible(int viewportRows) => State.SelectIndex(State.SelectedIndex, viewportRows);
-    public ScrollState? GetScrollState(int viewportRows, int? scrollTop = null) => State.Count > viewportRows ? new ScrollState { TotalItems = State.Count, ViewportItems = Math.Max(1, viewportRows), FirstVisibleIndex = ScrollStateCalculator.ClampFirstVisibleIndex(scrollTop ?? State.ScrollTop, State.Count, Math.Max(1, viewportRows)) } : null;
 
     public void RenderScrollbar(IUiCanvas canvas, RoutedScrollableListFrame frame, CellStyle style)
     {
@@ -67,7 +49,6 @@ public sealed class RoutedScrollableList<T>
         return builder.BuildFragment();
     }
     public bool IsTargetRoute(UiInputRouteContext route) => route.Target == ListTarget || route.Target == ScrollbarTarget;
-    public void ApplyCommittedFrame(RoutedScrollableListFrame frame) { State.Restore(frame.List); _input.Synchronize(frame.List); }
     public RoutedScrollableListInputResult RouteInput(ConsoleInputEvent input, RoutedScrollableListFrame frame, UiInputRouteContext route, bool confirmOnMouseDown = false, bool confirmOnDoubleClick = true)
     {
         ArgumentNullException.ThrowIfNull(input); ArgumentNullException.ThrowIfNull(route);
@@ -83,8 +64,6 @@ public sealed class RoutedScrollableList<T>
         UiInputResult ui = ScrollableListRouting.ToUiInputResult(result, ScrollbarTarget);
         if (result.IsHandled && InteractionOptions.FocusOnMouseDown && input is MouseConsoleInputEvent { Button: MouseButton.Left, Kind: MouseEventKind.Down })
             ui = new UiInputResult(ui.Handled, true, UiFocusRequest.Set(ListTarget), ui.MouseCaptureRequest);
-        if (result.Kind == ScrollableListInputResultKind.SelectionChanged && State.HasItems)
-            SelectionChanged?.Invoke(State.Items[State.SelectedIndex], State.SelectedIndex);
         return new(result, ui);
     }
 }
