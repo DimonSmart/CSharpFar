@@ -19,30 +19,54 @@ public readonly record struct ScrollableListInputResult(ScrollableListInputResul
 /// <summary>Logical list state. It deliberately has no rendering or input dependencies.</summary>
 public sealed class ScrollableListState<T>
 {
+    private IReadOnlyList<T> _items = Array.Empty<T>();
     private int _selectedIndex;
     private int _scrollTop;
 
     public ScrollableListState(IReadOnlyList<T> items, int selectedIndex = 0) => ResetItems(items, selectedIndex);
 
-    public IReadOnlyList<T> Items { get; private set; } = [];
+    public IReadOnlyList<T> Items => _items;
     public int Count => Items.Count;
     public bool HasItems => Count != 0;
     public int SelectedIndex => _selectedIndex;
     public int ScrollTop => _scrollTop;
-    public T? SelectedItemOrDefault => HasItems ? Items[_selectedIndex] : default;
+    public bool TryGetSelectedItem(out T item)
+    {
+        if (HasItems)
+        {
+            item = _items[_selectedIndex];
+            return true;
+        }
+
+        item = default!;
+        return false;
+    }
+
+    public T SelectedItem => HasItems
+        ? _items[_selectedIndex]
+        : throw new InvalidOperationException("The list has no selected item.");
 
     public void ResetItems(IReadOnlyList<T> items, int selectedIndex = 0)
     {
-        Items = items ?? throw new ArgumentNullException(nameof(items));
+        _items = Snapshot(items);
         _selectedIndex = HasItems ? Math.Clamp(selectedIndex, 0, Count - 1) : -1;
         _scrollTop = 0;
     }
 
-    public void SelectIndex(int index, int viewportRows)
+    public void SetSelectedIndex(int index, int viewportRows)
     {
-        if (!HasItems) { _selectedIndex = -1; _scrollTop = 0; return; }
-        _selectedIndex = Math.Clamp(index, 0, Count - 1);
+        if (!TrySetSelectedIndex(index, viewportRows))
+            throw new ArgumentOutOfRangeException(nameof(index), index, "The selected index must identify an item in the list.");
+    }
+
+    public bool TrySetSelectedIndex(int index, int viewportRows)
+    {
+        if (index < 0 || index >= Count)
+            return false;
+
+        _selectedIndex = index;
         Normalize(viewportRows);
+        return true;
     }
 
     internal void RestoreCommittedSnapshot(ScrollableListFrame frame)
@@ -54,6 +78,19 @@ public sealed class ScrollableListState<T>
         _scrollTop = frame.ScrollTop;
     }
 
+    internal void RestoreSnapshot(int selectedIndex, int scrollTop)
+    {
+        if (!HasItems)
+        {
+            _selectedIndex = -1;
+            _scrollTop = 0;
+            return;
+        }
+
+        _selectedIndex = Math.Clamp(selectedIndex, 0, Count - 1);
+        _scrollTop = Math.Clamp(scrollTop, 0, Count - 1);
+    }
+
     public void ReplaceItems<TKey>(IReadOnlyList<T> items, Func<T, TKey> identityKey, int viewportRows) where TKey : notnull
     {
         ArgumentNullException.ThrowIfNull(items);
@@ -61,7 +98,7 @@ public sealed class ScrollableListState<T>
         int previousIndex = _selectedIndex;
         bool hadSelection = HasItems;
         TKey? key = hadSelection ? identityKey(Items[_selectedIndex]) : default;
-        Items = items;
+        _items = Snapshot(items);
         if (!HasItems) { _selectedIndex = -1; _scrollTop = 0; return; }
         int index = -1;
         if (hadSelection)
@@ -76,6 +113,26 @@ public sealed class ScrollableListState<T>
         _selectedIndex = HasItems ? Math.Clamp(selectedIndex, 0, Count - 1) : -1;
         _scrollTop = HasItems ? Math.Max(0, scrollTop) : 0;
         Normalize(viewportRows);
+    }
+
+    internal bool MoveSelectionToClampedIndex(int index, int viewportRows)
+    {
+        if (!HasItems)
+            return false;
+
+        int clampedIndex = Math.Clamp(index, 0, Count - 1);
+        if (clampedIndex == _selectedIndex)
+            return false;
+
+        _selectedIndex = clampedIndex;
+        Normalize(viewportRows);
+        return true;
+    }
+
+    private static IReadOnlyList<T> Snapshot(IReadOnlyList<T> items)
+    {
+        ArgumentNullException.ThrowIfNull(items);
+        return Array.AsReadOnly(items.ToArray());
     }
 
     private void Normalize(int viewportRows)
@@ -102,7 +159,7 @@ public sealed class ScrollableListFrame
     public int ScrollTop { get; }
     public VerticalScrollbarFrame? Scrollbar { get; }
     public Rect? ScrollbarBounds => Scrollbar?.Bounds;
-    public static ScrollableListFrame Empty(Rect contentBounds, int viewportRows = 1) => new(contentBounds, 0, Math.Max(1, viewportRows), -1, 0, null);
+    internal static ScrollableListFrame Empty(Rect contentBounds, int viewportRows = 1) => new(contentBounds, 0, Math.Max(1, viewportRows), -1, 0, null);
     internal static ScrollableListFrame FromCommitted(Rect bounds, int count, int selectedIndex, int scrollTop, int viewportRows, VerticalScrollbarFrame? scrollbar = null)
     {
         int rows = Math.Max(1, viewportRows);
@@ -112,7 +169,7 @@ public sealed class ScrollableListFrame
         return new(bounds, count, rows, selected, top, scrollbar);
     }
 
-    public static ScrollableListFrame Calculate<T>(ScrollableListState<T> state, Rect contentBounds, Rect? scrollbarBounds, VerticalScrollbarController scrollbarController)
+    internal static ScrollableListFrame Calculate<T>(ScrollableListState<T> state, Rect contentBounds, Rect? scrollbarBounds, VerticalScrollbarController scrollbarController)
     {
         ArgumentNullException.ThrowIfNull(state); ArgumentNullException.ThrowIfNull(scrollbarController);
         int rows = Math.Max(1, contentBounds.Height);
@@ -127,7 +184,23 @@ public sealed class ScrollableListFrame
     }
 }
 
-public readonly record struct ScrollableListRenderOptions<T>(Func<T, string> ItemText, string EmptyText, CellStyle NormalStyle, CellStyle SelectedStyle, CellStyle EmptyStyle);
+public readonly record struct ScrollableListRenderOptions<T>
+{
+    public ScrollableListRenderOptions(Func<T, string> itemText, string emptyText, CellStyle normalStyle, CellStyle selectedStyle, CellStyle emptyStyle)
+    {
+        ItemText = itemText ?? throw new ArgumentNullException(nameof(itemText));
+        EmptyText = emptyText;
+        NormalStyle = normalStyle;
+        SelectedStyle = selectedStyle;
+        EmptyStyle = emptyStyle;
+    }
+
+    public Func<T, string> ItemText { get; init; }
+    public string EmptyText { get; init; }
+    public CellStyle NormalStyle { get; init; }
+    public CellStyle SelectedStyle { get; init; }
+    public CellStyle EmptyStyle { get; init; }
+}
 
 public static class ScrollableListRenderer
 {
@@ -145,7 +218,7 @@ public static class ScrollableListRenderer
     }
 }
 
-public sealed class ScrollableListInputController
+internal sealed class ScrollableListInputController
 {
     private readonly VerticalScrollbarController _scrollbar = new();
     internal ScrollBarDragState? DragState => _scrollbar.DragState;
@@ -193,10 +266,9 @@ public sealed class ScrollableListInputController
     private static ScrollableListInputResult Select<T>(ScrollableListState<T> state, ScrollableListFrame frame, int target)
     {
         if (!state.HasItems) return ScrollableListInputResult.Handled;
-        int index = Math.Clamp(target, 0, state.Count - 1);
-        if (index == frame.SelectedIndex) return ScrollableListInputResult.Handled;
-        state.SetFromInput(index, frame.ScrollTop, frame.ViewportRows);
-        return ScrollableListInputResult.SelectionChanged;
+        return state.MoveSelectionToClampedIndex(target, frame.ViewportRows)
+            ? ScrollableListInputResult.SelectionChanged
+            : ScrollableListInputResult.Handled;
     }
 }
 

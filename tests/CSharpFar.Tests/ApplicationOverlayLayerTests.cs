@@ -186,7 +186,7 @@ public sealed class ApplicationOverlayLayerTests
         services.Composition.Render();
         var interaction = services.Inner.CommandCompletionLayer.CommittedInteractionFrame;
         bool observedRejectedAttempt = false;
-        completion.List.SelectIndex(1, 1);
+        completion.List.SetSelectedIndex(1, 1);
 
         services.Driver.ResizeAfterWriteCount = services.Driver.WriteAtCallCount + 1;
         services.Driver.ResizeAfterWrite = driver => driver.SetSize(80, 3);
@@ -272,7 +272,7 @@ public sealed class ApplicationOverlayLayerTests
         completion.Visible = true;
         completion.List.ResetItems(["", "alpha", "beta"], 1);
         services.Composition.Render();
-        completion.List.SelectIndex(2, 1);
+        completion.List.SetSelectedIndex(2, 1);
 
         UiInputResult result = services.Composition.DispatchInput(UiTestInput.Key(ConsoleKey.Delete));
 
@@ -291,7 +291,7 @@ public sealed class ApplicationOverlayLayerTests
         var completion = services.Session.CommandLine.Completion;
         completion.Visible = true;
         completion.List.ResetItems(["", .. commands], 10);
-        completion.List.SelectIndex(10, 7);
+        completion.List.SetSelectedIndex(10, 7);
         services.Composition.Render();
 
         Assert.True(services.Composition.DispatchInput(UiTestInput.Key(ConsoleKey.Delete)).Handled);
@@ -299,7 +299,7 @@ public sealed class ApplicationOverlayLayerTests
 
         var frame = services.Inner.CommandCompletionLayer.CommittedFrame;
         Assert.True(completion.List.ScrollTop > 0);
-        Assert.InRange(completion.List.SelectedIndex, frame.List.List.ScrollTop, frame.List.List.ScrollTop + frame.VisibleRows - 1);
+        Assert.InRange(completion.List.SelectedIndex, frame.List.ScrollTop, frame.List.ScrollTop + frame.VisibleRows - 1);
     }
 
     [Fact]
@@ -328,7 +328,7 @@ public sealed class ApplicationOverlayLayerTests
         var completion = services.Session.CommandLine.Completion;
         completion.Visible = true;
         completion.List.ResetItems(["", "alpha", "beta", "gamma"]);
-        completion.List.SelectIndex(99, 1);
+        completion.List.SetSelectedIndex(3, 1);
 
         services.Driver.ResizeAfterWriteCount = 1;
         services.Driver.ResizeAfterWrite = driver => driver.SetSize(100, 35);
@@ -424,7 +424,7 @@ public sealed class ApplicationOverlayLayerTests
         ScrollBarDragState dragBeforeRetry = Assert.IsType<ScrollBarDragState>(services.Inner.CommandCompletionLayer.ScrollbarDragState);
         bool observedRejectedAttempt = false;
 
-        completion.List.SelectIndex(1, 1);
+        completion.List.SetSelectedIndex(1, 1);
         services.Driver.ResizeAfterWriteCount = services.Driver.WriteAtCallCount + 1;
         services.Driver.ResizeAfterWrite = driver => driver.SetSize(100, 35);
         services.Driver.BeforeViewportWrite = _ =>
@@ -449,7 +449,7 @@ public sealed class ApplicationOverlayLayerTests
         services.Composition.Render();
         services.Composition.DispatchInput(UiTestInput.Mouse(79, 15));
 
-        completion.List.SelectIndex(1, 1);
+        completion.List.SetSelectedIndex(1, 1);
         services.Driver.ResizeAfterWriteCount = services.Driver.WriteAtCallCount + 1;
         services.Driver.ResizeAfterWrite = driver => driver.SetSize(100, 35);
         services.Composition.Render();

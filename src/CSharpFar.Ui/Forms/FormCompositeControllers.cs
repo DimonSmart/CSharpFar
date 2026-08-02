@@ -68,14 +68,14 @@ internal sealed class DropdownCompositeController<T> : IFormCompositeController
         if (!_isEnabled())
             return FormCompositeFrame.Closed();
         DropdownSelectFrame frame = _dropdown.CalculateFrame(context.Viewport.Size, context.Layout.ControlBounds);
-        if (!frame.IsOpen || frame.PopupBounds is not Rect popup)
+        if (frame.Popup is not { } popupFrame)
             return FormCompositeFrame.Closed(new DropdownCompositeSnapshot(frame));
 
         var targets = new List<FormCompositeTarget>
         {
-            new(FormTargetIds.ForDropdownPopup(context.RowTarget), popup, Kind: FormTargetKind.DropdownPopup),
+            new(FormTargetIds.ForDropdownPopup(context.RowTarget), popupFrame.Bounds, Kind: FormTargetKind.DropdownPopup),
         };
-        if (frame.ScrollbarBounds is Rect scrollbar)
+        if (popupFrame.List.ScrollbarBounds is Rect scrollbar)
             targets.Add(new(FormTargetIds.ForDropdownScrollbar(context.RowTarget), scrollbar, Kind: FormTargetKind.DropdownScrollbar, CapturesMouse: true));
         return FormCompositeFrame.Open(new DropdownCompositeSnapshot(frame), targets);
     }

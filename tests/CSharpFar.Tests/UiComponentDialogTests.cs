@@ -205,7 +205,7 @@ public sealed class UiComponentDialogTests
         dropdown.ApplyCommittedFrame(frame);
         UiTestRender.Render(screen, canvas =>
             dropdown.RenderPopup(canvas, frame));
-        Rect popupBounds = frame.PopupBounds!.Value;
+        Rect popupBounds = frame.Popup!.Bounds;
 
         bool handled = dropdown.TryHandlePopupContentMouse(
             new MouseConsoleInputEvent(popupBounds.X, popupBounds.Y + 1, MouseButton.Left, MouseEventKind.Down, MouseKeyModifiers.None),
@@ -232,7 +232,7 @@ public sealed class UiComponentDialogTests
         dropdown.ApplyCommittedFrame(frame);
         UiTestRender.Render(screen, canvas =>
             dropdown.RenderPopup(canvas, frame));
-        Rect popupBounds = frame.PopupBounds!.Value;
+        Rect popupBounds = frame.Popup!.Bounds;
 
         bool handled = dropdown.TryHandlePopupContentMouse(
             new MouseConsoleInputEvent(popupBounds.X + 1, popupBounds.Y + 2, MouseButton.Left, MouseEventKind.Down, MouseKeyModifiers.None),
@@ -296,7 +296,7 @@ public sealed class UiComponentDialogTests
 
         Assert.Equal(committedFrame.Popup!.List.SelectedIndex, dropdown.SelectedIndex);
         Assert.Equal(committedFrame.Popup!.List.ScrollTop, dropdown.ScrollTop);
-        Assert.NotEqual(rejectedFrame.ContentRows, committedFrame.ContentRows);
+        Assert.NotEqual(rejectedFrame.Popup!.List.ViewportRows, committedFrame.Popup!.List.ViewportRows);
     }
 
     [Fact]

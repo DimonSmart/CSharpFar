@@ -106,7 +106,7 @@ internal sealed class SearchProgressDialog
                     SynchronizeVisibleState(ReadStreamingSnapshot());
                     buttons.SetButtons(CreateButtons(CanGoTo(), CanRequestStop()));
                 },
-                applyCommittedFrame: frame => committedListRows = frame.List.List.ViewportRows,
+                applyCommittedFrame: frame => committedListRows = frame.List.ViewportRows,
                 wakeSignal: completionWake.Token);
         }
         catch (Exception)
@@ -120,7 +120,7 @@ internal sealed class SearchProgressDialog
             throw completion.Exception;
         return completion.Result ?? throw new InvalidOperationException("Search progress did not produce a result.");
 
-        bool CanGoTo() => session.CanGoTo && resultState.SelectedItemOrDefault is not null && !searchTask.IsCompleted;
+        bool CanGoTo() => session.CanGoTo && resultState.TryGetSelectedItem(out _) && !searchTask.IsCompleted;
 
         bool CanRequestStop()
             => session.CanStop && !searchTask.IsCompleted;
@@ -253,7 +253,7 @@ internal sealed class SearchProgressDialog
             minHeight: 14);
         SearchProgressLayout layout = CalculateLayout(modal, list.State.Count);
         ScrollableFormFrame? buttonFrame = null;
-        RoutedScrollableListFrame listFrame = list.CalculateFrame(layout.ListBounds, layout.ScrollbarBounds);
+        ScrollableListFrame listFrame = list.CalculateFrame(layout.ListBounds, layout.ScrollbarBounds);
         _modalRenderer.Render(
             context.Canvas,
             modal,
@@ -540,7 +540,7 @@ internal sealed class SearchProgressDialog
 
     private sealed record SearchProgressFrame(
         SearchProgressLayout Layout,
-        RoutedScrollableListFrame List,
+        ScrollableListFrame List,
         ScrollableFormFrame Buttons,
         ScrollableFormDialog Form,
         SearchResultItem[] Results,
@@ -548,8 +548,8 @@ internal sealed class SearchProgressDialog
         bool CanStop)
     {
         public SearchResultItem? SelectedResult =>
-            List.List.SelectedIndex >= 0 && List.List.SelectedIndex < Results.Length
-                ? Results[List.List.SelectedIndex]
+            List.SelectedIndex >= 0 && List.SelectedIndex < Results.Length
+                ? Results[List.SelectedIndex]
                 : null;
     }
 }

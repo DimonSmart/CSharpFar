@@ -1581,7 +1581,7 @@ public sealed class ScrollableFormDialogTests
         host.Composition.DispatchInput(Mouse(scrollbar.Bounds.X, scrollbarY, MouseButton.Left, MouseEventKind.Up));
 
         FormTargetFrame popup = Assert.Single(layer.CommittedFrame.Targets, target => target.Kind == FormTargetKind.DropdownPopup);
-        Rect content = popup.CompositeFrame!.Snapshot is DropdownCompositeSnapshot { Frame.ContentBounds: { } value }
+        Rect content = popup.CompositeFrame!.Snapshot is DropdownCompositeSnapshot { Frame.Popup.List.ContentBounds: { } value }
             ? value
             : throw new Xunit.Sdk.XunitException("Expected dropdown content frame.");
         host.Composition.DispatchInput(Mouse(content.X, content.Y + 1));
