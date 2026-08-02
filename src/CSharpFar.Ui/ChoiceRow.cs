@@ -19,7 +19,7 @@ public sealed record ChoiceRowLayout(
 
 public sealed class ChoiceRow<T>
 {
-    private readonly IReadOnlyList<T> _choices;
+    private readonly ChoiceSelection<T> _selection;
     private readonly Func<T, string> _format;
     private readonly IEqualityComparer<T> _comparer;
 
@@ -29,10 +29,12 @@ public sealed class ChoiceRow<T>
         int selectedIndex = 0,
         IEqualityComparer<T>? comparer = null)
     {
-        _choices = choices ?? throw new ArgumentNullException(nameof(choices));
         _format = format ?? throw new ArgumentNullException(nameof(format));
         _comparer = comparer ?? EqualityComparer<T>.Default;
-        SelectedIndex = choices.Count == 0 ? -1 : Math.Clamp(selectedIndex, 0, choices.Count - 1);
+        ArgumentNullException.ThrowIfNull(choices);
+        if (selectedIndex < 0 || selectedIndex >= choices.Count)
+            throw new ArgumentOutOfRangeException(nameof(selectedIndex));
+        _selection = new ChoiceSelection<T>(choices, choices[selectedIndex], _comparer);
     }
 
     public static ChoiceRow<T> FromValue(
@@ -41,9 +43,7 @@ public sealed class ChoiceRow<T>
         T selectedValue,
         IEqualityComparer<T>? comparer = null)
     {
-        var choice = new ChoiceRow<T>(choices, format, comparer: comparer);
-        choice.TrySelectValue(selectedValue);
-        return choice;
+        return new ChoiceRow<T>(choices, format, FindSelectedIndex(choices, selectedValue, comparer), comparer);
     }
 
     public static ChoiceRow<T> FromValue(
@@ -53,33 +53,27 @@ public sealed class ChoiceRow<T>
         T fallbackValue,
         IEqualityComparer<T>? comparer = null)
     {
-        var choice = new ChoiceRow<T>(choices, format, comparer: comparer);
-        if (!choice.TrySelectValue(selectedValue))
-            choice.TrySelectValue(fallbackValue);
-        return choice;
+        ChoiceSelection<T> selection = ChoiceSelection<T>.WithFallback(choices, selectedValue, fallbackValue, comparer);
+        return new ChoiceRow<T>(choices, format, selection.SelectedIndex, comparer);
     }
 
     public T Value
     {
-        get => SelectedIndex < 0 ? default! : _choices[SelectedIndex];
-        set => TrySelectValue(value);
+        get => _selection.Value;
+        set
+        {
+            if (!_selection.TrySelect(value))
+                throw new ArgumentException("The selected value must be present in the choice items.", nameof(value));
+        }
     }
 
-    public int SelectedIndex { get; private set; }
-    public int Count => _choices.Count;
+    public ChoiceSelection<T> Selection => _selection;
+    public int SelectedIndex => _selection.SelectedIndex;
+    public int Count => _selection.Items.Count;
 
     public bool TrySelectValue(T value)
     {
-        for (int i = 0; i < _choices.Count; i++)
-        {
-            if (!_comparer.Equals(_choices[i], value))
-                continue;
-
-            SelectedIndex = i;
-            return true;
-        }
-
-        return false;
+        return _selection.TrySelect(value);
     }
 
     public bool TryGetSelectedMarkerBounds(ChoiceRowLayout layout, out Rect bounds)
@@ -127,15 +121,15 @@ public sealed class ChoiceRow<T>
         int startIndex = 0,
         int? endIndex = null)
     {
-        startIndex = Math.Clamp(startIndex, 0, _choices.Count);
-        int exclusiveEnd = Math.Clamp(endIndex ?? _choices.Count, startIndex, _choices.Count);
+        startIndex = Math.Clamp(startIndex, 0, Count);
+        int exclusiveEnd = Math.Clamp(endIndex ?? Count, startIndex, Count);
         string prefix = string.IsNullOrEmpty(label) ? string.Empty : label + " ";
         var choices = new List<ChoiceHitTarget>();
         var areaBounds = new Rect(x, y, Math.Max(0, width), 1);
         int column = ConsoleTextMetrics.GetCellWidth(prefix);
         for (int i = startIndex; i < exclusiveEnd; i++)
         {
-            string optionText = $"{(i == SelectedIndex ? "(x)" : "( )")} {_format(_choices[i])}";
+            string optionText = $"{(i == SelectedIndex ? "(x)" : "( )")} {_format(_selection.Items[i])}";
             int optionWidth = ConsoleTextMetrics.GetCellWidth(optionText);
             var optionBounds = new Rect(x + column, y, optionWidth, 1);
             var visibleBounds = Intersect(optionBounds, areaBounds);
@@ -168,15 +162,15 @@ public sealed class ChoiceRow<T>
         ArgumentNullException.ThrowIfNull(screen);
 
         var layout = CalculateSegmentedLayout(x, y, width, label, startIndex, endIndex);
-        startIndex = Math.Clamp(startIndex, 0, _choices.Count);
-        int exclusiveEnd = Math.Clamp(endIndex ?? _choices.Count, startIndex, _choices.Count);
+        startIndex = Math.Clamp(startIndex, 0, Count);
+        int exclusiveEnd = Math.Clamp(endIndex ?? Count, startIndex, Count);
         var style = focused ? focusedStyle : fillStyle;
         string prefix = string.IsNullOrEmpty(label) ? string.Empty : label + " ";
         var parts = new List<string>();
 
         for (int i = startIndex; i < exclusiveEnd; i++)
         {
-            string optionText = $"{(i == SelectedIndex ? "(x)" : "( )")} {_format(_choices[i])}";
+            string optionText = $"{(i == SelectedIndex ? "(x)" : "( )")} {_format(_selection.Items[i])}";
             parts.Add(optionText);
         }
 
@@ -187,24 +181,25 @@ public sealed class ChoiceRow<T>
 
     public bool TryHandleKey(ConsoleKeyInfo key)
     {
-        if (_choices.Count == 0)
-            return false;
-
         int previous = SelectedIndex;
-        SelectedIndex = key.Key switch
+        switch (key.Key)
         {
-            ConsoleKey.LeftArrow => SelectedIndex <= 0 ? _choices.Count - 1 : SelectedIndex - 1,
-            ConsoleKey.RightArrow or ConsoleKey.Spacebar or ConsoleKey.Enter => (SelectedIndex + 1) % _choices.Count,
-            _ => SelectedIndex,
-        };
+            case ConsoleKey.LeftArrow:
+                _selection.SelectPrevious();
+                break;
+            case ConsoleKey.RightArrow:
+            case ConsoleKey.Spacebar:
+            case ConsoleKey.Enter:
+                _selection.SelectNext();
+                break;
+            default:
+                return false;
+        }
         return SelectedIndex != previous;
     }
 
     public bool TryHandleMouse(MouseConsoleInputEvent mouse, ChoiceRowLayout layout)
     {
-        if (_choices.Count == 0)
-            return false;
-
         if (mouse.Button != MouseButton.Left ||
             mouse.Kind != MouseEventKind.Down ||
             !layout.RowBounds.Any(bounds => Contains(bounds, mouse.X, mouse.Y)))
@@ -222,7 +217,7 @@ public sealed class ChoiceRow<T>
                 if (SelectedIndex == target.Index)
                     return true;
 
-                SelectedIndex = target.Index;
+                _selection.SelectIndex(target.Index);
                 return true;
             }
 
@@ -232,7 +227,7 @@ public sealed class ChoiceRow<T>
         if (layout.Kind != ChoiceRowLayoutKind.Simple)
             return false;
 
-        SelectedIndex = (SelectedIndex + 1) % _choices.Count;
+        _selection.SelectNext();
         return true;
     }
 
@@ -254,5 +249,16 @@ public sealed class ChoiceRow<T>
             return string.Empty;
 
         return ConsoleTextMetrics.FitToCells(text, width);
+    }
+
+    private static int FindSelectedIndex(IReadOnlyList<T> items, T value, IEqualityComparer<T>? comparer)
+    {
+        IEqualityComparer<T> effectiveComparer = comparer ?? EqualityComparer<T>.Default;
+        for (int index = 0; index < items.Count; index++)
+        {
+            if (effectiveComparer.Equals(items[index], value))
+                return index;
+        }
+        throw new ArgumentException("The selected value must be present in the choice items.", nameof(value));
     }
 }
