@@ -131,14 +131,14 @@ public sealed class TextFieldTests
         Assert.False(ordinary.IsFocusable);
         Assert.Equal("Unavailable", ordinary.DisabledReason);
         Assert.Equal(FormInputResultKind.NotHandled,
-            ordinary.HandleKey(new ConsoleKeyInfo('x', ConsoleKey.X, false, false, false), new FormRowInputContext(0, true)).Kind);
+            ordinary.HandleKey(new ConsoleKeyInfo('x', ConsoleKey.X, false, false, false), new FormRowInputContext(true)).Kind);
         Assert.Equal("retained", field.Text);
 
         field.Enabled = true;
 
         Assert.True(ordinary.IsEnabled);
         Assert.Equal(FormInputResultKind.ValueChanged,
-            ordinary.HandleKey(new ConsoleKeyInfo('x', ConsoleKey.X, false, false, false), new FormRowInputContext(0, true)).Kind);
+            ordinary.HandleKey(new ConsoleKeyInfo('x', ConsoleKey.X, false, false, false), new FormRowInputContext(true)).Kind);
         Assert.Equal("retainedx", field.Text);
     }
 

@@ -43,16 +43,9 @@ public sealed partial class ScrollableFormDialog
             int availableDropdownRows = SingleLineTextInput.AvailableDropdownContentRows(
                 targetFrame.Bounds.Y,
                 frame.ScreenHeight);
-            var inputContext = new FormRowInputContext(
-                    targetFrame.FocusIndex ?? -1,
-                    focused: true,
-                    availableDropdownRows,
-                    row.Id,
-                    row.Role,
-                    targetFrame.Bounds,
-                    frame.ScreenHeight);
-            FormInputResult rowResult = row is IFormCompositeRow composite && targetFrame.CompositeFrame is { } compositeFrame
-                ? composite.HandleCompositeKey(key, inputContext, compositeFrame)
+            var inputContext = new FormRowInputContext(Focused: true, availableDropdownRows);
+            FormInputResult rowResult = row is IFormCompositeOwner owner && targetFrame.CompositeFrame is { } compositeFrame
+                ? owner.CompositeController.RouteKey(key, inputContext, compositeFrame)
                 : row.HandleKey(key, inputContext);
             if (rowResult.IsHandled)
             {
@@ -68,13 +61,8 @@ public sealed partial class ScrollableFormDialog
                 FormInputResult buttonResult = buttonFrame.Row!.HandleKey(
                     key,
                     new FormRowInputContext(
-                        buttonFrame.FocusIndex ?? -1,
-                        focused: false,
-                        SingleLineTextInput.AvailableDropdownContentRows(buttonFrame.Bounds.Y, frame.ScreenHeight),
-                        buttonFrame.Row.Id,
-                        buttonFrame.Row.Role,
-                        buttonFrame.Bounds,
-                        frame.ScreenHeight));
+                        Focused: false,
+                        SingleLineTextInput.AvailableDropdownContentRows(buttonFrame.Bounds.Y, frame.ScreenHeight)));
                 if (buttonResult.IsHandled)
                 {
                     buttonResult = WithSourceRowId(buttonResult, buttonFrame.Row.Id);
@@ -142,16 +130,12 @@ public sealed partial class ScrollableFormDialog
             route.RouteKind == UiInputRouteKind.HitTarget &&
             mouse is { Button: MouseButton.Left, Kind: MouseEventKind.Down };
         var mouseContext = new FormRowMouseContext(
-                rowFrame.Bounds,
-                rowFrame.FocusIndex ?? rowFrame.RowIndex,
-                focused: rowFrame.Target == route.FocusState.FocusedTarget || requestFocus,
+                Focused: rowFrame.Target == route.FocusState.FocusedTarget || requestFocus,
                 frame.ScreenHeight,
-                targetFrame.Row.Id,
-                targetFrame.Row.Role,
                 rowFrame.Layout);
-        FormInputResult rowResult = targetFrame.Row is IFormCompositeRow composite &&
+        FormInputResult rowResult = targetFrame.Row is IFormCompositeOwner owner &&
             (targetFrame.CompositeFrame ?? rowFrame.CompositeFrame) is { } compositeFrame
-            ? composite.HandleCompositeMouse(mouse, mouseContext, compositeFrame, targetFrame.CompositeChildId)
+            ? owner.CompositeController.RouteMouse(mouse, mouseContext, compositeFrame, targetFrame.CompositeChildTarget)
             : targetFrame.Row.HandleMouse(mouse, mouseContext);
         if (rowResult.IsHandled)
             rowResult = WithSourceRowId(rowResult, targetFrame.Row.Id);
@@ -191,24 +175,23 @@ public sealed partial class ScrollableFormDialog
     {
         if (mouse is not { Kind: MouseEventKind.Down, Button: MouseButton.Left } ||
             route.FocusState.FocusedTarget is not UiTargetId focusedTarget ||
-            FindRowTarget(frame, focusedTarget) is not { Row: IFormCompositeRow row, CompositeFrame: { IsOpen: true } compositeFrame } rowFrame)
+            FindRowTarget(frame, focusedTarget) is not { Row: IFormCompositeOwner row, CompositeFrame: { IsOpen: true } compositeFrame } rowFrame)
         {
             return false;
         }
 
         bool insideChild = frame.Targets.Any(target =>
             ReferenceEquals(target.Row, row) &&
-            target.CompositeChildId is not null &&
+            target.CompositeChildTarget is not null &&
             target.HitBounds is Rect bounds && bounds.Contains(mouse.X, mouse.Y));
         if (insideChild)
             return false;
 
-        var context = new FormRowMouseContext(rowFrame.Bounds, rowFrame.FocusIndex ?? rowFrame.RowIndex,
-            focused: true, frame.ScreenHeight, row.Id, row.Role, rowFrame.Layout);
-        if (row.IsCompositeAnchorHit(mouse, context, compositeFrame))
+        var context = new FormRowMouseContext(Focused: true, frame.ScreenHeight, rowFrame.Layout);
+        if (row.CompositeController.IsAnchorHit(mouse, context, compositeFrame))
             return false;
 
-        row.CloseComposite();
+        row.CompositeController.Close();
         return true;
     }
 
@@ -284,7 +267,7 @@ public sealed partial class ScrollableFormDialog
 
     private FormRouteResult MoveFocusPage(ScrollableFormFrame frame, int delta)
     {
-        int current = FocusIndex;
+        int current = FocusIndexFromScope(CurrentFocusedTarget) ?? 0;
         if (current >= BodyFocusableCount)
         {
             if (delta < 0 && BodyFocusableCount > 0)
@@ -336,13 +319,13 @@ public sealed partial class ScrollableFormDialog
         foreach (FormTargetFrame target in frame.Targets)
         {
             if (target.Kind != FormTargetKind.Row ||
-                target.Row is not IFormCompositeRow composite ||
+                target.Row is not IFormCompositeOwner composite ||
                 target.CompositeFrame is not { } compositeFrame)
             {
                 continue;
             }
 
-            composite.CommitCompositeFrame(compositeFrame);
+            composite.CompositeController.ApplyCommittedFrame(compositeFrame);
         }
     }
 
@@ -351,15 +334,15 @@ public sealed partial class ScrollableFormDialog
         bool canceled = false;
         foreach (IFormRow row in AllRows())
         {
-            if (row is not IFormCompositeRow composite)
+            if (row is not IFormCompositeOwner composite)
                 continue;
 
             if (retainedTarget is not null && RowTarget(row) == retainedTarget)
                 continue;
 
-            if (composite.IsCompositeOpen)
+            if (composite.CompositeController.IsOpen)
             {
-                composite.CloseComposite();
+                composite.CompositeController.Close();
                 canceled = true;
             }
         }

@@ -53,12 +53,12 @@ public sealed class TextInputWithButtonsRowTests
         SingleLineTextHistoryState popup = Assert.IsType<SingleLineTextHistoryState>(field.Input.History);
 
         Assert.True(popup.OpenAll(availableContentRows: 5));
-        FormCompositeFrame frame = row.BuildCompositeFrame(
+        FormCompositeFrame frame = ((IFormCompositeOwner)row).CompositeController.CalculateFrame(
             new FormCompositeFrameContext(
                 new Rect(0, 0, 30, 1),
                 new ConsoleViewport(0, 0, 30, 8)));
 
-        Assert.True(row.IsCompositeOpen);
+        Assert.True(((IFormCompositeOwner)row).CompositeController.IsOpen);
         Assert.True(frame.IsOpen);
         Assert.Contains(frame.ChildTargets, target => target.Kind == FormTargetKind.HistoryDropdown);
     }
@@ -86,10 +86,10 @@ public sealed class TextInputWithButtonsRowTests
         FakeConsoleDriver.WriteRecord button = driver.WriteRecords.Last(record => record.Text.Contains("Current", StringComparison.Ordinal));
         FormInputResult pressed = row.HandleMouse(
             new MouseConsoleInputEvent(button.X + 1, button.Y, MouseButton.Left, MouseEventKind.Down, MouseKeyModifiers.None),
-            new FormRowMouseContext(new Rect(0, 0, 80, 1), rowIndex: 0, focused: true, screenHeight: 5));
+            new FormRowMouseContext(true, 5, new FormRowLayout(new Rect(0, 0, 80, 1), null, new Rect(0, 0, 80, 1))));
         FormInputResult result = row.HandleMouse(
             new MouseConsoleInputEvent(button.X + 1, button.Y, MouseButton.Left, MouseEventKind.Up, MouseKeyModifiers.None),
-            new FormRowMouseContext(new Rect(0, 0, 80, 1), rowIndex: 0, focused: true, screenHeight: 5));
+            new FormRowMouseContext(true, 5, new FormRowLayout(new Rect(0, 0, 80, 1), null, new Rect(0, 0, 80, 1))));
 
         Assert.Equal(FormInputResultKind.Handled, pressed.Kind);
         Assert.Equal(UiMouseCaptureRequestKind.Capture, pressed.MouseCapture);

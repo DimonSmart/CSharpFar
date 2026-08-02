@@ -98,7 +98,7 @@ public sealed class CheckBoxColumnsRow : FormRow, IFormCursorProvider
             _focusedRow = cell.Row;
             return cell.CheckBox.HandleMouse(
                 mouse,
-                new FormRowMouseContext(cell.Bounds, context.RowIndex, true, context.ScreenHeight, context.RowId, context.RowRole));
+                new FormRowMouseContext(true, context.CanvasHeight, new FormRowLayout(cell.Bounds, null, cell.Bounds)));
         }
 
         return FormInputResult.NotHandled;
@@ -126,7 +126,7 @@ public sealed class CheckBoxColumnsRow : FormRow, IFormCursorProvider
     private FormInputResult ToggleFocused(ConsoleKeyInfo key)
     {
         CheckBoxRow focused = _columns[_focusedColumn][_focusedRow];
-        return focused.HandleKey(key, new FormRowInputContext(0, true));
+        return focused.HandleKey(key, new FormRowInputContext(true));
     }
 
     private FormInputResult MoveVertical(int direction)

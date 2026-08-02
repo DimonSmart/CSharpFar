@@ -46,7 +46,7 @@ public sealed class ChoiceFormRowSelectionTests
 
         Assert.False(row.IsFocusable);
         Assert.Equal(FormInputResultKind.NotHandled,
-            row.HandleKey(new ConsoleKeyInfo('\0', ConsoleKey.RightArrow, false, false, false), new FormRowInputContext(0, true)).Kind);
+            row.HandleKey(new ConsoleKeyInfo('\0', ConsoleKey.RightArrow, false, false, false), new FormRowInputContext(true)).Kind);
         Assert.Equal("Default", row.Value);
     }
 

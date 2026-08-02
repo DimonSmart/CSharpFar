@@ -51,61 +51,10 @@ public sealed class FormRowRenderContext
     public FormRowLayout Layout { get; }
 }
 
-public sealed class FormRowInputContext
+public readonly record struct FormRowInputContext(bool Focused, int AvailableOverlayContentRows = 0);
+
+public readonly record struct FormRowMouseContext(bool Focused, int CanvasHeight, FormRowLayout Layout)
 {
-    public FormRowInputContext(
-        int rowIndex,
-        bool focused,
-        int availableDropdownContentRows = 0,
-        string? rowId = null,
-        FormRowRole rowRole = FormRowRole.Normal,
-        Rect? bounds = null,
-        int screenHeight = 0)
-    {
-        RowIndex = rowIndex;
-        Focused = focused;
-        AvailableDropdownContentRows = availableDropdownContentRows;
-        RowId = rowId;
-        RowRole = rowRole;
-        Bounds = bounds;
-        ScreenHeight = screenHeight;
-    }
-
-    public int RowIndex { get; }
-    public bool Focused { get; }
-    public int AvailableDropdownContentRows { get; }
-    public string? RowId { get; }
-    public FormRowRole RowRole { get; }
-    public Rect? Bounds { get; }
-    public int ScreenHeight { get; }
-}
-
-public sealed class FormRowMouseContext
-{
-    public FormRowMouseContext(
-        Rect bounds,
-        int rowIndex,
-        bool focused,
-        int screenHeight,
-        string? rowId = null,
-        FormRowRole rowRole = FormRowRole.Normal,
-        FormRowLayout? layout = null)
-    {
-        Bounds = bounds;
-        RowIndex = rowIndex;
-        Focused = focused;
-        ScreenHeight = screenHeight;
-        RowId = rowId;
-        RowRole = rowRole;
-        Layout = layout ?? new FormRowLayout(bounds, null, bounds);
-    }
-
-    public Rect Bounds { get; }
-    public int RowIndex { get; }
-    public bool Focused { get; }
-    public int ScreenHeight { get; }
-    public string? RowId { get; }
-    public FormRowRole RowRole { get; }
-    public FormRowLayout Layout { get; }
+    public Rect Bounds => Layout.RowBounds;
 }
 

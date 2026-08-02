@@ -96,8 +96,8 @@ public sealed partial class ScrollableFormDialog
             _scrollbar.ApplyCommittedFrame(frame.VerticalScrollbarFrame);
             _ensureFocusedTargetVisibleOnNextRender = false;
             _requestedInitialTarget = null;
-            foreach (FormTargetFrame target in frame.Targets.Where(target => target.Kind == FormTargetKind.Row && target.Row is IFormCompositeRow && target.CompositeFrame is not null))
-                ((IFormCompositeRow)target.Row!).CommitCompositeFrame(target.CompositeFrame!);
+            foreach (FormTargetFrame target in frame.Targets.Where(target => target.Kind == FormTargetKind.Row && target.Row is IFormCompositeOwner && target.CompositeFrame is not null))
+                ((IFormCompositeOwner)target.Row!).CompositeController.ApplyCommittedFrame(target.CompositeFrame!);
         });
         return frame;
     }
@@ -235,8 +235,8 @@ public sealed partial class ScrollableFormDialog
         int resolvedLabelWidth)
     {
         FormRowLayout layout = CreateRowLayout(row, bounds, resolvedLabelWidth);
-        FormCompositeFrame? compositeFrame = row is IFormCompositeRow composite
-            ? composite.BuildCompositeFrame(new FormCompositeFrameContext(layout, viewport))
+        FormCompositeFrame? compositeFrame = row is IFormCompositeOwner composite
+            ? composite.CompositeController.CalculateFrame(new FormCompositeFrameContext(layout, viewport, RowTarget(row)))
             : null;
         UiCursorPlacement? cursor = null;
         if (AllowsCursor(row) && row is IFormCursorProvider cursorProvider &&
@@ -321,13 +321,13 @@ public sealed partial class ScrollableFormDialog
         FormTargetFrame rowFrame,
         UiTargetId rowTarget)
     {
-        if (rowFrame.Row is not IFormCompositeRow || rowFrame.CompositeFrame is not { IsOpen: true } compositeFrame)
+        if (rowFrame.Row is not IFormCompositeOwner || rowFrame.CompositeFrame is not { IsOpen: true } compositeFrame)
             return;
 
         foreach (FormCompositeTarget child in compositeFrame.ChildTargets)
         {
             targets.Add(new FormTargetFrame(
-                FormTargetIds.ForCompositeChild(rowTarget, child.Id),
+                child.Id,
                 child.Kind,
                 rowFrame.Row,
                 rowFrame.RowIndex,
@@ -338,7 +338,7 @@ public sealed partial class ScrollableFormDialog
                 IsFocusable: false,
                 IsFooter: rowFrame.IsFooter,
                 CompositeFrame: compositeFrame,
-                CompositeChildId: child.Id,
+                CompositeChildTarget: child.Id,
                 CapturesMouse: child.CapturesMouse));
         }
     }

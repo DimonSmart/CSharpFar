@@ -57,7 +57,7 @@ internal sealed class FormTextInputField
             return FormInputResult.NotHandled;
         string? error = null;
         string before = _buffer.Text;
-        TextInputKeyResult result = SingleLineTextInput.HandleKey(_buffer, key, ref error, _history, context.AvailableDropdownContentRows);
+        TextInputKeyResult result = SingleLineTextInput.HandleKey(_buffer, key, ref error, _history, context.AvailableOverlayContentRows);
         return result switch
         {
             TextInputKeyResult.TextChanged when _buffer.Text != before => FormInputResult.ValueChanged,
@@ -83,7 +83,7 @@ internal sealed class FormTextInputField
                 _history.Close();
                 return FormInputResult.Handled;
             }
-            return SingleLineTextInput.TryOpenHistoryDropdown(_history, bounds.Y, context.ScreenHeight) ? FormInputResult.Handled : FormInputResult.NotHandled;
+            return SingleLineTextInput.TryOpenHistoryDropdown(_history, bounds.Y, context.CanvasHeight) ? FormInputResult.Handled : FormInputResult.NotHandled;
         }
 
         int textWidth = _history is null ? bounds.Width : Math.Max(1, bounds.Width - 1);
@@ -98,26 +98,26 @@ internal sealed class FormTextInputField
     public bool IsHistoryArrow(MouseConsoleInputEvent mouse, Rect bounds) =>
         Enabled && _history is not null && SingleLineTextInput.IsHistoryArrowHit(bounds.X, bounds.Width, bounds.Y, mouse.X, mouse.Y);
 
-    public FormCompositeFrame BuildCompositeFrame(Rect bounds, ConsoleViewport viewport)
+    public FormCompositeFrame BuildCompositeFrame(Rect bounds, ConsoleViewport viewport, UiTargetId rowTarget)
     {
         SingleLineTextHistoryFrame? frame = !Enabled || _history is null
             ? null
             : SingleLineTextInput.CalculateHistoryDropdownFrame(bounds.X, bounds.Y, bounds.Width, viewport.Height, _history);
         if (frame is not { } value)
-            return new FormCompositeFrame(false, null, []);
+            return FormCompositeFrame.Closed();
 
         var children = new List<FormCompositeTarget>
         {
-            new("popup", value.PopupBounds, Kind: FormTargetKind.HistoryDropdown),
+            new(FormTargetIds.ForHistoryDropdown(rowTarget), value.PopupBounds, Kind: FormTargetKind.HistoryDropdown),
         };
         if (value.ScrollbarBounds is Rect scrollbar)
-            children.Add(new FormCompositeTarget("scrollbar", scrollbar, Kind: FormTargetKind.HistoryScrollbar, CapturesMouse: true));
-        return new FormCompositeFrame(true, value, children);
+            children.Add(new FormCompositeTarget(FormTargetIds.ForHistoryScrollbar(rowTarget), scrollbar, Kind: FormTargetKind.HistoryScrollbar, CapturesMouse: true));
+        return FormCompositeFrame.Open(new TextHistoryCompositeSnapshot(value), children);
     }
 
     public void RenderCompositeOverlay(FormRowRenderContext context, FormCompositeFrame frame)
     {
-        if (_history is not null && frame.State is SingleLineTextHistoryFrame historyFrame)
+        if (_history is not null && frame.Snapshot is TextHistoryCompositeSnapshot { Frame: var historyFrame })
             SingleLineTextInput.RenderHistoryDropdown(context.Canvas, _history, historyFrame);
     }
 
@@ -126,12 +126,12 @@ internal sealed class FormTextInputField
         FormRowMouseContext context,
         Rect bounds,
         FormCompositeFrame frame,
-        string? childTargetId)
+        UiTargetId? childTargetId)
     {
         if (!Enabled)
             return FormInputResult.NotHandled;
         string before = _buffer.Text;
-        if (_history is not null && frame.State is SingleLineTextHistoryFrame historyFrame)
+        if (_history is not null && frame.Snapshot is TextHistoryCompositeSnapshot { Frame: var historyFrame })
         {
             var currentFrame = historyFrame with
             {
@@ -145,8 +145,8 @@ internal sealed class FormTextInputField
             };
             bool handled = childTargetId switch
             {
-                "scrollbar" => SingleLineTextInput.TryHandleHistoryScrollbarMouse(_history, mouse, currentFrame),
-                "popup" => SingleLineTextInput.TryHandleHistoryPopupContentMouse(_history, _buffer, mouse, currentFrame),
+                { } target when frame.ChildTargets.FirstOrDefault(child => child.Id == target)?.Kind == FormTargetKind.HistoryScrollbar => SingleLineTextInput.TryHandleHistoryScrollbarMouse(_history, mouse, currentFrame),
+                { } target when frame.ChildTargets.FirstOrDefault(child => child.Id == target)?.Kind == FormTargetKind.HistoryDropdown => SingleLineTextInput.TryHandleHistoryPopupContentMouse(_history, _buffer, mouse, currentFrame),
                 _ => false,
             };
             if (handled)

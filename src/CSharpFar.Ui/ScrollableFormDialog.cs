@@ -38,9 +38,9 @@ public sealed partial class ScrollableFormDialog
         SetRows(rows);
     }
 
-    public int FocusIndex => FocusIndexFromScope(CurrentFocusedTarget) ?? 0;
-    public int FocusableCount => TotalFocusableCount;
     public int ScrollTop { get; private set; }
+    internal int FocusIndex => FocusIndexFromScope(CurrentFocusedTarget) ?? 0;
+    internal int FocusableCount => TotalFocusableCount;
     public FormLayoutOptions LayoutOptions { get; }
     public string? FocusedRowId => FocusedTargetFrame()?.Row?.Id;
     public FormRowRole FocusedRowRole => FocusedTargetFrame()?.Row?.Role ?? FormRowRole.Normal;
@@ -108,25 +108,6 @@ public sealed partial class ScrollableFormDialog
         RequestEnsureFocusVisible();
     }
 
-    public int? FindFocusIndexById(string rowId)
-    {
-        if (string.IsNullOrEmpty(rowId))
-            return null;
-
-        int focusIndex = 0;
-        foreach (IFormRow row in AllRows())
-        {
-            if (!row.IsFocusable)
-                continue;
-
-            if (string.Equals(row.Id, rowId, StringComparison.Ordinal))
-                return focusIndex;
-
-            focusIndex++;
-        }
-
-        return null;
-    }
 
     private UiTargetId RowTarget(IFormRow row) =>
         _targets.TryGetValue(row, out UiTargetId? target)
@@ -216,12 +197,12 @@ public sealed partial class ScrollableFormDialog
             return;
 
         bool overlayPublished = frame.Targets.Any(target =>
-            ReferenceEquals(target.Row, row) && target.CompositeChildId is not null);
-        if (!overlayPublished || targetFrame.CompositeFrame is not { IsOpen: true } compositeFrame || row is not IFormCompositeRow composite)
+            ReferenceEquals(target.Row, row) && target.CompositeChildTarget is not null);
+        if (!overlayPublished || targetFrame.CompositeFrame is not { IsOpen: true } compositeFrame || row is not IFormCompositeOwner composite)
             return;
 
         var context = new FormRowRenderContext(screen, targetFrame.Bounds, focused: true, screenHeight: frame.ScreenHeight);
-        composite.RenderCompositeOverlay(context, compositeFrame);
+        composite.CompositeController.RenderOverlay(context, compositeFrame);
     }
 
     private void RequestEnsureFocusVisible() => _ensureFocusedTargetVisibleOnNextRender = true;

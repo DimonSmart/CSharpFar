@@ -75,7 +75,10 @@ public sealed class FormControlsTests
 
         Assert.False(row.IsFocusable);
         Assert.Equal(FormInputResultKind.NotHandled,
-            row.HandleCompositeKey(new ConsoleKeyInfo('\0', ConsoleKey.Enter, false, false, false), new FormRowInputContext(0, true), new FormCompositeFrame(false, null, [])).Kind);
+            ((IFormCompositeOwner)row).CompositeController.RouteKey(
+                new ConsoleKeyInfo('\0', ConsoleKey.Enter, false, false, false),
+                new FormRowInputContext(true),
+                FormCompositeFrame.Closed()).Kind);
         Assert.Equal("current", row.Value);
 
         row.Enabled = true;

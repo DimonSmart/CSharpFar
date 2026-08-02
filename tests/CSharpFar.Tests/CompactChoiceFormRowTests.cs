@@ -12,7 +12,7 @@ public sealed class CompactChoiceFormRowTests
     public void KeyboardChoiceChangeReturnsValueChanged()
     {
         var row = Row(["one", "two"]);
-        var input = new FormRowInputContext(0, focused: true);
+        var input = new FormRowInputContext(true);
 
         Assert.Equal(FormInputResultKind.ValueChanged, row.HandleKey(Key(ConsoleKey.RightArrow), input).Kind);
         Assert.Equal("two", row.Value);
@@ -22,7 +22,7 @@ public sealed class CompactChoiceFormRowTests
     public void SingleChoiceKeysAreHandledWithoutValueChange()
     {
         var row = Row(["only"]);
-        var input = new FormRowInputContext(0, focused: true);
+        var input = new FormRowInputContext(true);
 
         Assert.Equal(FormInputResultKind.Handled, row.HandleKey(Key(ConsoleKey.RightArrow), input).Kind);
         Assert.Equal(FormInputResultKind.Handled, row.HandleKey(Key(ConsoleKey.Enter), input).Kind);
@@ -33,7 +33,7 @@ public sealed class CompactChoiceFormRowTests
     public void MouseChoiceChangeReturnsValueChangedAndUsesFormBounds()
     {
         var row = Row(["one", "two"]);
-        var context = new FormRowMouseContext(new Rect(10, 2, 30, 1), 0, true, 10);
+        var context = new FormRowMouseContext(true, 10, new FormRowLayout(new Rect(10, 2, 30, 1), null, new Rect(10, 2, 30, 1)));
 
         Assert.Equal(FormInputResultKind.ValueChanged, row.HandleMouse(Mouse(10, 2), context).Kind);
 
@@ -45,8 +45,8 @@ public sealed class CompactChoiceFormRowTests
     {
         var row = Row(["one", "two"]);
 
-        Assert.Equal(FormInputResultKind.NotHandled, row.HandleKey(Key(ConsoleKey.Tab), new FormRowInputContext(0, true)).Kind);
-        Assert.Equal(FormInputResultKind.NotHandled, row.HandleMouse(Mouse(0, 0), new FormRowMouseContext(new Rect(10, 2, 30, 1), 0, true, 10)).Kind);
+        Assert.Equal(FormInputResultKind.NotHandled, row.HandleKey(Key(ConsoleKey.Tab), new FormRowInputContext(true)).Kind);
+        Assert.Equal(FormInputResultKind.NotHandled, row.HandleMouse(Mouse(0, 0), new FormRowMouseContext(true, 10, new FormRowLayout(new Rect(10, 2, 30, 1), null, new Rect(10, 2, 30, 1)))).Kind);
         Assert.Equal("one", row.Value);
     }
 
@@ -104,7 +104,7 @@ public sealed class CompactChoiceFormRowTests
         var row = Row(["one", "two"]);
         row.Enabled = false;
         row.DisabledReason = "Unavailable";
-        var context = new FormRowInputContext(0, true);
+        var context = new FormRowInputContext(true);
 
         Assert.False(row.IsEnabled);
         Assert.False(row.IsFocusable);
