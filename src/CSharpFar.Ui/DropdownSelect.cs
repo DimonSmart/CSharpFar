@@ -5,6 +5,26 @@ using CSharpFar.Core.Models;
 
 namespace CSharpFar.Ui;
 
+public enum DropdownInputResultKind
+{
+    NotHandled,
+    Handled,
+    Opened,
+    PreviewChanged,
+    Committed,
+    CommittedWithoutChange,
+    Canceled,
+    Closed,
+}
+
+public readonly record struct DropdownInputResult(
+    DropdownInputResultKind Kind,
+    ScrollableListInputResult ListResult = default)
+{
+    public static DropdownInputResult NotHandled => new(DropdownInputResultKind.NotHandled);
+    public bool IsHandled => Kind != DropdownInputResultKind.NotHandled;
+}
+
 public sealed class DropdownSelect<T>
 {
     private readonly ScrollableListState<T> _state;
@@ -17,7 +37,7 @@ public sealed class DropdownSelect<T>
         _state = new ScrollableListState<T>(items); _itemText = itemText ?? throw new ArgumentNullException(nameof(itemText));
     }
     public int SelectedIndex { get => _state.SelectedIndex; set => _state.SetSelectedIndex(value, 1); }
-    public int ScrollTop { get => _state.ScrollTop; set => _state.SetFromInput(_state.SelectedIndex, value, 1); }
+    public int ScrollTop => _state.ScrollTop;
     public bool IsOpen { get; private set; }
     public int SelectionBeforeOpen => _selectedIndexBeforeOpen;
     private int _maxVisibleRows = 6;
@@ -41,11 +61,11 @@ public sealed class DropdownSelect<T>
     public DropdownSelectFrame CalculateFrame(ConsoleSize size, Rect fieldBounds)
     {
         if (!IsOpen)
-            return new DropdownSelectFrame(size, fieldBounds, new DropdownSelectStateSnapshot(_state.SelectedIndex, _state.ScrollTop, _selectedIndexBeforeOpen), null);
+            return DropdownSelectFrame.Create(size, fieldBounds, new DropdownSelectStateSnapshot(_state.SelectedIndex, _state.ScrollTop, _selectedIndexBeforeOpen), null, _state.Count);
         Rect bounds = PopupBounds(size, fieldBounds); Rect content = PopupRenderer.GetContentBounds(bounds, drawBorder: true);
         Rect? scrollbar = content.Height > 0 && _state.Count > Math.Max(1, content.Height) ? new Rect(bounds.Right - 1, content.Y, 1, content.Height) : null;
         ScrollableListFrame list = _input.CalculateFrame(_state, content, scrollbar);
-        return new DropdownSelectFrame(size, fieldBounds, new DropdownSelectStateSnapshot(list.SelectedIndex, list.ScrollTop, _selectedIndexBeforeOpen), new DropdownSelectPopupFrame(bounds, list));
+        return DropdownSelectFrame.Create(size, fieldBounds, new DropdownSelectStateSnapshot(list.SelectedIndex, list.ScrollTop, _selectedIndexBeforeOpen), new DropdownSelectPopupFrame(bounds, list), _state.Count);
     }
     public void RenderPopup(IUiCanvas screen, DropdownSelectFrame frame)
     {
@@ -54,36 +74,86 @@ public sealed class DropdownSelect<T>
         var options = PaletteStyles.DialogPopupOptions(palette) with { DrawDoubleBorder = false, VerticalScrollState = popup.List.ItemCount > popup.List.ViewportRows ? new ScrollState { TotalItems = popup.List.ItemCount, ViewportItems = popup.List.ViewportRows, FirstVisibleIndex = popup.List.ScrollTop } : null };
         new PopupRenderer().RenderPopup(screen, popup.Bounds, options, (_, _) => ScrollableListRenderer.Render(screen, _state, popup.List, new(_itemText, string.Empty, PaletteStyles.DialogFill(palette), PaletteStyles.InputHighlight(palette), PaletteStyles.DialogFill(palette))));
     }
-    public bool TryHandleFieldMouse(MouseConsoleInputEvent mouse, DropdownSelectFrame frame)
+    public DropdownInputResult TryHandleFieldMouse(MouseConsoleInputEvent mouse, DropdownSelectFrame frame)
     {
-        if (mouse.Button != MouseButton.Left || mouse.Kind != MouseEventKind.Down || mouse.Y != frame.FieldBounds.Y || mouse.X < frame.FieldBounds.X || mouse.X >= frame.FieldBounds.Right) return false;
-        RestoreCommittedFrame(frame); Toggle(); return true;
+        ValidateFrame(frame);
+        if (mouse.Button != MouseButton.Left || mouse.Kind != MouseEventKind.Down || mouse.Y != frame.FieldBounds.Y || mouse.X < frame.FieldBounds.X || mouse.X >= frame.FieldBounds.Right)
+            return DropdownInputResult.NotHandled;
+        bool wasOpen = IsOpen;
+        Toggle();
+        return wasOpen ? new(DropdownInputResultKind.Canceled) : new(DropdownInputResultKind.Opened);
     }
-    public bool TryHandlePopupContentMouse(MouseConsoleInputEvent mouse, DropdownSelectFrame frame, out bool selected, out bool valueChanged)
+    public DropdownInputResult TryHandlePopupContentMouse(MouseConsoleInputEvent mouse, DropdownSelectFrame frame)
     {
-        selected = valueChanged = false; RestoreCommittedFrame(frame);
-        if (frame.Popup is not { } popup) return false;
-        if (!popup.List.ContentBounds.Contains(mouse.X, mouse.Y)) return mouse.Kind == MouseEventKind.Down && mouse.Button == MouseButton.Left && popup.Bounds.Contains(mouse.X, mouse.Y);
+        ValidateFrame(frame);
+        if (frame.Popup is not { } popup) return DropdownInputResult.NotHandled;
+        if (!popup.List.ContentBounds.Contains(mouse.X, mouse.Y))
+            return mouse.Kind == MouseEventKind.Down && mouse.Button == MouseButton.Left && popup.Bounds.Contains(mouse.X, mouse.Y)
+                ? new(DropdownInputResultKind.Handled)
+                : DropdownInputResult.NotHandled;
         ScrollableListInputResult result = _input.HandleContentMouse(_state, popup.List, mouse, true, true);
-        if (!result.IsHandled) return false;
-        if (result.Kind == ScrollableListInputResultKind.Confirmed) { selected = true; valueChanged = SelectedIndex != _selectedIndexBeforeOpen; Close(commit: true); }
-        return true;
+        if (!result.IsHandled) return DropdownInputResult.NotHandled;
+        if (result.Kind == ScrollableListInputResultKind.Confirmed)
+        {
+            bool changed = SelectedIndex != _selectedIndexBeforeOpen;
+            Close(commit: true);
+            return new(changed ? DropdownInputResultKind.Committed : DropdownInputResultKind.CommittedWithoutChange, result);
+        }
+        return new(result.Kind == ScrollableListInputResultKind.SelectionChanged ? DropdownInputResultKind.PreviewChanged : DropdownInputResultKind.Handled, result);
     }
-    public bool TryHandleScrollbarMouse(MouseConsoleInputEvent mouse, DropdownSelectFrame frame) => frame.Popup is { } popup && _input.HandleScrollbarMouse(_state, popup.List, mouse).IsHandled;
-    public bool TryHandleKey(ConsoleKeyInfo key, DropdownSelectFrame frame, out bool selected, out bool valueChanged)
+    public DropdownInputResult TryHandleScrollbarMouse(MouseConsoleInputEvent mouse, DropdownSelectFrame frame)
     {
-        selected = valueChanged = false; RestoreCommittedFrame(frame);
-        if (!IsOpen) { if (key.Key is ConsoleKey.Enter or ConsoleKey.Spacebar or ConsoleKey.DownArrow or ConsoleKey.F4) { Open(); return true; } return false; }
-        if (key.Key == ConsoleKey.Escape) { Close(); return true; }
-        if (key.Key is ConsoleKey.Enter or ConsoleKey.Spacebar) { selected = true; valueChanged = SelectedIndex != _selectedIndexBeforeOpen; Close(true); return true; }
-        return frame.Popup is { } popup && _input.HandleKey(_state, popup.List, key).IsHandled;
+        ValidateFrame(frame);
+        if (frame.Popup is not { } popup) return DropdownInputResult.NotHandled;
+        ScrollableListInputResult result = _input.HandleScrollbarMouse(_state, popup.List, mouse);
+        return result.IsHandled ? new(DropdownInputResultKind.Handled, result) : DropdownInputResult.NotHandled;
     }
-    public void ApplyCommittedFrame(DropdownSelectFrame frame) => RestoreCommittedFrame(frame);
+    public DropdownInputResult TryHandleKey(ConsoleKeyInfo key, DropdownSelectFrame frame)
+    {
+        ValidateFrame(frame);
+        if (!IsOpen)
+        {
+            if (key.Key is not (ConsoleKey.Enter or ConsoleKey.Spacebar or ConsoleKey.DownArrow or ConsoleKey.F4))
+                return DropdownInputResult.NotHandled;
+            Open();
+            return new(DropdownInputResultKind.Opened);
+        }
+        if (key.Key == ConsoleKey.Escape)
+        {
+            Close();
+            return new(DropdownInputResultKind.Canceled);
+        }
+        if (key.Key is ConsoleKey.Enter or ConsoleKey.Spacebar)
+        {
+            bool changed = SelectedIndex != _selectedIndexBeforeOpen;
+            Close(commit: true);
+            return new(changed ? DropdownInputResultKind.Committed : DropdownInputResultKind.CommittedWithoutChange);
+        }
+        if (frame.Popup is not { } popup) return DropdownInputResult.NotHandled;
+        ScrollableListInputResult result = _input.HandleKey(_state, popup.List, key);
+        return result.IsHandled ? new(result.Kind == ScrollableListInputResultKind.SelectionChanged ? DropdownInputResultKind.PreviewChanged : DropdownInputResultKind.Handled, result) : DropdownInputResult.NotHandled;
+    }
+    public void ApplyCommittedFrame(DropdownSelectFrame frame)
+    {
+        ValidateFrame(frame);
+        RestoreCommittedFrame(frame);
+    }
     internal void RestoreCommittedFrame(DropdownSelectFrame frame)
     {
-        _selectedIndexBeforeOpen = Math.Clamp(frame.State.SelectionBeforeOpen, 0, _state.Count - 1);
+        _selectedIndexBeforeOpen = frame.State.SelectionBeforeOpen;
         IsOpen = frame.Popup is not null;
         _state.RestoreSnapshot(frame.State.SelectedIndex, frame.State.ScrollTop);
+    }
+    internal void SetScrollTopForTesting(int scrollTop) => _state.SetFromInput(_state.SelectedIndex, scrollTop, 1);
+    private void ValidateFrame(DropdownSelectFrame frame)
+    {
+        ArgumentNullException.ThrowIfNull(frame);
+        if (frame.ItemCount != _state.Count)
+            throw new InvalidOperationException("The committed dropdown frame belongs to a different item collection.");
+        if (frame.State.SelectedIndex < 0 || frame.State.SelectedIndex >= _state.Count ||
+            frame.State.SelectionBeforeOpen < 0 || frame.State.SelectionBeforeOpen >= _state.Count ||
+            frame.State.ScrollTop < 0)
+            throw new InvalidOperationException("The committed dropdown frame contains invalid selection or scroll state.");
     }
     public Rect PopupBounds(ConsoleSize size, Rect fieldBounds) { int rows = ContentRows(size, fieldBounds); int height = rows + 2; int y = fieldBounds.Y + 1; if (y + height > size.Height) y = Math.Max(0, fieldBounds.Y - height); return new Rect(fieldBounds.X, y, fieldBounds.Width, height); }
     public int ContentRows(ConsoleSize size, Rect fieldBounds) { int available = Math.Max(Math.Max(0, size.Height - fieldBounds.Bottom - 2), Math.Max(0, fieldBounds.Y - 2)); return Math.Clamp(available, 0, Math.Min(MaxVisibleRows, _state.Count)); }
@@ -99,16 +169,29 @@ public sealed record DropdownSelectStateSnapshot(int SelectedIndex, int ScrollTo
 
 public sealed class DropdownSelectFrame
 {
-    public DropdownSelectFrame(ConsoleSize size, Rect fieldBounds, DropdownSelectStateSnapshot state, DropdownSelectPopupFrame? popup)
+    private DropdownSelectFrame(ConsoleSize size, Rect fieldBounds, DropdownSelectStateSnapshot state, DropdownSelectPopupFrame? popup, int itemCount)
     {
         Size = size;
         FieldBounds = fieldBounds;
         State = state ?? throw new ArgumentNullException(nameof(state));
         Popup = popup;
+        ItemCount = itemCount;
     }
     public ConsoleSize Size { get; }
     public Rect FieldBounds { get; }
     public DropdownSelectStateSnapshot State { get; }
     public DropdownSelectPopupFrame? Popup { get; }
+    public int ItemCount { get; }
     public bool IsOpen => Popup is not null;
+
+    internal static DropdownSelectFrame Create(ConsoleSize size, Rect fieldBounds, DropdownSelectStateSnapshot state, DropdownSelectPopupFrame? popup, int itemCount)
+    {
+        ArgumentNullException.ThrowIfNull(state);
+        if (itemCount <= 0 || state.SelectedIndex < 0 || state.SelectedIndex >= itemCount ||
+            state.SelectionBeforeOpen < 0 || state.SelectionBeforeOpen >= itemCount || state.ScrollTop < 0)
+            throw new ArgumentOutOfRangeException(nameof(state), "Dropdown state is outside the item collection.");
+        if (popup is not null && popup.List.ItemCount != itemCount)
+            throw new ArgumentException("The popup list must represent the dropdown item collection.", nameof(popup));
+        return new DropdownSelectFrame(size, fieldBounds, state, popup, itemCount);
+    }
 }

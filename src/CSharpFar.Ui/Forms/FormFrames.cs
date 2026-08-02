@@ -81,6 +81,8 @@ public sealed record FormCompositeChildTargetFrame : FormTargetFrame
         Owner = owner ?? throw new ArgumentNullException(nameof(owner));
         CompositeFrame = compositeFrame ?? throw new ArgumentNullException(nameof(compositeFrame));
         Child = child ?? throw new ArgumentNullException(nameof(child));
+        if (!CompositeFrame.IsOpen || !CompositeFrame.Overlay!.ChildTargets.Contains(Child))
+            throw new ArgumentException("A composite child target must belong to an open composite frame.", nameof(compositeFrame));
     }
 
     public FormRowTargetFrame Owner { get; }
