@@ -48,7 +48,8 @@ public sealed class Spec060RenameCommandTests : IDisposable
             .Press(ConsoleKey.A, keyChar: '\u0001', control: true)
             .TypeText("renamed.txt")
             .Press(ConsoleKey.F10)
-            .ExitWhenApplicationReady()
+            .WaitForApplicationReady()
+            .Press(ConsoleKey.F10)
             .Run();
 
         FileOperationRequest request = Assert.Single(fileOperations.Requests);

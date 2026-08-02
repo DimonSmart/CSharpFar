@@ -9,12 +9,12 @@ public sealed class ApplicationCrashReportTests : IDisposable
     [Fact]
     public void Write_CreatesTimestampedReportWithExceptionDetails()
     {
-        Directory.CreateDirectory(_directory);
+        string directory = Path.Combine(_directory, "crashes");
 
-        string? path = ApplicationCrashReport.Write(new InvalidOperationException("Broken command"), _directory);
+        string? path = ApplicationCrashReport.Write(new InvalidOperationException("Broken command"), directory);
 
         Assert.NotNull(path);
-        Assert.StartsWith(Path.Combine(_directory, "CSharpFar-crash-"), path, StringComparison.Ordinal);
+        Assert.StartsWith(Path.Combine(directory, "CSharpFar-crash-"), path, StringComparison.Ordinal);
         string report = File.ReadAllText(path);
         Assert.Contains("Broken command", report, StringComparison.Ordinal);
         Assert.Contains(nameof(InvalidOperationException), report, StringComparison.Ordinal);

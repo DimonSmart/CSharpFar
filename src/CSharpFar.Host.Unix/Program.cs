@@ -1,68 +1,86 @@
 using System.Reflection;
 using CSharpFar.App.Bootstrap;
+using CSharpFar.App.Diagnostics;
 using CSharpFar.App.Settings;
 using CSharpFar.Console.Ansi;
 using CSharpFar.Platform.Unix;
 
-if (args is ["--version"])
+AppDomain.CurrentDomain.UnhandledException += (_, eventArgs) =>
 {
-    PrintVersion();
-    return 0;
-}
-
-if (args is ["--self-test"])
-{
-    using var selfTestStartup = ApplicationStartupContext.Create(
-        ApplicationRunOptions.Normal,
-        UnixPlatformServices.CreateDefaultSettings,
-        ValidateShellSettings);
-    return RunSelfTest(selfTestStartup.SettingsStore);
-}
-
-if (args is ["--check-terminal"])
-    return RunTerminalCheck();
-
-if (args.Length >= 2 && args[0] == "--check-terminal" && args[1] == "--input-lab")
-{
-    if (!TerminalInputLabOptions.TryParse(args.Skip(2), out var options, out string? error))
-    {
-        Console.Error.WriteLine(error);
-        return 2;
-    }
-
-    return TerminalInputLab.Run(options);
-}
-
-if (!ApplicationRunOptionsParser.TryParse(args, out var runOptions, out string? runError))
-{
-    Console.Error.WriteLine(runError);
-    return 2;
-}
-
-if (!ApplicationRunOptionsValidator.TryValidate(runOptions, out string? validationError))
-{
-    Console.Error.WriteLine(validationError);
-    return 1;
-}
-
-using var startup = ApplicationStartupContext.Create(
-    runOptions,
-    UnixPlatformServices.CreateDefaultSettings,
-    ValidateShellSettings);
-JsonSettingsStore settingsStore = startup.SettingsStore;
-
-using var platform = UnixPlatformServices.Create(
-    settingsStore.ConfigDirectory,
-    settingsStore.Settings.Shell);
+    if (eventArgs.ExceptionObject is Exception exception)
+        ApplicationCrashReport.Write(exception);
+};
 
 try
 {
-    ApplicationBootstrap.Run(platform.ConsoleDriver, platform, settingsStore, runOptions);
-    return 0;
+    if (args is ["--version"])
+    {
+        PrintVersion();
+        return 0;
+    }
+
+    if (args is ["--self-test"])
+    {
+        using var selfTestStartup = ApplicationStartupContext.Create(
+            ApplicationRunOptions.Normal,
+            UnixPlatformServices.CreateDefaultSettings,
+            ValidateShellSettings);
+        return RunSelfTest(selfTestStartup.SettingsStore);
+    }
+
+    if (args is ["--check-terminal"])
+        return RunTerminalCheck();
+
+    if (args.Length >= 2 && args[0] == "--check-terminal" && args[1] == "--input-lab")
+    {
+        if (!TerminalInputLabOptions.TryParse(args.Skip(2), out var options, out string? error))
+        {
+            Console.Error.WriteLine(error);
+            return 2;
+        }
+
+        return TerminalInputLab.Run(options);
+    }
+
+    if (!ApplicationRunOptionsParser.TryParse(args, out var runOptions, out string? runError))
+    {
+        Console.Error.WriteLine(runError);
+        return 2;
+    }
+
+    if (!ApplicationRunOptionsValidator.TryValidate(runOptions, out string? validationError))
+    {
+        Console.Error.WriteLine(validationError);
+        return 1;
+    }
+
+    using var startup = ApplicationStartupContext.Create(
+        runOptions,
+        UnixPlatformServices.CreateDefaultSettings,
+        ValidateShellSettings);
+    JsonSettingsStore settingsStore = startup.SettingsStore;
+
+    using var platform = UnixPlatformServices.Create(
+        settingsStore.ConfigDirectory,
+        settingsStore.Settings.Shell);
+
+    try
+    {
+        ApplicationBootstrap.Run(platform.ConsoleDriver, platform, settingsStore, runOptions);
+        return 0;
+    }
+    catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException)
+    {
+        Console.Error.WriteLine(ex.Message);
+        return 1;
+    }
 }
-catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException)
+catch (Exception ex)
 {
-    Console.Error.WriteLine(ex.Message);
+    string? reportPath = ApplicationCrashReport.Write(ex);
+    Console.Error.WriteLine(reportPath is null
+        ? ex.ToString()
+        : $"CSharpFar stopped because of an unexpected error. Details were saved to: {reportPath}");
     return 1;
 }
 
