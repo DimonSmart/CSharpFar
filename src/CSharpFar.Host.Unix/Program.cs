@@ -71,17 +71,22 @@ try
     }
     catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException)
     {
-        Console.Error.WriteLine(ex.Message);
+        WriteFailure(ex);
         return 1;
     }
 }
 catch (Exception ex)
 {
-    string? reportPath = ApplicationCrashReport.Write(ex);
-    Console.Error.WriteLine(reportPath is null
-        ? ex.ToString()
-        : $"CSharpFar stopped because of an unexpected error. Details were saved to: {reportPath}");
+    WriteFailure(ex);
     return 1;
+}
+
+static void WriteFailure(Exception exception)
+{
+    string? reportPath = ApplicationCrashReport.Write(exception);
+    Console.Error.WriteLine(reportPath is null
+        ? exception.ToString()
+        : $"CSharpFar stopped because of an unexpected error. Details were saved to: {reportPath}");
 }
 
 static void PrintVersion()
