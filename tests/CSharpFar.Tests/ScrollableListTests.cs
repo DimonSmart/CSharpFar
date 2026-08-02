@@ -529,6 +529,22 @@ public sealed class ScrollableListTests
         Assert.Equal(UiMouseCaptureRequestKind.Release, ended.UiResult.MouseCaptureRequest.Kind);
     }
 
+    [Fact]
+    public void ContentMouse_UsesTheCommittedFrameScrollPosition()
+    {
+        var list = Create(Enumerable.Range(0, 10).Select(index => index.ToString()).ToArray());
+        list.ScrollTop = 0;
+        ScrollableListFrameState frame = new(0, 5, 3);
+
+        ScrollableListInputResult result = list.HandleContentMouse(
+            Mouse(MouseButton.Left, MouseEventKind.Down, 0, 1),
+            new Rect(0, 0, 10, 3),
+            frame);
+
+        Assert.Equal(ScrollableListInputResultKind.SelectionChanged, result.Kind);
+        Assert.Equal(6, list.SelectedIndex);
+    }
+
     private static ScrollableList<string> Create(IReadOnlyList<string> items) => new(items, static item => item);
 
     private static ConsoleKeyInfo Key(ConsoleKey key) => new('\0', key, false, false, false);

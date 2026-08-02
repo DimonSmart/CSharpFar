@@ -94,7 +94,7 @@ public sealed class DropdownSelectFormRow<T> : FormRow, IFormCursorProvider, IFo
                 return index;
         }
 
-        return 0;
+        throw new ArgumentException("The selected value must be present in the dropdown items.", nameof(selectedValue));
     }
 
 }
