@@ -6,7 +6,7 @@ using CSharpFar.Ui;
 
 namespace CSharpFar.Tests;
 
-public sealed class ChoiceRowTests
+public sealed class ChoiceModelTests
 {
     [Fact]
     public void Value_ReassigningCurrentValueIsANoOp()
@@ -50,5 +50,27 @@ public sealed class ChoiceRowTests
         Assert.Equal(2, layout.RowBounds.Count);
         Assert.True(ChoiceRenderer.TryGetSelectedMarkerBounds(layout, selection, out Rect marker));
         Assert.Equal(1, marker.Y);
+    }
+
+    [Fact]
+    public void ChoiceSelection_DoesNotExposeMutableArray()
+    {
+        var source = new[] { "one", "two" };
+        var selection = ChoiceSelection<string>.FromValue(source, "one");
+
+        source[0] = "changed";
+
+        Assert.IsNotType<string[]>(selection.Items);
+        Assert.Equal("one", selection.Value);
+    }
+
+    [Fact]
+    public void ChoiceLayout_DoesNotExposeMutableGeometryArrays()
+    {
+        var selection = ChoiceSelection<string>.FromValue(["one", "two"], "one");
+        ChoiceLayout layout = ChoiceLayoutCalculator.Segmented(selection, static value => value, new Rect(0, 0, 20, 1), "Mode");
+
+        Assert.IsNotType<Rect[]>(layout.RowBounds);
+        Assert.IsNotType<ChoiceLayoutHitTarget[]>(layout.Targets);
     }
 }
