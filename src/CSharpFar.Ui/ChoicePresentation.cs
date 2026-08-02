@@ -105,8 +105,14 @@ public static class ChoiceRenderer
 
     public static bool TryGetSelectedMarkerBounds<T>(ChoiceLayout layout, ChoiceSelection<T> selection, out Rect bounds)
     {
-        ChoiceLayoutHitTarget target = layout.Targets.FirstOrDefault(target => target.Index == selection.SelectedIndex);
-        if (target.MarkerBounds.Width > 0) { bounds = target.MarkerBounds; return true; }
+        foreach (ChoiceLayoutHitTarget target in layout.Targets)
+        {
+            if (target.Index == selection.SelectedIndex)
+            {
+                bounds = target.MarkerBounds;
+                return true;
+            }
+        }
         bounds = default;
         return false;
     }
@@ -127,8 +133,11 @@ public static class ChoiceInput
     {
         if (mouse.Button != MouseButton.Left || mouse.Kind != MouseEventKind.Down || !layout.RowBounds.Any(bounds => bounds.Contains(mouse.X, mouse.Y))) return ChoiceInputResultKind.NotHandled;
         if (!layout.IsSegmented) return selection.SelectNext() ? ChoiceInputResultKind.ValueChanged : ChoiceInputResultKind.Handled;
-        ChoiceLayoutHitTarget target = layout.Targets.FirstOrDefault(target => target.Bounds.Contains(mouse.X, mouse.Y));
-        if (target.Bounds.Width == 0) return ChoiceInputResultKind.NotHandled;
-        return selection.SelectIndex(target.Index) ? ChoiceInputResultKind.ValueChanged : ChoiceInputResultKind.Handled;
+        foreach (ChoiceLayoutHitTarget target in layout.Targets)
+        {
+            if (target.Bounds.Contains(mouse.X, mouse.Y))
+                return selection.SelectIndex(target.Index) ? ChoiceInputResultKind.ValueChanged : ChoiceInputResultKind.Handled;
+        }
+        return ChoiceInputResultKind.NotHandled;
     }
 }

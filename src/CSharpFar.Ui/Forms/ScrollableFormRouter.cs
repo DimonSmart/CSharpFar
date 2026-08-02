@@ -37,8 +37,9 @@ public sealed partial class ScrollableFormDialog
         bool ensureFocusedTargetVisible = false;
         if (route.RouteKind == UiInputRouteKind.FocusedTarget &&
             route.Target is UiTargetId target &&
-            FindRowTarget(frame, target) is { Row: { } row } targetFrame)
+            FindRowTarget(frame, target) is { } targetFrame)
         {
+            IFormRow row = targetFrame.Row;
             ensureFocusedTargetVisible = IsOffscreenBodyTarget(targetFrame, frame.BodyBounds);
             var inputContext = new FormRowInputContext(Focused: true);
             FormInputResult rowResult = row.HandleKey(key, inputContext);
@@ -53,9 +54,9 @@ public sealed partial class ScrollableFormDialog
 
         if (allowUnfocusedButtonHotkeys && key.KeyChar > ' ')
         {
-            foreach (FormTargetFrame buttonFrame in frame.Targets.Where(target => target.Row is ButtonRow { IsEnabled: true }))
+            foreach (FormRowTargetFrame buttonFrame in frame.Targets.OfType<FormRowTargetFrame>().Where(target => target.Row is ButtonRow { IsEnabled: true }))
             {
-                FormInputResult buttonResult = buttonFrame.Row!.HandleKey(
+                FormInputResult buttonResult = buttonFrame.Row.HandleKey(
                     key,
                     new FormRowInputContext(Focused: false));
                 if (buttonResult.IsHandled)
@@ -98,7 +99,7 @@ public sealed partial class ScrollableFormDialog
         if (targetFrame is null)
             return MergeTransientOverlayChange(FormInputResult.NotHandled, UiInputResult.NotHandled, closedOverlay);
 
-        if (targetFrame.Kind == FormTargetKind.BodyScrollbar)
+        if (targetFrame is FormBodyScrollbarTargetFrame scrollbarTarget)
         {
             bool handled = TryHandleScrollbarMouse(mouse, frame);
             if (!handled && TryHandleWheel(mouse, frame.ViewportRows))
@@ -107,7 +108,7 @@ public sealed partial class ScrollableFormDialog
                 return MergeTransientOverlayChange(FormInputResult.NotHandled, UiInputResult.NotHandled, closedOverlay);
 
             UiMouseCaptureRequest capture = mouse is { Kind: MouseEventKind.Down, Button: MouseButton.Left }
-                ? UiMouseCaptureRequest.Capture(targetFrame.Target, MouseButton.Left)
+                ? UiMouseCaptureRequest.Capture(scrollbarTarget.Target, MouseButton.Left)
                 : UiMouseCaptureRequest.None;
             return MergeTransientOverlayChange(
                 FormInputResult.Handled,
@@ -115,12 +116,12 @@ public sealed partial class ScrollableFormDialog
                 closedOverlay);
         }
 
-        if (targetFrame.Row is null)
-            return MergeTransientOverlayChange(FormInputResult.NotHandled, UiInputResult.NotHandled, closedOverlay);
-
-        FormTargetFrame rowFrame = targetFrame.Kind == FormTargetKind.Row
-            ? targetFrame
-            : FindPrimaryRowFrame(frame, targetFrame.Row) ?? targetFrame;
+        FormRowTargetFrame rowFrame = targetFrame switch
+        {
+            FormRowTargetFrame row => row,
+            FormCompositeChildTargetFrame child => child.Owner,
+            _ => throw new InvalidOperationException("Unsupported form target."),
+        };
         bool requestFocus = rowFrame.IsFocusable &&
             route.RouteKind == UiInputRouteKind.HitTarget &&
             mouse is { Button: MouseButton.Left, Kind: MouseEventKind.Down };
@@ -128,22 +129,22 @@ public sealed partial class ScrollableFormDialog
                 Focused: rowFrame.Target == route.FocusState.FocusedTarget || requestFocus,
                 rowFrame.Layout);
         FormInputResult rowResult;
-        if (targetFrame.Kind == FormTargetKind.Row)
+        if (targetFrame is FormRowTargetFrame rowTarget)
         {
-            rowResult = targetFrame.Row.HandleMouse(mouse, mouseContext);
-            if (!rowResult.IsHandled && targetFrame.Row is IFormCompositeOwner owner && rowFrame.CompositeFrame is { } compositeFrame)
+            rowResult = rowTarget.Row.HandleMouse(mouse, mouseContext);
+            if (!rowResult.IsHandled && rowTarget.Row is IFormCompositeOwner owner && rowFrame.CompositeFrame is { } compositeFrame)
                 rowResult = owner.CompositeController.RouteMouse(mouse, mouseContext, compositeFrame, null);
         }
-        else if (targetFrame.Row is IFormCompositeOwner owner && targetFrame.CompositeFrame is { } compositeFrame)
+        else if (targetFrame is FormCompositeChildTargetFrame childTarget && childTarget.Owner.Row is IFormCompositeOwner owner)
         {
-            rowResult = owner.CompositeController.RouteMouse(mouse, mouseContext, compositeFrame, targetFrame.CompositeChildTarget);
+            rowResult = owner.CompositeController.RouteMouse(mouse, mouseContext, childTarget.CompositeFrame, childTarget.ChildTarget);
         }
         else
         {
             rowResult = FormInputResult.NotHandled;
         }
         if (rowResult.IsHandled)
-            rowResult = WithSourceRowId(rowResult, targetFrame.Row.Id);
+            rowResult = WithSourceRowId(rowResult, rowFrame.Row.Id);
         if (!rowResult.IsHandled && TryHandleWheel(mouse, frame.ViewportRows))
             return MergeTransientOverlayChange(FormInputResult.Handled, UiInputResult.HandledAndInvalidate, closedOverlay);
 
@@ -159,7 +160,7 @@ public sealed partial class ScrollableFormDialog
                 canceledOverlay ? UiMouseCaptureRequest.Release : uiResult.MouseCaptureRequest);
         }
 
-        if (targetFrame.CapturesMouse &&
+        if (targetFrame is FormCompositeChildTargetFrame { CapturesMouse: true } &&
             rowResult.IsHandled &&
             mouse is { Kind: MouseEventKind.Down, Button: MouseButton.Left })
         {
@@ -185,10 +186,8 @@ public sealed partial class ScrollableFormDialog
             return false;
         }
 
-        bool insideChild = frame.Targets.Any(target =>
-            ReferenceEquals(target.Row, row) &&
-            target.CompositeChildTarget is not null &&
-            target.HitBounds is Rect bounds && bounds.Contains(mouse.X, mouse.Y));
+        bool insideChild = frame.Targets.OfType<FormCompositeChildTargetFrame>().Any(target =>
+            ReferenceEquals(target.Owner.Row, row) && target.HitBounds is Rect bounds && bounds.Contains(mouse.X, mouse.Y));
         if (insideChild)
             return false;
 
@@ -289,8 +288,8 @@ public sealed partial class ScrollableFormDialog
 
     private FormRouteResult SetFocusByIndex(ScrollableFormFrame frame, int focusIndex)
     {
-        FormTargetFrame? target = frame.Targets.FirstOrDefault(value =>
-            value is { Kind: FormTargetKind.Row, IsFocusable: true } &&
+        FormRowTargetFrame? target = frame.Targets.OfType<FormRowTargetFrame>().FirstOrDefault(value =>
+            value.IsFocusable &&
             value.FocusIndex == ClampFocusIndex(focusIndex));
         if (target is not null)
             RequestEnsureFocusVisible();
@@ -302,11 +301,11 @@ public sealed partial class ScrollableFormDialog
     private static FormTargetFrame? FindTarget(ScrollableFormFrame frame, UiTargetId target) =>
         frame.Targets.LastOrDefault(value => value.Target == target);
 
-    private static FormTargetFrame? FindRowTarget(ScrollableFormFrame frame, UiTargetId target) =>
-        frame.Targets.FirstOrDefault(value => value.Target == target && value.Kind == FormTargetKind.Row);
+    private static FormRowTargetFrame? FindRowTarget(ScrollableFormFrame frame, UiTargetId target) =>
+        frame.Targets.OfType<FormRowTargetFrame>().FirstOrDefault(value => value.Target == target);
 
-    private static FormTargetFrame? FindPrimaryRowFrame(ScrollableFormFrame frame, IFormRow row) =>
-        frame.Targets.FirstOrDefault(value => ReferenceEquals(value.Row, row) && value.Kind == FormTargetKind.Row);
+    private static FormRowTargetFrame? FindPrimaryRowFrame(ScrollableFormFrame frame, IFormRow row) =>
+        frame.Targets.OfType<FormRowTargetFrame>().FirstOrDefault(value => ReferenceEquals(value.Row, row));
 
     private bool CancelTransientOverlayForFocusRequest(UiFocusRequest request)
     {
@@ -321,10 +320,9 @@ public sealed partial class ScrollableFormDialog
 
     private static void RestoreCommittedComponentState(ScrollableFormFrame frame)
     {
-        foreach (FormTargetFrame target in frame.Targets)
+        foreach (FormRowTargetFrame target in frame.Targets.OfType<FormRowTargetFrame>())
         {
-            if (target.Kind != FormTargetKind.Row ||
-                target.Row is not IFormCompositeOwner composite ||
+            if (target.Row is not IFormCompositeOwner composite ||
                 target.CompositeFrame is not { } compositeFrame)
             {
                 continue;

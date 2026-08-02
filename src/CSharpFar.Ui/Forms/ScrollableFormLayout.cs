@@ -44,10 +44,10 @@ public sealed partial class ScrollableFormDialog
         UiInteractionFrame interactionFrame = BuildInteractionFrame(frame);
 
         context.Canvas.FillRegion(context.BodyBounds, FarDialogStyles.Fill);
-        foreach (FormTargetFrame targetFrame in frame.Targets.Where(target => target.Kind == FormTargetKind.Row && !target.IsFooter && IsVisibleInBody(target.Bounds, context.BodyBounds)))
+        foreach (FormRowTargetFrame targetFrame in frame.Targets.OfType<FormRowTargetFrame>().Where(target => !target.IsFooter && IsVisibleInBody(target.Bounds, context.BodyBounds)))
         {
             bool focused = targetFrame.Target == effectiveFocusedTarget;
-            targetFrame.Row!.Render(new FormRowRenderContext(context.Canvas, targetFrame.Bounds, focused, targetFrame.Layout));
+            targetFrame.Row.Render(new FormRowRenderContext(context.Canvas, targetFrame.Bounds, focused, targetFrame.Layout));
         }
 
         if (BodyRowCount > viewportRows)
@@ -72,10 +72,10 @@ public sealed partial class ScrollableFormDialog
         if (context.FooterBounds is Rect fixedFooterBounds)
         {
             context.Canvas.FillRegion(fixedFooterBounds, FarDialogStyles.Fill);
-            foreach (FormTargetFrame targetFrame in frame.Targets.Where(target => target.Kind == FormTargetKind.Row && target.IsFooter))
+            foreach (FormRowTargetFrame targetFrame in frame.Targets.OfType<FormRowTargetFrame>().Where(target => target.IsFooter))
             {
                 bool focused = targetFrame.Target == effectiveFocusedTarget;
-                targetFrame.Row!.Render(new FormRowRenderContext(context.Canvas, targetFrame.Bounds, focused, targetFrame.Layout));
+                targetFrame.Row.Render(new FormRowRenderContext(context.Canvas, targetFrame.Bounds, focused, targetFrame.Layout));
             }
         }
 
@@ -96,8 +96,8 @@ public sealed partial class ScrollableFormDialog
             _scrollbar.ApplyCommittedFrame(frame.VerticalScrollbarFrame);
             _ensureFocusedTargetVisibleOnNextRender = false;
             _requestedInitialTarget = null;
-            foreach (FormTargetFrame target in frame.Targets.Where(target => target.Kind == FormTargetKind.Row && target.Row is IFormCompositeOwner && target.CompositeFrame is not null))
-                ((IFormCompositeOwner)target.Row!).CompositeController.ApplyCommittedFrame(target.CompositeFrame!);
+            foreach (FormRowTargetFrame target in frame.Targets.OfType<FormRowTargetFrame>().Where(target => target.Row is IFormCompositeOwner && target.CompositeFrame is not null))
+                ((IFormCompositeOwner)target.Row).CompositeController.ApplyCommittedFrame(target.CompositeFrame!);
         });
         return frame;
     }
@@ -116,13 +116,13 @@ public sealed partial class ScrollableFormDialog
     {
         ArgumentNullException.ThrowIfNull(frame);
 
-        UiFocusEntry[] focusEntries = frame.Targets
-            .Where(target => target is { Kind: FormTargetKind.Row, IsFocusable: true, FocusIndex: not null })
+        UiFocusEntry[] focusEntries = frame.Targets.OfType<FormRowTargetFrame>()
+            .Where(target => target.IsFocusable)
             .OrderBy(target => target.FocusIndex!.Value)
             .Select(target => new UiFocusEntry(target.Target, target.FocusIndex!.Value, IsEnabled: true, target.Cursor))
             .ToArray();
         UiHitRegion[] hitRegions = frame.Targets
-            .Where(target => target.HitBounds is { Width: > 0, Height: > 0 } && (target.Row is null || target.Row.IsEnabled))
+            .Where(target => target.HitBounds is { Width: > 0, Height: > 0 } && (target is not FormRowTargetFrame row || row.Row.IsEnabled))
             .Select(target => new UiHitRegion(target.Target, target.HitBounds!.Value))
             .ToArray();
         return new UiInteractionFragment(hitRegions, focusEntries);
@@ -159,19 +159,9 @@ public sealed partial class ScrollableFormDialog
 
         if (BodyRowCount > Math.Max(1, context.BodyBounds.Height))
         {
-            targets.Add(new FormTargetFrame(
-                FormTargetIds.BodyScrollbar,
-                FormTargetKind.BodyScrollbar,
-                Row: null,
-                RowIndex: -1,
-                FocusIndex: null,
-                new Rect(context.BodyBounds.Right - 1, context.BodyBounds.Y, 1, Math.Max(1, context.BodyBounds.Height)),
-                Intersect(
-                    new Rect(context.BodyBounds.Right - 1, context.BodyBounds.Y, 1, Math.Max(1, context.BodyBounds.Height)),
-                    context.BodyBounds),
-                Layout: new FormRowLayout(context.BodyBounds, null, context.BodyBounds),
-                IsFocusable: false,
-                IsFooter: false));
+            Rect bodyScrollbarBounds = new(context.BodyBounds.Right - 1, context.BodyBounds.Y, 1, Math.Max(1, context.BodyBounds.Height));
+            if (Intersect(bodyScrollbarBounds, context.BodyBounds) is { } hitBounds)
+                targets.Add(new FormBodyScrollbarTargetFrame(FormTargetIds.BodyScrollbar, bodyScrollbarBounds, hitBounds));
         }
 
         if (context.FooterBounds is Rect footerBounds)
@@ -191,7 +181,7 @@ public sealed partial class ScrollableFormDialog
         }
 
         if (overlayTarget is UiTargetId focusedTarget &&
-            targets.FirstOrDefault(target => target.Kind == FormTargetKind.Row && target.Target == focusedTarget) is { Row: { } focusedRow } focusedFrame)
+            targets.OfType<FormRowTargetFrame>().FirstOrDefault(target => target.Target == focusedTarget) is { } focusedFrame)
         {
             Rect? activeBounds = focusedFrame.HitBounds;
             if (activeBounds is not null)
@@ -201,10 +191,10 @@ public sealed partial class ScrollableFormDialog
         }
 
         UiTargetId? defaultTarget = _requestedInitialTarget;
-        if (defaultTarget is null || !targets.Any(target => target.Target == defaultTarget && target.IsFocusable))
-            defaultTarget = targets.FirstOrDefault(target => target is { Kind: FormTargetKind.Row, IsFocusable: true })?.Target;
+        if (defaultTarget is null || !targets.OfType<FormRowTargetFrame>().Any(target => target.Target == defaultTarget && target.IsFocusable))
+            defaultTarget = targets.OfType<FormRowTargetFrame>().FirstOrDefault(target => target.IsFocusable)?.Target;
 
-        Rect? scrollbarBounds = targets.FirstOrDefault(target => target.Kind == FormTargetKind.BodyScrollbar)?.Bounds;
+        Rect? scrollbarBounds = targets.OfType<FormBodyScrollbarTargetFrame>().FirstOrDefault()?.Bounds;
         var scrollbarFrame = _scrollbar.CalculateFrame(scrollbarBounds, new ScrollState
         {
             TotalItems = BodyRowCount,
@@ -223,7 +213,7 @@ public sealed partial class ScrollableFormDialog
             scrollbarFrame);
     }
 
-    private FormTargetFrame CreateRowTargetFrame(
+    private FormRowTargetFrame CreateRowTargetFrame(
         IUiCanvas screen,
         IFormRow row,
         int rowIndex,
@@ -250,16 +240,14 @@ public sealed partial class ScrollableFormDialog
             cursor = new UiCursorPlacement(placement.X, placement.Y);
         }
 
-        return new FormTargetFrame(
+        return new FormRowTargetFrame(
             RowTarget(row),
-            FormTargetKind.Row,
             row,
             rowIndex,
             focusIndex,
             bounds,
             Intersect(bounds, activeBounds),
             layout,
-            row.IsFocusable,
             isFooter,
             cursor,
             compositeFrame);
@@ -318,7 +306,7 @@ public sealed partial class ScrollableFormDialog
 
     private static void AddCompositeTargets(
         List<FormTargetFrame> targets,
-        FormTargetFrame rowFrame,
+        FormRowTargetFrame rowFrame,
         UiTargetId rowTarget)
     {
         if (rowFrame.Row is not IFormCompositeOwner || rowFrame.CompositeFrame is not { IsOpen: true } compositeFrame)
@@ -326,20 +314,7 @@ public sealed partial class ScrollableFormDialog
 
         foreach (FormCompositeTarget child in compositeFrame.Overlay!.ChildTargets)
         {
-            targets.Add(new FormTargetFrame(
-                child.Id,
-                child.Kind,
-                rowFrame.Row,
-                rowFrame.RowIndex,
-                rowFrame.FocusIndex,
-                child.Bounds,
-                child.HitBounds ?? child.Bounds,
-                rowFrame.Layout,
-                IsFocusable: false,
-                IsFooter: rowFrame.IsFooter,
-                CompositeFrame: compositeFrame,
-                CompositeChildTarget: child.Id,
-                CapturesMouse: child.CapturesMouse));
+            targets.Add(new FormCompositeChildTargetFrame(child.Id, rowFrame, compositeFrame, child));
         }
     }
 
