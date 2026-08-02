@@ -153,11 +153,11 @@ public sealed class UiComponentDialogTests
         var frame = dropdown.CalculateFrame(driver.GetSize(), field);
         dropdown.ApplyCommittedFrame(frame);
         Assert.True(dropdown.IsOpen);
-        Assert.True(dropdown.TryHandleKey(KeyInfo(ConsoleKey.DownArrow), frame, out _, out _));
+        Assert.Equal(DropdownInputResultKind.PreviewChanged, dropdown.TryHandleKey(KeyInfo(ConsoleKey.DownArrow), frame).Kind);
         Assert.Equal(1, dropdown.SelectedIndex);
         frame = dropdown.CalculateFrame(driver.GetSize(), field);
         dropdown.ApplyCommittedFrame(frame);
-        Assert.True(dropdown.TryHandleKey(KeyInfo(ConsoleKey.Escape), frame, out _, out _));
+        Assert.Equal(DropdownInputResultKind.Canceled, dropdown.TryHandleKey(KeyInfo(ConsoleKey.Escape), frame).Kind);
 
         Assert.False(dropdown.IsOpen);
         Assert.Equal("utf-8", dropdown.SelectedItem);
@@ -178,18 +178,16 @@ public sealed class UiComponentDialogTests
         {
             var frame = dropdown.CalculateFrame(driver.GetSize(), field);
             dropdown.ApplyCommittedFrame(frame);
-            dropdown.TryHandleKey(KeyInfo(ConsoleKey.DownArrow), frame, out _, out _);
+            dropdown.TryHandleKey(KeyInfo(ConsoleKey.DownArrow), frame);
         }
         Assert.True(dropdown.ScrollTop > 0);
 
         var mouseFrame = dropdown.CalculateFrame(driver.GetSize(), field);
         dropdown.ApplyCommittedFrame(mouseFrame);
-        Assert.True(dropdown.TryHandlePopupContentMouse(
+        DropdownInputResult result = dropdown.TryHandlePopupContentMouse(
             new MouseConsoleInputEvent(6, 7, MouseButton.Left, MouseEventKind.Down, MouseKeyModifiers.None),
-            mouseFrame,
-            out bool selected,
-            out _));
-        Assert.True(selected);
+            mouseFrame);
+        Assert.Equal(DropdownInputResultKind.Committed, result.Kind);
         Assert.False(dropdown.IsOpen);
     }
 
@@ -207,14 +205,11 @@ public sealed class UiComponentDialogTests
             dropdown.RenderPopup(canvas, frame));
         Rect popupBounds = frame.Popup!.Bounds;
 
-        bool handled = dropdown.TryHandlePopupContentMouse(
+        DropdownInputResult result = dropdown.TryHandlePopupContentMouse(
             new MouseConsoleInputEvent(popupBounds.X, popupBounds.Y + 1, MouseButton.Left, MouseEventKind.Down, MouseKeyModifiers.None),
-            frame,
-            out bool selected,
-            out _);
+            frame);
 
-        Assert.True(handled);
-        Assert.False(selected);
+        Assert.Equal(DropdownInputResultKind.Handled, result.Kind);
         Assert.True(dropdown.IsOpen);
         Assert.Equal(0, dropdown.SelectedIndex);
         Assert.Equal("one", dropdown.SelectedItem);
@@ -234,14 +229,11 @@ public sealed class UiComponentDialogTests
             dropdown.RenderPopup(canvas, frame));
         Rect popupBounds = frame.Popup!.Bounds;
 
-        bool handled = dropdown.TryHandlePopupContentMouse(
+        DropdownInputResult result = dropdown.TryHandlePopupContentMouse(
             new MouseConsoleInputEvent(popupBounds.X + 1, popupBounds.Y + 2, MouseButton.Left, MouseEventKind.Down, MouseKeyModifiers.None),
-            frame,
-            out bool selected,
-            out _);
+            frame);
 
-        Assert.True(handled);
-        Assert.True(selected);
+        Assert.Equal(DropdownInputResultKind.Committed, result.Kind);
         Assert.False(dropdown.IsOpen);
         Assert.Equal(1, dropdown.SelectedIndex);
         Assert.Equal("two", dropdown.SelectedItem);
@@ -257,7 +249,7 @@ public sealed class UiComponentDialogTests
         dropdown.Toggle();
         var frame = dropdown.CalculateFrame(driver.GetSize(), field);
         dropdown.ApplyCommittedFrame(frame);
-        dropdown.TryHandleKey(KeyInfo(ConsoleKey.DownArrow), frame, out _, out _);
+        dropdown.TryHandleKey(KeyInfo(ConsoleKey.DownArrow), frame);
         dropdown.Toggle();
 
         Assert.False(dropdown.IsOpen);
@@ -281,8 +273,8 @@ public sealed class UiComponentDialogTests
         {
             MaxVisibleRows = 3,
             SelectedIndex = 8,
-            ScrollTop = 8,
         };
+        dropdown.SetScrollTopForTesting(8);
         var field = new Rect(1, 1, 8, 1);
         dropdown.Open();
 

@@ -14,7 +14,7 @@ public sealed class ChoiceSelection<T>
         if (items.Count == 0)
             throw new ArgumentException("A choice selection requires at least one item.", nameof(items));
 
-        _items = items.ToArray();
+        _items = Array.AsReadOnly(items.ToArray());
         _comparer = comparer ?? EqualityComparer<T>.Default;
         SelectedIndex = FindIndex(selectedValue);
         if (SelectedIndex < 0)

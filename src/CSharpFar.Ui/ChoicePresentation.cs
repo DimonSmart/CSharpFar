@@ -13,8 +13,8 @@ public sealed class ChoiceLayout
     {
         if (rowBounds.Count == 0) throw new ArgumentException("Choice layout requires a row.", nameof(rowBounds));
         if (!segmented && targets.Count != 0) throw new ArgumentException("Compact choice layouts have no option targets.", nameof(targets));
-        RowBounds = rowBounds.ToArray();
-        Targets = targets.ToArray();
+        RowBounds = Array.AsReadOnly(rowBounds.ToArray());
+        Targets = Array.AsReadOnly(targets.ToArray());
         IsSegmented = segmented;
     }
     public IReadOnlyList<Rect> RowBounds { get; }
