@@ -79,11 +79,21 @@ public sealed class DropdownSelectFormRow<T> : FormRow, IFormCursorProvider, IFo
         return Enabled && context.Focused && field.Width > 0;
     }
 
-    public override FormInputResult HandleKey(ConsoleKeyInfo key, FormRowInputContext context) =>
-        FormInputResult.NotHandled;
+    public override FormInputResult HandleKey(ConsoleKeyInfo key, FormRowInputContext context)
+    {
+        if (!Enabled || _dropdown.IsOpen || key.Key is not (ConsoleKey.Enter or ConsoleKey.Spacebar or ConsoleKey.DownArrow or ConsoleKey.F4))
+            return FormInputResult.NotHandled;
+        _dropdown.Open();
+        return FormInputResult.OverlayChanged;
+    }
 
-    public override FormInputResult HandleMouse(MouseConsoleInputEvent mouse, FormRowMouseContext context) =>
-        FormInputResult.NotHandled;
+    public override FormInputResult HandleMouse(MouseConsoleInputEvent mouse, FormRowMouseContext context)
+    {
+        if (!Enabled || _dropdown.IsOpen || mouse is not { Button: MouseButton.Left, Kind: MouseEventKind.Down } || !context.Layout.ControlBounds.Contains(mouse.X, mouse.Y))
+            return FormInputResult.NotHandled;
+        _dropdown.Toggle();
+        return FormInputResult.OverlayChanged;
+    }
 
 
     private static int FindSelectedIndex(IReadOnlyList<T> items, T selectedValue)

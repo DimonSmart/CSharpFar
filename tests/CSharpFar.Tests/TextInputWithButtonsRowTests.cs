@@ -60,7 +60,7 @@ public sealed class TextInputWithButtonsRowTests
 
         Assert.True(((IFormCompositeOwner)row).CompositeController.IsOpen);
         Assert.True(frame.IsOpen);
-        Assert.Contains(frame.ChildTargets, target => target.Kind == FormTargetKind.HistoryDropdown);
+        Assert.Contains(frame.Overlay!.ChildTargets, target => target.Kind == FormTargetKind.HistoryDropdown);
     }
 
     [Fact]

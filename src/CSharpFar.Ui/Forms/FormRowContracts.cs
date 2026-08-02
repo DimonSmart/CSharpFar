@@ -85,35 +85,40 @@ public readonly record struct FormCompositeFrameContext(FormRowLayout Layout, Co
 }
 
 public interface IFormCompositeSnapshot;
-internal interface IFormCompositeCommittedState;
+internal sealed class EmptyFormCompositeSnapshot : IFormCompositeSnapshot
+{
+    public static EmptyFormCompositeSnapshot Instance { get; } = new();
+    private EmptyFormCompositeSnapshot() { }
+}
+
+public sealed class FormCompositeOverlayFrame
+{
+    public FormCompositeOverlayFrame(IReadOnlyList<FormCompositeTarget> childTargets)
+    {
+        ArgumentNullException.ThrowIfNull(childTargets);
+        ChildTargets = Array.AsReadOnly(childTargets.ToArray());
+    }
+
+    public IReadOnlyList<FormCompositeTarget> ChildTargets { get; }
+}
 
 public sealed class FormCompositeFrame
 {
-    private FormCompositeFrame(IFormCompositeSnapshot? snapshot, IReadOnlyList<FormCompositeTarget> childTargets, IFormCompositeCommittedState? committedState = null)
+    private FormCompositeFrame(IFormCompositeSnapshot state, FormCompositeOverlayFrame? overlay)
     {
-        Snapshot = snapshot;
-        ChildTargets = childTargets;
-        CommittedState = committedState;
+        State = state ?? throw new ArgumentNullException(nameof(state));
+        Overlay = overlay;
     }
 
-    public bool IsOpen => Snapshot is not null;
-    public IFormCompositeSnapshot? Snapshot { get; }
-    public IReadOnlyList<FormCompositeTarget> ChildTargets { get; }
-    internal IFormCompositeCommittedState? CommittedState { get; }
+    public bool IsOpen => Overlay is not null;
+    public IFormCompositeSnapshot State { get; }
+    public FormCompositeOverlayFrame? Overlay { get; }
 
-    public static FormCompositeFrame Closed() => new(null, []);
+    public static FormCompositeFrame Closed(IFormCompositeSnapshot? state = null) => new(state ?? EmptyFormCompositeSnapshot.Instance, null);
 
-    internal static FormCompositeFrame Closed(IFormCompositeCommittedState committedState)
+    public static FormCompositeFrame Open(IFormCompositeSnapshot state, IReadOnlyList<FormCompositeTarget> childTargets)
     {
-        ArgumentNullException.ThrowIfNull(committedState);
-        return new FormCompositeFrame(null, [], committedState);
-    }
-
-    public static FormCompositeFrame Open(IFormCompositeSnapshot snapshot, IReadOnlyList<FormCompositeTarget> childTargets)
-    {
-        ArgumentNullException.ThrowIfNull(snapshot);
-        ArgumentNullException.ThrowIfNull(childTargets);
-        return new FormCompositeFrame(snapshot, Array.AsReadOnly(childTargets.ToArray()));
+        return new FormCompositeFrame(state, new FormCompositeOverlayFrame(childTargets));
     }
 }
 

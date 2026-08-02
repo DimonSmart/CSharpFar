@@ -418,7 +418,7 @@ public sealed class ScrollableFormDialogTests
     [Fact]
     public void ClickChoiceSegment_SelectsItem()
     {
-        var choice = new ChoiceFormRow<string>(new ChoiceRow<string>(["one", "two"], static value => value), string.Empty);
+        var choice = new ChoiceFormRow<string>(new ChoiceModel<string>(["one", "two"], static value => value), string.Empty);
         var form = new ScrollableFormDialog([choice]);
         var driver = Render(form, visibleRows: 1);
         int x = driver.GetRow(0).IndexOf("two", StringComparison.Ordinal);
@@ -824,7 +824,7 @@ public sealed class ScrollableFormDialogTests
         var form = new ScrollableFormDialog([
             new TextInputRow(text),
             new CheckBoxRow(new CheckBoxLine("check")),
-            new ChoiceFormRow<string>(new ChoiceRow<string>(["one", "two"], static value => value), string.Empty),
+            new ChoiceFormRow<string>(new ChoiceModel<string>(["one", "two"], static value => value), string.Empty),
         ]);
 
         var driver = Render(form, visibleRows: 3);
@@ -863,7 +863,7 @@ public sealed class ScrollableFormDialogTests
     [Fact]
     public void MultiLineChoice_IsOneFocusableControlAndCursorFollowsSecondLineSelection()
     {
-        var choice = new ChoiceRow<string>(["one", "two", "three", "four"], static value => value, selectedIndex: 2);
+        var choice = new ChoiceModel<string>(["one", "two", "three", "four"], static value => value, selectedIndex: 2);
         var multiLine = new MultiLineChoiceFormRow<string>(choice, string.Empty, [2, 4]);
         var form = new ScrollableFormDialog([
             multiLine,
@@ -1322,8 +1322,8 @@ public sealed class ScrollableFormDialogTests
         FormTargetFrame target = Assert.Single(frame.Targets, target => target.Kind == FormTargetKind.Row);
         FormCompositeFrame compositeFrame = Assert.IsType<FormCompositeFrame>(target.CompositeFrame);
         Assert.False(compositeFrame.IsOpen);
-        Assert.Null(compositeFrame.Snapshot);
-        Assert.Empty(compositeFrame.ChildTargets);
+        Assert.IsType<DropdownCompositeSnapshot>(compositeFrame.State);
+        Assert.Null(compositeFrame.Overlay);
     }
 
     [Fact]
@@ -1581,7 +1581,7 @@ public sealed class ScrollableFormDialogTests
         host.Composition.DispatchInput(Mouse(scrollbar.Bounds.X, scrollbarY, MouseButton.Left, MouseEventKind.Up));
 
         FormTargetFrame popup = Assert.Single(layer.CommittedFrame.Targets, target => target.Kind == FormTargetKind.DropdownPopup);
-        Rect content = popup.CompositeFrame!.Snapshot is DropdownCompositeSnapshot { Frame.Popup.List.ContentBounds: { } value }
+        Rect content = popup.CompositeFrame!.State is DropdownCompositeSnapshot { Frame.Popup.List.ContentBounds: { } value }
             ? value
             : throw new Xunit.Sdk.XunitException("Expected dropdown content frame.");
         host.Composition.DispatchInput(Mouse(content.X, content.Y + 1));

@@ -11,12 +11,22 @@ public sealed class ChoiceRowTests
     [Fact]
     public void Value_ReassigningCurrentValueIsANoOp()
     {
-        var choice = new ChoiceRow<string>(["one", "two"], static value => value);
+        var choice = new ChoiceModel<string>(["one", "two"], static value => value);
         choice.Value = choice.Value;
         Assert.Equal("one", choice.Value);
-        Assert.True(choice.TrySelectValue("one"));
-        Assert.False(choice.TrySelectValue("missing"));
+        Assert.Equal(ChoiceSelectionResult.Unchanged, choice.Selection.SelectValue("one"));
+        Assert.Equal(ChoiceSelectionResult.Missing, choice.Selection.SelectValue("missing"));
         Assert.Throws<ArgumentException>(() => choice.Value = "missing");
+    }
+
+    [Fact]
+    public void Selection_ValueResultDistinguishesMissingUnchangedAndChanged()
+    {
+        var selection = ChoiceSelection<string>.FromValue(["one", "two"], "one");
+
+        Assert.Equal(ChoiceSelectionResult.Unchanged, selection.SelectValue("one"));
+        Assert.Equal(ChoiceSelectionResult.Changed, selection.SelectValue("two"));
+        Assert.Equal(ChoiceSelectionResult.Missing, selection.SelectValue("missing"));
     }
 
     [Fact]

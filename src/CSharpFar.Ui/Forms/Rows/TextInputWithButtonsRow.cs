@@ -29,7 +29,7 @@ public sealed class TextInputWithButtonsRow : FormRow, IFormCursorProvider, IFor
         _inputWidth = field.Width;
         Id = field.Id;
         SubmitOnEnter = field.SubmitOnEnter;
-        _compositeController = new TextInputCompositeController(_field, layout => CalculateLayout(layout).InputBounds, HandleKey);
+        _compositeController = new TextInputCompositeController(_field, layout => CalculateLayout(layout).InputBounds);
     }
 
     public CommandLineState Buffer => _field.Buffer;
@@ -109,7 +109,9 @@ public sealed class TextInputWithButtonsRow : FormRow, IFormCursorProvider, IFor
             return FormInputResult.NotHandled;
         }
 
-        return _field.HandleMouse(mouse, context, layout.InputBounds);
+        return _field.IsHistoryArrow(mouse, layout.InputBounds)
+            ? FormInputResult.NotHandled
+            : _field.HandleMouse(mouse, context, layout.InputBounds);
     }
 
 

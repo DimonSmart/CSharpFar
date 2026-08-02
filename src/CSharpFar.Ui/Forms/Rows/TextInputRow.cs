@@ -18,7 +18,7 @@ public sealed class TextInputRow : FormRow, IFormCursorProvider, IFormCompositeO
         _width = field.Width;
         Id = field.Id;
         SubmitOnEnter = field.SubmitOnEnter;
-        _compositeController = new TextInputCompositeController(_field, layout => GetInputBounds(layout.RowBounds), HandleKey);
+        _compositeController = new TextInputCompositeController(_field, layout => GetInputBounds(layout.RowBounds));
     }
 
     internal TextInputRow(
@@ -29,7 +29,7 @@ public sealed class TextInputRow : FormRow, IFormCursorProvider, IFormCompositeO
     {
         _field = new FormTextInputField(buffer, history, maskInput);
         _width = width;
-        _compositeController = new TextInputCompositeController(_field, layout => GetInputBounds(layout.RowBounds), HandleKey);
+        _compositeController = new TextInputCompositeController(_field, layout => GetInputBounds(layout.RowBounds));
     }
 
     public CommandLineState Buffer => _field.Buffer;
@@ -66,6 +66,9 @@ public sealed class TextInputRow : FormRow, IFormCursorProvider, IFormCompositeO
 
     public override FormInputResult HandleMouse(MouseConsoleInputEvent mouse, FormRowMouseContext context)
     {
-        return _field.HandleMouse(mouse, context, GetInputBounds(context.Bounds));
+        Rect bounds = GetInputBounds(context.Bounds);
+        return _field.IsHistoryArrow(mouse, bounds)
+            ? FormInputResult.NotHandled
+            : _field.HandleMouse(mouse, context, bounds);
     }
 }

@@ -14,13 +14,18 @@ public sealed class ChoiceRow<T>
         Selection = new ChoiceSelection<T>(choices, choices[selectedIndex], comparer);
     }
 
+    public ChoiceRow(ChoiceSelection<T> selection, Func<T, string> format)
+    {
+        Selection = selection ?? throw new ArgumentNullException(nameof(selection));
+        _format = format ?? throw new ArgumentNullException(nameof(format));
+    }
+
     public static ChoiceRow<T> FromValue(IReadOnlyList<T> choices, Func<T, string> format, T selectedValue, IEqualityComparer<T>? comparer = null) =>
-        new(choices, format, FindSelectedIndex(choices, selectedValue, comparer), comparer);
+        new(ChoiceSelection<T>.FromValue(choices, selectedValue, comparer), format);
 
     public static ChoiceRow<T> FromValue(IReadOnlyList<T> choices, Func<T, string> format, T selectedValue, T fallbackValue, IEqualityComparer<T>? comparer = null)
     {
-        ChoiceSelection<T> selection = ChoiceSelection<T>.WithFallback(choices, selectedValue, fallbackValue, comparer);
-        return new(choices, format, selection.SelectedIndex, comparer);
+        return new(ChoiceSelection<T>.FromValueOrFallback(choices, selectedValue, fallbackValue, comparer), format);
     }
 
     public ChoiceSelection<T> Selection { get; }
