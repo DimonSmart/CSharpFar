@@ -9,13 +9,13 @@ public sealed class ChoiceFormRow<T> : FormRow, IFormCursorProvider
 {
     public override FormRowRole Role { get; init; } = FormRowRole.Option;
 
-    private readonly ChoiceRow<T> _choice;
+    private readonly ChoiceModel<T> _choice;
     private readonly string _label;
     private readonly int _startIndex;
     private readonly int? _endIndex;
     private readonly bool _isFocusable;
 
-    public ChoiceFormRow(ChoiceRow<T> choice, string label, int startIndex = 0, int? endIndex = null, bool isFocusable = true)
+    public ChoiceFormRow(ChoiceModel<T> choice, string label, int startIndex = 0, int? endIndex = null, bool isFocusable = true)
     {
         _choice = choice;
         _label = label;
@@ -31,7 +31,7 @@ public sealed class ChoiceFormRow<T> : FormRow, IFormCursorProvider
         T selectedValue,
         IEqualityComparer<T>? comparer = null,
         bool isFocusable = true)
-        : this(ChoiceRow<T>.FromValue(values, format, selectedValue, comparer), label, isFocusable: isFocusable)
+        : this(new ChoiceModel<T>(ChoiceSelection<T>.FromValue(values, selectedValue, comparer), format), label, isFocusable: isFocusable)
     {
     }
 
@@ -43,7 +43,7 @@ public sealed class ChoiceFormRow<T> : FormRow, IFormCursorProvider
         T fallbackValue,
         IEqualityComparer<T>? comparer = null,
         bool isFocusable = true)
-        : this(ChoiceRow<T>.FromValue(values, format, selectedValue, fallbackValue, comparer), label, isFocusable: isFocusable)
+        : this(new ChoiceModel<T>(ChoiceSelection<T>.FromValueOrFallback(values, selectedValue, fallbackValue, comparer), format), label, isFocusable: isFocusable)
     {
     }
 
@@ -51,7 +51,7 @@ public sealed class ChoiceFormRow<T> : FormRow, IFormCursorProvider
     public bool Enabled { get; set; } = true;
     public string? DisabledReason { get; set; }
     public override bool IsEnabled => Enabled;
-    public ChoiceRow<T> Choice => _choice;
+    public ChoiceModel<T> Choice => _choice;
     public T Value => _choice.Value;
 
     public override void Render(FormRowRenderContext context)
@@ -105,11 +105,11 @@ public sealed class MultiLineChoiceFormRow<T> : FormRow, IFormCursorProvider
 {
     public override FormRowRole Role { get; init; } = FormRowRole.Option;
 
-    private readonly ChoiceRow<T> _choice;
+    private readonly ChoiceModel<T> _choice;
     private readonly string _label;
     private readonly IReadOnlyList<int> _segmentEndIndices;
 
-    public MultiLineChoiceFormRow(ChoiceRow<T> choice, string label, IReadOnlyList<int> segmentEndIndices)
+    public MultiLineChoiceFormRow(ChoiceModel<T> choice, string label, IReadOnlyList<int> segmentEndIndices)
     {
         ArgumentNullException.ThrowIfNull(choice);
         ArgumentNullException.ThrowIfNull(segmentEndIndices);
@@ -138,7 +138,7 @@ public sealed class MultiLineChoiceFormRow<T> : FormRow, IFormCursorProvider
         T selectedValue,
         int itemsPerRow,
         IEqualityComparer<T>? comparer = null)
-        : this(ChoiceRow<T>.FromValue(values, format, selectedValue, comparer), label, SegmentEndIndices(values, itemsPerRow))
+        : this(new ChoiceModel<T>(ChoiceSelection<T>.FromValue(values, selectedValue, comparer), format), label, SegmentEndIndices(values, itemsPerRow))
     {
     }
 
@@ -150,12 +150,12 @@ public sealed class MultiLineChoiceFormRow<T> : FormRow, IFormCursorProvider
         T fallbackValue,
         int itemsPerRow,
         IEqualityComparer<T>? comparer = null)
-        : this(ChoiceRow<T>.FromValue(values, format, selectedValue, fallbackValue, comparer), label, SegmentEndIndices(values, itemsPerRow))
+        : this(new ChoiceModel<T>(ChoiceSelection<T>.FromValueOrFallback(values, selectedValue, fallbackValue, comparer), format), label, SegmentEndIndices(values, itemsPerRow))
     {
     }
 
     public override int Height => _segmentEndIndices.Count;
-    public ChoiceRow<T> Choice => _choice;
+    public ChoiceModel<T> Choice => _choice;
     public T Value => _choice.Value;
 
     public override void Render(FormRowRenderContext context)

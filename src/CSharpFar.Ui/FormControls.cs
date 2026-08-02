@@ -67,7 +67,7 @@ public static class FormControls
         return new DropdownSelectFormRow<T>(label, dropdown) { Id = RequiredId(id) };
     }
 
-    private static ChoiceRow<T> CreateChoice<T>(
+    private static ChoiceModel<T> CreateChoice<T>(
         IReadOnlyList<T> values,
         Func<T, string> format,
         T selectedValue,
@@ -75,10 +75,10 @@ public static class FormControls
     {
         ArgumentNullException.ThrowIfNull(values);
         ArgumentNullException.ThrowIfNull(format);
-        return new ChoiceRow<T>(ChoiceSelection<T>.FromValue(values, selectedValue, comparer), format);
+        return new ChoiceModel<T>(ChoiceSelection<T>.FromValue(values, selectedValue, comparer), format);
     }
 
-    private static ChoiceRow<T> CreateChoice<T>(
+    private static ChoiceModel<T> CreateChoice<T>(
         IReadOnlyList<T> values,
         Func<T, string> format,
         T selectedValue,
@@ -87,7 +87,7 @@ public static class FormControls
     {
         ArgumentNullException.ThrowIfNull(values);
         ArgumentNullException.ThrowIfNull(format);
-        return new ChoiceRow<T>(ChoiceSelection<T>.FromValueOrFallback(values, selectedValue, fallbackValue, comparer), format);
+        return new ChoiceModel<T>(ChoiceSelection<T>.FromValueOrFallback(values, selectedValue, fallbackValue, comparer), format);
     }
 
     private static string RequiredId(string id)
