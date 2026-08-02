@@ -47,7 +47,7 @@ public sealed partial class ScrollableFormDialog
         foreach (FormTargetFrame targetFrame in frame.Targets.Where(target => target.Kind == FormTargetKind.Row && !target.IsFooter && IsVisibleInBody(target.Bounds, context.BodyBounds)))
         {
             bool focused = targetFrame.Target == effectiveFocusedTarget;
-            targetFrame.Row!.Render(new FormRowRenderContext(context.Canvas, targetFrame.Bounds, focused, context.Viewport.Height));
+            targetFrame.Row!.Render(new FormRowRenderContext(context.Canvas, targetFrame.Bounds, focused, context.Viewport.Height, targetFrame.Layout));
         }
 
         if (BodyRowCount > viewportRows)
@@ -75,7 +75,7 @@ public sealed partial class ScrollableFormDialog
             foreach (FormTargetFrame targetFrame in frame.Targets.Where(target => target.Kind == FormTargetKind.Row && target.IsFooter))
             {
                 bool focused = targetFrame.Target == effectiveFocusedTarget;
-                targetFrame.Row!.Render(new FormRowRenderContext(context.Canvas, targetFrame.Bounds, focused, context.Viewport.Height));
+                targetFrame.Row!.Render(new FormRowRenderContext(context.Canvas, targetFrame.Bounds, focused, context.Viewport.Height, targetFrame.Layout));
             }
         }
 
@@ -138,6 +138,7 @@ public sealed partial class ScrollableFormDialog
         Rect bodyRowBounds = hasBodyScrollbar
             ? new Rect(context.BodyBounds.X, context.BodyBounds.Y, Math.Max(0, context.BodyBounds.Width - 1), context.BodyBounds.Height)
             : context.BodyBounds;
+        int resolvedLabelWidth = ResolveLabelWidth(bodyRowBounds.Width);
         int focusIndex = 0;
         int virtualTop = 0;
         for (int rowIndex = 0; rowIndex < _bodyRows.Count; rowIndex++)
@@ -150,7 +151,7 @@ public sealed partial class ScrollableFormDialog
                 ? new Rect(bodyRowBounds.X, bodyRowBounds.Y + virtualTop - effectiveScrollTop, bodyRowBounds.Width, rowHeight)
                 : new Rect(bodyRowBounds.X, bodyRowBounds.Y - rowHeight - 1, bodyRowBounds.Width, rowHeight);
             int? rowFocusIndex = row.IsFocusable ? focusIndex : null;
-            targets.Add(CreateRowTargetFrame(context.Canvas, row, rowIndex, rowFocusIndex, rowBounds, isFooter: false, context.Viewport, bodyRowBounds));
+            targets.Add(CreateRowTargetFrame(context.Canvas, row, rowIndex, rowFocusIndex, rowBounds, isFooter: false, context.Viewport, bodyRowBounds, resolvedLabelWidth));
             if (row.IsFocusable)
                 focusIndex++;
             virtualTop += rowHeight;
@@ -168,6 +169,7 @@ public sealed partial class ScrollableFormDialog
                 Intersect(
                     new Rect(context.BodyBounds.Right - 1, context.BodyBounds.Y, 1, Math.Max(1, context.BodyBounds.Height)),
                     context.BodyBounds),
+                Layout: new FormRowLayout(context.BodyBounds, null, context.BodyBounds),
                 IsFocusable: false,
                 IsFooter: false));
         }
@@ -181,7 +183,7 @@ public sealed partial class ScrollableFormDialog
                 int rowHeight = Math.Max(1, row.Height);
                 Rect rowBounds = new(footerBounds.X, footerBounds.Y + footerTop, footerBounds.Width, rowHeight);
                 int? rowFocusIndex = row.IsFocusable ? focusIndex : null;
-                targets.Add(CreateRowTargetFrame(context.Canvas, row, rowIndex, rowFocusIndex, rowBounds, isFooter: true, context.Viewport, footerBounds));
+                targets.Add(CreateRowTargetFrame(context.Canvas, row, rowIndex, rowFocusIndex, rowBounds, isFooter: true, context.Viewport, footerBounds, resolvedLabelWidth));
                 if (row.IsFocusable)
                     focusIndex++;
                 footerTop += rowHeight;
@@ -229,14 +231,16 @@ public sealed partial class ScrollableFormDialog
         Rect bounds,
         bool isFooter,
         ConsoleViewport viewport,
-        Rect activeBounds)
+        Rect activeBounds,
+        int resolvedLabelWidth)
     {
+        FormRowLayout layout = CreateRowLayout(row, bounds, resolvedLabelWidth);
         FormCompositeFrame? compositeFrame = row is IFormCompositeRow composite
-            ? composite.BuildCompositeFrame(new FormCompositeFrameContext(bounds, viewport))
+            ? composite.BuildCompositeFrame(new FormCompositeFrameContext(layout, viewport))
             : null;
         UiCursorPlacement? cursor = null;
         if (AllowsCursor(row) && row is IFormCursorProvider cursorProvider &&
-            cursorProvider.TryGetCursor(new FormRowRenderContext(screen, bounds, focused: true, viewport.Height), out FormCursorPlacement placement) &&
+            cursorProvider.TryGetCursor(new FormRowRenderContext(screen, bounds, focused: true, viewport.Height, layout), out FormCursorPlacement placement) &&
             placement.X >= bounds.X &&
             placement.X < bounds.Right &&
             placement.Y >= bounds.Y &&
@@ -254,10 +258,41 @@ public sealed partial class ScrollableFormDialog
             focusIndex,
             bounds,
             Intersect(bounds, activeBounds),
+            layout,
             row.IsFocusable,
             isFooter,
             cursor,
             compositeFrame);
+    }
+
+    private int ResolveLabelWidth(int availableWidth)
+    {
+        if (LayoutOptions.LabelColumnMode == FormLabelColumnMode.PerRow)
+            return 0;
+
+        int desired = LayoutOptions.LabelColumnMode == FormLabelColumnMode.Fixed
+            ? LayoutOptions.FixedLabelWidth!.Value
+            : _bodyRows.OfType<IFormLabeledRow>().Where(row => row.UseSharedLabelColumn).Select(row => row.DesiredLabelWidth).DefaultIfEmpty().Max();
+        return Math.Clamp(desired, 0, Math.Max(0, availableWidth - LayoutOptions.LabelGap - LayoutOptions.MinimumControlWidth));
+    }
+
+    private FormRowLayout CreateRowLayout(IFormRow row, Rect bounds, int resolvedLabelWidth)
+    {
+        if (row is not IFormLabeledRow labeled)
+            return new FormRowLayout(bounds, null, bounds);
+
+        int labelWidth = row is IFormLabelWidthOverride { LabelWidthOverride: int overrideWidth }
+            ? Math.Min(Math.Max(0, overrideWidth), bounds.Width)
+            : LayoutOptions.LabelColumnMode switch
+            {
+                FormLabelColumnMode.PerRow => Math.Min(labeled.DesiredLabelWidth, bounds.Width),
+                _ when labeled.UseSharedLabelColumn => Math.Min(resolvedLabelWidth, bounds.Width),
+                _ => Math.Min(labeled.DesiredLabelWidth, bounds.Width),
+            };
+        int gap = labelWidth > 0 ? Math.Min(LayoutOptions.LabelGap, Math.Max(0, bounds.Width - labelWidth)) : 0;
+        Rect labelBounds = new(bounds.X, bounds.Y, labelWidth, bounds.Height);
+        Rect controlBounds = new(bounds.X + labelWidth + gap, bounds.Y, Math.Max(0, bounds.Width - labelWidth - gap), bounds.Height);
+        return new FormRowLayout(bounds, labelBounds, controlBounds);
     }
 
     private bool AllowsCursor(IFormRow row) =>
@@ -299,6 +334,7 @@ public sealed partial class ScrollableFormDialog
                 rowFrame.FocusIndex,
                 child.Bounds,
                 child.HitBounds ?? child.Bounds,
+                rowFrame.Layout,
                 IsFocusable: false,
                 IsFooter: rowFrame.IsFooter,
                 CompositeFrame: compositeFrame,

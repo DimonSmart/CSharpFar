@@ -69,7 +69,15 @@ public interface IFormCompositeRow : IFormRow
     void CloseComposite();
 }
 
-public readonly record struct FormCompositeFrameContext(Rect RowBounds, ConsoleViewport Viewport);
+public readonly record struct FormCompositeFrameContext(FormRowLayout Layout, ConsoleViewport Viewport)
+{
+    public Rect RowBounds => Layout.RowBounds;
+
+    internal FormCompositeFrameContext(Rect rowBounds, ConsoleViewport viewport)
+        : this(new FormRowLayout(rowBounds, null, rowBounds), viewport)
+    {
+    }
+}
 
 public sealed record FormCompositeFrame(
     bool IsOpen,

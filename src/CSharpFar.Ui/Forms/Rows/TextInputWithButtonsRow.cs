@@ -5,7 +5,7 @@ using CSharpFar.Core.Models;
 
 namespace CSharpFar.Ui;
 
-public sealed class TextInputWithButtonsRow : FormRow, IFormCursorProvider, IFormCompositeRow
+public sealed class TextInputWithButtonsRow : FormRow, IFormCursorProvider, IFormCompositeRow, IFormLabeledRow
 {
     public override FormRowRole Role { get; init; } = FormRowRole.TextInput;
 
@@ -14,13 +14,12 @@ public sealed class TextInputWithButtonsRow : FormRow, IFormCursorProvider, IFor
     private readonly DialogButtonBar _buttonBar;
     private DialogButtonBarState _buttonState;
     private readonly int? _inputWidth;
-    private readonly int _buttonAreaWidth;
+    private readonly int? _legacyButtonAreaWidth;
 
     public TextInputWithButtonsRow(
         string label,
         TextField field,
-        IReadOnlyList<DialogButton> buttons,
-        int buttonAreaWidth)
+        IReadOnlyList<DialogButton> buttons)
     {
         ArgumentNullException.ThrowIfNull(field);
         _label = label;
@@ -28,22 +27,33 @@ public sealed class TextInputWithButtonsRow : FormRow, IFormCursorProvider, IFor
         _buttonBar = new DialogButtonBar(buttons);
         _buttonState = _buttonBar.CreateState();
         _inputWidth = field.Width;
-        _buttonAreaWidth = buttonAreaWidth;
         Id = field.Id;
         SubmitOnEnter = field.SubmitOnEnter;
+    }
+
+    internal TextInputWithButtonsRow(
+        string label,
+        TextField field,
+        IReadOnlyList<DialogButton> buttons,
+        int buttonAreaWidth)
+        : this(label, field, buttons)
+    {
+        _legacyButtonAreaWidth = buttonAreaWidth;
     }
 
     public CommandLineState Buffer => _field.Buffer;
     public bool Enabled { get => _field.Enabled; set => _field.Enabled = value; }
     public string? DisabledReason { get => _field.DisabledReason; set => _field.DisabledReason = value; }
     public override bool IsEnabled => Enabled;
+    int IFormLabeledRow.DesiredLabelWidth => ConsoleTextMetrics.GetCellWidth(_label);
+    bool IFormLabeledRow.UseSharedLabelColumn => true;
     internal FormTextInputField Input => _field;
     public bool IsCompositeOpen => Enabled && _field.History?.IsDropdownOpen == true;
 
     public override void Render(FormRowRenderContext context)
     {
-        var layout = CalculateLayout(context.Bounds);
-        int labelWidth = layout.InputBounds.X - context.Bounds.X;
+        var layout = CalculateLayout(context.Layout);
+        int labelWidth = context.Layout.LabelBounds?.Width ?? 0;
         context.Canvas.Write(
             context.Bounds.X,
             context.Bounds.Y,
@@ -68,7 +78,7 @@ public sealed class TextInputWithButtonsRow : FormRow, IFormCursorProvider, IFor
 
     public bool TryGetCursor(FormRowRenderContext context, out FormCursorPlacement cursor)
     {
-        var layout = CalculateLayout(context.Bounds);
+        var layout = CalculateLayout(context.Layout);
         return _field.TryGetCursor(context, layout.InputBounds, out cursor);
     }
 
@@ -84,7 +94,7 @@ public sealed class TextInputWithButtonsRow : FormRow, IFormCursorProvider, IFor
     {
         if (!Enabled)
             return FormInputResult.NotHandled;
-        var layout = CalculateLayout(context.Bounds);
+        var layout = CalculateLayout(context.Layout);
         DialogButtonBarInputResult buttonResult = _buttonBar.HandleMouse(mouse, layout.ButtonLayout, _buttonState);
         _buttonState = buttonResult.State;
         if (buttonResult.IsHandled)
@@ -112,7 +122,7 @@ public sealed class TextInputWithButtonsRow : FormRow, IFormCursorProvider, IFor
     }
 
     public FormCompositeFrame BuildCompositeFrame(FormCompositeFrameContext context) =>
-        _field.BuildCompositeFrame(CalculateLayout(context.RowBounds).InputBounds, context.Viewport);
+        _field.BuildCompositeFrame(CalculateLayout(context.Layout).InputBounds, context.Viewport);
 
     public void CommitCompositeFrame(FormCompositeFrame frame) { }
 
@@ -127,23 +137,23 @@ public sealed class TextInputWithButtonsRow : FormRow, IFormCursorProvider, IFor
         FormRowMouseContext context,
         FormCompositeFrame frame,
         string? childTargetId) =>
-        _field.HandleCompositeMouse(mouse, context, CalculateLayout(context.Bounds).InputBounds, frame, childTargetId);
+        _field.HandleCompositeMouse(mouse, context, CalculateLayout(context.Layout).InputBounds, frame, childTargetId);
 
     public bool IsCompositeAnchorHit(MouseConsoleInputEvent mouse, FormRowMouseContext context, FormCompositeFrame frame) =>
-        _field.IsHistoryArrow(mouse, CalculateLayout(context.Bounds).InputBounds);
+        _field.IsHistoryArrow(mouse, CalculateLayout(context.Layout).InputBounds);
 
     public void CloseComposite() => _field.History?.Close();
 
-    private TextInputWithButtonsLayout CalculateLayout(Rect rowBounds)
+    private TextInputWithButtonsLayout CalculateLayout(FormRowLayout rowLayout)
     {
-        int labelWidth = Math.Min(ConsoleTextMetrics.GetCellWidth(_label) + 1, Math.Max(0, rowBounds.Width));
-        int inputX = rowBounds.X + labelWidth;
-        int remainingAfterLabel = Math.Max(0, rowBounds.Width - labelWidth);
-        int inputWidth = Math.Min(_inputWidth ?? remainingAfterLabel, remainingAfterLabel);
-        var inputBounds = new Rect(inputX, rowBounds.Y, inputWidth, 1);
-        int buttonX = inputBounds.Right + 1;
-        int buttonWidth = Math.Min(_buttonAreaWidth, Math.Max(0, rowBounds.Right - buttonX));
-        var buttonBounds = new Rect(buttonX, rowBounds.Y, buttonWidth, 1);
+        Rect available = rowLayout.ControlBounds;
+        int buttonWidth = Math.Min(_legacyButtonAreaWidth ?? _buttonBar.DesiredWidth, Math.Max(0, available.Width));
+        int gap = buttonWidth > 0 && available.Width > buttonWidth ? 1 : 0;
+        int inputAvailable = Math.Max(0, available.Width - buttonWidth - gap);
+        int inputWidth = Math.Min(_inputWidth ?? inputAvailable, inputAvailable);
+        var inputBounds = new Rect(available.X, available.Y, inputWidth, 1);
+        int buttonX = available.Right - buttonWidth;
+        var buttonBounds = new Rect(buttonX, available.Y, buttonWidth, 1);
         return new TextInputWithButtonsLayout(
             inputBounds,
             buttonBounds,

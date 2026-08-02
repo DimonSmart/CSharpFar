@@ -198,7 +198,7 @@ public sealed partial class ScrollableFormDialog
                 continue;
 
             if (RowTarget(row) == focused)
-                return new FormTargetFrame(focused, FormTargetKind.Row, row, -1, focusIndex, default, null, true, false);
+                return new FormTargetFrame(focused, FormTargetKind.Row, row, -1, focusIndex, default, null, new FormRowLayout(default, null, default), true, false);
 
             focusIndex++;
         }

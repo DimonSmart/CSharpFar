@@ -35,18 +35,20 @@ public sealed class FormRenderContext
 
 public sealed class FormRowRenderContext
 {
-    public FormRowRenderContext(IUiCanvas screen, Rect bounds, bool focused, int? screenHeight = null)
+    public FormRowRenderContext(IUiCanvas screen, Rect bounds, bool focused, int? screenHeight = null, FormRowLayout? layout = null)
     {
         Canvas = screen;
         Bounds = bounds;
         Focused = focused;
         CanvasHeight = screenHeight ?? 0;
+        Layout = layout ?? new FormRowLayout(bounds, null, bounds);
     }
 
     public IUiCanvas Canvas { get; }
     public Rect Bounds { get; }
     public bool Focused { get; }
     public int CanvasHeight { get; }
+    public FormRowLayout Layout { get; }
 }
 
 public sealed class FormRowInputContext
@@ -86,7 +88,8 @@ public sealed class FormRowMouseContext
         bool focused,
         int screenHeight,
         string? rowId = null,
-        FormRowRole rowRole = FormRowRole.Normal)
+        FormRowRole rowRole = FormRowRole.Normal,
+        FormRowLayout? layout = null)
     {
         Bounds = bounds;
         RowIndex = rowIndex;
@@ -94,6 +97,7 @@ public sealed class FormRowMouseContext
         ScreenHeight = screenHeight;
         RowId = rowId;
         RowRole = rowRole;
+        Layout = layout ?? new FormRowLayout(bounds, null, bounds);
     }
 
     public Rect Bounds { get; }
@@ -102,5 +106,6 @@ public sealed class FormRowMouseContext
     public int ScreenHeight { get; }
     public string? RowId { get; }
     public FormRowRole RowRole { get; }
+    public FormRowLayout Layout { get; }
 }
 

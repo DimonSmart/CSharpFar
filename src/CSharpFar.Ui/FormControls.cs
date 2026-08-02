@@ -13,7 +13,7 @@ public static class FormControls
         string label,
         TextField field,
         IReadOnlyList<DialogButton> buttons) =>
-        new(label, field, buttons, DialogButtonBar.MeasureWidth(buttons));
+        new(label, field, buttons);
 
     public static CheckBoxRow CheckBox(string id, string label, bool value = false) =>
         new(label, value) { Id = RequiredId(id) };
