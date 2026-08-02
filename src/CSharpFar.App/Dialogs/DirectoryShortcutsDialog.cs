@@ -58,12 +58,12 @@ internal sealed class DirectoryShortcutsDialog
                     if (buttonId == "close")
                         return ModalDialogLoopResult<DirectoryShortcutsDialogResult>.Complete(Result(initialItems, items));
                     if (buttonId == "edit")
-                        EditSelected(items, shortcutState.SelectedItemOrDefault, activePanelPath);
+                        EditSelected(items, shortcutState.TryGetSelectedItem(out int selected) ? selected : null, activePanelPath);
                     return ModalDialogLoopResult<DirectoryShortcutsDialogResult>.ContinueNoChange;
                 }
 
                 if (semantic.ListResult.Kind == ScrollableListInputResultKind.Confirmed)
-                    EditSelected(items, shortcutState.SelectedItemOrDefault, activePanelPath);
+                    EditSelected(items, shortcutState.TryGetSelectedItem(out int selected) ? selected : null, activePanelPath);
 
                 if (semantic.Input is KeyConsoleInputEvent { Key.Key: ConsoleKey.Escape or ConsoleKey.F10 })
                     return ModalDialogLoopResult<DirectoryShortcutsDialogResult>.Complete(Result(initialItems, items));
@@ -123,7 +123,7 @@ internal sealed class DirectoryShortcutsDialog
     {
         DirectoryShortcutsLayout layout = CalculateLayout(_modalRenderer.CalculateLayout(context.Size, DialogWidth, DialogHeight));
         ScrollableFormFrame buttons = null!;
-        RoutedScrollableListFrame list = routedShortcuts.CalculateFrame(layout.ListBounds, layout.ScrollbarBounds);
+        ScrollableListFrame list = routedShortcuts.CalculateFrame(layout.ListBounds, layout.ScrollbarBounds);
         _modalRenderer.Render(
             context.Canvas,
             layout.Modal,
@@ -225,7 +225,7 @@ internal sealed class DirectoryShortcutsDialog
     private readonly record struct DirectoryShortcutsFrame(
         ModalDialogRenderer.Layout Layout,
         Rect ListBounds,
-        RoutedScrollableListFrame List,
+        ScrollableListFrame List,
         ScrollableFormFrame Buttons,
         ScrollableFormDialog Form);
 

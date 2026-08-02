@@ -60,7 +60,7 @@ public sealed class ListWithButtonsDialog<T>
     public int SelectedIndex
     {
         get => _list.State.SelectedIndex;
-        set => _list.State.SelectIndex(value, 1);
+        set => _list.State.SetSelectedIndex(value, 1);
     }
 
     public int ScrollTop
@@ -103,7 +103,7 @@ public sealed class ListWithButtonsDialog<T>
     private ListWithButtonsFrame Render(UiRenderContext context, IUiFocusState focusScope)
     {
         ListWithButtonsLayout layout = CalculateLayout(context.Size);
-        RoutedScrollableListFrame list = _list.CalculateFrame(
+        ScrollableListFrame list = _list.CalculateFrame(
             layout.ListBounds,
             layout.ListBounds.Width > 0 && layout.ListBounds.Height > 0 && _list.State.Count > layout.ListBounds.Height
                 ? new Rect(layout.Modal.FrameBounds.Right - 1, layout.ListBounds.Y, 1, layout.ListBounds.Height)
@@ -135,7 +135,7 @@ public sealed class ListWithButtonsDialog<T>
         var builder = new UiInteractionFrameBuilder()
             .AddFragment(_list.BuildInteractionFragment(frame.List, 0, _list.State.HasItems))
             .AddFragment(_form.BuildInteractionFragment(frame.Buttons))
-            .SetDefaultFocusTarget(frame.List.List.SelectedIndex >= 0 ? ListTarget : frame.Buttons.DefaultTarget);
+            .SetDefaultFocusTarget(frame.List.SelectedIndex >= 0 ? ListTarget : frame.Buttons.DefaultTarget);
         return builder.Build();
     }
 
@@ -193,6 +193,6 @@ public sealed class ListWithButtonsDialog<T>
     }
 
     private readonly record struct ListWithButtonsLayout(ModalDialogRenderer.Layout Modal, Rect ListBounds, Rect FooterBounds);
-    private readonly record struct ListWithButtonsFrame(ListWithButtonsLayout Layout, RoutedScrollableListFrame List, ScrollableFormFrame Buttons);
+    private readonly record struct ListWithButtonsFrame(ListWithButtonsLayout Layout, ScrollableListFrame List, ScrollableFormFrame Buttons);
     private readonly record struct ListWithButtonsInput(ConsoleInputEvent Input, FormInputResult FormResult, ScrollableListInputResult ListResult);
 }

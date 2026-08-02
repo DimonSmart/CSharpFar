@@ -41,7 +41,7 @@ public sealed class SelectionListDialog<T>
     public int SelectedIndex
     {
         get => _list.State.SelectedIndex;
-        set => _list.State.SelectIndex(value, 1);
+        set => _list.State.SetSelectedIndex(value, 1);
     }
 
     public int ScrollTop
@@ -84,7 +84,7 @@ public sealed class SelectionListDialog<T>
                 return frame;
             },
             frame => new UiInteractionFrameBuilder()
-                .AddFragment(_list.BuildInteractionFragment(frame.List, 0, _list.State.HasItems && frame.List.List.ContentBounds.Width > 0 && frame.List.List.ContentBounds.Height > 0))
+                .AddFragment(_list.BuildInteractionFragment(frame.List, 0, _list.State.HasItems && frame.List.ContentBounds.Width > 0 && frame.List.ContentBounds.Height > 0))
                 .SetDefaultFocusTarget(_list.State.HasItems && frame.Layout.ContentBounds.Width > 0 && frame.Layout.ContentBounds.Height > 0 ? ListTarget : null)
                 .Build(),
             (input, frame, route) =>
@@ -143,7 +143,7 @@ public sealed class SelectionListDialog<T>
         var normalStyle = PaletteStyles.DialogFill(palette);
         var selectedStyle = PaletteStyles.InputField(palette);
         var emptyStyle = PaletteStyles.DialogFill(palette);
-        var scrollState = frame.List.List.ItemCount > frame.List.List.ViewportRows ? new ScrollState { TotalItems = frame.List.List.ItemCount, ViewportItems = frame.List.List.ViewportRows, FirstVisibleIndex = frame.List.List.ScrollTop } : null;
+        var scrollState = frame.List.ItemCount > frame.List.ViewportRows ? new ScrollState { TotalItems = frame.List.ItemCount, ViewportItems = frame.List.ViewportRows, FirstVisibleIndex = frame.List.ScrollTop } : null;
 
         _frameRenderer.RenderFrame(
             screen,
@@ -186,7 +186,7 @@ public sealed class SelectionListDialog<T>
 
     private readonly record struct SelectionListFrame(
         SelectionListLayout Layout,
-        RoutedScrollableListFrame List);
+        ScrollableListFrame List);
 
     private readonly record struct SelectionListInput(
         ConsoleInputEvent Input,

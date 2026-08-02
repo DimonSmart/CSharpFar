@@ -42,6 +42,7 @@ internal sealed class ProcessesAndPortsDialog(ModuleUiServices ui, IProcessesAnd
         var presentation = new ScrollableListRenderOptions<ProcessesAndPortsRow>(
             _currentLayout.FormatRow, "No matching endpoints.", FarDialogStyles.Fill, FarDialogStyles.FocusedInput, FarDialogStyles.Fill);
         IReadOnlyList<ProcessesAndPortsRow> lastRows = [];
+        ProcessNetworkEndpoint? SelectedEndpoint() => endpointState.TryGetSelectedItem(out ProcessesAndPortsRow selected) ? selected.Endpoint : null;
 
         _ui.ModalDialogs.RunInteractive<Frame, Input, object?>(
             (context, focus) =>
@@ -52,7 +53,7 @@ internal sealed class ProcessesAndPortsDialog(ModuleUiServices ui, IProcessesAnd
                     endpointState.ReplaceItems(rows, row => row.Key, Math.Max(0, context.Size.Height - 10));
                     lastRows = rows;
                 }
-                bool canTerminate = CanTerminate(endpointState.SelectedItemOrDefault?.Endpoint);
+                bool canTerminate = CanTerminate(SelectedEndpoint());
                 actions.SetButtons(actionButtons.Select(button => button with
                 {
                     IsEnabled = button.Id == "details" ? endpointState.HasItems : button.Id == "terminate" ? canTerminate : button.IsEnabled,
@@ -78,15 +79,15 @@ internal sealed class ProcessesAndPortsDialog(ModuleUiServices ui, IProcessesAnd
                 }
                 if (result.List.Kind == ScrollableListInputResultKind.Confirmed)
                 {
-                    ShowSelectedDetails(snapshot, endpointState.SelectedItemOrDefault?.Endpoint);
+                    ShowSelectedDetails(snapshot, SelectedEndpoint());
                     return ModalDialogLoopResult<object?>.ContinueNoChange;
                 }
                 string? action = result.Form.Command;
                 if (action is null) return ModalDialogLoopResult<object?>.ContinueNoChange;
                 if (action == "close") return ModalDialogLoopResult<object?>.Complete(null);
                 if (action == "refresh") { snapshot = TryCapture(snapshot, out captureError); return ModalDialogLoopResult<object?>.ContinueChanged; }
-                if (action == "details") { ShowSelectedDetails(snapshot, endpointState.SelectedItemOrDefault?.Endpoint); return ModalDialogLoopResult<object?>.ContinueNoChange; }
-                if (action == "terminate") Terminate(snapshot, endpointState.SelectedItemOrDefault?.Endpoint, ref captureError, ref snapshot);
+                if (action == "details") { ShowSelectedDetails(snapshot, SelectedEndpoint()); return ModalDialogLoopResult<object?>.ContinueNoChange; }
+                if (action == "terminate") Terminate(snapshot, SelectedEndpoint(), ref captureError, ref snapshot);
                 return ModalDialogLoopResult<object?>.ContinueChanged;
             });
     }
@@ -98,7 +99,7 @@ internal sealed class ProcessesAndPortsDialog(ModuleUiServices ui, IProcessesAnd
             RoutedScrollableListInputResult listResult = list.RouteInput(input, frame.List, route, confirmOnDoubleClick: true);
             if (listResult.ListResult.IsHandled)
                 return (new(input, FormInputResult.NotHandled, listResult.ListResult), listResult.UiResult);
-            if (input is KeyConsoleInputEvent { Key.Key: ConsoleKey.Delete } && endpointState.SelectedItemOrDefault is not null)
+            if (input is KeyConsoleInputEvent { Key.Key: ConsoleKey.Delete } && endpointState.TryGetSelectedItem(out _))
                 return (new(input, new FormInputResult(FormInputResultKind.Submit, "terminate"), ScrollableListInputResult.Handled), UiInputResult.HandledResult);
             if (UiFocusRouting.TryHandleTraversal(input, out UiInputResult traversal))
                 return (new(input, FormInputResult.NotHandled, listResult.ListResult), traversal);
@@ -119,7 +120,7 @@ internal sealed class ProcessesAndPortsDialog(ModuleUiServices ui, IProcessesAnd
         Rect tableBounds = new(listBounds.X, listBounds.Y, Math.Max(0, listBounds.Width - 1), listBounds.Height);
         Rect scrollbarGutter = new(tableBounds.Right, listBounds.Y, listBounds.Width > 0 ? 1 : 0, listBounds.Height);
         _currentLayout = ProcessesAndPortsTableLayout.Calculate(tableBounds.Width);
-        RoutedScrollableListFrame listFrame = list.CalculateFrame(tableBounds, scrollbarGutter);
+        ScrollableListFrame listFrame = list.CalculateFrame(tableBounds, scrollbarGutter);
         ScrollableFormFrame formFrame = null!;
         _renderer.Render(context.Canvas, modal, "Processes and Ports", true, FarDialogStyles.OuterOptions, FarDialogStyles.FrameOptions, (_, _) =>
         {
@@ -182,6 +183,6 @@ internal sealed class ProcessesAndPortsDialog(ModuleUiServices ui, IProcessesAnd
     private static string DisplayName(ProcessSnapshot process) => process.Name ?? MetadataText(process.MetadataStatus);
     private static string MetadataText(ProcessMetadataStatus status) => status switch { ProcessMetadataStatus.AccessDenied => "<access denied>", ProcessMetadataStatus.Exited => "<process exited>", _ => "<unavailable>" };
     private static bool SameRows(IReadOnlyList<ProcessesAndPortsRow> left, IReadOnlyList<ProcessesAndPortsRow> right) => left.Count == right.Count && left.Zip(right).All(x => x.First.Key.Equals(x.Second.Key));
-    private readonly record struct Frame(ModalDialogRenderer.Layout Modal, Rect ListBounds, RoutedScrollableListFrame List, ScrollableFormFrame Form);
+    private readonly record struct Frame(ModalDialogRenderer.Layout Modal, Rect ListBounds, ScrollableListFrame List, ScrollableFormFrame Form);
     private readonly record struct Input(ConsoleInputEvent InputEvent, FormInputResult Form, ScrollableListInputResult List);
 }

@@ -6,7 +6,6 @@ using CSharpFar.Core.Models;
 namespace CSharpFar.Ui;
 
 public readonly record struct RoutedScrollableListInputResult(ScrollableListInputResult ListResult, UiInputResult UiResult);
-public readonly record struct RoutedScrollableListFrame(ScrollableListFrame List);
 
 public readonly record struct RoutedScrollableListInteractionOptions
 {
@@ -30,35 +29,35 @@ public sealed class RoutedScrollableList<T>
     public UiTargetId ScrollbarTarget { get; }
     public RoutedScrollableListInteractionOptions InteractionOptions { get; }
     internal ScrollBarDragState? ScrollbarDragState => _input.DragState;
-    internal void SynchronizeCommittedScrollbar(RoutedScrollableListFrame frame) => _input.Synchronize(frame.List);
+    internal void SynchronizeCommittedScrollbar(ScrollableListFrame frame) => _input.Synchronize(frame);
 
-    public RoutedScrollableListFrame CalculateFrame(Rect contentBounds, Rect? scrollbarBounds) => new(_input.CalculateFrame(State, contentBounds, scrollbarBounds));
-    public void Render(IUiCanvas canvas, RoutedScrollableListFrame frame, ScrollableListRenderOptions<T> presentation) => ScrollableListRenderer.Render(canvas, State, frame.List, presentation);
+    public ScrollableListFrame CalculateFrame(Rect contentBounds, Rect? scrollbarBounds) => _input.CalculateFrame(State, contentBounds, scrollbarBounds);
+    public void Render(IUiCanvas canvas, ScrollableListFrame frame, ScrollableListRenderOptions<T> presentation) => ScrollableListRenderer.Render(canvas, State, frame, presentation);
 
-    public void RenderScrollbar(IUiCanvas canvas, RoutedScrollableListFrame frame, CellStyle style)
+    public void RenderScrollbar(IUiCanvas canvas, ScrollableListFrame frame, CellStyle style)
     {
-        if (frame.List.Scrollbar is not { Bounds: var bounds } || frame.List.ItemCount <= frame.List.ViewportRows) return;
-        new ScrollBarRenderer().RenderVerticalScrollbar(canvas, bounds, new ScrollState { TotalItems = frame.List.ItemCount, ViewportItems = frame.List.ViewportRows, FirstVisibleIndex = frame.List.ScrollTop }, new ScrollBarOptions { Enabled = true, DrawWhenNotScrollable = false }, style);
+        if (frame.Scrollbar is not { Bounds: var bounds } || frame.ItemCount <= frame.ViewportRows) return;
+        new ScrollBarRenderer().RenderVerticalScrollbar(canvas, bounds, new ScrollState { TotalItems = frame.ItemCount, ViewportItems = frame.ViewportRows, FirstVisibleIndex = frame.ScrollTop }, new ScrollBarOptions { Enabled = true, DrawWhenNotScrollable = false }, style);
     }
-    public UiInteractionFragment BuildInteractionFragment(RoutedScrollableListFrame frame, int tabOrder, bool isEnabled = true)
+    public UiInteractionFragment BuildInteractionFragment(ScrollableListFrame frame, int tabOrder, bool isEnabled = true)
     {
         var builder = new UiInteractionFrameBuilder();
-        if (frame.List.ContentBounds.Width > 0 && frame.List.ContentBounds.Height > 0) builder.AddHitRegion(ListTarget, frame.List.ContentBounds);
-        if (frame.List.ScrollbarBounds is { } scrollbar) builder.AddHitRegion(ScrollbarTarget, scrollbar);
+        if (frame.ContentBounds.Width > 0 && frame.ContentBounds.Height > 0) builder.AddHitRegion(ListTarget, frame.ContentBounds);
+        if (frame.ScrollbarBounds is { } scrollbar) builder.AddHitRegion(ScrollbarTarget, scrollbar);
         if (InteractionOptions.PublishFocusEntry) builder.AddFocusEntry(ListTarget, tabOrder, isEnabled);
         return builder.BuildFragment();
     }
     public bool IsTargetRoute(UiInputRouteContext route) => route.Target == ListTarget || route.Target == ScrollbarTarget;
-    public RoutedScrollableListInputResult RouteInput(ConsoleInputEvent input, RoutedScrollableListFrame frame, UiInputRouteContext route, bool confirmOnMouseDown = false, bool confirmOnDoubleClick = true)
+    public RoutedScrollableListInputResult RouteInput(ConsoleInputEvent input, ScrollableListFrame frame, UiInputRouteContext route, bool confirmOnMouseDown = false, bool confirmOnDoubleClick = true)
     {
         ArgumentNullException.ThrowIfNull(input); ArgumentNullException.ThrowIfNull(route);
         bool acceptsLayerKeyboard = InteractionOptions.AcceptKeyboardFromLayerRoute && route.RouteKind == UiInputRouteKind.Layer && input is KeyConsoleInputEvent;
         if (!IsTargetRoute(route) && !acceptsLayerKeyboard) return new(ScrollableListInputResult.NotHandled, UiInputResult.NotHandled);
         ScrollableListInputResult result = input switch
         {
-            KeyConsoleInputEvent { Key: var key } => _input.HandleKey(State, frame.List, key),
-            MouseConsoleInputEvent mouse when route.Target == ListTarget => _input.HandleContentMouse(State, frame.List, mouse, confirmOnMouseDown, confirmOnDoubleClick),
-            MouseConsoleInputEvent mouse when route.Target == ScrollbarTarget => _input.HandleScrollbarMouse(State, frame.List, mouse),
+            KeyConsoleInputEvent { Key: var key } => _input.HandleKey(State, frame, key),
+            MouseConsoleInputEvent mouse when route.Target == ListTarget => _input.HandleContentMouse(State, frame, mouse, confirmOnMouseDown, confirmOnDoubleClick),
+            MouseConsoleInputEvent mouse when route.Target == ScrollbarTarget => _input.HandleScrollbarMouse(State, frame, mouse),
             _ => ScrollableListInputResult.NotHandled,
         };
         UiInputResult ui = ScrollableListRouting.ToUiInputResult(result, ScrollbarTarget);
