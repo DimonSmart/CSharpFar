@@ -34,7 +34,7 @@ public sealed class ChoiceSelection<T>
     public bool TrySelect(T value)
     {
         int index = FindIndex(value);
-        if (index < 0)
+        if (index < 0 || index == SelectedIndex)
             return false;
         SelectedIndex = index;
         return true;
@@ -42,7 +42,7 @@ public sealed class ChoiceSelection<T>
 
     public bool SelectIndex(int index)
     {
-        if (index < 0 || index >= _items.Count)
+        if (index < 0 || index >= _items.Count || index == SelectedIndex)
             return false;
         SelectedIndex = index;
         return true;
@@ -50,12 +50,16 @@ public sealed class ChoiceSelection<T>
 
     public bool SelectNext()
     {
+        if (_items.Count == 1)
+            return false;
         SelectedIndex = (SelectedIndex + 1) % _items.Count;
         return true;
     }
 
     public bool SelectPrevious()
     {
+        if (_items.Count == 1)
+            return false;
         SelectedIndex = SelectedIndex == 0 ? _items.Count - 1 : SelectedIndex - 1;
         return true;
     }

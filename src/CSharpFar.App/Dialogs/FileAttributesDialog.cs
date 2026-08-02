@@ -111,7 +111,7 @@ internal sealed class FileAttributesDialog : IFileAttributesDialog
             ?? new Dictionary<UnixPermissionBit, TriStateCheckBoxLine>();
         var unixMatrixRows = snapshot.UnixMetadata is null
             ? []
-            : new List<UnixPermissionMatrixRow>
+            : new List<TriStateCheckBoxColumnsRow>
             {
                 MatrixRow("Owner", UnixPermissionBit.OwnerRead, UnixPermissionBit.OwnerWrite, UnixPermissionBit.OwnerExecute, permissionLines),
                 MatrixRow("Group", UnixPermissionBit.GroupRead, UnixPermissionBit.GroupWrite, UnixPermissionBit.GroupExecute, permissionLines),
@@ -181,7 +181,7 @@ internal sealed class FileAttributesDialog : IFileAttributesDialog
     private IReadOnlyList<IFormRow> BuildRows(
         FileMetadataSnapshot snapshot,
         IReadOnlyList<AttributeDialogRow> attributeRows,
-        IReadOnlyList<UnixPermissionMatrixRow> unixMatrixRows,
+        IReadOnlyList<TriStateCheckBoxColumnsRow> unixMatrixRows,
         IReadOnlyList<UnixPermissionDialogRow> unixSpecialRows,
         TextField creation,
         TextField write,
@@ -314,13 +314,13 @@ internal sealed class FileAttributesDialog : IFileAttributesDialog
         _ => AttributeEditState.Unchecked,
     };
 
-    private static UnixPermissionMatrixRow MatrixRow(
+    private static TriStateCheckBoxColumnsRow MatrixRow(
         string label,
         UnixPermissionBit read,
         UnixPermissionBit write,
         UnixPermissionBit execute,
         IReadOnlyDictionary<UnixPermissionBit, TriStateCheckBoxLine> lines) =>
-        new(label, lines[read], lines[write], lines[execute]);
+        new(label, [lines[read], lines[write], lines[execute]], labelWidth: 9, columnGap: 1);
 
     private static string PermissionColumnLabel(UnixPermissionBit bit) => bit switch
     {
@@ -395,82 +395,4 @@ internal sealed class FileAttributesDialog : IFileAttributesDialog
         UnixPermissionBit Bit,
         TriStateCheckBoxRow Row);
 
-    private sealed class UnixPermissionMatrixRow : FormRow
-    {
-        private const int LabelWidth = 9;
-        private const int ColumnWidth = 12;
-        private readonly string _label;
-        private readonly TriStateCheckBoxLine[] _columns;
-        private int _focusedColumn;
-
-        internal UnixPermissionMatrixRow(
-            string label,
-            TriStateCheckBoxLine read,
-            TriStateCheckBoxLine write,
-            TriStateCheckBoxLine execute)
-        {
-            _label = label;
-            _columns = [read, write, execute];
-        }
-
-        public override void Render(FormRowRenderContext context)
-        {
-            context.Canvas.Write(
-                context.Bounds.X,
-                context.Bounds.Y,
-                _label.PadRight(Math.Min(LabelWidth, context.Bounds.Width)),
-                FarDialogStyles.Fill);
-            for (int index = 0; index < _columns.Length; index++)
-            {
-                int x = context.Bounds.X + LabelWidth + index * ColumnWidth;
-                int width = Math.Min(ColumnWidth, context.Bounds.Right - x);
-                if (width > 0)
-                {
-                    CellStyle fill = _columns[index].Enabled
-                        ? FarDialogStyles.Fill
-                        : FarDialogStyles.DisabledControl(FarDialogStyles.Fill);
-                    _columns[index].Render(
-                        context.Canvas,
-                        x,
-                        context.Bounds.Y,
-                        width,
-                        context.Focused && index == _focusedColumn && _columns[index].Enabled,
-                        fill,
-                        FarDialogStyles.FocusedInput);
-                }
-            }
-        }
-
-        public override bool IsFocusable => _columns.Any(static column => column.Enabled);
-
-        public override FormInputResult HandleKey(ConsoleKeyInfo key, FormRowInputContext context)
-        {
-            if (key.Key is ConsoleKey.LeftArrow or ConsoleKey.RightArrow)
-            {
-                int delta = key.Key == ConsoleKey.LeftArrow ? -1 : 1;
-                _focusedColumn = (_focusedColumn + delta + _columns.Length) % _columns.Length;
-                return FormInputResult.Handled;
-            }
-
-            return _columns[_focusedColumn].TryHandleKey(key)
-                ? FormInputResult.Handled
-                : FormInputResult.NotHandled;
-        }
-
-        public override FormInputResult HandleMouse(MouseConsoleInputEvent mouse, FormRowMouseContext context)
-        {
-            for (int index = 0; index < _columns.Length; index++)
-            {
-                int x = context.Bounds.X + LabelWidth + index * ColumnWidth;
-                int width = Math.Min(ColumnWidth, context.Bounds.Right - x);
-                if (width <= 0 ||
-                    !_columns[index].TryHandleMouse(mouse, new Rect(x, context.Bounds.Y, width, 1)))
-                    continue;
-                _focusedColumn = index;
-                return FormInputResult.Handled;
-            }
-
-            return FormInputResult.NotHandled;
-        }
-    }
 }
