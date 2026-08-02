@@ -26,7 +26,6 @@ internal sealed class TextInputCompositeController : IFormCompositeController
 
     public void ApplyCommittedFrame(FormCompositeFrame frame) { }
     public void RenderOverlay(FormRowRenderContext context, FormCompositeFrame frame) => _field.RenderCompositeOverlay(context, frame);
-    public FormInputResult RouteKey(ConsoleKeyInfo key, FormRowInputContext context, FormCompositeFrame frame) => FormInputResult.NotHandled;
     public FormInputResult RouteMouse(MouseConsoleInputEvent mouse, FormRowMouseContext context, FormCompositeFrame frame, UiTargetId? childTarget)
     {
         Rect bounds = _inputBounds(context.Layout);
@@ -49,7 +48,7 @@ internal sealed class TextInputCompositeController : IFormCompositeController
     public void Close() => _field.History?.Close();
 }
 
-internal sealed class DropdownCompositeController<T> : IFormCompositeController
+internal sealed class DropdownCompositeController<T> : IFormCompositeController, IFormCompositeKeyboardController
 {
     private readonly DropdownSelect<T> _dropdown;
     private readonly Func<bool> _isEnabled;
@@ -63,9 +62,9 @@ internal sealed class DropdownCompositeController<T> : IFormCompositeController
 
     public FormCompositeFrame CalculateFrame(FormCompositeFrameContext context)
     {
-        if (!_isEnabled())
-            return FormCompositeFrame.Closed();
         DropdownSelectFrame frame = _dropdown.CalculateFrame(context.Viewport.Size, context.Layout.ControlBounds);
+        if (!_isEnabled())
+            return FormCompositeFrame.Closed(new DropdownCompositeSnapshot(frame));
         if (frame.Popup is not { } popupFrame)
             return FormCompositeFrame.Closed(new DropdownCompositeSnapshot(frame));
 
@@ -80,8 +79,7 @@ internal sealed class DropdownCompositeController<T> : IFormCompositeController
 
     public void ApplyCommittedFrame(FormCompositeFrame frame)
     {
-        if (GetDropdownFrame(frame) is { } dropdownFrame)
-            _dropdown.ApplyCommittedFrame(dropdownFrame);
+        _dropdown.ApplyCommittedFrame(GetDropdownFrame(frame));
     }
 
     public void RenderOverlay(FormRowRenderContext context, FormCompositeFrame frame)
@@ -90,60 +88,52 @@ internal sealed class DropdownCompositeController<T> : IFormCompositeController
             _dropdown.RenderPopup(context.Canvas, dropdownFrame);
     }
 
-    public FormInputResult RouteKey(ConsoleKeyInfo key, FormRowInputContext context, FormCompositeFrame frame)
+    public FormInputResult RouteOverlayKey(ConsoleKeyInfo key, FormRowInputContext context, FormCompositeFrame frame)
     {
         if (!_isEnabled())
             return FormInputResult.NotHandled;
-        if (GetDropdownFrame(frame) is not { } dropdownFrame)
-        {
-            if (key.Key is not (ConsoleKey.Enter or ConsoleKey.Spacebar or ConsoleKey.DownArrow or ConsoleKey.F4))
-                return FormInputResult.NotHandled;
-            _dropdown.Open();
-            return FormInputResult.OverlayChanged;
-        }
-        if (!_dropdown.TryHandleKey(key, dropdownFrame, out _, out bool valueChanged))
-            return FormInputResult.NotHandled;
-        return valueChanged ? FormInputResult.ValueChanged : dropdownFrame.IsOpen == _dropdown.IsOpen ? FormInputResult.Handled : FormInputResult.OverlayChanged;
+        DropdownInputResult result = _dropdown.TryHandleKey(key, GetDropdownFrame(frame));
+        return ToFormResult(result);
     }
 
     public FormInputResult RouteMouse(MouseConsoleInputEvent mouse, FormRowMouseContext context, FormCompositeFrame frame, UiTargetId? childTarget)
     {
         if (!_isEnabled())
             return FormInputResult.NotHandled;
-        if (GetDropdownFrame(frame) is not { } dropdownFrame)
-        {
-            Rect fieldBounds = context.Layout.ControlBounds;
-            if (mouse is not { Button: MouseButton.Left, Kind: MouseEventKind.Down } || !fieldBounds.Contains(mouse.X, mouse.Y))
-                return FormInputResult.NotHandled;
-            _dropdown.Toggle();
-            return FormInputResult.OverlayChanged;
-        }
-        bool valueChanged = false;
-        bool handled = false;
+        DropdownSelectFrame dropdownFrame = GetDropdownFrame(frame);
+        DropdownInputResult result = DropdownInputResult.NotHandled;
         foreach (FormCompositeTarget target in frame.Overlay?.ChildTargets ?? [])
         {
             if (target.Id != childTarget)
                 continue;
-            handled = target.Kind switch
+            result = target.Kind switch
             {
                 FormTargetKind.DropdownScrollbar => _dropdown.TryHandleScrollbarMouse(mouse, dropdownFrame),
-                FormTargetKind.DropdownPopup => _dropdown.TryHandlePopupContentMouse(mouse, dropdownFrame, out _, out valueChanged),
-                _ => false,
+                FormTargetKind.DropdownPopup => _dropdown.TryHandlePopupContentMouse(mouse, dropdownFrame),
+                _ => DropdownInputResult.NotHandled,
             };
             break;
         }
         if (childTarget is null)
-            handled = _dropdown.TryHandleFieldMouse(mouse, dropdownFrame);
-        return !handled ? FormInputResult.NotHandled : valueChanged ? FormInputResult.ValueChanged : dropdownFrame.IsOpen == _dropdown.IsOpen ? FormInputResult.Handled : FormInputResult.OverlayChanged;
+            result = _dropdown.TryHandleFieldMouse(mouse, dropdownFrame);
+        return ToFormResult(result);
     }
 
     public bool IsAnchorHit(MouseConsoleInputEvent mouse, FormRowMouseContext context, FormCompositeFrame frame) =>
         frame.State is DropdownCompositeSnapshot { Frame: var dropdownFrame } && dropdownFrame.FieldBounds.Contains(mouse.X, mouse.Y);
     public void Close() => _dropdown.Close(commit: false);
 
-    private static DropdownSelectFrame? GetDropdownFrame(FormCompositeFrame frame) => frame.State switch
+    private static DropdownSelectFrame GetDropdownFrame(FormCompositeFrame frame) => frame.State switch
     {
         DropdownCompositeSnapshot { Frame: var value } => value,
-        _ => null,
+        _ => throw new InvalidOperationException("Dropdown composite frame has an incompatible component state."),
+    };
+
+    private static FormInputResult ToFormResult(DropdownInputResult result) => result.Kind switch
+    {
+        DropdownInputResultKind.NotHandled => FormInputResult.NotHandled,
+        DropdownInputResultKind.Committed => FormInputResult.ValueChanged,
+        DropdownInputResultKind.Opened or DropdownInputResultKind.Canceled or DropdownInputResultKind.Closed => FormInputResult.OverlayChanged,
+        _ => FormInputResult.Handled,
     };
 }

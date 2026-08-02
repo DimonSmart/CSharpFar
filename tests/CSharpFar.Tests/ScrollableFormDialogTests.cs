@@ -1343,7 +1343,7 @@ public sealed class ScrollableFormDialogTests
         Assert.Equal(0, committed.Popup!.List.SelectedIndex);
 
         dropdown.SelectedIndex = 6;
-        dropdown.ScrollTop = 6;
+        dropdown.SetScrollTopForTesting(6);
         UiInputResult result = host.Composition.DispatchInput(new KeyConsoleInputEvent(Key(ConsoleKey.DownArrow)));
 
         Assert.True(result.Handled);
@@ -1362,7 +1362,7 @@ public sealed class ScrollableFormDialogTests
         host.Composition.Render();
 
         dropdown.SelectedIndex = 6;
-        dropdown.ScrollTop = 6;
+        dropdown.SetScrollTopForTesting(6);
         host.Composition.DispatchInput(new KeyConsoleInputEvent(Key(ConsoleKey.Spacebar)));
 
         Assert.True(dropdown.IsOpen);

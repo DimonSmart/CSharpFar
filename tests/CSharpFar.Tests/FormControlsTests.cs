@@ -74,11 +74,7 @@ public sealed class FormControlsTests
         row.DisabledReason = "Unavailable";
 
         Assert.False(row.IsFocusable);
-        Assert.Equal(FormInputResultKind.NotHandled,
-            ((IFormCompositeOwner)row).CompositeController.RouteKey(
-                new ConsoleKeyInfo('\0', ConsoleKey.Enter, false, false, false),
-                new FormRowInputContext(true),
-                FormCompositeFrame.Closed()).Kind);
+        Assert.IsType<DropdownCompositeController<string>>(((IFormCompositeOwner)row).CompositeController);
         Assert.Equal("current", row.Value);
 
         row.Enabled = true;

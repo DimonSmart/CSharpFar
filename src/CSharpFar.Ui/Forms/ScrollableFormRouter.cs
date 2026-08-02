@@ -43,8 +43,9 @@ public sealed partial class ScrollableFormDialog
             ensureFocusedTargetVisible = IsOffscreenBodyTarget(targetFrame, frame.BodyBounds);
             var inputContext = new FormRowInputContext(Focused: true);
             FormInputResult rowResult = row.HandleKey(key, inputContext);
-            if (!rowResult.IsHandled && row is IFormCompositeOwner owner && targetFrame.CompositeFrame is { } compositeFrame)
-                rowResult = owner.CompositeController.RouteKey(key, inputContext, compositeFrame);
+            if (!rowResult.IsHandled && row is IFormCompositeOwner { CompositeController: IFormCompositeKeyboardController keyboardController } &&
+                targetFrame.CompositeFrame is { } compositeFrame)
+                rowResult = keyboardController.RouteOverlayKey(key, inputContext, compositeFrame);
             if (rowResult.IsHandled)
             {
                 rowResult = WithSourceRowId(rowResult, row.Id);

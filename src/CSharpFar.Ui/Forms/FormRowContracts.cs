@@ -68,10 +68,14 @@ internal interface IFormCompositeController
     FormCompositeFrame CalculateFrame(FormCompositeFrameContext context);
     void ApplyCommittedFrame(FormCompositeFrame frame);
     void RenderOverlay(FormRowRenderContext context, FormCompositeFrame frame);
-    FormInputResult RouteKey(ConsoleKeyInfo key, FormRowInputContext context, FormCompositeFrame frame);
     FormInputResult RouteMouse(MouseConsoleInputEvent mouse, FormRowMouseContext context, FormCompositeFrame frame, UiTargetId? childTarget);
     bool IsAnchorHit(MouseConsoleInputEvent mouse, FormRowMouseContext context, FormCompositeFrame frame);
     void Close();
+}
+
+internal interface IFormCompositeKeyboardController
+{
+    FormInputResult RouteOverlayKey(ConsoleKeyInfo key, FormRowInputContext context, FormCompositeFrame frame);
 }
 
 public readonly record struct FormCompositeFrameContext(FormRowLayout Layout, ConsoleViewport Viewport, UiTargetId RowTarget)

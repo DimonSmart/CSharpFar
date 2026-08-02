@@ -13,12 +13,10 @@ public sealed class DropdownSelectTests
         var dropdown = new DropdownSelect<int>([1, 2], static value => value.ToString(System.Globalization.CultureInfo.InvariantCulture));
         DropdownSelectFrame frame = dropdown.CalculateFrame(new ConsoleSize(20, 10), new Rect(0, 0, 10, 1));
 
-        bool handled = dropdown.TryHandleKey(Key(key), frame, out bool selected, out bool valueChanged);
+        DropdownInputResult result = dropdown.TryHandleKey(Key(key), frame);
 
-        Assert.True(handled);
+        Assert.Equal(DropdownInputResultKind.Opened, result.Kind);
         Assert.True(dropdown.IsOpen);
-        Assert.False(selected);
-        Assert.False(valueChanged);
     }
 
     private static ConsoleKeyInfo Key(ConsoleKey key) =>
