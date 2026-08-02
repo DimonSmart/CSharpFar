@@ -7,8 +7,8 @@ public sealed class CheckBoxColumnsRow : FormRow, IFormCursorProvider
 {
     private readonly IReadOnlyList<IReadOnlyList<CheckBoxRow>> _columns;
     private readonly int _columnGap;
+    private readonly FormGridShape _shape;
     private readonly FormGridNavigationState _navigation = new();
-    private FormGridLayout? _layout;
 
     public CheckBoxColumnsRow(IReadOnlyList<IReadOnlyList<CheckBoxRow>> columns, int columnGap = 2)
     {
@@ -27,6 +27,7 @@ public sealed class CheckBoxColumnsRow : FormRow, IFormCursorProvider
             }).ToArray();
         }).ToArray();
         _columnGap = columnGap;
+        _shape = new FormGridShape(_columns.Select(column => column.Count).ToArray());
     }
 
     public override FormRowRole Role { get; init; } = FormRowRole.Option;
@@ -37,8 +38,7 @@ public sealed class CheckBoxColumnsRow : FormRow, IFormCursorProvider
     {
         context.Canvas.FillRegion(context.Bounds, FarDialogStyles.Fill);
         FormGridLayout layout = CalculateLayout(context.Bounds);
-        _layout = layout;
-        _navigation.EnsureCurrent(layout, IsCellEnabled);
+        _navigation.EnsureCurrent(_shape, IsCellEnabled);
         foreach (FormGridCell cell in layout.Cells)
         {
             CheckBoxRow checkBox = _columns[cell.Column][cell.Row];
@@ -49,17 +49,16 @@ public sealed class CheckBoxColumnsRow : FormRow, IFormCursorProvider
 
     public override FormInputResult HandleKey(ConsoleKeyInfo key, FormRowInputContext context)
     {
-        FormGridLayout layout = _layout ?? CalculateLayout(new Rect(0, 0, _columns.Count, Height));
-        if (!_navigation.EnsureCurrent(layout, IsCellEnabled)) return FormInputResult.NotHandled;
+        if (!_navigation.EnsureCurrent(_shape, IsCellEnabled)) return FormInputResult.NotHandled;
         return key.Key switch
         {
             ConsoleKey.Spacebar or ConsoleKey.Enter => ToggleFocused(),
-            ConsoleKey.UpArrow => Move(_navigation.MoveVertical(-1, layout, IsCellEnabled)),
-            ConsoleKey.DownArrow => Move(_navigation.MoveVertical(1, layout, IsCellEnabled)),
-            ConsoleKey.LeftArrow => Move(_navigation.MoveHorizontal(-1, layout, IsCellEnabled)),
-            ConsoleKey.RightArrow => Move(_navigation.MoveHorizontal(1, layout, IsCellEnabled)),
-            ConsoleKey.Tab when key.Modifiers.HasFlag(ConsoleModifiers.Shift) => _navigation.MoveTab(-1, layout, IsCellEnabled),
-            ConsoleKey.Tab => _navigation.MoveTab(1, layout, IsCellEnabled),
+            ConsoleKey.UpArrow => Move(_navigation.MoveVertical(-1, _shape, IsCellEnabled)),
+            ConsoleKey.DownArrow => Move(_navigation.MoveVertical(1, _shape, IsCellEnabled)),
+            ConsoleKey.LeftArrow => Move(_navigation.MoveHorizontal(-1, _shape, IsCellEnabled)),
+            ConsoleKey.RightArrow => Move(_navigation.MoveHorizontal(1, _shape, IsCellEnabled)),
+            ConsoleKey.Tab when key.Modifiers.HasFlag(ConsoleModifiers.Shift) => _navigation.MoveTab(-1, _shape, IsCellEnabled),
+            ConsoleKey.Tab => _navigation.MoveTab(1, _shape, IsCellEnabled),
             _ => FormInputResult.NotHandled,
         };
     }
@@ -68,8 +67,7 @@ public sealed class CheckBoxColumnsRow : FormRow, IFormCursorProvider
     {
         if (mouse.Button != MouseButton.Left || mouse.Kind != MouseEventKind.Down) return FormInputResult.NotHandled;
         FormGridLayout layout = CalculateLayout(context.Bounds);
-        _layout = layout;
-        if (!_navigation.SelectPointer(mouse.X, mouse.Y, layout, IsCellEnabled) || _navigation.Current is not { } position) return FormInputResult.NotHandled;
+        if (!_navigation.SelectPointer(mouse.X, mouse.Y, layout, cell => IsCellEnabled(cell.Position)) || _navigation.Current is not { } position) return FormInputResult.NotHandled;
         CheckBoxRow checkBox = _columns[position.Column][position.Row];
         layout.TryGetCell(position, out FormGridCell cell);
         return checkBox.HandleMouse(mouse, new FormRowMouseContext(true, new FormRowLayout(cell.Bounds, null, cell.Bounds)));
@@ -78,7 +76,7 @@ public sealed class CheckBoxColumnsRow : FormRow, IFormCursorProvider
     public bool TryGetCursor(FormRowRenderContext context, out FormCursorPlacement cursor)
     {
         FormGridLayout layout = CalculateLayout(context.Bounds);
-        if (!context.Focused || !_navigation.EnsureCurrent(layout, IsCellEnabled) || _navigation.Current is not { } position || !layout.TryGetCell(position, out FormGridCell cell))
+        if (!context.Focused || !_navigation.EnsureCurrent(_shape, IsCellEnabled) || _navigation.Current is not { } position || !layout.TryGetCell(position, out FormGridCell cell))
         {
             cursor = default;
             return false;
@@ -86,8 +84,8 @@ public sealed class CheckBoxColumnsRow : FormRow, IFormCursorProvider
         return _columns[position.Column][position.Row].TryGetCursor(new FormRowRenderContext(context.Canvas, cell.Bounds, true), out cursor);
     }
 
-    private FormGridLayout CalculateLayout(Rect bounds) => FormGridLayout.Calculate(bounds, _columns.Select(column => column.Count).ToArray(), _columnGap);
-    private bool IsCellEnabled(FormGridCell cell) => _columns[cell.Column][cell.Row].IsFocusable;
+    private FormGridLayout CalculateLayout(Rect bounds) => FormGridLayout.Calculate(_shape, bounds, _columnGap);
+    private bool IsCellEnabled(FormGridPosition cell) => _columns[cell.Column][cell.Row].IsFocusable;
     private FormInputResult ToggleFocused()
     {
         FormGridPosition position = _navigation.Current!.Value;

@@ -49,10 +49,10 @@ internal sealed class CommandCompletionLayer : UiLayer<CommandCompletionFrame>
             context.CommandCompletion.List,
             ListTarget,
             ScrollbarTarget,
-            new RoutedScrollableListInteractionOptions
-            {
-                AcceptKeyboardFromLayerRoute = true,
-            });
+            new RoutedScrollableListOptions(
+                RoutedListFocusBehavior.None,
+                RoutedListKeyboardRouting.LayerAndFocusedTarget,
+                ListConfirmationBehavior.EnterOrMouseDown));
         _presentation = new(static item => item, string.Empty, PaletteStyles.DialogFill(_context.App.Palette), PaletteStyles.InputField(_context.App.Palette), PaletteStyles.DialogFill(_context.App.Palette));
     }
 
@@ -149,9 +149,7 @@ internal sealed class CommandCompletionLayer : UiLayer<CommandCompletionFrame>
         RoutedScrollableListInputResult routed = _list.RouteInput(
             mouse,
             frame.List,
-            route,
-            confirmOnMouseDown: true,
-            confirmOnDoubleClick: true);
+            route);
         ScrollableListInputResult result = routed.ListResult;
         if (!result.IsHandled)
             return UiInputResult.NotHandled;

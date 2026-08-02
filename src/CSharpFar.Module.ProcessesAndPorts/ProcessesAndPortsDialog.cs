@@ -96,7 +96,7 @@ internal sealed class ProcessesAndPortsDialog(ModuleUiServices ui, IProcessesAnd
     {
         if (list.IsTargetRoute(route))
         {
-            RoutedScrollableListInputResult listResult = list.RouteInput(input, frame.List, route, confirmOnDoubleClick: true);
+            RoutedScrollableListInputResult listResult = list.RouteInput(input, frame.List, route);
             if (listResult.ListResult.IsHandled)
                 return (new(input, FormInputResult.NotHandled, listResult.ListResult), listResult.UiResult);
             if (input is KeyConsoleInputEvent { Key.Key: ConsoleKey.Delete } && endpointState.TryGetSelectedItem(out _))

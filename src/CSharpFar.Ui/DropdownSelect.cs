@@ -14,12 +14,11 @@ public enum DropdownInputResultKind
     Committed,
     CommittedWithoutChange,
     Canceled,
-    Closed,
 }
 
 public readonly record struct DropdownInputResult(
     DropdownInputResultKind Kind,
-    ScrollableListInputResult ListResult = default)
+    UiMouseCaptureRequestKind MouseCapture = UiMouseCaptureRequestKind.None)
 {
     public static DropdownInputResult NotHandled => new(DropdownInputResultKind.NotHandled);
     public bool IsHandled => Kind != DropdownInputResultKind.NotHandled;
@@ -97,16 +96,16 @@ public sealed class DropdownSelect<T>
         {
             bool changed = SelectedIndex != _selectedIndexBeforeOpen;
             Close(commit: true);
-            return new(changed ? DropdownInputResultKind.Committed : DropdownInputResultKind.CommittedWithoutChange, result);
+            return new(changed ? DropdownInputResultKind.Committed : DropdownInputResultKind.CommittedWithoutChange);
         }
-        return new(result.Kind == ScrollableListInputResultKind.SelectionChanged ? DropdownInputResultKind.PreviewChanged : DropdownInputResultKind.Handled, result);
+        return new(result.Kind == ScrollableListInputResultKind.SelectionChanged ? DropdownInputResultKind.PreviewChanged : DropdownInputResultKind.Handled);
     }
     public DropdownInputResult TryHandleScrollbarMouse(MouseConsoleInputEvent mouse, DropdownSelectFrame frame)
     {
         ValidateFrame(frame);
         if (frame.Popup is not { } popup) return DropdownInputResult.NotHandled;
         ScrollableListInputResult result = _input.HandleScrollbarMouse(_state, popup.List, mouse);
-        return result.IsHandled ? new(DropdownInputResultKind.Handled, result) : DropdownInputResult.NotHandled;
+        return result.IsHandled ? new(DropdownInputResultKind.Handled, Capture(result)) : DropdownInputResult.NotHandled;
     }
     public DropdownInputResult TryHandleKey(ConsoleKeyInfo key, DropdownSelectFrame frame)
     {
@@ -131,7 +130,7 @@ public sealed class DropdownSelect<T>
         }
         if (frame.Popup is not { } popup) return DropdownInputResult.NotHandled;
         ScrollableListInputResult result = _input.HandleKey(_state, popup.List, key);
-        return result.IsHandled ? new(result.Kind == ScrollableListInputResultKind.SelectionChanged ? DropdownInputResultKind.PreviewChanged : DropdownInputResultKind.Handled, result) : DropdownInputResult.NotHandled;
+        return result.IsHandled ? new(result.Kind == ScrollableListInputResultKind.SelectionChanged ? DropdownInputResultKind.PreviewChanged : DropdownInputResultKind.Handled) : DropdownInputResult.NotHandled;
     }
     public void ApplyCommittedFrame(DropdownSelectFrame frame)
     {
@@ -145,6 +144,9 @@ public sealed class DropdownSelect<T>
         _state.RestoreSnapshot(frame.State.SelectedIndex, frame.State.ScrollTop);
     }
     internal void SetScrollTopForTesting(int scrollTop) => _state.SetFromInput(_state.SelectedIndex, scrollTop, 1);
+    private static UiMouseCaptureRequestKind Capture(ScrollableListInputResult result) => result.DragStarted
+        ? UiMouseCaptureRequestKind.Capture
+        : result.DragEnded ? UiMouseCaptureRequestKind.Release : UiMouseCaptureRequestKind.None;
     private void ValidateFrame(DropdownSelectFrame frame)
     {
         ArgumentNullException.ThrowIfNull(frame);

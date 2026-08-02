@@ -21,19 +21,11 @@ public sealed class ChoiceSelection<T>
             throw new ArgumentException("The selected value must be present in the choice items.", nameof(selectedValue));
     }
 
-    public static ChoiceSelection<T> WithFallback(IReadOnlyList<T> items, T selectedValue, T fallbackValue, IEqualityComparer<T>? comparer = null)
-    {
-        ArgumentNullException.ThrowIfNull(items);
-        IEqualityComparer<T> effectiveComparer = comparer ?? EqualityComparer<T>.Default;
-        bool selectedPresent = items.Any(item => effectiveComparer.Equals(item, selectedValue));
-        return new ChoiceSelection<T>(items, selectedPresent ? selectedValue : fallbackValue, effectiveComparer);
-    }
-
     public static ChoiceSelection<T> FromValue(IReadOnlyList<T> items, T selectedValue, IEqualityComparer<T>? comparer = null) =>
         new(items, selectedValue, comparer);
 
     public static ChoiceSelection<T> FromValueOrFallback(IReadOnlyList<T> items, T selectedValue, T fallbackValue, IEqualityComparer<T>? comparer = null) =>
-        WithFallback(items, selectedValue, fallbackValue, comparer);
+        new(items, Contains(items, selectedValue, comparer) ? selectedValue : fallbackValue, comparer);
 
     public IReadOnlyList<T> Items => _items;
     public T Value => _items[SelectedIndex];
@@ -45,14 +37,6 @@ public sealed class ChoiceSelection<T>
         if (index < 0)
             throw new ArgumentException("The selected value must be present in the choice items.", nameof(value));
         SelectedIndex = index;
-    }
-
-    public bool TrySetValue(T value)
-    {
-        int index = FindIndex(value);
-        if (index < 0) return false;
-        SelectedIndex = index;
-        return true;
     }
 
     public ChoiceSelectionResult SelectValue(T value)
@@ -98,5 +82,12 @@ public sealed class ChoiceSelection<T>
                 return index;
         }
         return -1;
+    }
+
+    private static bool Contains(IReadOnlyList<T> items, T value, IEqualityComparer<T>? comparer)
+    {
+        ArgumentNullException.ThrowIfNull(items);
+        IEqualityComparer<T> effectiveComparer = comparer ?? EqualityComparer<T>.Default;
+        return items.Any(item => effectiveComparer.Equals(item, value));
     }
 }
