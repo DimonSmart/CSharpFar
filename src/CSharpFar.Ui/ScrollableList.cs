@@ -42,10 +42,6 @@ public sealed class ScrollableListState<T>
         return false;
     }
 
-    public T SelectedItem => HasItems
-        ? _items[_selectedIndex]
-        : throw new InvalidOperationException("The list has no selected item.");
-
     public void ResetItems(IReadOnlyList<T> items, int selectedIndex = 0)
     {
         _items = Snapshot(items);

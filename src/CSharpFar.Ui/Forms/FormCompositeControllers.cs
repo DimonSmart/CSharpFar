@@ -133,7 +133,7 @@ internal sealed class DropdownCompositeController<T> : IFormCompositeController,
     {
         DropdownInputResultKind.NotHandled => FormInputResult.NotHandled,
         DropdownInputResultKind.Committed => FormInputResult.ValueChanged,
-        DropdownInputResultKind.Opened or DropdownInputResultKind.Canceled or DropdownInputResultKind.Closed => FormInputResult.OverlayChanged,
-        _ => FormInputResult.Handled,
+        DropdownInputResultKind.Opened or DropdownInputResultKind.Canceled => new(FormInputResultKind.OverlayChanged, MouseCapture: result.MouseCapture),
+        _ => new(FormInputResultKind.Handled, MouseCapture: result.MouseCapture),
     };
 }

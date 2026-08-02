@@ -31,7 +31,8 @@ public sealed class ListWithButtonsDialog<T>
         _list = new RoutedScrollableList<T>(
             new ScrollableListState<T>(items),
             ListTarget,
-            ScrollbarTarget);
+            ScrollbarTarget,
+            RoutedScrollableListOptions.ListWithButtons);
         _itemText = itemText ?? throw new ArgumentNullException(nameof(itemText));
         _form.SetRows([], [new ButtonRow(buttons ?? throw new ArgumentNullException(nameof(buttons))) { Id = "actions" }]);
         Title = title ?? throw new ArgumentNullException(nameof(title));
@@ -161,8 +162,7 @@ public sealed class ListWithButtonsDialog<T>
         RoutedScrollableListInputResult routedResult = _list.RouteInput(
             input,
             frame.List,
-            route,
-            confirmOnDoubleClick: true);
+            route);
         if (routedResult.ListResult.IsHandled)
             return (new ListWithButtonsInput(input, FormInputResult.NotHandled, routedResult.ListResult), routedResult.UiResult);
 

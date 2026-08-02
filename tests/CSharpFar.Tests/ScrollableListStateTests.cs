@@ -48,10 +48,12 @@ public sealed class ScrollableListStateTests
         var state = new ScrollableListState<int>([1, 2, 3], 2);
         state.ReplaceItems([0, 3, 4], static value => value, 1);
         Assert.Equal(1, state.SelectedIndex);
-        Assert.Equal(3, state.SelectedItem);
+        Assert.True(state.TryGetSelectedItem(out int selected));
+        Assert.Equal(3, selected);
 
         state.ReplaceItems([7], static value => value, 1);
         Assert.Equal(0, state.SelectedIndex);
-        Assert.Equal(7, state.SelectedItem);
+        Assert.True(state.TryGetSelectedItem(out selected));
+        Assert.Equal(7, selected);
     }
 }

@@ -149,7 +149,7 @@ public sealed partial class ScrollableFormDialog
         if (!rowResult.IsHandled && TryHandleWheel(mouse, frame.ViewportRows))
             return MergeTransientOverlayChange(FormInputResult.Handled, UiInputResult.HandledAndInvalidate, closedOverlay);
 
-        UiInputResult uiResult = FormResultToUi(rowResult, rowFrame.Target);
+        UiInputResult uiResult = FormResultToUi(rowResult, targetFrame.Target);
         if (requestFocus)
         {
             RequestEnsureFocusVisible();
@@ -163,6 +163,7 @@ public sealed partial class ScrollableFormDialog
 
         if (targetFrame is FormCompositeChildTargetFrame { CapturesMouse: true } &&
             rowResult.IsHandled &&
+            rowResult.MouseCapture == UiMouseCaptureRequestKind.None &&
             mouse is { Kind: MouseEventKind.Down, Button: MouseButton.Left })
         {
             uiResult = new UiInputResult(

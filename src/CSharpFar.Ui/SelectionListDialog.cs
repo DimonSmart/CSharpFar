@@ -95,8 +95,7 @@ public sealed class SelectionListDialog<T>
                 RoutedScrollableListInputResult routed = _list.RouteInput(
                     input,
                     frame.List,
-                    route,
-                    confirmOnDoubleClick: true);
+                    route);
                 return (new SelectionListInput(input, routed.ListResult), routed.UiResult);
             },
             (_, semantic) =>

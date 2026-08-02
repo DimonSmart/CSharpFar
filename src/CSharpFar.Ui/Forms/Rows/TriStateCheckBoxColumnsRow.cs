@@ -10,8 +10,8 @@ public sealed class TriStateCheckBoxColumnsRow : FormRow, IFormCursorProvider
     private readonly IReadOnlyList<TriStateCheckBoxLine> _columns;
     private readonly int _labelWidth;
     private readonly int _columnGap;
+    private readonly FormGridShape _shape;
     private readonly FormGridNavigationState _navigation = new();
-    private FormGridLayout? _layout;
 
     public TriStateCheckBoxColumnsRow(string label, IReadOnlyList<TriStateCheckBoxLine> columns, int labelWidth, int columnGap = 1)
     {
@@ -25,6 +25,7 @@ public sealed class TriStateCheckBoxColumnsRow : FormRow, IFormCursorProvider
         _columns = columns.ToArray();
         _labelWidth = labelWidth;
         _columnGap = columnGap;
+        _shape = new FormGridShape(Enumerable.Repeat(1, _columns.Count).ToArray());
     }
 
     public override FormRowRole Role { get; init; } = FormRowRole.Option;
@@ -35,8 +36,7 @@ public sealed class TriStateCheckBoxColumnsRow : FormRow, IFormCursorProvider
         context.Canvas.FillRegion(context.Bounds, FarDialogStyles.Fill);
         context.Canvas.Write(context.Bounds.X, context.Bounds.Y, _label, FarDialogStyles.Fill);
         FormGridLayout layout = CalculateLayout(context.Bounds);
-        _layout = layout;
-        _navigation.EnsureCurrent(layout, IsCellEnabled);
+        _navigation.EnsureCurrent(_shape, IsCellEnabled);
         foreach (FormGridCell cell in layout.Cells)
         {
             TriStateCheckBoxLine line = _columns[cell.Column];
@@ -47,10 +47,10 @@ public sealed class TriStateCheckBoxColumnsRow : FormRow, IFormCursorProvider
 
     public override FormInputResult HandleKey(ConsoleKeyInfo key, FormRowInputContext context)
     {
-        if (_layout is not { } layout || !_navigation.EnsureCurrent(layout, IsCellEnabled)) return FormInputResult.NotHandled;
-        if (key.Key == ConsoleKey.LeftArrow) return Move(_navigation.MoveHorizontal(-1, layout, IsCellEnabled));
-        if (key.Key == ConsoleKey.RightArrow) return Move(_navigation.MoveHorizontal(1, layout, IsCellEnabled));
-        if (key.Key == ConsoleKey.Tab) return _navigation.MoveTab(key.Modifiers.HasFlag(ConsoleModifiers.Shift) ? -1 : 1, layout, IsCellEnabled);
+        if (!_navigation.EnsureCurrent(_shape, IsCellEnabled)) return FormInputResult.NotHandled;
+        if (key.Key == ConsoleKey.LeftArrow) return Move(_navigation.MoveHorizontal(-1, _shape, IsCellEnabled));
+        if (key.Key == ConsoleKey.RightArrow) return Move(_navigation.MoveHorizontal(1, _shape, IsCellEnabled));
+        if (key.Key == ConsoleKey.Tab) return _navigation.MoveTab(key.Modifiers.HasFlag(ConsoleModifiers.Shift) ? -1 : 1, _shape, IsCellEnabled);
         FormGridPosition position = _navigation.Current!.Value;
         return _columns[position.Column].TryHandleKey(key) ? FormInputResult.ValueChanged : FormInputResult.NotHandled;
     }
@@ -59,15 +59,14 @@ public sealed class TriStateCheckBoxColumnsRow : FormRow, IFormCursorProvider
     {
         if (mouse.Button != MouseButton.Left || mouse.Kind != MouseEventKind.Down) return FormInputResult.NotHandled;
         FormGridLayout layout = CalculateLayout(context.Bounds);
-        _layout = layout;
-        if (!_navigation.SelectPointer(mouse.X, mouse.Y, layout, IsCellEnabled) || _navigation.Current is not { } position || !layout.TryGetCell(position, out FormGridCell cell)) return FormInputResult.NotHandled;
+        if (!_navigation.SelectPointer(mouse.X, mouse.Y, layout, cell => IsCellEnabled(cell.Position)) || _navigation.Current is not { } position || !layout.TryGetCell(position, out FormGridCell cell)) return FormInputResult.NotHandled;
         return _columns[position.Column].TryHandleMouse(mouse, cell.Bounds) ? FormInputResult.ValueChanged : FormInputResult.NotHandled;
     }
 
     public bool TryGetCursor(FormRowRenderContext context, out FormCursorPlacement cursor)
     {
         FormGridLayout layout = CalculateLayout(context.Bounds);
-        if (context.Focused && _navigation.EnsureCurrent(layout, IsCellEnabled) && _navigation.Current is { } position && layout.TryGetCell(position, out FormGridCell cell))
+        if (context.Focused && _navigation.EnsureCurrent(_shape, IsCellEnabled) && _navigation.Current is { } position && layout.TryGetCell(position, out FormGridCell cell))
         {
             cursor = new FormCursorPlacement(cell.Bounds.X + 1, cell.Bounds.Y);
             return cell.Bounds.Width >= 3;
@@ -79,8 +78,8 @@ public sealed class TriStateCheckBoxColumnsRow : FormRow, IFormCursorProvider
     private FormGridLayout CalculateLayout(Rect bounds)
     {
         int labelWidth = Math.Min(_labelWidth, Math.Max(0, bounds.Width));
-        return FormGridLayout.Calculate(new Rect(bounds.X + labelWidth, bounds.Y, Math.Max(0, bounds.Width - labelWidth), 1), Enumerable.Repeat(1, _columns.Count).ToArray(), _columnGap);
+        return FormGridLayout.Calculate(_shape, new Rect(bounds.X + labelWidth, bounds.Y, Math.Max(0, bounds.Width - labelWidth), 1), _columnGap);
     }
-    private bool IsCellEnabled(FormGridCell cell) => _columns[cell.Column].Enabled;
+    private bool IsCellEnabled(FormGridPosition cell) => _columns[cell.Column].Enabled;
     private static FormInputResult Move(bool _) => FormInputResult.Handled;
 }
