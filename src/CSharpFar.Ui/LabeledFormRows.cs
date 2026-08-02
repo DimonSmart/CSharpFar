@@ -5,11 +5,12 @@ using CSharpFar.Core.Models;
 namespace CSharpFar.Ui;
 
 /// <summary>Reusable one-line form input with an inline label.</summary>
-public sealed class LabeledTextInputRow : FormRow, IFormCursorProvider, IFormCompositeRow, IFormLabeledRow
+public sealed class LabeledTextInputRow : FormRow, IFormCursorProvider, IFormCompositeOwner, IFormLabeledRow
 {
     private readonly string _label;
     private readonly int? _inputWidth;
     private readonly FormTextInputField _field;
+    private readonly IFormCompositeController _compositeController;
 
     internal LabeledTextInputRow(string label, CommandLineState buffer, SingleLineTextHistoryState? history = null,
         int? inputWidth = null, bool maskInput = false)
@@ -17,6 +18,7 @@ public sealed class LabeledTextInputRow : FormRow, IFormCursorProvider, IFormCom
         _label = label;
         _inputWidth = inputWidth;
         _field = new FormTextInputField(buffer, history, maskInput);
+        _compositeController = new TextInputCompositeController(_field, GetInputBounds, HandleKey);
     }
 
     public LabeledTextInputRow(string label, TextField field)
@@ -27,6 +29,7 @@ public sealed class LabeledTextInputRow : FormRow, IFormCursorProvider, IFormCom
         _field = field.Input;
         Id = field.Id;
         SubmitOnEnter = field.SubmitOnEnter;
+        _compositeController = new TextInputCompositeController(_field, GetInputBounds, HandleKey);
     }
 
     public override FormRowRole Role { get; init; } = FormRowRole.TextInput;
@@ -37,7 +40,7 @@ public sealed class LabeledTextInputRow : FormRow, IFormCursorProvider, IFormCom
     bool IFormLabeledRow.UseSharedLabelColumn => true;
     public CommandLineState Buffer => _field.Buffer;
     internal FormTextInputField Input => _field;
-    public bool IsCompositeOpen => Enabled && _field.History?.IsDropdownOpen == true;
+    IFormCompositeController IFormCompositeOwner.CompositeController => _compositeController;
     public Rect GetInputBounds(Rect rowBounds) => new(rowBounds.X, rowBounds.Y, Math.Max(0, _inputWidth ?? rowBounds.Width), rowBounds.Height);
 
     public override void Render(FormRowRenderContext context)
@@ -58,13 +61,6 @@ public sealed class LabeledTextInputRow : FormRow, IFormCursorProvider, IFormCom
             : result;
     }
     public override FormInputResult HandleMouse(MouseConsoleInputEvent mouse, FormRowMouseContext context) => _field.HandleMouse(mouse, context, GetInputBounds(context.Layout));
-    public FormCompositeFrame BuildCompositeFrame(FormCompositeFrameContext context) => _field.BuildCompositeFrame(GetInputBounds(context.Layout), context.Viewport);
-    public void CommitCompositeFrame(FormCompositeFrame frame) { }
-    public void RenderCompositeOverlay(FormRowRenderContext context, FormCompositeFrame frame) => _field.RenderCompositeOverlay(context, frame);
-    public FormInputResult HandleCompositeKey(ConsoleKeyInfo key, FormRowInputContext context, FormCompositeFrame frame) => HandleKey(key, context);
-    public FormInputResult HandleCompositeMouse(MouseConsoleInputEvent mouse, FormRowMouseContext context, FormCompositeFrame frame, string? childTargetId) => _field.HandleCompositeMouse(mouse, context, GetInputBounds(context.Layout), frame, childTargetId);
-    public bool IsCompositeAnchorHit(MouseConsoleInputEvent mouse, FormRowMouseContext context, FormCompositeFrame frame) => _field.IsHistoryArrow(mouse, GetInputBounds(context.Layout));
-    public void CloseComposite() => _field.History?.Close();
 
     private Rect GetInputBounds(FormRowLayout layout) => new(
         layout.ControlBounds.X,

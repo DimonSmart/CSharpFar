@@ -5,10 +5,11 @@ using CSharpFar.Core.Models;
 
 namespace CSharpFar.Ui;
 
-public sealed class TextInputRow : FormRow, IFormCursorProvider, IFormCompositeRow
+public sealed class TextInputRow : FormRow, IFormCursorProvider, IFormCompositeOwner
 {
     private readonly FormTextInputField _field;
     private readonly int? _width;
+    private readonly IFormCompositeController _compositeController;
 
     public TextInputRow(TextField field)
     {
@@ -17,6 +18,7 @@ public sealed class TextInputRow : FormRow, IFormCursorProvider, IFormCompositeR
         _width = field.Width;
         Id = field.Id;
         SubmitOnEnter = field.SubmitOnEnter;
+        _compositeController = new TextInputCompositeController(_field, layout => GetInputBounds(layout.RowBounds), HandleKey);
     }
 
     internal TextInputRow(
@@ -27,6 +29,7 @@ public sealed class TextInputRow : FormRow, IFormCursorProvider, IFormCompositeR
     {
         _field = new FormTextInputField(buffer, history, maskInput);
         _width = width;
+        _compositeController = new TextInputCompositeController(_field, layout => GetInputBounds(layout.RowBounds), HandleKey);
     }
 
     public CommandLineState Buffer => _field.Buffer;
@@ -36,7 +39,8 @@ public sealed class TextInputRow : FormRow, IFormCursorProvider, IFormCompositeR
     public string? DisabledReason { get => _field.DisabledReason; set => _field.DisabledReason = value; }
     public override bool IsEnabled => Enabled;
     public int? Width => _width;
-    public bool IsCompositeOpen => Enabled && _field.History?.IsDropdownOpen == true;
+    public void CloseHistory() => _compositeController.Close();
+    IFormCompositeController IFormCompositeOwner.CompositeController => _compositeController;
 
     public Rect GetInputBounds(Rect rowBounds) =>
         new(rowBounds.X, rowBounds.Y, Math.Min(rowBounds.Width, _width ?? rowBounds.Width), rowBounds.Height);
@@ -51,13 +55,6 @@ public sealed class TextInputRow : FormRow, IFormCursorProvider, IFormCompositeR
         return _field.TryGetCursor(context, GetInputBounds(context.Bounds), out cursor);
     }
 
-    public FormCompositeFrame BuildCompositeFrame(FormCompositeFrameContext context) => _field.BuildCompositeFrame(GetInputBounds(context.RowBounds), context.Viewport);
-    public void CommitCompositeFrame(FormCompositeFrame frame) { }
-    public void RenderCompositeOverlay(FormRowRenderContext context, FormCompositeFrame frame) => _field.RenderCompositeOverlay(context, frame);
-    public FormInputResult HandleCompositeKey(ConsoleKeyInfo key, FormRowInputContext context, FormCompositeFrame frame) => HandleKey(key, context);
-    public FormInputResult HandleCompositeMouse(MouseConsoleInputEvent mouse, FormRowMouseContext context, FormCompositeFrame frame, string? childTargetId) => _field.HandleCompositeMouse(mouse, context, GetInputBounds(context.Bounds), frame, childTargetId);
-    public bool IsCompositeAnchorHit(MouseConsoleInputEvent mouse, FormRowMouseContext context, FormCompositeFrame frame) => _field.IsHistoryArrow(mouse, GetInputBounds(context.Bounds));
-    public void CloseComposite() => _field.History?.Close();
 
     public override FormInputResult HandleKey(ConsoleKeyInfo key, FormRowInputContext context)
     {

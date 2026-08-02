@@ -59,11 +59,11 @@ public sealed record FormTargetFrame(
     bool IsFooter,
     UiCursorPlacement? Cursor = null,
     FormCompositeFrame? CompositeFrame = null,
-    string? CompositeChildId = null,
+    UiTargetId? CompositeChildTarget = null,
     bool CapturesMouse = false)
 {
     // Kept as a frame-inspection convenience; routing never depends on this type.
-    public DropdownSelectFrame? DropdownFrame => CompositeFrame?.State is DropdownSelectFrame frame ? frame : null;
+    public DropdownSelectFrame? DropdownFrame => CompositeFrame?.Snapshot is DropdownCompositeSnapshot { Frame: var frame } ? frame : null;
 }
 
 public readonly record struct FormRouteResult(

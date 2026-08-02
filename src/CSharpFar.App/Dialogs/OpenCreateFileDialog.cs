@@ -92,19 +92,19 @@ internal sealed class OpenCreateFileDialog
                     if (result.SourceRowId == "file-path")
                     {
                         error = null;
-                        codePageRow.CloseComposite();
+                        codePageRow.CloseDropdown();
                     }
                     else if (result.SourceRowId == "code-page")
                     {
                         error = null;
-                        pathRow.CloseComposite();
+                        pathRow.CloseHistory();
                     }
                 }
 
                 if (FormDialogInput.ShouldSubmit(routed, result, form))
                 {
                     EditorNewFileEncodingOption selectedCodePage = _codePages[codePageRow.ConfirmedSelectedIndex];
-                    codePageRow.CloseComposite();
+                    codePageRow.CloseDropdown();
                     var accepted = TrySubmit(filePath, selectedCodePage, validate, ref error);
                     if (accepted is not null)
                         return ModalDialogLoopResult<OpenCreateFileDialogResult?>.Complete(accepted);

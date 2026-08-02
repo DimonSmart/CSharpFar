@@ -158,9 +158,9 @@ public sealed class CheckBoxColumnsRowTests
     private static MouseConsoleInputEvent Mouse(int x, int y) =>
         new(x, y, MouseButton.Left, MouseEventKind.Down, MouseKeyModifiers.None);
 
-    private static FormRowInputContext Input() => new(0, focused: true);
+    private static FormRowInputContext Input() => new(true);
 
-    private static FormRowMouseContext MouseContext(Rect bounds) => new(bounds, 0, focused: true, screenHeight: 5);
+    private static FormRowMouseContext MouseContext(Rect bounds) => new(true, 5, new FormRowLayout(bounds, null, bounds));
 
     private sealed class RecordingCanvas(int width, int height) : IUiCanvas
     {

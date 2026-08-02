@@ -57,34 +57,67 @@ public interface IFormRow
 }
 
 /// <summary>Optional contract for a row that owns interactive child surfaces.</summary>
-public interface IFormCompositeRow : IFormRow
+internal interface IFormCompositeOwner
 {
-    bool IsCompositeOpen { get; }
-    FormCompositeFrame BuildCompositeFrame(FormCompositeFrameContext context);
-    void CommitCompositeFrame(FormCompositeFrame frame);
-    void RenderCompositeOverlay(FormRowRenderContext context, FormCompositeFrame frame);
-    FormInputResult HandleCompositeKey(ConsoleKeyInfo key, FormRowInputContext context, FormCompositeFrame frame);
-    FormInputResult HandleCompositeMouse(MouseConsoleInputEvent mouse, FormRowMouseContext context, FormCompositeFrame frame, string? childTargetId);
-    bool IsCompositeAnchorHit(MouseConsoleInputEvent mouse, FormRowMouseContext context, FormCompositeFrame frame);
-    void CloseComposite();
+    IFormCompositeController CompositeController { get; }
 }
 
-public readonly record struct FormCompositeFrameContext(FormRowLayout Layout, ConsoleViewport Viewport)
+internal interface IFormCompositeController
+{
+    bool IsOpen { get; }
+    FormCompositeFrame CalculateFrame(FormCompositeFrameContext context);
+    void ApplyCommittedFrame(FormCompositeFrame frame);
+    void RenderOverlay(FormRowRenderContext context, FormCompositeFrame frame);
+    FormInputResult RouteKey(ConsoleKeyInfo key, FormRowInputContext context, FormCompositeFrame frame);
+    FormInputResult RouteMouse(MouseConsoleInputEvent mouse, FormRowMouseContext context, FormCompositeFrame frame, UiTargetId? childTarget);
+    bool IsAnchorHit(MouseConsoleInputEvent mouse, FormRowMouseContext context, FormCompositeFrame frame);
+    void Close();
+}
+
+public readonly record struct FormCompositeFrameContext(FormRowLayout Layout, ConsoleViewport Viewport, UiTargetId RowTarget)
 {
     public Rect RowBounds => Layout.RowBounds;
 
     internal FormCompositeFrameContext(Rect rowBounds, ConsoleViewport viewport)
-        : this(new FormRowLayout(rowBounds, null, rowBounds), viewport)
+        : this(new FormRowLayout(rowBounds, null, rowBounds), viewport, new UiTargetId("form.row.test"))
     {
     }
 }
 
-public sealed record FormCompositeFrame(
-    bool IsOpen,
-    object? State,
-    IReadOnlyList<FormCompositeTarget> ChildTargets);
+public interface IFormCompositeSnapshot;
+internal interface IFormCompositeCommittedState;
 
-public sealed record FormCompositeTarget(string Id, Rect Bounds, Rect? HitBounds = null, FormTargetKind Kind = FormTargetKind.CompositeChild, bool CapturesMouse = false);
+public sealed class FormCompositeFrame
+{
+    private FormCompositeFrame(IFormCompositeSnapshot? snapshot, IReadOnlyList<FormCompositeTarget> childTargets, IFormCompositeCommittedState? committedState = null)
+    {
+        Snapshot = snapshot;
+        ChildTargets = childTargets;
+        CommittedState = committedState;
+    }
+
+    public bool IsOpen => Snapshot is not null;
+    public IFormCompositeSnapshot? Snapshot { get; }
+    public IReadOnlyList<FormCompositeTarget> ChildTargets { get; }
+    internal IFormCompositeCommittedState? CommittedState { get; }
+
+    public static FormCompositeFrame Closed() => new(null, []);
+
+    internal static FormCompositeFrame Closed(IFormCompositeCommittedState committedState)
+    {
+        ArgumentNullException.ThrowIfNull(committedState);
+        return new FormCompositeFrame(null, [], committedState);
+    }
+
+    public static FormCompositeFrame Open(IFormCompositeSnapshot snapshot, IReadOnlyList<FormCompositeTarget> childTargets)
+    {
+        ArgumentNullException.ThrowIfNull(snapshot);
+        ArgumentNullException.ThrowIfNull(childTargets);
+        return new FormCompositeFrame(snapshot, Array.AsReadOnly(childTargets.ToArray()));
+    }
+}
+
+public sealed record FormCompositeTarget(UiTargetId Id, Rect Bounds, Rect? HitBounds = null, FormTargetKind Kind = FormTargetKind.CompositeChild, bool CapturesMouse = false);
 
 public readonly record struct FormCursorPlacement(int X, int Y);
 
