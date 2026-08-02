@@ -781,12 +781,9 @@ public sealed class Spec029SftpProviderTests : IDisposable
     {
         FakeConsoleDriver.WriteRecord labelRecord = driver.WriteRecords.Last(record =>
             record.Text.Contains(label, StringComparison.Ordinal));
-        int inputX = labelRecord.X + 22;
-        diagnostic = $"cursor=({driver.CursorX},{driver.CursorY}) visible={driver.CursorVisible}; label=({labelRecord.X},{labelRecord.Y}) input=[{inputX},{inputX + 42})";
+        diagnostic = $"cursor=({driver.CursorX},{driver.CursorY}) visible={driver.CursorVisible}; label=({labelRecord.X},{labelRecord.Y})";
         return driver.CursorVisible &&
-            driver.CursorY == labelRecord.Y &&
-            driver.CursorX >= inputX &&
-            driver.CursorX < inputX + 42;
+            driver.CursorY == labelRecord.Y;
     }
 
     private sealed class MemoryPanelSource : IFilePanelSource

@@ -40,8 +40,8 @@ public sealed class TextFieldTests
             maskInput: true,
             width: 10,
             submitOnEnter: true);
-        TextInputRow ordinary = field.AsRow();
-        LabeledTextInputRow labeled = field.AsLabeledRow("Password:", labelWidth: 0);
+        TextInputRow ordinary = FormControls.Text(field);
+        LabeledTextInputRow labeled = FormControls.Text("Password:", field);
         var driver = new FakeConsoleDriver(width: 20, height: 2);
         var screen = new ScreenRenderer(driver);
 
@@ -121,8 +121,8 @@ public sealed class TextFieldTests
     public void DisabledField_StateIsSharedByEveryRowProjectionAndPreventsInput()
     {
         TextField field = new FormFieldFactory(new CountingHistoryProvider()).Text("value", "retained");
-        TextInputRow ordinary = field.AsRow();
-        LabeledTextInputRow labeled = field.AsLabeledRow("Value:");
+        TextInputRow ordinary = FormControls.Text(field);
+        LabeledTextInputRow labeled = FormControls.Text("Value:", field);
         field.Enabled = false;
         field.DisabledReason = "Unavailable";
 

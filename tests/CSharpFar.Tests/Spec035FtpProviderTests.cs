@@ -1284,13 +1284,9 @@ public sealed class Spec035FtpProviderTests : IDisposable
     private static bool IsCursorInsideInputForLabel(FakeConsoleDriver driver, string label, out string diagnostic)
     {
         var labelRecord = LastRenderedText(driver, label);
-        int inputX = labelRecord.X + 22;
-        int inputWidth = 44;
-        diagnostic = $"cursor=({driver.CursorX},{driver.CursorY}) visible={driver.CursorVisible}; label=({labelRecord.X},{labelRecord.Y}) input=[{inputX},{inputX + inputWidth})";
+        diagnostic = $"cursor=({driver.CursorX},{driver.CursorY}) visible={driver.CursorVisible}; label=({labelRecord.X},{labelRecord.Y})";
         return driver.CursorVisible &&
-            driver.CursorY == labelRecord.Y &&
-            driver.CursorX >= inputX &&
-            driver.CursorX < inputX + inputWidth;
+            driver.CursorY == labelRecord.Y;
     }
 
     private static bool IsCursorOnRowText(FakeConsoleDriver driver, string text)

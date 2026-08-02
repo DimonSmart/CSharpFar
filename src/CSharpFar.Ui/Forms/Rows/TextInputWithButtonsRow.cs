@@ -14,7 +14,6 @@ public sealed class TextInputWithButtonsRow : FormRow, IFormCursorProvider, IFor
     private readonly DialogButtonBar _buttonBar;
     private DialogButtonBarState _buttonState;
     private readonly int? _inputWidth;
-    private readonly int? _legacyButtonAreaWidth;
 
     public TextInputWithButtonsRow(
         string label,
@@ -29,16 +28,6 @@ public sealed class TextInputWithButtonsRow : FormRow, IFormCursorProvider, IFor
         _inputWidth = field.Width;
         Id = field.Id;
         SubmitOnEnter = field.SubmitOnEnter;
-    }
-
-    internal TextInputWithButtonsRow(
-        string label,
-        TextField field,
-        IReadOnlyList<DialogButton> buttons,
-        int buttonAreaWidth)
-        : this(label, field, buttons)
-    {
-        _legacyButtonAreaWidth = buttonAreaWidth;
     }
 
     public CommandLineState Buffer => _field.Buffer;
@@ -147,7 +136,7 @@ public sealed class TextInputWithButtonsRow : FormRow, IFormCursorProvider, IFor
     private TextInputWithButtonsLayout CalculateLayout(FormRowLayout rowLayout)
     {
         Rect available = rowLayout.ControlBounds;
-        int buttonWidth = Math.Min(_legacyButtonAreaWidth ?? _buttonBar.DesiredWidth, Math.Max(0, available.Width));
+        int buttonWidth = Math.Min(_buttonBar.DesiredWidth, Math.Max(0, available.Width));
         int gap = buttonWidth > 0 && available.Width > buttonWidth ? 1 : 0;
         int inputAvailable = Math.Max(0, available.Width - buttonWidth - gap);
         int inputWidth = Math.Min(_inputWidth ?? inputAvailable, inputAvailable);

@@ -43,9 +43,4 @@ internal interface IFormLabeledRow
     bool UseSharedLabelColumn { get; }
 }
 
-internal interface IFormLabelWidthOverride
-{
-    int? LabelWidthOverride { get; }
-}
-
 public readonly record struct FormRowLayout(Rect RowBounds, Rect? LabelBounds, Rect ControlBounds);

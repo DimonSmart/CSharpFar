@@ -281,14 +281,14 @@ public sealed partial class ScrollableFormDialog
         if (row is not IFormLabeledRow labeled)
             return new FormRowLayout(bounds, null, bounds);
 
-        int labelWidth = row is IFormLabelWidthOverride { LabelWidthOverride: int overrideWidth }
-            ? Math.Min(Math.Max(0, overrideWidth), bounds.Width)
-            : LayoutOptions.LabelColumnMode switch
-            {
-                FormLabelColumnMode.PerRow => Math.Min(labeled.DesiredLabelWidth, bounds.Width),
-                _ when labeled.UseSharedLabelColumn => Math.Min(resolvedLabelWidth, bounds.Width),
-                _ => Math.Min(labeled.DesiredLabelWidth, bounds.Width),
-            };
+        int desiredLabelWidth = LayoutOptions.LabelColumnMode switch
+        {
+            FormLabelColumnMode.PerRow => labeled.DesiredLabelWidth,
+            _ when labeled.UseSharedLabelColumn => resolvedLabelWidth,
+            _ => labeled.DesiredLabelWidth,
+        };
+        int maximumLabelWidth = Math.Max(0, bounds.Width - LayoutOptions.LabelGap - LayoutOptions.MinimumControlWidth);
+        int labelWidth = Math.Min(Math.Max(0, desiredLabelWidth), maximumLabelWidth);
         int gap = labelWidth > 0 ? Math.Min(LayoutOptions.LabelGap, Math.Max(0, bounds.Width - labelWidth)) : 0;
         Rect labelBounds = new(bounds.X, bounds.Y, labelWidth, bounds.Height);
         Rect controlBounds = new(bounds.X + labelWidth + gap, bounds.Y, Math.Max(0, bounds.Width - labelWidth - gap), bounds.Height);
