@@ -16,6 +16,48 @@ namespace CSharpFar.Tests;
 public sealed class ApplicationRuntimeTests
 {
     [Fact]
+    public void ApplicationFactory_BindsRuntimeCallbacksBeforeApplicationRun()
+    {
+        var driver = new FakeConsoleDriver(80, 25);
+        var fileSystem = new FakeFileSystemService();
+        const string root = @"C:\Root";
+        fileSystem.AddDirectory(root);
+        var settings = new AppSettings();
+        settings.Panels.LeftStartDirectory = root;
+        settings.Panels.RightStartDirectory = root;
+
+        Application app = ApplicationFactory.Create(
+            new ScreenRenderer(driver),
+            fileSystem,
+            new NoOpShellService(),
+            new NoOpFileOperationService(),
+            new InMemoryHistoryStore(),
+            settings,
+            enableBuiltInNetworkModules: false);
+        driver.EnqueueKey(KeyInfo(ConsoleKey.F10));
+
+        app.Run();
+    }
+
+    [Fact]
+    public void ServiceRuntime_UsesSessionLifecycleWithoutApplicationCallback()
+    {
+        var driver = new FakeConsoleDriver(80, 25);
+        ApplicationServices services = RuntimeFixture.CreateServices(driver);
+        services.Callbacks.CaptureUnderlay = () => { };
+        services.Callbacks.StartWatchingInitialPanels = () => { };
+        services.Callbacks.RestoreTerminal = () => { };
+        services.Callbacks.HandleApplicationInput = _ =>
+        {
+            services.Session.App.Running = false;
+            return ApplicationRuntimeRenderRequest.None;
+        };
+        driver.EnqueueKey(KeyInfo(ConsoleKey.F10));
+
+        services.Runtime.Run();
+    }
+
+    [Fact]
     public void ApplicationInputRequested_CanEnqueueTopLevelInputBeforeRead()
     {
         var fixture = RuntimeFixture.Create();

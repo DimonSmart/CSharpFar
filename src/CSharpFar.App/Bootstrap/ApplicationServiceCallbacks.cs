@@ -40,7 +40,6 @@ internal sealed class ApplicationServiceCallbacks
         _ => throw Missing();
     public Func<MenuCommandRequest, ApplicationRuntimeRenderRequest> ExecuteMenuCommand { get; set; } =
         _ => throw Missing();
-    public Func<bool> IsRunning { get; set; } = () => throw Missing();
     public Action CaptureUnderlay { get; set; } = () => throw Missing();
     public Action StartWatchingInitialPanels { get; set; } = () => throw Missing();
     public Action RestoreTerminal { get; set; } = () => throw Missing();

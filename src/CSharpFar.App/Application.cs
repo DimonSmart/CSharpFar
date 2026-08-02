@@ -247,7 +247,6 @@ public sealed class Application
         callbacks.ExecuteInCurrentConsole = _externalConsoleCommandRunner.Execute;
         callbacks.CanExecuteFunctionKeyCommand = CanExecuteFunctionKeyCommand;
         callbacks.ExecuteMenuCommand = ExecuteMenuCommand;
-        callbacks.IsRunning = () => _state.Running;
         callbacks.CaptureUnderlay = _terminalSurface.CaptureUnderlay;
         callbacks.StartWatchingInitialPanels = StartWatchingInitialPanels;
         callbacks.RestoreTerminal = _terminalSurface.RestoreTerminal;

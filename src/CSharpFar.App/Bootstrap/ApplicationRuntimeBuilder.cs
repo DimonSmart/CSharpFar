@@ -1,6 +1,7 @@
 using CSharpFar.App.AutoRefresh;
 using CSharpFar.App.Menu;
 using CSharpFar.App.Rendering;
+using CSharpFar.App.State;
 using CSharpFar.App.Viewer;
 using CSharpFar.Console;
 using CSharpFar.Ui;
@@ -15,6 +16,7 @@ internal static class ApplicationRuntimeBuilder
         ApplicationUiSurface applicationSurface,
         ApplicationUiLayerScope applicationUiLayers,
         PendingMenuCommandQueue pendingMenuCommands,
+        ApplicationSession session,
         ApplicationServiceCallbacks callbacks,
         PanelAutoRefreshService autoRefresh,
         QuickViewDirectorySizeController quickViewDirectorySize)
@@ -26,7 +28,7 @@ internal static class ApplicationRuntimeBuilder
             applicationUiLayers,
             new ApplicationRuntimeContext
             {
-                IsRunning = () => callbacks.IsRunning(),
+                IsRunning = () => session.App.Running,
                 WaitToken = () => autoRefresh.WaitToken,
                 CaptureUnderlay = () => callbacks.CaptureUnderlay(),
                 StartWatchingInitialPanels = () => callbacks.StartWatchingInitialPanels(),
@@ -35,7 +37,7 @@ internal static class ApplicationRuntimeBuilder
                 ProcessPendingRefreshes = autoRefresh.ProcessPendingRefreshes,
                 DisposeRuntimeState = quickViewDirectorySize.Dispose,
                 HandleApplicationInput = packet => callbacks.HandleApplicationInput(packet),
-                IsPanelsMode = callbacks.IsPanelsMode,
+                IsPanelsMode = () => session.App.WorkspaceMode == ApplicationWorkspaceMode.Panels,
                 TryTakeMenuCommand = pendingMenuCommands.TryTake,
                 ExecuteMenuCommand = request => callbacks.ExecuteMenuCommand(request),
             });

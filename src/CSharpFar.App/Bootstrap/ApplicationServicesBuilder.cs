@@ -352,6 +352,7 @@ internal static class ApplicationServicesBuilder
             applicationSurface,
             applicationUiLayers,
             pendingMenuCommands,
+            session,
             callbacks,
             autoRefresh,
             quickViewDirectorySize);
