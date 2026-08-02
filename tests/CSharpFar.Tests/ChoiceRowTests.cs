@@ -203,18 +203,9 @@ public sealed class ChoiceRowTests
     }
 
     [Fact]
-    public void EmptyChoices_DoNotThrowAndIgnoreInput()
+    public void EmptyChoices_AreRejected()
     {
-        var driver = new FakeConsoleDriver(40, 4);
-        var screen = new ScreenRenderer(driver);
-        var row = new ChoiceRow<string>([], static value => value);
-
-        var layout = UiTestRender.Render(screen, canvas =>
-            row.Render(canvas, 2, 1, 20, "Mode", focused: false));
-
-        Assert.Equal(-1, row.SelectedIndex);
-        Assert.False(row.TryHandleKey(Key(ConsoleKey.RightArrow)));
-        Assert.False(row.TryHandleMouse(Mouse(3, 1), layout));
+        Assert.Throws<ArgumentOutOfRangeException>(() => new ChoiceRow<string>([], static value => value));
     }
 
     [Fact]
