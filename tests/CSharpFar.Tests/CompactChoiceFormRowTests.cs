@@ -118,7 +118,7 @@ public sealed class CompactChoiceFormRowTests
     }
 
     private static CompactChoiceFormRow<string> Row(IReadOnlyList<string> values, int selectedIndex = 0) =>
-        new(new ChoiceRow<string>(values, static value => value, selectedIndex), "Mode");
+        new(new ChoiceModel<string>(values, static value => value, selectedIndex), "Mode");
 
     private static ConsoleKeyInfo Key(ConsoleKey key) =>
         new('\0', key, shift: false, alt: false, control: false);

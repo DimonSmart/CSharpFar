@@ -6,10 +6,10 @@ namespace CSharpFar.Ui;
 /// <summary>A one-line labeled choice that keeps the compact FTP-style presentation.</summary>
 public sealed class CompactChoiceFormRow<T> : FormRow, IFormCursorProvider
 {
-    private readonly ChoiceRow<T> _choice;
+    private readonly ChoiceModel<T> _choice;
     private readonly string _label;
 
-    public CompactChoiceFormRow(ChoiceRow<T> choice, string label)
+    public CompactChoiceFormRow(ChoiceModel<T> choice, string label)
     {
         _choice = choice ?? throw new ArgumentNullException(nameof(choice));
         _label = label;
@@ -21,7 +21,7 @@ public sealed class CompactChoiceFormRow<T> : FormRow, IFormCursorProvider
         Func<T, string> format,
         T selectedValue,
         IEqualityComparer<T>? comparer = null)
-        : this(ChoiceRow<T>.FromValue(values, format, selectedValue, comparer), label)
+        : this(new ChoiceModel<T>(ChoiceSelection<T>.FromValue(values, selectedValue, comparer), format), label)
     {
     }
 
@@ -32,12 +32,12 @@ public sealed class CompactChoiceFormRow<T> : FormRow, IFormCursorProvider
         T selectedValue,
         T fallbackValue,
         IEqualityComparer<T>? comparer = null)
-        : this(ChoiceRow<T>.FromValue(values, format, selectedValue, fallbackValue, comparer), label)
+        : this(new ChoiceModel<T>(ChoiceSelection<T>.FromValueOrFallback(values, selectedValue, fallbackValue, comparer), format), label)
     {
     }
 
     public override FormRowRole Role { get; init; } = FormRowRole.Option;
-    public ChoiceRow<T> Choice => _choice;
+    public ChoiceModel<T> Choice => _choice;
     public T Value => _choice.Value;
     public bool Enabled { get; set; } = true;
     public string? DisabledReason { get; set; }
