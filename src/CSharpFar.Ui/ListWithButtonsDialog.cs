@@ -17,8 +17,10 @@ public sealed class ListWithButtonsDialog<T>
     private static readonly UiTargetId ScrollbarTarget = Targets.Child("list.scrollbar");
 
     private readonly RoutedScrollableList<T> _list;
+    private readonly Func<T, string> _itemText;
     private readonly ScrollableFormDialog _form = new();
     private readonly ModalDialogRenderer _modalRenderer = new();
+    private string? _emptyText;
 
     public ListWithButtonsDialog(
         IReadOnlyList<T> items,
@@ -27,10 +29,10 @@ public sealed class ListWithButtonsDialog<T>
         string title)
     {
         _list = new RoutedScrollableList<T>(
-            items,
-            itemText,
+            new ScrollableListState<T>(items),
             ListTarget,
             ScrollbarTarget);
+        _itemText = itemText ?? throw new ArgumentNullException(nameof(itemText));
         _form.SetRows([], [new ButtonRow(buttons ?? throw new ArgumentNullException(nameof(buttons))) { Id = "actions" }]);
         Title = title ?? throw new ArgumentNullException(nameof(title));
     }
@@ -45,8 +47,8 @@ public sealed class ListWithButtonsDialog<T>
 
     public string? EmptyText
     {
-        get => _list.EmptyText;
-        set => _list.EmptyText = value;
+        get => _emptyText;
+        set => _emptyText = value;
     }
 
     public string DefaultListActionId { get; set; } = "default";
@@ -57,14 +59,14 @@ public sealed class ListWithButtonsDialog<T>
 
     public int SelectedIndex
     {
-        get => _list.SelectedIndex;
-        set => _list.SelectedIndex = value;
+        get => _list.State.SelectedIndex;
+        set => _list.State.SelectIndex(value, 1);
     }
 
     public int ScrollTop
     {
-        get => _list.ScrollTop;
-        set => _list.ScrollTop = value;
+        get => _list.State.ScrollTop;
+        set => _list.State.SetFromInput(_list.State.SelectedIndex, value, 1);
     }
 
     public ListWithButtonsDialogResult<T>? Show(ModalDialogHost modalDialogs)
@@ -90,21 +92,20 @@ public sealed class ListWithButtonsDialog<T>
                 return semantic.ListResult.Kind switch
                 {
                     ScrollableListInputResultKind.Confirmed => ModalDialogLoopResult<ListWithButtonsDialogResult<T>?>.Complete(CreateResult(DefaultListActionId)),
-                    _ when semantic.Input is KeyConsoleInputEvent { Key.Key: ConsoleKey.Delete } && DeleteActionId is not null && _list.HasItems =>
+                    _ when semantic.Input is KeyConsoleInputEvent { Key.Key: ConsoleKey.Delete } && DeleteActionId is not null && _list.State.HasItems =>
                         ModalDialogLoopResult<ListWithButtonsDialogResult<T>?>.Complete(CreateResult(DeleteActionId)),
                     _ => ModalDialogLoopResult<ListWithButtonsDialogResult<T>?>.ContinueNoChange,
                 };
             },
-            applyCommittedFrame: frame => _list.ApplyCommittedFrame(frame.List));
+            applyCommittedFrame: _ => { });
     }
 
     private ListWithButtonsFrame Render(UiRenderContext context, IUiFocusState focusScope)
     {
         ListWithButtonsLayout layout = CalculateLayout(context.Size);
         RoutedScrollableListFrame list = _list.CalculateFrame(
-            layout.ListBounds.Height,
             layout.ListBounds,
-            layout.ListBounds.Width > 0 && layout.ListBounds.Height > 0 && _list.Count > layout.ListBounds.Height
+            layout.ListBounds.Width > 0 && layout.ListBounds.Height > 0 && _list.State.Count > layout.ListBounds.Height
                 ? new Rect(layout.Modal.FrameBounds.Right - 1, layout.ListBounds.Y, 1, layout.ListBounds.Height)
                 : null);
         ScrollableFormFrame? buttons = null;
@@ -118,13 +119,13 @@ public sealed class ListWithButtonsDialog<T>
                         FarDialogStyles.Border,
                         layout.FooterBounds),
                     focusScope,
-                    [new UiFocusEntry(ListTarget, 0, _list.HasItems)],
-                    _list.HasItems ? ListTarget : null)
+                    [new UiFocusEntry(ListTarget, 0, _list.State.HasItems)],
+                    _list.State.HasItems ? ListTarget : null)
                 : EmptyFormFrame(context, layout.ListBounds);
 
             _list.RenderScrollbar(context.Canvas, list, FarDialogStyles.Border);
 
-            _list.Render(context.Canvas, list, FarDialogStyles.Fill, FarDialogStyles.FocusedInput, FarDialogStyles.Fill);
+            _list.Render(context.Canvas, list, new(_itemText, EmptyText ?? string.Empty, FarDialogStyles.Fill, FarDialogStyles.FocusedInput, FarDialogStyles.Fill));
         });
         return new ListWithButtonsFrame(layout, list, buttons ?? throw new InvalidOperationException("List dialog did not render its button form."));
     }
@@ -132,7 +133,7 @@ public sealed class ListWithButtonsDialog<T>
     private UiInteractionFrame BuildInteractionFrame(ListWithButtonsFrame frame)
     {
         var builder = new UiInteractionFrameBuilder()
-            .AddFragment(_list.BuildInteractionFragment(frame.List, 0, _list.HasItems))
+            .AddFragment(_list.BuildInteractionFragment(frame.List, 0, _list.State.HasItems))
             .AddFragment(_form.BuildInteractionFragment(frame.Buttons))
             .SetDefaultFocusTarget(frame.List.List.SelectedIndex >= 0 ? ListTarget : frame.Buttons.DefaultTarget);
         return builder.Build();
@@ -143,8 +144,7 @@ public sealed class ListWithButtonsDialog<T>
         ListWithButtonsFrame frame,
         UiInputRouteContext route)
     {
-        _list.ApplyCommittedFrame(frame.List);
-        if (input is KeyConsoleInputEvent { Key.Key: ConsoleKey.Delete } && DeleteActionId is not null && _list.HasItems)
+        if (input is KeyConsoleInputEvent { Key.Key: ConsoleKey.Delete } && DeleteActionId is not null && _list.State.HasItems)
         {
             return (
                 new ListWithButtonsInput(input, FormInputResult.NotHandled, ScrollableListInputResult.Handled),
@@ -174,9 +174,9 @@ public sealed class ListWithButtonsDialog<T>
     }
 
     private ListWithButtonsDialogResult<T> CreateResult(string actionId) =>
-        !_list.HasItems || SelectedIndex < 0 || SelectedIndex >= _list.Count
+        !_list.State.HasItems || SelectedIndex < 0 || SelectedIndex >= _list.State.Count
             ? new ListWithButtonsDialogResult<T>(actionId, default, -1)
-            : new ListWithButtonsDialogResult<T>(actionId, _list.Items[SelectedIndex], SelectedIndex);
+            : new ListWithButtonsDialogResult<T>(actionId, _list.State.Items[SelectedIndex], SelectedIndex);
 
     private static ScrollableFormFrame EmptyFormFrame(UiRenderContext context, Rect bodyBounds) =>
         new(context.Viewport, bodyBounds, null, 0, context.Viewport.Height, 0, [], null);
@@ -184,7 +184,7 @@ public sealed class ListWithButtonsDialog<T>
     private ListWithButtonsLayout CalculateLayout(ConsoleSize size)
     {
         int width = Math.Min(DialogWidth, Math.Max(MinDialogWidth, size.Width - 2));
-        int targetListRows = Math.Min(MaxVisibleRows, Math.Max(1, _list.Count));
+        int targetListRows = Math.Min(MaxVisibleRows, Math.Max(1, _list.State.Count));
         int height = Math.Min(targetListRows + 7, Math.Max(8, size.Height - 2));
         ModalDialogRenderer.Layout modal = _modalRenderer.CalculateLayout(size, width, height);
         VerticalLayoutSplit sections = UiLayout.SplitBottom(modal.ContentBounds, footerHeight: 1, gap: 1);

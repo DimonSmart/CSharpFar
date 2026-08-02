@@ -65,7 +65,7 @@ internal sealed class CommandCompletionLayer : UiLayer<CommandCompletionFrame>
     {
         var completion = _context.CommandCompletion;
         var list = _list;
-        var empty = new CommandCompletionFrame(false, context.Viewport, default, default, [], null, 0, list.Count, new RoutedScrollableListFrame(default, ScrollableListFrameState.Empty));
+        var empty = new CommandCompletionFrame(false, context.Viewport, default, default, [], null, 0, list.Count, new RoutedScrollableListFrame(ScrollableListFrame.Empty(default)));
         if (!completion.Visible || !list.HasItems)
             return empty;
 
@@ -100,7 +100,7 @@ internal sealed class CommandCompletionLayer : UiLayer<CommandCompletionFrame>
     {
         if (!frame.Visible)
         {
-            _list.ApplyCommittedFrame(new RoutedScrollableListFrame(default, ScrollableListFrameState.Empty));
+            _list.ApplyCommittedFrame(new RoutedScrollableListFrame(ScrollableListFrame.Empty(default)));
             return;
         }
 
