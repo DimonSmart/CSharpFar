@@ -38,12 +38,6 @@ internal sealed class FormTextInputField
             Enabled && context.Focused ? FarDialogStyles.FocusedInput : DisabledFormControlPresentation.Style(Enabled, FarDialogStyles.Input),
             DisabledFormControlPresentation.Style(Enabled, FarDialogStyles.Input), Enabled ? _history : null, maskInput: _maskInput, renderDropdown: false);
 
-    public void RenderOverlay(FormRowRenderContext context, Rect bounds)
-    {
-        if (Enabled && _history is not null && context.Focused)
-            SingleLineTextInput.RenderHistoryDropdown(context.Canvas, bounds.X, bounds.Y, bounds.Width, _history, context.CanvasHeight);
-    }
-
     public bool TryGetCursor(FormRowRenderContext context, Rect bounds, out FormCursorPlacement cursor)
     {
         int textWidth = _history is null ? bounds.Width : Math.Max(1, bounds.Width - 1);
@@ -57,7 +51,7 @@ internal sealed class FormTextInputField
             return FormInputResult.NotHandled;
         string? error = null;
         string before = _buffer.Text;
-        TextInputKeyResult result = SingleLineTextInput.HandleKey(_buffer, key, ref error, _history, context.AvailableOverlayContentRows);
+        TextInputKeyResult result = SingleLineTextInput.HandleKey(_buffer, key, ref error, _history, int.MaxValue);
         return result switch
         {
             TextInputKeyResult.TextChanged when _buffer.Text != before => FormInputResult.ValueChanged,
@@ -73,18 +67,6 @@ internal sealed class FormTextInputField
             return FormInputResult.NotHandled;
         if (mouse is not { Button: MouseButton.Left, Kind: MouseEventKind.Down } || !bounds.Contains(mouse.X, mouse.Y))
             return FormInputResult.NotHandled;
-
-        if (_history is not null && SingleLineTextInput.IsHistoryArrowHit(bounds.X, bounds.Width, bounds.Y, mouse.X, mouse.Y))
-        {
-            if (!_history.History.HasItems)
-                return FormInputResult.Handled;
-            if (_history.IsDropdownOpen)
-            {
-                _history.Close();
-                return FormInputResult.Handled;
-            }
-            return SingleLineTextInput.TryOpenHistoryDropdown(_history, bounds.Y, context.CanvasHeight) ? FormInputResult.Handled : FormInputResult.NotHandled;
-        }
 
         int textWidth = _history is null ? bounds.Width : Math.Max(1, bounds.Width - 1);
         int cursorCell = ConsoleTextMetrics.CellOffsetFromUtf16Index(_buffer.Text, _buffer.CursorPosition);

@@ -29,8 +29,23 @@ internal sealed class TextInputCompositeController : IFormCompositeController
     public void ApplyCommittedFrame(FormCompositeFrame frame) { }
     public void RenderOverlay(FormRowRenderContext context, FormCompositeFrame frame) => _field.RenderCompositeOverlay(context, frame);
     public FormInputResult RouteKey(ConsoleKeyInfo key, FormRowInputContext context, FormCompositeFrame frame) => _routeKey(key, context);
-    public FormInputResult RouteMouse(MouseConsoleInputEvent mouse, FormRowMouseContext context, FormCompositeFrame frame, UiTargetId? childTarget) =>
-        _field.HandleCompositeMouse(mouse, context, _inputBounds(context.Layout), frame, childTarget);
+    public FormInputResult RouteMouse(MouseConsoleInputEvent mouse, FormRowMouseContext context, FormCompositeFrame frame, UiTargetId? childTarget)
+    {
+        Rect bounds = _inputBounds(context.Layout);
+        if (childTarget is null && _field.IsHistoryArrow(mouse, bounds))
+        {
+            SingleLineTextHistoryState? history = _field.History;
+            if (history is null || !history.History.HasItems)
+                return FormInputResult.Handled;
+            if (history.IsDropdownOpen)
+                history.Close();
+            else
+                history.OpenAll(int.MaxValue);
+            return FormInputResult.OverlayChanged;
+        }
+
+        return _field.HandleCompositeMouse(mouse, context, bounds, frame, childTarget);
+    }
     public bool IsAnchorHit(MouseConsoleInputEvent mouse, FormRowMouseContext context, FormCompositeFrame frame) =>
         _field.IsHistoryArrow(mouse, _inputBounds(context.Layout));
     public void Close() => _field.History?.Close();

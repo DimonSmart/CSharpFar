@@ -294,8 +294,8 @@ public sealed class UiComponentDialogTests
         var committedFrame = dropdown.CalculateFrame(new ConsoleSize(40, 12), field);
         dropdown.ApplyCommittedFrame(committedFrame);
 
-        Assert.Equal(committedFrame.ListState.SelectedIndex, dropdown.SelectedIndex);
-        Assert.Equal(committedFrame.ListState.ScrollTop, dropdown.ScrollTop);
+        Assert.Equal(committedFrame.Popup!.List.SelectedIndex, dropdown.SelectedIndex);
+        Assert.Equal(committedFrame.Popup!.List.ScrollTop, dropdown.ScrollTop);
         Assert.NotEqual(rejectedFrame.ContentRows, committedFrame.ContentRows);
     }
 

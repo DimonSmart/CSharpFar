@@ -160,7 +160,7 @@ public sealed class CheckBoxColumnsRowTests
 
     private static FormRowInputContext Input() => new(true);
 
-    private static FormRowMouseContext MouseContext(Rect bounds) => new(true, 5, new FormRowLayout(bounds, null, bounds));
+    private static FormRowMouseContext MouseContext(Rect bounds) => new(true, new FormRowLayout(bounds, null, bounds));
 
     private sealed class RecordingCanvas(int width, int height) : IUiCanvas
     {

@@ -41,15 +41,8 @@ internal sealed class DriveDialog
     private VolumeSelectionItem? RunLoop(VolumeSelectionItem[] items, int initialCursor)
     {
         var targets = new UiTargetScope("drive");
-        var routedList = new RoutedScrollableList<VolumeSelectionItem>(
-            items,
-            ItemText,
-            targets.Child("volumes"),
-            targets.Child("volumes.scrollbar"))
-        {
-            SelectedIndex = initialCursor,
-            EmptyText = "No volumes found.",
-        };
+        var state = new ScrollableListState<VolumeSelectionItem>(items, initialCursor);
+        var routedList = new RoutedScrollableList<VolumeSelectionItem>(state, targets.Child("volumes"), targets.Child("volumes.scrollbar"));
         string? lastShortcut = null;
 
         return _modalDialogs.RunInteractive<DriveDialogFrame, ScrollableListInputResult, VolumeSelectionItem?>(
@@ -72,14 +65,14 @@ internal sealed class DriveDialog
                         key.KeyChar > ' ' &&
                         (key.Modifiers & (ConsoleModifiers.Control | ConsoleModifiers.Alt)) == 0)
                     {
-                        int selectedIndex = routedList.SelectedIndex;
-                        int scrollTop = routedList.ScrollTop;
+                        int selectedIndex = state.SelectedIndex;
+                        int scrollTop = state.ScrollTop;
                         string shortcut = key.KeyChar.ToString().ToUpperInvariant();
-                        VolumeSelectionItem? immediate = HandleShortcut(routedList, shortcut, routed.Frame.List.List.ViewportRows, ref lastShortcut);
+                        VolumeSelectionItem? immediate = HandleShortcut(state, shortcut, routed.Frame.List.List.ViewportRows, ref lastShortcut);
                         if (immediate is not null)
                             return ModalDialogLoopResult<VolumeSelectionItem?>.Complete(immediate);
 
-                        return routedList.SelectedIndex != selectedIndex || routedList.ScrollTop != scrollTop
+                        return state.SelectedIndex != selectedIndex || state.ScrollTop != scrollTop
                             ? ModalDialogLoopResult<VolumeSelectionItem?>.ContinueChanged
                             : ModalDialogLoopResult<VolumeSelectionItem?>.ContinueNoChange;
                     }
@@ -89,14 +82,13 @@ internal sealed class DriveDialog
                     lastShortcut = null;
 
                 if (result.Kind == ScrollableListInputResultKind.Confirmed &&
-                    routedList.SelectedItemOrDefault is { } selected)
+                    state.SelectedItemOrDefault is { } selected)
                 {
                     return TryCompleteSelection(selected);
                 }
 
                 return ModalDialogLoopResult<VolumeSelectionItem?>.ContinueNoChange;
-            },
-            applyCommittedFrame: frame => routedList.ApplyCommittedFrame(frame.List));
+            });
     }
 
     private static (ScrollableListInputResult Semantic, UiInputResult UiResult) RouteInput(
@@ -135,15 +127,15 @@ internal sealed class DriveDialog
     }
 
     private static VolumeSelectionItem? HandleShortcut(
-        RoutedScrollableList<VolumeSelectionItem> list,
+        ScrollableListState<VolumeSelectionItem> state,
         string shortcut,
         int visibleRows,
         ref string? lastShortcut)
     {
         var matches = new List<int>();
-        for (int index = 0; index < list.Count; index++)
+        for (int index = 0; index < state.Count; index++)
         {
-            if (string.Equals(list.Items[index].Shortcut, shortcut, StringComparison.OrdinalIgnoreCase))
+            if (string.Equals(state.Items[index].Shortcut, shortcut, StringComparison.OrdinalIgnoreCase))
                 matches.Add(index);
         }
 
@@ -152,20 +144,18 @@ internal sealed class DriveDialog
 
         if (matches.Count == 1)
         {
-            list.SelectedIndex = matches[0];
-            list.EnsureSelectedVisible(visibleRows);
+            state.SelectIndex(matches[0], visibleRows);
             lastShortcut = shortcut;
 
-            VolumeSelectionItem item = list.Items[list.SelectedIndex];
+            VolumeSelectionItem item = state.Items[state.SelectedIndex];
             return item.Volume is null || IsSelectable(item.Volume.Status) ? item : null;
         }
 
         int startSearch = string.Equals(lastShortcut, shortcut, StringComparison.OrdinalIgnoreCase)
-            ? list.SelectedIndex + 1
+            ? state.SelectedIndex + 1
             : 0;
         int next = matches.FirstOrDefault(index => index >= startSearch, matches[0]);
-        list.SelectedIndex = next;
-        list.EnsureSelectedVisible(visibleRows);
+        state.SelectIndex(next, visibleRows);
         lastShortcut = shortcut;
         return null;
     }
@@ -207,13 +197,13 @@ internal sealed class DriveDialog
                 })
             ? candidate
             : null;
-        RoutedScrollableListFrame state = list.CalculateFrame(visibleRows, layout.ListBounds, scrollbarBounds);
+        RoutedScrollableListFrame frame = list.CalculateFrame(layout.ListBounds, scrollbarBounds);
         return new DriveDialogFrame(
             items,
             modal,
             layout.ListBounds,
             scrollbarBounds,
-            state);
+            frame);
     }
 
     private static DriveDialogLayout CalculateLayout(ModalDialogRenderer.Layout modal, int itemCount)

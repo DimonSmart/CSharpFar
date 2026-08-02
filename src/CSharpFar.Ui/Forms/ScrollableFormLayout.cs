@@ -47,7 +47,7 @@ public sealed partial class ScrollableFormDialog
         foreach (FormTargetFrame targetFrame in frame.Targets.Where(target => target.Kind == FormTargetKind.Row && !target.IsFooter && IsVisibleInBody(target.Bounds, context.BodyBounds)))
         {
             bool focused = targetFrame.Target == effectiveFocusedTarget;
-            targetFrame.Row!.Render(new FormRowRenderContext(context.Canvas, targetFrame.Bounds, focused, context.Viewport.Height, targetFrame.Layout));
+            targetFrame.Row!.Render(new FormRowRenderContext(context.Canvas, targetFrame.Bounds, focused, targetFrame.Layout));
         }
 
         if (BodyRowCount > viewportRows)
@@ -75,7 +75,7 @@ public sealed partial class ScrollableFormDialog
             foreach (FormTargetFrame targetFrame in frame.Targets.Where(target => target.Kind == FormTargetKind.Row && target.IsFooter))
             {
                 bool focused = targetFrame.Target == effectiveFocusedTarget;
-                targetFrame.Row!.Render(new FormRowRenderContext(context.Canvas, targetFrame.Bounds, focused, context.Viewport.Height, targetFrame.Layout));
+                targetFrame.Row!.Render(new FormRowRenderContext(context.Canvas, targetFrame.Bounds, focused, targetFrame.Layout));
             }
         }
 
@@ -240,7 +240,7 @@ public sealed partial class ScrollableFormDialog
             : null;
         UiCursorPlacement? cursor = null;
         if (AllowsCursor(row) && row is IFormCursorProvider cursorProvider &&
-            cursorProvider.TryGetCursor(new FormRowRenderContext(screen, bounds, focused: true, viewport.Height, layout), out FormCursorPlacement placement) &&
+            cursorProvider.TryGetCursor(new FormRowRenderContext(screen, bounds, focused: true, layout), out FormCursorPlacement placement) &&
             placement.X >= bounds.X &&
             placement.X < bounds.Right &&
             placement.Y >= bounds.Y &&

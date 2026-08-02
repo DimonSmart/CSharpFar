@@ -44,17 +44,9 @@ internal sealed class SearchProgressDialog
         var session = new SearchProgressSession(cts);
 
         var targets = new UiTargetScope("search-progress");
-        var routedList = new RoutedScrollableList<SearchResultItem>(
-            Array.Empty<SearchResultItem>(),
-            item => FormatResult(item, DialogWidth),
-            targets.Child("results"),
-            targets.Child("results.scrollbar"))
-        {
-            EmptyText = "No files found yet",
-            NormalStyle = FarDialogStyles.Fill,
-            SelectedStyle = FarDialogStyles.Input,
-            EmptyStyle = FarDialogStyles.Fill,
-        };
+        var resultState = new ScrollableListState<SearchResultItem>([]);
+        var routedList = new RoutedScrollableList<SearchResultItem>(resultState, targets.Child("results"), targets.Child("results.scrollbar"));
+        var presentation = new ScrollableListRenderOptions<SearchResultItem>(item => FormatResult(item, DialogWidth), "No files found yet", FarDialogStyles.Fill, FarDialogStyles.Input, FarDialogStyles.Fill);
         var state = new SearchProgressViewState(
             latestProgress,
             Array.Empty<SearchResultItem>(),
@@ -103,7 +95,7 @@ internal sealed class SearchProgressDialog
         try
         {
             completion = _modalDialogs.RunInteractiveTimed<SearchProgressFrame, SearchProgressInput, SearchDialogCompletion>(
-                (context, focusScope) => Render(context, focusScope, request, state, routedList, form, CanGoTo(), CanRequestStop()),
+                (context, focusScope) => Render(context, focusScope, request, state, routedList, presentation, form, CanGoTo(), CanRequestStop()),
                 frame => BuildInteractionFrame(frame, routedList),
                 (input, frame, route) => RouteInput(input, frame, route, routedList, form),
                 (_, input) => HandleInput(input),
@@ -114,11 +106,7 @@ internal sealed class SearchProgressDialog
                     SynchronizeVisibleState(ReadStreamingSnapshot());
                     buttons.SetButtons(CreateButtons(CanGoTo(), CanRequestStop()));
                 },
-                applyCommittedFrame: frame =>
-                {
-                    committedListRows = frame.List.List.ViewportRows;
-                    routedList.ApplyCommittedFrame(frame.List);
-                },
+                applyCommittedFrame: frame => committedListRows = frame.List.List.ViewportRows,
                 wakeSignal: completionWake.Token);
         }
         catch (Exception)
@@ -132,7 +120,7 @@ internal sealed class SearchProgressDialog
             throw completion.Exception;
         return completion.Result ?? throw new InvalidOperationException("Search progress did not produce a result.");
 
-        bool CanGoTo() => session.CanGoTo && routedList.SelectedItemOrDefault is not null && !searchTask.IsCompleted;
+        bool CanGoTo() => session.CanGoTo && resultState.SelectedItemOrDefault is not null && !searchTask.IsCompleted;
 
         bool CanRequestStop()
             => session.CanStop && !searchTask.IsCompleted;
@@ -191,7 +179,7 @@ internal sealed class SearchProgressDialog
             var next = new SearchProgressViewState(snapshot.Progress, snapshot.Results, status);
             bool changed = HasVisibleChanges(state, next);
             state = next;
-            routedList.ReplaceItems(next.Results, static item => new SearchResultKey(item.FullPath, item.Kind), committedListRows);
+            resultState.ReplaceItems(next.Results, static item => new SearchResultKey(item.FullPath, item.Kind), committedListRows);
             return changed;
         }
 
@@ -201,7 +189,7 @@ internal sealed class SearchProgressDialog
             var next = new SearchProgressViewState(outcome.FinalProgress, outcome.Results, status);
             bool changed = HasVisibleChanges(state, next);
             state = next;
-            routedList.ReplaceItems(next.Results, static item => new SearchResultKey(item.FullPath, item.Kind), committedListRows);
+            resultState.ReplaceItems(next.Results, static item => new SearchResultKey(item.FullPath, item.Kind), committedListRows);
             return changed;
         }
 
@@ -252,7 +240,7 @@ internal sealed class SearchProgressDialog
         IUiFocusState focusScope,
         SearchRequest request,
         SearchProgressViewState state,
-        RoutedScrollableList<SearchResultItem> list,
+        RoutedScrollableList<SearchResultItem> list, ScrollableListRenderOptions<SearchResultItem> presentation,
         ScrollableFormDialog form,
         bool canGoTo,
         bool canStop)
@@ -263,9 +251,9 @@ internal sealed class SearchProgressDialog
             DialogHeight,
             minWidth: 50,
             minHeight: 14);
-        SearchProgressLayout layout = CalculateLayout(modal, list.Count);
+        SearchProgressLayout layout = CalculateLayout(modal, list.State.Count);
         ScrollableFormFrame? buttonFrame = null;
-        RoutedScrollableListFrame listFrame = list.CalculateFrame(layout.ListBounds.Height, layout.ListBounds, layout.ScrollbarBounds);
+        RoutedScrollableListFrame listFrame = list.CalculateFrame(layout.ListBounds, layout.ScrollbarBounds);
         _modalRenderer.Render(
             context.Canvas,
             modal,
@@ -291,7 +279,7 @@ internal sealed class SearchProgressDialog
                 }
 
                 DrawSeparator(context.Canvas, modal.FrameBounds, layout.SeparatorY);
-                list.Render(context.Canvas, listFrame);
+                list.Render(context.Canvas, listFrame, presentation);
                 list.RenderScrollbar(context.Canvas, listFrame, FarDialogStyles.Border);
 
                 buttonFrame = layout.FooterBounds.Height > 0
@@ -396,10 +384,10 @@ internal sealed class SearchProgressDialog
 
         if (listInput.Kind == ScrollableListInputResultKind.Confirmed &&
             frame.CanGoTo &&
-            list.SelectedIndex >= 0 &&
-            list.SelectedIndex < frame.Results.Length)
+            list.State.SelectedIndex >= 0 &&
+            list.State.SelectedIndex < frame.Results.Length)
         {
-            SearchResultItem confirmed = frame.Results[list.SelectedIndex];
+            SearchResultItem confirmed = frame.Results[list.State.SelectedIndex];
             return (SearchProgressInput.GoTo(confirmed), UiInputResult.HandledAndInvalidate);
         }
 

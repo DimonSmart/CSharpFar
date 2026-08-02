@@ -74,7 +74,7 @@ public sealed class DropdownSelect<T>
     {
         _selectedIndexBeforeOpen = Math.Clamp(frame.SelectionBeforeOpen, 0, _state.Count - 1);
         IsOpen = frame.Popup is not null;
-        _state.Restore(frame.Popup?.List ?? frame.ClosedList);
+        _state.RestoreCommittedSnapshot(frame.Popup?.List ?? frame.ClosedList);
     }
     public Rect PopupBounds(ConsoleSize size, Rect fieldBounds) { int rows = ContentRows(size, fieldBounds); int height = rows + 2; int y = fieldBounds.Y + 1; if (y + height > size.Height) y = Math.Max(0, fieldBounds.Y - height); return new Rect(fieldBounds.X, y, fieldBounds.Width, height); }
     public int ContentRows(ConsoleSize size, Rect fieldBounds) { int available = Math.Max(Math.Max(0, size.Height - fieldBounds.Bottom - 2), Math.Max(0, fieldBounds.Y - 2)); return Math.Clamp(available, 0, Math.Min(MaxVisibleRows, _state.Count)); }
@@ -94,8 +94,6 @@ public sealed class DropdownSelectFrame
     public ScrollableListFrame ClosedList { get; }
     public DropdownSelectPopupFrame? Popup { get; }
     public int SelectionBeforeOpen { get; }
-    [Obsolete("Use Popup.List.")]
-    public ScrollableListFrameState ListState => new((Popup?.List ?? ClosedList).SelectedIndex, (Popup?.List ?? ClosedList).ScrollTop, (Popup?.List ?? ClosedList).ViewportRows, (Popup?.List ?? ClosedList).Scrollbar);
     public bool IsOpen => Popup is not null;
     public Rect? PopupBounds => Popup?.Bounds;
     public Rect? ContentBounds => Popup?.ContentBounds;

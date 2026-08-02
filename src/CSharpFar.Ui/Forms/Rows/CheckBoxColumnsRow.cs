@@ -43,7 +43,7 @@ public sealed class CheckBoxColumnsRow : FormRow, IFormCursorProvider
         {
             CheckBoxRow checkBox = _columns[cell.Column][cell.Row];
             bool focused = context.Focused && _navigation.Current == cell.Position && checkBox.IsFocusable;
-            checkBox.Render(new FormRowRenderContext(context.Canvas, cell.Bounds, focused, context.CanvasHeight));
+            checkBox.Render(new FormRowRenderContext(context.Canvas, cell.Bounds, focused));
         }
     }
 
@@ -72,7 +72,7 @@ public sealed class CheckBoxColumnsRow : FormRow, IFormCursorProvider
         if (!_navigation.SelectPointer(mouse.X, mouse.Y, layout, IsCellEnabled) || _navigation.Current is not { } position) return FormInputResult.NotHandled;
         CheckBoxRow checkBox = _columns[position.Column][position.Row];
         layout.TryGetCell(position, out FormGridCell cell);
-        return checkBox.HandleMouse(mouse, new FormRowMouseContext(true, context.CanvasHeight, new FormRowLayout(cell.Bounds, null, cell.Bounds)));
+        return checkBox.HandleMouse(mouse, new FormRowMouseContext(true, new FormRowLayout(cell.Bounds, null, cell.Bounds)));
     }
 
     public bool TryGetCursor(FormRowRenderContext context, out FormCursorPlacement cursor)
@@ -83,7 +83,7 @@ public sealed class CheckBoxColumnsRow : FormRow, IFormCursorProvider
             cursor = default;
             return false;
         }
-        return _columns[position.Column][position.Row].TryGetCursor(new FormRowRenderContext(context.Canvas, cell.Bounds, true, context.CanvasHeight), out cursor);
+        return _columns[position.Column][position.Row].TryGetCursor(new FormRowRenderContext(context.Canvas, cell.Bounds, true), out cursor);
     }
 
     private FormGridLayout CalculateLayout(Rect bounds) => FormGridLayout.Calculate(bounds, _columns.Select(column => column.Count).ToArray(), _columnGap);

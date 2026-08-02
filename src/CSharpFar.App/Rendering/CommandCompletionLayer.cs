@@ -32,6 +32,8 @@ internal sealed class CommandCompletionLayer : UiLayer<CommandCompletionFrame>
     private readonly Action _resetHistoryNavigation;
     private readonly PopupRenderer _popupRenderer = new();
     private readonly RoutedScrollableList<string> _list;
+    private readonly ScrollableListRenderOptions<string> _presentation;
+    internal ScrollBarDragState? ScrollbarDragState => _list.ScrollbarDragState;
 
     public CommandCompletionLayer(
         ApplicationRenderContext context,
@@ -51,6 +53,7 @@ internal sealed class CommandCompletionLayer : UiLayer<CommandCompletionFrame>
             {
                 AcceptKeyboardFromLayerRoute = true,
             });
+        _presentation = new(static item => item, string.Empty, PaletteStyles.DialogFill(_context.App.Palette), PaletteStyles.InputField(_context.App.Palette), PaletteStyles.DialogFill(_context.App.Palette));
     }
 
     public override UiLayerInputPolicy InputPolicy =>
@@ -65,47 +68,35 @@ internal sealed class CommandCompletionLayer : UiLayer<CommandCompletionFrame>
     {
         var completion = _context.CommandCompletion;
         var list = _list;
-        var empty = new CommandCompletionFrame(false, context.Viewport, default, default, [], null, 0, list.Count, new RoutedScrollableListFrame(ScrollableListFrame.Empty(default)));
-        if (!completion.Visible || !list.HasItems)
+        var empty = new CommandCompletionFrame(false, context.Viewport, default, default, [], null, 0, completion.List.Count, new RoutedScrollableListFrame(ScrollableListFrame.Empty(default)));
+        if (!completion.Visible || !completion.List.HasItems)
             return empty;
 
-        CommandCompletionLayoutFrame layout = CommandCompletionLayout.Calculate(context.Size, list.Count);
+        CommandCompletionLayoutFrame layout = CommandCompletionLayout.Calculate(context.Size, completion.List.Count);
         if (!layout.IsVisible)
             return empty;
 
-        RoutedScrollableListFrame candidate = list.CalculateFrame(layout.VisibleRows, layout.ContentBounds, layout.CandidateScrollbarBounds);
-        ScrollState? scrollState = list.GetScrollState(layout.VisibleRows, candidate.List.ScrollTop);
+        RoutedScrollableListFrame candidate = list.CalculateFrame(layout.ContentBounds, layout.CandidateScrollbarBounds);
+        ScrollState? scrollState = completion.List.Count > layout.VisibleRows ? new ScrollState { TotalItems = completion.List.Count, ViewportItems = layout.VisibleRows, FirstVisibleIndex = candidate.List.ScrollTop } : null;
         Rect? scrollbarBounds = scrollState is not null && ScrollBarInteraction.IsInteractive(layout.CandidateScrollbarBounds, scrollState)
             ? layout.CandidateScrollbarBounds
             : null;
-        RoutedScrollableListFrame listFrame = list.CalculateFrame(layout.VisibleRows, layout.ContentBounds, scrollbarBounds);
+        RoutedScrollableListFrame listFrame = list.CalculateFrame(layout.ContentBounds, scrollbarBounds);
 
         var popupOptions = PaletteStyles.DialogPopupOptions(_context.App.Palette) with
         {
             DrawShadow = false,
-            VerticalScrollState = list.GetScrollState(layout.VisibleRows, listFrame.List.ScrollTop),
+            VerticalScrollState = completion.List.Count > layout.VisibleRows ? new ScrollState { TotalItems = completion.List.Count, ViewportItems = layout.VisibleRows, FirstVisibleIndex = listFrame.List.ScrollTop } : null,
         };
         _popupRenderer.RenderPopup(context.Canvas, layout.PopupBounds, popupOptions, (screen, bounds) =>
-            list.Render(screen, listFrame, PaletteStyles.DialogFill(_context.App.Palette), PaletteStyles.InputField(_context.App.Palette), PaletteStyles.DialogFill(_context.App.Palette)));
+            list.Render(screen, listFrame, _presentation));
 
         var items = Enumerable.Range(0, layout.VisibleRows).Select(row =>
         {
             int index = listFrame.List.ScrollTop + row;
-            return new CommandCompletionItemFrame(index, list.Items[index], new Rect(layout.ContentBounds.X, layout.ContentBounds.Y + row, layout.ContentBounds.Width, 1));
+            return new CommandCompletionItemFrame(index, completion.List.Items[index], new Rect(layout.ContentBounds.X, layout.ContentBounds.Y + row, layout.ContentBounds.Width, 1));
         }).ToArray();
-        return new CommandCompletionFrame(true, context.Viewport, layout.PopupBounds, layout.ContentBounds, items, scrollbarBounds, layout.VisibleRows, list.Count, listFrame);
-    }
-
-    protected override void OnFrameCommitted(CommandCompletionFrame frame)
-    {
-        if (!frame.Visible)
-        {
-            _list.ApplyCommittedFrame(new RoutedScrollableListFrame(ScrollableListFrame.Empty(default)));
-            return;
-        }
-
-        if (_context.CommandCompletion.Visible && _list.Count == frame.MatchCount)
-            _list.ApplyCommittedFrame(frame.List);
+        return new CommandCompletionFrame(true, context.Viewport, layout.PopupBounds, layout.ContentBounds, items, scrollbarBounds, layout.VisibleRows, completion.List.Count, listFrame);
     }
 
     protected override UiInteractionFrame BuildInteractionFrame(CommandCompletionFrame frame)
@@ -116,6 +107,9 @@ internal sealed class CommandCompletionLayer : UiLayer<CommandCompletionFrame>
             .AddFragment(_list.BuildInteractionFragment(frame.List, tabOrder: 0))
             .Build();
     }
+
+    protected override void OnFrameCommitted(CommandCompletionFrame frame) =>
+        _list.SynchronizeCommittedScrollbar(frame.List);
 
     protected override UiInputResult RouteInput(ConsoleInputEvent input, CommandCompletionFrame frame, UiInputRouteContext context) =>
         !frame.Visible || frame.VisibleRows <= 0 || frame.MatchCount == 0 ? UiInputResult.NotHandled : input switch
@@ -139,7 +133,7 @@ internal sealed class CommandCompletionLayer : UiLayer<CommandCompletionFrame>
             _hideCompletion(true);
             return InvalidateCompletion();
         }
-        if (key.Key == ConsoleKey.Delete && _controller.TryRemoveSelectedCommand(_context.CommandLine, frame.VisibleRows))
+        if (key.Key == ConsoleKey.Delete && _controller.TryRemoveSelectedCommand(_context.CommandLine, frame.List.List.SelectedIndex, frame.VisibleRows))
         {
             _resetHistoryNavigation();
             return InvalidateCompletion();
@@ -162,7 +156,7 @@ internal sealed class CommandCompletionLayer : UiLayer<CommandCompletionFrame>
         if (!result.IsHandled)
             return UiInputResult.NotHandled;
         if (result.Kind == ScrollableListInputResultKind.Confirmed)
-            return AcceptByMouse(_list.SelectedIndex, frame);
+            return AcceptByMouse(_list.State.SelectedIndex, frame);
         return InvalidateCompletion(routed.UiResult);
     }
 
@@ -210,7 +204,6 @@ internal sealed class CommandCompletionLayer : UiLayer<CommandCompletionFrame>
             frame.Items.Any(item => item.AbsoluteIndex >= completion.List.Count || !string.Equals(completion.List.Items[item.AbsoluteIndex], item.Text, StringComparison.Ordinal)))
             return false;
 
-        _list.ApplyCommittedFrame(frame.List);
         return true;
     }
 

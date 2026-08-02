@@ -201,7 +201,7 @@ public sealed partial class ScrollableFormDialog
         if (!overlayPublished || targetFrame.CompositeFrame is not { IsOpen: true } compositeFrame || row is not IFormCompositeOwner composite)
             return;
 
-        var context = new FormRowRenderContext(screen, targetFrame.Bounds, focused: true, screenHeight: frame.ScreenHeight);
+        var context = new FormRowRenderContext(screen, targetFrame.Bounds, focused: true, targetFrame.Layout);
         composite.CompositeController.RenderOverlay(context, compositeFrame);
     }
 

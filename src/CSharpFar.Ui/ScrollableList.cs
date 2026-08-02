@@ -16,13 +16,6 @@ public readonly record struct ScrollableListInputResult(ScrollableListInputResul
     public bool IsHandled => Kind != ScrollableListInputResultKind.NotHandled;
 }
 
-[Obsolete("Use ScrollableListFrame.")]
-public readonly record struct ScrollableListFrameState(int SelectedIndex, int ScrollTop, int ViewportRows = 1, VerticalScrollbarFrame? VerticalScrollbarFrame = null)
-{
-    public Rect? ScrollbarBounds => VerticalScrollbarFrame?.Bounds;
-    public static ScrollableListFrameState Empty => new(-1, 0);
-}
-
 /// <summary>Logical list state. It deliberately has no rendering or input dependencies.</summary>
 public sealed class ScrollableListState<T>
 {
@@ -52,7 +45,7 @@ public sealed class ScrollableListState<T>
         Normalize(viewportRows);
     }
 
-    public void Restore(ScrollableListFrame frame)
+    internal void RestoreCommittedSnapshot(ScrollableListFrame frame)
     {
         ArgumentNullException.ThrowIfNull(frame);
         if (frame.ItemCount != Count)
@@ -196,7 +189,7 @@ public sealed class ScrollableListInputController
         return new(changed ? ScrollableListInputResultKind.SelectionChanged : ScrollableListInputResultKind.Handled, result.DragStarted, result.DragEnded);
     }
 
-    private static void Restore<T>(ScrollableListState<T> state, ScrollableListFrame frame) { if (frame.ItemCount == state.Count) state.Restore(frame); }
+    private static void Restore<T>(ScrollableListState<T> state, ScrollableListFrame frame) { if (frame.ItemCount == state.Count) state.RestoreCommittedSnapshot(frame); }
     private static ScrollableListInputResult Select<T>(ScrollableListState<T> state, ScrollableListFrame frame, int target)
     {
         if (!state.HasItems) return ScrollableListInputResult.Handled;
@@ -207,45 +200,3 @@ public sealed class ScrollableListInputController
     }
 }
 
-// Transitional source compatibility for consumers that have not yet been migrated.
-// New code must use ScrollableListState, ScrollableListFrame, renderer and input controller directly.
-public sealed class ScrollableList<T>
-{
-    private readonly ScrollableListInputController _input = new();
-    internal ScrollableListInputController InputController => _input;
-    public ScrollableList(IReadOnlyList<T> items, Func<T, string> itemText) { State = new(items); ItemText = itemText; }
-    public ScrollableListState<T> State { get; }
-    public IReadOnlyList<T> Items => State.Items; public Func<T, string> ItemText { get; }
-    public int Count => State.Count; public bool HasItems => State.HasItems; public T? SelectedItemOrDefault => State.SelectedItemOrDefault;
-    public int SelectedIndex { get => State.SelectedIndex; set => State.SelectIndex(value, 1); }
-    public int ScrollTop { get => State.ScrollTop; set => State.SetFromInput(State.SelectedIndex, value, 1); }
-    public string? EmptyText { get; set; }
-    public CellStyle NormalStyle { get; set; } = CellStyle.Default; public CellStyle SelectedStyle { get; set; } = CellStyle.Default; public CellStyle EmptyStyle { get; set; } = CellStyle.Default;
-    public Action<T, int>? SelectionChanged { get; set; }
-    internal ScrollBarDragState? ScrollbarDragState => _input.DragState;
-    public void ResetItems(IReadOnlyList<T> items, int selectedIndex = 0) => State.ResetItems(items, selectedIndex);
-    public void ReplaceItems<TKey>(IReadOnlyList<T> items, Func<T, TKey> identityKey, int viewportRows) where TKey : notnull => State.ReplaceItems(items, identityKey, viewportRows);
-    public void EnsureSelectedVisible(int viewportRows) => State.SelectIndex(State.SelectedIndex, viewportRows);
-    public void Normalize(int viewportRows) => State.SelectIndex(State.SelectedIndex, viewportRows);
-    public ScrollableListFrame CalculateFrame(int viewportRows, Rect? scrollbarBounds = null) => _input.CalculateFrame(State, new Rect(0, 0, 0, viewportRows), scrollbarBounds);
-    [Obsolete("Use CalculateFrame.")]
-    public ScrollableListFrameState CalculateFrameState(int viewportRows, Rect? scrollbarBounds = null)
-    {
-        ScrollableListFrame frame = CalculateFrame(viewportRows, scrollbarBounds);
-        return new(frame.SelectedIndex, frame.ScrollTop, frame.ViewportRows, frame.Scrollbar);
-    }
-    public void ApplyCommittedFrame(ScrollableListFrame frame) { State.Restore(frame); _input.Synchronize(frame); }
-    [Obsolete("Input accepts the committed frame directly.")]
-    public void ApplyCommittedFrame(ScrollableListFrameState frame) => ApplyCommittedFrame(CalculateFrame(frame.ViewportRows, frame.ScrollbarBounds));
-    public ScrollableListInputResult HandleKey(ConsoleKeyInfo key, int rows) => Notify(_input.HandleKey(State, CalculateFrame(rows), key));
-    public ScrollableListInputResult HandleContentMouse(MouseConsoleInputEvent mouse, Rect bounds, ScrollableListFrame frame, bool confirmOnMouseDown = false, bool confirmOnDoubleClick = true) => Notify(_input.HandleContentMouse(State, frame, mouse, confirmOnMouseDown, confirmOnDoubleClick));
-    [Obsolete("Use ScrollableListFrame.")]
-    public ScrollableListInputResult HandleContentMouse(MouseConsoleInputEvent mouse, Rect bounds, ScrollableListFrameState frame, bool confirmOnMouseDown = false, bool confirmOnDoubleClick = true) => HandleContentMouse(mouse, bounds, ScrollableListFrame.FromCommitted(bounds, Count, frame.SelectedIndex, frame.ScrollTop, frame.ViewportRows, frame.VerticalScrollbarFrame), confirmOnMouseDown, confirmOnDoubleClick);
-    public ScrollableListInputResult HandleScrollbarMouse(MouseConsoleInputEvent mouse, ScrollableListFrame frame) => Notify(_input.HandleScrollbarMouse(State, frame, mouse));
-    [Obsolete("Use ScrollableListFrame.")]
-    public ScrollableListInputResult HandleScrollbarMouse(MouseConsoleInputEvent mouse, ScrollableListFrameState frame) => HandleScrollbarMouse(mouse, CalculateFrame(frame.ViewportRows, frame.ScrollbarBounds));
-    public void Render(IUiCanvas canvas, Rect bounds, ScrollableListFrame frame) => ScrollableListRenderer.Render(canvas, State, frame, new(ItemText, EmptyText ?? string.Empty, NormalStyle, SelectedStyle, EmptyStyle));
-    public void Render(IUiCanvas canvas, Rect bounds) => Render(canvas, bounds, _input.CalculateFrame(State, bounds, null));
-    public ScrollState? GetScrollState(int viewportRows) => Count > viewportRows ? new ScrollState { TotalItems = Count, ViewportItems = Math.Max(1, viewportRows), FirstVisibleIndex = ScrollStateCalculator.ClampFirstVisibleIndex(ScrollTop, Count, Math.Max(1, viewportRows)) } : null;
-    private ScrollableListInputResult Notify(ScrollableListInputResult result) { if (result.Kind == ScrollableListInputResultKind.SelectionChanged && HasItems) SelectionChanged?.Invoke(Items[SelectedIndex], SelectedIndex); return result; }
-}
