@@ -27,7 +27,7 @@ public sealed class ModalFormHostTests
         Assert.True(firstPopup.OpenAll(availableContentRows: 5));
 
         host.Run(
-            new ScrollableFormDialog([first.AsRow()]),
+            new ScrollableFormDialog([FormControls.Text(first)]),
             Options,
             Layout,
             (_, input) =>

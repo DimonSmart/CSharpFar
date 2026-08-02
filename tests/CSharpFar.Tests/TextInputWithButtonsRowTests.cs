@@ -23,8 +23,7 @@ public sealed class TextInputWithButtonsRowTests
         var row = new TextInputWithButtonsRow(
             "",
             field,
-            [new DialogButton("keep", "Keep", 'K')],
-            buttonAreaWidth: 0);
+            [new DialogButton("keep", "Keep", 'K')]);
         var driver = new FakeConsoleDriver(width: 20, height: 2);
         var screen = new ScreenRenderer(driver);
 
@@ -50,8 +49,7 @@ public sealed class TextInputWithButtonsRowTests
         var row = new TextInputWithButtonsRow(
             "Value:",
             field,
-            [new DialogButton("keep", "Keep", 'K')],
-            buttonAreaWidth: 8);
+            [new DialogButton("keep", "Keep", 'K')]);
         SingleLineTextHistoryState popup = Assert.IsType<SingleLineTextHistoryState>(field.Input.History);
 
         Assert.True(popup.OpenAll(availableContentRows: 5));
@@ -81,16 +79,16 @@ public sealed class TextInputWithButtonsRowTests
                 new DialogButton("original", "Original", 'O'),
                 new DialogButton("current", "Current", 'U'),
                 new DialogButton("blank", "Blank", 'B'),
-            ],
-            buttonAreaWidth: 36);
+            ]);
 
         UiTestRender.Render(screen, canvas =>
             row.Render(new FormRowRenderContext(canvas, new Rect(0, 0, 80, 1), focused: true)));
+        FakeConsoleDriver.WriteRecord button = driver.WriteRecords.Last(record => record.Text.Contains("Current", StringComparison.Ordinal));
         FormInputResult pressed = row.HandleMouse(
-            new MouseConsoleInputEvent(45, 0, MouseButton.Left, MouseEventKind.Down, MouseKeyModifiers.None),
+            new MouseConsoleInputEvent(button.X + 1, button.Y, MouseButton.Left, MouseEventKind.Down, MouseKeyModifiers.None),
             new FormRowMouseContext(new Rect(0, 0, 80, 1), rowIndex: 0, focused: true, screenHeight: 5));
         FormInputResult result = row.HandleMouse(
-            new MouseConsoleInputEvent(45, 0, MouseButton.Left, MouseEventKind.Up, MouseKeyModifiers.None),
+            new MouseConsoleInputEvent(button.X + 1, button.Y, MouseButton.Left, MouseEventKind.Up, MouseKeyModifiers.None),
             new FormRowMouseContext(new Rect(0, 0, 80, 1), rowIndex: 0, focused: true, screenHeight: 5));
 
         Assert.Equal(FormInputResultKind.Handled, pressed.Kind);

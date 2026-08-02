@@ -656,7 +656,7 @@ public sealed class ScrollableFormDialogTests
         host.Composition.Render();
         FormTargetFrame target = Assert.Single(layer.CommittedFrame.Targets, target => target.Kind == FormTargetKind.Row);
 
-        host.Composition.DispatchInput(Mouse(target.Bounds.X + 2, target.Bounds.Y));
+        host.Composition.DispatchInput(Mouse(target.Layout.ControlBounds.X + 2, target.Bounds.Y));
 
         Assert.Equal(21, text.CursorPosition);
     }
@@ -666,7 +666,7 @@ public sealed class ScrollableFormDialogTests
     {
         var text = new CommandLineState();
         text.SetText("secret");
-        var form = new ScrollableFormDialog([new LabeledTextInputRow("Password:", text, labelWidth: 0, inputWidth: 10, maskInput: true)]);
+        var form = new ScrollableFormDialog([new LabeledTextInputRow("Password:", text, inputWidth: 10, maskInput: true)]);
         var driver = Render(form, visibleRows: 1);
 
         Assert.DoesNotContain(driver.WriteRecords, record => record.Text.Contains("secret", StringComparison.Ordinal));
@@ -682,14 +682,16 @@ public sealed class ScrollableFormDialogTests
         var history = TextFieldHistoryTestProvider.CreateState();
         for (int i = 0; i < 20; i++) history.History.Add("item-" + i);
         Assert.True(history.OpenAll(5));
-        var form = new ScrollableFormDialog([new LabeledTextInputRow("Value:", text, history, labelWidth: 0, inputWidth: 14)]);
+        var form = new ScrollableFormDialog([new LabeledTextInputRow("Value:", text, history, inputWidth: 14)]);
         Render(form, visibleRows: 1, screenHeight: 8);
 
-        HandleMouse(form, Mouse(13, 3, MouseButton.Left, MouseEventKind.Down));
+        Assert.True(Harnesses.TryGetValue(form, out FormHarness? harness));
+        FormTargetFrame scrollbar = Assert.Single(harness.Layer.CommittedFrame.Targets, target => target.Kind == FormTargetKind.HistoryScrollbar);
+        HandleMouse(form, Mouse(scrollbar.Bounds.X, scrollbar.Bounds.Y, MouseButton.Left, MouseEventKind.Down));
         Assert.True(history.IsDropdownOpen);
-        form.SetRows([new LabeledTextInputRow("Value:", text, history, labelWidth: 0, inputWidth: 14)]);
-        HandleMouse(form, Mouse(13, 5, MouseButton.Left, MouseEventKind.Move));
-        HandleMouse(form, Mouse(13, 5, MouseButton.Left, MouseEventKind.Up));
+        form.SetRows([new LabeledTextInputRow("Value:", text, history, inputWidth: 14)]);
+        HandleMouse(form, Mouse(scrollbar.Bounds.X, scrollbar.Bounds.Bottom - 1, MouseButton.Left, MouseEventKind.Move));
+        HandleMouse(form, Mouse(scrollbar.Bounds.X, scrollbar.Bounds.Bottom - 1, MouseButton.Left, MouseEventKind.Up));
 
         Assert.True(history.IsDropdownOpen);
     }
@@ -712,9 +714,9 @@ public sealed class ScrollableFormDialogTests
     [Fact]
     public void LabeledValueRow_RendersLabelValueEmptyAndNullWithinBounds()
     {
-        var longValue = new LabeledValueRow("Label:", () => "very-long-value", labelWidth: 7) { Id = "long" };
-        var emptyValue = new LabeledValueRow("Empty:", () => string.Empty, labelWidth: 7) { Id = "empty" };
-        var nullValue = new LabeledValueRow("Null:", () => null!, labelWidth: 7) { Id = "null" };
+        var longValue = new LabeledValueRow("Label:", () => "very-long-value") { Id = "long" };
+        var emptyValue = new LabeledValueRow("Empty:", () => string.Empty) { Id = "empty" };
+        var nullValue = new LabeledValueRow("Null:", () => null!) { Id = "null" };
         var form = new ScrollableFormDialog([longValue, emptyValue, nullValue]);
         var driver = Render(form, visibleRows: 3);
 
@@ -1319,7 +1321,7 @@ public sealed class ScrollableFormDialogTests
 
         FormTargetFrame target = Assert.Single(frame.Targets, target => target.Kind == FormTargetKind.Row);
         DropdownSelectFrame dropdownFrame = Assert.IsType<DropdownSelectFrame>(target.DropdownFrame);
-        Assert.Equal(row.GetFieldBounds(target.Bounds), dropdownFrame.FieldBounds);
+        Assert.Equal(target.Layout.ControlBounds, dropdownFrame.FieldBounds);
         Assert.Null(dropdownFrame.PopupBounds);
     }
 
@@ -1813,7 +1815,7 @@ public sealed class ScrollableFormDialogTests
     public void RoutedLabeledHistoryScrollbarCapture_ContinuesOutsideBoundsAndReleasesAfterUp()
     {
         var history = HistoryWithItems(20);
-        var form = new ScrollableFormDialog([new LabeledTextInputRow("Value:", new CommandLineState(), history, labelWidth: 0, inputWidth: 20) { Id = "pattern" }]);
+        var form = new ScrollableFormDialog([new LabeledTextInputRow("Value:", new CommandLineState(), history, inputWidth: 20) { Id = "pattern" }]);
         var driver = new FakeConsoleDriver(20, 10);
         var screen = new ScreenRenderer(driver);
         var layer = new TestFormLayer(screen, form, context => new FormRenderContext(context, new Rect(0, 0, 20, 1), FarDialogStyles.Border));
@@ -2091,7 +2093,7 @@ public sealed class ScrollableFormDialogTests
         int? width = null,
         bool submitOnEnter = false) =>
         labeled
-            ? new LabeledTextInputRow("Value:", text, history, labelWidth: 0, inputWidth: width) { Id = "pattern", SubmitOnEnter = submitOnEnter }
+            ? new LabeledTextInputRow("Value:", text, history, inputWidth: width) { Id = "pattern", SubmitOnEnter = submitOnEnter }
             : new TextInputRow(text, history, width: width) { Id = "pattern", SubmitOnEnter = submitOnEnter };
 
     private sealed class TestFormLayer(

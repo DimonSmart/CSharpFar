@@ -76,12 +76,6 @@ public sealed class TextField
     public string Text { get => _buffer.Text; set => _buffer.SetText(value ?? string.Empty); }
     public string TrimmedText => Text.Trim();
     public bool SubmitOnEnter { get; }
-    internal TextInputRow AsRow() => new(this);
-    internal LabeledTextInputRow AsLabeledRow(string label, int? labelWidth = null)
-    {
-        _ = labelWidth;
-        return new(label, this);
-    }
     public void SelectAll() => _buffer.SelectAll();
     internal CommandLineState Buffer => _buffer;
     internal TextHistory? History => _history;
