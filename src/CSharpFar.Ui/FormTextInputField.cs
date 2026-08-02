@@ -99,7 +99,7 @@ internal sealed class FormTextInputField
 
     public void RenderCompositeOverlay(FormRowRenderContext context, FormCompositeFrame frame)
     {
-        if (_history is not null && frame.Snapshot is TextHistoryCompositeSnapshot { Frame: var historyFrame })
+        if (_history is not null && frame.State is TextHistoryCompositeSnapshot { Frame: var historyFrame })
             SingleLineTextInput.RenderHistoryDropdown(context.Canvas, _history, historyFrame);
     }
 
@@ -113,7 +113,7 @@ internal sealed class FormTextInputField
         if (!Enabled)
             return FormInputResult.NotHandled;
         string before = _buffer.Text;
-        if (_history is not null && frame.Snapshot is TextHistoryCompositeSnapshot { Frame: var historyFrame })
+        if (_history is not null && frame.State is TextHistoryCompositeSnapshot { Frame: var historyFrame })
         {
             var currentFrame = historyFrame with
             {
@@ -127,8 +127,8 @@ internal sealed class FormTextInputField
             };
             bool handled = childTargetId switch
             {
-                { } target when frame.ChildTargets.FirstOrDefault(child => child.Id == target)?.Kind == FormTargetKind.HistoryScrollbar => SingleLineTextInput.TryHandleHistoryScrollbarMouse(_history, mouse, currentFrame),
-                { } target when frame.ChildTargets.FirstOrDefault(child => child.Id == target)?.Kind == FormTargetKind.HistoryDropdown => SingleLineTextInput.TryHandleHistoryPopupContentMouse(_history, _buffer, mouse, currentFrame),
+                { } target when frame.Overlay?.ChildTargets.FirstOrDefault(child => child.Id == target)?.Kind == FormTargetKind.HistoryScrollbar => SingleLineTextInput.TryHandleHistoryScrollbarMouse(_history, mouse, currentFrame),
+                { } target when frame.Overlay?.ChildTargets.FirstOrDefault(child => child.Id == target)?.Kind == FormTargetKind.HistoryDropdown => SingleLineTextInput.TryHandleHistoryPopupContentMouse(_history, _buffer, mouse, currentFrame),
                 _ => false,
             };
             if (handled)

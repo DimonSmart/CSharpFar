@@ -41,9 +41,9 @@ public sealed partial class ScrollableFormDialog
         {
             ensureFocusedTargetVisible = IsOffscreenBodyTarget(targetFrame, frame.BodyBounds);
             var inputContext = new FormRowInputContext(Focused: true);
-            FormInputResult rowResult = row is IFormCompositeOwner owner && targetFrame.CompositeFrame is { } compositeFrame
-                ? owner.CompositeController.RouteKey(key, inputContext, compositeFrame)
-                : row.HandleKey(key, inputContext);
+            FormInputResult rowResult = row.HandleKey(key, inputContext);
+            if (!rowResult.IsHandled && row is IFormCompositeOwner owner && targetFrame.CompositeFrame is { } compositeFrame)
+                rowResult = owner.CompositeController.RouteKey(key, inputContext, compositeFrame);
             if (rowResult.IsHandled)
             {
                 rowResult = WithSourceRowId(rowResult, row.Id);
@@ -127,10 +127,21 @@ public sealed partial class ScrollableFormDialog
         var mouseContext = new FormRowMouseContext(
                 Focused: rowFrame.Target == route.FocusState.FocusedTarget || requestFocus,
                 rowFrame.Layout);
-        FormInputResult rowResult = targetFrame.Row is IFormCompositeOwner owner &&
-            (targetFrame.CompositeFrame ?? rowFrame.CompositeFrame) is { } compositeFrame
-            ? owner.CompositeController.RouteMouse(mouse, mouseContext, compositeFrame, targetFrame.CompositeChildTarget)
-            : targetFrame.Row.HandleMouse(mouse, mouseContext);
+        FormInputResult rowResult;
+        if (targetFrame.Kind == FormTargetKind.Row)
+        {
+            rowResult = targetFrame.Row.HandleMouse(mouse, mouseContext);
+            if (!rowResult.IsHandled && targetFrame.Row is IFormCompositeOwner owner && rowFrame.CompositeFrame is { } compositeFrame)
+                rowResult = owner.CompositeController.RouteMouse(mouse, mouseContext, compositeFrame, null);
+        }
+        else if (targetFrame.Row is IFormCompositeOwner owner && targetFrame.CompositeFrame is { } compositeFrame)
+        {
+            rowResult = owner.CompositeController.RouteMouse(mouse, mouseContext, compositeFrame, targetFrame.CompositeChildTarget);
+        }
+        else
+        {
+            rowResult = FormInputResult.NotHandled;
+        }
         if (rowResult.IsHandled)
             rowResult = WithSourceRowId(rowResult, targetFrame.Row.Id);
         if (!rowResult.IsHandled && TryHandleWheel(mouse, frame.ViewportRows))

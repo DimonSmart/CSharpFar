@@ -324,7 +324,7 @@ public sealed partial class ScrollableFormDialog
         if (rowFrame.Row is not IFormCompositeOwner || rowFrame.CompositeFrame is not { IsOpen: true } compositeFrame)
             return;
 
-        foreach (FormCompositeTarget child in compositeFrame.ChildTargets)
+        foreach (FormCompositeTarget child in compositeFrame.Overlay!.ChildTargets)
         {
             targets.Add(new FormTargetFrame(
                 child.Id,

@@ -6,19 +6,17 @@ using CSharpFar.Core.Models;
 namespace CSharpFar.Ui;
 
 internal sealed record TextHistoryCompositeSnapshot(SingleLineTextHistoryFrame Frame) : IFormCompositeSnapshot;
-internal sealed record DropdownCompositeSnapshot(DropdownSelectFrame Frame) : IFormCompositeSnapshot, IFormCompositeCommittedState;
+internal sealed record DropdownCompositeSnapshot(DropdownSelectFrame Frame) : IFormCompositeSnapshot;
 
 internal sealed class TextInputCompositeController : IFormCompositeController
 {
     private readonly FormTextInputField _field;
     private readonly Func<FormRowLayout, Rect> _inputBounds;
-    private readonly Func<ConsoleKeyInfo, FormRowInputContext, FormInputResult> _routeKey;
 
-    public TextInputCompositeController(FormTextInputField field, Func<FormRowLayout, Rect> inputBounds, Func<ConsoleKeyInfo, FormRowInputContext, FormInputResult> routeKey)
+    public TextInputCompositeController(FormTextInputField field, Func<FormRowLayout, Rect> inputBounds)
     {
         _field = field;
         _inputBounds = inputBounds;
-        _routeKey = routeKey;
     }
 
     public bool IsOpen => _field.Enabled && _field.History?.IsDropdownOpen == true;
@@ -28,7 +26,7 @@ internal sealed class TextInputCompositeController : IFormCompositeController
 
     public void ApplyCommittedFrame(FormCompositeFrame frame) { }
     public void RenderOverlay(FormRowRenderContext context, FormCompositeFrame frame) => _field.RenderCompositeOverlay(context, frame);
-    public FormInputResult RouteKey(ConsoleKeyInfo key, FormRowInputContext context, FormCompositeFrame frame) => _routeKey(key, context);
+    public FormInputResult RouteKey(ConsoleKeyInfo key, FormRowInputContext context, FormCompositeFrame frame) => FormInputResult.NotHandled;
     public FormInputResult RouteMouse(MouseConsoleInputEvent mouse, FormRowMouseContext context, FormCompositeFrame frame, UiTargetId? childTarget)
     {
         Rect bounds = _inputBounds(context.Layout);
@@ -88,7 +86,7 @@ internal sealed class DropdownCompositeController<T> : IFormCompositeController
 
     public void RenderOverlay(FormRowRenderContext context, FormCompositeFrame frame)
     {
-        if (frame.Snapshot is DropdownCompositeSnapshot { Frame: var dropdownFrame })
+        if (frame.State is DropdownCompositeSnapshot { Frame: var dropdownFrame })
             _dropdown.RenderPopup(context.Canvas, dropdownFrame);
     }
 
@@ -122,7 +120,7 @@ internal sealed class DropdownCompositeController<T> : IFormCompositeController
         }
         bool valueChanged = false;
         bool handled = false;
-        foreach (FormCompositeTarget target in frame.ChildTargets)
+        foreach (FormCompositeTarget target in frame.Overlay?.ChildTargets ?? [])
         {
             if (target.Id != childTarget)
                 continue;
@@ -140,13 +138,12 @@ internal sealed class DropdownCompositeController<T> : IFormCompositeController
     }
 
     public bool IsAnchorHit(MouseConsoleInputEvent mouse, FormRowMouseContext context, FormCompositeFrame frame) =>
-        frame.Snapshot is DropdownCompositeSnapshot { Frame: var dropdownFrame } && dropdownFrame.FieldBounds.Contains(mouse.X, mouse.Y);
+        frame.State is DropdownCompositeSnapshot { Frame: var dropdownFrame } && dropdownFrame.FieldBounds.Contains(mouse.X, mouse.Y);
     public void Close() => _dropdown.Close(commit: false);
 
-    private static DropdownSelectFrame? GetDropdownFrame(FormCompositeFrame frame) => frame.Snapshot switch
+    private static DropdownSelectFrame? GetDropdownFrame(FormCompositeFrame frame) => frame.State switch
     {
         DropdownCompositeSnapshot { Frame: var value } => value,
-        _ when frame.CommittedState is DropdownCompositeSnapshot { Frame: var value } => value,
         _ => null,
     };
 }

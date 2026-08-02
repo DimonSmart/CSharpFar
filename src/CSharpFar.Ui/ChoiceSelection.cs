@@ -1,5 +1,7 @@
 namespace CSharpFar.Ui;
 
+public enum ChoiceSelectionResult { Missing, Unchanged, Changed }
+
 /// <summary>Valid, non-empty selection state shared by choice presentations.</summary>
 public sealed class ChoiceSelection<T>
 {
@@ -27,6 +29,12 @@ public sealed class ChoiceSelection<T>
         return new ChoiceSelection<T>(items, selectedPresent ? selectedValue : fallbackValue, effectiveComparer);
     }
 
+    public static ChoiceSelection<T> FromValue(IReadOnlyList<T> items, T selectedValue, IEqualityComparer<T>? comparer = null) =>
+        new(items, selectedValue, comparer);
+
+    public static ChoiceSelection<T> FromValueOrFallback(IReadOnlyList<T> items, T selectedValue, T fallbackValue, IEqualityComparer<T>? comparer = null) =>
+        WithFallback(items, selectedValue, fallbackValue, comparer);
+
     public IReadOnlyList<T> Items => _items;
     public T Value => _items[SelectedIndex];
     public int SelectedIndex { get; private set; }
@@ -45,6 +53,17 @@ public sealed class ChoiceSelection<T>
         if (index < 0) return false;
         SelectedIndex = index;
         return true;
+    }
+
+    public ChoiceSelectionResult SelectValue(T value)
+    {
+        int index = FindIndex(value);
+        if (index < 0)
+            return ChoiceSelectionResult.Missing;
+        if (index == SelectedIndex)
+            return ChoiceSelectionResult.Unchanged;
+        SelectedIndex = index;
+        return ChoiceSelectionResult.Changed;
     }
 
     public bool SelectIndex(int index)

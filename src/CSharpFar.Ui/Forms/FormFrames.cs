@@ -63,7 +63,7 @@ public sealed record FormTargetFrame(
     bool CapturesMouse = false)
 {
     // Kept as a frame-inspection convenience; routing never depends on this type.
-    public DropdownSelectFrame? DropdownFrame => CompositeFrame?.Snapshot is DropdownCompositeSnapshot { Frame: var frame } ? frame : null;
+    public DropdownSelectFrame? DropdownFrame => CompositeFrame?.State is DropdownCompositeSnapshot { Frame: var frame } ? frame : null;
 }
 
 public readonly record struct FormRouteResult(

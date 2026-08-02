@@ -62,12 +62,8 @@ public static class FormControls
     {
         ArgumentNullException.ThrowIfNull(items);
         ArgumentNullException.ThrowIfNull(itemText);
-        var equalityComparer = comparer ?? EqualityComparer<T>.Default;
-        int selectedIndex = FindIndex(items, selectedValue, equalityComparer);
-        if (selectedIndex < 0)
-            throw new ArgumentException("The selected value must exist in the dropdown items.", nameof(selectedValue));
-
-        var dropdown = new DropdownSelect<T>(items, itemText) { SelectedIndex = selectedIndex };
+        ChoiceSelection<T> selection = ChoiceSelection<T>.FromValue(items, selectedValue, comparer);
+        var dropdown = new DropdownSelect<T>(items, itemText) { SelectedIndex = selection.SelectedIndex };
         return new DropdownSelectFormRow<T>(label, dropdown) { Id = RequiredId(id) };
     }
 
@@ -79,11 +75,7 @@ public static class FormControls
     {
         ArgumentNullException.ThrowIfNull(values);
         ArgumentNullException.ThrowIfNull(format);
-        var equalityComparer = comparer ?? EqualityComparer<T>.Default;
-        int selectedIndex = FindIndex(values, selectedValue, equalityComparer);
-        if (selectedIndex < 0)
-            throw new ArgumentException("The selected value must exist in the choices.", nameof(selectedValue));
-        return new ChoiceRow<T>(values, format, selectedIndex, equalityComparer);
+        return new ChoiceRow<T>(ChoiceSelection<T>.FromValue(values, selectedValue, comparer), format);
     }
 
     private static ChoiceRow<T> CreateChoice<T>(
@@ -95,24 +87,7 @@ public static class FormControls
     {
         ArgumentNullException.ThrowIfNull(values);
         ArgumentNullException.ThrowIfNull(format);
-        var equalityComparer = comparer ?? EqualityComparer<T>.Default;
-        int selectedIndex = FindIndex(values, selectedValue, equalityComparer);
-        if (selectedIndex < 0)
-            selectedIndex = FindIndex(values, fallbackValue, equalityComparer);
-        if (selectedIndex < 0)
-            throw new ArgumentException("The fallback value must exist in the choices.", nameof(fallbackValue));
-        return new ChoiceRow<T>(values, format, selectedIndex, equalityComparer);
-    }
-
-    private static int FindIndex<T>(IReadOnlyList<T> values, T value, IEqualityComparer<T> comparer)
-    {
-        for (int index = 0; index < values.Count; index++)
-        {
-            if (comparer.Equals(values[index], value))
-                return index;
-        }
-
-        return -1;
+        return new ChoiceRow<T>(ChoiceSelection<T>.FromValueOrFallback(values, selectedValue, fallbackValue, comparer), format);
     }
 
     private static string RequiredId(string id)

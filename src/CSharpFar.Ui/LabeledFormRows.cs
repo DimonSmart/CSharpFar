@@ -18,7 +18,7 @@ public sealed class LabeledTextInputRow : FormRow, IFormCursorProvider, IFormCom
         _label = label;
         _inputWidth = inputWidth;
         _field = new FormTextInputField(buffer, history, maskInput);
-        _compositeController = new TextInputCompositeController(_field, GetInputBounds, HandleKey);
+        _compositeController = new TextInputCompositeController(_field, GetInputBounds);
     }
 
     public LabeledTextInputRow(string label, TextField field)
@@ -29,7 +29,7 @@ public sealed class LabeledTextInputRow : FormRow, IFormCursorProvider, IFormCom
         _field = field.Input;
         Id = field.Id;
         SubmitOnEnter = field.SubmitOnEnter;
-        _compositeController = new TextInputCompositeController(_field, GetInputBounds, HandleKey);
+        _compositeController = new TextInputCompositeController(_field, GetInputBounds);
     }
 
     public override FormRowRole Role { get; init; } = FormRowRole.TextInput;
@@ -60,7 +60,11 @@ public sealed class LabeledTextInputRow : FormRow, IFormCursorProvider, IFormCom
             ? FormInputResult.Submit()
             : result;
     }
-    public override FormInputResult HandleMouse(MouseConsoleInputEvent mouse, FormRowMouseContext context) => _field.HandleMouse(mouse, context, GetInputBounds(context.Layout));
+    public override FormInputResult HandleMouse(MouseConsoleInputEvent mouse, FormRowMouseContext context)
+    {
+        Rect bounds = GetInputBounds(context.Layout);
+        return _field.IsHistoryArrow(mouse, bounds) ? FormInputResult.NotHandled : _field.HandleMouse(mouse, context, bounds);
+    }
 
     private Rect GetInputBounds(FormRowLayout layout) => new(
         layout.ControlBounds.X,
