@@ -573,11 +573,32 @@ public sealed class Spec010FileOperationDialogTests
         var screen = new ScreenRenderer(driver);
         var service = new CancellableFileOperationService(FileOperationPhase.Copying);
         var runner = CreateRunner(screen, service);
-        driver.BeforeReadInput = currentDriver =>
-            currentDriver.BeforeReadInput = nextDriver =>
+
+        // HandleCancellation only shows the confirmation dialog once the progress frame reflects
+        // a non-scanning phase; if Escape is queued before that frame is rendered/synchronized,
+        // it cancels immediately instead, which flakes the assertions below. Track when the
+        // "Copying" frame has actually been rendered and only then arm the Escape key, doing so
+        // from inside a BeforeReadInput callback so it is enqueued and dequeued within the same
+        // blocking ReadInput call (avoiding the non-blocking TryReadInput peek used elsewhere).
+        bool progressRendered = false;
+        driver.Wrote += record =>
+        {
+            if (record.Text.Contains("Copying the file", StringComparison.Ordinal))
+                progressRendered = true;
+        };
+
+        void ArmEscapeStep(FakeConsoleDriver current)
+        {
+            current.BeforeReadInput = next =>
             {
-                nextDriver.EnqueueKey(Key(ConsoleKey.Escape));
-                nextDriver.BeforeReadInput = dialogDriver =>
+                if (!progressRendered)
+                {
+                    ArmEscapeStep(next);
+                    return;
+                }
+
+                next.EnqueueKey(Key(ConsoleKey.Escape));
+                next.BeforeReadInput = dialogDriver =>
                 {
                     Assert.True(service.PauseReady.Wait(TimeSpan.FromSeconds(2)));
                     service.AllowPauseWait.Set();
@@ -585,6 +606,9 @@ public sealed class Spec010FileOperationDialogTests
                     dialogDriver.EnqueueKey(Key(ConsoleKey.Enter));
                 };
             };
+        }
+
+        ArmEscapeStep(driver);
 
         Assert.ThrowsAny<OperationCanceledException>(() => runner.Execute(CopyRequest()));
 

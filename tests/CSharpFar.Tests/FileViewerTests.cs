@@ -113,6 +113,17 @@ public class FileViewerTests : IDisposable
     }
 
     [Fact]
+    public void Show_HidesTerminalCursorWhileViewerIsActive()
+    {
+        string path = Write("cursorless-viewer.txt", "content", new UTF8Encoding(false));
+        var driver = new FakeConsoleDriver(width: 80, height: 10);
+        driver.BeforeReadInput = current => Assert.False(current.CursorVisible);
+        driver.EnqueueKey(Key(ConsoleKey.F10));
+
+        FileViewerFor(new ScreenRenderer(driver)).Show(path);
+    }
+
+    [Fact]
     public void Show_OpensFileLargerThanOldLimit()
     {
         string path = WriteLargeTextFile(
