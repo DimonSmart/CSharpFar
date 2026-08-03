@@ -77,6 +77,8 @@ public sealed partial class ScrollableFormDialog
             ConsoleKey.End => SetFocusByIndex(frame, Math.Max(0, TotalFocusableCount - 1)),
             ConsoleKey.Tab when (key.Modifiers & ConsoleModifiers.Shift) != 0 => FormResult(FormInputResult.Handled, UiInputResultWithFocus(UiFocusRequest.MovePrevious)),
             ConsoleKey.Tab => FormResult(FormInputResult.Handled, UiInputResultWithFocus(UiFocusRequest.MoveNext)),
+            ConsoleKey.Escape when CloseFocusedComposite(frame, route.FocusState.FocusedTarget, commit: false) =>
+                FormResult(FormInputResult.OverlayChanged, new UiInputResult(true, true, UiFocusRequest.None, UiMouseCaptureRequest.Release)),
             ConsoleKey.Escape => FormResult(FormInputResult.Cancel(), UiInputResult.HandledResult),
             _ => FormResult(FormInputResult.NotHandled, UiInputResult.NotHandled),
         };
@@ -196,7 +198,7 @@ public sealed partial class ScrollableFormDialog
         if (row.CompositeController.IsAnchorHit(mouse, context, compositeFrame))
             return false;
 
-        row.CompositeController.Close();
+        row.CompositeController.Close(commit: false);
         return true;
     }
 
@@ -332,7 +334,7 @@ public sealed partial class ScrollableFormDialog
 
             if (composite.CompositeController.IsOpen)
             {
-                composite.CompositeController.Close();
+                composite.CompositeController.Close(commit: false);
                 canceled = true;
             }
         }
@@ -346,6 +348,21 @@ public sealed partial class ScrollableFormDialog
             return;
         if (owner.CompositeController is IFormCompositeInputFrameController inputController)
             inputController.RestoreInputFrame(compositeFrame);
+    }
+
+    internal void CloseTransientOverlays(bool commit)
+    {
+        foreach (IFormRow row in AllRows())
+            if (row is IFormCompositeOwner { CompositeController.IsOpen: true } composite)
+                composite.CompositeController.Close(commit);
+    }
+
+    private static bool CloseFocusedComposite(ScrollableFormFrame frame, UiTargetId? focusedTarget, bool commit)
+    {
+        if (focusedTarget is null || FindRowTarget(frame, focusedTarget) is not { Row: IFormCompositeOwner owner } || !owner.CompositeController.IsOpen)
+            return false;
+        owner.CompositeController.Close(commit);
+        return true;
     }
 
 }

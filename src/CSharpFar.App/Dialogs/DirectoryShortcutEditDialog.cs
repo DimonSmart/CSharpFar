@@ -1,5 +1,4 @@
 using CSharpFar.App.DirectoryShortcuts;
-using CSharpFar.App.Rendering;
 using CSharpFar.Console;
 using CSharpFar.Console.Input;
 using CSharpFar.Console.Models;
@@ -46,20 +45,17 @@ internal sealed class DirectoryShortcutEditDialog
         void PrepareRows() =>
             form.SetRows(
                 [
-                    new LabelRow("Name", PaletteStyles.DialogFill(_palette)),
+                    new LabelRow("Name"),
                     nameRow,
-                    new SpacerRow(PaletteStyles.DialogFill(_palette)),
-                    new LabelRow("Path", PaletteStyles.DialogFill(_palette)),
+                    new SpacerRow(),
+                    new LabelRow("Path"),
                     pathRow,
                 ],
                 [actions]);
 
         return _formDialogs.Run(
             form,
-            new ModalFormOptions(
-                $"Directory shortcut {number}", DialogWidth, DialogHeight,
-                OuterRenderOptions: PaletteStyles.DialogPopupOptions(_palette) with { DrawBorder = false },
-                FrameRenderOptions: PaletteStyles.DialogPopupOptions(_palette) with { DrawShadow = false }),
+            new ModalFormOptions($"Directory shortcut {number}", DialogWidth, DialogHeight),
             static layout => ModalFormLayout.WithFooter(layout.ContentBounds, footerHeight: 1),
             (routed, result) =>
             {
@@ -85,7 +81,8 @@ internal sealed class DirectoryShortcutEditDialog
 
                 return ModalDialogLoopResult<DirectoryShortcutEditResult>.ContinueNoChange;
             },
-            prepareRender: PrepareRows);
+            prepareRender: PrepareRows,
+            beginRenderScope: () => UiTheme.UseTemporary(_palette));
     }
 
     private static DirectoryShortcutEditResult Accepted(int number, string name, string path)

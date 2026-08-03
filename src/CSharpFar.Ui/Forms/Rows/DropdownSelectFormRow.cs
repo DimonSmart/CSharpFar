@@ -52,10 +52,6 @@ public sealed class DropdownSelectFormRow<T> : FormRow, IFormCursorProvider, IFo
         get => _dropdown.MaxVisibleRows;
         set => _dropdown.MaxVisibleRows = value;
     }
-    public int ConfirmedSelectedIndex => _dropdown.IsOpen
-        ? _dropdown.SelectionBeforeOpen
-        : _dropdown.SelectedIndex;
-    public void CloseDropdown() => _compositeController.Close();
 
     public override void Render(FormRowRenderContext context)
     {
