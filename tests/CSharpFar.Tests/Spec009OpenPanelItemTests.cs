@@ -271,8 +271,31 @@ public sealed class Spec009OpenPanelItemTests : IDisposable
 
         Assert.Equal(FileLaunchMode.AssociatedDetached, launcher.GetLaunchMode(@"C:\Temp\note.txt"));
         Assert.Equal(
-            [new WindowsAssociationLaunchRequest(@"C:\Temp\note.txt", @"C:\Temp", "open", SuppressConsole: true)],
+            [new WindowsAssociationLaunchRequest(@"C:\Temp\note.txt", @"C:\Temp", "open")],
             associationLauncher.Requests);
+    }
+
+    [Fact]
+    public void WindowsAssociationLauncher_OpenDetached_UsesExplorerWithoutConsoleStreams()
+    {
+        ProcessStartInfo? captured = null;
+        var launcher = new WindowsAssociationLauncher(startInfo =>
+        {
+            captured = startInfo;
+            return new Process();
+        });
+
+        launcher.OpenDetached(new WindowsAssociationLaunchRequest(@"C:\Temp\note.json", @"C:\Temp", "open"));
+
+        Assert.NotNull(captured);
+        Assert.Equal("explorer.exe", captured.FileName);
+        Assert.Equal(@"C:\Temp", captured.WorkingDirectory);
+        Assert.Equal([@"C:\Temp\note.json"], captured.ArgumentList);
+        Assert.False(captured.UseShellExecute);
+        Assert.True(captured.RedirectStandardInput);
+        Assert.True(captured.RedirectStandardOutput);
+        Assert.True(captured.RedirectStandardError);
+        Assert.True(captured.CreateNoWindow);
     }
 
     [Fact]
