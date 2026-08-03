@@ -17,6 +17,7 @@ public sealed class SystemConsoleDriver : IConsoleDriver, IConsoleOutputModeDriv
 {
     private const string EnterAltScreen = "\x1b[?1049h";
     private const string LeaveAltScreen = "\x1b[?1049l";
+    private const string HideCursor = "\x1b[?25l";
     private const string ShowCursor = "\x1b[?25h";
     private const string ResetAttributes = "\x1b[0m";
 
@@ -509,8 +510,16 @@ public sealed class SystemConsoleDriver : IConsoleDriver, IConsoleOutputModeDriv
         }
     }
 
-    public void SetCursorVisible(bool visible) =>
+    public void SetCursorVisible(bool visible)
+    {
+        if (IsSupported)
+        {
+            WriteTerminalControl(visible ? ShowCursor : HideCursor);
+            return;
+        }
+
         global::System.Console.CursorVisible = visible;
+    }
 
     public ScreenSnapshot Capture(Rect region)
     {
