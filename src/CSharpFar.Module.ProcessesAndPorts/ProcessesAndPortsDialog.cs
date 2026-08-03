@@ -30,9 +30,9 @@ internal sealed class ProcessesAndPortsDialog(ModuleUiServices ui, IProcessesAnd
         var other = FormControls.CheckBox("other", "Other TCP connections");
         var form = new ScrollableFormDialog();
         DialogButton[] actionButtons = [
-            new DialogButton("details", "Details", 'D'), new DialogButton("refresh", "Refresh", 'R'),
-            new DialogButton("terminate", "Terminate", 'T'), new DialogButton("close", "Close", 'C', Role: DialogButtonRole.Cancel)];
-        var actions = new ButtonRow(actionButtons) { Id = "actions" };
+            DialogButton.Action("details", "Details", 'D'), DialogButton.Action("refresh", "Refresh", 'R'),
+            DialogButton.Action("terminate", "Terminate", 'T'), DialogButton.Cancel("Close", 'C', "close")];
+        var actions = FormControls.Buttons("actions", actionButtons);
         form.SetRows([FormControls.Text("Filter:", filter), tcp, udp, other], [actions]);
 
         ProcessesAndPortsSnapshot? snapshot = TryCapture(null, out string? captureError);

@@ -29,21 +29,17 @@ internal sealed class CreateFolderDialog
         var fields = _fields;
         TextField folderName = fields.Text("folder-name", initialText ?? string.Empty,
             AppTextHistoryIds.CreateFolderName, submitOnEnter: true);
-        var actions = new ButtonRow(
-            [
-                DialogButton.Default("ok", "OK", 'O'),
-                DialogButton.Cancel(),
-            ])
-        {
-            Id = "actions",
-        };
+        var actions = FormControls.Buttons(
+            "actions",
+            DialogButton.Default("ok", "OK", 'O'),
+            DialogButton.Cancel());
         var form = new ScrollableFormDialog();
         string? error = null;
 
         void PrepareRows() =>
             form.SetRows(
                 [
-                    new LabelRow(Prompt, FarDialogStyles.Fill),
+                    new LabelRow(Prompt),
                     FormControls.Text(folderName),
                     new SeparatorRow(FarDialogStyles.Border),
                     new LabelRow(error ?? string.Empty, FarDialogStyles.Error),

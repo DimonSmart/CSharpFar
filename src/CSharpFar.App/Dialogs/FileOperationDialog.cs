@@ -121,15 +121,13 @@ internal sealed class FileOperationDialog
             ? null
             : FormControls.Choice(
                 "copyMode", "Copy mode:", copyModes, CopyModeLabel, initialOptions.CopyMode);
-        var conflictChoiceRow = new MultiLineChoiceFormRow<ConflictDecisionMode>(
-            label: string.Empty,
-            values: conflictModes,
-            format: ConflictLabel,
-            selectedValue: initialOptions.DefaultConflictDecision,
-            itemsPerRow: 4)
-        {
-            Id = "conflict",
-        };
+        var conflictChoiceRow = FormControls.MultiLineChoice(
+            "conflict",
+            string.Empty,
+            conflictModes,
+            ConflictLabel,
+            initialOptions.DefaultConflictDecision,
+            itemsPerRow: 4);
         var preserveTimestamps = FormControls.CheckBox(
             "preserveTimestamps", "Preserve all timestamps", initialOptions.PreserveTimestamps);
         var preserveAttributes = FormControls.CheckBox(
@@ -139,14 +137,10 @@ internal sealed class FileOperationDialog
             initialOptions.SymlinkMode == SymlinkCopyMode.CopyTargetContents);
         var useFilter = FormControls.CheckBox(
             "useFilter", "Use filter", !string.IsNullOrWhiteSpace(initialOptions.FileMask));
-        var buttons = new ButtonRow(
-            [
-                DialogButton.Default("submit", actionLabel, actionLabel[0]),
-                DialogButton.Cancel(),
-            ])
-        {
-            Id = "footerButtons",
-        };
+        var buttons = FormControls.Buttons(
+            "footerButtons",
+            DialogButton.Default("submit", actionLabel, actionLabel[0]),
+            DialogButton.Cancel());
         var form = new ScrollableFormDialog();
         string? error = null;
 

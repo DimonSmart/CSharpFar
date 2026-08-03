@@ -85,7 +85,7 @@ public sealed class SearchOptionsDialog
 
         var state = new SearchOptionsDialogState(pattern.Text, options.Options);
         var checkboxes = options.Options
-            .Select(option => new CheckBoxRow(new CheckBoxLine(option.Label, option.IsChecked)))
+            .Select(option => FormControls.CheckBox(option.Id, option.Label, option.IsChecked))
             .ToArray();
         var buttons = new ButtonRow(
             [

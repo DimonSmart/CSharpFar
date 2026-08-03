@@ -37,14 +37,10 @@ internal sealed class DirectoryShortcutEditDialog
         TextField path = _fields.Text("path", currentItem?.Path ?? activePanelPath);
         TextInputRow nameRow = FormControls.Text(name);
         TextInputRow pathRow = FormControls.Text(path);
-        var actions = new ButtonRow(
-            [
-                DialogButton.Default("ok", "OK", 'O'),
-                DialogButton.Cancel(),
-            ])
-        {
-            Id = "actions",
-        };
+        var actions = FormControls.Buttons(
+            "actions",
+            DialogButton.Default("ok", "OK", 'O'),
+            DialogButton.Cancel());
         var form = new ScrollableFormDialog();
 
         void PrepareRows() =>

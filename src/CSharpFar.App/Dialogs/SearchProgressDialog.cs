@@ -51,7 +51,7 @@ internal sealed class SearchProgressDialog
             latestProgress,
             Array.Empty<SearchResultItem>(),
             SearchProgressStatus.Running);
-        var buttons = new ButtonRow(CreateButtons(canGoTo: false, canStop: true)) { Id = "actions" };
+        var buttons = FormControls.Buttons("actions", CreateButtons(canGoTo: false, canStop: true).ToArray());
         var form = new ScrollableFormDialog();
         form.SetRows([], [buttons]);
         int committedListRows = 1;

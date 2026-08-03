@@ -63,10 +63,10 @@ internal sealed class SettingsDialog
                     fileHighlighting,
                     syntaxHighlighting,
                     new SpacerRow(),
-                    new LabelRow("Enter/Space  change value", FarDialogStyles.Fill),
-                    new LabelRow("Up/Down      select item", FarDialogStyles.Fill),
-                    new LabelRow("F10          save & close", FarDialogStyles.Fill),
-                    new LabelRow("Esc          close", FarDialogStyles.Fill),
+                    new LabelRow("Enter/Space  change value"),
+                    new LabelRow("Up/Down      select item"),
+                    new LabelRow("F10          save & close"),
+                    new LabelRow("Esc          close"),
                     new SpacerRow(),
                 ]);
 

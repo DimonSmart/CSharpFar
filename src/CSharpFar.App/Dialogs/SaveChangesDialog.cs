@@ -26,9 +26,9 @@ internal sealed class SaveChangesDialog
             Lines = [Truncate($"\"{fileName}\" has been modified.", 48)],
             Buttons =
             [
-                new DialogButton("save", "Save", 'S', IsDefault: true),
-                new DialogButton("discard", "Discard", 'D'),
-                new DialogButton("cancel", "Cancel", 'C', Role: DialogButtonRole.Cancel),
+                DialogButton.Default("save", "Save", 'S'),
+                DialogButton.Action("discard", "Discard", 'D'),
+                DialogButton.Cancel(),
             ],
             DefaultButtonIndex = 0,
             CancelButtonIndex = 2,

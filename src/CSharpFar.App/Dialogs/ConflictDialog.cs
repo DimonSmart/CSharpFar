@@ -139,7 +139,7 @@ internal sealed class ConflictDialog
             new(RenameButton, "Rename", 'R'),
         };
 
-        buttons.Add(new DialogButton(CancelButton, "Cancel", 'C', Role: DialogButtonRole.Cancel));
+        buttons.Add(DialogButton.Cancel("Cancel", 'C', CancelButton));
         return buttons;
     }
 
