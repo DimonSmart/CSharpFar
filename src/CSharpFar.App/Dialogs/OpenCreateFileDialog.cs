@@ -49,24 +49,20 @@ internal sealed class OpenCreateFileDialog
         TextInputRow pathRow = FormControls.Text(filePath);
         var codePageRow = FormControls.Dropdown(
             "code-page", string.Empty, _codePages, static item => item.Label, _codePages[0]);
-        var actions = new ButtonRow(
-            [
-                DialogButton.Default("ok", "OK", 'O'),
-                DialogButton.Cancel(),
-            ])
-        {
-            Id = "actions",
-        };
+        var actions = FormControls.Buttons(
+            "actions",
+            DialogButton.Default("ok", "OK", 'O'),
+            DialogButton.Cancel());
         var form = new ScrollableFormDialog();
         string? error = null;
 
         void PrepareRows() =>
             form.SetRows(
                 [
-                    new LabelRow("Open/create file:", FarDialogStyles.Fill),
+                    new LabelRow("Open/create file:"),
                     pathRow,
-                    new SpacerRow(FarDialogStyles.Fill),
-                    new LabelRow("Code page:", FarDialogStyles.Fill),
+                    new SpacerRow(),
+                    new LabelRow("Code page:"),
                     codePageRow,
                     new LabelRow(error ?? string.Empty, FarDialogStyles.Error),
                 ],

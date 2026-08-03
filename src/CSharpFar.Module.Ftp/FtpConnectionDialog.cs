@@ -71,12 +71,10 @@ internal sealed class FtpConnectionDialog
         state.DataTls.Value = state.Security.Value != FtpConnectionSecurityMode.PlainFtp && (connection?.UseDataConnectionTls ?? true);
         state.TrustCertificate.Value = !string.IsNullOrWhiteSpace(fingerprint);
         string submitLabel = request.AllowTemporaryConnection ? "Connect" : "Save";
-        var actions = new ButtonRow(
-        [
+        var actions = FormControls.Buttons(
+        "actions",
             DialogButton.Default("submit", submitLabel, request.AllowTemporaryConnection ? 'O' : 'S'),
-            DialogButton.Cancel(),
-        ])
-        { Id = "actions" };
+            DialogButton.Cancel());
         var form = new ScrollableFormDialog();
         FtpConnectionSecurityMode previousSecurity = state.Security.Value;
 
@@ -184,7 +182,7 @@ internal sealed class FtpConnectionDialog
         if (state.AllowTemporaryConnection) rows.Add(state.SaveConnection);
         rows.Add(state.SavePassword); rows.Add(state.ShowInDrive); rows.Add(state.Security); rows.Add(state.DataMode); rows.Add(state.DataTls);
         if (state.DataMode.Value == FtpDataConnectionMode.Active) rows.Add(FormControls.Text("Active ports:", state.ActivePorts));
-        rows.Add(new LabeledValueRow("TLS cert:", () => state.Security.Value == FtpConnectionSecurityMode.PlainFtp ? "(plain FTP has no TLS certificate)" : string.IsNullOrWhiteSpace(fingerprint) ? "(press F10 to read certificate)" : fingerprint) { Id = "certificate-fingerprint" });
+        rows.Add(FormControls.Value("certificate-fingerprint", "TLS cert:", () => state.Security.Value == FtpConnectionSecurityMode.PlainFtp ? "(plain FTP has no TLS certificate)" : string.IsNullOrWhiteSpace(fingerprint) ? "(press F10 to read certificate)" : fingerprint));
         rows.Add(state.TrustCertificate);
         return rows;
     }

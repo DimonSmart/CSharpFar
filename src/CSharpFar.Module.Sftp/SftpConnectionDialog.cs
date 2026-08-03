@@ -74,12 +74,10 @@ internal sealed class SftpConnectionDialog
         state.TrustHostKey.Value = !string.IsNullOrWhiteSpace(hostKeyFingerprint);
         string? error = null;
         string submitLabel = request.AllowTemporaryConnection ? "Connect" : "Save";
-        var actions = new ButtonRow(
-        [
+        var actions = FormControls.Buttons(
+        "actions",
             DialogButton.Default("submit", submitLabel, submitLabel[0]),
-            DialogButton.Cancel(),
-        ])
-        { Id = "actions" };
+            DialogButton.Cancel());
         var form = new ScrollableFormDialog();
 
         void PrepareRows() => form.SetRows(
@@ -170,7 +168,7 @@ internal sealed class SftpConnectionDialog
         rows.Add(state.ShowInDrive);
         if (!string.IsNullOrWhiteSpace(hostKeyFingerprint))
         {
-            rows.Add(new LabeledValueRow("Host key:", () => hostKeyFingerprint) { Id = "host-key-fingerprint" });
+            rows.Add(FormControls.Value("host-key-fingerprint", "Host key:", () => hostKeyFingerprint));
             rows.Add(state.TrustHostKey);
         }
         return rows;

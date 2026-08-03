@@ -132,11 +132,11 @@ internal sealed class CompareOptionsDialog
     {
         List<IFormRow> rows =
         [
-            new LabelRow($"Left : {leftPanel.CurrentDirectory}", FarDialogStyles.Fill),
-            new LabelRow($"Right: {rightPanel.CurrentDirectory}", FarDialogStyles.Fill),
+            new LabelRow($"Left : {leftPanel.CurrentDirectory}"),
+            new LabelRow($"Right: {rightPanel.CurrentDirectory}"),
             ContextSelection(leftPanel, rightPanel),
             new SeparatorRow(FarDialogStyles.Border),
-            new LabelRow("Scan", FarDialogStyles.Fill),
+            new LabelRow("Scan"),
             recursive,
             selectedOnly,
             depth,
@@ -144,18 +144,18 @@ internal sealed class CompareOptionsDialog
 
         if (depth.Value == "Custom")
         {
-            rows.Add(new LabelRow("Custom depth:", FarDialogStyles.Fill));
+            rows.Add(new LabelRow("Custom depth:"));
             rows.Add(FormControls.Text(customDepth));
         }
 
         rows.Add(new SeparatorRow(FarDialogStyles.Border));
-        rows.Add(new LabelRow("Filters", FarDialogStyles.Fill));
-        rows.Add(new LabelRow("Include masks (semicolon-separated):", FarDialogStyles.Fill));
+        rows.Add(new LabelRow("Filters"));
+        rows.Add(new LabelRow("Include masks (semicolon-separated):"));
         rows.Add(FormControls.Text(include));
-        rows.Add(new LabelRow("Exclude masks (semicolon-separated):", FarDialogStyles.Fill));
+        rows.Add(new LabelRow("Exclude masks (semicolon-separated):"));
         rows.Add(FormControls.Text(exclude));
         rows.Add(new SeparatorRow(FarDialogStyles.Border));
-        rows.Add(new LabelRow("Comparison", FarDialogStyles.Fill));
+        rows.Add(new LabelRow("Comparison"));
         rows.Add(method);
         if (method.Value == CompareMethod.Fast)
             rows.Add(tolerance);
@@ -170,8 +170,8 @@ internal sealed class CompareOptionsDialog
         int leftCount = leftPanel.SelectedPaths.Count;
         int rightCount = rightPanel.SelectedPaths.Count;
         return leftCount + rightCount == 0
-            ? new LabelRow("Scope: current folders", FarDialogStyles.Fill)
-            : new LabelRow($"Selected: left {leftCount}, right {rightCount}", FarDialogStyles.Fill);
+            ? new LabelRow("Scope: current folders")
+            : new LabelRow($"Selected: left {leftCount}, right {rightCount}");
     }
 
     internal static ComparisonOptions? BuildOptions(

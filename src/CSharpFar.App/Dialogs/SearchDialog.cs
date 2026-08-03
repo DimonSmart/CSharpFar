@@ -89,23 +89,17 @@ internal sealed class SearchDialog
         var scopeRow = FormControls.Dropdown(
             "scope", string.Empty, scopes, ScopeLabel, SearchScope.CurrentDirectoryRecursive);
         scopeRow.MaxVisibleRows = 6;
-        var optionsRow = new CheckBoxColumnsRow(
+        var optionsRow = FormControls.CheckBoxColumns(
+            "search-options",
             [
                 [caseSensitiveRow, wholeWordsRow, notContainingRow],
                 [includeDirectoriesRow, searchLinksRow],
             ],
-            columnGap: 2)
-        {
-            Id = "search-options",
-        };
-        var buttons = new ButtonRow(
-            [
-                DialogButton.Default("find", "Find", 'F'),
-                DialogButton.Cancel(),
-            ])
-        {
-            Id = "footerButtons",
-        };
+            columnGap: 2);
+        var buttons = FormControls.Buttons(
+            "footerButtons",
+            DialogButton.Default("find", "Find", 'F'),
+            DialogButton.Cancel());
         var form = new ScrollableFormDialog();
         string? error = null;
 

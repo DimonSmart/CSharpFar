@@ -234,9 +234,9 @@ internal sealed class FileAttributesDialog : IFileAttributesDialog
         rows.Add(enabled
             ? FormControls.Text(label, field,
             [
-                new DialogButton("original", "Original", 'O'),
-                new DialogButton("current", "Current", 'U'),
-                new DialogButton("blank", "Blank", 'B'),
+                DialogButton.Action("original", "Original", 'O'),
+                DialogButton.Action("current", "Current", 'U'),
+                DialogButton.Action("blank", "Blank", 'B'),
             ])
             : FormControls.Text(label, field));
     }

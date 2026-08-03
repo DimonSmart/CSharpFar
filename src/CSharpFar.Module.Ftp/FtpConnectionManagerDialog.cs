@@ -48,15 +48,15 @@ internal sealed class FtpConnectionManagerDialog
     private static IReadOnlyList<DialogButton> CreateButtons(bool hasConnections) =>
         hasConnections
             ? [
-                new DialogButton("connect", "Connect", 'O', IsDefault: true),
-                new DialogButton("create", "New", 'N'),
-                new DialogButton("edit", "Edit", 'E'),
-                new DialogButton("delete", "Delete", 'D'),
-                new DialogButton("cancel", "Cancel", 'C', Role: DialogButtonRole.Cancel),
+                DialogButton.Default("connect", "Connect", 'O'),
+                DialogButton.Action("create", "New", 'N'),
+                DialogButton.Action("edit", "Edit", 'E'),
+                DialogButton.Action("delete", "Delete", 'D'),
+                DialogButton.Cancel(),
             ]
             : [
-                new DialogButton("create", "New", 'N', IsDefault: true),
-                new DialogButton("cancel", "Cancel", 'C', Role: DialogButtonRole.Cancel),
+                DialogButton.Default("create", "New", 'N'),
+                DialogButton.Cancel(),
             ];
 
     private static FtpConnectionManagerResult? ToManagerResult(ListWithButtonsDialogResult<FtpConnectionInfo> result) =>

@@ -41,7 +41,7 @@ internal sealed class EditorFormatDialog
                     bom,
                     lineEnding,
                     new SpacerRow(FarDialogStyles.Border),
-                    new LabelRow("Enter apply  Esc/F10 cancel  Left/Right change", FarDialogStyles.Fill),
+                    new LabelRow("Enter apply  Esc/F10 cancel  Left/Right change"),
                 ]);
 
         return _formDialogs.Run(

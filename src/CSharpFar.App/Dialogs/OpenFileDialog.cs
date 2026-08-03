@@ -26,9 +26,9 @@ internal sealed class OpenFileDialog
             Lines = [Truncate($"Open \"{fileName}\" as:", 48)],
             Buttons =
             [
-                new DialogButton("view", "View", 'V'),
-                new DialogButton("edit", "Edit", 'E'),
-                new DialogButton("cancel", "Cancel", 'C', Role: DialogButtonRole.Cancel),
+                DialogButton.Action("view", "View", 'V'),
+                DialogButton.Action("edit", "Edit", 'E'),
+                DialogButton.Cancel(),
             ],
             DefaultButtonIndex = 0,
             CancelButtonIndex = 2,
