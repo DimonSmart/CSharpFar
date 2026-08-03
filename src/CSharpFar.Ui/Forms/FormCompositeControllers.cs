@@ -8,7 +8,7 @@ namespace CSharpFar.Ui;
 internal sealed record TextHistoryCompositeSnapshot(SingleLineTextHistoryFrame Frame) : IFormCompositeSnapshot;
 internal sealed record DropdownCompositeSnapshot(DropdownSelectFrame Frame) : IFormCompositeSnapshot;
 
-internal sealed class TextInputCompositeController : IFormCompositeController
+internal sealed class TextInputCompositeController : IFormCompositeController, IFormCompositeCommitController
 {
     private readonly FormTextInputField _field;
     private readonly Func<FormRowLayout, Rect> _inputBounds;
@@ -24,7 +24,14 @@ internal sealed class TextInputCompositeController : IFormCompositeController
     public FormCompositeFrame CalculateFrame(FormCompositeFrameContext context) =>
         _field.BuildCompositeFrame(_inputBounds(context.Layout), context.Viewport, context.RowTarget);
 
-    public void ApplyCommittedFrame(FormCompositeFrame frame) { }
+    public void ApplyCommittedFrame(FormCompositeFrame frame)
+    {
+        if (_field.History is not null && frame.State is TextHistoryCompositeSnapshot { Frame: var historyFrame })
+        {
+            _field.History.ApplyCommittedSnapshot(historyFrame.Snapshot, historyFrame.MatchSetVersion);
+            _field.History.Scrollbar.ApplyCommittedFrame(historyFrame.VerticalScrollbarFrame);
+        }
+    }
     public void RenderOverlay(FormRowRenderContext context, FormCompositeFrame frame) => _field.RenderCompositeOverlay(context, frame);
     public FormInputResult RouteMouse(MouseConsoleInputEvent mouse, FormRowMouseContext context, FormCompositeFrame frame, UiTargetId? childTarget)
     {
@@ -48,7 +55,7 @@ internal sealed class TextInputCompositeController : IFormCompositeController
     public void Close() => _field.History?.Close();
 }
 
-internal sealed class DropdownCompositeController<T> : IFormCompositeController, IFormCompositeKeyboardController
+internal sealed class DropdownCompositeController<T> : IFormCompositeController, IFormCompositeKeyboardController, IFormCompositeCommitController, IFormCompositeInputFrameController
 {
     private readonly DropdownSelect<T> _dropdown;
     private readonly Func<bool> _isEnabled;
@@ -81,6 +88,8 @@ internal sealed class DropdownCompositeController<T> : IFormCompositeController,
     {
         _dropdown.ApplyCommittedFrame(GetDropdownFrame(frame));
     }
+
+    public void RestoreInputFrame(FormCompositeFrame frame) => _dropdown.RestoreCommittedFrame(GetDropdownFrame(frame));
 
     public void RenderOverlay(FormRowRenderContext context, FormCompositeFrame frame)
     {

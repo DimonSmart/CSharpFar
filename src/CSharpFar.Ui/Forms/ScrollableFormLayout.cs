@@ -97,7 +97,8 @@ public sealed partial class ScrollableFormDialog
             _ensureFocusedTargetVisibleOnNextRender = false;
             _requestedInitialTarget = null;
             foreach (FormRowTargetFrame target in frame.Targets.OfType<FormRowTargetFrame>().Where(target => target.Row is IFormCompositeOwner && target.CompositeFrame is not null))
-                ((IFormCompositeOwner)target.Row).CompositeController.ApplyCommittedFrame(target.CompositeFrame!);
+                if (((IFormCompositeOwner)target.Row).CompositeController is IFormCompositeCommitController commitController)
+                    commitController.ApplyCommittedFrame(target.CompositeFrame!);
         });
         return frame;
     }

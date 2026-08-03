@@ -6,6 +6,7 @@ using CSharpFar.Core.Models;
 namespace CSharpFar.Ui;
 
 public enum ScrollableListInputResultKind { NotHandled, Handled, SelectionChanged, Confirmed }
+internal readonly record struct ScrollableListPosition(int ItemCount, int SelectedIndex, int ScrollTop);
 
 public readonly record struct ScrollableListInputResult(ScrollableListInputResultKind Kind, bool DragStarted = false, bool DragEnded = false)
 {
@@ -65,26 +66,13 @@ public sealed class ScrollableListState<T>
         return true;
     }
 
-    internal void RestoreCommittedSnapshot(ScrollableListFrame frame)
+    internal void ApplyPosition(ScrollableListPosition position, int viewportRows)
     {
-        ArgumentNullException.ThrowIfNull(frame);
-        if (frame.ItemCount != Count)
-            return;
-        _selectedIndex = frame.SelectedIndex;
-        _scrollTop = frame.ScrollTop;
-    }
-
-    internal void RestoreSnapshot(int selectedIndex, int scrollTop)
-    {
-        if (!HasItems)
-        {
-            _selectedIndex = -1;
-            _scrollTop = 0;
-            return;
-        }
-
-        _selectedIndex = Math.Clamp(selectedIndex, 0, Count - 1);
-        _scrollTop = Math.Clamp(scrollTop, 0, Count - 1);
+        if (position.ItemCount != Count)
+            throw new InvalidOperationException("The list frame does not belong to the current item collection.");
+        _selectedIndex = HasItems ? Math.Clamp(position.SelectedIndex, 0, Count - 1) : -1;
+        _scrollTop = HasItems ? Math.Max(0, position.ScrollTop) : 0;
+        Normalize(viewportRows);
     }
 
     public void ReplaceItems<TKey>(IReadOnlyList<T> items, Func<T, TKey> identityKey, int viewportRows) where TKey : notnull
@@ -101,13 +89,6 @@ public sealed class ScrollableListState<T>
             for (int i = 0; i < Count; i++)
                 if (EqualityComparer<TKey>.Default.Equals(identityKey(Items[i]), key)) { index = i; break; }
         _selectedIndex = index >= 0 ? index : Math.Clamp(previousIndex, 0, Count - 1);
-        Normalize(viewportRows);
-    }
-
-    internal void SetFromInput(int selectedIndex, int scrollTop, int viewportRows)
-    {
-        _selectedIndex = HasItems ? Math.Clamp(selectedIndex, 0, Count - 1) : -1;
-        _scrollTop = HasItems ? Math.Max(0, scrollTop) : 0;
         Normalize(viewportRows);
     }
 
@@ -153,6 +134,7 @@ public sealed class ScrollableListFrame
     public int ViewportRows { get; }
     public int SelectedIndex { get; }
     public int ScrollTop { get; }
+    internal ScrollableListPosition Position => new(ItemCount, SelectedIndex, ScrollTop);
     public VerticalScrollbarFrame? Scrollbar { get; }
     public Rect? ScrollbarBounds => Scrollbar?.Bounds;
     internal static ScrollableListFrame Empty(Rect contentBounds, int viewportRows = 1) => new(contentBounds, 0, Math.Max(1, viewportRows), -1, 0, null);
@@ -219,12 +201,17 @@ internal sealed class ScrollableListInputController
     private readonly VerticalScrollbarController _scrollbar = new();
     internal ScrollBarDragState? DragState => _scrollbar.DragState;
     internal ScrollableListFrame CalculateFrame<T>(ScrollableListState<T> state, Rect bounds, Rect? scrollbarBounds) => ScrollableListFrame.Calculate(state, bounds, scrollbarBounds, _scrollbar);
-    internal void Synchronize(ScrollableListFrame frame) => _scrollbar.ApplyCommittedFrame(frame.Scrollbar);
+    internal void Synchronize(ScrollableListFrame frame)
+    {
+        if (_scrollbar.DragState is null || frame.Scrollbar?.DragState is not null)
+            _scrollbar.ApplyCommittedFrame(frame.Scrollbar);
+    }
+    internal void ApplyCommittedFrame(ScrollableListFrame frame) => _scrollbar.ApplyCommittedFrame(frame.Scrollbar);
 
     public ScrollableListInputResult HandleKey<T>(ScrollableListState<T> state, ScrollableListFrame frame, ConsoleKeyInfo key)
     {
         Synchronize(frame);
-        Restore(state, frame);
+        ApplyCommittedPosition(state, frame);
         if (key.Key == ConsoleKey.Enter) return state.HasItems ? ScrollableListInputResult.Confirmed : ScrollableListInputResult.Handled;
         int target = key.Key switch { ConsoleKey.UpArrow => frame.SelectedIndex - 1, ConsoleKey.DownArrow => frame.SelectedIndex + 1, ConsoleKey.PageUp => frame.SelectedIndex - frame.ViewportRows, ConsoleKey.PageDown => frame.SelectedIndex + frame.ViewportRows, ConsoleKey.Home => 0, ConsoleKey.End => frame.ItemCount - 1, _ => int.MinValue };
         return target == int.MinValue ? ScrollableListInputResult.NotHandled : Select(state, frame, target);
@@ -233,14 +220,14 @@ internal sealed class ScrollableListInputController
     public ScrollableListInputResult HandleContentMouse<T>(ScrollableListState<T> state, ScrollableListFrame frame, MouseConsoleInputEvent mouse, bool confirmOnMouseDown = false, bool confirmOnDoubleClick = true)
     {
         Synchronize(frame);
-        Restore(state, frame);
+        ApplyCommittedPosition(state, frame);
         if (mouse.Kind == MouseEventKind.Wheel)
             return mouse.Button == MouseButton.WheelUp ? Select(state, frame, frame.SelectedIndex - 1) : mouse.Button == MouseButton.WheelDown ? Select(state, frame, frame.SelectedIndex + 1) : ScrollableListInputResult.NotHandled;
         if (mouse.Button != MouseButton.Left || mouse.Kind is not (MouseEventKind.Down or MouseEventKind.DoubleClick) || !frame.ContentBounds.Contains(mouse.X, mouse.Y)) return ScrollableListInputResult.NotHandled;
         int index = frame.ScrollTop + mouse.Y - frame.ContentBounds.Y;
         if (index < 0 || index >= frame.ItemCount) return ScrollableListInputResult.NotHandled;
         bool changed = index != frame.SelectedIndex;
-        if (changed) state.SetFromInput(index, frame.ScrollTop, frame.ViewportRows);
+        if (changed) state.ApplyPosition(new ScrollableListPosition(state.Count, index, frame.ScrollTop), frame.ViewportRows);
         bool confirm = mouse.Kind == MouseEventKind.Down ? confirmOnMouseDown : confirmOnDoubleClick;
         return confirm ? ScrollableListInputResult.Confirmed : changed ? ScrollableListInputResult.SelectionChanged : ScrollableListInputResult.Handled;
     }
@@ -248,17 +235,17 @@ internal sealed class ScrollableListInputController
     public ScrollableListInputResult HandleScrollbarMouse<T>(ScrollableListState<T> state, ScrollableListFrame frame, MouseConsoleInputEvent mouse)
     {
         Synchronize(frame);
-        Restore(state, frame);
+        ApplyCommittedPosition(state, frame);
         if (frame.Scrollbar is not { } scrollbar) return ScrollableListInputResult.NotHandled;
         VerticalScrollbarInputResult result = _scrollbar.HandleMouse(mouse, scrollbar);
         if (!result.IsHandled) return ScrollableListInputResult.NotHandled;
         int selected = state.HasItems ? Math.Clamp(frame.SelectedIndex, result.FirstVisibleIndex, Math.Min(state.Count - 1, result.FirstVisibleIndex + frame.ViewportRows - 1)) : -1;
         bool changed = selected != frame.SelectedIndex;
-        state.SetFromInput(selected, result.FirstVisibleIndex, frame.ViewportRows);
+        state.ApplyPosition(new ScrollableListPosition(state.Count, selected, result.FirstVisibleIndex), frame.ViewportRows);
         return new(changed ? ScrollableListInputResultKind.SelectionChanged : ScrollableListInputResultKind.Handled, result.DragStarted, result.DragEnded);
     }
 
-    private static void Restore<T>(ScrollableListState<T> state, ScrollableListFrame frame) { if (frame.ItemCount == state.Count) state.RestoreCommittedSnapshot(frame); }
+    private static void ApplyCommittedPosition<T>(ScrollableListState<T> state, ScrollableListFrame frame) => state.ApplyPosition(frame.Position, frame.ViewportRows);
     private static ScrollableListInputResult Select<T>(ScrollableListState<T> state, ScrollableListFrame frame, int target)
     {
         if (!state.HasItems) return ScrollableListInputResult.Handled;

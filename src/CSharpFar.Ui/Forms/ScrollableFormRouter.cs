@@ -17,8 +17,7 @@ public sealed partial class ScrollableFormDialog
         ArgumentNullException.ThrowIfNull(frame);
         ArgumentNullException.ThrowIfNull(route);
         _activeFocusState = route.FocusState;
-        RestoreCommittedComponentState(frame);
-
+        RestoreFocusedCompositeState(frame, route.FocusState.FocusedTarget);
         if (input is KeyConsoleInputEvent { Key: var key })
             return RouteKey(key, frame, route, allowUnfocusedButtonHotkeys);
 
@@ -320,20 +319,6 @@ public sealed partial class ScrollableFormDialog
         };
     }
 
-    private static void RestoreCommittedComponentState(ScrollableFormFrame frame)
-    {
-        foreach (FormRowTargetFrame target in frame.Targets.OfType<FormRowTargetFrame>())
-        {
-            if (target.Row is not IFormCompositeOwner composite ||
-                target.CompositeFrame is not { } compositeFrame)
-            {
-                continue;
-            }
-
-            composite.CompositeController.ApplyCommittedFrame(compositeFrame);
-        }
-    }
-
     private bool CancelTransientOverlayExcept(UiTargetId? retainedTarget)
     {
         bool canceled = false;
@@ -353,6 +338,14 @@ public sealed partial class ScrollableFormDialog
         }
 
         return canceled;
+    }
+
+    private static void RestoreFocusedCompositeState(ScrollableFormFrame frame, UiTargetId? focusedTarget)
+    {
+        if (focusedTarget is null || FindRowTarget(frame, focusedTarget) is not { Row: IFormCompositeOwner owner, CompositeFrame: { } compositeFrame })
+            return;
+        if (owner.CompositeController is IFormCompositeInputFrameController inputController)
+            inputController.RestoreInputFrame(compositeFrame);
     }
 
 }

@@ -36,12 +36,12 @@ public sealed class TriStateCheckBoxColumnsRow : FormRow, IFormCursorProvider
         context.Canvas.FillRegion(context.Bounds, FarDialogStyles.Fill);
         context.Canvas.Write(context.Bounds.X, context.Bounds.Y, _label, FarDialogStyles.Fill);
         FormGridLayout layout = CalculateLayout(context.Bounds);
-        _navigation.EnsureCurrent(_shape, IsCellEnabled);
+        FormGridPosition? effectivePosition = _navigation.ResolveCurrent(_shape, IsCellEnabled);
         foreach (FormGridCell cell in layout.Cells)
         {
             TriStateCheckBoxLine line = _columns[cell.Column];
             CellStyle fill = line.Enabled ? FarDialogStyles.Fill : FarDialogStyles.DisabledControl(FarDialogStyles.Fill);
-            line.Render(context.Canvas, cell.Bounds.X, cell.Bounds.Y, cell.Bounds.Width, context.Focused && _navigation.Current == cell.Position && line.Enabled, fill, FarDialogStyles.FocusedInput);
+            line.Render(context.Canvas, cell.Bounds.X, cell.Bounds.Y, cell.Bounds.Width, context.Focused && effectivePosition == cell.Position && line.Enabled, fill, FarDialogStyles.FocusedInput);
         }
     }
 
@@ -66,7 +66,8 @@ public sealed class TriStateCheckBoxColumnsRow : FormRow, IFormCursorProvider
     public bool TryGetCursor(FormRowRenderContext context, out FormCursorPlacement cursor)
     {
         FormGridLayout layout = CalculateLayout(context.Bounds);
-        if (context.Focused && _navigation.EnsureCurrent(_shape, IsCellEnabled) && _navigation.Current is { } position && layout.TryGetCell(position, out FormGridCell cell))
+        FormGridPosition? effectivePosition = _navigation.ResolveCurrent(_shape, IsCellEnabled);
+        if (context.Focused && effectivePosition is { } position && layout.TryGetCell(position, out FormGridCell cell))
         {
             cursor = new FormCursorPlacement(cell.Bounds.X + 1, cell.Bounds.Y);
             return cell.Bounds.Width >= 3;

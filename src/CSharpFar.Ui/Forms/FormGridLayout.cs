@@ -122,23 +122,25 @@ public sealed class FormGridNavigationState
 {
     public FormGridPosition? Current { get; private set; }
 
-    public bool EnsureCurrent(FormGridShape shape, Func<FormGridPosition, bool> isEnabled)
+    public FormGridPosition? ResolveCurrent(FormGridShape shape, Func<FormGridPosition, bool> isEnabled)
     {
         ArgumentNullException.ThrowIfNull(shape);
         ArgumentNullException.ThrowIfNull(isEnabled);
         if (Current is { } current && shape.Contains(current) && isEnabled(current))
-            return true;
-
+            return current;
         foreach (FormGridPosition position in shape.GetPositions(FormGridTraversalOrder.RowMajor))
-        {
-            if (!isEnabled(position))
-                continue;
-            Current = position;
-            return true;
-        }
+            if (isEnabled(position))
+                return position;
+        return null;
+    }
 
-        Current = null;
-        return false;
+    public bool EnsureCurrent(FormGridShape shape, Func<FormGridPosition, bool> isEnabled)
+    {
+        ArgumentNullException.ThrowIfNull(shape);
+        ArgumentNullException.ThrowIfNull(isEnabled);
+        FormGridPosition? resolved = ResolveCurrent(shape, isEnabled);
+        Current = resolved;
+        return resolved is not null;
     }
 
     public bool SelectPointer(int x, int y, FormGridLayout layout, Func<FormGridCell, bool> isEnabled)

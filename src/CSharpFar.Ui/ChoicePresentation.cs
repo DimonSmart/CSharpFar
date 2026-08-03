@@ -136,7 +136,7 @@ public static class ChoiceInput
         foreach (ChoiceLayoutHitTarget target in layout.Targets)
         {
             if (target.Bounds.Contains(mouse.X, mouse.Y))
-                return selection.SelectIndex(target.Index) ? ChoiceInputResultKind.ValueChanged : ChoiceInputResultKind.Handled;
+                return selection.SelectIndex(target.Index) == ChoiceSelectionResult.Changed ? ChoiceInputResultKind.ValueChanged : ChoiceInputResultKind.Handled;
         }
         return ChoiceInputResultKind.NotHandled;
     }

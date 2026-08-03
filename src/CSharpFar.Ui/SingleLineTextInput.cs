@@ -14,14 +14,38 @@ public enum TextInputKeyResult
     AcceptCurrentText,
 }
 
-public readonly record struct SingleLineTextHistoryFrame(
-    Rect PopupBounds,
-    Rect ContentBounds,
-    Rect? ScrollbarBounds,
-    int VisibleRows,
-    int FirstVisibleIndex,
-    int SelectedIndex,
-    VerticalScrollbarFrame? VerticalScrollbarFrame = null);
+internal readonly record struct SingleLineTextHistorySnapshot(int ItemCount, int SelectedIndex, int FirstVisibleIndex);
+
+internal sealed class SingleLineTextHistoryFrame
+{
+    private SingleLineTextHistoryFrame(Rect popupBounds, Rect contentBounds, int visibleRows, SingleLineTextHistorySnapshot snapshot, int matchSetVersion, VerticalScrollbarFrame? scrollbarFrame)
+    {
+        if (snapshot.ItemCount <= 0 || visibleRows <= 0 || visibleRows > snapshot.ItemCount)
+            throw new ArgumentOutOfRangeException(nameof(snapshot));
+        if (snapshot.SelectedIndex < 0 || snapshot.SelectedIndex >= snapshot.ItemCount || snapshot.FirstVisibleIndex < 0 || snapshot.FirstVisibleIndex > snapshot.ItemCount - visibleRows)
+            throw new ArgumentOutOfRangeException(nameof(snapshot));
+        if (popupBounds.Width <= 0 || popupBounds.Height != visibleRows + 2 || contentBounds.Width < 0 || contentBounds.Height != visibleRows)
+            throw new ArgumentException("History popup bounds are inconsistent.");
+        if (scrollbarFrame is { } scrollbar && !scrollbar.Bounds.Equals(new Rect(popupBounds.Right - 1, contentBounds.Y, 1, contentBounds.Height)))
+            throw new ArgumentException("History scrollbar geometry is inconsistent.", nameof(scrollbarFrame));
+
+        PopupBounds = popupBounds; ContentBounds = contentBounds; VisibleRows = visibleRows;
+        Snapshot = snapshot; MatchSetVersion = matchSetVersion; VerticalScrollbarFrame = scrollbarFrame;
+    }
+
+    public Rect PopupBounds { get; }
+    public Rect ContentBounds { get; }
+    public Rect? ScrollbarBounds => VerticalScrollbarFrame?.Bounds;
+    public int VisibleRows { get; }
+    public SingleLineTextHistorySnapshot Snapshot { get; }
+    public int FirstVisibleIndex => Snapshot.FirstVisibleIndex;
+    public int SelectedIndex => Snapshot.SelectedIndex;
+    public int MatchSetVersion { get; }
+    public VerticalScrollbarFrame? VerticalScrollbarFrame { get; }
+
+    internal static SingleLineTextHistoryFrame Create(Rect popupBounds, Rect contentBounds, int visibleRows, SingleLineTextHistorySnapshot snapshot, int matchSetVersion, VerticalScrollbarFrame? scrollbarFrame) =>
+        new(popupBounds, contentBounds, visibleRows, snapshot, matchSetVersion, scrollbarFrame);
+}
 
 public static class SingleLineTextInput
 {
@@ -244,7 +268,7 @@ public static class SingleLineTextInput
         mouseY == fieldY &&
         mouseX == fieldX + fieldWidth - 1;
 
-    public static bool TryHandleHistoryPopupContentMouse(
+    internal static bool TryHandleHistoryPopupContentMouse(
         SingleLineTextHistoryState history,
         CommandLineState buffer,
         MouseConsoleInputEvent mouse,
@@ -294,7 +318,7 @@ public static class SingleLineTextInput
         return false;
     }
 
-    public static bool TryHandleHistoryScrollbarMouse(
+    internal static bool TryHandleHistoryScrollbarMouse(
         SingleLineTextHistoryState history,
         MouseConsoleInputEvent mouse,
         SingleLineTextHistoryFrame frame)
@@ -321,7 +345,8 @@ public static class SingleLineTextInput
         if (!result.IsHandled)
             return false;
 
-        history.SetFirstVisibleIndex(result.FirstVisibleIndex, frame.VisibleRows);
+        if (result.PositionChanged)
+            history.SetFirstVisibleIndex(result.FirstVisibleIndex, frame.VisibleRows);
         return true;
     }
 
@@ -371,7 +396,7 @@ public static class SingleLineTextInput
         RenderHistoryDropdown(screen, history, value);
     }
 
-    public static SingleLineTextHistoryFrame? CalculateHistoryDropdownFrame(
+    internal static SingleLineTextHistoryFrame? CalculateHistoryDropdownFrame(
         int fieldX,
         int fieldY,
         int fieldWidth,
@@ -408,10 +433,11 @@ public static class SingleLineTextInput
             ViewportItems = visibleRows,
             FirstVisibleIndex = firstVisibleIndex,
         });
-        return new SingleLineTextHistoryFrame(bounds, contentBounds, scrollbarBounds, visibleRows, firstVisibleIndex, selectedIndex, scrollbarFrame);
+        return SingleLineTextHistoryFrame.Create(bounds, contentBounds, visibleRows,
+            new SingleLineTextHistorySnapshot(history.Matches.Count, selectedIndex, firstVisibleIndex), history.MatchSetVersion, scrollbarFrame);
     }
 
-    public static void RenderHistoryDropdown(
+    internal static void RenderHistoryDropdown(
         IUiCanvas screen,
         SingleLineTextHistoryState history,
         SingleLineTextHistoryFrame frame)

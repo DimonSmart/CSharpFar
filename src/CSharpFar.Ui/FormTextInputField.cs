@@ -115,20 +115,12 @@ internal sealed class FormTextInputField
         string before = _buffer.Text;
         if (_history is not null && frame.State is TextHistoryCompositeSnapshot { Frame: var historyFrame })
         {
-            var currentFrame = historyFrame with
-            {
-                FirstVisibleIndex = _history.FirstVisibleIndex,
-                VerticalScrollbarFrame = _history.Scrollbar.CalculateFrame(historyFrame.ScrollbarBounds, new ScrollState
-                {
-                    TotalItems = _history.Matches.Count,
-                    ViewportItems = historyFrame.VisibleRows,
-                    FirstVisibleIndex = _history.FirstVisibleIndex,
-                }),
-            };
+            if (_history.MatchSetVersion != historyFrame.MatchSetVersion || _history.Matches.Count != historyFrame.Snapshot.ItemCount)
+                return FormInputResult.NotHandled;
             bool handled = childTargetId switch
             {
-                { } target when frame.Overlay?.ChildTargets.FirstOrDefault(child => child.Id == target)?.Kind == FormTargetKind.HistoryScrollbar => SingleLineTextInput.TryHandleHistoryScrollbarMouse(_history, mouse, currentFrame),
-                { } target when frame.Overlay?.ChildTargets.FirstOrDefault(child => child.Id == target)?.Kind == FormTargetKind.HistoryDropdown => SingleLineTextInput.TryHandleHistoryPopupContentMouse(_history, _buffer, mouse, currentFrame),
+                { } target when frame.Overlay?.ChildTargets.FirstOrDefault(child => child.Id == target)?.Kind == FormTargetKind.HistoryScrollbar => SingleLineTextInput.TryHandleHistoryScrollbarMouse(_history, mouse, historyFrame),
+                { } target when frame.Overlay?.ChildTargets.FirstOrDefault(child => child.Id == target)?.Kind == FormTargetKind.HistoryDropdown => SingleLineTextInput.TryHandleHistoryPopupContentMouse(_history, _buffer, mouse, historyFrame),
                 _ => false,
             };
             if (handled)

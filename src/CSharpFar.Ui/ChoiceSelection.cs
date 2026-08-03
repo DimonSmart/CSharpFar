@@ -50,12 +50,14 @@ public sealed class ChoiceSelection<T>
         return ChoiceSelectionResult.Changed;
     }
 
-    public bool SelectIndex(int index)
+    public ChoiceSelectionResult SelectIndex(int index)
     {
-        if (index < 0 || index >= _items.Count || index == SelectedIndex)
-            return false;
+        if (index < 0 || index >= _items.Count)
+            return ChoiceSelectionResult.Missing;
+        if (index == SelectedIndex)
+            return ChoiceSelectionResult.Unchanged;
         SelectedIndex = index;
-        return true;
+        return ChoiceSelectionResult.Changed;
     }
 
     public bool SelectNext()

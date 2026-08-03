@@ -38,11 +38,11 @@ public sealed class CheckBoxColumnsRow : FormRow, IFormCursorProvider
     {
         context.Canvas.FillRegion(context.Bounds, FarDialogStyles.Fill);
         FormGridLayout layout = CalculateLayout(context.Bounds);
-        _navigation.EnsureCurrent(_shape, IsCellEnabled);
+        FormGridPosition? effectivePosition = _navigation.ResolveCurrent(_shape, IsCellEnabled);
         foreach (FormGridCell cell in layout.Cells)
         {
             CheckBoxRow checkBox = _columns[cell.Column][cell.Row];
-            bool focused = context.Focused && _navigation.Current == cell.Position && checkBox.IsFocusable;
+            bool focused = context.Focused && effectivePosition == cell.Position && checkBox.IsFocusable;
             checkBox.Render(new FormRowRenderContext(context.Canvas, cell.Bounds, focused));
         }
     }
@@ -76,7 +76,8 @@ public sealed class CheckBoxColumnsRow : FormRow, IFormCursorProvider
     public bool TryGetCursor(FormRowRenderContext context, out FormCursorPlacement cursor)
     {
         FormGridLayout layout = CalculateLayout(context.Bounds);
-        if (!context.Focused || !_navigation.EnsureCurrent(_shape, IsCellEnabled) || _navigation.Current is not { } position || !layout.TryGetCell(position, out FormGridCell cell))
+        FormGridPosition? effectivePosition = _navigation.ResolveCurrent(_shape, IsCellEnabled);
+        if (!context.Focused || effectivePosition is not { } position || !layout.TryGetCell(position, out FormGridCell cell))
         {
             cursor = default;
             return false;
