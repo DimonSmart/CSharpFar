@@ -180,7 +180,7 @@ internal static class DemoRecorderProgram
 
     private sealed class DisabledFileLauncher : IFileLauncher
     {
-        public FileLaunchMode GetLaunchMode(string fullPath) => FileLaunchMode.ShellAssociation;
+        public FileLaunchMode GetLaunchMode(string fullPath) => FileLaunchMode.AssociatedDetached;
 
         public void OpenFile(string fullPath, string workingDirectory) =>
             throw new InvalidOperationException("External file launching is disabled in demo mode.");

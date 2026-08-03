@@ -84,7 +84,7 @@ internal sealed class MissingPlatformFileLauncher : IFileLauncher
     {
     }
 
-    public FileLaunchMode GetLaunchMode(string fullPath) => FileLaunchMode.ShellAssociation;
+    public FileLaunchMode GetLaunchMode(string fullPath) => FileLaunchMode.AssociatedDetached;
 
     public void OpenFile(string fullPath, string workingDirectory) =>
         throw new InvalidOperationException("No platform file launcher is configured.");

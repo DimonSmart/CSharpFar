@@ -2,6 +2,6 @@ namespace CSharpFar.Core.Models;
 
 public enum FileLaunchMode
 {
-    ShellAssociation,
+    AssociatedDetached,
     CurrentConsole,
 }

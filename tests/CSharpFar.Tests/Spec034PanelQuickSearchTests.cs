@@ -331,7 +331,7 @@ public sealed class Spec034PanelQuickSearchTests : IDisposable
     {
         public List<string> OpenedFiles { get; } = [];
 
-        public FileLaunchMode GetLaunchMode(string fullPath) => FileLaunchMode.ShellAssociation;
+        public FileLaunchMode GetLaunchMode(string fullPath) => FileLaunchMode.AssociatedDetached;
 
         public void OpenFile(string fullPath, string workingDirectory) =>
             OpenedFiles.Add(fullPath);

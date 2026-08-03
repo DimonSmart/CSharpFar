@@ -7,32 +7,42 @@ namespace CSharpFar.Shell;
 public sealed class WindowsShellFileLauncher : IFileLauncher
 {
     private readonly IExecutableFileDetector _executableDetector;
+    private readonly IWindowsAssociationLauncher _associationLauncher;
     private readonly Func<ProcessStartInfo, Process?> _startProcess;
     private readonly Action<Process> _waitForExit;
 
     public WindowsShellFileLauncher()
-        : this(new WindowsExecutableFileDetector())
+        : this(new WindowsExecutableFileDetector(), new WindowsAssociationLauncher())
     {
     }
 
     public WindowsShellFileLauncher(IExecutableFileDetector executableDetector)
-        : this(executableDetector, Process.Start, process => process.WaitForExit())
-    {
-    }
-
-    internal WindowsShellFileLauncher(
-        Func<ProcessStartInfo, Process?> startProcess,
-        Action<Process> waitForExit)
-        : this(new WindowsExecutableFileDetector(), startProcess, waitForExit)
+        : this(executableDetector, new WindowsAssociationLauncher())
     {
     }
 
     internal WindowsShellFileLauncher(
         IExecutableFileDetector executableDetector,
+        IWindowsAssociationLauncher associationLauncher)
+        : this(executableDetector, associationLauncher, Process.Start, process => process.WaitForExit())
+    {
+    }
+
+    internal WindowsShellFileLauncher(
+        Func<ProcessStartInfo, Process?> startProcess,
+        Action<Process> waitForExit)
+        : this(new WindowsExecutableFileDetector(), new WindowsAssociationLauncher(), startProcess, waitForExit)
+    {
+    }
+
+    internal WindowsShellFileLauncher(
+        IExecutableFileDetector executableDetector,
+        IWindowsAssociationLauncher associationLauncher,
         Func<ProcessStartInfo, Process?> startProcess,
         Action<Process> waitForExit)
     {
         _executableDetector = executableDetector;
+        _associationLauncher = associationLauncher;
         _startProcess = startProcess;
         _waitForExit = waitForExit;
     }
@@ -40,7 +50,7 @@ public sealed class WindowsShellFileLauncher : IFileLauncher
     public FileLaunchMode GetLaunchMode(string fullPath) =>
         _executableDetector.IsExecutableFile(fullPath)
             ? FileLaunchMode.CurrentConsole
-            : FileLaunchMode.ShellAssociation;
+            : FileLaunchMode.AssociatedDetached;
 
     public void OpenFile(string fullPath, string workingDirectory)
     {
@@ -50,15 +60,8 @@ public sealed class WindowsShellFileLauncher : IFileLauncher
             return;
         }
 
-        var startInfo = new ProcessStartInfo
-        {
-            FileName = fullPath,
-            WorkingDirectory = workingDirectory,
-            UseShellExecute = true,
-            Verb = "open",
-        };
-
-        using var process = _startProcess(startInfo);
+        _associationLauncher.OpenDetached(
+            new WindowsAssociationLaunchRequest(fullPath, workingDirectory, "open", SuppressConsole: true));
     }
 
     private void RunInCurrentConsole(string fullPath, string workingDirectory)

@@ -24,7 +24,7 @@ public sealed class UnixAssociationLauncher : IUnixAssociationLauncher
         var errors = new List<string>();
         foreach (var candidate in GetCandidates())
         {
-            var startInfo = WindowsShellCommandLineBuilder.CreateBaseStartInfo(candidate.FileName, workingDirectory);
+            var startInfo = CreateDetachedStartInfo(candidate.FileName, workingDirectory);
             foreach (string argument in candidate.Arguments)
                 startInfo.ArgumentList.Add(argument == "{path}" ? fullPath : argument);
 
@@ -69,6 +69,18 @@ public sealed class UnixAssociationLauncher : IUnixAssociationLauncher
         if (_environment.IsWsl)
             yield return new Candidate("explorer.exe", "explorer.exe", ["{path}"]);
     }
+
+    private static ProcessStartInfo CreateDetachedStartInfo(string fileName, string workingDirectory) =>
+        new()
+        {
+            FileName = fileName,
+            WorkingDirectory = workingDirectory,
+            UseShellExecute = false,
+            RedirectStandardInput = true,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            CreateNoWindow = true,
+        };
 
     private sealed record Candidate(string DisplayName, string FileName, string[] Arguments);
 }

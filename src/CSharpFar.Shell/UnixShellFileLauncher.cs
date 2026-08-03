@@ -38,7 +38,7 @@ public sealed class UnixShellFileLauncher : IFileLauncher
     public FileLaunchMode GetLaunchMode(string fullPath) =>
         _executableDetector.IsExecutableFile(fullPath)
             ? FileLaunchMode.CurrentConsole
-            : FileLaunchMode.ShellAssociation;
+            : FileLaunchMode.AssociatedDetached;
 
     public void OpenFile(string fullPath, string workingDirectory)
     {

@@ -51,6 +51,32 @@ public sealed class Spec009OpenPanelItemTests : IDisposable
     }
 
     [Fact]
+    public void Run_EnterOnAssociatedDetachedFile_KeepsUiOutputMode()
+    {
+        string filePath = Path.Combine(_root, "note.txt");
+        var fs = CreateFileSystem(new FilePanelItem
+        {
+            Name = "note.txt",
+            FullPath = filePath,
+            IsDirectory = false,
+        });
+
+        var driver = new FakeConsoleDriver(width: 80, height: 12);
+        driver.EnqueueKey(Key(ConsoleKey.DownArrow));
+        driver.EnqueueKey(Key(ConsoleKey.Enter));
+        driver.EnqueueKey(Key(ConsoleKey.F10));
+
+        var launcher = new RecordingFileLauncher(FileLaunchMode.AssociatedDetached, () => driver.RenderingOutputMode);
+        var app = CreateApp(fs, driver, launcher);
+
+        app.Run();
+
+        Assert.Equal([filePath], launcher.OpenedFiles);
+        Assert.Equal([true], launcher.RenderingModesDuringOpen);
+        Assert.True(driver.RenderingOutputMode);
+    }
+
+    [Fact]
     public void Run_EnterOnDirectory_NavigatesThroughOpenCurrentItem()
     {
         string childPath = Path.Combine(_root, "child");
@@ -234,24 +260,19 @@ public sealed class Spec009OpenPanelItemTests : IDisposable
     }
 
     [Fact]
-    public void WindowsShellFileLauncher_OpenFile_UsesWindowsShellOpenVerb()
+    public void WindowsShellFileLauncher_OpenFile_UsesDetachedWindowsAssociation()
     {
-        ProcessStartInfo? captured = null;
+        var associationLauncher = new RecordingWindowsAssociationLauncher();
         var launcher = new WindowsShellFileLauncher(
-            startInfo =>
-            {
-                captured = startInfo;
-                return null;
-            },
-            _ => { });
+            new FixedExecutableFileDetector(false),
+            associationLauncher);
 
         launcher.OpenFile(@"C:\Temp\note.txt", @"C:\Temp");
 
-        Assert.NotNull(captured);
-        Assert.Equal(@"C:\Temp\note.txt", captured.FileName);
-        Assert.Equal(@"C:\Temp", captured.WorkingDirectory);
-        Assert.True(captured.UseShellExecute);
-        Assert.Equal("open", captured.Verb);
+        Assert.Equal(FileLaunchMode.AssociatedDetached, launcher.GetLaunchMode(@"C:\Temp\note.txt"));
+        Assert.Equal(
+            [new WindowsAssociationLaunchRequest(@"C:\Temp\note.txt", @"C:\Temp", "open", SuppressConsole: true)],
+            associationLauncher.Requests);
     }
 
     [Fact]
@@ -261,6 +282,7 @@ public sealed class Spec009OpenPanelItemTests : IDisposable
         bool waited = false;
         var launcher = new WindowsShellFileLauncher(
             new FixedExecutableFileDetector(true),
+            new RecordingWindowsAssociationLauncher(),
             startInfo =>
             {
                 captured = startInfo;
@@ -284,12 +306,37 @@ public sealed class Spec009OpenPanelItemTests : IDisposable
     }
 
     [Fact]
+    public void UnixAssociationLauncher_SuppressesLauncherStandardStreams()
+    {
+        var started = new List<ProcessStartInfo>();
+        var launcher = new UnixAssociationLauncher(
+            new FixedUnixEnvironment(),
+            startInfo =>
+            {
+                started.Add(startInfo);
+                return null;
+            });
+
+        Assert.False(launcher.TryOpen("/tmp/note.txt", "/tmp", out _));
+        Assert.NotEmpty(started);
+        Assert.All(started, startInfo =>
+        {
+            Assert.False(startInfo.UseShellExecute);
+            Assert.True(startInfo.RedirectStandardInput);
+            Assert.True(startInfo.RedirectStandardOutput);
+            Assert.True(startInfo.RedirectStandardError);
+            Assert.True(startInfo.CreateNoWindow);
+        });
+    }
+
+    [Fact]
     public void WindowsShellFileLauncher_OpenCmd_RunsViaCommandProcessorInCurrentConsole()
     {
         ProcessStartInfo? captured = null;
         bool waited = false;
         var launcher = new WindowsShellFileLauncher(
             new FixedExecutableFileDetector(true),
+            new RecordingWindowsAssociationLauncher(),
             startInfo =>
             {
                 captured = startInfo;
@@ -357,7 +404,7 @@ public sealed class Spec009OpenPanelItemTests : IDisposable
         public IReadOnlyList<bool> RenderingModesDuringOpen => _renderingModesDuringOpen;
 
         public RecordingFileLauncher(
-            FileLaunchMode launchMode = FileLaunchMode.ShellAssociation,
+            FileLaunchMode launchMode = FileLaunchMode.AssociatedDetached,
             Func<bool>? getRenderingOutputMode = null)
         {
             _launchMode = launchMode;
@@ -386,5 +433,17 @@ public sealed class Spec009OpenPanelItemTests : IDisposable
         }
 
         public bool IsExecutableFile(string path) => _result;
+    }
+
+    private sealed class RecordingWindowsAssociationLauncher : IWindowsAssociationLauncher
+    {
+        public List<WindowsAssociationLaunchRequest> Requests { get; } = [];
+
+        public void OpenDetached(WindowsAssociationLaunchRequest request) => Requests.Add(request);
+    }
+
+    private sealed class FixedUnixEnvironment : IUnixEnvironment
+    {
+        public bool IsWsl => false;
     }
 }
