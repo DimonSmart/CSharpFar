@@ -24,6 +24,12 @@ public static class FormControls
         CheckState value = CheckState.Unchecked) =>
         new(RequiredId(id), label, value);
 
+    public static TriStateMatrixFormRow TriStateMatrix(
+        string id,
+        IReadOnlyList<TriStateMatrixColumn> columns,
+        IReadOnlyList<TriStateMatrixRow> rows) =>
+        new(columns, rows) { Id = RequiredId(id) };
+
     public static CheckBoxColumnsRow CheckBoxColumns(
         string id,
         IReadOnlyList<IReadOnlyList<CheckBoxRow>> columns,

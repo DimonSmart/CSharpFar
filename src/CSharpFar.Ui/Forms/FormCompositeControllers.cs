@@ -52,7 +52,7 @@ internal sealed class TextInputCompositeController : IFormCompositeController, I
     }
     public bool IsAnchorHit(MouseConsoleInputEvent mouse, FormRowMouseContext context, FormCompositeFrame frame) =>
         _field.IsHistoryArrow(mouse, _inputBounds(context.Layout));
-    public void Close() => _field.History?.Close();
+    public void Close(bool commit) => _field.History?.Close();
 }
 
 internal sealed class DropdownCompositeController<T> : IFormCompositeController, IFormCompositeKeyboardController, IFormCompositeCommitController, IFormCompositeInputFrameController
@@ -130,7 +130,7 @@ internal sealed class DropdownCompositeController<T> : IFormCompositeController,
 
     public bool IsAnchorHit(MouseConsoleInputEvent mouse, FormRowMouseContext context, FormCompositeFrame frame) =>
         frame.State is DropdownCompositeSnapshot { Frame: var dropdownFrame } && dropdownFrame.FieldBounds.Contains(mouse.X, mouse.Y);
-    public void Close() => _dropdown.Close(commit: false);
+    public void Close(bool commit) => _dropdown.Close(commit);
 
     private static DropdownSelectFrame GetDropdownFrame(FormCompositeFrame frame) => frame.State switch
     {

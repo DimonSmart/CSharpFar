@@ -134,6 +134,29 @@ public sealed class SettingsDialogTests
         }
     }
 
+    [Fact]
+    public void TemporaryThemeScope_RestoresNestedThemesInOrder()
+    {
+        UiTheme.ResetForTests();
+        UiTheme.Initialize(PaletteRegistry.Default);
+        try
+        {
+            using (UiTheme.UseTemporary(PaletteRegistry.FarClassic))
+            {
+                Assert.Same(PaletteRegistry.FarClassic, UiTheme.Current);
+                using (UiTheme.UseTemporary(PaletteRegistry.Default))
+                    Assert.Same(PaletteRegistry.Default, UiTheme.Current);
+                Assert.Same(PaletteRegistry.FarClassic, UiTheme.Current);
+            }
+
+            Assert.Same(PaletteRegistry.Default, UiTheme.Current);
+        }
+        finally
+        {
+            UiTheme.ResetForTests();
+        }
+    }
+
     private static FakeConsoleDriver Driver(params ConsoleInputEvent[] inputs)
     {
         var driver = new FakeConsoleDriver(width: 80, height: 25);

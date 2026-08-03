@@ -135,7 +135,7 @@ public sealed class Spec048CreateNewFileDialogTests : IDisposable
     }
 
     [Fact]
-    public void OpenCreateFileDialog_F10FromOpenCodePageDropdownUsesPreviousConfirmedCodePage()
+    public void OpenCreateFileDialog_F10FromOpenCodePageDropdownCommitsTheSelectedCodePage()
     {
         var driver = new FakeConsoleDriver(width: 100, height: 30);
         var screen = new ScreenRenderer(driver);
@@ -150,7 +150,7 @@ public sealed class Spec048CreateNewFileDialogTests : IDisposable
 
         Assert.NotNull(result);
         Assert.Equal("new.txt", result.FilePath);
-        Assert.Equal("Default", result.CodePage.Label);
+        Assert.Equal("UTF-8 with BOM", result.CodePage.Label);
     }
 
     [Fact]

@@ -69,7 +69,7 @@ internal interface IFormCompositeController
     void RenderOverlay(FormRowRenderContext context, FormCompositeFrame frame);
     FormInputResult RouteMouse(MouseConsoleInputEvent mouse, FormRowMouseContext context, FormCompositeFrame frame, UiTargetId? childTarget);
     bool IsAnchorHit(MouseConsoleInputEvent mouse, FormRowMouseContext context, FormCompositeFrame frame);
-    void Close();
+    void Close(bool commit);
 }
 
 internal interface IFormCompositeCommitController

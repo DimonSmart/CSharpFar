@@ -70,11 +70,14 @@ public sealed class ModalFormHost
                     return (FormInputResult.Submit(), UiInputResult.HandledResult);
 
                 FormRouteResult result = form.RouteInput(input, frame, route);
+                if (result.FormResult.Kind is FormInputResultKind.Submit or FormInputResultKind.Cancel)
+                    form.CloseTransientOverlays(commit: result.FormResult.Kind == FormInputResultKind.Submit);
                 if (input is KeyConsoleInputEvent { Key.Key: ConsoleKey.F10 } &&
                     result.FormResult.Kind == FormInputResultKind.NotHandled)
                 {
                     // F10 is a form-level submit shortcut. It must not bubble to the
                     // application, where the same key quits the program.
+                    form.CloseTransientOverlays(commit: true);
                     return (result.FormResult, UiInputResult.HandledResult);
                 }
 

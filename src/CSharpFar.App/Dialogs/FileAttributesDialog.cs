@@ -102,24 +102,29 @@ internal sealed class FileAttributesDialog : IFileAttributesDialog
         creation.Enabled = snapshot.CanEditCreationTime;
         write.Enabled = snapshot.CanEditLastWriteTime;
         access.Enabled = snapshot.CanEditLastAccessTime;
-        var permissionLines = snapshot.UnixMetadata?.PermissionStates.ToDictionary(
-            static pair => pair.Key,
-            pair => new TriStateCheckBoxLine(
-                PermissionColumnLabel(pair.Key),
-                ToCheckState(pair.Value),
-                snapshot.UnixMetadata.CanEditPermissions))
-            ?? new Dictionary<UnixPermissionBit, TriStateCheckBoxLine>();
-        var unixMatrixRows = snapshot.UnixMetadata is null
-            ? []
-            : new List<TriStateCheckBoxColumnsRow>
+        TriStateMatrixFormRow? permissions = snapshot.UnixMetadata is null ? null : FormControls.TriStateMatrix(
+            "permissions",
+            [new("read", "Read"), new("write", "Write"), new("execute", "Exec")],
+            [
+                new("owner", "Owner", [ToCheckState(snapshot.UnixMetadata.PermissionStates[UnixPermissionBit.OwnerRead]), ToCheckState(snapshot.UnixMetadata.PermissionStates[UnixPermissionBit.OwnerWrite]), ToCheckState(snapshot.UnixMetadata.PermissionStates[UnixPermissionBit.OwnerExecute])]),
+                new("group", "Group", [ToCheckState(snapshot.UnixMetadata.PermissionStates[UnixPermissionBit.GroupRead]), ToCheckState(snapshot.UnixMetadata.PermissionStates[UnixPermissionBit.GroupWrite]), ToCheckState(snapshot.UnixMetadata.PermissionStates[UnixPermissionBit.GroupExecute])]),
+                new("other", "Others", [ToCheckState(snapshot.UnixMetadata.PermissionStates[UnixPermissionBit.OthersRead]), ToCheckState(snapshot.UnixMetadata.PermissionStates[UnixPermissionBit.OthersWrite]), ToCheckState(snapshot.UnixMetadata.PermissionStates[UnixPermissionBit.OthersExecute])]),
+            ]);
+        if (permissions is not null)
+            permissions.Enabled = snapshot.UnixMetadata!.CanEditPermissions;
+        var specialPermissionRows = snapshot.UnixMetadata?.PermissionStates
+            .Where(static pair => pair.Key is UnixPermissionBit.SetUid or UnixPermissionBit.SetGid or UnixPermissionBit.Sticky)
+            .ToDictionary(static pair => pair.Key, pair =>
             {
-                MatrixRow("Owner", UnixPermissionBit.OwnerRead, UnixPermissionBit.OwnerWrite, UnixPermissionBit.OwnerExecute, permissionLines),
-                MatrixRow("Group", UnixPermissionBit.GroupRead, UnixPermissionBit.GroupWrite, UnixPermissionBit.GroupExecute, permissionLines),
-                MatrixRow("Others", UnixPermissionBit.OthersRead, UnixPermissionBit.OthersWrite, UnixPermissionBit.OthersExecute, permissionLines),
-            };
+                TriStateCheckBoxRow row = FormControls.TriStateCheckBox($"permission-{pair.Key}", PermissionColumnLabel(pair.Key), ToCheckState(pair.Value));
+                row.Enabled = snapshot.UnixMetadata!.CanEditPermissions;
+                row.DisabledReason = snapshot.UnixMetadata.PermissionsDisabledReason;
+                return row;
+            })
+            ?? new Dictionary<UnixPermissionBit, TriStateCheckBoxRow>();
         var unixSpecialRows = new[] { UnixPermissionBit.SetUid, UnixPermissionBit.SetGid, UnixPermissionBit.Sticky }
-            .Where(permissionLines.ContainsKey)
-            .Select(bit => CreateUnixPermissionRow(bit, permissionLines[bit], snapshot.UnixMetadata!))
+            .Where(specialPermissionRows.ContainsKey)
+            .Select(bit => new UnixPermissionDialogRow(bit, specialPermissionRows[bit]))
             .ToList();
         var form = new ScrollableFormDialog();
         string? error = null;
@@ -134,7 +139,7 @@ internal sealed class FileAttributesDialog : IFileAttributesDialog
 
         void PrepareRows() =>
             form.SetRows(
-                BuildRows(snapshot, attributeRows, unixMatrixRows, unixSpecialRows, creation, write, access),
+                BuildRows(snapshot, attributeRows, permissions, unixSpecialRows, creation, write, access),
                 FormFooter.ErrorAndButtons(() => error, buttons));
 
         return _formDialogs.Run(
@@ -162,7 +167,7 @@ internal sealed class FileAttributesDialog : IFileAttributesDialog
                         case "set":
                         case null:
                             var states = attributeRows.ToDictionary(row => row.Descriptor.Id, row => ToAttributeEditState(row.Row.Value));
-                            var unixStates = permissionLines.ToDictionary(static pair => pair.Key, pair => ToAttributeEditState(pair.Value.Value));
+                            var unixStates = BuildUnixPermissionStates(permissions, unixSpecialRows);
                             var changeSet = CreateChangeSet(snapshot, states, unixStates, creation.Text, write.Text, access.Text, out error);
                             if (error is null)
                             {
@@ -181,7 +186,7 @@ internal sealed class FileAttributesDialog : IFileAttributesDialog
     private IReadOnlyList<IFormRow> BuildRows(
         FileMetadataSnapshot snapshot,
         IReadOnlyList<AttributeDialogRow> attributeRows,
-        IReadOnlyList<TriStateCheckBoxColumnsRow> unixMatrixRows,
+        TriStateMatrixFormRow? permissions,
         IReadOnlyList<UnixPermissionDialogRow> unixSpecialRows,
         TextField creation,
         TextField write,
@@ -201,8 +206,7 @@ internal sealed class FileAttributesDialog : IFileAttributesDialog
         {
             rows.Add(new SpacerRow(fill));
             rows.Add(new LabelRow("Unix permissions:", fill));
-            rows.Add(new LabelRow("          Read        Write       Exec", fill));
-            rows.AddRange(unixMatrixRows);
+            rows.Add(permissions!);
             rows.AddRange(unixSpecialRows.Select(static row => (IFormRow)row.Row));
             rows.Add(new LabelRow($"Owner: {unixMetadata.OwnerName ?? unixMetadata.Uid?.ToString(CultureInfo.InvariantCulture) ?? "<not available>"}", fill));
             rows.Add(new LabelRow($"Group: {unixMetadata.GroupName ?? unixMetadata.Gid?.ToString(CultureInfo.InvariantCulture) ?? "<not available>"}", fill));
@@ -289,17 +293,6 @@ internal sealed class FileAttributesDialog : IFileAttributesDialog
         return new AttributeDialogRow(descriptor, row);
     }
 
-    private static UnixPermissionDialogRow CreateUnixPermissionRow(
-        UnixPermissionBit bit,
-        TriStateCheckBoxLine line,
-        UnixFileMetadata metadata)
-    {
-        var row = new TriStateCheckBoxRow(line);
-        row.Enabled = metadata.CanEditPermissions;
-        row.DisabledReason = metadata.PermissionsDisabledReason;
-        return new UnixPermissionDialogRow(bit, row);
-    }
-
     private static CheckState ToCheckState(AttributeEditState value) => value switch
     {
         AttributeEditState.Checked => CheckState.Checked,
@@ -314,13 +307,24 @@ internal sealed class FileAttributesDialog : IFileAttributesDialog
         _ => AttributeEditState.Unchecked,
     };
 
-    private static TriStateCheckBoxColumnsRow MatrixRow(
-        string label,
-        UnixPermissionBit read,
-        UnixPermissionBit write,
-        UnixPermissionBit execute,
-        IReadOnlyDictionary<UnixPermissionBit, TriStateCheckBoxLine> lines) =>
-        new(label, [lines[read], lines[write], lines[execute]], labelWidth: 9, columnGap: 1);
+    private static IReadOnlyDictionary<UnixPermissionBit, AttributeEditState> BuildUnixPermissionStates(
+        TriStateMatrixFormRow? permissions,
+        IReadOnlyList<UnixPermissionDialogRow> specialRows)
+    {
+        var states = specialRows.ToDictionary(row => row.Bit, row => ToAttributeEditState(row.Row.Value));
+        if (permissions is null)
+            return states;
+        states[UnixPermissionBit.OwnerRead] = ToAttributeEditState(permissions.GetValue("owner", "read"));
+        states[UnixPermissionBit.OwnerWrite] = ToAttributeEditState(permissions.GetValue("owner", "write"));
+        states[UnixPermissionBit.OwnerExecute] = ToAttributeEditState(permissions.GetValue("owner", "execute"));
+        states[UnixPermissionBit.GroupRead] = ToAttributeEditState(permissions.GetValue("group", "read"));
+        states[UnixPermissionBit.GroupWrite] = ToAttributeEditState(permissions.GetValue("group", "write"));
+        states[UnixPermissionBit.GroupExecute] = ToAttributeEditState(permissions.GetValue("group", "execute"));
+        states[UnixPermissionBit.OthersRead] = ToAttributeEditState(permissions.GetValue("other", "read"));
+        states[UnixPermissionBit.OthersWrite] = ToAttributeEditState(permissions.GetValue("other", "write"));
+        states[UnixPermissionBit.OthersExecute] = ToAttributeEditState(permissions.GetValue("other", "execute"));
+        return states;
+    }
 
     private static string PermissionColumnLabel(UnixPermissionBit bit) => bit switch
     {

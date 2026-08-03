@@ -1,4 +1,3 @@
-using CSharpFar.App.Rendering;
 using CSharpFar.Core.Models;
 using CSharpFar.Ui;
 
@@ -236,9 +235,8 @@ internal sealed class FileOperationDialog
             rows.Add(new SpacerRow(fill));
             rows.Add(useFilter);
             rows.Add(new LabelRow("Filter mask:", fill));
-            rows.Add(useFilter.Value
-                ? FormControls.Text(filter)
-                : new LabelRow(SingleLineTextInput.VisibleText(filter.Buffer, 60), fill) { Id = "filter" });
+            filter.Enabled = useFilter.Value;
+            rows.Add(FormControls.Text(filter));
             rows.Add(new SpacerRow(fill));
         }
 

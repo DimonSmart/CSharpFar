@@ -39,7 +39,6 @@ public sealed class TextInputRow : FormRow, IFormCursorProvider, IFormCompositeO
     public string? DisabledReason { get => _field.DisabledReason; set => _field.DisabledReason = value; }
     public override bool IsEnabled => Enabled;
     public int? Width => _width;
-    public void CloseHistory() => _compositeController.Close();
     IFormCompositeController IFormCompositeOwner.CompositeController => _compositeController;
 
     public Rect GetInputBounds(Rect rowBounds) =>
