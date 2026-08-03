@@ -76,6 +76,7 @@ public sealed class DropdownSelect<T>
     public DropdownInputResult TryHandleFieldMouse(MouseConsoleInputEvent mouse, DropdownSelectFrame frame)
     {
         ValidateFrame(frame);
+        RestoreCommittedFrame(frame);
         if (mouse.Button != MouseButton.Left || mouse.Kind != MouseEventKind.Down || mouse.Y != frame.FieldBounds.Y || mouse.X < frame.FieldBounds.X || mouse.X >= frame.FieldBounds.Right)
             return DropdownInputResult.NotHandled;
         bool wasOpen = IsOpen;
@@ -85,6 +86,7 @@ public sealed class DropdownSelect<T>
     public DropdownInputResult TryHandlePopupContentMouse(MouseConsoleInputEvent mouse, DropdownSelectFrame frame)
     {
         ValidateFrame(frame);
+        RestoreCommittedFrame(frame);
         if (frame.Popup is not { } popup) return DropdownInputResult.NotHandled;
         if (!popup.List.ContentBounds.Contains(mouse.X, mouse.Y))
             return mouse.Kind == MouseEventKind.Down && mouse.Button == MouseButton.Left && popup.Bounds.Contains(mouse.X, mouse.Y)
@@ -103,6 +105,7 @@ public sealed class DropdownSelect<T>
     public DropdownInputResult TryHandleScrollbarMouse(MouseConsoleInputEvent mouse, DropdownSelectFrame frame)
     {
         ValidateFrame(frame);
+        RestoreCommittedFrame(frame);
         if (frame.Popup is not { } popup) return DropdownInputResult.NotHandled;
         ScrollableListInputResult result = _input.HandleScrollbarMouse(_state, popup.List, mouse);
         return result.IsHandled ? new(DropdownInputResultKind.Handled, Capture(result)) : DropdownInputResult.NotHandled;
@@ -110,6 +113,7 @@ public sealed class DropdownSelect<T>
     public DropdownInputResult TryHandleKey(ConsoleKeyInfo key, DropdownSelectFrame frame)
     {
         ValidateFrame(frame);
+        RestoreCommittedFrame(frame);
         if (!IsOpen)
         {
             if (key.Key is not (ConsoleKey.Enter or ConsoleKey.Spacebar or ConsoleKey.DownArrow or ConsoleKey.F4))
@@ -136,14 +140,16 @@ public sealed class DropdownSelect<T>
     {
         ValidateFrame(frame);
         RestoreCommittedFrame(frame);
+        if (frame.Popup is { } popup)
+            _input.ApplyCommittedFrame(popup.List);
     }
     internal void RestoreCommittedFrame(DropdownSelectFrame frame)
     {
         _selectedIndexBeforeOpen = frame.State.SelectionBeforeOpen;
         IsOpen = frame.Popup is not null;
-        _state.RestoreSnapshot(frame.State.SelectedIndex, frame.State.ScrollTop);
+        _state.ApplyPosition(new ScrollableListPosition(frame.ItemCount, frame.State.SelectedIndex, frame.State.ScrollTop), frame.Popup?.List.ViewportRows ?? 1);
     }
-    internal void SetScrollTopForTesting(int scrollTop) => _state.SetFromInput(_state.SelectedIndex, scrollTop, 1);
+    internal void SetScrollTopForTesting(int scrollTop) => _state.ApplyPosition(new ScrollableListPosition(_state.Count, _state.SelectedIndex, scrollTop), 1);
     private static UiMouseCaptureRequestKind Capture(ScrollableListInputResult result) => result.DragStarted
         ? UiMouseCaptureRequestKind.Capture
         : result.DragEnded ? UiMouseCaptureRequestKind.Release : UiMouseCaptureRequestKind.None;

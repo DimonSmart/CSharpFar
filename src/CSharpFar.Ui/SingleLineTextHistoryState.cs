@@ -14,6 +14,7 @@ public sealed class SingleLineTextHistoryState
     public const int MaxVisibleRows = 10;
 
     private readonly List<string> _matches = [];
+    private int _matchSetVersion;
     internal VerticalScrollbarController Scrollbar { get; } = new();
 
     public SingleLineTextHistoryState(TextHistory history) =>
@@ -24,6 +25,16 @@ public sealed class SingleLineTextHistoryState
     public bool IsDropdownOpen { get; private set; }
     public int SelectedIndex { get; private set; }
     public int FirstVisibleIndex { get; private set; }
+    internal int MatchSetVersion => _matchSetVersion;
+
+    internal void ApplyCommittedSnapshot(SingleLineTextHistorySnapshot snapshot, int matchSetVersion)
+    {
+        if (!IsDropdownOpen || matchSetVersion != _matchSetVersion || snapshot.ItemCount != _matches.Count)
+            throw new InvalidOperationException("The history frame does not belong to the current history items.");
+
+        SelectedIndex = snapshot.SelectedIndex;
+        FirstVisibleIndex = snapshot.FirstVisibleIndex;
+    }
 
     public bool OpenAll(int availableContentRows) =>
         OpenMatches(prefix: string.Empty, availableContentRows);
@@ -43,6 +54,7 @@ public sealed class SingleLineTextHistoryState
     {
         IsDropdownOpen = false;
         _matches.Clear();
+        _matchSetVersion++;
         SelectedIndex = 0;
         FirstVisibleIndex = 0;
         Scrollbar.ApplyCommittedFrame(null);
@@ -131,6 +143,7 @@ public sealed class SingleLineTextHistoryState
     private bool OpenMatches(string prefix, int availableContentRows)
     {
         _matches.Clear();
+        _matchSetVersion++;
         if (availableContentRows <= 0)
         {
             Close();

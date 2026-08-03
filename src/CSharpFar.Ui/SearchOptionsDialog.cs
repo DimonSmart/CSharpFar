@@ -113,14 +113,7 @@ public sealed class SearchOptionsDialog
 
                 if (FormDialogInput.ShouldSubmit(routed, result, form))
                 {
-                    string? command = result.Command;
-                    if (command is null &&
-                        routed.Input is KeyConsoleInputEvent { Key.Key: ConsoleKey.F10 or ConsoleKey.Enter })
-                    {
-                        command = "find";
-                    }
-
-                    var accepted = HandleButton(command, options, state, pattern, ref error);
+                    var accepted = HandleButton(result.Command ?? "find", options, state, pattern, ref error);
                     if (accepted.HasValue)
                     {
                         return ModalDialogLoopResult<SearchOptionsDialogResult?>.Complete(

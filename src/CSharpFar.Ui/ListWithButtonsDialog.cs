@@ -67,7 +67,7 @@ public sealed class ListWithButtonsDialog<T>
     public int ScrollTop
     {
         get => _list.State.ScrollTop;
-        set => _list.State.SetFromInput(_list.State.SelectedIndex, value, 1);
+        set => _list.State.ApplyPosition(new ScrollableListPosition(_list.State.Count, _list.State.SelectedIndex, value), 1);
     }
 
     public ListWithButtonsDialogResult<T>? Show(ModalDialogHost modalDialogs)

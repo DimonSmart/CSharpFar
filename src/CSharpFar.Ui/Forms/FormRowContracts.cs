@@ -66,11 +66,21 @@ internal interface IFormCompositeController
 {
     bool IsOpen { get; }
     FormCompositeFrame CalculateFrame(FormCompositeFrameContext context);
-    void ApplyCommittedFrame(FormCompositeFrame frame);
     void RenderOverlay(FormRowRenderContext context, FormCompositeFrame frame);
     FormInputResult RouteMouse(MouseConsoleInputEvent mouse, FormRowMouseContext context, FormCompositeFrame frame, UiTargetId? childTarget);
     bool IsAnchorHit(MouseConsoleInputEvent mouse, FormRowMouseContext context, FormCompositeFrame frame);
     void Close();
+}
+
+internal interface IFormCompositeCommitController
+{
+    void ApplyCommittedFrame(FormCompositeFrame frame);
+}
+
+/// <summary>Temporary stateful-input capability for composites whose input operation needs to restore an open/preview baseline.</summary>
+internal interface IFormCompositeInputFrameController
+{
+    void RestoreInputFrame(FormCompositeFrame frame);
 }
 
 internal interface IFormCompositeKeyboardController

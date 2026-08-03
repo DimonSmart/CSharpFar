@@ -433,15 +433,15 @@ public class SingleLineTextInputTests
             history);
 
         Assert.NotNull(frame);
-        Assert.Equal(1, frame.Value.VisibleRows);
-        Assert.Equal(frame.Value.FirstVisibleIndex, frame.Value.SelectedIndex);
-        string expected = history.Matches[frame.Value.FirstVisibleIndex];
+        Assert.Equal(1, frame.VisibleRows);
+        Assert.Equal(frame.FirstVisibleIndex, frame.SelectedIndex);
+        string expected = history.Matches[frame.FirstVisibleIndex];
 
         bool handled = SingleLineTextInput.TryHandleHistoryPopupContentMouse(
             history,
             buffer,
-            LeftMouse(frame.Value.ContentBounds.X, frame.Value.ContentBounds.Y),
-            frame.Value);
+            LeftMouse(frame.ContentBounds.X, frame.ContentBounds.Y),
+            frame);
 
         Assert.True(handled);
         Assert.Equal(expected, buffer.Text);

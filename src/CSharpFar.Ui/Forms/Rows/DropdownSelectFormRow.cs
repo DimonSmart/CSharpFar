@@ -56,7 +56,6 @@ public sealed class DropdownSelectFormRow<T> : FormRow, IFormCursorProvider, IFo
         ? _dropdown.SelectionBeforeOpen
         : _dropdown.SelectedIndex;
     public void CloseDropdown() => _compositeController.Close();
-    public Rect GetFieldBounds(Rect rowBounds) => rowBounds;
 
     public override void Render(FormRowRenderContext context)
     {

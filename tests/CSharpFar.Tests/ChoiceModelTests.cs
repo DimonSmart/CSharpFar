@@ -9,6 +9,16 @@ namespace CSharpFar.Tests;
 public sealed class ChoiceModelTests
 {
     [Fact]
+    public void ChoiceSelection_SelectIndexDistinguishesMissingUnchangedAndChanged()
+    {
+        var selection = ChoiceSelection<string>.FromValue(["one", "two"], "one");
+
+        Assert.Equal(ChoiceSelectionResult.Missing, selection.SelectIndex(-1));
+        Assert.Equal(ChoiceSelectionResult.Unchanged, selection.SelectIndex(0));
+        Assert.Equal(ChoiceSelectionResult.Changed, selection.SelectIndex(1));
+    }
+
+    [Fact]
     public void Value_ReassigningCurrentValueIsANoOp()
     {
         var choice = new ChoiceModel<string>(["one", "two"], static value => value);

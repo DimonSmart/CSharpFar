@@ -7,6 +7,16 @@ namespace CSharpFar.Tests;
 public sealed class CheckBoxColumnsRowTests
 {
     [Fact]
+    public void ResolveCurrent_DoesNotCommitFallbackPosition()
+    {
+        var navigation = new FormGridNavigationState();
+        var shape = new FormGridShape([1, 1]);
+
+        Assert.Equal(new FormGridPosition(1, 0), navigation.ResolveCurrent(shape, position => position.Column == 1));
+        Assert.Null(navigation.Current);
+    }
+
+    [Fact]
     public void Height_UsesTallestColumn()
     {
         var row = new CheckBoxColumnsRow(
