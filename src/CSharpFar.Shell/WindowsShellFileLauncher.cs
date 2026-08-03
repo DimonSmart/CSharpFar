@@ -61,7 +61,7 @@ public sealed class WindowsShellFileLauncher : IFileLauncher
         }
 
         _associationLauncher.OpenDetached(
-            new WindowsAssociationLaunchRequest(fullPath, workingDirectory, "open", SuppressConsole: true));
+            new WindowsAssociationLaunchRequest(fullPath, workingDirectory, "open"));
     }
 
     private void RunInCurrentConsole(string fullPath, string workingDirectory)

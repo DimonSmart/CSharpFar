@@ -8,5 +8,4 @@ internal interface IWindowsAssociationLauncher
 internal sealed record WindowsAssociationLaunchRequest(
     string FullPath,
     string WorkingDirectory,
-    string Verb,
-    bool SuppressConsole);
+    string Verb);
