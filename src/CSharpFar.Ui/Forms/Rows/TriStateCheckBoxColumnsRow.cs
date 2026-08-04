@@ -13,7 +13,7 @@ public sealed class TriStateCheckBoxColumnsRow : FormRow, IFormCursorProvider
     private readonly FormGridShape _shape;
     private readonly FormGridNavigationState _navigation = new();
 
-    public TriStateCheckBoxColumnsRow(string label, IReadOnlyList<TriStateCheckBoxLine> columns, int labelWidth, int columnGap = 1)
+    internal TriStateCheckBoxColumnsRow(string label, IReadOnlyList<TriStateCheckBoxLine> columns, int labelWidth, int columnGap = 1)
     {
         ArgumentNullException.ThrowIfNull(label);
         ArgumentNullException.ThrowIfNull(columns);

@@ -28,11 +28,11 @@ public readonly record struct DialogButtonBarInputResult(
     DialogButtonRole? ButtonRole = null,
     UiMouseCaptureRequestKind MouseCapture = UiMouseCaptureRequestKind.None);
 
-public sealed class DialogButtonBar
+internal sealed class DialogButtonBar
 {
     private readonly IReadOnlyList<DialogButton> _buttons;
 
-    public DialogButtonBar(IReadOnlyList<DialogButton> buttons)
+    internal DialogButtonBar(IReadOnlyList<DialogButton> buttons)
     {
         ArgumentNullException.ThrowIfNull(buttons);
         if (buttons.Count == 0)

@@ -25,12 +25,12 @@ internal sealed class OperationCancelDialog
         string interruptedMessage = "Operation has been interrupted",
         string confirmationMessage = "Do you really want to cancel it?")
     {
-        var buttons = new ButtonRow(
+        var buttons = FormControls.Buttons(
+            "actions",
         [
             DialogButton.Default(YesButton, "Yes", 'Y'),
             DialogButton.Action(NoButton, "No", 'N'),
-        ], style: WarningDialogStyles.ButtonBar)
-        { Id = "actions" };
+        ], WarningDialogStyles.ButtonBar);
         var form = new ScrollableFormDialog();
         form.SetRows([], [buttons]);
 

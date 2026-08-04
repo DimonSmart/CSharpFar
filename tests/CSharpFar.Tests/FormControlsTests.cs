@@ -83,6 +83,30 @@ public sealed class FormControlsTests
     }
 
     [Fact]
+    public void Factories_ExposeSemanticValueAndDisabledState()
+    {
+        CheckBoxRow checkBox = FormControls.CheckBox("enabled", "Enabled", isChecked: true, enabled: false, disabledReason: "Locked");
+        ChoiceFormRow<string> choice = FormControls.Choice(
+            "mode", "Mode", ["one", "two"], static value => value, "one", enabled: false, disabledReason: "Locked");
+        DropdownSelectFormRow<string> dropdown = FormControls.Dropdown(
+            "encoding", "Encoding", ["utf-8", "utf-16"], static value => value, "utf-8", enabled: false, disabledReason: "Locked");
+
+        checkBox.Value = false;
+        choice.Value = "two";
+        dropdown.Value = "utf-16";
+
+        Assert.False(checkBox.Value);
+        Assert.False(checkBox.Enabled);
+        Assert.Equal("Locked", checkBox.DisabledReason);
+        Assert.Equal("two", choice.Value);
+        Assert.False(choice.Enabled);
+        Assert.Equal("Locked", choice.DisabledReason);
+        Assert.Equal("utf-16", dropdown.Value);
+        Assert.False(dropdown.Enabled);
+        Assert.Equal("Locked", dropdown.DisabledReason);
+    }
+
+    [Fact]
     public void AdditionalFactories_AssignIdsAndPreserveControlValues()
     {
         CheckBoxRow left = FormControls.CheckBox("left", "Left", true);

@@ -128,7 +128,7 @@ internal sealed class FileAttributesDialog : IFileAttributesDialog
             .ToList();
         var form = new ScrollableFormDialog();
         string? error = null;
-        var buttons = new ButtonRow(_canOpenSystemProperties
+        var buttons = FormControls.Buttons("actions", _canOpenSystemProperties
             ?
             [
                 DialogButton.Default("set", "Set", 'S'),

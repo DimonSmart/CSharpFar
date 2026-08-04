@@ -4,9 +4,9 @@ using CSharpFar.Console.Models;
 
 namespace CSharpFar.Ui;
 
-public sealed class CheckBoxLine
+internal sealed class CheckBoxLine
 {
-    public CheckBoxLine(string label, bool value = false)
+    internal CheckBoxLine(string label, bool value = false)
     {
         Label = label;
         Value = value;
@@ -35,11 +35,12 @@ public sealed class CheckBoxLine
         int width,
         bool focused,
         CellStyle fillStyle,
-        CellStyle focusedStyle)
+        CellStyle focusedStyle,
+        string? label = null)
     {
         ArgumentNullException.ThrowIfNull(screen);
 
-        string text = $"[{(Value ? 'x' : ' ')}] {Label}";
+        string text = $"[{(Value ? 'x' : ' ')}] {label ?? Label}";
         screen.Write(
             x,
             y,

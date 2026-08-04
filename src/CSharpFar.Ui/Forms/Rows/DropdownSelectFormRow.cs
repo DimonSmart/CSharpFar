@@ -12,14 +12,14 @@ public sealed class DropdownSelectFormRow<T> : FormRow, IFormCursorProvider, IFo
     private bool _enabled = true;
     private readonly IFormCompositeController _compositeController;
 
-    public DropdownSelectFormRow(string label, DropdownSelect<T> dropdown)
+    internal DropdownSelectFormRow(string label, DropdownSelect<T> dropdown)
     {
         _label = label;
         _dropdown = dropdown;
         _compositeController = new DropdownCompositeController<T>(_dropdown, () => Enabled);
     }
 
-    public DropdownSelectFormRow(
+    internal DropdownSelectFormRow(
         string label,
         IReadOnlyList<T> items,
         Func<T, string> itemText,
@@ -45,7 +45,11 @@ public sealed class DropdownSelectFormRow<T> : FormRow, IFormCursorProvider, IFo
     int IFormLabeledRow.DesiredLabelWidth => ConsoleTextMetrics.GetCellWidth(_label);
     bool IFormLabeledRow.UseSharedLabelColumn => true;
     IFormCompositeController IFormCompositeOwner.CompositeController => _compositeController;
-    public T Value => _dropdown.SelectedItem;
+    public T Value
+    {
+        get => _dropdown.SelectedItem;
+        set => _dropdown.SetSelectedValue(value);
+    }
     public int SelectedIndex => _dropdown.SelectedIndex;
     public int MaxVisibleRows
     {
