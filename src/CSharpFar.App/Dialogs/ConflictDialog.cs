@@ -39,7 +39,7 @@ internal sealed class ConflictDialog
         var actions = FormControls.Buttons(
             "actions",
             CreateButtons(),
-            WarningDialogStyles.ButtonBar);
+            tone: FormControlTone.Warning);
         var form = new ScrollableFormDialog();
         form.SetRows([rememberChoice], [actions]);
         form.SetInitialFocus("actions");

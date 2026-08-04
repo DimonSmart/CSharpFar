@@ -36,7 +36,8 @@ public sealed class RoutedScrollableList<T>
     public UiTargetId ScrollbarTarget { get; }
     public RoutedScrollableListOptions Options { get; }
     internal ScrollBarDragState? ScrollbarDragState => _input.DragState;
-    internal void SynchronizeCommittedScrollbar(ScrollableListFrame frame) => _input.ApplyCommittedFrame(frame);
+    /// <summary>Applies the accepted list frame so subsequent routed input uses committed scrollbar state.</summary>
+    public void ApplyCommittedFrame(ScrollableListFrame frame) => _input.ApplyCommittedFrame(frame);
 
     public ScrollableListFrame CalculateFrame(Rect contentBounds, Rect? scrollbarBounds) => _input.CalculateFrame(State, contentBounds, scrollbarBounds);
     public void Render(IUiCanvas canvas, ScrollableListFrame frame, ScrollableListRenderOptions<T> presentation) => ScrollableListRenderer.Render(canvas, State, frame, presentation);

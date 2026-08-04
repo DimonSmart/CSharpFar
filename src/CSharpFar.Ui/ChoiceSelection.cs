@@ -1,9 +1,9 @@
 namespace CSharpFar.Ui;
 
-public enum ChoiceSelectionResult { Missing, Unchanged, Changed }
+internal enum ChoiceSelectionResult { Missing, Unchanged, Changed }
 
 /// <summary>Valid, non-empty selection state shared by choice presentations.</summary>
-public sealed class ChoiceSelection<T>
+internal sealed class ChoiceSelection<T>
 {
     private readonly IReadOnlyList<T> _items;
     private readonly IEqualityComparer<T> _comparer;

@@ -94,8 +94,7 @@ internal sealed class SearchDialog
             [
                 [caseSensitiveRow, wholeWordsRow, notContainingRow],
                 [includeDirectoriesRow, searchLinksRow],
-            ],
-            columnGap: 2);
+            ]);
         var buttons = FormControls.Buttons(
             "footerButtons",
             DialogButton.Default("find", "Find", 'F'),

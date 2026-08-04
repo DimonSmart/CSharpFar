@@ -5,7 +5,7 @@ using CSharpFar.Core.Models;
 
 namespace CSharpFar.Ui;
 
-public enum DropdownInputResultKind
+internal enum DropdownInputResultKind
 {
     NotHandled,
     Handled,
@@ -16,7 +16,7 @@ public enum DropdownInputResultKind
     Canceled,
 }
 
-public readonly record struct DropdownInputResult(
+internal readonly record struct DropdownInputResult(
     DropdownInputResultKind Kind,
     UiMouseCaptureRequestKind MouseCapture = UiMouseCaptureRequestKind.None)
 {
@@ -182,15 +182,15 @@ internal sealed class DropdownSelect<T>
     public int ContentRows(ConsoleSize size, Rect fieldBounds) { int available = Math.Max(Math.Max(0, size.Height - fieldBounds.Bottom - 2), Math.Max(0, fieldBounds.Y - 2)); return Math.Clamp(available, 0, Math.Min(MaxVisibleRows, _state.Count)); }
 }
 
-public sealed record DropdownSelectPopupFrame(Rect Bounds, ScrollableListFrame List)
+internal sealed record DropdownSelectPopupFrame(Rect Bounds, ScrollableListFrame List)
 {
     public Rect ContentBounds => List.ContentBounds;
     public Rect? ScrollbarBounds => List.ScrollbarBounds;
     public int ContentRows => List.ViewportRows;
 }
-public sealed record DropdownSelectStateSnapshot(int SelectedIndex, int ScrollTop, int SelectionBeforeOpen);
+internal sealed record DropdownSelectStateSnapshot(int SelectedIndex, int ScrollTop, int SelectionBeforeOpen);
 
-public sealed class DropdownSelectFrame
+internal sealed class DropdownSelectFrame
 {
     private DropdownSelectFrame(ConsoleSize size, Rect fieldBounds, DropdownSelectStateSnapshot state, DropdownSelectPopupFrame? popup, int itemCount)
     {

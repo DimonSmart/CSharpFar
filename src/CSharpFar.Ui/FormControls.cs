@@ -2,6 +2,16 @@ using CSharpFar.Console.Models;
 
 namespace CSharpFar.Ui;
 
+/// <summary>Semantic visual treatment for a standard form control.</summary>
+public enum FormControlTone
+{
+    /// <summary>Uses the ordinary dialog presentation.</summary>
+    Default,
+
+    /// <summary>Uses the warning-dialog presentation.</summary>
+    Warning,
+}
+
 /// <summary>Canonical application-level factories for standard form controls.</summary>
 public static class FormControls
 {
@@ -46,31 +56,31 @@ public static class FormControls
     /// <summary>Creates a grid of related checkbox rows.</summary>
     public static CheckBoxColumnsRow CheckBoxColumns(
         string id,
-        IReadOnlyList<IReadOnlyList<CheckBoxRow>> columns,
-        int columnGap = 2)
+        IReadOnlyList<IReadOnlyList<CheckBoxRow>> columns)
     {
         id = RequiredId(id);
-        return new CheckBoxColumnsRow(columns, columnGap) { Id = id };
+        return new CheckBoxColumnsRow(columns) { Id = id };
     }
 
-    /// <summary>Creates a standard form button row.</summary>
-    public static ButtonRow Buttons(string id, params DialogButton[] buttons)
+    /// <summary>Creates a standard form button row using the requested semantic visual treatment.</summary>
+    public static ButtonRow Buttons(
+        string id,
+        IReadOnlyList<DialogButton> buttons,
+        FormControlTone tone = FormControlTone.Default)
     {
         id = RequiredId(id);
-        return new ButtonRow(buttons) { Id = id };
-    }
-
-    internal static ButtonRow Buttons(string id, IReadOnlyList<DialogButton> buttons, DialogButtonBarStyle style)
-    {
         ArgumentNullException.ThrowIfNull(buttons);
-        return new ButtonRow(buttons, style: style) { Id = RequiredId(id) };
+        return new ButtonRow(buttons, tone: tone) { Id = id };
     }
+
+    /// <summary>Creates a standard form button row with the conventional default treatment.</summary>
+    public static ButtonRow Buttons(string id, params DialogButton[] buttons) => Buttons(id, (IReadOnlyList<DialogButton>)buttons);
 
     /// <summary>Creates a standard button row with the conventional actions identity.</summary>
     public static ButtonRow Buttons(params DialogButton[] buttons) => Buttons("actions", buttons);
 
-    /// <summary>Creates a segmented one-line choice row.</summary>
-    /// <summary>Creates a segmented one-line choice row with an explicit fallback value.</summary>
+    /// <summary>Creates a segmented one-line choice row. The selected value must exist in <paramref name="values"/>.</summary>
+    /// <summary>Creates a segmented one-line choice row, using <paramref name="fallbackValue"/> when the selected value is absent.</summary>
     public static ChoiceFormRow<T> Choice<T>(
         string id,
         string label,
@@ -107,7 +117,7 @@ public static class FormControls
         new(CreateChoice(values, format, selectedValue, comparer), label) { Id = RequiredId(id), Enabled = enabled, DisabledReason = disabledReason };
 
     /// <summary>Creates a multi-line choice row; <paramref name="itemsPerRow"/> controls its visible grouping.</summary>
-    /// <summary>Creates a multi-line choice row with an explicit fallback value.</summary>
+    /// <summary>Creates a multi-line choice row with an explicit fallback value; <paramref name="itemsPerRow"/> controls its visible grouping.</summary>
     public static MultiLineChoiceFormRow<T> MultiLineChoice<T>(
         string id,
         string label,

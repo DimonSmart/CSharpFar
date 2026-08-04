@@ -29,7 +29,7 @@ public sealed class CheckBoxRow : FormRow, IFormCursorProvider
     public bool Enabled { get; set; } = true;
     public string? DisabledReason { get; set; }
     public override bool IsEnabled => Enabled;
-    public bool ShowCursor { get; init; } = true;
+    internal bool ShowCursor { get; init; } = true;
 
     public override void Render(FormRowRenderContext context)
     {
@@ -115,18 +115,15 @@ public sealed class TriStateCheckBoxRow : FormRow, IFormCursorProvider
         CellStyle fill = Enabled
             ? FarDialogStyles.Fill
             : FarDialogStyles.DisabledControl(FarDialogStyles.Fill);
-        string label = DisabledReason is { Length: > 0 }
-            ? $"{_checkBox.Label} - {DisabledReason}"
-            : _checkBox.Label;
-        var display = new TriStateCheckBoxLine(label, _checkBox.Value);
-        display.Render(
+        _checkBox.Render(
             context.Canvas,
             context.Bounds.X,
             context.Bounds.Y,
             context.Bounds.Width,
             context.Focused && Enabled,
             fill,
-            FarDialogStyles.FocusedInput);
+            FarDialogStyles.FocusedInput,
+            !Enabled ? DisabledFormControlPresentation.WithReason(_checkBox.Label, DisabledReason) : null);
     }
 
     public bool TryGetCursor(FormRowRenderContext context, out FormCursorPlacement cursor)

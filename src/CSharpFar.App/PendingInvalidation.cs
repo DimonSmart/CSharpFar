@@ -1,4 +1,4 @@
-namespace CSharpFar.Ui;
+namespace CSharpFar.App;
 
 internal sealed class PendingInvalidation<TPart>
     where TPart : struct, Enum
@@ -29,10 +29,7 @@ internal sealed class PendingInvalidation<TPart>
 
     public PendingInvalidationSnapshot<TPart> SnapshotForRenderAttempt()
     {
-        ulong bits = 0;
-        foreach (ulong bit in _requestedAt.Keys)
-            bits |= bit;
-
+        ulong bits = _requestedAt.Keys.Aggregate(0UL, static (current, bit) => current | bit);
         if ((bits & _full) != 0)
             bits = _full;
 
@@ -45,9 +42,7 @@ internal sealed class PendingInvalidation<TPart>
         bool committedFull = (snapshotBits & _full) != 0;
         foreach ((ulong bit, long generation) in _requestedAt.ToArray())
         {
-            if (generation > snapshot.Generation)
-                continue;
-            if (committedFull || (snapshotBits & bit) != 0)
+            if (generation <= snapshot.Generation && (committedFull || (snapshotBits & bit) != 0))
                 _requestedAt.Remove(bit);
         }
     }
@@ -63,12 +58,8 @@ internal sealed class PendingInvalidation<TPart>
     }
 
     private static ulong ToBits(TPart value) => Convert.ToUInt64(value);
-
-    private static TPart FromBits(ulong bits) =>
-        (TPart)Enum.ToObject(typeof(TPart), bits);
+    private static TPart FromBits(ulong bits) => (TPart)Enum.ToObject(typeof(TPart), bits);
 }
 
-internal readonly record struct PendingInvalidationSnapshot<TPart>(
-    TPart Parts,
-    long Generation)
+internal readonly record struct PendingInvalidationSnapshot<TPart>(TPart Parts, long Generation)
     where TPart : struct, Enum;
