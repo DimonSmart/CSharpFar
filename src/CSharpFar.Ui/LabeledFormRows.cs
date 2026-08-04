@@ -32,10 +32,10 @@ public sealed class LabeledTextInputRow : FormRow, IFormCursorProvider, IFormCom
         _compositeController = new TextInputCompositeController(_field, GetInputBounds);
     }
 
-    public override FormRowRole Role { get; init; } = FormRowRole.TextInput;
+    internal override FormRowRole Role { get; init; } = FormRowRole.TextInput;
     public bool Enabled { get => _field.Enabled; set => _field.Enabled = value; }
     public string? DisabledReason { get => _field.DisabledReason; set => _field.DisabledReason = value; }
-    public override bool IsEnabled => Enabled;
+    internal override bool IsEnabled => Enabled;
     int IFormLabeledRow.DesiredLabelWidth => ConsoleTextMetrics.GetCellWidth(_label);
     bool IFormLabeledRow.UseSharedLabelColumn => true;
     public CommandLineState Buffer => _field.Buffer;
@@ -43,7 +43,7 @@ public sealed class LabeledTextInputRow : FormRow, IFormCursorProvider, IFormCom
     IFormCompositeController IFormCompositeOwner.CompositeController => _compositeController;
     public Rect GetInputBounds(Rect rowBounds) => new(rowBounds.X, rowBounds.Y, Math.Max(0, _inputWidth ?? rowBounds.Width), rowBounds.Height);
 
-    public override void Render(FormRowRenderContext context)
+    internal override void Render(FormRowRenderContext context)
     {
         FormRowLayout layout = context.Layout;
         if (layout.LabelBounds is Rect labelBounds)
@@ -52,15 +52,15 @@ public sealed class LabeledTextInputRow : FormRow, IFormCursorProvider, IFormCom
         _field.Render(context, GetInputBounds(layout));
     }
 
-    public bool TryGetCursor(FormRowRenderContext context, out FormCursorPlacement cursor) => _field.TryGetCursor(context, GetInputBounds(context.Layout), out cursor);
-    public override FormInputResult HandleKey(ConsoleKeyInfo key, FormRowInputContext context)
+    bool IFormCursorProvider.TryGetCursor(FormRowRenderContext context, out FormCursorPlacement cursor) => _field.TryGetCursor(context, GetInputBounds(context.Layout), out cursor);
+    internal override FormInputResult HandleKey(ConsoleKeyInfo key, FormRowInputContext context)
     {
         FormInputResult result = _field.HandleKey(key, context);
         return result.Kind == FormInputResultKind.OverlayChanged && SubmitOnEnter
             ? FormInputResult.Submit()
             : result;
     }
-    public override FormInputResult HandleMouse(MouseConsoleInputEvent mouse, FormRowMouseContext context)
+    internal override FormInputResult HandleMouse(MouseConsoleInputEvent mouse, FormRowMouseContext context)
     {
         Rect bounds = GetInputBounds(context.Layout);
         return _field.IsHistoryArrow(mouse, bounds) ? FormInputResult.NotHandled : _field.HandleMouse(mouse, context, bounds);
@@ -86,11 +86,11 @@ public sealed class LabeledValueRow : FormRow, IFormLabeledRow
         _value = value;
     }
 
-    public override bool IsFocusable => false;
+    internal override bool IsFocusable => false;
     int IFormLabeledRow.DesiredLabelWidth => ConsoleTextMetrics.GetCellWidth(_label);
     bool IFormLabeledRow.UseSharedLabelColumn => true;
 
-    public override void Render(FormRowRenderContext context)
+    internal override void Render(FormRowRenderContext context)
     {
         if (context.Layout.LabelBounds is Rect labelBounds)
             context.Canvas.Write(labelBounds.X, labelBounds.Y, ScrollableFormDialog.Fit(_label, labelBounds.Width), FarDialogStyles.Fill);

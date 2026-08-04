@@ -30,11 +30,11 @@ public sealed class CheckBoxColumnsRow : FormRow, IFormCursorProvider
         _shape = new FormGridShape(_columns.Select(column => column.Count).ToArray());
     }
 
-    public override FormRowRole Role { get; init; } = FormRowRole.Option;
-    public override bool IsFocusable => _columns.SelectMany(static column => column).Any(static row => row.IsFocusable);
-    public override int Height => _columns.Max(static column => column.Count);
+    internal override FormRowRole Role { get; init; } = FormRowRole.Option;
+    internal override bool IsFocusable => _columns.SelectMany(static column => column).Any(static row => row.IsFocusable);
+    internal override int Height => _columns.Max(static column => column.Count);
 
-    public override void Render(FormRowRenderContext context)
+    internal override void Render(FormRowRenderContext context)
     {
         context.Canvas.FillRegion(context.Bounds, FarDialogStyles.Fill);
         FormGridLayout layout = CalculateLayout(context.Bounds);
@@ -47,7 +47,7 @@ public sealed class CheckBoxColumnsRow : FormRow, IFormCursorProvider
         }
     }
 
-    public override FormInputResult HandleKey(ConsoleKeyInfo key, FormRowInputContext context)
+    internal override FormInputResult HandleKey(ConsoleKeyInfo key, FormRowInputContext context)
     {
         if (!_navigation.EnsureCurrent(_shape, IsCellEnabled)) return FormInputResult.NotHandled;
         return key.Key switch
@@ -63,7 +63,7 @@ public sealed class CheckBoxColumnsRow : FormRow, IFormCursorProvider
         };
     }
 
-    public override FormInputResult HandleMouse(MouseConsoleInputEvent mouse, FormRowMouseContext context)
+    internal override FormInputResult HandleMouse(MouseConsoleInputEvent mouse, FormRowMouseContext context)
     {
         if (mouse.Button != MouseButton.Left || mouse.Kind != MouseEventKind.Down) return FormInputResult.NotHandled;
         FormGridLayout layout = CalculateLayout(context.Bounds);
@@ -73,7 +73,7 @@ public sealed class CheckBoxColumnsRow : FormRow, IFormCursorProvider
         return checkBox.HandleMouse(mouse, new FormRowMouseContext(true, new FormRowLayout(cell.Bounds, null, cell.Bounds)));
     }
 
-    public bool TryGetCursor(FormRowRenderContext context, out FormCursorPlacement cursor)
+    bool IFormCursorProvider.TryGetCursor(FormRowRenderContext context, out FormCursorPlacement cursor)
     {
         FormGridLayout layout = CalculateLayout(context.Bounds);
         FormGridPosition? effectivePosition = _navigation.ResolveCurrent(_shape, IsCellEnabled);

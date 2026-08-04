@@ -29,7 +29,7 @@ public sealed class DropdownSelectFormRow<T> : FormRow, IFormCursorProvider, IFo
         _dropdown.SelectedIndex = FindSelectedIndex(items, selectedValue);
     }
 
-    public override FormRowRole Role { get; init; } = FormRowRole.Option;
+    internal override FormRowRole Role { get; init; } = FormRowRole.Option;
     public bool Enabled
     {
         get => _enabled;
@@ -41,7 +41,7 @@ public sealed class DropdownSelectFormRow<T> : FormRow, IFormCursorProvider, IFo
         }
     }
     public string? DisabledReason { get; set; }
-    public override bool IsEnabled => Enabled;
+    internal override bool IsEnabled => Enabled;
     int IFormLabeledRow.DesiredLabelWidth => ConsoleTextMetrics.GetCellWidth(_label);
     bool IFormLabeledRow.UseSharedLabelColumn => true;
     IFormCompositeController IFormCompositeOwner.CompositeController => _compositeController;
@@ -57,7 +57,7 @@ public sealed class DropdownSelectFormRow<T> : FormRow, IFormCursorProvider, IFo
         set => _dropdown.MaxVisibleRows = value;
     }
 
-    public override void Render(FormRowRenderContext context)
+    internal override void Render(FormRowRenderContext context)
     {
         if (context.Layout.LabelBounds is Rect labelBounds)
             context.Canvas.Write(
@@ -71,14 +71,14 @@ public sealed class DropdownSelectFormRow<T> : FormRow, IFormCursorProvider, IFo
             Enabled && context.Focused ? FarDialogStyles.FocusedInput : DisabledFormControlPresentation.Style(Enabled, FarDialogStyles.Input));
     }
 
-    public bool TryGetCursor(FormRowRenderContext context, out FormCursorPlacement cursor)
+    bool IFormCursorProvider.TryGetCursor(FormRowRenderContext context, out FormCursorPlacement cursor)
     {
         Rect field = context.Layout.ControlBounds;
         cursor = new FormCursorPlacement(field.X, field.Y);
         return Enabled && context.Focused && field.Width > 0;
     }
 
-    public override FormInputResult HandleKey(ConsoleKeyInfo key, FormRowInputContext context)
+    internal override FormInputResult HandleKey(ConsoleKeyInfo key, FormRowInputContext context)
     {
         if (!Enabled || _dropdown.IsOpen || key.Key is not (ConsoleKey.Enter or ConsoleKey.Spacebar or ConsoleKey.DownArrow or ConsoleKey.F4))
             return FormInputResult.NotHandled;
@@ -86,7 +86,7 @@ public sealed class DropdownSelectFormRow<T> : FormRow, IFormCursorProvider, IFo
         return FormInputResult.OverlayChanged;
     }
 
-    public override FormInputResult HandleMouse(MouseConsoleInputEvent mouse, FormRowMouseContext context)
+    internal override FormInputResult HandleMouse(MouseConsoleInputEvent mouse, FormRowMouseContext context)
     {
         if (!Enabled || _dropdown.IsOpen || mouse is not { Button: MouseButton.Left, Kind: MouseEventKind.Down } || !context.Layout.ControlBounds.Contains(mouse.X, mouse.Y))
             return FormInputResult.NotHandled;

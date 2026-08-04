@@ -151,9 +151,9 @@ internal sealed class SftpConnectionDialog
             prepareRender: PrepareRows);
     }
 
-    private static IReadOnlyList<IFormRow> BuildRows(SftpFormState state, string? hostKeyFingerprint)
+    private static IReadOnlyList<FormRow> BuildRows(SftpFormState state, string? hostKeyFingerprint)
     {
-        var rows = new List<IFormRow>
+        var rows = new List<FormRow>
         {
             FormControls.Text("Connection name:", state.ConnectionName),
             FormControls.Text("Host:", state.Host),

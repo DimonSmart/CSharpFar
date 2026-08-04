@@ -190,7 +190,7 @@ internal sealed class FileOperationDialog
             prepareRender: PrepareRows);
     }
 
-    private static IReadOnlyList<IFormRow> BuildRows(
+    private static IReadOnlyList<FormRow> BuildRows(
         string prompt,
         TextField destination,
         TextField filter,
@@ -204,7 +204,7 @@ internal sealed class FileOperationDialog
         bool showOperationOptions)
     {
         var fill = FarDialogStyles.Fill;
-        var rows = new List<IFormRow>
+        var rows = new List<FormRow>
         {
             new LabelRow(prompt, fill),
             FormControls.Text(destination),

@@ -33,7 +33,7 @@ public sealed class FormRenderContext
     public void PublishOnStable<T>(T value, Action<T> commit) => _renderContext.PublishOnStable(value, commit);
 }
 
-public sealed class FormRowRenderContext
+internal sealed class FormRowRenderContext
 {
     public FormRowRenderContext(IUiCanvas screen, Rect bounds, bool focused, FormRowLayout? layout = null)
     {
@@ -49,9 +49,9 @@ public sealed class FormRowRenderContext
     public FormRowLayout Layout { get; }
 }
 
-public readonly record struct FormRowInputContext(bool Focused);
+internal readonly record struct FormRowInputContext(bool Focused);
 
-public readonly record struct FormRowMouseContext(bool Focused, FormRowLayout Layout)
+internal readonly record struct FormRowMouseContext(bool Focused, FormRowLayout Layout)
 {
     public Rect Bounds => Layout.RowBounds;
 }

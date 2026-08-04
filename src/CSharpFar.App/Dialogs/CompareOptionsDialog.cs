@@ -115,7 +115,7 @@ internal sealed class CompareOptionsDialog
             prepareRender: PrepareRows);
     }
 
-    private static IReadOnlyList<IFormRow> BuildRows(
+    private static IReadOnlyList<FormRow> BuildRows(
         CompareMode mode,
         FilePanelState leftPanel,
         FilePanelState rightPanel,
@@ -130,7 +130,7 @@ internal sealed class CompareOptionsDialog
         ChoiceFormRow<NameComparisonMode> nameComparison,
         ChoiceFormRow<FileSetMatchMode> fileSetMatch)
     {
-        List<IFormRow> rows =
+        List<FormRow> rows =
         [
             new LabelRow($"Left : {leftPanel.CurrentDirectory}"),
             new LabelRow($"Right: {rightPanel.CurrentDirectory}"),
@@ -165,7 +165,7 @@ internal sealed class CompareOptionsDialog
         return rows;
     }
 
-    private static IFormRow ContextSelection(FilePanelState leftPanel, FilePanelState rightPanel)
+    private static FormRow ContextSelection(FilePanelState leftPanel, FilePanelState rightPanel)
     {
         int leftCount = leftPanel.SelectedPaths.Count;
         int rightCount = rightPanel.SelectedPaths.Count;

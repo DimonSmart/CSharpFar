@@ -12,7 +12,7 @@ public sealed class SearchOptionsDialogTests
     [Fact]
     public void SearchOptionsDialog_PatternRow_HasStableIdAndSubmitOnEnter()
     {
-        IReadOnlyList<IFormRow> rows = BuildRows();
+        IReadOnlyList<FormRow> rows = BuildRows();
 
         TextInputRow patternRow = Assert.Single(rows.OfType<TextInputRow>());
         Assert.Equal("pattern", patternRow.Id);
@@ -24,7 +24,7 @@ public sealed class SearchOptionsDialogTests
     public void SearchOptionsDialog_EnterOnPattern_SubmitsFind()
     {
         var history = CreateHistory();
-        IReadOnlyList<IFormRow> rows = BuildRows(history);
+        IReadOnlyList<FormRow> rows = BuildRows(history);
         var form = new ScrollableFormDialog(rows);
 
         FormInputResult result = HandleKey(form, PopupState(rows), Key(ConsoleKey.Enter));
@@ -38,7 +38,7 @@ public sealed class SearchOptionsDialogTests
     {
         var history = CreateHistory();
         history.Add("saved pattern");
-        IReadOnlyList<IFormRow> rows = BuildRows(history);
+        IReadOnlyList<FormRow> rows = BuildRows(history);
         SingleLineTextHistoryState popup = PopupState(rows);
         Assert.True(popup.OpenAll(availableContentRows: 1));
         var form = new ScrollableFormDialog(rows);
@@ -54,7 +54,7 @@ public sealed class SearchOptionsDialogTests
     public void SearchOptionsDialog_EnterOnCheckbox_DoesNotSubmitFind()
     {
         var history = CreateHistory();
-        IReadOnlyList<IFormRow> rows = BuildRows(history);
+        IReadOnlyList<FormRow> rows = BuildRows(history);
         var form = new ScrollableFormDialog(rows);
         form.SetInitialFocus("option");
 
@@ -68,7 +68,7 @@ public sealed class SearchOptionsDialogTests
     public void SearchOptionsDialog_DoesNotDependOnNumericFocusIndex()
     {
         var history = CreateHistory();
-        var rows = new List<IFormRow>
+        var rows = new List<FormRow>
         {
             new CheckBoxRow(new CheckBoxLine("Before pattern")) { Id = "before-pattern" },
         };
@@ -177,7 +177,7 @@ public sealed class SearchOptionsDialogTests
         });
     }
 
-    private static IReadOnlyList<IFormRow> BuildRows(TextHistory? history = null)
+    private static IReadOnlyList<FormRow> BuildRows(TextHistory? history = null)
     {
         history ??= CreateHistory();
         var field = new FormFieldFactory(new FixedHistoryProvider(history)).Text(
@@ -208,7 +208,7 @@ public sealed class SearchOptionsDialogTests
         return layer.LastResult?.FormResult ?? FormInputResult.NotHandled;
     }
 
-    private static SingleLineTextHistoryState PopupState(IReadOnlyList<IFormRow> rows) =>
+    private static SingleLineTextHistoryState PopupState(IReadOnlyList<FormRow> rows) =>
         Assert.IsType<SingleLineTextHistoryState>(Assert.Single(rows.OfType<TextInputRow>()).Input.History);
 
     private sealed class SearchOptionsFormLayer(ScreenRenderer screen, ScrollableFormDialog form) :

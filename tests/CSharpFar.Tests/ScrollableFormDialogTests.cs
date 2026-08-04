@@ -2090,7 +2090,7 @@ public sealed class ScrollableFormDialogTests
 
     private sealed record FormHarness(UiTestHost Host, TestFormLayer Layer);
 
-    private static IFormRow CreateTextRow(
+    private static FormRow CreateTextRow(
         bool labeled,
         CommandLineState text,
         SingleLineTextHistoryState? history = null,

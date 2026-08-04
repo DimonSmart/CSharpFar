@@ -7,7 +7,7 @@ namespace CSharpFar.Ui;
 
 public sealed partial class ScrollableFormDialog
 {
-    public FormRouteResult RouteInput(
+    internal FormRouteResult RouteInput(
         ConsoleInputEvent input,
         ScrollableFormFrame frame,
         UiInputRouteContext route,
@@ -38,7 +38,7 @@ public sealed partial class ScrollableFormDialog
             route.Target is UiTargetId target &&
             FindRowTarget(frame, target) is { } targetFrame)
         {
-            IFormRow row = targetFrame.Row;
+            FormRow row = targetFrame.Row;
             ensureFocusedTargetVisible = IsOffscreenBodyTarget(targetFrame, frame.BodyBounds);
             var inputContext = new FormRowInputContext(Focused: true);
             FormInputResult rowResult = row.HandleKey(key, inputContext);
@@ -307,7 +307,7 @@ public sealed partial class ScrollableFormDialog
     private static FormRowTargetFrame? FindRowTarget(ScrollableFormFrame frame, UiTargetId target) =>
         frame.Targets.OfType<FormRowTargetFrame>().FirstOrDefault(value => value.Target == target);
 
-    private static FormRowTargetFrame? FindPrimaryRowFrame(ScrollableFormFrame frame, IFormRow row) =>
+    private static FormRowTargetFrame? FindPrimaryRowFrame(ScrollableFormFrame frame, FormRow row) =>
         frame.Targets.OfType<FormRowTargetFrame>().FirstOrDefault(value => ReferenceEquals(value.Row, row));
 
     private bool CancelTransientOverlayForFocusRequest(UiFocusRequest request)
@@ -324,7 +324,7 @@ public sealed partial class ScrollableFormDialog
     private bool CancelTransientOverlayExcept(UiTargetId? retainedTarget)
     {
         bool canceled = false;
-        foreach (IFormRow row in AllRows())
+        foreach (FormRow row in AllRows())
         {
             if (row is not IFormCompositeOwner composite)
                 continue;
@@ -352,7 +352,7 @@ public sealed partial class ScrollableFormDialog
 
     internal void CloseTransientOverlays(bool commit)
     {
-        foreach (IFormRow row in AllRows())
+        foreach (FormRow row in AllRows())
             if (row is IFormCompositeOwner { CompositeController.IsOpen: true } composite)
                 composite.CompositeController.Close(commit);
     }

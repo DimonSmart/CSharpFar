@@ -4,7 +4,7 @@ namespace CSharpFar.Ui;
 
 public static class FormFooter
 {
-    public static IReadOnlyList<IFormRow> ErrorAndButtons(Func<string?> error, ButtonRow buttons)
+    public static IReadOnlyList<FormRow> ErrorAndButtons(Func<string?> error, ButtonRow buttons)
     {
         ArgumentNullException.ThrowIfNull(error);
         ArgumentNullException.ThrowIfNull(buttons);
@@ -13,9 +13,9 @@ public static class FormFooter
 
     private sealed class DynamicLabelRow(Func<string?> text, CellStyle style) : FormRow
     {
-        public override bool IsFocusable => false;
+        internal override bool IsFocusable => false;
 
-        public override void Render(FormRowRenderContext context) =>
+        internal override void Render(FormRowRenderContext context) =>
             context.Canvas.Write(
                 context.Bounds.X,
                 context.Bounds.Y,

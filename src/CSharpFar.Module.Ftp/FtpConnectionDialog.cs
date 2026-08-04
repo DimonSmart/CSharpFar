@@ -168,9 +168,9 @@ internal sealed class FtpConnectionDialog
             }, prepareRender: PrepareRows);
     }
 
-    private static IReadOnlyList<IFormRow> BuildRows(FtpFormState state, string? fingerprint)
+    private static IReadOnlyList<FormRow> BuildRows(FtpFormState state, string? fingerprint)
     {
-        var rows = new List<IFormRow>
+        var rows = new List<FormRow>
         {
             FormControls.Text("Connection name:", state.ConnectionName),
             FormControls.Text("Host:", state.Host),

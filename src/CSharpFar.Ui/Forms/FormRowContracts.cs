@@ -5,7 +5,7 @@ using CSharpFar.Core.Models;
 
 namespace CSharpFar.Ui;
 
-public enum FormInputResultKind
+internal enum FormInputResultKind
 {
     NotHandled,
     Handled,
@@ -17,7 +17,7 @@ public enum FormInputResultKind
     Cancel,
 }
 
-public readonly record struct FormInputResult(
+internal readonly record struct FormInputResult(
     FormInputResultKind Kind,
     string? Command = null,
     UiMouseCaptureRequestKind MouseCapture = UiMouseCaptureRequestKind.None,
@@ -35,25 +35,12 @@ public readonly record struct FormInputResult(
     public bool IsHandled => Kind != FormInputResultKind.NotHandled;
 }
 
-public enum FormRowRole
+internal enum FormRowRole
 {
     Normal,
     TextInput,
     Option,
     ButtonBar,
-}
-
-public interface IFormRow
-{
-    string? Id { get; }
-    FormRowRole Role { get; }
-    bool SubmitOnEnter { get; }
-    bool IsEnabled { get; }
-    bool IsFocusable { get; }
-    int Height { get; }
-    void Render(FormRowRenderContext context);
-    FormInputResult HandleKey(ConsoleKeyInfo key, FormRowInputContext context);
-    FormInputResult HandleMouse(MouseConsoleInputEvent mouse, FormRowMouseContext context);
 }
 
 /// <summary>Optional contract for a row that owns interactive child surfaces.</summary>
@@ -88,7 +75,7 @@ internal interface IFormCompositeKeyboardController
     FormInputResult RouteOverlayKey(ConsoleKeyInfo key, FormRowInputContext context, FormCompositeFrame frame);
 }
 
-public readonly record struct FormCompositeFrameContext(FormRowLayout Layout, ConsoleViewport Viewport, UiTargetId RowTarget)
+internal readonly record struct FormCompositeFrameContext(FormRowLayout Layout, ConsoleViewport Viewport, UiTargetId RowTarget)
 {
     public Rect RowBounds => Layout.RowBounds;
 
@@ -98,14 +85,14 @@ public readonly record struct FormCompositeFrameContext(FormRowLayout Layout, Co
     }
 }
 
-public interface IFormCompositeSnapshot;
+internal interface IFormCompositeSnapshot;
 internal sealed class EmptyFormCompositeSnapshot : IFormCompositeSnapshot
 {
     public static EmptyFormCompositeSnapshot Instance { get; } = new();
     private EmptyFormCompositeSnapshot() { }
 }
 
-public sealed class FormCompositeOverlayFrame
+internal sealed class FormCompositeOverlayFrame
 {
     public FormCompositeOverlayFrame(IReadOnlyList<FormCompositeTarget> childTargets)
     {
@@ -116,7 +103,7 @@ public sealed class FormCompositeOverlayFrame
     public IReadOnlyList<FormCompositeTarget> ChildTargets { get; }
 }
 
-public sealed class FormCompositeFrame
+internal sealed class FormCompositeFrame
 {
     private FormCompositeFrame(IFormCompositeSnapshot state, FormCompositeOverlayFrame? overlay)
     {
@@ -136,11 +123,11 @@ public sealed class FormCompositeFrame
     }
 }
 
-public sealed record FormCompositeTarget(UiTargetId Id, Rect Bounds, Rect? HitBounds = null, FormTargetKind Kind = FormTargetKind.CompositeChild, bool CapturesMouse = false);
+internal sealed record FormCompositeTarget(UiTargetId Id, Rect Bounds, Rect? HitBounds = null, FormTargetKind Kind = FormTargetKind.CompositeChild, bool CapturesMouse = false);
 
-public readonly record struct FormCursorPlacement(int X, int Y);
+internal readonly record struct FormCursorPlacement(int X, int Y);
 
-public interface IFormCursorProvider
+internal interface IFormCursorProvider
 {
     bool TryGetCursor(FormRowRenderContext context, out FormCursorPlacement cursor);
 }

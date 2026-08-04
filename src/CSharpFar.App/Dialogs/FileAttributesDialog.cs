@@ -183,7 +183,7 @@ internal sealed class FileAttributesDialog : IFileAttributesDialog
             prepareRender: PrepareRows);
     }
 
-    private IReadOnlyList<IFormRow> BuildRows(
+    private IReadOnlyList<FormRow> BuildRows(
         FileMetadataSnapshot snapshot,
         IReadOnlyList<AttributeDialogRow> attributeRows,
         TriStateMatrixFormRow? permissions,
@@ -193,21 +193,21 @@ internal sealed class FileAttributesDialog : IFileAttributesDialog
         TextField access)
     {
         var fill = FarDialogStyles.Fill;
-        var rows = new List<IFormRow>
+        var rows = new List<FormRow>
         {
             new LabelRow("Change file attributes for", fill),
             new LabelRow(snapshot.DisplayName, fill),
             new SpacerRow(fill),
         };
 
-        rows.AddRange(attributeRows.Select(static row => (IFormRow)row.Row));
+        rows.AddRange(attributeRows.Select(static row => (FormRow)row.Row));
 
         if (snapshot.UnixMetadata is { } unixMetadata)
         {
             rows.Add(new SpacerRow(fill));
             rows.Add(new LabelRow("Unix permissions:", fill));
             rows.Add(permissions!);
-            rows.AddRange(unixSpecialRows.Select(static row => (IFormRow)row.Row));
+            rows.AddRange(unixSpecialRows.Select(static row => (FormRow)row.Row));
             rows.Add(new LabelRow($"Owner: {unixMetadata.OwnerName ?? unixMetadata.Uid?.ToString(CultureInfo.InvariantCulture) ?? "<not available>"}", fill));
             rows.Add(new LabelRow($"Group: {unixMetadata.GroupName ?? unixMetadata.Gid?.ToString(CultureInfo.InvariantCulture) ?? "<not available>"}", fill));
             rows.Add(new LabelRow($"Mode: {FormatUnixMode(unixMetadata)}", fill));
@@ -229,7 +229,7 @@ internal sealed class FileAttributesDialog : IFileAttributesDialog
     }
 
     private static void AddTimeRows(
-        List<IFormRow> rows,
+        List<FormRow> rows,
         string label,
         TextField field,
         DateTime? original,
