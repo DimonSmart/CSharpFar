@@ -9,13 +9,13 @@ public sealed class CompactChoiceFormRow<T> : FormRow, IFormCursorProvider
     private readonly ChoiceModel<T> _choice;
     private readonly string _label;
 
-    public CompactChoiceFormRow(ChoiceModel<T> choice, string label)
+    internal CompactChoiceFormRow(ChoiceModel<T> choice, string label)
     {
         _choice = choice ?? throw new ArgumentNullException(nameof(choice));
         _label = label;
     }
 
-    public CompactChoiceFormRow(
+    internal CompactChoiceFormRow(
         string label,
         IReadOnlyList<T> values,
         Func<T, string> format,
@@ -25,7 +25,7 @@ public sealed class CompactChoiceFormRow<T> : FormRow, IFormCursorProvider
     {
     }
 
-    public CompactChoiceFormRow(
+    internal CompactChoiceFormRow(
         string label,
         IReadOnlyList<T> values,
         Func<T, string> format,
@@ -37,8 +37,8 @@ public sealed class CompactChoiceFormRow<T> : FormRow, IFormCursorProvider
     }
 
     public override FormRowRole Role { get; init; } = FormRowRole.Option;
-    public ChoiceModel<T> Choice => _choice;
-    public T Value => _choice.Value;
+    internal ChoiceModel<T> Choice => _choice;
+    public T Value { get => _choice.Value; set => _choice.Value = value; }
     public bool Enabled { get; set; } = true;
     public string? DisabledReason { get; set; }
     public override bool IsEnabled => Enabled;

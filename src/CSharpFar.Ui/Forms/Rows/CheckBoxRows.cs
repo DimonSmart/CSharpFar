@@ -10,12 +10,12 @@ public sealed class CheckBoxRow : FormRow, IFormCursorProvider
 
     private readonly CheckBoxLine _checkBox;
 
-    public CheckBoxRow(CheckBoxLine checkBox)
+    internal CheckBoxRow(CheckBoxLine checkBox)
     {
         _checkBox = checkBox;
     }
 
-    public CheckBoxRow(string label, bool value = false)
+    internal CheckBoxRow(string label, bool value = false)
         : this(new CheckBoxLine(label, value))
     {
     }
@@ -27,6 +27,7 @@ public sealed class CheckBoxRow : FormRow, IFormCursorProvider
     }
 
     public bool Enabled { get; set; } = true;
+    public string? DisabledReason { get; set; }
     public override bool IsEnabled => Enabled;
     public bool ShowCursor { get; init; } = true;
 
@@ -43,7 +44,8 @@ public sealed class CheckBoxRow : FormRow, IFormCursorProvider
             context.Bounds.Width,
             context.Focused && Enabled,
             fill,
-            FarDialogStyles.FocusedInput);
+            FarDialogStyles.FocusedInput,
+            !Enabled ? DisabledFormControlPresentation.WithReason(_checkBox.Label, DisabledReason) : null);
     }
 
     public bool TryGetCursor(FormRowRenderContext context, out FormCursorPlacement cursor)
@@ -86,7 +88,7 @@ public sealed class TriStateCheckBoxRow : FormRow, IFormCursorProvider
         _checkBox = checkBox;
     }
 
-    public TriStateCheckBoxRow(string id, string label, CheckState value = CheckState.Unchecked)
+    internal TriStateCheckBoxRow(string id, string label, CheckState value = CheckState.Unchecked)
         : this(new TriStateCheckBoxLine(label, value))
     {
         Id = id;

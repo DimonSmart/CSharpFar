@@ -4,7 +4,7 @@ using CSharpFar.Console.Models;
 
 namespace CSharpFar.Ui;
 
-public sealed class TriStateCheckBoxLine
+internal sealed class TriStateCheckBoxLine
 {
     internal TriStateCheckBoxLine(string label, CheckState value = CheckState.Unchecked, bool enabled = true)
     {

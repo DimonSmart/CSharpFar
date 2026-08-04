@@ -9,7 +9,7 @@ public sealed class ButtonRow : FormRow
     private readonly DialogButtonBarStyle? _style;
     private DialogButtonBarState _state;
 
-    public ButtonRow(
+    internal ButtonRow(
         IReadOnlyList<DialogButton> buttons,
         int focusedButtonIndex = 0,
         DialogButtonBarStyle? style = null)

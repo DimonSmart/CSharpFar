@@ -10,7 +10,7 @@ public sealed class CheckBoxColumnsRow : FormRow, IFormCursorProvider
     private readonly FormGridShape _shape;
     private readonly FormGridNavigationState _navigation = new();
 
-    public CheckBoxColumnsRow(IReadOnlyList<IReadOnlyList<CheckBoxRow>> columns, int columnGap = 2)
+    internal CheckBoxColumnsRow(IReadOnlyList<IReadOnlyList<CheckBoxRow>> columns, int columnGap = 2)
     {
         ArgumentNullException.ThrowIfNull(columns);
         if (columns.Count == 0) throw new ArgumentException("At least one column is required.", nameof(columns));

@@ -24,16 +24,18 @@ public readonly record struct DropdownInputResult(
     public bool IsHandled => Kind != DropdownInputResultKind.NotHandled;
 }
 
-public sealed class DropdownSelect<T>
+internal sealed class DropdownSelect<T>
 {
     private readonly ScrollableListState<T> _state;
     private readonly ScrollableListInputController _input = new();
     private readonly Func<T, string> _itemText;
+    private readonly IEqualityComparer<T> _comparer;
     private int _selectedIndexBeforeOpen;
-    public DropdownSelect(IReadOnlyList<T> items, Func<T, string> itemText)
+    internal DropdownSelect(IReadOnlyList<T> items, Func<T, string> itemText, IEqualityComparer<T>? comparer = null)
     {
         if (items is null || items.Count == 0) throw new ArgumentException("Dropdown requires at least one item.", nameof(items));
         _state = new ScrollableListState<T>(items); _itemText = itemText ?? throw new ArgumentNullException(nameof(itemText));
+        _comparer = comparer ?? EqualityComparer<T>.Default;
     }
     public int SelectedIndex { get => _state.SelectedIndex; set => _state.SetSelectedIndex(value, 1); }
     public int ScrollTop => _state.ScrollTop;
@@ -49,6 +51,19 @@ public sealed class DropdownSelect<T>
     }
     internal bool HasScrollbarDrag => _input.DragState is not null;
     public T SelectedItem => _state.Items[_state.SelectedIndex];
+    internal void SetSelectedValue(T value)
+    {
+        for (int index = 0; index < _state.Items.Count; index++)
+        {
+            if (_comparer.Equals(_state.Items[index], value))
+            {
+                SelectedIndex = index;
+                return;
+            }
+        }
+
+        throw new ArgumentException("The selected value must be present in the dropdown items.", nameof(value));
+    }
     public void Open() { if (!IsOpen) _selectedIndexBeforeOpen = SelectedIndex; IsOpen = true; }
     public void Close(bool commit = false) { if (IsOpen && !commit) SelectedIndex = _selectedIndexBeforeOpen; IsOpen = false; }
     public void Toggle() { if (IsOpen) Close(); else Open(); }

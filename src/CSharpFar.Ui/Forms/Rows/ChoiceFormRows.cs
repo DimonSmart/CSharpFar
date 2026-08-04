@@ -15,7 +15,7 @@ public sealed class ChoiceFormRow<T> : FormRow, IFormCursorProvider
     private readonly int? _endIndex;
     private readonly bool _isFocusable;
 
-    public ChoiceFormRow(ChoiceModel<T> choice, string label, int startIndex = 0, int? endIndex = null, bool isFocusable = true)
+    internal ChoiceFormRow(ChoiceModel<T> choice, string label, int startIndex = 0, int? endIndex = null, bool isFocusable = true)
     {
         _choice = choice;
         _label = label;
@@ -24,7 +24,7 @@ public sealed class ChoiceFormRow<T> : FormRow, IFormCursorProvider
         _isFocusable = isFocusable;
     }
 
-    public ChoiceFormRow(
+    internal ChoiceFormRow(
         string label,
         IReadOnlyList<T> values,
         Func<T, string> format,
@@ -35,7 +35,7 @@ public sealed class ChoiceFormRow<T> : FormRow, IFormCursorProvider
     {
     }
 
-    public ChoiceFormRow(
+    internal ChoiceFormRow(
         string label,
         IReadOnlyList<T> values,
         Func<T, string> format,
@@ -51,8 +51,8 @@ public sealed class ChoiceFormRow<T> : FormRow, IFormCursorProvider
     public bool Enabled { get; set; } = true;
     public string? DisabledReason { get; set; }
     public override bool IsEnabled => Enabled;
-    public ChoiceModel<T> Choice => _choice;
-    public T Value => _choice.Value;
+    internal ChoiceModel<T> Choice => _choice;
+    public T Value { get => _choice.Value; set => _choice.Value = value; }
 
     public override void Render(FormRowRenderContext context)
     {
@@ -109,7 +109,7 @@ public sealed class MultiLineChoiceFormRow<T> : FormRow, IFormCursorProvider
     private readonly string _label;
     private readonly IReadOnlyList<int> _segmentEndIndices;
 
-    public MultiLineChoiceFormRow(ChoiceModel<T> choice, string label, IReadOnlyList<int> segmentEndIndices)
+    internal MultiLineChoiceFormRow(ChoiceModel<T> choice, string label, IReadOnlyList<int> segmentEndIndices)
     {
         ArgumentNullException.ThrowIfNull(choice);
         ArgumentNullException.ThrowIfNull(segmentEndIndices);
@@ -131,7 +131,7 @@ public sealed class MultiLineChoiceFormRow<T> : FormRow, IFormCursorProvider
         _segmentEndIndices = segmentEndIndices.ToArray();
     }
 
-    public MultiLineChoiceFormRow(
+    internal MultiLineChoiceFormRow(
         string label,
         IReadOnlyList<T> values,
         Func<T, string> format,
@@ -142,7 +142,7 @@ public sealed class MultiLineChoiceFormRow<T> : FormRow, IFormCursorProvider
     {
     }
 
-    public MultiLineChoiceFormRow(
+    internal MultiLineChoiceFormRow(
         string label,
         IReadOnlyList<T> values,
         Func<T, string> format,
@@ -155,19 +155,24 @@ public sealed class MultiLineChoiceFormRow<T> : FormRow, IFormCursorProvider
     }
 
     public override int Height => _segmentEndIndices.Count;
-    public ChoiceModel<T> Choice => _choice;
-    public T Value => _choice.Value;
+    internal ChoiceModel<T> Choice => _choice;
+    public T Value { get => _choice.Value; set => _choice.Value = value; }
+    public bool Enabled { get; set; } = true;
+    public string? DisabledReason { get; set; }
+    public override bool IsEnabled => Enabled;
+    public override bool IsFocusable => Enabled;
 
     public override void Render(FormRowRenderContext context)
     {
-        ChoiceRenderer.Render(context.Canvas, CalculateLayout(context.Bounds), _choice.Selection, _choice.Format, _label,
-            new(FarDialogStyles.Fill, FarDialogStyles.FocusedInput, context.Focused));
+        ChoiceRenderer.Render(context.Canvas, CalculateLayout(context.Bounds), _choice.Selection, _choice.Format,
+            !Enabled ? DisabledFormControlPresentation.WithReason(_label, DisabledReason) : _label,
+            new(DisabledFormControlPresentation.Style(Enabled, FarDialogStyles.Fill), DisabledFormControlPresentation.Style(Enabled, FarDialogStyles.FocusedInput), context.Focused && Enabled));
     }
 
     public bool TryGetCursor(FormRowRenderContext context, out FormCursorPlacement cursor)
     {
         var layout = CalculateLayout(context.Bounds);
-        if (context.Focused && ChoiceRenderer.TryGetSelectedMarkerBounds(layout, _choice.Selection, out Rect bounds))
+        if (Enabled && context.Focused && ChoiceRenderer.TryGetSelectedMarkerBounds(layout, _choice.Selection, out Rect bounds))
         {
             cursor = new FormCursorPlacement(bounds.X + 1, bounds.Y);
             return true;
@@ -179,11 +184,13 @@ public sealed class MultiLineChoiceFormRow<T> : FormRow, IFormCursorProvider
 
     public override FormInputResult HandleKey(ConsoleKeyInfo key, FormRowInputContext context)
     {
-        return ToFormResult(ChoiceInput.HandleKey(_choice.Selection, key));
+        return Enabled ? ToFormResult(ChoiceInput.HandleKey(_choice.Selection, key)) : FormInputResult.NotHandled;
     }
 
     public override FormInputResult HandleMouse(MouseConsoleInputEvent mouse, FormRowMouseContext context)
     {
+        if (!Enabled)
+            return FormInputResult.NotHandled;
         var layout = CalculateLayout(context.Bounds);
         return ToFormResult(ChoiceInput.HandleMouse(_choice.Selection, mouse, layout));
     }

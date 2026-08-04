@@ -57,7 +57,7 @@ internal sealed class CompareOptionsDialog
         var fileSetMatch = FormControls.Choice(
             "file-set-match", "Match by:", [FileSetMatchMode.FileName, FileSetMatchMode.FileNameAndSize, FileSetMatchMode.FileNameAndContentHash], FileSetMatchLabel,
             Enum.TryParse(settings.FileSetMatchMode, out FileSetMatchMode initialFileSetMatch) ? initialFileSetMatch : FileSetMatchMode.FileName);
-        var buttons = new ButtonRow(
+        var buttons = FormControls.Buttons("actions",
             [
                 DialogButton.Default("compare", "Compare", 'C'),
                 DialogButton.Cancel(hotKey: 'A'),

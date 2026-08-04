@@ -1,9 +1,9 @@
 namespace CSharpFar.Ui;
 
 /// <summary>Selection state and presentation formatter shared by choice rows.</summary>
-public sealed class ChoiceModel<T>
+internal sealed class ChoiceModel<T>
 {
-    public ChoiceModel(IReadOnlyList<T> choices, Func<T, string> format, int selectedIndex = 0, IEqualityComparer<T>? comparer = null)
+    internal ChoiceModel(IReadOnlyList<T> choices, Func<T, string> format, int selectedIndex = 0, IEqualityComparer<T>? comparer = null)
     {
         ArgumentNullException.ThrowIfNull(choices);
         ArgumentNullException.ThrowIfNull(format);
@@ -13,7 +13,7 @@ public sealed class ChoiceModel<T>
         Format = format;
     }
 
-    public ChoiceModel(ChoiceSelection<T> selection, Func<T, string> format)
+    internal ChoiceModel(ChoiceSelection<T> selection, Func<T, string> format)
     {
         Selection = selection ?? throw new ArgumentNullException(nameof(selection));
         Format = format ?? throw new ArgumentNullException(nameof(format));
