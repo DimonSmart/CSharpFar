@@ -24,7 +24,8 @@ internal sealed class TriStateCheckBoxLine
         int width,
         bool focused,
         CellStyle fillStyle,
-        CellStyle focusedStyle)
+        CellStyle focusedStyle,
+        string? label = null)
     {
         ArgumentNullException.ThrowIfNull(screen);
 
@@ -34,7 +35,7 @@ internal sealed class TriStateCheckBoxLine
             CheckState.Indeterminate => '-',
             _ => ' ',
         };
-        string text = $"[{marker}] {Label}";
+        string text = $"[{marker}] {label ?? Label}";
         screen.Write(x, y, Fit(text, width), focused ? focusedStyle : fillStyle);
     }
 

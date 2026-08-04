@@ -50,7 +50,7 @@ public sealed class DropdownSelectFormRow<T> : FormRow, IFormCursorProvider, IFo
         get => _dropdown.SelectedItem;
         set => _dropdown.SetSelectedValue(value);
     }
-    public int SelectedIndex => _dropdown.SelectedIndex;
+    internal int SelectedIndex => _dropdown.SelectedIndex;
     public int MaxVisibleRows
     {
         get => _dropdown.MaxVisibleRows;
@@ -63,7 +63,7 @@ public sealed class DropdownSelectFormRow<T> : FormRow, IFormCursorProvider, IFo
             context.Canvas.Write(
                 labelBounds.X,
                 labelBounds.Y,
-                ScrollableFormDialog.Fit(_label, labelBounds.Width),
+                ScrollableFormDialog.Fit(!Enabled ? DisabledFormControlPresentation.WithReason(_label, DisabledReason) : _label, labelBounds.Width),
                 DisabledFormControlPresentation.Style(Enabled, FarDialogStyles.Fill));
         _dropdown.RenderField(
             context.Canvas,

@@ -62,7 +62,7 @@ public sealed record FormRowTargetFrame(
     : FormTargetFrame(Target, FormTargetKind.Row, Bounds, HitBounds)
 {
     public bool IsFocusable => FocusIndex is not null;
-    public DropdownSelectFrame? DropdownFrame => CompositeFrame?.State is DropdownCompositeSnapshot { Frame: var frame } ? frame : null;
+    internal DropdownSelectFrame? DropdownFrame => CompositeFrame?.State is DropdownCompositeSnapshot { Frame: var frame } ? frame : null;
 }
 
 public sealed record FormBodyScrollbarTargetFrame : FormTargetFrame

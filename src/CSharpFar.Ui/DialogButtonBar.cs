@@ -4,16 +4,16 @@ using CSharpFar.Console.Models;
 
 namespace CSharpFar.Ui;
 
-public sealed record DialogButtonBarLayout(
+internal sealed record DialogButtonBarLayout(
     Rect AreaBounds,
     IReadOnlyList<Rect> ButtonBounds);
 
-public readonly record struct DialogButtonBarStyle(
+internal readonly record struct DialogButtonBarStyle(
     CellStyle Normal,
     CellStyle Focused,
     CellStyle Pressed);
 
-public readonly record struct DialogButtonBarState(
+internal readonly record struct DialogButtonBarState(
     int FocusedIndex,
     int? ArmedButtonIndex = null,
     bool IsPressed = false)
@@ -21,7 +21,7 @@ public readonly record struct DialogButtonBarState(
     public int? PressedButtonIndex => IsPressed ? ArmedButtonIndex : null;
 }
 
-public readonly record struct DialogButtonBarInputResult(
+internal readonly record struct DialogButtonBarInputResult(
     bool IsHandled,
     DialogButtonBarState State,
     string? ButtonId = null,

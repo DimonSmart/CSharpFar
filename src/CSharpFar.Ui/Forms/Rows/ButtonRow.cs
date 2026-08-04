@@ -6,22 +6,22 @@ public sealed class ButtonRow : FormRow
 {
     private DialogButtonBar _buttonBar;
     private DialogButton[] _buttons;
-    private readonly DialogButtonBarStyle? _style;
+    private readonly FormControlTone _tone;
     private DialogButtonBarState _state;
 
     internal ButtonRow(
         IReadOnlyList<DialogButton> buttons,
         int focusedButtonIndex = 0,
-        DialogButtonBarStyle? style = null)
+        FormControlTone tone = FormControlTone.Default)
     {
         _buttons = buttons.ToArray();
         _buttonBar = new DialogButtonBar(_buttons);
         _state = _buttonBar.CreateState(focusedButtonIndex);
-        _style = style;
+        _tone = tone;
     }
 
-    public int FocusedButtonIndex => _state.FocusedIndex;
-    public int? PressedButtonIndex => _state.PressedButtonIndex;
+    internal int FocusedButtonIndex => _state.FocusedIndex;
+    internal int? PressedButtonIndex => _state.PressedButtonIndex;
     public override FormRowRole Role { get; init; } = FormRowRole.ButtonBar;
 
     public void SetButtons(IReadOnlyList<DialogButton> buttons)
@@ -51,7 +51,7 @@ public sealed class ButtonRow : FormRow
             context.Bounds.Width,
             _state,
             context.Focused,
-            _style);
+            _tone == FormControlTone.Warning ? WarningDialogStyles.ButtonBar : null);
 
     public override FormInputResult HandleKey(ConsoleKeyInfo key, FormRowInputContext context)
     {

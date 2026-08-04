@@ -4,10 +4,10 @@ using CSharpFar.Console.Models;
 
 namespace CSharpFar.Ui;
 
-public readonly record struct ChoiceLayoutHitTarget(int Index, Rect Bounds, Rect MarkerBounds);
+internal readonly record struct ChoiceLayoutHitTarget(int Index, Rect Bounds, Rect MarkerBounds);
 
 /// <summary>Validated immutable geometry for one compact or segmented choice presentation.</summary>
-public sealed class ChoiceLayout
+internal sealed class ChoiceLayout
 {
     private ChoiceLayout(IReadOnlyList<Rect> rowBounds, IReadOnlyList<ChoiceLayoutHitTarget> targets, bool segmented)
     {
@@ -24,7 +24,7 @@ public sealed class ChoiceLayout
     internal static ChoiceLayout Segmented(IReadOnlyList<Rect> rows, IReadOnlyList<ChoiceLayoutHitTarget> targets) => new(rows, targets, true);
 }
 
-public static class ChoiceLayoutCalculator
+internal static class ChoiceLayoutCalculator
 {
     public static ChoiceLayout Compact(Rect bounds) => ChoiceLayout.Compact(bounds);
 
@@ -75,9 +75,9 @@ public static class ChoiceLayoutCalculator
     }
 }
 
-public readonly record struct ChoiceRenderOptions(CellStyle FillStyle, CellStyle FocusedStyle, bool Focused);
+internal readonly record struct ChoiceRenderOptions(CellStyle FillStyle, CellStyle FocusedStyle, bool Focused);
 
-public static class ChoiceRenderer
+internal static class ChoiceRenderer
 {
     public static void Render<T>(IUiCanvas canvas, ChoiceLayout layout, ChoiceSelection<T> selection, Func<T, string> format, string label, ChoiceRenderOptions options)
     {
@@ -118,9 +118,9 @@ public static class ChoiceRenderer
     }
 }
 
-public enum ChoiceInputResultKind { NotHandled, Handled, ValueChanged }
+internal enum ChoiceInputResultKind { NotHandled, Handled, ValueChanged }
 
-public static class ChoiceInput
+internal static class ChoiceInput
 {
     public static ChoiceInputResultKind HandleKey<T>(ChoiceSelection<T> selection, ConsoleKeyInfo key)
     {

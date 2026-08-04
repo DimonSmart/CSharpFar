@@ -1,3 +1,5 @@
+using CSharpFar.App;
+
 namespace CSharpFar.Tests;
 
 public sealed class PendingInvalidationTests

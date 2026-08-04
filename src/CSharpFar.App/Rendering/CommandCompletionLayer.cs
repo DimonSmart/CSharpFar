@@ -33,7 +33,6 @@ internal sealed class CommandCompletionLayer : UiLayer<CommandCompletionFrame>
     private readonly PopupRenderer _popupRenderer = new();
     private readonly RoutedScrollableList<string> _list;
     private readonly ScrollableListRenderOptions<string> _presentation;
-    internal ScrollBarDragState? ScrollbarDragState => _list.ScrollbarDragState;
 
     public CommandCompletionLayer(
         ApplicationRenderContext context,
@@ -109,7 +108,7 @@ internal sealed class CommandCompletionLayer : UiLayer<CommandCompletionFrame>
     }
 
     protected override void OnFrameCommitted(CommandCompletionFrame frame) =>
-        _list.SynchronizeCommittedScrollbar(frame.List);
+        _list.ApplyCommittedFrame(frame.List);
 
     protected override UiInputResult RouteInput(ConsoleInputEvent input, CommandCompletionFrame frame, UiInputRouteContext context) =>
         !frame.Visible || frame.VisibleRows <= 0 || frame.MatchCount == 0 ? UiInputResult.NotHandled : input switch
