@@ -7,6 +7,10 @@ namespace CSharpFar.Ui;
 
 public abstract class FormRow : IFormRow
 {
+    internal FormRow()
+    {
+    }
+
     public virtual string? Id { get; init; }
     public virtual FormRowRole Role { get; init; } = FormRowRole.Normal;
     public virtual bool SubmitOnEnter { get; init; }
