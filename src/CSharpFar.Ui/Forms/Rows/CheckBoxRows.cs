@@ -6,7 +6,7 @@ namespace CSharpFar.Ui;
 
 public sealed class CheckBoxRow : FormRow, IFormCursorProvider
 {
-    public override FormRowRole Role { get; init; } = FormRowRole.Option;
+    internal override FormRowRole Role { get; init; } = FormRowRole.Option;
 
     private readonly CheckBoxLine _checkBox;
 
@@ -28,10 +28,10 @@ public sealed class CheckBoxRow : FormRow, IFormCursorProvider
 
     public bool Enabled { get; set; } = true;
     public string? DisabledReason { get; set; }
-    public override bool IsEnabled => Enabled;
+    internal override bool IsEnabled => Enabled;
     internal bool ShowCursor { get; init; } = true;
 
-    public override void Render(FormRowRenderContext context)
+    internal override void Render(FormRowRenderContext context)
     {
         CellStyle fill = Enabled
             ? FarDialogStyles.Fill
@@ -48,13 +48,13 @@ public sealed class CheckBoxRow : FormRow, IFormCursorProvider
             !Enabled ? DisabledFormControlPresentation.WithReason(_checkBox.Label, DisabledReason) : null);
     }
 
-    public bool TryGetCursor(FormRowRenderContext context, out FormCursorPlacement cursor)
+    bool IFormCursorProvider.TryGetCursor(FormRowRenderContext context, out FormCursorPlacement cursor)
     {
         cursor = new FormCursorPlacement(context.Bounds.X + 1, context.Bounds.Y);
         return ShowCursor && Enabled && context.Focused && context.Bounds.Width >= 3;
     }
 
-    public override FormInputResult HandleKey(ConsoleKeyInfo key, FormRowInputContext context)
+    internal override FormInputResult HandleKey(ConsoleKeyInfo key, FormRowInputContext context)
     {
         if (!Enabled)
             return FormInputResult.NotHandled;
@@ -65,7 +65,7 @@ public sealed class CheckBoxRow : FormRow, IFormCursorProvider
         return _checkBox.Value != before ? FormInputResult.ValueChanged : FormInputResult.Handled;
     }
 
-    public override FormInputResult HandleMouse(MouseConsoleInputEvent mouse, FormRowMouseContext context)
+    internal override FormInputResult HandleMouse(MouseConsoleInputEvent mouse, FormRowMouseContext context)
     {
         if (!Enabled)
             return FormInputResult.NotHandled;
@@ -79,7 +79,7 @@ public sealed class CheckBoxRow : FormRow, IFormCursorProvider
 
 public sealed class TriStateCheckBoxRow : FormRow, IFormCursorProvider
 {
-    public override FormRowRole Role { get; init; } = FormRowRole.Option;
+    internal override FormRowRole Role { get; init; } = FormRowRole.Option;
 
     private readonly TriStateCheckBoxLine _checkBox;
 
@@ -108,9 +108,9 @@ public sealed class TriStateCheckBoxRow : FormRow, IFormCursorProvider
 
     public string? DisabledReason { get; set; }
 
-    public override bool IsEnabled => Enabled;
+    internal override bool IsEnabled => Enabled;
 
-    public override void Render(FormRowRenderContext context)
+    internal override void Render(FormRowRenderContext context)
     {
         CellStyle fill = Enabled
             ? FarDialogStyles.Fill
@@ -126,13 +126,13 @@ public sealed class TriStateCheckBoxRow : FormRow, IFormCursorProvider
             !Enabled ? DisabledFormControlPresentation.WithReason(_checkBox.Label, DisabledReason) : null);
     }
 
-    public bool TryGetCursor(FormRowRenderContext context, out FormCursorPlacement cursor)
+    bool IFormCursorProvider.TryGetCursor(FormRowRenderContext context, out FormCursorPlacement cursor)
     {
         cursor = new FormCursorPlacement(context.Bounds.X + 1, context.Bounds.Y);
         return Enabled && context.Focused && context.Bounds.Width >= 3;
     }
 
-    public override FormInputResult HandleKey(ConsoleKeyInfo key, FormRowInputContext context)
+    internal override FormInputResult HandleKey(ConsoleKeyInfo key, FormRowInputContext context)
     {
         if (!Enabled)
             return FormInputResult.NotHandled;
@@ -143,7 +143,7 @@ public sealed class TriStateCheckBoxRow : FormRow, IFormCursorProvider
         return _checkBox.Value != before ? FormInputResult.ValueChanged : FormInputResult.Handled;
     }
 
-    public override FormInputResult HandleMouse(MouseConsoleInputEvent mouse, FormRowMouseContext context)
+    internal override FormInputResult HandleMouse(MouseConsoleInputEvent mouse, FormRowMouseContext context)
     {
         if (!Enabled)
             return FormInputResult.NotHandled;

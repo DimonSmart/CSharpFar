@@ -5,7 +5,7 @@ using CSharpFar.Core.Models;
 
 namespace CSharpFar.Ui;
 
-public enum FormTargetKind
+internal enum FormTargetKind
 {
     Row,
     BodyScrollbar,
@@ -35,7 +35,7 @@ internal static class FormTargetIds
     public static UiTargetId ForDropdownScrollbar(UiTargetId rowTarget) => ForCompositeChild(rowTarget, "scrollbar");
 }
 
-public sealed record ScrollableFormFrame(
+internal sealed record ScrollableFormFrame(
     ConsoleViewport Viewport,
     Rect BodyBounds,
     Rect? FooterBounds,
@@ -46,11 +46,11 @@ public sealed record ScrollableFormFrame(
     UiTargetId? DefaultTarget,
     VerticalScrollbarFrame? VerticalScrollbarFrame = null);
 
-public abstract record FormTargetFrame(UiTargetId Target, FormTargetKind Kind, Rect Bounds, Rect? HitBounds);
+internal abstract record FormTargetFrame(UiTargetId Target, FormTargetKind Kind, Rect Bounds, Rect? HitBounds);
 
-public sealed record FormRowTargetFrame(
+internal sealed record FormRowTargetFrame(
     UiTargetId Target,
-    IFormRow Row,
+    FormRow Row,
     int RowIndex,
     int? FocusIndex,
     Rect Bounds,
@@ -65,7 +65,7 @@ public sealed record FormRowTargetFrame(
     internal DropdownSelectFrame? DropdownFrame => CompositeFrame?.State is DropdownCompositeSnapshot { Frame: var frame } ? frame : null;
 }
 
-public sealed record FormBodyScrollbarTargetFrame : FormTargetFrame
+internal sealed record FormBodyScrollbarTargetFrame : FormTargetFrame
 {
     public FormBodyScrollbarTargetFrame(UiTargetId target, Rect bounds, Rect hitBounds)
         : base(target, FormTargetKind.BodyScrollbar, bounds, hitBounds)
@@ -73,7 +73,7 @@ public sealed record FormBodyScrollbarTargetFrame : FormTargetFrame
     }
 }
 
-public sealed record FormCompositeChildTargetFrame : FormTargetFrame
+internal sealed record FormCompositeChildTargetFrame : FormTargetFrame
 {
     public FormCompositeChildTargetFrame(UiTargetId target, FormRowTargetFrame owner, FormCompositeFrame compositeFrame, FormCompositeTarget child)
         : base(target, child.Kind, child.Bounds, child.HitBounds ?? child.Bounds)
@@ -92,11 +92,11 @@ public sealed record FormCompositeChildTargetFrame : FormTargetFrame
     public bool CapturesMouse => Child.CapturesMouse;
 }
 
-public readonly record struct FormRouteResult(
+internal readonly record struct FormRouteResult(
     FormInputResult FormResult,
     UiInputResult UiResult);
 
-public static class FormDialogInput
+internal static class FormDialogInput
 {
     public static bool ShouldSubmit(
         UiRoutedInput<ScrollableFormFrame> routed,

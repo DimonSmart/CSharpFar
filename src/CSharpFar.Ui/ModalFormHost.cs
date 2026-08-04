@@ -47,7 +47,7 @@ public sealed class ModalFormHost
         _modalDialogs = modalDialogs ?? throw new ArgumentNullException(nameof(modalDialogs));
     }
 
-    public TResult Run<TResult>(
+    internal TResult Run<TResult>(
         ScrollableFormDialog form,
         ModalFormOptions options,
         Func<ModalDialogRenderer.Layout, ModalFormLayout> calculateLayout,

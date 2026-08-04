@@ -126,12 +126,12 @@ public sealed class SearchOptionsDialog
             prepareRender: PrepareRows);
     }
 
-    internal static IReadOnlyList<IFormRow> BuildRows(
+    internal static IReadOnlyList<FormRow> BuildRows(
         SearchOptionsDialogOptions options,
         TextField pattern,
         IReadOnlyList<CheckBoxRow> checkboxes)
     {
-        var rows = new List<IFormRow>
+        var rows = new List<FormRow>
         {
             new LabelRow(options.TextLabel),
             FormControls.Text(pattern),

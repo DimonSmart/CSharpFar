@@ -36,19 +36,19 @@ public sealed class CompactChoiceFormRow<T> : FormRow, IFormCursorProvider
     {
     }
 
-    public override FormRowRole Role { get; init; } = FormRowRole.Option;
+    internal override FormRowRole Role { get; init; } = FormRowRole.Option;
     internal ChoiceModel<T> Choice => _choice;
     public T Value { get => _choice.Value; set => _choice.Value = value; }
     public bool Enabled { get; set; } = true;
     public string? DisabledReason { get; set; }
-    public override bool IsEnabled => Enabled;
+    internal override bool IsEnabled => Enabled;
 
-    public override void Render(FormRowRenderContext context) => ChoiceRenderer.Render(context.Canvas,
+    internal override void Render(FormRowRenderContext context) => ChoiceRenderer.Render(context.Canvas,
         ChoiceLayoutCalculator.Compact(context.Bounds), _choice.Selection, _choice.Format,
         !Enabled ? DisabledFormControlPresentation.WithReason(_label, DisabledReason) : _label,
         new(DisabledFormControlPresentation.Style(Enabled, FarDialogStyles.Fill), DisabledFormControlPresentation.Style(Enabled, FarDialogStyles.FocusedInput), context.Focused && Enabled));
 
-    public bool TryGetCursor(FormRowRenderContext context, out FormCursorPlacement cursor)
+    bool IFormCursorProvider.TryGetCursor(FormRowRenderContext context, out FormCursorPlacement cursor)
     {
         if (!Enabled || !context.Focused || context.Bounds.Width <= 0)
         {
@@ -61,14 +61,14 @@ public sealed class CompactChoiceFormRow<T> : FormRow, IFormCursorProvider
         return true;
     }
 
-    public override FormInputResult HandleKey(ConsoleKeyInfo key, FormRowInputContext context)
+    internal override FormInputResult HandleKey(ConsoleKeyInfo key, FormRowInputContext context)
     {
         if (!Enabled)
             return FormInputResult.NotHandled;
         return ToFormResult(ChoiceInput.HandleKey(_choice.Selection, key));
     }
 
-    public override FormInputResult HandleMouse(MouseConsoleInputEvent mouse, FormRowMouseContext context)
+    internal override FormInputResult HandleMouse(MouseConsoleInputEvent mouse, FormRowMouseContext context)
     {
         if (!Enabled)
             return FormInputResult.NotHandled;

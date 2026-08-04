@@ -5,21 +5,21 @@ using CSharpFar.Core.Models;
 
 namespace CSharpFar.Ui;
 
-public abstract class FormRow : IFormRow
+public abstract class FormRow
 {
     internal FormRow()
     {
     }
 
     public virtual string? Id { get; init; }
-    public virtual FormRowRole Role { get; init; } = FormRowRole.Normal;
-    public virtual bool SubmitOnEnter { get; init; }
-    public virtual bool IsEnabled => true;
-    public virtual bool IsFocusable => IsEnabled;
-    public virtual int Height => 1;
-    public abstract void Render(FormRowRenderContext context);
-    public virtual FormInputResult HandleKey(ConsoleKeyInfo key, FormRowInputContext context) => FormInputResult.NotHandled;
-    public virtual FormInputResult HandleMouse(MouseConsoleInputEvent mouse, FormRowMouseContext context) => FormInputResult.NotHandled;
+    internal virtual FormRowRole Role { get; init; } = FormRowRole.Normal;
+    internal virtual bool SubmitOnEnter { get; init; }
+    internal virtual bool IsEnabled => true;
+    internal virtual bool IsFocusable => IsEnabled;
+    internal virtual int Height => 1;
+    internal abstract void Render(FormRowRenderContext context);
+    internal virtual FormInputResult HandleKey(ConsoleKeyInfo key, FormRowInputContext context) => FormInputResult.NotHandled;
+    internal virtual FormInputResult HandleMouse(MouseConsoleInputEvent mouse, FormRowMouseContext context) => FormInputResult.NotHandled;
 }
 
 public sealed class LabelRow : FormRow
@@ -35,9 +35,9 @@ public sealed class LabelRow : FormRow
         _style = style;
     }
 
-    public override bool IsFocusable => false;
+    internal override bool IsFocusable => false;
 
-    public override void Render(FormRowRenderContext context) =>
+    internal override void Render(FormRowRenderContext context) =>
         context.Canvas.Write(context.Bounds.X, context.Bounds.Y, ScrollableFormDialog.Fit(_text, context.Bounds.Width), _style);
 }
 
@@ -52,9 +52,9 @@ public sealed class SeparatorRow : FormRow
         _style = style;
     }
 
-    public override bool IsFocusable => false;
+    internal override bool IsFocusable => false;
 
-    public override void Render(FormRowRenderContext context)
+    internal override void Render(FormRowRenderContext context)
     {
         if (context.Bounds.Width <= 0)
             return;
@@ -78,10 +78,9 @@ public sealed class SpacerRow : FormRow
         Height = height;
     }
 
-    public override bool IsFocusable => false;
-    public override int Height { get; }
+    internal override bool IsFocusable => false;
+    internal override int Height { get; }
 
-    public override void Render(FormRowRenderContext context) =>
+    internal override void Render(FormRowRenderContext context) =>
         context.Canvas.FillRegion(context.Bounds, _style);
 }
-

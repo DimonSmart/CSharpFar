@@ -68,7 +68,7 @@ public sealed class SharedFormApiTests
     public void FormFooter_ErrorAndButtonsReadsErrorAtRenderTime()
     {
         string? error = "First";
-        IReadOnlyList<IFormRow> footer = FormFooter.ErrorAndButtons(() => error, new ButtonRow([DialogButton.Default("ok", "OK", 'O')]));
+        IReadOnlyList<FormRow> footer = FormFooter.ErrorAndButtons(() => error, new ButtonRow([DialogButton.Default("ok", "OK", 'O')]));
         var driver = new FakeConsoleDriver(10, 1);
         var screen = new ScreenRenderer(driver);
 

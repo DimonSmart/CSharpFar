@@ -7,7 +7,7 @@ namespace CSharpFar.Ui;
 
 public sealed partial class ScrollableFormDialog
 {
-    public ScrollableFormFrame Render(
+    internal ScrollableFormFrame Render(
         FormRenderContext context,
         IUiFocusState focusScope,
         IReadOnlyList<UiFocusEntry>? surroundingFocusEntries = null,
@@ -103,7 +103,7 @@ public sealed partial class ScrollableFormDialog
         return frame;
     }
 
-    public UiInteractionFrame BuildInteractionFrame(ScrollableFormFrame frame)
+    internal UiInteractionFrame BuildInteractionFrame(ScrollableFormFrame frame)
     {
         ArgumentNullException.ThrowIfNull(frame);
 
@@ -113,7 +113,7 @@ public sealed partial class ScrollableFormDialog
             .Build();
     }
 
-    public UiInteractionFragment BuildInteractionFragment(ScrollableFormFrame frame)
+    internal UiInteractionFragment BuildInteractionFragment(ScrollableFormFrame frame)
     {
         ArgumentNullException.ThrowIfNull(frame);
 
@@ -144,7 +144,7 @@ public sealed partial class ScrollableFormDialog
         int virtualTop = 0;
         for (int rowIndex = 0; rowIndex < _bodyRows.Count; rowIndex++)
         {
-            IFormRow row = _bodyRows[rowIndex];
+            FormRow row = _bodyRows[rowIndex];
             int rowHeight = Math.Max(1, row.Height);
             bool visible = virtualTop + rowHeight > effectiveScrollTop &&
                 virtualTop < effectiveScrollTop + Math.Max(1, context.BodyBounds.Height);
@@ -170,7 +170,7 @@ public sealed partial class ScrollableFormDialog
             int footerTop = 0;
             for (int rowIndex = 0; rowIndex < _footerRows.Count; rowIndex++)
             {
-                IFormRow row = _footerRows[rowIndex];
+                FormRow row = _footerRows[rowIndex];
                 int rowHeight = Math.Max(1, row.Height);
                 Rect rowBounds = new(footerBounds.X, footerBounds.Y + footerTop, footerBounds.Width, rowHeight);
                 int? rowFocusIndex = row.IsFocusable ? focusIndex : null;
@@ -216,7 +216,7 @@ public sealed partial class ScrollableFormDialog
 
     private FormRowTargetFrame CreateRowTargetFrame(
         IUiCanvas screen,
-        IFormRow row,
+        FormRow row,
         int rowIndex,
         int? focusIndex,
         Rect bounds,
@@ -265,7 +265,7 @@ public sealed partial class ScrollableFormDialog
         return Math.Clamp(desired, 0, Math.Max(0, availableWidth - LayoutOptions.LabelGap - LayoutOptions.MinimumControlWidth));
     }
 
-    private FormRowLayout CreateRowLayout(IFormRow row, Rect bounds, int resolvedLabelWidth)
+    private FormRowLayout CreateRowLayout(FormRow row, Rect bounds, int resolvedLabelWidth)
     {
         if (row is not IFormLabeledRow labeled)
             return new FormRowLayout(bounds, null, bounds);
@@ -284,7 +284,7 @@ public sealed partial class ScrollableFormDialog
         return new FormRowLayout(bounds, labelBounds, controlBounds);
     }
 
-    private bool AllowsCursor(IFormRow row) =>
+    private bool AllowsCursor(FormRow row) =>
         row.IsEnabled && LayoutOptions.CursorPolicy switch
         {
             FormCursorPolicy.ControlDefault => true,

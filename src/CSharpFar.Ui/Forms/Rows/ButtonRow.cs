@@ -22,7 +22,7 @@ public sealed class ButtonRow : FormRow
 
     internal int FocusedButtonIndex => _state.FocusedIndex;
     internal int? PressedButtonIndex => _state.PressedButtonIndex;
-    public override FormRowRole Role { get; init; } = FormRowRole.ButtonBar;
+    internal override FormRowRole Role { get; init; } = FormRowRole.ButtonBar;
 
     public void SetButtons(IReadOnlyList<DialogButton> buttons)
     {
@@ -43,7 +43,7 @@ public sealed class ButtonRow : FormRow
         _state = new DialogButtonBarState(focusedIndex, armedIndex, armedIndex is not null && _state.IsPressed);
     }
 
-    public override void Render(FormRowRenderContext context) =>
+    internal override void Render(FormRowRenderContext context) =>
         _buttonBar.Render(
             context.Canvas,
             context.Bounds.X,
@@ -53,7 +53,7 @@ public sealed class ButtonRow : FormRow
             context.Focused,
             _tone == FormControlTone.Warning ? WarningDialogStyles.ButtonBar : null);
 
-    public override FormInputResult HandleKey(ConsoleKeyInfo key, FormRowInputContext context)
+    internal override FormInputResult HandleKey(ConsoleKeyInfo key, FormRowInputContext context)
     {
         DialogButtonBarInputResult result = _buttonBar.HandleKey(key, _state);
         _state = result.State;
@@ -63,7 +63,7 @@ public sealed class ButtonRow : FormRow
         return ButtonResult(result);
     }
 
-    public override FormInputResult HandleMouse(MouseConsoleInputEvent mouse, FormRowMouseContext context)
+    internal override FormInputResult HandleMouse(MouseConsoleInputEvent mouse, FormRowMouseContext context)
     {
         var layout = _buttonBar.CalculateLayout(context.Bounds.X, context.Bounds.Y, context.Bounds.Width);
         DialogButtonBarInputResult result = _buttonBar.HandleMouse(mouse, layout, _state);

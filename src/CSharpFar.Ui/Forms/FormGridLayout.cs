@@ -157,7 +157,7 @@ public sealed class FormGridNavigationState
     public bool MoveVertical(int direction, FormGridShape shape, Func<FormGridPosition, bool> isEnabled) =>
         Move(0, direction, shape, isEnabled);
 
-    public FormInputResult MoveTab(int direction, FormGridShape shape, Func<FormGridPosition, bool> isEnabled)
+    internal FormInputResult MoveTab(int direction, FormGridShape shape, Func<FormGridPosition, bool> isEnabled)
     {
         if (direction == 0 || !EnsureCurrent(shape, isEnabled))
             return FormInputResult.NotHandled;

@@ -28,10 +28,10 @@ public sealed class TriStateCheckBoxColumnsRow : FormRow, IFormCursorProvider
         _shape = new FormGridShape(Enumerable.Repeat(1, _columns.Count).ToArray());
     }
 
-    public override FormRowRole Role { get; init; } = FormRowRole.Option;
-    public override bool IsFocusable => _columns.Any(static column => column.Enabled);
+    internal override FormRowRole Role { get; init; } = FormRowRole.Option;
+    internal override bool IsFocusable => _columns.Any(static column => column.Enabled);
 
-    public override void Render(FormRowRenderContext context)
+    internal override void Render(FormRowRenderContext context)
     {
         context.Canvas.FillRegion(context.Bounds, FarDialogStyles.Fill);
         context.Canvas.Write(context.Bounds.X, context.Bounds.Y, _label, FarDialogStyles.Fill);
@@ -45,7 +45,7 @@ public sealed class TriStateCheckBoxColumnsRow : FormRow, IFormCursorProvider
         }
     }
 
-    public override FormInputResult HandleKey(ConsoleKeyInfo key, FormRowInputContext context)
+    internal override FormInputResult HandleKey(ConsoleKeyInfo key, FormRowInputContext context)
     {
         if (!_navigation.EnsureCurrent(_shape, IsCellEnabled)) return FormInputResult.NotHandled;
         if (key.Key == ConsoleKey.LeftArrow) return Move(_navigation.MoveHorizontal(-1, _shape, IsCellEnabled));
@@ -55,7 +55,7 @@ public sealed class TriStateCheckBoxColumnsRow : FormRow, IFormCursorProvider
         return _columns[position.Column].TryHandleKey(key) ? FormInputResult.ValueChanged : FormInputResult.NotHandled;
     }
 
-    public override FormInputResult HandleMouse(MouseConsoleInputEvent mouse, FormRowMouseContext context)
+    internal override FormInputResult HandleMouse(MouseConsoleInputEvent mouse, FormRowMouseContext context)
     {
         if (mouse.Button != MouseButton.Left || mouse.Kind != MouseEventKind.Down) return FormInputResult.NotHandled;
         FormGridLayout layout = CalculateLayout(context.Bounds);
@@ -63,7 +63,7 @@ public sealed class TriStateCheckBoxColumnsRow : FormRow, IFormCursorProvider
         return _columns[position.Column].TryHandleMouse(mouse, cell.Bounds) ? FormInputResult.ValueChanged : FormInputResult.NotHandled;
     }
 
-    public bool TryGetCursor(FormRowRenderContext context, out FormCursorPlacement cursor)
+    bool IFormCursorProvider.TryGetCursor(FormRowRenderContext context, out FormCursorPlacement cursor)
     {
         FormGridLayout layout = CalculateLayout(context.Bounds);
         FormGridPosition? effectivePosition = _navigation.ResolveCurrent(_shape, IsCellEnabled);

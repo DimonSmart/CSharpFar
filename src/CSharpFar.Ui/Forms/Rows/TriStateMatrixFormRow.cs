@@ -43,14 +43,14 @@ public sealed class TriStateMatrixFormRow : FormRow, IFormCursorProvider
         _shape = new FormGridShape(Enumerable.Repeat(_rows.Length, _columns.Length).ToArray());
     }
 
-    public override FormRowRole Role { get; init; } = FormRowRole.Option;
-    public override int Height => _rows.Length + 1;
+    internal override FormRowRole Role { get; init; } = FormRowRole.Option;
+    internal override int Height => _rows.Length + 1;
     public bool Enabled { get; set; } = true;
-    public override bool IsEnabled => Enabled;
+    internal override bool IsEnabled => Enabled;
     public CheckState GetValue(string rowId, string columnId) => _values[FindRow(rowId), FindColumn(columnId)];
     public void SetValue(string rowId, string columnId, CheckState value) => _values[FindRow(rowId), FindColumn(columnId)] = value;
 
-    public override void Render(FormRowRenderContext context)
+    internal override void Render(FormRowRenderContext context)
     {
         context.Canvas.FillRegion(context.Bounds, FarDialogStyles.Fill);
         (int labelWidth, FormGridLayout layout) = CalculateLayout(context.Bounds);
@@ -75,7 +75,7 @@ public sealed class TriStateMatrixFormRow : FormRow, IFormCursorProvider
         }
     }
 
-    public override FormInputResult HandleKey(ConsoleKeyInfo key, FormRowInputContext context)
+    internal override FormInputResult HandleKey(ConsoleKeyInfo key, FormRowInputContext context)
     {
         if (!Enabled || !_navigation.EnsureCurrent(_shape, static _ => true)) return FormInputResult.NotHandled;
         if (key.Key == ConsoleKey.LeftArrow) return Move(_navigation.MoveHorizontal(-1, _shape, static _ => true));
@@ -94,7 +94,7 @@ public sealed class TriStateMatrixFormRow : FormRow, IFormCursorProvider
         return FormInputResult.ValueChanged;
     }
 
-    public override FormInputResult HandleMouse(MouseConsoleInputEvent mouse, FormRowMouseContext context)
+    internal override FormInputResult HandleMouse(MouseConsoleInputEvent mouse, FormRowMouseContext context)
     {
         if (!Enabled || mouse is not { Button: MouseButton.Left, Kind: MouseEventKind.Down }) return FormInputResult.NotHandled;
         (_, FormGridLayout layout) = CalculateLayout(context.Bounds);
@@ -105,7 +105,7 @@ public sealed class TriStateMatrixFormRow : FormRow, IFormCursorProvider
         return FormInputResult.ValueChanged;
     }
 
-    public bool TryGetCursor(FormRowRenderContext context, out FormCursorPlacement cursor)
+    bool IFormCursorProvider.TryGetCursor(FormRowRenderContext context, out FormCursorPlacement cursor)
     {
         (_, FormGridLayout layout) = CalculateLayout(context.Bounds);
         FormGridPosition? current = _navigation.ResolveCurrent(_shape, static _ => true);

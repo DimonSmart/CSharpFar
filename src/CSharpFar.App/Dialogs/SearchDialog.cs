@@ -149,7 +149,7 @@ internal sealed class SearchDialog
             prepareRender: PrepareRows);
     }
 
-    private static IReadOnlyList<IFormRow> BuildBodyRows(
+    private static IReadOnlyList<FormRow> BuildBodyRows(
         TextField mask,
         TextField text,
         TextField parallelism,

@@ -8,10 +8,10 @@ namespace CSharpFar.Ui;
 
 public sealed partial class ScrollableFormDialog
 {
-    private IReadOnlyList<IFormRow> _bodyRows = [];
-    private IReadOnlyList<IFormRow> _footerRows = [];
-    private Dictionary<IFormRow, UiTargetId> _targets = new(ReferenceEqualityComparer.Instance);
-    private readonly ConditionalWeakTable<IFormRow, AnonymousRowTokenBox> _anonymousRowTokens = new();
+    private IReadOnlyList<FormRow> _bodyRows = [];
+    private IReadOnlyList<FormRow> _footerRows = [];
+    private Dictionary<FormRow, UiTargetId> _targets = new(ReferenceEqualityComparer.Instance);
+    private readonly ConditionalWeakTable<FormRow, AnonymousRowTokenBox> _anonymousRowTokens = new();
     private IUiFocusState? _activeFocusState;
     private UiTargetId? _requestedInitialTarget;
     private ScrollableFormFrame? _committedFrame;
@@ -32,7 +32,7 @@ public sealed partial class ScrollableFormDialog
         LayoutOptions = (layoutOptions ?? new FormLayoutOptions()).Validate();
     }
 
-    public ScrollableFormDialog(IReadOnlyList<IFormRow> rows, FormLayoutOptions? layoutOptions = null)
+    public ScrollableFormDialog(IReadOnlyList<FormRow> rows, FormLayoutOptions? layoutOptions = null)
     {
         LayoutOptions = (layoutOptions ?? new FormLayoutOptions()).Validate();
         SetRows(rows);
@@ -43,7 +43,7 @@ public sealed partial class ScrollableFormDialog
     internal int FocusableCount => TotalFocusableCount;
     public FormLayoutOptions LayoutOptions { get; }
     public string? FocusedRowId => FocusedTargetFrame()?.Row.Id;
-    public FormRowRole FocusedRowRole => FocusedTargetFrame()?.Row.Role ?? FormRowRole.Normal;
+    internal FormRowRole FocusedRowRole => FocusedTargetFrame()?.Row.Role ?? FormRowRole.Normal;
     public bool IsFocusedOnSubmitRow => FocusedTargetFrame()?.Row is { IsFocusable: true, SubmitOnEnter: true };
     private UiTargetId? CurrentFocusedTarget
     {
@@ -58,7 +58,7 @@ public sealed partial class ScrollableFormDialog
                 return resolvedTarget;
             }
 
-            IFormRow? first = AllRows().FirstOrDefault(row => row.IsFocusable);
+            FormRow? first = AllRows().FirstOrDefault(row => row.IsFocusable);
             return first is null ? null : RowTarget(first);
         }
     }
@@ -69,7 +69,7 @@ public sealed partial class ScrollableFormDialog
     private int FooterFocusableCount => _footerRows.Count(static row => row.IsFocusable);
     private int TotalFocusableCount => BodyFocusableCount + FooterFocusableCount;
 
-    public void SetRows(IReadOnlyList<IFormRow> bodyRows, IReadOnlyList<IFormRow>? footerRows = null)
+    public void SetRows(IReadOnlyList<FormRow> bodyRows, IReadOnlyList<FormRow>? footerRows = null)
     {
         footerRows ??= [];
         ValidateUniqueIds(bodyRows, footerRows);
@@ -92,7 +92,7 @@ public sealed partial class ScrollableFormDialog
         if (string.IsNullOrEmpty(rowId))
             throw new ArgumentException("A form row ID is required.", nameof(rowId));
 
-        IFormRow? row = AllRows().FirstOrDefault(value =>
+        FormRow? row = AllRows().FirstOrDefault(value =>
             value.IsFocusable && string.Equals(value.Id, rowId, StringComparison.Ordinal));
         return row is null
             ? throw new ArgumentException($"No focusable form row has ID '{rowId}'.", nameof(rowId))
@@ -109,17 +109,17 @@ public sealed partial class ScrollableFormDialog
     }
 
 
-    private UiTargetId RowTarget(IFormRow row) =>
+    private UiTargetId RowTarget(FormRow row) =>
         _targets.TryGetValue(row, out UiTargetId? target)
             ? target
             : throw new InvalidOperationException("Form row is not installed in this dialog.");
 
-    private Dictionary<IFormRow, UiTargetId> CreateTargetMap(
-        IReadOnlyList<IFormRow> bodyRows,
-        IReadOnlyList<IFormRow> footerRows)
+    private Dictionary<FormRow, UiTargetId> CreateTargetMap(
+        IReadOnlyList<FormRow> bodyRows,
+        IReadOnlyList<FormRow> footerRows)
     {
-        var targets = new Dictionary<IFormRow, UiTargetId>(ReferenceEqualityComparer.Instance);
-        foreach (IFormRow row in bodyRows.Concat(footerRows))
+        var targets = new Dictionary<FormRow, UiTargetId>(ReferenceEqualityComparer.Instance);
+        foreach (FormRow row in bodyRows.Concat(footerRows))
         {
             targets[row] = string.IsNullOrEmpty(row.Id)
                 ? FormTargetIds.ForAnonymousRow(AnonymousRowToken(row))
@@ -129,7 +129,7 @@ public sealed partial class ScrollableFormDialog
         return targets;
     }
 
-    private long AnonymousRowToken(IFormRow row)
+    private long AnonymousRowToken(FormRow row)
     {
         return _anonymousRowTokens.GetValue(row, _ => new AnonymousRowTokenBox(++_nextAnonymousRowToken)).Value;
     }
@@ -140,7 +140,7 @@ public sealed partial class ScrollableFormDialog
             return null;
 
         int focusIndex = 0;
-        foreach (IFormRow row in AllRows())
+        foreach (FormRow row in AllRows())
         {
             if (!row.IsFocusable)
                 continue;
@@ -173,7 +173,7 @@ public sealed partial class ScrollableFormDialog
             return null;
 
         int focusIndex = 0;
-        foreach (IFormRow row in AllRows())
+        foreach (FormRow row in AllRows())
         {
             if (!row.IsFocusable)
                 continue;
@@ -195,7 +195,7 @@ public sealed partial class ScrollableFormDialog
         FormRowTargetFrame? targetFrame = FindRowTarget(frame, focusedTarget);
         if (targetFrame is not { } rowFrame)
             return;
-        IFormRow row = rowFrame.Row;
+        FormRow row = rowFrame.Row;
 
         bool overlayPublished = frame.Targets.OfType<FormCompositeChildTargetFrame>().Any(target => ReferenceEquals(target.Owner.Row, row));
         if (!overlayPublished || rowFrame.CompositeFrame is not { IsOpen: true } compositeFrame || row is not IFormCompositeOwner composite)
@@ -275,10 +275,10 @@ public sealed partial class ScrollableFormDialog
         return true;
     }
 
-    private IFormRow? FocusedRow(int focusIndex)
+    private FormRow? FocusedRow(int focusIndex)
     {
         int currentFocusIndex = 0;
-        foreach (IFormRow row in AllRows())
+        foreach (FormRow row in AllRows())
         {
             if (!row.IsFocusable)
                 continue;
@@ -292,20 +292,20 @@ public sealed partial class ScrollableFormDialog
         return null;
     }
 
-    private IEnumerable<IFormRow> AllRows()
+    private IEnumerable<FormRow> AllRows()
     {
-        foreach (IFormRow row in _bodyRows)
+        foreach (FormRow row in _bodyRows)
             yield return row;
-        foreach (IFormRow row in _footerRows)
+        foreach (FormRow row in _footerRows)
             yield return row;
     }
 
     private static void ValidateUniqueIds(
-        IReadOnlyList<IFormRow> bodyRows,
-        IReadOnlyList<IFormRow> footerRows)
+        IReadOnlyList<FormRow> bodyRows,
+        IReadOnlyList<FormRow> footerRows)
     {
         var ids = new HashSet<string>(StringComparer.Ordinal);
-        foreach (IFormRow row in bodyRows.Concat(footerRows))
+        foreach (FormRow row in bodyRows.Concat(footerRows))
         {
             if (!string.IsNullOrEmpty(row.Id) && !ids.Add(row.Id))
                 throw new InvalidOperationException($"Duplicate form row ID '{row.Id}'.");
@@ -322,7 +322,7 @@ public sealed partial class ScrollableFormDialog
     {
         int currentFocusRow = 0;
         int virtualRow = 0;
-        foreach (IFormRow row in _bodyRows)
+        foreach (FormRow row in _bodyRows)
         {
             if (row.IsFocusable)
             {
@@ -344,7 +344,7 @@ public sealed partial class ScrollableFormDialog
         int bestBefore = 0;
         for (int i = 0, currentVirtual = 0; i < _bodyRows.Count; i++)
         {
-            IFormRow row = _bodyRows[i];
+            FormRow row = _bodyRows[i];
             if (row.IsFocusable)
             {
                 if (currentVirtual >= virtualRow)

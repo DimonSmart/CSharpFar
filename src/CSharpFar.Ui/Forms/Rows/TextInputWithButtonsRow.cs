@@ -7,7 +7,7 @@ namespace CSharpFar.Ui;
 
 public sealed class TextInputWithButtonsRow : FormRow, IFormCursorProvider, IFormCompositeOwner, IFormLabeledRow
 {
-    public override FormRowRole Role { get; init; } = FormRowRole.TextInput;
+    internal override FormRowRole Role { get; init; } = FormRowRole.TextInput;
 
     private readonly string _label;
     private readonly FormTextInputField _field;
@@ -35,13 +35,13 @@ public sealed class TextInputWithButtonsRow : FormRow, IFormCursorProvider, IFor
     public CommandLineState Buffer => _field.Buffer;
     public bool Enabled { get => _field.Enabled; set => _field.Enabled = value; }
     public string? DisabledReason { get => _field.DisabledReason; set => _field.DisabledReason = value; }
-    public override bool IsEnabled => Enabled;
+    internal override bool IsEnabled => Enabled;
     int IFormLabeledRow.DesiredLabelWidth => ConsoleTextMetrics.GetCellWidth(_label);
     bool IFormLabeledRow.UseSharedLabelColumn => true;
     internal FormTextInputField Input => _field;
     IFormCompositeController IFormCompositeOwner.CompositeController => _compositeController;
 
-    public override void Render(FormRowRenderContext context)
+    internal override void Render(FormRowRenderContext context)
     {
         var layout = CalculateLayout(context.Layout);
         int labelWidth = context.Layout.LabelBounds?.Width ?? 0;
@@ -67,13 +67,13 @@ public sealed class TextInputWithButtonsRow : FormRow, IFormCursorProvider, IFor
         }
     }
 
-    public bool TryGetCursor(FormRowRenderContext context, out FormCursorPlacement cursor)
+    bool IFormCursorProvider.TryGetCursor(FormRowRenderContext context, out FormCursorPlacement cursor)
     {
         var layout = CalculateLayout(context.Layout);
         return _field.TryGetCursor(context, layout.InputBounds, out cursor);
     }
 
-    public override FormInputResult HandleKey(ConsoleKeyInfo key, FormRowInputContext context)
+    internal override FormInputResult HandleKey(ConsoleKeyInfo key, FormRowInputContext context)
     {
         FormInputResult result = _field.HandleKey(key, context);
         return result.Kind == FormInputResultKind.OverlayChanged && SubmitOnEnter
@@ -81,7 +81,7 @@ public sealed class TextInputWithButtonsRow : FormRow, IFormCursorProvider, IFor
             : result;
     }
 
-    public override FormInputResult HandleMouse(MouseConsoleInputEvent mouse, FormRowMouseContext context)
+    internal override FormInputResult HandleMouse(MouseConsoleInputEvent mouse, FormRowMouseContext context)
     {
         if (!Enabled)
             return FormInputResult.NotHandled;
