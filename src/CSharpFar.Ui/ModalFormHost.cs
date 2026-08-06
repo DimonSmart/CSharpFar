@@ -33,6 +33,27 @@ public readonly record struct ModalFormLayout(
     }
 }
 
+public enum FormDialogEventKind
+{
+    NotHandled,
+    Handled,
+    ValueChanged,
+    Submitted,
+    Cancelled,
+}
+
+public readonly record struct FormDialogEvent(
+    FormDialogEventKind Kind,
+    string? Command = null,
+    string? SourceRowId = null,
+    ConsoleKey? Key = null)
+{
+    public bool IsHandled => Kind != FormDialogEventKind.NotHandled;
+    public bool IsValueChanged => Kind == FormDialogEventKind.ValueChanged;
+    public bool IsSubmitted => Kind == FormDialogEventKind.Submitted;
+    public bool IsCancelled => Kind == FormDialogEventKind.Cancelled;
+}
+
 /// <summary>
 /// Composes the standard modal window and routed scrollable-form lifecycle.
 /// </summary>
@@ -47,11 +68,11 @@ public sealed class ModalFormHost
         _modalDialogs = modalDialogs ?? throw new ArgumentNullException(nameof(modalDialogs));
     }
 
-    internal TResult Run<TResult>(
+    public TResult Run<TResult>(
         ScrollableFormDialog form,
         ModalFormOptions options,
         Func<ModalDialogRenderer.Layout, ModalFormLayout> calculateLayout,
-        Func<UiRoutedInput<ScrollableFormFrame>, FormInputResult, ModalDialogLoopResult<TResult>> handleInput,
+        Func<FormDialogEvent, ModalDialogLoopResult<TResult>> handleInput,
         Action? prepareRender = null,
         Func<IDisposable>? beginRenderScope = null,
         CancellationToken cancellationToken = default)
@@ -83,9 +104,81 @@ public sealed class ModalFormHost
 
                 return (result.FormResult, result.UiResult);
             },
+            (routed, result) => handleInput(ToDialogEvent(routed, result, form)),
+            prepareRender,
+            cancellationToken: cancellationToken);
+    }
+
+    internal TResult Run<TResult>(
+        ScrollableFormDialog form,
+        ModalFormOptions options,
+        Func<ModalDialogRenderer.Layout, ModalFormLayout> calculateLayout,
+        Func<UiRoutedInput<ScrollableFormFrame>, FormInputResult, ModalDialogLoopResult<TResult>> handleInput,
+        Action? prepareRender = null,
+        Func<IDisposable>? beginRenderScope = null,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(handleInput);
+        return RunInteractive(form, options, calculateLayout, handleInput, prepareRender, beginRenderScope, cancellationToken);
+    }
+
+    private TResult RunInteractive<TResult>(
+        ScrollableFormDialog form,
+        ModalFormOptions options,
+        Func<ModalDialogRenderer.Layout, ModalFormLayout> calculateLayout,
+        Func<UiRoutedInput<ScrollableFormFrame>, FormInputResult, ModalDialogLoopResult<TResult>> handleInput,
+        Action? prepareRender,
+        Func<IDisposable>? beginRenderScope,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(form);
+        ArgumentNullException.ThrowIfNull(options);
+        ArgumentNullException.ThrowIfNull(calculateLayout);
+
+        return _modalDialogs.RunInteractive<ScrollableFormFrame, FormInputResult, TResult>(
+            (context, focusScope) => Render(context, focusScope, form, options, calculateLayout, beginRenderScope),
+            form.BuildInteractionFrame,
+            (input, frame, route) =>
+            {
+                if (options.SubmitOnEnter && input is KeyConsoleInputEvent { Key.Key: ConsoleKey.Enter })
+                    return (FormInputResult.Submit(), UiInputResult.HandledResult);
+
+                FormRouteResult result = form.RouteInput(input, frame, route);
+                if (result.FormResult.Kind is FormInputResultKind.Submit or FormInputResultKind.Cancel)
+                    form.CloseTransientOverlays(commit: result.FormResult.Kind == FormInputResultKind.Submit);
+                if (input is KeyConsoleInputEvent { Key.Key: ConsoleKey.F10 } &&
+                    result.FormResult.Kind == FormInputResultKind.NotHandled)
+                {
+                    form.CloseTransientOverlays(commit: true);
+                    return (result.FormResult, UiInputResult.HandledResult);
+                }
+
+                return (result.FormResult, result.UiResult);
+            },
             handleInput,
             prepareRender,
             cancellationToken: cancellationToken);
+    }
+
+    private static FormDialogEvent ToDialogEvent(
+        UiRoutedInput<ScrollableFormFrame> routed,
+        FormInputResult result,
+        ScrollableFormDialog form)
+    {
+        FormDialogEventKind kind = result.Kind switch
+        {
+            FormInputResultKind.ValueChanged => FormDialogEventKind.ValueChanged,
+            FormInputResultKind.Submit => FormDialogEventKind.Submitted,
+            FormInputResultKind.Cancel => FormDialogEventKind.Cancelled,
+            _ when FormDialogInput.ShouldSubmit(routed, result, form) => FormDialogEventKind.Submitted,
+            FormInputResultKind.NotHandled => FormDialogEventKind.NotHandled,
+            _ => FormDialogEventKind.Handled,
+        };
+        return new(
+            kind,
+            result.Command,
+            result.SourceRowId,
+            routed.Input is KeyConsoleInputEvent { Key.Key: var key } ? key : null);
     }
 
     private ScrollableFormFrame Render(

@@ -2162,13 +2162,13 @@ public sealed class ScrollableFormDialogTests
         public override string? Id { get; init; } = id;
         public bool RenderedFocused { get; private set; }
 
-        public override void Render(FormRowRenderContext context)
+        internal override void Render(FormRowRenderContext context)
         {
             RenderedFocused = context.Focused;
             context.Canvas.Write(context.Bounds.X, context.Bounds.Y, "row", FarDialogStyles.Fill);
         }
 
-        public override FormInputResult HandleMouse(MouseConsoleInputEvent mouse, FormRowMouseContext context) =>
+        internal override FormInputResult HandleMouse(MouseConsoleInputEvent mouse, FormRowMouseContext context) =>
             FormInputResult.NotHandled;
     }
 }

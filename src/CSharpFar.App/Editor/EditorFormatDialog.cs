@@ -48,16 +48,15 @@ internal sealed class EditorFormatDialog
             form,
             new ModalFormOptions("Editor format", DialogWidth, DialogHeight, SubmitOnEnter: true),
             static layout => ModalFormLayout.BodyOnly(layout.ContentBounds),
-            (routed, result) =>
+            (result) =>
             {
-                if (result.Kind == FormInputResultKind.Cancel ||
-                    routed.Input is KeyConsoleInputEvent { Key.Key: ConsoleKey.F10 })
+                if (result.IsCancelled || result.Key == ConsoleKey.F10)
                 {
                     return ModalDialogLoopResult<EditorDocumentFormat?>.Complete(null);
                 }
 
-                if (result.Kind == FormInputResultKind.Submit ||
-                    FormDialogInput.ShouldImplicitlySubmit(routed, result, form))
+                if (result.IsSubmitted ||
+                    result.IsSubmitted)
                 {
                     return ModalDialogLoopResult<EditorDocumentFormat?>.Complete(
                         CreateFormat(encoding.Value, bom.Value, lineEnding.Value.Value));

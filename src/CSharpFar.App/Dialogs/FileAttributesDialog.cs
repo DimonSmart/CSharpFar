@@ -146,12 +146,12 @@ internal sealed class FileAttributesDialog : IFileAttributesDialog
             form,
             new ModalFormOptions("File attributes", DialogWidth, DialogHeight, 48, 8),
             static layout => ModalFormLayout.WithFooter(layout.ContentBounds, footerHeight: 2),
-            (routed, result) =>
+            (result) =>
             {
-                if (FormDialogInput.ShouldCancel(result))
+                if (result.IsCancelled)
                     return ModalDialogLoopResult<FileAttributesDialogResult?>.Complete(null);
 
-                if (FormDialogInput.ShouldSubmit(routed, result, form))
+                if (result.IsSubmitted)
                 {
                     if (IsTimeAction(result.SourceRowId, result.Command))
                     {

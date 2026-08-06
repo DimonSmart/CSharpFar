@@ -5,7 +5,7 @@ using CSharpFar.Core.Models;
 
 namespace CSharpFar.Ui;
 
-internal enum FormTargetKind
+public enum FormTargetKind
 {
     Row,
     BodyScrollbar,
@@ -35,7 +35,7 @@ internal static class FormTargetIds
     public static UiTargetId ForDropdownScrollbar(UiTargetId rowTarget) => ForCompositeChild(rowTarget, "scrollbar");
 }
 
-internal sealed record ScrollableFormFrame(
+public sealed record ScrollableFormFrame(
     ConsoleViewport Viewport,
     Rect BodyBounds,
     Rect? FooterBounds,
@@ -46,9 +46,9 @@ internal sealed record ScrollableFormFrame(
     UiTargetId? DefaultTarget,
     VerticalScrollbarFrame? VerticalScrollbarFrame = null);
 
-internal abstract record FormTargetFrame(UiTargetId Target, FormTargetKind Kind, Rect Bounds, Rect? HitBounds);
+public abstract record FormTargetFrame(UiTargetId Target, FormTargetKind Kind, Rect Bounds, Rect? HitBounds);
 
-internal sealed record FormRowTargetFrame(
+public sealed record FormRowTargetFrame(
     UiTargetId Target,
     FormRow Row,
     int RowIndex,
@@ -65,7 +65,7 @@ internal sealed record FormRowTargetFrame(
     internal DropdownSelectFrame? DropdownFrame => CompositeFrame?.State is DropdownCompositeSnapshot { Frame: var frame } ? frame : null;
 }
 
-internal sealed record FormBodyScrollbarTargetFrame : FormTargetFrame
+public sealed record FormBodyScrollbarTargetFrame : FormTargetFrame
 {
     public FormBodyScrollbarTargetFrame(UiTargetId target, Rect bounds, Rect hitBounds)
         : base(target, FormTargetKind.BodyScrollbar, bounds, hitBounds)
@@ -73,7 +73,7 @@ internal sealed record FormBodyScrollbarTargetFrame : FormTargetFrame
     }
 }
 
-internal sealed record FormCompositeChildTargetFrame : FormTargetFrame
+public sealed record FormCompositeChildTargetFrame : FormTargetFrame
 {
     public FormCompositeChildTargetFrame(UiTargetId target, FormRowTargetFrame owner, FormCompositeFrame compositeFrame, FormCompositeTarget child)
         : base(target, child.Kind, child.Bounds, child.HitBounds ?? child.Bounds)
@@ -92,7 +92,7 @@ internal sealed record FormCompositeChildTargetFrame : FormTargetFrame
     public bool CapturesMouse => Child.CapturesMouse;
 }
 
-internal readonly record struct FormRouteResult(
+public readonly record struct FormRouteResult(
     FormInputResult FormResult,
     UiInputResult UiResult);
 

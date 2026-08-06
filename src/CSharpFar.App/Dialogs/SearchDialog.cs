@@ -121,12 +121,12 @@ internal sealed class SearchDialog
             form,
             new ModalFormOptions("Find file", DialogWidth, DialogHeight, MinWidth: 48),
             static layout => ModalFormLayout.WithFooter(layout.ContentBounds, footerHeight: 2),
-            (routed, result) =>
+            (result) =>
             {
-                if (FormDialogInput.ShouldCancel(result))
+                if (result.IsCancelled)
                     return ModalDialogLoopResult<SearchRequest?>.Complete(null);
 
-                if (FormDialogInput.ShouldSubmit(routed, result, form))
+                if (result.IsSubmitted)
                 {
                     var request = BuildRequest(
                         rootPath,

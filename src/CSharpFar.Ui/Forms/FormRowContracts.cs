@@ -5,7 +5,7 @@ using CSharpFar.Core.Models;
 
 namespace CSharpFar.Ui;
 
-internal enum FormInputResultKind
+public enum FormInputResultKind
 {
     NotHandled,
     Handled,
@@ -17,7 +17,7 @@ internal enum FormInputResultKind
     Cancel,
 }
 
-internal readonly record struct FormInputResult(
+public readonly record struct FormInputResult(
     FormInputResultKind Kind,
     string? Command = null,
     UiMouseCaptureRequestKind MouseCapture = UiMouseCaptureRequestKind.None,
@@ -75,7 +75,7 @@ internal interface IFormCompositeKeyboardController
     FormInputResult RouteOverlayKey(ConsoleKeyInfo key, FormRowInputContext context, FormCompositeFrame frame);
 }
 
-internal readonly record struct FormCompositeFrameContext(FormRowLayout Layout, ConsoleViewport Viewport, UiTargetId RowTarget)
+public readonly record struct FormCompositeFrameContext(FormRowLayout Layout, ConsoleViewport Viewport, UiTargetId RowTarget)
 {
     public Rect RowBounds => Layout.RowBounds;
 
@@ -85,14 +85,14 @@ internal readonly record struct FormCompositeFrameContext(FormRowLayout Layout, 
     }
 }
 
-internal interface IFormCompositeSnapshot;
+public interface IFormCompositeSnapshot;
 internal sealed class EmptyFormCompositeSnapshot : IFormCompositeSnapshot
 {
     public static EmptyFormCompositeSnapshot Instance { get; } = new();
     private EmptyFormCompositeSnapshot() { }
 }
 
-internal sealed class FormCompositeOverlayFrame
+public sealed class FormCompositeOverlayFrame
 {
     public FormCompositeOverlayFrame(IReadOnlyList<FormCompositeTarget> childTargets)
     {
@@ -103,7 +103,7 @@ internal sealed class FormCompositeOverlayFrame
     public IReadOnlyList<FormCompositeTarget> ChildTargets { get; }
 }
 
-internal sealed class FormCompositeFrame
+public sealed class FormCompositeFrame
 {
     private FormCompositeFrame(IFormCompositeSnapshot state, FormCompositeOverlayFrame? overlay)
     {
@@ -123,12 +123,20 @@ internal sealed class FormCompositeFrame
     }
 }
 
-internal sealed record FormCompositeTarget(UiTargetId Id, Rect Bounds, Rect? HitBounds = null, FormTargetKind Kind = FormTargetKind.CompositeChild, bool CapturesMouse = false);
+public sealed record FormCompositeTarget(UiTargetId Id, Rect Bounds, Rect? HitBounds = null, FormTargetKind Kind = FormTargetKind.CompositeChild, bool CapturesMouse = false);
 
 internal readonly record struct FormCursorPlacement(int X, int Y);
 
 internal interface IFormCursorProvider
 {
     bool TryGetCursor(FormRowRenderContext context, out FormCursorPlacement cursor);
+}
+
+internal static class FormCursorProviderExtensions
+{
+    internal static bool TryGetCursor(
+        this IFormCursorProvider provider,
+        FormRowRenderContext context,
+        out FormCursorPlacement cursor) => provider.TryGetCursor(context, out cursor);
 }
 

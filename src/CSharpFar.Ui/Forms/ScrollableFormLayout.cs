@@ -7,7 +7,7 @@ namespace CSharpFar.Ui;
 
 public sealed partial class ScrollableFormDialog
 {
-    internal ScrollableFormFrame Render(
+    public ScrollableFormFrame Render(
         FormRenderContext context,
         IUiFocusState focusScope,
         IReadOnlyList<UiFocusEntry>? surroundingFocusEntries = null,
@@ -103,7 +103,7 @@ public sealed partial class ScrollableFormDialog
         return frame;
     }
 
-    internal UiInteractionFrame BuildInteractionFrame(ScrollableFormFrame frame)
+    public UiInteractionFrame BuildInteractionFrame(ScrollableFormFrame frame)
     {
         ArgumentNullException.ThrowIfNull(frame);
 
@@ -113,7 +113,7 @@ public sealed partial class ScrollableFormDialog
             .Build();
     }
 
-    internal UiInteractionFragment BuildInteractionFragment(ScrollableFormFrame frame)
+    public UiInteractionFragment BuildInteractionFragment(ScrollableFormFrame frame)
     {
         ArgumentNullException.ThrowIfNull(frame);
 

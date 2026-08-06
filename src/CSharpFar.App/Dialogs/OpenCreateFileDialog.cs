@@ -78,12 +78,12 @@ internal sealed class OpenCreateFileDialog
                     new Rect(content.X, content.Y, content.Width, Math.Max(1, content.Height - 2)),
                     new Rect(content.X, layout.FrameBounds.Bottom - 2, content.Width, 1));
             },
-            (routed, result) =>
+            (result) =>
             {
-                if (FormDialogInput.ShouldCancel(result))
+                if (result.IsCancelled)
                     return ModalDialogLoopResult<OpenCreateFileDialogResult?>.Complete(null);
 
-                if (result.Kind == FormInputResultKind.ValueChanged)
+                if (result.IsValueChanged)
                 {
                     if (result.SourceRowId == "file-path")
                     {
@@ -95,7 +95,7 @@ internal sealed class OpenCreateFileDialog
                     }
                 }
 
-                if (FormDialogInput.ShouldSubmit(routed, result, form))
+                if (result.IsSubmitted)
                 {
                     EditorNewFileEncodingOption selectedCodePage = codePageRow.Value;
                     var accepted = TrySubmit(filePath, selectedCodePage, validate, ref error);

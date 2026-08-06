@@ -86,12 +86,12 @@ internal sealed class CompareOptionsDialog
             form,
             new ModalFormOptions(mode == CompareMode.FileSet ? "Compare file sets" : "Compare folders", DialogWidth, DialogHeight, 52, 12),
             static layout => ModalFormLayout.WithFooter(layout.ContentBounds, footerHeight: 2),
-            (routed, result) =>
+            (result) =>
             {
-                if (FormDialogInput.ShouldCancel(result))
+                if (result.IsCancelled)
                     return ModalDialogLoopResult<ComparisonOptions?>.Complete(null);
 
-                if (FormDialogInput.ShouldSubmit(routed, result, form))
+                if (result.IsSubmitted)
                 {
                     var options = BuildOptions(
                         mode,

@@ -162,12 +162,12 @@ internal sealed class FileOperationDialog
             form,
             new ModalFormOptions(title, DialogWidth, DialogHeight, 40, 8),
             static layout => ModalFormLayout.WithFooter(layout.ContentBounds, footerHeight: 2),
-            (routed, result) =>
+            (result) =>
             {
-                if (FormDialogInput.ShouldCancel(result))
+                if (result.IsCancelled)
                     return ModalDialogLoopResult<FileOperationDialogResult?>.Complete(null);
 
-                if (FormDialogInput.ShouldSubmit(routed, result, form))
+                if (result.IsSubmitted)
                 {
                     var dialogResult = BuildResult(
                         destination,

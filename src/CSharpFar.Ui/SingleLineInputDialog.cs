@@ -60,12 +60,12 @@ public sealed class SingleLineInputDialog
                 OuterRenderOptions: PaletteStyles.DialogPopupOptions(UiTheme.Current),
                 FrameRenderOptions: PaletteStyles.DialogPopupOptions(UiTheme.Current) with { DrawShadow = false }),
             static layout => ModalFormLayout.WithFooter(layout.ContentBounds, footerHeight: 2),
-            (routed, result) =>
+            (result) =>
             {
-                if (FormDialogInput.ShouldCancel(result))
+                if (result.IsCancelled)
                     return ModalDialogLoopResult<SingleLineInputDialogResult>.Complete(new(false, string.Empty));
 
-                if (!FormDialogInput.ShouldSubmit(routed, result, form))
+                if (!result.IsSubmitted)
                     return ModalDialogLoopResult<SingleLineInputDialogResult>.ContinueNoChange;
 
                 string text = field.TrimmedText;
