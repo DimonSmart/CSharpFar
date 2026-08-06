@@ -82,7 +82,8 @@ public sealed class CheckBoxColumnsRow : FormRow, IFormCursorProvider
             cursor = default;
             return false;
         }
-        return _columns[position.Column][position.Row].TryGetCursor(new FormRowRenderContext(context.Canvas, cell.Bounds, true), out cursor);
+        return ((IFormCursorProvider)_columns[position.Column][position.Row])
+            .TryGetCursor(new FormRowRenderContext(context.Canvas, cell.Bounds, true), out cursor);
     }
 
     private FormGridLayout CalculateLayout(Rect bounds) => FormGridLayout.Calculate(_shape, bounds, _columnGap);

@@ -50,15 +50,15 @@ internal sealed class CreateFolderDialog
             form,
             new ModalFormOptions(Title, DialogWidth, DialogHeight, MinWidth: 40),
             static layout => ModalFormLayout.WithFooter(layout.ContentBounds, footerHeight: 2),
-            (routed, result) =>
+            (result) =>
             {
-                if (FormDialogInput.ShouldCancel(result))
+                if (result.IsCancelled)
                     return ModalDialogLoopResult<string?>.Complete(null);
 
-                if (result.Kind == FormInputResultKind.ValueChanged)
+                if (result.IsValueChanged)
                     error = null;
 
-                if (FormDialogInput.ShouldSubmit(routed, result, form))
+                if (result.IsSubmitted)
                 {
                     string? accepted = TrySubmit(folderName, validate, ref error);
                     if (accepted is not null)

@@ -57,13 +57,12 @@ internal sealed class DirectoryShortcutEditDialog
             form,
             new ModalFormOptions($"Directory shortcut {number}", DialogWidth, DialogHeight),
             static layout => ModalFormLayout.WithFooter(layout.ContentBounds, footerHeight: 1),
-            (routed, result) =>
+            (result) =>
             {
-                if (FormDialogInput.ShouldCancel(result))
+                if (result.IsCancelled)
                     return ModalDialogLoopResult<DirectoryShortcutEditResult>.Complete(new DirectoryShortcutEditResult(false, currentItem));
 
-                if (result.Kind == FormInputResultKind.NotHandled &&
-                    routed.Input is KeyConsoleInputEvent { Key.Key: ConsoleKey.Enter })
+                if (result.Kind == FormDialogEventKind.NotHandled && result.Key == ConsoleKey.Enter)
                 {
                     if (form.FocusedRowId == "name")
                         return ModalDialogLoopResult<DirectoryShortcutEditResult>.ContinueWithFocus(
@@ -74,7 +73,7 @@ internal sealed class DirectoryShortcutEditDialog
                     return ModalDialogLoopResult<DirectoryShortcutEditResult>.ContinueNoChange;
                 }
 
-                if (FormDialogInput.ShouldSubmit(routed, result, form))
+                if (result.IsSubmitted)
                 {
                     return ModalDialogLoopResult<DirectoryShortcutEditResult>.Complete(Accepted(number, name.Text, path.Text));
                 }

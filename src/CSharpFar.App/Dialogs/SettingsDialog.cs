@@ -74,12 +74,12 @@ internal sealed class SettingsDialog
             form,
             new ModalFormOptions("Settings", DialogWidth, DialogHeight),
             static layout => ModalFormLayout.BodyOnly(layout.ContentBounds),
-            (routed, result) =>
+            (result) =>
             {
-                if (FormDialogInput.ShouldCancel(result))
+                if (result.IsCancelled)
                     return ModalDialogLoopResult<SettingsDialogResult?>.Complete(null);
 
-                if (FormDialogInput.ShouldSubmit(routed, result, form))
+                if (result.IsSubmitted)
                 {
                     return ModalDialogLoopResult<SettingsDialogResult?>.Complete(new SettingsDialogResult(
                         leftViewMode.Value,

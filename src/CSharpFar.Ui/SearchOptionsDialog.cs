@@ -103,15 +103,15 @@ public sealed class SearchOptionsDialog
                 OuterRenderOptions: PaletteStyles.DialogPopupOptions(UiTheme.Current) with { DrawBorder = false },
                 FrameRenderOptions: PaletteStyles.DialogPopupOptions(UiTheme.Current) with { DrawShadow = false }),
             static layout => ModalFormLayout.WithFooter(layout.ContentBounds, footerHeight: 2),
-            (routed, result) =>
+            (result) =>
             {
-                if (result.Kind == FormInputResultKind.ValueChanged)
+                if (result.IsValueChanged)
                     SynchronizeOptions(options, state, checkboxes);
 
-                if (FormDialogInput.ShouldCancel(result))
+                if (result.IsCancelled)
                     return ModalDialogLoopResult<SearchOptionsDialogResult?>.Complete(null);
 
-                if (FormDialogInput.ShouldSubmit(routed, result, form))
+                if (result.IsSubmitted)
                 {
                     var accepted = HandleButton(result.Command ?? "find", options, state, pattern, ref error);
                     if (accepted.HasValue)

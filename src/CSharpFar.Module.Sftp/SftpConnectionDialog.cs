@@ -90,30 +90,30 @@ internal sealed class SftpConnectionDialog
                 connection is null ? "SFTP connection" : "Edit SFTP connection",
                 DialogWidth, DialogHeight, MinWidth: 42, MinHeight: 8),
             static layout => ModalFormLayout.WithFooter(layout.ContentBounds, footerHeight: 2),
-            (routed, result) =>
+            (result) =>
             {
                 if (result.IsHandled)
                     error = null;
-                if (result is { Kind: FormInputResultKind.ValueChanged, SourceRowId: "host" or "port" })
+                if (result is { Kind: FormDialogEventKind.ValueChanged, SourceRowId: "host" or "port" })
                 {
                     hostKeyFingerprint = null;
                     state.TrustHostKey.Value = false;
                 }
-                if (result is { Kind: FormInputResultKind.ValueChanged, SourceRowId: "save-password" } && state.SavePassword.Value)
+                if (result is { Kind: FormDialogEventKind.ValueChanged, SourceRowId: "save-password" } && state.SavePassword.Value)
                 {
                     state.SaveConnection.Value = true;
                 }
                 else if (state.AllowTemporaryConnection &&
-                    result is { Kind: FormInputResultKind.ValueChanged, SourceRowId: "save-connection" } &&
+                    result is { Kind: FormDialogEventKind.ValueChanged, SourceRowId: "save-connection" } &&
                     !state.SaveConnection.Value)
                 {
                     state.SavePassword.Value = false;
                 }
 
-                if (FormDialogInput.ShouldCancel(result))
+                if (result.IsCancelled)
                     return ModalDialogLoopResult<SftpConnectionDialogResult?>.Complete(null);
 
-                if (FormDialogInput.ShouldSubmit(routed, result, form))
+                if (result.IsSubmitted)
                 {
                     SftpConnectionDialogResult? candidate = BuildResult(
                         request,
