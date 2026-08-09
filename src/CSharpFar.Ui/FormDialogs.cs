@@ -28,11 +28,20 @@ public sealed record FormDialogOptions(
 }
 
 /// <summary>The semantic outcome of handling an ordinary form event.</summary>
-public readonly record struct FormDialogOutcome<TResult>(
-    bool IsComplete,
-    TResult? Result,
-    string? FocusRowId)
+public readonly struct FormDialogOutcome<TResult>
 {
+    private readonly TResult? _result;
+
+    private FormDialogOutcome(bool isComplete, TResult? result, string? focusRowId)
+    {
+        IsComplete = isComplete;
+        _result = result;
+        FocusRowId = focusRowId;
+    }
+
+    internal bool IsComplete { get; }
+    internal TResult? Result => _result;
+    internal string? FocusRowId { get; }
     /// <summary>Keeps the form open and refreshes it.</summary>
     public static FormDialogOutcome<TResult> Continue() => new(false, default, null);
 
