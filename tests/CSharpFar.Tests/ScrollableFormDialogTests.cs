@@ -53,6 +53,21 @@ public sealed class ScrollableFormDialogTests
     }
 
     [Fact]
+    public void AnonymousControlsReceiveIndependentRuntimeTargets()
+    {
+        CheckBoxRow first = FormControls.CheckBox("First");
+        CheckBoxRow second = FormControls.CheckBox("Second");
+        var form = new ScrollableFormDialog([first, second]);
+
+        ScrollableFormFrame frame = RenderFrame(form, visibleRows: 2);
+        FormRowTargetFrame[] targets = frame.Targets.OfType<FormRowTargetFrame>().ToArray();
+
+        Assert.All(targets, target => Assert.Null(target.Row.Id));
+        Assert.Equal(2, targets.Length);
+        Assert.NotEqual(targets[0].Target, targets[1].Target);
+    }
+
+    [Fact]
     public void FocusRequest_MovesFocusToRowByIdOnCommit()
     {
         var form = new ScrollableFormDialog([
@@ -519,6 +534,54 @@ public sealed class ScrollableFormDialogTests
 
         Assert.Equal(1, form.FocusIndex);
         Assert.Equal(string.Empty, text.Text);
+    }
+
+    [Fact]
+    public void TextInput_EnterMovesFocusThroughEnabledRowsAndFooter()
+    {
+        var disabled = new CheckBoxRow(new CheckBoxLine("Disabled")) { Id = "disabled", Enabled = false };
+        var form = new ScrollableFormDialog();
+        form.SetRows(
+            [
+                new TextInputRow(new CommandLineState()) { Id = "name" },
+                disabled,
+                new TextInputRow(new CommandLineState()) { Id = "path" },
+            ],
+            [new ButtonRow([DialogButton.Default("ok", "OK", 'O')]) { Id = "actions" }]);
+        RenderWithFooter(form, bodyRows: 3, footerY: 4);
+
+        Assert.Equal(FormInputResultKind.MoveFocusNext, HandleKey(form, Key(ConsoleKey.Enter)).Kind);
+        Assert.Equal("path", form.FocusedRowId);
+        Assert.Equal(FormInputResultKind.MoveFocusNext, HandleKey(form, Key(ConsoleKey.Enter)).Kind);
+        Assert.Equal("actions", form.FocusedRowId);
+    }
+
+    [Fact]
+    public void TextInput_SubmitOnEnterDoesNotMoveFocus()
+    {
+        var form = new ScrollableFormDialog([
+            new TextInputRow(new CommandLineState()) { Id = "search", SubmitOnEnter = true },
+            new CheckBoxRow(new CheckBoxLine("Next")) { Id = "next" },
+        ]);
+        Render(form, visibleRows: 2);
+
+        Assert.Equal(FormInputResultKind.NotHandled, HandleKey(form, Key(ConsoleKey.Enter)).Kind);
+        Assert.Equal("search", form.FocusedRowId);
+        Assert.True(form.IsFocusedOnSubmitRow);
+    }
+
+    [Fact]
+    public void TextInput_OpenHistoryConsumesEnterBeforeFocusTraversal()
+    {
+        var history = HistoryWithItems(3);
+        var form = new ScrollableFormDialog([
+            new TextInputRow(new CommandLineState(), history) { Id = "pattern" },
+            new CheckBoxRow(new CheckBoxLine("Next")) { Id = "next" },
+        ]);
+        Render(form, visibleRows: 2);
+
+        Assert.Equal(FormInputResultKind.OverlayChanged, HandleKey(form, Key(ConsoleKey.Enter)).Kind);
+        Assert.Equal("pattern", form.FocusedRowId);
     }
 
     [Fact]

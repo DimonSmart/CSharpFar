@@ -9,6 +9,7 @@ public sealed class TextInputWithButtonsRow : FormRow, IFormFocusTarget, IFormCu
 {
     internal override FormRowRole Role { get; init; } = FormRowRole.TextInput;
     internal override IFormFocusTarget FocusTarget => _focusTarget;
+    internal override bool MovesFocusOnUnhandledEnter => !SubmitOnEnter;
 
     private readonly string _label;
     private readonly FormTextInputField _field;

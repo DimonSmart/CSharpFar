@@ -25,6 +25,20 @@ public sealed class FormFieldFactory
 
     public TextField Text(string id, string initialText = "", TextHistoryId? historyId = null,
         bool maskInput = false, int? width = null, bool? submitOnEnter = null)
+        => CreateText(id, initialText, historyId, maskInput, width, submitOnEnter);
+
+    /// <summary>Creates an ordinary text field without an application-owned row ID.</summary>
+    public TextField Text() => CreateText(null, string.Empty, null, false, null, null);
+
+    /// <summary>Creates an ordinary text field without an application-owned row ID.</summary>
+    public TextField Text(TextFieldOptions options)
+    {
+        ArgumentNullException.ThrowIfNull(options);
+        return CreateText(null, options.InitialText, options.HistoryId, options.MaskInput, options.Width, options.SubmitOnEnter);
+    }
+
+    private TextField CreateText(string? id, string initialText, TextHistoryId? historyId,
+        bool maskInput, int? width, bool? submitOnEnter)
     {
         var field = new TextField(
             id,
@@ -40,14 +54,21 @@ public sealed class FormFieldFactory
 /// <summary>Form-scoped defaults for standard text fields.</summary>
 public sealed record TextFieldDefaults(int? Width = null, bool SubmitOnEnter = false);
 
+/// <summary>Semantic options for an ID-less standard text field.</summary>
+public sealed record TextFieldOptions(
+    string InitialText = "",
+    TextHistoryId? HistoryId = null,
+    bool MaskInput = false,
+    int? Width = null,
+    bool? SubmitOnEnter = null);
+
 public sealed class TextField : IFormFocusTarget
 {
     private readonly CommandLineState _buffer = new();
     private readonly TextHistory? _history;
 
-    internal TextField(string id, string initialText, TextHistory? history, int? width, bool maskInput, bool submitOnEnter)
+    internal TextField(string? id, string initialText, TextHistory? history, int? width, bool maskInput, bool submitOnEnter)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(id);
         Id = id;
         _history = history;
         IsMasked = maskInput;
@@ -60,7 +81,7 @@ public sealed class TextField : IFormFocusTarget
             maskInput);
     }
 
-    public string Id { get; }
+    public string? Id { get; }
     public bool IsMasked { get; }
     public int? Width { get; }
     public bool Enabled

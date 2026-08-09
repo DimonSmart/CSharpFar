@@ -38,6 +38,7 @@ public sealed class TextInputRow : FormRow, IFormFocusTarget, IFormCursorProvide
     internal FormTextInputField Input => _field;
     internal override FormRowRole Role { get; init; } = FormRowRole.TextInput;
     internal override IFormFocusTarget? FocusTarget => _focusTarget;
+    internal override bool MovesFocusOnUnhandledEnter => !SubmitOnEnter;
     public bool Enabled { get => _field.Enabled; set => _field.Enabled = value; }
     public string? DisabledReason { get => _field.DisabledReason; set => _field.DisabledReason = value; }
     internal override bool IsEnabled => Enabled;
