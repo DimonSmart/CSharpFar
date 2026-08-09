@@ -174,7 +174,7 @@ internal sealed class DirectoryShortcutsDialog
             return;
 
         items.TryGetValue(number.Value, out var currentItem);
-        var result = new DirectoryShortcutEditDialog(_modalDialogs, _fields, _palette)
+        var result = new DirectoryShortcutEditDialog(new DialogService(_modalDialogs, _fields), _fields)
             .Show(number.Value, currentItem, activePanelPath);
         if (!result.Accepted)
             return;

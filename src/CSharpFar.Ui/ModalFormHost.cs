@@ -46,7 +46,8 @@ public readonly record struct FormDialogEvent(
     FormDialogEventKind Kind,
     string? Command = null,
     string? SourceRowId = null,
-    ConsoleKey? Key = null)
+    ConsoleKey? Key = null,
+    string? FocusedRowId = null)
 {
     public bool IsHandled => Kind != FormDialogEventKind.NotHandled;
     public bool IsValueChanged => Kind == FormDialogEventKind.ValueChanged;
@@ -178,7 +179,8 @@ public sealed class ModalFormHost
             kind,
             result.Command,
             result.SourceRowId,
-            routed.Input is KeyConsoleInputEvent { Key.Key: var key } ? key : null);
+            routed.Input is KeyConsoleInputEvent { Key.Key: var key } ? key : null,
+            form.FocusedRowId);
     }
 
     private ScrollableFormFrame Render(

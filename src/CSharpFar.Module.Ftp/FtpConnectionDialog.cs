@@ -32,12 +32,17 @@ internal sealed class FtpConnectionDialog
     private const int DialogWidth = 80;
     private const int DialogHeight = 22;
     private readonly FormFieldFactory _fields;
-    private readonly ModalFormHost _formDialogs;
+    private readonly DialogService _dialogs;
 
-    public FtpConnectionDialog(ModalDialogHost modalDialogs, FormFieldFactory fields)
+    public FtpConnectionDialog(DialogService dialogs, FormFieldFactory fields)
     {
-        _formDialogs = new ModalFormHost(modalDialogs);
+        _dialogs = dialogs ?? throw new ArgumentNullException(nameof(dialogs));
         _fields = fields ?? throw new ArgumentNullException(nameof(fields));
+    }
+
+    internal FtpConnectionDialog(ModalDialogHost modalDialogs, FormFieldFactory fields)
+        : this(new DialogService(modalDialogs, fields), fields)
+    {
     }
 
     public FtpConnectionDialogResult? Show(
@@ -75,7 +80,6 @@ internal sealed class FtpConnectionDialog
         "actions",
             DialogButton.Default("submit", submitLabel, request.AllowTemporaryConnection ? 'O' : 'S'),
             DialogButton.Cancel());
-        var form = new ScrollableFormDialog();
         FtpConnectionSecurityMode previousSecurity = state.Security.Value;
 
         void SyncEnabledRows()
@@ -86,20 +90,16 @@ internal sealed class FtpConnectionDialog
             if (!state.TrustCertificate.Enabled) state.TrustCertificate.Value = false;
         }
 
-        void PrepareRows()
-        {
-            SyncEnabledRows();
-            form.SetRows(BuildRows(state, fingerprint),
-                FormFooter.ErrorAndButtons(() => error, actions));
-        }
-
-        PrepareRows();
-        return _formDialogs.Run(
-            form,
-            new ModalFormOptions(
+        return _dialogs.Form(
+            new FormDialogOptions(
                 connection is null ? "FTP/FTPS connection" : "Edit FTP/FTPS connection",
                 DialogWidth, DialogHeight, MinWidth: 48, MinHeight: 8),
-            static layout => ModalFormLayout.WithFooter(layout.ContentBounds, footerHeight: 2),
+            rows: () =>
+            {
+                SyncEnabledRows();
+                return BuildRows(state, fingerprint);
+            },
+            footer: () => FormFooter.ErrorAndButtons(() => error, actions),
             (result) =>
             {
                 if (result.IsHandled) error = null;
@@ -132,40 +132,38 @@ internal sealed class FtpConnectionDialog
                 SyncEnabledRows();
 
                 if (result.IsCancelled)
-                    return ModalDialogLoopResult<FtpConnectionDialogResult?>.Complete(null);
+                    return FormDialogOutcome<FtpConnectionDialogResult?>.Complete(null);
 
                 if (!result.IsSubmitted)
-                    return ModalDialogLoopResult<FtpConnectionDialogResult?>.ContinueNoChange;
+                    return FormDialogOutcome<FtpConnectionDialogResult?>.Continue();
 
                 if (!TryParseActivePortRange(state.ActivePorts.Text.Trim(), state.DataMode.Value, out int? from, out int? to, out error))
-                    return ModalDialogLoopResult<FtpConnectionDialogResult?>.ContinueChanged;
+                    return FormDialogOutcome<FtpConnectionDialogResult?>.Continue();
                 var candidate = BuildResult(request, state.ConnectionName.Text.Trim(), state.Host.Text.Trim(), state.Port.Text.Trim(), state.UserName.Text.Trim(), state.Password.Text,
                     state.RemoteRoot.Text.Trim(), state.SaveConnection.Value, state.SavePassword.Value, state.ShowInDrive.Value, state.Security.Value, state.DataMode.Value,
                     state.DataTls.Value, from, to, state.TrustCertificate.Value ? fingerprint : null);
                 if (candidate is null)
                 {
                     error = "Host, user name, password, remote root, and valid port are required.";
-                    return ModalDialogLoopResult<FtpConnectionDialogResult?>.ContinueChanged;
+                    return FormDialogOutcome<FtpConnectionDialogResult?>.Continue();
                 }
                 var validation = validate(candidate);
                 if (validation.IsAccepted)
                 {
                     state.AcceptHistory();
-                    return ModalDialogLoopResult<FtpConnectionDialogResult?>.Complete(candidate);
+                    return FormDialogOutcome<FtpConnectionDialogResult?>.Complete(candidate);
                 }
                 if (validation.CertificateFingerprint is not null)
                 {
                     fingerprint = validation.CertificateFingerprint;
                     state.TrustCertificate.Value = false;
                     SyncEnabledRows();
-                    PrepareRows();
                     error = validation.ErrorMessage;
-                    return ModalDialogLoopResult<FtpConnectionDialogResult?>.ContinueWithFocus(
-                        form.GetFocusTarget("trust-certificate"));
+                    return FormDialogOutcome<FtpConnectionDialogResult?>.ContinueWithFocus("trust-certificate");
                 }
                 error = validation.ErrorMessage;
-                return ModalDialogLoopResult<FtpConnectionDialogResult?>.ContinueChanged;
-            }, prepareRender: PrepareRows);
+                return FormDialogOutcome<FtpConnectionDialogResult?>.Continue();
+            });
     }
 
     private static IReadOnlyList<FormRow> BuildRows(FtpFormState state, string? fingerprint)

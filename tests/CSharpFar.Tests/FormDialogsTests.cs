@@ -107,6 +107,31 @@ public sealed class FormDialogsTests
     }
 
     [Fact]
+    public void Show_EventExposesFocusedRowIdentity()
+    {
+        var driver = new FakeConsoleDriver();
+        driver.EnqueueKey(new ConsoleKeyInfo('x', ConsoleKey.X, false, false, false));
+        driver.EnqueueKey(Key(ConsoleKey.Escape));
+        var dialogs = new FormDialogs(ModalTestHost.Create(driver));
+        TextField value = new FormFieldFactory(TextFieldHistoryTestProvider.Create()).Text("value");
+        string? focusedRowId = null;
+
+        _ = dialogs.Show(
+            new FormDialogOptions("Focus", 30, 8),
+            rows: () => [FormControls.Text(value)],
+            handle: formEvent =>
+            {
+                if (formEvent.IsValueChanged)
+                    focusedRowId = formEvent.FocusedRowId;
+                return formEvent.IsCancelled
+                    ? FormDialogOutcome<object?>.Complete(null)
+                    : FormDialogOutcome<object?>.Continue();
+            });
+
+        Assert.Equal("value", focusedRowId);
+    }
+
+    [Fact]
     public void Show_AppliesLayoutAndDynamicThemeThroughSemanticOptions()
     {
         var driver = new FakeConsoleDriver();

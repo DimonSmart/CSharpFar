@@ -29,7 +29,7 @@ internal sealed class SearchFilesCommand : IApplicationCommand
 
         try
         {
-            var request = new SearchDialog(context.ModalDialogs, context.Fields).Show(target.State.CurrentDirectory);
+            var request = new SearchDialog(context.Dialogs, context.Fields).Show(target.State.CurrentDirectory);
             if (request is null)
                 return ApplicationCommandResult.Rendered();
 

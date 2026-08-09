@@ -44,12 +44,17 @@ internal sealed class FileOperationDialog
     ];
 
     private readonly FormFieldFactory _fields;
-    private readonly ModalFormHost _formDialogs;
+    private readonly DialogService _dialogs;
 
-    public FileOperationDialog(ModalDialogHost modalDialogs, FormFieldFactory fields)
+    public FileOperationDialog(DialogService dialogs, FormFieldFactory fields)
     {
-        _formDialogs = new ModalFormHost(modalDialogs);
+        _dialogs = dialogs ?? throw new ArgumentNullException(nameof(dialogs));
         _fields = fields ?? throw new ArgumentNullException(nameof(fields));
+    }
+
+    internal FileOperationDialog(ModalDialogHost modalDialogs, FormFieldFactory fields)
+        : this(new DialogService(modalDialogs, fields), fields)
+    {
     }
 
     public FileOperationDialogResult? ShowCopy(
@@ -140,32 +145,15 @@ internal sealed class FileOperationDialog
             "footerButtons",
             DialogButton.Default("submit", actionLabel, actionLabel[0]),
             DialogButton.Cancel());
-        var form = new ScrollableFormDialog();
         string? error = null;
-
-        void PrepareRows() =>
-            form.SetRows(BuildRows(
-                prompt,
-                destination,
-                filter,
-                securityChoice,
-                copyModeChoice,
-                conflictChoiceRow,
-                preserveTimestamps,
-                preserveAttributes,
-                copySymlinkContents,
-                useFilter,
-                showOperationOptions),
-                footerRows: FormFooter.ErrorAndButtons(() => error, buttons));
-
-        return _formDialogs.Run(
-            form,
-            new ModalFormOptions(title, DialogWidth, DialogHeight, 40, 8),
-            static layout => ModalFormLayout.WithFooter(layout.ContentBounds, footerHeight: 2),
+        return _dialogs.Form(
+            new FormDialogOptions(title, DialogWidth, DialogHeight, 40, 8),
+            rows: () => BuildRows(prompt, destination, filter, securityChoice, copyModeChoice, conflictChoiceRow, preserveTimestamps, preserveAttributes, copySymlinkContents, useFilter, showOperationOptions),
+            footer: () => FormFooter.ErrorAndButtons(() => error, buttons),
             (result) =>
             {
                 if (result.IsCancelled)
-                    return ModalDialogLoopResult<FileOperationDialogResult?>.Complete(null);
+                    return FormDialogOutcome<FileOperationDialogResult?>.Complete(null);
 
                 if (result.IsSubmitted)
                 {
@@ -182,12 +170,11 @@ internal sealed class FileOperationDialog
                         useFilter.Value,
                         ref error);
                     if (dialogResult is not null)
-                        return ModalDialogLoopResult<FileOperationDialogResult?>.Complete(dialogResult);
+                        return FormDialogOutcome<FileOperationDialogResult?>.Complete(dialogResult);
                 }
 
-                return ModalDialogLoopResult<FileOperationDialogResult?>.ContinueNoChange;
-            },
-            prepareRender: PrepareRows);
+                return FormDialogOutcome<FileOperationDialogResult?>.Continue();
+            });
     }
 
     private static IReadOnlyList<FormRow> BuildRows(
@@ -203,12 +190,11 @@ internal sealed class FileOperationDialog
         CheckBoxRow useFilter,
         bool showOperationOptions)
     {
-        var fill = FarDialogStyles.Fill;
         var rows = new List<FormRow>
         {
-            new LabelRow(prompt, fill),
+            FormControls.Label(prompt),
             FormControls.Text(destination),
-            new SpacerRow(fill),
+            FormControls.Spacer(),
         };
 
         if (showOperationOptions)
@@ -216,28 +202,28 @@ internal sealed class FileOperationDialog
             if (copyModeChoice is not null)
             {
                 rows.Add(copyModeChoice);
-                rows.Add(new SpacerRow(fill));
+                rows.Add(FormControls.Spacer());
             }
 
             rows.Add(securityChoice);
-            rows.Add(new SpacerRow(fill));
+            rows.Add(FormControls.Spacer());
         }
 
-        rows.Add(new LabelRow("Already existing files:", fill));
+        rows.Add(FormControls.Label("Already existing files:"));
         rows.Add(conflictChoiceRow);
 
         if (showOperationOptions)
         {
-            rows.Add(new SpacerRow(fill));
+            rows.Add(FormControls.Spacer());
             rows.Add(preserveTimestamps);
             rows.Add(preserveAttributes);
             rows.Add(copySymlinkContents);
-            rows.Add(new SpacerRow(fill));
+            rows.Add(FormControls.Spacer());
             rows.Add(useFilter);
-            rows.Add(new LabelRow("Filter mask:", fill));
+            rows.Add(FormControls.Label("Filter mask:"));
             filter.Enabled = useFilter.Value;
             rows.Add(FormControls.Text(filter));
-            rows.Add(new SpacerRow(fill));
+            rows.Add(FormControls.Spacer());
         }
 
         return rows;
