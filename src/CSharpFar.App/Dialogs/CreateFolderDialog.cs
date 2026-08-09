@@ -16,11 +16,11 @@ internal sealed class CreateFolderDialog
 
     private readonly FormFieldFactory _fields;
 
-    private readonly ModalFormHost _formDialogs;
+    private readonly FormDialogs _forms;
 
     public CreateFolderDialog(ModalDialogHost modalDialogs, FormFieldFactory fields)
     {
-        _formDialogs = new ModalFormHost(modalDialogs);
+        _forms = new FormDialogs(modalDialogs);
         _fields = fields ?? throw new ArgumentNullException(nameof(fields));
     }
 
@@ -33,27 +33,21 @@ internal sealed class CreateFolderDialog
             "actions",
             DialogButton.Default("ok", "OK", 'O'),
             DialogButton.Cancel());
-        var form = new ScrollableFormDialog();
         string? error = null;
 
-        void PrepareRows() =>
-            form.SetRows(
-                [
-                    new LabelRow(Prompt),
-                    FormControls.Text(folderName),
-                    new SeparatorRow(FarDialogStyles.Border),
-                    new LabelRow(error ?? string.Empty, FarDialogStyles.Error),
-                ],
-                [actions]);
-
-        return _formDialogs.Run(
-            form,
-            new ModalFormOptions(Title, DialogWidth, DialogHeight, MinWidth: 40),
-            static layout => ModalFormLayout.WithFooter(layout.ContentBounds, footerHeight: 2),
-            (result) =>
+        return _forms.Show(
+            new FormDialogOptions(Title, DialogWidth, DialogHeight, MinWidth: 40),
+            rows: () =>
+            [
+                new LabelRow(Prompt),
+                FormControls.Text(folderName),
+                new SeparatorRow(FarDialogStyles.Border),
+            ],
+            footer: () => FormFooter.ErrorAndButtons(() => error, actions),
+            handle: result =>
             {
                 if (result.IsCancelled)
-                    return ModalDialogLoopResult<string?>.Complete(null);
+                    return FormDialogOutcome<string?>.Complete(null);
 
                 if (result.IsValueChanged)
                     error = null;
@@ -62,12 +56,13 @@ internal sealed class CreateFolderDialog
                 {
                     string? accepted = TrySubmit(folderName, validate, ref error);
                     if (accepted is not null)
-                        return ModalDialogLoopResult<string?>.Complete(accepted);
+                        return FormDialogOutcome<string?>.Complete(accepted);
+
+                    return FormDialogOutcome<string?>.ContinueWithFocus(folderName.Id);
                 }
 
-                return ModalDialogLoopResult<string?>.ContinueNoChange;
-            },
-            prepareRender: PrepareRows);
+                return FormDialogOutcome<string?>.Continue();
+            });
     }
 
     private static string? TrySubmit(
