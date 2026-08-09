@@ -32,12 +32,11 @@ internal sealed class DirectoryShortcutEditDialog
         AppSettings.DirectoryShortcutItem? currentItem,
         string activePanelPath)
     {
-        TextField name = _fields.Text("name", currentItem?.Name ?? DirectoryShortcutNormalizer.GetDefaultNameFromPath(activePanelPath));
-        TextField path = _fields.Text("path", currentItem?.Path ?? activePanelPath);
+        TextField name = _fields.Text(new TextFieldOptions(currentItem?.Name ?? DirectoryShortcutNormalizer.GetDefaultNameFromPath(activePanelPath)));
+        TextField path = _fields.Text(new TextFieldOptions(currentItem?.Path ?? activePanelPath));
         TextInputRow nameRow = FormControls.Text(name);
         TextInputRow pathRow = FormControls.Text(path);
         var actions = FormControls.Buttons(
-            "actions",
             DialogButton.Default("ok", "OK", 'O'),
             DialogButton.Cancel());
         return _dialogs.Form(
@@ -55,15 +54,6 @@ internal sealed class DirectoryShortcutEditDialog
             {
                 if (result.IsCancelled)
                     return FormDialogOutcome<DirectoryShortcutEditResult>.Complete(new DirectoryShortcutEditResult(false, currentItem));
-
-                if (result.Kind == FormDialogEventKind.NotHandled && result.Key == ConsoleKey.Enter)
-                {
-                    if (result.FocusedRowId == "name")
-                        return FormDialogOutcome<DirectoryShortcutEditResult>.ContinueWithFocus("path");
-                    if (result.FocusedRowId == "path")
-                        return FormDialogOutcome<DirectoryShortcutEditResult>.ContinueWithFocus("actions");
-                    return FormDialogOutcome<DirectoryShortcutEditResult>.Continue();
-                }
 
                 if (result.IsSubmitted)
                     return FormDialogOutcome<DirectoryShortcutEditResult>.Complete(Accepted(number, name.Text, path.Text));

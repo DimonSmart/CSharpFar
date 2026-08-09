@@ -50,6 +50,11 @@ public sealed partial class ScrollableFormDialog
                 rowResult = WithSourceRowId(rowResult, row.Id);
                 return FormResult(rowResult, WithEnsureFocusVisible(FormResultToUi(rowResult, targetFrame.Target), ensureFocusedTargetVisible));
             }
+
+            if (key.Key == ConsoleKey.Enter && row.MovesFocusOnUnhandledEnter)
+                return FormResult(
+                    WithSourceRowId(FormInputResult.MoveFocusNext, row.Id),
+                    WithEnsureFocusVisible(UiInputResultWithFocus(UiFocusRequest.MoveNext), ensureFocusedTargetVisible));
         }
 
         if (allowUnfocusedButtonHotkeys && key.KeyChar > ' ')

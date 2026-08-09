@@ -104,14 +104,14 @@ public sealed class FormDialogsTests
     }
 
     [Fact]
-    public void Show_TypedFocusTargetFocusesChoiceControl()
+    public void Show_IdlessChoiceSupportsTypedFocusTarget()
     {
         var driver = new FakeConsoleDriver();
         driver.EnqueueKey(Key(ConsoleKey.F10));
         driver.EnqueueKey(Key(ConsoleKey.RightArrow));
         driver.EnqueueKey(Key(ConsoleKey.Escape));
         var dialogs = new FormDialogs(ModalTestHost.Create(driver));
-        ChoiceFormRow<string> choice = FormControls.Choice("choice", "Choice:", ["one", "two"], static value => value, "one");
+        ChoiceFormRow<string> choice = FormControls.Choice("Choice:", ["one", "two"], static value => value, "one");
 
         _ = dialogs.Show(
             new FormDialogOptions("Focus", 30, 8),
@@ -123,6 +123,31 @@ public sealed class FormDialogsTests
                     : FormDialogOutcome<object?>.Continue());
 
         Assert.Equal("two", choice.Value);
+        Assert.Null(choice.Id);
+    }
+
+    [Fact]
+    public void Show_IdlessTextFieldSupportsTypedFocusTarget()
+    {
+        var driver = new FakeConsoleDriver();
+        driver.EnqueueKey(Key(ConsoleKey.F10));
+        driver.EnqueueKey(new ConsoleKeyInfo('x', ConsoleKey.X, false, false, false));
+        driver.EnqueueKey(Key(ConsoleKey.F10));
+        var dialogs = new FormDialogs(ModalTestHost.Create(driver));
+        TextField value = new FormFieldFactory(TextFieldHistoryTestProvider.Create()).Text();
+        int submits = 0;
+
+        string result = dialogs.Show(
+            new FormDialogOptions("Validation", 30, 8),
+            rows: () => [FormControls.Text(value)],
+            handle: formEvent => formEvent.IsSubmitted
+                ? ++submits == 1
+                    ? FormDialogOutcome<string>.ContinueWithFocus(value)
+                    : FormDialogOutcome<string>.Complete(value.Text)
+                : FormDialogOutcome<string>.Continue());
+
+        Assert.Equal("x", result);
+        Assert.Null(value.Id);
     }
 
     [Fact]

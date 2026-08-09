@@ -30,6 +30,17 @@ public sealed class TextFieldTests
     }
 
     [Fact]
+    public void Text_OptionsCreatesIdlessField()
+    {
+        TextField field = new FormFieldFactory(new CountingHistoryProvider()).Text(
+            new TextFieldOptions("retained", Width: 12));
+
+        Assert.Null(field.Id);
+        Assert.Equal("retained", field.Text);
+        Assert.Equal(12, field.Width);
+    }
+
+    [Fact]
     public void LabeledRow_InheritsMaskedFieldConfigurationAndSharedInput()
     {
         var provider = new CountingHistoryProvider();
