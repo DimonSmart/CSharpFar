@@ -8,12 +8,14 @@ public sealed class ModuleUiServices
     private DialogService? _dialogs;
     public required ScreenRenderer Screen { get; init; }
 
+    /// <summary>Low-level escape hatch for custom modal UI with its own composition or lifecycle.</summary>
     public required ModalDialogHost ModalDialogs { get; init; }
 
     public required Func<ConsolePalette> Palette { get; init; }
 
     public required FormFieldFactory Fields { get; init; }
 
+    /// <summary>Recommended API for standard module dialogs and forms.</summary>
     public DialogService Dialogs
     {
         get => _dialogs ??= new DialogService(ModalDialogs, Fields);

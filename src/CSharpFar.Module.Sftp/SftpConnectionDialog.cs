@@ -41,11 +41,6 @@ internal sealed class SftpConnectionDialog
         _fields = fields ?? throw new ArgumentNullException(nameof(fields));
     }
 
-    internal SftpConnectionDialog(ModalDialogHost modalDialogs, FormFieldFactory fields)
-        : this(new DialogService(modalDialogs, fields), fields)
-    {
-    }
-
     public SftpConnectionDialogResult? Show(
         SftpConnectionDialogRequest request,
         Func<SftpConnectionDialogResult, SftpConnectionDialogValidationResult> validate)

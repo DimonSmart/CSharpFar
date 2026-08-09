@@ -1,7 +1,4 @@
 using CSharpFar.App.DirectoryShortcuts;
-using CSharpFar.Console;
-using CSharpFar.Console.Input;
-using CSharpFar.Console.Models;
 using CSharpFar.Core.Models;
 using CSharpFar.Ui;
 
@@ -16,15 +13,18 @@ internal sealed class DirectoryShortcutEditDialog
     private const int DialogWidth = 62;
     private const int DialogHeight = 10;
 
-    private readonly ModalFormHost _formDialogs;
-    private readonly ConsolePalette _palette;
+    private readonly DialogService _dialogs;
     private readonly FormFieldFactory _fields;
 
-    public DirectoryShortcutEditDialog(ModalDialogHost modalDialogs, FormFieldFactory fields, ConsolePalette? palette = null)
+    public DirectoryShortcutEditDialog(DialogService dialogs, FormFieldFactory fields)
     {
-        _formDialogs = new ModalFormHost(modalDialogs);
+        _dialogs = dialogs ?? throw new ArgumentNullException(nameof(dialogs));
         _fields = fields ?? throw new ArgumentNullException(nameof(fields));
-        _palette = palette ?? PaletteRegistry.Default;
+    }
+
+    internal DirectoryShortcutEditDialog(ModalDialogHost modalDialogs, FormFieldFactory fields, ConsolePalette? palette = null)
+        : this(new DialogService(modalDialogs, fields), fields)
+    {
     }
 
     public DirectoryShortcutEditResult Show(
@@ -40,48 +40,36 @@ internal sealed class DirectoryShortcutEditDialog
             "actions",
             DialogButton.Default("ok", "OK", 'O'),
             DialogButton.Cancel());
-        var form = new ScrollableFormDialog();
-
-        void PrepareRows() =>
-            form.SetRows(
-                [
-                    new LabelRow("Name"),
-                    nameRow,
-                    new SpacerRow(),
-                    new LabelRow("Path"),
-                    pathRow,
-                ],
-                [actions]);
-
-        return _formDialogs.Run(
-            form,
-            new ModalFormOptions($"Directory shortcut {number}", DialogWidth, DialogHeight),
-            static layout => ModalFormLayout.WithFooter(layout.ContentBounds, footerHeight: 1),
+        return _dialogs.Form(
+            new FormDialogOptions($"Directory shortcut {number}", DialogWidth, DialogHeight),
+            rows: () =>
+            [
+                FormControls.Label("Name"),
+                nameRow,
+                FormControls.Spacer(),
+                FormControls.Label("Path"),
+                pathRow,
+            ],
+            footer: () => [actions],
             (result) =>
             {
                 if (result.IsCancelled)
-                    return ModalDialogLoopResult<DirectoryShortcutEditResult>.Complete(new DirectoryShortcutEditResult(false, currentItem));
+                    return FormDialogOutcome<DirectoryShortcutEditResult>.Complete(new DirectoryShortcutEditResult(false, currentItem));
 
                 if (result.Kind == FormDialogEventKind.NotHandled && result.Key == ConsoleKey.Enter)
                 {
-                    if (form.FocusedRowId == "name")
-                        return ModalDialogLoopResult<DirectoryShortcutEditResult>.ContinueWithFocus(
-                            form.GetFocusTarget("path"));
-                    else if (form.FocusedRowId == "path")
-                        return ModalDialogLoopResult<DirectoryShortcutEditResult>.ContinueWithFocus(
-                            form.GetFocusTarget("actions"));
-                    return ModalDialogLoopResult<DirectoryShortcutEditResult>.ContinueNoChange;
+                    if (result.FocusedRowId == "name")
+                        return FormDialogOutcome<DirectoryShortcutEditResult>.ContinueWithFocus("path");
+                    if (result.FocusedRowId == "path")
+                        return FormDialogOutcome<DirectoryShortcutEditResult>.ContinueWithFocus("actions");
+                    return FormDialogOutcome<DirectoryShortcutEditResult>.Continue();
                 }
 
                 if (result.IsSubmitted)
-                {
-                    return ModalDialogLoopResult<DirectoryShortcutEditResult>.Complete(Accepted(number, name.Text, path.Text));
-                }
+                    return FormDialogOutcome<DirectoryShortcutEditResult>.Complete(Accepted(number, name.Text, path.Text));
 
-                return ModalDialogLoopResult<DirectoryShortcutEditResult>.ContinueNoChange;
-            },
-            prepareRender: PrepareRows,
-            beginRenderScope: () => UiTheme.UseTemporary(_palette));
+                return FormDialogOutcome<DirectoryShortcutEditResult>.Continue();
+            });
     }
 
     private static DirectoryShortcutEditResult Accepted(int number, string name, string path)

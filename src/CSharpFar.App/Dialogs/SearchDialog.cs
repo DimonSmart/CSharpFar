@@ -10,12 +10,17 @@ internal sealed class SearchDialog
     private const int DialogHeight = 18;
 
     private readonly FormFieldFactory _fields;
-    private readonly ModalFormHost _formDialogs;
+    private readonly DialogService _dialogs;
 
-    public SearchDialog(ModalDialogHost modalDialogs, FormFieldFactory fields)
+    public SearchDialog(DialogService dialogs, FormFieldFactory fields)
     {
-        _formDialogs = new ModalFormHost(modalDialogs);
+        _dialogs = dialogs ?? throw new ArgumentNullException(nameof(dialogs));
         _fields = fields ?? throw new ArgumentNullException(nameof(fields));
+    }
+
+    internal SearchDialog(ModalDialogHost modalDialogs, FormFieldFactory fields)
+        : this(new DialogService(modalDialogs, fields), fields)
+    {
     }
 
     public SearchRequest? Show(string rootPath)
@@ -99,32 +104,15 @@ internal sealed class SearchDialog
             "footerButtons",
             DialogButton.Default("find", "Find", 'F'),
             DialogButton.Cancel());
-        var form = new ScrollableFormDialog();
         string? error = null;
-
-        void PrepareRows()
-        {
-            bool hasText = text.Text.Length > 0;
-            form.SetRows(
-                BuildBodyRows(
-                    mask,
-                    text,
-                    parallelism,
-                    notContainingRow,
-                    optionsRow,
-                    scopeRow,
-                    hasText),
-                FormFooter.ErrorAndButtons(() => error is null ? null : Truncate(error, DialogWidth), buttons));
-        }
-
-        return _formDialogs.Run(
-            form,
-            new ModalFormOptions("Find file", DialogWidth, DialogHeight, MinWidth: 48),
-            static layout => ModalFormLayout.WithFooter(layout.ContentBounds, footerHeight: 2),
+        return _dialogs.Form(
+            new FormDialogOptions("Find file", DialogWidth, DialogHeight, MinWidth: 48),
+            rows: () => BuildBodyRows(mask, text, parallelism, notContainingRow, optionsRow, scopeRow, text.Text.Length > 0),
+            footer: () => FormFooter.ErrorAndButtons(() => error is null ? null : Truncate(error, DialogWidth), buttons),
             (result) =>
             {
                 if (result.IsCancelled)
-                    return ModalDialogLoopResult<SearchRequest?>.Complete(null);
+                    return FormDialogOutcome<SearchRequest?>.Complete(null);
 
                 if (result.IsSubmitted)
                 {
@@ -141,12 +129,11 @@ internal sealed class SearchDialog
                         parallelism,
                         ref error);
                     if (request is not null)
-                        return ModalDialogLoopResult<SearchRequest?>.Complete(request);
+                        return FormDialogOutcome<SearchRequest?>.Complete(request);
                 }
 
-                return ModalDialogLoopResult<SearchRequest?>.ContinueNoChange;
-            },
-            prepareRender: PrepareRows);
+                return FormDialogOutcome<SearchRequest?>.Continue();
+            });
     }
 
     private static IReadOnlyList<FormRow> BuildBodyRows(
@@ -158,19 +145,18 @@ internal sealed class SearchDialog
         DropdownSelectFormRow<SearchScope> scope,
         bool hasText)
     {
-        var fill = FarDialogStyles.Fill;
         notContaining.Enabled = hasText;
         return
         [
-            new LabelRow("A file mask or several file masks:", fill),
+            FormControls.Label("A file mask or several file masks:"),
             FormControls.Text(mask),
-            new LabelRow("Containing text:", fill),
+            FormControls.Label("Containing text:"),
             FormControls.Text(text),
-            new LabelRow("Using code page: Automatic detection", fill),
+            FormControls.Label("Using code page: Automatic detection"),
             options,
-            new LabelRow("Select search area:", fill),
+            FormControls.Label("Select search area:"),
             scope,
-            new LabelRow("Parallelism:", fill),
+            FormControls.Label("Parallelism:"),
             FormControls.Text(parallelism),
         ];
     }

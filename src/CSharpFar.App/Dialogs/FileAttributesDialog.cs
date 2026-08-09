@@ -1,7 +1,4 @@
 using System.Globalization;
-using CSharpFar.Console;
-using CSharpFar.Console.Input;
-using CSharpFar.Console.Models;
 using CSharpFar.Core.Models;
 using CSharpFar.Ui;
 
@@ -13,14 +10,14 @@ internal sealed class FileAttributesDialog : IFileAttributesDialog
     private const int DialogHeight = 25;
     private const string DateTimeFormat = "dd.MM.yyyy HH:mm:ss";
 
-    private readonly ModalFormHost _formDialogs;
+    private readonly DialogService _dialogs;
     private readonly FormFieldFactory _fields;
     private readonly IClock _clock;
     private readonly bool _canOpenSystemProperties;
 
-    public FileAttributesDialog(ModalDialogHost modalDialogs, FormFieldFactory fields, IClock? clock = null, bool canOpenSystemProperties = false)
+    public FileAttributesDialog(DialogService dialogs, FormFieldFactory fields, IClock? clock = null, bool canOpenSystemProperties = false)
     {
-        _formDialogs = new ModalFormHost(modalDialogs);
+        _dialogs = dialogs ?? throw new ArgumentNullException(nameof(dialogs));
         _fields = fields ?? throw new ArgumentNullException(nameof(fields));
         _clock = clock ?? new SystemClock();
         _canOpenSystemProperties = canOpenSystemProperties;
@@ -126,7 +123,6 @@ internal sealed class FileAttributesDialog : IFileAttributesDialog
             .Where(specialPermissionRows.ContainsKey)
             .Select(bit => new UnixPermissionDialogRow(bit, specialPermissionRows[bit]))
             .ToList();
-        var form = new ScrollableFormDialog();
         string? error = null;
         var buttons = FormControls.Buttons("actions", _canOpenSystemProperties
             ?
@@ -137,32 +133,27 @@ internal sealed class FileAttributesDialog : IFileAttributesDialog
             ]
             : [DialogButton.Default("set", "Set", 'S'), DialogButton.Cancel()]);
 
-        void PrepareRows() =>
-            form.SetRows(
-                BuildRows(snapshot, attributeRows, permissions, unixSpecialRows, creation, write, access),
-                FormFooter.ErrorAndButtons(() => error, buttons));
-
-        return _formDialogs.Run(
-            form,
-            new ModalFormOptions("File attributes", DialogWidth, DialogHeight, 48, 8),
-            static layout => ModalFormLayout.WithFooter(layout.ContentBounds, footerHeight: 2),
+        return _dialogs.Form(
+            new FormDialogOptions("File attributes", DialogWidth, DialogHeight, 48, 8),
+            rows: () => BuildRows(snapshot, attributeRows, permissions, unixSpecialRows, creation, write, access),
+            footer: () => FormFooter.ErrorAndButtons(() => error, buttons),
             (result) =>
             {
                 if (result.IsCancelled)
-                    return ModalDialogLoopResult<FileAttributesDialogResult?>.Complete(null);
+                    return FormDialogOutcome<FileAttributesDialogResult?>.Complete(null);
 
                 if (result.IsSubmitted)
                 {
                     if (IsTimeAction(result.SourceRowId, result.Command))
                     {
                         ApplyTimeAction(result.SourceRowId!, result.Command!, snapshot, creation, write, access, _clock.Now);
-                        return ModalDialogLoopResult<FileAttributesDialogResult?>.ContinueChanged;
+                        return FormDialogOutcome<FileAttributesDialogResult?>.Continue();
                     }
 
                     switch (result.Command)
                     {
                         case "properties":
-                            return ModalDialogLoopResult<FileAttributesDialogResult?>.Complete(
+                            return FormDialogOutcome<FileAttributesDialogResult?>.Complete(
                                 new FileAttributesDialogResult(EmptyChangeSet(), OpenSystemProperties: true));
                         case "set":
                         case null:
@@ -171,16 +162,15 @@ internal sealed class FileAttributesDialog : IFileAttributesDialog
                             var changeSet = CreateChangeSet(snapshot, states, unixStates, creation.Text, write.Text, access.Text, out error);
                             if (error is null)
                             {
-                                return ModalDialogLoopResult<FileAttributesDialogResult?>.Complete(
+                                return FormDialogOutcome<FileAttributesDialogResult?>.Complete(
                                     new FileAttributesDialogResult(changeSet, OpenSystemProperties: false));
                             }
-                            return ModalDialogLoopResult<FileAttributesDialogResult?>.ContinueChanged;
+                            return FormDialogOutcome<FileAttributesDialogResult?>.Continue();
                     }
                 }
 
-                return ModalDialogLoopResult<FileAttributesDialogResult?>.ContinueNoChange;
-            },
-            prepareRender: PrepareRows);
+                return FormDialogOutcome<FileAttributesDialogResult?>.Continue();
+            });
     }
 
     private IReadOnlyList<FormRow> BuildRows(
@@ -192,39 +182,38 @@ internal sealed class FileAttributesDialog : IFileAttributesDialog
         TextField write,
         TextField access)
     {
-        var fill = FarDialogStyles.Fill;
         var rows = new List<FormRow>
         {
-            new LabelRow("Change file attributes for", fill),
-            new LabelRow(snapshot.DisplayName, fill),
-            new SpacerRow(fill),
+            FormControls.Label("Change file attributes for"),
+            FormControls.Label(snapshot.DisplayName),
+            FormControls.Spacer(),
         };
 
         rows.AddRange(attributeRows.Select(static row => (FormRow)row.Row));
 
         if (snapshot.UnixMetadata is { } unixMetadata)
         {
-            rows.Add(new SpacerRow(fill));
-            rows.Add(new LabelRow("Unix permissions:", fill));
+            rows.Add(FormControls.Spacer());
+            rows.Add(FormControls.Label("Unix permissions:"));
             rows.Add(permissions!);
             rows.AddRange(unixSpecialRows.Select(static row => (FormRow)row.Row));
-            rows.Add(new LabelRow($"Owner: {unixMetadata.OwnerName ?? unixMetadata.Uid?.ToString(CultureInfo.InvariantCulture) ?? "<not available>"}", fill));
-            rows.Add(new LabelRow($"Group: {unixMetadata.GroupName ?? unixMetadata.Gid?.ToString(CultureInfo.InvariantCulture) ?? "<not available>"}", fill));
-            rows.Add(new LabelRow($"Mode: {FormatUnixMode(unixMetadata)}", fill));
+            rows.Add(FormControls.Label($"Owner: {unixMetadata.OwnerName ?? unixMetadata.Uid?.ToString(CultureInfo.InvariantCulture) ?? "<not available>"}"));
+            rows.Add(FormControls.Label($"Group: {unixMetadata.GroupName ?? unixMetadata.Gid?.ToString(CultureInfo.InvariantCulture) ?? "<not available>"}"));
+            rows.Add(FormControls.Label($"Mode: {FormatUnixMode(unixMetadata)}"));
         }
 
-        rows.Add(new SpacerRow(fill));
-        rows.Add(new LabelRow("Date/Time:", fill));
+        rows.Add(FormControls.Spacer());
+        rows.Add(FormControls.Label("Date/Time:"));
         AddTimeRows(rows, "write:", write, snapshot.LastWriteTime, snapshot.CanEditLastWriteTime);
         AddTimeRows(rows, "creation:", creation, snapshot.CreationTime, snapshot.CanEditCreationTime);
         AddTimeRows(rows, "access:", access, snapshot.LastAccessTime, snapshot.CanEditLastAccessTime);
-        rows.Add(new SpacerRow(fill));
+        rows.Add(FormControls.Spacer());
         if (snapshot.UnixMetadata is null)
         {
-            rows.Add(new LabelRow("Owner:", fill));
-            rows.Add(new LabelRow(snapshot.OwnerDisplayName ?? "<not available>", fill));
+            rows.Add(FormControls.Label("Owner:"));
+            rows.Add(FormControls.Label(snapshot.OwnerDisplayName ?? "<not available>"));
         }
-        rows.Add(new SpacerRow(fill));
+        rows.Add(FormControls.Spacer());
         return rows;
     }
 

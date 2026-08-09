@@ -1,8 +1,5 @@
 using CSharpFar.App.Editor;
 using CSharpFar.App.Rendering;
-using CSharpFar.Console;
-using CSharpFar.Console.Input;
-using CSharpFar.Console.Models;
 using CSharpFar.Core.Models;
 using CSharpFar.Ui;
 
@@ -20,20 +17,25 @@ internal sealed class OpenCreateFileDialog
 
     private readonly FormFieldFactory _fields;
 
-    private readonly ModalFormHost _formDialogs;
+    private readonly DialogService _dialogs;
     private readonly IReadOnlyList<EditorNewFileEncodingOption> _codePages;
 
-    public OpenCreateFileDialog(ModalDialogHost modalDialogs, FormFieldFactory fields)
-        : this(modalDialogs, EditorNewFileEncodingOption.CreateCatalog(), fields)
+    public OpenCreateFileDialog(DialogService dialogs, FormFieldFactory fields)
+        : this(dialogs, EditorNewFileEncodingOption.CreateCatalog(), fields)
+    {
+    }
+
+    internal OpenCreateFileDialog(ModalDialogHost modalDialogs, FormFieldFactory fields)
+        : this(new DialogService(modalDialogs, fields), fields)
     {
     }
 
     internal OpenCreateFileDialog(
-        ModalDialogHost modalDialogs,
+        DialogService dialogs,
         IReadOnlyList<EditorNewFileEncodingOption> codePages,
         FormFieldFactory fields)
     {
-        _formDialogs = new ModalFormHost(modalDialogs);
+        _dialogs = dialogs ?? throw new ArgumentNullException(nameof(dialogs));
         _fields = fields ?? throw new ArgumentNullException(nameof(fields));
         _codePages = codePages.Count == 0
             ? [new EditorNewFileEncodingOption("Default", null, EmitByteOrderMark: false)]
@@ -53,35 +55,24 @@ internal sealed class OpenCreateFileDialog
             "actions",
             DialogButton.Default("ok", "OK", 'O'),
             DialogButton.Cancel());
-        var form = new ScrollableFormDialog();
         string? error = null;
-
-        void PrepareRows() =>
-            form.SetRows(
-                [
-                    new LabelRow("Open/create file:"),
-                    pathRow,
-                    new SpacerRow(),
-                    new LabelRow("Code page:"),
-                    codePageRow,
-                    new LabelRow(error ?? string.Empty, FarDialogStyles.Error),
-                ],
-                [actions]);
-
-        return _formDialogs.Run(
-            form,
-            new ModalFormOptions(Title, DialogWidth, DialogHeight, MinWidth: 44),
-            static layout =>
-            {
-                Rect content = layout.ContentBounds;
-                return new ModalFormLayout(
-                    new Rect(content.X, content.Y, content.Width, Math.Max(1, content.Height - 2)),
-                    new Rect(content.X, layout.FrameBounds.Bottom - 2, content.Width, 1));
-            },
+        return _dialogs.Form(
+            new FormDialogOptions(Title, DialogWidth, DialogHeight, MinWidth: 44),
+            rows: () =>
+            [
+                FormControls.Label("Open/create file:"),
+                pathRow,
+                FormControls.Spacer(),
+                FormControls.Label("Code page:"),
+                codePageRow,
+                FormControls.Error(() => error),
+                FormControls.Spacer(),
+            ],
+            footer: () => [actions],
             (result) =>
             {
                 if (result.IsCancelled)
-                    return ModalDialogLoopResult<OpenCreateFileDialogResult?>.Complete(null);
+                    return FormDialogOutcome<OpenCreateFileDialogResult?>.Complete(null);
 
                 if (result.IsValueChanged)
                 {
@@ -100,12 +91,11 @@ internal sealed class OpenCreateFileDialog
                     EditorNewFileEncodingOption selectedCodePage = codePageRow.Value;
                     var accepted = TrySubmit(filePath, selectedCodePage, validate, ref error);
                     if (accepted is not null)
-                        return ModalDialogLoopResult<OpenCreateFileDialogResult?>.Complete(accepted);
+                        return FormDialogOutcome<OpenCreateFileDialogResult?>.Complete(accepted);
                 }
 
-                return ModalDialogLoopResult<OpenCreateFileDialogResult?>.ContinueNoChange;
-            },
-            prepareRender: PrepareRows);
+                return FormDialogOutcome<OpenCreateFileDialogResult?>.Continue();
+            });
     }
 
     private OpenCreateFileDialogResult? TrySubmit(
