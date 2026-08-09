@@ -367,7 +367,8 @@ public sealed class Spec010FileOperationDialogTests
         EnqueueText(driver, "NewDir");
         driver.EnqueueKey(Key(ConsoleKey.F10));
 
-        string? result = new CreateFolderDialog(ModalTestHost.Create(screen), new FormFieldFactory(TextFieldHistoryTestProvider.Create())).Show();
+        var fields = new FormFieldFactory(TextFieldHistoryTestProvider.Create());
+        string? result = new CreateFolderDialog(new DialogService(ModalTestHost.Create(screen), fields), fields).Show();
 
         Assert.Equal("NewDir", result);
         Assert.Contains(driver.WriteRecords, r => r.Text.Contains("Make folder", StringComparison.Ordinal));
@@ -394,7 +395,8 @@ public sealed class Spec010FileOperationDialogTests
             currentDriver.EnqueueInput(new MouseConsoleInputEvent(x, row.Y, MouseButton.Left, MouseEventKind.Up, MouseKeyModifiers.None));
         };
 
-        string? result = new CreateFolderDialog(ModalTestHost.Create(screen), new FormFieldFactory(TextFieldHistoryTestProvider.Create())).Show();
+        var fields = new FormFieldFactory(TextFieldHistoryTestProvider.Create());
+        string? result = new CreateFolderDialog(new DialogService(ModalTestHost.Create(screen), fields), fields).Show();
 
         Assert.Null(result);
     }

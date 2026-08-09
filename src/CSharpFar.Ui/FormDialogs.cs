@@ -48,7 +48,7 @@ public readonly record struct FormDialogOutcome<TResult>(
 }
 
 /// <summary>Application-level façade for standard modal forms.</summary>
-public sealed class FormDialogs
+internal sealed class FormDialogs
 {
     private readonly ModalFormHost _host;
 
@@ -69,19 +69,27 @@ public sealed class FormDialogs
         var form = new ScrollableFormDialog(options.Layout.Validate());
         IReadOnlyList<FormRow> currentFooter = [];
 
+        void RefreshRows()
+        {
+            IReadOnlyList<FormRow> body = rows() ?? throw new InvalidOperationException("Form rows cannot be null.");
+            currentFooter = footer?.Invoke() ?? [];
+            form.SetRows(body, currentFooter);
+        }
+
         return _host.Run(
             form,
             CreateModalOptions(options),
             layout => currentFooter.Count == 0
                 ? ModalFormLayout.BodyOnly(layout.ContentBounds)
                 : ModalFormLayout.WithFooter(layout.ContentBounds, FooterHeight(currentFooter)),
-            formEvent => ToLoopResult(handle(formEvent), form),
-            prepareRender: () =>
+            formEvent =>
             {
-                IReadOnlyList<FormRow> body = rows() ?? throw new InvalidOperationException("Form rows cannot be null.");
-                currentFooter = footer?.Invoke() ?? [];
-                form.SetRows(body, currentFooter);
+                FormDialogOutcome<TResult> outcome = handle(formEvent);
+                if (outcome.FocusRowId is not null)
+                    RefreshRows();
+                return ToLoopResult(outcome, form);
             },
+            prepareRender: RefreshRows,
             beginRenderScope: options.Theme is null ? null : () => UiTheme.UseTemporary(options.Theme()),
             cancellationToken: cancellationToken);
     }

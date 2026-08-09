@@ -94,7 +94,6 @@ public static class FormControls
     /// <summary>Creates a standard button row with the conventional actions identity.</summary>
     public static ButtonRow Buttons(params DialogButton[] buttons) => Buttons("actions", buttons);
 
-    /// <summary>Creates a segmented one-line choice row. The selected value must exist in <paramref name="values"/>.</summary>
     /// <summary>Creates a segmented one-line choice row, using <paramref name="fallbackValue"/> when the selected value is absent.</summary>
     public static ChoiceFormRow<T> Choice<T>(
         string id,
@@ -131,7 +130,6 @@ public static class FormControls
         string? disabledReason = null) =>
         new(CreateChoice(values, format, selectedValue, comparer), label) { Id = RequiredId(id), Enabled = enabled, DisabledReason = disabledReason };
 
-    /// <summary>Creates a multi-line choice row; <paramref name="itemsPerRow"/> controls its visible grouping.</summary>
     /// <summary>Creates a multi-line choice row with an explicit fallback value; <paramref name="itemsPerRow"/> controls its visible grouping.</summary>
     public static MultiLineChoiceFormRow<T> MultiLineChoice<T>(
         string id,

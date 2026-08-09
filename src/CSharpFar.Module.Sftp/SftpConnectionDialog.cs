@@ -33,12 +33,17 @@ internal sealed class SftpConnectionDialog
     private const int DialogHeight = 18;
 
     private readonly FormFieldFactory _fields;
-    private readonly FormDialogs _forms;
+    private readonly DialogService _dialogs;
 
-    public SftpConnectionDialog(ModalDialogHost modalDialogs, FormFieldFactory fields)
+    public SftpConnectionDialog(DialogService dialogs, FormFieldFactory fields)
     {
-        _forms = new FormDialogs(modalDialogs);
+        _dialogs = dialogs ?? throw new ArgumentNullException(nameof(dialogs));
         _fields = fields ?? throw new ArgumentNullException(nameof(fields));
+    }
+
+    internal SftpConnectionDialog(ModalDialogHost modalDialogs, FormFieldFactory fields)
+        : this(new DialogService(modalDialogs, fields), fields)
+    {
     }
 
     public SftpConnectionDialogResult? Show(
@@ -78,7 +83,7 @@ internal sealed class SftpConnectionDialog
         "actions",
             DialogButton.Default("submit", submitLabel, submitLabel[0]),
             DialogButton.Cancel());
-        return _forms.Show(
+        return _dialogs.Form(
             new FormDialogOptions(
                 connection is null ? "SFTP connection" : "Edit SFTP connection",
                 DialogWidth, DialogHeight, MinWidth: 42, MinHeight: 8),

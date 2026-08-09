@@ -12,11 +12,11 @@ internal sealed class CompareOptionsDialog
     private const int DialogHeight = 26;
 
     private readonly FormFieldFactory _fields;
-    private readonly FormDialogs _forms;
+    private readonly DialogService _dialogs;
 
-    public CompareOptionsDialog(ModalDialogHost modalDialogs, FormFieldFactory fields)
+    public CompareOptionsDialog(DialogService dialogs, FormFieldFactory fields)
     {
-        _forms = new FormDialogs(modalDialogs);
+        _dialogs = dialogs ?? throw new ArgumentNullException(nameof(dialogs));
         _fields = fields ?? throw new ArgumentNullException(nameof(fields));
     }
 
@@ -62,7 +62,7 @@ internal sealed class CompareOptionsDialog
             ]);
         string? error = null;
 
-        return _forms.Show(
+        return _dialogs.Form(
             new FormDialogOptions(
                 mode == CompareMode.FileSet ? "Compare file sets" : "Compare folders",
                 DialogWidth,

@@ -29,11 +29,11 @@ internal sealed class SettingsDialog
     private static readonly PanelViewMode[] ViewModes = [PanelViewMode.Full, PanelViewMode.BriefTwoColumns];
     private static readonly string[] PaletteNames = [.. PaletteRegistry.Names];
 
-    private readonly FormDialogs _forms;
+    private readonly DialogService _dialogs;
 
-    public SettingsDialog(ModalDialogHost modalDialogs)
+    public SettingsDialog(DialogService dialogs)
     {
-        _forms = new FormDialogs(modalDialogs);
+        _dialogs = dialogs ?? throw new ArgumentNullException(nameof(dialogs));
     }
 
     /// <summary>
@@ -51,7 +51,7 @@ internal sealed class SettingsDialog
         var palette = FormControls.CompactChoice(PaletteRowId, "Palette", PaletteNames, static name => name, paletteName, StringComparer.OrdinalIgnoreCase);
         var fileHighlighting = FormControls.CheckBox(FileHighlightingRowId, "File highlighting", fileHighlightingEnabled);
         var syntaxHighlighting = FormControls.CheckBox(EditorSyntaxHighlightingRowId, "Editor syntax highlighting", editorSyntaxHighlightingEnabled);
-        return _forms.Show(
+        return _dialogs.Form(
             new FormDialogOptions("Settings", DialogWidth, DialogHeight)
             {
                 Layout = new FormLayoutOptions(CursorPolicy: FormCursorPolicy.Hidden),

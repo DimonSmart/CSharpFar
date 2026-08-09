@@ -109,6 +109,7 @@ internal sealed class ApplicationCommandContext
     {
         _interactiveSurfaces = interactiveSurfaces;
         ModalDialogs = modalDialogs;
+        Dialogs = new DialogService(modalDialogs, fields);
         Controller = controller;
         FileLauncher = fileLauncher;
         FileOperations = fileOperations;
@@ -147,6 +148,8 @@ internal sealed class ApplicationCommandContext
     }
 
     public ModalDialogHost ModalDialogs { get; }
+
+    public DialogService Dialogs { get; }
 
     public ConsolePalette Palette => _session.App.Palette;
 
