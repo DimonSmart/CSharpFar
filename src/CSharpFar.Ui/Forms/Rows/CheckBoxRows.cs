@@ -4,7 +4,7 @@ using CSharpFar.Console.Models;
 
 namespace CSharpFar.Ui;
 
-public sealed class CheckBoxRow : FormRow, IFormCursorProvider
+public sealed class CheckBoxRow : FormRow, IFormFocusTarget, IFormCursorProvider
 {
     internal override FormRowRole Role { get; init; } = FormRowRole.Option;
 
@@ -77,7 +77,7 @@ public sealed class CheckBoxRow : FormRow, IFormCursorProvider
     }
 }
 
-public sealed class TriStateCheckBoxRow : FormRow, IFormCursorProvider
+public sealed class TriStateCheckBoxRow : FormRow, IFormFocusTarget, IFormCursorProvider
 {
     internal override FormRowRole Role { get; init; } = FormRowRole.Option;
 

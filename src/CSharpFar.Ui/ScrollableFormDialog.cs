@@ -99,6 +99,18 @@ public sealed partial class ScrollableFormDialog
             : RowTarget(row);
     }
 
+    internal UiTargetId GetFocusTarget(IFormFocusTarget target)
+    {
+        ArgumentNullException.ThrowIfNull(target);
+
+        FormRow? row = AllRows().FirstOrDefault(value =>
+            value.IsFocusable &&
+            (ReferenceEquals(value, target) || value.FocusTarget is { } focusTarget && ReferenceEquals(focusTarget, target)));
+        return row is null
+            ? throw new ArgumentException("The focus target is not installed in this form.", nameof(target))
+            : RowTarget(row);
+    }
+
     public void SetInitialFocus(string rowId)
     {
         if (_committedFrame is not null)

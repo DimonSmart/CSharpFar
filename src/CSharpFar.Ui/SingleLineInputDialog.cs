@@ -71,7 +71,7 @@ public sealed class SingleLineInputDialog
                     ? "A value is required."
                     : options.Validate?.Invoke(text);
                 if (error is not null)
-                    return FormDialogOutcome<SingleLineInputDialogResult>.ContinueWithFocus(field.Id);
+                    return FormDialogOutcome<SingleLineInputDialogResult>.ContinueWithFocus(field);
 
                 field.AcceptHistory();
                 return FormDialogOutcome<SingleLineInputDialogResult>.Complete(new(true, text));

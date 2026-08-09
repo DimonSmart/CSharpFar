@@ -71,7 +71,7 @@ public sealed class FormDialogsTests
                 if (value.Text.Length == 0)
                 {
                     error = "Value is required";
-                    return FormDialogOutcome<string?>.ContinueWithFocus(value.Id);
+                    return FormDialogOutcome<string?>.ContinueWithFocus(value);
                 }
 
                 return FormDialogOutcome<string?>.Complete(value.Text);
@@ -79,6 +79,58 @@ public sealed class FormDialogsTests
 
         Assert.Equal("x", result);
         Assert.Equal(2, submissions);
+    }
+
+    [Fact]
+    public void Show_ValidationError_StringFocusTargetRemainsSupported()
+    {
+        var driver = new FakeConsoleDriver();
+        driver.EnqueueKey(Key(ConsoleKey.F10));
+        driver.EnqueueKey(new ConsoleKeyInfo('x', ConsoleKey.X, false, false, false));
+        driver.EnqueueKey(Key(ConsoleKey.F10));
+        var dialogs = new FormDialogs(ModalTestHost.Create(driver));
+        TextField value = new FormFieldFactory(TextFieldHistoryTestProvider.Create()).Text("value");
+
+        string result = dialogs.Show(
+            new FormDialogOptions("Validation", 30, 8),
+            rows: () => [FormControls.Text(value)],
+            handle: formEvent => formEvent.IsSubmitted
+                ? value.Text.Length == 0
+                    ? FormDialogOutcome<string>.ContinueWithFocus("value")
+                    : FormDialogOutcome<string>.Complete(value.Text)
+                : FormDialogOutcome<string>.Continue());
+
+        Assert.Equal("x", result);
+    }
+
+    [Fact]
+    public void Show_TypedFocusTargetFocusesChoiceControl()
+    {
+        var driver = new FakeConsoleDriver();
+        driver.EnqueueKey(Key(ConsoleKey.F10));
+        driver.EnqueueKey(Key(ConsoleKey.RightArrow));
+        driver.EnqueueKey(Key(ConsoleKey.Escape));
+        var dialogs = new FormDialogs(ModalTestHost.Create(driver));
+        ChoiceFormRow<string> choice = FormControls.Choice("choice", "Choice:", ["one", "two"], static value => value, "one");
+
+        _ = dialogs.Show(
+            new FormDialogOptions("Focus", 30, 8),
+            rows: () => [choice],
+            handle: formEvent => formEvent.IsSubmitted
+                ? FormDialogOutcome<object?>.ContinueWithFocus(choice)
+                : formEvent.IsCancelled
+                    ? FormDialogOutcome<object?>.Complete(null)
+                    : FormDialogOutcome<object?>.Continue());
+
+        Assert.Equal("two", choice.Value);
+    }
+
+    [Fact]
+    public void FormFocusTarget_ExcludesNonFocusableRows()
+    {
+        Assert.IsNotAssignableFrom<IFormFocusTarget>(FormControls.Label("Label"));
+        Assert.IsNotAssignableFrom<IFormFocusTarget>(FormControls.Separator());
+        Assert.IsNotAssignableFrom<IFormFocusTarget>(FormControls.Spacer());
     }
 
     [Fact]

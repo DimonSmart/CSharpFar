@@ -5,7 +5,7 @@ using CSharpFar.Core.Models;
 
 namespace CSharpFar.Ui;
 
-public sealed class DropdownSelectFormRow<T> : FormRow, IFormCursorProvider, IFormCompositeOwner, IFormLabeledRow
+public sealed class DropdownSelectFormRow<T> : FormRow, IFormFocusTarget, IFormCursorProvider, IFormCompositeOwner, IFormLabeledRow
 {
     private readonly string _label;
     private readonly DropdownSelect<T> _dropdown;

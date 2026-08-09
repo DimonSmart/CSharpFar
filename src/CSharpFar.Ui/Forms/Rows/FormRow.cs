@@ -16,6 +16,7 @@ public abstract class FormRow
     internal virtual bool SubmitOnEnter { get; init; }
     internal virtual bool IsEnabled => true;
     internal virtual bool IsFocusable => IsEnabled;
+    internal virtual IFormFocusTarget? FocusTarget => null;
     internal virtual int Height => 1;
     internal abstract void Render(FormRowRenderContext context);
     internal virtual FormInputResult HandleKey(ConsoleKeyInfo key, FormRowInputContext context) => FormInputResult.NotHandled;

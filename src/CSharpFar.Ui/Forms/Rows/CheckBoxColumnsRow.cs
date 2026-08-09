@@ -3,7 +3,7 @@ using CSharpFar.Console.Models;
 
 namespace CSharpFar.Ui;
 
-public sealed class CheckBoxColumnsRow : FormRow, IFormCursorProvider
+public sealed class CheckBoxColumnsRow : FormRow, IFormFocusTarget, IFormCursorProvider
 {
     private readonly IReadOnlyList<IReadOnlyList<CheckBoxRow>> _columns;
     private readonly int _columnGap;

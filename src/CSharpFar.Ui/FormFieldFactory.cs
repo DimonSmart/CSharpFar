@@ -40,7 +40,7 @@ public sealed class FormFieldFactory
 /// <summary>Form-scoped defaults for standard text fields.</summary>
 public sealed record TextFieldDefaults(int? Width = null, bool SubmitOnEnter = false);
 
-public sealed class TextField
+public sealed class TextField : IFormFocusTarget
 {
     private readonly CommandLineState _buffer = new();
     private readonly TextHistory? _history;

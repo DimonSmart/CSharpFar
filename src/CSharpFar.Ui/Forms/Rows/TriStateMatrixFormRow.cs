@@ -9,7 +9,7 @@ public sealed record TriStateMatrixColumn(string Id, string Label);
 public sealed record TriStateMatrixRow(string Id, string Label, IReadOnlyList<CheckState> Values);
 
 /// <summary>A compact, labeled matrix of tri-state values for related flags.</summary>
-public sealed class TriStateMatrixFormRow : FormRow, IFormCursorProvider
+public sealed class TriStateMatrixFormRow : FormRow, IFormFocusTarget, IFormCursorProvider
 {
     private const int LabelGap = 1;
     private const int ColumnGap = 1;

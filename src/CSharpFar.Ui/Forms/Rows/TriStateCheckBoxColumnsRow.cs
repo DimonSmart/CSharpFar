@@ -4,7 +4,7 @@ using CSharpFar.Console.Models;
 namespace CSharpFar.Ui;
 
 /// <summary>A compact labeled row of tri-state checkboxes using the shared form-grid mechanics.</summary>
-public sealed class TriStateCheckBoxColumnsRow : FormRow, IFormCursorProvider
+public sealed class TriStateCheckBoxColumnsRow : FormRow, IFormFocusTarget, IFormCursorProvider
 {
     private readonly string _label;
     private readonly IReadOnlyList<TriStateCheckBoxLine> _columns;
