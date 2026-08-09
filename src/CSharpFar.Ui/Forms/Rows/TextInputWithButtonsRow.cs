@@ -16,7 +16,7 @@ public sealed class TextInputWithButtonsRow : FormRow, IFormCursorProvider, IFor
     private readonly int? _inputWidth;
     private readonly IFormCompositeController _compositeController;
 
-    public TextInputWithButtonsRow(
+    internal TextInputWithButtonsRow(
         string label,
         TextField field,
         IReadOnlyList<DialogButton> buttons)

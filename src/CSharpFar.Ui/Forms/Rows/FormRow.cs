@@ -27,9 +27,9 @@ public sealed class LabelRow : FormRow
     private readonly string _text;
     private readonly CellStyle _style;
 
-    public LabelRow(string text) : this(text, FarDialogStyles.Fill) { }
+    internal LabelRow(string text) : this(text, FarDialogStyles.Fill) { }
 
-    public LabelRow(string text, CellStyle style)
+    internal LabelRow(string text, CellStyle style)
     {
         _text = text;
         _style = style;
@@ -45,9 +45,9 @@ public sealed class SeparatorRow : FormRow
 {
     private readonly CellStyle _style;
 
-    public SeparatorRow() : this(FarDialogStyles.Fill) { }
+    internal SeparatorRow() : this(FarDialogStyles.Fill) { }
 
-    public SeparatorRow(CellStyle style)
+    internal SeparatorRow(CellStyle style)
     {
         _style = style;
     }
@@ -67,9 +67,9 @@ public sealed class SpacerRow : FormRow
 {
     private readonly CellStyle _style;
 
-    public SpacerRow(int height = 1) : this(FarDialogStyles.Fill, height) { }
+    internal SpacerRow(int height = 1) : this(FarDialogStyles.Fill, height) { }
 
-    public SpacerRow(CellStyle style, int height = 1)
+    internal SpacerRow(CellStyle style, int height = 1)
     {
         if (height <= 0)
             throw new ArgumentOutOfRangeException(nameof(height));

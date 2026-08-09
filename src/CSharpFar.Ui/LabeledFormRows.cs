@@ -21,7 +21,7 @@ public sealed class LabeledTextInputRow : FormRow, IFormCursorProvider, IFormCom
         _compositeController = new TextInputCompositeController(_field, GetInputBounds);
     }
 
-    public LabeledTextInputRow(string label, TextField field)
+    internal LabeledTextInputRow(string label, TextField field)
     {
         ArgumentNullException.ThrowIfNull(field);
         _label = label;
@@ -80,7 +80,7 @@ public sealed class LabeledValueRow : FormRow, IFormLabeledRow
     private readonly string _label;
     private readonly Func<string> _value;
 
-    public LabeledValueRow(string label, Func<string> value)
+    internal LabeledValueRow(string label, Func<string> value)
     {
         _label = label;
         _value = value;
