@@ -33,11 +33,11 @@ internal sealed class SftpConnectionDialog
     private const int DialogHeight = 18;
 
     private readonly FormFieldFactory _fields;
-    private readonly ModalFormHost _formDialogs;
+    private readonly FormDialogs _forms;
 
     public SftpConnectionDialog(ModalDialogHost modalDialogs, FormFieldFactory fields)
     {
-        _formDialogs = new ModalFormHost(modalDialogs);
+        _forms = new FormDialogs(modalDialogs);
         _fields = fields ?? throw new ArgumentNullException(nameof(fields));
     }
 
@@ -78,18 +78,12 @@ internal sealed class SftpConnectionDialog
         "actions",
             DialogButton.Default("submit", submitLabel, submitLabel[0]),
             DialogButton.Cancel());
-        var form = new ScrollableFormDialog();
-
-        void PrepareRows() => form.SetRows(
-            BuildRows(state, hostKeyFingerprint),
-            FormFooter.ErrorAndButtons(() => error, actions));
-
-        return _formDialogs.Run(
-            form,
-            new ModalFormOptions(
+        return _forms.Show(
+            new FormDialogOptions(
                 connection is null ? "SFTP connection" : "Edit SFTP connection",
                 DialogWidth, DialogHeight, MinWidth: 42, MinHeight: 8),
-            static layout => ModalFormLayout.WithFooter(layout.ContentBounds, footerHeight: 2),
+            rows: () => BuildRows(state, hostKeyFingerprint),
+            footer: () => FormFooter.ErrorAndButtons(() => error, actions),
             (result) =>
             {
                 if (result.IsHandled)
@@ -111,7 +105,7 @@ internal sealed class SftpConnectionDialog
                 }
 
                 if (result.IsCancelled)
-                    return ModalDialogLoopResult<SftpConnectionDialogResult?>.Complete(null);
+                    return FormDialogOutcome<SftpConnectionDialogResult?>.Complete(null);
 
                 if (result.IsSubmitted)
                 {
@@ -123,32 +117,29 @@ internal sealed class SftpConnectionDialog
                     if (candidate is null)
                     {
                         error = "Host, user name, password, and remote root are required.";
-                        return ModalDialogLoopResult<SftpConnectionDialogResult?>.ContinueChanged;
+                        return FormDialogOutcome<SftpConnectionDialogResult?>.Continue();
                     }
 
                     SftpConnectionDialogValidationResult validation = validate(candidate);
                     if (validation.IsAccepted)
                     {
                         state.AcceptHistory();
-                        return ModalDialogLoopResult<SftpConnectionDialogResult?>.Complete(candidate);
+                        return FormDialogOutcome<SftpConnectionDialogResult?>.Complete(candidate);
                     }
 
                     if (validation.HostKeyFingerprint is not null)
                     {
                         hostKeyFingerprint = validation.HostKeyFingerprint;
                         state.TrustHostKey.Value = false;
-                        PrepareRows();
                         error = validation.ErrorMessage;
-                        return ModalDialogLoopResult<SftpConnectionDialogResult?>.ContinueWithFocus(
-                            form.GetFocusTarget("trust-host-key"));
+                        return FormDialogOutcome<SftpConnectionDialogResult?>.ContinueWithFocus("trust-host-key");
                     }
 
                     error = validation.ErrorMessage;
                 }
 
-                return ModalDialogLoopResult<SftpConnectionDialogResult?>.ContinueChanged;
-            },
-            prepareRender: PrepareRows);
+                return FormDialogOutcome<SftpConnectionDialogResult?>.Continue();
+            });
     }
 
     private static IReadOnlyList<FormRow> BuildRows(SftpFormState state, string? hostKeyFingerprint)

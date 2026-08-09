@@ -29,11 +29,11 @@ internal sealed class SettingsDialog
     private static readonly PanelViewMode[] ViewModes = [PanelViewMode.Full, PanelViewMode.BriefTwoColumns];
     private static readonly string[] PaletteNames = [.. PaletteRegistry.Names];
 
-    private readonly ModalFormHost _formDialogs;
+    private readonly FormDialogs _forms;
 
     public SettingsDialog(ModalDialogHost modalDialogs)
     {
-        _formDialogs = new ModalFormHost(modalDialogs);
+        _forms = new FormDialogs(modalDialogs);
     }
 
     /// <summary>
@@ -51,11 +51,13 @@ internal sealed class SettingsDialog
         var palette = FormControls.CompactChoice(PaletteRowId, "Palette", PaletteNames, static name => name, paletteName, StringComparer.OrdinalIgnoreCase);
         var fileHighlighting = FormControls.CheckBox(FileHighlightingRowId, "File highlighting", fileHighlightingEnabled);
         var syntaxHighlighting = FormControls.CheckBox(EditorSyntaxHighlightingRowId, "Editor syntax highlighting", editorSyntaxHighlightingEnabled);
-        var form = new ScrollableFormDialog(
-            new FormLayoutOptions(CursorPolicy: FormCursorPolicy.Hidden));
-
-        void PrepareRows() =>
-            form.SetRows(
+        return _forms.Show(
+            new FormDialogOptions("Settings", DialogWidth, DialogHeight)
+            {
+                Layout = new FormLayoutOptions(CursorPolicy: FormCursorPolicy.Hidden),
+                Theme = () => PaletteRegistry.Resolve(palette.Value),
+            },
+            rows: () =>
                 [
                     leftViewMode,
                     rightViewMode,
@@ -68,20 +70,15 @@ internal sealed class SettingsDialog
                     FormControls.Label("F10          save & close"),
                     FormControls.Label("Esc          close"),
                     FormControls.Spacer(),
-                ]);
-
-        return _formDialogs.Run(
-            form,
-            new ModalFormOptions("Settings", DialogWidth, DialogHeight),
-            static layout => ModalFormLayout.BodyOnly(layout.ContentBounds),
-            (result) =>
+                ],
+            handle: result =>
             {
                 if (result.IsCancelled)
-                    return ModalDialogLoopResult<SettingsDialogResult?>.Complete(null);
+                    return FormDialogOutcome<SettingsDialogResult?>.Complete(null);
 
                 if (result.IsSubmitted)
                 {
-                    return ModalDialogLoopResult<SettingsDialogResult?>.Complete(new SettingsDialogResult(
+                    return FormDialogOutcome<SettingsDialogResult?>.Complete(new SettingsDialogResult(
                         leftViewMode.Value,
                         rightViewMode.Value,
                         palette.Value,
@@ -89,10 +86,8 @@ internal sealed class SettingsDialog
                         syntaxHighlighting.Value));
                 }
 
-                return ModalDialogLoopResult<SettingsDialogResult?>.ContinueNoChange;
-            },
-            prepareRender: PrepareRows,
-            beginRenderScope: () => UiTheme.UseTemporary(PaletteRegistry.Resolve(palette.Value)));
+                return FormDialogOutcome<SettingsDialogResult?>.Continue();
+            });
     }
 
     private static string ViewModeLabel(PanelViewMode mode) => mode switch

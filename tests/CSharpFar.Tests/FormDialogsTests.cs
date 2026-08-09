@@ -106,5 +106,31 @@ public sealed class FormDialogsTests
         Assert.Contains(driver.WriteRecords, record => record.Text.Contains("Enabled now", StringComparison.Ordinal));
     }
 
+    [Fact]
+    public void Show_AppliesLayoutAndDynamicThemeThroughSemanticOptions()
+    {
+        var driver = new FakeConsoleDriver();
+        driver.EnqueueKey(Key(ConsoleKey.Escape));
+        var dialogs = new FormDialogs(ModalTestHost.Create(driver));
+        bool themeRequested = false;
+
+        _ = dialogs.Show(
+            new FormDialogOptions("Themed", 30, 8)
+            {
+                Layout = new FormLayoutOptions(CursorPolicy: FormCursorPolicy.Hidden),
+                Theme = () =>
+                {
+                    themeRequested = true;
+                    return PaletteRegistry.Default;
+                },
+            },
+            rows: () => [FormControls.Label("Body")],
+            handle: formEvent => formEvent.IsCancelled
+                ? FormDialogOutcome<object?>.Complete(null)
+                : FormDialogOutcome<object?>.Continue());
+
+        Assert.True(themeRequested);
+    }
+
     private static ConsoleKeyInfo Key(ConsoleKey key) => new('\0', key, false, false, false);
 }

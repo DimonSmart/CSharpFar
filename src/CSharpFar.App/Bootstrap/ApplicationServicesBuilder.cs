@@ -270,6 +270,7 @@ internal static class ApplicationServicesBuilder
             ModalDialogs = modalDialogs,
             Palette = () => session.App.Palette,
             Fields = formFields,
+            Dialogs = new DialogService(modalDialogs, formFields),
         };
         var moduleCatalog = ModuleCatalogFactory.Create(
             enableBuiltInNetworkModules ? sftpModule ?? new SftpModule() : null,
