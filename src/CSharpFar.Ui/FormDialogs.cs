@@ -1,5 +1,12 @@
 namespace CSharpFar.Ui;
 
+/// <summary>The standard window appearance for an ordinary modal form.</summary>
+public enum FormDialogAppearance
+{
+    Standard,
+    Popup,
+}
+
 /// <summary>Semantic window options for an ordinary modal form.</summary>
 public sealed record FormDialogOptions(
     string Title,
@@ -7,7 +14,18 @@ public sealed record FormDialogOptions(
     int PreferredHeight,
     int MinWidth = 20,
     int MinHeight = 8,
-    bool SubmitOnEnter = false);
+    bool SubmitOnEnter = false)
+{
+    /// <summary>Semantic form-layout preferences.</summary>
+    public FormLayoutOptions Layout { get; init; } = new();
+
+    public bool DoubleBorder { get; init; } = true;
+
+    public FormDialogAppearance Appearance { get; init; } = FormDialogAppearance.Standard;
+
+    /// <summary>Gets the theme to use while this form is displayed.</summary>
+    public Func<ConsolePalette>? Theme { get; init; }
+}
 
 /// <summary>The semantic outcome of handling an ordinary form event.</summary>
 public readonly record struct FormDialogOutcome<TResult>(
@@ -48,18 +66,12 @@ public sealed class FormDialogs
         ArgumentNullException.ThrowIfNull(rows);
         ArgumentNullException.ThrowIfNull(handle);
 
-        var form = new ScrollableFormDialog();
+        var form = new ScrollableFormDialog(options.Layout.Validate());
         IReadOnlyList<FormRow> currentFooter = [];
 
         return _host.Run(
             form,
-            new ModalFormOptions(
-                options.Title,
-                options.PreferredWidth,
-                options.PreferredHeight,
-                options.MinWidth,
-                options.MinHeight,
-                SubmitOnEnter: options.SubmitOnEnter),
+            CreateModalOptions(options),
             layout => currentFooter.Count == 0
                 ? ModalFormLayout.BodyOnly(layout.ContentBounds)
                 : ModalFormLayout.WithFooter(layout.ContentBounds, FooterHeight(currentFooter)),
@@ -70,6 +82,7 @@ public sealed class FormDialogs
                 currentFooter = footer?.Invoke() ?? [];
                 form.SetRows(body, currentFooter);
             },
+            beginRenderScope: options.Theme is null ? null : () => UiTheme.UseTemporary(options.Theme()),
             cancellationToken: cancellationToken);
     }
 
@@ -94,4 +107,21 @@ public sealed class FormDialogs
     }
 
     private static int FooterHeight(IReadOnlyList<FormRow> footer) => footer.Sum(row => row.Height);
+
+    private static ModalFormOptions CreateModalOptions(FormDialogOptions options)
+    {
+        PopupRenderOptions? popup = options.Appearance == FormDialogAppearance.Popup
+            ? PaletteStyles.DialogPopupOptions(UiTheme.Current)
+            : null;
+        return new ModalFormOptions(
+            options.Title,
+            options.PreferredWidth,
+            options.PreferredHeight,
+            options.MinWidth,
+            options.MinHeight,
+            DoubleBorder: options.DoubleBorder,
+            OuterRenderOptions: popup,
+            FrameRenderOptions: popup is null ? null : popup with { DrawShadow = false },
+            SubmitOnEnter: options.SubmitOnEnter);
+    }
 }

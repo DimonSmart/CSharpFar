@@ -5,6 +5,7 @@ namespace CSharpFar.Ui;
 
 public sealed class ModuleUiServices
 {
+    private DialogService? _dialogs;
     public required ScreenRenderer Screen { get; init; }
 
     public required ModalDialogHost ModalDialogs { get; init; }
@@ -12,6 +13,12 @@ public sealed class ModuleUiServices
     public required Func<ConsolePalette> Palette { get; init; }
 
     public required FormFieldFactory Fields { get; init; }
+
+    public DialogService Dialogs
+    {
+        get => _dialogs ??= new DialogService(ModalDialogs, Fields);
+        init => _dialogs = value ?? throw new ArgumentNullException(nameof(value));
+    }
 
     public ConsolePalette CurrentPalette => Palette();
 
@@ -34,20 +41,39 @@ public sealed class ModuleUiServices
         Screen.Restore(snapshot);
 
     public void ShowMessage(string title, string message) =>
-        new MessageDialog(ModalDialogs).Show(title, message);
+        Dialogs.Message(title, message);
 
     public int ShowMessage(string title, string message, IReadOnlyList<string> buttons) =>
-        new MessageDialog(ModalDialogs).ShowButtons(title, message, buttons);
+        Dialogs.Message(title, message, buttons);
 
-    public string? Input(string title, string prompt, string? initialText = null) =>
-        new ModuleInputDialog(ModalDialogs, Fields).Show(title, prompt, initialText);
+    public string? Input(string title, string prompt, string? initialText = null)
+    {
+        SingleLineInputDialogResult result = Dialogs.Input(new SingleLineInputDialogOptions
+        {
+            Title = title,
+            Prompt = prompt,
+            InitialText = initialText ?? string.Empty,
+            AllowEmpty = true,
+        });
+        return result.IsConfirmed ? result.Text : null;
+    }
 
     public int? ShowMenu(string title, IReadOnlyList<string> items, int selected) =>
-        new ModuleMenuDialog(ModalDialogs).Show(title, items, selected);
+        ShowMenuCore(title, items, selected);
 
     public void ShowHelp(string title, IReadOnlyList<string> lines) =>
         new ModuleHelpDialog(ModalDialogs).Show(title, lines);
 
     public bool Confirm(string title, string question, string itemName) =>
-        new ConfirmDialog(ModalDialogs).Show(title, question, itemName);
+        Dialogs.Confirm(title, question, itemName);
+
+    private int? ShowMenuCore(string title, IReadOnlyList<string> items, int selected)
+    {
+        if (items.Count == 0)
+            return null;
+
+        SelectionListDialogResult<string> result = Dialogs.Select(
+            items, static item => item, title, selected, maxVisibleRows: 10);
+        return result.IsConfirmed ? result.SelectedIndex : null;
+    }
 }
