@@ -11,7 +11,7 @@ public sealed class TextInputRow : FormRow, IFormCursorProvider, IFormCompositeO
     private readonly int? _width;
     private readonly IFormCompositeController _compositeController;
 
-    public TextInputRow(TextField field)
+    internal TextInputRow(TextField field)
     {
         ArgumentNullException.ThrowIfNull(field);
         _field = field.Input;

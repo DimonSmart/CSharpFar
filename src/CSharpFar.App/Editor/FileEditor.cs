@@ -586,7 +586,7 @@ internal sealed partial class FileEditor
 
     private void ShowFormatDialog(EditorSession session)
     {
-        var selected = new EditorFormatDialog(_modalDialogs).Show(session.Document.Format);
+        var selected = new EditorFormatDialog(new DialogService(_modalDialogs, _fields)).Show(session.Document.Format);
         if (selected is not null)
             session.Document.SetFormat(selected);
     }

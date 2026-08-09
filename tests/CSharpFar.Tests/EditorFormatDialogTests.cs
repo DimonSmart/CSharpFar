@@ -3,6 +3,7 @@ using CSharpFar.App.Editor;
 using CSharpFar.Console.Input;
 using CSharpFar.Console.Models;
 using CSharpFar.Tests.Fakes;
+using CSharpFar.Ui;
 
 namespace CSharpFar.Tests;
 
@@ -13,7 +14,7 @@ public sealed class EditorFormatDialogTests
     {
         var driver = Driver(Key(ConsoleKey.Enter));
 
-        EditorDocumentFormat? result = new EditorFormatDialog(ModalTestHost.Create(driver))
+        EditorDocumentFormat? result = Dialog(driver)
             .Show(Current(emitBom: true, EditorLineEnding.CrLf));
 
         Assert.NotNull(result);
@@ -29,7 +30,7 @@ public sealed class EditorFormatDialogTests
     {
         var driver = Driver(Key(ConsoleKey.DownArrow), Key(ConsoleKey.LeftArrow), Key(ConsoleKey.Enter));
 
-        EditorDocumentFormat? result = new EditorFormatDialog(ModalTestHost.Create(driver))
+        EditorDocumentFormat? result = Dialog(driver)
             .Show(Current(initialBom, EditorLineEnding.Lf));
 
         Assert.NotNull(result);
@@ -44,7 +45,7 @@ public sealed class EditorFormatDialogTests
     {
         var driver = Driver(Key(ConsoleKey.DownArrow), Key(ConsoleKey.RightArrow), Key(ConsoleKey.Enter));
 
-        EditorDocumentFormat? result = new EditorFormatDialog(ModalTestHost.Create(driver))
+        EditorDocumentFormat? result = Dialog(driver)
             .Show(Current(initialBom, EditorLineEnding.CrLf));
 
         Assert.NotNull(result);
@@ -59,7 +60,7 @@ public sealed class EditorFormatDialogTests
     {
         var driver = Driver(Key(ConsoleKey.DownArrow), Key(ConsoleKey.Spacebar), Key(ConsoleKey.Enter));
 
-        EditorDocumentFormat? result = new EditorFormatDialog(ModalTestHost.Create(driver))
+        EditorDocumentFormat? result = Dialog(driver)
             .Show(Current(initialBom, EditorLineEnding.CrLf));
 
         Assert.NotNull(result);
@@ -74,7 +75,7 @@ public sealed class EditorFormatDialogTests
     {
         var driver = Driver(Key(ConsoleKey.DownArrow), Key(ConsoleKey.Enter));
 
-        EditorDocumentFormat? result = new EditorFormatDialog(ModalTestHost.Create(driver))
+        EditorDocumentFormat? result = Dialog(driver)
             .Show(Current(initialBom, EditorLineEnding.Lf));
 
         Assert.NotNull(result);
@@ -90,7 +91,7 @@ public sealed class EditorFormatDialogTests
         var driver = Driver();
         EnqueueMouseClickOnRenderedText(driver, "BOM:", Key(ConsoleKey.Enter));
 
-        EditorDocumentFormat? result = new EditorFormatDialog(ModalTestHost.Create(driver))
+        EditorDocumentFormat? result = Dialog(driver)
             .Show(Current(initialBom, EditorLineEnding.CrLf));
 
         Assert.NotNull(result);
@@ -102,7 +103,7 @@ public sealed class EditorFormatDialogTests
     {
         var encodingDriver = Driver(Key(ConsoleKey.RightArrow), Key(ConsoleKey.Enter));
 
-        EditorDocumentFormat? encodingResult = new EditorFormatDialog(ModalTestHost.Create(encodingDriver))
+        EditorDocumentFormat? encodingResult = Dialog(encodingDriver)
             .Show(Current(emitBom: true, EditorLineEnding.CrLf));
 
         Assert.NotNull(encodingResult);
@@ -116,7 +117,7 @@ public sealed class EditorFormatDialogTests
             Key(ConsoleKey.RightArrow),
             Key(ConsoleKey.Enter));
 
-        EditorDocumentFormat? lineEndingResult = new EditorFormatDialog(ModalTestHost.Create(lineEndingDriver))
+        EditorDocumentFormat? lineEndingResult = Dialog(lineEndingDriver)
             .Show(Current(emitBom: true, EditorLineEnding.CrLf));
 
         Assert.NotNull(lineEndingResult);
@@ -132,7 +133,7 @@ public sealed class EditorFormatDialogTests
     {
         var driver = Driver(Key(key));
 
-        EditorDocumentFormat? result = new EditorFormatDialog(ModalTestHost.Create(driver))
+        EditorDocumentFormat? result = Dialog(driver)
             .Show(Current(emitBom: true, EditorLineEnding.CrLf));
 
         Assert.Null(result);
@@ -145,7 +146,7 @@ public sealed class EditorFormatDialogTests
         var cursorStates = new List<bool>();
         driver.BeforeReadInput = d => cursorStates.Add(d.CursorVisible);
 
-        _ = new EditorFormatDialog(ModalTestHost.Create(driver))
+        _ = Dialog(driver)
             .Show(Current(emitBom: true, EditorLineEnding.CrLf));
 
         Assert.Equal([false], cursorStates);
@@ -162,7 +163,7 @@ public sealed class EditorFormatDialogTests
             Key(ConsoleKey.Enter));
         ResizeBeforeRead(driver, readNumber: 3, width: 100, height: 30);
 
-        EditorDocumentFormat? result = new EditorFormatDialog(ModalTestHost.Create(driver))
+        EditorDocumentFormat? result = Dialog(driver)
             .Show(Current(emitBom: false, EditorLineEnding.CrLf));
 
         Assert.NotNull(result);
@@ -171,6 +172,11 @@ public sealed class EditorFormatDialogTests
 
     private static EditorDocumentFormat Current(bool emitBom, EditorLineEnding lineEnding) =>
         new(Encoding.UTF8, emitBom, lineEnding, "UTF-8");
+
+    private static EditorFormatDialog Dialog(FakeConsoleDriver driver) =>
+        new(new DialogService(
+            ModalTestHost.Create(driver),
+            new FormFieldFactory(TextFieldHistoryTestProvider.Create())));
 
     private static FakeConsoleDriver Driver(params ConsoleInputEvent[] inputs)
     {

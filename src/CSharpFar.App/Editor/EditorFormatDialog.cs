@@ -1,8 +1,6 @@
 using System.Globalization;
 using System.Text;
-using CSharpFar.Console;
 using CSharpFar.Console.Input;
-using CSharpFar.Console.Models;
 using CSharpFar.Ui;
 
 namespace CSharpFar.App.Editor;
@@ -15,11 +13,11 @@ internal sealed class EditorFormatDialog
     private const string BomRowId = "editor-format.bom";
     private const string LineEndingRowId = "editor-format.line-ending";
 
-    private readonly ModalFormHost _formDialogs;
+    private readonly DialogService _dialogs;
 
-    public EditorFormatDialog(ModalDialogHost modalDialogs)
+    public EditorFormatDialog(DialogService dialogs)
     {
-        _formDialogs = new ModalFormHost(modalDialogs);
+        _dialogs = dialogs ?? throw new ArgumentNullException(nameof(dialogs));
     }
 
     public EditorDocumentFormat? Show(EditorDocumentFormat current)
@@ -32,39 +30,30 @@ internal sealed class EditorFormatDialog
         var lineEnding = FormControls.CompactChoice(
             LineEndingRowId, "Line ends", LineEndings, static value => value.Value.ToDisplayName(),
             new LineEndingSpec(current.LineEnding), LineEndingSpecValueComparer);
-        var form = new ScrollableFormDialog(new FormLayoutOptions(CursorPolicy: FormCursorPolicy.Hidden));
-
-        void PrepareRows() =>
-            form.SetRows(
-                [
-                    encoding,
-                    bom,
-                    lineEnding,
-                    new SpacerRow(FarDialogStyles.Border),
-                    new LabelRow("Enter apply  Esc/F10 cancel  Left/Right change"),
-                ]);
-
-        return _formDialogs.Run(
-            form,
-            new ModalFormOptions("Editor format", DialogWidth, DialogHeight, SubmitOnEnter: true),
-            static layout => ModalFormLayout.BodyOnly(layout.ContentBounds),
-            (result) =>
+        return _dialogs.Form(
+            new FormDialogOptions("Editor format", DialogWidth, DialogHeight, SubmitOnEnter: true)
+            {
+                Layout = new FormLayoutOptions(CursorPolicy: FormCursorPolicy.Hidden),
+            },
+            rows: () =>
+            [
+                encoding,
+                bom,
+                lineEnding,
+                FormControls.Spacer(),
+                FormControls.Label("Enter apply  Esc/F10 cancel  Left/Right change"),
+            ],
+            handle: result =>
             {
                 if (result.IsCancelled || result.Key == ConsoleKey.F10)
-                {
-                    return ModalDialogLoopResult<EditorDocumentFormat?>.Complete(null);
-                }
+                    return FormDialogOutcome<EditorDocumentFormat?>.Complete(null);
 
-                if (result.IsSubmitted ||
-                    result.IsSubmitted)
-                {
-                    return ModalDialogLoopResult<EditorDocumentFormat?>.Complete(
+                if (result.IsSubmitted)
+                    return FormDialogOutcome<EditorDocumentFormat?>.Complete(
                         CreateFormat(encoding.Value, bom.Value, lineEnding.Value.Value));
-                }
 
-                return ModalDialogLoopResult<EditorDocumentFormat?>.ContinueNoChange;
-            },
-            prepareRender: PrepareRows);
+                return FormDialogOutcome<EditorDocumentFormat?>.Continue();
+            });
     }
 
     private static EditorDocumentFormat CreateFormat(EncodingSpec encodingSpec, bool emitBom, EditorLineEnding lineEnding)
