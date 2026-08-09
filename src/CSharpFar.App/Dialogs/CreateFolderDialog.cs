@@ -1,8 +1,5 @@
 using CSharpFar.App.Rendering;
 using CSharpFar.Console;
-using CSharpFar.Console.Input;
-using CSharpFar.Console.Models;
-using CSharpFar.Core.Models;
 using CSharpFar.Ui;
 
 namespace CSharpFar.App.Dialogs;
@@ -39,11 +36,11 @@ internal sealed class CreateFolderDialog
             new FormDialogOptions(Title, DialogWidth, DialogHeight, MinWidth: 40),
             rows: () =>
             [
-                new LabelRow(Prompt),
+                FormControls.Label(Prompt),
                 FormControls.Text(folderName),
-                new SeparatorRow(FarDialogStyles.Border),
+                FormControls.Separator(),
             ],
-            footer: () => FormFooter.ErrorAndButtons(() => error, actions),
+            footer: () => [FormControls.Error(() => error), actions],
             handle: result =>
             {
                 if (result.IsCancelled)
