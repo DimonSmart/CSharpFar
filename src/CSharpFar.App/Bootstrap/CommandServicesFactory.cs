@@ -33,6 +33,7 @@ internal static class CommandServicesFactory
         ScreenRenderer screen,
         InteractiveSurfaceHost interactiveSurfaces,
         ModalDialogHost modalDialogs,
+        DialogService dialogs,
         IShellService shell,
         IFileOperationService fileOperations,
         IFileLauncher fileLauncher,
@@ -100,6 +101,7 @@ internal static class CommandServicesFactory
         var commandContext = new ApplicationCommandContext(
             interactiveSurfaces,
             modalDialogs,
+            dialogs,
             panelController,
             fileLauncher,
             fileOperations,

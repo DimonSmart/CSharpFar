@@ -14,6 +14,7 @@ internal sealed class FileOperationUiRunner
     private static readonly UiTargetId ProgressKeyboardTarget = new("file-operation.progress");
 
     private readonly ModalDialogHost _modalDialogs;
+    private readonly DialogService _dialogs;
     private readonly Func<ConsolePalette> _palette;
     private readonly IFileOperationService _fileOperations;
     private readonly Func<bool> _showTotalProgress;
@@ -21,12 +22,14 @@ internal sealed class FileOperationUiRunner
 
     public FileOperationUiRunner(
         ModalDialogHost modalDialogs,
+        DialogService dialogs,
         Func<ConsolePalette> palette,
         IFileOperationService fileOperations,
         Func<bool> showTotalProgress,
         FormFieldFactory fields)
     {
         _modalDialogs = modalDialogs;
+        _dialogs = dialogs;
         _palette = palette;
         _fileOperations = fileOperations;
         _showTotalProgress = showTotalProgress;
@@ -35,7 +38,7 @@ internal sealed class FileOperationUiRunner
 
     public FileOperationResult Execute(FileOperationRequest request)
     {
-        var conflictDialog = new ConflictDialog(_modalDialogs, _fields, _palette());
+        var conflictDialog = new ConflictDialog(_modalDialogs, _dialogs, _fields, _palette());
         var cancelDialog = new OperationCancelDialog(_modalDialogs);
         using var cts = new CancellationTokenSource();
         var resolver = new DialogConflictResolver(conflictDialog);
@@ -114,7 +117,7 @@ internal sealed class FileOperationUiRunner
         if (result.Cancelled)
             throw new OperationCanceledException();
         if (result.Errors.Count > 0)
-            new MessageDialog(_modalDialogs).Show(
+            _dialogs.Message(
                 "File Operation",
                 $"{result.FailedCount} item(s) failed. First: {result.Errors[0].Message}");
 

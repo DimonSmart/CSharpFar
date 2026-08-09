@@ -25,7 +25,7 @@ internal sealed class FileHistoryCommand : IApplicationCommand
 
             if (!File.Exists(path))
             {
-                new MessageDialog(context.ModalDialogs).Show("File History", $"File not found: {path}");
+                context.Dialogs.Message("File History", $"File not found: {path}");
                 return ApplicationCommandResult.Rendered();
             }
 

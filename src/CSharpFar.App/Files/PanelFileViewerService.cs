@@ -15,6 +15,7 @@ internal sealed class PanelFileViewerService
 {
     private readonly InteractiveSurfaceHost _surfaces;
     private readonly ModalDialogHost _modalDialogs;
+    private readonly DialogService _dialogs;
     private readonly Func<ConsolePalette> _palette;
     private readonly FilePanelSourceRegistry _sourceRegistry;
     private readonly IHistoryStore _history;
@@ -29,6 +30,7 @@ internal sealed class PanelFileViewerService
     public PanelFileViewerService(
         InteractiveSurfaceHost surfaces,
         ModalDialogHost modalDialogs,
+        DialogService dialogs,
         Func<ConsolePalette> palette,
         FilePanelSourceRegistry sourceRegistry,
         IHistoryStore history,
@@ -42,6 +44,7 @@ internal sealed class PanelFileViewerService
     {
         _surfaces = surfaces;
         _modalDialogs = modalDialogs;
+        _dialogs = dialogs;
         _palette = palette;
         _sourceRegistry = sourceRegistry;
         _history = history;
@@ -59,7 +62,7 @@ internal sealed class PanelFileViewerService
         if (state.SourceId == PanelSourceId.Local)
         {
             _history.AddFile(new FileHistoryItem { Path = item.FullPath });
-            new FileViewer(_surfaces, _modalDialogs, _fields, _palette()).Show(item.FullPath, BuildLocalViewerOptions(state, item));
+            new FileViewer(_surfaces, _modalDialogs, _dialogs, _fields, _palette()).Show(item.FullPath, BuildLocalViewerOptions(state, item));
             _safeRefresh(state, _visibleRows(_panelSideForState(state)));
             return;
         }
@@ -74,7 +77,7 @@ internal sealed class PanelFileViewerService
         }
 
         _history.AddFile(new FileHistoryItem { Path = $"{item.SourceId}:{item.SourcePath}" });
-        new FileViewer(_surfaces, _modalDialogs, _fields, _palette()).Show(
+        new FileViewer(_surfaces, _modalDialogs, _dialogs, _fields, _palette()).Show(
             item.SourcePath,
             new MemoryFileByteReader(content),
             new LargeFileViewerOptions
@@ -95,11 +98,11 @@ internal sealed class PanelFileViewerService
 
         if (state.SourceId == PanelSourceId.Local)
         {
-            new FileEditor(_surfaces, _modalDialogs, _palette(), _settings.Editor, _clipboard, _fields, null, null).Show(item.FullPath);
+            new FileEditor(_surfaces, _modalDialogs, _dialogs, _palette(), _settings.Editor, _clipboard, _fields, null, null).Show(item.FullPath);
         }
         else
         {
-            new FileEditor(_surfaces, _modalDialogs, _palette(), _settings.Editor, _clipboard, _fields, null, null, _sourceRegistry)
+            new FileEditor(_surfaces, _modalDialogs, _dialogs, _palette(), _settings.Editor, _clipboard, _fields, null, null, _sourceRegistry)
                 .Show(item.Location);
         }
     }
@@ -122,7 +125,7 @@ internal sealed class PanelFileViewerService
             EditFile = path =>
             {
                 _history.AddFile(new FileHistoryItem { Path = path });
-                new FileEditor(_surfaces, _modalDialogs, _palette(), _settings.Editor, _clipboard, _fields, null, null).Show(path);
+                new FileEditor(_surfaces, _modalDialogs, _dialogs, _palette(), _settings.Editor, _clipboard, _fields, null, null).Show(path);
             },
             CurrentFileChanged = path =>
             {

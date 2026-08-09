@@ -437,6 +437,7 @@ public sealed class Spec010FileOperationDialogTests
         var screen = new ScreenRenderer(driver);
         var runner = new FileOperationUiRunner(
             ModalTestHost.Create(screen),
+            new DialogService(ModalTestHost.Create(screen), new FormFieldFactory(TextFieldHistoryTestProvider.Create())),
             () => PaletteRegistry.Default,
             new NoOpFileOperationService(),
             () => true,
@@ -791,7 +792,8 @@ public sealed class Spec010FileOperationDialogTests
         var screen = new ScreenRenderer(driver);
         driver.EnqueueKey(new ConsoleKeyInfo('O', ConsoleKey.O, shift: true, alt: false, control: false));
 
-        var decision = new ConflictDialog(ModalTestHost.Create(screen), new FormFieldFactory(TextFieldHistoryTestProvider.Create())).Show(
+        var conflictModals = ModalTestHost.Create(screen);
+        var decision = new ConflictDialog(conflictModals, new DialogService(conflictModals, new FormFieldFactory(TextFieldHistoryTestProvider.Create())), new FormFieldFactory(TextFieldHistoryTestProvider.Create())).Show(
             new FileOperationConflict
             {
                 SourcePath = @"C:\src\a.txt",
@@ -813,7 +815,8 @@ public sealed class Spec010FileOperationDialogTests
         driver.EnqueueKey(Key(ConsoleKey.Tab));
         driver.EnqueueKey(Key(ConsoleKey.Enter));
 
-        var decision = new ConflictDialog(ModalTestHost.Create(screen), new FormFieldFactory(TextFieldHistoryTestProvider.Create())).Show(
+        var conflictModals = ModalTestHost.Create(screen);
+        var decision = new ConflictDialog(conflictModals, new DialogService(conflictModals, new FormFieldFactory(TextFieldHistoryTestProvider.Create())), new FormFieldFactory(TextFieldHistoryTestProvider.Create())).Show(
             new FileOperationConflict
             {
                 SourcePath = @"C:\src\a.txt",
@@ -832,7 +835,8 @@ public sealed class Spec010FileOperationDialogTests
         var screen = new ScreenRenderer(driver);
         driver.EnqueueKey(Key(ConsoleKey.Escape));
 
-        var decision = new ConflictDialog(ModalTestHost.Create(screen), new FormFieldFactory(TextFieldHistoryTestProvider.Create())).Show(
+        var conflictModals = ModalTestHost.Create(screen);
+        var decision = new ConflictDialog(conflictModals, new DialogService(conflictModals, new FormFieldFactory(TextFieldHistoryTestProvider.Create())), new FormFieldFactory(TextFieldHistoryTestProvider.Create())).Show(
             new FileOperationConflict
             {
                 SourcePath = @"C:\src\a.txt",
@@ -908,6 +912,7 @@ public sealed class Spec010FileOperationDialogTests
     private static FileOperationUiRunner CreateRunner(ScreenRenderer screen, IFileOperationService service) =>
         new(
             ModalTestHost.Create(screen),
+            new DialogService(ModalTestHost.Create(screen), new FormFieldFactory(TextFieldHistoryTestProvider.Create())),
             () => PaletteRegistry.Default,
             service,
             () => true,

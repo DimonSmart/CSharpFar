@@ -38,10 +38,10 @@ public sealed class LabeledTextInputRow : FormRow, IFormCursorProvider, IFormCom
     internal override bool IsEnabled => Enabled;
     int IFormLabeledRow.DesiredLabelWidth => ConsoleTextMetrics.GetCellWidth(_label);
     bool IFormLabeledRow.UseSharedLabelColumn => true;
-    public CommandLineState Buffer => _field.Buffer;
+    internal CommandLineState Buffer => _field.Buffer;
     internal FormTextInputField Input => _field;
     IFormCompositeController IFormCompositeOwner.CompositeController => _compositeController;
-    public Rect GetInputBounds(Rect rowBounds) => new(rowBounds.X, rowBounds.Y, Math.Max(0, _inputWidth ?? rowBounds.Width), rowBounds.Height);
+    internal Rect GetInputBounds(Rect rowBounds) => new(rowBounds.X, rowBounds.Y, Math.Max(0, _inputWidth ?? rowBounds.Width), rowBounds.Height);
 
     internal override void Render(FormRowRenderContext context)
     {

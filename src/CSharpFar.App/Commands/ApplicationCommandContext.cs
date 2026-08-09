@@ -71,6 +71,7 @@ internal sealed class ApplicationCommandContext
     public ApplicationCommandContext(
         InteractiveSurfaceHost interactiveSurfaces,
         ModalDialogHost modalDialogs,
+        DialogService dialogs,
         PanelController controller,
         IFileLauncher fileLauncher,
         IFileOperationService fileOperations,
@@ -109,7 +110,7 @@ internal sealed class ApplicationCommandContext
     {
         _interactiveSurfaces = interactiveSurfaces;
         ModalDialogs = modalDialogs;
-        Dialogs = new DialogService(modalDialogs, fields);
+        Dialogs = dialogs ?? throw new ArgumentNullException(nameof(dialogs));
         Controller = controller;
         FileLauncher = fileLauncher;
         FileOperations = fileOperations;
@@ -246,7 +247,7 @@ internal sealed class ApplicationCommandContext
         new HelpViewer(_interactiveSurfaces, Palette).Show();
 
     public void ViewFile(string path) =>
-        new FileViewer(_interactiveSurfaces, ModalDialogs, Fields, Palette).Show(path);
+        new FileViewer(_interactiveSurfaces, ModalDialogs, Dialogs, Fields, Palette).Show(path);
 
     public void EditFile(
         string path,
@@ -255,6 +256,7 @@ internal sealed class ApplicationCommandContext
         new FileEditor(
             _interactiveSurfaces,
             ModalDialogs,
+            Dialogs,
             Palette,
             Settings.Editor,
             TextClipboard,
@@ -276,6 +278,7 @@ internal sealed class ApplicationCommandContext
         new FileEditor(
             _interactiveSurfaces,
             ModalDialogs,
+            Dialogs,
             Palette,
             Settings.Editor,
             TextClipboard,
@@ -293,6 +296,7 @@ internal sealed class ApplicationCommandContext
         new FileEditor(
             _interactiveSurfaces,
             ModalDialogs,
+            Dialogs,
             Palette,
             Settings.Editor,
             TextClipboard,
@@ -533,13 +537,13 @@ internal sealed class ApplicationCommandContext
     }
 
     public void ShowMessage(string title, string message) =>
-        new MessageDialog(ModalDialogs).Show(title, message);
+        Dialogs.Message(title, message);
 
     public int ShowMessage(string title, string message, IReadOnlyList<string> buttons) =>
-        new MessageDialog(ModalDialogs).ShowButtons(title, message, buttons);
+        Dialogs.Message(title, message, buttons);
 
     public bool Confirm(string title, string question, string itemName) =>
-        new ConfirmDialog(ModalDialogs).Show(title, question, itemName);
+        Dialogs.Confirm(title, question, itemName);
 
     public bool HasCapability(FilePanelState state, PanelProviderCapabilities capability) =>
         (state.ProviderCapabilities & capability) == capability;
@@ -550,6 +554,7 @@ internal sealed class ApplicationCommandContext
     public FileOperationResult ExecuteFileOperation(FileOperationRequest request) =>
         new FileOperationUiRunner(
             ModalDialogs,
+            Dialogs,
             () => Palette,
             FileOperations,
             () => Settings.FileOperations.ShowTotalProgress,

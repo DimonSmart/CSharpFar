@@ -19,6 +19,7 @@ internal sealed partial class FileEditor
     private const int CustomCursorBlinkIntervalMs = 500;
 
     private readonly ModalDialogHost _modalDialogs;
+    private readonly DialogService _dialogs;
     private readonly InteractiveSurfaceHost _surfaces;
     private readonly ConsolePalette _palette;
     private readonly AppSettings.EditorSettings _settings;
@@ -38,6 +39,7 @@ internal sealed partial class FileEditor
     internal FileEditor(
         InteractiveSurfaceHost surfaces,
         ModalDialogHost modalDialogs,
+        DialogService dialogs,
         ConsolePalette? palette,
         AppSettings.EditorSettings? settings,
         ITextClipboard? clipboard,
@@ -48,6 +50,7 @@ internal sealed partial class FileEditor
     {
         _surfaces = surfaces ?? throw new ArgumentNullException(nameof(surfaces));
         _modalDialogs = modalDialogs ?? throw new ArgumentNullException(nameof(modalDialogs));
+        _dialogs = dialogs ?? throw new ArgumentNullException(nameof(dialogs));
         _palette = palette ?? PaletteRegistry.Default;
         _settings = settings ?? new AppSettings.EditorSettings();
         _fileService = new EditorFileService(_settings);
@@ -71,7 +74,7 @@ internal sealed partial class FileEditor
         _activeSource = null;
         _activeSourcePath = null;
         if (_fileService.RequiresSizeWarning(filePath) &&
-            !new ConfirmDialog(_modalDialogs).Show(
+            !_dialogs.Confirm(
                 "Editor",
                 $"File is larger than the editor warning limit ({_settings.FileSizeLimitBytes / 1024 / 1024} MB).",
                 "Open anyway?"))
@@ -86,7 +89,7 @@ internal sealed partial class FileEditor
         }
         catch (Exception ex)
         {
-            new MessageDialog(_modalDialogs).Show("Editor", ex.Message);
+            _dialogs.Message("Editor", ex.Message);
             return;
         }
 
@@ -115,7 +118,7 @@ internal sealed partial class FileEditor
         _activeSourcePath = location.SourcePath;
 
         if (_fileService.RequiresSizeWarning(source, location.SourcePath) &&
-            !new ConfirmDialog(_modalDialogs).Show(
+            !_dialogs.Confirm(
                 "Editor",
                 $"File is larger than the editor warning limit ({_settings.FileSizeLimitBytes / 1024 / 1024} MB).",
                 "Open anyway?"))
@@ -130,7 +133,7 @@ internal sealed partial class FileEditor
         }
         catch (Exception ex)
         {
-            new MessageDialog(_modalDialogs).Show("Editor", ex.Message);
+            _dialogs.Message("Editor", ex.Message);
             return;
         }
 
@@ -374,13 +377,13 @@ internal sealed partial class FileEditor
                 return true;
             case ConsoleKey.P when control:
                 if (!session.CopySelectionToCursor())
-                    new MessageDialog(_modalDialogs).Show("Editor", "Select text to copy block.");
+                    _dialogs.Message("Editor", "Select text to copy block.");
                 _markMode = false;
                 _persistentSelection = false;
                 return true;
             case ConsoleKey.M when control:
                 if (!session.MoveSelectionToCursor())
-                    new MessageDialog(_modalDialogs).Show("Editor", "Select text outside the cursor to move block.");
+                    _dialogs.Message("Editor", "Select text outside the cursor to move block.");
                 _markMode = false;
                 _persistentSelection = false;
                 return true;
@@ -558,7 +561,7 @@ internal sealed partial class FileEditor
         if (!session.Document.IsDirty)
             return true;
 
-        var choice = new SaveChangesDialog(_modalDialogs).Show(Path.GetFileName(session.FilePath));
+        var choice = new SaveChangesDialog(_dialogs).Show(Path.GetFileName(session.FilePath));
         return choice switch
         {
             SaveChangesChoice.Save => SaveFile(session),
@@ -579,14 +582,14 @@ internal sealed partial class FileEditor
         }
         catch (Exception ex)
         {
-            new MessageDialog(_modalDialogs).Show("Save Error", ex.Message);
+            _dialogs.Message("Save Error", ex.Message);
             return false;
         }
     }
 
     private void ShowFormatDialog(EditorSession session)
     {
-        var selected = new EditorFormatDialog(new DialogService(_modalDialogs, _fields)).Show(session.Document.Format);
+        var selected = new EditorFormatDialog(_dialogs).Show(session.Document.Format);
         if (selected is not null)
             session.Document.SetFormat(selected);
     }
@@ -626,7 +629,7 @@ internal sealed partial class FileEditor
             UseRegex: false));
         if (match is null)
         {
-            new MessageDialog(_modalDialogs).Show("Find", "Text not found.");
+            _dialogs.Message("Find", "Text not found.");
             return;
         }
 
@@ -648,11 +651,11 @@ internal sealed partial class FileEditor
 
     private void ShowReplaceDialog(EditorSession session)
     {
-        string? pattern = new InputDialog(_modalDialogs, _fields).Show("Replace", "Find", allowEmpty: false);
+        string? pattern = new InputDialog(_dialogs).Show("Replace", "Find", allowEmpty: false);
         if (pattern is null)
             return;
 
-        string? replacement = new InputDialog(_modalDialogs, _fields).Show("Replace", "With", allowEmpty: true);
+        string? replacement = new InputDialog(_dialogs).Show("Replace", "With", allowEmpty: true);
         if (replacement is null)
             return;
 
@@ -663,17 +666,17 @@ internal sealed partial class FileEditor
         }
         catch (ArgumentException ex)
         {
-            new MessageDialog(_modalDialogs).Show("Replace", ex.Message);
+            _dialogs.Message("Replace", ex.Message);
             return;
         }
 
         if (count == 0)
-            new MessageDialog(_modalDialogs).Show("Replace", "Text not found.");
+            _dialogs.Message("Replace", "Text not found.");
     }
 
     private void ShowSyntaxLanguageDialog(EditorSession session)
     {
-        string? language = new InputDialog(_modalDialogs, _fields).Show(
+        string? language = new InputDialog(_dialogs).Show(
             "Syntax",
             "Language",
             allowEmpty: false,
@@ -684,7 +687,7 @@ internal sealed partial class FileEditor
 
     private void ShowSyntaxThemeDialog(EditorSession session)
     {
-        string? theme = new InputDialog(_modalDialogs, _fields).Show(
+        string? theme = new InputDialog(_dialogs).Show(
             "Syntax",
             "Theme",
             allowEmpty: false,

@@ -11,16 +11,16 @@ public enum SaveChangesChoice { Save, Discard, Cancel }
 /// </summary>
 internal sealed class SaveChangesDialog
 {
-    private readonly ModalDialogHost _modalDialogs;
+    private readonly DialogService _dialogs;
 
-    public SaveChangesDialog(ModalDialogHost modalDialogs)
+    public SaveChangesDialog(DialogService dialogs)
     {
-        _modalDialogs = modalDialogs;
+        _dialogs = dialogs;
     }
 
     public SaveChangesChoice Show(string fileName)
     {
-        var result = new ChoiceDialog(_modalDialogs).Show(new ChoiceDialogOptions
+        var result = _dialogs.Choice(new ChoiceDialogOptions
         {
             Title = "Save Changes?",
             Lines = [Truncate($"\"{fileName}\" has been modified.", 48)],

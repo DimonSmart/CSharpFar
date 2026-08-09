@@ -30,7 +30,7 @@ internal sealed class DirectoryHistoryCommand : IApplicationCommand
 
             if (!Directory.Exists(path))
             {
-                new MessageDialog(context.ModalDialogs).Show("Directory History", $"Directory not found: {path}");
+                context.Dialogs.Message("Directory History", $"Directory not found: {path}");
                 return ApplicationCommandResult.Rendered();
             }
 
@@ -41,7 +41,7 @@ internal sealed class DirectoryHistoryCommand : IApplicationCommand
             }
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
             {
-                new MessageDialog(context.ModalDialogs).Show("Directory History", ex.Message);
+                context.Dialogs.Message("Directory History", ex.Message);
             }
 
             return ApplicationCommandResult.Rendered();
