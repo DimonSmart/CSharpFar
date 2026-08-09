@@ -36,7 +36,7 @@ internal sealed class DeleteCommand : IApplicationCommand
             ? "Do you wish to move to the Recycle Bin?"
             : "Do you wish to delete permanently?";
         if (context.Settings.Ui.ConfirmDelete &&
-            !new ConfirmDialog(context.ModalDialogs).Show("Delete", confirmation, itemName))
+            !context.Dialogs.Confirm("Delete", confirmation, itemName))
         {
             return ApplicationCommandResult.Rendered();
         }
@@ -59,7 +59,7 @@ internal sealed class DeleteCommand : IApplicationCommand
         catch (OperationCanceledException) { }
         catch (Exception ex)
         {
-            new MessageDialog(context.ModalDialogs).Show("Delete Error", ex.Message);
+            context.Dialogs.Message("Delete Error", ex.Message);
         }
 
         context.RefreshPanels();

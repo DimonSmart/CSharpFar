@@ -1074,6 +1074,7 @@ public sealed class FileEditorTests : IDisposable
         var editor = new FileEditor(
             host.Surfaces,
             host.ModalDialogs,
+            new DialogService(host.ModalDialogs, new FormFieldFactory(new SingleLineTextHistoryRegistry(new InMemorySingleLineTextHistoryStore()))),
             null,
             settings,
             clipboard,

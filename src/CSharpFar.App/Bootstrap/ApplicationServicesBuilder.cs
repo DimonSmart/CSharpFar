@@ -245,9 +245,11 @@ internal static class ApplicationServicesBuilder
             side => callbacks.VisibleRowsForSide(side),
             state => callbacks.ClosePanelQuickSearchForState(state),
             searchResults.RefreshPanel);
+        var dialogs = new DialogService(modalDialogs, formFields);
         var panelFileViewer = new PanelFileViewerService(
             interactiveSurfaces,
             modalDialogs,
+            dialogs,
             () => session.App.Palette,
             effectiveSourceRegistry,
             effectiveHistory,
@@ -270,7 +272,7 @@ internal static class ApplicationServicesBuilder
             ModalDialogs = modalDialogs,
             Palette = () => session.App.Palette,
             Fields = formFields,
-            Dialogs = new DialogService(modalDialogs, formFields),
+            Dialogs = dialogs,
         };
         var moduleCatalog = ModuleCatalogFactory.Create(
             enableBuiltInNetworkModules ? sftpModule ?? new SftpModule() : null,
@@ -307,6 +309,7 @@ internal static class ApplicationServicesBuilder
             screen,
             interactiveSurfaces,
             modalDialogs,
+            dialogs,
             shell,
             fileOps,
             effectiveFileLauncher,
@@ -342,7 +345,7 @@ internal static class ApplicationServicesBuilder
             volumeService,
             effectiveFileMetadata,
             fileAttributesDialogFactory ?? (() => new FileAttributesDialog(
-                new DialogService(modalDialogs, formFields),
+                dialogs,
                 formFields,
                 canOpenSystemProperties: System.Runtime.InteropServices.RuntimeInformation.IsOSPlatform(
                     System.Runtime.InteropServices.OSPlatform.Windows))),

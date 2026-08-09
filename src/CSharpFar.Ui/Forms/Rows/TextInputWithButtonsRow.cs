@@ -32,7 +32,7 @@ public sealed class TextInputWithButtonsRow : FormRow, IFormCursorProvider, IFor
         _compositeController = new TextInputCompositeController(_field, layout => CalculateLayout(layout).InputBounds);
     }
 
-    public CommandLineState Buffer => _field.Buffer;
+    internal CommandLineState Buffer => _field.Buffer;
     public bool Enabled { get => _field.Enabled; set => _field.Enabled = value; }
     public string? DisabledReason { get => _field.DisabledReason; set => _field.DisabledReason = value; }
     internal override bool IsEnabled => Enabled;

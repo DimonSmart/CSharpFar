@@ -16,7 +16,7 @@ internal sealed class SearchFilesCommand : IApplicationCommand
         var target = context.ResolvePanelTarget(args);
         if (!CanExecute(context, args))
         {
-            new MessageDialog(context.ModalDialogs).Show(
+            context.Dialogs.Message(
                 "Search",
                 "Search is only supported for local panels.");
             return ApplicationCommandResult.Rendered();
@@ -40,7 +40,7 @@ internal sealed class SearchFilesCommand : IApplicationCommand
             }
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or DirectoryNotFoundException or ArgumentException)
             {
-                new MessageDialog(context.ModalDialogs).Show("Search", ex.Message);
+                context.Dialogs.Message("Search", ex.Message);
                 return ApplicationCommandResult.Rendered();
             }
 
@@ -56,7 +56,7 @@ internal sealed class SearchFilesCommand : IApplicationCommand
             if (result.Results.Count == 0)
             {
                 string message = result.Cancelled ? "Search cancelled. No files found." : "No files found.";
-                new MessageDialog(context.ModalDialogs).Show("Search", message);
+                context.Dialogs.Message("Search", message);
                 return ApplicationCommandResult.Rendered();
             }
 

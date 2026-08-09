@@ -12,6 +12,7 @@ internal static class UiTestCanvas
         return new FileViewer(
             host.Surfaces,
             host.ModalDialogs,
+            new DialogService(host.ModalDialogs, new FormFieldFactory(new SingleLineTextHistoryRegistry(new InMemorySingleLineTextHistoryStore()))),
             new FormFieldFactory(new SingleLineTextHistoryRegistry(new InMemorySingleLineTextHistoryStore())));
     }
 }

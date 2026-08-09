@@ -23,6 +23,7 @@ internal sealed class LargeFileViewer
         new(Targets.Child("function-key-bar"));
 
     private readonly ModalDialogHost _modalDialogs;
+    private readonly DialogService _dialogs;
     private readonly ConsolePalette _palette;
     private readonly InteractiveSurfaceHost _surfaces;
     private readonly FormFieldFactory _fields;
@@ -30,11 +31,13 @@ internal sealed class LargeFileViewer
     public LargeFileViewer(
         InteractiveSurfaceHost surfaces,
         ModalDialogHost modalDialogs,
+        DialogService dialogs,
         FormFieldFactory fields,
         ConsolePalette? palette = null)
     {
         _surfaces = surfaces ?? throw new ArgumentNullException(nameof(surfaces));
         _modalDialogs = modalDialogs;
+        _dialogs = dialogs ?? throw new ArgumentNullException(nameof(dialogs));
         _palette = palette ?? PaletteRegistry.Default;
         _fields = fields ?? throw new ArgumentNullException(nameof(fields));
     }
@@ -91,7 +94,7 @@ internal sealed class LargeFileViewer
         }
         catch (Exception ex)
         {
-            new MessageDialog(_modalDialogs).Show("Viewer", ex.Message);
+            _dialogs.Message("Viewer", ex.Message);
         }
         finally
         {
@@ -127,7 +130,7 @@ internal sealed class LargeFileViewer
         }
         catch (Exception ex)
         {
-            new MessageDialog(_modalDialogs).Show("Viewer", ex.Message);
+            _dialogs.Message("Viewer", ex.Message);
         }
     }
 
@@ -798,7 +801,7 @@ internal sealed class LargeFileViewer
 
     private void JumpToPosition(IFileByteReader reader, LargeFileViewerState state, int contentHeight)
     {
-        string? input = new InputDialog(_modalDialogs, _fields).Show(
+        string? input = new InputDialog(_dialogs).Show(
             "Viewer",
             state.IsHexMode ? "Percent or byte offset:" : "Line number or percent:",
             validate: text => ValidateJump(text, state.IsHexMode));
@@ -894,13 +897,13 @@ internal sealed class LargeFileViewer
         }
         catch (ArgumentException ex)
         {
-            new MessageDialog(_modalDialogs).Show("Find", ex.Message);
+            _dialogs.Message("Find", ex.Message);
             return;
         }
 
         if (match is null)
         {
-            new MessageDialog(_modalDialogs).Show("Find", "Text not found.");
+            _dialogs.Message("Find", "Text not found.");
             return;
         }
 
@@ -925,7 +928,7 @@ internal sealed class LargeFileViewer
     {
         if (state.SearchMatch is null)
         {
-            new MessageDialog(_modalDialogs).Show("Viewer", "No active search match.");
+            _dialogs.Message("Viewer", "No active search match.");
             return;
         }
 
@@ -936,7 +939,7 @@ internal sealed class LargeFileViewer
         }
 
         if (!options.Clipboard.TrySetText(state.SearchMatch.MatchedText))
-            new MessageDialog(_modalDialogs).Show("Viewer", "Could not copy text to clipboard.");
+            _dialogs.Message("Viewer", "Could not copy text to clipboard.");
     }
 
     private void EditCurrentFile(
@@ -1083,7 +1086,7 @@ internal sealed class LargeFileViewer
     }
 
     private void ShowUnsupported(string command) =>
-        new MessageDialog(_modalDialogs).Show("Viewer", $"{command} is not supported yet.");
+        _dialogs.Message("Viewer", $"{command} is not supported yet.");
 
     private static string? ValidateJump(string text, bool binary)
     {

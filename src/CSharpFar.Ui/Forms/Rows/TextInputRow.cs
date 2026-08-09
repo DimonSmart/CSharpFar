@@ -32,7 +32,7 @@ public sealed class TextInputRow : FormRow, IFormCursorProvider, IFormCompositeO
         _compositeController = new TextInputCompositeController(_field, layout => GetInputBounds(layout.RowBounds));
     }
 
-    public CommandLineState Buffer => _field.Buffer;
+    internal CommandLineState Buffer => _field.Buffer;
     internal FormTextInputField Input => _field;
     internal override FormRowRole Role { get; init; } = FormRowRole.TextInput;
     public bool Enabled { get => _field.Enabled; set => _field.Enabled = value; }
@@ -41,7 +41,7 @@ public sealed class TextInputRow : FormRow, IFormCursorProvider, IFormCompositeO
     public int? Width => _width;
     IFormCompositeController IFormCompositeOwner.CompositeController => _compositeController;
 
-    public Rect GetInputBounds(Rect rowBounds) =>
+    internal Rect GetInputBounds(Rect rowBounds) =>
         new(rowBounds.X, rowBounds.Y, Math.Min(rowBounds.Width, _width ?? rowBounds.Width), rowBounds.Height);
 
     internal override void Render(FormRowRenderContext context)

@@ -54,7 +54,7 @@ internal sealed class RenameCommand : IApplicationCommand
         catch (OperationCanceledException) { }
         catch (Exception ex)
         {
-            new MessageDialog(context.ModalDialogs).Show("Rename Error", ex.Message);
+            context.Dialogs.Message("Rename Error", ex.Message);
         }
 
         context.RefreshPanels();

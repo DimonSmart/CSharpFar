@@ -19,16 +19,19 @@ internal sealed class ConflictDialog
     private const string CancelButton = "cancel";
 
     private readonly ModalDialogHost _modalDialogs;
+    private readonly DialogService _dialogs;
     private readonly ConsolePalette _palette;
     private readonly FormFieldFactory _fields;
     private readonly ModalDialogRenderer _modalRenderer = new();
 
     public ConflictDialog(
         ModalDialogHost modalDialogs,
+        DialogService dialogs,
         FormFieldFactory fields,
         ConsolePalette? palette = null)
     {
         _modalDialogs = modalDialogs;
+        _dialogs = dialogs;
         _palette = palette ?? PaletteRegistry.Default;
         _fields = fields;
     }
@@ -117,7 +120,7 @@ internal sealed class ConflictDialog
         if (rememberChoice)
             return FileOperationConflictDecision.FromMode(ConflictDecisionMode.RenameAll);
 
-        string? renamed = new InputDialog(_modalDialogs, _fields).Show(
+        string? renamed = new InputDialog(_dialogs).Show(
             "Rename",
             "New destination:",
             initialText: conflict.DestinationPath);

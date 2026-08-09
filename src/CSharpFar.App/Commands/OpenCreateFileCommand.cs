@@ -42,7 +42,7 @@ internal sealed class OpenCreateFileCommand : IApplicationCommand
         }
         catch (Exception ex) when (ex is ArgumentException or NotSupportedException or PathTooLongException or IOException)
         {
-            new MessageDialog(context.ModalDialogs).Show("Editor", ex.Message);
+            context.Dialogs.Message("Editor", ex.Message);
             return ApplicationCommandResult.Rendered();
         }
 

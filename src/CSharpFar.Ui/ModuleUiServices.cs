@@ -5,7 +5,6 @@ namespace CSharpFar.Ui;
 
 public sealed class ModuleUiServices
 {
-    private DialogService? _dialogs;
     public required ScreenRenderer Screen { get; init; }
 
     /// <summary>Low-level escape hatch for custom modal UI with its own composition or lifecycle.</summary>
@@ -16,11 +15,7 @@ public sealed class ModuleUiServices
     public required FormFieldFactory Fields { get; init; }
 
     /// <summary>Recommended API for standard module dialogs and forms.</summary>
-    public DialogService Dialogs
-    {
-        get => _dialogs ??= new DialogService(ModalDialogs, Fields);
-        init => _dialogs = value ?? throw new ArgumentNullException(nameof(value));
-    }
+    public required DialogService Dialogs { get; init; }
 
     public ConsolePalette CurrentPalette => Palette();
 

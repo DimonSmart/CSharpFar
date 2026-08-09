@@ -11,17 +11,20 @@ internal sealed class FileViewer
 {
     private readonly InteractiveSurfaceHost _surfaces;
     private readonly ModalDialogHost _modalDialogs;
+    private readonly DialogService _dialogs;
     private readonly ConsolePalette _palette;
     private readonly FormFieldFactory _fields;
 
     public FileViewer(
         InteractiveSurfaceHost surfaces,
         ModalDialogHost modalDialogs,
+        DialogService dialogs,
         FormFieldFactory fields,
         ConsolePalette? palette = null)
     {
         _surfaces = surfaces;
         _modalDialogs = modalDialogs;
+        _dialogs = dialogs ?? throw new ArgumentNullException(nameof(dialogs));
         _palette = palette ?? PaletteRegistry.Default;
         _fields = fields ?? throw new ArgumentNullException(nameof(fields));
     }
@@ -30,24 +33,24 @@ internal sealed class FileViewer
     {
         if (!File.Exists(filePath))
         {
-            new MessageDialog(_modalDialogs).Show("Viewer", "File not found.");
+            _dialogs.Message("Viewer", "File not found.");
             return;
         }
 
-        new LargeFileViewer(_surfaces, _modalDialogs, _fields, _palette).Show(filePath);
+        new LargeFileViewer(_surfaces, _modalDialogs, _dialogs, _fields, _palette).Show(filePath);
     }
 
     internal void Show(string filePath, LargeFileViewerOptions options)
     {
         if (!File.Exists(filePath))
         {
-            new MessageDialog(_modalDialogs).Show("Viewer", "File not found.");
+            _dialogs.Message("Viewer", "File not found.");
             return;
         }
 
-        new LargeFileViewer(_surfaces, _modalDialogs, _fields, _palette).Show(filePath, options);
+        new LargeFileViewer(_surfaces, _modalDialogs, _dialogs, _fields, _palette).Show(filePath, options);
     }
 
     internal void Show(string displayPath, IFileByteReader reader, LargeFileViewerOptions? options = null) =>
-        new LargeFileViewer(_surfaces, _modalDialogs, _fields, _palette).ShowVirtual(displayPath, reader, options);
+        new LargeFileViewer(_surfaces, _modalDialogs, _dialogs, _fields, _palette).ShowVirtual(displayPath, reader, options);
 }

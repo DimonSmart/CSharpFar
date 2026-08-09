@@ -38,7 +38,7 @@ internal sealed class MoveCommand : IApplicationCommand
 
         if (target.State.SourceId != target.PassiveState.SourceId && sources.Count > 0)
         {
-            new MessageDialog(context.ModalDialogs).Show(
+            context.Dialogs.Message(
                 "Move",
                 "Cross-provider move is not supported.");
             return ApplicationCommandResult.Rendered();
@@ -69,7 +69,7 @@ internal sealed class MoveCommand : IApplicationCommand
         catch (OperationCanceledException) { }
         catch (Exception ex)
         {
-            new MessageDialog(context.ModalDialogs).Show("Move Error", ex.Message);
+            context.Dialogs.Message("Move Error", ex.Message);
         }
 
         context.RefreshPanels();
