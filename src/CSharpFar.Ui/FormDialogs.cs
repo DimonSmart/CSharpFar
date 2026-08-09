@@ -56,7 +56,7 @@ public readonly struct FormDialogOutcome<TResult>
     public static FormDialogOutcome<TResult> Complete(TResult result) => new(true, result, null);
 }
 
-/// <summary>Application-level façade for standard modal forms.</summary>
+/// <summary>Internal implementation of standard modal forms exposed through <see cref="DialogService"/>.</summary>
 internal sealed class FormDialogs
 {
     private readonly ModalFormHost _host;

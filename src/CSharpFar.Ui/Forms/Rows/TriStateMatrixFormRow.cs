@@ -19,7 +19,7 @@ public sealed class TriStateMatrixFormRow : FormRow, IFormCursorProvider
     private readonly FormGridShape _shape;
     private readonly FormGridNavigationState _navigation = new();
 
-    public TriStateMatrixFormRow(IReadOnlyList<TriStateMatrixColumn> columns, IReadOnlyList<TriStateMatrixRow> rows)
+    internal TriStateMatrixFormRow(IReadOnlyList<TriStateMatrixColumn> columns, IReadOnlyList<TriStateMatrixRow> rows)
     {
         ArgumentNullException.ThrowIfNull(columns);
         ArgumentNullException.ThrowIfNull(rows);

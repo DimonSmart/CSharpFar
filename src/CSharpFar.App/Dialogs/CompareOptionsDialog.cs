@@ -1,5 +1,3 @@
-using CSharpFar.App.Rendering;
-using CSharpFar.Console;
 using CSharpFar.Core.Comparison;
 using CSharpFar.Core.Models;
 using CSharpFar.Ui;
@@ -21,15 +19,6 @@ internal sealed class CompareOptionsDialog
     }
 
     public ComparisonOptions? Show(
-        CompareMode mode,
-        AppSettings.CompareSettings settings,
-        FilePanelState leftPanel,
-        FilePanelState rightPanel)
-    {
-        return ShowForm(mode, settings, leftPanel, rightPanel);
-    }
-
-    private ComparisonOptions? ShowForm(
         CompareMode mode,
         AppSettings.CompareSettings settings,
         FilePanelState leftPanel,

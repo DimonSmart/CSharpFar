@@ -1,5 +1,3 @@
-using CSharpFar.App.Rendering;
-using CSharpFar.Console;
 using CSharpFar.Ui;
 
 namespace CSharpFar.App.Dialogs;
