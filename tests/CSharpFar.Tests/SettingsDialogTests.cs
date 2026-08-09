@@ -20,7 +20,7 @@ public sealed class SettingsDialogTests
             Key(ConsoleKey.Enter),
             Key(ConsoleKey.F10));
 
-        SettingsDialogResult? result = new SettingsDialog(ModalTestHost.Create(driver)).Show(
+        SettingsDialogResult? result = new SettingsDialog(new DialogService(ModalTestHost.Create(driver), new FormFieldFactory(TextFieldHistoryTestProvider.Create()))).Show(
             PanelViewMode.Full,
             PanelViewMode.Full,
             "Default",
@@ -48,7 +48,7 @@ public sealed class SettingsDialogTests
                 Key(ConsoleKey.Enter),
                 Key(ConsoleKey.Escape));
 
-            SettingsDialogResult? result = new SettingsDialog(ModalTestHost.Create(driver)).Show(
+            SettingsDialogResult? result = new SettingsDialog(new DialogService(ModalTestHost.Create(driver), new FormFieldFactory(TextFieldHistoryTestProvider.Create()))).Show(
                 PanelViewMode.Full,
                 PanelViewMode.Full,
                 "Default",
@@ -71,7 +71,7 @@ public sealed class SettingsDialogTests
         var cursorStates = new List<bool>();
         driver.BeforeReadInput = d => cursorStates.Add(d.CursorVisible);
 
-        _ = new SettingsDialog(ModalTestHost.Create(driver)).Show(
+        _ = new SettingsDialog(new DialogService(ModalTestHost.Create(driver), new FormFieldFactory(TextFieldHistoryTestProvider.Create()))).Show(
             PanelViewMode.Full,
             PanelViewMode.Full,
             "Default",
@@ -93,7 +93,7 @@ public sealed class SettingsDialogTests
             Key(ConsoleKey.F10));
         ResizeBeforeRead(driver, readNumber: 3, width: 100, height: 30);
 
-        SettingsDialogResult? result = new SettingsDialog(ModalTestHost.Create(driver)).Show(
+        SettingsDialogResult? result = new SettingsDialog(new DialogService(ModalTestHost.Create(driver), new FormFieldFactory(TextFieldHistoryTestProvider.Create()))).Show(
             PanelViewMode.Full,
             PanelViewMode.Full,
             "Default",

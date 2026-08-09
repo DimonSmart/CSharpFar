@@ -13,11 +13,11 @@ internal sealed class CreateFolderDialog
 
     private readonly FormFieldFactory _fields;
 
-    private readonly FormDialogs _forms;
+    private readonly DialogService _dialogs;
 
-    public CreateFolderDialog(ModalDialogHost modalDialogs, FormFieldFactory fields)
+    public CreateFolderDialog(DialogService dialogs, FormFieldFactory fields)
     {
-        _forms = new FormDialogs(modalDialogs);
+        _dialogs = dialogs ?? throw new ArgumentNullException(nameof(dialogs));
         _fields = fields ?? throw new ArgumentNullException(nameof(fields));
     }
 
@@ -32,7 +32,7 @@ internal sealed class CreateFolderDialog
             DialogButton.Cancel());
         string? error = null;
 
-        return _forms.Show(
+        return _dialogs.Form(
             new FormDialogOptions(Title, DialogWidth, DialogHeight, MinWidth: 40),
             rows: () =>
             [

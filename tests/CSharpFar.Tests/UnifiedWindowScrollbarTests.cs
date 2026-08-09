@@ -254,7 +254,7 @@ public sealed class UnifiedWindowScrollbarTests
         var settingsDriver = new FakeConsoleDriver(width: 80, height: 8);
         settingsDriver.EnqueueKey(Key(ConsoleKey.F10));
         var settingsScreen = new ScreenRenderer(settingsDriver);
-        var settingsResult = new SettingsDialog(ModalTestHost.Create(settingsScreen)).Show(
+        var settingsResult = new SettingsDialog(new DialogService(ModalTestHost.Create(settingsScreen), new FormFieldFactory(TextFieldHistoryTestProvider.Create()))).Show(
             PanelViewMode.Full,
             PanelViewMode.Full,
             "Default",
