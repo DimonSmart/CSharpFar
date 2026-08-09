@@ -5,12 +5,14 @@ using CSharpFar.Core.Models;
 
 namespace CSharpFar.Ui;
 
-public sealed class TextInputWithButtonsRow : FormRow, IFormCursorProvider, IFormCompositeOwner, IFormLabeledRow
+public sealed class TextInputWithButtonsRow : FormRow, IFormFocusTarget, IFormCursorProvider, IFormCompositeOwner, IFormLabeledRow
 {
     internal override FormRowRole Role { get; init; } = FormRowRole.TextInput;
+    internal override IFormFocusTarget FocusTarget => _focusTarget;
 
     private readonly string _label;
     private readonly FormTextInputField _field;
+    private readonly TextField _focusTarget;
     private readonly DialogButtonBar _buttonBar;
     private DialogButtonBarState _buttonState;
     private readonly int? _inputWidth;
@@ -22,6 +24,7 @@ public sealed class TextInputWithButtonsRow : FormRow, IFormCursorProvider, IFor
         IReadOnlyList<DialogButton> buttons)
     {
         ArgumentNullException.ThrowIfNull(field);
+        _focusTarget = field;
         _label = label;
         _field = field.Input;
         _buttonBar = new DialogButtonBar(buttons);

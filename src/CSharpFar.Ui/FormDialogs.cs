@@ -31,29 +31,39 @@ public sealed record FormDialogOptions(
 public readonly struct FormDialogOutcome<TResult>
 {
     private readonly TResult? _result;
+    private readonly IFormFocusTarget? _focusTarget;
 
-    private FormDialogOutcome(bool isComplete, TResult? result, string? focusRowId)
+    private FormDialogOutcome(bool isComplete, TResult? result, string? focusRowId, IFormFocusTarget? focusTarget)
     {
         IsComplete = isComplete;
         _result = result;
         FocusRowId = focusRowId;
+        _focusTarget = focusTarget;
     }
 
     internal bool IsComplete { get; }
     internal TResult? Result => _result;
     internal string? FocusRowId { get; }
+    internal IFormFocusTarget? FocusTarget => _focusTarget;
     /// <summary>Keeps the form open and refreshes it.</summary>
-    public static FormDialogOutcome<TResult> Continue() => new(false, default, null);
+    public static FormDialogOutcome<TResult> Continue() => new(false, default, null, null);
 
     /// <summary>Keeps the form open, refreshes it, and focuses the named row.</summary>
     public static FormDialogOutcome<TResult> ContinueWithFocus(string rowId)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(rowId);
-        return new(false, default, rowId);
+        return new(false, default, rowId, null);
+    }
+
+    /// <summary>Keeps the form open, refreshes it, and focuses the specified control.</summary>
+    public static FormDialogOutcome<TResult> ContinueWithFocus(IFormFocusTarget target)
+    {
+        ArgumentNullException.ThrowIfNull(target);
+        return new(false, default, null, target);
     }
 
     /// <summary>Closes the form and returns its result.</summary>
-    public static FormDialogOutcome<TResult> Complete(TResult result) => new(true, result, null);
+    public static FormDialogOutcome<TResult> Complete(TResult result) => new(true, result, null, null);
 }
 
 /// <summary>Internal implementation of standard modal forms exposed through <see cref="DialogService"/>.</summary>
@@ -94,7 +104,7 @@ internal sealed class FormDialogs
             formEvent =>
             {
                 FormDialogOutcome<TResult> outcome = handle(formEvent);
-                if (outcome.FocusRowId is not null)
+                if (outcome.FocusRowId is not null || outcome.FocusTarget is not null)
                     RefreshRows();
                 return ToLoopResult(outcome, form);
             },
@@ -119,6 +129,9 @@ internal sealed class FormDialogs
 
         if (outcome.FocusRowId is { } rowId)
             return ModalDialogLoopResult<TResult>.ContinueWithFocus(form.GetFocusTarget(rowId));
+
+        if (outcome.FocusTarget is { } target)
+            return ModalDialogLoopResult<TResult>.ContinueWithFocus(form.GetFocusTarget(target));
 
         return ModalDialogLoopResult<TResult>.ContinueChanged;
     }

@@ -4,7 +4,7 @@ using CSharpFar.Console.Models;
 namespace CSharpFar.Ui;
 
 /// <summary>A one-line labeled choice that keeps the compact FTP-style presentation.</summary>
-public sealed class CompactChoiceFormRow<T> : FormRow, IFormCursorProvider
+public sealed class CompactChoiceFormRow<T> : FormRow, IFormFocusTarget, IFormCursorProvider
 {
     private readonly ChoiceModel<T> _choice;
     private readonly string _label;

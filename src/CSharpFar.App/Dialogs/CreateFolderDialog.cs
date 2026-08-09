@@ -53,7 +53,7 @@ internal sealed class CreateFolderDialog
                     if (accepted is not null)
                         return FormDialogOutcome<string?>.Complete(accepted);
 
-                    return FormDialogOutcome<string?>.ContinueWithFocus(folderName.Id);
+                    return FormDialogOutcome<string?>.ContinueWithFocus(folderName);
                 }
 
                 return FormDialogOutcome<string?>.Continue();

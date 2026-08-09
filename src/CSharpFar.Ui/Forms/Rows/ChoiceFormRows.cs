@@ -5,7 +5,7 @@ using CSharpFar.Core.Models;
 
 namespace CSharpFar.Ui;
 
-public sealed class ChoiceFormRow<T> : FormRow, IFormCursorProvider
+public sealed class ChoiceFormRow<T> : FormRow, IFormFocusTarget, IFormCursorProvider
 {
     internal override FormRowRole Role { get; init; } = FormRowRole.Option;
 
@@ -101,7 +101,7 @@ public sealed class ChoiceFormRow<T> : FormRow, IFormCursorProvider
     };
 }
 
-public sealed class MultiLineChoiceFormRow<T> : FormRow, IFormCursorProvider
+public sealed class MultiLineChoiceFormRow<T> : FormRow, IFormFocusTarget, IFormCursorProvider
 {
     internal override FormRowRole Role { get; init; } = FormRowRole.Option;
 

@@ -5,11 +5,12 @@ using CSharpFar.Core.Models;
 namespace CSharpFar.Ui;
 
 /// <summary>Reusable one-line form input with an inline label.</summary>
-public sealed class LabeledTextInputRow : FormRow, IFormCursorProvider, IFormCompositeOwner, IFormLabeledRow
+public sealed class LabeledTextInputRow : FormRow, IFormFocusTarget, IFormCursorProvider, IFormCompositeOwner, IFormLabeledRow
 {
     private readonly string _label;
     private readonly int? _inputWidth;
     private readonly FormTextInputField _field;
+    private readonly TextField? _focusTarget;
     private readonly IFormCompositeController _compositeController;
 
     internal LabeledTextInputRow(string label, CommandLineState buffer, SingleLineTextHistoryState? history = null,
@@ -24,6 +25,7 @@ public sealed class LabeledTextInputRow : FormRow, IFormCursorProvider, IFormCom
     internal LabeledTextInputRow(string label, TextField field)
     {
         ArgumentNullException.ThrowIfNull(field);
+        _focusTarget = field;
         _label = label;
         _inputWidth = field.Width;
         _field = field.Input;
@@ -33,6 +35,7 @@ public sealed class LabeledTextInputRow : FormRow, IFormCursorProvider, IFormCom
     }
 
     internal override FormRowRole Role { get; init; } = FormRowRole.TextInput;
+    internal override IFormFocusTarget? FocusTarget => _focusTarget;
     public bool Enabled { get => _field.Enabled; set => _field.Enabled = value; }
     public string? DisabledReason { get => _field.DisabledReason; set => _field.DisabledReason = value; }
     internal override bool IsEnabled => Enabled;

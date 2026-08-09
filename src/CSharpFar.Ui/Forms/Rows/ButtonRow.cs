@@ -2,7 +2,7 @@ using CSharpFar.Console.Input;
 
 namespace CSharpFar.Ui;
 
-public sealed class ButtonRow : FormRow
+public sealed class ButtonRow : FormRow, IFormFocusTarget
 {
     private DialogButtonBar _buttonBar;
     private DialogButton[] _buttons;

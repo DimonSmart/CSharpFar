@@ -96,8 +96,8 @@ internal sealed class CompareOptionsDialog
                     if (options is not null)
                         return FormDialogOutcome<ComparisonOptions?>.Complete(options);
 
-                    return FormDialogOutcome<ComparisonOptions?>.ContinueWithFocus(
-                        depth.Value == "Custom" ? customDepth.Id : depth.Id!);
+                    IFormFocusTarget focusTarget = depth.Value == "Custom" ? customDepth : depth;
+                    return FormDialogOutcome<ComparisonOptions?>.ContinueWithFocus(focusTarget);
                 }
 
                 return FormDialogOutcome<ComparisonOptions?>.Continue();

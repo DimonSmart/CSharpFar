@@ -5,15 +5,17 @@ using CSharpFar.Core.Models;
 
 namespace CSharpFar.Ui;
 
-public sealed class TextInputRow : FormRow, IFormCursorProvider, IFormCompositeOwner
+public sealed class TextInputRow : FormRow, IFormFocusTarget, IFormCursorProvider, IFormCompositeOwner
 {
     private readonly FormTextInputField _field;
+    private readonly TextField? _focusTarget;
     private readonly int? _width;
     private readonly IFormCompositeController _compositeController;
 
     internal TextInputRow(TextField field)
     {
         ArgumentNullException.ThrowIfNull(field);
+        _focusTarget = field;
         _field = field.Input;
         _width = field.Width;
         Id = field.Id;
@@ -35,6 +37,7 @@ public sealed class TextInputRow : FormRow, IFormCursorProvider, IFormCompositeO
     internal CommandLineState Buffer => _field.Buffer;
     internal FormTextInputField Input => _field;
     internal override FormRowRole Role { get; init; } = FormRowRole.TextInput;
+    internal override IFormFocusTarget? FocusTarget => _focusTarget;
     public bool Enabled { get => _field.Enabled; set => _field.Enabled = value; }
     public string? DisabledReason { get => _field.DisabledReason; set => _field.DisabledReason = value; }
     internal override bool IsEnabled => Enabled;
