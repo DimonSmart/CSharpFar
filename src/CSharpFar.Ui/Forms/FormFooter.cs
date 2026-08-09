@@ -4,11 +4,16 @@ namespace CSharpFar.Ui;
 
 public static class FormFooter
 {
-    public static IReadOnlyList<FormRow> ErrorAndButtons(Func<string?> error, ButtonRow buttons)
+    internal static FormRow Error(Func<string?> error)
     {
         ArgumentNullException.ThrowIfNull(error);
+        return new DynamicLabelRow(error, FarDialogStyles.Error);
+    }
+
+    public static IReadOnlyList<FormRow> ErrorAndButtons(Func<string?> error, ButtonRow buttons)
+    {
         ArgumentNullException.ThrowIfNull(buttons);
-        return [new DynamicLabelRow(error, FarDialogStyles.Error), buttons];
+        return [Error(error), buttons];
     }
 
     private sealed class DynamicLabelRow(Func<string?> text, CellStyle style) : FormRow

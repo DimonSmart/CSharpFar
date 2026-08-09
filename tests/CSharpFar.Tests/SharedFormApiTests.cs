@@ -80,6 +80,37 @@ public sealed class SharedFormApiTests
         Assert.IsType<ButtonRow>(footer[1]);
     }
 
+    [Fact]
+    public void FormControls_SemanticStaticRowsRenderStandardContent()
+    {
+        string error = "First error";
+        FormRow label = FormControls.Label("Details");
+        FormRow separator = FormControls.Separator();
+        FormRow spacer = FormControls.Spacer();
+        FormRow errorRow = FormControls.Error(() => error);
+        var driver = new FakeConsoleDriver(12, 4);
+        var screen = new ScreenRenderer(driver);
+
+        UiTestRender.Render(screen, canvas =>
+        {
+            label.Render(new FormRowRenderContext(canvas, new Rect(0, 0, 12, 1), focused: false));
+            separator.Render(new FormRowRenderContext(canvas, new Rect(0, 1, 12, 1), focused: false));
+            spacer.Render(new FormRowRenderContext(canvas, new Rect(0, 2, 12, 1), focused: false));
+            errorRow.Render(new FormRowRenderContext(canvas, new Rect(0, 3, 12, 1), focused: false));
+        });
+
+        Assert.StartsWith("Details", driver.GetRow(0));
+        Assert.Equal("────────────", driver.GetRow(1));
+        Assert.Equal("            ", driver.GetRow(2));
+        Assert.StartsWith("First error", driver.GetRow(3));
+
+        error = "Changed";
+        UiTestRender.Render(screen, canvas =>
+            errorRow.Render(new FormRowRenderContext(canvas, new Rect(0, 3, 12, 1), focused: false)));
+
+        Assert.StartsWith("Changed", driver.GetRow(3));
+    }
+
     private static UiRoutedInput<ScrollableFormFrame> Routed(ConsoleKey key) =>
         new(new KeyConsoleInputEvent(Key(key)), new ScrollableFormFrame(default, default, null, 1, 0, 0, [], null), null, UiInputRouteKind.Layer);
 

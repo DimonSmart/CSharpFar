@@ -62,12 +62,12 @@ internal sealed class SettingsDialog
                     palette,
                     fileHighlighting,
                     syntaxHighlighting,
-                    new SpacerRow(),
-                    new LabelRow("Enter/Space  change value"),
-                    new LabelRow("Up/Down      select item"),
-                    new LabelRow("F10          save & close"),
-                    new LabelRow("Esc          close"),
-                    new SpacerRow(),
+                    FormControls.Spacer(),
+                    FormControls.Label("Enter/Space  change value"),
+                    FormControls.Label("Up/Down      select item"),
+                    FormControls.Label("F10          save & close"),
+                    FormControls.Label("Esc          close"),
+                    FormControls.Spacer(),
                 ]);
 
         return _formDialogs.Run(

@@ -1,7 +1,5 @@
 using CSharpFar.App.Rendering;
 using CSharpFar.Console;
-using CSharpFar.Console.Input;
-using CSharpFar.Console.Models;
 using CSharpFar.Core.Comparison;
 using CSharpFar.Core.Models;
 using CSharpFar.Ui;
@@ -14,11 +12,11 @@ internal sealed class CompareOptionsDialog
     private const int DialogHeight = 26;
 
     private readonly FormFieldFactory _fields;
-    private readonly ModalFormHost _formDialogs;
+    private readonly FormDialogs _forms;
 
     public CompareOptionsDialog(ModalDialogHost modalDialogs, FormFieldFactory fields)
     {
-        _formDialogs = new ModalFormHost(modalDialogs);
+        _forms = new FormDialogs(modalDialogs);
         _fields = fields ?? throw new ArgumentNullException(nameof(fields));
     }
 
@@ -28,10 +26,10 @@ internal sealed class CompareOptionsDialog
         FilePanelState leftPanel,
         FilePanelState rightPanel)
     {
-        return RunLoop(mode, settings, leftPanel, rightPanel);
+        return ShowForm(mode, settings, leftPanel, rightPanel);
     }
 
-    private ComparisonOptions? RunLoop(
+    private ComparisonOptions? ShowForm(
         CompareMode mode,
         AppSettings.CompareSettings settings,
         FilePanelState leftPanel,
@@ -62,11 +60,16 @@ internal sealed class CompareOptionsDialog
                 DialogButton.Default("compare", "Compare", 'C'),
                 DialogButton.Cancel(hotKey: 'A'),
             ]);
-        var form = new ScrollableFormDialog();
         string? error = null;
 
-        void PrepareRows() =>
-            form.SetRows(BuildRows(
+        return _forms.Show(
+            new FormDialogOptions(
+                mode == CompareMode.FileSet ? "Compare file sets" : "Compare folders",
+                DialogWidth,
+                DialogHeight,
+                52,
+                12),
+            rows: () => BuildRows(
                 mode,
                 leftPanel,
                 rightPanel,
@@ -80,16 +83,11 @@ internal sealed class CompareOptionsDialog
                 tolerance,
                 nameComparison,
                 fileSetMatch),
-                FormFooter.ErrorAndButtons(() => error, buttons));
-
-        return _formDialogs.Run(
-            form,
-            new ModalFormOptions(mode == CompareMode.FileSet ? "Compare file sets" : "Compare folders", DialogWidth, DialogHeight, 52, 12),
-            static layout => ModalFormLayout.WithFooter(layout.ContentBounds, footerHeight: 2),
-            (result) =>
+            footer: () => [FormControls.Error(() => error), buttons],
+            handle: result =>
             {
                 if (result.IsCancelled)
-                    return ModalDialogLoopResult<ComparisonOptions?>.Complete(null);
+                    return FormDialogOutcome<ComparisonOptions?>.Complete(null);
 
                 if (result.IsSubmitted)
                 {
@@ -107,12 +105,14 @@ internal sealed class CompareOptionsDialog
                         fileSetMatch.Value,
                         ref error);
                     if (options is not null)
-                        return ModalDialogLoopResult<ComparisonOptions?>.Complete(options);
+                        return FormDialogOutcome<ComparisonOptions?>.Complete(options);
+
+                    return FormDialogOutcome<ComparisonOptions?>.ContinueWithFocus(
+                        depth.Value == "Custom" ? customDepth.Id : depth.Id!);
                 }
 
-                return ModalDialogLoopResult<ComparisonOptions?>.ContinueNoChange;
-            },
-            prepareRender: PrepareRows);
+                return FormDialogOutcome<ComparisonOptions?>.Continue();
+            });
     }
 
     private static IReadOnlyList<FormRow> BuildRows(
@@ -132,11 +132,11 @@ internal sealed class CompareOptionsDialog
     {
         List<FormRow> rows =
         [
-            new LabelRow($"Left : {leftPanel.CurrentDirectory}"),
-            new LabelRow($"Right: {rightPanel.CurrentDirectory}"),
+            FormControls.Label($"Left : {leftPanel.CurrentDirectory}"),
+            FormControls.Label($"Right: {rightPanel.CurrentDirectory}"),
             ContextSelection(leftPanel, rightPanel),
-            new SeparatorRow(FarDialogStyles.Border),
-            new LabelRow("Scan"),
+            FormControls.Separator(),
+            FormControls.Label("Scan"),
             recursive,
             selectedOnly,
             depth,
@@ -144,18 +144,18 @@ internal sealed class CompareOptionsDialog
 
         if (depth.Value == "Custom")
         {
-            rows.Add(new LabelRow("Custom depth:"));
+            rows.Add(FormControls.Label("Custom depth:"));
             rows.Add(FormControls.Text(customDepth));
         }
 
-        rows.Add(new SeparatorRow(FarDialogStyles.Border));
-        rows.Add(new LabelRow("Filters"));
-        rows.Add(new LabelRow("Include masks (semicolon-separated):"));
+        rows.Add(FormControls.Separator());
+        rows.Add(FormControls.Label("Filters"));
+        rows.Add(FormControls.Label("Include masks (semicolon-separated):"));
         rows.Add(FormControls.Text(include));
-        rows.Add(new LabelRow("Exclude masks (semicolon-separated):"));
+        rows.Add(FormControls.Label("Exclude masks (semicolon-separated):"));
         rows.Add(FormControls.Text(exclude));
-        rows.Add(new SeparatorRow(FarDialogStyles.Border));
-        rows.Add(new LabelRow("Comparison"));
+        rows.Add(FormControls.Separator());
+        rows.Add(FormControls.Label("Comparison"));
         rows.Add(method);
         if (method.Value == CompareMethod.Fast)
             rows.Add(tolerance);
@@ -170,8 +170,8 @@ internal sealed class CompareOptionsDialog
         int leftCount = leftPanel.SelectedPaths.Count;
         int rightCount = rightPanel.SelectedPaths.Count;
         return leftCount + rightCount == 0
-            ? new LabelRow("Scope: current folders")
-            : new LabelRow($"Selected: left {leftCount}, right {rightCount}");
+            ? FormControls.Label("Scope: current folders")
+            : FormControls.Label($"Selected: left {leftCount}, right {rightCount}");
     }
 
     internal static ComparisonOptions? BuildOptions(

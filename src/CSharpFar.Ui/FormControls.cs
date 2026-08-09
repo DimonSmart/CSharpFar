@@ -15,6 +15,21 @@ public enum FormControlTone
 /// <summary>Canonical application-level factories for standard form controls.</summary>
 public static class FormControls
 {
+    /// <summary>Creates a non-interactive line of ordinary dialog text.</summary>
+    public static FormRow Label(string text) => new LabelRow(text);
+
+    /// <summary>Creates a standard dialog separator.</summary>
+    public static FormRow Separator() => new SeparatorRow(FarDialogStyles.Border);
+
+    /// <summary>Creates blank vertical space in a form.</summary>
+    public static FormRow Spacer(int height = 1) => new SpacerRow(height);
+
+    /// <summary>Creates an error message using the theme's error presentation.</summary>
+    public static FormRow Error(string text) => new LabelRow(text, FarDialogStyles.Error);
+
+    /// <summary>Creates an error message whose text is read when the form renders.</summary>
+    public static FormRow Error(Func<string?> text) => FormFooter.Error(text);
+
     /// <summary>Creates an unlabeled text-input row from a configured field.</summary>
     public static TextInputRow Text(TextField field) => new(field);
 
