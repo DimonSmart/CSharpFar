@@ -197,7 +197,7 @@ internal sealed class FormDialogs
                 FormSubmitResult<TResult> outcome = submit();
                 if (outcome.IsSuccess)
                 {
-                    foreach (TextField field in historyFields)
+                    foreach (TextField field in historyFields.Where(field => field.Enabled))
                         field.AcceptHistory();
                     return FormDialogOutcome<TResult?>.Complete(outcome.Result);
                 }

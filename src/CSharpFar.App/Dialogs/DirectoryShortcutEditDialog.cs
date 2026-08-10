@@ -5,7 +5,6 @@ using CSharpFar.Ui;
 namespace CSharpFar.App.Dialogs;
 
 internal sealed record DirectoryShortcutEditResult(
-    bool Accepted,
     AppSettings.DirectoryShortcutItem? Item);
 
 internal sealed class DirectoryShortcutEditDialog
@@ -27,7 +26,7 @@ internal sealed class DirectoryShortcutEditDialog
     {
     }
 
-    public DirectoryShortcutEditResult Show(
+    public DirectoryShortcutEditResult? Show(
         int number,
         AppSettings.DirectoryShortcutItem? currentItem,
         string activePanelPath)
@@ -48,23 +47,13 @@ internal sealed class DirectoryShortcutEditDialog
                 pathRow,
             ],
             footer: () => [actions],
-            (result) =>
-            {
-                if (result.IsCancelled)
-                    return FormDialogOutcome<DirectoryShortcutEditResult>.Complete(new DirectoryShortcutEditResult(false, currentItem));
-
-                if (result.IsSubmitted)
-                    return FormDialogOutcome<DirectoryShortcutEditResult>.Complete(Accepted(number, name.Text, path.Text));
-
-                return FormDialogOutcome<DirectoryShortcutEditResult>.Continue();
-            });
+            submit: () => FormSubmit.Success(Accepted(number, name.Text, path.Text)));
     }
 
     private static DirectoryShortcutEditResult Accepted(int number, string name, string path)
     {
         path = path.Trim();
         return new DirectoryShortcutEditResult(
-            true,
             path.Length == 0
                 ? null
                 : new AppSettings.DirectoryShortcutItem

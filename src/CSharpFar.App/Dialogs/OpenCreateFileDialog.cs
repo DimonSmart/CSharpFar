@@ -54,7 +54,6 @@ internal sealed class OpenCreateFileDialog
         var codePageRow = FormControls.Dropdown(
             string.Empty, _codePages, static item => item.Label, _codePages[0]);
         var actions = FormControls.OkCancel();
-        string? error = null;
         return _dialogs.Form(
             new FormDialogOptions(Title, DialogWidth, DialogHeight, MinWidth: 44),
             rows: () =>
@@ -64,49 +63,28 @@ internal sealed class OpenCreateFileDialog
                 FormControls.Spacer(),
                 FormControls.Label("Code page:"),
                 codePageRow,
-                FormControls.Error(() => error),
                 FormControls.Spacer(),
             ],
             footer: () => [actions],
-            (result) =>
-            {
-                if (result.IsCancelled)
-                    return FormDialogOutcome<OpenCreateFileDialogResult?>.Complete(null);
-
-                if (result.IsValueChanged)
-                    error = null;
-
-                if (result.IsSubmitted)
-                {
-                    EditorNewFileEncodingOption selectedCodePage = codePageRow.Value;
-                    var accepted = TrySubmit(filePath, selectedCodePage, validate, ref error);
-                    if (accepted is not null)
-                        return FormDialogOutcome<OpenCreateFileDialogResult?>.Complete(accepted);
-                }
-
-                return FormDialogOutcome<OpenCreateFileDialogResult?>.Continue();
-            });
+            submit: () => Submit(filePath, codePageRow.Value, validate));
     }
 
-    private OpenCreateFileDialogResult? TrySubmit(
+    private static FormSubmitResult<OpenCreateFileDialogResult> Submit(
         TextField filePath,
         EditorNewFileEncodingOption codePage,
-        Func<string, string?>? validate,
-        ref string? error)
+        Func<string, string?>? validate)
     {
         string path = filePath.Text.Trim();
         if (path.Length == 0)
         {
-            error = "File path is required.";
-            return null;
+            return FormSubmit.Invalid<OpenCreateFileDialogResult>("File path is required.", filePath);
         }
 
-        error = validate?.Invoke(path);
+        string? error = validate?.Invoke(path);
         if (error is not null)
-            return null;
+            return FormSubmit.Invalid<OpenCreateFileDialogResult>(error, filePath);
 
-        filePath.AcceptHistory();
-        return new OpenCreateFileDialogResult(path, codePage);
+        return FormSubmit.Success(new OpenCreateFileDialogResult(path, codePage));
     }
 
 }

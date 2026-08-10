@@ -91,7 +91,7 @@ public sealed class DirectoryShortcutApplicationIntegrationTests : IDisposable
         var result = new DirectoryShortcutEditDialog(ModalTestHost.Create(screen), new FormFieldFactory(TextFieldHistoryTestProvider.Create()))
             .Show(1, currentItem: null, _target);
 
-        Assert.True(result.Accepted);
+        Assert.NotNull(result);
         Assert.Null(result.Item);
     }
 
@@ -122,8 +122,7 @@ public sealed class DirectoryShortcutApplicationIntegrationTests : IDisposable
         var result = new DirectoryShortcutEditDialog(ModalTestHost.Create(screen), new FormFieldFactory(TextFieldHistoryTestProvider.Create()))
             .Show(1, currentItem, _root);
 
-        Assert.False(result.Accepted);
-        Assert.Same(currentItem, result.Item);
+        Assert.Null(result);
     }
 
     [Fact]
@@ -147,7 +146,7 @@ public sealed class DirectoryShortcutApplicationIntegrationTests : IDisposable
         var result = new DirectoryShortcutEditDialog(ModalTestHost.Create(screen), new FormFieldFactory(TextFieldHistoryTestProvider.Create()))
             .Show(1, currentItem: null, _target);
 
-        Assert.True(result.Accepted);
+        Assert.NotNull(result);
         Assert.Equal(_target, result.Item?.Path);
     }
 

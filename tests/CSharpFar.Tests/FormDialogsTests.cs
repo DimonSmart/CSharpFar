@@ -96,6 +96,25 @@ public sealed class FormDialogsTests
     }
 
     [Fact]
+    public void Show_StandardSubmit_DoesNotCommitDisabledHistoryField()
+    {
+        var driver = new FakeConsoleDriver();
+        driver.EnqueueKey(Key(ConsoleKey.F10));
+        ITextFieldHistoryProvider provider = TextFieldHistoryTestProvider.Create();
+        var historyId = new TextHistoryId("disabled");
+        TextField value = new FormFieldFactory(provider).Text(new TextFieldOptions("value", historyId));
+        value.Enabled = false;
+
+        string? result = new FormDialogs(ModalTestHost.Create(driver)).Show(
+            new FormDialogOptions("Disabled", 30, 8),
+            rows: () => [FormControls.Text(value)],
+            submit: () => FormSubmit.Success<string?>("accepted"));
+
+        Assert.Equal("accepted", result);
+        Assert.Empty(provider.Get(historyId).Items);
+    }
+
+    [Fact]
     public void Show_StandardSubmit_TracksHistoryFieldsAfterDynamicRowRebuild()
     {
         var driver = new FakeConsoleDriver();
