@@ -1,6 +1,8 @@
 using CSharpFar.App.Commands;
 using CSharpFar.Core.Comparison;
+using CSharpFar.Core.Controllers;
 using CSharpFar.Core.Models;
+using CSharpFar.Tests.Fakes;
 
 namespace CSharpFar.Tests;
 
@@ -24,7 +26,7 @@ public sealed class ComparisonSelectionApplierTests
 
         ComparisonSelectionApplier.Apply(Result(
             Row(CompareStatus.Different, leftTop, rightTop),
-            Row(CompareStatus.LeftOnly, leftNested, null)), left, right);
+            Row(CompareStatus.LeftOnly, leftNested, null)), left, right, Controller());
 
         Assert.Equal([leftSrc, leftTop], left.SelectedPaths.Order());
         Assert.Equal([rightTop], right.SelectedPaths);
@@ -45,13 +47,20 @@ public sealed class ComparisonSelectionApplierTests
         var left = Panel(leftRoot, Parent(P(leftRoot, "..")), Item(leftSame));
         var right = Panel(rightRoot, Parent(P(rightRoot, "..")), Item(rightSame));
 
-        ComparisonSelectionApplier.Apply(Result(Row(CompareStatus.Equal, leftSame, rightSame)), left, right);
+        ComparisonSelectionApplier.Apply(
+            Result(Row(CompareStatus.Equal, leftSame, rightSame)),
+            left,
+            right,
+            Controller());
 
         Assert.Empty(left.SelectedPaths);
         Assert.Empty(right.SelectedPaths);
     }
 
     private static string P(params string[] parts) => Path.Combine(parts);
+
+    private static PanelController Controller() =>
+        new(new FakePanelViewBuilder(new FakeFileSystemService()));
 
     private static FilePanelState Panel(string path, params FilePanelItem[] items)
     {

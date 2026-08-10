@@ -1,12 +1,16 @@
-using CSharpFar.App.Panels;
 using CSharpFar.Core.Comparison;
+using CSharpFar.Core.Controllers;
 using CSharpFar.Core.Models;
 
 namespace CSharpFar.App.Commands;
 
 internal static class ComparisonSelectionApplier
 {
-    public static void Apply(CompareResult result, FilePanelState left, FilePanelState right)
+    public static void Apply(
+        CompareResult result,
+        FilePanelState left,
+        FilePanelState right,
+        PanelController controller)
     {
         var leftPaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var rightPaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -34,8 +38,8 @@ internal static class ComparisonSelectionApplier
             }
         }
 
-        ReplaceSelection(left, leftPaths);
-        ReplaceSelection(right, rightPaths);
+        ReplaceSelection(left, leftPaths, controller);
+        ReplaceSelection(right, rightPaths, controller);
     }
 
     private static void AddVisibleMarkers(
@@ -64,7 +68,10 @@ internal static class ComparisonSelectionApplier
         return path.StartsWith(separatorTerminated, StringComparison.OrdinalIgnoreCase);
     }
 
-    private static void ReplaceSelection(FilePanelState panel, HashSet<string> paths)
+    private static void ReplaceSelection(
+        FilePanelState panel,
+        HashSet<string> paths,
+        PanelController controller)
     {
         panel.SelectedPaths.Clear();
         panel.SelectedLocations.Clear();
@@ -75,6 +82,6 @@ internal static class ComparisonSelectionApplier
             panel.SelectedLocations.Add(item.Location);
         }
 
-        panel.Summary = PanelSearchResultsSummaryBuilder.BuildSummary(panel);
+        controller.RefreshSelectionSummary(panel);
     }
 }

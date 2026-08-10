@@ -27,8 +27,8 @@ internal static class ApplicationSessionFactory
             runOptions);
         var sortMode = ResolveSortMode(settings.Panels.DefaultSortMode);
 
-        var left = new FilePanelState { CurrentLocation = leftStart, SortMode = sortMode };
-        var right = new FilePanelState { CurrentLocation = rightStart, SortMode = sortMode };
+        var left = new FilePanelState { SortMode = sortMode };
+        var right = new FilePanelState { SortMode = sortMode };
         var options = settings.Panels.Options;
         controller.LoadLocation(left, leftStart, options);
         controller.LoadLocation(right, rightStart, options);
