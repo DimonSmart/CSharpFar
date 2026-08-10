@@ -27,8 +27,6 @@ internal sealed class CreateFolderDialog
             AppTextHistoryIds.CreateFolderName,
             SubmitOnEnter: true));
         var actions = FormControls.OkCancel();
-        string? error = null;
-
         return _dialogs.Form(
             new FormDialogOptions(Title, DialogWidth, DialogHeight, MinWidth: 40),
             rows: () =>
@@ -37,43 +35,17 @@ internal sealed class CreateFolderDialog
                 FormControls.Text(folderName),
                 FormControls.Separator(),
             ],
-            footer: () => [FormControls.Error(() => error), actions],
-            handle: result =>
+            footer: () => [actions],
+            submit: () =>
             {
-                if (result.IsCancelled)
-                    return FormDialogOutcome<string?>.Complete(null);
+                string text = folderName.TrimmedText;
+                if (text.Length == 0)
+                    return FormSubmit.Invalid<string?>("A folder name is required.", folderName);
 
-                if (result.IsValueChanged)
-                    error = null;
-
-                if (result.IsSubmitted)
-                {
-                    string? accepted = TrySubmit(folderName, validate, ref error);
-                    if (accepted is not null)
-                        return FormDialogOutcome<string?>.Complete(accepted);
-
-                    return FormDialogOutcome<string?>.ContinueWithFocus(folderName);
-                }
-
-                return FormDialogOutcome<string?>.Continue();
+                string? error = validate?.Invoke(text);
+                return error is null
+                    ? FormSubmit.Success<string?>(text)
+                    : FormSubmit.Invalid<string?>(error, folderName);
             });
     }
-
-    private static string? TrySubmit(
-        TextField folderName,
-        Func<string, string?>? validate,
-        ref string? error)
-    {
-        string text = folderName.TrimmedText;
-        if (text.Length == 0)
-            return null;
-
-        error = validate?.Invoke(text);
-        if (error is not null)
-            return null;
-
-        folderName.AcceptHistory();
-        return text;
-    }
-
 }

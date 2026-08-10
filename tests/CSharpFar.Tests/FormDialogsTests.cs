@@ -7,6 +7,117 @@ namespace CSharpFar.Tests;
 public sealed class FormDialogsTests
 {
     [Fact]
+    public void Show_StandardSubmit_CommitsEveryCurrentHistoryField()
+    {
+        var driver = new FakeConsoleDriver();
+        driver.EnqueueKey(Key(ConsoleKey.F10));
+        ITextFieldHistoryProvider provider = TextFieldHistoryTestProvider.Create();
+        var fields = new FormFieldFactory(provider);
+        TextField first = fields.Text(new TextFieldOptions("alpha", new TextHistoryId("first")));
+        TextField second = fields.Text(new TextFieldOptions("beta", new TextHistoryId("second")));
+
+        string? result = new FormDialogs(ModalTestHost.Create(driver)).Show(
+            new FormDialogOptions("Submit", 30, 8),
+            rows: () => [FormControls.Text(first), FormControls.Text(second)],
+            footer: () => [FormControls.OkCancel()],
+            submit: () => FormSubmit.Success<string?>(first.Text));
+
+        Assert.Equal("alpha", result);
+        Assert.Equal(["alpha"], provider.Get(new TextHistoryId("first")).Items);
+        Assert.Equal(["beta"], provider.Get(new TextHistoryId("second")).Items);
+    }
+
+    [Fact]
+    public void Show_StandardSubmit_InvalidErrorFocusesTargetAndClearsAfterValueChange()
+    {
+        var driver = new FakeConsoleDriver();
+        driver.EnqueueKey(Key(ConsoleKey.F10));
+        driver.EnqueueKey(new ConsoleKeyInfo('x', ConsoleKey.X, false, false, false));
+        driver.EnqueueKey(Key(ConsoleKey.F10));
+        var fields = new FormFieldFactory(TextFieldHistoryTestProvider.Create());
+        TextField value = fields.Text();
+        int submits = 0;
+
+        string? result = new FormDialogs(ModalTestHost.Create(driver)).Show(
+            new FormDialogOptions("Validation", 30, 9),
+            rows: () => [FormControls.Text(value)],
+            footer: () => [FormControls.OkCancel()],
+            submit: () => ++submits == 1
+                ? FormSubmit.Invalid<string?>("Value is required", value)
+                : FormSubmit.Success<string?>(value.Text));
+
+        Assert.Equal("x", result);
+        Assert.Equal(2, submits);
+    }
+
+    [Fact]
+    public void Show_StandardSubmit_InvalidErrorWithoutFocusKeepsFormOpen()
+    {
+        var driver = new FakeConsoleDriver();
+        driver.EnqueueKey(Key(ConsoleKey.F10));
+        driver.EnqueueKey(Key(ConsoleKey.Escape));
+        int submits = 0;
+
+        string? result = new FormDialogs(ModalTestHost.Create(driver)).Show(
+            new FormDialogOptions("Validation", 30, 9),
+            rows: () => [FormControls.Label("Body")],
+            submit: () =>
+            {
+                submits++;
+                return FormSubmit.Invalid<string?>("Value is required");
+            });
+
+        Assert.Null(result);
+        Assert.Equal(1, submits);
+    }
+
+    [Fact]
+    public void Show_StandardSubmit_CancelDoesNotSubmitOrCommitHistory()
+    {
+        var driver = new FakeConsoleDriver();
+        driver.EnqueueKey(Key(ConsoleKey.Escape));
+        ITextFieldHistoryProvider provider = TextFieldHistoryTestProvider.Create();
+        var historyId = new TextHistoryId("cancel");
+        TextField value = new FormFieldFactory(provider).Text(new TextFieldOptions("value", historyId));
+        int submits = 0;
+
+        string? result = new FormDialogs(ModalTestHost.Create(driver)).Show(
+            new FormDialogOptions("Cancel", 30, 8),
+            rows: () => [FormControls.Text(value)],
+            submit: () =>
+            {
+                submits++;
+                return FormSubmit.Success<string?>(value.Text);
+            });
+
+        Assert.Null(result);
+        Assert.Equal(0, submits);
+        Assert.Empty(provider.Get(historyId).Items);
+    }
+
+    [Fact]
+    public void Show_StandardSubmit_TracksHistoryFieldsAfterDynamicRowRebuild()
+    {
+        var driver = new FakeConsoleDriver();
+        driver.EnqueueKey(Key(ConsoleKey.Spacebar));
+        driver.EnqueueKey(Key(ConsoleKey.F10));
+        ITextFieldHistoryProvider provider = TextFieldHistoryTestProvider.Create();
+        var historyId = new TextHistoryId("dynamic");
+        TextField value = new FormFieldFactory(provider).Text(new TextFieldOptions("value", historyId));
+        CheckBoxRow enabled = FormControls.CheckBox("Include value");
+
+        string? result = new FormDialogs(ModalTestHost.Create(driver)).Show(
+            new FormDialogOptions("Dynamic", 30, 8),
+            rows: () => enabled.Value
+                ? [enabled, FormControls.Text(value)]
+                : [enabled],
+            submit: () => FormSubmit.Success<string?>(value.Text));
+
+        Assert.Equal("value", result);
+        Assert.Equal(["value"], provider.Get(historyId).Items);
+    }
+
+    [Fact]
     public void Show_BodyOnlyForm_CancelsWithHandlerResult()
     {
         var driver = new FakeConsoleDriver();

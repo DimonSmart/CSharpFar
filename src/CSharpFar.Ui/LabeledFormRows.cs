@@ -36,6 +36,11 @@ public sealed class LabeledTextInputRow : FormRow, IFormFocusTarget, IFormCursor
 
     internal override FormRowRole Role { get; init; } = FormRowRole.TextInput;
     internal override IFormFocusTarget? FocusTarget => _focusTarget;
+    internal override void CollectTextFields(ISet<TextField> fields)
+    {
+        if (_focusTarget is not null)
+            fields.Add(_focusTarget);
+    }
     internal override bool MovesFocusOnUnhandledEnter => !SubmitOnEnter;
     public bool Enabled { get => _field.Enabled; set => _field.Enabled = value; }
     public string? DisabledReason { get => _field.DisabledReason; set => _field.DisabledReason = value; }
