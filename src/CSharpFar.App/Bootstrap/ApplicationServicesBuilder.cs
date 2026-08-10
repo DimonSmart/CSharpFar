@@ -237,8 +237,7 @@ internal static class ApplicationServicesBuilder
             side => callbacks.VisibleRowsForSide(side),
             state => callbacks.ClosePanelQuickSearchForState(state),
             side => callbacks.ClosePanelQuickSearchForPanel(side),
-            (state, side) => callbacks.StartWatching(state, side),
-            panelSort.SortVirtualPanel);
+            (state, side) => callbacks.StartWatching(state, side));
         var panelRefresh = new PanelRefreshService(
             controller,
             () => callbacks.PanelOptions(),

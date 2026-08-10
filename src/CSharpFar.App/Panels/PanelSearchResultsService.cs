@@ -23,7 +23,6 @@ internal sealed class PanelSearchResultsService
     private readonly Action<FilePanelState> _closeQuickSearchForState;
     private readonly Action<PanelSide> _closeQuickSearchForPanel;
     private readonly Action<FilePanelState, PanelSide> _startWatching;
-    private readonly Action<FilePanelState, string?, int> _sortVirtualPanel;
 
     public PanelSearchResultsService(
         ScreenRenderer screen,
@@ -37,8 +36,7 @@ internal sealed class PanelSearchResultsService
         Func<PanelSide, int> visibleRows,
         Action<FilePanelState> closeQuickSearchForState,
         Action<PanelSide> closeQuickSearchForPanel,
-        Action<FilePanelState, PanelSide> startWatching,
-        Action<FilePanelState, string?, int> sortVirtualPanel)
+        Action<FilePanelState, PanelSide> startWatching)
     {
         _screen = screen;
         _modalDialogs = modalDialogs;
@@ -52,7 +50,6 @@ internal sealed class PanelSearchResultsService
         _closeQuickSearchForState = closeQuickSearchForState;
         _closeQuickSearchForPanel = closeQuickSearchForPanel;
         _startWatching = startWatching;
-        _sortVirtualPanel = sortVirtualPanel;
     }
 
     public void OpenPanel(
@@ -61,32 +58,29 @@ internal sealed class PanelSearchResultsService
         IReadOnlyList<SearchResultItem> results,
         bool cancelled)
     {
+        var content = new PanelContent(
+            PanelLocation.SearchResult(request.RootPath),
+            results.Select(ToFilePanelItem),
+            PanelProviderCapabilities.SearchResults)
+        {
+            Title = PanelSearchResultsSummaryBuilder.BuildTitle(request, cancelled),
+            ShowCurrentItemFullPath = true,
+        };
+
         _closeQuickSearchForState(state);
-        state.CurrentLocation = PanelLocation.SearchResult(request.RootPath);
-        state.Items.Clear();
-        state.Items.AddRange(results.Select(ToFilePanelItem));
-        state.SelectedPaths.Clear();
-        state.SelectedLocations.Clear();
-        state.CursorIndex = 0;
-        state.ScrollOffset = 0;
-        state.ProviderCapabilities = PanelProviderCapabilities.SearchResults;
-        state.DisplayTitle = PanelSearchResultsSummaryBuilder.BuildTitle(request, cancelled);
-        state.ShowCurrentItemFullPath = true;
+        _controller.ReplaceContent(
+            state,
+            content,
+            _visibleRows(_panelSideForState(state)),
+            options: _panelOptions());
         state.SearchRequest = request;
         state.SearchWasCancelled = cancelled;
-        state.AutoRefreshState = null;
-        _sortVirtualPanel(state, null, _visibleRows(_panelSideForState(state)));
-        state.Summary = PanelSearchResultsSummaryBuilder.BuildSummary(state);
     }
 
     public void ClosePanel(FilePanelState state, PanelSide side)
     {
         _closeQuickSearchForPanel(side);
         var rootPath = state.SearchRequest!.RootPath;
-        state.SearchRequest = null;
-        state.SearchWasCancelled = false;
-        state.ShowCurrentItemFullPath = false;
-        state.DisplayTitle = null;
         if (_controller.TryLoadDirectory(state, rootPath, _panelOptions()))
             _startWatching(state, side);
     }
@@ -116,12 +110,6 @@ internal sealed class PanelSearchResultsService
         if (state.SearchRequest is null)
             return;
 
-        var previousItems = state.Items.ToList();
-        var previousSelectedPaths = state.SelectedPaths.ToList();
-        int previousCursor = state.CursorIndex;
-        int previousScroll = state.ScrollOffset;
-        string? cursorPath = _controller.CurrentItem(state)?.FullPath;
-
         SearchRunResult result;
         try
         {
@@ -129,7 +117,6 @@ internal sealed class PanelSearchResultsService
         }
         catch
         {
-            RestorePreviousResults(state, previousItems, previousSelectedPaths, previousCursor, previousScroll, visibleRows);
             return;
         }
 
@@ -140,19 +127,24 @@ internal sealed class PanelSearchResultsService
         }
 
         if (result.DiscardResults || result.Cancelled)
-        {
-            RestorePreviousResults(state, previousItems, previousSelectedPaths, previousCursor, previousScroll, visibleRows);
             return;
-        }
 
-        state.Items.Clear();
-        state.Items.AddRange(result.Results.Select(ToFilePanelItem));
-        state.SelectedPaths.Clear();
+        var content = new PanelContent(
+            state.CurrentLocation,
+            result.Results.Select(ToFilePanelItem),
+            PanelProviderCapabilities.SearchResults)
+        {
+            Title = PanelSearchResultsSummaryBuilder.BuildTitle(state.SearchRequest, cancelled: false),
+            ShowCurrentItemFullPath = true,
+        };
+
+        _controller.ReplaceContent(
+            state,
+            content,
+            visibleRows,
+            preserveCurrentItem: true,
+            options: _panelOptions());
         state.SearchWasCancelled = false;
-        state.DisplayTitle = PanelSearchResultsSummaryBuilder.BuildTitle(state.SearchRequest, cancelled: false);
-        _sortVirtualPanel(state, cursorPath, visibleRows);
-        state.Summary = PanelSearchResultsSummaryBuilder.BuildSummary(state);
-        _controller.NormalizeCursor(state, visibleRows);
     }
 
     private void GoToResult(
@@ -188,25 +180,6 @@ internal sealed class PanelSearchResultsService
         {
             new MessageDialog(_modalDialogs).Show("Search", ex.Message);
         }
-    }
-
-    private void RestorePreviousResults(
-        FilePanelState state,
-        List<FilePanelItem> previousItems,
-        List<string> previousSelectedPaths,
-        int previousCursor,
-        int previousScroll,
-        int visibleRows)
-    {
-        state.Items.Clear();
-        state.Items.AddRange(previousItems);
-        state.SelectedPaths.Clear();
-        foreach (string selectedPath in previousSelectedPaths)
-            state.SelectedPaths.Add(selectedPath);
-        state.CursorIndex = previousCursor;
-        state.ScrollOffset = previousScroll;
-        _controller.NormalizeCursor(state, visibleRows);
-        state.Summary = PanelSearchResultsSummaryBuilder.BuildSummary(state);
     }
 
     private static FilePanelItem ToFilePanelItem(SearchResultItem item) =>

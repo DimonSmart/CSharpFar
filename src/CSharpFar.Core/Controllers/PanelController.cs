@@ -9,6 +9,7 @@ public sealed class PanelController
 {
     private readonly IPanelViewBuilder _viewBuilder;
     private readonly IPanelPathSemantics _pathSemantics;
+    private readonly PanelSortService _sortService = new();
 
     public PanelController(
         IPanelViewBuilder viewBuilder,
@@ -66,6 +67,55 @@ public sealed class PanelController
             ApplyLoadError(state, location, ex);
             return false;
         }
+    }
+
+    public void ReplaceContent(
+        FilePanelState state,
+        PanelContent content,
+        int visibleRows,
+        bool preserveCurrentItem = false,
+        AppSettings.PanelOptionsSettings? options = null)
+    {
+        int previousCursorIndex = state.CursorIndex;
+        string? currentItemPath = preserveCurrentItem
+            ? CurrentItem(state)?.FullPath
+            : null;
+        options ??= new AppSettings.PanelOptionsSettings();
+        var sortedItems = _sortService.Sort(
+            content.Items,
+            state.SortMode,
+            state.SortDescending,
+            new PanelSortOptions
+            {
+                SortFoldersByExtension = options.SortFoldersByExtension,
+                KeepParentDirectoryFirst = false,
+                DirectoriesFirst = true,
+            });
+
+        state.CurrentLocation = content.Location;
+        state.Items.Clear();
+        state.Items.AddRange(sortedItems);
+        state.SelectedPaths.Clear();
+        state.SelectedLocations.Clear();
+        int restoredIndex = currentItemPath is null
+            ? -1
+            : state.Items.FindIndex(item => string.Equals(
+                item.FullPath,
+                currentItemPath,
+                StringComparison.OrdinalIgnoreCase));
+        state.CursorIndex = preserveCurrentItem && restoredIndex < 0
+            ? previousCursorIndex
+            : Math.Max(0, restoredIndex);
+        state.ScrollOffset = 0;
+        state.ProviderCapabilities = content.Capabilities;
+        state.DisplayTitle = content.Title;
+        state.ShowCurrentItemFullPath = content.ShowCurrentItemFullPath;
+        state.AutoRefreshState = null;
+        state.LoadError = null;
+        state.Summary = null;
+
+        NormalizeCursor(state, visibleRows);
+        RefreshSelectedSummary(state);
     }
 
     private void ApplyLoadedLocation(

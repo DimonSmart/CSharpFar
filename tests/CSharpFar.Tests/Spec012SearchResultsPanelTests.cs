@@ -114,6 +114,124 @@ public sealed class Spec012SearchResultsPanelTests : IDisposable
     }
 
     [Fact]
+    public void OpenSearchResultsPanel_ReplacesContentAndResetsPanelRuntimeState()
+    {
+        var driver = new FakeConsoleDriver(width: 80, height: 14);
+        var app = CreateApp(CreateFileSystem(), driver, new RecordingFileOperationService());
+        var state = GetLeftPanel(app);
+        var previousItem = new FilePanelItem
+        {
+            Name = "previous.txt",
+            FullPath = Path.Combine(_root, "previous.txt"),
+            IsDirectory = false,
+        };
+        state.Items.Clear();
+        state.Items.Add(previousItem);
+        state.SelectedPaths.Add(previousItem.FullPath);
+        state.SelectedLocations.Add(previousItem.Location);
+        state.CursorIndex = 5;
+        state.ScrollOffset = 5;
+        state.AutoRefreshState = new PanelAutoRefreshState { IsWatching = true };
+        state.LoadError = new PanelLoadError
+        {
+            Message = "old error",
+            RetryLocation = state.CurrentLocation,
+        };
+
+        var request = new SearchRequest
+        {
+            RootPath = _root,
+            FileMaskExpression = "*.txt",
+            Scope = SearchScope.CurrentDirectoryRecursive,
+            MaxDegreeOfParallelism = 1,
+        };
+        app.OpenSearchResultsPanel(
+            state,
+            request,
+            [
+                new SearchResultItem
+                {
+                    Name = "b.txt",
+                    FullPath = Path.Combine(_root, "b.txt"),
+                    Kind = SearchResultItemKind.File,
+                    Size = 2,
+                },
+                new SearchResultItem
+                {
+                    Name = "folder",
+                    FullPath = Path.Combine(_root, "folder"),
+                    Kind = SearchResultItemKind.Directory,
+                },
+                new SearchResultItem
+                {
+                    Name = "a.txt",
+                    FullPath = Path.Combine(_root, "a.txt"),
+                    Kind = SearchResultItemKind.File,
+                    Size = 3,
+                },
+            ],
+            cancelled: true);
+
+        Assert.Equal(PanelLocation.SearchResult(_root), state.CurrentLocation);
+        Assert.Equal(["folder", "a.txt", "b.txt"], state.Items.Select(item => item.Name));
+        Assert.Empty(state.SelectedPaths);
+        Assert.Empty(state.SelectedLocations);
+        Assert.Equal(0, state.CursorIndex);
+        Assert.Equal(0, state.ScrollOffset);
+        Assert.Equal(PanelProviderCapabilities.SearchResults, state.ProviderCapabilities);
+        Assert.Equal("Search results: *.txt, cancelled", state.DisplayTitle);
+        Assert.True(state.ShowCurrentItemFullPath);
+        Assert.Same(request, state.SearchRequest);
+        Assert.True(state.SearchWasCancelled);
+        Assert.Null(state.AutoRefreshState);
+        Assert.Null(state.LoadError);
+        Assert.NotNull(state.Summary);
+        Assert.Equal(3, state.Summary.VisibleItemCount);
+        Assert.Equal(2, state.Summary.FileCount);
+        Assert.Equal(1, state.Summary.DirectoryCount);
+        Assert.Equal(5, state.Summary.TotalFileSize);
+        Assert.Equal(0, state.Summary.SelectedCount);
+    }
+
+    [Fact]
+    public void Run_EscapeClosesSearchResultsThroughNormalPanelLoad()
+    {
+        var driver = new FakeConsoleDriver(width: 80, height: 14);
+        driver.EnqueueKey(Key(ConsoleKey.Escape));
+        driver.EnqueueKey(Key(ConsoleKey.F10));
+        var app = CreateApp(CreateFileSystem(), driver, new RecordingFileOperationService());
+        var state = GetLeftPanel(app);
+        var request = new SearchRequest
+        {
+            RootPath = _root,
+            FileMaskExpression = "*.txt",
+            Scope = SearchScope.CurrentDirectoryRecursive,
+            MaxDegreeOfParallelism = 1,
+        };
+        app.OpenSearchResultsPanel(
+            state,
+            request,
+            [
+                new SearchResultItem
+                {
+                    Name = "found.txt",
+                    FullPath = Path.Combine(_root, "found.txt"),
+                    Kind = SearchResultItemKind.File,
+                },
+            ],
+            cancelled: false);
+
+        app.Run();
+
+        Assert.Equal(PanelLocation.Local(_root), state.CurrentLocation);
+        Assert.Equal(PanelProviderCapabilities.LocalFileSystem, state.ProviderCapabilities);
+        Assert.Null(state.DisplayTitle);
+        Assert.False(state.ShowCurrentItemFullPath);
+        Assert.Null(state.SearchRequest);
+        Assert.False(state.SearchWasCancelled);
+    }
+
+    [Fact]
     public void SortVirtualPanel_WhenKeptPathIsMissing_ClampsCursor()
     {
         var driver = new FakeConsoleDriver(width: 80, height: 14);
