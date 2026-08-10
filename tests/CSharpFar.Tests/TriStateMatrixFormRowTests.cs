@@ -41,6 +41,17 @@ public sealed class TriStateMatrixFormRowTests
         Assert.Equal(CheckState.Indeterminate, matrix.GetValue("owner", "execute"));
     }
 
+    [Fact]
+    public void DesiredWidth_IncludesRowLabelsHeadersCellsAndGaps()
+    {
+        TriStateMatrixFormRow matrix = FormControls.TriStateMatrix(
+            [new("read", "Read"), new("execute", "界")],
+            [new("owner", "Very long owner", [CheckState.Checked, CheckState.Unchecked])]);
+
+        Assert.Equal(ConsoleTextMetrics.GetCellWidth("Very long owner") + 1 +
+            Math.Max(ConsoleTextMetrics.GetCellWidth("Read"), 3) + 1 + 3, matrix.DesiredWidth);
+    }
+
     private static TriStateMatrixFormRow CreateMatrix() => FormControls.TriStateMatrix(
         "permissions",
         [new("read", "Read"), new("write", "Write")],

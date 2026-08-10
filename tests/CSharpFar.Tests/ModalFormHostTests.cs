@@ -183,6 +183,137 @@ public sealed class ModalFormHostTests
         Assert.Equal(created, disposed);
     }
 
+    [Fact]
+    public void Run_NaturalSizingIncludesTitleBodyFooterAndComplexRows()
+    {
+        var driver = new FakeConsoleDriver(100, 30);
+        driver.EnqueueKey(Key(ConsoleKey.Escape));
+        TextField field = new FormFieldFactory(TextFieldHistoryTestProvider.Create()).Text(new TextFieldOptions("界", Width: 26));
+        var checkBoxes = FormControls.CheckBoxColumns([[FormControls.CheckBox("wide界")], [FormControls.CheckBox("other")]]);
+        var matrix = FormControls.TriStateMatrix(
+            [new("read", "Read"), new("write", "Write")],
+            [new("owner", "Very long owner", [CheckState.Checked, CheckState.Unchecked])]);
+        var form = new ScrollableFormDialog();
+        form.SetRows([FormControls.Label("表題"), FormControls.Text("Name:", field), checkBoxes, matrix], [FormControls.OkCancel()]);
+        ScrollableFormFrame? frame = null;
+
+        new ModalFormHost(ModalTestHost.Create(driver)).Run(
+            form,
+            new ModalFormOptions("A wide title界"),
+            layout => ModalFormLayout.WithFooter(layout.ContentBounds, 1),
+            (routed, input) =>
+            {
+                frame = routed.Frame;
+                return ModalDialogLoopResult<object?>.Complete(null);
+            });
+
+        Assert.NotNull(frame);
+        Assert.True(frame.BodyBounds.Width >= Math.Max(Math.Max(checkBoxes.DesiredWidth, matrix.DesiredWidth), 5 + 1 + 26));
+        Assert.NotNull(frame.FooterBounds);
+        Assert.Equal(form.NaturalContentHeight, 2 + checkBoxes.Height + matrix.Height + 1);
+    }
+
+    [Fact]
+    public void Run_TitleOnlyFormUsesTitleForNaturalWidth()
+    {
+        var driver = new FakeConsoleDriver(80, 20);
+        driver.EnqueueKey(Key(ConsoleKey.Escape));
+        ScrollableFormFrame? frame = null;
+
+        new ModalFormHost(ModalTestHost.Create(driver)).Run(
+            new ScrollableFormDialog(),
+            new ModalFormOptions("Title界"),
+            Layout,
+            (routed, input) =>
+            {
+                frame = routed.Frame;
+                return ModalDialogLoopResult<object?>.Complete(null);
+            });
+
+        Assert.NotNull(frame);
+        Assert.True(frame.BodyBounds.Width >= ConsoleTextMetrics.GetCellWidth("Title界") + 2);
+    }
+
+    [Fact]
+    public void Run_AppliesExplicitAndMinimumSizesWithinViewportAndKeepsScrolling()
+    {
+        var driver = new FakeConsoleDriver(30, 8);
+        driver.EnqueueKey(Key(ConsoleKey.End));
+        driver.EnqueueKey(Key(ConsoleKey.Escape));
+        var form = new ScrollableFormDialog(Enumerable.Range(0, 10).Select(index => (FormRow)FormControls.CheckBox($"Option {index}")).ToArray());
+        var frames = new List<ScrollableFormFrame>();
+
+        new ModalFormHost(ModalTestHost.Create(driver)).Run(
+            form,
+            new ModalFormOptions("Size", PreferredWidth: 40, PreferredHeight: 12, MinWidth: 24, MinHeight: 8),
+            Layout,
+            (routed, input) =>
+            {
+                frames.Add(routed.Frame);
+                return input.Kind == FormInputResultKind.Cancel
+                    ? ModalDialogLoopResult<object?>.Complete(null)
+                    : ModalDialogLoopResult<object?>.ContinueChanged;
+            });
+
+        Assert.All(frames, frame =>
+        {
+            Assert.True(frame.BodyBounds.Width <= 24);
+            Assert.True(frame.BodyBounds.Height <= 4);
+        });
+        Assert.Contains(frames[0].Targets, target => target is FormBodyScrollbarTargetFrame);
+        Assert.True(frames[^1].EffectiveScrollTop > 0);
+    }
+
+    [Fact]
+    public void Run_TextTypingBeyondPreferredWidthDoesNotResizeDialog()
+    {
+        var driver = new FakeConsoleDriver();
+        driver.EnqueueKey(new ConsoleKeyInfo('x', ConsoleKey.X, false, false, false));
+        driver.EnqueueKey(Key(ConsoleKey.Escape));
+        TextField field = new FormFieldFactory(TextFieldHistoryTestProvider.Create()).Text(new TextFieldOptions("initial", Width: null));
+        var frames = new List<ScrollableFormFrame>();
+
+        new ModalFormHost(ModalTestHost.Create(driver)).Run(
+            new ScrollableFormDialog([FormControls.Text(field)]),
+            new ModalFormOptions("Text"),
+            Layout,
+            (routed, input) =>
+            {
+                frames.Add(routed.Frame);
+                return input.Kind == FormInputResultKind.Cancel
+                    ? ModalDialogLoopResult<object?>.Complete(null)
+                    : ModalDialogLoopResult<object?>.ContinueChanged;
+            });
+
+        Assert.Equal(2, frames.Count);
+        Assert.Equal(frames[0].BodyBounds.Width, frames[1].BodyBounds.Width);
+    }
+
+    [Fact]
+    public void Run_CompactChoiceChangeDoesNotResizeDialog()
+    {
+        var driver = new FakeConsoleDriver();
+        driver.EnqueueKey(Key(ConsoleKey.RightArrow));
+        driver.EnqueueKey(Key(ConsoleKey.Escape));
+        CompactChoiceFormRow<string> choice = FormControls.CompactChoice("Mode", ["short", "a much longer value界"], static value => value, "short");
+        var frames = new List<ScrollableFormFrame>();
+
+        new ModalFormHost(ModalTestHost.Create(driver)).Run(
+            new ScrollableFormDialog([choice]),
+            new ModalFormOptions("Choice"),
+            Layout,
+            (routed, input) =>
+            {
+                frames.Add(routed.Frame);
+                return input.Kind == FormInputResultKind.Cancel
+                    ? ModalDialogLoopResult<object?>.Complete(null)
+                    : ModalDialogLoopResult<object?>.ContinueChanged;
+            });
+
+        Assert.Equal(2, frames.Count);
+        Assert.Equal(frames[0].BodyBounds.Width, frames[1].BodyBounds.Width);
+    }
+
     private static readonly ModalFormOptions Options = new("Test", 30, 8);
 
     private static ModalFormLayout Layout(ModalDialogRenderer.Layout layout) =>

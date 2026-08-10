@@ -29,6 +29,14 @@ public sealed class CheckBoxColumnsRowTests
     }
 
     [Fact]
+    public void DesiredWidth_UsesWidestCellInEachColumnAndColumnGaps()
+    {
+        var row = new CheckBoxColumnsRow([[Check("A"), Check("wide界")], [Check("B")]], columnGap: 2);
+
+        Assert.Equal(ConsoleTextMetrics.GetCellWidth("[ ] wide界") + 2 + ConsoleTextMetrics.GetCellWidth("[ ] B"), row.DesiredWidth);
+    }
+
+    [Fact]
     public void Render_DistributesBoundsBetweenColumns()
     {
         var canvas = new RecordingCanvas(20, 3);

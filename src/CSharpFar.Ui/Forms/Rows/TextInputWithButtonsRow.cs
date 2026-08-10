@@ -18,6 +18,7 @@ public sealed class TextInputWithButtonsRow : FormRow, IFormFocusTarget, IFormCu
     private readonly DialogButtonBar _buttonBar;
     private DialogButtonBarState _buttonState;
     private readonly int? _inputWidth;
+    private readonly int _preferredInputWidth;
     private readonly IFormCompositeController _compositeController;
 
     internal TextInputWithButtonsRow(
@@ -32,6 +33,7 @@ public sealed class TextInputWithButtonsRow : FormRow, IFormFocusTarget, IFormCu
         _buttonBar = new DialogButtonBar(buttons);
         _buttonState = _buttonBar.CreateState();
         _inputWidth = field.Width;
+        _preferredInputWidth = field.PreferredWidth;
         Id = field.Id;
         SubmitOnEnter = field.SubmitOnEnter;
         _compositeController = new TextInputCompositeController(_field, layout => CalculateLayout(layout).InputBounds);
@@ -42,7 +44,7 @@ public sealed class TextInputWithButtonsRow : FormRow, IFormFocusTarget, IFormCu
     public string? DisabledReason { get => _field.DisabledReason; set => _field.DisabledReason = value; }
     internal override bool IsEnabled => Enabled;
     int IFormLabeledRow.DesiredLabelWidth => ConsoleTextMetrics.GetCellWidth(_label);
-    int IFormLabeledRow.DesiredControlWidth => (_inputWidth ?? Math.Max(20, ConsoleTextMetrics.GetCellWidth(Buffer.Text))) + 1 + _buttonBar.DesiredWidth;
+    int IFormLabeledRow.DesiredControlWidth => (_inputWidth ?? _preferredInputWidth) + 1 + _buttonBar.DesiredWidth;
     bool IFormLabeledRow.UseSharedLabelColumn => true;
     internal FormTextInputField Input => _field;
     IFormCompositeController IFormCompositeOwner.CompositeController => _compositeController;

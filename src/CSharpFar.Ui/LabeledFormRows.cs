@@ -9,6 +9,7 @@ public sealed class LabeledTextInputRow : FormRow, IFormFocusTarget, IFormCursor
 {
     private readonly string _label;
     private readonly int? _inputWidth;
+    private readonly int _preferredInputWidth;
     private readonly FormTextInputField _field;
     private readonly TextField? _focusTarget;
     private readonly IFormCompositeController _compositeController;
@@ -18,6 +19,7 @@ public sealed class LabeledTextInputRow : FormRow, IFormFocusTarget, IFormCursor
     {
         _label = label;
         _inputWidth = inputWidth;
+        _preferredInputWidth = Math.Max(20, ConsoleTextMetrics.GetCellWidth(buffer.Text));
         _field = new FormTextInputField(buffer, history, maskInput);
         _compositeController = new TextInputCompositeController(_field, GetInputBounds);
     }
@@ -28,6 +30,7 @@ public sealed class LabeledTextInputRow : FormRow, IFormFocusTarget, IFormCursor
         _focusTarget = field;
         _label = label;
         _inputWidth = field.Width;
+        _preferredInputWidth = field.PreferredWidth;
         _field = field.Input;
         Id = field.Id;
         SubmitOnEnter = field.SubmitOnEnter;
@@ -46,7 +49,7 @@ public sealed class LabeledTextInputRow : FormRow, IFormFocusTarget, IFormCursor
     public string? DisabledReason { get => _field.DisabledReason; set => _field.DisabledReason = value; }
     internal override bool IsEnabled => Enabled;
     int IFormLabeledRow.DesiredLabelWidth => ConsoleTextMetrics.GetCellWidth(_label);
-    int IFormLabeledRow.DesiredControlWidth => _inputWidth ?? Math.Max(20, ConsoleTextMetrics.GetCellWidth(Buffer.Text));
+    int IFormLabeledRow.DesiredControlWidth => _inputWidth ?? _preferredInputWidth;
     bool IFormLabeledRow.UseSharedLabelColumn => true;
     internal CommandLineState Buffer => _field.Buffer;
     internal FormTextInputField Input => _field;

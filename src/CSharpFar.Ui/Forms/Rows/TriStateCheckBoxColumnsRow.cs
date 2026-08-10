@@ -30,6 +30,7 @@ public sealed class TriStateCheckBoxColumnsRow : FormRow, IFormFocusTarget, IFor
 
     internal override FormRowRole Role { get; init; } = FormRowRole.Option;
     internal override bool IsFocusable => _columns.Any(static column => column.Enabled);
+    internal override int DesiredWidth => _labelWidth + _columns.Sum(column => ConsoleTextMetrics.GetCellWidth($"[ ] {column.Label}")) + _columnGap * (_columns.Count - 1);
 
     internal override void Render(FormRowRenderContext context)
     {
