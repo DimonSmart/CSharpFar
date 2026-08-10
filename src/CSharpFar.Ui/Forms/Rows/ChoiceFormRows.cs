@@ -53,6 +53,7 @@ public sealed class ChoiceFormRow<T> : FormRow, IFormFocusTarget, IFormCursorPro
     internal override bool IsEnabled => Enabled;
     internal ChoiceModel<T> Choice => _choice;
     public T Value { get => _choice.Value; set => _choice.Value = value; }
+    internal override int DesiredWidth => ConsoleTextMetrics.GetCellWidth(_label) + 1 + Math.Max(0, _choice.Selection.Items.Sum(item => ConsoleTextMetrics.GetCellWidth($"( ) {_choice.Format(item)}") + 1) - 1);
 
     internal override void Render(FormRowRenderContext context)
     {
@@ -161,6 +162,12 @@ public sealed class MultiLineChoiceFormRow<T> : FormRow, IFormFocusTarget, IForm
     public string? DisabledReason { get; set; }
     internal override bool IsEnabled => Enabled;
     internal override bool IsFocusable => Enabled;
+    internal override int DesiredWidth => _segmentEndIndices.Select((end, index) =>
+    {
+        int start = index == 0 ? 0 : _segmentEndIndices[index - 1];
+        return (index == 0 ? ConsoleTextMetrics.GetCellWidth(_label) + 1 : 0) +
+            Math.Max(0, _choice.Selection.Items.Skip(start).Take(end - start).Sum(item => ConsoleTextMetrics.GetCellWidth($"( ) {_choice.Format(item)}") + 1) - 1);
+    }).Max();
 
     internal override void Render(FormRowRenderContext context)
     {

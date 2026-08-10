@@ -42,6 +42,18 @@ public sealed partial class ScrollableFormDialog
     internal int FocusIndex => FocusIndexFromScope(CurrentFocusedTarget) ?? 0;
     internal int FocusableCount => TotalFocusableCount;
     public FormLayoutOptions LayoutOptions { get; }
+    internal int NaturalContentHeight => BodyRowCount + FooterRowCount;
+    internal int NaturalContentWidth
+    {
+        get
+        {
+            FormRow[] rows = AllRows().ToArray();
+            IFormLabeledRow[] labeled = rows.OfType<IFormLabeledRow>().Where(row => row.UseSharedLabelColumn).ToArray();
+            int labeledWidth = labeled.Length == 0 ? 0 :
+                labeled.Max(row => row.DesiredLabelWidth) + LayoutOptions.LabelGap + Math.Max(LayoutOptions.MinimumControlWidth, labeled.Max(row => row.DesiredControlWidth));
+            return Math.Max(labeledWidth, rows.Select(static row => row.DesiredWidth).DefaultIfEmpty(0).Max());
+        }
+    }
     public string? FocusedRowId => FocusedTargetFrame()?.Row.Id;
     internal FormRowRole FocusedRowRole => FocusedTargetFrame()?.Row.Role ?? FormRowRole.Normal;
     public bool IsFocusedOnSubmitRow => FocusedTargetFrame()?.Row is { IsFocusable: true, SubmitOnEnter: true };

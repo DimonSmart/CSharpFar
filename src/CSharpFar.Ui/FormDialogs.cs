@@ -10,8 +10,8 @@ public enum FormDialogAppearance
 /// <summary>Semantic window options for an ordinary modal form.</summary>
 public sealed record FormDialogOptions(
     string Title,
-    int PreferredWidth,
-    int PreferredHeight,
+    int? PreferredWidth = null,
+    int? PreferredHeight = null,
     int MinWidth = 20,
     int MinHeight = 8,
     bool SubmitOnEnter = false)

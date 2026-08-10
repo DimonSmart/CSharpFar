@@ -23,6 +23,7 @@ public sealed class ButtonRow : FormRow, IFormFocusTarget
     internal int FocusedButtonIndex => _state.FocusedIndex;
     internal int? PressedButtonIndex => _state.PressedButtonIndex;
     internal override FormRowRole Role { get; init; } = FormRowRole.ButtonBar;
+    internal override int DesiredWidth => _buttonBar.DesiredWidth;
 
     public void SetButtons(IReadOnlyList<DialogButton> buttons)
     {

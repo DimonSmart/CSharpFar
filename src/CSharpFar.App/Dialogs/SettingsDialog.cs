@@ -18,13 +18,6 @@ public sealed record SettingsDialogResult(
 /// </summary>
 internal sealed class SettingsDialog
 {
-    private const int DialogWidth = 44;
-    private const int DialogHeight = 15;
-    private const string LeftViewModeRowId = "settings.left-view-mode";
-    private const string RightViewModeRowId = "settings.right-view-mode";
-    private const string PaletteRowId = "settings.palette";
-    private const string FileHighlightingRowId = "settings.file-highlighting";
-    private const string EditorSyntaxHighlightingRowId = "settings.editor-syntax-highlighting";
 
     private static readonly PanelViewMode[] ViewModes = [PanelViewMode.Full, PanelViewMode.BriefTwoColumns];
     private static readonly string[] PaletteNames = [.. PaletteRegistry.Names];
@@ -46,13 +39,13 @@ internal sealed class SettingsDialog
         bool fileHighlightingEnabled,
         bool editorSyntaxHighlightingEnabled)
     {
-        var leftViewMode = FormControls.CompactChoice(LeftViewModeRowId, "Left panel", ViewModes, ViewModeLabel, leftMode);
-        var rightViewMode = FormControls.CompactChoice(RightViewModeRowId, "Right panel", ViewModes, ViewModeLabel, rightMode);
-        var palette = FormControls.CompactChoice(PaletteRowId, "Palette", PaletteNames, static name => name, paletteName, StringComparer.OrdinalIgnoreCase);
-        var fileHighlighting = FormControls.CheckBox(FileHighlightingRowId, "File highlighting", fileHighlightingEnabled);
-        var syntaxHighlighting = FormControls.CheckBox(EditorSyntaxHighlightingRowId, "Editor syntax highlighting", editorSyntaxHighlightingEnabled);
+        var leftViewMode = FormControls.CompactChoice("Left panel", ViewModes, ViewModeLabel, leftMode);
+        var rightViewMode = FormControls.CompactChoice("Right panel", ViewModes, ViewModeLabel, rightMode);
+        var palette = FormControls.CompactChoice("Palette", PaletteNames, static name => name, paletteName, StringComparer.OrdinalIgnoreCase);
+        var fileHighlighting = FormControls.CheckBox("File highlighting", fileHighlightingEnabled);
+        var syntaxHighlighting = FormControls.CheckBox("Editor syntax highlighting", editorSyntaxHighlightingEnabled);
         return _dialogs.Form(
-            new FormDialogOptions("Settings", DialogWidth, DialogHeight)
+            new FormDialogOptions("Settings")
             {
                 Layout = new FormLayoutOptions(CursorPolicy: FormCursorPolicy.Hidden),
                 Theme = () => PaletteRegistry.Resolve(palette.Value),

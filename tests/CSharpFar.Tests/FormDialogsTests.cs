@@ -7,6 +7,38 @@ namespace CSharpFar.Tests;
 public sealed class FormDialogsTests
 {
     [Fact]
+    public void NaturalContentSize_MeasuresTitleRowsLabelsAndExplicitFieldWidthInTerminalCells()
+    {
+        var fields = new FormFieldFactory(TextFieldHistoryTestProvider.Create());
+        TextField field = fields.Text(new TextFieldOptions("界", Width: 26));
+        var form = new ScrollableFormDialog(new FormLayoutOptions(LabelGap: 2));
+
+        form.SetRows(
+        [
+            FormControls.Label("表題"),
+            FormControls.Text("Very long label", field),
+            FormControls.CompactChoice("Mode", ["A", "wide界"], static value => value, "A"),
+        ],
+        [FormControls.OkCancel()]);
+
+        Assert.Equal(4, form.NaturalContentHeight);
+        Assert.Equal(ConsoleTextMetrics.GetCellWidth("Very long label") + 2 + 26, form.NaturalContentWidth);
+    }
+
+    [Fact]
+    public void FormDialogOptions_LeavePreferredSizeUnsetUnlessExplicitlyOverridden()
+    {
+        var natural = new FormDialogOptions("Natural");
+        var explicitSize = new FormDialogOptions("Override", PreferredWidth: 70, PreferredHeight: 20, MinWidth: 32);
+
+        Assert.Null(natural.PreferredWidth);
+        Assert.Null(natural.PreferredHeight);
+        Assert.Equal(70, explicitSize.PreferredWidth);
+        Assert.Equal(20, explicitSize.PreferredHeight);
+        Assert.Equal(32, explicitSize.MinWidth);
+    }
+
+    [Fact]
     public void Show_StandardSubmit_CommitsEveryCurrentHistoryField()
     {
         var driver = new FakeConsoleDriver();

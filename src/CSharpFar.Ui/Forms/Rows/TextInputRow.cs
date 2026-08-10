@@ -48,6 +48,7 @@ public sealed class TextInputRow : FormRow, IFormFocusTarget, IFormCursorProvide
     public string? DisabledReason { get => _field.DisabledReason; set => _field.DisabledReason = value; }
     internal override bool IsEnabled => Enabled;
     public int? Width => _width;
+    internal override int DesiredWidth => _width ?? Math.Max(20, ConsoleTextMetrics.GetCellWidth(Buffer.Text));
     IFormCompositeController IFormCompositeOwner.CompositeController => _compositeController;
 
     internal Rect GetInputBounds(Rect rowBounds) =>

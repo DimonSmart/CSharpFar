@@ -42,6 +42,7 @@ public sealed class CompactChoiceFormRow<T> : FormRow, IFormFocusTarget, IFormCu
     public bool Enabled { get; set; } = true;
     public string? DisabledReason { get; set; }
     internal override bool IsEnabled => Enabled;
+    internal override int DesiredWidth => ConsoleTextMetrics.GetCellWidth($"{_label}: {_choice.Format(_choice.Value)}");
 
     internal override void Render(FormRowRenderContext context) => ChoiceRenderer.Render(context.Canvas,
         ChoiceLayoutCalculator.Compact(context.Bounds), _choice.Selection, _choice.Format,

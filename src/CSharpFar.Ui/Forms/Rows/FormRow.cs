@@ -20,6 +20,7 @@ public abstract class FormRow
     internal virtual IFormFocusTarget? FocusTarget => null;
     internal virtual void CollectTextFields(ISet<TextField> fields) { }
     internal virtual int Height => 1;
+    internal virtual int DesiredWidth => 0;
     internal abstract void Render(FormRowRenderContext context);
     internal virtual FormInputResult HandleKey(ConsoleKeyInfo key, FormRowInputContext context) => FormInputResult.NotHandled;
     internal virtual FormInputResult HandleMouse(MouseConsoleInputEvent mouse, FormRowMouseContext context) => FormInputResult.NotHandled;
@@ -39,6 +40,7 @@ public sealed class LabelRow : FormRow
     }
 
     internal override bool IsFocusable => false;
+    internal override int DesiredWidth => ConsoleTextMetrics.GetCellWidth(_text);
 
     internal override void Render(FormRowRenderContext context) =>
         context.Canvas.Write(context.Bounds.X, context.Bounds.Y, ScrollableFormDialog.Fit(_text, context.Bounds.Width), _style);
