@@ -47,13 +47,13 @@ public sealed partial class ScrollableFormDialog
                 rowResult = keyboardController.RouteOverlayKey(key, inputContext, compositeFrame);
             if (rowResult.IsHandled)
             {
-                rowResult = WithSourceRowId(rowResult, row.Id);
+                rowResult = WithSource(rowResult, row);
                 return FormResult(rowResult, WithEnsureFocusVisible(FormResultToUi(rowResult, targetFrame.Target), ensureFocusedTargetVisible));
             }
 
             if (key.Key == ConsoleKey.Enter && row.MovesFocusOnUnhandledEnter)
                 return FormResult(
-                    WithSourceRowId(FormInputResult.MoveFocusNext, row.Id),
+                    WithSource(FormInputResult.MoveFocusNext, row),
                     WithEnsureFocusVisible(UiInputResultWithFocus(UiFocusRequest.MoveNext), ensureFocusedTargetVisible));
         }
 
@@ -66,7 +66,7 @@ public sealed partial class ScrollableFormDialog
                     new FormRowInputContext(Focused: false));
                 if (buttonResult.IsHandled)
                 {
-                    buttonResult = WithSourceRowId(buttonResult, buttonFrame.Row.Id);
+                    buttonResult = WithSource(buttonResult, buttonFrame.Row);
                     return FormResult(buttonResult, FormResultToUi(buttonResult, buttonFrame.Target));
                 }
             }
@@ -151,7 +151,7 @@ public sealed partial class ScrollableFormDialog
             rowResult = FormInputResult.NotHandled;
         }
         if (rowResult.IsHandled)
-            rowResult = WithSourceRowId(rowResult, rowFrame.Row.Id);
+            rowResult = WithSource(rowResult, rowFrame.Row);
         if (!rowResult.IsHandled && TryHandleWheel(mouse, frame.ViewportRows))
             return MergeTransientOverlayChange(FormInputResult.Handled, UiInputResult.HandledAndInvalidate, closedOverlay);
 
@@ -232,8 +232,12 @@ public sealed partial class ScrollableFormDialog
     private static FormRouteResult FormResult(FormInputResult formResult, UiInputResult uiResult) =>
         new(formResult, uiResult);
 
-    private static FormInputResult WithSourceRowId(FormInputResult result, string? sourceRowId) =>
-        result with { SourceRowId = sourceRowId };
+    private static FormInputResult WithSource(FormInputResult result, FormRow row) =>
+        result with
+        {
+            SourceRowId = row.Id,
+            SourceTarget = row.FocusTarget ?? row as IFormFocusTarget,
+        };
 
     private UiInputResult FormResultToUi(FormInputResult result, UiTargetId sourceTarget)
     {

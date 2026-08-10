@@ -158,7 +158,8 @@ public sealed class ModalFormHost
             result.Command,
             result.SourceRowId,
             routed.Input is KeyConsoleInputEvent { Key.Key: var key } ? key : null,
-            form.FocusedRowId);
+            form.FocusedRowId,
+            result.SourceTarget);
     }
 
     private ScrollableFormFrame Render(

@@ -189,6 +189,64 @@ public sealed class FormDialogsTests
     }
 
     [Fact]
+    public void Show_IdlessTextFieldEventUsesTypedSource()
+    {
+        var driver = new FakeConsoleDriver();
+        driver.EnqueueKey(new ConsoleKeyInfo('x', ConsoleKey.X, false, false, false));
+        driver.EnqueueKey(Key(ConsoleKey.Escape));
+        var dialogs = new FormDialogs(ModalTestHost.Create(driver));
+        TextField value = new FormFieldFactory(TextFieldHistoryTestProvider.Create()).Text();
+        IFormFocusTarget? source = null;
+
+        _ = dialogs.Show(
+            new FormDialogOptions("Typed source", 30, 8),
+            rows: () => [FormControls.Text(value)],
+            handle: formEvent =>
+            {
+                if (formEvent.IsValueChanged)
+                {
+                    Assert.True(formEvent.IsValueChangedFrom(value));
+                    source = formEvent.SourceTarget;
+                }
+                return formEvent.IsCancelled
+                    ? FormDialogOutcome<object?>.Complete(null)
+                    : FormDialogOutcome<object?>.Continue();
+            });
+
+        Assert.Same(value, source);
+        Assert.Null(value.Id);
+    }
+
+    [Fact]
+    public void Show_IdlessCheckboxEventUsesTypedSourceAfterDynamicRebuild()
+    {
+        var driver = new FakeConsoleDriver();
+        driver.EnqueueKey(Key(ConsoleKey.Spacebar));
+        driver.EnqueueKey(Key(ConsoleKey.Escape));
+        var dialogs = new FormDialogs(ModalTestHost.Create(driver));
+        CheckBoxRow enabled = FormControls.CheckBox("Enabled", false);
+        IFormFocusTarget? source = null;
+
+        _ = dialogs.Show(
+            new FormDialogOptions("Typed source", 30, 8),
+            rows: () => [enabled, FormControls.Label(enabled.Value ? "On" : "Off")],
+            handle: formEvent =>
+            {
+                if (formEvent.IsValueChanged)
+                {
+                    Assert.True(formEvent.IsValueChangedFrom(enabled));
+                    source = formEvent.SourceTarget;
+                }
+                return formEvent.IsCancelled
+                    ? FormDialogOutcome<object?>.Complete(null)
+                    : FormDialogOutcome<object?>.Continue();
+            });
+
+        Assert.Same(enabled, source);
+        Assert.Null(enabled.Id);
+    }
+
+    [Fact]
     public void FormFocusTarget_ExcludesNonFocusableRows()
     {
         Assert.IsNotAssignableFrom<IFormFocusTarget>(FormControls.Label("Label"));
@@ -230,6 +288,7 @@ public sealed class FormDialogsTests
         var dialogs = new FormDialogs(ModalTestHost.Create(driver));
         TextField value = new FormFieldFactory(TextFieldHistoryTestProvider.Create()).Text("value");
         string? focusedRowId = null;
+        string? sourceRowId = null;
 
         _ = dialogs.Show(
             new FormDialogOptions("Focus", 30, 8),
@@ -237,13 +296,17 @@ public sealed class FormDialogsTests
             handle: formEvent =>
             {
                 if (formEvent.IsValueChanged)
+                {
                     focusedRowId = formEvent.FocusedRowId;
+                    sourceRowId = formEvent.SourceRowId;
+                }
                 return formEvent.IsCancelled
                     ? FormDialogOutcome<object?>.Complete(null)
                     : FormDialogOutcome<object?>.Continue();
             });
 
         Assert.Equal("value", focusedRowId);
+        Assert.Equal("value", sourceRowId);
     }
 
     [Fact]

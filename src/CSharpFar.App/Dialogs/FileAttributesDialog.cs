@@ -93,9 +93,9 @@ internal sealed class FileAttributesDialog : IFileAttributesDialog
         var attributeRows = snapshot.AttributesDescriptors
             .Select(descriptor => CreateAttributeRow(snapshot, descriptor))
             .ToList();
-        TextField creation = _fields.Text("creation", FormatTime(snapshot.CreationTime), width: DateTimeFormat.Length);
-        TextField write = _fields.Text("write", FormatTime(snapshot.LastWriteTime), width: DateTimeFormat.Length);
-        TextField access = _fields.Text("access", FormatTime(snapshot.LastAccessTime), width: DateTimeFormat.Length);
+        TextField creation = _fields.Text(new TextFieldOptions(FormatTime(snapshot.CreationTime), Width: DateTimeFormat.Length));
+        TextField write = _fields.Text(new TextFieldOptions(FormatTime(snapshot.LastWriteTime), Width: DateTimeFormat.Length));
+        TextField access = _fields.Text(new TextFieldOptions(FormatTime(snapshot.LastAccessTime), Width: DateTimeFormat.Length));
         creation.Enabled = snapshot.CanEditCreationTime;
         write.Enabled = snapshot.CanEditLastWriteTime;
         access.Enabled = snapshot.CanEditLastAccessTime;
@@ -144,9 +144,8 @@ internal sealed class FileAttributesDialog : IFileAttributesDialog
 
                 if (result.IsSubmitted)
                 {
-                    if (IsTimeAction(result.SourceRowId, result.Command))
+                    if (ApplyTimeAction(result.SourceTarget, result.Command, snapshot, creation, write, access, _clock.Now))
                     {
-                        ApplyTimeAction(result.SourceRowId!, result.Command!, snapshot, creation, write, access, _clock.Now);
                         return FormDialogOutcome<FileAttributesDialogResult?>.Continue();
                     }
 
@@ -326,46 +325,33 @@ internal sealed class FileAttributesDialog : IFileAttributesDialog
         _ => bit.ToString(),
     };
 
-    private static bool IsTimeAction(string? fieldId, string? action) =>
-        fieldId is "creation" or "write" or "access" &&
-        action is "original" or "current" or "blank";
-
     internal static bool ApplyTimeAction(
-        string fieldId,
-        string action,
+        IFormFocusTarget? source,
+        string? action,
         FileMetadataSnapshot snapshot,
         TextField creation,
         TextField write,
         TextField access,
         DateTime now)
     {
-        TextField? field = fieldId switch
-        {
-            "creation" when snapshot.CanEditCreationTime => creation,
-            "write" when snapshot.CanEditLastWriteTime => write,
-            "access" when snapshot.CanEditLastAccessTime => access,
-            _ => null,
-        };
-        DateTime? original = fieldId switch
-        {
-            "creation" => snapshot.CreationTime,
-            "write" => snapshot.LastWriteTime,
-            "access" => snapshot.LastAccessTime,
-            _ => null,
-        };
-        if (field is null)
+        (TextField Field, DateTime? Original)? target =
+            ReferenceEquals(source, creation) && snapshot.CanEditCreationTime ? (creation, snapshot.CreationTime) :
+            ReferenceEquals(source, write) && snapshot.CanEditLastWriteTime ? (write, snapshot.LastWriteTime) :
+            ReferenceEquals(source, access) && snapshot.CanEditLastAccessTime ? (access, snapshot.LastAccessTime) :
+            null;
+        if (target is null)
             return false;
 
         switch (action)
         {
             case "original":
-                field.Text = FormatTime(original);
+                target.Value.Field.Text = FormatTime(target.Value.Original);
                 return true;
             case "current":
-                field.Text = FormatTime(now);
+                target.Value.Field.Text = FormatTime(now);
                 return true;
             case "blank":
-                field.Text = string.Empty;
+                target.Value.Field.Text = string.Empty;
                 return true;
             default:
                 return false;

@@ -7,26 +7,26 @@ namespace CSharpFar.Tests;
 public sealed class FileAttributesDialogTests
 {
     [Fact]
-    public void ApplyTimeAction_UsesSeparateFieldAndActionIds()
+    public void ApplyTimeAction_UsesTypedFieldAndSemanticAction()
     {
         FileMetadataSnapshot snapshot = Snapshot();
         var fields = new FormFieldFactory(TextFieldHistoryTestProvider.Create());
-        TextField creation = fields.Text("creation", "changed", width: 19);
-        TextField write = fields.Text("write", "changed", width: 19);
-        TextField access = fields.Text("access", "changed", width: 19);
+        TextField creation = fields.Text(new TextFieldOptions("changed", Width: 19));
+        TextField write = fields.Text(new TextFieldOptions("changed", Width: 19));
+        TextField access = fields.Text(new TextFieldOptions("changed", Width: 19));
 
         Assert.True(FileAttributesDialog.ApplyTimeAction(
-            "write", "current", snapshot, creation, write, access, new DateTime(2026, 7, 31, 12, 0, 0)));
+            write, "current", snapshot, creation, write, access, new DateTime(2026, 7, 31, 12, 0, 0)));
         Assert.True(FileAttributesDialog.ApplyTimeAction(
-            "creation", "original", snapshot, creation, write, access, new DateTime(2026, 7, 31, 12, 0, 0)));
+            creation, "original", snapshot, creation, write, access, new DateTime(2026, 7, 31, 12, 0, 0)));
         Assert.True(FileAttributesDialog.ApplyTimeAction(
-            "access", "blank", snapshot, creation, write, access, new DateTime(2026, 7, 31, 12, 0, 0)));
+            access, "blank", snapshot, creation, write, access, new DateTime(2026, 7, 31, 12, 0, 0)));
 
         Assert.Equal(FileAttributesDialog.FormatTime(snapshot.CreationTime), creation.Text);
         Assert.Equal("31.07.2026 12:00:00", write.Text);
         Assert.Empty(access.Text);
         Assert.False(FileAttributesDialog.ApplyTimeAction(
-            "write.current", "current", snapshot, creation, write, access, new DateTime(2026, 7, 31, 12, 0, 0)));
+            new CheckBoxRow(new CheckBoxLine("other")), "current", snapshot, creation, write, access, new DateTime(2026, 7, 31, 12, 0, 0)));
     }
 
     [Fact]
