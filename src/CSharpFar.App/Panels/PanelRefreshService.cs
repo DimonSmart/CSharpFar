@@ -50,14 +50,16 @@ internal sealed class PanelRefreshService
             return;
         }
 
+        if (state.ContentKind == PanelContentKind.Virtual)
+            return;
+
         _controller.TryRefreshDirectory(state, visibleRows, _panelOptions());
     }
 
     private void RefreshPanelAfterFileOperation(FilePanelState state, PanelSide side)
     {
-        if (state.SearchRequest is not null)
+        if (state.ContentKind == PanelContentKind.Virtual)
         {
-            state.Summary = PanelSearchResultsSummaryBuilder.BuildSummary(state);
             return;
         }
 

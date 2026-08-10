@@ -77,9 +77,8 @@ public sealed class PanelController
         AppSettings.PanelOptionsSettings? options = null)
     {
         int previousCursorIndex = state.CursorIndex;
-        string? currentItemPath = preserveCurrentItem
-            ? CurrentItem(state)?.FullPath
-            : null;
+        int previousScrollOffset = state.ScrollOffset;
+        var previousItem = preserveCurrentItem ? CurrentItem(state) : null;
         options ??= new AppSettings.PanelOptionsSettings();
         var sortedItems = _sortService.Sort(
             content.Items,
@@ -97,24 +96,28 @@ public sealed class PanelController
         state.Items.AddRange(sortedItems);
         state.SelectedPaths.Clear();
         state.SelectedLocations.Clear();
-        int restoredIndex = currentItemPath is null
-            ? -1
-            : state.Items.FindIndex(item => string.Equals(
-                item.FullPath,
-                currentItemPath,
-                StringComparison.OrdinalIgnoreCase));
-        state.CursorIndex = preserveCurrentItem && restoredIndex < 0
-            ? previousCursorIndex
-            : Math.Max(0, restoredIndex);
-        state.ScrollOffset = 0;
+        state.CursorIndex = preserveCurrentItem ? previousCursorIndex : 0;
+        state.ScrollOffset = preserveCurrentItem ? previousScrollOffset : 0;
         state.ProviderCapabilities = content.Capabilities;
+        state.ContentKind = PanelContentKind.Virtual;
         state.DisplayTitle = content.Title;
         state.ShowCurrentItemFullPath = content.ShowCurrentItemFullPath;
         state.AutoRefreshState = null;
         state.LoadError = null;
         state.Summary = null;
 
-        NormalizeCursor(state, visibleRows);
+        if (preserveCurrentItem)
+        {
+            RestoreCursorAfterItemsChanged(
+                state,
+                visibleRows,
+                previousCursorIndex,
+                previousItem?.Location,
+                previousItem?.FullPath,
+                previousItem?.Name);
+        }
+        else
+            NormalizeCursor(state, visibleRows);
         RefreshSelectedSummary(state);
     }
 
@@ -129,6 +132,7 @@ public sealed class PanelController
         state.Summary = view.Summary;
         state.AutoRefreshState = view.AutoRefreshState;
         state.ProviderCapabilities = view.ProviderCapabilities;
+        state.ContentKind = PanelContentKind.Source;
         state.LoadError = null;
         state.DisplayTitle = null;
         state.ShowCurrentItemFullPath = false;
@@ -558,6 +562,36 @@ public sealed class PanelController
             previousName);
     }
 
+    public void SortVirtualContent(
+        FilePanelState state,
+        int visibleRows,
+        AppSettings.PanelOptionsSettings? options = null)
+    {
+        int previousCursorIndex = state.CursorIndex;
+        var previousItem = CurrentItem(state);
+        options ??= new AppSettings.PanelOptionsSettings();
+        var sortedItems = _sortService.Sort(
+            state.Items,
+            state.SortMode,
+            state.SortDescending,
+            new PanelSortOptions
+            {
+                SortFoldersByExtension = options.SortFoldersByExtension,
+                KeepParentDirectoryFirst = false,
+                DirectoriesFirst = true,
+            });
+
+        state.Items.Clear();
+        state.Items.AddRange(sortedItems);
+        RestoreCursorAfterItemsChanged(
+            state,
+            visibleRows,
+            previousCursorIndex,
+            previousItem?.Location,
+            previousItem?.FullPath,
+            previousItem?.Name);
+    }
+
     public static bool CanSelect(FilePanelItem item, AppSettings.PanelOptionsSettings options)
     {
         if (item.IsParentDirectory) return false;
@@ -691,6 +725,7 @@ public sealed class PanelController
         state.Summary = new PanelSummary();
         state.AutoRefreshState = null;
         state.ProviderCapabilities = PanelProviderCapabilities.Refresh;
+        state.ContentKind = PanelContentKind.Source;
         state.LoadError = new PanelLoadError
         {
             Message = string.IsNullOrWhiteSpace(exception.Message)

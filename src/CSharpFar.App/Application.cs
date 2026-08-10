@@ -572,9 +572,9 @@ public sealed class Application
         _panelSort.SetPanelSortMode(state, mode, visibleRows);
     }
 
-    internal void SortVirtualPanel(FilePanelState state, string? keepCursorPath, int visibleRows)
+    internal void SortVirtualPanel(FilePanelState state, int visibleRows)
     {
-        _panelSort.SortVirtualPanel(state, keepCursorPath, visibleRows);
+        _panelSort.SortVirtualPanel(state, visibleRows);
     }
 
     internal static bool HasCapability(FilePanelState state, PanelProviderCapabilities capability) =>

@@ -1,4 +1,5 @@
 using CSharpFar.Core.Menu;
+using CSharpFar.Core.Models;
 
 namespace CSharpFar.App.Commands;
 
@@ -16,15 +17,14 @@ internal sealed class PanelToggleReverseSortCommand : IApplicationCommand
 
         var state = context.GetPanelState(panelArgs.PanelSide);
         state.SortDescending = !state.SortDescending;
-        if (state.SearchRequest is null)
+        if (state.ContentKind == PanelContentKind.Source)
         {
             context.SafeRefresh(state, context.VisibleRows(panelArgs.PanelSide));
         }
         else
         {
             int visibleRows = context.VisibleRows(panelArgs.PanelSide);
-            context.SortVirtualPanel(state, context.Controller.CurrentItem(state)?.FullPath, visibleRows);
-            context.Controller.NormalizeCursor(state, visibleRows);
+            context.SortVirtualPanel(state, visibleRows);
         }
 
         return ApplicationCommandResult.Rendered();
