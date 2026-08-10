@@ -55,20 +55,20 @@ internal sealed class FtpConnectionDialog
         var connection = request.Connection;
         FormFieldFactory fields = _fields.WithDefaults(new TextFieldDefaults(Width: 44, SubmitOnEnter: true));
         var state = new FtpFormState(
-            fields.Text("connection-name", connection?.DisplayName ?? string.Empty, FtpTextHistoryIds.ConnectionName),
+            fields.Text(new TextFieldOptions(connection?.DisplayName ?? string.Empty, FtpTextHistoryIds.ConnectionName)),
             fields.Text("host", connection?.Host ?? string.Empty, FtpTextHistoryIds.Host),
             fields.Text("port", (connection?.Port ?? 21).ToString(), FtpTextHistoryIds.Port),
-            fields.Text("username", connection?.Username ?? string.Empty, FtpTextHistoryIds.UserName),
-            fields.Text("password", request.SavedPassword ?? string.Empty, maskInput: true),
-            fields.Text("remote-root", connection?.RemoteRootPath ?? "/", FtpTextHistoryIds.RemoteRoot),
-            fields.Text("active-ports", FormatActivePortRange(connection) ?? string.Empty, FtpTextHistoryIds.ActivePorts),
+            fields.Text(new TextFieldOptions(connection?.Username ?? string.Empty, FtpTextHistoryIds.UserName)),
+            fields.Text(new TextFieldOptions(request.SavedPassword ?? string.Empty, MaskInput: true)),
+            fields.Text(new TextFieldOptions(connection?.RemoteRootPath ?? "/", FtpTextHistoryIds.RemoteRoot)),
+            fields.Text(new TextFieldOptions(FormatActivePortRange(connection) ?? string.Empty, FtpTextHistoryIds.ActivePorts)),
             FormControls.CheckBox("save-connection", "Save connection", request.SaveConnectionByDefault),
             FormControls.CheckBox("save-password", "Save password", connection?.CredentialId is not null && request.SavedPassword is not null),
-            FormControls.CheckBox("show-in-drive", "Show in drive menu", connection?.ShowInDriveSelection ?? true),
-            FormControls.CheckBox("data-tls", "Use TLS for data connection"),
-            FormControls.CheckBox("trust-certificate", "Trust certificate"),
+            FormControls.CheckBox("Show in drive menu", connection?.ShowInDriveSelection ?? true),
+            FormControls.CheckBox("Use TLS for data connection"),
+            FormControls.CheckBox("Trust certificate"),
             FormControls.CompactChoice("security", "Security", Enum.GetValues<FtpConnectionSecurityMode>(), SecurityLabel, connection?.SecurityMode ?? FtpConnectionSecurityMode.ExplicitFtps),
-            FormControls.CompactChoice("data-mode", "Data mode", Enum.GetValues<FtpDataConnectionMode>(), DataModeLabel, connection?.DataConnectionMode ?? FtpDataConnectionMode.AutoPassive),
+            FormControls.CompactChoice("Data mode", Enum.GetValues<FtpDataConnectionMode>(), DataModeLabel, connection?.DataConnectionMode ?? FtpDataConnectionMode.AutoPassive),
             request.AllowTemporaryConnection);
         string? fingerprint = connection?.ExpectedTlsCertificateFingerprint;
         string? error = null;
@@ -77,7 +77,6 @@ internal sealed class FtpConnectionDialog
         state.TrustCertificate.Value = !string.IsNullOrWhiteSpace(fingerprint);
         string submitLabel = request.AllowTemporaryConnection ? "Connect" : "Save";
         var actions = FormControls.Buttons(
-        "actions",
             DialogButton.Default("submit", submitLabel, request.AllowTemporaryConnection ? 'O' : 'S'),
             DialogButton.Cancel());
         FtpConnectionSecurityMode previousSecurity = state.Security.Value;
@@ -159,7 +158,7 @@ internal sealed class FtpConnectionDialog
                     state.TrustCertificate.Value = false;
                     SyncEnabledRows();
                     error = validation.ErrorMessage;
-                    return FormDialogOutcome<FtpConnectionDialogResult?>.ContinueWithFocus("trust-certificate");
+                    return FormDialogOutcome<FtpConnectionDialogResult?>.ContinueWithFocus(state.TrustCertificate);
                 }
                 error = validation.ErrorMessage;
                 return FormDialogOutcome<FtpConnectionDialogResult?>.Continue();
@@ -180,7 +179,7 @@ internal sealed class FtpConnectionDialog
         if (state.AllowTemporaryConnection) rows.Add(state.SaveConnection);
         rows.Add(state.SavePassword); rows.Add(state.ShowInDrive); rows.Add(state.Security); rows.Add(state.DataMode); rows.Add(state.DataTls);
         if (state.DataMode.Value == FtpDataConnectionMode.Active) rows.Add(FormControls.Text("Active ports:", state.ActivePorts));
-        rows.Add(FormControls.Value("certificate-fingerprint", "TLS cert:", () => state.Security.Value == FtpConnectionSecurityMode.PlainFtp ? "(plain FTP has no TLS certificate)" : string.IsNullOrWhiteSpace(fingerprint) ? "(press F10 to read certificate)" : fingerprint));
+        rows.Add(FormControls.Value("TLS cert:", () => state.Security.Value == FtpConnectionSecurityMode.PlainFtp ? "(plain FTP has no TLS certificate)" : string.IsNullOrWhiteSpace(fingerprint) ? "(press F10 to read certificate)" : fingerprint));
         rows.Add(state.TrustCertificate);
         return rows;
     }

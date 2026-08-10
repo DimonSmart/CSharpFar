@@ -46,6 +46,44 @@ public sealed class FormDialogsTests
     }
 
     [Fact]
+    public void OkCancel_IsAnonymousAndEnterSubmitsItsDefaultOkAction()
+    {
+        var driver = new FakeConsoleDriver();
+        driver.EnqueueKey(Key(ConsoleKey.Enter));
+        var dialogs = new FormDialogs(ModalTestHost.Create(driver));
+        ButtonRow actions = FormControls.OkCancel();
+
+        string result = dialogs.Show(
+            new FormDialogOptions("Actions", 30, 8),
+            rows: () => [FormControls.Label("Body")],
+            footer: () => [actions],
+            handle: formEvent => formEvent.IsSubmitted
+                ? FormDialogOutcome<string>.Complete(formEvent.Command!)
+                : FormDialogOutcome<string>.Continue());
+
+        Assert.Null(actions.Id);
+        Assert.Equal("ok", result);
+    }
+
+    [Fact]
+    public void OkCancel_CancelActionReturnsCancelledEvent()
+    {
+        var driver = new FakeConsoleDriver();
+        driver.EnqueueKey(new ConsoleKeyInfo('c', ConsoleKey.C, false, false, false));
+        var dialogs = new FormDialogs(ModalTestHost.Create(driver));
+
+        bool cancelled = dialogs.Show(
+            new FormDialogOptions("Actions", 30, 8),
+            rows: () => [FormControls.Label("Body")],
+            footer: () => [FormControls.OkCancel()],
+            handle: formEvent => formEvent.IsCancelled
+                ? FormDialogOutcome<bool>.Complete(true)
+                : FormDialogOutcome<bool>.Continue());
+
+        Assert.True(cancelled);
+    }
+
+    [Fact]
     public void Show_ValidationError_KeepsFormOpenAndFocusesRequestedControl()
     {
         var driver = new FakeConsoleDriver();

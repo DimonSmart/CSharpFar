@@ -22,12 +22,11 @@ internal sealed class CreateFolderDialog
     public string? Show(string? initialText = null, Func<string, string?>? validate = null)
     {
         var fields = _fields;
-        TextField folderName = fields.Text("folder-name", initialText ?? string.Empty,
-            AppTextHistoryIds.CreateFolderName, submitOnEnter: true);
-        var actions = FormControls.Buttons(
-            "actions",
-            DialogButton.Default("ok", "OK", 'O'),
-            DialogButton.Cancel());
+        TextField folderName = fields.Text(new TextFieldOptions(
+            initialText ?? string.Empty,
+            AppTextHistoryIds.CreateFolderName,
+            SubmitOnEnter: true));
+        var actions = FormControls.OkCancel();
         string? error = null;
 
         return _dialogs.Form(

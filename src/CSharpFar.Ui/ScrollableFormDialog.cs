@@ -11,7 +11,7 @@ public sealed partial class ScrollableFormDialog
     private IReadOnlyList<FormRow> _bodyRows = [];
     private IReadOnlyList<FormRow> _footerRows = [];
     private Dictionary<FormRow, UiTargetId> _targets = new(ReferenceEqualityComparer.Instance);
-    private readonly ConditionalWeakTable<FormRow, AnonymousRowTokenBox> _anonymousRowTokens = new();
+    private readonly ConditionalWeakTable<object, AnonymousRowTokenBox> _anonymousRowTokens = new();
     private IUiFocusState? _activeFocusState;
     private UiTargetId? _requestedInitialTarget;
     private ScrollableFormFrame? _committedFrame;
@@ -143,7 +143,12 @@ public sealed partial class ScrollableFormDialog
 
     private long AnonymousRowToken(FormRow row)
     {
-        return _anonymousRowTokens.GetValue(row, _ => new AnonymousRowTokenBox(++_nextAnonymousRowToken)).Value;
+        object owner = row.FocusTarget is { } target
+            ? target
+            : row is IFormFocusTarget focusTarget
+                ? focusTarget
+                : row;
+        return _anonymousRowTokens.GetValue(owner, _ => new AnonymousRowTokenBox(++_nextAnonymousRowToken)).Value;
     }
 
     private int? FocusIndexFromScope(UiTargetId? target)

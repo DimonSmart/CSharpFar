@@ -58,16 +58,16 @@ internal sealed class SftpConnectionDialog
         SftpConnectionInfo? connection = request.Connection;
         FormFieldFactory fields = _fields.WithDefaults(new TextFieldDefaults(Width: 42, SubmitOnEnter: true));
         var state = new SftpFormState(
-            fields.Text("connection-name", connection?.DisplayName ?? string.Empty, SftpTextHistoryIds.ConnectionName),
+            fields.Text(new TextFieldOptions(connection?.DisplayName ?? string.Empty, SftpTextHistoryIds.ConnectionName)),
             fields.Text("host", connection?.Host ?? string.Empty, SftpTextHistoryIds.Host),
             fields.Text("port", (connection?.Port ?? 22).ToString(), SftpTextHistoryIds.Port),
-            fields.Text("username", connection?.Username ?? string.Empty, SftpTextHistoryIds.UserName),
-            fields.Text("password", request.SavedPassword ?? string.Empty, maskInput: true),
-            fields.Text("remote-root", connection?.RemoteRootPath ?? "/", SftpTextHistoryIds.RemoteRoot),
+            fields.Text(new TextFieldOptions(connection?.Username ?? string.Empty, SftpTextHistoryIds.UserName)),
+            fields.Text(new TextFieldOptions(request.SavedPassword ?? string.Empty, MaskInput: true)),
+            fields.Text(new TextFieldOptions(connection?.RemoteRootPath ?? "/", SftpTextHistoryIds.RemoteRoot)),
             FormControls.CheckBox("save-connection", "Save connection", request.SaveConnectionByDefault),
             FormControls.CheckBox("save-password", "Save password", connection?.CredentialId is not null && request.SavedPassword is not null),
-            FormControls.CheckBox("show-in-drive", "Show in drive menu", connection?.ShowInDriveSelection ?? true),
-            FormControls.CheckBox("trust-host-key", "Trust host key"),
+            FormControls.CheckBox("Show in drive menu", connection?.ShowInDriveSelection ?? true),
+            FormControls.CheckBox("Trust host key"),
             request.AllowTemporaryConnection);
 
         string? hostKeyFingerprint = connection?.ExpectedHostKeyFingerprint;
@@ -75,7 +75,6 @@ internal sealed class SftpConnectionDialog
         string? error = null;
         string submitLabel = request.AllowTemporaryConnection ? "Connect" : "Save";
         var actions = FormControls.Buttons(
-        "actions",
             DialogButton.Default("submit", submitLabel, submitLabel[0]),
             DialogButton.Cancel());
         return _dialogs.Form(
@@ -132,7 +131,7 @@ internal sealed class SftpConnectionDialog
                         hostKeyFingerprint = validation.HostKeyFingerprint;
                         state.TrustHostKey.Value = false;
                         error = validation.ErrorMessage;
-                        return FormDialogOutcome<SftpConnectionDialogResult?>.ContinueWithFocus("trust-host-key");
+                        return FormDialogOutcome<SftpConnectionDialogResult?>.ContinueWithFocus(state.TrustHostKey);
                     }
 
                     error = validation.ErrorMessage;
@@ -159,7 +158,7 @@ internal sealed class SftpConnectionDialog
         rows.Add(state.ShowInDrive);
         if (!string.IsNullOrWhiteSpace(hostKeyFingerprint))
         {
-            rows.Add(FormControls.Value("host-key-fingerprint", "Host key:", () => hostKeyFingerprint));
+            rows.Add(FormControls.Value("Host key:", () => hostKeyFingerprint));
             rows.Add(state.TrustHostKey);
         }
         return rows;

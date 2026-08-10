@@ -115,8 +115,17 @@ public static class FormControls
     /// <summary>Creates a standard form button row with the conventional default treatment.</summary>
     public static ButtonRow Buttons(string id, params DialogButton[] buttons) => Buttons(id, (IReadOnlyList<DialogButton>)buttons);
 
-    /// <summary>Creates a standard button row with the conventional actions identity.</summary>
-    public static ButtonRow Buttons(params DialogButton[] buttons) => Buttons("actions", buttons);
+    /// <summary>Creates a standard button row without an application-owned identity.</summary>
+    public static ButtonRow Buttons(params DialogButton[] buttons)
+    {
+        ArgumentNullException.ThrowIfNull(buttons);
+        return new ButtonRow(buttons);
+    }
+
+    /// <summary>Creates the standard OK and Cancel form actions without an application-owned identity.</summary>
+    public static ButtonRow OkCancel() => Buttons(
+        DialogButton.Default("ok", "OK", 'O'),
+        DialogButton.Cancel());
 
     /// <summary>Creates a segmented one-line choice row, using <paramref name="fallbackValue"/> when the selected value is absent.</summary>
     public static ChoiceFormRow<T> Choice<T>(
@@ -284,6 +293,9 @@ public static class FormControls
         id = RequiredId(id);
         return new LabeledValueRow(label, value) { Id = id };
     }
+
+    /// <summary>Creates a read-only labeled value row without an application-owned identity.</summary>
+    public static LabeledValueRow Value(string label, Func<string> value) => new(label, value);
 
     private static ChoiceModel<T> CreateChoice<T>(
         IReadOnlyList<T> values,

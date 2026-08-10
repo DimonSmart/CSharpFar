@@ -38,13 +38,13 @@ public sealed class SingleLineInputDialog
 
     private SingleLineInputDialogResult RunLoop(SingleLineInputDialogOptions options)
     {
-        TextField field = _fields.Text("input", options.InitialText, options.History,
-            maskInput: options.MaskInput, submitOnEnter: true);
+        TextField field = _fields.Text(new TextFieldOptions(
+            options.InitialText,
+            options.History,
+            options.MaskInput,
+            SubmitOnEnter: true));
         string? error = null;
-        var actions = FormControls.Buttons(
-            "actions",
-            DialogButton.Default("ok", "OK", 'O'),
-            DialogButton.Cancel());
+        var actions = FormControls.OkCancel();
 
         return _forms.Show(
             new FormDialogOptions(options.Title, DialogWidth, DialogHeight, MinWidth: 20, MinHeight: 5)

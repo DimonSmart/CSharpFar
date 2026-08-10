@@ -114,10 +114,14 @@ internal sealed class FileOperationDialog
         IReadOnlyList<CopyMode>? copyModes,
         bool showOperationOptions)
     {
-        TextField destination = _fields.Text("destination", initialDestination,
-            AppTextHistoryIds.FileOperationDestination, submitOnEnter: true);
-        TextField filter = _fields.Text("filter", string.IsNullOrWhiteSpace(initialOptions.FileMask) ? "*" : initialOptions.FileMask,
-            AppTextHistoryIds.FileOperationFilter, submitOnEnter: true);
+        TextField destination = _fields.Text(new TextFieldOptions(
+            initialDestination,
+            AppTextHistoryIds.FileOperationDestination,
+            SubmitOnEnter: true));
+        TextField filter = _fields.Text(new TextFieldOptions(
+            string.IsNullOrWhiteSpace(initialOptions.FileMask) ? "*" : initialOptions.FileMask,
+            AppTextHistoryIds.FileOperationFilter,
+            SubmitOnEnter: true));
 
         var securityChoice = FormControls.Choice(
             "security", "Access rights:", SecurityModes, SecurityModeLabel, initialOptions.SecurityMode);
