@@ -66,6 +66,39 @@ public readonly struct FormDialogOutcome<TResult>
     public static FormDialogOutcome<TResult> Complete(TResult result) => new(true, result, null, null);
 }
 
+/// <summary>The semantic result of attempting to submit a standard form.</summary>
+public readonly struct FormSubmitResult<TResult>
+{
+    private FormSubmitResult(TResult? result, string? errorMessage, IFormFocusTarget? focusTarget)
+    {
+        Result = result;
+        ErrorMessage = errorMessage;
+        FocusTarget = focusTarget;
+    }
+
+    internal bool IsSuccess => ErrorMessage is null;
+    internal TResult? Result { get; }
+    internal string? ErrorMessage { get; }
+    internal IFormFocusTarget? FocusTarget { get; }
+
+    internal static FormSubmitResult<TResult> Succeeded(TResult result) => new(result, null, null);
+    internal static FormSubmitResult<TResult> Failed(string errorMessage, IFormFocusTarget? focusTarget) =>
+        new(default, errorMessage, focusTarget);
+}
+
+/// <summary>Creates semantic results for a standard form submit callback.</summary>
+public static class FormSubmit
+{
+    public static FormSubmitResult<TResult> Success<TResult>(TResult result) =>
+        FormSubmitResult<TResult>.Succeeded(result);
+
+    public static FormSubmitResult<TResult> Invalid<TResult>(string errorMessage, IFormFocusTarget? focusTarget = null)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(errorMessage);
+        return FormSubmitResult<TResult>.Failed(errorMessage, focusTarget);
+    }
+}
+
 /// <summary>Internal implementation of standard modal forms exposed through <see cref="DialogService"/>.</summary>
 internal sealed class FormDialogs
 {
@@ -119,6 +152,70 @@ internal sealed class FormDialogs
         Func<FormDialogEvent, FormDialogOutcome<TResult>> handle,
         CancellationToken cancellationToken = default) =>
         Show(options, rows, footer: null, handle, cancellationToken);
+
+    public TResult? Show<TResult>(
+        FormDialogOptions options,
+        Func<IReadOnlyList<FormRow>> rows,
+        Func<IReadOnlyList<FormRow>>? footer,
+        Func<FormSubmitResult<TResult>> submit,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(submit);
+
+        string? error = null;
+        var historyFields = new HashSet<TextField>();
+
+        IReadOnlyList<FormRow> Observe(IReadOnlyList<FormRow> formRows)
+        {
+            historyFields.Clear();
+            foreach (FormRow row in formRows)
+                row.CollectTextFields(historyFields);
+            return formRows;
+        }
+
+        return Show(
+            options,
+            rows: () => Observe(rows() ?? throw new InvalidOperationException("Form rows cannot be null.")),
+            footer: () =>
+            {
+                IReadOnlyList<FormRow> supplied = footer?.Invoke() ?? [];
+                foreach (FormRow row in supplied)
+                    row.CollectTextFields(historyFields);
+                return [FormFooter.Error(() => error), .. supplied];
+            },
+            handle: formEvent =>
+            {
+                if (formEvent.IsCancelled)
+                    return FormDialogOutcome<TResult?>.Complete(default);
+
+                if (formEvent.IsValueChanged)
+                    error = null;
+
+                if (!formEvent.IsSubmitted)
+                    return FormDialogOutcome<TResult?>.Continue();
+
+                FormSubmitResult<TResult> outcome = submit();
+                if (outcome.IsSuccess)
+                {
+                    foreach (TextField field in historyFields)
+                        field.AcceptHistory();
+                    return FormDialogOutcome<TResult?>.Complete(outcome.Result);
+                }
+
+                error = outcome.ErrorMessage;
+                return outcome.FocusTarget is null
+                    ? FormDialogOutcome<TResult?>.Continue()
+                    : FormDialogOutcome<TResult?>.ContinueWithFocus(outcome.FocusTarget);
+            },
+            cancellationToken: cancellationToken);
+    }
+
+    public TResult? Show<TResult>(
+        FormDialogOptions options,
+        Func<IReadOnlyList<FormRow>> rows,
+        Func<FormSubmitResult<TResult>> submit,
+        CancellationToken cancellationToken = default) =>
+        Show(options, rows, footer: null, submit, cancellationToken);
 
     private static ModalDialogLoopResult<TResult> ToLoopResult<TResult>(
         FormDialogOutcome<TResult> outcome,

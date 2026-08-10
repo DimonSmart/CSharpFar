@@ -59,8 +59,6 @@ internal sealed class CompareOptionsDialog
                 DialogButton.Default("compare", "Compare", 'C'),
                 DialogButton.Cancel(hotKey: 'A'),
             ]);
-        string? error = null;
-
         return _dialogs.Form(
             new FormDialogOptions(
                 mode == CompareMode.FileSet ? "Compare file sets" : "Compare folders",
@@ -82,35 +80,12 @@ internal sealed class CompareOptionsDialog
                 tolerance,
                 nameComparison,
                 fileSetMatch),
-            footer: () => [FormControls.Error(() => error), buttons],
-            handle: result =>
+            footer: () => [buttons],
+            submit: () =>
             {
-                if (result.IsCancelled)
-                    return FormDialogOutcome<ComparisonOptions?>.Complete(null);
-
-                if (result.IsSubmitted)
-                {
-                    var options = BuildOptions(
-                        mode,
-                        recursive.Value,
-                        selectedOnly.Value,
-                        depth.Value,
-                        customDepth,
-                        include,
-                        exclude,
-                        method.Value,
-                        tolerance.Value,
-                        nameComparison.Value,
-                        fileSetMatch.Value,
-                        ref error);
-                    if (options is not null)
-                        return FormDialogOutcome<ComparisonOptions?>.Complete(options);
-
-                    IFormFocusTarget focusTarget = depth.Value == "Custom" ? customDepth : depth;
-                    return FormDialogOutcome<ComparisonOptions?>.ContinueWithFocus(focusTarget);
-                }
-
-                return FormDialogOutcome<ComparisonOptions?>.Continue();
+                return BuildOptions(
+                    mode, recursive.Value, selectedOnly.Value, depth.Value, customDepth, include, exclude,
+                    method.Value, tolerance.Value, nameComparison.Value, fileSetMatch.Value);
             });
     }
 
@@ -173,7 +148,7 @@ internal sealed class CompareOptionsDialog
             : FormControls.Label($"Selected: left {leftCount}, right {rightCount}");
     }
 
-    internal static ComparisonOptions? BuildOptions(
+    internal static FormSubmitResult<ComparisonOptions?> BuildOptions(
         CompareMode mode,
         bool recursive,
         bool selectedOnly,
@@ -184,31 +159,27 @@ internal sealed class CompareOptionsDialog
         CompareMethod method,
         TimestampTolerance tolerance,
         NameComparisonMode nameComparison,
-        FileSetMatchMode fileSetMatch,
-        ref string? error)
+        FileSetMatchMode fileSetMatch)
     {
-        error = null;
+        string? error = null;
         int? maxDepth = depth switch
         {
             "All" => null,
             "0" => 0,
             "1" => 1,
             "2" => 2,
-            _ => TryParseCustomDepth(customDepth.Text, ref error),
+            _ => TryParseCustomDepth(customDepth.Text, out error),
         };
 
         if (error is not null)
-            return null;
+        {
+            IFormFocusTarget focusTarget = depth == "Custom" ? customDepth : include;
+            return FormSubmit.Invalid<ComparisonOptions?>(error, focusTarget);
+        }
 
         string includeMasks = string.IsNullOrWhiteSpace(include.Text) ? "*" : include.TrimmedText;
         string excludeMasks = exclude.TrimmedText;
-        include.AcceptHistory();
-        if (excludeMasks.Length > 0)
-            exclude.AcceptHistory();
-        if (depth == "Custom")
-            customDepth.AcceptHistory();
-
-        return new ComparisonOptions
+        return FormSubmit.Success<ComparisonOptions?>(new ComparisonOptions
         {
             Mode = mode,
             IncludeSubfolders = recursive,
@@ -220,10 +191,10 @@ internal sealed class CompareOptionsDialog
             TimestampTolerance = tolerance,
             NameComparison = nameComparison,
             FileSetMatchMode = fileSetMatch,
-        };
+        });
     }
 
-    private static int? TryParseCustomDepth(string text, ref string? error)
+    private static int? TryParseCustomDepth(string text, out string? error)
     {
         if (!int.TryParse(text.Trim(), out int value) || value < 0)
         {

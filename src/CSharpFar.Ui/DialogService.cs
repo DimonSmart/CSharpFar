@@ -61,4 +61,19 @@ public sealed class DialogService
         Func<FormDialogEvent, FormDialogOutcome<TResult>> handle,
         CancellationToken cancellationToken = default) =>
         new FormDialogs(_modalDialogs).Show(options, rows, handle, cancellationToken);
+
+    public TResult? Form<TResult>(
+        FormDialogOptions options,
+        Func<IReadOnlyList<FormRow>> rows,
+        Func<IReadOnlyList<FormRow>>? footer,
+        Func<FormSubmitResult<TResult>> submit,
+        CancellationToken cancellationToken = default) =>
+        new FormDialogs(_modalDialogs).Show(options, rows, footer, submit, cancellationToken);
+
+    public TResult? Form<TResult>(
+        FormDialogOptions options,
+        Func<IReadOnlyList<FormRow>> rows,
+        Func<FormSubmitResult<TResult>> submit,
+        CancellationToken cancellationToken = default) =>
+        new FormDialogs(_modalDialogs).Show(options, rows, footer: null, submit, cancellationToken);
 }

@@ -105,35 +105,24 @@ internal sealed class SearchDialog
         var buttons = FormControls.Buttons(
             DialogButton.Default("find", "Find", 'F'),
             DialogButton.Cancel());
-        string? error = null;
         return _dialogs.Form(
             new FormDialogOptions("Find file", DialogWidth, DialogHeight, MinWidth: 48),
             rows: () => BuildBodyRows(mask, text, parallelism, notContainingRow, optionsRow, scopeRow, text.Text.Length > 0),
-            footer: () => FormFooter.ErrorAndButtons(() => error is null ? null : Truncate(error, DialogWidth), buttons),
-            (result) =>
+            footer: () => [buttons],
+            submit: () =>
             {
-                if (result.IsCancelled)
-                    return FormDialogOutcome<SearchRequest?>.Complete(null);
+                SearchRequest? request = TryCreateRequest(
+                    rootPath, mask.Text, text.Text, caseSensitiveRow.Value, wholeWordsRow.Value,
+                    notContainingRow.Value, includeDirectoriesRow.Value, searchLinksRow.Value,
+                    scopeRow.Value, parallelism.Text, out string? error);
+                if (request is null)
+                    return FormSubmit.Invalid<SearchRequest?>(error!, parallelism);
 
-                if (result.IsSubmitted)
-                {
-                    var request = BuildRequest(
-                        rootPath,
-                        mask,
-                        text,
-                        caseSensitiveRow.Value,
-                        wholeWordsRow.Value,
-                        notContainingRow.Value,
-                        includeDirectoriesRow.Value,
-                        searchLinksRow.Value,
-                        scopeRow.Value,
-                        parallelism,
-                        ref error);
-                    if (request is not null)
-                        return FormDialogOutcome<SearchRequest?>.Complete(request);
-                }
-
-                return FormDialogOutcome<SearchRequest?>.Continue();
+                mask.Text = request.FileMaskExpression;
+                if (request.ContainingText is not null)
+                    text.Text = request.ContainingText;
+                parallelism.Text = request.MaxDegreeOfParallelism.ToString(System.Globalization.CultureInfo.InvariantCulture);
+                return FormSubmit.Success<SearchRequest?>(request);
             });
     }
 
@@ -162,47 +151,6 @@ internal sealed class SearchDialog
         ];
     }
 
-    private SearchRequest? BuildRequest(
-        string rootPath,
-        TextField mask,
-        TextField text,
-        bool caseSensitive,
-        bool wholeWords,
-        bool notContaining,
-        bool includeDirectoriesInResults,
-        bool searchInSymbolicLinks,
-        SearchScope scope,
-        TextField parallelism,
-        ref string? error)
-    {
-        var request = TryCreateRequest(
-            rootPath,
-            mask.Text,
-            text.Text,
-            caseSensitive,
-            wholeWords,
-            notContaining,
-            includeDirectoriesInResults,
-            searchInSymbolicLinks,
-            scope,
-            parallelism.Text,
-            out error);
-
-        if (request is null)
-            return null;
-
-        mask.Text = request.FileMaskExpression;
-        mask.AcceptHistory();
-        if (request.ContainingText is not null)
-        {
-            text.Text = request.ContainingText;
-            text.AcceptHistory();
-        }
-        parallelism.Text = request.MaxDegreeOfParallelism.ToString(System.Globalization.CultureInfo.InvariantCulture);
-        parallelism.AcceptHistory();
-        return request;
-    }
-
     private static string ScopeLabel(SearchScope scope) => scope switch
     {
         SearchScope.CurrentDirectoryRecursive => "Current folder and subfolders",
@@ -210,10 +158,4 @@ internal sealed class SearchDialog
         _ => scope.ToString(),
     };
 
-    private static string Truncate(string value, int maxLength)
-    {
-        if (maxLength <= 0)
-            return string.Empty;
-        return value.Length <= maxLength ? value : value[..Math.Max(0, maxLength - 1)] + "~";
-    }
 }

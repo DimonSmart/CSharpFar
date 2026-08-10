@@ -18,6 +18,7 @@ public abstract class FormRow
     internal virtual bool IsFocusable => IsEnabled;
     internal virtual bool MovesFocusOnUnhandledEnter => false;
     internal virtual IFormFocusTarget? FocusTarget => null;
+    internal virtual void CollectTextFields(ISet<TextField> fields) { }
     internal virtual int Height => 1;
     internal abstract void Render(FormRowRenderContext context);
     internal virtual FormInputResult HandleKey(ConsoleKeyInfo key, FormRowInputContext context) => FormInputResult.NotHandled;

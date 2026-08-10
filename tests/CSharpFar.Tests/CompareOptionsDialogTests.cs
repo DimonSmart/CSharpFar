@@ -7,7 +7,7 @@ namespace CSharpFar.Tests;
 public sealed class CompareOptionsDialogTests
 {
     [Fact]
-    public void BuildOptions_AcceptsCustomDepthHistoryOnlyForCustomMode()
+    public void BuildOptions_LeavesHistoryCommitToTheFormSubmitLifecycle()
     {
         ITextFieldHistoryProvider provider = TextFieldHistoryTestProvider.Create();
         var historyId = new TextHistoryId("CompareOptionsDialogTests.Depth");
@@ -15,9 +15,7 @@ public sealed class CompareOptionsDialogTests
         TextField customDepth = fields.Text("custom-depth", "7", historyId);
         TextField include = fields.Text("include", "*");
         TextField exclude = fields.Text("exclude", "");
-        string? error = null;
-
-        ComparisonOptions? standardDepth = CompareOptionsDialog.BuildOptions(
+        FormSubmitResult<ComparisonOptions?> standardDepth = CompareOptionsDialog.BuildOptions(
             CompareMode.FolderStructure,
             recursive: true,
             selectedOnly: false,
@@ -28,14 +26,12 @@ public sealed class CompareOptionsDialogTests
             CompareMethod.Fast,
             TimestampTolerance.Exact,
             NameComparisonMode.SystemDefault,
-            FileSetMatchMode.FileName,
-            ref error);
+            FileSetMatchMode.FileName);
 
-        Assert.NotNull(standardDepth);
-        Assert.Null(error);
+        Assert.True(standardDepth.IsSuccess);
         Assert.Empty(provider.Get(historyId).Items);
 
-        ComparisonOptions? custom = CompareOptionsDialog.BuildOptions(
+        FormSubmitResult<ComparisonOptions?> custom = CompareOptionsDialog.BuildOptions(
             CompareMode.FolderStructure,
             recursive: true,
             selectedOnly: false,
@@ -46,11 +42,9 @@ public sealed class CompareOptionsDialogTests
             CompareMethod.Fast,
             TimestampTolerance.Exact,
             NameComparisonMode.SystemDefault,
-            FileSetMatchMode.FileName,
-            ref error);
+            FileSetMatchMode.FileName);
 
-        Assert.NotNull(custom);
-        Assert.Null(error);
-        Assert.Equal(["7"], provider.Get(historyId).Items);
+        Assert.True(custom.IsSuccess);
+        Assert.Empty(provider.Get(historyId).Items);
     }
 }
