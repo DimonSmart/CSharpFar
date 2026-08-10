@@ -1,5 +1,7 @@
+using CSharpFar.Console;
 using CSharpFar.Console.Input;
 using CSharpFar.Console.Models;
+using CSharpFar.Tests.Fakes;
 using CSharpFar.Ui;
 
 namespace CSharpFar.Tests;
@@ -29,11 +31,24 @@ public sealed class CheckBoxColumnsRowTests
     }
 
     [Fact]
-    public void DesiredWidth_UsesWidestCellInEachColumnAndColumnGaps()
+    public void DesiredWidth_UsesWidestCellForEveryEqualWidthColumnAndColumnGaps()
     {
-        var row = new CheckBoxColumnsRow([[Check("A"), Check("wide界")], [Check("B")]], columnGap: 2);
+        var row = new CheckBoxColumnsRow([[Check("Very long option界")], [Check("X")]], columnGap: 2);
 
-        Assert.Equal(ConsoleTextMetrics.GetCellWidth("[ ] wide界") + 2 + ConsoleTextMetrics.GetCellWidth("[ ] B"), row.DesiredWidth);
+        int columnWidth = ConsoleTextMetrics.GetCellWidth("[ ] Very long option界");
+        Assert.Equal(columnWidth * 2 + 2, row.DesiredWidth);
+    }
+
+    [Fact]
+    public void Render_AtDesiredWidth_ShowsLongestColumnWithoutClipping()
+    {
+        var row = new CheckBoxColumnsRow([[Check("Very long option界")], [Check("X")]], columnGap: 2);
+        var driver = new FakeConsoleDriver(row.DesiredWidth, 1);
+        var screen = new ScreenRenderer(driver);
+
+        UiTestRender.Render(screen, canvas => row.Render(new FormRowRenderContext(canvas, new Rect(0, 0, row.DesiredWidth, 1), focused: false)));
+
+        Assert.Contains("Very long option界", driver.GetRow(0), StringComparison.Ordinal);
     }
 
     [Fact]
