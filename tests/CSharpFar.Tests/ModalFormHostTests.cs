@@ -189,12 +189,16 @@ public sealed class ModalFormHostTests
         var driver = new FakeConsoleDriver(100, 30);
         driver.EnqueueKey(Key(ConsoleKey.Escape));
         TextField field = new FormFieldFactory(TextFieldHistoryTestProvider.Create()).Text(new TextFieldOptions("界", Width: 26));
-        var checkBoxes = FormControls.CheckBoxColumns([[FormControls.CheckBox("wide界")], [FormControls.CheckBox("other")]]);
+        var checkBoxes = FormControls.CheckBoxColumns([[FormControls.CheckBox("CheckBox column界 very long")], [FormControls.CheckBox("X")]]);
+        var triStateCheckBoxes = new TriStateCheckBoxColumnsRow(
+            "Flags",
+            [new TriStateCheckBoxLine("Tri-state column界 very long"), new TriStateCheckBoxLine("X")],
+            labelWidth: ConsoleTextMetrics.GetCellWidth("Flags"));
         var matrix = FormControls.TriStateMatrix(
-            [new("read", "Read"), new("write", "Write")],
+            [new("read", "Matrix column界 very long"), new("write", "X")],
             [new("owner", "Very long owner", [CheckState.Checked, CheckState.Unchecked])]);
         var form = new ScrollableFormDialog();
-        form.SetRows([FormControls.Label("表題"), FormControls.Text("Name:", field), checkBoxes, matrix], [FormControls.OkCancel()]);
+        form.SetRows([FormControls.Label("表題"), FormControls.Text("Name:", field), checkBoxes, triStateCheckBoxes, matrix], [FormControls.OkCancel()]);
         ScrollableFormFrame? frame = null;
 
         new ModalFormHost(ModalTestHost.Create(driver)).Run(
@@ -208,9 +212,12 @@ public sealed class ModalFormHostTests
             });
 
         Assert.NotNull(frame);
-        Assert.True(frame.BodyBounds.Width >= Math.Max(Math.Max(checkBoxes.DesiredWidth, matrix.DesiredWidth), 5 + 1 + 26));
+        Assert.True(frame.BodyBounds.Width >= Math.Max(Math.Max(Math.Max(checkBoxes.DesiredWidth, triStateCheckBoxes.DesiredWidth), matrix.DesiredWidth), 5 + 1 + 26));
+        Assert.Contains("CheckBox column界 very long", driver.GetRow(frame.BodyBounds.Y + 2), StringComparison.Ordinal);
+        Assert.Contains("Tri-state column界 very long", driver.GetRow(frame.BodyBounds.Y + 3), StringComparison.Ordinal);
+        Assert.Contains("Matrix column界 very long", driver.GetRow(frame.BodyBounds.Y + 4), StringComparison.Ordinal);
         Assert.NotNull(frame.FooterBounds);
-        Assert.Equal(form.NaturalContentHeight, 2 + checkBoxes.Height + matrix.Height + 1);
+        Assert.Equal(form.NaturalContentHeight, 2 + checkBoxes.Height + triStateCheckBoxes.Height + matrix.Height + 1);
     }
 
     [Fact]

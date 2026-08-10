@@ -42,14 +42,28 @@ public sealed class TriStateMatrixFormRowTests
     }
 
     [Fact]
-    public void DesiredWidth_IncludesRowLabelsHeadersCellsAndGaps()
+    public void DesiredWidth_UsesWidestRequiredWidthForEveryEqualWidthColumn()
     {
         TriStateMatrixFormRow matrix = FormControls.TriStateMatrix(
-            [new("read", "Read"), new("execute", "界")],
+            [new("read", "Very long option界"), new("execute", "X")],
             [new("owner", "Very long owner", [CheckState.Checked, CheckState.Unchecked])]);
 
-        Assert.Equal(ConsoleTextMetrics.GetCellWidth("Very long owner") + 1 +
-            Math.Max(ConsoleTextMetrics.GetCellWidth("Read"), 3) + 1 + 3, matrix.DesiredWidth);
+        int columnWidth = Math.Max(ConsoleTextMetrics.GetCellWidth("Very long option界"), ConsoleTextMetrics.GetCellWidth("[ ]"));
+        Assert.Equal(ConsoleTextMetrics.GetCellWidth("Very long owner") + 1 + columnWidth * 2 + 1, matrix.DesiredWidth);
+    }
+
+    [Fact]
+    public void Render_AtDesiredWidth_ShowsLongestColumnWithoutClipping()
+    {
+        TriStateMatrixFormRow matrix = FormControls.TriStateMatrix(
+            [new("read", "Very long option界"), new("execute", "X")],
+            [new("owner", "Owner", [CheckState.Checked, CheckState.Unchecked])]);
+        var driver = new FakeConsoleDriver(matrix.DesiredWidth, matrix.Height);
+        var screen = new ScreenRenderer(driver);
+
+        UiTestRender.Render(screen, canvas => matrix.Render(new FormRowRenderContext(canvas, new Rect(0, 0, matrix.DesiredWidth, matrix.Height), focused: false)));
+
+        Assert.Contains("Very long option界", driver.GetRow(0), StringComparison.Ordinal);
     }
 
     private static TriStateMatrixFormRow CreateMatrix() => FormControls.TriStateMatrix(

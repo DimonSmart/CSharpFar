@@ -33,7 +33,9 @@ public sealed class CheckBoxColumnsRow : FormRow, IFormFocusTarget, IFormCursorP
     internal override FormRowRole Role { get; init; } = FormRowRole.Option;
     internal override bool IsFocusable => _columns.SelectMany(static column => column).Any(static row => row.IsFocusable);
     internal override int Height => _columns.Max(static column => column.Count);
-    internal override int DesiredWidth => _columns.Sum(column => column.Max(row => row.DesiredWidth)) + _columnGap * (_columns.Count - 1);
+    internal override int DesiredWidth =>
+        _columns.Max(column => column.Max(row => row.DesiredWidth)) * _columns.Count +
+        _columnGap * (_columns.Count - 1);
 
     internal override void Render(FormRowRenderContext context)
     {
