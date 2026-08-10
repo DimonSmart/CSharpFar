@@ -19,6 +19,18 @@ public sealed class CompactChoiceFormRowTests
     }
 
     [Fact]
+    public void DesiredWidth_UsesLongestDisplayValueRatherThanCurrentSelection()
+    {
+        var row = Row(["short", "much longer界"]);
+        int desiredWidth = row.DesiredWidth;
+
+        row.Value = "much longer界";
+
+        Assert.Equal(ConsoleTextMetrics.GetCellWidth("Mode") + 2 + ConsoleTextMetrics.GetCellWidth("much longer界"), desiredWidth);
+        Assert.Equal(desiredWidth, row.DesiredWidth);
+    }
+
+    [Fact]
     public void SingleChoiceKeysAreHandledWithoutValueChange()
     {
         var row = Row(["only"]);

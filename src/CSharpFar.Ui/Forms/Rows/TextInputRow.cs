@@ -10,6 +10,7 @@ public sealed class TextInputRow : FormRow, IFormFocusTarget, IFormCursorProvide
     private readonly FormTextInputField _field;
     private readonly TextField? _focusTarget;
     private readonly int? _width;
+    private readonly int _preferredWidth;
     private readonly IFormCompositeController _compositeController;
 
     internal TextInputRow(TextField field)
@@ -18,6 +19,7 @@ public sealed class TextInputRow : FormRow, IFormFocusTarget, IFormCursorProvide
         _focusTarget = field;
         _field = field.Input;
         _width = field.Width;
+        _preferredWidth = field.PreferredWidth;
         Id = field.Id;
         SubmitOnEnter = field.SubmitOnEnter;
         _compositeController = new TextInputCompositeController(_field, layout => GetInputBounds(layout.RowBounds));
@@ -31,6 +33,7 @@ public sealed class TextInputRow : FormRow, IFormFocusTarget, IFormCursorProvide
     {
         _field = new FormTextInputField(buffer, history, maskInput);
         _width = width;
+        _preferredWidth = Math.Max(20, ConsoleTextMetrics.GetCellWidth(buffer.Text));
         _compositeController = new TextInputCompositeController(_field, layout => GetInputBounds(layout.RowBounds));
     }
 
@@ -48,7 +51,7 @@ public sealed class TextInputRow : FormRow, IFormFocusTarget, IFormCursorProvide
     public string? DisabledReason { get => _field.DisabledReason; set => _field.DisabledReason = value; }
     internal override bool IsEnabled => Enabled;
     public int? Width => _width;
-    internal override int DesiredWidth => _width ?? Math.Max(20, ConsoleTextMetrics.GetCellWidth(Buffer.Text));
+    internal override int DesiredWidth => _width ?? _preferredWidth;
     IFormCompositeController IFormCompositeOwner.CompositeController => _compositeController;
 
     internal Rect GetInputBounds(Rect rowBounds) =>

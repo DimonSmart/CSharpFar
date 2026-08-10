@@ -45,6 +45,10 @@ public sealed class TriStateMatrixFormRow : FormRow, IFormFocusTarget, IFormCurs
 
     internal override FormRowRole Role { get; init; } = FormRowRole.Option;
     internal override int Height => _rows.Length + 1;
+    internal override int DesiredWidth =>
+        _rows.Max(row => ConsoleTextMetrics.GetCellWidth(row.Label)) + LabelGap +
+        _columns.Sum(column => Math.Max(ConsoleTextMetrics.GetCellWidth(column.Label), 3)) +
+        ColumnGap * (_columns.Length - 1);
     public bool Enabled { get; set; } = true;
     internal override bool IsEnabled => Enabled;
     public CheckState GetValue(string rowId, string columnId) => _values[FindRow(rowId), FindColumn(columnId)];

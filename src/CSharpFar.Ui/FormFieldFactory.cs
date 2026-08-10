@@ -75,6 +75,7 @@ public sealed class TextField : IFormFocusTarget
         _history = history;
         IsMasked = maskInput;
         Width = width;
+        PreferredWidth = Math.Max(20, ConsoleTextMetrics.GetCellWidth(initialText));
         SubmitOnEnter = submitOnEnter;
         if (initialText.Length > 0) _buffer.SetText(initialText);
         Input = new FormTextInputField(
@@ -86,6 +87,7 @@ public sealed class TextField : IFormFocusTarget
     public string? Id { get; }
     public bool IsMasked { get; }
     public int? Width { get; }
+    internal int PreferredWidth { get; }
     public bool Enabled
     {
         get => Input.Enabled;

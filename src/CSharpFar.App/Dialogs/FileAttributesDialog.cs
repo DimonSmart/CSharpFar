@@ -100,7 +100,6 @@ internal sealed class FileAttributesDialog : IFileAttributesDialog
         write.Enabled = snapshot.CanEditLastWriteTime;
         access.Enabled = snapshot.CanEditLastAccessTime;
         TriStateMatrixFormRow? permissions = snapshot.UnixMetadata is null ? null : FormControls.TriStateMatrix(
-            "permissions",
             [new("read", "Read"), new("write", "Write"), new("execute", "Exec")],
             [
                 new("owner", "Owner", [ToCheckState(snapshot.UnixMetadata.PermissionStates[UnixPermissionBit.OwnerRead]), ToCheckState(snapshot.UnixMetadata.PermissionStates[UnixPermissionBit.OwnerWrite]), ToCheckState(snapshot.UnixMetadata.PermissionStates[UnixPermissionBit.OwnerExecute])]),
@@ -113,7 +112,7 @@ internal sealed class FileAttributesDialog : IFileAttributesDialog
             .Where(static pair => pair.Key is UnixPermissionBit.SetUid or UnixPermissionBit.SetGid or UnixPermissionBit.Sticky)
             .ToDictionary(static pair => pair.Key, pair =>
             {
-                TriStateCheckBoxRow row = FormControls.TriStateCheckBox($"permission-{pair.Key}", PermissionColumnLabel(pair.Key), ToCheckState(pair.Value));
+                TriStateCheckBoxRow row = FormControls.TriStateCheckBox(PermissionColumnLabel(pair.Key), ToCheckState(pair.Value));
                 row.Enabled = snapshot.UnixMetadata!.CanEditPermissions;
                 row.DisabledReason = snapshot.UnixMetadata.PermissionsDisabledReason;
                 return row;
@@ -273,7 +272,6 @@ internal sealed class FileAttributesDialog : IFileAttributesDialog
             ? value
             : AttributeEditState.Unchecked;
         TriStateCheckBoxRow row = FormControls.TriStateCheckBox(
-            $"attribute-{descriptor.Id}",
             descriptor.Label,
             ToCheckState(state));
         row.Enabled = descriptor.IsEditable;
