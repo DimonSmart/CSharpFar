@@ -5,6 +5,19 @@ namespace CSharpFar.Tests;
 public sealed class FormControlsTests
 {
     [Fact]
+    public void AnonymousButtonRows_CanShareAForm()
+    {
+        var form = new ScrollableFormDialog();
+        ButtonRow first = FormControls.OkCancel();
+        ButtonRow second = FormControls.OkCancel();
+
+        form.SetRows([], [first, second]);
+
+        Assert.Null(first.Id);
+        Assert.Null(second.Id);
+    }
+
+    [Fact]
     public void Choice_UsesSelectedValueAndComparer()
     {
         ChoiceFormRow<string> row = FormControls.Choice(

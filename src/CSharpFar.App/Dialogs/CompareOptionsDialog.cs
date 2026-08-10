@@ -24,9 +24,19 @@ internal sealed class CompareOptionsDialog
         FilePanelState leftPanel,
         FilePanelState rightPanel)
     {
-        TextField include = _fields.Text("include", string.IsNullOrWhiteSpace(settings.IncludeMasks) ? "*" : settings.IncludeMasks, AppTextHistoryIds.CompareInclude, submitOnEnter: true);
-        TextField exclude = _fields.Text("exclude", settings.ExcludeMasks ?? "", AppTextHistoryIds.CompareExclude, submitOnEnter: true);
-        TextField customDepth = _fields.Text("custom-depth", Math.Max(0, settings.CustomDepth).ToString(System.Globalization.CultureInfo.InvariantCulture), AppTextHistoryIds.CompareDepth, width: 8, submitOnEnter: true);
+        TextField include = _fields.Text(new TextFieldOptions(
+            string.IsNullOrWhiteSpace(settings.IncludeMasks) ? "*" : settings.IncludeMasks,
+            AppTextHistoryIds.CompareInclude,
+            SubmitOnEnter: true));
+        TextField exclude = _fields.Text(new TextFieldOptions(
+            settings.ExcludeMasks ?? "",
+            AppTextHistoryIds.CompareExclude,
+            SubmitOnEnter: true));
+        TextField customDepth = _fields.Text(new TextFieldOptions(
+            Math.Max(0, settings.CustomDepth).ToString(System.Globalization.CultureInfo.InvariantCulture),
+            AppTextHistoryIds.CompareDepth,
+            Width: 8,
+            SubmitOnEnter: true));
 
         var recursive = FormControls.CheckBox("recursive", "Include subfolders", settings.IncludeSubfolders);
         var selectedOnly = FormControls.CheckBox("selected-only", "Selected items only", settings.SelectedItemsOnly);

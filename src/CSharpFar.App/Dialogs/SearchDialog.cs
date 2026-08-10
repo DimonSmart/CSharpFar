@@ -75,11 +75,14 @@ internal sealed class SearchDialog
     private SearchRequest? RunLoop(string rootPath)
     {
         var fields = _fields;
-        TextField mask = fields.Text("mask", "*.*", AppTextHistoryIds.SearchMask, submitOnEnter: true);
+        TextField mask = fields.Text(new TextFieldOptions("*.*", AppTextHistoryIds.SearchMask, SubmitOnEnter: true));
         mask.SelectAll();
-        TextField text = fields.Text("text", historyId: AppTextHistoryIds.SearchText, submitOnEnter: true);
-        TextField parallelism = fields.Text("parallelism", DefaultParallelism().ToString(System.Globalization.CultureInfo.InvariantCulture),
-            AppTextHistoryIds.SearchParallelism, width: 8, submitOnEnter: true);
+        TextField text = fields.Text(new TextFieldOptions(HistoryId: AppTextHistoryIds.SearchText, SubmitOnEnter: true));
+        TextField parallelism = fields.Text(new TextFieldOptions(
+            DefaultParallelism().ToString(System.Globalization.CultureInfo.InvariantCulture),
+            AppTextHistoryIds.SearchParallelism,
+            Width: 8,
+            SubmitOnEnter: true));
 
         var caseSensitiveRow = FormControls.CheckBox("case-sensitive", "Case sensitive");
         var wholeWordsRow = FormControls.CheckBox("whole-words", "Whole words");

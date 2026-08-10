@@ -81,7 +81,10 @@ public sealed class SearchOptionsDialog
 
     private SearchOptionsDialogResult? RunLoop(SearchOptionsDialogOptions options)
     {
-        TextField pattern = _fields.Text("pattern", options.InitialPattern, options.History, submitOnEnter: true);
+        TextField pattern = _fields.Text(new TextFieldOptions(
+            options.InitialPattern,
+            options.History,
+            SubmitOnEnter: true));
 
         var state = new SearchOptionsDialogState(pattern.Text, options.Options);
         var checkboxes = options.Options

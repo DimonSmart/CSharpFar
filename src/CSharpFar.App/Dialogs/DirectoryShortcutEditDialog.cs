@@ -36,9 +36,7 @@ internal sealed class DirectoryShortcutEditDialog
         TextField path = _fields.Text(new TextFieldOptions(currentItem?.Path ?? activePanelPath));
         TextInputRow nameRow = FormControls.Text(name);
         TextInputRow pathRow = FormControls.Text(path);
-        var actions = FormControls.Buttons(
-            DialogButton.Default("ok", "OK", 'O'),
-            DialogButton.Cancel());
+        var actions = FormControls.OkCancel();
         return _dialogs.Form(
             new FormDialogOptions($"Directory shortcut {number}", DialogWidth, DialogHeight),
             rows: () =>
