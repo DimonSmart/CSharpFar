@@ -136,6 +136,7 @@ internal static class ApplicationServicesBuilder
             pendingMenuCommands.Enqueue);
         var autoRefresh = new PanelAutoRefreshService(
             changeWatcher,
+            controller,
             locationService,
             () => callbacks.PanelOptions(),
             side => callbacks.GetPanelState(side),

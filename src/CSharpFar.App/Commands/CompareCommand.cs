@@ -64,7 +64,7 @@ internal sealed class CompareCommand : IApplicationCommand
                 ? new FileSetCompareEngine().Compare(left, right, options)
                 : new FolderStructureCompareEngine().Compare(left, right, options);
 
-            ComparisonSelectionApplier.Apply(result, context.LeftPanel, context.RightPanel);
+            ComparisonSelectionApplier.Apply(result, context.LeftPanel, context.RightPanel, context.Controller);
             new CompareSummaryDialog(context.ModalDialogs).Show(result);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or DirectoryNotFoundException or ArgumentException)

@@ -69,6 +69,28 @@ public sealed class PanelController
         }
     }
 
+    public void SetAutoRefreshState(
+        FilePanelState state,
+        PanelAutoRefreshState? autoRefreshState)
+    {
+        state.AutoRefreshState = autoRefreshState;
+    }
+
+    public void SetSourceDisplay(
+        FilePanelState state,
+        string? title,
+        bool showCurrentItemFullPath)
+    {
+        if (state.ContentKind != PanelContentKind.Source)
+            throw new InvalidOperationException("Source display metadata requires a source panel.");
+
+        state.DisplayTitle = title;
+        state.ShowCurrentItemFullPath = showCurrentItemFullPath;
+    }
+
+    public void RefreshSelectionSummary(FilePanelState state) =>
+        RefreshSelectedSummary(state);
+
     public void ReplaceContent(
         FilePanelState state,
         PanelContent content,

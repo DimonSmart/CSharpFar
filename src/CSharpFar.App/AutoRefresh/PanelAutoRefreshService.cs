@@ -1,4 +1,5 @@
 using CSharpFar.Core.Abstractions;
+using CSharpFar.Core.Controllers;
 using CSharpFar.Core.Models;
 using AppSettingsAlias = CSharpFar.Core.Models.AppSettings;
 
@@ -7,6 +8,7 @@ namespace CSharpFar.App.AutoRefresh;
 internal sealed class PanelAutoRefreshService
 {
     private readonly IFileSystemChangeWatcher? _watcher;
+    private readonly PanelController _controller;
     private readonly IFileSystemLocationService? _locationService;
     private readonly Func<AppSettingsAlias.PanelOptionsSettings> _panelOptions;
     private readonly Func<PanelSide, FilePanelState> _getPanelState;
@@ -17,6 +19,7 @@ internal sealed class PanelAutoRefreshService
 
     public PanelAutoRefreshService(
         IFileSystemChangeWatcher? watcher,
+        PanelController controller,
         IFileSystemLocationService? locationService,
         Func<AppSettingsAlias.PanelOptionsSettings> panelOptions,
         Func<PanelSide, FilePanelState> getPanelState,
@@ -24,6 +27,7 @@ internal sealed class PanelAutoRefreshService
         Action<FilePanelState, int> safeRefresh)
     {
         _watcher = watcher;
+        _controller = controller;
         _locationService = locationService;
         _panelOptions = panelOptions;
         _getPanelState = getPanelState;
@@ -42,7 +46,7 @@ internal sealed class PanelAutoRefreshService
         if (state.SourceId != PanelSourceId.Local ||
             !HasCapability(state, PanelProviderCapabilities.Watch))
         {
-            state.AutoRefreshState = null;
+            _controller.SetAutoRefreshState(state, null);
             return;
         }
 
@@ -56,7 +60,7 @@ internal sealed class PanelAutoRefreshService
             Options = _panelOptions().AutoRefresh,
         };
         var refreshState = _watcher.StartWatching(req);
-        state.AutoRefreshState = refreshState;
+        _controller.SetAutoRefreshState(state, refreshState);
     }
 
     public void ResetWaitToken()

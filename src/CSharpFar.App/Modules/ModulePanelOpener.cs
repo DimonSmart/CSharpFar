@@ -76,8 +76,7 @@ internal sealed class ModulePanelOpener
             state,
             new PanelLocation(panel.SourceId, panelInfo.CurrentDirectory),
             _panelOptions());
-        state.DisplayTitle = panelInfo.Title;
-        state.ShowCurrentItemFullPath = true;
+        _controller.SetSourceDisplay(state, panelInfo.Title, showCurrentItemFullPath: true);
         _setQuickView(false);
         _setActiveSide(panelSide);
     }
