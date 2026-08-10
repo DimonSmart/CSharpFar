@@ -116,10 +116,18 @@ public static class FormControls
     public static ButtonRow Buttons(string id, params DialogButton[] buttons) => Buttons(id, (IReadOnlyList<DialogButton>)buttons);
 
     /// <summary>Creates a standard button row without an application-owned identity.</summary>
-    public static ButtonRow Buttons(params DialogButton[] buttons)
+    public static ButtonRow Buttons(
+        IReadOnlyList<DialogButton> buttons,
+        FormControlTone tone = FormControlTone.Default)
     {
         ArgumentNullException.ThrowIfNull(buttons);
-        return new ButtonRow(buttons);
+        return new ButtonRow(buttons, tone: tone);
+    }
+
+    /// <summary>Creates a standard button row without an application-owned identity.</summary>
+    public static ButtonRow Buttons(params DialogButton[] buttons)
+    {
+        return Buttons((IReadOnlyList<DialogButton>)buttons);
     }
 
     /// <summary>Creates the standard OK and Cancel form actions without an application-owned identity.</summary>

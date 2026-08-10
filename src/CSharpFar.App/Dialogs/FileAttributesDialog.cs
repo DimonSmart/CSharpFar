@@ -124,7 +124,7 @@ internal sealed class FileAttributesDialog : IFileAttributesDialog
             .Select(bit => new UnixPermissionDialogRow(bit, specialPermissionRows[bit]))
             .ToList();
         string? error = null;
-        var buttons = FormControls.Buttons("actions", _canOpenSystemProperties
+        var buttons = FormControls.Buttons(_canOpenSystemProperties
             ?
             [
                 DialogButton.Default("set", "Set", 'S'),

@@ -38,14 +38,13 @@ internal sealed class ConflictDialog
 
     public FileOperationConflictDecision Show(FileOperationConflict conflict)
     {
-        var rememberChoice = FormControls.CheckBox("remember-choice", "Remember choice");
+        var rememberChoice = FormControls.CheckBox("Remember choice");
         var actions = FormControls.Buttons(
-            "actions",
             CreateButtons(),
             tone: FormControlTone.Warning);
         var form = new ScrollableFormDialog();
         form.SetRows([rememberChoice], [actions]);
-        form.SetInitialFocus("actions");
+        form.SetInitialFocus(actions);
 
         return _modalDialogs.RunInteractive<ScrollableFormFrame, FormInputResult, FileOperationConflictDecision>(
             (context, focusScope) => Draw(conflict, context, focusScope, form),

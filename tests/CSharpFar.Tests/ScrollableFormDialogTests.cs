@@ -111,6 +111,33 @@ public sealed class ScrollableFormDialogTests
     }
 
     [Fact]
+    public void SetInitialFocus_AcceptsTypedAnonymousControl()
+    {
+        CheckBoxRow first = FormControls.CheckBox("First");
+        CheckBoxRow target = FormControls.CheckBox("Target");
+        var form = new ScrollableFormDialog([first, target]);
+
+        form.SetInitialFocus(target);
+
+        Assert.True(form.IsFocused(target));
+        Assert.False(form.IsFocused(first));
+    }
+
+    [Fact]
+    public void IsFocused_AcceptsTypedControlAfterNavigation()
+    {
+        CheckBoxRow first = FormControls.CheckBox("First");
+        CheckBoxRow second = FormControls.CheckBox("Second");
+        var form = new ScrollableFormDialog([first, second]);
+        Render(form, visibleRows: 2);
+
+        HandleKey(form, Key(ConsoleKey.Tab));
+
+        Assert.False(form.IsFocused(first));
+        Assert.True(form.IsFocused(second));
+    }
+
+    [Fact]
     public void InitialFocusBeforeFirstRender_SurvivesRejectedRenderAttempt()
     {
         var form = new ScrollableFormDialog([

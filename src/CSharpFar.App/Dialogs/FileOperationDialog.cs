@@ -124,29 +124,27 @@ internal sealed class FileOperationDialog
             SubmitOnEnter: true));
 
         var securityChoice = FormControls.Choice(
-            "security", "Access rights:", SecurityModes, SecurityModeLabel, initialOptions.SecurityMode);
+            "Access rights:", SecurityModes, SecurityModeLabel, initialOptions.SecurityMode);
         ChoiceFormRow<CopyMode>? copyModeChoice = copyModes is null
             ? null
             : FormControls.Choice(
-                "copyMode", "Copy mode:", copyModes, CopyModeLabel, initialOptions.CopyMode);
+                "Copy mode:", copyModes, CopyModeLabel, initialOptions.CopyMode);
         var conflictChoiceRow = FormControls.MultiLineChoice(
-            "conflict",
             string.Empty,
             conflictModes,
             ConflictLabel,
             initialOptions.DefaultConflictDecision,
             itemsPerRow: 4);
         var preserveTimestamps = FormControls.CheckBox(
-            "preserveTimestamps", "Preserve all timestamps", initialOptions.PreserveTimestamps);
+            "Preserve all timestamps", initialOptions.PreserveTimestamps);
         var preserveAttributes = FormControls.CheckBox(
-            "preserveAttributes", "Preserve attributes", initialOptions.PreserveAttributes);
+            "Preserve attributes", initialOptions.PreserveAttributes);
         var copySymlinkContents = FormControls.CheckBox(
-            "copySymlinkContents", "Copy contents of symbolic links",
+            "Copy contents of symbolic links",
             initialOptions.SymlinkMode == SymlinkCopyMode.CopyTargetContents);
         var useFilter = FormControls.CheckBox(
-            "useFilter", "Use filter", !string.IsNullOrWhiteSpace(initialOptions.FileMask));
+            "Use filter", !string.IsNullOrWhiteSpace(initialOptions.FileMask));
         var buttons = FormControls.Buttons(
-            "footerButtons",
             DialogButton.Default("submit", actionLabel, actionLabel[0]),
             DialogButton.Cancel());
         string? error = null;

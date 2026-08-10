@@ -87,6 +87,12 @@ public sealed partial class ScrollableFormDialog
     public bool IsFocused(string rowId) =>
         !string.IsNullOrEmpty(rowId) && string.Equals(FocusedRowId, rowId, StringComparison.Ordinal);
 
+    public bool IsFocused(IFormFocusTarget target)
+    {
+        ArgumentNullException.ThrowIfNull(target);
+        return CurrentFocusedTarget == GetFocusTarget(target);
+    }
+
     public UiTargetId GetFocusTarget(string rowId)
     {
         if (string.IsNullOrEmpty(rowId))
@@ -117,6 +123,15 @@ public sealed partial class ScrollableFormDialog
             throw new InvalidOperationException("Initial form focus must be selected before the first committed frame.");
 
         _requestedInitialTarget = GetFocusTarget(rowId);
+        RequestEnsureFocusVisible();
+    }
+
+    public void SetInitialFocus(IFormFocusTarget target)
+    {
+        if (_committedFrame is not null)
+            throw new InvalidOperationException("Initial form focus must be selected before the first committed frame.");
+
+        _requestedInitialTarget = GetFocusTarget(target);
         RequestEnsureFocusVisible();
     }
 

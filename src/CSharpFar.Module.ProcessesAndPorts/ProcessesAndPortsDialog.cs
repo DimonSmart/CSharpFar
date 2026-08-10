@@ -24,15 +24,15 @@ internal sealed class ProcessesAndPortsDialog(ModuleUiServices ui, IProcessesAnd
 
     public void Show(string? initialFilter)
     {
-        TextField filter = _ui.Fields.Text("filter", initialFilter ?? string.Empty);
-        var tcp = FormControls.CheckBox("tcp", "TCP listeners", true);
-        var udp = FormControls.CheckBox("udp", "UDP endpoints", true);
-        var other = FormControls.CheckBox("other", "Other TCP connections");
+        TextField filter = _ui.Fields.Text(initialFilter ?? string.Empty);
+        var tcp = FormControls.CheckBox("TCP listeners", true);
+        var udp = FormControls.CheckBox("UDP endpoints", true);
+        var other = FormControls.CheckBox("Other TCP connections");
         var form = new ScrollableFormDialog();
         DialogButton[] actionButtons = [
             DialogButton.Action("details", "Details", 'D'), DialogButton.Action("refresh", "Refresh", 'R'),
             DialogButton.Action("terminate", "Terminate", 'T'), DialogButton.Cancel("Close", 'C', "close")];
-        var actions = FormControls.Buttons("actions", actionButtons);
+        var actions = FormControls.Buttons(actionButtons);
         form.SetRows([FormControls.Text("Filter:", filter), tcp, udp, other], [actions]);
 
         ProcessesAndPortsSnapshot? snapshot = TryCapture(null, out string? captureError);

@@ -84,27 +84,25 @@ internal sealed class SearchDialog
             Width: 8,
             SubmitOnEnter: true));
 
-        var caseSensitiveRow = FormControls.CheckBox("case-sensitive", "Case sensitive");
-        var wholeWordsRow = FormControls.CheckBox("whole-words", "Whole words");
-        var notContainingRow = FormControls.CheckBox("not-containing", "Not containing");
-        var includeDirectoriesRow = FormControls.CheckBox("include-directories", "Include folders in results");
-        var searchLinksRow = FormControls.CheckBox("search-links", "Search in symbolic links");
+        var caseSensitiveRow = FormControls.CheckBox("Case sensitive");
+        var wholeWordsRow = FormControls.CheckBox("Whole words");
+        var notContainingRow = FormControls.CheckBox("Not containing");
+        var includeDirectoriesRow = FormControls.CheckBox("Include folders in results");
+        var searchLinksRow = FormControls.CheckBox("Search in symbolic links");
         SearchScope[] scopes =
         [
             SearchScope.CurrentDirectoryRecursive,
             SearchScope.CurrentDirectoryOnly,
         ];
         var scopeRow = FormControls.Dropdown(
-            "scope", string.Empty, scopes, ScopeLabel, SearchScope.CurrentDirectoryRecursive);
+            string.Empty, scopes, ScopeLabel, SearchScope.CurrentDirectoryRecursive);
         scopeRow.MaxVisibleRows = 6;
         var optionsRow = FormControls.CheckBoxColumns(
-            "search-options",
             [
                 [caseSensitiveRow, wholeWordsRow, notContainingRow],
                 [includeDirectoriesRow, searchLinksRow],
             ]);
         var buttons = FormControls.Buttons(
-            "footerButtons",
             DialogButton.Default("find", "Find", 'F'),
             DialogButton.Cancel());
         string? error = null;
