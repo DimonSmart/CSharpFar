@@ -39,7 +39,6 @@ internal sealed class DirectoryShortcutsDialog
         var routedShortcuts = new RoutedScrollableList<int>(shortcutState, targets.Child("list"), targets.Child("list.scrollbar"));
         var presentation = new ScrollableListRenderOptions<int>(number => FormatShortcut(number, items), string.Empty, PaletteStyles.DialogFill(_palette), PaletteStyles.InputField(_palette), PaletteStyles.DialogFill(_palette));
         var buttons = FormControls.Buttons(
-            "actions",
             DialogButton.Default("edit", "Edit", 'E'),
             DialogButton.Action("close", "Close", 'C'));
         var form = new ScrollableFormDialog();

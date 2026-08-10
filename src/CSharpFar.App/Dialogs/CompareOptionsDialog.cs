@@ -38,23 +38,23 @@ internal sealed class CompareOptionsDialog
             Width: 8,
             SubmitOnEnter: true));
 
-        var recursive = FormControls.CheckBox("recursive", "Include subfolders", settings.IncludeSubfolders);
-        var selectedOnly = FormControls.CheckBox("selected-only", "Selected items only", settings.SelectedItemsOnly);
+        var recursive = FormControls.CheckBox("Include subfolders", settings.IncludeSubfolders);
+        var selectedOnly = FormControls.CheckBox("Selected items only", settings.SelectedItemsOnly);
         var depth = FormControls.Choice(
-            "depth", "Depth:", ["All", "0", "1", "2", "Custom"], static value => value, settings.Depth, "All");
+            "Depth:", ["All", "0", "1", "2", "Custom"], static value => value, settings.Depth, "All");
         var method = FormControls.Choice(
-            "method", "Method:", [CompareMethod.Fast, CompareMethod.Content], MethodLabel,
+            "Method:", [CompareMethod.Fast, CompareMethod.Content], MethodLabel,
             Enum.TryParse(settings.Method, out CompareMethod initialMethod) ? initialMethod : CompareMethod.Fast);
         var tolerance = FormControls.Choice(
-            "tolerance", "Timestamp:", [TimestampTolerance.Exact, TimestampTolerance.TwoSeconds, TimestampTolerance.OneHour], ToleranceLabel,
+            "Timestamp:", [TimestampTolerance.Exact, TimestampTolerance.TwoSeconds, TimestampTolerance.OneHour], ToleranceLabel,
             Enum.TryParse(settings.TimestampTolerance, out TimestampTolerance initialTolerance) ? initialTolerance : TimestampTolerance.Exact);
         var nameComparison = FormControls.Choice(
-            "name-comparison", "Name comparison:", [NameComparisonMode.SystemDefault, NameComparisonMode.CaseSensitive, NameComparisonMode.CaseInsensitive], NameComparisonLabel,
+            "Name comparison:", [NameComparisonMode.SystemDefault, NameComparisonMode.CaseSensitive, NameComparisonMode.CaseInsensitive], NameComparisonLabel,
             Enum.TryParse(settings.NameComparison, out NameComparisonMode initialNameComparison) ? initialNameComparison : NameComparisonMode.SystemDefault);
         var fileSetMatch = FormControls.Choice(
-            "file-set-match", "Match by:", [FileSetMatchMode.FileName, FileSetMatchMode.FileNameAndSize, FileSetMatchMode.FileNameAndContentHash], FileSetMatchLabel,
+            "Match by:", [FileSetMatchMode.FileName, FileSetMatchMode.FileNameAndSize, FileSetMatchMode.FileNameAndContentHash], FileSetMatchLabel,
             Enum.TryParse(settings.FileSetMatchMode, out FileSetMatchMode initialFileSetMatch) ? initialFileSetMatch : FileSetMatchMode.FileName);
-        var buttons = FormControls.Buttons("actions",
+        var buttons = FormControls.Buttons(
             [
                 DialogButton.Default("compare", "Compare", 'C'),
                 DialogButton.Cancel(hotKey: 'A'),
