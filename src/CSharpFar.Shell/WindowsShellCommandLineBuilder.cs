@@ -15,7 +15,7 @@ public sealed class WindowsShellCommandLineBuilder : IShellCommandLineBuilder
     public ProcessStartInfo CreateStartInfo(string command, string workingDirectory)
     {
         var startInfo = CreateBaseStartInfo(_shellExecutable, workingDirectory);
-        startInfo.Arguments = "/d /c " + command;
+        startInfo.Arguments = "/d /s /c \"" + command + "\"";
         return startInfo;
     }
 

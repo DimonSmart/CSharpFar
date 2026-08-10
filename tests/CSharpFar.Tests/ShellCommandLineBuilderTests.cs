@@ -12,7 +12,7 @@ public sealed class ShellCommandLineBuilderTests
 
         Assert.Equal("cmd.exe", startInfo.FileName);
         Assert.Empty(startInfo.ArgumentList);
-        Assert.Equal("/d /c " + command, startInfo.Arguments);
+        Assert.Equal("/d /s /c \"" + command + "\"", startInfo.Arguments);
     }
 
     [Fact]
@@ -22,7 +22,7 @@ public sealed class ShellCommandLineBuilderTests
         var startInfo = new WindowsShellCommandLineBuilder().CreateStartInfo(command, "C:\\");
 
         Assert.Empty(startInfo.ArgumentList);
-        Assert.Equal("/d /c git commit -m \"Initial commit\"", startInfo.Arguments);
+        Assert.Equal("/d /s /c \"git commit -m \"Initial commit\"\"", startInfo.Arguments);
     }
 
     [Fact]
@@ -32,7 +32,7 @@ public sealed class ShellCommandLineBuilderTests
         var startInfo = new WindowsShellCommandLineBuilder().CreateStartInfo(command, "C:\\");
 
         Assert.Empty(startInfo.ArgumentList);
-        Assert.Equal("/d /c npm run package", startInfo.Arguments);
+        Assert.Equal("/d /s /c \"npm run package\"", startInfo.Arguments);
     }
 
     [Fact]
@@ -43,8 +43,19 @@ public sealed class ShellCommandLineBuilderTests
 
         Assert.Empty(startInfo.ArgumentList);
         Assert.Equal(
-            "/d /c RunCrfClassifier.bat \"PARACETAMOL CINFA 1G 40 COMPRIMIDOS EFG\"",
+            "/d /s /c \"RunCrfClassifier.bat \"PARACETAMOL CINFA 1G 40 COMPRIMIDOS EFG\"\"",
             startInfo.Arguments);
+    }
+
+    [Fact]
+    public void WindowsBuilder_PreservesQuotedExecutableAndQuotedArguments()
+    {
+        string command =
+            "\"C:\\Program Files\\Git\\bin\\bash.exe\" \"E:/Work/Repository/scripts/export.sh\" \"argument with spaces\"";
+        var startInfo = new WindowsShellCommandLineBuilder().CreateStartInfo(command, "C:\\");
+
+        Assert.Empty(startInfo.ArgumentList);
+        Assert.Equal("/d /s /c \"" + command + "\"", startInfo.Arguments);
     }
 
     [Fact]
