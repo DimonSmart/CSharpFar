@@ -21,7 +21,8 @@ public readonly record struct FormInputResult(
     FormInputResultKind Kind,
     string? Command = null,
     UiMouseCaptureRequestKind MouseCapture = UiMouseCaptureRequestKind.None,
-    string? SourceRowId = null)
+    string? SourceRowId = null,
+    IFormFocusTarget? SourceTarget = null)
 {
     public static FormInputResult NotHandled => new(FormInputResultKind.NotHandled);
     public static FormInputResult Handled => new(FormInputResultKind.Handled);

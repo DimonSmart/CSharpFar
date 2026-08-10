@@ -46,15 +46,14 @@ internal sealed class OpenCreateFileDialog
         string? initialPath = null,
         Func<string, string?>? validate = null)
     {
-        TextField filePath = _fields.Text("file-path", initialPath ?? string.Empty,
-            AppTextHistoryIds.OpenCreateFilePath, submitOnEnter: true);
+        TextField filePath = _fields.Text(new TextFieldOptions(
+            initialPath ?? string.Empty,
+            AppTextHistoryIds.OpenCreateFilePath,
+            SubmitOnEnter: true));
         TextInputRow pathRow = FormControls.Text(filePath);
         var codePageRow = FormControls.Dropdown(
-            "code-page", string.Empty, _codePages, static item => item.Label, _codePages[0]);
-        var actions = FormControls.Buttons(
-            "actions",
-            DialogButton.Default("ok", "OK", 'O'),
-            DialogButton.Cancel());
+            string.Empty, _codePages, static item => item.Label, _codePages[0]);
+        var actions = FormControls.OkCancel();
         string? error = null;
         return _dialogs.Form(
             new FormDialogOptions(Title, DialogWidth, DialogHeight, MinWidth: 44),
@@ -75,16 +74,7 @@ internal sealed class OpenCreateFileDialog
                     return FormDialogOutcome<OpenCreateFileDialogResult?>.Complete(null);
 
                 if (result.IsValueChanged)
-                {
-                    if (result.SourceRowId == "file-path")
-                    {
-                        error = null;
-                    }
-                    else if (result.SourceRowId == "code-page")
-                    {
-                        error = null;
-                    }
-                }
+                    error = null;
 
                 if (result.IsSubmitted)
                 {

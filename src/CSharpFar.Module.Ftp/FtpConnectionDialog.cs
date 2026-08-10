@@ -56,18 +56,18 @@ internal sealed class FtpConnectionDialog
         FormFieldFactory fields = _fields.WithDefaults(new TextFieldDefaults(Width: 44, SubmitOnEnter: true));
         var state = new FtpFormState(
             fields.Text(new TextFieldOptions(connection?.DisplayName ?? string.Empty, FtpTextHistoryIds.ConnectionName)),
-            fields.Text("host", connection?.Host ?? string.Empty, FtpTextHistoryIds.Host),
-            fields.Text("port", (connection?.Port ?? 21).ToString(), FtpTextHistoryIds.Port),
+            fields.Text(new TextFieldOptions(connection?.Host ?? string.Empty, FtpTextHistoryIds.Host)),
+            fields.Text(new TextFieldOptions((connection?.Port ?? 21).ToString(), FtpTextHistoryIds.Port)),
             fields.Text(new TextFieldOptions(connection?.Username ?? string.Empty, FtpTextHistoryIds.UserName)),
             fields.Text(new TextFieldOptions(request.SavedPassword ?? string.Empty, MaskInput: true)),
             fields.Text(new TextFieldOptions(connection?.RemoteRootPath ?? "/", FtpTextHistoryIds.RemoteRoot)),
             fields.Text(new TextFieldOptions(FormatActivePortRange(connection) ?? string.Empty, FtpTextHistoryIds.ActivePorts)),
-            FormControls.CheckBox("save-connection", "Save connection", request.SaveConnectionByDefault),
-            FormControls.CheckBox("save-password", "Save password", connection?.CredentialId is not null && request.SavedPassword is not null),
+            FormControls.CheckBox("Save connection", request.SaveConnectionByDefault),
+            FormControls.CheckBox("Save password", connection?.CredentialId is not null && request.SavedPassword is not null),
             FormControls.CheckBox("Show in drive menu", connection?.ShowInDriveSelection ?? true),
             FormControls.CheckBox("Use TLS for data connection"),
             FormControls.CheckBox("Trust certificate"),
-            FormControls.CompactChoice("security", "Security", Enum.GetValues<FtpConnectionSecurityMode>(), SecurityLabel, connection?.SecurityMode ?? FtpConnectionSecurityMode.ExplicitFtps),
+            FormControls.CompactChoice("Security", Enum.GetValues<FtpConnectionSecurityMode>(), SecurityLabel, connection?.SecurityMode ?? FtpConnectionSecurityMode.ExplicitFtps),
             FormControls.CompactChoice("Data mode", Enum.GetValues<FtpDataConnectionMode>(), DataModeLabel, connection?.DataConnectionMode ?? FtpDataConnectionMode.AutoPassive),
             request.AllowTemporaryConnection);
         string? fingerprint = connection?.ExpectedTlsCertificateFingerprint;
@@ -102,12 +102,12 @@ internal sealed class FtpConnectionDialog
             (result) =>
             {
                 if (result.IsHandled) error = null;
-                if (result is { Kind: FormDialogEventKind.ValueChanged, SourceRowId: "host" or "port" })
+                if (result.IsValueChangedFrom(state.Host) || result.IsValueChangedFrom(state.Port))
                 {
                     fingerprint = null;
                     state.TrustCertificate.Value = false;
                 }
-                if (result is { Kind: FormDialogEventKind.ValueChanged, SourceRowId: "security" })
+                if (result.IsValueChangedFrom(state.Security))
                 {
                     if (state.Port.Text == DefaultPort(previousSecurity).ToString())
                         state.Port.Text = DefaultPort(state.Security.Value).ToString();
@@ -122,10 +122,10 @@ internal sealed class FtpConnectionDialog
                     else { fingerprint = null; state.TrustCertificate.Value = false; }
                     previousSecurity = state.Security.Value;
                 }
-                if (result is { Kind: FormDialogEventKind.ValueChanged, SourceRowId: "save-password" } && state.SavePassword.Value)
+                if (result.IsValueChangedFrom(state.SavePassword) && state.SavePassword.Value)
                     state.SaveConnection.Value = true;
                 else if (state.AllowTemporaryConnection &&
-                    result is { Kind: FormDialogEventKind.ValueChanged, SourceRowId: "save-connection" } &&
+                    result.IsValueChangedFrom(state.SaveConnection) &&
                     !state.SaveConnection.Value)
                     state.SavePassword.Value = false;
                 SyncEnabledRows();

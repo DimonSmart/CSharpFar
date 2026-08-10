@@ -59,13 +59,13 @@ internal sealed class SftpConnectionDialog
         FormFieldFactory fields = _fields.WithDefaults(new TextFieldDefaults(Width: 42, SubmitOnEnter: true));
         var state = new SftpFormState(
             fields.Text(new TextFieldOptions(connection?.DisplayName ?? string.Empty, SftpTextHistoryIds.ConnectionName)),
-            fields.Text("host", connection?.Host ?? string.Empty, SftpTextHistoryIds.Host),
-            fields.Text("port", (connection?.Port ?? 22).ToString(), SftpTextHistoryIds.Port),
+            fields.Text(new TextFieldOptions(connection?.Host ?? string.Empty, SftpTextHistoryIds.Host)),
+            fields.Text(new TextFieldOptions((connection?.Port ?? 22).ToString(), SftpTextHistoryIds.Port)),
             fields.Text(new TextFieldOptions(connection?.Username ?? string.Empty, SftpTextHistoryIds.UserName)),
             fields.Text(new TextFieldOptions(request.SavedPassword ?? string.Empty, MaskInput: true)),
             fields.Text(new TextFieldOptions(connection?.RemoteRootPath ?? "/", SftpTextHistoryIds.RemoteRoot)),
-            FormControls.CheckBox("save-connection", "Save connection", request.SaveConnectionByDefault),
-            FormControls.CheckBox("save-password", "Save password", connection?.CredentialId is not null && request.SavedPassword is not null),
+            FormControls.CheckBox("Save connection", request.SaveConnectionByDefault),
+            FormControls.CheckBox("Save password", connection?.CredentialId is not null && request.SavedPassword is not null),
             FormControls.CheckBox("Show in drive menu", connection?.ShowInDriveSelection ?? true),
             FormControls.CheckBox("Trust host key"),
             request.AllowTemporaryConnection);
@@ -87,17 +87,17 @@ internal sealed class SftpConnectionDialog
             {
                 if (result.IsHandled)
                     error = null;
-                if (result is { Kind: FormDialogEventKind.ValueChanged, SourceRowId: "host" or "port" })
+                if (result.IsValueChangedFrom(state.Host) || result.IsValueChangedFrom(state.Port))
                 {
                     hostKeyFingerprint = null;
                     state.TrustHostKey.Value = false;
                 }
-                if (result is { Kind: FormDialogEventKind.ValueChanged, SourceRowId: "save-password" } && state.SavePassword.Value)
+                if (result.IsValueChangedFrom(state.SavePassword) && state.SavePassword.Value)
                 {
                     state.SaveConnection.Value = true;
                 }
                 else if (state.AllowTemporaryConnection &&
-                    result is { Kind: FormDialogEventKind.ValueChanged, SourceRowId: "save-connection" } &&
+                    result.IsValueChangedFrom(state.SaveConnection) &&
                     !state.SaveConnection.Value)
                 {
                     state.SavePassword.Value = false;
