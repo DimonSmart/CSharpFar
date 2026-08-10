@@ -43,6 +43,7 @@ public sealed class DropdownSelectFormRow<T> : FormRow, IFormFocusTarget, IFormC
     public string? DisabledReason { get; set; }
     internal override bool IsEnabled => Enabled;
     int IFormLabeledRow.DesiredLabelWidth => ConsoleTextMetrics.GetCellWidth(_label);
+    int IFormLabeledRow.DesiredControlWidth => Math.Max(1, _dropdown.NaturalWidth);
     bool IFormLabeledRow.UseSharedLabelColumn => true;
     IFormCompositeController IFormCompositeOwner.CompositeController => _compositeController;
     public T Value

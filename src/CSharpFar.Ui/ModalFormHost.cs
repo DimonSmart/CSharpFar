@@ -6,8 +6,8 @@ namespace CSharpFar.Ui;
 
 public sealed record ModalFormOptions(
     string Title,
-    int Width,
-    int Height,
+    int? PreferredWidth = null,
+    int? PreferredHeight = null,
     int MinWidth = 20,
     int MinHeight = 8,
     bool DoubleBorder = true,
@@ -172,10 +172,11 @@ public sealed class ModalFormHost
     {
         using IDisposable? renderScope = beginRenderScope?.Invoke();
         ScrollableFormFrame? frame = null;
+        (int width, int height) = NaturalOuterSize(form, options);
         ModalDialogRenderer.Layout layout = _modalRenderer.CalculateLayout(
             context.Size,
-            options.Width,
-            options.Height,
+            width,
+            height,
             options.MinWidth,
             options.MinHeight);
 
@@ -204,4 +205,15 @@ public sealed class ModalFormHost
     private static Rect InsetHorizontally(Rect bounds) => bounds.Width <= HorizontalContentInset * 2
         ? new Rect(bounds.X, bounds.Y, 0, bounds.Height)
         : new Rect(bounds.X + HorizontalContentInset, bounds.Y, bounds.Width - HorizontalContentInset * 2, bounds.Height);
+
+    private static (int Width, int Height) NaturalOuterSize(ScrollableFormDialog form, ModalFormOptions options)
+    {
+        // Outer padding, frame border, and the form host's horizontal inset.
+        const int horizontalChrome = 6;
+        const int verticalChrome = 4;
+        int naturalWidth = form.NaturalContentWidth + horizontalChrome;
+        int naturalHeight = form.NaturalContentHeight + verticalChrome;
+        int titleWidth = ConsoleTextMetrics.GetCellWidth(options.Title ?? string.Empty) + 2 + horizontalChrome;
+        return (options.PreferredWidth ?? Math.Max(naturalWidth, titleWidth), options.PreferredHeight ?? naturalHeight);
+    }
 }

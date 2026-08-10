@@ -1,3 +1,4 @@
+using System.ComponentModel;
 using CSharpFar.Console;
 using CSharpFar.Console.Models;
 using CSharpFar.Core.Models;
@@ -23,6 +24,7 @@ public sealed class FormFieldFactory
     public FormFieldFactory WithDefaults(TextFieldDefaults defaults) =>
         new(_history, defaults ?? throw new ArgumentNullException(nameof(defaults)));
 
+    [EditorBrowsable(EditorBrowsableState.Never)]
     public TextField Text(string id, string initialText = "", TextHistoryId? historyId = null,
         bool maskInput = false, int? width = null, bool? submitOnEnter = null)
         => CreateText(id, initialText, historyId, maskInput, width, submitOnEnter);

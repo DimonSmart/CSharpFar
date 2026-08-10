@@ -46,6 +46,7 @@ public sealed class LabeledTextInputRow : FormRow, IFormFocusTarget, IFormCursor
     public string? DisabledReason { get => _field.DisabledReason; set => _field.DisabledReason = value; }
     internal override bool IsEnabled => Enabled;
     int IFormLabeledRow.DesiredLabelWidth => ConsoleTextMetrics.GetCellWidth(_label);
+    int IFormLabeledRow.DesiredControlWidth => _inputWidth ?? Math.Max(20, ConsoleTextMetrics.GetCellWidth(Buffer.Text));
     bool IFormLabeledRow.UseSharedLabelColumn => true;
     internal CommandLineState Buffer => _field.Buffer;
     internal FormTextInputField Input => _field;
@@ -97,6 +98,7 @@ public sealed class LabeledValueRow : FormRow, IFormLabeledRow
 
     internal override bool IsFocusable => false;
     int IFormLabeledRow.DesiredLabelWidth => ConsoleTextMetrics.GetCellWidth(_label);
+    int IFormLabeledRow.DesiredControlWidth => ConsoleTextMetrics.GetCellWidth(_value() ?? string.Empty);
     bool IFormLabeledRow.UseSharedLabelColumn => true;
 
     internal override void Render(FormRowRenderContext context)

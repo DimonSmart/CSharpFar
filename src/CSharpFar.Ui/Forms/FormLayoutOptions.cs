@@ -40,6 +40,7 @@ public sealed record FormLayoutOptions(
 internal interface IFormLabeledRow
 {
     int DesiredLabelWidth { get; }
+    int DesiredControlWidth { get; }
     bool UseSharedLabelColumn { get; }
 }
 

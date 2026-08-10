@@ -30,6 +30,7 @@ public sealed class CheckBoxRow : FormRow, IFormFocusTarget, IFormCursorProvider
     public string? DisabledReason { get; set; }
     internal override bool IsEnabled => Enabled;
     internal bool ShowCursor { get; init; } = true;
+    internal override int DesiredWidth => ConsoleTextMetrics.GetCellWidth($"[ ] {_checkBox.Label}");
 
     internal override void Render(FormRowRenderContext context)
     {
@@ -109,6 +110,7 @@ public sealed class TriStateCheckBoxRow : FormRow, IFormFocusTarget, IFormCursor
     public string? DisabledReason { get; set; }
 
     internal override bool IsEnabled => Enabled;
+    internal override int DesiredWidth => ConsoleTextMetrics.GetCellWidth($"[ ] {_checkBox.Label}");
 
     internal override void Render(FormRowRenderContext context)
     {

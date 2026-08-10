@@ -38,6 +38,7 @@ internal sealed class DropdownSelect<T>
         _comparer = comparer ?? EqualityComparer<T>.Default;
     }
     public int SelectedIndex { get => _state.SelectedIndex; set => _state.SetSelectedIndex(value, 1); }
+    internal int NaturalWidth => _state.Items.Max(item => ConsoleTextMetrics.GetCellWidth(_itemText(item))) + 1;
     public int ScrollTop => _state.ScrollTop;
     public bool IsOpen { get; private set; }
     public int SelectionBeforeOpen => _selectedIndexBeforeOpen;

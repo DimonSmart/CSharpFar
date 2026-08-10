@@ -7,11 +7,6 @@ namespace CSharpFar.App.Editor;
 
 internal sealed class EditorFormatDialog
 {
-    private const int DialogWidth = 52;
-    private const int DialogHeight = 9;
-    private const string EncodingRowId = "editor-format.encoding";
-    private const string BomRowId = "editor-format.bom";
-    private const string LineEndingRowId = "editor-format.line-ending";
 
     private readonly DialogService _dialogs;
 
@@ -23,15 +18,15 @@ internal sealed class EditorFormatDialog
     public EditorDocumentFormat? Show(EditorDocumentFormat current)
     {
         var encoding = FormControls.CompactChoice(
-            EncodingRowId, "Encoding", Encodings, static value => value.Label,
+            "Encoding", Encodings, static value => value.Label,
             new EncodingSpec(current.Encoding.CodePage, string.Empty), EncodingSpecCodePageComparer);
         var bom = FormControls.CompactChoice(
-            BomRowId, "BOM", BomChoices, static value => value ? "Yes" : "No", current.EmitByteOrderMark);
+            "BOM", BomChoices, static value => value ? "Yes" : "No", current.EmitByteOrderMark);
         var lineEnding = FormControls.CompactChoice(
-            LineEndingRowId, "Line ends", LineEndings, static value => value.Value.ToDisplayName(),
+            "Line ends", LineEndings, static value => value.Value.ToDisplayName(),
             new LineEndingSpec(current.LineEnding), LineEndingSpecValueComparer);
         return _dialogs.Form(
-            new FormDialogOptions("Editor format", DialogWidth, DialogHeight, SubmitOnEnter: true)
+            new FormDialogOptions("Editor format", SubmitOnEnter: true)
             {
                 Layout = new FormLayoutOptions(CursorPolicy: FormCursorPolicy.Hidden),
             },
