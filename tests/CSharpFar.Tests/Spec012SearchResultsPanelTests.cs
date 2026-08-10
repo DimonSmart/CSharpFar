@@ -243,7 +243,7 @@ public sealed class Spec012SearchResultsPanelTests : IDisposable
         state.CursorIndex = 10;
         state.ScrollOffset = 10;
 
-        app.SortVirtualPanel(state, Path.Combine(_root, "missing.txt"), visibleRows: 5);
+        app.SortVirtualPanel(state, visibleRows: 5);
 
         Assert.Equal(1, state.CursorIndex);
         Assert.Equal(0, state.ScrollOffset);
@@ -359,6 +359,7 @@ public sealed class Spec012SearchResultsPanelTests : IDisposable
         state.CursorIndex = 0;
         state.ScrollOffset = 0;
         state.ProviderCapabilities = PanelProviderCapabilities.SearchResults;
+        state.ContentKind = PanelContentKind.Virtual;
         state.DisplayTitle = "Search results: *.txt";
         state.ShowCurrentItemFullPath = true;
         state.SearchRequest = new SearchRequest

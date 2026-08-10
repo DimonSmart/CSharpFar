@@ -7,25 +7,25 @@ public sealed class FilePanelState
     public string CurrentDirectory
     {
         get => _currentLocation.SourcePath;
-        set => _currentLocation = PanelLocation.Local(value);
+        internal set => _currentLocation = PanelLocation.Local(value);
     }
 
     public PanelLocation CurrentLocation
     {
         get => _currentLocation;
-        set => _currentLocation = value;
+        internal set => _currentLocation = value;
     }
 
     public PanelSourceId SourceId
     {
         get => _currentLocation.SourceId;
-        set => _currentLocation = new PanelLocation(value, _currentLocation.SourcePath);
+        internal set => _currentLocation = new PanelLocation(value, _currentLocation.SourcePath);
     }
 
     public string SourcePath
     {
         get => _currentLocation.SourcePath;
-        set => _currentLocation = new PanelLocation(_currentLocation.SourceId, value);
+        internal set => _currentLocation = new PanelLocation(_currentLocation.SourceId, value);
     }
 
     public List<FilePanelItem> Items { get; } = new();
@@ -35,13 +35,14 @@ public sealed class FilePanelState
     public int ScrollOffset { get; set; }
     public SortMode SortMode { get; set; }
     public bool SortDescending { get; set; }
-    public PanelSummary? Summary { get; set; }
-    public PanelAutoRefreshState? AutoRefreshState { get; set; }
-    public PanelProviderCapabilities ProviderCapabilities { get; set; } =
+    public PanelSummary? Summary { get; internal set; }
+    public PanelAutoRefreshState? AutoRefreshState { get; internal set; }
+    public PanelProviderCapabilities ProviderCapabilities { get; internal set; } =
         PanelProviderCapabilities.LocalFileSystem;
-    public PanelLoadError? LoadError { get; set; }
-    public string? DisplayTitle { get; set; }
-    public bool ShowCurrentItemFullPath { get; set; }
+    public PanelLoadError? LoadError { get; internal set; }
+    public string? DisplayTitle { get; internal set; }
+    public bool ShowCurrentItemFullPath { get; internal set; }
+    public PanelContentKind ContentKind { get; internal set; } = PanelContentKind.Source;
     public SearchRequest? SearchRequest { get; set; }
     public bool SearchWasCancelled { get; set; }
 }

@@ -108,6 +108,51 @@ public class PanelControllerTests
     }
 
     [Fact]
+    public void ReplaceContent_WhenCurrentItemStillExists_PreservesCursorAndScroll()
+    {
+        var (ctrl, state) = MakePanel(20);
+        state.CursorIndex = 10;
+        state.ScrollOffset = 7;
+        var content = new PanelContent(
+            PanelLocation.SearchResult(Root),
+            Enumerable.Range(0, 20).Select(i => FileItem($"file{i:D2}.txt")),
+            PanelProviderCapabilities.SearchResults);
+
+        ctrl.ReplaceContent(state, content, visibleRows: 5, preserveCurrentItem: true);
+
+        Assert.Equal("file10.txt", ctrl.CurrentItem(state)?.Name);
+        Assert.Equal(7, state.ScrollOffset);
+        Assert.Equal(PanelContentKind.Virtual, state.ContentKind);
+    }
+
+    [Fact]
+    public void ReplaceContent_UsesPanelLocationBeforeFullPathForIdentity()
+    {
+        var ctrl = new PanelController(new FakePanelViewBuilder(new FakeFileSystemService()));
+        var state = new FilePanelState { CurrentDirectory = Root };
+        var retainedSourceId = new PanelSourceId("virtual-a");
+        state.Items.Add(new FilePanelItem
+        {
+            Name = "current.txt",
+            FullPath = @"C:\same\current.txt",
+            SourceId = retainedSourceId,
+            IsDirectory = false,
+        });
+
+        var content = new PanelContent(
+            PanelLocation.SearchResult(Root),
+            [
+                new FilePanelItem { Name = "other.txt", FullPath = @"C:\same\current.txt", SourceId = new PanelSourceId("virtual-b"), IsDirectory = false },
+                new FilePanelItem { Name = "current.txt", FullPath = @"C:\same\current.txt", SourceId = retainedSourceId, IsDirectory = false },
+            ],
+            PanelProviderCapabilities.SearchResults);
+
+        ctrl.ReplaceContent(state, content, visibleRows: 5, preserveCurrentItem: true);
+
+        Assert.Equal(retainedSourceId, ctrl.CurrentItem(state)?.SourceId);
+    }
+
+    [Fact]
     public void LoadDirectory_DoesNotChangeStateWhenReadFails()
     {
         var ctrl = new PanelController(new FakePanelViewBuilder(new ThrowingFileSystemService()));

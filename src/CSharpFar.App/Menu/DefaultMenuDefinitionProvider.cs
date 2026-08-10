@@ -121,8 +121,9 @@ public sealed class DefaultMenuDefinitionProvider
                     (panel.ProviderCapabilities & PanelProviderCapabilities.Refresh) == PanelProviderCapabilities.Refresh &&
                     (panel.LoadError is not null ||
                      panel.SearchRequest is not null ||
-                     panel.SourceId != PanelSourceId.Local ||
-                     Directory.Exists(panel.CurrentDirectory))),
+                     (panel.ContentKind == PanelContentKind.Source &&
+                      (panel.SourceId != PanelSourceId.Local ||
+                       Directory.Exists(panel.CurrentDirectory))))),
             ],
         };
     }

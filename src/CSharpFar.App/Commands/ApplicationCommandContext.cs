@@ -399,8 +399,8 @@ internal sealed class ApplicationCommandContext
     public void StartWatching(FilePanelState state, PanelSide side) =>
         _autoRefresh.StartWatching(state, side);
 
-    public void SortVirtualPanel(FilePanelState state, string? keepCursorPath, int visibleRows) =>
-        _panelSort.SortVirtualPanel(state, keepCursorPath, visibleRows);
+    public void SortVirtualPanel(FilePanelState state, int visibleRows) =>
+        _panelSort.SortVirtualPanel(state, visibleRows);
 
     public void SetPanelSortMode(
         FilePanelState state,
