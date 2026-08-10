@@ -91,6 +91,23 @@ public class PanelControllerTests
     }
 
     [Fact]
+    public void ReplaceContent_WhenCurrentItemDisappears_ClampsPreviousCursorIndex()
+    {
+        var (ctrl, state) = MakePanel(5);
+        state.CursorIndex = 3;
+        state.ScrollOffset = 2;
+        var content = new PanelContent(
+            PanelLocation.SearchResult(Root),
+            [FileItem("a.txt"), FileItem("b.txt")],
+            PanelProviderCapabilities.SearchResults);
+
+        ctrl.ReplaceContent(state, content, visibleRows: 5, preserveCurrentItem: true);
+
+        Assert.Equal(1, state.CursorIndex);
+        Assert.Equal(0, state.ScrollOffset);
+    }
+
+    [Fact]
     public void LoadDirectory_DoesNotChangeStateWhenReadFails()
     {
         var ctrl = new PanelController(new FakePanelViewBuilder(new ThrowingFileSystemService()));
