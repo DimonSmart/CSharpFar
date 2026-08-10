@@ -147,36 +147,21 @@ internal sealed class FileOperationDialog
         var buttons = FormControls.Buttons(
             DialogButton.Default("submit", actionLabel, actionLabel[0]),
             DialogButton.Cancel());
-        string? error = null;
         return _dialogs.Form(
             new FormDialogOptions(title, DialogWidth, DialogHeight, 40, 8),
             rows: () => BuildRows(prompt, destination, filter, securityChoice, copyModeChoice, conflictChoiceRow, preserveTimestamps, preserveAttributes, copySymlinkContents, useFilter, showOperationOptions),
-            footer: () => FormFooter.ErrorAndButtons(() => error, buttons),
-            (result) =>
-            {
-                if (result.IsCancelled)
-                    return FormDialogOutcome<FileOperationDialogResult?>.Complete(null);
-
-                if (result.IsSubmitted)
-                {
-                    var dialogResult = BuildResult(
-                        destination,
-                        filter,
-                        initialOptions,
-                        conflictChoiceRow.Value,
-                        copyModeChoice?.Value ?? CopyMode.Normal,
-                        securityChoice.Value,
-                        preserveTimestamps.Value,
-                        preserveAttributes.Value,
-                        copySymlinkContents.Value,
-                        useFilter.Value,
-                        ref error);
-                    if (dialogResult is not null)
-                        return FormDialogOutcome<FileOperationDialogResult?>.Complete(dialogResult);
-                }
-
-                return FormDialogOutcome<FileOperationDialogResult?>.Continue();
-            });
+            footer: () => [buttons],
+            submit: () => BuildResult(
+                destination,
+                filter,
+                initialOptions,
+                conflictChoiceRow.Value,
+                copyModeChoice?.Value ?? CopyMode.Normal,
+                securityChoice.Value,
+                preserveTimestamps.Value,
+                preserveAttributes.Value,
+                copySymlinkContents.Value,
+                useFilter.Value));
     }
 
     private static IReadOnlyList<FormRow> BuildRows(
@@ -231,7 +216,7 @@ internal sealed class FileOperationDialog
         return rows;
     }
 
-    private static FileOperationDialogResult? BuildResult(
+    private static FormSubmitResult<FileOperationDialogResult> BuildResult(
         TextField destination,
         TextField filter,
         FileOperationOptions initialOptions,
@@ -241,26 +226,19 @@ internal sealed class FileOperationDialog
         bool preserveTimestamps,
         bool preserveAttributes,
         bool copySymlinkContents,
-        bool useFilter,
-        ref string? error)
+        bool useFilter)
     {
         string destinationText = destination.TrimmedText;
         if (string.IsNullOrWhiteSpace(destinationText))
         {
-            error = "Destination must not be empty.";
-            return null;
+            return FormSubmit.Invalid<FileOperationDialogResult>("Destination must not be empty.", destination);
         }
 
-        error = null;
         string? mask = useFilter && !string.IsNullOrWhiteSpace(filter.Text)
             ? filter.TrimmedText
             : null;
 
-        destination.AcceptHistory();
-        if (mask is not null)
-            filter.AcceptHistory();
-
-        return new FileOperationDialogResult(
+        return FormSubmit.Success(new FileOperationDialogResult(
             destinationText,
             initialOptions with
             {
@@ -271,7 +249,7 @@ internal sealed class FileOperationDialog
                 PreserveAttributes = preserveAttributes,
                 SymlinkMode = copySymlinkContents ? SymlinkCopyMode.CopyTargetContents : SymlinkCopyMode.CopyLink,
                 FileMask = mask,
-            });
+            }));
     }
 
     private static string ConflictLabel(ConflictDecisionMode mode) => mode switch

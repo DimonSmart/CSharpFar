@@ -71,23 +71,12 @@ internal sealed class SettingsDialog
                     FormControls.Label("Esc          close"),
                     FormControls.Spacer(),
                 ],
-            handle: result =>
-            {
-                if (result.IsCancelled)
-                    return FormDialogOutcome<SettingsDialogResult?>.Complete(null);
-
-                if (result.IsSubmitted)
-                {
-                    return FormDialogOutcome<SettingsDialogResult?>.Complete(new SettingsDialogResult(
-                        leftViewMode.Value,
-                        rightViewMode.Value,
-                        palette.Value,
-                        fileHighlighting.Value,
-                        syntaxHighlighting.Value));
-                }
-
-                return FormDialogOutcome<SettingsDialogResult?>.Continue();
-            });
+            submit: () => FormSubmit.Success(new SettingsDialogResult(
+                leftViewMode.Value,
+                rightViewMode.Value,
+                palette.Value,
+                fileHighlighting.Value,
+                syntaxHighlighting.Value)));
     }
 
     private static string ViewModeLabel(PanelViewMode mode) => mode switch
