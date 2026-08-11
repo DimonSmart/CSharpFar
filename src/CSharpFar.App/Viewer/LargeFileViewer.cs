@@ -801,10 +801,12 @@ internal sealed class LargeFileViewer
 
     private void JumpToPosition(IFileByteReader reader, LargeFileViewerState state, int contentHeight)
     {
-        string? input = new InputDialog(_dialogs).Show(
-            "Viewer",
-            state.IsHexMode ? "Percent or byte offset:" : "Line number or percent:",
-            validate: text => ValidateJump(text, state.IsHexMode));
+        string? input = _dialogs.Input(new SingleLineInputDialogOptions
+        {
+            Title = "Viewer",
+            Prompt = state.IsHexMode ? "Percent or byte offset:" : "Line number or percent:",
+            Validate = text => ValidateJump(text, state.IsHexMode),
+        });
         if (input is null)
             return;
 

@@ -1,0 +1,15 @@
+{
+  "schemaVersion": 1,
+  "methodologyVersion": "2.0.26",
+  "factoryOutcome": "COMPLETED",
+  "subtaskCount": 2,
+  "completedSubtaskCount": 2,
+  "reviewCheckpointCount": 1,
+  "completedReviewCheckpointCount": 1,
+  "correctiveSubtaskCount": 0,
+  "blockedItemCount": 0,
+  "incompleteItemCount": 0,
+  "finalReviewVerdict": "approved",
+  "verificationStatus": "passed",
+  "commitMessagePath": ".idd/factory/results/dialogservice-cleanup_2026-08-11_00-00-00Z/commit-message.md"
+}

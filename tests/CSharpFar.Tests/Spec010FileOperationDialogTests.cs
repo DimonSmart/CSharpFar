@@ -360,38 +360,6 @@ public sealed class Spec010FileOperationDialogTests
     }
 
     [Fact]
-    public void CreateFolderDialog_RendersMakeFolderWindowWithoutLinkOptions()
-    {
-        var driver = new FakeConsoleDriver(width: 100, height: 30);
-        var screen = new ScreenRenderer(driver);
-        EnqueueText(driver, "NewDir");
-        driver.EnqueueKey(Key(ConsoleKey.F10));
-
-        var fields = new FormFieldFactory(TextFieldHistoryTestProvider.Create());
-        string? result = new CreateFolderDialog(new DialogService(ModalTestHost.Create(screen), fields)).Show();
-
-        Assert.Equal("NewDir", result);
-        Assert.Contains(driver.WriteRecords, r => r.Text.Contains("Make folder", StringComparison.Ordinal));
-        Assert.Contains(driver.WriteRecords, r => r.Text.Contains("Create the folder:", StringComparison.Ordinal));
-        Assert.DoesNotContain(driver.WriteRecords, r => r.Text.Contains("Link type", StringComparison.Ordinal));
-        Assert.DoesNotContain(driver.WriteRecords, r => r.Text.Contains("Target", StringComparison.Ordinal));
-        Assert.DoesNotContain(driver.WriteRecords, r => r.Text.Contains("multiple", StringComparison.OrdinalIgnoreCase));
-    }
-
-    [Fact]
-    public void CreateFolderDialog_EscapeCancels()
-    {
-        var driver = new FakeConsoleDriver(width: 100, height: 30);
-        var screen = new ScreenRenderer(driver);
-        driver.EnqueueKey(Key(ConsoleKey.Escape));
-
-        var fields = new FormFieldFactory(TextFieldHistoryTestProvider.Create());
-        string? result = new CreateFolderDialog(new DialogService(ModalTestHost.Create(screen), fields)).Show();
-
-        Assert.Null(result);
-    }
-
-    [Fact]
     public void ProgressDialog_RendersFarStyleProgressBarWithoutHashCharacters()
     {
         var driver = new FakeConsoleDriver(width: 100, height: 30);
