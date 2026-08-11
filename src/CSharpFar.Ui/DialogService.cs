@@ -21,7 +21,7 @@ public sealed class DialogService
     public bool Confirm(string title, string question, string itemName) =>
         new ConfirmDialog(_modalDialogs).Show(title, question, itemName);
 
-    public SingleLineInputDialogResult Input(SingleLineInputDialogOptions options) =>
+    public string? Input(SingleLineInputDialogOptions options) =>
         new SingleLineInputDialog(_modalDialogs, _fields).Show(options);
 
     public ChoiceDialogResult Choice(ChoiceDialogOptions options) =>

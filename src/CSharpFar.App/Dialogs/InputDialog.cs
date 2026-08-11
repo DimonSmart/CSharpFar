@@ -32,9 +32,8 @@ internal sealed class InputDialog
         Func<string, string?>? validate = null,
         bool allowEmpty = false,
         bool maskInput = false,
-        TextHistoryId? history = null)
-    {
-        var result = _dialogs.Input(new SingleLineInputDialogOptions
+        TextHistoryId? history = null) =>
+        _dialogs.Input(new SingleLineInputDialogOptions
         {
             Title = title,
             Prompt = prompt,
@@ -44,7 +43,4 @@ internal sealed class InputDialog
             History = maskInput ? null : history,
             Validate = validate,
         });
-
-        return result.IsConfirmed ? result.Text : null;
-    }
 }

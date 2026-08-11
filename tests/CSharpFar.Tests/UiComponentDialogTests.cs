@@ -560,15 +560,30 @@ public sealed class UiComponentDialogTests
         var driver = new FakeConsoleDriver(80, 20);
         driver.EnqueueKey(KeyInfo(ConsoleKey.Enter));
 
-        var result = new SingleLineInputDialog(ModalTestHost.Create(driver), new FormFieldFactory(TextFieldHistoryTestProvider.Create())).Show(new SingleLineInputDialogOptions
+        string? result = new SingleLineInputDialog(ModalTestHost.Create(driver), new FormFieldFactory(TextFieldHistoryTestProvider.Create())).Show(new SingleLineInputDialogOptions
         {
             Title = "Input",
             Prompt = "Name",
             InitialText = "value",
         });
 
-        Assert.True(result.IsConfirmed);
-        Assert.Equal("value", result.Text);
+        Assert.Equal("value", result);
+    }
+
+    [Fact]
+    public void SingleLineInputDialog_EscapeCancels()
+    {
+        var driver = new FakeConsoleDriver(80, 20);
+        driver.EnqueueKey(KeyInfo(ConsoleKey.Escape));
+
+        string? result = new SingleLineInputDialog(ModalTestHost.Create(driver), new FormFieldFactory(TextFieldHistoryTestProvider.Create())).Show(new SingleLineInputDialogOptions
+        {
+            Title = "Input",
+            Prompt = "Name",
+            AllowEmpty = true,
+        });
+
+        Assert.Null(result);
     }
 
     [Fact]
@@ -579,15 +594,14 @@ public sealed class UiComponentDialogTests
         driver.EnqueueKey(new ConsoleKeyInfo('a', ConsoleKey.A, false, false, false));
         driver.EnqueueKey(KeyInfo(ConsoleKey.Enter));
 
-        var result = new SingleLineInputDialog(ModalTestHost.Create(driver), new FormFieldFactory(TextFieldHistoryTestProvider.Create())).Show(new SingleLineInputDialogOptions
+        string? result = new SingleLineInputDialog(ModalTestHost.Create(driver), new FormFieldFactory(TextFieldHistoryTestProvider.Create())).Show(new SingleLineInputDialogOptions
         {
             Title = "Input",
             Prompt = "Name",
             AllowEmpty = false,
         });
 
-        Assert.True(result.IsConfirmed);
-        Assert.Equal("a", result.Text);
+        Assert.Equal("a", result);
     }
 
     [Fact]
@@ -598,7 +612,7 @@ public sealed class UiComponentDialogTests
         driver.EnqueueKey(new ConsoleKeyInfo('x', ConsoleKey.X, false, false, false));
         driver.EnqueueKey(KeyInfo(ConsoleKey.Enter));
 
-        var result = new SingleLineInputDialog(ModalTestHost.Create(driver), new FormFieldFactory(TextFieldHistoryTestProvider.Create())).Show(new SingleLineInputDialogOptions
+        string? result = new SingleLineInputDialog(ModalTestHost.Create(driver), new FormFieldFactory(TextFieldHistoryTestProvider.Create())).Show(new SingleLineInputDialogOptions
         {
             Title = "Input",
             Prompt = "Name",
@@ -606,8 +620,7 @@ public sealed class UiComponentDialogTests
             Validate = text => text == "bad" ? "Invalid" : null,
         });
 
-        Assert.True(result.IsConfirmed);
-        Assert.Equal("badx", result.Text);
+        Assert.Equal("badx", result);
         Assert.Contains(driver.WriteRecords, write => write.Text.Contains("Invalid", StringComparison.Ordinal));
     }
 

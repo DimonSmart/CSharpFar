@@ -43,17 +43,14 @@ public sealed class ModuleUiServices
     public int ShowMessage(string title, string message, IReadOnlyList<string> buttons) =>
         Dialogs.Message(title, message, buttons);
 
-    public string? Input(string title, string prompt, string? initialText = null)
-    {
-        SingleLineInputDialogResult result = Dialogs.Input(new SingleLineInputDialogOptions
+    public string? Input(string title, string prompt, string? initialText = null) =>
+        Dialogs.Input(new SingleLineInputDialogOptions
         {
             Title = title,
             Prompt = prompt,
             InitialText = initialText ?? string.Empty,
             AllowEmpty = true,
         });
-        return result.IsConfirmed ? result.Text : null;
-    }
 
     public int? ShowMenu(string title, IReadOnlyList<string> items, int selected) =>
         ShowMenuCore(title, items, selected);
