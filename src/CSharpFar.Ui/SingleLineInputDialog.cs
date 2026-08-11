@@ -13,13 +13,8 @@ public sealed class SingleLineInputDialogOptions
     public Func<string, string?>? Validate { get; init; }
 }
 
-public readonly record struct SingleLineInputDialogResult(bool IsConfirmed, string Text);
-
-public sealed class SingleLineInputDialog
+internal sealed class SingleLineInputDialog
 {
-    private const int DialogWidth = 52;
-    private const int DialogHeight = 7;
-
     private readonly FormDialogs _forms;
     private readonly FormFieldFactory _fields;
 
@@ -29,52 +24,39 @@ public sealed class SingleLineInputDialog
         _fields = fields ?? throw new ArgumentNullException(nameof(fields));
     }
 
-    public SingleLineInputDialogResult Show(SingleLineInputDialogOptions options)
+    public string? Show(SingleLineInputDialogOptions options)
     {
         ArgumentNullException.ThrowIfNull(options);
 
-        return RunLoop(options);
-    }
-
-    private SingleLineInputDialogResult RunLoop(SingleLineInputDialogOptions options)
-    {
         TextField field = _fields.Text(new TextFieldOptions(
             options.InitialText,
             options.History,
             options.MaskInput,
             SubmitOnEnter: true));
-        string? error = null;
-        var actions = FormControls.OkCancel();
 
         return _forms.Show(
-            new FormDialogOptions(options.Title, DialogWidth, DialogHeight, MinWidth: 20, MinHeight: 5)
+            new FormDialogOptions(options.Title, MinWidth: 20, MinHeight: 5)
             {
                 DoubleBorder = false,
                 Appearance = FormDialogAppearance.Popup,
             },
-            rows: () => [
+            rows: () =>
+            [
                 FormControls.Label(options.Prompt),
                 FormControls.Text(field),
                 FormControls.Spacer(),
             ],
-            footer: () => FormFooter.ErrorAndButtons(() => error, actions),
-            handle: result =>
+            footer: () => [FormControls.OkCancel()],
+            submit: () =>
             {
-                if (result.IsCancelled)
-                    return FormDialogOutcome<SingleLineInputDialogResult>.Complete(new(false, string.Empty));
-
-                if (!result.IsSubmitted)
-                    return FormDialogOutcome<SingleLineInputDialogResult>.Continue();
-
                 string text = field.TrimmedText;
-                error = text.Length == 0 && !options.AllowEmpty
-                    ? "A value is required."
-                    : options.Validate?.Invoke(text);
-                if (error is not null)
-                    return FormDialogOutcome<SingleLineInputDialogResult>.ContinueWithFocus(field);
+                if (text.Length == 0 && !options.AllowEmpty)
+                    return FormSubmit.Invalid<string>("A value is required.", field);
 
-                field.AcceptHistory();
-                return FormDialogOutcome<SingleLineInputDialogResult>.Complete(new(true, text));
+                string? error = options.Validate?.Invoke(text);
+                return error is null
+                    ? FormSubmit.Success(text)
+                    : FormSubmit.Invalid<string>(error, field);
             });
     }
 }
