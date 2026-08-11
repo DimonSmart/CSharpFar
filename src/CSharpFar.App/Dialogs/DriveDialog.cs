@@ -17,12 +17,14 @@ internal sealed class DriveDialog
     private const int SizeColW = 10;
 
     private readonly ModalDialogHost _modalDialogs;
+    private readonly DialogService _dialogs;
     private readonly ConsolePalette _palette;
     private readonly ModalDialogRenderer _modalRenderer = new();
 
-    public DriveDialog(ModalDialogHost modalDialogs, ConsolePalette? palette = null)
+    public DriveDialog(ModalDialogHost modalDialogs, DialogService dialogs, ConsolePalette? palette = null)
     {
         _modalDialogs = modalDialogs;
+        _dialogs = dialogs ?? throw new ArgumentNullException(nameof(dialogs));
         _palette = palette ?? PaletteRegistry.Default;
     }
 
@@ -31,7 +33,7 @@ internal sealed class DriveDialog
         VolumeSelectionItem[] snapshot = items.ToArray();
         if (snapshot.Length == 0)
         {
-            new MessageDialog(_modalDialogs).Show("Change drive", "No volumes found.");
+            _dialogs.Message("Change drive", "No volumes found.");
             return null;
         }
 
@@ -117,7 +119,7 @@ internal sealed class DriveDialog
                 VolumeStatus.Disconnected => "disconnected",
                 _ => "error",
             };
-            new MessageDialog(_modalDialogs).Show(
+            _dialogs.Message(
                 "Change drive",
                 $"{volume.DisplayName}: volume is {statusText}.");
             return ModalDialogLoopResult<VolumeSelectionItem?>.ContinueNoChange;

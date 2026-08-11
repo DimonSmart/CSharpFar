@@ -26,6 +26,17 @@ public sealed class ApplicationVolumeTests : IDisposable
             Directory.Delete(_tempDir, recursive: true);
     }
 
+    private static DriveDialog CreateDriveDialog(FakeConsoleDriver driver) =>
+        CreateDriveDialog(new ScreenRenderer(driver));
+
+    private static DriveDialog CreateDriveDialog(ScreenRenderer screen)
+    {
+        var modalDialogs = ModalTestHost.Create(screen);
+        return new DriveDialog(
+            modalDialogs,
+            new DialogService(modalDialogs, new FormFieldFactory(TextFieldHistoryTestProvider.Create())));
+    }
+
     // ── Alt+F1 changes left panel ─────────────────────────────────────────────
 
     [Fact]
@@ -475,7 +486,7 @@ public sealed class ApplicationVolumeTests : IDisposable
     {
         var driver = DialogDriver(KeyInput('d', ConsoleKey.D), KeyInput('d', ConsoleKey.D), KeyInput(ConsoleKey.Enter));
 
-        VolumeSelectionItem? result = new DriveDialog(ModalTestHost.Create(driver)).Show(DuplicateShortcutItems());
+        VolumeSelectionItem? result = CreateDriveDialog(driver).Show(DuplicateShortcutItems());
 
         Assert.NotNull(result);
         Assert.Equal("D: second", result.Label);
@@ -491,7 +502,7 @@ public sealed class ApplicationVolumeTests : IDisposable
             KeyInput('d', ConsoleKey.D),
             KeyInput(ConsoleKey.Enter));
 
-        VolumeSelectionItem? result = new DriveDialog(ModalTestHost.Create(driver)).Show(DuplicateShortcutItems());
+        VolumeSelectionItem? result = CreateDriveDialog(driver).Show(DuplicateShortcutItems());
 
         Assert.NotNull(result);
         Assert.Equal("D: first", result.Label);
@@ -509,7 +520,7 @@ public sealed class ApplicationVolumeTests : IDisposable
             KeyInput(ConsoleKey.Enter));
         driver.SetSize(80, 10);
 
-        VolumeSelectionItem? result = new DriveDialog(ModalTestHost.Create(driver)).Show(DuplicateShortcutItems());
+        VolumeSelectionItem? result = CreateDriveDialog(driver).Show(DuplicateShortcutItems());
 
         Assert.NotNull(result);
         Assert.Equal("D: first", result.Label);
@@ -524,7 +535,7 @@ public sealed class ApplicationVolumeTests : IDisposable
             KeyInput('d', ConsoleKey.D),
             KeyInput(ConsoleKey.Enter));
 
-        VolumeSelectionItem? result = new DriveDialog(ModalTestHost.Create(driver)).Show(DuplicateShortcutItems());
+        VolumeSelectionItem? result = CreateDriveDialog(driver).Show(DuplicateShortcutItems());
 
         Assert.NotNull(result);
         Assert.Equal("D: first", result.Label);
@@ -540,7 +551,7 @@ public sealed class ApplicationVolumeTests : IDisposable
             KeyInput(ConsoleKey.Enter));
         driver.SetSize(80, 10);
 
-        VolumeSelectionItem? result = new DriveDialog(ModalTestHost.Create(driver)).Show(DuplicateShortcutItems());
+        VolumeSelectionItem? result = CreateDriveDialog(driver).Show(DuplicateShortcutItems());
 
         Assert.NotNull(result);
         Assert.Equal("D: first", result.Label);
@@ -551,7 +562,7 @@ public sealed class ApplicationVolumeTests : IDisposable
     {
         var driver = DialogDriver(KeyInput('u', ConsoleKey.U));
 
-        VolumeSelectionItem? result = new DriveDialog(ModalTestHost.Create(driver)).Show(DuplicateShortcutItems());
+        VolumeSelectionItem? result = CreateDriveDialog(driver).Show(DuplicateShortcutItems());
 
         Assert.NotNull(result);
         Assert.Equal("U:", result.Label);
@@ -562,7 +573,7 @@ public sealed class ApplicationVolumeTests : IDisposable
     {
         var driver = DialogDriver(KeyInput('y', ConsoleKey.Y), KeyInput(ConsoleKey.Escape));
 
-        VolumeSelectionItem? result = new DriveDialog(ModalTestHost.Create(driver)).Show(DuplicateShortcutItems());
+        VolumeSelectionItem? result = CreateDriveDialog(driver).Show(DuplicateShortcutItems());
 
         Assert.Null(result);
     }
@@ -572,7 +583,7 @@ public sealed class ApplicationVolumeTests : IDisposable
     {
         var driver = DialogDriver(MouseOnDialogRow(row: 0, MouseEventKind.DoubleClick));
 
-        VolumeSelectionItem? result = new DriveDialog(ModalTestHost.Create(driver)).Show(DuplicateShortcutItems());
+        VolumeSelectionItem? result = CreateDriveDialog(driver).Show(DuplicateShortcutItems());
 
         Assert.NotNull(result);
         Assert.Equal("D: first", result.Label);
@@ -589,7 +600,7 @@ public sealed class ApplicationVolumeTests : IDisposable
             KeyInput(ConsoleKey.Enter),
             KeyInput(ConsoleKey.Escape));
 
-        VolumeSelectionItem? result = new DriveDialog(ModalTestHost.Create(driver)).Show(DoubleClickItems());
+        VolumeSelectionItem? result = CreateDriveDialog(driver).Show(DoubleClickItems());
 
         Assert.Null(result);
         Assert.Contains(driver.WriteRecords, record => record.Text.Contains("volume is disconnected", StringComparison.Ordinal));
@@ -604,7 +615,7 @@ public sealed class ApplicationVolumeTests : IDisposable
         driver.SetSize(80, 10);
         ResizeDuringNextRenderAfterFirstRead(driver, width: 80, height: 14);
 
-        VolumeSelectionItem? result = new DriveDialog(ModalTestHost.Create(driver)).Show(DuplicateShortcutItems());
+        VolumeSelectionItem? result = CreateDriveDialog(driver).Show(DuplicateShortcutItems());
 
         Assert.NotNull(result);
         Assert.Equal("C:", result.Label);
@@ -622,7 +633,7 @@ public sealed class ApplicationVolumeTests : IDisposable
             KeyInput(ConsoleKey.Enter));
         driver.SetSize(80, 10);
 
-        VolumeSelectionItem? result = new DriveDialog(ModalTestHost.Create(driver)).Show(LargeDriveItems());
+        VolumeSelectionItem? result = CreateDriveDialog(driver).Show(LargeDriveItems());
 
         Assert.NotNull(result);
         Assert.NotEqual("Drive 00", result.Label);
@@ -639,7 +650,7 @@ public sealed class ApplicationVolumeTests : IDisposable
             KeyInput(ConsoleKey.Enter));
         driver.SetSize(80, 10);
 
-        VolumeSelectionItem? result = new DriveDialog(ModalTestHost.Create(driver)).Show(LargeDriveItems());
+        VolumeSelectionItem? result = CreateDriveDialog(driver).Show(LargeDriveItems());
 
         Assert.NotNull(result);
         Assert.Equal("Drive 26", result.Label);
@@ -657,7 +668,7 @@ public sealed class ApplicationVolumeTests : IDisposable
         driver.SetSize(80, 10);
         ResizeBeforeSecondRead(driver, width: 80, height: 12);
 
-        VolumeSelectionItem? result = new DriveDialog(ModalTestHost.Create(driver)).Show(LargeDriveItems());
+        VolumeSelectionItem? result = CreateDriveDialog(driver).Show(LargeDriveItems());
 
         Assert.NotNull(result);
         Assert.Equal("Drive 24", result.Label);
@@ -706,7 +717,7 @@ public sealed class ApplicationVolumeTests : IDisposable
             },
         };
 
-        new DriveDialog(ModalTestHost.Create(screen)).Show(items);
+        CreateDriveDialog(screen).Show(items);
 
         string text = string.Join(Environment.NewLine, driver.WriteRecords.Select(r => r.Text));
         Assert.Contains("Disk", text);

@@ -226,9 +226,11 @@ internal static class ApplicationServicesBuilder
             panelQuickSearchLayer,
             topMenuLayer);
         var quickViewDirectorySize = rendering.QuickViewDirectorySize;
+        var dialogs = new DialogService(modalDialogs, formFields);
         var searchResults = new PanelSearchResultsService(
             screen,
             modalDialogs,
+            dialogs,
             effectiveSearchService,
             () => session.App.Palette,
             controller,
@@ -245,7 +247,6 @@ internal static class ApplicationServicesBuilder
             side => callbacks.VisibleRowsForSide(side),
             state => callbacks.ClosePanelQuickSearchForState(state),
             searchResults.RefreshPanel);
-        var dialogs = new DialogService(modalDialogs, formFields);
         var panelFileViewer = new PanelFileViewerService(
             interactiveSurfaces,
             modalDialogs,
@@ -262,7 +263,7 @@ internal static class ApplicationServicesBuilder
             (state, rows) => callbacks.SafeRefresh(state, rows));
         var panelFileOpener = new PanelFileOpener(
             effectiveFileLauncher,
-            modalDialogs,
+            dialogs,
             () => session.App.Palette,
             (state, item) => callbacks.ViewPanelFile(state, item),
             (workDir, displayCommand, execute) => callbacks.ExecuteInCurrentConsole(workDir, displayCommand, execute));
@@ -290,7 +291,7 @@ internal static class ApplicationServicesBuilder
             effectiveSourceRegistry,
             controller,
             screen,
-            modalDialogs,
+            dialogs,
             () => session.App.Palette,
             () => callbacks.PanelOptions(),
             side => callbacks.GetPanelState(side),

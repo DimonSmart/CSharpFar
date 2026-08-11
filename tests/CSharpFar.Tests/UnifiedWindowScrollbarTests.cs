@@ -173,7 +173,10 @@ public sealed class UnifiedWindowScrollbarTests
         var driveDriver = new FakeConsoleDriver(width: 80, height: 10);
         driveDriver.EnqueueKey(Key(ConsoleKey.Escape));
         var driveScreen = new ScreenRenderer(driveDriver);
-        _ = new DriveDialog(ModalTestHost.Create(driveScreen)).Show(
+        var driveModals = ModalTestHost.Create(driveScreen);
+        _ = new DriveDialog(
+            driveModals,
+            new DialogService(driveModals, new FormFieldFactory(TextFieldHistoryTestProvider.Create()))).Show(
             Enumerable.Range(0, 20)
                 .Select(i => new VolumeSelectionItem
                 {

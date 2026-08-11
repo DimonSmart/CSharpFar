@@ -15,7 +15,7 @@ internal sealed class ModulePanelOpener
     private readonly FilePanelSourceRegistry _sourceRegistry;
     private readonly PanelController _controller;
     private readonly ScreenRenderer _screen;
-    private readonly ModalDialogHost _modalDialogs;
+    private readonly DialogService _dialogs;
     private readonly Func<ConsolePalette> _palette;
     private readonly Func<AppSettingsAlias.PanelOptionsSettings> _panelOptions;
     private readonly Func<PanelSide, FilePanelState> _getPanelState;
@@ -27,7 +27,7 @@ internal sealed class ModulePanelOpener
         FilePanelSourceRegistry sourceRegistry,
         PanelController controller,
         ScreenRenderer screen,
-        ModalDialogHost modalDialogs,
+        DialogService dialogs,
         Func<ConsolePalette> palette,
         Func<AppSettingsAlias.PanelOptionsSettings> panelOptions,
         Func<PanelSide, FilePanelState> getPanelState,
@@ -38,7 +38,7 @@ internal sealed class ModulePanelOpener
         _sourceRegistry = sourceRegistry;
         _controller = controller;
         _screen = screen;
-        _modalDialogs = modalDialogs;
+        _dialogs = dialogs ?? throw new ArgumentNullException(nameof(dialogs));
         _palette = palette;
         _panelOptions = panelOptions;
         _getPanelState = getPanelState;
@@ -91,7 +91,7 @@ internal sealed class ModulePanelOpener
                 OpenPanel(defaultPanelSide, result.Panel!);
                 return ApplicationCommandResult.Rendered();
             case ModuleActionResultKind.Failed:
-                new MessageDialog(_modalDialogs).Show("Module", result.Message ?? "Module operation failed.");
+                _dialogs.Message("Module", result.Message ?? "Module operation failed.");
                 return ApplicationCommandResult.Rendered();
             default:
                 return ApplicationCommandResult.Rendered();

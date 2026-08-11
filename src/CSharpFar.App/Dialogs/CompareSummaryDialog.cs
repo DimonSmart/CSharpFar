@@ -6,16 +6,16 @@ namespace CSharpFar.App.Dialogs;
 
 internal sealed class CompareSummaryDialog
 {
-    private readonly ModalDialogHost _modalDialogs;
+    private readonly DialogService _dialogs;
 
-    public CompareSummaryDialog(ModalDialogHost modalDialogs) => _modalDialogs = modalDialogs;
+    public CompareSummaryDialog(DialogService dialogs) => _dialogs = dialogs ?? throw new ArgumentNullException(nameof(dialogs));
 
     public void Show(CompareResult result)
     {
         CompareSummary summary = result.Summary;
         if (summary.DifferentCount + summary.LeftOnlyCount + summary.RightOnlyCount + summary.AmbiguousCount + summary.ErrorCount == 0)
         {
-            new MessageDialog(_modalDialogs).Show("Compare", "No differences found.");
+            _dialogs.Message("Compare", "No differences found.");
             return;
         }
 
@@ -35,7 +35,7 @@ internal sealed class CompareSummaryDialog
         if (summary.ErrorCount > 0)
             lines.Add($"Errors: {summary.ErrorCount}");
 
-        new MessageDialog(_modalDialogs).Show("Compare", string.Join(Environment.NewLine, lines));
+        _dialogs.Message("Compare", string.Join(Environment.NewLine, lines));
     }
 
     private static long Size(IEnumerable<CompareResultRow> rows, CompareStatus status, bool left) =>
