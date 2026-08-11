@@ -10,12 +10,12 @@ namespace CSharpFar.Tests;
 public sealed class SearchOptionsDialogTests
 {
     [Fact]
-    public void SearchOptionsDialog_PatternRow_HasStableIdAndSubmitOnEnter()
+    public void SearchOptionsDialog_PatternRow_IsIdlessAndSubmitOnEnter()
     {
         IReadOnlyList<FormRow> rows = BuildRows();
 
         TextInputRow patternRow = Assert.Single(rows.OfType<TextInputRow>());
-        Assert.Equal("pattern", patternRow.Id);
+        Assert.Null(patternRow.Id);
         Assert.Equal(FormRowRole.TextInput, patternRow.Role);
         Assert.True(patternRow.SubmitOnEnter);
     }
@@ -56,7 +56,7 @@ public sealed class SearchOptionsDialogTests
         var history = CreateHistory();
         IReadOnlyList<FormRow> rows = BuildRows(history);
         var form = new ScrollableFormDialog(rows);
-        form.SetInitialFocus("option");
+        form.SetInitialFocus(Assert.Single(rows.OfType<CheckBoxRow>()));
 
         FormInputResult result = HandleKey(form, PopupState(rows), Key(ConsoleKey.Enter));
 
@@ -70,11 +70,12 @@ public sealed class SearchOptionsDialogTests
         var history = CreateHistory();
         var rows = new List<FormRow>
         {
-            new CheckBoxRow(new CheckBoxLine("Before pattern")) { Id = "before-pattern" },
+            FormControls.CheckBox("Before pattern"),
         };
         rows.AddRange(BuildRows(history));
         var form = new ScrollableFormDialog(rows);
-        form.SetInitialFocus("pattern");
+        TextInputRow patternRow = Assert.Single(rows.OfType<TextInputRow>());
+        form.SetInitialFocus(patternRow);
         Assert.NotEqual(0, form.FocusIndex);
 
         FormInputResult result = HandleKey(form, PopupState(rows), Key(ConsoleKey.Enter));
@@ -93,6 +94,24 @@ public sealed class SearchOptionsDialogTests
 
         Assert.NotNull(result);
         Assert.Equal("abc", result.Pattern);
+    }
+
+    [Fact]
+    public void Show_ConfirmCommitsPatternHistory()
+    {
+        var driver = new FakeConsoleDriver(80, 25);
+        driver.EnqueueKey(new ConsoleKeyInfo('\0', ConsoleKey.Enter, shift: false, alt: false, control: false));
+        TextHistory history = CreateHistory();
+        var modalDialogs = ModalTestHost.Create(driver);
+
+        var result = new SearchOptionsDialog(modalDialogs, new FormFieldFactory(new FixedHistoryProvider(history))).Show(new SearchOptionsDialogOptions
+        {
+            InitialPattern = "abc",
+            History = new TextHistoryId($"SearchOptionsDialogTests:{Guid.NewGuid()}"),
+        });
+
+        Assert.NotNull(result);
+        Assert.Equal("abc", Assert.Single(history.Items));
     }
 
     [Fact]
@@ -137,7 +156,6 @@ public sealed class SearchOptionsDialogTests
                 int x = row.X + row.Text.IndexOf("Case sensitive", StringComparison.Ordinal);
                 currentDriver.EnqueueInput(new MouseConsoleInputEvent(x, row.Y, MouseButton.Left, MouseEventKind.Down, MouseKeyModifiers.None));
                 currentDriver.EnqueueKey(new ConsoleKeyInfo('\0', ConsoleKey.F10, shift: false, alt: false, control: false));
-                return;
             }
         };
 
@@ -161,6 +179,35 @@ public sealed class SearchOptionsDialogTests
         Assert.True(result.GetOption("case-sensitive"));
     }
 
+    [Fact]
+    public void Show_NormalizesOptionsUsingDomainIdentity()
+    {
+        var driver = new FakeConsoleDriver(80, 25);
+        driver.EnqueueKey(new ConsoleKeyInfo('\0', ConsoleKey.DownArrow, shift: false, alt: false, control: false));
+        driver.EnqueueKey(new ConsoleKeyInfo('\0', ConsoleKey.Spacebar, shift: false, alt: false, control: false));
+        driver.EnqueueKey(new ConsoleKeyInfo('\0', ConsoleKey.F10, shift: false, alt: false, control: false));
+        var modalDialogs = ModalTestHost.Create(driver);
+
+        var result = new SearchOptionsDialog(modalDialogs, new FormFieldFactory(CreateProvider())).Show(new SearchOptionsDialogOptions
+        {
+            InitialPattern = "abc",
+            Options =
+            [
+                new SearchOptionLine("first", "First", false),
+                new SearchOptionLine("second", "Second", true),
+            ],
+            NormalizeOptions = (state, changedOptionId) =>
+            {
+                if (changedOptionId == "first" && state.GetOption("first"))
+                    state.SetOption("second", false);
+            },
+        });
+
+        Assert.NotNull(result);
+        Assert.True(result.GetOption("first"));
+        Assert.False(result.GetOption("second"));
+    }
+
     private static SearchOptionsDialogResult? ShowDialog(FakeConsoleDriver driver, string initialPattern)
     {
         var modalDialogs = ModalTestHost.Create(driver);
@@ -180,12 +227,14 @@ public sealed class SearchOptionsDialogTests
     private static IReadOnlyList<FormRow> BuildRows(TextHistory? history = null)
     {
         history ??= CreateHistory();
-        var field = new FormFieldFactory(new FixedHistoryProvider(history)).Text(
-            "pattern", historyId: new TextHistoryId("SearchOptionsDialogTests.Pattern"), submitOnEnter: true);
+        TextField field = new FormFieldFactory(new FixedHistoryProvider(history)).Text(new TextFieldOptions(
+            string.Empty,
+            new TextHistoryId("SearchOptionsDialogTests.Pattern"),
+            SubmitOnEnter: true));
         return SearchOptionsDialog.BuildRows(
             new SearchOptionsDialogOptions(),
             field,
-            [new CheckBoxRow("Option") { Id = "option" }]);
+            [FormControls.CheckBox("Option")]);
     }
 
     private static FormInputResult HandleKey(

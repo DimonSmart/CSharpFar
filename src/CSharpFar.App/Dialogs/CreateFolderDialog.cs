@@ -4,13 +4,10 @@ namespace CSharpFar.App.Dialogs;
 
 internal sealed class CreateFolderDialog
 {
-    private const int DialogWidth = 70;
-    private const int DialogHeight = 9;
     private const string Title = "Make folder";
     private const string Prompt = "Create the folder:";
 
     private readonly FormFieldFactory _fields;
-
     private readonly DialogService _dialogs;
 
     public CreateFolderDialog(DialogService dialogs, FormFieldFactory fields)
@@ -21,14 +18,13 @@ internal sealed class CreateFolderDialog
 
     public string? Show(string? initialText = null, Func<string, string?>? validate = null)
     {
-        var fields = _fields;
-        TextField folderName = fields.Text(new TextFieldOptions(
+        TextField folderName = _fields.Text(new TextFieldOptions(
             initialText ?? string.Empty,
             AppTextHistoryIds.CreateFolderName,
             SubmitOnEnter: true));
         var actions = FormControls.OkCancel();
         return _dialogs.Form(
-            new FormDialogOptions(Title, DialogWidth, DialogHeight, MinWidth: 40),
+            new FormDialogOptions(Title, MinWidth: 40),
             rows: () =>
             [
                 FormControls.Label(Prompt),
@@ -40,12 +36,12 @@ internal sealed class CreateFolderDialog
             {
                 string text = folderName.TrimmedText;
                 if (text.Length == 0)
-                    return FormSubmit.Invalid<string?>("A folder name is required.", folderName);
+                    return FormSubmit.Invalid<string>("A folder name is required.", folderName);
 
                 string? error = validate?.Invoke(text);
                 return error is null
-                    ? FormSubmit.Success<string?>(text)
-                    : FormSubmit.Invalid<string?>(error, folderName);
+                    ? FormSubmit.Success(text)
+                    : FormSubmit.Invalid<string>(error, folderName);
             });
     }
 }

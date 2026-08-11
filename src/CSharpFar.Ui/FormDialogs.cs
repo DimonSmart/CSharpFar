@@ -45,6 +45,7 @@ public readonly struct FormDialogOutcome<TResult>
     internal TResult? Result => _result;
     internal string? FocusRowId { get; }
     internal IFormFocusTarget? FocusTarget => _focusTarget;
+
     /// <summary>Keeps the form open and refreshes it.</summary>
     public static FormDialogOutcome<TResult> Continue() => new(false, default, null, null);
 
@@ -158,7 +159,35 @@ internal sealed class FormDialogs
         Func<IReadOnlyList<FormRow>> rows,
         Func<IReadOnlyList<FormRow>>? footer,
         Func<FormSubmitResult<TResult>> submit,
+        CancellationToken cancellationToken = default) =>
+        ShowStandard(options, rows, footer, submit, valueChanged: null, cancellationToken);
+
+    internal TResult? Show<TResult>(
+        FormDialogOptions options,
+        Func<IReadOnlyList<FormRow>> rows,
+        Func<IReadOnlyList<FormRow>>? footer,
+        Action<FormDialogEvent> valueChanged,
+        Func<FormSubmitResult<TResult>> submit,
         CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(valueChanged);
+        return ShowStandard(options, rows, footer, submit, valueChanged, cancellationToken);
+    }
+
+    public TResult? Show<TResult>(
+        FormDialogOptions options,
+        Func<IReadOnlyList<FormRow>> rows,
+        Func<FormSubmitResult<TResult>> submit,
+        CancellationToken cancellationToken = default) =>
+        Show(options, rows, footer: null, submit, cancellationToken);
+
+    private TResult? ShowStandard<TResult>(
+        FormDialogOptions options,
+        Func<IReadOnlyList<FormRow>> rows,
+        Func<IReadOnlyList<FormRow>>? footer,
+        Func<FormSubmitResult<TResult>> submit,
+        Action<FormDialogEvent>? valueChanged,
+        CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(submit);
 
@@ -189,7 +218,10 @@ internal sealed class FormDialogs
                     return FormDialogOutcome<TResult?>.Complete(default);
 
                 if (formEvent.IsValueChanged)
+                {
+                    valueChanged?.Invoke(formEvent);
                     error = null;
+                }
 
                 if (!formEvent.IsSubmitted)
                     return FormDialogOutcome<TResult?>.Continue();
@@ -209,13 +241,6 @@ internal sealed class FormDialogs
             },
             cancellationToken: cancellationToken);
     }
-
-    public TResult? Show<TResult>(
-        FormDialogOptions options,
-        Func<IReadOnlyList<FormRow>> rows,
-        Func<FormSubmitResult<TResult>> submit,
-        CancellationToken cancellationToken = default) =>
-        Show(options, rows, footer: null, submit, cancellationToken);
 
     private static ModalDialogLoopResult<TResult> ToLoopResult<TResult>(
         FormDialogOutcome<TResult> outcome,

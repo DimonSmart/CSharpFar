@@ -1,6 +1,3 @@
-using CSharpFar.Console;
-using CSharpFar.Console.Input;
-using CSharpFar.Console.Models;
 using CSharpFar.Core.Models;
 
 namespace CSharpFar.Ui;
@@ -63,12 +60,12 @@ public sealed class SearchOptionsDialog
     private const int MinimumWidth = 40;
     private const int MinimumHeight = 8;
 
-    private readonly ModalFormHost _formDialogs;
+    private readonly FormDialogs _forms;
     private readonly FormFieldFactory _fields;
 
     public SearchOptionsDialog(ModalDialogHost modalDialogs, FormFieldFactory fields)
     {
-        _formDialogs = new ModalFormHost(modalDialogs ?? throw new ArgumentNullException(nameof(modalDialogs)));
+        _forms = new FormDialogs(modalDialogs ?? throw new ArgumentNullException(nameof(modalDialogs)));
         _fields = fields ?? throw new ArgumentNullException(nameof(fields));
     }
 
@@ -76,57 +73,28 @@ public sealed class SearchOptionsDialog
     {
         ArgumentNullException.ThrowIfNull(options);
 
-        return RunLoop(options);
-    }
-
-    private SearchOptionsDialogResult? RunLoop(SearchOptionsDialogOptions options)
-    {
         TextField pattern = _fields.Text(new TextFieldOptions(
             options.InitialPattern,
             options.History,
             SubmitOnEnter: true));
-
         var state = new SearchOptionsDialogState(pattern.Text, options.Options);
-        var checkboxes = options.Options
-            .Select(option => FormControls.CheckBox(option.Id, option.Label, option.IsChecked))
+        CheckBoxRow[] checkboxes = options.Options
+            .Select(option => FormControls.CheckBox(option.Label, option.IsChecked))
             .ToArray();
-        var buttons = new ButtonRow(
-            [
-                DialogButton.Default("find", "Find", 'F'),
-                DialogButton.Cancel(),
-            ]);
-        var form = new ScrollableFormDialog();
-        string? error = null;
-        void PrepareRows() => form.SetRows(BuildRows(options, pattern, checkboxes),
-            FormFooter.ErrorAndButtons(() => error, buttons));
-        return _formDialogs.Run(
-            form,
-            new ModalFormOptions(
-                options.Title, options.Width, options.Options.Count + 8, MinimumWidth, MinimumHeight,
-                OuterRenderOptions: PaletteStyles.DialogPopupOptions(UiTheme.Current) with { DrawBorder = false },
-                FrameRenderOptions: PaletteStyles.DialogPopupOptions(UiTheme.Current) with { DrawShadow = false }),
-            static layout => ModalFormLayout.WithFooter(layout.ContentBounds, footerHeight: 2),
-            (result) =>
-            {
-                if (result.IsValueChanged)
-                    SynchronizeOptions(options, state, checkboxes);
+        ButtonRow buttons = FormControls.Buttons(
+            DialogButton.Default("find", "Find", 'F'),
+            DialogButton.Cancel());
 
-                if (result.IsCancelled)
-                    return ModalDialogLoopResult<SearchOptionsDialogResult?>.Complete(null);
-
-                if (result.IsSubmitted)
-                {
-                    var accepted = HandleButton(result.Command ?? "find", options, state, pattern, ref error);
-                    if (accepted.HasValue)
-                    {
-                        return ModalDialogLoopResult<SearchOptionsDialogResult?>.Complete(
-                            accepted.Value ? CreateResult(state) : null);
-                    }
-                }
-
-                return ModalDialogLoopResult<SearchOptionsDialogResult?>.ContinueNoChange;
-            },
-            prepareRender: PrepareRows);
+        return _forms.Show(
+            new FormDialogOptions(
+                options.Title,
+                PreferredWidth: options.Width,
+                MinWidth: MinimumWidth,
+                MinHeight: MinimumHeight),
+            rows: () => BuildRows(options, pattern, checkboxes),
+            footer: () => [buttons],
+            valueChanged: formEvent => SynchronizeOption(options, state, checkboxes, formEvent),
+            submit: () => TryAccept(options, state, pattern));
     }
 
     internal static IReadOnlyList<FormRow> BuildRows(
@@ -136,71 +104,49 @@ public sealed class SearchOptionsDialog
     {
         var rows = new List<FormRow>
         {
-            new LabelRow(options.TextLabel),
+            FormControls.Label(options.TextLabel),
             FormControls.Text(pattern),
         };
         rows.AddRange(checkboxes);
         return rows;
     }
 
-    private static void SynchronizeOptions(
+    private static void SynchronizeOption(
         SearchOptionsDialogOptions options,
         SearchOptionsDialogState state,
-        IReadOnlyList<CheckBoxRow> checkboxes)
+        IReadOnlyList<CheckBoxRow> checkboxes,
+        FormDialogEvent formEvent)
     {
         for (int i = 0; i < checkboxes.Count; i++)
         {
-            string optionId = options.Options[i].Id;
-            if (state.GetOption(optionId) == checkboxes[i].Value)
+            if (!formEvent.IsValueChangedFrom(checkboxes[i]))
                 continue;
 
+            string optionId = options.Options[i].Id;
             state.SetOption(optionId, checkboxes[i].Value);
             options.NormalizeOptions?.Invoke(state, optionId);
-            break;
+
+            for (int j = 0; j < checkboxes.Count; j++)
+                checkboxes[j].Value = state.GetOption(options.Options[j].Id);
+            return;
         }
-
-        for (int i = 0; i < checkboxes.Count; i++)
-            checkboxes[i].Value = state.GetOption(options.Options[i].Id);
     }
 
-    private static bool? HandleButton(
-        string? buttonId,
+    private static FormSubmitResult<SearchOptionsDialogResult> TryAccept(
         SearchOptionsDialogOptions options,
         SearchOptionsDialogState state,
-        TextField pattern,
-        ref string? error)
-    {
-        if (buttonId == "cancel")
-            return false;
-
-        if (buttonId == "find")
-            return TryAccept(options, state, pattern, ref error);
-
-        return null;
-    }
-
-    private static bool TryAccept(
-        SearchOptionsDialogOptions options,
-        SearchOptionsDialogState state,
-        TextField pattern,
-        ref string? error)
+        TextField pattern)
     {
         state.Pattern = pattern.Text;
         if (state.Pattern.Length == 0)
-        {
-            error = "Search text is required.";
-            return false;
-        }
+            return FormSubmit.Invalid<SearchOptionsDialogResult>("Search text is required.", pattern);
 
-        error = options.Validate?.Invoke(state);
-        if (error is not null)
-            return false;
-
-        pattern.AcceptHistory();
-        return true;
+        string? error = options.Validate?.Invoke(state);
+        return error is null
+            ? FormSubmit.Success(CreateResult(state))
+            : FormSubmit.Invalid<SearchOptionsDialogResult>(error, pattern);
     }
 
     private static SearchOptionsDialogResult CreateResult(SearchOptionsDialogState state) =>
         new(state.Pattern, new Dictionary<string, bool>(state.Options));
-
 }
