@@ -13,6 +13,7 @@ internal sealed class PanelSearchResultsService
 {
     private readonly ScreenRenderer _screen;
     private readonly ModalDialogHost _modalDialogs;
+    private readonly DialogService _dialogs;
     private readonly ISearchService _searchService;
     private readonly Func<ConsolePalette> _palette;
     private readonly PanelController _controller;
@@ -27,6 +28,7 @@ internal sealed class PanelSearchResultsService
     public PanelSearchResultsService(
         ScreenRenderer screen,
         ModalDialogHost modalDialogs,
+        DialogService dialogs,
         ISearchService searchService,
         Func<ConsolePalette> palette,
         PanelController controller,
@@ -40,6 +42,7 @@ internal sealed class PanelSearchResultsService
     {
         _screen = screen;
         _modalDialogs = modalDialogs;
+        _dialogs = dialogs ?? throw new ArgumentNullException(nameof(dialogs));
         _searchService = searchService;
         _palette = palette;
         _controller = controller;
@@ -161,7 +164,7 @@ internal sealed class PanelSearchResultsService
 
         if (string.IsNullOrWhiteSpace(directoryPath))
         {
-            new MessageDialog(_modalDialogs).Show("Search", $"Cannot open search result: {fullPath}");
+            _dialogs.Message("Search", $"Cannot open search result: {fullPath}");
             return;
         }
 
@@ -178,7 +181,7 @@ internal sealed class PanelSearchResultsService
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or DirectoryNotFoundException)
         {
-            new MessageDialog(_modalDialogs).Show("Search", ex.Message);
+            _dialogs.Message("Search", ex.Message);
         }
     }
 

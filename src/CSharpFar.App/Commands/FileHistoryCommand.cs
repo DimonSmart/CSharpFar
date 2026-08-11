@@ -29,7 +29,7 @@ internal sealed class FileHistoryCommand : IApplicationCommand
                 return ApplicationCommandResult.Rendered();
             }
 
-            var choice = new OpenFileDialog(context.ModalDialogs).Show(Path.GetFileName(path));
+            var choice = new OpenFileDialog(context.Dialogs).Show(Path.GetFileName(path));
             switch (choice)
             {
                 case OpenFileChoice.View:
