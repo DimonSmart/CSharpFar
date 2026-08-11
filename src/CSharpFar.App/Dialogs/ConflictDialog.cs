@@ -119,10 +119,12 @@ internal sealed class ConflictDialog
         if (rememberChoice)
             return FileOperationConflictDecision.FromMode(ConflictDecisionMode.RenameAll);
 
-        string? renamed = new InputDialog(_dialogs).Show(
-            "Rename",
-            "New destination:",
-            initialText: conflict.DestinationPath);
+        string? renamed = _dialogs.Input(new SingleLineInputDialogOptions
+        {
+            Title = "Rename",
+            Prompt = "New destination:",
+            InitialText = conflict.DestinationPath,
+        });
         return string.IsNullOrWhiteSpace(renamed)
             ? FileOperationConflictDecision.FromMode(ConflictDecisionMode.Skip)
             : new FileOperationConflictDecision
