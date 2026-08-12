@@ -150,6 +150,30 @@ public sealed class DirectoryShortcutApplicationIntegrationTests : IDisposable
         Assert.Equal(_target, result.Item?.Path);
     }
 
+    [Fact]
+    public void ShortcutsDialog_EditChildCloseRefreshesParentWithoutResettingSelection()
+    {
+        var driver = new FakeConsoleDriver();
+        driver.EnqueueKey(Key(ConsoleKey.DownArrow));
+        driver.EnqueueKey(Key(ConsoleKey.Enter));
+        driver.EnqueueKey(new ConsoleKeyInfo('X', ConsoleKey.X, false, false, false));
+        driver.EnqueueKey(Key(ConsoleKey.F10));
+        driver.EnqueueKey(Key(ConsoleKey.Escape));
+        var dialogs = new DialogService(
+            ModalTestHost.Create(driver),
+            new FormFieldFactory(TextFieldHistoryTestProvider.Create()));
+
+        DirectoryShortcutsDialogResult result = new DirectoryShortcutsDialog(
+            dialogs,
+            new FormFieldFactory(TextFieldHistoryTestProvider.Create()))
+            .Show([], _target);
+
+        AppSettings.DirectoryShortcutItem item = Assert.Single(result.Items);
+        Assert.Equal(2, item.Number);
+        Assert.Equal(_target, item.Path);
+        Assert.EndsWith("X", item.Name, StringComparison.Ordinal);
+    }
+
     private Application CreateApp(out FakeConsoleDriver driver, out AppSettings settings)
     {
         driver = new FakeConsoleDriver();
