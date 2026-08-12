@@ -1,6 +1,5 @@
 using System.Globalization;
 using System.Text;
-using CSharpFar.App.Dialogs;
 using CSharpFar.App.Rendering;
 using CSharpFar.Console;
 using CSharpFar.Console.Input;
@@ -862,7 +861,7 @@ internal sealed class LargeFileViewer
 
     private void ShowFindDialog(IFileByteReader reader, LargeFileViewerState state, int width)
     {
-        var selected = new ViewerFindDialog(_modalDialogs, _fields).Show(state.LastSearch, state.IsHexMode);
+        var selected = new ViewerFindDialog(_dialogs).Show(state.LastSearch, state.IsHexMode);
         if (selected is null)
             return;
 
@@ -997,16 +996,27 @@ internal sealed class LargeFileViewer
         int originalHorizontalOffset = state.HorizontalOffset;
         bool originalFollowMode = state.FollowMode;
 
-        var selected = new EncodingSelectionDialog(_modalDialogs).Show(
-            items,
-            state.EncodingSelection,
-            previewSelection: item => ApplyEncodingSelection(
+        var result = _dialogs.Select(new SelectionDialogOptions<TextEncodingCatalogItem>
+        {
+            Title = "Encoding",
+            Items = items,
+            ItemText = static item => item.Label,
+            DoubleBorder = true,
+            MaxWidth = 44,
+            MaxVisibleRows = items.Count,
+            SelectedIndex = FindEncodingSelection(items, state.EncodingSelection),
+            SelectionChanged = (item, _) =>
+            {
+                ApplyEncodingSelection(
                 reader,
                 state,
                 item.Selection,
                 anchorByteOffset,
-                originalViewMode),
-            previewRedraw: _surfaces.RequestRedraw);
+                originalViewMode);
+                _surfaces.RequestRedraw();
+            },
+        });
+        TextEncodingCatalogItem? selected = result.IsConfirmed ? result.SelectedItem : null;
 
         if (selected is null)
         {
@@ -1017,6 +1027,19 @@ internal sealed class LargeFileViewer
         }
 
         ApplyEncodingSelection(reader, state, selected.Selection, anchorByteOffset, originalViewMode);
+    }
+
+    private static int FindEncodingSelection(
+        IReadOnlyList<TextEncodingCatalogItem> items,
+        TextEncodingSelection selection)
+    {
+        for (int i = 0; i < items.Count; i++)
+        {
+            if (items[i].Selection == selection)
+                return i;
+        }
+
+        return 0;
     }
 
     private static void CycleCommonEncoding(IFileByteReader reader, LargeFileViewerState state)

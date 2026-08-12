@@ -66,8 +66,14 @@ public sealed class ModuleUiServices
         if (items.Count == 0)
             return null;
 
-        SelectionListDialogResult<string> result = Dialogs.Select(
-            items, static item => item, title, selected, maxVisibleRows: 10);
+        SelectionListDialogResult<string> result = Dialogs.Select(new SelectionDialogOptions<string>
+        {
+            Title = title,
+            Items = items,
+            ItemText = static item => item,
+            SelectedIndex = selected,
+            MaxVisibleRows = 10,
+        });
         return result.IsConfirmed ? result.SelectedIndex : null;
     }
 }

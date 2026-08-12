@@ -5,7 +5,7 @@ using CSharpFar.Core.Models;
 namespace CSharpFar.Ui;
 
 /// <summary>Reusable one-line form input with an inline label.</summary>
-public sealed class LabeledTextInputRow : FormRow, IFormFocusTarget, IFormCursorProvider, IFormCompositeOwner, IFormLabeledRow
+public sealed class LabeledTextInputRow : FormRow, IFormFocusTarget, IFormCursorProvider, IFormCompositeOwner, IFormLabeledRow, IFormMnemonic
 {
     private readonly string _label;
     private readonly int? _inputWidth;
@@ -17,7 +17,7 @@ public sealed class LabeledTextInputRow : FormRow, IFormFocusTarget, IFormCursor
     internal LabeledTextInputRow(string label, CommandLineState buffer, SingleLineTextHistoryState? history = null,
         int? inputWidth = null, bool maskInput = false)
     {
-        _label = label;
+        (_label, Mnemonic) = ParseMnemonic(label);
         _inputWidth = inputWidth;
         _preferredInputWidth = Math.Max(20, ConsoleTextMetrics.GetCellWidth(buffer.Text));
         _field = new FormTextInputField(buffer, history, maskInput);
@@ -28,7 +28,7 @@ public sealed class LabeledTextInputRow : FormRow, IFormFocusTarget, IFormCursor
     {
         ArgumentNullException.ThrowIfNull(field);
         _focusTarget = field;
-        _label = label;
+        (_label, Mnemonic) = ParseMnemonic(label);
         _inputWidth = field.Width;
         _preferredInputWidth = field.PreferredWidth;
         _field = field.Input;
@@ -48,6 +48,8 @@ public sealed class LabeledTextInputRow : FormRow, IFormFocusTarget, IFormCursor
     public bool Enabled { get => _field.Enabled; set => _field.Enabled = value; }
     public string? DisabledReason { get => _field.DisabledReason; set => _field.DisabledReason = value; }
     internal override bool IsEnabled => Enabled;
+    char? IFormMnemonic.Mnemonic => Mnemonic;
+    private char? Mnemonic { get; }
     int IFormLabeledRow.DesiredLabelWidth => ConsoleTextMetrics.GetCellWidth(_label);
     int IFormLabeledRow.DesiredControlWidth => _inputWidth ?? _preferredInputWidth;
     bool IFormLabeledRow.UseSharedLabelColumn => true;
@@ -85,6 +87,20 @@ public sealed class LabeledTextInputRow : FormRow, IFormFocusTarget, IFormCursor
         Math.Min(layout.ControlBounds.Width, _inputWidth ?? layout.ControlBounds.Width),
         layout.ControlBounds.Height);
 
+    private static (string Text, char? Mnemonic) ParseMnemonic(string label)
+    {
+        ArgumentNullException.ThrowIfNull(label);
+        int index = label.IndexOf('&');
+        return index >= 0 && index + 1 < label.Length
+            ? (label.Remove(index, 1), char.ToUpperInvariant(label[index + 1]))
+            : (label, null);
+    }
+
+}
+
+internal interface IFormMnemonic
+{
+    char? Mnemonic { get; }
 }
 
 /// <summary>Reusable non-focusable inline label/value row.</summary>

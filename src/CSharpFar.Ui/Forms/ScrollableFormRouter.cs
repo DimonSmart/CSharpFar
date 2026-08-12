@@ -33,6 +33,16 @@ public sealed partial class ScrollableFormDialog
         UiInputRouteContext route,
         bool allowUnfocusedButtonHotkeys)
     {
+        if ((key.Modifiers & ConsoleModifiers.Alt) != 0 && key.KeyChar > ' ')
+        {
+            char mnemonic = char.ToUpperInvariant(key.KeyChar);
+            FormRowTargetFrame? mnemonicTarget = frame.Targets.OfType<FormRowTargetFrame>()
+                .FirstOrDefault(candidate => candidate.IsFocusable && candidate.Row.IsEnabled &&
+                    candidate.Row is IFormMnemonic { Mnemonic: { } value } && value == mnemonic);
+            if (mnemonicTarget is not null)
+                return FormResult(FormInputResult.Handled, UiInputResult.RequestFocus(mnemonicTarget.Target));
+        }
+
         bool ensureFocusedTargetVisible = false;
         if (route.RouteKind == UiInputRouteKind.FocusedTarget &&
             route.Target is UiTargetId target &&

@@ -55,7 +55,7 @@ public sealed class SearchOptionsDialogResult
     public bool GetOption(string id) => Options.TryGetValue(id, out bool value) && value;
 }
 
-public sealed class SearchOptionsDialog
+internal sealed class SearchOptionsDialog
 {
     private const int MinimumWidth = 40;
     private const int MinimumHeight = 8;

@@ -1,7 +1,7 @@
-using CSharpFar.App.Dialogs;
 using CSharpFar.App.FunctionKeys;
 using CSharpFar.App.UserMenu;
 using CSharpFar.Core.Models;
+using CSharpFar.Ui;
 
 namespace CSharpFar.App.Commands;
 
@@ -24,7 +24,13 @@ internal sealed class UserMenuCommand : IApplicationCommand
             return ApplicationCommandResult.Rendered();
         }
 
-        string? command = new UserMenuDialog(context.ModalDialogs).Show(context.UserMenu.Items);
+        var result = context.Dialogs.Select(new SelectionDialogOptions<UserMenuItem>
+        {
+            Title = "User Menu",
+            Items = context.UserMenu.Items,
+            ItemText = static item => item.Title,
+        });
+        string? command = result.IsConfirmed ? result.SelectedItem?.Command : null;
         if (command is null)
             return ApplicationCommandResult.Rendered();
 

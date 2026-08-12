@@ -1121,7 +1121,7 @@ public sealed class Spec035FtpProviderTests : IDisposable
             currentDriver.EnqueueInput(new MouseConsoleInputEvent(button.X + 1, button.Y, MouseButton.Left, MouseEventKind.Up, MouseKeyModifiers.None));
         };
 
-        var result = new FtpConnectionManagerDialog(ModalTestHost.Create(screen)).Show([]);
+        var result = new FtpConnectionManagerDialog(CreateDialogs(ModalTestHost.Create(screen))).Show([]);
 
         Assert.NotNull(result);
         Assert.Equal(FtpConnectionManagerAction.Create, result.Action);
@@ -1139,7 +1139,7 @@ public sealed class Spec035FtpProviderTests : IDisposable
         driver.EnqueueKey(Key(ConsoleKey.RightArrow));
         driver.EnqueueKey(Key(ConsoleKey.Enter));
 
-        var result = new FtpConnectionManagerDialog(ModalTestHost.Create(screen)).Show([TestConnection()]);
+        var result = new FtpConnectionManagerDialog(CreateDialogs(ModalTestHost.Create(screen))).Show([TestConnection()]);
 
         Assert.NotNull(result);
         Assert.Equal(FtpConnectionManagerAction.Create, result.Action);
@@ -1154,7 +1154,7 @@ public sealed class Spec035FtpProviderTests : IDisposable
         driver.EnqueueKey(ShiftTab());
         driver.EnqueueKey(Key(ConsoleKey.Enter));
 
-        var result = new FtpConnectionManagerDialog(ModalTestHost.Create(screen)).Show([connection]);
+        var result = new FtpConnectionManagerDialog(CreateDialogs(ModalTestHost.Create(screen))).Show([connection]);
 
         Assert.NotNull(result);
         Assert.Equal(FtpConnectionManagerAction.Connect, result.Action);
@@ -1280,6 +1280,9 @@ public sealed class Spec035FtpProviderTests : IDisposable
 
     private static bool HasRenderedText(FakeConsoleDriver driver, string text) =>
         driver.WriteRecords.Any(record => record.Text.Contains(text, StringComparison.Ordinal));
+
+    private static DialogService CreateDialogs(ModalDialogHost modalDialogs) =>
+        new(modalDialogs, new FormFieldFactory(TextFieldHistoryTestProvider.Create()));
 
     private static bool IsCursorInsideInputForLabel(FakeConsoleDriver driver, string label, out string diagnostic)
     {

@@ -17,32 +17,32 @@ internal sealed record SftpConnectionManagerResult(
 
 internal sealed class SftpConnectionManagerDialog
 {
-    private readonly ModalDialogHost _modalDialogs;
+    private readonly DialogService _dialogs;
 
-    public SftpConnectionManagerDialog(ModalDialogHost modalDialogs)
+    public SftpConnectionManagerDialog(DialogService dialogs)
     {
-        _modalDialogs = modalDialogs;
+        _dialogs = dialogs ?? throw new ArgumentNullException(nameof(dialogs));
     }
 
     public SftpConnectionManagerResult? Show(IReadOnlyList<SftpConnectionInfo> connections)
     {
-        var dialog = new ListWithButtonsDialog<SftpConnectionInfo>(
-            connections,
-            FormatConnection,
-            CreateButtons(connections.Count > 0),
-            "SFTP connections")
+        return _dialogs.List(new ListDialogOptions<SftpConnectionInfo, SftpConnectionManagerResult>
         {
+            Title = "SFTP connections",
+            Items = () => connections,
+            ItemText = FormatConnection,
+            Actions = CreateButtons(connections.Count > 0),
             DialogWidth = 68,
             MinDialogWidth = 40,
             MaxVisibleRows = 12,
             EmptyText = "No saved SFTP connections.",
-            DefaultListActionId = "connect",
+            DefaultItemActionId = "connect",
             CancelActionId = "cancel",
             DeleteActionId = "delete",
-        };
-
-        var result = dialog.Show(_modalDialogs);
-        return result is null ? null : ToManagerResult(result);
+            HandleAction = action => ToManagerResult(action) is { } result
+                ? DialogOutcome<SftpConnectionManagerResult>.Complete(result)
+                : DialogOutcome<SftpConnectionManagerResult>.ContinueOpen(),
+        });
     }
 
     private static IReadOnlyList<DialogButton> CreateButtons(bool hasConnections) =>
@@ -59,7 +59,7 @@ internal sealed class SftpConnectionManagerDialog
                 DialogButton.Cancel(),
             ];
 
-    private static SftpConnectionManagerResult? ToManagerResult(ListWithButtonsDialogResult<SftpConnectionInfo> result) =>
+    private static SftpConnectionManagerResult? ToManagerResult(ListDialogActionContext<SftpConnectionInfo> result) =>
         result.ActionId switch
         {
             "connect" when result.SelectedItem is not null => new(SftpConnectionManagerAction.Connect, result.SelectedItem),

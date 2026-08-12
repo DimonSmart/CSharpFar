@@ -2,6 +2,7 @@ using CSharpFar.App.Dialogs;
 using CSharpFar.App.FunctionKeys;
 using CSharpFar.Core.History;
 using CSharpFar.Core.Models;
+using CSharpFar.Ui;
 
 namespace CSharpFar.App.Commands;
 
@@ -19,7 +20,13 @@ internal sealed class FileHistoryCommand : IApplicationCommand
 
         try
         {
-            string? path = new FileHistoryDialog(context.ModalDialogs).Show(context.History.GetFileHistory());
+            var result = context.Dialogs.Select(new SelectionDialogOptions<FileHistoryItem>
+            {
+                Title = "File History",
+                Items = context.History.GetFileHistory(),
+                ItemText = static item => item.Path,
+            });
+            string? path = result.IsConfirmed ? result.SelectedItem?.Path : null;
             if (path is null)
                 return ApplicationCommandResult.Rendered();
 

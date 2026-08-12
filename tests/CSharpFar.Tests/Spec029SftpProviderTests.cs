@@ -676,7 +676,7 @@ public sealed class Spec029SftpProviderTests : IDisposable
             currentDriver.EnqueueInput(new MouseConsoleInputEvent(button.X + 1, button.Y, MouseButton.Left, MouseEventKind.Up, MouseKeyModifiers.None));
         };
 
-        var result = new SftpConnectionManagerDialog(ModalTestHost.Create(screen)).Show([]);
+        var result = new SftpConnectionManagerDialog(CreateDialogs(ModalTestHost.Create(screen))).Show([]);
 
         Assert.NotNull(result);
         Assert.Equal(SftpConnectionManagerAction.Create, result.Action);
@@ -697,7 +697,7 @@ public sealed class Spec029SftpProviderTests : IDisposable
             currentDriver.EnqueueInput(new MouseConsoleInputEvent(row.X + 1, row.Y, MouseButton.Left, MouseEventKind.DoubleClick, MouseKeyModifiers.None));
         };
 
-        var result = new SftpConnectionManagerDialog(ModalTestHost.Create(screen)).Show([connection]);
+        var result = new SftpConnectionManagerDialog(CreateDialogs(ModalTestHost.Create(screen))).Show([connection]);
 
         Assert.NotNull(result);
         Assert.Equal(SftpConnectionManagerAction.Connect, result.Action);
@@ -713,7 +713,7 @@ public sealed class Spec029SftpProviderTests : IDisposable
         driver.EnqueueKey(ShiftTab());
         driver.EnqueueKey(Key(ConsoleKey.Enter));
 
-        var result = new SftpConnectionManagerDialog(ModalTestHost.Create(screen)).Show([connection]);
+        var result = new SftpConnectionManagerDialog(CreateDialogs(ModalTestHost.Create(screen))).Show([connection]);
 
         Assert.NotNull(result);
         Assert.Equal(SftpConnectionManagerAction.Connect, result.Action);
@@ -722,6 +722,9 @@ public sealed class Spec029SftpProviderTests : IDisposable
 
     private static SftpConnectionDialog CreateSftpDialog(ModalDialogHost modalDialogs, FormFieldFactory fields) =>
         new(new DialogService(modalDialogs, fields), fields);
+
+    private static DialogService CreateDialogs(ModalDialogHost modalDialogs) =>
+        new(modalDialogs, new FormFieldFactory(TextFieldHistoryTestProvider.Create()));
 
     private static SftpConnectionInfo TestConnection() =>
         new()

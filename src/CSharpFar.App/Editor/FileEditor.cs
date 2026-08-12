@@ -596,7 +596,7 @@ internal sealed partial class FileEditor
 
     private void ShowFindDialog(EditorSession session)
     {
-        var result = new EditorFindDialog(_modalDialogs, _fields).Show(_lastFind);
+        var result = new EditorFindDialog(_dialogs).Show(_lastFind);
         if (result is null)
             return;
 
