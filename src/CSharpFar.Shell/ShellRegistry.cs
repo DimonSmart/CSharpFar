@@ -4,19 +4,26 @@ namespace CSharpFar.Shell;
 
 public sealed class ShellRegistry
 {
-    private readonly Dictionary<string, ShellProfile> _profiles = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, ShellProfile> _profilesById = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, ShellProfile> _profilesByAlias = new(StringComparer.OrdinalIgnoreCase);
 
-    public ShellRegistry(IShellCommandLineBuilder powerShellBuilder)
+    public ShellRegistry(params ShellProfile[] profiles)
     {
-        Register(new ShellProfile("powershell", ["ps", "pwsh", "powershell"], powerShellBuilder));
+        foreach (ShellProfile profile in profiles)
+            Add(profile);
     }
 
-    public bool TryGet(string alias, out ShellProfile profile) => _profiles.TryGetValue(alias, out profile!);
+    public bool TryResolveAlias(string alias, out ShellProfile profile) =>
+        _profilesByAlias.TryGetValue(alias, out profile!);
 
-    private void Register(ShellProfile profile)
+    public bool TryGetById(string id, out ShellProfile profile) =>
+        _profilesById.TryGetValue(id, out profile!);
+
+    private void Add(ShellProfile profile)
     {
+        _profilesById.Add(profile.Id, profile);
         foreach (string alias in profile.Aliases)
-            _profiles.Add(alias, profile);
+            _profilesByAlias.Add(alias, profile);
     }
 }
 

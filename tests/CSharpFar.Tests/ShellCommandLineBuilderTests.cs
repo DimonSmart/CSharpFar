@@ -80,13 +80,53 @@ public sealed class ShellCommandLineBuilderTests
         Assert.True(string.IsNullOrEmpty(startInfo.Arguments));
     }
 
+    [Fact]
+    public void PowerShellBuilder_WindowsCandidatesPreferPwsh()
+    {
+        var builder = new PowerShellCommandLineBuilder(() => "pwsh.exe", ["pwsh.exe", "powershell.exe"]);
+
+        var startInfo = builder.CreateStartInfo("Get-Date", "C:\\");
+
+        Assert.Equal("pwsh.exe", startInfo.FileName);
+    }
+
+    [Fact]
+    public void PowerShellBuilder_WindowsCandidatesFallBackToWindowsPowerShell()
+    {
+        var builder = new PowerShellCommandLineBuilder(() => "powershell.exe", ["pwsh.exe", "powershell.exe"]);
+
+        var startInfo = builder.CreateStartInfo("Get-Date", "C:\\");
+
+        Assert.Equal("powershell.exe", startInfo.FileName);
+    }
+
+    [Fact]
+    public void PowerShellBuilder_UnixCandidatesUsePwsh()
+    {
+        var builder = new PowerShellCommandLineBuilder(() => "pwsh", ["pwsh"]);
+
+        var startInfo = builder.CreateStartInfo("Get-Date", "/tmp");
+
+        Assert.Equal("pwsh", startInfo.FileName);
+    }
+
+    [Fact]
+    public void PowerShellBuilder_NotFoundReportsCandidates()
+    {
+        var builder = new PowerShellCommandLineBuilder(() => null, ["pwsh"]);
+
+        var exception = Assert.Throws<FileNotFoundException>(() => builder.CreateStartInfo("Get-Date", "/tmp"));
+
+        Assert.Equal("PowerShell executable was not found. Tried: pwsh", exception.Message);
+    }
+
     [Theory]
     [InlineData("ps: Get-Date", "powershell", "Get-Date")]
     [InlineData("PS:\tGet-Date", "powershell", "Get-Date")]
     [InlineData("pwsh:Get-Date", "powershell", "Get-Date")]
     public void ShellInvocationParser_RecognizesRegisteredAliases(string command, string shellId, string script)
     {
-        var parser = new ShellInvocationParser(new ShellRegistry(new PowerShellCommandLineBuilder(() => "pwsh.exe")));
+        var parser = new ShellInvocationParser(new ShellRegistry(new ShellProfile("powershell", ["ps", "pwsh", "powershell"], new PowerShellCommandLineBuilder(() => "pwsh.exe"))));
 
         Assert.True(parser.TryParse(command, out var invocation));
         Assert.Equal(shellId, invocation.ShellId);
@@ -99,8 +139,20 @@ public sealed class ShellCommandLineBuilderTests
     [InlineData("https://example.com")]
     public void ShellInvocationParser_LeavesUnknownPrefixesUntouched(string command)
     {
-        var parser = new ShellInvocationParser(new ShellRegistry(new PowerShellCommandLineBuilder(() => "pwsh.exe")));
+        var parser = new ShellInvocationParser(new ShellRegistry(new ShellProfile("powershell", ["ps", "pwsh", "powershell"], new PowerShellCommandLineBuilder(() => "pwsh.exe"))));
 
         Assert.False(parser.TryParse(command, out _));
+    }
+
+    [Fact]
+    public void ShellRegistry_ResolvesAliasesAndCanonicalIdsIndependently()
+    {
+        var profile = new ShellProfile("powershell", ["ps", "pwsh"], new PowerShellCommandLineBuilder(() => "pwsh"));
+        var registry = new ShellRegistry(profile);
+
+        Assert.True(registry.TryResolveAlias("PS", out var resolvedByAlias));
+        Assert.True(registry.TryGetById("PowerShell", out var resolvedById));
+        Assert.Same(profile, resolvedByAlias);
+        Assert.Same(profile, resolvedById);
     }
 }

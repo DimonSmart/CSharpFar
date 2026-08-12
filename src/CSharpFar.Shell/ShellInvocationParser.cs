@@ -11,7 +11,7 @@ public sealed class ShellInvocationParser
     public bool TryParse(string command, out ShellInvocation invocation)
     {
         int separator = command.IndexOf(':');
-        if (separator <= 0 || !_registry.TryGet(command[..separator], out ShellProfile profile))
+        if (separator <= 0 || !_registry.TryResolveAlias(command[..separator], out ShellProfile profile))
         {
             invocation = default!;
             return false;

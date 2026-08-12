@@ -52,7 +52,7 @@ internal sealed class CommandCompletionLayer : UiLayer<CommandCompletionFrame>
                 RoutedListFocusBehavior.None,
                 RoutedListKeyboardRouting.LayerAndFocusedTarget,
                 ListConfirmationBehavior.EnterOrMouseDown));
-        _presentation = new(static item => item, string.Empty, PaletteStyles.DialogFill(_context.App.Palette), PaletteStyles.InputField(_context.App.Palette), PaletteStyles.DialogFill(_context.App.Palette));
+        _presentation = new(CommandLineDisplayText.Format, string.Empty, PaletteStyles.DialogFill(_context.App.Palette), PaletteStyles.InputField(_context.App.Palette), PaletteStyles.DialogFill(_context.App.Palette));
     }
 
     public override UiLayerInputPolicy InputPolicy =>
@@ -125,8 +125,8 @@ internal sealed class CommandCompletionLayer : UiLayer<CommandCompletionFrame>
 
         if (key.Key is ConsoleKey.UpArrow or ConsoleKey.DownArrow)
             return InvalidateCompletion(_list.RouteInput(new KeyConsoleInputEvent(key), frame.List, route).UiResult);
-        if (key.Key == ConsoleKey.Enter)
-            return KeyboardShortcutClassifier.IsPlainControlEnter(key) ? UiInputResult.NotHandled : AcceptByKeyboard(frame);
+        if (KeyboardShortcutClassifier.IsPlainEnter(key))
+            return AcceptByKeyboard(frame);
         if (key.Key == ConsoleKey.Escape)
         {
             _hideCompletion(true);

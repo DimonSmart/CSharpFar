@@ -233,6 +233,42 @@ public sealed class Spec018CommandHistoryCompletionTests : IDisposable
     }
 
     [Fact]
+    public void Run_VisiblePanels_ShiftEnterDoesNotAcceptSelectedCompletion()
+    {
+        var history = CreateHistory("ps: Get-Process");
+        var shell = new RecordingShellService();
+        var driver = new FakeConsoleDriver(width: 100, height: 12);
+        EnqueueText(driver, "ps: Get");
+        driver.EnqueueKey(Key(ConsoleKey.DownArrow));
+        driver.EnqueueKey(Key(ConsoleKey.Enter, shift: true));
+        driver.EnqueueKey(Key(ConsoleKey.F10));
+
+        var app = CreateApp(driver, history, shell);
+        app.Run();
+
+        Assert.Equal("ps: Get\n", GetCommandLine(app).Text);
+        Assert.Empty(shell.ExecutedCommands);
+    }
+
+    [Fact]
+    public void Run_VisiblePanels_MultilineCompletionRendersDisplayTextAndRestoresRawValue()
+    {
+        const string command = "ps: line1\nline2";
+        var history = CreateHistory(command);
+        var driver = new FakeConsoleDriver(width: 100, height: 12);
+        EnqueueText(driver, "ps:");
+        driver.EnqueueKey(Key(ConsoleKey.DownArrow));
+        driver.EnqueueKey(Key(ConsoleKey.Enter));
+        driver.EnqueueKey(Key(ConsoleKey.F10));
+
+        var app = CreateApp(driver, history, new RecordingShellService());
+        app.Run();
+
+        Assert.Contains("ps: line1↵line2", string.Concat(driver.WriteRecords.Select(record => record.Text)));
+        Assert.Equal(command, GetCommandLine(app).Text);
+    }
+
+    [Fact]
     public void ExecuteCommand_AddsCommandHistoryBeforeShellExecution()
     {
         var history = new InMemoryHistoryStore();
@@ -263,6 +299,20 @@ public sealed class Spec018CommandHistoryCompletionTests : IDisposable
         Assert.Equal(["long-running-command  "], shell.ExecutedCommands);
         var item = Assert.Single(history.GetCommandHistory());
         Assert.Equal("long-running-command  ", item.Command);
+    }
+
+    [Fact]
+    public void ExecuteCommand_ExplicitPowerShellBypassesBuiltInCd()
+    {
+        var shell = new RecordingShellService();
+        var app = CreateApp(new FakeConsoleDriver(width: 100, height: 12), new InMemoryHistoryStore(), shell);
+
+        app.ExecuteCommand("ps: cd C:\\Temp");
+
+        var invocation = Assert.Single(shell.Invocations);
+        Assert.Equal("powershell", invocation.ShellId);
+        Assert.Equal("cd C:\\Temp", invocation.Command);
+        Assert.Empty(shell.ExecutedCommands);
     }
 
     [Fact]
@@ -459,14 +509,21 @@ public sealed class Spec018CommandHistoryCompletionTests : IDisposable
     private static ConsoleKeyInfo Key(
         ConsoleKey key,
         bool control = false,
+        bool shift = false,
         char keyChar = '\0') =>
-        new(keyChar, key, shift: false, alt: false, control: control);
+        new(keyChar, key, shift: shift, alt: false, control: control);
 
     private static ConsoleKeyInfo KeyChar(char ch, ConsoleKey key) =>
         new(ch, key, shift: false, alt: false, control: false);
 
     private static MouseConsoleInputEvent LeftMouse(int x, int y) =>
         new(x, y, MouseButton.Left, MouseEventKind.Down, MouseKeyModifiers.None);
+
+    private static void EnqueueText(FakeConsoleDriver driver, string text)
+    {
+        foreach (char character in text)
+            driver.EnqueueKey(Key(character == ' ' ? ConsoleKey.Spacebar : (ConsoleKey)char.ToUpperInvariant(character), keyChar: character));
+    }
 
     private sealed class RecordingShellService : IShellService
     {
@@ -479,12 +536,16 @@ public sealed class Spec018CommandHistoryCompletionTests : IDisposable
         }
 
         public IReadOnlyList<string> ExecutedCommands => _executedCommands;
+        public List<ShellInvocation> Invocations { get; } = [];
 
         public void Execute(string command, string workingDirectory)
         {
             _onExecute?.Invoke(command, workingDirectory);
             _executedCommands.Add(command);
         }
+
+        public void Execute(ShellInvocation invocation, string workingDirectory) =>
+            Invocations.Add(invocation);
     }
 
 }
