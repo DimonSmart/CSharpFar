@@ -32,7 +32,7 @@ internal sealed class CommandLineRenderer
         _screen.FillRegion(frame.Bounds, _style);
 
         string prompt = currentDirectory + ">";
-        string full = prompt + state.Text;
+        string full = prompt + DisplayText(state.Text);
         int offset = frame.DisplayOffset;
 
         string display = full.Length > offset ? full[offset..] : string.Empty;
@@ -65,4 +65,6 @@ internal sealed class CommandLineRenderer
         var frame = CommandLineLayoutCalculator.Calculate(0, totalWidth, currentDirectory, state);
         return frame.Cursor?.X ?? -1;
     }
+
+    private static string DisplayText(string text) => text.Replace('\n', '↵');
 }

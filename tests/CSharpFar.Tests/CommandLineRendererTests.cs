@@ -72,4 +72,17 @@ public sealed class CommandLineRendererTests
         Assert.Equal(ConsoleColor.Black, selectedCell.Foreground);
         Assert.Equal(ConsoleColor.White, selectedCell.Background);
     }
+
+    [Fact]
+    public void Render_MultilineCommand_DisplaysEachNewlineAsOneCell()
+    {
+        var driver = new FakeConsoleDriver(width: 20, height: 1);
+        var state = new CommandLineState();
+        state.SetText("abc\ndef");
+
+        UiTestRender.Render(new ScreenRenderer(driver), canvas =>
+            new CommandLineRenderer(canvas).Render(0, 20, string.Empty, state));
+
+        Assert.Equal(">abc↵def", driver.GetRow(0).TrimEnd());
+    }
 }

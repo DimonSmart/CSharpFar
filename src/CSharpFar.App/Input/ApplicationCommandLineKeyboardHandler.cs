@@ -68,6 +68,12 @@ internal sealed class ApplicationCommandLineKeyboardHandler
                 _context.HideCommandCompletion(false);
                 return CommandLineChanged();
 
+            case ConsoleKey.Enter when (key.Modifiers & ConsoleModifiers.Shift) != 0:
+                ResetNavigation(frame);
+                _context.CommandLine.Insert('\n');
+                NotifyCommandLineEdit();
+                return CommandLineChanged();
+
             case ConsoleKey.Enter:
                 ResetNavigation(frame);
                 if (frame.Keyboard.CommandLineHasText)

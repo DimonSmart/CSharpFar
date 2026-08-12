@@ -248,4 +248,19 @@ public class CommandLineStateTests
         Assert.False(s.HasSelection);
         Assert.Equal(4, s.CursorPosition);
     }
+
+    [Fact]
+    public void MultilineText_NormalizesLineEndingsAndEditsAcrossNewline()
+    {
+        var s = new CommandLineState();
+        s.SetText("a\r\nb\rc");
+
+        Assert.Equal("a\nb\nc", s.Text);
+        s.MoveCursorTo(2);
+        s.DeleteBack();
+        Assert.Equal("ab\nc", s.Text);
+        s.MoveCursorTo(1);
+        s.DeleteForward();
+        Assert.Equal("a\nc", s.Text);
+    }
 }

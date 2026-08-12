@@ -95,7 +95,7 @@ internal sealed class ExternalConsoleCommandRunner
         ClearShellPromptArea(size);
 
         int x = WriteShellText(0, row, workDir + ">", ConsoleColor.White);
-        WriteShellText(x, row, command, ConsoleColor.Yellow);
+        WriteShellText(x, row, command.Replace('\n', '↵'), ConsoleColor.Yellow);
 
         SysConsole.ResetColor();
 
