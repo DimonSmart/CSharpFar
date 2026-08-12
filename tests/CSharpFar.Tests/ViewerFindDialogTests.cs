@@ -18,9 +18,9 @@ public sealed class ViewerFindDialogTests
             Assert.Equal(' ', currentDriver.GetCell(currentDriver.CursorX, currentDriver.CursorY).Character);
         };
 
-        var result = new ViewerFindDialog(
+        var result = new ViewerFindDialog(new DialogService(
                 ModalTestHost.Create(driver),
-                new FormFieldFactory(new SingleLineTextHistoryRegistry(new InMemorySingleLineTextHistoryStore())))
+                new FormFieldFactory(new SingleLineTextHistoryRegistry(new InMemorySingleLineTextHistoryStore()))))
             .Show(new ViewerSearchRequest(
                 "abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwj",
                 CaseSensitive: false,

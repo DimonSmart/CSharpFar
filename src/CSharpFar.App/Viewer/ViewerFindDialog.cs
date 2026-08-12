@@ -1,5 +1,4 @@
 using System.Text.RegularExpressions;
-using CSharpFar.Console;
 using CSharpFar.Ui;
 
 namespace CSharpFar.App.Viewer;
@@ -11,13 +10,11 @@ internal sealed class ViewerFindDialog
     private const string UseRegexOption = "use-regex";
     private const string SearchHexOption = "search-hex";
 
-    private readonly ModalDialogHost _modalDialogs;
-    private readonly FormFieldFactory _fields;
+    private readonly DialogService _dialogs;
 
-    public ViewerFindDialog(ModalDialogHost modalDialogs, FormFieldFactory fields)
+    public ViewerFindDialog(DialogService dialogs)
     {
-        _modalDialogs = modalDialogs;
-        _fields = fields;
+        _dialogs = dialogs ?? throw new ArgumentNullException(nameof(dialogs));
     }
 
     public ViewerFindDialogResult? Show(ViewerSearchRequest? previous, bool hexMode)
@@ -27,7 +24,7 @@ internal sealed class ViewerFindDialog
         if (searchHex)
             useRegex = false;
 
-        var result = new SearchOptionsDialog(_modalDialogs, _fields).Show(new SearchOptionsDialogOptions
+        var result = _dialogs.SearchOptions(new SearchOptionsDialogOptions
         {
             Title = "Find",
             InitialPattern = previous?.Pattern ?? string.Empty,

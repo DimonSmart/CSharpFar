@@ -10,7 +10,7 @@ public sealed record SelectionListDialogResult<T>(
     T? SelectedItem,
     int SelectedIndex);
 
-public sealed class SelectionListDialog<T>
+internal sealed class SelectionListDialog<T>
 {
     private const int DefaultMaxVisibleRows = 15;
     private const int DefaultMinWidth = 20;

@@ -143,24 +143,33 @@ public sealed class UnifiedWindowScrollbarTests
     {
         var historyDriver = new FakeConsoleDriver(width: 80, height: 25);
         historyDriver.EnqueueKey(Key(ConsoleKey.Escape));
-        _ = new HistoryDialog(ModalTestHost.Create(historyDriver)).Show(
-            Enumerable.Range(0, 20)
-                .Select(i => new CommandHistoryItem { Command = $"cmd-{i}", WorkingDirectory = @"C:\" })
-                .ToArray());
+        var historyModal = ModalTestHost.Create(historyDriver);
+        _ = new DialogService(historyModal, new FormFieldFactory(TextFieldHistoryTestProvider.Create())).Select(new SelectionDialogOptions<CommandHistoryItem>
+        {
+            Title = "Command History",
+            Items = Enumerable.Range(0, 20).Select(i => new CommandHistoryItem { Command = $"cmd-{i}", WorkingDirectory = @"C:\" }).ToArray(),
+            ItemText = static item => item.Command,
+        });
 
         var directoryDriver = new FakeConsoleDriver(width: 80, height: 25);
         directoryDriver.EnqueueKey(Key(ConsoleKey.Escape));
-        _ = new DirectoryHistoryDialog(ModalTestHost.Create(directoryDriver)).Show(
-            Enumerable.Range(0, 20)
-                .Select(i => new DirectoryHistoryItem { Path = $@"C:\dir-{i}" })
-                .ToArray());
+        var directoryModal = ModalTestHost.Create(directoryDriver);
+        _ = new DialogService(directoryModal, new FormFieldFactory(TextFieldHistoryTestProvider.Create())).Select(new SelectionDialogOptions<DirectoryHistoryItem>
+        {
+            Title = "Directory History",
+            Items = Enumerable.Range(0, 20).Select(i => new DirectoryHistoryItem { Path = $@"C:\dir-{i}" }).ToArray(),
+            ItemText = static item => item.Path,
+        });
 
         var fileDriver = new FakeConsoleDriver(width: 80, height: 25);
         fileDriver.EnqueueKey(Key(ConsoleKey.Escape));
-        _ = new FileHistoryDialog(ModalTestHost.Create(fileDriver)).Show(
-            Enumerable.Range(0, 20)
-                .Select(i => new FileHistoryItem { Path = $@"C:\file-{i}.txt" })
-                .ToArray());
+        var fileModal = ModalTestHost.Create(fileDriver);
+        _ = new DialogService(fileModal, new FormFieldFactory(TextFieldHistoryTestProvider.Create())).Select(new SelectionDialogOptions<FileHistoryItem>
+        {
+            Title = "File History",
+            Items = Enumerable.Range(0, 20).Select(i => new FileHistoryItem { Path = $@"C:\file-{i}.txt" }).ToArray(),
+            ItemText = static item => item.Path,
+        });
 
         AssertScrollbarWasWritten(historyDriver);
         AssertScrollbarWasWritten(directoryDriver);
@@ -188,10 +197,13 @@ public sealed class UnifiedWindowScrollbarTests
 
         var userMenuDriver = new FakeConsoleDriver(width: 80, height: 25);
         userMenuDriver.EnqueueKey(Key(ConsoleKey.Escape));
-        _ = new UserMenuDialog(ModalTestHost.Create(userMenuDriver)).Show(
-            Enumerable.Range(0, 20)
-                .Select(i => new UserMenuItem { Title = $"Item {i}", Command = $"command-{i}" })
-                .ToArray());
+        var userMenuModal = ModalTestHost.Create(userMenuDriver);
+        _ = new DialogService(userMenuModal, new FormFieldFactory(TextFieldHistoryTestProvider.Create())).Select(new SelectionDialogOptions<UserMenuItem>
+        {
+            Title = "User Menu",
+            Items = Enumerable.Range(0, 20).Select(i => new UserMenuItem { Title = $"Item {i}", Command = $"command-{i}" }).ToArray(),
+            ItemText = static item => item.Title,
+        });
 
         AssertScrollbarWasWritten(driveDriver);
         AssertScrollbarWasWritten(userMenuDriver);

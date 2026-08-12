@@ -1,4 +1,3 @@
-using CSharpFar.Console;
 using CSharpFar.Ui;
 
 namespace CSharpFar.App.Editor;
@@ -8,18 +7,16 @@ internal sealed class EditorFindDialog
     private const string CaseSensitiveOption = "case-sensitive";
     private const string WholeWordsOption = "whole-words";
 
-    private readonly ModalDialogHost _modalDialogs;
-    private readonly FormFieldFactory _fields;
+    private readonly DialogService _dialogs;
 
-    public EditorFindDialog(ModalDialogHost modalDialogs, FormFieldFactory fields)
+    public EditorFindDialog(DialogService dialogs)
     {
-        _modalDialogs = modalDialogs;
-        _fields = fields;
+        _dialogs = dialogs ?? throw new ArgumentNullException(nameof(dialogs));
     }
 
     public EditorFindDialogResult? Show(EditorFindDialogResult? previous)
     {
-        var result = new SearchOptionsDialog(_modalDialogs, _fields).Show(new SearchOptionsDialogOptions
+        var result = _dialogs.SearchOptions(new SearchOptionsDialogOptions
         {
             Title = "Find",
             InitialPattern = previous?.Pattern ?? string.Empty,

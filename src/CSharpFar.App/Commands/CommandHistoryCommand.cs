@@ -1,5 +1,6 @@
-using CSharpFar.App.Dialogs;
 using CSharpFar.App.FunctionKeys;
+using CSharpFar.Core.Models;
+using CSharpFar.Ui;
 
 namespace CSharpFar.App.Commands;
 
@@ -13,7 +14,13 @@ internal sealed class CommandHistoryCommand : IApplicationCommand
     {
         try
         {
-            string? command = new HistoryDialog(context.ModalDialogs).Show(context.History.GetCommandHistory());
+            var result = context.Dialogs.Select(new SelectionDialogOptions<CommandHistoryItem>
+            {
+                Title = "Command History",
+                Items = context.History.GetCommandHistory(),
+                ItemText = static item => item.Command,
+            });
+            string? command = result.IsConfirmed ? result.SelectedItem?.Command : null;
             if (command is not null)
                 context.CommandLine.SetText(command);
 

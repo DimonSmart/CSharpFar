@@ -1,6 +1,6 @@
-using CSharpFar.App.Dialogs;
 using CSharpFar.App.FunctionKeys;
 using CSharpFar.Core.Models;
+using CSharpFar.Ui;
 
 namespace CSharpFar.App.Commands;
 
@@ -23,8 +23,13 @@ internal sealed class DirectoryHistoryCommand : IApplicationCommand
 
         try
         {
-            string? path = new DirectoryHistoryDialog(context.ModalDialogs)
-                .Show(context.History.GetDirectoryHistory());
+            var result = context.Dialogs.Select(new SelectionDialogOptions<DirectoryHistoryItem>
+            {
+                Title = "Directory History",
+                Items = context.History.GetDirectoryHistory(),
+                ItemText = static item => item.Path,
+            });
+            string? path = result.IsConfirmed ? result.SelectedItem?.Path : null;
             if (path is null)
                 return ApplicationCommandResult.Rendered();
 

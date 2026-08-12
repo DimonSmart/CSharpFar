@@ -27,25 +27,45 @@ public sealed class DialogService
     public ChoiceDialogResult Choice(ChoiceDialogOptions options) =>
         new ChoiceDialog(_modalDialogs).Show(options);
 
+    public SelectionListDialogResult<T> Select<T>(SelectionDialogOptions<T> options)
+    {
+        ArgumentNullException.ThrowIfNull(options);
+        ArgumentNullException.ThrowIfNull(options.Items);
+        ArgumentNullException.ThrowIfNull(options.ItemText);
+        ArgumentNullException.ThrowIfNull(options.Title);
+
+        var dialog = new SelectionListDialog<T>(options.Items, options.ItemText, options.Title)
+        {
+            MaxVisibleRows = options.MaxVisibleRows,
+            MaxWidth = options.MaxWidth,
+            DoubleBorder = options.DoubleBorder,
+            SelectionChanged = options.SelectionChanged,
+        };
+        if (options.Items.Count > 0)
+            dialog.SelectedIndex = Math.Clamp(options.SelectedIndex, 0, options.Items.Count - 1);
+        return dialog.Show(_modalDialogs);
+    }
+
     public SelectionListDialogResult<T> Select<T>(
         IReadOnlyList<T> items,
         Func<T, string> itemText,
         string title,
         int selectedIndex = 0,
         int maxVisibleRows = 15)
-    {
-        ArgumentNullException.ThrowIfNull(items);
-        ArgumentNullException.ThrowIfNull(itemText);
-        ArgumentNullException.ThrowIfNull(title);
-
-        var dialog = new SelectionListDialog<T>(items, itemText, title)
+        => Select(new SelectionDialogOptions<T>
         {
+            Items = items,
+            ItemText = itemText,
+            Title = title,
+            SelectedIndex = selectedIndex,
             MaxVisibleRows = maxVisibleRows,
-        };
-        if (items.Count > 0)
-            dialog.SelectedIndex = Math.Clamp(selectedIndex, 0, items.Count - 1);
-        return dialog.Show(_modalDialogs);
-    }
+        });
+
+    public SearchOptionsDialogResult? SearchOptions(SearchOptionsDialogOptions options) =>
+        new SearchOptionsDialog(_modalDialogs, _fields).Show(options);
+
+    public TResult? List<T, TResult>(ListDialogOptions<T, TResult> options) =>
+        new ListDialog<T, TResult>(_modalDialogs).Show(options);
 
     public TResult Form<TResult>(
         FormDialogOptions options,

@@ -17,32 +17,32 @@ internal sealed record FtpConnectionManagerResult(
 
 internal sealed class FtpConnectionManagerDialog
 {
-    private readonly ModalDialogHost _modalDialogs;
+    private readonly DialogService _dialogs;
 
-    public FtpConnectionManagerDialog(ModalDialogHost modalDialogs)
+    public FtpConnectionManagerDialog(DialogService dialogs)
     {
-        _modalDialogs = modalDialogs;
+        _dialogs = dialogs ?? throw new ArgumentNullException(nameof(dialogs));
     }
 
     public FtpConnectionManagerResult? Show(IReadOnlyList<FtpConnectionInfo> connections)
     {
-        var dialog = new ListWithButtonsDialog<FtpConnectionInfo>(
-            connections,
-            FormatConnection,
-            CreateButtons(connections.Count > 0),
-            "FTP/FTPS connections")
+        return _dialogs.List(new ListDialogOptions<FtpConnectionInfo, FtpConnectionManagerResult>
         {
+            Title = "FTP/FTPS connections",
+            Items = () => connections,
+            ItemText = FormatConnection,
+            Actions = CreateButtons(connections.Count > 0),
             DialogWidth = 76,
             MinDialogWidth = 44,
             MaxVisibleRows = 12,
             EmptyText = "No saved FTP/FTPS connections.",
-            DefaultListActionId = "connect",
+            DefaultItemActionId = "connect",
             CancelActionId = "cancel",
             DeleteActionId = "delete",
-        };
-
-        var result = dialog.Show(_modalDialogs);
-        return result is null ? null : ToManagerResult(result);
+            HandleAction = action => ToManagerResult(action) is { } result
+                ? DialogOutcome<FtpConnectionManagerResult>.Complete(result)
+                : DialogOutcome<FtpConnectionManagerResult>.ContinueOpen(),
+        });
     }
 
     private static IReadOnlyList<DialogButton> CreateButtons(bool hasConnections) =>
@@ -59,7 +59,7 @@ internal sealed class FtpConnectionManagerDialog
                 DialogButton.Cancel(),
             ];
 
-    private static FtpConnectionManagerResult? ToManagerResult(ListWithButtonsDialogResult<FtpConnectionInfo> result) =>
+    private static FtpConnectionManagerResult? ToManagerResult(ListDialogActionContext<FtpConnectionInfo> result) =>
         result.ActionId switch
         {
             "connect" when result.SelectedItem is not null => new(FtpConnectionManagerAction.Connect, result.SelectedItem),
