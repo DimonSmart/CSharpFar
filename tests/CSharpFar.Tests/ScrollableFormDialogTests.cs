@@ -1220,7 +1220,7 @@ public sealed class ScrollableFormDialogTests
     }
 
     [Fact]
-    public void RoutedHistoryArrow_TogglesOpenDropdownClosed()
+    public void RoutedHistoryArrow_StaysOpenAfterMouseButtonRelease()
     {
         var history = TextFieldHistoryTestProvider.CreateState();
         history.History.Add("alpha");
@@ -1231,13 +1231,13 @@ public sealed class ScrollableFormDialogTests
         var host = CreateRoutedFormHost(form, driver, visibleRows: 1);
         host.Composition.Render();
 
-        UiInputResult open = host.Composition.DispatchInput(Mouse(19, 0));
+        UiInputResult open = host.Composition.DispatchInput(Mouse(19, 0, MouseButton.Left, MouseEventKind.Down));
         host.Composition.Render();
-        UiInputResult close = host.Composition.DispatchInput(Mouse(19, 0));
+        UiInputResult release = host.Composition.DispatchInput(Mouse(19, 0, MouseButton.Left, MouseEventKind.Up));
 
         Assert.True(open.Invalidate);
-        Assert.True(close.Invalidate);
-        Assert.False(history.IsDropdownOpen);
+        Assert.True(release.Handled);
+        Assert.True(history.IsDropdownOpen);
     }
 
     [Fact]

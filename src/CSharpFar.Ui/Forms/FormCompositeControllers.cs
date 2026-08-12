@@ -38,6 +38,9 @@ internal sealed class TextInputCompositeController : IFormCompositeController, I
         Rect bounds = _inputBounds(context.Layout);
         if (childTarget is null && _field.IsHistoryArrow(mouse, bounds))
         {
+            if (mouse is not { Button: MouseButton.Left, Kind: MouseEventKind.Down })
+                return FormInputResult.Handled;
+
             SingleLineTextHistoryState? history = _field.History;
             if (history is null || !history.History.HasItems)
                 return FormInputResult.Handled;
