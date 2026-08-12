@@ -71,9 +71,10 @@ public sealed class TableList<T>
     {
         int x = bounds.X;
         int remaining = bounds.Width;
-        foreach (TableColumn<T> column in _columns)
+        for (int i = 0; i < _columns.Count; i++)
         {
             if (remaining <= 0) break;
+            TableColumn<T> column = _columns[i];
             int width = Math.Min(column.Width, remaining);
             CellStyle style = column.Emphasized
                 ? selected ? emphasizedSelectedStyle : emphasizedStyle
@@ -81,7 +82,7 @@ public sealed class TableList<T>
             canvas.Write(x, bounds.Y, Fit(column.Value(item), width, column.Alignment), style);
             x += width;
             remaining -= width;
-            if (remaining <= 0) break;
+            if (remaining <= 0 || i == _columns.Count - 1) break;
             int separatorWidth = Math.Min(3, remaining);
             canvas.Write(x, bounds.Y, ConsoleTextMetrics.FitToCells(" │ ", separatorWidth), selected ? selectedStyle : normalStyle);
             x += separatorWidth;
@@ -95,14 +96,14 @@ public sealed class TableList<T>
         if (bounds.Width <= 0 || bounds.Height <= 0) return;
         int x = bounds.X;
         int remaining = bounds.Width;
-        foreach (((string text, TableColumnAlignment alignment), TableColumn<T> column) in cells.Zip(_columns))
+        foreach (((string text, TableColumnAlignment alignment), TableColumn<T> column, int index) in cells.Zip(_columns).Select((pair, index) => (pair.First, pair.Second, index)))
         {
             if (remaining <= 0) break;
             int width = Math.Min(column.Width, remaining);
             canvas.Write(x, bounds.Y, Fit(text, width, alignment), style);
             x += width;
             remaining -= width;
-            if (remaining <= 0) break;
+            if (remaining <= 0 || index == _columns.Count - 1) break;
             int separatorWidth = Math.Min(3, remaining);
             canvas.Write(x, bounds.Y, ConsoleTextMetrics.FitToCells(" │ ", separatorWidth), style);
             x += separatorWidth;

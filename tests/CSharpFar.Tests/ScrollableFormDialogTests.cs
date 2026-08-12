@@ -13,6 +13,41 @@ public sealed class ScrollableFormDialogTests
     private static readonly ConditionalWeakTable<ScrollableFormDialog, FormHarness> Harnesses = new();
 
     [Fact]
+    public void Mnemonics_FromPublicFormControlsFocusTheirAssociatedControlsAndDoNotRenderAmpersands()
+    {
+        var fields = new FormFieldFactory(TextFieldHistoryTestProvider.Create());
+        TextField text = fields.Text();
+        ChoiceFormRow<string> choice = FormControls.Choice("&Choice", ["one", "two"], static value => value, "one");
+        CompactChoiceFormRow<string> compact = FormControls.CompactChoice("&Quick", ["one", "two"], static value => value, "one");
+        MultiLineChoiceFormRow<string> multi = FormControls.MultiLineChoice("&Multi", ["one", "two"], static value => value, "one", itemsPerRow: 1);
+        DropdownSelectFormRow<string> dropdown = FormControls.Dropdown("&Pick", ["one", "two"], static value => value, "one");
+        var form = new ScrollableFormDialog([
+            FormControls.Text("&Host:", text), choice, compact, multi, dropdown,
+        ]);
+
+        FakeConsoleDriver driver = Render(form, visibleRows: 5, screenHeight: 8);
+
+        Assert.DoesNotContain('&', string.Concat(Enumerable.Range(0, 5).Select(driver.GetRow)));
+        AssertMnemonic(form, 'c', choice);
+        AssertMnemonic(form, 'q', compact);
+        AssertMnemonic(form, 'm', multi);
+        AssertMnemonic(form, 'p', dropdown);
+        AssertMnemonic(form, 'h', text);
+    }
+
+    [Fact]
+    public void Mnemonic_SkipsDisabledDuplicateAndUsesFirstEnabledControlInFormOrder()
+    {
+        CheckBoxRow disabled = FormControls.CheckBox("&Host", enabled: false, disabledReason: "Unavailable");
+        CheckBoxRow firstEnabled = FormControls.CheckBox("&Host");
+        CheckBoxRow secondEnabled = FormControls.CheckBox("&Host");
+        var form = new ScrollableFormDialog([disabled, firstEnabled, secondEnabled]);
+        Render(form, visibleRows: 3);
+
+        AssertMnemonic(form, 'h', firstEnabled);
+    }
+
+    [Fact]
     public void Scrollbar_ReservesTheLastBodyColumnForRowsAndHistoryArrow()
     {
         var history = TextFieldHistoryTestProvider.CreateState(["saved"]);
@@ -2170,6 +2205,12 @@ public sealed class ScrollableFormDialogTests
             : throw new InvalidOperationException("Render the form through a test UI layer before requesting focus.");
         harness.Layer.RequestFocus(form.GetFocusTarget(rowId));
         harness.Host.Composition.Render();
+    }
+
+    private static void AssertMnemonic(ScrollableFormDialog form, char keyChar, IFormFocusTarget target)
+    {
+        HandleKey(form, new ConsoleKeyInfo(keyChar, (ConsoleKey)char.ToUpperInvariant(keyChar), false, true, false));
+        Assert.True(form.IsFocused(target));
     }
 
     private static void RegisterHarness(ScrollableFormDialog form, UiTestHost host, TestFormLayer layer)
