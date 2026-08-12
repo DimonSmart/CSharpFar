@@ -25,11 +25,6 @@ internal sealed class OpenCreateFileDialog
     {
     }
 
-    internal OpenCreateFileDialog(ModalDialogHost modalDialogs, FormFieldFactory fields)
-        : this(new DialogService(modalDialogs, fields), fields)
-    {
-    }
-
     internal OpenCreateFileDialog(
         DialogService dialogs,
         IReadOnlyList<EditorNewFileEncodingOption> codePages,

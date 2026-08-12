@@ -17,8 +17,9 @@ internal sealed class CommandHistoryCommand : IApplicationCommand
             var result = context.Dialogs.Select(new SelectionDialogOptions<CommandHistoryItem>
             {
                 Title = "Command History",
-                Items = context.History.GetCommandHistory(),
+                Items = context.History.GetCommandHistory().Reverse().ToArray(),
                 ItemText = static item => item.Command,
+                Presentation = SelectionDialogPresentation.Standard,
             });
             string? command = result.IsConfirmed ? result.SelectedItem?.Command : null;
             if (command is not null)

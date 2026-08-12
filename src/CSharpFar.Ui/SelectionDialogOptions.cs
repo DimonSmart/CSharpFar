@@ -1,5 +1,11 @@
 namespace CSharpFar.Ui;
 
+/// <summary>Stable visual limits for a semantic selection dialog.</summary>
+public sealed record SelectionDialogPresentation(int? MaxWidth, int MaxVisibleRows)
+{
+    public static SelectionDialogPresentation Standard { get; } = new(MaxWidth: 60, MaxVisibleRows: 15);
+}
+
 /// <summary>Semantic options for a standard single-selection dialog.</summary>
 public sealed class SelectionDialogOptions<T>
 {
@@ -14,6 +20,9 @@ public sealed class SelectionDialogOptions<T>
     public int MaxVisibleRows { get; init; } = 15;
 
     public int? MaxWidth { get; init; }
+
+    /// <summary>Named presentation preset; takes precedence over individual limits.</summary>
+    public SelectionDialogPresentation? Presentation { get; init; }
 
     public bool DoubleBorder { get; init; }
 

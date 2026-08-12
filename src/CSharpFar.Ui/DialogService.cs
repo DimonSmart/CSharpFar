@@ -36,8 +36,8 @@ public sealed class DialogService
 
         var dialog = new SelectionListDialog<T>(options.Items, options.ItemText, options.Title)
         {
-            MaxVisibleRows = options.MaxVisibleRows,
-            MaxWidth = options.MaxWidth,
+            MaxVisibleRows = options.Presentation?.MaxVisibleRows ?? options.MaxVisibleRows,
+            MaxWidth = options.Presentation?.MaxWidth ?? options.MaxWidth,
             DoubleBorder = options.DoubleBorder,
             SelectionChanged = options.SelectionChanged,
         };

@@ -18,11 +18,6 @@ internal sealed class SearchDialog
         _fields = fields ?? throw new ArgumentNullException(nameof(fields));
     }
 
-    internal SearchDialog(ModalDialogHost modalDialogs, FormFieldFactory fields)
-        : this(new DialogService(modalDialogs, fields), fields)
-    {
-    }
-
     public SearchRequest? Show(string rootPath)
     {
         return RunLoop(rootPath);

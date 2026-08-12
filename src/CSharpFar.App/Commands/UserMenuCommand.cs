@@ -29,6 +29,7 @@ internal sealed class UserMenuCommand : IApplicationCommand
             Title = "User Menu",
             Items = context.UserMenu.Items,
             ItemText = static item => item.Title,
+            Presentation = SelectionDialogPresentation.Standard,
         });
         string? command = result.IsConfirmed ? result.SelectedItem?.Command : null;
         if (command is null)

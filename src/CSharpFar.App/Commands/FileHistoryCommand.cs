@@ -23,8 +23,9 @@ internal sealed class FileHistoryCommand : IApplicationCommand
             var result = context.Dialogs.Select(new SelectionDialogOptions<FileHistoryItem>
             {
                 Title = "File History",
-                Items = context.History.GetFileHistory(),
+                Items = context.History.GetFileHistory().Reverse().ToArray(),
                 ItemText = static item => item.Path,
+                Presentation = SelectionDialogPresentation.Standard,
             });
             string? path = result.IsConfirmed ? result.SelectedItem?.Path : null;
             if (path is null)

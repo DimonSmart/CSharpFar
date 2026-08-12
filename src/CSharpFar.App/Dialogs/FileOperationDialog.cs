@@ -52,11 +52,6 @@ internal sealed class FileOperationDialog
         _fields = fields ?? throw new ArgumentNullException(nameof(fields));
     }
 
-    internal FileOperationDialog(ModalDialogHost modalDialogs, FormFieldFactory fields)
-        : this(new DialogService(modalDialogs, fields), fields)
-    {
-    }
-
     public FileOperationDialogResult? ShowCopy(
         IReadOnlyList<string> sources,
         string initialDestination,

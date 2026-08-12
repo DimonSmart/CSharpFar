@@ -4,7 +4,7 @@ using CSharpFar.Console.Models;
 namespace CSharpFar.Ui;
 
 /// <summary>A one-line labeled choice that keeps the compact FTP-style presentation.</summary>
-public sealed class CompactChoiceFormRow<T> : FormRow, IFormFocusTarget, IFormCursorProvider
+public sealed class CompactChoiceFormRow<T> : FormRow, IFormFocusTarget, IFormCursorProvider, IFormMnemonic
 {
     private readonly ChoiceModel<T> _choice;
     private readonly string _label;
@@ -12,7 +12,9 @@ public sealed class CompactChoiceFormRow<T> : FormRow, IFormFocusTarget, IFormCu
     internal CompactChoiceFormRow(ChoiceModel<T> choice, string label)
     {
         _choice = choice ?? throw new ArgumentNullException(nameof(choice));
-        _label = label;
+        FormLabel parsed = FormLabelParser.Parse(label);
+        _label = parsed.Text;
+        Mnemonic = parsed.Mnemonic;
     }
 
     internal CompactChoiceFormRow(
@@ -42,6 +44,8 @@ public sealed class CompactChoiceFormRow<T> : FormRow, IFormFocusTarget, IFormCu
     public bool Enabled { get; set; } = true;
     public string? DisabledReason { get; set; }
     internal override bool IsEnabled => Enabled;
+    char? IFormMnemonic.Mnemonic => Mnemonic;
+    private char? Mnemonic { get; }
     internal override int DesiredWidth =>
         ConsoleTextMetrics.GetCellWidth(_label) + 2 +
         _choice.Selection.Items.Max(item => ConsoleTextMetrics.GetCellWidth(_choice.Format(item)));

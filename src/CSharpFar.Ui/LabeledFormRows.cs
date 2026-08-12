@@ -17,7 +17,9 @@ public sealed class LabeledTextInputRow : FormRow, IFormFocusTarget, IFormCursor
     internal LabeledTextInputRow(string label, CommandLineState buffer, SingleLineTextHistoryState? history = null,
         int? inputWidth = null, bool maskInput = false)
     {
-        (_label, Mnemonic) = ParseMnemonic(label);
+        FormLabel parsed = FormLabelParser.Parse(label);
+        _label = parsed.Text;
+        Mnemonic = parsed.Mnemonic;
         _inputWidth = inputWidth;
         _preferredInputWidth = Math.Max(20, ConsoleTextMetrics.GetCellWidth(buffer.Text));
         _field = new FormTextInputField(buffer, history, maskInput);
@@ -28,7 +30,9 @@ public sealed class LabeledTextInputRow : FormRow, IFormFocusTarget, IFormCursor
     {
         ArgumentNullException.ThrowIfNull(field);
         _focusTarget = field;
-        (_label, Mnemonic) = ParseMnemonic(label);
+        FormLabel parsed = FormLabelParser.Parse(label);
+        _label = parsed.Text;
+        Mnemonic = parsed.Mnemonic;
         _inputWidth = field.Width;
         _preferredInputWidth = field.PreferredWidth;
         _field = field.Input;
@@ -86,15 +90,6 @@ public sealed class LabeledTextInputRow : FormRow, IFormFocusTarget, IFormCursor
         layout.ControlBounds.Y,
         Math.Min(layout.ControlBounds.Width, _inputWidth ?? layout.ControlBounds.Width),
         layout.ControlBounds.Height);
-
-    private static (string Text, char? Mnemonic) ParseMnemonic(string label)
-    {
-        ArgumentNullException.ThrowIfNull(label);
-        int index = label.IndexOf('&');
-        return index >= 0 && index + 1 < label.Length
-            ? (label.Remove(index, 1), char.ToUpperInvariant(label[index + 1]))
-            : (label, null);
-    }
 
 }
 

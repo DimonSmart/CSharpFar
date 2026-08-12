@@ -26,8 +26,9 @@ internal sealed class DirectoryHistoryCommand : IApplicationCommand
             var result = context.Dialogs.Select(new SelectionDialogOptions<DirectoryHistoryItem>
             {
                 Title = "Directory History",
-                Items = context.History.GetDirectoryHistory(),
+                Items = context.History.GetDirectoryHistory().Reverse().ToArray(),
                 ItemText = static item => item.Path,
+                Presentation = SelectionDialogPresentation.Standard,
             });
             string? path = result.IsConfirmed ? result.SelectedItem?.Path : null;
             if (path is null)
