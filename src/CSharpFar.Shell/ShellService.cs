@@ -7,18 +7,21 @@ public sealed class ShellService : IShellService
 {
     private readonly IShellCommandLineBuilder _commandLineBuilder;
     private readonly ShellRegistry _registry;
-    private readonly ShellInvocationParser _invocationParser;
 
     public ShellService()
-        : this(new WindowsShellCommandLineBuilder("cmd.exe"))
+        : this(new WindowsShellCommandLineBuilder("cmd.exe"), new ShellRegistry())
     {
     }
 
     public ShellService(IShellCommandLineBuilder commandLineBuilder)
+        : this(commandLineBuilder, new ShellRegistry())
+    {
+    }
+
+    public ShellService(IShellCommandLineBuilder commandLineBuilder, ShellRegistry registry)
     {
         _commandLineBuilder = commandLineBuilder;
-        _registry = new ShellRegistry(new PowerShellCommandLineBuilder());
-        _invocationParser = new ShellInvocationParser(_registry);
+        _registry = registry;
     }
 
     public ShellService(string shellExecutable, string shellArgsFormat)
@@ -31,12 +34,9 @@ public sealed class ShellService : IShellService
         Execute(_commandLineBuilder, command, workingDirectory);
     }
 
-    public bool TryParseInvocation(string command, out ShellInvocation invocation) =>
-        _invocationParser.TryParse(command, out invocation);
-
     public void Execute(ShellInvocation invocation, string workingDirectory)
     {
-        if (!_registry.TryGet(invocation.ShellId, out ShellProfile profile))
+        if (!_registry.TryGetById(invocation.ShellId, out ShellProfile profile))
             throw new InvalidOperationException($"Shell '{invocation.ShellId}' is not registered.");
         try { Execute(profile.CommandLineBuilder, invocation.Command, workingDirectory); }
         catch (FileNotFoundException ex) { Console.Error.WriteLine(ex.Message); }

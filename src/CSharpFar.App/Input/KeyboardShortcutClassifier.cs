@@ -16,6 +16,9 @@ internal static class KeyboardShortcutClassifier
     public static bool IsPlainControlEnter(ConsoleKeyInfo key) =>
         HasOnlyControlModifier(key) && key.Key == ConsoleKey.Enter;
 
+    public static bool IsPlainEnter(ConsoleKeyInfo key) =>
+        key.Key == ConsoleKey.Enter && key.Modifiers == 0;
+
     public static bool IsPlainControlOpenBracket(ConsoleKeyInfo key) =>
         IsPlainControlBracket(key, ConsoleKey.Oem4, '[', '\u001b');
 

@@ -56,7 +56,7 @@ public sealed class WindowsPlatformServices : IPlatformServices
         return new WindowsPlatformServices(
             consoleDriver,
             consoleDriver,
-            new ShellService(new WindowsShellCommandLineBuilder(shellSettings.Executable)),
+            new ShellService(new WindowsShellCommandLineBuilder(shellSettings.Executable), ShellComposition.CreateRegistry()),
             new WindowsShellFileLauncher(new WindowsExecutableFileDetector()),
             new DpapiCredentialStore(configDirectory),
             new WindowsVolumeService(),

@@ -58,7 +58,7 @@ internal sealed class ApplicationKeyboardTargetResolver
             ConsoleKey.Delete => true,
             ConsoleKey.Backspace when keyboard.CommandLineHasText => true,
             ConsoleKey.Escape when !keyboard.ActivePanelHasSearchRequest => true,
-            ConsoleKey.Enter when keyboard.CommandLineHasText => true,
+            ConsoleKey.Enter when keyboard.CommandLineHasText || (key.Modifiers & ConsoleModifiers.Shift) != 0 => true,
             _ => false,
         };
     }

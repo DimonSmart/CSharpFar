@@ -91,6 +91,7 @@ internal static class CommandServicesFactory
             history,
             modulePanelOpener,
             changeDirectoryCommandExecutor,
+            new ShellInvocationParser(ShellComposition.CreateRegistry()),
             shell,
             externalConsoleCommandRunner,
             () => callbacks.ActiveState(),

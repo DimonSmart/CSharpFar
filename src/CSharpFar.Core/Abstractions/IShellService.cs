@@ -9,12 +9,6 @@ public interface IShellService
     /// </summary>
     void Execute(string command, string workingDirectory);
 
-    bool TryParseInvocation(string command, out ShellInvocation invocation)
-    {
-        invocation = default!;
-        return false;
-    }
-
     void Execute(ShellInvocation invocation, string workingDirectory) =>
-        Execute(invocation.Command, workingDirectory);
+        throw new NotSupportedException($"Shell '{invocation.ShellId}' is not supported.");
 }

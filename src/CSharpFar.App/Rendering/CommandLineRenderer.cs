@@ -1,3 +1,4 @@
+using CSharpFar.App.CommandLine;
 using CSharpFar.Console;
 using CSharpFar.Console.Models;
 using CSharpFar.Core.Models;
@@ -32,7 +33,7 @@ internal sealed class CommandLineRenderer
         _screen.FillRegion(frame.Bounds, _style);
 
         string prompt = currentDirectory + ">";
-        string full = prompt + DisplayText(state.Text);
+        string full = prompt + CommandLineDisplayText.Format(state.Text);
         int offset = frame.DisplayOffset;
 
         string display = full.Length > offset ? full[offset..] : string.Empty;
@@ -66,5 +67,4 @@ internal sealed class CommandLineRenderer
         return frame.Cursor?.X ?? -1;
     }
 
-    private static string DisplayText(string text) => text.Replace('\n', '↵');
 }

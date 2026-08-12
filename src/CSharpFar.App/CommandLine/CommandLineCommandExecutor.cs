@@ -2,6 +2,7 @@ using CSharpFar.App.Modules;
 using CSharpFar.Core.Abstractions;
 using CSharpFar.Core.History;
 using CSharpFar.Core.Models;
+using CSharpFar.Shell;
 
 namespace CSharpFar.App.CommandLine;
 
@@ -13,6 +14,7 @@ internal sealed class CommandLineCommandExecutor
     private readonly ModulePanelOpener _modulePanelOpener;
     private readonly ChangeDirectoryCommandExecutor _changeDirectoryCommandExecutor;
     private readonly IShellService _shell;
+    private readonly ShellInvocationParser _invocationParser;
     private readonly ExternalConsoleCommandRunner _externalCommandRunner;
     private readonly Func<FilePanelState> _activeState;
     private readonly Func<PanelSide> _activeSide;
@@ -25,6 +27,7 @@ internal sealed class CommandLineCommandExecutor
         IHistoryStore history,
         ModulePanelOpener modulePanelOpener,
         ChangeDirectoryCommandExecutor changeDirectoryCommandExecutor,
+        ShellInvocationParser invocationParser,
         IShellService shell,
         ExternalConsoleCommandRunner externalCommandRunner,
         Func<FilePanelState> activeState,
@@ -37,6 +40,7 @@ internal sealed class CommandLineCommandExecutor
         _history = history;
         _modulePanelOpener = modulePanelOpener;
         _changeDirectoryCommandExecutor = changeDirectoryCommandExecutor;
+        _invocationParser = invocationParser;
         _shell = shell;
         _externalCommandRunner = externalCommandRunner;
         _activeState = activeState;
@@ -55,7 +59,7 @@ internal sealed class CommandLineCommandExecutor
         _historyNavigator.Reset();
         AddCommandHistory(command, workDir);
 
-        if (_shell.TryParseInvocation(command, out ShellInvocation invocation))
+        if (_invocationParser.TryParse(command, out ShellInvocation invocation))
         {
             _externalCommandRunner.Execute(workDir, command, () => _shell.Execute(invocation, workDir));
             return;
