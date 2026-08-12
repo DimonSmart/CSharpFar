@@ -115,7 +115,7 @@ public class SingleLineTextInputTests
     public void HandleKey_ControlVPastesFromTextClipboard()
     {
         var buffer = new CommandLineState();
-        var clipboard = new FakeTextClipboard { Text = "alpha\nbeta" };
+        var clipboard = new FakeTextClipboard { Text = "alpha\r\nbeta\rgamma" };
         string? error = "old";
 
         var result = SingleLineTextInput.HandleKey(
@@ -125,7 +125,7 @@ public class SingleLineTextInputTests
             clipboard);
 
         Assert.Equal(TextInputKeyResult.TextChanged, result);
-        Assert.Equal("alpha beta", buffer.Text);
+        Assert.Equal("alpha\nbeta\ngamma", buffer.Text);
         Assert.Null(error);
     }
 

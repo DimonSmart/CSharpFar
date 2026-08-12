@@ -179,6 +179,21 @@ public sealed class Spec027FarCommandLineShortcutTests : IDisposable
     }
 
     [Fact]
+    public void Run_ShiftEnterInsertsNewlineWithoutExecutingCommand()
+    {
+        var driver = new FakeConsoleDriver(width: 100, height: 12);
+        EnqueueText(driver, "ps: one");
+        driver.EnqueueKey(Key(ConsoleKey.Enter, shift: true));
+        EnqueueText(driver, "two");
+        driver.EnqueueKey(Key(ConsoleKey.F10));
+
+        var app = CreateApp(CreateFileSystem(), driver, new InMemoryHistoryStore());
+        app.Run();
+
+        Assert.Equal("ps: one\ntwo", GetCommandLine(app).Text);
+    }
+
+    [Fact]
     public void Run_CommandLineMouseDragSelectsText()
     {
         var driver = new FakeConsoleDriver(width: 120, height: 12);

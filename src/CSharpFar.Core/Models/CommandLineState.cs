@@ -60,6 +60,7 @@ public sealed class CommandLineState
 
     public void InsertText(string text)
     {
+        text = NormalizeLineEndings(text);
         if (HasSelection) DeleteSelection();
         _buffer.InsertRange(CursorPosition, text);
         CursorPosition += text.Length;
@@ -165,9 +166,13 @@ public sealed class CommandLineState
     /// <summary>Replaces the buffer with <paramref name="text"/> and moves cursor to end.</summary>
     public void SetText(string text)
     {
+        text = NormalizeLineEndings(text);
         _buffer.Clear();
         _buffer.AddRange(text);
         CursorPosition = _buffer.Count;
         ClearSelection();
     }
+
+    private static string NormalizeLineEndings(string text) =>
+        text.Replace("\r\n", "\n").Replace('\r', '\n');
 }

@@ -14,7 +14,7 @@ public sealed class UnixShellCommandLineBuilder : IShellCommandLineBuilder
 
     public ProcessStartInfo CreateStartInfo(string command, string workingDirectory)
     {
-        var startInfo = WindowsShellCommandLineBuilder.CreateBaseStartInfo(_shellExecutable, workingDirectory);
+        var startInfo = ShellProcessStartInfoFactory.Create(_shellExecutable, workingDirectory);
         startInfo.ArgumentList.Add("-c");
         startInfo.ArgumentList.Add(command);
         return startInfo;

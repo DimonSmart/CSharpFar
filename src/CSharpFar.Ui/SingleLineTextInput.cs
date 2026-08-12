@@ -78,8 +78,7 @@ public static class SingleLineTextInput
         {
             if (clipboard.TryGetText(out string text) && !string.IsNullOrEmpty(text))
             {
-                string singleLine = text.ReplaceLineEndings(" ").Trim();
-                buffer.InsertText(singleLine);
+                buffer.InsertText(text);
                 error = null;
                 return TextInputKeyResult.TextChanged;
             }
@@ -198,7 +197,7 @@ public static class SingleLineTextInput
             return;
 
         int visibleStart = GetVisibleStart(buffer, width);
-        string displayText = maskInput ? new string('*', buffer.Text.Length) : buffer.Text;
+        string displayText = maskInput ? new string('*', buffer.Text.Length) : DisplayText(buffer.Text);
         string visible = displayText.Length > visibleStart ? displayText[visibleStart..] : string.Empty;
         string padded = ConsoleTextMetrics.FitToCells(visible, width);
         if (!buffer.HasSelection)
@@ -363,7 +362,7 @@ public static class SingleLineTextInput
             return string.Empty;
 
         int visibleStart = GetVisibleStart(buffer, width);
-        string visible = buffer.Text.Length > visibleStart ? buffer.Text[visibleStart..] : string.Empty;
+        string visible = DisplayText(buffer.Text.Length > visibleStart ? buffer.Text[visibleStart..] : string.Empty);
         return ConsoleTextMetrics.TruncateToCells(visible, width);
     }
 
@@ -473,8 +472,10 @@ public static class SingleLineTextInput
         if (width <= 0)
             return string.Empty;
 
-        return ConsoleTextMetrics.FitToCells(text, width);
+        return ConsoleTextMetrics.FitToCells(DisplayText(text), width);
     }
+
+    private static string DisplayText(string text) => text.Replace('\n', '↵');
 
     private static bool IsPlainControlA(ConsoleKeyInfo key)
     {

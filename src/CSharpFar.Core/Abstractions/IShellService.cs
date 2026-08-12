@@ -8,4 +8,13 @@ public interface IShellService
     /// Blocks until the command exits.
     /// </summary>
     void Execute(string command, string workingDirectory);
+
+    bool TryParseInvocation(string command, out ShellInvocation invocation)
+    {
+        invocation = default!;
+        return false;
+    }
+
+    void Execute(ShellInvocation invocation, string workingDirectory) =>
+        Execute(invocation.Command, workingDirectory);
 }

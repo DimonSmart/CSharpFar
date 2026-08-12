@@ -55,6 +55,12 @@ internal sealed class CommandLineCommandExecutor
         _historyNavigator.Reset();
         AddCommandHistory(command, workDir);
 
+        if (_shell.TryParseInvocation(command, out ShellInvocation invocation))
+        {
+            _externalCommandRunner.Execute(workDir, command, () => _shell.Execute(invocation, workDir));
+            return;
+        }
+
         if (_modulePanelOpener.TryOpenFromCommandLine(command, _activeSide()))
             return;
 
