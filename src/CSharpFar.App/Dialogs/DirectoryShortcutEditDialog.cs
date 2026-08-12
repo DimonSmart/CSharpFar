@@ -21,11 +21,6 @@ internal sealed class DirectoryShortcutEditDialog
         _fields = fields ?? throw new ArgumentNullException(nameof(fields));
     }
 
-    internal DirectoryShortcutEditDialog(ModalDialogHost modalDialogs, FormFieldFactory fields, ConsolePalette? palette = null)
-        : this(new DialogService(modalDialogs, fields), fields)
-    {
-    }
-
     public DirectoryShortcutEditResult? Show(
         int number,
         AppSettings.DirectoryShortcutItem? currentItem,

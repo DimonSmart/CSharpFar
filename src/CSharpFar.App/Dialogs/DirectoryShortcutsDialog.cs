@@ -46,15 +46,14 @@ internal sealed class DirectoryShortcutsDialog
                 if (action.ActionId == "close")
                     return DialogOutcome<DirectoryShortcutsDialogResult>.Complete(Result(initialItems, items));
 
-                if (action.ActionId == "edit" && action.SelectedItem is int number)
-                    Edit(items, number, activePanelPath);
-
-                return DialogOutcome<DirectoryShortcutsDialogResult>.RefreshOpen();
+                return action.ActionId == "edit" && action.SelectedItem is int number && Edit(items, number, activePanelPath)
+                    ? DialogOutcome<DirectoryShortcutsDialogResult>.RefreshOpen()
+                    : DialogOutcome<DirectoryShortcutsDialogResult>.ContinueOpen();
             },
         })!;
     }
 
-    private void Edit(
+    private bool Edit(
         IDictionary<int, AppSettings.DirectoryShortcutItem> items,
         int number,
         string activePanelPath)
@@ -63,12 +62,17 @@ internal sealed class DirectoryShortcutsDialog
         DirectoryShortcutEditResult? result = new DirectoryShortcutEditDialog(_dialogs, _fields)
             .Show(number, currentItem, activePanelPath);
         if (result is null)
-            return;
+            return false;
 
         if (result.Item is null)
-            items.Remove(number);
+            return items.Remove(number);
         else
+        {
+            bool changed = !items.TryGetValue(number, out var previous) ||
+                previous.Name != result.Item.Name || previous.Path != result.Item.Path;
             items[number] = result.Item;
+            return changed;
+        }
     }
 
     private static string FormatShortcut(int number, IReadOnlyDictionary<int, AppSettings.DirectoryShortcutItem> items)

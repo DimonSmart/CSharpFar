@@ -5,7 +5,7 @@ using CSharpFar.Core.Models;
 
 namespace CSharpFar.Ui;
 
-public sealed class DropdownSelectFormRow<T> : FormRow, IFormFocusTarget, IFormCursorProvider, IFormCompositeOwner, IFormLabeledRow
+public sealed class DropdownSelectFormRow<T> : FormRow, IFormFocusTarget, IFormCursorProvider, IFormCompositeOwner, IFormLabeledRow, IFormMnemonic
 {
     private readonly string _label;
     private readonly DropdownSelect<T> _dropdown;
@@ -14,7 +14,9 @@ public sealed class DropdownSelectFormRow<T> : FormRow, IFormFocusTarget, IFormC
 
     internal DropdownSelectFormRow(string label, DropdownSelect<T> dropdown)
     {
-        _label = label;
+        FormLabel parsed = FormLabelParser.Parse(label);
+        _label = parsed.Text;
+        Mnemonic = parsed.Mnemonic;
         _dropdown = dropdown;
         _compositeController = new DropdownCompositeController<T>(_dropdown, () => Enabled);
     }
@@ -42,6 +44,8 @@ public sealed class DropdownSelectFormRow<T> : FormRow, IFormFocusTarget, IFormC
     }
     public string? DisabledReason { get; set; }
     internal override bool IsEnabled => Enabled;
+    char? IFormMnemonic.Mnemonic => Mnemonic;
+    private char? Mnemonic { get; }
     int IFormLabeledRow.DesiredLabelWidth => ConsoleTextMetrics.GetCellWidth(_label);
     int IFormLabeledRow.DesiredControlWidth => Math.Max(1, _dropdown.NaturalWidth);
     bool IFormLabeledRow.UseSharedLabelColumn => true;

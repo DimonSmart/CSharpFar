@@ -92,6 +92,26 @@ public sealed class ScrollableListState<T>
         Normalize(viewportRows);
     }
 
+    public void ReplaceItems(IReadOnlyList<T> items, int viewportRows)
+    {
+        ArgumentNullException.ThrowIfNull(items);
+        int previousIndex = _selectedIndex;
+        bool hadSelection = TryGetSelectedItem(out T selectedItem);
+        _items = Snapshot(items);
+        if (!HasItems) { _selectedIndex = -1; _scrollTop = 0; return; }
+
+        int selectedIndex = -1;
+        if (hadSelection)
+            for (int index = 0; index < Count; index++)
+                if (EqualityComparer<T>.Default.Equals(_items[index], selectedItem))
+                {
+                    selectedIndex = index;
+                    break;
+                }
+        _selectedIndex = selectedIndex >= 0 ? selectedIndex : Math.Clamp(previousIndex, 0, Count - 1);
+        Normalize(viewportRows);
+    }
+
     internal bool MoveSelectionToClampedIndex(int index, int viewportRows)
     {
         if (!HasItems)

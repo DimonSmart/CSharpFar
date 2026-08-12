@@ -40,11 +40,6 @@ internal sealed class FtpConnectionDialog
         _fields = fields ?? throw new ArgumentNullException(nameof(fields));
     }
 
-    internal FtpConnectionDialog(ModalDialogHost modalDialogs, FormFieldFactory fields)
-        : this(new DialogService(modalDialogs, fields), fields)
-    {
-    }
-
     public FtpConnectionDialogResult? Show(
         FtpConnectionDialogRequest request,
         Func<FtpConnectionDialogResult, FtpConnectionDialogValidationResult> validate)

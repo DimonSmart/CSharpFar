@@ -46,40 +46,40 @@ internal sealed class ListDialog<T, TResult>
         ArgumentNullException.ThrowIfNull(options.Actions);
         ArgumentNullException.ThrowIfNull(options.HandleAction);
 
-        int selectedIndex = 0;
-        while (true)
+        IReadOnlyList<T> items = options.Items();
+        var dialog = new ListWithButtonsDialog<T>(items, options.ItemText, options.Actions, options.Title)
         {
-            IReadOnlyList<T> items = options.Items();
-            var dialog = new ListWithButtonsDialog<T>(items, options.ItemText, options.Actions, options.Title)
-            {
-                DialogWidth = options.DialogWidth,
-                MinDialogWidth = options.MinDialogWidth,
-                MaxVisibleRows = options.MaxVisibleRows,
-                EmptyText = options.EmptyText,
-                DefaultListActionId = options.DefaultItemActionId,
-                CancelActionId = options.CancelActionId,
-                DeleteActionId = options.DeleteActionId,
-            };
-            if (items.Count > 0)
-                dialog.SelectedIndex = Math.Clamp(selectedIndex, 0, items.Count - 1);
+            DialogWidth = options.DialogWidth,
+            MinDialogWidth = options.MinDialogWidth,
+            MaxVisibleRows = options.MaxVisibleRows,
+            EmptyText = options.EmptyText,
+            DefaultListActionId = options.DefaultItemActionId,
+            CancelActionId = options.CancelActionId,
+            DeleteActionId = options.DeleteActionId,
+        };
 
-            ListWithButtonsDialogResult<T>? action = dialog.Show(_modalDialogs);
+        return dialog.Show(_modalDialogs, action =>
+        {
             if (action is null)
-                return options.Cancel is null ? default : options.Cancel();
+                return ListWithButtonsDialogLoopResult<TResult?>.Complete(options.Cancel is null ? default : options.Cancel());
 
-            selectedIndex = action.SelectedIndex;
             DialogOutcome<TResult> outcome = options.HandleAction(
                 new ListDialogActionContext<T>(action.ActionId, action.SelectedItem, action.SelectedIndex));
-            switch (outcome)
+            return outcome switch
             {
-                case DialogOutcome<TResult>.Close close:
-                    return close.Result;
-                case DialogOutcome<TResult>.Continue:
-                case DialogOutcome<TResult>.Refresh:
-                    continue;
-                default:
-                    throw new InvalidOperationException("Unknown list-dialog outcome.");
-            }
-        }
+                DialogOutcome<TResult>.Close close => ListWithButtonsDialogLoopResult<TResult?>.Complete(close.Result),
+                DialogOutcome<TResult>.Continue => ListWithButtonsDialogLoopResult<TResult?>.ContinueNoChange,
+                DialogOutcome<TResult>.Refresh => Refresh(dialog, options.Items),
+                _ => throw new InvalidOperationException("Unknown list-dialog outcome."),
+            };
+        });
+    }
+
+    private static ListWithButtonsDialogLoopResult<TResult?> Refresh(
+        ListWithButtonsDialog<T> dialog,
+        Func<IReadOnlyList<T>> items)
+    {
+        dialog.RefreshItems(items(), dialog.MaxVisibleRows);
+        return ListWithButtonsDialogLoopResult<TResult?>.ContinueChanged;
     }
 }

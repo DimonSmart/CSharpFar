@@ -13,8 +13,15 @@ namespace CSharpFar.App.Dialogs;
 internal sealed class DriveDialog
 {
     private const int DialogWidth = 48;
-    private const int DiskColW = 18;
-    private const int SizeColW = 10;
+    private static readonly TableListDefinition<VolumeSelectionItem> TableDefinition = new()
+    {
+        Columns =
+        [
+            TableColumn<VolumeSelectionItem>.Text("Disk", FormatDisk, width: 18, emphasized: true),
+            TableColumn<VolumeSelectionItem>.Text("Free", item => BuildSizeCols(item.Volume).Free, width: 10, alignment: TableColumnAlignment.Right),
+            TableColumn<VolumeSelectionItem>.Text("Total", item => BuildSizeCols(item.Volume).Total, width: 10, alignment: TableColumnAlignment.Right),
+        ],
+    };
 
     private readonly ModalDialogHost _modalDialogs;
     private readonly DialogService _dialogs;
@@ -44,14 +51,15 @@ internal sealed class DriveDialog
     {
         var targets = new UiTargetScope("drive");
         var state = new ScrollableListState<VolumeSelectionItem>(items, initialCursor);
-        var routedList = new RoutedScrollableList<VolumeSelectionItem>(state, targets.Child("volumes"), targets.Child("volumes.scrollbar"));
+        var table = new TableList<VolumeSelectionItem>(TableDefinition, state, targets.Child("volumes"), targets.Child("volumes.scrollbar"));
+        RoutedScrollableList<VolumeSelectionItem> routedList = table.List;
         string? lastShortcut = null;
 
         return _modalDialogs.RunInteractive<DriveDialogFrame, ScrollableListInputResult, VolumeSelectionItem?>(
             (context, _) =>
             {
                 DriveDialogFrame frame = BuildFrame(context.Size, items, routedList);
-                RenderFrame(context, items, routedList, frame);
+                RenderFrame(context, table, frame);
                 return frame;
             },
             frame => BuildInteractionFrame(frame, routedList),
@@ -236,11 +244,7 @@ internal sealed class DriveDialog
             : builder.Build();
     }
 
-    private void RenderFrame(
-        UiRenderContext context,
-        IReadOnlyList<VolumeSelectionItem> items,
-        RoutedScrollableList<VolumeSelectionItem> list,
-        DriveDialogFrame frame)
+    private void RenderFrame(UiRenderContext context, TableList<VolumeSelectionItem> table, DriveDialogFrame frame)
     {
         _modalRenderer.Render(context.Canvas, frame.Modal, "Change drive", true, DriveOuterOptions, DriveFrameOptions, (_, _) =>
         {
@@ -253,25 +257,17 @@ internal sealed class DriveDialog
                 context.Canvas.Write(hintX, frameBounds.Y + frameBounds.Height - 1, hint, PaletteStyles.DialogTitle(_palette));
             }
 
-            WriteHeader(context.Canvas, contentBounds.X, contentBounds.Y, contentBounds.Width);
-            WriteTableSeparator(context.Canvas, contentBounds.X, contentBounds.Y + 1, contentBounds.Width);
-
-            for (int line = 0; line < frame.List.ViewportRows; line++)
-            {
-                int itemIndex = frame.List.ScrollTop + line;
-                if (itemIndex >= items.Count)
-                    break;
-
-                WriteRow(
-                    context.Canvas,
-                    items[itemIndex],
-                    contentBounds.X,
-                    contentBounds.Y + 2 + line,
-                    contentBounds.Width,
-                    itemIndex == frame.List.SelectedIndex);
-            }
-
-            list.RenderScrollbar(context.Canvas, frame.List, PaletteStyles.DialogBorder(_palette));
+            table.Render(
+                context.Canvas,
+                frame.List,
+                new Rect(contentBounds.X, contentBounds.Y, contentBounds.Width, 2),
+                PaletteStyles.DialogTitle(_palette),
+                PaletteStyles.DialogBorder(_palette),
+                PaletteStyles.DialogFill(_palette),
+                PaletteStyles.InputField(_palette),
+                PaletteStyles.DialogHighlight(_palette),
+                PaletteStyles.InputHighlight(_palette));
+            table.List.RenderScrollbar(context.Canvas, frame.List, PaletteStyles.DialogBorder(_palette));
         });
     }
 
@@ -284,66 +280,7 @@ internal sealed class DriveDialog
 
     private readonly record struct DriveDialogLayout(Rect ListBounds);
 
-    private void WriteHeader(IUiCanvas canvas, int x, int y, int width)
-    {
-        string header =
-            Fit("Disk", DiskColW) +
-            " │ " +
-            Fit("Free", SizeColW) +
-            " │ " +
-            Fit("Total", SizeColW);
-        canvas.Write(x, y, TruncateToWidth(header, width).PadRight(width), PaletteStyles.DialogTitle(_palette));
-    }
-
-    private void WriteTableSeparator(IUiCanvas canvas, int x, int y, int width)
-    {
-        string separator =
-            new string('─', DiskColW) +
-            "─┼─" +
-            new string('─', SizeColW) +
-            "─┼─" +
-            new string('─', SizeColW);
-        canvas.Write(x, y, TruncateToWidth(separator, width).PadRight(width), PaletteStyles.DialogBorder(_palette));
-    }
-
-    private void WriteRow(IUiCanvas canvas, VolumeSelectionItem item, int x, int y, int innerWidth, bool selected)
-    {
-        if (innerWidth <= 0)
-            return;
-
-        var normalStyle = selected ? PaletteStyles.InputField(_palette) : PaletteStyles.DialogFill(_palette);
-        var highlightStyle = selected ? PaletteStyles.InputHighlight(_palette) : PaletteStyles.DialogHighlight(_palette);
-
-        string displayName = item.Volume?.DisplayName ?? item.Label;
-        string kindStr = item.Volume != null
-            ? KindLabel(item.Volume.Kind, item.Volume.Status)
-            : "";
-
-        string diskCol = Fit($"{displayName} {kindStr}".Trim(), DiskColW);
-        var (freeCol, totalCol) = BuildSizeCols(item.Volume);
-
-        WriteSegment(canvas, ref x, y, ref innerWidth, diskCol, highlightStyle);
-        WriteSegment(canvas, ref x, y, ref innerWidth, " │ ", normalStyle);
-        WriteSegment(canvas, ref x, y, ref innerWidth, freeCol, normalStyle);
-        WriteSegment(canvas, ref x, y, ref innerWidth, " │ ", normalStyle);
-        WriteSegment(canvas, ref x, y, ref innerWidth, totalCol, normalStyle);
-
-        if (innerWidth > 0)
-            canvas.Write(x, y, new string(' ', innerWidth), normalStyle);
-    }
-
-    private static void WriteSegment(IUiCanvas canvas, ref int x, int y, ref int remainingWidth, string text, CellStyle style)
-    {
-        if (remainingWidth <= 0)
-            return;
-
-        string visible = TruncateToWidth(text, remainingWidth);
-        canvas.Write(x, y, visible, style);
-        x += visible.Length;
-        remainingWidth -= visible.Length;
-    }
-
-    private static string ItemText(VolumeSelectionItem item)
+    private static string FormatDisk(VolumeSelectionItem item)
     {
         string displayName = item.Volume?.DisplayName ?? item.Label;
         string kind = item.Volume is null ? string.Empty : KindLabel(item.Volume.Kind, item.Volume.Status);
@@ -354,12 +291,12 @@ internal sealed class DriveDialog
     {
         if (vol?.Status == VolumeStatus.Ready && vol.TotalBytes.HasValue && vol.FreeBytes.HasValue)
         {
-            string free = FormatBytes(vol.FreeBytes.Value).PadLeft(SizeColW);
-            string total = FormatBytes(vol.TotalBytes.Value).PadLeft(SizeColW);
+            string free = FormatBytes(vol.FreeBytes.Value);
+            string total = FormatBytes(vol.TotalBytes.Value);
             return (free, total);
         }
 
-        return (new string(' ', SizeColW), new string(' ', SizeColW));
+        return (string.Empty, string.Empty);
     }
 
     internal static string KindLabel(VolumeKind kind, VolumeStatus status) =>
@@ -387,13 +324,6 @@ internal sealed class DriveDialog
     /// </summary>
     private static bool IsSelectable(VolumeStatus status) =>
         status is VolumeStatus.Ready or VolumeStatus.Unchecked;
-
-    /// <summary>Pads or truncates <paramref name="s"/> to exactly <paramref name="width"/> chars.</summary>
-    private static string Fit(string s, int width) =>
-        s.Length <= width ? s.PadRight(width) : s[..width];
-
-    private static string TruncateToWidth(string text, int width) =>
-        text.Length <= width ? text : text[..width];
 
     /// <summary>
     /// Formats a byte count in Far-like style: e.g. 659 G, 21,2 G, 1,86 T.

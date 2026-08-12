@@ -5,7 +5,7 @@ using CSharpFar.Core.Models;
 
 namespace CSharpFar.Ui;
 
-public sealed class ChoiceFormRow<T> : FormRow, IFormFocusTarget, IFormCursorProvider
+public sealed class ChoiceFormRow<T> : FormRow, IFormFocusTarget, IFormCursorProvider, IFormMnemonic
 {
     internal override FormRowRole Role { get; init; } = FormRowRole.Option;
 
@@ -18,7 +18,9 @@ public sealed class ChoiceFormRow<T> : FormRow, IFormFocusTarget, IFormCursorPro
     internal ChoiceFormRow(ChoiceModel<T> choice, string label, int startIndex = 0, int? endIndex = null, bool isFocusable = true)
     {
         _choice = choice;
-        _label = label;
+        FormLabel parsed = FormLabelParser.Parse(label);
+        _label = parsed.Text;
+        Mnemonic = parsed.Mnemonic;
         _startIndex = startIndex;
         _endIndex = endIndex;
         _isFocusable = isFocusable;
@@ -51,6 +53,8 @@ public sealed class ChoiceFormRow<T> : FormRow, IFormFocusTarget, IFormCursorPro
     public bool Enabled { get; set; } = true;
     public string? DisabledReason { get; set; }
     internal override bool IsEnabled => Enabled;
+    char? IFormMnemonic.Mnemonic => Mnemonic;
+    private char? Mnemonic { get; }
     internal ChoiceModel<T> Choice => _choice;
     public T Value { get => _choice.Value; set => _choice.Value = value; }
     internal override int DesiredWidth => ConsoleTextMetrics.GetCellWidth(_label) + 1 + Math.Max(0, _choice.Selection.Items.Sum(item => ConsoleTextMetrics.GetCellWidth($"( ) {_choice.Format(item)}") + 1) - 1);
@@ -102,7 +106,7 @@ public sealed class ChoiceFormRow<T> : FormRow, IFormFocusTarget, IFormCursorPro
     };
 }
 
-public sealed class MultiLineChoiceFormRow<T> : FormRow, IFormFocusTarget, IFormCursorProvider
+public sealed class MultiLineChoiceFormRow<T> : FormRow, IFormFocusTarget, IFormCursorProvider, IFormMnemonic
 {
     internal override FormRowRole Role { get; init; } = FormRowRole.Option;
 
@@ -128,7 +132,9 @@ public sealed class MultiLineChoiceFormRow<T> : FormRow, IFormFocusTarget, IForm
             throw new ArgumentException("The final segment must include every choice.", nameof(segmentEndIndices));
 
         _choice = choice;
-        _label = label;
+        FormLabel parsed = FormLabelParser.Parse(label);
+        _label = parsed.Text;
+        Mnemonic = parsed.Mnemonic;
         _segmentEndIndices = segmentEndIndices.ToArray();
     }
 
@@ -161,6 +167,8 @@ public sealed class MultiLineChoiceFormRow<T> : FormRow, IFormFocusTarget, IForm
     public bool Enabled { get; set; } = true;
     public string? DisabledReason { get; set; }
     internal override bool IsEnabled => Enabled;
+    char? IFormMnemonic.Mnemonic => Mnemonic;
+    private char? Mnemonic { get; }
     internal override bool IsFocusable => Enabled;
     internal override int DesiredWidth => _segmentEndIndices.Select((end, index) =>
     {
