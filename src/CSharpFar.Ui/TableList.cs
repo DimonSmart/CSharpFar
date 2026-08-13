@@ -48,7 +48,7 @@ public sealed record TableListColumnFrame(string Header, int X, int Width, Table
     internal int DefinitionIndex { get; init; }
 }
 
-public sealed class TableListFrame
+public sealed class TableListFrame : ICompositeDialogContentFrame
 {
     internal TableListFrame(Rect bounds, Rect headerBounds, ScrollableListFrame listFrame, IReadOnlyList<TableListColumnFrame> columns)
         => (Bounds, HeaderBounds, BodyBounds, SelectedIndex, ScrollTop, ViewportRows, _listFrame, Columns) = (bounds, headerBounds, listFrame.ContentBounds, listFrame.SelectedIndex, listFrame.ScrollTop, listFrame.ViewportRows, listFrame, columns);
@@ -65,7 +65,7 @@ public sealed class TableListFrame
 }
 
 /// <summary>Theme-backed adaptive selectable table.</summary>
-public sealed class TableList<T>
+public sealed class TableList<T> : ICompositeDialogContent
 {
     private const int SeparatorWidth = 3;
     private static long _nextComponentId;
@@ -117,6 +117,21 @@ public sealed class TableList<T>
     public UiInteractionFragment BuildInteractionFragment(TableListFrame frame, int focusOrder = 0) => HasItems ? _list.BuildInteractionFragment(frame.ListFrame, focusOrder, frame.BodyBounds.Width > 0 && frame.BodyBounds.Height > 0) : UiInteractionFragment.Empty;
     public (ScrollableListInputResult Semantic, UiInputResult UiResult) RouteInput(ConsoleInputEvent input, TableListFrame frame, UiInputRouteContext route) { RoutedScrollableListInputResult result = _list.RouteInput(input, frame.ListFrame, route); return (result.ListResult, result.UiResult); }
     public bool IsTargetRoute(UiInputRouteContext route) => _list.IsTargetRoute(route);
+    ICompositeDialogContentFrame ICompositeDialogContent.CalculateFrame(Rect bounds) => CalculateFrame(bounds);
+    void ICompositeDialogContent.Render(IUiCanvas canvas, ICompositeDialogContentFrame frame) => Render(canvas, RequireFrame(frame));
+    UiInteractionFragment ICompositeDialogContent.BuildInteractionFragment(ICompositeDialogContentFrame frame, int focusOrder) => BuildInteractionFragment(RequireFrame(frame), focusOrder);
+    CompositeDialogContentInputResult ICompositeDialogContent.RouteInput(ConsoleInputEvent input, ICompositeDialogContentFrame frame, UiInputRouteContext route)
+    {
+        (ScrollableListInputResult semantic, UiInputResult uiResult) = RouteInput(input, RequireFrame(frame), route);
+        return new(semantic.Kind switch
+        {
+            ScrollableListInputResultKind.SelectionChanged => CompositeDialogContentEventKind.SelectionChanged,
+            ScrollableListInputResultKind.Confirmed => CompositeDialogContentEventKind.Confirmed,
+            _ => CompositeDialogContentEventKind.NotHandled,
+        }, uiResult, IsTargetRoute(route));
+    }
+    void ICompositeDialogContent.ApplyCommittedFrame(ICompositeDialogContentFrame frame) => ApplyCommittedFrame(RequireFrame(frame));
+    private static TableListFrame RequireFrame(ICompositeDialogContentFrame frame) => frame as TableListFrame ?? throw new ArgumentException("Frame belongs to a different composite content component.", nameof(frame));
     private IReadOnlyList<TableListColumnFrame> CalculateColumns(Rect bounds)
     {
         var visible = _columns.Select((column, index) => new ColumnState(column, index)).ToList();
