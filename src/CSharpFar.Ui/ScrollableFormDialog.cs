@@ -42,7 +42,9 @@ public sealed partial class ScrollableFormDialog
     internal int FocusIndex => FocusIndexFromScope(CurrentFocusedTarget) ?? 0;
     internal int FocusableCount => TotalFocusableCount;
     public FormLayoutOptions LayoutOptions { get; }
-    internal int NaturalContentHeight => BodyRowCount + FooterRowCount;
+    internal int NaturalContentHeight => NaturalBodyHeight + NaturalFooterHeight;
+    internal int NaturalBodyHeight => BodyRowCount;
+    internal int NaturalFooterHeight => FooterRowCount;
     internal int NaturalContentWidth
     {
         get
