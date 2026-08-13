@@ -35,7 +35,7 @@ public readonly record struct CompositeDialogOutcome<TResult>(bool IsComplete, b
     public static CompositeDialogOutcome<TResult> Complete(TResult result) => new(true, false, result);
 }
 
-/// <summary>Composes a form, a routed table, optional status, and footer actions into one modal lifecycle.</summary>
+/// <summary>Composes a form, routed content, optional status, and footer actions into one modal lifecycle.</summary>
 public sealed class CompositeDialogHost
 {
     private readonly ModalDialogHost _modalDialogs;
@@ -44,10 +44,10 @@ public sealed class CompositeDialogHost
     public CompositeDialogHost(ModalDialogHost modalDialogs) =>
         _modalDialogs = modalDialogs ?? throw new ArgumentNullException(nameof(modalDialogs));
 
-    public TResult Run<T, TResult>(
+    public TResult Run<TResult>(
         CompositeDialogOptions options,
         ScrollableFormDialog form,
-        TableList<T> content,
+        ICompositeDialogContent content,
         Func<string?>? status,
         IReadOnlyDictionary<ConsoleKey, string>? commands,
         Func<CompositeDialogEvent, CompositeDialogOutcome<TResult>> handle,
@@ -59,7 +59,7 @@ public sealed class CompositeDialogHost
         ArgumentNullException.ThrowIfNull(content);
         ArgumentNullException.ThrowIfNull(handle);
 
-        return _modalDialogs.RunInteractive<Frame<T>, CompositeDialogEvent, TResult>(
+        return _modalDialogs.RunInteractive<Frame, CompositeDialogEvent, TResult>(
             (context, focus) => Render(context, focus, options, form, content, status),
             frame => BuildInteractionFrame(frame, form, content),
             (input, frame, route) => Route(input, frame, route, form, content, commands),
@@ -77,7 +77,7 @@ public sealed class CompositeDialogHost
             cancellationToken);
     }
 
-    private Frame<T> Render<T>(UiRenderContext context, IUiFocusState focus, CompositeDialogOptions options, ScrollableFormDialog form, TableList<T> content, Func<string?>? status)
+    private Frame Render(UiRenderContext context, IUiFocusState focus, CompositeDialogOptions options, ScrollableFormDialog form, ICompositeDialogContent content, Func<string?>? status)
     {
         ModalDialogRenderer.Layout modal = _renderer.CalculateLayout(context.Size, options.PreferredWidth, options.PreferredHeight, options.MinWidth, options.MinHeight);
         Rect bounds = modal.ContentBounds;
@@ -91,7 +91,7 @@ public sealed class CompositeDialogHost
         Rect header = new(bounds.X, bounds.Y, bounds.Width, headerHeight);
         Rect contentBounds = new(bounds.X, header.Bottom, bounds.Width, Math.Max(0, bounds.Height - headerHeight - statusHeight - footerHeight));
         Rect statusBounds = new(bounds.X, contentBounds.Bottom, bounds.Width, statusHeight);
-        TableListFrame contentFrame = content.CalculateFrame(contentBounds);
+        ICompositeDialogContentFrame contentFrame = content.CalculateFrame(contentBounds);
         ScrollableFormFrame formFrame = null!;
 
         _renderer.Render(context.Canvas, modal, options.Title, options.DoubleBorder, FarDialogStyles.OuterOptions, FarDialogStyles.FrameOptions, (_, _) =>
@@ -104,7 +104,7 @@ public sealed class CompositeDialogHost
         return new(modal, formFrame, contentFrame);
     }
 
-    private static UiInteractionFrame BuildInteractionFrame<T>(Frame<T> frame, ScrollableFormDialog form, TableList<T> content)
+    private static UiInteractionFrame BuildInteractionFrame(Frame frame, ScrollableFormDialog form, ICompositeDialogContent content)
     {
         UiInteractionFragment formFragment = form.BuildInteractionFragment(frame.Form);
         UiFocusEntry[] header = formFragment.FocusEntries.Where(entry => !IsFooter(frame.Form, entry.Target)).ToArray();
@@ -122,16 +122,16 @@ public sealed class CompositeDialogHost
     private static bool IsFooter(ScrollableFormFrame frame, UiTargetId target) =>
         frame.Targets.OfType<FormRowTargetFrame>().FirstOrDefault(candidate => candidate.Target == target)?.IsFooter == true;
 
-    private static (CompositeDialogEvent Semantic, UiInputResult UiResult) Route<T>(ConsoleInputEvent input, Frame<T> frame, UiInputRouteContext route, ScrollableFormDialog form, TableList<T> content, IReadOnlyDictionary<ConsoleKey, string>? commands)
+    private static (CompositeDialogEvent Semantic, UiInputResult UiResult) Route(ConsoleInputEvent input, Frame frame, UiInputRouteContext route, ScrollableFormDialog form, ICompositeDialogContent content, IReadOnlyDictionary<ConsoleKey, string>? commands)
     {
-        if (content.IsTargetRoute(route))
+        CompositeDialogContentInputResult contentResult = content.RouteInput(input, frame.Content, route);
+        if (contentResult.IsContentRoute)
         {
-            var contentResult = content.RouteInput(input, frame.Content, route);
-            if (contentResult.Semantic.IsHandled)
-                return (contentResult.Semantic.Kind switch
+            if (contentResult.Kind != CompositeDialogContentEventKind.NotHandled)
+                return (contentResult.Kind switch
                 {
-                    ScrollableListInputResultKind.SelectionChanged => new(CompositeDialogEventKind.ContentSelectionChanged),
-                    ScrollableListInputResultKind.Confirmed => new(CompositeDialogEventKind.ContentConfirmed),
+                    CompositeDialogContentEventKind.SelectionChanged => new(CompositeDialogEventKind.ContentSelectionChanged),
+                    CompositeDialogContentEventKind.Confirmed => new(CompositeDialogEventKind.ContentConfirmed),
                     _ => new(CompositeDialogEventKind.NotHandled),
                 }, contentResult.UiResult);
             if (UiFocusRouting.TryHandleTraversal(input, out UiInputResult traversal))
@@ -150,5 +150,5 @@ public sealed class CompositeDialogHost
         return (new(CompositeDialogEventKind.NotHandled), formResult.UiResult);
     }
 
-    private readonly record struct Frame<T>(ModalDialogRenderer.Layout Modal, ScrollableFormFrame Form, TableListFrame Content);
+    private readonly record struct Frame(ModalDialogRenderer.Layout Modal, ScrollableFormFrame Form, ICompositeDialogContentFrame Content);
 }

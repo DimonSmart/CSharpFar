@@ -61,7 +61,7 @@ internal sealed class ProcessesAndPortsDialog(ModuleUiServices ui, IProcessesAnd
             }).ToArray());
         }
 
-        _ui.Dialogs.Composite<ProcessesAndPortsRow, object?>(
+        _ui.Dialogs.Composite<object?>(
             new CompositeDialogOptions("Processes and Ports", DialogWidth, 24),
             form,
             list,
