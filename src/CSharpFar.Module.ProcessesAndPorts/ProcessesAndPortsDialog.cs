@@ -47,7 +47,7 @@ internal sealed class ProcessesAndPortsDialog(ModuleUiServices ui, IProcessesAnd
         form.SetRows([FormControls.Text("Filter:", filter), tcp, udp, other], [actions]);
 
         ProcessesAndPortsSnapshot? snapshot = TryCapture(null, out string? captureError);
-        var list = new TableList<ProcessesAndPortsRow>([], TableDefinition);
+        var list = new TableList<ProcessesAndPortsRow>([], TableDefinition, appearance: ListAppearance.Dialog);
         IReadOnlyList<ProcessesAndPortsRow> lastRows = [];
         ProcessNetworkEndpoint? SelectedEndpoint() => list.TryGetSelectedItem(out ProcessesAndPortsRow selected) ? selected.Endpoint : null;
 

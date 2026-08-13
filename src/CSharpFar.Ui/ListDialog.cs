@@ -79,7 +79,7 @@ internal sealed class ListDialog<T, TResult>
         ListWithButtonsDialog<T> dialog,
         Func<IReadOnlyList<T>> items)
     {
-        dialog.RefreshItems(items(), dialog.MaxVisibleRows);
+        dialog.RefreshItems(items());
         return ListWithButtonsDialogLoopResult<TResult?>.ContinueChanged;
     }
 }

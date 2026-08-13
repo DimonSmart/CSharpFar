@@ -19,14 +19,13 @@ internal sealed class SelectionListDialog<T>
     private readonly string _title;
     private readonly DialogFrameRenderer _frameRenderer = new();
     private Action<T, int>? _selectionChanged;
-    private string? _emptyText;
 
     public SelectionListDialog(
         IReadOnlyList<T> items,
         Func<T, string> itemText,
         string title)
     {
-        _list = new ListView<T>(items, itemText, behavior: RoutedScrollableListOptions.SelectionDialog);
+        _list = new ListView<T>(items, itemText, behavior: ListViewBehavior.Selection, appearance: ListAppearance.Menu);
         _itemText = itemText ?? throw new ArgumentNullException(nameof(itemText));
         _title = title ?? throw new ArgumentNullException(nameof(title));
     }
@@ -51,8 +50,8 @@ internal sealed class SelectionListDialog<T>
 
     public string? EmptyText
     {
-        get => _emptyText;
-        set => _emptyText = value;
+        get => _list.EmptyText;
+        set => _list.EmptyText = value ?? string.Empty;
     }
 
     public bool DoubleBorder { get; set; }
@@ -109,6 +108,7 @@ internal sealed class SelectionListDialog<T>
             },
             applyCommittedFrame: frame =>
             {
+                _list.ApplyCommittedFrame(frame.List);
                 if (_list.HasItems && !initialSelectionNotified)
                 {
                     NotifySelectionChanged();
@@ -128,12 +128,7 @@ internal sealed class SelectionListDialog<T>
 
     private void RenderLayer(IUiCanvas screen, SelectionListFrame frame)
     {
-        var palette = UiTheme.Current;
         var layout = frame.Layout;
-
-        var normalStyle = PaletteStyles.DialogFill(palette);
-        var selectedStyle = PaletteStyles.InputField(palette);
-        var emptyStyle = PaletteStyles.DialogFill(palette);
         var scrollState = frame.List.ItemCount > frame.List.ViewportRows ? new ScrollState { TotalItems = frame.List.ItemCount, ViewportItems = frame.List.ViewportRows, FirstVisibleIndex = frame.List.ScrollTop } : null;
 
         _frameRenderer.RenderFrame(
@@ -141,7 +136,7 @@ internal sealed class SelectionListDialog<T>
             layout.Bounds,
             _title,
             DoubleBorder,
-            PaletteStyles.DialogPopupOptions(palette),
+            MenuPopupOptions(),
             scrollState,
             (_, _) => _list.Render(screen, frame.List));
 
@@ -175,9 +170,15 @@ internal sealed class SelectionListDialog<T>
         Rect? ScrollbarBounds,
         int VisibleRows);
 
+    private static PopupRenderOptions MenuPopupOptions()
+    {
+        ListAppearanceStyles styles = ListAppearanceStyles.From(ListAppearance.Menu);
+        return new() { BorderStyle = styles.Border, BackgroundStyle = styles.Normal, ShadowStyle = FarDialogStyles.Shadow, TitleStyle = styles.Header };
+    }
+
     private readonly record struct SelectionListFrame(
         SelectionListLayout Layout,
-        ScrollableListFrame List);
+        ListViewFrame List);
 
     private readonly record struct SelectionListInput(
         ConsoleInputEvent Input,

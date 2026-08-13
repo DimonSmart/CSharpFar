@@ -811,13 +811,13 @@ public sealed class ApplicationVolumeTests : IDisposable
         new(18, 9, MouseButton.WheelDown, MouseEventKind.Wheel, MouseKeyModifiers.None);
 
     private static MouseConsoleInputEvent MouseOnDialogScrollbarBottomArrow() =>
-        new(62, 7, MouseButton.Left, MouseEventKind.Down, MouseKeyModifiers.None);
+        new(61, 7, MouseButton.Left, MouseEventKind.Down, MouseKeyModifiers.None);
 
     private static MouseConsoleInputEvent MouseOnDialogScrollbarThumb() =>
         MouseOnDialogScrollbar(5, MouseEventKind.Down);
 
     private static MouseConsoleInputEvent MouseOnDialogScrollbar(int y, MouseEventKind kind) =>
-        new(62, y, MouseButton.Left, kind, MouseKeyModifiers.None);
+        new(61, y, MouseButton.Left, kind, MouseKeyModifiers.None);
 
     private static MouseConsoleInputEvent MouseOutsideDialog(MouseEventKind kind, int y = 6) =>
         new(10, y, MouseButton.Left, kind, MouseKeyModifiers.None);
