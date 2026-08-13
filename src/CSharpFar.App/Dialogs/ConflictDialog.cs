@@ -1,201 +1,80 @@
 using System.Globalization;
-using CSharpFar.App.Rendering;
-using CSharpFar.Console;
-using CSharpFar.Console.Input;
-using CSharpFar.Console.Models;
 using CSharpFar.Core.Models;
 using CSharpFar.Ui;
 
 namespace CSharpFar.App.Dialogs;
 
-/// <summary>Shows a "file already exists" dialog and returns the user's choice.</summary>
+/// <summary>Maps the semantic conflict form result to a file-operation decision.</summary>
 internal sealed class ConflictDialog
 {
-    private const int DialogWidth = 78;
-    private const int DialogHeight = 13;
     private const string OverwriteButton = "overwrite";
     private const string SkipButton = "skip";
     private const string RenameButton = "rename";
-    private const string CancelButton = "cancel";
 
-    private readonly ModalDialogHost _modalDialogs;
     private readonly DialogService _dialogs;
-    private readonly ConsolePalette _palette;
-    private readonly FormFieldFactory _fields;
-    private readonly ModalDialogRenderer _modalRenderer = new();
 
-    public ConflictDialog(
-        ModalDialogHost modalDialogs,
-        DialogService dialogs,
-        FormFieldFactory fields,
-        ConsolePalette? palette = null)
-    {
-        _modalDialogs = modalDialogs;
-        _dialogs = dialogs;
-        _palette = palette ?? PaletteRegistry.Default;
-        _fields = fields;
-    }
+    public ConflictDialog(DialogService dialogs) =>
+        _dialogs = dialogs ?? throw new ArgumentNullException(nameof(dialogs));
 
     public FileOperationConflictDecision Show(FileOperationConflict conflict)
     {
         var rememberChoice = FormControls.CheckBox("Remember choice");
-        var actions = FormControls.Buttons(
-            CreateButtons(),
-            tone: FormControlTone.Warning);
-        var form = new ScrollableFormDialog();
-        form.SetRows([rememberChoice], [actions]);
-        form.SetInitialFocus(actions);
-
-        return _modalDialogs.RunInteractive<ScrollableFormFrame, FormInputResult, FileOperationConflictDecision>(
-            (context, focusScope) => Draw(conflict, context, focusScope, form),
-            form.BuildInteractionFrame,
-            (input, frame, route) =>
+        var actions = FormControls.Buttons(CreateButtons(), FormControlTone.Warning);
+        return _dialogs.Form(
+            new FormDialogOptions("Warning", PreferredWidth: 78, PreferredHeight: 13)
             {
-                FormRouteResult result = form.RouteInput(input, frame, route);
-                return (result.FormResult, result.UiResult);
+                Appearance = FormDialogAppearance.Warning,
+                InitialFocus = actions,
             },
-            (_, result) =>
-            {
-                if (result.Kind == FormInputResultKind.Cancel)
-                    return ModalDialogLoopResult<FileOperationConflictDecision>.Complete(
-                        FileOperationConflictDecision.FromMode(ConflictDecisionMode.Cancel));
-                if (result.Kind == FormInputResultKind.Submit && result.Command is string buttonId)
-                    return ModalDialogLoopResult<FileOperationConflictDecision>.Complete(
-                        BuildDecision(buttonId, rememberChoice.Value, conflict));
-                return ModalDialogLoopResult<FileOperationConflictDecision>.ContinueNoChange;
-            });
+            rows: () =>
+            [
+                FormControls.Label("File already exists", TextAlignment.Center),
+                FormControls.Label(conflict.DestinationPath, TextAlignment.Center),
+                FormControls.Spacer(),
+                FormControls.Value("New", () => BuildInfo(conflict.SourceSize, conflict.SourceLastWriteTime)),
+                FormControls.Value("Existing", () => BuildInfo(conflict.DestinationSize, conflict.DestinationLastWriteTime)),
+                FormControls.Separator(),
+                rememberChoice,
+            ],
+            footer: () => [actions],
+            handle: dialogEvent => dialogEvent.IsCancelled
+                ? FormDialogOutcome<FileOperationConflictDecision>.Complete(FileOperationConflictDecision.FromMode(ConflictDecisionMode.Cancel))
+                : dialogEvent.Command is { } command
+                    ? FormDialogOutcome<FileOperationConflictDecision>.Complete(BuildDecision(command, rememberChoice.Value, conflict))
+                    : FormDialogOutcome<FileOperationConflictDecision>.Continue());
     }
 
-    private ScrollableFormFrame Draw(
-        FileOperationConflict conflict,
-        UiRenderContext context,
-        IUiFocusState focusScope,
-        ScrollableFormDialog form)
-    {
-        ScrollableFormFrame? frame = null;
-        int dlgX = Math.Max(0, (context.Size.Width - DialogWidth) / 2);
-        int dlgY = Math.Max(0, (context.Size.Height - DialogHeight) / 2);
-        var bounds = new Rect(dlgX, dlgY, DialogWidth, DialogHeight);
-
-        _modalRenderer.Render(context.Canvas, bounds, "Warning", true, WarningDialogStyles.OuterOptions, WarningDialogStyles.FrameOptions, (_, layout) =>
+    private FileOperationConflictDecision BuildDecision(string buttonId, bool rememberChoice, FileOperationConflict conflict) =>
+        buttonId switch
         {
-            Rect frameBounds = layout.FrameBounds;
-            int contentX = frameBounds.X + 2;
-            int contentWidth = Math.Max(1, frameBounds.Width - 4);
-
-            context.Canvas.Write(contentX, frameBounds.Y + 1, Center("File already exists", contentWidth), WarningDialogStyles.Fill);
-            context.Canvas.Write(contentX, frameBounds.Y + 2, ShortenMiddle(conflict.DestinationPath, contentWidth).PadRight(contentWidth), WarningDialogStyles.Fill);
-
-            context.Canvas.Write(contentX, frameBounds.Y + 4, BuildInfoLine("New", conflict.SourceSize, conflict.SourceLastWriteTime, contentWidth), WarningDialogStyles.Fill);
-            context.Canvas.Write(contentX, frameBounds.Y + 5, BuildInfoLine("Existing", conflict.DestinationSize, conflict.DestinationLastWriteTime, contentWidth), WarningDialogStyles.Fill);
-
-            DrawSeparator(context.Canvas, frameBounds, frameBounds.Y + 8);
-            frame = form.Render(
-                new FormRenderContext(
-                    context,
-                    new Rect(contentX, frameBounds.Y + 7, contentWidth, 1),
-                    WarningDialogStyles.Border,
-                    new Rect(contentX, frameBounds.Y + 9, contentWidth, 1)),
-                focusScope);
-        });
-        return frame ?? throw new InvalidOperationException("Conflict dialog did not render its form frame.");
-    }
-
-    private FileOperationConflictDecision BuildDecision(string buttonId, bool rememberChoice, FileOperationConflict conflict)
-    {
-        return buttonId switch
-        {
-            OverwriteButton => FileOperationConflictDecision.FromMode(
-                rememberChoice ? ConflictDecisionMode.OverwriteAll : ConflictDecisionMode.Overwrite),
-            SkipButton => FileOperationConflictDecision.FromMode(
-                rememberChoice ? ConflictDecisionMode.SkipAll : ConflictDecisionMode.Skip),
+            OverwriteButton => FileOperationConflictDecision.FromMode(rememberChoice ? ConflictDecisionMode.OverwriteAll : ConflictDecisionMode.Overwrite),
+            SkipButton => FileOperationConflictDecision.FromMode(rememberChoice ? ConflictDecisionMode.SkipAll : ConflictDecisionMode.Skip),
             RenameButton => BuildRenameDecision(rememberChoice, conflict),
             _ => FileOperationConflictDecision.FromMode(ConflictDecisionMode.Cancel),
         };
-    }
 
     private FileOperationConflictDecision BuildRenameDecision(bool rememberChoice, FileOperationConflict conflict)
     {
         if (rememberChoice)
             return FileOperationConflictDecision.FromMode(ConflictDecisionMode.RenameAll);
 
-        string? renamed = _dialogs.Input(new SingleLineInputDialogOptions
-        {
-            Title = "Rename",
-            Prompt = "New destination:",
-            InitialText = conflict.DestinationPath,
-        });
+        string? renamed = _dialogs.Input(new SingleLineInputDialogOptions { Title = "Rename", Prompt = "New destination:", InitialText = conflict.DestinationPath });
         return string.IsNullOrWhiteSpace(renamed)
             ? FileOperationConflictDecision.FromMode(ConflictDecisionMode.Skip)
-            : new FileOperationConflictDecision
-            {
-                Mode = ConflictDecisionMode.Rename,
-                NewDestinationPath = renamed,
-            };
+            : new FileOperationConflictDecision { Mode = ConflictDecisionMode.Rename, NewDestinationPath = renamed };
     }
 
-    private static IReadOnlyList<DialogButton> CreateButtons()
-    {
-        var buttons = new List<DialogButton>
-        {
-            new(OverwriteButton, "Overwrite", 'O', IsDefault: true),
-            new(SkipButton, "Skip", 'S'),
-            new(RenameButton, "Rename", 'R'),
-        };
+    private static IReadOnlyList<DialogButton> CreateButtons() =>
+    [
+        DialogButton.Default(OverwriteButton, "Overwrite", 'O'),
+        DialogButton.Action(SkipButton, "Skip", 'S'),
+        DialogButton.Action(RenameButton, "Rename", 'R'),
+        DialogButton.Cancel("Cancel", 'C'),
+    ];
 
-        buttons.Add(DialogButton.Cancel("Cancel", 'C', CancelButton));
-        return buttons;
-    }
+    private static string BuildInfo(long? size, DateTime? lastWriteTime) =>
+        $"{FormatSize(size)} {FormatDate(lastWriteTime)}".TrimEnd();
 
-    private static string BuildInfoLine(string label, long? size, DateTime? lastWriteTime, int width)
-    {
-        string right = $"{FormatSize(size)} {FormatDate(lastWriteTime)}".TrimEnd();
-        int rightWidth = Math.Max(0, width - label.Length);
-        return label + ShortenLeft(right, rightWidth).PadLeft(rightWidth);
-    }
-
-    private static string FormatSize(long? size) =>
-        size is null
-            ? "n/a"
-            : size.Value.ToString("N0", CultureInfo.InvariantCulture).Replace(',', ' ');
-
-    private static string FormatDate(DateTime? time) =>
-        time is null ? string.Empty : time.Value.ToString("dd.MM.yyyy HH:mm", CultureInfo.InvariantCulture);
-
-    private static string Center(string text, int width)
-    {
-        if (text.Length >= width)
-            return text[..width];
-
-        int left = (width - text.Length) / 2;
-        return new string(' ', left) + text + new string(' ', width - left - text.Length);
-    }
-
-    private static string ShortenMiddle(string value, int maxLength)
-    {
-        if (maxLength <= 0)
-            return string.Empty;
-        if (value.Length <= maxLength)
-            return value;
-        if (maxLength <= 1)
-            return "…";
-
-        int left = (maxLength - 1) / 2;
-        int right = maxLength - left - 1;
-        return value[..left] + "…" + value[^right..];
-    }
-
-    private static string ShortenLeft(string value, int maxLength)
-    {
-        if (maxLength <= 0)
-            return string.Empty;
-        return value.Length <= maxLength ? value : "…" + value[^Math.Max(0, maxLength - 1)..];
-    }
-
-    private static void DrawSeparator(IUiCanvas screen, Rect frameBounds, int y)
-    {
-        screen.WriteChar(frameBounds.X, y, '╟', WarningDialogStyles.Border);
-        screen.Write(frameBounds.X + 1, y, new string('─', Math.Max(0, frameBounds.Width - 2)), WarningDialogStyles.Border);
-        screen.WriteChar(frameBounds.Right - 1, y, '╢', WarningDialogStyles.Border);
-    }
+    private static string FormatSize(long? size) => size is null ? "n/a" : size.Value.ToString("N0", CultureInfo.InvariantCulture).Replace(',', ' ');
+    private static string FormatDate(DateTime? time) => time is null ? string.Empty : time.Value.ToString("dd.MM.yyyy HH:mm", CultureInfo.InvariantCulture);
 }

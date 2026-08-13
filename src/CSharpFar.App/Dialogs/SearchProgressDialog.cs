@@ -23,16 +23,19 @@ internal sealed class SearchProgressDialog
     private const string StopButton = "stop";
 
     private readonly ModalDialogHost _modalDialogs;
+    private readonly DialogService _dialogs;
     private readonly ISearchService _searchService;
     private readonly ModalDialogRenderer _modalRenderer = new();
 
     public SearchProgressDialog(
         ModalDialogHost modalDialogs,
         ISearchService searchService,
+        DialogService dialogs,
         ConsolePalette? palette = null)
     {
         _modalDialogs = modalDialogs;
         _searchService = searchService;
+        _dialogs = dialogs;
     }
 
     public SearchRunResult Show(SearchRequest request)
@@ -231,7 +234,7 @@ internal sealed class SearchProgressDialog
     }
 
     private bool ConfirmStopSearch() =>
-        new OperationCancelDialog(_modalDialogs).Show(
+        new OperationCancelDialog(_dialogs).Show(
             "Search has been interrupted",
             "Do you really want to stop it?");
 

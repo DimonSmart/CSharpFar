@@ -13,11 +13,14 @@ public enum FormControlTone
     Warning,
 }
 
+/// <summary>Semantic horizontal alignment for non-interactive dialog text.</summary>
+public enum TextAlignment { Left, Center, Right }
+
 /// <summary>Canonical application-level factories for standard form controls.</summary>
 public static class FormControls
 {
     /// <summary>Creates a non-interactive line of ordinary dialog text.</summary>
-    public static FormRow Label(string text) => new LabelRow(text);
+    public static FormRow Label(string text, TextAlignment alignment = TextAlignment.Left) => new LabelRow(text, alignment);
 
     /// <summary>Creates a standard dialog separator.</summary>
     public static FormRow Separator() => new SeparatorRow(FarDialogStyles.Border);

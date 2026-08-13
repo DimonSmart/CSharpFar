@@ -102,7 +102,8 @@ public sealed class Spec012SearchProgressDialogTests
         var driver = new FakeConsoleDriver(width: 100, height: 30);
         var screen = new ScreenRenderer(driver);
 
-        var result = new SearchProgressDialog(ModalTestHost.Create(screen), new EmptySearchService())
+        var modals = ModalTestHost.Create(screen);
+        var result = new SearchProgressDialog(modals, new EmptySearchService(), new DialogService(modals, new FormFieldFactory(TextFieldHistoryTestProvider.Create())))
             .Show(Request(@"C:\root", "*.txt"));
 
         Assert.False(result.Cancelled);

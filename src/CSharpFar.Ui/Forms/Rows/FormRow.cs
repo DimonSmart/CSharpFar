@@ -30,20 +30,27 @@ public sealed class LabelRow : FormRow
 {
     private readonly string _text;
     private readonly CellStyle _style;
+    private readonly TextAlignment _alignment;
 
-    internal LabelRow(string text) : this(text, FarDialogStyles.Fill) { }
+    internal LabelRow(string text, TextAlignment alignment = TextAlignment.Left) : this(text, FarDialogStyles.Fill, alignment) { }
 
-    internal LabelRow(string text, CellStyle style)
+    internal LabelRow(string text, CellStyle style, TextAlignment alignment = TextAlignment.Left)
     {
         _text = text;
         _style = style;
+        _alignment = alignment;
     }
 
     internal override bool IsFocusable => false;
     internal override int DesiredWidth => ConsoleTextMetrics.GetCellWidth(_text);
 
-    internal override void Render(FormRowRenderContext context) =>
-        context.Canvas.Write(context.Bounds.X, context.Bounds.Y, ScrollableFormDialog.Fit(_text, context.Bounds.Width), _style);
+    internal override void Render(FormRowRenderContext context)
+    {
+        string text = ScrollableFormDialog.Fit(_text, context.Bounds.Width);
+        int padding = Math.Max(0, context.Bounds.Width - ConsoleTextMetrics.GetCellWidth(text));
+        int left = _alignment switch { TextAlignment.Center => padding / 2, TextAlignment.Right => padding, _ => 0 };
+        context.Canvas.Write(context.Bounds.X, context.Bounds.Y, new string(' ', left) + text, _style);
+    }
 }
 
 public sealed class SeparatorRow : FormRow

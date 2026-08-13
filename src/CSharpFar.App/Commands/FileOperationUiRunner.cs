@@ -38,8 +38,8 @@ internal sealed class FileOperationUiRunner
 
     public FileOperationResult Execute(FileOperationRequest request)
     {
-        var conflictDialog = new ConflictDialog(_modalDialogs, _dialogs, _fields, _palette());
-        var cancelDialog = new OperationCancelDialog(_modalDialogs);
+        var conflictDialog = new ConflictDialog(_dialogs);
+        var cancelDialog = new OperationCancelDialog(_dialogs);
         using var cts = new CancellationTokenSource();
         var resolver = new DialogConflictResolver(conflictDialog);
         var pauseController = new FileOperationPauseController();

@@ -83,7 +83,8 @@ public sealed class UnifiedWindowScrollbarTests
         var driver = new FakeConsoleDriver(width: 100, height: 30);
         var screen = new ScreenRenderer(driver);
 
-        _ = new SearchProgressDialog(ModalTestHost.Create(screen), new ManyResultsSearchService())
+        var modals = ModalTestHost.Create(screen);
+        _ = new SearchProgressDialog(modals, new ManyResultsSearchService(), new DialogService(modals, new FormFieldFactory(TextFieldHistoryTestProvider.Create())))
             .Show(new SearchRequest
             {
                 RootPath = @"C:\root",
