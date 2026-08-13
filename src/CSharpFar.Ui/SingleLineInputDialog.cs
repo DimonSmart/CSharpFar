@@ -36,6 +36,7 @@ internal sealed class SingleLineInputDialog
             options.History,
             options.MaskInput,
             SubmitOnEnter: true));
+        var actions = FormControls.OkCancel();
 
         return _forms.Show(
             new FormDialogOptions(
@@ -53,7 +54,7 @@ internal sealed class SingleLineInputDialog
                 FormControls.Text(field),
                 FormControls.Spacer(),
             ],
-            footer: () => [FormControls.OkCancel()],
+            footer: () => [actions],
             submit: () =>
             {
                 string text = field.TrimmedText;
