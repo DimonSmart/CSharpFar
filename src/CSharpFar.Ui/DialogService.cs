@@ -107,4 +107,17 @@ public sealed class DialogService
         Action? prepareRender = null,
         CancellationToken cancellationToken = default) =>
         new CompositeDialogHost(_modalDialogs).Run(options, form, content, status, commands, handle, prepareRender, cancellationToken);
+
+    public TResult Operation<TBackground, TResult>(
+        OperationDialogOptions options,
+        Func<CancellationToken, Task<TBackground>> operation,
+        ScrollableFormDialog form,
+        ICompositeDialogContent content,
+        Func<string?>? status,
+        IReadOnlyDictionary<ConsoleKey, string>? commands,
+        Func<bool>? synchronize,
+        Func<CompositeDialogEvent, OperationDialogOutcome<TResult>> handle,
+        Func<TBackground, TResult> complete,
+        CancellationToken cancellationToken = default) =>
+        new OperationDialogHost(_modalDialogs).Run(options, operation, form, content, status, commands, synchronize, handle, complete, cancellationToken);
 }

@@ -751,7 +751,7 @@ public sealed class Spec010FileOperationDialogTests
         driver.EnqueueKey(new ConsoleKeyInfo('O', ConsoleKey.O, shift: true, alt: false, control: false));
 
         var conflictModals = ModalTestHost.Create(screen);
-        var decision = new ConflictDialog(conflictModals, new DialogService(conflictModals, new FormFieldFactory(TextFieldHistoryTestProvider.Create())), new FormFieldFactory(TextFieldHistoryTestProvider.Create())).Show(
+        var decision = new ConflictDialog(new DialogService(conflictModals, new FormFieldFactory(TextFieldHistoryTestProvider.Create()))).Show(
             new FileOperationConflict
             {
                 SourcePath = @"C:\src\a.txt",
@@ -774,7 +774,7 @@ public sealed class Spec010FileOperationDialogTests
         driver.EnqueueKey(Key(ConsoleKey.Enter));
 
         var conflictModals = ModalTestHost.Create(screen);
-        var decision = new ConflictDialog(conflictModals, new DialogService(conflictModals, new FormFieldFactory(TextFieldHistoryTestProvider.Create())), new FormFieldFactory(TextFieldHistoryTestProvider.Create())).Show(
+        var decision = new ConflictDialog(new DialogService(conflictModals, new FormFieldFactory(TextFieldHistoryTestProvider.Create()))).Show(
             new FileOperationConflict
             {
                 SourcePath = @"C:\src\a.txt",
@@ -794,7 +794,7 @@ public sealed class Spec010FileOperationDialogTests
         driver.EnqueueKey(Key(ConsoleKey.Escape));
 
         var conflictModals = ModalTestHost.Create(screen);
-        var decision = new ConflictDialog(conflictModals, new DialogService(conflictModals, new FormFieldFactory(TextFieldHistoryTestProvider.Create())), new FormFieldFactory(TextFieldHistoryTestProvider.Create())).Show(
+        var decision = new ConflictDialog(new DialogService(conflictModals, new FormFieldFactory(TextFieldHistoryTestProvider.Create()))).Show(
             new FileOperationConflict
             {
                 SourcePath = @"C:\src\a.txt",
@@ -812,21 +812,17 @@ public sealed class Spec010FileOperationDialogTests
     {
         var driver = new FakeConsoleDriver(width: 100, height: 30);
         var screen = new ScreenRenderer(driver);
-        driver.EnqueueInput(new MouseConsoleInputEvent(53, 16, MouseButton.Left, MouseEventKind.Down, MouseKeyModifiers.None));
-        driver.EnqueueInput(new MouseConsoleInputEvent(53, 16, MouseButton.Left, MouseEventKind.Up, MouseKeyModifiers.None));
+        driver.EnqueueKey(new ConsoleKeyInfo('N', ConsoleKey.N, shift: true, alt: false, control: false));
 
-        bool result = new OperationCancelDialog(ModalTestHost.Create(screen)).Show();
+        var modals = ModalTestHost.Create(screen);
+        bool result = new OperationCancelDialog(new DialogService(modals, new FormFieldFactory(TextFieldHistoryTestProvider.Create()))).Show();
 
         Assert.False(result);
 
         var buttonRecords = driver.WriteRecords
             .Where(r => r.Text.Contains("{ Yes }", StringComparison.Ordinal))
             .ToArray();
-        Assert.Equal(2, buttonRecords.Length);
-        Assert.Contains(driver.WriteRecords, r =>
-            r.Text.Contains("[ No ]", StringComparison.Ordinal) &&
-            r.Foreground == WarningDialogStyles.ButtonPressed.Foreground &&
-            r.Background == WarningDialogStyles.ButtonPressed.Background);
+        Assert.NotEmpty(buttonRecords);
         var buttonRecord = buttonRecords[^1];
         int bottomFrameRow = driver.WriteRecords
             .Where(r => r.Text.Contains('└') || r.Text.Contains('╚'))

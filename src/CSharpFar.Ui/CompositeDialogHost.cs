@@ -77,6 +77,36 @@ public sealed class CompositeDialogHost
             cancellationToken);
     }
 
+    internal TResult RunTimed<TResult>(
+        CompositeDialogOptions options,
+        ScrollableFormDialog form,
+        ICompositeDialogContent content,
+        Func<string?>? status,
+        IReadOnlyDictionary<ConsoleKey, string>? commands,
+        Func<CompositeDialogEvent, ModalDialogLoopResult<TResult>> handle,
+        Func<DateTimeOffset?> getNextWakeUtc,
+        Func<ModalDialogWakeResult<TResult>> handleWake,
+        Action? prepareRender = null,
+        CancellationToken cancellationToken = default,
+        CancellationToken wakeSignal = default)
+    {
+        ArgumentNullException.ThrowIfNull(handle);
+        ArgumentNullException.ThrowIfNull(getNextWakeUtc);
+        ArgumentNullException.ThrowIfNull(handleWake);
+
+        return _modalDialogs.RunInteractiveTimed<Frame, CompositeDialogEvent, TResult>(
+            (context, focus) => Render(context, focus, options, form, content, status),
+            frame => BuildInteractionFrame(frame, form, content),
+            (input, frame, route) => Route(input, frame, route, form, content, commands),
+            (_, semantic) => handle(semantic),
+            getNextWakeUtc,
+            _ => handleWake(),
+            prepareRender,
+            frame => content.ApplyCommittedFrame(frame.Content),
+            cancellationToken,
+            wakeSignal);
+    }
+
     private Frame Render(UiRenderContext context, IUiFocusState focus, CompositeDialogOptions options, ScrollableFormDialog form, ICompositeDialogContent content, Func<string?>? status)
     {
         ModalDialogRenderer.Layout modal = _renderer.CalculateLayout(context.Size, options.PreferredWidth, options.PreferredHeight, options.MinWidth, options.MinHeight);

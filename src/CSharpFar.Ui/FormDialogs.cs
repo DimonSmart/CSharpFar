@@ -5,6 +5,7 @@ public enum FormDialogAppearance
 {
     Standard,
     Popup,
+    Warning,
 }
 
 /// <summary>Semantic window options for an ordinary modal form.</summary>
@@ -22,6 +23,9 @@ public sealed record FormDialogOptions(
     public bool DoubleBorder { get; init; } = true;
 
     public FormDialogAppearance Appearance { get; init; } = FormDialogAppearance.Standard;
+
+    /// <summary>Optional semantic control that receives initial form focus.</summary>
+    public IFormFocusTarget? InitialFocus { get; init; }
 
     /// <summary>Gets the theme to use while this form is displayed.</summary>
     public Func<ConsolePalette>? Theme { get; init; }
@@ -121,12 +125,18 @@ internal sealed class FormDialogs
 
         var form = new ScrollableFormDialog(options.Layout.Validate());
         IReadOnlyList<FormRow> currentFooter = [];
+        bool initialFocusApplied = false;
 
         void RefreshRows()
         {
             IReadOnlyList<FormRow> body = rows() ?? throw new InvalidOperationException("Form rows cannot be null.");
             currentFooter = footer?.Invoke() ?? [];
             form.SetRows(body, currentFooter);
+            if (!initialFocusApplied && options.InitialFocus is not null)
+            {
+                form.SetInitialFocus(options.InitialFocus);
+                initialFocusApplied = true;
+            }
         }
 
         return _host.Run(
@@ -262,9 +272,12 @@ internal sealed class FormDialogs
 
     private static ModalFormOptions CreateModalOptions(FormDialogOptions options)
     {
-        PopupRenderOptions? popup = options.Appearance == FormDialogAppearance.Popup
-            ? PaletteStyles.DialogPopupOptions(UiTheme.Current)
-            : null;
+        PopupRenderOptions? popup = options.Appearance switch
+        {
+            FormDialogAppearance.Popup => PaletteStyles.DialogPopupOptions(UiTheme.Current),
+            FormDialogAppearance.Warning => WarningDialogStyles.OuterOptions,
+            _ => null,
+        };
         return new ModalFormOptions(
             options.Title,
             options.PreferredWidth,
