@@ -1,4 +1,6 @@
+using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
+using System.Runtime.InteropServices;
 using CSharpFar.Console.Input;
 using CSharpFar.Console.Models;
 using CSharpFar.Ui;
@@ -27,6 +29,12 @@ public sealed class ScreenRenderer
     private bool _hasPendingCursorPosition;
     private bool? _pendingCursorVisible;
     private readonly Queue<ConsoleInputEvent> _pendingInputEvents = new();
+    private readonly ScreenPresentationMode _presentationMode;
+    private ConsoleOutputCell[] _presentationBuffer = [];
+    private int _presentationBufferCount;
+    private readonly List<ConsoleOutputRun> _presentationRuns = [];
+
+    internal FramePresentationMetrics PresentationMetrics { get; } = new();
 
     /// <summary>
     /// True if the last frame's flush was aborted mid-way because the console
@@ -35,8 +43,15 @@ public sealed class ScreenRenderer
     public bool FrameWasInterrupted { get; private set; }
 
     public ScreenRenderer(IConsoleDriver driver)
+        : this(driver, ReadPresentationMode())
+    {
+    }
+
+    internal ScreenRenderer(IConsoleDriver driver, ScreenPresentationMode presentationMode)
     {
         _driver = driver;
+        _presentationMode = presentationMode;
+
     }
 
     public ConsoleViewport GetViewport() => _driver.GetViewport();
@@ -458,7 +473,9 @@ public sealed class ScreenRenderer
         if (!_frameActive)
             return;
 
-        FlushFrame();
+        long allocatedBefore = GC.GetAllocatedBytesForCurrentThread();
+        var frameStopwatch = Stopwatch.StartNew();
+        var present = FlushFrame();
 
         if (!FrameWasInterrupted &&
             (_hasPendingCursorPosition || _pendingCursorVisible.HasValue))
@@ -473,28 +490,228 @@ public sealed class ScreenRenderer
         }
 
         _frameActive = false;
+        frameStopwatch.Stop();
+        PresentationMetrics.Add(present with
+        {
+            FrameTime = frameStopwatch.Elapsed,
+            AllocatedBytes = GC.GetAllocatedBytesForCurrentThread() - allocatedBefore,
+        });
     }
 
-    private void FlushFrame()
+    private FramePresentationMeasurement FlushFrame()
     {
+        var presentStopwatch = Stopwatch.StartNew();
+        int dirtyCells = 0;
+        int dirtyRows = 0;
+        int outputCalls = 0;
+        int viewportQueryCalls = 0;
+        int transmittedCells = 0;
+        int transmittedCharacters = 0;
+        int transmittedBytes = 0;
+
+        FramePresentationMeasurement Complete()
+        {
+            presentStopwatch.Stop();
+            return new FramePresentationMeasurement(
+                FrameTime: default,
+                PresentTime: presentStopwatch.Elapsed,
+                DirtyCells: dirtyCells,
+                DirtyRows: dirtyRows,
+                OutputCalls: outputCalls,
+                ViewportQueryCalls: viewportQueryCalls,
+                TransmittedCells: transmittedCells,
+                TransmittedCharacters: transmittedCharacters,
+                TransmittedBytes: transmittedBytes,
+                AllocatedBytes: 0);
+        }
+
         if (_frontBuffer is null || _backBuffer is null)
-            return;
+            return Complete();
 
         bool forceFull = !_frontBufferKnown || _forceFullFrame;
         int height = _bufferSize.Height;
         int width = _bufferSize.Width;
 
-        for (int y = 0; y < height; y++)
+        if (_presentationMode != ScreenPresentationMode.Current &&
+            !ViewportMatchesFrame(ref viewportQueryCalls))
         {
-            var currentViewport = _driver.GetViewport();
-            if (currentViewport != _frameViewport)
+            InterruptFrame();
+            return Complete();
+        }
+
+        CountDirtyCells(forceFull, ref dirtyCells, ref dirtyRows);
+        if (dirtyCells == 0)
+            return Complete();
+
+        if (CanWriteBatch(ConsoleFrameWriteCapabilities.WindowsCells) &&
+            _presentationMode == ScreenPresentationMode.Win32FrameBatch)
+        {
+            FillPresentationBuffer(0, 0, width, height);
+            if (!WriteCells(0, 0, width, height))
             {
                 InterruptFrame();
-                return;
+                return Complete();
             }
 
+            outputCalls++;
+            transmittedCells += width * height;
+            transmittedCharacters += width * height;
+            transmittedBytes += PresentationBytes(width * height);
+        }
+        else
+        {
+            for (int y = 0; y < height; y++)
+            {
+                if (_presentationMode == ScreenPresentationMode.Current &&
+                    !ViewportMatchesFrame(ref viewportQueryCalls))
+                {
+                    InterruptFrame();
+                    return Complete();
+                }
+
+                bool dirtyRow = RowIsDirty(y, forceFull);
+                if (!dirtyRow)
+                    continue;
+
+                if (CanWriteBatch(ConsoleFrameWriteCapabilities.WindowsCells) &&
+                    _presentationMode == ScreenPresentationMode.Win32RowBatch)
+                {
+                    FillPresentationBuffer(0, y, width, 1);
+                    if (!WriteCells(0, y, width, 1))
+                    {
+                        InterruptFrame();
+                        return Complete();
+                    }
+
+                    outputCalls++;
+                    transmittedCells += width;
+                    transmittedCharacters += width;
+                    transmittedBytes += PresentationBytes(width);
+                    continue;
+                }
+
+                if (CanWriteBatch(ConsoleFrameWriteCapabilities.VirtualTerminalCells) &&
+                    _presentationMode == ScreenPresentationMode.VtBatch)
+                {
+                    continue;
+                }
+
+                int x = 0;
+                while (x < width)
+                {
+                    if (!IsDirty(y, x, forceFull))
+                    {
+                        x++;
+                        continue;
+                    }
+
+                    int start = x;
+                    var first = _backBuffer[y, x];
+                    x++;
+
+                    while (x < width &&
+                           IsDirty(y, x, forceFull) &&
+                           SameStyle(first, _backBuffer[y, x]))
+                    {
+                        x++;
+                    }
+
+                    int end = x;
+                    while (start > 0 && _backBuffer[y, start].IsContinuation)
+                        start--;
+
+                    var chars = new System.Text.StringBuilder();
+                    for (int i = start; i < end; i++)
+                        if (!_backBuffer[y, i].IsContinuation)
+                            chars.Append(_backBuffer[y, i].Text);
+
+                    string text = chars.ToString();
+                    if (!_driver.TryWriteAtViewport(_frameViewport, start, y, text, first.Foreground, first.Background, first.Attributes))
+                    {
+                        InterruptFrame();
+                        return Complete();
+                    }
+
+                    outputCalls++;
+                    transmittedCharacters += chars.Length;
+                    transmittedCells += end - start;
+                    transmittedBytes += System.Text.Encoding.UTF8.GetByteCount(text);
+                }
+            }
+
+            if (CanWriteBatch(ConsoleFrameWriteCapabilities.VirtualTerminalCells) &&
+                _presentationMode == ScreenPresentationMode.VtBatch)
+            {
+                BuildDirtyPresentationRuns(forceFull);
+                if (!((IConsoleFrameWriter)_driver).TryWriteDirtyCellsAtViewport(
+                    _frameViewport, CollectionsMarshal.AsSpan(_presentationRuns), _presentationBuffer.AsSpan(0, _presentationBufferCount)))
+                {
+                    InterruptFrame();
+                    return Complete();
+                }
+
+                outputCalls++;
+                transmittedCells += _presentationBufferCount;
+                transmittedCharacters += _presentationBufferCount;
+                transmittedBytes += PresentationBytes(_presentationBufferCount);
+            }
+        }
+
+        if (!ViewportMatchesFrame(ref viewportQueryCalls))
+        {
+            InterruptFrame();
+            return Complete();
+        }
+
+        Array.Copy(_backBuffer, _frontBuffer, _backBuffer.Length);
+        _frontBufferKnown = true;
+        _frontBufferViewport = _frameViewport;
+        _forceFullFrame = false;
+        return Complete();
+    }
+
+    private bool CanWriteBatch(ConsoleFrameWriteCapabilities capability) =>
+        _driver is IConsoleFrameWriter { Capabilities: var capabilities } &&
+        (capabilities & capability) != 0;
+
+    private bool ViewportMatchesFrame(ref int viewportQueryCalls)
+    {
+        viewportQueryCalls++;
+        return _driver.GetViewport() == _frameViewport;
+    }
+
+    private bool WriteCells(int x, int y, int width, int height) =>
+        ((IConsoleFrameWriter)_driver).TryWriteCellsAtViewport(
+            _frameViewport, x, y, width, height, _presentationBuffer.AsSpan(0, width * height));
+
+    private void FillPresentationBuffer(int x, int y, int width, int height)
+    {
+        int count = width * height;
+        if (_presentationBuffer.Length < count)
+            _presentationBuffer = new ConsoleOutputCell[count];
+
+        for (int row = 0; row < height; row++)
+        {
+            for (int column = 0; column < width; column++)
+            {
+                var cell = _backBuffer![y + row, x + column];
+                char character = cell.IsContinuation
+                    ? ContinuationCharacter(x + column, y + row)
+                    : cell.Text[0];
+                _presentationBuffer[row * width + column] = new ConsoleOutputCell(
+                    character, cell.Foreground, cell.Background, cell.Attributes);
+            }
+        }
+    }
+
+    private void BuildDirtyPresentationRuns(bool forceFull)
+    {
+        _presentationRuns.Clear();
+        int cellCount = 0;
+        for (int y = 0; y < _bufferSize.Height; y++)
+        {
             int x = 0;
-            while (x < width)
+            while (x < _bufferSize.Width)
             {
                 if (!IsDirty(y, x, forceFull))
                 {
@@ -503,43 +720,123 @@ public sealed class ScreenRenderer
                 }
 
                 int start = x;
-                var first = _backBuffer[y, x];
-                x++;
-
-                while (x < width &&
-                       IsDirty(y, x, forceFull) &&
-                       SameStyle(first, _backBuffer[y, x]))
-                {
+                while (x < _bufferSize.Width && IsDirty(y, x, forceFull))
                     x++;
-                }
 
-                int len = x - start;
-                while (start > 0 && _backBuffer[y, start].IsContinuation)
+                if (start > 0 && _backBuffer![y, start].IsContinuation)
                     start--;
 
-                var chars = new System.Text.StringBuilder();
-                for (int i = start; i < x; i++)
-                    if (!_backBuffer[y, i].IsContinuation)
-                        chars.Append(_backBuffer[y, i].Text);
-
-                if (!_driver.TryWriteAtViewport(_frameViewport, start, y, chars.ToString(), first.Foreground, first.Background, first.Attributes))
-                {
-                    InterruptFrame();
-                    return;
-                }
+                int length = x - start;
+                cellCount += length;
             }
         }
 
-        if (_driver.GetViewport() != _frameViewport)
+        if (_presentationBuffer.Length < cellCount)
+            _presentationBuffer = new ConsoleOutputCell[cellCount];
+
+        _presentationBufferCount = cellCount;
+
+        int offset = 0;
+        for (int y = 0; y < _bufferSize.Height; y++)
         {
-            InterruptFrame();
-            return;
+            int x = 0;
+            while (x < _bufferSize.Width)
+            {
+                if (!IsDirty(y, x, forceFull))
+                {
+                    x++;
+                    continue;
+                }
+
+                int start = x;
+                while (x < _bufferSize.Width && IsDirty(y, x, forceFull))
+                    x++;
+
+                if (start > 0 && _backBuffer![y, start].IsContinuation)
+                    start--;
+
+                int length = x - start;
+                _presentationRuns.Add(new ConsoleOutputRun(start, y, offset, length));
+                for (int column = 0; column < length; column++)
+                {
+                    var cell = _backBuffer![y, start + column];
+                    char character = cell.IsContinuation
+                        ? ContinuationCharacter(start + column, y)
+                        : cell.Text[0];
+                    _presentationBuffer[offset + column] = new ConsoleOutputCell(
+                        character, cell.Foreground, cell.Background, cell.Attributes);
+                }
+
+                offset += length;
+            }
         }
 
-        Array.Copy(_backBuffer, _frontBuffer, _backBuffer.Length);
-        _frontBufferKnown = true;
-        _frontBufferViewport = _frameViewport;
-        _forceFullFrame = false;
+    }
+
+    private char ContinuationCharacter(int x, int y)
+    {
+        var previous = _backBuffer![y, x - 1];
+        return previous.Text.Length > 1 ? previous.Text[1] : ' ';
+    }
+
+    private int PresentationBytes(int count)
+    {
+        int bytes = 0;
+        for (int i = 0; i < count; i++)
+            bytes += Utf8Length(_presentationBuffer[i].Character);
+        return bytes;
+    }
+
+    private static int Utf8Length(char character) => character switch
+    {
+        <= '\x7f' => 1,
+        <= '\x7ff' => 2,
+        _ => 3,
+    };
+
+    private void CountDirtyCells(bool forceFull, ref int dirtyCells, ref int dirtyRows)
+    {
+        for (int y = 0; y < _bufferSize.Height; y++)
+        {
+            bool rowDirty = false;
+            for (int x = 0; x < _bufferSize.Width; x++)
+            {
+                if (!IsDirty(y, x, forceFull))
+                    continue;
+
+                dirtyCells++;
+                rowDirty = true;
+            }
+
+            if (rowDirty)
+                dirtyRows++;
+        }
+    }
+
+    private bool RowIsDirty(int y, bool forceFull)
+    {
+        for (int x = 0; x < _bufferSize.Width; x++)
+            if (IsDirty(y, x, forceFull))
+                return true;
+
+        return false;
+    }
+
+    private static ScreenPresentationMode ReadPresentationMode() =>
+        ScreenPresentationMode.Win32FrameBatch;
+
+    private string FormatPresentationReport()
+    {
+        var report = PresentationMetrics.CreateReport();
+        return $"render-presentation mode={_presentationMode} frames={report.Frames} " +
+               $"present-p50={report.PresentP50.TotalMilliseconds:F3}ms " +
+               $"present-p95={report.PresentP95.TotalMilliseconds:F3}ms " +
+               $"present-p99={report.PresentP99.TotalMilliseconds:F3}ms " +
+               $"frame-p50={report.FrameP50.TotalMilliseconds:F3}ms " +
+               $"frame-p95={report.FrameP95.TotalMilliseconds:F3}ms " +
+               $"frame-p99={report.FrameP99.TotalMilliseconds:F3}ms " +
+               $"output-calls/frame={report.OutputCallsPerFrame:F2} " +
+               $"allocations/frame={report.AllocatedBytesPerFrame:F0}B";
     }
 
     private void InterruptFrame()

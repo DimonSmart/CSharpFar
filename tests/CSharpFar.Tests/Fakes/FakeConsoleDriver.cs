@@ -9,7 +9,7 @@ namespace CSharpFar.Tests.Fakes;
 /// In-memory console driver for unit tests.
 /// Maintains a character/color buffer that can be inspected after rendering.
 /// </summary>
-public sealed class FakeConsoleDriver : IConsoleDriver, IConsoleOutputModeDriver, ITerminalScreenMode
+public sealed class FakeConsoleDriver : IConsoleDriver, IConsoleFrameWriter, IConsoleOutputModeDriver, ITerminalScreenMode
 {
     public readonly record struct WriteRecord(
         int X,
@@ -39,6 +39,7 @@ public sealed class FakeConsoleDriver : IConsoleDriver, IConsoleOutputModeDriver
     public int SetCursorPositionCallCount { get; private set; }
     public int TrySetCursorPositionInViewportCallCount { get; private set; }
     public Action<FakeConsoleDriver>? BeforeTrySetCursorPositionInViewport { get; set; }
+    public Action<FakeConsoleDriver>? BeforeFrameWrite { get; set; }
     public int TryScrollViewportToBottomCallCount { get; private set; }
     public bool RenderingOutputMode { get; private set; }
     public bool ConsoleScrollbackEnabled { get; private set; } = true;
@@ -230,6 +231,85 @@ public sealed class FakeConsoleDriver : IConsoleDriver, IConsoleOutputModeDriver
             ResizeAfterWriteCount = null;
             ResizeAfterWrite?.Invoke(this);
         }
+        return true;
+    }
+
+    public bool TryWriteCellsAtViewport(
+        ConsoleViewport viewport,
+        int x,
+        int y,
+        int width,
+        int height,
+        ReadOnlySpan<ConsoleOutputCell> cells)
+    {
+        if (viewport != GetViewport() || width <= 0 || height <= 0 ||
+            x < 0 || y < 0 || x + width > viewport.Width || y + height > viewport.Height ||
+            cells.Length < width * height)
+        {
+            return false;
+        }
+
+        BeforeFrameWrite?.Invoke(this);
+        if (viewport != GetViewport())
+            return false;
+
+        WriteAtCallCount++;
+        _operationLog.Add("WriteCells");
+        for (int row = 0; row < height; row++)
+        {
+            for (int column = 0; column < width; column++)
+            {
+                var cell = cells[row * width + column];
+                _buffer[y + row, x + column] = new SnapshotCell
+                {
+                    Character = cell.Character,
+                    Foreground = cell.Foreground,
+                    Background = cell.Background,
+                    Attributes = cell.Attributes,
+                };
+            }
+        }
+
+        return true;
+    }
+
+    public ConsoleFrameWriteCapabilities Capabilities => ConsoleFrameWriteCapabilities.None;
+
+    public bool TryWriteDirtyCellsAtViewport(
+        ConsoleViewport viewport,
+        ReadOnlySpan<ConsoleOutputRun> runs,
+        ReadOnlySpan<ConsoleOutputCell> cells)
+    {
+        if (viewport != GetViewport())
+            return false;
+
+        BeforeFrameWrite?.Invoke(this);
+        if (viewport != GetViewport())
+            return false;
+
+        WriteAtCallCount++;
+        _operationLog.Add("WriteDirtyCells");
+        foreach (var run in runs)
+        {
+            if (run.X < 0 || run.Y < 0 || run.X + run.Length > viewport.Width || run.Y >= viewport.Height ||
+                run.Offset < 0 || run.Length < 0 || run.Offset + run.Length > cells.Length)
+            {
+                return false;
+            }
+
+            for (int i = 0; i < run.Length; i++)
+            {
+                var cell = cells[run.Offset + i];
+                _buffer[run.Y, run.X + i] = new SnapshotCell
+                {
+                    Character = cell.Character,
+                    Foreground = cell.Foreground,
+                    Background = cell.Background,
+                    Attributes = cell.Attributes,
+                };
+            }
+        }
+
         return true;
     }
 
