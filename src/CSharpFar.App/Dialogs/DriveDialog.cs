@@ -50,14 +50,13 @@ internal sealed class DriveDialog
     private VolumeSelectionItem? RunLoop(VolumeSelectionItem[] items, int initialCursor)
     {
         var table = new TableList<VolumeSelectionItem>(items, TableDefinition, initialCursor);
-        TableListPresentation presentation = TableListPresentation.Dialog(_palette);
         string? lastShortcut = null;
 
         return _modalDialogs.RunInteractive<DriveDialogFrame, ScrollableListInputResult, VolumeSelectionItem?>(
             (context, _) =>
             {
                 DriveDialogFrame frame = BuildFrame(context.Size, items, table);
-                RenderFrame(context, table, frame, presentation);
+                RenderFrame(context, table, frame);
                 return frame;
             },
             frame => table.BuildInteractionFrame(frame.Table),
@@ -152,7 +151,7 @@ internal sealed class DriveDialog
 
         if (matches.Count == 1)
         {
-            table.SetSelectedIndex(matches[0], visibleRows);
+            table.SetSelectedIndex(matches[0]);
             lastShortcut = shortcut;
 
             VolumeSelectionItem item = items[table.SelectedIndex];
@@ -163,7 +162,7 @@ internal sealed class DriveDialog
             ? table.SelectedIndex + 1
             : 0;
         int next = matches.FirstOrDefault(index => index >= startSearch, matches[0]);
-        table.SetSelectedIndex(next, visibleRows);
+        table.SetSelectedIndex(next);
         lastShortcut = shortcut;
         return null;
     }
@@ -203,7 +202,7 @@ internal sealed class DriveDialog
         return new DriveDialogLayout(tableBounds);
     }
 
-    private void RenderFrame(UiRenderContext context, TableList<VolumeSelectionItem> table, DriveDialogFrame frame, TableListPresentation presentation)
+    private void RenderFrame(UiRenderContext context, TableList<VolumeSelectionItem> table, DriveDialogFrame frame)
     {
         _modalRenderer.Render(context.Canvas, frame.Modal, "Change drive", true, DriveOuterOptions, DriveFrameOptions, (_, _) =>
         {
@@ -215,7 +214,7 @@ internal sealed class DriveDialog
                 context.Canvas.Write(hintX, frameBounds.Y + frameBounds.Height - 1, hint, PaletteStyles.DialogTitle(_palette));
             }
 
-            table.Render(context.Canvas, frame.Table, presentation);
+            table.Render(context.Canvas, frame.Table);
         });
     }
 
