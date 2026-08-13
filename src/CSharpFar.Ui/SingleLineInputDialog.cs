@@ -44,10 +44,7 @@ internal sealed class SingleLineInputDialog
                 PreferredWidth: DialogWidth,
                 PreferredHeight: DialogHeight,
                 MinWidth: 20,
-                MinHeight: 5)
-            {
-                DoubleBorder = false,
-            },
+                MinHeight: 5),
             rows: () =>
             [
                 FormControls.Label(options.Prompt),
