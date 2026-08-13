@@ -1,9 +1,6 @@
 using System.ComponentModel;
 using System.Net;
 using System.Net.NetworkInformation;
-using CSharpFar.Console;
-using CSharpFar.Console.Input;
-using CSharpFar.Console.Models;
 using CSharpFar.Core.Models;
 using CSharpFar.Module.Abstractions;
 using CSharpFar.Platform.Abstractions;
@@ -19,7 +16,6 @@ internal sealed class ProcessesAndPortsDialog(ModuleUiServices ui, IProcessesAnd
     private const int DialogWidth = 92;
     private readonly ModuleUiServices _ui = ui;
     private readonly IProcessesAndPortsPlatformService _platform = platform;
-    private readonly ModalDialogRenderer _renderer = new();
     private static readonly TableListDefinition<ProcessesAndPortsRow> TableDefinition = new()
     {
         Columns = [
@@ -50,89 +46,50 @@ internal sealed class ProcessesAndPortsDialog(ModuleUiServices ui, IProcessesAnd
         var list = new TableList<ProcessesAndPortsRow>([], TableDefinition, appearance: ListAppearance.Dialog);
         IReadOnlyList<ProcessesAndPortsRow> lastRows = [];
         ProcessNetworkEndpoint? SelectedEndpoint() => list.TryGetSelectedItem(out ProcessesAndPortsRow selected) ? selected.Endpoint : null;
+        void RefreshPresentation()
+        {
+            IReadOnlyList<ProcessesAndPortsRow> rows = Project(snapshot?.Endpoints ?? [], filter.Text, tcp.Value, udp.Value, other.Value);
+            if (!SameRows(rows, lastRows))
+            {
+                list.ReplaceItems(rows, row => row.Key);
+                lastRows = rows;
+            }
+            bool canTerminate = CanTerminate(SelectedEndpoint());
+            actions.SetButtons(actionButtons.Select(button => button with
+            {
+                IsEnabled = button.Id == "details" ? list.HasItems : button.Id == "terminate" ? canTerminate : button.IsEnabled,
+            }).ToArray());
+        }
 
-        _ui.ModalDialogs.RunInteractive<Frame, Input, object?>(
-            (context, focus) =>
+        _ui.Dialogs.Composite<ProcessesAndPortsRow, object?>(
+            new CompositeDialogOptions("Processes and Ports", DialogWidth, 24),
+            form,
+            list,
+            () => captureError ?? Status(lastRows, AllowedCount(snapshot?.Endpoints ?? [], tcp.Value, udp.Value, other.Value)),
+            new Dictionary<ConsoleKey, string>
             {
-                IReadOnlyList<ProcessesAndPortsRow> rows = Project(snapshot?.Endpoints ?? [], filter.Text, tcp.Value, udp.Value, other.Value);
-                if (!SameRows(rows, lastRows))
-                {
-                    list.ReplaceItems(rows, row => row.Key);
-                    lastRows = rows;
-                }
-                bool canTerminate = CanTerminate(SelectedEndpoint());
-                actions.SetButtons(actionButtons.Select(button => button with
-                {
-                    IsEnabled = button.Id == "details" ? list.HasItems : button.Id == "terminate" ? canTerminate : button.IsEnabled,
-                }).ToArray());
-                return Draw(context, focus, form, list, snapshot, captureError, rows, tcp.Value, udp.Value, other.Value);
+                [ConsoleKey.F5] = "refresh",
+                [ConsoleKey.Delete] = "terminate",
+                [ConsoleKey.F10] = "close",
             },
-            frame => new UiInteractionFrameBuilder()
-                .AddFragment(list.BuildInteractionFragment(frame.List, 1))
-                .AddFragment(form.BuildInteractionFragment(frame.Form))
-                .SetDefaultFocusTarget(frame.Form.DefaultTarget)
-                .Build(),
-            (input, frame, route) => Route(input, frame, route, form, list),
-            (routed, result) =>
+            semantic =>
             {
-                if (routed.Input is KeyConsoleInputEvent { Key.Key: ConsoleKey.Escape or ConsoleKey.F10 })
-                    return ModalDialogLoopResult<object?>.Complete(null);
-                if (result.Form.Kind == FormInputResultKind.Cancel)
-                    return ModalDialogLoopResult<object?>.Complete(null);
-                if (routed.Input is KeyConsoleInputEvent { Key.Key: ConsoleKey.F5 })
-                {
-                    snapshot = TryCapture(snapshot, out captureError);
-                    return ModalDialogLoopResult<object?>.ContinueChanged;
-                }
-                if (result.List.Kind == ScrollableListInputResultKind.Confirmed)
+                if (semantic.Kind == CompositeDialogEventKind.Cancelled)
+                    return CompositeDialogOutcome<object?>.Complete(null);
+                if (semantic.Kind == CompositeDialogEventKind.ContentConfirmed)
                 {
                     ShowSelectedDetails(snapshot, SelectedEndpoint());
-                    return ModalDialogLoopResult<object?>.ContinueNoChange;
+                    return CompositeDialogOutcome<object?>.ContinueNoChange;
                 }
-                string? action = result.Form.Command;
-                if (action is null) return ModalDialogLoopResult<object?>.ContinueNoChange;
-                if (action == "close") return ModalDialogLoopResult<object?>.Complete(null);
-                if (action == "refresh") { snapshot = TryCapture(snapshot, out captureError); return ModalDialogLoopResult<object?>.ContinueChanged; }
-                if (action == "details") { ShowSelectedDetails(snapshot, SelectedEndpoint()); return ModalDialogLoopResult<object?>.ContinueNoChange; }
+                string? action = semantic.Command;
+                if (action is null) return CompositeDialogOutcome<object?>.ContinueNoChange;
+                if (action == "close") return CompositeDialogOutcome<object?>.Complete(null);
+                if (action == "refresh") { snapshot = TryCapture(snapshot, out captureError); return CompositeDialogOutcome<object?>.ContinueChanged; }
+                if (action == "details") { ShowSelectedDetails(snapshot, SelectedEndpoint()); return CompositeDialogOutcome<object?>.ContinueNoChange; }
                 if (action == "terminate") Terminate(snapshot, SelectedEndpoint(), ref captureError, ref snapshot);
-                return ModalDialogLoopResult<object?>.ContinueChanged;
-            });
-    }
-
-    private static (Input Semantic, UiInputResult Ui) Route(ConsoleInputEvent input, Frame frame, UiInputRouteContext route, ScrollableFormDialog form, TableList<ProcessesAndPortsRow> list)
-    {
-        if (list.IsTargetRoute(route))
-        {
-            var listResult = list.RouteInput(input, frame.List, route);
-            if (listResult.Semantic.IsHandled)
-                return (new(input, FormInputResult.NotHandled, listResult.Semantic), listResult.UiResult);
-            if (input is KeyConsoleInputEvent { Key.Key: ConsoleKey.Delete } && list.HasItems)
-                return (new(input, new FormInputResult(FormInputResultKind.Submit, "terminate"), ScrollableListInputResult.Handled), UiInputResult.HandledResult);
-            if (UiFocusRouting.TryHandleTraversal(input, out UiInputResult traversal))
-                return (new(input, FormInputResult.NotHandled, listResult.Semantic), traversal);
-        }
-        FormRouteResult formResult = form.RouteInput(input, frame.Form, route, allowUnfocusedButtonHotkeys: true);
-        return (new(input, formResult.FormResult, ScrollableListInputResult.NotHandled), formResult.UiResult);
-    }
-
-    private Frame Draw(UiRenderContext context, IUiFocusState focus, ScrollableFormDialog form, TableList<ProcessesAndPortsRow> list, ProcessesAndPortsSnapshot? snapshot, string? captureError, IReadOnlyList<ProcessesAndPortsRow> rows, bool tcp, bool udp, bool other)
-    {
-        ModalDialogRenderer.Layout modal = _renderer.CalculateLayout(context.Size, DialogWidth, 24);
-        Rect content = modal.ContentBounds;
-        Rect formBody = new(content.X, content.Y, content.Width, Math.Min(4, content.Height));
-        Rect footer = new(content.X, Math.Max(content.Y, content.Bottom - 1), content.Width, content.Height > 4 ? 1 : 0);
-        Rect header = new(content.X, formBody.Bottom, content.Width, formBody.Bottom < footer.Y ? 1 : 0);
-        Rect status = new(content.X, Math.Max(header.Bottom, footer.Y - 1), content.Width, footer.Y - header.Bottom > 0 ? 1 : 0);
-        Rect listBounds = new(content.X, header.Bottom, content.Width, Math.Max(0, status.Y - header.Bottom));
-        TableListFrame listFrame = list.CalculateFrame(listBounds);
-        ScrollableFormFrame formFrame = null!;
-        _renderer.Render(context.Canvas, modal, "Processes and Ports", true, FarDialogStyles.OuterOptions, FarDialogStyles.FrameOptions, (_, _) =>
-        {
-            formFrame = form.Render(new FormRenderContext(context, formBody, FarDialogStyles.Border, footer), focus, [], null);
-            list.Render(context.Canvas, listFrame);
-            if (status.Height > 0) context.Canvas.Write(status.X, status.Y, ConsoleTextMetrics.FitToCells(captureError ?? Status(rows, AllowedCount(snapshot?.Endpoints ?? [], tcp, udp, other)), status.Width), FarDialogStyles.Fill);
-        });
-        return new(modal, listBounds, listFrame, formFrame);
+                return CompositeDialogOutcome<object?>.ContinueChanged;
+            },
+            prepareRender: RefreshPresentation);
     }
 
     private ProcessesAndPortsSnapshot? TryCapture(ProcessesAndPortsSnapshot? previous, out string? error)
@@ -184,6 +141,4 @@ internal sealed class ProcessesAndPortsDialog(ModuleUiServices ui, IProcessesAnd
     private static string DisplayName(ProcessSnapshot process) => process.Name ?? MetadataText(process.MetadataStatus);
     private static string MetadataText(ProcessMetadataStatus status) => status switch { ProcessMetadataStatus.AccessDenied => "<access denied>", ProcessMetadataStatus.Exited => "<process exited>", _ => "<unavailable>" };
     private static bool SameRows(IReadOnlyList<ProcessesAndPortsRow> left, IReadOnlyList<ProcessesAndPortsRow> right) => left.Count == right.Count && left.Zip(right).All(x => x.First.Key.Equals(x.Second.Key));
-    private readonly record struct Frame(ModalDialogRenderer.Layout Modal, Rect ListBounds, TableListFrame List, ScrollableFormFrame Form);
-    private readonly record struct Input(ConsoleInputEvent InputEvent, FormInputResult Form, ScrollableListInputResult List);
 }

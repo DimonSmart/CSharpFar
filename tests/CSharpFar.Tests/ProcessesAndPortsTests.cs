@@ -96,6 +96,29 @@ public sealed class ProcessesAndPortsTests
         Assert.Equal(1, platform.CaptureCount);
     }
 
+    [Fact]
+    public void Dialog_refreshes_through_composite_semantic_command()
+    {
+        var driver = new FakeConsoleDriver(100, 30);
+        driver.EnqueueKey(new ConsoleKeyInfo('\0', ConsoleKey.F5, false, false, false));
+        driver.EnqueueKey(new ConsoleKeyInfo('\0', ConsoleKey.Escape, false, false, false));
+        UiTestHost host = UiTestHost.Create(driver);
+        var ui = new ModuleUiServices
+        {
+            Screen = host.Screen,
+            ModalDialogs = host.ModalDialogs,
+            Palette = () => new ConsolePalette { Name = "Test" },
+            Fields = new FormFieldFactory(TextFieldHistoryTestProvider.Create()),
+            Dialogs = new DialogService(host.ModalDialogs, new FormFieldFactory(TextFieldHistoryTestProvider.Create())),
+        };
+        var endpoint = new ProcessNetworkEndpoint(NetworkTransportProtocol.Tcp, IPAddress.Loopback, 8080, null, null, TcpState.Listen, new ProcessSnapshot(42, "worker", null, DateTimeOffset.UtcNow));
+        var platform = new FakeProcessesAndPortsPlatformService([endpoint]);
+
+        new ProcessesAndPortsDialog(ui, platform).Show(null);
+
+        Assert.Equal(2, platform.CaptureCount);
+    }
+
     private static ProcessesAndPortsRow Row(string name, IPAddress localAddress)
     {
         var process = new ProcessSnapshot(4242, name, null, DateTimeOffset.UtcNow);

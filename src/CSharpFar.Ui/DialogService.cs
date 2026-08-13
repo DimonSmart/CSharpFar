@@ -96,4 +96,15 @@ public sealed class DialogService
         Func<FormSubmitResult<TResult>> submit,
         CancellationToken cancellationToken = default) =>
         new FormDialogs(_modalDialogs).Show(options, rows, footer: null, submit, cancellationToken);
+
+    public TResult Composite<T, TResult>(
+        CompositeDialogOptions options,
+        ScrollableFormDialog form,
+        TableList<T> content,
+        Func<string?>? status,
+        IReadOnlyDictionary<ConsoleKey, string>? commands,
+        Func<CompositeDialogEvent, CompositeDialogOutcome<TResult>> handle,
+        Action? prepareRender = null,
+        CancellationToken cancellationToken = default) =>
+        new CompositeDialogHost(_modalDialogs).Run(options, form, content, status, commands, handle, prepareRender, cancellationToken);
 }
