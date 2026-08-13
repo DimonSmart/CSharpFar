@@ -15,6 +15,9 @@ public sealed class SingleLineInputDialogOptions
 
 internal sealed class SingleLineInputDialog
 {
+    private const int DialogWidth = 52;
+    private const int DialogHeight = 7;
+
     private readonly FormDialogs _forms;
     private readonly FormFieldFactory _fields;
 
@@ -35,10 +38,14 @@ internal sealed class SingleLineInputDialog
             SubmitOnEnter: true));
 
         return _forms.Show(
-            new FormDialogOptions(options.Title, MinWidth: 20, MinHeight: 5)
+            new FormDialogOptions(
+                options.Title,
+                PreferredWidth: DialogWidth,
+                PreferredHeight: DialogHeight,
+                MinWidth: 20,
+                MinHeight: 5)
             {
                 DoubleBorder = false,
-                Appearance = FormDialogAppearance.Popup,
             },
             rows: () =>
             [
