@@ -1,4 +1,5 @@
 using CSharpFar.Console;
+using CSharpFar.Console.Input;
 using CSharpFar.Console.Models;
 using CSharpFar.Tests.Fakes;
 using CSharpFar.Ui;
@@ -10,17 +11,11 @@ public sealed class TableListTests
     [Fact]
     public void Render_UsesColumnsSeparatorsAlignmentUnicodeAndSelectionWithoutTrailingSeparator()
     {
-        var state = new ScrollableListState<Item>([new("表long", "42")], selectedIndex: 0);
-        var table = CreateTable(state);
+        var table = CreateTable([new("表long", "42")], selectedIndex: 0);
         var driver = new FakeConsoleDriver(20, 4);
-        var normal = new CellStyle(ConsoleColor.White, ConsoleColor.Black);
-        var selected = new CellStyle(ConsoleColor.Black, ConsoleColor.White);
-        var emphasized = new CellStyle(ConsoleColor.Yellow, ConsoleColor.Black);
-        var emphasizedSelected = new CellStyle(ConsoleColor.Yellow, ConsoleColor.White);
-        ScrollableListFrame frame = table.List.CalculateFrame(new Rect(0, 2, 20, 1), null);
+        TableListFrame frame = table.CalculateFrame(new Rect(0, 0, 20, 3));
 
-        UiTestRender.Render(new ScreenRenderer(driver), canvas => table.Render(
-            canvas, frame, new Rect(0, 0, 20, 2), normal, normal, normal, selected, emphasized, emphasizedSelected));
+        UiTestRender.Render(new ScreenRenderer(driver), canvas => table.Render(canvas, frame, CreatePresentation()));
 
         Assert.Equal("Name │ Size         ", driver.GetRow(0));
         Assert.Equal("─────┼─────         ", driver.GetRow(1));
@@ -33,15 +28,12 @@ public sealed class TableListTests
     [Fact]
     public void Render_NarrowViewportClipsAtColumnBoundaryAndWideViewportFillsWithoutTrailingSeparator()
     {
-        var table = CreateTable(new ScrollableListState<Item>([new("Alpha", "7")]));
+        var table = CreateTable([new("Alpha", "7")]);
         var narrow = new FakeConsoleDriver(6, 3);
         var wide = new FakeConsoleDriver(24, 3);
-        var style = new CellStyle(ConsoleColor.White, ConsoleColor.Black);
 
-        UiTestRender.Render(new ScreenRenderer(narrow), canvas => table.Render(
-            canvas, table.List.CalculateFrame(new Rect(0, 2, 6, 1), null), new Rect(0, 0, 6, 2), style, style, style, style, style, style));
-        UiTestRender.Render(new ScreenRenderer(wide), canvas => table.Render(
-            canvas, table.List.CalculateFrame(new Rect(0, 2, 24, 1), null), new Rect(0, 0, 24, 2), style, style, style, style, style, style));
+        UiTestRender.Render(new ScreenRenderer(narrow), canvas => table.Render(canvas, table.CalculateFrame(new Rect(0, 0, 6, 3)), CreatePresentation()));
+        UiTestRender.Render(new ScreenRenderer(wide), canvas => table.Render(canvas, table.CalculateFrame(new Rect(0, 0, 24, 3)), CreatePresentation()));
 
         Assert.Equal("Name │", narrow.GetRow(0));
         Assert.Equal("Name │ Size             ", wide.GetRow(0));
@@ -49,7 +41,69 @@ public sealed class TableListTests
         Assert.DoesNotContain('│', wide.GetRow(2).Skip(11));
     }
 
-    private static TableList<Item> CreateTable(ScrollableListState<Item> state) => new(
+    [Fact]
+    public void State_ExposesInitialAndSelectedItemAndHandlesKeyboardNavigation()
+    {
+        var table = CreateTable([new("One", "1"), new("Two", "2")], selectedIndex: 1);
+        TableListFrame frame = table.CalculateFrame(new Rect(0, 0, 20, 4));
+        UiInteractionFrame interaction = table.BuildInteractionFrame(frame);
+
+        Assert.True(table.HasItems);
+        Assert.Equal(2, table.Count);
+        Assert.Equal(1, table.SelectedIndex);
+        Assert.Equal("Two", table.SelectedItem!.Name);
+
+        var route = UiInputRouteContext.KeyboardTarget(new UiFocusController(), interaction.KeyboardTarget!);
+        (ScrollableListInputResult result, _) = table.RouteInput(
+            new KeyConsoleInputEvent(new ConsoleKeyInfo('\0', ConsoleKey.UpArrow, false, false, false)), frame, route);
+
+        Assert.Equal(ScrollableListInputResultKind.SelectionChanged, result.Kind);
+        Assert.Equal(0, table.SelectedIndex);
+        Assert.Equal("One", table.SelectedItem!.Name);
+    }
+
+    [Fact]
+    public void CalculateFrame_UsesSemanticBodyAndCreatesScrollbarForOverflow()
+    {
+        var table = CreateTable(Enumerable.Range(0, 5).Select(index => new Item($"Item {index}", index.ToString())).ToArray());
+
+        TableListFrame frame = table.CalculateFrame(new Rect(2, 3, 20, 5));
+
+        Assert.Equal(new Rect(2, 3, 20, 2), frame.HeaderBounds);
+        Assert.Equal(new Rect(2, 5, 20, 3), frame.BodyBounds);
+        Assert.Equal(3, frame.ViewportRows);
+        Assert.True(frame.HasScrollbar);
+    }
+
+    [Fact]
+    public void State_EmptyItemsHaveNoSelectionOrInteractionTarget()
+    {
+        var table = CreateTable([]);
+        TableListFrame frame = table.CalculateFrame(new Rect(0, 0, 20, 3));
+
+        Assert.False(table.HasItems);
+        Assert.Equal(-1, table.SelectedIndex);
+        Assert.Null(table.SelectedItem);
+        Assert.Empty(table.BuildInteractionFrame(frame).Focus.Entries);
+    }
+
+    private static TableListPresentation CreatePresentation()
+    {
+        var normal = new CellStyle(ConsoleColor.White, ConsoleColor.Black);
+        return new()
+        {
+            Header = normal,
+            Separator = normal,
+            Normal = normal,
+            Selected = new CellStyle(ConsoleColor.Black, ConsoleColor.White),
+            Emphasized = new CellStyle(ConsoleColor.Yellow, ConsoleColor.Black),
+            EmphasizedSelected = new CellStyle(ConsoleColor.Yellow, ConsoleColor.White),
+            Scrollbar = normal,
+        };
+    }
+
+    private static TableList<Item> CreateTable(IReadOnlyList<Item> items, int selectedIndex = 0) => new(
+        items,
         new TableListDefinition<Item>
         {
             Columns =
@@ -58,9 +112,7 @@ public sealed class TableListTests
                 TableColumn<Item>.Text("Size", item => item.Size, 4, TableColumnAlignment.Right, emphasized: true),
             ],
         },
-        state,
-        new UiTargetId("table"),
-        new UiTargetId("table.scrollbar"));
+        selectedIndex);
 
     private sealed record Item(string Name, string Size);
 }

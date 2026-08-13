@@ -49,21 +49,19 @@ internal sealed class DriveDialog
 
     private VolumeSelectionItem? RunLoop(VolumeSelectionItem[] items, int initialCursor)
     {
-        var targets = new UiTargetScope("drive");
-        var state = new ScrollableListState<VolumeSelectionItem>(items, initialCursor);
-        var table = new TableList<VolumeSelectionItem>(TableDefinition, state, targets.Child("volumes"), targets.Child("volumes.scrollbar"));
-        RoutedScrollableList<VolumeSelectionItem> routedList = table.List;
+        var table = new TableList<VolumeSelectionItem>(items, TableDefinition, initialCursor);
+        TableListPresentation presentation = TableListPresentation.Dialog(_palette);
         string? lastShortcut = null;
 
         return _modalDialogs.RunInteractive<DriveDialogFrame, ScrollableListInputResult, VolumeSelectionItem?>(
             (context, _) =>
             {
-                DriveDialogFrame frame = BuildFrame(context.Size, items, routedList);
-                RenderFrame(context, table, frame);
+                DriveDialogFrame frame = BuildFrame(context.Size, items, table);
+                RenderFrame(context, table, frame, presentation);
                 return frame;
             },
-            frame => BuildInteractionFrame(frame, routedList),
-            (input, frame, route) => RouteInput(input, frame, route, routedList),
+            frame => table.BuildInteractionFrame(frame.Table),
+            (input, frame, route) => RouteInput(input, frame, route, table),
             (routed, result) =>
             {
                 if (routed.Input is KeyConsoleInputEvent { Key: var key })
@@ -75,14 +73,14 @@ internal sealed class DriveDialog
                         key.KeyChar > ' ' &&
                         (key.Modifiers & (ConsoleModifiers.Control | ConsoleModifiers.Alt)) == 0)
                     {
-                        int selectedIndex = state.SelectedIndex;
-                        int scrollTop = state.ScrollTop;
+                        int selectedIndex = table.SelectedIndex;
+                        int scrollTop = routed.Frame.Table.ScrollTop;
                         string shortcut = key.KeyChar.ToString().ToUpperInvariant();
-                        VolumeSelectionItem? immediate = HandleShortcut(state, shortcut, routed.Frame.List.ViewportRows, ref lastShortcut);
+                        VolumeSelectionItem? immediate = HandleShortcut(items, table, shortcut, routed.Frame.Table.ViewportRows, ref lastShortcut);
                         if (immediate is not null)
                             return ModalDialogLoopResult<VolumeSelectionItem?>.Complete(immediate);
 
-                        return state.SelectedIndex != selectedIndex || state.ScrollTop != scrollTop
+                        return table.SelectedIndex != selectedIndex || table.CalculateFrame(routed.Frame.Table.Bounds).ScrollTop != scrollTop
                             ? ModalDialogLoopResult<VolumeSelectionItem?>.ContinueChanged
                             : ModalDialogLoopResult<VolumeSelectionItem?>.ContinueNoChange;
                     }
@@ -92,7 +90,7 @@ internal sealed class DriveDialog
                     lastShortcut = null;
 
                 if (result.Kind == ScrollableListInputResultKind.Confirmed &&
-                    state.TryGetSelectedItem(out VolumeSelectionItem selected))
+                    table.TryGetSelectedItem(out VolumeSelectionItem selected))
                 {
                     return TryCompleteSelection(selected);
                 }
@@ -105,7 +103,7 @@ internal sealed class DriveDialog
         ConsoleInputEvent input,
         DriveDialogFrame frame,
         UiInputRouteContext route,
-        RoutedScrollableList<VolumeSelectionItem> list)
+        TableList<VolumeSelectionItem> table)
     {
         if (input is KeyConsoleInputEvent { Key: var key })
         {
@@ -113,8 +111,7 @@ internal sealed class DriveDialog
                 return (ScrollableListInputResult.Handled, UiInputResult.HandledResult);
         }
 
-        RoutedScrollableListInputResult routed = list.RouteInput(input, frame.List, route);
-        return (routed.ListResult, routed.UiResult);
+        return table.RouteInput(input, frame.Table, route);
     }
 
     private ModalDialogLoopResult<VolumeSelectionItem?> TryCompleteSelection(VolumeSelectionItem selected)
@@ -137,15 +134,16 @@ internal sealed class DriveDialog
     }
 
     private static VolumeSelectionItem? HandleShortcut(
-        ScrollableListState<VolumeSelectionItem> state,
+        IReadOnlyList<VolumeSelectionItem> items,
+        TableList<VolumeSelectionItem> table,
         string shortcut,
         int visibleRows,
         ref string? lastShortcut)
     {
         var matches = new List<int>();
-        for (int index = 0; index < state.Count; index++)
+        for (int index = 0; index < items.Count; index++)
         {
-            if (string.Equals(state.Items[index].Shortcut, shortcut, StringComparison.OrdinalIgnoreCase))
+            if (string.Equals(items[index].Shortcut, shortcut, StringComparison.OrdinalIgnoreCase))
                 matches.Add(index);
         }
 
@@ -154,18 +152,18 @@ internal sealed class DriveDialog
 
         if (matches.Count == 1)
         {
-            state.SetSelectedIndex(matches[0], visibleRows);
+            table.SetSelectedIndex(matches[0], visibleRows);
             lastShortcut = shortcut;
 
-            VolumeSelectionItem item = state.Items[state.SelectedIndex];
+            VolumeSelectionItem item = items[table.SelectedIndex];
             return item.Volume is null || IsSelectable(item.Volume.Status) ? item : null;
         }
 
         int startSearch = string.Equals(lastShortcut, shortcut, StringComparison.OrdinalIgnoreCase)
-            ? state.SelectedIndex + 1
+            ? table.SelectedIndex + 1
             : 0;
         int next = matches.FirstOrDefault(index => index >= startSearch, matches[0]);
-        state.SetSelectedIndex(next, visibleRows);
+        table.SetSelectedIndex(next, visibleRows);
         lastShortcut = shortcut;
         return null;
     }
@@ -187,69 +185,29 @@ internal sealed class DriveDialog
     private DriveDialogFrame BuildFrame(
         ConsoleSize size,
         VolumeSelectionItem[] items,
-        RoutedScrollableList<VolumeSelectionItem> list)
+        TableList<VolumeSelectionItem> table)
     {
         int requestedRows = Math.Min(items.Length, Math.Max(0, size.Height - 6));
         ModalDialogRenderer.Layout modal = _modalRenderer.CalculateLayout(size, DialogWidth, requestedRows + 6);
         DriveDialogLayout layout = CalculateLayout(modal, items.Length);
-        int visibleRows = layout.ListBounds.Height;
-        Rect? scrollbarBoundsCandidate = visibleRows > 0 && items.Length > visibleRows
-            ? new Rect(modal.FrameBounds.Right - 1, layout.ListBounds.Y, 1, visibleRows)
-            : null;
-        Rect? scrollbarBounds = scrollbarBoundsCandidate is { } candidate &&
-            ScrollBarInteraction.IsInteractive(
-                candidate,
-                new ScrollState
-                {
-                    TotalItems = items.Length,
-                    ViewportItems = visibleRows,
-                    FirstVisibleIndex = 0,
-                })
-            ? candidate
-            : null;
-        ScrollableListFrame frame = list.CalculateFrame(layout.ListBounds, scrollbarBounds);
-        return new DriveDialogFrame(
-            items,
-            modal,
-            layout.ListBounds,
-            scrollbarBounds,
-            frame);
+        return new DriveDialogFrame(modal, table.CalculateFrame(layout.TableBounds));
     }
 
     private static DriveDialogLayout CalculateLayout(ModalDialogRenderer.Layout modal, int itemCount)
     {
         Rect contentBounds = modal.ContentBounds;
         int visibleRows = Math.Min(itemCount, Math.Max(0, contentBounds.Height - 2));
-        Rect listBounds = visibleRows > 0 && contentBounds.Width > 0
-            ? new Rect(contentBounds.X, contentBounds.Y + 2, contentBounds.Width, visibleRows)
+        Rect tableBounds = visibleRows > 0 && contentBounds.Width > 0
+            ? new Rect(contentBounds.X, contentBounds.Y, contentBounds.Width, visibleRows + 2)
             : new Rect(contentBounds.X, contentBounds.Y, 0, 0);
-        return new DriveDialogLayout(listBounds);
+        return new DriveDialogLayout(tableBounds);
     }
 
-    private static UiInteractionFrame BuildInteractionFrame(
-        DriveDialogFrame frame,
-        RoutedScrollableList<VolumeSelectionItem> list)
-    {
-        var builder = new UiInteractionFrameBuilder()
-            .AddFragment(list.BuildInteractionFragment(
-                frame.List,
-                0,
-                frame.ListBounds.Width > 0 && frame.ListBounds.Height > 0));
-
-        return frame.ListBounds.Width > 0 && frame.ListBounds.Height > 0
-            ? builder
-                .SetDefaultFocusTarget(list.ListTarget)
-                .SetKeyboardTarget(list.ListTarget)
-                .Build()
-            : builder.Build();
-    }
-
-    private void RenderFrame(UiRenderContext context, TableList<VolumeSelectionItem> table, DriveDialogFrame frame)
+    private void RenderFrame(UiRenderContext context, TableList<VolumeSelectionItem> table, DriveDialogFrame frame, TableListPresentation presentation)
     {
         _modalRenderer.Render(context.Canvas, frame.Modal, "Change drive", true, DriveOuterOptions, DriveFrameOptions, (_, _) =>
         {
             Rect frameBounds = frame.Modal.FrameBounds;
-            Rect contentBounds = frame.Modal.ContentBounds;
             const string hint = " Enter  Esc ";
             if (frameBounds.Width >= hint.Length && frameBounds.Height > 0)
             {
@@ -257,28 +215,15 @@ internal sealed class DriveDialog
                 context.Canvas.Write(hintX, frameBounds.Y + frameBounds.Height - 1, hint, PaletteStyles.DialogTitle(_palette));
             }
 
-            table.Render(
-                context.Canvas,
-                frame.List,
-                new Rect(contentBounds.X, contentBounds.Y, contentBounds.Width, 2),
-                PaletteStyles.DialogTitle(_palette),
-                PaletteStyles.DialogBorder(_palette),
-                PaletteStyles.DialogFill(_palette),
-                PaletteStyles.InputField(_palette),
-                PaletteStyles.DialogHighlight(_palette),
-                PaletteStyles.InputHighlight(_palette));
-            table.List.RenderScrollbar(context.Canvas, frame.List, PaletteStyles.DialogBorder(_palette));
+            table.Render(context.Canvas, frame.Table, presentation);
         });
     }
 
     private readonly record struct DriveDialogFrame(
-        IReadOnlyList<VolumeSelectionItem> Items,
         ModalDialogRenderer.Layout Modal,
-        Rect ListBounds,
-        Rect? ScrollbarBounds,
-        ScrollableListFrame List);
+        TableListFrame Table);
 
-    private readonly record struct DriveDialogLayout(Rect ListBounds);
+    private readonly record struct DriveDialogLayout(Rect TableBounds);
 
     private static string FormatDisk(VolumeSelectionItem item)
     {
