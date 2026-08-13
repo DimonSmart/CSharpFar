@@ -81,11 +81,8 @@ public sealed class CompositeDialogHost
     {
         ModalDialogRenderer.Layout modal = _renderer.CalculateLayout(context.Size, options.PreferredWidth, options.PreferredHeight, options.MinWidth, options.MinHeight);
         Rect bounds = modal.ContentBounds;
-        int footerHeight = Math.Min(1, bounds.Height);
-        int headerHeight = Math.Min(form.NaturalContentHeight - 1, Math.Max(0, bounds.Height - footerHeight));
-        // A form with footer rows exposes the action row in NaturalContentHeight. The
-        // remaining rows are the semantic header; never reserve negative geometry.
-        headerHeight = Math.Max(0, headerHeight);
+        int footerHeight = Math.Min(form.NaturalFooterHeight, bounds.Height);
+        int headerHeight = Math.Min(form.NaturalBodyHeight, Math.Max(0, bounds.Height - footerHeight));
         Rect footer = new(bounds.X, Math.Max(bounds.Y, bounds.Bottom - footerHeight), bounds.Width, footerHeight);
         int statusHeight = status is null || bounds.Height - headerHeight - footerHeight <= 0 ? 0 : 1;
         Rect header = new(bounds.X, bounds.Y, bounds.Width, headerHeight);

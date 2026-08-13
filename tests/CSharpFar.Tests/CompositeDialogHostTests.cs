@@ -112,6 +112,145 @@ public sealed class CompositeDialogHostTests
         Assert.Equal("two", table.SelectedItem);
     }
 
+    [Fact]
+    public void Run_uses_actual_body_and_footer_heights_including_a_missing_footer()
+    {
+        var driver = new FakeConsoleDriver(80, 25);
+        var content = new TestContent();
+        var form = new ScrollableFormDialog();
+        form.SetRows(
+            [FormControls.CheckBox("HEADER-1", true), FormControls.CheckBox("HEADER-2", true)],
+            [FormControls.CheckBoxColumns([[FormControls.CheckBox("FOOTER-1", true), FormControls.CheckBox("FOOTER-2", true)]]),
+             FormControls.Buttons(DialogButton.Cancel("Close", 'C'))]);
+        driver.EnqueueKey(Key(ConsoleKey.Escape));
+
+        Run(driver, form, content, status: () => "STATUS", semantic => semantic.Kind == CompositeDialogEventKind.Cancelled
+            ? CompositeDialogOutcome<object?>.Complete(null)
+            : CompositeDialogOutcome<object?>.ContinueNoChange);
+
+        Assert.Equal(4, Assert.IsType<TestContentFrame>(content.Frames[0]).Bounds.Height);
+
+        var bodyOnlyDriver = new FakeConsoleDriver(80, 25);
+        var bodyOnlyContent = new TestContent();
+        var bodyOnlyForm = new ScrollableFormDialog();
+        bodyOnlyForm.SetRows([FormControls.CheckBox("HEADER-1", true), FormControls.CheckBox("HEADER-2", true)]);
+        bodyOnlyDriver.EnqueueKey(Key(ConsoleKey.Escape));
+
+        Run(bodyOnlyDriver, bodyOnlyForm, bodyOnlyContent, status: null, semantic => semantic.Kind == CompositeDialogEventKind.Cancelled
+            ? CompositeDialogOutcome<object?>.Complete(null)
+            : CompositeDialogOutcome<object?>.ContinueNoChange);
+
+        Assert.Contains(bodyOnlyDriver.WriteRecords, write => write.Text.Contains("HEADER-1", StringComparison.Ordinal));
+        Assert.Contains(bodyOnlyDriver.WriteRecords, write => write.Text.Contains("HEADER-2", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void Run_traverses_header_content_and_enabled_footer_in_both_directions()
+    {
+        var driver = new FakeConsoleDriver(80, 25);
+        var content = new TestContent();
+        var form = new ScrollableFormDialog();
+        form.SetRows(
+            [FormControls.CheckBox("HEADER", true)],
+            [FormControls.CheckBox("DISABLED", true, enabled: false, disabledReason: "Unavailable"),
+             FormControls.Buttons(DialogButton.Action("disabled", "Disabled", 'D') with { IsEnabled = false }, DialogButton.Action("enabled", "Enabled", 'E'))]);
+        var commands = new List<string>();
+        driver.BeforeReadInput = current =>
+        {
+            current.EnqueueKey(Key(ConsoleKey.Tab));
+            current.EnqueueKey(Key(ConsoleKey.DownArrow));
+            current.EnqueueKey(Key(ConsoleKey.Tab));
+            current.EnqueueKey(Key(ConsoleKey.RightArrow));
+            current.EnqueueKey(Key(ConsoleKey.Enter));
+            current.EnqueueKey(new ConsoleKeyInfo('\0', ConsoleKey.Tab, true, false, false));
+            current.EnqueueKey(Key(ConsoleKey.DownArrow));
+            current.EnqueueKey(new ConsoleKeyInfo('\0', ConsoleKey.Tab, true, false, false));
+            current.EnqueueKey(Key(ConsoleKey.Spacebar));
+            current.EnqueueKey(Key(ConsoleKey.Escape));
+        };
+
+        Run(driver, form, content, status: null, semantic =>
+        {
+            if (semantic.Kind == CompositeDialogEventKind.Command && semantic.Command is { } command)
+                commands.Add(command);
+            return semantic.Kind == CompositeDialogEventKind.Cancelled
+                ? CompositeDialogOutcome<object?>.Complete(null)
+                : CompositeDialogOutcome<object?>.ContinueNoChange;
+        });
+
+        Assert.Equal(2, content.KeyboardRoutes);
+        Assert.Equal(["enabled"], commands);
+    }
+
+    [Fact]
+    public void Run_routes_mouse_to_enabled_footer_action_without_activating_disabled_action()
+    {
+        var driver = new FakeConsoleDriver(80, 25);
+        var form = new ScrollableFormDialog();
+        form.SetRows([FormControls.CheckBox("HEADER", true)], [FormControls.Buttons(
+            DialogButton.Action("disabled", "Disabled", 'D') with { IsEnabled = false },
+            DialogButton.Action("enabled", "Enabled", 'E'))]);
+        var commands = new List<string>();
+        driver.BeforeReadInput = current =>
+        {
+            FakeConsoleDriver.WriteRecord buttonBar = current.WriteRecords.Last(write => write.Text.Contains("[ Disabled ] [ Enabled ]", StringComparison.Ordinal));
+            int disabledX = buttonBar.X + buttonBar.Text.IndexOf("[ Disabled ]", StringComparison.Ordinal);
+            int enabledX = buttonBar.X + buttonBar.Text.IndexOf("[ Enabled ]", StringComparison.Ordinal);
+            current.EnqueueInput(new MouseConsoleInputEvent(disabledX, buttonBar.Y, MouseButton.Left, MouseEventKind.Down, MouseKeyModifiers.None));
+            current.EnqueueInput(new MouseConsoleInputEvent(disabledX, buttonBar.Y, MouseButton.Left, MouseEventKind.Up, MouseKeyModifiers.None));
+            current.EnqueueInput(new MouseConsoleInputEvent(enabledX, buttonBar.Y, MouseButton.Left, MouseEventKind.Down, MouseKeyModifiers.None));
+            current.EnqueueInput(new MouseConsoleInputEvent(enabledX, buttonBar.Y, MouseButton.Left, MouseEventKind.Up, MouseKeyModifiers.None));
+            current.EnqueueKey(Key(ConsoleKey.Escape));
+        };
+
+        Run(driver, form, new TestContent(), status: null, semantic =>
+        {
+            if (semantic.Kind == CompositeDialogEventKind.Command && semantic.Command is { } command)
+                commands.Add(command);
+            return semantic.Kind == CompositeDialogEventKind.Cancelled
+                ? CompositeDialogOutcome<object?>.Complete(null)
+                : CompositeDialogOutcome<object?>.ContinueNoChange;
+        });
+
+        Assert.Equal(["enabled"], commands);
+    }
+
+    [Fact]
+    public void Run_omits_content_targets_at_zero_height_and_renders_once_after_one_semantic_change()
+    {
+        var driver = new FakeConsoleDriver(20, 8);
+        var content = new TestContent();
+        var form = new ScrollableFormDialog();
+        form.SetRows(
+            [FormControls.CheckBox("HEADER-1", true), FormControls.CheckBox("HEADER-2", true)],
+            [FormControls.CheckBoxColumns([[FormControls.CheckBox("FOOTER-1", true), FormControls.CheckBox("FOOTER-2", true)]])]);
+        driver.EnqueueKey(Key(ConsoleKey.Tab));
+        driver.EnqueueKey(Key(ConsoleKey.Escape));
+
+        Run(driver, form, content, status: null, semantic => semantic.Kind == CompositeDialogEventKind.Cancelled
+            ? CompositeDialogOutcome<object?>.Complete(null)
+            : semantic.Kind == CompositeDialogEventKind.ContentSelectionChanged
+                ? CompositeDialogOutcome<object?>.ContinueChanged
+                : CompositeDialogOutcome<object?>.ContinueNoChange,
+            options: new CompositeDialogOptions("Composite", 20, 8));
+
+        Assert.All(content.Frames, frame => Assert.Equal(0, frame.Bounds.Height));
+        Assert.Empty(content.RoutedFrames);
+        Assert.Equal(2, content.RenderCount);
+
+        var renderDriver = new FakeConsoleDriver(80, 25);
+        var renderContent = new TestContent();
+        renderDriver.EnqueueKey(Key(ConsoleKey.Tab));
+        renderDriver.EnqueueKey(Key(ConsoleKey.DownArrow));
+        renderDriver.EnqueueKey(Key(ConsoleKey.Escape));
+        Run(renderDriver, renderContent, status: null, semantic => semantic.Kind == CompositeDialogEventKind.Cancelled
+            ? CompositeDialogOutcome<object?>.Complete(null)
+            : semantic.Kind == CompositeDialogEventKind.ContentSelectionChanged
+                ? CompositeDialogOutcome<object?>.ContinueChanged
+                : CompositeDialogOutcome<object?>.ContinueNoChange);
+        Assert.Equal(3, renderContent.RenderCount);
+    }
+
     private static void Run(
         FakeConsoleDriver driver,
         ICompositeDialogContent content,
@@ -120,9 +259,20 @@ public sealed class CompositeDialogHostTests
     {
         var form = new ScrollableFormDialog();
         form.SetRows([FormControls.CheckBox("HEADER", true)], [FormControls.Buttons([DialogButton.Action("footer", "Footer", 'F'), DialogButton.Cancel()])]);
+        Run(driver, form, content, status, handle);
+    }
+
+    private static void Run(
+        FakeConsoleDriver driver,
+        ScrollableFormDialog form,
+        ICompositeDialogContent content,
+        Func<string?>? status,
+        Func<CompositeDialogEvent, CompositeDialogOutcome<object?>> handle,
+        CompositeDialogOptions? options = null)
+    {
         UiTestHost host = UiTestHost.Create(driver);
         new CompositeDialogHost(host.ModalDialogs).Run(
-            new CompositeDialogOptions("Composite", 50, 14), form, content, status,
+            options ?? new CompositeDialogOptions("Composite", 50, 14), form, content, status,
             new Dictionary<ConsoleKey, string> { [ConsoleKey.F5] = "refresh" }, handle);
     }
 
@@ -136,6 +286,7 @@ public sealed class CompositeDialogHostTests
         public ICompositeDialogContentFrame? LastFrame { get; private set; }
         public int RenderCount { get; private set; }
         public int MouseRoutes { get; private set; }
+        public int KeyboardRoutes { get; private set; }
         public ICompositeDialogContentFrame CalculateFrame(Rect bounds)
         {
             var frame = new TestContentFrame(bounds);
@@ -163,7 +314,7 @@ public sealed class CompositeDialogHostTests
             if (route.Target != _target) return CompositeDialogContentInputResult.NotHandled;
             RoutedFrames.Add(value);
             if (input is MouseConsoleInputEvent) { MouseRoutes++; return new(CompositeDialogContentEventKind.SelectionChanged, UiInputResult.HandledAndInvalidate, true); }
-            if (input is KeyConsoleInputEvent { Key.Key: ConsoleKey.DownArrow }) return new(CompositeDialogContentEventKind.SelectionChanged, UiInputResult.HandledAndInvalidate, true);
+            if (input is KeyConsoleInputEvent { Key.Key: ConsoleKey.DownArrow }) { KeyboardRoutes++; return new(CompositeDialogContentEventKind.SelectionChanged, UiInputResult.HandledAndInvalidate, true); }
             if (input is KeyConsoleInputEvent { Key.Key: ConsoleKey.Enter }) return new(CompositeDialogContentEventKind.Confirmed, UiInputResult.HandledResult, true);
             return new(CompositeDialogContentEventKind.NotHandled, UiInputResult.NotHandled, true);
         }
