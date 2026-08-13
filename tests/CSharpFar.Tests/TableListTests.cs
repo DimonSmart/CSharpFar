@@ -70,9 +70,102 @@ public sealed class TableListTests
         TableListFrame frame = table.CalculateFrame(new Rect(2, 3, 20, 5));
 
         Assert.Equal(new Rect(2, 3, 20, 2), frame.HeaderBounds);
-        Assert.Equal(new Rect(2, 5, 20, 3), frame.BodyBounds);
+        Assert.Equal(new Rect(2, 5, 19, 3), frame.BodyBounds);
         Assert.Equal(3, frame.ViewportRows);
         Assert.True(frame.HasScrollbar);
+    }
+
+    [Fact]
+    public void Scrollbar_IsEntirelyInsideTableBounds()
+    {
+        var table = CreateTable(Enumerable.Range(0, 5).Select(index => new Item($"Item {index}", index.ToString())).ToArray());
+        TableListFrame frame = table.CalculateFrame(new Rect(0, 0, 20, 5));
+        UiInteractionFragment fragment = table.BuildInteractionFragment(frame);
+        UiHitRegion scrollbar = Assert.Single(fragment.HitRegions, region => region.Bounds.X == 19);
+        var driver = new FakeConsoleDriver(21, 5);
+
+        UiTestRender.Render(new ScreenRenderer(driver), canvas =>
+        {
+            canvas.Write(20, 2, "X", CreatePresentation().Normal);
+            table.Render(canvas, frame, CreatePresentation());
+        });
+
+        Assert.Equal(new Rect(19, 2, 1, 3), scrollbar.Bounds);
+        Assert.True(frame.Bounds.Contains(scrollbar.Bounds.X, scrollbar.Bounds.Y));
+        Assert.True(frame.Bounds.Contains(scrollbar.Bounds.Right - 1, scrollbar.Bounds.Bottom - 1));
+    }
+
+    [Fact]
+    public void Scrollbar_DoesNotOverwriteAdjacentCell()
+    {
+        var table = CreateTable(Enumerable.Range(0, 5).Select(index => new Item($"Item {index}", index.ToString())).ToArray());
+        TableListFrame frame = table.CalculateFrame(new Rect(0, 0, 20, 5));
+        var driver = new FakeConsoleDriver(21, 5);
+
+        UiTestRender.Render(new ScreenRenderer(driver), canvas =>
+        {
+            canvas.Write(20, 2, "X", CreatePresentation().Normal);
+            table.Render(canvas, frame, CreatePresentation());
+        });
+
+        Assert.Equal('X', driver.GetCell(20, 2).Character);
+    }
+
+    [Fact]
+    public void Overflow_ReservesOneColumnForScrollbar()
+    {
+        var overflow = CreateTable(Enumerable.Range(0, 5).Select(index => new Item($"Item {index}", index.ToString())).ToArray());
+
+        TableListFrame overflowFrame = overflow.CalculateFrame(new Rect(4, 6, 20, 5));
+        UiInteractionFragment overflowFragment = overflow.BuildInteractionFragment(overflowFrame);
+
+        Assert.Equal(new Rect(4, 8, 19, 3), overflowFrame.BodyBounds);
+        Assert.Contains(overflowFragment.HitRegions, region => region.Bounds.Equals(new Rect(23, 8, 1, 3)));
+    }
+
+    [Fact]
+    public void NoOverflow_UsesFullBodyWidth()
+    {
+        var noOverflow = CreateTable([new Item("Item", "1")]);
+
+        TableListFrame noOverflowFrame = noOverflow.CalculateFrame(new Rect(4, 6, 20, 5));
+        UiInteractionFragment noOverflowFragment = noOverflow.BuildInteractionFragment(noOverflowFrame);
+
+        Assert.Equal(new Rect(4, 8, 20, 3), noOverflowFrame.BodyBounds);
+        Assert.DoesNotContain(noOverflowFragment.HitRegions, region => region.Bounds.X == 23);
+    }
+
+    [Fact]
+    public void ScrollbarMouseInput_IsHandled()
+    {
+        var table = CreateTable(Enumerable.Range(0, 5).Select(index => new Item($"Item {index}", index.ToString())).ToArray());
+        TableListFrame frame = table.CalculateFrame(new Rect(0, 0, 20, 5));
+        UiInteractionFragment fragment = table.BuildInteractionFragment(frame);
+        UiHitRegion scrollbar = Assert.Single(fragment.HitRegions, region => region.Bounds.X == 19);
+        var focus = new UiFocusController();
+
+        (ScrollableListInputResult scrollbarResult, UiInputResult scrollbarUi) = table.RouteInput(
+            new MouseConsoleInputEvent(scrollbar.Bounds.X, scrollbar.Bounds.Y + 1, MouseButton.Left, MouseEventKind.Down, MouseKeyModifiers.None),
+            frame,
+            UiInputRouteContext.HitTarget(focus, scrollbar.Target));
+        Assert.True(scrollbarResult.IsHandled);
+        Assert.True(scrollbarUi.Handled);
+    }
+
+    [Fact]
+    public void UnrelatedKey_RemainsNotHandled()
+    {
+        var table = CreateTable(Enumerable.Range(0, 5).Select(index => new Item($"Item {index}", index.ToString())).ToArray());
+        TableListFrame frame = table.CalculateFrame(new Rect(0, 0, 20, 5));
+        var focus = new UiFocusController();
+
+        (ScrollableListInputResult keyResult, UiInputResult keyUi) = table.RouteInput(
+            new KeyConsoleInputEvent(new ConsoleKeyInfo('A', ConsoleKey.A, false, false, false)),
+            frame,
+            UiInputRouteContext.KeyboardTarget(focus, table.BuildInteractionFrame(frame).KeyboardTarget!));
+
+        Assert.Equal(ScrollableListInputResultKind.NotHandled, keyResult.Kind);
+        Assert.False(keyUi.Handled);
     }
 
     [Fact]

@@ -279,6 +279,30 @@ public sealed class ScrollableFormDialogTests
     }
 
     [Fact]
+    public void InteractionFragment_CanBeCombinedWithTableListFragment()
+    {
+        var form = new ScrollableFormDialog([new CheckBoxRow(new CheckBoxLine("option"))]);
+        ScrollableFormFrame formFrame = RenderFrame(form, visibleRows: 1);
+        var table = new TableList<int>(
+            [1, 2],
+            new TableListDefinition<int>
+            {
+                Columns = [TableColumn<int>.Text("Value", value => value.ToString(), 8)],
+            });
+        TableListFrame tableFrame = table.CalculateFrame(new Rect(0, 2, 20, 3));
+
+        UiInteractionFrame interaction = new UiInteractionFrameBuilder()
+            .AddFragment(table.BuildInteractionFragment(tableFrame, 1))
+            .AddFragment(form.BuildInteractionFragment(formFrame))
+            .SetDefaultFocusTarget(formFrame.DefaultTarget)
+            .Build();
+
+        Assert.NotEmpty(interaction.HitRegions);
+        Assert.Contains(interaction.Focus.Entries, entry => entry.TabOrder == 1);
+        Assert.Equal(formFrame.DefaultTarget, interaction.Focus.DefaultTarget);
+    }
+
+    [Fact]
     public void RenderFrame_PublishesHistoryDropdownTargetsForFocusedRow()
     {
         var history = TextFieldHistoryTestProvider.CreateState();
