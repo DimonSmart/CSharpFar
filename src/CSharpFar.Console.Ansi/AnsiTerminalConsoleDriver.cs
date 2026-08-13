@@ -4,7 +4,7 @@ using CSharpFar.Console.Models;
 
 namespace CSharpFar.Console.Ansi;
 
-public sealed class AnsiTerminalConsoleDriver : IConsoleDriver, ITerminalScreenMode, IConsoleOutputModeDriver, IConsoleInputDiagnostics, IDisposable
+public sealed class AnsiTerminalConsoleDriver : IConsoleDriver, IConsoleFrameWriter, ITerminalScreenMode, IConsoleOutputModeDriver, IConsoleInputDiagnostics, IDisposable
 {
     private const string ClearScreen = "\x1b[2J";
     private const string CursorHome = "\x1b[H";
@@ -24,6 +24,7 @@ public sealed class AnsiTerminalConsoleDriver : IConsoleDriver, ITerminalScreenM
     private readonly AnsiCursorPositionCache _cursorPosition = new();
     private bool? _cursorVisible;
     private bool _disposed;
+    private readonly System.Text.StringBuilder _frameOutput = new();
 
     public AnsiTerminalConsoleDriver()
         : this(inputReader: null)
@@ -150,6 +151,103 @@ public sealed class AnsiTerminalConsoleDriver : IConsoleDriver, ITerminalScreenM
     {
         WriteAt(viewport.Left + x, viewport.Top + y, text, foreground, background, attributes);
         return true;
+    }
+
+    public bool TryWriteCellsAtViewport(
+        ConsoleViewport viewport,
+        int x,
+        int y,
+        int width,
+        int height,
+        ReadOnlySpan<ConsoleOutputCell> cells)
+    {
+        if (width <= 0 || height <= 0 || cells.Length < width * height ||
+            viewport != GetViewport() || x < 0 || y < 0 ||
+            x + width > viewport.Width || y + height > viewport.Height)
+        {
+            return false;
+        }
+
+        _frameOutput.Clear();
+        var output = _frameOutput;
+        ConsoleColor? foreground = _currentForeground;
+        ConsoleColor? background = _currentBackground;
+        TextAttributes attributes = _currentAttributes;
+
+        for (int row = 0; row < height; row++)
+        {
+            output.Append("\x1b[").Append(viewport.Top + y + row + 1).Append(';').Append(viewport.Left + x + 1).Append('H');
+            for (int column = 0; column < width; column++)
+            {
+                var cell = cells[row * width + column];
+                if (foreground != cell.Foreground || background != cell.Background || attributes != cell.Attributes)
+                {
+                    output.Append(AnsiStyleSequences.BuildSgr(cell.Foreground, cell.Background, cell.Attributes));
+                    foreground = cell.Foreground;
+                    background = cell.Background;
+                    attributes = cell.Attributes;
+                }
+
+                output.Append(cell.Character);
+            }
+        }
+
+        global::System.Console.Out.Write(output);
+        global::System.Console.Out.Flush();
+        _currentForeground = foreground;
+        _currentBackground = background;
+        _currentAttributes = attributes;
+        _cursorPosition.Reset();
+        return GetViewport() == viewport;
+    }
+
+    public ConsoleFrameWriteCapabilities Capabilities => ConsoleFrameWriteCapabilities.VirtualTerminalCells;
+
+    public bool TryWriteDirtyCellsAtViewport(
+        ConsoleViewport viewport,
+        ReadOnlySpan<ConsoleOutputRun> runs,
+        ReadOnlySpan<ConsoleOutputCell> cells)
+    {
+        if (viewport != GetViewport())
+            return false;
+
+        _frameOutput.Clear();
+        var output = _frameOutput;
+        ConsoleColor? foreground = _currentForeground;
+        ConsoleColor? background = _currentBackground;
+        TextAttributes attributes = _currentAttributes;
+
+        foreach (var run in runs)
+        {
+            if (run.X < 0 || run.Y < 0 || run.X + run.Length > viewport.Width || run.Y >= viewport.Height ||
+                run.Offset < 0 || run.Length < 0 || run.Offset + run.Length > cells.Length)
+            {
+                return false;
+            }
+
+            output.Append("\x1b[").Append(viewport.Top + run.Y + 1).Append(';').Append(viewport.Left + run.X + 1).Append('H');
+            for (int i = 0; i < run.Length; i++)
+            {
+                var cell = cells[run.Offset + i];
+                if (foreground != cell.Foreground || background != cell.Background || attributes != cell.Attributes)
+                {
+                    output.Append(AnsiStyleSequences.BuildSgr(cell.Foreground, cell.Background, cell.Attributes));
+                    foreground = cell.Foreground;
+                    background = cell.Background;
+                    attributes = cell.Attributes;
+                }
+
+                output.Append(cell.Character);
+            }
+        }
+
+        global::System.Console.Out.Write(output);
+        global::System.Console.Out.Flush();
+        _currentForeground = foreground;
+        _currentBackground = background;
+        _currentAttributes = attributes;
+        _cursorPosition.Reset();
+        return GetViewport() == viewport;
     }
 
     public void ClearRegion(Rect region)

@@ -13,7 +13,7 @@ namespace CSharpFar.Console;
 /// so that shell output underneath the panels is preserved for Ctrl+O.
 /// This class targets Windows. On other platforms, Capture/Restore use a blank fallback.
 /// </summary>
-public sealed class SystemConsoleDriver : IConsoleDriver, IConsoleOutputModeDriver, ITerminalScreenMode, IConsoleInputDiagnostics, IDisposable
+public sealed class SystemConsoleDriver : IConsoleDriver, IConsoleFrameWriter, IConsoleOutputModeDriver, ITerminalScreenMode, IConsoleInputDiagnostics, IDisposable
 {
     private const string EnterAltScreen = "\x1b[?1049h";
     private const string LeaveAltScreen = "\x1b[?1049l";
@@ -33,6 +33,7 @@ public sealed class SystemConsoleDriver : IConsoleDriver, IConsoleOutputModeDriv
     private readonly bool _restoreConsolePalette;
     private readonly bool _restoreScreenBufferSize;
     private readonly Win32ModifierKeyTracker? _modifierKeyTracker;
+    private CharInfo[] _frameWriteBuffer = [];
     private readonly Win32MouseInputParser? _win32MouseParser;
     private readonly MouseInputNormalizer _mouseInputNormalizer = new();
     private ConsoleViewport _lastInputViewport;
@@ -430,6 +431,30 @@ public sealed class SystemConsoleDriver : IConsoleDriver, IConsoleOutputModeDriv
         return true;
     }
 
+    public bool TryWriteCellsAtViewport(
+        ConsoleViewport viewport,
+        int x,
+        int y,
+        int width,
+        int height,
+        ReadOnlySpan<ConsoleOutputCell> cells)
+    {
+        if (width <= 0 || height <= 0 || cells.Length < width * height || x < 0 || y < 0)
+            return true;
+
+        if (!OperatingSystem.IsWindows())
+            return false;
+
+        return TryWriteCellsAtWindows(viewport, x, y, width, height, cells);
+    }
+
+    public ConsoleFrameWriteCapabilities Capabilities => ConsoleFrameWriteCapabilities.WindowsCells;
+
+    public bool TryWriteDirtyCellsAtViewport(
+        ConsoleViewport viewport,
+        ReadOnlySpan<ConsoleOutputRun> runs,
+        ReadOnlySpan<ConsoleOutputCell> cells) => false;
+
     public void ClearRegion(Rect region)
     {
         var size = GetSize();
@@ -745,6 +770,51 @@ public sealed class SystemConsoleDriver : IConsoleDriver, IConsoleOutputModeDriv
         };
 
         Win32ConsoleApi.WriteRegion(_consoleHandle, raw, sr);
+        return Win32ConsoleApi.TryGetConsoleScreenBufferInfo(_consoleHandle, out var after) &&
+               ToViewport(after) == viewport;
+    }
+
+    [SupportedOSPlatform("windows")]
+    private bool TryWriteCellsAtWindows(
+        ConsoleViewport viewport,
+        int x,
+        int y,
+        int width,
+        int height,
+        ReadOnlySpan<ConsoleOutputCell> cells)
+    {
+        if (!Win32ConsoleApi.TryGetConsoleScreenBufferInfo(_consoleHandle, out var before) ||
+            ToViewport(before) != viewport ||
+            x + width > viewport.Width ||
+            y + height > viewport.Height)
+        {
+            return false;
+        }
+
+        int cellCount = width * height;
+        if (_frameWriteBuffer.Length < cellCount)
+            _frameWriteBuffer = new CharInfo[cellCount];
+
+        var raw = _frameWriteBuffer;
+        for (int i = 0; i < cellCount; i++)
+        {
+            var cell = cells[i];
+            raw[i] = new CharInfo
+            {
+                UnicodeChar = cell.Character,
+                Attributes = Win32ConsoleApi.MakeAttributes(cell.Foreground, cell.Background),
+            };
+        }
+
+        var region = new SmallRect
+        {
+            Left = (short)(viewport.Left + x),
+            Top = (short)(viewport.Top + y),
+            Right = (short)(viewport.Left + x + width - 1),
+            Bottom = (short)(viewport.Top + y + height - 1),
+        };
+
+        Win32ConsoleApi.WriteRegion(_consoleHandle, raw, region);
         return Win32ConsoleApi.TryGetConsoleScreenBufferInfo(_consoleHandle, out var after) &&
                ToViewport(after) == viewport;
     }
