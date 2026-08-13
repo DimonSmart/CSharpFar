@@ -125,9 +125,12 @@ public sealed class TableList<T>
         Rect headerBounds = new(bounds.X, bounds.Y, bounds.Width, headerHeight);
         Rect bodyBounds = new(bounds.X, bounds.Y + headerHeight, bounds.Width, Math.Max(0, bounds.Height - headerHeight));
         Rect? scrollbarBounds = _list.State.Count > bodyBounds.Height && bodyBounds.Width > 0 && bodyBounds.Height > 0
-            ? new Rect(bodyBounds.Right, bodyBounds.Y, 1, bodyBounds.Height)
+            ? new Rect(bodyBounds.Right - 1, bodyBounds.Y, 1, bodyBounds.Height)
             : null;
-        return new TableListFrame(bounds, headerBounds, _list.CalculateFrame(bodyBounds, scrollbarBounds));
+        Rect contentBounds = scrollbarBounds is null
+            ? bodyBounds
+            : new Rect(bodyBounds.X, bodyBounds.Y, bodyBounds.Width - 1, bodyBounds.Height);
+        return new TableListFrame(bounds, headerBounds, _list.CalculateFrame(contentBounds, scrollbarBounds));
     }
 
     public void Render(IUiCanvas canvas, TableListFrame frame, TableListPresentation presentation)
@@ -153,14 +156,25 @@ public sealed class TableList<T>
     public UiInteractionFrame BuildInteractionFrame(TableListFrame frame)
     {
         ArgumentNullException.ThrowIfNull(frame);
-        bool isEnabled = HasItems && frame.BodyBounds.Width > 0 && frame.BodyBounds.Height > 0;
-        if (!isEnabled)
+        if (!HasItems)
             return UiInteractionFrame.Empty;
 
-        var builder = new UiInteractionFrameBuilder()
-            .AddFragment(_list.BuildInteractionFragment(frame.ListFrame, 0, isEnabled));
+        UiInteractionFragment fragment = BuildInteractionFragment(frame);
+        bool listIsEnabled = frame.BodyBounds.Width > 0 && frame.BodyBounds.Height > 0;
+        var builder = new UiInteractionFrameBuilder().AddFragment(fragment);
+        if (listIsEnabled)
+            builder.SetDefaultFocusTarget(_list.ListTarget).SetKeyboardTarget(_list.ListTarget);
+        return builder.Build();
+    }
 
-        return builder.SetDefaultFocusTarget(_list.ListTarget).SetKeyboardTarget(_list.ListTarget).Build();
+    public UiInteractionFragment BuildInteractionFragment(TableListFrame frame, int focusOrder = 0)
+    {
+        ArgumentNullException.ThrowIfNull(frame);
+        if (!HasItems)
+            return UiInteractionFragment.Empty;
+
+        bool listIsEnabled = frame.BodyBounds.Width > 0 && frame.BodyBounds.Height > 0;
+        return _list.BuildInteractionFragment(frame.ListFrame, focusOrder, listIsEnabled);
     }
 
     public (ScrollableListInputResult Semantic, UiInputResult UiResult) RouteInput(ConsoleInputEvent input, TableListFrame frame, UiInputRouteContext route)
