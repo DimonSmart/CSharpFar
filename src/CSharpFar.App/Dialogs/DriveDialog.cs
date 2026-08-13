@@ -25,14 +25,12 @@ internal sealed class DriveDialog
 
     private readonly ModalDialogHost _modalDialogs;
     private readonly DialogService _dialogs;
-    private readonly ConsolePalette _palette;
     private readonly ModalDialogRenderer _modalRenderer = new();
 
-    public DriveDialog(ModalDialogHost modalDialogs, DialogService dialogs, ConsolePalette? palette = null)
+    public DriveDialog(ModalDialogHost modalDialogs, DialogService dialogs)
     {
         _modalDialogs = modalDialogs;
         _dialogs = dialogs ?? throw new ArgumentNullException(nameof(dialogs));
-        _palette = palette ?? PaletteRegistry.Default;
     }
 
     public VolumeSelectionItem? Show(IReadOnlyList<VolumeSelectionItem> items, int initialCursor = 0)
@@ -49,7 +47,7 @@ internal sealed class DriveDialog
 
     private VolumeSelectionItem? RunLoop(VolumeSelectionItem[] items, int initialCursor)
     {
-        var table = new TableList<VolumeSelectionItem>(items, TableDefinition, initialCursor);
+        var table = new TableList<VolumeSelectionItem>(items, TableDefinition, initialCursor, ListAppearance.Menu);
         string? lastShortcut = null;
 
         return _modalDialogs.RunInteractive<DriveDialogFrame, ScrollableListInputResult, VolumeSelectionItem?>(
@@ -95,7 +93,8 @@ internal sealed class DriveDialog
                 }
 
                 return ModalDialogLoopResult<VolumeSelectionItem?>.ContinueNoChange;
-            });
+            },
+            applyCommittedFrame: frame => table.ApplyCommittedFrame(frame.Table));
     }
 
     private static (ScrollableListInputResult Semantic, UiInputResult UiResult) RouteInput(
@@ -211,7 +210,7 @@ internal sealed class DriveDialog
             if (frameBounds.Width >= hint.Length && frameBounds.Height > 0)
             {
                 int hintX = frameBounds.X + (frameBounds.Width - hint.Length) / 2;
-                context.Canvas.Write(hintX, frameBounds.Y + frameBounds.Height - 1, hint, PaletteStyles.DialogTitle(_palette));
+                context.Canvas.Write(hintX, frameBounds.Y + frameBounds.Height - 1, hint, ListAppearanceStyles.From(ListAppearance.Menu).Header);
             }
 
             table.Render(context.Canvas, frame.Table);
@@ -294,9 +293,13 @@ internal sealed class DriveDialog
         return $"{num} {unit}";
     }
 
-    private PopupRenderOptions DriveOuterOptions =>
-        PaletteStyles.DialogPopupOptions(_palette) with { DrawBorder = false };
+    private static PopupRenderOptions DriveOuterOptions => MenuPopupOptions() with { DrawBorder = false };
 
-    private PopupRenderOptions DriveFrameOptions =>
-        PaletteStyles.DialogPopupOptions(_palette) with { DrawShadow = false };
+    private static PopupRenderOptions DriveFrameOptions => MenuPopupOptions() with { DrawShadow = false };
+
+    private static PopupRenderOptions MenuPopupOptions()
+    {
+        ListAppearanceStyles styles = ListAppearanceStyles.From(ListAppearance.Menu);
+        return new() { BorderStyle = styles.Border, BackgroundStyle = styles.Normal, ShadowStyle = FarDialogStyles.Shadow, TitleStyle = styles.Header };
+    }
 }

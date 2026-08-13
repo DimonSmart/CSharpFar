@@ -13,7 +13,7 @@ public sealed record TableWidth
     public int Minimum { get; }
     public bool IsOptional { get; }
     public int Priority { get; }
-    public static TableWidth Fixed(int width) => new(width, width, false, 0);
+    public static TableWidth Fixed(int width) => Create(width, width, false, 0);
     public static TableWidth Flexible(int preferred, int minimum) => Create(preferred, minimum, false, 0);
     public static TableWidth Optional(int preferred, int minimum = 0, int priority = 0) => Create(preferred, minimum, true, priority);
     private static TableWidth Create(int preferred, int minimum, bool optional, int priority)
@@ -43,19 +43,9 @@ public sealed class TableColumn<T>
 }
 
 public sealed class TableListDefinition<T> { public required IReadOnlyList<TableColumn<T>> Columns { get; init; } }
-public sealed record TableListColumnFrame(string Header, int X, int Width, TableColumnAlignment Alignment);
-
-[Obsolete("Use the theme-backed Render overload.")]
-public sealed class TableListPresentation
+public sealed record TableListColumnFrame(string Header, int X, int Width, TableColumnAlignment Alignment)
 {
-    public required CellStyle Header { get; init; }
-    public required CellStyle Separator { get; init; }
-    public required CellStyle Normal { get; init; }
-    public required CellStyle Selected { get; init; }
-    public required CellStyle Emphasized { get; init; }
-    public required CellStyle EmphasizedSelected { get; init; }
-    public required CellStyle Scrollbar { get; init; }
-    public static TableListPresentation Dialog(ConsolePalette palette) => new() { Header = FarDialogStyles.Title, Separator = FarDialogStyles.Border, Normal = FarDialogStyles.Fill, Selected = FarDialogStyles.FocusedInput, Emphasized = FarDialogStyles.Title, EmphasizedSelected = FarDialogStyles.FocusedInput, Scrollbar = FarDialogStyles.Border };
+    internal int DefinitionIndex { get; init; }
 }
 
 public sealed class TableListFrame
@@ -81,12 +71,12 @@ public sealed class TableList<T>
     private static long _nextComponentId;
     private readonly IReadOnlyList<TableColumn<T>> _columns;
     private readonly RoutedScrollableList<T> _list;
-    private TableListPresentation? _presentation;
-    public TableList(IReadOnlyList<T> items, TableListDefinition<T> definition, int selectedIndex = 0)
+    private readonly ListAppearance _appearance;
+    public TableList(IReadOnlyList<T> items, TableListDefinition<T> definition, int selectedIndex = 0, ListAppearance appearance = ListAppearance.Dialog)
     {
         ArgumentNullException.ThrowIfNull(items); ArgumentNullException.ThrowIfNull(definition); ArgumentNullException.ThrowIfNull(definition.Columns);
         if (definition.Columns.Count == 0) throw new ArgumentException("At least one table column is required.", nameof(definition));
-        _columns = definition.Columns.ToArray(); var targets = new UiTargetScope($"table-list-{Interlocked.Increment(ref _nextComponentId)}");
+        _columns = definition.Columns.ToArray(); _appearance = appearance; var targets = new UiTargetScope($"table-list-{Interlocked.Increment(ref _nextComponentId)}");
         _list = new(new ScrollableListState<T>(items, selectedIndex), targets.Child("body"), targets.Child("scrollbar"));
     }
     public int SelectedIndex => _list.State.SelectedIndex;
@@ -107,19 +97,22 @@ public sealed class TableList<T>
         ScrollableListFrame listFrame = _list.CalculateFrame(content, scrollbar); _lastViewportRows = listFrame.ViewportRows;
         return new(bounds, header, listFrame, CalculateColumns(content));
     }
+    public void ApplyCommittedFrame(TableListFrame frame)
+    {
+        ArgumentNullException.ThrowIfNull(frame);
+        _list.ApplyCommittedFrame(frame.ListFrame);
+    }
     public void Render(IUiCanvas canvas, TableListFrame frame)
     {
         ArgumentNullException.ThrowIfNull(canvas); ArgumentNullException.ThrowIfNull(frame);
-        TableListPresentation? presentation = _presentation;
-        RenderLine(canvas, frame.HeaderBounds, frame.Columns, c => c.Header, presentation?.Header ?? FarDialogStyles.Title);
-        if (frame.HeaderBounds.Height > 1) canvas.Write(frame.HeaderBounds.X, frame.HeaderBounds.Y + 1, ConsoleTextMetrics.FitToCells(BuildSeparator(frame.Columns), frame.HeaderBounds.Width), presentation?.Separator ?? FarDialogStyles.Border);
-        canvas.FillRegion(frame.BodyBounds, presentation?.Normal ?? FarDialogStyles.Fill);
+        ListAppearanceStyles styles = ListAppearanceStyles.From(_appearance);
+        RenderLine(canvas, frame.HeaderBounds, frame.Columns, c => c.Header, styles.Header);
+        if (frame.HeaderBounds.Height > 1) canvas.Write(frame.HeaderBounds.X, frame.HeaderBounds.Y + 1, ConsoleTextMetrics.FitToCells(BuildSeparator(frame.Columns), frame.HeaderBounds.Width), styles.Border);
+        canvas.FillRegion(frame.BodyBounds, styles.Normal);
         for (int row = 0; row < frame.BodyBounds.Height && frame.ScrollTop + row < _list.State.Count; row++)
-        { int index = frame.ScrollTop + row; RenderRow(canvas, new(frame.BodyBounds.X, frame.BodyBounds.Y + row, frame.BodyBounds.Width, 1), _list.State.Items[index], index == frame.SelectedIndex, frame.Columns); }
-        _list.RenderScrollbar(canvas, frame.ListFrame, presentation?.Scrollbar ?? FarDialogStyles.Border);
+        { int index = frame.ScrollTop + row; RenderRow(canvas, new(frame.BodyBounds.X, frame.BodyBounds.Y + row, frame.BodyBounds.Width, 1), _list.State.Items[index], index == frame.SelectedIndex, frame.Columns, styles); }
+        _list.RenderScrollbar(canvas, frame.ListFrame, styles.Scrollbar);
     }
-    [Obsolete("Use the theme-backed Render overload.")]
-    public void Render(IUiCanvas canvas, TableListFrame frame, TableListPresentation presentation) { _presentation = presentation; try { Render(canvas, frame); } finally { _presentation = null; } }
     public UiInteractionFrame BuildInteractionFrame(TableListFrame frame) { var builder = new UiInteractionFrameBuilder().AddFragment(BuildInteractionFragment(frame)); if (HasItems && frame.BodyBounds.Width > 0 && frame.BodyBounds.Height > 0) builder.SetDefaultFocusTarget(_list.ListTarget).SetKeyboardTarget(_list.ListTarget); return builder.Build(); }
     public UiInteractionFragment BuildInteractionFragment(TableListFrame frame, int focusOrder = 0) => HasItems ? _list.BuildInteractionFragment(frame.ListFrame, focusOrder, frame.BodyBounds.Width > 0 && frame.BodyBounds.Height > 0) : UiInteractionFragment.Empty;
     public (ScrollableListInputResult Semantic, UiInputResult UiResult) RouteInput(ConsoleInputEvent input, TableListFrame frame, UiInputRouteContext route) { RoutedScrollableListInputResult result = _list.RouteInput(input, frame.ListFrame, route); return (result.ListResult, result.UiResult); }
@@ -128,18 +121,18 @@ public sealed class TableList<T>
     {
         var visible = _columns.Select((column, index) => new ColumnState(column, index)).ToList();
         int Footprint() => visible.Where(x => x.Visible).Sum(x => x.Width) + Math.Max(0, visible.Count(x => x.Visible) - 1) * SeparatorWidth;
-        foreach (ColumnState state in visible.Where(x => !x.Column.Width.IsOptional && x.Column.Width.Minimum < x.Width).OrderByDescending(x => x.Index))
+        foreach (ColumnState state in visible.Where(x => x.Column.Width.Minimum < x.Width).OrderByDescending(x => x.Index))
         { int excess = Math.Max(0, Footprint() - bounds.Width); state.Width -= Math.Min(excess, state.Width - state.Column.Width.Minimum); }
-        foreach (ColumnState state in visible.Where(x => x.Column.Width.IsOptional).OrderByDescending(x => x.Column.Width.Priority).ThenByDescending(x => x.Index).ToArray())
+        foreach (ColumnState state in visible.Where(x => x.Column.Width.IsOptional).OrderBy(x => x.Column.Width.Priority).ThenByDescending(x => x.Index).ToArray())
         { if (Footprint() > bounds.Width) state.Visible = false; }
         int x = bounds.X; var result = new List<TableListColumnFrame>();
-        foreach (ColumnState state in visible.Where(x => x.Visible)) { int width = Math.Min(state.Width, Math.Max(0, bounds.Right - x)); if (width <= 0) break; result.Add(new(state.Column.Header, x, width, state.Column.Alignment)); x += width + SeparatorWidth; }
+        foreach (ColumnState state in visible.Where(x => x.Visible)) { int width = Math.Min(state.Width, Math.Max(0, bounds.Right - x)); if (width <= 0) break; result.Add(new(state.Column.Header, x, width, state.Column.Alignment) { DefinitionIndex = state.Index }); x += width + SeparatorWidth; }
         return result;
     }
-    private void RenderRow(IUiCanvas canvas, Rect bounds, T item, bool selected, IReadOnlyList<TableListColumnFrame> columns)
+    private void RenderRow(IUiCanvas canvas, Rect bounds, T item, bool selected, IReadOnlyList<TableListColumnFrame> columns, ListAppearanceStyles styles)
     {
-        TableListPresentation? presentation = _presentation; CellStyle baseStyle = selected ? presentation?.Selected ?? FarDialogStyles.FocusedInput : presentation?.Normal ?? FarDialogStyles.Fill; canvas.FillRegion(bounds, baseStyle);
-        for (int i = 0; i < columns.Count; i++) { TableListColumnFrame geometry = columns[i]; TableColumn<T> column = _columns.First(x => x.Header == geometry.Header); CellStyle style = column.Emphasized ? selected ? presentation?.EmphasizedSelected ?? FarDialogStyles.FocusedInput : presentation?.Emphasized ?? FarDialogStyles.Title : baseStyle; canvas.Write(geometry.X, bounds.Y, Fit(column.Value(item), geometry.Width, geometry.Alignment), style); if (i + 1 < columns.Count) canvas.Write(geometry.X + geometry.Width, bounds.Y, " │ ", baseStyle); }
+        CellStyle baseStyle = selected ? styles.Selected : styles.Normal; canvas.FillRegion(bounds, baseStyle);
+        for (int i = 0; i < columns.Count; i++) { TableListColumnFrame geometry = columns[i]; TableColumn<T> column = _columns[geometry.DefinitionIndex]; CellStyle style = column.Emphasized ? selected ? styles.SelectedEmphasized : styles.Emphasized : baseStyle; canvas.Write(geometry.X, bounds.Y, Fit(column.Value(item), geometry.Width, geometry.Alignment), style); if (i + 1 < columns.Count) canvas.Write(geometry.X + geometry.Width, bounds.Y, " │ ", baseStyle); }
     }
     private static void RenderLine(IUiCanvas canvas, Rect bounds, IReadOnlyList<TableListColumnFrame> columns, Func<TableListColumnFrame, string> text, CellStyle style) { if (bounds.Width <= 0 || bounds.Height <= 0) return; canvas.FillRegion(new(bounds.X, bounds.Y, bounds.Width, 1), style); for (int i = 0; i < columns.Count; i++) { TableListColumnFrame c = columns[i]; canvas.Write(c.X, bounds.Y, Fit(text(c), c.Width, c.Alignment), style); if (i + 1 < columns.Count) canvas.Write(c.X + c.Width, bounds.Y, " │ ", style); } if (columns.Count == 1 && columns[0].X + columns[0].Width < bounds.Right) canvas.Write(columns[0].X + columns[0].Width, bounds.Y, ConsoleTextMetrics.FitToCells(" │ ", bounds.Right - (columns[0].X + columns[0].Width)), style); }
     private static string BuildSeparator(IReadOnlyList<TableListColumnFrame> columns) => string.Join("─┼─", columns.Select(c => new string('─', c.Width)));
