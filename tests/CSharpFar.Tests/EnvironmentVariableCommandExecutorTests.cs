@@ -8,7 +8,7 @@ public sealed class EnvironmentVariableCommandExecutorTests
     private static readonly object EnvironmentLock = new();
 
     [Theory]
-    [InlineData("set TEST=value", "TEST", "value")]
+    [InlineData("set TEST=gpt-5.6-luna", "TEST", "gpt-5.6-luna")]
     [InlineData("  SET TEST=value", "TEST", "value")]
     [InlineData("set \"TEST=value with spaces\"", "TEST", "value with spaces")]
     [InlineData("set TEST=a=b=c", "TEST", "a=b=c")]
@@ -42,6 +42,99 @@ public sealed class EnvironmentVariableCommandExecutorTests
 
             Assert.True(executor.TryExecute("set TEST="));
             Assert.Null(Environment.GetEnvironmentVariable("TEST", EnvironmentVariableTarget.Process));
+        });
+    }
+
+    [Fact]
+    public void TryExecuteExpandsVariablesFromTheCurrentProcessEnvironment()
+    {
+        if (!OperatingSystem.IsWindows())
+            return;
+
+        const string baseName = "CSHARPFAR_TEST_BASE";
+        const string testName = "CSHARPFAR_TEST_EXPANDED";
+        ExecuteWithRestoredVariables([baseName, testName], () =>
+        {
+            var executor = new EnvironmentVariableCommandExecutor();
+
+            Assert.True(executor.TryExecute($"set {baseName}=C:\\Tools"));
+            Assert.True(executor.TryExecute($"set {testName}=%{baseName}%\\bin"));
+
+            Assert.Equal("C:\\Tools\\bin", Environment.GetEnvironmentVariable(testName, EnvironmentVariableTarget.Process));
+        });
+    }
+
+    [Theory]
+    [InlineData("USERPROFILE", ".dotnet")]
+    [InlineData("PATH", ";C:\\Tools")]
+    public void TryExecuteExpandsExistingProcessEnvironmentVariable(string sourceName, string suffix)
+    {
+        if (!OperatingSystem.IsWindows())
+            return;
+
+        const string testName = "CSHARPFAR_TEST_EXPANDED_EXISTING";
+        ExecuteWithRestoredVariable(testName, () =>
+        {
+            string sourceValue = Environment.GetEnvironmentVariable(sourceName, EnvironmentVariableTarget.Process)!;
+            var executor = new EnvironmentVariableCommandExecutor();
+
+            Assert.True(executor.TryExecute($"set {testName}=%{sourceName}%{suffix}"));
+
+            Assert.Equal(sourceValue + suffix, Environment.GetEnvironmentVariable(testName, EnvironmentVariableTarget.Process));
+        });
+    }
+
+    [Fact]
+    public void TryExecuteExpandsThePreviousValueBeforeReplacingTheTargetVariable()
+    {
+        if (!OperatingSystem.IsWindows())
+            return;
+
+        const string name = "CSHARPFAR_TEST_SELF_REFERENCE";
+        ExecuteWithRestoredVariable(name, () =>
+        {
+            var executor = new EnvironmentVariableCommandExecutor();
+            Assert.True(executor.TryExecute($"set {name}=old"));
+            Assert.True(executor.TryExecute($"set {name}=%{name}%-new"));
+
+            Assert.Equal("old-new", Environment.GetEnvironmentVariable(name, EnvironmentVariableTarget.Process));
+        });
+    }
+
+    [Fact]
+    public void TryExecuteExpandsVariablesInQuotedAssignments()
+    {
+        if (!OperatingSystem.IsWindows())
+            return;
+
+        const string name = "CSHARPFAR_TEST_QUOTED_EXPANSION";
+        ExecuteWithRestoredVariable(name, () =>
+        {
+            string temp = Environment.GetEnvironmentVariable("TEMP", EnvironmentVariableTarget.Process)!;
+            var executor = new EnvironmentVariableCommandExecutor();
+
+            Assert.True(executor.TryExecute($"set \"{name}=%TEMP%\\folder with spaces\""));
+
+            Assert.Equal($"{temp}\\folder with spaces", Environment.GetEnvironmentVariable(name, EnvironmentVariableTarget.Process));
+        });
+    }
+
+    [Fact]
+    public void TryExecutePreservesUnknownVariableReferencesLikeCmd()
+    {
+        if (!OperatingSystem.IsWindows())
+            return;
+
+        const string name = "CSHARPFAR_TEST_UNKNOWN_EXPANSION";
+        const string unknownName = "CSHARPFAR_VARIABLE_THAT_DOES_NOT_EXIST";
+        ExecuteWithRestoredVariables([name, unknownName], () =>
+        {
+            Environment.SetEnvironmentVariable(unknownName, null, EnvironmentVariableTarget.Process);
+            var executor = new EnvironmentVariableCommandExecutor();
+
+            Assert.True(executor.TryExecute($"set {name}=%{unknownName}%"));
+
+            Assert.Equal($"%{unknownName}%", Environment.GetEnvironmentVariable(name, EnvironmentVariableTarget.Process));
         });
     }
 
@@ -89,16 +182,25 @@ public sealed class EnvironmentVariableCommandExecutorTests
 
     private static void ExecuteWithRestoredVariable(string name, Action action)
     {
+        ExecuteWithRestoredVariables([name], action);
+    }
+
+    private static void ExecuteWithRestoredVariables(string[] names, Action action)
+    {
         lock (EnvironmentLock)
         {
-            string? originalValue = Environment.GetEnvironmentVariable(name, EnvironmentVariableTarget.Process);
+            Dictionary<string, string?> originalValues = names.ToDictionary(
+                name => name,
+                name => Environment.GetEnvironmentVariable(name, EnvironmentVariableTarget.Process),
+                StringComparer.OrdinalIgnoreCase);
             try
             {
                 action();
             }
             finally
             {
-                Environment.SetEnvironmentVariable(name, originalValue, EnvironmentVariableTarget.Process);
+                foreach ((string name, string? originalValue) in originalValues)
+                    Environment.SetEnvironmentVariable(name, originalValue, EnvironmentVariableTarget.Process);
             }
         }
     }
