@@ -11,14 +11,12 @@ public sealed class Spec012SearchProgressDialogTests
     [Fact]
     public void GoTo_FixesSelectedResultAndRequestsCancellation()
     {
-        using var cancellation = new CancellationTokenSource();
         SearchResultItem selected = Result(@"C:\root\found.txt");
-        var session = new SearchProgressSession(cancellation);
+        var session = new SearchProgressSession();
 
         bool accepted = session.TryGoTo(selected);
 
         Assert.True(accepted);
-        Assert.True(cancellation.IsCancellationRequested);
         Assert.Same(selected, session.GoToResult);
         Assert.False(session.CanGoTo);
         Assert.False(session.CanStop);
@@ -27,10 +25,9 @@ public sealed class Spec012SearchProgressDialogTests
     [Fact]
     public void GoTo_CannotBeReplacedByAnotherResult()
     {
-        using var cancellation = new CancellationTokenSource();
         SearchResultItem first = Result(@"C:\root\first.txt");
         SearchResultItem second = Result(@"C:\root\second.txt");
-        var session = new SearchProgressSession(cancellation);
+        var session = new SearchProgressSession();
 
         session.TryGoTo(first);
         bool accepted = session.TryGoTo(second);
@@ -42,9 +39,8 @@ public sealed class Spec012SearchProgressDialogTests
     [Fact]
     public void GoTo_CannotBeReplacedByStop()
     {
-        using var cancellation = new CancellationTokenSource();
         SearchResultItem selected = Result(@"C:\root\found.txt");
-        var session = new SearchProgressSession(cancellation);
+        var session = new SearchProgressSession();
 
         session.TryGoTo(selected);
         bool accepted = session.TryStop();
@@ -56,8 +52,7 @@ public sealed class Spec012SearchProgressDialogTests
     [Fact]
     public void Stop_CannotBeReplacedByGoTo()
     {
-        using var cancellation = new CancellationTokenSource();
-        var session = new SearchProgressSession(cancellation);
+        var session = new SearchProgressSession();
 
         session.TryStop();
         bool accepted = session.TryGoTo(Result(@"C:\root\found.txt"));
@@ -69,9 +64,8 @@ public sealed class Spec012SearchProgressDialogTests
     [Fact]
     public void BuildResult_ForGoToRetainsSelectedResult()
     {
-        using var cancellation = new CancellationTokenSource();
         SearchResultItem selected = Result(@"C:\root\found.txt");
-        var session = new SearchProgressSession(cancellation);
+        var session = new SearchProgressSession();
         session.TryGoTo(selected);
 
         SearchRunResult result = session.BuildResult([selected], cancelled: false);
@@ -84,8 +78,7 @@ public sealed class Spec012SearchProgressDialogTests
     [Fact]
     public void BuildResult_ForStopDiscardsResults()
     {
-        using var cancellation = new CancellationTokenSource();
-        var session = new SearchProgressSession(cancellation);
+        var session = new SearchProgressSession();
         session.TryStop();
 
         SearchRunResult result = session.BuildResult([Result(@"C:\root\found.txt")], cancelled: false);

@@ -1,7 +1,7 @@
 using CSharpFar.App.Dialogs;
-using CSharpFar.App.Rendering;
 using CSharpFar.Console;
 using CSharpFar.Console.Input;
+using CSharpFar.Console.Models;
 using CSharpFar.Core.Abstractions;
 using CSharpFar.Core.Models;
 using CSharpFar.Ui;
@@ -10,404 +10,164 @@ namespace CSharpFar.App.Commands;
 
 internal sealed class FileOperationUiRunner
 {
-    private const int RedrawDelayMilliseconds = 120;
-    private static readonly UiTargetId ProgressKeyboardTarget = new("file-operation.progress");
-
-    private readonly ModalDialogHost _modalDialogs;
     private readonly DialogService _dialogs;
-    private readonly Func<ConsolePalette> _palette;
     private readonly IFileOperationService _fileOperations;
     private readonly Func<bool> _showTotalProgress;
-    private readonly FormFieldFactory _fields;
 
-    public FileOperationUiRunner(
-        ModalDialogHost modalDialogs,
-        DialogService dialogs,
-        Func<ConsolePalette> palette,
-        IFileOperationService fileOperations,
-        Func<bool> showTotalProgress,
-        FormFieldFactory fields)
+    public FileOperationUiRunner(ModalDialogHost _, DialogService dialogs, Func<ConsolePalette> palette, IFileOperationService fileOperations, Func<bool> showTotalProgress, FormFieldFactory fields)
     {
-        _modalDialogs = modalDialogs;
         _dialogs = dialogs;
-        _palette = palette;
         _fileOperations = fileOperations;
         _showTotalProgress = showTotalProgress;
-        _fields = fields;
     }
 
     public FileOperationResult Execute(FileOperationRequest request)
     {
-        var conflictDialog = new ConflictDialog(_dialogs);
-        var cancelDialog = new OperationCancelDialog(_dialogs);
-        using var cts = new CancellationTokenSource();
-        var resolver = new DialogConflictResolver(conflictDialog);
+        var resolver = new DialogConflictResolver(new ConflictDialog(_dialogs));
         var pauseController = new FileOperationPauseController();
         request = request with { PauseController = pauseController };
-
         var syncRoot = new object();
         FileOperationProgress? latestProgress = null;
-        var visibleState = new FileOperationProgressViewState(null, _showTotalProgress(), FileOperationUiStatus.Running);
+        var state = new FileOperationProgressViewState(null, _showTotalProgress(), FileOperationUiStatus.Running);
         bool cancellationRequested = false;
+        var content = new FileOperationProgressContent(() => state, request.Destination ?? string.Empty);
+        var cancel = FormControls.Buttons(new DialogButton("cancel", "Cancel", 'C'));
+        var form = new ScrollableFormDialog();
+        form.SetRows([], [cancel]);
 
-        var progress = new LockedProgress<FileOperationProgress>(p =>
-        {
-            lock (syncRoot)
-                latestProgress = p;
-        });
-
-        Task<FileOperationBackgroundOutcome> operationTask = Task.Run(async () =>
-        {
-            try
+        FileOperationResult result = _dialogs.Operation(
+            new OperationDialogOptions(new CompositeDialogOptions("File operation", 74, 18, 50, 10), TimeSpan.FromMilliseconds(120)),
+            Operation,
+            form,
+            content,
+            status: null,
+            commands: new Dictionary<ConsoleKey, string> { [ConsoleKey.Escape] = "cancel" },
+            synchronize: Synchronize,
+            handle: Handle,
+            complete: static outcome => outcome,
+            onCancellationRequested: () =>
             {
-                FileOperationResult result = await _fileOperations.ExecuteAsync(request, progress, resolver, cts.Token)
-                    .ConfigureAwait(false);
-                return new FileOperationBackgroundOutcome(result, null);
-            }
-            catch (Exception ex)
-            {
-                return new FileOperationBackgroundOutcome(null, ex);
-            }
-        });
+                resolver.CancelPending();
+                pauseController.Resume();
+            });
 
-        using var completionWake = new CancellationTokenSource();
-        _ = operationTask.ContinueWith(
-            static (_, state) => ((CancellationTokenSource)state!).Cancel(),
-            completionWake,
-            CancellationToken.None,
-            TaskContinuationOptions.ExecuteSynchronously,
-            TaskScheduler.Default);
-
-        FileOperationBackgroundOutcome outcome;
-        try
-        {
-            outcome = _modalDialogs.RunInteractiveTimed<FileOperationProgressFrame, FileOperationProgressInput, FileOperationBackgroundOutcome>(
-                (context, _) => RenderProgressFrame(context, request.Destination ?? string.Empty, visibleState),
-                BuildInteractionFrame,
-                RouteInput,
-                (routed, input) => HandleInput(routed.Frame, input),
-                getNextWakeUtc: () => DateTimeOffset.UtcNow.AddMilliseconds(RedrawDelayMilliseconds),
-                handleWake: HandleWake,
-                prepareRender: () => SynchronizeVisibleState(ReadLatestProgress()),
-                wakeSignal: completionWake.Token);
-        }
-        catch (Exception)
-        {
-            TryCancel(cts);
-            resolver.CancelPending();
-            pauseController.Resume();
-
-            try
-            {
-                _ = operationTask.GetAwaiter().GetResult();
-            }
-            catch (Exception)
-            {
-                // The UI exception remains the failure reported by Execute.
-            }
-
-            throw;
-        }
-
-        if (outcome.Exception is not null)
-            throw outcome.Exception;
-
-        FileOperationResult result = outcome.Result
-            ?? throw new InvalidOperationException("File operation did not return a result.");
         if (result.Cancelled)
             throw new OperationCanceledException();
         if (result.Errors.Count > 0)
-            _dialogs.Message(
-                "File Operation",
-                $"{result.FailedCount} item(s) failed. First: {result.Errors[0].Message}");
-
+            _dialogs.Message("File Operation", $"{result.FailedCount} item(s) failed. First: {result.Errors[0].Message}");
         return result;
 
-        ModalDialogWakeResult<FileOperationBackgroundOutcome> HandleWake(FileOperationProgressFrame frame)
+        async Task<FileOperationResult> Operation(CancellationToken cancellationToken)
         {
-            bool changed = false;
-            if (!operationTask.IsCompleted && resolver.ShowPendingConflict())
-                changed = true;
-
-            if (!operationTask.IsCompleted)
-            {
-                changed |= SynchronizeVisibleState(ReadLatestProgress());
-                return changed
-                    ? ModalDialogWakeResult<FileOperationBackgroundOutcome>.Changed
-                    : ModalDialogWakeResult<FileOperationBackgroundOutcome>.NoChange;
-            }
-
-            FileOperationBackgroundOutcome final = operationTask.GetAwaiter().GetResult();
-            FileOperationUiStatus status = final.Exception is null ? FileOperationUiStatus.Completed : FileOperationUiStatus.Failed;
-            changed |= SynchronizeVisibleState(ReadLatestProgress(), status);
-            return ModalDialogWakeResult<FileOperationBackgroundOutcome>.Complete(final, invalidate: changed);
+            var progress = new LockedProgress<FileOperationProgress>(value => { lock (syncRoot) latestProgress = value; });
+            return await _fileOperations.ExecuteAsync(request, progress, resolver, cancellationToken).ConfigureAwait(false);
         }
 
-        ModalDialogLoopResult<FileOperationBackgroundOutcome> HandleInput(
-            FileOperationProgressFrame frame,
-            FileOperationProgressInput input)
+        bool Synchronize()
         {
-            if (input != FileOperationProgressInput.CancelRequested || cancellationRequested)
-                return ModalDialogLoopResult<FileOperationBackgroundOutcome>.ContinueNoChange;
+            bool changed = resolver.ShowPendingConflict();
+            FileOperationProgress? snapshot;
+            lock (syncRoot) snapshot = latestProgress;
+            var next = new FileOperationProgressViewState(snapshot, _showTotalProgress(), cancellationRequested ? FileOperationUiStatus.Stopping : FileOperationUiStatus.Running);
+            changed |= state != next;
+            state = next;
+            return changed;
+        }
 
-            bool cancellationAccepted = HandleCancellation(
+        OperationDialogOutcome<FileOperationResult> Handle(CompositeDialogEvent @event)
+        {
+            if ((@event.Kind != CompositeDialogEventKind.Command || @event.Command != "cancel") || cancellationRequested)
+                return OperationDialogOutcome<FileOperationResult>.ContinueNoChange;
+
+            var frame = new FileOperationProgressFrame(state.Progress, state.ShowTotalProgress, state.Status);
+            bool accepted = HandleCancellation(
                 frame,
-                cancelImmediately: () =>
-                {
-                    cancellationRequested = true;
-                    visibleState = visibleState with { Status = FileOperationUiStatus.Stopping };
-                    TryCancel(cts);
-                    resolver.CancelPending();
-                    return true;
-                },
+                cancelImmediately: AcceptCancellation,
                 requestConfirmation: () =>
                 {
                     pauseController.Pause();
-                    try
-                    {
-                        if (cancelDialog.Show())
-                        {
-                            cancellationRequested = true;
-                            visibleState = visibleState with { Status = FileOperationUiStatus.Stopping };
-                            TryCancel(cts);
-                            resolver.CancelPending();
-                            return true;
-                        }
-
-                        return false;
-                    }
-                    finally
-                    {
-                        pauseController.Resume();
-                    }
+                    try { return new OperationCancelDialog(_dialogs).Show() && AcceptCancellation(); }
+                    finally { pauseController.Resume(); }
                 });
-
-            return cancellationAccepted
-                ? ModalDialogLoopResult<FileOperationBackgroundOutcome>.ContinueChanged
-                : ModalDialogLoopResult<FileOperationBackgroundOutcome>.ContinueNoChange;
+            return accepted ? OperationDialogOutcome<FileOperationResult>.RequestCancellation : OperationDialogOutcome<FileOperationResult>.ContinueNoChange;
         }
 
-        FileOperationProgress? ReadLatestProgress()
+        bool AcceptCancellation()
         {
-            lock (syncRoot)
-                return latestProgress;
-        }
-
-        bool SynchronizeVisibleState(FileOperationProgress? progressSnapshot, FileOperationUiStatus? status = null)
-        {
-            var next = new FileOperationProgressViewState(
-                progressSnapshot,
-                _showTotalProgress(),
-                status ?? (cancellationRequested ? FileOperationUiStatus.Stopping : FileOperationUiStatus.Running));
-            bool changed = visibleState != next;
-            visibleState = next;
-            return changed;
-        }
-    }
-
-    internal static bool HandleCancellation(
-        FileOperationProgressFrame frame,
-        Func<bool> cancelImmediately,
-        Func<bool> requestConfirmation)
-    {
-        if (frame.Status != FileOperationUiStatus.Running)
-            return false;
-
-        if (frame.Progress is null || frame.Progress.Phase == FileOperationPhase.Scanning)
-            return cancelImmediately();
-
-        return requestConfirmation();
-    }
-
-    private static FileOperationProgressFrame RenderProgressFrame(
-        UiRenderContext context,
-        string destination,
-        FileOperationProgressViewState state)
-    {
-        if (state.Progress is { } progress)
-            new ProgressDialog(context.Canvas, destination).Render(context, progress, state.ShowTotalProgress, state.Status);
-
-        return new FileOperationProgressFrame(state.Progress, state.ShowTotalProgress, state.Status);
-    }
-
-    private static UiInteractionFrame BuildInteractionFrame(FileOperationProgressFrame frame) =>
-        new UiInteractionFrameBuilder()
-            .AddFocusEntry(ProgressKeyboardTarget, 0)
-            .SetDefaultFocusTarget(ProgressKeyboardTarget)
-            .SetKeyboardTarget(ProgressKeyboardTarget)
-            .Build();
-
-    private static (FileOperationProgressInput Semantic, UiInputResult UiResult) RouteInput(
-        ConsoleInputEvent input,
-        FileOperationProgressFrame frame,
-        UiInputRouteContext route)
-    {
-        return input is KeyConsoleInputEvent { Key.Key: ConsoleKey.Escape }
-            ? (FileOperationProgressInput.CancelRequested, UiInputResult.HandledResult)
-            : (FileOperationProgressInput.None, UiInputResult.NotHandled);
-    }
-
-    private static void TryCancel(CancellationTokenSource cancellation)
-    {
-        try
-        {
-            cancellation.Cancel();
-        }
-        catch (Exception)
-        {
-        }
-    }
-
-    private sealed class DialogConflictResolver : IFileOperationConflictResolver
-    {
-        private readonly ConflictDialog _dialog;
-        private readonly object _gate = new();
-        private PendingConflict? _pendingConflict;
-        private bool _closed;
-
-        public DialogConflictResolver(ConflictDialog dialog)
-        {
-            _dialog = dialog;
-        }
-
-        public bool ShowPendingConflict()
-        {
-            PendingConflict? pendingConflict;
-            lock (_gate)
-            {
-                pendingConflict = _pendingConflict;
-            }
-
-            if (pendingConflict is null)
-                return false;
-
-            var decision = _dialog.Show(pendingConflict.Conflict);
-
-            lock (_gate)
-            {
-                if (ReferenceEquals(_pendingConflict, pendingConflict))
-                    _pendingConflict = null;
-                Monitor.PulseAll(_gate);
-            }
-
-            pendingConflict.TrySetDecision(decision);
+            cancellationRequested = true;
+            state = state with { Status = FileOperationUiStatus.Stopping };
             return true;
         }
+    }
 
+    internal static bool HandleCancellation(FileOperationProgressFrame frame, Func<bool> cancelImmediately, Func<bool> requestConfirmation)
+    {
+        if (frame.Status != FileOperationUiStatus.Running) return false;
+        return frame.Progress is null || frame.Progress.Phase == FileOperationPhase.Scanning ? cancelImmediately() : requestConfirmation();
+    }
+
+    private sealed class FileOperationProgressContent(Func<FileOperationProgressViewState> state, string destination) : ICompositeDialogContent
+    {
+        public ICompositeDialogContentFrame CalculateFrame(Rect bounds) => new Frame(bounds);
+        public void Render(IUiCanvas canvas, ICompositeDialogContentFrame rawFrame)
+        {
+            var frame = Require(rawFrame); var snapshot = state();
+            canvas.FillRegion(frame.Bounds, FarDialogStyles.Fill);
+            if (snapshot.Progress is not { } progress) { canvas.Write(frame.Bounds.X, frame.Bounds.Y, "Preparing operation...", FarDialogStyles.Fill); return; }
+            Write(canvas, frame.Bounds, 0, snapshot.Status == FileOperationUiStatus.Stopping ? "Stopping..." : PhaseText(progress));
+            Write(canvas, frame.Bounds, 1, progress.CurrentPath);
+            if (progress.CurrentDestinationPath is { } target) Write(canvas, frame.Bounds, 2, $"to {target}");
+            Write(canvas, frame.Bounds, 4, $"Files: {progress.ItemsDone:N0} / {progress.ItemsTotal:N0}");
+            Write(canvas, frame.Bounds, 5, $"Bytes: {progress.TotalBytesDone:N0} / {progress.TotalBytesTotal:N0}");
+            if (snapshot.ShowTotalProgress) Write(canvas, frame.Bounds, 7, $"Progress: {Percent(progress.TotalBytesDone, progress.TotalBytesTotal)}");
+            Write(canvas, frame.Bounds, 8, $"Destination: {destination}");
+        }
+        public UiInteractionFragment BuildInteractionFragment(ICompositeDialogContentFrame frame, int focusOrder) => UiInteractionFragment.Empty;
+        public CompositeDialogContentInputResult RouteInput(ConsoleInputEvent input, ICompositeDialogContentFrame frame, UiInputRouteContext route) => CompositeDialogContentInputResult.NotHandled;
+        public void ApplyCommittedFrame(ICompositeDialogContentFrame frame) { }
+        private static Frame Require(ICompositeDialogContentFrame frame) => frame as Frame ?? throw new ArgumentException("Frame belongs to a different content component.", nameof(frame));
+        private static void Write(IUiCanvas canvas, Rect bounds, int row, string? value) { if (row < bounds.Height) canvas.Write(bounds.X, bounds.Y + row, ConsoleTextMetrics.FitToCells(value ?? string.Empty, bounds.Width), FarDialogStyles.Fill); }
+        private static string PhaseText(FileOperationProgress p) => p.Phase switch { FileOperationPhase.Scanning => "Scanning the folder", FileOperationPhase.Deleting => "Deleting the file", FileOperationPhase.Validating => p.StatusMessage ?? "Validating partial file...", _ => "Copying the file" };
+        private static string Percent(long done, long total) => total <= 0 ? "0%" : $"{Math.Clamp(done * 100 / total, 0, 100)}%";
+        private sealed record Frame(Rect Bounds) : ICompositeDialogContentFrame;
+    }
+
+    private sealed class DialogConflictResolver(ConflictDialog dialog) : IFileOperationConflictResolver
+    {
+        private readonly object _gate = new(); private PendingConflict? _pending; private bool _closed;
+        public bool ShowPendingConflict()
+        {
+            PendingConflict? pending; lock (_gate) pending = _pending; if (pending is null) return false;
+            FileOperationConflictDecision decision = dialog.Show(pending.Conflict);
+            lock (_gate) { if (ReferenceEquals(_pending, pending)) _pending = null; Monitor.PulseAll(_gate); }
+            pending.TrySetDecision(decision); return true;
+        }
         public void CancelPending()
         {
-            PendingConflict? pendingConflict;
-            lock (_gate)
-            {
-                _closed = true;
-                pendingConflict = _pendingConflict;
-                _pendingConflict = null;
-                Monitor.PulseAll(_gate);
-            }
-
-            pendingConflict?.TrySetDecision(FileOperationConflictDecision.FromMode(ConflictDecisionMode.Cancel));
+            PendingConflict? pending; lock (_gate) { _closed = true; pending = _pending; _pending = null; Monitor.PulseAll(_gate); }
+            pending?.TrySetDecision(FileOperationConflictDecision.FromMode(ConflictDecisionMode.Cancel));
         }
-
         public FileOperationConflictDecision Resolve(FileOperationConflict conflict)
         {
-            var pendingConflict = new PendingConflict(conflict);
-
-            lock (_gate)
+            var pending = new PendingConflict(conflict); lock (_gate)
             {
-                if (_closed)
-                    return FileOperationConflictDecision.FromMode(ConflictDecisionMode.Cancel);
-
-                while (_pendingConflict is not null)
-                {
-                    Monitor.Wait(_gate);
-                    if (_closed)
-                        return FileOperationConflictDecision.FromMode(ConflictDecisionMode.Cancel);
-                }
-
-                _pendingConflict = pendingConflict;
-                Monitor.PulseAll(_gate);
+                if (_closed) return FileOperationConflictDecision.FromMode(ConflictDecisionMode.Cancel);
+                while (_pending is not null) { Monitor.Wait(_gate); if (_closed) return FileOperationConflictDecision.FromMode(ConflictDecisionMode.Cancel); }
+                _pending = pending; Monitor.PulseAll(_gate);
             }
-
-            return pendingConflict.WaitForDecision();
+            return pending.WaitForDecision();
         }
-
-        private sealed class PendingConflict
+        private sealed class PendingConflict(FileOperationConflict conflict)
         {
-            private readonly ManualResetEventSlim _decisionReady = new();
-            private readonly object _decisionGate = new();
-            private FileOperationConflictDecision? _decision;
-
-            public PendingConflict(FileOperationConflict conflict)
-            {
-                Conflict = conflict;
-            }
-
-            public FileOperationConflict Conflict { get; }
-
-            public bool TrySetDecision(FileOperationConflictDecision decision)
-            {
-                lock (_decisionGate)
-                {
-                    if (_decision is not null)
-                        return false;
-
-                    _decision = decision;
-                    _decisionReady.Set();
-                    return true;
-                }
-            }
-
-            public FileOperationConflictDecision WaitForDecision()
-            {
-                _decisionReady.Wait();
-                return _decision
-                    ?? throw new InvalidOperationException("Conflict dialog closed without a decision.");
-            }
+            private readonly ManualResetEventSlim _ready = new(); private readonly object _gate = new(); private FileOperationConflictDecision? _decision;
+            public FileOperationConflict Conflict { get; } = conflict;
+            public bool TrySetDecision(FileOperationConflictDecision decision) { lock (_gate) { if (_decision is not null) return false; _decision = decision; _ready.Set(); return true; } }
+            public FileOperationConflictDecision WaitForDecision() { _ready.Wait(); return _decision ?? throw new InvalidOperationException("Conflict dialog closed without a decision."); }
         }
     }
-
-    private sealed class LockedProgress<T>(Action<T> report) : IProgress<T>
-    {
-        public void Report(T value) => report(value);
-    }
-
-    private sealed record FileOperationBackgroundOutcome(
-        FileOperationResult? Result,
-        Exception? Exception);
-
-    private sealed record FileOperationProgressViewState(
-        FileOperationProgress? Progress,
-        bool ShowTotalProgress,
-        FileOperationUiStatus Status);
-
-    internal sealed record FileOperationProgressFrame(
-        FileOperationProgress? Progress,
-        bool ShowTotalProgress,
-        FileOperationUiStatus Status);
-
-    internal enum FileOperationUiStatus
-    {
-        Running,
-        Stopping,
-        Completed,
-        Failed,
-    }
-
-    private enum FileOperationProgressInput
-    {
-        None,
-        CancelRequested,
-    }
-
-    private sealed class FileOperationPauseController : IFileOperationPauseController
-    {
-        private readonly ManualResetEventSlim _canRun = new(initialState: true);
-
-        public void Pause() => _canRun.Reset();
-
-        public void Resume() => _canRun.Set();
-
-        public void WaitIfPaused(CancellationToken cancellationToken) =>
-            _canRun.Wait(cancellationToken);
-    }
+    private sealed class LockedProgress<T>(Action<T> report) : IProgress<T> { public void Report(T value) => report(value); }
+    private sealed record FileOperationProgressViewState(FileOperationProgress? Progress, bool ShowTotalProgress, FileOperationUiStatus Status);
+    internal sealed record FileOperationProgressFrame(FileOperationProgress? Progress, bool ShowTotalProgress, FileOperationUiStatus Status);
+    internal enum FileOperationUiStatus { Running, Stopping, Completed, Failed }
+    private sealed class FileOperationPauseController : IFileOperationPauseController { private readonly ManualResetEventSlim _canRun = new(true); public void Pause() => _canRun.Reset(); public void Resume() => _canRun.Set(); public void WaitIfPaused(CancellationToken cancellationToken) => _canRun.Wait(cancellationToken); }
 }

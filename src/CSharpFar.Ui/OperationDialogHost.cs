@@ -52,6 +52,7 @@ public sealed class OperationDialogHost
         Func<bool>? synchronize,
         Func<CompositeDialogEvent, OperationDialogOutcome<TResult>> handle,
         Func<TBackground, TResult> complete,
+        Action? onCancellationRequested = null,
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(options);
@@ -72,6 +73,22 @@ public sealed class OperationDialogHost
             TaskContinuationOptions.ExecuteSynchronously,
             TaskScheduler.Default);
 
+        // Synchronization has one lifecycle: once before the first frame, once per
+        // periodic wake, and once when the operation completes. A changed semantic
+        // command invalidates the next render without triggering another refresh.
+        _ = synchronize?.Invoke();
+        bool cancellationNotified = false;
+
+        void RequestCancellation()
+        {
+            operationCancellation.Cancel();
+            if (!cancellationNotified)
+            {
+                cancellationNotified = true;
+                onCancellationRequested?.Invoke();
+            }
+        }
+
         try
         {
             return _composite.RunTimed(
@@ -88,10 +105,10 @@ public sealed class OperationDialogHost
                         case OperationDialogAction.ContinueChanged:
                             return ModalDialogLoopResult<TResult>.ContinueChanged;
                         case OperationDialogAction.RequestCancellation:
-                            operationCancellation.Cancel();
+                            RequestCancellation();
                             return ModalDialogLoopResult<TResult>.ContinueChanged;
                         case OperationDialogAction.Complete:
-                            operationCancellation.Cancel();
+                            RequestCancellation();
                             ObserveBeforeClose(task);
                             return ModalDialogLoopResult<TResult>.Complete(outcome.Result!);
                         default:
@@ -108,13 +125,13 @@ public sealed class OperationDialogHost
                     TBackground result = task.GetAwaiter().GetResult();
                     return ModalDialogWakeResult<TResult>.Complete(complete(result), changed);
                 },
-                prepareRender: synchronize is null ? null : () => _ = synchronize(),
+                prepareRender: null,
                 cancellationToken,
                 completionWake.Token);
         }
         catch
         {
-            operationCancellation.Cancel();
+            RequestCancellation();
             ObserveBeforeClose(task);
             throw;
         }

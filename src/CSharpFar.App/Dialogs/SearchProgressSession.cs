@@ -2,7 +2,7 @@ using CSharpFar.Core.Models;
 
 namespace CSharpFar.App.Dialogs;
 
-internal sealed class SearchProgressSession(CancellationTokenSource cancellation)
+internal sealed class SearchProgressSession
 {
     private SearchProgressTerminalIntent _terminalIntent;
 
@@ -22,7 +22,6 @@ internal sealed class SearchProgressSession(CancellationTokenSource cancellation
 
         GoToResult = result;
         _terminalIntent = SearchProgressTerminalIntent.GoTo;
-        cancellation.Cancel();
         return true;
     }
 
@@ -32,7 +31,6 @@ internal sealed class SearchProgressSession(CancellationTokenSource cancellation
             return false;
 
         _terminalIntent = SearchProgressTerminalIntent.StopAndDiscard;
-        cancellation.Cancel();
         return true;
     }
 
