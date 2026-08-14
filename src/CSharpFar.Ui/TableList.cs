@@ -101,18 +101,22 @@ public sealed class TableList<T> : ICompositeDialogContent
     {
         ArgumentNullException.ThrowIfNull(items);
         bool hadSelection = TryGetSelectedItem(out T selected);
+        int previousIndex = SelectedIndex;
+        int previousScrollTop = _list.State.ScrollTop;
         _items = items.ToArray();
-        int selectedIndex = hadSelection ? _items.Select((item, index) => (item, index)).FirstOrDefault(pair => EqualityComparer<T>.Default.Equals(pair.item, selected)).index : 0;
-        _list.State.ResetItems(BuildPresentationRows(_items), _items.Count == 0 ? 0 : PresentationIndex(selectedIndex));
+        int selectedIndex = FindSelectionIndex(hadSelection, selected, previousIndex, static item => item, selected);
+        ReplacePresentationRows(selectedIndex, previousScrollTop);
     }
     public void ReplaceItems<TKey>(IReadOnlyList<T> items, Func<T, TKey> identityKey) where TKey : notnull
     {
         ArgumentNullException.ThrowIfNull(items); ArgumentNullException.ThrowIfNull(identityKey);
         bool hadSelection = TryGetSelectedItem(out T selected);
         TKey selectedKey = hadSelection ? identityKey(selected) : default!;
+        int previousIndex = SelectedIndex;
+        int previousScrollTop = _list.State.ScrollTop;
         _items = items.ToArray();
-        int selectedIndex = hadSelection ? _items.Select((item, index) => (item, index)).FirstOrDefault(pair => EqualityComparer<TKey>.Default.Equals(identityKey(pair.item), selectedKey)).index : 0;
-        _list.State.ResetItems(BuildPresentationRows(_items), _items.Count == 0 ? 0 : PresentationIndex(selectedIndex));
+        int selectedIndex = FindSelectionIndex(hadSelection, selected, previousIndex, identityKey, selectedKey);
+        ReplacePresentationRows(selectedIndex, previousScrollTop);
     }
     private int _lastViewportRows = 1;
     public TableListFrame CalculateFrame(Rect bounds)
@@ -159,9 +163,10 @@ public sealed class TableList<T> : ICompositeDialogContent
             if (presentationIndex >= 0 && presentationIndex < _list.State.Count && _list.State.Items[presentationIndex].IsSectionBreak)
                 return (ScrollableListInputResult.Handled, UiInputResult.HandledResult);
         }
+        int previousSelected = _list.State.SelectedIndex;
         RoutedScrollableListInputResult result = _list.RouteInput(input, frame.ListFrame, route);
         if (result.ListResult.IsHandled)
-            SkipSectionBreak(input, frame.ListFrame);
+            SkipSectionBreak(input, frame.ListFrame, previousSelected);
         return (result.ListResult, result.UiResult);
     }
     public bool IsTargetRoute(UiInputRouteContext route) => _list.IsTargetRoute(route);
@@ -193,16 +198,37 @@ public sealed class TableList<T> : ICompositeDialogContent
     }
     private int PresentationIndex(int logicalIndex)
     {
-        if (logicalIndex < 0 || logicalIndex >= _items.Count) return 0;
+        if (logicalIndex < 0 || logicalIndex >= _items.Count) throw new ArgumentOutOfRangeException(nameof(logicalIndex));
         for (int index = 0; index < _list.State.Count; index++)
             if (!_list.State.Items[index].IsSectionBreak && _list.State.Items[index].LogicalIndex == logicalIndex) return index;
         return logicalIndex;
     }
-    private void SkipSectionBreak(ConsoleInputEvent input, ScrollableListFrame frame)
+    private int FindSelectionIndex<TKey>(bool hadSelection, T selected, int previousIndex, Func<T, TKey> identityKey, TKey selectedKey)
+    {
+        if (_items.Count == 0) return -1;
+        if (hadSelection)
+            for (int index = 0; index < _items.Count; index++)
+                if (EqualityComparer<TKey>.Default.Equals(identityKey(_items[index]), selectedKey)) return index;
+        return Math.Clamp(previousIndex, 0, _items.Count - 1);
+    }
+    private void ReplacePresentationRows(int selectedIndex, int previousScrollTop)
+    {
+        IReadOnlyList<PresentationRow> rows = BuildPresentationRows(_items);
+        if (_items.Count == 0) { _list.State.ResetItems(rows); return; }
+        int presentationIndex = PresentationIndex(selectedIndex);
+        _list.State.ResetItems(rows, presentationIndex);
+        _list.State.ApplyPosition(new ScrollableListPosition(rows.Count, presentationIndex, previousScrollTop), Math.Max(1, _lastViewportRows));
+    }
+    private void SkipSectionBreak(ConsoleInputEvent input, ScrollableListFrame frame, int previousSelected)
     {
         int selected = _list.State.SelectedIndex;
         if (selected < 0 || !_list.State.Items[selected].IsSectionBreak) return;
-        int direction = input is KeyConsoleInputEvent { Key.Key: ConsoleKey.UpArrow or ConsoleKey.PageUp } ? -1 : 1;
+        int direction = input switch
+        {
+            KeyConsoleInputEvent { Key.Key: ConsoleKey.UpArrow or ConsoleKey.PageUp or ConsoleKey.Home } => -1,
+            MouseConsoleInputEvent { Button: MouseButton.WheelUp } => -1,
+            _ => selected < previousSelected ? -1 : 1,
+        };
         int index = selected;
         while (index >= 0 && index < _list.State.Count && _list.State.Items[index].IsSectionBreak) index += direction;
         if (index < 0 || index >= _list.State.Count)

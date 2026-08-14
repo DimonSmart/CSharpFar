@@ -17,7 +17,7 @@ internal sealed class OperationCancelDialog
         _dialogs.Form(
             new FormDialogOptions("", PreferredWidth: 46, PreferredHeight: 8)
             {
-                Appearance = FormDialogAppearance.Warning,
+                Appearance = DialogAppearance.Warning,
             },
             rows: () =>
             [

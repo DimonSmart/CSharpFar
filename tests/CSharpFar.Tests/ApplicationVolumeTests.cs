@@ -740,9 +740,12 @@ public sealed class ApplicationVolumeTests : IDisposable
         Assert.Contains(driver.WriteRecords,
             r => r.Text.Contains("C: fixed", StringComparison.Ordinal) &&
                  r.Foreground == ConsoleColor.Yellow);
+        Assert.Contains(driver.WriteRecords, r => string.Equals(r.Text.TrimEnd(), "C: fixed", StringComparison.Ordinal));
         Assert.Contains(driver.WriteRecords,
             r => r.Text.Contains("D: fixed", StringComparison.Ordinal) &&
                  r.Foreground == ConsoleColor.Yellow);
+        Assert.Contains(driver.WriteRecords,
+            r => r.Text.Contains('╔') && r.Background == UiTheme.Current.MenuNormalBg);
     }
 
     // ── KindLabel for Unchecked shows kind, not error (spec test #10) ─────────
