@@ -23,7 +23,7 @@ internal static class ModuleCatalogFactory
                 new ModuleMenuProjection(SftpModuleIds.MenuActionId, "SFTP...", 'S'),
                 sftpModule.OpenFromMenu);
             catalog.AddDiskMenuAction(
-                new ModuleMenuProjection(SftpModuleIds.DiskActionId, "SFTP", 'S'),
+                new ModuleMenuProjection(SftpModuleIds.DiskActionId, "SFTP", null),
                 sftpModule.OpenFromDiskMenu);
             catalog.AddCommandPrefix("sftp", (commandLine, side) => sftpModule.OpenFromCommandLine(side, commandLine));
         }
@@ -35,7 +35,7 @@ internal static class ModuleCatalogFactory
                 new ModuleMenuProjection(FtpModuleIds.MenuActionId, "FTP/FTPS...", 'F'),
                 ftpModule.OpenFromMenu);
             catalog.AddDiskMenuAction(
-                new ModuleMenuProjection(FtpModuleIds.DiskActionId, "FTP/FTPS", 'F'),
+                new ModuleMenuProjection(FtpModuleIds.DiskActionId, "FTP/FTPS", null),
                 ftpModule.OpenFromDiskMenu);
             catalog.AddCommandPrefix("ftp", (commandLine, side) => ftpModule.OpenFromCommandLine(side, commandLine));
             catalog.AddCommandPrefix("ftps", (commandLine, side) => ftpModule.OpenFromCommandLine(side, commandLine));
