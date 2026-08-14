@@ -10,10 +10,11 @@ internal sealed class EnvironmentVariableCommandExecutor
             return false;
         }
 
-        Environment.SetEnvironmentVariable(
-            name,
-            value.Length == 0 ? null : value,
-            EnvironmentVariableTarget.Process);
+        string? expandedValue = value.Length == 0
+            ? null
+            : Environment.ExpandEnvironmentVariables(value);
+
+        Environment.SetEnvironmentVariable(name, expandedValue, EnvironmentVariableTarget.Process);
         return true;
     }
 }
