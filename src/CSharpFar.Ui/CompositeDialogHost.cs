@@ -10,7 +10,8 @@ public sealed record CompositeDialogOptions(
     int PreferredHeight = 20,
     int MinWidth = 20,
     int MinHeight = 8,
-    bool DoubleBorder = true);
+    bool DoubleBorder = true,
+    DialogAppearance Appearance = DialogAppearance.Standard);
 
 public enum CompositeDialogEventKind
 {
@@ -121,7 +122,13 @@ public sealed class CompositeDialogHost
         ICompositeDialogContentFrame contentFrame = content.CalculateFrame(contentBounds);
         ScrollableFormFrame formFrame = null!;
 
-        _renderer.Render(context.Canvas, modal, options.Title, options.DoubleBorder, FarDialogStyles.OuterOptions, FarDialogStyles.FrameOptions, (_, _) =>
+        PopupRenderOptions? popup = options.Appearance switch
+        {
+            DialogAppearance.Popup => PaletteStyles.DialogPopupOptions(UiTheme.Current),
+            DialogAppearance.Warning => WarningDialogStyles.OuterOptions,
+            _ => null,
+        };
+        _renderer.Render(context.Canvas, modal, options.Title, options.DoubleBorder, popup ?? FarDialogStyles.OuterOptions, popup is null ? FarDialogStyles.FrameOptions : popup with { DrawShadow = false }, (_, _) =>
         {
             formFrame = form.Render(new FormRenderContext(context, header, FarDialogStyles.Border, footer), focus);
             content.Render(context.Canvas, contentFrame);
@@ -161,6 +168,8 @@ public sealed class CompositeDialogHost
                     CompositeDialogContentEventKind.Confirmed => new(CompositeDialogEventKind.ContentConfirmed),
                     _ => new(CompositeDialogEventKind.NotHandled),
                 }, contentResult.UiResult);
+            if (contentResult.UiResult.Handled)
+                return (new(CompositeDialogEventKind.NotHandled), contentResult.UiResult);
             if (UiFocusRouting.TryHandleTraversal(input, out UiInputResult traversal))
                 return (new(CompositeDialogEventKind.NotHandled), traversal);
         }

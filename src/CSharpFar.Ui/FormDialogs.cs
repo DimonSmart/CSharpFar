@@ -1,7 +1,7 @@
 namespace CSharpFar.Ui;
 
 /// <summary>The standard window appearance for an ordinary modal form.</summary>
-public enum FormDialogAppearance
+public enum DialogAppearance
 {
     Standard,
     Popup,
@@ -22,7 +22,7 @@ public sealed record FormDialogOptions(
 
     public bool DoubleBorder { get; init; } = true;
 
-    public FormDialogAppearance Appearance { get; init; } = FormDialogAppearance.Standard;
+    public DialogAppearance Appearance { get; init; } = DialogAppearance.Standard;
 
     /// <summary>Optional semantic control that receives initial form focus.</summary>
     public IFormFocusTarget? InitialFocus { get; init; }
@@ -274,8 +274,8 @@ internal sealed class FormDialogs
     {
         PopupRenderOptions? popup = options.Appearance switch
         {
-            FormDialogAppearance.Popup => PaletteStyles.DialogPopupOptions(UiTheme.Current),
-            FormDialogAppearance.Warning => WarningDialogStyles.OuterOptions,
+            DialogAppearance.Popup => PaletteStyles.DialogPopupOptions(UiTheme.Current),
+            DialogAppearance.Warning => WarningDialogStyles.OuterOptions,
             _ => null,
         };
         return new ModalFormOptions(

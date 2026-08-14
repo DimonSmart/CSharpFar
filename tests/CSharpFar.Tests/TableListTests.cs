@@ -128,6 +128,44 @@ public sealed class TableListTests
         Assert.Equal(0, table.SelectedIndex);
     }
 
+    [Fact]
+    public void SectionBreak_WheelMovesInBothDirectionsWithoutSelectingTheSeparator()
+    {
+        var table = new TableList<Item>([new("one", "", ""), new("two", "", "")], new TableListDefinition<Item>
+        {
+            Columns = [TableColumn<Item>.Text("Name", item => item.First, 8)],
+            SectionBreakBetween = static (_, _) => true,
+        });
+        TableListFrame frame = table.CalculateFrame(new Rect(0, 0, 8, 5));
+        UiTargetId target = table.BuildInteractionFragment(frame).FocusEntries.Single().Target;
+        var route = UiInputRouteContext.HitTarget(new UiFocusController(), target);
+
+        _ = table.RouteInput(new MouseConsoleInputEvent(0, 2, MouseButton.WheelDown, MouseEventKind.Wheel, MouseKeyModifiers.None), frame, route);
+        Assert.Equal(1, table.SelectedIndex);
+        frame = table.CalculateFrame(new Rect(0, 0, 8, 5));
+        _ = table.RouteInput(new MouseConsoleInputEvent(0, 2, MouseButton.WheelUp, MouseEventKind.Wheel, MouseKeyModifiers.None), frame, route);
+
+        Assert.Equal(0, table.SelectedIndex);
+    }
+
+    [Fact]
+    public void ReplaceItems_PreservesSelectedItemAndViewportAndFallsBackToNearestLogicalIndex()
+    {
+        Item[] items = Enumerable.Range(0, 8).Select(index => new Item($"item {index}", "", "")).ToArray();
+        var table = CreateTable(items, selectedIndex: 5);
+        _ = table.CalculateFrame(new Rect(0, 0, 12, 4));
+
+        table.ReplaceItems(items.Skip(2).ToArray());
+        TableListFrame preserved = table.CalculateFrame(new Rect(0, 0, 12, 4));
+        Assert.Equal("item 5", table.SelectedItem!.First);
+        Assert.True(preserved.ScrollTop > 0);
+
+        table.ReplaceItems(items.Take(3).ToArray());
+        Assert.Equal(2, table.SelectedIndex);
+        Assert.Throws<ArgumentOutOfRangeException>(() => table.SetSelectedIndex(3));
+        Assert.Equal(2, table.SelectedIndex);
+    }
+
     private static TableList<Item> CreateTable(IReadOnlyList<Item> items, int selectedIndex = 0) => new(items, Definition(TableColumn<Item>.Text("Name", x => x.First, TableWidth.Flexible(8, 2)), TableColumn<Item>.Text("Size", x => x.Second, 4, TableColumnAlignment.Right)), selectedIndex);
     private static TableListDefinition<Item> Definition(params TableColumn<Item>[] columns) => new() { Columns = columns };
     private sealed record Item(string First, string Second, string Third);

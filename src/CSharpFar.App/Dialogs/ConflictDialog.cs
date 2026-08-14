@@ -23,7 +23,7 @@ internal sealed class ConflictDialog
         return _dialogs.Form(
             new FormDialogOptions("Warning", PreferredWidth: 78, PreferredHeight: 13)
             {
-                Appearance = FormDialogAppearance.Warning,
+                Appearance = DialogAppearance.Warning,
                 InitialFocus = actions,
             },
             rows: () =>
