@@ -118,6 +118,7 @@ public sealed class DialogService
         Func<bool>? synchronize,
         Func<CompositeDialogEvent, OperationDialogOutcome<TResult>> handle,
         Func<TBackground, TResult> complete,
+        Action? onCancellationRequested = null,
         CancellationToken cancellationToken = default) =>
-        new OperationDialogHost(_modalDialogs).Run(options, operation, form, content, status, commands, synchronize, handle, complete, cancellationToken);
+        new OperationDialogHost(_modalDialogs).Run(options, operation, form, content, status, commands, synchronize, handle, complete, onCancellationRequested, cancellationToken);
 }
