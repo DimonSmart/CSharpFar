@@ -13,6 +13,7 @@ internal sealed class CommandLineCommandExecutor
     private readonly IHistoryStore _history;
     private readonly ModulePanelOpener _modulePanelOpener;
     private readonly ChangeDirectoryCommandExecutor _changeDirectoryCommandExecutor;
+    private readonly EnvironmentVariableCommandExecutor _environmentVariableCommandExecutor;
     private readonly IShellService _shell;
     private readonly ShellInvocationParser _invocationParser;
     private readonly ExternalConsoleCommandRunner _externalCommandRunner;
@@ -27,6 +28,7 @@ internal sealed class CommandLineCommandExecutor
         IHistoryStore history,
         ModulePanelOpener modulePanelOpener,
         ChangeDirectoryCommandExecutor changeDirectoryCommandExecutor,
+        EnvironmentVariableCommandExecutor environmentVariableCommandExecutor,
         ShellInvocationParser invocationParser,
         IShellService shell,
         ExternalConsoleCommandRunner externalCommandRunner,
@@ -40,6 +42,7 @@ internal sealed class CommandLineCommandExecutor
         _history = history;
         _modulePanelOpener = modulePanelOpener;
         _changeDirectoryCommandExecutor = changeDirectoryCommandExecutor;
+        _environmentVariableCommandExecutor = environmentVariableCommandExecutor;
         _invocationParser = invocationParser;
         _shell = shell;
         _externalCommandRunner = externalCommandRunner;
@@ -69,6 +72,9 @@ internal sealed class CommandLineCommandExecutor
             return;
 
         if (_changeDirectoryCommandExecutor.TryExecute(command))
+            return;
+
+        if (_environmentVariableCommandExecutor.TryExecute(command))
             return;
 
         _externalCommandRunner.Execute(workDir, command, () => _shell.Execute(command, workDir));
