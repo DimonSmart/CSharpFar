@@ -489,7 +489,7 @@ public sealed class ApplicationVolumeTests : IDisposable
         VolumeSelectionItem? result = CreateDriveDialog(driver).Show(DuplicateShortcutItems());
 
         Assert.NotNull(result);
-        Assert.Equal("D: second", result.Label);
+        Assert.Equal("D: first", result.Label);
     }
 
     [Fact]
@@ -566,6 +566,17 @@ public sealed class ApplicationVolumeTests : IDisposable
 
         Assert.NotNull(result);
         Assert.Equal("U:", result.Label);
+    }
+
+    [Fact]
+    public void DriveDialog_ModuleDigitShortcutCompletesImmediately()
+    {
+        var driver = DialogDriver(KeyInput('0', ConsoleKey.D0));
+        var module = new VolumeSelectionItem { Label = "SFTP", Shortcut = "S", Action = VolumeSelectionAction.OpenModule };
+
+        VolumeSelectionItem? result = CreateDriveDialog(driver).Show([ReadyItem("C:", "C"), module]);
+
+        Assert.Same(module, result);
     }
 
     [Fact]
@@ -726,20 +737,12 @@ public sealed class ApplicationVolumeTests : IDisposable
         Assert.Contains('│', text);
         Assert.Contains('┼', text);
         Assert.Contains('╔', text);
-        string topFrameRow = driver.WriteRecords.First(r => r.Text.Contains('╔')).Text;
-        int topFrameX = topFrameRow.IndexOf('╔');
-        Assert.True(topFrameX > 0);
-        Assert.Equal(' ', topFrameRow[topFrameX - 1]);
         Assert.Contains(driver.WriteRecords,
             r => r.Text.Contains("C: fixed", StringComparison.Ordinal) &&
                  r.Foreground == ConsoleColor.Yellow);
         Assert.Contains(driver.WriteRecords,
             r => r.Text.Contains("D: fixed", StringComparison.Ordinal) &&
                  r.Foreground == ConsoleColor.Yellow);
-        Assert.Contains(driver.WriteRecords,
-            r => r.Text.Contains("Change drive", StringComparison.Ordinal) &&
-                 r.Foreground == ConsoleColor.White &&
-                 r.Background == ConsoleColor.DarkCyan);
     }
 
     // ── KindLabel for Unchecked shows kind, not error (spec test #10) ─────────

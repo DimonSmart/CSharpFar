@@ -86,6 +86,48 @@ public sealed class TableListTests
         Assert.True(result.IsHandled);
     }
 
+    [Fact]
+    public void SectionBreak_RendersWithVisibleColumnGeometryAndDoesNotChangeLogicalSelection()
+    {
+        var table = new TableList<Item>([new("volume", "1", "x"), new("module", "2", "y")], new TableListDefinition<Item>
+        {
+            Columns =
+            [
+                TableColumn<Item>.Text("Name", item => item.First, 6),
+                TableColumn<Item>.Text("Size", item => item.Second, TableWidth.Optional(4, 0)),
+            ],
+            SectionBreakBetween = static (previous, current) => previous.First != current.First,
+        });
+        var driver = new FakeConsoleDriver(7, 5);
+        TableListFrame frame = table.CalculateFrame(new Rect(0, 0, 7, 5));
+
+        UiTestRender.Render(new ScreenRenderer(driver), canvas => table.Render(canvas, frame));
+
+        Assert.StartsWith("──────", driver.GetRow(3), StringComparison.Ordinal);
+        Assert.Equal(0, table.SelectedIndex);
+        var route = UiInputRouteContext.HitTarget(new UiFocusController(), table.BuildInteractionFragment(frame).FocusEntries.Single().Target);
+        (ScrollableListInputResult result, _) = table.RouteInput(new KeyConsoleInputEvent(new ConsoleKeyInfo('\0', ConsoleKey.DownArrow, false, false, false)), frame, route);
+        Assert.Equal(ScrollableListInputResultKind.SelectionChanged, result.Kind);
+        Assert.Equal(1, table.SelectedIndex);
+    }
+
+    [Fact]
+    public void SectionBreak_MouseClickIsIgnored()
+    {
+        var table = new TableList<Item>([new("one", "", ""), new("two", "", "")], new TableListDefinition<Item>
+        {
+            Columns = [TableColumn<Item>.Text("Name", item => item.First, 8)],
+            SectionBreakBetween = static (_, _) => true,
+        });
+        TableListFrame frame = table.CalculateFrame(new Rect(0, 0, 8, 5));
+        UiTargetId target = table.BuildInteractionFragment(frame).FocusEntries.Single().Target;
+
+        (ScrollableListInputResult result, _) = table.RouteInput(new MouseConsoleInputEvent(0, 3, MouseButton.Left, MouseEventKind.Down, MouseKeyModifiers.None), frame, UiInputRouteContext.HitTarget(new UiFocusController(), target));
+
+        Assert.Equal(ScrollableListInputResultKind.Handled, result.Kind);
+        Assert.Equal(0, table.SelectedIndex);
+    }
+
     private static TableList<Item> CreateTable(IReadOnlyList<Item> items, int selectedIndex = 0) => new(items, Definition(TableColumn<Item>.Text("Name", x => x.First, TableWidth.Flexible(8, 2)), TableColumn<Item>.Text("Size", x => x.Second, 4, TableColumnAlignment.Right)), selectedIndex);
     private static TableListDefinition<Item> Definition(params TableColumn<Item>[] columns) => new() { Columns = columns };
     private sealed record Item(string First, string Second, string Third);
