@@ -134,15 +134,15 @@ public sealed class Spec029SftpProviderTests : IDisposable
     public async Task ProviderMove_DirectoryMovesOnlyMatchingFiles()
     {
         var service = CreateProviderOperationService(out var remote);
-        remote.WriteFile("/Source/A.txt", "text");
-        remote.WriteFile("/Source/B.csv", "csv");
+        remote.WriteFile("/Source/sub/A.txt", "text");
+        remote.WriteFile("/Source/sub/B.csv", "csv");
         await remote.CreateDirectoryAsync("/Target");
 
         await service.ExecuteAsync(ProviderRequest(FileOperationKind.Move, remote.SourceId, ["/Source"], "/Target/*_old", new FileOperationOptions { FileMask = "*.txt" }), null, new NoOpConflictResolver());
 
-        Assert.NotNull(remote.GetItem("/Target/Source_old/A.txt"));
-        Assert.Null(remote.GetItem("/Source/A.txt"));
-        Assert.NotNull(remote.GetItem("/Source/B.csv"));
+        Assert.NotNull(remote.GetItem("/Target/Source_old/sub/A.txt"));
+        Assert.Null(remote.GetItem("/Source/sub/A.txt"));
+        Assert.NotNull(remote.GetItem("/Source/sub/B.csv"));
     }
 
     [Fact]
@@ -158,6 +158,55 @@ public sealed class Spec029SftpProviderTests : IDisposable
         Assert.NotNull(remote.GetItem("/Target/Source_old/A.txt"));
         Assert.Null(remote.GetItem("/Target/Source_old/B.csv"));
         Assert.NotNull(remote.GetItem("/Source/A.txt"));
+    }
+
+    [Fact]
+    public async Task ProviderCopy_MaskedLocalDirectoryUsesProviderTargetPathSyntax()
+    {
+        string sourcePath = Path.Combine(_tempDir, "Source");
+        string nestedPath = Path.Combine(sourcePath, "sub");
+        Directory.CreateDirectory(nestedPath);
+        File.WriteAllText(Path.Combine(nestedPath, "A.txt"), "text");
+        var service = CreateProviderOperationService(out var remote);
+
+        await service.ExecuteAsync(
+            new FileOperationRequest
+            {
+                Kind = FileOperationKind.Copy,
+                Sources = [],
+                SourceLocations = [PanelLocation.Local(sourcePath)],
+                Destination = "/Moved/*_old",
+                DestinationLocation = new PanelLocation(remote.SourceId, "/Moved/*_old"),
+                Options = new FileOperationOptions { FileMask = "*.txt" },
+            },
+            null,
+            new NoOpConflictResolver());
+
+        Assert.NotNull(remote.GetItem("/Moved/Source_old/sub/A.txt"));
+    }
+
+    [Fact]
+    public async Task ProviderCopy_MaskedProviderDirectoryUsesLocalTargetPathSyntax()
+    {
+        Directory.CreateDirectory(_tempDir);
+        var service = CreateProviderOperationService(out var remote);
+        remote.WriteFile("/Source/sub/A.txt", "text");
+        string destinationPath = Path.Combine(_tempDir, "Moved", "*_old");
+
+        await service.ExecuteAsync(
+            new FileOperationRequest
+            {
+                Kind = FileOperationKind.Copy,
+                Sources = [],
+                SourceLocations = [new PanelLocation(remote.SourceId, "/Source")],
+                Destination = destinationPath,
+                DestinationLocation = PanelLocation.Local(destinationPath),
+                Options = new FileOperationOptions { FileMask = "*.txt" },
+            },
+            null,
+            new NoOpConflictResolver());
+
+        Assert.True(File.Exists(Path.Combine(_tempDir, "Moved", "Source_old", "sub", "A.txt")));
     }
 
     [Fact]
