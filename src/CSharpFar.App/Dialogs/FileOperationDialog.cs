@@ -40,7 +40,6 @@ internal sealed class FileOperationDialog
     [
         FileSecurityMode.Default,
         FileSecurityMode.CopyAccessControl,
-        FileSecurityMode.Inherit,
     ];
 
     private readonly FormFieldFactory _fields;
@@ -269,7 +268,6 @@ internal sealed class FileOperationDialog
     private static string SecurityModeLabel(FileSecurityMode mode) => mode switch
     {
         FileSecurityMode.CopyAccessControl => "Copy",
-        FileSecurityMode.Inherit => "Inherit",
         _ => "Default",
     };
 

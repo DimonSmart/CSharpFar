@@ -2,6 +2,7 @@ using System.Reflection;
 using CSharpFar.App;
 using CSharpFar.App.Files;
 using CSharpFar.App.Rendering;
+using CSharpFar.App.Settings;
 using CSharpFar.Console;
 using CSharpFar.Console.Models;
 using CSharpFar.Core.Abstractions;
@@ -214,6 +215,39 @@ public sealed class ApplicationSettingsTests : IDisposable
         FileOperationOptions options = FileOperationOptionsFactory.Create(settings);
 
         Assert.Equal(CopyMode.Normal, options.CopyMode);
+    }
+
+    [Theory]
+    [InlineData("Default", FileSecurityMode.Default)]
+    [InlineData("CopyAccessControl", FileSecurityMode.CopyAccessControl)]
+    [InlineData("Inherit", FileSecurityMode.Default)]
+    [InlineData("invalid", FileSecurityMode.Default)]
+    public void FileOperationOptionsFactory_ParsesSecurityModeOrFallsBackToDefault(
+        string securityMode,
+        FileSecurityMode expected)
+    {
+        var settings = new AppSettings();
+        settings.FileOperations.SecurityMode = securityMode;
+
+        FileOperationOptions options = FileOperationOptionsFactory.Create(settings);
+
+        Assert.Equal(expected, options.SecurityMode);
+    }
+
+    [Fact]
+    public void FileOperationOptionsFactory_LoadsPersistedInheritSecurityModeAsDefault()
+    {
+        string configDirectory = Path.Combine(_tempDir, "legacy-security-mode");
+        Directory.CreateDirectory(configDirectory);
+        File.WriteAllText(
+            Path.Combine(configDirectory, "settings.json"),
+            """
+            { "fileOperations": { "securityMode": "Inherit" } }
+            """);
+
+        var store = new JsonSettingsStore(configDirectory);
+
+        Assert.Equal(FileSecurityMode.Default, FileOperationOptionsFactory.Create(store.Settings).SecurityMode);
     }
 
     private Application CreateApp(string sortMode, params FilePanelItem[] items)

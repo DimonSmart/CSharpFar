@@ -33,6 +33,8 @@ public sealed class Spec010FileOperationDialogTests
         Assert.Contains(driver.WriteRecords, r => r.Text.Contains("Reliable", StringComparison.Ordinal));
         Assert.Contains(driver.WriteRecords, r => r.Text.Contains("Fast salvage", StringComparison.Ordinal));
         Assert.Contains(driver.WriteRecords, r => r.Text.Contains("Access rights:", StringComparison.Ordinal));
+        Assert.Contains(driver.WriteRecords, r => r.Text.Contains("(x) Default ( ) Copy", StringComparison.Ordinal));
+        Assert.DoesNotContain(driver.WriteRecords, r => r.Text.Contains("Inherit", StringComparison.Ordinal));
         Assert.Contains(driver.WriteRecords, r => r.Text.Contains("Preserve attributes", StringComparison.Ordinal));
         Assert.Contains(driver.WriteRecords, r => r.Text.Contains("Use filter", StringComparison.Ordinal));
         Assert.Contains(driver.WriteRecords, r => r.Text.Trim() == "*");
@@ -248,7 +250,7 @@ public sealed class Spec010FileOperationDialogTests
     }
 
     [Fact]
-    public void ShowCopy_MouseSelectsAccessRightsMode()
+    public void ShowCopy_MouseSelectsCopyAccessRightsMode()
     {
         var driver = new FakeConsoleDriver(width: 100, height: 30);
         var screen = new ScreenRenderer(driver);
@@ -256,7 +258,7 @@ public sealed class Spec010FileOperationDialogTests
         {
             var row = currentDriver.WriteRecords.Last(record =>
                 record.Text.Contains("Access rights:", StringComparison.Ordinal));
-            int x = row.X + row.Text.IndexOf("Inherit", StringComparison.Ordinal);
+            int x = row.X + row.Text.IndexOf("Copy", StringComparison.Ordinal);
             currentDriver.EnqueueInput(new MouseConsoleInputEvent(x, row.Y, MouseButton.Left, MouseEventKind.Down, MouseKeyModifiers.None));
             currentDriver.EnqueueKey(Key(ConsoleKey.F10));
         };
@@ -267,7 +269,7 @@ public sealed class Spec010FileOperationDialogTests
             new FileOperationOptions());
 
         Assert.NotNull(result);
-        Assert.Equal(FileSecurityMode.Inherit, result.Options.SecurityMode);
+        Assert.Equal(FileSecurityMode.CopyAccessControl, result.Options.SecurityMode);
     }
 
     [Fact]
