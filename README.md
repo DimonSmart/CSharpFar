@@ -60,6 +60,19 @@ Then run:
 csharpfar
 ```
 
+### macOS (build from source)
+
+Packaged macOS releases are not currently published, but the Unix host can be
+run from source. Install the [.NET 10 SDK](https://dotnet.microsoft.com/download/dotnet/10.0),
+then from the repository root run:
+
+```bash
+dotnet restore CSharpFar.slnx
+dotnet run --project src/CSharpFar.Host.Unix/CSharpFar.Host.Unix.csproj
+```
+
+Use a terminal that supports ANSI escape sequences. Press F10 to quit.
+
 For packaged releases, manual APT setup and building from source, see [Installation](docs/installation.md).
 
 ## Documentation
