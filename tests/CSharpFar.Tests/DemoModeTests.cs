@@ -123,6 +123,31 @@ public sealed class DemoModeTests : IDisposable
     }
 
     [Fact]
+    public async Task DemoFilePanelSource_CopyTransformsWildcardDestinationInProvider()
+    {
+        string fixture = CreateFixture(("file.txt", "original"));
+        var source = DemoFilePanelSource.ImportFromDirectory(fixture);
+        var operations = new FileOperationService(new FilePanelSourceRegistry([source]));
+        await source.CreateDirectoryAsync("/Copied");
+
+        FileOperationResult result = await operations.ExecuteAsync(
+            new FileOperationRequest
+            {
+                Kind = FileOperationKind.Copy,
+                Sources = [],
+                SourceLocations = [PanelLocation.Demo("/file.txt")],
+                DestinationLocation = PanelLocation.Demo("/Copied/*.bak"),
+                Options = new FileOperationOptions { DefaultConflictDecision = ConflictDecisionMode.Overwrite },
+            },
+            progress: null,
+            conflictResolver: new OverwriteConflictResolver());
+
+        Assert.Equal(1, result.CopiedCount);
+        Assert.Equal("original", await ReadAllTextAsync(source, "/Copied/file.bak"));
+        Assert.False(File.Exists(Path.Combine(fixture, "Copied", "file.bak")));
+    }
+
+    [Fact]
     public async Task DemoFilePanelSource_MoveIntoDirectory_StaysInMemory()
     {
         string fixture = CreateFixture(("A/file.txt", "original"), ("B/.keep", "keep"));

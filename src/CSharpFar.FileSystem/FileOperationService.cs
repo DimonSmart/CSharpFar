@@ -534,10 +534,43 @@ public sealed class FileOperationService : IFileOperationService
         ValidateMoveConflictDecision(request.Options.DefaultConflictDecision);
 
         string destination = RequireDestination(request);
+        DestinationPattern destinationPattern = DestinationPattern.Parse(destination, PanelSourceId.Local);
         bool singleRename = request.Sources.Count == 1 && !IsPath(destination);
         string effectiveDestination = singleRename
             ? Path.Combine(Path.GetDirectoryName(request.Sources[0])!, destination)
             : destination;
+
+        if (destinationPattern.HasWildcards)
+        {
+            var targets = request.Sources.Select(source => new LocalMovePlanItem(
+                source,
+                Path.Combine(
+                    string.IsNullOrEmpty(destinationPattern.ParentPath) ? Path.GetDirectoryName(source)! : destinationPattern.ParentPath,
+                    destinationPattern.TransformName(Path.GetFileName(source))))).ToList();
+            ValidateLocalMovePlan(targets);
+
+            state.SetTotals(CalculateSourcesSize(request.Sources), request.Sources.Count);
+            state.StartProgressTimer();
+            foreach (var item in targets)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                if (TryMoveDirect(item.SourcePath, item.TargetPath, request.Options, conflictResolver, state))
+                    continue;
+
+                int copiedBefore = state.CopiedCount;
+                await CopyAsync(
+                    request with { Kind = FileOperationKind.Copy, Sources = [item.SourcePath], Destination = destination },
+                    conflictResolver,
+                    state,
+                    cancellationToken).ConfigureAwait(false);
+                if (state.CopiedCount == copiedBefore)
+                    continue;
+                DeletePath(item.SourcePath, useRecycleBin: false);
+                state.MovedCount++;
+            }
+
+            return;
+        }
 
         if (request.Options.FileMask is null or { Length: 0 })
         {
@@ -638,6 +671,8 @@ public sealed class FileOperationService : IFileOperationService
         OperationState state,
         CancellationToken cancellationToken)
     {
+        DestinationPattern destinationPattern = DestinationPattern.Parse(destination, PanelSourceId.Local);
+        string destinationDirectory = destinationPattern.HasWildcards ? destinationPattern.ParentPath : destination;
         var files = new List<CopyFilePlanItem>();
         var directories = new List<CopyDirectoryPlanItem>();
         var matcher = new FarMaskMatcher();
@@ -651,7 +686,9 @@ public sealed class FileOperationService : IFileOperationService
             if (File.Exists(source))
             {
                 string fileName = Path.GetFileName(source);
-                string target = Path.Combine(destination, fileName);
+                string target = Path.Combine(destinationDirectory, destinationPattern.HasWildcards
+                    ? destinationPattern.TransformName(fileName)
+                    : fileName);
                 if (PathsEqual(source, target))
                     throw new IOException("Source and destination file are the same.");
                 if (!hasMask || matcher.IsMatch(options.FileMask!, fileName, groups))
@@ -667,7 +704,9 @@ public sealed class FileOperationService : IFileOperationService
             if (!Directory.Exists(source))
                 continue;
 
-            string rootDestination = Path.Combine(destination, Path.GetFileName(source));
+            string rootDestination = Path.Combine(destinationDirectory, destinationPattern.HasWildcards
+                ? destinationPattern.TransformName(Path.GetFileName(source))
+                : Path.GetFileName(source));
             if (PathsEqual(source, rootDestination))
                 throw new IOException("Source and destination directory are the same.");
             if (IsPathInside(rootDestination, source))
@@ -681,6 +720,8 @@ public sealed class FileOperationService : IFileOperationService
 
             AddDirectoryPlan(source, rootDestination, hasMask, options.FileMask, matcher, groups, directories, files, ref plannedBytes, state, cancellationToken);
         }
+
+        ValidateLocalPlanCollisions(files.Select(file => file.DestinationPath).Concat(directories.Select(directory => directory.DestinationPath)));
 
         return new CopyPlan(
             files,
@@ -1490,6 +1531,7 @@ public sealed class FileOperationService : IFileOperationService
         PanelLocation destination,
         CancellationToken cancellationToken)
     {
+        DestinationPattern destinationPattern = DestinationPattern.Parse(destination.SourcePath, destination.SourceId);
         var plan = new List<ProviderOperationPlanItem>(sources.Count);
         foreach (PanelLocation location in sources)
         {
@@ -1499,7 +1541,10 @@ public sealed class FileOperationService : IFileOperationService
             string normalizedSourcePath = source.NormalizePath(location.SourcePath);
             string targetPath = item is null
                 ? string.Empty
-                : CombineProviderPath(destination.SourceId, destination.SourcePath, item.Name);
+                : CombineProviderPath(
+                    destination.SourceId,
+                    destinationPattern.HasWildcards ? destinationPattern.ParentPath : destination.SourcePath,
+                    destinationPattern.HasWildcards ? destinationPattern.TransformName(item.Name) : item.Name);
 
             if (item is not null && location.SourceId == destination.SourceId)
                 ValidateProviderCopyTarget(source, normalizedSourcePath, targetPath, item.IsDirectory);
@@ -1507,6 +1552,7 @@ public sealed class FileOperationService : IFileOperationService
             plan.Add(new ProviderOperationPlanItem(location, source, normalizedSourcePath, item, targetPath));
         }
 
+        ValidateProviderPlanCollisions(plan.Select(item => item.TargetPath));
         return plan;
     }
 
@@ -1516,6 +1562,7 @@ public sealed class FileOperationService : IFileOperationService
         string destinationPath,
         CancellationToken cancellationToken)
     {
+        DestinationPattern destinationPattern = DestinationPattern.Parse(destinationPath, source.SourceId);
         var plan = new List<ProviderOperationPlanItem>(sources.Count);
         foreach (PanelLocation location in sources)
         {
@@ -1524,7 +1571,14 @@ public sealed class FileOperationService : IFileOperationService
             string normalizedSourcePath = source.NormalizePath(location.SourcePath);
             string targetPath = item is null
                 ? string.Empty
-                : ResolveProviderMoveTargetPath(source, item, normalizedSourcePath, destinationPath, sources.Count, cancellationToken);
+                : destinationPattern.HasWildcards
+                    ? CombineProviderPath(
+                        source.SourceId,
+                        string.IsNullOrEmpty(destinationPattern.ParentPath)
+                            ? GetProviderParentPath(normalizedSourcePath)
+                            : destinationPattern.ParentPath,
+                        destinationPattern.TransformName(item.Name))
+                    : ResolveProviderMoveTargetPath(source, item, normalizedSourcePath, destinationPath, sources.Count, cancellationToken);
 
             if (item is not null)
                 ValidateProviderMoveTarget(source, normalizedSourcePath, targetPath, item.IsDirectory);
@@ -1532,6 +1586,7 @@ public sealed class FileOperationService : IFileOperationService
             plan.Add(new ProviderOperationPlanItem(location, source, normalizedSourcePath, item, targetPath));
         }
 
+        ValidateProviderPlanCollisions(plan.Select(item => item.TargetPath));
         return plan;
     }
 
@@ -1722,9 +1777,65 @@ public sealed class FileOperationService : IFileOperationService
         Path.GetFullPath(path)
             .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
 
+    private static void ValidateLocalPlanCollisions(IEnumerable<string> targetPaths)
+    {
+        var targets = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (string targetPath in targetPaths)
+        {
+            ValidateLocalTargetPath(targetPath);
+            if (!targets.Add(NormalizePath(targetPath)))
+                throw new IOException($"Multiple source items resolve to the same destination: {targetPath}");
+        }
+    }
+
+    private static void ValidateLocalMovePlan(IEnumerable<LocalMovePlanItem> plan)
+    {
+        var targets = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var item in plan)
+        {
+            ValidateLocalTargetPath(item.TargetPath);
+            if (!targets.Add(NormalizePath(item.TargetPath)))
+                throw new IOException($"Multiple source items resolve to the same destination: {item.TargetPath}");
+
+            if (PathsEqual(item.SourcePath, item.TargetPath))
+                throw new IOException("Source and destination file are the same.");
+            if (Directory.Exists(item.SourcePath) && IsPathInside(item.TargetPath, item.SourcePath))
+                throw new IOException("Cannot move a directory into itself.");
+        }
+    }
+
+    private static void ValidateLocalTargetPath(string path)
+    {
+        string name = Path.GetFileName(path);
+        if (string.IsNullOrWhiteSpace(name) || name.IndexOfAny(['*', '?']) >= 0 ||
+            name.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0)
+        {
+            throw new IOException("Destination pattern produced an invalid file name.");
+        }
+    }
+
+    private static void ValidateProviderPlanCollisions(IEnumerable<string> targetPaths)
+    {
+        var targets = new HashSet<string>(StringComparer.Ordinal);
+        foreach (string targetPath in targetPaths.Where(path => !string.IsNullOrEmpty(path)))
+        {
+            if (targetPath.IndexOfAny(['*', '?']) >= 0)
+                throw new IOException("Destination pattern produced an invalid file name.");
+            if (!targets.Add(targetPath))
+                throw new IOException($"Multiple source items resolve to the same destination: {targetPath}");
+        }
+    }
+
+    private static string GetProviderParentPath(string path)
+    {
+        int slash = path.LastIndexOf('/');
+        return slash <= 0 ? "/" : path[..slash];
+    }
+
     private sealed record CopyFilePlanItem(string SourcePath, string DestinationPath, long Size, DateTime LastWriteTimeUtc);
     private sealed record CopyAttemptResult(FileInfo SourceInfo, FileAttributes SourceAttributes);
     private sealed record CopyDirectoryPlanItem(string SourcePath, string DestinationPath);
+    private sealed record LocalMovePlanItem(string SourcePath, string TargetPath);
     private sealed record ProviderOperationPlanItem(
         PanelLocation Location,
         IFilePanelSource Source,

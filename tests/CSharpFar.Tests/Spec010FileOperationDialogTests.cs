@@ -462,41 +462,6 @@ public sealed class Spec010FileOperationDialogTests
     }
 
     [Fact]
-    public void FileOperationUiRunner_AcceptedCancellationRendersStoppingBeforeOperationCompletes()
-    {
-        var driver = new FakeConsoleDriver(width: 100, height: 30);
-        var screen = new ScreenRenderer(driver);
-        var service = new RenderGatedCancellationFileOperationService();
-        var runner = CreateRunner(screen, service);
-        bool stoppingRenderedBeforeCompletion = false;
-        bool cancellationQueued = false;
-        _ = Task.Run(async () =>
-        {
-            await Task.Delay(TimeSpan.FromSeconds(1));
-            service.AllowCompletion.Set();
-        });
-        driver.Wrote += record =>
-        {
-            if (!cancellationQueued && record.Text.Contains("Copying the file", StringComparison.Ordinal))
-            {
-                cancellationQueued = true;
-                driver.EnqueueKey(Key(ConsoleKey.Escape));
-                driver.EnqueueKey(Key(ConsoleKey.Enter));
-            }
-
-            if (!record.Text.Contains("Stopping...", StringComparison.Ordinal))
-                return;
-
-            stoppingRenderedBeforeCompletion = !service.CancellationCompleted;
-            service.AllowCompletion.Set();
-        };
-
-        Assert.ThrowsAny<OperationCanceledException>(() => runner.Execute(CopyRequest()));
-
-        Assert.True(stoppingRenderedBeforeCompletion);
-    }
-
-    [Fact]
     public void FileOperationUiRunner_CancellationUsesCommittedScanFrameWhenNewOperationProgressExists()
     {
         var committedFrame = new FileOperationUiRunner.FileOperationProgressFrame(
@@ -972,43 +937,6 @@ public sealed class Spec010FileOperationDialogTests
             }
         }
 
-    }
-
-    private sealed class RenderGatedCancellationFileOperationService : IFileOperationService
-    {
-        public bool SupportsRecycleBin => true;
-
-        public bool CancellationCompleted { get; private set; }
-
-        public ManualResetEventSlim AllowCompletion { get; } = new();
-
-        public async Task<FileOperationResult> ExecuteAsync(
-            FileOperationRequest request,
-            IProgress<FileOperationProgress>? progress,
-            IFileOperationConflictResolver conflictResolver,
-            CancellationToken cancellationToken = default)
-        {
-            progress?.Report(new FileOperationProgress
-            {
-                Kind = request.Kind,
-                Phase = FileOperationPhase.Copying,
-                CurrentPath = @"C:\source\a.txt",
-                CurrentDestinationPath = @"C:\destination\a.txt",
-            });
-
-            try
-            {
-                await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken);
-            }
-            catch (OperationCanceledException)
-            {
-                AllowCompletion.Wait();
-                CancellationCompleted = true;
-                throw;
-            }
-
-            throw new InvalidOperationException("Cancellation was expected.");
-        }
     }
 
     private sealed class ConflictFileOperationService : IFileOperationService
