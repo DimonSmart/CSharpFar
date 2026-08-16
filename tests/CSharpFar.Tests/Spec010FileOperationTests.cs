@@ -215,6 +215,14 @@ public sealed class Spec010FileOperationTests : IDisposable
     }
 
     [Fact]
+    public void FileSecurityMode_DoesNotContainInherit()
+    {
+        string[] names = Enum.GetNames<FileSecurityMode>();
+
+        Assert.Equal(["Default", "CopyAccessControl"], names);
+    }
+
+    [Fact]
     public async Task FastSalvage_ContinuesAfterUnreadableFileAndDeletesPartialByDefault()
     {
         string bad = Write(_source, "bad.txt", "bad");
