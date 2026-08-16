@@ -58,6 +58,32 @@ public sealed class Spec060RenameCommandTests : IDisposable
         Assert.Equal("renamed.txt", request.Destination);
     }
 
+    [Fact]
+    public void Run_ShiftF6PassesWildcardDestinationToMoveRequest()
+    {
+        string currentPath = Path.Combine(_root, "current.txt");
+        var fs = new FakeFileSystemService();
+        fs.AddDirectory(_root, Item("current.txt", currentPath));
+        var fileOperations = new RecordingFileOperationService();
+        var driver = new FakeConsoleDriver(width: 100, height: 30);
+
+        var app = CreateApp(fs, fileOperations, driver);
+        GetLeftPanel(app).CursorIndex = 1;
+        ApplicationTestRunBuilder
+            .For(app, driver)
+            .Press(ConsoleKey.F6, shift: true)
+            .Press(ConsoleKey.A, keyChar: '\u0001', control: true)
+            .TypeText("*.bak")
+            .Press(ConsoleKey.F10)
+            .WaitForApplicationReady()
+            .Press(ConsoleKey.F10)
+            .Run();
+
+        FileOperationRequest request = Assert.Single(fileOperations.Requests);
+        Assert.Equal(FileOperationKind.Move, request.Kind);
+        Assert.Equal("*.bak", request.Destination);
+    }
+
     private Application CreateApp(
         FakeFileSystemService fs,
         IFileOperationService fileOperations,

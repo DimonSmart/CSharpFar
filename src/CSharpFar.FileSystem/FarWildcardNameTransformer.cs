@@ -13,7 +13,7 @@ internal static class FarWildcardNameTransformer
         if (pattern.IndexOfAny(['*', '?']) < 0)
             return pattern;
 
-        string sourcePart = Path.GetFileName(sourceName);
+        string sourcePart = sourceName;
         var result = new System.Text.StringBuilder(pattern.Length + sourcePart.Length);
         int sourceIndex = 0;
 
