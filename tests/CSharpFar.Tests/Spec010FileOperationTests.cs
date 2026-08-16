@@ -47,6 +47,50 @@ public sealed class Spec010FileOperationTests : IDisposable
     }
 
     [Fact]
+    public async Task ExecuteAsync_CopyTransformsEachRootNameWithWildcardDestination()
+    {
+        string first = Write(_source, "foo.txt", "first");
+        string second = Write(_source, "bar.csv", "second");
+
+        await ExecuteAsync(FileOperationKind.Copy, [first, second], Path.Combine(_destination, "*.bak"), new FileOperationOptions());
+
+        Assert.Equal("first", File.ReadAllText(Path.Combine(_destination, "foo.bak")));
+        Assert.Equal("second", File.ReadAllText(Path.Combine(_destination, "bar.bak")));
+        Assert.True(File.Exists(first));
+        Assert.True(File.Exists(second));
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_CopyUsesExistingConflictHandlingAfterWildcardTransformation()
+    {
+        string source = Write(_source, "foo.txt", "new");
+        Write(_destination, "foo.bak", "old");
+
+        await ExecuteAsync(
+            FileOperationKind.Copy,
+            [source],
+            Path.Combine(_destination, "*.bak"),
+            new FileOperationOptions(),
+            new FixedConflictResolver(ConflictDecisionMode.Rename));
+
+        Assert.Equal("old", File.ReadAllText(Path.Combine(_destination, "foo.bak")));
+        Assert.Equal("new", File.ReadAllText(Path.Combine(_destination, "foo (2).bak")));
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_CopyTransformsOnlyTheSelectedRootDirectory()
+    {
+        string directory = Path.Combine(_source, "Folder");
+        Directory.CreateDirectory(directory);
+        Write(directory, "a.txt", "content");
+
+        await ExecuteAsync(FileOperationKind.Copy, [directory], Path.Combine(_destination, "*_old"), new FileOperationOptions());
+
+        Assert.True(File.Exists(Path.Combine(_destination, "Folder_old", "a.txt")));
+        Assert.False(File.Exists(Path.Combine(_destination, "Folder_old", "a_old.txt")));
+    }
+
+    [Fact]
     public async Task ExecuteAsync_CopyMaskUsesFarMaskMatcher()
     {
         string nested = Path.Combine(_source, "nested");

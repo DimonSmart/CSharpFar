@@ -63,3 +63,4 @@ Git history is the source for deleted or previous document versions.
 | 0071.spec-transactional-ui-frame-commit.md | spec | Transactional UI frame commit and resize regression coverage |  |  |
 | 0072.spec-application-integration-test-input-lifecycle.md | spec | Application integration test input lifecycle |  |  |
 | 0073.spec-processes-and-ports.md | spec | Processes and Ports | Local endpoint diagnostics module |  |
+| 0074.spec-far-compatible-wildcard-destination-names.md | spec | FAR-compatible wildcard destination names | Destination name transformation for file operations |  |

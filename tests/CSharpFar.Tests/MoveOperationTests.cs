@@ -44,6 +44,55 @@ public class MoveOperationTests : IDisposable
     }
 
     [Fact]
+    public async Task MoveAsync_RenamesFile_WhenSingleSourceUsesWildcardPattern()
+    {
+        string srcFile = Write(_src, "old.txt", "data");
+
+        await Svc().MoveAsync([srcFile], "*.bak");
+
+        Assert.False(File.Exists(srcFile));
+        Assert.Equal("data", File.ReadAllText(Path.Combine(_src, "old.bak")));
+    }
+
+    [Fact]
+    public async Task MoveAsync_RejectsWildcardCollisionsBeforeMutation()
+    {
+        string first = Write(_src, "same.txt", "first");
+        string second = Write(_src, "same.csv", "second");
+
+        await Assert.ThrowsAsync<IOException>(() => Svc().MoveAsync([first, second], Path.Combine(_dst, "*.bak")));
+
+        Assert.True(File.Exists(first));
+        Assert.True(File.Exists(second));
+    }
+
+    [Fact]
+    public async Task MoveAsync_TransformsEachSelectedRootNameWithWildcardDestination()
+    {
+        string first = Write(_src, "foo.txt", "first");
+        string second = Write(_src, "bar.csv", "second");
+
+        await Svc().MoveAsync([first, second], Path.Combine(_dst, "*.bak"));
+
+        Assert.False(File.Exists(first));
+        Assert.False(File.Exists(second));
+        Assert.Equal("first", File.ReadAllText(Path.Combine(_dst, "foo.bak")));
+        Assert.Equal("second", File.ReadAllText(Path.Combine(_dst, "bar.bak")));
+    }
+
+    [Fact]
+    public async Task MoveAsync_RejectsWildcardOutsideDestinationName()
+    {
+        string source = Write(_src, "foo.txt", "data");
+
+        IOException error = await Assert.ThrowsAsync<IOException>(() =>
+            Svc().MoveAsync([source], Path.Combine(_dst, "*", "foo.txt")));
+
+        Assert.Equal("Wildcards are allowed only in the destination file name.", error.Message);
+        Assert.True(File.Exists(source));
+    }
+
+    [Fact]
     public async Task MoveAsync_RenamesDirectory_WhenSingleSourceAndPlainName()
     {
         string srcDir = Path.Combine(_src, "OldName");
