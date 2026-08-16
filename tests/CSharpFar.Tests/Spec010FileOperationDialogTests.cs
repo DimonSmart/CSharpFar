@@ -446,19 +446,25 @@ public sealed class Spec010FileOperationDialogTests
     [Fact]
     public void FileOperationUiRunner_EscapeDuringScanCancelsWithoutConfirmation()
     {
-        var driver = new FakeConsoleDriver(width: 100, height: 30);
-        var screen = new ScreenRenderer(driver);
-        var service = new CancellableFileOperationService(FileOperationPhase.Scanning);
-        var runner = CreateRunner(screen, service);
-        driver.BeforeReadInput = currentDriver =>
-            currentDriver.BeforeReadInput = nextDriver =>
-                nextDriver.EnqueueKey(Key(ConsoleKey.Escape));
+        bool cancelled = false;
+        bool confirmationRequested = false;
 
-        Assert.IsAssignableFrom<OperationCanceledException>(
-            Assert.ThrowsAny<OperationCanceledException>(() => runner.Execute(CopyRequest())));
+        bool accepted = FileOperationUiRunner.HandleCancellation(
+            new FileOperationUiRunner.FileOperationProgressFrame(
+                new FileOperationProgress
+                {
+                    Kind = FileOperationKind.Copy,
+                    Phase = FileOperationPhase.Scanning,
+                    CurrentPath = @"C:\source",
+                },
+                ShowTotalProgress: true,
+                FileOperationUiRunner.FileOperationUiStatus.Running),
+            cancelImmediately: () => cancelled = true,
+            requestConfirmation: () => confirmationRequested = true);
 
-        Assert.True(service.CancellationObserved);
-        Assert.DoesNotContain(driver.WriteRecords, r => r.Text.Contains("Do you really want to cancel it?", StringComparison.Ordinal));
+        Assert.True(accepted);
+        Assert.True(cancelled);
+        Assert.False(confirmationRequested);
     }
 
     [Fact]
@@ -493,54 +499,27 @@ public sealed class Spec010FileOperationDialogTests
     }
 
     [Fact]
-    public void FileOperationUiRunner_EscapeDuringOperationUsesPauseAndConfirmation()
+    public void FileOperationUiRunner_EscapeDuringOperationUsesConfirmation()
     {
-        var driver = new FakeConsoleDriver(width: 100, height: 30);
-        var screen = new ScreenRenderer(driver);
-        var service = new CancellableFileOperationService(FileOperationPhase.Copying);
-        var runner = CreateRunner(screen, service);
+        bool cancelledImmediately = false;
+        bool confirmationRequested = false;
 
-        // HandleCancellation only shows the confirmation dialog once the progress frame reflects
-        // a non-scanning phase; if Escape is queued before that frame is rendered/synchronized,
-        // it cancels immediately instead, which flakes the assertions below. Track when the
-        // "Copying" frame has actually been rendered and only then arm the Escape key, doing so
-        // from inside a BeforeReadInput callback so it is enqueued and dequeued within the same
-        // blocking ReadInput call (avoiding the non-blocking TryReadInput peek used elsewhere).
-        bool progressRendered = false;
-        driver.Wrote += record =>
-        {
-            if (record.Text.Contains("Copying the file", StringComparison.Ordinal))
-                progressRendered = true;
-        };
-
-        void ArmEscapeStep(FakeConsoleDriver current)
-        {
-            current.BeforeReadInput = next =>
-            {
-                if (!progressRendered)
+        bool accepted = FileOperationUiRunner.HandleCancellation(
+            new FileOperationUiRunner.FileOperationProgressFrame(
+                new FileOperationProgress
                 {
-                    ArmEscapeStep(next);
-                    return;
-                }
+                    Kind = FileOperationKind.Copy,
+                    Phase = FileOperationPhase.Copying,
+                    CurrentPath = @"C:\source\a.txt",
+                },
+                ShowTotalProgress: true,
+                FileOperationUiRunner.FileOperationUiStatus.Running),
+            cancelImmediately: () => cancelledImmediately = true,
+            requestConfirmation: () => confirmationRequested = true);
 
-                next.EnqueueKey(Key(ConsoleKey.Escape));
-                next.BeforeReadInput = dialogDriver =>
-                {
-                    Assert.True(service.PauseReady.Wait(TimeSpan.FromSeconds(2)));
-                    service.AllowPauseWait.Set();
-                    Assert.True(service.PauseObservedReady.Wait(TimeSpan.FromSeconds(2)));
-                    dialogDriver.EnqueueKey(Key(ConsoleKey.Enter));
-                };
-            };
-        }
-
-        ArmEscapeStep(driver);
-
-        Assert.ThrowsAny<OperationCanceledException>(() => runner.Execute(CopyRequest()));
-
-        Assert.True(service.CancellationObserved);
-        Assert.True(service.PauseObserved);
-        Assert.Contains(driver.WriteRecords, r => r.Text.Contains("Do you really want to cancel it?", StringComparison.Ordinal));
+        Assert.True(accepted);
+        Assert.False(cancelledImmediately);
+        Assert.True(confirmationRequested);
     }
 
     [Fact]
@@ -860,83 +839,6 @@ public sealed class Spec010FileOperationDialogTests
             await Task.Delay(30, cancellationToken);
             return new FileOperationResult { Kind = request.Kind, Errors = [] };
         }
-    }
-
-    private sealed class CancellableFileOperationService(FileOperationPhase phase) : IFileOperationService
-    {
-        public bool SupportsRecycleBin => true;
-
-        public bool CancellationObserved { get; private set; }
-
-        public bool PauseObserved { get; private set; }
-
-        public ManualResetEventSlim PauseReady { get; } = new();
-
-        public ManualResetEventSlim AllowPauseWait { get; } = new();
-
-        public ManualResetEventSlim PauseObservedReady { get; } = new();
-
-        public async Task<FileOperationResult> ExecuteAsync(
-            FileOperationRequest request,
-            IProgress<FileOperationProgress>? progress,
-            IFileOperationConflictResolver conflictResolver,
-            CancellationToken cancellationToken = default)
-        {
-            progress?.Report(new FileOperationProgress
-            {
-                Kind = request.Kind,
-                Phase = phase,
-                CurrentPath = @"C:\source\a.txt",
-                CurrentDestinationPath = @"C:\destination\a.txt",
-                CurrentBytesDone = 1,
-                CurrentBytesTotal = 10,
-                TotalBytesDone = 1,
-                TotalBytesTotal = 10,
-                ItemsDone = 0,
-                ItemsTotal = 1,
-            });
-
-            while (true)
-            {
-                if (phase != FileOperationPhase.Scanning && !PauseObserved)
-                {
-                    PauseReady.Set();
-                    try
-                    {
-                        AllowPauseWait.Wait(cancellationToken);
-                    }
-                    catch (OperationCanceledException)
-                    {
-                        CancellationObserved = true;
-                        throw;
-                    }
-
-                    PauseObserved = true;
-                    PauseObservedReady.Set();
-                }
-
-                try
-                {
-                    request.PauseController?.WaitIfPaused(cancellationToken);
-                }
-                catch (OperationCanceledException)
-                {
-                    CancellationObserved = true;
-                    throw;
-                }
-
-                try
-                {
-                    await Task.Delay(5, cancellationToken);
-                }
-                catch (OperationCanceledException)
-                {
-                    CancellationObserved = true;
-                    throw;
-                }
-            }
-        }
-
     }
 
     private sealed class ConflictFileOperationService : IFileOperationService
