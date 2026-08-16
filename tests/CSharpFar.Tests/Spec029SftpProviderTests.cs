@@ -102,6 +102,94 @@ public sealed class Spec029SftpProviderTests : IDisposable
     }
 
     [Fact]
+    public async Task ProviderMove_FileMaskFiltersBeforeWildcardCollision()
+    {
+        var service = CreateProviderOperationService(out var remote);
+        remote.WriteFile("/foo.txt", "text");
+        remote.WriteFile("/foo.csv", "csv");
+        await remote.CreateDirectoryAsync("/Moved");
+
+        await service.ExecuteAsync(ProviderRequest(FileOperationKind.Move, remote.SourceId, ["/foo.txt", "/foo.csv"], "/Moved/*.bak", new FileOperationOptions { FileMask = "*.txt" }), null, new NoOpConflictResolver());
+
+        Assert.Null(remote.GetItem("/foo.txt"));
+        Assert.NotNull(remote.GetItem("/foo.csv"));
+        Assert.NotNull(remote.GetItem("/Moved/foo.bak"));
+    }
+
+    [Fact]
+    public async Task ProviderCopy_FileMaskFiltersBeforeWildcardCollision()
+    {
+        var service = CreateProviderOperationService(out var remote);
+        remote.WriteFile("/foo.txt", "text");
+        remote.WriteFile("/foo.csv", "csv");
+
+        await service.ExecuteAsync(ProviderRequest(FileOperationKind.Copy, remote.SourceId, ["/foo.txt", "/foo.csv"], "/Moved/*.bak", new FileOperationOptions { FileMask = "*.txt" }), null, new NoOpConflictResolver());
+
+        Assert.NotNull(remote.GetItem("/foo.txt"));
+        Assert.NotNull(remote.GetItem("/foo.csv"));
+        Assert.NotNull(remote.GetItem("/Moved/foo.bak"));
+    }
+
+    [Fact]
+    public async Task ProviderMove_DirectoryMovesOnlyMatchingFiles()
+    {
+        var service = CreateProviderOperationService(out var remote);
+        remote.WriteFile("/Source/A.txt", "text");
+        remote.WriteFile("/Source/B.csv", "csv");
+        await remote.CreateDirectoryAsync("/Target");
+
+        await service.ExecuteAsync(ProviderRequest(FileOperationKind.Move, remote.SourceId, ["/Source"], "/Target/*_old", new FileOperationOptions { FileMask = "*.txt" }), null, new NoOpConflictResolver());
+
+        Assert.NotNull(remote.GetItem("/Target/Source_old/A.txt"));
+        Assert.Null(remote.GetItem("/Source/A.txt"));
+        Assert.NotNull(remote.GetItem("/Source/B.csv"));
+    }
+
+    [Fact]
+    public async Task ProviderCopy_DirectoryCopiesOnlyMatchingFiles()
+    {
+        var service = CreateProviderOperationService(out var remote);
+        remote.WriteFile("/Source/A.txt", "text");
+        remote.WriteFile("/Source/B.csv", "csv");
+        await remote.CreateDirectoryAsync("/Target");
+
+        await service.ExecuteAsync(ProviderRequest(FileOperationKind.Copy, remote.SourceId, ["/Source"], "/Target/*_old", new FileOperationOptions { FileMask = "*.txt" }), null, new NoOpConflictResolver());
+
+        Assert.NotNull(remote.GetItem("/Target/Source_old/A.txt"));
+        Assert.Null(remote.GetItem("/Target/Source_old/B.csv"));
+        Assert.NotNull(remote.GetItem("/Source/A.txt"));
+    }
+
+    [Fact]
+    public async Task ProviderMove_SkippedMatchingFileRemainsAtSource()
+    {
+        var service = CreateProviderOperationService(out var remote);
+        remote.WriteFile("/Source/A.txt", "a");
+        remote.WriteFile("/Source/B.txt", "b");
+        remote.WriteFile("/Target/Source/B.txt", "existing");
+
+        await service.ExecuteAsync(ProviderRequest(FileOperationKind.Move, remote.SourceId, ["/Source"], "/Target", new FileOperationOptions { FileMask = "*.txt" }), null, new FixedConflictResolver(ConflictDecisionMode.Skip));
+
+        Assert.Null(remote.GetItem("/Source/A.txt"));
+        Assert.NotNull(remote.GetItem("/Target/Source/A.txt"));
+        Assert.NotNull(remote.GetItem("/Source/B.txt"));
+        Assert.NotNull(remote.GetItem("/Target/Source/B.txt"));
+    }
+
+    [Fact]
+    public async Task ProviderMove_NoMatchingFilesDoesNotMutateProvider()
+    {
+        var service = CreateProviderOperationService(out var remote);
+        remote.WriteFile("/Source/A.csv", "csv");
+
+        FileOperationResult result = await service.ExecuteAsync(ProviderRequest(FileOperationKind.Move, remote.SourceId, ["/Source"], "/Target/*_old", new FileOperationOptions { FileMask = "*.txt" }), null, new NoOpConflictResolver());
+
+        Assert.NotNull(remote.GetItem("/Source/A.csv"));
+        Assert.Null(remote.GetItem("/Target"));
+        Assert.Equal(0, result.MovedCount);
+    }
+
+    [Fact]
     public void PanelLocation_SelectionKeyIncludesSourceId()
     {
         var left = new PanelLocation(new PanelSourceId("left"), "/same/path.txt");
@@ -752,6 +840,33 @@ public sealed class Spec029SftpProviderTests : IDisposable
         return new FileOperationService(registry);
     }
 
+    private FileOperationService CreateProviderOperationService(out MemoryPanelSource remote)
+    {
+        remote = new MemoryPanelSource(new PanelSourceId("fake-remote"));
+        var registry = new FilePanelSourceRegistry(
+        [
+            remote,
+            new LocalFilePanelSource(new FileSystemService()),
+        ]);
+        return new FileOperationService(registry);
+    }
+
+    private static FileOperationRequest ProviderRequest(
+        FileOperationKind kind,
+        PanelSourceId sourceId,
+        IReadOnlyList<string> sourcePaths,
+        string destination,
+        FileOperationOptions options) =>
+        new()
+        {
+            Kind = kind,
+            Sources = [],
+            SourceLocations = sourcePaths.Select(path => new PanelLocation(sourceId, path)).ToList(),
+            Destination = destination,
+            DestinationLocation = new PanelLocation(sourceId, destination),
+            Options = options,
+        };
+
     private FileOperationRequest CreateProviderCopyRequest(
         PanelSourceId remoteSourceId,
         FileOperationOptions options) =>
@@ -769,6 +884,12 @@ public sealed class Spec029SftpProviderTests : IDisposable
     {
         public FileOperationConflictDecision Resolve(FileOperationConflict conflict) =>
             FileOperationConflictDecision.FromMode(ConflictDecisionMode.Overwrite);
+    }
+
+    private sealed class FixedConflictResolver(ConflictDecisionMode decision) : IFileOperationConflictResolver
+    {
+        public FileOperationConflictDecision Resolve(FileOperationConflict conflict) =>
+            FileOperationConflictDecision.FromMode(decision);
     }
 
     private static ConsoleKeyInfo Key(ConsoleKey key) =>
@@ -820,7 +941,7 @@ public sealed class Spec029SftpProviderTests : IDisposable
         public void WriteFile(string sourcePath, string text)
         {
             string path = NormalizePath(sourcePath);
-            _directories.Add(ParentPath(path));
+            AddDirectoryAndParents(ParentPath(path));
             _files[path] = Encoding.UTF8.GetBytes(text);
         }
 
@@ -845,9 +966,12 @@ public sealed class Spec029SftpProviderTests : IDisposable
             CancellationToken cancellationToken = default)
         {
             string directory = NormalizePath(sourcePath);
-            return _files
+            return _directories
+                .Where(path => path != directory && ParentPath(path) == directory)
+                .Select(ToDirectoryItem)
+                .Concat(_files
                 .Where(pair => ParentPath(pair.Key) == directory)
-                .Select(pair => ToFileItem(pair.Key, pair.Value.Length))
+                .Select(pair => ToFileItem(pair.Key, pair.Value.Length)))
                 .ToList();
         }
 
@@ -895,7 +1019,7 @@ public sealed class Spec029SftpProviderTests : IDisposable
             string sourcePath,
             CancellationToken cancellationToken = default)
         {
-            _directories.Add(NormalizePath(sourcePath));
+            AddDirectoryAndParents(NormalizePath(sourcePath));
             return Task.CompletedTask;
         }
 
@@ -915,10 +1039,42 @@ public sealed class Spec029SftpProviderTests : IDisposable
         {
             string source = NormalizePath(sourcePath);
             string target = NormalizePath(newSourcePath);
-            _files[target] = _files[source];
-            _files.Remove(source);
+            if (_files.TryGetValue(source, out var bytes))
+            {
+                AddDirectoryAndParents(ParentPath(target));
+                _files[target] = bytes;
+                _files.Remove(source);
+            }
+            else if (_directories.Contains(source))
+            {
+                string prefix = source == "/" ? "/" : source + "/";
+                foreach (string file in _files.Keys.Where(path => path.StartsWith(prefix, StringComparison.Ordinal)).ToArray())
+                {
+                    string renamed = target + file[source.Length..];
+                    _files[renamed] = _files[file];
+                    _files.Remove(file);
+                }
+                foreach (string directory in _directories.Where(path => path == source || path.StartsWith(prefix, StringComparison.Ordinal)).OrderByDescending(path => path.Length).ToArray())
+                {
+                    _directories.Remove(directory);
+                    _directories.Add(target + directory[source.Length..]);
+                }
+            }
             return Task.CompletedTask;
         }
+
+        private FilePanelItem ToDirectoryItem(string path) =>
+            new()
+            {
+                Name = path[(path.LastIndexOf('/') + 1)..],
+                FullPath = path,
+                SourceId = SourceId,
+                IsDirectory = true,
+                Size = null,
+                LastWriteTime = DateTime.UnixEpoch,
+                Attributes = FileAttributes.Directory,
+                IsParentDirectory = false,
+            };
 
         private FilePanelItem ToFileItem(string path, long size) =>
             new()
@@ -937,6 +1093,12 @@ public sealed class Spec029SftpProviderTests : IDisposable
         {
             int slash = path.LastIndexOf('/');
             return slash <= 0 ? "/" : path[..slash];
+        }
+
+        private void AddDirectoryAndParents(string path)
+        {
+            while (_directories.Add(path) && path != "/")
+                path = ParentPath(path);
         }
     }
 

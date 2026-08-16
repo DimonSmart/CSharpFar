@@ -192,9 +192,9 @@ public sealed class FileOperationService : IFileOperationService
         }
 
         var destinationSource = _sources!.GetSource(destination.SourceId);
-        var plan = BuildProviderCopyPlan(sources, destination, cancellationToken);
+        var plan = BuildProviderCopyPlan(sources, destination, request.Options, cancellationToken);
 
-        state.SetTotals(CalculateProviderSourcesSize(sources, cancellationToken), sources.Count);
+        state.SetTotals(CalculateProviderPlanSize(plan), plan.Count);
         state.StartProgressTimer();
 
         foreach (var plannedItem in plan)
@@ -306,6 +306,7 @@ public sealed class FileOperationService : IFileOperationService
             }
         }
 
+        await EnsureProviderDestinationDirectoryAsync(destinationSource, destinationPath, cancellationToken).ConfigureAwait(false);
         await using var input = await source.OpenReadAsync(sourcePath, cancellationToken).ConfigureAwait(false);
         await using var output = await destinationSource.OpenWriteAsync(destinationPath, overwrite: true, cancellationToken).ConfigureAwait(false);
 
@@ -343,8 +344,8 @@ public sealed class FileOperationService : IFileOperationService
             throw new InvalidOperationException("Cross-provider move is not supported.");
 
         var source = _sources!.GetSource(sourceLocation.SourceId);
-        var plan = BuildProviderMovePlan(source, sources, destination.SourcePath, cancellationToken);
-        state.SetTotals(CalculateProviderSourcesSize(sources, cancellationToken), sources.Count);
+        var plan = BuildProviderMovePlan(source, sources, destination.SourcePath, request.Options, cancellationToken);
+        state.SetTotals(CalculateProviderPlanSize(plan), plan.Count);
         state.StartProgressTimer();
 
         foreach (var plannedItem in plan)
@@ -399,7 +400,7 @@ public sealed class FileOperationService : IFileOperationService
 
             await source.RenameAsync(plannedItem.SourcePath, targetPath, cancellationToken).ConfigureAwait(false);
             state.MovedCount++;
-            state.AddBytes(CalculateProviderSourceSize(plannedItem.Location, cancellationToken));
+            state.AddBytes(plannedItem.Item!.Size ?? 0);
             state.CompleteItem();
         }
     }
@@ -1584,31 +1585,51 @@ public sealed class FileOperationService : IFileOperationService
     private List<ProviderOperationPlanItem> BuildProviderCopyPlan(
         IReadOnlyList<PanelLocation> sources,
         PanelLocation destination,
+        FileOperationOptions options,
         CancellationToken cancellationToken)
     {
         DestinationPattern destinationPattern = DestinationPattern.Parse(destination.SourcePath, destination.SourceId);
         var plan = new List<ProviderOperationPlanItem>(sources.Count);
+        bool hasMask = HasFileMask(options);
+        var matcher = new FarMaskMatcher();
+        IReadOnlyDictionary<string, MaskGroup> groups = new Dictionary<string, MaskGroup>(StringComparer.OrdinalIgnoreCase);
         foreach (PanelLocation location in sources)
         {
             cancellationToken.ThrowIfCancellationRequested();
             IFilePanelSource source = _sources!.GetSource(location.SourceId);
             FilePanelItem? item = source.GetItem(location.SourcePath, cancellationToken);
             string normalizedSourcePath = source.NormalizePath(location.SourcePath);
-            string targetPath = item is null
-                ? string.Empty
-                : CombineProviderPath(
-                    destination.SourceId,
-                    destinationPattern.HasWildcards ? destinationPattern.ParentPath : destination.SourcePath,
-                    destinationPattern.HasWildcards ? destinationPattern.TransformName(item.Name) : item.Name);
+            if (item is null)
+            {
+                plan.Add(new ProviderOperationPlanItem(location, source, normalizedSourcePath, null, string.Empty));
+                continue;
+            }
 
-            if (item is not null && location.SourceId == destination.SourceId)
-                ValidateProviderCopyTarget(source, normalizedSourcePath, targetPath, item.IsDirectory);
+            string targetPath = CombineProviderPath(
+                destination.SourceId,
+                destinationPattern.HasWildcards ? destinationPattern.ParentPath : destination.SourcePath,
+                destinationPattern.HasWildcards ? destinationPattern.TransformName(item.Name) : item.Name);
 
-            plan.Add(new ProviderOperationPlanItem(location, source, normalizedSourcePath, item, targetPath));
+            if (!hasMask)
+            {
+                if (location.SourceId == destination.SourceId)
+                    ValidateProviderCopyTarget(source, normalizedSourcePath, targetPath, item.IsDirectory);
+                plan.Add(new ProviderOperationPlanItem(location, source, normalizedSourcePath, item, targetPath));
+                continue;
+            }
+
+            AddMaskedProviderPlanItems(
+                plan, location, source, normalizedSourcePath, item, targetPath, options.FileMask!, matcher, groups,
+                validateTarget: path =>
+                {
+                    if (location.SourceId == destination.SourceId)
+                        ValidateProviderCopyTarget(source, normalizedSourcePath, path, item.IsDirectory);
+                },
+                cancellationToken);
         }
 
         if (destinationPattern.HasWildcards)
-            ValidateProviderPlanCollisions(plan.Select(item => item.TargetPath));
+            ValidateProviderPlanCollisions(destination.SourceId, plan.Select(item => item.TargetPath));
         return plan;
     }
 
@@ -1616,36 +1637,124 @@ public sealed class FileOperationService : IFileOperationService
         IFilePanelSource source,
         IReadOnlyList<PanelLocation> sources,
         string destinationPath,
+        FileOperationOptions options,
         CancellationToken cancellationToken)
     {
         DestinationPattern destinationPattern = DestinationPattern.Parse(destinationPath, source.SourceId);
         var plan = new List<ProviderOperationPlanItem>(sources.Count);
+        bool hasMask = HasFileMask(options);
+        var matcher = new FarMaskMatcher();
+        IReadOnlyDictionary<string, MaskGroup> groups = new Dictionary<string, MaskGroup>(StringComparer.OrdinalIgnoreCase);
         foreach (PanelLocation location in sources)
         {
             cancellationToken.ThrowIfCancellationRequested();
             FilePanelItem? item = source.GetItem(location.SourcePath, cancellationToken);
             string normalizedSourcePath = source.NormalizePath(location.SourcePath);
-            string targetPath = item is null
-                ? string.Empty
-                : destinationPattern.HasWildcards
-                    ? CombineProviderPath(
-                        source.SourceId,
-                        string.IsNullOrEmpty(destinationPattern.ParentPath)
-                            ? GetProviderParentPath(normalizedSourcePath)
-                            : destinationPattern.ParentPath,
-                        destinationPattern.TransformName(item.Name))
-                    : ResolveProviderMoveTargetPath(source, item, normalizedSourcePath, destinationPath, sources.Count, cancellationToken);
+            if (item is null)
+            {
+                plan.Add(new ProviderOperationPlanItem(location, source, normalizedSourcePath, null, string.Empty));
+                continue;
+            }
 
-            if (item is not null)
+            string targetPath = destinationPattern.HasWildcards
+                ? CombineProviderPath(
+                    source.SourceId,
+                    string.IsNullOrEmpty(destinationPattern.ParentPath)
+                        ? GetProviderParentPath(normalizedSourcePath)
+                        : destinationPattern.ParentPath,
+                    destinationPattern.TransformName(item.Name))
+                : ResolveProviderMoveTargetPath(source, item, normalizedSourcePath, destinationPath, sources.Count, cancellationToken);
+
+            if (!hasMask)
+            {
                 ValidateProviderMoveTarget(source, normalizedSourcePath, targetPath, item.IsDirectory);
+                plan.Add(new ProviderOperationPlanItem(location, source, normalizedSourcePath, item, targetPath));
+                continue;
+            }
 
-            plan.Add(new ProviderOperationPlanItem(location, source, normalizedSourcePath, item, targetPath));
+            AddMaskedProviderPlanItems(
+                plan, location, source, normalizedSourcePath, item, targetPath, options.FileMask!, matcher, groups,
+                validateTarget: path => ValidateProviderMoveTarget(source, normalizedSourcePath, path, item.IsDirectory),
+                cancellationToken);
         }
 
         if (destinationPattern.HasWildcards)
-            ValidateProviderPlanCollisions(plan.Select(item => item.TargetPath));
+            ValidateProviderPlanCollisions(source.SourceId, plan.Select(item => item.TargetPath));
         return plan;
     }
+
+    private static void AddMaskedProviderPlanItems(
+        List<ProviderOperationPlanItem> plan,
+        PanelLocation rootLocation,
+        IFilePanelSource source,
+        string rootSourcePath,
+        FilePanelItem rootItem,
+        string rootTargetPath,
+        string fileMask,
+        FarMaskMatcher matcher,
+        IReadOnlyDictionary<string, MaskGroup> groups,
+        Action<string> validateTarget,
+        CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        if (!rootItem.IsDirectory)
+        {
+            if (matcher.IsMatch(fileMask, rootItem.Name, groups))
+            {
+                validateTarget(rootTargetPath);
+                plan.Add(new ProviderOperationPlanItem(rootLocation, source, rootSourcePath, rootItem, rootTargetPath));
+            }
+            return;
+        }
+
+        var files = new List<FilePanelItem>();
+        CollectMatchingProviderFiles(source, rootSourcePath, fileMask, matcher, groups, files, cancellationToken);
+        if (files.Count == 0)
+            return;
+
+        validateTarget(rootTargetPath);
+        foreach (FilePanelItem file in files)
+        {
+            string sourcePath = source.NormalizePath(file.SourcePath);
+            string relativePath = GetProviderRelativePath(rootSourcePath, sourcePath);
+            string targetPath = CombineProviderRelativePath(source.SourceId, rootTargetPath, relativePath);
+            plan.Add(new ProviderOperationPlanItem(file.Location, source, sourcePath, file, targetPath));
+        }
+    }
+
+    private static void CollectMatchingProviderFiles(
+        IFilePanelSource source,
+        string directoryPath,
+        string fileMask,
+        FarMaskMatcher matcher,
+        IReadOnlyDictionary<string, MaskGroup> groups,
+        List<FilePanelItem> files,
+        CancellationToken cancellationToken)
+    {
+        foreach (FilePanelItem child in source.EnumerateDirectory(directoryPath, cancellationToken).Where(item => !item.IsParentDirectory))
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (child.IsDirectory)
+            {
+                CollectMatchingProviderFiles(source, child.SourcePath, fileMask, matcher, groups, files, cancellationToken);
+            }
+            else if (matcher.IsMatch(fileMask, child.Name, groups))
+            {
+                files.Add(child);
+            }
+        }
+    }
+
+    private static string GetProviderRelativePath(string rootPath, string childPath)
+    {
+        string normalizedRoot = rootPath.TrimEnd('/');
+        return childPath[(normalizedRoot.Length + 1)..];
+    }
+
+    private static string CombineProviderRelativePath(PanelSourceId sourceId, string rootPath, string relativePath) =>
+        sourceId == PanelSourceId.Local
+            ? Path.Combine(rootPath, relativePath.Replace('/', Path.DirectorySeparatorChar))
+            : rootPath.TrimEnd('/') + "/" + relativePath;
 
     private static void ValidateProviderCopyTarget(
         IFilePanelSource source,
@@ -1681,6 +1790,22 @@ public sealed class FileOperationService : IFileOperationService
         foreach (var location in sources)
             total += CalculateProviderSourceSize(location, cancellationToken);
         return total;
+    }
+
+    private static long CalculateProviderPlanSize(IEnumerable<ProviderOperationPlanItem> plan) =>
+        plan.Sum(item => item.Item?.Size ?? 0);
+
+    private static async Task EnsureProviderDestinationDirectoryAsync(
+        IFilePanelSource destinationSource,
+        string destinationPath,
+        CancellationToken cancellationToken)
+    {
+        string? parent = destinationSource.GetParentPath(destinationPath);
+        if (string.IsNullOrEmpty(parent) || destinationSource.GetItem(parent, cancellationToken) is not null)
+            return;
+
+        await EnsureProviderDestinationDirectoryAsync(destinationSource, parent, cancellationToken).ConfigureAwait(false);
+        await destinationSource.CreateDirectoryAsync(parent, cancellationToken).ConfigureAwait(false);
     }
 
     private long CalculateProviderSourceSize(
@@ -1874,14 +1999,15 @@ public sealed class FileOperationService : IFileOperationService
         }
     }
 
-    private static void ValidateProviderPlanCollisions(IEnumerable<string> targetPaths)
+    private void ValidateProviderPlanCollisions(PanelSourceId sourceId, IEnumerable<string> targetPaths)
     {
+        IFilePanelSource destinationSource = _sources!.GetSource(sourceId);
         var targets = new HashSet<string>(StringComparer.Ordinal);
         foreach (string targetPath in targetPaths.Where(path => !string.IsNullOrEmpty(path)))
         {
             if (targetPath.IndexOfAny(['*', '?']) >= 0)
                 throw new IOException("Destination pattern produced an invalid file name.");
-            if (!targets.Add(targetPath))
+            if (!targets.Add(destinationSource.NormalizePath(targetPath)))
                 throw new IOException($"Multiple source items resolve to the same destination: {targetPath}");
         }
     }
