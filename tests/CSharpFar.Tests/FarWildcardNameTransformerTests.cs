@@ -31,4 +31,10 @@ public sealed class FarWildcardNameTransformerTests
     [MemberData(nameof(Cases))]
     public void Transform_MatchesFarConvertWildcards(string source, string pattern, string expected) =>
         Assert.Equal(expected, FarWildcardNameTransformer.Transform(source, pattern));
+
+    [Fact]
+    public void Transform_TreatsProviderFileNameContainingBackslashAsAName()
+    {
+        Assert.Equal(@"folder\report.bak", FarWildcardNameTransformer.Transform(@"folder\report.txt", "*.bak"));
+    }
 }
