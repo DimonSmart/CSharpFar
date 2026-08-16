@@ -177,6 +177,72 @@ public sealed class DemoModeTests : IDisposable
     }
 
     [Fact]
+    public async Task DemoFilePanelSource_MoveTransformsWildcardDestinationInProvider()
+    {
+        string fixture = CreateFixture(("file.txt", "original"));
+        var source = DemoFilePanelSource.ImportFromDirectory(fixture);
+        var operations = new FileOperationService(new FilePanelSourceRegistry([source]));
+        await source.CreateDirectoryAsync("/Moved");
+
+        FileOperationResult result = await operations.ExecuteAsync(
+            new FileOperationRequest
+            {
+                Kind = FileOperationKind.Move,
+                Sources = [],
+                SourceLocations = [PanelLocation.Demo("/file.txt")],
+                DestinationLocation = PanelLocation.Demo("/Moved/*.bak"),
+                Options = new FileOperationOptions(),
+            }, progress: null, conflictResolver: new OverwriteConflictResolver());
+
+        Assert.Equal(1, result.MovedCount);
+        Assert.Null(source.GetItem("/file.txt"));
+        Assert.Equal("original", await ReadAllTextAsync(source, "/Moved/file.bak"));
+    }
+
+    [Fact]
+    public async Task DemoFilePanelSource_WildcardMoveCollisionFailsBeforeMutation()
+    {
+        string fixture = CreateFixture(("foo.txt", "txt"), ("foo.csv", "csv"));
+        var source = DemoFilePanelSource.ImportFromDirectory(fixture);
+        var operations = new FileOperationService(new FilePanelSourceRegistry([source]));
+        await source.CreateDirectoryAsync("/Moved");
+
+        await Assert.ThrowsAsync<IOException>(() => operations.ExecuteAsync(
+            new FileOperationRequest
+            {
+                Kind = FileOperationKind.Move,
+                Sources = [],
+                SourceLocations = [PanelLocation.Demo("/foo.txt"), PanelLocation.Demo("/foo.csv")],
+                DestinationLocation = PanelLocation.Demo("/Moved/*.bak"),
+                Options = new FileOperationOptions(),
+            }, progress: null, conflictResolver: new OverwriteConflictResolver()));
+
+        Assert.NotNull(source.GetItem("/foo.txt"));
+        Assert.NotNull(source.GetItem("/foo.csv"));
+        Assert.Null(source.GetItem("/Moved/foo.bak"));
+    }
+
+    [Fact]
+    public async Task DemoFilePanelSource_WildcardMoveSelfTargetFailsBeforeRename()
+    {
+        string fixture = CreateFixture(("file.txt", "original"));
+        var source = DemoFilePanelSource.ImportFromDirectory(fixture);
+        var operations = new FileOperationService(new FilePanelSourceRegistry([source]));
+
+        await Assert.ThrowsAsync<IOException>(() => operations.ExecuteAsync(
+            new FileOperationRequest
+            {
+                Kind = FileOperationKind.Move,
+                Sources = [],
+                SourceLocations = [PanelLocation.Demo("/file.txt")],
+                DestinationLocation = PanelLocation.Demo("*.txt"),
+                Options = new FileOperationOptions(),
+            }, progress: null, conflictResolver: new OverwriteConflictResolver()));
+
+        Assert.Equal("original", await ReadAllTextAsync(source, "/file.txt"));
+    }
+
+    [Fact]
     public async Task DemoFilePanelSource_MoveMultipleItemsIntoDirectory_StaysInMemory()
     {
         string fixture = CreateFixture(("A/a.txt", "A"), ("A/b.txt", "B"), ("B/.keep", "keep"));

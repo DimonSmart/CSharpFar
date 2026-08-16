@@ -1,3 +1,4 @@
+using CSharpFar.Core.Abstractions;
 using CSharpFar.Core.Models;
 using CSharpFar.FileSystem;
 
@@ -78,6 +79,81 @@ public class MoveOperationTests : IDisposable
         Assert.False(File.Exists(second));
         Assert.Equal("first", File.ReadAllText(Path.Combine(_dst, "foo.bak")));
         Assert.Equal("second", File.ReadAllText(Path.Combine(_dst, "bar.bak")));
+    }
+
+    [Fact]
+    public async Task MoveAsync_WithWildcardDestination_RespectsFileMask()
+    {
+        string text = Write(_src, "foo.txt", "text");
+        string csv = Write(_src, "bar.csv", "csv");
+
+        await Svc().ExecuteAsync(new FileOperationRequest
+        {
+            Kind = FileOperationKind.Move,
+            Sources = [text, csv],
+            Destination = Path.Combine(_dst, "*.bak"),
+            Options = new FileOperationOptions { FileMask = "*.txt" },
+        }, progress: null, conflictResolver: new OverwriteResolver());
+
+        Assert.False(File.Exists(text));
+        Assert.True(File.Exists(csv));
+        Assert.True(File.Exists(Path.Combine(_dst, "foo.bak")));
+    }
+
+    [Fact]
+    public async Task CopyAsync_WithOrdinaryDestination_PreservesRenameAllConflictSemantics()
+    {
+        string firstDirectory = Path.Combine(_src, "A");
+        string secondDirectory = Path.Combine(_src, "B");
+        Directory.CreateDirectory(firstDirectory);
+        Directory.CreateDirectory(secondDirectory);
+        string first = Write(firstDirectory, "foo.txt", "first");
+        string second = Write(secondDirectory, "foo.txt", "second");
+
+        await Svc().ExecuteAsync(new FileOperationRequest
+        {
+            Kind = FileOperationKind.Copy,
+            Sources = [first, second],
+            Destination = _dst,
+            Options = new FileOperationOptions { DefaultConflictDecision = ConflictDecisionMode.RenameAll },
+        }, progress: null, conflictResolver: new OverwriteResolver());
+
+        Assert.Equal("first", File.ReadAllText(Path.Combine(_dst, "foo.txt")));
+        Assert.Equal("second", File.ReadAllText(Path.Combine(_dst, "foo (2).txt")));
+    }
+
+    [Fact]
+    public async Task MoveAsync_FallbackMovesEmptyDirectoryToResolvedWildcardTarget()
+    {
+        string empty = Path.Combine(_src, "Empty");
+        Directory.CreateDirectory(empty);
+        var service = new FileOperationService(FileOperationServiceDependencies.Default with { ForceMoveFallback = static (_, _) => true });
+
+        await service.MoveAsync([empty], Path.Combine(_dst, "*_old"));
+
+        Assert.False(Directory.Exists(empty));
+        Assert.True(Directory.Exists(Path.Combine(_dst, "Empty_old")));
+    }
+
+    [Fact]
+    public async Task MoveAsync_FallbackDoesNotDeleteFilteredDirectorySource()
+    {
+        string directory = Path.Combine(_src, "Mixed");
+        Directory.CreateDirectory(directory);
+        Write(directory, "A.txt", "A");
+        Write(directory, "B.csv", "B");
+        var service = new FileOperationService(FileOperationServiceDependencies.Default with { ForceMoveFallback = static (_, _) => true });
+
+        await service.ExecuteAsync(new FileOperationRequest
+        {
+            Kind = FileOperationKind.Move,
+            Sources = [directory],
+            Destination = Path.Combine(_dst, "*_old"),
+            Options = new FileOperationOptions { FileMask = "*.txt" },
+        }, progress: null, conflictResolver: new OverwriteResolver());
+
+        Assert.True(File.Exists(Path.Combine(directory, "B.csv")));
+        Assert.True(File.Exists(Path.Combine(_dst, "Mixed_old", "A.txt")));
     }
 
     [Fact]
@@ -300,5 +376,11 @@ public class MoveOperationTests : IDisposable
         string path = Path.Combine(dir, name);
         File.WriteAllText(path, content);
         return path;
+    }
+
+    private sealed class OverwriteResolver : IFileOperationConflictResolver
+    {
+        public FileOperationConflictDecision Resolve(FileOperationConflict _) =>
+            FileOperationConflictDecision.FromMode(ConflictDecisionMode.Overwrite);
     }
 }

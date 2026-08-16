@@ -22,6 +22,8 @@ internal sealed record FileOperationServiceDependencies
     public Func<string, string, CopyResumeSourceSnapshot?, CancellationToken, CopyResumePlan> AnalyzeResume { get; init; } =
         static (sourcePath, destinationPath, sourceSnapshot, cancellationToken) =>
             ResumeAnalyzer.Analyze(sourcePath, destinationPath, sourceSnapshot, cancellationToken);
+
+    internal Func<string, string, bool> ForceMoveFallback { get; init; } = static (_, _) => false;
 }
 
 public sealed class FileOperationService : IFileOperationService
@@ -447,14 +449,17 @@ public sealed class FileOperationService : IFileOperationService
         state.CompleteItem();
     }
 
-    private async Task CopyAsync(
+    private async Task<CopyOutcome> CopyAsync(
         FileOperationRequest request,
         IFileOperationConflictResolver conflictResolver,
         OperationState state,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        string? rootTarget = null)
     {
         string destination = RequireDestination(request);
-        var plan = BuildCopyPlan(request.Sources, destination, request.Options, state, cancellationToken);
+        var plan = BuildCopyPlan(request.Sources, destination, request.Options, state, cancellationToken, rootTarget);
+        bool copiedAny = false;
+        bool completed = true;
         state.SetTotals(plan.TotalBytes, plan.FileCount + plan.DirectoryCount);
         state.StartProgressTimer();
 
@@ -462,6 +467,7 @@ public sealed class FileOperationService : IFileOperationService
         {
             cancellationToken.ThrowIfCancellationRequested();
             CreateDirectoryTarget(directory.DestinationPath);
+            copiedAny = true;
             state.CompleteItem();
             state.CompleteFolder();
         }
@@ -476,7 +482,10 @@ public sealed class FileOperationService : IFileOperationService
                 copyTarget = await ResolveDestinationPathAsync(file, request.Options, conflictResolver, state, cancellationToken)
                     .ConfigureAwait(false);
                 if (copyTarget.Path.Length == 0)
+                {
+                    completed = false;
                     continue;
+                }
 
                 Directory.CreateDirectory(Path.GetDirectoryName(copyTarget.Path)!);
 
@@ -489,6 +498,7 @@ public sealed class FileOperationService : IFileOperationService
                     state.AddBytes(file.Size);
                     state.CompleteItem();
                     state.Report(file.SourcePath, copyTarget.Path, file.Size, file.Size);
+                    copiedAny = true;
                     continue;
                 }
 
@@ -501,12 +511,17 @@ public sealed class FileOperationService : IFileOperationService
                         cancellationToken)
                     .ConfigureAwait(false);
                 if (!copied)
+                {
+                    completed = false;
                     continue;
+                }
+                copiedAny = true;
             }
             catch (CopyRetryableIOException ex) when (
                 request.Options.CopyMode == CopyMode.FastSalvage &&
                 ex.FailureKind == "Read failed")
             {
+                completed = false;
                 string partialPath = copyTarget.Path.Length == 0 ? file.DestinationPath : copyTarget.Path;
                 CleanupPartialDestination(partialPath, request.Options, state);
                 state.AddError(file.SourcePath, ex.Message);
@@ -523,6 +538,7 @@ public sealed class FileOperationService : IFileOperationService
         }
 
         PreserveDirectoryTargetsMetadata(plan.Directories, request.Options, state, cancellationToken);
+        return new CopyOutcome(copiedAny, completed);
     }
 
     private async Task MoveAsync(
@@ -534,87 +550,54 @@ public sealed class FileOperationService : IFileOperationService
         ValidateMoveConflictDecision(request.Options.DefaultConflictDecision);
 
         string destination = RequireDestination(request);
-        DestinationPattern destinationPattern = DestinationPattern.Parse(destination, PanelSourceId.Local);
         bool singleRename = request.Sources.Count == 1 && !IsPath(destination);
         string effectiveDestination = singleRename
             ? Path.Combine(Path.GetDirectoryName(request.Sources[0])!, destination)
             : destination;
+        var plan = BuildLocalMovePlan(request.Sources, effectiveDestination, singleRename);
+        state.SetTotals(CalculateSourcesSize(request.Sources), request.Sources.Count);
+        state.StartProgressTimer();
 
-        if (destinationPattern.HasWildcards)
-        {
-            var targets = request.Sources.Select(source => new LocalMovePlanItem(
-                source,
-                Path.Combine(
-                    string.IsNullOrEmpty(destinationPattern.ParentPath) ? Path.GetDirectoryName(source)! : destinationPattern.ParentPath,
-                    destinationPattern.TransformName(Path.GetFileName(source))))).ToList();
-            ValidateLocalMovePlan(targets);
-
-            state.SetTotals(CalculateSourcesSize(request.Sources), request.Sources.Count);
-            state.StartProgressTimer();
-            foreach (var item in targets)
-            {
-                cancellationToken.ThrowIfCancellationRequested();
-                if (TryMoveDirect(item.SourcePath, item.TargetPath, request.Options, conflictResolver, state))
-                    continue;
-
-                int copiedBefore = state.CopiedCount;
-                await CopyAsync(
-                    request with { Kind = FileOperationKind.Copy, Sources = [item.SourcePath], Destination = destination },
-                    conflictResolver,
-                    state,
-                    cancellationToken).ConfigureAwait(false);
-                if (state.CopiedCount == copiedBefore)
-                    continue;
-                DeletePath(item.SourcePath, useRecycleBin: false);
-                state.MovedCount++;
-            }
-
-            return;
-        }
-
-        if (request.Options.FileMask is null or { Length: 0 })
-        {
-            state.SetTotals(CalculateSourcesSize(request.Sources), request.Sources.Count);
-            state.StartProgressTimer();
-            foreach (string source in request.Sources)
-            {
-                cancellationToken.ThrowIfCancellationRequested();
-                string target = singleRename
-                    ? effectiveDestination
-                    : Path.Combine(effectiveDestination, Path.GetFileName(source));
-                if (TryMoveDirect(source, target, request.Options, conflictResolver, state))
-                    continue;
-
-                await CopyAsync(
-                    request with
-                    {
-                        Kind = FileOperationKind.Copy,
-                        Sources = [source],
-                        Destination = singleRename ? Path.GetDirectoryName(target)! : effectiveDestination,
-                    },
-                    conflictResolver,
-                    state,
-                    cancellationToken).ConfigureAwait(false);
-
-                DeletePath(source, useRecycleBin: false);
-                state.MovedCount++;
-            }
-
-            return;
-        }
-
-        await CopyAsync(
-            request with { Kind = FileOperationKind.Copy, Destination = effectiveDestination },
-            conflictResolver,
-            state,
-            cancellationToken).ConfigureAwait(false);
-
-        foreach (string source in request.Sources)
+        foreach (var item in plan)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            DeletePath(source, useRecycleBin: false);
+            string finalTarget = item.TargetPath;
+            if (!HasFileMask(request.Options) && TryMoveDirect(item.SourcePath, item.TargetPath, request.Options, conflictResolver, state, out finalTarget))
+                continue;
+
+            CopyOutcome outcome = await CopyAsync(
+                request with { Kind = FileOperationKind.Copy, Sources = [item.SourcePath], Destination = Path.GetDirectoryName(finalTarget)! },
+                conflictResolver,
+                state,
+                cancellationToken,
+                finalTarget).ConfigureAwait(false);
+
+            if (!outcome.CopiedSomething || !outcome.Completed || HasFileMask(request.Options) && Directory.Exists(item.SourcePath))
+                continue;
+
+            DeletePath(item.SourcePath, useRecycleBin: false);
             state.MovedCount++;
         }
+    }
+
+    private static bool HasFileMask(FileOperationOptions options) => !string.IsNullOrWhiteSpace(options.FileMask);
+
+    private static List<LocalMovePlanItem> BuildLocalMovePlan(IReadOnlyList<string> sources, string destination, bool singleRename)
+    {
+        DestinationPattern pattern = DestinationPattern.Parse(destination, PanelSourceId.Local);
+        var plan = new List<LocalMovePlanItem>(sources.Count);
+        foreach (string source in sources)
+        {
+            string target = pattern.HasWildcards
+                ? Path.Combine(string.IsNullOrEmpty(pattern.ParentPath) ? Path.GetDirectoryName(source)! : pattern.ParentPath, pattern.TransformName(Path.GetFileName(source)))
+                : singleRename
+                    ? destination
+                    : Path.Combine(destination, Path.GetFileName(source));
+            plan.Add(new LocalMovePlanItem(source, target));
+        }
+
+        ValidateLocalMovePlan(plan, pattern.HasWildcards);
+        return plan;
     }
 
     private void Delete(FileOperationRequest request, OperationState state, CancellationToken cancellationToken)
@@ -669,7 +652,8 @@ public sealed class FileOperationService : IFileOperationService
         string destination,
         FileOperationOptions options,
         OperationState state,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        string? rootTarget = null)
     {
         DestinationPattern destinationPattern = DestinationPattern.Parse(destination, PanelSourceId.Local);
         string destinationDirectory = destinationPattern.HasWildcards ? destinationPattern.ParentPath : destination;
@@ -686,7 +670,7 @@ public sealed class FileOperationService : IFileOperationService
             if (File.Exists(source))
             {
                 string fileName = Path.GetFileName(source);
-                string target = Path.Combine(destinationDirectory, destinationPattern.HasWildcards
+                string target = rootTarget ?? Path.Combine(destinationDirectory, destinationPattern.HasWildcards
                     ? destinationPattern.TransformName(fileName)
                     : fileName);
                 if (PathsEqual(source, target))
@@ -704,7 +688,7 @@ public sealed class FileOperationService : IFileOperationService
             if (!Directory.Exists(source))
                 continue;
 
-            string rootDestination = Path.Combine(destinationDirectory, destinationPattern.HasWildcards
+            string rootDestination = rootTarget ?? Path.Combine(destinationDirectory, destinationPattern.HasWildcards
                 ? destinationPattern.TransformName(Path.GetFileName(source))
                 : Path.GetFileName(source));
             if (PathsEqual(source, rootDestination))
@@ -721,7 +705,8 @@ public sealed class FileOperationService : IFileOperationService
             AddDirectoryPlan(source, rootDestination, hasMask, options.FileMask, matcher, groups, directories, files, ref plannedBytes, state, cancellationToken);
         }
 
-        ValidateLocalPlanCollisions(files.Select(file => file.DestinationPath).Concat(directories.Select(directory => directory.DestinationPath)));
+        if (destinationPattern.HasWildcards)
+            ValidateLocalPlanCollisions(files.Select(file => file.DestinationPath).Concat(directories.Select(directory => directory.DestinationPath)));
 
         return new CopyPlan(
             files,
@@ -1241,13 +1226,15 @@ public sealed class FileOperationService : IFileOperationService
         }
     }
 
-    private static bool TryMoveDirect(
+    private bool TryMoveDirect(
         string source,
         string destination,
         FileOperationOptions options,
         IFileOperationConflictResolver conflictResolver,
-        OperationState state)
+        OperationState state,
+        out string finalTarget)
     {
+        finalTarget = destination;
         if (PathsEqual(source, destination))
         {
             state.SkippedCount++;
@@ -1290,6 +1277,7 @@ public sealed class FileOperationService : IFileOperationService
                     destination = string.IsNullOrWhiteSpace(decision.NewDestinationPath)
                         ? GenerateName(destination)
                         : decision.NewDestinationPath;
+                    finalTarget = destination;
                     break;
                 case ConflictDecisionMode.OnlyNewer:
                     throw new InvalidOperationException("Only newer is only supported for copy operations.");
@@ -1303,6 +1291,8 @@ public sealed class FileOperationService : IFileOperationService
 
         try
         {
+            if (_dependencies.ForceMoveFallback(source, destination))
+                return false;
             Directory.CreateDirectory(Path.GetDirectoryName(destination)!);
             if (sourceIsFile)
                 File.Move(source, destination);
@@ -1552,7 +1542,8 @@ public sealed class FileOperationService : IFileOperationService
             plan.Add(new ProviderOperationPlanItem(location, source, normalizedSourcePath, item, targetPath));
         }
 
-        ValidateProviderPlanCollisions(plan.Select(item => item.TargetPath));
+        if (destinationPattern.HasWildcards)
+            ValidateProviderPlanCollisions(plan.Select(item => item.TargetPath));
         return plan;
     }
 
@@ -1586,7 +1577,8 @@ public sealed class FileOperationService : IFileOperationService
             plan.Add(new ProviderOperationPlanItem(location, source, normalizedSourcePath, item, targetPath));
         }
 
-        ValidateProviderPlanCollisions(plan.Select(item => item.TargetPath));
+        if (destinationPattern.HasWildcards)
+            ValidateProviderPlanCollisions(plan.Select(item => item.TargetPath));
         return plan;
     }
 
@@ -1609,10 +1601,10 @@ public sealed class FileOperationService : IFileOperationService
         string targetPath,
         bool sourceIsDirectory)
     {
-        if (!sourceIsDirectory)
-            return;
+        if (ProviderPathRelations.PathsEqual(source, sourcePath, targetPath))
+            throw new IOException("Source and destination refer to the same provider item.");
 
-        if (ProviderPathRelations.IsSameOrDescendant(source, targetPath, sourcePath))
+        if (sourceIsDirectory && ProviderPathRelations.IsDescendantOf(source, targetPath, sourcePath))
             throw new IOException("Cannot move a directory into itself.");
     }
 
@@ -1788,16 +1780,19 @@ public sealed class FileOperationService : IFileOperationService
         }
     }
 
-    private static void ValidateLocalMovePlan(IEnumerable<LocalMovePlanItem> plan)
+    private static void ValidateLocalMovePlan(IEnumerable<LocalMovePlanItem> plan, bool validateCollisions)
     {
         var targets = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         foreach (var item in plan)
         {
-            ValidateLocalTargetPath(item.TargetPath);
-            if (!targets.Add(NormalizePath(item.TargetPath)))
-                throw new IOException($"Multiple source items resolve to the same destination: {item.TargetPath}");
+            if (validateCollisions)
+            {
+                ValidateLocalTargetPath(item.TargetPath);
+                if (!targets.Add(NormalizePath(item.TargetPath)))
+                    throw new IOException($"Multiple source items resolve to the same destination: {item.TargetPath}");
+            }
 
-            if (PathsEqual(item.SourcePath, item.TargetPath))
+            if (validateCollisions && PathsEqual(item.SourcePath, item.TargetPath))
                 throw new IOException("Source and destination file are the same.");
             if (Directory.Exists(item.SourcePath) && IsPathInside(item.TargetPath, item.SourcePath))
                 throw new IOException("Cannot move a directory into itself.");
@@ -1836,6 +1831,7 @@ public sealed class FileOperationService : IFileOperationService
     private sealed record CopyAttemptResult(FileInfo SourceInfo, FileAttributes SourceAttributes);
     private sealed record CopyDirectoryPlanItem(string SourcePath, string DestinationPath);
     private sealed record LocalMovePlanItem(string SourcePath, string TargetPath);
+    private readonly record struct CopyOutcome(bool CopiedSomething, bool Completed);
     private sealed record ProviderOperationPlanItem(
         PanelLocation Location,
         IFilePanelSource Source,
