@@ -78,6 +78,7 @@ public sealed class OperationDialogHost
         // command invalidates the next render without triggering another refresh.
         _ = synchronize?.Invoke();
         bool cancellationNotified = false;
+        bool cancellationPending = false;
 
         void RequestCancellation()
         {
@@ -105,7 +106,7 @@ public sealed class OperationDialogHost
                         case OperationDialogAction.ContinueChanged:
                             return ModalDialogLoopResult<TResult>.ContinueChanged;
                         case OperationDialogAction.RequestCancellation:
-                            RequestCancellation();
+                            cancellationPending = true;
                             return ModalDialogLoopResult<TResult>.ContinueChanged;
                         case OperationDialogAction.Complete:
                             RequestCancellation();
@@ -115,9 +116,16 @@ public sealed class OperationDialogHost
                             return ModalDialogLoopResult<TResult>.ContinueNoChange;
                     }
                 },
-                () => DateTimeOffset.UtcNow + options.RefreshInterval,
+                () => cancellationPending ? DateTimeOffset.UtcNow : DateTimeOffset.UtcNow + options.RefreshInterval,
                 () =>
                 {
+                    if (cancellationPending)
+                    {
+                        cancellationPending = false;
+                        RequestCancellation();
+                        return ModalDialogWakeResult<TResult>.Changed;
+                    }
+
                     bool changed = synchronize?.Invoke() ?? false;
                     if (!task.IsCompleted)
                         return changed ? ModalDialogWakeResult<TResult>.Changed : ModalDialogWakeResult<TResult>.NoChange;

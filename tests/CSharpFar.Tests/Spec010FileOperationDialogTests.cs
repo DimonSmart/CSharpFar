@@ -588,6 +588,42 @@ public sealed class Spec010FileOperationDialogTests
     }
 
     [Fact]
+    public async Task FileOperationUiRunner_RendersStoppingBeforeCancelledOperationCleanupCompletes()
+    {
+        var driver = new FakeConsoleDriver(width: 100, height: 30);
+        var screen = new ScreenRenderer(driver);
+        var service = new CleanupGateFileOperationService();
+        var runner = CreateRunner(screen, service);
+        bool cancellationRequested = false;
+        driver.Wrote += record =>
+        {
+            if (!cancellationRequested && record.Text.Contains("Copying the file", StringComparison.Ordinal))
+            {
+                cancellationRequested = true;
+                service.StoppingRendered.Set();
+                driver.EnqueueKey(Key(ConsoleKey.Escape));
+            }
+
+            if (record.Text.Contains("really", StringComparison.OrdinalIgnoreCase))
+                driver.EnqueueKey(Key(ConsoleKey.Enter));
+        };
+        driver.BeforeReadInput = currentDriver =>
+            currentDriver.BeforeReadInput = nextDriver => nextDriver.EnqueueKey(Key(ConsoleKey.Enter));
+
+        Task operation = Task.Run(() => Assert.Throws<OperationCanceledException>(() => runner.Execute(CopyRequest())));
+
+        Assert.True(service.StoppingRendered.Wait(TimeSpan.FromSeconds(2)));
+        Assert.False(service.CancellationObserved.IsSet);
+        Assert.True(service.CancellationObserved.Wait(TimeSpan.FromSeconds(2)));
+        Assert.False(service.CleanupCompleted);
+
+        service.AllowCleanup.SetResult();
+        await operation;
+
+        Assert.True(service.CleanupCompleted);
+    }
+
+    [Fact]
     public void ProgressDialog_RendersResumeValidationState()
     {
         var driver = new FakeConsoleDriver(width: 100, height: 30);
@@ -925,6 +961,39 @@ public sealed class Spec010FileOperationDialogTests
             }
 
             throw new InvalidOperationException("Cancellation was expected.");
+        }
+    }
+
+    private sealed class CleanupGateFileOperationService : IFileOperationService
+    {
+        public ManualResetEventSlim CancellationObserved { get; } = new();
+        public ManualResetEventSlim StoppingRendered { get; } = new();
+        public TaskCompletionSource AllowCleanup { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public bool CleanupCompleted { get; private set; }
+
+        public bool SupportsRecycleBin => true;
+
+        public async Task<FileOperationResult> ExecuteAsync(
+            FileOperationRequest request,
+            IProgress<FileOperationProgress>? progress,
+            IFileOperationConflictResolver conflictResolver,
+            CancellationToken cancellationToken = default)
+        {
+            progress?.Report(new FileOperationProgress
+            {
+                Kind = request.Kind,
+                Phase = FileOperationPhase.Copying,
+                CurrentPath = @"C:\source\a.txt",
+                CurrentDestinationPath = @"C:\destination\a.txt",
+            });
+
+            var cancellation = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+            using var registration = cancellationToken.Register(() => cancellation.TrySetResult());
+            await cancellation.Task;
+            CancellationObserved.Set();
+            await AllowCleanup.Task;
+            CleanupCompleted = true;
+            return new FileOperationResult { Kind = request.Kind, Cancelled = true, Errors = [] };
         }
     }
 }
