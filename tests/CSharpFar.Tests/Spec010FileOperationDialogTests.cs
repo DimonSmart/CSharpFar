@@ -596,33 +596,33 @@ public sealed class Spec010FileOperationDialogTests
         var screen = new ScreenRenderer(driver);
         var service = new CleanupGateFileOperationService();
         var runner = CreateRunner(screen, service);
-        bool cancellationRequested = false;
         driver.Wrote += record =>
         {
-            if (!cancellationRequested && record.Text.Contains("Copying the file", StringComparison.Ordinal))
-            {
-                cancellationRequested = true;
-                service.StoppingRendered.Set();
-                driver.EnqueueKey(Key(ConsoleKey.Escape));
-            }
-
             if (record.Text.Contains("really", StringComparison.OrdinalIgnoreCase))
                 driver.EnqueueKey(Key(ConsoleKey.Enter));
+
+            if (record.Text.Contains("Stopping", StringComparison.Ordinal))
+                service.StoppingRendered.TrySetResult();
         };
         driver.BeforeReadInput = currentDriver =>
-            currentDriver.BeforeReadInput = nextDriver => nextDriver.EnqueueKey(Key(ConsoleKey.Enter));
+        {
+            service.CopyingStarted.Task.GetAwaiter().GetResult();
+            currentDriver.EnqueueKey(Key(ConsoleKey.Escape));
+        };
 
         Task operation = Task.Run(() => Assert.Throws<OperationCanceledException>(() => runner.Execute(CopyRequest())));
 
-        Assert.True(service.StoppingRendered.Wait(TimeSpan.FromSeconds(2)));
-        Assert.False(service.CancellationObserved.IsSet);
-        Assert.True(service.CancellationObserved.Wait(TimeSpan.FromSeconds(2)));
-        Assert.False(service.CleanupCompleted);
+        await service.CopyingStarted.Task;
+        await service.StoppingRendered.Task;
+        await service.CleanupStarted.Task;
 
-        service.AllowCleanup.SetResult();
+        Assert.True(service.StoppingWasRenderedBeforeCleanup);
+        Assert.False(service.CleanupCompleted.Task.IsCompleted);
+
+        service.AllowCleanup.TrySetResult();
         await operation;
 
-        Assert.True(service.CleanupCompleted);
+        Assert.True(service.CleanupCompleted.Task.IsCompleted);
     }
 
     [Fact]
@@ -968,10 +968,13 @@ public sealed class Spec010FileOperationDialogTests
 
     private sealed class CleanupGateFileOperationService : IFileOperationService
     {
-        public ManualResetEventSlim CancellationObserved { get; } = new();
-        public ManualResetEventSlim StoppingRendered { get; } = new();
+        public TaskCompletionSource CopyingStarted { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public TaskCompletionSource StoppingRendered { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public TaskCompletionSource CancellationObserved { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public TaskCompletionSource CleanupStarted { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public TaskCompletionSource AllowCleanup { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
-        public bool CleanupCompleted { get; private set; }
+        public TaskCompletionSource CleanupCompleted { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public bool StoppingWasRenderedBeforeCleanup { get; private set; }
 
         public bool SupportsRecycleBin => true;
 
@@ -988,13 +991,16 @@ public sealed class Spec010FileOperationDialogTests
                 CurrentPath = @"C:\source\a.txt",
                 CurrentDestinationPath = @"C:\destination\a.txt",
             });
+            CopyingStarted.TrySetResult();
 
             var cancellation = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
             using var registration = cancellationToken.Register(() => cancellation.TrySetResult());
             await cancellation.Task;
-            CancellationObserved.Set();
+            CancellationObserved.TrySetResult();
+            StoppingWasRenderedBeforeCleanup = StoppingRendered.Task.IsCompleted;
+            CleanupStarted.TrySetResult();
             await AllowCleanup.Task;
-            CleanupCompleted = true;
+            CleanupCompleted.TrySetResult();
             return new FileOperationResult { Kind = request.Kind, Cancelled = true, Errors = [] };
         }
     }

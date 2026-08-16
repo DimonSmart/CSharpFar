@@ -88,6 +88,7 @@ public sealed class CompositeDialogHost
         Func<DateTimeOffset?> getNextWakeUtc,
         Func<ModalDialogWakeResult<TResult>> handleWake,
         Action? prepareRender = null,
+        Action? afterFrameCommitted = null,
         CancellationToken cancellationToken = default,
         CancellationToken wakeSignal = default)
     {
@@ -103,7 +104,11 @@ public sealed class CompositeDialogHost
             getNextWakeUtc,
             _ => handleWake(),
             prepareRender,
-            frame => content.ApplyCommittedFrame(frame.Content),
+            frame =>
+            {
+                content.ApplyCommittedFrame(frame.Content);
+                afterFrameCommitted?.Invoke();
+            },
             cancellationToken,
             wakeSignal);
     }

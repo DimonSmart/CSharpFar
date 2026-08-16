@@ -76,9 +76,12 @@ internal sealed class FileOperationUiRunner
 
         OperationDialogOutcome<FileOperationResult> Handle(CompositeDialogEvent @event)
         {
-            if ((@event.Kind != CompositeDialogEventKind.Command || @event.Command != "cancel") || cancellationRequested)
+            bool isCancellationCommand = @event.Kind == CompositeDialogEventKind.Cancelled ||
+                @event.Kind == CompositeDialogEventKind.Command && @event.Command == "cancel";
+            if (!isCancellationCommand || cancellationRequested)
                 return OperationDialogOutcome<FileOperationResult>.ContinueNoChange;
 
+            Synchronize();
             var frame = new FileOperationProgressFrame(state.Progress, state.ShowTotalProgress, state.Status);
             bool accepted = HandleCancellation(
                 frame,
@@ -89,7 +92,12 @@ internal sealed class FileOperationUiRunner
                     try { return new OperationCancelDialog(_dialogs).Show() && AcceptCancellation(); }
                     finally { pauseController.Resume(); }
                 });
-            return accepted ? OperationDialogOutcome<FileOperationResult>.RequestCancellation : OperationDialogOutcome<FileOperationResult>.ContinueNoChange;
+            if (!accepted)
+                return OperationDialogOutcome<FileOperationResult>.ContinueNoChange;
+
+            return frame.Progress is null || frame.Progress.Phase == FileOperationPhase.Scanning
+                ? OperationDialogOutcome<FileOperationResult>.RequestImmediateCancellation
+                : OperationDialogOutcome<FileOperationResult>.RequestCancellation;
         }
 
         bool AcceptCancellation()

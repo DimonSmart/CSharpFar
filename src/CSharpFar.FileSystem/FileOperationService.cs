@@ -398,6 +398,9 @@ public sealed class FileOperationService : IFileOperationService
                 }
             }
 
+            if (HasFileMask(request.Options))
+                await EnsureProviderDestinationDirectoryAsync(source, targetPath, cancellationToken).ConfigureAwait(false);
+
             await source.RenameAsync(plannedItem.SourcePath, targetPath, cancellationToken).ConfigureAwait(false);
             state.MovedCount++;
             state.AddBytes(plannedItem.Item!.Size ?? 0);
@@ -1620,6 +1623,7 @@ public sealed class FileOperationService : IFileOperationService
 
             AddMaskedProviderPlanItems(
                 plan, location, source, normalizedSourcePath, item, targetPath, options.FileMask!, matcher, groups,
+                destination.SourceId,
                 validateTarget: path =>
                 {
                     if (location.SourceId == destination.SourceId)
@@ -1674,6 +1678,7 @@ public sealed class FileOperationService : IFileOperationService
 
             AddMaskedProviderPlanItems(
                 plan, location, source, normalizedSourcePath, item, targetPath, options.FileMask!, matcher, groups,
+                source.SourceId,
                 validateTarget: path => ValidateProviderMoveTarget(source, normalizedSourcePath, path, item.IsDirectory),
                 cancellationToken);
         }
@@ -1693,6 +1698,7 @@ public sealed class FileOperationService : IFileOperationService
         string fileMask,
         FarMaskMatcher matcher,
         IReadOnlyDictionary<string, MaskGroup> groups,
+        PanelSourceId destinationSourceId,
         Action<string> validateTarget,
         CancellationToken cancellationToken)
     {
@@ -1716,8 +1722,8 @@ public sealed class FileOperationService : IFileOperationService
         foreach (FilePanelItem file in files)
         {
             string sourcePath = source.NormalizePath(file.SourcePath);
-            string relativePath = GetProviderRelativePath(rootSourcePath, sourcePath);
-            string targetPath = CombineProviderRelativePath(source.SourceId, rootTargetPath, relativePath);
+            string relativePath = GetProviderRelativePath(source.SourceId, rootSourcePath, sourcePath);
+            string targetPath = CombineProviderRelativePath(destinationSourceId, rootTargetPath, relativePath);
             plan.Add(new ProviderOperationPlanItem(file.Location, source, sourcePath, file, targetPath));
         }
     }
@@ -1745,8 +1751,11 @@ public sealed class FileOperationService : IFileOperationService
         }
     }
 
-    private static string GetProviderRelativePath(string rootPath, string childPath)
+    private static string GetProviderRelativePath(PanelSourceId sourceId, string rootPath, string childPath)
     {
+        if (sourceId == PanelSourceId.Local)
+            return Path.GetRelativePath(rootPath, childPath).Replace(Path.DirectorySeparatorChar, '/');
+
         string normalizedRoot = rootPath.TrimEnd('/');
         return childPath[(normalizedRoot.Length + 1)..];
     }

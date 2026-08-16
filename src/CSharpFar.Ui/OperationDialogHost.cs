@@ -8,6 +8,7 @@ public enum OperationDialogAction
     ContinueNoChange,
     ContinueChanged,
     RequestCancellation,
+    RequestImmediateCancellation,
     Complete,
 }
 
@@ -17,6 +18,7 @@ public readonly record struct OperationDialogOutcome<TResult>(OperationDialogAct
     public static OperationDialogOutcome<TResult> ContinueNoChange => new(OperationDialogAction.ContinueNoChange);
     public static OperationDialogOutcome<TResult> ContinueChanged => new(OperationDialogAction.ContinueChanged);
     public static OperationDialogOutcome<TResult> RequestCancellation => new(OperationDialogAction.RequestCancellation);
+    public static OperationDialogOutcome<TResult> RequestImmediateCancellation => new(OperationDialogAction.RequestImmediateCancellation);
     public static OperationDialogOutcome<TResult> Complete(TResult result) => new(OperationDialogAction.Complete, result);
 }
 
@@ -108,6 +110,9 @@ public sealed class OperationDialogHost
                         case OperationDialogAction.RequestCancellation:
                             cancellationPending = true;
                             return ModalDialogLoopResult<TResult>.ContinueChanged;
+                        case OperationDialogAction.RequestImmediateCancellation:
+                            RequestCancellation();
+                            return ModalDialogLoopResult<TResult>.ContinueChanged;
                         case OperationDialogAction.Complete:
                             RequestCancellation();
                             ObserveBeforeClose(task);
@@ -116,16 +121,9 @@ public sealed class OperationDialogHost
                             return ModalDialogLoopResult<TResult>.ContinueNoChange;
                     }
                 },
-                () => cancellationPending ? DateTimeOffset.UtcNow : DateTimeOffset.UtcNow + options.RefreshInterval,
+                () => DateTimeOffset.UtcNow + options.RefreshInterval,
                 () =>
                 {
-                    if (cancellationPending)
-                    {
-                        cancellationPending = false;
-                        RequestCancellation();
-                        return ModalDialogWakeResult<TResult>.Changed;
-                    }
-
                     bool changed = synchronize?.Invoke() ?? false;
                     if (!task.IsCompleted)
                         return changed ? ModalDialogWakeResult<TResult>.Changed : ModalDialogWakeResult<TResult>.NoChange;
@@ -134,6 +132,14 @@ public sealed class OperationDialogHost
                     return ModalDialogWakeResult<TResult>.Complete(complete(result), changed);
                 },
                 prepareRender: null,
+                afterFrameCommitted: () =>
+                {
+                    if (!cancellationPending)
+                        return;
+
+                    cancellationPending = false;
+                    RequestCancellation();
+                },
                 cancellationToken,
                 completionWake.Token);
         }
