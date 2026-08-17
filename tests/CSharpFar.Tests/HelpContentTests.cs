@@ -7,6 +7,34 @@ namespace CSharpFar.Tests;
 /// </summary>
 public class HelpContentTests
 {
+    [Fact]
+    public void Pages_ExposeIndependentMainAndCopyDocuments()
+    {
+        HelpPage main = HelpContent.GetPage(HelpTopic.Main);
+        HelpPage copy = HelpContent.GetPage(HelpTopic.Copy);
+
+        Assert.NotSame(main.Lines, copy.Lines);
+        Assert.Equal("CSharpFar — Console Dual-Panel File Manager", main.Lines[0].Description);
+        Assert.Equal("CSharpFar — Copy", copy.Lines[0].Description);
+        Assert.Contains(copy.Lines, line => line.FullText.Contains("Destination", StringComparison.OrdinalIgnoreCase));
+        Assert.Contains(copy.Lines, line => line.FullText.Contains("* and ?", StringComparison.Ordinal));
+        Assert.Contains(copy.Lines, line => line.FullText.Contains("Use template", StringComparison.Ordinal));
+        Assert.Contains(copy.Lines, line => line.FullText.Contains("{name}", StringComparison.Ordinal));
+        Assert.Contains(copy.Lines, line => line.FullText.Contains("{ext}", StringComparison.Ordinal));
+        Assert.Contains(copy.Lines, line => line.FullText.Contains("Normal", StringComparison.Ordinal));
+        Assert.Contains(copy.Lines, line => line.FullText.Contains("Reliable", StringComparison.Ordinal));
+        Assert.Contains(copy.Lines, line => line.FullText.Contains("Fast salvage", StringComparison.Ordinal));
+        Assert.Contains(copy.Lines, line => line.FullText.Contains("Ask", StringComparison.Ordinal));
+        Assert.Contains(copy.Lines, line => line.FullText.Contains("Overwrite", StringComparison.Ordinal));
+        Assert.Contains(copy.Lines, line => line.FullText.Contains("Only newer", StringComparison.Ordinal));
+        Assert.Contains(copy.Lines, line => line.FullText.Contains("Access", StringComparison.OrdinalIgnoreCase));
+        Assert.Contains(copy.Lines, line => line.FullText.Contains("Preserve all timestamps", StringComparison.Ordinal));
+        Assert.Contains(copy.Lines, line => line.FullText.Contains("Filter mask", StringComparison.OrdinalIgnoreCase));
+        Assert.DoesNotContain(copy.Lines, line => line.FullText.Contains("PANEL NAVIGATION", StringComparison.Ordinal));
+        Assert.DoesNotContain(copy.Lines, line => line.FullText.Contains("IN EDITOR", StringComparison.Ordinal));
+        Assert.DoesNotContain(copy.Lines, line => line.FullText.Contains("CONFIGURATION", StringComparison.Ordinal));
+    }
+
     [Theory]
     [InlineData("F1")]
     [InlineData("F3")]

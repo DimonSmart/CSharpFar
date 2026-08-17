@@ -13,15 +13,16 @@ namespace CSharpFar.Tests;
 public sealed class HelpViewerLayerTests
 {
     [Fact]
-    public void CopyTopic_StartsAtCopyDestinationHeading()
+    public void CopyTopic_StartsAtItsOwnPageTop()
     {
+        HelpPage copyPage = HelpContent.GetPage(HelpTopic.Copy);
         var (_, _, layer) = Render(
-            HelpContent.Lines,
+            copyPage.Lines.ToArray(),
             width: 100,
-            height: 30,
-            firstVisibleIndex: HelpContent.FirstVisibleIndex(HelpTopic.Copy));
+            height: 30);
 
-        Assert.Equal("COPY / MOVE DESTINATION NAMES", HelpContent.Lines[layer.CommittedFrame.ScrollTop].Description);
+        Assert.Equal(0, layer.CommittedFrame.ScrollTop);
+        Assert.Equal("CSharpFar — Copy", copyPage.Lines[layer.CommittedFrame.ScrollTop].Description);
     }
 
     [Fact]
