@@ -131,6 +131,51 @@ public sealed class Spec029SftpProviderTests : IDisposable
     }
 
     [Fact]
+    public async Task ProviderCopy_TemplateCreatesMissingNestedDirectoriesForFile()
+    {
+        var service = CreateProviderOperationService(out var remote);
+        remote.WriteFile("/camera/IMG001.jpg", "photo");
+
+        await service.ExecuteAsync(
+            ProviderRequest(FileOperationKind.Copy, remote.SourceId, ["/camera/IMG001.jpg"], "/Photos/{modified:yyyy}/{name}{ext}", new FileOperationOptions(), useDestinationTemplate: true),
+            null,
+            new NoOpConflictResolver());
+
+        Assert.NotNull(remote.GetItem("/Photos/1970/IMG001.jpg"));
+    }
+
+    [Fact]
+    public async Task ProviderCopy_TemplateCreatesMissingNestedDirectoriesForDirectoryAndPreservesDescendants()
+    {
+        var service = CreateProviderOperationService(out var remote);
+        remote.WriteFile("/camera/Vacation/IMG001.jpg", "photo");
+
+        await service.ExecuteAsync(
+            ProviderRequest(FileOperationKind.Copy, remote.SourceId, ["/camera/Vacation"], "/Photos/{modified:yyyy}/{name}", new FileOperationOptions(), useDestinationTemplate: true),
+            null,
+            new NoOpConflictResolver());
+
+        Assert.NotNull(remote.GetItem("/Photos/1970/Vacation/IMG001.jpg"));
+        Assert.Null(remote.GetItem("/Photos/1970/Vacation/1970/IMG001.jpg"));
+    }
+
+    [Fact]
+    public async Task ProviderCopy_TemplateSupportsMixedFileAndDirectorySelection()
+    {
+        var service = CreateProviderOperationService(out var remote);
+        remote.WriteFile("/camera/cover.jpg", "cover");
+        remote.WriteFile("/camera/Vacation/IMG001.jpg", "photo");
+
+        await service.ExecuteAsync(
+            ProviderRequest(FileOperationKind.Copy, remote.SourceId, ["/camera/cover.jpg", "/camera/Vacation"], "/Photos/{modified:yyyy}/{name}{ext}", new FileOperationOptions(), useDestinationTemplate: true),
+            null,
+            new NoOpConflictResolver());
+
+        Assert.NotNull(remote.GetItem("/Photos/1970/cover.jpg"));
+        Assert.NotNull(remote.GetItem("/Photos/1970/Vacation/IMG001.jpg"));
+    }
+
+    [Fact]
     public async Task ProviderMove_DirectoryMovesOnlyMatchingFiles()
     {
         var service = CreateProviderOperationService(out var remote);
@@ -905,7 +950,8 @@ public sealed class Spec029SftpProviderTests : IDisposable
         PanelSourceId sourceId,
         IReadOnlyList<string> sourcePaths,
         string destination,
-        FileOperationOptions options) =>
+        FileOperationOptions options,
+        bool useDestinationTemplate = false) =>
         new()
         {
             Kind = kind,
@@ -913,6 +959,7 @@ public sealed class Spec029SftpProviderTests : IDisposable
             SourceLocations = sourcePaths.Select(path => new PanelLocation(sourceId, path)).ToList(),
             Destination = destination,
             DestinationLocation = new PanelLocation(sourceId, destination),
+            UseDestinationTemplate = useDestinationTemplate,
             Options = options,
         };
 
@@ -1068,7 +1115,13 @@ public sealed class Spec029SftpProviderTests : IDisposable
             string sourcePath,
             CancellationToken cancellationToken = default)
         {
-            AddDirectoryAndParents(NormalizePath(sourcePath));
+            string path = NormalizePath(sourcePath);
+            if (_directories.Contains(path))
+                return Task.CompletedTask;
+            if (!_directories.Contains(ParentPath(path)))
+                throw new IOException($"Parent directory does not exist: {ParentPath(path)}");
+
+            _directories.Add(path);
             return Task.CompletedTask;
         }
 

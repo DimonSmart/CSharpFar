@@ -103,6 +103,68 @@ public class MoveOperationTests : IDisposable
     }
 
     [Fact]
+    public async Task CopyAsync_TemplateRejectsInvalidIntermediateDirectoryBeforeMutation()
+    {
+        string first = Write(_src, "first.txt", "first");
+        string second = Write(_src, "second.txt", "second");
+        File.SetLastWriteTime(first, new DateTime(2026, 8, 12, 14, 35, 20));
+        File.SetLastWriteTime(second, new DateTime(2026, 8, 12, 14, 35, 20));
+
+        await Assert.ThrowsAsync<IOException>(() => Svc().ExecuteAsync(new FileOperationRequest
+        {
+            Kind = FileOperationKind.Copy,
+            Sources = [first, second],
+            Destination = Path.Combine(_dst, "{modified:HH:mm}", "{name}{ext}"),
+            UseDestinationTemplate = true,
+            Options = new FileOperationOptions(),
+        }, progress: null, conflictResolver: new OverwriteResolver()));
+
+        Assert.True(File.Exists(first));
+        Assert.True(File.Exists(second));
+        Assert.Empty(Directory.EnumerateFileSystemEntries(_dst));
+    }
+
+    [Fact]
+    public async Task MoveAsync_TemplateRejectsInvalidIntermediateDirectoryBeforeMutation()
+    {
+        string first = Write(_src, "first.txt", "first");
+        string second = Write(_src, "second.txt", "second");
+        File.SetLastWriteTime(first, new DateTime(2026, 8, 12, 14, 35, 20));
+        File.SetLastWriteTime(second, new DateTime(2026, 8, 12, 14, 35, 20));
+
+        await Assert.ThrowsAsync<IOException>(() => Svc().ExecuteAsync(new FileOperationRequest
+        {
+            Kind = FileOperationKind.Move,
+            Sources = [first, second],
+            Destination = Path.Combine(_dst, "{modified:HH:mm}", "{name}{ext}"),
+            UseDestinationTemplate = true,
+            Options = new FileOperationOptions(),
+        }, progress: null, conflictResolver: new OverwriteResolver()));
+
+        Assert.True(File.Exists(first));
+        Assert.True(File.Exists(second));
+        Assert.Empty(Directory.EnumerateFileSystemEntries(_dst));
+    }
+
+    [Fact]
+    public async Task MoveAsync_TemplateRenamesSingleFileInItsCurrentParentDirectory()
+    {
+        string source = Write(_src, "report.txt", "report");
+
+        await Svc().ExecuteAsync(new FileOperationRequest
+        {
+            Kind = FileOperationKind.Move,
+            Sources = [source],
+            Destination = "{name}_OLD{ext}",
+            UseDestinationTemplate = true,
+            Options = new FileOperationOptions(),
+        }, progress: null, conflictResolver: new OverwriteResolver());
+
+        Assert.False(File.Exists(source));
+        Assert.Equal("report", File.ReadAllText(Path.Combine(_src, "report_OLD.txt")));
+    }
+
+    [Fact]
     public async Task MoveAsync_TemplateCollisionRejectsWholeOperationBeforeMutation()
     {
         string first = Write(_src, "same.txt", "first");
