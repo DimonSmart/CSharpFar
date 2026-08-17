@@ -133,13 +133,20 @@ public sealed class CompositeDialogHost
             DialogAppearance.Warning => WarningDialogStyles.OuterOptions,
             _ => null,
         };
-        _renderer.Render(context.Canvas, modal, options.Title, options.DoubleBorder, popup ?? FarDialogStyles.OuterOptions, popup is null ? FarDialogStyles.FrameOptions : popup with { DrawShadow = false }, (_, _) =>
-        {
-            formFrame = form.Render(new FormRenderContext(context, header, FarDialogStyles.Border, footer), focus);
-            content.Render(context.Canvas, contentFrame);
-            if (statusBounds.Height > 0)
-                context.Canvas.Write(statusBounds.X, statusBounds.Y, ConsoleTextMetrics.FitToCells(status?.Invoke() ?? string.Empty, statusBounds.Width), FarDialogStyles.Fill);
-        });
+        _renderer.Render(
+            context.Canvas,
+            modal,
+            options.Title,
+            options.DoubleBorder,
+            popup is null ? FarDialogStyles.OuterOptions : popup with { DrawBorder = false },
+            popup is null ? FarDialogStyles.FrameOptions : popup with { DrawShadow = false },
+            (_, _) =>
+            {
+                formFrame = form.Render(new FormRenderContext(context, header, FarDialogStyles.Border, footer), focus);
+                content.Render(context.Canvas, contentFrame);
+                if (statusBounds.Height > 0)
+                    context.Canvas.Write(statusBounds.X, statusBounds.Y, ConsoleTextMetrics.FitToCells(status?.Invoke() ?? string.Empty, statusBounds.Width), FarDialogStyles.Fill);
+            });
         return new(modal, formFrame, contentFrame);
     }
 
