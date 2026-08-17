@@ -12,6 +12,7 @@ namespace CSharpFar.Module.Ftp;
 
 public sealed class FtpFilePanelSource : IModulePanel
 {
+    private static readonly char[] ProviderPathSeparators = ['/', '\\'];
     private readonly FtpConnectionInfo _connection;
     private readonly string _password;
     private readonly Func<FtpConnectionInfo, string, bool> _acceptCertificate;
@@ -56,6 +57,8 @@ public sealed class FtpFilePanelSource : IModulePanel
         PanelProviderCapabilities.CopyFrom |
         PanelProviderCapabilities.CopyTo |
         PanelProviderCapabilities.Refresh;
+
+    public IReadOnlyCollection<char> PathSeparators => ProviderPathSeparators;
 
     public string NormalizePath(string sourcePath)
     {

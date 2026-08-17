@@ -103,47 +103,73 @@ public class MoveOperationTests : IDisposable
     }
 
     [Fact]
-    public async Task CopyAsync_TemplateRejectsInvalidIntermediateDirectoryBeforeMutation()
+    public async Task CopyAsync_TemplateIntermediateDirectoryRespectsLocalPlatformFileNameRules()
     {
         string first = Write(_src, "first.txt", "first");
         string second = Write(_src, "second.txt", "second");
         File.SetLastWriteTime(first, new DateTime(2026, 8, 12, 14, 35, 20));
         File.SetLastWriteTime(second, new DateTime(2026, 8, 12, 14, 35, 20));
 
-        await Assert.ThrowsAsync<IOException>(() => Svc().ExecuteAsync(new FileOperationRequest
+        var request = new FileOperationRequest
         {
             Kind = FileOperationKind.Copy,
             Sources = [first, second],
             Destination = Path.Combine(_dst, "{modified:HH:mm}", "{name}{ext}"),
             UseDestinationTemplate = true,
             Options = new FileOperationOptions(),
-        }, progress: null, conflictResolver: new OverwriteResolver()));
+        };
 
-        Assert.True(File.Exists(first));
-        Assert.True(File.Exists(second));
-        Assert.Empty(Directory.EnumerateFileSystemEntries(_dst));
+        if (OperatingSystem.IsWindows())
+        {
+            await Assert.ThrowsAsync<IOException>(() => Svc().ExecuteAsync(request, progress: null, conflictResolver: new OverwriteResolver()));
+
+            Assert.True(File.Exists(first));
+            Assert.True(File.Exists(second));
+            Assert.Empty(Directory.EnumerateFileSystemEntries(_dst));
+        }
+        else
+        {
+            await Svc().ExecuteAsync(request, progress: null, conflictResolver: new OverwriteResolver());
+
+            Assert.Equal("first", File.ReadAllText(Path.Combine(_dst, "14:35", "first.txt")));
+            Assert.Equal("second", File.ReadAllText(Path.Combine(_dst, "14:35", "second.txt")));
+        }
     }
 
     [Fact]
-    public async Task MoveAsync_TemplateRejectsInvalidIntermediateDirectoryBeforeMutation()
+    public async Task MoveAsync_TemplateIntermediateDirectoryRespectsLocalPlatformFileNameRules()
     {
         string first = Write(_src, "first.txt", "first");
         string second = Write(_src, "second.txt", "second");
         File.SetLastWriteTime(first, new DateTime(2026, 8, 12, 14, 35, 20));
         File.SetLastWriteTime(second, new DateTime(2026, 8, 12, 14, 35, 20));
 
-        await Assert.ThrowsAsync<IOException>(() => Svc().ExecuteAsync(new FileOperationRequest
+        var request = new FileOperationRequest
         {
             Kind = FileOperationKind.Move,
             Sources = [first, second],
             Destination = Path.Combine(_dst, "{modified:HH:mm}", "{name}{ext}"),
             UseDestinationTemplate = true,
             Options = new FileOperationOptions(),
-        }, progress: null, conflictResolver: new OverwriteResolver()));
+        };
 
-        Assert.True(File.Exists(first));
-        Assert.True(File.Exists(second));
-        Assert.Empty(Directory.EnumerateFileSystemEntries(_dst));
+        if (OperatingSystem.IsWindows())
+        {
+            await Assert.ThrowsAsync<IOException>(() => Svc().ExecuteAsync(request, progress: null, conflictResolver: new OverwriteResolver()));
+
+            Assert.True(File.Exists(first));
+            Assert.True(File.Exists(second));
+            Assert.Empty(Directory.EnumerateFileSystemEntries(_dst));
+        }
+        else
+        {
+            await Svc().ExecuteAsync(request, progress: null, conflictResolver: new OverwriteResolver());
+
+            Assert.False(File.Exists(first));
+            Assert.False(File.Exists(second));
+            Assert.Equal("first", File.ReadAllText(Path.Combine(_dst, "14:35", "first.txt")));
+            Assert.Equal("second", File.ReadAllText(Path.Combine(_dst, "14:35", "second.txt")));
+        }
     }
 
     [Fact]

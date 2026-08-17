@@ -5,6 +5,7 @@ namespace CSharpFar.Tests;
 public sealed class DestinationTemplateTests
 {
     private static readonly DateTime Modified = new(2026, 8, 12, 14, 35, 20);
+    private static readonly char[] LocalPathSeparators = [Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar];
 
     [Theory]
     [InlineData("photo.jpg", false, "{name}", "photo")]
@@ -17,7 +18,7 @@ public sealed class DestinationTemplateTests
     [InlineData("Photos.2026", true, "{name}{ext}", "Photos.2026")]
     public void Evaluate_ExpandsNameAndExtension(string name, bool isDirectory, string template, string expected)
     {
-        Assert.Equal(expected, DestinationTemplate.Parse(template).Evaluate(new DestinationTemplateContext(name, isDirectory, Modified)));
+        Assert.Equal(expected, DestinationTemplate.Parse(template).Evaluate(new DestinationTemplateContext(name, isDirectory, Modified, LocalPathSeparators)));
     }
 
     [Theory]
@@ -32,7 +33,7 @@ public sealed class DestinationTemplateTests
     [InlineData("{{{name}}}", "{photo}")]
     public void Evaluate_ExpandsSupportedTokens(string template, string expected)
     {
-        Assert.Equal(expected, DestinationTemplate.Parse(template).Evaluate(new DestinationTemplateContext("photo.jpg", false, Modified)));
+        Assert.Equal(expected, DestinationTemplate.Parse(template).Evaluate(new DestinationTemplateContext("photo.jpg", false, Modified, LocalPathSeparators)));
     }
 
     [Theory]
@@ -45,6 +46,24 @@ public sealed class DestinationTemplateTests
     [InlineData("{name}_*.txt")]
     public void ParseOrEvaluate_RejectsInvalidTemplate(string template)
     {
-        Assert.Throws<IOException>(() => DestinationTemplate.Parse(template).Evaluate(new DestinationTemplateContext("photo.jpg", false, Modified)));
+        Assert.Throws<IOException>(() => DestinationTemplate.Parse(template).Evaluate(new DestinationTemplateContext("photo.jpg", false, Modified, LocalPathSeparators)));
+    }
+
+    [Theory]
+    [InlineData("foo/bar.jpg")]
+    [InlineData("foo\\bar.jpg")]
+    public void Evaluate_RejectsDynamicPathSeparatorsForDestination(string name)
+    {
+        Assert.Throws<IOException>(() => DestinationTemplate.Parse("{name}{ext}").Evaluate(
+            new DestinationTemplateContext(name, false, Modified, ['/', '\\'])));
+    }
+
+    [Fact]
+    public void Evaluate_AllowsBackslashForSlashSeparatedDestination()
+    {
+        string result = DestinationTemplate.Parse("{name}{ext}").Evaluate(
+            new DestinationTemplateContext("foo\\bar.jpg", false, Modified, ['/']));
+
+        Assert.Equal("foo\\bar.jpg", result);
     }
 }

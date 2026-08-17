@@ -9,6 +9,7 @@ namespace CSharpFar.Module.Sftp;
 
 public sealed class SftpFilePanelSource : IModulePanel
 {
+    private static readonly char[] ProviderPathSeparators = ['/'];
     private readonly SftpConnectionInfo _connection;
     private readonly string _password;
     private readonly Func<SftpConnectionInfo, string, bool> _acceptHostKey;
@@ -54,12 +55,13 @@ public sealed class SftpFilePanelSource : IModulePanel
         PanelProviderCapabilities.CopyTo |
         PanelProviderCapabilities.Refresh;
 
+    public IReadOnlyCollection<char> PathSeparators => ProviderPathSeparators;
+
     public string NormalizePath(string sourcePath)
     {
         if (string.IsNullOrWhiteSpace(sourcePath))
             sourcePath = _connection.RemoteRootPath;
 
-        sourcePath = sourcePath.Replace('\\', '/');
         if (!sourcePath.StartsWith('/'))
             sourcePath = "/" + sourcePath;
 

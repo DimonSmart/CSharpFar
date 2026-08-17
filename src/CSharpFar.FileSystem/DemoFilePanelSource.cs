@@ -6,6 +6,7 @@ namespace CSharpFar.FileSystem;
 
 public sealed class DemoFilePanelSource : IFilePanelSource
 {
+    private static readonly char[] ProviderPathSeparators = ['/'];
     private const int MaxFileCount = 512;
     private const long MaxSingleFileSizeBytes = 4 * 1024 * 1024;
     private const long MaxTotalContentSizeBytes = 16 * 1024 * 1024;
@@ -36,6 +37,8 @@ public sealed class DemoFilePanelSource : IFilePanelSource
         PanelProviderCapabilities.MoveTo |
         PanelProviderCapabilities.Edit |
         PanelProviderCapabilities.Refresh;
+
+    public IReadOnlyCollection<char> PathSeparators => ProviderPathSeparators;
 
     public static DemoFilePanelSource ImportFromDirectory(string rootPath)
     {
