@@ -243,8 +243,8 @@ internal sealed class ApplicationCommandContext
     public TerminalSurfaceSnapshot GetTerminalSnapshot() =>
         _terminalSurface.GetSnapshot();
 
-    public void ShowHelp() =>
-        new HelpViewer(_interactiveSurfaces, Palette).Show();
+    public void ShowHelp(HelpTopic topic = HelpTopic.Main) =>
+        new HelpViewer(_interactiveSurfaces, Palette).Show(topic);
 
     public void ViewFile(string path) =>
         new FileViewer(_interactiveSurfaces, ModalDialogs, Dialogs, Fields, Palette).Show(path);

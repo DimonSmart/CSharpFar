@@ -14,6 +14,7 @@ public enum FormInputResultKind
     MoveFocusNext,
     MoveFocusPrevious,
     Submit,
+    Auxiliary,
     Cancel,
 }
 
@@ -31,6 +32,7 @@ public readonly record struct FormInputResult(
     public static FormInputResult MoveFocusNext => new(FormInputResultKind.MoveFocusNext);
     public static FormInputResult MoveFocusPrevious => new(FormInputResultKind.MoveFocusPrevious);
     public static FormInputResult Submit(string? command = null) => new(FormInputResultKind.Submit, command);
+    public static FormInputResult Auxiliary(string? command = null) => new(FormInputResultKind.Auxiliary, command);
     public static FormInputResult Cancel(string? command = null) => new(FormInputResultKind.Cancel, command);
 
     public bool IsHandled => Kind != FormInputResultKind.NotHandled;

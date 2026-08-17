@@ -13,6 +13,18 @@ namespace CSharpFar.Tests;
 public sealed class HelpViewerLayerTests
 {
     [Fact]
+    public void CopyTopic_StartsAtCopyDestinationHeading()
+    {
+        var (_, _, layer) = Render(
+            HelpContent.Lines,
+            width: 100,
+            height: 30,
+            firstVisibleIndex: HelpContent.FirstVisibleIndex(HelpTopic.Copy));
+
+        Assert.Equal("COPY / MOVE DESTINATION NAMES", HelpContent.Lines[layer.CommittedFrame.ScrollTop].Description);
+    }
+
+    [Fact]
     public void Render_CommitsBothScrollLimitsAndInteractiveTargets()
     {
         HelpLine[] lines =
@@ -419,9 +431,10 @@ public sealed class HelpViewerLayerTests
         HelpLine[] lines,
         int width,
         int height,
-        ConsolePalette? palette = null)
+        ConsolePalette? palette = null,
+        int firstVisibleIndex = 0)
     {
-        var composition = Open(lines, width, height, out var driver, out var layer, palette);
+        var composition = Open(lines, width, height, out var driver, out var layer, palette, firstVisibleIndex);
         composition.Render();
         return (composition, driver, layer);
     }
@@ -432,13 +445,14 @@ public sealed class HelpViewerLayerTests
         int height,
         out FakeConsoleDriver driver,
         out HelpViewerLayer layer,
-        ConsolePalette? palette = null)
+        ConsolePalette? palette = null,
+        int firstVisibleIndex = 0)
     {
         driver = new FakeConsoleDriver(width, height);
         var host = UiTestHost.Create(driver);
         var screen = host.Screen;
         var composition = host.Composition;
-        layer = new HelpViewerLayer(lines, palette ?? PaletteRegistry.Default);
+        layer = new HelpViewerLayer(lines, palette ?? PaletteRegistry.Default, firstVisibleIndex);
         composition.OpenSurface(new InteractiveSurface(screen), layer);
         return composition;
     }

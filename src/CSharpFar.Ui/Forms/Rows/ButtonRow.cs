@@ -81,6 +81,8 @@ public sealed class ButtonRow : FormRow, IFormFocusTarget
             : new FormInputResult(
                 result.ButtonRole == DialogButtonRole.Cancel
                     ? FormInputResultKind.Cancel
+                    : result.ButtonRole == DialogButtonRole.Auxiliary
+                        ? FormInputResultKind.Auxiliary
                     : FormInputResultKind.Submit,
                 result.ButtonId,
                 result.MouseCapture);

@@ -87,15 +87,16 @@ public sealed class DialogService
         Func<IReadOnlyList<FormRow>> rows,
         Func<IReadOnlyList<FormRow>>? footer,
         Func<FormSubmitResult<TResult>> submit,
+        Func<FormDialogEvent, bool>? auxiliary = null,
         CancellationToken cancellationToken = default) =>
-        new FormDialogs(_modalDialogs).Show(options, rows, footer, submit, cancellationToken);
+        new FormDialogs(_modalDialogs).Show(options, rows, footer, submit, auxiliary, cancellationToken);
 
     public TResult? Form<TResult>(
         FormDialogOptions options,
         Func<IReadOnlyList<FormRow>> rows,
         Func<FormSubmitResult<TResult>> submit,
         CancellationToken cancellationToken = default) =>
-        new FormDialogs(_modalDialogs).Show(options, rows, footer: null, submit, cancellationToken);
+        new FormDialogs(_modalDialogs).Show(options, rows, footer: null, submit, auxiliary: null, cancellationToken);
 
     public TResult Composite<TResult>(
         CompositeDialogOptions options,

@@ -30,7 +30,7 @@ internal sealed partial class HelpViewerLayer : InteractiveSurfaceLayer<HelpView
         new(Content, Scrollbar);
     private int _scrollLeft;
 
-    public HelpViewerLayer(HelpLine[] lines, ConsolePalette palette)
+    public HelpViewerLayer(HelpLine[] lines, ConsolePalette palette, int firstVisibleIndex = 0)
         : base(
             (_, _) => throw new InvalidOperationException("HelpViewerLayer uses overridden rendering."),
             _ => UiInteractionFrame.Empty,
@@ -38,6 +38,7 @@ internal sealed partial class HelpViewerLayer : InteractiveSurfaceLayer<HelpView
     {
         _lines = lines;
         _palette = palette;
+        _verticalViewport.FirstVisibleIndex = firstVisibleIndex;
     }
 
     protected override HelpViewerFrame RenderFrameCore(UiRenderContext context)

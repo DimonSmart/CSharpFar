@@ -1,5 +1,6 @@
 using CSharpFar.App.Commands;
 using CSharpFar.App.Dialogs;
+using CSharpFar.App.Viewer;
 using CSharpFar.Console;
 using CSharpFar.Console.Input;
 using CSharpFar.Console.Models;
@@ -12,6 +13,37 @@ namespace CSharpFar.Tests;
 
 public sealed class Spec010FileOperationDialogTests
 {
+    [Fact]
+    public void ShowCopy_ContextualHelpPreservesFormStateAndDoesNotSubmit()
+    {
+        var driver = new FakeConsoleDriver(width: 100, height: 30);
+        var screen = new ScreenRenderer(driver);
+        EnqueueText(driver, "_edited");
+        driver.EnqueueKey(Key(ConsoleKey.DownArrow));
+        driver.EnqueueKey(Key(ConsoleKey.Spacebar));
+        driver.EnqueueKey(Key(ConsoleKey.F1));
+        driver.EnqueueKey(Key(ConsoleKey.F10));
+        int helpCalls = 0;
+
+        var result = new FileOperationDialog(
+            new DialogService(ModalTestHost.Create(screen), new FormFieldFactory(TextFieldHistoryTestProvider.Create())),
+            new FormFieldFactory(TextFieldHistoryTestProvider.Create()),
+            topic =>
+            {
+                Assert.Equal(HelpTopic.Copy, topic);
+                helpCalls++;
+            }).ShowCopy(
+                [@"C:\source\analysis_options.yaml"],
+                @"C:\destination",
+                new FileOperationOptions());
+
+        Assert.Equal(1, helpCalls);
+        Assert.NotNull(result);
+        Assert.Equal(@"C:\destination_edited", result.Destination);
+        Assert.True(result.UseDestinationTemplate);
+        Assert.Contains(driver.WriteRecords, record => record.Text.Contains("Copy", StringComparison.Ordinal) && record.Text.Contains("Help", StringComparison.Ordinal) && record.Text.Contains("Cancel", StringComparison.Ordinal));
+    }
+
     [Fact]
     public void ShowCopy_ReturnsDestinationAndDefaultOptionsFromSingleDialog()
     {
@@ -117,6 +149,7 @@ public sealed class Spec010FileOperationDialogTests
         var screen = new ScreenRenderer(driver);
         for (int i = 0; i < 9; i++)
             driver.EnqueueKey(Key(ConsoleKey.Tab));
+        driver.EnqueueKey(Key(ConsoleKey.RightArrow));
         driver.EnqueueKey(Key(ConsoleKey.RightArrow));
         driver.EnqueueKey(Key(ConsoleKey.Enter));
 

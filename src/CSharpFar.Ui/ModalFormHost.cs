@@ -69,6 +69,9 @@ public sealed class ModalFormHost
                 if (options.SubmitOnEnter && input is KeyConsoleInputEvent { Key.Key: ConsoleKey.Enter })
                     return (FormInputResult.Submit(), UiInputResult.HandledResult);
 
+                if (input is KeyConsoleInputEvent { Key.Key: ConsoleKey.F1 })
+                    return (FormInputResult.Auxiliary(), UiInputResult.HandledResult);
+
                 FormRouteResult result = form.RouteInput(input, frame, route);
                 if (result.FormResult.Kind is FormInputResultKind.Submit or FormInputResultKind.Cancel)
                     form.CloseTransientOverlays(commit: result.FormResult.Kind == FormInputResultKind.Submit);
@@ -122,6 +125,9 @@ public sealed class ModalFormHost
                 if (options.SubmitOnEnter && input is KeyConsoleInputEvent { Key.Key: ConsoleKey.Enter })
                     return (FormInputResult.Submit(), UiInputResult.HandledResult);
 
+                if (input is KeyConsoleInputEvent { Key.Key: ConsoleKey.F1 })
+                    return (FormInputResult.Auxiliary(), UiInputResult.HandledResult);
+
                 FormRouteResult result = form.RouteInput(input, frame, route);
                 if (result.FormResult.Kind is FormInputResultKind.Submit or FormInputResultKind.Cancel)
                     form.CloseTransientOverlays(commit: result.FormResult.Kind == FormInputResultKind.Submit);
@@ -148,6 +154,7 @@ public sealed class ModalFormHost
         {
             FormInputResultKind.ValueChanged => FormDialogEventKind.ValueChanged,
             FormInputResultKind.Submit => FormDialogEventKind.Submitted,
+            FormInputResultKind.Auxiliary => FormDialogEventKind.Auxiliary,
             FormInputResultKind.Cancel => FormDialogEventKind.Cancelled,
             _ when FormDialogInput.ShouldSubmit(routed, result, form) => FormDialogEventKind.Submitted,
             FormInputResultKind.NotHandled => FormDialogEventKind.NotHandled,
