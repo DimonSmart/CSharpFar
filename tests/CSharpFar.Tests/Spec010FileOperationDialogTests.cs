@@ -26,6 +26,7 @@ public sealed class Spec010FileOperationDialogTests
 
         Assert.NotNull(result);
         Assert.Equal(@"C:\destination", result.Destination);
+        Assert.False(result.UseDestinationTemplate);
         Assert.Equal(FileSecurityMode.Default, result.Options.SecurityMode);
         Assert.Null(result.Options.FileMask);
         Assert.Contains(driver.WriteRecords, r => r.Text.Contains("Already existing files:", StringComparison.Ordinal));
@@ -58,6 +59,25 @@ public sealed class Spec010FileOperationDialogTests
     }
 
     [Fact]
+    public void ShowCopy_UseTemplateIsExplicitAndDisabledByDefault()
+    {
+        var driver = new FakeConsoleDriver(width: 100, height: 30);
+        var screen = new ScreenRenderer(driver);
+        driver.EnqueueKey(Key(ConsoleKey.DownArrow));
+        driver.EnqueueKey(Key(ConsoleKey.Spacebar));
+        driver.EnqueueKey(Key(ConsoleKey.F10));
+
+        var result = new FileOperationDialog(new DialogService(ModalTestHost.Create(screen), new FormFieldFactory(TextFieldHistoryTestProvider.Create())), new FormFieldFactory(TextFieldHistoryTestProvider.Create())).ShowCopy(
+            [@"C:\source\a.txt"],
+            @"C:\destination\{name}_OLD{ext}",
+            new FileOperationOptions());
+
+        Assert.NotNull(result);
+        Assert.True(result.UseDestinationTemplate);
+        Assert.Contains(driver.WriteRecords, r => r.Text.Contains("Use template", StringComparison.Ordinal));
+    }
+
+    [Fact]
     public void ShowCopy_EscapeCancelsDialog()
     {
         var driver = new FakeConsoleDriver(width: 100, height: 30);
@@ -77,7 +97,7 @@ public sealed class Spec010FileOperationDialogTests
     {
         var driver = new FakeConsoleDriver(width: 100, height: 30);
         var screen = new ScreenRenderer(driver);
-        for (int i = 0; i < 8; i++)
+        for (int i = 0; i < 9; i++)
             driver.EnqueueKey(Key(ConsoleKey.Tab));
         driver.EnqueueKey(Key(ConsoleKey.Enter));
 
@@ -95,7 +115,7 @@ public sealed class Spec010FileOperationDialogTests
     {
         var driver = new FakeConsoleDriver(width: 100, height: 30);
         var screen = new ScreenRenderer(driver);
-        for (int i = 0; i < 8; i++)
+        for (int i = 0; i < 9; i++)
             driver.EnqueueKey(Key(ConsoleKey.Tab));
         driver.EnqueueKey(Key(ConsoleKey.RightArrow));
         driver.EnqueueKey(Key(ConsoleKey.Enter));
@@ -165,7 +185,7 @@ public sealed class Spec010FileOperationDialogTests
     {
         var driver = new FakeConsoleDriver(width: 100, height: 30);
         var screen = new ScreenRenderer(driver);
-        for (int i = 0; i < 7; i++)
+        for (int i = 0; i < 8; i++)
             driver.EnqueueKey(Key(ConsoleKey.DownArrow));
         driver.EnqueueKey(Key(ConsoleKey.Spacebar));
         driver.EnqueueKey(Key(ConsoleKey.DownArrow));
@@ -187,6 +207,7 @@ public sealed class Spec010FileOperationDialogTests
     {
         var driver = new FakeConsoleDriver(width: 100, height: 30);
         var screen = new ScreenRenderer(driver);
+        driver.EnqueueKey(Key(ConsoleKey.DownArrow));
         driver.EnqueueKey(Key(ConsoleKey.DownArrow));
         for (int i = 0; i < 2; i++)
             driver.EnqueueKey(Key(ConsoleKey.Spacebar));

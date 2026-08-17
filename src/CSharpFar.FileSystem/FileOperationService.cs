@@ -192,7 +192,7 @@ public sealed class FileOperationService : IFileOperationService
         }
 
         var destinationSource = _sources!.GetSource(destination.SourceId);
-        var plan = BuildProviderCopyPlan(sources, destination, request.Options, cancellationToken);
+        var plan = BuildProviderCopyPlan(sources, destination, request.Options, request.UseDestinationTemplate, cancellationToken);
 
         state.SetTotals(CalculateProviderPlanSize(plan), plan.Count);
         state.StartProgressTimer();
@@ -344,7 +344,7 @@ public sealed class FileOperationService : IFileOperationService
             throw new InvalidOperationException("Cross-provider move is not supported.");
 
         var source = _sources!.GetSource(sourceLocation.SourceId);
-        var plan = BuildProviderMovePlan(source, sources, destination.SourcePath, request.Options, cancellationToken);
+        var plan = BuildProviderMovePlan(source, sources, destination.SourcePath, request.Options, request.UseDestinationTemplate, cancellationToken);
         state.SetTotals(CalculateProviderPlanSize(plan), plan.Count);
         state.StartProgressTimer();
 
@@ -398,7 +398,7 @@ public sealed class FileOperationService : IFileOperationService
                 }
             }
 
-            if (HasFileMask(request.Options))
+            if (HasFileMask(request.Options) || request.UseDestinationTemplate)
                 await EnsureProviderDestinationDirectoryAsync(source, targetPath, cancellationToken).ConfigureAwait(false);
 
             await source.RenameAsync(plannedItem.SourcePath, targetPath, cancellationToken).ConfigureAwait(false);
@@ -461,7 +461,7 @@ public sealed class FileOperationService : IFileOperationService
         string? rootTarget = null)
     {
         string destination = RequireDestination(request);
-        var plan = BuildCopyPlan(request.Sources, destination, request.Options, state, cancellationToken, rootTarget);
+        var plan = BuildCopyPlan(request.Sources, destination, request.Options, request.UseDestinationTemplate, state, cancellationToken, rootTarget);
         bool copiedAny = false;
         bool completed = true;
         var successfullyCopiedSources = new List<string>();
@@ -565,7 +565,7 @@ public sealed class FileOperationService : IFileOperationService
         string effectiveDestination = singleRename
             ? Path.Combine(Path.GetDirectoryName(request.Sources[0])!, destination)
             : destination;
-        var plan = BuildLocalMovePlan(request.Sources, effectiveDestination, singleRename, request.Options, cancellationToken);
+        var plan = BuildLocalMovePlan(request.Sources, effectiveDestination, singleRename, request.Options, request.UseDestinationTemplate, cancellationToken);
         state.SetTotals(CalculateSourcesSize(request.Sources), request.Sources.Count);
         state.StartProgressTimer();
 
@@ -577,7 +577,7 @@ public sealed class FileOperationService : IFileOperationService
                 continue;
 
             CopyOutcome outcome = await CopyAsync(
-                request with { Kind = FileOperationKind.Copy, Sources = [item.SourcePath], Destination = Path.GetDirectoryName(finalTarget)! },
+                request with { Kind = FileOperationKind.Copy, Sources = [item.SourcePath], Destination = Path.GetDirectoryName(finalTarget)!, UseDestinationTemplate = false },
                 conflictResolver,
                 state,
                 cancellationToken,
@@ -603,14 +603,27 @@ public sealed class FileOperationService : IFileOperationService
 
     private static bool HasFileMask(FileOperationOptions options) => !string.IsNullOrWhiteSpace(options.FileMask);
 
+    private static DestinationTemplateContext CreateLocalTemplateContext(string sourcePath)
+    {
+        bool isDirectory = Directory.Exists(sourcePath);
+        DateTime lastWriteTime = isDirectory
+            ? Directory.GetLastWriteTime(sourcePath)
+            : File.GetLastWriteTime(sourcePath);
+        return new DestinationTemplateContext(Path.GetFileName(sourcePath), isDirectory, lastWriteTime);
+    }
+
     private static List<LocalMovePlanItem> BuildLocalMovePlan(
         IReadOnlyList<string> sources,
         string destination,
         bool singleRename,
         FileOperationOptions options,
+        bool useDestinationTemplate,
         CancellationToken cancellationToken)
     {
-        DestinationPattern pattern = DestinationPattern.Parse(destination, PanelSourceId.Local);
+        DestinationPattern pattern = useDestinationTemplate
+            ? default
+            : DestinationPattern.Parse(destination, PanelSourceId.Local);
+        DestinationTemplate? template = useDestinationTemplate ? DestinationTemplate.Parse(destination) : null;
         var plan = new List<LocalMovePlanItem>(sources.Count);
         bool hasMask = HasFileMask(options);
         var matcher = new FarMaskMatcher();
@@ -621,7 +634,9 @@ public sealed class FileOperationService : IFileOperationService
             if (hasMask && !IsSelectedMoveSource(source, options.FileMask!, matcher, groups, cancellationToken))
                 continue;
 
-            string target = pattern.HasWildcards
+            string target = template is not null
+                ? template.Evaluate(CreateLocalTemplateContext(source))
+                : pattern.HasWildcards
                 ? Path.Combine(string.IsNullOrEmpty(pattern.ParentPath) ? Path.GetDirectoryName(source)! : pattern.ParentPath, pattern.TransformName(Path.GetFileName(source)))
                 : singleRename
                     ? destination
@@ -629,7 +644,7 @@ public sealed class FileOperationService : IFileOperationService
             plan.Add(new LocalMovePlanItem(source, target));
         }
 
-        ValidateLocalMovePlan(plan, pattern.HasWildcards);
+        ValidateLocalMovePlan(plan, useDestinationTemplate || pattern.HasWildcards);
         return plan;
     }
 
@@ -714,11 +729,15 @@ public sealed class FileOperationService : IFileOperationService
         IReadOnlyList<string> sources,
         string destination,
         FileOperationOptions options,
+        bool useDestinationTemplate,
         OperationState state,
         CancellationToken cancellationToken,
         string? rootTarget = null)
     {
-        DestinationPattern destinationPattern = DestinationPattern.Parse(destination, PanelSourceId.Local);
+        DestinationPattern destinationPattern = useDestinationTemplate
+            ? default
+            : DestinationPattern.Parse(destination, PanelSourceId.Local);
+        DestinationTemplate? template = useDestinationTemplate ? DestinationTemplate.Parse(destination) : null;
         string destinationDirectory = destinationPattern.HasWildcards ? destinationPattern.ParentPath : destination;
         var files = new List<CopyFilePlanItem>();
         var directories = new List<CopyDirectoryPlanItem>();
@@ -736,9 +755,11 @@ public sealed class FileOperationService : IFileOperationService
                 if (hasMask && !matcher.IsMatch(options.FileMask!, fileName, groups))
                     continue;
 
-                string target = rootTarget ?? Path.Combine(destinationDirectory, destinationPattern.HasWildcards
+                string target = rootTarget ?? (template is not null
+                    ? template.Evaluate(CreateLocalTemplateContext(source))
+                    : Path.Combine(destinationDirectory, destinationPattern.HasWildcards
                     ? destinationPattern.TransformName(fileName)
-                    : fileName);
+                    : fileName));
                 if (PathsEqual(source, target))
                     throw new IOException("Source and destination file are the same.");
                 var snapshot = GetSourceSnapshot(source);
@@ -754,9 +775,11 @@ public sealed class FileOperationService : IFileOperationService
             if (hasMask && !DirectoryContainsMatchingFile(source, options.FileMask!, matcher, groups, cancellationToken))
                 continue;
 
-            string rootDestination = rootTarget ?? Path.Combine(destinationDirectory, destinationPattern.HasWildcards
+            string rootDestination = rootTarget ?? (template is not null
+                ? template.Evaluate(CreateLocalTemplateContext(source))
+                : Path.Combine(destinationDirectory, destinationPattern.HasWildcards
                 ? destinationPattern.TransformName(Path.GetFileName(source))
-                : Path.GetFileName(source));
+                : Path.GetFileName(source)));
             if (PathsEqual(source, rootDestination))
                 throw new IOException("Source and destination directory are the same.");
             if (IsPathInside(rootDestination, source))
@@ -771,7 +794,7 @@ public sealed class FileOperationService : IFileOperationService
             AddDirectoryPlan(source, rootDestination, hasMask, options.FileMask, matcher, groups, directories, files, ref plannedBytes, state, cancellationToken);
         }
 
-        if (destinationPattern.HasWildcards)
+        if (template is not null || destinationPattern.HasWildcards)
             ValidateLocalPlanCollisions(files.Select(file => file.DestinationPath).Concat(directories.Select(directory => directory.DestinationPath)));
 
         return new CopyPlan(
@@ -1589,9 +1612,13 @@ public sealed class FileOperationService : IFileOperationService
         IReadOnlyList<PanelLocation> sources,
         PanelLocation destination,
         FileOperationOptions options,
+        bool useDestinationTemplate,
         CancellationToken cancellationToken)
     {
-        DestinationPattern destinationPattern = DestinationPattern.Parse(destination.SourcePath, destination.SourceId);
+        DestinationPattern destinationPattern = useDestinationTemplate
+            ? default
+            : DestinationPattern.Parse(destination.SourcePath, destination.SourceId);
+        DestinationTemplate? template = useDestinationTemplate ? DestinationTemplate.Parse(destination.SourcePath) : null;
         var plan = new List<ProviderOperationPlanItem>(sources.Count);
         bool hasMask = HasFileMask(options);
         var matcher = new FarMaskMatcher();
@@ -1608,10 +1635,12 @@ public sealed class FileOperationService : IFileOperationService
                 continue;
             }
 
-            string targetPath = CombineProviderPath(
-                destination.SourceId,
-                destinationPattern.HasWildcards ? destinationPattern.ParentPath : destination.SourcePath,
-                destinationPattern.HasWildcards ? destinationPattern.TransformName(item.Name) : item.Name);
+            string targetPath = template is not null
+                ? template.Evaluate(new DestinationTemplateContext(item.Name, item.IsDirectory, item.LastWriteTime))
+                : CombineProviderPath(
+                    destination.SourceId,
+                    destinationPattern.HasWildcards ? destinationPattern.ParentPath : destination.SourcePath,
+                    destinationPattern.HasWildcards ? destinationPattern.TransformName(item.Name) : item.Name);
 
             if (!hasMask)
             {
@@ -1632,7 +1661,7 @@ public sealed class FileOperationService : IFileOperationService
                 cancellationToken);
         }
 
-        if (destinationPattern.HasWildcards)
+        if (template is not null || destinationPattern.HasWildcards)
             ValidateProviderPlanCollisions(destination.SourceId, plan.Select(item => item.TargetPath));
         return plan;
     }
@@ -1642,9 +1671,13 @@ public sealed class FileOperationService : IFileOperationService
         IReadOnlyList<PanelLocation> sources,
         string destinationPath,
         FileOperationOptions options,
+        bool useDestinationTemplate,
         CancellationToken cancellationToken)
     {
-        DestinationPattern destinationPattern = DestinationPattern.Parse(destinationPath, source.SourceId);
+        DestinationPattern destinationPattern = useDestinationTemplate
+            ? default
+            : DestinationPattern.Parse(destinationPath, source.SourceId);
+        DestinationTemplate? template = useDestinationTemplate ? DestinationTemplate.Parse(destinationPath) : null;
         var plan = new List<ProviderOperationPlanItem>(sources.Count);
         bool hasMask = HasFileMask(options);
         var matcher = new FarMaskMatcher();
@@ -1660,7 +1693,9 @@ public sealed class FileOperationService : IFileOperationService
                 continue;
             }
 
-            string targetPath = destinationPattern.HasWildcards
+            string targetPath = template is not null
+                ? template.Evaluate(new DestinationTemplateContext(item.Name, item.IsDirectory, item.LastWriteTime))
+                : destinationPattern.HasWildcards
                 ? CombineProviderPath(
                     source.SourceId,
                     string.IsNullOrEmpty(destinationPattern.ParentPath)
@@ -1683,7 +1718,7 @@ public sealed class FileOperationService : IFileOperationService
                 cancellationToken);
         }
 
-        if (destinationPattern.HasWildcards)
+        if (template is not null || destinationPattern.HasWildcards)
             ValidateProviderPlanCollisions(source.SourceId, plan.Select(item => item.TargetPath));
         return plan;
     }

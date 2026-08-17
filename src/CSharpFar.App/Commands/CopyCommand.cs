@@ -53,6 +53,7 @@ internal sealed class CopyCommand : IApplicationCommand
                 Sources = sources,
                 SourceLocations = sourceLocations,
                 Destination = dialogResult.Destination,
+                UseDestinationTemplate = dialogResult.UseDestinationTemplate,
                 DestinationLocation = target.PassiveState.SourceId == PanelSourceId.Local
                     ? PanelLocation.Local(dialogResult.Destination)
                     : new PanelLocation(target.PassiveState.SourceId, dialogResult.Destination),

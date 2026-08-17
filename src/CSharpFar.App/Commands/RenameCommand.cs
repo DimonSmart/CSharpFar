@@ -33,7 +33,7 @@ internal sealed class RenameCommand : IApplicationCommand
         if (dialogResult is null)
             return ApplicationCommandResult.Rendered();
 
-        if (string.Equals(dialogResult.Destination, initialName, StringComparison.Ordinal))
+        if (!dialogResult.UseDestinationTemplate && string.Equals(dialogResult.Destination, initialName, StringComparison.Ordinal))
             return ApplicationCommandResult.Rendered();
 
         try
@@ -44,6 +44,7 @@ internal sealed class RenameCommand : IApplicationCommand
                 Sources = [item.FullPath],
                 SourceLocations = [item.Location],
                 Destination = dialogResult.Destination,
+                UseDestinationTemplate = dialogResult.UseDestinationTemplate,
                 DestinationLocation = BuildDestinationLocation(context, target.State, dialogResult.Destination),
                 Options = dialogResult.Options,
             });

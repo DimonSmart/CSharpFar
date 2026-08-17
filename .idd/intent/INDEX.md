@@ -64,3 +64,4 @@ Git history is the source for deleted or previous document versions.
 | 0072.spec-application-integration-test-input-lifecycle.md | spec | Application integration test input lifecycle |  |  |
 | 0073.spec-processes-and-ports.md | spec | Processes and Ports | Local endpoint diagnostics module |  |
 | 0074.spec-far-compatible-wildcard-destination-names.md | spec | FAR-compatible wildcard destination names | Destination name transformation for file operations |  |
+| 0075.spec-destination-templates.md | spec | Destination templates | Explicit per-source destination path evaluation for file operations |  |

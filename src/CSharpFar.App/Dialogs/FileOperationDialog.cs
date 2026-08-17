@@ -5,6 +5,7 @@ namespace CSharpFar.App.Dialogs;
 
 internal sealed record FileOperationDialogResult(
     string Destination,
+    bool UseDestinationTemplate,
     FileOperationOptions Options);
 
 internal sealed class FileOperationDialog
@@ -138,12 +139,13 @@ internal sealed class FileOperationDialog
             initialOptions.SymlinkMode == SymlinkCopyMode.CopyTargetContents);
         var useFilter = FormControls.CheckBox(
             "Use filter", !string.IsNullOrWhiteSpace(initialOptions.FileMask));
+        var useTemplate = FormControls.CheckBox("Use template", false);
         var buttons = FormControls.Buttons(
             DialogButton.Default("submit", actionLabel, actionLabel[0]),
             DialogButton.Cancel());
         return _dialogs.Form(
             new FormDialogOptions(title, DialogWidth, DialogHeight, 40, 8),
-            rows: () => BuildRows(prompt, destination, filter, securityChoice, copyModeChoice, conflictChoiceRow, preserveTimestamps, preserveAttributes, copySymlinkContents, useFilter, showOperationOptions),
+            rows: () => BuildRows(prompt, destination, filter, securityChoice, copyModeChoice, conflictChoiceRow, preserveTimestamps, preserveAttributes, copySymlinkContents, useFilter, useTemplate, showOperationOptions),
             footer: () => [buttons],
             submit: () => BuildResult(
                 destination,
@@ -155,7 +157,8 @@ internal sealed class FileOperationDialog
                 preserveTimestamps.Value,
                 preserveAttributes.Value,
                 copySymlinkContents.Value,
-                useFilter.Value));
+                useFilter.Value,
+                useTemplate.Value));
     }
 
     private static IReadOnlyList<FormRow> BuildRows(
@@ -169,12 +172,14 @@ internal sealed class FileOperationDialog
         CheckBoxRow preserveAttributes,
         CheckBoxRow copySymlinkContents,
         CheckBoxRow useFilter,
+        CheckBoxRow useTemplate,
         bool showOperationOptions)
     {
         var rows = new List<FormRow>
         {
             FormControls.Label(prompt),
             FormControls.Text(destination),
+            useTemplate,
             FormControls.Spacer(),
         };
 
@@ -220,7 +225,8 @@ internal sealed class FileOperationDialog
         bool preserveTimestamps,
         bool preserveAttributes,
         bool copySymlinkContents,
-        bool useFilter)
+        bool useFilter,
+        bool useTemplate)
     {
         string destinationText = destination.TrimmedText;
         if (string.IsNullOrWhiteSpace(destinationText))
@@ -234,6 +240,7 @@ internal sealed class FileOperationDialog
 
         return FormSubmit.Success(new FileOperationDialogResult(
             destinationText,
+            useTemplate,
             initialOptions with
             {
                 DefaultConflictDecision = conflictMode,
