@@ -24,6 +24,12 @@ public sealed record FormDialogOptions(
 
     public DialogAppearance Appearance { get; init; } = DialogAppearance.Standard;
 
+    public DialogResizeMode ResizeMode { get; init; } = DialogResizeMode.None;
+
+    public int HorizontalMargin { get; init; } = 2;
+
+    public int VerticalMargin { get; init; } = 1;
+
     /// <summary>Optional semantic control that receives initial form focus.</summary>
     public IFormFocusTarget? InitialFocus { get; init; }
 
@@ -308,6 +314,11 @@ internal sealed class FormDialogs
             DoubleBorder: options.DoubleBorder,
             OuterRenderOptions: popup,
             FrameRenderOptions: popup is null ? null : popup with { DrawShadow = false },
-            SubmitOnEnter: options.SubmitOnEnter);
+            SubmitOnEnter: options.SubmitOnEnter)
+        {
+            ResizeMode = options.ResizeMode,
+            HorizontalMargin = options.HorizontalMargin,
+            VerticalMargin = options.VerticalMargin,
+        };
     }
 }
