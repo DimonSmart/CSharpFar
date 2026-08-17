@@ -263,4 +263,15 @@ public class CommandLineStateTests
         s.DeleteForward();
         Assert.Equal("a\nc", s.Text);
     }
+
+    [Fact]
+    public void InsertText_NormalizesLineEndingsAndKeepsCursorInRawTextPositions()
+    {
+        var s = new CommandLineState();
+
+        s.InsertText("one\r\ntwo\rthree\nfour");
+
+        Assert.Equal("one\ntwo\nthree\nfour", s.Text);
+        Assert.Equal(s.Text.Length, s.CursorPosition);
+    }
 }

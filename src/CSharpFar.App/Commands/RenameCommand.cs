@@ -29,7 +29,17 @@ internal sealed class RenameCommand : IApplicationCommand
         var dialogResult = new FileOperationDialog(context.Dialogs, context.Fields).ShowRename(
             item.FullPath,
             initialName,
-            context.BuildFileOperationOptions());
+            context.BuildFileOperationOptions(),
+            result => DestinationTemplatePreview.Show(context, new FileOperationRequest
+            {
+                Kind = FileOperationKind.Move,
+                Sources = [item.FullPath],
+                SourceLocations = [item.Location],
+                Destination = result.Destination,
+                UseDestinationTemplate = result.UseDestinationTemplate,
+                DestinationLocation = BuildDestinationLocation(context, target.State, result.Destination),
+                Options = result.Options,
+            }));
         if (dialogResult is null)
             return ApplicationCommandResult.Rendered();
 

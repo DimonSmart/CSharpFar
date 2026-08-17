@@ -26,7 +26,7 @@ internal sealed record FileOperationServiceDependencies
     internal Func<string, string, bool> ForceMoveFallback { get; init; } = static (_, _) => false;
 }
 
-public sealed class FileOperationService : IFileOperationService
+public sealed class FileOperationService : IFileOperationService, IFileOperationPlanBuilder
 {
     private const int CopyBufferSize = 1024 * 1024;
     private static readonly char[] LocalPathSeparators = [Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar];
@@ -122,6 +122,60 @@ public sealed class FileOperationService : IFileOperationService
 
         return state.ToResult();
     }
+
+    public FileOperationPlan BuildPlan(FileOperationRequest request, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        ValidateAccessibleSources(request);
+
+        if (UsesProviderLocations(request))
+            return BuildProviderPlan(request, cancellationToken);
+
+        return request.Kind switch
+        {
+            FileOperationKind.Copy => BuildLocalCopyPlan(request, cancellationToken),
+            FileOperationKind.Move => BuildLocalMoveOperationPlan(request, cancellationToken),
+            _ => throw new InvalidOperationException("Preview is available only for copy, move, and rename operations."),
+        };
+    }
+
+    private FileOperationPlan BuildLocalCopyPlan(FileOperationRequest request, CancellationToken cancellationToken)
+    {
+        var plan = BuildCopyPlan(request.Sources, RequireDestination(request), request.Options, request.UseDestinationTemplate, new OperationState(request.Kind, null, null), cancellationToken);
+        return new FileOperationPlan([
+            .. plan.Directories.Select(item => new FileOperationPlanItem(PanelLocation.Local(item.SourcePath), PanelLocation.Local(item.DestinationPath), true)),
+            .. plan.Files.Select(item => new FileOperationPlanItem(PanelLocation.Local(item.SourcePath), PanelLocation.Local(item.DestinationPath), false)),
+        ]);
+    }
+
+    private FileOperationPlan BuildLocalMoveOperationPlan(FileOperationRequest request, CancellationToken cancellationToken)
+    {
+        string destination = RequireDestination(request);
+        bool singleRename = request.Sources.Count == 1 && !IsPath(destination);
+        string effectiveDestination = singleRename ? Path.Combine(Path.GetDirectoryName(request.Sources[0])!, destination) : destination;
+        var plan = BuildLocalMovePlan(request.Sources, effectiveDestination, singleRename, request.Options, request.UseDestinationTemplate, cancellationToken);
+        return new FileOperationPlan(plan.Select(item => new FileOperationPlanItem(
+            PanelLocation.Local(item.SourcePath), PanelLocation.Local(item.TargetPath), Directory.Exists(item.SourcePath))).ToArray());
+    }
+
+    private FileOperationPlan BuildProviderPlan(FileOperationRequest request, CancellationToken cancellationToken)
+    {
+        if (_sources is null)
+            throw new InvalidOperationException("Provider-aware file operations require a panel source registry.");
+
+        return request.Kind switch
+        {
+            FileOperationKind.Copy => ToPublicPlan(BuildProviderCopyPlan(RequireSourceLocations(request), RequireDestinationLocation(request), request.Options, request.UseDestinationTemplate, cancellationToken), RequireDestinationLocation(request).SourceId),
+            FileOperationKind.Move => ToPublicPlan(BuildProviderMovePlan(_sources.GetSource(RequireSourceLocations(request)[0].SourceId), RequireSourceLocations(request), RequireDestinationLocation(request).SourcePath, request.Options, request.UseDestinationTemplate, cancellationToken), RequireDestinationLocation(request).SourceId),
+            _ => throw new InvalidOperationException("Preview is available only for copy, move, and rename operations."),
+        };
+    }
+
+    private static FileOperationPlan ToPublicPlan(IEnumerable<ProviderOperationPlanItem> plan, PanelSourceId destinationSourceId) =>
+        new(plan.Where(item => item.Item is not null).Select(item => new FileOperationPlanItem(
+            item.Location with { SourcePath = item.SourcePath },
+            new PanelLocation(destinationSourceId, item.TargetPath),
+            item.Item!.IsDirectory)).ToArray());
 
     private static bool UsesProviderLocations(FileOperationRequest request)
     {
