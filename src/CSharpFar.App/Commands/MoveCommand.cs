@@ -59,6 +59,7 @@ internal sealed class MoveCommand : IApplicationCommand
                 Sources = sources,
                 SourceLocations = sourceLocations,
                 Destination = dialogResult.Destination,
+                UseDestinationTemplate = dialogResult.UseDestinationTemplate,
                 DestinationLocation = BuildDestinationLocation(context, target.State, dialogResult.Destination, sources.Count),
                 Options = dialogResult.Options,
             });

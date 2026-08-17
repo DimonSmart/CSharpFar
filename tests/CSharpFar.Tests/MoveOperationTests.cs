@@ -82,6 +82,83 @@ public class MoveOperationTests : IDisposable
     }
 
     [Fact]
+    public async Task CopyAsync_TemplateRoutesEachSelectedRootAndCreatesDirectories()
+    {
+        string first = Write(_src, "foo.txt", "first");
+        string second = Write(_src, "bar.csv", "second");
+        File.SetLastWriteTime(first, new DateTime(2026, 8, 12, 14, 35, 20));
+        File.SetLastWriteTime(second, new DateTime(2026, 8, 13, 14, 35, 20));
+
+        await Svc().ExecuteAsync(new FileOperationRequest
+        {
+            Kind = FileOperationKind.Copy,
+            Sources = [first, second],
+            Destination = Path.Combine(_dst, "{modified:yyyy-MM-dd}", "{name}_OLD{ext}"),
+            UseDestinationTemplate = true,
+            Options = new FileOperationOptions(),
+        }, progress: null, conflictResolver: new OverwriteResolver());
+
+        Assert.Equal("first", File.ReadAllText(Path.Combine(_dst, "2026-08-12", "foo_OLD.txt")));
+        Assert.Equal("second", File.ReadAllText(Path.Combine(_dst, "2026-08-13", "bar_OLD.csv")));
+    }
+
+    [Fact]
+    public async Task MoveAsync_TemplateCollisionRejectsWholeOperationBeforeMutation()
+    {
+        string first = Write(_src, "same.txt", "first");
+        string second = Write(_src, "same.csv", "second");
+
+        await Assert.ThrowsAsync<IOException>(() => Svc().ExecuteAsync(new FileOperationRequest
+        {
+            Kind = FileOperationKind.Move,
+            Sources = [first, second],
+            Destination = Path.Combine(_dst, "same.txt"),
+            UseDestinationTemplate = true,
+            Options = new FileOperationOptions(),
+        }, progress: null, conflictResolver: new OverwriteResolver()));
+
+        Assert.True(File.Exists(first));
+        Assert.True(File.Exists(second));
+    }
+
+    [Fact]
+    public async Task CopyAsync_TemplateAppliesToDirectoryRootOnly()
+    {
+        string directory = Path.Combine(_src, "Vacation");
+        Directory.CreateDirectory(directory);
+        Write(directory, "IMG001.jpg", "photo");
+        Directory.SetLastWriteTime(directory, new DateTime(2026, 8, 12, 14, 35, 20));
+
+        await Svc().ExecuteAsync(new FileOperationRequest
+        {
+            Kind = FileOperationKind.Copy,
+            Sources = [directory],
+            Destination = Path.Combine(_dst, "{modified:yyyy}", "{name}"),
+            UseDestinationTemplate = true,
+            Options = new FileOperationOptions(),
+        }, progress: null, conflictResolver: new OverwriteResolver());
+
+        Assert.Equal("photo", File.ReadAllText(Path.Combine(_dst, "2026", "Vacation", "IMG001.jpg")));
+    }
+
+    [Fact]
+    public async Task CopyAsync_BracesRemainLiteralWhenTemplateModeIsOff()
+    {
+        string source = Write(_src, "photo.jpg", "photo");
+        string literalDestination = Path.Combine(_dst, "{name}_OLD{ext}");
+
+        await Svc().ExecuteAsync(new FileOperationRequest
+        {
+            Kind = FileOperationKind.Copy,
+            Sources = [source],
+            Destination = literalDestination,
+            Options = new FileOperationOptions(),
+        }, progress: null, conflictResolver: new OverwriteResolver());
+
+        Assert.Equal("photo", File.ReadAllText(Path.Combine(literalDestination, "photo.jpg")));
+    }
+
+    [Fact]
     public async Task MoveAsync_WithWildcardDestination_RespectsFileMask()
     {
         string text = Write(_src, "foo.txt", "text");
