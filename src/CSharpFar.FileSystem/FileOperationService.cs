@@ -29,6 +29,7 @@ internal sealed record FileOperationServiceDependencies
 public sealed class FileOperationService : IFileOperationService
 {
     private const int CopyBufferSize = 1024 * 1024;
+    private static readonly char[] LocalPathSeparators = [Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar];
     private static readonly TimeSpan ReliableCopyRetryDelay = TimeSpan.FromSeconds(1);
     private const int ReliableCopyRetryCount = 20;
     private readonly IFilePanelSourceRegistry? _sources;
@@ -610,7 +611,7 @@ public sealed class FileOperationService : IFileOperationService
         DateTime lastWriteTime = isDirectory
             ? Directory.GetLastWriteTime(sourcePath)
             : File.GetLastWriteTime(sourcePath);
-        return new DestinationTemplateContext(Path.GetFileName(sourcePath), isDirectory, lastWriteTime);
+        return new DestinationTemplateContext(Path.GetFileName(sourcePath), isDirectory, lastWriteTime, LocalPathSeparators);
     }
 
     private static List<LocalMovePlanItem> BuildLocalMovePlan(
@@ -1620,6 +1621,9 @@ public sealed class FileOperationService : IFileOperationService
             ? default
             : DestinationPattern.Parse(destination.SourcePath, destination.SourceId);
         DestinationTemplate? template = useDestinationTemplate ? DestinationTemplate.Parse(destination.SourcePath) : null;
+        IReadOnlyCollection<char>? destinationPathSeparators = template is null
+            ? null
+            : _sources!.GetSource(destination.SourceId).PathSeparators;
         var plan = new List<ProviderOperationPlanItem>(sources.Count);
         bool hasMask = HasFileMask(options);
         var matcher = new FarMaskMatcher();
@@ -1637,7 +1641,7 @@ public sealed class FileOperationService : IFileOperationService
             }
 
             string targetPath = template is not null
-                ? template.Evaluate(new DestinationTemplateContext(item.Name, item.IsDirectory, item.LastWriteTime))
+                ? template.Evaluate(new DestinationTemplateContext(item.Name, item.IsDirectory, item.LastWriteTime, destinationPathSeparators!))
                 : CombineProviderPath(
                     destination.SourceId,
                     destinationPattern.HasWildcards ? destinationPattern.ParentPath : destination.SourcePath,
@@ -1679,6 +1683,7 @@ public sealed class FileOperationService : IFileOperationService
             ? default
             : DestinationPattern.Parse(destinationPath, source.SourceId);
         DestinationTemplate? template = useDestinationTemplate ? DestinationTemplate.Parse(destinationPath) : null;
+        IReadOnlyCollection<char>? destinationPathSeparators = template is null ? null : source.PathSeparators;
         var plan = new List<ProviderOperationPlanItem>(sources.Count);
         bool hasMask = HasFileMask(options);
         var matcher = new FarMaskMatcher();
@@ -1695,7 +1700,7 @@ public sealed class FileOperationService : IFileOperationService
             }
 
             string targetPath = template is not null
-                ? template.Evaluate(new DestinationTemplateContext(item.Name, item.IsDirectory, item.LastWriteTime))
+                ? template.Evaluate(new DestinationTemplateContext(item.Name, item.IsDirectory, item.LastWriteTime, destinationPathSeparators!))
                 : destinationPattern.HasWildcards
                 ? CombineProviderPath(
                     source.SourceId,

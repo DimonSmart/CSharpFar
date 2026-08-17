@@ -237,6 +237,8 @@ public sealed class Spec030PanelSourceErrorRetryTests
             PanelProviderCapabilities.Refresh |
             PanelProviderCapabilities.CopyFrom;
 
+        public IReadOnlyCollection<char> PathSeparators => ['/'];
+
         public Exception? Error { get; set; }
         public IReadOnlyList<FilePanelItem> Items { get; set; } = [];
 

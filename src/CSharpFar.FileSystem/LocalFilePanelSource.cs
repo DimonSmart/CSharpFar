@@ -5,6 +5,7 @@ namespace CSharpFar.FileSystem;
 
 public sealed class LocalFilePanelSource : IFilePanelSource
 {
+    private static readonly char[] LocalPathSeparators = [Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar];
     private readonly IFileSystemService _fileSystem;
 
     public LocalFilePanelSource(IFileSystemService fileSystem)
@@ -17,6 +18,8 @@ public sealed class LocalFilePanelSource : IFilePanelSource
     public string DisplayName => "Local";
 
     public PanelProviderCapabilities Capabilities => PanelProviderCapabilities.LocalFileSystem;
+
+    public IReadOnlyCollection<char> PathSeparators => LocalPathSeparators;
 
     public string NormalizePath(string sourcePath) => Path.GetFullPath(sourcePath);
 

@@ -7,6 +7,7 @@ public interface IFilePanelSource
     PanelSourceId SourceId { get; }
     string DisplayName { get; }
     PanelProviderCapabilities Capabilities { get; }
+    IReadOnlyCollection<char> PathSeparators { get; }
 
     string NormalizePath(string sourcePath);
     bool IsRootPath(string sourcePath);

@@ -176,6 +176,54 @@ public sealed class Spec029SftpProviderTests : IDisposable
     }
 
     [Fact]
+    public async Task ProviderCopy_TemplateRejectsSftpBackslashNameForWindowsDestinationBeforeMutation()
+    {
+        if (!OperatingSystem.IsWindows())
+            return;
+
+        Directory.CreateDirectory(_tempDir);
+        var remote = new MemoryPanelSource(new PanelSourceId("fake-remote"));
+        remote.WriteFile("/camera/foo\\bar.jpg", "photo");
+        var registry = new FilePanelSourceRegistry(
+        [
+            remote,
+            new LocalFilePanelSource(new FileSystemService()),
+        ]);
+        var service = new FileOperationService(registry);
+
+        await Assert.ThrowsAsync<IOException>(() => service.ExecuteAsync(
+            new FileOperationRequest
+            {
+                Kind = FileOperationKind.Copy,
+                Sources = [],
+                SourceLocations = [new PanelLocation(remote.SourceId, "/camera/foo\\bar.jpg")],
+                Destination = Path.Combine(_tempDir, "{name}{ext}"),
+                DestinationLocation = PanelLocation.Local(Path.Combine(_tempDir, "{name}{ext}")),
+                UseDestinationTemplate = true,
+                Options = new FileOperationOptions(),
+            },
+            progress: null,
+            conflictResolver: new NoOpConflictResolver()));
+
+        Assert.NotNull(remote.GetItem("/camera/foo\\bar.jpg"));
+        Assert.Empty(Directory.EnumerateFileSystemEntries(_tempDir));
+    }
+
+    [Fact]
+    public async Task ProviderCopy_TemplateAllowsBackslashNameForSftpDestination()
+    {
+        var service = CreateProviderOperationService(out var remote);
+        remote.WriteFile("/camera/foo\\bar.jpg", "photo");
+
+        await service.ExecuteAsync(
+            ProviderRequest(FileOperationKind.Copy, remote.SourceId, ["/camera/foo\\bar.jpg"], "/Photos/{name}{ext}", new FileOperationOptions(), useDestinationTemplate: true),
+            null,
+            new NoOpConflictResolver());
+
+        Assert.NotNull(remote.GetItem("/Photos/foo\\bar.jpg"));
+    }
+
+    [Fact]
     public async Task ProviderMove_DirectoryMovesOnlyMatchingFiles()
     {
         var service = CreateProviderOperationService(out var remote);
@@ -1011,6 +1059,7 @@ public sealed class Spec029SftpProviderTests : IDisposable
 
     private sealed class MemoryPanelSource : IFilePanelSource
     {
+        private static readonly char[] ProviderPathSeparators = ['/'];
         private readonly Dictionary<string, byte[]> _files = new(StringComparer.Ordinal);
         private readonly HashSet<string> _directories = new(StringComparer.Ordinal) { "/" };
 
@@ -1034,6 +1083,8 @@ public sealed class Spec029SftpProviderTests : IDisposable
             PanelProviderCapabilities.CopyTo |
             PanelProviderCapabilities.Refresh;
 
+        public IReadOnlyCollection<char> PathSeparators => ProviderPathSeparators;
+
         public void WriteFile(string sourcePath, string text)
         {
             string path = NormalizePath(sourcePath);
@@ -1043,7 +1094,6 @@ public sealed class Spec029SftpProviderTests : IDisposable
 
         public string NormalizePath(string sourcePath)
         {
-            sourcePath = sourcePath.Replace('\\', '/');
             if (!sourcePath.StartsWith('/'))
                 sourcePath = "/" + sourcePath;
             return sourcePath.Length > 1 ? sourcePath.TrimEnd('/') : "/";

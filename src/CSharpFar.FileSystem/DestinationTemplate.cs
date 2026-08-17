@@ -52,8 +52,19 @@ internal sealed class DestinationTemplate
     {
         var result = new System.Text.StringBuilder();
         foreach (Segment segment in _segments)
-            result.Append(segment.Evaluate(context));
+        {
+            string value = segment.Evaluate(context);
+            if (segment.IsDynamic)
+                ValidateTokenFragment(value, context.DestinationPathSeparators);
+            result.Append(value);
+        }
         return result.ToString();
+    }
+
+    private static void ValidateTokenFragment(string value, IReadOnlyCollection<char> destinationPathSeparators)
+    {
+        if (value.IndexOfAny(destinationPathSeparators.ToArray()) >= 0)
+            throw new IOException("Destination template token result cannot contain a path separator.");
     }
 
     private static Segment ParseToken(string token) => token switch
@@ -77,6 +88,7 @@ internal sealed class DestinationTemplate
 
     private abstract record Segment
     {
+        public virtual bool IsDynamic => false;
         public abstract string Evaluate(DestinationTemplateContext context);
     }
 
@@ -87,23 +99,24 @@ internal sealed class DestinationTemplate
 
     private sealed record NameSegment : Segment
     {
+        public override bool IsDynamic => true;
         public override string Evaluate(DestinationTemplateContext context) => context.IsDirectory ? context.Name : GetNameWithoutExtension(context.Name);
     }
 
     private sealed record ExtensionSegment : Segment
     {
+        public override bool IsDynamic => true;
         public override string Evaluate(DestinationTemplateContext context) => context.IsDirectory ? string.Empty : GetExtension(context.Name);
     }
 
     private sealed record ModifiedSegment(string Format) : Segment
     {
+        public override bool IsDynamic => true;
         public override string Evaluate(DestinationTemplateContext context)
         {
             try
             {
                 string value = context.LastWriteTime.ToString(Format, CultureInfo.InvariantCulture);
-                if (value.IndexOfAny(['/', '\\']) >= 0)
-                    throw new IOException("Destination template token result cannot contain a path separator.");
                 return value;
             }
             catch (FormatException ex)
@@ -126,4 +139,8 @@ internal sealed class DestinationTemplate
     }
 }
 
-internal readonly record struct DestinationTemplateContext(string Name, bool IsDirectory, DateTime LastWriteTime);
+internal readonly record struct DestinationTemplateContext(
+    string Name,
+    bool IsDirectory,
+    DateTime LastWriteTime,
+    IReadOnlyCollection<char> DestinationPathSeparators);
