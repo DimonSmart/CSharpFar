@@ -13,7 +13,14 @@ public sealed record ModalFormOptions(
     bool DoubleBorder = true,
     PopupRenderOptions? OuterRenderOptions = null,
     PopupRenderOptions? FrameRenderOptions = null,
-    bool SubmitOnEnter = false);
+    bool SubmitOnEnter = false)
+{
+    public DialogResizeMode ResizeMode { get; init; } = DialogResizeMode.None;
+
+    public int HorizontalMargin { get; init; } = 2;
+
+    public int VerticalMargin { get; init; } = 1;
+}
 
 public readonly record struct ModalFormLayout(
     Rect BodyBounds,
@@ -179,7 +186,14 @@ public sealed class ModalFormHost
     {
         using IDisposable? renderScope = beginRenderScope?.Invoke();
         ScrollableFormFrame? frame = null;
-        (int width, int height) = NaturalOuterSize(form, options);
+        (int preferredWidth, int preferredHeight) = NaturalOuterSize(form, options);
+        (int width, int height) = DialogSizing.Resolve(
+            context.Size,
+            preferredWidth,
+            preferredHeight,
+            options.ResizeMode,
+            options.HorizontalMargin,
+            options.VerticalMargin);
         ModalDialogRenderer.Layout layout = _modalRenderer.CalculateLayout(
             context.Size,
             width,

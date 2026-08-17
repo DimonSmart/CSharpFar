@@ -62,7 +62,10 @@ internal sealed class ProcessesAndPortsDialog(ModuleUiServices ui, IProcessesAnd
         }
 
         _ui.Dialogs.Composite<object?>(
-            new CompositeDialogOptions("Processes and Ports", DialogWidth, 24),
+            new CompositeDialogOptions("Processes and Ports", DialogWidth, 24)
+            {
+                ResizeMode = DialogResizeMode.Both,
+            },
             form,
             list,
             () => captureError ?? Status(lastRows, AllowedCount(snapshot?.Endpoints ?? [], tcp.Value, udp.Value, other.Value)),

@@ -11,7 +11,14 @@ public sealed record CompositeDialogOptions(
     int MinWidth = 20,
     int MinHeight = 8,
     bool DoubleBorder = true,
-    DialogAppearance Appearance = DialogAppearance.Standard);
+    DialogAppearance Appearance = DialogAppearance.Standard)
+{
+    public DialogResizeMode ResizeMode { get; init; } = DialogResizeMode.None;
+
+    public int HorizontalMargin { get; init; } = 2;
+
+    public int VerticalMargin { get; init; } = 1;
+}
 
 public enum CompositeDialogEventKind
 {
@@ -115,7 +122,14 @@ public sealed class CompositeDialogHost
 
     private Frame Render(UiRenderContext context, IUiFocusState focus, CompositeDialogOptions options, ScrollableFormDialog form, ICompositeDialogContent content, Func<string?>? status)
     {
-        ModalDialogRenderer.Layout modal = _renderer.CalculateLayout(context.Size, options.PreferredWidth, options.PreferredHeight, options.MinWidth, options.MinHeight);
+        (int width, int height) = DialogSizing.Resolve(
+            context.Size,
+            options.PreferredWidth,
+            options.PreferredHeight,
+            options.ResizeMode,
+            options.HorizontalMargin,
+            options.VerticalMargin);
+        ModalDialogRenderer.Layout modal = _renderer.CalculateLayout(context.Size, width, height, options.MinWidth, options.MinHeight);
         Rect bounds = modal.ContentBounds;
         int footerHeight = Math.Min(form.NaturalFooterHeight, bounds.Height);
         int headerHeight = Math.Min(form.NaturalBodyHeight, Math.Max(0, bounds.Height - footerHeight));

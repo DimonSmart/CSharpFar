@@ -85,6 +85,32 @@ public sealed class CompositeDialogHostTests
     }
 
     [Fact]
+    public void Run_adaptiveDialogExpandsContentAfterViewportResize()
+    {
+        var driver = new FakeConsoleDriver(100, 30);
+        var content = new TestContent();
+        driver.EnqueueKey(Key(ConsoleKey.Tab));
+        driver.EnqueueKey(Key(ConsoleKey.Escape));
+        driver.BeforeReadInput = driver => driver.SetSize(140, 40);
+        var form = new ScrollableFormDialog();
+        form.SetRows([FormControls.CheckBox("HEADER", true)], [FormControls.Buttons([DialogButton.Cancel()])]);
+
+        Run(
+            driver,
+            form,
+            content,
+            status: () => "STATUS",
+            semantic => semantic.Kind == CompositeDialogEventKind.Cancelled
+                ? CompositeDialogOutcome<object?>.Complete(null)
+                : CompositeDialogOutcome<object?>.ContinueNoChange,
+            options: new CompositeDialogOptions("Adaptive", 80, 20) { ResizeMode = DialogResizeMode.Both });
+
+        Assert.True(content.Frames.Count >= 2);
+        Assert.True(content.Frames[^1].Bounds.Width > content.Frames[0].Bounds.Width);
+        Assert.True(content.Frames[^1].Bounds.Height > content.Frames[0].Bounds.Height);
+    }
+
+    [Fact]
     public void Run_supports_table_content_and_preserves_selection_when_items_are_replaced()
     {
         var driver = new FakeConsoleDriver(80, 25);
