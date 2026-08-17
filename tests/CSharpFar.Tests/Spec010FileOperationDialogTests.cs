@@ -14,34 +14,55 @@ namespace CSharpFar.Tests;
 public sealed class Spec010FileOperationDialogTests
 {
     [Fact]
-    public void ShowCopy_ContextualHelpPreservesFormStateAndDoesNotSubmit()
+    public void ShowCopy_ContextualHelpUsesRealTemporarySurfaceAndPreservesFormState()
     {
         var driver = new FakeConsoleDriver(width: 100, height: 30);
-        var screen = new ScreenRenderer(driver);
+        UiTestHost host = UiTestHost.Create(driver);
         EnqueueText(driver, "_edited");
+        driver.EnqueueKey(Key(ConsoleKey.DownArrow));
+        driver.EnqueueKey(Key(ConsoleKey.Spacebar));
         driver.EnqueueKey(Key(ConsoleKey.DownArrow));
         driver.EnqueueKey(Key(ConsoleKey.Spacebar));
         driver.EnqueueKey(Key(ConsoleKey.F1));
         driver.EnqueueKey(Key(ConsoleKey.F10));
-        int helpCalls = 0;
+        driver.EnqueueKey(Key(ConsoleKey.F10));
 
         var result = new FileOperationDialog(
-            new DialogService(ModalTestHost.Create(screen), new FormFieldFactory(TextFieldHistoryTestProvider.Create())),
+            new DialogService(host.ModalDialogs, new FormFieldFactory(TextFieldHistoryTestProvider.Create())),
             new FormFieldFactory(TextFieldHistoryTestProvider.Create()),
-            topic =>
-            {
-                Assert.Equal(HelpTopic.Copy, topic);
-                helpCalls++;
-            }).ShowCopy(
+            topic => new HelpViewer(host.Surfaces).Show(topic)).ShowCopy(
                 [@"C:\source\analysis_options.yaml"],
                 @"C:\destination",
                 new FileOperationOptions());
 
-        Assert.Equal(1, helpCalls);
         Assert.NotNull(result);
         Assert.Equal(@"C:\destination_edited", result.Destination);
         Assert.True(result.UseDestinationTemplate);
+        Assert.Equal(CopyMode.Reliable, result.Options.CopyMode);
+        Assert.Contains(driver.WriteRecords, record => record.Text.Contains("CSharpFar — Copy", StringComparison.Ordinal));
         Assert.Contains(driver.WriteRecords, record => record.Text.Contains("Copy", StringComparison.Ordinal) && record.Text.Contains("Help", StringComparison.Ordinal) && record.Text.Contains("Cancel", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void ShowCopy_ContextualHelpReturnsBeforeDialogCancel()
+    {
+        var driver = new FakeConsoleDriver(width: 100, height: 30);
+        UiTestHost host = UiTestHost.Create(driver);
+        EnqueueText(driver, "_edited");
+        driver.EnqueueKey(Key(ConsoleKey.F1));
+        driver.EnqueueKey(Key(ConsoleKey.Escape));
+        driver.EnqueueKey(Key(ConsoleKey.Escape));
+
+        var result = new FileOperationDialog(
+            new DialogService(host.ModalDialogs, new FormFieldFactory(TextFieldHistoryTestProvider.Create())),
+            new FormFieldFactory(TextFieldHistoryTestProvider.Create()),
+            topic => new HelpViewer(host.Surfaces).Show(topic)).ShowCopy(
+                [@"C:\source\a.txt"],
+                @"C:\destination",
+                new FileOperationOptions());
+
+        Assert.Null(result);
+        Assert.Contains(driver.WriteRecords, record => record.Text.Contains("CSharpFar — Copy", StringComparison.Ordinal));
     }
 
     [Fact]

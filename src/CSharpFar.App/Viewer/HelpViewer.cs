@@ -15,7 +15,8 @@ internal sealed class HelpViewer
 
     public void Show(HelpTopic topic = HelpTopic.Main)
     {
-        var layer = new HelpViewerLayer(HelpContent.Lines, _palette, HelpContent.FirstVisibleIndex(topic));
+        HelpPage page = HelpContent.GetPage(topic);
+        var layer = new HelpViewerLayer(page.Lines.ToArray(), _palette);
         _surfaces.Run(layer, static (_, action) => action == HelpAction.Close
             ? ModalDialogLoopResult<bool>.Complete(true)
             : ModalDialogLoopResult<bool>.ContinueNoChange);

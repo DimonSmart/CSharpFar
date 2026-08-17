@@ -35,6 +35,8 @@ public sealed record HelpLine(HelpLineKind Kind, string Key = "", string Descrip
     };
 }
 
+internal sealed record HelpPage(IReadOnlyList<HelpLine> Lines);
+
 /// <summary>Built-in help content shown by the F1 help viewer.</summary>
 public static class HelpContent
 {
@@ -88,37 +90,8 @@ public static class HelpContent
         H("SEARCH"),
         K("Alt+F7",          "Search files by mask and text"),
         E(),
-        H("COPY MODES  (F5)"),
-        P("  The default copy mode can be changed in the copy dialog."),
-        K("Overwrite",        "Replace the destination file unconditionally."),
-        K("Skip",             "Leave the destination file untouched."),
-        K("Reliable copy",    "Resume-with-tail-validation mode."),
-        P("  When a destination file already exists and is shorter than the source,"),
-        P("  CSharpFar compares the tail of the destination against the corresponding"),
-        P("  bytes of the source. If the tail matches, copying resumes from that point."),
-        P("  If a mismatch is found, the overlap is rolled back to the last confirmed"),
-        P("  good position before resuming. If the destination cannot be trusted at all"),
-        P("  (different size and no valid prefix), the normal conflict dialog appears."),
-        E(),
-        H("COPY / MOVE DESTINATION NAMES"),
-        P("  Filter mask selects which source files participate; it does not rename destinations."),
-        P("  Example: *.cs copies only matching source files."),
-        E(),
-        P("  With Use template off, * and ? in the final Destination component use FAR"),
-        P("  ConvertWildcards transformation. They are not a source filter or ordinary glob."),
-        P("  Parent destination directories cannot contain wildcards."),
-        P("  Source: report.txt              Destination: *_backup.*  -> report_backup.txt"),
-        P("  Source: analysis_options.yaml   Destination: *_OLD.*     -> analysis_OLD.yaml"),
-        E(),
-        P("  Use template enables a separate destination language: {name}, {ext}, and"),
-        P("  {modified:<format>}. Use {{ and }} for literal braces. For files, {name}"),
-        P("  excludes the final extension and {ext} includes its dot. For directories,"),
-        P("  {name} is the directory name and {ext} is empty. modified uses invariant"),
-        P("  .NET custom DateTime formatting. Templates may also be used in directories."),
-        P("  Template mode rejects * and ?; do not mix template and FAR wildcard syntax."),
-        P("  Source: analysis_options.yaml   Destination: {name}_OLD{ext}"),
-        P("  Result: analysis_options_OLD.yaml"),
-        P("  Timestamp example: archive/{modified:yyyy-MM}/{name}{ext}"),
+        H("COPY  (F5)"),
+        P("  F5 opens the Copy dialog. Press F1 or choose Help there for Copy options."),
         E(),
         H("VIEW MODES"),
         K("Ctrl+O",          "Switch dual-panel workspace / shell output with command line"),
@@ -172,13 +145,74 @@ public static class HelpContent
         P("  All config files will go to CSharpFar.config\\ beside the executable."),
     ];
 
+    private static readonly HelpLine[] CopyLines =
+    [
+        new(HelpLineKind.Title, Description: "CSharpFar — Copy"),
+        new(HelpLineKind.Separator, Description: new string('═', 60)),
+        E(),
+        H("COPY DESTINATION"),
+        P("  Destination is where the selected files or directories are copied."),
+        P("  An ordinary destination is used without name transformation. With several"),
+        P("  source items, it is normally a destination directory. The mechanisms below"),
+        P("  change destination names or paths when they are explicitly used."),
+        E(),
+        H("DESTINATION WILDCARDS"),
+        P("  With Use template off, * and ? in the final Destination component use FAR"),
+        P("  ConvertWildcards transformation. They transform a destination name; they are"),
+        P("  not a source filter and not an ordinary glob. Parent directories cannot"),
+        P("  contain destination wildcards."),
+        P("  Source: report.txt              Destination: *_backup.*"),
+        P("  Result: report_backup.txt"),
+        P("  Source: analysis_options.yaml   Destination: *_OLD.*"),
+        P("  Result: analysis_OLD.yaml"),
+        E(),
+        H("DESTINATION TEMPLATES"),
+        P("  Use template computes a destination path for each source item. Use {name},"),
+        P("  {ext}, and {modified:<format>}; use {{ and }} for literal braces."),
+        P("  For files, {name} excludes the final extension and {ext} includes its dot."),
+        P("  For directories, {name} is the directory name and {ext} is empty. modified"),
+        P("  uses a supported .NET DateTime format. Templates may include directories."),
+        P("  Template mode cannot be combined with * or ? destination wildcards."),
+        P("  Source: analysis_options.yaml"),
+        P("  Destination: {name}_OLD{ext}"),
+        P("  Result: analysis_options_OLD.yaml"),
+        P("  Directory example: archive/{modified:yyyy-MM}/{name}{ext}"),
+        E(),
+        H("COPY MODE"),
+        P("  Normal copies normally and does not retry read or write failures."),
+        P("  Reliable is for a complete, correct copy when transient read or destination"),
+        P("  write failures occur. It retries failures and safely resumes verified data."),
+        P("  Fast salvage is for a failing source: it copies readable files quickly,"),
+        P("  records failed files, and continues with later files."),
+        E(),
+        H("EXISTING FILES"),
+        P("  Ask requests a decision. Overwrite replaces the destination. Skip leaves it"),
+        P("  unchanged. Rename chooses another destination name. Only newer replaces it"),
+        P("  only when the source is newer."),
+        E(),
+        H("ACCESS RIGHTS AND METADATA"),
+        P("  Default uses the normal destination security behavior. Copy attempts to copy"),
+        P("  Windows access-control settings. Preserve all timestamps keeps file times;"),
+        P("  Preserve attributes keeps ordinary file attributes. Copy contents of symbolic"),
+        P("  links follows a link and copies its target contents instead of the link."),
+        E(),
+        H("FILTER"),
+        P("  Use filter enables Filter mask. The mask selects source files that take part"),
+        P("  in the copy; it does not change destination names. Example: *.cs"),
+        P("  Filter mask       -> selects source files"),
+        P("  Destination * ?   -> transforms destination names"),
+        P("  Use template      -> computes destination paths and names"),
+    ];
+
+    private static readonly HelpPage MainPage = new(Lines);
+    private static readonly HelpPage CopyPage = new(CopyLines);
+
     public static int MaxLineLength { get; } = Lines.Max(l => l.FullText.Length);
 
-    internal static int FirstVisibleIndex(HelpTopic topic) => topic switch
+    internal static HelpPage GetPage(HelpTopic topic) => topic switch
     {
-        HelpTopic.Main => 0,
-        HelpTopic.Copy => Array.FindIndex(Lines, line =>
-            line.Kind == HelpLineKind.Heading && line.Description == "COPY / MOVE DESTINATION NAMES"),
+        HelpTopic.Main => MainPage,
+        HelpTopic.Copy => CopyPage,
         _ => throw new ArgumentOutOfRangeException(nameof(topic)),
     };
 }
