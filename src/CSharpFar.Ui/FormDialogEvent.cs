@@ -14,6 +14,7 @@ public readonly record struct FormDialogEvent(
     public bool IsHandled => Kind != FormDialogEventKind.NotHandled;
     public bool IsValueChanged => Kind == FormDialogEventKind.ValueChanged;
     public bool IsSubmitted => Kind == FormDialogEventKind.Submitted;
+    public bool IsAuxiliary => Kind == FormDialogEventKind.Auxiliary;
     public bool IsCancelled => Kind == FormDialogEventKind.Cancelled;
 
     /// <summary>Determines whether this is a value-change event from the specified control.</summary>
@@ -31,5 +32,6 @@ public enum FormDialogEventKind
     Handled,
     ValueChanged,
     Submitted,
+    Auxiliary,
     Cancelled,
 }

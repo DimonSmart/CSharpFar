@@ -3,6 +3,7 @@ namespace CSharpFar.Ui;
 public enum DialogButtonRole
 {
     Submit,
+    Auxiliary,
     Cancel,
 }
 
@@ -19,6 +20,9 @@ public sealed record DialogButton(
 
     public static DialogButton Action(string id, string text, char hotKey) =>
         new(id, text, hotKey);
+
+    public static DialogButton Auxiliary(string id, string text, char hotKey) =>
+        new(id, text, hotKey, Role: DialogButtonRole.Auxiliary);
 
     public static DialogButton Cancel(string text = "Cancel", char hotKey = 'C', string id = "cancel") =>
         new(id, text, hotKey, Role: DialogButtonRole.Cancel);

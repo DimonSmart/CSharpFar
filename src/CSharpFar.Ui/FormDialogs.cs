@@ -170,7 +170,16 @@ internal sealed class FormDialogs
         Func<IReadOnlyList<FormRow>>? footer,
         Func<FormSubmitResult<TResult>> submit,
         CancellationToken cancellationToken = default) =>
-        ShowStandard(options, rows, footer, submit, valueChanged: null, cancellationToken);
+        Show(options, rows, footer, submit, auxiliary: null, cancellationToken);
+
+    public TResult? Show<TResult>(
+        FormDialogOptions options,
+        Func<IReadOnlyList<FormRow>> rows,
+        Func<IReadOnlyList<FormRow>>? footer,
+        Func<FormSubmitResult<TResult>> submit,
+        Func<FormDialogEvent, bool>? auxiliary,
+        CancellationToken cancellationToken = default) =>
+        ShowStandard(options, rows, footer, submit, valueChanged: null, auxiliary, cancellationToken);
 
     internal TResult? Show<TResult>(
         FormDialogOptions options,
@@ -181,7 +190,7 @@ internal sealed class FormDialogs
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(valueChanged);
-        return ShowStandard(options, rows, footer, submit, valueChanged, cancellationToken);
+        return ShowStandard(options, rows, footer, submit, valueChanged, auxiliary: null, cancellationToken);
     }
 
     public TResult? Show<TResult>(
@@ -189,7 +198,15 @@ internal sealed class FormDialogs
         Func<IReadOnlyList<FormRow>> rows,
         Func<FormSubmitResult<TResult>> submit,
         CancellationToken cancellationToken = default) =>
-        Show(options, rows, footer: null, submit, cancellationToken);
+        Show(options, rows, footer: null, submit, auxiliary: null, cancellationToken);
+
+    public TResult? Show<TResult>(
+        FormDialogOptions options,
+        Func<IReadOnlyList<FormRow>> rows,
+        Func<FormSubmitResult<TResult>> submit,
+        Func<FormDialogEvent, bool>? auxiliary,
+        CancellationToken cancellationToken = default) =>
+        Show(options, rows, footer: null, submit, auxiliary, cancellationToken);
 
     private TResult? ShowStandard<TResult>(
         FormDialogOptions options,
@@ -197,6 +214,7 @@ internal sealed class FormDialogs
         Func<IReadOnlyList<FormRow>>? footer,
         Func<FormSubmitResult<TResult>> submit,
         Action<FormDialogEvent>? valueChanged,
+        Func<FormDialogEvent, bool>? auxiliary,
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(submit);
@@ -226,6 +244,9 @@ internal sealed class FormDialogs
             {
                 if (formEvent.IsCancelled)
                     return FormDialogOutcome<TResult?>.Complete(default);
+
+                if (auxiliary?.Invoke(formEvent) == true)
+                    return FormDialogOutcome<TResult?>.Continue();
 
                 if (formEvent.IsValueChanged)
                 {

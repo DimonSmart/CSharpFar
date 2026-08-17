@@ -100,6 +100,26 @@ public static class HelpContent
         P("  good position before resuming. If the destination cannot be trusted at all"),
         P("  (different size and no valid prefix), the normal conflict dialog appears."),
         E(),
+        H("COPY / MOVE DESTINATION NAMES"),
+        P("  Filter mask selects which source files participate; it does not rename destinations."),
+        P("  Example: *.cs copies only matching source files."),
+        E(),
+        P("  With Use template off, * and ? in the final Destination component use FAR"),
+        P("  ConvertWildcards transformation. They are not a source filter or ordinary glob."),
+        P("  Parent destination directories cannot contain wildcards."),
+        P("  Source: report.txt              Destination: *_backup.*  -> report_backup.txt"),
+        P("  Source: analysis_options.yaml   Destination: *_OLD.*     -> analysis_OLD.yaml"),
+        E(),
+        P("  Use template enables a separate destination language: {name}, {ext}, and"),
+        P("  {modified:<format>}. Use {{ and }} for literal braces. For files, {name}"),
+        P("  excludes the final extension and {ext} includes its dot. For directories,"),
+        P("  {name} is the directory name and {ext} is empty. modified uses invariant"),
+        P("  .NET custom DateTime formatting. Templates may also be used in directories."),
+        P("  Template mode rejects * and ?; do not mix template and FAR wildcard syntax."),
+        P("  Source: analysis_options.yaml   Destination: {name}_OLD{ext}"),
+        P("  Result: analysis_options_OLD.yaml"),
+        P("  Timestamp example: archive/{modified:yyyy-MM}/{name}{ext}"),
+        E(),
         H("VIEW MODES"),
         K("Ctrl+O",          "Switch dual-panel workspace / shell output with command line"),
         P("                    Command line remains visible; \u2190 \u2192 edit it in shell output"),
@@ -153,4 +173,12 @@ public static class HelpContent
     ];
 
     public static int MaxLineLength { get; } = Lines.Max(l => l.FullText.Length);
+
+    internal static int FirstVisibleIndex(HelpTopic topic) => topic switch
+    {
+        HelpTopic.Main => 0,
+        HelpTopic.Copy => Array.FindIndex(Lines, line =>
+            line.Kind == HelpLineKind.Heading && line.Description == "COPY / MOVE DESTINATION NAMES"),
+        _ => throw new ArgumentOutOfRangeException(nameof(topic)),
+    };
 }

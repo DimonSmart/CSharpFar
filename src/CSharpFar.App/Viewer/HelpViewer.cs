@@ -13,13 +13,15 @@ internal sealed class HelpViewer
         _palette = palette ?? PaletteRegistry.Default;
     }
 
-    public void Show()
+    public void Show(HelpTopic topic = HelpTopic.Main)
     {
-        var layer = new HelpViewerLayer(HelpContent.Lines, _palette);
+        var layer = new HelpViewerLayer(HelpContent.Lines, _palette, HelpContent.FirstVisibleIndex(topic));
         _surfaces.Run(layer, static (_, action) => action == HelpAction.Close
             ? ModalDialogLoopResult<bool>.Complete(true)
             : ModalDialogLoopResult<bool>.ContinueNoChange);
     }
 }
+
+internal enum HelpTopic { Main, Copy }
 
 internal enum HelpAction { None, Close }

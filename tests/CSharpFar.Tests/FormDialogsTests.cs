@@ -60,6 +60,35 @@ public sealed class FormDialogsTests
     }
 
     [Fact]
+    public void Show_StandardSubmit_AuxiliaryHandlerCanHandleF1()
+    {
+        var driver = new FakeConsoleDriver();
+        driver.EnqueueKey(Key(ConsoleKey.F1));
+        driver.EnqueueKey(Key(ConsoleKey.Escape));
+        bool f1Handled = false;
+        ITextFieldHistoryProvider provider = TextFieldHistoryTestProvider.Create();
+        var historyId = new TextHistoryId("f1");
+        TextField value = new FormFieldFactory(provider).Text(new TextFieldOptions("value", historyId));
+
+        string? result = new FormDialogs(ModalTestHost.Create(driver)).Show(
+            new FormDialogOptions("Auxiliary", 30, 8),
+            rows: () => [FormControls.Text(value)],
+            submit: () => FormSubmit.Success<string?>("submitted"),
+            auxiliary: formEvent =>
+            {
+                if (formEvent.Key != ConsoleKey.F1)
+                    return false;
+
+                f1Handled = true;
+                return true;
+            });
+
+        Assert.True(f1Handled);
+        Assert.Null(result);
+        Assert.Empty(provider.Get(historyId).Items);
+    }
+
+    [Fact]
     public void Show_StandardSubmit_InvalidErrorFocusesTargetAndClearsAfterValueChange()
     {
         var driver = new FakeConsoleDriver();

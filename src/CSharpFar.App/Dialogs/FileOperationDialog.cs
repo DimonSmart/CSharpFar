@@ -1,3 +1,4 @@
+using CSharpFar.App.Viewer;
 using CSharpFar.Core.Models;
 using CSharpFar.Ui;
 
@@ -45,11 +46,13 @@ internal sealed class FileOperationDialog
 
     private readonly FormFieldFactory _fields;
     private readonly DialogService _dialogs;
+    private readonly Action<HelpTopic>? _showHelp;
 
-    public FileOperationDialog(DialogService dialogs, FormFieldFactory fields)
+    public FileOperationDialog(DialogService dialogs, FormFieldFactory fields, Action<HelpTopic>? showHelp = null)
     {
         _dialogs = dialogs ?? throw new ArgumentNullException(nameof(dialogs));
         _fields = fields ?? throw new ArgumentNullException(nameof(fields));
+        _showHelp = showHelp;
     }
 
     public FileOperationDialogResult? ShowCopy(
@@ -60,7 +63,7 @@ internal sealed class FileOperationDialog
         string prompt = sources.Count == 1
             ? $"Copy {Path.GetFileName(sources[0])} to:"
             : $"Copy {sources.Count} items to:";
-        return Show("Copy", prompt, "Copy", initialDestination, initialOptions, CopyConflictModes, LocalCopyModes, showOperationOptions: true);
+        return Show("Copy", prompt, "Copy", initialDestination, initialOptions, CopyConflictModes, LocalCopyModes, showOperationOptions: true, showHelp: true);
     }
 
     public FileOperationDialogResult? ShowMove(
@@ -71,7 +74,7 @@ internal sealed class FileOperationDialog
         string prompt = sources.Count == 1
             ? "Move / Rename to:"
             : $"Move {sources.Count} items to:";
-        return Show("Move", prompt, "Move", initialDestination, initialOptions, MoveConflictModes, copyModes: null, showOperationOptions: true);
+        return Show("Move", prompt, "Move", initialDestination, initialOptions, MoveConflictModes, copyModes: null, showOperationOptions: true, showHelp: false);
     }
 
     public FileOperationDialogResult? ShowRename(
@@ -83,7 +86,7 @@ internal sealed class FileOperationDialog
         string prompt = string.IsNullOrEmpty(sourceName)
             ? "Rename to:"
             : $"Rename {sourceName} to:";
-        return Show("Rename", prompt, "Rename", initialDestination, initialOptions, MoveConflictModes, copyModes: null, showOperationOptions: false);
+        return Show("Rename", prompt, "Rename", initialDestination, initialOptions, MoveConflictModes, copyModes: null, showOperationOptions: false, showHelp: false);
     }
 
     private FileOperationDialogResult? Show(
@@ -94,9 +97,10 @@ internal sealed class FileOperationDialog
         FileOperationOptions initialOptions,
         IReadOnlyList<ConflictDecisionMode> conflictModes,
         IReadOnlyList<CopyMode>? copyModes,
-        bool showOperationOptions)
+        bool showOperationOptions,
+        bool showHelp)
     {
-        return RunLoop(title, prompt, actionLabel, initialDestination, initialOptions, conflictModes, copyModes, showOperationOptions);
+        return RunLoop(title, prompt, actionLabel, initialDestination, initialOptions, conflictModes, copyModes, showOperationOptions, showHelp);
     }
 
     private FileOperationDialogResult? RunLoop(
@@ -107,7 +111,8 @@ internal sealed class FileOperationDialog
         FileOperationOptions initialOptions,
         IReadOnlyList<ConflictDecisionMode> conflictModes,
         IReadOnlyList<CopyMode>? copyModes,
-        bool showOperationOptions)
+        bool showOperationOptions,
+        bool showHelp)
     {
         TextField destination = _fields.Text(new TextFieldOptions(
             initialDestination,
@@ -140,9 +145,9 @@ internal sealed class FileOperationDialog
         var useFilter = FormControls.CheckBox(
             "Use filter", !string.IsNullOrWhiteSpace(initialOptions.FileMask));
         var useTemplate = FormControls.CheckBox("Use template", false);
-        var buttons = FormControls.Buttons(
-            DialogButton.Default("submit", actionLabel, actionLabel[0]),
-            DialogButton.Cancel());
+        var buttons = FormControls.Buttons(showHelp
+            ? [DialogButton.Default("submit", actionLabel, actionLabel[0]), DialogButton.Auxiliary("help", "Help", 'H'), DialogButton.Cancel()]
+            : [DialogButton.Default("submit", actionLabel, actionLabel[0]), DialogButton.Cancel()]);
         return _dialogs.Form(
             new FormDialogOptions(title, DialogWidth, DialogHeight, 40, 8),
             rows: () => BuildRows(prompt, destination, filter, securityChoice, copyModeChoice, conflictChoiceRow, preserveTimestamps, preserveAttributes, copySymlinkContents, useFilter, useTemplate, showOperationOptions),
@@ -158,7 +163,15 @@ internal sealed class FileOperationDialog
                 preserveAttributes.Value,
                 copySymlinkContents.Value,
                 useFilter.Value,
-                useTemplate.Value));
+                useTemplate.Value),
+            auxiliary: formEvent =>
+            {
+                if (!showHelp || (formEvent.Command != "help" && formEvent.Key != ConsoleKey.F1))
+                    return false;
+
+                _showHelp?.Invoke(HelpTopic.Copy);
+                return true;
+            });
     }
 
     private static IReadOnlyList<FormRow> BuildRows(
