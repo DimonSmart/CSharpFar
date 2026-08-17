@@ -236,6 +236,7 @@ public sealed class FileOperationService : IFileOperationService
         {
             if (source.SourceId == destinationSource.SourceId)
                 ValidateProviderCopyTarget(source, sourcePath, destinationPath, sourceItem.IsDirectory);
+            await EnsureProviderDestinationDirectoryAsync(destinationSource, destinationPath, cancellationToken).ConfigureAwait(false);
             await destinationSource.CreateDirectoryAsync(destinationPath, cancellationToken).ConfigureAwait(false);
             state.CompleteFolder();
 
@@ -2035,9 +2036,16 @@ public sealed class FileOperationService : IFileOperationService
 
     private static void ValidateLocalTargetPath(string path)
     {
-        string name = Path.GetFileName(path);
-        if (string.IsNullOrWhiteSpace(name) || name.IndexOfAny(['*', '?']) >= 0 ||
-            name.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0)
+        string fullPath = Path.GetFullPath(path);
+        string root = Path.GetPathRoot(fullPath) ?? string.Empty;
+        string[] components = fullPath[root.Length..].Split(
+            [Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar],
+            StringSplitOptions.RemoveEmptyEntries);
+
+        if (components.Length == 0 || components.Any(component =>
+                string.IsNullOrWhiteSpace(component) ||
+                component.IndexOfAny(['*', '?']) >= 0 ||
+                component.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0))
         {
             throw new IOException("Destination pattern produced an invalid file name.");
         }
