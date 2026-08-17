@@ -83,6 +83,6 @@ public sealed class CommandLineRendererTests
         UiTestRender.Render(new ScreenRenderer(driver), canvas =>
             new CommandLineRenderer(canvas).Render(0, 20, string.Empty, state));
 
-        Assert.Equal(">abc↵def", driver.GetRow(0).TrimEnd());
+        Assert.Equal(">abc↩def", driver.GetRow(0).TrimEnd());
     }
 }
