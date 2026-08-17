@@ -367,11 +367,7 @@ public sealed class Application
         if (!_clipboard.TryGetText(out string text) || string.IsNullOrEmpty(text))
             return true;
 
-        string singleLine = text.ReplaceLineEndings(" ").Trim();
-        if (string.IsNullOrEmpty(singleLine))
-            return true;
-
-        _cmdLine.InsertText(singleLine);
+        _cmdLine.InsertText(text);
         OnCommandLineTextEdited();
 
         return true;

@@ -41,7 +41,19 @@ internal sealed class CopyCommand : IApplicationCommand
         var dialogResult = new FileOperationDialog(context.Dialogs, context.Fields, context.ShowHelp).ShowCopy(
             sources,
             target.PassiveCommitted?.CurrentDirectory ?? target.PassiveState.CurrentDirectory,
-            context.BuildFileOperationOptions());
+            context.BuildFileOperationOptions(),
+            result => DestinationTemplatePreview.Show(context, new FileOperationRequest
+            {
+                Kind = FileOperationKind.Copy,
+                Sources = sources,
+                SourceLocations = sourceLocations,
+                Destination = result.Destination,
+                UseDestinationTemplate = result.UseDestinationTemplate,
+                DestinationLocation = target.PassiveState.SourceId == PanelSourceId.Local
+                    ? PanelLocation.Local(result.Destination)
+                    : new PanelLocation(target.PassiveState.SourceId, result.Destination),
+                Options = result.Options,
+            }));
         if (dialogResult is null)
             return ApplicationCommandResult.Rendered();
 

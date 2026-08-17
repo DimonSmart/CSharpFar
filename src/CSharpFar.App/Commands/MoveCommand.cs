@@ -47,7 +47,17 @@ internal sealed class MoveCommand : IApplicationCommand
         var dialogResult = new FileOperationDialog(context.Dialogs, context.Fields).ShowMove(
             sources,
             target.PassiveCommitted?.CurrentDirectory ?? target.PassiveState.CurrentDirectory,
-            context.BuildFileOperationOptions());
+            context.BuildFileOperationOptions(),
+            result => DestinationTemplatePreview.Show(context, new FileOperationRequest
+            {
+                Kind = FileOperationKind.Move,
+                Sources = sources,
+                SourceLocations = sourceLocations,
+                Destination = result.Destination,
+                UseDestinationTemplate = result.UseDestinationTemplate,
+                DestinationLocation = BuildDestinationLocation(context, target.State, result.Destination, sources.Count),
+                Options = result.Options,
+            }));
         if (dialogResult is null)
             return ApplicationCommandResult.Rendered();
 

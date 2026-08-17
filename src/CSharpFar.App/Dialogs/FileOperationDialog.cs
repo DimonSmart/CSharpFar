@@ -58,35 +58,38 @@ internal sealed class FileOperationDialog
     public FileOperationDialogResult? ShowCopy(
         IReadOnlyList<string> sources,
         string initialDestination,
-        FileOperationOptions initialOptions)
+        FileOperationOptions initialOptions,
+        Action<FileOperationDialogResult>? preview = null)
     {
         string prompt = sources.Count == 1
             ? $"Copy {Path.GetFileName(sources[0])} to:"
             : $"Copy {sources.Count} items to:";
-        return Show("Copy", prompt, "Copy", initialDestination, initialOptions, CopyConflictModes, LocalCopyModes, showOperationOptions: true, showHelp: true);
+        return Show("Copy", prompt, "Copy", initialDestination, initialOptions, CopyConflictModes, LocalCopyModes, showOperationOptions: true, showHelp: true, preview: preview);
     }
 
     public FileOperationDialogResult? ShowMove(
         IReadOnlyList<string> sources,
         string initialDestination,
-        FileOperationOptions initialOptions)
+        FileOperationOptions initialOptions,
+        Action<FileOperationDialogResult>? preview = null)
     {
         string prompt = sources.Count == 1
             ? "Move / Rename to:"
             : $"Move {sources.Count} items to:";
-        return Show("Move", prompt, "Move", initialDestination, initialOptions, MoveConflictModes, copyModes: null, showOperationOptions: true, showHelp: false);
+        return Show("Move", prompt, "Move", initialDestination, initialOptions, MoveConflictModes, copyModes: null, showOperationOptions: true, showHelp: false, preview: preview);
     }
 
     public FileOperationDialogResult? ShowRename(
         string source,
         string initialDestination,
-        FileOperationOptions initialOptions)
+        FileOperationOptions initialOptions,
+        Action<FileOperationDialogResult>? preview = null)
     {
         string sourceName = Path.GetFileName(source);
         string prompt = string.IsNullOrEmpty(sourceName)
             ? "Rename to:"
             : $"Rename {sourceName} to:";
-        return Show("Rename", prompt, "Rename", initialDestination, initialOptions, MoveConflictModes, copyModes: null, showOperationOptions: false, showHelp: false);
+        return Show("Rename", prompt, "Rename", initialDestination, initialOptions, MoveConflictModes, copyModes: null, showOperationOptions: false, showHelp: false, preview: preview);
     }
 
     private FileOperationDialogResult? Show(
@@ -98,9 +101,10 @@ internal sealed class FileOperationDialog
         IReadOnlyList<ConflictDecisionMode> conflictModes,
         IReadOnlyList<CopyMode>? copyModes,
         bool showOperationOptions,
-        bool showHelp)
+        bool showHelp,
+        Action<FileOperationDialogResult>? preview)
     {
-        return RunLoop(title, prompt, actionLabel, initialDestination, initialOptions, conflictModes, copyModes, showOperationOptions, showHelp);
+        return RunLoop(title, prompt, actionLabel, initialDestination, initialOptions, conflictModes, copyModes, showOperationOptions, showHelp, preview);
     }
 
     private FileOperationDialogResult? RunLoop(
@@ -112,7 +116,8 @@ internal sealed class FileOperationDialog
         IReadOnlyList<ConflictDecisionMode> conflictModes,
         IReadOnlyList<CopyMode>? copyModes,
         bool showOperationOptions,
-        bool showHelp)
+        bool showHelp,
+        Action<FileOperationDialogResult>? preview)
     {
         TextField destination = _fields.Text(new TextFieldOptions(
             initialDestination,
@@ -146,8 +151,8 @@ internal sealed class FileOperationDialog
             "Use filter", !string.IsNullOrWhiteSpace(initialOptions.FileMask));
         var useTemplate = FormControls.CheckBox("Use template", false);
         var buttons = FormControls.Buttons(showHelp
-            ? [DialogButton.Default("submit", actionLabel, actionLabel[0]), DialogButton.Auxiliary("help", "Help", 'H'), DialogButton.Cancel()]
-            : [DialogButton.Default("submit", actionLabel, actionLabel[0]), DialogButton.Cancel()]);
+            ? [DialogButton.Default("submit", actionLabel, actionLabel[0]), DialogButton.Auxiliary("preview", "Preview", 'P'), DialogButton.Auxiliary("help", "Help", 'H'), DialogButton.Cancel()]
+            : [DialogButton.Default("submit", actionLabel, actionLabel[0]), DialogButton.Auxiliary("preview", "Preview", 'P'), DialogButton.Cancel()]);
         return _dialogs.Form(
             new FormDialogOptions(title, DialogWidth, DialogHeight, 40, 8),
             rows: () => BuildRows(prompt, destination, filter, securityChoice, copyModeChoice, conflictChoiceRow, preserveTimestamps, preserveAttributes, copySymlinkContents, useFilter, useTemplate, showOperationOptions),
@@ -166,6 +171,26 @@ internal sealed class FileOperationDialog
                 useTemplate.Value),
             auxiliary: formEvent =>
             {
+                if (formEvent.Command == "preview")
+                {
+                    if (!useTemplate.Value)
+                    {
+                        _dialogs.Message(title, "Enable \"Use template\" to preview destination template.");
+                        return true;
+                    }
+
+                    if (string.IsNullOrWhiteSpace(destination.TrimmedText))
+                    {
+                        _dialogs.Message($"{title} Error", "Destination must not be empty.");
+                        return true;
+                    }
+
+                    var previewResult = CreateResult(destination, filter, initialOptions, conflictChoiceRow.Value, copyModeChoice?.Value ?? CopyMode.Normal, securityChoice.Value, preserveTimestamps.Value, preserveAttributes.Value, copySymlinkContents.Value, useFilter.Value, useTemplate.Value);
+                    try { preview?.Invoke(previewResult); }
+                    catch (Exception ex) { _dialogs.Message($"{title} Error", ex.Message); }
+                    return true;
+                }
+
                 if (!showHelp || (formEvent.Command != "help" && formEvent.Key != ConsoleKey.F1))
                     return false;
 
@@ -247,24 +272,20 @@ internal sealed class FileOperationDialog
             return FormSubmit.Invalid<FileOperationDialogResult>("Destination must not be empty.", destination);
         }
 
-        string? mask = useFilter && !string.IsNullOrWhiteSpace(filter.Text)
-            ? filter.TrimmedText
-            : null;
-
-        return FormSubmit.Success(new FileOperationDialogResult(
-            destinationText,
-            useTemplate,
-            initialOptions with
-            {
-                DefaultConflictDecision = conflictMode,
-                CopyMode = copyMode,
-                SecurityMode = securityMode,
-                PreserveTimestamps = preserveTimestamps,
-                PreserveAttributes = preserveAttributes,
-                SymlinkMode = copySymlinkContents ? SymlinkCopyMode.CopyTargetContents : SymlinkCopyMode.CopyLink,
-                FileMask = mask,
-            }));
+        return FormSubmit.Success(CreateResult(destination, filter, initialOptions, conflictMode, copyMode, securityMode, preserveTimestamps, preserveAttributes, copySymlinkContents, useFilter, useTemplate));
     }
+
+    private static FileOperationDialogResult CreateResult(TextField destination, TextField filter, FileOperationOptions initialOptions, ConflictDecisionMode conflictMode, CopyMode copyMode, FileSecurityMode securityMode, bool preserveTimestamps, bool preserveAttributes, bool copySymlinkContents, bool useFilter, bool useTemplate) =>
+        new(destination.TrimmedText, useTemplate, initialOptions with
+        {
+            DefaultConflictDecision = conflictMode,
+            CopyMode = copyMode,
+            SecurityMode = securityMode,
+            PreserveTimestamps = preserveTimestamps,
+            PreserveAttributes = preserveAttributes,
+            SymlinkMode = copySymlinkContents ? SymlinkCopyMode.CopyTargetContents : SymlinkCopyMode.CopyLink,
+            FileMask = useFilter && !string.IsNullOrWhiteSpace(filter.Text) ? filter.TrimmedText : null,
+        });
 
     private static string ConflictLabel(ConflictDecisionMode mode) => mode switch
     {

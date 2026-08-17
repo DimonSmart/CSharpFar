@@ -208,6 +208,41 @@ public sealed class Spec027FarCommandLineShortcutTests : IDisposable
     }
 
     [Fact]
+    public void Run_ControlVPastesMultilineTextWithNormalizedLineEndings()
+    {
+        var driver = new FakeConsoleDriver(width: 100, height: 12);
+        driver.EnqueueKey(Key(ConsoleKey.V, keyChar: '\u0016', control: true));
+        driver.EnqueueKey(Key(ConsoleKey.F10));
+        var clipboard = new FakeTextClipboard { Text = "one\r\ntwo\rthree\nfour" };
+
+        var app = CreateApp(CreateFileSystem(), driver, new InMemoryHistoryStore(), clipboard: clipboard);
+        app.Run();
+
+        CommandLineState commandLine = GetCommandLine(app);
+        Assert.Equal("one\ntwo\nthree\nfour", commandLine.Text);
+        Assert.Equal(commandLine.Text.Length, commandLine.CursorPosition);
+    }
+
+    [Fact]
+    public void Run_ControlVThenEnter_ExecutesRawMultilinePowerShellCommand()
+    {
+        const string command = "ps: $cfg = \"$env:LOCALAPPDATA\\Claude-3p\\configLibrary\"\n\nif (Test-Path $cfg) {\n    Write-Host $cfg\n}";
+        var driver = new FakeConsoleDriver(width: 100, height: 12);
+        driver.EnqueueKey(Key(ConsoleKey.V, keyChar: '\u0016', control: true));
+        driver.EnqueueKey(Key(ConsoleKey.Enter));
+        driver.EnqueueKey(Key(ConsoleKey.F10));
+        var shell = new RecordingShellService();
+        var clipboard = new FakeTextClipboard { Text = command.Replace("\n", "\r\n") };
+        var history = new InMemoryHistoryStore();
+
+        var app = CreateApp(CreateFileSystem(), driver, history, shell, clipboard);
+        app.Run();
+
+        Assert.Equal(command, Assert.Single(history.GetCommandHistory()).Command);
+        Assert.Equal([new ShellInvocation("powershell", command[4..])], shell.Invocations);
+    }
+
+    [Fact]
     public void Run_CommandLineMouseDragSelectsText()
     {
         var driver = new FakeConsoleDriver(width: 120, height: 12);
@@ -248,7 +283,9 @@ public sealed class Spec027FarCommandLineShortcutTests : IDisposable
     private Application CreateApp(
         FakeFileSystemService fs,
         FakeConsoleDriver driver,
-        InMemoryHistoryStore history)
+        InMemoryHistoryStore history,
+        IShellService? shell = null,
+        ITextClipboard? clipboard = null)
     {
         var settings = new AppSettings();
         settings.Panels.LeftStartDirectory = _leftRoot;
@@ -257,10 +294,11 @@ public sealed class Spec027FarCommandLineShortcutTests : IDisposable
         return new Application(
             new ScreenRenderer(driver),
             fs,
-            new NoOpShellService(),
+            shell ?? new NoOpShellService(),
             new NoOpFileOperationService(),
             history,
-            settings);
+            settings,
+            clipboard: clipboard);
     }
 
     private static InMemoryHistoryStore CreateHistory(params string[] commands)
@@ -300,4 +338,33 @@ public sealed class Spec027FarCommandLineShortcutTests : IDisposable
         bool control = false,
         bool shift = false) =>
         new(keyChar, key, shift, alt: false, control);
+
+    private sealed class FakeTextClipboard : ITextClipboard
+    {
+        public string? Text { get; set; }
+
+        public bool TryGetText(out string text)
+        {
+            text = Text ?? string.Empty;
+            return Text is not null;
+        }
+
+        public bool TrySetText(string text)
+        {
+            Text = text;
+            return true;
+        }
+    }
+
+    private sealed class RecordingShellService : IShellService
+    {
+        public List<(string Command, string WorkingDirectory)> Commands { get; } = [];
+        public List<ShellInvocation> Invocations { get; } = [];
+
+        public void Execute(string command, string workingDirectory) =>
+            Commands.Add((command, workingDirectory));
+
+        public void Execute(ShellInvocation invocation, string workingDirectory) =>
+            Invocations.Add(invocation);
+    }
 }
