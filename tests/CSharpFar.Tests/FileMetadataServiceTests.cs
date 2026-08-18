@@ -78,9 +78,9 @@ public sealed class FileMetadataServiceTests : IDisposable
     }
 
     [Fact]
-    public void UnixDescriptors_DoNotEditHiddenDotfile()
+    public void LinuxDescriptors_DoNotEditHiddenDotfile()
     {
-        if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+        if (OperatingSystem.IsWindows() || OperatingSystem.IsMacOS())
             return;
 
         string path = Path.Combine(_root, ".hidden");
