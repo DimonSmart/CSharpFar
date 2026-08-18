@@ -52,7 +52,7 @@ internal sealed class CommandCompletionLayer : UiLayer<CommandCompletionFrame>
                 RoutedListFocusBehavior.None,
                 RoutedListKeyboardRouting.LayerAndFocusedTarget,
                 ListConfirmationBehavior.EnterOrMouseDown));
-        _presentation = new(CommandLineDisplayText.Format, string.Empty, PaletteStyles.DialogFill(_context.App.Palette), PaletteStyles.InputField(_context.App.Palette), PaletteStyles.DialogFill(_context.App.Palette));
+        _presentation = new(static text => text.Replace('\n', '↵'), string.Empty, PaletteStyles.DialogFill(_context.App.Palette), PaletteStyles.InputField(_context.App.Palette), PaletteStyles.DialogFill(_context.App.Palette));
     }
 
     public override UiLayerInputPolicy InputPolicy =>
