@@ -1,6 +1,6 @@
 using CSharpFar.Core.Abstractions;
 using CSharpFar.Core.Models;
-using CSharpFar.Platform.Unix;
+using CSharpFar.Platform.Linux;
 using CSharpFar.Platform.Windows;
 
 namespace CSharpFar.Tests;
@@ -11,7 +11,7 @@ public sealed class FileSystemPlatformOperationsTests
     public void PlatformOperations_ReportRecycleBinSupport()
     {
         Assert.True(new WindowsFileSystemPlatformOperations().SupportsRecycleBin);
-        Assert.False(new UnixFileSystemPlatformOperations().SupportsRecycleBin);
+        Assert.False(new LinuxFileSystemPlatformOperations().SupportsRecycleBin);
     }
 
     [Fact]
@@ -46,7 +46,7 @@ public sealed class FileSystemPlatformOperationsTests
     [Fact]
     public void Unix_RecycleBinDelete_IsExplicitlyUnsupported()
     {
-        var operations = new UnixFileSystemPlatformOperations();
+        var operations = new LinuxFileSystemPlatformOperations();
 
         Assert.Throws<PlatformNotSupportedException>(() => operations.DeleteFile("/tmp/not-created", useRecycleBin: true));
     }
@@ -60,7 +60,7 @@ public sealed class FileSystemPlatformOperationsTests
         File.WriteAllText(file, "content");
         Directory.CreateDirectory(childDirectory);
         File.WriteAllText(Path.Combine(childDirectory, "child.txt"), "content");
-        var operations = new UnixFileSystemPlatformOperations();
+        var operations = new LinuxFileSystemPlatformOperations();
 
         operations.DeleteFile(file, useRecycleBin: false);
         operations.DeleteDirectory(childDirectory, recursive: true, useRecycleBin: false);
@@ -83,7 +83,7 @@ public sealed class FileSystemPlatformOperationsTests
         File.WriteAllText(destination, "destination");
         File.SetUnixFileMode(source, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.GroupRead | UnixFileMode.OtherRead);
 
-        new UnixFileSystemPlatformOperations().PreserveFileMetadata(
+        new LinuxFileSystemPlatformOperations().PreserveFileMetadata(
             source,
             destination,
             new FileOperationOptions { PreserveAttributes = true, PreserveTimestamps = false },
@@ -105,7 +105,7 @@ public sealed class FileSystemPlatformOperationsTests
         File.WriteAllText(target, "target");
         File.CreateSymbolicLink(sourceLink, "target");
 
-        bool copied = new UnixFileSystemPlatformOperations().TryCopySymbolicLink(sourceLink, destinationLink, out string? error);
+        bool copied = new LinuxFileSystemPlatformOperations().TryCopySymbolicLink(sourceLink, destinationLink, out string? error);
 
         Assert.True(copied, error);
         Assert.Equal("target", new FileInfo(destinationLink).LinkTarget);

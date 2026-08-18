@@ -1,0 +1,4 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup><ProjectReference Include="..\CSharpFar.App\CSharpFar.App.csproj" /><ProjectReference Include="..\CSharpFar.Platform.MacOs\CSharpFar.Platform.MacOs.csproj" /></ItemGroup>
+  <PropertyGroup><OutputType>Exe</OutputType><TargetFramework>net10.0</TargetFramework><AssemblyName>csharpfar</AssemblyName><RootNamespace>CSharpFar.Host.MacOs</RootNamespace><Product>CSharpFar</Product><ImplicitUsings>enable</ImplicitUsings><Nullable>enable</Nullable></PropertyGroup>
+</Project>

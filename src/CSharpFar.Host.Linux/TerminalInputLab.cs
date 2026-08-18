@@ -71,7 +71,7 @@ internal static class TerminalInputLab
             return 1;
         }
 
-        using var driver = new AnsiTerminalConsoleDriver();
+        using var driver = AnsiTerminalConsoleDriver.CreateLinux();
         string artifactDirectory = Path.GetFullPath(Path.Combine("artifacts", "terminal-input-lab"));
         Directory.CreateDirectory(artifactDirectory);
         string stamp = DateTime.Now.ToString("yyyy-MM-dd_HH-mm-ss");

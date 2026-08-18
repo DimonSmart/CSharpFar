@@ -50,7 +50,6 @@ Git history is the source for deleted or previous document versions.
 | 0054.spec-paranoid-copy-auto-retry.md | spec | Reliable copy auto retry |  |  |
 | 0055.spec-directory-shortcuts.md | spec | Directory shortcuts |  |  |
 | 0056.spec-built-in-cd-panel-navigation.md | spec | Built-in cd panel navigation |  |  |
-| 0057.spike-unix-macos-portability.md | spike | Unix and macOS portability |  |  |
 | 0059.spec-panel-cursor-normalization.md | spec | Panel cursor normalization |  |  |
 | 0060.spec-file-rename-operation.md | spec | File rename operation |  |  |
 | 0061.spec-native-plugin-system.md | spec | Native plugin system |  |  |

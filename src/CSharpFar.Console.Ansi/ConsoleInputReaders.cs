@@ -88,7 +88,7 @@ internal sealed class UnixRawTerminalInputReader : ConsoleInputReaderBase
         _input = input;
         _writeControl = writeControl;
         _parser = parser ?? new AnsiConsoleInputParser();
-        _terminalMode = terminalMode ?? new UnixTerminalMode();
+        _terminalMode = terminalMode ?? new LinuxTerminalInputMode();
         _modifierKeyTracker = modifierKeyTracker ?? ModifierKeyTrackerFactory.TryCreateForCurrentPlatform();
         try
         {
