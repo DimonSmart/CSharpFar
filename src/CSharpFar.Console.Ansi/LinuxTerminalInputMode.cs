@@ -10,7 +10,7 @@ internal interface ITerminalInputMode : IDisposable
     void RestoreOriginalMode();
 }
 
-internal sealed class UnixTerminalMode : ITerminalInputMode
+internal sealed class LinuxTerminalInputMode : ITerminalInputMode
 {
     private const int STDIN_FILENO = 0;
     private const int VMIN = 6;
@@ -22,10 +22,10 @@ internal sealed class UnixTerminalMode : ITerminalInputMode
     private bool _rawActive;
     private bool _disposed;
 
-    public UnixTerminalMode()
+    public LinuxTerminalInputMode()
     {
         if (OperatingSystem.IsWindows())
-            throw new PlatformNotSupportedException("Unix terminal raw mode is not supported on Windows.");
+            throw new PlatformNotSupportedException("Linux terminal raw mode is not supported on this platform.");
 
         if (tcgetattr(STDIN_FILENO, out _original) != 0)
             throw new InvalidOperationException("Failed to read terminal mode.", new Win32Exception(Marshal.GetLastPInvokeError()));

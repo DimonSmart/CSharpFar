@@ -6,7 +6,8 @@
     <Project Path="src/CSharpFar.DemoRecorder/CSharpFar.DemoRecorder.csproj" />
     <Project Path="src/CSharpFar.Core/CSharpFar.Core.csproj" />
     <Project Path="src/CSharpFar.FileSystem/CSharpFar.FileSystem.csproj" />
-    <Project Path="src/CSharpFar.Host.Unix/CSharpFar.Host.Unix.csproj" />
+    <Project Path="src/CSharpFar.Host.Linux/CSharpFar.Host.Linux.csproj" />
+    <Project Path="src/CSharpFar.Host.MacOs/CSharpFar.Host.MacOs.csproj" />
     <Project Path="src/CSharpFar.Host.Windows/CSharpFar.Host.Windows.csproj" />
     <Project Path="src/CSharpFar.Module.Abstractions/CSharpFar.Module.Abstractions.csproj" />
     <Project Path="src/CSharpFar.Plugin.Abstractions/CSharpFar.Plugin.Abstractions.csproj" />
@@ -14,7 +15,8 @@
     <Project Path="src/CSharpFar.Module.Sftp/CSharpFar.Module.Sftp.csproj" />
     <Project Path="src/CSharpFar.Module.ProcessesAndPorts/CSharpFar.Module.ProcessesAndPorts.csproj" />
     <Project Path="src/CSharpFar.Platform.Abstractions/CSharpFar.Platform.Abstractions.csproj" />
-    <Project Path="src/CSharpFar.Platform.Unix/CSharpFar.Platform.Unix.csproj" />
+    <Project Path="src/CSharpFar.Platform.Linux/CSharpFar.Platform.Linux.csproj" />
+    <Project Path="src/CSharpFar.Platform.MacOs/CSharpFar.Platform.MacOs.csproj" />
     <Project Path="src/CSharpFar.Platform.Windows/CSharpFar.Platform.Windows.csproj" />
     <Project Path="src/CSharpFar.Shell/CSharpFar.Shell.csproj" />
     <Project Path="src/CSharpFar.Ui/CSharpFar.Ui.csproj" />

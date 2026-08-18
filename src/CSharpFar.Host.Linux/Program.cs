@@ -3,7 +3,7 @@ using CSharpFar.App.Bootstrap;
 using CSharpFar.App.Diagnostics;
 using CSharpFar.App.Settings;
 using CSharpFar.Console.Ansi;
-using CSharpFar.Platform.Unix;
+using CSharpFar.Platform.Linux;
 
 AppDomain.CurrentDomain.UnhandledException += (_, eventArgs) =>
 {
@@ -23,7 +23,7 @@ try
     {
         using var selfTestStartup = ApplicationStartupContext.Create(
             ApplicationRunOptions.Normal,
-            UnixPlatformServices.CreateDefaultSettings,
+            LinuxPlatformServices.CreateDefaultSettings,
             ValidateShellSettings);
         return RunSelfTest(selfTestStartup.SettingsStore);
     }
@@ -56,11 +56,11 @@ try
 
     using var startup = ApplicationStartupContext.Create(
         runOptions,
-        UnixPlatformServices.CreateDefaultSettings,
+        LinuxPlatformServices.CreateDefaultSettings,
         ValidateShellSettings);
     JsonSettingsStore settingsStore = startup.SettingsStore;
 
-    using var platform = UnixPlatformServices.Create(
+    using var platform = LinuxPlatformServices.Create(
         settingsStore.ConfigDirectory,
         settingsStore.Settings.Shell);
 
@@ -102,7 +102,7 @@ static int RunSelfTest(JsonSettingsStore settingsStore)
 {
     if (OperatingSystem.IsWindows())
     {
-        Console.Error.WriteLine("Unix host cannot run on Windows.");
+        Console.Error.WriteLine("Linux host cannot run on Windows.");
         return 1;
     }
 
@@ -133,7 +133,7 @@ static int RunTerminalCheck()
 
     try
     {
-        using var driver = new AnsiTerminalConsoleDriver();
+        using var driver = AnsiTerminalConsoleDriver.CreateLinux();
         RunTerminalVisualCheck(driver);
         return 0;
     }

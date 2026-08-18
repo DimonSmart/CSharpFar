@@ -1,15 +1,15 @@
 namespace CSharpFar.FileSystem;
 
-public sealed class UnixMountInfoReader
+public sealed class LinuxMountInfoReader
 {
     private readonly string _path;
 
-    public UnixMountInfoReader(string path = "/proc/self/mountinfo")
+    public LinuxMountInfoReader(string path = "/proc/self/mountinfo")
     {
         _path = path;
     }
 
-    public IReadOnlyList<UnixMountInfoEntry> Read()
+    public IReadOnlyList<LinuxMountInfoEntry> Read()
     {
         try
         {
@@ -21,9 +21,9 @@ public sealed class UnixMountInfoReader
         }
     }
 
-    public static IReadOnlyList<UnixMountInfoEntry> Parse(IEnumerable<string> lines)
+    public static IReadOnlyList<LinuxMountInfoEntry> Parse(IEnumerable<string> lines)
     {
-        var entries = new List<UnixMountInfoEntry>();
+        var entries = new List<LinuxMountInfoEntry>();
         foreach (string line in lines)
         {
             if (TryParseLine(line, out var entry))
@@ -33,7 +33,7 @@ public sealed class UnixMountInfoReader
         return entries;
     }
 
-    internal static bool IsUserVisible(UnixMountInfoEntry entry)
+    internal static bool IsUserVisible(LinuxMountInfoEntry entry)
     {
         string mount = NormalizeMountPoint(entry.MountPoint);
         string fs = entry.FileSystemType;
@@ -72,7 +72,7 @@ public sealed class UnixMountInfoReader
         return full.Length > 1 ? full.TrimEnd('/') : full;
     }
 
-    private static bool TryParseLine(string line, out UnixMountInfoEntry entry)
+    private static bool TryParseLine(string line, out LinuxMountInfoEntry entry)
     {
         entry = default!;
         string[] sections = line.Split(" - ", 2, StringSplitOptions.None);
@@ -84,7 +84,7 @@ public sealed class UnixMountInfoReader
         if (left.Length < 5 || right.Length < 3)
             return false;
 
-        entry = new UnixMountInfoEntry(
+        entry = new LinuxMountInfoEntry(
             Source: Unescape(right[1]),
             MountPoint: Unescape(left[4]),
             FileSystemType: right[0]);

@@ -1,5 +1,6 @@
 using CSharpFar.FileSystem;
-using CSharpFar.Platform.Unix;
+using CSharpFar.Platform.Linux;
+using CSharpFar.Platform.MacOs;
 using CSharpFar.Platform.Windows;
 using CSharpFar.Shell;
 using CSharpFar.Tests.Fakes;
@@ -31,27 +32,43 @@ public sealed class PlatformCompositionTests
     }
 
     [Fact]
-    public void UnixPlatformServices_DoesNotUseWindowsOnlyImplementations()
+    public void LinuxPlatformServices_DoesNotUseWindowsOnlyImplementations()
     {
         var driver = new FakeConsoleDriver();
-        using var platform = new UnixPlatformServices(
+        using var platform = new LinuxPlatformServices(
             driver,
             driver,
             new ShellService("/bin/sh", "-c \"{0}\""),
             new UnixShellFileLauncher(new UnixExecutableFileDetector()),
             new FileCredentialStore(Path.GetTempPath()),
-            new UnixVolumeService(),
+            new LinuxVolumeService(),
             new VolumeInfoService(),
             new FileSystemLocationService(),
-            new UnixVolumeMountPointService(),
-            new UnixFileSystemPlatformOperations());
+            new LinuxVolumeMountPointService(),
+            new LinuxFileSystemPlatformOperations());
 
         Assert.IsNotType<WindowsShellFileLauncher>(platform.FileLauncher);
         Assert.IsNotType<DpapiCredentialStore>(platform.CredentialStore);
         Assert.IsNotType<WindowsVolumeService>(platform.VolumeService);
         Assert.IsType<UnixShellFileLauncher>(platform.FileLauncher);
         Assert.IsType<FileCredentialStore>(platform.CredentialStore);
-        Assert.IsType<UnixVolumeService>(platform.VolumeService);
-        Assert.IsType<UnixFileSystemPlatformOperations>(platform.FileSystemOperations);
+        Assert.IsType<LinuxVolumeService>(platform.VolumeService);
+        Assert.IsType<LinuxFileSystemPlatformOperations>(platform.FileSystemOperations);
+    }
+
+    [Fact]
+    public void MacOsPlatformServices_DoesNotUseLinuxOrWindowsVolumeServices()
+    {
+        var driver = new FakeConsoleDriver();
+        using var platform = new MacOsPlatformServices(
+            driver, driver, new ShellService("/bin/sh", "-c \"{0}\""),
+            new UnixShellFileLauncher(new UnixExecutableFileDetector(), new MacOsAssociationLauncher()),
+            new FileCredentialStore(Path.GetTempPath()), new MacOsVolumeService(), new VolumeInfoService(),
+            new FileSystemLocationService(), new MacOsVolumeMountPointService(), new MacOsFileSystemPlatformOperations());
+
+        Assert.IsType<MacOsVolumeService>(platform.VolumeService);
+        Assert.IsType<MacOsFileSystemPlatformOperations>(platform.FileSystemOperations);
+        Assert.IsNotType<LinuxVolumeService>(platform.VolumeService);
+        Assert.IsNotType<WindowsVolumeService>(platform.VolumeService);
     }
 }

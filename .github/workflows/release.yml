@@ -28,11 +28,23 @@ jobs:
             binary: CSharpFar.exe
             asset: CSharpFar-${{ github.ref_name }}-win-x64.zip
           - os: ubuntu-latest
-            project: src/CSharpFar.Host.Unix/CSharpFar.Host.Unix.csproj
+            project: src/CSharpFar.Host.Linux/CSharpFar.Host.Linux.csproj
             runtime: linux-x64
             archive: tar.gz
             binary: csharpfar
             asset: CSharpFar-${{ github.ref_name }}-linux-x64.tar.gz
+          - os: macos-latest
+            project: src/CSharpFar.Host.MacOs/CSharpFar.Host.MacOs.csproj
+            runtime: osx-arm64
+            archive: tar.gz
+            binary: csharpfar
+            asset: CSharpFar-${{ github.ref_name }}-osx-arm64.tar.gz
+          - os: macos-13
+            project: src/CSharpFar.Host.MacOs/CSharpFar.Host.MacOs.csproj
+            runtime: osx-x64
+            archive: tar.gz
+            binary: csharpfar
+            asset: CSharpFar-${{ github.ref_name }}-osx-x64.tar.gz
 
     steps:
       - name: Validate version tag
@@ -101,15 +113,15 @@ jobs:
             throw "Publish output must not contain .pdb files: $($debugSymbolNames -join ', ')"
           }
 
-          if ("${{ matrix.runtime }}" -eq "linux-x64") {
+          if ("${{ matrix.runtime }}" -eq "linux-x64" -or "${{ matrix.runtime }}" -like "osx-*") {
             if (-not (Test-Path $binaryPath -PathType Leaf)) {
-              throw "Linux binary is missing: $binaryPath"
+              throw "Unix binary is missing: $binaryPath"
             }
 
             chmod +x $binaryPath
             bash -c "test -x '$binaryPath'"
             if ($LASTEXITCODE -ne 0) {
-              throw "Linux binary is not executable: $binaryPath"
+              throw "Unix binary is not executable: $binaryPath"
             }
           }
 
@@ -122,6 +134,13 @@ jobs:
           if ($LASTEXITCODE -ne 0) {
             throw "--self-test failed for $binaryPath"
           }
+
+      - name: macOS terminal smoke test
+        if: startsWith(matrix.runtime, 'osx-')
+        shell: pwsh
+        run: |
+          $binaryPath = Join-Path $env:PUBLISH_DIR "${{ matrix.binary }}"
+          script -q /dev/null $binaryPath --check-terminal
 
       - name: Build Debian package
         if: matrix.runtime == 'linux-x64'
@@ -257,16 +276,20 @@ jobs:
 
           $windowsAsset = "CSharpFar-$env:GITHUB_REF_NAME-win-x64.zip"
           $linuxAsset = "CSharpFar-$env:GITHUB_REF_NAME-linux-x64.tar.gz"
+          $macArmAsset = "CSharpFar-$env:GITHUB_REF_NAME-osx-arm64.tar.gz"
+          $macX64Asset = "CSharpFar-$env:GITHUB_REF_NAME-osx-x64.tar.gz"
           $debianAsset = "csharpfar_$($env:GITHUB_REF_NAME.Substring(1))-1_amd64.deb"
           $notes = @(
             "## CSharpFar $env:GITHUB_REF_NAME",
             "",
-            "Experimental Windows x64 and Linux x64 builds.",
+            "Experimental Windows x64, Linux x64, and unsigned macOS builds.",
             "",
             "### Download",
             "- Windows: download ``$windowsAsset``, unpack it and run ``CSharpFar.exe``.",
             "- Debian/Ubuntu: download ``$debianAsset`` and install it with ``sudo apt install ./$debianAsset``.",
             "- Portable Linux: download ``$linuxAsset``, unpack it and run ``csharpfar``.",
+            "- macOS Apple Silicon: download ``$macArmAsset``, run ``tar -xzf $macArmAsset``, ``chmod +x csharpfar``, then ``./csharpfar``.",
+            "- macOS Intel: download ``$macX64Asset``, run ``tar -xzf $macX64Asset``, ``chmod +x csharpfar``, then ``./csharpfar``.",
             "",
             "### Install on Ubuntu/Debian",
             "``````bash",

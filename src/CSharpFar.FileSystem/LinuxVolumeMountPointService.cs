@@ -3,16 +3,16 @@ using CSharpFar.Core.Models;
 
 namespace CSharpFar.FileSystem;
 
-public sealed class UnixVolumeMountPointService : IVolumeMountPointService
+public sealed class LinuxVolumeMountPointService : IVolumeMountPointService
 {
-    private readonly UnixMountInfoReader _mountInfoReader;
+    private readonly LinuxMountInfoReader _mountInfoReader;
 
-    public UnixVolumeMountPointService()
-        : this(new UnixMountInfoReader())
+    public LinuxVolumeMountPointService()
+        : this(new LinuxMountInfoReader())
     {
     }
 
-    internal UnixVolumeMountPointService(UnixMountInfoReader mountInfoReader)
+    internal LinuxVolumeMountPointService(LinuxMountInfoReader mountInfoReader)
     {
         _mountInfoReader = mountInfoReader;
     }
@@ -24,10 +24,10 @@ public sealed class UnixVolumeMountPointService : IVolumeMountPointService
             if (!Directory.Exists(directoryPath))
                 return NotMounted();
 
-            string fullPath = UnixMountInfoReader.NormalizeMountPoint(directoryPath);
+            string fullPath = LinuxMountInfoReader.NormalizeMountPoint(directoryPath);
             var entry = _mountInfoReader.Read()
                 .FirstOrDefault(e => string.Equals(
-                    UnixMountInfoReader.NormalizeMountPoint(e.MountPoint),
+                    LinuxMountInfoReader.NormalizeMountPoint(e.MountPoint),
                     fullPath,
                     StringComparison.Ordinal));
             if (entry is not null)
@@ -36,7 +36,7 @@ public sealed class UnixVolumeMountPointService : IVolumeMountPointService
                 {
                     IsVolumeMountPoint = true,
                     VolumeName = entry.Source,
-                    VolumePath = UnixMountInfoReader.NormalizeMountPoint(entry.MountPoint),
+                    VolumePath = LinuxMountInfoReader.NormalizeMountPoint(entry.MountPoint),
                 };
             }
         }

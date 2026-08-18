@@ -3,16 +3,16 @@ using CSharpFar.Core.Models;
 
 namespace CSharpFar.FileSystem;
 
-public sealed class UnixVolumeService : IVolumeService
+public sealed class LinuxVolumeService : IVolumeService
 {
-    private readonly UnixMountInfoReader _mountInfoReader;
+    private readonly LinuxMountInfoReader _mountInfoReader;
 
-    public UnixVolumeService()
-        : this(new UnixMountInfoReader())
+    public LinuxVolumeService()
+        : this(new LinuxMountInfoReader())
     {
     }
 
-    internal UnixVolumeService(UnixMountInfoReader mountInfoReader)
+    internal LinuxVolumeService(LinuxMountInfoReader mountInfoReader)
     {
         _mountInfoReader = mountInfoReader;
     }
@@ -20,8 +20,8 @@ public sealed class UnixVolumeService : IVolumeService
     public IReadOnlyList<FileSystemVolume> GetVolumes()
     {
         var mountEntries = _mountInfoReader.Read()
-            .Where(UnixMountInfoReader.IsUserVisible)
-            .GroupBy(static entry => UnixMountInfoReader.NormalizeMountPoint(entry.MountPoint), StringComparer.Ordinal)
+            .Where(LinuxMountInfoReader.IsUserVisible)
+            .GroupBy(static entry => LinuxMountInfoReader.NormalizeMountPoint(entry.MountPoint), StringComparer.Ordinal)
             .Select(static group => group.First())
             .OrderBy(static entry => entry.MountPoint, StringComparer.Ordinal)
             .ToList();
@@ -32,9 +32,9 @@ public sealed class UnixVolumeService : IVolumeService
         return [BuildRootVolume()];
     }
 
-    private static FileSystemVolume BuildVolume(UnixMountInfoEntry entry)
+    private static FileSystemVolume BuildVolume(LinuxMountInfoEntry entry)
     {
-        string rootPath = UnixMountInfoReader.NormalizeMountPoint(entry.MountPoint);
+        string rootPath = LinuxMountInfoReader.NormalizeMountPoint(entry.MountPoint);
         TryGetSpace(rootPath, out long? total, out long? free, out var status);
 
         return new FileSystemVolume
@@ -66,11 +66,11 @@ public sealed class UnixVolumeService : IVolumeService
         };
     }
 
-    private static VolumeKind GetKind(UnixMountInfoEntry entry)
+    private static VolumeKind GetKind(LinuxMountInfoEntry entry)
     {
         if (entry.MountPoint == "/")
             return VolumeKind.Fixed;
-        if (UnixMountInfoReader.IsNetworkFileSystem(entry.FileSystemType))
+        if (LinuxMountInfoReader.IsNetworkFileSystem(entry.FileSystemType))
             return VolumeKind.Network;
         if (entry.FileSystemType is "tmpfs" or "ramfs")
             return VolumeKind.Ram;

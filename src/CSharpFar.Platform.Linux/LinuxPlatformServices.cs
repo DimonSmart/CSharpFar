@@ -6,13 +6,13 @@ using CSharpFar.FileSystem;
 using CSharpFar.Platform.Abstractions;
 using CSharpFar.Shell;
 
-namespace CSharpFar.Platform.Unix;
+namespace CSharpFar.Platform.Linux;
 
-public sealed class UnixPlatformServices : IPlatformServices
+public sealed class LinuxPlatformServices : IPlatformServices
 {
     private readonly IDisposable? _disposableConsoleDriver;
 
-    internal UnixPlatformServices(
+    internal LinuxPlatformServices(
         IConsoleDriver consoleDriver,
         ITerminalScreenMode terminalScreenMode,
         IShellService shellService,
@@ -51,20 +51,20 @@ public sealed class UnixPlatformServices : IPlatformServices
     public ITerminalScreenMode TerminalScreenMode { get; }
     public IProcessesAndPortsPlatformService ProcessesAndPorts { get; }
 
-    public static UnixPlatformServices Create(string configDirectory, AppSettings.ShellSettings shellSettings)
+    public static LinuxPlatformServices Create(string configDirectory, AppSettings.ShellSettings shellSettings)
     {
         var consoleDriver = CreateConsoleDriver();
-        return new UnixPlatformServices(
+        return new LinuxPlatformServices(
             consoleDriver,
             consoleDriver,
             new ShellService(new UnixShellCommandLineBuilder(shellSettings.Executable), ShellComposition.CreateRegistry()),
             new UnixShellFileLauncher(new UnixExecutableFileDetector(), new UnixAssociationLauncher(new UnixEnvironment())),
             new FileCredentialStore(configDirectory),
-            new UnixVolumeService(),
+            new LinuxVolumeService(),
             new VolumeInfoService(),
             new FileSystemLocationService(),
-            new UnixVolumeMountPointService(),
-            new UnixFileSystemPlatformOperations(),
+            new LinuxVolumeMountPointService(),
+            new LinuxFileSystemPlatformOperations(),
             new UnsupportedProcessesAndPortsPlatformService());
     }
 
@@ -78,5 +78,5 @@ public sealed class UnixPlatformServices : IPlatformServices
 
     public void Dispose() => _disposableConsoleDriver?.Dispose();
 
-    private static AnsiTerminalConsoleDriver CreateConsoleDriver() => new();
+    private static AnsiTerminalConsoleDriver CreateConsoleDriver() => AnsiTerminalConsoleDriver.CreateLinux();
 }

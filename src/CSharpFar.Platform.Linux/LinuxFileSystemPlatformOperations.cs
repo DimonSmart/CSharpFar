@@ -1,9 +1,9 @@
 using CSharpFar.Core.Abstractions;
 using CSharpFar.Core.Models;
 
-namespace CSharpFar.Platform.Unix;
+namespace CSharpFar.Platform.Linux;
 
-public sealed class UnixFileSystemPlatformOperations : IFileSystemPlatformOperations
+public sealed class LinuxFileSystemPlatformOperations : IFileSystemPlatformOperations
 {
     public bool SupportsRecycleBin => false;
 
@@ -67,7 +67,7 @@ public sealed class UnixFileSystemPlatformOperations : IFileSystemPlatformOperat
     private static void ThrowIfRecycleBinRequested(bool useRecycleBin)
     {
         if (useRecycleBin)
-            throw new PlatformNotSupportedException("Recycle bin is not supported on Unix yet.");
+            throw new PlatformNotSupportedException("Recycle bin is not supported on Linux yet.");
     }
 
     private static void TryPreserveTimes(

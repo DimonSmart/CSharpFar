@@ -68,5 +68,5 @@ dotnet run --project src/CSharpFar.Host.Windows/CSharpFar.Host.Windows.csproj
 Run the Unix host:
 
 ```bash
-dotnet run --project src/CSharpFar.Host.Unix/CSharpFar.Host.Unix.csproj
+dotnet run --project src/CSharpFar.Host.Linux/CSharpFar.Host.Linux.csproj
 ```

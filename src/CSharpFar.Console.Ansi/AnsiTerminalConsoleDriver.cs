@@ -13,7 +13,8 @@ public sealed class AnsiTerminalConsoleDriver : IConsoleDriver, IConsoleFrameWri
     private const string EnterAltScreen = "\x1b[?1049h";
     private const string LeaveAltScreen = "\x1b[?1049l";
     private const string ResetAttributes = "\x1b[0m";
-    private UnixTerminalMode? _diagnosticTerminalMode;
+    private ITerminalInputMode? _diagnosticTerminalMode;
+    private readonly Func<ITerminalInputMode> _terminalModeFactory;
     private readonly UnixTerminalInputByteReader _diagnosticInput;
     private readonly AnsiInputParser _inputParser = new();
     private readonly IConsoleInputReader _inputReader;
@@ -26,13 +27,13 @@ public sealed class AnsiTerminalConsoleDriver : IConsoleDriver, IConsoleFrameWri
     private bool _disposed;
     private readonly System.Text.StringBuilder _frameOutput = new();
 
-    public AnsiTerminalConsoleDriver()
-        : this(inputReader: null)
-    {
-    }
+    public static AnsiTerminalConsoleDriver CreateLinux() => new(() => new LinuxTerminalInputMode());
 
-    internal AnsiTerminalConsoleDriver(IConsoleInputReader? inputReader)
+    public static AnsiTerminalConsoleDriver CreateMacOs() => new(() => new MacOsTerminalInputMode());
+
+    internal AnsiTerminalConsoleDriver(Func<ITerminalInputMode> terminalModeFactory, IConsoleInputReader? inputReader = null)
     {
+        _terminalModeFactory = terminalModeFactory;
         if (global::System.Console.IsInputRedirected || global::System.Console.IsOutputRedirected)
             throw new InvalidOperationException("Ansi terminal console driver requires attached stdin and stdout terminals.");
 
@@ -42,7 +43,8 @@ public sealed class AnsiTerminalConsoleDriver : IConsoleDriver, IConsoleFrameWri
             new UnixTerminalInputByteReader(),
             GetSize,
             ResetCachedState,
-            WriteControl);
+            WriteControl,
+            terminalMode: _terminalModeFactory());
     }
 
     public bool IsSupported => true;
@@ -119,7 +121,7 @@ public sealed class AnsiTerminalConsoleDriver : IConsoleDriver, IConsoleFrameWri
     }
 
     public void EnableRawInputMode() =>
-        _diagnosticTerminalMode ??= new UnixTerminalMode();
+        _diagnosticTerminalMode ??= _terminalModeFactory();
 
     public void WriteRawControl(string sequence) =>
         WriteControl(sequence);

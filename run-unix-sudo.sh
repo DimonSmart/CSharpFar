@@ -28,16 +28,16 @@ if [[ -z "$dotnet_path" ]]; then
     exit 127
 fi
 
-"$dotnet_path" build src/CSharpFar.Host.Unix/CSharpFar.Host.Unix.csproj -c Debug
+"$dotnet_path" build src/CSharpFar.Host.Linux/CSharpFar.Host.Linux.csproj -c Debug
 
 if [[ "${EUID:-$(id -u)}" -eq 0 ]]; then
     echo "Launching CSharpFar as root:"
     id
-    env PATH="$PATH" TERM="${TERM:-xterm-256color}" DOTNET_ROOT="${DOTNET_ROOT:-}" "$dotnet_path" ./src/CSharpFar.Host.Unix/bin/Debug/net10.0/csharpfar.dll
+    env PATH="$PATH" TERM="${TERM:-xterm-256color}" DOTNET_ROOT="${DOTNET_ROOT:-}" "$dotnet_path" ./src/CSharpFar.Host.Linux/bin/Debug/net10.0/csharpfar.dll
 else
     echo "Requesting sudo before launching CSharpFar..."
     sudo -v
     echo "Launching CSharpFar with sudo:"
     sudo id
-    sudo env PATH="$PATH" TERM="${TERM:-xterm-256color}" DOTNET_ROOT="${DOTNET_ROOT:-}" "$dotnet_path" ./src/CSharpFar.Host.Unix/bin/Debug/net10.0/csharpfar.dll
+    sudo env PATH="$PATH" TERM="${TERM:-xterm-256color}" DOTNET_ROOT="${DOTNET_ROOT:-}" "$dotnet_path" ./src/CSharpFar.Host.Linux/bin/Debug/net10.0/csharpfar.dll
 fi
