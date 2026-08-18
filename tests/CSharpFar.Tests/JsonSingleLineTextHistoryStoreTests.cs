@@ -94,10 +94,12 @@ public sealed class JsonSingleLineTextHistoryStoreTests : IDisposable
         string historyPath = Path.Combine(_directory, "field-history.json");
         File.WriteAllText(historyPath, "{}");
         var diagnostics = new RecordingDiagnostics();
-        var store = new JsonSingleLineTextHistoryStore(_directory, diagnostics);
+        var store = new JsonSingleLineTextHistoryStore(
+            _directory,
+            diagnostics,
+            static (_, _, _) => { throw new IOException("Simulated move failure."); });
 
-        using (new FileStream(historyPath, FileMode.Open, FileAccess.Read, FileShare.None))
-            store.Save("A", ["value"]);
+        store.Save("A", ["value"]);
 
         Assert.Equal(TextHistoryPersistenceOperation.Save, Assert.Single(diagnostics.Failures).Operation);
         Assert.Empty(Directory.GetFiles(_directory, ".field-history.json.*.tmp"));

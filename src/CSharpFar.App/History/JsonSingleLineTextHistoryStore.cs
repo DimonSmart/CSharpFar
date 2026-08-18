@@ -16,12 +16,23 @@ public sealed class JsonSingleLineTextHistoryStore : ISingleLineTextHistoryStore
     private readonly string _filePath;
     private readonly Dictionary<string, List<string>> _fields = new(StringComparer.Ordinal);
     private readonly ITextFieldHistoryDiagnostics _diagnostics;
+    private readonly Action<string, string, bool> _moveFile;
 
     public JsonSingleLineTextHistoryStore(string configDirectory, ITextFieldHistoryDiagnostics? diagnostics = null)
+        : this(configDirectory, diagnostics, File.Move)
+    {
+    }
+
+    internal JsonSingleLineTextHistoryStore(
+        string configDirectory,
+        ITextFieldHistoryDiagnostics? diagnostics,
+        Action<string, string, bool> moveFile)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(configDirectory);
+        ArgumentNullException.ThrowIfNull(moveFile);
         _filePath = Path.Combine(configDirectory, "field-history.json");
         _diagnostics = diagnostics ?? new TraceTextFieldHistoryDiagnostics();
+        _moveFile = moveFile;
         LoadDocument();
     }
 
@@ -75,7 +86,7 @@ public sealed class JsonSingleLineTextHistoryStore : ISingleLineTextHistoryStore
             Directory.CreateDirectory(directory);
             temporaryPath = Path.Combine(directory, $".{Path.GetFileName(_filePath)}.{Guid.NewGuid():N}.tmp");
             File.WriteAllText(temporaryPath, JsonSerializer.Serialize(new Document { Version = Version, Fields = _fields }, JsonOptions));
-            File.Move(temporaryPath, _filePath, overwrite: true);
+            _moveFile(temporaryPath, _filePath, true);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or NotSupportedException)
         {
