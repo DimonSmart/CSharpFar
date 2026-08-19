@@ -2,7 +2,7 @@
 
 **A modern, cross-platform, Far-inspired file manager built with C# and .NET.**
 
-CSharpFar brings the fast, keyboard-first two-panel workflow of classic file managers to a modern C# codebase, with a built-in viewer and editor, powerful file operations, remote file systems, native plugins, mouse interaction, and support for both Windows and Linux.
+CSharpFar brings the fast, keyboard-first two-panel workflow of classic file managers to a modern C# codebase, with a built-in viewer and editor, powerful file operations, remote file systems, native plugins, mouse interaction, and support for Windows, Linux, and macOS.
 
 [![CSharpFar keyboard-first file manager demo](docs/images/csharpfar-demo.gif)](docs/demo.md)
 
@@ -26,7 +26,7 @@ It is inspired by Far Manager, but it is not intended to be a line-by-line clone
 - FTP / FTPS and SFTP file-system support.
 - Native CSharpFar plugin architecture.
 - Mouse support without sacrificing keyboard workflows.
-- Dedicated Windows and Linux hosts and platform implementations.
+- Dedicated Windows, Linux, and macOS hosts and platform implementations.
 - Custom terminal UI engine with layered composition and fine-grained redraws.
 - Built with C# and .NET 10.
 
@@ -44,9 +44,23 @@ This makes the project useful in two different ways: as a practical cross-platfo
 
 ## Quick start
 
-### Releases
+### macOS — Homebrew (recommended)
 
-Self-contained Windows and Linux builds are published on the [GitHub Releases](https://github.com/DimonSmart/CSharpFar/releases) page.
+CSharpFar uses this repository as a Homebrew tap. Add it once and install the formula:
+
+```bash
+brew tap dimonsmart/csharpfar https://github.com/DimonSmart/CSharpFar.git
+brew install dimonsmart/csharpfar/csharpfar
+```
+
+The formula automatically selects the Apple Silicon (`arm64`) or Intel (`x64`) release and installs the self-contained `csharpfar` executable. The .NET runtime is not required.
+
+Upgrade later with:
+
+```bash
+brew update
+brew upgrade dimonsmart/csharpfar/csharpfar
+```
 
 ### Ubuntu / Debian
 
@@ -60,13 +74,17 @@ Then run:
 csharpfar
 ```
 
-For packaged releases, manual APT setup and building from source, see [Installation](docs/installation.md).
+### Releases
+
+Self-contained Windows, Linux, macOS Apple Silicon, and macOS Intel builds are published on the [GitHub Releases](https://github.com/DimonSmart/CSharpFar/releases) page.
+
+For Homebrew details, packaged releases, manual APT setup and building from source, see [Installation](docs/installation.md).
 
 ## Documentation
 
 - [Features](docs/features.md) — capabilities and major subsystems.
 - [Viewer and editor](docs/viewer-and-editor.md) — viewer modes, navigation, search, encodings and editor overview.
-- [Installation](docs/installation.md) — releases, Ubuntu/Debian setup and building from source.
+- [Installation](docs/installation.md) — macOS/Homebrew, releases, Ubuntu/Debian setup and building from source.
 - [IDD intent index](.idd/intent/INDEX.md) — current durable product specifications and decisions.
 
 ## Status
