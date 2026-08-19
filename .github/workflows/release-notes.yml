@@ -1,0 +1,116 @@
+name: Release Notes
+
+on:
+  workflow_run:
+    workflows:
+      - Release
+    types:
+      - completed
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Release tag whose notes should be refreshed (for example v1.0.61)
+        required: false
+        type: string
+  push:
+    branches:
+      - master
+    paths:
+      - eng/packaging/release-notes-current-tag.txt
+
+permissions:
+  contents: write
+
+jobs:
+  update-release-notes:
+    if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout master
+        uses: actions/checkout@v4
+        with:
+          ref: master
+          fetch-depth: 0
+
+      - name: Resolve release tag
+        shell: pwsh
+        run: |
+          if ("${{ github.event_name }}" -eq "workflow_run") {
+            $headSha = "${{ github.event.workflow_run.head_sha }}"
+            $tag = git tag --points-at $headSha --list "v*.*.*" --sort=-v:refname |
+              Select-Object -First 1
+          }
+          elseif ("${{ github.event_name }}" -eq "workflow_dispatch" -and "${{ inputs.tag }}") {
+            $tag = "${{ inputs.tag }}"
+          }
+          else {
+            $tag = (Get-Content -Raw eng/packaging/release-notes-current-tag.txt).Trim()
+          }
+
+          if (-not $tag -or $tag -notmatch '^v\d+\.\d+\.\d+$') {
+            throw "Could not resolve a vMAJOR.MINOR.PATCH release tag. Got '$tag'."
+          }
+
+          "RELEASE_TAG=$tag" >> $env:GITHUB_ENV
+
+      - name: Add macOS Homebrew installation instructions
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $bodyLines = gh release view $env:RELEASE_TAG `
+            --repo $env:GITHUB_REPOSITORY `
+            --json body `
+            --jq .body
+
+          if ($LASTEXITCODE -ne 0) {
+            throw "Failed to read release notes for $env:RELEASE_TAG."
+          }
+
+          $body = $bodyLines -join [Environment]::NewLine
+          if ($body -match '(?m)^### Install on macOS') {
+            Write-Host "Release notes already contain macOS installation instructions."
+            exit 0
+          }
+
+          $homebrew = @(
+            "### Install on macOS (Homebrew recommended)",
+            "",
+            "Homebrew is the primary installation method on macOS:",
+            "",
+            '```bash',
+            "brew tap dimonsmart/csharpfar https://github.com/DimonSmart/CSharpFar.git",
+            "brew install dimonsmart/csharpfar/csharpfar",
+            '```',
+            "",
+            "Homebrew automatically selects the Apple Silicon (arm64) or Intel (x64) build.",
+            "",
+            "Upgrade later with:",
+            "",
+            '```bash',
+            "brew update",
+            "brew upgrade dimonsmart/csharpfar/csharpfar",
+            '```'
+          ) -join [Environment]::NewLine
+
+          $marker = "### Install on Ubuntu/Debian"
+          if ($body.Contains($marker)) {
+            $updated = $body.Replace(
+              $marker,
+              "$homebrew$([Environment]::NewLine)$([Environment]::NewLine)$marker")
+          }
+          else {
+            $updated = "$body$([Environment]::NewLine)$([Environment]::NewLine)$homebrew"
+          }
+
+          $notesPath = Join-Path $env:RUNNER_TEMP "release-notes.md"
+          $updated | Set-Content -Path $notesPath -Encoding utf8
+
+          gh release edit $env:RELEASE_TAG `
+            --repo $env:GITHUB_REPOSITORY `
+            --notes-file $notesPath
+
+          if ($LASTEXITCODE -ne 0) {
+            throw "Failed to update release notes for $env:RELEASE_TAG."
+          }
