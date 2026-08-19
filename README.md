@@ -44,23 +44,32 @@ This makes the project useful in two different ways: as a practical cross-platfo
 
 ## Quick start
 
-### macOS — Homebrew (recommended)
+### macOS — Homebrew
 
-CSharpFar uses this repository as a Homebrew tap. Add it once and install the formula:
+CSharpFar uses this repository as a Homebrew tap. Add it once:
 
 ```bash
 brew tap dimonsmart/csharpfar https://github.com/DimonSmart/CSharpFar.git
-brew install dimonsmart/csharpfar/csharpfar
 ```
 
-The formula automatically selects the Apple Silicon (`arm64`) or Intel (`x64`) release and installs the self-contained `csharpfar` executable. The .NET runtime is not required.
-
-Upgrade later with:
+For a normal macOS application in Applications/Finder, install the Cask:
 
 ```bash
-brew update
-brew upgrade dimonsmart/csharpfar/csharpfar
+brew install --cask dimonsmart/csharpfar/csharpfar-app
 ```
+
+Opening `CSharpFar.app` launches the terminal UI in Terminal. The Cask is generated from releases that contain the macOS app bundle assets.
+
+For command-line-only installation, install the Formula instead:
+
+```bash
+brew install dimonsmart/csharpfar/csharpfar
+csharpfar
+```
+
+Both packages are self-contained and automatically select Apple Silicon (`arm64`) or Intel (`x64`); a separately installed .NET runtime is not required.
+
+The macOS application is currently unsigned and not notarized, so the first launch may require choosing **Open** from the Finder context menu.
 
 ### Ubuntu / Debian
 
@@ -76,7 +85,7 @@ csharpfar
 
 ### Releases
 
-Self-contained Windows, Linux, macOS Apple Silicon, and macOS Intel builds are published on the [GitHub Releases](https://github.com/DimonSmart/CSharpFar/releases) page.
+Self-contained Windows, Linux, macOS Apple Silicon, and macOS Intel builds are published on the [GitHub Releases](https://github.com/DimonSmart/CSharpFar/releases) page. macOS releases include both portable CLI archives and `CSharpFar.app` archives.
 
 For Homebrew details, packaged releases, manual APT setup and building from source, see [Installation](docs/installation.md).
 
