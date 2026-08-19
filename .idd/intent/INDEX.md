@@ -64,3 +64,4 @@ Git history is the source for deleted or previous document versions.
 | 0073.spec-processes-and-ports.md | spec | Processes and Ports | Local endpoint diagnostics module |  |
 | 0074.spec-far-compatible-wildcard-destination-names.md | spec | FAR-compatible wildcard destination names | Destination name transformation for file operations |  |
 | 0075.spec-destination-templates.md | spec | Destination templates | Explicit per-source destination path evaluation for file operations |  |
+| 0076.spec-macos-homebrew-distribution.md | spec | macOS Homebrew distribution | Primary macOS install and upgrade path |  |
