@@ -114,10 +114,6 @@ jobs:
           }
 
           if ("${{ matrix.runtime }}" -eq "linux-x64" -or "${{ matrix.runtime }}" -like "osx-*") {
-            if (-not (Test-Path $binaryPath -PathType Leaf)) {
-              throw "Unix binary is missing: $binaryPath"
-            }
-
             chmod +x $binaryPath
             bash -c "test -x '$binaryPath'"
             if ($LASTEXITCODE -ne 0) {
@@ -141,6 +137,29 @@ jobs:
         run: |
           $binaryPath = Join-Path $env:PUBLISH_DIR "${{ matrix.binary }}"
           script -q /dev/null $binaryPath --check-terminal
+
+      - name: Build macOS application bundle
+        if: startsWith(matrix.runtime, 'osx-')
+        shell: pwsh
+        run: |
+          $appOutputDir = Join-Path $env:RUNNER_TEMP "app-${{ matrix.runtime }}"
+          $appDir = ./eng/packaging/build-macos-app.ps1 `
+            -PublishDir $env:PUBLISH_DIR `
+            -Version $env:VERSION `
+            -OutputDir $appOutputDir
+
+          $appAssetName = "CSharpFar-$env:GITHUB_REF_NAME-${{ matrix.runtime }}-app.zip"
+          $appAssetPath = Join-Path $env:RUNNER_TEMP $appAssetName
+          Remove-Item -LiteralPath $appAssetPath -Force -ErrorAction SilentlyContinue
+
+          & /usr/bin/ditto -c -k --sequesterRsrc --keepParent $appDir $appAssetPath
+          if ($LASTEXITCODE -ne 0 -or -not (Test-Path -LiteralPath $appAssetPath -PathType Leaf)) {
+            throw "Failed to package macOS application bundle: $appAssetPath"
+          }
+
+          $appHash = (Get-FileHash -Path $appAssetPath -Algorithm SHA256).Hash.ToLowerInvariant()
+          "$appHash  $appAssetName" | Set-Content -Path "$appAssetPath.sha256" -Encoding ascii
+          "MACOS_APP_ASSET_PATH=$appAssetPath" >> $env:GITHUB_ENV
 
       - name: Build Debian package
         if: matrix.runtime == 'linux-x64'
@@ -194,6 +213,22 @@ jobs:
           path: ${{ runner.temp }}/${{ matrix.asset }}.sha256
           if-no-files-found: error
 
+      - name: Upload macOS application bundle
+        if: startsWith(matrix.runtime, 'osx-')
+        uses: actions/upload-artifact@v4
+        with:
+          name: CSharpFar-${{ github.ref_name }}-${{ matrix.runtime }}-app.zip
+          path: ${{ env.MACOS_APP_ASSET_PATH }}
+          if-no-files-found: error
+
+      - name: Upload macOS application checksum fragment
+        if: startsWith(matrix.runtime, 'osx-')
+        uses: actions/upload-artifact@v4
+        with:
+          name: CSharpFar-${{ github.ref_name }}-${{ matrix.runtime }}-app.zip.sha256
+          path: ${{ env.MACOS_APP_ASSET_PATH }}.sha256
+          if-no-files-found: error
+
       - name: Upload Debian package artifact
         if: matrix.runtime == 'linux-x64'
         uses: actions/upload-artifact@v4
@@ -214,6 +249,12 @@ jobs:
         uses: actions/attest@v4
         with:
           subject-path: ${{ env.ASSET_PATH }}
+
+      - name: Generate macOS application attestation
+        if: startsWith(matrix.runtime, 'osx-')
+        uses: actions/attest@v4
+        with:
+          subject-path: ${{ env.MACOS_APP_ASSET_PATH }}
 
   release:
     name: Create release
@@ -278,6 +319,8 @@ jobs:
           $linuxAsset = "CSharpFar-$env:GITHUB_REF_NAME-linux-x64.tar.gz"
           $macArmAsset = "CSharpFar-$env:GITHUB_REF_NAME-osx-arm64.tar.gz"
           $macX64Asset = "CSharpFar-$env:GITHUB_REF_NAME-osx-x64.tar.gz"
+          $macArmAppAsset = "CSharpFar-$env:GITHUB_REF_NAME-osx-arm64-app.zip"
+          $macX64AppAsset = "CSharpFar-$env:GITHUB_REF_NAME-osx-x64-app.zip"
           $debianAsset = "csharpfar_$($env:GITHUB_REF_NAME.Substring(1))-1_amd64.deb"
           $notes = @(
             "## CSharpFar $env:GITHUB_REF_NAME",
@@ -288,8 +331,12 @@ jobs:
             "- Windows: download ``$windowsAsset``, unpack it and run ``CSharpFar.exe``.",
             "- Debian/Ubuntu: download ``$debianAsset`` and install it with ``sudo apt install ./$debianAsset``.",
             "- Portable Linux: download ``$linuxAsset``, unpack it and run ``csharpfar``.",
-            "- macOS Apple Silicon: download ``$macArmAsset``, run ``tar -xzf $macArmAsset``, ``chmod +x csharpfar``, then ``./csharpfar``.",
-            "- macOS Intel: download ``$macX64Asset``, run ``tar -xzf $macX64Asset``, ``chmod +x csharpfar``, then ``./csharpfar``.",
+            "- macOS Apple Silicon app: download ``$macArmAppAsset``, unpack it and move ``CSharpFar.app`` to Applications.",
+            "- macOS Intel app: download ``$macX64AppAsset``, unpack it and move ``CSharpFar.app`` to Applications.",
+            "- macOS Apple Silicon CLI: download ``$macArmAsset``, unpack it and run ``csharpfar``.",
+            "- macOS Intel CLI: download ``$macX64Asset``, unpack it and run ``csharpfar``.",
+            "",
+            "The macOS app is currently unsigned and not notarized. On first launch macOS may require using Open from the Finder context menu.",
             "",
             "### Install on Ubuntu/Debian",
             "``````bash",
@@ -331,7 +378,8 @@ jobs:
             "",
             "### Notes",
             "- Early development build.",
-            "- Windows executable is not code-signed yet, so Windows SmartScreen may show a warning."
+            "- Windows executable is not code-signed yet, so Windows SmartScreen may show a warning.",
+            "- macOS application bundles are not code-signed or notarized yet."
           )
 
           $notes | Set-Content -Path $notesPath -Encoding utf8
