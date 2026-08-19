@@ -39,7 +39,7 @@ jobs:
             archive: tar.gz
             binary: csharpfar
             asset: CSharpFar-${{ github.ref_name }}-osx-arm64.tar.gz
-          - os: macos-13
+          - os: macos-15-intel
             project: src/CSharpFar.Host.MacOs/CSharpFar.Host.MacOs.csproj
             runtime: osx-x64
             archive: tar.gz
