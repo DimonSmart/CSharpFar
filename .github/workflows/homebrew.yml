@@ -1,0 +1,104 @@
+name: Homebrew
+
+on:
+  workflow_run:
+    workflows:
+      - Release
+    types:
+      - completed
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Release tag to publish to the Homebrew formula (for example v1.0.60)
+        required: false
+        type: string
+  push:
+    branches:
+      - master
+    paths:
+      - eng/packaging/homebrew-current-tag.txt
+
+permissions:
+  contents: write
+
+jobs:
+  update-formula:
+    if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout master
+        uses: actions/checkout@v4
+        with:
+          ref: master
+          fetch-depth: 0
+
+      - name: Resolve release tag
+        shell: pwsh
+        run: |
+          if ("${{ github.event_name }}" -eq "workflow_run") {
+            $headSha = "${{ github.event.workflow_run.head_sha }}"
+            $tag = git tag --points-at $headSha --list "v*.*.*" --sort=-v:refname |
+              Select-Object -First 1
+          }
+          elseif ("${{ github.event_name }}" -eq "workflow_dispatch" -and "${{ inputs.tag }}") {
+            $tag = "${{ inputs.tag }}"
+          }
+          else {
+            $tag = (Get-Content -Raw eng/packaging/homebrew-current-tag.txt).Trim()
+          }
+
+          if (-not $tag -or $tag -notmatch '^v\d+\.\d+\.\d+$') {
+            throw "Could not resolve a vMAJOR.MINOR.PATCH release tag. Got '$tag'."
+          }
+
+          "RELEASE_TAG=$tag" >> $env:GITHUB_ENV
+          "VERSION=$($tag.Substring(1))" >> $env:GITHUB_ENV
+
+      - name: Download release checksums
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $downloadDir = Join-Path $env:RUNNER_TEMP "homebrew"
+          New-Item -ItemType Directory -Force -Path $downloadDir | Out-Null
+
+          gh release download $env:RELEASE_TAG `
+            --repo $env:GITHUB_REPOSITORY `
+            --pattern "SHA256SUMS.txt" `
+            --dir $downloadDir
+
+          if ($LASTEXITCODE -ne 0) {
+            throw "Failed to download SHA256SUMS.txt for $env:RELEASE_TAG."
+          }
+
+          "CHECKSUMS_PATH=$(Join-Path $downloadDir 'SHA256SUMS.txt')" >> $env:GITHUB_ENV
+
+      - name: Generate Homebrew formula
+        shell: pwsh
+        run: |
+          ./eng/packaging/update-homebrew-formula.ps1 `
+            -Version $env:VERSION `
+            -ChecksumsPath $env:CHECKSUMS_PATH `
+            -OutputPath Formula/csharpfar.rb
+
+          $env:RELEASE_TAG | Set-Content -Path eng/packaging/homebrew-current-tag.txt -Encoding ascii
+
+      - name: Validate formula syntax
+        run: ruby -c Formula/csharpfar.rb
+
+      - name: Commit Homebrew metadata
+        shell: pwsh
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add Formula/csharpfar.rb eng/packaging/homebrew-current-tag.txt
+
+          git diff --cached --quiet
+          if ($LASTEXITCODE -eq 0) {
+            Write-Host "Homebrew formula is already up to date."
+            exit 0
+          }
+
+          git commit -m "Update Homebrew formula for $env:RELEASE_TAG"
+          git push origin HEAD:master
