@@ -19,6 +19,8 @@ public sealed class FakeConsoleDriver : IConsoleDriver, IConsoleFrameWriter, ICo
         ConsoleColor Background,
         TextAttributes Attributes);
 
+    public readonly record struct CellWriteRecord(int X, int Y, int Width, int Height);
+
     private SnapshotCell[,] _buffer;
     private ConsoleSize _size;
     private int _bufferHeight;
@@ -27,6 +29,7 @@ public sealed class FakeConsoleDriver : IConsoleDriver, IConsoleFrameWriter, ICo
     private int _viewportTop;
     private readonly Queue<ConsoleInputEvent> _inputQueue = new();
     private readonly List<WriteRecord> _writeRecords = [];
+    private readonly List<CellWriteRecord> _cellWriteRecords = [];
     private readonly List<string> _operationLog = [];
 
     public int CursorX { get; private set; }
@@ -54,12 +57,14 @@ public sealed class FakeConsoleDriver : IConsoleDriver, IConsoleFrameWriter, ICo
     public int RestoreTerminalCallCount { get; private set; }
     public Action<FakeConsoleDriver>? BeforeReadInput { get; set; }
     public Action<FakeConsoleDriver>? BeforeTryReadInput { get; set; }
+    public Action<FakeConsoleDriver>? BeforeGetViewport { get; set; }
     public Action<FakeConsoleDriver>? BeforeViewportWrite { get; set; }
     public int? ResizeAfterWriteCount { get; set; }
     public Action<FakeConsoleDriver>? ResizeAfterWrite { get; set; }
     public int PendingInputCount => _inputQueue.Count;
     public ConsoleInputEvent? LastDequeuedInput { get; private set; }
     public IReadOnlyList<WriteRecord> WriteRecords => _writeRecords;
+    public IReadOnlyList<CellWriteRecord> CellWriteRecords => _cellWriteRecords;
     public IReadOnlyList<string> OperationLog => _operationLog;
     public event Action<WriteRecord>? Wrote;
 
@@ -80,7 +85,11 @@ public sealed class FakeConsoleDriver : IConsoleDriver, IConsoleFrameWriter, ICo
         return buf;
     }
 
-    public ConsoleViewport GetViewport() => new(_viewportLeft, _viewportTop, _size.Width, _size.Height);
+    public ConsoleViewport GetViewport()
+    {
+        BeforeGetViewport?.Invoke(this);
+        return new(_viewportLeft, _viewportTop, _size.Width, _size.Height);
+    }
 
     public ConsoleSize GetSize() => _size;
 
@@ -255,6 +264,7 @@ public sealed class FakeConsoleDriver : IConsoleDriver, IConsoleFrameWriter, ICo
 
         WriteAtCallCount++;
         _operationLog.Add("WriteCells");
+        _cellWriteRecords.Add(new CellWriteRecord(x, y, width, height));
         for (int row = 0; row < height; row++)
         {
             for (int column = 0; column < width; column++)
@@ -273,7 +283,7 @@ public sealed class FakeConsoleDriver : IConsoleDriver, IConsoleFrameWriter, ICo
         return true;
     }
 
-    public ConsoleFrameWriteCapabilities Capabilities => ConsoleFrameWriteCapabilities.None;
+    public ConsoleFrameWriteCapabilities Capabilities { get; set; }
 
     public bool TryWriteDirtyCellsAtViewport(
         ConsoleViewport viewport,
@@ -467,6 +477,7 @@ public sealed class FakeConsoleDriver : IConsoleDriver, IConsoleFrameWriter, ICo
         TryScrollViewportToBottomCallCount = 0;
         SetConsoleScrollbackEnabledCallCount = 0;
         _writeRecords.Clear();
+        _cellWriteRecords.Clear();
         _operationLog.Clear();
     }
 

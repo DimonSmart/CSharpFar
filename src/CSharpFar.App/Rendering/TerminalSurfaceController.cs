@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using CSharpFar.App.State;
 using CSharpFar.Console;
 using CSharpFar.Console.Input;
@@ -7,6 +8,10 @@ namespace CSharpFar.App.Rendering;
 
 internal sealed class TerminalSurfaceController
 {
+    private static readonly TimeSpan ResizeSampleInterval = TimeSpan.FromMilliseconds(25);
+    private static readonly TimeSpan ResizeQuietInterval = TimeSpan.FromMilliseconds(125);
+    private static readonly TimeSpan ResizeStabilizationTimeout = TimeSpan.FromSeconds(2);
+
     private readonly ScreenRenderer _screen;
     private readonly ITerminalScreenMode? _terminalScreenMode;
     private readonly ShellUnderlayService _shellUnderlay;
@@ -146,12 +151,8 @@ internal sealed class TerminalSurfaceController
         HiddenResizeTrace.Write(
             $"PrepareHiddenResize start pinned={_hiddenViewportPinnedToBottom} viewport={HiddenResizeTrace.Viewport(_screen.GetViewport())}");
 
-        _hiddenResizeStartedPinnedToBottom = _hiddenViewportPinnedToBottom;
-        if (_hiddenResizeStartedPinnedToBottom)
-            _screen.TryScrollViewportToBottom();
-
         HiddenResizeTrace.Write(
-            $"PrepareHiddenResize afterScroll viewport={HiddenResizeTrace.Viewport(_screen.GetViewport())}");
+            $"PrepareHiddenResize stableViewport={HiddenResizeTrace.Viewport(_screen.GetViewport())}");
         _shellUnderlay.RemoveHiddenOverlay();
         HiddenResizeTrace.Write(
             $"PrepareHiddenResize afterOverlayRemove viewport={HiddenResizeTrace.Viewport(_screen.GetViewport())}");
@@ -163,10 +164,57 @@ internal sealed class TerminalSurfaceController
             $"PrepareHiddenResize done viewport={HiddenResizeTrace.Viewport(_screen.GetViewport())} last={(_ui.LastRenderViewport.HasValue ? HiddenResizeTrace.Viewport(_ui.LastRenderViewport.Value) : "<none>")}");
     }
 
+    public void BeginHiddenResize()
+    {
+        if (IsPanelsMode)
+            return;
+
+        _hiddenResizeStartedPinnedToBottom = _hiddenViewportPinnedToBottom;
+        if (_hiddenResizeStartedPinnedToBottom)
+            _screen.TryScrollViewportToBottom();
+
+        HiddenResizeTrace.Write(
+            $"BeginHiddenResize remove transient overlay viewport={HiddenResizeTrace.Viewport(_screen.GetViewport())}");
+        _shellUnderlay.RemoveHiddenOverlayAfterReflow();
+    }
+
+    public ConsoleViewport WaitForStableHiddenGeometry()
+    {
+        ConsoleViewport current = _screen.GetViewport();
+        var elapsed = Stopwatch.StartNew();
+        TimeSpan stableSince = elapsed.Elapsed;
+
+        HiddenResizeTrace.Write($"Resize stabilization started viewport={HiddenResizeTrace.Viewport(current)}");
+        while (elapsed.Elapsed < ResizeStabilizationTimeout)
+        {
+            Thread.Sleep(ResizeSampleInterval);
+            ConsoleViewport sample = _screen.GetViewport();
+            if (sample != current)
+            {
+                HiddenResizeTrace.Write(
+                    $"Resize geometry changed from={HiddenResizeTrace.Viewport(current)} to={HiddenResizeTrace.Viewport(sample)}; recovery coalesced");
+                current = sample;
+                stableSince = elapsed.Elapsed;
+                continue;
+            }
+
+            if (elapsed.Elapsed - stableSince >= ResizeQuietInterval)
+            {
+                HiddenResizeTrace.Write($"Resize geometry stable viewport={HiddenResizeTrace.Viewport(current)}");
+                return current;
+            }
+        }
+
+        HiddenResizeTrace.Write($"Resize stabilization timed out viewport={HiddenResizeTrace.Viewport(current)}");
+        return current;
+    }
+
     public void MarkHiddenCommandLineRenderCompleted()
     {
         if (IsPanelsMode)
             return;
+
+        _shellUnderlay.CaptureRenderedHiddenOverlay();
 
         if (_hiddenResizeStartedPinnedToBottom)
         {

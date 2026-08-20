@@ -13,6 +13,12 @@ namespace CSharpFar.Console;
 /// </summary>
 public sealed class ScreenRenderer
 {
+    private enum FrameOwnership
+    {
+        Application,
+        CapturedExternalSurface,
+    }
+
     private readonly IConsoleDriver _driver;
     private BufferCell[,]? _frontBuffer;
     private BufferCell[,]? _backBuffer;
@@ -23,6 +29,7 @@ public sealed class ScreenRenderer
     private ConsoleSize _frameSize;
     private ConsoleViewport _frameViewport;
     private bool _forceFullFrame;
+    private FrameOwnership _frameOwnership;
     private bool? _cursorVisible;
     private int _pendingCursorX;
     private int _pendingCursorY;
@@ -144,7 +151,7 @@ public sealed class ScreenRenderer
             throw new InvalidOperationException("A render frame is already active.");
 
         var viewport = _driver.GetViewport();
-        return BeginFrame(viewport);
+        return BeginFrame(viewport, FrameOwnership.Application);
     }
 
     public IDisposable BeginFrameFromCurrentViewportCapture()
@@ -160,12 +167,12 @@ public sealed class ScreenRenderer
         CopySnapshotToBuffer(_frontBuffer!, snapshot);
         _frontBufferKnown = true;
         _frontBufferViewport = viewport;
-        _forceFullFrame = true;
+        _forceFullFrame = false;
 
-        return BeginFrame(viewport);
+        return BeginFrame(viewport, FrameOwnership.CapturedExternalSurface);
     }
 
-    private IDisposable BeginFrame(ConsoleViewport viewport)
+    private IDisposable BeginFrame(ConsoleViewport viewport, FrameOwnership ownership)
     {
         var size = viewport.Size;
         EnsureBuffers(size);
@@ -180,7 +187,10 @@ public sealed class ScreenRenderer
         _pendingCursorVisible = null;
         _frameSize = size;
         _frameViewport = viewport;
+        _frameOwnership = ownership;
         _frameActive = true;
+        if (TerminalTrace.Enabled)
+            TerminalTrace.Write("renderer", $"FRAME BEGIN ownership={ownership} viewport={viewport}");
         FrameWasInterrupted = false;
 
         return new Frame(this);
@@ -475,27 +485,34 @@ public sealed class ScreenRenderer
 
         long allocatedBefore = GC.GetAllocatedBytesForCurrentThread();
         var frameStopwatch = Stopwatch.StartNew();
-        var present = FlushFrame();
-
-        if (!FrameWasInterrupted &&
-            (_hasPendingCursorPosition || _pendingCursorVisible.HasValue))
+        try
         {
-            if (_hasPendingCursorPosition)
+            var present = FlushFrame();
+
+            if (!FrameWasInterrupted &&
+                (_hasPendingCursorPosition || _pendingCursorVisible.HasValue))
             {
-                if (!_driver.TrySetCursorPositionInViewport(_frameViewport, _pendingCursorX, _pendingCursorY))
-                    InterruptFrame();
+                if (_hasPendingCursorPosition)
+                {
+                    if (!_driver.TrySetCursorPositionInViewport(_frameViewport, _pendingCursorX, _pendingCursorY))
+                        InterruptFrame();
+                }
+                if (!FrameWasInterrupted && _pendingCursorVisible.HasValue)
+                    ApplyCursorVisible(_pendingCursorVisible.Value);
             }
-            if (!FrameWasInterrupted && _pendingCursorVisible.HasValue)
-                ApplyCursorVisible(_pendingCursorVisible.Value);
-        }
 
-        _frameActive = false;
-        frameStopwatch.Stop();
-        PresentationMetrics.Add(present with
+            frameStopwatch.Stop();
+            PresentationMetrics.Add(present with
+            {
+                FrameTime = frameStopwatch.Elapsed,
+                AllocatedBytes = GC.GetAllocatedBytesForCurrentThread() - allocatedBefore,
+            });
+        }
+        finally
         {
-            FrameTime = frameStopwatch.Elapsed,
-            AllocatedBytes = GC.GetAllocatedBytesForCurrentThread() - allocatedBefore,
-        });
+            _frameOwnership = FrameOwnership.Application;
+            _frameActive = false;
+        }
     }
 
     private FramePresentationMeasurement FlushFrame()
@@ -544,8 +561,15 @@ public sealed class ScreenRenderer
             return Complete();
 
         if (CanWriteBatch(ConsoleFrameWriteCapabilities.WindowsCells) &&
+            _frameOwnership == FrameOwnership.Application &&
             _presentationMode == ScreenPresentationMode.Win32FrameBatch)
         {
+            if (TerminalTrace.Enabled)
+            {
+                TerminalTrace.Write(
+                    "renderer",
+                    $"WRITE type=Win32FrameBatch ownership={_frameOwnership} region=(0,0,{width},{height})");
+            }
             FillPresentationBuffer(0, 0, width, height);
             if (!WriteCells(0, 0, width, height))
             {
@@ -633,6 +657,12 @@ public sealed class ScreenRenderer
                     }
 
                     outputCalls++;
+                    if (TerminalTrace.Enabled)
+                    {
+                        TerminalTrace.Write(
+                            "renderer",
+                            $"WRITE type=dirty ownership={_frameOwnership} region=({start},{y},{end - start},1)");
+                    }
                     transmittedCharacters += chars.Length;
                     transmittedCells += end - start;
                     transmittedBytes += System.Text.Encoding.UTF8.GetByteCount(text);

@@ -631,12 +631,12 @@ public sealed class ApplicationNavigationTests : IDisposable
     }
 
     [Fact]
-    public void Run_HiddenCommandLineRepeatedVerticalResize_LeavesOnlyFinalCommandLine()
+    public void Run_HiddenCommandLineResizeBurst_CoalescesToOneStablePrompt()
     {
         var fs = new FakeFileSystemService();
         fs.AddDirectory(_tempDir);
 
-        var driver = new FakeConsoleDriver(width: 80, height: 12);
+        var driver = new FakeConsoleDriver(width: 120, height: 30) { IsSupported = true };
         driver.EnqueueKey(Key(ConsoleKey.O, keyChar: '\u000f', control: true));
         driver.EnqueueInput(new ConsoleResizeInputEvent());
         driver.EnqueueInput(new ConsoleResizeInputEvent());
@@ -644,19 +644,31 @@ public sealed class ApplicationNavigationTests : IDisposable
         driver.EnqueueInput(new ConsoleResizeInputEvent());
         driver.EnqueueKey(Key(ConsoleKey.F10));
 
-        int finalRow = ApplicationLayoutService.CommandLineRow(new ConsoleSize(80, 16));
+        int finalRow = ApplicationLayoutService.CommandLineRow(new ConsoleSize(120, 30));
         BeforeEachRead(
             driver,
             _ => { },
-            afterHide => afterHide.SetSize(80, 8),
-            afterFirstResize => afterFirstResize.SetSize(80, 14),
-            afterSecondResize => afterSecondResize.SetSize(80, 10),
-            afterThirdResize => afterThirdResize.SetSize(80, 16),
-            afterFinalResize =>
-                Assert.Equal([finalRow], RowsContainingCommandPrompt(afterFinalResize)));
+            afterHide =>
+            {
+                afterHide.ClearRegion(new Rect(0, finalRow, 120, 1));
+                afterHide.ClearRecordedOperations();
+                var widths = new Queue<int>([108, 104, 108, 120]);
+                afterHide.BeforeGetViewport = sample =>
+                {
+                    if (widths.TryDequeue(out int width))
+                        sample.SetSize(width, 30);
+                    else
+                        sample.BeforeGetViewport = null;
+                };
+            });
 
-        var app = CreateApp(fs, driver, _tempDir);
+        var app = CreateApp(fs, driver, _tempDir, terminalScreenMode: driver);
         app.Run();
+
+        Assert.Equal(new ConsoleSize(120, 30), driver.GetSize());
+        Assert.Equal(finalRow, driver.CursorY);
+        Assert.Equal(1, driver.TrySetCursorPositionInViewportCallCount);
+        Assert.Equal(0, driver.PendingInputCount);
     }
 
     [Fact]
@@ -956,13 +968,11 @@ public sealed class ApplicationNavigationTests : IDisposable
                 Assert.False(afterHide.IsApplicationScreenActive);
                 Assert.Equal(1, afterHide.TryScrollViewportToBottomCallCount);
                 Assert.Equal(18, afterHide.GetViewport().Top);
-                Assert.True(afterHide.WriteAtCallCount > 0);
                 AssertOperationOrder(
                     afterHide,
                     "LeaveApplicationScreen",
                     "TryScrollViewportToBottom",
-                    "Capture",
-                    "WriteAt");
+                    "Capture");
                 Assert.Equal(0, afterHide.ClearRegionCallCount);
                 Assert.Equal(0, afterHide.SetConsoleScrollbackEnabledCallCount);
             };
@@ -996,8 +1006,7 @@ public sealed class ApplicationNavigationTests : IDisposable
                     afterHide,
                     "LeaveApplicationScreen",
                     "TryScrollViewportToBottom",
-                    "Capture",
-                    "WriteAt");
+                    "Capture");
                 afterHide.BeforeReadInput = afterShow =>
                 {
                     Assert.True(afterShow.IsApplicationScreenActive);
@@ -1012,8 +1021,7 @@ public sealed class ApplicationNavigationTests : IDisposable
                             afterSecondHide,
                             "LeaveApplicationScreen",
                             "TryScrollViewportToBottom",
-                            "Capture",
-                            "WriteAt");
+                            "Capture");
                         Assert.Equal(0, afterSecondHide.ClearRegionCallCount);
                     };
                 };

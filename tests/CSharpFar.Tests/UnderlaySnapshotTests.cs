@@ -201,4 +201,27 @@ public class UnderlaySnapshotTests
 
         Assert.StartsWith("SHELL-BEFORE", driver.GetRow(6));
     }
+
+    [Fact]
+    public void HiddenResizeCleanup_RemovesPromptMovedByConsoleReflow()
+    {
+        var (renderer, driver) = Create(40, 8);
+        var underlay = new ShellUnderlayService(renderer);
+        ConsoleViewport viewport = renderer.GetViewport();
+        int row = ApplicationLayoutService.CommandLineRow(viewport.Size);
+        underlay.PrepareHiddenOverlay(viewport, new Rect(0, row, viewport.Width, 1));
+        UiTestRender.Render(renderer, canvas =>
+            new ApplicationCommandLineRenderer(() => PaletteRegistry.Default)
+                .Render(canvas, row, viewport.Size, @"C:\Work", new CommandLineState()));
+        underlay.CaptureRenderedHiddenOverlay();
+
+        driver.SetSize(36, 8);
+        driver.ClearRegion(new Rect(0, row, 36, 1));
+        driver.WriteAt(0, row - 1, @"C:\Work>".AsSpan());
+
+        underlay.RemoveHiddenOverlayAfterReflow();
+
+        Assert.DoesNotContain(@"C:\Work>", driver.GetRow(row - 1), StringComparison.Ordinal);
+        Assert.DoesNotContain(@"C:\Work>", driver.GetRow(row), StringComparison.Ordinal);
+    }
 }

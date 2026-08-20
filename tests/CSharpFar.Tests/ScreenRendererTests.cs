@@ -217,6 +217,71 @@ public class ScreenRendererTests
     }
 
     [Fact]
+    public void CapturedExternalFrame_Win32FrameBatch_WritesOnlyDirtyCells()
+    {
+        var driver = new FakeConsoleDriver(80, 25)
+        {
+            Capabilities = ConsoleFrameWriteCapabilities.WindowsCells,
+        };
+        var renderer = new ScreenRenderer(driver, ScreenPresentationMode.Win32FrameBatch);
+        var style = new CellStyle(ConsoleColor.White, ConsoleColor.Black);
+        driver.WriteAt(0, 0, "shell history".AsSpan(), style.Foreground, style.Background);
+        driver.ClearRecordedOperations();
+
+        using (renderer.BeginFrameFromCurrentViewportCapture())
+            renderer.Write(4, 24, "prompt", style);
+
+        Assert.Empty(driver.CellWriteRecords);
+        Assert.Contains(driver.WriteRecords, write => write.X == 4 && write.Y == 24 && write.Text == "prompt");
+        Assert.StartsWith("shell history", driver.GetRow(0));
+    }
+
+    [Fact]
+    public void ApplicationFrame_Win32FrameBatch_KeepsFullViewportWrite()
+    {
+        var driver = new FakeConsoleDriver(80, 25)
+        {
+            Capabilities = ConsoleFrameWriteCapabilities.WindowsCells,
+        };
+        var renderer = new ScreenRenderer(driver, ScreenPresentationMode.Win32FrameBatch);
+
+        using (renderer.BeginFrame())
+            renderer.FillRegion(new Rect(0, 0, 80, 25), CellStyle.Default);
+
+        Assert.Equal(
+            new FakeConsoleDriver.CellWriteRecord(0, 0, 80, 25),
+            Assert.Single(driver.CellWriteRecords));
+    }
+
+    [Fact]
+    public void InterruptedCapturedFrame_DoesNotLeakExternalOwnershipToNextFrame()
+    {
+        var driver = new FakeConsoleDriver(20, 5)
+        {
+            Capabilities = ConsoleFrameWriteCapabilities.WindowsCells,
+        };
+        var renderer = new ScreenRenderer(driver, ScreenPresentationMode.Win32FrameBatch);
+        driver.BeforeViewportWrite = current =>
+        {
+            current.BeforeViewportWrite = null;
+            current.SetSize(21, 5);
+        };
+
+        using (renderer.BeginFrameFromCurrentViewportCapture())
+            renderer.Write(0, 4, "prompt", CellStyle.Default);
+
+        Assert.True(renderer.FrameWasInterrupted);
+        driver.ClearRecordedOperations();
+
+        using (renderer.BeginFrame())
+            renderer.FillRegion(new Rect(0, 0, 21, 5), CellStyle.Default);
+
+        Assert.Equal(
+            new FakeConsoleDriver.CellWriteRecord(0, 0, 21, 5),
+            Assert.Single(driver.CellWriteRecords));
+    }
+
+    [Fact]
     public void InvalidatePhysicalOutput_RedrawsCapturedContentAfterSurfaceChanges()
     {
         var (renderer, driver) = Create(10, 5);
