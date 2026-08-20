@@ -105,6 +105,7 @@ internal sealed class ApplicationRenderCoordinator
             size,
             activeState.CurrentDirectory,
             _context.CommandLine);
+        TracePromptWrite(context, commandLine, activeState.CurrentDirectory);
 
         return new ApplicationUiFrame(
             context.Viewport,
@@ -262,6 +263,22 @@ internal sealed class ApplicationRenderCoordinator
         previous.Frame.PromptLength == current.Frame.PromptLength &&
         previous.Frame.DisplayOffset == current.Frame.DisplayOffset &&
         previous.Frame.TextLength == current.Frame.TextLength;
+
+    private static void TracePromptWrite(
+        UiRenderContext context,
+        ApplicationCommandLineFrame frame,
+        string currentDirectory)
+    {
+        if (!HiddenResizeTrace.Enabled)
+            return;
+
+        int textLength = currentDirectory.Length + 1;
+        HiddenResizeTrace.Write(
+            $"PROMPT_WRITE viewportWidth={context.Viewport.Width} viewportHeight={context.Viewport.Height} row={frame.Bounds.Y} x={frame.Bounds.X} writeLength={frame.Bounds.Width} textLength={textLength}");
+        if (frame.Cursor is { } cursor)
+            HiddenResizeTrace.Write(
+                $"PROMPT_CURSOR viewportWidth={context.Viewport.Width} viewportHeight={context.Viewport.Height} row={cursor.Y} x={cursor.X}");
+    }
 
     private void UpdateQuickViewDirSize()
     {

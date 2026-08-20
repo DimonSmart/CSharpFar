@@ -8,6 +8,7 @@ internal sealed class ShellUnderlayService
     private readonly ScreenRenderer _screen;
     private ScreenSnapshot? _underlay;
     private HiddenOverlay? _hiddenOverlay;
+    private ScreenSnapshot? _renderedHiddenOverlay;
 
     public ShellUnderlayService(ScreenRenderer screen)
     {
@@ -78,6 +79,39 @@ internal sealed class ShellUnderlayService
         HiddenResizeTrace.Write(
             $"Overlay.Prepare captured snapshotViewport={HiddenResizeTrace.Viewport(snapshot.Viewport)} bounds={bounds}");
         _hiddenOverlay = new HiddenOverlay(viewport, bounds, snapshot);
+        _renderedHiddenOverlay = null;
+    }
+
+    public void CaptureRenderedHiddenOverlay()
+    {
+        if (_hiddenOverlay is not { } overlay)
+            return;
+
+        _renderedHiddenOverlay = _screen.Capture(overlay.Bounds);
+    }
+
+    public void RemoveHiddenOverlayAfterReflow()
+    {
+        ScreenSnapshot? rendered = _renderedHiddenOverlay;
+        RemoveHiddenOverlay();
+        if (rendered is null)
+            return;
+
+        string prompt = LastRenderedLine(rendered).TrimEnd();
+        if (prompt.Length == 0)
+            return;
+
+        ConsoleViewport viewport = _screen.GetViewport();
+        ScreenSnapshot current = _screen.Capture(new Rect(0, 0, viewport.Width, viewport.Height));
+        int firstCandidateRow = Math.Max(0, viewport.Height - 8);
+        for (int row = firstCandidateRow; row < viewport.Height; row++)
+        {
+            if (!RowStartsWith(current, row, prompt))
+                continue;
+
+            HiddenResizeTrace.Write($"Overlay.Remove cleared reflowed prompt row={row} width={viewport.Width}");
+            _screen.ClearRegion(new Rect(0, row, viewport.Width, 1));
+        }
     }
 
     public void RemoveHiddenOverlay()
@@ -86,6 +120,7 @@ internal sealed class ShellUnderlayService
             return;
 
         _hiddenOverlay = null;
+        _renderedHiddenOverlay = null;
 
         var viewport = _screen.GetViewport();
         HiddenResizeTrace.Write(
@@ -105,6 +140,26 @@ internal sealed class ShellUnderlayService
                 HiddenResizeTrace.Write("Overlay.Remove discarded stale viewport");
             }
         }
+    }
+
+    private static string LastRenderedLine(ScreenSnapshot snapshot)
+    {
+        int row = snapshot.Region.Height - 1;
+        return new string(Enumerable.Range(0, snapshot.Region.Width)
+            .Select(column => snapshot.Cells[row, column].Character)
+            .ToArray());
+    }
+
+    private static bool RowStartsWith(ScreenSnapshot snapshot, int row, string text)
+    {
+        if (text.Length > snapshot.Region.Width)
+            return false;
+
+        for (int column = 0; column < text.Length; column++)
+            if (snapshot.Cells[row, column].Character != text[column])
+                return false;
+
+        return true;
     }
 
     private static ScreenSnapshot? CreateOverlayUnderlayForCurrentViewport(

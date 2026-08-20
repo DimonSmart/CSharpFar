@@ -336,6 +336,13 @@ internal sealed class ApplicationUiSurface : UiLayer<ApplicationUiFrame>, IUiSur
         if (request.IsResizeRecovery)
         {
             if (_context.TerminalSurface.UsesTerminalScreenMode)
+                _context.TerminalSurface.BeginHiddenResize();
+
+            ConsoleViewport resizeViewport = _context.TerminalSurface.WaitForStableHiddenGeometry();
+            HiddenResizeTrace.Write(
+                $"Hidden recovery started viewport={HiddenResizeTrace.Viewport(resizeViewport)}");
+
+            if (_context.TerminalSurface.UsesTerminalScreenMode)
                 _context.TerminalSurface.PrepareHiddenResize();
             else
                 _context.TerminalSurface.RestoreHiddenScreen();

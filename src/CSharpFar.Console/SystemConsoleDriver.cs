@@ -791,6 +791,9 @@ public sealed class SystemConsoleDriver : IConsoleDriver, IConsoleFrameWriter, I
             return false;
         }
 
+        if (TerminalTrace.Enabled)
+            TerminalTrace.Write("console", $"WRITE type=Win32FrameBatch viewport={viewport} bufferWidthAtWrite={before.dwSize.X} region=({x},{y},{width},{height})");
+
         int cellCount = width * height;
         if (_frameWriteBuffer.Length < cellCount)
             _frameWriteBuffer = new CharInfo[cellCount];
@@ -834,6 +837,8 @@ public sealed class SystemConsoleDriver : IConsoleDriver, IConsoleFrameWriter, I
             return CaptureFallback(GetViewport(), region);
 
         var viewport = ToViewport(sbi);
+        if (TerminalTrace.Enabled)
+            TerminalTrace.Write("console", $"CAPTURE viewport={viewport} bufferWidthAtCapture={sbi.dwSize.X} region={region}");
 
         var sr = new SmallRect
         {
@@ -898,6 +903,9 @@ public sealed class SystemConsoleDriver : IConsoleDriver, IConsoleFrameWriter, I
 
         if (!Win32ConsoleApi.TryGetConsoleScreenBufferInfo(_consoleHandle, out var sbi))
             return;
+
+        if (TerminalTrace.Enabled)
+            TerminalTrace.Write("console", $"RESTORE sourceViewport={snapshot.Viewport} currentViewport={ToViewport(sbi)} bufferWidthAtWrite={sbi.dwSize.X} region={snapshot.Region}");
 
         var sr = new SmallRect
         {
