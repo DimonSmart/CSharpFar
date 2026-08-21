@@ -61,7 +61,7 @@ internal sealed class PanelFileViewerService
     {
         if (state.SourceId == PanelSourceId.Local)
         {
-            _history.AddFile(new FileHistoryItem { Path = item.FullPath });
+            _history.AddFile(new FileHistoryItem { Path = BuildHistoryPath(item) });
             new FileViewer(_surfaces, _modalDialogs, _dialogs, _fields, _palette()).Show(item.FullPath, BuildLocalViewerOptions(state, item));
             _safeRefresh(state, _visibleRows(_panelSideForState(state)));
             return;
@@ -76,7 +76,7 @@ internal sealed class PanelFileViewerService
             content = memory.ToArray();
         }
 
-        _history.AddFile(new FileHistoryItem { Path = $"{item.SourceId}:{item.SourcePath}" });
+        _history.AddFile(new FileHistoryItem { Path = BuildHistoryPath(item) });
         new FileViewer(_surfaces, _modalDialogs, _dialogs, _fields, _palette()).Show(
             item.SourcePath,
             new MemoryFileByteReader(content),
@@ -89,12 +89,7 @@ internal sealed class PanelFileViewerService
 
     public void EditPanelFile(FilePanelState state, FilePanelItem item)
     {
-        _history.AddFile(new FileHistoryItem
-        {
-            Path = state.SourceId == PanelSourceId.Local
-                ? item.FullPath
-                : $"{item.SourceId}:{item.SourcePath}",
-        });
+        _history.AddFile(new FileHistoryItem { Path = BuildHistoryPath(item) });
 
         if (state.SourceId == PanelSourceId.Local)
         {
@@ -106,6 +101,11 @@ internal sealed class PanelFileViewerService
                 .Show(item.Location);
         }
     }
+
+    internal static string BuildHistoryPath(FilePanelItem item) =>
+        item.SourceId == PanelSourceId.Local
+            ? item.FullPath
+            : $"{item.SourceId}:{item.SourcePath}";
 
     private LargeFileViewerOptions BuildLocalViewerOptions(FilePanelState state, FilePanelItem item)
     {
