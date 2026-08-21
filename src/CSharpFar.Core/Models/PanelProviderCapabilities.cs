@@ -39,5 +39,6 @@ public enum PanelProviderCapabilities
         Enumerate |
         OpenRead |
         CopyFrom |
+        Edit |
         Refresh,
 }
