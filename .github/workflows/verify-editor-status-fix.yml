@@ -1,0 +1,48 @@
+name: Verify editor status fix
+
+on:
+  push:
+    branches:
+      - fix/editor-status-field-widths
+
+permissions:
+  contents: write
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Run editor regression tests
+        shell: bash
+        run: |
+          set +e
+          dotnet test tests/CSharpFar.Tests/CSharpFar.Tests.csproj --configuration Release --filter "FullyQualifiedName~FileEditorRegressionTests" --logger "console;verbosity=normal" > /tmp/editor-status-test.log 2>&1
+          code=$?
+          set -e
+          if [ "$code" -ne 0 ]; then
+            cp /tmp/editor-status-test.log editor-status-test-failure.log
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add editor-status-test-failure.log
+            git commit -m "Record editor status test failure"
+            git push
+            exit "$code"
+          fi
+
+      - name: Remove verification workflow after success
+        shell: bash
+        run: |
+          rm .github/workflows/verify-editor-status-fix.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add .github/workflows/verify-editor-status-fix.yml
+          git commit -m "Remove successful verification workflow"
+          git push
