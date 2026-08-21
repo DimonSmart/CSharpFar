@@ -1,3 +1,4 @@
+using CSharpFar.App.Commands;
 using CSharpFar.Core.Models;
 
 namespace CSharpFar.Tests;
@@ -24,5 +25,24 @@ public sealed class SearchResultsCapabilityTests
         Assert.False(capabilities.HasFlag(PanelProviderCapabilities.MoveFrom));
         Assert.False(capabilities.HasFlag(PanelProviderCapabilities.MoveTo));
         Assert.False(capabilities.HasFlag(PanelProviderCapabilities.Watch));
+    }
+
+    [Fact]
+    public void EditSearchResult_DoesNotRefreshSearchAfterEditorCloses()
+    {
+        var searchResults = new FilePanelState
+        {
+            SearchRequest = new SearchRequest
+            {
+                RootPath = "/project",
+                FileMaskExpression = "*.txt",
+                Scope = SearchScope.CurrentDirectoryRecursive,
+                MaxDegreeOfParallelism = 1,
+            },
+        };
+        var regularPanel = new FilePanelState();
+
+        Assert.False(EditFileCommand.ShouldRefreshPanelAfterEdit(searchResults));
+        Assert.True(EditFileCommand.ShouldRefreshPanelAfterEdit(regularPanel));
     }
 }
