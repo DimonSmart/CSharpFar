@@ -1109,12 +1109,34 @@ internal sealed partial class FileEditor
 
     private void DrawStatus(IUiCanvas canvas, EditorSession session, int y, ConsoleSize size)
     {
-        string code = CurrentCharacterStatus(session);
-        string syntax = session.SyntaxDiagnostics.StatusText;
-        int cursorColumn = CursorColumnStatus(session);
-        string status =
-            $" Ln {session.Cursor.Line + 1} Col {cursorColumn}  {code}  Undo:{(session.UndoHistory.CanUndo ? "Y" : "N")} Redo:{(session.UndoHistory.CanRedo ? "Y" : "N")}  {syntax}";
+        string status = FormatStatus(
+            session.Cursor.Line + 1,
+            CursorColumnStatus(session),
+            CurrentCharacterStatus(session),
+            session.UndoHistory.CanUndo,
+            session.UndoHistory.CanRedo,
+            session.SyntaxDiagnostics.StatusText);
         canvas.Write(0, y, Fit(status, size.Width), PaletteStyles.CommandLine(_palette));
+    }
+
+    private static string FormatStatus(
+        int line,
+        int column,
+        string character,
+        bool canUndo,
+        bool canRedo,
+        string syntax)
+    {
+        const int lineFieldWidth = 13;
+        const int columnFieldWidth = 14;
+        const int characterFieldWidth = 16;
+
+        string lineField = $"Ln {line}".PadRight(lineFieldWidth);
+        string columnField = $"Col {column}".PadRight(columnFieldWidth);
+        string characterField = character.PadRight(characterFieldWidth);
+        string undoField = $"Undo:{(canUndo ? "Y" : "N")}";
+        string redoField = $"Redo:{(canRedo ? "Y" : "N")}";
+        return $" {lineField} {columnField} {characterField} {undoField} {redoField} {syntax}";
     }
 
     private void DrawKeyBar(

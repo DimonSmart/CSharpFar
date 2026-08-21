@@ -109,6 +109,60 @@ public sealed class FileEditorRegressionTests : IDisposable
     }
 
     [Fact]
+    public void Show_StatusFieldsKeepStableOffsetsWhileCursorMoves()
+    {
+        string filePath = Path.Combine(_tempDir, "stable-status.txt");
+        string maxScalar = char.ConvertFromUtf32(0x10FFFF);
+        string[] lines =
+        [
+            "a",
+            maxScalar,
+            "x",
+            "x",
+            "x",
+            "x",
+            "x",
+            "x",
+            "x",
+            new string('x', 200),
+        ];
+        File.WriteAllText(filePath, string.Join('\n', lines));
+
+        var driver = new FakeConsoleDriver(width: 120, height: 25);
+        var statuses = new List<string>();
+        void CaptureStatus(FakeConsoleDriver current)
+        {
+            string status = current.GetRow(23);
+            if (status.StartsWith(" Ln ", StringComparison.Ordinal))
+                statuses.Add(status);
+            current.BeforeReadInput = CaptureStatus;
+            current.BeforeTryReadInput = CaptureStatus;
+        }
+
+        driver.BeforeReadInput = CaptureStatus;
+        driver.BeforeTryReadInput = CaptureStatus;
+        for (int index = 0; index < 9; index++)
+            driver.EnqueueKey(new ConsoleKeyInfo('\0', ConsoleKey.DownArrow, shift: false, alt: false, control: false));
+        driver.EnqueueKey(new ConsoleKeyInfo('\0', ConsoleKey.End, shift: false, alt: false, control: false));
+        driver.EnqueueKey(new ConsoleKeyInfo('\0', ConsoleKey.F10, shift: false, alt: false, control: false));
+
+        ShowFileEditor(new ScreenRenderer(driver), filePath);
+
+        Assert.True(statuses.Count >= 3);
+        int columnOffset = statuses[0].IndexOf("Col ", StringComparison.Ordinal);
+        int undoOffset = statuses[0].IndexOf("Undo:", StringComparison.Ordinal);
+        int redoOffset = statuses[0].IndexOf("Redo:", StringComparison.Ordinal);
+        int syntaxOffset = statuses[0].IndexOf("Syn:", StringComparison.Ordinal);
+        Assert.All(statuses, status =>
+        {
+            Assert.Equal(columnOffset, status.IndexOf("Col ", StringComparison.Ordinal));
+            Assert.Equal(undoOffset, status.IndexOf("Undo:", StringComparison.Ordinal));
+            Assert.Equal(redoOffset, status.IndexOf("Redo:", StringComparison.Ordinal));
+            Assert.Equal(syntaxOffset, status.IndexOf("Syn:", StringComparison.Ordinal));
+        });
+    }
+
+    [Fact]
     public void Fit_UsesDisplayCellsAndDoesNotSplitSurrogatePairs()
     {
         MethodInfo method = typeof(FileEditor).GetMethod(
