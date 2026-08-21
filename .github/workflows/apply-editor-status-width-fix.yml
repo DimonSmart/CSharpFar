@@ -1,0 +1,43 @@
+name: Apply editor status width fix
+
+on:
+  push:
+    branches:
+      - fix/editor-status-field-widths
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Apply patch preserving source line endings
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path('src/CSharpFar.App/Editor/FileEditor.cs')
+          data = path.read_bytes()
+          old = b'''    private void DrawStatus(IUiCanvas canvas, EditorSession session, int y, ConsoleSize size)\r\n    {\r\n        string code = CurrentCharacterStatus(session);\r\n        string syntax = session.SyntaxDiagnostics.StatusText;\r\n        int cursorColumn = CursorColumnStatus(session);\r\n        string status =\r\n            $" Ln {session.Cursor.Line + 1} Col {cursorColumn}  {code}  Undo:{(session.UndoHistory.CanUndo ? "Y" : "N")} Redo:{(session.UndoHistory.CanRedo ? "Y" : "N")}  {syntax}";\r\n        canvas.Write(0, y, Fit(status, size.Width), PaletteStyles.CommandLine(_palette));\r\n    }\r\n'''
+          new = b'''    private void DrawStatus(IUiCanvas canvas, EditorSession session, int y, ConsoleSize size)\r\n    {\r\n        string status = FormatStatus(\r\n            session.Cursor.Line + 1,\r\n            CursorColumnStatus(session),\r\n            CurrentCharacterStatus(session),\r\n            session.UndoHistory.CanUndo,\r\n            session.UndoHistory.CanRedo,\r\n            session.SyntaxDiagnostics.StatusText);\r\n        canvas.Write(0, y, Fit(status, size.Width), PaletteStyles.CommandLine(_palette));\r\n    }\r\n\r\n    private static string FormatStatus(\r\n        int line,\r\n        int column,\r\n        string character,\r\n        bool canUndo,\r\n        bool canRedo,\r\n        string syntax)\r\n    {\r\n        const int lineFieldWidth = 13;\r\n        const int columnFieldWidth = 14;\r\n        const int characterFieldWidth = 16;\r\n\r\n        string lineField = $"Ln {line}".PadRight(lineFieldWidth);\r\n        string columnField = $"Col {column}".PadRight(columnFieldWidth);\r\n        string characterField = character.PadRight(characterFieldWidth);\r\n        string undoField = $"Undo:{(canUndo ? "Y" : "N")}";\r\n        string redoField = $"Redo:{(canRedo ? "Y" : "N")}";\r\n        return $" {lineField} {columnField} {characterField} {undoField} {redoField} {syntax}";\r\n    }\r\n'''
+          count = data.count(old)
+          if count != 1:
+              raise SystemExit(f'Expected one DrawStatus block, found {count}')
+          path.write_bytes(data.replace(old, new, 1))
+          PY
+
+      - name: Commit patch and remove helper workflow
+        shell: bash
+        run: |
+          rm .github/workflows/apply-editor-status-width-fix.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/CSharpFar.App/Editor/FileEditor.cs .github/workflows/apply-editor-status-width-fix.yml
+          git commit -m "Stabilize editor status field widths"
+          git push
