@@ -117,8 +117,6 @@ internal sealed partial class FileEditor
 
         var source = _sourceRegistry?.GetSource(location.SourceId)
                      ?? throw new InvalidOperationException($"Panel source '{location.SourceId}' is not registered.");
-        _activeSource = source;
-        _activeSourcePath = location.SourcePath;
 
         if (_fileService.RequiresSizeWarning(source, location.SourcePath) &&
             !_dialogs.Confirm(
@@ -140,6 +138,8 @@ internal sealed partial class FileEditor
             return;
         }
 
+        _activeSource = source;
+        _activeSourcePath = location.SourcePath;
         try
         {
             session.RaiseOpened();
@@ -224,7 +224,7 @@ internal sealed partial class FileEditor
                         return ModalDialogLoopResult<bool>.ContinueNoChange;
 
                     session.RaiseInput(key);
-                    bool printable = key.KeyChar >= ' ' &&
+                    bool printable = (key.KeyChar >= ' ' || key.KeyChar == '\t') &&
                         (key.Modifiers & (ConsoleModifiers.Control | ConsoleModifiers.Alt)) == 0;
                     if (printable)
                     {
@@ -533,12 +533,18 @@ internal sealed partial class FileEditor
 
     private static void ScrollViewport(EditorSession session, int delta, int contentHeight)
     {
+        if (contentHeight <= 0)
+            return;
+
         int maxTopLine = Math.Max(0, session.Document.Buffer.LineCount - contentHeight);
         MoveViewportTo(session, Math.Clamp(session.Viewport.TopLine + delta, 0, maxTopLine), contentHeight);
     }
 
     private static void MoveViewportTo(EditorSession session, int topLine, int contentHeight)
     {
+        if (contentHeight <= 0)
+            return;
+
         int maxTopLine = Math.Max(0, session.Document.Buffer.LineCount - contentHeight);
         topLine = Math.Clamp(topLine, 0, maxTopLine);
         session.Viewport.TopLine = topLine;
@@ -648,7 +654,7 @@ internal sealed partial class FileEditor
         session.SelectRange(match.Value.Start, match.Value.End);
     }
 
-    private static void MoveToFindStart(EditorSession session, bool searchBackward)
+    private void MoveToFindStart(EditorSession session, bool searchBackward)
     {
         if (session.Selection is { IsEmpty: false, Mode: EditorSelectionMode.Linear } selection)
         {
@@ -657,7 +663,7 @@ internal sealed partial class FileEditor
             return;
         }
 
-        if (!searchBackward)
+        if (!searchBackward && _settings.F7StartsAtNextCharacter)
             session.MoveRight();
     }
 
@@ -730,20 +736,27 @@ internal sealed partial class FileEditor
     {
         long totalStart = _performanceOptions is null ? 0 : EditorPerformanceMetrics.Timestamp();
         long viewportStart = _performanceOptions is null ? 0 : EditorPerformanceMetrics.Timestamp();
-        int contentHeight = Math.Max(1, context.Size.Height - 3);
-        int contentWidth = Math.Max(1, context.Size.Width - 1);
+        bool hasHeaderRow = context.Size.Height > 0;
+        bool hasFunctionKeyBarRow = context.Size.Height > 1;
+        bool hasStatusRow = context.Size.Height > 3;
+        int reservedRows =
+            (hasHeaderRow ? 1 : 0) +
+            (hasStatusRow ? 1 : 0) +
+            (hasFunctionKeyBarRow ? 1 : 0);
+        int contentHeight = Math.Max(0, context.Size.Height - reservedRows);
+        int contentWidth = Math.Max(0, context.Size.Width - 1);
         EditorViewport viewport = CalculateEffectiveViewport(session, contentHeight, contentWidth);
         TimeSpan viewportElapsed = _performanceOptions is null ? default : EditorPerformanceMetrics.Elapsed(viewportStart);
-        Rect headerBounds = context.Size.Height > 0
+        Rect headerBounds = hasHeaderRow && context.Size.Width > 0
             ? new Rect(0, 0, context.Size.Width, 1)
             : new Rect(0, 0, 0, 0);
-        Rect contentBounds = contentHeight > 0
+        Rect contentBounds = contentHeight > 0 && contentWidth > 0
             ? new Rect(0, 1, contentWidth, contentHeight)
             : new Rect(0, 0, 0, 0);
-        Rect statusBounds = context.Size.Height > 1
-            ? new Rect(0, contentHeight + 1, context.Size.Width, 1)
+        Rect statusBounds = hasStatusRow && context.Size.Width > 0
+            ? new Rect(0, context.Size.Height - 2, context.Size.Width, 1)
             : new Rect(0, 0, 0, 0);
-        Rect functionKeyBarBounds = context.Size.Height > 0
+        Rect functionKeyBarBounds = hasFunctionKeyBarRow && context.Size.Width > 0
             ? new Rect(0, context.Size.Height - 1, context.Size.Width, 1)
             : new Rect(0, 0, 0, 0);
         long syntaxStart = _performanceOptions is null ? 0 : EditorPerformanceMetrics.Timestamp();
@@ -751,7 +764,7 @@ internal sealed partial class FileEditor
         TimeSpan syntaxElapsed = _performanceOptions is null ? default : EditorPerformanceMetrics.Elapsed(syntaxStart);
         IReadOnlyList<FunctionKeyBarAction<ConsoleKeyInfo>> functionKeyActions =
             CreateEditorFunctionKeyBarActions(functionKeyModifiers);
-        Rect? scrollbarBounds = contentHeight > 0 && context.Size.Width > 0
+        Rect? scrollbarBounds = contentHeight > 0 && context.Size.Width > 1
             ? new Rect(context.Size.Width - 1, 1, 1, contentHeight)
             : null;
         ScrollState? scrollState = scrollbarBounds is not null
@@ -855,8 +868,12 @@ internal sealed partial class FileEditor
 
         if (parts.HasFlag(EditorRenderPart.CursorVisual))
             DrawCursorVisual(context.Canvas, frame);
-        if (parts.HasFlag(EditorRenderPart.Status))
+        if (parts.HasFlag(EditorRenderPart.Status) &&
+            frame.StatusBarBounds.Width > 0 &&
+            frame.StatusBarBounds.Height > 0)
+        {
             DrawStatus(context.Canvas, session, frame.StatusBarBounds.Y, frame.Size);
+        }
         if (parts.HasFlag(EditorRenderPart.FunctionKeyBar))
             DrawKeyBar(context.Canvas, frame.FunctionKeyBarBounds, actions);
 
@@ -984,9 +1001,12 @@ internal sealed partial class FileEditor
 
     private void Draw(IUiCanvas canvas, FileEditorFrame frame)
     {
-        DrawHeader(canvas, frame.Session, frame.Size);
-        DrawContent(canvas, frame);
-        DrawStatus(canvas, frame.Session, frame.StatusBarBounds.Y, frame.Size);
+        if (frame.HeaderBounds.Width > 0 && frame.HeaderBounds.Height > 0)
+            DrawHeader(canvas, frame.Session, frame.Size);
+        if (frame.ContentBounds.Width > 0 && frame.ContentBounds.Height > 0)
+            DrawContent(canvas, frame);
+        if (frame.StatusBarBounds.Width > 0 && frame.StatusBarBounds.Height > 0)
+            DrawStatus(canvas, frame.Session, frame.StatusBarBounds.Y, frame.Size);
         DrawKeyBar(canvas, frame.FunctionKeyBarBounds, frame.FunctionKeyActions);
     }
 
@@ -996,8 +1016,10 @@ internal sealed partial class FileEditor
         string readOnly = session.ReadOnly ? " RO" : string.Empty;
         string left = $"{dirty} {session.FilePath}{readOnly}";
         string right = $" {session.Document.Format.EncodingDisplayName} {session.Document.Format.BomDisplayName} {session.Document.Format.LineEndingDisplayName} ";
-        int leftWidth = Math.Max(0, size.Width - right.Length);
-        canvas.Write(0, 0, Fit(left, leftWidth) + right, PaletteStyles.PathHeaderActive(_palette));
+        int rightWidth = ConsoleTextMetrics.GetCellWidth(right);
+        int leftWidth = Math.Max(0, size.Width - rightWidth);
+        string fittedRight = ConsoleTextMetrics.TruncateToCells(right, Math.Max(0, size.Width - leftWidth));
+        canvas.Write(0, 0, Fit(left, leftWidth) + fittedRight, PaletteStyles.PathHeaderActive(_palette));
     }
 
     private EditorSyntaxHighlightResult ResolveSyntaxHighlighting(EditorSession session, int contentHeight, int topLine)
@@ -1065,6 +1087,9 @@ internal sealed partial class FileEditor
 
     private void DrawCursorVisual(IUiCanvas canvas, FileEditorFrame frame)
     {
+        if (frame.ContentBounds.Width <= 0 || frame.ContentBounds.Height <= 0)
+            return;
+
         int lineIndex = frame.Fingerprint.Cursor.Line;
         int row = lineIndex - frame.TopLine;
         if (row < 0 || row >= frame.ContentHeight)
@@ -1213,17 +1238,33 @@ internal sealed partial class FileEditor
     private EditorViewport CalculateEffectiveViewport(EditorSession session, int contentHeight, int contentWidth)
     {
         int topLine = session.Viewport.TopLine;
-        if (session.Cursor.Line < topLine)
+        if (contentHeight <= 0)
+        {
             topLine = session.Cursor.Line;
+        }
+        else if (session.Cursor.Line < topLine)
+        {
+            topLine = session.Cursor.Line;
+        }
         else if (session.Cursor.Line >= topLine + contentHeight)
+        {
             topLine = session.Cursor.Line - contentHeight + 1;
+        }
 
         int visualColumn = VisualColumn(session.Document.Buffer.GetLine(session.Cursor.Line), session.Cursor.Column);
         int leftColumn = session.Viewport.LeftColumn;
-        if (visualColumn < leftColumn)
+        if (contentWidth <= 0)
+        {
             leftColumn = visualColumn;
+        }
+        else if (visualColumn < leftColumn)
+        {
+            leftColumn = visualColumn;
+        }
         else if (visualColumn >= leftColumn + contentWidth)
+        {
             leftColumn = visualColumn - contentWidth + 1;
+        }
 
         return new EditorViewport { TopLine = topLine, LeftColumn = leftColumn };
     }
@@ -1299,12 +1340,8 @@ internal sealed partial class FileEditor
             _ => "EOL",
         };
 
-    private static string Fit(string text, int width)
-    {
-        if (width <= 0)
-            return string.Empty;
-        return text.Length <= width ? text.PadRight(width) : text[..width];
-    }
+    private static string Fit(string text, int width) =>
+        ConsoleTextMetrics.FitToCells(text, width);
 
     private bool TryGetTextMousePosition(
         MouseConsoleInputEvent mouse,
