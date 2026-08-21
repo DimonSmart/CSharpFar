@@ -129,7 +129,7 @@ public sealed class OperationDialogHost
                         return changed ? ModalDialogWakeResult<TResult>.Changed : ModalDialogWakeResult<TResult>.NoChange;
 
                     TBackground result = task.GetAwaiter().GetResult();
-                    return ModalDialogWakeResult<TResult>.Complete(complete(result), changed);
+                    return ModalDialogWakeResult<TResult>.Complete(complete(result), true);
                 },
                 prepareRender: null,
                 afterFrameCommitted: () =>
