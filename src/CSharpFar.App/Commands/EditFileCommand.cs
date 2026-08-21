@@ -29,7 +29,12 @@ internal sealed class EditFileCommand : IApplicationCommand
             return ApplicationCommandResult.Rendered();
 
         context.EditPanelFile(target.State, item);
-        context.SafeRefresh(target.State, target.VisibleRows);
+        if (ShouldRefreshPanelAfterEdit(target.State))
+            context.SafeRefresh(target.State, target.VisibleRows);
+
         return ApplicationCommandResult.Rendered();
     }
+
+    internal static bool ShouldRefreshPanelAfterEdit(FilePanelState state) =>
+        state.SearchRequest is null;
 }
