@@ -27,7 +27,14 @@ Homebrew selects the matching self-contained application archive automatically:
 
 The Cask installs `CSharpFar.app` into Applications. Opening the app launches CSharpFar in Terminal because the application itself is a terminal UI.
 
-The app bundle is currently unsigned and not notarized. On first launch, macOS may require right-clicking `CSharpFar.app` in Finder and choosing **Open**.
+The app is currently unsigned and not notarized because the author does not currently pay for an Apple Developer Program membership. On recent macOS versions, the first launch may be blocked by Gatekeeper. If this happens:
+
+1. Try to open `CSharpFar.app`, then click **Done** in the warning.
+2. Open **System Settings → Privacy & Security** and scroll to **Security**.
+3. Click **Open Anyway** for CSharpFar and authenticate if requested.
+4. Confirm by clicking **Open**.
+
+This is normally required only for the first launch.
 
 Upgrade the app with:
 
