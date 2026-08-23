@@ -5,11 +5,10 @@ using CSharpFar.Core.Models;
 
 namespace CSharpFar.Ui;
 
-/// <summary>Shows a message box and waits for Enter or Esc.</summary>
+/// <summary>Shows a message box with a standard action that can be activated by keyboard or mouse.</summary>
 public sealed class MessageDialog
 {
     private static readonly UiTargetScope Targets = new("message-dialog");
-    private static readonly UiTargetId DialogTarget = Targets.Root;
     private static readonly UiTargetId ContentTarget = Targets.Child("content");
     private static readonly UiTargetId ScrollbarTarget = Targets.Child("scrollbar");
     private const int MinDialogWidth = 52;
@@ -24,23 +23,10 @@ public sealed class MessageDialog
 
     public void Show(string title, string message)
     {
-        var viewport = CreateViewport();
-        _modalDialogs.RunInteractive<MessageDialogFrame, MessageDialogInput, Unit>(
-            (context, focusScope) =>
-            {
-                var layout = CreateLayout(title, message, context.Size, buttons: null);
-                return Draw(context, focusScope, title, layout, viewport, actions: null);
-            },
-            BuildInteractionFrame,
-            (input, frame, route) => (new MessageDialogInput(input, FormInputResult.NotHandled), RouteViewportInput(input, frame, route, viewport)),
-            (routed, semantic) =>
-            {
-                ConsoleInputEvent input = semantic.Input;
-                if (input is KeyConsoleInputEvent { Key.Key: ConsoleKey.Enter or ConsoleKey.Escape })
-                    return ModalDialogLoopResult<Unit>.Complete(default);
-                return ModalDialogLoopResult<Unit>.ContinueNoChange;
-            },
-            applyCommittedFrame: frame => viewport.ApplyCommittedFrame(frame.Viewport));
+        _ = ShowCore(
+            title,
+            message,
+            [new DialogButton("ok", "OK", 'O', IsDefault: true)]);
     }
 
     public int ShowButtons(string title, string message, IReadOnlyList<string> buttons)
@@ -48,15 +34,21 @@ public sealed class MessageDialog
         ArgumentNullException.ThrowIfNull(buttons);
         if (buttons.Count == 0)
             throw new ArgumentException("At least one button is required.", nameof(buttons));
+
         var dialogButtons = buttons
             .Select((text, index) => new DialogButton(index.ToString(), text, HotKeyFrom(text), index == 0))
             .ToArray();
-        var actions = new DialogActionController(dialogButtons, 0, null);
+        return ShowCore(title, message, dialogButtons);
+    }
+
+    private int ShowCore(string title, string message, IReadOnlyList<DialogButton> buttons)
+    {
+        var actions = new DialogActionController(buttons, 0, null);
         var viewport = CreateViewport();
-        return _modalDialogs.RunInteractive<MessageDialogFrame, MessageDialogInput, int>(
+        return _modalDialogs.RunInteractive<MessageDialogFrame, DialogActionOutcome?, int>(
             (context, focusScope) =>
             {
-                var layout = CreateLayout(title, message, context.Size, dialogButtons);
+                var layout = CreateLayout(title, message, context.Size, buttons);
                 return Draw(context, focusScope, title, layout, viewport, actions);
             },
             BuildInteractionFrame,
@@ -66,41 +58,34 @@ public sealed class MessageDialog
                     IsScrollable(frame.Viewport) &&
                     IsViewportScrollKey(key))
                 {
-                    return (new MessageDialogInput(input, FormInputResult.NotHandled), viewport.RouteInput(input, frame.Viewport, route).UiResult);
+                    return (default(DialogActionOutcome?), viewport.RouteInput(input, frame.Viewport, route).UiResult);
                 }
 
                 if (input is MouseConsoleInputEvent && viewport.IsTargetRoute(route))
-                    return (new MessageDialogInput(input, FormInputResult.NotHandled), viewport.RouteInput(input, frame.Viewport, route).UiResult);
+                    return (default(DialogActionOutcome?), viewport.RouteInput(input, frame.Viewport, route).UiResult);
 
-                FormRouteResult result = actions.RouteInput(input, frame.Buttons!, route);
-                return (new MessageDialogInput(input, result.FormResult, actions.Interpret(result.FormResult)), result.UiResult);
+                FormRouteResult result = actions.RouteInput(input, frame.Buttons, route);
+                return (actions.Interpret(result.FormResult), result.UiResult);
             },
-            (routed, semantic) =>
+            (_, outcome) =>
             {
-                if (semantic.ActionOutcome is { } outcome)
-                    return ModalDialogLoopResult<int>.Complete(outcome.Kind == DialogActionOutcomeKind.Activated ? outcome.ButtonIndex : -1);
+                if (outcome is { } action)
+                {
+                    return ModalDialogLoopResult<int>.Complete(
+                        action.Kind == DialogActionOutcomeKind.Activated ? action.ButtonIndex : -1);
+                }
 
                 return ModalDialogLoopResult<int>.ContinueNoChange;
             },
             applyCommittedFrame: frame => viewport.ApplyCommittedFrame(frame.Viewport));
     }
 
-    private static UiInteractionFrame BuildInteractionFrame(MessageDialogFrame frame)
-    {
-        var builder = new UiInteractionFrameBuilder()
-            .AddFragment(frame.ViewportControl.BuildInteractionFragment(frame.Viewport));
-        if (frame is { Actions: not null, Buttons: not null })
-            return builder
-                .AddFragment(frame.Actions.BuildInteractionFragment(frame.Buttons))
-                .SetDefaultFocusTarget(frame.Buttons.DefaultTarget)
-                .Build();
-
-        return builder
-            .AddFocusEntry(DialogTarget, 0, cursor: new UiCursorPlacement(0, 0, Visible: false))
-            .SetDefaultFocusTarget(DialogTarget)
-            .SetKeyboardTarget(DialogTarget)
+    private static UiInteractionFrame BuildInteractionFrame(MessageDialogFrame frame) =>
+        new UiInteractionFrameBuilder()
+            .AddFragment(frame.ViewportControl.BuildInteractionFragment(frame.Viewport))
+            .AddFragment(frame.Actions.BuildInteractionFragment(frame.Buttons))
+            .SetDefaultFocusTarget(frame.Buttons.DefaultTarget)
             .Build();
-    }
 
     private MessageDialogFrame Draw(
         UiRenderContext context,
@@ -108,7 +93,7 @@ public sealed class MessageDialog
         string title,
         MessageDialogLayout layout,
         RoutedScrollableViewport viewport,
-        DialogActionController? actions)
+        DialogActionController actions)
     {
         ScrollableFormFrame? buttons = null;
         IUiCanvas screen = context.Canvas;
@@ -139,17 +124,6 @@ public sealed class MessageDialog
                     PaletteStyles.DialogError(palette));
             }
 
-            if (actions is null)
-            {
-                const string hint = "[ Press Enter ]";
-                screen.Write(
-                    layout.Bounds.X + Math.Max(0, (layout.Bounds.Width - ConsoleTextMetrics.GetCellWidth(hint)) / 2),
-                    layout.ActionRow,
-                    hint,
-                    PaletteStyles.DialogFill(palette));
-                return;
-            }
-
             buttons = actions.Render(
                 new FormRenderContext(
                     context,
@@ -158,18 +132,24 @@ public sealed class MessageDialog
                     new Rect(textX, layout.ActionRow, textWidth, 1)),
                 focusScope);
         });
-        return new MessageDialogFrame(layout, viewportFrame, viewport, buttons, actions);
+
+        return new MessageDialogFrame(
+            layout,
+            viewportFrame,
+            viewport,
+            buttons ?? throw new InvalidOperationException("Message dialog did not render its action buttons."),
+            actions);
     }
 
     private static MessageDialogLayout CreateLayout(
         string title,
         string message,
         ConsoleSize size,
-        IReadOnlyList<DialogButton>? buttons)
+        IReadOnlyList<DialogButton> buttons)
     {
         int availableWidth = Math.Max(1, size.Width - 2);
         int rawTextWidth = LongestRawLine(message);
-        int buttonWidth = buttons is null ? ConsoleTextMetrics.GetCellWidth("[ Press Enter ]") : DialogButtonBar.MeasureWidth(buttons);
+        int buttonWidth = DialogButtonBar.MeasureWidth(buttons);
         int titleWidth = string.IsNullOrEmpty(title) ? 0 : ConsoleTextMetrics.GetCellWidth(title) + 2;
         int desiredWidth = Math.Max(MinDialogWidth, Math.Max(Math.Max(rawTextWidth, buttonWidth), titleWidth) + 4);
         int width = Math.Min(Math.Min(MaxDialogWidth, desiredWidth), availableWidth);
@@ -204,13 +184,6 @@ public sealed class MessageDialog
 
     private static RoutedScrollableViewport CreateViewport() =>
         new(ContentTarget, ScrollbarTarget);
-
-    private static UiInputResult RouteViewportInput(
-        ConsoleInputEvent input,
-        MessageDialogFrame frame,
-        UiInputRouteContext route,
-        RoutedScrollableViewport viewport) =>
-        viewport.RouteInput(input, frame.Viewport, route).UiResult;
 
     private static bool IsViewportScrollKey(ConsoleKeyInfo key) =>
         key.Key is ConsoleKey.UpArrow or ConsoleKey.DownArrow or ConsoleKey.PageUp or
@@ -287,11 +260,6 @@ public sealed class MessageDialog
         MessageDialogLayout Layout,
         ScrollableViewportFrameState Viewport,
         RoutedScrollableViewport ViewportControl,
-        ScrollableFormFrame? Buttons,
-        DialogActionController? Actions);
-
-    private readonly record struct MessageDialogInput(
-        ConsoleInputEvent Input,
-        FormInputResult FormResult,
-        DialogActionOutcome? ActionOutcome = null);
+        ScrollableFormFrame Buttons,
+        DialogActionController Actions);
 }

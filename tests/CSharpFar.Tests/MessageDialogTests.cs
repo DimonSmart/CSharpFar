@@ -87,6 +87,38 @@ public sealed class MessageDialogTests
     }
 
     [Fact]
+    public void Show_MouseClickOnOkClosesDialog()
+    {
+        var driver = new FakeConsoleDriver(width: 60, height: 10);
+        bool queued = false;
+        driver.BeforeReadInput = current =>
+        {
+            if (queued)
+                return;
+
+            queued = true;
+            var record = current.WriteRecords.Last(value => value.Text.Contains("OK", StringComparison.Ordinal));
+            int x = record.X + record.Text.IndexOf("OK", StringComparison.Ordinal);
+            current.EnqueueInput(new MouseConsoleInputEvent(
+                x,
+                record.Y,
+                MouseButton.Left,
+                MouseEventKind.Down,
+                MouseKeyModifiers.None));
+            current.EnqueueInput(new MouseConsoleInputEvent(
+                x,
+                record.Y,
+                MouseButton.Left,
+                MouseEventKind.Up,
+                MouseKeyModifiers.None));
+        };
+
+        Show(driver, "Search", "No files found.");
+
+        Assert.Equal(0, driver.PendingInputCount);
+    }
+
+    [Fact]
     public void ShowButtons_RightThenEnterSelectsSecondButton()
     {
         var driver = new FakeConsoleDriver(width: 60, height: 10);
