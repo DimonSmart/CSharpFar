@@ -470,12 +470,14 @@ public sealed class FileOperationService : IFileOperationService, IFileOperation
         CancellationToken cancellationToken)
     {
         var sources = RequireSourceLocations(request);
-        state.SetTotals(CalculateProviderSourcesSize(sources, cancellationToken), sources.Count);
+        var plan = BuildProviderDeletePlan(sources, state, cancellationToken);
+        state.SetTotals(plan.TotalBytes, plan.Items.Count);
         state.StartProgressTimer();
 
-        foreach (var sourceLocation in sources)
+        foreach (var plannedItem in plan.Items)
         {
             cancellationToken.ThrowIfCancellationRequested();
+            var sourceLocation = plannedItem.Location;
             var source = _sources!.GetSource(sourceLocation.SourceId);
             var item = source.GetItem(sourceLocation.SourcePath, cancellationToken);
             if (item is null)
@@ -486,7 +488,7 @@ public sealed class FileOperationService : IFileOperationService, IFileOperation
                 continue;
             }
 
-            long bytes = CalculateProviderSourceSize(sourceLocation, cancellationToken);
+            long bytes = plannedItem.Size;
             state.ReportDeleting(sourceLocation.SourcePath, 0, bytes);
             await source.DeleteAsync(sourceLocation.SourcePath, item.IsDirectory, cancellationToken).ConfigureAwait(false);
             state.DeletedCount++;
@@ -736,11 +738,13 @@ public sealed class FileOperationService : IFileOperationService, IFileOperation
 
     private void Delete(FileOperationRequest request, OperationState state, CancellationToken cancellationToken)
     {
-        state.SetTotals(CalculateSourcesSize(request.Sources), request.Sources.Count);
+        var plan = BuildDeletePlan(request.Sources, state, cancellationToken);
+        state.SetTotals(plan.TotalBytes, plan.Items.Count);
         state.StartProgressTimer();
 
-        foreach (string path in request.Sources)
+        foreach (var plannedItem in plan.Items)
         {
+            string path = plannedItem.Path;
             cancellationToken.ThrowIfCancellationRequested();
             try
             {
@@ -752,7 +756,7 @@ public sealed class FileOperationService : IFileOperationService, IFileOperation
                     continue;
                 }
 
-                long bytes = CalculateSourceSize(path);
+                long bytes = plannedItem.Size;
                 state.ReportDeleting(path, 0, bytes);
                 DeletePath(path, request.Options.UseRecycleBinForDelete);
                 state.DeletedCount++;
@@ -1528,24 +1532,67 @@ public sealed class FileOperationService : IFileOperationService, IFileOperation
         File.Delete(path);
     }
 
-    private static long CalculateSourcesSize(IReadOnlyList<string> sources)
+    private static DeletePlan BuildDeletePlan(
+        IReadOnlyList<string> sources,
+        OperationState state,
+        CancellationToken cancellationToken)
     {
-        long total = 0;
-        foreach (string source in sources)
-            total += CalculateSourceSize(source);
+        var items = new List<DeletePlanItem>();
+        int files = 0;
+        int folders = 0;
+        long bytes = 0;
 
+        foreach (string source in sources)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            state.ReportScanning(source, files, folders, bytes);
+            long size = ScanLocalDeleteSource(source, state, ref files, ref folders, ref bytes, cancellationToken);
+            items.Add(new DeletePlanItem(source, size));
+        }
+
+        return new DeletePlan(items, bytes);
+    }
+
+    private static long ScanLocalDeleteSource(
+        string path,
+        OperationState state,
+        ref int files,
+        ref int folders,
+        ref long bytes,
+        CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        if (File.Exists(path))
+        {
+            long size = GetFileSize(path);
+            files++;
+            bytes += size;
+            state.ReportScanning(path, files, folders, bytes);
+            return size;
+        }
+
+        if (!Directory.Exists(path))
+            return 0;
+
+        folders++;
+        state.ReportScanning(path, files, folders, bytes);
+        long total = 0;
+        foreach (string directory in Directory.EnumerateDirectories(path))
+            total += ScanLocalDeleteSource(directory, state, ref files, ref folders, ref bytes, cancellationToken);
+        foreach (string file in Directory.EnumerateFiles(path))
+            total += ScanLocalDeleteSource(file, state, ref files, ref folders, ref bytes, cancellationToken);
         return total;
     }
 
-    private static long CalculateSourceSize(string source)
-    {
-        if (File.Exists(source))
-            return GetFileSize(source);
+    private static long CalculateSourcesSize(IReadOnlyList<string> sources) =>
+        sources.Sum(CalculateSourceSize);
 
-        return Directory.Exists(source)
-            ? Directory.EnumerateFiles(source, "*", System.IO.SearchOption.AllDirectories).Sum(GetFileSize)
-            : 0;
-    }
+    private static long CalculateSourceSize(string source) =>
+        File.Exists(source)
+            ? GetFileSize(source)
+            : Directory.Exists(source)
+                ? Directory.EnumerateFiles(source, "*", SearchOption.AllDirectories).Sum(GetFileSize)
+                : 0;
 
     private static long GetFileSize(string path) =>
         File.Exists(path) ? new FileInfo(path).Length : 0;
@@ -1886,14 +1933,25 @@ public sealed class FileOperationService : IFileOperationService, IFileOperation
             throw new IOException("Cannot move a directory into itself.");
     }
 
-    private long CalculateProviderSourcesSize(
+    private DeleteProviderPlan BuildProviderDeletePlan(
         IReadOnlyList<PanelLocation> sources,
+        OperationState state,
         CancellationToken cancellationToken)
     {
-        long total = 0;
-        foreach (var location in sources)
-            total += CalculateProviderSourceSize(location, cancellationToken);
-        return total;
+        var items = new List<ProviderDeletePlanItem>();
+        int files = 0;
+        int folders = 0;
+        long bytes = 0;
+
+        foreach (PanelLocation source in sources)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            state.ReportScanning(source.SourcePath, files, folders, bytes);
+            long size = ScanProviderDeleteSource(source, state, ref files, ref folders, ref bytes, cancellationToken);
+            items.Add(new ProviderDeletePlanItem(source, size));
+        }
+
+        return new DeleteProviderPlan(items, bytes);
     }
 
     private static long CalculateProviderPlanSize(IEnumerable<ProviderOperationPlanItem> plan) =>
@@ -1912,8 +1970,12 @@ public sealed class FileOperationService : IFileOperationService, IFileOperation
         await destinationSource.CreateDirectoryAsync(parent, cancellationToken).ConfigureAwait(false);
     }
 
-    private long CalculateProviderSourceSize(
+    private long ScanProviderDeleteSource(
         PanelLocation location,
+        OperationState state,
+        ref int files,
+        ref int folders,
+        ref long bytes,
         CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
@@ -1923,11 +1985,19 @@ public sealed class FileOperationService : IFileOperationService, IFileOperation
             return 0;
 
         if (!item.IsDirectory)
-            return item.Size ?? 0;
+        {
+            long size = item.Size ?? 0;
+            files++;
+            bytes += size;
+            state.ReportScanning(location.SourcePath, files, folders, bytes);
+            return size;
+        }
 
+        folders++;
+        state.ReportScanning(location.SourcePath, files, folders, bytes);
         long total = 0;
         foreach (var child in source.EnumerateDirectory(location.SourcePath, cancellationToken).Where(i => !i.IsParentDirectory))
-            total += CalculateProviderSourceSize(child.Location, cancellationToken);
+            total += ScanProviderDeleteSource(child.Location, state, ref files, ref folders, ref bytes, cancellationToken);
         return total;
     }
 
@@ -2130,6 +2200,10 @@ public sealed class FileOperationService : IFileOperationService, IFileOperation
     }
 
     private sealed record CopyFilePlanItem(string SourcePath, string DestinationPath, long Size, DateTime LastWriteTimeUtc);
+    private sealed record DeletePlanItem(string Path, long Size);
+    private sealed record DeletePlan(IReadOnlyList<DeletePlanItem> Items, long TotalBytes);
+    private sealed record ProviderDeletePlanItem(PanelLocation Location, long Size);
+    private sealed record DeleteProviderPlan(IReadOnlyList<ProviderDeletePlanItem> Items, long TotalBytes);
     private sealed record CopyAttemptResult(FileInfo SourceInfo, FileAttributes SourceAttributes);
     private sealed record CopyDirectoryPlanItem(string SourcePath, string DestinationPath);
     private sealed record LocalMovePlanItem(string SourcePath, string TargetPath);
@@ -2241,9 +2315,9 @@ public sealed class FileOperationService : IFileOperationService, IFileOperation
                 CurrentBytesDone = 0,
                 CurrentBytesTotal = 0,
                 TotalBytesDone = byteCount,
-                TotalBytesTotal = byteCount,
+                TotalBytesTotal = 0,
                 ItemsDone = fileCount,
-                ItemsTotal = fileCount,
+                ItemsTotal = 0,
                 FoldersDone = folderCount,
                 BytesPerSecond = 0,
                 TimeRemaining = null,

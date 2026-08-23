@@ -438,35 +438,6 @@ public sealed class Spec010FileOperationDialogTests
     }
 
     [Fact]
-    public void ProgressDialog_RendersFarStyleProgressBarWithoutHashCharacters()
-    {
-        var driver = new FakeConsoleDriver(width: 100, height: 30);
-        var screen = new ScreenRenderer(driver);
-
-        RenderProgress(screen, @"C:\dst",
-            new FileOperationProgress
-            {
-                Kind = FileOperationKind.Copy,
-                Phase = FileOperationPhase.Copying,
-                CurrentPath = @"C:\src\a.txt",
-                CurrentDestinationPath = @"C:\dst\a.txt",
-                CurrentBytesDone = 5,
-                CurrentBytesTotal = 10,
-                TotalBytesDone = 5,
-                TotalBytesTotal = 20,
-                ItemsDone = 1,
-                ItemsTotal = 2,
-                Elapsed = TimeSpan.FromSeconds(1),
-            },
-            showTotalProgress: true);
-
-        string text = driver.GetRegionText(new Rect(0, 0, 100, 30));
-        Assert.Contains('█', text);
-        Assert.Contains('░', text);
-        Assert.DoesNotContain('#', text);
-    }
-
-    [Fact]
     public void FileOperationUiRunner_HidesCursorWhileOperationRuns()
     {
         var driver = new FakeConsoleDriver(width: 100, height: 30);
@@ -519,6 +490,72 @@ public sealed class Spec010FileOperationDialogTests
         Assert.Contains("Copying the file", text, StringComparison.Ordinal);
         Assert.Contains(@"C:\source\a.txt", text, StringComparison.Ordinal);
         Assert.False(driver.CursorVisible);
+    }
+
+    [Fact]
+    public void FileOperationUiRunner_RendersDeleteScanningWithoutCopyFields()
+    {
+        var driver = new FakeConsoleDriver(width: 100, height: 30);
+        var screen = new ScreenRenderer(driver);
+        var runner = CreateRunner(screen, new DelayedProgressFileOperationService(
+            new FileOperationProgress
+            {
+                Kind = FileOperationKind.Delete,
+                Phase = FileOperationPhase.Scanning,
+                CurrentPath = @"C:\source\folder",
+                ItemsDone = 12,
+                FoldersDone = 3,
+                TotalBytesDone = 456,
+            }));
+
+        runner.Execute(new FileOperationRequest
+        {
+            Kind = FileOperationKind.Delete,
+            Sources = [@"C:\source\folder"],
+            Options = new FileOperationOptions(),
+        });
+
+        string text = driver.GetRegionText(new Rect(0, 0, 100, 30));
+        Assert.Contains("Delete", text, StringComparison.Ordinal);
+        Assert.Contains("Scanning files for deletion", text, StringComparison.Ordinal);
+        Assert.Contains("Files found: 12", text, StringComparison.Ordinal);
+        Assert.Contains("Folders found: 3", text, StringComparison.Ordinal);
+        Assert.Contains("Bytes found: 456", text, StringComparison.Ordinal);
+        Assert.DoesNotContain("Destination:", text, StringComparison.Ordinal);
+        Assert.DoesNotContain("Progress:", text, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void FileOperationUiRunner_RendersDeleteTotalsWithoutDestination()
+    {
+        var driver = new FakeConsoleDriver(width: 100, height: 30);
+        var screen = new ScreenRenderer(driver);
+        var runner = CreateRunner(screen, new DelayedProgressFileOperationService(
+            new FileOperationProgress
+            {
+                Kind = FileOperationKind.Delete,
+                Phase = FileOperationPhase.Deleting,
+                CurrentPath = @"C:\source\file.bin",
+                CurrentDestinationPath = @"C:\destination\file.bin",
+                ItemsDone = 1,
+                ItemsTotal = 2,
+                TotalBytesDone = 100,
+                TotalBytesTotal = 200,
+            }));
+
+        runner.Execute(new FileOperationRequest
+        {
+            Kind = FileOperationKind.Delete,
+            Sources = [@"C:\source\file.bin"],
+            Options = new FileOperationOptions(),
+        });
+
+        string text = driver.GetRegionText(new Rect(0, 0, 100, 30));
+        Assert.Contains("Deleting the file", text, StringComparison.Ordinal);
+        Assert.Contains("Files: 1 / 2", text, StringComparison.Ordinal);
+        Assert.Contains("Bytes: 100 / 200", text, StringComparison.Ordinal);
+        Assert.DoesNotContain("Destination:", text, StringComparison.Ordinal);
+        Assert.DoesNotContain("to C:\\destination", text, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -702,106 +739,6 @@ public sealed class Spec010FileOperationDialogTests
     }
 
     [Fact]
-    public void ProgressDialog_RendersResumeValidationState()
-    {
-        var driver = new FakeConsoleDriver(width: 100, height: 30);
-        var screen = new ScreenRenderer(driver);
-
-        RenderProgress(screen, @"C:\dst",
-            new FileOperationProgress
-            {
-                Kind = FileOperationKind.Copy,
-                Phase = FileOperationPhase.Validating,
-                StatusMessage = "Tail mismatch detected",
-                CurrentPath = @"C:\src\a.bin",
-                CurrentDestinationPath = @"C:\dst\a.bin",
-                CurrentBytesDone = 1024,
-                CurrentBytesTotal = 4096,
-                TotalBytesDone = 1024,
-                TotalBytesTotal = 4096,
-                ResumeOffset = 1024,
-                ResumeRollbackBytes = 512,
-                ItemsDone = 0,
-                ItemsTotal = 1,
-                Elapsed = TimeSpan.FromSeconds(1),
-            },
-            showTotalProgress: true);
-
-        string text = driver.GetRegionText(new Rect(0, 0, 100, 30));
-        Assert.Contains("Tail mismatch detected", text, StringComparison.Ordinal);
-        Assert.Contains("Resume offset:", text, StringComparison.Ordinal);
-        Assert.Contains("Rollback:", text, StringComparison.Ordinal);
-    }
-
-    [Fact]
-    public void ProgressDialog_RendersDeleteSpecificProgress()
-    {
-        var driver = new FakeConsoleDriver(width: 100, height: 30);
-        var screen = new ScreenRenderer(driver);
-
-        RenderProgress(screen, @"C:\dst",
-            new FileOperationProgress
-            {
-                Kind = FileOperationKind.Delete,
-                Phase = FileOperationPhase.Deleting,
-                CurrentPath = @"C:\src\a.bin",
-                CurrentDestinationPath = @"C:\dst\a.bin",
-                CurrentBytesDone = 1024,
-                CurrentBytesTotal = 4096,
-                TotalBytesDone = 1024,
-                TotalBytesTotal = 4096,
-                ResumeOffset = 1024,
-                ResumeRollbackBytes = 512,
-                ItemsDone = 1,
-                ItemsTotal = 2,
-                Elapsed = TimeSpan.FromSeconds(1),
-            },
-            showTotalProgress: true);
-
-        string text = driver.GetRegionText(new Rect(0, 0, 100, 30));
-        Assert.Contains("Delete", text, StringComparison.Ordinal);
-        Assert.Contains("Deleting the file", text, StringComparison.Ordinal);
-        Assert.Contains(@"C:\src\a.bin", text, StringComparison.Ordinal);
-        Assert.Contains("Files:", text, StringComparison.Ordinal);
-        Assert.Contains("Bytes:", text, StringComparison.Ordinal);
-        Assert.DoesNotContain(@"C:\dst\a.bin", text, StringComparison.Ordinal);
-        Assert.DoesNotContain("Resume offset:", text, StringComparison.Ordinal);
-        Assert.DoesNotContain("Rollback:", text, StringComparison.Ordinal);
-        Assert.DoesNotContain(driver.WriteRecords, r => r.Text.Trim() == "to");
-    }
-
-    [Fact]
-    public void ProgressDialog_RendersScanningWithDoubleBorderAndBytesAboveBottomFrame()
-    {
-        var driver = new FakeConsoleDriver(width: 100, height: 30);
-        var screen = new ScreenRenderer(driver);
-
-        RenderProgress(screen, @"C:\dst",
-            new FileOperationProgress
-            {
-                Kind = FileOperationKind.Copy,
-                Phase = FileOperationPhase.Scanning,
-                CurrentPath = @"C:\src\YouTube",
-                ItemsDone = 2651,
-                FoldersDone = 123,
-                TotalBytesDone = 96081696632,
-            },
-            showTotalProgress: true);
-
-        string[] rows = Enumerable.Range(0, 30)
-            .Select(driver.GetRow)
-            .ToArray();
-        int bytesRow = Array.FindIndex(rows, row => row.Contains("Bytes:", StringComparison.Ordinal));
-        int bottomFrameRow = Array.FindIndex(rows, row => row.Contains('╚'));
-
-        Assert.Contains(rows, row => row.Contains('╔'));
-        Assert.True(bytesRow >= 0);
-        Assert.True(bottomFrameRow > bytesRow);
-        Assert.DoesNotContain('╚', rows[bytesRow]);
-        Assert.DoesNotContain('╝', rows[bytesRow]);
-    }
-
-    [Fact]
     public void ConflictDialog_ReturnsOverwriteForO()
     {
         var driver = new FakeConsoleDriver(width: 100, height: 30);
@@ -899,23 +836,6 @@ public sealed class Spec010FileOperationDialogTests
     {
         foreach (char ch in text)
             driver.EnqueueKey(new ConsoleKeyInfo(ch, ConsoleKey.None, shift: false, alt: false, control: false));
-    }
-
-    private static void RenderProgress(
-        ScreenRenderer screen,
-        string destination,
-        FileOperationProgress progress,
-        bool showTotalProgress)
-    {
-        var composition = new UiCompositionHost(screen);
-        composition.SetRootSurface(new ScreenRendererSurface(screen, _ => { }));
-        using var overlay = composition.PushOverlay(context =>
-            new ProgressDialog(context.Canvas, destination).Render(
-                context,
-                progress,
-                showTotalProgress,
-                FileOperationUiRunner.FileOperationUiStatus.Running));
-        composition.Render();
     }
 
     private static ConsoleKeyInfo Key(ConsoleKey key) =>

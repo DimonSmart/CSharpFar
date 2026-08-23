@@ -95,6 +95,38 @@ public class DeleteOperationTests : IDisposable
             p.TotalBytesTotal == 5);
     }
 
+    [Fact]
+    public async Task Delete_ReportsScanningCountersBeforeDeleting()
+    {
+        string nested = Path.Combine(_src, "nested");
+        Directory.CreateDirectory(nested);
+        Write(_src, "root.txt", "abc");
+        Write(nested, "child.txt", "de");
+        var progress = new RecordingProgress();
+
+        FileOperationResult result = await Svc().ExecuteAsync(
+            new FileOperationRequest
+            {
+                Kind = FileOperationKind.Delete,
+                Sources = [_src],
+                Options = new FileOperationOptions { UseRecycleBinForDelete = false },
+            },
+            progress,
+            new NoOpConflictResolver());
+
+        int firstDeleting = progress.Items.FindIndex(p => p.Phase == FileOperationPhase.Deleting);
+        FileOperationProgress scanning = Assert.Single(progress.Items, p =>
+            p.Phase == FileOperationPhase.Scanning &&
+            p.ItemsDone == 2 &&
+            p.FoldersDone == 2 &&
+            p.TotalBytesDone == 5);
+
+        Assert.True(firstDeleting > progress.Items.IndexOf(scanning));
+        Assert.Equal(0, scanning.ItemsTotal);
+        Assert.Equal(0, scanning.TotalBytesTotal);
+        Assert.Equal(5, result.TotalBytes);
+    }
+
     // ── Non-existent path silently skipped ────────────────────────────────────
 
     [Fact]
@@ -120,6 +152,30 @@ public class DeleteOperationTests : IDisposable
             Svc().DeleteAsync([f1, f2], cts.Token));
     }
 
+    [Fact]
+    public async Task Delete_CanBeCancelledDuringScanning()
+    {
+        string nested = Path.Combine(_src, "nested");
+        Directory.CreateDirectory(nested);
+        Write(nested, "child.txt", "data");
+        using var cancellation = new CancellationTokenSource();
+        var progress = new CancellingScanProgress(cancellation);
+
+        FileOperationResult result = await Svc().ExecuteAsync(
+            new FileOperationRequest
+            {
+                Kind = FileOperationKind.Delete,
+                Sources = [_src],
+                Options = new FileOperationOptions { UseRecycleBinForDelete = false },
+            },
+            progress,
+            new NoOpConflictResolver(),
+            cancellation.Token);
+
+        Assert.True(result.Cancelled);
+        Assert.True(Directory.Exists(_src));
+    }
+
     // ── helpers ───────────────────────────────────────────────────────────────
 
     private static string Write(string dir, string name, string content)
@@ -134,6 +190,15 @@ public class DeleteOperationTests : IDisposable
         public List<FileOperationProgress> Items { get; } = [];
 
         public void Report(FileOperationProgress value) => Items.Add(value);
+    }
+
+    private sealed class CancellingScanProgress(CancellationTokenSource cancellation) : IProgress<FileOperationProgress>
+    {
+        public void Report(FileOperationProgress value)
+        {
+            if (value.Phase == FileOperationPhase.Scanning)
+                cancellation.Cancel();
+        }
     }
 
     private sealed class NoOpConflictResolver : IFileOperationConflictResolver

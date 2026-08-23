@@ -30,13 +30,13 @@ internal sealed class FileOperationUiRunner
         FileOperationProgress? latestProgress = null;
         var state = new FileOperationProgressViewState(null, _showTotalProgress(), FileOperationUiStatus.Running);
         bool cancellationRequested = false;
-        var content = new FileOperationProgressContent(() => state, request.Destination ?? string.Empty);
+        var content = new FileOperationProgressContent(() => state, request.Kind == FileOperationKind.Delete ? null : request.Destination);
         var cancel = FormControls.Buttons(new DialogButton("cancel", "Cancel", 'C'));
         var form = new ScrollableFormDialog();
         form.SetRows([], [cancel]);
 
         FileOperationResult result = _dialogs.Operation(
-            new OperationDialogOptions(new CompositeDialogOptions("File operation", 74, 18, 50, 10), TimeSpan.FromMilliseconds(120)),
+            new OperationDialogOptions(new CompositeDialogOptions(OperationTitle(request.Kind), 74, 18, 50, 10), TimeSpan.FromMilliseconds(120)),
             Operation,
             form,
             content,
@@ -114,7 +114,15 @@ internal sealed class FileOperationUiRunner
         return frame.Progress is null || frame.Progress.Phase == FileOperationPhase.Scanning ? cancelImmediately() : requestConfirmation();
     }
 
-    private sealed class FileOperationProgressContent(Func<FileOperationProgressViewState> state, string destination) : ICompositeDialogContent
+    private static string OperationTitle(FileOperationKind kind) => kind switch
+    {
+        FileOperationKind.Delete => "Delete",
+        FileOperationKind.Move => "Move",
+        FileOperationKind.Copy => "Copy",
+        _ => "File operation",
+    };
+
+    private sealed class FileOperationProgressContent(Func<FileOperationProgressViewState> state, string? destination) : ICompositeDialogContent
     {
         public ICompositeDialogContentFrame CalculateFrame(Rect bounds) => new Frame(bounds);
         public void Render(IUiCanvas canvas, ICompositeDialogContentFrame rawFrame)
@@ -124,18 +132,27 @@ internal sealed class FileOperationUiRunner
             if (snapshot.Progress is not { } progress) { canvas.Write(frame.Bounds.X, frame.Bounds.Y, "Preparing operation...", FarDialogStyles.Fill); return; }
             Write(canvas, frame.Bounds, 0, snapshot.Status == FileOperationUiStatus.Stopping ? "Stopping..." : PhaseText(progress));
             Write(canvas, frame.Bounds, 1, progress.CurrentPath);
-            if (progress.CurrentDestinationPath is { } target) Write(canvas, frame.Bounds, 2, $"to {target}");
+            if (progress.Phase == FileOperationPhase.Scanning)
+            {
+                Write(canvas, frame.Bounds, 3, $"Files found: {progress.ItemsDone:N0}");
+                Write(canvas, frame.Bounds, 4, $"Folders found: {progress.FoldersDone:N0}");
+                Write(canvas, frame.Bounds, 5, $"Bytes found: {progress.TotalBytesDone:N0}");
+                return;
+            }
+            if (progress.Kind != FileOperationKind.Delete && progress.CurrentDestinationPath is { } target)
+                Write(canvas, frame.Bounds, 2, $"to {target}");
             Write(canvas, frame.Bounds, 4, $"Files: {progress.ItemsDone:N0} / {progress.ItemsTotal:N0}");
             Write(canvas, frame.Bounds, 5, $"Bytes: {progress.TotalBytesDone:N0} / {progress.TotalBytesTotal:N0}");
             if (snapshot.ShowTotalProgress) Write(canvas, frame.Bounds, 7, $"Progress: {Percent(progress.TotalBytesDone, progress.TotalBytesTotal)}");
-            Write(canvas, frame.Bounds, 8, $"Destination: {destination}");
+            if (progress.Kind != FileOperationKind.Delete)
+                Write(canvas, frame.Bounds, 8, $"Destination: {progress.CurrentDestinationPath ?? destination ?? string.Empty}");
         }
         public UiInteractionFragment BuildInteractionFragment(ICompositeDialogContentFrame frame, int focusOrder) => UiInteractionFragment.Empty;
         public CompositeDialogContentInputResult RouteInput(ConsoleInputEvent input, ICompositeDialogContentFrame frame, UiInputRouteContext route) => CompositeDialogContentInputResult.NotHandled;
         public void ApplyCommittedFrame(ICompositeDialogContentFrame frame) { }
         private static Frame Require(ICompositeDialogContentFrame frame) => frame as Frame ?? throw new ArgumentException("Frame belongs to a different content component.", nameof(frame));
         private static void Write(IUiCanvas canvas, Rect bounds, int row, string? value) { if (row < bounds.Height) canvas.Write(bounds.X, bounds.Y + row, ConsoleTextMetrics.FitToCells(value ?? string.Empty, bounds.Width), FarDialogStyles.Fill); }
-        private static string PhaseText(FileOperationProgress p) => p.Phase switch { FileOperationPhase.Scanning => "Scanning the folder", FileOperationPhase.Deleting => "Deleting the file", FileOperationPhase.Validating => p.StatusMessage ?? "Validating partial file...", _ => "Copying the file" };
+        private static string PhaseText(FileOperationProgress p) => p.Phase switch { FileOperationPhase.Scanning when p.Kind == FileOperationKind.Delete => "Scanning files for deletion", FileOperationPhase.Scanning => "Scanning the folder", FileOperationPhase.Deleting => "Deleting the file", FileOperationPhase.Validating => p.StatusMessage ?? "Validating partial file...", _ => "Copying the file" };
         private static string Percent(long done, long total) => total <= 0 ? "0%" : $"{Math.Clamp(done * 100 / total, 0, 100)}%";
         private sealed record Frame(Rect Bounds) : ICompositeDialogContentFrame;
     }
