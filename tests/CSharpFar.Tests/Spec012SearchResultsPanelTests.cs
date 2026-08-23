@@ -24,21 +24,31 @@ public sealed class Spec012SearchResultsPanelTests : IDisposable
     }
 
     [Fact]
-    public void Run_DeleteInSearchResultsPanelIsDisabled()
+    public void Run_DeleteInSearchResultsPanelDeletesReferencedItemWithoutRerunningSearch()
     {
         string filePath = Path.Combine(_root, "found.txt");
         var fileOps = new RecordingFileOperationService();
+        var searchService = new CountingSearchService();
         var driver = new FakeConsoleDriver(width: 80, height: 14);
-        driver.EnqueueKey(Key(ConsoleKey.F8));
-        driver.EnqueueKey(Key(ConsoleKey.Enter));
-        driver.EnqueueKey(Key(ConsoleKey.F10));
 
-        var app = CreateApp(CreateFileSystem(), driver, fileOps);
-        SetSearchResultsPanel(GetLeftPanel(app), filePath);
+        var app = CreateApp(CreateFileSystem(), driver, fileOps, searchService);
+        var state = GetLeftPanel(app);
+        SetSearchResultsPanel(state, filePath);
 
-        app.Run();
+        ApplicationTestRunBuilder
+            .For(app, driver)
+            .Press(ConsoleKey.F8)
+            .Press(ConsoleKey.Enter)
+            .ExitWhenApplicationReady()
+            .Run();
 
-        Assert.Empty(fileOps.Requests);
+        FileOperationRequest request = Assert.Single(fileOps.Requests);
+        Assert.Equal(FileOperationKind.Delete, request.Kind);
+        Assert.Equal([filePath], request.Sources);
+        Assert.Equal([PanelLocation.Local(filePath)], request.SourceLocations);
+        Assert.True(request.Options.UseRecycleBinForDelete);
+        Assert.Empty(state.Items);
+        Assert.Equal(0, searchService.Calls);
     }
 
     [Fact]

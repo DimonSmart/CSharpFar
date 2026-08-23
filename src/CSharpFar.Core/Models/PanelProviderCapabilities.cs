@@ -38,6 +38,7 @@ public enum PanelProviderCapabilities
     SearchResults =
         Enumerate |
         OpenRead |
+        Delete |
         CopyFrom |
         Edit |
         Refresh,

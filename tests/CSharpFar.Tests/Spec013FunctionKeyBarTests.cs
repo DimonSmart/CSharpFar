@@ -105,10 +105,10 @@ public sealed class Spec013FunctionKeyBarTests : IDisposable
         Assert.Contains("3View", row);
         Assert.Contains("4Edit", row);
         Assert.Contains("5Copy", row);
+        Assert.Contains("8Delete", row);
         Assert.Contains("9ConfMn", row);
         Assert.DoesNotContain("6RenMov", row);
         Assert.DoesNotContain("7MkFold", row);
-        Assert.DoesNotContain("8Delete", row);
     }
 
     [Fact]

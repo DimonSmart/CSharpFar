@@ -6,12 +6,13 @@ namespace CSharpFar.Tests;
 public sealed class SearchResultsCapabilityTests
 {
     [Fact]
-    public void SearchResults_AllowEditingReferencedItemsButKeepPanelStructureReadOnly()
+    public void SearchResults_AllowOperationsOnReferencedItemsButKeepPanelStructureReadOnly()
     {
         PanelProviderCapabilities capabilities = PanelProviderCapabilities.SearchResults;
 
         Assert.True(capabilities.HasFlag(PanelProviderCapabilities.Enumerate));
         Assert.True(capabilities.HasFlag(PanelProviderCapabilities.OpenRead));
+        Assert.True(capabilities.HasFlag(PanelProviderCapabilities.Delete));
         Assert.True(capabilities.HasFlag(PanelProviderCapabilities.CopyFrom));
         Assert.True(capabilities.HasFlag(PanelProviderCapabilities.Edit));
         Assert.True(capabilities.HasFlag(PanelProviderCapabilities.Refresh));
@@ -19,7 +20,6 @@ public sealed class SearchResultsCapabilityTests
         Assert.False(capabilities.HasFlag(PanelProviderCapabilities.OpenWrite));
         Assert.False(capabilities.HasFlag(PanelProviderCapabilities.CreateFile));
         Assert.False(capabilities.HasFlag(PanelProviderCapabilities.CreateDirectory));
-        Assert.False(capabilities.HasFlag(PanelProviderCapabilities.Delete));
         Assert.False(capabilities.HasFlag(PanelProviderCapabilities.Rename));
         Assert.False(capabilities.HasFlag(PanelProviderCapabilities.CopyTo));
         Assert.False(capabilities.HasFlag(PanelProviderCapabilities.MoveFrom));

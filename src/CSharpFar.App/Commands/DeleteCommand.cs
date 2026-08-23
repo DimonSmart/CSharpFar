@@ -29,7 +29,8 @@ internal sealed class DeleteCommand : IApplicationCommand
             ? Path.GetFileName(sources[0]) ?? sources[0]
             : $"{sources.Count} items";
 
-        bool useRecycleBin = target.State.SourceId == PanelSourceId.Local &&
+        bool useRecycleBin = sourceLocations.Count > 0 &&
+                             sourceLocations.All(location => location.SourceId == PanelSourceId.Local) &&
                              context.Settings.FileOperations.UseRecycleBinForDelete &&
                              context.FileOperations.SupportsRecycleBin;
         string confirmation = useRecycleBin
@@ -41,13 +42,22 @@ internal sealed class DeleteCommand : IApplicationCommand
             return ApplicationCommandResult.Rendered();
         }
 
+        bool searchResults = target.State.SearchRequest is not null;
+        IReadOnlyList<string> operationSources = searchResults
+            ? SearchResultsDeleteSupport.CollapseNestedSources(sources)
+            : sources;
+        IReadOnlyList<PanelLocation> operationSourceLocations = searchResults
+            ? operationSources.Select(PanelLocation.Local).ToList()
+            : sourceLocations;
+        FileOperationResult? result = null;
+
         try
         {
-            context.ExecuteFileOperation(new FileOperationRequest
+            result = context.ExecuteFileOperation(new FileOperationRequest
             {
                 Kind = FileOperationKind.Delete,
-                Sources = sources,
-                SourceLocations = sourceLocations,
+                Sources = operationSources,
+                SourceLocations = operationSourceLocations,
                 Options = context.BuildFileOperationOptions() with
                 {
                     UseRecycleBinForDelete = useRecycleBin,
@@ -55,6 +65,13 @@ internal sealed class DeleteCommand : IApplicationCommand
             });
             target.State.SelectedPaths.Clear();
             target.State.SelectedLocations.Clear();
+
+            if (searchResults)
+            {
+                SearchResultsDeleteSupport.Reconcile(target.State, operationSources, result);
+                context.Controller.NormalizeCursor(target.State, target.VisibleRows);
+                context.Controller.RefreshSelectionSummary(target.State);
+            }
         }
         catch (OperationCanceledException) { }
         catch (Exception ex)
@@ -62,7 +79,11 @@ internal sealed class DeleteCommand : IApplicationCommand
             context.Dialogs.Message("Delete Error", ex.Message);
         }
 
-        context.RefreshPanels();
+        if (searchResults)
+            context.RefreshPanelsAfterFileOperation();
+        else
+            context.RefreshPanels();
+
         return ApplicationCommandResult.Rendered();
     }
 }
