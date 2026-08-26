@@ -75,6 +75,18 @@ public sealed class EditorSessionTests
     }
 
     [Fact]
+    public void Search_WholeWords_TreatsLineBreaksAsWordSeparatorsWhenWordDivIsCustomized()
+    {
+        var settings = new AppSettings.EditorSettings { WordDiv = " -" };
+        var session = CreateSession("alpha\nbeta", settings);
+
+        var match = session.Find(new EditorSearchOptions("beta", WholeWords: true));
+
+        Assert.NotNull(match);
+        Assert.Equal(new EditorPosition(1, 0), match.Value.Start);
+    }
+
+    [Fact]
     public void ShiftCursorSelection_CopiesSelectedRange()
     {
         var session = CreateSession("abcd");
@@ -168,6 +180,55 @@ public sealed class EditorSessionTests
 
         Assert.Equal("AB", session.FlattenText());
         Assert.Equal(new EditorPosition(0, 1), session.Cursor);
+    }
+
+    [Theory]
+    [InlineData("e\u0301")]
+    [InlineData("👍🏽")]
+    [InlineData("👨‍👩‍👧‍👦")]
+    public void CharacterNavigationAndDeletion_DoNotSplitGraphemeClusters(string grapheme)
+    {
+        var session = CreateSession("a" + grapheme + "b");
+
+        session.MoveRight();
+        session.MoveRight(extendSelection: true);
+        Assert.Equal(grapheme, session.CopySelection());
+
+        Assert.True(session.DeleteBack());
+        Assert.Equal("ab", session.FlattenText());
+    }
+
+    [Fact]
+    public void ShiftNavigation_KeepsAnchorWhenCrossingIt()
+    {
+        var session = CreateSession("abcd");
+        session.MoveTo(new EditorPosition(0, 1));
+
+        session.MoveRight(extendSelection: true);
+        session.MoveRight(extendSelection: true);
+        session.MoveLeft(extendSelection: true);
+        session.MoveLeft(extendSelection: true);
+        session.MoveLeft(extendSelection: true);
+
+        Assert.Equal(new EditorPosition(0, 1), session.Selection!.Anchor);
+        Assert.Equal(new EditorPosition(0, 0), session.Selection.Active);
+        Assert.Equal("a", session.CopySelection());
+    }
+
+    [Fact]
+    public void OrdinaryArrow_CollapsesAnExistingLinearSelectionToItsDirectionSide()
+    {
+        var left = CreateSession("abcd");
+        left.SelectRange(new EditorPosition(0, 1), new EditorPosition(0, 3));
+        left.MoveLeft();
+        Assert.Equal(new EditorPosition(0, 0), left.Cursor);
+        Assert.Null(left.Selection);
+
+        var right = CreateSession("abcd");
+        right.SelectRange(new EditorPosition(0, 3), new EditorPosition(0, 1));
+        right.MoveRight();
+        Assert.Equal(new EditorPosition(0, 4), right.Cursor);
+        Assert.Null(right.Selection);
     }
 
     [Fact]

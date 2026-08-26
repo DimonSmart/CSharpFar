@@ -5,6 +5,7 @@ namespace CSharpFar.App.Editor;
 public sealed class EditorSession
 {
     private readonly AppSettings.EditorSettings _settings;
+    private readonly EditorWordNavigator _wordNavigator;
     private readonly HashSet<int> _bookmarks = [];
     private readonly EditorPosition?[] _numberedBookmarks = new EditorPosition?[10];
 
@@ -17,6 +18,7 @@ public sealed class EditorSession
         FilePath = filePath;
         Document = document;
         _settings = settings;
+        _wordNavigator = new EditorWordNavigator(document.Buffer, settings.WordDiv);
         ReadOnly = readOnly;
         UndoHistory = new EditorUndoHistory(EditorSettingsResolver.ResolveUndoSize(settings));
         SyntaxHighlightingEnabled = settings.SyntaxHighlightingEnabled;
@@ -92,46 +94,70 @@ public sealed class EditorSession
 
     public void MoveLeft(bool extendSelection = false, bool preserveSelection = false)
     {
-        string line = Document.Buffer.GetLine(Cursor.Line);
-        var next = Cursor.Column > line.Length
-            ? Cursor with { Column = Cursor.Column - 1 }
-            : Cursor.Column > 0
-                ? Cursor with { Column = EditorUnicode.PreviousScalarColumn(line, Cursor.Column) }
-                : Cursor.Line > 0
-                    ? new EditorPosition(Cursor.Line - 1, Document.Buffer.GetLine(Cursor.Line - 1).Length)
-                    : Cursor;
+        EditorPosition current = GetNavigationStart(extendSelection, preserveSelection, -1);
+        string line = Document.Buffer.GetLine(current.Line);
+        var next = current.Column > line.Length
+            ? current with { Column = current.Column - 1 }
+            : current.Column > 0
+                ? current with { Column = EditorUnicode.PreviousGraphemeColumn(line, current.Column) }
+                : current.Line > 0
+                    ? new EditorPosition(current.Line - 1, Document.Buffer.GetLine(current.Line - 1).Length)
+                    : current;
         MoveCursor(next, extendSelection, preserveSelection);
     }
 
     public void MoveRight(bool extendSelection = false, bool preserveSelection = false)
     {
-        string line = Document.Buffer.GetLine(Cursor.Line);
-        int column = Cursor.Column < line.Length
-            ? EditorUnicode.NextScalarColumn(line, Cursor.Column)
-            : Cursor.Column + 1;
-        MoveCursor(Cursor with { Column = column }, extendSelection, preserveSelection);
+        EditorPosition current = GetNavigationStart(extendSelection, preserveSelection, 1);
+        string line = Document.Buffer.GetLine(current.Line);
+        int column = current.Column < line.Length
+            ? EditorUnicode.NextGraphemeColumn(line, current.Column)
+            : current.Column + 1;
+        MoveCursor(current with { Column = column }, extendSelection, preserveSelection);
     }
 
-    public void MoveUp(int count = 1, bool extendSelection = false, bool preserveSelection = false) =>
-        MoveCursor(new EditorPosition(Math.Max(0, Cursor.Line - count), Cursor.Column), extendSelection, preserveSelection);
+    public void MoveUp(int count = 1, bool extendSelection = false, bool preserveSelection = false)
+    {
+        EditorPosition current = GetNavigationStart(extendSelection, preserveSelection, -1);
+        MoveCursor(new EditorPosition(Math.Max(0, current.Line - count), current.Column), extendSelection, preserveSelection);
+    }
 
-    public void MoveDown(int count = 1, bool extendSelection = false, bool preserveSelection = false) =>
-        MoveCursor(new EditorPosition(Math.Min(Document.Buffer.LineCount - 1, Cursor.Line + count), Cursor.Column), extendSelection, preserveSelection);
+    public void MoveDown(int count = 1, bool extendSelection = false, bool preserveSelection = false)
+    {
+        EditorPosition current = GetNavigationStart(extendSelection, preserveSelection, 1);
+        MoveCursor(new EditorPosition(Math.Min(Document.Buffer.LineCount - 1, current.Line + count), current.Column), extendSelection, preserveSelection);
+    }
 
-    public void MoveToLineStart(bool extendSelection = false, bool preserveSelection = false) =>
-        MoveCursor(Cursor with { Column = 0 }, extendSelection, preserveSelection);
+    public void MoveToLineStart(bool extendSelection = false, bool preserveSelection = false)
+    {
+        EditorPosition current = GetNavigationStart(extendSelection, preserveSelection, -1);
+        MoveCursor(current with { Column = 0 }, extendSelection, preserveSelection);
+    }
 
-    public void MoveToLineEnd(bool extendSelection = false, bool preserveSelection = false) =>
-        MoveCursor(Cursor with { Column = Document.Buffer.GetLine(Cursor.Line).Length }, extendSelection, preserveSelection);
+    public void MoveToLineEnd(bool extendSelection = false, bool preserveSelection = false)
+    {
+        EditorPosition current = GetNavigationStart(extendSelection, preserveSelection, 1);
+        MoveCursor(current with { Column = Document.Buffer.GetLine(current.Line).Length }, extendSelection, preserveSelection);
+    }
 
-    public void MoveToDocumentStart(bool extendSelection = false, bool preserveSelection = false) =>
+    public void MoveToDocumentStart(bool extendSelection = false, bool preserveSelection = false)
+    {
+        GetNavigationStart(extendSelection, preserveSelection, -1);
         MoveCursor(EditorPosition.Start, extendSelection, preserveSelection);
+    }
 
-    public void MoveToDocumentEnd(bool extendSelection = false, bool preserveSelection = false) =>
+    public void MoveToDocumentEnd(bool extendSelection = false, bool preserveSelection = false)
+    {
+        GetNavigationStart(extendSelection, preserveSelection, 1);
         MoveCursor(Document.Buffer.End, extendSelection, preserveSelection);
+    }
 
-    public void MoveTo(EditorPosition position, bool extendSelection = false, bool preserveSelection = false) =>
+    public void MoveTo(EditorPosition position, bool extendSelection = false, bool preserveSelection = false)
+    {
+        int direction = EditorTextBuffer.Compare(position, Cursor) < 0 ? -1 : 1;
+        GetNavigationStart(extendSelection, preserveSelection, direction);
         MoveCursor(position, extendSelection, preserveSelection);
+    }
 
     public void SelectRange(EditorPosition start, EditorPosition end, EditorSelectionMode mode = EditorSelectionMode.Linear)
     {
@@ -147,54 +173,27 @@ public sealed class EditorSession
     public bool SelectWordAt(EditorPosition position)
     {
         position = NormalizeCursorPosition(position);
-        string line = Document.Buffer.GetLine(position.Line);
-        if (line.Length == 0)
+        var range = _wordNavigator.WordRangeAt(position);
+        if (range is null)
         {
             MoveCursor(position, extendSelection: false);
             return false;
         }
 
-        int column = Math.Min(position.Column, line.Length - 1);
-        if (IsWordDiv(line[column]))
-        {
-            MoveCursor(position, extendSelection: false);
-            return false;
-        }
-
-        int start = column;
-        while (start > 0)
-        {
-            int previous = EditorUnicode.PreviousScalarColumn(line, start);
-            if (IsWordDiv(line[previous]))
-                break;
-
-            start = previous;
-        }
-
-        int end = EditorUnicode.NextScalarColumn(line, column);
-        while (end < line.Length && !IsWordDiv(line[end]))
-            end = EditorUnicode.NextScalarColumn(line, end);
-
-        SelectRange(new EditorPosition(position.Line, start), new EditorPosition(position.Line, end));
+        SelectRange(range.Value.Start, range.Value.End);
         return true;
     }
 
     public void MoveWordLeft(bool extendSelection = false, bool preserveSelection = false)
     {
-        int offset = PositionToOffset(Cursor);
-        if (offset == 0)
-            return;
-
-        MoveCursor(OffsetToPosition(PreviousWordStartOffset(offset)), extendSelection, preserveSelection);
+        EditorPosition current = GetNavigationStart(extendSelection, preserveSelection, -1);
+        MoveCursor(_wordNavigator.PreviousWordStart(current), extendSelection, preserveSelection);
     }
 
     public void MoveWordRight(bool extendSelection = false, bool preserveSelection = false)
     {
-        int offset = PositionToOffset(Cursor);
-        int targetOffset = extendSelection
-            ? NextWordSelectionEndOffset(offset)
-            : NextWordStartOffset(offset);
-        MoveCursor(OffsetToPosition(targetOffset), extendSelection, preserveSelection);
+        EditorPosition current = GetNavigationStart(extendSelection, preserveSelection, 1);
+        MoveCursor(_wordNavigator.NextWordStart(current), extendSelection, preserveSelection);
     }
 
     public bool InsertText(string text, string transactionName = "Insert")
@@ -234,7 +233,7 @@ public sealed class EditorSession
         }
 
         EditorPosition start = Cursor.Column > 0
-            ? Cursor with { Column = EditorUnicode.PreviousScalarColumn(line, Cursor.Column) }
+            ? Cursor with { Column = EditorUnicode.PreviousGraphemeColumn(line, Cursor.Column) }
             : new EditorPosition(Cursor.Line - 1, Document.Buffer.GetLine(Cursor.Line - 1).Length);
         string oldText = Cursor.Column > 0 ? Document.Buffer.GetLine(Cursor.Line)[start.Column..Cursor.Column] : "\n";
         ApplyChange("Backspace", start, Cursor, oldText, string.Empty, start);
@@ -258,7 +257,7 @@ public sealed class EditorSession
 
         if (Cursor.Column < line.Length)
         {
-            int endColumn = EditorUnicode.NextScalarColumn(line, Cursor.Column);
+            int endColumn = EditorUnicode.NextGraphemeColumn(line, Cursor.Column);
             end = Cursor with { Column = endColumn };
             oldText = line[Cursor.Column..endColumn];
         }
@@ -350,16 +349,14 @@ public sealed class EditorSession
             return false;
 
         Selection = null;
-        var cursor = Document.Buffer.NormalizePosition(Cursor);
-        int offset = PositionToOffset(cursor);
-        if (offset == 0)
+        var cursor = NormalizeCursorPosition(Cursor);
+        if (cursor == EditorPosition.Start)
         {
             MoveCursor(cursor, extendSelection: false);
             return false;
         }
 
-        int startOffset = PreviousWordStartOffset(offset);
-        var start = OffsetToPosition(startOffset);
+        var start = _wordNavigator.PreviousWordStart(cursor);
         string oldText = Document.Buffer.GetTextInRange(start, cursor);
         if (oldText.Length == 0)
             return false;
@@ -374,13 +371,10 @@ public sealed class EditorSession
             return false;
 
         Selection = null;
-        var cursor = Document.Buffer.NormalizePosition(Cursor);
-        int offset = PositionToOffset(cursor);
-        int endOffset = NextWordStartOffset(offset);
-        if (endOffset == offset)
+        var cursor = NormalizeCursorPosition(Cursor);
+        var end = _wordNavigator.NextWordStart(cursor);
+        if (end == cursor)
             return false;
-
-        var end = OffsetToPosition(endOffset);
         string oldText = Document.Buffer.GetTextInRange(cursor, end);
         if (oldText.Length == 0)
             return false;
@@ -911,6 +905,17 @@ public sealed class EditorSession
         return string.Join('\n', lines);
     }
 
+    private EditorPosition GetNavigationStart(bool extendSelection, bool preserveSelection, int direction)
+    {
+        if (extendSelection || preserveSelection || Selection is not { IsEmpty: false } selection)
+            return Cursor;
+
+        var (start, end) = selection.OrderedRange;
+        Cursor = direction < 0 ? start : end;
+        Selection = null;
+        return Cursor;
+    }
+
     private void MoveCursor(EditorPosition position, bool extendSelection, bool preserveSelection = false)
     {
         var normalized = NormalizeCursorPosition(position);
@@ -1047,42 +1052,4 @@ public sealed class EditorSession
             throw new ArgumentOutOfRangeException(nameof(slot), slot, "Bookmark slot must be between 0 and 9.");
     }
 
-    private int PreviousWordStartOffset(int offset)
-    {
-        var text = FlattenText();
-        offset = Math.Clamp(offset, 0, text.Length);
-        if (offset == 0)
-            return 0;
-
-        offset--;
-        while (offset > 0 && IsWordDiv(text[offset]))
-            offset--;
-        while (offset > 0 && !IsWordDiv(text[offset - 1]))
-            offset--;
-        return offset;
-    }
-
-    private int NextWordStartOffset(int offset)
-    {
-        var text = FlattenText();
-        offset = Math.Clamp(offset, 0, text.Length);
-        while (offset < text.Length && !IsWordDiv(text[offset]))
-            offset++;
-        while (offset < text.Length && IsWordDiv(text[offset]))
-            offset++;
-        return offset;
-    }
-
-    private int NextWordSelectionEndOffset(int offset)
-    {
-        var text = FlattenText();
-        offset = Math.Clamp(offset, 0, text.Length);
-        while (offset < text.Length && IsWordDiv(text[offset]))
-            offset++;
-        while (offset < text.Length && !IsWordDiv(text[offset]))
-            offset++;
-        return offset;
-    }
-
-    private bool IsWordDiv(char ch) => _settings.WordDiv.IndexOf(ch, StringComparison.Ordinal) >= 0;
 }

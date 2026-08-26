@@ -89,5 +89,5 @@ public sealed class EditorSearchService
     }
 
     private bool IsWordSeparator(char ch) =>
-        _wordSeparators.IndexOf(ch, StringComparison.Ordinal) >= 0;
+        EditorWordNavigator.IsWordSeparator(_wordSeparators, ch);
 }
