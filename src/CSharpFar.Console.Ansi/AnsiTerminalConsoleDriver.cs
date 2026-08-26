@@ -317,6 +317,7 @@ public sealed class AnsiTerminalConsoleDriver : IConsoleDriver, IConsoleFrameWri
 
     public void EnterApplicationScreen()
     {
+        SetMouseTrackingEnabled(enabled: true);
         if (_applicationScreenActive)
             return;
 
@@ -327,6 +328,7 @@ public sealed class AnsiTerminalConsoleDriver : IConsoleDriver, IConsoleFrameWri
 
     public void LeaveApplicationScreen()
     {
+        SetMouseTrackingEnabled(enabled: false);
         if (!_applicationScreenActive)
             return;
 
@@ -351,6 +353,7 @@ public sealed class AnsiTerminalConsoleDriver : IConsoleDriver, IConsoleFrameWri
     public void RestoreApplicationInputMode()
     {
         _inputReader.RestoreInputMode();
+        SetMouseTrackingEnabled(_applicationScreenActive);
         _diagnosticTerminalMode?.EnableRawMode();
     }
 
@@ -408,6 +411,12 @@ public sealed class AnsiTerminalConsoleDriver : IConsoleDriver, IConsoleFrameWri
                 _disposed = true;
             }
         }
+    }
+
+    private void SetMouseTrackingEnabled(bool enabled)
+    {
+        if (_inputReader is IMouseTrackingControl mouseTracking)
+            mouseTracking.SetMouseTrackingEnabled(enabled);
     }
 
     private static void WriteControl(string sequence)

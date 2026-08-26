@@ -4,6 +4,11 @@ using CSharpFar.Console.Models;
 
 namespace CSharpFar.Console.Ansi;
 
+internal interface IMouseTrackingControl
+{
+    void SetMouseTrackingEnabled(bool enabled);
+}
+
 internal abstract class ConsoleInputReaderBase : IConsoleInputReader
 {
     private readonly Func<ConsoleSize> _getSize;
@@ -61,7 +66,7 @@ internal abstract class ConsoleInputReaderBase : IConsoleInputReader
     }
 }
 
-internal sealed class UnixRawTerminalInputReader : ConsoleInputReaderBase
+internal sealed class UnixRawTerminalInputReader : ConsoleInputReaderBase, IMouseTrackingControl
 {
     private const string EnableMouseTracking = "\x1b[?1002h\x1b[?1006h";
     private const string DisableMouseTracking = "\x1b[?1000l\x1b[?1002l\x1b[?1003l\x1b[?1006l";
@@ -73,6 +78,8 @@ internal sealed class UnixRawTerminalInputReader : ConsoleInputReaderBase
     private readonly IModifierKeyTracker? _modifierKeyTracker;
     private readonly Action<string> _writeControl;
     private bool _active;
+    private bool _mouseTrackingRequested = true;
+    private bool _mouseTrackingActive;
     private bool _disposed;
 
     public UnixRawTerminalInputReader(
@@ -104,7 +111,7 @@ internal sealed class UnixRawTerminalInputReader : ConsoleInputReaderBase
 
     public override string BackendName => "raw-vt";
 
-    public override bool MouseTrackingEnabled => _active;
+    public override bool MouseTrackingEnabled => _mouseTrackingActive;
 
     public override ModifierKeyTrackingSnapshot ModifierKeyTracking =>
         _modifierKeyTracker?.GetSnapshot() ?? ModifierKeyTrackerFactory.UnsupportedSnapshot;
@@ -157,6 +164,16 @@ internal sealed class UnixRawTerminalInputReader : ConsoleInputReaderBase
         return false;
     }
 
+    public void SetMouseTrackingEnabled(bool enabled)
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        _mouseTrackingRequested = enabled;
+        if (!_active || _mouseTrackingActive == enabled)
+            return;
+
+        ApplyMouseTracking(enabled);
+    }
+
     public override void SuspendInputMode()
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
@@ -167,10 +184,12 @@ internal sealed class UnixRawTerminalInputReader : ConsoleInputReaderBase
         {
             _parser.ResetMouseState();
             _modifierKeyTracker?.Suspend();
-            _writeControl(DisableMouseTracking);
+            if (_mouseTrackingActive)
+                _writeControl(DisableMouseTracking);
         }
         finally
         {
+            _mouseTrackingActive = false;
             _terminalMode.RestoreOriginalMode();
             _active = false;
         }
@@ -189,11 +208,12 @@ internal sealed class UnixRawTerminalInputReader : ConsoleInputReaderBase
 
         try
         {
-            if (_active)
+            if (_mouseTrackingActive)
                 _writeControl(DisableMouseTracking);
         }
         finally
         {
+            _mouseTrackingActive = false;
             _active = false;
             _terminalMode.Dispose();
             _modifierKeyTracker?.Dispose();
@@ -225,15 +245,36 @@ internal sealed class UnixRawTerminalInputReader : ConsoleInputReaderBase
         try
         {
             _parser.ResetMouseState();
-            _writeControl(EnableMouseTracking);
+            if (_mouseTrackingRequested)
+                ApplyMouseTracking(enabled: true);
             _modifierKeyTracker?.Resume();
             _active = true;
         }
         catch
         {
+            if (_mouseTrackingActive)
+            {
+                try
+                {
+                    _writeControl(DisableMouseTracking);
+                }
+                catch
+                {
+                }
+
+                _mouseTrackingActive = false;
+            }
+
             _terminalMode.RestoreOriginalMode();
             throw;
         }
+    }
+
+    private void ApplyMouseTracking(bool enabled)
+    {
+        _parser.ResetMouseState();
+        _writeControl(enabled ? EnableMouseTracking : DisableMouseTracking);
+        _mouseTrackingActive = enabled;
     }
 
 }
