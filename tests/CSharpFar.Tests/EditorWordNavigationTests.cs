@@ -1,0 +1,54 @@
+using System.Text;
+using CSharpFar.App.Editor;
+using CSharpFar.Core.Models;
+
+namespace CSharpFar.Tests;
+
+public sealed class EditorWordNavigationTests
+{
+    [Fact]
+    public void MoveWordRight_ExtendedSelectionStopsAtLineEnd()
+    {
+        var session = CreateSession("alpha beta\n\nnext");
+        session.MoveTo(new EditorPosition(0, 6));
+
+        session.MoveWordRight(extendSelection: true);
+
+        Assert.Equal(new EditorPosition(0, 10), session.Cursor);
+        Assert.Equal("beta", session.CopySelection());
+    }
+
+    [Fact]
+    public void MoveWordRight_ExtendedSelectionCrossesLinesOnNextMove()
+    {
+        var session = CreateSession("alpha beta\n\nnext");
+        session.MoveTo(new EditorPosition(0, 6));
+
+        session.MoveWordRight(extendSelection: true);
+        session.MoveWordRight(extendSelection: true);
+
+        Assert.Equal(new EditorPosition(2, 0), session.Cursor);
+        Assert.Equal("beta\n\n", session.CopySelection());
+    }
+
+    [Fact]
+    public void MoveWordRight_WithoutSelectionStillMovesAcrossLines()
+    {
+        var session = CreateSession("alpha beta\n\nnext");
+        session.MoveTo(new EditorPosition(0, 6));
+
+        session.MoveWordRight();
+
+        Assert.Equal(new EditorPosition(2, 0), session.Cursor);
+        Assert.Null(session.Selection);
+    }
+
+    private static EditorSession CreateSession(string text)
+    {
+        var settings = new AppSettings.EditorSettings();
+        var format = new EditorDocumentFormat(Encoding.UTF8, false, EditorLineEnding.Lf, "UTF-8");
+        var document = new EditorDocument(EditorTextBuffer.FromText(text), format);
+        document.MarkClean();
+        return new EditorSession("test.txt", document, settings, readOnly: false);
+    }
+}

@@ -191,7 +191,15 @@ public sealed class EditorSession
     public void MoveWordRight(bool extendSelection = false, bool preserveSelection = false)
     {
         int offset = PositionToOffset(Cursor);
-        MoveCursor(OffsetToPosition(NextWordStartOffset(offset)), extendSelection, preserveSelection);
+        var target = OffsetToPosition(NextWordStartOffset(offset));
+        if (extendSelection && target.Line > Cursor.Line)
+        {
+            string line = Document.Buffer.GetLine(Cursor.Line);
+            if (Cursor.Column < line.Length)
+                target = new EditorPosition(Cursor.Line, line.Length);
+        }
+
+        MoveCursor(target, extendSelection, preserveSelection);
     }
 
     public bool InsertText(string text, string transactionName = "Insert")
