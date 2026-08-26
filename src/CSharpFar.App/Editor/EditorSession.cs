@@ -191,15 +191,10 @@ public sealed class EditorSession
     public void MoveWordRight(bool extendSelection = false, bool preserveSelection = false)
     {
         int offset = PositionToOffset(Cursor);
-        var target = OffsetToPosition(NextWordStartOffset(offset));
-        if (extendSelection && target.Line > Cursor.Line)
-        {
-            string line = Document.Buffer.GetLine(Cursor.Line);
-            if (Cursor.Column < line.Length)
-                target = new EditorPosition(Cursor.Line, line.Length);
-        }
-
-        MoveCursor(target, extendSelection, preserveSelection);
+        int targetOffset = extendSelection
+            ? NextWordSelectionEndOffset(offset)
+            : NextWordStartOffset(offset);
+        MoveCursor(OffsetToPosition(targetOffset), extendSelection, preserveSelection);
     }
 
     public bool InsertText(string text, string transactionName = "Insert")
@@ -1074,6 +1069,17 @@ public sealed class EditorSession
         while (offset < text.Length && !IsWordDiv(text[offset]))
             offset++;
         while (offset < text.Length && IsWordDiv(text[offset]))
+            offset++;
+        return offset;
+    }
+
+    private int NextWordSelectionEndOffset(int offset)
+    {
+        var text = FlattenText();
+        offset = Math.Clamp(offset, 0, text.Length);
+        while (offset < text.Length && IsWordDiv(text[offset]))
+            offset++;
+        while (offset < text.Length && !IsWordDiv(text[offset]))
             offset++;
         return offset;
     }
