@@ -94,7 +94,10 @@ public sealed class EditorSession
 
     public void MoveLeft(bool extendSelection = false, bool preserveSelection = false)
     {
-        EditorPosition current = GetNavigationStart(extendSelection, preserveSelection, -1);
+        if (CollapseSelectionForRelativeNavigation(extendSelection, preserveSelection, -1))
+            return;
+
+        EditorPosition current = Cursor;
         string line = Document.Buffer.GetLine(current.Line);
         var next = current.Column > line.Length
             ? current with { Column = current.Column - 1 }
@@ -108,7 +111,10 @@ public sealed class EditorSession
 
     public void MoveRight(bool extendSelection = false, bool preserveSelection = false)
     {
-        EditorPosition current = GetNavigationStart(extendSelection, preserveSelection, 1);
+        if (CollapseSelectionForRelativeNavigation(extendSelection, preserveSelection, 1))
+            return;
+
+        EditorPosition current = Cursor;
         string line = Document.Buffer.GetLine(current.Line);
         int column = current.Column < line.Length
             ? EditorUnicode.NextGraphemeColumn(line, current.Column)
@@ -118,44 +124,50 @@ public sealed class EditorSession
 
     public void MoveUp(int count = 1, bool extendSelection = false, bool preserveSelection = false)
     {
-        EditorPosition current = GetNavigationStart(extendSelection, preserveSelection, -1);
+        if (count <= 0)
+            return;
+        if (CollapseSelectionForRelativeNavigation(extendSelection, preserveSelection, -1) && --count == 0)
+            return;
+
+        EditorPosition current = Cursor;
         MoveCursor(new EditorPosition(Math.Max(0, current.Line - count), current.Column), extendSelection, preserveSelection);
     }
 
     public void MoveDown(int count = 1, bool extendSelection = false, bool preserveSelection = false)
     {
-        EditorPosition current = GetNavigationStart(extendSelection, preserveSelection, 1);
+        if (count <= 0)
+            return;
+        if (CollapseSelectionForRelativeNavigation(extendSelection, preserveSelection, 1) && --count == 0)
+            return;
+
+        EditorPosition current = Cursor;
         MoveCursor(new EditorPosition(Math.Min(Document.Buffer.LineCount - 1, current.Line + count), current.Column), extendSelection, preserveSelection);
     }
 
     public void MoveToLineStart(bool extendSelection = false, bool preserveSelection = false)
     {
-        EditorPosition current = GetNavigationStart(extendSelection, preserveSelection, -1);
+        EditorPosition current = Cursor;
         MoveCursor(current with { Column = 0 }, extendSelection, preserveSelection);
     }
 
     public void MoveToLineEnd(bool extendSelection = false, bool preserveSelection = false)
     {
-        EditorPosition current = GetNavigationStart(extendSelection, preserveSelection, 1);
+        EditorPosition current = Cursor;
         MoveCursor(current with { Column = Document.Buffer.GetLine(current.Line).Length }, extendSelection, preserveSelection);
     }
 
     public void MoveToDocumentStart(bool extendSelection = false, bool preserveSelection = false)
     {
-        GetNavigationStart(extendSelection, preserveSelection, -1);
         MoveCursor(EditorPosition.Start, extendSelection, preserveSelection);
     }
 
     public void MoveToDocumentEnd(bool extendSelection = false, bool preserveSelection = false)
     {
-        GetNavigationStart(extendSelection, preserveSelection, 1);
         MoveCursor(Document.Buffer.End, extendSelection, preserveSelection);
     }
 
     public void MoveTo(EditorPosition position, bool extendSelection = false, bool preserveSelection = false)
     {
-        int direction = EditorTextBuffer.Compare(position, Cursor) < 0 ? -1 : 1;
-        GetNavigationStart(extendSelection, preserveSelection, direction);
         MoveCursor(position, extendSelection, preserveSelection);
     }
 
@@ -186,13 +198,19 @@ public sealed class EditorSession
 
     public void MoveWordLeft(bool extendSelection = false, bool preserveSelection = false)
     {
-        EditorPosition current = GetNavigationStart(extendSelection, preserveSelection, -1);
+        if (CollapseSelectionForRelativeNavigation(extendSelection, preserveSelection, -1))
+            return;
+
+        EditorPosition current = Cursor;
         MoveCursor(_wordNavigator.PreviousWordStart(current), extendSelection, preserveSelection);
     }
 
     public void MoveWordRight(bool extendSelection = false, bool preserveSelection = false)
     {
-        EditorPosition current = GetNavigationStart(extendSelection, preserveSelection, 1);
+        if (CollapseSelectionForRelativeNavigation(extendSelection, preserveSelection, 1))
+            return;
+
+        EditorPosition current = Cursor;
         MoveCursor(_wordNavigator.NextWordStart(current), extendSelection, preserveSelection);
     }
 
@@ -905,15 +923,15 @@ public sealed class EditorSession
         return string.Join('\n', lines);
     }
 
-    private EditorPosition GetNavigationStart(bool extendSelection, bool preserveSelection, int direction)
+    private bool CollapseSelectionForRelativeNavigation(bool extendSelection, bool preserveSelection, int direction)
     {
         if (extendSelection || preserveSelection || Selection is not { IsEmpty: false } selection)
-            return Cursor;
+            return false;
 
         var (start, end) = selection.OrderedRange;
         Cursor = direction < 0 ? start : end;
         Selection = null;
-        return Cursor;
+        return true;
     }
 
     private void MoveCursor(EditorPosition position, bool extendSelection, bool preserveSelection = false)

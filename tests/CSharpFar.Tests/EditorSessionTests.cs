@@ -184,18 +184,28 @@ public sealed class EditorSessionTests
 
     [Theory]
     [InlineData("e\u0301")]
+    [InlineData("❤️")]
     [InlineData("👍🏽")]
     [InlineData("👨‍👩‍👧‍👦")]
     public void CharacterNavigationAndDeletion_DoNotSplitGraphemeClusters(string grapheme)
     {
-        var session = CreateSession("a" + grapheme + "b");
+        var right = CreateSession("a" + grapheme + "b");
+        right.MoveRight();
+        right.MoveRight();
+        Assert.Equal(new EditorPosition(0, 1 + grapheme.Length), right.Cursor);
+        right.MoveLeft();
+        Assert.Equal(new EditorPosition(0, 1), right.Cursor);
 
-        session.MoveRight();
-        session.MoveRight(extendSelection: true);
-        Assert.Equal(grapheme, session.CopySelection());
+        var delete = CreateSession("a" + grapheme + "b");
+        delete.MoveRight();
+        Assert.True(delete.DeleteForward());
+        Assert.Equal("ab", delete.FlattenText());
 
-        Assert.True(session.DeleteBack());
-        Assert.Equal("ab", session.FlattenText());
+        var backspace = CreateSession("a" + grapheme + "b");
+        backspace.MoveRight();
+        backspace.MoveRight();
+        Assert.True(backspace.DeleteBack());
+        Assert.Equal("ab", backspace.FlattenText());
     }
 
     [Fact]
@@ -216,19 +226,56 @@ public sealed class EditorSessionTests
     }
 
     [Fact]
-    public void OrdinaryArrow_CollapsesAnExistingLinearSelectionToItsDirectionSide()
+    public void RelativeNavigation_CollapsesAnExistingLinearSelectionToItsDirectionSide()
     {
-        var left = CreateSession("abcd");
-        left.SelectRange(new EditorPosition(0, 1), new EditorPosition(0, 3));
-        left.MoveLeft();
-        Assert.Equal(new EditorPosition(0, 0), left.Cursor);
-        Assert.Null(left.Selection);
+        foreach (var selection in new[]
+                 {
+                     (new EditorPosition(0, 1), new EditorPosition(0, 3)),
+                     (new EditorPosition(0, 3), new EditorPosition(0, 1))
+                 })
+        {
+            AssertSelectionCollapses(selection, session => session.MoveLeft(), new EditorPosition(0, 1));
+            AssertSelectionCollapses(selection, session => session.MoveRight(), new EditorPosition(0, 3));
+            AssertSelectionCollapses(selection, session => session.MoveWordLeft(), new EditorPosition(0, 1));
+            AssertSelectionCollapses(selection, session => session.MoveWordRight(), new EditorPosition(0, 3));
+        }
+    }
 
-        var right = CreateSession("abcd");
-        right.SelectRange(new EditorPosition(0, 3), new EditorPosition(0, 1));
-        right.MoveRight();
-        Assert.Equal(new EditorPosition(0, 4), right.Cursor);
-        Assert.Null(right.Selection);
+    [Fact]
+    public void VerticalNavigation_CollapseConsumesOneMovementUnit()
+    {
+        var up = CreateSession("zero\none\ntwo\nthree");
+        up.SelectRange(new EditorPosition(1, 1), new EditorPosition(3, 1));
+        up.MoveUp();
+        Assert.Equal(new EditorPosition(1, 1), up.Cursor);
+        Assert.Null(up.Selection);
+
+        up.SelectRange(new EditorPosition(3, 1), new EditorPosition(1, 1));
+        up.MoveUp(2);
+        Assert.Equal(new EditorPosition(0, 1), up.Cursor);
+
+        var down = CreateSession("zero\none\ntwo\nthree");
+        down.SelectRange(new EditorPosition(3, 1), new EditorPosition(1, 1));
+        down.MoveDown();
+        Assert.Equal(new EditorPosition(3, 1), down.Cursor);
+        Assert.Null(down.Selection);
+
+        down.SelectRange(new EditorPosition(1, 1), new EditorPosition(3, 1));
+        down.MoveDown(2);
+        Assert.Equal(new EditorPosition(3, 1), down.Cursor);
+    }
+
+    [Fact]
+    public void OrdinaryAndExtendedNavigation_HaveTheSameDestinationWithoutSelection()
+    {
+        AssertSameDestination(session => session.MoveLeft(), session => session.MoveLeft(extendSelection: true));
+        AssertSameDestination(session => session.MoveRight(), session => session.MoveRight(extendSelection: true));
+        AssertSameDestination(session => session.MoveWordLeft(), session => session.MoveWordLeft(extendSelection: true));
+        AssertSameDestination(session => session.MoveWordRight(), session => session.MoveWordRight(extendSelection: true));
+        AssertSameDestination(session => session.MoveToLineStart(), session => session.MoveToLineStart(extendSelection: true));
+        AssertSameDestination(session => session.MoveToLineEnd(), session => session.MoveToLineEnd(extendSelection: true));
+        AssertSameDestination(session => session.MoveToDocumentStart(), session => session.MoveToDocumentStart(extendSelection: true));
+        AssertSameDestination(session => session.MoveToDocumentEnd(), session => session.MoveToDocumentEnd(extendSelection: true));
     }
 
     [Fact]
@@ -536,5 +583,32 @@ public sealed class EditorSessionTests
         var document = new EditorDocument(EditorTextBuffer.FromText(text), format);
         document.MarkClean();
         return new EditorSession("test.txt", document, settings, readOnly: false);
+    }
+
+    private static void AssertSameDestination(Action<EditorSession> ordinaryMove, Action<EditorSession> extendedMove)
+    {
+        var ordinary = CreateSession("alpha beta");
+        ordinary.MoveTo(new EditorPosition(0, 6));
+        var extended = CreateSession("alpha beta");
+        extended.MoveTo(new EditorPosition(0, 6));
+
+        ordinaryMove(ordinary);
+        extendedMove(extended);
+
+        Assert.Equal(ordinary.Cursor, extended.Cursor);
+    }
+
+    private static void AssertSelectionCollapses(
+        (EditorPosition Anchor, EditorPosition Active) selection,
+        Action<EditorSession> move,
+        EditorPosition expectedCursor)
+    {
+        var session = CreateSession("abcd");
+        session.SelectRange(selection.Anchor, selection.Active);
+
+        move(session);
+
+        Assert.Equal(expectedCursor, session.Cursor);
+        Assert.Null(session.Selection);
     }
 }
