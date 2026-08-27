@@ -799,6 +799,14 @@ public sealed class FileOperationService : IFileOperationService, IFileOperation
             : DestinationPattern.Parse(destination, PanelSourceId.Local);
         DestinationTemplate? template = useDestinationTemplate ? DestinationTemplate.Parse(destination) : null;
         string destinationDirectory = destinationPattern.HasWildcards ? destinationPattern.ParentPath : destination;
+        bool useExplicitSingleFileTarget =
+            rootTarget is null &&
+            template is null &&
+            !destinationPattern.HasWildcards &&
+            sources.Count == 1 &&
+            IsPath(destination) &&
+            !Directory.Exists(destination) &&
+            !Path.EndsInDirectorySeparator(destination);
         var files = new List<CopyFilePlanItem>();
         var directories = new List<CopyDirectoryPlanItem>();
         var matcher = new FarMaskMatcher();
@@ -817,9 +825,11 @@ public sealed class FileOperationService : IFileOperationService, IFileOperation
 
                 string target = rootTarget ?? (template is not null
                     ? template.Evaluate(CreateLocalTemplateContext(source))
-                    : Path.Combine(destinationDirectory, destinationPattern.HasWildcards
-                    ? destinationPattern.TransformName(fileName)
-                    : fileName));
+                    : useExplicitSingleFileTarget
+                        ? destination
+                        : Path.Combine(destinationDirectory, destinationPattern.HasWildcards
+                            ? destinationPattern.TransformName(fileName)
+                            : fileName));
                 if (PathsEqual(source, target))
                     throw new IOException("Source and destination file are the same.");
                 var snapshot = GetSourceSnapshot(source);
@@ -1722,9 +1732,10 @@ public sealed class FileOperationService : IFileOperationService, IFileOperation
             ? default
             : DestinationPattern.Parse(destination.SourcePath, destination.SourceId);
         DestinationTemplate? template = useDestinationTemplate ? DestinationTemplate.Parse(destination.SourcePath) : null;
+        IFilePanelSource destinationSource = _sources!.GetSource(destination.SourceId);
         IReadOnlyCollection<char>? destinationPathSeparators = template is null
             ? null
-            : _sources!.GetSource(destination.SourceId).PathSeparators;
+            : destinationSource.PathSeparators;
         var plan = new List<ProviderOperationPlanItem>(sources.Count);
         bool hasMask = HasFileMask(options);
         var matcher = new FarMaskMatcher();
@@ -1743,10 +1754,17 @@ public sealed class FileOperationService : IFileOperationService, IFileOperation
 
             string targetPath = template is not null
                 ? template.Evaluate(new DestinationTemplateContext(item.Name, item.IsDirectory, item.LastWriteTime, destinationPathSeparators!))
-                : CombineProviderPath(
-                    destination.SourceId,
-                    destinationPattern.HasWildcards ? destinationPattern.ParentPath : destination.SourcePath,
-                    destinationPattern.HasWildcards ? destinationPattern.TransformName(item.Name) : item.Name);
+                : destinationPattern.HasWildcards
+                    ? CombineProviderPath(
+                        destination.SourceId,
+                        destinationPattern.ParentPath,
+                        destinationPattern.TransformName(item.Name))
+                    : ResolveProviderCopyTargetPath(
+                        destinationSource,
+                        item,
+                        destination.SourcePath,
+                        sources.Count,
+                        cancellationToken);
 
             if (!hasMask)
             {
@@ -2022,6 +2040,28 @@ public sealed class FileOperationService : IFileOperationService, IFileOperation
         {
             yield return PanelSourceId.Local;
         }
+    }
+
+    private static string ResolveProviderCopyTargetPath(
+        IFilePanelSource destinationSource,
+        FilePanelItem item,
+        string destinationPath,
+        int sourceCount,
+        CancellationToken cancellationToken)
+    {
+        if (sourceCount > 1 || item.IsDirectory)
+            return CombineProviderPath(destinationSource.SourceId, destinationPath, item.Name);
+
+        if (destinationSource.SourceId == PanelSourceId.Local && !IsPath(destinationPath))
+            return CombineProviderPath(destinationSource.SourceId, destinationPath, item.Name);
+
+        if (destinationPath.Length == 0 || destinationSource.PathSeparators.Contains(destinationPath[^1]))
+            return CombineProviderPath(destinationSource.SourceId, destinationPath, item.Name);
+
+        FilePanelItem? destinationItem = destinationSource.GetItem(destinationPath, cancellationToken);
+        return destinationItem?.IsDirectory == true
+            ? CombineProviderPath(destinationSource.SourceId, destinationPath, item.Name)
+            : destinationPath;
     }
 
     private static string ResolveProviderMoveTargetPath(
