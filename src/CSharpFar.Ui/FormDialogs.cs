@@ -135,6 +135,7 @@ internal sealed class FormDialogs
 
         void RefreshRows()
         {
+            using IDisposable renderScope = BeginRenderScope(options);
             IReadOnlyList<FormRow> body = rows() ?? throw new InvalidOperationException("Form rows cannot be null.");
             currentFooter = footer?.Invoke() ?? [];
             form.SetRows(body, currentFooter);
@@ -159,7 +160,7 @@ internal sealed class FormDialogs
                 return ToLoopResult(outcome, form);
             },
             prepareRender: RefreshRows,
-            beginRenderScope: options.Theme is null ? null : () => UiTheme.UseTemporary(options.Theme()),
+            beginRenderScope: () => BeginRenderScope(options),
             cancellationToken: cancellationToken);
     }
 
@@ -297,6 +298,23 @@ internal sealed class FormDialogs
 
     private static int FooterHeight(IReadOnlyList<FormRow> footer) => footer.Sum(row => row.Height);
 
+    private static IDisposable BeginRenderScope(FormDialogOptions options)
+    {
+        IDisposable appearanceScope = FarDialogStyles.UseAppearance(options.Appearance);
+        if (options.Theme is null)
+            return appearanceScope;
+
+        try
+        {
+            return new RenderScope(UiTheme.UseTemporary(options.Theme()), appearanceScope);
+        }
+        catch
+        {
+            appearanceScope.Dispose();
+            throw;
+        }
+    }
+
     private static ModalFormOptions CreateModalOptions(FormDialogOptions options)
     {
         PopupRenderOptions? popup = options.Appearance switch
@@ -320,5 +338,20 @@ internal sealed class FormDialogs
             HorizontalMargin = options.HorizontalMargin,
             VerticalMargin = options.VerticalMargin,
         };
+    }
+
+    private sealed class RenderScope(IDisposable themeScope, IDisposable appearanceScope) : IDisposable
+    {
+        private bool _disposed;
+
+        public void Dispose()
+        {
+            if (_disposed)
+                return;
+
+            themeScope.Dispose();
+            appearanceScope.Dispose();
+            _disposed = true;
+        }
     }
 }

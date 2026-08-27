@@ -19,7 +19,7 @@ internal sealed class ConflictDialog
     public FileOperationConflictDecision Show(FileOperationConflict conflict)
     {
         var rememberChoice = FormControls.CheckBox("Remember choice");
-        var actions = FormControls.Buttons(CreateButtons(), FormControlTone.Warning);
+        var actions = FormControls.Buttons(CreateButtons());
         return _dialogs.Form(
             new FormDialogOptions("Warning", PreferredWidth: 78, PreferredHeight: 13)
             {
