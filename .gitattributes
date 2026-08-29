@@ -1,1 +1,2 @@
-docs/install.sh text eol=lf
+# Keep repository files byte-preserving: Git must not normalize line endings.
+* -text
