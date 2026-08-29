@@ -432,7 +432,7 @@ public sealed class Application
 
     internal bool OpenTopMenu(PanelSide side)
     {
-        _topMenu.Open();
+        _topMenu.Open(side == PanelSide.Left ? "Left" : "Right");
         return true;
     }
 

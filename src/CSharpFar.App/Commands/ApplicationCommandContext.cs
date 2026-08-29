@@ -521,7 +521,7 @@ internal sealed class ApplicationCommandContext
 
     public bool OpenTopMenu(PanelSide side)
     {
-        _topMenu.Open();
+        _topMenu.Open(side == PanelSide.Left ? "Left" : "Right");
         return true;
     }
 

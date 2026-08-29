@@ -66,6 +66,15 @@ public sealed class TopMenu : UiLayer<TopMenuFrame>
             OpenInitial(_getDefinition());
     }
 
+    public void Open(string? topItemId)
+    {
+        if (!_isAvailable())
+            return;
+
+        MenuBarDefinition definition = _getDefinition();
+        OpenDropdown(definition, FindTopIndex(definition, topItemId));
+    }
+
     public void Close()
     {
         _state.OpenState = MenuOpenState.Closed;
