@@ -211,14 +211,14 @@ public sealed class TopMenu : UiLayer<TopMenuFrame>
 
     private void OpenInitial(MenuBarDefinition definition)
     {
-        if (!IsOpen)
-            _opening();
         OpenDropdown(definition, FindTopIndex(definition, _getInitialTopItemId()));
     }
 
     private void OpenDropdown(MenuBarDefinition definition, int topIndex)
     {
         if (definition.Items.Count == 0) { Close(); return; }
+        if (!IsOpen)
+            _opening();
         _state.ActiveTopMenuIndex = Math.Clamp(topIndex, 0, definition.Items.Count - 1);
         _state.OpenState = MenuOpenState.DropdownOpen;
         _state.ActiveDropdownItemIndex = FirstSelectableIndex(CurrentChildren(definition));

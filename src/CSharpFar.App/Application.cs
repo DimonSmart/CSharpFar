@@ -428,14 +428,6 @@ public sealed class Application
         ResetCommandHistoryNavigation();
     }
 
-    internal bool OpenTopMenu() => OpenTopMenu(_active);
-
-    internal bool OpenTopMenu(PanelSide side)
-    {
-        _topMenu.Open(side == PanelSide.Left ? "Left" : "Right");
-        return true;
-    }
-
     internal FilePanelState PassiveState => _active == PanelSide.Left ? _right : _left;
 
     internal void OpenSearchResultsPanel(

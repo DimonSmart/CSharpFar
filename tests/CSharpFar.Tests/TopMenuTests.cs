@@ -42,6 +42,25 @@ public sealed class TopMenuTests
     }
 
     [Fact]
+    public void PublicOpenMethodsUseOpeningLifecycleOnlyForClosedToOpenTransition()
+    {
+        var fixture = Fixture.Create();
+
+        fixture.Menu.Open();
+        Assert.Equal(1, fixture.OpeningCount);
+
+        fixture.Menu.Open("Beta");
+        fixture.Render();
+        Assert.Equal("Beta", fixture.ActiveTopId);
+        Assert.Equal(1, fixture.OpeningCount);
+
+        fixture.Menu.Close();
+        fixture.Menu.Open("Beta");
+
+        Assert.Equal(2, fixture.OpeningCount);
+    }
+
+    [Fact]
     public void KeyboardNavigationSkipsUnavailableItemsAndExecutesAfterClosing()
     {
         var fixture = Fixture.Create();
@@ -129,16 +148,26 @@ public sealed class TopMenuTests
     }
 
     [Fact]
-    public void LongMenuScrollsCapturesScrollbarAndRecalculatesAfterResize()
+    public void LongMenuScrollbarCapturesRoutesAndReleasesMouse()
     {
         var fixture = Fixture.Create(height: 6, longMenu: true);
         fixture.Dispatch(UiTestInput.Key(ConsoleKey.F9));
         fixture.Render();
         VerticalScrollbarFrame scrollbar = Assert.IsType<VerticalScrollbarFrame>(fixture.Frame.DropdownScrollbar);
-        fixture.Dispatch(UiTestInput.Mouse(scrollbar.Bounds.X, scrollbar.Bounds.Bottom - 1));
+        int thumbY = ScrollBarInteraction.CalculateThumb(scrollbar.Bounds, scrollbar.ToScrollState()).ThumbY;
+        Assert.Equal(ScrollBarHitPart.Thumb, ScrollBarInteraction.HitTest(scrollbar.Bounds, scrollbar.ToScrollState(), scrollbar.Bounds.X, thumbY).Part);
+        Assert.True(fixture.Dispatch(UiTestInput.Mouse(scrollbar.Bounds.X, thumbY)).Invalidate);
         fixture.Render();
-        Assert.True(fixture.Frame.Layout.DropdownFirstVisibleItemIndex > 0);
-        fixture.Dispatch(UiTestInput.Mouse(scrollbar.Bounds.X, scrollbar.Bounds.Bottom - 1, MouseEventKind.Up));
+
+        UiInputResult capturedMove = fixture.Dispatch(UiTestInput.Mouse(0, scrollbar.Bounds.Bottom - 2, MouseEventKind.Move));
+        fixture.Render();
+        Assert.True(capturedMove.Invalidate);
+
+        Assert.True(fixture.Dispatch(UiTestInput.Mouse(0, scrollbar.Bounds.Bottom - 2, MouseEventKind.Up)).Invalidate);
+        fixture.Render();
+        UiInputResult afterRelease = fixture.Dispatch(UiTestInput.Mouse(0, 0, MouseEventKind.Move));
+        fixture.Render();
+        Assert.False(afterRelease.Invalidate);
 
         fixture.Resize(80, 25);
         fixture.Render();
@@ -234,26 +263,108 @@ public sealed class ApplicationTopMenuPolicyTests
     [Theory]
     [InlineData(PanelSide.Left, "Left")]
     [InlineData(PanelSide.Right, "Right")]
-    public void OpenTopMenuForPanel_SelectsThatPanelsSemanticMenu(PanelSide side, string expectedId)
+    public void CommandContextOpenTopMenu_SelectsThatPanelsSemanticMenuAndClosesQuickSearch(PanelSide side, string expectedId)
     {
-        var driver = new CSharpFar.Tests.Fakes.FakeConsoleDriver();
-        var fileSystem = new CSharpFar.Tests.Fakes.FakeFileSystemService();
+        var services = Services();
+        services.Session.Panels.Left.Items.Add(new FilePanelItem
+        {
+            Name = "gamma.txt",
+            FullPath = @"C:\Root\gamma.txt",
+            IsDirectory = false,
+        });
+        services.Composition.Render();
+        Assert.True(services.Composition.DispatchInput(UiTestInput.Key(ConsoleKey.G, alt: true)).Handled);
+        Assert.NotNull(services.PanelQuickSearch.State);
+
+        Assert.True(services.CommandContext.OpenTopMenu(side));
+        services.Composition.Render();
+
+        Assert.Null(services.PanelQuickSearch.State);
+        Assert.StartsWith($"top-menu.dropdown:{expectedId}:",
+            services.TopMenu.CommittedInteractionFrame.Focus.DefaultTarget!.Value,
+            StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData(PanelSide.Left, "Left")]
+    [InlineData(PanelSide.Right, "Right")]
+    public void F9_UsesActivePanelsSemanticMenu(PanelSide activeSide, string expectedId)
+    {
+        var services = Services(activeSide);
+
+        services.Composition.Render();
+        services.Composition.DispatchInput(UiTestInput.Key(ConsoleKey.F9));
+        services.Composition.Render();
+
+        AssertActiveTopItem(services, expectedId);
+    }
+
+    [Theory]
+    [InlineData("Left", "Right")]
+    [InlineData("Right", "Left")]
+    public void Tab_SwitchesBetweenPanelMenus(string initial, string expected)
+    {
+        var services = Services();
+        services.TopMenu.Open(initial);
+        services.Composition.Render();
+
+        services.Composition.DispatchInput(UiTestInput.Key(ConsoleKey.Tab));
+        services.Composition.Render();
+
+        AssertActiveTopItem(services, expected);
+    }
+
+    [Theory]
+    [InlineData(PanelSide.Left, "Right")]
+    [InlineData(PanelSide.Right, "Left")]
+    public void Tab_FromAnotherTopLevelMenu_SelectsPassivePanelMenu(PanelSide activeSide, string expectedId)
+    {
+        var services = Services(activeSide);
+        services.TopMenu.Open("Commands");
+        services.Composition.Render();
+
+        services.Composition.DispatchInput(UiTestInput.Key(ConsoleKey.Tab));
+        services.Composition.Render();
+
+        AssertActiveTopItem(services, expectedId);
+    }
+
+    [Fact]
+    public void SelectedTopMenuCommand_IsDeferredUntilRuntimeProcessesQueue()
+    {
+        var services = Services();
+        services.Composition.Render();
+
+        services.Composition.DispatchInput(UiTestInput.Key(ConsoleKey.F9));
+        services.Composition.Render();
+        services.Composition.DispatchInput(UiTestInput.Key(ConsoleKey.C, keyChar: 'c'));
+        services.Composition.Render();
+        services.Composition.DispatchInput(UiTestInput.Key(ConsoleKey.Enter));
+
+        Assert.False(services.TopMenu.IsOpen);
+        Assert.Equal(ApplicationWorkspaceMode.Panels, services.Session.App.WorkspaceMode);
+    }
+
+    private static void AssertActiveTopItem(ApplicationServices services, string expectedId) =>
+        Assert.StartsWith($"top-menu.dropdown:{expectedId}:",
+            services.TopMenu.CommittedInteractionFrame.Focus.DefaultTarget!.Value,
+            StringComparison.Ordinal);
+
+    private static ApplicationServices Services(PanelSide activeSide = PanelSide.Left)
+    {
+        var driver = new FakeConsoleDriver();
+        var fileSystem = new FakeFileSystemService();
         const string root = @"C:\Root";
         fileSystem.AddDirectory(root);
         var settings = new AppSettings();
         settings.Panels.LeftStartDirectory = root;
         settings.Panels.RightStartDirectory = root;
-        var services = ApplicationServicesBuilder.Create(
+        ApplicationServices services = ApplicationServicesBuilder.Create(
             new ScreenRenderer(driver), fileSystem, new NoOpShellService(),
             new NoOpFileOperationService(), new InMemoryHistoryStore(), settings,
             enableBuiltInNetworkModules: false);
-        var app = new Application(services);
-
-        Assert.True(app.OpenTopMenu(side));
-        services.Composition.Render();
-
-        Assert.StartsWith($"top-menu.dropdown:{expectedId}:",
-            services.TopMenu.CommittedInteractionFrame.Focus.DefaultTarget!.Value,
-            StringComparison.Ordinal);
+        _ = new Application(services);
+        services.Session.Panels.ActiveSide = activeSide;
+        return services;
     }
 }
