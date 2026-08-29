@@ -1,9 +1,7 @@
 using CSharpFar.App.Rendering;
 using CSharpFar.App.State;
-using CSharpFar.Console.Input;
 using CSharpFar.Core.Controllers;
 using CSharpFar.Core.Models;
-using CSharpFar.Ui;
 
 namespace CSharpFar.App.Input;
 
@@ -16,20 +14,13 @@ internal sealed class ApplicationPanelInputHandler
         _context = context;
     }
 
-    public ApplicationInputHandlingResult Handle(
-        MouseConsoleInputEvent input,
-        ApplicationPanelFrame frame,
-        UiInputRouteKind routeKind,
-        UiTargetId? target)
+    public ApplicationInputHandlingResult Handle(ApplicationPanelInteraction interaction)
     {
-        if (routeKind != UiInputRouteKind.HitTarget)
-            return ApplicationInputHandlingResult.NotHandled;
-
+        ApplicationPanelFrame frame = interaction.Frame;
         var state = _context.GetPanelState(frame.Side);
+        ApplicationPanelItemHit? hit = interaction.Action.Item?.Item;
 
-        if (input.Button == MouseButton.Left &&
-            input.Kind == MouseEventKind.Down &&
-            frame.IsRetryTarget(target))
+        if (interaction.Action is { Kind: RoutedPointerActionKind.ItemPrimaryPressed, Item.IsRetry: true })
         {
             _context.SetActiveSide(frame.Side);
             _context.SafeRefresh(state, frame.VisibleRows);
@@ -37,21 +28,21 @@ internal sealed class ApplicationPanelInputHandler
             return ApplicationInputHandlingResult.FromHandled(shouldRender: true);
         }
 
-        if (input.Kind == MouseEventKind.Wheel)
+        if (interaction.Action.Kind is RoutedPointerActionKind.WheelUp or RoutedPointerActionKind.WheelDown)
         {
             _context.SetActiveSide(frame.Side);
-            int delta = input.Button == MouseButton.WheelUp ? -3 : 3;
+            int delta = interaction.Action.Kind == RoutedPointerActionKind.WheelUp ? -3 : 3;
             _context.PanelController.ScrollView(state, delta, frame.VisibleRows);
             return ApplicationInputHandlingResult.FromHandled(shouldRender: true);
         }
 
-        bool hasItemTarget = frame.TryGetItemTarget(target, out ApplicationPanelItemHit hit);
+        bool hasItemTarget = hit is not null;
 
-        if (input.Button == MouseButton.Right && input.Kind == MouseEventKind.Down)
+        if (interaction.Action.Kind == RoutedPointerActionKind.ItemSecondaryPressed)
         {
             _context.Mouse.LastLeftPanelItemClick = null;
             _context.SetActiveSide(frame.Side);
-            if (hasItemTarget && TryGetCurrentItem(hit, state, out var item))
+            if (hit is not null && TryGetCurrentItem(hit, state, out var item))
             {
                 _context.PanelController.SetCursorTo(state, hit.ItemIndex, frame.VisibleRows);
                 if (_context.PanelOptions().RightClickSelectsFiles &&
@@ -64,10 +55,10 @@ internal sealed class ApplicationPanelInputHandler
             return ApplicationInputHandlingResult.FromHandled(shouldRender: true);
         }
 
-        if (input.Button == MouseButton.Left && input.Kind == MouseEventKind.DoubleClick)
+        if (interaction.Action.Kind == RoutedPointerActionKind.ItemDoubleClicked)
         {
             _context.SetActiveSide(frame.Side);
-            if (hasItemTarget && TryGetCurrentItem(hit, state, out var item))
+            if (hit is not null && TryGetCurrentItem(hit, state, out var item))
             {
                 _context.PanelController.SetCursorTo(state, hit.ItemIndex, frame.VisibleRows);
                 var currentClick = new PanelItemClick(frame.Side, hit.ItemIndex, hit.ItemLocation);
@@ -79,10 +70,10 @@ internal sealed class ApplicationPanelInputHandler
             return ApplicationInputHandlingResult.FromHandled(shouldRender: true);
         }
 
-        if (input.Button == MouseButton.Left && input.Kind == MouseEventKind.Down)
+        if (interaction.Action.Kind is RoutedPointerActionKind.ItemPrimaryPressed or RoutedPointerActionKind.SurfacePressed)
         {
             _context.SetActiveSide(frame.Side);
-            if (hasItemTarget && TryGetCurrentItem(hit, state, out _))
+            if (hit is not null && TryGetCurrentItem(hit, state, out _))
             {
                 _context.PanelController.SetCursorTo(state, hit.ItemIndex, frame.VisibleRows);
                 _context.Mouse.LastLeftPanelItemClick =

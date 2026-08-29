@@ -598,7 +598,7 @@ public sealed class ApplicationUiSurfaceTests
         Assert.Equal(UiInputRouteKind.HitTarget, down.RouteKind);
 
         services.Inner.ApplicationInputDispatcher.Handle(down);
-        Assert.NotNull(down.ScrollbarInput);
+        Assert.Null(down.PointerInteraction);
 
         services.Composition.DispatchInput(new MouseConsoleInputEvent(
             79,
@@ -622,7 +622,7 @@ public sealed class ApplicationUiSurfaceTests
         Assert.Equal(ApplicationTargetIds.LeftPanelScrollbar, nonMatchingUp.Target);
         Assert.Equal(UiInputRouteKind.CapturedTarget, nonMatchingUp.RouteKind);
         services.Inner.ApplicationInputDispatcher.Handle(nonMatchingUp);
-        Assert.Null(nonMatchingUp.ScrollbarInput);
+        Assert.Null(nonMatchingUp.PointerInteraction);
 
         services.Composition.DispatchInput(new MouseConsoleInputEvent(
             0,
@@ -645,7 +645,7 @@ public sealed class ApplicationUiSurfaceTests
         Assert.Equal(ApplicationTargetIds.LeftPanelScrollbar, leftUp.Target);
         Assert.Equal(UiInputRouteKind.CapturedTarget, leftUp.RouteKind);
         services.Inner.ApplicationInputDispatcher.Handle(leftUp);
-        Assert.True(leftUp.ScrollbarInput?.Result.DragEnded);
+        Assert.Null(leftUp.PointerInteraction);
 
         services.Composition.DispatchInput(new MouseConsoleInputEvent(
             0,
@@ -1023,7 +1023,7 @@ public sealed class ApplicationUiSurfaceTests
         Assert.True(services.ApplicationSurface.TryTakeInput(out var down));
         Assert.Equal(ApplicationTargetIds.PanelScrollbar(side), down.Target);
         services.Inner.ApplicationInputDispatcher.Handle(down);
-        Assert.NotNull(down.ScrollbarInput);
+        Assert.Null(down.PointerInteraction);
     }
 
     public enum ScrollbarTargetRemoval

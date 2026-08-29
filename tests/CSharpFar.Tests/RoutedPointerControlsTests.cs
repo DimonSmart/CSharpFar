@@ -20,8 +20,11 @@ public sealed class RoutedPointerControlsTests
         UiInteractionFragment fragment = surface.BuildInteractionFragment(new Rect(0, 0, 12, 8), items);
 
         Assert.Equal(["list", "item:4", "item:9"], fragment.HitRegions.Select(region => region.Target.Value));
-        Assert.True(surface.TryGetItem(new UiTargetId("item:9"), items, out int item));
-        Assert.Equal(9, item);
+        RoutedPointerInput<int> action = surface.RouteInput(
+            Mouse(MouseButton.Left, MouseEventKind.Down, 2, 3),
+            UiInputRouteContext.HitTarget(new UiFocusController(), new UiTargetId("item:9")), items);
+        Assert.Equal(RoutedPointerActionKind.ItemPrimaryPressed, action.Action.Kind);
+        Assert.Equal(9, action.Action.Item);
     }
 
     [Fact]
@@ -45,10 +48,9 @@ public sealed class RoutedPointerControlsTests
             Mouse(MouseButton.Left, MouseEventKind.Up, 0, 8), frame,
             UiInputRouteContext.CapturedTarget(focus, target));
 
-        Assert.True(down.Scrollbar.DragStarted);
+        Assert.Null(down.FirstVisibleIndex);
         Assert.Equal(UiMouseCaptureRequestKind.Capture, down.UiResult.MouseCaptureRequest.Kind);
-        Assert.True(move.Scrollbar.PositionChanged);
-        Assert.True(up.Scrollbar.DragEnded);
+        Assert.NotNull(move.FirstVisibleIndex);
         Assert.Equal(UiMouseCaptureRequestKind.Release, up.UiResult.MouseCaptureRequest.Kind);
     }
 

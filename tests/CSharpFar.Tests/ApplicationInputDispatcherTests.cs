@@ -925,14 +925,7 @@ public sealed class ApplicationInputDispatcherTests
 
         int firstVisibleIndex = ScrollBarInteraction.ApplyClick(frame.ToScrollState(), part);
         var result = new ApplicationPanelScrollbarInputHandler(context).Handle(
-            new ApplicationScrollbarInput(
-                PanelSide.Left,
-                frame.ViewportItems,
-                new VerticalScrollbarInputResult(
-                    IsHandled: true,
-                    firstVisibleIndex,
-                    PositionChanged: firstVisibleIndex != frame.FirstVisibleIndex)),
-            UiInputRouteKind.HitTarget);
+            new ApplicationPanelScrollInteraction(PanelSide.Left, frame.ViewportItems, firstVisibleIndex));
 
         Assert.True(result.Handled);
         Assert.True(result.ShouldRender);

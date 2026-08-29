@@ -174,22 +174,6 @@ internal sealed record ApplicationPanelFrame
     public int RowsPerColumn { get; }
     public int ColumnCount { get; }
 
-    public bool OwnsPointerTarget(UiTargetId? target) =>
-        target == ApplicationTargetIds.Panel(Side) ||
-        target == ApplicationTargetIds.PanelRetry(Side) ||
-        VisibleItems.Any(item => ApplicationTargetIds.PanelItem(Side, item.ItemIndex) == target);
-
-    public bool IsRetryTarget(UiTargetId? target) =>
-        RetryBounds is not null && target == ApplicationTargetIds.PanelRetry(Side);
-
-    public bool TryGetItemTarget(UiTargetId? target, out ApplicationPanelItemHit hit)
-    {
-        ApplicationPanelItemHit? found = target is null
-            ? null
-            : VisibleItems.FirstOrDefault(item => ApplicationTargetIds.PanelItem(Side, item.ItemIndex) == target);
-        hit = found!;
-        return found is not null;
-    }
 }
 
 internal sealed record ApplicationPanelItemHit(
@@ -212,14 +196,21 @@ internal sealed record ApplicationScrollBarFrame(
     };
 }
 
-internal sealed record ApplicationScrollbarInput(
+internal sealed record ApplicationPanelPointerTarget(ApplicationPanelItemHit? Item = null, bool IsRetry = false);
+
+internal abstract record ApplicationPointerInteraction;
+internal sealed record ApplicationPanelInteraction(
     PanelSide Side,
-    int ViewportItems,
-    VerticalScrollbarInputResult Result);
+    ApplicationPanelFrame Frame,
+    RoutedPointerAction<ApplicationPanelPointerTarget> Action) : ApplicationPointerInteraction;
+internal sealed record ApplicationPanelScrollInteraction(PanelSide Side, int ViewportItems, int FirstVisibleIndex) : ApplicationPointerInteraction;
+internal sealed record ApplicationCommandLineInteraction(RoutedPointerSelectionAction<int> Action) : ApplicationPointerInteraction;
+internal sealed record ApplicationFunctionKeyInteraction(ApplicationUiFrame Frame, ApplicationFunctionKeyHit Action) : ApplicationPointerInteraction;
+internal sealed record ApplicationDirectoryShortcutInteraction(ApplicationDirectoryShortcutHit Shortcut, PanelSide Side) : ApplicationPointerInteraction;
 
 internal sealed record ApplicationUiInputPacket(
     UiRoutedInput<ApplicationUiFrame> Routed,
-    ApplicationScrollbarInput? ScrollbarInput = null)
+    ApplicationPointerInteraction? PointerInteraction = null)
 {
     public ConsoleInputEvent Input => Routed.Input;
     public ApplicationUiFrame Frame => Routed.Frame;
@@ -237,17 +228,6 @@ internal sealed record ApplicationFunctionKeyBarFrame
 
     public IReadOnlyList<ApplicationFunctionKeyHit> Actions { get; }
 
-    public bool TryGetPointerAction(UiTargetId? target, out ApplicationFunctionKeyHit action)
-    {
-        ApplicationFunctionKeyHit? found = target is null
-            ? null
-            : Actions.FirstOrDefault(candidate =>
-                candidate.Bounds.Width > 0 &&
-                candidate.Bounds.Height > 0 &&
-                ApplicationTargetIds.FunctionKeyAction(candidate.Layer, candidate.Key) == target);
-        action = found!;
-        return found is not null;
-    }
 }
 
 internal sealed record ApplicationFunctionKeyHit(
@@ -267,15 +247,6 @@ internal sealed record ApplicationDirectoryShortcutBarFrame
 
     public IReadOnlyList<ApplicationDirectoryShortcutHit> Shortcuts { get; }
 
-    public bool TryGetPointerShortcut(UiTargetId? target, out ApplicationDirectoryShortcutHit shortcut)
-    {
-        ApplicationDirectoryShortcutHit? found = target is null
-            ? null
-            : Shortcuts.FirstOrDefault(candidate =>
-                ApplicationTargetIds.DirectoryShortcut(candidate.ShortcutNumber) == target);
-        shortcut = found!;
-        return found is not null;
-    }
 }
 
 internal sealed record ApplicationDirectoryShortcutHit(
@@ -292,8 +263,6 @@ internal sealed class ApplicationUiSurface : UiLayer<ApplicationUiFrame>, IUiSur
         new(ApplicationTargetIds.LeftPanelScrollbar);
     private readonly RoutedScrollbarSurface _rightPanelScrollbar =
         new(ApplicationTargetIds.RightPanelScrollbar);
-    private readonly RoutedPointerCaptureSurface _commandLinePointer =
-        new(ApplicationTargetIds.CommandLine);
     private readonly PendingInvalidation<ApplicationRenderPart> _invalidation =
         new(ApplicationRenderPart.Full);
     private bool _hidden;
@@ -436,17 +405,18 @@ internal sealed class ApplicationUiSurface : UiLayer<ApplicationUiFrame>, IUiSur
             throw new InvalidOperationException("Application input was dispatched before the previous input was processed.");
 
         var routed = new UiRoutedInput<ApplicationUiFrame>(input, frame, context.Target, context.RouteKind);
-        if (input is MouseConsoleInputEvent mouse &&
-            TryRoutePanelScrollbar(mouse, frame, context, out ApplicationScrollbarInput? scrollbarInput, out UiInputResult scrollbarResult))
+        if (input is MouseConsoleInputEvent mouse)
         {
-            _pendingInput = new ApplicationUiInputPacket(routed, scrollbarInput);
-            return scrollbarResult;
+            RoutedApplicationPointerInput pointer = RoutePointerInput(mouse, frame, context);
+            if (pointer.UiResult.Handled)
+            {
+                _pendingInput = new ApplicationUiInputPacket(routed, pointer.Interaction);
+                return pointer.UiResult;
+            }
         }
 
         _pendingInput = new ApplicationUiInputPacket(routed);
-
-        UiInputResult commandLineResult = _commandLinePointer.RouteInput(input, context);
-        return commandLineResult.Handled ? commandLineResult : UiInputResult.HandledResult;
+        return UiInputResult.HandledResult;
     }
 
     protected override UiInteractionFrame BuildInteractionFrame(ApplicationUiFrame frame)
@@ -463,7 +433,8 @@ internal sealed class ApplicationUiSurface : UiLayer<ApplicationUiFrame>, IUiSur
                 builder.AddFocusEntry(ApplicationTargetIds.RightPanel, 2);
         }
         if (IsVisible(frame.CommandLine.Bounds, frame.Viewport))
-            builder.AddFragment(_commandLinePointer.BuildInteractionFragment(frame.CommandLine.Bounds));
+            builder.AddFragment(new RoutedPointerSelectionSurface<int>(ApplicationTargetIds.CommandLine, (_, _) => 0)
+                .BuildInteractionFragment(frame.CommandLine.Bounds));
 
         if (frame.Mode == ApplicationWorkspaceMode.Panels)
         {
@@ -529,25 +500,25 @@ internal sealed class ApplicationUiSurface : UiLayer<ApplicationUiFrame>, IUiSur
 
         var items = panel.VisibleItems
             .Where(item => IsVisible(item.Bounds, viewport))
-            .Select(item => new RoutedPointerItem<ApplicationPanelItemHit>(item, item.Bounds))
-            .ToArray();
-        var extraRegions = new List<UiHitRegion>();
+            .Select(item => new RoutedPointerItem<ApplicationPanelPointerTarget>(new(item), item.Bounds))
+            .ToList();
         if (panel.RetryBounds is { } retryBounds && IsVisible(retryBounds, viewport))
-            extraRegions.Add(new UiHitRegion(ApplicationTargetIds.PanelRetry(panel.Side), retryBounds));
+            items.Add(new RoutedPointerItem<ApplicationPanelPointerTarget>(new(IsRetry: true), retryBounds));
         // The left border of the right panel is the shared separator and remains clickable as its first column.
         if (panel.Side == PanelSide.Right)
         {
             foreach (ApplicationPanelItemHit item in panel.VisibleItems.Where(item =>
                          item.Bounds.X == panel.Bounds.X + 1 && IsVisible(item.Bounds, viewport)))
-                extraRegions.Add(new UiHitRegion(ApplicationTargetIds.PanelItem(panel.Side, item.ItemIndex), new Rect(panel.Bounds.X, item.Bounds.Y, 1, item.Bounds.Height)));
+                items.Add(new RoutedPointerItem<ApplicationPanelPointerTarget>(new(item), new Rect(panel.Bounds.X, item.Bounds.Y, 1, item.Bounds.Height)));
         }
-        var pointerItems = new RoutedPointerCollection<ApplicationPanelItemHit>(
+        var pointerItems = new RoutedPointerCollection<ApplicationPanelPointerTarget>(
             ApplicationTargetIds.Panel(panel.Side),
-            item => ApplicationTargetIds.PanelItem(panel.Side, item.ItemIndex));
+            target => target.IsRetry
+                ? ApplicationTargetIds.PanelRetry(panel.Side)
+                : ApplicationTargetIds.PanelItem(panel.Side, target.Item!.ItemIndex));
         builder.AddFragment(pointerItems.BuildInteractionFragment(
             IsVisible(panel.Bounds, viewport) ? panel.Bounds : new Rect(0, 0, 0, 0),
-            items,
-            extraRegions));
+            items));
         RoutedScrollbarSurface scrollbarSurface = panel.Side == PanelSide.Left ? _leftPanelScrollbar : _rightPanelScrollbar;
         builder.AddFragment(scrollbarSurface.BuildInteractionFragment(
             panel.ScrollBar is { } scrollbar && IsVisible(scrollbar.Bounds, viewport) ? scrollbar.Bounds : null,
@@ -591,52 +562,71 @@ internal sealed class ApplicationUiSurface : UiLayer<ApplicationUiFrame>, IUiSur
         return new Rect(left, top, right - left, bottom - top);
     }
 
-    private bool TryRoutePanelScrollbar(
-        MouseConsoleInputEvent mouse,
+    private RoutedApplicationPointerInput RoutePointerInput(
+        MouseConsoleInputEvent input,
         ApplicationUiFrame frame,
-        UiInputRouteContext context,
-        out ApplicationScrollbarInput? scrollbarInput,
-        out UiInputResult uiResult)
+        UiInputRouteContext context)
     {
-        scrollbarInput = null;
-        uiResult = UiInputResult.NotHandled;
-        if (!TryGetPanelScrollbar(context.Target, out PanelSide side))
-            return false;
-        if (context.RouteKind is not (UiInputRouteKind.HitTarget or UiInputRouteKind.CapturedTarget))
-            return false;
+        RoutedPointerSelectionInput<int> commandLine = new RoutedPointerSelectionSurface<int>(
+            ApplicationTargetIds.CommandLine,
+            (x, _) => frame.CommandLine.TextPositionFromX(x)).RouteInput(input, context);
+        if (commandLine.UiResult.Handled)
+            return new(new ApplicationCommandLineInteraction(commandLine.Action), commandLine.UiResult);
 
-        ApplicationScrollBarFrame? scrollbar = side == PanelSide.Left
-            ? frame.LeftPanel?.ScrollBar
-            : frame.RightPanel?.ScrollBar;
-        RoutedScrollbarSurface scrollbarSurface = side == PanelSide.Left ? _leftPanelScrollbar : _rightPanelScrollbar;
-        RoutedScrollbarSurfaceInput result = scrollbarSurface.RouteInput(mouse, scrollbar?.VerticalScrollbarFrame, context);
-        if (!result.UiResult.Handled)
-            return false;
+        if (TryRouteScrollbar(input, frame.LeftPanel, PanelSide.Left, _leftPanelScrollbar, context, out RoutedApplicationPointerInput leftScrollbar))
+            return leftScrollbar;
+        if (TryRouteScrollbar(input, frame.RightPanel, PanelSide.Right, _rightPanelScrollbar, context, out RoutedApplicationPointerInput rightScrollbar))
+            return rightScrollbar;
+        if (TryRoutePanel(input, frame.LeftPanel, context, out RoutedApplicationPointerInput leftPanel))
+            return leftPanel;
+        if (TryRoutePanel(input, frame.RightPanel, context, out RoutedApplicationPointerInput rightPanel))
+            return rightPanel;
 
-        scrollbarInput = result.Scrollbar.IsHandled && scrollbar is not null
-            ? new ApplicationScrollbarInput(side, scrollbar.ViewportItems, result.Scrollbar)
-            : null;
-        uiResult = result.UiResult;
+        if (frame.FunctionKeyBar is { } functionKeys)
+        {
+            var collection = new RoutedPointerCollection<ApplicationFunctionKeyHit>(new("application.function-key-bar"), action => ApplicationTargetIds.FunctionKeyAction(action.Layer, action.Key));
+            RoutedPointerInput<ApplicationFunctionKeyHit> action = collection.RouteInput(input, context, functionKeys.Actions.Select(x => new RoutedPointerItem<ApplicationFunctionKeyHit>(x, x.Bounds)).ToArray());
+            if (action.UiResult.Handled && action.Action.Kind == RoutedPointerActionKind.ItemPrimaryPressed)
+                return new(new ApplicationFunctionKeyInteraction(frame, action.Action.Item!), action.UiResult);
+        }
+
+        if (frame.DirectoryShortcutBar is { } shortcuts)
+        {
+            var collection = new RoutedPointerCollection<ApplicationDirectoryShortcutHit>(new("application.directory-shortcut-bar"), shortcut => ApplicationTargetIds.DirectoryShortcut(shortcut.ShortcutNumber));
+            RoutedPointerInput<ApplicationDirectoryShortcutHit> action = collection.RouteInput(input, context, shortcuts.Shortcuts.Select(x => new RoutedPointerItem<ApplicationDirectoryShortcutHit>(x, x.Bounds)).ToArray());
+            if (action.UiResult.Handled && action.Action.Kind == RoutedPointerActionKind.ItemPrimaryPressed)
+                return new(new ApplicationDirectoryShortcutInteraction(action.Action.Item!, frame.Keyboard.ActiveSide), action.UiResult);
+        }
+        return default;
+    }
+
+    private static bool TryRoutePanel(MouseConsoleInputEvent input, ApplicationPanelFrame? panel, UiInputRouteContext context, out RoutedApplicationPointerInput result)
+    {
+        result = default;
+        if (panel is null) return false;
+        var items = panel.VisibleItems.Select(item => new RoutedPointerItem<ApplicationPanelPointerTarget>(new(item), item.Bounds)).ToList();
+        if (panel.RetryBounds is { } retryBounds) items.Add(new(new ApplicationPanelPointerTarget(IsRetry: true), retryBounds));
+        if (panel.Side == PanelSide.Right)
+            foreach (ApplicationPanelItemHit item in panel.VisibleItems.Where(item => item.Bounds.X == panel.Bounds.X + 1))
+                items.Add(new(new ApplicationPanelPointerTarget(item), new Rect(panel.Bounds.X, item.Bounds.Y, 1, item.Bounds.Height)));
+        var collection = new RoutedPointerCollection<ApplicationPanelPointerTarget>(ApplicationTargetIds.Panel(panel.Side), target => target.IsRetry ? ApplicationTargetIds.PanelRetry(panel.Side) : ApplicationTargetIds.PanelItem(panel.Side, target.Item!.ItemIndex));
+        RoutedPointerInput<ApplicationPanelPointerTarget> action = collection.RouteInput(input, context, items);
+        if (!action.UiResult.Handled) return false;
+        result = new(new ApplicationPanelInteraction(panel.Side, panel, action.Action), action.UiResult);
         return true;
     }
 
-    private static bool TryGetPanelScrollbar(UiTargetId? target, out PanelSide side)
+    private static bool TryRouteScrollbar(MouseConsoleInputEvent input, ApplicationPanelFrame? panel, PanelSide side, RoutedScrollbarSurface surface, UiInputRouteContext context, out RoutedApplicationPointerInput result)
     {
-        if (target == ApplicationTargetIds.LeftPanelScrollbar)
-        {
-            side = PanelSide.Left;
-            return true;
-        }
-
-        if (target == ApplicationTargetIds.RightPanelScrollbar)
-        {
-            side = PanelSide.Right;
-            return true;
-        }
-
-        side = default;
-        return false;
+        result = default;
+        if (panel?.ScrollBar is not { } scrollbar) return false;
+        RoutedScrollbarSurfaceInput routed = surface.RouteInput(input, scrollbar.VerticalScrollbarFrame, context);
+        if (!routed.UiResult.Handled) return false;
+        result = new(routed.FirstVisibleIndex is { } first ? new ApplicationPanelScrollInteraction(side, scrollbar.ViewportItems, first) : null, routed.UiResult);
+        return true;
     }
+
+    private readonly record struct RoutedApplicationPointerInput(ApplicationPointerInteraction? Interaction, UiInputResult UiResult);
 
     internal bool TryTakeInput(out ApplicationUiInputPacket packet)
     {

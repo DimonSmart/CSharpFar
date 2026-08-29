@@ -1,7 +1,5 @@
 using CSharpFar.App.Rendering;
-using CSharpFar.Console.Input;
 using CSharpFar.Core.Models;
-using CSharpFar.Ui;
 
 namespace CSharpFar.App.Input;
 
@@ -14,48 +12,29 @@ internal sealed class ApplicationCommandLineInputHandler
         _context = context;
     }
 
-    public ApplicationInputHandlingResult Handle(
-        MouseConsoleInputEvent input,
-        ApplicationCommandLineFrame frame,
-        UiInputRouteKind routeKind)
+    public ApplicationInputHandlingResult Handle(ApplicationCommandLineInteraction interaction)
     {
-        bool captured = routeKind == UiInputRouteKind.CapturedTarget;
-        bool hit = routeKind == UiInputRouteKind.HitTarget;
-
-        if (input.Button == MouseButton.Left && input.Kind == MouseEventKind.Down && hit)
+        switch (interaction.Action.Kind)
         {
-            _context.CommandLine.MoveCursorTo(frame.TextPositionFromX(input.X));
-            _context.ResetCommandHistoryNavigation();
-            return CommandLineChanged();
+            case RoutedPointerSelectionActionKind.SelectionStarted:
+                _context.CommandLine.MoveCursorTo(interaction.Action.Position);
+                _context.ResetCommandHistoryNavigation();
+                return CommandLineChanged();
+            case RoutedPointerSelectionActionKind.SelectionExtended:
+                _context.CommandLine.MoveCursorWithSelection(interaction.Action.Position);
+                _context.ResetCommandHistoryNavigation();
+                return CommandLineChanged();
+            case RoutedPointerSelectionActionKind.SelectionCompleted:
+                return ApplicationInputHandlingResult.FromHandled(shouldRender: false, resumesHiddenInteraction: false);
+            case RoutedPointerSelectionActionKind.WordSelectionRequested:
+                SelectWordAt(interaction.Action.Position);
+                _context.ResetCommandHistoryNavigation();
+                return CommandLineChanged();
+            case RoutedPointerSelectionActionKind.SecondaryActionRequested:
+                return CommandLineChanged(_context.PasteTextIntoCommandLine());
+            default:
+                return ApplicationInputHandlingResult.NotHandled;
         }
-
-        if (input.Button == MouseButton.Left && input.Kind == MouseEventKind.Move && captured)
-        {
-            _context.CommandLine.MoveCursorWithSelection(frame.TextPositionFromX(input.X));
-            _context.ResetCommandHistoryNavigation();
-            return CommandLineChanged();
-        }
-
-        if (input.Button == MouseButton.Left && input.Kind == MouseEventKind.Up && captured)
-            return ApplicationInputHandlingResult.FromHandled(
-                shouldRender: false,
-                resumesHiddenInteraction: false);
-
-        if (input.Button == MouseButton.Left && input.Kind == MouseEventKind.DoubleClick && hit)
-        {
-            SelectWordAt(frame.TextPositionFromX(input.X));
-            _context.ResetCommandHistoryNavigation();
-            return CommandLineChanged();
-        }
-
-        if (input.Button == MouseButton.Right && input.Kind == MouseEventKind.Down && hit)
-            return CommandLineChanged(_context.PasteTextIntoCommandLine());
-
-        return captured
-            ? ApplicationInputHandlingResult.FromHandled(
-                shouldRender: false,
-                resumesHiddenInteraction: false)
-            : ApplicationInputHandlingResult.NotHandled;
     }
 
     private static ApplicationInputHandlingResult CommandLineChanged(bool changed = true) =>

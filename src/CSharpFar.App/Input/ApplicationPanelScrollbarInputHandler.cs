@@ -1,8 +1,6 @@
 using CSharpFar.App.Rendering;
 using CSharpFar.App.State;
-using CSharpFar.Console.Input;
 using CSharpFar.Core.Models;
-using CSharpFar.Ui;
 
 namespace CSharpFar.App.Input;
 
@@ -15,26 +13,17 @@ internal sealed class ApplicationPanelScrollbarInputHandler
         _context = context;
     }
 
-    public ApplicationInputHandlingResult Handle(
-        ApplicationScrollbarInput? scrollbarInput,
-        UiInputRouteKind routeKind)
+    public ApplicationInputHandlingResult Handle(ApplicationPanelScrollInteraction interaction)
     {
-        if (scrollbarInput is null)
-            return routeKind == UiInputRouteKind.CapturedTarget
-                ? ApplicationInputHandlingResult.FromHandled(shouldRender: false)
-                : ApplicationInputHandlingResult.NotHandled;
-
-        PanelSide side = scrollbarInput.Side;
-        VerticalScrollbarInputResult scrollbar = scrollbarInput.Result;
+        PanelSide side = interaction.Side;
         var state = _context.GetPanelState(side);
 
         _context.SetActiveSide(side);
-        if (scrollbar.PositionChanged)
-            _context.PanelController.ScrollView(
-                state,
-                scrollbar.FirstVisibleIndex - state.ScrollOffset,
-                scrollbarInput.ViewportItems);
+        _context.PanelController.ScrollView(
+            state,
+            interaction.FirstVisibleIndex - state.ScrollOffset,
+            interaction.ViewportItems);
         _context.Mouse.LastLeftPanelItemClick = null;
-        return ApplicationInputHandlingResult.FromHandled(scrollbar.PositionChanged);
+        return ApplicationInputHandlingResult.FromHandled(shouldRender: true);
     }
 }

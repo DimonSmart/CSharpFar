@@ -7,6 +7,24 @@ namespace CSharpFar.Ui;
 /// <summary>Describes one semantic item that can be addressed by a pointer.</summary>
 public readonly record struct RoutedPointerItem<TItem>(TItem Item, Rect Bounds);
 
+public enum RoutedPointerActionKind
+{
+    SurfacePressed,
+    ItemPrimaryPressed,
+    ItemDoubleClicked,
+    ItemSecondaryPressed,
+    WheelUp,
+    WheelDown,
+}
+
+/// <summary>A pointer gesture resolved against the items of one committed surface.</summary>
+public readonly record struct RoutedPointerAction<TItem>(
+    RoutedPointerActionKind Kind,
+    TItem? Item = default)
+{
+    public bool HasItem => Item is not null;
+}
+
 /// <summary>Maps a rendered set of semantic items to routed UI targets.</summary>
 public sealed class RoutedPointerCollection<TItem>
 {
@@ -38,25 +56,58 @@ public sealed class RoutedPointerCollection<TItem>
         return new UiInteractionFragment(regions, []);
     }
 
-    public bool TryGetItem(UiTargetId? target, IReadOnlyList<RoutedPointerItem<TItem>> items, out TItem item)
+    public RoutedPointerInput<TItem> RouteInput(
+        MouseConsoleInputEvent input,
+        UiInputRouteContext route,
+        IReadOnlyList<RoutedPointerItem<TItem>> items)
     {
         ArgumentNullException.ThrowIfNull(items);
-        if (target is not null)
+        if (route.RouteKind != UiInputRouteKind.HitTarget || route.Target is null)
+            return RoutedPointerInput<TItem>.NotHandled;
+
+        TItem? item = default;
+        bool hasItem = false;
+        if (route.Target == _surfaceTarget)
+        {
+            hasItem = false;
+        }
+        else
         {
             foreach (RoutedPointerItem<TItem> candidate in items)
             {
-                if (_itemTarget(candidate.Item) == target)
+                if (_itemTarget(candidate.Item) == route.Target)
                 {
                     item = candidate.Item;
-                    return true;
+                    hasItem = true;
+                    break;
                 }
             }
         }
-        item = default!;
-        return false;
+
+        if (!hasItem && route.Target != _surfaceTarget)
+            return RoutedPointerInput<TItem>.NotHandled;
+
+        RoutedPointerActionKind? kind = input switch
+        {
+            { Button: MouseButton.Left, Kind: MouseEventKind.Down } when hasItem => RoutedPointerActionKind.ItemPrimaryPressed,
+            { Button: MouseButton.Left, Kind: MouseEventKind.DoubleClick } when hasItem => RoutedPointerActionKind.ItemDoubleClicked,
+            { Button: MouseButton.Right, Kind: MouseEventKind.Down } when hasItem => RoutedPointerActionKind.ItemSecondaryPressed,
+            { Button: MouseButton.Left, Kind: MouseEventKind.Down } => RoutedPointerActionKind.SurfacePressed,
+            { Button: MouseButton.WheelUp, Kind: MouseEventKind.Wheel } => RoutedPointerActionKind.WheelUp,
+            { Button: MouseButton.WheelDown, Kind: MouseEventKind.Wheel } => RoutedPointerActionKind.WheelDown,
+            _ => null,
+        };
+        return kind is { } actionKind
+            ? new RoutedPointerInput<TItem>(new RoutedPointerAction<TItem>(actionKind, item), UiInputResult.HandledResult)
+            : RoutedPointerInput<TItem>.NotHandled;
     }
 
     private static bool IsInteractive(Rect bounds) => bounds.Width > 0 && bounds.Height > 0;
+}
+
+public readonly record struct RoutedPointerInput<TItem>(RoutedPointerAction<TItem> Action, UiInputResult UiResult)
+{
+    public static RoutedPointerInput<TItem> NotHandled { get; } = new(default, UiInputResult.NotHandled);
 }
 
 /// <summary>
@@ -106,23 +157,70 @@ public sealed class RoutedScrollbarSurface
             return route.RouteKind == UiInputRouteKind.CapturedTarget &&
                    input is { Button: MouseButton.Left, Kind: MouseEventKind.Up }
                 ? new RoutedScrollbarSurfaceInput(
-                    VerticalScrollbarInputResult.NotHandled(), UiInputResult.ReleaseMouse())
+                    null, UiInputResult.ReleaseMouse())
                 : RoutedScrollbarSurfaceInput.NotHandled;
         }
 
         VerticalScrollbarInputResult result = _scrollbar.HandleMouse(input, frame.Value);
         return result.IsHandled
-            ? new RoutedScrollbarSurfaceInput(result, VerticalScrollbarRouting.ToUiInputResult(result, ScrollbarTarget))
+            ? new RoutedScrollbarSurfaceInput(result.PositionChanged ? result.FirstVisibleIndex : null, VerticalScrollbarRouting.ToUiInputResult(result, ScrollbarTarget))
             : RoutedScrollbarSurfaceInput.NotHandled;
     }
 }
 
-public readonly record struct RoutedScrollbarSurfaceInput(
-    VerticalScrollbarInputResult Scrollbar,
-    UiInputResult UiResult)
+public readonly record struct RoutedScrollbarSurfaceInput(int? FirstVisibleIndex, UiInputResult UiResult)
 {
     public static RoutedScrollbarSurfaceInput NotHandled { get; } =
-        new(VerticalScrollbarInputResult.NotHandled(), UiInputResult.NotHandled);
+        new(null, UiInputResult.NotHandled);
+}
+
+public enum RoutedPointerSelectionActionKind
+{
+    CursorRequested,
+    SelectionStarted,
+    SelectionExtended,
+    SelectionCompleted,
+    WordSelectionRequested,
+    SecondaryActionRequested,
+}
+
+public readonly record struct RoutedPointerSelectionAction<TPosition>(RoutedPointerSelectionActionKind Kind, TPosition? Position = default);
+
+/// <summary>Maps press, drag and release protocol to text-like pointer selection actions.</summary>
+public sealed class RoutedPointerSelectionSurface<TPosition>
+{
+    private readonly UiTargetId _target;
+    private readonly Func<int, int, TPosition> _positionResolver;
+
+    public RoutedPointerSelectionSurface(UiTargetId target, Func<int, int, TPosition> positionResolver)
+    {
+        _target = target ?? throw new ArgumentNullException(nameof(target));
+        _positionResolver = positionResolver ?? throw new ArgumentNullException(nameof(positionResolver));
+    }
+
+    public UiInteractionFragment BuildInteractionFragment(Rect bounds) =>
+        bounds.Width > 0 && bounds.Height > 0 ? new UiInteractionFragment([new UiHitRegion(_target, bounds)], []) : UiInteractionFragment.Empty;
+
+    public RoutedPointerSelectionInput<TPosition> RouteInput(MouseConsoleInputEvent input, UiInputRouteContext route)
+    {
+        if (route.Target != _target)
+            return RoutedPointerSelectionInput<TPosition>.NotHandled;
+        TPosition Position() => _positionResolver(input.X, input.Y);
+        return (route.RouteKind, input) switch
+        {
+            (UiInputRouteKind.HitTarget, { Button: MouseButton.Left, Kind: MouseEventKind.Down }) => new(new(RoutedPointerSelectionActionKind.SelectionStarted, Position()), UiInputResult.CaptureMouse(_target, MouseButton.Left)),
+            (UiInputRouteKind.CapturedTarget, { Button: MouseButton.Left, Kind: MouseEventKind.Move }) => new(new(RoutedPointerSelectionActionKind.SelectionExtended, Position()), UiInputResult.HandledResult),
+            (UiInputRouteKind.CapturedTarget, { Button: MouseButton.Left, Kind: MouseEventKind.Up }) => new(new(RoutedPointerSelectionActionKind.SelectionCompleted), UiInputResult.ReleaseMouse()),
+            (UiInputRouteKind.HitTarget, { Button: MouseButton.Left, Kind: MouseEventKind.DoubleClick }) => new(new(RoutedPointerSelectionActionKind.WordSelectionRequested, Position()), UiInputResult.HandledResult),
+            (UiInputRouteKind.HitTarget, { Button: MouseButton.Right, Kind: MouseEventKind.Down }) => new(new(RoutedPointerSelectionActionKind.SecondaryActionRequested, Position()), UiInputResult.HandledResult),
+            _ => RoutedPointerSelectionInput<TPosition>.NotHandled,
+        };
+    }
+}
+
+public readonly record struct RoutedPointerSelectionInput<TPosition>(RoutedPointerSelectionAction<TPosition> Action, UiInputResult UiResult)
+{
+    public static RoutedPointerSelectionInput<TPosition> NotHandled { get; } = new(default, UiInputResult.NotHandled);
 }
 
 /// <summary>Provides target-scoped pointer capture for controls that select while dragging.</summary>

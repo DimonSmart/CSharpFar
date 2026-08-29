@@ -71,11 +71,7 @@ public sealed class MainFunctionKeyBarIntegrationTests
         ApplicationUiFrame frame = Frame();
         ApplicationFunctionKeyHit action = Assert.Single(frame.FunctionKeyBar!.Actions);
 
-        var result = handler.Handle(
-            Mouse(x: 40, y: 24, MouseButton.Left, MouseEventKind.Down),
-            frame,
-            action,
-            UiInputRouteKind.HitTarget);
+        var result = handler.Handle(new ApplicationFunctionKeyInteraction(frame, action));
 
         Assert.True(result.Handled);
         Assert.Equal(1, executions);

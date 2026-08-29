@@ -1,7 +1,5 @@
 using CSharpFar.App.Commands;
 using CSharpFar.App.Rendering;
-using CSharpFar.Console.Input;
-using CSharpFar.Ui;
 
 namespace CSharpFar.App.Input;
 
@@ -14,20 +12,9 @@ internal sealed class ApplicationFunctionKeyBarInputHandler
         _context = context;
     }
 
-    public ApplicationInputHandlingResult Handle(
-        MouseConsoleInputEvent input,
-        ApplicationUiFrame frame,
-        ApplicationFunctionKeyHit action,
-        UiInputRouteKind routeKind)
+    public ApplicationInputHandlingResult Handle(ApplicationFunctionKeyInteraction interaction)
     {
-        if (routeKind != UiInputRouteKind.HitTarget ||
-            input.Button != MouseButton.Left ||
-            input.Kind != MouseEventKind.Down)
-        {
-            return ApplicationInputHandlingResult.NotHandled;
-        }
-
         return ApplicationInputHandlingResult.FromHandled(
-            _context.ExecuteRegisteredCommand(action.CommandId, ApplicationPanelCommandInvocationFactory.Create(frame)));
+            _context.ExecuteRegisteredCommand(interaction.Action.CommandId, ApplicationPanelCommandInvocationFactory.Create(interaction.Frame)));
     }
 }
