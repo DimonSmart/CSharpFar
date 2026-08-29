@@ -234,6 +234,7 @@ public class MoveOperationTests : IDisposable
     {
         string source = Write(_src, "photo.jpg", "photo");
         string literalDestination = Path.Combine(_dst, "{name}_OLD{ext}");
+        Directory.CreateDirectory(literalDestination);
 
         await Svc().ExecuteAsync(new FileOperationRequest
         {
