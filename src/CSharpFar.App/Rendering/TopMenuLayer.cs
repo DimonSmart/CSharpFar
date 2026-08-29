@@ -21,19 +21,6 @@ internal sealed record TopMenuFrame(
     VerticalScrollbarFrame? DropdownScrollbar,
     IReadOnlyList<TopMenuPointerTarget> PointerTargets);
 
-internal enum TopMenuPointerActionKind
-{
-    ActivateForPanel,
-    OpenTopItem,
-    ActivateDropdownItem,
-    ConsumeDropdownSurface,
-    Scrollbar,
-}
-
-internal readonly record struct TopMenuPointerAction(
-    TopMenuPointerActionKind Kind,
-    int ItemIndex = -1);
-
 internal sealed record TopMenuPointerTarget(
     UiTargetId Target,
     Rect Bounds,
@@ -61,7 +48,7 @@ internal sealed class TopMenuLayer : UiLayer<TopMenuFrame>
     public override UiLayerInputPolicy InputPolicy =>
         _context.App.WorkspaceMode != ApplicationWorkspaceMode.Panels
             ? UiLayerInputPolicy.None
-            : _context.MenuState.OpenState == MenuOpenState.Closed
+            : _controller.State.OpenState == MenuOpenState.Closed
             ? UiLayerInputPolicy.Bubble
             : UiLayerInputPolicy.Modal;
 
@@ -81,8 +68,8 @@ internal sealed class TopMenuLayer : UiLayer<TopMenuFrame>
                     DropdownFirstVisibleItemIndex = -1,
                 },
                 _context.ActiveSide(),
-                _context.MenuState.ActiveTopMenuIndex,
-                _context.MenuState.ActiveDropdownItemIndex,
+                _controller.State.ActiveTopMenuIndex,
+                _controller.State.ActiveDropdownItemIndex,
                 default,
                 null,
                 []);
@@ -90,20 +77,20 @@ internal sealed class TopMenuLayer : UiLayer<TopMenuFrame>
 
         var definition = _context.BuildMenuDefinition();
         var bounds = new Rect(0, 0, context.Size.Width, context.Size.Height);
-        var layout = _layoutService.CalculateLayout(bounds, definition, _context.MenuState);
-        bool open = _context.MenuState.OpenState != MenuOpenState.Closed;
+        var layout = _layoutService.CalculateLayout(bounds, definition, _controller.State);
+        bool open = _controller.State.OpenState != MenuOpenState.Closed;
         VerticalScrollbarFrame? dropdownScrollbar = _controller.CalculateDropdownScrollbarFrame(
             definition,
-            _context.MenuState.ActiveTopMenuIndex,
+            _controller.State.ActiveTopMenuIndex,
             layout);
         if (open)
         {
             var options = MenuRenderOptionsFactory.Create(_context.App.Palette);
-            new MenuBarRenderer().Render(context.Canvas, bounds, definition, _context.MenuState, layout, options);
+            new MenuBarRenderer().Render(context.Canvas, bounds, definition, _controller.State, layout, options);
             new DropdownMenuRenderer(_layoutService).Render(
                 context.Canvas,
                 definition,
-                _context.MenuState,
+                _controller.State,
                 layout,
                 options,
                 dropdownScrollbar);
@@ -117,15 +104,15 @@ internal sealed class TopMenuLayer : UiLayer<TopMenuFrame>
             definition,
             layout,
             _context.ActiveSide(),
-            _context.MenuState.ActiveTopMenuIndex,
-            _context.MenuState.ActiveDropdownItemIndex,
+            _controller.State.ActiveTopMenuIndex,
+            _controller.State.ActiveDropdownItemIndex,
             activationBounds,
             dropdownScrollbar,
             BuildPointerTargets(
                 open,
                 definition,
                 layout,
-                _context.MenuState.ActiveTopMenuIndex,
+                _controller.State.ActiveTopMenuIndex,
                 activationBounds,
                 dropdownScrollbar?.Bounds));
     }

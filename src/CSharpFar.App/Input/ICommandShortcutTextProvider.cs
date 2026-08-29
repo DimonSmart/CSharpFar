@@ -1,6 +1,3 @@
 namespace CSharpFar.App.Input;
 
-internal interface ICommandShortcutTextProvider
-{
-    string? GetPrimaryShortcutText(string commandId);
-}
+internal interface ICommandShortcutTextProvider : CSharpFar.Ui.ICommandShortcutTextProvider;

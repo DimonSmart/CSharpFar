@@ -16,6 +16,7 @@ using CSharpFar.Core.Models;
 using CSharpFar.Module.Ftp;
 using CSharpFar.Module.Sftp;
 using CSharpFar.Tests.Fakes;
+using CSharpFar.Ui;
 
 namespace CSharpFar.Tests;
 

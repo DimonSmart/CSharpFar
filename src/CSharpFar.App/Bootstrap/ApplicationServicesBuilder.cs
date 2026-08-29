@@ -17,6 +17,7 @@ using CSharpFar.Console;
 using CSharpFar.Core.Abstractions;
 using CSharpFar.Core.Controllers;
 using CSharpFar.Core.History;
+using CSharpFar.Core.Menu;
 using CSharpFar.Core.Services;
 using CSharpFar.FileSystem;
 using CSharpFar.Module.Abstractions;
@@ -131,9 +132,7 @@ internal static class ApplicationServicesBuilder
         var commandCompletionController = commandNavigation.CommandCompletionController;
         var commandHistoryNavigator = commandNavigation.CommandHistoryNavigator;
         var pendingMenuCommands = new PendingMenuCommandQueue();
-        var menuController = new TopMenuController(
-            session.Menu.State,
-            pendingMenuCommands.Enqueue);
+        var menuController = new TopMenuController(session.Menu.State, pendingMenuCommands.Enqueue);
         var autoRefresh = new PanelAutoRefreshService(
             changeWatcher,
             controller,

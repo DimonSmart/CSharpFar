@@ -88,7 +88,6 @@ public sealed class Application
         get => _session.Panels.RightViewMode;
         set => _session.Panels.RightViewMode = value;
     }
-    private MenuState _menuState => _session.Menu.State;
     private readonly DefaultMenuDefinitionProvider _menuProvider;
     private readonly ApplicationCommandRegistry _commandRegistry;
     private readonly ApplicationCommandContext _commandContext;

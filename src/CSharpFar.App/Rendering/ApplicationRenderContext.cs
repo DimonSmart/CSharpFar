@@ -17,7 +17,6 @@ internal sealed class ApplicationRenderContext
     public required PanelController PanelController { get; init; }
     public required ApplicationState App { get; init; }
     public required UiTransientState Ui { get; init; }
-    public required MenuState MenuState { get; init; }
     public required PanelQuickSearchController PanelQuickSearch { get; init; }
     public required CommandLineState CommandLine { get; init; }
     public required CommandCompletionState CommandCompletion { get; init; }

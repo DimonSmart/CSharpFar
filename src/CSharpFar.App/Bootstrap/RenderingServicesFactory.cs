@@ -57,7 +57,6 @@ internal static class RenderingServicesFactory
             PanelController = controller,
             App = session.App,
             Ui = session.Ui,
-            MenuState = session.Menu.State,
             PanelQuickSearch = panelQuickSearch,
             CommandLine = session.CommandLine.State,
             CommandCompletion = session.CommandLine.Completion,
