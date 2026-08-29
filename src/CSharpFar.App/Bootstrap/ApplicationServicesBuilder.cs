@@ -18,6 +18,7 @@ using CSharpFar.Core.Abstractions;
 using CSharpFar.Core.Controllers;
 using CSharpFar.Core.History;
 using CSharpFar.Core.Menu;
+using CSharpFar.Core.Models;
 using CSharpFar.Core.Services;
 using CSharpFar.FileSystem;
 using CSharpFar.Module.Abstractions;
@@ -132,7 +133,6 @@ internal static class ApplicationServicesBuilder
         var commandCompletionController = commandNavigation.CommandCompletionController;
         var commandHistoryNavigator = commandNavigation.CommandHistoryNavigator;
         var pendingMenuCommands = new PendingMenuCommandQueue();
-        var menuController = new TopMenuController(session.Menu.State, pendingMenuCommands.Enqueue);
         var autoRefresh = new PanelAutoRefreshService(
             changeWatcher,
             controller,
@@ -215,15 +215,25 @@ internal static class ApplicationServicesBuilder
             rendering.RenderContext,
             temporarily => commandCompletionController.Hide(temporarily),
             commandHistoryNavigator.Reset);
-        var topMenuLayer = new TopMenuLayer(
-            rendering.RenderContext,
-            menuController,
+        var topMenu = new TopMenu(
+            () => session.App.WorkspaceMode == ApplicationWorkspaceMode.Panels,
+            () => rendering.RenderContext.BuildMenuDefinition(),
+            () => MenuRenderOptionsFactory.Create(session.App.Palette),
+            () => session.Panels.ActiveSide == PanelSide.Left ? "Left" : "Right",
+            current => current switch
+            {
+                "Left" => "Right",
+                "Right" => "Left",
+                _ => session.Panels.ActiveSide == PanelSide.Left ? "Right" : "Left",
+            },
+            panelQuickSearch.Close,
+            pendingMenuCommands.Enqueue,
             menuLayoutService);
         var applicationUiLayers = new ApplicationUiLayerScope(
             composition,
             commandCompletionLayer,
             panelQuickSearchLayer,
-            topMenuLayer);
+            topMenu);
         var quickViewDirectorySize = rendering.QuickViewDirectorySize;
         var dialogs = new DialogService(modalDialogs, formFields);
         var searchResults = new PanelSearchResultsService(
@@ -302,7 +312,7 @@ internal static class ApplicationServicesBuilder
             panelQuickSearch,
             commandCompletionController,
             commandHistoryNavigator,
-            menuController.Close,
+            topMenu.Close,
             terminalSurface,
             composition);
         var commandServices = CommandServicesFactory.Create(
@@ -340,7 +350,7 @@ internal static class ApplicationServicesBuilder
             commandLineRenderer,
             commandCompletionController,
             commandHistoryNavigator,
-            menuController,
+            topMenu,
             saveSettings,
             volumeService,
             effectiveFileMetadata,
@@ -375,7 +385,6 @@ internal static class ApplicationServicesBuilder
             Session = session,
             MenuProvider = menuProvider,
             Callbacks = callbacks,
-            MenuController = menuController,
             AutoRefresh = autoRefresh,
             PanelSort = panelSort,
             PanelNavigation = panelNavigation,
@@ -393,7 +402,7 @@ internal static class ApplicationServicesBuilder
             RenderCoordinator = renderCoordinator,
             CommandCompletionLayer = commandCompletionLayer,
             PanelQuickSearchLayer = panelQuickSearchLayer,
-            TopMenuLayer = topMenuLayer,
+            TopMenu = topMenu,
             ApplicationSurface = applicationSurface,
             Composition = composition,
             ModalDialogs = modalDialogs,

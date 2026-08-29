@@ -389,7 +389,7 @@ public sealed class ApplicationRuntimeTests
 
         Assert.Equal(ApplicationWorkspaceMode.HiddenCommandLine, services.Session.App.WorkspaceMode);
         Assert.Equal(4, services.Composition.StableRenderVersion);
-        Assert.Equal(MenuOpenState.Closed, services.Session.Menu.State.OpenState);
+        Assert.False(services.TopMenu.IsOpen);
     }
 
     [Fact]

@@ -12,8 +12,6 @@ internal sealed class ApplicationSession
 
     public required CommandLineSessionState CommandLine { get; init; }
 
-    public required MenuSessionState Menu { get; init; }
-
     public required MouseSessionState Mouse { get; init; }
 
     public FunctionKeyLayer FunctionKeyLayer { get; set; } = FunctionKeyLayer.Plain;

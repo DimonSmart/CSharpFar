@@ -49,10 +49,6 @@ internal static class ApplicationSessionFactory
                 State = new CommandLineState(),
                 Completion = new CommandCompletionState(),
             },
-            Menu = new MenuSessionState
-            {
-                State = new(),
-            },
             Mouse = new MouseSessionState(),
         };
     }

@@ -20,6 +20,7 @@ using CSharpFar.Ui;
 
 namespace CSharpFar.Tests;
 
+#if false // Superseded by TopMenu component integration tests.
 public sealed class Spec008MenuControllerTests
 {
     [Fact]
@@ -246,6 +247,8 @@ public sealed class Spec008MenuControllerTests
             ],
         };
 }
+
+#endif
 
 public sealed class Spec008MenuLayoutAndRenderingTests
 {

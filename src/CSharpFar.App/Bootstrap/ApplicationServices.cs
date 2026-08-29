@@ -38,7 +38,6 @@ internal sealed class ApplicationServices
     public required ApplicationSession Session { get; init; }
     public required DefaultMenuDefinitionProvider MenuProvider { get; init; }
     public required ApplicationServiceCallbacks Callbacks { get; init; }
-    public required TopMenuController MenuController { get; init; }
     public required PanelAutoRefreshService AutoRefresh { get; init; }
     public required PanelSortServiceFacade PanelSort { get; init; }
     public required PanelNavigationService PanelNavigation { get; init; }
@@ -56,7 +55,7 @@ internal sealed class ApplicationServices
     public required ApplicationRenderCoordinator RenderCoordinator { get; init; }
     public required CommandCompletionLayer CommandCompletionLayer { get; init; }
     public required PanelQuickSearchLayer PanelQuickSearchLayer { get; init; }
-    public required TopMenuLayer TopMenuLayer { get; init; }
+    public required TopMenu TopMenu { get; init; }
     public required ApplicationUiSurface ApplicationSurface { get; init; }
     public required UiCompositionHost Composition { get; init; }
     public required ModalDialogHost ModalDialogs { get; init; }

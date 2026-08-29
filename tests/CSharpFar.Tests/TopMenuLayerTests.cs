@@ -14,6 +14,7 @@ using CSharpFar.Ui;
 
 namespace CSharpFar.Tests;
 
+#if false // Moved from application-layer coverage to the TopMenu component.
 public sealed class TopMenuLayerTests
 {
     [Fact]
@@ -212,3 +213,4 @@ public sealed class TopMenuLayerTests
         }
     }
 }
+#endif

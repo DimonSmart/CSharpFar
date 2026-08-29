@@ -57,7 +57,7 @@ internal sealed class ApplicationCommandContext
     private readonly ExternalConsoleCommandRunner _externalConsoleCommandRunner;
     private readonly CommandCompletionController _commandCompletionController;
     private readonly CommandHistoryNavigator _commandHistoryNavigator;
-    private readonly TopMenuController _menuController;
+    private readonly TopMenu _topMenu;
     private readonly DefaultMenuDefinitionProvider _menuProvider;
     private readonly TerminalSurfaceController _terminalSurface;
     private readonly InteractiveSurfaceHost _interactiveSurfaces;
@@ -100,7 +100,7 @@ internal sealed class ApplicationCommandContext
         ExternalConsoleCommandRunner externalConsoleCommandRunner,
         CommandCompletionController commandCompletionController,
         CommandHistoryNavigator commandHistoryNavigator,
-        TopMenuController menuController,
+        TopMenu topMenu,
         TerminalSurfaceController terminalSurface,
         Action? saveSettings,
         IVolumeService? volumeService,
@@ -139,7 +139,7 @@ internal sealed class ApplicationCommandContext
         _externalConsoleCommandRunner = externalConsoleCommandRunner;
         _commandCompletionController = commandCompletionController;
         _commandHistoryNavigator = commandHistoryNavigator;
-        _menuController = menuController;
+        _topMenu = topMenu;
         _terminalSurface = terminalSurface;
         _saveSettings = saveSettings;
         _volumeService = volumeService;
@@ -521,11 +521,7 @@ internal sealed class ApplicationCommandContext
 
     public bool OpenTopMenu(PanelSide side)
     {
-        _panelQuickSearch.Close();
-        _menuController.HandleKey(
-            new ConsoleKeyInfo('\0', ConsoleKey.F9, shift: false, alt: false, control: false),
-            BuildMenuDefinition(side),
-            side);
+        _topMenu.Open();
         return true;
     }
 

@@ -91,7 +91,7 @@ public sealed class Application
     private readonly DefaultMenuDefinitionProvider _menuProvider;
     private readonly ApplicationCommandRegistry _commandRegistry;
     private readonly ApplicationCommandContext _commandContext;
-    private readonly TopMenuController _menuController;
+    private readonly TopMenu _topMenu;
     private FunctionKeyLayer _functionKeyLayer
     {
         get => _session.FunctionKeyLayer;
@@ -166,7 +166,7 @@ public sealed class Application
         _saveSettings = services.SaveSettings;
         _session = services.Session;
         _menuProvider = services.MenuProvider;
-        _menuController = services.MenuController;
+        _topMenu = services.TopMenu;
         _autoRefresh = services.AutoRefresh;
         _renderContext = services.RenderContext;
         _renderCoordinator = services.RenderCoordinator;
@@ -432,11 +432,7 @@ public sealed class Application
 
     internal bool OpenTopMenu(PanelSide side)
     {
-        ClosePanelQuickSearch();
-        _menuController.HandleKey(
-            new ConsoleKeyInfo('\0', ConsoleKey.F9, shift: false, alt: false, control: false),
-            BuildMenuDefinition(),
-            side);
+        _topMenu.Open();
         return true;
     }
 

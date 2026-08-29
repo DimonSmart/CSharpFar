@@ -212,7 +212,7 @@ public sealed class ApplicationUiLayerScopeTests
             ModalDialogHost modals,
             CommandCompletionLayer commandCompletionLayer,
             PanelQuickSearchLayer panelQuickSearchLayer,
-            TopMenuLayer topMenuLayer,
+            TopMenu topMenuLayer,
             ApplicationUiLayerScope? scope)
         {
             Driver = driver;
@@ -233,7 +233,7 @@ public sealed class ApplicationUiLayerScopeTests
         public ModalDialogHost Modals { get; }
         public CommandCompletionLayer CommandCompletionLayer { get; }
         public PanelQuickSearchLayer PanelQuickSearchLayer { get; }
-        public TopMenuLayer TopMenuLayer { get; }
+        public TopMenu TopMenuLayer { get; }
         public ApplicationUiLayerScope Scope { get; }
 
         public static Fixture Create()
@@ -264,10 +264,7 @@ public sealed class ApplicationUiLayerScopeTests
                 services.RenderContext,
                 temporarily => services.CommandCompletionController.Hide(temporarily),
                 services.CommandHistoryNavigator.Reset);
-            var topMenuLayer = new TopMenuLayer(
-                services.RenderContext,
-                services.MenuController,
-                new MenuLayoutService());
+            var topMenuLayer = services.TopMenu;
 
             return new Fixture(
                 driver,

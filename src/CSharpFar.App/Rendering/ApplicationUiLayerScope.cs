@@ -12,7 +12,7 @@ internal sealed class ApplicationUiLayerScope : IDisposable
         UiCompositionHost composition,
         CommandCompletionLayer commandCompletion,
         PanelQuickSearchLayer panelQuickSearch,
-        TopMenuLayer topMenu)
+        TopMenu topMenu)
     {
         var registrations = new List<IDisposable>(3);
         try
