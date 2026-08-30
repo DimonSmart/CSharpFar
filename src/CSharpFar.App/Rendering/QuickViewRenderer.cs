@@ -30,7 +30,7 @@ internal sealed class QuickViewRenderer
         _errorStyle = new CellStyle(ConsoleColor.DarkYellow, palette.PanelBackground);
     }
 
-    public void Render(Rect bounds, FilePanelItem? item, DirectorySizeState? dirSizeState = null)
+    public void Render(Rect bounds, FilePanelItem? item, DirectorySizeState? dirSizeState = null, DirectorySummaryMonitor? monitor = null)
     {
         _screen.FillRegion(bounds, _fillStyle);
         _screen.DrawDoubleBox(bounds, _borderStyle);
@@ -49,16 +49,33 @@ internal sealed class QuickViewRenderer
         }
 
         if (item.IsDirectory)
-            RenderDirectory(item, bounds.X + 1, contentTop, innerWidth, visRows, dirSizeState);
+            RenderDirectory(item, bounds.X + 1, contentTop, innerWidth, visRows, dirSizeState, monitor);
         else
             RenderFile(item, bounds.X + 1, contentTop, innerWidth, visRows);
     }
 
     // ── directory ─────────────────────────────────────────────────────────────
 
-    private void RenderDirectory(FilePanelItem item, int x, int y, int w, int visRows, DirectorySizeState? dirSizeState)
+    private void RenderDirectory(FilePanelItem item, int x, int y, int w, int visRows, DirectorySizeState? dirSizeState, DirectorySummaryMonitor? monitor)
     {
         var (rows, errorRows) = BuildDirectoryRows(item, w, dirSizeState);
+        if (monitor is not null)
+        {
+            rows.Add(string.Empty);
+            rows.Add(monitor.IsEnabled ? "[x] Monitor changes automatically (Ctrl+M)" : "[ ] Monitor changes automatically (Ctrl+M)");
+            if (monitor.IsEnabled)
+            {
+                rows.Add("Recent changes");
+                foreach (DirectoryChange change in monitor.RecentChanges)
+                {
+                    string marker = change.Kind switch { DirectoryChangeKind.Created => "+", DirectoryChangeKind.Changed => "M", DirectoryChangeKind.Deleted => "-", _ => "R" };
+                    string path = change.Kind == DirectoryChangeKind.Renamed
+                        ? $"{change.OldRelativePath} -> {change.RelativePath}"
+                        : change.RelativePath;
+                    rows.Add($"{change.Timestamp:HH:mm:ss}  {marker}  {path}");
+                }
+            }
+        }
         int normalCount = Math.Min(visRows, rows.Count);
         for (int i = 0; i < normalCount; i++)
             WriteRow(x, y + i, rows[i], w);

@@ -36,7 +36,8 @@ internal sealed class ApplicationPanelWorkspaceRenderer
         PanelViewMode leftViewMode,
         PanelViewMode rightViewMode,
         bool quickView,
-        DirectorySizeState? quickViewDirState)
+        DirectorySizeState? quickViewDirState,
+        DirectorySummaryMonitor? monitor)
     {
         var bounds = ApplicationLayoutService.CalculatePanelWorkspaceBounds(size);
         int panelHeight = bounds.PanelHeight;
@@ -61,7 +62,7 @@ internal sealed class ApplicationPanelWorkspaceRenderer
                 activeSide,
                 leftViewMode,
                 rightViewMode,
-                quickViewDirState);
+                quickViewDirState, monitor);
         }
         else
         {
@@ -82,7 +83,8 @@ internal sealed class ApplicationPanelWorkspaceRenderer
         PanelSide activeSide,
         PanelViewMode leftViewMode,
         PanelViewMode rightViewMode,
-        DirectorySizeState? quickViewDirState)
+        DirectorySizeState? quickViewDirState,
+        DirectorySummaryMonitor? monitor)
     {
         ApplicationPanelFrame? leftFrame = null;
         ApplicationPanelFrame? rightFrame = null;
@@ -93,7 +95,8 @@ internal sealed class ApplicationPanelWorkspaceRenderer
             quickViewRenderer.Render(
                 rightBounds,
                 item,
-                item is { IsDirectory: true } ? quickViewDirState : null);
+                item is { IsDirectory: true } ? quickViewDirState : null,
+                item is { IsDirectory: true } ? monitor : null);
         }
         else
         {
@@ -101,7 +104,8 @@ internal sealed class ApplicationPanelWorkspaceRenderer
             quickViewRenderer.Render(
                 leftBounds,
                 item,
-                item is { IsDirectory: true } ? quickViewDirState : null);
+                item is { IsDirectory: true } ? quickViewDirState : null,
+                item is { IsDirectory: true } ? monitor : null);
             rightFrame = panelRenderer.Render(rightBounds, right, true, PanelSide.Right, rightViewMode);
         }
 

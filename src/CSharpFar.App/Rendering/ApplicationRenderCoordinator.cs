@@ -47,7 +47,8 @@ internal sealed class ApplicationRenderCoordinator
             _context.LeftViewMode(),
             _context.RightViewMode(),
             _context.App.QuickView,
-            _context.QuickViewDirectorySize.CurrentState);
+            _context.QuickViewDirectorySize.CurrentState,
+            _context.QuickViewDirectorySize.Monitor);
         int panelHeight = workspace.PanelHeight;
         context.PublishOnStable(context.Viewport, value => _context.Ui.LastRenderViewport = value);
 

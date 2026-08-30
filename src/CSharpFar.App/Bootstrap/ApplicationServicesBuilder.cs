@@ -235,6 +235,30 @@ internal static class ApplicationServicesBuilder
             panelQuickSearchLayer,
             topMenu);
         var quickViewDirectorySize = rendering.QuickViewDirectorySize;
+        keyboardInputContext.ToggleQuickViewDirectoryMonitor = () =>
+        {
+            if (!session.App.QuickView)
+                return false;
+            quickViewDirectorySize.ToggleMonitor();
+            return true;
+        };
+        keyboardInputContext.ActivateQuickViewDirectoryMonitorChange = () =>
+        {
+            if (!session.App.QuickView || !quickViewDirectorySize.TryGetNewestMonitorTarget(out string target))
+                return false;
+
+            PanelSide targetSide = panelWorkspace.ActiveSide == PanelSide.Left ? PanelSide.Right : PanelSide.Left;
+            FilePanelState targetPanel = targetSide == PanelSide.Left ? session.Panels.Left : session.Panels.Right;
+            if (targetPanel.SourceId != PanelSourceId.Local || targetPanel.ContentKind != PanelContentKind.Source)
+                return false;
+
+            string? parent = Path.GetDirectoryName(target);
+            if (parent is null || !controller.TryLoadDirectory(targetPanel, parent, callbacks.PanelOptions()))
+                return false;
+            controller.SetCursorByName(targetPanel, Path.GetFileName(target), callbacks.VisibleRowsForSide(targetSide));
+            callbacks.StartWatching(targetPanel, targetSide);
+            return true;
+        };
         var dialogs = new DialogService(modalDialogs, formFields);
         var searchResults = new PanelSearchResultsService(
             screen,
