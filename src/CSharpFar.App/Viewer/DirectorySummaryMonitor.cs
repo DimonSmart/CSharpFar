@@ -26,6 +26,7 @@ internal sealed class DirectorySummaryMonitor : IDisposable
     private long _scanVersion;
     private long _nextChangeId;
     private long _lastScanTick;
+    private long _generation;
     private bool _disposed;
 
     public DirectorySummaryMonitor(Action wake, Action<string> rescan)
@@ -34,7 +35,16 @@ internal sealed class DirectorySummaryMonitor : IDisposable
         _rescan = rescan;
     }
 
-    public bool IsEnabled => _watcher is not null;
+    public bool IsEnabled
+    {
+        get
+        {
+            lock (_gate)
+                return _watcher is not null;
+        }
+    }
+
+    internal long CurrentGeneration => Interlocked.Read(ref _generation);
     public IReadOnlyList<DirectoryChange> GetRecentChanges()
     {
         lock (_gate)
@@ -59,43 +69,49 @@ internal sealed class DirectorySummaryMonitor : IDisposable
         Disable();
         try
         {
-            var watcher = new FileSystemWatcher(root)
+            string normalizedRoot = Path.GetFullPath(root);
+            long generation = Interlocked.Increment(ref _generation);
+            var watcher = new FileSystemWatcher(normalizedRoot)
             {
                 IncludeSubdirectories = true,
                 NotifyFilter = NotifyFilters.FileName | NotifyFilters.DirectoryName | NotifyFilters.Size | NotifyFilters.LastWrite,
                 EnableRaisingEvents = false,
             };
-            watcher.Created += (_, e) => RecordChange(DirectoryChangeKind.Created, e.FullPath, null);
-            watcher.Changed += (_, e) => RecordChange(DirectoryChangeKind.Changed, e.FullPath, null);
-            watcher.Deleted += (_, e) => RecordChange(DirectoryChangeKind.Deleted, e.FullPath, null);
-            watcher.Renamed += (_, e) => RecordChange(DirectoryChangeKind.Renamed, e.FullPath, e.OldFullPath);
-            watcher.Error += (_, _) => RequestRefresh();
-            _root = Path.GetFullPath(root);
-            _watcher = watcher;
+            watcher.Created += (_, e) => RecordChange(generation, normalizedRoot, DirectoryChangeKind.Created, e.FullPath, null);
+            watcher.Changed += (_, e) => RecordChange(generation, normalizedRoot, DirectoryChangeKind.Changed, e.FullPath, null);
+            watcher.Deleted += (_, e) => RecordChange(generation, normalizedRoot, DirectoryChangeKind.Deleted, e.FullPath, null);
+            watcher.Renamed += (_, e) => RecordChange(generation, normalizedRoot, DirectoryChangeKind.Renamed, e.FullPath, e.OldFullPath);
+            watcher.Error += (_, _) => RequestRefresh(generation, normalizedRoot);
+            lock (_gate)
+            {
+                _root = normalizedRoot;
+                _watcher = watcher;
+            }
             watcher.EnableRaisingEvents = true;
         }
         catch (Exception)
         {
             Disable();
         }
-        _wake();
     }
 
     public void Disable()
     {
-        var watcher = Interlocked.Exchange(ref _watcher, null);
-        watcher?.Dispose();
-        _delay?.Cancel();
-        _delay?.Dispose();
-        _delay = null;
-        _root = null;
+        Interlocked.Increment(ref _generation);
+        FileSystemWatcher? watcher;
         lock (_gate)
         {
+            watcher = _watcher;
+            _watcher = null;
+            _root = null;
             _changes.Clear();
             _scanning = false;
             _version++;
         }
-        _wake();
+        watcher?.Dispose();
+        var delay = Interlocked.Exchange(ref _delay, null);
+        delay?.Cancel();
+        delay?.Dispose();
     }
 
     public void ScanStarted()
@@ -108,19 +124,40 @@ internal sealed class DirectorySummaryMonitor : IDisposable
     }
     public void ScanFinished()
     {
+        long generation;
+        string? root;
         bool again;
-        lock (_gate) { _scanning = false; again = _version != _scanVersion; }
-        if (again) ScheduleRefresh();
+        lock (_gate)
+        {
+            _scanning = false;
+            again = _version != _scanVersion;
+            generation = _generation;
+            root = _root;
+        }
+        if (again && root is not null) ScheduleRefresh(generation, root);
     }
 
     internal void RecordChange(DirectoryChangeKind kind, string fullPath, string? oldFullPath)
     {
-        string? root = _root;
-        if (_disposed || root is null) return;
+        long generation;
+        string? root;
+        lock (_gate)
+        {
+            generation = _generation;
+            root = _root;
+        }
+        if (root is not null)
+            RecordChange(generation, root, kind, fullPath, oldFullPath);
+    }
+
+    internal void RecordChange(long generation, string root, DirectoryChangeKind kind, string fullPath, string? oldFullPath)
+    {
+        if (!IsCurrentSession(generation, root)) return;
         string relative = Relative(root, fullPath);
         string? oldRelative = oldFullPath is null ? null : Relative(root, oldFullPath);
         lock (_gate)
         {
+            if (!IsCurrentSessionUnsafe(generation, root)) return;
             // A short same-kind/same-path burst is not useful to users.
             long tick = Environment.TickCount64;
             bool coalesce = _changes.FirstOrDefault() is { } last && last.Kind == kind && last.FullPath == fullPath &&
@@ -130,23 +167,28 @@ internal sealed class DirectorySummaryMonitor : IDisposable
             if (_changes.Count > MaxRecentChanges) _changes.RemoveRange(MaxRecentChanges, _changes.Count - MaxRecentChanges);
             _version++;
         }
-        ScheduleRefresh();
+        ScheduleRefresh(generation, root);
         _wake();
     }
 
-    private void RequestRefresh()
+    private void RequestRefresh(long generation, string root)
     {
-        lock (_gate) { _version++; }
-        ScheduleRefresh();
+        lock (_gate)
+        {
+            if (!IsCurrentSessionUnsafe(generation, root)) return;
+            _version++;
+        }
+        ScheduleRefresh(generation, root);
         _wake();
     }
 
-    private void ScheduleRefresh()
+    private void ScheduleRefresh(long generation, string root)
     {
-        if (_watcher is null || _disposed) return;
-        var old = Interlocked.Exchange(ref _delay, new CancellationTokenSource());
+        if (!IsCurrentSession(generation, root)) return;
+        var next = new CancellationTokenSource();
+        CancellationToken token = next.Token;
+        var old = Interlocked.Exchange(ref _delay, next);
         old?.Cancel(); old?.Dispose();
-        CancellationToken token = _delay.Token;
         _ = Task.Run(async () =>
         {
             try
@@ -156,14 +198,23 @@ internal sealed class DirectorySummaryMonitor : IDisposable
                 string? path;
                 lock (_gate)
                 {
-                    if (_scanning) return;
-                    _scanning = true; _scanVersion = _version; path = _root; _lastScanTick = Environment.TickCount64;
+                    if (!ReferenceEquals(Volatile.Read(ref _delay), next) || !IsCurrentSessionUnsafe(generation, root) || _scanning) return;
+                    _scanning = true; _scanVersion = _version; path = root; _lastScanTick = Environment.TickCount64;
                 }
-                if (path is not null) _rescan(path);
+                if (path is not null && IsCurrentSession(generation, root)) _rescan(path);
             }
             catch (OperationCanceledException) { }
         });
     }
+
+    private bool IsCurrentSession(long generation, string root)
+    {
+        lock (_gate)
+            return IsCurrentSessionUnsafe(generation, root);
+    }
+
+    private bool IsCurrentSessionUnsafe(long generation, string root) =>
+        !_disposed && _generation == generation && _watcher is not null && _root == root;
 
     private static string Relative(string root, string path)
     {
@@ -171,5 +222,9 @@ internal sealed class DirectorySummaryMonitor : IDisposable
         catch { return path; }
     }
 
-    public void Dispose() { _disposed = true; Disable(); }
+    public void Dispose()
+    {
+        _disposed = true;
+        Disable();
+    }
 }

@@ -26,13 +26,13 @@ internal sealed class QuickViewDirectorySizeController : IDisposable
     {
         if (!quickViewEnabled)
         {
-            Cancel();
+            CancelIfActive();
             return;
         }
 
         if (item is not { IsDirectory: true, IsParentDirectory: false })
         {
-            Cancel();
+            CancelIfActive();
             return;
         }
 
@@ -44,6 +44,12 @@ internal sealed class QuickViewDirectorySizeController : IDisposable
         _currentPath = item.FullPath;
         CurrentState = null;
         _calculator.Start(item.FullPath);
+    }
+
+    private void CancelIfActive()
+    {
+        if (_currentPath is not null || _monitor.IsEnabled || CurrentState is not null || _selectedChangeId is not null)
+            Cancel();
     }
 
     private void Cancel()

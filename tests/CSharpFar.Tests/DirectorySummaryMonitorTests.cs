@@ -9,6 +9,72 @@ public sealed class DirectorySummaryMonitorTests : IDisposable
     public DirectorySummaryMonitorTests() => Directory.CreateDirectory(_root);
 
     [Fact]
+    public void Disable_IsIdempotentAndDoesNotWake()
+    {
+        int wakes = 0;
+        using var monitor = new DirectorySummaryMonitor(() => wakes++, _ => { });
+
+        monitor.Disable();
+        monitor.Disable();
+
+        Assert.Equal(0, wakes);
+        Assert.Empty(monitor.GetRecentChanges());
+    }
+
+    [Fact]
+    public async Task Disable_CancelsPendingRefresh()
+    {
+        int rescans = 0;
+        using var monitor = new DirectorySummaryMonitor(() => { }, _ => Interlocked.Increment(ref rescans));
+        monitor.Enable(_root);
+        monitor.RecordChange(DirectoryChangeKind.Changed, Path.Combine(_root, "app.log"), null);
+        monitor.Disable();
+
+        await Task.Delay(TimeSpan.FromMilliseconds(1200));
+
+        Assert.Equal(0, rescans);
+    }
+
+    [Fact]
+    public async Task StaleSessionCallback_DoesNotAffectNewMonitorSession()
+    {
+        string otherRoot = Path.Combine(Path.GetTempPath(), $"CSharpFarMonitor_{Guid.NewGuid():N}");
+        Directory.CreateDirectory(otherRoot);
+        try
+        {
+            int rescans = 0;
+            using var monitor = new DirectorySummaryMonitor(() => { }, _ => Interlocked.Increment(ref rescans));
+            monitor.Enable(_root);
+            long oldGeneration = monitor.CurrentGeneration;
+            monitor.Disable();
+            monitor.Enable(otherRoot);
+
+            monitor.RecordChange(oldGeneration, _root, DirectoryChangeKind.Changed, Path.Combine(_root, "stale.txt"), null);
+            await Task.Delay(TimeSpan.FromMilliseconds(1200));
+
+            Assert.Empty(monitor.GetRecentChanges());
+            Assert.Equal(0, rescans);
+        }
+        finally
+        {
+            Directory.Delete(otherRoot, recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task ChangeDuringScan_RequestsAnotherScanAfterCompletion()
+    {
+        var requested = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        using var monitor = new DirectorySummaryMonitor(() => { }, _ => requested.TrySetResult());
+        monitor.Enable(_root);
+        monitor.ScanStarted();
+        monitor.RecordChange(DirectoryChangeKind.Changed, Path.Combine(_root, "changed-during-scan.txt"), null);
+        monitor.ScanFinished();
+
+        await requested.Task.WaitAsync(TimeSpan.FromSeconds(3));
+    }
+
+    [Fact]
     public async Task DeduplicatedChangedEvent_StillRequestsSummaryRefresh()
     {
         string path = Path.Combine(_root, "app.log");
