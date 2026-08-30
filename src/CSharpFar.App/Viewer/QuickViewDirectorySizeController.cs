@@ -4,16 +4,23 @@ namespace CSharpFar.App.Viewer;
 
 internal sealed class QuickViewDirectorySizeController : IDisposable
 {
-    private readonly DirectorySizeCalculator _calculator = new();
+    private readonly IDirectorySizeCalculator _calculator;
     private readonly Action _wakeInputLoop;
     private readonly DirectorySummaryMonitor _monitor;
+    private readonly object _scanGate = new();
     private string? _currentPath;
     private long? _selectedChangeId;
     private IReadOnlyList<long> _visibleChangeIds = [];
 
     public QuickViewDirectorySizeController(Action wakeInputLoop)
+        : this(wakeInputLoop, new DirectorySizeCalculator())
+    {
+    }
+
+    internal QuickViewDirectorySizeController(Action wakeInputLoop, IDirectorySizeCalculator calculator)
     {
         _wakeInputLoop = wakeInputLoop;
+        _calculator = calculator;
         _monitor = new DirectorySummaryMonitor(wakeInputLoop, RefreshMonitoredPath);
         _calculator.Completed += OnSizeCalculated;
         _calculator.Progress += OnSizeCalculated;
@@ -42,6 +49,7 @@ internal sealed class QuickViewDirectorySizeController : IDisposable
         if (_currentPath == item.FullPath)
             return;
 
+        CancelActiveScan();
         _monitor.Disable();
         _selectedChangeId = null;
         _visibleChangeIds = [];
@@ -59,28 +67,40 @@ internal sealed class QuickViewDirectorySizeController : IDisposable
 
     private void Cancel()
     {
-        _calculator.Cancel();
+        CancelActiveScan();
         _monitor.Disable();
         _selectedChangeId = null;
         _visibleChangeIds = [];
         _currentPath = null;
         CurrentState = null;
         IsBackgroundUpdating = false;
-        _activeScanOperationId = 0;
     }
 
+    private void CancelActiveScan()
+    {
+        lock (_scanGate)
+            Interlocked.Exchange(ref _activeScanOperationId, 0);
+        _calculator.Cancel();
+    }
     private void OnSizeCalculated(DirectoryScanUpdate update)
     {
-        if (_currentPath != update.Path || _activeScanOperationId != update.OperationId)
-            return;
-
-        CurrentState = update.State;
-        if (update.State.IsCompleted)
+        lock (_scanGate)
         {
-            IsBackgroundUpdating = false;
-            _monitor.ScanFinished();
+            if (_currentPath != update.Path || Volatile.Read(ref _activeScanOperationId) != update.OperationId)
+                return;
+
+            if (IsBackgroundUpdating && !update.State.IsCompleted)
+                return;
+
+            CurrentState = update.State;
+            if (update.State.IsCompleted)
+            {
+                IsBackgroundUpdating = false;
+                Interlocked.Exchange(ref _activeScanOperationId, 0);
+                _monitor.ScanFinished();
+            }
+            _wakeInputLoop();
         }
-        _wakeInputLoop();
     }
 
     public void ToggleMonitor()
@@ -89,7 +109,7 @@ internal sealed class QuickViewDirectorySizeController : IDisposable
         if (_monitor.IsEnabled)
         {
             if (IsBackgroundUpdating)
-                _calculator.Cancel();
+                CancelActiveScan();
             _monitor.Disable();
             IsBackgroundUpdating = false;
             _selectedChangeId = null;
@@ -118,17 +138,10 @@ internal sealed class QuickViewDirectorySizeController : IDisposable
         return true;
     }
 
-    public void SetVisibleMonitorChanges(IReadOnlyList<long> changeIds)
+    public void SetVisibleMonitorChanges(IReadOnlyList<long> changeIds, long? normalizedSelectedChangeId)
     {
         _visibleChangeIds = changeIds;
-        if (_selectedChangeId is not null && !_visibleChangeIds.Contains(_selectedChangeId.Value))
-            _selectedChangeId = _visibleChangeIds.Count > 0 ? _visibleChangeIds[^1] : null;
-    }
-
-    public long? NormalizeVisibleMonitorChanges(IReadOnlyList<long> changeIds)
-    {
-        SetVisibleMonitorChanges(changeIds);
-        return _selectedChangeId;
+        _selectedChangeId = normalizedSelectedChangeId;
     }
 
     public bool TryGetSelectedMonitorTarget(out string target)
@@ -137,7 +150,7 @@ internal sealed class QuickViewDirectorySizeController : IDisposable
         return _selectedChangeId is { } id && _monitor.TryGetMonitorTarget(id, out target);
     }
 
-    private void RefreshMonitoredPath(string path)
+    internal void RefreshMonitoredPath(string path)
     {
         if (_currentPath != path || !_monitor.IsEnabled) return;
         _monitor.ScanStarted();
@@ -145,11 +158,17 @@ internal sealed class QuickViewDirectorySizeController : IDisposable
         StartScan(path, DirectoryScanProgressMode.Silent);
     }
 
-    private void StartScan(string path, DirectoryScanProgressMode progressMode) =>
-        _calculator.Start(path, progressMode, operationId => _activeScanOperationId = operationId);
-
+    private void StartScan(string path, DirectoryScanProgressMode progressMode)
+    {
+        lock (_scanGate)
+        {
+            Interlocked.Exchange(ref _activeScanOperationId, 0);
+            _calculator.Start(path, progressMode, operationId => Volatile.Write(ref _activeScanOperationId, operationId));
+        }
+    }
     public void Dispose()
     {
+        CancelActiveScan();
         _monitor.Dispose();
         _calculator.Dispose();
     }

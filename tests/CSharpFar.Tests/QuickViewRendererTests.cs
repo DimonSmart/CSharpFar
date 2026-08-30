@@ -146,10 +146,10 @@ public class QuickViewRendererTests : IDisposable
     public void VisibleMonitorSelection_IsNormalizedAfterResize()
     {
         using var controller = new QuickViewDirectorySizeController(() => { });
-        controller.SetVisibleMonitorChanges([1, 2, 3]);
+        controller.SetVisibleMonitorChanges([1, 2, 3], null);
         Assert.True(controller.SelectMonitorChange(3));
 
-        controller.SetVisibleMonitorChanges([1]);
+        controller.SetVisibleMonitorChanges([1], 1);
 
         Assert.Equal(1, controller.SelectedMonitorChangeId);
         Assert.False(controller.SelectMonitorChange(2));
@@ -165,7 +165,7 @@ public class QuickViewRendererTests : IDisposable
             monitor.RecordChange(DirectoryChangeKind.Created, Path.Combine(_tempDir, $"item-{i}.txt"), null);
 
         DirectoryChange[] changes = monitor.GetRecentChanges().ToArray();
-        controller.SetVisibleMonitorChanges(changes.Select(change => change.Id).ToArray());
+        controller.SetVisibleMonitorChanges(changes.Select(change => change.Id).ToArray(), null);
         Assert.True(controller.SelectMonitorChange(changes[^1].Id));
         var item = new FilePanelItem { Name = "directory", FullPath = _tempDir, IsDirectory = true };
         ApplicationQuickViewFrame? frame = null;
@@ -175,11 +175,12 @@ public class QuickViewRendererTests : IDisposable
                 new Rect(0, 0, 40, 16),
                 item,
                 monitor: monitor,
-                selectedChangeId: controller.SelectedMonitorChangeId,
-                normalizeSelection: controller.NormalizeVisibleMonitorChanges));
+                selectedChangeId: controller.SelectedMonitorChangeId));
 
         Assert.NotNull(frame);
         Assert.Single(frame.ChangeHits);
+        Assert.NotEqual(frame.ChangeHits[0].ChangeId, controller.SelectedMonitorChangeId);
+        controller.SetVisibleMonitorChanges(frame.VisibleChangeIds, frame.NormalizedSelectedChangeId);
         Assert.Equal(frame.ChangeHits[0].ChangeId, controller.SelectedMonitorChangeId);
         Assert.Equal('>', _driver.GetRegionText(new Rect(frame.ChangeHits[0].Bounds.X, frame.ChangeHits[0].Bounds.Y, 1, 1))[0]);
     }

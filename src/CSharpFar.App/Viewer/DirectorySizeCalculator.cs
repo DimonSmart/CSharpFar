@@ -8,6 +8,15 @@ internal enum DirectoryScanProgressMode
 
 internal readonly record struct DirectoryScanUpdate(long OperationId, string Path, DirectorySizeState State);
 
+internal interface IDirectorySizeCalculator : IDisposable
+{
+    event Action<DirectoryScanUpdate>? Progress;
+    event Action<DirectoryScanUpdate>? Completed;
+
+    long Start(string path, DirectoryScanProgressMode progressMode, Action<long>? operationStarted = null);
+    void Cancel();
+}
+
 /// <summary>
 /// Calculates total size of a directory tree asynchronously.
 /// A new calculation cancels the previous one.
@@ -18,7 +27,7 @@ internal readonly record struct DirectoryScanUpdate(long OperationId, string Pat
 /// Both events are raised on a thread-pool thread; callers must marshal to the UI themselves.
 /// </para>
 /// </summary>
-internal sealed class DirectorySizeCalculator : IDisposable
+internal sealed class DirectorySizeCalculator : IDirectorySizeCalculator
 {
     public const int ThrottleMs = 300;
     private readonly int _throttleMs;

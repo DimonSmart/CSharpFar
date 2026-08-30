@@ -50,8 +50,13 @@ internal sealed class ApplicationRenderCoordinator
             _context.QuickViewDirectorySize.CurrentState,
             _context.QuickViewDirectorySize.Monitor,
             _context.QuickViewDirectorySize.SelectedMonitorChangeId,
-            _context.QuickViewDirectorySize.IsBackgroundUpdating,
-            _context.QuickViewDirectorySize.NormalizeVisibleMonitorChanges);
+            _context.QuickViewDirectorySize.IsBackgroundUpdating);
+        if (workspace.QuickView is { } quickViewFrame)
+        {
+            context.PublishOnStable(() => _context.QuickViewDirectorySize.SetVisibleMonitorChanges(
+                quickViewFrame.VisibleChangeIds,
+                quickViewFrame.NormalizedSelectedChangeId));
+        }
         int panelHeight = workspace.PanelHeight;
         context.PublishOnStable(context.Viewport, value => _context.Ui.LastRenderViewport = value);
 

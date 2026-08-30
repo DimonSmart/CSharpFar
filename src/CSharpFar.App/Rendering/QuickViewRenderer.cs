@@ -36,8 +36,7 @@ internal sealed class QuickViewRenderer
         DirectorySizeState? dirSizeState = null,
         DirectorySummaryMonitor? monitor = null,
         long? selectedChangeId = null,
-        bool isBackgroundUpdating = false,
-        Func<IReadOnlyList<long>, long?>? normalizeSelection = null)
+        bool isBackgroundUpdating = false)
     {
         _screen.FillRegion(bounds, _fillStyle);
         _screen.DrawDoubleBox(bounds, _borderStyle);
@@ -56,7 +55,7 @@ internal sealed class QuickViewRenderer
         }
 
         if (item.IsDirectory)
-            return RenderDirectory(item, bounds.X + 1, contentTop, innerWidth, visRows, dirSizeState, monitor, selectedChangeId, isBackgroundUpdating, normalizeSelection);
+            return RenderDirectory(item, bounds.X + 1, contentTop, innerWidth, visRows, dirSizeState, monitor, selectedChangeId, isBackgroundUpdating);
         else
             RenderFile(item, bounds.X + 1, contentTop, innerWidth, visRows);
         return new ApplicationQuickViewFrame(bounds, null, []);
@@ -73,8 +72,7 @@ internal sealed class QuickViewRenderer
         DirectorySizeState? dirSizeState,
         DirectorySummaryMonitor? monitor,
         long? selectedChangeId,
-        bool isBackgroundUpdating,
-        Func<IReadOnlyList<long>, long?>? normalizeSelection)
+        bool isBackgroundUpdating)
     {
         var (summaryRows, errorRows) = BuildDirectoryRows(item, w, dirSizeState, isBackgroundUpdating);
         var hits = new List<ApplicationQuickViewChangeHit>();
@@ -91,7 +89,7 @@ internal sealed class QuickViewRenderer
         }
 
         Rect? monitorToggleBounds = null;
-        bool selectionNormalized = false;
+        long? normalizedSelectedChangeId = null;
         if (monitor is not null && rowIndex < visRows)
         {
             if (visRows - rowIndex >= 2)
@@ -106,23 +104,25 @@ internal sealed class QuickViewRenderer
                 DirectoryChange[] visibleChanges = monitor.GetRecentChanges()
                     .Take(Math.Max(0, visRows - rowIndex))
                     .ToArray();
-                selectedChangeId = normalizeSelection?.Invoke(visibleChanges.Select(change => change.Id).ToArray()) ?? selectedChangeId;
-                selectionNormalized = normalizeSelection is not null;
+                normalizedSelectedChangeId = NormalizeSelection(selectedChangeId, visibleChanges.Select(change => change.Id).ToArray());
                 foreach (DirectoryChange change in visibleChanges)
                 {
                     string marker = change.Kind switch { DirectoryChangeKind.Created => "+", DirectoryChangeKind.Changed => "M", DirectoryChangeKind.Deleted => "-", _ => "R" };
                     string path = change.Kind == DirectoryChangeKind.Renamed
                         ? $"{change.OldRelativePath} -> {change.RelativePath}"
                         : change.RelativePath;
-                    WriteRow(x, y + rowIndex, $"{(change.Id == selectedChangeId ? '>' : ' ')}{change.Timestamp:HH:mm:ss}  {marker}  {path}", w);
+                    WriteRow(x, y + rowIndex, $"{(change.Id == normalizedSelectedChangeId ? '>' : ' ')}{change.Timestamp:HH:mm:ss}  {marker}  {path}", w);
                     hits.Add(new ApplicationQuickViewChangeHit(new Rect(x, y + rowIndex++, w, 1), change.Id));
                 }
             }
         }
-        if (!selectionNormalized)
-            normalizeSelection?.Invoke([]);
-        return new ApplicationQuickViewFrame(new Rect(x - 1, y - 1, w + 2, visRows + 2), monitorToggleBounds, hits);
+        return new ApplicationQuickViewFrame(new Rect(x - 1, y - 1, w + 2, visRows + 2), monitorToggleBounds, hits, normalizedSelectedChangeId);
     }
+
+    internal static long? NormalizeSelection(long? selectedChangeId, IReadOnlyList<long> visibleChangeIds) =>
+        selectedChangeId is { } selected && visibleChangeIds.Contains(selected)
+            ? selected
+            : visibleChangeIds.Count > 0 ? visibleChangeIds[^1] : null;
 
     private static (List<string> Rows, List<string> ErrorRows) BuildDirectoryRows(
         FilePanelItem item, int w, DirectorySizeState? dirSizeState, bool isBackgroundUpdating)

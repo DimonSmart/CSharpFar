@@ -220,7 +220,8 @@ internal sealed record ApplicationQuickViewPointerHit(Rect Bounds, ApplicationQu
 internal sealed record ApplicationQuickViewFrame(
     Rect Bounds,
     Rect? MonitorToggleBounds,
-    IReadOnlyList<ApplicationQuickViewChangeHit> ChangeHits)
+    IReadOnlyList<ApplicationQuickViewChangeHit> ChangeHits,
+    long? NormalizedSelectedChangeId = null)
 {
     public IReadOnlyList<long> VisibleChangeIds => ChangeHits.Select(hit => hit.ChangeId).ToArray();
     public IReadOnlyList<ApplicationQuickViewPointerHit> PointerHits =>
