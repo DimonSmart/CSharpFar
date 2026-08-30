@@ -1,6 +1,10 @@
+using CSharpFar.App.Input;
 using CSharpFar.App.Rendering;
+using CSharpFar.App.State;
+using CSharpFar.App.Viewer;
 using CSharpFar.Console;
 using CSharpFar.Console.Models;
+using CSharpFar.Core.Controllers;
 using CSharpFar.Core.Models;
 using CSharpFar.Tests.Fakes;
 
@@ -92,6 +96,70 @@ public class QuickViewRendererTests : IDisposable
         Render(null, bounds);
         Render(directoryItem, bounds);
         Render(fileItem, bounds);
+    }
+
+    [Fact]
+    public void DirectoryMonitor_UsesAvailableHeightForVisibleChanges()
+    {
+        using var monitor = new DirectorySummaryMonitor(() => { }, _ => { });
+        monitor.Enable(_tempDir);
+        for (int i = 0; i < 20; i++)
+            monitor.RecordChange(DirectoryChangeKind.Created, Path.Combine(_tempDir, $"item-{i}.txt"), null);
+        var item = new FilePanelItem { Name = "directory", FullPath = _tempDir, IsDirectory = true };
+        var tallDriver = new FakeConsoleDriver(80, 50);
+        var tallScreen = new ScreenRenderer(tallDriver);
+        ApplicationQuickViewFrame? tallFrame = null;
+
+        UiTestRender.Render(tallScreen, canvas =>
+            tallFrame = new QuickViewRenderer(canvas).Render(new Rect(0, 0, 40, 40), item, monitor: monitor));
+
+        Assert.NotNull(tallFrame);
+        Assert.True(tallFrame.ChangeHits.Count > 10);
+        Assert.All(tallFrame.ChangeHits, hit => Assert.InRange(hit.Bounds.Bottom, 1, tallFrame.Bounds.Bottom - 1));
+
+        ApplicationQuickViewFrame? smallFrame = null;
+        UiTestRender.Render(_screen, canvas =>
+            smallFrame = new QuickViewRenderer(canvas).Render(_bounds, item, monitor: monitor));
+
+        Assert.NotNull(smallFrame);
+        Assert.True(smallFrame.ChangeHits.Count < tallFrame.ChangeHits.Count);
+        Assert.Equal(20, monitor.GetRecentChanges().Count);
+    }
+
+    [Fact]
+    public void VisibleMonitorSelection_IsNormalizedAfterResize()
+    {
+        using var controller = new QuickViewDirectorySizeController(() => { });
+        controller.SetVisibleMonitorChanges([1, 2, 3]);
+        Assert.True(controller.SelectMonitorChange(3));
+
+        controller.SetVisibleMonitorChanges([1]);
+
+        Assert.Equal(1, controller.SelectedMonitorChangeId);
+        Assert.False(controller.SelectMonitorChange(2));
+    }
+
+    [Fact]
+    public void MonitorTogglePointer_UsesTheSharedToggleOperation()
+    {
+        int toggles = 0;
+        var context = new MouseInputContext
+        {
+            PanelController = new PanelController(new FakePanelViewBuilder(new FakeFileSystemService())),
+            CommandLine = new CommandLineState(),
+            Ui = new UiTransientState(),
+            Mouse = new MouseSessionState(),
+            PanelOptions = () => new AppSettings.PanelOptionsSettings(),
+            SetActiveSide = _ => { },
+            GetPanelState = _ => new FilePanelState(),
+            ToggleQuickViewDirectoryMonitor = () => { toggles++; return true; },
+        };
+
+        ApplicationInputHandlingResult result = new ApplicationQuickViewInputHandler(context)
+            .Handle(new ApplicationQuickViewPointerInteraction(new ApplicationQuickViewMonitorToggleTarget()));
+
+        Assert.True(result.Handled);
+        Assert.Equal(1, toggles);
     }
 
     public static TheoryData<FilePanelItem?> NoSelectionItems() => new()

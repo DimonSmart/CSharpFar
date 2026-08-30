@@ -9,6 +9,7 @@ internal sealed class QuickViewDirectorySizeController : IDisposable
     private readonly DirectorySummaryMonitor _monitor;
     private string? _currentPath;
     private long? _selectedChangeId;
+    private IReadOnlyList<long> _visibleChangeIds = [];
 
     public QuickViewDirectorySizeController(Action wakeInputLoop)
     {
@@ -41,6 +42,7 @@ internal sealed class QuickViewDirectorySizeController : IDisposable
 
         _monitor.Disable();
         _selectedChangeId = null;
+        _visibleChangeIds = [];
         _currentPath = item.FullPath;
         CurrentState = null;
         _calculator.Start(item.FullPath);
@@ -57,6 +59,7 @@ internal sealed class QuickViewDirectorySizeController : IDisposable
         _calculator.Cancel();
         _monitor.Disable();
         _selectedChangeId = null;
+        _visibleChangeIds = [];
         _currentPath = null;
         CurrentState = null;
     }
@@ -79,13 +82,14 @@ internal sealed class QuickViewDirectorySizeController : IDisposable
         {
             _monitor.Disable();
             _selectedChangeId = null;
+            _visibleChangeIds = [];
         }
         else _monitor.Enable(_currentPath);
     }
 
     public bool SelectMonitorChange(long changeId)
     {
-        if (!_monitor.GetRecentChanges().Any(change => change.Id == changeId))
+        if (!_visibleChangeIds.Contains(changeId))
             return false;
         _selectedChangeId = changeId;
         return true;
@@ -93,15 +97,21 @@ internal sealed class QuickViewDirectorySizeController : IDisposable
 
     public bool MoveMonitorSelection(int offset)
     {
-        IReadOnlyList<DirectoryChange> changes = _monitor.GetRecentChanges();
-        if (changes.Count == 0)
+        if (_visibleChangeIds.Count == 0)
             return false;
         int current = _selectedChangeId is { } id
-            ? changes.ToList().FindIndex(change => change.Id == id)
+            ? _visibleChangeIds.ToList().IndexOf(id)
             : -1;
-        int next = Math.Clamp(current + offset, 0, changes.Count - 1);
-        _selectedChangeId = changes[next].Id;
+        int next = Math.Clamp(current + offset, 0, _visibleChangeIds.Count - 1);
+        _selectedChangeId = _visibleChangeIds[next];
         return true;
+    }
+
+    public void SetVisibleMonitorChanges(IReadOnlyList<long> changeIds)
+    {
+        _visibleChangeIds = changeIds;
+        if (_selectedChangeId is not null && !_visibleChangeIds.Contains(_selectedChangeId.Value))
+            _selectedChangeId = _visibleChangeIds.Count > 0 ? _visibleChangeIds[^1] : null;
     }
 
     public bool TryGetSelectedMonitorTarget(out string target)

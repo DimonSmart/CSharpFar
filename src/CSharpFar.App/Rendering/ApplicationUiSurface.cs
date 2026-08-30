@@ -141,6 +141,7 @@ internal static class ApplicationTargetIds
     public static UiTargetId DirectoryShortcut(int shortcutNumber) =>
         new($"application.directory-shortcut:{shortcutNumber}");
 
+    public static UiTargetId QuickViewMonitorToggle { get; } = new("application.quick-view.monitor-toggle");
     public static UiTargetId QuickViewChange(long changeId) => new($"application.quick-view.change:{changeId}");
 }
 
@@ -210,9 +211,25 @@ internal sealed record ApplicationPanelScrollInteraction(PanelSide Side, int Vie
 internal sealed record ApplicationCommandLineInteraction(RoutedPointerSelectionAction<int> Action) : ApplicationPointerInteraction;
 internal sealed record ApplicationFunctionKeyInteraction(ApplicationUiFrame Frame, ApplicationFunctionKeyHit Action) : ApplicationPointerInteraction;
 internal sealed record ApplicationDirectoryShortcutInteraction(ApplicationDirectoryShortcutHit Shortcut, PanelSide Side) : ApplicationPointerInteraction;
-internal sealed record ApplicationQuickViewChangeInteraction(long ChangeId) : ApplicationPointerInteraction;
+internal abstract record ApplicationQuickViewPointerTarget;
+internal sealed record ApplicationQuickViewMonitorToggleTarget : ApplicationQuickViewPointerTarget;
+internal sealed record ApplicationQuickViewChangeTarget(long ChangeId) : ApplicationQuickViewPointerTarget;
+internal sealed record ApplicationQuickViewPointerInteraction(ApplicationQuickViewPointerTarget Target) : ApplicationPointerInteraction;
 internal sealed record ApplicationQuickViewChangeHit(Rect Bounds, long ChangeId);
-internal sealed record ApplicationQuickViewFrame(Rect Bounds, IReadOnlyList<ApplicationQuickViewChangeHit> ChangeHits);
+internal sealed record ApplicationQuickViewPointerHit(Rect Bounds, ApplicationQuickViewPointerTarget Target);
+internal sealed record ApplicationQuickViewFrame(
+    Rect Bounds,
+    Rect? MonitorToggleBounds,
+    IReadOnlyList<ApplicationQuickViewChangeHit> ChangeHits)
+{
+    public IReadOnlyList<long> VisibleChangeIds => ChangeHits.Select(hit => hit.ChangeId).ToArray();
+    public IReadOnlyList<ApplicationQuickViewPointerHit> PointerHits =>
+        (MonitorToggleBounds is { } monitorToggle
+            ? new[] { new ApplicationQuickViewPointerHit(monitorToggle, new ApplicationQuickViewMonitorToggleTarget()) }
+            : [])
+        .Concat(ChangeHits.Select(hit => new ApplicationQuickViewPointerHit(hit.Bounds, new ApplicationQuickViewChangeTarget(hit.ChangeId))))
+        .ToArray();
+}
 
 internal sealed record ApplicationUiInputPacket(
     UiRoutedInput<ApplicationUiFrame> Routed,
@@ -546,11 +563,16 @@ internal sealed class ApplicationUiSurface : UiLayer<ApplicationUiFrame>, IUiSur
     {
         if (frame is null)
             return;
-        var collection = new RoutedPointerCollection<ApplicationQuickViewChangeHit>(
-            new UiTargetId("application.quick-view"), hit => ApplicationTargetIds.QuickViewChange(hit.ChangeId));
+        var collection = new RoutedPointerCollection<ApplicationQuickViewPointerHit>(
+            new UiTargetId("application.quick-view"), hit => hit.Target switch
+            {
+                ApplicationQuickViewMonitorToggleTarget => ApplicationTargetIds.QuickViewMonitorToggle,
+                ApplicationQuickViewChangeTarget change => ApplicationTargetIds.QuickViewChange(change.ChangeId),
+                _ => throw new InvalidOperationException("Unknown Quick View pointer target."),
+            });
         builder.AddFragment(collection.BuildInteractionFragment(
             IsVisible(frame.Bounds, viewport) ? frame.Bounds : new Rect(0, 0, 0, 0),
-            frame.ChangeHits.Where(hit => IsVisible(hit.Bounds, viewport)).Select(hit => new RoutedPointerItem<ApplicationQuickViewChangeHit>(hit, hit.Bounds)).ToArray()));
+            frame.PointerHits.Where(hit => IsVisible(hit.Bounds, viewport)).Select(hit => new RoutedPointerItem<ApplicationQuickViewPointerHit>(hit, hit.Bounds)).ToArray()));
     }
 
     private static UiInteractionFragment CreateShortcutInteraction(ApplicationDirectoryShortcutBarFrame frame, ConsoleViewport viewport)
@@ -602,10 +624,15 @@ internal sealed class ApplicationUiSurface : UiLayer<ApplicationUiFrame>, IUiSur
 
         if (frame.QuickView is { } quickView)
         {
-            var collection = new RoutedPointerCollection<ApplicationQuickViewChangeHit>(new("application.quick-view"), hit => ApplicationTargetIds.QuickViewChange(hit.ChangeId));
-            RoutedPointerInput<ApplicationQuickViewChangeHit> action = collection.RouteInput(input, context, quickView.ChangeHits.Select(hit => new RoutedPointerItem<ApplicationQuickViewChangeHit>(hit, hit.Bounds)).ToArray());
+            var collection = new RoutedPointerCollection<ApplicationQuickViewPointerHit>(new("application.quick-view"), hit => hit.Target switch
+            {
+                ApplicationQuickViewMonitorToggleTarget => ApplicationTargetIds.QuickViewMonitorToggle,
+                ApplicationQuickViewChangeTarget change => ApplicationTargetIds.QuickViewChange(change.ChangeId),
+                _ => throw new InvalidOperationException("Unknown Quick View pointer target."),
+            });
+            RoutedPointerInput<ApplicationQuickViewPointerHit> action = collection.RouteInput(input, context, quickView.PointerHits.Select(hit => new RoutedPointerItem<ApplicationQuickViewPointerHit>(hit, hit.Bounds)).ToArray());
             if (action.UiResult.Handled && action.Action.Kind == RoutedPointerActionKind.ItemPrimaryPressed)
-                return new(new ApplicationQuickViewChangeInteraction(action.Action.Item!.ChangeId), action.UiResult);
+                return new(new ApplicationQuickViewPointerInteraction(action.Action.Item!.Target), action.UiResult);
         }
 
         if (frame.FunctionKeyBar is { } functionKeys)

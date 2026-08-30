@@ -266,6 +266,7 @@ internal static class ApplicationServicesBuilder
                 return false;
             return keyboardInputContext.ActivateQuickViewDirectoryMonitorChange();
         };
+        mouseInputContext.ToggleQuickViewDirectoryMonitor = keyboardInputContext.ToggleQuickViewDirectoryMonitor;
         keyboardInputContext.MoveQuickViewDirectoryMonitorSelection = offset =>
             session.App.QuickView && quickViewDirectorySize.MoveMonitorSelection(offset);
         var dialogs = new DialogService(modalDialogs, formFields);

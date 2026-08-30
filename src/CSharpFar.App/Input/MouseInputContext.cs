@@ -23,6 +23,7 @@ internal sealed class MouseInputContext
     public Action<FilePanelState, PanelSide, FilePanelItem> OpenPanelItem { get; set; } =
         (_, _, _) => throw Missing();
     public Func<long, bool> ActivateQuickViewDirectoryMonitorChange { get; set; } = _ => false;
+    public Func<bool> ToggleQuickViewDirectoryMonitor { get; set; } = () => false;
 
     private static InvalidOperationException Missing() =>
         new("Mouse input context is not assigned.");

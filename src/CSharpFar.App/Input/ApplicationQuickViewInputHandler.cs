@@ -8,6 +8,11 @@ internal sealed class ApplicationQuickViewInputHandler
 
     public ApplicationQuickViewInputHandler(MouseInputContext context) => _context = context;
 
-    public ApplicationInputHandlingResult Handle(ApplicationQuickViewChangeInteraction interaction) =>
-        ApplicationInputHandlingResult.FromHandled(_context.ActivateQuickViewDirectoryMonitorChange(interaction.ChangeId));
+    public ApplicationInputHandlingResult Handle(ApplicationQuickViewPointerInteraction interaction) =>
+        ApplicationInputHandlingResult.FromHandled(interaction.Target switch
+        {
+            ApplicationQuickViewMonitorToggleTarget => _context.ToggleQuickViewDirectoryMonitor(),
+            ApplicationQuickViewChangeTarget change => _context.ActivateQuickViewDirectoryMonitorChange(change.ChangeId),
+            _ => false,
+        });
 }

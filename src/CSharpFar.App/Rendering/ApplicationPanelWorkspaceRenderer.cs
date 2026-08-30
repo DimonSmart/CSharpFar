@@ -96,24 +96,22 @@ internal sealed class ApplicationPanelWorkspaceRenderer
         {
             var item = _controller.CurrentItem(left);
             leftFrame = panelRenderer.Render(leftBounds, left, true, PanelSide.Left, leftViewMode);
-            IReadOnlyList<ApplicationQuickViewChangeHit> hits = quickViewRenderer.Render(
+            quickViewFrame = quickViewRenderer.Render(
                 rightBounds,
                 item,
                 item is { IsDirectory: true } ? quickViewDirState : null,
                 item is { IsDirectory: true } ? monitor : null,
                 selectedChangeId);
-            quickViewFrame = new ApplicationQuickViewFrame(rightBounds, hits);
         }
         else
         {
             var item = _controller.CurrentItem(right);
-            IReadOnlyList<ApplicationQuickViewChangeHit> hits = quickViewRenderer.Render(
+            quickViewFrame = quickViewRenderer.Render(
                 leftBounds,
                 item,
                 item is { IsDirectory: true } ? quickViewDirState : null,
                 item is { IsDirectory: true } ? monitor : null,
                 selectedChangeId);
-            quickViewFrame = new ApplicationQuickViewFrame(leftBounds, hits);
             rightFrame = panelRenderer.Render(rightBounds, right, true, PanelSide.Right, rightViewMode);
         }
 

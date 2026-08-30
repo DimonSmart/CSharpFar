@@ -109,6 +109,21 @@ public sealed class DirectorySummaryMonitorTests : IDisposable
         }
     }
 
+    [Fact]
+    public void RecentHistory_IsBoundedButKeepsMoreThanTenChanges()
+    {
+        using var monitor = new DirectorySummaryMonitor(() => { }, _ => { });
+        monitor.Enable(_root);
+
+        for (int i = 0; i < 300; i++)
+            monitor.RecordChange(DirectoryChangeKind.Created, Path.Combine(_root, $"item-{i}.txt"), null);
+
+        DirectoryChange[] changes = monitor.GetRecentChanges().ToArray();
+        Assert.Equal(256, changes.Length);
+        Assert.Equal("item-299.txt", changes[0].RelativePath);
+        Assert.Equal("item-44.txt", changes[^1].RelativePath);
+    }
+
     public void Dispose()
     {
         if (Directory.Exists(_root))

@@ -30,7 +30,7 @@ internal sealed class QuickViewRenderer
         _errorStyle = new CellStyle(ConsoleColor.DarkYellow, palette.PanelBackground);
     }
 
-    public IReadOnlyList<ApplicationQuickViewChangeHit> Render(Rect bounds, FilePanelItem? item, DirectorySizeState? dirSizeState = null, DirectorySummaryMonitor? monitor = null, long? selectedChangeId = null)
+    public ApplicationQuickViewFrame Render(Rect bounds, FilePanelItem? item, DirectorySizeState? dirSizeState = null, DirectorySummaryMonitor? monitor = null, long? selectedChangeId = null)
     {
         _screen.FillRegion(bounds, _fillStyle);
         _screen.DrawDoubleBox(bounds, _borderStyle);
@@ -45,52 +45,58 @@ internal sealed class QuickViewRenderer
         if (item is null || item.IsParentDirectory)
         {
             WriteRow(bounds.X + 1, contentTop, "No file selected", innerWidth);
-            return [];
+            return new ApplicationQuickViewFrame(bounds, null, []);
         }
 
         if (item.IsDirectory)
             return RenderDirectory(item, bounds.X + 1, contentTop, innerWidth, visRows, dirSizeState, monitor, selectedChangeId);
         else
             RenderFile(item, bounds.X + 1, contentTop, innerWidth, visRows);
-        return [];
+        return new ApplicationQuickViewFrame(bounds, null, []);
     }
 
     // ── directory ─────────────────────────────────────────────────────────────
 
-    private IReadOnlyList<ApplicationQuickViewChangeHit> RenderDirectory(FilePanelItem item, int x, int y, int w, int visRows, DirectorySizeState? dirSizeState, DirectorySummaryMonitor? monitor, long? selectedChangeId)
+    private ApplicationQuickViewFrame RenderDirectory(FilePanelItem item, int x, int y, int w, int visRows, DirectorySizeState? dirSizeState, DirectorySummaryMonitor? monitor, long? selectedChangeId)
     {
-        var (rows, errorRows) = BuildDirectoryRows(item, w, dirSizeState);
+        var (summaryRows, errorRows) = BuildDirectoryRows(item, w, dirSizeState);
         var hits = new List<ApplicationQuickViewChangeHit>();
-        if (monitor is not null)
+        int rowIndex = 0;
+        foreach (string row in summaryRows.Take(visRows))
         {
-            rows.Add(string.Empty);
-            rows.Add(monitor.IsEnabled ? "[x] Monitor changes automatically (Ctrl+M)" : "[ ] Monitor changes automatically (Ctrl+M)");
-            if (monitor.IsEnabled)
+            WriteRow(x, y + rowIndex++, row, w);
+        }
+        foreach (string error in errorRows)
+        {
+            if (rowIndex >= visRows)
+                break;
+            WriteErrorRow(x, y + rowIndex++, error, w);
+        }
+
+        Rect? monitorToggleBounds = null;
+        if (monitor is not null && rowIndex < visRows)
+        {
+            if (visRows - rowIndex >= 2)
+                WriteRow(x, y + rowIndex++, string.Empty, w);
+            string toggle = monitor.IsEnabled ? "[x] Monitor changes automatically (Ctrl+M)" : "[ ] Monitor changes automatically (Ctrl+M)";
+            WriteRow(x, y + rowIndex, toggle, w);
+            monitorToggleBounds = new Rect(x, y + rowIndex++, w, 1);
+
+            if (monitor.IsEnabled && rowIndex < visRows)
             {
-                rows.Add("Recent changes");
-                foreach (DirectoryChange change in monitor.GetRecentChanges())
+                WriteRow(x, y + rowIndex++, "Recent changes", w);
+                foreach (DirectoryChange change in monitor.GetRecentChanges().Take(Math.Max(0, visRows - rowIndex)))
                 {
                     string marker = change.Kind switch { DirectoryChangeKind.Created => "+", DirectoryChangeKind.Changed => "M", DirectoryChangeKind.Deleted => "-", _ => "R" };
                     string path = change.Kind == DirectoryChangeKind.Renamed
                         ? $"{change.OldRelativePath} -> {change.RelativePath}"
                         : change.RelativePath;
-                    int rowIndex = rows.Count;
-                    rows.Add($"{(change.Id == selectedChangeId ? '>' : ' ')}{change.Timestamp:HH:mm:ss}  {marker}  {path}");
-                    if (rowIndex < visRows)
-                        hits.Add(new ApplicationQuickViewChangeHit(new Rect(x, y + rowIndex, w, 1), change.Id));
+                    WriteRow(x, y + rowIndex, $"{(change.Id == selectedChangeId ? '>' : ' ')}{change.Timestamp:HH:mm:ss}  {marker}  {path}", w);
+                    hits.Add(new ApplicationQuickViewChangeHit(new Rect(x, y + rowIndex++, w, 1), change.Id));
                 }
             }
         }
-        int normalCount = Math.Min(visRows, rows.Count);
-        for (int i = 0; i < normalCount; i++)
-            WriteRow(x, y + i, rows[i], w);
-        for (int i = normalCount; i < visRows; i++)
-        {
-            int errIdx = i - normalCount;
-            string errText = errIdx < errorRows.Count ? errorRows[errIdx] : string.Empty;
-            WriteErrorRow(x, y + i, errText, w);
-        }
-        return hits;
+        return new ApplicationQuickViewFrame(new Rect(x - 1, y - 1, w + 2, visRows + 2), monitorToggleBounds, hits);
     }
 
     private static (List<string> Rows, List<string> ErrorRows) BuildDirectoryRows(

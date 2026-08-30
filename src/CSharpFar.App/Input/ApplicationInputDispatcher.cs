@@ -40,7 +40,7 @@ internal sealed class ApplicationInputDispatcher
             ApplicationPanelScrollInteraction interaction => _panelScrollbarInputHandler.Handle(interaction),
             ApplicationFunctionKeyInteraction interaction => _functionKeyBarInputHandler.Handle(interaction),
             ApplicationDirectoryShortcutInteraction interaction => _directoryShortcutBarInputHandler.Handle(interaction),
-            ApplicationQuickViewChangeInteraction interaction when _quickViewInputHandler is not null => _quickViewInputHandler.Handle(interaction),
+            ApplicationQuickViewPointerInteraction interaction when _quickViewInputHandler is not null => _quickViewInputHandler.Handle(interaction),
             _ => ApplicationInputHandlingResult.NotHandled,
         };
         if (pointerResult.Handled)

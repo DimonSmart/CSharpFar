@@ -13,7 +13,7 @@ internal sealed class DirectorySummaryMonitor : IDisposable
 {
     private const int DebounceMilliseconds = 400;
     private const int MinimumScanIntervalMilliseconds = 1000;
-    private const int MaxRecentChanges = 10;
+    private const int MaxRecentHistory = 256;
     private readonly object _gate = new();
     private readonly Action _wake;
     private readonly Action<string> _rescan;
@@ -164,7 +164,7 @@ internal sealed class DirectorySummaryMonitor : IDisposable
                 tick - last.Tick < DebounceMilliseconds;
             if (!coalesce)
                 _changes.Insert(0, new DirectoryChange(++_nextChangeId, kind, relative, oldRelative, fullPath, DateTimeOffset.UtcNow, tick));
-            if (_changes.Count > MaxRecentChanges) _changes.RemoveRange(MaxRecentChanges, _changes.Count - MaxRecentChanges);
+            if (_changes.Count > MaxRecentHistory) _changes.RemoveRange(MaxRecentHistory, _changes.Count - MaxRecentHistory);
             _version++;
         }
         ScheduleRefresh(generation, root);
