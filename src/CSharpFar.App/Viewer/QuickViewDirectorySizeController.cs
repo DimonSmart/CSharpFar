@@ -22,6 +22,8 @@ internal sealed class QuickViewDirectorySizeController : IDisposable
     public DirectorySizeState? CurrentState { get; private set; }
     public DirectorySummaryMonitor Monitor => _monitor;
     public long? SelectedMonitorChangeId => _selectedChangeId;
+    public bool IsBackgroundUpdating { get; private set; }
+    private long _activeScanOperationId;
 
     public void Update(bool quickViewEnabled, FilePanelItem? item)
     {
@@ -45,7 +47,8 @@ internal sealed class QuickViewDirectorySizeController : IDisposable
         _visibleChangeIds = [];
         _currentPath = item.FullPath;
         CurrentState = null;
-        _calculator.Start(item.FullPath);
+        IsBackgroundUpdating = false;
+        StartScan(item.FullPath, DirectoryScanProgressMode.ReportProgress);
     }
 
     private void CancelIfActive()
@@ -62,16 +65,21 @@ internal sealed class QuickViewDirectorySizeController : IDisposable
         _visibleChangeIds = [];
         _currentPath = null;
         CurrentState = null;
+        IsBackgroundUpdating = false;
+        _activeScanOperationId = 0;
     }
 
-    private void OnSizeCalculated(string path, DirectorySizeState state)
+    private void OnSizeCalculated(DirectoryScanUpdate update)
     {
-        if (_currentPath != path)
+        if (_currentPath != update.Path || _activeScanOperationId != update.OperationId)
             return;
 
-        CurrentState = state;
-        if (state.IsCompleted)
+        CurrentState = update.State;
+        if (update.State.IsCompleted)
+        {
+            IsBackgroundUpdating = false;
             _monitor.ScanFinished();
+        }
         _wakeInputLoop();
     }
 
@@ -80,7 +88,10 @@ internal sealed class QuickViewDirectorySizeController : IDisposable
         if (_currentPath is null) return;
         if (_monitor.IsEnabled)
         {
+            if (IsBackgroundUpdating)
+                _calculator.Cancel();
             _monitor.Disable();
+            IsBackgroundUpdating = false;
             _selectedChangeId = null;
             _visibleChangeIds = [];
         }
@@ -114,6 +125,12 @@ internal sealed class QuickViewDirectorySizeController : IDisposable
             _selectedChangeId = _visibleChangeIds.Count > 0 ? _visibleChangeIds[^1] : null;
     }
 
+    public long? NormalizeVisibleMonitorChanges(IReadOnlyList<long> changeIds)
+    {
+        SetVisibleMonitorChanges(changeIds);
+        return _selectedChangeId;
+    }
+
     public bool TryGetSelectedMonitorTarget(out string target)
     {
         target = string.Empty;
@@ -124,8 +141,12 @@ internal sealed class QuickViewDirectorySizeController : IDisposable
     {
         if (_currentPath != path || !_monitor.IsEnabled) return;
         _monitor.ScanStarted();
-        _calculator.Start(path);
+        IsBackgroundUpdating = true;
+        StartScan(path, DirectoryScanProgressMode.Silent);
     }
+
+    private void StartScan(string path, DirectoryScanProgressMode progressMode) =>
+        _calculator.Start(path, progressMode, operationId => _activeScanOperationId = operationId);
 
     public void Dispose()
     {

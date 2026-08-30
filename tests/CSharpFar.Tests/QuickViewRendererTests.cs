@@ -67,6 +67,22 @@ public class QuickViewRendererTests : IDisposable
     }
 
     [Fact]
+    public void BackgroundRefresh_RetainsCompletedSizeAndShowsUpdatingIndicator()
+    {
+        var item = new FilePanelItem { Name = "directory", FullPath = _tempDir, IsDirectory = true };
+
+        UiTestRender.Render(_screen, canvas =>
+            new QuickViewRenderer(canvas).Render(
+                new Rect(0, 0, 40, 16),
+                item,
+                new DirectorySizeState(100, true, []),
+                isBackgroundUpdating: true));
+
+        Assert.Contains("100 bytes", ContentRow(9));
+        Assert.Contains("updating", ContentRow(9));
+    }
+
+    [Fact]
     public void FileItem_ShowsTextContent()
     {
         string filePath = Path.Combine(_tempDir, "preview.txt");
@@ -137,6 +153,35 @@ public class QuickViewRendererTests : IDisposable
 
         Assert.Equal(1, controller.SelectedMonitorChangeId);
         Assert.False(controller.SelectMonitorChange(2));
+    }
+
+    [Fact]
+    public void Render_NormalizesSelectionBeforeDrawingVisibleChanges()
+    {
+        using var monitor = new DirectorySummaryMonitor(() => { }, _ => { });
+        using var controller = new QuickViewDirectorySizeController(() => { });
+        monitor.Enable(_tempDir);
+        for (int i = 1; i <= 3; i++)
+            monitor.RecordChange(DirectoryChangeKind.Created, Path.Combine(_tempDir, $"item-{i}.txt"), null);
+
+        DirectoryChange[] changes = monitor.GetRecentChanges().ToArray();
+        controller.SetVisibleMonitorChanges(changes.Select(change => change.Id).ToArray());
+        Assert.True(controller.SelectMonitorChange(changes[^1].Id));
+        var item = new FilePanelItem { Name = "directory", FullPath = _tempDir, IsDirectory = true };
+        ApplicationQuickViewFrame? frame = null;
+
+        UiTestRender.Render(_screen, canvas =>
+            frame = new QuickViewRenderer(canvas).Render(
+                new Rect(0, 0, 40, 16),
+                item,
+                monitor: monitor,
+                selectedChangeId: controller.SelectedMonitorChangeId,
+                normalizeSelection: controller.NormalizeVisibleMonitorChanges));
+
+        Assert.NotNull(frame);
+        Assert.Single(frame.ChangeHits);
+        Assert.Equal(frame.ChangeHits[0].ChangeId, controller.SelectedMonitorChangeId);
+        Assert.Equal('>', _driver.GetRegionText(new Rect(frame.ChangeHits[0].Bounds.X, frame.ChangeHits[0].Bounds.Y, 1, 1))[0]);
     }
 
     [Fact]

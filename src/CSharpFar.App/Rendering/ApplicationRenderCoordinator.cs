@@ -49,8 +49,9 @@ internal sealed class ApplicationRenderCoordinator
             _context.App.QuickView,
             _context.QuickViewDirectorySize.CurrentState,
             _context.QuickViewDirectorySize.Monitor,
-            _context.QuickViewDirectorySize.SelectedMonitorChangeId);
-        _context.QuickViewDirectorySize.SetVisibleMonitorChanges(workspace.QuickView?.VisibleChangeIds ?? []);
+            _context.QuickViewDirectorySize.SelectedMonitorChangeId,
+            _context.QuickViewDirectorySize.IsBackgroundUpdating,
+            _context.QuickViewDirectorySize.NormalizeVisibleMonitorChanges);
         int panelHeight = workspace.PanelHeight;
         context.PublishOnStable(context.Viewport, value => _context.Ui.LastRenderViewport = value);
 

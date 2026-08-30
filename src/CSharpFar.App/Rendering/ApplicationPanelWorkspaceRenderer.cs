@@ -38,7 +38,9 @@ internal sealed class ApplicationPanelWorkspaceRenderer
         bool quickView,
         DirectorySizeState? quickViewDirState,
         DirectorySummaryMonitor? monitor,
-        long? selectedChangeId)
+        long? selectedChangeId,
+        bool quickViewIsBackgroundUpdating,
+        Func<IReadOnlyList<long>, long?>? normalizeQuickViewSelection = null)
     {
         var bounds = ApplicationLayoutService.CalculatePanelWorkspaceBounds(size);
         int panelHeight = bounds.PanelHeight;
@@ -64,7 +66,7 @@ internal sealed class ApplicationPanelWorkspaceRenderer
                 activeSide,
                 leftViewMode,
                 rightViewMode,
-                quickViewDirState, monitor, selectedChangeId);
+                quickViewDirState, monitor, selectedChangeId, quickViewIsBackgroundUpdating, normalizeQuickViewSelection);
         }
         else
         {
@@ -87,7 +89,9 @@ internal sealed class ApplicationPanelWorkspaceRenderer
         PanelViewMode rightViewMode,
         DirectorySizeState? quickViewDirState,
         DirectorySummaryMonitor? monitor,
-        long? selectedChangeId)
+        long? selectedChangeId,
+        bool quickViewIsBackgroundUpdating,
+        Func<IReadOnlyList<long>, long?>? normalizeQuickViewSelection)
     {
         ApplicationPanelFrame? leftFrame = null;
         ApplicationPanelFrame? rightFrame = null;
@@ -101,7 +105,9 @@ internal sealed class ApplicationPanelWorkspaceRenderer
                 item,
                 item is { IsDirectory: true } ? quickViewDirState : null,
                 item is { IsDirectory: true } ? monitor : null,
-                selectedChangeId);
+                selectedChangeId,
+                quickViewIsBackgroundUpdating,
+                normalizeQuickViewSelection);
         }
         else
         {
@@ -111,7 +117,9 @@ internal sealed class ApplicationPanelWorkspaceRenderer
                 item,
                 item is { IsDirectory: true } ? quickViewDirState : null,
                 item is { IsDirectory: true } ? monitor : null,
-                selectedChangeId);
+                selectedChangeId,
+                quickViewIsBackgroundUpdating,
+                normalizeQuickViewSelection);
             rightFrame = panelRenderer.Render(rightBounds, right, true, PanelSide.Right, rightViewMode);
         }
 

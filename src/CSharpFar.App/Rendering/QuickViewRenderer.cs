@@ -30,7 +30,14 @@ internal sealed class QuickViewRenderer
         _errorStyle = new CellStyle(ConsoleColor.DarkYellow, palette.PanelBackground);
     }
 
-    public ApplicationQuickViewFrame Render(Rect bounds, FilePanelItem? item, DirectorySizeState? dirSizeState = null, DirectorySummaryMonitor? monitor = null, long? selectedChangeId = null)
+    public ApplicationQuickViewFrame Render(
+        Rect bounds,
+        FilePanelItem? item,
+        DirectorySizeState? dirSizeState = null,
+        DirectorySummaryMonitor? monitor = null,
+        long? selectedChangeId = null,
+        bool isBackgroundUpdating = false,
+        Func<IReadOnlyList<long>, long?>? normalizeSelection = null)
     {
         _screen.FillRegion(bounds, _fillStyle);
         _screen.DrawDoubleBox(bounds, _borderStyle);
@@ -49,7 +56,7 @@ internal sealed class QuickViewRenderer
         }
 
         if (item.IsDirectory)
-            return RenderDirectory(item, bounds.X + 1, contentTop, innerWidth, visRows, dirSizeState, monitor, selectedChangeId);
+            return RenderDirectory(item, bounds.X + 1, contentTop, innerWidth, visRows, dirSizeState, monitor, selectedChangeId, isBackgroundUpdating, normalizeSelection);
         else
             RenderFile(item, bounds.X + 1, contentTop, innerWidth, visRows);
         return new ApplicationQuickViewFrame(bounds, null, []);
@@ -57,9 +64,19 @@ internal sealed class QuickViewRenderer
 
     // ── directory ─────────────────────────────────────────────────────────────
 
-    private ApplicationQuickViewFrame RenderDirectory(FilePanelItem item, int x, int y, int w, int visRows, DirectorySizeState? dirSizeState, DirectorySummaryMonitor? monitor, long? selectedChangeId)
+    private ApplicationQuickViewFrame RenderDirectory(
+        FilePanelItem item,
+        int x,
+        int y,
+        int w,
+        int visRows,
+        DirectorySizeState? dirSizeState,
+        DirectorySummaryMonitor? monitor,
+        long? selectedChangeId,
+        bool isBackgroundUpdating,
+        Func<IReadOnlyList<long>, long?>? normalizeSelection)
     {
-        var (summaryRows, errorRows) = BuildDirectoryRows(item, w, dirSizeState);
+        var (summaryRows, errorRows) = BuildDirectoryRows(item, w, dirSizeState, isBackgroundUpdating);
         var hits = new List<ApplicationQuickViewChangeHit>();
         int rowIndex = 0;
         foreach (string row in summaryRows.Take(visRows))
@@ -74,6 +91,7 @@ internal sealed class QuickViewRenderer
         }
 
         Rect? monitorToggleBounds = null;
+        bool selectionNormalized = false;
         if (monitor is not null && rowIndex < visRows)
         {
             if (visRows - rowIndex >= 2)
@@ -85,7 +103,12 @@ internal sealed class QuickViewRenderer
             if (monitor.IsEnabled && rowIndex < visRows)
             {
                 WriteRow(x, y + rowIndex++, "Recent changes", w);
-                foreach (DirectoryChange change in monitor.GetRecentChanges().Take(Math.Max(0, visRows - rowIndex)))
+                DirectoryChange[] visibleChanges = monitor.GetRecentChanges()
+                    .Take(Math.Max(0, visRows - rowIndex))
+                    .ToArray();
+                selectedChangeId = normalizeSelection?.Invoke(visibleChanges.Select(change => change.Id).ToArray()) ?? selectedChangeId;
+                selectionNormalized = normalizeSelection is not null;
+                foreach (DirectoryChange change in visibleChanges)
                 {
                     string marker = change.Kind switch { DirectoryChangeKind.Created => "+", DirectoryChangeKind.Changed => "M", DirectoryChangeKind.Deleted => "-", _ => "R" };
                     string path = change.Kind == DirectoryChangeKind.Renamed
@@ -96,11 +119,13 @@ internal sealed class QuickViewRenderer
                 }
             }
         }
+        if (!selectionNormalized)
+            normalizeSelection?.Invoke([]);
         return new ApplicationQuickViewFrame(new Rect(x - 1, y - 1, w + 2, visRows + 2), monitorToggleBounds, hits);
     }
 
     private static (List<string> Rows, List<string> ErrorRows) BuildDirectoryRows(
-        FilePanelItem item, int w, DirectorySizeState? dirSizeState)
+        FilePanelItem item, int w, DirectorySizeState? dirSizeState, bool isBackgroundUpdating)
     {
         var rows = new List<string>();
 
@@ -132,7 +157,7 @@ internal sealed class QuickViewRenderer
             string sizeText = dirSizeState is null
                 ? "Calculating\u2026"
                 : dirSizeState.IsCompleted
-                    ? FormatSize(dirSizeState.Size)
+                    ? FormatSize(dirSizeState.Size) + (isBackgroundUpdating ? "  (updating…)" : string.Empty)
                     : FormatSize(dirSizeState.Size) + "  (scanning\u2026)";
             rows.Add(Label("Total size", sizeText, w));
 

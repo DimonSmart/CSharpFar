@@ -1,5 +1,13 @@
 namespace CSharpFar.App.Viewer;
 
+internal enum DirectoryScanProgressMode
+{
+    ReportProgress,
+    Silent,
+}
+
+internal readonly record struct DirectoryScanUpdate(long OperationId, string Path, DirectorySizeState State);
+
 /// <summary>
 /// Calculates total size of a directory tree asynchronously.
 /// A new calculation cancels the previous one.
@@ -13,23 +21,30 @@ namespace CSharpFar.App.Viewer;
 internal sealed class DirectorySizeCalculator : IDisposable
 {
     public const int ThrottleMs = 300;
+    private readonly int _throttleMs;
 
     /// <summary>Intermediate progress update (throttled).</summary>
-    public event Action<string, DirectorySizeState>? Progress;
+    public event Action<DirectoryScanUpdate>? Progress;
 
     /// <summary>Final result when the scan is complete.</summary>
-    public event Action<string, DirectorySizeState>? Completed;
+    public event Action<DirectoryScanUpdate>? Completed;
 
     private CancellationTokenSource _cts = new();
+    private long _nextOperationId;
 
-    public void Start(string path)
+    internal DirectorySizeCalculator(int throttleMs = ThrottleMs) => _throttleMs = throttleMs;
+
+    public long Start(string path, DirectoryScanProgressMode progressMode, Action<long>? operationStarted = null)
     {
         var old = Interlocked.Exchange(ref _cts, new CancellationTokenSource());
         old.Cancel();
         old.Dispose();
 
         var token = _cts.Token;
-        Task.Run(() => Calculate(path, token), token);
+        long operationId = Interlocked.Increment(ref _nextOperationId);
+        operationStarted?.Invoke(operationId);
+        Task.Run(() => Calculate(operationId, path, progressMode, token), token);
+        return operationId;
     }
 
     public void Cancel()
@@ -39,7 +54,7 @@ internal sealed class DirectorySizeCalculator : IDisposable
         old.Dispose();
     }
 
-    private void Calculate(string path, CancellationToken token)
+    private void Calculate(long operationId, string path, DirectoryScanProgressMode progressMode, CancellationToken token)
     {
         try
         {
@@ -72,18 +87,18 @@ internal sealed class DirectorySizeCalculator : IDisposable
 
                 // Throttled progress
                 long now = Environment.TickCount64;
-                if (now - lastProgressTick >= ThrottleMs)
+                if (progressMode == DirectoryScanProgressMode.ReportProgress && now - lastProgressTick >= _throttleMs)
                 {
                     lastProgressTick = now;
                     var state = new DirectorySizeState(total, false, [.. errors]);
-                    Progress?.Invoke(path, state);
+                    Progress?.Invoke(new DirectoryScanUpdate(operationId, path, state));
                 }
             }
 
             if (!token.IsCancellationRequested)
             {
                 var final = new DirectorySizeState(total, true, [.. errors]);
-                Completed?.Invoke(path, final);
+                Completed?.Invoke(new DirectoryScanUpdate(operationId, path, final));
             }
         }
         catch (OperationCanceledException) { }
