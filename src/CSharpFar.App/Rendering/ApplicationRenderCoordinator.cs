@@ -48,7 +48,8 @@ internal sealed class ApplicationRenderCoordinator
             _context.RightViewMode(),
             _context.App.QuickView,
             _context.QuickViewDirectorySize.CurrentState,
-            _context.QuickViewDirectorySize.Monitor);
+            _context.QuickViewDirectorySize.Monitor,
+            _context.QuickViewDirectorySize.SelectedMonitorChangeId);
         int panelHeight = workspace.PanelHeight;
         context.PublishOnStable(context.Viewport, value => _context.Ui.LastRenderViewport = value);
 
@@ -78,6 +79,7 @@ internal sealed class ApplicationRenderCoordinator
             functionKeyBar,
             directoryShortcutBar)
         {
+            QuickView = workspace.QuickView,
             Fingerprint = CreateFingerprint(
                 context.Viewport,
                 ApplicationWorkspaceMode.Panels,

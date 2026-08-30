@@ -6,7 +6,7 @@ namespace CSharpFar.App.Viewer;
 internal enum DirectoryChangeKind { Created, Changed, Deleted, Renamed }
 
 internal sealed record DirectoryChange(
-    DirectoryChangeKind Kind, string RelativePath, string? OldRelativePath, string FullPath, DateTime Timestamp);
+    long Id, DirectoryChangeKind Kind, string RelativePath, string? OldRelativePath, string FullPath, DateTimeOffset Timestamp, long Tick);
 
 /// <summary>Owns the recursive watcher and its bounded, best-effort event history.</summary>
 internal sealed class DirectorySummaryMonitor : IDisposable
@@ -22,8 +22,9 @@ internal sealed class DirectorySummaryMonitor : IDisposable
     private CancellationTokenSource? _delay;
     private string? _root;
     private bool _scanning;
-    private bool _dirty;
     private long _version;
+    private long _scanVersion;
+    private long _nextChangeId;
     private long _lastScanTick;
     private bool _disposed;
 
@@ -34,15 +35,20 @@ internal sealed class DirectorySummaryMonitor : IDisposable
     }
 
     public bool IsEnabled => _watcher is not null;
-    public IReadOnlyList<DirectoryChange> RecentChanges => _changes;
+    public IReadOnlyList<DirectoryChange> GetRecentChanges()
+    {
+        lock (_gate)
+            return _changes.ToArray();
+    }
 
-    public bool TryGetNewestNavigableTarget(out string target)
+    public bool TryGetMonitorTarget(long changeId, out string target)
     {
         target = string.Empty;
         DirectoryChange? change;
         lock (_gate)
-            change = _changes.FirstOrDefault(c => c.Kind != DirectoryChangeKind.Deleted);
-        if (change is null || !File.Exists(change.FullPath) && !Directory.Exists(change.FullPath))
+            change = _changes.FirstOrDefault(c => c.Id == changeId);
+        if (change is null || change.Kind == DirectoryChangeKind.Deleted ||
+            !File.Exists(change.FullPath) && !Directory.Exists(change.FullPath))
             return false;
         target = change.FullPath;
         return true;
@@ -59,10 +65,10 @@ internal sealed class DirectorySummaryMonitor : IDisposable
                 NotifyFilter = NotifyFilters.FileName | NotifyFilters.DirectoryName | NotifyFilters.Size | NotifyFilters.LastWrite,
                 EnableRaisingEvents = false,
             };
-            watcher.Created += (_, e) => Record(DirectoryChangeKind.Created, e.FullPath, null);
-            watcher.Changed += (_, e) => Record(DirectoryChangeKind.Changed, e.FullPath, null);
-            watcher.Deleted += (_, e) => Record(DirectoryChangeKind.Deleted, e.FullPath, null);
-            watcher.Renamed += (_, e) => Record(DirectoryChangeKind.Renamed, e.FullPath, e.OldFullPath);
+            watcher.Created += (_, e) => RecordChange(DirectoryChangeKind.Created, e.FullPath, null);
+            watcher.Changed += (_, e) => RecordChange(DirectoryChangeKind.Changed, e.FullPath, null);
+            watcher.Deleted += (_, e) => RecordChange(DirectoryChangeKind.Deleted, e.FullPath, null);
+            watcher.Renamed += (_, e) => RecordChange(DirectoryChangeKind.Renamed, e.FullPath, e.OldFullPath);
             watcher.Error += (_, _) => RequestRefresh();
             _root = Path.GetFullPath(root);
             _watcher = watcher;
@@ -83,21 +89,31 @@ internal sealed class DirectorySummaryMonitor : IDisposable
         _delay?.Dispose();
         _delay = null;
         _root = null;
-        _changes.Clear();
-        _dirty = false;
-        _scanning = false;
+        lock (_gate)
+        {
+            _changes.Clear();
+            _scanning = false;
+            _version++;
+        }
         _wake();
     }
 
-    public void ScanStarted() { lock (_gate) _scanning = true; }
+    public void ScanStarted()
+    {
+        lock (_gate)
+        {
+            _scanning = true;
+            _scanVersion = _version;
+        }
+    }
     public void ScanFinished()
     {
         bool again;
-        lock (_gate) { _scanning = false; again = _dirty; _dirty = false; }
+        lock (_gate) { _scanning = false; again = _version != _scanVersion; }
         if (again) ScheduleRefresh();
     }
 
-    private void Record(DirectoryChangeKind kind, string fullPath, string? oldFullPath)
+    internal void RecordChange(DirectoryChangeKind kind, string fullPath, string? oldFullPath)
     {
         string? root = _root;
         if (_disposed || root is null) return;
@@ -106,13 +122,13 @@ internal sealed class DirectorySummaryMonitor : IDisposable
         lock (_gate)
         {
             // A short same-kind/same-path burst is not useful to users.
-            if (_changes.FirstOrDefault() is { } last && last.Kind == kind && last.FullPath == fullPath &&
-                (DateTime.UtcNow - last.Timestamp).TotalMilliseconds < DebounceMilliseconds)
-                return;
-            _changes.Insert(0, new DirectoryChange(kind, relative, oldRelative, fullPath, DateTime.Now));
+            long tick = Environment.TickCount64;
+            bool coalesce = _changes.FirstOrDefault() is { } last && last.Kind == kind && last.FullPath == fullPath &&
+                tick - last.Tick < DebounceMilliseconds;
+            if (!coalesce)
+                _changes.Insert(0, new DirectoryChange(++_nextChangeId, kind, relative, oldRelative, fullPath, DateTimeOffset.UtcNow, tick));
             if (_changes.Count > MaxRecentChanges) _changes.RemoveRange(MaxRecentChanges, _changes.Count - MaxRecentChanges);
             _version++;
-            _dirty = true;
         }
         ScheduleRefresh();
         _wake();
@@ -120,7 +136,7 @@ internal sealed class DirectorySummaryMonitor : IDisposable
 
     private void RequestRefresh()
     {
-        lock (_gate) { _version++; _dirty = true; }
+        lock (_gate) { _version++; }
         ScheduleRefresh();
         _wake();
     }
@@ -140,8 +156,8 @@ internal sealed class DirectorySummaryMonitor : IDisposable
                 string? path;
                 lock (_gate)
                 {
-                    if (_scanning || !_dirty) return;
-                    _dirty = false; _scanning = true; path = _root; _lastScanTick = Environment.TickCount64;
+                    if (_scanning) return;
+                    _scanning = true; _scanVersion = _version; path = _root; _lastScanTick = Environment.TickCount64;
                 }
                 if (path is not null) _rescan(path);
             }

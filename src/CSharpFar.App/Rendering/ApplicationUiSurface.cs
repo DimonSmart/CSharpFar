@@ -20,6 +20,7 @@ internal sealed record ApplicationUiFrame(
 {
     public ApplicationRenderFingerprint? Fingerprint { get; init; }
     public ApplicationRenderPart RenderedParts { get; init; } = ApplicationRenderPart.Full;
+    public ApplicationQuickViewFrame? QuickView { get; init; }
 }
 
 internal sealed record ApplicationRenderFingerprint(
@@ -139,6 +140,8 @@ internal static class ApplicationTargetIds
 
     public static UiTargetId DirectoryShortcut(int shortcutNumber) =>
         new($"application.directory-shortcut:{shortcutNumber}");
+
+    public static UiTargetId QuickViewChange(long changeId) => new($"application.quick-view.change:{changeId}");
 }
 
 internal sealed record ApplicationPanelFrame
@@ -207,6 +210,9 @@ internal sealed record ApplicationPanelScrollInteraction(PanelSide Side, int Vie
 internal sealed record ApplicationCommandLineInteraction(RoutedPointerSelectionAction<int> Action) : ApplicationPointerInteraction;
 internal sealed record ApplicationFunctionKeyInteraction(ApplicationUiFrame Frame, ApplicationFunctionKeyHit Action) : ApplicationPointerInteraction;
 internal sealed record ApplicationDirectoryShortcutInteraction(ApplicationDirectoryShortcutHit Shortcut, PanelSide Side) : ApplicationPointerInteraction;
+internal sealed record ApplicationQuickViewChangeInteraction(long ChangeId) : ApplicationPointerInteraction;
+internal sealed record ApplicationQuickViewChangeHit(Rect Bounds, long ChangeId);
+internal sealed record ApplicationQuickViewFrame(Rect Bounds, IReadOnlyList<ApplicationQuickViewChangeHit> ChangeHits);
 
 internal sealed record ApplicationUiInputPacket(
     UiRoutedInput<ApplicationUiFrame> Routed,
@@ -440,6 +446,7 @@ internal sealed class ApplicationUiSurface : UiLayer<ApplicationUiFrame>, IUiSur
         {
             AddPanelInteraction(builder, frame.LeftPanel, frame.Viewport);
             AddPanelInteraction(builder, frame.RightPanel, frame.Viewport);
+            AddQuickViewInteraction(builder, frame.QuickView, frame.Viewport);
 
             if (frame.FunctionKeyBar is { } functionKeyBar)
             {
@@ -535,6 +542,17 @@ internal sealed class ApplicationUiSurface : UiLayer<ApplicationUiFrame>, IUiSur
             frame.Actions.Where(action => IsVisible(action.Bounds, viewport)).Select(action => new RoutedPointerItem<ApplicationFunctionKeyHit>(action, action.Bounds)).ToArray());
     }
 
+    private static void AddQuickViewInteraction(UiInteractionFrameBuilder builder, ApplicationQuickViewFrame? frame, ConsoleViewport viewport)
+    {
+        if (frame is null)
+            return;
+        var collection = new RoutedPointerCollection<ApplicationQuickViewChangeHit>(
+            new UiTargetId("application.quick-view"), hit => ApplicationTargetIds.QuickViewChange(hit.ChangeId));
+        builder.AddFragment(collection.BuildInteractionFragment(
+            IsVisible(frame.Bounds, viewport) ? frame.Bounds : new Rect(0, 0, 0, 0),
+            frame.ChangeHits.Where(hit => IsVisible(hit.Bounds, viewport)).Select(hit => new RoutedPointerItem<ApplicationQuickViewChangeHit>(hit, hit.Bounds)).ToArray()));
+    }
+
     private static UiInteractionFragment CreateShortcutInteraction(ApplicationDirectoryShortcutBarFrame frame, ConsoleViewport viewport)
     {
         var collection = new RoutedPointerCollection<ApplicationDirectoryShortcutHit>(
@@ -581,6 +599,14 @@ internal sealed class ApplicationUiSurface : UiLayer<ApplicationUiFrame>, IUiSur
             return leftPanel;
         if (TryRoutePanel(input, frame.RightPanel, context, out RoutedApplicationPointerInput rightPanel))
             return rightPanel;
+
+        if (frame.QuickView is { } quickView)
+        {
+            var collection = new RoutedPointerCollection<ApplicationQuickViewChangeHit>(new("application.quick-view"), hit => ApplicationTargetIds.QuickViewChange(hit.ChangeId));
+            RoutedPointerInput<ApplicationQuickViewChangeHit> action = collection.RouteInput(input, context, quickView.ChangeHits.Select(hit => new RoutedPointerItem<ApplicationQuickViewChangeHit>(hit, hit.Bounds)).ToArray());
+            if (action.UiResult.Handled && action.Action.Kind == RoutedPointerActionKind.ItemPrimaryPressed)
+                return new(new ApplicationQuickViewChangeInteraction(action.Action.Item!.ChangeId), action.UiResult);
+        }
 
         if (frame.FunctionKeyBar is { } functionKeys)
         {

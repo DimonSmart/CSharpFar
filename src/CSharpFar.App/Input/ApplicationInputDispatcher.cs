@@ -11,6 +11,7 @@ internal sealed class ApplicationInputDispatcher
     private readonly ApplicationPanelScrollbarInputHandler _panelScrollbarInputHandler;
     private readonly ApplicationFunctionKeyBarInputHandler _functionKeyBarInputHandler;
     private readonly ApplicationDirectoryShortcutBarInputHandler _directoryShortcutBarInputHandler;
+    private readonly ApplicationQuickViewInputHandler? _quickViewInputHandler;
 
     public ApplicationInputDispatcher(
         KeyboardInputRouter keyboardInputRouter,
@@ -18,7 +19,8 @@ internal sealed class ApplicationInputDispatcher
         ApplicationPanelInputHandler panelInputHandler,
         ApplicationPanelScrollbarInputHandler panelScrollbarInputHandler,
         ApplicationFunctionKeyBarInputHandler functionKeyBarInputHandler,
-        ApplicationDirectoryShortcutBarInputHandler directoryShortcutBarInputHandler)
+        ApplicationDirectoryShortcutBarInputHandler directoryShortcutBarInputHandler,
+        ApplicationQuickViewInputHandler? quickViewInputHandler = null)
     {
         _keyboardInputRouter = keyboardInputRouter;
         _commandLineInputHandler = commandLineInputHandler;
@@ -26,6 +28,7 @@ internal sealed class ApplicationInputDispatcher
         _panelScrollbarInputHandler = panelScrollbarInputHandler;
         _functionKeyBarInputHandler = functionKeyBarInputHandler;
         _directoryShortcutBarInputHandler = directoryShortcutBarInputHandler;
+        _quickViewInputHandler = quickViewInputHandler;
     }
 
     public ApplicationRuntimeRenderRequest Handle(ApplicationUiInputPacket packet)
@@ -37,6 +40,7 @@ internal sealed class ApplicationInputDispatcher
             ApplicationPanelScrollInteraction interaction => _panelScrollbarInputHandler.Handle(interaction),
             ApplicationFunctionKeyInteraction interaction => _functionKeyBarInputHandler.Handle(interaction),
             ApplicationDirectoryShortcutInteraction interaction => _directoryShortcutBarInputHandler.Handle(interaction),
+            ApplicationQuickViewChangeInteraction interaction when _quickViewInputHandler is not null => _quickViewInputHandler.Handle(interaction),
             _ => ApplicationInputHandlingResult.NotHandled,
         };
         if (pointerResult.Handled)

@@ -37,7 +37,8 @@ internal sealed class ApplicationPanelWorkspaceRenderer
         PanelViewMode rightViewMode,
         bool quickView,
         DirectorySizeState? quickViewDirState,
-        DirectorySummaryMonitor? monitor)
+        DirectorySummaryMonitor? monitor,
+        long? selectedChangeId)
     {
         var bounds = ApplicationLayoutService.CalculatePanelWorkspaceBounds(size);
         int panelHeight = bounds.PanelHeight;
@@ -49,10 +50,11 @@ internal sealed class ApplicationPanelWorkspaceRenderer
         var quickViewRenderer = new QuickViewRenderer(canvas, palette);
         ApplicationPanelFrame? leftFrame = null;
         ApplicationPanelFrame? rightFrame = null;
+        ApplicationQuickViewFrame? quickViewFrame = null;
 
         if (quickView)
         {
-            (leftFrame, rightFrame) = RenderQuickView(
+            (leftFrame, rightFrame, quickViewFrame) = RenderQuickView(
                 panelRenderer,
                 quickViewRenderer,
                 leftBounds,
@@ -62,7 +64,7 @@ internal sealed class ApplicationPanelWorkspaceRenderer
                 activeSide,
                 leftViewMode,
                 rightViewMode,
-                quickViewDirState, monitor);
+                quickViewDirState, monitor, selectedChangeId);
         }
         else
         {
@@ -70,10 +72,10 @@ internal sealed class ApplicationPanelWorkspaceRenderer
             rightFrame = panelRenderer.Render(rightBounds, right, activeSide == PanelSide.Right, PanelSide.Right, rightViewMode);
         }
 
-        return new ApplicationPanelWorkspaceFrame(leftBounds, rightBounds, panelHeight, leftFrame, rightFrame);
+        return new ApplicationPanelWorkspaceFrame(leftBounds, rightBounds, panelHeight, leftFrame, rightFrame, quickViewFrame);
     }
 
-    private (ApplicationPanelFrame? Left, ApplicationPanelFrame? Right) RenderQuickView(
+    private (ApplicationPanelFrame? Left, ApplicationPanelFrame? Right, ApplicationQuickViewFrame? QuickView) RenderQuickView(
         PanelRenderer panelRenderer,
         QuickViewRenderer quickViewRenderer,
         Rect leftBounds,
@@ -84,32 +86,38 @@ internal sealed class ApplicationPanelWorkspaceRenderer
         PanelViewMode leftViewMode,
         PanelViewMode rightViewMode,
         DirectorySizeState? quickViewDirState,
-        DirectorySummaryMonitor? monitor)
+        DirectorySummaryMonitor? monitor,
+        long? selectedChangeId)
     {
         ApplicationPanelFrame? leftFrame = null;
         ApplicationPanelFrame? rightFrame = null;
+        ApplicationQuickViewFrame? quickViewFrame = null;
         if (activeSide == PanelSide.Left)
         {
             var item = _controller.CurrentItem(left);
             leftFrame = panelRenderer.Render(leftBounds, left, true, PanelSide.Left, leftViewMode);
-            quickViewRenderer.Render(
+            IReadOnlyList<ApplicationQuickViewChangeHit> hits = quickViewRenderer.Render(
                 rightBounds,
                 item,
                 item is { IsDirectory: true } ? quickViewDirState : null,
-                item is { IsDirectory: true } ? monitor : null);
+                item is { IsDirectory: true } ? monitor : null,
+                selectedChangeId);
+            quickViewFrame = new ApplicationQuickViewFrame(rightBounds, hits);
         }
         else
         {
             var item = _controller.CurrentItem(right);
-            quickViewRenderer.Render(
+            IReadOnlyList<ApplicationQuickViewChangeHit> hits = quickViewRenderer.Render(
                 leftBounds,
                 item,
                 item is { IsDirectory: true } ? quickViewDirState : null,
-                item is { IsDirectory: true } ? monitor : null);
+                item is { IsDirectory: true } ? monitor : null,
+                selectedChangeId);
+            quickViewFrame = new ApplicationQuickViewFrame(leftBounds, hits);
             rightFrame = panelRenderer.Render(rightBounds, right, true, PanelSide.Right, rightViewMode);
         }
 
-        return (leftFrame, rightFrame);
+        return (leftFrame, rightFrame, quickViewFrame);
     }
 }
 
@@ -118,4 +126,5 @@ internal readonly record struct ApplicationPanelWorkspaceFrame(
     Rect Right,
     int PanelHeight,
     ApplicationPanelFrame? LeftPanel,
-    ApplicationPanelFrame? RightPanel);
+    ApplicationPanelFrame? RightPanel,
+    ApplicationQuickViewFrame? QuickView);

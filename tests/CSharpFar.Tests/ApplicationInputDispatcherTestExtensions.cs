@@ -38,7 +38,7 @@ internal static class ApplicationInputDispatcherTestExtensions
             ApplicationDirectoryShortcutHit? shortcut = shortcuts.Shortcuts.FirstOrDefault(x => ApplicationTargetIds.DirectoryShortcut(x.ShortcutNumber) == routed.Target);
             if (shortcut is not null) interaction = new ApplicationDirectoryShortcutInteraction(shortcut, routed.Frame.Keyboard.ActiveSide);
         }
-        if (interaction is null && routed.Input is MouseConsoleInputEvent pointer)
+        if (interaction is null && routed.Input is MouseConsoleInputEvent pointer && routed.RouteKind == UiInputRouteKind.HitTarget)
         {
             ApplicationPanelFrame? panel = new[] { routed.Frame.LeftPanel, routed.Frame.RightPanel }
                 .FirstOrDefault(candidate => candidate is not null && (routed.Target == ApplicationTargetIds.Panel(candidate.Side) || candidate.VisibleItems.Any(hit => ApplicationTargetIds.PanelItem(candidate.Side, hit.ItemIndex) == routed.Target)));

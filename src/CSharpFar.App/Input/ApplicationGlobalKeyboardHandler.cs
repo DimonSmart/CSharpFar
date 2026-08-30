@@ -69,11 +69,16 @@ internal sealed class ApplicationGlobalKeyboardHandler
             return ApplicationInputHandlingResult.FromHandled(true);
         }
 
-        if (_context.QuickView() && KeyboardShortcutClassifier.IsPlainControlKey(key, ConsoleKey.M, '\r'))
+        if (_context.QuickView() && KeyboardShortcutClassifier.HasOnlyControlModifier(key) && key.Key == ConsoleKey.M)
             return ApplicationInputHandlingResult.FromHandled(_context.ToggleQuickViewDirectoryMonitor());
 
-        if (_context.QuickView() && KeyboardShortcutClassifier.IsPlainControlKey(key, ConsoleKey.Enter, '\n'))
+        if (_context.QuickView() && KeyboardShortcutClassifier.IsPlainControlEnter(key))
             return ApplicationInputHandlingResult.FromHandled(_context.ActivateQuickViewDirectoryMonitorChange());
+
+        if (_context.QuickView() && KeyboardShortcutClassifier.HasOnlyControlModifier(key) &&
+            key.Key is ConsoleKey.UpArrow or ConsoleKey.DownArrow)
+            return ApplicationInputHandlingResult.FromHandled(
+                _context.MoveQuickViewDirectoryMonitorSelection(key.Key == ConsoleKey.UpArrow ? -1 : 1));
 
         return ApplicationInputHandlingResult.NotHandled;
     }

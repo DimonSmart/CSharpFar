@@ -30,7 +30,7 @@ internal sealed class QuickViewRenderer
         _errorStyle = new CellStyle(ConsoleColor.DarkYellow, palette.PanelBackground);
     }
 
-    public void Render(Rect bounds, FilePanelItem? item, DirectorySizeState? dirSizeState = null, DirectorySummaryMonitor? monitor = null)
+    public IReadOnlyList<ApplicationQuickViewChangeHit> Render(Rect bounds, FilePanelItem? item, DirectorySizeState? dirSizeState = null, DirectorySummaryMonitor? monitor = null, long? selectedChangeId = null)
     {
         _screen.FillRegion(bounds, _fillStyle);
         _screen.DrawDoubleBox(bounds, _borderStyle);
@@ -45,20 +45,22 @@ internal sealed class QuickViewRenderer
         if (item is null || item.IsParentDirectory)
         {
             WriteRow(bounds.X + 1, contentTop, "No file selected", innerWidth);
-            return;
+            return [];
         }
 
         if (item.IsDirectory)
-            RenderDirectory(item, bounds.X + 1, contentTop, innerWidth, visRows, dirSizeState, monitor);
+            return RenderDirectory(item, bounds.X + 1, contentTop, innerWidth, visRows, dirSizeState, monitor, selectedChangeId);
         else
             RenderFile(item, bounds.X + 1, contentTop, innerWidth, visRows);
+        return [];
     }
 
     // ── directory ─────────────────────────────────────────────────────────────
 
-    private void RenderDirectory(FilePanelItem item, int x, int y, int w, int visRows, DirectorySizeState? dirSizeState, DirectorySummaryMonitor? monitor)
+    private IReadOnlyList<ApplicationQuickViewChangeHit> RenderDirectory(FilePanelItem item, int x, int y, int w, int visRows, DirectorySizeState? dirSizeState, DirectorySummaryMonitor? monitor, long? selectedChangeId)
     {
         var (rows, errorRows) = BuildDirectoryRows(item, w, dirSizeState);
+        var hits = new List<ApplicationQuickViewChangeHit>();
         if (monitor is not null)
         {
             rows.Add(string.Empty);
@@ -66,13 +68,16 @@ internal sealed class QuickViewRenderer
             if (monitor.IsEnabled)
             {
                 rows.Add("Recent changes");
-                foreach (DirectoryChange change in monitor.RecentChanges)
+                foreach (DirectoryChange change in monitor.GetRecentChanges())
                 {
                     string marker = change.Kind switch { DirectoryChangeKind.Created => "+", DirectoryChangeKind.Changed => "M", DirectoryChangeKind.Deleted => "-", _ => "R" };
                     string path = change.Kind == DirectoryChangeKind.Renamed
                         ? $"{change.OldRelativePath} -> {change.RelativePath}"
                         : change.RelativePath;
-                    rows.Add($"{change.Timestamp:HH:mm:ss}  {marker}  {path}");
+                    int rowIndex = rows.Count;
+                    rows.Add($"{(change.Id == selectedChangeId ? '>' : ' ')}{change.Timestamp:HH:mm:ss}  {marker}  {path}");
+                    if (rowIndex < visRows)
+                        hits.Add(new ApplicationQuickViewChangeHit(new Rect(x, y + rowIndex, w, 1), change.Id));
                 }
             }
         }
@@ -85,6 +90,7 @@ internal sealed class QuickViewRenderer
             string errText = errIdx < errorRows.Count ? errorRows[errIdx] : string.Empty;
             WriteErrorRow(x, y + i, errText, w);
         }
+        return hits;
     }
 
     private static (List<string> Rows, List<string> ErrorRows) BuildDirectoryRows(

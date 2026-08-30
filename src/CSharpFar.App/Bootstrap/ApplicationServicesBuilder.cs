@@ -185,7 +185,8 @@ internal static class ApplicationServicesBuilder
             panelInputHandler,
             panelScrollbarInputHandler,
             functionKeyBarInputHandler,
-            directoryShortcutBarInputHandler);
+            directoryShortcutBarInputHandler,
+            new ApplicationQuickViewInputHandler(mouseInputContext));
         var rendering = RenderingServicesFactory.Create(
             screen,
             terminalScreenMode,
@@ -244,10 +245,10 @@ internal static class ApplicationServicesBuilder
         };
         keyboardInputContext.ActivateQuickViewDirectoryMonitorChange = () =>
         {
-            if (!session.App.QuickView || !quickViewDirectorySize.TryGetNewestMonitorTarget(out string target))
+            if (!session.App.QuickView || !quickViewDirectorySize.TryGetSelectedMonitorTarget(out string target))
                 return false;
 
-            PanelSide targetSide = panelWorkspace.ActiveSide == PanelSide.Left ? PanelSide.Right : PanelSide.Left;
+            PanelSide targetSide = panelWorkspace.ActiveSide;
             FilePanelState targetPanel = targetSide == PanelSide.Left ? session.Panels.Left : session.Panels.Right;
             if (targetPanel.SourceId != PanelSourceId.Local || targetPanel.ContentKind != PanelContentKind.Source)
                 return false;
@@ -259,6 +260,14 @@ internal static class ApplicationServicesBuilder
             callbacks.StartWatching(targetPanel, targetSide);
             return true;
         };
+        mouseInputContext.ActivateQuickViewDirectoryMonitorChange = changeId =>
+        {
+            if (!session.App.QuickView || !quickViewDirectorySize.SelectMonitorChange(changeId))
+                return false;
+            return keyboardInputContext.ActivateQuickViewDirectoryMonitorChange();
+        };
+        keyboardInputContext.MoveQuickViewDirectoryMonitorSelection = offset =>
+            session.App.QuickView && quickViewDirectorySize.MoveMonitorSelection(offset);
         var dialogs = new DialogService(modalDialogs, formFields);
         var searchResults = new PanelSearchResultsService(
             screen,
