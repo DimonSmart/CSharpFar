@@ -7,20 +7,27 @@ internal sealed class QuickViewDirectorySizeController : IDisposable
     private readonly IDirectorySizeCalculator _calculator;
     private readonly Action _wakeInputLoop;
     private readonly DirectorySummaryMonitor _monitor;
-    private readonly object _scanGate = new();
+    private readonly object _lifecycleGate = new();
+    private readonly Action? _beforeMonitorScanStart;
     private string? _currentPath;
     private long? _selectedChangeId;
     private IReadOnlyList<long> _visibleChangeIds = [];
+    private long _monitorSessionId;
+    private bool _disposed;
 
     public QuickViewDirectorySizeController(Action wakeInputLoop)
         : this(wakeInputLoop, new DirectorySizeCalculator())
     {
     }
 
-    internal QuickViewDirectorySizeController(Action wakeInputLoop, IDirectorySizeCalculator calculator)
+    internal QuickViewDirectorySizeController(
+        Action wakeInputLoop,
+        IDirectorySizeCalculator calculator,
+        Action? beforeMonitorScanStart = null)
     {
         _wakeInputLoop = wakeInputLoop;
         _calculator = calculator;
+        _beforeMonitorScanStart = beforeMonitorScanStart;
         _monitor = new DirectorySummaryMonitor(wakeInputLoop, RefreshMonitoredPath);
         _calculator.Completed += OnSizeCalculated;
         _calculator.Progress += OnSizeCalculated;
@@ -34,29 +41,29 @@ internal sealed class QuickViewDirectorySizeController : IDisposable
 
     public void Update(bool quickViewEnabled, FilePanelItem? item)
     {
-        if (!quickViewEnabled)
+        lock (_lifecycleGate)
         {
-            CancelIfActive();
-            return;
+            if (_disposed)
+                return;
+
+            if (!quickViewEnabled || item is not { IsDirectory: true, IsParentDirectory: false })
+            {
+                CancelIfActive();
+                return;
+            }
+
+            if (_currentPath == item.FullPath)
+                return;
+
+            CancelActiveScan();
+            DisableMonitor();
+            _selectedChangeId = null;
+            _visibleChangeIds = [];
+            _currentPath = item.FullPath;
+            CurrentState = null;
+            IsBackgroundUpdating = false;
+            StartScan(item.FullPath, DirectoryScanProgressMode.ReportProgress);
         }
-
-        if (item is not { IsDirectory: true, IsParentDirectory: false })
-        {
-            CancelIfActive();
-            return;
-        }
-
-        if (_currentPath == item.FullPath)
-            return;
-
-        CancelActiveScan();
-        _monitor.Disable();
-        _selectedChangeId = null;
-        _visibleChangeIds = [];
-        _currentPath = item.FullPath;
-        CurrentState = null;
-        IsBackgroundUpdating = false;
-        StartScan(item.FullPath, DirectoryScanProgressMode.ReportProgress);
     }
 
     private void CancelIfActive()
@@ -68,7 +75,7 @@ internal sealed class QuickViewDirectorySizeController : IDisposable
     private void Cancel()
     {
         CancelActiveScan();
-        _monitor.Disable();
+        DisableMonitor();
         _selectedChangeId = null;
         _visibleChangeIds = [];
         _currentPath = null;
@@ -78,15 +85,21 @@ internal sealed class QuickViewDirectorySizeController : IDisposable
 
     private void CancelActiveScan()
     {
-        lock (_scanGate)
-            Interlocked.Exchange(ref _activeScanOperationId, 0);
+        Interlocked.Exchange(ref _activeScanOperationId, 0);
         _calculator.Cancel();
     }
+
+    private void DisableMonitor()
+    {
+        _monitorSessionId++;
+        _monitor.Disable();
+    }
+
     private void OnSizeCalculated(DirectoryScanUpdate update)
     {
-        lock (_scanGate)
+        lock (_lifecycleGate)
         {
-            if (_currentPath != update.Path || Volatile.Read(ref _activeScanOperationId) != update.OperationId)
+            if (_disposed || _currentPath != update.Path || Volatile.Read(ref _activeScanOperationId) != update.OperationId)
                 return;
 
             if (IsBackgroundUpdating && !update.State.IsCompleted)
@@ -105,17 +118,26 @@ internal sealed class QuickViewDirectorySizeController : IDisposable
 
     public void ToggleMonitor()
     {
-        if (_currentPath is null) return;
-        if (_monitor.IsEnabled)
+        lock (_lifecycleGate)
         {
-            if (IsBackgroundUpdating)
-                CancelActiveScan();
-            _monitor.Disable();
-            IsBackgroundUpdating = false;
-            _selectedChangeId = null;
-            _visibleChangeIds = [];
+            if (_disposed || _currentPath is null)
+                return;
+
+            if (_monitor.IsEnabled)
+            {
+                if (IsBackgroundUpdating)
+                    CancelActiveScan();
+                DisableMonitor();
+                IsBackgroundUpdating = false;
+                _selectedChangeId = null;
+                _visibleChangeIds = [];
+            }
+            else
+            {
+                _monitorSessionId++;
+                _monitor.Enable(_currentPath);
+            }
         }
-        else _monitor.Enable(_currentPath);
     }
 
     public bool SelectMonitorChange(long changeId)
@@ -152,24 +174,43 @@ internal sealed class QuickViewDirectorySizeController : IDisposable
 
     internal void RefreshMonitoredPath(string path)
     {
-        if (_currentPath != path || !_monitor.IsEnabled) return;
-        _monitor.ScanStarted();
-        IsBackgroundUpdating = true;
-        StartScan(path, DirectoryScanProgressMode.Silent);
+        long monitorSessionId;
+        lock (_lifecycleGate)
+        {
+            if (_disposed || _currentPath != path || !_monitor.IsEnabled)
+                return;
+            monitorSessionId = _monitorSessionId;
+        }
+
+        _beforeMonitorScanStart?.Invoke();
+
+        lock (_lifecycleGate)
+        {
+            if (_disposed || _currentPath != path || !_monitor.IsEnabled || _monitorSessionId != monitorSessionId)
+                return;
+
+            _monitor.ScanStarted();
+            IsBackgroundUpdating = true;
+            StartScan(path, DirectoryScanProgressMode.Silent);
+        }
     }
 
     private void StartScan(string path, DirectoryScanProgressMode progressMode)
     {
-        lock (_scanGate)
-        {
-            Interlocked.Exchange(ref _activeScanOperationId, 0);
-            _calculator.Start(path, progressMode, operationId => Volatile.Write(ref _activeScanOperationId, operationId));
-        }
+        Interlocked.Exchange(ref _activeScanOperationId, 0);
+        _calculator.Start(path, progressMode, operationId => Volatile.Write(ref _activeScanOperationId, operationId));
     }
     public void Dispose()
     {
-        CancelActiveScan();
-        _monitor.Dispose();
-        _calculator.Dispose();
+        lock (_lifecycleGate)
+        {
+            if (_disposed)
+                return;
+
+            _disposed = true;
+            CancelActiveScan();
+            DisableMonitor();
+            _calculator.Dispose();
+        }
     }
 }
