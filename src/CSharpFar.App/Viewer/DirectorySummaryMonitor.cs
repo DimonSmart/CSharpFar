@@ -1,12 +1,14 @@
 using CSharpFar.Core.Controllers;
 using CSharpFar.Core.Models;
+using CSharpFar.Core.Services;
 
 namespace CSharpFar.App.Viewer;
 
 internal enum DirectoryChangeKind { Created, Changed, Deleted, Renamed }
 
 internal sealed record DirectoryChange(
-    long Id, DirectoryChangeKind Kind, string RelativePath, string? OldRelativePath, string FullPath, DateTimeOffset Timestamp, long Tick);
+    long Id, DirectoryChangeKind Kind, string RelativePath, string? OldRelativePath, string FullPath, DateTimeOffset Timestamp, long Tick,
+    int RepeatCount);
 
 /// <summary>Owns the recursive watcher and its bounded, best-effort event history.</summary>
 internal sealed class DirectorySummaryMonitor : IDisposable
@@ -138,6 +140,14 @@ internal sealed class DirectorySummaryMonitor : IDisposable
     }
 
     internal void RecordChange(DirectoryChangeKind kind, string fullPath, string? oldFullPath)
+        => RecordChange(kind, fullPath, oldFullPath, DateTimeOffset.UtcNow, Environment.TickCount64);
+
+    internal void RecordChange(
+        DirectoryChangeKind kind,
+        string fullPath,
+        string? oldFullPath,
+        DateTimeOffset timestamp,
+        long tick)
     {
         long generation;
         string? root;
@@ -147,10 +157,20 @@ internal sealed class DirectorySummaryMonitor : IDisposable
             root = _root;
         }
         if (root is not null)
-            RecordChange(generation, root, kind, fullPath, oldFullPath);
+            RecordChange(generation, root, kind, fullPath, oldFullPath, timestamp, tick);
     }
 
     internal void RecordChange(long generation, string root, DirectoryChangeKind kind, string fullPath, string? oldFullPath)
+        => RecordChange(generation, root, kind, fullPath, oldFullPath, DateTimeOffset.UtcNow, Environment.TickCount64);
+
+    private void RecordChange(
+        long generation,
+        string root,
+        DirectoryChangeKind kind,
+        string fullPath,
+        string? oldFullPath,
+        DateTimeOffset timestamp,
+        long tick)
     {
         if (!IsCurrentSession(generation, root)) return;
         string relative = Relative(root, fullPath);
@@ -158,12 +178,24 @@ internal sealed class DirectorySummaryMonitor : IDisposable
         lock (_gate)
         {
             if (!IsCurrentSessionUnsafe(generation, root)) return;
-            // A short same-kind/same-path burst is not useful to users.
-            long tick = Environment.TickCount64;
-            bool coalesce = _changes.FirstOrDefault() is { } last && last.Kind == kind && last.FullPath == fullPath &&
-                tick - last.Tick < DebounceMilliseconds;
-            if (!coalesce)
-                _changes.Insert(0, new DirectoryChange(++_nextChangeId, kind, relative, oldRelative, fullPath, DateTimeOffset.UtcNow, tick));
+            int existingIndex = kind == DirectoryChangeKind.Changed
+                ? _changes.FindIndex(change => change.Kind == DirectoryChangeKind.Changed && LocalFileSystemPathComparer.Current.Equals(change.FullPath, fullPath))
+                : -1;
+            if (existingIndex >= 0)
+            {
+                DirectoryChange existing = _changes[existingIndex];
+                _changes.RemoveAt(existingIndex);
+                _changes.Insert(0, existing with
+                {
+                    RelativePath = relative,
+                    FullPath = fullPath,
+                    Timestamp = timestamp,
+                    Tick = tick,
+                    RepeatCount = checked(existing.RepeatCount + 1),
+                });
+            }
+            else
+                _changes.Insert(0, new DirectoryChange(++_nextChangeId, kind, relative, oldRelative, fullPath, timestamp, tick, RepeatCount: 1));
             if (_changes.Count > MaxRecentHistory) _changes.RemoveRange(MaxRecentHistory, _changes.Count - MaxRecentHistory);
             _version++;
         }
@@ -214,7 +246,7 @@ internal sealed class DirectorySummaryMonitor : IDisposable
     }
 
     private bool IsCurrentSessionUnsafe(long generation, string root) =>
-        !_disposed && _generation == generation && _watcher is not null && _root == root;
+        !_disposed && _generation == generation && _watcher is not null && LocalFileSystemPathComparer.Current.Equals(_root, root);
 
     private static string Relative(string root, string path)
     {

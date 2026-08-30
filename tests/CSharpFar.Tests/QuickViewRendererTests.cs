@@ -143,6 +143,50 @@ public class QuickViewRendererTests : IDisposable
     }
 
     [Fact]
+    public void DirectoryMonitor_ShowsRepeatCountOnlyForRepeatedChanges()
+    {
+        using var monitor = new DirectorySummaryMonitor(() => { }, _ => { });
+        monitor.Enable(_tempDir);
+        string path = Path.Combine(_tempDir, "app.log");
+        monitor.RecordChange(DirectoryChangeKind.Changed, path, null);
+        monitor.RecordChange(DirectoryChangeKind.Changed, path, null);
+        monitor.RecordChange(DirectoryChangeKind.Changed, path, null);
+        monitor.RecordChange(DirectoryChangeKind.Changed, Path.Combine(_tempDir, "single.txt"), null);
+        monitor.RecordChange(DirectoryChangeKind.Changed, path, null);
+        monitor.RecordChange(DirectoryChangeKind.Changed, path, null);
+        var item = new FilePanelItem { Name = "directory", FullPath = _tempDir, IsDirectory = true };
+
+        UiTestRender.Render(_screen, canvas =>
+            new QuickViewRenderer(canvas).Render(new Rect(0, 0, 40, 24), item, monitor: monitor));
+
+        Assert.Contains("M×5", _driver.GetRegionText(new Rect(0, 0, 40, 24)));
+        Assert.Contains("M  single.txt", _driver.GetRegionText(new Rect(0, 0, 40, 24)));
+    }
+
+    [Fact]
+    public void SelectedCollapsedChange_KeepsSelectionAfterItMovesToNewestPosition()
+    {
+        using var monitor = new DirectorySummaryMonitor(() => { }, _ => { });
+        using var controller = new QuickViewDirectorySizeController(() => { });
+        string a = Path.Combine(_tempDir, "a.txt");
+        string b = Path.Combine(_tempDir, "b.txt");
+        monitor.Enable(_tempDir);
+        monitor.RecordChange(DirectoryChangeKind.Changed, a, null);
+        long aId = Assert.Single(monitor.GetRecentChanges()).Id;
+        monitor.RecordChange(DirectoryChangeKind.Changed, b, null);
+        controller.SetVisibleMonitorChanges(monitor.GetRecentChanges().Select(change => change.Id).ToArray(), null);
+        Assert.True(controller.SelectMonitorChange(aId));
+
+        monitor.RecordChange(DirectoryChangeKind.Changed, a, null);
+        DirectoryChange[] changes = monitor.GetRecentChanges().ToArray();
+        controller.SetVisibleMonitorChanges(changes.Select(change => change.Id).ToArray(), controller.SelectedMonitorChangeId);
+
+        Assert.Equal(aId, changes[0].Id);
+        Assert.Equal(2, changes[0].RepeatCount);
+        Assert.Equal(aId, controller.SelectedMonitorChangeId);
+    }
+
+    [Fact]
     public void VisibleMonitorSelection_IsNormalizedAfterResize()
     {
         using var controller = new QuickViewDirectorySizeController(() => { });

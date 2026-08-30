@@ -91,6 +91,97 @@ public sealed class DirectorySummaryMonitorTests : IDisposable
     }
 
     [Fact]
+    public void RepeatedChanged_IsCollapsedAndKeepsItsId()
+    {
+        using var monitor = new DirectorySummaryMonitor(() => { }, _ => { });
+        monitor.Enable(_root);
+        string path = Path.Combine(_root, "app.log");
+        DateTimeOffset firstTime = new(2026, 8, 30, 22, 1, 10, TimeSpan.Zero);
+        DateTimeOffset lastTime = firstTime.AddHours(1);
+
+        monitor.RecordChange(DirectoryChangeKind.Changed, path, null, firstTime, tick: 1);
+        long id = Assert.Single(monitor.GetRecentChanges()).Id;
+        monitor.RecordChange(DirectoryChangeKind.Changed, path, null, firstTime.AddMinutes(1), tick: 60_000);
+        monitor.RecordChange(DirectoryChangeKind.Changed, path, null, lastTime, tick: 3_600_000);
+
+        DirectoryChange change = Assert.Single(monitor.GetRecentChanges());
+        Assert.Equal(id, change.Id);
+        Assert.Equal(3, change.RepeatCount);
+        Assert.Equal(lastTime, change.Timestamp);
+    }
+
+    [Fact]
+    public void InterleavedChanged_IsCollapsedAndMovedToNewestPosition()
+    {
+        using var monitor = new DirectorySummaryMonitor(() => { }, _ => { });
+        monitor.Enable(_root);
+        string a = Path.Combine(_root, "a.txt");
+        string b = Path.Combine(_root, "b.txt");
+
+        monitor.RecordChange(DirectoryChangeKind.Changed, a, null, DateTimeOffset.UnixEpoch, tick: 1);
+        monitor.RecordChange(DirectoryChangeKind.Changed, b, null, DateTimeOffset.UnixEpoch.AddSeconds(1), tick: 2);
+        monitor.RecordChange(DirectoryChangeKind.Changed, a, null, DateTimeOffset.UnixEpoch.AddSeconds(2), tick: 3);
+
+        DirectoryChange[] changes = monitor.GetRecentChanges().ToArray();
+        Assert.Collection(changes,
+            change => { Assert.Equal("a.txt", change.RelativePath); Assert.Equal(2, change.RepeatCount); },
+            change => { Assert.Equal("b.txt", change.RelativePath); Assert.Equal(1, change.RepeatCount); });
+    }
+
+    [Fact]
+    public void Changed_RemainsSeparateFromCreatedDeletedAndRenamedEvents()
+    {
+        using var monitor = new DirectorySummaryMonitor(() => { }, _ => { });
+        monitor.Enable(_root);
+        string oldPath = Path.Combine(_root, "old.txt");
+        string newPath = Path.Combine(_root, "new.txt");
+
+        monitor.RecordChange(DirectoryChangeKind.Created, oldPath, null);
+        monitor.RecordChange(DirectoryChangeKind.Changed, oldPath, null);
+        monitor.RecordChange(DirectoryChangeKind.Changed, oldPath, null);
+        monitor.RecordChange(DirectoryChangeKind.Renamed, newPath, oldPath);
+        monitor.RecordChange(DirectoryChangeKind.Changed, newPath, null);
+        monitor.RecordChange(DirectoryChangeKind.Deleted, newPath, null);
+
+        DirectoryChange[] changes = monitor.GetRecentChanges().ToArray();
+        Assert.Equal(
+            [DirectoryChangeKind.Deleted, DirectoryChangeKind.Changed, DirectoryChangeKind.Renamed, DirectoryChangeKind.Changed, DirectoryChangeKind.Created],
+            changes.Select(change => change.Kind));
+        Assert.Equal(1, changes[1].RepeatCount);
+        Assert.Equal(2, changes[3].RepeatCount);
+    }
+
+    [Fact]
+    public void Changed_UsesLocalFilesystemPathCaseSemantics()
+    {
+        using var monitor = new DirectorySummaryMonitor(() => { }, _ => { });
+        monitor.Enable(_root);
+        string path = Path.Combine(_root, "Case.txt");
+
+        monitor.RecordChange(DirectoryChangeKind.Changed, path, null);
+        monitor.RecordChange(DirectoryChangeKind.Changed, path.ToLowerInvariant(), null);
+
+        Assert.Equal(OperatingSystem.IsWindows() ? 1 : 2, monitor.GetRecentChanges().Count);
+    }
+
+    [Fact]
+    public async Task CollapsedChangedDuringScan_StillRequestsFollowUpScan()
+    {
+        var requested = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        using var monitor = new DirectorySummaryMonitor(() => { }, _ => requested.TrySetResult());
+        monitor.Enable(_root);
+        string path = Path.Combine(_root, "app.log");
+        monitor.RecordChange(DirectoryChangeKind.Changed, path, null);
+        monitor.ScanStarted();
+
+        monitor.RecordChange(DirectoryChangeKind.Changed, path, null);
+        monitor.ScanFinished();
+
+        await requested.Task.WaitAsync(TimeSpan.FromSeconds(3));
+        Assert.Equal(2, Assert.Single(monitor.GetRecentChanges()).RepeatCount);
+    }
+
+    [Fact]
     public void TargetResolution_UsesTheExactChangeAndRejectsDeletedEntries()
     {
         string existing = Path.Combine(_root, "existing.txt");

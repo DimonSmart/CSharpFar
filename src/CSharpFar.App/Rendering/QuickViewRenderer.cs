@@ -107,7 +107,14 @@ internal sealed class QuickViewRenderer
                 normalizedSelectedChangeId = NormalizeSelection(selectedChangeId, visibleChanges.Select(change => change.Id).ToArray());
                 foreach (DirectoryChange change in visibleChanges)
                 {
-                    string marker = change.Kind switch { DirectoryChangeKind.Created => "+", DirectoryChangeKind.Changed => "M", DirectoryChangeKind.Deleted => "-", _ => "R" };
+                    string marker = change.Kind switch
+                    {
+                        DirectoryChangeKind.Created => "+",
+                        DirectoryChangeKind.Changed when change.RepeatCount > 1 => $"M×{change.RepeatCount}",
+                        DirectoryChangeKind.Changed => "M",
+                        DirectoryChangeKind.Deleted => "-",
+                        _ => "R",
+                    };
                     string path = change.Kind == DirectoryChangeKind.Renamed
                         ? $"{change.OldRelativePath} -> {change.RelativePath}"
                         : change.RelativePath;
