@@ -39,6 +39,8 @@ public static class FarDialogStyles
         ? WarningDialogStyles.Shadow
         : new(UiTheme.Current.DialogShadowFg, UiTheme.Current.DialogShadowBg);
 
+    public static PopupRenderOptions PopupOptions => DialogOptions();
+
     internal static IDisposable UseAppearance(DialogAppearance appearance)
     {
         DialogAppearance? previous = s_appearance.Value;

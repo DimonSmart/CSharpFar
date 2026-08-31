@@ -66,13 +66,12 @@ public sealed class ChoiceDialog
     {
         ScrollableFormFrame? frame = null;
         IUiCanvas screen = context.Canvas;
-        var palette = UiTheme.Current;
         new DialogFrameRenderer().RenderFrame(
             screen,
             layout.Bounds,
             options.Title,
             false,
-            PaletteStyles.DialogPopupOptions(palette),
+            FarDialogStyles.PopupOptions,
             (_, contentBounds) =>
             {
                 int textX = contentBounds.X + 1;
@@ -84,14 +83,14 @@ public sealed class ChoiceDialog
                         textX,
                         contentBounds.Y + i,
                         Fit(line, textWidth),
-                        PaletteStyles.DialogFill(palette));
+                        FarDialogStyles.Fill);
                 }
 
                 frame = actions.Render(
                     new FormRenderContext(
                         context,
                         new Rect(textX, Math.Max(contentBounds.Y, layout.ButtonY - 1), textWidth, 1),
-                        PaletteStyles.DialogBorder(palette),
+                        FarDialogStyles.Border,
                         new Rect(textX, layout.ButtonY, textWidth, 1)),
                     focusScope);
             });

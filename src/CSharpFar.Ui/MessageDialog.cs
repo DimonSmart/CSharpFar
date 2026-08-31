@@ -106,8 +106,7 @@ public sealed class MessageDialog
             layout.MessageLines.Count, layout.ContentHeight, textBounds, scrollbarBounds);
         ScrollState? scrollState = viewport.GetScrollState(viewportFrame);
 
-        var palette = UiTheme.Current;
-        new DialogFrameRenderer().RenderFrame(screen, layout.Bounds, title, false, PaletteStyles.DialogPopupOptions(palette), scrollState, (_, contentBounds) =>
+        new DialogFrameRenderer().RenderFrame(screen, layout.Bounds, title, false, FarDialogStyles.PopupOptions, scrollState, (_, contentBounds) =>
         {
             int textX = viewportFrame.ContentBounds.X;
             int textWidth = viewportFrame.ContentBounds.Width;
@@ -121,14 +120,14 @@ public sealed class MessageDialog
                     textX,
                     contentBounds.Y + row,
                     Fit(text, textWidth),
-                    PaletteStyles.DialogError(palette));
+                    FarDialogStyles.Fill);
             }
 
             buttons = actions.Render(
                 new FormRenderContext(
                     context,
                     new Rect(textX, layout.ActionRow, textWidth, 1),
-                    PaletteStyles.DialogBorder(palette),
+                    FarDialogStyles.Border,
                     new Rect(textX, layout.ActionRow, textWidth, 1)),
                 focusScope);
         });
