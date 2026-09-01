@@ -21,6 +21,7 @@ internal sealed record ApplicationUiFrame(
     public ApplicationRenderFingerprint? Fingerprint { get; init; }
     public ApplicationRenderPart RenderedParts { get; init; } = ApplicationRenderPart.Full;
     public ApplicationQuickViewFrame? QuickView { get; init; }
+    public ApplicationFileUsageFrame? FileUsage { get; init; }
 }
 
 internal sealed record ApplicationRenderFingerprint(
@@ -143,6 +144,7 @@ internal static class ApplicationTargetIds
 
     public static UiTargetId QuickViewMonitorToggle { get; } = new("application.quick-view.monitor-toggle");
     public static UiTargetId QuickViewChange(long changeId) => new($"application.quick-view.change:{changeId}");
+    public static UiTargetId FileUsageOwner(int ownerIndex) => new($"application.file-usage.owner:{ownerIndex}");
 }
 
 internal sealed record ApplicationPanelFrame
@@ -215,6 +217,9 @@ internal abstract record ApplicationQuickViewPointerTarget;
 internal sealed record ApplicationQuickViewMonitorToggleTarget : ApplicationQuickViewPointerTarget;
 internal sealed record ApplicationQuickViewChangeTarget(long ChangeId) : ApplicationQuickViewPointerTarget;
 internal sealed record ApplicationQuickViewPointerInteraction(ApplicationQuickViewPointerTarget Target) : ApplicationPointerInteraction;
+internal sealed record ApplicationFileUsagePointerInteraction(int OwnerIndex) : ApplicationPointerInteraction;
+internal sealed record ApplicationFileUsageOwnerHit(Rect Bounds, int OwnerIndex);
+internal sealed record ApplicationFileUsageFrame(Rect Bounds, IReadOnlyList<ApplicationFileUsageOwnerHit> OwnerHits);
 internal sealed record ApplicationQuickViewChangeHit(Rect Bounds, long ChangeId);
 internal sealed record ApplicationQuickViewPointerHit(Rect Bounds, ApplicationQuickViewPointerTarget Target);
 internal sealed record ApplicationQuickViewFrame(
@@ -465,6 +470,7 @@ internal sealed class ApplicationUiSurface : UiLayer<ApplicationUiFrame>, IUiSur
             AddPanelInteraction(builder, frame.LeftPanel, frame.Viewport);
             AddPanelInteraction(builder, frame.RightPanel, frame.Viewport);
             AddQuickViewInteraction(builder, frame.QuickView, frame.Viewport);
+            AddFileUsageInteraction(builder, frame.FileUsage, frame.Viewport);
 
             if (frame.FunctionKeyBar is { } functionKeyBar)
             {
@@ -576,6 +582,17 @@ internal sealed class ApplicationUiSurface : UiLayer<ApplicationUiFrame>, IUiSur
             frame.PointerHits.Where(hit => IsVisible(hit.Bounds, viewport)).Select(hit => new RoutedPointerItem<ApplicationQuickViewPointerHit>(hit, hit.Bounds)).ToArray()));
     }
 
+    private static void AddFileUsageInteraction(UiInteractionFrameBuilder builder, ApplicationFileUsageFrame? frame, ConsoleViewport viewport)
+    {
+        if (frame is null) return;
+        var collection = new RoutedPointerCollection<ApplicationFileUsageOwnerHit>(
+            new UiTargetId("application.file-usage"), hit => ApplicationTargetIds.FileUsageOwner(hit.OwnerIndex));
+        builder.AddFragment(collection.BuildInteractionFragment(
+            IsVisible(frame.Bounds, viewport) ? frame.Bounds : new Rect(0, 0, 0, 0),
+            frame.OwnerHits.Where(hit => IsVisible(hit.Bounds, viewport))
+                .Select(hit => new RoutedPointerItem<ApplicationFileUsageOwnerHit>(hit, hit.Bounds)).ToArray()));
+    }
+
     private static UiInteractionFragment CreateShortcutInteraction(ApplicationDirectoryShortcutBarFrame frame, ConsoleViewport viewport)
     {
         var collection = new RoutedPointerCollection<ApplicationDirectoryShortcutHit>(
@@ -634,6 +651,16 @@ internal sealed class ApplicationUiSurface : UiLayer<ApplicationUiFrame>, IUiSur
             RoutedPointerInput<ApplicationQuickViewPointerHit> action = collection.RouteInput(input, context, quickView.PointerHits.Select(hit => new RoutedPointerItem<ApplicationQuickViewPointerHit>(hit, hit.Bounds)).ToArray());
             if (action.UiResult.Handled && action.Action.Kind == RoutedPointerActionKind.ItemPrimaryPressed)
                 return new(new ApplicationQuickViewPointerInteraction(action.Action.Item!.Target), action.UiResult);
+        }
+
+        if (frame.FileUsage is { } fileUsage)
+        {
+            var collection = new RoutedPointerCollection<ApplicationFileUsageOwnerHit>(
+                new("application.file-usage"), hit => ApplicationTargetIds.FileUsageOwner(hit.OwnerIndex));
+            RoutedPointerInput<ApplicationFileUsageOwnerHit> action = collection.RouteInput(input, context,
+                fileUsage.OwnerHits.Select(hit => new RoutedPointerItem<ApplicationFileUsageOwnerHit>(hit, hit.Bounds)).ToArray());
+            if (action.UiResult.Handled && action.Action.Kind == RoutedPointerActionKind.ItemPrimaryPressed)
+                return new(new ApplicationFileUsagePointerInteraction(action.Action.Item!.OwnerIndex), action.UiResult);
         }
 
         if (frame.FunctionKeyBar is { } functionKeys)

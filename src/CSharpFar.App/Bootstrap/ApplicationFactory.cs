@@ -39,7 +39,8 @@ public static class ApplicationFactory
         IFileMetadataService? fileMetadata = null,
         Func<IFileAttributesDialog>? fileAttributesDialogFactory = null,
         ApplicationRunOptions? runOptions = null,
-        IProcessesAndPortsPlatformService? processesAndPorts = null) =>
+        IProcessesAndPortsPlatformService? processesAndPorts = null,
+        IFileUsagePlatformService? fileUsage = null) =>
         new(ApplicationServicesBuilder.Create(
             screen,
             fs,
@@ -67,6 +68,7 @@ public static class ApplicationFactory
             fileMetadata,
             fileAttributesDialogFactory,
             runOptions,
-            processesAndPorts));
+            processesAndPorts,
+            fileUsage));
 
 }

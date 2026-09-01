@@ -67,7 +67,7 @@ public sealed class WindowsProcessesAndPortsPlatformService : IProcessesAndPorts
         catch (Exception ex) when (ex is not OperationCanceledException) { return new(ProcessTerminationStatus.Failed, ex.Message); }
     }
 
-    private static ProcessSnapshot ReadProcess(int pid)
+    internal static ProcessSnapshot ReadProcess(int pid)
     {
         try
         {

@@ -68,3 +68,4 @@ Git history is the source for deleted or previous document versions.
 | 0077.spec-macos-application-bundle.md | spec | macOS application bundle | Finder/Applications bundle over terminal UI |  |
 | 0078.spec-search-results-edit-referenced-items.md | spec | Search result item editing | `F4` edits the referenced item while the virtual panel structure remains read-only | 0012 Edit restriction; 0013 F4 availability restriction |
 | 0079.spec-search-results-delete-referenced-items.md | spec | Search result item deletion | `F8` deletes referenced items and reconciles the virtual result list without re-running search | 0012 Delete restriction; 0013 F8 availability restriction; 0078 Delete restriction |
+| 0080.spec-file-usage-panel.md | spec | File Usage panel | Local-file usage and lock diagnostics with safe owner release |  |

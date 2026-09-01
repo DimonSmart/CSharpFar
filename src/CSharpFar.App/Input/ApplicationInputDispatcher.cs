@@ -41,6 +41,8 @@ internal sealed class ApplicationInputDispatcher
             ApplicationFunctionKeyInteraction interaction => _functionKeyBarInputHandler.Handle(interaction),
             ApplicationDirectoryShortcutInteraction interaction => _directoryShortcutBarInputHandler.Handle(interaction),
             ApplicationQuickViewPointerInteraction interaction when _quickViewInputHandler is not null => _quickViewInputHandler.Handle(interaction),
+            ApplicationFileUsagePointerInteraction interaction when _quickViewInputHandler is not null =>
+                ApplicationInputHandlingResult.FromHandled(_quickViewInputHandler.SelectFileUsageOwner(interaction.OwnerIndex)),
             _ => ApplicationInputHandlingResult.NotHandled,
         };
         if (pointerResult.Handled)

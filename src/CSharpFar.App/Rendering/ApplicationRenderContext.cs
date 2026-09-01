@@ -29,6 +29,7 @@ internal sealed class ApplicationRenderContext
     public required Func<FunctionKeyLayer> FunctionKeyLayer { get; init; }
     public required Func<AppSettingsAlias.DirectoryShortcutSettings> DirectoryShortcuts { get; init; }
     public required QuickViewDirectorySizeController QuickViewDirectorySize { get; init; }
+    public required FileUsagePanelController FileUsagePanel { get; init; }
     public Func<MenuBarDefinition> BuildMenuDefinition { get; set; } = () => throw Missing();
 
     private static InvalidOperationException Missing() =>

@@ -10,6 +10,8 @@ internal sealed class ApplicationState(ConsolePalette palette)
         ApplicationWorkspaceMode.Panels;
 
     public bool QuickView { get; set; }
+    public bool FileUsage { get; set; }
+    public bool RestoreQuickViewAfterFileUsage { get; set; }
 
     public ConsolePalette Palette { get; set; } = palette;
 }

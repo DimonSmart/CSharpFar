@@ -1,3 +1,4 @@
+using CSharpFar.App.Panels;
 using CSharpFar.App.Viewer;
 using CSharpFar.Console;
 using CSharpFar.Console.Models;
@@ -36,6 +37,8 @@ internal sealed class ApplicationPanelWorkspaceRenderer
         PanelViewMode leftViewMode,
         PanelViewMode rightViewMode,
         bool quickView,
+        bool fileUsage,
+        FileUsagePanelController fileUsagePanel,
         DirectorySizeState? quickViewDirState,
         DirectorySummaryMonitor? monitor,
         long? selectedChangeId,
@@ -52,8 +55,23 @@ internal sealed class ApplicationPanelWorkspaceRenderer
         ApplicationPanelFrame? leftFrame = null;
         ApplicationPanelFrame? rightFrame = null;
         ApplicationQuickViewFrame? quickViewFrame = null;
+        ApplicationFileUsageFrame? fileUsageFrame = null;
 
-        if (quickView)
+        if (fileUsage)
+        {
+            var renderer = new FileUsageRenderer(canvas, palette);
+            if (activeSide == PanelSide.Left)
+            {
+                leftFrame = panelRenderer.Render(leftBounds, left, true, PanelSide.Left, leftViewMode);
+                fileUsageFrame = renderer.Render(rightBounds, fileUsagePanel);
+            }
+            else
+            {
+                fileUsageFrame = renderer.Render(leftBounds, fileUsagePanel);
+                rightFrame = panelRenderer.Render(rightBounds, right, true, PanelSide.Right, rightViewMode);
+            }
+        }
+        else if (quickView)
         {
             (leftFrame, rightFrame, quickViewFrame) = RenderQuickView(
                 panelRenderer,
@@ -73,7 +91,7 @@ internal sealed class ApplicationPanelWorkspaceRenderer
             rightFrame = panelRenderer.Render(rightBounds, right, activeSide == PanelSide.Right, PanelSide.Right, rightViewMode);
         }
 
-        return new ApplicationPanelWorkspaceFrame(leftBounds, rightBounds, panelHeight, leftFrame, rightFrame, quickViewFrame);
+        return new ApplicationPanelWorkspaceFrame(leftBounds, rightBounds, panelHeight, leftFrame, rightFrame, quickViewFrame, fileUsageFrame);
     }
 
     private (ApplicationPanelFrame? Left, ApplicationPanelFrame? Right, ApplicationQuickViewFrame? QuickView) RenderQuickView(
@@ -129,4 +147,5 @@ internal readonly record struct ApplicationPanelWorkspaceFrame(
     int PanelHeight,
     ApplicationPanelFrame? LeftPanel,
     ApplicationPanelFrame? RightPanel,
-    ApplicationQuickViewFrame? QuickView);
+    ApplicationQuickViewFrame? QuickView,
+    ApplicationFileUsageFrame? FileUsage);

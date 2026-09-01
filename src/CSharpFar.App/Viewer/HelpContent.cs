@@ -97,6 +97,7 @@ public static class HelpContent
         K("Ctrl+O",          "Switch dual-panel workspace / shell output with command line"),
         P("                    Command line remains visible; \u2190 \u2192 edit it in shell output"),
         K("Ctrl+Q",          "Quick view \u2014 preview file in the inactive panel"),
+        K("Ctrl+Shift+Q",    "File Usage \u2014 inspect local file locks in the inactive panel"),
         K("Alt+1",           "Full view mode for active panel"),
         K("Alt+2",           "Brief two-column view mode for active panel"),
         K("F9",              "Top menu: Left, Right, Options"),

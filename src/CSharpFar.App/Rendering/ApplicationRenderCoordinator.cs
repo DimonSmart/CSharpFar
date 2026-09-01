@@ -36,6 +36,8 @@ internal sealed class ApplicationRenderCoordinator
         FilePanelState leftState = _context.LeftPanel();
         FilePanelState rightState = _context.RightPanel();
         FilePanelState activeState = activeSide == PanelSide.Left ? leftState : rightState;
+        FilePanelItem? activeItem = _context.PanelController.CurrentItem(activeState);
+        _context.FileUsagePanel.Update(_context.App.FileUsage, activeState.SourceId, activeItem);
         ApplicationPanelKeyboardFrame leftKeyboard = ApplicationPanelKeyboardSnapshot.Capture(leftState);
         ApplicationPanelKeyboardFrame rightKeyboard = ApplicationPanelKeyboardSnapshot.Capture(rightState);
         var workspace = _panelWorkspaceRenderer.Render(
@@ -47,6 +49,8 @@ internal sealed class ApplicationRenderCoordinator
             _context.LeftViewMode(),
             _context.RightViewMode(),
             _context.App.QuickView,
+            _context.App.FileUsage,
+            _context.FileUsagePanel,
             _context.QuickViewDirectorySize.CurrentState,
             _context.QuickViewDirectorySize.Monitor,
             _context.QuickViewDirectorySize.SelectedMonitorChangeId,
@@ -87,6 +91,7 @@ internal sealed class ApplicationRenderCoordinator
             directoryShortcutBar)
         {
             QuickView = workspace.QuickView,
+            FileUsage = workspace.FileUsage,
             Fingerprint = CreateFingerprint(
                 context.Viewport,
                 ApplicationWorkspaceMode.Panels,

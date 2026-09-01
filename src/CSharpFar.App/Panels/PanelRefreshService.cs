@@ -6,6 +6,7 @@ namespace CSharpFar.App.Panels;
 
 internal sealed class PanelRefreshService
 {
+    public Action<FilePanelState>? RefreshRequested { get; set; }
     private readonly PanelController _controller;
     private readonly Func<AppSettingsAlias.PanelOptionsSettings> _panelOptions;
     private readonly Func<PanelSide, int> _visibleRows;
@@ -40,6 +41,7 @@ internal sealed class PanelRefreshService
 
     public void SafeRefresh(FilePanelState state, int visibleRows)
     {
+        RefreshRequested?.Invoke(state);
         if (!HasCapability(state, PanelProviderCapabilities.Refresh))
             return;
 

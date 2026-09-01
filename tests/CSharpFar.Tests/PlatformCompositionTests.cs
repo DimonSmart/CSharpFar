@@ -1,4 +1,5 @@
 using CSharpFar.FileSystem;
+using CSharpFar.Platform.Abstractions;
 using CSharpFar.Platform.Linux;
 using CSharpFar.Platform.MacOs;
 using CSharpFar.Platform.Windows;
@@ -29,6 +30,7 @@ public sealed class PlatformCompositionTests
         Assert.IsType<DpapiCredentialStore>(platform.CredentialStore);
         Assert.IsType<WindowsVolumeService>(platform.VolumeService);
         Assert.IsType<WindowsFileSystemPlatformOperations>(platform.FileSystemOperations);
+        Assert.IsType<WindowsFileUsagePlatformService>(platform.FileUsage);
     }
 
     [Fact]
@@ -54,6 +56,7 @@ public sealed class PlatformCompositionTests
         Assert.IsType<FileCredentialStore>(platform.CredentialStore);
         Assert.IsType<LinuxVolumeService>(platform.VolumeService);
         Assert.IsType<LinuxFileSystemPlatformOperations>(platform.FileSystemOperations);
+        Assert.IsType<UnsupportedFileUsagePlatformService>(platform.FileUsage);
     }
 
     [Fact]
@@ -70,5 +73,6 @@ public sealed class PlatformCompositionTests
         Assert.IsType<MacOsFileSystemPlatformOperations>(platform.FileSystemOperations);
         Assert.IsNotType<LinuxVolumeService>(platform.VolumeService);
         Assert.IsNotType<WindowsVolumeService>(platform.VolumeService);
+        Assert.IsType<UnsupportedFileUsagePlatformService>(platform.FileUsage);
     }
 }

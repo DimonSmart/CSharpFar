@@ -1,5 +1,6 @@
 using CSharpFar.App.AutoRefresh;
 using CSharpFar.App.Menu;
+using CSharpFar.App.Panels;
 using CSharpFar.App.Rendering;
 using CSharpFar.App.State;
 using CSharpFar.App.Viewer;
@@ -19,7 +20,8 @@ internal static class ApplicationRuntimeBuilder
         ApplicationSession session,
         ApplicationServiceCallbacks callbacks,
         PanelAutoRefreshService autoRefresh,
-        QuickViewDirectorySizeController quickViewDirectorySize)
+        QuickViewDirectorySizeController quickViewDirectorySize,
+        FileUsagePanelController fileUsagePanel)
     {
         return new ApplicationRuntime(
             composition,
@@ -35,7 +37,7 @@ internal static class ApplicationRuntimeBuilder
                 RestoreTerminal = () => callbacks.RestoreTerminal(),
                 ResetWaitToken = autoRefresh.ResetWaitToken,
                 ProcessPendingRefreshes = autoRefresh.ProcessPendingRefreshes,
-                DisposeRuntimeState = quickViewDirectorySize.Dispose,
+                DisposeRuntimeState = () => { quickViewDirectorySize.Dispose(); fileUsagePanel.Dispose(); },
                 HandleApplicationInput = packet => callbacks.HandleApplicationInput(packet),
                 IsPanelsMode = () => session.App.WorkspaceMode == ApplicationWorkspaceMode.Panels,
                 TryTakeMenuCommand = pendingMenuCommands.TryTake,

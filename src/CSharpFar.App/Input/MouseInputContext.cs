@@ -24,6 +24,7 @@ internal sealed class MouseInputContext
         (_, _, _) => throw Missing();
     public Func<long, bool> ActivateQuickViewDirectoryMonitorChange { get; set; } = _ => false;
     public Func<bool> ToggleQuickViewDirectoryMonitor { get; set; } = () => false;
+    public Func<int, bool> SelectFileUsageOwner { get; set; } = _ => false;
 
     private static InvalidOperationException Missing() =>
         new("Mouse input context is not assigned.");

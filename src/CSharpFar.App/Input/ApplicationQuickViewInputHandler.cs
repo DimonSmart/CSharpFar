@@ -15,4 +15,6 @@ internal sealed class ApplicationQuickViewInputHandler
             ApplicationQuickViewChangeTarget change => _context.ActivateQuickViewDirectoryMonitorChange(change.ChangeId),
             _ => false,
         });
+
+    public bool SelectFileUsageOwner(int ownerIndex) => _context.SelectFileUsageOwner(ownerIndex);
 }

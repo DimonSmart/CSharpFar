@@ -11,6 +11,7 @@ using CSharpFar.Console.Models;
 using CSharpFar.Core.Controllers;
 using CSharpFar.Core.Highlighting;
 using CSharpFar.Core.Menu;
+using CSharpFar.Platform.Abstractions;
 using CSharpFar.Ui;
 using AppSettingsAlias = CSharpFar.Core.Models.AppSettings;
 
@@ -30,7 +31,8 @@ internal static class RenderingServicesFactory
         MenuLayoutService menuLayoutService,
         ApplicationServiceCallbacks callbacks,
         AppSettingsAlias settings,
-        IFileHighlightService? highlightService)
+        IFileHighlightService? highlightService,
+        IFileUsagePlatformService fileUsage)
     {
         var panelWorkspaceRenderer = new ApplicationPanelWorkspaceRenderer(
             () => session.App.Palette,
@@ -51,6 +53,7 @@ internal static class RenderingServicesFactory
             session.Ui,
             () => session.App.WorkspaceMode);
         var quickViewDirectorySize = new QuickViewDirectorySizeController(autoRefresh.WakeInputLoop);
+        var fileUsagePanel = new FileUsagePanelController(fileUsage, autoRefresh.WakeInputLoop);
         var renderContext = new ApplicationRenderContext
         {
             TerminalSurface = terminalSurface,
@@ -69,6 +72,7 @@ internal static class RenderingServicesFactory
             FunctionKeyLayer = () => session.FunctionKeyLayer,
             DirectoryShortcuts = () => settings.DirectoryShortcuts,
             QuickViewDirectorySize = quickViewDirectorySize,
+            FileUsagePanel = fileUsagePanel,
             BuildMenuDefinition = () => new MenuBarDefinition { Items = [] },
         };
         var renderCoordinator = new ApplicationRenderCoordinator(
@@ -86,6 +90,7 @@ internal static class RenderingServicesFactory
             commandLineRenderer,
             terminalSurface,
             quickViewDirectorySize,
+            fileUsagePanel,
             renderContext,
             renderCoordinator,
             applicationSurface,
@@ -98,6 +103,7 @@ internal sealed record RenderingServices(
     ApplicationCommandLineRenderer CommandLineRenderer,
     TerminalSurfaceController TerminalSurface,
     QuickViewDirectorySizeController QuickViewDirectorySize,
+    FileUsagePanelController FileUsagePanel,
     ApplicationRenderContext RenderContext,
     ApplicationRenderCoordinator RenderCoordinator,
     ApplicationUiSurface ApplicationSurface,

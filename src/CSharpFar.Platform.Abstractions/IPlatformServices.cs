@@ -16,4 +16,5 @@ public interface IPlatformServices : IDisposable
     IFileSystemPlatformOperations FileSystemOperations { get; }
     ITerminalScreenMode TerminalScreenMode { get; }
     IProcessesAndPortsPlatformService ProcessesAndPorts { get; }
+    IFileUsagePlatformService FileUsage { get; }
 }

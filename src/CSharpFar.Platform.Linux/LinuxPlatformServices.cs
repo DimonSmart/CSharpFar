@@ -23,7 +23,8 @@ public sealed class LinuxPlatformServices : IPlatformServices
         IFileSystemLocationService locationService,
         IVolumeMountPointService volumeMountPointService,
         IFileSystemPlatformOperations fileSystemOperations,
-        IProcessesAndPortsPlatformService? processesAndPorts = null)
+        IProcessesAndPortsPlatformService? processesAndPorts = null,
+        IFileUsagePlatformService? fileUsage = null)
     {
         _disposableConsoleDriver = consoleDriver as IDisposable;
         ConsoleDriver = consoleDriver;
@@ -37,6 +38,7 @@ public sealed class LinuxPlatformServices : IPlatformServices
         FileSystemOperations = fileSystemOperations;
         TerminalScreenMode = terminalScreenMode;
         ProcessesAndPorts = processesAndPorts ?? new UnsupportedProcessesAndPortsPlatformService();
+        FileUsage = fileUsage ?? new UnsupportedFileUsagePlatformService();
     }
 
     public IConsoleDriver ConsoleDriver { get; }
@@ -50,6 +52,7 @@ public sealed class LinuxPlatformServices : IPlatformServices
     public IFileSystemPlatformOperations FileSystemOperations { get; }
     public ITerminalScreenMode TerminalScreenMode { get; }
     public IProcessesAndPortsPlatformService ProcessesAndPorts { get; }
+    public IFileUsagePlatformService FileUsage { get; }
 
     public static LinuxPlatformServices Create(string configDirectory, AppSettings.ShellSettings shellSettings)
     {
@@ -65,7 +68,8 @@ public sealed class LinuxPlatformServices : IPlatformServices
             new FileSystemLocationService(),
             new LinuxVolumeMountPointService(),
             new LinuxFileSystemPlatformOperations(),
-            new UnsupportedProcessesAndPortsPlatformService());
+            new UnsupportedProcessesAndPortsPlatformService(),
+            new UnsupportedFileUsagePlatformService());
     }
 
     public static AppSettings CreateDefaultSettings()

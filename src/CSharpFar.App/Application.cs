@@ -66,6 +66,7 @@ public sealed class Application
 
     private readonly ApplicationSession _session;
     private readonly PanelQuickSearchController _panelQuickSearch;
+    private readonly FileUsagePanelController _fileUsagePanel;
 
     private FilePanelState _left => _session.Panels.Left;
     private FilePanelState _right => _session.Panels.Right;
@@ -176,6 +177,7 @@ public sealed class Application
         _searchResults = services.SearchResults;
         _panelRefresh = services.PanelRefresh;
         _panelQuickSearch = services.PanelQuickSearch;
+        _fileUsagePanel = services.FileUsagePanel;
         _panelWorkspace = services.PanelWorkspace;
         _workspaceModeController = services.WorkspaceModeController;
         _panelFileViewer = services.PanelFileViewer;
@@ -265,7 +267,15 @@ public sealed class Application
     internal bool QuickView
     {
         get => _state.QuickView;
-        set => _state.QuickView = value;
+        set
+        {
+            if (_state.FileUsage)
+            {
+                _state.FileUsage = false;
+                _fileUsagePanel.Update(false, PanelSourceId.Local, null);
+            }
+            _state.QuickView = value;
+        }
     }
 
     private AppSettingsAlias.PanelOptionsSettings PanelOptions => _settings.Panels.Options;
@@ -285,6 +295,8 @@ public sealed class Application
     {
         bool wasHidden = !_panelWorkspace.IsPanelsMode;
         ApplicationRuntimeRenderRequest request = _applicationInputDispatcher.Handle(packet);
+        if (!_panelWorkspace.IsPanelsMode && _state.FileUsage)
+            _fileUsagePanel.Update(false, PanelSourceId.Local, null);
         bool scrolledHiddenViewport = wasHidden && request.ResumesHiddenInteraction &&
             _terminalSurface.ScrollHiddenViewportToBottomForInput();
         return scrolledHiddenViewport

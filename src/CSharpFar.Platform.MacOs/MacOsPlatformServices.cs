@@ -19,6 +19,7 @@ public sealed class MacOsPlatformServices : IPlatformServices
         ShellService = shellService; FileLauncher = fileLauncher; CredentialStore = credentialStore; VolumeService = volumeService;
         VolumeInfoService = volumeInfoService; LocationService = locationService; VolumeMountPointService = volumeMountPointService;
         FileSystemOperations = fileSystemOperations; ProcessesAndPorts = new UnsupportedProcessesAndPortsPlatformService();
+        FileUsage = new UnsupportedFileUsagePlatformService();
     }
     public IConsoleDriver ConsoleDriver { get; }
     public IShellService ShellService { get; }
@@ -31,6 +32,7 @@ public sealed class MacOsPlatformServices : IPlatformServices
     public IFileSystemPlatformOperations FileSystemOperations { get; }
     public ITerminalScreenMode TerminalScreenMode { get; }
     public IProcessesAndPortsPlatformService ProcessesAndPorts { get; }
+    public IFileUsagePlatformService FileUsage { get; }
 
     public static MacOsPlatformServices Create(string configDirectory, AppSettings.ShellSettings shellSettings)
     {

@@ -69,6 +69,23 @@ internal sealed class ApplicationGlobalKeyboardHandler
             return ApplicationInputHandlingResult.FromHandled(true);
         }
 
+        if (key.Modifiers == (ConsoleModifiers.Control | ConsoleModifiers.Shift) && key.Key == ConsoleKey.Q)
+            return ApplicationInputHandlingResult.FromHandled(_context.ToggleFileUsage());
+
+        if (_context.MoveFileUsageOwnerSelection is not null &&
+            KeyboardShortcutClassifier.HasOnlyControlModifier(key) &&
+            key.Key is ConsoleKey.UpArrow or ConsoleKey.DownArrow)
+        {
+            bool moved = _context.MoveFileUsageOwnerSelection(key.Key == ConsoleKey.UpArrow ? -1 : 1);
+            if (moved) return ApplicationInputHandlingResult.FromHandled(true);
+        }
+
+        if (KeyboardShortcutClassifier.IsPlainControlKey(key, ConsoleKey.U, '\u0015'))
+        {
+            bool requested = _context.UnlockFileUsageOwner();
+            if (requested) return ApplicationInputHandlingResult.FromHandled(true);
+        }
+
         if (_context.QuickView() && KeyboardShortcutClassifier.HasOnlyControlModifier(key) && key.Key == ConsoleKey.M)
             return ApplicationInputHandlingResult.FromHandled(_context.ToggleQuickViewDirectoryMonitor());
 

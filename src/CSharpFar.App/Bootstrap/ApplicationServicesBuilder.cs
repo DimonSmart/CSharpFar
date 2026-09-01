@@ -61,7 +61,8 @@ internal static class ApplicationServicesBuilder
         IFileMetadataService? fileMetadata = null,
         Func<IFileAttributesDialog>? fileAttributesDialogFactory = null,
         ApplicationRunOptions? runOptions = null,
-        IProcessesAndPortsPlatformService? processesAndPorts = null)
+        IProcessesAndPortsPlatformService? processesAndPorts = null,
+        IFileUsagePlatformService? fileUsage = null)
     {
         var core = CoreServicesFactory.Create(
             fs,
@@ -108,7 +109,11 @@ internal static class ApplicationServicesBuilder
             RightPanel = () => session.Panels.Right,
             PanelOptions = () => callbacks.PanelOptions(),
             QuickView = () => session.App.QuickView,
-            SetQuickView = quickView => session.App.QuickView = quickView,
+            SetQuickView = quickView =>
+            {
+                if (quickView) session.App.FileUsage = false;
+                session.App.QuickView = quickView;
+            },
             SetRunning = running => session.App.Running = running,
             SetFunctionKeyLayer = _ => throw new InvalidOperationException("Keyboard input context is not assigned."),
             ExecuteRegisteredCommand = (_, _) => throw new InvalidOperationException("Keyboard input context is not assigned."),
@@ -199,7 +204,8 @@ internal static class ApplicationServicesBuilder
             menuLayoutService,
             callbacks,
             effectiveSettings,
-            highlightService);
+            highlightService,
+            fileUsage ?? new UnsupportedFileUsagePlatformService());
         var terminalSurface = rendering.TerminalSurface;
         var commandLineRenderer = rendering.CommandLineRenderer;
         var renderCoordinator = rendering.RenderCoordinator;
@@ -236,6 +242,30 @@ internal static class ApplicationServicesBuilder
             panelQuickSearchLayer,
             topMenu);
         var quickViewDirectorySize = rendering.QuickViewDirectorySize;
+        var fileUsagePanel = rendering.FileUsagePanel;
+        keyboardInputContext.ToggleFileUsage = () =>
+        {
+            if (session.App.FileUsage)
+            {
+                session.App.FileUsage = false;
+                session.App.QuickView = session.App.RestoreQuickViewAfterFileUsage;
+                fileUsagePanel.Update(false, PanelSourceId.Local, null);
+            }
+            else
+            {
+                session.App.RestoreQuickViewAfterFileUsage = session.App.QuickView;
+                session.App.QuickView = false;
+                session.App.FileUsage = true;
+            }
+            return true;
+        };
+        keyboardInputContext.MoveFileUsageOwnerSelection = offset =>
+            session.App.FileUsage && fileUsagePanel.MoveSelection(offset);
+        keyboardInputContext.UnlockFileUsageOwner = () =>
+            session.App.FileUsage && fileUsagePanel.RequestUnlock(message =>
+                new MessageDialog(modalDialogs).ShowButtons("Unlock owner", message, ["Unlock", "Cancel"]) == 0);
+        mouseInputContext.SelectFileUsageOwner = index =>
+            session.App.FileUsage && fileUsagePanel.SelectOwner(index);
         keyboardInputContext.ToggleQuickViewDirectoryMonitor = () =>
         {
             if (!session.App.QuickView)
@@ -290,6 +320,11 @@ internal static class ApplicationServicesBuilder
             side => callbacks.VisibleRowsForSide(side),
             state => callbacks.ClosePanelQuickSearchForState(state),
             searchResults.RefreshPanel);
+        panelRefresh.RefreshRequested = state =>
+        {
+            if (session.App.FileUsage && ReferenceEquals(state, panelWorkspace.ActiveState))
+                fileUsagePanel.Refresh();
+        };
         var panelFileViewer = new PanelFileViewerService(
             interactiveSurfaces,
             modalDialogs,
@@ -403,7 +438,8 @@ internal static class ApplicationServicesBuilder
             session,
             callbacks,
             autoRefresh,
-            quickViewDirectorySize);
+            quickViewDirectorySize,
+            fileUsagePanel);
 
         return new ApplicationServices
         {
@@ -425,6 +461,7 @@ internal static class ApplicationServicesBuilder
             SearchResults = searchResults,
             PanelRefresh = panelRefresh,
             PanelQuickSearch = panelQuickSearch,
+            FileUsagePanel = fileUsagePanel,
             PanelWorkspace = panelWorkspace,
             WorkspaceModeController = workspaceModeController,
             PanelFileViewer = panelFileViewer,
