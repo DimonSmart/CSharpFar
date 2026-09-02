@@ -25,6 +25,19 @@ public sealed class ConsolePalette
     public ConsoleColor CursorActiveBg { get; init; } = ConsoleColor.DarkCyan;
     public ConsoleColor FooterActiveFg { get; init; } = ConsoleColor.DarkCyan;
 
+    // File Usage diagnostics
+    public ConsoleColor FileUsageNormalFg { get; init; } = ConsoleColor.White;
+    public ConsoleColor FileUsageSecondaryFg { get; init; } = ConsoleColor.DarkGray;
+    public ConsoleColor FileUsageBlockedFg { get; init; } = ConsoleColor.Yellow;
+    public ConsoleColor FileUsageReasonHeadingFg { get; init; } = ConsoleColor.Yellow;
+    public ConsoleColor FileUsageReasonTextFg { get; init; } = ConsoleColor.White;
+    public ConsoleColor FileUsageSelectedOwnerFg { get; init; } = ConsoleColor.Black;
+    public ConsoleColor FileUsageSelectedOwnerBg { get; init; } = ConsoleColor.DarkCyan;
+    public ConsoleColor FileUsageActionKeyFg { get; init; } = ConsoleColor.White;
+    public ConsoleColor FileUsageActionKeyBg { get; init; } = ConsoleColor.Black;
+    public ConsoleColor FileUsageActionLabelFg { get; init; } = ConsoleColor.Black;
+    public ConsoleColor FileUsageActionBarBg { get; init; } = ConsoleColor.DarkCyan;
+
     // ── Inactive panel ────────────────────────────────────────────────────────
     public ConsoleColor PanelBorderInactiveFg { get; init; } = ConsoleColor.DarkGray;
     public ConsoleColor PanelTitleInactiveFg { get; init; } = ConsoleColor.DarkGray;

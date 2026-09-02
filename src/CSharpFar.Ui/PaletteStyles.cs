@@ -66,4 +66,13 @@ public static class PaletteStyles
 
     public static CellStyle HelpSeparator(ConsolePalette palette) =>
         new(palette.HelpSeparatorFg, palette.HelpSeparatorBg);
+
+    public static CellStyle FileUsageNormal(ConsolePalette palette) => new(palette.FileUsageNormalFg, palette.PanelBackground);
+    public static CellStyle FileUsageSecondary(ConsolePalette palette) => new(palette.FileUsageSecondaryFg, palette.PanelBackground);
+    public static CellStyle FileUsageBlocked(ConsolePalette palette) => new(palette.FileUsageBlockedFg, palette.PanelBackground, TextAttributes.Bold);
+    public static CellStyle FileUsageReasonHeading(ConsolePalette palette) => new(palette.FileUsageReasonHeadingFg, palette.PanelBackground, TextAttributes.Bold);
+    public static CellStyle FileUsageReasonText(ConsolePalette palette) => new(palette.FileUsageReasonTextFg, palette.PanelBackground);
+    public static CellStyle FileUsageSelectedOwner(ConsolePalette palette) => new(palette.FileUsageSelectedOwnerFg, palette.FileUsageSelectedOwnerBg);
+    public static CellStyle FileUsageActionKey(ConsolePalette palette) => new(palette.FileUsageActionKeyFg, palette.FileUsageActionKeyBg);
+    public static CellStyle FileUsageActionLabel(ConsolePalette palette) => new(palette.FileUsageActionLabelFg, palette.FileUsageActionBarBg);
 }
