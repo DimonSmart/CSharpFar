@@ -7,6 +7,7 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <Compile Remove="Win32\Win32MouseInputParser.cs" />
     <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleTo">
       <_Parameter1>CSharpFar.Tests</_Parameter1>
     </AssemblyAttribute>

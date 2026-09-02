@@ -204,13 +204,20 @@ public sealed class AnsiInputParserTests
     }
 
     [Fact]
-    public void ProductionParser_IgnoresButtonlessMotion()
+    public void ProductionParser_ReturnsButtonlessMotionWithoutStaleButton()
     {
-        using var input = new MemoryStream(Encoding.ASCII.GetBytes("\u001b[<35;42;10M"));
+        using var input = new MemoryStream(Encoding.ASCII.GetBytes(
+            "\u001b[<2;42;10M\u001b[<2;42;10m\u001b[<35;43;10M"));
         var parser = new AnsiConsoleInputParser();
+        var reader = new StreamAnsiInputByteReader(input, null);
 
-        Assert.False(parser.TryRead(new StreamAnsiInputByteReader(input, null), out var inputEvent));
-        Assert.Null(inputEvent);
+        Assert.True(parser.TryRead(reader, out _));
+        Assert.True(parser.TryRead(reader, out _));
+        Assert.True(parser.TryRead(reader, out var inputEvent));
+
+        var move = Assert.IsType<MouseConsoleInputEvent>(inputEvent);
+        Assert.Equal((42, 9, MouseButton.None, MouseEventKind.Move),
+            (move.X, move.Y, move.Button, move.Kind));
     }
 
     [Fact]
@@ -239,7 +246,7 @@ public sealed class AnsiInputParserTests
 
         Assert.True(reader.MouseTrackingEnabled);
         Assert.Equal(1, terminalMode.EnableCount);
-        Assert.Equal("\u001b[?1002h\u001b[?1006h", controls[^1]);
+        Assert.Equal("\u001b[?1003h\u001b[?1006h", controls[^1]);
 
         reader.SuspendInputMode();
         reader.SuspendInputMode();
@@ -253,7 +260,7 @@ public sealed class AnsiInputParserTests
 
         Assert.True(reader.MouseTrackingEnabled);
         Assert.Equal(2, terminalMode.EnableCount);
-        Assert.Equal("\u001b[?1002h\u001b[?1006h", controls[^1]);
+        Assert.Equal("\u001b[?1003h\u001b[?1006h", controls[^1]);
 
         reader.Dispose();
         reader.Dispose();
@@ -592,6 +599,7 @@ public sealed class AnsiInputParserTests
     [InlineData("\u001b[<2;10;5M", MouseButton.Right, MouseEventKind.Down, 9, 4)]
     [InlineData("\u001b[<2;10;5m", MouseButton.Right, MouseEventKind.Up, 9, 4)]
     [InlineData("\u001b[<32;10;5M", MouseButton.Left, MouseEventKind.Move, 9, 4)]
+    [InlineData("\u001b[<35;10;5M", MouseButton.None, MouseEventKind.Move, 9, 4)]
     [InlineData("\u001b[<64;10;5M", MouseButton.WheelUp, MouseEventKind.Wheel, 9, 4)]
     [InlineData("\u001b[<65;10;5M", MouseButton.WheelDown, MouseEventKind.Wheel, 9, 4)]
     public void SgrMouseInputParser_ParsesMouseEvents(

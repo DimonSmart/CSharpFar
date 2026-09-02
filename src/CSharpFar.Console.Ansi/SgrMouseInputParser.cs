@@ -76,6 +76,7 @@ internal static class SgrMouseInputParser
             }
 
             kind = MouseEventKind.Up;
+            lastPressedButton = MouseButton.None;
         }
         else
         {
@@ -87,11 +88,12 @@ internal static class SgrMouseInputParser
                     return false;
                 }
 
-                button = lastPressedButton;
+                button = MouseButton.None;
             }
 
             kind = motion ? MouseEventKind.Move : MouseEventKind.Down;
-            lastPressedButton = button;
+            if (!motion)
+                lastPressedButton = button;
         }
 
         var modifiers = MouseKeyModifiers.None;

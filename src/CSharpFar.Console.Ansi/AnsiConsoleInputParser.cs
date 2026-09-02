@@ -7,7 +7,7 @@ internal sealed class AnsiConsoleInputParser
 {
     private readonly AnsiInputParser _keyParser;
     private readonly MouseInputNormalizer _mouseNormalizer;
-    private MouseButton _lastPressedButton = MouseButton.Left;
+    private MouseButton _lastPressedButton = MouseButton.None;
 
     public AnsiConsoleInputParser(int escapeTimeoutMilliseconds = 50)
         : this(escapeTimeoutMilliseconds, () => Environment.TickCount64)
@@ -29,12 +29,6 @@ internal sealed class AnsiConsoleInputParser
         AnsiInputReadResult parsed = _keyParser.Read(input);
         if (SgrMouseInputParser.TryParse(parsed.Bytes, ref _lastPressedButton, out var mouse, out _))
         {
-            if (mouse.Mouse.Kind == MouseEventKind.Move && (mouse.EncodedButton & 3) == 3)
-            {
-                inputEvent = null;
-                return false;
-            }
-
             inputEvent = _mouseNormalizer.Normalize(mouse.Mouse);
             return true;
         }
@@ -51,7 +45,7 @@ internal sealed class AnsiConsoleInputParser
 
     public void ResetMouseState()
     {
-        _lastPressedButton = MouseButton.Left;
+        _lastPressedButton = MouseButton.None;
         _mouseNormalizer.Reset();
     }
 

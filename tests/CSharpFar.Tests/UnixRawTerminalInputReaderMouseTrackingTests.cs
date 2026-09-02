@@ -4,7 +4,7 @@ namespace CSharpFar.Tests;
 
 public sealed class UnixRawTerminalInputReaderMouseTrackingTests
 {
-    private const string EnableMouseTracking = "\u001b[?1002h\u001b[?1006h";
+    private const string EnableMouseTracking = "\u001b[?1003h\u001b[?1006h";
     private const string DisableMouseTracking = "\u001b[?1000l\u001b[?1002l\u001b[?1003l\u001b[?1006l";
 
     [Fact]

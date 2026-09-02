@@ -57,6 +57,10 @@ public sealed class MouseBackendParityTests
         yield return new(
             ["\u001b[<0;10;5M", "\u001b[<32;11;5M", "\u001b[<32;12;5M", "\u001b[<0;12;5m"],
             [Record(Left), Record(Left, MouseMoved, 21), Record(Left, MouseMoved, 22), Record(0, x: 22)]);
+        yield return new(["\u001b[<35;10;5M"], [Record(0, MouseMoved)]);
+        yield return new(
+            ["\u001b[<2;10;5M", "\u001b[<34;11;5M", "\u001b[<2;11;5m", "\u001b[<35;12;5M"],
+            [Record(Right), Record(Right, MouseMoved, 21), Record(0, x: 21), Record(0, MouseMoved, 22)]);
         yield return new(["\u001b[<64;10;5M", "\u001b[<65;10;5M"], [Record(120u << 16, MouseWheeled), Record(0xFF88u << 16, MouseWheeled)]);
         yield return new(["\u001b[<6;10;5M", "\u001b[<6;10;5m"], [Record(Right, controlKeyState: ShiftPressed), Record(0, controlKeyState: ShiftPressed)]);
         yield return new(["\u001b[<10;10;5M", "\u001b[<10;10;5m"], [Record(Right, controlKeyState: RightAltPressed), Record(0, controlKeyState: RightAltPressed)]);

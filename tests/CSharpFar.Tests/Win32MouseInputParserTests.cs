@@ -40,13 +40,13 @@ public sealed class Win32MouseInputParserTests
     }
 
     [Fact]
-    public void HoverMoveWithoutPressedButton_IsIgnored()
+    public void HoverMoveWithoutPressedButton_ReturnsButtonlessMove()
     {
         var parser = new Win32MouseInputParser();
 
         var move = parser.Parse(Record(0, MouseMoved), 0, 0);
 
-        Assert.Null(move);
+        AssertMouse(move, MouseButton.None, MouseEventKind.Move);
     }
 
     [Theory]

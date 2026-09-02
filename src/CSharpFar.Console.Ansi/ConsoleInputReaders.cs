@@ -68,7 +68,7 @@ internal abstract class ConsoleInputReaderBase : IConsoleInputReader
 
 internal sealed class UnixRawTerminalInputReader : ConsoleInputReaderBase, IMouseTrackingControl
 {
-    private const string EnableMouseTracking = "\x1b[?1002h\x1b[?1006h";
+    private const string EnableMouseTracking = "\x1b[?1003h\x1b[?1006h";
     private const string DisableMouseTracking = "\x1b[?1000l\x1b[?1002l\x1b[?1003l\x1b[?1006l";
     private const int CancellationPollMilliseconds = 50;
 
@@ -184,8 +184,7 @@ internal sealed class UnixRawTerminalInputReader : ConsoleInputReaderBase, IMous
         {
             _parser.ResetMouseState();
             _modifierKeyTracker?.Suspend();
-            if (_mouseTrackingActive)
-                _writeControl(DisableMouseTracking);
+            _writeControl(DisableMouseTracking);
         }
         finally
         {
@@ -208,8 +207,7 @@ internal sealed class UnixRawTerminalInputReader : ConsoleInputReaderBase, IMous
 
         try
         {
-            if (_mouseTrackingActive)
-                _writeControl(DisableMouseTracking);
+            _writeControl(DisableMouseTracking);
         }
         finally
         {
@@ -252,7 +250,7 @@ internal sealed class UnixRawTerminalInputReader : ConsoleInputReaderBase, IMous
         }
         catch
         {
-            if (_mouseTrackingActive)
+            if (_mouseTrackingRequested)
             {
                 try
                 {

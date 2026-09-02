@@ -19,6 +19,7 @@ public sealed record ConsoleResizeInputEvent : ConsoleInputEvent;
 
 public enum MouseButton
 {
+    None,
     Left,
     Right,
     Middle,
