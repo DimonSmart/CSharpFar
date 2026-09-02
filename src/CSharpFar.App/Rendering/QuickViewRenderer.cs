@@ -118,7 +118,7 @@ internal sealed class QuickViewRenderer
                     string path = change.Kind == DirectoryChangeKind.Renamed
                         ? $"{change.OldRelativePath} -> {change.RelativePath}"
                         : change.RelativePath;
-                    WriteRow(x, y + rowIndex, $"{(change.Id == normalizedSelectedChangeId ? '>' : ' ')}{change.Timestamp:HH:mm:ss}  {marker}  {path}", w);
+                    WriteRow(x, y + rowIndex, $"{(change.Id == normalizedSelectedChangeId ? '>' : ' ')}{change.Timestamp.ToLocalTime():HH:mm:ss}  {marker}  {path}", w);
                     hits.Add(new ApplicationQuickViewChangeHit(new Rect(x, y + rowIndex++, w, 1), change.Id));
                 }
             }
