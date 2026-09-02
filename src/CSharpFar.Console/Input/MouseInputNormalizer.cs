@@ -16,9 +16,16 @@ internal sealed class MouseInputNormalizer
 
     public MouseConsoleInputEvent Normalize(MouseConsoleInputEvent input)
     {
-        if (input.Kind is MouseEventKind.Move or MouseEventKind.Wheel)
+        if (input.Kind == MouseEventKind.Wheel)
         {
             _lastDown = null;
+            return input;
+        }
+
+        if (input.Kind == MouseEventKind.Move)
+        {
+            if (input.Button != MouseButton.None)
+                _lastDown = null;
             return input;
         }
 

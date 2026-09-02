@@ -63,10 +63,24 @@ public sealed class MouseInputNormalizerTests
         Assert.Equal(MouseEventKind.DoubleClick, result.Kind);
     }
 
+    [Fact]
+    public void PassiveMove_DoesNotResetCandidate()
+    {
+        var normalizer = Create();
+        normalizer.Normalize(Mouse(MouseButton.Left, MouseEventKind.Down));
+        normalizer.Normalize(Mouse(MouseButton.Left, MouseEventKind.Up));
+        normalizer.Normalize(Mouse(MouseButton.None, MouseEventKind.Move));
+        _timestamp += 100;
+
+        var result = normalizer.Normalize(Mouse(MouseButton.Left, MouseEventKind.Down));
+
+        Assert.Equal(MouseEventKind.DoubleClick, result.Kind);
+    }
+
     [Theory]
     [InlineData(MouseEventKind.Move, MouseButton.Left)]
     [InlineData(MouseEventKind.Wheel, MouseButton.WheelUp)]
-    public void MoveAndWheel_ResetCandidate(MouseEventKind kind, MouseButton button)
+    public void DragMoveAndWheel_ResetCandidate(MouseEventKind kind, MouseButton button)
     {
         var normalizer = Create();
         normalizer.Normalize(Mouse(MouseButton.Left, MouseEventKind.Down));
