@@ -1,4 +1,4 @@
-namespace CSharpFar.Core.Menu;
+namespace CSharpFar.Ui;
 
 public sealed record MenuCommandResult
 {
