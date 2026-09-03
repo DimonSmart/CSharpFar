@@ -51,16 +51,29 @@ internal sealed class ApplicationRuntime
             {
                 ApplicationInputRequested?.Invoke();
 
-                ConsoleInputEvent evt;
+                ConsoleInputEvent? evt;
                 try
                 {
-                    evt = _composition.ReadInput(_context.WaitToken());
+                    evt = _composition.ReadInputUntil(
+                        _composition.NextHoverWakeUtc,
+                        _context.WaitToken());
                 }
                 catch (OperationCanceledException)
                 {
+                    _composition.CancelHoverMarquee();
                     _context.ResetWaitToken();
                     _context.ProcessPendingRefreshes();
                     if (_context.IsRunning() && _context.IsPanelsMode())
+                    {
+                        _applicationSurface.RequestRender(ApplicationRenderPart.Full);
+                        _composition.Render();
+                    }
+                    continue;
+                }
+
+                if (evt is null)
+                {
+                    if (_composition.HandleHoverWake())
                     {
                         _applicationSurface.RequestRender(ApplicationRenderPart.Full);
                         _composition.Render();

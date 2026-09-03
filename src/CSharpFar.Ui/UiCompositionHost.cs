@@ -9,14 +9,16 @@ public readonly record struct UiRenderRequest(bool IsResizeRecovery);
 public sealed class UiRenderContext
 {
     private readonly UiCompositionHost.UiRenderAttempt _attempt;
+    private readonly HoverMarquee _hoverMarquee;
 
-    internal UiRenderContext(ScreenRenderer screen, ConsoleViewport viewport, UiCompositionHost.UiRenderAttempt attempt) =>
-        (Canvas, RuntimeScreen, Viewport, _attempt) = (new ScreenRendererCanvas(screen), screen, viewport, attempt);
+    internal UiRenderContext(ScreenRenderer screen, ConsoleViewport viewport, UiCompositionHost.UiRenderAttempt attempt, HoverMarquee hoverMarquee) =>
+        (Canvas, RuntimeScreen, Viewport, _attempt, _hoverMarquee) = (new ScreenRendererCanvas(screen), screen, viewport, attempt, hoverMarquee);
 
     public IUiCanvas Canvas { get; }
     internal ScreenRenderer RuntimeScreen { get; }
     public ConsoleViewport Viewport { get; }
     public ConsoleSize Size => Viewport.Size;
+    public bool IsHoverMarqueeActive => _hoverMarquee.ActiveIdentity is not null;
 
     /// <summary>
     /// Defers an observable UI state change until this render attempt commits.
@@ -32,6 +34,14 @@ public sealed class UiRenderContext
     {
         ArgumentNullException.ThrowIfNull(publish);
         _attempt.Register(() => publish(value));
+    }
+
+    /// <summary>Opts a text region into the shared hover marquee for this frame.</summary>
+    public string RenderHoverMarquee(HoverMarqueeRegistration registration)
+    {
+        ArgumentNullException.ThrowIfNull(registration);
+        _attempt.RegisterHover(registration);
+        return _hoverMarquee.GetText(registration);
     }
 }
 
@@ -135,10 +145,14 @@ public sealed class UiCompositionHost
     private bool _isRendering;
     private bool _isDispatching;
     private UiMouseCaptureState? _mouseCapture;
+    private readonly HoverMarquee _hoverMarquee;
+    private readonly TimeProvider _timeProvider;
 
-    public UiCompositionHost(ScreenRenderer screen)
+    public UiCompositionHost(ScreenRenderer screen, TimeProvider? timeProvider = null)
     {
         Screen = screen;
+        _timeProvider = timeProvider ?? TimeProvider.System;
+        _hoverMarquee = new HoverMarquee(_timeProvider);
     }
 
     internal ScreenRenderer Screen { get; }
@@ -154,6 +168,7 @@ public sealed class UiCompositionHost
     {
         EnsureCanChangeLayers();
         ArgumentNullException.ThrowIfNull(surface);
+        _hoverMarquee.SetPointer(null, null);
         if (_layers.Skip(1).Any(entry => entry.Kind == UiLayerKind.Surface))
             throw new InvalidOperationException("Cannot replace the root surface while a temporary surface is active.");
 
@@ -180,6 +195,7 @@ public sealed class UiCompositionHost
         EnsureCanChangeLayers();
         ArgumentNullException.ThrowIfNull(surface);
         EnsureRootSurface();
+        _hoverMarquee.SetPointer(null, null);
         IUiLayer layer = surface as IUiLayer ?? new RenderOnlySurfaceLayer(surface);
         EnsureLayerNotRegistered(layer);
 
@@ -195,6 +211,7 @@ public sealed class UiCompositionHost
         ArgumentNullException.ThrowIfNull(surfaceLifecycle);
         ArgumentNullException.ThrowIfNull(layer);
         EnsureRootSurface();
+        _hoverMarquee.SetPointer(null, null);
         EnsureLayerNotRegistered(layer);
 
         var entry = UiLayerEntry.ForSurface(surfaceLifecycle, layer);
@@ -209,6 +226,7 @@ public sealed class UiCompositionHost
         EnsureCanChangeLayers();
         ArgumentNullException.ThrowIfNull(render);
         EnsureRootSurface();
+        _hoverMarquee.SetPointer(null, null);
         var entry = UiLayerEntry.ForOverlay(render);
         _layers.Add(entry);
         RevalidateMouseCapture();
@@ -220,6 +238,7 @@ public sealed class UiCompositionHost
         EnsureCanChangeLayers();
         ArgumentNullException.ThrowIfNull(layer);
         EnsureRootSurface();
+        _hoverMarquee.SetPointer(null, null);
         EnsureLayerNotRegistered(layer);
         var entry = UiLayerEntry.ForOverlay(layer);
         _layers.Add(entry);
@@ -259,7 +278,7 @@ public sealed class UiCompositionHost
                 using (composition.Surface.SurfaceLifecycle!.BeginFrame(request))
                 {
                     viewport = Screen.FrameViewport;
-                    var context = new UiRenderContext(Screen, viewport, attempt);
+                    var context = new UiRenderContext(Screen, viewport, attempt, _hoverMarquee);
                     composition.Surface.Layer.Render(context);
                     foreach (var overlay in composition.Overlays)
                         overlay.Layer.Render(context);
@@ -282,6 +301,7 @@ public sealed class UiCompositionHost
                 }
 
                 attempt.Commit();
+                _hoverMarquee.SetRegistrations(attempt.HoverRegistrations);
                 StableRenderVersion++;
                 LastStableViewport = viewport;
                 RevalidateMouseCapture();
@@ -322,10 +342,25 @@ public sealed class UiCompositionHost
         try
         {
             var composition = CaptureActiveComposition();
+            if (input is MouseConsoleInputEvent { Kind: MouseEventKind.Move, Button: MouseButton.None } passiveMove)
+            {
+                bool hoverAllowed = _mouseCapture is null &&
+                    ReferenceEquals(composition.Surface, _layers[0]) &&
+                    !composition.Overlays.Any(entry => entry.Layer.InputPolicy == UiLayerInputPolicy.Modal);
+                bool hoverInvalidate = hoverAllowed && _hoverMarquee.SetPointer(passiveMove.X, passiveMove.Y);
+                if (!hoverAllowed)
+                    hoverInvalidate |= _hoverMarquee.SetPointer(null, null);
+                return new UiInputResult(true, hoverInvalidate, UiFocusRequest.None, UiMouseCaptureRequest.None);
+            }
+
+            bool hoverInvalidated = _hoverMarquee.SetPointer(null, null);
             if (input is MouseConsoleInputEvent mouse && _mouseCapture is { } capture)
             {
                 if (CanRouteCapturedInput(composition, capture))
-                    return DispatchCapturedMouse(input, mouse, capture);
+                {
+                    UiInputResult captured = DispatchCapturedMouse(input, mouse, capture);
+                    return captured with { Invalidate = captured.Invalidate || hoverInvalidated };
+                }
 
                 _mouseCapture = null;
             }
@@ -351,12 +386,31 @@ public sealed class UiCompositionHost
                     break;
             }
 
-            return NormalizeResult(handled, invalidate);
+            return NormalizeResult(handled, invalidate || hoverInvalidated);
         }
         finally
         {
             _isDispatching = false;
         }
+    }
+
+    public DateTimeOffset? NextHoverWakeUtc => _hoverMarquee.NextWakeUtc;
+
+    public bool HandleHoverWake() => _hoverMarquee.HandleWake();
+
+    /// <summary>Cancels any hover ownership and restores leading truncation.</summary>
+    public bool CancelHoverMarquee() => _hoverMarquee.SetPointer(null, null);
+
+    public ConsoleInputEvent? ReadInputUntil(DateTimeOffset? wakeUtc, CancellationToken cancellationToken = default)
+    {
+        // Keep the ordinary input path exactly as it was when no marquee owns a
+        // deadline. Besides avoiding an unnecessary non-blocking probe, this is
+        // important for drivers whose read boundary coordinates viewport state.
+        if (wakeUtc is null)
+            return ReadCompositionInput(cancellationToken);
+
+        CompositionInputReadResult result = ReadCompositionInputUntil(wakeUtc, cancellationToken);
+        return result.IsWake ? null : result.Input;
     }
 
     private ActiveComposition CaptureActiveComposition()
@@ -376,6 +430,7 @@ public sealed class UiCompositionHost
         if (_layers.Count <= 1 || !ReferenceEquals(_layers[^1], entry) || entry.Kind != UiLayerKind.Surface)
             throw new InvalidOperationException("Temporary surfaces must be disposed in LIFO order.");
         ClearCaptureIfOwnedBy(entry);
+        _hoverMarquee.SetPointer(null, null);
         _layers.RemoveAt(_layers.Count - 1);
         RevalidateMouseCapture();
     }
@@ -386,6 +441,7 @@ public sealed class UiCompositionHost
         if (_layers.Count == 0 || !ReferenceEquals(_layers[^1], entry) || entry.Kind != UiLayerKind.Overlay)
             throw new InvalidOperationException("Overlays must be disposed in LIFO order.");
         ClearCaptureIfOwnedBy(entry);
+        _hoverMarquee.SetPointer(null, null);
         _layers.RemoveAt(_layers.Count - 1);
         RevalidateMouseCapture();
     }
@@ -487,7 +543,7 @@ public sealed class UiCompositionHost
         if (TryReadCompositionInput(out ConsoleInputEvent? pending) && pending is not null)
             return CompositionInputReadResult.ForInput(pending);
 
-        TimeSpan? delay = wakeUtc is { } deadline ? deadline - DateTimeOffset.UtcNow : null;
+        TimeSpan? delay = wakeUtc is { } deadline ? deadline - _timeProvider.GetUtcNow() : null;
         if (delay is { } remaining && remaining <= TimeSpan.Zero)
             return CompositionInputReadResult.Wake();
 
@@ -533,12 +589,17 @@ public sealed class UiCompositionHost
 
     private void RecoverChangedViewport()
     {
-        if (HasViewportChanged() && !TryAcceptViewportChange())
+        if (!HasViewportChanged())
+            return;
+
+        _hoverMarquee.SetPointer(null, null);
+        if (!TryAcceptViewportChange())
             Render(isResizeRecovery: true);
     }
 
     private void RecoverViewportSignal()
     {
+        _hoverMarquee.SetPointer(null, null);
         if (LastStableViewport is null)
         {
             Render(isResizeRecovery: true);
@@ -765,6 +826,10 @@ public sealed class UiCompositionHost
                 throw new InvalidOperationException("Stable state cannot be registered after a render attempt has finished.");
             _commits.Add(commit);
         }
+
+        private readonly List<HoverMarqueeRegistration> _hoverRegistrations = [];
+        public IReadOnlyList<HoverMarqueeRegistration> HoverRegistrations => _hoverRegistrations;
+        public void RegisterHover(HoverMarqueeRegistration registration) => _hoverRegistrations.Add(registration);
 
         public void Commit()
         {

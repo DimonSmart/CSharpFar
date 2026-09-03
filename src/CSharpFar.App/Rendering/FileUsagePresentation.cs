@@ -1,9 +1,11 @@
 using CSharpFar.Platform.Abstractions;
+using CSharpFar.Ui;
 
 namespace CSharpFar.App.Rendering;
 
 internal enum FileUsageStyleRole { Normal, Secondary, Blocked, ReasonHeading, ReasonText, SelectedOwner, ActionKey, ActionLabel }
-internal sealed record FileUsageRun(string Text, FileUsageStyleRole Style);
+internal sealed record FileUsageMarquee(string FullText, int VisibleCellWidth, int OwnerIndex, string Detail);
+internal sealed record FileUsageRun(string Text, FileUsageStyleRole Style, FileUsageMarquee? Marquee = null);
 internal sealed record FileUsageRow(IReadOnlyList<FileUsageRun> Runs, int? OwnerIndex = null)
 {
     public string Text => string.Concat(Runs.Select(run => run.Text));
@@ -44,7 +46,17 @@ internal static class FileUsagePresentation
                 FileUsageOwnerEntry owner = snapshot.Owners[i]; string pid = $"PID {owner.Process.ProcessId}";
                 int nameWidth = Math.Max(1, width - pid.Length - 3); string name = Ellipsize(owner.Process.Name ?? "Unknown", nameWidth);
                 string text = width >= pid.Length + 4 ? $"  {name.PadRight(nameWidth)} {pid}" : Ellipsize($"  {name} {pid}", width);
-                result.Add(new([Run(text, i == selectedOwner ? FileUsageStyleRole.SelectedOwner : FileUsageStyleRole.Normal)], i));
+                FileUsageStyleRole ownerStyle = i == selectedOwner ? FileUsageStyleRole.SelectedOwner : FileUsageStyleRole.Normal;
+                if (width >= pid.Length + 4)
+                {
+                    string fullName = owner.Process.Name ?? "Unknown";
+                    FileUsageMarquee? marquee = ConsoleTextMetrics.GetCellWidth(fullName) > nameWidth
+                        ? new(fullName, nameWidth, i, "Name") : null;
+                    result.Add(new([Run("  ", ownerStyle), Run(PadToCells(name, nameWidth), ownerStyle, marquee),
+                        Run(" " + pid, ownerStyle)], i));
+                }
+                else
+                    result.Add(new([Run(text, ownerStyle)], i));
             }
             if (selectedOwner >= 0 && selectedOwner < visibleOwners && result.Count < bodyHeight)
             {
@@ -84,15 +96,27 @@ internal static class FileUsagePresentation
     private static void AddDetail(List<FileUsageRow> rows, int height, int width, string label, string value)
     {
         if (rows.Count >= height) return; string prefix = $"  {label}: ";
-        rows.Add(Row(Run(prefix, FileUsageStyleRole.Secondary), Run(Ellipsize(value, Math.Max(0, width - prefix.Length)), FileUsageStyleRole.Normal)));
+        int valueWidth = Math.Max(0, width - prefix.Length);
+        FileUsageMarquee? marquee = ConsoleTextMetrics.GetCellWidth(value) > valueWidth
+            ? new(value, valueWidth, -1, label) : null;
+        rows.Add(Row(Run(prefix, FileUsageStyleRole.Secondary),
+            Run(Ellipsize(value, valueWidth), FileUsageStyleRole.Normal, marquee)));
     }
     private static FileUsageRow LabelValue(string label, string value, FileUsageStyleRole role) => Row(Run(label, FileUsageStyleRole.Secondary), Run(value, role));
-    private static FileUsageRun Run(string text, FileUsageStyleRole role) => new(text, role);
+    private static FileUsageRun Run(string text, FileUsageStyleRole role, FileUsageMarquee? marquee = null) =>
+        new(text, role, marquee);
     private static FileUsageRow Row(params FileUsageRun[] runs) => new(runs);
     internal static string Ellipsize(string value, int width)
     {
         const string ellipsis = "…";
-        return width <= 0 ? "" : value.Length <= width ? value : width == 1 ? ellipsis : value[..(width - 1)] + ellipsis;
+        int cells = ConsoleTextMetrics.GetCellWidth(value);
+        return width <= 0 ? "" : cells <= width ? value : width == 1 ? ellipsis :
+            ConsoleTextMetrics.SliceToCells(value, 0, width - 1) + ellipsis;
+    }
+    private static string PadToCells(string value, int width)
+    {
+        int cells = ConsoleTextMetrics.GetCellWidth(value);
+        return cells >= width ? value : value + new string(' ', width - cells);
     }
     private static string FormatState(FileUsageState state) => state switch { FileUsageState.Blocked => "BLOCKED", FileUsageState.InUse => "In Use", _ => state.ToString() };
 }

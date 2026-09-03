@@ -5,6 +5,7 @@ using CSharpFar.Console.Models;
 using CSharpFar.Core.Controllers;
 using CSharpFar.Core.Highlighting;
 using CSharpFar.Core.Models;
+using CSharpFar.Ui;
 using AppSettingsAlias = CSharpFar.Core.Models.AppSettings;
 
 namespace CSharpFar.App.Rendering;
@@ -42,7 +43,8 @@ internal sealed class ApplicationPanelWorkspaceRenderer
         DirectorySizeState? quickViewDirState,
         DirectorySummaryMonitor? monitor,
         long? selectedChangeId,
-        bool quickViewIsBackgroundUpdating)
+        bool quickViewIsBackgroundUpdating,
+        Func<HoverMarqueeRegistration, string>? renderHoverMarquee = null)
     {
         var bounds = ApplicationLayoutService.CalculatePanelWorkspaceBounds(size);
         int panelHeight = bounds.PanelHeight;
@@ -50,7 +52,7 @@ internal sealed class ApplicationPanelWorkspaceRenderer
         var rightBounds = bounds.Right;
 
         var palette = _palette();
-        var panelRenderer = new PanelRenderer(canvas, palette, _highlightService(), _panelOptions());
+        var panelRenderer = new PanelRenderer(canvas, palette, _highlightService(), _panelOptions(), renderHoverMarquee);
         var quickViewRenderer = new QuickViewRenderer(canvas, palette);
         ApplicationPanelFrame? leftFrame = null;
         ApplicationPanelFrame? rightFrame = null;
@@ -59,7 +61,7 @@ internal sealed class ApplicationPanelWorkspaceRenderer
 
         if (fileUsage)
         {
-            var renderer = new FileUsageRenderer(canvas, palette);
+            var renderer = new FileUsageRenderer(canvas, palette, renderHoverMarquee);
             if (activeSide == PanelSide.Left)
             {
                 leftFrame = panelRenderer.Render(leftBounds, left, true, PanelSide.Left, leftViewMode);

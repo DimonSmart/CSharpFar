@@ -72,6 +72,36 @@ public sealed class FileUsagePresentationTests
         Assert.EndsWith("…", path.Text); Assert.DoesNotContain("editor.exe", path.Text);
         Assert.True(path.Text.Length <= width);
         Assert.Equal(FileUsageStyleRole.Secondary, path.Runs[0].Style);
+        FileUsageRun value = path.Runs[1];
+        Assert.Equal("C:/a/very/long/executable/path/that/will/not/fit/editor.exe", value.Marquee?.FullText);
+        Assert.Equal(24, value.Marquee?.VisibleCellWidth);
+    }
+
+    [Fact]
+    public void OnlyEllipsizedOwnerAndDetailValuesExposeMarqueeSemantics()
+    {
+        FileUsageLayout layout = FileUsagePresentation.Build(
+            Snapshot([Owner(7, "an-owner-name-that-does-not-fit", "C:/a/long/path/to/editor.exe")]),
+            false, null, 0, false, 24, 20);
+
+        FileUsageRun ownerName = layout.Body.Single(row => row.OwnerIndex == 0).Runs.Single(run => run.Marquee is not null);
+        Assert.Equal("an-owner-name-that-does-not-fit", ownerName.Marquee!.FullText);
+        Assert.Equal("Name", ownerName.Marquee.Detail);
+        Assert.All(layout.Body.SelectMany(row => row.Runs).Where(run => run.Marquee is not null),
+            run => Assert.True(CSharpFar.Ui.ConsoleTextMetrics.GetCellWidth(run.Marquee!.FullText) > run.Marquee.VisibleCellWidth));
+    }
+
+    [Fact]
+    public void WrappedReasonsLabelsAndActionNeverExposeMarqueeSemantics()
+    {
+        FileUsageLayout layout = FileUsagePresentation.Build(Blocked("a deliberately long wrapped reason that occupies several rows"),
+            false, null, -1, true, 22, 20);
+
+        Assert.All(layout.Body.Where(row => row.Text.Contains("Reason:") || row.Text.StartsWith("          ")),
+            row => Assert.All(row.Runs, run => Assert.Null(run.Marquee)));
+        Assert.All(layout.Body.Where(row => row.Text.StartsWith("State:") || row.Text.StartsWith("Read:")),
+            row => Assert.All(row.Runs, run => Assert.Null(run.Marquee)));
+        Assert.All(layout.Action!.Runs, run => Assert.Null(run.Marquee));
     }
 
     [Fact]

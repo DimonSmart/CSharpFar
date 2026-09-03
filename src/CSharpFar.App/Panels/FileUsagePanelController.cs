@@ -24,6 +24,7 @@ internal sealed class FileUsagePanelController : IDisposable
     public string? Message { get; private set; }
     public int SelectedOwnerIndex { get; private set; } = -1;
     public bool IsReleasing { get; private set; }
+    public long PresentationRevision { get; private set; }
     public bool CanUnlock => TryGetEligibleOwner(out _);
 
     public void Update(bool enabled, PanelSourceId sourceId, FilePanelItem? item)
@@ -93,7 +94,8 @@ internal sealed class FileUsagePanelController : IDisposable
         {
             int count = Snapshot?.Owners.Count ?? 0;
             if (count == 0) return false;
-            SelectedOwnerIndex = Math.Clamp(SelectedOwnerIndex < 0 ? 0 : SelectedOwnerIndex + offset, 0, count - 1);
+            int next = Math.Clamp(SelectedOwnerIndex < 0 ? 0 : SelectedOwnerIndex + offset, 0, count - 1);
+            if (next != SelectedOwnerIndex) { SelectedOwnerIndex = next; PresentationRevision++; }
             return true;
         }
     }
@@ -103,7 +105,7 @@ internal sealed class FileUsagePanelController : IDisposable
         lock (_gate)
         {
             if (index < 0 || index >= (Snapshot?.Owners.Count ?? 0)) return false;
-            SelectedOwnerIndex = index;
+            if (SelectedOwnerIndex != index) { SelectedOwnerIndex = index; PresentationRevision++; }
             return true;
         }
     }
@@ -113,7 +115,8 @@ internal sealed class FileUsagePanelController : IDisposable
         lock (_gate)
         {
             int count = Math.Min(visibleOwnerCount, Snapshot?.Owners.Count ?? 0);
-            SelectedOwnerIndex = count == 0 ? -1 : Math.Clamp(SelectedOwnerIndex < 0 ? 0 : SelectedOwnerIndex, 0, count - 1);
+            int next = count == 0 ? -1 : Math.Clamp(SelectedOwnerIndex < 0 ? 0 : SelectedOwnerIndex, 0, count - 1);
+            if (next != SelectedOwnerIndex) { SelectedOwnerIndex = next; PresentationRevision++; }
         }
     }
 
@@ -122,6 +125,7 @@ internal sealed class FileUsagePanelController : IDisposable
         if (_path is null && Message == message) return;
         CancelInspection();
         _path = null; Snapshot = null; IsInspecting = false; IsReleasing = false; Message = message; SelectedOwnerIndex = -1;
+        PresentationRevision++;
     }
 
     private void Start(string path, bool retainSnapshot, bool retainMessage = false)
@@ -130,6 +134,7 @@ internal sealed class FileUsagePanelController : IDisposable
             ? Snapshot!.Owners[SelectedOwnerIndex].Process.Identity : null;
         CancelInspection();
         long id = ++_operationId;
+        PresentationRevision++;
         var cancellation = new CancellationTokenSource();
         _cancellation = cancellation;
         _path = path;
@@ -157,6 +162,7 @@ internal sealed class FileUsagePanelController : IDisposable
                 // preserved selection have both been installed. Consumers use
                 // IsInspecting as the signal that the result is ready to render.
                 IsInspecting = false;
+                PresentationRevision++;
             }
             _wake();
         }, CancellationToken.None, TaskContinuationOptions.ExecuteSynchronously, TaskScheduler.Default);
@@ -234,6 +240,7 @@ internal sealed class FileUsagePanelController : IDisposable
     {
         CancelInspection();
         _path = null; Snapshot = null; IsInspecting = false; IsReleasing = false; Message = null; SelectedOwnerIndex = -1;
+        PresentationRevision++;
     }
 
     public void Dispose()

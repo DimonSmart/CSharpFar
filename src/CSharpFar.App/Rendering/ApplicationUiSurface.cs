@@ -375,6 +375,7 @@ internal sealed class ApplicationUiSurface : UiLayer<ApplicationUiFrame>, IUiSur
             ? ApplicationWorkspaceMode.HiddenCommandLine
             : ApplicationWorkspaceMode.Panels;
         bool full = !HasCommittedFrame ||
+            context.IsHoverMarqueeActive ||
             parts == ApplicationRenderPart.None ||
             CommittedFrame.Fingerprint is null ||
             CommittedFrame.Viewport != context.Viewport ||
@@ -385,7 +386,7 @@ internal sealed class ApplicationUiSurface : UiLayer<ApplicationUiFrame>, IUiSur
         {
             frame = _hidden
                 ? _coordinator.RenderHiddenCommandLineContent(context)
-                : _coordinator.RenderMainContent(context);
+                : _coordinator.RenderMainContent(context, context.RenderHoverMarquee);
             frame = AttachPanelInteractionFrames(frame);
         }
         else

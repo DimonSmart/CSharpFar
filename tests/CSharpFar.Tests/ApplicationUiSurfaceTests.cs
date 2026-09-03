@@ -54,6 +54,31 @@ public sealed class ApplicationUiSurfaceTests
     }
 
     [Fact]
+    public void CommittedPanelFrame_PublishesOverflowingItemForPassiveHoverOnly()
+    {
+        var services = Services(new FakeConsoleDriver(40, 12));
+        FilePanelState left = services.Session.Panels.Left;
+        left.Items.Clear();
+        left.Items.Add(new FilePanelItem
+        {
+            Name = "a-very-long-file-name-that-overflows.txt",
+            FullPath = @"C:\Root\a-very-long-file-name-that-overflows.txt",
+            IsDirectory = false,
+        });
+        services.Composition.Render();
+        ApplicationPanelItemHit hit = Assert.Single(services.ApplicationSurface.CommittedFrame.LeftPanel!.VisibleItems);
+        int cursorBefore = left.CursorIndex;
+
+        UiInputResult routed = services.Composition.DispatchInput(new MouseConsoleInputEvent(
+            hit.Bounds.X, hit.Bounds.Y, MouseButton.None, MouseEventKind.Move, MouseKeyModifiers.None));
+
+        Assert.True(routed.Handled);
+        Assert.False(services.ApplicationSurface.TryTakeInput(out _));
+        Assert.NotNull(services.Composition.NextHoverWakeUtc);
+        Assert.Equal(cursorBefore, left.CursorIndex);
+    }
+
+    [Fact]
     public void PartialRender_CommandLineCursorPublishesInteractionWithoutDrawingText()
     {
         var services = Services();

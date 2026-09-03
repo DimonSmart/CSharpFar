@@ -57,27 +57,77 @@ public sealed class UnixRawTerminalInputReaderMouseTrackingTests
         Assert.Equal(EnableMouseTracking, controls[^1]);
     }
 
+    [Fact]
+    public void SuspendInputMode_DisableWriteFailureStillRestoresAndCanRecover()
+    {
+        var terminalMode = new RecordingTerminalInputMode();
+        var controls = new List<string>();
+        bool failDisable = true;
+        using var reader = CreateReader(terminalMode, sequence =>
+        {
+            controls.Add(sequence);
+            if (sequence == DisableMouseTracking && failDisable)
+            {
+                failDisable = false;
+                throw new IOException("disable failed");
+            }
+        });
+
+        Assert.Throws<IOException>(reader.SuspendInputMode);
+
+        Assert.False(reader.MouseTrackingEnabled);
+        Assert.Equal(1, terminalMode.RestoreCount);
+        Assert.Equal(DisableMouseTracking, controls[^1]);
+
+        reader.RestoreInputMode();
+
+        Assert.True(reader.MouseTrackingEnabled);
+        Assert.Equal(2, terminalMode.EnableCount);
+        Assert.Equal(EnableMouseTracking, controls[^1]);
+    }
+
+    [Fact]
+    public void EnableFailure_AttemptsComprehensiveDisableBeforeRestoringMode()
+    {
+        var terminalMode = new RecordingTerminalInputMode();
+        var controls = new List<string>();
+
+        Assert.Throws<IOException>(() => CreateReader(terminalMode, sequence =>
+        {
+            controls.Add(sequence);
+            if (sequence == EnableMouseTracking)
+                throw new IOException("enable failed");
+        }));
+
+        Assert.Equal([EnableMouseTracking, DisableMouseTracking], controls);
+        Assert.Equal(1, terminalMode.RestoreCount);
+        Assert.Equal(1, terminalMode.DisposeCount);
+    }
+
     private static UnixRawTerminalInputReader CreateReader(
         RecordingTerminalInputMode terminalMode,
-        List<string> controls) =>
+        List<string> controls) => CreateReader(terminalMode, controls.Add);
+
+    private static UnixRawTerminalInputReader CreateReader(
+        RecordingTerminalInputMode terminalMode,
+        Action<string> writeControl) =>
         new(
             new StreamAnsiInputByteReader(new MemoryStream(), null),
             () => new CSharpFar.Console.Models.ConsoleSize(80, 25),
             () => { },
-            controls.Add,
+            writeControl,
             terminalMode);
 
     private sealed class RecordingTerminalInputMode : ITerminalInputMode
     {
         public int EnableCount { get; private set; }
         public int RestoreCount { get; private set; }
+        public int DisposeCount { get; private set; }
 
         public void EnableRawMode() => EnableCount++;
 
         public void RestoreOriginalMode() => RestoreCount++;
 
-        public void Dispose()
-        {
-        }
+        public void Dispose() => DisposeCount++;
     }
 }

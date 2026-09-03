@@ -6,6 +6,46 @@ namespace CSharpFar.Ui;
 /// <summary>Terminal-cell measurements for text rendered by the console UI.</summary>
 public static class ConsoleTextMetrics
 {
+    /// <summary>Returns a terminal-cell viewport of <paramref name="text"/>.</summary>
+    /// <remarks>
+    /// The requested offset is clamped to the last viewport and then advanced to
+    /// a Unicode-scalar boundary when it intersects a wide scalar. Consequently
+    /// the returned value is always valid UTF-16 and contains only whole glyphs.
+    /// </remarks>
+    public static ConsoleTextViewport GetViewport(string text, int cellOffset, int cells)
+    {
+        ArgumentNullException.ThrowIfNull(text);
+        cells = Math.Max(0, cells);
+        int totalWidth = GetCellWidth(text);
+        int requested = Math.Clamp(cellOffset, 0, Math.Max(0, totalWidth - cells));
+
+        int currentCell = 0;
+        int start = 0;
+        foreach (Rune rune in text.EnumerateRunes())
+        {
+            int nextCell = currentCell + GetCellWidth(rune);
+            if (nextCell > requested)
+                break;
+            currentCell = nextCell;
+            start += rune.Utf16SequenceLength;
+        }
+
+        // A viewport starting in the second cell of a wide rune omits that rune.
+        if (currentCell < requested && start < text.Length)
+        {
+            Rune.DecodeFromUtf16(text.AsSpan(start), out Rune crossed, out int consumed);
+            currentCell += GetCellWidth(crossed);
+            start += consumed;
+        }
+
+        string slice = TruncateToCells(text[start..], cells);
+        return new ConsoleTextViewport(slice, requested, currentCell, cells, totalWidth);
+    }
+
+    /// <summary>Returns only the text from <see cref="GetViewport"/>.</summary>
+    public static string SliceToCells(string text, int cellOffset, int cells) =>
+        GetViewport(text, cellOffset, cells).Text;
+
     public static int GetCellWidth(string text)
     {
         ArgumentNullException.ThrowIfNull(text);
@@ -127,4 +167,15 @@ public static class ConsoleTextMetrics
             >= 0x1F300 and <= 0x1FAFF or
             >= 0x20000 and <= 0x3FFFD ? 2 : 1;
     }
+}
+
+/// <summary>A clamped, whole-scalar terminal-cell viewport.</summary>
+public readonly record struct ConsoleTextViewport(
+    string Text,
+    int CellOffset,
+    int TextStartCell,
+    int Width,
+    int TotalWidth)
+{
+    public int MaximumOffset => Math.Max(0, TotalWidth - Width);
 }

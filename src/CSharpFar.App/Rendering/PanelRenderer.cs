@@ -12,17 +12,20 @@ internal sealed class PanelRenderer
     private readonly ConsolePalette _palette;
     private readonly IFileHighlightService? _highlight;
     private readonly AppSettings.PanelOptionsSettings? _options;
+    private readonly Func<HoverMarqueeRegistration, string>? _renderHoverMarquee;
 
     public PanelRenderer(
         IUiCanvas screen,
         ConsolePalette? palette = null,
         IFileHighlightService? highlight = null,
-        AppSettings.PanelOptionsSettings? options = null)
+        AppSettings.PanelOptionsSettings? options = null,
+        Func<HoverMarqueeRegistration, string>? renderHoverMarquee = null)
     {
         _screen = screen;
         _palette = palette ?? PaletteRegistry.Default;
         _highlight = highlight;
         _options = options;
+        _renderHoverMarquee = renderHoverMarquee;
     }
 
     /// <summary>Number of file list rows visible inside the given bounds (Full mode).</summary>
@@ -38,7 +41,7 @@ internal sealed class PanelRenderer
     {
         if (mode == PanelViewMode.BriefTwoColumns)
         {
-            return new BriefTwoColumnsPanelRenderer(_screen, _palette, _highlight, _options)
+            return new BriefTwoColumnsPanelRenderer(_screen, _palette, _highlight, _options, _renderHoverMarquee)
                 .Render(bounds, state, isActive, side);
         }
 
@@ -123,7 +126,20 @@ internal sealed class PanelRenderer
                          : isSelected ? FileRowState.Selected
                          : FileRowState.Normal;
 
-            string namePart = FormatName(item, nameCol);
+            string namePart;
+            if (_renderHoverMarquee is null || nameCol <= 0)
+            {
+                namePart = FormatName(item, nameCol);
+            }
+            else
+            {
+                var hover = new HoverMarqueeRegistration(
+                    new ApplicationPanelMarqueeIdentity(side, item.Location, ApplicationPanelMarqueeField.FullName),
+                    item.Name,
+                    new Rect(bounds.X + 1, y, nameCol, 1),
+                    nameCol);
+                namePart = PadToCells(_renderHoverMarquee(hover), nameCol);
+            }
             string sizePart = sizeCol > 0 ? " " + FormatSizePart(item, sizeCol) : string.Empty;
 
             CellStyle nameStyle = ApplyHighlight(style, item, rowState);
@@ -213,4 +229,19 @@ internal sealed class PanelRenderer
         < 1_000_000_000L => $"{bytes / 1_000_000}M",
         _ => $"{bytes / 1_000_000_000}G",
     };
+
+    private static string PadToCells(string text, int width) =>
+        text + new string(' ', Math.Max(0, width - ConsoleTextMetrics.GetCellWidth(text)));
 }
+
+internal enum ApplicationPanelMarqueeField
+{
+    FullName,
+    BriefLeftName,
+    BriefRightName,
+}
+
+internal sealed record ApplicationPanelMarqueeIdentity(
+    PanelSide Side,
+    PanelLocation Location,
+    ApplicationPanelMarqueeField Field);

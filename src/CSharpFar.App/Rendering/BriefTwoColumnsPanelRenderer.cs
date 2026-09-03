@@ -18,17 +18,20 @@ public sealed class BriefTwoColumnsPanelRenderer
     private readonly ConsolePalette _palette;
     private readonly IFileHighlightService? _highlight;
     private readonly AppSettings.PanelOptionsSettings? _options;
+    private readonly Func<HoverMarqueeRegistration, string>? _renderHoverMarquee;
 
     public BriefTwoColumnsPanelRenderer(
         IUiCanvas screen,
         ConsolePalette palette,
         IFileHighlightService? highlight = null,
-        AppSettings.PanelOptionsSettings? options = null)
+        AppSettings.PanelOptionsSettings? options = null,
+        Func<HoverMarqueeRegistration, string>? renderHoverMarquee = null)
     {
         _screen = screen;
         _palette = palette;
         _highlight = highlight;
         _options = options;
+        _renderHoverMarquee = renderHoverMarquee;
     }
 
     /// <summary>
@@ -111,12 +114,12 @@ public sealed class BriefTwoColumnsPanelRenderer
         {
             int y = contentTop + row;
 
-            RenderCell(state.ScrollOffset + row, col1X, y, col1Width,
+            RenderCell(state.ScrollOffset + row, col1X, y, col1Width, side, ApplicationPanelMarqueeField.BriefLeftName,
                        state, isActive, cursor, fileStyle, dirStyle, selStyle, fill);
             AddHit(hits, state, state.ScrollOffset + row, col1X, y, col1Width);
             if (innerWidth > 0)
                 _screen.WriteChar(bounds.X + 1 + sepOffset, y, '│', border);
-            RenderCell(state.ScrollOffset + rowsPerCol + row, col2X, y, col2Width,
+            RenderCell(state.ScrollOffset + rowsPerCol + row, col2X, y, col2Width, side, ApplicationPanelMarqueeField.BriefRightName,
                        state, isActive, cursor, fileStyle, dirStyle, selStyle, fill);
             AddHit(hits, state, state.ScrollOffset + rowsPerCol + row, col2X, y, col2Width);
         }
@@ -167,7 +170,7 @@ public sealed class BriefTwoColumnsPanelRenderer
     // ── helpers ───────────────────────────────────────────────────────────────
 
     private void RenderCell(
-        int itemIdx, int x, int y, int width,
+        int itemIdx, int x, int y, int width, PanelSide side, ApplicationPanelMarqueeField field,
         FilePanelState state,
         bool isActive,
         CellStyle cursor, CellStyle fileStyle, CellStyle dirStyle,
@@ -195,7 +198,14 @@ public sealed class BriefTwoColumnsPanelRenderer
                      : isSelected ? FileRowState.Selected
                      : FileRowState.Normal;
 
-        string name = Fit(item.Name, width);
+        var hover = new HoverMarqueeRegistration(
+            new ApplicationPanelMarqueeIdentity(side, item.Location, field),
+            item.Name,
+            new Rect(x, y, width, 1),
+            width);
+        string name = _renderHoverMarquee is null
+            ? Fit(item.Name, width)
+            : PadToCells(_renderHoverMarquee(hover), width);
         CellStyle nameStyle = ApplyHighlight(style, item, rowState);
         _screen.Write(x, y, name, nameStyle);
     }
@@ -230,6 +240,9 @@ public sealed class BriefTwoColumnsPanelRenderer
 
     private static string Fit(string text, int width) =>
         PanelStatusRenderer.Truncate(text, width).PadRight(Math.Max(0, width));
+
+    private static string PadToCells(string text, int width) =>
+        text + new string(' ', Math.Max(0, width - ConsoleTextMetrics.GetCellWidth(text)));
 
     private static string FormatNameHeader(int width, char? sortIndicator)
     {

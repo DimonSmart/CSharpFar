@@ -28,7 +28,9 @@ internal sealed class ApplicationRenderCoordinator
         _commandLineRenderer = commandLineRenderer;
     }
 
-    public ApplicationUiFrame RenderMainContent(UiRenderContext context)
+    public ApplicationUiFrame RenderMainContent(
+        UiRenderContext context,
+        Func<HoverMarqueeRegistration, string>? renderHoverMarquee = null)
     {
         UpdateQuickViewDirSize();
         var size = context.Size;
@@ -54,7 +56,8 @@ internal sealed class ApplicationRenderCoordinator
             _context.QuickViewDirectorySize.CurrentState,
             _context.QuickViewDirectorySize.Monitor,
             _context.QuickViewDirectorySize.SelectedMonitorChangeId,
-            _context.QuickViewDirectorySize.IsBackgroundUpdating);
+            _context.QuickViewDirectorySize.IsBackgroundUpdating,
+            renderHoverMarquee);
         if (workspace.QuickView is { } quickViewFrame)
         {
             context.PublishOnStable(() => _context.QuickViewDirectorySize.SetVisibleMonitorChanges(
