@@ -184,7 +184,8 @@ internal sealed class UnixRawTerminalInputReader : ConsoleInputReaderBase, IMous
         {
             _parser.ResetMouseState();
             _modifierKeyTracker?.Suspend();
-            _writeControl(DisableMouseTracking);
+            if (_mouseTrackingActive)
+                _writeControl(DisableMouseTracking);
         }
         finally
         {
