@@ -97,6 +97,11 @@ internal sealed class ApplicationGlobalKeyboardHandler
             return ApplicationInputHandlingResult.FromHandled(
                 _context.MoveQuickViewDirectoryMonitorSelection(key.Key == ConsoleKey.UpArrow ? -1 : 1));
 
+        if (_context.QuickView() && KeyboardShortcutClassifier.HasOnlyControlModifier(key) &&
+            key.Key is ConsoleKey.PageUp or ConsoleKey.PageDown)
+            return ApplicationInputHandlingResult.FromHandled(
+                _context.MoveQuickViewDirectoryMonitorSelectionByPage(key.Key == ConsoleKey.PageUp ? -1 : 1));
+
         return ApplicationInputHandlingResult.NotHandled;
     }
 

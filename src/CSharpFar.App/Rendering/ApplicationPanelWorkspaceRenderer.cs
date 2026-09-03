@@ -44,6 +44,8 @@ internal sealed class ApplicationPanelWorkspaceRenderer
         DirectorySummaryMonitor? monitor,
         long? selectedChangeId,
         bool quickViewIsBackgroundUpdating,
+        int firstVisibleQuickViewChangeIndex,
+        RoutedScrollableList<DirectoryChange>? recentChanges,
         Func<HoverMarqueeRegistration, string>? renderHoverMarquee = null)
     {
         var bounds = ApplicationLayoutService.CalculatePanelWorkspaceBounds(size);
@@ -85,7 +87,7 @@ internal sealed class ApplicationPanelWorkspaceRenderer
                 activeSide,
                 leftViewMode,
                 rightViewMode,
-                quickViewDirState, monitor, selectedChangeId, quickViewIsBackgroundUpdating);
+                quickViewDirState, monitor, selectedChangeId, quickViewIsBackgroundUpdating, firstVisibleQuickViewChangeIndex, recentChanges);
         }
         else
         {
@@ -109,7 +111,9 @@ internal sealed class ApplicationPanelWorkspaceRenderer
         DirectorySizeState? quickViewDirState,
         DirectorySummaryMonitor? monitor,
         long? selectedChangeId,
-        bool quickViewIsBackgroundUpdating)
+        bool quickViewIsBackgroundUpdating,
+        int firstVisibleQuickViewChangeIndex,
+        RoutedScrollableList<DirectoryChange>? recentChanges)
     {
         ApplicationPanelFrame? leftFrame = null;
         ApplicationPanelFrame? rightFrame = null;
@@ -124,7 +128,7 @@ internal sealed class ApplicationPanelWorkspaceRenderer
                 item is { IsDirectory: true } ? quickViewDirState : null,
                 item is { IsDirectory: true } ? monitor : null,
                 selectedChangeId,
-                quickViewIsBackgroundUpdating);
+                quickViewIsBackgroundUpdating, firstVisibleQuickViewChangeIndex, recentChanges);
         }
         else
         {
@@ -135,7 +139,7 @@ internal sealed class ApplicationPanelWorkspaceRenderer
                 item is { IsDirectory: true } ? quickViewDirState : null,
                 item is { IsDirectory: true } ? monitor : null,
                 selectedChangeId,
-                quickViewIsBackgroundUpdating);
+                quickViewIsBackgroundUpdating, firstVisibleQuickViewChangeIndex, recentChanges);
             rightFrame = panelRenderer.Render(rightBounds, right, true, PanelSide.Right, rightViewMode);
         }
 

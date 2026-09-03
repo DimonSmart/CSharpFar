@@ -1,4 +1,5 @@
 using CSharpFar.Core.Models;
+using CSharpFar.Ui;
 
 namespace CSharpFar.App.Viewer;
 
@@ -12,6 +13,13 @@ internal sealed class QuickViewDirectorySizeController : IDisposable
     private string? _currentPath;
     private long? _selectedChangeId;
     private IReadOnlyList<long> _visibleChangeIds = [];
+    private IReadOnlyList<long> _retainedChangeIds = [];
+    private long? _firstVisibleChangeId;
+    private readonly RoutedScrollableList<DirectoryChange> _recentChanges = new(
+        new ScrollableListState<DirectoryChange>([]),
+        new UiTargetId("application.quick-view.recent-changes"),
+        new UiTargetId("application.quick-view.recent-changes.scrollbar"),
+        RoutedScrollableListOptions.DropdownPopup);
     private long _monitorSessionId;
     private bool _disposed;
 
@@ -35,7 +43,9 @@ internal sealed class QuickViewDirectorySizeController : IDisposable
 
     public DirectorySizeState? CurrentState { get; private set; }
     public DirectorySummaryMonitor Monitor => _monitor;
+    public RoutedScrollableList<DirectoryChange> RecentChanges => _recentChanges;
     public long? SelectedMonitorChangeId => _selectedChangeId;
+    public int FirstVisibleMonitorChangeIndex { get; private set; }
     public bool IsBackgroundUpdating { get; private set; }
     private long _activeScanOperationId;
 
@@ -59,6 +69,8 @@ internal sealed class QuickViewDirectorySizeController : IDisposable
             DisableMonitor();
             _selectedChangeId = null;
             _visibleChangeIds = [];
+            _retainedChangeIds = [];
+            FirstVisibleMonitorChangeIndex = 0;
             _currentPath = item.FullPath;
             CurrentState = null;
             IsBackgroundUpdating = false;
@@ -78,6 +90,8 @@ internal sealed class QuickViewDirectorySizeController : IDisposable
         DisableMonitor();
         _selectedChangeId = null;
         _visibleChangeIds = [];
+        _retainedChangeIds = [];
+        FirstVisibleMonitorChangeIndex = 0;
         _currentPath = null;
         CurrentState = null;
         IsBackgroundUpdating = false;
@@ -131,6 +145,8 @@ internal sealed class QuickViewDirectorySizeController : IDisposable
                 IsBackgroundUpdating = false;
                 _selectedChangeId = null;
                 _visibleChangeIds = [];
+                _retainedChangeIds = [];
+                FirstVisibleMonitorChangeIndex = 0;
             }
             else
             {
@@ -150,21 +166,62 @@ internal sealed class QuickViewDirectorySizeController : IDisposable
 
     public bool MoveMonitorSelection(int offset)
     {
-        if (_visibleChangeIds.Count == 0)
+        if (_retainedChangeIds.Count == 0)
             return false;
         int current = _selectedChangeId is { } id
-            ? _visibleChangeIds.ToList().IndexOf(id)
+            ? _retainedChangeIds.ToList().IndexOf(id)
             : -1;
-        int next = Math.Clamp(current + offset, 0, _visibleChangeIds.Count - 1);
-        _selectedChangeId = _visibleChangeIds[next];
+        int next = Math.Clamp(current + offset, 0, _retainedChangeIds.Count - 1);
+        _selectedChangeId = _retainedChangeIds[next];
+        int rows = Math.Max(1, _visibleChangeIds.Count);
+        if (next < FirstVisibleMonitorChangeIndex)
+            FirstVisibleMonitorChangeIndex = next;
+        else if (next >= FirstVisibleMonitorChangeIndex + rows)
+            FirstVisibleMonitorChangeIndex = next - rows + 1;
+        _firstVisibleChangeId = _retainedChangeIds[FirstVisibleMonitorChangeIndex];
         return true;
     }
+
+    public bool MoveMonitorSelectionByPage(int direction) =>
+        MoveMonitorSelection(direction * Math.Max(1, _visibleChangeIds.Count));
 
     public void SetVisibleMonitorChanges(IReadOnlyList<long> changeIds, long? normalizedSelectedChangeId)
     {
         _visibleChangeIds = changeIds;
+        _retainedChangeIds = changeIds;
         _selectedChangeId = normalizedSelectedChangeId;
     }
+
+    public void SetMonitorChanges(IReadOnlyList<long> retainedChangeIds, IReadOnlyList<long> visibleChangeIds,
+        long? normalizedSelectedChangeId, int firstVisibleIndex)
+    {
+        _retainedChangeIds = retainedChangeIds;
+        _visibleChangeIds = visibleChangeIds;
+        _selectedChangeId = normalizedSelectedChangeId;
+        FirstVisibleMonitorChangeIndex = Math.Clamp(firstVisibleIndex, 0, Math.Max(0, retainedChangeIds.Count - Math.Max(1, visibleChangeIds.Count)));
+        _firstVisibleChangeId = visibleChangeIds.FirstOrDefault();
+    }
+
+    public int GetFirstVisibleMonitorChangeIndex()
+    {
+        if (_firstVisibleChangeId is { } anchor)
+        {
+            int anchoredIndex = _monitor.GetRecentChanges().ToList().FindIndex(change => change.Id == anchor);
+            if (anchoredIndex >= 0)
+                return anchoredIndex;
+        }
+        return FirstVisibleMonitorChangeIndex;
+    }
+
+    public void SynchronizeRecentChanges()
+    {
+        DirectoryChange[] changes = _monitor.GetRecentChanges().ToArray();
+        _recentChanges.State.ReplaceItems(changes, change => change.Id, Math.Max(1, _visibleChangeIds.Count));
+        _selectedChangeId = _recentChanges.State.TryGetSelectedItem(out DirectoryChange selected) ? selected.Id : null;
+    }
+
+    public void SynchronizeRecentChangesSelection() =>
+        _selectedChangeId = _recentChanges.State.TryGetSelectedItem(out DirectoryChange selected) ? selected.Id : null;
 
     public bool TryGetSelectedMonitorTarget(out string target)
     {

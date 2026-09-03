@@ -33,6 +33,7 @@ internal sealed class ApplicationRenderCoordinator
         Func<HoverMarqueeRegistration, string>? renderHoverMarquee = null)
     {
         UpdateQuickViewDirSize();
+        _context.QuickViewDirectorySize.SynchronizeRecentChanges();
         var size = context.Size;
         PanelSide activeSide = _context.ActiveSide();
         FilePanelState leftState = _context.LeftPanel();
@@ -57,12 +58,18 @@ internal sealed class ApplicationRenderCoordinator
             _context.QuickViewDirectorySize.Monitor,
             _context.QuickViewDirectorySize.SelectedMonitorChangeId,
             _context.QuickViewDirectorySize.IsBackgroundUpdating,
+            _context.QuickViewDirectorySize.GetFirstVisibleMonitorChangeIndex(),
+            _context.QuickViewDirectorySize.RecentChanges,
             renderHoverMarquee);
         if (workspace.QuickView is { } quickViewFrame)
         {
-            context.PublishOnStable(() => _context.QuickViewDirectorySize.SetVisibleMonitorChanges(
+            context.PublishOnStable(() => _context.QuickViewDirectorySize.SetMonitorChanges(
+                quickViewFrame.AllChangeIds,
                 quickViewFrame.VisibleChangeIds,
-                quickViewFrame.NormalizedSelectedChangeId));
+                quickViewFrame.NormalizedSelectedChangeId,
+                quickViewFrame.FirstVisibleChangeIndex));
+            if (quickViewFrame.RecentChanges is { } recentChanges && quickViewFrame.RecentChangesFrame is { } recentChangesFrame)
+                context.PublishOnStable(() => recentChanges.ApplyCommittedFrame(recentChangesFrame));
         }
         int panelHeight = workspace.PanelHeight;
         context.PublishOnStable(context.Viewport, value => _context.Ui.LastRenderViewport = value);

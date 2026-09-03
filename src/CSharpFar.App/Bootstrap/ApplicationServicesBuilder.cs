@@ -288,6 +288,7 @@ internal static class ApplicationServicesBuilder
                 return false;
             controller.SetCursorByName(targetPanel, Path.GetFileName(target), callbacks.VisibleRowsForSide(targetSide));
             callbacks.StartWatching(targetPanel, targetSide);
+            callbacks.SetQuickView(false);
             return true;
         };
         mouseInputContext.ActivateQuickViewDirectoryMonitorChange = changeId =>
@@ -297,8 +298,16 @@ internal static class ApplicationServicesBuilder
             return keyboardInputContext.ActivateQuickViewDirectoryMonitorChange();
         };
         mouseInputContext.ToggleQuickViewDirectoryMonitor = keyboardInputContext.ToggleQuickViewDirectoryMonitor;
+        mouseInputContext.HandleQuickViewRecentChangesInput = confirmed =>
+        {
+            if (!session.App.QuickView) return false;
+            quickViewDirectorySize.SynchronizeRecentChangesSelection();
+            return !confirmed || keyboardInputContext.ActivateQuickViewDirectoryMonitorChange();
+        };
         keyboardInputContext.MoveQuickViewDirectoryMonitorSelection = offset =>
             session.App.QuickView && quickViewDirectorySize.MoveMonitorSelection(offset);
+        keyboardInputContext.MoveQuickViewDirectoryMonitorSelectionByPage = direction =>
+            session.App.QuickView && quickViewDirectorySize.MoveMonitorSelectionByPage(direction);
         var dialogs = new DialogService(modalDialogs, formFields);
         var searchResults = new PanelSearchResultsService(
             screen,

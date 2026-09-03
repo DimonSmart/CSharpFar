@@ -16,5 +16,10 @@ internal sealed class ApplicationQuickViewInputHandler
             _ => false,
         });
 
+    public ApplicationInputHandlingResult Handle(ApplicationQuickViewListInteraction interaction) =>
+        ApplicationInputHandlingResult.FromHandled(_context.HandleQuickViewRecentChangesInput(interaction.Confirmed));
+
     public bool SelectFileUsageOwner(int ownerIndex) => _context.SelectFileUsageOwner(ownerIndex);
 }
+
+internal sealed record ApplicationQuickViewListInteraction(bool Confirmed) : ApplicationPointerInteraction;

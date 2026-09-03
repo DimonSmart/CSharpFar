@@ -111,6 +111,29 @@ public sealed class DirectorySummaryMonitorTests : IDisposable
     }
 
     [Fact]
+    public void ChangedWithinOneSecondOfCreated_IsAbsorbedByCreatedWithoutSlidingTheWindow()
+    {
+        using var monitor = new DirectorySummaryMonitor(() => { }, _ => { });
+        monitor.Enable(_root);
+        string path = Path.Combine(_root, "new.txt");
+        DateTimeOffset createdAt = DateTimeOffset.UnixEpoch;
+
+        monitor.RecordChange(DirectoryChangeKind.Created, path, null, createdAt, tick: 100);
+        long createdId = Assert.Single(monitor.GetRecentChanges()).Id;
+        monitor.RecordChange(DirectoryChangeKind.Changed, path, null, createdAt.AddMilliseconds(400), tick: 500);
+        monitor.RecordChange(DirectoryChangeKind.Changed, path, null, createdAt.AddMilliseconds(900), tick: 1000);
+
+        DirectoryChange created = Assert.Single(monitor.GetRecentChanges());
+        Assert.Equal(createdId, created.Id);
+        Assert.Equal(DirectoryChangeKind.Created, created.Kind);
+        Assert.Equal(1, created.RepeatCount);
+        Assert.Equal(createdAt.AddMilliseconds(900), created.Timestamp);
+
+        monitor.RecordChange(DirectoryChangeKind.Changed, path, null, createdAt.AddMilliseconds(1100), tick: 1200);
+        Assert.Contains(monitor.GetRecentChanges(), change => change.Kind == DirectoryChangeKind.Changed);
+    }
+
+    [Fact]
     public void InterleavedChanged_IsCollapsedAndMovedToNewestPosition()
     {
         using var monitor = new DirectorySummaryMonitor(() => { }, _ => { });
@@ -145,10 +168,10 @@ public sealed class DirectorySummaryMonitorTests : IDisposable
 
         DirectoryChange[] changes = monitor.GetRecentChanges().ToArray();
         Assert.Equal(
-            [DirectoryChangeKind.Deleted, DirectoryChangeKind.Changed, DirectoryChangeKind.Renamed, DirectoryChangeKind.Changed, DirectoryChangeKind.Created],
+            [DirectoryChangeKind.Deleted, DirectoryChangeKind.Changed, DirectoryChangeKind.Renamed, DirectoryChangeKind.Created],
             changes.Select(change => change.Kind));
         Assert.Equal(1, changes[1].RepeatCount);
-        Assert.Equal(2, changes[3].RepeatCount);
+        Assert.Equal(1, changes[3].RepeatCount);
     }
 
     [Fact]

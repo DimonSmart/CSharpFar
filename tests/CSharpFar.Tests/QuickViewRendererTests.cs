@@ -143,6 +143,26 @@ public class QuickViewRendererTests : IDisposable
     }
 
     [Fact]
+    public void DirectoryMonitor_RendersRequestedViewportOfRetainedHistory()
+    {
+        using var monitor = new DirectorySummaryMonitor(() => { }, _ => { });
+        monitor.Enable(_tempDir);
+        for (int i = 0; i < 20; i++)
+            monitor.RecordChange(DirectoryChangeKind.Created, Path.Combine(_tempDir, $"item-{i}.txt"), null);
+        var item = new FilePanelItem { Name = "directory", FullPath = _tempDir, IsDirectory = true };
+        ApplicationQuickViewFrame? frame = null;
+
+        UiTestRender.Render(_screen, canvas =>
+            frame = new QuickViewRenderer(canvas).Render(new Rect(0, 0, 40, 16), item, monitor: monitor, firstVisibleChangeIndex: 10));
+
+        Assert.NotNull(frame);
+        Assert.NotEmpty(frame.ChangeHits);
+        Assert.Equal(10, frame.FirstVisibleChangeIndex);
+        Assert.Equal("item-9.txt", monitor.GetRecentChanges().Single(change => change.Id == frame.ChangeHits[0].ChangeId).RelativePath);
+        Assert.Equal(20, frame.AllChangeIds.Count);
+    }
+
+    [Fact]
     public void DirectoryMonitor_ShowsRepeatCountOnlyForRepeatedChanges()
     {
         using var monitor = new DirectorySummaryMonitor(() => { }, _ => { });
@@ -223,10 +243,9 @@ public class QuickViewRendererTests : IDisposable
 
         Assert.NotNull(frame);
         Assert.Single(frame.ChangeHits);
-        Assert.NotEqual(frame.ChangeHits[0].ChangeId, controller.SelectedMonitorChangeId);
+        Assert.Equal(changes[^1].Id, controller.SelectedMonitorChangeId);
         controller.SetVisibleMonitorChanges(frame.VisibleChangeIds, frame.NormalizedSelectedChangeId);
-        Assert.Equal(frame.ChangeHits[0].ChangeId, controller.SelectedMonitorChangeId);
-        Assert.Equal('>', _driver.GetRegionText(new Rect(frame.ChangeHits[0].Bounds.X, frame.ChangeHits[0].Bounds.Y, 1, 1))[0]);
+        Assert.Equal(changes[^1].Id, controller.SelectedMonitorChangeId);
     }
 
     [Fact]

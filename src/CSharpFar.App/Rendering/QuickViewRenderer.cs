@@ -2,6 +2,7 @@ using CSharpFar.App.Viewer;
 using CSharpFar.Console;
 using CSharpFar.Console.Models;
 using CSharpFar.Core.Models;
+using CSharpFar.Ui;
 
 namespace CSharpFar.App.Rendering;
 
@@ -36,7 +37,9 @@ internal sealed class QuickViewRenderer
         DirectorySizeState? dirSizeState = null,
         DirectorySummaryMonitor? monitor = null,
         long? selectedChangeId = null,
-        bool isBackgroundUpdating = false)
+        bool isBackgroundUpdating = false,
+        int firstVisibleChangeIndex = 0,
+        RoutedScrollableList<DirectoryChange>? recentChanges = null)
     {
         _screen.FillRegion(bounds, _fillStyle);
         _screen.DrawDoubleBox(bounds, _borderStyle);
@@ -55,7 +58,7 @@ internal sealed class QuickViewRenderer
         }
 
         if (item.IsDirectory)
-            return RenderDirectory(item, bounds.X + 1, contentTop, innerWidth, visRows, dirSizeState, monitor, selectedChangeId, isBackgroundUpdating);
+            return RenderDirectory(item, bounds.X + 1, contentTop, innerWidth, visRows, dirSizeState, monitor, selectedChangeId, isBackgroundUpdating, firstVisibleChangeIndex, recentChanges);
         else
             RenderFile(item, bounds.X + 1, contentTop, innerWidth, visRows);
         return new ApplicationQuickViewFrame(bounds, null, []);
@@ -72,7 +75,9 @@ internal sealed class QuickViewRenderer
         DirectorySizeState? dirSizeState,
         DirectorySummaryMonitor? monitor,
         long? selectedChangeId,
-        bool isBackgroundUpdating)
+        bool isBackgroundUpdating,
+        int firstVisibleChangeIndex,
+        RoutedScrollableList<DirectoryChange>? recentChanges)
     {
         var (summaryRows, errorRows) = BuildDirectoryRows(item, w, dirSizeState, isBackgroundUpdating);
         var hits = new List<ApplicationQuickViewChangeHit>();
@@ -101,29 +106,51 @@ internal sealed class QuickViewRenderer
             if (monitor.IsEnabled && rowIndex < visRows)
             {
                 WriteRow(x, y + rowIndex++, "Recent changes", w);
-                DirectoryChange[] visibleChanges = monitor.GetRecentChanges()
-                    .Take(Math.Max(0, visRows - rowIndex))
-                    .ToArray();
-                normalizedSelectedChangeId = NormalizeSelection(selectedChangeId, visibleChanges.Select(change => change.Id).ToArray());
-                foreach (DirectoryChange change in visibleChanges)
+                DirectoryChange[] allChanges = monitor.GetRecentChanges().ToArray();
+                int viewportRows = Math.Max(0, visRows - rowIndex);
+                int firstVisible = Math.Clamp(firstVisibleChangeIndex, 0, Math.Max(0, allChanges.Length - viewportRows));
+                if (recentChanges is null)
                 {
-                    string marker = change.Kind switch
+                    DirectoryChange[] visibleChanges = allChanges.Skip(firstVisible).Take(viewportRows).ToArray();
+                    normalizedSelectedChangeId = NormalizeSelection(selectedChangeId, allChanges.Select(change => change.Id).ToArray());
+                    foreach (DirectoryChange change in visibleChanges)
                     {
-                        DirectoryChangeKind.Created => "+",
-                        DirectoryChangeKind.Changed when change.RepeatCount > 1 => $"M×{change.RepeatCount}",
-                        DirectoryChangeKind.Changed => "M",
-                        DirectoryChangeKind.Deleted => "-",
-                        _ => "R",
-                    };
-                    string path = change.Kind == DirectoryChangeKind.Renamed
-                        ? $"{change.OldRelativePath} -> {change.RelativePath}"
-                        : change.RelativePath;
-                    WriteRow(x, y + rowIndex, $"{(change.Id == normalizedSelectedChangeId ? '>' : ' ')}{change.Timestamp.ToLocalTime():HH:mm:ss}  {marker}  {path}", w);
-                    hits.Add(new ApplicationQuickViewChangeHit(new Rect(x, y + rowIndex++, w, 1), change.Id));
+                        WriteRow(x, y + rowIndex, FormatChange(change), w);
+                        hits.Add(new ApplicationQuickViewChangeHit(new Rect(x, y + rowIndex++, w, 1), change.Id));
+                    }
+                }
+                else
+                {
+                    Rect scrollbar = new(x + w - 1, y + rowIndex, 1, viewportRows);
+                    Rect content = new(x, y + rowIndex, Math.Max(0, w - 1), viewportRows);
+                    ScrollableListFrame listFrame = recentChanges.CalculateFrame(content, scrollbar);
+                    recentChanges.Render(_screen, listFrame, new(change => FormatChange(change), string.Empty, _fillStyle, _titleStyle, _fillStyle));
+                    recentChanges.RenderScrollbar(_screen, listFrame, _borderStyle);
+                    normalizedSelectedChangeId = recentChanges.State.TryGetSelectedItem(out DirectoryChange selected) ? selected.Id : null;
+                    foreach (int index in Enumerable.Range(listFrame.ScrollTop, Math.Min(listFrame.ViewportRows, Math.Max(0, listFrame.ItemCount - listFrame.ScrollTop))))
+                        hits.Add(new ApplicationQuickViewChangeHit(new Rect(content.X, content.Y + index - listFrame.ScrollTop, content.Width, 1), recentChanges.State.Items[index].Id));
+                    rowIndex += viewportRows;
+                    return new ApplicationQuickViewFrame(new Rect(x - 1, y - 1, w + 2, visRows + 2), monitorToggleBounds, hits, normalizedSelectedChangeId, allChanges.Select(change => change.Id).ToArray(), listFrame.ScrollTop, recentChanges, listFrame);
                 }
             }
         }
-        return new ApplicationQuickViewFrame(new Rect(x - 1, y - 1, w + 2, visRows + 2), monitorToggleBounds, hits, normalizedSelectedChangeId);
+        DirectoryChange[] retained = monitor?.GetRecentChanges().ToArray() ?? [];
+        int first = hits.Count == 0 ? 0 : Math.Clamp(firstVisibleChangeIndex, 0, Math.Max(0, retained.Length - hits.Count));
+        return new ApplicationQuickViewFrame(new Rect(x - 1, y - 1, w + 2, visRows + 2), monitorToggleBounds, hits, normalizedSelectedChangeId, retained.Select(change => change.Id).ToArray(), first);
+    }
+
+    private static string FormatChange(DirectoryChange change)
+    {
+        string marker = change.Kind switch
+        {
+            DirectoryChangeKind.Created => "+",
+            DirectoryChangeKind.Changed when change.RepeatCount > 1 => $"M×{change.RepeatCount}",
+            DirectoryChangeKind.Changed => "M",
+            DirectoryChangeKind.Deleted => "-",
+            _ => "R",
+        };
+        string path = change.Kind == DirectoryChangeKind.Renamed ? $"{change.OldRelativePath} -> {change.RelativePath}" : change.RelativePath;
+        return $"{change.Timestamp.ToLocalTime():HH:mm:ss}  {marker}  {path}";
     }
 
     internal static long? NormalizeSelection(long? selectedChangeId, IReadOnlyList<long> visibleChangeIds) =>

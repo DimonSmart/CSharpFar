@@ -1,4 +1,5 @@
 using CSharpFar.App.CommandLine;
+using CSharpFar.App.Input;
 using CSharpFar.App.State;
 using CSharpFar.Console;
 using CSharpFar.Console.Input;
@@ -226,9 +227,14 @@ internal sealed record ApplicationQuickViewFrame(
     Rect Bounds,
     Rect? MonitorToggleBounds,
     IReadOnlyList<ApplicationQuickViewChangeHit> ChangeHits,
-    long? NormalizedSelectedChangeId = null)
+    long? NormalizedSelectedChangeId = null,
+    IReadOnlyList<long>? RetainedChangeIds = null,
+    int FirstVisibleChangeIndex = 0,
+    RoutedScrollableList<CSharpFar.App.Viewer.DirectoryChange>? RecentChanges = null,
+    ScrollableListFrame? RecentChangesFrame = null)
 {
     public IReadOnlyList<long> VisibleChangeIds => ChangeHits.Select(hit => hit.ChangeId).ToArray();
+    public IReadOnlyList<long> AllChangeIds => RetainedChangeIds ?? VisibleChangeIds;
     public IReadOnlyList<ApplicationQuickViewPointerHit> PointerHits =>
         (MonitorToggleBounds is { } monitorToggle
             ? new[] { new ApplicationQuickViewPointerHit(monitorToggle, new ApplicationQuickViewMonitorToggleTarget()) }
@@ -571,6 +577,8 @@ internal sealed class ApplicationUiSurface : UiLayer<ApplicationUiFrame>, IUiSur
     {
         if (frame is null)
             return;
+        if (frame.RecentChanges is { } recentChanges && frame.RecentChangesFrame is { } recentChangesFrame)
+            builder.AddFragment(recentChanges.BuildInteractionFragment(recentChangesFrame, 0));
         var collection = new RoutedPointerCollection<ApplicationQuickViewPointerHit>(
             new UiTargetId("application.quick-view"), hit => hit.Target switch
             {
@@ -578,9 +586,14 @@ internal sealed class ApplicationUiSurface : UiLayer<ApplicationUiFrame>, IUiSur
                 ApplicationQuickViewChangeTarget change => ApplicationTargetIds.QuickViewChange(change.ChangeId),
                 _ => throw new InvalidOperationException("Unknown Quick View pointer target."),
             });
+        IReadOnlyList<ApplicationQuickViewPointerHit> pointerHits = frame.RecentChanges is null
+            ? frame.PointerHits
+            : frame.MonitorToggleBounds is { } monitorToggle
+                ? [new ApplicationQuickViewPointerHit(monitorToggle, new ApplicationQuickViewMonitorToggleTarget())]
+                : [];
         builder.AddFragment(collection.BuildInteractionFragment(
             IsVisible(frame.Bounds, viewport) ? frame.Bounds : new Rect(0, 0, 0, 0),
-            frame.PointerHits.Where(hit => IsVisible(hit.Bounds, viewport)).Select(hit => new RoutedPointerItem<ApplicationQuickViewPointerHit>(hit, hit.Bounds)).ToArray()));
+            pointerHits.Where(hit => IsVisible(hit.Bounds, viewport)).Select(hit => new RoutedPointerItem<ApplicationQuickViewPointerHit>(hit, hit.Bounds)).ToArray()));
     }
 
     private static void AddFileUsageInteraction(UiInteractionFrameBuilder builder, ApplicationFileUsageFrame? frame, ConsoleViewport viewport)
@@ -626,6 +639,12 @@ internal sealed class ApplicationUiSurface : UiLayer<ApplicationUiFrame>, IUiSur
         ApplicationUiFrame frame,
         UiInputRouteContext context)
     {
+        if (frame.QuickView is { RecentChanges: { } recentChanges, RecentChangesFrame: { } recentChangesFrame } && recentChanges.IsTargetRoute(context))
+        {
+            RoutedScrollableListInputResult result = recentChanges.RouteInput(input, recentChangesFrame, context);
+            if (result.UiResult.Handled)
+                return new(new ApplicationQuickViewListInteraction(result.ListResult.Kind == ScrollableListInputResultKind.Confirmed), result.UiResult);
+        }
         RoutedPointerSelectionInput<int> commandLine = new RoutedPointerSelectionSurface<int>(
             ApplicationTargetIds.CommandLine,
             (x, _) => frame.CommandLine.TextPositionFromX(x)).RouteInput(input, context);

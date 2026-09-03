@@ -22,6 +22,7 @@ internal sealed class KeyboardInputContext
     public Func<bool> ToggleQuickViewDirectoryMonitor { get; set; } = () => false;
     public Func<bool> ActivateQuickViewDirectoryMonitorChange { get; set; } = () => false;
     public Func<int, bool> MoveQuickViewDirectoryMonitorSelection { get; set; } = _ => false;
+    public Func<int, bool> MoveQuickViewDirectoryMonitorSelectionByPage { get; set; } = _ => false;
     public Func<bool> ToggleFileUsage { get; set; } = () => false;
     public Func<int, bool> MoveFileUsageOwnerSelection { get; set; } = _ => false;
     public Func<bool> UnlockFileUsageOwner { get; set; } = () => false;

@@ -16,6 +16,7 @@ internal sealed class DirectorySummaryMonitor : IDisposable
     private const int DebounceMilliseconds = 400;
     private const int MinimumScanIntervalMilliseconds = 1000;
     private const int MaxRecentHistory = 256;
+    private const int CreatedChangedCollapseMilliseconds = 1000;
     private readonly object _gate = new();
     private readonly Action _wake;
     private readonly Action<string> _rescan;
@@ -178,10 +179,20 @@ internal sealed class DirectorySummaryMonitor : IDisposable
         lock (_gate)
         {
             if (!IsCurrentSessionUnsafe(generation, root)) return;
-            int existingIndex = kind == DirectoryChangeKind.Changed
+            int createdIndex = kind == DirectoryChangeKind.Changed
+                ? _changes.FindIndex(change => change.Kind == DirectoryChangeKind.Created &&
+                    LocalFileSystemPathComparer.Current.Equals(change.FullPath, fullPath) &&
+                    tick >= change.Tick && tick - change.Tick <= CreatedChangedCollapseMilliseconds)
+                : -1;
+            int existingIndex = createdIndex >= 0 ? -1 : kind == DirectoryChangeKind.Changed
                 ? _changes.FindIndex(change => change.Kind == DirectoryChangeKind.Changed && LocalFileSystemPathComparer.Current.Equals(change.FullPath, fullPath))
                 : -1;
-            if (existingIndex >= 0)
+            if (createdIndex >= 0)
+            {
+                DirectoryChange created = _changes[createdIndex];
+                _changes[createdIndex] = created with { Timestamp = timestamp };
+            }
+            else if (existingIndex >= 0)
             {
                 DirectoryChange existing = _changes[existingIndex];
                 _changes.RemoveAt(existingIndex);
