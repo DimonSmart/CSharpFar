@@ -67,7 +67,7 @@ public sealed class TerminalInputLabParserTests
         Assert.Equal("Mouse", result.Kind);
         Assert.True(result.IsKnown);
         Assert.Equal("MoveNoButton", result.MouseEvent);
-        Assert.Equal(MouseButton.Left, result.MouseButton);
+        Assert.Equal(MouseButton.None, result.MouseButton);
         Assert.Equal(raw, result.RawBytes);
     }
 

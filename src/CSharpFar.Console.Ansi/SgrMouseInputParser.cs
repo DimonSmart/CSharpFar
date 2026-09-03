@@ -82,13 +82,13 @@ internal static class SgrMouseInputParser
         {
             if (!TryMapButton(buttonCode, out button))
             {
-                if (!motion)
+                if (buttonCode != 3)
                 {
                     error = $"Unsupported SGR mouse button code: {buttonCode}.";
                     return false;
                 }
 
-                button = lastPressedButton;
+                button = motion ? MouseButton.None : lastPressedButton;
             }
 
             kind = motion ? MouseEventKind.Move : MouseEventKind.Down;
