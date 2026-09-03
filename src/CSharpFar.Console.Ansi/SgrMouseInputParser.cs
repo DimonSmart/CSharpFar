@@ -88,7 +88,7 @@ internal static class SgrMouseInputParser
                     return false;
                 }
 
-                button = MouseButton.None;
+                button = lastPressedButton;
             }
 
             kind = motion ? MouseEventKind.Move : MouseEventKind.Down;
